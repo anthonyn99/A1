@@ -328,6 +328,87 @@
   window._fbOnSnap  = (cb, err) => onSnapshot(_wrDocRef, cb, err);
 </script>
 
+<!-- ── ICON REGISTRY ────────────────────────────────────────────────────────
+     One SVG set for BOTH programs. Loaded before either app script so WarRoom
+     and ProView draw from the same shapes rather than each shipping its own.
+
+     Emoji are deliberately absent everywhere in RiftIQ: they render as a
+     different typeface on every OS (and as full-colour cartoons on Windows),
+     which is why the objective row used to look nothing like the rest of the
+     UI. These inherit `currentColor` and the surrounding font-size, so one
+     icon works on a pill, a table row and a 40px empty-state alike.
+
+     wrIco(name, size, extraStyle) -> markup for string-built HTML.
+     wrIcoEl(name, size)           -> a live <svg> node for appendChild code. -->
+<script>
+(function(){
+  var P = {
+    // — status / chrome —
+    close:    '<path d="M18 6 6 18M6 6l12 12"/>',
+    check:    '<path d="m20 6-11 11-5-5"/>',
+    cross:    '<path d="M18 6 6 18M6 6l12 12"/>',
+    warn:     '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/>',
+    wrench:   '<path d="M14.7 6.3a4 4 0 0 0 5 5l-9 9a2.8 2.8 0 1 1-4-4l9-9a4 4 0 0 0-1-1Z"/>',
+    refresh:  '<path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/>',
+    sync:     '<path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/>',
+    arrowR:   '<path d="M5 12h14M13 6l6 6-6 6"/>',
+    arrowL:   '<path d="M19 12H5M11 18l-6-6 6-6"/>',
+    back:     '<path d="M19 12H5M11 18l-6-6 6-6"/>',
+    ret:      '<path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-1"/>',
+    search:   '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+    key:      '<circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 8.3-8.3M17 6l2.5 2.5M14.5 8.5 17 11"/>',
+    lock:     '<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
+    sleep:    '<path d="M4 8h7l-7 8h7"/><path d="M14 4h6l-6 7h6"/>',
+    confused: '<circle cx="12" cy="12" r="9"/><path d="M9 15.5c1.8-1.2 4.2-1.2 6 0M9 9.5h.01M15 9.5h.01"/>',
+    // — ladder / accolades —
+    star:     '<path d="m12 2.8 2.9 5.9 6.5.9-4.7 4.6 1.1 6.5-5.8-3-5.8 3 1.1-6.5L2.6 9.6l6.5-.9Z"/>',
+    trophy:   '<path d="M7 4h10v5a5 5 0 0 1-10 0Z"/><path d="M7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3"/><path d="M10 14h4l.5 5h-5Z"/><path d="M8 21h8"/>',
+    medal:    '<circle cx="12" cy="15" r="5.5"/><path d="M8.5 10 6 2.5h12L15.5 10"/>',
+    flame:    '<path d="M12 22c4 0 6.5-2.6 6.5-6 0-4.5-4.5-6-4.5-10 0 0-2 1.5-2 4 0 1.5-1 2-1.5 2S9 11 9 9c-1.5 1.5-3.5 3.5-3.5 7 0 3.4 2.5 6 6.5 6Z"/>',
+    sparkle:  '<path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8Z"/><path d="M18.5 15.5 19 17l1.5.5L19 18l-.5 1.5L18 18l-1.5-.5L18 17Z"/>',
+    // — objectives (match history + live) —
+    dragon:   '<path d="M3 8c3-2 6-1 7.5 1L14 6l1-3 2 3 4 1-2.5 2.5c.7 3-.5 6-3.5 7.5L14 21l-3-4c-4 0-7-2.5-8-6Z"/><path d="M8.5 10h.01"/>',
+    grub:     '<path d="M6 12a6 4.5 0 0 1 12 0c0 3.5-2.7 6-6 6s-6-2.5-6-6Z"/><path d="M9 5.5 10.5 9M15 5.5 13.5 9M9.5 12h.01M14.5 12h.01"/>',
+    baron:    '<path d="M4 13c0-4.4 3.6-8 8-8s8 3.6 8 8-3.6 7-8 7-8-2.6-8-7Z"/><path d="M9 11h.01M15 11h.01M9 15.5c1.8 1.2 4.2 1.2 6 0"/>',
+    herald:   '<path d="M4 9 12 4l8 5"/><path d="M6 9v9M10 9v9M14 9v9M18 9v9"/><path d="M3.5 21h17"/>',
+    tower:    '<path d="M8 21V8l4-5 4 5v13"/><path d="M6 8h12"/><path d="M12 12v4"/><path d="M5.5 21h13"/>',
+    inhib:    '<path d="M12 2.5 19 7v6.5c0 4-3 6.7-7 8-4-1.3-7-4-7-8V7Z"/><path d="M12 8v7M9 11h6"/>',
+    skull:    '<path d="M5 11a7 7 0 1 1 14 0v3.5l-1.5 1V19h-11v-3.5L5 14.5Z"/><path d="M9.5 11h.01M14.5 11h.01"/>',
+    swords:   '<path d="m4 4 8 8M2.5 6.5 6.5 2.5M14 14l6 6M21.5 17.5 17.5 21.5"/><path d="m20 4-8 8M17.5 2.5l4 4M10 14l-6 6M2.5 17.5l4 4"/>',
+    crown:    '<path d="m3 8 3.5 3L12 5l5.5 6L21 8l-2 11H5Z"/><path d="M5 19h14"/>',
+    turret:   '<path d="M5 21V9l3.5-2V4h7v3L19 9v12Z"/><path d="M9 21v-5h6v5"/><path d="M3.5 21h17"/>',
+    burst:    '<path d="m12 2 2.4 5.6L20 5l-2.6 5.6L23 13l-5.6 2.4L20 21l-5.6-2.6L12 24l-2.4-5.6L4 21l2.6-5.6L1 13l5.6-2.4L4 5l5.6 2.6Z"/>',
+    gamepad:  '<rect x="2" y="7" width="20" height="10" rx="4"/><path d="M7 10v4M5 12h4M15.5 11h.01M18 13.5h.01"/>',
+    brick:    '<rect x="3" y="5" width="18" height="6" rx="1"/><rect x="3" y="13" width="18" height="6" rx="1"/><path d="M11 5v6M14 13v6"/>',
+    // — misc —
+    hourglass:'<path d="M7 3h10M7 21h10"/><path d="M8 3v4.5l4 4.5 4-4.5V3M8 21v-4.5l4-4.5 4 4.5V21"/>',
+    dot:      '<circle cx="12" cy="12" r="6"/>',
+    plus:     '<path d="M12 5v14M5 12h14"/>'
+  };
+  // Icons drawn as outlines vs solid shapes. Solid ones read better at pill size.
+  var FILLED = { star:1, medal:1, flame:1, sparkle:1, dot:1, crown:1, burst:1, skull:1, dragon:1, grub:1, baron:1, inhib:1 };
+
+  function svg(name, size, extra){
+    var d = P[name]; if (!d) return '';
+    var s = size || 16;
+    var paint = FILLED[name]
+      ? 'fill="currentColor" stroke="none"'
+      : 'fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"';
+    return '<svg viewBox="0 0 24 24" width="' + s + '" height="' + s + '" ' + paint +
+           ' aria-hidden="true" focusable="false" style="display:inline-block;vertical-align:-0.15em;flex-shrink:0;' +
+           (extra || '') + '">' + d + '</svg>';
+  }
+  window.wrIco = svg;
+  window.wrIcoNames = function(){ return Object.keys(P); };
+  window.wrIcoEl = function(name, size, extra){
+    var w = document.createElement('span');
+    w.style.cssText = 'display:inline-flex;align-items:center;';
+    w.innerHTML = svg(name, size, extra);
+    return w.firstChild || w;
+  };
+})();
+</script>
+
 <style>
 /* ══ PALETTE ═══════════════════════════════════════════════════════════════
    The A1 suite design system — warm charcoal surfaces, warm neutral text, and
@@ -444,13 +525,14 @@ body { cursor: default; }
 .hdr-btn:hover { border-color: var(--gold); color: var(--gold); }
 
 /* Header lock toggle — dim when RiftIQ is unlocked, lit when locked. */
+/* One outline shared by every control in the top-right cluster. */
 #wr-lock-btn {
   height: 30px; width: 30px; flex-shrink: 0;
   display: inline-flex; align-items: center; justify-content: center;
-  background: transparent; border: 1px solid var(--bd2); border-radius: 6px;
-  color: var(--tx2); cursor: pointer; opacity: 0.55; transition: all 0.15s;
+  background: transparent; border: 1px solid rgba(192,174,234,.30); border-radius: 7px;
+  color: var(--tx2); cursor: pointer; opacity: .8; transition: border-color .18s, color .18s, box-shadow .18s, opacity .18s;
 }
-#wr-lock-btn:hover { border-color: var(--gold); color: var(--gold); opacity: 1; }
+#wr-lock-btn:hover { opacity: 1; }
 #wr-lock-btn svg { width: 15px; height: 15px; display: block; }
 
 /* ── MAIN CONTENT ── */
@@ -491,7 +573,7 @@ body.wr-locked #wr-progbar { display: none !important; }
 #applock-icon{line-height:0;color:var(--gold);}
 #applock-icon svg{width:30px;height:30px;display:block;}
 #applock-title{font-family:var(--head);font-size:25px;font-weight:800;letter-spacing:-.4px;color:var(--tx);}
-#applock-sub{font-family:var(--mono);font-size:10.5px;letter-spacing:2px;text-transform:uppercase;color:var(--tx3);text-align:center;line-height:1.6;}
+#applock-sub{font-family:var(--mono);font-size:11.5px;letter-spacing:.4px;color:var(--tx3);text-align:center;line-height:1.6;}
 #applock-pw{background:var(--bg2);border:1px solid var(--bd2);border-radius:7px;color:var(--tx);font-size:16px;font-weight:500;
   padding:14px 16px;font-family:var(--body);outline:none;width:100%;text-align:center;letter-spacing:4px;box-sizing:border-box;transition:border-color .18s;}
 #applock-pw:focus{border-color:var(--gold);}
@@ -584,7 +666,7 @@ body.wr-locked #wr-progbar { display: none !important; }
 
 .pp-kicker {
   font-family: var(--mono); font-size: 10px; font-weight: 700;
-  letter-spacing: 1.6px; text-transform: uppercase; color: var(--tx3);
+  letter-spacing: 1.2px; color: var(--tx3);
 }
 .pp-name {
   font-family: var(--head); font-size: 23px; font-weight: 800; letter-spacing: -0.4px;
@@ -626,36 +708,51 @@ body.wr-locked #wr-progbar { display: none !important; }
   padding: 0 clamp(12px, 2vw, 24px);
 }
 #wr-progbar-mark {
-  font-family: var(--head); font-size: 17px; font-weight: 800;
-  letter-spacing: -0.3px; white-space: nowrap;
+  font-family: var(--head); font-size: 20px; font-weight: 800;
+  letter-spacing: -0.5px; white-space: nowrap; line-height: 1;
 }
+/* 'Pro' takes the gradient, 'View' stays solid — the mirror of WarRoom, where
+   'War' glows and 'Room' does not. Same treatment, same size, opposite half. */
+#wr-progbar-mark .pv-w1 {
+  background: linear-gradient(135deg,#c0aeea,#dbd0f5);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+}
+#wr-progbar-mark .pv-w2 { color: var(--tx); }
+#wr-progbar-brand { display: flex; flex-direction: column; gap: 2px; justify-content: center; }
 /* Written to by the fb-pv-* listeners inside the ProView module. */
 #pv-sync-indicator {
-  font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: .5px;
-  color: var(--gold); opacity: 0; transition: opacity .3s; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--mono); font-size: 9.5px; font-weight: 600; letter-spacing: 1.1px;
+  color: var(--tx3); opacity: 0; transition: opacity .4s; white-space: nowrap; min-height: 12px;
 }
+#pv-sync-indicator::before {
+  content: ''; width: 5px; height: 5px; border-radius: 50%;
+  background: currentColor; flex-shrink: 0;
+}
+#pv-sync-indicator.syncing::before { animation: wrsyncpulse 1.1s ease-in-out infinite; }
 #wr-progbar-lock {
-  height: 28px; width: 28px; flex-shrink: 0;
+  height: 30px; width: 30px; flex-shrink: 0;
   display: inline-flex; align-items: center; justify-content: center;
-  background: transparent; border: 1px solid var(--bd2); border-radius: 6px;
-  color: var(--tx2); cursor: pointer; opacity: 0.55; transition: all .15s;
+  background: transparent; border: 1px solid rgba(192,174,234,.30); border-radius: 7px;
+  color: var(--tx2); cursor: pointer; opacity: .8;
+  transition: border-color .18s, color .18s, box-shadow .18s, opacity .18s;
 }
-#wr-progbar-lock:hover { border-color: var(--gold); color: var(--gold); opacity: 1; }
+#wr-progbar-lock:hover {
+  opacity: 1; color: var(--gold2); border-color: rgba(192,174,234,.6);
+  box-shadow: 0 0 0 1px rgba(192,174,234,.14), 0 0 12px rgba(192,174,234,.14);
+}
 #wr-progbar-lock svg { width: 14px; height: 14px; display: block; }
 
 /* Swap button — same control in both programs' headers. */
-.wr-swap-btn {
-  height: 28px; padding: 0 11px; flex-shrink: 0;
-  display: inline-flex; align-items: center; gap: 6px;
-  background: transparent; border: 1px solid rgba(192,174,234,.35); border-radius: 6px;
-  color: var(--gold); font-family: var(--mono); font-size: 11px; font-weight: 700;
-  letter-spacing: .3px; cursor: pointer; white-space: nowrap;
-  transition: border-color .15s, color .15s, box-shadow .15s;
+.wr-swap-btn, #patch-notes-link.profile-action-btn {
+  height: 30px; padding: 0 13px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  background: transparent; border: 1px solid rgba(192,174,234,.30); border-radius: 7px;
+  color: var(--tx2); font-family: var(--mono); font-size: 11px; font-weight: 600;
+  letter-spacing: .3px; cursor: pointer; white-space: nowrap; text-decoration: none;
+  transition: border-color .18s, color .18s, box-shadow .18s;
 }
-.wr-swap-btn:hover {
-  border-color: var(--gold); color: var(--gold2);
-  box-shadow: 0 0 8px rgba(192,174,234,.35), 0 0 0 1px rgba(192,174,234,.14);
-}
+@media (max-width: 600px) { #patch-notes-link.profile-action-btn { padding: 0 10px; font-size: 10px; } }
 @media (max-width: 600px) { .wr-swap-btn { padding: 0 9px; font-size: 10px; gap: 4px; } }
 
 /* ── SETUP MODAL ── */
@@ -747,6 +844,94 @@ body.wr-locked #wr-progbar { display: none !important; }
   outline: none; transition: border-color 0.15s;
 }
 .setup-input:focus { border-color: var(--gold); }
+
+/* ══ BUTTONS ══════════════════════════════════════════════════════════════
+   ONE rule for the whole program: a button is an outline. Selected and primary
+   states differ by how brightly that outline GLOWS, never by filling the button
+   with accent colour. A filled purple block next to the accent-purple text and
+   accent-purple borders everywhere else read as a different design language,
+   and on the item-category row it made the selected chip the loudest thing on
+   a screen full of item art. Glow carries the same signal at a fraction of the
+   visual weight, and it works identically on both themes of surface. */
+.wr-cta, .btn-primary {
+  background: transparent !important;
+  border: 1px solid rgba(192,174,234,.45) !important;
+  color: var(--gold2) !important;
+  transition: border-color .18s, box-shadow .18s, color .18s;
+}
+.wr-cta:hover, .btn-primary:hover,
+.wr-cta:focus-visible, .btn-primary:focus-visible {
+  border-color: var(--gold) !important;
+  box-shadow: 0 0 0 1px rgba(192,174,234,.22), 0 0 14px rgba(192,174,234,.20);
+}
+.wr-cta:disabled, .btn-primary:disabled { opacity: .45; box-shadow: none; cursor: default; }
+
+/* Every interactive chrome element picks up the same glow on hover, so the
+   whole program answers the pointer the same way. */
+.profile-action-btn, .wr-swap-btn, .btn-ghost, .filter-chip, .lb-pill,
+.setup-shortcut, .setup-shortcut-add, #patch-notes-link, #wr-lock-btn, .tab-btn {
+  transition: border-color .18s, box-shadow .18s, color .18s, background .18s;
+}
+.profile-action-btn:hover, .wr-swap-btn:hover, .btn-ghost:hover,
+.setup-shortcut:hover, .setup-shortcut-add:hover, #patch-notes-link:hover,
+#wr-lock-btn:hover {
+  border-color: rgba(192,174,234,.6) !important;
+  color: var(--gold2);
+  box-shadow: 0 0 0 1px rgba(192,174,234,.14), 0 0 12px rgba(192,174,234,.14);
+}
+
+/* The setup screen's two fields are one control visually, so they must be the
+   same height — the name box used to come out shorter than the #tag box because
+   only one of them counted its border in that height. */
+/* ══ SYNC INDICATOR ═══════════════════════════════════════════════════════
+   Driven by real Firestore activity, the same contract Insight uses: every
+   write is wrapped so the pill tracks it end to end. "Synced" fades after a
+   couple of seconds; "Sync failed" HANGS until the next success, because a
+   silent failure is the one state you must not be able to miss. */
+#topbar-logo { display: flex; flex-direction: column; gap: 2px; justify-content: center; }
+#topbar-logo .tb-word { line-height: 1; white-space: nowrap; }
+#topbar-logo .tb-w1 {
+  background: linear-gradient(135deg,#c0aeea,#dbd0f5);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  font-weight: 800; letter-spacing: -.5px; font-size: 20px;
+}
+#topbar-logo .tb-w2 { color: var(--tx); font-weight: 800; letter-spacing: -.5px; font-size: 20px; }
+.syncind {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: 1.1px; color: var(--tx3);
+  min-height: 12px; opacity: 0; transition: opacity .4s ease; pointer-events: none;
+}
+.syncind.show { opacity: 1; }
+.syncind .sdot { width: 5px; height: 5px; border-radius: 50%; background: var(--tx3); transition: background .3s; flex-shrink: 0; }
+.syncind.syncing .sdot { background: var(--gold); animation: wrsyncpulse 1.1s ease-in-out infinite; }
+.syncind.synced { color: var(--green); } .syncind.synced .sdot { background: var(--green); }
+.syncind.failed { color: var(--red); }   .syncind.failed .sdot { background: var(--red); }
+@keyframes wrsyncpulse { 0%,100% { opacity:.3; } 50% { opacity:1; } }
+
+/* Drag-to-reorder on the tab strip. `manipulation` keeps the browser's own
+   horizontal panning on touch while dropping the 300ms tap delay; a reorder
+   only arms on a long press, so an ordinary swipe still scrolls the strip. */
+.tab-btn { touch-action: manipulation; }
+.tab-btn.navdrag {
+  z-index: 5; cursor: grabbing; opacity: .97;
+  border-color: var(--gold) !important; color: var(--gold2) !important;
+  box-shadow: 0 10px 26px rgba(0,0,0,.45);
+}
+.setup-input, .tag-input-wrap, .setup-select { box-sizing: border-box; }
+.setup-input, .setup-select { height: 46px; }
+.tag-input-wrap { height: 46px; }
+.tag-input-wrap .setup-input { height: 100%; }
+.setup-input::placeholder { color: var(--tx4, rgba(141,141,148,.62)); }
+/* Placeholders are hints, not content — they sit a step below the dimmest real
+   text so an empty field never reads as a filled one. */
+#spectate-name::placeholder, #spectate-tag::placeholder,
+#lb-search::placeholder, #item-search::placeholder, .setup-input::placeholder {
+  color: rgba(141,141,148,.55); opacity: 1;
+}
+@media (max-width: 620px) {
+  .setup-input, .setup-select, .tag-input-wrap { height: 50px; }
+  .tag-input-wrap { max-width: 100% !important; }
+}
 .setup-input::placeholder { color: var(--tx3); }
 .tag-input-wrap:focus-within { border-color: var(--gold) !important; }
 .setup-select {
@@ -757,10 +942,10 @@ body.wr-locked #wr-progbar { display: none !important; }
   outline: none; cursor: pointer;
 }
 .btn-primary {
-  width: 100%; height: 42px;
-  background: var(--gold);
-  border: none; border-radius: 6px;
-  color: #fff;
+  width: 100%; height: 46px;
+  background: transparent;
+  border: 1px solid rgba(192,174,234,.45); border-radius: 6px;
+  color: var(--gold2);
   font-family: var(--body); font-size: 14px; font-weight: 700;
   letter-spacing: 0.5px;
   cursor: pointer; transition: all 0.15s;
@@ -1040,22 +1225,43 @@ body.wr-locked #wr-progbar { display: none !important; }
 }
 .match-wrap.expanded { border-color: var(--bd2); }
 
-/* objectives bar */
+/* Match summary + per-team objective strips.
+   The objective counts used to live in ONE 3-column bar shared by both teams,
+   which is what pushed them off-screen on a phone. Each team now carries its own
+   wrapping strip in a caption above its players, so a narrow screen reflows to a
+   second line instead of overflowing, and you can tell at a glance which side
+   took which objective without tracing across the card. */
 .obj-bar {
-  display: grid; grid-template-columns: 1fr auto 1fr;
-  align-items: center; gap: 0;
-  background: var(--bg); padding: 8px 16px;
+  display: flex; justify-content: center;
+  background: var(--bg); padding: 12px 16px;
   border-bottom: 1px solid var(--bd);
 }
-.obj-side { display: flex; align-items: center; gap: 10px; }
-.obj-side.right { justify-content: flex-end; }
-.obj-pill {
-  display: flex; align-items: center; gap: 5px;
-  font-family: var(--mono); font-size: 13px; font-weight: 600;
+.obj-center .oc-meta { font-family: var(--mono); font-size: 12px; color: var(--tx3); margin-top: 5px; }
+.team-head {
+  padding: 9px 14px !important; text-align: left;
+  background: var(--bg2); border-bottom: 1px solid var(--bd);
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px 18px; flex-wrap: wrap;
 }
-.obj-pill .op-icon { font-size: 18px; }
-.obj-pill .op-val { color: var(--tx); font-weight: 600; }
-.obj-pill .op-label { color: var(--tx3); }
+.team-head .th-side {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--body); font-size: 14px; font-weight: 700; white-space: nowrap;
+}
+.team-objs { display: flex; align-items: center; gap: 4px 14px; flex-wrap: wrap; }
+.obj-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--mono); font-size: 12px; font-weight: 600; white-space: nowrap;
+}
+.obj-pill .op-icon { display: inline-flex; color: var(--tx3); }
+.obj-pill .op-val { color: var(--tx); font-weight: 700; }
+.obj-pill .op-label { color: var(--tx3); font-weight: 500; }
+@media (max-width: 700px) {
+  /* Phones: the strip owns its own line under the side name, and the labels
+     shrink rather than wrapping mid-pill. */
+  .team-head { gap: 7px; }
+  .team-objs { width: 100%; justify-content: flex-start; gap: 4px 12px; }
+  .obj-pill { font-size: 11px; }
+}
 .obj-center { text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
 .obj-center .oc-kills { font-family: var(--head); font-size: 32px; font-weight: 800; letter-spacing: -0.5px; }
 .obj-center .oc-kills .bk { color: var(--blue); }
@@ -1160,12 +1366,12 @@ body.wr-locked #wr-progbar { display: none !important; }
 .builds-champ-hdr .champ-role { font-family: var(--mono); font-size: 12px; color: var(--tx3); margin-top: 2px; }
 .builds-champ-hdr .add-build-btn {
   margin-left: auto; height: 34px; padding: 0 16px;
-  background: var(--gold); border: none; border-radius: 4px;
-  color: #141416; font-family: var(--mono); font-size: 12px; font-weight: 700;
+  background: transparent; border: 1px solid rgba(192,174,234,.45); border-radius: 4px;
+  color: var(--gold2); font-family: var(--mono); font-size: 12px; font-weight: 700;
   letter-spacing: 0.3px;
   cursor: pointer; transition: background 0.15s;
 }
-.builds-champ-hdr .add-build-btn:hover { background: var(--gold2); }
+.builds-champ-hdr .add-build-btn:hover { border-color: var(--gold); box-shadow: 0 0 0 1px rgba(192,174,234,.2), 0 0 12px rgba(192,174,234,.18); }
 
 .build-card {
   background: var(--bg3); border: 1px solid var(--bd);
@@ -1258,9 +1464,9 @@ body.wr-locked #wr-progbar { display: none !important; }
 }
 .btn-cancel:hover { border-color: var(--tx2); color: var(--tx); box-shadow: 0 0 8px rgba(244,243,240,.12), 0 0 0 1px rgba(244,243,240,.08); }
 .btn-save {
-  flex: 2; height: 38px; background: var(--gold);
-  border: none; border-radius: 4px;
-  color: #141416; font-family: var(--mono); font-size: 12px;
+  flex: 2; height: 38px; background: transparent;
+  border: 1px solid rgba(192,174,234,.45); border-radius: 4px;
+  color: var(--gold2); font-family: var(--mono); font-size: 12px;
   font-weight: 700; letter-spacing: 0.3px;
   cursor: pointer; transition: background 0.15s;
 }
@@ -1432,7 +1638,11 @@ body.wr-locked #wr-progbar { display: none !important; }
   color: var(--tx2); font-family: var(--mono); font-size: 12px;
   cursor: pointer; transition: all 0.15s; white-space: nowrap;
 }
-.filter-chip:hover, .filter-chip.active { border-color: var(--gold); color: var(--gold); background: rgba(192,174,234,0.1); }
+.filter-chip:hover { border-color: rgba(192,174,234,.6); color: var(--gold2); }
+.filter-chip.active {
+  border-color: var(--gold); color: var(--gold2); background: transparent;
+  box-shadow: 0 0 0 1px rgba(192,174,234,.22), 0 0 12px rgba(192,174,234,.18);
+}
 .items-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
@@ -1773,6 +1983,66 @@ input:-webkit-autofill:active {
 .profile-layout  { display: flex; flex-direction: column; gap: 20px; }
 .profile-sidebar { display: flex; flex-direction: column; gap: 0; min-width: 0; }
 .profile-main    { min-width: 0; }
+
+/* Stats and "Recently Played With" are both summaries OF the match list, so
+   they belong on one row above it rather than in different columns. Stacks
+   below 1100px, where two columns of this would be too narrow to read. */
+.pf-toprow { display: flex; flex-direction: column; gap: 16px; }
+.pf-toprow > * { min-width: 0; }
+@media (min-width: 1100px) {
+  .pf-toprow { display: grid; grid-template-columns: minmax(0,1.35fr) minmax(0,1fr); gap: 20px; align-items: start; }
+  .pf-toprow .recent-players { margin-bottom: 0; }
+}
+
+/* Region under the name — quiet, so it reads as metadata rather than a second
+   line of the identity. */
+.summoner-header .sh-region {
+  font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 1px;
+  color: var(--tx3); margin-top: 3px;
+}
+
+/* ══ MASTERY OVERLAY ══════════════════════════════════════════════════════ */
+#mastery-overlay {
+  display: none; position: fixed; inset: 0; z-index: 1400;
+  background: rgba(10,10,12,.72); backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px);
+  align-items: center; justify-content: center; padding: 24px;
+}
+#mastery-overlay-card {
+  display: flex; flex-direction: column;
+  width: min(980px, 100%); max-height: min(820px, calc(100dvh - 48px));
+  background: var(--bg2); border: 1px solid var(--bd2); border-radius: 14px;
+  box-shadow: 0 30px 80px rgba(0,0,0,.6); overflow: hidden;
+}
+#mastery-overlay-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+  padding: 18px 20px 14px; border-bottom: 1px solid var(--bd); flex-shrink: 0;
+}
+#mastery-overlay-head .mo-title { font-family: var(--head); font-size: 19px; font-weight: 800; letter-spacing: -.3px; color: var(--tx); }
+#mastery-overlay-head .mo-count { font-family: var(--mono); font-size: 12px; color: var(--tx3); margin-top: 3px; }
+#mastery-overlay-close {
+  height: 34px; width: 34px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: 1px solid var(--bd2); border-radius: 8px;
+  color: var(--tx2); cursor: pointer; transition: border-color .18s, color .18s, box-shadow .18s;
+}
+#mastery-overlay-close:hover {
+  border-color: rgba(192,174,234,.6); color: var(--gold2);
+  box-shadow: 0 0 0 1px rgba(192,174,234,.14), 0 0 12px rgba(192,174,234,.14);
+}
+#mastery-overlay-body {
+  overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  padding: 18px 20px 22px; flex: 1; min-height: 0;
+}
+#mastery-overlay-body .mastery-grid { margin-bottom: 0; }
+@media (max-width: 700px) {
+  /* Phone: a full-bleed sheet, and the close button gets a real touch target. */
+  #mastery-overlay { padding: 0; align-items: stretch; }
+  #mastery-overlay-card { width: 100%; max-height: 100dvh; border-radius: 0; border: none; }
+  #mastery-overlay-head { padding: calc(env(safe-area-inset-top, 0px) + 14px) 16px 12px; }
+  #mastery-overlay-close { height: 40px; width: 40px; }
+  #mastery-overlay-body { padding: 14px 16px calc(env(safe-area-inset-bottom, 0px) + 20px); }
+  #mastery-overlay-body .mastery-grid { grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 8px; }
+}
 @media (min-width: 1200px) {
   .profile-layout {
     display: grid;
@@ -1987,9 +2257,11 @@ input:-webkit-autofill:active {
      no longer matches the visible columns. */
   .dp-team-table { table-layout: auto !important; min-width: 520px; font-size: 12px; }
   .dp-team-table th, .dp-team-table td { padding-left: 6px !important; padding-right: 6px !important; }
+  /* Gold was inserted after DMG, so vision moved from column 6 to 7 — hiding 6
+     would now drop the gold figure instead of the one we meant to drop. */
   .dp-team-table th:nth-child(2), .dp-team-table td:nth-child(2),
   .dp-team-table th:nth-child(3), .dp-team-table td:nth-child(3),
-  .dp-team-table th:nth-child(6), .dp-team-table td:nth-child(6) { display: none; }
+  .dp-team-table th:nth-child(7), .dp-team-table td:nth-child(7) { display: none; }
 
   .dp-row {
     grid-template-columns: 150px 110px 74px 44px 1fr !important;
@@ -2087,7 +2359,23 @@ input:-webkit-autofill:active {
    LEADERBOARD
 ══════════════════════════════════════ */
 #leaderboard-panel { display: none; }
+/* The ladder is five short columns; stretched across a 27" monitor the eye has
+   to travel the full width to pair a name with its LP. Capping the measure and
+   centring keeps the row scannable without changing anything on a laptop. */
 #leaderboard-panel.active { display: block; padding: 24px; }
+#leaderboard-panel > * { max-width: 1080px; margin-left: auto; margin-right: auto; }
+
+/* Pro badge — soft pink. It has to read as a different KIND of thing from the
+   lavender accent (which means 'selected' everywhere else in the program), so
+   it borrows the palette's warm side rather than another shade of purple. */
+.pro-tag {
+  display: inline-flex; align-items: center;
+  margin-left: 6px; padding: 1px 6px 2px; border-radius: 4px;
+  font-family: var(--mono); font-size: 9.5px; font-weight: 700; letter-spacing: .6px;
+  color: #e7a6b4; background: rgba(231,166,180,.10);
+  border: 1px solid rgba(231,166,180,.34);
+  vertical-align: middle; white-space: nowrap; cursor: help;
+}
 
 .lb-pill {
   height: 30px; padding: 0 15px;
@@ -2104,10 +2392,10 @@ input:-webkit-autofill:active {
   box-shadow: 0 0 0 1px rgba(192,174,234,0.15), 0 0 10px rgba(192,174,234,0.08);
 }
 .lb-pill.active {
-  background: rgba(192,174,234,0.15);
-  border-color: rgba(192,174,234,0.55);
+  background: transparent;
+  border-color: var(--gold);
   color: var(--gold2);
-  box-shadow: 0 0 0 1px rgba(192,174,234,0.12);
+  box-shadow: 0 0 0 1px rgba(192,174,234,.22), 0 0 12px rgba(192,174,234,.18);
 }
 
 
@@ -2207,14 +2495,32 @@ input:-webkit-autofill:active {
 
 <!-- ProView's own root. It paints a fixed full-viewport surface under the
      program bar below, exactly as it did under index.html's nav. -->
+<!-- Full mastery list. Opened from the sidebar's "Show all" button; the grid is
+     built on open and thrown away on close so 125 champion icons are not sitting
+     in the DOM for a panel nobody has opened. -->
+<div id="mastery-overlay" onclick="if(event.target===this)closeMasteryOverlay()">
+  <div id="mastery-overlay-card">
+    <div id="mastery-overlay-head">
+      <div>
+        <div class="mo-title">Champion mastery</div>
+        <div class="mo-count" id="mastery-overlay-count"></div>
+      </div>
+      <button id="mastery-overlay-close" onclick="closeMasteryOverlay()" aria-label="Close"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div id="mastery-overlay-body"></div>
+  </div>
+</div>
+
 <div id="pv-root" style="position:fixed;inset:0;overflow:hidden;display:none;"></div>
 
 <!-- Program bar — shown only while ProView is on screen (WarRoom uses its own
      #topbar). Fixed 48px, which is the height ProView's layout already reserves. -->
 <div id="wr-progbar">
   <div id="wr-progbar-inner">
-    <span id="wr-progbar-mark"><span style="color:var(--tx);">Pro</span><span style="color:var(--gold);">View</span></span>
-    <span id="pv-sync-indicator"></span>
+    <span id="wr-progbar-brand">
+      <span id="wr-progbar-mark"><span class="pv-w1">Pro</span><span class="pv-w2">View</span></span>
+      <span id="pv-sync-indicator"></span>
+    </span>
     <span style="flex:1"></span>
     <button class="wr-swap-btn" onclick="openProgram('warroom')" title="Switch to WarRoom">
       <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg>
@@ -2312,7 +2618,10 @@ input:-webkit-autofill:active {
 <!-- ── MAIN APP ── -->
 <div id="app" style="display:none">
   <div id="topbar">
-    <div id="topbar-logo"><span style="background:linear-gradient(135deg,#c0aeea,#dbd0f5);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;font-weight:800;letter-spacing:-0.5px;font-size:20px;">War</span><span style="color:var(--tx);font-weight:800;letter-spacing:-0.5px;font-size:20px;">Room</span></div>
+    <div id="topbar-logo">
+      <div class="tb-word"><span class="tb-w1">War</span><span class="tb-w2">Room</span></div>
+      <div class="syncind" id="wrSyncInd"><span class="sdot"></span><span id="wrSyncTxt"></span></div>
+    </div>
     <!-- Tab strip lives in its own scroller. On phones and tablets it drops to a
          second row so the status pill and the lock button on row 1 stay reachable;
          they used to sit past the right edge of a single horizontally-scrolling
@@ -2440,7 +2749,7 @@ input:-webkit-autofill:active {
             <input id="spectate-name" placeholder="Summoner name" autocomplete="off" onkeydown="if(event.key==='Enter')lookupSpectate()" style="width:100%;height:44px;padding:0 40px 0 18px;background:var(--bg3);border:1px solid var(--bd2);border-radius:8px;color:var(--tx);font-family:var(--body);font-size:15px;outline:none;box-sizing:border-box;">
             <button onclick="clearInput('spectate-name',null)" class="input-clear-btn" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--tx3);font-size:16px;cursor:pointer;padding:0;line-height:1;">&#x2715;</button>
           </div>
-          <input id="spectate-tag" placeholder="#TAG" autocomplete="off" onkeydown="if(event.key==='Enter')lookupSpectate()" style="width:90px;height:44px;padding:0 12px;background:var(--bg3);border:1px solid var(--bd2);border-radius:8px;color:var(--tx);font-family:var(--body);font-size:15px;outline:none;">
+          <input id="spectate-tag" placeholder="#Tag" autocomplete="off" onkeydown="if(event.key==='Enter')lookupSpectate()" style="width:90px;height:44px;padding:0 12px;background:var(--bg3);border:1px solid var(--bd2);border-radius:8px;color:var(--tx);font-family:var(--body);font-size:15px;outline:none;">
           <select id="spectate-region" style="height:44px;padding:0 12px;background:var(--bg3);border:1px solid var(--bd2);border-radius:8px;color:var(--tx);font-family:var(--mono);font-size:12px;outline:none;cursor:pointer;">
             <option value="americas">NA</option>
             <option value="americas">BR</option>
@@ -2459,7 +2768,7 @@ input:-webkit-autofill:active {
             <option value="sea">TW</option>
             <option value="sea">VN</option>
           </select>
-          <button onclick="lookupSpectate()" style="height:44px;padding:0 22px;background:var(--gold);border:none;border-radius:8px;color:#fff;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;letter-spacing:0.2px;white-space:nowrap;">Check Game</button>
+          <button onclick="lookupSpectate()" class="wr-cta" style="height:44px;padding:0 22px;background:transparent;border:1px solid rgba(192,174,234,.45);border-radius:8px;color:var(--gold2);font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;letter-spacing:0.2px;white-space:nowrap;">Check Game</button>
         </div>
 
         <div id="spectate-result"></div>
@@ -2478,7 +2787,7 @@ input:-webkit-autofill:active {
         <button id="live-toggle-btn" onclick="toggleLiveWatch()" style="height:34px;padding:0 18px;background:var(--green);border:none;border-radius:7px;color:#fff;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;letter-spacing:0.2px;flex-shrink:0;">▶ Start</button>
       </div>
       <div id="live-cert-warning" style="display:none;margin-bottom:12px;padding:10px 14px;background:rgba(192,174,234,0.08);border:1px solid rgba(192,174,234,0.2);border-radius:8px;font-family:var(--mono);font-size:11px;color:var(--tx2);line-height:1.7;">
-        ⚠️ No live data. One-time setup: double-click <code style="color:var(--gold2);">setup-live-link.bat</code> once (needs <a href="https://nodejs.org" target="_blank" style="color:var(--gold);">Node.js</a>). Live Link then runs hidden at every login — no window, never again.<br>
+        <span style="color:var(--gold);">&#9888;</span> No live data. One-time setup: double-click <code style="color:var(--gold2);">setup-live-link.bat</code> once (needs <a href="https://nodejs.org" target="_blank" style="color:var(--gold);">Node.js</a>). Live Link then runs hidden at every login — no window, never again.<br>
         In a game? Press START. If Chrome asks about "local network", click Allow.
       </div>
       <!-- Live data injected here -->
@@ -2534,7 +2843,7 @@ input:-webkit-autofill:active {
             style="height:32px;padding:0 32px 0 14px;background:var(--bg3);border:1px solid var(--bd2);border-radius:20px;color:var(--tx);font-family:var(--body);font-size:12px;font-weight:500;outline:none;width:170px;transition:all 0.2s ease;letter-spacing:0.2px;"
             onfocus="this.style.borderColor='rgba(192,174,234,0.6)';this.style.boxShadow='0 0 0 1px rgba(192,174,234,0.12)'"
             onblur="this.style.borderColor='var(--bd2)';this.style.boxShadow='none'">
-          <button onclick="document.getElementById('lb-search').value='';filterLeaderboard('')" class="input-clear-btn" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--tx3);font-size:12px;cursor:pointer;line-height:1;padding:0;transition:color 0.15s;" onmouseover="this.style.color='var(--tx)'" onmouseout="this.style.color='var(--tx3)'">✕</button>
+          <button onclick="document.getElementById('lb-search').value='';filterLeaderboard('')" class="input-clear-btn" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--tx3);font-size:12px;cursor:pointer;line-height:1;padding:0;transition:color 0.15s;" onmouseover="this.style.color='var(--tx)'" onmouseout="this.style.color='var(--tx3)'"'+wrIco('close',15)+'</button>
         </div>
       </div>
       <!-- Table -->
@@ -2584,12 +2893,31 @@ let   DDRAGON_VER= '16.11.1'; // updated on init
 // STATE
 // ══════════════════════════════════════
 let db, summoner = {}, allChamps = {}, allItems = {};
-let allMatches = [], displayedMatches = 10, allMastery = [], masteryPage = 0;
+let allMatches = [], displayedMatches = 10, allMastery = [];
 // builds state vars declared in TAB 2 section below
 let liveWatching = false, liveUnsub = null;
 let selectedBuildItems = [];
 let allSummonerSpells = [], allRuneData = [], allItemsData = [];
 let spellsLoaded = false, runesLoaded = false, allSpellsData = [];
+
+// The patch the reference data in memory was built from.
+var _wrDataPatch = null;
+// Called once the live DDragon version is known. Clearing the arrays is enough:
+// each tab's loader refetches from the (now new) DDRAGON base the next time it
+// is opened, and the profile/live code reads the same arrays.
+function wrInvalidateOnPatchChange(ver) {
+  if (!ver) return;
+  if (_wrDataPatch === ver) return;
+  var had = _wrDataPatch !== null;
+  _wrDataPatch = ver;
+  if (!had) return;                 // first resolve of the session: nothing stale yet
+  allChamps = {}; allItems = {}; allItemsData = [];
+  allSummonerSpells = []; allRuneData = []; allSpellsData = [];
+  champListLoaded = false; itemsLoaded = false;
+  spellsLoaded = false; runesLoaded = false;
+  spellsTabLoaded = false; runesTabLoaded = false;
+  console.log('[WarRoom] patch changed to ' + ver + ' — reference data cleared');
+}
 
 // ══════════════════════════════════════
 // INIT
@@ -2624,6 +2952,10 @@ async function init() {
   } catch(e) {
     console.log('DDragon version: using bundled fallback', DDRAGON_VER);
   }
+  // A new patch invalidates every cached reference list. Without this the app
+  // keeps last patch's champions, items, runes and spells for the whole session
+  // even though DDRAGON now points at the new one.
+  wrInvalidateOnPatchChange(DDRAGON_VER);
 
   // Init Firebase — modular v12 (matches Index)
   try {
@@ -2670,6 +3002,335 @@ function showApp() {
   loadBuildsFromFirestore();
   loadDDragonData();
   fetchServerStatus();
+  // Tab order + shortcuts are shared state: apply whatever the doc already has,
+  // then keep listening so another device reordering shows up here live.
+  wrEnableTabDrag();
+  wrWatchRemote();
+  wrLoadTabOrder();
+}
+
+// ══════════════════════════════════════
+// FIREBASE SYNC INDICATOR
+// ══════════════════════════════════════
+// One pill under the WarRoom wordmark, driven by REAL Firestore activity
+// rather than by optimism: every write goes through wrSynced(), so the state
+// reflects what the server actually did.
+//
+//   syncing → a write is in flight
+//   synced  → all in-flight writes landed; fades out after 2.5s
+//   failed  → a write threw; HANGS until the next success
+//
+// The hang is the point. A sync failure that quietly disappears is worse than
+// no indicator at all, because you go on editing believing it saved.
+var _wrSyncTimer = null, _wrSyncPending = 0;
+function wrSetSync(state){
+  var el = document.getElementById('wrSyncInd'), txt = document.getElementById('wrSyncTxt');
+  if (!el || !txt) return;
+  clearTimeout(_wrSyncTimer);
+  el.classList.remove('syncing','synced','failed');
+  if (state === 'syncing'){ el.classList.add('show','syncing'); txt.textContent = 'Syncing'; }
+  else if (state === 'synced'){
+    el.classList.add('show','synced'); txt.textContent = 'Synced';
+    _wrSyncTimer = setTimeout(function(){ el.classList.remove('show'); }, 2500);
+  } else if (state === 'failed'){ el.classList.add('show','failed'); txt.textContent = 'Sync failed'; }
+}
+// Wrap any Firestore write so the pill tracks it end to end. Concurrent writes
+// are counted, so 'Synced' only shows once the LAST one has landed.
+function wrSynced(promise){
+  _wrSyncPending++;
+  wrSetSync('syncing');
+  return Promise.resolve(promise).then(function(r){
+    if (--_wrSyncPending === 0) wrSetSync('synced');
+    return r;
+  }, function(e){
+    _wrSyncPending = Math.max(0, _wrSyncPending - 1);
+    wrSetSync('failed');
+    throw e;
+  });
+}
+window.wrSynced = wrSynced; window.wrSetSync = wrSetSync;
+
+// ══════════════════════════════════════
+// TAB ORDER — drag to reorder, synced across devices
+// ══════════════════════════════════════
+// The order lives in the shared WarRoom doc and is written the moment a drag
+// ends, so every signed-in device re-orders live through _fbOnSnap.
+var WR_TAB_DEFAULT = ['profile','builds','champions','items','runes','spells','leaderboard','spectate','live'];
+var wrTabOrder = WR_TAB_DEFAULT.slice();
+var wrSuppressTabClick = false;
+
+function wrApplyTabOrder(order){
+  var nav = document.getElementById('topbar-tabs');
+  if (!nav) return;
+  // Heal the saved list: unknown keys are dropped and missing ones appended, so
+  // an order saved before a tab existed can never hide that tab.
+  var known = {}; [].forEach.call(nav.children, function(b){ if (b.dataset && b.dataset.tab) known[b.dataset.tab] = b; });
+  var seen = {}, next = [];
+  (order || []).forEach(function(k){ if (known[k] && !seen[k]) { seen[k] = 1; next.push(k); } });
+  WR_TAB_DEFAULT.forEach(function(k){ if (known[k] && !seen[k]) { seen[k] = 1; next.push(k); } });
+  wrTabOrder = next;
+  next.forEach(function(k){ nav.appendChild(known[k]); });
+}
+
+function wrReadTabOrder(){
+  var nav = document.getElementById('topbar-tabs'); if (!nav) return WR_TAB_DEFAULT.slice();
+  return [].map.call(nav.querySelectorAll('.tab-btn'), function(b){ return b.dataset.tab; }).filter(Boolean);
+}
+
+function wrSaveTabOrder(){
+  if (!window._fbSetDoc) { wrSetSync('failed'); return Promise.resolve(); }
+  return wrSynced(window._fbSetDoc({ tabOrder: wrTabOrder }));
+}
+
+// Live cross-device order + shortcut updates.
+var _wrSnapOn = false;
+function wrWatchRemote(){
+  if (!window._fbOnSnap || _wrSnapOn) return;
+  _wrSnapOn = true;
+  window._fbOnSnap(function(snap){
+    var d = (snap && snap.exists && snap.exists()) ? snap.data() : null;
+    if (!d) return;
+    if (Array.isArray(d.tabOrder) && d.tabOrder.join() !== wrTabOrder.join()) wrApplyTabOrder(d.tabOrder);
+    if (Array.isArray(d.shortcuts) && typeof applyRemoteShortcuts === 'function') applyRemoteShortcuts(d.shortcuts);
+  }, function(e){ console.warn('[WarRoom] snapshot error:', e && e.message); wrSetSync('failed'); });
+}
+
+// Pointer-based horizontal reorder — the same interaction Insight uses. On
+// touch a LONG PRESS starts the drag so an ordinary swipe still scrolls the
+// strip; with a mouse a few pixels of movement is enough.
+function wrEnableTabDrag(){
+  var nav = document.getElementById('topbar-tabs');
+  if (!nav || nav._wrDragOn) return;
+  nav._wrDragOn = true;
+  var d = null, holdTimer = null, autoRaf = null;
+
+  // FLIP measured in LAYOUT coordinates (offsetLeft), not viewport rects: the
+  // strip scrolls, and scrollLeft shifts as tabs are reordered, so viewport
+  // deltas would fold that scroll jump into the animation and make neighbours
+  // streak in from the edges.
+  function flipX(mutate, exclude){
+    var kids = [].slice.call(nav.children);
+    var before = kids.map(function(k){ return k.offsetLeft; });
+    mutate();
+    kids.forEach(function(k, i){
+      if (k === exclude) return;
+      var dx = before[i] - k.offsetLeft;
+      if (!dx || Math.abs(dx) > nav.clientWidth * 2) return;
+      k.style.transition = 'none';
+      k.style.transform = 'translateX(' + dx + 'px)';
+      requestAnimationFrame(function(){
+        k.style.transition = 'transform .16s cubic-bezier(.2,.8,.3,1)';
+        k.style.transform = '';
+      });
+    });
+  }
+
+  function follow(x){ d.tab.style.transform = 'translateX(' + ((x - d.grabX) + (nav.scrollLeft - d.grabScroll)) + 'px)'; }
+
+  function checkSwap(x){
+    for (var i = 0; i < nav.children.length; i++){
+      var other = nav.children[i];
+      if (other === d.tab) continue;
+      var r = other.getBoundingClientRect();
+      if (x < r.left || x > r.right) continue;
+      var mid = r.left + r.width / 2;
+      var otherIsBefore = !!(d.tab.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_PRECEDING);
+      if (x < mid && otherIsBefore) flipX(makeMove(other, false), d.tab);
+      else if (x > mid && !otherIsBefore) flipX(makeMove(other, true), d.tab);
+      else continue;
+      // Re-anchor so the tab stays under the pointer after the reflow.
+      d.grabX = x; d.grabScroll = nav.scrollLeft;
+      d.tab.style.transform = 'translateX(0px)';
+      break;
+    }
+  }
+  function makeMove(other, after){
+    return function(){ nav.insertBefore(d.tab, after ? other.nextSibling : other); };
+  }
+
+  // Dragging toward either end scrolls the strip, so a tab that is off-screen
+  // on a phone is still reachable without dropping and re-grabbing.
+  function autoScroll(){
+    if (!d || !d.dragging) { autoRaf = null; return; }
+    var r = nav.getBoundingClientRect(), EDGE = 44, SPEED = 9, step = 0;
+    if (d.lastX < r.left + EDGE) step = -SPEED;
+    else if (d.lastX > r.right - EDGE) step = SPEED;
+    if (step){
+      var was = nav.scrollLeft;
+      nav.scrollLeft = Math.max(0, Math.min(d.maxScroll, was + step));
+      if (nav.scrollLeft !== was){ follow(d.lastX); checkSwap(d.lastX); }
+    }
+    autoRaf = requestAnimationFrame(autoScroll);
+  }
+
+  function startDrag(e){
+    d.dragging = true;
+    d.grabX = e.clientX; d.grabScroll = nav.scrollLeft; d.lastX = e.clientX;
+    // Measured now, while the lifted tab is still untransformed: a translated
+    // child extends the scrollable area, so reading scrollWidth mid-drag makes
+    // the right edge run away forever. Reordering never changes total width.
+    d.maxScroll = Math.max(0, nav.scrollWidth - nav.clientWidth);
+    d.tab.style.transition = '';
+    d.tab.classList.add('navdrag');
+    try { d.tab.setPointerCapture(d.id); } catch(_e) {}
+    if (!autoRaf) autoRaf = requestAnimationFrame(autoScroll);
+  }
+
+  function cleanup(){
+    if (!d) return;
+    var tab = d.tab;
+    tab.style.transition = 'transform .16s cubic-bezier(.2,.8,.3,1)';
+    tab.style.transform = '';
+    setTimeout(function(){ tab.style.transition = ''; }, 180);
+    tab.classList.remove('navdrag');
+    clearTimeout(holdTimer); holdTimer = null;
+    if (autoRaf){ cancelAnimationFrame(autoRaf); autoRaf = null; }
+    d = null;
+  }
+
+  nav.addEventListener('pointerdown', function(e){
+    var tab = e.target.closest ? e.target.closest('.tab-btn') : null;
+    if (!tab || e.button > 0) return;
+    d = { tab: tab, id: e.pointerId, startX: e.clientX, startY: e.clientY, lastX: e.clientX,
+          dragging: false, moved: false, touch: e.pointerType === 'touch' };
+    if (d.touch) holdTimer = setTimeout(function(){ holdTimer = null; if (d) startDrag(e); }, 320);
+  });
+
+  nav.addEventListener('pointermove', function(e){
+    if (!d || e.pointerId !== d.id) return;
+    if (!d.dragging){
+      var dx = Math.abs(e.clientX - d.startX), dy = Math.abs(e.clientY - d.startY);
+      if (d.touch){ if (dx > 8 || dy > 8) cleanup(); return; }   // a swipe: let it scroll
+      if (dx < 5) return;
+      startDrag(e);
+    }
+    d.moved = true; d.lastX = e.clientX;
+    follow(e.clientX); checkSwap(e.clientX);
+  });
+
+  // Non-passive so an armed drag can stop the strip scrolling itself.
+  nav.addEventListener('touchmove', function(e){ if (d && d.dragging) e.preventDefault(); }, { passive: false });
+
+  function endDrag(e){
+    if (!d || (e && e.pointerId !== d.id)) return;
+    var wasDrag = d.dragging && d.moved;
+    cleanup();
+    if (!wasDrag) return;
+    wrSuppressTabClick = true;                    // don't switch tabs on drop
+    setTimeout(function(){ wrSuppressTabClick = false; }, 60);
+    var next = wrReadTabOrder();
+    if (next.join() === wrTabOrder.join()) return;
+    wrTabOrder = next;
+    wrSaveTabOrder().catch(function(){});
+  }
+  nav.addEventListener('pointerup', endDrag);
+  nav.addEventListener('pointercancel', endDrag);
+
+  // A drop must not also fire the tab's own switch handler. Capture phase, so
+  // this runs before the inline onclick on the button itself.
+  nav.addEventListener('click', function(e){
+    if (wrSuppressTabClick){ e.stopPropagation(); e.preventDefault(); }
+  }, true);
+}
+
+// ══════════════════════════════════════
+// PRO PLAYER DETECTION
+// ══════════════════════════════════════
+// Riot's API has no "is this a pro" flag — sites that show one maintain a
+// curated database. What IS available is the official LoL Esports team roster,
+// which ProView's worker already fronts; /pro-index reduces it to a lookup of
+// ~4.5k active roster players keyed by "<tricode> <handle>".
+//
+// Two tiers, deliberately conservative — a wrong Pro badge is worse than a
+// missing one, because it makes every other badge untrustworthy:
+//
+//   TIER 1  "HLE Gumayusi"  both halves must agree with the SAME roster entry.
+//   TIER 2  "Gumayusi"      bare handle, but only when it is unique across all
+//                           rosters AND the account sits on a platform that
+//                           league actually plays on.
+//
+// What it cannot find: alt accounts with no naming signal (Faker's "hide on
+// bush"). Those need the manual overrides below — that list is the only part
+// that has to be maintained by hand.
+var PRO_INDEX = null;              // { "<code> <handle>": [team, league, role, region] }
+var _proIndexPending = null;
+
+// Region of a league → the platforms a pro's solo-queue account plausibly sits
+// on. Used only to reject a TIER 2 guess, never to make one.
+var PRO_REGION_PLATFORMS = {
+  KOREA: ['kr'], CHINA: ['kr'], EMEA: ['euw1','eun1'], 'NORTH AMERICA': ['na1'],
+  BRAZIL: ['br1'], JAPAN: ['jp1'], 'LATIN AMERICA': ['la1','la2'],
+  OCEANIA: ['oc1'], TURKEY: ['tr1'], VIETNAM: ['kr'], PACIFIC: ['kr']
+};
+
+// Known alt accounts, "name#tag" lowercased → the roster key to credit them to.
+// Add entries here as you spot them; nothing else can find these.
+var PRO_ALIASES = {
+  'hide on bush#kr1': 't1 faker'
+};
+
+function loadProIndex() {
+  if (PRO_INDEX || _proIndexPending) return _proIndexPending || Promise.resolve(PRO_INDEX);
+  // Held in memory only. It is ~250 KB and every A1 program shares one ~5 MB
+  // localStorage budget, so caching it there would crowd out real user data for
+  // something the worker already serves from its own edge cache.
+  _proIndexPending = fetch('https://proview-api.av1.workers.dev/pro-index')
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(j){
+      PRO_INDEX = (j && j.teams) ? j.teams : {};
+      _proIndexPending = null;
+      return PRO_INDEX;
+    })
+    .catch(function(e){
+      console.warn('[WarRoom] pro index unavailable:', e && e.message);
+      PRO_INDEX = {};             // cached failure: don't retry on every row
+      _proIndexPending = null;
+      return PRO_INDEX;
+    });
+  return _proIndexPending;
+}
+
+// → { team, league, role, tier } or null. Never throws; an unloaded index just
+// means no badges yet, and the ladder re-renders once it arrives.
+function proLookup(gameName, tagLine, platform) {
+  if (!PRO_INDEX) return null;
+  var name = String(gameName || '').trim();
+  if (!name) return null;
+
+  var alias = PRO_ALIASES[(name + '#' + (tagLine || '')).toLowerCase()];
+  if (alias && PRO_INDEX[alias]) return _proRec(PRO_INDEX[alias], 1);
+
+  // TIER 1 — team tag then handle, in any of the separators people actually use.
+  var m = /^([A-Za-z0-9]{2,5})[\s._-]+(.+)$/.exec(name);
+  if (m) {
+    var hit = PRO_INDEX[(m[1] + ' ' + m[2]).toLowerCase().trim()];
+    if (hit) return _proRec(hit, 1);
+  }
+
+  // TIER 2 — a bare handle is only safe when exactly one org uses it. 438 handles
+  // are shared across orgs, so refusing to guess is what keeps the badge honest.
+  var low = name.toLowerCase(), found = null, orgs = 0;
+  for (var k in PRO_INDEX) {
+    if (!Object.prototype.hasOwnProperty.call(PRO_INDEX, k)) continue;
+    var sp = k.indexOf(' ');
+    if (sp < 0 || k.slice(sp + 1) !== low) continue;
+    orgs++;
+    if (orgs > 1) return null;
+    found = PRO_INDEX[k];
+  }
+  if (!found) return null;
+  var plats = PRO_REGION_PLATFORMS[found[3]];
+  if (platform && plats && plats.indexOf(platform) < 0) return null;
+  return _proRec(found, 2);
+}
+function _proRec(a, tier) { return { team: a[0], league: a[1], role: a[2], region: a[3], tier: tier }; }
+
+// The badge itself. Soft pink so it reads as a distinct classification next to
+// the lavender accent without competing with it.
+function proTagHtml(rec) {
+  if (!rec) return '';
+  var title = rec.team + (rec.league ? ' · ' + rec.league : '') + (rec.role ? ' · ' + rec.role : '');
+  return '<span class="pro-tag" title="' + String(title).replace(/"/g, '&quot;') + '">Pro</span>';
 }
 
 // ══════════════════════════════════════
@@ -2684,8 +3345,11 @@ async function fetchServerStatus() {
     var data = await riotFetch('/lol/status/v4/platform-data', summoner.platform, 1);
     var incidents    = (data.incidents    || []).filter(function(i){ return i.active_until === null || new Date(i.active_until) > new Date(); });
     var maintenances = (data.maintenances || []).filter(function(m){ return m.maintenance_status !== 'complete'; });
-    // Full region name from API (e.g. "North America"), fallback to platform id
-    var regionName = data.name || summoner.platform.toUpperCase();
+    // Short code, not the API's full name: the pill sits in a crowded header next
+    // to the patch number, and "North America" pushed the row wide enough to shove
+    // the lock button off a narrow screen. The full name lives in the tooltip.
+    var regionName = WR_REGION_SHORT[summoner.platform] || summoner.platform.toUpperCase();
+    if (badge) badge.setAttribute('data-region-full', data.name || regionName);
     txt.textContent = regionName;
     if (incidents.length > 0) {
       dot.style.background  = 'var(--red)';
@@ -2693,19 +3357,19 @@ async function fetchServerStatus() {
       txt.style.color       = 'var(--red)';
       if (badge) badge.style.borderColor = 'rgba(214,138,124,0.4)';
       var title = incidents[0].titles && incidents[0].titles[0] ? incidents[0].titles[0].content : 'Incident reported';
-      if (badge) badge.title = '⚠️ ' + title;
+      if (badge) badge.title = 'Warning: ' + title;
     } else if (maintenances.length > 0) {
       dot.style.background  = 'var(--gold)';
       dot.style.boxShadow   = '0 0 7px var(--gold)';
       txt.style.color       = 'var(--gold)';
       if (badge) badge.style.borderColor = 'rgba(192,174,234,0.3)';
-      if (badge) badge.title = '🔧 Scheduled maintenance in progress';
+      if (badge) badge.title = 'Scheduled maintenance in progress';
     } else {
       dot.style.background  = 'var(--green)';
       dot.style.boxShadow   = '0 0 7px rgba(164,185,134,0.7)';
       txt.style.color       = 'var(--tx2)';
       if (badge) badge.style.borderColor = 'rgba(164,185,134,0.25)';
-      if (badge) badge.title = '✓ All systems operational';
+      if (badge) badge.title = 'All systems operational';
     }
   } catch(e) {
     if (txt) txt.textContent = 'Status N/A';
@@ -2752,6 +3416,13 @@ function wrSetItem(key, val) {
 const SHORTCUTS_KEY = 'warroom_shortcuts';
 const SHORTCUTS_MAX = 8;
 
+// The shortcut list is SHARED state, not a per-device convenience: add an
+// account on your phone and it is there on the desktop. localStorage stays as
+// the offline mirror so the setup screen still paints instantly (and before
+// Firebase has authenticated), but the Firestore doc is the source of truth —
+// on conflict the remote list wins, because it is the one every device sees.
+//
+// NOTE: the storage key is deliberately unchanged. Other A1 surfaces read it.
 function loadShortcuts() {
   try {
     const raw = localStorage.getItem(SHORTCUTS_KEY);
@@ -2765,8 +3436,46 @@ function loadShortcuts() {
   } catch(e) { return []; }
 }
 
+// Local mirror + cloud, with the sync pill reporting the cloud half. A quota
+// failure on the mirror must not stop the write reaching Firestore, and a
+// Firestore failure must not roll back what you can already see.
 function saveShortcuts(list) {
-  wrSetItem(SHORTCUTS_KEY, JSON.stringify(list));
+  const clean = (Array.isArray(list) ? list : [])
+    .filter(x => x && x.name)
+    .slice(0, SHORTCUTS_MAX)
+    .map(x => ({ name: String(x.name), tag: String(x.tag || ''), region: String(x.region || 'na1|americas') }));
+  wrSetItem(SHORTCUTS_KEY, JSON.stringify(clean));
+  if (window._fbSetDoc) {
+    wrSynced(window._fbSetDoc({ shortcuts: clean })).catch(function(){});
+  } else {
+    wrSetSync('failed');
+  }
+}
+
+// Called by the doc listener when another device changes the list. Rendering is
+// skipped when nothing actually differs so a remote echo of our own write can't
+// yank the setup screen out from under a half-typed entry.
+function applyRemoteShortcuts(list) {
+  if (!Array.isArray(list)) return;
+  const clean = list.filter(x => x && x.name)
+    .map(x => ({ name: String(x.name), tag: String(x.tag || ''), region: String(x.region || 'na1|americas') }));
+  let cur = [];
+  try { cur = JSON.parse(localStorage.getItem(SHORTCUTS_KEY) || '[]'); } catch(e) {}
+  if (JSON.stringify(cur) === JSON.stringify(clean)) return;
+  wrSetItem(SHORTCUTS_KEY, JSON.stringify(clean));
+  renderShortcuts();
+}
+
+// Pull the shared doc once at boot: the tab order and the shortcut list both
+// live in it, so one read seeds both before the listener takes over.
+function wrLoadTabOrder() {
+  if (!window._fbGetDoc) return;
+  window._fbGetDoc().then(function(snap){
+    const d = (snap && snap.exists && snap.exists()) ? snap.data() : null;
+    if (!d) return;
+    if (Array.isArray(d.tabOrder)) wrApplyTabOrder(d.tabOrder);
+    if (Array.isArray(d.shortcuts)) applyRemoteShortcuts(d.shortcuts);
+  }).catch(function(e){ console.warn('[WarRoom] tab order load failed:', e && e.message); });
 }
 
 function renderShortcuts() {
@@ -3031,7 +3740,7 @@ function _riotErrorHtml(e) {
       '<div style="font-size:14px;font-weight:700;margin-bottom:6px;">⏳ Rate limited (429)</div>' +
       '<div style="color:var(--tx2);">Riot allows ~100 requests per 2 minutes on the free API tier. ' +
       'Wait 1–2 minutes and then hit Refresh.</div>' +
-      '<button onclick="refreshProfile()" style="margin-top:10px;height:30px;padding:0 16px;background:var(--gold);border:none;border-radius:6px;color:#fff;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;">Retry now</button>' +
+      '<button onclick="refreshProfile()" class="wr-cta" style="margin-top:10px;height:30px;padding:0 16px;background:transparent;border:1px solid rgba(192,174,234,.45);border-radius:6px;color:var(--gold2);font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;">Retry now</button>' +
     '</div>';
   }
   if (code === '404') {
@@ -3226,44 +3935,71 @@ function renderStatsSection(matches) {
   return h;
 }
 
-function renderMasterySection(mastery, page) {
-  const pageSize = 10;
-  const total = mastery.length;
-  const start = page * pageSize;
-  const slice = mastery.slice(0, start + pageSize);
-  const expanded = page > 0;
-  let h = `<div class="section-hdr"><h2>Mastery</h2><span class="sub">${slice.length} of ${total} champions</span></div>`;
-  h += `<div class="mastery-grid" id="mastery-grid">`;
-  slice.forEach(m => {
-    const champKey = Object.values(allChamps).find(c => parseInt(c.key) === m.championId);
-    const cId = champKey ? champKey.id : String(m.championId);
-    const cName = champKey ? champKey.name : cId;
-    const pts = m.championPoints.toLocaleString();
-    const lvl = m.championLevel;
-    // Tiered badge colors: Mythic(10+), Diamond(7-9), Platinum(5-6), Gold(3-4), Bronze(1-2)
-    const badgeColor = lvl >= 10 ? '#c0aeea'   // mythic purple
-                     : lvl >= 7  ? '#e0b874'   // gold
-                     : lvl >= 5  ? '#9fc4dd'   // platinum blue
-                     : lvl >= 3  ? '#a4b986'   // green
-                     :             '#adadb2';   // gray
-    h += `<div class="mastery-card" style="cursor:pointer;" onclick="openChampOverlay('${cId}')">
+// One card renderer for both the inline top-10 and the full overlay, so the
+// two can never drift apart visually.
+function masteryCardHtml(m) {
+  const champKey = Object.values(allChamps).find(c => parseInt(c.key) === m.championId);
+  const cId = champKey ? champKey.id : String(m.championId);
+  const cName = champKey ? champKey.name : cId;
+  const pts = m.championPoints.toLocaleString();
+  const lvl = m.championLevel;
+  // Tiered badge colours: Mythic(10+), Gold(7-9), Platinum(5-6), Green(3-4), Grey(1-2)
+  const badgeColor = lvl >= 10 ? '#c0aeea'
+                   : lvl >= 7  ? '#e0b874'
+                   : lvl >= 5  ? '#9fc4dd'
+                   : lvl >= 3  ? '#a4b986'
+                   :             '#adadb2';
+  return `<div class="mastery-card" style="cursor:pointer;" onclick="openChampOverlay('${cId}')">
       <img src="${champIconUrl(cId)}" alt="${cName}" onerror="this.style.opacity=0.3">
       <div class="champ-name">${cName}</div>
       <div class="mastery-pts">${pts}</div>
-      <span class="mastery-lvl" style="background:linear-gradient(135deg,${badgeColor}28,${badgeColor}14);color:${badgeColor};border:1px solid ${badgeColor}55;box-shadow:0 2px 10px ${badgeColor}30,inset 0 1px 0 ${badgeColor}20;">M${lvl}</span>
+      <span class="mastery-lvl" style="color:${badgeColor};border:1px solid ${badgeColor}55;">M${lvl}</span>
     </div>`;
-  });
+}
+
+// The sidebar shows the top 10 and nothing else. "Show all" opens an overlay
+// rather than growing the sidebar: a 125-champion grid pushed the match history
+// kilometres down the page and left the right column empty beside it.
+function renderMasterySection(mastery) {
+  const total = mastery.length;
+  const slice = mastery.slice(0, 10);
+  let h = `<div class="section-hdr"><h2>Mastery</h2><span class="sub">${slice.length} of ${total} champions</span></div>`;
+  h += `<div class="mastery-grid" id="mastery-grid">`;
+  slice.forEach(m => { h += masteryCardHtml(m); });
   h += `</div>`;
-  h += `<div style="display:flex;gap:8px;margin-bottom:24px;">`;
-  if (start + pageSize < total) {
-    h += `<button class="load-more-btn" style="flex:1;" onclick="loadMoreMastery()">Show more (${total - start - pageSize} remaining)</button>`;
+  if (total > slice.length) {
+    h += `<div style="display:flex;margin-bottom:24px;">
+      <button class="load-more-btn" style="flex:1;" onclick="openMasteryOverlay()">Show all ${total} champions</button>
+    </div>`;
   }
-  if (expanded) {
-    h += `<button class="load-more-btn" style="flex:1;" onclick="collapseMastery()">Collapse to top 10</button>`;
-  }
-  h += `</div>`;
   return h;
 }
+
+// ── Mastery overlay ────────────────────────────────────────────────────────
+// Scroll is locked on the body while it is open, and restored on every exit
+// path (button, backdrop, Escape) — a half-restored overflow leaves the page
+// unscrollable, which is worse than the overlay itself.
+function openMasteryOverlay() {
+  const ov = document.getElementById('mastery-overlay');
+  const body = document.getElementById('mastery-overlay-body');
+  const cnt = document.getElementById('mastery-overlay-count');
+  if (!ov || !body) return;
+  cnt.textContent = allMastery.length + ' champion' + (allMastery.length === 1 ? '' : 's');
+  body.innerHTML = '<div class="mastery-grid">' + allMastery.map(masteryCardHtml).join('') + '</div>';
+  ov.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  body.scrollTop = 0;
+  document.addEventListener('keydown', _masteryEsc);
+}
+function closeMasteryOverlay() {
+  const ov = document.getElementById('mastery-overlay');
+  if (ov) ov.style.display = 'none';
+  const body = document.getElementById('mastery-overlay-body');
+  if (body) body.innerHTML = '';        // 125 champion icons is a lot to keep alive
+  document.body.style.overflow = '';
+  document.removeEventListener('keydown', _masteryEsc);
+}
+function _masteryEsc(e) { if (e.key === 'Escape') closeMasteryOverlay(); }
 
 // ══════════════════════════════════════
 // QUEUE METADATA — single source of truth
@@ -3389,15 +4125,7 @@ function applyMatchFilter(f) {
   const statsEl = document.getElementById('stats-section');
   if (statsEl) statsEl.innerHTML = renderStatsSection(visibleMatches());
 }
-function collapseMastery() {
-  masteryPage = 0;
-  document.getElementById('mastery-section').innerHTML = renderMasterySection(allMastery, 0);
-}
 
-function loadMoreMastery() {
-  masteryPage++;
-  document.getElementById('mastery-section').innerHTML = renderMasterySection(allMastery, masteryPage);
-}
 
 // True once Riot has no more match ids for this player — drives whether the
 // Load more button is offered at all.
@@ -3476,9 +4204,12 @@ function renderProfile(_sumData, ranked, mastery, matches, leagueHistory=[]) {
     </div>
     <div class="sh-info">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-        <div><span class="sh-name">${summoner.gameName}</span><span class="sh-tag">#${summoner.tagLine}</span></div>
+        <div>
+          <div><span class="sh-name">${summoner.gameName}</span><span class="sh-tag">#${summoner.tagLine}</span></div>
+          <div class="sh-region">${WR_REGION_SHORT[summoner.platform] || String(summoner.platform||'').toUpperCase()}</div>
+        </div>
         <div style="display:flex;gap:8px;margin-left:auto;">
-          <button onclick="refreshProfile()" class="profile-action-btn">↻ Refresh</button>
+          <button onclick="refreshProfile()" class="profile-action-btn">${wrIco('refresh',12)} Refresh</button>
           <button onclick="changeSummoner()" class="profile-action-btn">Change</button>
         </div>
       </div>
@@ -3529,18 +4260,21 @@ function renderProfile(_sumData, ranked, mastery, matches, leagueHistory=[]) {
   }
 
   // Mastery (sidebar)
-  html += `<div style="margin-top:16px;" id="mastery-section">${renderMasterySection(mastery, 0)}</div>`;
-
-  // Recently played (sidebar)
-  html += `<div id="recent-players-section"><div class="loading-state" style="height:60px;"><div class="spinner"></div></div></div>`;
+  html += `<div style="margin-top:16px;" id="mastery-section">${renderMasterySection(mastery)}</div>`;
 
   html += `</div>`; // end sidebar
 
   // ── RIGHT MAIN ──
   html += `<div class="profile-main">`;
 
-  // Stats
+  // Stats + recently-played sit SIDE BY SIDE on a wide screen. Recently-played
+  // used to live at the bottom of the sidebar, which put it below the whole
+  // mastery grid — far from the match list it is actually about. The pair
+  // stacks back into one column below 1100px.
+  html += `<div class="pf-toprow">`;
   html += `<div id="stats-section">${renderStatsSection(visibleMatches())}</div>`;
+  html += `<div id="recent-players-section"><div class="loading-state" style="height:60px;"><div class="spinner"></div></div></div>`;
+  html += `</div>`;
 
   // Match history
   html += `<div id="match-history-section">${renderMatchHistory()}</div>`;
@@ -3679,7 +4413,7 @@ function renderLiveGame(game, el) {
     const isBlue = side === 'blue';
     const sideColor = isBlue ? 'var(--blue)' : 'var(--red)';
     let h = '<div class="live-team-hdr" style="background:' + (isBlue?'rgba(143,166,216,0.05)':'rgba(214,138,124,0.05)') + ';color:' + sideColor + ';">' +
-      '<span>' + (isBlue?'🔵 Blue':'🔴 Red') + '</span><span>Spells</span><span>Runes</span><span>Rank</span></div>';
+      '<span>' + wrIco('dot',9,'color:'+(isBlue?'#8fa6d8':'#d68a7c')+';')+(isBlue?' Blue':' Red') + '</span><span>Spells</span><span>Runes</span><span>Rank</span></div>';
     team.forEach(function(p) {
       const isMe = p.puuid === summoner.puuid;
       const champObj = Object.values(allChamps).find(c => parseInt(c.key)===p.championId);
@@ -3838,39 +4572,63 @@ function renderMatchRow(m, mIdx) {
 
     // Max damage for bar scaling
     const maxDmg = Math.max(...m.info.participants.map(pp => pp.totalDamageDealtToChampions || 0), 1);
+    const maxGold = Math.max(...m.info.participants.map(pp => pp.goldEarned || 0), 1);
     const blueKills = blueTeam.reduce((a,pp) => a+pp.kills, 0);
     const redKills  = redTeam.reduce((a,pp) => a+pp.kills, 0);
     const blueGold  = blueTeam.reduce((a,pp) => a+(pp.goldEarned||0), 0);
     const redGold   = redTeam.reduce((a,pp) => a+(pp.goldEarned||0), 0);
 
-    function renderTeamTable(team, side) {
+    function renderTeamTable(team, side, obj) {
       const isBlue = side === 'blue';
       const win = team[0]?.win;
       const sideColor = isBlue ? '#8fa6d8' : '#d68a7c';
-      const winStr = win ? '✓ Victory' : '✗ Defeat';
+      const winStr = win ? 'Victory' : 'Defeat';
       const mins = m.info.gameDuration / 60;
       const TIER_COLOR = {IRON:'#8f7f6b',BRONZE:'#b98457',SILVER:'#b3bcc6',GOLD:'#e0b874',PLATINUM:'#7cc0b6',EMERALD:'#a4b986',DIAMOND:'#8fa6d8',MASTER:'#b39bd4',GRANDMASTER:'#d68a7c',CHALLENGER:'#ebd39a'};
 
       let t = `<table class="dp-team-table" style="width:100%;border-collapse:collapse;table-layout:fixed;">`;
       t += `<colgroup>
-        <col style="width:200px">
-        <col style="width:44px">
-        <col style="width:48px">
-        <col style="width:130px">
+        <col style="width:180px">
+        <col style="width:56px">
+        <col style="width:56px">
+        <col style="width:112px">
+        <col style="width:74px">
         <col style="width:100px">
         <col style="width:52px">
         <col style="width:68px">
         <col>
       </colgroup>`;
-      t += `<thead><tr style="border-bottom:1px solid var(--bd);background:${isBlue?'rgba(143,166,216,0.05)':'rgba(214,138,124,0.05)'};">
-        <th style="text-align:left;padding:10px 14px;font-family:var(--body);font-size:15px;font-weight:700;color:${sideColor};">${isBlue?'🔵 Blue':'🔴 Red'} · ${winStr}</th>
-        <th style="text-align:center;padding:8px 4px;font-family:var(--mono);font-size:12px;color:var(--tx2);font-weight:700;letter-spacing:1px;font-weight:400;">SPELLS</th>
-        <th style="text-align:center;padding:8px 2px;font-family:var(--mono);font-size:12px;color:var(--tx2);font-weight:700;letter-spacing:1px;font-weight:400;">RUNES</th>
-        <th style="text-align:right;padding:8px;font-family:var(--mono);font-size:12px;color:var(--tx2);font-weight:700;letter-spacing:1px;font-weight:400;">KDA</th>
-        <th style="text-align:right;padding:8px;font-family:var(--mono);font-size:12px;color:var(--tx2);font-weight:700;letter-spacing:1px;font-weight:400;">DMG</th>
-        <th style="text-align:right;padding:8px 4px;font-family:var(--mono);font-size:12px;color:var(--tx2);font-weight:700;letter-spacing:1px;font-weight:400;">VIS</th>
-        <th style="text-align:right;padding:8px 4px;font-family:var(--mono);font-size:12px;color:var(--tx2);font-weight:700;letter-spacing:1px;font-weight:400;">CS</th>
-        <th style="text-align:right;padding:8px 12px;font-family:var(--mono);font-size:12px;color:var(--tx2);font-weight:700;letter-spacing:1px;font-weight:400;">ITEMS</th>
+      // The team's objective counts ride in a full-width caption directly above
+      // that team's players. They used to sit in one 3-column bar shared by both
+      // teams, which overflowed the viewport on a phone; as a wrapping flex strip
+      // scoped to its own table they simply reflow onto a second line instead.
+      const OBJS = [
+        ['dragon','Drake',  obj&&obj.dragon     ? obj.dragon.kills     : 0],
+        ['grub',  'Grubs',  obj&&obj.horde      ? obj.horde.kills      : 0],
+        ['baron', 'Baron',  obj&&obj.baron      ? obj.baron.kills      : 0],
+        ['herald','Herald', obj&&obj.riftHerald ? obj.riftHerald.kills : 0],
+        ['tower', 'Towers', obj&&obj.tower      ? obj.tower.kills      : 0],
+        ['inhib', 'Inhib',  team.reduce((a,pp)=>a+(pp.inhibitorKills||0),0)]
+      ];
+      const objStrip = OBJS.map(function(o){
+        return '<span class="obj-pill"><span class="op-icon">'+wrIco(o[0],14)+'</span>'+
+               '<span class="op-val">'+o[2]+'</span><span class="op-label">'+o[1]+'</span></span>';
+      }).join('');
+      t += `<thead>
+        <tr><th colspan="9" class="team-head ${isBlue?'blue':'red'}">
+          <span class="th-side" style="color:${sideColor};">${wrIco('dot',10)} ${isBlue?'Blue':'Red'} · ${wrIco(win?'check':'cross',12)} ${winStr}</span>
+          <span class="team-objs">${objStrip}</span>
+        </th></tr>
+        <tr style="border-bottom:1px solid var(--bd);">
+        <th style="text-align:left;padding:6px 14px;font-family:var(--mono);font-size:11px;color:var(--tx3);font-weight:600;">Player</th>
+        <th style="text-align:center;padding:6px 2px;font-family:var(--mono);font-size:11px;color:var(--tx3);font-weight:600;">Spells</th>
+        <th style="text-align:center;padding:6px 2px;font-family:var(--mono);font-size:11px;color:var(--tx3);font-weight:600;">Runes</th>
+        <th style="text-align:right;padding:8px;font-family:var(--mono);font-size:11px;color:var(--tx3);font-weight:600;">KDA</th>
+        <th style="text-align:right;padding:8px;font-family:var(--mono);font-size:11px;color:var(--tx3);font-weight:600;">Dmg</th>
+        <th style="text-align:right;padding:8px;font-family:var(--mono);font-size:11px;color:var(--tx3);font-weight:600;">Gold</th>
+        <th style="text-align:right;padding:8px 4px;font-family:var(--mono);font-size:11px;color:var(--tx3);font-weight:600;">Vis</th>
+        <th style="text-align:right;padding:8px 4px;font-family:var(--mono);font-size:11px;color:var(--tx3);font-weight:600;">CS</th>
+        <th style="text-align:right;padding:8px 12px;font-family:var(--mono);font-size:11px;color:var(--tx3);font-weight:600;">Items</th>
       </tr></thead><tbody>`;
 
       team.forEach(pp => {
@@ -3882,6 +4640,9 @@ function renderMatchRow(m, mIdx) {
         const dmgPct = Math.round((pp.totalDamageDealtToChampions / maxDmg) * 100);
         const dmgK   = (pp.totalDamageDealtToChampions/1000).toFixed(1);
         const dmgBarColor = isBlue ? 'var(--blue)' : 'var(--red)';
+        // Gold earned reads next to damage so you can see who converted a lead.
+        const goldK  = ((pp.goldEarned||0)/1000).toFixed(1);
+        const goldPct= Math.round(((pp.goldEarned||0)/maxGold)*100);
         const rowBg = isMe ? 'rgba(192,174,234,0.07)' : 'transparent';
 
         // Summoner spells
@@ -3953,6 +4714,10 @@ function renderMatchRow(m, mIdx) {
             <div style="font-family:var(--mono);font-size:14px;font-weight:700;">${dmgK}k</div>
             <div style="height:3px;background:var(--bd2);border-radius:2px;margin-top:3px;"><div style="height:3px;width:${dmgPct}%;background:${dmgBarColor};border-radius:2px;"></div></div>
           </td>
+          <td style="padding:6px 8px;text-align:right;">
+            <div style="font-family:var(--mono);font-size:14px;font-weight:700;color:var(--gold);">${goldK}k</div>
+            <div style="height:3px;background:var(--bd2);border-radius:2px;margin-top:3px;"><div style="height:3px;width:${goldPct}%;background:var(--gold);opacity:.65;border-radius:2px;"></div></div>
+          </td>
           <td style="padding:6px 4px;text-align:right;font-family:var(--mono);font-size:14px;font-weight:700;">${pp.visionScore??0}</td>
           <td style="padding:6px 4px;text-align:right;">
             <div style="font-family:var(--mono);font-size:14px;font-weight:700;">${pp.totalMinionsKilled}</div>
@@ -3972,31 +4737,14 @@ function renderMatchRow(m, mIdx) {
 
     const detailHtml = `
     <div class="obj-bar">
-      <div class="obj-side">
-        <div class="obj-pill"><span class="op-icon">🐉</span><span class="op-val">${blueObj.dragon?.kills??0}</span><span class="op-label">Drake</span></div>
-        <div class="obj-pill"><span class="op-icon">🐺</span><span class="op-val">${blueObj.horde?.kills??0}</span><span class="op-label">Grubs</span></div>
-        <div class="obj-pill"><span class="op-icon">🟣</span><span class="op-val">${blueObj.baron?.kills??0}</span><span class="op-label">Baron</span></div>
-        <div class="obj-pill"><span class="op-icon">🏛️</span><span class="op-val">${blueObj.riftHerald?.kills??0}</span><span class="op-label">Herald</span></div>
-        <div class="obj-pill"><span class="op-icon">🗼</span><span class="op-val">${blueObj.tower?.kills??0}</span><span class="op-label">Towers</span></div>
-        <div class="obj-pill"><span class="op-icon">🔱</span><span class="op-val">${blueTeam.reduce((a,pp)=>a+(pp.inhibitorKills||0),0)}</span><span class="op-label">Inhib</span></div>
-      </div>
       <div class="obj-center">
         <div class="oc-kills"><span class="bk">${blueKills}</span><span class="sep">/</span><span class="rk">${redKills}</span></div>
         <div class="oc-gold"><span class="bg">${(blueGold/1000).toFixed(1)}k</span> vs <span class="rg">${(redGold/1000).toFixed(1)}k</span> gold</div>
-        <div style="font-family:var(--mono);font-size:15px;font-weight:700;color:var(--tx2);margin-top:4px;">${dur}</div>
-        ${mapName ? `<div style="font-family:var(--mono);font-size:11px;color:var(--tx3);margin-top:2px;">${mapName}</div>` : ''}
-      </div>
-      <div class="obj-side right">
-        <div class="obj-pill"><span class="op-label">Inhib</span><span class="op-val">${redTeam.reduce((a,pp)=>a+(pp.inhibitorKills||0),0)}</span><span class="op-icon">🔱</span></div>
-        <div class="obj-pill"><span class="op-label">Towers</span><span class="op-val">${redObj.tower?.kills??0}</span><span class="op-icon">🗼</span></div>
-        <div class="obj-pill"><span class="op-label">Herald</span><span class="op-val">${redObj.riftHerald?.kills??0}</span><span class="op-icon">🏛️</span></div>
-        <div class="obj-pill"><span class="op-label">Baron</span><span class="op-val">${redObj.baron?.kills??0}</span><span class="op-icon">🟣</span></div>
-        <div class="obj-pill"><span class="op-label">Grubs</span><span class="op-val">${redObj.horde?.kills??0}</span><span class="op-icon">🐺</span></div>
-        <div class="obj-pill"><span class="op-label">Drake</span><span class="op-val">${redObj.dragon?.kills??0}</span><span class="op-icon">🐉</span></div>
+        <div class="oc-meta">${dur}${mapName ? ' · ' + mapName : ''}</div>
       </div>
     </div>
-    ${renderTeamTable(blueTeam, 'blue')}
-    ${renderTeamTable(redTeam,  'red')}`;
+    ${renderTeamTable(blueTeam, 'blue', blueObj)}
+    ${renderTeamTable(redTeam,  'red',  redObj)}`;
 
     // Avg rank calc
     const tierOrder = {IRON:1,BRONZE:2,SILVER:3,GOLD:4,PLATINUM:5,EMERALD:6,DIAMOND:7,MASTER:8,GRANDMASTER:9,CHALLENGER:10};
@@ -4109,7 +4857,11 @@ function _ensureSyncOverlay() {
 }
 
 var _syncHideTimer = null;
+// Legacy entry point kept so every existing call site still works, but the
+// state now also drives the single pill under the wordmark — requirement is
+// that ONE place tells you whether your data reached the server.
 function showSyncStatus(state) {
+  if (typeof wrSetSync === 'function') wrSetSync(state === 'error' ? 'failed' : state);
   _ensureSyncOverlay();
   var el = document.getElementById('global-sync-status');
   if (_syncHideTimer) { clearTimeout(_syncHideTimer); _syncHideTimer = null; }
@@ -4117,21 +4869,24 @@ function showSyncStatus(state) {
   // Also update inline element if present on current view
   var inline = document.getElementById('builds-sync-status');
   if (state === 'syncing') {
-    el.textContent = '⟳ Syncing...'; el.style.color = 'var(--tx3)'; el.style.borderColor = 'var(--bd2)';
-    if (inline) { inline.textContent = '⟳ Syncing...'; inline.style.color = 'var(--tx3)'; }
+    el.innerHTML = wrIco('sync',12)+' Syncing'; el.style.color = 'var(--tx3)'; el.style.borderColor = 'var(--bd2)';
+    if (inline) { inline.innerHTML = wrIco('sync',12)+' Syncing'; inline.style.color = 'var(--tx3)'; }
   } else if (state === 'synced') {
-    el.textContent = '✓ Synced'; el.style.color = 'var(--green)'; el.style.borderColor = 'rgba(164,185,134,0.3)';
-    if (inline) { inline.textContent = '✓ Synced'; inline.style.color = 'var(--green)'; }
+    el.innerHTML = wrIco('check',12)+' Synced'; el.style.color = 'var(--green)'; el.style.borderColor = 'rgba(164,185,134,0.3)';
+    if (inline) { inline.innerHTML = wrIco('check',12)+' Synced'; inline.style.color = 'var(--green)'; }
     _syncHideTimer = setTimeout(function(){
       el.style.opacity = '0';
-      if (inline && inline.textContent === '✓ Synced') inline.textContent = '';
+      if (inline && /Synced/.test(inline.textContent)) inline.innerHTML = '';
     }, 3000);
   } else if (state === 'error') {
-    el.textContent = '✕ Sync failed'; el.style.color = 'var(--red)'; el.style.borderColor = 'rgba(214,138,124,0.3)';
-    if (inline) { inline.textContent = '✕ Sync failed'; inline.style.color = 'var(--red)'; }
+    el.innerHTML = wrIco('warn',12)+' Sync failed'; el.style.color = 'var(--red)'; el.style.borderColor = 'rgba(214,138,124,0.3)';
+    if (inline) { inline.innerHTML = wrIco('warn',12)+' Sync failed'; inline.style.color = 'var(--red)'; }
   }
 }
 
+// The champion keys Firestore is known to hold. Diffing against the local map
+// is what turns a local delete into an explicit remote delete (see the save).
+var _remoteBuildKeys = [];
 async function loadBuildsFromFirestore() {
   if (!window._fbGetDoc) return;
   try {
@@ -4140,6 +4895,7 @@ async function loadBuildsFromFirestore() {
       var data = snap.data();
       if (data && data.builds && typeof data.builds === 'object') {
         builds = data.builds;
+        _remoteBuildKeys = Object.keys(data.builds);
         // Restore order: use saved array, then append any keys not in it
         var saved = Array.isArray(data.buildsOrder) ? data.buildsOrder : [];
         buildsOrder = saved.filter(function(k){ return builds[k]; });
@@ -4169,6 +4925,7 @@ function _startBuildsListener() {
         if (!data || !data.builds) return;
         if (Date.now() - _lastOwnSaveAt < 8000) return;
         builds = data.builds;
+        _remoteBuildKeys = Object.keys(data.builds);
         var saved = Array.isArray(data.buildsOrder) ? data.buildsOrder : [];
         buildsOrder = saved.filter(function(k){ return builds[k]; });
         Object.keys(builds).forEach(function(k){
@@ -4181,7 +4938,7 @@ function _startBuildsListener() {
           else renderBuildsHome();
         }
       },
-      function(e) { console.warn('Builds snapshot error:', e.message); }
+      function(e) { console.warn('Builds snapshot error:', e.message); showSyncStatus('error'); }
     );
   } catch(e) { console.warn('Could not start builds listener:', e.message); }
 }
@@ -4199,7 +4956,21 @@ function saveBuildsToFirestore() {
       Object.keys(builds).forEach(function(k){
         if (buildsOrder.indexOf(k) < 0) buildsOrder.push(k);
       });
-      await window._fbSetDoc({ builds: builds, buildsOrder: buildsOrder });
+      // setDoc(merge:true) DEEP-MERGES maps: a key that is absent from the payload
+      // is left alone on the server, not removed. That is why a deleted champion
+      // used to come back on the next refresh — the local map no longer had it, but
+      // nothing ever told Firestore to drop it. Every save now names the removals
+      // explicitly with deleteField() sentinels, so ANY path that mutates `builds`
+      // syncs correctly rather than only the one delete button that remembered to.
+      var _payload = {};
+      Object.keys(builds).forEach(function(k){ _payload[k] = builds[k]; });
+      if (window._fbDeleteField) {
+        _remoteBuildKeys.forEach(function(k){
+          if (!Object.prototype.hasOwnProperty.call(builds, k)) _payload[k] = window._fbDeleteField();
+        });
+      }
+      await window._fbSetDoc({ builds: _payload, buildsOrder: buildsOrder });
+      _remoteBuildKeys = Object.keys(builds);
       showSyncStatus('synced');
       console.log('Builds saved:', buildsOrder.length, 'champs, order:', buildsOrder);
     } catch(e) {
@@ -4253,7 +5024,7 @@ function renderBuildsHome() {
           '<div style="font-family:var(--head);font-size:26px;font-weight:800;letter-spacing:-0.3px;color:var(--tx);">My Builds</div>' +
           '<div id="builds-sync-status" style="font-family:var(--mono);font-size:12px;letter-spacing:1px;color:var(--tx3);"></div>' +
         '</div>' +
-        '<button id="new-champ-btn" style="height:34px;padding:0 18px;background:var(--gold);border:none;border-radius:8px;color:#fff;font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:0.2px;cursor:pointer;">+ New Champion</button>' +
+        '<button id="new-champ-btn" class="wr-cta" style="height:34px;padding:0 18px;background:transparent;border:1px solid rgba(192,174,234,.45);border-radius:8px;color:var(--gold2);font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:0.2px;cursor:pointer;">+ New Champion</button>' +
       '</div>' +
       '<div id="builds-home-list" style="flex:1;overflow-y:auto;padding:16px 24px;">' +
         (champIds.length ? '' : '<div style="text-align:center;padding:60px 20px;color:var(--tx3);font-family:var(--mono);font-size:13px;">No builds yet.<br><br>Click <strong>+ New Champion</strong> to start.</div>') +
@@ -4281,7 +5052,7 @@ function renderBuildsHome() {
     info.innerHTML = '<div style="font-family:var(--head);font-size:15px;font-weight:700;color:var(--tx);">'+(champ?champ.name:cid)+'</div><div style="font-family:var(--mono);font-size:12px;color:var(--tx3);">'+champBuilds.length+' build'+(champBuilds.length!==1?'s':'')+'</div>';
     var delBtn = document.createElement('button');
     delBtn.style.cssText = 'width:28px;height:28px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx3);font-size:13px;cursor:pointer;';
-    delBtn.textContent = '✕';
+    delBtn.innerHTML = wrIco('close',13);
     delBtn.title = 'Delete';
     delBtn.addEventListener('click', function(e){ e.stopPropagation(); deleteChampBuilds(this.parentElement.dataset.cid); });
     delBtn.onmouseover = function(){ this.style.borderColor='var(--red)'; this.style.color='var(--red)'; };
@@ -4345,7 +5116,7 @@ function openBuildsChampPicker() {
   hdr.innerHTML = '<span style="font-family:var(--head);font-size:20px;font-weight:800;color:var(--tx);">Select Champion</span>';
   const closeBtn = document.createElement('button');
   closeBtn.style.cssText = 'width:32px;height:32px;background:none;border:none;color:var(--tx2);font-size:18px;cursor:pointer;';
-  closeBtn.textContent = '✕';
+  closeBtn.innerHTML = wrIco('close',15);
   closeBtn.onclick = function(){ modal.style.display='none'; };
   hdr.appendChild(closeBtn);
   // Search
@@ -4358,7 +5129,7 @@ function openBuildsChampPicker() {
   searchInput.oninput = function(){ renderBuildsChampGrid(this.value); };
   const clearBtn = document.createElement('button');
   clearBtn.style.cssText = 'position:absolute;right:24px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--tx3);font-size:14px;cursor:pointer;';
-  clearBtn.textContent = '✕';
+  clearBtn.innerHTML = wrIco('close',13);
   clearBtn.onclick = function(){ searchInput.value=''; renderBuildsChampGrid(''); };
   searchDiv.appendChild(searchInput);
   searchDiv.appendChild(clearBtn);
@@ -4408,13 +5179,11 @@ function deleteChampBuilds(cid) {
     try {
       // setDoc(merge:true) deep-merges maps — absent keys are NOT removed, champ
       // would resurface on refresh. Use deleteField() to explicitly remove the key.
-      if (window._fbDeleteField) {
-        var _patch = { builds: {}, buildsOrder: buildsOrder };
-        _patch.builds[cid] = window._fbDeleteField();
-        await window._fbSetDoc(_patch);
-      } else {
-        await window._fbSetDoc({ builds: builds, buildsOrder: buildsOrder });
-      }
+      var _patch = { builds: {}, buildsOrder: buildsOrder };
+      Object.keys(builds).forEach(function(k){ _patch.builds[k] = builds[k]; });
+      if (window._fbDeleteField) _patch.builds[cid] = window._fbDeleteField();
+      await window._fbSetDoc(_patch);
+      _remoteBuildKeys = Object.keys(builds);
       showSyncStatus('synced');
       console.log('Champ deleted and saved:', Object.keys(builds).length, 'remain');
     } catch(e) {
@@ -4439,10 +5208,10 @@ function renderChampBuildPage(cid) {
   el.innerHTML =
     '<div style="display:flex;flex-direction:column;height:100%;overflow:hidden;">' +
       '<div style="display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--bd);flex-shrink:0;">' +
-        '<button id="cbp-back" class="btn-ghost" style="height:32px;padding:0 12px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx2);font-family:var(--mono);font-size:12px;cursor:pointer;">← Back</button>' +
+        '<button id="cbp-back" class="btn-ghost" style="height:32px;padding:0 12px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx2);font-family:var(--mono);font-size:12px;cursor:pointer;"'+wrIco('back',12)+' Back</button>' +
         '<img src="'+DDRAGON+'/img/champion/'+cid+'.png" style="width:40px;height:40px;border-radius:8px;">' +
         '<span style="font-family:var(--head);font-size:18px;font-weight:800;color:var(--tx);">'+(champ?champ.name:cid)+'</span>' +
-        '<button id="cbp-new" style="margin-left:auto;height:32px;padding:0 16px;background:var(--gold);border:none;border-radius:8px;color:#fff;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;">+ New Build</button>' +
+        '<button id="cbp-new" class="wr-cta" style="margin-left:auto;height:32px;padding:0 16px;background:transparent;border:1px solid rgba(192,174,234,.45);border-radius:8px;color:var(--gold2);font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;">+ New Build</button>' +
       '</div>' +
       '<div id="champ-builds-list" style="flex:1;overflow-y:auto;padding:20px;">' +
         (!champBuilds.length ? '<div style="text-align:center;padding:40px;color:var(--tx3);font-family:var(--mono);font-size:12px;">No builds yet. Click <strong>+ New Build</strong></div>' : '') +
@@ -4575,7 +5344,7 @@ function renderBuildCard(cid, b, idx) {
       '</div>' +
       '<div style="display:flex;gap:6px;">' +
         '<button onclick="editBuild(\'' + selectedBuildChamp + '\',' + idx + ')" class="btn-ghost" style="height:28px;padding:0 12px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx2);font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;">Edit</button>' +
-        '<button onclick="deleteBuild(\'' + selectedBuildChamp + '\',' + idx + ')" style="height:28px;padding:0 12px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx3);font-family:var(--mono);font-size:12px;cursor:pointer;">✕</button>' +
+        '<button onclick="deleteBuild(\'' + selectedBuildChamp + '\',' + idx + ')" style="height:28px;padding:0 12px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx3);font-family:var(--mono);font-size:12px;cursor:pointer;"'+wrIco('close',15)+'</button>' +
       '</div>' +
     '</div>' +
     '<div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;">' +
@@ -4633,7 +5402,7 @@ function openBuildEditor() {
   var backBtn = document.createElement('button');
   backBtn.className = 'btn-ghost';
   backBtn.style.cssText = 'height:32px;padding:0 14px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx2);font-family:var(--mono);font-size:12px;cursor:pointer;';
-  backBtn.textContent = '← Back';
+  backBtn.innerHTML = wrIco('back',13)+' Back';
   backBtn.onclick = function(){ renderChampBuildPage(cid); };
   var champImg = document.createElement('img');
   champImg.src = DDRAGON + '/img/champion/' + cid + '.png';
@@ -4642,7 +5411,7 @@ function openBuildEditor() {
   title.style.cssText = 'font-family:var(--head);font-size:19px;font-weight:800;color:var(--tx);';
   title.innerHTML = (champ?champ.name:cid) + '<span style="font-size:12px;font-weight:400;color:var(--tx3);font-family:var(--mono);margin-left:10px;letter-spacing:1px;">' + (buildEditorIdx>=0?'Edit Build':'New Build') + '</span>';
   var saveBtn = document.createElement('button');
-  saveBtn.style.cssText = 'margin-left:auto;height:34px;padding:0 22px;background:var(--gold);border:none;border-radius:8px;color:#fff;font-family:var(--head);font-size:13px;font-weight:700;letter-spacing:0.2px;cursor:pointer;box-shadow:0 2px 12px rgba(192,174,234,0.4);';
+  saveBtn.style.cssText = 'margin-left:auto;height:34px;padding:0 22px;background:transparent;border:1px solid rgba(192,174,234,.45);border-radius:8px;color:var(--gold2);font-family:var(--head);font-size:13px;font-weight:700;letter-spacing:0.2px;cursor:pointer;';
   saveBtn.textContent = 'Save';
   saveBtn.onclick = saveBuildEditor;
   hdr.appendChild(backBtn); hdr.appendChild(champImg); hdr.appendChild(title); hdr.appendChild(saveBtn);
@@ -4660,7 +5429,7 @@ function openBuildEditor() {
 
   // Build Name
   var nameSection = mkSection();
-  nameSection.appendChild(mkLabel('BUILD NAME'));
+  nameSection.appendChild(mkLabel('Build name'));
   var nameInput = document.createElement('input');
   nameInput.id = 'be-name';
   nameInput.value = b.name || '';
@@ -4673,7 +5442,7 @@ function openBuildEditor() {
 
   // Matchup
   var matchSection = mkSection();
-  matchSection.appendChild(mkLabel('MATCHUP'));
+  matchSection.appendChild(mkLabel('Matchup'));
   var matchDisplay = document.createElement('div');
   matchDisplay.id = 'be-matchup-display';
   matchDisplay.style.cssText = 'min-height:40px;padding:6px 10px;background:var(--bg3);border:1px solid var(--bd2);border-radius:6px;cursor:pointer;display:flex;flex-wrap:wrap;gap:4px;align-items:center;';
@@ -4700,7 +5469,7 @@ function openBuildEditor() {
 
   // Spells zone
   var spellsSection = mkSection();
-  spellsSection.appendChild(mkLabel('SPELLS'));
+  spellsSection.appendChild(mkLabel('Spells'));
   var spellsZone = document.createElement('div');
   spellsZone.id = 'be-spells-zone';
   spellsZone.style.cssText = 'min-height:50px;padding:8px;background:var(--bg3);border:2px dashed var(--bd2);border-radius:8px;display:flex;gap:6px;transition:border-color 0.15s;';
@@ -4712,7 +5481,7 @@ function openBuildEditor() {
 
   // Runes
   var runesSection = mkSection();
-  runesSection.appendChild(mkLabel('RUNES'));
+  runesSection.appendChild(mkLabel('Runes'));
   var runesZone = document.createElement('div');
   runesZone.id = 'be-runes-zone';
   runesZone.style.cssText = 'background:var(--bg3);border:1px solid var(--bd);border-radius:8px;padding:10px;';
@@ -4722,7 +5491,7 @@ function openBuildEditor() {
 
   // Notes
   var notesSection = mkSection();
-  notesSection.appendChild(mkLabel('NOTES'));
+  notesSection.appendChild(mkLabel('Notes'));
   var notesTA = document.createElement('textarea');
   notesTA.id = 'be-notes';
   notesTA.placeholder = 'Strategy, combos...';
@@ -4763,7 +5532,7 @@ function openBuildEditor() {
   searchInput.onblur = function(){ this.style.borderColor='var(--bd2)'; };
   var clearBtn = document.createElement('button');
   clearBtn.style.cssText = 'position:absolute;right:18px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--tx3);font-size:14px;cursor:pointer;line-height:1;padding:2px;';
-  clearBtn.textContent = '✕';
+  clearBtn.innerHTML = wrIco('close',13);
   clearBtn.onclick = function(){ searchInput.value=''; filterBuildPanel(''); };
   searchRow.appendChild(searchInput);
   searchRow.appendChild(clearBtn);
@@ -4795,20 +5564,20 @@ function openBuildEditor() {
       '<div style="width:min(780px,96vw);max-height:88vh;background:var(--bg3);border:1px solid var(--bd2);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;">' +
         '<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--bd);flex-shrink:0;">' +
           '<span style="font-family:var(--head);font-size:18px;font-weight:800;color:var(--tx);">Select Matchup Champions</span>' +
-          '<button id="mq-close-btn" style="background:none;border:none;color:var(--tx2);font-size:20px;cursor:pointer;padding:4px;">✕</button>' +
+          '<button id="mq-close-btn" style="background:none;border:none;color:var(--tx2);font-size:20px;cursor:pointer;padding:4px;"'+wrIco('close',15)+'</button>' +
         '</div>' +
         '<div style="padding:10px 14px;border-bottom:1px solid var(--bd);position:relative;flex-shrink:0;">' +
           '<input id="matchup-search" placeholder="Search champions..." style="width:100%;height:38px;padding:0 34px 0 12px;background:var(--bg4);border:1px solid var(--bd2);border-radius:8px;color:var(--tx);font-family:var(--body);font-size:14px;outline:none;">' +
-          '<button id="mq-search-clear" class="input-clear-btn" style="position:absolute;right:22px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--tx3);font-size:14px;cursor:pointer;">✕</button>' +
+          '<button id="mq-search-clear" class="input-clear-btn" style="position:absolute;right:22px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--tx3);font-size:14px;cursor:pointer;"'+wrIco('close',15)+'</button>' +
         '</div>' +
         '<div style="padding:8px 14px;border-bottom:1px solid var(--bd);display:flex;flex-direction:column;gap:6px;flex-shrink:0;">' +
-          '<div><div style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--tx2);font-weight:700;letter-spacing:2px;margin-bottom:4px;">CLASS</div><div style="display:flex;gap:4px;flex-wrap:wrap;" id="mq-class-chips"></div></div>' +
-          '<div><div style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--tx2);font-weight:700;letter-spacing:2px;margin-bottom:4px;">RESOURCE TYPE</div><div style="display:flex;gap:4px;flex-wrap:wrap;" id="mq-res-chips"></div></div>' +
+          '<div><div style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--tx2);font-weight:700;letter-spacing:2px;margin-bottom:4px;">Class</div><div style="display:flex;gap:4px;flex-wrap:wrap;" id="mq-class-chips"></div></div>' +
+          '<div><div style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--tx2);font-weight:700;letter-spacing:2px;margin-bottom:4px;">Resource type</div><div style="display:flex;gap:4px;flex-wrap:wrap;" id="mq-res-chips"></div></div>' +
         '</div>' +
         '<div id="matchup-grid" style="flex:1;overflow-y:auto;padding:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:6px;"></div>' +
         '<div style="padding:10px 14px;border-top:1px solid var(--bd);display:flex;flex-direction:column;gap:8px;flex-shrink:0;background:var(--bg2);">' +
           '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><div id="matchup-selected-count" style="font-family:var(--mono);font-size:12px;color:var(--tx3);flex-shrink:0;">None selected</div><div id="matchup-selected-row" style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;"></div></div>' +
-          '<div style="display:flex;justify-content:flex-end;gap:8px;"><button id="mq-cancel-btn" style="height:34px;padding:0 18px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx2);font-family:var(--mono);font-size:12px;cursor:pointer;">Cancel</button><button id="mq-confirm-btn" style="height:34px;padding:0 22px;background:var(--gold);border:none;border-radius:6px;color:#fff;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;">CONFIRM</button></div>' +
+          '<div style="display:flex;justify-content:flex-end;gap:8px;"><button id="mq-cancel-btn" style="height:34px;padding:0 18px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx2);font-family:var(--mono);font-size:12px;cursor:pointer;">Cancel</button><button id="mq-confirm-btn" class="wr-cta" style="height:34px;padding:0 22px;background:transparent;border:1px solid rgba(192,174,234,.45);border-radius:6px;color:var(--gold2);font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;">Confirm</button></div>' +
         '</div>' +
       '</div>';
     mp.addEventListener('click', function(e){ if(e.target===mp) closeMatchupPicker(); });
@@ -4914,7 +5683,7 @@ function renderMatchupSelectedRow() {
     img.style.cssText = 'width:28px;height:28px;border-radius:4px;border:2px solid var(--gold);';
     var x = document.createElement('div');
     x.style.cssText = 'position:absolute;top:-3px;right:-3px;width:11px;height:11px;border-radius:50%;background:var(--red);color:#fff;font-size:6px;line-height:11px;text-align:center;';
-    x.textContent = '✕';
+    x.innerHTML = wrIco('close',12);
     wrap.appendChild(img);
     wrap.appendChild(x);
     row.appendChild(wrap);
@@ -4944,7 +5713,7 @@ function renderRuneBuilderZone(b) {
   let html = '';
 
   // Primary path pills
-  html += '<div style="margin-bottom:10px;"><div style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--tx2);font-weight:700;letter-spacing:2px;margin-bottom:6px;">PRIMARY PATH</div>';
+  html += '<div style="margin-bottom:10px;"><div style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--tx2);font-weight:700;letter-spacing:2px;margin-bottom:6px;">Primary path</div>';
   html += '<div style="display:flex;gap:4px;flex-wrap:wrap;">';
   allRuneData.forEach(function(path) {
     const col = COLORS[path.name] || 'var(--gold)';
@@ -5030,7 +5799,7 @@ function refreshBuildZones() {
     if (!items.length) {
       var hint = document.createElement('span');
       hint.style.cssText = 'font-family:var(--mono);font-size:12px;color:var(--tx3);align-self:center;padding:4px;';
-      hint.textContent = 'Drag or click items →';
+      hint.innerHTML = 'Drag or click items '+wrIco('arrowR',12);
       iz.appendChild(hint);
     } else {
       items.forEach(function(id, i) {
@@ -5046,7 +5815,7 @@ function refreshBuildZones() {
         img.onerror = function(){ this.style.opacity=0.3; };
         var xBtn = document.createElement('button');
         xBtn.style.cssText = 'position:absolute;top:-5px;right:-5px;width:15px;height:15px;border-radius:50%;background:var(--red);border:none;color:#fff;font-size:12px;cursor:pointer;padding:0;line-height:15px;text-align:center;';
-        xBtn.textContent = '✕';
+        xBtn.innerHTML = wrIco('close',12);
         xBtn.addEventListener('click', (function(itemId){ return function(){ removeBuildItem('items',itemId); }; })(id));
         wrap.appendChild(img); wrap.appendChild(xBtn);
         iz.appendChild(wrap);
@@ -5063,7 +5832,7 @@ function refreshBuildZones() {
     if (!spells.length) {
       var hint2 = document.createElement('span');
       hint2.style.cssText = 'font-family:var(--mono);font-size:12px;color:var(--tx3);align-self:center;padding:4px;';
-      hint2.textContent = 'Drag or click spells →';
+      hint2.innerHTML = 'Drag or click spells '+wrIco('arrowR',12);
       sz.appendChild(hint2);
     } else {
       spells.forEach(function(sid, i) {
@@ -5080,7 +5849,7 @@ function refreshBuildZones() {
         img.title = sp.name;
         var xBtn = document.createElement('button');
         xBtn.style.cssText = 'position:absolute;top:-5px;right:-5px;width:15px;height:15px;border-radius:50%;background:var(--red);border:none;color:#fff;font-size:12px;cursor:pointer;padding:0;line-height:15px;text-align:center;';
-        xBtn.textContent = '✕';
+        xBtn.innerHTML = wrIco('close',12);
         xBtn.addEventListener('click', (function(spellId){ return function(){ removeBuildItem('spells',spellId); }; })(sid));
         wrap.appendChild(img); wrap.appendChild(xBtn);
         sz.appendChild(wrap);
@@ -5440,14 +6209,14 @@ function renderLiveClientData(data, el) {
   var chaos  = allPlayers.filter(function(p){ return p.team==='CHAOS'; });
   // Ensure my team is first
   var teams = myTeam==='ORDER' ? [order,chaos] : [chaos,order];
-  var teamLabels = myTeam==='ORDER' ? ['YOUR TEAM','ENEMY TEAM'] : ['YOUR TEAM','ENEMY TEAM'];
+  var teamLabels = myTeam==='ORDER' ? ['Your team','Enemy team'] : ['Your team','Enemy team'];
   var teamCols   = ['var(--blue)','var(--red)'];
 
   var html = '';
 
   // ── Header: timer + my stats ──
   html += '<div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;padding:14px 18px;background:var(--bg3);border:1px solid var(--bd);border-radius:10px;flex-wrap:wrap;">';
-  html += '<div style="font-family:var(--mono);font-size:26px;font-weight:700;color:var(--tx);">⏱ ' + timeStr + '</div>';
+  html += '<div style="font-family:var(--mono);font-size:26px;font-weight:700;color:var(--tx);display:flex;align-items:center;gap:8px;">'+wrIco('hourglass',18)+timeStr+'</div>';
   if (me.championName) {
     html += '<div style="display:flex;align-items:center;gap:10px;">';
     var meChampImg = champImg(myPlayer||{championName:me.championName});
@@ -5477,12 +6246,12 @@ function renderLiveClientData(data, el) {
     var kda = d===0 ? (k+a).toFixed(1) : ((k+a)/d).toFixed(2);
     var minsF = gtime/60 || 0.01;
     var cspm = minsF > 0 ? (((sc.creepScore||0)/minsF).toFixed(1)) : '0.0';
-    html += '<div style="display:flex;gap:20px;margin-top:10px;width:100%;padding-top:10px;border-top:1px solid var(--bd);">';
-    html += mkStat('K/D/A', '<span style="color:var(--green);">'+k+'</span>/<span style="color:var(--red);">'+d+'</span>/<span style="color:var(--tx2);">'+a+'</span>', 'var(--tx)');
-    html += mkStat('KDA', kda, 'var(--gold)');
-    html += mkStat('CS', sc.creepScore||0, 'var(--tx2)');
-    html += mkStat('CS/m', cspm, 'var(--tx2)');
-    html += mkStat('Wards', sc.wardScore||0, 'var(--tx3)');
+    html += '<div style="display:flex;gap:12px 26px;margin-top:12px;width:100%;padding-top:12px;border-top:1px solid var(--bd);flex-wrap:wrap;justify-content:flex-start;">';
+    html += mkBigStat('K / D / A', '<span style="color:var(--green);">'+k+'</span><span style="color:var(--tx3);">/</span><span style="color:var(--red);">'+d+'</span><span style="color:var(--tx3);">/</span><span style="color:var(--blue);">'+a+'</span>', 'var(--tx)');
+    html += mkBigStat('KDA', kda, 'var(--gold)');
+    html += mkBigStat('CS', sc.creepScore||0, 'var(--tx)');
+    html += mkBigStat('CS/m', cspm, 'var(--tx)');
+    html += mkBigStat('Wards', sc.wardScore||0, 'var(--tx)');
     html += '</div>';
   }
   html += '</div>';
@@ -5490,7 +6259,7 @@ function renderLiveClientData(data, el) {
   // ── My Items ──
   if (myPlayer && myPlayer.items && myPlayer.items.length) {
     html += '<div style="margin-bottom:14px;padding:12px 14px;background:var(--bg3);border:1px solid var(--bd);border-radius:8px;">';
-    html += '<div style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--tx2);font-weight:700;letter-spacing:2px;margin-bottom:8px;">MY ITEMS</div>';
+    html += '<div style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--tx2);font-weight:700;letter-spacing:2px;margin-bottom:8px;">My items</div>';
     html += '<div style="display:flex;gap:6px;flex-wrap:wrap;">';
     myPlayer.items.forEach(function(item) {
       var id = item.itemID;
@@ -5507,7 +6276,7 @@ function renderLiveClientData(data, el) {
   var abilityKeys = ['Q','W','E','R'];
   if (abilities.Q || abilities.W || abilities.E || abilities.R) {
     html += '<div style="margin-bottom:14px;padding:12px 14px;background:var(--bg3);border:1px solid var(--bd);border-radius:8px;">';
-    html += '<div style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--tx2);letter-spacing:2px;margin-bottom:10px;">ABILITIES</div>';
+    html += '<div style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--tx2);letter-spacing:2px;margin-bottom:10px;">Abilities</div>';
     html += '<div style="display:flex;gap:8px;flex-wrap:wrap;">';
     var passiveAb = abilities['Passive'];
     if (passiveAb) {
@@ -5576,7 +6345,7 @@ function renderLiveClientData(data, el) {
     var secColor  = secPath  ? (RUNE_COLORS[secPath.name]  || 'var(--tx2)') : 'var(--tx2)';
 
     html += '<div style="margin-bottom:14px;padding:12px 14px;background:var(--bg3);border:1px solid var(--bd);border-radius:8px;">';
-    html += '<div style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--tx2);letter-spacing:2px;margin-bottom:10px;">ACTIVE RUNES</div>';
+    html += '<div style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--tx2);letter-spacing:2px;margin-bottom:10px;">Active runes</div>';
     html += '<div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;">';
 
     // Keystone
@@ -5636,20 +6405,22 @@ function renderLiveClientData(data, el) {
       if (ci) html += '<img src="'+ci+'" style="width:28px;height:28px;border-radius:5px;'+(isDead?'filter:grayscale(0.7);':'')+';" onerror="this.style.opacity=0.3">';
       html += '<div style="flex:1;min-width:0;">';
       html += '<div style="font-family:var(--head);font-size:12px;font-weight:700;color:'+(isMe?'var(--gold)':isDead?'var(--red)':'var(--tx)')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+(p.riotId||p.summonerName||'')+'</div>';
-      html += '<div style="font-family:var(--mono);font-size:10px;color:var(--tx3);">'+(p.position||'')+'</div>';
+      // ARAM and any unassigned lane report position 'NONE'; printing that under
+      // every name is noise, so it is dropped rather than shown.
+      var posLbl = (p.position && p.position !== 'NONE') ? p.position : '';
+      if (posLbl) html += '<div style="font-family:var(--mono);font-size:10px;color:var(--tx3);">'+posLbl+'</div>';
       html += '</div>';
-      // Respawn timer or KDA
+      html += liveLoadoutHtml(p);
+      // KDA is shown whether or not the player is alive. Replacing it with the
+      // respawn timer hid the one number you most want when deciding to take a
+      // fight; the timer now sits ABOVE the KDA instead of instead of it.
+      html += '<div style="font-family:var(--mono);font-size:12px;text-align:right;min-width:52px;">';
       if (isDead && respawn > 0) {
-        html += '<div style="text-align:right;min-width:40px;">';
-        html += '<div style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--red);">💀 ' + Math.ceil(respawn) + 's</div>';
-        html += '<div style="font-family:var(--mono);font-size:10px;color:var(--tx3);">' + (sc.creepScore||0) + ' cs</div>';
-        html += '</div>';
-      } else {
-        html += '<div style="font-family:var(--mono);font-size:12px;text-align:right;">';
-        html += '<div><span style="color:var(--green);">'+(sc.kills||0)+'</span> / <span style="color:var(--red);">'+(sc.deaths||0)+'</span> / '+(sc.assists||0)+'</div>';
-        html += '<div style="font-size:10px;color:var(--tx3);">'+(sc.creepScore||0)+' cs</div>';
-        html += '</div>';
+        html += '<div style="font-weight:700;color:var(--red);display:flex;align-items:center;gap:3px;justify-content:flex-end;">'+wrIco('skull',11)+Math.ceil(respawn)+'s</div>';
       }
+      html += '<div><span style="color:var(--green);">'+(sc.kills||0)+'</span><span style="color:var(--tx3);">/</span><span style="color:var(--red);">'+(sc.deaths||0)+'</span><span style="color:var(--tx3);">/</span><span style="color:var(--blue);">'+(sc.assists||0)+'</span></div>';
+      html += '<div style="font-size:10px;color:var(--tx3);">'+(sc.creepScore||0)+' cs</div>';
+      html += '</div>';
       html += '</div>';
     });
     html += '</div>';
@@ -5663,18 +6434,18 @@ function renderLiveClientData(data, el) {
 
   if (recentAll.length) {
     html += '<div style="background:var(--bg3);border:1px solid var(--bd);border-radius:8px;padding:12px 14px;">';
-    html += '<div style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--tx2);font-weight:700;letter-spacing:2px;margin-bottom:8px;">RECENT EVENTS</div>';
+    html += '<div style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--tx2);font-weight:700;letter-spacing:2px;margin-bottom:8px;">Recent events</div>';
     recentAll.forEach(function(ev) {
       var t = Math.floor(ev.EventTime||0);
       var tStr = Math.floor(t/60)+':'+String(t%60).padStart(2,'0');
-      var icon = '⚔️', desc = ev.EventName, col = 'var(--tx2)';
-      if (ev.EventName==='ChampionKill') { icon='💀'; desc=(ev.KillerName||'?')+' killed '+(ev.VictimName||'?'); col='var(--red)'; }
-      else if (ev.EventName==='DragonKill') { icon='🐉'; desc='Dragon slain by '+(ev.KillerName||'?'); col='var(--green)'; }
-      else if (ev.EventName==='BaronKill') { icon='👑'; desc='Baron slain by '+(ev.KillerName||'?'); col='var(--gold)'; }
-      else if (ev.EventName==='TurretKilled') { icon='🏰'; desc='Turret destroyed'; col='var(--blue)'; }
-      else if (ev.EventName==='InhibKilled') { icon='💥'; desc='Inhibitor destroyed'; col='var(--blue)'; }
-      else if (ev.EventName==='GameStart') { icon='🎮'; desc='Game started'; }
-      else if (ev.EventName==='FirstBrick') { icon='🧱'; desc='First turret'; }
+      var icon = wrIco('swords',13), desc = ev.EventName, col = 'var(--tx2)';
+      if (ev.EventName==='ChampionKill') { icon=wrIco('skull',13); desc=(ev.KillerName||'?')+' killed '+(ev.VictimName||'?'); col='var(--red)'; }
+      else if (ev.EventName==='DragonKill') { icon=wrIco('dragon',13); desc='Dragon slain by '+(ev.KillerName||'?'); col='var(--green)'; }
+      else if (ev.EventName==='BaronKill') { icon=wrIco('baron',13); desc='Baron slain by '+(ev.KillerName||'?'); col='var(--gold)'; }
+      else if (ev.EventName==='TurretKilled') { icon=wrIco('turret',13); desc='Turret destroyed'; col='var(--blue)'; }
+      else if (ev.EventName==='InhibKilled') { icon=wrIco('burst',13); desc='Inhibitor destroyed'; col='var(--blue)'; }
+      else if (ev.EventName==='GameStart') { icon=wrIco('gamepad',13); desc='Game started'; }
+      else if (ev.EventName==='FirstBrick') { icon=wrIco('brick',13); desc='First turret'; }
       else return; // skip uninteresting events
       html += '<div style="display:flex;gap:8px;padding:5px 0;border-bottom:1px solid var(--bd);font-family:var(--mono);font-size:12px;align-items:center;">';
       html += '<span style="color:var(--tx3);flex-shrink:0;width:32px;">'+tStr+'</span>';
@@ -5733,7 +6504,7 @@ function renderLiveClientData(data, el) {
 
     html += '<div style="margin-bottom:14px;">';
     html += '<div style="font-family:var(--mono);font-size:12px;font-weight:700;color:' + (matchedBuilds.length?'var(--gold)':'var(--tx3)') + ';letter-spacing:2px;margin-bottom:10px;">' +
-      (matchedBuilds.length ? '⭐ ' : '') + sectionTitle + '</div>';
+      (matchedBuilds.length ? wrIco('star',12)+' ' : '') + sectionTitle + '</div>';
 
     buildsToShow.forEach(function(b) {
       var bItems = b.items || [];
@@ -5796,6 +6567,62 @@ function renderLiveClientData(data, el) {
   el.innerHTML = html;
 }
 
+// ── Live-client lookups ────────────────────────────────────────────────────
+// The LCU gives spells and runes by DISPLAY NAME ("Flash", "Electrocute"), not
+// by the numeric ids match-v5 uses, so both are resolved against the DDragon
+// data already loaded for the rest of the app rather than fetched again.
+function liveSpellImg(name) {
+  if (!name || !allSummonerSpells || !allSummonerSpells.length) return '';
+  var n = String(name).toLowerCase();
+  var sp = allSummonerSpells.find(function(s){ return String(s.name||'').toLowerCase() === n; });
+  return sp && sp.image ? (DDRAGON + '/img/spell/' + sp.image.full) : '';
+}
+// Keystones live in the first slot of each path; the path icons themselves are
+// on the path object. One walk covers both.
+function liveRuneImg(name) {
+  if (!name || !allRuneData || !allRuneData.length) return '';
+  var n = String(name).toLowerCase();
+  for (var i = 0; i < allRuneData.length; i++) {
+    var path = allRuneData[i];
+    if (String(path.name||'').toLowerCase() === n) return 'https://ddragon.leagueoflegends.com/cdn/img/' + path.icon;
+    var slots = path.slots || [];
+    for (var j = 0; j < slots.length; j++) {
+      var runes = slots[j].runes || [];
+      for (var k = 0; k < runes.length; k++) {
+        if (String(runes[k].name||'').toLowerCase() === n)
+          return 'https://ddragon.leagueoflegends.com/cdn/img/' + runes[k].icon;
+      }
+    }
+  }
+  return '';
+}
+// Small stacked spell pair + keystone/secondary pair for one live player.
+function liveLoadoutHtml(p) {
+  var sp = p.summonerSpells || {};
+  var s1 = sp.summonerSpellOne && sp.summonerSpellOne.displayName;
+  var s2 = sp.summonerSpellTwo && sp.summonerSpellTwo.displayName;
+  var rn = p.runes || {};
+  var ks = rn.keystone && rn.keystone.displayName;
+  var sec = rn.secondaryRuneTree && rn.secondaryRuneTree.displayName;
+  function cell(url, title, size, round) {
+    if (!url) return '<div style="width:' + size + 'px;height:' + size + 'px;border-radius:' + (round ? '50%' : '3px') + ';background:var(--bg5);"></div>';
+    return '<img src="' + url + '" title="' + String(title||'').replace(/"/g,'&quot;') + '" style="width:' + size + 'px;height:' + size + 'px;border-radius:' + (round ? '50%' : '3px') + ';' + (round ? 'background:#000;' : '') + '" onerror="this.style.opacity=0.25">';
+  }
+  var out = '<div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">';
+  out += '<div style="display:flex;flex-direction:column;gap:2px;">' + cell(liveSpellImg(s1), s1, 15) + cell(liveSpellImg(s2), s2, 15) + '</div>';
+  out += '<div style="display:flex;flex-direction:column;gap:2px;">' + cell(liveRuneImg(ks), ks, 17, true) + cell(liveRuneImg(sec), sec, 13, true) + '</div>';
+  out += '</div>';
+  return out;
+}
+// The personal line at the top of Live is the thing you glance at mid-fight, so
+// it gets its own scale rather than sharing the small stat treatment used for
+// the AD/AP/armor readout beside it.
+function mkBigStat(label, val, col) {
+  return '<div style="text-align:center;min-width:64px;">' +
+    '<div style="font-family:var(--head);font-size:30px;line-height:1.05;font-weight:800;letter-spacing:-0.5px;color:' + col + ';">' + val + '</div>' +
+    '<div style="font-family:var(--mono);font-size:11px;color:var(--tx3);font-weight:600;letter-spacing:1px;margin-top:3px;">' + label + '</div></div>';
+}
+
 function mkStat(label, val, col) {
   return '<div style="text-align:center;"><div style="font-family:var(--mono);font-size:13px;font-weight:700;color:'+col+';">'+val+'</div><div style="font-family:var(--mono);font-size:12px;color:var(--tx2);font-weight:700;letter-spacing:1px;">'+label+'</div></div>';
 }
@@ -5835,6 +6662,12 @@ const WR_ROUTING = {
   kr:'asia',      jp1:'asia'
 };
 const wrRoutingFor = plat => WR_ROUTING[plat] || 'americas';
+// Platform id → the two-to-four letter code players actually use for it.
+const WR_REGION_SHORT = {
+  na1:'NA', br1:'BR', la1:'LAN', la2:'LAS', oc1:'OCE',
+  euw1:'EUW', eun1:'EUNE', tr1:'TR', ru:'RU',
+  kr:'KR', jp1:'JP'
+};
 
 // View any player's profile.
 //
@@ -5889,9 +6722,9 @@ async function loadPlayerProfile(name, tag, platform, routing) {
     // fetchLiveGame() was holding a reference to.
     var backBar = document.createElement('div');
     backBar.style.cssText = 'margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap;';
-    var backBtns = '<button onclick="restoreSummoner()" class="btn-ghost" style="height:32px;padding:0 16px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx2);font-family:var(--mono);font-size:12px;cursor:pointer;">← Back to ' + prev.gameName + '</button>';
+    var backBtns = '<button onclick="restoreSummoner()" class="btn-ghost" style="height:32px;padding:0 16px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx2);font-family:var(--mono);font-size:12px;cursor:pointer;"'+wrIco('back',12)+' Back to ' + prev.gameName + '</button>';
     if (_lbFromRank > 0) {
-      backBtns += '<button onclick="backToLeaderboard()" class="btn-ghost" style="height:32px;padding:0 16px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx2);font-family:var(--mono);font-size:12px;cursor:pointer;">↩ Back to Leaderboard</button>';
+      backBtns += '<button onclick="backToLeaderboard()" class="btn-ghost" style="height:32px;padding:0 16px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx2);font-family:var(--mono);font-size:12px;cursor:pointer;"'+wrIco('ret',12)+' Back to Leaderboard</button>';
     }
     backBar.innerHTML = backBtns;
     var pc = document.getElementById('profile-content');
@@ -5937,6 +6770,7 @@ let champList = [], champListLoaded = false;
 let _champClassFilter = 'All', _champResourceFilter = 'All';
 
 async function loadChampionsTab() {
+  wrInvalidateOnPatchChange(DDRAGON_VER);
   if (champListLoaded) return;
   const el = document.getElementById('champions-content');
 
@@ -6084,7 +6918,7 @@ async function openChampOverlay(champId) {
     ];
 
     inner.innerHTML = `
-      <div class="co-close" onclick="document.getElementById('champ-overlay').style.display='none';document.getElementById('champ-overlay-inner').innerHTML='';document.body.style.overflow='';">✕</div>
+      <div class="co-close" onclick="document.getElementById('champ-overlay').style.display='none';document.getElementById('champ-overlay-inner').innerHTML='';document.body.style.overflow='';">${wrIco('close',16)}</div>
       <div class="co-header">
         <img class="co-splash" src="https://ddragon.leagueoflegends.com/cdn/img/champion/splash/${champId}_0.jpg" alt="${c.name}" onerror="this.style.display='none'">
         <div class="co-header-info">
@@ -6415,9 +7249,9 @@ async function lookupSpectate(useLast) {
     el.innerHTML = renderSpectateGame(game, acct.puuid, dispName, dispTag);
   } catch(e) {
     const code = e.message || '';
-    const msg = (code==='404'||code.includes('404')) ? '😕 Summoner not found. Check the name, tag, and region.'
-              : (code==='403') ? '🔑 API key error — check your Worker deployment.'
-              : '⚠️ ' + code;
+    const msg = (code==='404'||code.includes('404')) ? wrIco('confused',15)+' Summoner not found. Check the name, tag, and region.'
+              : (code==='403') ? wrIco('key',15)+' API key error — check your Worker deployment.'
+              : wrIco('warn',15)+' ' + code;
     el.innerHTML = '<div style="font-family:var(--body);font-size:14px;color:var(--tx2);padding:20px 24px;background:var(--bg3);border:1px solid var(--bd);border-radius:8px;line-height:1.6;">' + msg + '</div>';
   }
 }
@@ -6437,7 +7271,7 @@ function jumpToSpectate(name, tag) {
 
 function renderNotInGame(name, tag) {
   return '<div style="text-align:center;padding:48px;background:var(--bg3);border:1px solid var(--bd);border-radius:10px;">' +
-    '<div style="font-size:40px;margin-bottom:12px;">💤</div>' +
+    '<div style="color:var(--tx3);margin-bottom:12px;">'+wrIco('sleep',34)+'</div>' +
     '<div style="font-family:var(--head);font-size:20px;font-weight:700;color:var(--tx);margin-bottom:6px;">' + name + ' <span style="color:var(--tx3);">#' + tag + '</span></div>' +
     '<div style="font-family:var(--mono);font-size:12px;color:var(--tx2);font-weight:600;letter-spacing:0.2px;">Not currently in a game</div>' +
     '</div>';
@@ -6473,7 +7307,7 @@ function renderSpectateGame(game, targetPuuid, name, tag) {
     const sideColor = isBlue ? 'var(--blue)' : 'var(--red)';
     let h = '<div style="background:' + (isBlue?'rgba(143,166,216,0.05)':'rgba(214,138,124,0.05)') + ';border-bottom:1px solid var(--bd);">' +
       '<div class="live-team-hdr" style="color:' + sideColor + ';">' +
-      '<span>' + (isBlue?'🔵 Blue Team':'🔴 Red Team') + '</span>' +
+      '<span>' + wrIco('dot',9,'color:'+(isBlue?'#8fa6d8':'#d68a7c')+';') + (isBlue?' Blue Team':' Red Team') + '</span>' +
       '<span>Spells</span><span>Runes</span><span></span>' +
       '</div></div>';
 
@@ -6498,7 +7332,7 @@ function renderSpectateGame(game, targetPuuid, name, tag) {
         '<div class="live-champ">' +
           '<img src="' + champIconUrl(cName) + '" style="width:36px;height:36px;border-radius:6px;" onerror="this.style.opacity=0.3">' +
           '<div><div style="font-family:var(--body);font-size:13px;font-weight:' + (isTarget?'800':'600') + ';color:' + (isTarget?'var(--gold)':'var(--tx)') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px;">' +
-            pName + (isTarget?' ★':'') + '</div>' +
+            pName + (isTarget?' '+wrIco('star',11,'color:var(--gold);'):'') + '</div>' +
           '<div style="font-family:var(--mono);font-size:12px;color:var(--tx3);">' + (champObj&&champObj.name||cName) + '</div></div>' +
         '</div>' +
         '<div style="display:flex;flex-direction:column;gap:2px;align-items:center;">' +
@@ -6522,7 +7356,7 @@ function renderSpectateGame(game, targetPuuid, name, tag) {
       '<div class="live-pulse"></div>' +
       '<div><div style="font-family:var(--head);font-size:18px;font-weight:700;color:var(--green);">' + name + ' <span style="color:var(--tx3);font-weight:400;font-size:14px;">#' + tag + '</span> is live</div>' +
       '<div style="display:flex;align-items:center;gap:8px;margin-top:5px;">' + '<span style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--gold);background:rgba(192,174,234,0.15);padding:2px 10px;border-radius:20px;">' + qName + '</span>' + '<span style="font-family:var(--mono);font-size:12px;color:var(--tx2);">' + timeStr + '</span>' + '</div></div>' +
-      '<button onclick="lookupSpectate(true)" style="margin-left:auto;height:32px;padding:0 16px;background:transparent;border:1px solid var(--green);border-radius:6px;color:var(--green);font-family:var(--mono);font-size:12px;font-weight:600;cursor:pointer;letter-spacing:0.2px;">↻ Refresh</button>' +
+      '<button onclick="lookupSpectate(true)" style="margin-left:auto;height:32px;padding:0 16px;background:transparent;border:1px solid var(--green);border-radius:6px;color:var(--green);font-family:var(--mono);font-size:12px;font-weight:600;cursor:pointer;letter-spacing:0.2px;">'+wrIco('refresh',12)+' Refresh</button>' +
     '</div>' +
     '<div class="live-game-wrap">' + renderTeam(blue,'blue') + renderTeam(red,'red') + '</div>';
 }
@@ -6604,6 +7438,7 @@ document.addEventListener('scroll', function() { closePlayerMenu(); }, { passive
 let spellsTabLoaded = false;
 
 async function loadSpellsTab() {
+  wrInvalidateOnPatchChange(DDRAGON_VER);
   if (spellsTabLoaded) return;
   const el = document.getElementById('spells-content');
   try {
@@ -6751,6 +7586,7 @@ function closeSpellOverlay(e) {
 let runesTabLoaded = false;
 
 async function loadRunesTab() {
+  wrInvalidateOnPatchChange(DDRAGON_VER);
   if (runesTabLoaded) return;
   const el = document.getElementById('runes-content');
   try {
@@ -6939,9 +7775,19 @@ function lbRefresh() {
   loadLeaderboard();
 }
 
+// The Ladder opens on KR. It is the ladder people actually come here to read —
+// your own region's is one click away, and once you pick one this session the
+// choice sticks (_lbRegion is set) rather than snapping back to Korea.
+var LB_DEFAULT_REGION = 'kr';
+var LB_PAGE_SIZE = 25;
 function initLeaderboard() {
   var sel = document.getElementById('lb-region-select');
-  if (sel && summoner.platform && !_lbRegion) sel.value = summoner.platform;
+  if (sel && !_lbRegion) sel.value = LB_DEFAULT_REGION;
+  // Rosters are needed before the first row paints, or the Pro badges pop in a
+  // beat late. It is one cached worker call, so this costs nothing on repeat.
+  loadProIndex().then(function(){
+    if (_lbLoaded) { var q = document.getElementById('lb-search'); renderLeaderboard(_lbData, q ? q.value : ''); }
+  });
   _tryRestoreOrLoad();
 }
 
@@ -7087,8 +7933,8 @@ function lbLoadMore() {
   if (_lbCache[ck]) _lbCache[ck].page = _lbPage;
   var q = document.getElementById('lb-search');
   renderLeaderboard(_lbData, q ? q.value : '');
-  var start = (_lbPage - 1) * 50;
-  var end   = _lbPage * 50;
+  var start = (_lbPage - 1) * LB_PAGE_SIZE;
+  var end   = _lbPage * LB_PAGE_SIZE;
   enrichLeaderboardRows(_lbData.slice(start, end), _lbRegion);
 }
 
@@ -7109,8 +7955,10 @@ function renderLeaderboard(entries, filterQ) {
     return;
   }
 
-  // Pagination
-  var pageSize = 50;
+  // Pagination — 25 at a time. A full 50-row page of Challenger is a lot of
+  // rows to paint AND 50 enrichment calls against the Riot budget before you
+  // have read any of them; 25 fills the viewport and halves both.
+  var pageSize = LB_PAGE_SIZE;
   var shown    = filtered.slice(0, _lbPage * pageSize);
   var hasMore  = filtered.length > shown.length;
 
@@ -7119,15 +7967,15 @@ function renderLeaderboard(entries, filterQ) {
 
   // 5 evenly-spread columns: rank | summoner | LP | Win Rate | Level
   // Use auto for summoner so it takes remaining space; fixed widths for data cols
-  var COLS = '48px 1fr 110px 280px 80px';
+  var COLS = '42px minmax(0,1fr) 88px 210px 64px';
 
   var html = '<div style="background:var(--bg3);border:1px solid var(--bd);border-radius:10px;overflow:hidden;">';
 
   // Header — LP left-aligned to match number indent
   html += '<div style="display:grid;grid-template-columns:' + COLS + ';align-items:center;padding:10px 20px;background:var(--bg2);border-bottom:1px solid var(--bd);">' +
-    '<div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:0.8px;text-transform:uppercase;">#</div>' +
+    '<div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:0.8px;">#/div>' +
     '<div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:0.5px;">Summoner</div>' +
-    '<div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:0.8px;text-transform:uppercase;">LP</div>' +
+    '<div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:0.8px;">LP/div>' +
     '<div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:0.5px;">Win Rate</div>' +
     '<div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:0.5px;text-align:right;">Level</div>' +
   '</div>';
@@ -7145,10 +7993,10 @@ function renderLeaderboard(entries, filterQ) {
     var displayName = entry.riotIdGameName || entry.summonerName || '';
     var displayTag  = entry.riotIdTagLine  || '';
     var isMe  = myName && displayName.toLowerCase().includes(myName);
-    var badge = entry.hotStreak ? ' 🔥' : entry.freshBlood ? ' ✨' : '';
+    var badge = entry.hotStreak ? wrIco('flame',12,'color:#d68a7c;') : entry.freshBlood ? wrIco('sparkle',12,'color:#e0b874;') : '';
 
     var rankClass   = rank===1?'top1':rank===2?'top2':rank===3?'top3':rank<=10?'top10':'';
-    var rankDisplay = rank<=3 ? ['🥇','🥈','🥉'][rank-1] : rank;
+    var rankDisplay = rank<=3 ? wrIco('medal',17,'color:'+['#e0b874','#b3bcc6','#b98457'][rank-1]+';') : rank;
     var rowBg = isMe ? 'rgba(192,174,234,0.07)' : 'transparent';
     var rowHover = isMe ? 'rgba(192,174,234,0.11)' : 'rgba(255,255,255,0.03)';
 
@@ -7177,7 +8025,8 @@ function renderLeaderboard(entries, filterQ) {
           '<div id="lb-name-' + rank + '" style="color:' + (isMe ? 'var(--gold)' : 'var(--tx)') + ';">' +
             (displayName
               ? '<span style="font-family:var(--body);font-size:14px;font-weight:700;">' + displayName + '</span>' +
-                (displayTag ? '<span style="font-family:var(--body);font-size:12px;color:var(--tx3);font-weight:400;"> #' + displayTag + '</span>' : '')
+                (displayTag ? '<span style="font-family:var(--body);font-size:12px;color:var(--tx3);font-weight:400;"> #' + displayTag + '</span>' : '') +
+                proTagHtml(proLookup(entry.riotIdGameName || entry.summonerName, entry.riotIdTagLine, _lbRegion))
               : '<span style="font-family:var(--body);font-size:13px;color:var(--tx3);">Loading...</span>') +
             (badge ? '<span style="font-size:11px;margin-left:4px;">' + badge.trim() + '</span>' : '') +
           '</div>' +
@@ -7219,7 +8068,7 @@ function renderLeaderboard(entries, filterQ) {
       '<button onclick="lbLoadMore()" style="height:36px;padding:0 24px;background:transparent;border:1px solid var(--bd2);border-radius:8px;color:var(--tx2);font-family:var(--body);font-size:13px;font-weight:600;cursor:pointer;transition:all 0.15s;" ' +
         'onmouseover="this.style.borderColor=\'var(--gold)\';this.style.color=\'var(--gold)\'" ' +
         'onmouseout="this.style.borderColor=\'var(--bd2)\';this.style.color=\'var(--tx2)\'">' +
-        'Load 50 more <span style="color:var(--tx3);font-size:12px;">(' + remaining + ' remaining)</span>' +
+        'Load ' + Math.min(LB_PAGE_SIZE, remaining) + ' more <span style="color:var(--tx3);font-size:12px;">(' + remaining + ' remaining)</span>' +
       '</button>' +
     '</div>';
   } else {
@@ -8196,7 +9045,81 @@ async function fetchLeagueData(leagueId){
     _cfg.leagueData[leagueId].schedule=sched;
     _cfg.lastFetch[leagueId]=Date.now();
     saveSchedCache();
+    // Records are a second call and must never delay the schedule painting, so
+    // they load in the background and repaint only if they actually arrived.
+    loadLeagueRecords(leagueId).then(function(r){
+      if(r && Object.keys(r.byId).length && typeof render==='function') render();
+    });
   }catch(e){console.warn('[ProView] fetchLeagueData failed',leagueId,e.message);}
+}
+
+// ── Team records (W-L) ─────────────────────────────────────────────────────
+// The record shown under a team is the OFFICIAL one for the competition you are
+// currently looking at, not a career total: LoL Esports publishes it per
+// tournament inside the standings' `rankings` blocks as {wins, losses}. So the
+// chain is league → its most recent tournament → that tournament's standings.
+//
+// Deriving it by counting match outcomes would also work, but the published
+// record is what the league itself considers correct (it accounts for forfeits
+// and tiebreakers), so it is preferred and there is no fallback to a guess — if
+// no record is published, nothing is shown rather than something possibly wrong.
+const _pvRecords = {};        // leagueId -> { byId: {}, byCode: {}, tournamentId }
+const _pvRecPending = {};
+
+function pvRecordFor(leagueId, team) {
+  const r = _pvRecords[leagueId];
+  if (!r || !team) return null;
+  return (team.id && r.byId[team.id]) || (team.code && r.byCode[String(team.code).toUpperCase()]) || null;
+}
+
+// Newest tournament by start date. LoL Esports returns them unsorted and with
+// years going back to 2012, so picking the last element is not enough.
+function _pvNewestTournament(list) {
+  let best = null;
+  (list || []).forEach(t => {
+    if (!t || !t.startDate) return;
+    if (!best || String(t.startDate) > String(best.startDate)) best = t;
+  });
+  return best;
+}
+
+async function loadLeagueRecords(leagueId) {
+  if (!leagueId || _pvRecords[leagueId] || _pvRecPending[leagueId]) return _pvRecords[leagueId] || null;
+  _pvRecPending[leagueId] = true;
+  try {
+    const tj = await workerFetch('/tournaments?leagueId=' + leagueId);
+    const tours = ((tj && tj.data && tj.data.leagues && tj.data.leagues[0]) || {}).tournaments || [];
+    const newest = _pvNewestTournament(tours);
+    if (!newest) { _pvRecPending[leagueId] = false; return null; }
+
+    const sj = await workerFetch('/standings?tournamentId=' + newest.id);
+    const byId = {}, byCode = {};
+    ((sj && sj.data && sj.data.standings) || []).forEach(sb => {
+      (sb.stages || []).forEach(stage => {
+        (stage.sections || []).forEach(sec => {
+          (sec.rankings || []).forEach(rank => {
+            (rank.teams || []).forEach(t => {
+              const rec = t && t.record;
+              if (!rec || typeof rec.wins !== 'number' || typeof rec.losses !== 'number') return;
+              const v = { w: rec.wins, l: rec.losses };
+              if (t.id) byId[t.id] = v;
+              if (t.code) byCode[String(t.code).toUpperCase()] = v;
+            });
+          });
+        });
+      });
+    });
+    _pvRecords[leagueId] = { byId, byCode, tournamentId: newest.id, tournament: newest.slug || '' };
+    _pvRecPending[leagueId] = false;
+    return _pvRecords[leagueId];
+  } catch (e) {
+    console.warn('[ProView] records unavailable for league', leagueId, e && e.message);
+    // Cache the miss so a league whose standings are genuinely empty (a split
+    // that has not started) is not re-fetched on every render.
+    _pvRecords[leagueId] = { byId: {}, byCode: {}, tournamentId: null };
+    _pvRecPending[leagueId] = false;
+    return null;
+  }
 }
 
 // ── Time helpers (always local device timezone) ────────────────────────────
@@ -8270,6 +9193,27 @@ function buildCards(){
   return dedup.slice(0,CARD_MAX);
 }
 
+// Every configured league can contribute a card, because a favourited TEAM
+// could be in any of them. buildCards() silently skips a league whose schedule
+// is not in memory, so publishing must never happen until they are all loaded.
+function pvLeaguesMissingSchedule(){
+  return (_cfg.leagues||[])
+    .map(function(l){ return l && l.id; })
+    .filter(function(id){ return id && !(_cfg.leagueData[id] && _cfg.leagueData[id].schedule); });
+}
+// Load whatever is missing. fetchLeagueData has its own 30-minute TTL guard and
+// the worker edge-caches every response, so this is cheap on repeat and only
+// ever does real work the first time a league is needed in a session.
+function ensureCardLeaguesLoaded(){
+  var missing=pvLeaguesMissingSchedule();
+  if(!missing.length) return Promise.resolve(true);
+  return Promise.all(missing.map(function(id){
+    return fetchLeagueData(id).catch(function(e){
+      console.warn('[ProView] could not load league '+id+' for cards:', e && e.message);
+    });
+  })).then(function(){ return pvLeaguesMissingSchedule().length===0; });
+}
+
 function publishCards(){
   if(!window._fbSavePvCards) return Promise.resolve(false);
   // Write barrier. The doc is rewritten whole, so publishing before the config
@@ -8277,9 +9221,22 @@ function publishCards(){
   // same trap MyList's _mlLoadOk guard exists for.
   if(!_cardsLoadedOnce) return Promise.resolve(false);
   const hasFavs=(_cfg.favorites||[]).length||(_cfg.favLeagues||[]).length;
-  const hasData=Object.keys(_cfg.leagueData||{}).some(id=>_cfg.leagueData[id]&&_cfg.leagueData[id].schedule);
-  if(hasFavs&&!hasData) return Promise.resolve(false);   // schedules not loaded yet
-  return window._fbSavePvCards(buildCards());
+  if(!hasFavs) return window._fbSavePvCards(buildCards());
+
+  // THE BUG THIS GUARDS: only the ACTIVE league's schedule is fetched on mount,
+  // but the cards doc is rewritten WHOLE from whatever is in memory. Publishing
+  // with LCK loaded and LPL not silently dropped every LPL favourite's cards
+  // from TaskHub — they only came back by re-favouriting the team while that
+  // league happened to be open. Load every configured league first, and if any
+  // of them still cannot be loaded, publish NOTHING rather than a partial list
+  // that deletes the cards we could not rebuild.
+  return ensureCardLeaguesLoaded().then(function(complete){
+    if(!complete){
+      console.warn('[ProView] card publish skipped — not every league loaded; existing cards left intact');
+      return false;
+    }
+    return window._fbSavePvCards(buildCards());
+  });
 }
 function isFav(team){
   const c=(team.code||'').toLowerCase(),s=(team.slug||'').toLowerCase();
@@ -8402,14 +9359,14 @@ function render(){
     if(_activeLg){
       const _lgFaved=isFavLeague(_activeLeague);
       const _lgStar=B({
-        background:_lgFaved?'rgba(192,174,234,0.18)':'transparent',
+        background:'transparent',
         color:_lgFaved?T.acl:T.txd,
         border:'1px solid '+(_lgFaved?'rgba(192,174,234,0.6)':'rgba(192,174,234,0.25)'),
         borderRadius:20,padding:'0 12px',height:'28px',fontSize:11,fontWeight:700,
         cursor:_favSyncBusy?'default':'pointer',opacity:_favSyncBusy?0.5:1,whiteSpace:'nowrap',flexShrink:0,
         fontFamily:"'Syne','Inter',system-ui,-apple-system,sans-serif",letterSpacing:'0.3px',
         transition:'all .15s',
-      },(_favSyncBusy?'⏳ ':(_lgFaved?'★ ':'☆ '))+(_activeLg.name||'League'),
+      },(_favSyncBusy?'':(_lgFaved?'':''))+(_activeLg.name||'League'),
       ()=>{ if(!_favSyncBusy) runFavSync(()=>toggleFavLeague(_activeLg)); });
       _lgStar.title=_favSyncBusy?'Syncing…':(_lgFaved?'Unfavorite league (removes all cards from TaskHub)':'Favorite league (all matches → TaskHub)');
       hrow1.appendChild(_lgStar);
@@ -8574,12 +9531,12 @@ function render(){
   if(!_cfg.leagues.length){
     const emp=D({flex:1,display:'flex',flexDirection:'column',alignItems:'center',
       justifyContent:'center',gap:14,padding:'32px'});
-    emp.appendChild(S({fontSize:40,lineHeight:1},'🏆'));
+    var _tw=document.createElement('div');_tw.style.cssText='color:'+T.txm+';line-height:1;';_tw.innerHTML=wrIco('trophy',36);emp.appendChild(_tw);
     emp.appendChild(S({fontSize:18,fontWeight:700,color:T.tx},'Welcome to ProView'));
     emp.appendChild(S({fontSize:13,color:T.txd,textAlign:'center',maxWidth:320,lineHeight:1.5},
       'Track LCK, LPL, LEC, LCS schedules. Favorite teams auto-sync matches into your TaskHub.'));
     emp.appendChild(B(
-      {background:T.ac,color:T.aci,border:'none',borderRadius:6,
+      {background:'transparent',color:T.acl,border:'1px solid rgba(192,174,234,.45)',borderRadius:6,
        padding:'10px 28px',fontSize:13,fontWeight:700,cursor:'pointer',marginTop:4},
       '+ Add Leagues',()=>showLeagueMgr()
     ));
@@ -8678,7 +9635,7 @@ function buildSchedule(T,league,ld){
     renderGrouped(past,null);
     if(!past.length) wrap.appendChild(note('No finished matches for this league yet.'));
   } else {
-    if(live.length){wrap.appendChild(secHdr('🔴 Live Now'));live.forEach(e=>wrap.appendChild(matchCard(T,e,league)));}
+    if(live.length){wrap.appendChild(secHdr('Live Now',true));live.forEach(e=>wrap.appendChild(matchCard(T,e,league)));}
     renderGrouped(upcoming,live.length?'Upcoming':null);
     if(!live.length&&!upcoming.length) wrap.appendChild(note('No upcoming matches scheduled.'));
   }
@@ -8729,10 +9686,20 @@ function matchCard(T,ev,league){
   const r2=D({display:'flex',alignItems:'center',gap:16,width:'100%',boxSizing:'border-box'});
 
   // Team 1
+  // Name + record stack in a column so the W-L sits directly under the team.
+  function teamBlock(t,faved,alignRight){
+    const col=D({display:'flex',flexDirection:'column',gap:2,minWidth:0,alignItems:alignRight?'flex-end':'flex-start'});
+    col.appendChild(S({fontSize:15,fontWeight:800,color:faved?T.acl:T.tx,
+      lineHeight:1.2,wordBreak:'break-word',overflowWrap:'anywhere',minWidth:0,
+      textAlign:alignRight?'right':'left'},t.name||t.code||'TBD'));
+    const rec=pvRecordFor(league&&league.id,t);
+    if(rec) col.appendChild(S({fontSize:11,fontWeight:700,color:T.txm,letterSpacing:'.3px',
+      fontFamily:'ui-monospace,SFMono-Regular,Menlo,monospace'},rec.w+'-'+rec.l));
+    return col;
+  }
   const t1w=D({display:'flex',alignItems:'center',gap:12,flex:1,minWidth:0});
   if(t1.image) t1w.appendChild(IMG(t1.image,{width:'38px',height:'38px',objectFit:'contain',borderRadius:'4px',flexShrink:0}));
-  t1w.appendChild(S({fontSize:15,fontWeight:800,color:t1f?T.acl:T.tx,
-    lineHeight:1.2,wordBreak:'break-word',overflowWrap:'anywhere',minWidth:0},t1.name||t1.code||'TBD'));
+  t1w.appendChild(teamBlock(t1,t1f,false));
   r2.appendChild(t1w);
 
   // Center: score or vs
@@ -8767,8 +9734,7 @@ function matchCard(T,ev,league){
 
   // Team 2
   const t2w=D({display:'flex',alignItems:'center',gap:12,flex:1,minWidth:0,justifyContent:'flex-end'});
-  t2w.appendChild(S({fontSize:15,fontWeight:800,color:t2f?T.acl:T.tx,
-    lineHeight:1.2,wordBreak:'break-word',overflowWrap:'anywhere',minWidth:0,textAlign:'right'},t2.name||t2.code||'TBD'));
+  t2w.appendChild(teamBlock(t2,t2f,true));
   if(t2.image) t2w.appendChild(IMG(t2.image,{width:'38px',height:'38px',objectFit:'contain',borderRadius:'4px',flexShrink:0}));
   r2.appendChild(t2w);
   card.appendChild(r2);
@@ -8780,7 +9746,7 @@ function matchCard(T,ev,league){
     return B({background:fav?T.ac:'transparent',color:fav?T.aci:T.txd,
       border:'1px solid '+(fav?T.ac:T.bd),borderRadius:4,
       padding:'2px 9px',fontSize:9,fontWeight:700,cursor:_favSyncBusy?'default':'pointer',opacity:_favSyncBusy?0.5:1},
-      (_favSyncBusy?'⏳ ':(fav?'★ ':'☆ '))+nm,
+      (_favSyncBusy?'':(fav?'':''))+nm,
       (e)=>{e.stopPropagation(); if(!_favSyncBusy) runFavSync(()=>toggleFav(team));});
   };
   const r3=D({display:'flex',justifyContent:'space-between',marginTop:6});
@@ -8808,10 +9774,15 @@ function showLeagueMgr(){
     overflowY:'auto',overscrollBehavior:'contain',WebkitOverflowScrolling:'touch',
     boxShadow:'0 20px 60px rgba(0,0,0,.5)'});
 
-  modal.appendChild(S({fontSize:15,fontWeight:800,color:T.tx,
-    display:'block',marginBottom:4},'Select Leagues'));
-  modal.appendChild(S({fontSize:10,color:T.txd,display:'block',marginBottom:16},
-    '★ Favorite a league to push ALL its matches to TaskHub'));
+  // Title + explainer live in one darker panel rather than floating above the
+  // list, so the modal has a clear head and body instead of one long column.
+  const _mgrHead=D({});
+  _mgrHead.className='pv-mgr-head';
+  const _mh1=S({},'Select leagues'); _mh1.className='pv-mgr-title';
+  const _mh2=S({},'Add a league to follow its schedule. Favourite one to push all of its matches to TaskHub.');
+  _mh2.className='pv-mgr-sub';
+  _mgrHead.appendChild(_mh1); _mgrHead.appendChild(_mh2);
+  modal.appendChild(_mgrHead);
 
   KNOWN_LEAGUES.forEach(lg=>{
     const added=!!_cfg.leagues.find(l=>l.id===lg.id);
@@ -8820,7 +9791,7 @@ function showLeagueMgr(){
       padding:'14px 0',borderBottom:'1px solid '+T.bd+'44',gap:8});
     const left=D({display:'flex',flexDirection:'column',gap:2,flex:1,minWidth:0});
     left.appendChild(S({fontSize:13,fontWeight:700,color:T.tx},lg.name));
-    left.appendChild(S({fontSize:10,color:T.txm},lg.region+(lgFaved?' · ★ All matches in TaskHub':'')));
+    left.appendChild(S({fontSize:10,color:T.txm},lg.region+(lgFaved?' · All matches in TaskHub':'')));
     row.appendChild(left);
     const btns=D({display:'flex',alignItems:'center',gap:6,flexShrink:0});
     // Fav star
@@ -8829,7 +9800,7 @@ function showLeagueMgr(){
        color:lgFaved?T.acl:T.txd,
        border:'1px solid '+(lgFaved?'rgba(192,174,234,0.5)':T.bd),
        borderRadius:4,padding:'4px 8px',fontSize:12,fontWeight:700,cursor:'pointer'},
-      lgFaved?'★':'☆',
+      lgFaved?wrIco('star',13):wrIco('star',13,'opacity:.35;'),
       (e)=>{
         e.stopPropagation();
         if(_favSyncBusy) return;
@@ -8842,10 +9813,11 @@ function showLeagueMgr(){
     _star.title=lgFaved?'Remove all league matches from TaskHub':'Add all matches to TaskHub';
     btns.appendChild(_star);
     btns.appendChild(B(
-      {background:added?T.ac:'transparent',color:added?T.aci:T.txd,
-       border:'1px solid '+(added?T.ac:T.bd),borderRadius:4,
-       padding:'4px 14px',fontSize:10,fontWeight:700,cursor:'pointer'},
-      added?'✓ Added':'+ Add',
+      {background:'transparent',color:added?T.acl:T.txd,
+       border:'1px solid '+(added?'#c0aeea':T.bd),borderRadius:4,
+       boxShadow:added?'0 0 0 1px rgba(192,174,234,.16),0 0 10px rgba(192,174,234,.16)':'none',
+       padding:'5px 14px',fontSize:10,fontWeight:700,cursor:'pointer'},
+      added?'Added':'Add',
       ()=>{
         if(added){
           _cfg.leagues=_cfg.leagues.filter(l=>l.id!==lg.id);
@@ -8866,8 +9838,8 @@ function showLeagueMgr(){
   });
 
   modal.appendChild(B(
-    {background:T.ac,color:T.aci,border:'none',borderRadius:6,
-     padding:'10px 0',width:'100%',fontSize:12,fontWeight:700,
+    {background:'transparent',color:T.acl,border:'1px solid rgba(192,174,234,.45)',borderRadius:6,
+     padding:'11px 0',width:'100%',fontSize:12,fontWeight:700,
      cursor:'pointer',marginTop:16,display:'block'},
     'Done',
     ()=>overlay.parentNode&&overlay.parentNode.removeChild(overlay)
@@ -8904,7 +9876,10 @@ async function mount(){
       _activeLeague=firstId;
       _syncing=true;render();
       await fetchLeagueData(firstId);
-      _syncing=false;publishCards();
+      _syncing=false;render();
+      // The active league paints first (above); the rest are loaded only so the
+      // card publish below can see every favourite. Not awaited by the render.
+      await publishCards();
     }
     render();
   }catch(e){console.warn('[ProView] mount error',e);}
@@ -8941,21 +9916,22 @@ window._pvApplyRemote=(remote)=>{
     if(!el) return;
     clearTimeout(_pvHideTimer);
     el.textContent=text;
-    if(state==='syncing') el.style.color='#ffffff';
-    else if(state==='synced') el.style.color='#a4b986';
-    else el.style.color='#d68a7c';
+    el.classList.remove('syncing','synced','failed');
+    if(state==='syncing'){ el.classList.add('syncing'); el.style.color='#c0aeea'; }
+    else if(state==='synced'){ el.classList.add('synced'); el.style.color='#a4b986'; }
+    else { el.classList.add('failed'); el.style.color='#d68a7c'; }
     el.style.opacity='1';
-    if(state!=='syncing'){
-      _pvHideTimer=setTimeout(()=>{
-        el.style.opacity='0';
-      },2500);
+    // Success fades; a FAILURE stays on screen until the next success, so a
+    // silent write failure can't scroll past unnoticed.
+    if(state==='synced'){
+      _pvHideTimer=setTimeout(()=>{ el.style.opacity='0'; },2500);
     }
   }
-  window.addEventListener('fb-pv-syncing',()=>pvShowSync('syncing','Syncing…'));
-  window.addEventListener('fb-pv-synced', ()=>pvShowSync('synced','✓ Synced'));
-  window.addEventListener('fb-pv-error',  ()=>pvShowSync('error','⚠ Sync failed'));
+  window.addEventListener('fb-pv-syncing',()=>pvShowSync('syncing','Syncing'));
+  window.addEventListener('fb-pv-synced', ()=>pvShowSync('synced','Synced'));
+  window.addEventListener('fb-pv-error',  ()=>pvShowSync('error','Sync failed'));
   // Hook saveCfg to fire syncing immediately
-  window._pvShowSyncing=()=>pvShowSync('syncing','Syncing…');
+  window._pvShowSyncing=()=>pvShowSync('syncing','Syncing');
 })();
 
 // Background refresh — active league only, every 30 min
@@ -8990,7 +9966,23 @@ setInterval(()=>{
         'background:rgba(192,174,234,.42);cursor:grab;touch-action:none;'+
         'transition:background .18s ease,width .18s ease,left .18s ease;}'+
       '#pv-sbar.hot .pv-thumb{background:rgba(192,174,234,.75);width:8px;left:3px;}'+
-      '#pv-sbar.dragging .pv-thumb{cursor:grabbing;}';
+      '#pv-sbar.dragging .pv-thumb{cursor:grabbing;}'+
+      /* pv-hglow was being applied to three buttons but had never been DEFINED,
+         so none of them actually glowed. Every ProView button now answers the
+         pointer with the same lit outline WarRoom uses — one hover language
+         across both programs. */
+      '#pv-root button{transition:border-color .18s,color .18s,box-shadow .18s,background .18s;}'+
+      '#pv-root button:hover:not(:disabled){border-color:rgba(192,174,234,.65)!important;'+
+        'color:#dbd0f5!important;'+
+        'box-shadow:0 0 0 1px rgba(192,174,234,.18),0 0 13px rgba(192,174,234,.20);}'+
+      '.pv-hglow:hover{border-color:rgba(192,174,234,.65)!important;color:#dbd0f5!important;'+
+        'box-shadow:0 0 0 1px rgba(192,174,234,.18),0 0 13px rgba(192,174,234,.20);}'+
+      /* The Select Leagues header sits in its own darker panel so the list below
+         reads as content rather than as more header. */
+      '.pv-mgr-head{background:#1c1c1f;border:1px solid #2f2f35;border-radius:10px;'+
+        'padding:14px 16px;margin-bottom:14px;}'+
+      '.pv-mgr-head .pv-mgr-title{font-size:16px;font-weight:800;letter-spacing:-.2px;color:#f4f3f0;display:block;}'+
+      '.pv-mgr-head .pv-mgr-sub{font-size:11.5px;color:#8d8d94;display:block;margin-top:4px;line-height:1.5;}';
     document.head.appendChild(st);
   }
 

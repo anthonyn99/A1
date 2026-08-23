@@ -29,6 +29,7 @@ const TTL_SCHEDULE=15*60;
 const TTL_STANDINGS=30*60;
 const TTL_TOURNAMENTS=60*60;
 const TTL_LEAGUES=4*3600;
+const TTL_TEAMS=12*3600;   // rosters change on transfer windows, not hourly
 const CORS={
   'Access-Control-Allow-Origin':'*',
   'Access-Control-Allow-Methods':'GET, OPTIONS',
@@ -52,6 +53,20 @@ export default {
       if(path==='/standings'&&tourny)
         return await cachedFetch(env,'standings:'+tourny,TTL_STANDINGS,
           LOL_API+'/getStandings?hl='+HL+'&tournamentId='+tourny,ctx);
+      // ── /pro-index ────────────────────────────────────────────────────────
+      // A compact pro-player lookup built from the official LoL Esports team
+      // rosters. getTeams is ~1.5 MB of roster + art; the index below is ~250 KB
+      // and is all WarRoom needs to badge a ladder entry, so the reduction happens
+      // HERE rather than shipping the whole payload to every browser.
+      //
+      // Shape: { builtAt, teams: { "<code> <handle>": [team, league, role, region] } }
+      // keyed lowercase. Rosters overlap between an org's main and academy teams
+      // (Gumayusi is listed on both Hanwha Life Esports and HLE Challengers), so
+      // the top-tier team wins the key — otherwise whichever came last in the
+      // response would decide, and a starter would get badged as an academy player.
+      if(path==='/pro-index')
+        return await cachedFetch(env,'proindex:v1',TTL_TEAMS,
+          LOL_API+'/getTeams?hl='+HL,ctx,buildProIndex);
       if(path==='/leagues')
         return await cachedFetch(env,'leagues',TTL_LEAGUES,
           LOL_API+'/getLeagues?hl='+HL,ctx);
@@ -92,7 +107,7 @@ async function sweepLegacyStale(kv){
 // the fallback survives.
 const PV_KEEP = 7*24*3600;
 
-async function cachedFetch(env,key,ttl,url,ctx){
+async function cachedFetch(env,key,ttl,url,ctx,transform){
   // One read covers both cases: a fresh hit, or the stale fallback if the
   // upstream call below fails.
   let cached=null;
@@ -114,9 +129,42 @@ async function cachedFetch(env,key,ttl,url,ctx){
     if(cached) return new Response(cached.body,{headers:{...CORS,'X-Cache':'STALE'}});
     return j({error:'Upstream '+res.status},res.status);
   }
-  const body=await res.text();
+  let body=await res.text();
+  // Reduce BEFORE storing, so the KV entry and every later HIT are the small
+  // form rather than the raw upstream payload.
+  if(transform){ try{ body=transform(body); }catch(e){ return j({error:'Transform failed: '+e.message},502); } }
   await env.PV_CACHE.put(key,body,{expirationTtl:PV_KEEP,metadata:{at:Date.now()}});
   if(ctx&&ctx.waitUntil) ctx.waitUntil(sweepLegacyStale(env.PV_CACHE)); else await sweepLegacyStale(env.PV_CACHE);
   return new Response(body,{headers:{...CORS,'X-Cache':'MISS'}});
 }
 function j(o,s=200){return new Response(JSON.stringify(o),{status:s,headers:CORS});}
+
+
+// ── Pro index builder ───────────────────────────────────────────────────────
+// Only ACTIVE teams with a tricode and a roster contribute. Everything else in
+// getTeams (logos, background art, disbanded orgs) is dropped.
+const PRO_TIER1=['LCK','LEC','LCS','LPL','LTA','LTA North','LTA South','LCP','PCS','VCS'];
+function proLeagueRank(name){
+  const n=String(name||'');
+  if(/challeng|academy|amateur|2nd|junior/i.test(n)) return 2;   // never outrank a main roster
+  return PRO_TIER1.includes(n) ? 0 : 1;
+}
+function buildProIndex(raw){
+  let teams=[];
+  try{ teams=(JSON.parse(raw).data||{}).teams||[]; }catch(e){ return raw; }
+  const out={};
+  for(const t of teams){
+    if(!t||t.status!=='active'||!Array.isArray(t.players)||!t.players.length) continue;
+    const code=String(t.code||'').trim(); if(!code) continue;
+    const league=(t.homeLeague&&t.homeLeague.name)||'';
+    const region=(t.homeLeague&&t.homeLeague.region)||'';
+    for(const pl of t.players){
+      const h=String(pl.summonerName||'').trim(); if(!h) continue;
+      const key=(code+' '+h).toLowerCase();
+      const prev=out[key];
+      if(prev && proLeagueRank(prev[1])<=proLeagueRank(league)) continue;
+      out[key]=[t.name,league,pl.role||'',region];
+    }
+  }
+  return JSON.stringify({builtAt:Date.now(),teams:out});
+}
