@@ -12917,12 +12917,14 @@ const GOAL_PREFS_DEF={hideShort:false,hideLong:false};
       opens, each next one that long after the box above it is ticked — so the
       list cannot be skimmed or clicked through.
 
-   Completion is recorded against the EASTERN date, not UTC: a UTC date rolls
-   over at 8pm ET, which would mis-date an evening session as tomorrow and skip
-   the next day's prompt.
+   Completion is recorded against the DEVICE'S OWN calendar date, never UTC: a
+   UTC date rolls over mid-evening in the Americas, which would mis-date an
+   evening session as tomorrow and skip the next day's prompt. Reading local
+   date parts means the gate turns over at your midnight wherever you open it,
+   with no zone hardcoded.
 
    NOTE: unlike the old standalone tradeboard/rules pages, this gate runs EVERY
-   day. There is deliberately no isWeekdayET() check — weekends are not skipped.
+   day. There is deliberately no weekday check — weekends are not skipped.
 
    ONCE PER DAY PER PERSON, NOT PER DEVICE: `lastShown` is the day the gate was
    put on screen anywhere, claimed by the first device to open TaskHub that day
@@ -12932,20 +12934,15 @@ const GOAL_PREFS_DEF={hideShort:false,hideLong:false};
    that shows the gate and is then closed mid-checklist has still shown it. */
 const RULES_DAILY_DEF={lastCompleted:null,lastShown:null,enabled:true};
 const RULES_DELAY=3;   // seconds a rule must be on screen before it can be ticked
-function vdEtParts(d){
-  const p=new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York",
-    year:"numeric",month:"2-digit",day:"2-digit",weekday:"short"})
-    .formatToParts(d).reduce((a,x)=>{a[x.type]=x.value;return a;},{});
-  return{y:+p.year,mo:+p.month,d:+p.day,wd:p.weekday};
+function vdTodayLocal(){
+  const n=new Date(),z=v=>String(v).padStart(2,"0");
+  return n.getFullYear()+"-"+z(n.getMonth()+1)+"-"+z(n.getDate());
 }
-function vdTodayET(){
-  const p=vdEtParts(new Date()),z=n=>String(n).padStart(2,"0");
-  return p.y+"-"+z(p.mo)+"-"+z(p.d);
-}
-// "Monday, July 28" in ET — header line for the checklist.
-function vdTodayLabelET(){
-  return new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York",
-    weekday:"long",month:"long",day:"numeric"}).format(new Date());
+// "Monday, July 28" in the device's own zone — header line for the checklist.
+// No timeZone option: Intl resolves the running device's, so the header always
+// names the same day the gate is keyed to.
+function vdTodayLabelLocal(){
+  return new Intl.DateTimeFormat([],{weekday:"long",month:"long",day:"numeric"}).format(new Date());
 }
 function vdSeedRules(){
   const now=Date.now();
@@ -13333,7 +13330,7 @@ function VdRulesChecklist({open,mode,rules,daily,onComplete,onClose,onSetRules,o
   const manage=mode==="manage";
   // "reviewed today" reflects the gate, not this view — opening the list to read
   // it is not the same as having run the sequence.
-  const reviewedToday=daily.lastCompleted===vdTodayET();
+  const reviewedToday=daily.lastCompleted===vdTodayLocal();
   const emptyMsg="No rules yet. Add the rules you want to review before every trading day.";
 
   return RC("div",{style:ov,onClick:mode==="gate"?undefined:onClose},
@@ -13357,7 +13354,7 @@ function VdRulesChecklist({open,mode,rules,daily,onComplete,onClose,onSetRules,o
             RC("div",{style:{display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:12}},
               RC("div",{style:{fontFamily:"'Lora',serif",fontSize:16,fontWeight:700,color:TX,letterSpacing:"-.01em"}},"RULES"),
               RC("div",{style:{fontSize:11.5,color:TXM,fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap"}},done+" / "+total)),
-            RC("div",{style:{fontSize:11.5,color:TXM,marginTop:3}},vdTodayLabelET()+" · ET"),
+            RC("div",{style:{fontSize:11.5,color:TXM,marginTop:3}},vdTodayLabelLocal()),
             RC("div",{style:{height:2,borderRadius:2,background:BD,marginTop:16,overflow:"hidden"}},
               RC("div",{style:{height:"100%",width:(total?Math.round(done/total*100):0)+"%",borderRadius:2,background:A,transition:"width .35s cubic-bezier(.4,0,.2,1)"}}))),
 
@@ -13638,7 +13635,7 @@ function App(){
     const rl=vdRef.current.rules||[],rd=vdRef.current.rulesDaily||RULES_DAILY_DEF;
     if(!rd.enabled)return;
     if(!rl.length)return;
-    const today=vdTodayET();
+    const today=vdTodayLocal();
     if(rd.lastShown===today)return;             // already shown today, on some device
     if(rd.lastCompleted===today)return;         // already done today
     rulesShownRef.current=true;                 // latch only on a real open
@@ -13664,7 +13661,7 @@ function App(){
   },[maybeShowDaily]);
 
   const finishRules=useCallback(()=>{
-    setRulesDaily(prev=>({...prev,lastCompleted:vdTodayET()}));
+    setRulesDaily(prev=>({...prev,lastCompleted:vdTodayLocal()}));
     setRulesOpen(null);
   },[setRulesDaily]);
 

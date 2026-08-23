@@ -1954,7 +1954,7 @@ function TBTradeModal({entry,onClose,onSave,onDel}){
   const [stopLoss,setStop]=useState(entry?.stopLoss||'');
   const [legs,setLegs]=useState(()=>{
     if(entry?.legs?.length)return entry.legs.map(l=>({...l,id:l.id||tbUuid(),datetime:tbToLocalDT(l.datetime)}));
-    return[{id:tbUuid(),action:'BUY',datetime:new Date().toISOString().slice(0,16),qty:'1',price:'',fee:''}];
+    return[{id:tbUuid(),action:'BUY',datetime:tbToLocalDT(Date.now()),qty:'1',price:'',fee:''}];
   });
   const [setupType,setSetup]=useState(entry?.setupType||'');
   const [timeframe,setTF]=useState(entry?.timeframe||'');
@@ -1972,7 +1972,7 @@ function TBTradeModal({entry,onClose,onSave,onDel}){
     return()=>{if(nav&&prevNav!==null)nav.style.display=prevNav;};
   },[]);
 
-  const addLeg=()=>setLegs(p=>[...p,{id:tbUuid(),action:'BUY',datetime:new Date().toISOString().slice(0,16),qty:'1',price:'',fee:''}]);
+  const addLeg=()=>setLegs(p=>[...p,{id:tbUuid(),action:'BUY',datetime:tbToLocalDT(Date.now()),qty:'1',price:'',fee:''}]);
   const removeLeg=id=>setLegs(p=>p.filter(l=>l.id!==id));
   const patchLeg=(id,k,v)=>setLegs(p=>p.map(l=>l.id===id?{...l,[k]:v}:l));
   const autoStats=useMemo(()=>tbComputeTradeStats({legs,netPnL:netPnL!==''?parseFloat(netPnL):null}),[legs,netPnL]);
@@ -5719,18 +5719,22 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
 }
 
 // ── Catalysts helpers ───────────────────────────────────────────────────────
-function tbEtDate(offset){
+// Calendar date `offset` days from today, in the DEVICE's own timezone.
+// These dates are read by a person looking at the screen -- "is this catalyst
+// still ahead of me?", "has the 6am refresh happened yet today?" -- so the day
+// has to roll over at the viewer's midnight, not at some fixed zone's. Nothing
+// is hardcoded: 'en-CA' is only a formatting trick for YYYY-MM-DD output, and
+// omitting timeZone lets Intl resolve the device's own.
+function tbLocalDate(offset){
   const d=new Date(Date.now()+(offset||0)*86400000);
-  return new Intl.DateTimeFormat('en-CA',{timeZone:'America/Denver',year:'numeric',month:'2-digit',day:'2-digit'}).format(d);
+  return new Intl.DateTimeFormat('en-CA',{year:'numeric',month:'2-digit',day:'2-digit'}).format(d);
 }
-// ISO instant for dateStr at hh:mm America/Denver (Mountain, DST-safe).
-function tbZonedISO(dateStr,hh,mm){
+// ISO instant for dateStr at hh:mm LOCAL wall-clock. Built from local Date parts,
+// which the engine already resolves against the device's zone and its DST rules --
+// no offset arithmetic and no zone name to keep in sync.
+function tbLocalISO(dateStr,hh,mm){
   const [Y,M,D]=dateStr.split('-').map(Number);
-  const utcGuess=Date.UTC(Y,M-1,D,hh,mm,0);
-  const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/Denver',hour12:false,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}).formatToParts(new Date(utcGuess)).reduce((a,x)=>{a[x.type]=x.value;return a},{});
-  let hr=+p.hour; if(hr===24)hr=0;
-  const asTz=Date.UTC(+p.year,+p.month-1,+p.day,hr,+p.minute);
-  return new Date(utcGuess-(asTz-utcGuess)).toISOString();
+  return new Date(Y,M-1,D,hh,mm,0,0).toISOString();
 }
 const TB_CAT_COLORS={earnings:'#e7a6b4',inflation:'#e3c794',fed:'#c9b3ec',jobs:'#a6c8e6',growth:'#a6dcb2',macro:'#c0c6cd',rates:'#c9b3ec',gdp:'#a6dcb2',retail:'#a6dcb2',housing:'#a3dcc6',sentiment:'#e3cb98',trade:'#edb2a6',oil:'#e3bd96',ecb:'#9db1e8',holiday:'#b0b9cc'};
 const tbCatColor=c=>TB_CAT_COLORS[String(c||'').toLowerCase()]||'#adadb2';
@@ -5787,7 +5791,7 @@ async function tbBuildCalendar(wl,opts){
   }
   if(!j){const e=new Error('Build timed out.');e.timedOut=true;throw e;}
   const evs=Array.isArray(j.events)?j.events:[];
-  const today=tbEtDate(0);
+  const today=tbLocalDate(0);
   // newshub provides ACCURATE, real-dated macro + earnings. Only fall back to the
   // trade-dashboard COMPUTED calendar when newshub returns NO macro at all.
   let merged=evs;
@@ -5834,7 +5838,7 @@ const tbCalEarnCount=list=>(Array.isArray(list)?list:[]).filter(tbCalIsEarn).len
 // null if nothing was written.
 async function tbPublishCalendar(future,wl){
   if(!window._fbSaveMarketCal)return null;
-  const today=tbEtDate(0),cutoff=tbEtDate(-TB_CAL_KEEP_PAST_DAYS);
+  const today=tbLocalDate(0),cutoff=tbLocalDate(-TB_CAL_KEEP_PAST_DAYS);
   const wlList=(Array.isArray(wl)&&wl.length)?wl:tbLoadWatchlistLocal();
   const wlSet=new Set(wlList.map(t=>String(t).toUpperCase()));
   const onWl=e=>!(e.ticker&&!wlSet.has(String(e.ticker).toUpperCase()));
@@ -5907,7 +5911,7 @@ async function tbSyncCatalystsToWatchlist(wl){
 }
 let _tbCatLastSyncedSig='';
 
-// Most-recent 6:00 AM America/Denver (Mountain) slot, EVERY calendar day — weekends
+// Most-recent 6:00 AM in the DEVICE'S OWN zone, EVERY calendar day — weekends
 // and market holidays included. Returns a ms timestamp at or before now.
 //
 // THE single refresh boundary for the whole app: Catalysts, News, Portfolio and the
@@ -5927,7 +5931,7 @@ let _tbCatLastSyncedSig='';
 function tbLastMorningSlot(){
   const now=Date.now();
   for(let back=0;back<3;back++){
-    const ts=new Date(tbZonedISO(tbEtDate(-back),6,0)).getTime();
+    const ts=new Date(tbLocalISO(tbLocalDate(-back),6,0)).getTime();
     if(ts<=now) return ts;              // today's 6am, or yesterday's before 6am
   }
   return 0;
@@ -6020,7 +6024,7 @@ function TBCatalystsPage({watchlist=NH_DEFAULT_TICKERS}){
       if(evt.type==='start'){ setLoading(true); setNotice(''); }
       else if(evt.type==='end'){ setLoading(false); }
       else if(evt.type==='done'){
-        const today=tbEtDate(0);
+        const today=tbLocalDate(0);
         const prev=(eventsRef.current||[]).filter(e=>e&&e.date>=today);
         const prevCount=prev.length;
         // Guard: a DEGRADED build with fewer events than we already have is likely
@@ -6052,7 +6056,7 @@ function TBCatalystsPage({watchlist=NH_DEFAULT_TICKERS}){
   useEffect(()=>{
     const doLoad=async()=>{
       try{
-        if(window._fbLoadMarketCal){const d=await window._fbLoadMarketCal();if(d&&Array.isArray(d.events)){const today=tbEtDate(0);const fut=d.events.filter(e=>e&&e.date>=today);setEvents(fut);eventsRef.current=fut;setLastSync(d.generatedAt||d.savedAt||null);
+        if(window._fbLoadMarketCal){const d=await window._fbLoadMarketCal();if(d&&Array.isArray(d.events)){const today=tbLocalDate(0);const fut=d.events.filter(e=>e&&e.date>=today);setEvents(fut);eventsRef.current=fut;setLastSync(d.generatedAt||d.savedAt||null);
           // One-time cleanup: nuke any catalyst reminder docs from the old push
           // flow (ids == event ids) so no 6:30 AM notification ever fires again.
           if(window._fbDeleteReminder){for(const e of (d.events||[])){if(e&&e.id){try{await window._fbDeleteReminder(e.id);}catch(_e){}}}}
@@ -6066,7 +6070,7 @@ function TBCatalystsPage({watchlist=NH_DEFAULT_TICKERS}){
   },[]);
 
   useEffect(()=>{
-    const onCal=e=>{if(e.detail&&Array.isArray(e.detail.events)){const today=tbEtDate(0);const fut=e.detail.events.filter(x=>x&&x.date>=today);setEvents(fut);eventsRef.current=fut;setLastSync(e.detail.generatedAt||e.detail.savedAt||null);}};
+    const onCal=e=>{if(e.detail&&Array.isArray(e.detail.events)){const today=tbLocalDate(0);const fut=e.detail.events.filter(x=>x&&x.date>=today);setEvents(fut);eventsRef.current=fut;setLastSync(e.detail.generatedAt||e.detail.savedAt||null);}};
     window.addEventListener('fb-tb-marketcal-remote',onCal);
     return()=>window.removeEventListener('fb-tb-marketcal-remote',onCal);
   },[]);
@@ -7019,12 +7023,12 @@ function TBApp(){
     return()=>{window._tbSetPortfolioOk=null;};
   },[]);
 
-  /* ── Morning orchestrator: every morning at/after 6:00 AM Mountain, make sure
+  /* ── Morning orchestrator: every morning at/after 6:00 AM local, make sure
      Catalysts, Portfolio, and the Journal Webull sync are ALL ready the moment
      TradeHub opens — no tab visit, no manual action. Runs at the APP level so it's
      independent of which tab is showing. A 5-min tick re-checks; each piece is
      guarded so it fires at most once per morning slot.
-     ONE slot for all four pieces: the EVERY-DAY 6am Mountain slot (Mon-Sun,
+     ONE slot for all four pieces: the EVERY-DAY 6am local slot (Mon-Sun,
      holidays included — see tbLastMorningSlot). Catalysts, News, Portfolio and
      Journal therefore all refresh on every calendar day, so opening TradeHub on a
      Saturday shows Saturday's data instead of Friday's. News/Portfolio/Journal used
@@ -7043,7 +7047,7 @@ function TBApp(){
     let stop=false, timer=null;
     const check=async()=>{
       if(stop)return;
-      const daySlot=tbLastMorningSlot();                    // 6am Mountain, EVERY day
+      const daySlot=tbLastMorningSlot();                    // 6am local, EVERY day
       const slot=daySlot;                                   // …for every piece below
 
       // ── Catalysts: pull the morning calendar and publish it to Firebase so every
@@ -7066,7 +7070,7 @@ function TBApp(){
           // never here on the "can't tell" path, or that rebuild gets suppressed.
           const wlKnown=!!(d&&Array.isArray(d.watchlist));
           const wlMatches=!d||!wlKnown||tbCalWlSig(d.watchlist)===tbCalWlSig(wl);
-          const today=tbEtDate(0);
+          const today=tbLocalDate(0);
           const hasEarn=!d||tbCalEarnCount((d.events||[]).filter(e=>e&&e.date>=today))>0;
           if(gen>=daySlot&&wlMatches&&hasEarn){ _tbLastCheckedSlot=daySlot; if(wlKnown)_tbCatLastSyncedSig=tbCalWlSig(wl); }
           else{

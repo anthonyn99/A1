@@ -951,6 +951,17 @@
 
   const API = 'https://insight-api.av1.workers.dev';
 
+  // ── Dates are the DEVICE's calendar dates ─────────────────────────────────
+  // Transaction `date` fields are plain YYYY-MM-DD, meaning "the day this
+  // happened where you are". Deriving today from toISOString() would give the
+  // UTC date instead, which is already tomorrow anywhere west of Greenwich
+  // after early evening — an entry added at 7pm Mountain would be filed on the
+  // next day, and "Today" in the feed would stop matching it. Reading the local
+  // parts is correct in every timezone, with nothing hardcoded.
+  const localYmd = (d = new Date()) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const localYm = (d = new Date()) => localYmd(d).slice(0, 7);
+
   // ── App lock — identical backend to index.html's app locks ────────────────
   // The PBKDF2 record lives in taskhub-reminders' KV (jlock:applock:tony_insight),
   // created/reset through the same /auth/journal + /auth/reset endpoints index
@@ -2063,7 +2074,7 @@
   const excluded = t => txTreat(t).counted === false;
 
   function renderStats() {
-    const ym = new Date().toISOString().slice(0, 7);
+    const ym = localYm();
     let inn = 0, out = 0;
     for (const t of allTxs()) {
       if ((t.date || '').slice(0, 7) !== ym || t.pending) continue;
@@ -2104,7 +2115,7 @@
       $('mhBody').innerHTML = '<div class="mh-empty">No months tracked yet — totals appear here as transactions come in.</div>';
       return;
     }
-    const thisYm = new Date().toISOString().slice(0, 7);
+    const thisYm = localYm();
     // `data-l` is the per-figure label the stacked phone layout prints above
     // each amount, standing in for the header row it hides.
     const cell = n => `<div class="amt money${n < 0 ? ' neg' : ''}" data-l="Net">${n < 0 ? '−' : ''}${esc(fmt$(Math.abs(n)))}</div>`;
@@ -2201,8 +2212,8 @@
 
   function fmtDate(d) {
     if (!d) return 'Unknown date';
-    const today = new Date().toISOString().slice(0, 10);
-    const yest = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+    const today = localYmd();
+    const yest = localYmd(new Date(Date.now() - 864e5));
     if (d === today) return 'Today';
     if (d === yest) return 'Yesterday';
     return new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
@@ -2287,7 +2298,7 @@
     manualType = t ? (t.amount < 0 ? 'income' : 'expense') : 'expense';
     document.querySelectorAll('#typeSeg button').forEach(x => x.classList.toggle('on', x.dataset.t === manualType));
     $('mAmount').value = t ? Math.abs(t.amount) : '';
-    $('mDate').value = t ? t.date : new Date().toISOString().slice(0, 10);
+    $('mDate').value = t ? t.date : localYmd();
     $('mName').value = t ? (t.merchant || t.name || '') : '';
     setCats(manualType, t ? t.category : null);
     $('mNote').value = t ? (t.note || '') : '';

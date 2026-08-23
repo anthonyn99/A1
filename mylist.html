@@ -1642,6 +1642,13 @@ function pwStoreObj(key){ return pwStores().filter(function(x){return x.key===ke
 function pwVerified(key){ var o=pwStoreObj(key); return o ? o.type==='kroger' : (key==='kroger'||key==='kingsoopers'); }
 function pwStoreLabel(key){ var o=pwStoreObj(key); return o ? o.name : String(key||''); }
 function pwItems(){ return (activeProfile && pwStore[activeProfile]) || []; }
+// Today's date as the DEVICE sees it. priceHistory rows are labelled with a plain
+// YYYY-MM-DD and read back as "the day this price was seen", so it has to be the
+// local calendar day - toISOString() would hand back the UTC date, which is already
+// tomorrow anywhere west of Greenwich by late afternoon, stamping an evening check
+// with tomorrow's date and splitting one day's history across two rows. Same
+// parts-based approach evParse() uses below; correct in every timezone.
+function pwToday(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function persistWatch(){ if(window._mlSavePriceWatch && activeProfile) window._mlSavePriceWatch(activeProfile, { items: pwItems().map(sanitize), stores: pwStoresState[activeProfile] }); }
 function persistStores(){ if(window._mlSavePriceWatch && activeProfile) window._mlSavePriceWatch(activeProfile, { items: pwItems().map(sanitize), stores: pwStoresState[activeProfile] }, true); }
 function pwFind(id){ return pwItems().filter(function(x){return x.id===id;})[0]; }
@@ -3533,7 +3540,7 @@ function pwTrackVariant(store, i){
   var res=c.res, draft=c.draft;
   var e=(res.breakdown||[]).filter(function(x){return x.store===store;})[0];
   var v=e && e.variants && e.variants[i]; if(!v) return;
-  var today=new Date().toISOString().slice(0,10);
+  var today=pwToday();
   var it={ id:uid(), itemName:draft.itemName, qty:draft.qty||'', brandLock:(v.brand||draft.brandLock||''),
     productRef:{ url:v.url||((draft.productRef&&draft.productRef.url)||''), foundTitle:v.title||'', krogerProductId:v.krogerProductId||'' },
     perStoreBreakdown:pwSlim(res.breakdown), priceHistory:[], bestPrice:v.price, bestStore:store, lastChecked:new Date().toISOString(), createdAt:Date.now() };
@@ -3767,18 +3774,18 @@ function pwNewItem(draft, res, today){
 }
 function pwTrack(){
   var c=pwCand(); if(!c) return;
-  var it=pwNewItem(c.draft, c.res, new Date().toISOString().slice(0,10));
+  var it=pwNewItem(c.draft, c.res, pwToday());
   pwItems().push(it); persistWatch();
   pwSetCand(null); pwClearForm(); pwExpandedId=null; render(); toast('Now watching '+it.itemName);
 }
 function pwSaveAnyway(){
   var c=pwCand(); if(!c) return;
-  var it=pwNewItem(c.draft, {ok:false}, new Date().toISOString().slice(0,10));
+  var it=pwNewItem(c.draft, {ok:false}, pwToday());
   pwItems().push(it); persistWatch(); pwSetCand(null); pwClearForm(); render(); toast('Watch added — no price yet');
 }
 function pwCancelAdd(){ pwSetCand(null); pwSetAdding(false); render(); }
 function pwApplyResult(it, res){
-  var today=new Date().toISOString().slice(0,10);
+  var today=pwToday();
   it.perStoreBreakdown = pwSlim(res.breakdown);
   it.bestPrice = (typeof res.bestPrice==='number') ? res.bestPrice : null;
   it.bestStore = res.bestStore || null;
