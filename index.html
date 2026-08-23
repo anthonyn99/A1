@@ -5808,11 +5808,14 @@ function PlanPanel({P,startDateKey,onExit}){
     const isConf=(ctx==='confirmed'||ctx==='overdue');
     const pe=PC.pendingEdit(p);
     const peMine=!!(pe&&w&&pe.by===w);
+    // A reschedule rides the same pending-change machinery as an edit, so the
+    // only thing that separates them anywhere in the UI is the words used.
+    const isMove=!!(pe&&pe.kind==='move');
     const badges=[];
     if(ctx==='overdue')badges.push(badge('overdue',OVER));
     if(pe)badges.push(badge(peMine
-      ?'change waiting on '+(NAMES[PC.other(w)]||'them')
-      :(NAMES[pe.by]||pe.by)+' proposed a change',WARN));
+      ?(isMove?'new time':'change')+' waiting on '+(NAMES[PC.other(w)]||'them')
+      :(NAMES[pe.by]||pe.by)+' proposed a '+(isMove?'new time':'change'),WARN));
     if(isConf&&p.cancelReq)
       badges.push(badge('cancel requested by '+(NAMES[p.cancelReq.by]||p.cancelReq.by),WARN));
     if(halfDone&&!p.cancelReq){
@@ -5854,9 +5857,9 @@ function PlanPanel({P,startDateKey,onExit}){
     // proposal without either of you deciding anything.
     const editActs=pe
       ?(peMine
-        ?[B("","Withdraw change",()=>PC.withdrawEdit(p.id),"we")]
-        :[B("go","Approve change",()=>doApproveEdit(p.id),"ae"),
-          B("no","Decline change",()=>PC.rejectEdit(p.id),"re")])
+        ?[B("","Withdraw "+(isMove?"request":"change"),()=>PC.withdrawEdit(p.id),"we")]
+        :[B("go",isMove?"Approve new time":"Approve change",()=>doApproveEdit(p.id),"ae"),
+          B("no",isMove?"Keep the old time":"Decline change",()=>PC.rejectEdit(p.id),"re")])
       :[B("","Edit",()=>setDlg({mode:'edit',id:p.id}),"e")];
 
     let acts=[];
@@ -5873,11 +5876,17 @@ function PlanPanel({P,startDateKey,onExit}){
       else acts=[B("go","Yes — it’s done",()=>PC.markDone(p.id),"yd"),
         B("","Not yet",()=>PC.rejectDone(p.id),"nd")];
     }else if(isConf){
-      acts=[doneBtn,
+      // Reschedule leads on an overdue card: a plan whose day has gone by is
+      // almost always going to be moved rather than finished or dropped, and
+      // making that the first button is the difference between the section
+      // being useful and being a list of reproaches.
+      const moveBtn=pe?null
+        :B(ctx==='overdue'?"go":"","Reschedule",()=>setDlg({mode:'reschedule',id:p.id}),"rs");
+      acts=[...(ctx==='overdue'?[moveBtn,doneBtn]:[doneBtn,moveBtn]),
         (p.cancelReq&&p.cancelReq.by===w)
           ?B("","Withdraw cancel",()=>PC.withdrawCancel(p.id),"wd")
           :B("no","Request cancel",()=>setDlg({mode:'cancel',id:p.id}),"rc"),
-        ...editActs];
+        ...editActs].filter(Boolean);
     }else if(ctx==='proposed'){
       acts=[B("","Edit",()=>setDlg({mode:'edit',id:p.id}),"e"),
         B("no","Withdraw",()=>setDlg({mode:'decline',id:p.id}),"w")];
@@ -5944,24 +5953,37 @@ function PlanPanel({P,startDateKey,onExit}){
         React.createElement("span",{style:{fontSize:11,color:P.TXF}},"→"),
         React.createElement("span",{style:{fontSize:12,color:P.TX,fontWeight:700,
           wordBreak:"break-word"}},to||'—')));
+      // Rows are decided on what the reader will SEE, not on the stored strings.
+      // The two sides can be in different zones, so a time that reads 5:00 PM
+      // either way is not a change to show — printing "5:00 PM → 5:00 PM" is
+      // worse than printing nothing.
+      const wasT=p.time?PC.fmtTime(p.time,p.date,p.tz):'No time';
+      const newT=f.time?PC.fmtTime(f.time,f.date||p.date,f.tz):'No time';
       if((f.title||'')!==(p.title||''))row('Title',p.title,f.title);
       if((f.date||null)!==(p.date||null))
         row('Date',p.date?PC.fmtDate(p.date):'No date',f.date?PC.fmtDate(f.date):'No date');
-      if((f.time||null)!==(p.time||null))
-        row('Time',p.time?PC.fmtTime(p.time,p.date,p.tz):'No time',
-                   f.time?PC.fmtTime(f.time,f.date||p.date,f.tz):'No time');
+      if(wasT!==newT)row('Time',wasT,newT);
       if((f.notes||'')!==(p.notes||''))row('Notes',p.notes||'none',f.notes||'none');
       peBox=React.createElement("div",{style:{marginTop:12,padding:"11px 12px",borderRadius:8,
         background:WARN.bg,border:"1px solid "+WARN.line}},
         React.createElement("div",{style:{fontSize:11.5,lineHeight:1.55,color:P.WARN,
           fontWeight:600,fontFamily:P.FONT}},
           peMine
-            ?"Waiting for "+(NAMES[PC.other(w)]||'the other person')
-              +" to approve this change. The plan stands as you both agreed it until they do."
-            :(NAMES[pe.by]||pe.by)+" wants to change this plan. Nothing changes unless you approve it."),
+            ?"Waiting for "+(NAMES[PC.other(w)]||'the other person')+" to approve "
+              +(isMove?"the new time":"this change")
+              +". The plan stands as you both agreed it until they do."
+            :(NAMES[pe.by]||pe.by)+(isMove
+              ?" wants to move this plan. It stays where it is unless you approve."
+              :" wants to change this plan. Nothing changes unless you approve it.")),
+        // The reason someone gives for moving a day is usually the whole
+        // message ("I'm on shift till 8"), so it gets its own line rather than
+        // being folded into the notification text and lost.
+        (isMove&&pe.why)?React.createElement("div",{style:{fontSize:12,color:P.TXD,
+          marginTop:8,lineHeight:1.55,whiteSpace:"pre-wrap",wordBreak:"break-word"}},
+          "“"+pe.why+"”"):null,
         rows,
         React.createElement("div",{style:{fontSize:10,color:P.TXF,marginTop:9,
-          fontFamily:P.MONO}},"proposed "+PC.fmtWhen(pe.at)));
+          fontFamily:P.MONO}},(isMove?"requested ":"proposed ")+PC.fmtWhen(pe.at)));
     }
 
     let reason=null,reasonTxt='';
@@ -6206,6 +6228,45 @@ function PlanDialog({P,dlg,setDlg,startDateKey,busy,guard,doConfirm,doApproveEdi
         return;
       }
       guard(PC.applyEdit(dlg.id,vt,notes.trim(),d,tm));close();
+    };
+  } else if(dlg.mode==='reschedule'){
+    // Slot only. Title and notes are deliberately absent: this is "when", and
+    // mixing "what" into it is how a reschedule quietly becomes a rewrite the
+    // other person has to read twice to spot.
+    const cur=p?(p.date?(PC.fmtDate(p.date)+(p.time?' at '+PC.fmtTime(p.time,p.date,p.tz):''))
+      :'No date set'):'';
+    title='Reschedule this plan';
+    body=React.createElement(React.Fragment,null,
+      React.createElement("div",{style:{fontSize:12,color:P.TXM,marginTop:4,marginBottom:2,
+        lineHeight:1.55}},
+        "Currently ",React.createElement("b",{style:{color:P.TX}},cur),
+        ". Moving it needs ",oName,"’s approval — the plan does not move until they give it."),
+      React.createElement("div",{style:{display:"flex",gap:12,flexWrap:"wrap"}},
+        React.createElement("div",{style:{flex:"1 1 150px",minWidth:0}},
+          React.createElement("label",{style:lbl},"New date"),
+          React.createElement("input",{style:{...inp,cursor:"pointer"},type:"date",value:d,
+            autoFocus:true,onChange:e=>setD(e.target.value)})),
+        React.createElement("div",{style:{flex:"1 1 130px",minWidth:0}},
+          React.createElement("label",{style:lbl},"New time"),
+          React.createElement("input",{style:{...inp,cursor:"pointer"},type:"time",value:tm,
+            onChange:e=>setTm(e.target.value)}))),
+      React.createElement("label",{style:lbl},"Why (optional)"),
+      React.createElement("textarea",{style:{...inp,minHeight:70,resize:"vertical",
+        lineHeight:1.55},maxLength:500,placeholder:"Working late, out of town…",value:reason,
+        onChange:e=>setReason(e.target.value)}),
+      React.createElement("div",{style:{fontSize:11.5,color:P.BAD,marginTop:9,
+        minHeight:15}},err));
+    ok='Send request';
+    run=()=>{
+      if(!p){close();return;}
+      if(!d){setErr('Pick the day you want to move it to.');return;}
+      // Same test the engine uses, so the form can never send something the
+      // engine will silently refuse (and vice versa).
+      if(PC.sameSlot(p,d||null,tm||null)){
+        setErr('That is already when this plan is.');return;
+      }
+      setErr('');
+      guard(PC.proposeReschedule(dlg.id,d,tm,reason.trim()));close();
     };
   } else if(dlg.mode==='pendingWarn'){
     title='Send this change to '+oName;
@@ -15810,6 +15871,22 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
     }catch(e){console.warn('[Plans] push queue failed:',e&&e.code);}
   };
 
+  // Plans events raised before THIS module finished loading. It is a
+  // <script type="module"> behind three network imports, so a plan acted on in
+  // the first seconds after a cold open reached a `window._fcmSendToProfile`
+  // that did not exist yet — and the Plans engine's fire-and-forget send simply
+  // dropped it, with nothing logged on either device. Same queue-and-drain the
+  // reminders path has had all along (see drainFCMQueue above); it must live
+  // here rather than up there because it drains into the function defined
+  // immediately above this line.
+  (function drainPlansQueue(){
+    var q=window._plansPushQueue||[];
+    window._plansPushQueue=[];
+    for(var i=0;i<q.length;i++){
+      try{window._fcmSendToProfile(q[i].to,'Plans',q[i].body,q[i].key);}catch(e){}
+    }
+  })();
+
   // opts.notifyAt → delete ONLY the occurrence at that moment (the "delete this
   // date only" choice), not the whole series.
   window._fcmCancelNotif=async function(id,notifyRepeatId,opts){
@@ -15883,12 +15960,21 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
       // failed), so a wrong-profile push can still arrive here. Re-check against
       // live localStorage — mirrors the poll's shouldFire() and the SW's gate.
       const dash=payload.data?.dash||'all';
-      if(!_dashAllowedHere(dash,payload.data?.kind))return;
+      const kind=payload.data?.kind;
+      if(!_dashAllowedHere(dash,kind))return;
       // Dedup on the OCCURRENCE key (series+minute), shared with the polling
       // engine via the same fired-set, so one reminder can't fire from both
       // the foreground FCM push AND the poll loop. Falls back to raw id.
       const ok=fcmOccKey(id)||id;
-      if(ok){ if(hasFired(ok))return; markFired(ok); }
+      // ...but NOT for a Plans event. The fired-set is PERMANENT (localStorage,
+      // last 1000 ids) because a scheduled occurrence genuinely happens once. An
+      // event is not an occurrence: the same plan raises the same KIND of event
+      // again and again — marked done, taken back, marked done again — and
+      // keying those on a permanent set meant the first one you ever saw was the
+      // last one you ever saw. The 5-minute content gate below is the right
+      // window for a duplicate DELIVERY, which is all there is to guard here.
+      const isEvt=(kind==='event');
+      if(ok&&!isEvt){ if(hasFired(ok))return; markFired(ok); }
       // Second gate: same profile + same text within 5 minutes = same reminder,
       // even when it arrives from a different (orphaned) cloud series.
       if(claimContent(dash,title))return;
@@ -15921,7 +16007,10 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
       var dash=msg.dash||'all';
       if(!_dashAllowedHere(dash,msg.kind))return;
       var ok=fcmOccKey(msg.id)||msg.id;
-      if(ok){ if(hasFired(ok))return; markFired(ok); }
+      // See the foreground handler: a Plans event must not touch the permanent
+      // fired-set, or its second occurrence is silenced for the life of the
+      // browser profile. The content gate below still stops a double delivery.
+      if(ok&&msg.kind!=='event'){ if(hasFired(ok))return; markFired(ok); }
       if(claimContent(dash,msg.body))return; // same text already banner-ed
       showBanner(msg.body||'TaskHub Reminder');
     });
@@ -16952,13 +17041,35 @@ function coerce(p){
 // you already know what you just did. The `dashboard` field is what the Worker
 // routes on ('tony' | 'veda'), so a device registered to that profile is the
 // one that rings.
-function notifyOther(kind,p,extra){
-  const w=me();if(!w||!p)return;
-  const to=other(w);
-  const who=NAMES[w]||w;
+// The message text, built from the record rather than captured at send time.
+// Split out of notifyOther because the RECEIVING device renders it too (see the
+// arrival banner in ingest): a plan's dates and times must read in the zone of
+// whoever is looking at them, so the sender cannot bake the string.
+// `actor` is the profile that did the thing; the reader is always the other one.
+function planMsg(kind,actor,p,extra){
+  if(!kind||!p)return '';
+  const who=NAMES[actor]||actor||'They';
   const title=p.title||'a plan';
+  // A move is only meaningful as "from → to". For a request the plan still holds
+  // the old slot and the pending record holds the new one; once it is approved
+  // or refused the old slot is gone from the record, so the actor passes it in.
+  const slot=(d,t,tz)=>d?(fmtDate(d)+(t?' at '+fmtTime(t,d,tz):'')):'no date';
+  const pe=p.pendingEdit;
+  const moveTo=pe?slot(pe.date,pe.time,pe.tz):'';
+  const moveFrom=slot(p.date,p.time,p.tz);
   let msg='';
   switch(kind){
+    // ── Reschedule ──────────────────────────────────────────────────────────
+    // Its own set of words, not the generic "change" ones: a move is the thing
+    // people actually need to read at a glance, and burying it in "wants to
+    // change X" makes them open the app to find out what moved.
+    case 'moveReq': msg=who+' wants to move “'+title+'” from '+moveFrom+' to '+moveTo
+      +(extra?' — '+extra:'')+'. Approve it to move the plan.'; break;
+    case 'moveOK':  msg=who+' approved the new time for “'+title+'”'
+      +(extra?' — it is now '+extra:'')+'.'; break;
+    case 'moveNo':  msg=who+' declined the new time for “'+title+'” — it stays '
+      +moveFrom+'.'; break;
+    case 'moveGone':msg=who+' withdrew their request to move “'+title+'”.'; break;
     case 'proposed': msg=who+' proposed “'+title+'” — needs your confirmation.'; break;
     case 'confirmed':msg=who+' confirmed “'+title+'”. It is now a plan.'; break;
     case 'declined': msg=who+' declined “'+title+'”'+(extra?': '+extra:'.'); break;
@@ -16982,19 +17093,53 @@ function notifyOther(kind,p,extra){
     case 'tweaked':  msg=who+' updated “'+title+'”.'; break;
     case 'kept':     msg=who+' declined to cancel “'+title+'” — it stands.'; break;
     case 'deleted':  msg=who+' deleted “'+title+'”.'; break;
-    default: return;
+    default: return '';
   }
-  // 1. In-app, for whoever is looking at this device right now.
-  try{if(window._thPlanBanner)window._thPlanBanner(msg,to);}catch(e){}
-  // 2. Push, so it lands even with TaskHub closed. Fire-and-forget: a plan must
-  //    never fail to save because a notification could not be queued.
+  return msg;
+}
+
+function notifyOther(kind,p,extra){
+  const w=me();if(!w||!p)return;
+  const to=other(w);
+  const msg=planMsg(kind,w,p,extra);
+  if(!msg)return;
+  // Push, so it lands even with TaskHub closed. Fire-and-forget: a plan must
+  // never fail to save because a notification could not be queued.
+  //
+  // NOT an in-app banner as well. This runs on the ACTING device, where the
+  // reader is by definition the other person — the banner it used to raise here
+  // could never pass its own "am I that profile?" gate, so Plans had exactly one
+  // delivery surface (push) pretending to be two. The receiving device raises
+  // its own banner off the Firestore snapshot instead (see ingest), which is the
+  // only path that still works when push is broken or switched off.
+  //
+  // The key carries a minute stamp. The doc id must stay stable across a retry
+  // of ONE event (a re-send would otherwise stack a second card), but it must
+  // NOT be stable across two genuine events of the same kind on the same plan —
+  // marked done, taken back, marked done again is three real notifications, and
+  // a fixed id made the second and third silently overwrite the first.
+  const key='plan_'+p.id+'_'+kind+'_'+Math.floor(Date.now()/60000).toString(36);
   try{
-    if(window._fcmSendToProfile)window._fcmSendToProfile(to,'Plans',msg,'plan_'+p.id+'_'+kind);
+    if(window._fcmSendToProfile)window._fcmSendToProfile(to,'Plans',msg,key);
+    else{
+      // The FCM layer is a <script type="module"> and loads async, so a plan
+      // acted on in the first seconds after a cold open found it undefined and
+      // the notification was dropped on the floor with no error anywhere. Queue
+      // it exactly as the reminders path does; the module drains this on ready.
+      window._plansPushQueue=window._plansPushQueue||[];
+      window._plansPushQueue.push({to:to,body:msg,key:key});
+    }
   }catch(e){}
 }
 
 function save(p,kind,extra){
   p.updatedAt=Date.now();
+  // Provenance of THIS write, carried on the record so the other device can
+  // announce it from the snapshot alone. Cleared to null on a silent save so a
+  // later unrelated write can never replay an old event as if it just happened.
+  p.lastBy=me()||null;
+  p.lastKind=kind||null;
+  p.lastExtra=extra||'';
   plans[p.id]=p;
   emit();
   if(window._fbSavePlan)window._fbSavePlan(p.id,p);
@@ -17163,8 +17308,20 @@ function clearProgress(p){p.dones={veda:null,tony:null};p.pendingEdit=null;}
 // original problem wearing a disguise — so a change to the title, date or time of
 // an AGREED plan is not applied by the person making it. Editing notes alone is
 // never material and applies straight away.
+// The wall clock a FORM shows for this plan, in the zone of whoever is looking.
+// Every "has it actually changed?" test has to go through this. The stored time
+// is in the zone it was ENTERED in (p.tz), while a date/time input always shows
+// and returns local wall clock — so comparing the raw strings reports a change
+// on a plan nobody touched, the moment the two of you are in different zones.
+// Concretely: Veda's 7:00 PM New York plan opens as 5:00 PM on Tony's Denver
+// screen, and pressing Save without typing anything asked her to approve a
+// "move" to the very same instant.
+function localSlot(p){return (p&&p.time)?(toLocalHHMM(p.time,p.tz,p.date)||''):'';}
+function sameSlot(p,d,tm){
+  return (p.date||null)===(d||null)&&(localSlot(p)||null)===(tm||null);
+}
 function isMaterialEdit(p,t,d,tm){
-  return p.title!==t||(p.date||null)!==(d||null)||(p.time||null)!==(tm||null);
+  return p.title!==t||!sameSlot(p,d,tm);
 }
 // Is there a change sitting on this plan waiting for someone to say yes?
 function pendingEdit(p){return (p&&p.pendingEdit&&p.pendingEdit.by)?p.pendingEdit:null;}
@@ -17197,13 +17354,56 @@ function applyEdit(id,t,notes,d,tm){
   // so it is verified exactly like a confirm and the stamp is carried on the
   // pending record. On approval it becomes that person's confirm signature, so
   // the finished plan still shows two real, separately-made confirmations.
+  //
+  // Notes travel with the pending edit rather than applying immediately: half of
+  // a change landing and half waiting would be its own kind of surprise.
+  return park(id,'edit',{title:t,notes:notes||'',date:d||null,time:tm||null},
+    'editReq',t!==p.title?('“'+t+'”'):'');
+}
+
+// ── Reschedule ──────────────────────────────────────────────────────────────
+// Moving an agreed plan to another day or time is the change people actually
+// make, and it is the one with real consequences for someone else's day — so it
+// gets its own action rather than hiding inside Edit, and it moves ONLY the
+// slot: title and notes are carried through untouched, which is what makes
+// "approve the new time" a question the other person can answer at a glance.
+//
+// The approval machinery is deliberately the SAME one Edit uses. A second,
+// parallel two-sided flow would be a second place for the two of you to get out
+// of step; `kind` on the parked record is all that differs, and it only chooses
+// which words are used.
+function proposeReschedule(id,d,tm,reason){
+  const w=me();if(!w)return Promise.resolve('noop');
+  const p=plans[id];if(!p)return Promise.resolve('noop');
+  const nd=d||null,ntm=tm||null;
+  // Nothing actually moved — refuse rather than send the other person a
+  // notification about a change that is not a change. Compared through
+  // sameSlot, so re-submitting the form untouched is a no-op even when the plan
+  // was set in the other person's time zone.
+  if(sameSlot(p,nd,ntm))return Promise.resolve('nochange');
+  if(!(p.stage==='confirmed'||isConfirmed(p))){
+    // Not yet a shared commitment, so there is nobody whose day this disrupts:
+    // moving an idea or an unconfirmed proposal just moves it.
+    p.date=nd;p.time=ntm;p.tz=ntm?myTz():null;
+    save(p,'tweaked');return Promise.resolve('ok');
+  }
+  return park(id,'move',{title:p.title,notes:p.notes||'',date:nd,time:ntm,why:reason||''},
+    'moveReq',reason||'');
+}
+
+// Park a proposed change on the record and tell the other person. Shared by
+// applyEdit and proposeReschedule so there is exactly one way a change can be
+// waiting, and exactly one way it can be answered.
+function park(id,kind,fields,notifKind,extra){
+  const w=me();if(!w)return Promise.resolve('noop');
   return bioVerify(w).then(ok=>{
     const q=plans[id];if(!q)return 'noop';
-    // Notes travel with the pending edit rather than applying immediately: half
-    // of a change landing and half waiting would be its own kind of surprise.
-    q.pendingEdit={by:w,at:Date.now(),title:t,notes:notes||'',
-      date:d||null,time:tm||null,tz:tm?myTz():null,meta:stamp(ok)};
-    save(q,'editReq',t!==q.title?('“'+t+'”'):'');
+    q.pendingEdit={by:w,at:Date.now(),kind:kind,
+      title:fields.title,notes:fields.notes||'',
+      date:fields.date||null,time:fields.time||null,
+      why:fields.why||'',
+      tz:fields.time?myTz():null,meta:stamp(ok)};
+    save(q,notifKind,extra||'');
     return 'pending';
   });
 }
@@ -17235,19 +17435,26 @@ function approveEdit(id){
     q.confirmMeta[cur.by]=cur.meta||stamp(false);
     q.confirmMeta[w]=stamp(ok);
     q.stage='confirmed';
+    const wasMove=(cur.kind==='move');
     q.pendingEdit=null;
-    save(q,'editOK');
+    // A move's "from" is gone from the record by now, so the new slot travels as
+    // the extra — otherwise the approval notice could not say what was agreed.
+    save(q,wasMove?'moveOK':'editOK',
+      wasMove?(q.date?(fmtDate(q.date)+(q.time?' at '+fmtTime(q.time,q.date,q.tz):'')):'undated'):'');
     return 'ok';
   });
 }
 // "No" to a change I am the counterparty to. The plan is untouched — that is the
-// whole point — so this only clears the request.
+// whole point — so this only clears the request. The refusal notice is built
+// BEFORE the record is cleared: it names the slot the plan keeps, which
+// planMsg reads off the plan itself.
 function rejectEdit(id){
   const w=me();if(!w)return;
   const p=plans[id];if(!p)return;
   const pe=pendingEdit(p);
   if(!pe||pe.by===w)return;
-  p.pendingEdit=null;save(p,'editNo');
+  const kind=(pe.kind==='move')?'moveNo':'editNo';
+  p.pendingEdit=null;save(p,kind);
 }
 // Taking back my own proposed change before it is answered.
 function withdrawEdit(id){
@@ -17255,7 +17462,8 @@ function withdrawEdit(id){
   const p=plans[id];if(!p)return;
   const pe=pendingEdit(p);
   if(!pe||pe.by!==w)return;
-  p.pendingEdit=null;save(p,'editGone');
+  const kind=(pe.kind==='move')?'moveGone':'editGone';
+  p.pendingEdit=null;save(p,kind);
 }
 
 // Deleting a CONFIRMED plan needs the same two-sided flow as cancelling — one
@@ -17355,9 +17563,62 @@ function ingest(map){
     if((mine.updatedAt||0)>(theirs.updatedAt||0))next[id]=mine;
   });
   Object.keys(next).forEach(id=>{if(map&&map[id])acked[id]=true;});
+  const before=plans;
   plans=next;
+  announceArrivals(before,next);
   emit();
 }
+
+// ── Arrival banner ──────────────────────────────────────────────────────────
+// The other person just did something, and this device is watching the same
+// document — so it can say so itself, with no push involved at all.
+//
+// This exists because push is the one part of the chain nobody controls: a
+// browser with notifications switched off, a revoked permission, a dead token,
+// a phone that never registered — every one of them ends with a plan quietly
+// changing under you. The snapshot listener is already running for the mirror,
+// so the news is on this device either way; it just was not being said.
+//
+// Rules, all of them about not crying wolf:
+//   • only what the OTHER person did (lastBy), and only if the record is
+//     genuinely newer than the copy we held;
+//   • nothing on the first snapshot — a page opening is not an event, and
+//     replaying a week of history at boot is worse than saying nothing;
+//   • nothing older than FRESH_MS, so a reconnect after a long sleep does not
+//     announce yesterday;
+//   • once per (id, updatedAt), so repeated snapshots of one write say it once.
+const ANNOUNCE_FRESH_MS=15*60*1000;
+let announcedFirst=false;
+const announced={};
+function announceArrivals(before,after){
+  if(!announcedFirst){announcedFirst=true;return;}
+  const w=me();if(!w)return;
+  const now=Date.now();
+  Object.keys(after).forEach(id=>{
+    const p=after[id];if(!p||!p.lastKind||!p.lastBy)return;
+    if(p.lastBy===w)return;                       // my own write echoing back
+    const prev=before[id];
+    // "Newer than what we held" cannot be a bare timestamp compare. updatedAt
+    // comes off the WRITER's clock in whole milliseconds, so two events on one
+    // plan can legitimately carry the same stamp — and with `>=` the second one
+    // is silently swallowed. Skip only what is genuinely older, or the exact
+    // version we already had.
+    if(prev&&(prev.updatedAt||0)>(p.updatedAt||0))return;
+    if(prev&&(prev.updatedAt||0)===(p.updatedAt||0)
+      &&prev.lastKind===p.lastKind&&prev.lastBy===p.lastBy)return;
+    if(!p.updatedAt||now-p.updatedAt>ANNOUNCE_FRESH_MS)return;
+    const key=id+':'+p.updatedAt+':'+p.lastKind;
+    if(announced[key])return;
+    announced[key]=now;
+    const msg=planMsg(p.lastKind,p.lastBy,p,p.lastExtra||'');
+    if(!msg)return;
+    try{if(window._thPlanBanner)window._thPlanBanner(msg,w);}catch(e){}
+  });
+  // Keep the seen-set from growing for the life of the tab.
+  const ks=Object.keys(announced);
+  if(ks.length>200)ks.forEach(k=>{if(now-announced[k]>ANNOUNCE_FRESH_MS)delete announced[k];});
+}
+
 window.addEventListener('fb-plans-update',e=>ingest(e.detail||{}));
 
 // Pull the doc once, whether or not anyone has opened a Plan panel yet — the
@@ -17382,7 +17643,7 @@ window.PlansCore={
   get:function(id){return plans[id]||null;},
   bucket:bucket, waitingCount:waitingCount,
   isConfirmed:isConfirmed, isDone:isDone, isOverdue:isOverdue,
-  isMaterialEdit:isMaterialEdit, confirmFlags:confirmFlags,
+  isMaterialEdit:isMaterialEdit, sameSlot:sameSlot, confirmFlags:confirmFlags,
   pendingEdit:pendingEdit, pendingEditFor:pendingEditFor,
   pendingEditFields:pendingEditFields,
   needsTwoSidedDelete:needsTwoSidedDelete,
@@ -17396,7 +17657,8 @@ window.PlansCore={
   agreeCancel:agreeCancel, withdrawOther:withdrawOther,
   markDone:markDone, unmarkDone:unmarkDone, rejectDone:rejectDone,
   applyEdit:applyEdit, approveEdit:approveEdit, rejectEdit:rejectEdit,
-  withdrawEdit:withdrawEdit, removePlan:removePlan
+  withdrawEdit:withdrawEdit, proposeReschedule:proposeReschedule,
+  planMsg:planMsg, removePlan:removePlan
 };
 })();
 </script>

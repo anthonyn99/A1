@@ -210,6 +210,105 @@ if (listTokenDocsSrc) {
 }
 
 function finish() {
+  console.log('\nThe send side cannot drop one on the floor');
+
+  // The Plans engine is a classic script; the FCM layer is a <script type=module>
+  // behind three network imports. A plan acted on in the first seconds after a
+  // cold open found window._fcmSendToProfile undefined, and the fire-and-forget
+  // send simply lost the notification with nothing logged anywhere.
+  check(
+    'a Plans push raised before the FCM module loaded is QUEUED, not dropped',
+    /window\._plansPushQueue=window\._plansPushQueue\|\|\[\];/.test(html) &&
+      /window\._plansPushQueue\.push\(/.test(html)
+  );
+  check(
+    'and the module drains that queue once it is ready',
+    /function drainPlansQueue\(\)\{[\s\S]{0,400}?window\._fcmSendToProfile\(q\[i\]\.to/.test(html)
+  );
+  check(
+    'the push key is per-EVENT, not per-plan-and-kind',
+    /const key='plan_'\+p\.id\+'_'\+kind\+'_'\+Math\.floor\(Date\.now\(\)\/60000\)/.test(html),
+    'a fixed id let the 2nd "marked done" silently overwrite the 1st'
+  );
+
+  console.log('\nA repeat of the same event is not silenced for good');
+
+  // hasFired() is a PERMANENT localStorage set — correct for a scheduled
+  // occurrence, fatal for an event. The same plan raises the same kind of event
+  // again and again (done → not yet → done), and keying those on it meant the
+  // first one a device ever saw was the last one it ever saw.
+  check(
+    'the foreground handler keeps events out of the permanent fired-set',
+    /const isEvt=\(kind==='event'\);\s*\n\s*if\(ok&&!isEvt\)\{ if\(hasFired\(ok\)\)return; markFired\(ok\); \}/.test(html)
+  );
+  check(
+    'so does the service-worker banner bridge',
+    /if\(ok&&msg\.kind!=='event'\)\{ if\(hasFired\(ok\)\)return; markFired\(ok\); \}/.test(html)
+  );
+  check(
+    'the 5-minute content gate still guards a duplicate delivery',
+    (html.match(/if\(claimContent\(dash,/g) || []).length === 2
+  );
+
+  console.log('\nThe receiver can announce it with no push at all');
+
+  // Push is the one link in the chain nobody controls: permission revoked, a
+  // browser with notifications off, a dead token, a phone that never registered.
+  // The snapshot listener is already running on the receiving device for the
+  // TaskHub mirror, so the news is there either way — it just was not said.
+  check(
+    'the Plans engine announces an arriving change from the snapshot',
+    /function announceArrivals\(before,after\)\{/.test(html) &&
+      /window\._thPlanBanner\)window\._thPlanBanner\(msg,w\)/.test(html)
+  );
+  check(
+    'it only announces what the OTHER person did',
+    /if\(p\.lastBy===w\)return;/.test(html)
+  );
+  check(
+    'every write records who made it, so the other device can attribute it',
+    /p\.lastBy=me\(\)\|\|null;/.test(html) && /p\.lastKind=kind\|\|null;/.test(html)
+  );
+  check(
+    'nothing is announced on the first snapshot, or from stale records',
+    /if\(!announcedFirst\)\{announcedFirst=true;return;\}/.test(html) &&
+      /now-p\.updatedAt>ANNOUNCE_FRESH_MS\)return;/.test(html)
+  );
+  check(
+    'two events sharing one millisecond both still get announced',
+    /prev\.lastKind===p\.lastKind&&prev\.lastBy===p\.lastBy\)return;/.test(html),
+    'a bare >= timestamp compare swallowed the second'
+  );
+  check(
+    'the dead sender-side banner call is gone',
+    !/_thPlanBanner\(msg,to\)/.test(html),
+    'it could never pass its own "am I that profile?" gate'
+  );
+
+  console.log('\nA reschedule is a two-sided request, like everything else here');
+
+  check(
+    'proposing a move parks it instead of applying it',
+    /function proposeReschedule\(id,d,tm,reason\)\{/.test(html) &&
+      /return park\(id,'move',/.test(html)
+  );
+  check(
+    'it reuses the one approval path rather than adding a second',
+    /function park\(id,kind,fields,notifKind,extra\)\{/.test(html) &&
+      (html.match(/return park\(id,'(edit|move)',/g) || []).length === 2
+  );
+  check(
+    'the other person is notified that a move is WAITING, not done',
+    /case 'moveReq': msg=who\+' wants to move /.test(html) &&
+      /Approve it to move the plan/.test(html)
+  );
+  check(
+    '"has the slot changed?" is asked in the reader\'s own zone',
+    /function sameSlot\(p,d,tm\)\{/.test(html) &&
+      /function localSlot\(p\)\{return \(p&&p\.time\)\?\(toLocalHHMM\(/.test(html),
+    'raw string compare reported a move on a plan nobody touched'
+  );
+
   console.log('\nThe receiving device shows it (both surfaces)');
 
   check(
