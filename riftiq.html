@@ -1240,7 +1240,7 @@ body.wr-locked #wr-progbar { display: none !important; }
    took which objective without tracing across the card. */
 .obj-bar {
   display: flex; justify-content: center;
-  background: var(--bg); padding: 12px 16px;
+  background: var(--bg); padding: 9px 16px;
   border-bottom: 1px solid var(--bd);
 }
 .obj-center .oc-meta { font-family: var(--mono); font-size: 12px; color: var(--tx3); margin-top: 5px; }
@@ -1278,9 +1278,9 @@ body.wr-locked #wr-progbar { display: none !important; }
   .obj-pill { font-size: 11px; }
 }
 .obj-center { text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
-.obj-center .oc-kills { font-family: var(--head); font-size: 32px; font-weight: 800; letter-spacing: -0.5px; }
+.obj-center .oc-kills { font-family: var(--head); font-size: 23px; font-weight: 800; letter-spacing: -0.4px; }
 .obj-center .oc-kills .bk { color: var(--blue); }
-.obj-center .oc-kills .sep { color: var(--tx3); margin: 0 6px; }
+.obj-center .oc-kills .sep { color: var(--tx3); margin: 0 5px; }
 .obj-center .oc-kills .rk { color: var(--red); }
 .obj-center .oc-gold { font-family: var(--mono); font-size: 12px; color: var(--tx2); font-weight: 600; margin-top: 4px; }
 .obj-center .oc-gold .bg { color: var(--blue); }
@@ -2756,7 +2756,7 @@ input:-webkit-autofill:active {
     </div>
 
     <!-- RUNE OVERLAY -->
-    <div id="rune-overlay" style="display:none;position:fixed;inset:0;z-index:900;background:rgba(0,0,0,0.88);backdrop-filter:blur(10px);overflow-y:auto;" onclick="closeRuneOverlay(event)">
+    <div id="rune-overlay" style="display:none;position:fixed;inset:0;z-index:1500;background:rgba(0,0,0,0.88);backdrop-filter:blur(10px);overflow-y:auto;" onclick="closeRuneOverlay(event)">
       <div id="rune-overlay-inner" style="max-width:600px;margin:60px auto;padding:24px;position:relative;" onclick="event.stopPropagation()"></div>
     </div>
 
@@ -2768,7 +2768,7 @@ input:-webkit-autofill:active {
     </div>
 
     <!-- SPELL OVERLAY -->
-    <div id="spell-overlay" style="display:none;position:fixed;inset:0;z-index:900;background:rgba(0,0,0,0.88);backdrop-filter:blur(10px);overflow-y:auto;" onclick="closeSpellOverlay(event)">
+    <div id="spell-overlay" style="display:none;position:fixed;inset:0;z-index:1500;background:rgba(0,0,0,0.88);backdrop-filter:blur(10px);overflow-y:auto;" onclick="closeSpellOverlay(event)">
       <div id="spell-overlay-inner" style="max-width:600px;margin:60px auto;padding:24px;position:relative;" onclick="event.stopPropagation()"></div>
     </div>
 
@@ -2914,13 +2914,13 @@ input:-webkit-autofill:active {
   <button id="player-menu-champ" onclick="playerMenuViewChamp()" style="width:100%;padding:10px 14px;background:transparent;border:none;text-align:left;font-family:var(--body);font-size:13px;font-weight:600;color:var(--tx);cursor:pointer;display:flex;align-items:center;gap:8px;" onmouseover="this.style.background='var(--bg4)'" onmouseout="this.style.background='transparent'">&#x2694;&#xFE0F; View Champion</button>
 </div>
 <!-- ── ITEM OVERLAY ── -->
-<div id="item-overlay" style="display:none;position:fixed;inset:0;z-index:900;background:rgba(0,0,0,0.88);backdrop-filter:blur(10px);overflow-y:auto;" onclick="closeItemOverlay(event)">
+<div id="item-overlay" style="display:none;position:fixed;inset:0;z-index:1500;background:rgba(0,0,0,0.88);backdrop-filter:blur(10px);overflow-y:auto;" onclick="closeItemOverlay(event)">
   <div id="item-overlay-inner" style="max-width:640px;margin:60px auto;padding:24px;position:relative;" onclick="event.stopPropagation()">
   </div>
 </div>
 
 <!-- ── CHAMPION OVERLAY ── -->
-<div id="champ-overlay" style="display:none;position:fixed;inset:0;z-index:900;background:rgba(0,0,0,0.88);backdrop-filter:blur(10px);overflow-y:auto;" onclick="closeChampOverlay(event)">
+<div id="champ-overlay" style="display:none;position:fixed;inset:0;z-index:1500;background:rgba(0,0,0,0.88);backdrop-filter:blur(10px);overflow-y:auto;" onclick="closeChampOverlay(event)">
   <div id="champ-overlay-inner" style="max-width:860px;margin:40px auto;padding:24px;position:relative;" onclick="event.stopPropagation()">
     <!-- Content injected by JS -->
   </div>
@@ -3045,6 +3045,10 @@ function showApp() {
   const dn = document.getElementById('disp-name'); if (dn) dn.textContent = summoner.gameName;
   const dt = document.getElementById('disp-tag'); if (dt) dt.textContent = '#' + summoner.tagLine;
   loadProfile();
+  // Rosters back the Pro badge on the profile header, the expanded match
+  // rows and recently-played — not just the ladder — so it loads on boot.
+  // One cached worker call; a failure just means no badges.
+  loadProIndex().then(function(){ if (typeof renderProfileIfLoaded === 'function') renderProfileIfLoaded(); });
   loadBuildsFromFirestore();
   loadDDragonData();
   fetchServerStatus();
@@ -3332,6 +3336,20 @@ var PRO_REGION_PLATFORMS = {
 var PRO_ALIASES = {
   'hide on bush#kr1': 't1 faker'
 };
+
+// Re-render the profile once rosters arrive, so badges are not missing on the
+// very first paint of a cold load. No-op if the profile is not on screen.
+function renderProfileIfLoaded() {
+  try {
+    var el = document.getElementById('profile-content');
+    if (!el || !el.querySelector('.summoner-header')) return;
+    if (typeof refreshProfileView === 'function') { refreshProfileView(); return; }
+    var hdr = el.querySelector('.sh-info .sh-name');
+    if (!hdr || hdr.parentElement.querySelector('.pro-tag')) return;
+    var rec = proLookup(summoner.gameName, summoner.tagLine, summoner.platform);
+    if (rec) hdr.parentElement.insertAdjacentHTML('beforeend', proTagHtml(rec));
+  } catch(e) {}
+}
 
 function loadProIndex() {
   if (PRO_INDEX || _proIndexPending) return _proIndexPending || Promise.resolve(PRO_INDEX);
@@ -4070,7 +4088,22 @@ function closeMasteryOverlay() {
   document.body.style.overflow = '';
   document.removeEventListener('keydown', _masteryEsc);
 }
-function _masteryEsc(e) { if (e.key === 'Escape') closeMasteryOverlay(); }
+// Escape closes the TOPMOST overlay only. With a champion card open on top of
+// the mastery sheet, one press should return you to the sheet — not dismiss
+// both and drop you back on the profile.
+function _masteryEsc(e) {
+  if (e.key !== 'Escape') return;
+  var top = ['champ-overlay','item-overlay','rune-overlay','spell-overlay'].find(function(id){
+    var el = document.getElementById(id); return el && el.style.display && el.style.display !== 'none';
+  });
+  if (top) {
+    document.getElementById(top).style.display = 'none';
+    var inner = document.getElementById(top + '-inner'); if (inner) inner.innerHTML = '';
+    wrReleaseScrollLock();
+    return;
+  }
+  closeMasteryOverlay();
+}
 
 // ══════════════════════════════════════
 // QUEUE METADATA — single source of truth
@@ -4276,7 +4309,7 @@ function renderProfile(_sumData, ranked, mastery, matches, leagueHistory=[]) {
     <div class="sh-info">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
         <div>
-          <div><span class="sh-name">${summoner.gameName}</span><span class="sh-tag">#${summoner.tagLine}</span></div>
+          <div><span class="sh-name">${summoner.gameName}</span><span class="sh-tag">#${summoner.tagLine}</span>${proTagHtml(proLookup(summoner.gameName, summoner.tagLine, summoner.platform))}</div>
           <div class="sh-region">${WR_REGION_SHORT[summoner.platform] || String(summoner.platform||'').toUpperCase()}</div>
         </div>
         <div style="display:flex;gap:8px;margin-left:auto;">
@@ -4594,7 +4627,7 @@ async function buildRecentPlayers(matches) {
         : champIconUrl(p.champName);
       h += `<div class="recent-player-row" style="cursor:pointer;" onclick="loadPlayerProfile('${p.name}','${p.tag}')" title="View ${p.name}'s profile">
         <img src="${iconSrc}" onerror="this.src='${champIconUrl(p.champName)}'" style="border-radius:${p.iconId?'50%':'4px'};">
-        <span class="rp-name">${p.name}<span class="rp-tag" style="margin-left:4px;">#${p.tag}</span></span>
+        <span class="rp-name">${p.name}<span class="rp-tag" style="margin-left:4px;">#${p.tag}</span>${proTagHtml(proLookup(p.name, p.tag, summoner.platform))}</span>
         <span class="rp-games">${p.games} game${p.games!==1?'s':''}</span>
         <span class="rp-wr" style="color:${wrColor}">${wr}% WR</span>
       </div>`;
@@ -4773,7 +4806,7 @@ function renderMatchRow(m, mIdx) {
                  onclick="showPlayerMenu(event,this.dataset.pname,this.dataset.ptag,this.dataset.cid)">
               <img src="${champIconUrl(pp.championName)}" style="width:32px;height:32px;border-radius:6px;flex-shrink:0;" onerror="this.style.opacity=0.3">
               <div style="overflow:hidden;min-width:0;">
-                <div style="font-family:var(--body);font-weight:700;font-size:13px;color:${isMe?'var(--gold)':'var(--tx)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${pp.riotIdGameName||pp.summonerName||'Player'}${pTag?`<span style="font-weight:400;color:var(--tx3);font-size:12px;"> #${pTag}</span>`:''}</div>
+                <div style="font-family:var(--body);font-weight:700;font-size:13px;color:${isMe?'var(--gold)':'var(--tx)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${pp.riotIdGameName||pp.summonerName||'Player'}${pTag?`<span style="font-weight:400;color:var(--tx3);font-size:12px;"> #${pTag}</span>`:''}${proTagHtml(proLookup(pp.riotIdGameName||pp.summonerName, pp.riotIdTagline, summoner.platform))}</div>
                 <div style="display:flex;align-items:center;gap:4px;">
                   <span style="font-family:var(--mono);font-size:12px;color:var(--tx3);">Lv ${pp.champLevel}</span>
                   ${rankStr ? `<span style="font-family:var(--mono);font-size:12px;font-weight:700;color:${rankColor};margin-left:4px;">${rankStr}</span>` : ''}
@@ -4925,14 +4958,11 @@ function matchBadges(m, p) {
 function matchBadgesHtml(m, p) {
   const b = matchBadges(m, p);
   if (!b.length) return '';
-  // Cap the visible run so the row height can stay fixed. matchBadges() is
-  // already ordered best-first, so the ones that get cut are the least
-  // interesting; the full list still shows in the title.
-  const shown = b.slice(0, 3);
+  // All of them. They sit inline on the name line and the cell clips rather
+  // than wraps, so a long run can never change the row's height.
   const title = b.map(x => x.label).join(' · ');
   return '<span class="mh-badges" title="' + title.replace(/"/g, '&quot;') + '">' +
-    shown.map(x => '<span class="mh-badge ' + x.kind + '">' + x.label + '</span>').join('') +
-    (b.length > shown.length ? '<span class="mh-badge more">+' + (b.length - shown.length) + '</span>' : '') +
+    b.map(x => '<span class="mh-badge ' + x.kind + '">' + x.label + '</span>').join('') +
     '</span>';
 }
 
@@ -5266,7 +5296,7 @@ function openBuildsChampPicker() {
   if (existing) { existing.style.display = 'flex'; renderBuildsChampGrid(''); return; }
   const modal = document.createElement('div');
   modal.id = 'builds-champ-picker';
-  modal.style.cssText = 'position:fixed;inset:0;z-index:900;background:rgba(0,0,0,0.88);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:1500;background:rgba(0,0,0,0.88);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;';
   const inner = document.createElement('div');
   inner.style.cssText = 'width:min(760px,92vw);max-height:82vh;background:var(--bg3);border:1px solid var(--bd2);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;';
   // Header
@@ -7108,11 +7138,20 @@ async function openChampOverlay(champId) {
   }
 }
 
+// Scroll stays locked while ANY overlay is still open. Closing a champion card
+// that was opened from the mastery sheet has to leave the sheet's lock in place,
+// or the page behind starts scrolling under it.
+function wrReleaseScrollLock(){
+  var stillOpen = ['mastery-overlay','champ-overlay','item-overlay','rune-overlay','spell-overlay']
+    .some(function(id){ var e = document.getElementById(id); return e && e.style.display && e.style.display !== 'none'; });
+  if (!stillOpen) document.body.style.overflow = '';
+}
+
 function closeChampOverlay(e) {
   if (e && e.target !== document.getElementById('champ-overlay')) return;
   document.getElementById('champ-overlay').style.display = 'none';
   document.getElementById('champ-overlay-inner').innerHTML = '';
-  document.body.style.overflow = '';
+  wrReleaseScrollLock();
 }
 
 // ══════════════════════════════════════
@@ -7347,7 +7386,7 @@ function closeItemOverlay(e) {
   if (e && e.target !== document.getElementById('item-overlay')) return;
   document.getElementById('item-overlay').style.display = 'none';
   document.getElementById('item-overlay-inner').innerHTML = '';
-  document.body.style.overflow = '';
+  wrReleaseScrollLock();
 }
 
 // ══════════════════════════════════════
@@ -7736,7 +7775,7 @@ function closeSpellOverlay(e) {
   if (e && e.target !== document.getElementById('spell-overlay')) return;
   document.getElementById('spell-overlay').style.display = 'none';
   document.getElementById('spell-overlay-inner').innerHTML = '';
-  document.body.style.overflow = '';
+  wrReleaseScrollLock();
 }
 
 // ══════════════════════════════════════
@@ -7896,7 +7935,7 @@ function closeRuneOverlay(e) {
   if (e && e.target !== document.getElementById('rune-overlay')) return;
   document.getElementById('rune-overlay').style.display = 'none';
   document.getElementById('rune-overlay-inner').innerHTML = '';
-  document.body.style.overflow = '';
+  wrReleaseScrollLock();
 }
 
 // ══════════════════════════════════════
