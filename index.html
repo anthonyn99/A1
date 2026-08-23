@@ -5652,6 +5652,11 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
 // without shouting next to the purple.
 const PLAN_GRN_TONY="#a4b986";
 const PLAN_GRN_VEDA="#8FBCA0";
+// Overdue is the ONE place a plan shouts, so it borrows the red the "urgent"
+// category tag already uses — the same value in both profiles' CC maps. Not
+// P.BAD: Tony's is a muted terracotta chosen to stay quiet, which is the exact
+// opposite of what this label is for. Shared by both TaskHubs and both panels.
+const PLAN_OVERDUE_RED="#f85149";
 // One check glyph for both panels and both week grids: a bare stroke in the
 // profile's green, no box and no fill — "a clean check mark", nothing else.
 function PlanCheck({size=13,color="#a4b986",strokeWidth=2.4}){
@@ -5725,7 +5730,7 @@ function PlanPanel({P,startDateKey,onExit}){
   // needs are derived here so the two profiles stay one line of difference.
   const AC_SOFT=P.AC+"1f",AC_LINE=P.AC+"55";
   const tone=c=>({fg:c,bg:c+"1c",line:c+"4d"});
-  const OK=tone(P.OK),WARN=tone(P.WARN),BAD=tone(P.BAD);
+  const OK=tone(P.OK),WARN=tone(P.WARN),BAD=tone(P.BAD),OVER=tone(PLAN_OVERDUE_RED);
 
   const btn=(kind)=>({background:kind==="go"?P.AC:"transparent",
     color:kind==="go"?P.ACINK:(kind==="no"?P.TXD:P.TXD),
@@ -5755,6 +5760,11 @@ function PlanPanel({P,startDateKey,onExit}){
     // Enrolled but not verified: nothing was recorded. Say so rather than
     // failing quietly — this refusal is the entire point of the feature.
     if(r==='bioFailed')setDlg({mode:'bioFailed',id});
+  });
+  // Approving someone else's change to an agreed plan is a confirmation of the
+  // new version, so it is verified — and refused — exactly like one.
+  const doApproveEdit=(id)=>guard(PC.approveEdit(id)).then(r=>{
+    if(r==='bioFailed')setDlg({mode:'bioFailed',id,approve:true});
   });
 
   // Confirming FOR the other person is the one thing this feature exists to
@@ -5793,8 +5803,17 @@ function PlanPanel({P,startDateKey,onExit}){
     // Exactly one side has marked it done: the plan is still live, and whoever
     // has not marked it is the one being waited on.
     const halfDone=!finished&&!!(dn.veda||dn.tony)&&!(dn.veda&&dn.tony);
+    // Confirmed and Overdue are the same kind of card — a live agreed plan — so
+    // every branch that used to test for 'confirmed' tests for both.
+    const isConf=(ctx==='confirmed'||ctx==='overdue');
+    const pe=PC.pendingEdit(p);
+    const peMine=!!(pe&&w&&pe.by===w);
     const badges=[];
-    if(ctx==='confirmed'&&p.cancelReq)
+    if(ctx==='overdue')badges.push(badge('overdue',OVER));
+    if(pe)badges.push(badge(peMine
+      ?'change waiting on '+(NAMES[PC.other(w)]||'them')
+      :(NAMES[pe.by]||pe.by)+' proposed a change',WARN));
+    if(isConf&&p.cancelReq)
       badges.push(badge('cancel requested by '+(NAMES[p.cancelReq.by]||p.cancelReq.by),WARN));
     if(halfDone&&!p.cancelReq){
       const by=dn.veda?'veda':'tony';
@@ -5829,22 +5848,36 @@ function PlanPanel({P,startDateKey,onExit}){
       ?B("","Undo done",()=>PC.unmarkDone(p.id),"ud")
       :B(dn[PC.other(w)]?"go":"","Mark done",()=>PC.markDone(p.id),"m");
 
+    // A change proposed against an agreed plan replaces the Edit button: while
+    // one is outstanding the only moves are answering it or taking it back.
+    // Editing "over" a pending change would quietly discard the other person's
+    // proposal without either of you deciding anything.
+    const editActs=pe
+      ?(peMine
+        ?[B("","Withdraw change",()=>PC.withdrawEdit(p.id),"we")]
+        :[B("go","Approve change",()=>doApproveEdit(p.id),"ae"),
+          B("no","Decline change",()=>PC.rejectEdit(p.id),"re")])
+      :[B("","Edit",()=>setDlg({mode:'edit',id:p.id}),"e")];
+
     let acts=[];
     if(ctx==='mine'){
       if(p.stage==='proposed')acts=[B("go","Confirm",()=>startConfirm(p),"c"),
         B("no","Decline",()=>setDlg({mode:'decline',id:p.id}),"d"),
         B("","Edit",()=>setDlg({mode:'edit',id:p.id}),"e")];
+      // Priority matches bucket().mine exactly, so the reason a card is in this
+      // section is always the reason its buttons are offering.
+      else if(pe&&!peMine)acts=editActs;
       else if(p.cancelReq)acts=[B("no","Agree — drop it",()=>PC.agreeCancel(p.id),"a"),
         B("","Keep the plan",()=>PC.withdrawOther(p.id),"k")];
       // The other person marked it done and it is now my call.
       else acts=[B("go","Yes — it’s done",()=>PC.markDone(p.id),"yd"),
         B("","Not yet",()=>PC.rejectDone(p.id),"nd")];
-    }else if(ctx==='confirmed'){
+    }else if(isConf){
       acts=[doneBtn,
         (p.cancelReq&&p.cancelReq.by===w)
           ?B("","Withdraw cancel",()=>PC.withdrawCancel(p.id),"wd")
           :B("no","Request cancel",()=>setDlg({mode:'cancel',id:p.id}),"rc"),
-        B("","Edit",()=>setDlg({mode:'edit',id:p.id}),"e")];
+        ...editActs];
     }else if(ctx==='proposed'){
       acts=[B("","Edit",()=>setDlg({mode:'edit',id:p.id}),"e"),
         B("no","Withdraw",()=>setDlg({mode:'decline',id:p.id}),"w")];
@@ -5894,9 +5927,46 @@ function PlanPanel({P,startDateKey,onExit}){
           +". This cannot show that you each agreed separately."):null);
     }
 
+    // ── Pending change ────────────────────────────────────────────────────
+    // Approving a change you cannot see is not consent, so the card shows the
+    // before and after of every field that would move — and says, in the same
+    // breath, that nothing has moved yet.
+    let peBox=null;
+    if(pe){
+      const f=PC.pendingEditFields(p)||{};
+      const rows=[];
+      const row=(lab,from,to)=>rows.push(React.createElement("div",{key:lab,
+        style:{display:"flex",flexWrap:"wrap",gap:"2px 8px",alignItems:"baseline",marginTop:7}},
+        React.createElement("span",{style:{fontSize:9,fontWeight:800,textTransform:"uppercase",
+          letterSpacing:.8,color:P.TXF,fontFamily:P.MONO,minWidth:42}},lab),
+        React.createElement("span",{style:{fontSize:12,color:P.TXM,textDecoration:"line-through",
+          wordBreak:"break-word"}},from||'—'),
+        React.createElement("span",{style:{fontSize:11,color:P.TXF}},"→"),
+        React.createElement("span",{style:{fontSize:12,color:P.TX,fontWeight:700,
+          wordBreak:"break-word"}},to||'—')));
+      if((f.title||'')!==(p.title||''))row('Title',p.title,f.title);
+      if((f.date||null)!==(p.date||null))
+        row('Date',p.date?PC.fmtDate(p.date):'No date',f.date?PC.fmtDate(f.date):'No date');
+      if((f.time||null)!==(p.time||null))
+        row('Time',p.time?PC.fmtTime(p.time,p.date,p.tz):'No time',
+                   f.time?PC.fmtTime(f.time,f.date||p.date,f.tz):'No time');
+      if((f.notes||'')!==(p.notes||''))row('Notes',p.notes||'none',f.notes||'none');
+      peBox=React.createElement("div",{style:{marginTop:12,padding:"11px 12px",borderRadius:8,
+        background:WARN.bg,border:"1px solid "+WARN.line}},
+        React.createElement("div",{style:{fontSize:11.5,lineHeight:1.55,color:P.WARN,
+          fontWeight:600,fontFamily:P.FONT}},
+          peMine
+            ?"Waiting for "+(NAMES[PC.other(w)]||'the other person')
+              +" to approve this change. The plan stands as you both agreed it until they do."
+            :(NAMES[pe.by]||pe.by)+" wants to change this plan. Nothing changes unless you approve it."),
+        rows,
+        React.createElement("div",{style:{fontSize:10,color:P.TXF,marginTop:9,
+          fontFamily:P.MONO}},"proposed "+PC.fmtWhen(pe.at)));
+    }
+
     let reason=null,reasonTxt='';
     if(p.stage==='declined'&&p.declined&&p.declined.reason)reasonTxt='Reason: '+p.declined.reason;
-    else if(p.cancelReq&&p.cancelReq.reason&&(ctx==='mine'||ctx==='confirmed'))
+    else if(p.cancelReq&&p.cancelReq.reason&&(ctx==='mine'||isConf))
       reasonTxt='Cancel reason: '+p.cancelReq.reason;
     else if(p.stage==='dropped'&&p.cancelReq&&p.cancelReq.reason)
       reasonTxt='Cancel reason: '+p.cancelReq.reason;
@@ -5922,12 +5992,16 @@ function PlanPanel({P,startDateKey,onExit}){
     const body=open?React.createElement(React.Fragment,null,
       p.notes?React.createElement("div",{style:{fontSize:12.5,color:P.TXD,marginTop:11,
         lineHeight:1.6,whiteSpace:"pre-wrap",wordBreak:"break-word"}},p.notes):null,
-      reason,footer,
+      peBox,reason,footer,
       React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:8,marginTop:14}},acts)):null;
 
+    // An overdue card is never collapsible (see above) and carries a red
+    // hairline, so the section reads as a list of things still owed rather than
+    // a second, quieter Confirmed.
     return React.createElement("div",{key:p.id,style:{background:wait
         ?"linear-gradient(180deg,"+AC_SOFT+",transparent 62%), "+P.S1:P.S1,
-      border:"1px solid "+(wait?AC_LINE:P.BD),borderRadius:12,
+      border:"1px solid "+(ctx==='overdue'?PLAN_OVERDUE_RED+"4d":(wait?AC_LINE:P.BD)),
+      borderRadius:12,
       padding:collapsible?0:"15px 16px",marginBottom:10,opacity:finished?.62:1,
       boxShadow:wait?"0 4px 16px rgba(0,0,0,.32)":"0 1px 2px rgba(0,0,0,.3)"}},
       collapsible
@@ -5950,7 +6024,9 @@ function PlanPanel({P,startDateKey,onExit}){
   // saying nothing. `live` marks the bucket genuinely waiting on the active
   // profile — the only one that gets the accent count, so the page has exactly
   // one place the eye lands first.
-  const section=(title,list,ctx,emptyMsg,sub,live)=>{
+  // `accent` recolours the header and its count chip — used only by Overdue,
+  // which is never rendered empty, so the collapsed-empty row below never sees it.
+  const section=(title,list,ctx,emptyMsg,sub,live,accent)=>{
     if(!list.length)return React.createElement("div",{key:title,style:{display:"flex",
       alignItems:"center",gap:10,flexWrap:"wrap",padding:"11px 14px",
       border:"1px solid "+P.BD,borderRadius:8,background:P.S1,opacity:.62}},
@@ -5960,9 +6036,12 @@ function PlanPanel({P,startDateKey,onExit}){
     return React.createElement("div",{key:title},
       React.createElement("div",{style:{display:"flex",alignItems:"center",gap:9,marginBottom:12}},
         React.createElement("span",{style:{fontSize:10.5,fontWeight:800,textTransform:"uppercase",
-          letterSpacing:1.3,color:live?P.TX:P.TXD,fontFamily:P.MONO}},title),
-        React.createElement("span",{style:{background:live?P.AC:P.S2,color:live?P.ACINK:P.TXD,
-          border:"1px solid "+(live?P.AC:P.BD),borderRadius:999,fontSize:10,fontWeight:800,
+          letterSpacing:1.3,color:accent||(live?P.TX:P.TXD),fontFamily:P.MONO}},title),
+        React.createElement("span",{style:{
+          background:accent?accent+"1c":(live?P.AC:P.S2),
+          color:accent||(live?P.ACINK:P.TXD),
+          border:"1px solid "+(accent?accent+"4d":(live?P.AC:P.BD)),
+          borderRadius:999,fontSize:10,fontWeight:800,
           padding:"1px 8px",minWidth:20,textAlign:"center",fontFamily:P.MONO,lineHeight:1.6}},
           list.length),
         sub?React.createElement("span",{style:{fontSize:11,color:P.TXF,fontWeight:500,
@@ -5970,7 +6049,7 @@ function PlanPanel({P,startDateKey,onExit}){
       list.map(p=>card(p,ctx)));
   };
 
-  const total=b.mine.length+b.confirmed.length+b.proposed.length+b.ideas.length;
+  const total=b.mine.length+b.overdue.length+b.confirmed.length+b.proposed.length+b.ideas.length;
 
   return React.createElement("div",{style:{fontFamily:P.FONT,color:P.TX}},
     // ── Head: who is acting, and the one action you came here to take ───────
@@ -6020,6 +6099,11 @@ function PlanPanel({P,startDateKey,onExit}){
       :React.createElement(React.Fragment,null,
         React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:24}},
           section('Needs your response',b.mine,'mine','nothing waiting on you','',true),
+          // Overdue is the one section with no empty state: a heading announcing
+          // that nothing is overdue is noise on every good day. It only exists
+          // when something is actually late.
+          b.overdue.length?section('Overdue',b.overdue,'overdue','','still owed',false,
+            PLAN_OVERDUE_RED):null,
           section('Confirmed',b.confirmed,'confirmed','nothing confirmed yet'),
           section('Proposed',b.proposed,'proposed','nothing proposed',w?'waiting on '+NAMES[PC.other(w)]:''),
           section('Ideas',b.ideas,'ideas','no ideas yet','not commitments')),
@@ -6039,14 +6123,15 @@ function PlanPanel({P,startDateKey,onExit}){
           archOpen?React.createElement("div",{style:{marginTop:14}},
             b.archive.map(p=>card(p,'archive'))):null):null),
 
-    dlg?React.createElement(PlanDialog,{P,dlg,setDlg,startDateKey,busy,guard,doConfirm}):null);
+    dlg?React.createElement(PlanDialog,{P,dlg,setDlg,startDateKey,busy,guard,doConfirm,
+      doApproveEdit}):null);
 }
 
 // ── Sub-dialogs ─────────────────────────────────────────────────────────────
 // Every confirmation, warning and form the section needs, as one overlay above
 // the host TaskHub's own modal. Split out of PlanPanel so the edit form can
 // hold its own draft state without re-mounting the list behind it.
-function PlanDialog({P,dlg,setDlg,startDateKey,busy,guard,doConfirm}){
+function PlanDialog({P,dlg,setDlg,startDateKey,busy,guard,doConfirm,doApproveEdit}){
   const PC=window.PlansCore;
   const p=dlg.id?PC.get(dlg.id):null;
   const w=PC.me(),NAMES=PC.NAMES,bioName=PC.bioLabel();
@@ -6114,20 +6199,23 @@ function PlanDialog({P,dlg,setDlg,startDateKey,busy,guard,doConfirm}){
       if(!vt){setErr('A plan needs a title.');return;}
       setErr('');
       if(!dlg.id){PC.addIdea(vt,notes.trim(),d,tm);close();return;}
-      // Changing the title, date or time of something you have both confirmed
-      // resets both confirmations — warn before it happens, not after.
+      // Changing the title, date or time of something you have both agreed to is
+      // a request, not an edit — say so before it is sent, not after.
       if(p&&(p.stage==='confirmed'||PC.isConfirmed(p))&&PC.isMaterialEdit(p,vt,d,tm)&&!warned){
-        setWarned(true);setDlg({...dlg,mode:'resetWarn',pending:{t:vt,notes:notes.trim(),d,tm}});
+        setWarned(true);setDlg({...dlg,mode:'pendingWarn',pending:{t:vt,notes:notes.trim(),d,tm}});
         return;
       }
       guard(PC.applyEdit(dlg.id,vt,notes.trim(),d,tm));close();
     };
-  } else if(dlg.mode==='resetWarn'){
-    title='This will reset confirmation';
-    body=note(false,"You are changing the title, date or time of a plan you have both confirmed."
-      +" That clears both confirmations and sends it back to Proposed — "+oName
-      +" will have to confirm the new version.");
-    ok='Change it anyway';
+  } else if(dlg.mode==='pendingWarn'){
+    title='Send this change to '+oName;
+    body=React.createElement(React.Fragment,null,
+      note(false,"You are changing the title, date or time of a plan you both agreed to,"
+        +" so it does not take effect on its own. "+oName+" is notified and the change"
+        +" becomes part of the plan only once they approve it."),
+      sub("Until then the plan stays exactly as it is — including on both TaskHubs."
+        +" You can withdraw the change at any time before they answer."));
+    ok='Send for approval';
     run=()=>{const v=dlg.pending;guard(PC.applyEdit(dlg.id,v.t,v.notes,v.d,v.tm));close();};
   } else if(dlg.mode==='bioFailed'){
     title=bioName+' check failed';
@@ -6136,7 +6224,9 @@ function PlanDialog({P,dlg,setDlg,startDateKey,busy,guard,doConfirm}){
         +" requires "+bioName+" on this device."),
       sub("If you are "+(NAMES[w]||'them')+", try again. If you are not, that is exactly what this check is for."));
     ok='Try again';
-    run=()=>{const id=dlg.id;close();doConfirm(id);};
+    // Approving someone's change goes back to the approve path, not to confirm —
+    // retrying the wrong one would silently do nothing.
+    run=()=>{const id=dlg.id,ap=dlg.approve;close();if(ap)doApproveEdit(id);else doConfirm(id);};
   } else if(dlg.mode==='bioEnrol'){
     title='Protect '+(NAMES[w]||'your')+' confirmations';
     body=React.createElement(React.Fragment,null,
@@ -7741,10 +7831,23 @@ function App(){
   // carry. Deliberately NO fill: the tint made a row of plans read as a block of
   // highlighted noise next to the transparent task cards, so identity comes from
   // the spine alone. Veda's TaskHub has the matching helper in her own palette.
-  const wkPlanCard=(today)=>({background:"transparent",border:"1px solid "+T.AC+"3d",
-    borderLeft:"2px solid "+T.AC,borderRadius:6,padding:isMobile?"5px 10px":"4px 7px"});
+  const wkPlanCard=(today,over)=>({background:"transparent",
+    border:"1px solid "+(over?PLAN_OVERDUE_RED+"55":T.AC+"3d"),
+    borderLeft:"2px solid "+(over?PLAN_OVERDUE_RED:T.AC),borderRadius:6,
+    padding:isMobile?"5px 10px":"4px 7px"});
   const wkPlanTag={fontSize:8,fontWeight:800,letterSpacing:.9,textTransform:"uppercase",
     color:T.AC,opacity:.9,lineHeight:1,whiteSpace:"nowrap"};
+  // ── Overdue plan ──────────────────────────────────────────────────────────
+  // A shared plan whose day has gone by without both of you finishing it is the
+  // one thing on a past day that is still owed, so it is the one thing that must
+  // NOT recede with the rest of that day (see wkDim). Full strength plus a red
+  // label — the same red the "urgent" category tag uses — instead of a fade,
+  // which would say "settled" about the exact opposite.
+  const wkPlanOverdue=(t,k)=>!!(t&&!t.done&&k<tk);
+  const wkOverTag={fontSize:8,fontWeight:800,letterSpacing:.9,textTransform:"uppercase",
+    color:PLAN_OVERDUE_RED,background:PLAN_OVERDUE_RED+"1f",
+    border:"1px solid "+PLAN_OVERDUE_RED+"4d",borderRadius:4,padding:"1px 4px",
+    lineHeight:1.25,whiteSpace:"nowrap"};
   // Only TODAY is at full strength. Every other day — past or upcoming — recedes
   // as a whole: title, category chip, reminder bell and event time all fade by the
   // same factor so a day reads as one unit instead of a half-dimmed patchwork.
@@ -8144,12 +8247,13 @@ function App(){
                  sits in YOUR day lives in your own dashboard doc, so it is yours
                  to drag and it survives the reconcile (which now preserves the
                  slot of a plan it already knows about). */
-              ?React.createElement("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>onDragStartTask(e,k,t.id):null,onDragOver:edit?e=>onDragOverTask(e,t.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropTask(e,k,t.id):null,style:dndRowStyle(t.id,{...wkPlanCard(td),display:"flex",flexDirection:"column",gap:2,marginBottom:4,opacity:t.done?dimA*0.72:dimA,cursor:edit?"grab":"default"})},
+              ?React.createElement("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>onDragStartTask(e,k,t.id):null,onDragOver:edit?e=>onDragOverTask(e,t.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropTask(e,k,t.id):null,style:dndRowStyle(t.id,{...wkPlanCard(td,wkPlanOverdue(t,k)),display:"flex",flexDirection:"column",gap:2,marginBottom:4,opacity:t.done?dimA*0.72:(wkPlanOverdue(t,k)?1:dimA),cursor:edit?"grab":"default"})},
                 React.createElement("div",{style:{display:"flex",alignItems:"center",gap:6}},
                   t.done&&React.createElement(PlanCheck,{size:11,color:T.GRN}),
                   React.createElement("span",{style:wkPlanTag},"Plan"),
+                  wkPlanOverdue(t,k)&&React.createElement("span",{style:wkOverTag},"Overdue"),
                   t.time&&React.createElement("span",{style:{fontSize:10,fontWeight:700,color:T.AC,opacity:.85,marginLeft:"auto",whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz))),
-                React.createElement("span",{style:{fontSize:14,fontWeight:t.done?500:700,color:t.done?T.TXDONE:dayTX,opacity:t.done?0.55:1,textDecoration:t.done?"line-through":"none",lineHeight:1.4,...wkTitleFit}},t.title))
+                React.createElement("span",{style:{fontSize:14,fontWeight:t.done?500:700,color:t.done?T.TXDONE:(wkPlanOverdue(t,k)?T.TX:dayTX),opacity:t.done?0.55:1,textDecoration:t.done?"line-through":"none",lineHeight:1.4,...wkTitleFit}},t.title))
               :React.createElement("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>onDragStartTask(e,k,t.id):null,onDragOver:edit?e=>onDragOverTask(e,t.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropTask(e,k,t.id):null,style:dndRowStyle(t.id,{...wkTaskCard(t.done,td),display:"flex",alignItems:"flex-start",gap:8,marginBottom:4,opacity:t.done?0.85:1,cursor:edit?"grab":"default"})},
                                 /* Completed box takes the task's category colour so a
                                    finished row still says what kind of work it was;
@@ -8225,12 +8329,13 @@ function App(){
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 5px",flexShrink:0},onClick:()=>del(k,e.id)},"×"))),              tasks.map(t=>t._planId
               /* Shared plan — content inert, position draggable; same rule as the
                  wide grid above. */
-              ?React.createElement("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>onDragStartTask(e,k,t.id):null,onDragOver:edit?e=>onDragOverTask(e,t.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropTask(e,k,t.id):null,style:dndRowStyle(t.id,{...wkPlanCard(td),display:"flex",flexDirection:"column",gap:2,marginBottom:3,opacity:t.done?dimA*0.72:dimA,cursor:edit?"grab":"default"})},
-                React.createElement("div",{style:{display:"flex",alignItems:"center",gap:5}},
+              ?React.createElement("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>onDragStartTask(e,k,t.id):null,onDragOver:edit?e=>onDragOverTask(e,t.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropTask(e,k,t.id):null,style:dndRowStyle(t.id,{...wkPlanCard(td,wkPlanOverdue(t,k)),display:"flex",flexDirection:"column",gap:2,marginBottom:3,opacity:t.done?dimA*0.72:(wkPlanOverdue(t,k)?1:dimA),cursor:edit?"grab":"default"})},
+                React.createElement("div",{style:{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}},
                   t.done&&React.createElement(PlanCheck,{size:10,color:T.GRN}),
                   React.createElement("span",{style:wkPlanTag},"Plan"),
+                  wkPlanOverdue(t,k)&&React.createElement("span",{style:wkOverTag},"Overdue"),
                   t.time&&React.createElement("span",{style:{fontSize:9,fontWeight:700,color:T.AC,opacity:.85,marginLeft:"auto",whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz))),
-                React.createElement("span",{style:{fontSize:13,fontWeight:t.done?500:700,color:t.done?T.TXDONE:dayTX,opacity:t.done?0.55:1,textDecoration:t.done?"line-through":"none",lineHeight:1.35,whiteSpace:"normal",...wkTitleFit}},t.title))
+                React.createElement("span",{style:{fontSize:13,fontWeight:t.done?500:700,color:t.done?T.TXDONE:(wkPlanOverdue(t,k)?T.TX:dayTX),opacity:t.done?0.55:1,textDecoration:t.done?"line-through":"none",lineHeight:1.35,whiteSpace:"normal",...wkTitleFit}},t.title))
               :React.createElement("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>onDragStartTask(e,k,t.id):null,onDragOver:edit?e=>onDragOverTask(e,t.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropTask(e,k,t.id):null,style:dndRowStyle(t.id,{...wkTaskCard(t.done,td),display:"flex",alignItems:"flex-start",gap:6,marginBottom:3,opacity:t.done?0.85:1,cursor:edit?"grab":"default"})},
                                 React.createElement("div",{onClick:()=>tog(k,t.id),style:{width:14,height:14,minWidth:14,borderRadius:3,border:"2px solid "+(t.done?(CC[t.category]||T.AC):T.BDL),background:t.done?(CC[t.category]||T.AC):"transparent",opacity:t.done?0.5:1,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},t.done&&React.createElement(Chk,{s:7,col:T.BG})),
                 React.createElement("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
@@ -14047,10 +14152,21 @@ function App(){
   // dashboards/plans: it cannot be ticked, edited or deleted from here, so it
   // reads as its own kind of card — accent spine, "PLAN" header — rather than
   // borrowing the outline a normal task wears. No fill, same reasoning as Tony's.
-  const vdPlanCard=()=>({background:"transparent",border:"1px solid "+A+"3d",borderLeft:"2px solid "+A,
+  const vdPlanCard=(over)=>({background:"transparent",
+    border:"1px solid "+(over?PLAN_OVERDUE_RED+"55":A+"3d"),
+    borderLeft:"2px solid "+(over?PLAN_OVERDUE_RED:A),
     borderRadius:6,padding:vrMobile?"5px 8px":"4px 6px"});
   const vdPlanTag={fontSize:8,fontWeight:700,letterSpacing:.9,textTransform:"uppercase",
     color:A,opacity:.9,lineHeight:1,whiteSpace:"nowrap"};
+  // ── Overdue plan ──────────────────────────────────────────────────────────
+  // Tony's wkPlanOverdue in purple: a shared plan on a day that has passed and
+  // that you have not both finished stays at full strength and says "Overdue" in
+  // the urgent-tag red, instead of receding with the rest of that day (vdDim).
+  const vdPlanOverdue=(t,k)=>!!(t&&!t.done&&k<tk);
+  const vdOverTag={fontSize:8,fontWeight:700,letterSpacing:.9,textTransform:"uppercase",
+    color:PLAN_OVERDUE_RED,background:PLAN_OVERDUE_RED+"1f",
+    border:"1px solid "+PLAN_OVERDUE_RED+"4d",borderRadius:3,padding:"1px 4px",
+    lineHeight:1.25,whiteSpace:"nowrap"};
   // Only TODAY is at full strength — the whole row of a non-today day recedes by
   // one step: title, category chip, reminder bell and event time together.
   const vdDim=(td)=>td?1:0.55;
@@ -14210,12 +14326,13 @@ function App(){
                  Position is yours though: where a plan sits in your day lives in
                  your own dashboard doc, so it drags like any task and the
                  reconcile keeps the slot. */
-              ?RC("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{...vdPlanCard(),display:"flex",flexDirection:"column",gap:2,marginBottom:5,opacity:t.done?dimA*0.7:dimA,cursor:edit?"grab":"default"})},
-                RC("div",{style:{display:"flex",alignItems:"center",gap:6}},
+              ?RC("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{...vdPlanCard(vdPlanOverdue(t,k)),display:"flex",flexDirection:"column",gap:2,marginBottom:5,opacity:t.done?dimA*0.7:(vdPlanOverdue(t,k)?1:dimA),cursor:edit?"grab":"default"})},
+                RC("div",{style:{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}},
                   t.done&&RC(PlanCheck,{size:11,color:PLAN_GRN_VEDA}),
                   RC("span",{style:vdPlanTag},"Plan"),
+                  vdPlanOverdue(t,k)&&RC("span",{style:vdOverTag},"Overdue"),
                   t.time&&RC("span",{style:{fontSize:9,fontWeight:700,color:A,opacity:.85,marginLeft:"auto",whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz))),
-                RC("span",{style:{fontSize:14,fontWeight:t.done?500:700,color:t.done?TXM:dayTX,textDecoration:t.done?"line-through":"none",lineHeight:1.4,...vdTitleFit}},t.title))
+                RC("span",{style:{fontSize:14,fontWeight:t.done?500:700,color:t.done?TXM:(vdPlanOverdue(t,k)?TX:dayTX),textDecoration:t.done?"line-through":"none",lineHeight:1.4,...vdTitleFit}},t.title))
               :RC("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{...vdTaskCard(t.done,td),display:"flex",alignItems:"flex-start",gap:7,marginBottom:5,opacity:t.done?.45:1,cursor:edit?"grab":"default"})},
                                 RC("div",{onClick:()=>tog(k,t.id),style:{width:16,height:16,minWidth:16,borderRadius:3,border:"2px solid "+(t.done?CC[t.category]||TXM:TXM),background:t.done?CC[t.category]||TXM:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},t.done&&RC(Chk,{s:9})),
                 RC("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
@@ -14263,12 +14380,13 @@ function App(){
               ts.map(t=>t._planId
               /* Shared plan — content inert, position draggable; same rule as the
                  single-day list. */
-              ?RC("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{...vdPlanCard(),display:"flex",flexDirection:"column",gap:2,marginBottom:4,opacity:t.done?dimA*0.7:dimA,cursor:edit?"grab":"default"})},
-                RC("div",{style:{display:"flex",alignItems:"center",gap:5}},
+              ?RC("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{...vdPlanCard(vdPlanOverdue(t,k)),display:"flex",flexDirection:"column",gap:2,marginBottom:4,opacity:t.done?dimA*0.7:(vdPlanOverdue(t,k)?1:dimA),cursor:edit?"grab":"default"})},
+                RC("div",{style:{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}},
                   t.done&&RC(PlanCheck,{size:10,color:PLAN_GRN_VEDA}),
                   RC("span",{style:vdPlanTag},"Plan"),
+                  vdPlanOverdue(t,k)&&RC("span",{style:vdOverTag},"Overdue"),
                   t.time&&RC("span",{style:{fontSize:9,fontWeight:700,color:A,opacity:.85,marginLeft:"auto",whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz))),
-                RC("span",{style:{fontSize:12,fontWeight:t.done?500:700,color:t.done?TXM:dayTX,textDecoration:t.done?"line-through":"none",lineHeight:1.35,...vdTitleFit}},t.title))
+                RC("span",{style:{fontSize:12,fontWeight:t.done?500:700,color:t.done?TXM:(vdPlanOverdue(t,k)?TX:dayTX),textDecoration:t.done?"line-through":"none",lineHeight:1.35,...vdTitleFit}},t.title))
               :RC("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{...vdTaskCard(t.done,td),display:"flex",alignItems:"flex-start",gap:6,marginBottom:4,opacity:t.done?.45:1,cursor:edit?"grab":"default"})},
                                 RC("div",{onClick:()=>tog(k,t.id),style:{width:14,height:14,minWidth:14,borderRadius:3,border:"2px solid "+(t.done?CC[t.category]||TXM:TXM),background:t.done?CC[t.category]||TXM:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},t.done&&RC(Chk,{s:8})),
                 RC("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
@@ -16808,6 +16926,11 @@ function coerce(p){
   const d=(p&&p.dones&&typeof p.dones==='object')?p.dones:{};
   const out=Object.assign({},p,{confirms:{veda:c.veda||null,tony:c.tony||null},
                                 dones:{veda:d.veda||null,tony:d.tony||null}});
+  // A pending edit is only meaningful if we know WHO proposed it — without an
+  // author there is nobody to approve it and nobody to withdraw it, so it would
+  // be an un-clearable block on the plan. Drop a malformed one.
+  const pe=out.pendingEdit;
+  if(!(pe&&typeof pe==='object'&&(pe.by==='veda'||pe.by==='tony')))out.pendingEdit=null;
   if(out.stage==='confirmed'&&!isConfirmed(out)){
     console.warn('[Plans] corrupt record '+out.id+': confirmed without two confirms — showing as proposed');
     out.stage='proposed';
@@ -16846,6 +16969,13 @@ function notifyOther(kind,p,extra){
     case 'cancelled':msg=who+' agreed to cancel “'+title+'”. It is dropped.'; break;
     case 'withdrawn':msg=who+' withdrew the cancel request on “'+title+'”.'; break;
     case 'edited':   msg=who+' changed “'+title+'” — your confirmation was reset.'; break;
+    // A change to a plan you BOTH agreed to is a request, not a fact. The plan
+    // stays exactly as it was until the other person approves, so the wording
+    // has to say that plainly — "changed" would be a lie.
+    case 'editReq':  msg=who+' wants to change “'+title+'”'+(extra?': '+extra:'.')+' Approve it to make it official.'; break;
+    case 'editOK':   msg=who+' approved your change to “'+title+'”. It is now part of the plan.'; break;
+    case 'editNo':   msg=who+' declined your change to “'+title+'” — the plan stands as agreed.'; break;
+    case 'editGone': msg=who+' withdrew their proposed change to “'+title+'”.'; break;
     case 'doneReq':  msg=who+' marked “'+title+'” done — mark it too to finish it.'; break;
     case 'done':     msg=who+' marked “'+title+'” done. You have both finished it.'; break;
     case 'undone':   msg=who+' took back their done mark on “'+title+'”.'; break;
@@ -16977,6 +17107,8 @@ function withdrawCancel(id){
 }
 function agreeCancel(id){
   const p=plans[id];if(!p)return;
+  // A dropped plan cannot still be carrying a change waiting to be approved.
+  p.pendingEdit=null;
   p.stage='dropped';save(p,'cancelled');
 }
 // "Keep the plan" on a cancel request I did not file: clear it. Either party may
@@ -16999,7 +17131,9 @@ function markDone(id){
   if(p.dones[w])return;                          // already marked by me
   p.dones[w]=Date.now();
   const both=isDone(p);
-  if(both)p.stage='done';
+  // A finished plan cannot still be carrying a change waiting to be approved —
+  // approving it afterwards would silently rewrite something already settled.
+  if(both){p.stage='done';p.pendingEdit=null;}
   save(p,both?'done':'doneReq');
 }
 // Take back MY OWN mark while the other side has not matched it yet.
@@ -17023,37 +17157,108 @@ function rejectDone(id){
 }
 // Every reset that clears confirms must clear the done marks too. A stale mark
 // surviving a decline / restore / material edit would silently re-complete the
-// plan the moment it was confirmed again.
-function clearProgress(p){p.dones={veda:null,tony:null};}
+// plan the moment it was confirmed again. A pending edit goes with them: it is a
+// change proposed against a version of the plan that no longer exists, so
+// approving it later would resurrect stale wording nobody agreed to.
+function clearProgress(p){p.dones={veda:null,tony:null};p.pendingEdit=null;}
 
 // A plan confirmed for Saturday that silently becomes a plan for Tuesday is the
-// original problem wearing a disguise. So editing title/date/time on a CONFIRMED
-// plan clears both confirms and drops it back to proposed, re-setting only the
-// editor's. Editing notes alone never resets.
+// original problem wearing a disguise — so a change to the title, date or time of
+// an AGREED plan is not applied by the person making it. Editing notes alone is
+// never material and applies straight away.
 function isMaterialEdit(p,t,d,tm){
   return p.title!==t||(p.date||null)!==(d||null)||(p.time||null)!==(tm||null);
+}
+// Is there a change sitting on this plan waiting for someone to say yes?
+function pendingEdit(p){return (p&&p.pendingEdit&&p.pendingEdit.by)?p.pendingEdit:null;}
+// Whose call is it? null when there is no pending edit.
+function pendingEditFor(p){const pe=pendingEdit(p);return pe?other(pe.by):null;}
+// What the plan would become. Used for the before/after the approver is shown and
+// by the approve path, so the two can never describe different outcomes.
+function pendingEditFields(p){
+  const pe=pendingEdit(p);if(!pe)return null;
+  return {title:pe.title||'',notes:pe.notes||'',date:pe.date||null,time:pe.time||null,tz:pe.tz||null};
 }
 function applyEdit(id,t,notes,d,tm){
   const w=me();if(!w)return Promise.resolve('noop');
   const p=plans[id];if(!p)return Promise.resolve('noop');
+  const agreed=(p.stage==='confirmed'||isConfirmed(p));
   const material=isMaterialEdit(p,t,d,tm);
-  if(!(material&&(p.stage==='confirmed'||isConfirmed(p)))){
-    // Not a reset: no consent is being asserted, so nothing to verify.
+  if(!(material&&agreed)){
+    // Not a change to an agreed commitment: no consent is being asserted from
+    // anyone, so it applies immediately with nothing to verify.
     p.title=t;p.notes=notes||'';p.date=d||null;p.time=tm||null;p.tz=tm?myTz():null;
     save(p,'tweaked');return Promise.resolve('ok');
   }
-  // A material edit re-asserts the editor's own consent, so verify it the same
-  // way a confirm is verified rather than stamping it unchecked.
+  // ── Pending edit ──────────────────────────────────────────────────────────
+  // The plan itself is NOT touched. It stays confirmed, stays on both TaskHubs
+  // and stays exactly as the two of you agreed it, until the other person
+  // approves the change. One person cannot rewrite a shared commitment alone —
+  // that is the same rule as confirming, cancelling and finishing one.
+  //
+  // Proposing the change re-asserts the editor's own consent to the NEW version,
+  // so it is verified exactly like a confirm and the stamp is carried on the
+  // pending record. On approval it becomes that person's confirm signature, so
+  // the finished plan still shows two real, separately-made confirmations.
   return bioVerify(w).then(ok=>{
     const q=plans[id];if(!q)return 'noop';
-    q.title=t;q.notes=notes||'';q.date=d||null;q.time=tm||null;q.tz=tm?myTz():null;
-    q.confirms={veda:null,tony:null};q.confirms[w]=Date.now();
-    q.confirmMeta={};q.confirmMeta[w]=stamp(ok);
-    q.stage='proposed';q.proposedBy=w;q.proposedAt=Date.now();
-    q.cancelReq=null;clearProgress(q);
-    save(q,'edited');
+    // Notes travel with the pending edit rather than applying immediately: half
+    // of a change landing and half waiting would be its own kind of surprise.
+    q.pendingEdit={by:w,at:Date.now(),title:t,notes:notes||'',
+      date:d||null,time:tm||null,tz:tm?myTz():null,meta:stamp(ok)};
+    save(q,'editReq',t!==q.title?('“'+t+'”'):'');
+    return 'pending';
+  });
+}
+
+// The other person says yes. Only now does the plan actually change — and it
+// stays confirmed throughout, so it never blinks off either TaskHub.
+// Approving is consent to the new version, so it is verified like a confirm.
+function approveEdit(id){
+  const w=me();if(!w)return Promise.resolve('noop');
+  const p=plans[id];if(!p)return Promise.resolve('noop');
+  const pe=pendingEdit(p);
+  if(!pe||pe.by===w)return Promise.resolve('noop');   // never approve your own
+  const enrolled=bioEnrolled(w);
+  return bioVerify(w).then(ok=>{
+    if(enrolled&&!ok)return 'bioFailed';
+    const q=plans[id];if(!q)return 'noop';
+    const cur=pendingEdit(q);
+    if(!cur||cur.by===w)return 'noop';                // withdrawn while we asked
+    q.title=cur.title||'';q.notes=cur.notes||'';
+    q.date=cur.date||null;q.time=cur.time||null;q.tz=cur.time?(cur.tz||null):null;
+    // Both signatures are re-stamped against the version that now exists: the
+    // proposer's from when they made the change, mine from right now. Anything
+    // less would leave a confirmed plan whose signatures were given for wording
+    // that is no longer on it.
+    q.confirms={veda:null,tony:null};
+    q.confirms[cur.by]=cur.at||Date.now();
+    q.confirms[w]=Date.now();
+    q.confirmMeta={};
+    q.confirmMeta[cur.by]=cur.meta||stamp(false);
+    q.confirmMeta[w]=stamp(ok);
+    q.stage='confirmed';
+    q.pendingEdit=null;
+    save(q,'editOK');
     return 'ok';
   });
+}
+// "No" to a change I am the counterparty to. The plan is untouched — that is the
+// whole point — so this only clears the request.
+function rejectEdit(id){
+  const w=me();if(!w)return;
+  const p=plans[id];if(!p)return;
+  const pe=pendingEdit(p);
+  if(!pe||pe.by===w)return;
+  p.pendingEdit=null;save(p,'editNo');
+}
+// Taking back my own proposed change before it is answered.
+function withdrawEdit(id){
+  const w=me();if(!w)return;
+  const p=plans[id];if(!p)return;
+  const pe=pendingEdit(p);
+  if(!pe||pe.by!==w)return;
+  p.pendingEdit=null;save(p,'editGone');
 }
 
 // Deleting a CONFIRMED plan needs the same two-sided flow as cancelling — one
@@ -17062,6 +17267,22 @@ function applyEdit(id,t,notes,d,tm){
 function needsTwoSidedDelete(id){
   const p=plans[id];
   return !!(p&&p.stage==='confirmed'&&isConfirmed(p));
+}
+
+// ── Overdue ─────────────────────────────────────────────────────────────────
+// A confirmed plan whose day has been and gone without both of you finishing it.
+// It is deliberately NOT an archive state: nothing has been decided, the plan is
+// still live and still on both TaskHubs — it has simply stopped being upcoming.
+function planTodayKey(){
+  const n=new Date(),p=x=>String(x).padStart(2,'0');
+  return n.getFullYear()+'-'+p(n.getMonth()+1)+'-'+p(n.getDate());
+}
+// Dates are plain YYYY-MM-DD, so a string compare against today IS the date
+// compare — and it is done in the reader's own local day, which is what "the day
+// has passed" means to the person looking at it.
+function isOverdue(p){
+  return !!(p&&p.date&&p.stage==='confirmed'&&isConfirmed(p)&&!isDone(p)
+    &&p.date<planTodayKey());
 }
 
 // ── Buckets ─────────────────────────────────────────────────────────────────
@@ -17075,15 +17296,26 @@ function bucket(){
   };
   const newest=(a,b)=>(b.updatedAt||0)-(a.updatedAt||0);
   const conf=all.filter(p=>p.stage==='confirmed'&&isConfirmed(p));
+  // Awaiting MY confirm, plus confirmed plans where the OTHER person proposed a
+  // change, asked to cancel, or marked it done, and it is now my call.
+  // Written as one predicate rather than concatenated filters so a plan carrying
+  // two of those at once can only ever appear in this list once.
+  const needsMe=(p)=>{
+    if(!w)return false;
+    if(p.stage==='proposed')return !!(p.confirms&&!p.confirms[w]);
+    if(!(p.stage==='confirmed'&&isConfirmed(p)))return false;
+    if(p.pendingEdit&&p.pendingEdit.by&&p.pendingEdit.by!==w)return true;
+    if(p.cancelReq&&p.cancelReq.by&&p.cancelReq.by!==w)return true;
+    if(p.dones&&p.dones[other(w)]&&!p.dones[w])return true;
+    return false;
+  };
   return {
-    // Awaiting MY confirm, plus confirmed plans where the OTHER person asked to
-    // cancel or marked it done and it is now my call.
-    mine:all.filter(p=>w&&p.stage==='proposed'&&p.confirms&&!p.confirms[w])
-        .concat(conf.filter(p=>w&&p.cancelReq&&p.cancelReq.by&&p.cancelReq.by!==w))
-        .concat(conf.filter(p=>w&&!(p.cancelReq&&p.cancelReq.by&&p.cancelReq.by!==w)
-          &&p.dones&&p.dones[other(w)]&&!p.dones[w]))
-        .sort(byDate),
-    confirmed:conf.sort(byDate),
+    mine:all.filter(needsMe).sort(byDate),
+    // Overdue plans leave Confirmed entirely — a section that lists a plan twice
+    // makes neither entry mean anything. Newest first: the day you just missed
+    // matters more than one from a month ago.
+    overdue:conf.filter(isOverdue).sort((a,b)=>a.date<b.date?1:(a.date>b.date?-1:0)),
+    confirmed:conf.filter(p=>!isOverdue(p)).sort(byDate),
     proposed:all.filter(p=>w&&p.stage==='proposed'&&p.confirms&&p.confirms[w]).sort(byDate),
     ideas:all.filter(p=>p.stage==='idea').sort(newest),
     archive:all.filter(p=>p.stage==='declined'||p.stage==='dropped'||p.stage==='done').sort(newest)
@@ -17152,8 +17384,10 @@ window.PlansCore={
   me:me, other:other,
   get:function(id){return plans[id]||null;},
   bucket:bucket, waitingCount:waitingCount,
-  isConfirmed:isConfirmed, isDone:isDone,
+  isConfirmed:isConfirmed, isDone:isDone, isOverdue:isOverdue,
   isMaterialEdit:isMaterialEdit, confirmFlags:confirmFlags,
+  pendingEdit:pendingEdit, pendingEditFor:pendingEditFor,
+  pendingEditFields:pendingEditFields,
   needsTwoSidedDelete:needsTwoSidedDelete,
   fmtDate:fmtDate, fmtTime:fmtTime, fmtWhen:fmtWhen, humanGap:humanGap,
   toLocalHHMM:toLocalHHMM,
@@ -17164,7 +17398,8 @@ window.PlansCore={
   restorePlan:restorePlan, requestCancel:requestCancel, withdrawCancel:withdrawCancel,
   agreeCancel:agreeCancel, withdrawOther:withdrawOther,
   markDone:markDone, unmarkDone:unmarkDone, rejectDone:rejectDone,
-  applyEdit:applyEdit, removePlan:removePlan
+  applyEdit:applyEdit, approveEdit:approveEdit, rejectEdit:rejectEdit,
+  withdrawEdit:withdrawEdit, removePlan:removePlan
 };
 })();
 </script>
