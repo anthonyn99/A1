@@ -219,19 +219,38 @@ function appIconUrl(url) {
   try {
     const u = new URL(/^[a-z]+:\/\//i.test(url) ? url : "https://" + url);
     const path = u.pathname.toLowerCase();
-    // Accept the published /A1/ path and any local dev server serving it.
-    if (!/(^|\/)a1\//.test(path) && !/^(localhost|127\.0\.0\.1)$/i.test(u.hostname)) return "";
+    // Accept the published /A1/ path, our own Pages host however the link
+    // was written, and any local dev server serving it.
+    if (!/(^|\/)a1\//.test(path) && !/^(localhost|127\.0\.0\.1)$/i.test(u.hostname)
+        && !/(^|\.)anthonyn99\.github\.io$/i.test(u.hostname)) return "";
     // A bare directory ("/A1/") is served as index.html, i.e. TaskHub.
     const file = /\.html?$/.test(path) ? path.split("/").pop() : "index.html";
     return APP_ICONS[file] || "";
   } catch { return ""; }
 }
 
+// Link label → app page, for rows whose stored URL does not look like one of
+// our pages: a link saved before a rename, a worker endpoint, a bare host. The
+// name a row is filed under is the stable identity there. Aliases carry the old
+// program names (WarRoom/ProView are RiftIQ, Keychain is Vault) so those rows
+// keep their mark. Twins of this map live in index.html, vault.html,
+// warden.html and the other launchers — edit them together.
+const APP_NAMES = { taskhub: 'index.html', tradehub: 'tradehub.html', tradeboard: 'tradehub.html',
+  mylist: 'mylist.html', insight: 'insight.html', vault: 'vault.html', keychain: 'vault.html',
+  warden: 'warden.html', oneinbox: 'oneinbox.html', solace: 'solace.html', wellness: 'wellness.html',
+  warroom: 'riftiq.html', riftiq: 'riftiq.html', proview: 'riftiq.html', shield: 'shield.html' };
+function appIconByName(name) {
+  const k = String(name == null ? '' : name).toLowerCase().replace(/[^a-z0-9]/g, '');
+  return (k && APP_ICONS[APP_NAMES[k]]) || '';
+}
+
 // Official site icon (like a browser bookmark): our own app mark for A1
 // programs, otherwise Google's favicon service.
-function faviconUrl(url) {
+function faviconUrl(url, name) {
   const app = appIconUrl(url);
   if (app) return app;
+  const byName = appIconByName(name);
+  if (byName) return byName;
   try {
     const host = new URL(/^https?:\/\//i.test(url) ? url : "https://" + url).hostname;
     // Drawn locally — see the note in vault-ui.js's faviconUrl().
@@ -283,7 +302,7 @@ function buildCard(conn, ci) {
 
   const linkRows = links.map(l => `
     <div class="link-row">
-      <img class="favicon" src="${faviconUrl(l.url)}" width="16" height="16" alt="" loading="lazy">
+      <img class="favicon" src="${faviconUrl(l.url, l.name)}" width="16" height="16" alt="" loading="lazy">
       <span class="link-name" title="${esc(l.url)}">${esc(l.name)}</span>
       <button class="icon-btn visit" data-url="${esc(l.url)}">Visit</button>
       <button class="icon-btn copy" data-copy="${esc(l.url)}" title="Copy link">${COPY_SVG}</button>

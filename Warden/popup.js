@@ -211,7 +211,6 @@ const APP_ICONS = {
   "riftiq.html":    "data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2096%2096'%3E%3Crect%20width%3D'96'%20height%3D'96'%20rx%3D'22'%20fill%3D'%2316161c'%2F%3E%3Cpath%20d%3D'M48%2019%2073%2033.5v29L48%2077%2023%2062.5v-29Z'%20fill%3D'none'%20stroke%3D'%235a5a68'%20stroke-width%3D'4'%20stroke-linejoin%3D'round'%2F%3E%3Cpath%20d%3D'M48%2026l5%2012v18H43V38Z'%20fill%3D'%23c0aeea'%2F%3E%3Crect%20x%3D'33'%20y%3D'56'%20width%3D'30'%20height%3D'6'%20rx%3D'3'%20fill%3D'%23dbd0f5'%2F%3E%3Crect%20x%3D'45'%20y%3D'62'%20width%3D'6'%20height%3D'11'%20rx%3D'3'%20fill%3D'%2383838f'%2F%3E%3C%2Fsvg%3E", // RiftIQ
   "warroom.html":   "data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2096%2096'%3E%3Crect%20width%3D'96'%20height%3D'96'%20rx%3D'22'%20fill%3D'%2316161c'%2F%3E%3Cpath%20d%3D'M48%2019%2073%2033.5v29L48%2077%2023%2062.5v-29Z'%20fill%3D'none'%20stroke%3D'%235a5a68'%20stroke-width%3D'4'%20stroke-linejoin%3D'round'%2F%3E%3Cpath%20d%3D'M48%2026l5%2012v18H43V38Z'%20fill%3D'%23c0aeea'%2F%3E%3Crect%20x%3D'33'%20y%3D'56'%20width%3D'30'%20height%3D'6'%20rx%3D'3'%20fill%3D'%23dbd0f5'%2F%3E%3Crect%20x%3D'45'%20y%3D'62'%20width%3D'6'%20height%3D'11'%20rx%3D'3'%20fill%3D'%2383838f'%2F%3E%3C%2Fsvg%3E", // RiftIQ (old name)
   "shield.html":    "data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2096%2096'%3E%3Crect%20width%3D'96'%20height%3D'96'%20rx%3D'22'%20fill%3D'%231a1a1d'%2F%3E%3Cg%20fill%3D'none'%20stroke-width%3D'5'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'M48%2014%2022%2023v24c0%2017%2013%2028%2026%2035'%20stroke%3D'%23e0b874'%2F%3E%3Cpath%20d%3D'M48%2014%2074%2023v24c0%2017-13%2028-26%2035'%20stroke%3D'%238D769A'%2F%3E%3Ccircle%20cx%3D'48'%20cy%3D'42'%20r%3D'7'%20stroke%3D'%23adadb2'%2F%3E%3Cpath%20d%3D'M48%2049v11'%20stroke%3D'%23adadb2'%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E", // Shield
-  "vault.html":     "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%231a1a1d%27%2F%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%23e0b874%27%20stroke-width%3D%275%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Crect%20x%3D%2722%27%20y%3D%2742%27%20width%3D%2752%27%20height%3D%2734%27%20rx%3D%277%27%2F%3E%3Cpath%20d%3D%27M33%2042v-9a15%2015%200%200%201%2030%200v9%27%2F%3E%3Cpath%20d%3D%27M48%2055v8%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E", // Vault
 };
 
 // The A1 app icon for a link, or "" when the URL isn't one of our programs.
@@ -219,19 +218,38 @@ function appIconUrl(url) {
   try {
     const u = new URL(/^[a-z]+:\/\//i.test(url) ? url : "https://" + url);
     const path = u.pathname.toLowerCase();
-    // Accept the published /A1/ path and any local dev server serving it.
-    if (!/(^|\/)a1\//.test(path) && !/^(localhost|127\.0\.0\.1)$/i.test(u.hostname)) return "";
+    // Accept the published /A1/ path, her own Pages host (warden-config.js,
+    // so the host itself is never written down here), and any local dev server
+    // serving it.
+    if (!/(^|\/)a1\//.test(path) && !/^(localhost|127\.0\.0\.1)$/i.test(u.hostname)
+        && u.hostname !== ((self.WARDEN_CFG || {}).BIO_RP_ID || "\0")) return "";
     // A bare directory ("/A1/") is served as index.html, i.e. TaskHub.
     const file = /\.html?$/.test(path) ? path.split("/").pop() : "index.html";
     return APP_ICONS[file] || "";
   } catch { return ""; }
 }
 
+// Link label → app page, for rows whose stored URL does not look like one of
+// our pages: a link saved before a rename, a worker endpoint, a bare host. The
+// name a row is filed under is the stable identity there. Aliases carry the old
+// program names (WarRoom and ProView are both RiftIQ) so those rows keep their
+// mark. A twin of this map lives in warden.html — edit the two together.
+const APP_NAMES = { taskhub: 'index.html', tradehub: 'tradehub.html', tradeboard: 'tradehub.html',
+  mylist: 'mylist.html', insight: 'insight.html', keychain: 'warden.html',
+  warden: 'warden.html', oneinbox: 'oneinbox.html', solace: 'solace.html', wellness: 'wellness.html',
+  warroom: 'riftiq.html', riftiq: 'riftiq.html', proview: 'riftiq.html', shield: 'shield.html' };
+function appIconByName(name) {
+  const k = String(name == null ? '' : name).toLowerCase().replace(/[^a-z0-9]/g, '');
+  return (k && APP_ICONS[APP_NAMES[k]]) || '';
+}
+
 // Official site icon (like a browser bookmark): our own app mark for A1
 // programs, otherwise Google's favicon service.
-function faviconUrl(url) {
+function faviconUrl(url, name) {
   const app = appIconUrl(url);
   if (app) return app;
+  const byName = appIconByName(name);
+  if (byName) return byName;
   try {
     const host = new URL(/^https?:\/\//i.test(url) ? url : "https://" + url).hostname;
     // Drawn locally — see the note in warden-ui.js's faviconUrl().
@@ -283,7 +301,7 @@ function buildCard(conn, ci) {
 
   const linkRows = links.map(l => `
     <div class="link-row">
-      <img class="favicon" src="${faviconUrl(l.url)}" width="16" height="16" alt="" loading="lazy">
+      <img class="favicon" src="${faviconUrl(l.url, l.name)}" width="16" height="16" alt="" loading="lazy">
       <span class="link-name" title="${esc(l.url)}">${esc(l.name)}</span>
       <button class="icon-btn visit" data-url="${esc(l.url)}">Visit</button>
       <button class="icon-btn copy" data-copy="${esc(l.url)}" title="Copy link">${COPY_SVG}</button>

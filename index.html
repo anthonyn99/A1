@@ -5173,7 +5173,7 @@ const THEMES = {
 };
 // Task-category colors. Dark = soft pastels (light text on dark bg). Light = deeper
 // dusty pastels that still read on the light theme. Macro-catalyst keys keep their hues.
-const CC_DARK  = {work:"#6FBFA8",personal:"#8FB8E8",health:"#93CFA0",urgent:"#f85149",study:"#BFA6E0",finance:"#E2C285",other:"#B4AEC0",earnings:"#b0566e",inflation:"#9c7838",fed:"#8466a8",jobs:"#4c7a98",growth:"#4a9268",energy:"#a86838",holiday:"#6b7a99"};
+const CC_DARK  = {work:"#6FBFA8",personal:"#8FB8E8",health:"#93CFA0",urgent:"#f85149",study:"#BFA6E0",finance:"#E7A7BE",other:"#B4AEC0",earnings:"#b0566e",inflation:"#9c7838",fed:"#8466a8",jobs:"#4c7a98",growth:"#4a9268",energy:"#a86838",holiday:"#6b7a99"};
 
 // Legacy class colors → soft pastel equivalents.
 //
@@ -11323,12 +11323,31 @@ window.kcAppIcon=function(u){
   try{
     var url=kcUrl(u); if(!url) return '';
     var path=url.pathname.toLowerCase();
-    // Accept the published /A1/ path and any local dev server serving it.
-    if(!/(^|\/)a1\//.test(path)&&!/^(localhost|127\.0\.0\.1)$/i.test(url.hostname)) return '';
+    // Accept the published /A1/ path, this page's own origin however the
+    // link was written, and any local dev server serving it.
+    if(!/(^|\/)a1\//.test(path)&&!/^(localhost|127\.0\.0\.1)$/i.test(url.hostname)
+       &&url.hostname!==location.hostname) return '';
     // A bare directory ("/A1/") is served as index.html, i.e. TaskHub.
     var file=/\.html?$/.test(path)?path.split('/').pop():'index.html';
     return window.KC_APP_ICONS[file]||'';
   }catch(_){ return ''; }
+};
+
+// ── App mark by row name ─────────────────────────────────────────
+// The URL match above is the primary path, but a row can be filed under a URL
+// that doesn't look like one of our pages — a link saved before a rename, a
+// worker endpoint, a bare host. The name the row is filed under is the stable
+// identity in those cases, so fall back to it. The aliases carry the old
+// program names (WarRoom/ProView are RiftIQ, Keychain is Vault) so those rows
+// keep their mark. Consulted only AFTER the site's own favicon, so an
+// unrelated site that happens to share a name keeps its own logo.
+window.KC_APP_NAMES={taskhub:'index.html',tradehub:'tradehub.html',tradeboard:'tradehub.html',
+  mylist:'mylist.html',insight:'insight.html',vault:'vault.html',keychain:'vault.html',
+  warden:'warden.html',oneinbox:'oneinbox.html',solace:'solace.html',wellness:'wellness.html',
+  warroom:'riftiq.html',riftiq:'riftiq.html',proview:'riftiq.html',shield:'shield.html'};
+window.kcAppIconByName=function(name){
+  var k=String(name==null?'':name).toLowerCase().replace(/[^a-z0-9]/g,'');
+  return (k&&window.KC_APP_ICONS[window.KC_APP_NAMES[k]])||'';
 };
 
 // ── Auto-pulled app logos ──────────────────────────────────────────────────
@@ -11416,11 +11435,13 @@ window.kcDiscoverIcon=function(u){
 // logo already pulled for that page, else the favicon service.
 // Lives here rather than in the Keychain program because Veda's Links renders
 // its rows with it too — the Keychain half moved to vault.html, this did not.
-window.kcFavicon=function(u){
+window.kcFavicon=function(u,name){
   var app=window.kcAppIcon?window.kcAppIcon(u):'';
   if(app) return app;
   var hit=window._KC_ICON_CACHE[kcIconKey(u)];
   if(hit&&hit.src) return hit.src;
+  var byName=window.kcAppIconByName?window.kcAppIconByName(name):'';
+  if(byName) return byName;
   var url=kcUrl(u);
   if(!url||!url.hostname) return '';
   // Drawn locally. The old Google favicon endpoint disclosed every saved
@@ -12214,7 +12235,7 @@ const BG="#1B1C1E",S1="#26272A",BD="#3D3E43",BDL="#4A4B51",TX="#ECECEE",TXD="#AF
 // Veda's palette expressed in the theme shape the shared TaskHub modals expect
 // (HabitModal, TimePicker, DayPicker), so both profiles drive one component.
 const VD_T={BG:BG,S1:S1,S2:"#2E2F33",BD:BD,BDL:BDL,TX:TX,TXD:TXD,TXM:TXM,AC:A,ACL:AL,ACD:AD,GRN:GRN,SHADOW:"rgba(0,0,0,.5)"};
-const CC={work:"#6FBFA8",personal:"#8FB8E8",health:"#93CFA0",urgent:"#f85149",study:"#BFA6E0",finance:"#E2C285",other:"#B4AEC0"};
+const CC={work:"#6FBFA8",personal:"#8FB8E8",health:"#93CFA0",urgent:"#f85149",study:"#BFA6E0",finance:"#E7A7BE",other:"#B4AEC0"};
 const CL=Object.keys(CC);
 
 // ─── BHAGAVAD GITA DATA ───────────────────────────────────────────────
@@ -17814,7 +17835,7 @@ function vdkc_renderItem(item,ii,ci){
   switch(item.type){
     case 'link':{
       const nm=vdkc_esc(item.name||item.url||'Link');
-      const fav=item.url?`<img class="kc-favicon" src="${window.kcFavicon?window.kcFavicon(item.url):''}" data-kcurl="${vdkc_esc(item.url)}" width="16" height="16" alt="" onerror="this.style.visibility='hidden'">`:'';
+      const fav=item.url?`<img class="kc-favicon" src="${window.kcFavicon?window.kcFavicon(item.url,item.name):''}" data-kcurl="${vdkc_esc(item.url)}" width="16" height="16" alt="" onerror="this.style.visibility='hidden'">`:'';
       return `<div class="kc-item-row" data-ci="${ci}" data-ii="${ii}">${h}${fav}<span class="kc-link-name">${nm}</span>
         <div class="kc-link-btns">
           ${item.url?`<button class="kc-icon-btn visit" onclick="vdkcVisit('${vdkc_esc(item.url)}')">Visit</button>`:''}
