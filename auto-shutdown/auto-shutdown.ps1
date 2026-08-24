@@ -50,6 +50,25 @@
     fired both an InteractiveToken and a SYSTEM task on time, so the plumbing
     works; it is prolonged DRIPS that suppresses the wake.
 
+    THE FOUR-SECOND BUDGET
+    On battery this laptop does not merely stay in Modern Standby overnight. It
+    burns through its standby battery budget and then hibernates, and the only
+    moment it surfaces is that transition. 2026-08-24, on battery since 21:21:
+
+      21:44:25  506  entered Modern Standby
+      01:44:37  507  surfaced; Task Scheduler ran the catch-up instance
+      01:44:41  42   "Hibernate from Sleep - Standby Battery Budget Exceeded"
+      01:44:42       shutdown issued - one second too late, so it only queued
+      06:32:04  13   the queued shutdown ran, when the lid was opened
+
+    So a run gets roughly four seconds, once a night, and PowerShell's own
+    startup is inside that. Hence the fast lane in Invoke-Run: a locked session
+    decides the outcome on its own, so it is decided on that one cheap signal
+    and shutdown.exe is called before any Add-Type, powercfg, timezone lookup
+    or log write. Those all still happen - just afterwards.
+
+    A run on AC has no such deadline; the budget only applies on battery.
+
     THE SHUTDOWN ITSELF MUST BE IMMEDIATE
     A second night, 2026-08-23, got all the way to the end and still failed:
 
@@ -482,22 +501,26 @@ function Get-Decision {
     }
 }
 
+# Issues the shutdown and hands back shutdown.exe's exit code. Deliberately
+# tiny: on the fast lane, every millisecond spent before this call is a
+# millisecond the hibernate can win.
+function Start-Shutdown {
+    param([int]$Grace)
+    $old = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        & shutdown.exe /s /f /t $Grace /c "A1 Auto Shutdown: nightly $Time shutdown."
+        $LASTEXITCODE
+    } finally { $ErrorActionPreference = $old }
+}
+
 function Invoke-Run {
-    # Before anything else: stop the PC returning to standby underneath us.
-    Set-KeepAwake
     $now = Get-Date
-    $tz  = Get-TimeZone
-    Write-Log ('run: {0} local | {1} | DST in effect now: {2}' -f $now.ToString('yyyy-MM-dd HH:mm:ss'), $tz.Id, $tz.IsDaylightSavingTime($now))
 
     # Idle is per-session; session 0 has no input and would look idle forever.
-    $sid = [Diagnostics.Process]::GetCurrentProcess().SessionId
-    if ($sid -eq 0) {
+    if ([Diagnostics.Process]::GetCurrentProcess().SessionId -eq 0) {
         Write-Log 'refusing to act from session 0 - user activity cannot be measured there' 'ERROR'
         return 3
-    }
-
-    if ($UsedLegacyWindow) {
-        Write-Log ('this task still passes the removed -WindowMinutes; ignoring it and using -WindowHours {0}. Re-run install to update the task.' -f $WindowHours) 'WARN'
     }
 
     # Only ever act in the stretch that starts at $Time. A run before it, or
@@ -506,12 +529,56 @@ function Invoke-Run {
     $target = $now.Date.AddHours($t.Hour).AddMinutes($t.Minute)
     if ($now -lt $target) { $target = $target.AddDays(-1) }
     $sinceH = ($now - $target).TotalHours
-    if (-not $Force -and $sinceH -ge $WindowHours) {
+    $late   = (-not $Force) -and ($sinceH -ge $WindowHours)
+
+    # ----------------------------- FAST LANE -----------------------------
+    # On battery this machine surfaces from Modern Standby only to hibernate
+    # ("Standby Battery Budget Exceeded"), and commits to that sleep about four
+    # seconds in. On 2026-08-24 the shutdown was issued at +5s and lost by one.
+    # A locked session already decides the outcome on its own, so decide on that
+    # single cheap signal and issue the shutdown before anything else: no
+    # Add-Type, no powercfg, no timezone lookup, and no log write - the log
+    # lives in OneDrive and is not something to touch on the critical path.
+    # Everything worth recording is written immediately afterwards.
+    # Timed from process start, not from here: PowerShell's own startup counts
+    # against the same four seconds.
+    $started = [Diagnostics.Process]::GetCurrentProcess().StartTime
+    if ((-not $late) -and (Test-SessionLocked)) {
+        if ($DryRun) {
+            Write-Log ('fast lane: locked - would issue shutdown {0:N2}s after process start (dry run; continuing to full diagnostics)' -f `
+                ((Get-Date) - $started).TotalSeconds) 'ACT'
+        } else {
+            $rc      = Start-Shutdown 0
+            $elapsed = ((Get-Date) - $started).TotalSeconds
+            Write-Log ('run: {0} local | {1:N1}h after the {2} trigger' -f $now.ToString('yyyy-MM-dd HH:mm:ss'), $sinceH, $Time)
+            if ($rc -eq 0) {
+                Write-Log ('fast lane: session locked - shutdown issued {0:N2}s after process start, grace 0s' -f $elapsed) 'ACT'
+                return 0
+            }
+            # 1190: a shutdown from an earlier attempt tonight is already pending.
+            if ($rc -eq 1190) {
+                Write-Log ('a shutdown was already pending ({0:N2}s in)' -f $elapsed) 'WARN'
+                return 0
+            }
+            Write-Log ('fast lane: shutdown.exe failed with exit code {0} after {1:N2}s' -f $rc, $elapsed) 'ERROR'
+            return 3
+        }
+    }
+    # ---------------------------------------------------------------------
+
+    $tz = Get-TimeZone
+    Write-Log ('run: {0} local | {1} | DST in effect now: {2}' -f $now.ToString('yyyy-MM-dd HH:mm:ss'), $tz.Id, $tz.IsDaylightSavingTime($now))
+
+    if ($UsedLegacyWindow) {
+        Write-Log ('this task still passes the removed -WindowMinutes; ignoring it and using -WindowHours {0}. Re-run install to update the task.' -f $WindowHours) 'WARN'
+    }
+
+    if ($late) {
         Write-Log ('skip: {0:N1}h past the {1} trigger, outside the {2}h night window' -f $sinceH, $Time, $WindowHours)
         return 0
     }
     if ($sinceH -gt 0.25) {
-        Write-Log ('note: running {0:N1}h late - the trigger was deferred, most likely by Modern Standby' -f $sinceH) 'WARN'
+        Write-Log ('note: running {0:N1}h late - the trigger was deferred, most likely by Modern Standby or hibernate' -f $sinceH) 'WARN'
     }
 
     $r = Get-Decision
@@ -547,13 +614,12 @@ function Invoke-Run {
         return 0
     }
 
+    # Awake-but-idle path only. Holding the system awake is worth it here,
+    # where a countdown may have to elapse; on the fast lane it is not, because
+    # the Add-Type it needs costs more time than the request buys.
+    Set-KeepAwake
     Write-Log ("shutting down - {0} (grace {1}s)" -f $r.Reason, $grace) 'ACT'
-    $old = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    try {
-        & shutdown.exe /s /f /t $grace /c "A1 Auto Shutdown: nightly $Time shutdown."
-        $rc = $LASTEXITCODE
-    } finally { $ErrorActionPreference = $old }
+    $rc = Start-Shutdown $grace
     if ($rc -ne 0) { Write-Log "shutdown.exe failed with exit code $rc" 'ERROR'; return 3 }
     0
 }
