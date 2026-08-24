@@ -3358,25 +3358,55 @@ function renderProfileIfLoaded() {
   } catch(e) {}
 }
 
+// Anything that renders a name can call this; it de-dupes in flight and only
+// ever performs one successful fetch.
+//
+// A FAILURE IS NOT CACHED PERMANENTLY. The first version parked `{}` in
+// PRO_INDEX on any error, and because `if (PRO_INDEX)` treats `{}` as loaded,
+// one transient failure at boot silently disabled every badge for the rest of
+// the session — the ladder looked exactly as if the feature had never shipped.
+// Now a failure leaves it null so the next caller retries, capped so a genuinely
+// unreachable worker can't be hammered.
+var _proIndexTries = 0;
+var PRO_INDEX_MAX_TRIES = 4;
 function loadProIndex() {
-  if (PRO_INDEX || _proIndexPending) return _proIndexPending || Promise.resolve(PRO_INDEX);
+  if (PRO_INDEX) return Promise.resolve(PRO_INDEX);
+  if (_proIndexPending) return _proIndexPending;
+  if (_proIndexTries >= PRO_INDEX_MAX_TRIES) return Promise.resolve(null);
+  _proIndexTries++;
   // Held in memory only. It is ~250 KB and every A1 program shares one ~5 MB
   // localStorage budget, so caching it there would crowd out real user data for
   // something the worker already serves from its own edge cache.
   _proIndexPending = fetch('https://proview-api.av1.workers.dev/pro-index')
-    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(function(j){
-      PRO_INDEX = (j && j.teams) ? j.teams : {};
+      var teams = j && j.teams;
+      if (!teams || !Object.keys(teams).length) throw new Error('empty index');
+      PRO_INDEX = teams;
       _proIndexPending = null;
+      proIndexArrived();
       return PRO_INDEX;
     })
     .catch(function(e){
-      console.warn('[WarRoom] pro index unavailable:', e && e.message);
-      PRO_INDEX = {};             // cached failure: don't retry on every row
+      console.warn('[WarRoom] pro index unavailable (try ' + _proIndexTries + '):', e && e.message);
+      PRO_INDEX = null;           // leave it unloaded so a later view can retry
       _proIndexPending = null;
-      return PRO_INDEX;
+      return null;
     });
   return _proIndexPending;
+}
+
+// Repaint whatever is on screen once rosters land, so badges appear even when
+// the index arrives after the view that needs it has already rendered.
+function proIndexArrived() {
+  try {
+    var lb = document.getElementById('lb-content');
+    if (lb && lb.innerHTML && typeof _lbData !== 'undefined' && _lbData && _lbData.length) {
+      var q = document.getElementById('lb-search');
+      renderLeaderboard(_lbData, q ? q.value : '');
+    }
+  } catch(e) {}
+  try { renderProfileIfLoaded(); } catch(e) {}
 }
 
 // → { team, league, role, tier } or null. Never throws; an unloaded index just
@@ -3876,7 +3906,15 @@ function itemIconUrl(itemId) {
 // ══════════════════════════════════════
 // TAB SWITCHING
 // ══════════════════════════════════════
+// Rosters back the Pro badge in the ladder, the profile header, expanded match
+// rows and recently-played. Kicking the load on every tab switch means no view
+// depends on some other view having been opened first, and a boot-time failure
+// gets another chance the next time you move around the app.
 function switchTab(tab) {
+  // Rosters back the Pro badge everywhere names are shown, so every tab switch
+  // gives the load a chance. It is a no-op once loaded, and a boot-time failure
+  // gets retried here instead of disabling badges for the whole session.
+  try { loadProIndex(); } catch(e) {}
   // Leaving Profile: stop the live-game poll so it does not burn requests
   // against a tab nobody is looking at.
   if (tab !== 'profile') stopProfileLivePoll();
@@ -7990,9 +8028,10 @@ function initLeaderboard() {
   if (sel && !_lbRegion) sel.value = LB_DEFAULT_REGION;
   // Rosters are needed before the first row paints, or the Pro badges pop in a
   // beat late. It is one cached worker call, so this costs nothing on repeat.
-  loadProIndex().then(function(){
-    if (_lbLoaded) { var q = document.getElementById('lb-search'); renderLeaderboard(_lbData, q ? q.value : ''); }
-  });
+  // Fire and forget: proIndexArrived() repaints the ladder if the rosters land
+  // after it has already drawn, and a failed attempt can be retried by the next
+  // view that needs one.
+  loadProIndex();
   _tryRestoreOrLoad();
 }
 
