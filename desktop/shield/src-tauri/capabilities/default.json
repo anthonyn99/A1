@@ -21,6 +21,7 @@
     "allow-sh-status",
     "allow-sh-set-config",
     "allow-sh-enumerate",
+    "allow-sh-apps",
     "allow-sh-kill",
     "allow-sh-emergency-on",
     "allow-sh-emergency-off",

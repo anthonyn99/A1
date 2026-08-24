@@ -20,6 +20,7 @@ const COMMANDS: &[&str] = &[
     "sh_status",
     "sh_set_config",
     "sh_enumerate",
+    "sh_apps",
     "sh_kill",
     "sh_emergency_on",
     "sh_emergency_off",
