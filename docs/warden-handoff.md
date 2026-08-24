@@ -506,10 +506,13 @@ Only #2 and #3 are worth a human confirming first.
    Dropping it removes a sixth of the build. Default if unanswered: **include the
    tab but leave it unconfigured**, so it is present and inert until she adds
    client ids.
-3. **Cloudflare — ASK.** Default: **her workers on Tony's account** under new
-   names (`warden-links`, `warden-pw-sync`, `warden-files`) with a freshly
-   generated key. Far less setup, and the key is what actually separates them.
-   Move to her own account later if she wants full independence.
+3. **Cloudflare — DECIDED: her own account.** Tony confirmed 2026-08-23 that
+   Warden must NOT write to his Cloudflare account. Her three workers
+   (`warden-links`, `warden-pw-sync`, `warden-files`) go on **her** account with
+   her own Firebase service account and a freshly generated key.
+   Reason beyond separation: his account runs at ~55% of the free-tier KV WRITE
+   limit (1,000/day) with observed peaks at 72%, so it has no room to host
+   another program's traffic. Hers starts empty.
 4. **Index keeps a Warden button** where her Links tab was — mirrors Tony's Vault
    button.
 5. **Password floor — raise to 12 characters** in Warden, with the existing
