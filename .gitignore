@@ -67,3 +67,7 @@ desktop.ini
 workers/tesla-api/tesla-private-key.pem
 workers/tesla-api/.secrets-generated.txt
 package-lock.json
+
+# Cloudflare analytics token — never commit
+.cf-token
+*.token
