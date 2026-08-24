@@ -977,7 +977,7 @@ function renderClassEvents(cls) {
         <div style="width:8px;height:8px;border-radius:2px;margin-top:5px;flex-shrink:0;border:1.5px solid ${pColor};background:${t.done ? pColor : 'transparent'};cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:7px;color:#fff;font-weight:700;transition:0.2s" onclick="toggleTaskDone('${t.id}')">${t.done ? SOI.checkBold : ''}</div>
         <div style="flex:1;min-width:0">
           <div class="class-event-name" style="${t.done ? 'text-decoration:line-through;color:var(--text3)' : ''}">${t.name}</div>
-          ${t.dueDate ? `<div class="class-event-meta">${formatDate(t.dueDate)}${t.dueTime ? ' · ' + t.dueTime : ''} · task</div>` : (t.notes ? `<div class="class-event-meta">${t.notes.slice(0,40)}${t.notes.length>40?'…':''}</div>` : '')}
+          ${t.dueDate ? `<div class="class-event-meta">${formatDate(t.dueDate)}${t.dueTime ? ' · ' + t.dueTime : ''} · ${t.type || 'task'}</div>` : (t.notes ? `<div class="class-event-meta">${t.notes.slice(0,40)}${t.notes.length>40?'…':''}</div>` : '')}
         </div>
         <button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:2px 4px;border-radius:3px;transition:0.15s" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text3)'" title="Edit" aria-label="Edit" onclick="openEditTask('${t.id}')">${SOI.pencil}</button>
         <button style="background:none;border:1px solid var(--border2);color:var(--text3);cursor:pointer;font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;white-space:nowrap;flex-shrink:0;font-family:inherit;transition:0.15s" title="Convert to Event" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text3)'" onclick="convertTaskToEvent('${t.id}')">→ Event</button>
@@ -3334,6 +3334,7 @@ function openAddTaskForClass() {
   _sosEl('inp-task-date').value = today;
   _sosEl('inp-task-time').value = '';
   _sosEl('inp-task-priority').value = 'medium';
+  { const _tt=_sosEl('inp-task-type'); if(_tt)_tt.value='hw'; }
   _sosEl('inp-task-notes').value = '';
   { const _nd=_sosEl('inp-task-notif-date'); if(_nd)_nd.value=''; const _nt=_sosEl('inp-task-notif-time'); if(_nt)_nt.value=''; }
   _sosEl('btn-delete-task').style.display = 'none';
@@ -3352,6 +3353,7 @@ function openAddTaskGlobal() {
   _sosEl('inp-task-date').value = today;
   _sosEl('inp-task-time').value = '';
   _sosEl('inp-task-priority').value = 'medium';
+  { const _tt=_sosEl('inp-task-type'); if(_tt)_tt.value='hw'; }
   _sosEl('inp-task-notes').value = '';
   { const _nd=_sosEl('inp-task-notif-date'); if(_nd)_nd.value=''; const _nt=_sosEl('inp-task-notif-time'); if(_nt)_nt.value=''; }
   _sosEl('btn-delete-task').style.display = 'none';
@@ -3380,6 +3382,7 @@ function openEditTask(taskId) {
   _sosEl('inp-task-date').value = t.dueDate || '';
   _sosEl('inp-task-time').value = t.dueTime || '';
   _sosEl('inp-task-priority').value = t.priority || 'medium';
+  { const _tt=_sosEl('inp-task-type'); if(_tt)_tt.value = t.type || 'hw'; }
   _sosEl('inp-task-notes').value = t.notes || '';
   (()=>{ const nd=_sosEl('inp-task-notif-date'), nt=_sosEl('inp-task-notif-time'); if(t.notif&&t.notif!=='none'){ const dt=new Date(t.notif); if(!isNaN(dt.getTime())){ const pad=n=>String(n).padStart(2,'0'); if(nd)nd.value=dt.getFullYear()+'-'+pad(dt.getMonth()+1)+'-'+pad(dt.getDate()); if(nt)nt.value=pad(dt.getHours())+':'+pad(dt.getMinutes()); } } else { if(nd)nd.value=''; if(nt)nt.value=''; } })();
   _sosEl('btn-delete-task').style.display = '';
@@ -3421,6 +3424,7 @@ function saveTask() {
     dueDate,
     dueTime,
     priority: _sosEl('inp-task-priority').value,
+    type: (_sosEl('inp-task-type') || {}).value || 'hw',
     classId: (()=>{ const cf=_sosEl('inp-task-class-field'); const sel=_sosEl('inp-task-class'); return (cf&&cf.style.display!=='none'&&sel) ? (sel.value||'') : (currentClassId||''); })(),
     notes: _sosEl('inp-task-notes').value.trim(),
     notif: (()=>{ const d=(_sosEl('inp-task-notif-date')||{}).value||''; const t=(_sosEl('inp-task-notif-time')||{}).value||''; return (d&&t)?new Date(d+'T'+t+':00').toISOString():'none'; })(),
@@ -3922,6 +3926,7 @@ async function convertEventToTask(evId) {
     dueDate: ev.date || '',
     dueTime: ev.time || '',
     priority: 'medium',
+    type: ev.type || 'hw',
     classId: ev.classId || '',
     notes: '',
     notif: 'none',
@@ -3977,7 +3982,7 @@ async function convertTaskToEvent(taskId) {
     date: t.dueDate || new Date().toISOString().split('T')[0],
     time: t.dueTime || '',
     classId: t.classId || '',
-    type: 'other',
+    type: t.type || 'other',
     weight: '',
     notif: 'none',
     repeat: 'none',
