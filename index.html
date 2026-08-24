@@ -23968,6 +23968,12 @@ if (bjContent) {
 /* ── PDF EXPORT ── */
 /* bj-btn-export-pdf handled by fastTouch above */
 
+// The saved PDF is named after the printed page's <title>, so that title carries the
+// filename (underscored, illegal characters removed) rather than the entry title itself.
+function _bjPdfName(t) {
+  return window._pdfFileName ? window._pdfFileName(t) : (t || 'Untitled_Entry');
+}
+
 function _bjOpenPrintBlob(htmlStr) {
   // Use a hidden iframe inside the current page — never blocked by popup blockers
   var iframe = document.createElement('iframe');
@@ -23980,8 +23986,16 @@ function _bjOpenPrintBlob(htmlStr) {
   var printed = false;
   function go() {
     if (printed) return; printed = true;
+    // Some browsers seed the "Save as PDF" filename from the printed frame's title and
+    // others from the host page's, so wear both while the dialog is being built.
+    var hostTitle = document.title, frameTitle = '';
+    try { frameTitle = (iframe.contentDocument && iframe.contentDocument.title) || ''; } catch (e) {}
+    if (frameTitle) { try { document.title = frameTitle; } catch (e) {} }
     try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch (e) {}
-    setTimeout(function() { try { document.body.removeChild(iframe); } catch (e) {} }, 2000);
+    setTimeout(function() {
+      try { document.title = hostTitle; } catch (e) {}
+      try { document.body.removeChild(iframe); } catch (e) {}
+    }, 2000);
   }
   // Wait for KaTeX CSS/JS + web fonts so rendered math prints accurately (item 8); hard fallback at 4s.
   iframe.onload = function() {
@@ -24001,7 +24015,7 @@ function exportEntryAsPDF(entry) {
   if (entry.template === 'whiteboard') {
     var canvas = document.getElementById('bj-wb-canvas');
     var dataURL = canvas ? canvas.toDataURL('image/png') : (entry.data.canvas || '');
-    var wbHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + _bjEsc(title) + '</title>'
+    var wbHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + _bjEsc(_bjPdfName(title)) + '</title>'
       + '<style>body{margin:0;background:#fff;}img{max-width:100%;display:block;}h1{font-family:serif;font-size:18px;margin:16px;}p{font-family:sans-serif;font-size:12px;color:#666;margin:0 16px 12px;}@media print{h1,p{display:block;}}</style>'
       + '</head><body>'
       + '<h1>' + _bjEsc(title) + '</h1>'
@@ -24017,7 +24031,7 @@ function exportEntryAsPDF(entry) {
     var mmCv = document.getElementById('bj-mm-canvas');
     if (!mmCv) { alert('Mindmap not rendered.'); return; }
     var dataURL = mmCv.toDataURL('image/png');
-    var mmHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + _bjEsc(title) + '</title>'
+    var mmHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + _bjEsc(_bjPdfName(title)) + '</title>'
       + '<style>body{margin:0;background:#fff;}img{max-width:100%;display:block;}h1{font-family:serif;font-size:18px;margin:16px;}p{font-family:sans-serif;font-size:12px;color:#666;margin:0 16px 12px;}</style>'
       + '</head><body>'
       + '<h1>' + _bjEsc(title) + '</h1>'
@@ -24045,7 +24059,7 @@ function exportEntryAsPDF(entry) {
     bodyHTML += _bjPdfSection('Summary', entry.data.summary || '');
   }
 
-  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + _bjEsc(title) + '</title><style>'
+  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + _bjEsc(_bjPdfName(title)) + '</title><style>'
     + 'body{font-family:Georgia,serif;max-width:750px;margin:32px auto;color:#1a1a2e;font-size:14px;line-height:1.7;padding:0 24px;}'
     + 'h1{font-size:22px;font-weight:700;margin:0 0 6px;color:#2d1b4e;}'
     + '.meta{font-size:11px;color:#888;font-family:sans-serif;margin-bottom:20px;}'
@@ -30160,6 +30174,12 @@ if (tjContent) {
 /* ── PDF EXPORT ── */
 /* tj-btn-export-pdf handled by fastTouch above */
 
+// The saved PDF is named after the printed page's <title>, so that title carries the
+// filename (underscored, illegal characters removed) rather than the entry title itself.
+function _tjPdfName(t) {
+  return window._pdfFileName ? window._pdfFileName(t) : (t || 'Untitled_Entry');
+}
+
 function _tjOpenPrintBlob(htmlStr) {
   // Use a hidden iframe inside the current page — never blocked by popup blockers
   var iframe = document.createElement('iframe');
@@ -30172,8 +30192,16 @@ function _tjOpenPrintBlob(htmlStr) {
   var printed = false;
   function go() {
     if (printed) return; printed = true;
+    // Some browsers seed the "Save as PDF" filename from the printed frame's title and
+    // others from the host page's, so wear both while the dialog is being built.
+    var hostTitle = document.title, frameTitle = '';
+    try { frameTitle = (iframe.contentDocument && iframe.contentDocument.title) || ''; } catch (e) {}
+    if (frameTitle) { try { document.title = frameTitle; } catch (e) {} }
     try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch (e) {}
-    setTimeout(function() { try { document.body.removeChild(iframe); } catch (e) {} }, 2000);
+    setTimeout(function() {
+      try { document.title = hostTitle; } catch (e) {}
+      try { document.body.removeChild(iframe); } catch (e) {}
+    }, 2000);
   }
   // Wait for KaTeX CSS/JS + web fonts so rendered math prints accurately (item 8); hard fallback at 4s.
   iframe.onload = function() {
@@ -30193,7 +30221,7 @@ function exportEntryAsPDF(entry) {
   if (entry.template === 'whiteboard') {
     var canvas = document.getElementById('tj-wb-canvas');
     var dataURL = canvas ? canvas.toDataURL('image/png') : (entry.data.canvas || '');
-    var wbHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + _tjEsc(title) + '</title>'
+    var wbHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + _tjEsc(_tjPdfName(title)) + '</title>'
       + '<style>body{margin:0;background:#fff;}img{max-width:100%;display:block;}h1{font-family:serif;font-size:18px;margin:16px;}p{font-family:sans-serif;font-size:12px;color:#666;margin:0 16px 12px;}@media print{h1,p{display:block;}}</style>'
       + '</head><body>'
       + '<h1>' + _tjEsc(title) + '</h1>'
@@ -30209,7 +30237,7 @@ function exportEntryAsPDF(entry) {
     var mmCv = document.getElementById('tj-mm-canvas');
     if (!mmCv) { alert('Mindmap not rendered.'); return; }
     var dataURL = mmCv.toDataURL('image/png');
-    var mmHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + _tjEsc(title) + '</title>'
+    var mmHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + _tjEsc(_tjPdfName(title)) + '</title>'
       + '<style>body{margin:0;background:#fff;}img{max-width:100%;display:block;}h1{font-family:serif;font-size:18px;margin:16px;}p{font-family:sans-serif;font-size:12px;color:#666;margin:0 16px 12px;}</style>'
       + '</head><body>'
       + '<h1>' + _tjEsc(title) + '</h1>'
@@ -30246,7 +30274,7 @@ function exportEntryAsPDF(entry) {
     bodyHTML += _tjPdfSection('Summary', entry.data.summary || '');
   }
 
-  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + _tjEsc(title) + '</title><style>'
+  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + _tjEsc(_tjPdfName(title)) + '</title><style>'
     + 'body{font-family:Georgia,serif;max-width:750px;margin:32px auto;color:#1a1a2e;font-size:14px;line-height:1.7;padding:0 24px;}'
     + 'h1{font-size:22px;font-weight:700;margin:0 0 6px;color:#2d1b4e;}'
     + '.meta{font-size:11px;color:#888;font-family:sans-serif;margin-bottom:20px;}'
@@ -31974,6 +32002,22 @@ window._docxCleanHTML = function(html) {
     d.textContent = html.replace(/<[^>]*>/g, '');
     return d.innerHTML;
   }
+};
+
+// The browser's "Save as PDF" dialog seeds its filename from the document title, so the
+// printed page's <title> is the only lever we have on the saved file's name. Turn an entry
+// title into a filename that matches it: spaces become underscores, and anything a file
+// system would reject is dropped. If nothing legal survives, fall back to a concise name.
+window._pdfFileName = function(title) {
+  var t = String(title == null ? '' : title).trim();
+  try { t = t.normalize('NFKD').replace(/[\u0300-\u036f]/g, ''); } catch (e) {}   // café → cafe, not caf
+  t = t.replace(/[^A-Za-z0-9 ._()&,'+-]/g, ' ');   // illegal / exotic chars → space, so words stay separated
+  t = t.replace(/\s+/g, '_').replace(/_+/g, '_');
+  t = t.replace(/^[_.\-]+/, '').replace(/[_.\-]+$/, '');
+  if (t.length > 100) t = t.slice(0, 100).replace(/[_.\-]+$/, '');
+  // Windows refuses these as filenames whatever the extension.
+  if (/^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i.test(t)) t = t + '_';
+  return t || 'Untitled_Entry';
 };
 
 // For PDF export: text should print black by default. Editor text is light-on-dark, and
