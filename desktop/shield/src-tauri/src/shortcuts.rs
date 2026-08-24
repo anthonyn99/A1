@@ -687,3 +687,132 @@ pub fn restore_all() -> usize {
     }
     n
 }
+
+/// One installed application, as the picker shows it.
+///
+/// `folder` is the field the picker actually turns into a target. It is the
+/// application's own install directory, not the executable, because that is
+/// what `matches()` handles best for anything modern — see `Target::matches`.
+#[derive(Debug, Clone, Serialize)]
+pub struct InstalledApp {
+    /// Shortcut name, which is the name the user knows the app by.
+    pub name: String,
+    /// The executable the shortcut points at.
+    pub exe: String,
+    /// The executable's own file name, e.g. "discord.exe".
+    pub file: String,
+    /// Install directory, when one can be picked out safely.
+    pub folder: String,
+    /// Is at least one process from this app running right now?
+    #[serde(default)]
+    pub running: bool,
+}
+
+/// Directories too broad to ever offer as a folder target.
+///
+/// A shortcut living directly in `C:\Windows\System32` (Notepad, Paint) would
+/// otherwise suggest that whole directory as its "install folder", which
+/// `is_denied_folder` rejects anyway — but suggesting it at all and having the
+/// close silently refuse is worse than offering the executable alone.
+fn folder_too_broad(p: &str) -> bool {
+    let q = p.trim_end_matches(['\\', '/']).to_ascii_lowercase();
+    if q.len() <= 3 {
+        return true;
+    }
+    const ROOTS: &[&str] = &[
+        "c:\\windows",
+        "c:\\windows\\system32",
+        "c:\\windows\\syswow64",
+        "c:\\program files",
+        "c:\\program files (x86)",
+        "c:\\programdata",
+        "c:\\users",
+    ];
+    ROOTS.iter().any(|r| q == *r)
+}
+
+/// Pick the folder that best represents an application's install.
+///
+/// The executable's own parent is usually right, but a great many installers
+/// put the binary one level down in `bin\`, `current\`, `app-1.2.3\` or an
+/// `Application` subfolder. Walking up past those version-stamped directories
+/// means a target keeps working after the app updates itself, which is the
+/// whole reason folder targets exist.
+fn install_folder(exe: &Path) -> String {
+    let Some(parent) = exe.parent() else { return String::new() };
+    let mut best = parent.to_path_buf();
+    // Climb at most two levels, and only past directories that are plainly
+    // structural rather than the app's own name.
+    for _ in 0..2 {
+        let name = best
+            .file_name()
+            .map(|n| n.to_string_lossy().to_ascii_lowercase())
+            .unwrap_or_default();
+        let structural = name == "bin"
+            || name == "current"
+            || name == "application"
+            || name.starts_with("app-");
+        if !structural {
+            break;
+        }
+        match best.parent() {
+            Some(p) => best = p.to_path_buf(),
+            None => break,
+        }
+    }
+    let s = best.to_string_lossy().to_string();
+    if folder_too_broad(&s) { String::new() } else { s }
+}
+
+/// Every installed application Shield can offer in the picker.
+///
+/// Built from real `.lnk` targets rather than a hardcoded list, so it reflects
+/// what is actually on this PC. Uninstall stubs and web links are dropped: a
+/// shortcut that does not resolve to an `.exe` cannot be closed, and offering
+/// it would produce a target that silently never matches anything.
+pub fn list_installed_apps() -> Vec<InstalledApp> {
+    let mut out: Vec<InstalledApp> = Vec::new();
+    for lnk in all_shortcuts() {
+        let Some(name) = lnk.file_stem().map(|s| s.to_string_lossy().to_string()) else {
+            continue;
+        };
+        let Some(exe) = resolve_lnk(&lnk) else { continue };
+        if exe.is_empty() {
+            continue;
+        }
+        let p = Path::new(&exe);
+        let file = p
+            .file_name()
+            .map(|f| f.to_string_lossy().to_string())
+            .unwrap_or_default();
+        if !file.to_ascii_lowercase().ends_with(".exe") {
+            continue; // .url, .chm, documents — nothing Shield can close
+        }
+        let low = name.to_ascii_lowercase();
+        if low.starts_with("uninstall") || low.contains("uninstall") {
+            continue;
+        }
+        if crate::proc::is_denied(&file) {
+            continue;
+        }
+        out.push(InstalledApp {
+            name,
+            folder: install_folder(p),
+            exe,
+            file,
+            running: false,
+        });
+    }
+    // The same app is usually on the Desktop AND in the Start menu. Collapse on
+    // the executable it points at, keeping the shortest display name — that is
+    // reliably the plain one ("Discord" over "Discord (Safe Mode)").
+    out.sort_by(|a, b| {
+        a.exe
+            .to_ascii_lowercase()
+            .cmp(&b.exe.to_ascii_lowercase())
+            .then_with(|| a.name.len().cmp(&b.name.len()))
+    });
+    out.dedup_by(|a, b| a.exe.eq_ignore_ascii_case(&b.exe));
+    out.sort_by_key(|a| a.name.to_ascii_lowercase());
+    out
+}

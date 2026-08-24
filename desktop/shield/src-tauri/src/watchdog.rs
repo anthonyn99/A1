@@ -39,11 +39,22 @@ pub struct Watchdog {
 ///     excluded from the kill, even if it also appears in the closer list —
 ///     "open League, close everything" must not mean "open League, close
 ///     League".
+///   · The FALLING edge matters too, when Reopen-after-trigger is on. Closing
+///     the game should put back what starting it swept away, so each fire
+///     records the history entry it produced and the exit reopens it.
 pub struct Triggers {
     running: Arc<AtomicBool>,
     list: Arc<Mutex<Vec<Target>>>,
     /// Ids seen running on the previous tick, for the edge comparison.
     seen: Arc<Mutex<Vec<String>>>,
+    /// trigger id → the history entry its last fire created.
+    ///
+    /// Held in memory rather than on disk deliberately: this is a promise about
+    /// one session. If the agent restarts while a game is open, reopening its
+    /// casualties later — possibly days later — would be a surprise, not a
+    /// convenience, so an entry that did not survive the restart is simply
+    /// never reopened automatically. History keeps the manual button either way.
+    owed: Arc<Mutex<Vec<(String, String)>>>,
 }
 
 impl Default for Triggers {
@@ -58,16 +69,27 @@ impl Triggers {
             running: Arc::new(AtomicBool::new(false)),
             list: Arc::new(Mutex::new(Vec::new())),
             seen: Arc::new(Mutex::new(Vec::new())),
+            owed: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
     /// Replace the trigger list. Starts or stops the thread to match.
-    pub fn set(&self, targets: Vec<Target>, on_fire: impl Fn(Vec<Target>) + Send + 'static) {
+    ///
+    /// `on_fire` returns the id of the history entry the close produced, so the
+    /// falling edge knows what to put back. An empty string means "nothing was
+    /// recorded" and nothing will be reopened.
+    pub fn set(
+        &self,
+        targets: Vec<Target>,
+        on_fire: impl Fn(Vec<Target>) -> Vec<(String, String)> + Send + 'static,
+        on_exit: impl Fn(&str, &str) + Send + 'static,
+    ) {
         let empty = targets.is_empty();
         *self.list.lock().unwrap_or_else(|e| e.into_inner()) = targets;
         if empty {
             self.running.store(false, Ordering::SeqCst);
             self.seen.lock().unwrap_or_else(|e| e.into_inner()).clear();
+            self.owed.lock().unwrap_or_else(|e| e.into_inner()).clear();
             return;
         }
         if self.running.swap(true, Ordering::SeqCst) {
@@ -77,6 +99,7 @@ impl Triggers {
         let running = self.running.clone();
         let list = self.list.clone();
         let seen = self.seen.clone();
+        let owed = self.owed.clone();
         thread::spawn(move || {
             // Seed from the CURRENT state so a trigger that is already up when
             // Shield starts does not fire the instant the agent launches.
@@ -105,8 +128,37 @@ impl Triggers {
                 // in the background or without stealing focus.
                 let mut fired: Vec<Target> =
                     l.iter().filter(|t| now.contains(&t.id) && !guard.contains(&t.id)).cloned().collect();
+                // The falling edge: it was up last tick and is gone now.
+                let gone: Vec<String> =
+                    guard.iter().filter(|id| !now.contains(id)).cloned().collect();
                 *guard = now;
                 drop(guard);
+
+                // Put back what this trigger closed, if it owes anything. Done
+                // before the rising-edge work below so a fast quit-and-relaunch
+                // cannot reopen into the middle of the next close.
+                if !gone.is_empty() {
+                    let mut debts = owed.lock().unwrap_or_else(|e| e.into_inner());
+                    let due: Vec<(String, String)> = debts
+                        .iter()
+                        .filter(|(tid, _)| gone.contains(tid))
+                        .cloned()
+                        .collect();
+                    debts.retain(|(tid, _)| !gone.contains(tid));
+                    drop(debts);
+                    for (tid, entry) in due {
+                        let label = l
+                            .iter()
+                            .find(|t| t.id == tid)
+                            .map(|t| t.display())
+                            .unwrap_or_default();
+                        on_exit(&entry, &label);
+                    }
+                    // A trigger that has left is also off cooldown: quitting and
+                    // restarting a game is a deliberate act and should close
+                    // things again, not be swallowed by the 45s window.
+                    cooled.retain(|(id, _)| !gone.contains(id));
+                }
 
                 // Signal 2 — the app came to the front. This is what "I opened
                 // Brave" actually means: the browser was already running, and
@@ -134,7 +186,19 @@ impl Triggers {
                 }
 
                 if !fired.is_empty() {
-                    on_fire(fired);
+                    let produced = on_fire(fired);
+                    if !produced.is_empty() {
+                        let mut debts = owed.lock().unwrap_or_else(|e| e.into_inner());
+                        for (tid, entry) in produced {
+                            if entry.is_empty() {
+                                continue;
+                            }
+                            // One debt per trigger: a re-fire supersedes whatever
+                            // the previous one recorded.
+                            debts.retain(|(id, _)| id != &tid);
+                            debts.push((tid, entry));
+                        }
+                    }
                 }
             }
         });
@@ -143,6 +207,7 @@ impl Triggers {
     pub fn stop(&self) {
         self.running.store(false, Ordering::SeqCst);
         self.seen.lock().unwrap_or_else(|e| e.into_inner()).clear();
+        self.owed.lock().unwrap_or_else(|e| e.into_inner()).clear();
     }
 }
 

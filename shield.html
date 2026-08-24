@@ -333,6 +333,106 @@ label.fld{display:block;font-size:9.5px;font-weight:700;letter-spacing:1.4px;tex
   padding:20px 16px;text-align:center;color:var(--txm);font-size:11.5px;line-height:1.6;
 }
 
+/* ══ TUTORIAL — collapsed by default on every screen ═══════════════════════
+      Instructional text used to sit permanently open at the bottom of each
+      page, which meant the useful controls were pushed off-screen by prose
+      nobody reads twice. Same words, folded away behind one button. */
+.tut{margin-bottom:22px}
+.tut-btn{
+  appearance:none;width:100%;background:transparent;cursor:pointer;
+  border:1px dashed var(--bd);border-radius:var(--radius);
+  padding:10px 14px;display:flex;align-items:center;gap:9px;
+  color:var(--txd);font-family:inherit;text-align:left;
+  font-size:10px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;
+  transition:border-color var(--transition),color var(--transition);
+}
+.tut-btn:hover{border-color:var(--acl);color:var(--ac)}
+.tut-btn svg{width:13px;height:13px;flex-shrink:0}
+.tut-btn .chev{margin-left:auto;transition:transform .2s}
+.tut.open .tut-btn .chev{transform:rotate(180deg)}
+.tut-body{display:none;padding:14px 2px 2px}
+.tut.open .tut-body{display:block}
+/* Header / body hierarchy inside a tutorial, so it can be scanned rather
+   than read start to finish. */
+.tut-h{
+  font-size:9.5px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
+  color:var(--ac);margin:15px 0 5px;
+}
+.tut-h:first-child{margin-top:0}
+.tut-p{font-size:11.5px;color:var(--txm);line-height:1.6;margin:0 0 4px}
+.tut-p b{color:var(--txd);font-weight:600}
+.tut-p code{font-family:ui-monospace,monospace;font-size:10.5px;color:var(--txd)}
+
+/* ══ TARGET SETS — several named lists per device ══════════════════════════ */
+.sets{margin-bottom:11px}
+.sets-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.setchip{
+  appearance:none;background:transparent;border:1px solid var(--bd);
+  border-radius:20px;color:var(--txm);cursor:pointer;font-family:inherit;
+  font-size:10.5px;font-weight:600;letter-spacing:.4px;
+  padding:0 11px;height:27px;display:inline-flex;align-items:center;gap:6px;
+  transition:border-color var(--transition),color var(--transition),box-shadow var(--transition);
+}
+.setchip:hover{border-color:var(--txd);color:var(--txd)}
+.setchip.on{border-color:var(--ac);color:var(--ac);box-shadow:0 0 8px var(--acbg)}
+.setchip[disabled]{opacity:.5;cursor:default}
+.setchip-n{
+  font-size:9px;font-weight:700;color:var(--txm);
+  background:var(--s1);border-radius:10px;padding:1px 6px;min-width:8px;text-align:center;
+}
+.setchip.on .setchip-n{color:var(--ac)}
+.setchip.add{padding:0 9px}
+.setchip.add svg{width:13px;height:13px}
+.sets-act{display:flex;gap:6px;flex-wrap:wrap}
+
+/* A one-line "what this is" above a control, replacing the paragraphs that
+   used to sit below it. */
+.lede{font-size:11.5px;color:var(--txm);line-height:1.5;margin:-4px 0 10px}
+.lede b{color:var(--txd);font-weight:600}
+
+/* ══ APP PICKER — choose a real application instead of typing a path ══════ */
+.pick-search{
+  width:100%;box-sizing:border-box;background:var(--s1);
+  border:1px solid var(--bdl);border-radius:var(--radius-sm);color:var(--tx);
+  font-size:13px;padding:9px 12px;outline:none;font-family:inherit;margin-bottom:10px;
+  transition:border-color .18s,box-shadow .18s;
+}
+.pick-search:focus{border-color:var(--ac);box-shadow:0 0 11px var(--acl)}
+.pick-tabs{display:flex;gap:6px;margin-bottom:10px}
+.pick-tab{
+  appearance:none;background:transparent;border:1px solid var(--bd);
+  border-radius:var(--radius-sm);color:var(--txm);cursor:pointer;font-family:inherit;
+  font-size:9.5px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;
+  padding:0 11px;height:26px;transition:border-color .18s,color .18s;
+}
+.pick-tab:hover{border-color:var(--txd);color:var(--txd)}
+.pick-tab.on{border-color:var(--acl);color:var(--ac)}
+/* A fixed height, not max-height: the list must not resize as the user types,
+   or every keystroke moves the row under the pointer. */
+.pick-list{height:46vh;min-height:190px;overflow-y:auto;-webkit-overflow-scrolling:touch;margin:0 -2px;padding:0 2px}
+.pick-row{
+  display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;
+  background:var(--s1);border:1px solid var(--bd);border-radius:var(--radius);
+  padding:8px 11px;margin-bottom:6px;cursor:pointer;text-align:left;
+  font-family:inherit;transition:border-color .15s,box-shadow .15s;
+}
+.pick-row:hover{border-color:var(--acl);box-shadow:0 0 9px var(--acbg)}
+.pick-row.sel{border-color:var(--ac);box-shadow:0 0 10px var(--acbg)}
+.pick-ico{
+  width:26px;height:26px;flex-shrink:0;border-radius:6px;background:var(--s2);
+  border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:700;color:var(--txd);text-transform:uppercase;
+}
+.pick-main{flex:1;min-width:0}
+.pick-name{font-size:12.5px;font-weight:600;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pick-path{font-size:9.5px;color:var(--txm);font-family:ui-monospace,monospace;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl;text-align:left}
+.pick-live{
+  font-size:8px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;
+  color:var(--grn);border:1px solid currentColor;border-radius:20px;
+  padding:2px 6px;flex-shrink:0;
+}
+.pick-none{padding:26px 12px;text-align:center;color:var(--txm);font-size:11.5px;line-height:1.6}
+
 /* ══ QUICK ACTIONS — the screen that matters in an emergency. Both primary
       buttons sit above the fold on a phone and take one tap. ══════════════════ */
 .qa{display:flex;flex-direction:column;gap:10px;margin-bottom:22px}
@@ -2185,6 +2285,23 @@ function devRec(id){ return (S.doc && S.doc.devices && S.doc.devices[id]) || nul
 function activeDevId(){ return S.viewDev || S.devId; }
 function isReadOnly(){ return !!(S.viewDev && S.viewDev !== S.devId); }
 function cfgCloser(id){ var d=devRec(id); return (d && d.closer) || { targets:[] }; }
+/* Reopen-after-trigger. Stored on the closer config, not the emergency one:
+   it describes what the Program Closer does, and an emergency never reopens
+   anything by itself. Defaults OFF — windows arriving unbidden is a surprise,
+   so it is asked for rather than assumed. */
+function reopenAfterTrigger(id){ return !!cfgCloser(id).reopenAfterTrigger; }
+
+async function toggleCloserOpt(key){
+  if (isReadOnly()) return;
+  var id = S.devId;
+  var val = !cfgCloser(id)[key];
+  var d = S.doc && S.doc.devices && S.doc.devices[id];
+  if (d){ d.closer = d.closer || {}; d.closer[key] = val; }
+  renderConfig();
+  pushConfig();
+  await writeMine('closer.' + key, val).catch(function(){ toast('Could not save.', true); });
+}
+
 function cfgEmg(id){
   var d=devRec(id);
   return (d && d.emergency) || { targets:[], lockWorkstation:false, watchdog:true, lockA1Apps:true };
@@ -2397,6 +2514,9 @@ function pushConfig(){
     deviceName: (devRec(S.devId) && devRec(S.devId).name) || defaultName(),
     closer: cfgCloser(S.devId).targets || [],
     triggers: cfgCloser(S.devId).triggers || [],
+    // The agent decides whether to reopen at the moment the trigger app EXITS,
+    // so it needs the switch itself, not just the outcome.
+    reopenAfterTrigger: reopenAfterTrigger(S.devId),
     emergency: {
       targets: e.targets || [],
       lockWorkstation: !!e.lockWorkstation,
@@ -2581,6 +2701,162 @@ function targetsFor(kind, id){
   if (kind === 'emergency') return cfgEmg(id).targets || [];
   if (kind === 'trigger') return cfgCloser(id).triggers || [];
   return cfgCloser(id).targets || [];
+}
+
+/* ── Target sets ───────────────────────────────────────────────────────────
+   One list per device was the wrong shape. "Close everything for work" and
+   "close everything before a game" are different lists, and with a single one
+   the user had to retype the whole thing to switch between them.
+
+   The storage rule that keeps this compatible with every older build and with
+   the agent: the ACTIVE set's targets stay in `closer.targets` / `closer.triggers`
+   exactly where they have always been. `closer.sets` is the archive of the
+   others, and `closer.activeSet` names which one is live. An older build, or an
+   agent that knows nothing about sets, reads the active list and behaves
+   correctly — it just cannot switch. Nothing has to be migrated. */
+
+function setsKeyFor(kind){ return kind === 'trigger' ? 'triggerSets' : 'targetSets'; }
+function activeKeyFor(kind){ return kind === 'trigger' ? 'activeTriggerSet' : 'activeTargetSet'; }
+function liveKeyFor(kind){ return kind === 'trigger' ? 'triggers' : 'targets'; }
+
+/* Every set for a kind, INCLUDING the active one, in display order.
+   The active set is materialised from the live list so the two can never drift
+   apart: there is exactly one copy of its targets, in the live field. */
+function setsFor(kind, id){
+  var c = cfgCloser(id);
+  var stored = c[setsKeyFor(kind)] || [];
+  var activeId = c[activeKeyFor(kind)] || 'default';
+  var live = c[liveKeyFor(kind)] || [];
+  var out = [], sawActive = false;
+  for (var i = 0; i < stored.length; i++){
+    var st = stored[i];
+    if (st.id === activeId){
+      sawActive = true;
+      out.push({ id: st.id, name: st.name, targets: live, active: true });
+    } else {
+      out.push({ id: st.id, name: st.name, targets: st.targets || [], active: false });
+    }
+  }
+  if (!sawActive){
+    // Either nothing has ever been named (a device from before sets existed),
+    // or the active id points at a set that is gone. Both mean the live list is
+    // the default set, and it goes first.
+    out.unshift({ id: activeId, name: (activeId === 'default' ? 'Default' : 'Default'), targets: live, active: true });
+  }
+  return out;
+}
+
+function activeSetId(kind, id){
+  return (cfgCloser(id)[activeKeyFor(kind)]) || 'default';
+}
+function activeSetName(kind, id){
+  var all = setsFor(kind, id);
+  for (var i = 0; i < all.length; i++) if (all[i].active) return all[i].name;
+  return 'Default';
+}
+
+/* Write the whole set collection back.
+   `list` is the same shape setsFor returns. The active set's targets are split
+   back out into the live field, and everything else is stored with its own
+   copy. One write, so a rename and a switch cannot half-apply. */
+async function saveSets(kind, id, list, newActiveId){
+  if (isReadOnly()) return;
+  var activeId = newActiveId || activeSetId(kind, id);
+  var live = [];
+  var stored = list.map(function(st){
+    if (st.id === activeId) live = st.targets || [];
+    return { id: st.id, name: st.name, targets: (st.id === activeId ? [] : (st.targets || [])) };
+  });
+
+  var d = S.doc && S.doc.devices && S.doc.devices[id];
+  if (d){
+    d.closer = d.closer || {};
+    d.closer[liveKeyFor(kind)] = live;
+    d.closer[setsKeyFor(kind)] = stored;
+    d.closer[activeKeyFor(kind)] = activeId;
+  }
+  renderConfig(); renderHome();
+  pushConfig();
+  // One write for all three fields: a rename plus a switch must not be able to
+  // half-apply, leaving activeSet pointing at a set that does not exist yet.
+  var pre = 'devices.' + id + '.closer.';
+  var f = {};
+  f[pre + liveKeyFor(kind)] = live;
+  f[pre + setsKeyFor(kind)] = stored;
+  f[pre + activeKeyFor(kind)] = activeId;
+  await write(f).catch(function(){ toast('Could not save. Check the connection.', true); });
+}
+
+/* Switch which set is live. */
+async function switchSet(kind, sid){
+  if (isReadOnly()) return;
+  var id = S.devId;
+  if (sid === activeSetId(kind, id)) return;
+  var all = setsFor(kind, id);
+  var found = false;
+  for (var i = 0; i < all.length; i++) if (all[i].id === sid) found = true;
+  if (!found) return;
+  await saveSets(kind, id, all, sid);
+  toast('Switched to “' + (function(){ for (var i=0;i<all.length;i++) if (all[i].id===sid) return all[i].name; return 'set'; })() + '”.');
+}
+
+async function newSet(kind){
+  if (isReadOnly()) return;
+  var id = S.devId;
+  var all = setsFor(kind, id);
+  var name = await window.uiPrompt('Name for the new set', {
+    title: kind === 'trigger' ? 'New trigger set' : 'New target set',
+    okLabel: 'Create', placeholder: 'Gaming'
+  });
+  if (name == null) return;
+  name = String(name).trim();
+  if (!name) return;
+  var sid = uid();
+  // Created empty and switched to straight away: the point of making one is to
+  // start filling it in.
+  all.push({ id: sid, name: name, targets: [], active: false });
+  await saveSets(kind, id, all, sid);
+  toast('Created “' + name + '”.');
+}
+
+async function renameSet(kind, sid){
+  if (isReadOnly()) return;
+  var id = S.devId;
+  var all = setsFor(kind, id);
+  var cur = null;
+  for (var i = 0; i < all.length; i++) if (all[i].id === sid) cur = all[i];
+  if (!cur) return;
+  var name = await window.uiPrompt('Name for this set', {
+    title: 'Rename set', okLabel: 'Save', default: cur.name
+  });
+  if (name == null) return;
+  name = String(name).trim();
+  if (!name) return;
+  await saveSets(kind, id, all.map(function(st){
+    return st.id === sid ? Object.assign({}, st, { name: name }) : st;
+  }));
+  toast('Renamed.');
+}
+
+async function deleteSet(kind, sid){
+  if (isReadOnly()) return;
+  var id = S.devId;
+  var all = setsFor(kind, id);
+  if (all.length <= 1){ toast('This is the only set.', true); return; }
+  var cur = null;
+  for (var i = 0; i < all.length; i++) if (all[i].id === sid) cur = all[i];
+  if (!cur) return;
+  var ok = await window.uiConfirm(
+    'Delete the set “' + cur.name + '” and its ' + (cur.targets||[]).length + ' target'
+    + ((cur.targets||[]).length === 1 ? '' : 's') + '?\n\nThis cannot be undone.',
+    { title:'Delete set', okLabel:'Delete', danger:true });
+  if (!ok) return;
+  var rest = all.filter(function(st){ return st.id !== sid; });
+  // Deleting the live set has to hand "live" to something, or the device would
+  // be left with no active list at all.
+  var nextActive = (sid === activeSetId(kind, id)) ? rest[0].id : activeSetId(kind, id);
+  await saveSets(kind, id, rest, nextActive);
+  toast('Deleted “' + cur.name + '”.');
 }
 
 /* Tauri rejects an invoke with a plain STRING, not an Error, so reading
@@ -3001,7 +3277,12 @@ var GLYPH = {
   unlock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>',
   alert:  '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="M12 8v5"/><path d="M12 16.5h.01"/>',
   check:  '<path d="m20 6-11 11-5-5"/>',
-  down:   '<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>'
+  down:   '<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>',
+  chev:   '<path d="m6 9 6 6 6-6"/>',
+  book:   '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/>',
+  // A pen-on-paper mark for Rename. The old "+" said "add", which is the one
+  // thing the button does not do.
+  rename: '<path d="M11 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/><path d="M18.4 2.6a2 2 0 0 1 3 3L12 15l-4 1 1-4Z"/>'
 };
 
 /* Render ONLY the view the user is looking at.
@@ -3051,7 +3332,10 @@ function renderHome(){
   h +=   '<button class="big close" id="a-close"' + (closerN ? '' : ' disabled') + '>'
       +    kbd('close')
       +    '<span class="lbl">Close Apps</span>'
-      +    '<span class="sub">' + (closerN ? closerN + ' target' + (closerN===1?'':'s') + ' on this device' : 'No targets configured yet') + '</span>'
+      +    '<span class="sub">' + (closerN
+             ? closerN + ' target' + (closerN===1?'':'s')
+               + (setsFor('closer', S.devId).length > 1 ? ' · ' + esc(activeSetName('closer', S.devId)) : '')
+             : 'No targets configured yet') + '</span>'
       +  '</button>';
   h +=   '<button class="big emg" id="a-emg">'
       +    kbd('emergency')
@@ -3097,8 +3381,11 @@ function renderHome(){
 
   // Two-column only when there is something to put in the second column.
   // A lone actions block beside empty space reads worse than one centred one.
+  h += tutorial('home');
+
   $('v-home').className = 'view active' + ((last || devs.length > 1) ? ' two-col' : '');
   $('v-home').innerHTML = h;
+  wireTutorials($('v-home'));
 
   var cb = $('a-close'); if (cb) cb.onclick = actCloseApps;
   var eb = $('a-emg'); if (eb) eb.onclick = actEmergencyLocal;
@@ -3172,7 +3459,10 @@ function devRowHtml(d, compact){
   if (!compact){
     h += '<button class="btn sm" data-dev-view="' + esc(d.id) + '">' + (me ? 'Edit' : 'View') + '</button>';
     if (!me) h += '<button class="iconbtn danger" data-dev-remove="' + esc(d.id) + '" title="Remove device">' + svg(GLYPH.trash) + '</button>';
-    if (me)  h += '<button class="iconbtn" data-dev-rename="' + esc(d.id) + '" title="Rename">' + svg(GLYPH.plus) + '</button>';
+    // Spelled out, not an icon. This was a "+" glyph, which reads as "add a
+    // device" — the exact opposite of what it does. Next to a text "Edit"
+    // button a text "Rename" needs no decoding at all.
+    if (me)  h += '<button class="btn sm" data-dev-rename="' + esc(d.id) + '" title="Rename this device">Rename</button>';
   }
   h += '</div>';
   return h;
@@ -3190,17 +3480,14 @@ function renderDevices(){
     +  '<div class="opt-sub" id="dl-sub">Without it a browser cannot close, hide or block anything. '
     +  'Install it on any PC, then choose a profile on that PC.</div></div>'
     +  '<button class="btn sm ac" id="a-download">' + svg(GLYPH.down) + 'Download</button></div>'
-    +  '<div class="hint" style="padding-top:10px">Always the newest build: it is compiled from the '
-    +  'repository every time Shield changes, and this button fetches whatever came out of that. '
-    +  'Unsigned, so Windows will say <b>\"Windows protected your PC\"</b> — <b>More info</b> → '
-    +  '<b>Run anyway</b>. Installs for your user only and never asks for admin.</div>'
+    +  '<div class="hint" style="padding-top:10px">Unsigned, so Windows will say '
+    +  '<b>\"Windows protected your PC\"</b> — choose <b>More info</b> → <b>Run anyway</b>. '
+    +  'Installs for your user only and never asks for admin.</div>'
     +  '</div></div>';
-  h += '<div class="sec"><div class="sec-head"><span class="sec-title">How devices work</span></div>'
-    +  '<div class="hint">Each device owns its own configuration — a phone cannot describe a PC\'s executables. You can view '
-    +  'another device\'s here, but only the one you are holding can change it.'
-    +  '<br><br>“Active” means it checked in within the last 35 minutes. There is no live presence connection; that would '
-    +  'cost writes all day for something you rarely need.</div></div>';
+  h += '<div class="sec"><div class="hint">“Active” means the device checked in within the last 35 minutes.</div></div>';
+  h += tutorial('devices');
   $('v-devices').innerHTML = h;
+  wireTutorials($('v-devices'));
 
   Array.prototype.forEach.call($('v-devices').querySelectorAll('[data-dev-view]'), function(b){
     b.onclick = function(){ S.viewDev = b.getAttribute('data-dev-view'); S.tab='closer'; go('config'); };
@@ -3472,42 +3759,184 @@ var TARGET_HELP =
   + '  C:\\...\\RiotClientServices.exe - that exact file\n\n'
   + 'A folder is usually right: most apps run several executables at once, and naming just one leaves the rest open.';
 
+/* The set switcher: one row of chips, plus manage buttons.
+   Rendered above the list it controls so the answer to "which list am I
+   editing" is on screen before the list itself, not after it. */
+function setsBarHtml(kind, id, ro){
+  var all = setsFor(kind, id);
+  var activeId = activeSetId(kind, id);
+  var h = '<div class="sets">';
+  h += '<div class="sets-row">';
+  h += all.map(function(st){
+    var n = (st.targets || []).length;
+    return '<button class="setchip' + (st.id === activeId ? ' on' : '') + '"'
+      + (ro ? ' disabled' : '') + ' data-set="' + kind + ':' + esc(st.id) + '"'
+      + ' title="' + esc(st.name) + ' — ' + n + ' target' + (n === 1 ? '' : 's') + '">'
+      + esc(st.name) + '<span class="setchip-n">' + n + '</span></button>';
+  }).join('');
+  if (!ro) h += '<button class="setchip add" data-newset="' + kind + '" title="Create a new set">'
+    + svg(GLYPH.plus) + '</button>';
+  h += '</div>';
+  if (!ro){
+    h += '<div class="sets-act">'
+      +  '<button class="btn sm" data-renset="' + kind + ':' + esc(activeId) + '">Rename set</button>'
+      +  (all.length > 1
+          ? '<button class="btn sm danger" data-delset="' + kind + ':' + esc(activeId) + '">Delete set</button>'
+          : '')
+      +  '</div>';
+  }
+  h += '</div>';
+  return h;
+}
+
+/* ══ TUTORIALS ═════════════════════════════════════════════════════════════
+   Every screen used to end in several paragraphs of permanently-visible prose.
+   It was accurate and nobody read it twice — it just pushed the controls off
+   the bottom of a phone screen.
+
+   Same information, restructured: a short lede next to each control says what
+   the thing does, and the long explanation moves into a per-page tutorial that
+   is CLOSED until asked for. Open state is remembered for the session only, so
+   a page that was expanded to read something does not stay expanded forever. */
+var TUT_OPEN = {};
+
+function tutH(t){ return '<div class="tut-h">' + t + '</div>'; }
+function tutP(t){ return '<div class="tut-p">' + t + '</div>'; }
+
+var TUTORIALS = {
+  closer: {
+    title: 'How Close Apps works',
+    body:
+        tutH('Naming a target')
+      + tutP('<b>Executable</b> — <code>discord.exe</code>. Matched exactly, so it survives version-folder churn.')
+      + tutP('<b>Folder</b> — <code>C:\\Riot Games</code>. Closes everything running from inside it.')
+      + tutP('<b>Full path</b> — one exact process.')
+      + tutP('Prefer a folder for anything modern. Riot is a launcher, six windows and a crash handler; a browser is a parent plus a process per tab. Naming one executable leaves the window you were looking at on screen.')
+      + tutH('Target sets')
+      + tutP('Each set is its own list. Keep a <b>Work</b> set and a <b>Gaming</b> set and switch between them — only the highlighted set is live, and it is what the Close Apps button and every trigger use.')
+      + tutH('Triggers')
+      + tutP('A trigger fires when its app <b>starts</b> or when you <b>switch to it</b> — a browser is usually already running, so "I opened Brave" means its window came forward.')
+      + tutP('Each trigger then waits 45 seconds before it can fire again, and never closes itself. Works with the window shut and survives a restart.')
+      + tutH('Reopening')
+      + tutP('<b>Reopen what was closed</b> puts the apps back when you quit the trigger app. Every close is also reversible by hand from <b>History</b>, whether that switch is on or not.')
+      + tutH('Before you trust it')
+      + tutP('<b>Preview</b> lists exactly what would close without closing anything. Shield asks each app nicely first and forces only what will not go quietly.')
+  },
+  emergency: {
+    title: 'How Emergency Mode works',
+    body:
+        tutH('What it does')
+      + tutP('Closes every emergency target, optionally hides their desktop and Start-menu icons, re-locks your A1 apps, and can lock Windows itself.')
+      + tutH('Scope')
+      + tutP('<b>This device</b> acts here only. <b>All devices</b> reaches every device on your profile — including ones that are asleep or switched off, which activate the moment they come back.')
+      + tutH('Hide icons')
+      + tutP('Shortcuts are moved to a stash and put back in the same desktop position afterwards. Nothing is ever deleted. Store apps and taskbar pins cannot be hidden — there is no shortcut file to move.')
+      + tutH('Keep targets closed')
+      + tutP('Re-closes a target that starts again while the lockdown is on. Windows 11 Home cannot block a program from launching, so an app will visibly flash before it dies.')
+      + tutH('Ending it')
+      + tutP('Emergency Mode survives a reboot on purpose — restarting is not a way out. Lifting it restores every icon and unlocks the apps.')
+  },
+  security: {
+    title: 'About the passcode',
+    body:
+        tutH('Where it lives')
+      + tutP('Your passcode never touches this browser or Firebase. It is hashed with PBKDF2 (100,000 rounds) and checked by a Cloudflare Worker.')
+      + tutH('If you forget it')
+      + tutP('<b>Forgot password?</b> shows your hint. <b>Reset password via email</b> sends to this profile\u2019s address — that email is the only recovery path, so keep a hint set.')
+      + tutH('What this protects against')
+      + tutP('Shield raises the cost of a glance over your shoulder. It does not defeat someone who knows it is there and has time alone with an unlocked PC.')
+  },
+  home: {
+    title: 'Getting started',
+    body:
+        tutH('Close Apps')
+      + tutP('Shuts down the targets in your active set on this device. Everything it closes can be reopened from <b>History</b>.')
+      + tutH('Emergency')
+      + tutP('Closes the emergency targets, hides their icons if you asked it to, and re-locks your A1 apps. Choose <b>all devices</b> to reach your phone and other PCs too.')
+      + tutH('Set it up')
+      + tutP('Add targets under <b>Configure</b>. On a PC with the Shield agent you can pick apps from a list instead of typing paths.')
+  },
+  devices: {
+    title: 'About devices',
+    body:
+        tutH('One config each')
+      + tutP('Every device owns its configuration — a phone cannot describe a PC\u2019s executables. You can view another device\u2019s setup, but only edit the one you are on.')
+      + tutH('The agent')
+      + tutP('The Shield agent is what closes applications, holds the global hotkeys and receives emergencies with no window open. Without it a device can still re-lock its A1 apps.')
+  }
+};
+
+/* Render a page's tutorial. Closed unless it was opened this session. */
+function tutorial(page){
+  var t = TUTORIALS[page];
+  if (!t) return '';
+  var open = !!TUT_OPEN[page];
+  return '<div class="tut' + (open ? ' open' : '') + '" data-tut="' + page + '">'
+    + '<button type="button" class="tut-btn" data-tuttoggle="' + page + '"'
+    +   ' aria-expanded="' + (open ? 'true' : 'false') + '">'
+    +   svg(GLYPH.book) + '<span>' + esc(t.title) + '</span>'
+    +   '<span class="chev">' + svg(GLYPH.chev) + '</span>'
+    + '</button>'
+    + '<div class="tut-body">' + t.body + '</div>'
+    + '</div>';
+}
+
+function wireTutorials(root){
+  if (!root) return;
+  Array.prototype.forEach.call(root.querySelectorAll('[data-tuttoggle]'), function(b){
+    b.onclick = function(){
+      var page = b.getAttribute('data-tuttoggle');
+      var box = root.querySelector('[data-tut="' + page + '"]');
+      if (!box) return;
+      // Toggled in place rather than by re-rendering the screen: a full
+      // re-render would scroll the page back to the top, moving the text the
+      // user just asked to read out from under them.
+      var open = !box.classList.contains('open');
+      box.classList.toggle('open', open);
+      b.setAttribute('aria-expanded', open ? 'true' : 'false');
+      TUT_OPEN[page] = open;
+    };
+  });
+}
+
 function tabTargets(kind, id, ro){
-  var tg = targetsFor(kind, id);
-  var h = '<div class="sec"><div class="sec-head"><span class="sec-title">Program Closer targets</span>'
+  var tg = targetsFor('closer', id);
+  var setName = activeSetName('closer', id);
+
+  // ── Program Closer targets ───────────────────────────────────────────────
+  var h = '<div class="sec"><div class="sec-head"><span class="sec-title">Program closer targets</span>'
         + (ro ? '' : '<span style="display:flex;gap:6px">'
             + (tg.length && caps().kill ? '<button class="btn sm" data-preview="closer">' + svg(GLYPH.eye) + 'Preview</button>' : '')
             + '<button class="btn sm ac" data-add="closer">' + svg(GLYPH.plus) + 'Add</button></span>') + '</div>';
+  h += '<div class="lede">Apps the <b>Close Apps</b> button shuts down.</div>';
+  h += setsBarHtml('closer', id, ro);
   h += tg.length ? tg.map(function(t){ return targetRowHtml(t, 'closer', ro, false); }).join('')
-                 : '<div class="empty">No targets yet. These are the applications the <b>Close Apps</b> button shuts down on this device.</div>';
+                 : '<div class="empty">“' + esc(setName) + '” is empty. <b>Add</b> an app to put it in this set.</div>';
   h += '</div>';
-  // ── Auto-close triggers ─────────────────────────────────────────────────
+
+  // ── Auto-close triggers ──────────────────────────────────────────────────
   var trg = targetsFor('trigger', id);
+  var trgSetName = activeSetName('trigger', id);
   h += '<div class="sec"><div class="sec-head"><span class="sec-title">Close automatically when these open</span>'
     +  (ro ? '' : '<button class="btn sm ac" data-add="trigger">' + svg(GLYPH.plus) + 'Add</button>') + '</div>';
+  h += '<div class="lede">Open one of these and Shield runs <b>Close Apps</b> for you.</div>';
+  h += setsBarHtml('trigger', id, ro);
   h += trg.length
      ? trg.map(function(t){ return targetRowHtml(t, 'trigger', ro, false); }).join('')
-     : '<div class="empty">Nothing yet. Add an app here and Shield runs <b>Close Apps</b> the moment it opens — start a game, '
-       + 'everything above tidies itself away.</div>';
-  h += '</div>';
-  if (trg.length){
-    h += '<div class="sec"><div class="hint">Fires when the app <b>starts</b> or when you <b>switch to it</b> — a browser is '
-      +  'usually already running, so "I opened Brave" means its window came forward. Both count.'
-      +  '<br><br>Each trigger then waits 45 seconds before it can fire again, and never closes itself — opening League cannot '
-      +  'close League. Works with the window shut, survives a restart, and lands in <b>History</b> with a Reopen button.'
-      +  (caps().agent ? '' : '<br><br><b>This device has no agent, so nothing will fire here.</b>')
-      +  '</div></div>';
+     : '<div class="empty">“' + esc(trgSetName) + '” is empty. Add a game here and everything above tidies itself away when it starts.</div>';
+  if (trg.length && !caps().agent){
+    h += '<div class="hint warn" style="padding-top:8px">This device has no agent, so nothing will fire here.</div>';
   }
+  h += '</div>';
 
-  h += '<div class="sec"><div class="hint">Three ways to name a target:<br>'
-    +  '<b>Executable</b> — <code>discord.exe</code>. Matched exactly, so it survives version-folder churn.<br>'
-    +  '<b>Full path</b> — <code>C:\\Riot Games\\Riot Client\\RiotClientServices.exe</code>. One exact process.<br>'
-    +  '<b>Folder</b> — <code>C:\\Riot Games</code>. Closes <b>everything running from inside it</b>.'
-    +  '<br><br>Prefer a folder for anything modern: Riot is a launcher, six Electron windows and a crash handler across two '
-    +  'directories, and a browser is a parent plus a process per tab. Naming one executable leaves the window you were '
-    +  'actually looking at on screen.'
-    +  '<br><br><b>Preview</b> shows what would close without closing it. Shield asks nicely first and forces only what does '
-    +  'not go quietly, and every run is reversible from <b>History</b>.</div></div>';
+  // ── Reopen after the trigger closes ──────────────────────────────────────
+  h += '<div class="sec"><div class="sec-head"><span class="sec-title">When the trigger app closes</span></div><div class="card">';
+  h += optHtml('reopenAfterTrigger', reopenAfterTrigger(id), 'Reopen what was closed',
+        'Quit the game and the apps it swept away come back. Only applies to closes a trigger started — the Close Apps button never reopens on its own.',
+        ro || !caps().agent, 'data-copt');
+  h += '</div></div>';
+
+  h += tutorial('closer');
   return h;
 }
 
@@ -3515,8 +3944,9 @@ function tabEmergency(id, ro){
   var cfg = cfgEmg(id), tg = cfg.targets || [], c = (devRec(id) && devRec(id).caps) || {};
   var h = '<div class="sec"><div class="sec-head"><span class="sec-title">Emergency targets</span>'
         + (ro ? '' : '<button class="btn sm ac" data-add="emergency">' + svg(GLYPH.plus) + 'Add</button>') + '</div>';
+  h += '<div class="lede">Closed — and optionally hidden — the moment Emergency Mode starts.</div>';
   h += tg.length ? tg.map(function(t){ return targetRowHtml(t, 'emergency', ro, true); }).join('')
-                 : '<div class="empty">No emergency targets yet. These are closed — and optionally hidden — the moment Emergency Mode activates.</div>';
+                 : '<div class="empty">No emergency targets yet.</div>';
   h += '</div>';
 
   h += '<div class="sec"><div class="sec-head"><span class="sec-title">Emergency behaviour</span></div><div class="card">';
@@ -3529,6 +3959,7 @@ function tabEmergency(id, ro){
 
   h += '<div class="sec"><div class="sec-head"><span class="sec-title">What this device can enforce</span></div><div class="card">'
     +  capsHtml(devRec(id)) + '</div></div>';
+  h += tutorial('emergency');
   return h;
 }
 
@@ -3718,10 +4149,13 @@ function iosGuardHtml(mine){
   return h;
 }
 
-function optHtml(key, on, name, sub, disabled){
+function optHtml(key, on, name, sub, disabled, attr){
+  // `attr` picks which handler the switch routes to. Defaults to data-opt,
+  // which writes under emergency.* — the Close Apps tab passes its own so a
+  // closer setting is not filed under the emergency config.
   return '<div class="opt"><div class="opt-main"><div class="opt-name">' + esc(name) + '</div>'
        + '<div class="opt-sub">' + sub + '</div></div>'
-       + '<button class="toggle' + (on?' on':'') + '"' + (disabled?' disabled':'') + ' data-opt="' + key + '"><i></i></button></div>';
+       + '<button class="toggle' + (on?' on':'') + '"' + (disabled?' disabled':'') + ' ' + (attr||'data-opt') + '="' + key + '"><i></i></button></div>';
 }
 
 /* The capability panel. Written from what the device actually reports, and
@@ -3781,13 +4215,11 @@ function tabSecurity(id, ro){
   h += '</div></div>';
 
   h += '<div class="sec"><div class="sec-head"><span class="sec-title">Recovery</span></div><div class="card">';
-  h += '<div class="hint">Your passcode never touches this browser or Firebase — it is hashed with PBKDF2 (100,000 '
-    +  'iterations, random salt) inside the Cloudflare Worker the suite shares.<br><br>'
+  h += '<div class="hint">'
     +  (window.AL.hasOffline(lid)
-        ? '<b>Offline unlock works on this device.</b> If the Worker is unreachable, Shield checks a local copy of the same hash — so an outage during Emergency Mode is not a lockout.'
+        ? '<b>Offline unlock works on this device.</b> If the Worker is unreachable, Shield checks a local copy of the same hash — an outage during Emergency Mode is not a lockout.'
         : '<b>No offline verifier here yet.</b> It is written next time you set or change the passcode on this device. Until then, disabling Emergency Mode needs a connection.')
-    +  '<br><br>Forgotten it? <b>Forgot password?</b> gives the hint, <b>Reset password via email</b> sends to this profile\'s '
-    +  'address. That email is the only recovery path, so keep a hint set.</div>';
+    +  '</div>';
   h += '</div></div>';
 
   h += '<div class="sec"><div class="sec-head"><span class="sec-title">This device</span></div><div class="card">';
@@ -3801,10 +4233,10 @@ function tabSecurity(id, ro){
 
   h += '<div class="sec"><div class="sec-head"><span class="sec-title">Honest limits</span></div><div class="card">'
     +  '<div class="hint">Shield raises the cost of a glance over your shoulder. It does not defeat someone who knows it '
-    +  'exists and has your unlocked machine — they can end the agent in Task Manager. Firebase still lets any signed-in '
-    +  'client read the suite\'s documents, so profile separation here rests on the passcode, not the server. Nothing in this '
-    +  'app is stronger than the OS underneath it, and it will not pretend otherwise.</div>'
+    +  'exists and has your unlocked machine — they can end the agent in Task Manager. Nothing here is stronger than the OS '
+    +  'underneath it, and it will not pretend otherwise.</div>'
     +  '</div></div>';
+  h += tutorial('security');
   return h;
 }
 
@@ -3838,6 +4270,38 @@ function wireConfig(id, ro){
     if (ro || b.disabled) return;
     b.onclick = function(){ toggleOpt(b.getAttribute('data-opt')); };
   });
+  // Close Apps settings live under closer.*, not emergency.*.
+  Array.prototype.forEach.call(root.querySelectorAll('[data-copt]'), function(b){
+    if (ro || b.disabled) return;
+    b.onclick = function(){ toggleCloserOpt(b.getAttribute('data-copt')); };
+  });
+  // ── Target sets ──
+  Array.prototype.forEach.call(root.querySelectorAll('[data-set]'), function(b){
+    if (ro) return;
+    b.onclick = function(){
+      var p = b.getAttribute('data-set').split(':');
+      switchSet(p[0], p.slice(1).join(':'));
+    };
+  });
+  Array.prototype.forEach.call(root.querySelectorAll('[data-newset]'), function(b){
+    if (ro) return;
+    b.onclick = function(){ newSet(b.getAttribute('data-newset')); };
+  });
+  Array.prototype.forEach.call(root.querySelectorAll('[data-renset]'), function(b){
+    if (ro) return;
+    b.onclick = function(){
+      var p = b.getAttribute('data-renset').split(':');
+      renameSet(p[0], p.slice(1).join(':'));
+    };
+  });
+  Array.prototype.forEach.call(root.querySelectorAll('[data-delset]'), function(b){
+    if (ro) return;
+    b.onclick = function(){
+      var p = b.getAttribute('data-delset').split(':');
+      deleteSet(p[0], p.slice(1).join(':'));
+    };
+  });
+  wireTutorials(root);
 
   wireIosGuard(root, ro);
 
@@ -3951,32 +4415,189 @@ async function previewTargets(kind){
   }
 }
 
-async function addTarget(kind){
-  if (isReadOnly()) return;
-  var c = caps();
-  var suggestions = null;
-  // On a device with the agent, offer what is actually running rather than
-  // making the user guess an executable name.
-  if (c.agent){
-    try { suggestions = await Agent.invoke('sh_enumerate', {}); } catch(e){ suggestions = null; }
+/* ── App picker ────────────────────────────────────────────────────────────
+   Typing an executable name is a memory test the user should not have to sit:
+   it needs the exact spelling, and getting it wrong fails SILENTLY — the target
+   saves fine and simply never matches anything, which only surfaces later as
+   "Close Apps did nothing". Picking from the real list cannot be misspelled.
+
+   Manual entry stays, because the list cannot cover everything: a portable exe
+   with no shortcut that is not running right now appears nowhere, and a folder
+   target is often the better answer anyway. */
+var PICK = null;
+
+function pickIcon(name){
+  var n = String(name || '?').replace(/^[^a-z0-9]+/i, '');
+  return esc((n.charAt(0) || '?').toUpperCase());
+}
+
+/* Rows for the current tab and search text. */
+function pickRows(){
+  if (!PICK) return [];
+  var q = PICK.q.trim().toLowerCase();
+  var rows = PICK.tab === 'running' ? PICK.running : PICK.installed;
+  if (q) rows = rows.filter(function(r){
+    return (r._name + ' ' + r._path).toLowerCase().indexOf(q) >= 0;
+  });
+  return rows;
+}
+
+function renderPickList(){
+  var host = document.getElementById('pick-list');
+  if (!host || !PICK) return;
+  var rows = pickRows();
+  if (!rows.length){
+    host.innerHTML = '<div class="pick-none">'
+      + (PICK.q ? 'Nothing matches that.<br>Try the other tab, or <b>Enter a path</b>.'
+                : (PICK.tab === 'running' ? 'Nothing is running that Shield can close.'
+                                          : 'No installed applications found.<br>Use <b>Enter a path</b> instead.'))
+      + '</div>';
+    return;
   }
+  host.innerHTML = rows.map(function(r, i){
+    return '<button type="button" class="pick-row" data-pick="' + i + '">'
+      + '<span class="pick-ico">' + pickIcon(r._name) + '</span>'
+      + '<span class="pick-main">'
+      +   '<span class="pick-name">' + esc(r._name) + '</span>'
+      +   '<span class="pick-path">' + esc(r._path || r._file || '') + '</span>'
+      + '</span>'
+      + (r.running ? '<span class="pick-live">Open</span>' : '')
+      + '</button>';
+  }).join('');
+  Array.prototype.forEach.call(host.querySelectorAll('[data-pick]'), function(b){
+    b.onclick = function(){
+      var r = pickRows()[+b.getAttribute('data-pick')];
+      if (r) pickFinish(r);
+    };
+  });
+}
+
+function pickFinish(v){
+  var f = PICK && PICK.resolve;
+  PICK = null;
+  var ov = document.getElementById('pick-overlay');
+  if (ov) ov.remove();
+  if (f) f(v);
+}
+
+/* Show the picker. Resolves with the chosen app, the string 'manual', or null. */
+function openPicker(title, installed, running){
+  return new Promise(function(resolve){
+    // Normalise both lists to one shape so the renderer has a single contract.
+    var inst = (installed || []).map(function(a){
+      return { _name: a.name, _path: a.folder || a.exe, _file: a.file,
+               running: !!a.running, app: a };
+    });
+    var run = (running || []).map(function(r){
+      var stem = String(r.file || '').replace(/\.exe$/i, '') || r.file || '';
+      return { _name: stem, _path: r.exe, _file: r.file, running: true,
+               app: { name: stem, exe: r.exe, file: r.file, folder: '' } };
+    });
+    PICK = { tab: inst.length ? 'installed' : 'running', q: '',
+             installed: inst, running: run, resolve: resolve };
+
+    var ov = document.createElement('div');
+    ov.id = 'pick-overlay';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:2147483500;display:flex;align-items:center;'
+      + 'justify-content:center;background:rgba(14,14,16,.66);backdrop-filter:blur(5px);'
+      + '-webkit-backdrop-filter:blur(5px);padding:20px;box-sizing:border-box';
+    ov.innerHTML =
+      '<div style="width:100%;max-width:420px;background:var(--s2);border:1px solid var(--bdl);'
+      + 'border-radius:var(--radius);padding:20px;box-sizing:border-box;box-shadow:0 30px 70px rgba(0,0,0,.5)">'
+      + '<div style="font-family:var(--display);font-size:18px;font-weight:var(--head-wt);'
+      +   'letter-spacing:var(--head-ls);text-transform:var(--head-tr);color:var(--tx);margin-bottom:12px">'
+      +   esc(title) + '</div>'
+      + '<input id="pick-q" class="pick-search" placeholder="Search apps" autocomplete="off" '
+      +   'autocapitalize="off" autocorrect="off" spellcheck="false">'
+      + '<div class="pick-tabs">'
+      +   '<button type="button" class="pick-tab" data-ptab="installed">Installed</button>'
+      +   '<button type="button" class="pick-tab" data-ptab="running">Running</button>'
+      + '</div>'
+      + '<div class="pick-list" id="pick-list"></div>'
+      + '<div style="display:flex;gap:10px;margin-top:14px;justify-content:space-between">'
+      +   '<button type="button" class="btn sm" id="pick-manual">Enter a path</button>'
+      +   '<button type="button" class="btn sm" id="pick-cancel">Cancel</button>'
+      + '</div></div>';
+    document.body.appendChild(ov);
+
+    function syncTabs(){
+      Array.prototype.forEach.call(ov.querySelectorAll('[data-ptab]'), function(b){
+        b.classList.toggle('on', b.getAttribute('data-ptab') === PICK.tab);
+      });
+    }
+    Array.prototype.forEach.call(ov.querySelectorAll('[data-ptab]'), function(b){
+      b.onclick = function(){ PICK.tab = b.getAttribute('data-ptab'); syncTabs(); renderPickList(); };
+    });
+    var qi = ov.querySelector('#pick-q');
+    qi.oninput = function(){ PICK.q = qi.value; renderPickList(); };
+    ov.querySelector('#pick-manual').onclick = function(){ pickFinish('manual'); };
+    ov.querySelector('#pick-cancel').onclick = function(){ pickFinish(null); };
+    ov.addEventListener('click', function(e){ if (e.target === ov) pickFinish(null); });
+    document.addEventListener('keydown', function onEsc(e){
+      if (e.key !== 'Escape') return;
+      if (!document.getElementById('pick-overlay')){ document.removeEventListener('keydown', onEsc); return; }
+      document.removeEventListener('keydown', onEsc);
+      pickFinish(null);
+    });
+    syncTabs(); renderPickList();
+    setTimeout(function(){ try { qi.focus(); } catch(e){} }, 40);
+  });
+}
+
+/* Ask for a target by hand. The original flow, kept as the fallback and as a
+   deliberate choice from the picker. */
+async function manualTarget(kind, preset){
+  var c = caps();
   var msg = TARGET_HELP;
   if (!c.agent){
     msg += '\n\nThis device has no Shield agent, so nothing here can actually be closed — targets are saved and apply once the agent is installed.';
   }
-  if (suggestions && suggestions.running && suggestions.running.length){
-    msg += '\n\nRunning now: ' + suggestions.running.slice(0, 12).join(', ');
-  }
-  var vals = await window.uiForm({
+  return await window.uiForm({
     title: kind === 'emergency' ? 'Add emergency target'
          : (kind === 'trigger' ? 'Close apps when this opens' : 'Add target'),
     message: msg,
     okLabel: 'Add',
     fields: [
-      { name:'value', label:'Executable or path', placeholder:'discord.exe', autocap:false, required:true },
-      { name:'label', label:'Display name (optional)', placeholder:'Discord' }
+      { name:'value', label:'Executable, folder or full path', value:(preset&&preset.value)||'',
+        placeholder:'discord.exe', autocap:false, required:true },
+      { name:'label', label:'Display name (optional)', value:(preset&&preset.label)||'', placeholder:'Discord' }
     ]
   });
+}
+
+async function addTarget(kind){
+  if (isReadOnly()) return;
+  var c = caps();
+  var vals = null;
+
+  // With an agent, show the real applications first. Without one there is
+  // nothing to enumerate, so go straight to typing.
+  if (c.agent){
+    var apps = null;
+    try { apps = await Agent.invoke('sh_apps', {}); } catch(e){ apps = null; }
+    var hasAny = apps && ((apps.installed && apps.installed.length) || (apps.running && apps.running.length));
+    if (hasAny){
+      var chosen = await openPicker(
+        kind === 'emergency' ? 'Add emergency target'
+          : (kind === 'trigger' ? 'Close apps when this opens' : 'Add target'),
+        apps.installed || [], apps.running || []);
+      if (chosen === null) return;
+      if (chosen === 'manual'){
+        vals = await manualTarget(kind);
+      } else {
+        var a = chosen.app || {};
+        // Prefer the install FOLDER when one was worked out: a modern app runs
+        // several executables and naming one leaves the rest open. That is the
+        // same advice the help text gives, applied on the user's behalf.
+        vals = { value: a.folder || a.exe || a.file || '', label: a.name || '' };
+      }
+    } else {
+      vals = await manualTarget(kind);
+    }
+  } else {
+    vals = await manualTarget(kind);
+  }
+
   if (!vals) return;
   var value = String(vals.value||'').trim().replace(/[\\\/]+$/, '');
   if (!value) return;
@@ -4416,6 +5037,13 @@ return {
   // are what let the headless harness drive it without faking the whole DOM.
   _ios: { platform: platform, apps: iosApps, setApps: setIosApps,
           step: iosStep, url: guardUrl, setKey: setGuardKey, render: renderConfig },
+  // Target sets and the tutorial panels, on the same debug seam as _ios above
+  // and for the same reason: the headless harness can then drive the real
+  // render path instead of re-implementing it.
+  _sets: { list: setsFor, activeId: activeSetId, activeName: activeSetName,
+           save: saveSets, use: switchSet, add: newSet, rename: renameSet,
+           remove: deleteSet, render: renderConfig, renderHome: renderHome,
+           reopen: reopenAfterTrigger },
   // Exposed so the navorder listener (Firebase module script, loaded earlier
   // in the page) can push local-link paths into the agent without duplicating
   // the __TAURI__ presence check Agent already does.

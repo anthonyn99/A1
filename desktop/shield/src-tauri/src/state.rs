@@ -68,6 +68,14 @@ pub struct AgentState {
     pub triggers: Vec<Target>,
     #[serde(default)]
     pub emergency: EmergencyCfg,
+    /// Put back what a trigger closed, once that trigger app quits.
+    ///
+    /// Off unless asked for. Reopening applications is a visible, disruptive
+    /// act — six windows arriving at once while the user has moved on to
+    /// something else — so it is opt-in, and independent of whether triggers
+    /// themselves are configured.
+    #[serde(default, rename = "reopenAfterTrigger")]
+    pub reopen_after_trigger: bool,
 
     #[serde(default)]
     pub emergency_active: bool,

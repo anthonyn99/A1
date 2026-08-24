@@ -279,15 +279,55 @@ fn arm_remote(app: &AppHandle) {
 }
 
 /// Point the trigger watcher at the current configuration.
+///
+/// Two callbacks: one for the app starting (close things), one for it quitting
+/// (put them back, if Reopen-after-trigger is on). The ON/OFF switch is read at
+/// the moment the trigger EXITS rather than captured when it fired, so turning
+/// the feature off while a game is running means nothing reopens when it closes
+/// — which is what someone reaching for that switch mid-session wants.
 fn arm_triggers(app: &AppHandle) {
     let handle = app.clone();
+    let exit_handle = app.clone();
     let list = state::get().triggers;
     let ctx = app.state::<Ctx>();
-    ctx.triggers.set(list, move |fired| {
-        let names: Vec<String> = fired.iter().map(|t| t.display()).collect();
-        log_event("auto-close", &names.join(", "));
-        run_closer_excluding(&handle, "trigger", &fired);
-    });
+    ctx.triggers.set(
+        list,
+        move |fired| {
+            let names: Vec<String> = fired.iter().map(|t| t.display()).collect();
+            log_event("auto-close", &names.join(", "));
+            let res = run_closer_excluding(&handle, "trigger", &fired);
+            let entry = res
+                .get("entryId")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string();
+            // Every trigger that fired in this pass owes the same entry: they
+            // fired together and one close covered all of them.
+            fired.iter().map(|t| (t.id.clone(), entry.clone())).collect()
+        },
+        move |entry_id, label| {
+            if !state::get().reopen_after_trigger {
+                return;
+            }
+            let Some(e) = history::get(entry_id) else { return };
+            if e.reverted {
+                return; // already put back by hand
+            }
+            let groups: Vec<(String, Vec<proc::LaunchItem>)> =
+                e.items.into_iter().map(|i| (i.label, i.launch)).collect();
+            if groups.iter().all(|(_, l)| l.is_empty()) {
+                return;
+            }
+            let results = proc::launch(&groups);
+            let n = results.iter().filter(|r| r.status == "launched").count();
+            log_event("auto-reopen", &format!("{label} closed — reopened {n}"));
+            history::mark_reverted(entry_id);
+            let _ = exit_handle.emit(
+                "shield://reopened",
+                json!({ "entryId": entry_id, "by": label, "count": n }),
+            );
+        },
+    );
 }
 
 // ── commands ────────────────────────────────────────────────────────────────
@@ -305,6 +345,8 @@ pub struct SetConfig {
     closer: Vec<Target>,
     #[serde(default)]
     triggers: Vec<Target>,
+    #[serde(default, rename = "reopenAfterTrigger")]
+    reopen_after_trigger: bool,
     #[serde(default)]
     emergency: EmergencyCfg,
 }
@@ -337,6 +379,7 @@ fn sh_set_config(app: AppHandle, cfg: SetConfig) -> serde_json::Value {
         }
         st.closer = clean(cfg.closer.clone());
         st.triggers = clean(cfg.triggers.clone());
+        st.reopen_after_trigger = cfg.reopen_after_trigger;
         st.emergency = EmergencyCfg {
             targets: clean(cfg.emergency.targets.clone()),
             lock_workstation: cfg.emergency.lock_workstation,
@@ -354,6 +397,7 @@ fn sh_status(ctx: State<'_, Ctx>) -> serde_json::Value {
         "version": VERSION,
         "platform": "windows",
         "deviceId": state::device_id(),
+        "reopenAfterTrigger": s.reopen_after_trigger,
         "emergency": { "active": s.emergency_active, "at": s.emergency_at,
                        "source": s.emergency_source, "entryId": s.entry_id },
         "watchdog": ctx.wd.is_running(),
@@ -376,6 +420,49 @@ fn sh_status(ctx: State<'_, Ctx>) -> serde_json::Value {
 fn sh_enumerate() -> serde_json::Value {
     let (running, shortcuts) = proc::enumerate();
     json!({ "running": running, "shortcuts": shortcuts })
+}
+
+/// The full app picker payload: what is installed, and what is running.
+///
+/// One command rather than two because the two lists have to be reconciled
+/// before they are useful — an installed app that is running should say so, and
+/// a running process that has a shortcut should not also appear as a separate
+/// anonymous row. Doing that here keeps the page from having to re-implement
+/// path matching in JavaScript.
+#[tauri::command]
+fn sh_apps() -> serde_json::Value {
+    let mut installed = shortcuts::list_installed_apps();
+    let running = proc::running_apps();
+
+    for app in installed.iter_mut() {
+        app.running = running.iter().any(|r| {
+            r.exe.eq_ignore_ascii_case(&app.exe)
+                || (!app.folder.is_empty() && {
+                    let base = app.folder.to_ascii_lowercase();
+                    let rp = r.exe.to_ascii_lowercase();
+                    rp.strip_prefix(&base)
+                        .map(|rest| rest.starts_with('\\') || rest.starts_with('/'))
+                        .unwrap_or(false)
+                })
+        });
+    }
+
+    // Anything running that no shortcut accounts for is still worth offering —
+    // portable apps and things launched from a folder have no .lnk at all.
+    let extra: Vec<&proc::RunningApp> = running
+        .iter()
+        .filter(|r| {
+            !installed
+                .iter()
+                .any(|a| a.exe.eq_ignore_ascii_case(&r.exe) || a.file.eq_ignore_ascii_case(&r.file))
+        })
+        .collect();
+
+    json!({
+        "installed": installed,
+        "running": running,
+        "runningOnly": extra,
+    })
 }
 
 #[derive(Deserialize)]
@@ -713,7 +800,7 @@ pub fn run() {
         )
         .manage(Ctx { wd: Watchdog::new(), triggers: Triggers::new(), poller: remote::Poller::new() })
         .invoke_handler(tauri::generate_handler![
-            sh_status, sh_set_config, sh_enumerate, sh_kill,
+            sh_status, sh_set_config, sh_enumerate, sh_apps, sh_kill,
             sh_emergency_on, sh_emergency_off, sh_launch, sh_set_links,
             sh_restore_icons, sh_pull_history, sh_lock_workstation
         ])

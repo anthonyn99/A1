@@ -209,6 +209,59 @@ pub fn enumerate() -> (Vec<String>, Vec<String>) {
     (names, shortcuts)
 }
 
+/// One running application, as the picker shows it.
+///
+/// Grouped by executable, not by process: a browser is a parent plus a process
+/// per tab, and listing thirty identical rows called `chrome.exe` is not a
+/// picker, it is a wall. `count` carries how many are behind each row so the
+/// user can still see that a target covers more than one process.
+#[derive(Debug, Clone, Serialize)]
+pub struct RunningApp {
+    /// Process image name, e.g. "discord.exe".
+    pub file: String,
+    /// Full path to the image, when it is readable.
+    pub exe: String,
+    /// How many live processes share this image.
+    pub count: u32,
+    /// Does at least one of them own a visible window?
+    ///
+    /// The picker sorts these first: an app the user can actually see is far
+    /// more likely to be the one they came here to name than a background
+    /// updater with the same claim to being "running".
+    pub windowed: bool,
+}
+
+/// Running applications, grouped by executable, for the picker.
+pub fn running_apps() -> Vec<RunningApp> {
+    let s = sys();
+    let windowed = pids_with_windows();
+    let mut by_exe: HashMap<String, RunningApp> = HashMap::new();
+    for (pid, p) in s.processes() {
+        let name = p.name().to_string_lossy().to_string();
+        if name.is_empty() || is_denied(&name) {
+            continue;
+        }
+        let exe = p.exe().map(|e| e.to_string_lossy().to_string()).unwrap_or_default();
+        let key = if exe.is_empty() { name.to_ascii_lowercase() } else { exe.to_ascii_lowercase() };
+        let has_window = windowed.contains(&pid.as_u32());
+        let e = by_exe.entry(key).or_insert_with(|| RunningApp {
+            file: name.clone(),
+            exe: exe.clone(),
+            count: 0,
+            windowed: false,
+        });
+        e.count += 1;
+        e.windowed |= has_window;
+    }
+    let mut out: Vec<RunningApp> = by_exe.into_values().collect();
+    out.sort_by(|a, b| {
+        b.windowed
+            .cmp(&a.windowed)
+            .then_with(|| a.file.to_ascii_lowercase().cmp(&b.file.to_ascii_lowercase()))
+    });
+    out
+}
+
 struct Found {
     pid: Pid,
     launch: LaunchItem,

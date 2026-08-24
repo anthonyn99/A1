@@ -38,6 +38,15 @@ const POLL_SECS: u64 = 45;
 /// Back off after repeated failures so an outage does not mean a request every
 /// twenty seconds forever.
 const MAX_BACKOFF_SECS: u64 = 300;
+/// Granularity of the wait between polls.
+///
+/// Small enough that a resume is noticed promptly, large enough that the thread
+/// is doing nothing measurable in between. This costs no extra requests — only
+/// the sleep is divided, not the polling.
+const SLICE_SECS: u64 = 5;
+/// How far the wall clock may move during one slice before it is read as a
+/// suspend rather than ordinary scheduling jitter.
+const RESUME_SKEW_SECS: u64 = 10;
 
 #[derive(Debug, Clone, Default, serde::Deserialize)]
 pub struct RemoteState {
@@ -140,8 +149,48 @@ impl Poller {
         let running = self.running.clone();
         thread::spawn(move || {
             let mut backoff = POLL_SECS;
+            // Ask IMMEDIATELY, before the first sleep.
+            //
+            // This is the whole of "an emergency raised while this laptop was
+            // off must land the moment it comes back". The agent starts with
+            // Windows, so boot and resume-from-hibernate both arrive here; if
+            // the loop slept first, a machine that had been off for a day would
+            // still sit unlocked for the poll interval after the user opened
+            // the lid — exactly the window the feature exists to close.
+            let mut due_now = true;
             while running.load(Ordering::SeqCst) {
-                thread::sleep(Duration::from_secs(backoff));
+                if !due_now {
+                    // Sleep in short slices rather than one long block. A thread
+                    // parked in a 45-second sleep across a suspend does not
+                    // resume promptly on wake — the remainder of the sleep is
+                    // served on the far side of it, so the first poll after
+                    // waking could be a full interval late on top of however
+                    // long the machine was out. Slicing also lets a wall-clock
+                    // jump be noticed, which is what actually identifies a
+                    // resume.
+                    let mut slept = 0u64;
+                    let mut last = std::time::SystemTime::now();
+                    while slept < backoff && running.load(Ordering::SeqCst) {
+                        thread::sleep(Duration::from_secs(SLICE_SECS));
+                        slept += SLICE_SECS;
+                        // A jump far larger than the slice means the machine was
+                        // suspended. Stop waiting and go ask straight away.
+                        let now = std::time::SystemTime::now();
+                        let jumped = now
+                            .duration_since(last)
+                            .map(|d| d.as_secs() > SLICE_SECS + RESUME_SKEW_SECS)
+                            .unwrap_or(true);
+                        last = now;
+                        if jumped {
+                            // Also drop any backoff: whatever network failure
+                            // caused it happened before a suspend, and the link
+                            // on the other side is a fresh one.
+                            backoff = POLL_SECS;
+                            break;
+                        }
+                    }
+                }
+                due_now = false;
                 if !running.load(Ordering::SeqCst) {
                     break;
                 }
