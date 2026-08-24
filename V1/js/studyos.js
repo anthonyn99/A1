@@ -3231,13 +3231,22 @@ function renderExamCountdown() {
   const today = new Date();
   const todayStr = today.toISOString().split('T')[0];
 
-  const exams = events
+  // Exams/quizzes come from BOTH events and tasks. Normalize tasks (dueDate/dueTime,
+  // no weight) into the event shape so the rest of the renderer stays uniform.
+  const examEvents = events
     .filter(e => (e.type === 'exam' || e.type === 'quiz') && e.date >= todayStr)
+    .map(e => ({ src: 'event', ref: e, id: e.id, name: e.name, date: e.date, time: e.time || '', classId: e.classId, type: e.type, weight: e.weight }));
+
+  const examTasks = tasks
+    .filter(t => (t.type === 'exam' || t.type === 'quiz') && !t.done && t.dueDate && t.dueDate >= todayStr)
+    .map(t => ({ src: 'task', ref: t, id: t.id, name: t.name, date: t.dueDate, time: t.dueTime || '', classId: t.classId, type: t.type, weight: '' }));
+
+  const exams = examEvents.concat(examTasks)
     .sort((a,b) => a.date.localeCompare(b.date))
     .slice(0, 6);
 
   if (exams.length === 0) {
-    el.innerHTML = '<div class="sos-exam-empty">No upcoming exams or quizzes.<br>Add one via <strong>+ Add Exam</strong> above,<br>or set type to Exam/Quiz when adding events.</div>';
+    el.innerHTML = '<div class="sos-exam-empty">No upcoming exams or quizzes.<br>Add one via <strong>+ Add Exam</strong> above,<br>or set type to Exam/Quiz when adding events or tasks.</div>';
     return;
   }
 
@@ -3259,7 +3268,7 @@ function renderExamCountdown() {
     const item = document.createElement('div');
     item.className = 'sos-exam-item';
     item.title = 'Click to edit';
-    item.onclick = () => openAddEvent(ev);
+    item.onclick = () => ev.src === 'task' ? openEditTask(ev.id) : openAddEvent(ev.ref);
     item.innerHTML = `
       <div class="sos-exam-cd-badge" style="background:${badgeBg}">
         <div class="sos-exam-cd-days" style="color:${badgeText}">${daysLeft <= 0 ? '0' : daysLeft}</div>
