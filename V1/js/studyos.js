@@ -3185,7 +3185,8 @@ function openNotifSettings() {
 function updateStats() {
   const today = new Date();
   const weekEnd = new Date(today); weekEnd.setDate(today.getDate() + 7);
-  const eventsThisWeek = events.filter(e => {
+  const feed = _sosScheduleItems();
+  const eventsThisWeek = feed.filter(e => {
     const d = new Date(e.date + 'T12:00:00');
     return d >= today && d <= weekEnd;
   }).length;
@@ -3193,7 +3194,7 @@ function updateStats() {
 
   // Exam-specific stats
   const todayStr = today.toISOString().split('T')[0];
-  const upcomingExams = events
+  const upcomingExams = feed
     .filter(e => (e.type === 'exam' || e.type === 'quiz') && e.date >= todayStr)
     .sort((a,b) => a.date.localeCompare(b.date));
   const examCountEl = _sosEl('stat-exams');
@@ -3215,6 +3216,21 @@ function updateStats() {
 
 // ── Urgency score helper ────────────────────────────────────────────────────
 // score = weight% × urgencyMultiplier where urgencyMultiplier decays over time
+// Unified schedule feed: events and tasks share one shape so every dashboard
+// panel (stats, countdown, priority queue) treats them identically. Tasks use
+// dueDate/dueTime and carry no grade weight; completed/dateless tasks drop out.
+function _sosScheduleItems() {
+  const fromEvents = events
+    .filter(e => e && e.date)
+    .map(e => ({ src:'event', ref:e, id:e.id, name:e.name, date:e.date, time:e.time || '',
+                 classId:e.classId, type:e.type, weight:e.weight }));
+  const fromTasks = tasks
+    .filter(t => t && t.dueDate && !t.done)
+    .map(t => ({ src:'task', ref:t, id:t.id, name:t.name, date:t.dueDate, time:t.dueTime || '',
+                 classId:t.classId, type:t.type || 'hw', weight:'' }));
+  return fromEvents.concat(fromTasks);
+}
+
 function _sosPriorityScore(ev) {
   const today = new Date();
   const daysLeft = Math.max(0, Math.ceil((new Date(ev.date + 'T12:00:00') - today) / 86400000));
@@ -3231,17 +3247,8 @@ function renderExamCountdown() {
   const today = new Date();
   const todayStr = today.toISOString().split('T')[0];
 
-  // Exams/quizzes come from BOTH events and tasks. Normalize tasks (dueDate/dueTime,
-  // no weight) into the event shape so the rest of the renderer stays uniform.
-  const examEvents = events
+  const exams = _sosScheduleItems()
     .filter(e => (e.type === 'exam' || e.type === 'quiz') && e.date >= todayStr)
-    .map(e => ({ src: 'event', ref: e, id: e.id, name: e.name, date: e.date, time: e.time || '', classId: e.classId, type: e.type, weight: e.weight }));
-
-  const examTasks = tasks
-    .filter(t => (t.type === 'exam' || t.type === 'quiz') && !t.done && t.dueDate && t.dueDate >= todayStr)
-    .map(t => ({ src: 'task', ref: t, id: t.id, name: t.name, date: t.dueDate, time: t.dueTime || '', classId: t.classId, type: t.type, weight: '' }));
-
-  const exams = examEvents.concat(examTasks)
     .sort((a,b) => a.date.localeCompare(b.date))
     .slice(0, 6);
 
@@ -3294,7 +3301,7 @@ function renderPriorityQueue() {
   const in30Str = in30.toISOString().split('T')[0];
 
   // Include exams + hw + quiz within 30 days
-  const scored = events
+  const scored = _sosScheduleItems()
     .filter(e => ['exam','hw','quiz'].includes(e.type) && e.date >= todayStr && e.date <= in30Str)
     .map(e => ({ ev: e, score: _sosPriorityScore(e) }))
     .sort((a,b) => b.score - a.score)
@@ -3318,7 +3325,7 @@ function renderPriorityQueue() {
     const item = document.createElement('div');
     item.className = 'sos-pq-item';
     item.title = 'Click to edit';
-    item.onclick = () => openAddEvent(ev);
+    item.onclick = () => ev.src === 'task' ? openEditTask(ev.id) : openAddEvent(ev.ref);
     item.innerHTML = `
       <div class="sos-pq-rank">${i + 1}</div>
       <div class="sos-pq-dot" style="background:${color}"></div>
