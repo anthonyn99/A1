@@ -14782,7 +14782,7 @@ function App(){
                   (t._sosClassName||t.category)&&(t._sosClassName?RC("span",{style:{fontSize:7,fontWeight:700,color:sosPastel(t._sosClassColor)||"#8b949e",background:(sosPastel(t._sosClassColor)||"#8b949e")+"22",border:"1px solid "+(sosPastel(t._sosClassColor)||"#8b949e")+"44",borderRadius:3,padding:"1px 4px",textTransform:"uppercase",letterSpacing:.4,whiteSpace:"normal",wordBreak:"break-word",maxWidth:80,lineHeight:1.2,opacity:dimA}},t._sosClassName):RC("span",{style:{...ctag(t.category),opacity:dimA}},t.category)),
                   t.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85*dimA,whiteSpace:"nowrap"},title:"Reminder: "+new Date(t.notifyAt).toLocaleString()},RC("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}}),"\u202f"+fmtNotif(t.notifyAt))),
                 RC("span",{style:{fontSize:14,fontWeight:t.done?500:700,color:t.done?TXM:dayTX,textDecoration:t.done?"line-through":"none",lineHeight:1.4,...vdTitleFit}},t.title)),
-                !edit&&sosResFor(t)&&RC("button",{type:"button",title:sosResTitle(sosResFor(t)),style:vdIcoBtn(sosPastel(t._sosClassColor)||A),onClick:ev3=>{ev3.stopPropagation();window._sosLaunchClass&&window._sosLaunchClass(t._sosClassId,t._sosClassName);}},vdIco(TNI.play,12)),
+                !edit&&sosResFor(t)&&RC("button",{type:"button",title:sosResTitle(sosResFor(t)),style:vdIcoBtn(sosPastel(t._sosClassColor)||A),onClick:ev3=>{ev3.stopPropagation();window._sosLaunchClassClick&&window._sosLaunchClassClick(t._sosClassId,t._sosClassName);}},vdIco(TNI.play,12)),
                 edit&&RC("button",{type:"button",title:"Edit",style:vdIcoBtn(TXD),onClick:()=>{setEi(t);setMdt(k);setMo(true);}},vdIco(TNI.pencil)),
                 edit&&RC("button",{type:"button",title:"Delete",style:vdIcoBtn("#f85149"),onClick:()=>del(k,t.id)},vdIco(TNI.x)))),
               ev.map(e=>RC("div",{key:e.id,...taskRowP(e.id),...(edit?taskTouchH(k,e.id):{}),draggable:edit,onDragStart:edit?ev2=>vOnDragStartTask(ev2,k,e.id):null,onDragOver:edit?ev2=>vOnDragOverTask(ev2,e.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?ev2=>vOnDropTask(ev2,k,e.id):null,style:vdndRowStyle(e.id,{...vdEventCard(e.category,vdEvtPassed(e,k)),...vdSosSpine(e,vdEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:7,marginBottom:4,opacity:vdEvtPassed(e,k)?0.5:dimA,cursor:edit?"grab":"default"})},
@@ -14794,7 +14794,7 @@ function App(){
                   e.time&&RC("span",{style:{fontSize:11,fontWeight:600,color:TXD,opacity:0.65,whiteSpace:"nowrap"}},fmt12h(e.time,k,e.tz)),
                   !edit&&e.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(e.notifyAt).toLocaleString()},RC("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}})," "+fmtNotif(e.notifyAt)))),
                 RC("span",{style:{fontSize:14,fontWeight:600,color:"#C3B2D0",lineHeight:1.4,...vdTitleFit}},e.title)),
-                !edit&&sosResFor(e)&&RC("button",{type:"button",title:sosResTitle(sosResFor(e)),style:vdIcoBtn(sosPastel(e._sosClassColor)||A),onClick:ev3=>{ev3.stopPropagation();window._sosLaunchClass&&window._sosLaunchClass(e._sosClassId,e._sosClassName);}},vdIco(TNI.play,12)),
+                !edit&&sosResFor(e)&&RC("button",{type:"button",title:sosResTitle(sosResFor(e)),style:vdIcoBtn(sosPastel(e._sosClassColor)||A),onClick:ev3=>{ev3.stopPropagation();window._sosLaunchClassClick&&window._sosLaunchClassClick(e._sosClassId,e._sosClassName);}},vdIco(TNI.play,12)),
                 edit&&RC("button",{type:"button",title:"Edit",style:vdIcoBtn(TXD),onClick:()=>{setEi(e);setMdt(k);setMo(true);}},vdIco(TNI.pencil)),
                 edit&&RC("button",{type:"button",title:"Delete",style:vdIcoBtn("#f85149"),onClick:()=>del(k,e.id)},vdIco(TNI.x)))),
               !it.length&&!(mcByDay[k]||[]).length&&!edit&&RC("div",{style:{fontSize:11,fontWeight:600,color:TXM,textAlign:"center",padding:"24px 0"}},"—"),
@@ -14838,7 +14838,7 @@ function App(){
                   (t._sosClassName||t.category)&&(t._sosClassName?RC("span",{style:{fontSize:7,fontWeight:700,color:sosPastel(t._sosClassColor)||"#8b949e",background:(sosPastel(t._sosClassColor)||"#8b949e")+"22",border:"1px solid "+(sosPastel(t._sosClassColor)||"#8b949e")+"44",borderRadius:3,padding:"1px 4px",textTransform:"uppercase",letterSpacing:.4,whiteSpace:"normal",wordBreak:"break-word",maxWidth:80,lineHeight:1.2,opacity:dimA}},t._sosClassName):RC("span",{style:{...ctag(t.category),opacity:dimA}},t.category)),
                   t.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85*dimA,whiteSpace:"nowrap"},title:"Reminder: "+new Date(t.notifyAt).toLocaleString()},RC("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}}),"\u202f"+fmtNotif(t.notifyAt))),
                 RC("span",{style:{fontSize:12,fontWeight:t.done?500:700,color:t.done?TXM:dayTX,textDecoration:t.done?"line-through":"none",lineHeight:1.35,...vdTitleFit}},t.title)),
-                !edit&&sosResFor(t)&&RC("button",{type:"button",title:sosResTitle(sosResFor(t)),style:vdIcoBtn(sosPastel(t._sosClassColor)||A),onClick:ev3=>{ev3.stopPropagation();window._sosLaunchClass&&window._sosLaunchClass(t._sosClassId,t._sosClassName);}},vdIco(TNI.play,12)),
+                !edit&&sosResFor(t)&&RC("button",{type:"button",title:sosResTitle(sosResFor(t)),style:vdIcoBtn(sosPastel(t._sosClassColor)||A),onClick:ev3=>{ev3.stopPropagation();window._sosLaunchClassClick&&window._sosLaunchClassClick(t._sosClassId,t._sosClassName);}},vdIco(TNI.play,12)),
                 edit&&RC("button",{type:"button",title:"Edit",style:vdIcoBtn(TXD),onClick:()=>{setEi(t);setMdt(k);setMo(true);}},vdIco(TNI.pencil)),
                 edit&&RC("button",{type:"button",title:"Delete",style:vdIcoBtn("#f85149"),onClick:()=>del(k,t.id)},vdIco(TNI.x)))),
               ev.map(e=>RC("div",{key:e.id,...taskRowP(e.id),...(edit?taskTouchH(k,e.id):{}),draggable:edit,onDragStart:edit?ev2=>vOnDragStartTask(ev2,k,e.id):null,onDragOver:edit?ev2=>vOnDragOverTask(ev2,e.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?ev2=>vOnDropTask(ev2,k,e.id):null,style:vdndRowStyle(e.id,{...vdEventCard(e.category,vdEvtPassed(e,k)),...vdSosSpine(e,vdEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:6,marginBottom:4,opacity:vdEvtPassed(e,k)?0.5:dimA,cursor:edit?"grab":"default"})},
@@ -14850,7 +14850,7 @@ function App(){
                   e.time&&RC("span",{style:{fontSize:10,fontWeight:600,color:TXD,opacity:0.65,whiteSpace:"nowrap"}},fmt12h(e.time,k,e.tz)),
                   !edit&&e.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(e.notifyAt).toLocaleString()},RC("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}})," "+fmtNotif(e.notifyAt)))),
                 RC("span",{style:{fontSize:12,fontWeight:600,color:"#C3B2D0",lineHeight:1.35,...vdTitleFit}},e.title)),
-                !edit&&sosResFor(e)&&RC("button",{type:"button",title:sosResTitle(sosResFor(e)),style:vdIcoBtn(sosPastel(e._sosClassColor)||A),onClick:ev3=>{ev3.stopPropagation();window._sosLaunchClass&&window._sosLaunchClass(e._sosClassId,e._sosClassName);}},vdIco(TNI.play,12)),
+                !edit&&sosResFor(e)&&RC("button",{type:"button",title:sosResTitle(sosResFor(e)),style:vdIcoBtn(sosPastel(e._sosClassColor)||A),onClick:ev3=>{ev3.stopPropagation();window._sosLaunchClassClick&&window._sosLaunchClassClick(e._sosClassId,e._sosClassName);}},vdIco(TNI.play,12)),
                 edit&&RC("button",{type:"button",title:"Edit",style:vdIcoBtn(TXD),onClick:()=>{setEi(e);setMdt(k);setMo(true);}},vdIco(TNI.pencil)),
                 edit&&RC("button",{type:"button",title:"Delete",style:vdIcoBtn("#f85149"),onClick:()=>del(k,e.id)},vdIco(TNI.x)))),
               !it.length&&!(mcByDay[k]||[]).length&&!edit&&RC("div",{style:{fontSize:11,fontWeight:600,color:TXM,textAlign:"center",padding:"30px 0"}},"—"),
@@ -42677,15 +42677,26 @@ window._sosLaunchClass = function(classId, className){
     else if (r.url) web.push(r);
   });
 
-  var blocked = 0;
-  web.forEach(function(r){
-    var key = 'sosres_' + (classId || c.name) + '_' + r.id;
+  var blocked = 0, blockedUrls = [];
+  web.forEach(function(r, i){
+    // The tab key must be unique per RESOURCE, not per class. Two resources
+    // sharing a name would share a window name, and the second open would
+    // simply re-target the first one's tab — one tab for two sites, with no
+    // error anywhere. r.id is unique per resource; the index is a belt-and-
+    // braces guard for legacy rows saved before ids existed.
+    var key = 'sosres_' + (classId || c.name) + '_' + (r.id || ('i' + i));
     var w = null;
     try { w = window._tnOpenTab(r.url, key); } catch(e){ w = null; }
     if (!w) {
       // Blocked (or unavailable) — try a real anchor click, which some blockers
       // treat more leniently than a scripted window.open.
-      var ok = false;
+      //
+      // a.click() NEVER throws when the blocker refuses it: the navigation is
+      // dropped silently and the call returns normally. So the old
+      // `ok = true` after click() meant `blocked` could only ever be 0, and a
+      // refused tab looked exactly like a successful one. The only observable
+      // signal is whether the named tab EXISTS afterwards, so re-probe it with
+      // a non-navigating window.open('', NAME) and trust that instead.
       try {
         var a = document.createElement('a');
         a.href = r.url;
@@ -42694,9 +42705,15 @@ window._sosLaunchClass = function(classId, className){
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        ok = true;
-      } catch(e){ ok = false; }
-      if (!ok) blocked++;
+      } catch(e){}
+      var probe = null;
+      try {
+        // Empty url = no navigation, so this cannot disturb a tab that DID
+        // open; it just hands back a handle when one exists.
+        probe = window.open('', window._tnTabName ? window._tnTabName(key) : '_blank');
+      } catch(e){ probe = null; }
+      if (probe) { try { probe.focus(); } catch(e){} }
+      else { blocked++; blockedUrls.push(r.url); }
     }
   });
 
@@ -42706,7 +42723,32 @@ window._sosLaunchClass = function(classId, className){
   if (app.length) {
     try { location.href = 'shieldopen:class/' + encodeURIComponent(classId || ''); } catch(e){}
   }
-  return { web: web.length, app: app.length, blocked: blocked };
+  return { web: web.length, app: app.length, blocked: blocked, blockedUrls: blockedUrls };
+};
+
+/* Click wrapper for the ▶ button. _sosLaunchClass reports how many tabs the
+ * browser refused; without this the count was computed and thrown away, so a
+ * class with two sites opened exactly one and said nothing at all.
+ *
+ * The retry must run inside the CONFIRM's own user gesture. Chrome allows one
+ * new tab per gesture, so a cold click on a 2-site class opens the first and
+ * loses the rest; after the retry every named tab exists, and re-targeting an
+ * existing tab is not treated as a popup, so subsequent clicks all work. */
+window._sosLaunchClassClick = function(classId, className){
+  var r = null;
+  try { r = window._sosLaunchClass ? window._sosLaunchClass(classId, className) : null; } catch(e){ r = null; }
+  if (!r || !r.blocked) return r;
+  var n = r.blocked;
+  var msg = 'Your browser blocked ' + n + ' of this class’s ' + r.web + ' site'
+          + (r.web > 1 ? 's' : '') + '.\n\nAllow pop-ups for this site to open them all in one click.'
+          + '\n\nPress OK to open the blocked one' + (n > 1 ? 's' : '') + ' now.';
+  if (window.confirm(msg)) {
+    (r.blockedUrls || []).forEach(function(u, i){
+      var key = 'sosres_' + (classId || className || '') + '_retry' + i;
+      try { if (!window._tnOpenTab(u, key)) window.open(u, '_blank'); } catch(e){}
+    });
+  }
+  return r;
 };
 </script>
 
