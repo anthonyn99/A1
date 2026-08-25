@@ -1501,23 +1501,9 @@ function migrate(c){
 }
 conns=conns.map(migrate);
 
-// True from the moment a local edit is made until the cloud confirms it landed.
-//
-// applyRemote() replaces the WHOLE connection list from a server snapshot. If a
-// save fails (App Check expired, offline, rules), the server copy never changes,
-// the 6-second echo guard lapses, and the next snapshot hands back the OLD list
-// — silently reverting the connection the user just added or edited. That is
-// indistinguishable from "the Save button does nothing".
-//
-// So: while a local change is unconfirmed, remote snapshots are not allowed to
-// overwrite it. Keeping a local edit that has not synced is always better than
-// discarding it; the worst case is the list is briefly out of step with another
-// device, which resolves the moment a save succeeds.
-let _kcPendingLocal = false;
 function save(){
   localStorage.setItem('kc_connections',JSON.stringify(conns));
   if(window._fbSaveKeychain){
-    _kcPendingLocal = true;
     if(window.kcSetSync)window.kcSetSync('saving');
     window._fbSaveKeychain(()=>({connections:conns,colmap:_loadColMapRaw()}));
   }
@@ -1525,7 +1511,6 @@ function save(){
 function saveColMap(map){
   localStorage.setItem('kc_colmap',JSON.stringify(map));
   if(window._fbSaveKeychain){
-    _kcPendingLocal = true;
     if(window.kcSetSync)window.kcSetSync('saving');
     window._fbSaveKeychain(()=>({connections:conns,colmap:map}));
   }
@@ -2086,13 +2071,6 @@ applyTheme();render();
 (function(){
   function applyRemote(data){
     if(!data||!Array.isArray(data.connections)) return;
-    // A local edit that has not been confirmed by the cloud outranks whatever
-    // the server still holds — see the note on _kcPendingLocal. Without this,
-    // a failed save is quietly undone by the next snapshot.
-    if(_kcPendingLocal){
-      console.warn('[Keychain] remote update ignored — local changes not yet saved');
-      return;
-    }
     conns=data.connections.map(migrate);
     const map=data.colmap;
     localStorage.setItem('kc_connections',JSON.stringify(conns));
@@ -2126,23 +2104,9 @@ applyTheme();render();
   if(window._fbReady){doLoad();}
   else{window.addEventListener('fb-ready',doLoad,{once:true});}
   window.addEventListener('fb-kc-remote-update',e=>{applyRemote(e.detail);});
-  // Confirmed in the cloud — local and server agree again, so remote snapshots
-  // may resume replacing the list.
-  window.addEventListener('fb-kc-saved',()=>{_kcPendingLocal=false;if(window.kcSetSync)window.kcSetSync('saved');});
-  window.addEventListener('fb-kc-synced',()=>{_kcPendingLocal=false;if(window.kcSetSync)window.kcSetSync('saved');});
-  // A failed save used to be a small red word in the header, which reads as
-  // "the button did nothing". Say it out loud once, and KEEP _kcPendingLocal
-  // set so the change is not thrown away by the next snapshot.
-  let _kcErrShown=false;
-  window.addEventListener('fb-kc-error',()=>{
-    if(window.kcSetSync)window.kcSetSync('error');
-    if(_kcErrShown) return;
-    _kcErrShown=true;
-    setTimeout(()=>{_kcErrShown=false;},60000);   // at most one nag a minute
-    try{
-      alert("Your change is saved on this device but could NOT be saved to the cloud, so it won't reach your other devices yet.\n\nIt will sync automatically once the connection recovers — don't re-enter it.");
-    }catch(_){}
-  });
+  window.addEventListener('fb-kc-saved',()=>{if(window.kcSetSync)window.kcSetSync('saved');});
+  window.addEventListener('fb-kc-synced',()=>{if(window.kcSetSync)window.kcSetSync('saved');});
+  window.addEventListener('fb-kc-error',()=>{if(window.kcSetSync)window.kcSetSync('error');});
   // Cloud settings ride the same indicator — one status line for the whole app,
   // so reordering the header or starring a file reads as "Syncing… / Synced"
   // exactly like editing a connection does.
