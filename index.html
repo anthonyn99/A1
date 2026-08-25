@@ -41332,44 +41332,79 @@ window._sosLaunchClass = function(classId, className){
     else if (r.url) web.push(r);
   });
 
+  /* ── Every site opens on ONE click ────────────────────────────────────────
+   * Two passes, and the split is the whole trick.
+   *
+   * A blocker's rule is about CREATING a popup, not about navigating one. So
+   * window.open('', NAME) is exempt in two different ways: re-targeting a tab
+   * that already holds NAME never counts, and even a fresh blank tab is far
+   * more likely to be allowed than one carrying a destination url. Doing the
+   * urls one-at-a-time (open+navigate, open+navigate) spends the gesture's
+   * budget on the first site and loses the rest — which is exactly the bug.
+   *
+   * PASS 1 claims every named tab with a blank open, back to back, touching no
+   * urls at all. PASS 2 then points each handle at its url. Navigating a
+   * window we already hold a handle to is not a popup by any rule, so once
+   * pass 1 wins the handles pass 2 cannot be refused.
+   *
+   * Nothing is deferred: both passes are synchronous inside the click, because
+   * anything moved out of the user gesture is guaranteed to be blocked. A
+   * regression test greps this whole function for async scheduling calls, so
+   * keep even the comments here free of those literal names. */
   var blocked = 0, blockedUrls = [];
-  web.forEach(function(r, i){
+  var slots = web.map(function(r, i){
     // The tab key must be unique per RESOURCE, not per class. Two resources
     // sharing a name would share a window name, and the second open would
     // simply re-target the first one's tab — one tab for two sites, with no
     // error anywhere. r.id is unique per resource; the index is a belt-and-
     // braces guard for legacy rows saved before ids existed.
     var key = 'sosres_' + (classId || c.name) + '_' + (r.id || ('i' + i));
+    var name = window._tnTabName ? window._tnTabName(key) : ('a1tab_' + i);
     var w = null;
-    try { w = window._tnOpenTab(r.url, key); } catch(e){ w = null; }
+    try { w = window.open('', name); } catch(e){ w = null; }
+    return { r: r, name: name, w: w };
+  });
+
+  slots.forEach(function(s){
+    var r = s.r, w = s.w;
     if (!w) {
-      // Blocked (or unavailable) — try a real anchor click, which some blockers
-      // treat more leniently than a scripted window.open.
-      //
-      // a.click() NEVER throws when the blocker refuses it: the navigation is
-      // dropped silently and the call returns normally. So the old
-      // `ok = true` after click() meant `blocked` could only ever be 0, and a
-      // refused tab looked exactly like a successful one. The only observable
-      // signal is whether the named tab EXISTS afterwards, so re-probe it with
-      // a non-navigating window.open('', NAME) and trust that instead.
+      // Pass 1 was refused for this one. A real anchor click is treated more
+      // leniently by some blockers, so try it — then re-probe, because
+      // a.click() NEVER throws when the navigation is dropped: it returns
+      // normally and a refused tab looks exactly like a successful one. The
+      // only observable signal is whether the named tab exists afterwards.
       try {
         var a = document.createElement('a');
         a.href = r.url;
-        a.target = window._tnTabName ? window._tnTabName(key) : '_blank';
+        a.target = s.name;
         a.rel = 'opener';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
       } catch(e){}
-      var probe = null;
-      try {
-        // Empty url = no navigation, so this cannot disturb a tab that DID
-        // open; it just hands back a handle when one exists.
-        probe = window.open('', window._tnTabName ? window._tnTabName(key) : '_blank');
-      } catch(e){ probe = null; }
-      if (probe) { try { probe.focus(); } catch(e){} }
-      else { blocked++; blockedUrls.push(r.url); }
+      try { w = window.open('', s.name); } catch(e){ w = null; }
+      if (!w) { blocked++; blockedUrls.push(r.url); return; }
+      // The anchor already navigated it; don't yank it back to the url below.
+      try { w.focus(); } catch(e){}
+      return;
     }
+    // Pass 2 — navigate the handle we hold. Skip when the tab is already at
+    // the destination so an open app tab keeps its state instead of reloading
+    // (same rule _tnOpenTab applies; atDest is private to that IIFE, so the
+    // comparison is inlined here).
+    var cur = null;
+    try { cur = w.location.href; } catch(e){ cur = null; }  // cross-origin ⇒ real page loaded
+    if (cur === null) {
+      // Unreadable means it isn't blank — it's the destination, or wherever
+      // the user browsed inside it. Leave it and just bring it forward.
+    } else {
+      var cc = String(cur).split('#')[0], uu = String(r.url).split('#')[0];
+      if (cur === '' || cur === 'about:blank' || !(cc === uu || cc.indexOf(uu) === 0)) {
+        try { w.location.href = r.url; }
+        catch(e){ try { w.location.replace(r.url); } catch(e2){} }
+      }
+    }
+    try { w.focus(); } catch(e){}
   });
 
   // Only if there is actually something native to open. A class with websites
@@ -41381,28 +41416,30 @@ window._sosLaunchClass = function(classId, className){
   return { web: web.length, app: app.length, blocked: blocked, blockedUrls: blockedUrls };
 };
 
-/* Click wrapper for the ▶ button. _sosLaunchClass reports how many tabs the
- * browser refused; without this the count was computed and thrown away, so a
- * class with two sites opened exactly one and said nothing at all.
+/* Click wrapper for the ▶ button.
  *
- * The retry must run inside the CONFIRM's own user gesture. Chrome allows one
- * new tab per gesture, so a cold click on a 2-site class opens the first and
- * loses the rest; after the retry every named tab exists, and re-targeting an
- * existing tab is not treated as a popup, so subsequent clicks all work. */
+ * The blank-first two-pass open above is what makes one click open everything,
+ * so on a normal browser this wrapper does nothing visible and MUST stay
+ * silent — a dialog on the happy path would defeat the point.
+ *
+ * It exists only for the genuine last resort: a hard-locked blocker that
+ * refuses even a blank named window.open. That leaves no in-page recovery —
+ * every retry we could attempt is refused by the same rule — so the honest
+ * move is to say which sites did not open rather than pretend they did. The
+ * count is trustworthy now: it comes from re-probing for the named tab, not
+ * from a.click(), which never reports failure. */
 window._sosLaunchClassClick = function(classId, className){
   var r = null;
   try { r = window._sosLaunchClass ? window._sosLaunchClass(classId, className) : null; } catch(e){ r = null; }
   if (!r || !r.blocked) return r;
   var n = r.blocked;
-  var msg = 'Your browser blocked ' + n + ' of this class’s ' + r.web + ' site'
-          + (r.web > 1 ? 's' : '') + '.\n\nAllow pop-ups for this site to open them all in one click.'
-          + '\n\nPress OK to open the blocked one' + (n > 1 ? 's' : '') + ' now.';
-  if (window.confirm(msg)) {
-    (r.blockedUrls || []).forEach(function(u, i){
-      var key = 'sosres_' + (classId || className || '') + '_retry' + i;
-      try { if (!window._tnOpenTab(u, key)) window.open(u, '_blank'); } catch(e){}
-    });
-  }
+  window.alert(
+    'Your browser blocked ' + n + ' of this class’s ' + r.web + ' site'
+    + (r.web > 1 ? 's' : '') + ':\n\n'
+    + (r.blockedUrls || []).join('\n')
+    + '\n\nAllow pop-ups for this site in your browser settings, then press ▶ again '
+    + 'to open all of them in one click.'
+  );
   return r;
 };
 </script>

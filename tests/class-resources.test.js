@@ -146,13 +146,76 @@ t('_sosMirrorClasses is set after the fromCache guard',
 
 const lh = /window\._sosLaunchClass\s*=\s*function[\s\S]*?\n};/.exec(INDEX);
 t('launch handler exists', !!lh);
+
+/* Order-sensitive assertions must run against CODE ONLY.
+ *
+ * This bit them twice. The handler's own doc comment necessarily spells out
+ * the very calls being asserted on ("window.open('', NAME)", "_tnOpenTab"),
+ * and a plain text scan cannot tell prose from code - so a comment near the
+ * top of the function satisfied the "opens tabs first" ordering no matter
+ * where the real call sat. A mutation that hoisted the protocol navigation
+ * above the entire open loop still passed. Blanking comments first is what
+ * makes these assertions mean anything. Offsets are preserved (comments are
+ * replaced with spaces, not deleted) so every index below stays comparable. */
+const codeOnly = s => String(s)
+  .replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, ' '))
+  .replace(/(^|[^:])\/\/[^\n]*/g, (m, p) => p + m.slice(p.length).replace(/./g, ' '));
+const LH = lh ? codeOnly(lh[0]) : '';
+
+const firstOpen = (function(){
+  const m = /window\.open\s*\(/.exec(LH);
+  return m ? m.index : -1;
+})();
+t('launch handler opens tabs with a real window.open', firstOpen >= 0,
+  'If this stops matching, the assertion below is comparing -1 and passes for free.');
 t('launch handler requests tabs before the protocol navigation',
-  !!lh && lh[0].indexOf('_tnOpenTab') < lh[0].indexOf("'shieldopen:class/"),
+  !!lh && firstOpen >= 0 && firstOpen < LH.indexOf("'shieldopen:class/"),
   'The protocol call can raise a dialog that ends the user gesture, blocking\n' +
   '      every tab that had not been requested yet.');
 t('launch handler defers nothing out of the user gesture',
   !!lh && !/setTimeout|requestAnimationFrame|\.then\(/.test(lh[0]),
-  'Anything asynchronous here is guaranteed to be popup-blocked.');
+  'Anything asynchronous here is guaranteed to be popup-blocked.\n' +
+  '      NOTE: this greps the whole function body, comments included, so do not\n' +
+  '      write those names in prose in here either.');
+
+// ---- Every site opens on one click (the blank-first two-pass open) ---------
+// A blocker allows window.open('', NAME) far more readily than an open that
+// carries a url, and never counts navigating a handle we already hold. So the
+// handler must claim ALL the tabs blank first, then navigate them. Fusing the
+// two passes back into one open-and-navigate loop per url is the exact bug this
+// file was extended for: the gesture's budget goes to the first site and every
+// other resource silently fails to open.
+// Anchor on PASS 1 specifically - the open inside the slots mapping. Testing
+// merely that some window.open('',...) exists in the function is not enough:
+// the blocked-path re-probe is also a blank open, so a pass 1 regressed to
+// window.open(r.url, name) would still satisfy it. Verified by mutation.
+const pass1 = /slots\s*=\s*web\.map\(function[\s\S]*?\n\s*\}\);/.exec(LH);
+t('pass 1 exists as a web.map over the resources', !!pass1,
+  'If this stops matching, the blank-open assertion below passes for free.');
+t('all tabs are claimed blank before any url is assigned',
+  !!pass1 && /window\.open\s*\(\s*''\s*,/.test(pass1[0]) && !/window\.open\s*\([^'")]*r\.url/.test(pass1[0]),
+  'A url passed to the FIRST open spends the popup budget on one site and every\n' +
+  '      other resource silently fails to open - the original bug.');
+t('navigation happens by assigning to a held handle',
+  !!lh && /\.location\.href\s*=\s*r\.url|\.location\.replace\s*\(\s*r\.url/.test(lh[0]),
+  'Pass 2 must navigate the window objects pass 1 returned.');
+t('the blocked count comes from re-probing, not from a.click()',
+  !!lh && /a\.click\(\)[\s\S]{0,400}?window\.open\s*\(\s*''\s*,[\s\S]{0,200}?blocked\+\+/.test(lh[0]),
+  'a.click() never throws when a blocker drops the navigation, so a refused\n' +
+  '      tab is indistinguishable from a successful one. Only the presence of the\n' +
+  '      named tab afterwards is a trustworthy signal.');
+
+// The happy path must stay silent. A dialog on every launch would defeat the
+// one-click goal just as thoroughly as the tabs not opening.
+const lc = /window\._sosLaunchClassClick\s*=\s*function[\s\S]*?\n};/.exec(INDEX);
+t('a click wrapper exists', !!lc);
+t('the wrapper only speaks up when tabs were actually blocked',
+  !!lc && /if\s*\(\s*!r\s*\|\|\s*!r\.blocked\s*\)\s*return/.test(lc[0]),
+  'Any prompt on the success path defeats the point of one-click launch.');
+t('every play button routes through the wrapper',
+  (INDEX.match(/_sosLaunchClassClick\s*&&\s*window\._sosLaunchClassClick\(/g) || []).length === 4 &&
+  !/onClick:[^}]*window\._sosLaunchClass\(/.test(INDEX),
+  'A card still calling _sosLaunchClass directly would swallow the blocked count.');
 
 section('StudyOS editor persists through the supported path');
 
