@@ -3331,7 +3331,7 @@ function renderPriorityQueue() {
       <div class="sos-pq-dot" style="background:${color}"></div>
       <div class="sos-pq-info">
         <div class="sos-pq-name">${ev.name}</div>
-        <div class="sos-pq-meta">${daysStr} away · ${ev.type}${weight > 0 ? ' · ' + weight + '%' : ''}</div>
+        <div class="sos-pq-meta">${daysStr} away${cls ? ' · ' + cls.name : ''} · ${ev.type}${weight > 0 ? ' · ' + weight + '%' : ''}</div>
       </div>
       <div class="sos-pq-score">${pct}</div>
     `;
