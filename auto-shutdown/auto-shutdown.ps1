@@ -272,8 +272,13 @@ function Assert-Admin {
     if (Test-Admin) { return }
     if ($NoElevate) { throw 'Administrator rights are required and elevation was declined.' }
     Write-Log "not elevated: relaunching '$Mode' via UAC"
-    $a  = '-NoProfile -ExecutionPolicy Bypass -File "{0}" -Mode {1} -Time {2}' -f $ScriptPath, $Mode, $Time
-    $a += ' -IdleMinutes {0} -WindowHours {1} -MediaGraceMinutes {2} -GraceSeconds {3} -NoElevate' -f $IdleMinutes, $WindowHours, $MediaGraceMinutes, $GraceSeconds
+    # Every parameter has to be forwarded. Dropping one here silently installs
+    # something other than what was asked for - -KeepAwakeFrom went missing this
+    # way and quietly installed the lock strategy instead.
+    $a  = '-NoProfile -ExecutionPolicy Bypass -File "{0}" -Mode {1} -Time {2} -Trigger {3}' -f $ScriptPath, $Mode, $Time, $Trigger
+    $a += ' -NightStart {0} -IdleMinutes {1} -WindowHours {2} -MediaGraceMinutes {3} -GraceSeconds {4} -NoElevate' -f `
+            $NightStart, $IdleMinutes, $WindowHours, $MediaGraceMinutes, $GraceSeconds
+    if ($KeepAwakeFrom) { $a += ' -KeepAwakeFrom {0}' -f $KeepAwakeFrom }
     if ($DryRun) { $a += ' -DryRun' }
     if ($Force)  { $a += ' -Force' }
     $p = Start-Process -FilePath 'powershell.exe' -ArgumentList $a -Verb RunAs -WindowStyle Hidden -PassThru -Wait
