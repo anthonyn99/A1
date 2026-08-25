@@ -32408,15 +32408,56 @@ function makeHistory(ctx) {
   //    we also mirror a small window (current ± 2 states) to localStorage so undo/redo
   //    survives close+reopen. Docs whose snapshots are huge (big embedded images) are skipped.
   function histKey() { return ctx._docId ? ('docx_hist_' + ctx.app + '_' + ctx._docId) : null; }
+  // Budgets. There is ONE history key per document and they were never cleaned
+  // up, while the only limit was 900KB PER KEY — so six open-and-forgotten
+  // documents could claim more than the origin's entire ~5MB localStorage
+  // budget by themselves. That budget is shared by every A1 app, so the app
+  // that finally overflowed it was usually not the one hoarding: Vault started
+  // throwing QuotaExceededError on its own tiny key and its Save button went
+  // dead, while the space was actually held by months-old journal undo stacks.
+  var HIST_MAX_KEY = 120000;    // one document's slice — 5 states, ample
+  var HIST_MAX_TOTAL = 600000;  // all documents combined
+
+  // Drop the least-recently-written histories until the total fits. Losing an
+  // old undo stack costs a stale document its cross-session undo; letting it
+  // grow costs every app on the origin its ability to write anything.
+  function pruneHistories(keepKey) {
+    try {
+      var rows = [], i, k, v, t;
+      for (i = 0; i < localStorage.length; i++) {
+        k = localStorage.key(i);
+        if (!k || k.indexOf('docx_hist_') !== 0) continue;
+        v = localStorage.getItem(k) || '';
+        t = 0; try { t = (JSON.parse(v) || {}).t || 0; } catch (e) {}
+        rows.push({ k: k, n: v.length, t: t });
+      }
+      var total = 0;
+      for (i = 0; i < rows.length; i++) total += rows[i].n;
+      if (total <= HIST_MAX_TOTAL) return;
+      rows.sort(function (a, b) { return a.t - b.t; });   // oldest first; no stamp = oldest
+      for (i = 0; i < rows.length && total > HIST_MAX_TOTAL; i++) {
+        if (rows[i].k === keepKey) continue;
+        try { localStorage.removeItem(rows[i].k); total -= rows[i].n; } catch (e) {}
+      }
+    } catch (e) {}
+  }
+
   function persist() {
     var key = histKey(); if (!key) return;
     try {
       var lo = Math.max(0, idx - 2), hi = Math.min(stack.length, idx + 3);
       var slice = stack.slice(lo, hi);
-      var payload = JSON.stringify({ stack: slice, idx: idx - lo });
-      if (payload.length > 900000) { localStorage.removeItem(key); return; }  // too big to persist safely
+      // `t` is what pruneHistories() sorts on — without it every key looks
+      // equally old and eviction order is arbitrary.
+      var payload = JSON.stringify({ stack: slice, idx: idx - lo, t: Date.now() });
+      if (payload.length > HIST_MAX_KEY) { localStorage.removeItem(key); return; }
       localStorage.setItem(key, payload);
-    } catch (e) { try { localStorage.removeItem(histKey()); } catch (x) {} }
+      pruneHistories(key);
+    } catch (e) {
+      // Full: drop this document's history, then make room for next time.
+      try { localStorage.removeItem(histKey()); } catch (x) {}
+      pruneHistories(histKey());
+    }
   }
   function schedulePersist() { clearTimeout(persistT); persistT = setTimeout(persist, 600); }
   function loadPersisted(docId) {
