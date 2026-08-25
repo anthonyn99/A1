@@ -50,7 +50,22 @@
     fired both an InteractiveToken and a SYSTEM task on time, so the plumbing
     works; it is prolonged DRIPS that suppresses the wake.
 
-    WHY THE LOCK TRIGGER IS THE PRIMARY MECHANISM
+    HITTING $Time EXACTLY: -KeepAwakeFrom
+    The only dependable way to shut down at $Time on this laptop is for it to
+    still be awake at $Time. With -KeepAwakeFrom set, an arm task disables the
+    lid-close sleep action and the idle sleep timer that evening, so closing the
+    lid turns the screen off without sleeping; at $Time the PC is simply on, and
+    the shutdown is an ordinary shutdown that has never failed. A disarm task
+    restores both settings, and runs at logon as well as $Time+15m so normal
+    sleep can never be left disabled.
+
+    The cost is real: the PC runs, lid closed, from when you close it until
+    $Time. On AC that is free. On battery it is a few hours of idle drain, and
+    the machine should not be in a bag while it happens. Uninstall disarms too.
+
+    Without -KeepAwakeFrom the lock trigger below is used instead.
+
+    WHY THE LOCK TRIGGER IS THE FALLBACK MECHANISM
     Four nights of evidence say a shutdown cannot be made to work from Modern
     Standby on battery. The decisive measurement is 2026-08-25: the shutdown was
     issued at 01:12:17, a full two seconds BEFORE the hibernate at 01:12:19, and
@@ -125,8 +140,16 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('Install','Uninstall','Status','Run','Test')]
+    [ValidateSet('Install','Uninstall','Status','Run','Test','Arm','Disarm')]
     [string]$Mode = 'Install',
+
+    # The reliable way to hit $Time exactly. From this time, closing the lid
+    # stops sleeping the PC (screen still goes off) and the idle sleep timer is
+    # disabled, so the PC is still awake at $Time and can simply shut down -
+    # the one path that has never failed. Disarm restores both settings.
+    # Empty string disables this and uses the lock trigger instead.
+    [ValidatePattern('^$|^([01][0-9]|2[0-3]):[0-5][0-9]$')]
+    [string]$KeepAwakeFrom = '',
 
     # Local wall-clock time, 24h. DST-safe by construction (see above).
     [ValidatePattern('^([01][0-9]|2[0-3]):[0-5][0-9]$')]
@@ -189,9 +212,11 @@ $ErrorActionPreference = 'Stop'
 # function's own, so the legacy-parameter check has to be hoisted here.
 $UsedLegacyWindow = $PSBoundParameters.ContainsKey('WindowMinutes')
 
-$TaskName     = 'A1 Auto Shutdown'
-$LockTaskName = 'A1 Auto Shutdown (lock)'
-$TaskPath     = '\A1\'
+$TaskName       = 'A1 Auto Shutdown'
+$LockTaskName   = 'A1 Auto Shutdown (lock)'
+$ArmTaskName    = 'A1 Auto Shutdown (arm)'
+$DisarmTaskName = 'A1 Auto Shutdown (disarm)'
+$TaskPath       = '\A1\'
 $TestName   = 'A1 Auto Shutdown Verify'
 $ScriptPath = $MyInvocation.MyCommand.Path
 $ScriptDir  = Split-Path -Parent $ScriptPath
@@ -201,6 +226,14 @@ $LogPath    = Join-Path $ScriptDir 'auto-shutdown.log'
 # only", which excludes Task Scheduler; 0 = Disable, the default found here.)
 $SUB_SLEEP = '238C9FA8-0AAD-41ED-83F4-97BE242C8F20'
 $RTCWAKE   = 'BD3B718A-0680-4D9D-8AB2-E1D2B4AC806D'
+# Sleep > Sleep after, and Power buttons and lid > Lid close action. LIDACTION
+# is hidden from powercfg /q on this machine but still writable.
+$STANDBYIDLE = '29f6c1db-86da-48c5-9fdb-f2b67b1f44da'
+$SUB_BUTTONS = '4f971e89-eebd-4455-a8de-9e59040e7347'
+$LIDACTION   = '5ca83367-6e45-459f-a27b-476b1d01c936'
+# What Arm saves, so Disarm can put things back exactly as they were.
+$StateDir  = Join-Path $env:LOCALAPPDATA 'A1\auto-shutdown'
+$StatePath = Join-Path $StateDir 'power-state.json'
 
 function Write-Log {
     param([string]$Message, [ValidateSet('INFO','WARN','ERROR','ACT')][string]$Level = 'INFO')
@@ -419,6 +452,67 @@ function Test-TaskSchedulerLog {
     catch { $false }
 }
 
+# --------------------------------------------------------------------------
+# Keep-awake: the only way to hit $Time exactly on this laptop
+# --------------------------------------------------------------------------
+
+function Set-PowerValue {
+    param([string]$Sub, [string]$Setting, [int]$AC, [int]$DC)
+    Invoke-Native 'powercfg.exe' @('/setacvalueindex','SCHEME_CURRENT',$Sub,$Setting,"$AC") | Out-Null
+    Invoke-Native 'powercfg.exe' @('/setdcvalueindex','SCHEME_CURRENT',$Sub,$Setting,"$DC") | Out-Null
+    $act = Invoke-Native 'powercfg.exe' @('/getactivescheme')
+    if ($act -match 'GUID:\s*([0-9a-fA-F-]{36})') {
+        Invoke-Native 'powercfg.exe' @('/setactive',$Matches[1]) | Out-Null
+    }
+}
+
+function Get-SleepAfter {
+    $out = Invoke-Native 'powercfg.exe' @('/q','SCHEME_CURRENT',$SUB_SLEEP,$STANDBYIDLE)
+    $ac = if ($out -match 'Current AC Power Setting Index:\s*0x([0-9a-fA-F]+)') { [Convert]::ToInt32($Matches[1],16) } else { 600 }
+    $dc = if ($out -match 'Current DC Power Setting Index:\s*0x([0-9a-fA-F]+)') { [Convert]::ToInt32($Matches[1],16) } else { 600 }
+    [pscustomobject]@{ AC = $ac; DC = $dc }
+}
+
+function Invoke-Arm {
+    Assert-Admin
+    # Save what we are about to change. LIDACTION is hidden and unset by
+    # default here, so 1 (Sleep) is the value to restore to.
+    if (-not (Test-Path $StateDir)) { New-Item -ItemType Directory -Path $StateDir -Force | Out-Null }
+    $s = Get-SleepAfter
+    if ($s.AC -eq 0 -and $s.DC -eq 0) {
+        Write-Log 'already armed (sleep timers are 0) - leaving the saved state alone' 'WARN'
+    } else {
+        [pscustomobject]@{ SleepAC = $s.AC; SleepDC = $s.DC; LidAC = 1; LidDC = 1 } |
+            ConvertTo-Json | Set-Content -Path $StatePath -Encoding ASCII
+    }
+    Set-PowerValue $SUB_SLEEP   $STANDBYIDLE 0 0   # never sleep on idle
+    Set-PowerValue $SUB_BUTTONS $LIDACTION   0 0   # lid close does nothing
+    Write-Log ("armed: lid close and idle sleep disabled until $Time. Saved sleep-after AC={0}s DC={1}s" -f $s.AC, $s.DC) 'ACT'
+    0
+}
+
+function Invoke-Disarm {
+    Assert-Admin
+    $sleepAC = 600; $sleepDC = 600
+    if (Test-Path $StatePath) {
+        try {
+            $st = Get-Content $StatePath -Raw | ConvertFrom-Json
+            if ($st.SleepAC -gt 0) { $sleepAC = [int]$st.SleepAC }
+            if ($st.SleepDC -gt 0) { $sleepDC = [int]$st.SleepDC }
+        } catch { Write-Log "could not read $StatePath, restoring defaults" 'WARN' }
+    }
+    Set-PowerValue $SUB_SLEEP   $STANDBYIDLE $sleepAC $sleepDC
+    Set-PowerValue $SUB_BUTTONS $LIDACTION   1 1      # lid close sleeps again
+    Remove-Item $StatePath -Force -ErrorAction SilentlyContinue
+    Write-Log ('disarmed: lid close sleeps again, idle sleep back to AC={0}s DC={1}s' -f $sleepAC, $sleepDC) 'ACT'
+    0
+}
+
+function Test-Armed {
+    $s = Get-SleepAfter
+    ($s.AC -eq 0 -and $s.DC -eq 0)
+}
+
 function ConvertTo-XmlText { param([string]$s) [Security.SecurityElement]::Escape($s) }
 
 function New-TaskXml {
@@ -477,6 +571,25 @@ $TriggerXml
 "@
 }
 
+function New-DailyTrigger {
+    param([string]$At)
+@"
+    <CalendarTrigger>
+      <StartBoundary>$((Get-Date).ToString('yyyy-MM-dd'))T$($At):00</StartBoundary>
+      <Enabled>true</Enabled>
+      <ScheduleByDay>
+        <DaysInterval>1</DaysInterval>
+      </ScheduleByDay>
+    </CalendarTrigger>
+"@
+}
+
+function New-ModeArguments {
+    param([string]$M)
+    '-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}" -Mode {1} -Time {2} -KeepAwakeFrom {3}' -f
+        $ScriptPath, $M, $Time, $KeepAwakeFrom
+}
+
 function New-RunArguments {
     param([string]$Extra = '', [string]$TriggerKind = 'Schedule')
     ('-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}" ' +
@@ -525,21 +638,49 @@ function Invoke-Install {
 
     Register-ScheduledTask -Xml $xml -TaskName $TaskName -TaskPath $TaskPath -Force | Out-Null
 
-    # The lock-triggered companion. This is the path that actually works on this
-    # laptop: it fires while the PC is still awake, roughly a second after the
-    # session locks, instead of trying to shut down from Modern Standby.
     $sid = ([Security.Principal.WindowsIdentity]::GetCurrent()).User.Value
-    $lockTrigger = @"
+
+    foreach ($n in @($LockTaskName, $ArmTaskName, $DisarmTaskName)) {
+        if (Get-Task $n) { Unregister-ScheduledTask -TaskName $n -TaskPath $TaskPath -Confirm:$false }
+    }
+
+    if ($KeepAwakeFrom) {
+        # Keep-awake strategy: stay awake through the evening so that at $Time
+        # the PC is simply on and can shut down normally. Nothing here has to
+        # win a race or survive Modern Standby.
+        $armXml = New-TaskXml -TriggerXml (New-DailyTrigger $KeepAwakeFrom) -Arguments (New-ModeArguments 'Arm') `
+            -Description "From $KeepAwakeFrom, stops the lid and the idle timer putting this PC to sleep, so the $Time shutdown can actually run. Undone by '$DisarmTaskName'."
+        Register-ScheduledTask -Xml $armXml -TaskName $ArmTaskName -TaskPath $TaskPath -Force | Out-Null
+
+        # Two triggers, because normal sleep behaviour must always come back:
+        # 15 minutes after $Time for the night the PC stayed up, and at every
+        # logon for the night it shut down.
+        $disarmTriggers = (New-DailyTrigger ([datetime]::ParseExact($Time,'HH:mm',$null).AddMinutes(15).ToString('HH:mm'))) + @"
+
+    <LogonTrigger>
+      <Enabled>true</Enabled>
+      <UserId>$sid</UserId>
+    </LogonTrigger>
+"@
+        $disarmXml = New-TaskXml -TriggerXml $disarmTriggers -Arguments (New-ModeArguments 'Disarm') `
+            -Description "Restores normal lid-close and idle sleep after '$ArmTaskName'. Runs at every logon so sleep is never left disabled."
+        Register-ScheduledTask -Xml $disarmXml -TaskName $DisarmTaskName -TaskPath $TaskPath -Force | Out-Null
+        Write-Log "installed keep-awake: arm at $KeepAwakeFrom, shut down at $Time, disarm at logon and $Time+15m" 'ACT'
+    } else {
+        # Lock strategy: shut down when the session locks during the night
+        # window, because the PC is still awake at that moment.
+        $lockTrigger = @"
     <SessionStateChangeTrigger>
       <Enabled>true</Enabled>
       <UserId>$sid</UserId>
       <StateChange>SessionLock</StateChange>
     </SessionStateChangeTrigger>
 "@
-    $lockXml = New-TaskXml -TriggerXml $lockTrigger -Arguments (New-RunArguments -TriggerKind 'Lock') `
-        -Description "Shuts this PC down when you lock it or close the lid between $NightStart and $endTime. Companion to '$TaskName'."
-    Register-ScheduledTask -Xml $lockXml -TaskName $LockTaskName -TaskPath $TaskPath -Force | Out-Null
-    Write-Log "installed '$LockTaskName' (fires on session lock, acts only $NightStart-$endTime)" 'ACT'
+        $lockXml = New-TaskXml -TriggerXml $lockTrigger -Arguments (New-RunArguments -TriggerKind 'Lock') `
+            -Description "Shuts this PC down when you lock it or close the lid between $NightStart and $endTime."
+        Register-ScheduledTask -Xml $lockXml -TaskName $LockTaskName -TaskPath $TaskPath -Force | Out-Null
+        Write-Log "installed '$LockTaskName' (fires on session lock, acts only $NightStart-$endTime)" 'ACT'
+    }
 
     $info = Get-ScheduledTaskInfo -TaskName $TaskName -TaskPath $TaskPath
     Write-Log ('installed: next scheduled run {0}' -f $info.NextRunTime) 'ACT'
@@ -548,13 +689,15 @@ function Invoke-Install {
 
 function Invoke-Uninstall {
     Assert-Admin
-    foreach ($n in @($TaskName, $LockTaskName, $TestName)) {
+    foreach ($n in @($TaskName, $LockTaskName, $ArmTaskName, $DisarmTaskName, $TestName)) {
         if (Get-Task $n) {
             Unregister-ScheduledTask -TaskName $n -TaskPath $TaskPath -Confirm:$false
             Write-Log "removed task '$n'" 'ACT'
         }
     }
-    Write-Log 'wake timers left enabled (harmless); no other system changes were made'
+    # Never leave sleep disabled behind us.
+    if (Test-Armed) { Invoke-Disarm | Out-Null }
+    Write-Log 'wake timers left enabled (harmless); sleep behaviour restored'
     0
 }
 
@@ -790,10 +933,20 @@ function Invoke-Status {
     Write-Host ('  {0,-27}: {1}' -f 'RestartOnFailure', $(if ($rof) { 'every {0}, up to {1} times' -f $rof.Interval, $rof.Count } else { 'NOT SET   <-- re-run install' })) `
         -ForegroundColor $(if ($rof) { 'Gray' } else { 'Red' })
     $endTime = ([datetime]::ParseExact($Time, 'HH:mm', $null).AddHours($WindowHours)).ToString('HH:mm')
-    $lockTask = Get-Task $LockTaskName
-    Write-Host ('lock task      : {0}' -f $(if ($lockTask) { "$($lockTask.State)  - fires on session lock, acts $NightStart-$endTime" } else { 'NOT INSTALLED - re-run install' })) `
-        -ForegroundColor $(if ($lockTask) { 'Green' } else { 'Red' })
-    Write-Host ('night window   : {0} to {1} - the lock task is the path that works on this laptop' -f $NightStart, $endTime)
+    if ((Get-Task $ArmTaskName) -or (Get-Task $DisarmTaskName)) {
+        Write-Host ('strategy       : KEEP AWAKE - arm {0}, shut down {1}, disarm at logon and {1}+15m' -f `
+            $(if (Get-Task $ArmTaskName) { (Get-Task $ArmTaskName).State } else { 'MISSING' }), $Time) -ForegroundColor Green
+        Write-Host ('  arm task     : {0}' -f $(if (Get-Task $ArmTaskName) { 'Ready' } else { 'MISSING - re-run install' }))
+        Write-Host ('  disarm task  : {0}' -f $(if (Get-Task $DisarmTaskName) { 'Ready' } else { 'MISSING - re-run install' }))
+        $armed = Test-Armed
+        Write-Host ('  armed now    : {0}' -f $(if ($armed) { 'YES - lid close and idle sleep are disabled right now' } else { 'no - normal sleep behaviour' })) `
+            -ForegroundColor $(if ($armed) { 'Yellow' } else { 'Gray' })
+    } else {
+        $lockTask = Get-Task $LockTaskName
+        Write-Host ('lock task      : {0}' -f $(if ($lockTask) { "$($lockTask.State)  - fires on session lock, acts $NightStart-$endTime" } else { 'NOT INSTALLED' })) `
+            -ForegroundColor $(if ($lockTask) { 'Green' } else { 'Red' })
+        Write-Host ('night window   : {0} to {1}' -f $NightStart, $endTime)
+    }
     Write-Host ('task event log : {0}' -f $(if (Test-TaskSchedulerLog) { 'enabled' } else { 'DISABLED - re-run install' })) `
         -ForegroundColor $(if (Test-TaskSchedulerLog) { 'Gray' } else { 'Red' })
     $r = Get-Decision
@@ -866,4 +1019,6 @@ switch ($Mode) {
     'Status'    { exit (Invoke-Status) }
     'Test'      { exit (Invoke-Test) }
     'Run'       { exit (Invoke-Run) }
+    'Arm'       { exit (Invoke-Arm) }
+    'Disarm'    { exit (Invoke-Disarm) }
 }
