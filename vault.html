@@ -2406,14 +2406,36 @@ window.kcFavicon=function(u,name){
 window.kcUpgradeFavicons=function(root){
   var scope=root&&root.querySelectorAll?root:document;
   Array.prototype.forEach.call(scope.querySelectorAll('img.kc-favicon[data-kcurl]'),function(img){
-    if(img._kcTried) return; img._kcTried=1;
     var u=img.getAttribute('data-kcurl'); if(!u) return;
+    // Backfill an EMPTY src first. The row markup calls kcFavicon() inline, but
+    // that function is defined in a later <script> block than the renderer, so
+    // on the first paint after a cold load it is still undefined and every row
+    // is written with src="". Nothing re-rendered afterwards, so the icons
+    // stayed blank for the whole session. Filling it here makes the icon
+    // independent of which block loaded first.
+    if(!img.getAttribute('src') && window.kcFavicon){
+      var base=window.kcFavicon(u,img.getAttribute('alt')||'');
+      if(base){ img.src=base; img.style.visibility=''; }
+    }
+    if(img._kcTried) return; img._kcTried=1;
     if(window.kcAppIcon&&window.kcAppIcon(u)) return;   // already our own mark
     window.kcDiscoverIcon(u).then(function(src){
       if(src&&img.getAttribute('src')!==src){ img.src=src; img.style.visibility=''; }
     });
   });
 };
+// The list renderer lives in an EARLIER <script> block than this one and calls
+// the pass as `if(window.kcUpgradeFavicons) …`. On a cold load that check runs
+// before this assignment, so the very first paint got no icons at all and
+// nothing ever came back for it. Sweep the document once now that the function
+// exists; later renders reach it normally through the call site above.
+(function kcInitialFaviconSweep(){
+  function sweep(){ try{ window.kcUpgradeFavicons(document); }catch(_){} }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',sweep);
+  else sweep();
+  // Rows can also arrive later, when the cloud copy lands — catch that paint too.
+  setTimeout(sweep,1500); setTimeout(sweep,4000);
+})();
 
 // Shared pastel palette + non-destructive remap. Existing connections keep their
 // stored color in Firestore, but display maps to the nearest pastel by hue so
