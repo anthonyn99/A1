@@ -8740,10 +8740,37 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   // Guarded write for the large shared docs: blocks oversized payloads before they
   // can poison the queue, times out a stuck write, and auto-heals after a run of
   // failures that happen while we're actually online. Returns true on success.
+  // Surface a sync failure to the PERSON, not just the console. Rate-limited to
+  // one message per label per 10 minutes so a wedged queue can't spam.
+  //
+  // This exists because of how the 2026-08-25 loss actually worked: writes stopped
+  // reaching the cloud, nothing visible said so, the phone kept showing the older
+  // copy, and when the desktop next reloaded it pulled that copy down over its own
+  // newer data. Every step was silent. Divergence has to be loud while it is still
+  // recoverable — afterwards there is nothing to recover from.
+  const _fbLoudAt = {};
+  function _fbLoudFailure(label, detail){
+    try{
+      const now = Date.now();
+      if (_fbLoudAt[label] && now - _fbLoudAt[label] < 10*60*1000) return;
+      _fbLoudAt[label] = now;
+      console.error('[Firebase] ' + label + ' NOT SYNCING — ' + detail);
+      setTimeout(function(){ try{ alert(label + " is not syncing to the cloud.\n\n" + detail); }catch(_){ } }, 0);
+    }catch(_){}
+  }
+  window._fbSyncAlert = _fbLoudFailure;
+
   async function _guardedWrite(ref, payload, label){
     const bytes = _fbByteSize(payload);
     if (bytes > FB_MAX_WRITE_BYTES) {
       console.error('[Firebase] '+label+' write blocked: '+bytes+' bytes over safe limit — not submitting (would wedge sync). Data kept locally.');
+      // A console.error nobody reads is how data gets lost: the device keeps
+      // working from local state, the cloud silently falls behind, and the next
+      // device to load pulls the stale copy down over the good one. Say it out
+      // loud, once, so the divergence is noticed while it is still recoverable.
+      _fbLoudFailure(label, 'This device has more data than fits in one cloud document ('
+        + Math.round(bytes/1024) + ' KB). It is saved HERE but is NOT syncing.\n\n'
+        + 'Do not rely on your other devices until this is fixed — they still show the older copy.');
       return false;
     }
     // Genuinely offline: let the write queue and settle-on-reconnect exactly as
@@ -8769,6 +8796,16 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       if (!_fbRecovering) {
         _fbWriteFailStreak++;
         if (_fbWriteFailStreak >= 3) _fbRecover();
+        // Recovery gets three more attempts to work. If writes are STILL failing
+        // after that, the device is silently diverging from the cloud — which is
+        // exactly the state that ends in data loss when another device syncs.
+        // Tell the person while their local copy is still the good one.
+        if (_fbWriteFailStreak >= 6) {
+          _fbLoudFailure(label, 'Changes are saving on this device but are NOT reaching the cloud '
+            + '(' + _fbWriteFailStreak + ' failed attempts).\n\n'
+            + 'Your other devices still show the OLDER copy — do not open them until this device syncs, '
+            + 'or they may overwrite this one.\n\nTry reloading. If it keeps failing, tell Tony.');
+        }
       }
       return false;
     }
@@ -9033,6 +9070,100 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // Every savedAt this session has written, so the listener can recognise any of
     // our own echoes (not merely the most recent one) — see the listener comment.
     const _thOwnWrites = new Set();
+    // ══ WIPE GUARD + ROLLING BACKUPS ═════════════════════════════════════════
+    // 2026-08-25: a full set of goals disappeared from BOTH profiles. Cloud and
+    // local agreed exactly, the archives only ever held day-keyed task data, and
+    // Firestore free tier has no point-in-time recovery — so there was nothing
+    // left to restore from. The only surviving copy was on a phone, and opening
+    // it synced the empty state down and destroyed that too.
+    //
+    // Two independent protections, because either alone would have failed here:
+    //
+    //   1. SNAPSHOTS — every meaningfully-different good state is copied to a
+    //      separate doc that normal saves never touch. Recovery stops depending
+    //      on a second device that hasn't synced yet.
+    //   2. SHRINK GUARD — a write that destroys most of the content is refused
+    //      outright. Whatever emptied those lists would have been stopped here
+    //      before it ever reached the cloud, and before any device pulled it.
+    //
+    // The guard deliberately errs toward refusing: a blocked legitimate delete
+    // costs one retry, a permitted wipe costs everything.
+    const THB_KEEP = 15;            // snapshots retained per profile
+    const THB_MIN_ITEMS = 12;       // below this a list is too small to judge
+    const THB_KEEP_RATIO = 0.5;     // a write must retain at least half the items
+
+    function _thbCount(p) {
+      if (!p || typeof p !== 'object') return 0;
+      let n = 0;
+      ['goals', 'monthlyGoals', 'habits', 'rules', 'rulesDaily'].forEach(f => {
+        if (Array.isArray(p[f])) n += p[f].length;
+      });
+      const d = p.data;
+      if (d && typeof d === 'object') {
+        Object.keys(d).forEach(k => { if (Array.isArray(d[k])) n += d[k].length; });
+      }
+      return n;
+    }
+
+    // Keep the last THB_KEEP good states in dashboards/<doc>_snapshots. Written
+    // best-effort and never awaited by the save path — a snapshot failure must
+    // never block a real save.
+    const _thbLastSnapAt = {};
+    async function _thbSnapshot(docName, payload) {
+      try {
+        const now = Date.now();
+        if (_thbLastSnapAt[docName] && now - _thbLastSnapAt[docName] < 10 * 60 * 1000) return;
+        _thbLastSnapAt[docName] = now;
+        const ref = doc(db, 'dashboards/' + docName + '_snapshots');
+        const snap = await getDoc(ref);
+        const list = ((snap.exists() ? snap.data() : {}) || {}).snaps || [];
+        list.push({ at: now, count: _thbCount(payload), payload: payload });
+        while (list.length > THB_KEEP) list.shift();
+        // Trim oldest until it fits well under the per-document ceiling.
+        while (list.length > 1 && _fbByteSize({ snaps: list }) > 700000) list.shift();
+        await setDoc(ref, { snaps: list, updatedAt: now });
+      } catch (e) {
+        console.warn('[Backup] ' + docName + ' snapshot skipped:', e && (e.code || e.message || e));
+      }
+    }
+
+    // → true when the write is safe to send.
+    const _thbLastGood = {};
+    function _thbAllow(docName, label, payload) {
+      const next = _thbCount(payload);
+      const prev = _thbLastGood[docName];
+      if (prev === undefined) { _thbLastGood[docName] = next; return true; }
+      if (prev >= THB_MIN_ITEMS && next < Math.floor(prev * THB_KEEP_RATIO)) {
+        console.error('[WipeGuard] ' + label + ': REFUSED a write that would cut '
+          + prev + ' items down to ' + next + '. Nothing was sent. Your data is untouched.');
+        try {
+          alert(label + ": a change was blocked because it would have deleted most of your "
+            + "data (" + prev + " items down to " + next + ").\n\nNothing was saved and nothing was lost. "
+            + "If you really meant to clear it, delete the items a few at a time.\n\n"
+            + "If you did NOT do this, reload the page — the cloud copy is intact.");
+        } catch (_) {}
+        return false;
+      }
+      _thbLastGood[docName] = next;
+      return true;
+    }
+    // Seed the baseline from whatever the server actually holds, so the very
+    // first write of a session is judged against real data rather than nothing.
+    window._thbSeed = (docName, payload) => {
+      const n = _thbCount(payload);
+      if (n > (_thbLastGood[docName] || 0)) _thbLastGood[docName] = n;
+    };
+    window._thbRestore = async (docName, index) => {
+      const ref = doc(db, 'dashboards/' + docName + '_snapshots');
+      const snap = await getDoc(ref);
+      const list = ((snap.exists() ? snap.data() : {}) || {}).snaps || [];
+      if (!list.length) { console.log('[Backup] no snapshots for ' + docName); return null; }
+      list.forEach((s, i) => console.log('  [' + i + '] ' + new Date(s.at).toLocaleString()
+        + '  ' + s.count + ' items'));
+      if (index === undefined) { console.log('call _thbRestore("' + docName + '", <index>) to fetch one'); return list; }
+      return list[index] ? list[index].payload : null;
+    };
+
     const _doTaskHubSave = () => {
       // This burst is over (or there was nothing queued) — the next edit starts
       // a fresh MAX_WAIT window. Reset here rather than in the setTimeout
@@ -9055,10 +9186,18 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       _lastWrittenSavedAt = payload.savedAt || Date.now();
       _thOwnWrites.add(_lastWrittenSavedAt);
       if (_thOwnWrites.size > 50) _thOwnWrites.delete(_thOwnWrites.values().next().value);
+      // Refuse a catastrophic shrink before it can reach the cloud (and before
+      // any other device pulls it down). See the WIPE GUARD note above.
+      if (!_thbAllow('main', 'TaskHub', payload)) {
+        _savePending = false;
+        window.dispatchEvent(new CustomEvent('fb-error'));
+        return Promise.resolve();
+      }
       _thSaveInFlight = (async () => {
         try {
           _lastOwnSaveAt = Date.now();
           const ok = await _guardedWrite(docRef, payload, 'TaskHub');
+          if (ok) _thbSnapshot('main', payload);   // best-effort, never awaited
           _lastOwnSaveAt = Date.now();
           window.dispatchEvent(new CustomEvent(ok ? "fb-saved" : "fb-error"));
         } finally {
@@ -9248,10 +9387,17 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       _vdLastWrittenSavedAt = payload.savedAt || Date.now();
       _vdOwnWrites.add(_vdLastWrittenSavedAt);
       if (_vdOwnWrites.size > 50) _vdOwnWrites.delete(_vdOwnWrites.values().next().value);
+      // Same wipe guard as TaskHub — see the WIPE GUARD note above.
+      if (!_thbAllow('vedasdash', 'TaskHub (Veda)', payload)) {
+        _vdSavePending = false;
+        window.dispatchEvent(new CustomEvent('fb-vd-error'));
+        return Promise.resolve();
+      }
       _vdSaveInFlight = (async () => {
         try {
           _vdLastOwnSaveAt = Date.now();
           const ok = await _guardedWrite(vdDocRef, payload, 'Veda');
+          if (ok) _thbSnapshot('vedasdash', payload);   // best-effort, never awaited
           _vdLastOwnSaveAt = Date.now();
           window.dispatchEvent(new CustomEvent(ok ? "fb-vd-saved" : "fb-vd-error"));
         } finally { _vdSavePending = false; _vdSaveInFlight = null; }
