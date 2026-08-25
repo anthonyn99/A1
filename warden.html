@@ -1758,15 +1758,44 @@ function migrate(c){
 }
 conns=conns.map(migrate);
 
+// localStorage here is only an offline MIRROR — Firestore is the real store, so
+// a write to it must never be able to stop the cloud save.
+//
+// Every app on an origin shares ONE ~5MB localStorage budget. When it fills up,
+// setItem throws QuotaExceededError, and because that call used to be the FIRST
+// line of save(), the throw took out the whole function: _fbSaveKeychain was
+// never reached, the modal never closed, and the Save button looked completely
+// dead while the cloud sat there never being asked. The thrown error even names
+// this app's key, though the space is usually eaten by a neighbouring app.
+// (Diagnosed in Vault, 2026-08-25 — Warden inherited the same code.)
+function _kcMirror(key,val){
+  try{ localStorage.setItem(key,val); return true; }
+  catch(e){
+    console.warn('[Warden] local mirror failed ('+(e&&e.name||'error')+') — cloud save continues');
+    _kcWarnQuota(e);
+    return false;
+  }
+}
+// Tell the user ONCE per session: their data is safe in the cloud, but this
+// device cannot keep an offline copy until space is freed.
+let _kcQuotaWarned=false;
+function _kcWarnQuota(e){
+  if(_kcQuotaWarned) return;
+  if(!e||String(e.name||'').indexOf('Quota')<0) return;
+  _kcQuotaWarned=true;
+  setTimeout(function(){
+    try{ alert("This browser's storage for the site is full.\n\nYour changes still save to the cloud and sync to your other devices — but this device can't keep an offline copy until space is freed."); }catch(_){}
+  },0);
+}
 function save(){
-  localStorage.setItem('warden_kc_connections',JSON.stringify(conns));
+  _kcMirror('warden_kc_connections',JSON.stringify(conns));
   if(window._fbSaveKeychain){
     if(window.kcSetSync)window.kcSetSync('saving');
     window._fbSaveKeychain(()=>({connections:conns,colmap:_loadColMapRaw()}));
   }
 }
 function saveColMap(map){
-  localStorage.setItem('warden_kc_colmap',JSON.stringify(map));
+  _kcMirror('warden_kc_colmap',JSON.stringify(map));
   if(window._fbSaveKeychain){
     if(window.kcSetSync)window.kcSetSync('saving');
     window._fbSaveKeychain(()=>({connections:conns,colmap:map}));
@@ -2304,7 +2333,7 @@ window.kcExecuteDelete=function(){
        — drops every card back to default packing, so the whole board appears to
        shuffle when you delete one card. */
     const m=_loadColMapRaw();
-    if(Array.isArray(m)&&m.length>delIdx){m.splice(delIdx,1);localStorage.setItem('warden_kc_colmap',JSON.stringify(m));}
+    if(Array.isArray(m)&&m.length>delIdx){m.splice(delIdx,1);_kcMirror('warden_kc_colmap',JSON.stringify(m));}
     else localStorage.removeItem('warden_kc_colmap');
   }
   delIdx=null;
@@ -2330,8 +2359,10 @@ applyTheme();render();
     if(!data||!Array.isArray(data.connections)) return;
     conns=data.connections.map(migrate);
     const map=data.colmap;
-    localStorage.setItem('warden_kc_connections',JSON.stringify(conns));
-    if(Array.isArray(map)){localStorage.setItem('warden_kc_colmap',JSON.stringify(map));}
+    // Mirror, never throw — a full localStorage used to abort applyRemote here,
+    // so the cloud copy arrived but the list was never rendered.
+    _kcMirror('warden_kc_connections',JSON.stringify(conns));
+    if(Array.isArray(map)){_kcMirror('warden_kc_colmap',JSON.stringify(map));}
     render();
     scheduleMigration();                 // carry any legacy base64 files → Cloudflare KV
   }
@@ -2348,7 +2379,7 @@ applyTheme();render();
     try{
       const r=await window._kcMigrateConnsToCloud(conns, window.KcCloud, onProgress);
       if(r.uploaded){
-        localStorage.setItem('warden_kc_connections',JSON.stringify(conns));
+        _kcMirror('warden_kc_connections',JSON.stringify(conns));
         save();                          // push slimmed metadata (URL, no base64) to Firestore
         render();
       }
@@ -2585,7 +2616,23 @@ function kcIconKey(u){
   var url=kcUrl(u);
   return url?(url.origin+url.pathname.replace(/\/$/,'/index.html')).toLowerCase():'';
 }
-function kcSaveIconCache(){ try{localStorage.setItem(KC_ICON_LS,JSON.stringify(window._KC_ICON_CACHE));}catch(_){} }
+// Capped on purpose. Entries hold a discovered icon's DATA URI (a few KB each)
+// and the only limit was a 7-day TTL, so the cache could grow until it filled
+// the origin's shared localStorage budget — which does not just break icons, it
+// makes some OTHER app's setItem throw QuotaExceededError naming its own key.
+// Evict oldest-first until the serialised cache fits.
+var KC_ICON_MAX_BYTES = 512 * 1024;
+function kcSaveIconCache(){
+  try{
+    var c=window._KC_ICON_CACHE||{}, s=JSON.stringify(c);
+    if(s.length>KC_ICON_MAX_BYTES){
+      var keys=Object.keys(c).sort(function(a,b){return (c[a]&&c[a].t||0)-(c[b]&&c[b].t||0);});
+      while(keys.length && s.length>KC_ICON_MAX_BYTES){ delete c[keys.shift()]; s=JSON.stringify(c); }
+      window._KC_ICON_CACHE=c;
+    }
+    localStorage.setItem(KC_ICON_LS,s);
+  }catch(_){ /* full or unavailable — icons simply re-derive next load */ }
+}
 // Read a response's <head> and stop there — our pages run to megabytes
 // and the icon link sits in the first few KB.
 function kcHeadOf(res){
@@ -2662,14 +2709,32 @@ window.kcFavicon=function(u,name){
 window.kcUpgradeFavicons=function(root){
   var scope=root&&root.querySelectorAll?root:document;
   Array.prototype.forEach.call(scope.querySelectorAll('img.kc-favicon[data-kcurl]'),function(img){
-    if(img._kcTried) return; img._kcTried=1;
     var u=img.getAttribute('data-kcurl'); if(!u) return;
+    // Backfill an EMPTY src first. The row markup calls kcFavicon() inline, but
+    // that function is defined in a LATER <script> block than the renderer, so
+    // on the first paint after a cold load it is still undefined and every row
+    // is written with src="". Nothing re-rendered afterwards, so icons stayed
+    // blank for the whole session.
+    if(!img.getAttribute('src') && window.kcFavicon){
+      var base=window.kcFavicon(u,img.getAttribute('alt')||'');
+      if(base){ img.src=base; img.style.visibility=''; }
+    }
+    if(img._kcTried) return; img._kcTried=1;
     if(window.kcAppIcon&&window.kcAppIcon(u)) return;   // already our own mark
     window.kcDiscoverIcon(u).then(function(src){
       if(src&&img.getAttribute('src')!==src){ img.src=src; img.style.visibility=''; }
     });
   });
 };
+// The renderer lives in an EARLIER <script> block and calls this as
+// `if(window.kcUpgradeFavicons) …`, which on a cold load runs before this
+// assignment exists — so the first paint got no icons at all. Sweep once now.
+(function kcInitialFaviconSweep(){
+  function sweep(){ try{ window.kcUpgradeFavicons(document); }catch(_){} }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',sweep);
+  else sweep();
+  setTimeout(sweep,1500); setTimeout(sweep,4000);   // rows can arrive with the cloud copy
+})();
 
 // Shared pastel palette + non-destructive remap. Existing connections keep their
 // stored color in Firestore, but display maps to the nearest pastel by hue so
