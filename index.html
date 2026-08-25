@@ -170,7 +170,7 @@ body{overflow-y:auto;overflow-x:clip;-webkit-overflow-scrolling:touch;}
 #tradeboard-root{position:fixed;inset:0;overflow:hidden;display:none;background:#1a1a1d;}
 body{font-family:'Inter',system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased;}
   /* Veda's apps keep the body face they inherited before the Insight migration. */
-  #veda-root,#vd-kc-root,#bj-root,#cooking-view{font-family:'Nunito',sans-serif;}
+  #veda-root,#bj-root,#cooking-view{font-family:'Nunito',sans-serif;}
 button{touch-action:manipulation;}
 /* Eliminate 300ms tap delay on all interactive elements for snappy iPad response */
 a,button,label,select,[role="button"],[onclick],[tabindex]{touch-action:manipulation;-webkit-tap-highlight-color:transparent;cursor:pointer;}
@@ -11480,7 +11480,7 @@ function _kcMakeCloud(bucket) {
 window.KcCloud   = _kcMakeCloud('keychain'); // Tony's Keychain
 window.VdkcCloud = _kcMakeCloud('links');    // Veda's Links
 
-// Shared: upload one pending doc entry (from _kcDocs/_vdkcDocs) to KV.
+// Shared: upload one pending doc entry (from _kcDocs) to KV.
 // Keeps a local IDB cache, sets storageUrl/storagePath, clears fileData.
 // Falls back to base64-in-Firestore only if the worker fails AND file ≤900KB.
 window._kcUploadDocEntry = async function(d, statusPrefix, cloud) {
@@ -11734,7 +11734,6 @@ window.kcUpgradeFavicons=function(root){
     });
   });
 };
-window.vdkcSyncFilesClick = () => _kcRunSyncButton('vd-kc-syncfiles-btn', () => window._vdkcCloudMigrate, 'Links');
 </script>
 <!-- ── Keychain App ─────────────────────────────────────────── -->
 
@@ -12172,7 +12171,7 @@ window.thDragList = function(listEl, getArr, setArr, onDrop, accentColor, placeh
 'use strict';
 // ── Universal Veda navigation ────────────────────────────────────────────────
 window._vedaNav=function(target){
-  ['task-view','vd-kc-root','bj-root','tj-root','root'].forEach(function(id){
+  ['task-view','bj-root','tj-root','root'].forEach(function(id){
     var el=document.getElementById(id);if(el)el.style.display='none';
   });
   if(window._vedaCloseGita)window._vedaCloseGita();
@@ -12180,11 +12179,6 @@ window._vedaNav=function(target){
     var bj=document.getElementById('bj-root');
     if(bj){window._bjCalledFrom='veda';bj.style.position='fixed';bj.style.inset='0';
       bj.style.zIndex='9999';bj.style.display='flex';bj.style.flexDirection='column';}
-    return;
-  }
-  if(target==='links'){
-    var vdkc=document.getElementById('vd-kc-root');
-    if(vdkc){vdkc.style.display='block';if(typeof vdkc_applyTheme==='function')vdkc_applyTheme();}
     return;
   }
   // 'plans' is no longer a destination — Plans lives inside her TaskHub now
@@ -13548,7 +13542,6 @@ function GitaLessonsBrowser({onClose, onSelectLesson}){
         RC("button",{onClick:onClose,onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:gitaBtnStyle(false)},"TaskHub"),
         RC("button",{onClick:()=>{},onMouseEnter:e=>{e.currentTarget.style.opacity="0.85";},onMouseLeave:e=>{e.currentTarget.style.opacity="1";},style:gitaBtnStyle(true)},"Gita"),
         RC("button",{onClick:()=>window.showBrainstormJournal&&window.showBrainstormJournal('veda'),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:gitaBtnStyle(false)},"Journal"),
-        RC("button",{onClick:()=>window._vdkcShow&&window._vdkcShow(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:gitaBtnStyle(false)},"Links"),
         RC("button",{onClick:()=>window._profileGoSelect&&window._profileGoSelect(),title:"Profile Selection",onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:gitaBtnStyle(false)},RC("span",{style:vdStarGlyph},"\u2726"))
       ))
     )),
@@ -14698,7 +14691,6 @@ function App(){
           RC("button",{onClick:()=>{},onMouseEnter:e=>{e.currentTarget.style.opacity="0.85";},onMouseLeave:e=>{e.currentTarget.style.opacity="1";},style:{background:A,color:BG,border:"1px solid "+A,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},"TaskHub"),
           RC("button",{onClick:()=>window._vedaNav&&window._vedaNav('gita'),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},"Gita"),
           RC("button",{onClick:()=>window._vedaNav&&window._vedaNav('journal'),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},"Journal"),
-          RC("button",{onClick:()=>window._vedaNav&&window._vedaNav('links'),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},"Links"),
           RC("button",{onClick:()=>window._profileGoSelect&&window._profileGoSelect(),title:"Profile Selection",onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s",textTransform:"uppercase",letterSpacing:1}},RC("span",{style:vdStarGlyph},"✦"))),
       // Row 2: program-specific tools, right-aligned
       RC("div",{className:"veda-hbtns",style:{paddingTop:4}},
@@ -15025,7 +15017,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     document.documentElement.style.overflow="";
     hideVeda();
     // Also hide Veda sub-programs in case user was in one
-    ["vd-kc-root","bj-root","tj-root","tradeboard-root","wr-root","root"].forEach(function(id){
+    ["bj-root","tj-root","tradeboard-root","wr-root","root"].forEach(function(id){
       var el=document.getElementById(id);
       if(el){el.style.display="none";}
     });
@@ -15061,7 +15053,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     document.documentElement.style.overflow="";
     if(window._hideTonyNav)window._hideTonyNav();
     if(window._vedaCloseGita)window._vedaCloseGita();
-    ["vd-kc-root","bj-root","tj-root","tradeboard-root","wr-root","root"].forEach(function(id){
+    ["bj-root","tj-root","tradeboard-root","wr-root","root"].forEach(function(id){
       var el=document.getElementById(id);
       if(el){el.style.display="none";}
     });
@@ -16524,42 +16516,6 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   })();
   window.addEventListener('hashchange',function(){ if(location.hash==='#keychain') window._gotoKeychain(); });
 
-  // Deep link — Veda → Links.  ?goto=links  (or #links)
-  //
-  // The Launcher extension's gear points here, the way Vault Launcher's gear
-  // points at ?vaulttab=. Vault got a REDIRECT because it is its own page; Links lives
-  // inside this app, so this one selects Veda's profile and opens the program.
-  //
-  // Both locks still apply. The profile card's own lock is enforced by alGate
-  // below (exactly as clicking the Veda card does), and the Links app lock by
-  // _vedaNav — which the app-lock block near the end of this file WRAPS. That
-  // wrapper is installed by a later <script> than this one, so the navigation
-  // waits for load plus a beat rather than firing inline; going early would
-  // call the raw, ungated _vedaNav and walk straight past a set password.
-  window._gotoVedaLinks=function(){
-    var tries=0;
-    (function go(){
-      if(!(window._profileGoVeda&&window._vedaNav)){
-        if(tries++<80) setTimeout(go,150);
-        return;
-      }
-      var enter=function(){ window._profileGoVeda(); window._vedaNav('links'); };
-      if(window.alGate) window.alGate('profile_veda', enter, function(){
-        if(window._profileGoSelect) window._profileGoSelect();
-      });
-      else enter();
-    })();
-  };
-  (function(){
-    var wants=false;
-    try{ wants=new URLSearchParams(location.search).get('goto')==='links'; }catch(_){}
-    if(wants||location.hash==='#links'){
-      var fire=function(){ setTimeout(window._gotoVedaLinks,700); };
-      if(document.readyState==='complete') fire();
-      else window.addEventListener('load',fire,{once:true});
-    }
-  })();
-  window.addEventListener('hashchange',function(){ if(location.hash==='#links') window._gotoVedaLinks(); });
 
   // ── Silently get token on load if permission already granted ──────────
   if(messaging&&Notification.permission==='granted'){
@@ -16900,286 +16856,6 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
 
 
 
-<!-- ── Veda's Links (scoped CSS overrides) ── -->
-<style>
-/* Reset all kc-* classes inside vd-kc-root to Veda's design language */
-#vd-kc-root {
-  font-family: 'IBM Plex Mono', monospace;
-  background: #1B1C1E;
-  --bg: #1B1C1E; --s1: #26272A; --s2: #303135; --s3: #3A3B40;
-  --bd: #3D3E43; --bdl: #4A4B52;
-  --tx: #ECECEE; --txd: #AFB0B5; --txm: #76777C;
-  --ac: #8D769A; --acd: #6E5C7A; --err: #E74C3C;
-  --shadow: rgba(0,0,0,0.55);
-}
-#vd-kc-root *, #vd-kc-root button, #vd-kc-root input,
-#vd-kc-root select, #vd-kc-root textarea {
-  font-family: 'IBM Plex Mono', monospace;
-  box-sizing: border-box;
-  -webkit-tap-highlight-color: transparent;
-}
-/* Header */
-#vd-kc-root .kc-wrap { max-width: 900px; margin: 0 auto; padding: calc(env(safe-area-inset-top,0px) + clamp(10px,2vw,24px)) clamp(12px,3vw,32px) clamp(10px,1.5vw,16px); }
-#vd-kc-root .kc-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
-#vd-kc-root .kc-logo { font-family: 'Playfair Display', serif !important; font-size: clamp(18px,3vw,28px); font-weight: 900; letter-spacing: 1px; line-height: 1; white-space: nowrap; text-transform: uppercase; color: var(--ac); font-style: normal !important; }
-#vd-kc-root .kc-logo .base, #vd-kc-root .kc-logo .dot { color: var(--ac) !important; font-style: normal !important; }
-#vd-kc-root .kc-tagline { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: var(--txd); margin-top: 3px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; }
-#vd-kc-root .kc-hbtns { display: flex; gap: 6px; align-items: center; flex-shrink: 0; flex-wrap: nowrap; }
-#vd-kc-root .kc-hbtn { background: transparent; border: 1px solid var(--bd); border-radius: 5px; padding: 0 10px; height: 28px; box-sizing: border-box; font-size: 10px; font-weight: 700; color: var(--ac); cursor: pointer; font-family: 'IBM Plex Mono', monospace; display: inline-flex; align-items: center; gap: 4px; transition: all .15s; white-space: nowrap; flex-shrink: 0; outline: none; text-transform: uppercase; letter-spacing: 1px; }
-#vd-kc-root .kc-hbtn:hover, #vd-kc-root .kc-theme-hover:hover, #vd-kc-root .kc-edit-hover:hover { border-color: var(--ac) !important; }
-/* Section */
-#vd-kc-root .kc-section { display: flex; flex-direction: column; gap: 10px; }
-#vd-kc-root .kc-section-head { display: flex; align-items: center; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid var(--bd); }
-#vd-kc-root .kc-section-title { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700; color: var(--txd); letter-spacing: 0.5px; }
-/* Columns */
-#vd-kc-root #vd-kc-conns-list { display: flex; gap: 12px; }
-#vd-kc-root .kc-col { display: flex; flex-direction: column; gap: 10px; flex: 1; min-width: 0; }
-#vd-kc-root.view-mode .kc-edit-only { display: none !important; }
-#vd-kc-root.view-mode .kc-col:empty { display: none; }
-#vd-kc-root.edit-mode .kc-col:empty { border: 1.5px dashed rgba(141,118,154,0.25); border-radius: 5px; min-height: 60px; }
-#vd-kc-root .kc-col-empty { flex: 1; }
-#vd-kc-root #vd-kc-conns-list > .kc-empty { flex: 1; }
-@media(max-width:400px){ #vd-kc-root #vd-kc-conns-list { flex-direction: column; } #vd-kc-root .kc-col { width: 100%; } }
-/* Cards */
-#vd-kc-root .kc-card { background: var(--s1); border: 1px solid var(--bd); border-radius: 5px; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; position: relative; overflow: hidden; transition: border-color .15s; }
-#vd-kc-root .kc-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--card-accent, var(--ac)); opacity: .7; }
-#vd-kc-root .kc-card:hover { border-color: var(--bdl); }
-#vd-kc-root .kc-card-placeholder { border-radius: 5px; background: rgba(141,118,154,0.06); border: 1.5px dashed rgba(141,118,154,0.35); }
-#vd-kc-root .kc-card-fly { position: fixed !important; pointer-events: none !important; z-index: 9000; border-radius: 5px; box-shadow: 0 20px 60px rgba(0,0,0,.7); transform: rotate(1deg) scale(1.03); opacity: .95; }
-#vd-kc-root .kc-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
-#vd-kc-root .kc-card-name { font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 800; line-height: 1.3; word-break: break-word; color: var(--card-accent, var(--ac)); text-transform: uppercase; letter-spacing: 1px; }
-#vd-kc-root .kc-card-actions { display: flex; gap: 2px; flex-shrink: 0; align-items: center; }
-#vd-kc-root .kc-drag-handle { cursor: grab; color: var(--txm); font-size: 14px; padding: 1px 4px; border-radius: 3px; line-height: 1; flex-shrink: 0; user-select: none; touch-action: none; transition: color .12s; }
-#vd-kc-root .kc-drag-handle:hover { color: var(--txd); }
-#vd-kc-root.edit-mode .kc-drag-handle:active { cursor: grabbing; }
-#vd-kc-root .kc-items { display: flex; flex-direction: column; gap: 5px; }
-#vd-kc-root.edit-mode .kc-items { min-height: 8px; }
-#vd-kc-root .kc-item-row { display: flex; align-items: center; gap: 6px; padding: 5px 9px; border-radius: 4px; background: var(--s2); border: 1px solid var(--bdl); }
-#vd-kc-root .kc-item-row.kc-info-row { align-items: flex-start; padding: 7px 9px; }
-#vd-kc-root .kc-favicon { width: 16px; height: 16px; border-radius: 4px; object-fit: contain; flex-shrink: 0; background: var(--s2); }
-#vd-kc-root .kc-item-handle { cursor: grab; color: var(--txm); font-size: 13px; padding: 1px 3px; border-radius: 3px; line-height: 1; flex-shrink: 0; user-select: none; touch-action: none; transition: color .12s; }
-#vd-kc-root .kc-item-handle:hover { color: var(--txd); }
-#vd-kc-root.edit-mode .kc-item-handle:active { cursor: grabbing; }
-#vd-kc-root .kc-item-placeholder { border-radius: 4px; background: rgba(141,118,154,0.08); border: 1.5px dashed rgba(141,118,154,0.4); }
-#vd-kc-root .kc-item-fly { position: fixed !important; pointer-events: none !important; z-index: 9001; border-radius: 4px; box-shadow: 0 6px 24px rgba(0,0,0,.6); transform: rotate(0.5deg) scale(1.01); opacity: .97; }
-#vd-kc-root .kc-link-name { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500; color: var(--tx); flex: 1; min-width: 0; word-break: break-word; }
-#vd-kc-root .kc-info-text { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--txd); line-height: 1.65; white-space: pre-wrap; word-break: break-word; flex: 1; min-width: 0; }
-#vd-kc-root .kc-link-label { font-family: 'IBM Plex Mono', monospace; font-size: 9px; font-weight: 700; color: var(--txd); flex-shrink: 0; letter-spacing: 1px; text-transform: uppercase; }
-#vd-kc-root .kc-link-btns { display: flex; gap: 2px; flex-shrink: 0; }
-#vd-kc-root .kc-empty { text-align: center; padding: 28px 16px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--txm); font-style:normal; border: 1px dashed var(--bd); border-radius: 5px; grid-column: 1/-1; }
-/* Buttons */
-#vd-kc-root .kc-icon-btn { background: transparent; border: none; padding: 3px 6px; border-radius: 4px; cursor: pointer; font-size: 12px; line-height: 1; transition: background .12s, color .12s; color: var(--txd); font-family: 'IBM Plex Mono', monospace; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
-#vd-kc-root .kc-icon-btn:hover { background: var(--s2); color: var(--tx); }
-#vd-kc-root .kc-icon-btn.visit { color: var(--txd); border: 1px solid var(--bd); padding: 2px 7px; font-size: 10px; text-transform: uppercase; letter-spacing: .5px; }
-#vd-kc-root .kc-icon-btn.visit:hover { color: var(--ac); border-color: var(--ac); }
-#vd-kc-root .kc-icon-btn.copy-btn { padding: 3px 5px; }
-#vd-kc-root .kc-icon-btn.copy-btn:hover { color: var(--ac); }
-#vd-kc-root .kc-icon-btn.del-x { color: var(--txm); font-size: 14px; font-weight: 700; }
-#vd-kc-root .kc-icon-btn.del-x:hover { color: var(--err); }
-#vd-kc-root .kc-new-btn { display: inline-flex; align-items: center; gap: 5px; background: transparent; border: 1px solid var(--bd); border-radius: 5px; padding: 0 10px; font-size: 10px; font-weight: 700; color: var(--txd); cursor: pointer; font-family: 'IBM Plex Mono', monospace; transition: all .15s; height: 28px; text-transform: uppercase; letter-spacing: 1px; }
-#vd-kc-root .kc-new-btn:hover { border-color: var(--ac); color: var(--ac); }
-#vd-kc-root .kc-new-btn.accent { background: var(--ac); border-color: var(--ac); color: var(--bg); }
-#vd-kc-root .kc-new-btn.accent:hover { opacity: .85; }
-/* Toast */
-#vd-kc-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(8px); background: var(--s1); border: 1px solid var(--bdl); color: var(--ac); font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700; padding: 8px 18px; border-radius: 20px; z-index: 10000; pointer-events: none; opacity: 0; transition: opacity .2s, transform .2s; text-transform: uppercase; letter-spacing: 1px; }
-#vd-kc-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-/* Modal */
-#vd-kc-root .kc-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.65); display: flex; align-items: center; justify-content: center; z-index: 9500; padding: 16px; }
-#vd-kc-root .kc-modal { background: var(--s1); border: 1px solid var(--bdl); border-radius: 5px; padding: 28px; width: 100%; max-width: 460px; max-height: 90vh; overflow-y: auto; box-shadow: 0 30px 80px var(--shadow); }
-#vd-kc-root .kc-modal-title { font-family: 'Playfair Display', serif; font-size: 17px; font-weight: 900; color: var(--ac); margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
-#vd-kc-root .kc-modal-title span { display: block; width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
-#vd-kc-root .kc-field { margin-bottom: 13px; }
-#vd-kc-root .kc-field label { display: block; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--txm); margin-bottom: 6px; font-family: 'IBM Plex Mono', monospace; }
-#vd-kc-root .kc-input { width: 100%; background: var(--s2); border: 1px solid var(--bdl); border-radius: 5px; color: var(--tx); font-size: 13px; font-weight: 500; padding: 9px 12px; outline: none; transition: border-color .15s; font-family: 'IBM Plex Mono', monospace; }
-#vd-kc-root .kc-input:focus { border-color: var(--ac); }
-#vd-kc-root .kc-input::placeholder { color: var(--txm); }
-#vd-kc-root .kc-textarea { width: 100%; background: var(--s2); border: 1px solid var(--bdl); border-radius: 5px; color: var(--tx); font-size: 13px; font-weight: 500; padding: 9px 12px; outline: none; transition: border-color .15s; font-family: 'IBM Plex Mono', monospace; min-height: 90px; resize: vertical; line-height: 1.6; }
-#vd-kc-root .kc-textarea:focus { border-color: var(--ac); }
-#vd-kc-root .kc-textarea::placeholder { color: var(--txm); }
-#vd-kc-root .kc-palette { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
-#vd-kc-root .kc-color-dot { width: 20px; height: 20px; border-radius: 50%; cursor: pointer; outline: 3px solid transparent; outline-offset: 2px; transition: all .15s; flex-shrink: 0; }
-#vd-kc-root .kc-color-dot.selected { outline-color: var(--tx); transform: scale(1.1); }
-#vd-kc-root .kc-color-dot:hover { transform: scale(1.1); }
-#vd-kc-root .kc-link-fields { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
-#vd-kc-root .kc-link-field-row { display: grid; grid-template-columns: 1fr 1.2fr auto; gap: 5px; align-items: start; }
-#vd-kc-root .kc-single-field-row { display: grid; grid-template-columns: 1fr auto; gap: 5px; align-items: start; }
-#vd-kc-root .kc-link-field-row input, #vd-kc-root .kc-single-field-row input { background: var(--s2); border: 1px solid var(--bdl); border-radius: 4px; color: var(--tx); font-size: 12px; padding: 7px 10px; outline: none; transition: border-color .15s; width: 100%; font-family: 'IBM Plex Mono', monospace; }
-#vd-kc-root .kc-link-field-row input:focus, #vd-kc-root .kc-single-field-row input:focus { border-color: var(--ac); }
-#vd-kc-root .kc-link-field-row input::placeholder, #vd-kc-root .kc-single-field-row input::placeholder { color: var(--txm); }
-#vd-kc-root .kc-add-link-btn { font-size: 10px; font-weight: 700; color: var(--txd); background: transparent; border: 1px dashed var(--bd); border-radius: 4px; padding: 7px 0; width: 100%; cursor: pointer; transition: all .15s; font-family: 'IBM Plex Mono', monospace; text-transform: uppercase; letter-spacing: 1px; }
-#vd-kc-root .kc-add-link-btn:hover { border-color: var(--ac); color: var(--ac); }
-#vd-kc-root .kc-remove-link { background: transparent; border: none; color: var(--txm); cursor: pointer; font-size: 16px; padding: 4px 6px; border-radius: 4px; line-height: 1; transition: color .12s; }
-#vd-kc-root .kc-remove-link:hover { color: var(--err); }
-/* Documents */
-#vd-kc-root .kc-doc-zone { display: block; border: 1px dashed var(--bd); border-radius: 4px; padding: 14px 10px; text-align: center; font-size: 11px; font-weight: 600; color: var(--txd); background: transparent; cursor: pointer; transition: all .15s; margin-top: 6px; }
-#vd-kc-root .kc-doc-zone:hover, #vd-kc-root .kc-doc-zone.drag-over { border-color: var(--ac); color: var(--ac); }
-#vd-kc-root .kc-doc-fields { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
-#vd-kc-root .kc-doc-row { display: grid; grid-template-columns: auto 1fr auto auto auto; gap: 6px; align-items: center; background: var(--s2); border: 1px solid var(--bdl); border-radius: 4px; padding: 6px 8px; }
-#vd-kc-root .kc-doc-row-icon { display: inline-flex; color: var(--txd); flex-shrink: 0; }
-#vd-kc-root .kc-doc-name-input { background: transparent; border: none; color: var(--tx); font-size: 12px; padding: 3px 0; outline: none; width: 100%; min-width: 0; font-family: 'IBM Plex Mono', monospace; }
-#vd-kc-root .kc-doc-name-input::placeholder { color: var(--txm); }
-#vd-kc-root .kc-doc-row-status { font-size: 9px; font-weight: 700; color: var(--txm); text-transform: uppercase; letter-spacing: .5px; white-space: nowrap; flex-shrink: 0; }
-#vd-kc-root .kc-doc-row-status.uploading { color: var(--ac); }
-#vd-kc-root .kc-doc-row-status.error { color: var(--err); }
-#vd-kc-root .kc-doc-replace-btn { background: transparent; border: 1px solid var(--bd); border-radius: 4px; color: var(--txd); font-size: 9px; font-weight: 700; padding: 3px 7px; cursor: pointer; transition: all .15s; font-family: 'IBM Plex Mono', monospace; text-transform: uppercase; letter-spacing: .5px; white-space: nowrap; flex-shrink: 0; }
-#vd-kc-root .kc-doc-replace-btn:hover { border-color: var(--ac); color: var(--ac); }
-#vd-kc-root .kc-doc-del-btn { background: transparent; border: none; color: var(--txm); cursor: pointer; font-size: 15px; padding: 2px 5px; border-radius: 4px; line-height: 1; transition: color .12s; flex-shrink: 0; }
-#vd-kc-root .kc-doc-del-btn:hover { color: var(--err); }
-#vd-kc-root .kc-storage-bar-wrap { margin: 8px 0 6px; }
-#vd-kc-root .kc-storage-bar-label { display: flex; justify-content: space-between; font-size: 9px; font-weight: 700; color: var(--txm); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
-#vd-kc-root .kc-storage-bar-track { width: 100%; height: 4px; border-radius: 2px; background: var(--s3); overflow: hidden; }
-#vd-kc-root .kc-storage-bar-fill { height: 100%; border-radius: 2px; transition: width .2s, background .2s; }
-#vd-kc-root .kc-btn-primary { background: var(--ac); color: var(--bg); border: none; border-radius: 5px; padding: 0 18px; font-size: 10px; font-weight: 700; cursor: pointer; font-family: 'IBM Plex Mono', monospace; transition: opacity .15s; display: inline-flex; align-items: center; height: 30px; text-transform: uppercase; letter-spacing: 1px; }
-#vd-kc-root .kc-btn-primary:hover { opacity: .85; }
-#vd-kc-root .kc-btn-ghost { background: var(--s2); border: 1px solid var(--bdl); border-radius: 5px; padding: 0 16px; font-size: 10px; font-weight: 600; color: var(--txd); cursor: pointer; font-family: 'IBM Plex Mono', monospace; transition: all .15s; height: 30px; display: inline-flex; align-items: center; text-transform: uppercase; letter-spacing: 1px; }
-#vd-kc-root .kc-btn-ghost:hover { border-color: var(--ac); color: var(--ac); }
-#vd-kc-root .kc-modal-actions { display: flex; gap: 10px; margin-top: 20px; }
-#vd-kc-root .kc-confirm-msg { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--txd); line-height: 1.65; margin-bottom: 18px; }
-#vd-kc-root .kc-btn-danger { background: transparent; border: 1px solid var(--err); border-radius: 5px; padding: 0 18px; font-size: 10px; font-weight: 700; color: var(--err); cursor: pointer; font-family: 'IBM Plex Mono', monospace; transition: all .15s; height: 30px; display: inline-flex; align-items: center; text-transform: uppercase; letter-spacing: 1px; }
-#vd-kc-root .kc-btn-danger:hover { background: var(--err); color: #fff; }
-/* Numbered step badges in the Install Launcher modal (counter is `lstep`). */
-#vd-kc-root .vd-launcher-num { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; background: transparent; border: 1px solid var(--ac); color: var(--ac); font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; margin-top: 1px; font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
-#vd-kc-root .vd-launcher-num::before { content: counter(lstep); }
-@media(max-width:500px){ #vd-kc-root .kc-modal { padding: 18px 14px; } #vd-kc-root .kc-modal-actions { flex-wrap: wrap; } }
-</style>
-<!-- ── Veda's Keychain (Links) ─────────────────────────────────── -->
-<div id="vd-kc-root" class="view-mode" style="display:none;position:fixed;inset:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;">
-
-<div class="veda-hdr-outer">
-  <div class="veda-hdr-inner">
-  <div class="veda-hdr-left">
-    <div style="font-family:'Playfair Display',serif;font-size:22px;font-weight:900;color:#8D769A;letter-spacing:1px;text-transform:uppercase;line-height:1;">Links</div>
-  </div>
-  <div class="veda-hdr-right">
-    <div class="veda-hbtns">
-      <button onclick="window._vedaNav&&window._vedaNav('taskhub')" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;transition:all .15s;">TaskHub</button>
-      <button onclick="window._vedaNav&&window._vedaNav('gita')" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;transition:all .15s;">Gita</button>
-      <button onclick="window._vedaNav&&window._vedaNav('journal')" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;transition:all .15s;">Journal</button>
-      <button style="background:#8D769A;color:#1B1C1E;border:1px solid #8D769A;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;">Links</button>
-      <button id="al-btn-veda_links" onclick="window.alManage&&window.alManage('veda_links')" title="App Lock" style="background:transparent;border:1px solid rgba(141,118,154,0.45);border-radius:5px;padding:0 8px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:13px;cursor:pointer;transition:all .15s;color:#8D769A;flex-shrink:0;touch-action:manipulation;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg></button>
-      <button onclick="window._profileGoSelect&&window._profileGoSelect()" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:17px;line-height:1;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:0;transition:all .15s;">✦</button>
-    </div>
-    <div class="veda-hbtns" style="padding-top:4px;">
-      <span id="vd-kc-sync-status" style="font-size:10px;font-weight:600;white-space:nowrap;display:none;"></span>
-      <button id="vd-kc-launcher-btn" onclick="vdkcOpenLauncherSetup()" title="Download the Launcher browser extension and set it up in your browser (no Web Store needed)" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;transition:all .15s;white-space:nowrap;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:block;flex-shrink:0;"><path d="M15.5 3.5a2 2 0 0 1 0 4H14v3h3.5a2 2 0 0 1 0 4H14v3.5a2 2 0 0 1-4 0V14.5H6.5a2 2 0 0 1 0-4H10v-3H8.5a2 2 0 0 1 0-4H10V3.5"/></svg><span>Install Launcher</span></button>
-      <button id="vd-kc-syncfiles-btn" onclick="vdkcSyncFilesClick()" title="Upload existing files to Cloudflare so they're viewable & downloadable on every device" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;transition:all .15s;white-space:nowrap;"><span style="display:inline-flex;font-size:13px;"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M12 13v8"/><path d="m8 17 4-4 4 4"/><path d="M20.9 18.4A5 5 0 0 0 18 9h-1.3A8 8 0 1 0 4 16.2"/></svg></span>Sync Files</button>
-    <div class="kc-edit-hover" id="vd-kc-edit-toggle" onclick="vdkcToggleMode()" style="cursor:pointer;user-select:none;display:inline-flex;align-items:center;gap:6px;background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;font-size:10px;font-weight:700;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;transition:all .15s;"><div id="vd-kc-toggle-track" style="width:26px;height:14px;border-radius:7px;background:var(--vdkc-bd,var(--bd));position:relative;transition:background .25s;flex-shrink:0;"><div id="vd-kc-toggle-thumb" style="width:10px;height:10px;border-radius:50%;background:var(--vdkc-txd,var(--txd));position:absolute;top:50%;transform:translateY(-50%);left:2px;transition:left .25s,background .25s;box-shadow:0 1px 3px rgba(0,0,0,.25);"></div></div><span id="vd-kc-edit-icon" style="color:var(--vdkc-ac,var(--ac));white-space:nowrap;line-height:1;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg"><ellipse cx="7" cy="7" rx="5.5" ry="3.5" stroke="currentColor" stroke-width="1.3"/><circle cx="7" cy="7" r="1.8" fill="currentColor"/></svg></span></div>
-    </div>
-  </div>
-  </div>
-</div>
-<div class="kc-wrap">
-  <div class="kc-section">
-    <div class="kc-section-head">
-      <div class="kc-section-title">Connections</div>
-      <button class="kc-new-btn accent" onclick="vdkcOpenAdd()">New Connection</button>
-    </div>
-    <div id="vd-kc-conns-list"></div>
-  </div>
-</div>
-
-<!-- Connection Modal -->
-<div id="vd-kc-modal" class="kc-overlay" style="display:none" onclick="if(event.target===this)vdkcCloseModal()">
-  <div class="kc-modal" onclick="event.stopPropagation()">
-    <div id="vd-kc-modal-title" class="kc-modal-title"><span id="vd-kc-modal-dot" style="background:var(--ac)"></span>Add Connection</div>
-    <div class="kc-field"><label>Name</label><input class="kc-input" id="vd-kc-f-name" placeholder="e.g. GitHub, John Smith…" autocomplete="off" /></div>
-    <div class="kc-field"><label>Color</label><div class="kc-palette" id="vd-kc-color-palette"></div></div>
-    <div class="kc-field"><label>Links</label><div id="vd-kc-link-fields" class="kc-link-fields"></div><button class="kc-add-link-btn" onclick="vdkcAddLinkField()">+ Add Link</button></div>
-    <div class="kc-field"><label>Emails</label><div id="vd-kc-email-fields" class="kc-link-fields"></div><button class="kc-add-link-btn" onclick="vdkcAddEmailField()">+ Add Email</button></div>
-    <div class="kc-field"><label>Phone Numbers</label><div id="vd-kc-phone-fields" class="kc-link-fields"></div><button class="kc-add-link-btn" onclick="vdkcAddPhoneField()">+ Add Phone</button></div>
-    <div class="kc-field"><label>Usernames</label><div id="vd-kc-username-fields" class="kc-link-fields"></div><button class="kc-add-link-btn" onclick="vdkcAddUsernameField()">+ Add Username</button></div>
-    <div class="kc-field"><label>Documents</label><div id="vd-kc-doc-fields"></div><div class="kc-storage-bar-wrap" id="vd-kc-storage-bar-wrap" style="display:none"><div class="kc-storage-bar-label"><span>Doc storage used</span><span id="vd-kc-storage-bar-text">0 KB / 900 KB</span></div><div class="kc-storage-bar-track"><div class="kc-storage-bar-fill" id="vd-kc-storage-bar-fill" style="width:0%;background:var(--ac)"></div></div></div><div id="vd-kc-doc-drop-zone" class="kc-doc-zone" onclick="document.getElementById('vd-kc-doc-file-input').click()">Click to attach files, or drag &amp; drop — multiple allowed</div><input type="file" id="vd-kc-doc-file-input" style="display:none" accept="*/*" multiple onchange="vdkcHandleDocFiles(this.files)"></div>
-    <div class="kc-field" style="margin-top:4px;"><label>Additional Info</label><textarea class="kc-textarea" id="vd-kc-f-info" placeholder="Notes, anything extra…"></textarea></div>
-    <div class="kc-modal-actions"><button class="kc-btn-primary" onclick="vdkcSaveModal()">Save</button><button class="kc-btn-ghost" onclick="vdkcCloseModal()">Cancel</button></div>
-  </div>
-</div>
-<!-- Confirm Delete -->
-<div id="vd-kc-confirm-modal" class="kc-overlay" style="display:none" onclick="if(event.target===this)vdkcCloseConfirm()">
-  <div class="kc-modal" onclick="event.stopPropagation()" style="max-width:360px;">
-    <div class="kc-modal-title" style="color:#e07070;"><span style="background:#e07070"></span>Delete</div>
-    <div class="kc-confirm-msg" id="vd-kc-confirm-msg"></div>
-    <div class="kc-modal-actions"><button class="kc-btn-danger" onclick="vdkcExecuteDelete()">Delete</button><button class="kc-btn-ghost" onclick="vdkcCloseConfirm()">Cancel</button></div>
-  </div>
-</div>
-<!-- Launcher Setup Modal — mirrors Vault's "Install Vault Launcher" flow (vault.html). -->
-<div id="vd-kc-launcher-setup" class="kc-overlay" style="display:none" onclick="if(event.target===this)vdkcCloseLauncherSetup()">
-  <div class="kc-modal" onclick="event.stopPropagation()" style="max-width:480px;">
-    <div class="kc-modal-title"><span style="background:var(--ac)"></span>Install Launcher</div>
-    <p style="font-size:11px;line-height:1.7;color:var(--txd);margin:-8px 0 18px;font-family:'IBM Plex Mono',monospace;">
-      Launcher is the browser extension that opens these link groups from your toolbar.
-      Browsers don't allow a website to install an extension silently, so this packages the
-      latest build for you and walks through the one-time load — no Web Store needed.
-    </p>
-
-    <ol style="list-style:none;counter-reset:lstep;padding:0;margin:0;">
-      <li style="counter-increment:lstep;display:flex;gap:12px;align-items:flex-start;margin-bottom:16px;">
-        <span class="vd-launcher-num"></span>
-        <div style="flex:1;min-width:0;">
-          <div style="font-size:11px;font-weight:800;color:var(--tx);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;">Download the extension</div>
-          <button class="kc-btn-primary" onclick="vdkcDownloadLauncher(this)">Download Launcher</button>
-          <div style="font-size:10px;color:var(--txm);line-height:1.6;margin-top:6px;">Always packages the latest files straight from GitHub.</div>
-          <div id="vd-kc-launcher-pkg" style="display:none;font-size:10px;color:var(--txd);line-height:1.6;margin-top:4px;font-family:'IBM Plex Mono',monospace;word-break:break-word;"></div>
-        </div>
-      </li>
-      <li style="counter-increment:lstep;display:flex;gap:12px;align-items:flex-start;margin-bottom:16px;">
-        <span class="vd-launcher-num"></span>
-        <div style="flex:1;min-width:0;font-size:11px;color:var(--tx);line-height:1.7;">
-          <span style="font-weight:800;">Unzip it</span> to a folder you'll keep (e.g. Documents).
-          The extension runs from that folder — don't delete it afterwards.
-        </div>
-      </li>
-      <li style="counter-increment:lstep;display:flex;gap:12px;align-items:flex-start;margin-bottom:16px;">
-        <span class="vd-launcher-num"></span>
-        <div style="flex:1;min-width:0;">
-          <div style="font-size:11px;color:var(--tx);line-height:1.7;margin-bottom:8px;">
-            Open your browser's extensions page (<span id="vd-kc-launcher-browser" style="font-weight:800;color:var(--ac)">Chrome</span> — it can't be opened by a click, so copy &amp; paste it):
-          </div>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-            <code id="vd-kc-launcher-exturl" style="background:var(--s2);border:1px solid var(--bdl);border-radius:4px;padding:5px 10px;font-size:11px;color:var(--ac);font-family:'IBM Plex Mono',monospace;">chrome://extensions</code>
-            <button class="kc-btn-ghost" onclick="vdkcCopyLauncherUrl()">Copy</button>
-          </div>
-          <div id="vd-kc-launcher-ff" style="display:none;margin-top:8px;font-size:10.5px;color:#E0A060;line-height:1.6;">
-            Firefox loads it as a temporary add-on via <code style="font-family:'IBM Plex Mono',monospace;">about:debugging</code> (pick <code style="font-family:'IBM Plex Mono',monospace;">manifest.json</code>) and drops it on restart. Brave / Chrome / Edge / Opera keep it loaded.
-          </div>
-        </div>
-      </li>
-      <li style="counter-increment:lstep;display:flex;gap:12px;align-items:flex-start;margin-bottom:16px;">
-        <span class="vd-launcher-num"></span>
-        <div style="flex:1;min-width:0;font-size:11px;color:var(--tx);line-height:1.7;">
-          Turn on <span style="font-weight:800;">Developer mode</span> (toggle, top-right of that page).
-        </div>
-      </li>
-      <li style="counter-increment:lstep;display:flex;gap:12px;align-items:flex-start;margin-bottom:16px;">
-        <span class="vd-launcher-num"></span>
-        <div style="flex:1;min-width:0;font-size:11px;color:var(--tx);line-height:1.7;">
-          Click <span style="font-weight:800;">Load unpacked</span> and select the unzipped
-          <span style="font-weight:800;">Launcher</span> folder.
-        </div>
-      </li>
-      <li style="counter-increment:lstep;display:flex;gap:12px;align-items:flex-start;margin-bottom:4px;">
-        <span class="vd-launcher-num"></span>
-        <div style="flex:1;min-width:0;font-size:11px;color:var(--tx);line-height:1.7;">
-          <span style="font-weight:800;">Pin Launcher</span> to your toolbar — click it and these link
-          groups appear. Edits you make here sync to it automatically, and reordering cards there
-          syncs back here.
-        </div>
-      </li>
-      <li style="display:flex;gap:12px;align-items:flex-start;margin-top:14px;padding-top:14px;border-top:1px solid var(--bd);">
-        <div style="flex:1;min-width:0;font-size:10.5px;color:var(--txd);line-height:1.7;">
-          <span style="font-weight:800;color:var(--tx);">Already installed?</span> Launcher doesn't
-          self-update when loaded unpacked. To get the newest version: download again, replace the old
-          <span style="font-family:'IBM Plex Mono',monospace;">Launcher</span> folder with the new one
-          (same path), then hit <span style="font-weight:800;">Reload</span> on the extensions page.
-        </div>
-      </li>
-    </ol>
-
-    <div class="kc-modal-actions"><button class="kc-btn-ghost" onclick="vdkcCloseLauncherSetup()">Done</button></div>
-  </div>
-</div>
-<div id="vd-kc-toast" class="kc-toast">Copied!</div>
-
-</div><!-- end vd-kc-root -->
 
 <!-- ── PLANS ENGINE ──────────────────────────────────────────────────────────
      Shared commitments with a two-sided confirm. Plans has no page of its own:
@@ -18062,949 +17738,7 @@ window.PlansCore={
 })();
 </script>
 
-<script>
-(function(){
-'use strict';
-const VDKC_THEMES={
-  bg:'#1B1C1E',s1:'#26272A',s2:'#303135',s3:'#3A3B40',bd:'#3D3E43',bdl:'#4A4B52',tx:'#ECECEE',txd:'#AFB0B5',txm:'#76777C',ac:'#8D769A',err:'#E74C3C',shadow:'rgba(0,0,0,0.55)'
-};
-const VDKC_CD=['#f1b0c4','#f6c29e','#f1e19e','#cfe39c','#a9dcb4','#9bd8d0','#a3c8ec','#c3aee6','#e795ae','#f0ac7e','#e7d07e','#b9d683','#8fc99c','#82c6be','#8aafe2','#ab92dc'];
-// ── Icon set — same 24px grid / currentColor rule as VDKC_COPY_SVG below, so
-// every one of these inherits Veda's purple (--ac), her red (--err) or the
-// muted text colour from whatever button holds it. `display:block` keeps them
-// optically centred inside .kc-icon-btn's flex box.
-const _vdkcI=(b,w)=>'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="'+(w||2)+'" stroke-linecap="round" stroke-linejoin="round" style="display:block" aria-hidden="true">'+b+'</svg>';
-const VDKC_EDIT_SVG=_vdkcI('<path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>');
-const VDKC_TRASH_SVG=_vdkcI('<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>');
-const VDKC_X_SVG=_vdkcI('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>');
-const VDKC_DOWNLOAD_SVG=_vdkcI('<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>');
-// The status glyphs sit INLINE next to a word, so they need the baseline nudge
-// the emoji used to get for free.
-const _vdkcInline=(b)=>'<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:none" aria-hidden="true">'+b+'</svg>';
-const VDKC_CHECK_SVG=_vdkcInline('<path d="M20 6 9 17l-5-5"/>');
-const VDKC_ALERT_SVG=_vdkcInline('<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>');
-const VDKC_COPY_SVG='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:block"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
 
-let vdkc_isEdit=false;
-function vdkc_pal(){return VDKC_CD;}
-function vdkc_defC(){return VDKC_CD[0];}
-
-function vdkc_applyTheme(){
-  const t=VDKC_THEMES;
-  const root=document.getElementById('vd-kc-root');
-  if(root){
-    Object.entries(t).forEach(([k,v])=>root.style.setProperty('--'+k,v));
-    root.style.background=t.bg;
-    if(root.style.display!=='none'){document.body.style.background=t.bg;document.documentElement.style.background=t.bg;}
-  }
-}
-window.vdkcToggleMode=function(){
-  vdkc_isEdit=!vdkc_isEdit;
-  const root=document.getElementById('vd-kc-root');
-  if(vdkc_isEdit){root.classList.remove('view-mode');root.classList.add('edit-mode');}
-  else{root.classList.remove('edit-mode');root.classList.add('view-mode');}
-  const track=document.getElementById('vd-kc-toggle-track');
-  const thumb=document.getElementById('vd-kc-toggle-thumb');
-  const icon=document.getElementById('vd-kc-edit-icon');
-  if(track)track.style.background=vdkc_isEdit?'var(--ac)':'var(--bd)';
-  if(thumb){thumb.style.left=vdkc_isEdit?'13px':'2px';thumb.style.background=vdkc_isEdit?'#fff':'var(--txd)';}
-  if(icon)icon.innerHTML=vdkc_isEdit?VDKC_EDIT_SVG:'<svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg"><ellipse cx="7" cy="7" rx="5.5" ry="3.5" stroke="currentColor" stroke-width="1.3"/><circle cx="7" cy="7" r="1.8" fill="currentColor"/></svg>';
-};
-
-// ── Data & migration ──
-let vdkc_conns=[];
-try{vdkc_conns=JSON.parse(localStorage.getItem('vd_kc_connections')||'[]');}catch{}
-// Guards the initial Firebase load (doLoad/applyRemote below) from clobbering a
-// connection the user just added/edited if that load resolves late (e.g. slow
-// auth/App Check) — without this, a save right after page load could appear to
-// silently revert once the deferred fetch finally comes back with stale data.
-let vdkc_lastLocalSaveAt=0;
-
-function vdkc_migrate(c){
-  if(Array.isArray(c.items)) return c;
-  const items=[];
-  (c.links||[]).forEach(l=>items.push({type:'link',name:l.name||'',url:l.url||''}));
-  (c.emails||[]).forEach(e=>items.push({type:'email',value:e}));
-  (c.phones||[]).forEach(p=>items.push({type:'phone',value:p}));
-  (c.usernames||[]).forEach(u=>items.push({type:'username',label:u.label||'',value:u.value||''}));
-  if(c.info) items.push({type:'info',text:c.info});
-  return{name:c.name,color:c.color,items};
-}
-vdkc_conns=vdkc_conns.map(vdkc_migrate);
-
-function vdkc_save(){
-  vdkc_lastLocalSaveAt=Date.now();
-  localStorage.setItem('vd_kc_connections',JSON.stringify(vdkc_conns));
-  if(window._fbSaveVedaLinks){
-    if(window.vdkcSetSync)window.vdkcSetSync('saving');
-    window._fbSaveVedaLinks(()=>({connections:vdkc_conns,colmap:vdkc_loadColMapRaw()}));
-  }
-}
-function vdkc_saveColMap(map){
-  vdkc_lastLocalSaveAt=Date.now();
-  localStorage.setItem('vd_kc_colmap',JSON.stringify(map));
-  if(window._fbSaveVedaLinks){
-    if(window.vdkcSetSync)window.vdkcSetSync('saving');
-    window._fbSaveVedaLinks(()=>({connections:vdkc_conns,colmap:map}));
-  }
-}
-function vdkc_loadColMapRaw(){try{return JSON.parse(localStorage.getItem('vd_kc_colmap')||'null');}catch{return null;}}
-function vdkc_loadColMap(){try{const m=JSON.parse(localStorage.getItem('vd_kc_colmap')||'null');if(Array.isArray(m)&&m.length===vdkc_conns.length)return m;}catch{}return null;}
-function vdkc_esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
-
-// ── Render ──
-function vdkc_render(){vdkc_renderConns();vdkc_bindDnD();}
-
-function vdkc_numCols(){
-  const w=window.innerWidth;
-  if(w<=400) return 1;
-  return 2;
-}
-
-function vdkc_renderConns(){
-  const el=document.getElementById('vd-kc-conns-list');
-  if(!el) return;
-  if(!vdkc_conns.length){el.innerHTML='<div class="kc-empty">No connections yet.</div>';return;}
-  const cols=vdkc_numCols();
-  const colDivs=Array.from({length:cols},(_,i)=>{
-    const d=document.createElement('div');
-    d.className='kc-col';
-    d.dataset.col=i;
-    return d;
-  });
-  const savedMap=vdkc_loadColMap();
-  const perCol=Math.ceil(vdkc_conns.length/cols);
-  vdkc_conns.forEach((c,i)=>{
-    const h=vdkc_fullCard(c,i);
-    const tmp=document.createElement('div');
-    tmp.innerHTML=h;
-    let colIdx=savedMap?Math.max(0,Math.min(savedMap[i],cols-1)):Math.min(Math.floor(i/perCol),cols-1);
-    colDivs[colIdx].appendChild(tmp.firstElementChild);
-  });
-  el.innerHTML='';
-  colDivs.forEach(d=>el.appendChild(d));
-  // Rows painted with the guessed icon; pull each page's own mark in behind it.
-  if(window.kcUpgradeFavicons) window.kcUpgradeFavicons(el);
-}
-
-function vdkc_fullCard(c,i){
-  const col=window._pastelize?window._pastelize(c.color):(c.color||vdkc_defC());
-  const items=(c.items||[]).map((item,ii)=>vdkc_renderItem(item,ii,i)).join('');
-  const linkUrls=(c.items||[]).filter(x=>x&&x.type==='link'&&x.url).map(x=>x.url);
-  return `<div class="kc-card" style="--card-accent:${col}" data-ci="${i}" data-links="${vdkc_esc(JSON.stringify(linkUrls))}">
-    <div class="kc-card-top">
-      <div style="display:flex;align-items:center;gap:5px;flex:1;min-width:0;">
-        <span class="kc-drag-handle kc-edit-only" data-role="vd-conn-handle" data-ci="${i}">⠿</span>
-        <div class="kc-card-name">${c.name?vdkc_esc(c.name):''}</div>
-      </div>
-      <div class="kc-card-actions">
-        ${linkUrls.length>1?`<button class="kc-icon-btn visit kc-open-group" title="Open all ${linkUrls.length} links" onclick="vdkcOpenGroup(+this.closest('.kc-card').dataset.ci)">Open all</button>`:''}
-        <button class="kc-icon-btn kc-edit-only" title="Edit" aria-label="Edit" onclick="vdkcOpenEdit(+this.closest('.kc-card').dataset.ci)">${VDKC_EDIT_SVG}</button>
-        <button class="kc-icon-btn del-x kc-edit-only" title="Delete" aria-label="Delete" onclick="vdkcConfirmDelete(+this.closest('.kc-card').dataset.ci)">${VDKC_TRASH_SVG}</button>
-      </div>
-    </div>
-    <div class="kc-items" data-ci="${i}">${items}</div>
-  </div>`;
-}
-
-function vdkc_renderItem(item,ii,ci){
-  const h=`<span class="kc-item-handle kc-edit-only" data-role="vd-item-handle" data-ci="${ci}" data-ii="${ii}">⠿</span>`;
-  switch(item.type){
-    case 'link':{
-      const nm=vdkc_esc(item.name||item.url||'Link');
-      const fav=item.url?`<img class="kc-favicon" src="${window.kcFavicon?window.kcFavicon(item.url,item.name):''}" data-kcurl="${vdkc_esc(item.url)}" width="16" height="16" alt="" onerror="this.style.visibility='hidden'">`:'';
-      return `<div class="kc-item-row" data-ci="${ci}" data-ii="${ii}">${h}${fav}<span class="kc-link-name">${nm}</span>
-        <div class="kc-link-btns">
-          ${item.url?`<button class="kc-icon-btn visit" onclick="vdkcVisit('${vdkc_esc(item.url)}')">Visit</button>`:''}
-          ${item.url?`<button class="kc-icon-btn copy-btn" title="Copy" onclick="vdkcCopy('${vdkc_esc(item.url)}')">${VDKC_COPY_SVG}</button>`:''}
-        </div></div>`;
-    }
-    case 'email':
-      return `<div class="kc-item-row" data-ci="${ci}" data-ii="${ii}">${h}<span class="kc-link-name">${vdkc_esc(item.value)}</span>
-        <div class="kc-link-btns"><button class="kc-icon-btn copy-btn" title="Copy" onclick="vdkcCopy('${vdkc_esc(item.value)}')">${VDKC_COPY_SVG}</button></div></div>`;
-    case 'phone':
-      return `<div class="kc-item-row" data-ci="${ci}" data-ii="${ii}">${h}<span class="kc-link-name">${vdkc_esc(item.value)}</span>
-        <div class="kc-link-btns"><button class="kc-icon-btn copy-btn" title="Copy" onclick="vdkcCopy('${vdkc_esc(item.value)}')">${VDKC_COPY_SVG}</button></div></div>`;
-    case 'username':
-      return `<div class="kc-item-row" data-ci="${ci}" data-ii="${ii}">${h}
-        ${item.label?`<span class="kc-link-label">${vdkc_esc(item.label)}</span>`:''}
-        <span class="kc-link-name">${vdkc_esc(item.value)}</span>
-        <div class="kc-link-btns"><button class="kc-icon-btn copy-btn" title="Copy" onclick="vdkcCopy('${vdkc_esc(item.value)}')">${VDKC_COPY_SVG}</button></div></div>`;
-    case 'info':
-      return `<div class="kc-item-row kc-info-row" data-ci="${ci}" data-ii="${ii}">${h}<div class="kc-info-text">${vdkc_esc(item.text)}</div></div>`;
-    default: return '';
-    case 'doc':{
-      const nm=vdkc_esc(item.fileName||'Document');
-      const fid=item.fileId||'';
-      const surl=item.storageUrl||'';
-      const fdata=item.fileData||'';
-      const canView=fdata||surl||fid;
-      const viewAct=fdata?`kcOpenFileData('${fdata}','${vdkc_esc(item.mimeType||'')}')`:surl?`(()=>{const _a=document.createElement('a');_a.href='${surl}';_a.target='_blank';_a.rel='noopener noreferrer';document.body.appendChild(_a);_a.click();document.body.removeChild(_a);})()`:`KcFileStore.view('${fid}','${vdkc_esc(item.mimeType||'')}')`;
-      const dlAct=fdata?`kcDownloadFileData('${fdata}','${nm}','${vdkc_esc(item.mimeType||'')}')`:surl?`(()=>{const _a=document.createElement('a');_a.href='${surl}?dl=1';_a.target='_blank';_a.rel='noopener noreferrer';document.body.appendChild(_a);_a.click();document.body.removeChild(_a);})()`:`KcFileStore.download('${fid}','${nm}','${vdkc_esc(item.mimeType||'')}')`;
-      return `<div class="kc-item-row" data-ci="${ci}" data-ii="${ii}">${h}<span class="kc-link-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${nm}"><span style="display:inline-flex;align-items:center;gap:4px;vertical-align:middle"><svg width="12" height="13" viewBox="0 0 24 26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;display:block"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="17" x2="16" y2="17"/><line x1="8" y1="9" x2="10" y2="9"/></svg> ${nm}</span></span>
-        <div class="kc-link-btns">
-          ${canView?`<button class="kc-icon-btn visit" onclick="${viewAct}">View</button>`:''}
-          ${canView?`<button class="kc-icon-btn visit" title="Download" aria-label="Download" onclick="${dlAct}">${VDKC_DOWNLOAD_SVG}</button>`:''}
-        </div></div>`;
-    }
-  }
-}
-
-// ── Card DnD ──
-let vdkc_cardDrag={active:false};
-
-function vdkc_bindCardDnD(){
-  document.querySelectorAll('#vd-kc-conns-list [data-role="vd-conn-handle"]').forEach(h=>{
-    h.addEventListener('pointerdown',vdkc_onCardDown);
-  });
-}
-
-function vdkc_onCardDown(e){
-  if(!vdkc_isEdit) return;
-  e.preventDefault();
-  const card=e.currentTarget.closest('.kc-card');
-  if(!card) return;
-  try{e.currentTarget.setPointerCapture(e.pointerId);}catch(_){}
-  const allCards=[...document.querySelectorAll('#vd-kc-conns-list .kc-card')];
-  const srcIdx=allCards.indexOf(card);
-  vdkc_startCardDrag(e,card,srcIdx);
-}
-
-function vdkc_startCardDrag(e,card,srcIdx){
-  const rect=card.getBoundingClientRect();
-  const ph=document.createElement('div');
-  ph.className='kc-card-placeholder';
-  ph.style.height=rect.height+'px';
-  card.parentNode.insertBefore(ph,card);
-  card.remove();
-  const clone=card.cloneNode(true);
-  clone.classList.add('kc-card-fly');
-  clone.style.width=rect.width+'px';
-  clone.style.left=rect.left+'px';
-  clone.style.top=rect.top+'px';
-  document.body.appendChild(clone);
-  vdkc_cardDrag={active:true,srcIdx,card,clone,ph,offX:e.clientX-rect.left,offY:e.clientY-rect.top};
-  document.addEventListener('pointermove',vdkc_onCardMove,{passive:false});
-  document.addEventListener('pointerup',vdkc_onCardUp,{once:true});
-  document.addEventListener('pointercancel',vdkc_onCardUp,{once:true});
-}
-
-function vdkc_onCardMove(e){
-  if(!vdkc_cardDrag.active) return;
-  e.preventDefault();
-  const{clone,ph,offX,offY}=vdkc_cardDrag;
-  clone.style.left=(e.clientX-offX)+'px';
-  clone.style.top=(e.clientY-offY)+'px';
-  const cols=[...document.querySelectorAll('#vd-kc-conns-list .kc-col')];
-  if(!cols.length) return;
-  let targetCol=null;
-  for(const col of cols){
-    const r=col.getBoundingClientRect();
-    if(e.clientX>=r.left&&e.clientX<=r.right){targetCol=col;break;}
-  }
-  if(!targetCol){
-    let bd=Infinity;
-    for(const col of cols){
-      const r=col.getBoundingClientRect();
-      const d=Math.min(Math.abs(e.clientX-r.left),Math.abs(e.clientX-r.right));
-      if(d<bd){bd=d;targetCol=col;}
-    }
-  }
-  if(!targetCol) return;
-  const colCards=[...targetCol.querySelectorAll('.kc-card')];
-  let insertBefore=null;
-  for(const c of colCards){
-    const r=c.getBoundingClientRect();
-    if(e.clientY<r.top+r.height*0.5){insertBefore=c;break;}
-  }
-  if(insertBefore){targetCol.insertBefore(ph,insertBefore);}else{targetCol.appendChild(ph);}
-}
-
-function vdkc_onCardUp(){
-  if(!vdkc_cardDrag.active) return;
-  document.removeEventListener('pointermove',vdkc_onCardMove);
-  const{srcIdx,card,clone,ph}=vdkc_cardDrag;
-  clone.remove();
-  if(ph.parentNode){
-    ph.parentNode.insertBefore(card,ph);
-    ph.remove();
-    const domCards=[...document.querySelectorAll('#vd-kc-conns-list .kc-col')]
-      .flatMap(col=>[...col.querySelectorAll('.kc-card')]);
-    const oldConns=[...vdkc_conns];
-    const reordered=domCards.map(el=>oldConns[parseInt(el.dataset.ci)]);
-    if(reordered.length===vdkc_conns.length&&reordered.every(Boolean)){
-      vdkc_conns.splice(0,vdkc_conns.length,...reordered);
-      domCards.forEach((el,i)=>{
-        el.dataset.ci=String(i);
-        el.querySelectorAll('[data-ci]').forEach(ch=>ch.dataset.ci=String(i));
-      });
-      vdkc_save();
-      const cm=[];
-      document.querySelectorAll('#vd-kc-conns-list .kc-col').forEach((col,ci)=>{
-        col.querySelectorAll('.kc-card').forEach(cardEl=>{cm[parseInt(cardEl.dataset.ci)]=ci;});
-      });
-      vdkc_saveColMap(cm);
-      const snap=vdkc__colSnapshot;
-      Object.keys(snap).forEach(k=>{if(parseInt(k)>vdkc__prevCols) delete snap[k];});
-    }
-  } else {ph.remove();}
-  vdkc_cardDrag={active:false};
-  vdkc_bindDnD();
-}
-
-// ── Item DnD ──
-let vdkc_itemDrag={active:false};
-
-function vdkc_bindItemDnD(){
-  document.querySelectorAll('#vd-kc-conns-list [data-role="vd-item-handle"]').forEach(h=>h.addEventListener('pointerdown',vdkc_onItemDown));
-}
-
-function vdkc_onItemDown(e){
-  if(!vdkc_isEdit) return;
-  e.preventDefault();
-  const h=e.currentTarget;
-  const row=h.closest('.kc-item-row');if(!row) return;
-  try{h.setPointerCapture(e.pointerId);}catch(_){}
-  vdkc_startItemDrag(e,row,parseInt(h.dataset.ci),parseInt(h.dataset.ii));
-}
-
-function vdkc_startItemDrag(e,row,srcCI,srcII){
-  const rect=row.getBoundingClientRect();
-  const clone=row.cloneNode(true);
-  clone.classList.add('kc-item-fly');
-  clone.style.width=rect.width+'px';clone.style.left=rect.left+'px';clone.style.top=rect.top+'px';
-  document.body.appendChild(clone);
-  const ph=document.createElement('div');
-  ph.className='kc-item-placeholder';ph.style.height=rect.height+'px';
-  row.parentNode.insertBefore(ph,row);row.parentNode.removeChild(row);
-  vdkc_itemDrag={active:true,srcCI,srcII,row,clone,ph,offX:e.clientX-rect.left,offY:e.clientY-rect.top};
-  document.addEventListener('pointermove',vdkc_onItemMove,{passive:false});
-  document.addEventListener('pointerup',vdkc_onItemUp,{once:true});
-  document.addEventListener('pointercancel',vdkc_onItemUp,{once:true});
-}
-
-function vdkc_onItemMove(e){
-  if(!vdkc_itemDrag.active) return;
-  e.preventDefault();
-  const{clone,ph,offX,offY}=vdkc_itemDrag;
-  clone.style.left=(e.clientX-offX)+'px';clone.style.top=(e.clientY-offY)+'px';
-  const el=document.elementFromPoint(e.clientX,e.clientY);
-  if(!el) return;
-  let container=el.closest('.kc-items');
-  if(!container){
-    const card=el.closest('.kc-card');
-    if(card) container=card.querySelector('.kc-items');
-  }
-  if(!container) return;
-  const rows=[...container.querySelectorAll('.kc-item-row')];
-  const idx=vdkc_colInsertIdx(rows,e.clientY);
-  const ref=rows[idx]||null;
-  if(ref) container.insertBefore(ph,ref); else container.appendChild(ph);
-}
-
-function vdkc_colInsertIdx(rows,cy){
-  for(let i=0;i<rows.length;i++){
-    const r=rows[i].getBoundingClientRect();
-    if(cy<r.top+r.height*0.5) return i;
-  }
-  return rows.length;
-}
-
-function vdkc_onItemUp(){
-  if(!vdkc_itemDrag.active) return;
-  document.removeEventListener('pointermove',vdkc_onItemMove);
-  const{srcCI,srcII,row,clone,ph}=vdkc_itemDrag;
-  clone.remove();
-  const affectedCards=new Set();
-  if(ph.parentNode){
-    const container=ph.closest('.kc-items');
-    const targetCard=container?container.closest('.kc-card'):null;
-    if(container&&targetCard){
-      const tgtCI=parseInt(targetCard.dataset.ci);
-      const siblings=[...container.children];
-      const phIdx=siblings.indexOf(ph);
-      const tgtII=siblings.slice(0,phIdx).filter(el=>el.classList.contains('kc-item-row')).length;
-      ph.remove();
-      const[movedItem]=vdkc_conns[srcCI].items.splice(srcII,1);
-      vdkc_conns[tgtCI].items.splice(tgtII,0,movedItem);
-      vdkc_save();
-      affectedCards.add(srcCI);
-      affectedCards.add(tgtCI);
-    } else {ph.remove();}
-  } else {ph.remove();}
-  vdkc_itemDrag={active:false};
-  affectedCards.forEach(ci=>{
-    const cardEl=document.querySelector(`#vd-kc-conns-list .kc-card[data-ci="${ci}"]`);
-    if(!cardEl) return;
-    const tmp=document.createElement('div');
-    tmp.innerHTML=vdkc_fullCard(vdkc_conns[ci],ci);
-    cardEl.parentNode.replaceChild(tmp.firstElementChild,cardEl);
-  });
-  vdkc_bindDnD();
-}
-
-function vdkc_bindDnD(){vdkc_bindCardDnD();vdkc_bindItemDnD();}
-
-// ── Modal ──
-let vdkc_editIdx=null;window.vdkcModalColor=null;
-
-// ── Veda doc state: array ──
-// ── Veda doc state ──
-let _vdkcDocs=[];
-let _vdkcDocCounter=0;
-function vdkcDocId(){return 'vkcd'+(++_vdkcDocCounter);}
-
-function vdkcRenderDocRow(entry){
-  const df=document.getElementById('vd-kc-doc-fields');if(!df)return;
-  const row=document.createElement('div');
-  row.className='kc-doc-row';row.dataset.docid=entry.id;
-  row.innerHTML=`<span class="kc-doc-row-icon"><svg width="12" height="13" viewBox="0 0 24 26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;display:block"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><line x1="8" y1="9" x2="10" y2="9"/></svg></span>
-    <input class="kc-doc-name-input" data-docid="${entry.id}" placeholder="Document name…" value="${vdkc_esc(entry.displayName||entry.fileName||'')}" oninput="vdkcDocRename(this)">
-    <span class="kc-doc-row-status" id="vdkcds-${entry.id}">${entry.saved?VDKC_CHECK_SVG:entry.file?'ready':'?'}</span>
-    ${entry.saved?`<button class="kc-doc-replace-btn" onclick="vdkcDocReplace('${entry.id}')">Replace</button>`:''}
-    <button class="kc-doc-del-btn" title="Remove" aria-label="Remove" onclick="vdkcDocRemove('${entry.id}')">${VDKC_X_SVG}</button>`;
-  df.appendChild(row);
-}
-function vdkcCalcDocBytes(){
-  return _vdkcDocs.filter(d=>!d.toDelete).reduce((sum,d)=>{
-    if(d.fileData)return sum+Math.round(d.fileData.length*0.75);
-    if(d.file)return sum+d.file.size;
-    return sum;
-  },0);
-}
-function vdkcUpdateStorageBar(){
-  // Files now upload individually to Cloudflare KV — the only limit is 25 MB
-  // PER FILE (no shared budget). Bar tracks the largest pending file vs that.
-  const PERFILE=25*1024*1024;
-  const wrap=document.getElementById('vd-kc-storage-bar-wrap');
-  const fill=document.getElementById('vd-kc-storage-bar-fill');
-  const txt=document.getElementById('vd-kc-storage-bar-text');
-  if(!wrap)return;
-  const sizeOf=d=>d.file?d.file.size:(d.fileData?Math.round(d.fileData.length*0.75):0);
-  const pending=_vdkcDocs.filter(d=>!d.toDelete&&sizeOf(d)>0);
-  if(!pending.length){wrap.style.display='none';return;}
-  wrap.style.display='block';
-  const largest=pending.reduce((m,d)=>Math.max(m,sizeOf(d)),0);
-  const over=largest>PERFILE;
-  const fmt=b=>b>=1048576?(b/1048576).toFixed(1)+' MB':Math.round(b/1024)+' KB';
-  if(txt)txt.textContent=over?'A file is over the 25 MB limit — it won’t sync to the cloud':fmt(largest)+' · 25 MB max per file';
-  const pct=Math.min(100,Math.round(largest/PERFILE*100));
-  if(fill){fill.style.width=pct+'%';fill.style.background=over?'#e05555':pct>=80?'#e09030':'var(--ac)';}
-}
-function vdkcRebuildDocFields(){
-  const df=document.getElementById('vd-kc-doc-fields');if(!df)return;
-  df.innerHTML='';
-  _vdkcDocs.filter(d=>!d.toDelete).forEach(vdkcRenderDocRow);
-  vdkcUpdateStorageBar();
-}
-window.vdkcDocRename=function(input){
-  const d=_vdkcDocs.find(x=>x.id===input.dataset.docid);if(d)d.displayName=input.value;
-};
-window.vdkcDocRemove=function(id){
-  const idx=_vdkcDocs.findIndex(x=>x.id===id);if(idx<0)return;
-  const d=_vdkcDocs[idx];
-  if(d.saved&&(d.fileId||d.storageUrl)){d.toDelete=true;}else{_vdkcDocs.splice(idx,1);}
-  vdkcRebuildDocFields();
-  vdkcUpdateStorageBar();
-};
-window.vdkcDocReplace=function(id){
-  const d=_vdkcDocs.find(x=>x.id===id);if(!d)return;
-  const inp=document.createElement('input');inp.type='file';inp.accept='*/*';
-  inp.onchange=function(){
-    const f=inp.files[0];if(!f)return;
-    const idx=_vdkcDocs.findIndex(x=>x.id===id);
-    const newEntry={id:vdkcDocId(),file:f,_origFile:f,fileName:f.name,displayName:f.name,mimeType:f.type||'application/octet-stream',saved:false,_deleteFileId:d.fileId||null,_deleteStoragePath:d.storagePath||null};
-    _vdkcDocs.splice(idx,1,newEntry);vdkcRebuildDocFields();vdkcUpdateStorageBar();
-  };inp.click();
-};
-window.vdkcHandleDocFiles=function(fileList){
-  if(!fileList||!fileList.length)return;
-  Array.from(fileList).forEach(f=>{
-    _vdkcDocs.push({id:vdkcDocId(),file:f,_origFile:f,fileName:f.name,displayName:f.name,mimeType:f.type||'application/octet-stream',saved:false});
-  });
-  vdkcRebuildDocFields();
-  vdkcUpdateStorageBar();
-  const fi=document.getElementById('vd-kc-doc-file-input');if(fi)fi.value='';
-};
-(function setupVdkcDocDrop(){
-  function initDrop(){
-    const dz=document.getElementById('vd-kc-doc-drop-zone');
-    if(!dz||dz._vdkcDropBound)return;dz._vdkcDropBound=true;
-    dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag-over');});
-    dz.addEventListener('dragleave',()=>dz.classList.remove('drag-over'));
-    dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag-over');if(e.dataTransfer.files.length)vdkcHandleDocFiles(e.dataTransfer.files);});
-  }
-  setTimeout(initDrop,500);document.addEventListener('click',()=>setTimeout(initDrop,100),{once:true});
-})();
-
-function vdkc_clearModal(){
-  ['vd-kc-f-name','vd-kc-f-info'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  ['vd-kc-link-fields','vd-kc-email-fields','vd-kc-phone-fields','vd-kc-username-fields','vd-kc-doc-fields'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML='';});
-  _vdkcDocs=[];
-  vdkcUpdateStorageBar();
-}
-window.vdkcOpenAdd=function(){
-  vdkc_editIdx=null;window.vdkcModalColor=vdkc_defC();
-  document.getElementById('vd-kc-modal-title').innerHTML=`<span id="vd-kc-modal-dot" style="background:var(--ac)"></span>Add Connection`;
-  vdkc_clearModal();vdkc_renderPalette('vd-kc-color-palette',window.vdkcModalColor);
-  document.getElementById('vd-kc-modal').style.display='flex';document.getElementById('vd-kc-f-name').focus();
-};
-window.vdkcOpenEdit=function(i){
-  vdkc_editIdx=i;const c=vdkc_conns[i];window.vdkcModalColor=c.color||vdkc_defC();
-  document.getElementById('vd-kc-modal-title').innerHTML=`<span id="vd-kc-modal-dot" style="background:${window.vdkcModalColor}"></span>Edit Connection`;
-  vdkc_clearModal();
-  document.getElementById('vd-kc-f-name').value=c.name||'';
-  const infoTexts=[];
-  (c.items||[]).forEach(item=>{
-    switch(item.type){
-      case 'link': vdkc_addLF(item.name,item.url); break;
-      case 'email': vdkc_addEF(item.value); break;
-      case 'phone': vdkc_addPF(item.value); break;
-      case 'username': vdkc_addUF(item.label,item.value); break;
-      case 'info': infoTexts.push(item.text||''); break;
-      case 'doc':
-        _vdkcDocs.push({id:vdkcDocId(),displayName:item.displayName||item.fileName,fileName:item.fileName,fileId:item.fileId||'',mimeType:item.mimeType||'',storageUrl:item.storageUrl||'',storagePath:item.storagePath||'',fileData:item.fileData||'',saved:true});
-        break;
-    }
-  });
-  vdkcRebuildDocFields();
-  document.getElementById('vd-kc-f-info').value=infoTexts.join('\n');
-  vdkc_renderPalette('vd-kc-color-palette',window.vdkcModalColor);
-  document.getElementById('vd-kc-modal').style.display='flex';document.getElementById('vd-kc-f-name').focus();
-};
-window.vdkcCloseModal=function(){document.getElementById('vd-kc-modal').style.display='none';_vdkcDocs=[];vdkcUpdateStorageBar();};
-
-window.vdkcSaveModal=async function(){
-  const name=document.getElementById('vd-kc-f-name').value.trim();
-  const saveBtn=document.querySelector('#vd-kc-modal .kc-btn-primary');
-  const setBtnState=(txt,dis)=>{if(saveBtn){saveBtn.disabled=dis;saveBtn.textContent=txt;}};
-  setBtnState('Saving…',true);
-  document.querySelectorAll('#vd-kc-doc-fields .kc-doc-name-input').forEach(inp=>{
-    const d=_vdkcDocs.find(x=>x.id===inp.dataset.docid);if(d)d.displayName=inp.value.trim()||d.fileName;
-  });
-  // Process new files: upload to Cloudflare KV (Links' own namespace)
-  for(const d of _vdkcDocs.filter(x=>!x.saved&&!x.toDelete&&x.file)){
-    const ok=await window._kcUploadDocEntry(d,'vdkcds-',window.VdkcCloud);
-    if(!ok){
-      setBtnState('Save',false);
-      alert(((d._origFile||d.file||{}).name||'A file')+" couldn't be saved. Files over 25MB can't sync; check your connection and try again.");
-      return;
-    }
-  }
-  _vdkcDocs.forEach(d=>{
-    [d.toDelete?d.fileId:null,d._deleteFileId||null].filter(Boolean).forEach(fid=>window.KcFileStore.delete(fid).catch(()=>{}));
-    [d.toDelete?(d.storagePath||d.fileId):null,d._deleteStoragePath||null].filter(Boolean).forEach(p=>window.VdkcCloud.remove(p));
-  });
-  const items=[];
-  document.querySelectorAll('#vd-kc-link-fields .kc-link-field-row').forEach(row=>{
-    const ins=row.querySelectorAll('input');const n=ins[0]?.value.trim()||'',u=ins[1]?.value.trim()||'';if(n||u)items.push({type:'link',name:n,url:u});
-  });
-  document.querySelectorAll('#vd-kc-email-fields .kc-single-field-row').forEach(row=>{
-    const v=row.querySelector('input')?.value.trim()||'';if(v)items.push({type:'email',value:v});
-  });
-  document.querySelectorAll('#vd-kc-phone-fields .kc-single-field-row').forEach(row=>{
-    const v=row.querySelector('input')?.value.trim()||'';if(v)items.push({type:'phone',value:v});
-  });
-  document.querySelectorAll('#vd-kc-username-fields .kc-link-field-row').forEach(row=>{
-    const ins=row.querySelectorAll('input');const lbl=ins[0]?.value.trim()||'',val=ins[1]?.value.trim()||'';if(lbl||val)items.push({type:'username',label:lbl,value:val});
-  });
-  _vdkcDocs.filter(d=>!d.toDelete).forEach(d=>{
-    if(d.fileData||d.fileId||d.storageUrl)
-      items.push({type:'doc',fileName:d.displayName||d.fileName,fileId:d.fileId||'',mimeType:d.mimeType||'',storageUrl:d.storageUrl||'',storagePath:d.storagePath||'',fileData:d.fileData||''});
-  });
-  const infoText=document.getElementById('vd-kc-f-info').value.trim();
-  if(infoText)items.push({type:'info',text:infoText});
-  const obj={name,color:window.vdkcModalColor||vdkc_defC(),items};
-  if(vdkc_editIdx!==null)vdkc_conns[vdkc_editIdx]=obj;else{vdkc_conns.push(obj);vdkc_saveColMap(null);}
-  setBtnState('Save',false);
-  vdkc_save();vdkcCloseModal();vdkc_render();
-};
-
-// Field builders
-function vdkc_addLF(n,u){const el=document.getElementById('vd-kc-link-fields');const row=document.createElement('div');row.className='kc-link-field-row';row.innerHTML=`<input placeholder="Link name" value="${vdkc_esc(n||'')}" autocomplete="off"/><input placeholder="https://…" value="${vdkc_esc(u||'')}" autocomplete="off"/><button class="kc-remove-link" onclick="this.parentElement.remove()">×</button>`;el.appendChild(row);}
-window.vdkcAddLinkField=function(){vdkc_addLF('','');};
-function vdkc_addEF(v){const el=document.getElementById('vd-kc-email-fields');const row=document.createElement('div');row.className='kc-single-field-row';row.innerHTML=`<input placeholder="email@example.com" type="text" value="${vdkc_esc(v||'')}" autocomplete="off"/><button class="kc-remove-link" onclick="this.parentElement.remove()">×</button>`;el.appendChild(row);}
-window.vdkcAddEmailField=function(){vdkc_addEF('');};
-function vdkc_addPF(v){const el=document.getElementById('vd-kc-phone-fields');const row=document.createElement('div');row.className='kc-single-field-row';row.innerHTML=`<input placeholder="+1 (555) 000-0000" type="text" value="${vdkc_esc(v||'')}" autocomplete="off"/><button class="kc-remove-link" onclick="this.parentElement.remove()">×</button>`;el.appendChild(row);}
-window.vdkcAddPhoneField=function(){vdkc_addPF('');};
-function vdkc_addUF(lbl,val){const el=document.getElementById('vd-kc-username-fields');const row=document.createElement('div');row.className='kc-link-field-row';row.innerHTML=`<input placeholder="Platform (e.g. Twitter)" value="${vdkc_esc(lbl||'')}" autocomplete="off"/><input placeholder="@username" value="${vdkc_esc(val||'')}" autocomplete="off"/><button class="kc-remove-link" onclick="this.parentElement.remove()">×</button>`;el.appendChild(row);}
-window.vdkcAddUsernameField=function(){vdkc_addUF('','');};
-
-
-function vdkc_renderPalette(id,sel){const el=document.getElementById(id);if(!el)return;el.innerHTML=vdkc_pal().map(c=>`<div class="kc-color-dot ${sel===c?'selected':''}" style="background:${c}" onclick="vdkcPickColor(this,'${c}')"></div>`).join('');}
-window.vdkcPickColor=function(dot,c){window.vdkcModalColor=c;document.querySelectorAll('#vd-kc-color-palette .kc-color-dot').forEach(d=>d.classList.remove('selected'));dot.classList.add('selected');const d=document.getElementById('vd-kc-modal-dot');if(d)d.style.background=c;};
-
-let vdkc_delIdx=null;
-window.vdkcConfirmDelete=function(i){vdkc_delIdx=i;document.getElementById('vd-kc-confirm-msg').textContent=`Delete "${vdkc_conns[i].name||'this connection'}"? Cannot be undone.`;document.getElementById('vd-kc-confirm-modal').style.display='flex';};
-window.vdkcExecuteDelete=function(){if(vdkc_delIdx!==null)vdkc_conns.splice(vdkc_delIdx,1);vdkc_delIdx=null;vdkc_save();vdkc_saveColMap(null);vdkcCloseConfirm();vdkc_render();};
-window.vdkcCloseConfirm=function(){vdkc_delIdx=null;document.getElementById('vd-kc-confirm-modal').style.display='none';};
-
-window.vdkcVisit=function(raw){let url=raw;if(!/^https?:\/\//i.test(url)&&url)url='https://'+url;const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener noreferrer';document.body.appendChild(a);a.click();document.body.removeChild(a);};
-// Group launch: open every link in a Veda Links card at once (view mode).
-window.vdkcOpenGroup=function(ci){
-  const card=document.querySelector('#vd-kc-conns-list .kc-card[data-ci="'+ci+'"]');
-  if(!card) return;
-  let urls=[];
-  try{ urls=JSON.parse(card.dataset.links||'[]'); }catch(_){}
-  urls.forEach(u=>{ if(u&&window.vdkcVisit) window.vdkcVisit(u); });
-};
-window.vdkcCopy=function(val){
-  const show=()=>{const t=document.getElementById('vd-kc-toast');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800);};
-  navigator.clipboard?.writeText(val).then(show).catch(()=>{const ta=document.createElement('textarea');ta.value=val;ta.style.cssText='position:fixed;opacity:0';document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);show();});
-};
-
-document.addEventListener('keydown',e=>{
-  if(e.key!=='Escape') return;
-  if(document.getElementById('vd-kc-root')?.style.display==='none') return;
-  vdkcCloseModal();vdkcCloseConfirm();
-});
-
-// ── Sync status ──────────────────────────────────────────────────────────────
-let _vdkcSyncTimer=null;
-function vdkc_setSync(status){
-  const el=document.getElementById('vd-kc-sync-status');
-  if(!el) return;
-  if(status==='saving'){el.style.display='';el.style.color='#76777C';el.textContent='Syncing…';}
-  else if(status==='saved'){el.style.display='';el.style.color='#5DAF6D';el.innerHTML=VDKC_CHECK_SVG+' Synced';if(_vdkcSyncTimer)clearTimeout(_vdkcSyncTimer);_vdkcSyncTimer=setTimeout(()=>{el.style.display='none';},2500);}
-  else if(status==='error'){el.style.display='';el.style.color='#E74C3C';el.innerHTML=VDKC_ALERT_SVG+' Sync failed';}
-  else{el.style.display='none';}
-}
-window.vdkcSetSync=vdkc_setSync;
-
-// ── Firebase init ─────────────────────────────────────────────────────────────
-function vdkcInitFirebase(){
-  function applyRemote(data){
-    if(!data||!Array.isArray(data.connections)) return;
-    // A save made moments ago may not have round-tripped yet (slow auth/App
-    // Check on first load, or listener echo) — don't let a stale fetch stomp it.
-    if(vdkc_lastLocalSaveAt&&Date.now()-vdkc_lastLocalSaveAt<10000) return;
-    vdkc_conns=data.connections.map(vdkc_migrate);
-    const map=data.colmap;
-    localStorage.setItem('vd_kc_connections',JSON.stringify(vdkc_conns));
-    if(Array.isArray(map)){localStorage.setItem('vd_kc_colmap',JSON.stringify(map));}
-    vdkc_render();
-    scheduleMigration();                 // carry any legacy base64 files → Cloudflare KV
-  }
-  async function doLoad(){
-    if(!window._fbLoadVedaLinks) return;
-    const data=await window._fbLoadVedaLinks();
-    applyRemote(data);
-  }
-  // ── Auto-migrate legacy base64 docs → Cloudflare KV ──────────────────────
-  let _vdkcMigTimer=null, _vdkcMigRunning=false;
-  async function runCloudMigration(manual, onProgress){
-    if(_vdkcMigRunning) return {busy:true};
-    _vdkcMigRunning=true;
-    try{
-      const r=await window._kcMigrateConnsToCloud(vdkc_conns, window.VdkcCloud, onProgress);
-      if(r.uploaded){
-        localStorage.setItem('vd_kc_connections',JSON.stringify(vdkc_conns));
-        vdkc_save();                     // push slimmed metadata (URL, no base64) to Firestore
-        vdkc_render();
-      }
-      return r;
-    } finally { _vdkcMigRunning=false; }
-  }
-  function scheduleMigration(){ if(_vdkcMigTimer)clearTimeout(_vdkcMigTimer); _vdkcMigTimer=setTimeout(()=>runCloudMigration(false),600); }
-  window._vdkcCloudMigrate=runCloudMigration;  // manual trigger for the Sync Files button
-
-  if(window._fbReady){doLoad();}
-  else{window.addEventListener('fb-ready',doLoad,{once:true});}
-  window.addEventListener('fb-vdkc-remote-update',e=>{applyRemote(e.detail);});
-  window.addEventListener('fb-vdkc-saved',()=>{if(window.vdkcSetSync)window.vdkcSetSync('saved');});
-  window.addEventListener('fb-vdkc-synced',()=>{if(window.vdkcSetSync)window.vdkcSetSync('saved');});
-  window.addEventListener('fb-vdkc-error',()=>{if(window.vdkcSetSync)window.vdkcSetSync('error');});
-  scheduleMigration();                    // migrate localStorage docs on first open too
-}
-vdkcInitFirebase();
-
-vdkc_applyTheme();vdkc_render();
-
-// ── Resize handler ──
-let vdkc__prevCols=vdkc_numCols();
-const vdkc__colSnapshot={};
-window.addEventListener('resize',()=>{
-  const c=vdkc_numCols();
-  if(c===vdkc__prevCols) return;
-  const prev=vdkc__prevCols;
-  vdkc__prevCols=c;
-  const list=document.getElementById('vd-kc-conns-list');
-  if(!list) return;
-  if(c<prev){
-    const colEls=[...list.querySelectorAll('.kc-col')];
-    vdkc__colSnapshot[prev]=colEls.map((col,ci)=>[...col.querySelectorAll('.kc-card')].map(card=>({ci,card}))).flat();
-    vdkc_saveColMap(null);
-    colEls.slice(c).forEach(col=>{[...col.querySelectorAll('.kc-card')].forEach(card=>colEls[c-1].appendChild(card));col.remove();});
-  } else {
-    if(vdkc__colSnapshot[c]){
-      const colEls=[...list.querySelectorAll('.kc-col')];
-      for(let i=colEls.length;i<c;i++){const d=document.createElement('div');d.className='kc-col';d.dataset.col=i;list.appendChild(d);}
-      const newColEls=[...list.querySelectorAll('.kc-col')];
-      vdkc__colSnapshot[c].forEach(({ci,card})=>{const targetCol=newColEls[Math.min(ci,newColEls.length-1)];if(targetCol&&card.parentNode)targetCol.appendChild(card);});
-      delete vdkc__colSnapshot[c];
-      const cm=[];
-      newColEls.forEach((col,ci)=>{col.querySelectorAll('.kc-card').forEach(cardEl=>{cm[parseInt(cardEl.dataset.ci)]=ci;});});
-      vdkc_saveColMap(cm);
-    } else {
-      const colEls=[...list.querySelectorAll('.kc-col')];
-      for(let i=colEls.length;i<c;i++){const d=document.createElement('div');d.className='kc-col';d.dataset.col=i;list.appendChild(d);}
-    }
-  }
-  vdkc_bindDnD();
-});
-
-// ── Show / Hide ──
-window._vdkcShow=function(){
-  ['veda-root','bj-root','tj-root','root'].forEach(function(id){
-    var el=document.getElementById(id);if(el)el.style.display='none';
-  });
-  const vdkc=document.getElementById('vd-kc-root');
-  if(vdkc){vdkc.style.display='block';if(typeof vdkc_applyTheme==='function')vdkc_applyTheme();}
-};
-window._vdkcBack=function(){if(window._vedaNav)window._vedaNav('taskhub');};
-
-})();
-</script>
-
-<script>
-/* ── Launcher extension packaging + guided setup (Links "Install Launcher") ───
-   Same machinery as Vault's "Install Vault Launcher" (see vault.html): browsers forbid a
-   page from installing an extension, so we fetch the Launcher files, build a
-   Store-method ZIP entirely in the browser (no library, no CDN) and hand it to
-   the user with Load-Unpacked steps.
-
-   NOTHING here enumerates filenames. The set that ships is discovered at click
-   time, so adding / removing / renaming a file in V1/Launcher/ needs no edit
-   here — it is picked up on the next click:
-
-     1. the GitHub tree of V1/Launcher/ at HEAD → every file that exists;
-     2. plus a walk of manifest.json → popup.html → importScripts, so anything
-        the extension actually REQUIRES is pulled in even if (1) is rate-limited
-        or the deploy is a minute behind main.
-
-   Contents come from this origin first, falling back to raw.githubusercontent
-   per-file — which also covers a brand-new file already on main but not yet
-   published to Pages.
-
-   Entries are nested under `Launcher/` (not `V1/Launcher/`) so any extraction
-   style yields the folder the setup steps tell you to select. */
-(function(){
-  const L_REPO='anthonyn99/A1', L_REF='main';
-  const L_SRC_DIR='V1/Launcher';       // where the files live in the repo / on Pages
-  const L_ZIP_DIR='Launcher';          // folder name inside the downloaded ZIP
-  const RAW_BASE='https://raw.githubusercontent.com/'+L_REPO+'/'+L_REF+'/'+L_SRC_DIR+'/';
-  const TREE_API='https://api.github.com/repos/'+L_REPO+'/git/trees/'+L_REF+'?recursive=1';
-
-  /* Everything under V1/Launcher/ ships EXCEPT these, so a future file is
-     included by default and never has to be registered anywhere. */
-  const SKIP=[/(^|\/)\./, /\.test\.js$/, /(^|\/)node_modules\//, /(^|\/)package(-lock)?\.json$/];
-  const skip=p=>SKIP.some(re=>re.test(p));
-
-  /* Nice-to-haves no manifest reference reaches. Only consulted on the fallback
-     path (the tree listing already contains them); a 404 is ignored. */
-  const SOFT_EXTRAS=['README.md','icons/launcher.svg'];
-
-  const _norm=p=>String(p||'').replace(/^\.?\//,'').split('?')[0].split('#')[0];
-
-  const _crcTable=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);t[n]=c>>>0;}return t;})();
-  function _crc32(u8){let c=0xFFFFFFFF;for(let i=0;i<u8.length;i++)c=_crcTable[(c^u8[i])&0xFF]^(c>>>8);return (c^0xFFFFFFFF)>>>0;}
-
-  // Minimal ZIP (no compression). files: [{name, data:Uint8Array}]
-  function _buildZip(files){
-    const enc=new TextEncoder(), chunks=[], central=[];
-    let offset=0;
-    const u16=n=>[n&0xFF,(n>>>8)&0xFF];
-    const u32=n=>[n&0xFF,(n>>>8)&0xFF,(n>>>16)&0xFF,(n>>>24)&0xFF];
-    // Real DOS timestamp — a zeroed one (day 0 / month 0) makes Windows
-    // Explorer's built-in "Extract All" balk on some builds.
-    const now=new Date();
-    const dTime=((now.getHours()&31)<<11)|((now.getMinutes()&63)<<5)|((now.getSeconds()/2)&31);
-    const dDate=(((now.getFullYear()-1980)&127)<<9)|(((now.getMonth()+1)&15)<<5)|(now.getDate()&31);
-    for(const f of files){
-      const name=enc.encode(f.name), data=f.data, crc=_crc32(data), size=data.length;
-      const lh=new Uint8Array([].concat(
-        u32(0x04034b50),u16(20),u16(0x0800),u16(0),u16(dTime),u16(dDate),
-        u32(crc),u32(size),u32(size),u16(name.length),u16(0)));
-      chunks.push(lh,name,data);
-      central.push(new Uint8Array([].concat(
-        u32(0x02014b50),u16(20),u16(20),u16(0x0800),u16(0),u16(dTime),u16(dDate),
-        u32(crc),u32(size),u32(size),u16(name.length),u16(0),u16(0),u16(0),u16(0),u32(0),
-        u32(offset))), name);
-      offset+=lh.length+name.length+data.length;
-    }
-    const cdStart=offset; let cdSize=0;
-    for(const c of central){ chunks.push(c); cdSize+=c.length; }
-    chunks.push(new Uint8Array([].concat(
-      u32(0x06054b50),u16(0),u16(0),u16(central.length/2),u16(central.length/2),
-      u32(cdSize),u32(cdStart),u16(0))));
-    return new Blob(chunks,{type:'application/zip'});
-  }
-
-  function _lToast(msg){
-    const t=document.getElementById('vd-kc-toast'); if(!t)return;
-    const orig=t.textContent; t.textContent=msg; t.classList.add('show');
-    setTimeout(()=>{t.classList.remove('show'); setTimeout(()=>{t.textContent=orig;},260);},2600);
-  }
-
-  function _browserInfo(){
-    const ua=navigator.userAgent;
-    if(navigator.brave) return {name:'Brave', url:'brave://extensions'};
-    if(/Edg\//.test(ua)) return {name:'Edge', url:'edge://extensions'};
-    if(/OPR\//.test(ua)) return {name:'Opera', url:'opera://extensions'};
-    if(/Firefox\//.test(ua)) return {name:'Firefox', url:'about:debugging#/runtime/this-firefox', firefox:true};
-    return {name:'Chrome', url:'chrome://extensions'};
-  }
-
-  window.vdkcOpenLauncherSetup=function(){
-    const info=_browserInfo();
-    document.getElementById('vd-kc-launcher-browser').textContent=info.name;
-    document.getElementById('vd-kc-launcher-exturl').textContent=info.url;
-    document.getElementById('vd-kc-launcher-ff').style.display=info.firefox?'block':'none';
-    document.getElementById('vd-kc-launcher-setup').style.display='flex';
-  };
-  window.vdkcCloseLauncherSetup=function(){ document.getElementById('vd-kc-launcher-setup').style.display='none'; };
-
-  window.vdkcCopyLauncherUrl=function(){
-    const u=document.getElementById('vd-kc-launcher-exturl').textContent;
-    (navigator.clipboard&&navigator.clipboard.writeText(u)||Promise.reject())
-      .then(()=>_lToast('Copied — paste into a new tab'))
-      .catch(()=>_lToast('Copy failed — type it manually'));
-  };
-
-  /* ── Discovery ─────────────────────────────────────────────────────────── */
-
-  // Every blob under V1/Launcher/ at HEAD. Catches files nothing references yet.
-  async function _listFromGitHub(){
-    const r=await fetch(TREE_API,{cache:'no-store'});
-    if(!r.ok) throw new Error('tree API '+r.status);
-    const j=await r.json();
-    if(j.truncated) throw new Error('tree truncated');
-    const pre=L_SRC_DIR+'/';
-    const files=(j.tree||[]).filter(n=>n.type==='blob'&&n.path.slice(0,pre.length)===pre)
-                            .map(n=>n.path.slice(pre.length)).filter(p=>!skip(p));
-    if(!files.length) throw new Error('no files under '+pre);
-    return {files, sha:String(j.sha||'').slice(0,7)};
-  }
-
-  // Files a manifest declares. Glob'd web_accessible_resources are left to the
-  // tree listing — they can't be resolved to concrete names here.
-  function _refsFromManifest(m){
-    const out=[], push=v=>{ if(typeof v==='string'&&v&&!/^(https?:|data:|\/\/)/.test(v)) out.push(_norm(v)); };
-    const icons=o=>{ if(o&&typeof o==='object') Object.keys(o).forEach(k=>push(o[k])); else push(o); };
-    const b=m.background||{};
-    push(b.service_worker); (b.scripts||[]).forEach(push); push(b.page);
-    const act=m.action||m.browser_action||{};
-    push(act.default_popup); icons(act.default_icon); icons(m.icons);
-    push(m.options_page); push((m.options_ui||{}).page); push(m.devtools_page);
-    (m.content_scripts||[]).forEach(cs=>{ (cs.js||[]).forEach(push); (cs.css||[]).forEach(push); });
-    (m.web_accessible_resources||[]).forEach(w=>{
-      if(typeof w==='string') push(w); else (w.resources||[]).forEach(push);
-    });
-    return out.filter(p=>p&&!/[*?]/.test(p));
-  }
-
-  // <script src>, <link href> AND <img src> — the popup's wordmark is an <img>
-  // pointing at icons/launcher.svg, which the manifest never mentions, so the
-  // fallback path would otherwise ship a Launcher with a broken logo.
-  function _refsFromHtml(txt){
-    const out=[], re=/<script[^>]+src\s*=\s*["']([^"']+)["']|<link[^>]+href\s*=\s*["']([^"']+)["']|<img[^>]+src\s*=\s*["']([^"']+)["']/gi;
-    let m; while((m=re.exec(txt))){
-      const v=m[1]||m[2]||m[3];
-      if(v&&!/^(https?:|data:|\/\/|#)/.test(v)) out.push(_norm(v));
-    }
-    return out;
-  }
-
-  function _refsFromWorker(txt){
-    const out=[], re=/importScripts\s*\(([^)]*)\)/g; let m;
-    while((m=re.exec(txt))) (m[1].match(/["']([^"']+)["']/g)||[]).forEach(s=>{
-      const v=_norm(s.slice(1,-1)); if(v&&!/^(https?:|\/\/)/.test(v)) out.push(v);
-    });
-    return out;
-  }
-
-  /* ── Fetch ─────────────────────────────────────────────────────────────── */
-
-  // This origin first (fast, no rate limit), then raw@main — which is what
-  // serves a file that landed on main before Pages republished.
-  async function _get(path){
-    const bust='?_='+Date.now();
-    for(const url of [L_SRC_DIR+'/'+path+bust, RAW_BASE+path+bust]){
-      try{
-        const r=await fetch(url,{cache:'no-store'});
-        if(r.ok) return new Uint8Array(await r.arrayBuffer());
-      }catch(e){/* try next source */}
-    }
-    return null;
-  }
-
-  async function _collect(){
-    let listed=null, sha='', src='';
-    try{
-      const g=await _listFromGitHub();
-      listed=g.files; sha=g.sha; src='GitHub@'+L_REF+(g.sha?' '+g.sha:'');
-    }catch(e){ src='manifest walk ('+e.message+')'; }
-
-    const files=new Map(), seen=new Set(), warn=[]; let version='';
-    // Seed: the full listing when we have it, else just the manifest — the walk
-    // below expands either one into the extension's complete dependency set.
-    const queue=(listed||['manifest.json']).map(p=>({p:_norm(p), req:true, from:'listing'}));
-    if(!listed) SOFT_EXTRAS.forEach(p=>queue.push({p, req:false, from:'extras'}));
-
-    while(queue.length){
-      const it=queue.shift();
-      if(!it.p||seen.has(it.p)||skip(it.p)) continue;
-      seen.add(it.p);
-      const data=await _get(it.p);
-      if(!data){
-        if(it.req) throw new Error(it.p+' unavailable (referenced by '+it.from+')');
-        warn.push(it.p); continue;
-      }
-      files.set(it.p,data);
-
-      const add=r=>queue.push({p:r, req:true, from:it.p});
-      if(it.p==='manifest.json'){
-        let m; const txt=new TextDecoder().decode(data);
-        try{ m=JSON.parse(txt); }catch(e){ throw new Error('manifest.json is not valid JSON'); }
-        _refsFromManifest(m).forEach(add);
-        version=m.version||'';
-      }else if(/\.html?$/i.test(it.p)){
-        _refsFromHtml(new TextDecoder().decode(data)).forEach(add);
-      }else if(/\.js$/i.test(it.p)){
-        _refsFromWorker(new TextDecoder().decode(data)).forEach(add);
-      }
-    }
-
-    if(!files.has('manifest.json')) throw new Error('manifest.json missing');
-    return {files, version, src, warn};
-  }
-
-  window.vdkcDownloadLauncher=async function(btn){
-    const orig=btn.textContent; btn.disabled=true; btn.textContent='Packaging…';
-    const note=document.getElementById('vd-kc-launcher-pkg');
-    try{
-      const {files,version,src,warn}=await _collect();
-      const entries=Array.from(files.keys()).sort()
-        .map(name=>({name:L_ZIP_DIR+'/'+name, data:files.get(name)}));
-      const url=URL.createObjectURL(_buildZip(entries));
-      const fname='Launcher-extension'+(version?'-'+version:'')+'.zip';
-      const a=document.createElement('a');
-      a.href=url; a.download=fname;
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(()=>URL.revokeObjectURL(url),5000);
-      _lToast(fname+' — '+entries.length+' files');
-      if(note){
-        note.style.display='block';
-        note.textContent='Packaged '+entries.length+' files'+(version?' · v'+version:'')+
-          ' · from '+src+(warn.length?' · skipped '+warn.join(', '):'');
-      }
-    }catch(e){
-      _lToast('Couldn’t package Launcher: '+e.message);
-      if(note){ note.style.display='block'; note.textContent='Failed: '+e.message; }
-    }finally{ btn.disabled=false; btn.textContent=orig; }
-  };
-})();
-</script>
 
 
 <!-- ── Shared touch-drag helper for journal entry lists ── -->
@@ -20639,7 +19373,6 @@ window.JGuard = {
       <button onclick="window._vedaNav&&window._vedaNav('taskhub')" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;transition:all .15s;">TaskHub</button>
       <button onclick="window._vedaNav&&window._vedaNav('gita')" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;transition:all .15s;">Gita</button>
       <button style="background:#8D769A;color:#1B1C1E;border:1px solid #8D769A;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;">Journal</button>
-      <button onclick="window._vedaNav&&window._vedaNav('links')" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;transition:all .15s;">Links</button>
       <button id="al-btn-veda_journal" onclick="window.alManage&&window.alManage('veda_journal')" title="App Lock" style="background:transparent;border:1px solid rgba(141,118,154,0.45);border-radius:5px;padding:0 8px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:13px;cursor:pointer;transition:all .15s;color:#8D769A;flex-shrink:0;touch-action:manipulation;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg></button>
       <button onclick="window._profileGoSelect&&window._profileGoSelect()" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:17px;line-height:1;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:0;transition:all .15s;">✦</button>
     </div>
@@ -24474,7 +23207,7 @@ function _bjPdfSection(label, text) {
 
 window.showBrainstormJournal = function(caller) {
   window._bjCalledFrom = caller || (document.getElementById('veda-root') && document.getElementById('veda-root').style.display !== 'none' ? 'veda' : 'tony');
-  ['root','veda-root','tj-root','vd-kc-root'].forEach(function(id){
+  ['root','veda-root','tj-root'].forEach(function(id){
     var el = document.getElementById(id); if(el) el.style.display = 'none';
   });
   var bj = document.getElementById('bj-root');
@@ -30767,7 +29500,7 @@ window._tonyNav = function(app) {
   if(app==='warroom'){ if(window._wrClick) window._wrClick(); return; }
   if(app==='keychain'){ if(window._vaultClick) window._vaultClick(); return; }
   // Hide ALL tony + other app roots before switching
-  ['root','tj-root','veda-root','bj-root','vd-kc-root','tradeboard-root','wr-root'].forEach(function(id){
+  ['root','tj-root','veda-root','bj-root','tradeboard-root','wr-root'].forEach(function(id){
     var el=document.getElementById(id); if(el) el.style.display='none';
   });
   // Plans is part of TaskHub now (Weekly → Add → Plan), so a stale 'plans'
@@ -30784,7 +29517,7 @@ window._tonyNav = function(app) {
   window._updateTonyNavActive(app);
 };
 window.showTonyJournal = function() {
-  ['root','veda-root','bj-root','tradeboard-root','vd-kc-root'].forEach(function(id){
+  ['root','veda-root','bj-root','tradeboard-root'].forEach(function(id){
     var el = document.getElementById(id); if(el) el.style.display = 'none';
   });
   var tj = document.getElementById('tj-root');
@@ -41717,7 +40450,6 @@ var AL_LABELS  = {
   veda_taskhub:   { label: 'TaskHub',    profile: 'veda', color: '#8D769A' },
   veda_gita:      { label: 'Gita',       profile: 'veda', color: '#8D769A' },
   veda_journal:   { label: 'Journal',    profile: 'veda', color: '#8D769A' },
-  veda_links:     { label: 'Links',      profile: 'veda', color: '#8D769A' },
   // Shield (shield.html) — the emergency closer / lockdown system, and the only
   // program in the suite that both profiles run. Two independent locks, because
   // one profile must never be able to open the other's emergency configuration.
@@ -41917,8 +40649,7 @@ var AL_APP_ROOTS = {
   tony_taskhub:   ['root'],
   tony_myjournal: ['tj-root'],
   veda_taskhub:   ['veda-root'],
-  veda_journal:   ['bj-root'],
-  veda_links:     ['vd-kc-root']
+  veda_journal:   ['bj-root']
 };
 
 // Hide an app's content roots immediately (security: never flash locked content).
@@ -42112,7 +40843,7 @@ function alNavAppToId(profile, navApp) {
             keychain:'tony_keychain', brainstormjournal:'tony_myjournal',
             warroom:'tony_warroom' },
     veda: { taskhub:'veda_taskhub', gita:'veda_gita',
-            journal:'veda_journal', links:'veda_links' }
+            journal:'veda_journal' }
   };
   return (map[profile] || {})[navApp] || null;
 }
@@ -42140,7 +40871,7 @@ function alUpdateTonyLockBtn() {
 }
 
 function alUpdateVedaLockBtns() {
-  ['veda_links','veda_journal','veda_taskhub','veda_gita'].forEach(function(id) {
+  ['veda_journal','veda_taskhub','veda_gita'].forEach(function(id) {
     var btn = _el('al-btn-' + id);
     if (!btn) return;
     var locked = alIsLocked(id);
@@ -42482,7 +41213,6 @@ function _alWrapSwitch(fnName, appId) {
   };
 }
 _alWrapSwitch('_kcSwitchTo', 'tony_keychain');
-_alWrapSwitch('_vdkcShow',   'veda_links');
 
 // WarRoom gate hook
 window._alGateWarRoom = function(origFn) { alGate('tony_warroom', origFn); };
@@ -42955,7 +41685,6 @@ var VEDA_DEFAULT = [
   {app:'taskhub',  label:'TaskHub'},
   {app:'gita',     label:'Gita'},
   {app:'journal',  label:'Journal'},
-  {app:'links',    label:'Links'},
 ];
 
 var tonyOrder = TONY_DEFAULT.map(function(x){ return x.app; });
@@ -43430,7 +42159,6 @@ function isVedaNavRow(row){
 // highlight was gone for good.
 var VEDA_ROOT_APP=[
   ['#bj-root',   'journal'],
-  ['#vd-kc-root','links'],
 ];
 function vedaAppForRow(row){
   if(!row||!row.closest) return null;
