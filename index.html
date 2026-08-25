@@ -7405,7 +7405,7 @@ function App(){
           Object.keys(a).forEach(k=>{ if(!(k in merged)){merged[k]=a[k];n++;} });
           if(n){added+=n;years.push(y+":"+n);}
         }
-        if(!added){localStorage.setItem("td6_unarchived_v1","1");return;}
+        if(!added){return;}   // nothing found — do NOT flag done; a transient empty read must be able to retry
         const bytes=thDataBytes(merged);
         if(bytes>TH_ARCHIVE_SOFT_BYTES){
           // Refuse rather than restore something the archiver will immediately
@@ -13860,7 +13860,7 @@ function App(){
           Object.keys(a).forEach(k=>{ if(!(k in merged)){merged[k]=a[k];n++;} });
           if(n){added+=n;years.push(y+":"+n);}
         }
-        if(!added){localStorage.setItem("td_unarchived_v1","1");return;}
+        if(!added){return;}   // nothing found — do NOT flag done; a transient empty read must be able to retry
         const bytes=thDataBytes(merged);
         if(bytes>TH_ARCHIVE_SOFT_BYTES){
           console.warn("[Unarchive] Veda: restore would be "+(bytes/1024).toFixed(0)+
