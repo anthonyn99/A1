@@ -268,8 +268,22 @@ struct Found {
 }
 
 fn find(target: &Target, s: &System) -> Vec<Found> {
+    find_sparing(target, s, &[]).0
+}
+
+/// Processes matching `target`, minus any that one of `spare` also matches.
+///
+/// Returns `(kept, spared_count)`. The auto-trigger needs this: "opening League
+/// must not close League" cannot be decided on target IDS, because the trigger
+/// entry and the closer entry are two separately-created rows with two
+/// different ids even when they name the exact same application. Matching by id
+/// spared nothing at all, so opening a trigger app that was also a closer
+/// target killed the app the user had just opened — over and over, since
+/// quitting a trigger also clears its cooldown.
+fn find_sparing(target: &Target, s: &System, spare: &[Target]) -> (Vec<Found>, usize) {
     let windowed = pids_with_windows();
     let mut out = Vec::new();
+    let mut spared = 0usize;
     for (pid, p) in s.processes() {
         let name = p.name().to_string_lossy().to_string();
         if name.is_empty() || is_denied(&name) {
@@ -277,6 +291,12 @@ fn find(target: &Target, s: &System) -> Vec<Found> {
         }
         let exe = p.exe().map(|e| e.to_string_lossy().to_string()).unwrap_or_default();
         if !target.matches(&name, &exe) {
+            continue;
+        }
+        // Decided per PROCESS, not per target, so a folder target still closes
+        // the rest of a suite while leaving the one executable that fired.
+        if spare.iter().any(|x| x.matches(&name, &exe)) {
+            spared += 1;
             continue;
         }
         // The manifest is built HERE, while the process is alive. After
@@ -294,7 +314,7 @@ fn find(target: &Target, s: &System) -> Vec<Found> {
             },
         });
     }
-    out
+    (out, spared)
 }
 
 // ── Graceful close ──────────────────────────────────────────────────────────
@@ -404,6 +424,25 @@ fn still_alive(pids: &[u32]) -> Vec<u32> {
 /// manifest, without sending a single message. That is how a folder target can
 /// be checked before it is trusted with an emergency.
 pub fn capture_and_kill_opt(targets: &[Target], graceful_ms: u64, dry_run: bool) -> Vec<TargetResult> {
+    capture_and_kill_sparing_opt(targets, graceful_ms, dry_run, &[])
+}
+
+/// As above, but leaving alone every process that one of `spare` matches.
+/// See `find_sparing` for why this cannot be done by target id.
+pub fn capture_and_kill_sparing(
+    targets: &[Target],
+    graceful_ms: u64,
+    spare: &[Target],
+) -> Vec<TargetResult> {
+    capture_and_kill_sparing_opt(targets, graceful_ms, false, spare)
+}
+
+fn capture_and_kill_sparing_opt(
+    targets: &[Target],
+    graceful_ms: u64,
+    dry_run: bool,
+    spare: &[Target],
+) -> Vec<TargetResult> {
     let s = sys();
     let mut results = Vec::new();
     let mut pending: HashMap<usize, Vec<u32>> = HashMap::new();
@@ -431,11 +470,19 @@ pub fn capture_and_kill_opt(targets: &[Target], graceful_ms: u64, dry_run: bool)
             });
             continue;
         }
-        let found = find(t, &s);
+        let (found, spared) = find_sparing(t, &s, spare);
         if found.is_empty() {
+            // "Everything this target names is the app you just opened" is a
+            // different outcome from "not running", and saying the wrong one
+            // would make the trigger look broken.
+            let (status, error) = if spared > 0 {
+                ("spared", "left open — it is the app that fired this".to_string())
+            } else {
+                ("notrunning", String::new())
+            };
             results.push(TargetResult {
-                label, r#match: t.r#match.value.clone(), status: "notrunning".into(),
-                count: 0, error: String::new(), launch: vec![],
+                label, r#match: t.r#match.value.clone(), status: status.into(),
+                count: 0, error, launch: vec![],
             });
             continue;
         }
@@ -713,6 +760,45 @@ mod tests {
         let _ = child.kill();
         let _ = child.wait();
         capture_and_kill(&[target], 200);
+        std::thread::sleep(Duration::from_millis(300));
+        for _ in 0..10 {
+            if std::fs::remove_file(&exe).is_ok() || !exe.exists() { break; }
+            std::thread::sleep(Duration::from_millis(150));
+        }
+    }
+
+    #[test]
+    fn a_trigger_is_spared_even_with_a_different_target_id() {
+        // The bug this exists to stop: the trigger row and the closer row that
+        // name the same application are created separately, so their ids differ.
+        // Sparing by id alone spared nothing, and opening the trigger app closed
+        // the app the user had just opened.
+        use std::process::Command;
+        let uniq = format!("shield_spare_{}_{}.exe", std::process::id(), now_ish());
+        let exe = std::env::temp_dir().join(&uniq);
+        if std::fs::copy(r"C:\Windows\System32\PING.EXE", &exe).is_err() {
+            return;
+        }
+        let mut child = Command::new(&exe).args(["-n", "600", "127.0.0.1"]).spawn().expect("spawn");
+        std::thread::sleep(Duration::from_millis(600));
+
+        let mut closer = t("exe", &uniq);
+        closer.id = "closer-row".into();
+        let mut trigger = t("exe", &uniq);
+        trigger.id = "trigger-row".into(); // same app, different id
+
+        let r = capture_and_kill_sparing(&[closer.clone()], 200, &[trigger]);
+        assert_eq!(r[0].status, "spared", "the app that fired the trigger was closed");
+        assert_eq!(r[0].count, 0);
+        std::thread::sleep(Duration::from_millis(300));
+        assert!(!find(&closer, &sys()).is_empty(), "the trigger app was killed");
+
+        // Without the spare list the same target still closes normally.
+        let r = capture_and_kill(&[closer.clone()], 300);
+        assert_eq!(r[0].status, "closed");
+
+        let _ = child.kill();
+        let _ = child.wait();
         std::thread::sleep(Duration::from_millis(300));
         for _ in 0..10 {
             if std::fs::remove_file(&exe).is_ok() || !exe.exists() { break; }

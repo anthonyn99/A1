@@ -832,7 +832,10 @@ label.fld{display:block;font-size:9.5px;font-weight:700;letter-spacing:1.4px;tex
   .wrap{max-width:1000px}
   /* Actions stay left and prominent; context moves alongside rather than
      below, so nothing important needs scrolling to on a tablet. */
-  #v-home.two-col{
+  /* .active is part of the selector on purpose: an id + class beats the plain
+     `.view{display:none}` rule, so without it a Home that is merely rendered —
+     not navigated to — would paint itself over whichever view is open. */
+  #v-home.two-col.active{
     display:grid;grid-template-columns:minmax(320px,1.05fr) minmax(300px,1fr);
     gap:0 26px;align-items:start;
   }
@@ -2902,6 +2905,9 @@ function reportLines(items){
     if (r.status === 'partial')    return { kind:'warn', text: r.label + ' — ' + (r.error || 'partly closed') };
     if (r.status === 'wouldclose') return { kind:'ok',   text: r.label + ' — would close ' + r.count + ' process' + (r.count===1?'':'es') };
     if (r.status === 'notrunning') return { kind:'skip', text: r.label + ' — not running' };
+    // A trigger never closes the app that fired it, even when that app is also
+    // on the closer list. Say so, rather than leaving it looking like a failure.
+    if (r.status === 'spared')     return { kind:'skip', text: r.label + ' — ' + (r.error || 'left open') };
     if (r.status === 'denied')     return { kind:'bad',  text: r.label + ' — ' + (r.error || 'blocked, needs admin') };
     if (r.status === 'notfound')   return { kind:'skip', text: r.label + ' — not found on this device' };
     if (r.status === 'launched')   return { kind:'ok',   text: r.label + ' — reopened' };
@@ -3383,7 +3389,11 @@ function renderHome(){
   // A lone actions block beside empty space reads worse than one centred one.
   h += tutorial('home');
 
-  $('v-home').className = 'view active' + ((last || devs.length > 1) ? ' two-col' : '');
+  // Only go() decides which view is visible. renderHome() is also called to
+  // refresh counts while another view is on screen — saving a target does it —
+  // so it must never hand itself `active`, or Home reappears under Configure.
+  $('v-home').className = 'view' + (S.view === 'home' ? ' active' : '')
+    + ((last || devs.length > 1) ? ' two-col' : '');
   $('v-home').innerHTML = h;
   wireTutorials($('v-home'));
 

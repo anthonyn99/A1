@@ -233,8 +233,15 @@ fn run_closer(app: &AppHandle) -> serde_json::Value {
 /// The Program Closer, optionally sparing some targets.
 ///
 /// `spare` exists for the auto-trigger: opening League must not close League,
-/// even when the closer list happens to include it. Matching is by target id,
-/// so a spared entry is exactly the one that fired.
+/// even when the closer list happens to include it.
+///
+/// Sparing happens at TWO levels, and both are needed. Dropping closer entries
+/// whose id equals a fired trigger's covers a target shared between the lists.
+/// It does NOT cover the ordinary case: a trigger row and a closer row naming
+/// the same app are created separately and carry different ids, so the id check
+/// spared nothing and the closer promptly killed the app that had just been
+/// opened. `capture_and_kill_sparing` therefore also skips, per process,
+/// anything a fired trigger itself matches.
 fn run_closer_excluding(app: &AppHandle, source: &str, spare: &[Target]) -> serde_json::Value {
     let s = state::get();
     let list: Vec<Target> = s
@@ -244,7 +251,7 @@ fn run_closer_excluding(app: &AppHandle, source: &str, spare: &[Target]) -> serd
         .cloned()
         .collect();
     let entry_id = history::new_id();
-    let results = proc::capture_and_kill(&list, GRACEFUL_MS);
+    let results = proc::capture_and_kill_sparing(&list, GRACEFUL_MS, spare);
     let entry = history::record(&entry_id, "closer", "local", source, &results, &[]);
     let _ = app.emit(
         "shield://closed",
