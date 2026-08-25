@@ -50,6 +50,27 @@
     fired both an InteractiveToken and a SYSTEM task on time, so the plumbing
     works; it is prolonged DRIPS that suppresses the wake.
 
+    WHY THE LOCK TRIGGER IS THE PRIMARY MECHANISM
+    Four nights of evidence say a shutdown cannot be made to work from Modern
+    Standby on battery. The decisive measurement is 2026-08-25: the shutdown was
+    issued at 01:12:17, a full two seconds BEFORE the hibernate at 01:12:19, and
+    Windows hibernated anyway and deferred the shutdown to the next resume - it
+    ran at 06:44 when the lid was opened. Being faster does not help, because
+    this is not a race; a shutdown request simply does not preempt a
+    battery-budget hibernate.
+
+    So the shutdown is taken while the PC is still awake. A second task fires on
+    session lock - measured at 0.9s from lock to trigger - and shuts down if the
+    clock is inside the night window. Closing the lid locks the session, so that
+    is the moment this laptop is both finished for the night and still able to
+    shut down. There is deliberately no delay on that trigger: the lid sleeps
+    the machine within seconds, and anything deferred past that point lands back
+    in the broken path.
+
+    The nightly $Time task is kept for the case where the PC is awake at $Time,
+    and it now refuses to act if it has only just surfaced from standby, so it
+    can no longer leave a queued shutdown that ambushes the next boot.
+
     THE FOUR-SECOND BUDGET
     On battery this laptop does not merely stay in Modern Standby overnight. It
     burns through its standby battery budget and then hibernates, and the only
@@ -111,6 +132,17 @@ param(
     [ValidatePattern('^([01][0-9]|2[0-3]):[0-5][0-9]$')]
     [string]$Time = '00:00',
 
+    # Which trigger invoked this run. 'Lock' is the reliable path: the user has
+    # just locked or closed the lid, so the PC is awake and can actually shut
+    # down. 'Schedule' is the nightly $Time trigger.
+    [ValidateSet('Schedule','Lock')]
+    [string]$Trigger = 'Schedule',
+
+    # Locking after this time counts as "done for the night". Locks before it
+    # are ignored, so locking your screen during the day is never a shutdown.
+    [ValidatePattern('^([01][0-9]|2[0-3]):[0-5][0-9]$')]
+    [string]$NightStart = '21:00',
+
     # Input more recent than this means "actively being used" -> do nothing.
     [ValidateRange(0,720)]
     [int]$IdleMinutes = 3,
@@ -157,8 +189,9 @@ $ErrorActionPreference = 'Stop'
 # function's own, so the legacy-parameter check has to be hoisted here.
 $UsedLegacyWindow = $PSBoundParameters.ContainsKey('WindowMinutes')
 
-$TaskName   = 'A1 Auto Shutdown'
-$TaskPath   = '\A1\'
+$TaskName     = 'A1 Auto Shutdown'
+$LockTaskName = 'A1 Auto Shutdown (lock)'
+$TaskPath     = '\A1\'
 $TestName   = 'A1 Auto Shutdown Verify'
 $ScriptPath = $MyInvocation.MyCommand.Path
 $ScriptDir  = Split-Path -Parent $ScriptPath
@@ -260,6 +293,33 @@ function Set-KeepAwake {
     param([switch]$Release)
     Initialize-Native
     [A1.Native]::KeepAwake(-not $Release)
+}
+
+# True while the wall clock is inside [NightStart, $Time + $WindowHours),
+# which normally wraps midnight (21:00 -> 06:00).
+function Test-NightWindow {
+    param([datetime]$Now)
+    $s   = [datetime]::ParseExact($NightStart, 'HH:mm', $null)
+    $e   = [datetime]::ParseExact($Time, 'HH:mm', $null).AddHours($WindowHours)
+    $m   = $Now.Hour * 60 + $Now.Minute
+    $beg = $s.Hour * 60 + $s.Minute
+    $end = $e.Hour * 60 + $e.Minute
+    if ($end -le $beg) { return ($m -ge $beg) -or ($m -lt $end) }   # wraps midnight
+    ($m -ge $beg) -and ($m -lt $end)
+}
+
+# True if the PC only just came out of Modern Standby. A shutdown issued in that
+# state does not run: Windows defers it to the next resume, so it ambushes the
+# next boot instead. Measured 2026-08-25 - the shutdown was issued two seconds
+# BEFORE the hibernate and still lost, so this is not a race that can be won.
+function Test-JustSurfaced {
+    param([int]$Seconds = 90)
+    try {
+        $e = Get-WinEvent -FilterHashtable @{
+            LogName = 'System'; ProviderName = 'Microsoft-Windows-Kernel-Power'; Id = 507
+        } -MaxEvents 1 -ErrorAction Stop
+        ((Get-Date) - $e.TimeCreated).TotalSeconds -lt $Seconds
+    } catch { $false }
 }
 
 function Test-SessionLocked {
@@ -407,10 +467,12 @@ $TriggerXml
 }
 
 function New-RunArguments {
-    param([string]$Extra = '')
+    param([string]$Extra = '', [string]$TriggerKind = 'Schedule')
     ('-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}" ' +
-     '-Mode Run -Time {1} -IdleMinutes {2} -WindowHours {3} -MediaGraceMinutes {4} -GraceSeconds {5}{6}') -f
-        $ScriptPath, $Time, $IdleMinutes, $WindowHours, $MediaGraceMinutes, $GraceSeconds, $Extra
+     '-Mode Run -Trigger {1} -Time {2} -NightStart {3} -IdleMinutes {4} -WindowHours {5} ' +
+     '-MediaGraceMinutes {6} -GraceSeconds {7}{8}') -f
+        $ScriptPath, $TriggerKind, $Time, $NightStart, $IdleMinutes, $WindowHours,
+        $MediaGraceMinutes, $GraceSeconds, $Extra
 }
 
 function Get-Task {
@@ -431,7 +493,8 @@ function Get-TaskXml {
 
 function Invoke-Install {
     Assert-Admin
-    Write-Log "installing '$TaskName' for $Time (idle threshold ${IdleMinutes}m, night window ${WindowHours}h)"
+    $endTime = ([datetime]::ParseExact($Time, 'HH:mm', $null).AddHours($WindowHours)).ToString('HH:mm')
+    Write-Log "installing '$TaskName' for $Time (idle ${IdleMinutes}m; night window $NightStart-$endTime)"
 
     Enable-WakeTimers
     Enable-TaskSchedulerLog | Out-Null
@@ -451,14 +514,30 @@ function Invoke-Install {
 
     Register-ScheduledTask -Xml $xml -TaskName $TaskName -TaskPath $TaskPath -Force | Out-Null
 
+    # The lock-triggered companion. This is the path that actually works on this
+    # laptop: it fires while the PC is still awake, roughly a second after the
+    # session locks, instead of trying to shut down from Modern Standby.
+    $sid = ([Security.Principal.WindowsIdentity]::GetCurrent()).User.Value
+    $lockTrigger = @"
+    <SessionStateChangeTrigger>
+      <Enabled>true</Enabled>
+      <UserId>$sid</UserId>
+      <StateChange>SessionLock</StateChange>
+    </SessionStateChangeTrigger>
+"@
+    $lockXml = New-TaskXml -TriggerXml $lockTrigger -Arguments (New-RunArguments -TriggerKind 'Lock') `
+        -Description "Shuts this PC down when you lock it or close the lid between $NightStart and $endTime. Companion to '$TaskName'."
+    Register-ScheduledTask -Xml $lockXml -TaskName $LockTaskName -TaskPath $TaskPath -Force | Out-Null
+    Write-Log "installed '$LockTaskName' (fires on session lock, acts only $NightStart-$endTime)" 'ACT'
+
     $info = Get-ScheduledTaskInfo -TaskName $TaskName -TaskPath $TaskPath
-    Write-Log ('installed: next run {0}' -f $info.NextRunTime) 'ACT'
+    Write-Log ('installed: next scheduled run {0}' -f $info.NextRunTime) 'ACT'
     Invoke-Status
 }
 
 function Invoke-Uninstall {
     Assert-Admin
-    foreach ($n in @($TaskName, $TestName)) {
+    foreach ($n in @($TaskName, $LockTaskName, $TestName)) {
         if (Get-Task $n) {
             Unregister-ScheduledTask -TaskName $n -TaskPath $TaskPath -Confirm:$false
             Write-Log "removed task '$n'" 'ACT'
@@ -530,6 +609,7 @@ function Invoke-Run {
     if ($now -lt $target) { $target = $target.AddDays(-1) }
     $sinceH = ($now - $target).TotalHours
     $late   = (-not $Force) -and ($sinceH -ge $WindowHours)
+    $endTxt = ([datetime]::ParseExact($Time, 'HH:mm', $null).AddHours($WindowHours)).ToString('HH:mm')
 
     # ----------------------------- FAST LANE -----------------------------
     # On battery this machine surfaces from Modern Standby only to hibernate
@@ -540,29 +620,48 @@ function Invoke-Run {
     # Add-Type, no powercfg, no timezone lookup, and no log write - the log
     # lives in OneDrive and is not something to touch on the critical path.
     # Everything worth recording is written immediately afterwards.
-    # Timed from process start, not from here: PowerShell's own startup counts
-    # against the same four seconds.
-    $started = [Diagnostics.Process]::GetCurrentProcess().StartTime
-    if ((-not $late) -and (Test-SessionLocked)) {
-        if ($DryRun) {
-            Write-Log ('fast lane: locked - would issue shutdown {0:N2}s after process start (dry run; continuing to full diagnostics)' -f `
-                ((Get-Date) - $started).TotalSeconds) 'ACT'
-        } else {
-            $rc      = Start-Shutdown 0
-            $elapsed = ((Get-Date) - $started).TotalSeconds
-            Write-Log ('run: {0} local | {1:N1}h after the {2} trigger' -f $now.ToString('yyyy-MM-dd HH:mm:ss'), $sinceH, $Time)
-            if ($rc -eq 0) {
-                Write-Log ('fast lane: session locked - shutdown issued {0:N2}s after process start, grace 0s' -f $elapsed) 'ACT'
-                return 0
-            }
-            # 1190: a shutdown from an earlier attempt tonight is already pending.
-            if ($rc -eq 1190) {
-                Write-Log ('a shutdown was already pending ({0:N2}s in)' -f $elapsed) 'WARN'
-                return 0
-            }
-            Write-Log ('fast lane: shutdown.exe failed with exit code {0} after {1:N2}s' -f $rc, $elapsed) 'ERROR'
-            return 3
+    # ---------------------------- LOCK PATH ------------------------------
+    # The reliable one. The user has just locked or closed the lid, so the PC is
+    # awake, warm and able to shut down - measured at 0.9s from lock to trigger.
+    # No countdown and no delay: closing the lid sleeps the machine within
+    # seconds, and anything deferred past that point lands in the broken path.
+    if ($Trigger -eq 'Lock') {
+        $started = [Diagnostics.Process]::GetCurrentProcess().StartTime
+        if (-not (Test-NightWindow $now)) {
+            Write-Log ('run: {0} local | lock trigger' -f $now.ToString('yyyy-MM-dd HH:mm:ss'))
+            Write-Log ('skip: locked at {0}, outside the {1}-{2} night window' -f $now.ToString('HH:mm'), $NightStart, $endTxt)
+            return 0
         }
+        if (-not (Test-SessionLocked)) {
+            Write-Log ('run: {0} local | lock trigger' -f $now.ToString('yyyy-MM-dd HH:mm:ss'))
+            Write-Log 'skip: already unlocked again - you came back' 'ACT'
+            return 0
+        }
+        if ($DryRun) {
+            Write-Log ('DRY RUN: lock path would shut down now ({0:N2}s after process start)' -f `
+                ((Get-Date) - $started).TotalSeconds) 'ACT'
+            return 0
+        }
+        $rc      = Start-Shutdown 0
+        $elapsed = ((Get-Date) - $started).TotalSeconds
+        Write-Log ('run: {0} local | lock trigger | night window {1}-{2}' -f $now.ToString('yyyy-MM-dd HH:mm:ss'), $NightStart, $endTxt)
+        if ($rc -eq 0) {
+            Write-Log ('lock path: locked for the night - shutdown issued {0:N2}s after process start' -f $elapsed) 'ACT'
+            return 0
+        }
+        if ($rc -eq 1190) { Write-Log 'a shutdown was already pending' 'WARN'; return 0 }
+        Write-Log ('lock path: shutdown.exe failed with exit code {0}' -f $rc) 'ERROR'
+        return 3
+    }
+
+    # -------------------------- SCHEDULE PATH ----------------------------
+    # Only useful while the PC is genuinely awake. If it has just surfaced from
+    # Modern Standby, a shutdown cannot complete and would only queue up to
+    # ambush the next boot, so refuse rather than leave that trap.
+    if ((-not $Force) -and (Test-JustSurfaced)) {
+        Write-Log ('run: {0} local | schedule trigger' -f $now.ToString('yyyy-MM-dd HH:mm:ss'))
+        Write-Log 'skip: the PC only just surfaced from Modern Standby. A shutdown issued now would not run, it would wait and fire at your next boot. The lock trigger covers this case instead.' 'WARN'
+        return 0
     }
     # ---------------------------------------------------------------------
 
@@ -677,8 +776,11 @@ function Invoke-Status {
     $rof = (Select-Xml -Xml $xml -Namespace $ns -XPath '//t:Settings/t:RestartOnFailure').Node
     Write-Host ('  {0,-27}: {1}' -f 'RestartOnFailure', $(if ($rof) { 'every {0}, up to {1} times' -f $rof.Interval, $rof.Count } else { 'NOT SET   <-- re-run install' })) `
         -ForegroundColor $(if ($rof) { 'Gray' } else { 'Red' })
-    Write-Host ('night window   : {0} to {1:HH\:mm} ({2}h) - a deferred run still shuts down, a morning one cannot' -f `
-        $Time, ([datetime]::ParseExact($Time,'HH:mm',$null)).AddHours($WindowHours), $WindowHours)
+    $endTime = ([datetime]::ParseExact($Time, 'HH:mm', $null).AddHours($WindowHours)).ToString('HH:mm')
+    $lockTask = Get-Task $LockTaskName
+    Write-Host ('lock task      : {0}' -f $(if ($lockTask) { "$($lockTask.State)  - fires on session lock, acts $NightStart-$endTime" } else { 'NOT INSTALLED - re-run install' })) `
+        -ForegroundColor $(if ($lockTask) { 'Green' } else { 'Red' })
+    Write-Host ('night window   : {0} to {1} - the lock task is the path that works on this laptop' -f $NightStart, $endTime)
     Write-Host ('task event log : {0}' -f $(if (Test-TaskSchedulerLog) { 'enabled' } else { 'DISABLED - re-run install' })) `
         -ForegroundColor $(if (Test-TaskSchedulerLog) { 'Gray' } else { 'Red' })
     $r = Get-Decision
