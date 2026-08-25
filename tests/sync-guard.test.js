@@ -84,7 +84,7 @@ t('_teardown() body was located',
   'The other tests in this section depend on finding it.');
 
 for (const flag of ['_thServerSeen', '_vdServerSeen', '_bjServerSeen', '_tjServerSeen',
-                    '_noServerSeen', '_vdkcServerSeen']) {
+                    '_noServerSeen']) {
   t('teardown re-arms ' + flag,
     new RegExp(flag + '\\s*=\\s*false;').test(TEARDOWN),
     'Losing the connection must invalidate "we have seen server state" for EVERY writer, '
@@ -122,7 +122,6 @@ for (const [label, ref] of [
   ['TaskHub',    'docRef'],
   ['Veda dash',  'vdDocRef'],
   ['NavOrder',   '_noDocRef'],
-  ['Veda Links', 'vdkcDocRef'],
   ['BJ journal', 'bjDocRef'],
   ['TJ journal', 'tjDocRef'],
 ]) {
@@ -141,7 +140,6 @@ for (const [label, fn, gate] of [
   ['TaskHub',    '_fbSave',           '_thWhenServerSeen'],
   ['Veda dash',  '_fbSaveVeda',       '_vdWhenServerSeen'],
   ['NavOrder',   '_fbSaveNavOrder',   '_noWhenServerSeen'],
-  ['Veda Links', '_fbSaveVedaLinks',  '_vdkcWhenServerSeen'],
 ]) {
   // Anchor on the arrow-function form: several of these have an earlier
   // `window._fbX = null;` stub declaration that must not be matched instead.
@@ -156,19 +154,10 @@ for (const [label, fn, gate] of [
     'A whole-doc write that runs before server confirmation can erase unread remote data.');
 }
 
-t('Veda Links unlocks the guard only on a genuine server read',
-  /if \(snap && !fromCache\) _vdkcMarkServerSeen\(\);/.test(HTML),
-  'A cache fallback must NOT count as confirmation.');
-
-t('Veda Links suppresses its own echoes exactly, not by a time window',
-  /_vdkcOwnWrites\.has\(d\.savedAt\)/.test(HTML) &&
-  !/Date\.now\(\) - _vdkcLastOwnSaveAt < 6000/.test(HTML),
-  'The old 6000ms blanket window discarded genuine remote edits, which this device '
-  + 'then overwrote with its next whole-doc save.');
-
-t('Veda Links records its own savedAt BEFORE the write',
-  /_vdkcNoteOwnWrite\(payload\.savedAt\);[\s\S]{0,120}await setDoc\(vdkcDocRef, payload\);/.test(HTML),
-  'Registering after the write races the echo coming back through the listener.');
+// Veda's Links moved to Warden (its own repo + Firestore), so index.html no
+// longer writes dashboards/veda_links. The assertions that guarded that
+// write-path were removed with it; every other whole-doc writer above keeps
+// its own.
 
 section('Static: NavOrder (header button order) write-path guards');
 

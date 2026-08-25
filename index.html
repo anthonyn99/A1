@@ -8838,7 +8838,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   const DOC_PATH    = "dashboards/main";
   const VD_DOC_PATH = "dashboards/vedasdash";
   const KC_DOC_PATH = "dashboards/keychain";
-  const VDKC_DOC_PATH = "dashboards/veda_links";
   const BJ_DOC_PATH   = "dashboards/journal";
   const MJ_DOC_PATH   = "dashboards/myjournal";
   const TJ_DOC_PATH   = "dashboards/tony_journal";
@@ -8861,7 +8860,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   let _saveTimer = null;
   let _vdSaveTimer = null;
   let _kcSaveTimer = null;
-  let _vdkcSaveTimer = null;
   let _bjSaveTimer   = null;
   let _tjSaveTimer   = null;
   let _mjSaveTimer   = null;
@@ -8869,7 +8867,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   let _mcCalUnsub     = null;
   let _vdUnsubscribe  = null;
   let _kcUnsubscribe  = null;
-  let _vdkcUnsubscribe = null;
   let _bjUnsubscribe  = null;
   let _mjUnsubscribe  = null;
   let _tjUnsubscribe  = null;
@@ -8883,7 +8880,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   let _lastOwnSaveAt     = 0;
   let _vdLastOwnSaveAt   = 0;
   let _kcLastOwnSaveAt   = 0;
-  let _vdkcLastOwnSaveAt = 0;
   let _bjLastOwnSaveAt   = 0;
   let _bjLastWrittenSavedAt = 0;   // exact savedAt value we wrote — used to skip own-echo in onSnapshot
   let _mjLastOwnSaveAt   = 0;
@@ -8995,11 +8991,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   // server state publishes those defaults over a real saved order. That is why a
   // reordered header kept snapping back to an older arrangement.
   let _noServerSeen = false, _noPendingWrites = [];
-  // Veda Links (dashboards/veda_links) — also a whole-doc setDoc of the entire
-  // connection list, so it carries the same risk as the two dashboards and needs
-  // the same gate on Veda's side.
-  let _vdkcServerSeen = false, _vdkcPendingWrites = [];
-
   // ── Generation counter: the clock-independent backstop ─────────────────────
   // The savedAt comparison in the listeners decides "who is newer" using
   // Date.now() — the DEVICE's clock. If a phone's clock runs fast, its STALE data
@@ -9058,19 +9049,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // both bounds the queue and replays the newest local arrangement.
     _noPendingWrites = [fn];
     _fbWatchStall('navorder', 'Nav order', () => _noServerSeen);
-    return Promise.resolve();
-  }
-  function _vdkcMarkServerSeen() {
-    if (_vdkcServerSeen) return;
-    _vdkcServerSeen = true;
-    _fbStopStall('veda_links');
-    const q = _vdkcPendingWrites; _vdkcPendingWrites = [];
-    q.forEach(fn => { try { fn(); } catch(e) { console.warn('Veda Links deferred write failed:', e && e.message); } });
-  }
-  function _vdkcWhenServerSeen(fn) {
-    if (_vdkcServerSeen) return fn();
-    _vdkcPendingWrites = [fn];
-    _fbWatchStall('veda_links', 'Links (Veda)', () => _vdkcServerSeen);
     return Promise.resolve();
   }
   // Expose to React app via window
@@ -9569,93 +9547,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         catch (e) { console.warn('[StudyOS mirror] ack write failed:', e && e.code); }
       }, 600);
     };
-
-    // ── Veda Links load ───────────────────────────────────────────────────────
-    const vdkcDocRef = doc(db, VDKC_DOC_PATH);
-    _stallRetry['veda_links'] = async () => { const sn = await _freshGet(vdkcDocRef); if (sn && !(sn.metadata && sn.metadata.fromCache)) _vdkcMarkServerSeen(); };
-
-    // ── Veda Links real-time listener ─────────────────────────────────────────
-    // Own writes are recognised by their exact savedAt rather than by a blanket
-    // 6-second window: that window also swallowed genuine edits from another
-    // device, which this one would then overwrite on its next whole-doc save.
-    const _vdkcOwnWrites = new Set();
-    window._vdkcNoteOwnWrite = (savedAt) => {
-      _vdkcOwnWrites.add(savedAt);
-      if (_vdkcOwnWrites.size > 50) _vdkcOwnWrites.delete(_vdkcOwnWrites.values().next().value);
-    };
-    if (_vdkcUnsubscribe) { _vdkcUnsubscribe(); _vdkcUnsubscribe = null; }
-    // includeMetadataChanges:true for the same reason as NavOrder above — the gate
-    // only opens on a non-cache snapshot, and without this flag that snapshot is
-    // never delivered when cache and server already agree.
-    _vdkcUnsubscribe = onSnapshot(vdkcDocRef, { includeMetadataChanges: true }, (snap) => {
-      const fromCache = !!(snap.metadata && snap.metadata.fromCache);
-      if (!snap.exists()) { if (!fromCache) _vdkcMarkServerSeen(); return; }
-      const d = snap.data();
-      if (d.savedAt && _vdkcOwnWrites.has(d.savedAt)) { if (!fromCache) _vdkcMarkServerSeen(); return; }
-      window.dispatchEvent(new CustomEvent("fb-vdkc-remote-update", { detail: d }));
-      window.dispatchEvent(new CustomEvent("fb-vdkc-synced"));
-      // Marked AFTER the merge, so a held write replays on top of the state we
-      // just reconciled with rather than underneath it.
-      if (!fromCache) _vdkcMarkServerSeen();
-    });
-
-    window._fbLoadVedaLinks = async () => {
-      try {
-        const snap = await _freshGet(vdkcDocRef);
-        // A cache fallback is NOT server confirmation — same rule as the loaders
-        // for TaskHub and Veda's dashboard.
-        const fromCache = !!(snap && snap.metadata && snap.metadata.fromCache);
-        if (snap && !fromCache) _vdkcMarkServerSeen();
-        if (snap && snap.exists()) return snap.data();
-        return null;
-      } catch(e) {
-        console.warn("Firebase Veda Links load failed:", e);
-        return null;                                   // barrier stays closed
-      }
-    };
-
-    // ── Veda Links save (500ms debounce, getter pattern) ─────────────────────
-    // Whole-doc setDoc of her entire connection list, so it is gated on server
-    // confirmation like every other whole-doc writer: writing before this
-    // connection has seen real server state would push an empty/stale list over
-    // the good copy. The getter is re-read at write time, so a held save
-    // publishes the state as reconciled, not as it was when the edit happened.
-    window._fbSaveVedaLinks = (getState) => {
-      _vdkcLastOwnSaveAt = Date.now();
-      if (_vdkcSaveTimer) clearTimeout(_vdkcSaveTimer);
-      _vdkcSaveTimer = setTimeout(() => _vdkcWhenServerSeen(async () => {
-        try {
-          const { connections, colmap } = getState();
-          const sanitize = obj => {
-            if (Array.isArray(obj)) return obj.map(sanitize);
-            if (obj && typeof obj === 'object') {
-              const out = {};
-              Object.entries(obj).forEach(([k,v]) => {
-                if (v !== null && v !== undefined) out[k] = sanitize(v);
-              });
-              return out;
-            }
-            return obj;
-          };
-          const payload = {
-            connections: sanitize(connections),
-            colmap: (Array.isArray(colmap) && colmap.length > 0) ? colmap : null,
-            savedAt: Date.now()
-          };
-          _vdkcLastOwnSaveAt = Date.now();
-          // Register the exact savedAt BEFORE the write, so the echo cannot beat
-          // us back through the listener and get treated as a remote change.
-          if (window._vdkcNoteOwnWrite) window._vdkcNoteOwnWrite(payload.savedAt);
-          await setDoc(vdkcDocRef, payload);
-          _vdkcLastOwnSaveAt = Date.now();
-          window.dispatchEvent(new CustomEvent("fb-vdkc-saved"));
-        } catch(e) {
-          console.error("Firebase Veda Links save failed:", e.code, e.message, e);
-          window.dispatchEvent(new CustomEvent("fb-vdkc-error"));
-        }
-      }), 500);
-    };
-
 
     // ── Brainstorm Journal ─────────────────────────────────────────────────────
     // COLLAB ARCHITECTURE: each entry is stored as a separate field "e_{entryId}"
@@ -11184,7 +11075,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     if (_unsubscribe)    { _unsubscribe();    _unsubscribe    = null; }
     if (_vdUnsubscribe)  { _vdUnsubscribe();  _vdUnsubscribe  = null; }
     if (_kcUnsubscribe)  { _kcUnsubscribe();  _kcUnsubscribe  = null; }
-    if (_vdkcUnsubscribe){ _vdkcUnsubscribe();_vdkcUnsubscribe= null; }
     if (_bjUnsubscribe)  { _bjUnsubscribe();  _bjUnsubscribe  = null; }
     if (_mjUnsubscribe)  { _mjUnsubscribe();  _mjUnsubscribe  = null; }
     if (_tjUnsubscribe)  { _tjUnsubscribe();  _tjUnsubscribe  = null; }
@@ -11221,10 +11111,9 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // single time the tab lost focus.
     _bjServerSeen = false;
     _tjServerSeen = false;
-    // Same rule for the header button order (dashboards/navorder) and for Veda's
-    // Links, both of which replace their whole document on every save.
+    // Same rule for the header button order (dashboards/navorder), which
+    // replaces its whole document on every save.
     _noServerSeen = false;
-    _vdkcServerSeen = false;
     // New generation: everything composed before this point is now suspect (see
     // _fbGen). This is what makes the protection independent of device clocks.
     _fbGen++;
@@ -11478,7 +11367,6 @@ function _kcMakeCloud(bucket) {
   };
 }
 window.KcCloud   = _kcMakeCloud('keychain'); // Tony's Keychain
-window.VdkcCloud = _kcMakeCloud('links');    // Veda's Links
 
 // Shared: upload one pending doc entry (from _kcDocs) to KV.
 // Keeps a local IDB cache, sets storageUrl/storagePath, clears fileData.
