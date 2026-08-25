@@ -8908,6 +8908,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   function _bjMarkServerSeen() {
     if (_bjServerSeen) return;
     _bjServerSeen = true;
+    _fbStopStall('journal');
     const q = _bjPendingWrites; _bjPendingWrites = [];
     q.forEach(fn => { try { fn(); } catch(e) { console.warn('BJ deferred write failed:', e && e.message); } });
   }
@@ -8916,11 +8917,13 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // Dedupe identical refs (the debounced _bjDoSave) so a long offline session can't
     // grow this queue without bound; distinct closures (order/entry/delete) still queue.
     if (_bjPendingWrites.indexOf(fn) === -1) _bjPendingWrites.push(fn);
+    _fbWatchStall('journal', 'Brainstorm Journal', () => _bjServerSeen);
     return Promise.resolve();
   }
   function _tjMarkServerSeen() {
     if (_tjServerSeen) return;
     _tjServerSeen = true;
+    _fbStopStall('tony_journal');
     const q = _tjPendingWrites; _tjPendingWrites = [];
     q.forEach(fn => { try { fn(); } catch(e) { console.warn('TJ deferred write failed:', e && e.message); } });
   }
@@ -8929,6 +8932,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // Dedupe identical refs (the debounced _tjDoSave) so a long offline session can't
     // grow this queue without bound; distinct closures (order/entry/delete) still queue.
     if (_tjPendingWrites.indexOf(fn) === -1) _tjPendingWrites.push(fn);
+    _fbWatchStall('tony_journal', 'MyJournal', () => _tjServerSeen);
     return Promise.resolve();
   }
 
@@ -9044,6 +9048,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   function _noMarkServerSeen() {
     if (_noServerSeen) return;
     _noServerSeen = true;
+    _fbStopStall('navorder');
     const q = _noPendingWrites; _noPendingWrites = [];
     q.forEach(fn => { try { fn(); } catch(e) { console.warn('NavOrder deferred write failed:', e && e.message); } });
   }
@@ -9052,17 +9057,20 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // Each payload is a full snapshot of the order, so keeping only the latest
     // both bounds the queue and replays the newest local arrangement.
     _noPendingWrites = [fn];
+    _fbWatchStall('navorder', 'Nav order', () => _noServerSeen);
     return Promise.resolve();
   }
   function _vdkcMarkServerSeen() {
     if (_vdkcServerSeen) return;
     _vdkcServerSeen = true;
+    _fbStopStall('veda_links');
     const q = _vdkcPendingWrites; _vdkcPendingWrites = [];
     q.forEach(fn => { try { fn(); } catch(e) { console.warn('Veda Links deferred write failed:', e && e.message); } });
   }
   function _vdkcWhenServerSeen(fn) {
     if (_vdkcServerSeen) return fn();
     _vdkcPendingWrites = [fn];
+    _fbWatchStall('veda_links', 'Links (Veda)', () => _vdkcServerSeen);
     return Promise.resolve();
   }
   // Expose to React app via window
@@ -9564,6 +9572,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
 
     // ── Veda Links load ───────────────────────────────────────────────────────
     const vdkcDocRef = doc(db, VDKC_DOC_PATH);
+    _stallRetry['veda_links'] = async () => { const sn = await _freshGet(vdkcDocRef); if (sn && !(sn.metadata && sn.metadata.fromCache)) _vdkcMarkServerSeen(); };
 
     // ── Veda Links real-time listener ─────────────────────────────────────────
     // Own writes are recognised by their exact savedAt rather than by a blanket
@@ -9654,6 +9663,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // writing entry X never touches entry Y that Device B is editing. True collab,
     // no overwrite collisions, exactly like Google Docs per-document isolation.
     const bjDocRef = doc(db, BJ_DOC_PATH);
+    _stallRetry['journal'] = async () => { const sn = await _freshGet(bjDocRef); if (sn && !(sn.metadata && sn.metadata.fromCache)) _bjMarkServerSeen(); };
 
     // ── Resilient write helpers (shared by BJ / MJ / TJ) ──────────────────────
     // Retry a Firestore write on transient failures with exponential backoff so a
@@ -10496,6 +10506,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
 
     // ── Tony's Brainstorm Journal Firebase ───────────────────────────────────────
     const tjDocRef = doc(db, TJ_DOC_PATH);
+    _stallRetry['tony_journal'] = async () => { const sn = await _freshGet(tjDocRef); if (sn && !(sn.metadata && sn.metadata.fromCache)) _tjMarkServerSeen(); };
 
     const _tjSanitize = (v) => {
       if (Array.isArray(v)) return v.map(_tjSanitize);
@@ -11072,6 +11083,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     //      happened to land in that window was silently dropped, and this device
     //      then overwrote it on its next save.
     const _noDocRef = doc(db, "dashboards/navorder");
+    _stallRetry['navorder'] = async () => { const sn = await _freshGet(_noDocRef); if (sn && !(sn.metadata && sn.metadata.fromCache)) _noMarkServerSeen(); };
     // Every savedAt this session has written, so the listener recognises any of
     // our own echoes rather than blanket-ignoring a time window.
     const _noOwnWrites = new Set();
