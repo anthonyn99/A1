@@ -5262,11 +5262,11 @@ function saveJ(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
 // creation (see pushOcc), and _fcmRearmSeries only needs one surviving occurrence
 // to re-arm a series. Since we only ever archive keys strictly OLDER than the
 // cutoff, every current and future occurrence stays in the live doc.
-const TH_ARCHIVE_YEARS=2;
+const TH_ARCHIVE_YEARS=6;
 // A pure age window is a bet on volume staying low. If the doc is still big after
 // the age pass, keep moving the oldest days until it's under this — that's what
 // actually guarantees we never reach the write guard.
-const TH_ARCHIVE_SOFT_BYTES=600000;
+const TH_ARCHIVE_SOFT_BYTES=780000;
 function thDataBytes(d){try{return new Blob([JSON.stringify(d||{})]).size;}catch(e){try{return JSON.stringify(d||{}).length;}catch(_){return 0;}}}
 function thTodayKey(){const n=new Date();return dkey(n.getFullYear(),n.getMonth(),n.getDate());}
 const TH_DAYKEY_RE=/^\d{4}-\d{2}-\d{2}$/;
@@ -7373,6 +7373,57 @@ function App(){
       console.log("[Archive] Tony: moved "+split.movedCount+" day(s), dropped "+split.droppedEmpty+" empty; live data now "+(thDataBytes(split.keep)/1024).toFixed(0)+" KB");
     };
     const t=setTimeout(run,20000);
+    return()=>clearTimeout(t);
+  },[setData]);
+
+  // ── One-time un-archive ─────────────────────────────────────────────────────
+  // The soft-byte pass used to fire at 600KB, which moved YEARS of day-keys into
+  // the sidecar docs even though they were nowhere near the age cutoff. Nothing
+  // was lost — _fbArchiveDays writes the sidecar and only prunes on a server ack
+  // — but _fbLoadArchive was wired to no UI, so the history was invisible and
+  // read as catastrophic data loss.
+  //
+  // Pull it all back once. Runs BEFORE the archiver's 20s timer, and the
+  // threshold above is now high enough that what comes back stays put.
+  // Live values always win a key collision: they are the newer copy. Sidecars
+  // are deliberately NOT deleted — they stay as a backup.
+  const unarchiveRanRef=useRef(false);
+  useEffect(()=>{
+    const run=async()=>{
+      if(unarchiveRanRef.current||!fbLoadedRef.current||!window._fbLoadArchive)return;
+      if(localStorage.getItem("td6_unarchived_v1"))return;
+      unarchiveRanRef.current=true;
+      try{
+        const live=stateRef.current.data||{};
+        const merged={...live};
+        let added=0,years=[];
+        const thisYear=new Date().getFullYear();
+        for(let y=thisYear-TH_ARCHIVE_YEARS-2;y<=thisYear;y++){
+          const a=await window._fbLoadArchive("main",String(y));
+          if(!a||!Object.keys(a).length)continue;
+          let n=0;
+          Object.keys(a).forEach(k=>{ if(!(k in merged)){merged[k]=a[k];n++;} });
+          if(n){added+=n;years.push(y+":"+n);}
+        }
+        if(!added){localStorage.setItem("td6_unarchived_v1","1");return;}
+        const bytes=thDataBytes(merged);
+        if(bytes>TH_ARCHIVE_SOFT_BYTES){
+          // Refuse rather than restore something the archiver will immediately
+          // undo (or, worse, that trips the 900KB write guard and stops syncing).
+          console.warn("[Unarchive] Tony: restore would be "+(bytes/1024).toFixed(0)+
+            "KB, over the "+(TH_ARCHIVE_SOFT_BYTES/1024).toFixed(0)+"KB threshold — skipped. Raise TH_ARCHIVE_SOFT_BYTES or restore selectively.");
+          return;
+        }
+        setData(merged);
+        localStorage.setItem("td6_unarchived_v1","1");
+        console.log("[Unarchive] Tony: restored "+added+" day(s) ["+years.join(", ")+
+          "]; live data now "+(bytes/1024).toFixed(0)+" KB");
+      }catch(e){
+        unarchiveRanRef.current=false;   // let it retry on the next load
+        console.warn("[Unarchive] Tony failed — will retry:",e&&(e.message||e));
+      }
+    };
+    const t=setTimeout(run,8000);
     return()=>clearTimeout(t);
   },[setData]);
 
@@ -13053,8 +13104,8 @@ function saveJ(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
 // See the matching comment in Tony's TaskHub for the full rationale: `data` grows
 // forever inside a SINGLE Firestore doc (1 MiB hard limit / 900 KB write guard),
 // so days past the window are MOVED to per-year sidecar docs, never deleted.
-const TH_ARCHIVE_YEARS=2;
-const TH_ARCHIVE_SOFT_BYTES=600000;
+const TH_ARCHIVE_YEARS=6;
+const TH_ARCHIVE_SOFT_BYTES=780000;
 function thDataBytes(d){try{return new Blob([JSON.stringify(d||{})]).size;}catch(e){try{return JSON.stringify(d||{}).length;}catch(_){return 0;}}}
 function thTodayKey(){const n=new Date();return dkey(n.getFullYear(),n.getMonth(),n.getDate());}
 const TH_DAYKEY_RE=/^\d{4}-\d{2}-\d{2}$/;
@@ -13779,6 +13830,48 @@ function App(){
       console.log("[Archive] Veda: moved "+split.movedCount+" day(s), dropped "+split.droppedEmpty+" empty; live data now "+(thDataBytes(split.keep)/1024).toFixed(0)+" KB");
     };
     const t=setTimeout(run,20000);
+    return()=>clearTimeout(t);
+  },[setData]);
+
+  // ── One-time un-archive (mirror of Tony's; see the note there) ──────────────
+  // Veda had no archive sidecars when this shipped, so this is a no-op for her
+  // today. It exists so that if the archiver ever does fire on her profile, the
+  // same recovery path is already in place rather than being written in a panic.
+  const unarchiveRanRef=useRef(false);
+  useEffect(()=>{
+    const run=async()=>{
+      if(unarchiveRanRef.current||!fbLoadedRef.current||!window._fbLoadArchive)return;
+      if(localStorage.getItem("td_unarchived_v1"))return;
+      unarchiveRanRef.current=true;
+      try{
+        const live=vdRef.current.data||{};
+        const merged={...live};
+        let added=0,years=[];
+        const thisYear=new Date().getFullYear();
+        for(let y=thisYear-TH_ARCHIVE_YEARS-2;y<=thisYear;y++){
+          const a=await window._fbLoadArchive("vedasdash",String(y));
+          if(!a||!Object.keys(a).length)continue;
+          let n=0;
+          Object.keys(a).forEach(k=>{ if(!(k in merged)){merged[k]=a[k];n++;} });
+          if(n){added+=n;years.push(y+":"+n);}
+        }
+        if(!added){localStorage.setItem("td_unarchived_v1","1");return;}
+        const bytes=thDataBytes(merged);
+        if(bytes>TH_ARCHIVE_SOFT_BYTES){
+          console.warn("[Unarchive] Veda: restore would be "+(bytes/1024).toFixed(0)+
+            "KB, over the "+(TH_ARCHIVE_SOFT_BYTES/1024).toFixed(0)+"KB threshold — skipped.");
+          return;
+        }
+        setData(merged);
+        localStorage.setItem("td_unarchived_v1","1");
+        console.log("[Unarchive] Veda: restored "+added+" day(s) ["+years.join(", ")+
+          "]; live data now "+(bytes/1024).toFixed(0)+" KB");
+      }catch(e){
+        unarchiveRanRef.current=false;
+        console.warn("[Unarchive] Veda failed — will retry:",e&&(e.message||e));
+      }
+    };
+    const t=setTimeout(run,8000);
     return()=>clearTimeout(t);
   },[setData]);
 
