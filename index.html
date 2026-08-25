@@ -7423,8 +7423,13 @@ function App(){
         console.warn("[Unarchive] Tony failed — will retry:",e&&(e.message||e));
       }
     };
-    const t=setTimeout(run,8000);
-    return()=>clearTimeout(t);
+    // Poll rather than fire once: run() bails until Firebase has loaded, and a
+    // single 8s timer meant that if auth/App Check/the doc fetch took any longer
+    // the restore silently never happened. Retries until it succeeds or 2min.
+    const iv=setInterval(()=>{ if(unarchiveRanRef.current){clearInterval(iv);return;} run(); },3000);
+    const stop=setTimeout(()=>clearInterval(iv),120000);
+    setTimeout(run,3000);
+    return()=>{clearInterval(iv);clearTimeout(stop);};
   },[setData]);
 
   // Auto-delete goals completed 30+ days ago. Runs shortly after load (once Firebase
@@ -13871,8 +13876,13 @@ function App(){
         console.warn("[Unarchive] Veda failed — will retry:",e&&(e.message||e));
       }
     };
-    const t=setTimeout(run,8000);
-    return()=>clearTimeout(t);
+    // Poll rather than fire once: run() bails until Firebase has loaded, and a
+    // single 8s timer meant that if auth/App Check/the doc fetch took any longer
+    // the restore silently never happened. Retries until it succeeds or 2min.
+    const iv=setInterval(()=>{ if(unarchiveRanRef.current){clearInterval(iv);return;} run(); },3000);
+    const stop=setTimeout(()=>clearInterval(iv),120000);
+    setTimeout(run,3000);
+    return()=>{clearInterval(iv);clearTimeout(stop);};
   },[setData]);
 
   // Auto-delete goals completed 30+ days ago (see Tony's TaskHub). Runs after load and hourly.
