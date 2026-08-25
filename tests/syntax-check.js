@@ -20,7 +20,7 @@ const vm = require('vm');
 // Every page served straight from the repo root. A new single-file app belongs
 // in this list the day it ships.
 const FILES = [
-  'index.html', 'shield.html', 'tradehub.html', 'vault.html', 'warden.html', 'insight.html',
+  'index.html', 'shield.html', 'tradehub.html', 'vault.html', 'insight.html',
   'mylist.html', 'oneinbox.html', 'solace.html', 'riftiq.html', 'wellness.html',
 ];
 

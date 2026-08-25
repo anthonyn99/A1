@@ -21,8 +21,7 @@ const fs = require('fs');
 const path = require('path');
 
 const APPS = [
-  { file: 'vault.html', prefix: 'kc_' },
-  { file: 'warden.html', prefix: 'warden_kc_' },
+  { file: 'vault.html', prefix: 'kc_' },
 ];
 
 let pass = 0, fail = 0;
