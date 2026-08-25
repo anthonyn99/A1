@@ -135,6 +135,9 @@
   function makeFirebaseBackend() {
     var mirror = { config: null, items: {} };
     var loaded = false, itemSubs = [], errShown = false;
+    // Set the moment a local write is queued, cleared only when the cloud
+    // confirms it landed. Guards the remote-update handler above.
+    var pendingLocal = false;
 
     function saveState() { return { config: mirror.config || null, items: mirror.items || {}, savedAt: Date.now() }; }
     function fbReady() { return typeof window._fbLoadVault === 'function' && typeof window._fbSaveVault === 'function'; }
@@ -150,13 +153,20 @@
     window.addEventListener('fb-vault-remote-update', function (e) {
       var d = e.detail; if (!d) return;
       mirror.config = d.config || mirror.config;
-      mirror.items = d.items || {};
       // Master password changed elsewhere → re-lock this device immediately.
+      // This is a SECURITY response and runs before anything below can bail out.
       try { if (session && mirror.config && session.enforceStamp(mirror.config)) { renderLock(true); return; } } catch (err) {}
+      // Replacing `mirror.items` wholesale drops any item whose save has not
+      // landed yet: the next scheduleWrite() would then persist the server's
+      // list and the unsaved entry would be gone for good. While a local write
+      // is unconfirmed the mirror is authoritative — the same reasoning as
+      // _kcPendingLocal on the Keychain side.
+      if (pendingLocal) { console.warn('[vault] remote update ignored — local changes not yet saved'); return; }
+      mirror.items = d.items || {};
       var list = Object.keys(mirror.items).map(function (k) { return mirror.items[k]; });
       itemSubs.forEach(function (fn) { try { fn(list); } catch (err) {} });
     });
-    window.addEventListener('fb-vault-saved', function () { errShown = false; setVaultSync('saved'); });
+    window.addEventListener('fb-vault-saved', function () { errShown = false; pendingLocal = false; setVaultSync('saved'); });
     window.addEventListener('fb-vault-error', function (e) {
       setVaultSync('error');
       if (!errShown) { errShown = true; toast('Sync failed (' + (e.detail || 'error') + ') — retrying'); }
@@ -169,6 +179,7 @@
       try { var d = await window._fbLoadVault(); if (d) { mirror.config = d.config || null; mirror.items = d.items || {}; } } catch (e) {}
     }
     function scheduleWrite() {
+      pendingLocal = true;   // unconfirmed until fb-vault-saved says otherwise
       setVaultSync('saving');
       if (fbReady()) window._fbSaveVault(saveState);
       else waitForFb().then(function () { if (fbReady()) window._fbSaveVault(saveState); });
