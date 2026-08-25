@@ -8949,6 +8949,41 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   // dropped — they replay right after the server data is applied, so a genuine
   // offline edit still lands and a stale session can never clobber fresh data.
   let _thServerSeen = false, _thPendingWrites = [];
+
+  // ══ STALL WATCHDOG ═══════════════════════════════════════════════════════
+  // _thWhenServerSeen/_vdWhenServerSeen park a write until a GENUINE server read
+  // confirms the doc. That gate is correct — it stops a cache-only load pushing
+  // stale state over good cloud data — but it had no way out. If _freshGet burned
+  // its three attempts and fell back to the local cache, `fromCache` was true,
+  // server-seen was never set, and from then on EVERY write parked silently and
+  // permanently while the UI still reported "saved".
+  //
+  // That is precisely how 2026-08-25 played out: a desktop wrote all day into a
+  // parked queue, the phone kept showing the older cloud copy, and when the
+  // desktop finally reloaded it got a real server read, applied that OLD remote
+  // over its newer local state, and the day's work was gone from both sides.
+  //
+  // So: never park indefinitely. Retry the server read on a timer, and if writes
+  // are still stuck after a minute, say so loudly — while the local copy is still
+  // the good one and the situation is recoverable.
+  const _stallTimers = {};
+  function _fbStopStall(key){ if(_stallTimers[key]){ clearInterval(_stallTimers[key]); _stallTimers[key]=null; } }
+  const _stallRetry = {};                        // set once the doc refs exist
+  function _fbWatchStall(key, label, isSeen) {
+    if (_stallTimers[key]) return;               // already watching
+    const started = Date.now();
+    _stallTimers[key] = setInterval(async () => {
+      if (isSeen()) { clearInterval(_stallTimers[key]); _stallTimers[key] = null; return; }
+      try { if (_stallRetry[key]) await _stallRetry[key](); } catch (e) {}
+      if (!isSeen() && Date.now() - started > 60000) {
+        _fbLoudFailure(label, 'Changes are being held on this device and have NOT reached the cloud '
+          + '— the connection never confirmed.\n\n'
+          + 'Your other devices still show the OLDER copy. Do NOT open them until this one syncs, '
+          + 'or they may overwrite the newer data on this device.\n\n'
+          + 'Check your connection; it will keep retrying on its own.');
+      }
+    }, 10000);
+  }
   let _vdServerSeen = false, _vdPendingWrites = [];
   // dashboards/navorder (header button order + the External Links list). Whole-doc
   // setDoc, and the in-memory order it serialises starts life as the hardcoded
@@ -8980,6 +9015,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   function _thMarkServerSeen() {
     if (_thServerSeen) return;
     _thServerSeen = true;
+    _fbStopStall('main');            // confirmed — stop watching immediately
     const q = _thPendingWrites; _thPendingWrites = [];
     q.forEach(fn => { try { fn(); } catch(e) { console.warn('TaskHub deferred write failed:', e && e.message); } });
   }
@@ -8988,17 +9024,21 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // Only the latest pending save matters — each payload is a full snapshot, so
     // keeping one entry both bounds the queue and replays the newest local state.
     _thPendingWrites = [fn];
+    // Parking without a way out is how a whole day of edits was lost. Watch it.
+    _fbWatchStall('main', 'TaskHub', () => _thServerSeen);
     return Promise.resolve();
   }
   function _vdMarkServerSeen() {
     if (_vdServerSeen) return;
     _vdServerSeen = true;
+    _fbStopStall('vedasdash');
     const q = _vdPendingWrites; _vdPendingWrites = [];
     q.forEach(fn => { try { fn(); } catch(e) { console.warn('Veda deferred write failed:', e && e.message); } });
   }
   function _vdWhenServerSeen(fn) {
     if (_vdServerSeen) return fn();
     _vdPendingWrites = [fn];
+    _fbWatchStall('vedasdash', 'TaskHub (Veda)', () => _vdServerSeen);
     return Promise.resolve();
   }
   function _noMarkServerSeen() {
@@ -9032,6 +9072,13 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
 
   async function init() {
     const docRef   = doc(db, DOC_PATH);
+    // Give the stall watchdog a real way to break the deadlock: re-attempt a
+    // SERVER read. Success calls _thMarkServerSeen(), which flushes every write
+    // that has been parked. Without this the watchdog could only complain.
+    _stallRetry['main'] = async () => {
+      const snap = await _freshGet(docRef);
+      if (snap && !(snap.metadata && snap.metadata.fromCache)) _thMarkServerSeen();
+    };
 
     // ── TaskHub load ──────────────────────────────────────────────────────────
     window._fbLoad = async () => {
@@ -9336,6 +9383,11 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
 
     // ── Veda's TaskHub load ───────────────────────────────────────────────────
     const vdDocRef = doc(db, VD_DOC_PATH);
+    // Same escape hatch as TaskHub's — see _stallRetry['main'].
+    _stallRetry['vedasdash'] = async () => {
+      const snap = await _freshGet(vdDocRef);
+      if (snap && !(snap.metadata && snap.metadata.fromCache)) _vdMarkServerSeen();
+    };
 
     window._fbLoadVeda = async () => {
       try {
