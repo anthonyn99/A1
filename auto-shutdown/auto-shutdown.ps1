@@ -322,6 +322,17 @@ function Test-JustSurfaced {
     } catch { $false }
 }
 
+# The deferral problem is specific to battery: the standby battery budget is
+# what makes Windows hibernate rather than shut down. On AC there is no budget,
+# so a wake at $Time can act normally and must not be refused.
+function Test-OnBattery {
+    try {
+        $b = @(Get-CimInstance Win32_Battery -ErrorAction Stop)[0]
+        if (-not $b) { return $false }   # no battery at all
+        return ($b.BatteryStatus -eq 1)  # 1 = discharging, 2 = on AC
+    } catch { $false }
+}
+
 function Test-SessionLocked {
     $sid = [Diagnostics.Process]::GetCurrentProcess().SessionId
     @(Get-Process -Name 'LogonUI' -ErrorAction SilentlyContinue |
@@ -658,9 +669,11 @@ function Invoke-Run {
     # Only useful while the PC is genuinely awake. If it has just surfaced from
     # Modern Standby, a shutdown cannot complete and would only queue up to
     # ambush the next boot, so refuse rather than leave that trap.
-    if ((-not $Force) -and (Test-JustSurfaced)) {
+    # ...but only on battery. Refusing on AC would block the one configuration
+    # where a midnight wake can actually work.
+    if ((-not $Force) -and (Test-JustSurfaced) -and (Test-OnBattery)) {
         Write-Log ('run: {0} local | schedule trigger' -f $now.ToString('yyyy-MM-dd HH:mm:ss'))
-        Write-Log 'skip: the PC only just surfaced from Modern Standby. A shutdown issued now would not run, it would wait and fire at your next boot. The lock trigger covers this case instead.' 'WARN'
+        Write-Log 'skip: on battery and only just surfaced from Modern Standby. A shutdown issued now would not run - Windows would defer it and fire it at your next boot. The lock trigger covers this case instead.' 'WARN'
         return 0
     }
     # ---------------------------------------------------------------------
