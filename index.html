@@ -32442,14 +32442,61 @@ function makeHistory(ctx) {
     } catch (e) {}
   }
 
+  // ── Delta encoding (v2) ───────────────────────────────────────────────────
+  // The window is five consecutive states of the SAME document, differing by a
+  // keystroke or two, and every one used to be stored as a FULL copy of the
+  // HTML. So a 150KB journal entry cost ~750KB — which is what a single real
+  // key measured at. Embedded images made it worse: the same base64 blob was
+  // written five times over.
+  //
+  // Store the first state whole, then each next one as (shared prefix length,
+  // shared suffix length, changed middle). Reconstruction is exact.
+  //
+  // Surrogate safety: prefix/suffix lengths are code-unit counts, so a boundary
+  // could land between the halves of an emoji and slice() would split it. Both
+  // ends are nudged off a lone surrogate before use.
+  function _histCommon(a, b) {
+    var lim = Math.min(a.length, b.length), p = 0, s = 0;
+    while (p < lim && a.charCodeAt(p) === b.charCodeAt(p)) p++;
+    // don't end the prefix on a high surrogate whose pair is about to differ
+    if (p > 0 && p < a.length) { var c = a.charCodeAt(p - 1); if (c >= 0xD800 && c <= 0xDBFF) p--; }
+    while (s < lim - p && a.charCodeAt(a.length - 1 - s) === b.charCodeAt(b.length - 1 - s)) s++;
+    // don't start the suffix on a low surrogate
+    if (s > 0) { var d = a.charCodeAt(a.length - s); if (d >= 0xDC00 && d <= 0xDFFF) s--; }
+    return { p: p, s: s };
+  }
+  function encodeHist(slice, relIdx) {
+    var d = [], i, k;
+    for (i = 1; i < slice.length; i++) {
+      k = _histCommon(slice[i - 1].html, slice[i].html);
+      d.push({ p: k.p, s: k.s, m: slice[i].html.slice(k.p, slice[i].html.length - k.s) });
+    }
+    return {
+      v: 2, t: Date.now(), idx: relIdx,
+      base: slice.length ? slice[0].html : '',
+      d: d,
+      c: slice.map(function (x) { return x.caret; })
+    };
+  }
+  function decodeHist(data) {
+    if (!data) return null;
+    if (data.v !== 2) return (data.stack && data.stack.length) ? data.stack : null;  // legacy v1
+    var htmls = [data.base || ''], i, prev, k;
+    for (i = 0; i < (data.d || []).length; i++) {
+      prev = htmls[i]; k = data.d[i];
+      htmls.push(prev.slice(0, k.p) + k.m + prev.slice(prev.length - k.s));
+    }
+    return htmls.map(function (h, j) { return { html: h, caret: (data.c || [])[j] }; });
+  }
+
   function persist() {
     var key = histKey(); if (!key) return;
     try {
       var lo = Math.max(0, idx - 2), hi = Math.min(stack.length, idx + 3);
       var slice = stack.slice(lo, hi);
-      // `t` is what pruneHistories() sorts on — without it every key looks
-      // equally old and eviction order is arbitrary.
-      var payload = JSON.stringify({ stack: slice, idx: idx - lo, t: Date.now() });
+      // `t` (inside the payload) is what pruneHistories() sorts on — without it
+      // every key looks equally old and eviction order is arbitrary.
+      var payload = JSON.stringify(encodeHist(slice, idx - lo));
       if (payload.length > HIST_MAX_KEY) { localStorage.removeItem(key); return; }
       localStorage.setItem(key, payload);
       pruneHistories(key);
@@ -32465,8 +32512,11 @@ function makeHistory(ctx) {
     var key = histKey(); if (!key) return;
     try {
       var data = JSON.parse(localStorage.getItem(key) || 'null');
-      if (!data || !data.stack || !data.stack.length) return;
-      var saved = data.stack, savedIdx = Math.min(data.idx | 0, saved.length - 1);
+      // decodeHist rebuilds a v2 delta payload and passes a v1 array straight
+      // through, so histories written before this change still load.
+      var saved = decodeHist(data);
+      if (!saved || !saved.length) return;
+      var savedIdx = Math.min(data.idx | 0, saved.length - 1);
       if (savedIdx < 0) savedIdx = 0;
       // Reconcile with what actually loaded. The stack is only usable if the document
       // came back EXACTLY as this history last left it — same lineage, so undo walks
