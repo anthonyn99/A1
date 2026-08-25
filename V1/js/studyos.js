@@ -57,7 +57,9 @@ var SOI = (function () {
     box:      I('<path d="m12 2 9 5v10l-9 5-9-5V7Z"/><path d="m3 7 9 5 9-5"/><path d="M12 12v10"/>'),
     printer:  I('<path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 15h12v6H6Z"/>'),
     expand:   I('<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>'),
-    task:     I('<path d="M9 11.5 11 13.5 15.5 9"/><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 2v4"/><path d="M16 2v4"/>')
+    task:     I('<path d="M9 11.5 11 13.5 15.5 9"/><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 2v4"/><path d="M16 2v4"/>'),
+    globe:    I('<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18Z"/>'),
+    monitor:  I('<rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/>')
   };
 })();
 
@@ -835,6 +837,145 @@ function saveEditClass() {
   showNotif(SOI.pencil, 'Class Updated', cls.name + ' saved.');
 }
 
+// ===== CLASS RESOURCES =====
+/* Websites and native apps attached to a class, launched together from a
+ * TaskHub card (see js/taskmirror.js buildClasses + index.html
+ * _sosLaunchClass). Stored on the class object itself: `resources` is not
+ * underscore-prefixed, so _sosSerializeClasses() carries it through to both
+ * localStorage and Firestore untouched, and because the two Firestore merge
+ * sites (:fb-sos-remote and the initial load) both do `classes =
+ * remote.classes` wholesale it syncs across devices with no merge-site edit.
+ * That is only true for fields nested INSIDE a class — a new TOP-LEVEL field
+ * would still need both sites updated (ARCHITECTURE.md section 8). */
+
+// MUST stay byte-identical to index.html's _isLocalPath and shield.html's
+// isLocalPath. A string one file treats as a local path and another treats as
+// a URL either opens a dead tab or silently launches nothing.
+function _sosIsLocalPath(u){
+  return typeof u === 'string' && !/^https?:\/\//i.test(u) && (/^[A-Za-z]:[\\/]/.test(u) || /^\\\\/.test(u));
+}
+
+let editingResourceId = null;
+
+/* Live feedback on how the single target input was classified. A radio the
+ * user could set to disagree with the text they typed would be a bug source;
+ * the classification is deterministic from the string, so just show it. */
+function _sosResHint() {
+  const el = _sosEl('res-kind-hint');
+  if (!el) return;
+  const v = (_sosEl('inp-res-target').value || '').trim();
+  if (!v) { el.textContent = ''; return; }
+  if (_sosIsLocalPath(v)) {
+    el.textContent = 'Program on this PC — opens through Shield on your desktop.';
+    el.style.color = 'var(--text3)';
+  } else if (/^https?:\/\//i.test(v)) {
+    el.textContent = 'Website — opens in a browser tab anywhere.';
+    el.style.color = 'var(--text3)';
+  } else {
+    el.textContent = 'Not recognised. Use a full https:// URL or a path like C:\\...';
+    el.style.color = '#ff6b6b';
+  }
+}
+
+function renderClassResources(cls) {
+  const list = _sosEl('class-resources-list');
+  if (!list) return;
+  list.innerHTML = '';
+  const res = cls.resources || [];
+  if (res.length === 0) {
+    list.innerHTML = '<div class="class-events-empty">No linked resources.<br><span style="font-size:10px">Click + Resource to add a site or app.</span></div>';
+    return;
+  }
+  res.forEach(r => {
+    const item = document.createElement('div');
+    item.className = 'class-event-item';
+    item.style.cursor = 'default';
+    const target = r.kind === 'app' ? (r.path || '') : (r.url || '');
+    const shown = target.length > 40 ? target.slice(0, 40) + '\u2026' : target;
+    const icon = r.kind === 'app' ? SOI.monitor : SOI.globe;
+    item.innerHTML = `
+      <div style="width:14px;flex-shrink:0;margin-top:3px;color:${cls.color};font-size:12px;display:flex">${icon}</div>
+      <div style="flex:1;min-width:0">
+        <div class="class-event-name">${r.label}</div>
+        <div class="class-event-meta">${shown}</div>
+      </div>
+      <button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:2px 4px;border-radius:3px;transition:0.15s" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text3)'" title="Edit" aria-label="Edit" onclick="openEditResource('${r.id}')">${SOI.pencil}</button>
+      <button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:2px 4px;border-radius:3px;transition:0.15s" onmouseover="this.style.color='#ff6b6b'" onmouseout="this.style.color='var(--text3)'" title="Delete" aria-label="Delete" onclick="deleteResource('${r.id}')">${SOI.x}</button>
+    `;
+    list.appendChild(item);
+  });
+}
+
+function openAddResource() {
+  if (!currentClassId) return;
+  editingResourceId = null;
+  _sosEl('resource-modal-title').textContent = 'Add Resource';
+  _sosEl('inp-res-label').value = '';
+  _sosEl('inp-res-target').value = '';
+  _sosResHint();
+  _sosOpen('modal-resource');
+}
+
+function openEditResource(id) {
+  const cls = classes.find(c => c.id === currentClassId);
+  if (!cls) return;
+  const r = (cls.resources || []).find(r => r.id === id);
+  if (!r) return;
+  editingResourceId = id;
+  _sosEl('resource-modal-title').textContent = 'Edit Resource';
+  _sosEl('inp-res-label').value = r.label || '';
+  _sosEl('inp-res-target').value = (r.kind === 'app' ? r.path : r.url) || '';
+  _sosResHint();
+  _sosOpen('modal-resource');
+}
+
+function saveResource() {
+  const cls = classes.find(c => c.id === currentClassId);
+  if (!cls) return;
+  const label  = _sosEl('inp-res-label').value.trim();
+  const target = _sosEl('inp-res-target').value.trim();
+  if (!label)  { alert('Label required.'); return; }
+  if (!target) { alert('Website URL or program path required.'); return; }
+  const local = _sosIsLocalPath(target);
+  // Reject anything that is neither http(s) nor a Windows path. A bare
+  // "google.com" fails both tests and would ship a button that does nothing.
+  if (!local && !/^https?:\/\//i.test(target)) {
+    alert('Enter a full website URL starting with http:// or https://, or a Windows path like C:\\...');
+    return;
+  }
+  cls.resources = cls.resources || [];
+  if (editingResourceId) {
+    const r = cls.resources.find(r => r.id === editingResourceId);
+    if (!r) return;
+    r.label = label;
+    r.kind  = local ? 'app' : 'web';
+    // Drop the opposite key, or an app->web edit leaves a stale path that
+    // Shield would still happily launch.
+    if (local) { r.path = target; delete r.url; }
+    else       { r.url  = target; delete r.path; }
+  } else {
+    const r = { id: 'r' + Date.now().toString(36), kind: local ? 'app' : 'web', label: label };
+    if (local) r.path = target; else r.url = target;
+    cls.resources.push(r);
+  }
+  persist();
+  // persist() writes localStorage + Firestore but never touches the task
+  // mirror, which is driven by the legacy globals. Without this the change
+  // would not reach TaskHub until some unrelated task changed.
+  if (window._vedaUpdateTask) window._vedaUpdateTask();
+  _sosClose('modal-resource');
+  renderClassResources(cls);
+}
+
+function deleteResource(id) {
+  const cls = classes.find(c => c.id === currentClassId);
+  if (!cls) return;
+  cls.resources = (cls.resources || []).filter(r => r.id !== id);
+  persist();
+  if (window._vedaUpdateTask) window._vedaUpdateTask();
+  renderClassResources(cls);
+}
+
 async function deleteCurrentClass() {
   if (!currentClassId) return;
   const cls = classes.find(c => c.id === currentClassId);
@@ -914,6 +1055,7 @@ function openClassDetail(id) {
   _sosEl('detail-color-bar').style.background = cls.color;
   renderModules(cls);
   renderClassEvents(cls);
+  renderClassResources(cls);
 }
 
 function renderClassEvents(cls) {

@@ -367,6 +367,13 @@
             </div>
             <div id="class-events-list"></div>
           </div>
+          <div class="class-events-panel">
+            <div class="files-panel-header">
+              <h3>Resources</h3>
+              <button class="btn" style="padding:4px 10px;font-size:11px" onclick="openAddResource()">+ Resource</button>
+            </div>
+            <div id="class-resources-list"></div>
+          </div>
         </div>
       </div>
 
@@ -468,6 +475,26 @@
     <div class="modal-footer">
       <button class="btn" onclick="_sosClose('modal-edit-class')">Cancel</button>
       <button class="btn primary" onclick="saveEditClass()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: ADD / EDIT RESOURCE -->
+<div class="modal-overlay sos-modal" id="modal-resource">
+  <div class="modal">
+    <div class="modal-title" id="resource-modal-title">Add Resource</div>
+    <div class="field">
+      <label>Label</label>
+      <input type="text" id="inp-res-label" placeholder="e.g. Brightspace, MATLAB">
+    </div>
+    <div class="field">
+      <label>Website URL or Program Path</label>
+      <input type="text" id="inp-res-target" placeholder="https://... or C:\Program Files\MATLAB\bin\matlab.exe" oninput="_sosResHint()">
+      <div id="res-kind-hint" style="font-size:11px;color:var(--text3);margin-top:5px;min-height:14px"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="_sosClose('modal-resource')">Cancel</button>
+      <button class="btn primary" onclick="saveResource()">Save</button>
     </div>
   </div>
 </div>

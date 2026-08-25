@@ -89,6 +89,7 @@ function buildItems() {
       dateKey: key,
       _sosClassName: c ? c.name : '',
       _sosClassColor: c ? c.color : '',
+      _sosClassId: c ? c.id : '',
       ...(t.repeatId ? { _sosRepeatId: 't_' + t.repeatId } : {}),
     };
   });
@@ -105,6 +106,7 @@ function buildItems() {
       dateKey: key,
       _sosClassName: c ? c.name : '',
       _sosClassColor: c ? c.color : '',
+      _sosClassId: c ? c.id : '',
       ...(e.repeatId ? { _sosRepeatId: e.repeatId } : {}),
     };
   });
@@ -112,6 +114,56 @@ function buildItems() {
   return items;
 }
 window._sosMirrorBuild = buildItems;
+
+/* ── Class resources ────────────────────────────────────────────────────────
+ * The per-class websites/apps a TaskHub card can launch (studyos.js
+ * saveResource). Published as a SIDE TABLE keyed by classId, never as a
+ * payload on each item, for two reasons:
+ *
+ *  1. TaskHub's reconcile signature (index.html sig()) hashes exactly
+ *     [_sosId, title, done, time, _sosClassName]. A resource blob riding on an
+ *     item would not change that signature, so the reconcile would decide
+ *     nothing had changed and the edit would be SILENTLY DROPPED. Widening
+ *     sig() instead would make every label typo trigger a full strip-and-
+ *     re-add of every StudyOS row plus a whole-document vedasdash write.
+ *  2. Resources live once per class rather than once per task.
+ *
+ * Keeping them out of `items` means resources never enter TaskHub's `data` at
+ * all: sig() and the reconcile effect stay untouched, and a resource edit
+ * costs one mirror write and zero vedasdash writes. */
+function buildClasses() {
+  const B = window._sosBridge;
+  if (!B) return null;
+  const out = {};
+  (B.getClasses() || []).forEach(c => {
+    if (!c || !c.id) return;
+    const res = (c.resources || []).map(r => r.kind === 'app'
+      // r.path is deliberately omitted — see classAppsDoc in config §taskMirror.
+      ? { id: r.id, kind: 'app', label: r.label }
+      : { id: r.id, kind: 'web', label: r.label, url: r.url });
+    if (!res.length) return;              // only classes that actually have any
+    out[c.id] = { name: c.name, color: c.color, resources: res };
+  });
+  return out;
+}
+window._sosMirrorBuildClasses = buildClasses;
+
+/* Native-app paths, for the Shield desktop agent only. Separate document so
+ * these never reach a phone (see buildClasses). */
+function buildClassApps() {
+  const B = window._sosBridge;
+  if (!B) return null;
+  const out = {};
+  (B.getClasses() || []).forEach(c => {
+    if (!c || !c.id) return;
+    const apps = (c.resources || [])
+      .filter(r => r && r.kind === 'app' && r.path)
+      .map(r => ({ id: r.id, label: r.label, path: r.path }));
+    if (apps.length) out[c.id] = apps;
+  });
+  return out;
+}
+window._sosMirrorBuildApps = buildClassApps;
 
 if (TM.enabled === false) {
   console.info('[StudyOS] Task mirror disabled — StudyOS will not push to TaskHub.');
@@ -144,6 +196,7 @@ if (TM.enabled === false) {
   if (db) {
     const mirrorRef = doc(db, TM.mirrorDoc || 'dashboards/studyos_mirror');
     const ackRef    = doc(db, TM.ackDoc    || 'dashboards/studyos_mirror_ack');
+    const appsRef   = doc(db, TM.classAppsDoc || 'dashboards/studyos_class_apps');
 
     /* ── Write ────────────────────────────────────────────────────────────
      * Debounced, and skipped entirely when nothing actually changed. The
@@ -151,20 +204,40 @@ if (TM.enabled === false) {
      * triggers its save, which we must not answer with another write, or the
      * two apps ping-pong forever. */
     let lastSerialized = null;
+    let lastAppsSerialized = null;
     let timer = null;
 
     async function flush() {
       timer = null;
       const items = buildItems();
       if (!items) return;
-      const serialized = JSON.stringify(items);
-      if (serialized === lastSerialized) return;
-      try {
-        await setDoc(mirrorRef, { items, savedAt: Date.now(), app: 'studyos' });
-        lastSerialized = serialized;
-      } catch (err) {
-        // Leave lastSerialized alone so the next trigger retries this state.
-        console.warn('[StudyOS] Task mirror write failed:', err && err.code);
+      const cls = buildClasses() || {};
+      // The compare MUST span items AND classes. Keyed on items alone, a
+      // pure-resource edit (no task touched) would look unchanged and never
+      // be written at all.
+      const serialized = JSON.stringify([items, cls]);
+      if (serialized !== lastSerialized) {
+        try {
+          await setDoc(mirrorRef, { items, classes: cls, savedAt: Date.now(), app: 'studyos' });
+          lastSerialized = serialized;
+        } catch (err) {
+          // Leave lastSerialized alone so the next trigger retries this state.
+          console.warn('[StudyOS] Task mirror write failed:', err && err.code);
+        }
+      }
+
+      /* Native-app paths for Shield, in their own document and on their own
+       * change-compare: app paths move roughly once a semester, so this
+       * almost never writes even when tasks are churning. */
+      const apps = buildClassApps() || {};
+      const appsSerialized = JSON.stringify(apps);
+      if (appsSerialized !== lastAppsSerialized) {
+        try {
+          await setDoc(appsRef, { apps, savedAt: Date.now(), app: 'studyos' });
+          lastAppsSerialized = appsSerialized;
+        } catch (err) {
+          console.warn('[StudyOS] Class-apps write failed:', err && err.code);
+        }
       }
     }
 
@@ -207,6 +280,6 @@ if (TM.enabled === false) {
     document.addEventListener('visibilitychange', () => { if (!document.hidden) schedule(3000); });
 
     /* Manual escape hatch for debugging: window._sosMirrorNow() */
-    window._sosMirrorNow = () => { lastSerialized = null; return flush(); };
+    window._sosMirrorNow = () => { lastSerialized = null; lastAppsSerialized = null; return flush(); };
   }
 }

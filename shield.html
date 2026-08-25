@@ -1261,6 +1261,35 @@ function isLocalPath(u){
 // and hold a slot in the account's concurrent-listener count. Shield opens
 // three listeners per surface; this removes one from every device that cannot
 // use it, which is most of them.
+/* StudyOS class resources: the native apps attached to a class, opened together
+   by a shieldopen:class/<classId> link from a TaskHub card. Keyed
+   'cls:<classId>:<resourceId>' so a one-path-per-key map can hold several apps
+   per class without changing the agent's state shape (see state.rs local_links
+   and main::open_from_link).
+
+   FETCHED, not subscribed. A persistent listener here would re-add exactly the
+   concurrent-listener slot the comment above explains we deliberately gave up,
+   and these paths change roughly once a semester. Piggybacked on the navorder
+   snapshot so it still refreshes whenever anything link-shaped changes; the
+   worst case is that a newly-added app does not launch until the next sync,
+   which is the same failure mode as a navorder mapping that has not landed. */
+async function _pullClassApps(){
+  try {
+    var snap = await getDoc(doc(db, 'dashboards/studyos_class_apps'));
+    if (!snap.exists()) return {};
+    var apps = (snap.data() || {}).apps || {};
+    var out = {};
+    Object.keys(apps).forEach(function(cid){
+      (apps[cid] || []).forEach(function(r){
+        // Same isLocalPath gate as the link buttons: never hand the agent
+        // something that is not actually a path on this machine.
+        if (r && r.id && isLocalPath(r.path)) out['cls:' + cid + ':' + r.id] = r.path;
+      });
+    });
+    return out;
+  } catch (e) { console.warn('[Shield] class-apps pull failed', e); return {}; }
+}
+
 function _navorderListen(){ return onSnapshot(doc(db, 'dashboards/navorder'), snap => {
   if (!snap.exists()) return;
   var d = snap.data() || {};
@@ -1268,9 +1297,14 @@ function _navorderListen(){ return onSnapshot(doc(db, 'dashboards/navorder'), sn
   (d.tonyLinks || []).concat(d.vedaLinks || []).forEach(l => {
     if (l && l.id && isLocalPath(l.url)) links[l.id] = l.url;
   });
-  if (window.SH && window.SH.Agent) {
-    window.SH.Agent.invoke('sh_set_links', { args: { links: links } }).catch(() => {});
-  }
+  // sh_set_links replaces the whole map, so class apps must be merged in on
+  // every push or they would be dropped by the next navorder change.
+  _pullClassApps().then(function(clsApps){
+    Object.keys(clsApps).forEach(function(k){ links[k] = clsApps[k]; });
+    if (window.SH && window.SH.Agent) {
+      window.SH.Agent.invoke('sh_set_links', { args: { links: links } }).catch(() => {});
+    }
+  });
 }, err => console.warn('[Shield] navorder snapshot err', err)); }
 
 // Attach only where there is an agent to hand the paths to.

@@ -615,9 +615,104 @@ fn sh_lock_workstation() -> serde_json::Value {
 /// hasn't synced yet, or the link came from somewhere other than TaskHub —
 /// resolves to nothing and silently does nothing, the same failure mode as any
 /// other unrecognised custom-protocol link.
+/// The class id in a `shieldopen:class/<classId>` link, if it is one.
+///
+/// Split out from `open_from_link` so the grammar is testable without a Tauri
+/// runtime or global state. StudyOS class ids are `Date.now()` strings, so the
+/// accepted character set is deliberately narrow: it also keeps the
+/// `cls:<classId>:<resourceId>` key grammar unambiguous, since an id containing
+/// ':' could otherwise be crafted to alias another class's namespace.
+fn class_id_of(id: &str) -> Option<&str> {
+    let cid = id.strip_prefix("class/")?;
+    if cid.is_empty() || !cid.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+        return None;
+    }
+    Some(cid)
+}
+
+#[cfg(test)]
+mod link_tests {
+    use super::class_id_of;
+
+    /// Pins what `url::Url::path()` actually yields for our scheme, because the
+    /// whole verb hangs off it. `shieldopen:x` is cannot-be-a-base so the path
+    /// is the bare id; the `//` spelling parses as an authority and keeps a
+    /// leading slash, which is why open_from_link trims one.
+    #[test]
+    fn url_path_shape_is_what_we_assume() {
+        let u = url::Url::parse("shieldopen:class/1712345678901").unwrap();
+        assert_eq!(u.path(), "class/1712345678901");
+        let u2 = url::Url::parse("shieldopen://class/1712345678901").unwrap();
+        assert_eq!(u2.path().trim_start_matches('/'), "1712345678901");
+    }
+
+    #[test]
+    fn accepts_a_studyos_class_id() {
+        assert_eq!(class_id_of("class/1712345678901"), Some("1712345678901"));
+    }
+
+    #[test]
+    fn a_plain_link_id_is_not_a_class() {
+        assert_eq!(class_id_of("abc123"), None);
+    }
+
+    #[test]
+    fn empty_and_malformed_ids_are_refused() {
+        assert_eq!(class_id_of("class/"), None);
+        // A ':' would let a crafted id reach into another class's key namespace.
+        assert_eq!(class_id_of("class/x:y"), None);
+        assert_eq!(class_id_of("class/../etc"), None);
+        assert_eq!(class_id_of("class/a b"), None);
+    }
+
+    /// The prefix must not match a longer class id that merely starts the same
+    /// way — `cls:12:` must never collect `cls:123:`'s apps.
+    #[test]
+    fn key_prefix_does_not_leak_into_a_similar_class() {
+        let prefix = format!("cls:{}:", class_id_of("class/12").unwrap());
+        assert!("cls:12:r1".starts_with(&prefix));
+        assert!(!"cls:123:r1".starts_with(&prefix));
+    }
+}
+
 fn open_from_link(url: &url::Url) {
-    let id = url.path();
+    // `shieldopen:<id>` parses as cannot-be-a-base, so path() is the bare id with
+    // no leading slash (verified against url 2.x). The trim covers the
+    // `shieldopen://<id>` spelling, which parses as an authority and does carry
+    // one.
+    let id = url.path().trim_start_matches('/');
     if id.is_empty() {
+        return;
+    }
+    // `shieldopen:class/<classId>` — open every native app the user attached to
+    // that StudyOS class, launched from a TaskHub card. Same opacity property as
+    // a plain id: the class id resolves only against paths this agent already
+    // synced from the class-apps document, so a page that merely knows the
+    // scheme name still cannot name a path of its own.
+    if let Some(cid) = class_id_of(id) {
+        let prefix = format!("cls:{cid}:");
+        let mut hits: Vec<(String, String)> = state::get()
+            .local_links
+            .iter()
+            .filter(|(k, _)| k.starts_with(&prefix))
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        // HashMap order is nondeterministic, so without this the same click
+        // launches the same apps in a different order every time.
+        hits.sort_by(|a, b| a.0.cmp(&b.0));
+        // Off-thread: this is called both from the deep-link callback and from
+        // get_current() during setup, and neither should block while a class
+        // with several apps is staggered open.
+        std::thread::spawn(move || {
+            for (_, path) in hits {
+                let _ = proc::open_path(&path);
+                // Several `cmd /C start` fired in the same instant race for the
+                // foreground, and Windows' foreground-lock heuristics then pick
+                // an arbitrary winner. A short gap makes the last one land on
+                // top, which is what someone clicking "open my class" expects.
+                std::thread::sleep(std::time::Duration::from_millis(150));
+            }
+        });
         return;
     }
     if let Some(path) = state::get().local_links.get(id) {

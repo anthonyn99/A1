@@ -4723,6 +4723,7 @@ window.THTS={
     pencil:    I('<path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>'),
     x:         I('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'),
     check:     I('<path d="M20 6 9 17l-5-5"/>'),
+    play:      I('<path d="M7 4.5v15l12-7.5Z"/>'),
     alert:     I('<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>'),
     bell:      I('<path d="M18 9a6 6 0 1 0-12 0c0 6-2 7-2 7h16s-2-1-2-7"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>'),
     // Solid counterpart for the small reminder chips, where the outline bell's
@@ -9284,6 +9285,12 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       if (snap.metadata && snap.metadata.fromCache) return;
       const d = snap.data() || {};
       window._sosMirrorLatest = d.items || {};
+      // Per-class launchable resources, published as a side table rather than
+      // on each item (see V1/js/taskmirror.js buildClasses). Set inside this
+      // callback, i.e. AFTER the fromCache return above, so it can never carry
+      // cached-doc data. Read at click time by _sosLaunchClass; it never enters
+      // `data`, so it touches neither the reconcile signature nor any write.
+      window._sosMirrorClasses = d.classes || {};
       window.dispatchEvent(new CustomEvent("fb-sosmirror-update", { detail: window._sosMirrorLatest }));
     }, (err) => { console.warn('[StudyOS mirror] onSnapshot error:', err && err.code); });
 
@@ -13852,6 +13859,44 @@ function App(){
   // The write only happens when something genuinely changed. Without that guard
   // this effect would re-save on every snapshot, and each save re-triggers the
   // listener — the two apps would ping-pong writes forever.
+  // ── StudyOS class resources (read-only) ───────────────────────────────────
+  // Backs the launch button on mirrored cards. window._sosMirrorClasses is
+  // mutated by the mirror listener, not by React, so a render is not triggered
+  // when it lands — this mirrors it into component state on the same event the
+  // reconcile listens to.
+  //
+  // INVARIANT: this is display state ONLY. It never touches `data`, never calls
+  // setData/setDataBg, and never queues a vedasdash write, which is exactly why
+  // a resource edit costs nothing here. If this is ever "improved" into caching
+  // resources onto task objects, that becomes a listener-driven write to `data`
+  // and MUST go through setDataBg (never setData), or it will replay stale
+  // state over the good cloud document.
+  const [sosResMap,setSosResMap]=useState(()=>window._sosMirrorClasses||{});
+  useEffect(()=>{
+    const h=()=>setSosResMap(window._sosMirrorClasses||{});
+    window.addEventListener("fb-sosmirror-update",h);
+    h();
+    return()=>window.removeEventListener("fb-sosmirror-update",h);
+  },[]);
+  // The class record for a mirrored row, or null when it has no resources (so
+  // the button never renders dead). Falls back to the class NAME for rows
+  // mirrored before _sosClassId existed.
+  const sosResFor=t=>{
+    if(!t||!t._sosId)return null;
+    const m=sosResMap||{};
+    let c=t._sosClassId?m[t._sosClassId]:null;
+    if(!c&&t._sosClassName)c=Object.keys(m).map(k=>m[k]).find(x=>x&&x.name===t._sosClassName)||null;
+    return c&&(c.resources||[]).length?c:null;
+  };
+  // "Open 2 sites + 1 app" — set expectations BEFORE the click, because a page
+  // cannot detect whether a shieldopen: navigation reached Shield.
+  const sosResTitle=c=>{
+    const r=(c&&c.resources)||[];
+    const w=r.filter(x=>x.kind!=="app").length,a=r.length-w,p=[];
+    if(w)p.push(w+" site"+(w>1?"s":""));
+    if(a)p.push(a+" app"+(a>1?"s":""));
+    return "Open "+p.join(" + ")+(a?" (apps need Shield on this PC)":"");
+  };
   const sosMirrorSigRef=useRef(null);
   useEffect(()=>{
     // Signature of just the mirrored items in a data map, so we can tell a real
@@ -14242,6 +14287,21 @@ function App(){
   // Tony's wkPlanOverdue in purple: a shared plan on a day that has passed and
   // that you have not both finished stays at full strength and says "Overdue" in
   // the urgent-tag red, instead of receding with the rest of that day (vdDim).
+  // ── StudyOS spine ─────────────────────────────────────────────────────────
+  // A row mirrored from StudyOS wears a class-coloured left spine — the same
+  // "owned by another system" signal the plan cards use, so a study task reads
+  // as foreign at a glance instead of relying on the class badge alone.
+  // Returns {} for Veda's own tasks so the spread is a no-op and the existing
+  // border logic is untouched. Spread it AFTER the card factory: those set the
+  // `border` shorthand (which resets all four sides), and a later borderLeft
+  // longhand overrides only the left edge, leaving the today/done outline
+  // colours on the other three intact.
+  // `passed` keeps a finished event on its grey spine rather than relighting it.
+  // sosPastel is called exactly as the class badge does, so spine and chip
+  // always agree; it is idempotent, so an already-pastel colour is unchanged.
+  const vdSosSpine=(t,passed)=>(t&&t._sosId&&t._sosClassColor&&!passed)
+    ?{borderLeft:"3px solid "+(sosPastel(t._sosClassColor)||"#8b949e")}
+    :{};
   const vdPlanOverdue=(t,k)=>!!(t&&!t.done&&k<tk);
   const vdOverTag={fontSize:8,fontWeight:700,letterSpacing:.9,textTransform:"uppercase",
     color:PLAN_OVERDUE_RED,background:PLAN_OVERDUE_RED+"1f",
@@ -14413,7 +14473,7 @@ function App(){
                   vdPlanOverdue(t,k)&&RC("span",{style:vdOverTag},"Overdue"),
                   t.time&&RC("span",{style:{fontSize:9,fontWeight:700,color:A,opacity:.85,marginLeft:"auto",whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz))),
                 RC("span",{style:{fontSize:14,fontWeight:t.done?500:700,color:t.done?TXM:(vdPlanOverdue(t,k)?TX:dayTX),textDecoration:t.done?"line-through":"none",lineHeight:1.4,...vdTitleFit}},t.title))
-              :RC("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{...vdTaskCard(t.done,td),display:"flex",alignItems:"flex-start",gap:7,marginBottom:5,opacity:t.done?.45:1,cursor:edit?"grab":"default"})},
+              :RC("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{...vdTaskCard(t.done,td),...vdSosSpine(t),display:"flex",alignItems:"flex-start",gap:7,marginBottom:5,opacity:t.done?.45:1,cursor:edit?"grab":"default"})},
                                 RC("div",{onClick:()=>tog(k,t.id),style:{width:16,height:16,minWidth:16,borderRadius:3,border:"2px solid "+(t.done?CC[t.category]||TXM:TXM),background:t.done?CC[t.category]||TXM:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},t.done&&RC(Chk,{s:9})),
                 RC("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 !edit&&RC("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:5,marginBottom:1}},
@@ -14421,9 +14481,10 @@ function App(){
                   (t._sosClassName||t.category)&&(t._sosClassName?RC("span",{style:{fontSize:7,fontWeight:700,color:sosPastel(t._sosClassColor)||"#8b949e",background:(sosPastel(t._sosClassColor)||"#8b949e")+"22",border:"1px solid "+(sosPastel(t._sosClassColor)||"#8b949e")+"44",borderRadius:3,padding:"1px 4px",textTransform:"uppercase",letterSpacing:.4,whiteSpace:"normal",wordBreak:"break-word",maxWidth:80,lineHeight:1.2,opacity:dimA}},t._sosClassName):RC("span",{style:{...ctag(t.category),opacity:dimA}},t.category)),
                   t.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85*dimA,whiteSpace:"nowrap"},title:"Reminder: "+new Date(t.notifyAt).toLocaleString()},RC("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}}),"\u202f"+fmtNotif(t.notifyAt))),
                 RC("span",{style:{fontSize:14,fontWeight:t.done?500:700,color:t.done?TXM:dayTX,textDecoration:t.done?"line-through":"none",lineHeight:1.4,...vdTitleFit}},t.title)),
+                !edit&&sosResFor(t)&&RC("button",{type:"button",title:sosResTitle(sosResFor(t)),style:vdIcoBtn(sosPastel(t._sosClassColor)||A),onClick:ev3=>{ev3.stopPropagation();window._sosLaunchClass&&window._sosLaunchClass(t._sosClassId,t._sosClassName);}},vdIco(TNI.play,12)),
                 edit&&RC("button",{type:"button",title:"Edit",style:vdIcoBtn(TXD),onClick:()=>{setEi(t);setMdt(k);setMo(true);}},vdIco(TNI.pencil)),
                 edit&&RC("button",{type:"button",title:"Delete",style:vdIcoBtn("#f85149"),onClick:()=>del(k,t.id)},vdIco(TNI.x)))),
-              ev.map(e=>RC("div",{key:e.id,...taskRowP(e.id),...(edit?taskTouchH(k,e.id):{}),draggable:edit,onDragStart:edit?ev2=>vOnDragStartTask(ev2,k,e.id):null,onDragOver:edit?ev2=>vOnDragOverTask(ev2,e.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?ev2=>vOnDropTask(ev2,k,e.id):null,style:vdndRowStyle(e.id,{...vdEventCard(e.category,vdEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:7,marginBottom:4,opacity:vdEvtPassed(e,k)?0.5:dimA,cursor:edit?"grab":"default"})},
+              ev.map(e=>RC("div",{key:e.id,...taskRowP(e.id),...(edit?taskTouchH(k,e.id):{}),draggable:edit,onDragStart:edit?ev2=>vOnDragStartTask(ev2,k,e.id):null,onDragOver:edit?ev2=>vOnDragOverTask(ev2,e.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?ev2=>vOnDropTask(ev2,k,e.id):null,style:vdndRowStyle(e.id,{...vdEventCard(e.category,vdEvtPassed(e,k)),...vdSosSpine(e,vdEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:7,marginBottom:4,opacity:vdEvtPassed(e,k)?0.5:dimA,cursor:edit?"grab":"default"})},
                                 RC("div",{style:{width:6,height:6,borderRadius:"50%",background:CC[e.category]||AL,marginTop:5,flexShrink:0}}),
                 RC("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 RC("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:5,marginBottom:1}},
@@ -14432,6 +14493,7 @@ function App(){
                   e.time&&RC("span",{style:{fontSize:11,fontWeight:600,color:TXD,opacity:0.65,whiteSpace:"nowrap"}},fmt12h(e.time,k,e.tz)),
                   !edit&&e.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(e.notifyAt).toLocaleString()},RC("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}})," "+fmtNotif(e.notifyAt)))),
                 RC("span",{style:{fontSize:14,fontWeight:600,color:"#C3B2D0",lineHeight:1.4,...vdTitleFit}},e.title)),
+                !edit&&sosResFor(e)&&RC("button",{type:"button",title:sosResTitle(sosResFor(e)),style:vdIcoBtn(sosPastel(e._sosClassColor)||A),onClick:ev3=>{ev3.stopPropagation();window._sosLaunchClass&&window._sosLaunchClass(e._sosClassId,e._sosClassName);}},vdIco(TNI.play,12)),
                 edit&&RC("button",{type:"button",title:"Edit",style:vdIcoBtn(TXD),onClick:()=>{setEi(e);setMdt(k);setMo(true);}},vdIco(TNI.pencil)),
                 edit&&RC("button",{type:"button",title:"Delete",style:vdIcoBtn("#f85149"),onClick:()=>del(k,e.id)},vdIco(TNI.x)))),
               !it.length&&!(mcByDay[k]||[]).length&&!edit&&RC("div",{style:{fontSize:11,fontWeight:600,color:TXM,textAlign:"center",padding:"24px 0"}},"—"),
@@ -14467,7 +14529,7 @@ function App(){
                   vdPlanOverdue(t,k)&&RC("span",{style:vdOverTag},"Overdue"),
                   t.time&&RC("span",{style:{fontSize:9,fontWeight:700,color:A,opacity:.85,marginLeft:"auto",whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz))),
                 RC("span",{style:{fontSize:12,fontWeight:t.done?500:700,color:t.done?TXM:(vdPlanOverdue(t,k)?TX:dayTX),textDecoration:t.done?"line-through":"none",lineHeight:1.35,...vdTitleFit}},t.title))
-              :RC("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{...vdTaskCard(t.done,td),display:"flex",alignItems:"flex-start",gap:6,marginBottom:4,opacity:t.done?.45:1,cursor:edit?"grab":"default"})},
+              :RC("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{...vdTaskCard(t.done,td),...vdSosSpine(t),display:"flex",alignItems:"flex-start",gap:6,marginBottom:4,opacity:t.done?.45:1,cursor:edit?"grab":"default"})},
                                 RC("div",{onClick:()=>tog(k,t.id),style:{width:14,height:14,minWidth:14,borderRadius:3,border:"2px solid "+(t.done?CC[t.category]||TXM:TXM),background:t.done?CC[t.category]||TXM:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},t.done&&RC(Chk,{s:8})),
                 RC("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 !edit&&RC("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:5,marginBottom:1}},
@@ -14475,9 +14537,10 @@ function App(){
                   (t._sosClassName||t.category)&&(t._sosClassName?RC("span",{style:{fontSize:7,fontWeight:700,color:sosPastel(t._sosClassColor)||"#8b949e",background:(sosPastel(t._sosClassColor)||"#8b949e")+"22",border:"1px solid "+(sosPastel(t._sosClassColor)||"#8b949e")+"44",borderRadius:3,padding:"1px 4px",textTransform:"uppercase",letterSpacing:.4,whiteSpace:"normal",wordBreak:"break-word",maxWidth:80,lineHeight:1.2,opacity:dimA}},t._sosClassName):RC("span",{style:{...ctag(t.category),opacity:dimA}},t.category)),
                   t.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85*dimA,whiteSpace:"nowrap"},title:"Reminder: "+new Date(t.notifyAt).toLocaleString()},RC("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}}),"\u202f"+fmtNotif(t.notifyAt))),
                 RC("span",{style:{fontSize:12,fontWeight:t.done?500:700,color:t.done?TXM:dayTX,textDecoration:t.done?"line-through":"none",lineHeight:1.35,...vdTitleFit}},t.title)),
+                !edit&&sosResFor(t)&&RC("button",{type:"button",title:sosResTitle(sosResFor(t)),style:vdIcoBtn(sosPastel(t._sosClassColor)||A),onClick:ev3=>{ev3.stopPropagation();window._sosLaunchClass&&window._sosLaunchClass(t._sosClassId,t._sosClassName);}},vdIco(TNI.play,12)),
                 edit&&RC("button",{type:"button",title:"Edit",style:vdIcoBtn(TXD),onClick:()=>{setEi(t);setMdt(k);setMo(true);}},vdIco(TNI.pencil)),
                 edit&&RC("button",{type:"button",title:"Delete",style:vdIcoBtn("#f85149"),onClick:()=>del(k,t.id)},vdIco(TNI.x)))),
-              ev.map(e=>RC("div",{key:e.id,...taskRowP(e.id),...(edit?taskTouchH(k,e.id):{}),draggable:edit,onDragStart:edit?ev2=>vOnDragStartTask(ev2,k,e.id):null,onDragOver:edit?ev2=>vOnDragOverTask(ev2,e.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?ev2=>vOnDropTask(ev2,k,e.id):null,style:vdndRowStyle(e.id,{...vdEventCard(e.category,vdEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:6,marginBottom:4,opacity:vdEvtPassed(e,k)?0.5:dimA,cursor:edit?"grab":"default"})},
+              ev.map(e=>RC("div",{key:e.id,...taskRowP(e.id),...(edit?taskTouchH(k,e.id):{}),draggable:edit,onDragStart:edit?ev2=>vOnDragStartTask(ev2,k,e.id):null,onDragOver:edit?ev2=>vOnDragOverTask(ev2,e.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?ev2=>vOnDropTask(ev2,k,e.id):null,style:vdndRowStyle(e.id,{...vdEventCard(e.category,vdEvtPassed(e,k)),...vdSosSpine(e,vdEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:6,marginBottom:4,opacity:vdEvtPassed(e,k)?0.5:dimA,cursor:edit?"grab":"default"})},
                                 RC("div",{style:{width:6,height:6,borderRadius:"50%",background:CC[e.category]||AL,marginTop:5,flexShrink:0}}),
                 RC("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 RC("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:5,marginBottom:1}},
@@ -14486,6 +14549,7 @@ function App(){
                   e.time&&RC("span",{style:{fontSize:10,fontWeight:600,color:TXD,opacity:0.65,whiteSpace:"nowrap"}},fmt12h(e.time,k,e.tz)),
                   !edit&&e.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(e.notifyAt).toLocaleString()},RC("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}})," "+fmtNotif(e.notifyAt)))),
                 RC("span",{style:{fontSize:12,fontWeight:600,color:"#C3B2D0",lineHeight:1.35,...vdTitleFit}},e.title)),
+                !edit&&sosResFor(e)&&RC("button",{type:"button",title:sosResTitle(sosResFor(e)),style:vdIcoBtn(sosPastel(e._sosClassColor)||A),onClick:ev3=>{ev3.stopPropagation();window._sosLaunchClass&&window._sosLaunchClass(e._sosClassId,e._sosClassName);}},vdIco(TNI.play,12)),
                 edit&&RC("button",{type:"button",title:"Edit",style:vdIcoBtn(TXD),onClick:()=>{setEi(e);setMdt(k);setMo(true);}},vdIco(TNI.pencil)),
                 edit&&RC("button",{type:"button",title:"Delete",style:vdIcoBtn("#f85149"),onClick:()=>del(k,e.id)},vdIco(TNI.x)))),
               !it.length&&!(mcByDay[k]||[]).length&&!edit&&RC("div",{style:{fontSize:11,fontWeight:600,color:TXM,textAlign:"center",padding:"30px 0"}},"—"),
@@ -42265,6 +42329,84 @@ window._tnOpenTab = function(url, key){
   return w;
 };
 })();
+</script>
+
+<!-- ── StudyOS class resources — launch every site/app linked to a class ───────
+     A StudyOS class can carry a list of websites and native apps (StudyOS ▸
+     class ▸ Resources). The ▶ button on a mirrored TaskHub card opens the whole
+     set in one click, so a study block starts with one tap instead of six.
+
+     Two transports, because a page cannot launch a program:
+       • Websites   → _tnOpenTab, one stable named tab each.
+       • Native apps → shieldopen:class/<classId>, resolved by the Shield
+         desktop agent against paths it synced separately. The link carries an
+         opaque class id and never a path, so a page that merely knows the
+         scheme name still cannot make Shield run something arbitrary.
+
+     Order matters: tabs are requested FIRST. The protocol navigation can raise
+     an external-app dialog that takes focus and ends the user gesture, and
+     anything deferred out of that gesture is guaranteed to be popup-blocked —
+     which is also why nothing here is wrapped in a setTimeout.
+
+     Popup blockers, honestly: _tnOpenTab's first call is window.open('', NAME),
+     and re-targeting a tab that already exists is not treated as a popup — so
+     once the tabs are open, repeat clicks always work. Cold, with a default
+     blocker, the first tab opens and the rest are refused; the <a target=NAME>
+     fallback is refused for the same reason. We report the count so the caller
+     can say so plainly rather than pretending it worked. ── -->
+<script>
+window._sosLaunchClass = function(classId, className){
+  var cs = window._sosMirrorClasses || {};
+  var c = classId ? cs[classId] : null;
+  // Fall back to the class NAME. Items mirrored before _sosClassId existed
+  // carry no id, and a device still running an older StudyOS build never sends
+  // one — matching on the badge text keeps those cards working.
+  if (!c && className) {
+    Object.keys(cs).forEach(function(k){
+      if (!c && cs[k] && cs[k].name === className) c = cs[k];
+    });
+  }
+  if (!c) return { web:0, app:0, blocked:0 };
+
+  var res = c.resources || [];
+  var web = [], app = [];
+  res.forEach(function(r){
+    if (!r) return;
+    if (r.kind === 'app') app.push(r);
+    else if (r.url) web.push(r);
+  });
+
+  var blocked = 0;
+  web.forEach(function(r){
+    var key = 'sosres_' + (classId || c.name) + '_' + r.id;
+    var w = null;
+    try { w = window._tnOpenTab(r.url, key); } catch(e){ w = null; }
+    if (!w) {
+      // Blocked (or unavailable) — try a real anchor click, which some blockers
+      // treat more leniently than a scripted window.open.
+      var ok = false;
+      try {
+        var a = document.createElement('a');
+        a.href = r.url;
+        a.target = window._tnTabName ? window._tnTabName(key) : '_blank';
+        a.rel = 'opener';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        ok = true;
+      } catch(e){ ok = false; }
+      if (!ok) blocked++;
+    }
+  });
+
+  // Only if there is actually something native to open. A class with websites
+  // only never touches the protocol, so it behaves identically everywhere,
+  // including on a phone.
+  if (app.length) {
+    try { location.href = 'shieldopen:class/' + encodeURIComponent(classId || ''); } catch(e){}
+  }
+  return { web: web.length, app: app.length, blocked: blocked };
+};
 </script>
 
 <!-- ── Where a built-in program opens ─────────────────────────────────────────

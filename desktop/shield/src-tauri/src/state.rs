@@ -110,6 +110,12 @@ pub struct AgentState {
     /// purpose: the real path never travels in the link, so a page that merely
     /// knows the scheme name cannot make Shield launch an arbitrary path, only
     /// one the user already put in their own Settings.
+    ///
+    /// Keys prefixed `cls:<classId>:<resourceId>` are StudyOS class resources
+    /// rather than link buttons: one entry per native app attached to a class,
+    /// resolved together by a `shieldopen:class/<classId>` link. The prefix
+    /// scheme is what lets a one-path-per-key map hold several apps per class
+    /// without changing this type.
     #[serde(default)]
     pub local_links: HashMap<String, String>,
 }

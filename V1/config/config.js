@@ -281,6 +281,14 @@ window.STUDYOS_CONFIG = {
     mirrorDoc: 'dashboards/studyos_mirror',
     ackDoc:    'dashboards/studyos_mirror_ack',
 
+    /* Native-app paths for per-class resources, read by the Shield desktop
+     * agent so a TaskHub launch button can open them. Deliberately a THIRD
+     * document rather than a field on mirrorDoc: absolute local paths would
+     * otherwise be published into a document that phones read, leaking the
+     * filesystem layout for no benefit — TaskHub only needs to know that apps
+     * exist, never where they live. StudyOS writes, Shield reads. */
+    classAppsDoc: 'dashboards/studyos_class_apps',
+
     /* null = use the §1 connection, which is what you want: §1 already points
      * at the Index project, so the mirror is reachable over the same socket.
      *
