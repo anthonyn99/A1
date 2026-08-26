@@ -41606,13 +41606,20 @@ window._sosIsSameStudyOs = function(a, b){
  *
  * So when the url was discovered from a custom link, borrow that link's key.
  * Only the explicit-override path falls back to a key of our own, because then
- * no custom link owns the tab. */
-var _sosStudyOsTabKey = 'studyos';
+ * no custom link owns the tab.
+ *
+ * The internal variable is deliberately NOT named _sosStudyOsTabKey. This is a
+ * non-strict top-level script, so `var x` at this level IS window.x -- naming
+ * it the same as the accessor below meant every resolve reassigned
+ * window._sosStudyOsTabKey from the function to a plain string, and the next
+ * call threw "not a function". Both call sites wrap it in try/catch, so the
+ * StudyOS tab was silently swallowed and simply stopped opening. */
+var _sosStudyOsTabKeyValue = 'studyos';
 
 window._sosStudyOsClassUrl = function(classId){
   if (!classId) return '';
   var base = '';
-  _sosStudyOsTabKey = 'studyos';
+  _sosStudyOsTabKeyValue = 'studyos';
   try {
     base = localStorage.getItem('sosStudyOsUrl') || '';
     if (!base) {
@@ -41625,7 +41632,7 @@ window._sosStudyOsClassUrl = function(classId){
           if (typeof u === 'string' && /studyos/i.test(u) && /^https?:\/\//i.test(u)) {
             base = u;
             // The same key _navOpenLink builds, so both routes share one tab.
-            _sosStudyOsTabKey = 'link_' + profile + '_' + list[i].id;
+            _sosStudyOsTabKeyValue = 'link_' + profile + '_' + list[i].id;
             break;
           }
         }
@@ -41644,7 +41651,7 @@ window._sosStudyOsClassUrl = function(classId){
 };
 
 /* The key for the url the last _sosStudyOsClassUrl call resolved. */
-window._sosStudyOsTabKey = function(){ return _sosStudyOsTabKey; };
+window._sosStudyOsTabKey = function(){ return _sosStudyOsTabKeyValue; };
 
 /* Explicit override for a url the heuristic above cannot find. */
 window._sosSetStudyOsUrl = function(url){

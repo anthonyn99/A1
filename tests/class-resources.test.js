@@ -327,7 +327,7 @@ t('same-app matching ignores query, hash and trailing slash',
   'The resource and the generated link are never byte-identical, so a plain string compare would never match.');
 // The tab-key helper lives OUTSIDE _sosLaunchClass, so assert against INDEX.
 t('the StudyOS tab reuses the header link window name',
-  /_sosStudyOsTabKey = 'link_' \+ profile \+ '_' \+ list\[i\]\.id/.test(INDEX),
+  /_sosStudyOsTabKeyValue = 'link_' \+ profile \+ '_' \+ list\[i\]\.id/.test(INDEX),
   'A key derived from studyos can never re-target a tab opened as link_veda_<id>, so the play button would open a SECOND, class-less StudyOS tab.');
 t('both launch paths use that key, not a hardcoded one',
   /_tnOpenTab\(sosUrl, window\._sosStudyOsTabKey\(\)\)/.test(LH) &&
@@ -337,8 +337,17 @@ t('the browser fallback honours _tabKey',
   /var key = r\._tabKey \|\|/.test(LH),
   'Without this the synthetic StudyOS row falls back to a per-resource key and opens its own tab.');
 t('the tab key resets on every resolve',
-  /_sosStudyOsTabKey = 'studyos';[\s\S]{0,200}?try \{/.test(INDEX),
+  /_sosStudyOsTabKeyValue = 'studyos';[\s\S]{0,200}?try \{/.test(INDEX),
   'A stale link key would leak into a later call that resolved a different url.');
+/* index.html's script blocks are NON-STRICT and top level, so `var x` there IS
+   window.x. Naming the backing variable the same as the accessor meant every
+   resolve overwrote window._sosStudyOsTabKey with a string; the next call threw
+   "not a function", and because both call sites wrap it in try/catch the
+   StudyOS tab was silently swallowed and simply stopped opening. */
+t('the tab-key accessor is not clobbered by its own backing variable',
+  !/^\s*var _sosStudyOsTabKey\s*=/m.test(INDEX) &&
+  /window\._sosStudyOsTabKey = function\(\)\{ return _sosStudyOsTabKeyValue; \}/.test(INDEX),
+  'A top-level `var _sosStudyOsTabKey` would overwrite the accessor of the same name.');
 t('the agent has a url-aware opener', /pub fn open_target/.test(PROC));
 t('open_target refuses non-http(s) schemes',
   /fn is_web_url[\s\S]*?starts_with\("http:\/\/"\)[\s\S]*?starts_with\("https:\/\/"\)/.test(PROC),
