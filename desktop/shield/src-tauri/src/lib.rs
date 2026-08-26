@@ -871,7 +871,17 @@ pub fn run() {
             // Someone launched Shield while it was already running. That is the
             // ONLY way the window appears without a tray click, so record who.
             log_event("second-launch", &format!("argv={argv:?}"));
-            show_window(app);
+            // ...unless this "launch" is really a shieldopen: link, which is how
+            // EVERY class-resource click arrives on Windows: the OS starts a
+            // second instance whose argv carries the url, and the deep-link
+            // plugin below forwards it to the running agent. Showing the window
+            // here meant opening a class raised Shield's UI over the very app it
+            // had just launched — the agent is meant to be invisible on this
+            // path. A link is a command, not a request to see the console.
+            let is_link = argv.iter().any(|a| a.trim_start().to_ascii_lowercase().starts_with("shieldopen:"));
+            if !is_link {
+                show_window(app);
+            }
         }))
         // shieldopen:<id> links from TaskHub. On Windows a second instance is
         // what actually receives the link (see the single-instance plugin's

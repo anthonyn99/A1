@@ -41570,7 +41570,13 @@ window._sosLaunchClass = function(classId, className){
   // one — matching on the badge text keeps those cards working.
   if (!c && className) {
     Object.keys(cs).forEach(function(k){
-      if (!c && cs[k] && cs[k].name === className) c = cs[k];
+      // Adopt the matched KEY as the class id, not just its value. Every
+      // shieldopen: link below sends `classId`, so resolving by name while
+      // leaving it empty built "shieldopen:class/" with no id at all: Shield
+      // rejects that (class_id_of refuses an empty id), launches nothing, and
+      // Windows still foregrounds Shield to handle the protocol — so the
+      // button appeared to "open Shield instead of the app".
+      if (!c && cs[k] && cs[k].name === className) { c = cs[k]; classId = k; }
     });
   }
   if (!c) return { web:0, app:0, blocked:0 };
