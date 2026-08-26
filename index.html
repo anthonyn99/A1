@@ -41596,17 +41596,39 @@ window._sosIsSameStudyOs = function(a, b){
   return !!na && !!nb && na === nb;
 };
 
+/* The tab KEY the StudyOS class page should open under.
+ *
+ * Must match the key the header's custom-link button already uses, or the two
+ * routes open StudyOS in two different windows: _tnOpenTab reuses a tab by
+ * WINDOW NAME, and a name derived from 'studyos' can never re-target a tab
+ * opened as 'link_veda_<id>'. That mismatch is exactly what put a second,
+ * class-less StudyOS tab on screen next to the class one.
+ *
+ * So when the url was discovered from a custom link, borrow that link's key.
+ * Only the explicit-override path falls back to a key of our own, because then
+ * no custom link owns the tab. */
+var _sosStudyOsTabKey = 'studyos';
+
 window._sosStudyOsClassUrl = function(classId){
   if (!classId) return '';
   var base = '';
+  _sosStudyOsTabKey = 'studyos';
   try {
     base = localStorage.getItem('sosStudyOsUrl') || '';
     if (!base) {
       var cache = JSON.parse(localStorage.getItem('td6_navlinks') || '{}');
-      var all = (cache.veda || []).concat(cache.tony || []);
-      for (var i = 0; i < all.length; i++) {
-        var u = all[i] && all[i].url;
-        if (typeof u === 'string' && /studyos/i.test(u) && /^https?:\/\//i.test(u)) { base = u; break; }
+      var groups = [['veda', cache.veda || []], ['tony', cache.tony || []]];
+      for (var g = 0; g < groups.length && !base; g++) {
+        var profile = groups[g][0], list = groups[g][1];
+        for (var i = 0; i < list.length; i++) {
+          var u = list[i] && list[i].url;
+          if (typeof u === 'string' && /studyos/i.test(u) && /^https?:\/\//i.test(u)) {
+            base = u;
+            // The same key _navOpenLink builds, so both routes share one tab.
+            _sosStudyOsTabKey = 'link_' + profile + '_' + list[i].id;
+            break;
+          }
+        }
       }
     }
   } catch(e){}
@@ -41620,6 +41642,9 @@ window._sosStudyOsClassUrl = function(classId){
     return url.toString() + '?class=' + encodeURIComponent(classId);
   } catch(e){ return ''; }
 };
+
+/* The key for the url the last _sosStudyOsClassUrl call resolved. */
+window._sosStudyOsTabKey = function(){ return _sosStudyOsTabKey; };
 
 /* Explicit override for a url the heuristic above cannot find. */
 window._sosSetStudyOsUrl = function(url){
@@ -41706,7 +41731,7 @@ window._sosLaunchClass = function(classId, className){
     // that takes focus and ends the user gesture — anything opened after it is
     // refused. Costs the one tab the gesture allows; Shield opens the rest.
     var sosUrl = window._sosStudyOsClassUrl(classId);
-    if (sosUrl) { try { window._tnOpenTab(sosUrl, 'studyos'); } catch(e){} }
+    if (sosUrl) { try { window._tnOpenTab(sosUrl, window._sosStudyOsTabKey()); } catch(e){} }
     try { location.href = 'shieldopen:class/' + encodeURIComponent(classId); } catch(e){}
     return { web: web.length, app: app.length, blocked: 0, blockedUrls: [], via: 'shield' };
   }
@@ -41733,14 +41758,16 @@ window._sosLaunchClass = function(classId, className){
      tab that never appeared. First in the list so that on a cold, capped open
      the class page is the one tab that survives. */
   var sosUrlB = window._sosStudyOsClassUrl(classId);
-  if (sosUrlB) web = [{ id: '_studyos', label: 'StudyOS', url: sosUrlB }].concat(web);
+  // _tabKey overrides the per-resource key below, so this re-targets the SAME
+  // window the header's StudyOS button uses instead of opening a second one.
+  if (sosUrlB) web = [{ id: '_studyos', label: 'StudyOS', url: sosUrlB, _tabKey: window._sosStudyOsTabKey() }].concat(web);
   var slots = web.map(function(r, i){
     // The tab key must be unique per RESOURCE, not per class. Two resources
     // sharing a name would share a window name, and the second open would
     // simply re-target the first one's tab - one tab for two sites, with no
     // error anywhere. r.id is unique per resource; the index is a belt-and-
     // braces guard for legacy rows saved before ids existed.
-    var key = 'sosres_' + (classId || c.name) + '_' + (r.id || ('i' + i));
+    var key = r._tabKey || ('sosres_' + (classId || c.name) + '_' + (r.id || ('i' + i)));
     var name = window._tnTabName ? window._tnTabName(key) : ('a1tab_' + i);
     var w = null;
     try { w = window.open('', name); } catch(e){ w = null; }

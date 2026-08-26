@@ -297,7 +297,7 @@ t('each listener records its own half before pushing',
   /_lastNavLinks = links;[\s\S]{0,80}?_pushLinks\(\)/.test(SHIELD),
   'A listener that pushes without recording its half publishes a stale map.');
 t('the StudyOS class page opens from the play button',
-  /_sosStudyOsClassUrl\(classId\)[\s\S]{0,200}?_tnOpenTab\(sosUrl, 'studyos'\)/.test(LH),
+  /_sosStudyOsClassUrl\(classId\)[\s\S]{0,300}?_tnOpenTab\(sosUrl, window\._sosStudyOsTabKey\(\)\)/.test(LH),
   'Pressing play should open the class in StudyOS as well as its sites/apps.');
 t('the StudyOS tab is opened BEFORE the shieldopen navigation',
   LH.indexOf("_tnOpenTab(sosUrl, 'studyos')") < LH.indexOf("'shieldopen:class/'"),
@@ -325,6 +325,20 @@ t('same-app matching ignores query, hash and trailing slash',
   /_sosIsSameStudyOs[\s\S]{0,500}?x\.origin \+ path/.test(INDEX) &&
   INDEX.indexOf(String.raw`index\.html?$`) > 0,
   'The resource and the generated link are never byte-identical, so a plain string compare would never match.');
+// The tab-key helper lives OUTSIDE _sosLaunchClass, so assert against INDEX.
+t('the StudyOS tab reuses the header link window name',
+  /_sosStudyOsTabKey = 'link_' \+ profile \+ '_' \+ list\[i\]\.id/.test(INDEX),
+  'A key derived from studyos can never re-target a tab opened as link_veda_<id>, so the play button would open a SECOND, class-less StudyOS tab.');
+t('both launch paths use that key, not a hardcoded one',
+  /_tnOpenTab\(sosUrl, window\._sosStudyOsTabKey\(\)\)/.test(LH) &&
+  /_tabKey: window\._sosStudyOsTabKey\(\)/.test(LH),
+  'Either path left on a fixed key still opens a duplicate tab.');
+t('the browser fallback honours _tabKey',
+  /var key = r\._tabKey \|\|/.test(LH),
+  'Without this the synthetic StudyOS row falls back to a per-resource key and opens its own tab.');
+t('the tab key resets on every resolve',
+  /_sosStudyOsTabKey = 'studyos';[\s\S]{0,200}?try \{/.test(INDEX),
+  'A stale link key would leak into a later call that resolved a different url.');
 t('the agent has a url-aware opener', /pub fn open_target/.test(PROC));
 t('open_target refuses non-http(s) schemes',
   /fn is_web_url[\s\S]*?starts_with\("http:\/\/"\)[\s\S]*?starts_with\("https:\/\/"\)/.test(PROC),
