@@ -1001,7 +1001,7 @@ function _sosRenderBrowseList() {
       'This list comes from the <strong>Shield</strong> desktop agent, which is the only part of the ' +
       'suite that can see what is installed on a PC. Open Shield on that computer once and the list ' +
       'will appear here.<br><br>' +
-      'In the meantime you can paste a full path such as <code>C:\Program Files\MATLAB\bin\matlab.exe</code>.' +
+      'In the meantime you can paste a full path such as <code>C:\\Program Files\\MATLAB\\bin\\matlab.exe</code>.' +
       '</div>';
     return;
   }

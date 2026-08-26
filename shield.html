@@ -1361,29 +1361,44 @@ function _appsForPicker(apps){
   return out.slice(0, 400);
 }
 
+/* Waits for the agent bridge instead of guessing a delay.
+
+   window.SH is defined ~30KB further down this page and S.devId is adopted
+   from the agent during startup, so at the moment this module runs neither is
+   necessarily ready. The first version used a fixed 4s timer, which is a race:
+   when it lost, nothing published and every early return was silent, so
+   StudyOS showed an empty picker with no way to tell why. Poll for the two
+   things actually required, then publish. */
+function _whenAgentReady(){
+  return new Promise(function(resolve){
+    var waited = 0;
+    (function tick(){
+      var devId = '';
+      try { devId = localStorage.getItem('sh_device_id') || ''; } catch (e) {}
+      if (window.SH && window.SH.Agent && window.SH.Agent.present() && devId) return resolve(devId);
+      // 30s covers a cold start on a slow machine. Past that the answer is not
+      // "wait longer" — it is that this surface has no agent (a phone, a plain
+      // browser tab), which is a normal state and not an error.
+      if ((waited += 250) > 30000) return resolve('');
+      setTimeout(tick, 250);
+    })();
+  });
+}
+
 async function _pushShieldApps(){
-  if (!window.SH || !window.SH.Agent) return;
+  var devId = await _whenAgentReady();
+  if (!devId) { console.info('[Shield] no agent here — no program inventory to publish.'); return; }
   try {
     var apps = await window.SH.Agent.invoke('sh_apps', {});
-    if (!apps) return;
-    var list = _appsForPicker(apps);
-    if (!list.length) return;
+    var list = apps ? _appsForPicker(apps) : [];
+    if (!list.length) { console.warn('[Shield] sh_apps returned no usable programs.'); return; }
     await authReady;
-    // Read the device id from storage rather than S.devId: S is private to the
-    // SH IIFE further down the page and is not in scope for this module.
-    // localStorage is where that id lives anyway (see deviceId / the agent-id
-    // adoption in adoptAgentDeviceId), so this reads the same value.
-    var devId = '';
-    try { devId = localStorage.getItem('sh_device_id') || ''; } catch (e) {}
-    // No id yet means startup has not settled — including the agent-id adoption
-    // that decides which id this machine is filed under. Skip rather than mint
-    // one here: a wrong id leaves a ghost inventory that never gets replaced.
-    if (!devId) return;
     // Field-scoped by device id, so this machine can never drop another's
     // inventory. merge:true because the document may not exist yet.
     var payload = {};
     payload[devId] = { name: 'This PC', apps: list, at: Date.now() };
     await setDoc(doc(db, SOS_APPS_DOC), { devices: payload }, { merge: true });
+    console.info('[Shield] published ' + list.length + ' programs for StudyOS.');
   } catch (e) { console.warn('[Shield] app inventory push failed', e); }
 }
 
@@ -1417,10 +1432,9 @@ function _navorderListen(){ return onSnapshot(doc(db, 'dashboards/navorder'), sn
     done = true;
     _navorderListen();
     // Publish this machine's program inventory for StudyOS's Browse picker.
-    // Deferred a little: S.devId is adopted from the agent during startup, and
-    // writing under the webview's own minted id would file the inventory
-    // against a device that is about to be retired.
-    setTimeout(function(){ _pushShieldApps(); }, 4000);
+    // No delay here: _pushShieldApps waits for the agent bridge and the adopted
+    // device id itself, which a fixed timer could only guess at.
+    _pushShieldApps();
   }
   go();
   if (!done) {
