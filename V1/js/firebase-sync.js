@@ -412,6 +412,31 @@ if (!window.STUDYOS_CONFIG_READY || !window.STUDYOS_CONFIG_READY('firebase')) {
     if (window._alApplyRemoteLocks) window._alApplyRemoteLocks(d.locks || {});
   }, (err) => { console.warn('[AppLock] onSnapshot error:', err && err.code); });
 
+  /* ══ Shield program inventory ════════════════════════════════════════════
+   * Read-only, on demand. The Shield desktop agent enumerates the programs
+   * installed on a PC and publishes them here (see shield.html
+   * _pushShieldApps); StudyOS reads them to populate the Browse picker in the
+   * Add Resource dialog.
+   *
+   * This exists because a browser genuinely cannot do the job itself: there is
+   * no API to list installed applications, and <input type="file"> reports
+   * C:\fakepath\x.exe rather than the real path, so a resource built from one
+   * would save a path that launches nothing. Shield already knows the real
+   * paths, so the picker borrows its answer.
+   *
+   * FETCHED, not subscribed, and only when the picker is opened: this changes
+   * when software is installed, which is rare, and a standing listener would
+   * cost a concurrent-listener slot on every device for a dialog most sessions
+   * never open. */
+  const SOS_SHIELD_APPS = PATHS.shieldApps || 'dashboards/studyos_shield_apps';
+  window._fbLoadShieldApps = async () => {
+    try {
+      const snap = await getDoc(doc(db, SOS_SHIELD_APPS));
+      if (snap && snap.exists()) return (snap.data() || {}).devices || {};
+    } catch (e) { console.warn('[StudyOS] Shield app list load failed:', e); }
+    return null;
+  };
+
   /* ══ Push reminders ══════════════════════════════════════════════════════
    * One document per scheduled reminder. The studyos-api Worker's cron reads
    * documents whose notifyAt has passed, sends them through FCM, and deletes

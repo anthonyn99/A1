@@ -1299,6 +1299,94 @@ async function _pullClassApps(){
   } catch (e) { console.warn('[Shield] class-apps pull failed', e); return {}; }
 }
 
+/* ── StudyOS "Browse programs" inventory ───────────────────────────────────
+   StudyOS runs in a plain browser tab. A browser cannot enumerate installed
+   programs, and <input type="file"> deliberately hides the real path (it
+   reports C:\fakepath\x.exe), so a native Browse dialog there is not merely
+   missing — it is impossible, and a picker built on it would save a path that
+   silently launches nothing. That is the exact failure saveResource()'s
+   validation exists to prevent.
+
+   This agent CAN enumerate them: sh_apps already returns real names, exe
+   paths and install folders, and it is what Shield's own target picker uses.
+   So publish that inventory to Firestore and let StudyOS read it — the same
+   direction of travel as _pullClassApps, just reversed, and over the same
+   channel the two already share.
+
+   PUSHED, not subscribed, and only from a machine with an agent: a phone has
+   nothing to enumerate. Keyed by device so two PCs each offer their own
+   programs rather than overwriting one another — a path from the desktop is
+   not a path on the laptop.
+
+   Its own document, not a field on the profile: this is machine inventory
+   rather than profile config, it is written without the _shLoadOk barrier
+   (which guards the config doc against a fork), and keeping it separate means
+   StudyOS reads a small doc instead of pulling all of Shield's settings. */
+const SOS_APPS_DOC = 'dashboards/studyos_shield_apps';
+
+/* Trimmed to what a picker actually shows. The raw sh_apps payload carries
+   every running process on the machine, which is both far larger than the
+   1MiB document ceiling cares to flirt with and more than anyone needs to
+   choose "MATLAB" from. */
+function _appsForPicker(apps){
+  var seen = {}, out = [];
+  function push(name, exe, file, folder, running){
+    // The EXECUTABLE first, folder only as a fallback -- the opposite of what
+    // addTarget prefers, on purpose. That picker feeds sh_kill, where naming
+    // the install folder is right because it should match every exe under it.
+    // This list feeds a LAUNCH: proc::open_path shells `start "" <path>`, and
+    // handing that a directory opens a File Explorer window instead of the
+    // program. A resource that opens Explorer is exactly the silent-wrong-thing
+    // this picker exists to prevent.
+    var target = exe || folder || '';
+    if (!target) return;
+    var k = target.toLowerCase();
+    if (seen[k]) { if (running) seen[k].running = true; return; }
+    var rec = {
+      name: String(name || file || target.split(/[\\/]/).pop() || target).slice(0, 120),
+      path: target,
+      exe: String(exe || '').slice(0, 400),
+      running: !!running
+    };
+    seen[k] = rec; out.push(rec);
+  }
+  (apps.installed || []).forEach(function(a){ push(a.name, a.exe, a.file, a.folder, a.running); });
+  // Portable apps and anything started from a folder have no .lnk at all, so
+  // the shortcut scan never sees them — but they are running right now, which
+  // is decent evidence the user wants them.
+  (apps.runningOnly || []).forEach(function(a){ push(a.name, a.exe, a.file, a.folder, true); });
+  out.sort(function(x, y){ return x.name.toLowerCase() < y.name.toLowerCase() ? -1 : 1; });
+  // A hard ceiling so this can never approach the document size limit; the
+  // picker has a search box, and nobody scrolls past 400 programs.
+  return out.slice(0, 400);
+}
+
+async function _pushShieldApps(){
+  if (!window.SH || !window.SH.Agent) return;
+  try {
+    var apps = await window.SH.Agent.invoke('sh_apps', {});
+    if (!apps) return;
+    var list = _appsForPicker(apps);
+    if (!list.length) return;
+    await authReady;
+    // Read the device id from storage rather than S.devId: S is private to the
+    // SH IIFE further down the page and is not in scope for this module.
+    // localStorage is where that id lives anyway (see deviceId / the agent-id
+    // adoption in adoptAgentDeviceId), so this reads the same value.
+    var devId = '';
+    try { devId = localStorage.getItem('sh_device_id') || ''; } catch (e) {}
+    // No id yet means startup has not settled — including the agent-id adoption
+    // that decides which id this machine is filed under. Skip rather than mint
+    // one here: a wrong id leaves a ghost inventory that never gets replaced.
+    if (!devId) return;
+    // Field-scoped by device id, so this machine can never drop another's
+    // inventory. merge:true because the document may not exist yet.
+    var payload = {};
+    payload[devId] = { name: 'This PC', apps: list, at: Date.now() };
+    await setDoc(doc(db, SOS_APPS_DOC), { devices: payload }, { merge: true });
+  } catch (e) { console.warn('[Shield] app inventory push failed', e); }
+}
+
 function _navorderListen(){ return onSnapshot(doc(db, 'dashboards/navorder'), snap => {
   if (!snap.exists()) return;
   var d = snap.data() || {};
@@ -1328,6 +1416,11 @@ function _navorderListen(){ return onSnapshot(doc(db, 'dashboards/navorder'), sn
     if (done || !window.__TAURI__) return;
     done = true;
     _navorderListen();
+    // Publish this machine's program inventory for StudyOS's Browse picker.
+    // Deferred a little: S.devId is adopted from the agent during startup, and
+    // writing under the webview's own minted id would file the inventory
+    // against a device that is about to be retired.
+    setTimeout(function(){ _pushShieldApps(); }, 4000);
   }
   go();
   if (!done) {

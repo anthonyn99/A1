@@ -489,12 +489,38 @@
     </div>
     <div class="field">
       <label>Website URL or Program Path</label>
-      <input type="text" id="inp-res-target" placeholder="https://... or C:\Program Files\MATLAB\bin\matlab.exe" oninput="_sosResHint()">
+      <div style="display:flex;gap:8px;align-items:stretch">
+        <input type="text" id="inp-res-target" style="flex:1;min-width:0" placeholder="https://... or C:\Program Files\MATLAB\bin\matlab.exe" oninput="_sosResHint()">
+        <!-- Picks from the program list Shield published for this PC. A browser
+             cannot enumerate installed apps and a file input hides the real
+             path, so this is the only way to fill this field with a path that
+             actually launches. -->
+        <button type="button" class="btn" id="btn-res-browse" style="white-space:nowrap;flex:0 0 auto" onclick="openResourceBrowse()">Browse…</button>
+      </div>
       <div id="res-kind-hint" style="font-size:11px;color:var(--text3);margin-top:5px;min-height:14px"></div>
     </div>
     <div class="modal-footer">
       <button class="btn" onclick="_sosClose('modal-resource')">Cancel</button>
       <button class="btn primary" onclick="saveResource()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: BROWSE PROGRAMS ON THIS PC
+     Populated from the inventory the Shield desktop agent publishes (see
+     shield.html _pushShieldApps). Its own modal rather than an inline list so
+     the Add Resource dialog does not grow a scrolling panel it only needs
+     occasionally, and so this one gets the standard overlay-click close that
+     studyos.js binds to every .sos-modal at load. -->
+<div class="modal-overlay sos-modal" id="modal-res-browse">
+  <div class="modal">
+    <div class="modal-title">Programs on this PC</div>
+    <div class="field">
+      <input type="text" id="inp-res-browse-search" placeholder="Search programs…" oninput="_sosRenderBrowseList()" autocomplete="off">
+    </div>
+    <div id="res-browse-list" style="max-height:320px;overflow-y:auto;margin-top:4px"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="_sosClose('modal-res-browse')">Cancel</button>
     </div>
   </div>
 </div>

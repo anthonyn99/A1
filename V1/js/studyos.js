@@ -929,6 +929,126 @@ function openEditResource(id) {
   _sosOpen('modal-resource');
 }
 
+/* ── BROWSE PROGRAMS ───────────────────────────────────────────────────────
+ * Fills the target field by picking a program instead of typing its path.
+ *
+ * Why this is not a native file dialog: StudyOS is a web page, and a browser
+ * has no API to enumerate installed programs. <input type="file"> looks like
+ * the answer but is not — it reports "C:\fakepath\matlab.exe" by design, so a
+ * resource built from it would fail _sosIsLocalPath and, if it slipped past,
+ * hand Shield a path that launches nothing. The list therefore comes from the
+ * one component that legitimately knows: the Shield desktop agent, which
+ * enumerates real shortcuts and running processes and publishes them for this
+ * page to read (shield.html _pushShieldApps → firebase-sync _fbLoadShieldApps).
+ *
+ * Consequence worth stating plainly: this button can only offer programs from
+ * a PC that has run Shield. That is not a limitation of the picker, it is the
+ * only place the information exists.
+ */
+
+// Cached for the session. The inventory changes when software is installed,
+// so re-fetching on every open would spend a Firestore read to be told the
+// same thing; a page reload is a fine granularity for "I just installed
+// something".
+let _sosBrowseApps = null;
+
+async function openResourceBrowse() {
+  const listEl = _sosEl('res-browse-list');
+  const search = _sosEl('inp-res-browse-search');
+  if (search) search.value = '';
+  if (listEl) listEl.innerHTML = '<div style="padding:18px 4px;color:var(--text3);font-size:12px">Loading programs…</div>';
+  _sosOpen('modal-res-browse');
+
+  if (!_sosBrowseApps) {
+    let devices = null;
+    try {
+      if (window._fbLoadShieldApps) devices = await window._fbLoadShieldApps();
+    } catch (e) { devices = null; }
+    // Flatten every device that has reported in. Two PCs each publish their
+    // own list; showing them together with a device label is more useful than
+    // making the user pick a machine first, and the paths stay distinct.
+    const out = [];
+    Object.keys(devices || {}).forEach(function (devId) {
+      const d = devices[devId] || {};
+      (d.apps || []).forEach(function (a) {
+        if (a && a.path) out.push({ name: a.name || a.path, path: a.path, running: !!a.running });
+      });
+    });
+    // Same target published by two devices is one entry, not two.
+    const seen = {};
+    _sosBrowseApps = out.filter(function (a) {
+      const k = a.path.toLowerCase();
+      if (seen[k]) return false;
+      seen[k] = 1; return true;
+    });
+  }
+  _sosRenderBrowseList();
+  if (search) try { search.focus(); } catch (e) {}
+}
+
+function _sosRenderBrowseList() {
+  const listEl = _sosEl('res-browse-list');
+  if (!listEl) return;
+  const apps = _sosBrowseApps || [];
+
+  if (!apps.length) {
+    // An empty list is almost always "Shield has not run on this PC", not "you
+    // have no programs" — say which, or the button looks broken. The manual
+    // path still works, so point back at it rather than dead-ending.
+    listEl.innerHTML =
+      '<div style="padding:16px 4px;color:var(--text3);font-size:12px;line-height:1.6">' +
+      'No programs available yet.<br>' +
+      'This list comes from the <strong>Shield</strong> desktop agent, which is the only part of the ' +
+      'suite that can see what is installed on a PC. Open Shield on that computer once and the list ' +
+      'will appear here.<br><br>' +
+      'In the meantime you can paste a full path such as <code>C:\Program Files\MATLAB\bin\matlab.exe</code>.' +
+      '</div>';
+    return;
+  }
+
+  const q = ((_sosEl('inp-res-browse-search') || {}).value || '').trim().toLowerCase();
+  const shown = q
+    ? apps.filter(function (a) {
+        return a.name.toLowerCase().indexOf(q) >= 0 || a.path.toLowerCase().indexOf(q) >= 0;
+      })
+    : apps;
+
+  if (!shown.length) {
+    listEl.innerHTML = '<div style="padding:16px 4px;color:var(--text3);font-size:12px">No program matches that.</div>';
+    return;
+  }
+
+  listEl.innerHTML = '';
+  shown.forEach(function (a) {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.style.cssText =
+      'display:block;width:100%;text-align:left;background:none;border:none;border-radius:6px;' +
+      'padding:8px 10px;cursor:pointer;color:var(--text);font:inherit;transition:0.15s';
+    row.onmouseover = function () { row.style.background = 'var(--bg3, rgba(255,255,255,0.06))'; };
+    row.onmouseout  = function () { row.style.background = 'none'; };
+    const dot = a.running
+      ? '<span title="Running now" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#4ade80;margin-right:6px;vertical-align:middle"></span>'
+      : '';
+    row.innerHTML =
+      '<div style="font-size:13px;font-weight:500">' + dot + escHtml(String(a.name)) + '</div>' +
+      '<div style="font-size:10px;color:var(--text3);margin-top:2px;word-break:break-all">' + escHtml(String(a.path)) + '</div>';
+    row.onclick = function () { _sosPickBrowseApp(a); };
+    listEl.appendChild(row);
+  });
+}
+
+function _sosPickBrowseApp(a) {
+  const target = _sosEl('inp-res-target');
+  if (target) target.value = a.path;
+  // Only fill the label when it is still blank: someone who typed "Simulink"
+  // and then browsed for the exe meant to keep their own name for it.
+  const label = _sosEl('inp-res-label');
+  if (label && !label.value.trim()) label.value = a.name;
+  _sosResHint();
+  _sosClose('modal-res-browse');
+}
+
 function saveResource() {
   const cls = classes.find(c => c.id === currentClassId);
   if (!cls) return;
