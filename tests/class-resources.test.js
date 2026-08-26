@@ -310,6 +310,21 @@ t('StudyOS is counted in the browser fallback, not special-cased',
   /web = \[\{ id: '_studyos'[\s\S]{0,80}?\]\.concat\(web\)/.test(LH),
   'Opening it outside the slots accounting would report success for a tab that',
   'a hard blocker actually refused.');
+t('a StudyOS resource is dropped so it does not open a second tab',
+  /window\._sosIsSameStudyOs\(r\.url, sosClassUrl\)/.test(LH),
+  'The button already opens StudyOS at this class; keeping the resource opens a second tab at StudyOS in general.');
+t('the drop happens at the split, so BOTH launch paths get it',
+  LH.indexOf('_sosIsSameStudyOs(r.url, sosClassUrl)') < LH.indexOf("'shieldopen:class/'"),
+  'Filtering after the split would leave the Shield path still opening it.');
+t('the resource is kept when no StudyOS url is configured',
+  /sosClassUrl && window\._sosIsSameStudyOs/.test(LH),
+  'With no class url available the resource is the only thing that opens StudyOS -- swallowing it would lose the tab.');
+// _sosIsSameStudyOs is defined OUTSIDE _sosLaunchClass, so it is not in LH --
+// assert against the whole file for this one.
+t('same-app matching ignores query, hash and trailing slash',
+  /_sosIsSameStudyOs[\s\S]{0,500}?x\.origin \+ path/.test(INDEX) &&
+  INDEX.indexOf(String.raw`index\.html?$`) > 0,
+  'The resource and the generated link are never byte-identical, so a plain string compare would never match.');
 t('the agent has a url-aware opener', /pub fn open_target/.test(PROC));
 t('open_target refuses non-http(s) schemes',
   /fn is_web_url[\s\S]*?starts_with\("http:\/\/"\)[\s\S]*?starts_with\("https:\/\/"\)/.test(PROC),

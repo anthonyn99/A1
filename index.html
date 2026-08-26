@@ -41572,6 +41572,30 @@ window._tnOpenTab = function(url, key){
  *
  * Returns '' when nothing matches, and every caller treats '' as "skip" — so
  * with no link configured the play button behaves exactly as it did before. */
+/* Do two urls point at the same StudyOS app?
+ *
+ * Compared on origin + path with the noise removed, because the resource and
+ * the generated class link are never byte-identical: the resource is whatever
+ * was pasted (".../studyos/", ".../studyos.html", maybe a trailing slash or an
+ * old ?class=) and the generated one always carries ?class=<id>. A plain string
+ * compare would therefore never match and the duplicate tab would survive.
+ *
+ * Deliberately conservative: query and hash are ignored, and only a trailing
+ * "index.html" and trailing slashes are normalised away. Anything else stays
+ * significant, so an unrelated site that merely lives on the same host is not
+ * swallowed by mistake. */
+window._sosIsSameStudyOs = function(a, b){
+  function norm(u){
+    try {
+      var x = new URL(u);
+      var path = x.pathname.replace(/\/index\.html?$/i, '/').replace(/\/+$/, '');
+      return (x.origin + path).toLowerCase();
+    } catch(e){ return null; }
+  }
+  var na = norm(a), nb = norm(b);
+  return !!na && !!nb && na === nb;
+};
+
 window._sosStudyOsClassUrl = function(classId){
   if (!classId) return '';
   var base = '';
@@ -41627,10 +41651,21 @@ window._sosLaunchClass = function(classId, className){
 
   var res = c.resources || [];
   var web = [], app = [];
+  // Resolved once, before the split, because the filter below needs it and
+  // both launch paths reuse it.
+  var sosClassUrl = window._sosStudyOsClassUrl(classId);
   res.forEach(function(r){
     if (!r) return;
     if (r.kind === 'app') app.push(r);
-    else if (r.url) web.push(r);
+    // A StudyOS resource on the class is dropped: the button already opens
+    // StudyOS at THIS class (see _sosStudyOsClassUrl below), so keeping it
+    // would open a second tab at StudyOS in general -- same app, no class,
+    // one redundant tab every press. Dropped here, at the split, so it is
+    // gone from the Shield path and the browser path alike rather than
+    // filtered twice. Only when a class url is actually available: with no
+    // StudyOS url configured the resource is the only thing that opens it,
+    // and silently swallowing it would lose the tab entirely.
+    else if (r.url && !(sosClassUrl && window._sosIsSameStudyOs(r.url, sosClassUrl))) web.push(r);
   });
 
   /* ── How a class opens, and why Shield does the work ──────────────────────
