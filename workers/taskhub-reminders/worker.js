@@ -95,7 +95,17 @@ function maskEmail(e) {
 // Any KV miss, KV error, or malformed cache falls through to a real query.
 const NEXT_DUE_KEY        = 'rem:next';
 const LOOKAHEAD_GRACE_MS  = 15 * 60 * 1000; // never skip within 15min of a due time
-const LOOKAHEAD_MAX_AGE_MS = 15 * 60 * 1000; // re-verify against Firestore at least this often
+// Re-verify against Firestore at least this often. This is a BACKSTOP: a new or
+// changed reminder POSTs /reminders/wake, which deletes the key outright.
+//
+// DO NOT RAISE THIS to save KV writes without also raising the query lower
+// bound (startAtIso) past it -- tests/notif-delivery.test.js enforces
+// lookback > MAX_AGE and will fail. Raising both is still wrong: a reminder
+// first seen more than 90s late is marked stale and deliberately NOT sent, so a
+// longer skip window turns a lost wake poke into a DROPPED alarm rather than a
+// late one. 15min was tried at 30min and reverted for exactly this reason; the
+// ~96 KV writes/day this costs is the price of the alarm guarantee.
+const LOOKAHEAD_MAX_AGE_MS = 15 * 60 * 1000;
 
 function corsHeaders(origin) {
   const allow = origin === ALLOWED_ORIGIN ? origin : ALLOWED_ORIGIN;

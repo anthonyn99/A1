@@ -2005,7 +2005,13 @@ async function runCron(env, { force = false } = {}) {
   // Every 15 min: incremental history poll. Pure safety net for a dropped
   // Pub/Sub delivery or an expired watch — it is incremental, so a quiet
   // mailbox costs one tiny Gmail call and no AI spend.
-  if (force || now - (state.lastPoll || 0) > 15 * 60e3) {
+  // 30min, not 15. This poll is a SAFETY NET -- the primary delivery path is the
+  // Pub/Sub push -- but each run persists state.lastPoll, and that write lands in
+  // a KV namespace SHARED by six workers against a 1,000 writes/day account cap.
+  // At 15min it spent ~96 writes/day standing guard over a path that normally
+  // never fires. Halving the cadence halves that; the only cost is that a genuinely
+  // dropped push is caught within 30min instead of 15.
+  if (force || now - (state.lastPoll || 0) > 30 * 60e3) {
     // Once an hour the poll also takes a snapshot of the newest inbox ids, so
     // any gap the forward-only history cursor left behind repairs itself
     // instead of being lost for good.

@@ -1,7 +1,7 @@
 // Simulate a full day of minute ticks and confirm the write-skip changes only
 // the KV write count — never which ticks actually run the reminder query.
 const GRACE = 15 * 60 * 1000;
-const MAX_AGE = 15 * 60 * 1000;
+const MAX_AGE = 15 * 60 * 1000;   // mirrors LOOKAHEAD_MAX_AGE_MS in worker.js
 const MIN = 60 * 1000;
 
 function shouldSkip(cache, now) {
