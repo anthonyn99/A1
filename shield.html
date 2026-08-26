@@ -1261,43 +1261,6 @@ function isLocalPath(u){
 // and hold a slot in the account's concurrent-listener count. Shield opens
 // three listeners per surface; this removes one from every device that cannot
 // use it, which is most of them.
-/* StudyOS class resources: the native apps attached to a class, opened together
-   by a shieldopen:class/<classId> link from a TaskHub card. Keyed
-   'cls:<classId>:<resourceId>' so a one-path-per-key map can hold several apps
-   per class without changing the agent's state shape (see state.rs local_links
-   and main::open_from_link).
-
-   FETCHED, not subscribed. A persistent listener here would re-add exactly the
-   concurrent-listener slot the comment above explains we deliberately gave up,
-   and these paths change roughly once a semester. Piggybacked on the navorder
-   snapshot so it still refreshes whenever anything link-shaped changes; the
-   worst case is that a newly-added app does not launch until the next sync,
-   which is the same failure mode as a navorder mapping that has not landed. */
-async function _pullClassApps(){
-  try {
-    var snap = await getDoc(doc(db, 'dashboards/studyos_class_apps'));
-    if (!snap.exists()) return {};
-    var apps = (snap.data() || {}).apps || {};
-    var out = {};
-    Object.keys(apps).forEach(function(cid){
-      (apps[cid] || []).forEach(function(r){
-        if (!r || !r.id) return;
-        // Native app: same isLocalPath gate as the link buttons — never hand
-        // the agent something that is not actually a path on this machine.
-        if (isLocalPath(r.path)) { out['cls:' + cid + ':' + r.id] = r.path; return; }
-        // Website: the agent opens these too, because a browser tab only gets
-        // one new tab per click and so cannot open a class's second site by
-        // itself (see taskmirror.js buildClassApps). Restricted to http(s) so
-        // this can never smuggle a file:// or a custom scheme down to the
-        // shell — the agent re-checks, this is defence in depth.
-        if (typeof r.url === 'string' && /^https?:\/\//i.test(r.url)) {
-          out['cls:' + cid + ':' + r.id] = r.url;
-        }
-      });
-    });
-    return out;
-  } catch (e) { console.warn('[Shield] class-apps pull failed', e); return {}; }
-}
 
 /* ── StudyOS "Browse programs" inventory ───────────────────────────────────
    StudyOS runs in a plain browser tab. A browser cannot enumerate installed
@@ -1310,7 +1273,7 @@ async function _pullClassApps(){
    This agent CAN enumerate them: sh_apps already returns real names, exe
    paths and install folders, and it is what Shield's own target picker uses.
    So publish that inventory to Firestore and let StudyOS read it — the same
-   direction of travel as _pullClassApps, just reversed, and over the same
+   direction of travel as _classAppsListen, just reversed, and over the same
    channel the two already share.
 
    PUSHED, not subscribed, and only from a machine with an agent: a phone has
@@ -1402,6 +1365,62 @@ async function _pushShieldApps(){
   } catch (e) { console.warn('[Shield] app inventory push failed', e); }
 }
 
+/* The last links pushed, so either source can re-push without re-reading the
+   other. sh_set_links REPLACES the whole map, so every push must always carry
+   both navorder links and class resources — pushing one alone would delete the
+   other. */
+var _lastNavLinks = {};
+var _lastClsLinks = {};
+
+function _pushLinks(){
+  if (!window.SH || !window.SH.Agent) return;
+  var links = {};
+  Object.keys(_lastNavLinks).forEach(function(k){ links[k] = _lastNavLinks[k]; });
+  Object.keys(_lastClsLinks).forEach(function(k){ links[k] = _lastClsLinks[k]; });
+  window.SH.Agent.invoke('sh_set_links', { args: { links: links } }).catch(function(){});
+}
+
+/* Class resources get their OWN listener on the document they actually live in.
+
+   They used to refresh only inside the navorder snapshot below, which meant a
+   resource reached the agent only when the UNRELATED dashboards/navorder
+   document happened to change — reordering a header button. Add a website to a
+   class and nothing touches navorder, so the agent never learned about it and
+   the class opened its apps but not its sites, indefinitely. Watching the real
+   source is the fix; keying off an unrelated document was the bug.
+
+   Subscribed rather than fetched, unlike before. The earlier comment argued a
+   listener here would cost a concurrent-listener slot for data that changes
+   once a semester — but the alternative was data that silently never arrived,
+   and correctness is worth the slot. It is still agent-only: attachNavorder
+   gates every listener here on __TAURI__, so phones and plain browser tabs open
+   nothing. */
+function _classAppsListen(){
+  return onSnapshot(doc(db, 'dashboards/studyos_class_apps'), function(snap){
+    if (!snap.exists()) return;
+    var apps = (snap.data() || {}).apps || {};
+    var out = {};
+    Object.keys(apps).forEach(function(cid){
+      (apps[cid] || []).forEach(function(r){
+        if (!r || !r.id) return;
+        // Native app: same isLocalPath gate as the link buttons — never hand
+        // the agent something that is not actually a path on this machine.
+        if (isLocalPath(r.path)) { out['cls:' + cid + ':' + r.id] = r.path; return; }
+        // Website: the agent opens these too, because a browser tab only gets
+        // one new tab per click and so cannot open a class's second site by
+        // itself (see taskmirror.js buildClassApps). Restricted to http(s) so
+        // this can never smuggle a file:// or a custom scheme down to the
+        // shell — the agent re-checks, this is defence in depth.
+        if (typeof r.url === 'string' && /^https?:\/\//i.test(r.url)) {
+          out['cls:' + cid + ':' + r.id] = r.url;
+        }
+      });
+    });
+    _lastClsLinks = out;
+    _pushLinks();
+  }, function(err){ console.warn('[Shield] class-apps snapshot err', err); });
+}
+
 function _navorderListen(){ return onSnapshot(doc(db, 'dashboards/navorder'), snap => {
   if (!snap.exists()) return;
   var d = snap.data() || {};
@@ -1409,14 +1428,8 @@ function _navorderListen(){ return onSnapshot(doc(db, 'dashboards/navorder'), sn
   (d.tonyLinks || []).concat(d.vedaLinks || []).forEach(l => {
     if (l && l.id && isLocalPath(l.url)) links[l.id] = l.url;
   });
-  // sh_set_links replaces the whole map, so class apps must be merged in on
-  // every push or they would be dropped by the next navorder change.
-  _pullClassApps().then(function(clsApps){
-    Object.keys(clsApps).forEach(function(k){ links[k] = clsApps[k]; });
-    if (window.SH && window.SH.Agent) {
-      window.SH.Agent.invoke('sh_set_links', { args: { links: links } }).catch(() => {});
-    }
-  });
+  _lastNavLinks = links;
+  _pushLinks();
 }, err => console.warn('[Shield] navorder snapshot err', err)); }
 
 // Attach only where there is an agent to hand the paths to.
@@ -1431,6 +1444,7 @@ function _navorderListen(){ return onSnapshot(doc(db, 'dashboards/navorder'), sn
     if (done || !window.__TAURI__) return;
     done = true;
     _navorderListen();
+    _classAppsListen();
     // Publish this machine's program inventory for StudyOS's Browse picker.
     // No delay here: _pushShieldApps waits for the agent bridge and the adopted
     // device id itself, which a fixed timer could only guess at.

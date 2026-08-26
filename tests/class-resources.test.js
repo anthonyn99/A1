@@ -282,10 +282,20 @@ t('shield.html forwards http(s) resources to the agent',
   /https\?:\\\/\\\//.test(SHIELD) && /out\['cls:'[\s\S]{0,120}?r\.url/.test(SHIELD),
   'Without this the urls sit in the document and never reach local_links.');
 t('shield.html still gates on scheme before forwarding',
-  /_pullClassApps[\s\S]*?\/\^https\?:\\\/\\\/\/i\.test\(r\.url\)/.test(SHIELD),
+  /_classAppsListen[\s\S]*?\/\^https\?:\\\/\\\/\/i\.test\(r\.url\)/.test(SHIELD),
   'Forwarding an arbitrary scheme would hand file:/custom-protocol targets to\n' +
   '      the shell via `start`.');
 
+t('class resources refresh on their OWN document, not navorder',
+  /_classAppsListen[\s\S]{0,400}?onSnapshot\(doc\(db, 'dashboards\/studyos_class_apps'\)/.test(SHIELD),
+  'They used to refresh only inside the navorder snapshot, so a resource added without touching dashboards/navorder never reached the agent -- the class opened its apps but never its sites.');
+t('both link sources are pushed together',
+  /_pushLinks[\s\S]{0,400}?_lastNavLinks[\s\S]{0,200}?_lastClsLinks/.test(SHIELD),
+  'sh_set_links REPLACES the whole map, so pushing one source alone deletes the other.');
+t('each listener records its own half before pushing',
+  /_lastClsLinks = out;[\s\S]{0,80}?_pushLinks\(\)/.test(SHIELD) &&
+  /_lastNavLinks = links;[\s\S]{0,80}?_pushLinks\(\)/.test(SHIELD),
+  'A listener that pushes without recording its half publishes a stale map.');
 t('the agent has a url-aware opener', /pub fn open_target/.test(PROC));
 t('open_target refuses non-http(s) schemes',
   /fn is_web_url[\s\S]*?starts_with\("http:\/\/"\)[\s\S]*?starts_with\("https:\/\/"\)/.test(PROC),
