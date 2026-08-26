@@ -1,7 +1,12 @@
 <#
   Launches Shield, rebuilding first if the agent's source has changed.
 
-  Called by A1\Shield.cmd. Not usually run directly.
+  The entry point for a rebuild-and-restart:
+      powershell -NoProfile -ExecutionPolicy Bypass -File desktop\shield\launch.ps1
+
+  Launching the agent WITHOUT rebuilding needs nothing from this repo — the
+  installer leaves a Start-menu and desktop shortcut on the installed copy at
+  %LOCALAPPDATA%\Shield\shield-agent.exe.
 
   Design notes:
    · The UI needs no handling here. The agent re-navigates to the live page with

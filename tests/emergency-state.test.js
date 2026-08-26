@@ -7,7 +7,7 @@
    stayed locked forever once the global was lifted anywhere else. Both
    directions failed, PC→phone and phone→PC.
 
-   Run: node emg-state-test.js */
+   Run: node tests/emergency-state.test.js */
 'use strict';
 const fs = require('fs');
 
