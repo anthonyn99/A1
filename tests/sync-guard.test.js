@@ -223,9 +223,13 @@ for (const [label, markFn, pendingVar] of [
   // call. We care about the one gating the MAIN path, i.e. the first occurrence
   // AFTER the stale-write check — not that incidental earlier one.
   const idxMark = cb.indexOf(markFn + '()', idxDrop === -1 ? 0 : idxDrop);
-  // Likewise anchor the bare `if (savePending) return;` to after the unlock, so we
-  // measure the real early-return and not an unrelated one further up.
-  const reEarly = new RegExp('if\\s*\\(' + pendingVar + '\\)\\s*return');
+  // Likewise anchor the `if (savePending) …return` to after the unlock, so we
+  // measure the real early-return and not an unrelated one further up. The body may
+  // now park the snapshot before returning (`{ _thDeferredRemote = d; return; }`):
+  // a remote doc dropped here is never re-sent by Firestore, so it is held and
+  // replayed once the local write settles. What this assertion checks is unchanged
+  // — the unlock must still come first.
+  const reEarly = new RegExp('if\\s*\\(' + pendingVar + '\\)\\s*(\\{[^}]*)?return');
   const tailFrom = idxMark === -1 ? 0 : idxMark;
   const relEarly = cb.slice(tailFrom).search(reEarly);
   const idxEarly = relEarly === -1 ? -1 : tailFrom + relEarly;
@@ -252,10 +256,23 @@ t('Pending writes are flushed BEFORE teardown bumps the generation',
   /_flushThenTeardown[\s\S]{0,200}_fbFlushAll[\s\S]{0,80}_teardown\(\)/.test(HTML),
   'Otherwise an edit made just before backgrounding is dropped as stale-generation.');
 
+// The unlock now tests _fbIsServerSnap (the snapshot really came back from
+// getDocFromServer) rather than !metadata.fromCache. That is strictly stronger:
+// for a document Firestore believes does not exist, a CACHE read also reports
+// fromCache === false, so the old test let a read that never left the device
+// open the write gate — during a permission-denied outage that unparked writes
+// against a rejecting backend AND kept the stall watchdog from ever arming.
 t('Loader only unlocks on a genuine server read',
-  (HTML.match(/const fromCache = !!\(snap && snap\.metadata && snap\.metadata\.fromCache\);/g) || []).length >= 2 &&
-  (HTML.match(/if \(snap && !fromCache\) _(th|vd)MarkServerSeen\(\);/g) || []).length >= 2,
+  (HTML.match(/const fromServer = _fbIsServerSnap\(snap\);/g) || []).length >= 2 &&
+  (HTML.match(/if \(fromServer\) _(th|vd)MarkServerSeen\(\);/g) || []).length >= 2 &&
+  /function _fbIsServerSnap\(snap\)/.test(HTML) &&
+  /snap\[_FB_FROM_SERVER\] === true/.test(HTML),
   'A cache fallback must NOT count as confirmation.');
+
+t('Only getDocFromServer results are tagged server-confirmed',
+  /_fbTagServer\(await Promise\.race\(\[\s*\n?\s*getDocFromServer\(ref\)/.test(HTML) &&
+  /_fbTagServer\(await getDoc\(ref\), false\)/.test(HTML),
+  'The cache fallback must be tagged false, whatever its metadata claims.');
 
 section('Static: pull-to-refresh');
 

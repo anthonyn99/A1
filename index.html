@@ -7134,6 +7134,16 @@ function App(){
     window._fbSave(payload);
   },[buildPayload]);
 
+  // Recompose a payload from CURRENT state, for the Firebase layer to use when a
+  // queued write is invalidated by a teardown (see the generation check in
+  // _doTaskHubSave). buildPayload reads stateRef, which the wrapped setters keep
+  // synchronously up to date, so this always returns the newest local truth —
+  // including the edit that was sitting in the dropped payload.
+  useEffect(()=>{
+    window._thRebuildPayload=()=>{const pl=buildPayload();thLastAppliedRef.current=pl.savedAt||Date.now();return pl;};
+    return()=>{delete window._thRebuildPayload;};
+  },[buildPayload]);
+
   const setData=useCallback(fn=>{setDataState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(T_SK.data,next);stateRef.current={...stateRef.current,data:next};fbPush();return next;});},[fbPush]);
   // Same as setData but flags the write as automated/background, so the Firebase
   // layer can refuse it before cloud data has loaded. Returning prev unchanged
@@ -8816,6 +8826,33 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   // never stale, but never hang — fall back to the cached copy if the server is
   // slow/unreachable. The live onSnapshot listener still delivers any update
   // that lands after this resolves. Same shape as tradehub.html's loaders.
+  // "The client has already been terminated" is not a network condition: it means
+  // the ref belongs to a Firestore instance _teardown() killed. It is permanent for
+  // that ref, so it must never be retried or reported as an outage.
+  function _fbIsTerminated(e){
+    const m = (e && (e.code || e.message) || '') + '';
+    return /already been terminated|client has been terminated|INTERNAL ASSERTION/i.test(m);
+  }
+  // Marks the snapshots that came back from getDocFromServer (a genuine, confirmed
+  // server round-trip) as opposed to the getDoc cache fallback. metadata.fromCache
+  // cannot carry this on its own: for a document Firestore believes does not exist,
+  // a CACHE read still reports fromCache === false, so `!fromCache` reads as
+  // "confirmed by the server" for a read that never left the device. That is how
+  // the write gate opened during a permission-denied outage — writes unparked
+  // against a backend that was rejecting them, and because the gate was "seen" the
+  // stall watchdog never armed and the user was told nothing at all.
+  // Why the most recent SERVER round-trip failed, or null after one succeeds.
+  // Survives the cache fallback inside _freshGet, which would otherwise erase it.
+  let _fbLastServerErr = null;
+  const _FB_FROM_SERVER = Symbol('fromServer');
+  function _fbTagServer(snap, fromServer) {
+    try { Object.defineProperty(snap, _FB_FROM_SERVER, { value: !!fromServer, enumerable: false, configurable: true }); } catch(_) {}
+    return snap;
+  }
+  // True only for a snapshot this module obtained via getDocFromServer.
+  function _fbIsServerSnap(snap) {
+    return !!(snap && snap[_FB_FROM_SERVER] === true && !(snap.metadata && snap.metadata.fromCache));
+  }
   async function _freshGet(ref) {
     // Try the SERVER a few times before ever falling back to the local cache.
     // A single slow round-trip used to time out at 3s and return the (possibly
@@ -8824,13 +8861,32 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // overwhelmingly likely outcome; the cache is a true last resort for offline.
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        return await Promise.race([
+        const _snap = _fbTagServer(await Promise.race([
           getDocFromServer(ref),
           new Promise((_, rej) => setTimeout(() => rej(new Error('fresh-timeout')), 5000))
-        ]);
+        ]), true);
+        _fbLastServerErr = null;                 // a real round-trip cleared it
+        return _snap;
       } catch(e) {
+        // A doc ref bound to a TERMINATED client can never succeed, on this or any
+        // later attempt — retrying it burns 15 seconds and then returns null, which
+        // reads to every caller as "the server was unreachable". That mislabelling
+        // is why the stall popup blamed the connection for what was actually a
+        // stale reference left behind by _teardown(). Fail fast and LOUD instead,
+        // so the caller (and the watchdog's _stallErr) sees the real cause.
+        const _msg = (e && (e.code || e.message)) || '';
+        if (_fbIsTerminated(e)) throw new Error('client-terminated');
+        // Remember WHY the server read failed. The cache fallback below succeeds
+        // even when the server refused us, so without this the reason is erased and
+        // the stall watchdog can only report "connection never confirmed" — which
+        // is wrong, and actively misleading, for permission-denied: that one never
+        // fixes itself by waiting, and it is the one case where telling the user to
+        // keep the tab open is the wrong advice.
+        _fbLastServerErr = _msg || 'unknown';
         if (attempt < 2) { await new Promise(r => setTimeout(r, 300 * (attempt + 1))); continue; }
-        try { return await getDoc(ref); } catch(_) { return null; }
+        // Cache fallback. Explicitly NOT server-confirmed, whatever metadata says.
+        try { return _fbTagServer(await getDoc(ref), false); }
+        catch(e2) { if (_fbIsTerminated(e2)) throw new Error('client-terminated'); return null; }
       }
     }
     return null;
@@ -8968,20 +9024,79 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   // are still stuck after a minute, say so loudly — while the local copy is still
   // the good one and the situation is recoverable.
   const _stallTimers = {};
-  function _fbStopStall(key){ if(_stallTimers[key]){ clearInterval(_stallTimers[key]); _stallTimers[key]=null; } }
+  function _fbStopStall(key){
+    if(_stallTimers[key]){ clearInterval(_stallTimers[key]); _stallTimers[key]=null; }
+    // Clear the recorded cause too. It described the connection that just ended;
+    // carrying it into the next one made a single transient failure explain (and
+    // mis-explain) every later stall for the rest of the page's life.
+    delete _stallErr[key];
+  }
+  // Stop every watchdog at once. Called from _teardown(): a teardown terminates
+  // the Firestore client and re-arms the server-seen gates, so every watcher
+  // running at that moment is holding a doc ref bound to a DEAD instance and a
+  // `started` clock from the previous connection. Leaving them running is what
+  // made the popup permanent — see the note on _fbWatchStall below.
+  function _fbStopAllStalls(){ Object.keys(_stallTimers).forEach(_fbStopStall); }
   const _stallRetry = {};                        // set once the doc refs exist
   // Why the retry last failed. The retry used to swallow this, which threw away
   // the only fact that separates "offline" from "this document is denied" — and
   // left the user with an alarming message and nothing to report or act on.
   const _stallErr = {};
+  // ── Why this watchdog used to fire on EVERY open ──────────────────────────
+  // Three defects compounded, and none of them was a connection problem:
+  //
+  //  1. _teardown() (tab hidden 45s, 5 min idle, pagehide/freeze) re-arms
+  //     _vdServerSeen/_thServerSeen = false but never stopped these timers. A
+  //     watcher armed before the teardown kept ticking across it.
+  //  2. _teardown() calls terminate(db) and rebinds `db`, but _stallRetry's
+  //     closure still holds the doc ref from the OLD instance. Every retry then
+  //     hit "client has already been terminated" — and _freshGet swallows that
+  //     and returns null, so _stallErr stayed empty and the message fell through
+  //     to the generic "connection never confirmed". The escape hatch was dead
+  //     while reporting nothing; that is why the cause could not be diagnosed
+  //     from the message.
+  //  3. The `if (_stallTimers[key]) return` guard then refused to arm the FRESH
+  //     watcher (whose retry would have worked), and the stale one's `started`
+  //     was never reset — so `now - started > 60000` was true on its very next
+  //     tick, forever, alerting every 10 minutes from then on.
+  //
+  // Fixes: _teardown() now calls _fbStopAllStalls(), _stallRetry is re-registered
+  // against the live db on every init(), and the watcher below re-checks the gate
+  // AFTER the retry resolves so a retry that succeeds never alerts on the tick
+  // that fixed it.
   function _fbWatchStall(key, label, isSeen) {
+    if (isSeen()) return;                        // already confirmed — nothing to watch
     if (_stallTimers[key]) return;               // already watching
     const started = Date.now();
     _stallTimers[key] = setInterval(async () => {
-      if (isSeen()) { clearInterval(_stallTimers[key]); _stallTimers[key] = null; return; }
-      try { if (_stallRetry[key]) await _stallRetry[key](); }
-      catch (e) { _stallErr[key] = (e && (e.code || e.message)) || String(e); }
-      if (!isSeen() && Date.now() - started > 60000) {
+      if (isSeen()) { _fbStopStall(key); return; }
+      let err = null;
+      try {
+        if (_stallRetry[key]) await _stallRetry[key]();
+        else err = 'no-retry-registered';        // init() has not run yet for this doc
+      }
+      catch (e) { err = (e && (e.code || e.message)) || String(e); }
+      // Self-heal the one cause that can never fix itself by waiting. A terminated
+      // client means this watcher outlived the connection it was created for (the
+      // page was backgrounded, or went idle, between the write being parked and
+      // this tick). Re-running init() stands a live client back up and re-registers
+      // _stallRetry against it, so the NEXT tick can genuinely confirm the server —
+      // rather than reporting an outage that does not exist. init() is a no-op when
+      // listeners are already live, so this is safe to reach repeatedly.
+      if (err === 'client-terminated') {
+        _fbStopStall(key);                       // let a fresh watcher arm against the new client
+        try { if (!_fbRecovering && !_unsubscribe) init(); } catch(_){}
+        return;
+      }
+      // Re-check AFTER the retry: a retry that just succeeded called
+      // mark-server-seen, and alerting on that same tick would be a false alarm.
+      if (isSeen()) { _fbStopStall(key); return; }
+      // The retry resolves without throwing when the SERVER read was refused but
+      // the cache fallback answered. _fbLastServerErr is the only surviving record
+      // of that refusal, and it is exactly the fact the user needs.
+      if (!err && _fbLastServerErr) err = _fbLastServerErr;
+      if (err) _stallErr[key] = err; else delete _stallErr[key];
+      if (Date.now() - started > 60000) {
         // Name the actual cause where we can. navigator.onLine is only
         // trustworthy when it says false, so it is used only in that direction.
         var why;
@@ -8995,12 +9110,22 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         } else {
           why = 'The connection to the cloud never confirmed.';
         }
+        // The advice has to match the cause. "Keep the tab open, it retries" is
+        // right for an outage and wrong for permission-denied, which waiting can
+        // never fix — telling someone to wait that one out is how a fixable problem
+        // sits untouched while their devices drift further apart.
+        const advice = (_stallErr[key] === 'permission-denied')
+          ? 'What to do: this has to be fixed on the Firebase side (auth or security '
+            + 'rules) — waiting will not clear it. Keep this tab open so your edits '
+            + 'stay safe here, and do NOT open ' + label + ' on another device: that '
+            + 'one still holds the older copy and could overwrite this one.'
+          : 'What to do: keep this tab open — it retries on its own and will sync as '
+            + 'soon as it can. If you open ' + label + ' somewhere else before then, '
+            + 'that device will show the older copy.';
         _fbLoudFailure(label, why + '\n\n'
           + 'Your edits are saved on THIS device and are safe here. They have not '
           + 'reached your other devices yet.\n\n'
-          + 'What to do: keep this tab open — it retries on its own and will sync as '
-          + 'soon as it can. If you open ' + label + ' somewhere else before then, '
-          + 'that device will show the older copy.\n\n'
+          + advice + '\n\n'
           + 'If this keeps happening, send this line: ' + label + ' / '
           + (_stallErr[key] || 'no-error') + ' / online=' + navigator.onLine);
       }
@@ -9085,7 +9210,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // that has been parked. Without this the watchdog could only complain.
     _stallRetry['main'] = async () => {
       const snap = await _freshGet(docRef);
-      if (snap && !(snap.metadata && snap.metadata.fromCache)) _thMarkServerSeen();
+      if (_fbIsServerSnap(snap)) _thMarkServerSeen();
     };
 
     // ── TaskHub load ──────────────────────────────────────────────────────────
@@ -9096,8 +9221,12 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         // that is precisely the stale snapshot we must never write back.
         // (A server read that finds NO doc also unlocks: nothing exists to clobber,
         // so this session may seed it.)
-        const fromCache = !!(snap && snap.metadata && snap.metadata.fromCache);
-        if (snap && !fromCache) _thMarkServerSeen();
+        // Server-confirmed means the snapshot came from getDocFromServer — not
+        // merely that metadata.fromCache is false, which a cache read of a
+        // believed-nonexistent doc also reports. See _fbIsServerSnap.
+        const fromServer = _fbIsServerSnap(snap);
+        const fromCache = !fromServer;
+        if (fromServer) _thMarkServerSeen();
         if (snap && snap.exists()) {
           // See the Veda loader: tag cache-fallback reads so the caller can refuse
           // to repaint newer local state with an hours-old cached document.
@@ -9125,6 +9254,19 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // Every savedAt this session has written, so the listener can recognise any of
     // our own echoes (not merely the most recent one) — see the listener comment.
     const _thOwnWrites = new Set();
+    // A remote snapshot that arrived while our own write was pending. Parked rather
+    // than dropped (Firestore will not re-send it), and replayed by _thDrainDeferred
+    // as soon as the local write settles — so a change made on another device is
+    // never lost just because this one happened to be mid-save.
+    let _thDeferredRemote = null;
+    function _thDrainDeferred() {
+      const d = _thDeferredRemote; _thDeferredRemote = null;
+      if (!d || _savePending) return;
+      // Our own echo, or something we have already superseded — no news.
+      if (_thOwnWrites.has(d.savedAt || 0)) return;
+      if ((d.savedAt || 0) <= _lastWrittenSavedAt) return;
+      window.dispatchEvent(new CustomEvent("fb-remote-update", { detail: d }));
+    }
     // ══ WIPE GUARD + ROLLING BACKUPS ═════════════════════════════════════════
     // 2026-08-25: a full set of goals disappeared from BOTH profiles. Cloud and
     // local agreed exactly, the archives only ever held day-keyed task data, and
@@ -9229,11 +9371,40 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       // Generation check — the clock-independent backstop (see _fbGen). A payload
       // composed before the last disconnect is stale by construction, regardless of
       // what its timestamp claims, so it must never overwrite the whole document.
+      // ── Stale generation: REBUILD, never silently drop ──────────────────
+      // A payload built before the last teardown may not be written as-is: it is a
+      // whole-document snapshot composed while this device was out of touch, so
+      // uploading it could clobber edits another device made in the meantime.
+      //
+      // But DROPPING it loses the user's edit outright, and that is a data-loss bug
+      // in its own right — it is the "I added a task on the PC and it never reached
+      // my phone" report. The sequence: add a task (payload stamped gen N) → the
+      // write parks behind the server-seen gate → the tab is hidden 45s or goes
+      // idle 5 min → _teardown() bumps the generation → the parked write replays,
+      // fails this check, and is discarded. The task survives in localStorage, so
+      // the PC still shows it and nothing looks wrong, while the cloud never
+      // receives it and the phone never sees it.
+      //
+      // The correct move is neither: recompose the payload from the CURRENT state
+      // ref, which already contains that edit merged with anything the listener has
+      // applied since. That is a current-generation write of current truth, so it
+      // is safe to send AND it preserves the edit. Only if the app cannot rebuild
+      // (unmounted) do we fall back to dropping.
       if (_pendingPayload._gen !== undefined && _pendingPayload._gen !== _fbGen) {
-        console.warn('[TaskHub] dropping stale-generation write (built gen '
-          + _pendingPayload._gen + ', now ' + _fbGen + ') — re-syncing from server instead');
-        _pendingPayload = null; _savePending = false;
-        return Promise.resolve();
+        let rebuilt = null;
+        try { rebuilt = window._thRebuildPayload && window._thRebuildPayload(); } catch(e){}
+        if (rebuilt) {
+          console.warn('[TaskHub] stale-generation write (built gen ' + _pendingPayload._gen
+            + ', now ' + _fbGen + ') — rebuilt from current state instead of dropping');
+          rebuilt._gen = _fbGen;
+          _pendingPayload = rebuilt;
+        } else {
+          console.warn('[TaskHub] dropping stale-generation write (built gen '
+            + _pendingPayload._gen + ', now ' + _fbGen + ') — app cannot rebuild');
+          _pendingPayload = null; _savePending = false;
+          _thDrainDeferred();   // nothing of ours is pending now — let remote news through
+          return Promise.resolve();
+        }
       }
       const payload = _pendingPayload; _pendingPayload = null;
       delete payload._gen;                       // internal only — never persisted
@@ -9245,6 +9416,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       // any other device pulls it down). See the WIPE GUARD note above.
       if (!_thbAllow('main', 'TaskHub', payload)) {
         _savePending = false;
+        _thDrainDeferred();   // our write was refused — a held remote doc is now the truth
         window.dispatchEvent(new CustomEvent('fb-error'));
         return Promise.resolve();
       }
@@ -9257,6 +9429,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
           window.dispatchEvent(new CustomEvent(ok ? "fb-saved" : "fb-error"));
         } finally {
           _savePending = false; _thSaveInFlight = null;
+          _thDrainDeferred();   // replay any remote doc held back during this write
         }
       })();
       return _thSaveInFlight;
@@ -9367,7 +9540,14 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       }
       // Unlock only after the snapshot has been allowed to take effect.
       _thMarkServerSeen();
-      if (_savePending) return;                       // genuinely newer local edit — protect it
+      // A genuinely newer local edit is pending, so this remote doc must not repaint
+      // over it — but it must NOT be thrown away either. Firestore never re-sends an
+      // unchanged document, so a `return` here was the last time this session would
+      // ever see it: the other device's change vanished from the UI, and this
+      // device's whole-document write then overwrote it in the cloud too. That is
+      // the "changes made on the phone don't come back to the PC" report. Hold it
+      // instead, and replay it once our own write has settled (see _thDrainDeferred).
+      if (_savePending) { _thDeferredRemote = d; return; }
       // Our own write echoed back. Compare against every savedAt we've written this
       // session, not just the last one: with rapid edits an older echo can arrive
       // after a newer write, and matching only the latest would let that stale echo
@@ -9394,7 +9574,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // Same escape hatch as TaskHub's — see _stallRetry['main'].
     _stallRetry['vedasdash'] = async () => {
       const snap = await _freshGet(vdDocRef);
-      if (snap && !(snap.metadata && snap.metadata.fromCache)) _vdMarkServerSeen();
+      if (_fbIsServerSnap(snap)) _vdMarkServerSeen();
     };
 
     window._fbLoadVeda = async () => {
@@ -9403,8 +9583,10 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         // Only a genuine SERVER read unlocks writes — a cache fallback is exactly
         // the stale snapshot that must never be written back. (A server read that
         // finds no doc also unlocks: nothing exists to clobber.)
-        const fromCache = !!(snap && snap.metadata && snap.metadata.fromCache);
-        if (snap && !fromCache) _vdMarkServerSeen();
+        // See the TaskHub loader — only a real server round-trip may unlock.
+        const fromServer = _fbIsServerSnap(snap);
+        const fromCache = !fromServer;
+        if (fromServer) _vdMarkServerSeen();
         if (snap && snap.exists()) {
           // Tag the origin. The caller MUST NOT repaint the UI from a cache-fallback
           // read that is older than what it already has: _freshGet falls back to the
@@ -9430,16 +9612,36 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // Every savedAt this session wrote — lets the listener skip ANY of our own
     // echoes, not just the newest (see the TaskHub listener comment).
     const _vdOwnWrites = new Set();
+    // See _thDeferredRemote — same hold-and-replay, Veda's document.
+    let _vdDeferredRemote = null;
+    function _vdDrainDeferred() {
+      const d = _vdDeferredRemote; _vdDeferredRemote = null;
+      if (!d || _vdSavePending) return;
+      if (_vdOwnWrites.has(d.savedAt || 0)) return;
+      if ((d.savedAt || 0) <= _vdLastWrittenSavedAt) return;
+      window.dispatchEvent(new CustomEvent("fb-vd-remote-update", { detail: d }));
+    }
     const _doVedaSave = () => {
       if (!_vdPendingPayload) return _vdSaveInFlight || Promise.resolve();
       // Generation check — clock-independent backstop; see _fbGen and the TaskHub
       // equivalent above. A payload built before the last disconnect is stale by
       // construction and may not overwrite the document, whatever its timestamp says.
+      // See the TaskHub equivalent above — rebuild, never silently drop.
       if (_vdPendingPayload._gen !== undefined && _vdPendingPayload._gen !== _fbGen) {
-        console.warn('[Veda] dropping stale-generation write (built gen '
-          + _vdPendingPayload._gen + ', now ' + _fbGen + ') — re-syncing from server instead');
-        _vdPendingPayload = null; _vdSavePending = false;
-        return Promise.resolve();
+        let rebuilt = null;
+        try { rebuilt = window._vdRebuildPayload && window._vdRebuildPayload(); } catch(e){}
+        if (rebuilt) {
+          console.warn('[Veda] stale-generation write (built gen ' + _vdPendingPayload._gen
+            + ', now ' + _fbGen + ') — rebuilt from current state instead of dropping');
+          rebuilt._gen = _fbGen;
+          _vdPendingPayload = rebuilt;
+        } else {
+          console.warn('[Veda] dropping stale-generation write (built gen '
+            + _vdPendingPayload._gen + ', now ' + _fbGen + ') — app cannot rebuild');
+          _vdPendingPayload = null; _vdSavePending = false;
+          _vdDrainDeferred();
+          return Promise.resolve();
+        }
       }
       const payload = _vdPendingPayload; _vdPendingPayload = null;
       delete payload._gen;                       // internal only — never persisted
@@ -9450,6 +9652,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       // Same wipe guard as TaskHub — see the WIPE GUARD note above.
       if (!_thbAllow('vedasdash', 'TaskHub (Veda)', payload)) {
         _vdSavePending = false;
+        _vdDrainDeferred();
         window.dispatchEvent(new CustomEvent('fb-vd-error'));
         return Promise.resolve();
       }
@@ -9460,7 +9663,10 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
           if (ok) _thbSnapshot('vedasdash', payload);   // best-effort, never awaited
           _vdLastOwnSaveAt = Date.now();
           window.dispatchEvent(new CustomEvent(ok ? "fb-vd-saved" : "fb-vd-error"));
-        } finally { _vdSavePending = false; _vdSaveInFlight = null; }
+        } finally {
+          _vdSavePending = false; _vdSaveInFlight = null;
+          _vdDrainDeferred();   // replay any remote doc held back during this write
+        }
       })();
       return _vdSaveInFlight;
     };
@@ -9514,7 +9720,9 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       }
       // Unlock only now — after the snapshot has been allowed to take effect.
       _vdMarkServerSeen();
-      if (_vdSavePending) return;            // genuinely newer local edit — protect it
+      // Hold, never discard — see the TaskHub listener above for why a bare
+      // `return` here silently lost the other device's edit in both directions.
+      if (_vdSavePending) { _vdDeferredRemote = d; return; }
       if (_vdOwnWrites.has(d.savedAt || 0)) return;   // any of our own echoes
       window.dispatchEvent(new CustomEvent("fb-vd-remote-update", { detail: d }));
     }, (err) => { console.warn('[Veda TaskHub] onSnapshot error:', err && err.code); });
@@ -9576,7 +9784,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // writing entry X never touches entry Y that Device B is editing. True collab,
     // no overwrite collisions, exactly like Google Docs per-document isolation.
     const bjDocRef = doc(db, BJ_DOC_PATH);
-    _stallRetry['journal'] = async () => { const sn = await _freshGet(bjDocRef); if (sn && !(sn.metadata && sn.metadata.fromCache)) _bjMarkServerSeen(); };
+    _stallRetry['journal'] = async () => { const sn = await _freshGet(bjDocRef); if (_fbIsServerSnap(sn)) _bjMarkServerSeen(); };
 
     // ── Resilient write helpers (shared by BJ / MJ / TJ) ──────────────────────
     // Retry a Firestore write on transient failures with exponential backoff so a
@@ -10419,7 +10627,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
 
     // ── Tony's Brainstorm Journal Firebase ───────────────────────────────────────
     const tjDocRef = doc(db, TJ_DOC_PATH);
-    _stallRetry['tony_journal'] = async () => { const sn = await _freshGet(tjDocRef); if (sn && !(sn.metadata && sn.metadata.fromCache)) _tjMarkServerSeen(); };
+    _stallRetry['tony_journal'] = async () => { const sn = await _freshGet(tjDocRef); if (_fbIsServerSnap(sn)) _tjMarkServerSeen(); };
 
     const _tjSanitize = (v) => {
       if (Array.isArray(v)) return v.map(_tjSanitize);
@@ -10996,7 +11204,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     //      happened to land in that window was silently dropped, and this device
     //      then overwrote it on its next save.
     const _noDocRef = doc(db, "dashboards/navorder");
-    _stallRetry['navorder'] = async () => { const sn = await _freshGet(_noDocRef); if (sn && !(sn.metadata && sn.metadata.fromCache)) _noMarkServerSeen(); };
+    _stallRetry['navorder'] = async () => { const sn = await _freshGet(_noDocRef); if (_fbIsServerSnap(sn)) _noMarkServerSeen(); };
     // Every savedAt this session has written, so the listener recognises any of
     // our own echoes rather than blanket-ignoring a time window.
     const _noOwnWrites = new Set();
@@ -11136,6 +11344,18 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // Same rule for the header button order (dashboards/navorder), which
     // replaces its whole document on every save.
     _noServerSeen = false;
+    // Stop every stall watchdog. This is load-bearing, and its absence is the
+    // root cause of "the sync popup appears every time I open TaskHub".
+    //
+    // A watcher armed before this point holds (a) a `started` clock from the
+    // connection we are ending, already older than the 60s alert threshold, and
+    // (b) a _stallRetry closure over a doc ref bound to the instance terminate()
+    // just killed — so its retry can never succeed. Because _fbWatchStall
+    // refuses to arm a second watcher for the same key, that dead watcher also
+    // BLOCKED the healthy one the next init() would have armed. The result was a
+    // watchdog that could only ever complain, on a fresh connection that was
+    // working fine. The gates re-arm above; the watchers must reset with them.
+    _fbStopAllStalls();
     // New generation: everything composed before this point is now suspect (see
     // _fbGen). This is what makes the protection independent of device clocks.
     _fbGen++;
@@ -13756,6 +13976,12 @@ function App(){
     // so a cache-fallback load landing mid-flight cannot roll the UI back over it.
     if(!bg||window._vdCloudLoaded)vdLastAppliedRef.current=payload.savedAt||Date.now();
     window._fbSaveVeda(payload);
+  },[buildVdPayload]);
+
+  // See Tony's _thRebuildPayload — same contract, Veda's document.
+  useEffect(()=>{
+    window._vdRebuildPayload=()=>{const pl=buildVdPayload();vdLastAppliedRef.current=pl.savedAt||Date.now();return pl;};
+    return()=>{delete window._vdRebuildPayload;};
   },[buildVdPayload]);
 
   // Wrapped setters — update ref + push to Firebase synchronously, exactly like TaskHub
