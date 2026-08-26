@@ -41562,6 +41562,50 @@ window._tnOpenTab = function(url, key){
      fallback is refused for the same reason. We report the count so the caller
      can say so plainly rather than pretending it worked. ── -->
 <script>
+/* The StudyOS class page for a class, or '' when no StudyOS url is configured.
+ *
+ * Not hardcoded: TaskHub is served from GitHub Pages and StudyOS from a
+ * separate Cloudflare Worker, so there is no address this file can assume.
+ * The url is read from the same custom-link store the header buttons use
+ * (navorder vedaLinks/tonyLinks, synced across devices), matched on a link
+ * whose url contains "studyos". Set that link once and every device gets it.
+ *
+ * Returns '' when nothing matches, and every caller treats '' as "skip" — so
+ * with no link configured the play button behaves exactly as it did before. */
+window._sosStudyOsClassUrl = function(classId){
+  if (!classId) return '';
+  var base = '';
+  try {
+    base = localStorage.getItem('sosStudyOsUrl') || '';
+    if (!base) {
+      var cache = JSON.parse(localStorage.getItem('td6_navlinks') || '{}');
+      var all = (cache.veda || []).concat(cache.tony || []);
+      for (var i = 0; i < all.length; i++) {
+        var u = all[i] && all[i].url;
+        if (typeof u === 'string' && /studyos/i.test(u) && /^https?:\/\//i.test(u)) { base = u; break; }
+      }
+    }
+  } catch(e){}
+  if (!base || !/^https?:\/\//i.test(base)) return '';
+  // Strip any existing query/hash before appending, or a stored url that
+  // already carries "?class=" would produce two of them and the regex in
+  // StudyOS would read the wrong one.
+  try {
+    var url = new URL(base);
+    url.search = ''; url.hash = '';
+    return url.toString() + '?class=' + encodeURIComponent(classId);
+  } catch(e){ return ''; }
+};
+
+/* Explicit override for a url the heuristic above cannot find. */
+window._sosSetStudyOsUrl = function(url){
+  try {
+    if (!url) localStorage.removeItem('sosStudyOsUrl');
+    else localStorage.setItem('sosStudyOsUrl', String(url));
+  } catch(e){}
+  return url || '(cleared)';
+};
+
 window._sosLaunchClass = function(classId, className){
   var cs = window._sosMirrorClasses || {};
   var c = classId ? cs[classId] : null;
@@ -41623,6 +41667,11 @@ window._sosLaunchClass = function(classId, className){
   } catch(e){}
 
   if (useShield && classId) {
+    // BEFORE the protocol navigation, which can raise an external-app dialog
+    // that takes focus and ends the user gesture — anything opened after it is
+    // refused. Costs the one tab the gesture allows; Shield opens the rest.
+    var sosUrl = window._sosStudyOsClassUrl(classId);
+    if (sosUrl) { try { window._tnOpenTab(sosUrl, 'studyos'); } catch(e){} }
     try { location.href = 'shieldopen:class/' + encodeURIComponent(classId); } catch(e){}
     return { web: web.length, app: app.length, blocked: 0, blockedUrls: [], via: 'shield' };
   }
@@ -41642,6 +41691,14 @@ window._sosLaunchClass = function(classId, className){
    * test greps this whole function for async scheduling calls, so keep even
    * the comments here free of those literal names. */
   var blocked = 0, blockedUrls = [];
+  /* StudyOS rides along as an ordinary web resource so it goes through the same
+     blank-first two-pass open as the sites, is re-probed the same way, and is
+     counted in `blocked` when a hard blocker refuses it. Special-casing it
+     would have opened it outside that accounting and reported success for a
+     tab that never appeared. First in the list so that on a cold, capped open
+     the class page is the one tab that survives. */
+  var sosUrlB = window._sosStudyOsClassUrl(classId);
+  if (sosUrlB) web = [{ id: '_studyos', label: 'StudyOS', url: sosUrlB }].concat(web);
   var slots = web.map(function(r, i){
     // The tab key must be unique per RESOURCE, not per class. Two resources
     // sharing a name would share a window name, and the second open would

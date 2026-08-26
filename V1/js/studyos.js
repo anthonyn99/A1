@@ -737,6 +737,44 @@ function buildColorGrid() {
   });
 }
 
+
+/* ── Deep link: open straight to a class ───────────────────────────────────
+ * studyos.html?class=<classId> lands on that class's detail view instead of
+ * the dashboard. TaskHub's play button uses it so pressing play opens the
+ * class's sites and apps AND the class itself (see index.html
+ * _sosLaunchClass).
+ *
+ * Applied twice on purpose. Classes come from localStorage first and from
+ * Firestore a moment later, and on a cold open — a device that has never run
+ * StudyOS, or one whose cache was cleared — the local copy has no classes at
+ * all, so the first attempt finds nothing. Re-running it when the cloud data
+ * lands is what makes the link work there. _sosPendingClass is cleared on the
+ * first success so a later sync can never yank the user out of whatever they
+ * navigated to in the meantime.
+ */
+let _sosPendingClass = null;
+
+function _sosReadClassParam() {
+  try {
+    var m = /[?&]class=([^&#]+)/.exec(location.search);
+    return m ? decodeURIComponent(m[1]) : null;
+  } catch (e) { return null; }
+}
+
+function _sosApplyClassParam() {
+  if (!_sosPendingClass) return;
+  // Only navigate once the class actually exists, or switchView would set a
+  // title for a class openClassDetail then refuses to render.
+  if (!classes.some(c => c && c.id === _sosPendingClass)) return;
+  var id = _sosPendingClass;
+  _sosPendingClass = null;
+  try { switchView('class', id); } catch (e) {}
+  // Drop the parameter once it has been honoured. Without this a reload — or
+  // the PWA restoring this url — would drag the user back to this class every
+  // time, and the back button would never leave it.
+  try { history.replaceState({}, '', location.pathname + location.hash); } catch (e) {}
+}
+
 // ===== VIEW SWITCHING =====
 function switchView(view, classId) {
   document.querySelectorAll('#study-root .view').forEach(v => v.classList.remove('active'));
@@ -4374,6 +4412,10 @@ function sosInitFirebase() {
     renderExamCountdown();
     renderPriorityQueue();
     scheduleNotifications();
+    // A cold open has no local classes, so the deep link could not resolve
+    // during init — this is the attempt that makes it work there. A no-op once
+    // it has already been honoured.
+    _sosApplyClassParam();
     // A remote save may have arrived without storageUrls (from a device that
     // lacks the blobs). Re-stamp known cloud URLs and upload any local-only files.
     _sosAfterSync();
@@ -4396,7 +4438,11 @@ function sosInitFirebase() {
  * straight-through boot. */
 window.studyOsInit = function () {
   window._sosRoot = document.getElementById('study-root');
+  // Read BEFORE init() so a cold open still has the id after the first render;
+  // applied after, when `classes` is populated from localStorage.
+  _sosPendingClass = _sosReadClassParam();
   init();
+  _sosApplyClassParam();
   sosInitFirebase();
   scheduleNotifications();
 };

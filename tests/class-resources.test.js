@@ -296,6 +296,20 @@ t('each listener records its own half before pushing',
   /_lastClsLinks = out;[\s\S]{0,80}?_pushLinks\(\)/.test(SHIELD) &&
   /_lastNavLinks = links;[\s\S]{0,80}?_pushLinks\(\)/.test(SHIELD),
   'A listener that pushes without recording its half publishes a stale map.');
+t('the StudyOS class page opens from the play button',
+  /_sosStudyOsClassUrl\(classId\)[\s\S]{0,200}?_tnOpenTab\(sosUrl, 'studyos'\)/.test(LH),
+  'Pressing play should open the class in StudyOS as well as its sites/apps.');
+t('the StudyOS tab is opened BEFORE the shieldopen navigation',
+  LH.indexOf("_tnOpenTab(sosUrl, 'studyos')") < LH.indexOf("'shieldopen:class/'"),
+  'The protocol navigation can raise a dialog that ends the user gesture, and',
+  'anything opened after it is refused.');
+t('an unconfigured StudyOS url changes nothing',
+  /if \(sosUrl\)/.test(LH) && /if \(sosUrlB\)/.test(LH),
+  'Both call sites must guard on a truthy url, so with none configured the play button behaves exactly as before.');
+t('StudyOS is counted in the browser fallback, not special-cased',
+  /web = \[\{ id: '_studyos'[\s\S]{0,80}?\]\.concat\(web\)/.test(LH),
+  'Opening it outside the slots accounting would report success for a tab that',
+  'a hard blocker actually refused.');
 t('the agent has a url-aware opener', /pub fn open_target/.test(PROC));
 t('open_target refuses non-http(s) schemes',
   /fn is_web_url[\s\S]*?starts_with\("http:\/\/"\)[\s\S]*?starts_with\("https:\/\/"\)/.test(PROC),
