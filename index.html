@@ -41357,30 +41357,63 @@ window._sosLaunchClass = function(classId, className){
     else if (r.url) web.push(r);
   });
 
-  /* ── Every site opens on ONE click ────────────────────────────────────────
-   * Two passes, and the split is the whole trick.
+  /* ── How a class opens, and why Shield does the work ──────────────────────
+   * MEASURED CONSTRAINT: a browser grants exactly ONE new tab per user
+   * gesture. Three consecutive window.open('', name) calls in a single click
+   * return a window, then null, then null - and a real <a target> click, and
+   * even a fully trusted CDP-dispatched click, behave the same. Verified in
+   * both Brave and Edge, with pop-ups allowed and Brave shields off, so this
+   * is NOT the popup blocker and no page-side arrangement gets around it.
    *
-   * A blocker's rule is about CREATING a popup, not about navigating one. So
-   * window.open('', NAME) is exempt in two different ways: re-targeting a tab
-   * that already holds NAME never counts, and even a fresh blank tab is far
-   * more likely to be allowed than one carrying a destination url. Doing the
-   * urls one-at-a-time (open+navigate, open+navigate) spends the gesture's
-   * budget on the first site and loses the rest — which is exactly the bug.
+   * That is why pressing this button used to open one site and need a second
+   * press for the other: one press, one gesture, one tab. There is no version
+   * of this function that opens two sites from one click by itself.
    *
-   * PASS 1 claims every named tab with a blank open, back to back, touching no
-   * urls at all. PASS 2 then points each handle at its url. Navigating a
-   * window we already hold a handle to is not a popup by any rule, so once
-   * pass 1 wins the handles pass 2 cannot be refused.
+   * So the class is handed to the Shield desktop agent, which is not a page
+   * and has no gesture budget: one shieldopen: navigation, and Shield opens
+   * every resource - websites and native apps alike (see lib.rs
+   * open_from_link and proc::open_target). The url never travels in the link;
+   * Shield resolves the class id against what it already synced, so a page
+   * that merely knows the scheme name still cannot name a target of its own.
+   *
+   * WHEN SHIELD ISN'T THERE: a plain browser tab cannot detect whether a
+   * custom-protocol navigation was handled, so this cannot auto-fall-back
+   * without double-opening every site on machines that DO have Shield. The
+   * choice is therefore explicit and remembered: browser mode opens what it
+   * can (one tab per press, the old behaviour) and is what a phone gets. */
+  var useShield = true;
+  try {
+    var pref = localStorage.getItem('sosResLaunchMode');
+    if (pref === 'browser') useShield = false;
+    // No Shield on a phone or any non-Windows device, so never strand the
+    // button there waiting for an agent that cannot exist.
+    if (!/Windows/i.test(navigator.userAgent || '')) useShield = false;
+  } catch(e){}
+
+  if (useShield && classId) {
+    try { location.href = 'shieldopen:class/' + encodeURIComponent(classId); } catch(e){}
+    return { web: web.length, app: app.length, blocked: 0, blockedUrls: [], via: 'shield' };
+  }
+
+  /* ── Browser fallback ─────────────────────────────────────────────────────
+   * Best-effort only, and honest about it. The gesture cap means the first
+   * site opens and the rest are refused; the caller reports which ones did
+   * not make it rather than pretending they opened.
+   *
+   * The blank-first open matters even here: window.open('', NAME) re-targets
+   * an ALREADY-OPEN tab without navigating it, which is not a new tab and so
+   * is never refused. Once a class's tabs exist, repeat presses re-focus all
+   * of them; it is only the cold open of each additional tab that is capped.
    *
    * Nothing is deferred: both passes are synchronous inside the click, because
-   * anything moved out of the user gesture is guaranteed to be blocked. A
-   * regression test greps this whole function for async scheduling calls, so
-   * keep even the comments here free of those literal names. */
+   * anything moved out of the user gesture is refused outright. A regression
+   * test greps this whole function for async scheduling calls, so keep even
+   * the comments here free of those literal names. */
   var blocked = 0, blockedUrls = [];
   var slots = web.map(function(r, i){
     // The tab key must be unique per RESOURCE, not per class. Two resources
     // sharing a name would share a window name, and the second open would
-    // simply re-target the first one's tab — one tab for two sites, with no
+    // simply re-target the first one's tab - one tab for two sites, with no
     // error anywhere. r.id is unique per resource; the index is a belt-and-
     // braces guard for legacy rows saved before ids existed.
     var key = 'sosres_' + (classId || c.name) + '_' + (r.id || ('i' + i));
@@ -41393,11 +41426,11 @@ window._sosLaunchClass = function(classId, className){
   slots.forEach(function(s){
     var r = s.r, w = s.w;
     if (!w) {
-      // Pass 1 was refused for this one. A real anchor click is treated more
-      // leniently by some blockers, so try it — then re-probe, because
-      // a.click() NEVER throws when the navigation is dropped: it returns
-      // normally and a refused tab looks exactly like a successful one. The
-      // only observable signal is whether the named tab exists afterwards.
+      // Refused. A real anchor click is treated more leniently by some
+      // blockers, so try it - then re-probe, because a.click() NEVER throws
+      // when the navigation is dropped: it returns normally and a refused tab
+      // looks exactly like a successful one. The only observable signal is
+      // whether the named tab exists afterwards.
       try {
         var a = document.createElement('a');
         a.href = r.url;
@@ -41413,14 +41446,14 @@ window._sosLaunchClass = function(classId, className){
       try { w.focus(); } catch(e){}
       return;
     }
-    // Pass 2 — navigate the handle we hold. Skip when the tab is already at
-    // the destination so an open app tab keeps its state instead of reloading
+    // Navigate the handle we hold. Skip when the tab is already at the
+    // destination so an open app tab keeps its state instead of reloading
     // (same rule _tnOpenTab applies; atDest is private to that IIFE, so the
     // comparison is inlined here).
     var cur = null;
-    try { cur = w.location.href; } catch(e){ cur = null; }  // cross-origin ⇒ real page loaded
+    try { cur = w.location.href; } catch(e){ cur = null; }  // cross-origin => real page loaded
     if (cur === null) {
-      // Unreadable means it isn't blank — it's the destination, or wherever
+      // Unreadable means it isn't blank - it's the destination, or wherever
       // the user browsed inside it. Leave it and just bring it forward.
     } else {
       var cc = String(cur).split('#')[0], uu = String(r.url).split('#')[0];
@@ -41432,13 +41465,13 @@ window._sosLaunchClass = function(classId, className){
     try { w.focus(); } catch(e){}
   });
 
-  // Only if there is actually something native to open. A class with websites
-  // only never touches the protocol, so it behaves identically everywhere,
-  // including on a phone.
+  // Native apps still need the agent even in browser mode - a page cannot
+  // launch a program at all. Last, because the protocol navigation can raise a
+  // dialog that ends the gesture and refuses every tab not yet requested.
   if (app.length) {
     try { location.href = 'shieldopen:class/' + encodeURIComponent(classId || ''); } catch(e){}
   }
-  return { web: web.length, app: app.length, blocked: blocked, blockedUrls: blockedUrls };
+  return { web: web.length, app: app.length, blocked: blocked, blockedUrls: blockedUrls, via: 'browser' };
 };
 
 /* Click wrapper for the ▶ button.
@@ -41457,15 +41490,39 @@ window._sosLaunchClassClick = function(classId, className){
   var r = null;
   try { r = window._sosLaunchClass ? window._sosLaunchClass(classId, className) : null; } catch(e){ r = null; }
   if (!r || !r.blocked) return r;
+  // Only browser mode can report a refusal, and it is not a settings problem:
+  // one gesture buys one tab no matter how the blocker is configured, so the
+  // old "allow pop-ups and press again" advice was simply wrong. Offer the
+  // thing that actually fixes it instead.
   var n = r.blocked;
-  window.alert(
-    'Your browser blocked ' + n + ' of this class’s ' + r.web + ' site'
-    + (r.web > 1 ? 's' : '') + ':\n\n'
-    + (r.blockedUrls || []).join('\n')
-    + '\n\nAllow pop-ups for this site in your browser settings, then press ▶ again '
-    + 'to open all of them in one click.'
+  var ok = window.confirm(
+    'Your browser opened 1 of this class’s ' + r.web + ' sites. It will not open '
+    + 'the other ' + n + ' from a single click — a browser tab is allowed to open '
+    + 'only one new tab per click, whatever your pop-up settings say.\n\n'
+    + 'Shield can open all of them at once, because it is not a browser tab.\n\n'
+    + 'OK — use Shield from now on (needs Shield running on this PC).\n'
+    + 'Cancel — keep using the browser; press ▶ again for the rest.'
   );
+  if (ok) {
+    try { localStorage.removeItem('sosResLaunchMode'); } catch(e){}
+    try { location.href = 'shieldopen:class/' + encodeURIComponent(classId || ''); } catch(e){}
+  }
   return r;
+};
+
+/* Escape hatch for a machine where Shield is not installed or not running.
+ * A shieldopen: navigation is silent when nothing handles it, so from inside
+ * the page "Shield opened everything" and "nothing happened at all" look
+ * identical — there is no event to listen for. This is what lets someone in
+ * that state get the browser behaviour back without editing storage by hand.
+ * Exposed on window so it can be called from the console or wired to a
+ * settings row later. */
+window._sosResUseBrowser = function(on){
+  try {
+    if (on === false) localStorage.removeItem('sosResLaunchMode');
+    else localStorage.setItem('sosResLaunchMode', 'browser');
+  } catch(e){}
+  return on === false ? 'shield' : 'browser';
 };
 </script>
 

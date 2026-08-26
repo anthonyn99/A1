@@ -1023,6 +1023,85 @@ pub fn open_path(path: &str) -> Result<(), String> {
     }
 }
 
+/// True for an `http(s)://` URL that is safe to hand to the shell.
+///
+/// Deliberately narrow. `open_target` passes whatever this accepts to `start`,
+/// which happily resolves ANY registered protocol — `file:`, `shieldopen:`
+/// itself, or anything else installed on the machine. Restricting to http(s)
+/// keeps a synced class resource from reaching those. The scheme test is
+/// ASCII-case-insensitive because URL schemes are.
+///
+/// The control-character check matters more than it looks: a `\r` or `\n` in
+/// the string would let one resource split into extra `cmd` arguments.
+fn is_web_url(s: &str) -> bool {
+    let low = s.to_ascii_lowercase();
+    (low.starts_with("http://") || low.starts_with("https://"))
+        && !s.chars().any(|c| c.is_control())
+}
+
+/// Open one class resource: a local path OR an http(s) URL.
+///
+/// StudyOS class resources are opened through here rather than `open_path`
+/// because they can be websites as well as programs. TaskHub cannot open the
+/// websites itself — a browser grants one new tab per user gesture, so a card
+/// with two sites could only ever open one of them per click (measured in both
+/// Brave and Edge; it is not the popup blocker and no page-side workaround
+/// exists). Shield has no such budget, so routing the whole set here is what
+/// makes a single press open all of them.
+///
+/// Anything that is neither an existing path nor an http(s) URL is refused, so
+/// a malformed or hostile entry in the synced map opens nothing at all.
+pub fn open_target(target: &str) -> Result<(), String> {
+    use std::process::Command;
+    let t = target.trim();
+    if t.is_empty() {
+        return Err("empty target".into());
+    }
+    if !is_web_url(t) {
+        return open_path(t);
+    }
+    // Same empty-title slot as open_path; without it `start` reads the URL as
+    // the window title and opens nothing.
+    match Command::new("cmd").args(["/C", "start", "", t]).spawn() {
+        Ok(_) => Ok(()),
+        Err(e) => Err(classify(&e.to_string())),
+    }
+}
+
+#[cfg(test)]
+mod open_target_tests {
+    use super::is_web_url;
+
+    #[test]
+    fn accepts_http_and_https_in_any_case() {
+        assert!(is_web_url("https://kennesaw.view.usg.edu/d2l/le"));
+        assert!(is_web_url("http://example.com"));
+        assert!(is_web_url("HTTPS://EXAMPLE.COM"));
+    }
+
+    /// The whole point of the gate: `start` would resolve every one of these.
+    #[test]
+    fn refuses_other_schemes() {
+        assert!(!is_web_url("file:///C:/Windows/System32/calc.exe"));
+        assert!(!is_web_url("shieldopen:class/1"));
+        assert!(!is_web_url("javascript:alert(1)"));
+        assert!(!is_web_url("ftp://example.com"));
+    }
+
+    /// A newline would split the string into extra `cmd` arguments.
+    #[test]
+    fn refuses_control_characters() {
+        assert!(!is_web_url("https://example.com\r\nshutdown -s"));
+        assert!(!is_web_url("https://example.com\u{0}x"));
+    }
+
+    #[test]
+    fn a_windows_path_is_not_a_web_url() {
+        assert!(!is_web_url("C:\\Program Files\\MATLAB\\bin\\matlab.exe"));
+        assert!(!is_web_url("\\\\fileserver\\share\\app.exe"));
+    }
+}
+
 /// Reopen from a captured manifest.
 pub fn launch(items: &[(String, Vec<LaunchItem>)]) -> Vec<LaunchResult> {
     use std::process::Command;

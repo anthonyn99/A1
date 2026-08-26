@@ -148,18 +148,35 @@ function buildClasses() {
 }
 window._sosMirrorBuildClasses = buildClasses;
 
-/* Native-app paths, for the Shield desktop agent only. Separate document so
- * these never reach a phone (see buildClasses). */
+/* Everything a class can launch, for the Shield desktop agent only. Separate
+ * document so it never reaches a phone (see buildClasses).
+ *
+ * WHY THE WEBSITES ARE IN HERE TOO, not just the native apps:
+ * a browser grants exactly ONE new tab per user gesture. Measured in Brave and
+ * Edge over CDP: three consecutive window.open('', name) calls in one click
+ * return a window, null, null - and a real <a target> click, and even a fully
+ * trusted CDP-dispatched click, behave identically. It is not the popup
+ * blocker (it reproduces with pop-ups allowed and Brave shields off) and no
+ * page-side arrangement of opens defeats it. So a TaskHub card physically
+ * cannot open a class's second website itself; pressing the button twice was
+ * the only way, which is the bug this exists to fix.
+ *
+ * Shield is not a page and has no gesture budget, so it opens all of them.
+ * The URLs are duplicated between this doc and the phone-visible one on
+ * purpose: that one drives the browser fallback where no agent is installed,
+ * this one drives the desktop path. */
 function buildClassApps() {
   const B = window._sosBridge;
   if (!B) return null;
   const out = {};
   (B.getClasses() || []).forEach(c => {
     if (!c || !c.id) return;
-    const apps = (c.resources || [])
-      .filter(r => r && r.kind === 'app' && r.path)
-      .map(r => ({ id: r.id, label: r.label, path: r.path }));
-    if (apps.length) out[c.id] = apps;
+    const items = (c.resources || [])
+      .filter(r => r && (r.kind === 'app' ? !!r.path : !!r.url))
+      .map(r => r.kind === 'app'
+        ? { id: r.id, label: r.label, path: r.path }
+        : { id: r.id, label: r.label, url: r.url });
+    if (items.length) out[c.id] = items;
   });
   return out;
 }

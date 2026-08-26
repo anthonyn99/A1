@@ -1281,9 +1281,18 @@ async function _pullClassApps(){
     var out = {};
     Object.keys(apps).forEach(function(cid){
       (apps[cid] || []).forEach(function(r){
-        // Same isLocalPath gate as the link buttons: never hand the agent
-        // something that is not actually a path on this machine.
-        if (r && r.id && isLocalPath(r.path)) out['cls:' + cid + ':' + r.id] = r.path;
+        if (!r || !r.id) return;
+        // Native app: same isLocalPath gate as the link buttons — never hand
+        // the agent something that is not actually a path on this machine.
+        if (isLocalPath(r.path)) { out['cls:' + cid + ':' + r.id] = r.path; return; }
+        // Website: the agent opens these too, because a browser tab only gets
+        // one new tab per click and so cannot open a class's second site by
+        // itself (see taskmirror.js buildClassApps). Restricted to http(s) so
+        // this can never smuggle a file:// or a custom scheme down to the
+        // shell — the agent re-checks, this is defence in depth.
+        if (typeof r.url === 'string' && /^https?:\/\//i.test(r.url)) {
+          out['cls:' + cid + ':' + r.id] = r.url;
+        }
       });
     });
     return out;

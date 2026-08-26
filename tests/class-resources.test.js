@@ -162,14 +162,41 @@ const codeOnly = s => String(s)
   .replace(/(^|[^:])\/\/[^\n]*/g, (m, p) => p + m.slice(p.length).replace(/./g, ' '));
 const LH = lh ? codeOnly(lh[0]) : '';
 
+/* THE SHIELD HANDOFF COMES FIRST, and returns.
+ *
+ * A browser grants one new tab per user gesture - measured in Brave and Edge:
+ * three consecutive window.open('', name) calls in one click return a window,
+ * null, null, and a real anchor click and a trusted CDP click do the same. It
+ * is not the popup blocker (reproduced with pop-ups allowed and shields off).
+ * So the page CANNOT open a two-site class by itself, and the only thing that
+ * opens them all is handing the class to Shield, which is not a page.
+ *
+ * If a future edit moves the tab loop above this handoff, every Shield user
+ * gets a stray browser tab before the agent opens the same site again. */
+const shieldIdx = LH.indexOf("'shieldopen:class/");
+const fallbackIdx = LH.search(/var\s+blocked\s*=\s*0/);
+t('the shield handoff exists', shieldIdx >= 0);
+t('shield is tried before the browser fallback',
+  shieldIdx >= 0 && fallbackIdx >= 0 && shieldIdx < fallbackIdx,
+  'Opening tabs first would double-open every site on a machine with Shield.');
+t('the shield path returns instead of falling through',
+  /return\s*\{[^}]*via:\s*'shield'/.test(LH),
+  'Falling through would run the browser opens as well.');
+
+/* Within the FALLBACK, the old ordering rule still holds: the protocol call
+ * for native apps can raise a dialog that ends the gesture, so any tab not yet
+ * requested when it fires is refused. Measure from the fallback's start so the
+ * early shield handoff does not satisfy this by accident. */
+const FB = fallbackIdx >= 0 ? LH.slice(fallbackIdx) : '';
 const firstOpen = (function(){
-  const m = /window\.open\s*\(/.exec(LH);
+  const m = /window\.open\s*\(/.exec(FB);
   return m ? m.index : -1;
 })();
-t('launch handler opens tabs with a real window.open', firstOpen >= 0,
+t('fallback opens tabs with a real window.open', firstOpen >= 0,
   'If this stops matching, the assertion below is comparing -1 and passes for free.');
-t('launch handler requests tabs before the protocol navigation',
-  !!lh && firstOpen >= 0 && firstOpen < LH.indexOf("'shieldopen:class/"),
+t('fallback requests tabs before the protocol navigation',
+  firstOpen >= 0 && FB.indexOf("'shieldopen:class/") >= 0 &&
+  firstOpen < FB.indexOf("'shieldopen:class/"),
   'The protocol call can raise a dialog that ends the user gesture, blocking\n' +
   '      every tab that had not been requested yet.');
 t('launch handler defers nothing out of the user gesture',
@@ -178,18 +205,19 @@ t('launch handler defers nothing out of the user gesture',
   '      NOTE: this greps the whole function body, comments included, so do not\n' +
   '      write those names in prose in here either.');
 
-// ---- Every site opens on one click (the blank-first two-pass open) ---------
-// A blocker allows window.open('', NAME) far more readily than an open that
-// carries a url, and never counts navigating a handle we already hold. So the
-// handler must claim ALL the tabs blank first, then navigate them. Fusing the
-// two passes back into one open-and-navigate loop per url is the exact bug this
-// file was extended for: the gesture's budget goes to the first site and every
-// other resource silently fails to open.
+// ---- The browser fallback's blank-first open -------------------------------
+// The fallback still cannot beat the one-tab-per-gesture cap - only Shield
+// does - but the blank-first shape is still load-bearing there: an open with
+// an EMPTY url re-targets a tab that already exists without navigating it,
+// which is not a new tab and so is never refused. That is what makes a repeat
+// press re-focus a class's whole set once the tabs exist. Fusing the two
+// passes back into open-and-navigate-per-url loses that.
+//
 // Anchor on PASS 1 specifically - the open inside the slots mapping. Testing
-// merely that some window.open('',...) exists in the function is not enough:
-// the blocked-path re-probe is also a blank open, so a pass 1 regressed to
+// merely that some window.open('',...) exists is not enough: the blocked-path
+// re-probe is also a blank open, so a pass 1 regressed to
 // window.open(r.url, name) would still satisfy it. Verified by mutation.
-const pass1 = /slots\s*=\s*web\.map\(function[\s\S]*?\n\s*\}\);/.exec(LH);
+const pass1 = /slots\s*=\s*web\.map\(function[\s\S]*?\n\s*\}\);/.exec(FB);
 t('pass 1 exists as a web.map over the resources', !!pass1,
   'If this stops matching, the blank-open assertion below passes for free.');
 t('all tabs are claimed blank before any url is assigned',
@@ -226,6 +254,50 @@ t('deleteResource nudges the task mirror', /function deleteResource\(id\)[\s\S]*
 t('editing app to web clears the stale path',
   /delete r\.path/.test(STUDYOS) && /delete r\.url/.test(STUDYOS),
   'A leftover path would still be launched by Shield.');
+
+/* ── The Shield launch path, end to end ─────────────────────────────────────
+ * Websites reach Shield through FOUR files that must agree, and a break in any
+ * one of them is silent — the click still "works", it just opens fewer sites,
+ * which is indistinguishable from the bug this whole path exists to fix:
+ *
+ *   taskmirror.js  puts urls in the class-apps doc
+ *   shield.html    forwards them into the agent's link map
+ *   proc.rs        opens an http(s) url instead of rejecting it as "notfound"
+ *   lib.rs         calls the url-aware opener for class resources
+ *
+ * A browser cannot do this itself: one user gesture buys one new tab (measured
+ * in Brave and Edge; not the popup blocker), so the page can never open a
+ * two-site class on its own. */
+section('Class websites reach Shield');
+
+const PROC = R('desktop/shield/src-tauri/src/proc.rs');
+const LIB  = R('desktop/shield/src-tauri/src/lib.rs');
+
+t('the desktop doc carries websites, not just native apps',
+  /kind === 'app'[\s\S]{0,200}?url:\s*r\.url/.test(MIRROR),
+  'buildClassApps filtering to kind==="app" again is what silently strips every\n' +
+  '      website back out of the desktop path.');
+
+t('shield.html forwards http(s) resources to the agent',
+  /https\?:\\\/\\\//.test(SHIELD) && /out\['cls:'[\s\S]{0,120}?r\.url/.test(SHIELD),
+  'Without this the urls sit in the document and never reach local_links.');
+t('shield.html still gates on scheme before forwarding',
+  /_pullClassApps[\s\S]*?\/\^https\?:\\\/\\\/\/i\.test\(r\.url\)/.test(SHIELD),
+  'Forwarding an arbitrary scheme would hand file:/custom-protocol targets to\n' +
+  '      the shell via `start`.');
+
+t('the agent has a url-aware opener', /pub fn open_target/.test(PROC));
+t('open_target refuses non-http(s) schemes',
+  /fn is_web_url[\s\S]*?starts_with\("http:\/\/"\)[\s\S]*?starts_with\("https:\/\/"\)/.test(PROC),
+  '`start` resolves EVERY registered protocol, so an unrestricted target could\n' +
+  '      reach file: or shieldopen: itself.');
+t('open_target rejects control characters',
+  /fn is_web_url[\s\S]*?is_control\(\)/.test(PROC),
+  'A \\r or \\n would split the target into extra cmd arguments.');
+t('class resources are opened with open_target, not open_path',
+  /open_from_link[\s\S]*?proc::open_target/.test(LIB),
+  'open_path requires Path::exists(), so every website would be dropped as\n' +
+  '      "notfound" and only the native apps would open.');
 
 // ---------------------------- summary ---------------------------------------
 console.log('\n' + (fail ? 'FAIL' : 'PASS') + ' class-resources: ' + pass + ' passed, ' + fail + ' failed');

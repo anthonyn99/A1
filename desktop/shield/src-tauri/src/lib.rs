@@ -704,8 +704,14 @@ fn open_from_link(url: &url::Url) {
         // get_current() during setup, and neither should block while a class
         // with several apps is staggered open.
         std::thread::spawn(move || {
-            for (_, path) in hits {
-                let _ = proc::open_path(&path);
+            for (_, target) in hits {
+                // open_target, not open_path: a class resource can be a website
+                // as well as a program. TaskHub cannot open the websites itself
+                // because a browser allows one new tab per user gesture, so a
+                // card with two sites opened only one per press. Shield has no
+                // gesture budget, so opening the whole set here is what makes a
+                // single press open all of them.
+                let _ = proc::open_target(&target);
                 // Several `cmd /C start` fired in the same instant race for the
                 // foreground, and Windows' foreground-lock heuristics then pick
                 // an arbitrary winner. A short gap makes the last one land on
