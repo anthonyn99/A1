@@ -279,6 +279,7 @@ input[type=time]{color-scheme:dark;}
     color: var(--text-primary);
     line-height: 1.6;
     min-height: 100vh;
+    min-height: 100dvh;
     transition: background 0.4s ease, color 0.4s ease;
     max-width: 2000px;
     margin: 0 auto;
@@ -8969,18 +8970,39 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   const _stallTimers = {};
   function _fbStopStall(key){ if(_stallTimers[key]){ clearInterval(_stallTimers[key]); _stallTimers[key]=null; } }
   const _stallRetry = {};                        // set once the doc refs exist
+  // Why the retry last failed. The retry used to swallow this, which threw away
+  // the only fact that separates "offline" from "this document is denied" — and
+  // left the user with an alarming message and nothing to report or act on.
+  const _stallErr = {};
   function _fbWatchStall(key, label, isSeen) {
     if (_stallTimers[key]) return;               // already watching
     const started = Date.now();
     _stallTimers[key] = setInterval(async () => {
       if (isSeen()) { clearInterval(_stallTimers[key]); _stallTimers[key] = null; return; }
-      try { if (_stallRetry[key]) await _stallRetry[key](); } catch (e) {}
+      try { if (_stallRetry[key]) await _stallRetry[key](); }
+      catch (e) { _stallErr[key] = (e && (e.code || e.message)) || String(e); }
       if (!isSeen() && Date.now() - started > 60000) {
-        _fbLoudFailure(label, 'Changes are being held on this device and have NOT reached the cloud '
-          + '— the connection never confirmed.\n\n'
-          + 'Your other devices still show the OLDER copy. Do NOT open them until this one syncs, '
-          + 'or they may overwrite the newer data on this device.\n\n'
-          + 'Check your connection; it will keep retrying on its own.');
+        // Name the actual cause where we can. navigator.onLine is only
+        // trustworthy when it says false, so it is used only in that direction.
+        var why;
+        if (navigator.onLine === false) {
+          why = 'This device is offline.';
+        } else if (_stallErr[key] === 'permission-denied') {
+          why = 'The cloud rejected this document (permission-denied) — this is a '
+              + 'permissions problem, not a connection one, and it will not fix itself.';
+        } else if (_stallErr[key]) {
+          why = 'The cloud could not be reached (' + _stallErr[key] + ').';
+        } else {
+          why = 'The connection to the cloud never confirmed.';
+        }
+        _fbLoudFailure(label, why + '\n\n'
+          + 'Your edits are saved on THIS device and are safe here. They have not '
+          + 'reached your other devices yet.\n\n'
+          + 'What to do: keep this tab open — it retries on its own and will sync as '
+          + 'soon as it can. If you open ' + label + ' somewhere else before then, '
+          + 'that device will show the older copy.\n\n'
+          + 'If this keeps happening, send this line: ' + label + ' / '
+          + (_stallErr[key] || 'no-error') + ' / online=' + navigator.onLine);
       }
     }, 10000);
   }
@@ -13433,7 +13455,6 @@ function GitaLessonsBrowser({onClose, onSelectLesson}){
         RC("button",{onClick:onClose,onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:gitaBtnStyle(false)},"TaskHub"),
         RC("button",{onClick:()=>{},onMouseEnter:e=>{e.currentTarget.style.opacity="0.85";},onMouseLeave:e=>{e.currentTarget.style.opacity="1";},style:gitaBtnStyle(true)},"Gita"),
         RC("button",{onClick:()=>window.showBrainstormJournal&&window.showBrainstormJournal('veda'),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:gitaBtnStyle(false)},"Journal"),
-        RC("button",{onClick:()=>window._vedaNav&&window._vedaNav('warden'),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:gitaBtnStyle(false)},"Warden"),
         RC("button",{onClick:()=>window._profileGoSelect&&window._profileGoSelect(),title:"Profile Selection",onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:gitaBtnStyle(false)},RC("span",{style:vdStarGlyph},"\u2726"))
       ))
     )),
@@ -14583,7 +14604,6 @@ function App(){
           RC("button",{onClick:()=>{},onMouseEnter:e=>{e.currentTarget.style.opacity="0.85";},onMouseLeave:e=>{e.currentTarget.style.opacity="1";},style:{background:A,color:BG,border:"1px solid "+A,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},"TaskHub"),
           RC("button",{onClick:()=>window._vedaNav&&window._vedaNav('gita'),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},"Gita"),
           RC("button",{onClick:()=>window._vedaNav&&window._vedaNav('journal'),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},"Journal"),
-          RC("button",{onClick:()=>window._vedaNav&&window._vedaNav('warden'),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},"Warden"),
           RC("button",{onClick:()=>window._profileGoSelect&&window._profileGoSelect(),title:"Profile Selection",onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s",textTransform:"uppercase",letterSpacing:1}},RC("span",{style:vdStarGlyph},"✦"))),
       // Row 2: program-specific tools, right-aligned
       RC("div",{className:"veda-hbtns",style:{paddingTop:4}},
@@ -17895,7 +17915,7 @@ function sig(template, data, title) {
     default:           try { parts.push(JSON.stringify(d)); } catch (e) { parts.push('?'); }
   }
   try { parts.push(JSON.stringify(d.attachments || [])); } catch (e) {}
-  return parts.join(' ');
+  return parts.join('');
 }
 
 // Rough content size, used only to decide whether a version is worth keeping.
@@ -19285,7 +19305,6 @@ window.JGuard = {
       <button onclick="window._vedaNav&&window._vedaNav('taskhub')" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;transition:all .15s;">TaskHub</button>
       <button onclick="window._vedaNav&&window._vedaNav('gita')" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;transition:all .15s;">Gita</button>
       <button style="background:#8D769A;color:#1B1C1E;border:1px solid #8D769A;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;">Journal</button>
-      <button onclick="window._vedaNav&&window._vedaNav('warden')" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;transition:all .15s;">Warden</button>
       <button id="al-btn-veda_journal" onclick="window.alManage&&window.alManage('veda_journal')" title="App Lock" style="background:transparent;border:1px solid rgba(141,118,154,0.45);border-radius:5px;padding:0 8px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:13px;cursor:pointer;transition:all .15s;color:#8D769A;flex-shrink:0;touch-action:manipulation;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg></button>
       <button onclick="window._profileGoSelect&&window._profileGoSelect()" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:17px;line-height:1;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:0;transition:all .15s;">✦</button>
     </div>
@@ -30263,6 +30282,8 @@ li.docx-cl-item.done > .docx-cl-text { text-decoration: line-through; opacity: .
    panel) to browse / swap between documents; the page insets to make room. */
 #tj-root.tj-page-fs.tj-fs-sidebar #tj-sidebar, #bj-root.bj-page-fs.bj-fs-sidebar #bj-sidebar {
   display: flex !important; position: fixed !important; left: 0; top: 0; height: 100vh !important;
+  height: 100dvh !important;
+  padding-top: env(safe-area-inset-top, 0px) !important;
   width: 268px !important; z-index: 100001; box-shadow: 2px 0 20px rgba(0,0,0,.55);
 }
 #tj-root.tj-page-fs.tj-fs-sidebar #tj-main, #bj-root.bj-page-fs.bj-fs-sidebar #bj-main {
@@ -30273,6 +30294,10 @@ li.docx-cl-item.done > .docx-cl-text { text-decoration: line-through; opacity: .
 body.docx-page-fs #tony-app-nav { display: none !important; }
 #tj-root.tj-page-fs #tj-main, #bj-root.bj-page-fs #bj-main {
   position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important;
+  height: 100dvh !important;
+  /* The toolbar that normally carries the inset is hidden in this mode, so the
+     editor itself has to clear the status bar / Dynamic Island. */
+  padding-top: env(safe-area-inset-top, 0px) !important;
   max-width: none !important; margin: 0 !important; z-index: 100000; background: #1a1b1e;
 }
 /* Hide the document bar (menubar + ribbon + rulers) when toggled off in fullscreen. */
@@ -41635,7 +41660,6 @@ var VEDA_DEFAULT = [
   {app:'taskhub',  label:'TaskHub'},
   {app:'gita',     label:'Gita'},
   {app:'journal',  label:'Journal'},
-  {app:'warden',   label:'Warden'},
 ];
 
 var tonyOrder = TONY_DEFAULT.map(function(x){ return x.app; });

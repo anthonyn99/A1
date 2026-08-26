@@ -2,9 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>RiftIQ</title>
 <meta name="theme-color" content="#1a1a1d">
+<!-- iOS standalone: the web view runs edge-to-edge UNDER the status bar and
+     Dynamic Island, so every top-level surface below pads by
+     env(safe-area-inset-top). Without viewport-fit=cover those insets are 0
+     and the padding silently does nothing. Mirrors index.html. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <!-- ── App icon ────────────────────────────────────────────────────────────────
      Hextech hexagon with a sword standing in it: black plate, gray hex, light
      purple blade — RiftIQ's own palette. Inline data URI in the same 96x96 /
@@ -448,7 +454,7 @@
 html, body { height: 100%; background: var(--bg); color: var(--tx); font-family: var(--body); font-size: 14px; overflow: hidden; letter-spacing: 0.01em; }
 @media (max-width: 900px) {
   html, body { overflow: auto; height: auto; }
-  #app { height: auto; min-height: 100vh; }
+  #app { height: auto; min-height: 100vh; min-height: 100dvh; }
   #content { overflow: visible; height: auto; }
   .tab-panel { height: auto; overflow: visible; }
 }
@@ -456,9 +462,9 @@ html, body { height: 100%; background: var(--bg); color: var(--tx); font-family:
 body { cursor: default; }
 
 /* ── LAYOUT ── */
-#app { display: flex; flex-direction: column; height: 100vh; max-width: 2000px; margin: 0 auto; }
+#app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; max-width: 2000px; margin: 0 auto; }
 @media (max-width: 900px) {
-  #app { height: auto; min-height: 100vh; }
+  #app { height: auto; min-height: 100vh; min-height: 100dvh; }
 }
 
 /* ── TOPBAR ── */

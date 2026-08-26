@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#1a1a1d">
+<!-- iOS standalone: the web view runs edge-to-edge UNDER the status bar and
+     Dynamic Island, so every top-level surface below pads by
+     env(safe-area-inset-top). Without viewport-fit=cover those insets are 0
+     and the padding silently does nothing. Mirrors index.html. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Insight</title>
 <!-- ── Single-tab handoff ──────────────────────────────────────────────────────
      Keeps exactly one tab per program. TaskHub can only focus an existing tab
@@ -107,15 +113,17 @@
     font-family: var(--sans);
     font-size: 15px;
     line-height: 1.55;
-    min-height: 100vh;
-    padding-bottom: 90px;
+    min-height: 100dvh;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px));
     -webkit-font-smoothing: antialiased;
   }
   a { color: var(--gold-soft); text-decoration: none; }
   a:hover { color: var(--gold); }
   ::selection { background: rgba(206,158,84,.25); color: var(--text); }
   :focus-visible { outline: 1.5px solid var(--gold); outline-offset: 2px; }
-  .wrap { max-width: 920px; margin: 0 auto; padding: 0 22px; }
+  .wrap { max-width: 920px; margin: 0 auto;
+    padding: 0 max(22px, env(safe-area-inset-right, 0px)) 0 max(22px, env(safe-area-inset-left, 0px)); }
 
   /* ── Header ── */
   header { padding: 20px 0 12px; }
@@ -384,7 +392,8 @@
     position: fixed; inset: 0; background: rgba(14,14,16,.66); backdrop-filter: blur(5px);
     /* Above #lockScreen (200) — otherwise confirmations raised from the lock
        screen open behind it and look like nothing happened. */
-    display: none; align-items: flex-start; justify-content: center; z-index: 300; padding: 8vh 16px 16px; overflow-y: auto;
+    display: none; align-items: flex-start; justify-content: center; z-index: 300;
+    padding: calc(8vh + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px)); overflow-y: auto;
   }
   .modalback.open { display: flex; }
   .modal {
@@ -524,7 +533,7 @@
   .empty { text-align: center; color: var(--faint); padding: 56px 20px; }
   .empty .big { font-family: var(--display); font-size: 21px; font-weight: 600; color: var(--muted); margin-bottom: 8px; letter-spacing: -.2px; }
   .toast {
-    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(90px);
+    position: fixed; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%) translateY(90px);
     background: var(--surface-3); border: 1px solid var(--border); color: var(--text);
     padding: 12px 22px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; letter-spacing: .2px;
     box-shadow: 0 12px 38px rgba(0,0,0,.42); transition: transform .28s ease; z-index: 90; max-width: 92vw;
@@ -539,7 +548,8 @@
     position: fixed; inset: 0; z-index: 200;
     background: var(--bg);
     background-image: radial-gradient(120% 50% at 50% -10%, rgba(236,199,140,.065), transparent 70%);
-    display: flex; align-items: center; justify-content: center; padding: 20px;
+    display: flex; align-items: center; justify-content: center;
+    padding: max(20px, env(safe-area-inset-top, 0px)) max(20px, env(safe-area-inset-right, 0px)) max(20px, env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left, 0px));
   }
   /* Bordered lock card — the suite's shared authentication surface. */
   .lockbox {

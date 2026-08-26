@@ -4,6 +4,12 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <meta name="theme-color" content="#1a1a1d" />
+<!-- iOS standalone: the web view runs edge-to-edge UNDER the status bar and
+     Dynamic Island, so every top-level surface below pads by
+     env(safe-area-inset-top). Without viewport-fit=cover those insets are 0
+     and the padding silently does nothing. Mirrors index.html. -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <title>Vault</title>
 <!-- ── Single-tab handoff ──────────────────────────────────────────────────────
      Keeps exactly one tab per program. TaskHub can only focus an existing tab

@@ -180,13 +180,28 @@ check('every challenge() result is checked via .ok', challengeCalls.length > 0 &
 console.log('\nShield agent: capture-before-kill');
 
 const procRs = fs.readFileSync(path.join(SRC, 'proc.rs'), 'utf8');
-const body = (procRs.match(/pub fn capture_and_kill[\s\S]*?\n}/) || [''])[0];
+// The ordering invariant lives in capture_and_kill_sparing_opt. `capture_and_kill`
+// and friends are now three-line delegators, and `pub fn capture_and_kill` also
+// prefix-matches `capture_and_kill_opt` — so the old pattern grabbed a wrapper,
+// found neither symbol, and reported drift that did not exist while never
+// actually checking the ordering. Check the implementation instead, then hold
+// the wrappers to being wrappers so the logic cannot reappear in one and skip it.
+const IMPL = 'capture_and_kill_sparing_opt';
+const body = (procRs.match(new RegExp('fn ' + IMPL + '[\\s\\S]*?\\n}')) || [''])[0];
 const capturePos = body.indexOf('launch: Vec<LaunchItem>');
 const closePos = body.indexOf('request_close');
 check(
-  'capture_and_kill builds the manifest BEFORE closing anything',
+  IMPL + ' builds the manifest BEFORE closing anything',
   capturePos > -1 && closePos > -1 && capturePos < closePos,
   'capture@' + capturePos + ' close@' + closePos
+);
+check(
+  'every public capture_and_kill entry point delegates rather than closing',
+  ['pub fn capture_and_kill\\(', 'pub fn capture_and_kill_opt\\(', 'pub fn capture_and_kill_sparing\\(']
+    .every((sig) => {
+      const w = (procRs.match(new RegExp(sig + '[\\s\\S]*?\\n}')) || [''])[0];
+      return !!w && !w.includes('request_close') && /capture_and_kill\w*\(/.test(w);
+    })
 );
 const wd = (procRs.match(/pub fn kill_on_sight[\s\S]*?\n}/) || [''])[0];
 check('the watchdog path does not re-capture manifests', wd.length > 0 && !wd.includes('LaunchItem'));
