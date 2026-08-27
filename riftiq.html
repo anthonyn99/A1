@@ -1364,15 +1364,19 @@ body.wr-locked #wr-progbar { display: none !important; }
 .dp-team-table {
   width: 100%; border-collapse: collapse; table-layout: fixed; min-width: 874px;
 }
-.dp-team-table col.c-player { width: 180px; }
-.dp-team-table col.c-spells { width: 52px; }
-.dp-team-table col.c-runes  { width: 52px; }
-.dp-team-table col.c-kda    { width: 108px; }
-.dp-team-table col.c-dmg    { width: 78px; }
-.dp-team-table col.c-gold   { width: 86px; }
-.dp-team-table col.c-vis    { width: 48px; }
-.dp-team-table col.c-cs     { width: 64px; }
-.dp-team-table col.c-items  { width: 206px; }
+/* Column widths live on the HEADER CELLS, never on a <colgroup>: a <col> is
+   pinned to a column position, so hiding a cell in a narrow layout slid every
+   later cell onto the wrong column. A header cell is hidden by the same rule as
+   its body cells and moves with them. */
+.dp-team-table th.dc-player { width: 180px; }
+.dp-team-table th.dc-spells { width: 52px; }
+.dp-team-table th.dc-runes  { width: 52px; }
+.dp-team-table th.dc-kda    { width: 108px; }
+.dp-team-table th.dc-dmg    { width: 78px; }
+.dp-team-table th.dc-gold   { width: 86px; }
+.dp-team-table th.dc-vis    { width: 48px; }
+.dp-team-table th.dc-cs     { width: 64px; }
+.dp-team-table th.dc-items  { width: 206px; }
 
 .dp-team-table thead th {
   padding: 7px 8px; text-align: right; white-space: nowrap;
@@ -1427,15 +1431,15 @@ body.wr-locked #wr-progbar { display: none !important; }
   /* Sized so the whole nine-column board lands inside an unfolded foldable's
      ~760px content width without a sideways drag. */
   .dp-team-table { min-width: 740px; }
-  .dp-team-table col.c-player { width: 140px; }
-  .dp-team-table col.c-spells { width: 42px; }
-  .dp-team-table col.c-runes  { width: 42px; }
-  .dp-team-table col.c-kda    { width: 92px; }
-  .dp-team-table col.c-dmg    { width: 66px; }
-  .dp-team-table col.c-gold   { width: 74px; }
-  .dp-team-table col.c-vis    { width: 40px; }
-  .dp-team-table col.c-cs     { width: 54px; }
-  .dp-team-table col.c-items  { width: 190px; }
+  .dp-team-table th.dc-player { width: 140px; }
+  .dp-team-table th.dc-spells { width: 42px; }
+  .dp-team-table th.dc-runes  { width: 42px; }
+  .dp-team-table th.dc-kda    { width: 92px; }
+  .dp-team-table th.dc-dmg    { width: 66px; }
+  .dp-team-table th.dc-gold   { width: 74px; }
+  .dp-team-table th.dc-vis    { width: 40px; }
+  .dp-team-table th.dc-cs     { width: 54px; }
+  .dp-team-table th.dc-items  { width: 190px; }
   .dp-team-table td { padding: 6px 5px; }
   .dp-team-table thead th { padding: 7px 5px; }
   .dp-team-table td.dc-player { padding: 6px 10px; }
@@ -1450,10 +1454,8 @@ body.wr-locked #wr-progbar { display: none !important; }
    step aside rather than the whole board taking a sideways drag. */
 @media (min-width: 721px) and (max-width: 796px) {
   .dp-team-table { min-width: 662px; }
-  .dp-team-table col.c-player { width: 140px; }
-  .dp-team-table col.c-spells,
-  .dp-team-table col.c-runes  { width: 0; }
-  .dp-team-table col.c-items  { width: 188px; }
+  .dp-team-table th.dc-player { width: 140px; }
+  .dp-team-table th.dc-items  { width: 188px; }
   .dp-team-table th.dc-spells, .dp-team-table td.dc-spells,
   .dp-team-table th.dc-runes,  .dp-team-table td.dc-runes { display: none; }
   .dp-items .di-item { width: 22px; height: 22px; }
@@ -1467,7 +1469,7 @@ body.wr-locked #wr-progbar { display: none !important; }
 @media (max-width: 720px) {
   .dp-scroll { overflow-x: visible; }
   .dp-team-table { display: block; width: 100%; min-width: 0; table-layout: auto; }
-  .dp-team-table colgroup, .dp-team-table thead { display: none; }
+  .dp-team-table thead { display: none; }
   .dp-team-table tbody { display: block; }
   .dp-team-table tr {
     display: grid; grid-template-columns: repeat(6, 1fr);
@@ -1487,10 +1489,13 @@ body.wr-locked #wr-progbar { display: none !important; }
   /* The header row is gone, so each figure carries its own label. */
   .dp-team-table td.dc-dmg::before,
   .dp-team-table td.dc-gold::before,
-  .dp-team-table td.dc-cs::before {
+  .dp-team-table td.dc-cs::before,
+  .dp-team-table td.dc-items::before {
     display: block; font-family: var(--mono); font-size: 9px; font-weight: 700;
     letter-spacing: .6px; color: var(--tx3); margin-bottom: 1px;
   }
+  .dp-team-table td.dc-items::before { margin-bottom: 4px; text-align: left; }
+  .dp-team-table td.dc-items::before { content: 'ITEMS'; }
   .dp-team-table td.dc-dmg::before  { content: 'DMG'; }
   .dp-team-table td.dc-gold::before { content: 'GOLD'; }
   .dp-team-table td.dc-cs::before   { content: 'CS'; }
@@ -2282,6 +2287,21 @@ input:-webkit-autofill:active {
   padding: 18px 20px; flex: 1 1 auto;
 }
 .pf-toprow .recent-players { margin-bottom: 0; gap: 6px; }
+/* The wrapper owns the spacing under "Show all N champions". .load-more-btn
+   carries its own 24px bottom margin for the match-history "Load more" at the
+   very end of the page; inherited here it stacked with the wrapper's, and no
+   media query aimed at the wrapper could reach it. */
+.mastery-showall { display: flex; margin-bottom: 24px; }
+.mastery-showall .load-more-btn { margin-top: 0; margin-bottom: 0; }
+/* One column: the sidebar's last control and the first section of the main
+   column stack directly on top of each other, so their two separate bottom /
+   gap margins added up to ~44px of dead space between "Show all N champions"
+   and "Last N games". Side by side on a wide screen that never showed. */
+@media (max-width: 1099px) {
+  .mastery-showall { margin-bottom: 4px; }
+  .profile-layout { gap: 14px; }
+  .section-hdr { margin-bottom: 14px; }
+}
 @media (min-width: 1100px) {
   .pf-toprow { display: grid; grid-template-columns: minmax(0,1.15fr) minmax(0,1fr); gap: 20px; align-items: stretch; }
 }
@@ -2405,6 +2425,10 @@ body.wr-scrolllocked {
   .profile-action-btn,
   .hdr-btn,
   .setup-shortcut-btn { min-height: 36px; }
+  /* Patch Notes is a .profile-action-btn and the program swapper is not, so on a
+     touch device the rule above grew one of the pair to 36px and left the other
+     at 30 — they are one matched set and must take the touch height together. */
+  .wr-swap-btn, #patch-notes-link.profile-action-btn { min-height: 36px; height: 36px; }
   /* The Items categories are held to the Champions tab's chip size on purpose —
      they are a dense seven-across row, and 36px made them tower over the search
      field they sit beside. 30px is still a comfortable thumb target. */
@@ -2718,6 +2742,20 @@ body.wr-scrolllocked {
   background: rgba(231,166,180,.13); border-color: rgba(231,166,180,.45);
 }
 
+.lb-refresh-btn {
+  width: 30px; height: 30px; padding: 0; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: 1px solid rgba(192,174,234,.30); border-radius: 8px;
+  color: var(--tx3); cursor: pointer;
+  transition: border-color .18s, color .18s, box-shadow .18s, transform .5s ease;
+}
+.lb-refresh-btn:hover {
+  color: var(--gold2); border-color: var(--gold);
+  box-shadow: 0 0 0 1px rgba(192,174,234,.45), 0 0 16px rgba(192,174,234,.45);
+}
+.lb-refresh-btn svg { display: block; }
+@media (pointer: coarse) { .lb-refresh-btn { width: 36px; height: 36px; } }
+
 /* ── LADDER ROWS ──────────────────────────────────────────────────────────
    One grid shared by the header and every row. */
 .lb-card { background: var(--bg3); border: 1px solid var(--bd); border-radius: 10px; overflow: hidden; }
@@ -2753,7 +2791,18 @@ body.wr-scrolllocked {
   .lb-row .lb-c-lp   { grid-area: lp; text-align: right; white-space: nowrap; }
   .lb-row .lb-c-wr   { grid-area: wr; min-width: 0; }
   .lb-row .lb-c-lvl  { grid-area: lvl; align-self: center; font-size: 12px; white-space: nowrap; }
-  .lb-row .lb-c-lvl::before { content: 'Lv '; color: var(--tx4, var(--tx3)); }
+  /* The column header is hidden down here, so each figure names itself —
+     otherwise "2,806" and "264" are two bare numbers with nothing to say which
+     is the LP and which is the account level. */
+  .lb-row .lb-c-lp::before,
+  .lb-row .lb-c-wr::before,
+  .lb-row .lb-c-lvl::before {
+    display: block; font-family: var(--mono); font-size: 9px; font-weight: 700;
+    letter-spacing: .6px; color: var(--tx3); margin-bottom: 1px;
+  }
+  .lb-row .lb-c-lp::before  { content: 'LP'; }
+  .lb-row .lb-c-wr::before  { content: 'W/R'; }
+  .lb-row .lb-c-lvl::before { content: 'LEVEL'; }
   .lb-rank-num { font-size: 13px; min-width: 0; }
 }
 
@@ -3183,10 +3232,12 @@ body.wr-scrolllocked {
       <!-- Row 1: Title + refresh -->
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
         <div class="section-hdr" style="margin-bottom:0;"><h2>Ladder</h2></div>
-        <button onclick="lbRefresh()" id="lb-refresh-btn" title="Refresh ladder"
-          style="width:28px;height:28px;padding:0;background:transparent;border:1px solid var(--bd2);border-radius:7px;color:var(--tx3);font-size:14px;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;flex-shrink:0;"
-          onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)';this.style.background='rgba(192,174,234,0.07)'"
-          onmouseout="this.style.borderColor='var(--bd2)';this.style.color='var(--tx3)';this.style.background='transparent'">⟳</button>
+        <!-- A drawn icon, not the ⟳ glyph: the character rendered at whatever
+             weight and baseline the fallback font happened to have, which is
+             what made it sit off-centre in its box. -->
+        <button onclick="lbRefresh()" id="lb-refresh-btn" class="lb-refresh-btn" title="Refresh ladder" aria-label="Refresh ladder">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
+        </button>
       </div>
       <!-- Row 2: All filter controls -->
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;flex-wrap:wrap;">
@@ -4230,6 +4281,23 @@ async function loadDDragonData() {
 function champIconUrl(champId) {
   return `${DDRAGON}/img/champion/${champId}.png`;
 }
+// match-v5's `championName` is DDragon's KEY — "XinZhao", "LeeSin", "MonkeyKing",
+// "Nunu" — not the name a player reads. DDragon's own `name` field is the display
+// form ("Xin Zhao", "Lee Sin", "Wukong", "Nunu & Willump"), so look it up there
+// and only fall back to splitting the camel case when the champion list has not
+// finished loading. Renaming is Riot's business, not a spacing rule's, which is
+// why the lookup comes first.
+function champDisplayName(champName) {
+  if (!champName) return '';
+  var c = allChamps && allChamps[champName];
+  if (c && c.name) return c.name;
+  for (var k in allChamps) {
+    if (allChamps[k] && allChamps[k].id === champName && allChamps[k].name) return allChamps[k].name;
+  }
+  return String(champName)
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');
+}
 function itemIconUrl(itemId) {
   return `${DDRAGON}/img/item/${itemId}.png`;
 }
@@ -4385,7 +4453,7 @@ function renderStatsSection(matches) {
     const champId = Object.values(allChamps).find(c=>c.name===name)?.id||name;
     h += `<div style="display:flex;align-items:center;gap:10px;cursor:pointer;" onclick="openChampOverlay('${champId}')">
       <img src="${champIconUrl(name)}" style="width:40px;height:40px;border-radius:6px;flex-shrink:0;" onerror="this.style.opacity=0.3">
-      <div style="flex:1;min-width:0;"><div style="font-family:var(--head);font-size:14px;font-weight:700;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</div>
+      <div style="flex:1;min-width:0;"><div style="font-family:var(--head);font-size:14px;font-weight:700;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${champDisplayName(name)}</div>
       <div style="font-family:var(--mono);font-size:12px;color:var(--tx3);">${s.games} game${s.games!==1?'s':''}</div></div>
       <div style="text-align:right;flex-shrink:0;"><div style="font-family:var(--mono);font-size:12px;font-weight:700;color:${wrPct>=50?'var(--green)':'var(--red)'};">${wrPct}% WR</div>
       <div style="font-family:var(--mono);font-size:12px;color:var(--tx3);">${kda} KDA</div></div>
@@ -4428,7 +4496,7 @@ function renderMasterySection(mastery) {
   slice.forEach(m => { h += masteryCardHtml(m); });
   h += `</div>`;
   if (total > slice.length) {
-    h += `<div style="display:flex;margin-bottom:24px;">
+    h += `<div class="mastery-showall">
       <button class="load-more-btn" style="flex:1;" onclick="openMasteryOverlay()">Show all ${total} champions</button>
     </div>`;
   }
@@ -5100,15 +5168,19 @@ function renderMatchRow(m, mIdx) {
       // players, taking the side name and its objective counts off screen.
       t += `<div class="team-head ${isBlue?'blue':'red'}">
           <div class="team-head-in">
-            <span class="th-side" style="color:${sideColor};">${wrIco('dot',10)} ${isBlue?'Blue':'Red'} · ${wrIco(win?'check':'cross',12)} ${winStr}</span>
+            <span class="th-side" style="color:${sideColor};">${isBlue?'Blue':'Red'} ${wrIco(win?'check':'cross',12)} ${winStr}</span>
             <span class="team-objs">${objStrip}</span>
           </div>
         </div>`;
+      // No <colgroup>. Under `table-layout: fixed` a <col> is bound to a column
+      // POSITION, but hiding a cell removes it from its row entirely — so on a
+      // screen narrow enough to drop Spells and Runes, every remaining cell
+      // inherited the width of the column two places to its left: KDA and Dmg
+      // got 0px and overlapped, and the build landed in a 42px column and
+      // stacked vertically. Widths ride on the header cells instead, which are
+      // hidden by the same rules as the body cells and therefore always shift
+      // together with them.
       t += `<div class="dp-scroll"><table class="dp-team-table">`;
-      t += `<colgroup>
-        <col class="c-player"><col class="c-spells"><col class="c-runes"><col class="c-kda">
-        <col class="c-dmg"><col class="c-gold"><col class="c-vis"><col class="c-cs"><col class="c-items">
-      </colgroup>`;
       t += `<thead><tr>
         <th class="dc-player">Player</th>
         <th class="dc-spells">Spells</th>
@@ -5260,7 +5332,7 @@ function renderMatchRow(m, mIdx) {
         <div class="kda-val">
           <span class="kills">${p.kills}</span><span class="slash">/</span><span class="deaths">${p.deaths}</span><span class="slash">/</span><span class="assists">${p.assists??0}</span>
         </div>
-        <div class="champ-name"><div class="cn-title">${p.championName}<span class="queue-tag">${qName !== 'Game' ? qName : ''}</span>${mapName && mapName !== 'Summoner\'s Rift' ? `<span class="queue-tag" style="color:var(--tx3);margin-left:4px;">${mapName}</span>` : ''}${avgRankStr ? `<span class="queue-tag" style="color:var(--gold);margin-left:6px;">~${avgRankStr}</span>` : ''}</div>${matchBadgesHtml(m, p)}</div>
+        <div class="champ-name"><div class="cn-title">${champDisplayName(p.championName)}<span class="queue-tag">${qName !== 'Game' ? qName : ''}</span>${mapName && mapName !== 'Summoner\'s Rift' ? `<span class="queue-tag" style="color:var(--tx3);margin-left:4px;">${mapName}</span>` : ''}${avgRankStr ? `<span class="queue-tag" style="color:var(--gold);margin-left:6px;">~${avgRankStr}</span>` : ''}</div>${matchBadgesHtml(m, p)}</div>
         <div class="stats">
           ${(function(){var kp=killParticipationPct(m,p);return kp==null?'':'<div class="cs" style="color:var(--gold);">P/Kill '+kp+'%</div>';})()}
           <div class="cs">${p.totalMinionsKilled} CS · ${cspm}/m</div>
@@ -6791,7 +6863,7 @@ function renderLiveClientData(data, el) {
     html += '<div style="display:flex;align-items:center;gap:10px;">';
     var meChampImg = champImg(myPlayer||{championName:me.championName});
     if (meChampImg) html += '<img src="' + meChampImg + '" style="width:40px;height:40px;border-radius:8px;border:2px solid var(--gold);" onerror="this.style.display=\'none\'">';
-    html += '<div><div style="font-family:var(--head);font-size:16px;font-weight:800;color:var(--tx);">' + (me.championName||'') + '</div>';
+    html += '<div><div style="font-family:var(--head);font-size:16px;font-weight:800;color:var(--tx);">' + champDisplayName(me.championName) + '</div>';
     html += '<div style="font-family:var(--mono);font-size:12px;color:var(--tx3);">Lvl ' + (me.level||1) + ' · ' + Math.floor(me.currentGold||0) + 'g</div>';
     html += '</div></div>';
   }
@@ -8245,7 +8317,7 @@ function renderRunesTab() {
     '</div>';
 
     path.slots.forEach(function(slot, slotIdx) {
-      const label = slotIdx === 0 ? 'KEYSTONE' : 'ROW ' + slotIdx;
+      const label = slotIdx === 0 ? 'Keystone' : 'Row ' + slotIdx;
       html += '<div class="rune-slot">' +
         '<div class="rune-slot-label">' + label + '</div>' +
         '<div class="rune-slot-row">';
@@ -8364,11 +8436,14 @@ function lbRefresh() {
   delete _lbCache[ck];
   _lbLoaded = false;
   // Spin the refresh icon briefly
+  // Spin the ICON, not the button: rotating the button turned its border box
+  // with it, so the rounded square visibly tilted on every refresh.
   var btn = document.getElementById('lb-refresh-btn');
-  if (btn) {
-    btn.style.transform = 'rotate(360deg)';
-    btn.style.transition = 'transform 0.5s ease, border-color 0.2s, color 0.2s, background 0.2s';
-    setTimeout(function() { btn.style.transform = ''; btn.style.transition = 'all 0.2s'; }, 520);
+  var ico = btn && btn.querySelector('svg');
+  if (ico) {
+    ico.style.transition = 'transform .5s ease';
+    ico.style.transform = 'rotate(360deg)';
+    setTimeout(function() { ico.style.transition = ''; ico.style.transform = ''; }, 520);
   }
   loadLeaderboard();
 }
@@ -9263,6 +9338,24 @@ function alShowManageMenu(){
     ub.style.cssText=s+'color:#c0aeea;border-color:rgba(192,174,234,.42);';
     ub.onclick=function(){ menu.remove(); _el('applock-submit').style.display=''; alShowOverlay('unlock'); };
     menu.appendChild(ub);
+  } else {
+    // The mirror of "Unlock this device". Unlocking is remembered durably, so
+    // once you have entered the password on a phone that phone stays open —
+    // there was no way to hand it to someone, or put it down, and have RiftIQ
+    // ask again without removing the lock outright. This drops only THIS
+    // device's unlock record; the password and every other device are untouched.
+    var lb=document.createElement('button');
+    lb.innerHTML=SLI.lock+'<span>Lock this device now</span>';
+    lb.style.cssText=s+'color:#c0aeea;border-color:rgba(192,174,234,.42);';
+    lb.onclick=function(){
+      menu.remove();
+      alMarkLocked();
+      alHideRoot();
+      alUpdateLockBtns();
+      _el('applock-submit').style.display='';
+      alShowOverlay('unlock');
+    };
+    menu.appendChild(lb);
   }
   var cb=document.createElement('button');
   cb.innerHTML=SLI.key+'<span>Change password</span>';
