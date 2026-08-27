@@ -532,7 +532,7 @@ body { cursor: default; }
 
 #topbar-right {
   margin-left: auto;
-  display: flex; align-items: center; gap: 12px;
+  display: flex; align-items: center; gap: 8px;
 }
 #summoner-display {
   display: flex; align-items: center; gap: 8px;
@@ -559,44 +559,52 @@ body { cursor: default; }
    instead of being re-laid-out. It is a stylesheet rule now, so the narrow
    form is a two-line stack rather than a deletion. */
 #server-status-badge {
-  display: flex; align-items: center; gap: 7px;
-  padding: 0 10px; height: 28px; flex-shrink: 1; min-width: 0;
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 9px; height: 25px; flex-shrink: 1; min-width: 0;
   background: var(--bg3); border: 1px solid var(--bd2); border-radius: 20px;
   cursor: default; transition: border-color .2s;
 }
-#server-status-badge .ssb-region { display: flex; align-items: center; gap: 7px; min-width: 0; }
+#server-status-badge .ssb-region { display: flex; align-items: center; gap: 6px; min-width: 0; }
 #server-status-dot {
-  width: 7px; height: 7px; border-radius: 50%; background: var(--tx3);
+  width: 6px; height: 6px; border-radius: 50%; background: var(--tx3);
   flex-shrink: 0; transition: background .3s, box-shadow .3s;
 }
 #server-status-text {
-  font-family: var(--mono); font-size: 11px; color: var(--tx2);
+  font-family: var(--mono); font-size: 10px; color: var(--tx2);
   font-weight: 600; white-space: nowrap;
 }
-#server-status-badge .ssb-sep { font-family: var(--mono); font-size: 10px; color: var(--bd2); }
-#patch-badge { font-family: var(--mono); font-size: 11px; color: var(--tx3); white-space: nowrap; }
+#server-status-badge .ssb-sep { font-family: var(--mono); font-size: 9px; color: var(--bd2); }
+#patch-badge { font-family: var(--mono); font-size: 10px; color: var(--tx3); white-space: nowrap; }
 /* Narrow header: region on top, patch directly beneath it, indented to the
    region text so the dot still reads as belonging to the region line only. */
 @media (max-width: 700px) {
+  /* Two lines, so it can never match the buttons exactly — but tight
+     line-heights keep it from setting the height of the whole row. */
   #server-status-badge {
     flex-direction: column; align-items: flex-start; justify-content: center;
-    gap: 0; height: auto; min-height: 34px; padding: 4px 10px; border-radius: 14px;
+    gap: 0; height: auto; min-height: 24px; padding: 2px 8px; border-radius: 11px;
   }
   #server-status-badge .ssb-sep { display: none; }
-  #server-status-text { font-size: 10.5px; max-width: 90px; overflow: hidden; text-overflow: ellipsis; }
-  #patch-badge { font-size: 9.5px; margin-left: 14px; line-height: 1.25; }
+  #server-status-text { font-size: 9.5px; line-height: 1.15; max-width: 84px; overflow: hidden; text-overflow: ellipsis; }
+  #patch-badge { font-size: 8.5px; margin-left: 12px; line-height: 1.15; }
 }
 
 /* Header lock toggle — dim when RiftIQ is unlocked, lit when locked. */
 /* One outline shared by every control in the top-right cluster. */
+/* Square sibling of the pill row — same height and radius, or it reads as a
+   leftover from an older size. */
 #wr-lock-btn {
-  height: 30px; width: 30px; flex-shrink: 0;
+  height: 25px; width: 25px; flex-shrink: 0;
   display: inline-flex; align-items: center; justify-content: center;
-  background: transparent; border: 1px solid rgba(192,174,234,.30); border-radius: 7px;
+  background: transparent; border: 1px solid rgba(192,174,234,.30); border-radius: 6px;
   color: var(--tx2); cursor: pointer; opacity: .8; transition: border-color .18s, color .18s, box-shadow .18s, opacity .18s;
 }
 #wr-lock-btn:hover { opacity: 1; }
-#wr-lock-btn svg { width: 15px; height: 15px; display: block; }
+#wr-lock-btn svg { width: 13px; height: 13px; display: block; }
+@media (max-width: 700px) {
+  #wr-lock-btn { height: 23px; width: 23px; }
+  #wr-lock-btn svg { width: 12px; height: 12px; }
+}
 
 /* ── MAIN CONTENT ── */
 #content { flex: 1; overflow: hidden; position: relative; }
@@ -816,20 +824,24 @@ body.wr-locked #wr-progbar { display: none !important; }
    that happen to sit next to each other (the swapper carries an icon, so equal
    padding alone never produced equal width). */
 .wr-swap-btn, #patch-notes-link.profile-action-btn, #wr-lookups-btn.profile-action-btn {
-  height: 30px; padding: 0 13px; flex-shrink: 0; min-width: 106px;
-  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  background: transparent; border: 1px solid rgba(192,174,234,.30); border-radius: 7px;
-  color: var(--tx2); font-family: var(--mono); font-size: 11px; font-weight: 600;
-  letter-spacing: .3px; cursor: pointer; white-space: nowrap; text-decoration: none;
+  /* min-width is the natural width of the widest label ("Patch Notes"), so all
+     three come out the same size rather than three lengths of text in boxes. */
+  height: 25px; padding: 0 9px; flex-shrink: 0; min-width: 88px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  background: transparent; border: 1px solid rgba(192,174,234,.30); border-radius: 6px;
+  color: var(--tx2); font-family: var(--mono); font-size: 10px; font-weight: 600;
+  letter-spacing: .2px; cursor: pointer; white-space: nowrap; text-decoration: none;
   transition: border-color .18s, color .18s, box-shadow .18s;
 }
+.wr-swap-btn svg { width: 11px; height: 11px; }
 @media (max-width: 700px) {
   .wr-swap-btn, #patch-notes-link.profile-action-btn, #wr-lookups-btn.profile-action-btn {
-    padding: 0 8px !important; font-size: 10px !important; gap: 4px; min-width: 86px;
+    /* Tight enough that the widest label still fits the shared min-width AND
+       the whole cluster stays on one line — wrapping it cost more header height
+       than the smaller buttons saved. */
+    height: 23px; padding: 0 5px !important; font-size: 9px !important; gap: 3px; min-width: 74px;
   }
-}
-@media (max-width: 380px) {
-  .wr-swap-btn, #patch-notes-link.profile-action-btn, #wr-lookups-btn.profile-action-btn { min-width: 78px; }
+  .wr-swap-btn svg { width: 10px; height: 10px; }
 }
 
 /* ── SETUP MODAL ── */
@@ -2604,10 +2616,15 @@ body.wr-scrolllocked {
   .profile-action-btn,
   .hdr-btn,
   .setup-shortcut-btn { min-height: 36px; }
-  /* Patch Notes is a .profile-action-btn and the program swapper is not, so on a
-     touch device the rule above grew one of the pair to 36px and left the other
-     at 30 — they are one matched set and must take the touch height together. */
-  .wr-swap-btn, #patch-notes-link.profile-action-btn { min-height: 36px; height: 36px; }
+  /* The three header controls are deliberately EXEMPT from the 36px touch floor:
+     the header is meant to be small on a phone too, and 36px is what made this
+     strip dominate it. They keep the width-based heights above. Note the floor
+     reached them unevenly — Patch Notes and Lookups are .profile-action-btn and
+     the swapper is not — so exempting them has to name all three or the set
+     comes out ragged. Everything else here keeps its touch target. */
+  .wr-swap-btn, #patch-notes-link.profile-action-btn, #wr-lookups-btn.profile-action-btn {
+    min-height: 0;
+  }
   /* The Items categories and the Ladder's queue/tier pills deliberately take NO
      touch minimum: they are the same control as the Champions tab's Class row,
      which has none, and any floor here makes the rows different sizes. */
@@ -2704,14 +2721,14 @@ body.wr-scrolllocked {
      360px phone gets two short lines instead of a clipped one. */
   #topbar-right {
     height: auto; min-height: 42px; padding: 4px 8px 4px 6px;
-    gap: 6px; flex-wrap: wrap; justify-content: flex-end; row-gap: 5px;
+    gap: 4px; flex-wrap: wrap; justify-content: flex-end; row-gap: 5px;
   }
   .tab-btn { padding: 0 11px; font-size: 11px; gap: 5px; height: 44px; }
   .tab-btn svg { display: none; }
   /* Everything on row 1 stays reachable — the region name truncates instead of
      any control being dropped, so no functionality is hidden on a phone. */
   .profile-action-btn { font-size: 11px !important; padding: 0 10px !important; }
-  #wr-lock-btn { height: 28px; width: 28px; }
+  #wr-lock-btn { height: 23px; width: 23px; }
 
   /* iOS zooms the whole page when a focused input is under 16px. Every text
      field in the app was 13–15px, so tapping search or the setup form used to
@@ -2928,9 +2945,9 @@ body.wr-scrolllocked {
 }
 
 .lb-refresh-btn {
-  width: 30px; height: 30px; padding: 0; flex-shrink: 0;
+  width: 25px; height: 25px; padding: 0; flex-shrink: 0;
   display: inline-flex; align-items: center; justify-content: center;
-  background: transparent; border: 1px solid rgba(192,174,234,.30); border-radius: 8px;
+  background: transparent; border: 1px solid rgba(192,174,234,.30); border-radius: 6px;
   color: var(--tx3); cursor: pointer;
   transition: border-color .18s, color .18s, box-shadow .18s, transform .5s ease;
 }
@@ -2938,8 +2955,14 @@ body.wr-scrolllocked {
   color: var(--gold2); border-color: var(--gold);
   box-shadow: 0 0 0 1px rgba(192,174,234,.45), 0 0 16px rgba(192,174,234,.45);
 }
-.lb-refresh-btn svg { display: block; }
-@media (pointer: coarse) { .lb-refresh-btn { width: 36px; height: 36px; } }
+.lb-refresh-btn svg { display: block; width: 12px; height: 12px; }
+/* Sized to match the header controls, and exempt from the touch floor for the
+   same reason they are. */
+@media (pointer: coarse) { .lb-refresh-btn { width: 25px; height: 25px; } }
+@media (max-width: 700px) {
+  .lb-refresh-btn { width: 23px; height: 23px; }
+  .lb-refresh-btn svg { width: 11px; height: 11px; }
+}
 
 /* ── LADDER ROWS ──────────────────────────────────────────────────────────
    One grid shared by the header and every row. */
@@ -3319,7 +3342,7 @@ body.wr-scrolllocked {
       <span id="patch-badge">Patch --</span>
     </div>
     <a id="patch-notes-link" href="https://www.leagueoflegends.com/en-us/news/tags/patch-notes/" target="_blank" rel="noopener"
-       class="profile-action-btn" style="font-size:11px;">
+       class="profile-action-btn">
       Patch Notes
     </a>
     <button type="button" id="wr-lookups-btn" class="profile-action-btn" onclick="openLookups()"
