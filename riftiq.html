@@ -1495,9 +1495,11 @@ body.wr-locked #wr-progbar { display: none !important; }
     letter-spacing: .6px; color: var(--tx3); margin-bottom: 1px;
   }
   .dp-team-table td.dc-items::before { margin-bottom: 4px; text-align: left; }
-  .dp-team-table td.dc-items::before { content: 'ITEMS'; }
-  .dp-team-table td.dc-dmg::before  { content: 'DMG'; }
-  .dp-team-table td.dc-gold::before { content: 'GOLD'; }
+  /* Word for word what the desktop header row says — CS stays capitalised
+     because it is an abbreviation, not for emphasis. */
+  .dp-team-table td.dc-items::before { content: 'Items'; }
+  .dp-team-table td.dc-dmg::before  { content: 'Dmg'; }
+  .dp-team-table td.dc-gold::before { content: 'Gold'; }
   .dp-team-table td.dc-cs::before   { content: 'CS'; }
   .dp-num     { font-size: 13px; }
   .dp-sub-num { font-size: 11px; }
@@ -1876,15 +1878,18 @@ body.wr-locked #wr-progbar { display: none !important; }
    its own centring flex box and size it like the Champions tab's class chips. */
 .filter-chip {
   display: inline-flex; align-items: center; justify-content: center;
-  padding: 4px 12px; border-radius: 20px; line-height: 1.4;
+  padding: 4px 12px; border-radius: 20px;
   background: var(--bg3); border: 1px solid var(--bd2);
   color: var(--tx2); font-family: var(--mono); font-size: 12px; font-weight: 600;
   cursor: pointer; transition: all 0.15s; white-space: nowrap;
 }
 .filter-chip:hover { border-color: var(--gold); color: var(--gold2); }
+/* Selected reads as a filled chip, exactly like the Champions tab's Class row:
+   solid accent, white label, no halo. The lit-outline treatment belongs to the
+   chrome buttons; using it here made "selected" look like "hovered". */
 .filter-chip.active {
-  border-color: var(--gold); color: var(--gold2); background: transparent;
-  box-shadow: 0 0 0 1px rgba(192,174,234,.45), 0 0 16px rgba(192,174,234,.45);
+  background: var(--gold); border-color: var(--gold); color: #fff;
+  box-shadow: none;
 }
 .items-grid {
   display: grid;
@@ -2429,10 +2434,9 @@ body.wr-scrolllocked {
      touch device the rule above grew one of the pair to 36px and left the other
      at 30 — they are one matched set and must take the touch height together. */
   .wr-swap-btn, #patch-notes-link.profile-action-btn { min-height: 36px; height: 36px; }
-  /* The Items categories are held to the Champions tab's chip size on purpose —
-     they are a dense seven-across row, and 36px made them tower over the search
-     field they sit beside. 30px is still a comfortable thumb target. */
-  .filter-chip { min-height: 30px; }
+  /* The Items categories deliberately take NO touch minimum: they are the same
+     control as the Champions tab's Class row, which has none, and any floor
+     here makes the two rows visibly different sizes. */
   .load-more-btn { min-height: 44px; }
   .tab-btn { padding-left: 14px; padding-right: 14px; }
   .recent-player-row { padding: 11px 14px; }
@@ -2630,7 +2634,7 @@ body.wr-scrolllocked {
   /* Items filter bar */
   .items-filter-bar { flex-wrap: wrap; gap: 7px; padding: 10px 12px 12px; }
   .items-filter-bar input { min-width: 120px; height: 40px; }
-  .filter-chip { font-size: 11px; padding: 4px 11px; }
+  /* No phone shrink either — the Class chips keep 12px/4x12 at every width. */
   .items-grid { grid-template-columns: repeat(auto-fill, minmax(58px, 1fr)) !important; gap: 6px; }
 
   /* Champions grid */
@@ -2800,9 +2804,10 @@ body.wr-scrolllocked {
     display: block; font-family: var(--mono); font-size: 9px; font-weight: 700;
     letter-spacing: .6px; color: var(--tx3); margin-bottom: 1px;
   }
+  /* LP and W/R are abbreviations; Level is just a word. */
   .lb-row .lb-c-lp::before  { content: 'LP'; }
   .lb-row .lb-c-wr::before  { content: 'W/R'; }
-  .lb-row .lb-c-lvl::before { content: 'LEVEL'; }
+  .lb-row .lb-c-lvl::before { content: 'Level'; }
   .lb-rank-num { font-size: 13px; min-width: 0; }
 }
 
