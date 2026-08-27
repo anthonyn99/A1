@@ -32,7 +32,6 @@ files and belong at the root.
 | `PriceWatch/` | Price Watch browser extension — reads store pages for MyList |
 | `desktop/shield/` | Shield desktop agent (Tauri / Rust). Rebuild and reinstall with `powershell -File desktop\shield\launch.ps1`; the installed copy has its own Start-menu shortcut |
 | `trading-auto-launch/` | Python helper that opens TradeHub on a schedule |
-| `auto-shutdown/` | Scheduled task that shuts this PC down nightly at 00:00 local, unless it is in use. Install/repair: `powershell -File auto-shutdown\auto-shutdown.ps1` |
 | `workers/` | Cloudflare Workers. Every directory here is deployed by `.github/workflows/deploy-workers.yml` |
 | `V1/` | Veda's earlier suite — StudyOS, Finance, TradeBoard. Still deployed, by `deploy-v1-workers.yml`; self-contained, with its own README and workers |
 | `tests/` | Node test suite for the root apps — `npm test` |
