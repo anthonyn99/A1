@@ -810,12 +810,12 @@ body.wr-locked #wr-progbar { display: none !important; }
 }
 #wr-progbar-lock svg { width: 14px; height: 14px; display: block; }
 
-/* Swap button — same control in both programs' headers. Patch Notes and the
-   program swapper are the same KIND of control, so they are sized as one: a
-   shared min-width makes the pair read as a matched set instead of two buttons
+/* Swap button — same control in both programs' headers. Patch Notes, Lookups
+   and the program swapper are the same KIND of control, so they are sized as
+   one: a shared min-width makes them read as a matched set instead of buttons
    that happen to sit next to each other (the swapper carries an icon, so equal
    padding alone never produced equal width). */
-.wr-swap-btn, #patch-notes-link.profile-action-btn {
+.wr-swap-btn, #patch-notes-link.profile-action-btn, #wr-lookups-btn.profile-action-btn {
   height: 30px; padding: 0 13px; flex-shrink: 0; min-width: 106px;
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   background: transparent; border: 1px solid rgba(192,174,234,.30); border-radius: 7px;
@@ -824,12 +824,12 @@ body.wr-locked #wr-progbar { display: none !important; }
   transition: border-color .18s, color .18s, box-shadow .18s;
 }
 @media (max-width: 700px) {
-  .wr-swap-btn, #patch-notes-link.profile-action-btn {
+  .wr-swap-btn, #patch-notes-link.profile-action-btn, #wr-lookups-btn.profile-action-btn {
     padding: 0 8px !important; font-size: 10px !important; gap: 4px; min-width: 86px;
   }
 }
 @media (max-width: 380px) {
-  .wr-swap-btn, #patch-notes-link.profile-action-btn { min-width: 78px; }
+  .wr-swap-btn, #patch-notes-link.profile-action-btn, #wr-lookups-btn.profile-action-btn { min-width: 78px; }
 }
 
 /* ── SETUP MODAL ── */
@@ -932,6 +932,19 @@ body.wr-locked #wr-progbar { display: none !important; }
   background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
   align-items: center; justify-content: center; z-index: 1400;
   padding: 24px;
+  overscroll-behavior: contain;
+}
+/* The page behind an open overlay must not move. Same treatment ProView's
+   `pv-on` uses: pin the document rather than trying to swallow the scroll in
+   JS, which never catches touch momentum. `overscroll-behavior` stops a flick
+   inside the list from chaining out to the page underneath it.
+
+   NOTE: no `touch-action: none` here. touch-action combines down the ancestor
+   chain, so putting `none` on body also forbade panning inside the overlay's
+   own list — the lock worked and the list became unscrollable on a phone. */
+html.lk-open, body.lk-open {
+  overflow: hidden !important;
+  overscroll-behavior: none;
 }
 .lk-box {
   background: var(--bg3); border: 1px solid var(--bd2); border-radius: 12px;
@@ -971,7 +984,11 @@ body.wr-locked #wr-progbar { display: none !important; }
   padding: 8px 24px 0; min-height: 14px;
   font-family: var(--mono); font-size: 10px; letter-spacing: 0.3px; color: var(--gold);
 }
-.lk-body { overflow-y: auto; padding: 10px 24px 24px; }
+.lk-body {
+  overflow-y: auto; padding: 10px 24px 24px;
+  overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;   /* the list itself still scrolls under the lock above */
+}
 .lk-empty {
   padding: 28px 4px; font-family: var(--body); font-size: 13px;
   color: var(--tx3); line-height: 1.6; text-align: center;
@@ -1039,10 +1056,15 @@ body.wr-locked #wr-progbar { display: none !important; }
 @media (max-width: 560px) {
   .lk-box { max-height: 92vh; }
   .lk-hdr { padding: 18px 16px 14px; }
-  .lk-tools { padding: 12px 16px 0; flex-wrap: wrap; }
+  .lk-tools { padding: 12px 16px 0; }
   .lk-note { padding: 8px 16px 0; }
   .lk-body { padding: 8px 16px 18px; }
-  .lk-meta { flex-direction: column; align-items: flex-end; gap: 3px; }
+  /* Meta stays on ONE line here. Stacked, it made every row ~100px tall and
+     turned a six-account list into a scroll — the opposite of the point. */
+  .lk-meta { gap: 8px; font-size: 9.5px; }
+  .lk-search { font-size: 11px; padding: 0 10px; }
+  .lk-check { padding: 0 10px; font-size: 10px; }
+  .lk-name { font-size: 13px; }
 }
 
 .setup-row { display: flex; gap: 10px; margin-bottom: 14px; }
@@ -2716,10 +2738,17 @@ body.wr-scrolllocked {
   .mastery-grid { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
   .mastery-card img { width: 64px; height: 64px; }
 
-  /* Stats row */
-  .stats-row { flex-direction: column; align-items: flex-start; gap: 14px; }
-  .stats-numbers .sn-row { gap: 16px; flex-wrap: wrap; }
-  .stats-numbers .sn-val { font-size: 20px !important; }
+  /* Stats row — record and KDA sit BESIDE the winrate ring, not under it.
+     Stacked, this card cost ~190px of a phone screen to show three numbers and
+     pushed "Recently played with" below the fold; alongside, the ring's own
+     height carries the whole block. The ring shrinks to buy the room. */
+  .stats-row { flex-direction: row; align-items: center; gap: 16px; }
+  .wr-circle-wrap, .wr-circle-wrap svg { width: 72px; height: 72px; }
+  .stats-numbers .sn-row { gap: 14px; flex-wrap: nowrap; }
+  .stats-numbers .sn-item { min-width: 0 !important; }
+  .stats-numbers .sn-label { font-size: 10px; margin-bottom: 2px; }
+  .stats-numbers .sn-val { font-size: 19px !important; }
+  .stats-numbers .sn-sub { font-size: 11px; }
 
   /* ── Match rows: the desktop grid is 52+72+110+1fr+120+80 plus gaps, i.e.
      ~450px of fixed columns on a 375px screen, so the champion name, queue tag
@@ -3179,13 +3208,13 @@ body.wr-scrolllocked {
     <div class="lk-hdr">
       <div>
         <div class="lk-title">Lookup history</div>
-        <div class="lk-sub">Saved by PUUID, so a rename can never lose the account</div>
+        <div class="lk-sub">Saved by PUUID — filtering matches old names too, so a rename can never lose the account</div>
       </div>
       <button type="button" class="lk-close" onclick="closeLookups()" title="Close">&#x2715;</button>
     </div>
     <div class="lk-tools">
       <input id="lk-filter" class="lk-search" type="text" autocomplete="off"
-             placeholder="Filter by name — old names match too" oninput="lkFilterInput(this.value)">
+             placeholder="Filter names" oninput="lkFilterInput(this.value)">
       <button type="button" id="lk-check-btn" class="lk-check" onclick="lkCheckRenames()">Check for renames</button>
     </div>
     <div class="lk-note" id="lk-note"></div>
@@ -3293,7 +3322,7 @@ body.wr-scrolllocked {
        class="profile-action-btn" style="font-size:11px;">
       Patch Notes
     </a>
-    <button type="button" class="profile-action-btn" style="font-size:11px;" onclick="openLookups()"
+    <button type="button" id="wr-lookups-btn" class="profile-action-btn" onclick="openLookups()"
             title="Every account you have looked up, saved by PUUID">
       Lookups<span class="lk-count" id="lk-count-topbar"></span>
     </button>
@@ -4448,15 +4477,28 @@ function openLookups() {
   const m = document.getElementById('lookups-modal');
   if (!m) return;
   m.style.display = 'flex';
+  _lkScrollLock(true);
   _lkNote = '';
   renderLookups();
   const f = document.getElementById('lk-filter');
-  if (f) { f.value = _lkFilter; f.focus(); }
+  // Focusing the field on a phone throws the keyboard up over the list you came
+  // to read, so that is a pointer-device courtesy only.
+  if (f) { f.value = _lkFilter; if (!window.matchMedia('(pointer: coarse)').matches) f.focus(); }
 }
 function closeLookups() {
   const m = document.getElementById('lookups-modal');
   if (m) m.style.display = 'none';
+  _lkScrollLock(false);
 }
+function _lkScrollLock(on) {
+  document.documentElement.classList.toggle('lk-open', !!on);
+  document.body.classList.toggle('lk-open', !!on);
+}
+document.addEventListener('keydown', function(e) {
+  if (e.key !== 'Escape') return;
+  const m = document.getElementById('lookups-modal');
+  if (m && m.style.display === 'flex') closeLookups();
+});
 function lkFilterInput(v) { _lkFilter = (v || '').toLowerCase(); renderLookups(); }
 
 function lkCopyPuuid(ev, puuid) {
