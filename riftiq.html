@@ -324,6 +324,26 @@
     if (window._alApplyRemoteLocks) window._alApplyRemoteLocks(snap.data().locks || {});
   }, (err) => console.warn('[AppLock] onSnapshot error:', err));
 
+  /* ── LOOKUP HISTORY — dashboards/riftiq_lookups ─────────────────────────────
+     Every account you look up, keyed by PUUID. Its own document for the same
+     reason pv_cards has one: this list only grows, and the WarRoom doc already
+     carries the builds payload — two growing blobs in one 1 MiB document is how
+     a device's write queue gets wedged.
+
+     Writes are per-PUUID merge patches ({ lookups: { <puuid>: {...} } }), so a
+     device that never loaded the full list can still record a lookup without
+     erasing the entries it does not know about. Only the prune path rewrites
+     the whole map, and it refuses to run unless the load succeeded. */
+  const _lkDocRef = doc(_fbDb, 'dashboards', 'riftiq_lookups');
+  window._fbSaveLookups = (patch) => setDoc(_lkDocRef, patch, { merge: true });
+  window._fbLoadLookups = async () => {
+    const snap = await getDoc(_lkDocRef);
+    return (snap.exists() ? (snap.data().lookups || {}) : {});
+  };
+  window._fbOnLookups = (cb, err) => onSnapshot(_lkDocRef, (snap) => {
+    cb(snap.exists() ? (snap.data().lookups || {}) : {});
+  }, err);
+
   window._fbReady   = true;
   window._fbDb      = _fbDb;
   window._fbAuth    = _fbAuth;
@@ -892,6 +912,139 @@ body.wr-locked #wr-progbar { display: none !important; }
   .setup-shortcut-btn .sc-x { opacity: 1; width: 22px; height: 22px; }
   .setup-shortcut-add { padding: 7px 12px; }
 }
+/* ══ LOOKUP HISTORY ═══════════════════════════════════════════════════════
+   The setup screen's entry point is a quiet text link, not a third button —
+   it is a reference you reach for occasionally, and it must not compete with
+   "Enter WarRoom" directly above it. */
+.setup-lookups-link {
+  display: block; width: 100%; margin-top: 14px;
+  background: transparent; border: none; cursor: pointer;
+  font-family: var(--mono); font-size: 11px; font-weight: 700;
+  letter-spacing: 0.4px; color: var(--tx3); transition: color 0.15s;
+}
+.setup-lookups-link:hover { color: var(--gold); }
+.lk-count { font-family: var(--mono); font-size: 10px; color: var(--tx3); margin-left: 6px; }
+.lk-count:empty { display: none; }
+.profile-action-btn:hover .lk-count { color: inherit; }
+
+#lookups-modal {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
+  align-items: center; justify-content: center; z-index: 1400;
+  padding: 24px;
+}
+.lk-box {
+  background: var(--bg3); border: 1px solid var(--bd2); border-radius: 12px;
+  width: 620px; max-width: 100%; max-height: min(760px, 88vh);
+  display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: 0 60px 120px rgba(0,0,0,0.7), 0 0 0 1px rgba(192,174,234,0.12);
+}
+.lk-hdr {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+  padding: 22px 24px 16px; border-bottom: 1px solid var(--bd);
+}
+.lk-title { font-family: var(--head); font-size: 17px; font-weight: 800; color: var(--tx); }
+.lk-sub   { font-family: var(--body); font-size: 12px; color: var(--tx3); margin-top: 4px; }
+.lk-close {
+  flex-shrink: 0; width: 28px; height: 28px; border-radius: 6px;
+  background: transparent; border: 1px solid var(--bd2); color: var(--tx3);
+  cursor: pointer; font-size: 12px; line-height: 1; transition: all 0.15s;
+}
+.lk-close:hover { border-color: var(--red); color: var(--red); }
+.lk-tools { display: flex; gap: 10px; padding: 14px 24px 0; }
+.lk-search {
+  flex: 1; height: 34px; padding: 0 12px;
+  background: var(--bg4); border: 1px solid var(--bd2); border-radius: 4px;
+  color: var(--tx); font-family: var(--mono); font-size: 12px;
+  outline: none; transition: border-color 0.15s; min-width: 0;
+}
+.lk-search:focus { border-color: var(--gold); }
+.lk-check {
+  flex-shrink: 0; height: 34px; padding: 0 14px;
+  background: transparent; border: 1px solid var(--bd2); border-radius: 5px;
+  color: var(--tx2); font-family: var(--mono); font-size: 11px; font-weight: 700;
+  letter-spacing: 0.3px; cursor: pointer; transition: all 0.15s;
+}
+.lk-check:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
+.lk-check:disabled { opacity: 0.55; cursor: default; }
+.lk-note {
+  padding: 8px 24px 0; min-height: 14px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.3px; color: var(--gold);
+}
+.lk-body { overflow-y: auto; padding: 10px 24px 24px; }
+.lk-empty {
+  padding: 28px 4px; font-family: var(--body); font-size: 13px;
+  color: var(--tx3); line-height: 1.6; text-align: center;
+}
+.lk-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 11px 13px; margin-top: 6px;
+  background: var(--bg4); border: 1px solid transparent; border-radius: 7px;
+  cursor: pointer; transition: border-color 0.15s, background 0.15s;
+}
+.lk-row:hover { border-color: var(--bd2); background: var(--bg5); }
+.lk-main { min-width: 0; }
+.lk-name {
+  font-family: var(--head); font-size: 14px; font-weight: 700; color: var(--tx);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.lk-tag { font-family: var(--mono); font-size: 11px; font-weight: 500; color: var(--tx3); margin-left: 2px; }
+.lk-badge {
+  margin-left: 8px; padding: 1px 6px; border-radius: 3px; vertical-align: middle;
+  background: rgba(192,174,234,0.14); color: var(--gold);
+  font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: 0.4px;
+}
+.lk-badge-gone { background: rgba(214,138,124,0.14); color: var(--red); }
+.lk-prev {
+  font-family: var(--body); font-size: 11px; color: var(--tx3); margin-top: 3px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.lk-puuid {
+  font-family: var(--mono); font-size: 9.5px; color: #6d6d75; margin-top: 4px;
+  display: inline-block; transition: color 0.15s;
+}
+.lk-puuid:hover { color: var(--gold); }
+.lk-row.lk-gone { cursor: default; opacity: 0.62; }
+.lk-row.lk-gone:hover { background: var(--bg4); border-color: transparent; }
+.lk-meta {
+  flex-shrink: 0; display: flex; align-items: center; gap: 10px;
+  font-family: var(--mono); font-size: 10px; color: var(--tx3);
+}
+.lk-region { color: var(--tx2); font-weight: 700; }
+.lk-meta .lk-count { margin-left: 0; }
+
+/* Rename notice. Bottom-right so it never covers the profile header that the
+   lookup just painted. */
+#lk-toast {
+  position: fixed; right: 20px; bottom: 20px; z-index: 1500;
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 12px 16px; border-radius: 8px;
+  background: var(--bg4); border: 1px solid var(--gold);
+  box-shadow: 0 24px 48px rgba(0,0,0,0.55);
+  opacity: 0; transform: translateY(8px); pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s;
+  max-width: min(340px, calc(100vw - 40px));
+}
+#lk-toast.show { opacity: 1; transform: translateY(0); }
+#lk-toast .lkt-title {
+  font-family: var(--mono); font-size: 9.5px; font-weight: 700;
+  letter-spacing: 0.6px; color: var(--gold);
+}
+#lk-toast .lkt-body {
+  font-family: var(--body); font-size: 12.5px; color: var(--tx2); line-height: 1.45;
+  word-break: break-word;
+}
+#lk-toast b { color: var(--tx); }
+
+@media (max-width: 560px) {
+  .lk-box { max-height: 92vh; }
+  .lk-hdr { padding: 18px 16px 14px; }
+  .lk-tools { padding: 12px 16px 0; flex-wrap: wrap; }
+  .lk-note { padding: 8px 16px 0; }
+  .lk-body { padding: 8px 16px 18px; }
+  .lk-meta { flex-direction: column; align-items: flex-end; gap: 3px; }
+}
+
 .setup-row { display: flex; gap: 10px; margin-bottom: 14px; }
 .setup-input {
   flex: 1; height: 40px; padding: 0 14px;
@@ -3010,8 +3163,37 @@ body.wr-scrolllocked {
 
     <button id="setup-submit-btn" class="btn-primary" onclick="setupSubmit()">Enter WarRoom</button>
     <div class="setup-error" id="setup-error">Could not find summoner. Check name and tag.</div>
+
+    <!-- Every account ever looked up, by PUUID. Reachable before you are in the
+         app, because "who was that account?" is exactly the question you have
+         while staring at the search box. -->
+    <button type="button" class="setup-lookups-link" onclick="openLookups()">
+      Lookup history<span class="lk-count" id="lk-count-setup"></span>
+    </button>
   </div>
 </div>
+
+<!-- ── LOOKUP HISTORY MODAL ── -->
+<div id="lookups-modal" onclick="if(event.target===this)closeLookups()">
+  <div class="lk-box">
+    <div class="lk-hdr">
+      <div>
+        <div class="lk-title">Lookup history</div>
+        <div class="lk-sub">Saved by PUUID, so a rename can never lose the account</div>
+      </div>
+      <button type="button" class="lk-close" onclick="closeLookups()" title="Close">&#x2715;</button>
+    </div>
+    <div class="lk-tools">
+      <input id="lk-filter" class="lk-search" type="text" autocomplete="off"
+             placeholder="Filter by name — old names match too" oninput="lkFilterInput(this.value)">
+      <button type="button" id="lk-check-btn" class="lk-check" onclick="lkCheckRenames()">Check for renames</button>
+    </div>
+    <div class="lk-note" id="lk-note"></div>
+    <div class="lk-body" id="lookups-body"></div>
+  </div>
+</div>
+
+<div id="lk-toast"></div>
 
 <!-- ── BUILD EDITOR MODAL ── -->
 <div class="modal-overlay" id="build-modal">
@@ -3111,6 +3293,10 @@ body.wr-scrolllocked {
        class="profile-action-btn" style="font-size:11px;">
       Patch Notes
     </a>
+    <button type="button" class="profile-action-btn" style="font-size:11px;" onclick="openLookups()"
+            title="Every account you have looked up, saved by PUUID">
+      Lookups<span class="lk-count" id="lk-count-topbar"></span>
+    </button>
     <button class="wr-swap-btn" onclick="openProgram('proview')" title="Switch to ProView">
       <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg>
       ProView
@@ -4038,6 +4224,341 @@ function removeShortcut(ev, i) {
   renderShortcuts();
 }
 
+// ══════════════════════════════════════
+// LOOKUP HISTORY — keyed by PUUID
+// ══════════════════════════════════════
+// Riot IDs are rented, PUUIDs are owned: a player can change "VesselyNeo#EUW"
+// whenever they like, and once they do, the old name resolves to nothing —
+// account-v1 only knows names that are current, so the trail dies the moment
+// someone renames. The PUUID never changes, so recording it at lookup time is
+// the only thing that keeps an account findable afterwards.
+//
+// Every entry therefore keys on the PUUID and carries the names we have seen it
+// wear, newest first in `h`. "Check for renames" re-resolves each stored PUUID
+// and appends whatever the account is called today.
+//
+// Entries are deliberately terse — this document is written on every lookup and
+// read on every open, and short keys are the difference between ~150 bytes and
+// ~400 per account:
+//   p  puuid          n  current "Name#TAG"     h  [{n, t}] previous names
+//   pl platform       r  routing                f  first seen   l  last seen
+//   c  lookup count   x  gone (account no longer resolves)
+const LOOKUPS_KEY = 'warroom_lookups';
+const LOOKUPS_MAX = 400;
+let _lkIndex = {};       // puuid -> entry
+let _lkLoadOk = false;   // guards the only write that can erase entries
+let _lkChecking = false;
+
+function lkMirror() {
+  // Newest first, so a trim keeps what you looked at most recently.
+  const list = Object.values(_lkIndex).sort(function(a, b){ return (b.l||0) - (a.l||0); });
+  wrSetItem(LOOKUPS_KEY, JSON.stringify(list.slice(0, LOOKUPS_MAX)));
+}
+
+function lkAdopt(map) {
+  if (!map || typeof map !== 'object') return;
+  for (const p in map) {
+    const e = map[p];
+    if (!e || !e.n) continue;
+    const cur = _lkIndex[p];
+    // Last-write-wins per account, so two devices looking the same player up
+    // cannot walk each other's history backwards.
+    if (!cur || (e.l || 0) >= (cur.l || 0)) _lkIndex[p] = e;
+  }
+}
+
+let _lkLoaded = false;
+async function lkLoad() {
+  if (_lkLoaded) return;    // one snapshot listener per session, not one per unlock
+  _lkLoaded = true;
+  try {
+    const raw = localStorage.getItem(LOOKUPS_KEY);
+    if (raw) {
+      const list = JSON.parse(raw);
+      if (Array.isArray(list)) for (const e of list) if (e && e.p && e.n) _lkIndex[e.p] = e;
+    }
+  } catch(e) {}
+  renderLookups();
+
+  // The Firebase bridge is a module script, so it can still be resolving when
+  // init() gets here. The mirror is already on screen; this only decides when
+  // the shared copy arrives.
+  for (let i = 0; i < 20 && !window._fbLoadLookups; i++) {
+    await new Promise(function(r){ setTimeout(r, 150); });
+  }
+  if (!window._fbLoadLookups) return;
+  window._fbLoadLookups().then(function(map){
+    lkAdopt(map);
+    _lkLoadOk = true;                 // full state in hand — pruning is now safe
+    lkMirror();
+    renderLookups();
+    lkPrune();
+  }).catch(function(e){ console.warn('[RiftIQ] lookup history load failed:', e && e.message); });
+
+  if (window._fbOnLookups) {
+    window._fbOnLookups(function(map){
+      lkAdopt(map);
+      lkMirror();
+      renderLookups();
+    }, function(e){ console.warn('[RiftIQ] lookup history listener failed:', e && e.message); });
+  }
+}
+
+// Record one lookup. `acct` is an account-v1 response: puuid + gameName + tagLine.
+// Returns the rename that was just detected, or null — the caller decides whether
+// to say anything about it.
+function wrRecordLookup(acct, platform, routing) {
+  if (!acct || !acct.puuid || !acct.gameName) return null;
+  const puuid = acct.puuid;
+  const name  = acct.gameName + '#' + acct.tagLine;
+  const now   = Date.now();
+  const prev  = _lkIndex[puuid];
+  let renamed = null;
+
+  const entry = prev ? Object.assign({}, prev) : { p: puuid, f: now, c: 0, h: [] };
+  if (prev && prev.n && prev.n !== name) {
+    renamed = { from: prev.n, to: name };
+    entry.h = [{ n: prev.n, t: prev.l || now }].concat(prev.h || []).slice(0, 10);
+    entry.rn = now;                   // stamped here too, not only by the sweep,
+                                      // so a rename you walk into while searching
+                                      // gets the same badge as one the sweep finds
+  }
+  entry.n  = name;
+  entry.l  = now;
+  entry.c  = (prev && prev.c || 0) + 1;
+  entry.pl = platform || (prev && prev.pl) || 'na1';
+  entry.r  = routing  || (prev && prev.r)  || 'americas';
+  delete entry.x;                     // it resolved, so it is not gone
+  _lkIndex[puuid] = entry;
+
+  lkMirror();
+  renderLookups();
+  // Announced from here rather than from each caller: there are three lookup
+  // paths into this function and a fourth would otherwise be one forgotten line
+  // away from silently dropping the notice.
+  if (renamed) wrRenameToast(renamed);
+
+  // One key, merged: a device that never loaded the list still cannot clobber it.
+  if (window._fbSaveLookups) {
+    const patch = { lookups: {} };
+    patch.lookups[puuid] = entry;
+    wrSynced(window._fbSaveLookups(patch)).catch(function(){});
+  } else {
+    wrSetSync('failed');
+  }
+  return renamed;
+}
+
+// Drop the oldest entries once the list gets long. This is the ONE write that
+// rewrites the whole map, so it runs only with a confirmed load behind it —
+// otherwise a device that failed to read would "prune" the list down to the
+// handful of accounts it happened to see this session.
+function lkPrune() {
+  if (!_lkLoadOk) return;
+  const list = Object.values(_lkIndex).sort(function(a, b){ return (b.l||0) - (a.l||0); });
+  if (list.length <= LOOKUPS_MAX) return;
+  const keep = {};
+  for (const e of list.slice(0, LOOKUPS_MAX)) keep[e.p] = e;
+  _lkIndex = keep;
+  lkMirror();
+  if (window._fbSaveLookups) wrSynced(window._fbSaveLookups({ lookups: keep })).catch(function(){});
+}
+
+// Re-resolve every stored PUUID and record whatever it is called now. Runs at
+// background priority so it yields to anything you are actually waiting on, and
+// bypasses both caches — a day-old answer defeats the entire point.
+async function lkCheckRenames() {
+  if (_lkChecking) return;
+  const list = Object.values(_lkIndex).sort(function(a, b){ return (b.l||0) - (a.l||0); });
+  if (!list.length) return;
+
+  _lkChecking = true;
+  const found = [];
+  let done = 0, failed = 0;
+  const patch = { lookups: {} };
+  renderLookups({ progress: '0 / ' + list.length });
+
+  for (const e of list) {
+    try {
+      const acct = await riotFetch('/riot/account/v1/accounts/by-puuid/' + e.p, e.r || 'americas', 1, true);
+      const name = acct && acct.gameName ? acct.gameName + '#' + acct.tagLine : null;
+      if (name) {
+        if (name !== e.n) {
+          found.push({ from: e.n, to: name });
+          e.h = [{ n: e.n, t: e.l || Date.now() }].concat(e.h || []).slice(0, 10);
+          e.n = name;
+          e.rn = Date.now();          // when the rename was spotted
+        }
+        if (e.x) delete e.x;
+        patch.lookups[e.p] = e;
+      }
+    } catch(err) {
+      // 404 means Riot no longer knows this PUUID at all — a deleted or
+      // transferred account. Worth flagging, but never worth deleting: the
+      // PUUID is the only handle we have on who it was.
+      if (err && err.message === '404') { e.x = true; patch.lookups[e.p] = e; }
+      else failed++;
+    }
+    done++;
+    renderLookups({ progress: done + ' / ' + list.length });
+  }
+
+  _lkChecking = false;
+  lkMirror();
+  if (Object.keys(patch.lookups).length && window._fbSaveLookups) {
+    wrSynced(window._fbSaveLookups(patch)).catch(function(){});
+  }
+  renderLookups({
+    note: found.length
+      ? found.length + ' rename' + (found.length === 1 ? '' : 's') + ' found'
+      : (failed ? 'No renames — ' + failed + ' could not be checked' : 'No renames — all ' + list.length + ' names are current')
+  });
+}
+
+// ── Lookup history UI ──────────────────────────────────────────────────────
+let _lkFilter = '';
+let _lkNote = '';
+let _lkToastTimer = null;
+
+// Shown when a lookup lands on a PUUID we already knew under another name. This
+// is the payoff for storing the PUUID at all, so it says so out loud rather than
+// quietly updating a row you were not looking at.
+function wrRenameToast(renamed) {
+  const el = document.getElementById('lk-toast');
+  if (!el || !renamed) return;
+  el.innerHTML = '<span class="lkt-title">Renamed</span>' +
+                 '<span class="lkt-body">' + esc(renamed.from) + ' &rarr; <b>' + esc(renamed.to) + '</b></span>';
+  el.classList.add('show');
+  clearTimeout(_lkToastTimer);
+  _lkToastTimer = setTimeout(function(){ el.classList.remove('show'); }, 6000);
+}
+
+function lkAgo(t) {
+  if (!t) return '';
+  const s = Math.floor((Date.now() - t) / 1000);
+  if (s < 60) return 'just now';
+  if (s < 3600) return Math.floor(s / 60) + 'm ago';
+  if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+  const d = Math.floor(s / 86400);
+  if (d < 30) return d + 'd ago';
+  return new Date(t).toLocaleDateString();
+}
+
+function openLookups() {
+  const m = document.getElementById('lookups-modal');
+  if (!m) return;
+  m.style.display = 'flex';
+  _lkNote = '';
+  renderLookups();
+  const f = document.getElementById('lk-filter');
+  if (f) { f.value = _lkFilter; f.focus(); }
+}
+function closeLookups() {
+  const m = document.getElementById('lookups-modal');
+  if (m) m.style.display = 'none';
+}
+function lkFilterInput(v) { _lkFilter = (v || '').toLowerCase(); renderLookups(); }
+
+function lkCopyPuuid(ev, puuid) {
+  if (ev) { ev.stopPropagation(); ev.preventDefault(); }
+  const done = function(){ _lkNote = 'PUUID copied'; renderLookups(); };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(puuid).then(done, function(){});
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = puuid; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch(e) {}
+    document.body.removeChild(ta);
+  }
+}
+
+// Open whichever account the row is for. Before the app has been entered the
+// setup form is the only way in; after it, the profile view can just be pointed
+// at the account directly.
+function lkOpen(puuid) {
+  const e = _lkIndex[puuid];
+  if (!e || e.x) return;
+  const hash = e.n.lastIndexOf('#');
+  const name = e.n.slice(0, hash), tag = e.n.slice(hash + 1);
+  closeLookups();
+  const setupVisible = (document.getElementById('setup-modal') || {}).style &&
+                        document.getElementById('setup-modal').style.display !== 'none';
+  if (setupVisible) {
+    document.getElementById('setup-name').value = name;
+    document.getElementById('setup-tag').value  = tag;
+    const regEl = document.getElementById('setup-region');
+    if (regEl) regEl.value = (e.pl || 'na1') + '|' + (e.r || 'americas');
+    setupSubmit();
+  } else if (typeof loadPlayerProfile === 'function') {
+    switchTab('profile');
+    loadPlayerProfile(name, tag, e.pl, e.r);
+  }
+}
+
+function renderLookups(opts) {
+  opts = opts || {};
+  if (opts.note) _lkNote = opts.note;
+
+  // The count rides on both entry points whether or not the modal is open.
+  const n = Object.keys(_lkIndex).length;
+  for (const id of ['lk-count-topbar', 'lk-count-setup']) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = n ? String(n) : '';
+  }
+
+  const body = document.getElementById('lookups-body');
+  if (!body) return;
+
+  const btn = document.getElementById('lk-check-btn');
+  if (btn) {
+    btn.disabled = _lkChecking || !n;
+    btn.textContent = _lkChecking ? ('Checking ' + (opts.progress || '')) : 'Check for renames';
+  }
+  const note = document.getElementById('lk-note');
+  if (note) note.textContent = _lkChecking ? '' : _lkNote;
+
+  let list = Object.values(_lkIndex).sort(function(a, b){ return (b.l||0) - (a.l||0); });
+  if (_lkFilter) {
+    list = list.filter(function(e){
+      if (e.n.toLowerCase().indexOf(_lkFilter) !== -1) return true;
+      return (e.h || []).some(function(h){ return h.n.toLowerCase().indexOf(_lkFilter) !== -1; });
+    });
+  }
+
+  if (!list.length) {
+    body.innerHTML = '<div class="lk-empty">' +
+      (n ? 'No account matches “' + esc(_lkFilter) + '”.'
+         : 'No lookups recorded yet. Every account you search from here on is saved by PUUID, so you can still find it after a rename.') +
+      '</div>';
+    return;
+  }
+
+  body.innerHTML = list.map(function(e){
+    const hash = e.n.lastIndexOf('#');
+    const nm = e.n.slice(0, hash), tg = e.n.slice(hash + 1);
+    const renamedRecently = e.rn && (Date.now() - e.rn < 1000 * 60 * 60 * 24 * 14);
+    let h = '<div class="lk-row' + (e.x ? ' lk-gone' : '') + '" onclick="lkOpen(\'' + esc(e.p) + '\')"' +
+            (e.x ? ' title="Riot no longer resolves this PUUID"' : ' title="Open ' + esc(e.n) + '"') + '>';
+    h += '<div class="lk-main">';
+    h += '<div class="lk-name">' + esc(nm) + '<span class="lk-tag">#' + esc(tg) + '</span>' +
+         (renamedRecently ? '<span class="lk-badge">renamed</span>' : '') +
+         (e.x ? '<span class="lk-badge lk-badge-gone">gone</span>' : '') + '</div>';
+    if (e.h && e.h.length) {
+      h += '<div class="lk-prev">was ' + e.h.map(function(p){ return esc(p.n); }).join(' &larr; ') + '</div>';
+    }
+    h += '<div class="lk-puuid" role="button" title="Copy PUUID" onclick="lkCopyPuuid(event,\'' + esc(e.p) + '\')">' +
+         esc(e.p.slice(0, 22)) + '…</div>';
+    h += '</div>';
+    h += '<div class="lk-meta">' +
+         '<span class="lk-region">' + esc((e.pl || '').toUpperCase()) + '</span>' +
+         '<span>' + lkAgo(e.l) + '</span>' +
+         '<span class="lk-count">' + (e.c || 1) + '&times;</span>' +
+         '</div>';
+    h += '</div>';
+    return h;
+  }).join('');
+}
+
 // Called with a shortcut index from the chips above.
 function quickLoad(i) {
   const sc = loadShortcuts()[i];
@@ -4068,6 +4589,7 @@ async function setupSubmit() {
     // convenience, so a storage failure must not be reported as a lookup
     // failure or keep you out — worst case you re-pick the summoner next open.
     wrSetItem('warroom_summoner', JSON.stringify(summoner));
+    wrRecordLookup(resp, platform, routing);
     showApp();
   } catch(e) {
     console.error('Setup error:', e);
@@ -4177,8 +4699,13 @@ function _rlPump() {
   }
 }
 
-async function _riotSend(endpoint, region) {
-  const url = WORKER_URL + '/api/riot?endpoint=' + encodeURIComponent(endpoint) + '&region=' + region;
+async function _riotSend(endpoint, region, fresh) {
+  // `fresh` rides on the WORKER url, never inside `endpoint` — the worker builds
+  // the Riot URL from `endpoint` alone, so this can never leak a made-up query
+  // parameter to Riot. An older deployment simply ignores it and answers from
+  // the edge, which costs nothing but a slightly staler name.
+  const url = WORKER_URL + '/api/riot?endpoint=' + encodeURIComponent(endpoint) + '&region=' + region
+            + (fresh ? '&fresh=1' : '');
   const resp = await fetch(url);
 
   // The worker forwards Riot's own counters and serves a lot of this from its
@@ -4206,22 +4733,33 @@ async function _riotSend(endpoint, region) {
 }
 
 // priority 0 = the user is waiting on it; 1 = background enrichment.
-function riotFetch(endpoint, region, priority) {
+// fresh = skip BOTH caches in front of Riot. Account lookups are memoised for
+// the session and held at the edge for a day, which is right for every normal
+// call and exactly wrong for the rename check — the one question whose whole
+// point is "has this changed since last time?".
+function riotFetch(endpoint, region, priority, fresh) {
   const r = region || summoner.routing || 'americas';
   const key = r + '|' + endpoint;
 
-  if (_riotMemo.has(key)) return Promise.resolve(_riotMemo.get(key));
-  if (_riotInflight.has(key)) return _riotInflight.get(key);
+  if (!fresh && _riotMemo.has(key)) return Promise.resolve(_riotMemo.get(key));
+  if (!fresh && _riotInflight.has(key)) return _riotInflight.get(key);
 
   const p = new Promise(function(resolve, reject) {
     RL.queue.push({
       priority: priority || 0,
-      run: function() { return _riotSend(endpoint, r); },
+      run: function() { return _riotSend(endpoint, r, fresh); },
       resolve: resolve,
       reject: reject
     });
     _rlPump();
   });
+
+  if (fresh) {
+    // A fresh result is still the newest truth we have — let it replace a stale
+    // memo entry rather than leaving the old name to win the next read.
+    p.then(function(v) { if (_riotMemoable(endpoint)) _riotMemo.set(key, v); }, function() {});
+    return p;
+  }
 
   _riotInflight.set(key, p);
   p.then(function(v) {
@@ -7332,6 +7870,8 @@ async function loadPlayerProfile(name, tag, platform, routing) {
     const resp = await riotFetch('/riot/account/v1/accounts/by-riot-id/' + encodeURIComponent(name) + '/' + encodeURIComponent(tag), rout);
     if (!resp.puuid) throw new Error('Not found');
 
+    wrRecordLookup(resp, plat, rout);
+
     // Temporarily switch summoner context
     const prevSummoner = {...summoner};
     summoner = {...resp, platform: plat, routing: rout};
@@ -7892,6 +8432,7 @@ async function lookupSpectate(useLast) {
     if (!acct || !acct.puuid) throw new Error('notfound');
     const dispName = acct.gameName || name;
     const dispTag  = acct.tagLine  || tag;
+    wrRecordLookup(acct, platform, routing);
     _lastSpectateSearch = { name: dispName, tag: dispTag, routing };
 
     // Check live game
@@ -8921,6 +9462,10 @@ let _wrBooted = false;
 window.warRoomBoot = function() {
   if (_wrBooted) return;
   _wrBooted = true;
+  // The lookup list belongs to RiftIQ, not to WarRoom's init() — that runs
+  // lazily on the first WarRoom open, so booting into the picker or into
+  // ProView would leave the history empty until you happened to open WarRoom.
+  lkLoad();
   showProgramPicker();
 };
 if (!window.__wrGateBlocked) window.warRoomBoot();

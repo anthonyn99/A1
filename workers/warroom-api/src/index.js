@@ -132,7 +132,14 @@ export default {
       );
       const cache = caches.default;
 
-      if (ttl > 0) {
+      // fresh=1 skips the cache READ but still writes, so the rename check can
+      // ask Riot what an account is called *now* instead of being handed the
+      // name that was current when the day's first lookup warmed the edge.
+      // Account lookups sit behind a 24h TTL, which is right for every other
+      // caller and useless for the one question this flag exists to answer.
+      const fresh = url.searchParams.get('fresh') === '1';
+
+      if (ttl > 0 && !fresh) {
         const hit = await cache.match(cacheKey);
         if (hit) {
           const h = new Headers(hit.headers);
@@ -153,7 +160,7 @@ export default {
         const v = resp.headers.get(name);
         if (v) headers.set(name, v);
       }
-      headers.set('X-WR-Cache', ttl > 0 ? 'MISS' : 'BYPASS');
+      headers.set('X-WR-Cache', ttl > 0 ? (fresh ? 'FRESH' : 'MISS') : 'BYPASS');
 
       if (ttl > 0 && resp.status === 200) {
         const toCache = new Response(body, {
