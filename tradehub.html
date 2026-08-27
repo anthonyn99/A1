@@ -1393,14 +1393,131 @@ function TBToast({message,icon='check',onClose}){
   return<div className="tb-toast"><TBIcon n={icon} size={15} style={{color:'var(--acs)'}}/>{message}</div>;
 }
 
-/* ── Firebase-backed journal hook ── */
+/* ── Background-job registry ─────────────────────────────────────────────────
+   Every long-running job (Portfolio refresh, Webull sync, Re-merge, CSV import,
+   News build, Catalyst build) registers itself here for the whole time it runs.
+   Two reasons it lives at module level rather than in a component:
+     • the job keeps running when the tab that started it unmounts, and
+     • the nav can show WHICH tab is still working while you're on another one.
+   React only ever mirrors this — nothing here depends on anything being mounted. */
+const _tbJobs={
+  active:{},                                   // tabId → label ('Syncing…', 'Building…')
+  listeners:new Set(),
+  sub(fn){this.listeners.add(fn);return()=>this.listeners.delete(fn);},
+  emit(){this.listeners.forEach(fn=>{try{fn();}catch(e){}});},
+  set(tabId,label){
+    const next=label||'';
+    if((this.active[tabId]||'')===next)return;
+    if(next)this.active[tabId]=next; else delete this.active[tabId];
+    this.holdFirestore();
+    this.emit();
+  },
+  /* Firestore is torn down 1s after the app is hidden and 5min after the last
+     interaction. That is exactly what happens when you kick a build and then
+     switch apps — and a build whose client is terminated mid-flight can't write
+     its result, so it lands on screen but never reaches Firebase or the other
+     devices. _tbBuildUntil defers the teardown for as long as a job is running
+     (the Webull sync has always done this; every job does now). */
+  holdFirestore(){
+    if(this.any())window._tbBuildUntil=Math.max(window._tbBuildUntil||0,Date.now()+6*60*1000);
+    else if(!window._tbSyncInFlight)window._tbBuildUntil=0;
+  },
+  label(tabId){return this.active[tabId]||'';},
+  busy(tabId){return !!this.active[tabId];},
+  any(){return Object.keys(this.active).length>0;},
+};
+window._tbJobs=_tbJobs;
+/* Re-render whatever uses it whenever a job starts or finishes. */
+function useTBJobs(){
+  const [,force]=useState(0);
+  useEffect(()=>_tbJobs.sub(()=>force(v=>v+1)),[]);
+  return _tbJobs;
+}
+
+/* ── Module-level JOURNAL store ──────────────────────────────────────────────
+   The trade list and every job that mutates it (Webull sync, Re-merge, CSV
+   import, the Firebase load) run against THIS, not against component state.
+   They used to live entirely inside the hook, which meant leaving the Journal
+   tab mid-sync unmounted the component — and React never even CALLS a
+   setState(prev=>…) updater on an unmounted component, so the merge that
+   dedupes the pulled Webull orders AND writes them to Firebase was dropped on
+   the floor along with the spinner: the sync silently did nothing. Now the work
+   lands here regardless of what is mounted, and a remounting tab just mirrors
+   the store — including a still-running job's spinner and its result message. */
+const _tbJournalStore={
+  trades:[],
+  loading:true,
+  loaded:false,          // the Firebase load has completed once this page load
+  busy:'',               // '' | 'sync' | 'remerge' | 'import'
+  lastJobAt:0,           // when the last job finished — see tbLoadJournal
+  msg:'', msgAt:0,       // last result message — survives a tab switch
+  lastSync:parseInt(localStorage.getItem(TB_SYNC_TS_KEY)||'0',10)||null,
+  listeners:new Set(),
+  sub(fn){this.listeners.add(fn);return()=>this.listeners.delete(fn);},
+  emit(){this.listeners.forEach(fn=>{try{fn();}catch(e){}});},
+  /* Accepts a value or an updater, exactly like setState — so the job bodies
+     below read as they always did while running outside React. */
+  set(next){this.trades=(typeof next==='function'?next(this.trades):next)||[];this.emit();},
+  setLoading(v){if(this.loading===!!v)return;this.loading=!!v;this.emit();},
+  setBusy(kind,label){
+    this.busy=kind||'';
+    if(!kind)this.lastJobAt=Date.now();      // a job just wrote — see tbLoadJournal
+    _tbJobs.set('journal',kind?(label||'Working…'):'');
+    this.emit();
+  },
+  note(m){this.msg=m||'';this.msgAt=m?Date.now():0;this.emit();},
+  bumpSync(ts){if(ts&&(!this.lastSync||ts>this.lastSync)){this.lastSync=ts;this.emit();}},
+};
+window._tbJournalStore=_tbJournalStore;   // console-visible, same as window._tbJobs
+/* A result message is only worth showing for a short while after it lands, but
+   long enough to still be there when you come back from another tab. */
+const TB_JMSG_TTL=25000;
+
+/* Firebase load — module-level and deduped, so a load that was in flight when
+   the tab closed still lands in the store, and reopening the tab renders what's
+   already there instead of blanking to "Loading…" while it re-reads.
+   Still re-reads on every open (the Firestore listeners are torn down on idle, so
+   a device that changed the journal while this one was asleep is only picked up
+   here) — except right after one of our OWN jobs, whose write may still be in
+   flight, where a server read would hand back the pre-write document. */
+let _tbJournalLoadP=null;
+function tbLoadJournal(force){
+  const S=_tbJournalStore;
+  if(_tbJournalLoadP)return _tbJournalLoadP;
+  if(S.loaded&&!force)return Promise.resolve(S.trades);
+  if(S.busy||(S.loaded&&Date.now()-S.lastJobAt<8000))return Promise.resolve(S.trades);
+  /* Only show the loading state when there is nothing on screen yet. */
+  if(!S.loaded||!S.trades.length)S.setLoading(true);
+  _tbJournalLoadP=(async()=>{
+    try{
+      if(window._fbLoadTBJournal){
+        const data=await window._fbLoadTBJournal();
+        /* Never let a load overwrite a sync/import that finished while it was in
+           flight — the store is already ahead of what Firebase handed back. */
+        if(data&&Array.isArray(data)&&!S.busy)S.set(data);
+      }
+      S.loaded=true;
+    }catch(e){console.warn('TB journal load error',e);}
+    S.setLoading(false);
+    _tbJournalLoadP=null;
+    return S.trades;
+  })();
+  return _tbJournalLoadP;
+}
+
+/* ── Firebase-backed journal hook — a thin mirror of the store above ── */
 function useTBJournal(){
-  const [trades,setTrades]=useState([]);
-  const [loading,setLoading]=useState(true);
-  const [syncing,setSyncing]=useState(false);
-  /* Last Webull sync stamp — this device's own (localStorage) or whatever any
-     other device last wrote to the journal doc's _syncMeta. */
-  const [lastSync,setLastSync]=useState(()=>parseInt(localStorage.getItem(TB_SYNC_TS_KEY)||'0',10)||null);
+  const S=_tbJournalStore;
+  const [,forceRender]=useState(0);
+  useEffect(()=>S.sub(()=>forceRender(v=>v+1)),[]);
+  const trades=S.trades, loading=S.loading, syncing=S.busy==='sync', lastSync=S.lastSync;
+  /* Aliases: the job bodies below are written as ordinary setState calls, but
+     every one of them writes to the store, so they finish correctly even when
+     this component is long gone. */
+  const setTrades=useCallback(u=>S.set(u),[]);
+  const setLoading=useCallback(v=>S.setLoading(v),[]);
+  const setSyncing=useCallback(v=>S.setBusy(v?'sync':'',v?'Syncing…':''),[]);
+  const setLastSync=useCallback(ts=>S.bumpSync(typeof ts==='function'?ts(S.lastSync):ts),[]);
   useEffect(()=>{
     const bump=ts=>{if(ts)setLastSync(prev=>(!prev||ts>prev)?ts:prev);};
     bump(window._tbLastSyncTs);
@@ -1409,22 +1526,14 @@ function useTBJournal(){
     return()=>window.removeEventListener('tb-journal-sync-ts',h);
   },[]);
 
-  /* Load all trades from Firebase on mount */
-  const load=useCallback(async()=>{
-    setLoading(true);
-    try{
-      if(window._fbLoadTBJournal){
-        const data=await window._fbLoadTBJournal();
-        if(data&&Array.isArray(data))setTrades(data);
-      }
-    }catch(e){console.warn('TB journal load error',e);}
-    setLoading(false);
-  },[]);
+  /* Load all trades from Firebase — kept on the returned API for callers that
+     want an explicit re-read; tbLoadJournal decides whether one is warranted. */
+  const load=useCallback(()=>tbLoadJournal(true),[]);
 
   useEffect(()=>{
-    if(window._fbReady)load();
-    else{const h=()=>load();window.addEventListener('fb-ready',h,{once:true});return()=>window.removeEventListener('fb-ready',h);}
-  },[load]);
+    if(window._fbReady)tbLoadJournal(true);
+    else{const h=()=>tbLoadJournal(true);window.addEventListener('fb-ready',h,{once:true});return()=>window.removeEventListener('fb-ready',h);}
+  },[]);
 
   /* Live sync: apply remote journal changes from other devices.
      Also force a fresh server load if we haven't seen this savedAt before — this
@@ -1445,10 +1554,13 @@ function useTBJournal(){
      SELLs chain as new legs onto the most-recent open BUY entry for the same
      ticker instead of creating a separate top-level entry. */
   const sync=useCallback(async()=>{
-    if(window._tbSyncInFlight)return;       // dedupe concurrent syncs (morning orchestrator + tab-mount auto-sync)
+    if(window._tbSyncInFlight||S.busy)return; // dedupe concurrent syncs (morning orchestrator + tab-mount auto-sync) and never race a re-merge/import
     window._tbSyncInFlight=true;
     setSyncing(true);
     window._tbBuildUntil=Date.now()+120000; // keep Firestore alive through sync write
+    /* Result of the merge, reported through the store so the outcome is still
+       waiting for you if the sync finished while you were on another tab. */
+    let syncOk=false,syncNew=0;
     try{
       const r=await fetch(`${TB_API_BASE}/api/journal/sync?t=${Date.now()}`,{method:'POST',cache:'no-store'});
       const j=await r.json();
@@ -1586,17 +1698,19 @@ function useTBJournal(){
           const finalTrades=[...others,...rebuilt].sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
           const finalIds=new Set(finalTrades.map(t=>t.id));
           const staleIds=prev.map(t=>t.id).filter(id=>!finalIds.has(id));
+          syncOk=true; syncNew=finalTrades.length-prev.length;
           if(window._fbReplaceTBTrades)window._fbReplaceTBTrades(staleIds,finalTrades);
           else if(window._fbSaveTBTradeBulk)window._fbSaveTBTradeBulk(finalTrades);
           return finalTrades;
         });
       }
-    }catch(e){console.warn('TB Webull sync error (server may be offline)',e);}
+    }catch(e){console.warn('TB Webull sync error (server may be offline)',e);S.note('Webull sync failed — server may be offline.');}
     /* Record sync timestamp in localStorage + Firebase so all devices know */
     const nowTs=Date.now();
     localStorage.setItem(TB_SYNC_TS_KEY,String(nowTs));
     window._tbLastSyncTs=nowTs; setLastSync(nowTs);
     if(window._fbSaveTBSyncMeta)window._fbSaveTBSyncMeta({lastWebullSync:nowTs});
+    if(syncOk)S.note(syncNew>0?`Webull sync · ${syncNew} new trade${syncNew!==1?'s':''}`:'Webull sync · up to date');
     window._tbBuildUntil=0;
     window._tbSyncInFlight=false;
     setSyncing(false);
@@ -1636,21 +1750,29 @@ function useTBJournal(){
      all webull legs. Manual/CSV trades untouched. Kept as a manual button for
      one-off cleanups, but routine syncs already self-heal. */
   const rebuild=useCallback(async()=>{
+    if(S.busy)return{ok:false,busy:true};
+    S.setBusy('remerge','Re-merging…');
     let removed=0,made=0,oldIds=[],rebuilt=[];
-    setTrades(prev=>{
-      const r=tbReconcileWebull(prev);
-      rebuilt=r.rebuilt;oldIds=r.oldWebullIds;removed=oldIds.length;made=rebuilt.length;
-      return [...r.others,...rebuilt].sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
-    });
-    /* Persist atomically: one updateDoc drops stale webull docs AND writes the
-       merged ones, so every device gets the cleaned journal in a single snapshot. */
-    if(window._fbReplaceTBTrades){
-      await window._fbReplaceTBTrades(oldIds,rebuilt);
-    }else{
-      if(window._fbDeleteTBTrade)await Promise.all(oldIds.map(id=>window._fbDeleteTBTrade(id)));
-      if(window._fbSaveTBTradeBulk)await window._fbSaveTBTradeBulk(rebuilt);
-    }
-    return{ok:true,removed,made};
+    try{
+      setTrades(prev=>{
+        const r=tbReconcileWebull(prev);
+        rebuilt=r.rebuilt;oldIds=r.oldWebullIds;removed=oldIds.length;made=rebuilt.length;
+        return [...r.others,...rebuilt].sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+      });
+      /* Persist atomically: one updateDoc drops stale webull docs AND writes the
+         merged ones, so every device gets the cleaned journal in a single snapshot. */
+      if(window._fbReplaceTBTrades){
+        await window._fbReplaceTBTrades(oldIds,rebuilt);
+      }else{
+        if(window._fbDeleteTBTrade)await Promise.all(oldIds.map(id=>window._fbDeleteTBTrade(id)));
+        if(window._fbSaveTBTradeBulk)await window._fbSaveTBTradeBulk(rebuilt);
+      }
+      S.note(`Re-merged into ${made} trade${made!==1?'s':''} (was ${removed})`);
+      return{ok:true,removed,made};
+    }catch(err){
+      S.note('Re-merge error: '+(err&&err.message||'unknown'));
+      return{ok:false,error:err};
+    }finally{ S.setBusy(''); }
   },[]);
 
   /* Auto-sync: only runs on the "main" device (td6_mainDash==='tony') so phones
@@ -1674,86 +1796,101 @@ function useTBJournal(){
     };
     const tryOnce=()=>{if(!window._fbReady){window.addEventListener('fb-ready',tryOnce,{once:true});return;}doAutoSync();};
     tryOnce();
-    return()=>{ if(window._tbJournalSync===sync) window._tbJournalSync=null; };
+    /* No cleanup: sync() writes to the module-level store, not to this
+       component, so it stays valid after the tab unmounts — and the morning
+       orchestrator can keep driving it once the Journal tab has been opened. */
   },[sync]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* CSV import (Stonk Journal format) — dedup by ticker+date+entryPrice+qty */
   const importCSV=useCallback(async(csvText)=>{
-    /* ── parse ── */
-    const parseMoney=s=>{if(!s)return 0;return parseFloat(String(s).replace(/[$,]/g,''))||0;};
-    const lines=csvText.split('\n').map(l=>l.trim()).filter(Boolean);
-    if(!lines.length)return{ok:false,error:'Empty file'};
-    /* Parse CSV respecting quoted fields */
-    const parseRow=line=>{const cols=[];let cur='',inQ=false;for(let i=0;i<line.length;i++){const c=line[i];if(c==='"'){inQ=!inQ;}else if(c===','&&!inQ){cols.push(cur);cur='';}else cur+=c;}cols.push(cur);return cols;};
-    const headers=parseRow(lines[0]).map(h=>h.trim().toLowerCase());
-    const col=name=>{const i=headers.indexOf(name);return i>=0?i:-1;};
-    const iDate=col('date'),iTime=col('time'),iSym=col('symbol'),iMkt=col('market');
-    const iStatus=col('status'),iSide=col('side'),iQty=col('qty');
-    const iEntry=col('entry'),iExit=col('exit'),iEntTot=col('ent tot'),iExtTot=col('ext tot');
-    const iHold=col('hold'),iReturn=col('return'),iTags=col('tags'),iNotes=col('notes');
-
-    const newEntries=[];
-    for(let i=1;i<lines.length;i++){
-      const row=parseRow(lines[i]);
-      const g=idx=>idx>=0?(row[idx]||'').trim():'';
-      const dateStr=g(iDate); /* M/D/YYYY — this is the SELL/close date in Stonk Journal */
-      const timeStr=g(iTime)||'09:30';
-      const symbol=(g(iSym)||'').toUpperCase();
-      const market=g(iMkt)||'STOCK';
-      const status=(g(iStatus)||'').toUpperCase(); /* WIN|LOSS */
-      const side=(g(iSide)||'LONG').toUpperCase();
-      const qty=parseFloat(g(iQty))||0;
-      const entryPrice=parseMoney(g(iEntry));
-      const exitPrice=parseMoney(g(iExit));
-      const entTot=parseMoney(g(iEntTot))||entryPrice*qty;
-      const extTot=parseMoney(g(iExtTot))||exitPrice*qty;
-      const holdStr=g(iHold); /* "6 DAYS", "15 MIN", "1 DAY" etc */
-      const netPnL=parseMoney(g(iReturn));
-      const tags=g(iTags)?g(iTags).split(',').map(t=>t.trim()).filter(Boolean):[];
-      const notes=g(iNotes)||'';
-      if(!symbol||!dateStr)continue;
-
-      /* CSV Date+Time = SELL date. Parse it first, then subtract hold to get buy date. */
-      const parseHoldMs=h=>{if(!h||h==='-')return 0;const m=h.match(/(\d+)\s*(MIN|HR|DAY|DAYS|WEEK|WEEKS)/i);if(!m)return 0;const n=parseInt(m[1]);const u=(m[2]||'').toUpperCase();if(u==='MIN')return n*60000;if(u==='HR')return n*3600000;if(u==='DAY'||u==='DAYS')return n*86400000;if(u==='WEEK'||u==='WEEKS')return n*7*86400000;return 0;};
-      const [mm,dd,yyyy]=(dateStr.split('/')||[]);
-      const sellDT=yyyy?`${yyyy}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}T${timeStr}`:'';
-      const sellMs=sellDT?new Date(sellDT).getTime():0;
-      const holdMs=parseHoldMs(holdStr);
-      /* Buy date = sell date minus hold duration. If no hold info, use same date. */
-      const buyMs=sellMs&&holdMs?sellMs-holdMs:sellMs;
-      const buyDT=buyMs?tbToLocalDT(buyMs):(sellDT||'');
-
-      const buyLeg={id:tbUuid(),_csvImport:true,action:'BUY',datetime:buyDT,qty:String(qty),price:String(entryPrice),fee:'0'};
-      const legs=[buyLeg];
-      /* Always add SELL leg if we have an exit price */
-      if(exitPrice>0){
-        const sellLeg={id:tbUuid(),_csvImport:true,action:'SELL',datetime:sellDT,qty:String(qty),price:String(exitPrice),fee:'0'};
-        legs.push(sellLeg);
-      }
-      const entryId=tbUuid();
-      newEntries.push({
-        id:entryId,
-        ticker:symbol,
-        market,
-        createdAt:buyMs||Date.now(),
-        source:'csv',
-        legs,
-        status:exitPrice>0?'CLOSED':'OPEN',
-        netPnL:netPnL!==0?netPnL:null, /* use Stonk Journal's computed P&L */
-        setupType:'',
-        tags,
-        notes,
-        direction:side==='SHORT'?'SHORT':'LONG',
-      });
-    }
-    if(!newEntries.length)return{ok:true,added:0,skipped:lines.length-1};
-    setTrades(prev=>[...newEntries,...prev].sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)));
-    if(window._fbSaveTBTradeBulk)await window._fbSaveTBTradeBulk(newEntries);
-    else if(window._fbSaveTBTrade)newEntries.forEach(e=>window._fbSaveTBTrade(e));
-    return{ok:true,added:newEntries.length,skipped:0};
+    if(S.busy)return{ok:false,busy:true,error:'Another journal job is running'};
+    S.setBusy('import','Importing…');
+    try{ return await tbJournalImportCSV(csvText); }
+    catch(err){ S.note('Import error: '+(err&&err.message||'unknown')); return{ok:false,error:err&&err.message}; }
+    finally{ S.setBusy(''); }
   },[]);
 
-  return{trades,loading,syncing,lastSync,load,sync,add,patch,del,delBulk,importCSV,rebuild};
+  return{trades,loading,syncing,busy:S.busy,lastSync,load,sync,add,patch,del,delBulk,importCSV,rebuild};
+}
+
+/* CSV import (Stonk Journal format) — module level so a big import finishes even
+   if you leave the Journal tab while it's running. Dedup by ticker+date+entryPrice+qty. */
+async function tbJournalImportCSV(csvText){
+  const S=_tbJournalStore;
+  const setTrades=u=>S.set(u);
+  /* ── parse ── */
+  const parseMoney=s=>{if(!s)return 0;return parseFloat(String(s).replace(/[$,]/g,''))||0;};
+  const lines=csvText.split('\n').map(l=>l.trim()).filter(Boolean);
+  if(!lines.length)return{ok:false,error:'Empty file'};
+  /* Parse CSV respecting quoted fields */
+  const parseRow=line=>{const cols=[];let cur='',inQ=false;for(let i=0;i<line.length;i++){const c=line[i];if(c==='"'){inQ=!inQ;}else if(c===','&&!inQ){cols.push(cur);cur='';}else cur+=c;}cols.push(cur);return cols;};
+  const headers=parseRow(lines[0]).map(h=>h.trim().toLowerCase());
+  const col=name=>{const i=headers.indexOf(name);return i>=0?i:-1;};
+  const iDate=col('date'),iTime=col('time'),iSym=col('symbol'),iMkt=col('market');
+  const iStatus=col('status'),iSide=col('side'),iQty=col('qty');
+  const iEntry=col('entry'),iExit=col('exit'),iEntTot=col('ent tot'),iExtTot=col('ext tot');
+  const iHold=col('hold'),iReturn=col('return'),iTags=col('tags'),iNotes=col('notes');
+
+  const newEntries=[];
+  for(let i=1;i<lines.length;i++){
+    const row=parseRow(lines[i]);
+    const g=idx=>idx>=0?(row[idx]||'').trim():'';
+    const dateStr=g(iDate); /* M/D/YYYY — this is the SELL/close date in Stonk Journal */
+    const timeStr=g(iTime)||'09:30';
+    const symbol=(g(iSym)||'').toUpperCase();
+    const market=g(iMkt)||'STOCK';
+    const status=(g(iStatus)||'').toUpperCase(); /* WIN|LOSS */
+    const side=(g(iSide)||'LONG').toUpperCase();
+    const qty=parseFloat(g(iQty))||0;
+    const entryPrice=parseMoney(g(iEntry));
+    const exitPrice=parseMoney(g(iExit));
+    const entTot=parseMoney(g(iEntTot))||entryPrice*qty;
+    const extTot=parseMoney(g(iExtTot))||exitPrice*qty;
+    const holdStr=g(iHold); /* "6 DAYS", "15 MIN", "1 DAY" etc */
+    const netPnL=parseMoney(g(iReturn));
+    const tags=g(iTags)?g(iTags).split(',').map(t=>t.trim()).filter(Boolean):[];
+    const notes=g(iNotes)||'';
+    if(!symbol||!dateStr)continue;
+
+    /* CSV Date+Time = SELL date. Parse it first, then subtract hold to get buy date. */
+    const parseHoldMs=h=>{if(!h||h==='-')return 0;const m=h.match(/(\d+)\s*(MIN|HR|DAY|DAYS|WEEK|WEEKS)/i);if(!m)return 0;const n=parseInt(m[1]);const u=(m[2]||'').toUpperCase();if(u==='MIN')return n*60000;if(u==='HR')return n*3600000;if(u==='DAY'||u==='DAYS')return n*86400000;if(u==='WEEK'||u==='WEEKS')return n*7*86400000;return 0;};
+    const [mm,dd,yyyy]=(dateStr.split('/')||[]);
+    const sellDT=yyyy?`${yyyy}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}T${timeStr}`:'';
+    const sellMs=sellDT?new Date(sellDT).getTime():0;
+    const holdMs=parseHoldMs(holdStr);
+    /* Buy date = sell date minus hold duration. If no hold info, use same date. */
+    const buyMs=sellMs&&holdMs?sellMs-holdMs:sellMs;
+    const buyDT=buyMs?tbToLocalDT(buyMs):(sellDT||'');
+
+    const buyLeg={id:tbUuid(),_csvImport:true,action:'BUY',datetime:buyDT,qty:String(qty),price:String(entryPrice),fee:'0'};
+    const legs=[buyLeg];
+    /* Always add SELL leg if we have an exit price */
+    if(exitPrice>0){
+      const sellLeg={id:tbUuid(),_csvImport:true,action:'SELL',datetime:sellDT,qty:String(qty),price:String(exitPrice),fee:'0'};
+      legs.push(sellLeg);
+    }
+    const entryId=tbUuid();
+    newEntries.push({
+      id:entryId,
+      ticker:symbol,
+      market,
+      createdAt:buyMs||Date.now(),
+      source:'csv',
+      legs,
+      status:exitPrice>0?'CLOSED':'OPEN',
+      netPnL:netPnL!==0?netPnL:null, /* use Stonk Journal's computed P&L */
+      setupType:'',
+      tags,
+      notes,
+      direction:side==='SHORT'?'SHORT':'LONG',
+    });
+  }
+  if(!newEntries.length){S.note('No new trades (all duplicates)');return{ok:true,added:0,skipped:lines.length-1};}
+  setTrades(prev=>[...newEntries,...prev].sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)));
+  if(window._fbSaveTBTradeBulk)await window._fbSaveTBTradeBulk(newEntries);
+  else if(window._fbSaveTBTrade)newEntries.forEach(e=>window._fbSaveTBTrade(e));
+  S.note(`Imported ${newEntries.length} trade${newEntries.length!==1?'s':''}`);
+  return{ok:true,added:newEntries.length,skipped:0};
 }
 
 function tbUuid(){return([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16));}
@@ -1839,22 +1976,26 @@ function tbComputeTradeStats(entry){
   return{status,entryTotal,exitTotal,avgEntry,avgExit,netPnL,pnlPct,holdTime,buyQty,totalFees};
 }
 
-/* ── Portfolio hook (Webull, Cloudflare) ── */
-/* Module-level cache so the portfolio survives tab switches (component remounts)
-   and is NOT re-fetched every time the tab is reopened. Fetches once per page
-   load; after that, revisiting the tab shows the last data. Manual Refresh
-   (and a hard page reload) still pull fresh. */
-let _tbPortfolioCache={data:null,lastFetch:null,error:null,fetched:false};
-function useTBPortfolio(){
-  const [data,setData]=useState(_tbPortfolioCache.data);
-  const [loading,setLoading]=useState(false);
-  const [error,setError]=useState(_tbPortfolioCache.error);
-  const [lastFetch,setLastFetch]=useState(_tbPortfolioCache.lastFetch);
-  const inFlight=useRef(false);
-  const refresh=useCallback(async(opts)=>{
-    if(inFlight.current)return; // guard: no concurrent fetches
-    inFlight.current=true;
-    setLoading(true);setError(null);
+/* ── Portfolio store (Webull, Cloudflare) ────────────────────────────────────
+   Module-level so the portfolio survives tab switches (component remounts) and
+   is NOT re-fetched every time the tab is reopened. The IN-FLIGHT state lives
+   here too: the retry loop below can run for several seconds, and it used to be
+   driven by a component ref + component state, so leaving the tab mid-refresh
+   lost the spinner and let a second refresh start on top of the first. Fetches
+   once per page load; after that, revisiting the tab shows the last data. Manual
+   Refresh (and a hard page reload) still pull fresh. */
+let _tbPortfolioCache={data:null,lastFetch:null,error:null,fetched:false,loading:false,inFlight:null,
+  listeners:new Set(),
+  sub(fn){this.listeners.add(fn);return()=>this.listeners.delete(fn);},
+  emit(){this.listeners.forEach(fn=>{try{fn();}catch(e){}});},
+};
+/* The refresh itself — module level, so it runs to completion (and lands in the
+   cache above) no matter which tab you are looking at while it does. */
+function tbRefreshPortfolio(opts){
+  const C=_tbPortfolioCache;
+  if(C.inFlight)return C.inFlight;          // guard: no concurrent fetches — join the running one
+  C.loading=true; C.error=null; _tbJobs.set('portfolio','Refreshing…'); C.emit();
+  C.inFlight=(async()=>{
     // Retry transient failures automatically so a single flaky response (Cloudflare
     // Worker cold-start 5xx, a 429, or a dropped connection) no longer surfaces an
     // "HTTP error" that forces a second manual Refresh. Only a real worker-level
@@ -1870,31 +2011,40 @@ function useTBPortfolio(){
           break; // 4xx (other than 408/429) is not going to fix itself on retry
         }
         const j=await r.json();
-        if(j.ok){const lf=new Date();setData(j.data);setLastFetch(lf);_tbPortfolioCache.data=j.data;_tbPortfolioCache.lastFetch=lf;_tbPortfolioCache.error=null;ok=true;break;}
+        if(j.ok){C.data=j.data;C.lastFetch=new Date();C.error=null;ok=true;break;}
         lastErr=j.error||'Portfolio error';break; // worker replied but rejected — not retryable
       }catch(e){
         lastErr=e.message||lastErr; // network drop / JSON parse fail → transient
         if(attempt<MAX-1){await new Promise(res=>setTimeout(res,600*(attempt+1)));continue;}
       }
     }
-    if(ok){setError(null);if(window._tbSetPortfolioOk)window._tbSetPortfolioOk(true);}
-    else{setError(lastErr);_tbPortfolioCache.error=lastErr;if(window._tbSetPortfolioOk)window._tbSetPortfolioOk(false);}
-    setLoading(false);inFlight.current=false;_tbPortfolioCache.fetched=true;
+    if(ok){C.error=null;if(window._tbSetPortfolioOk)window._tbSetPortfolioOk(true);}
+    else{C.error=lastErr;if(window._tbSetPortfolioOk)window._tbSetPortfolioOk(false);}
+    C.loading=false;C.fetched=true;C.inFlight=null;
+    _tbJobs.set('portfolio','');
+    C.emit();
     return ok;
-  },[]);
+  })();
+  return C.inFlight;
+}
+function useTBPortfolio(){
+  const C=_tbPortfolioCache;
+  const [,force]=useState(0);
+  useEffect(()=>C.sub(()=>force(v=>v+1)),[]);
+  const refresh=useCallback(opts=>tbRefreshPortfolio(opts),[]);
   // Fetch ONCE per page load. On later tab revisits we already have cached data,
   // so we just show it — no auto-refresh, no polling interval.
   useEffect(()=>{
-    if(!_tbPortfolioCache.fetched){_tbPortfolioCache.fetched=true;refresh();}
+    if(!C.fetched&&!C.inFlight)tbRefreshPortfolio();
   },[]); // eslint-disable-line react-hooks/exhaustive-deps
   // The app-level morning orchestrator pre-loads the portfolio into the shared cache
   // at 6am; reflect that here so an already-open Portfolio tab updates live.
   useEffect(()=>{
-    const onRefreshed=()=>{ if(_tbPortfolioCache.data){ setData(_tbPortfolioCache.data); setLastFetch(_tbPortfolioCache.lastFetch); setError(null); } };
+    const onRefreshed=()=>C.emit();
     window.addEventListener('tb-portfolio-refreshed',onRefreshed);
     return()=>window.removeEventListener('tb-portfolio-refreshed',onRefreshed);
   },[]);
-  return{data,loading,error,lastFetch,refresh};
+  return{data:C.data,loading:C.loading,error:C.error,lastFetch:C.lastFetch,refresh};
 }
 
 /* ── Computed bar ── */
@@ -2502,9 +2652,12 @@ function TBJournalPage(){
   const [filter,setFilter]=useState('ALL');
   const [sortCol,setSortCol]=useState('date');
   const [sortDir,setSortDir]=useState(-1);
-  const [syncing,setSyncing]=useState(false);
-  const [csvImporting,setCsvImporting]=useState(false);
-  const [csvToast,setCsvToast]=useState(null);
+  /* Job state lives in the store, never here — leaving the tab mid-sync and
+     coming back must still show "Syncing…" and then the result. */
+  const syncing=jHook.busy==='sync';
+  const remerging=jHook.busy==='remerge';
+  const csvImporting=jHook.busy==='import';
+  const csvToast=(_tbJournalStore.msg&&Date.now()-_tbJournalStore.msgAt<TB_JMSG_TTL)?_tbJournalStore.msg:null;
   const csvInputRef=useRef(null);
   const [selectMode,setSelectMode]=useState(false);
   const [selected,setSelected]=useState(new Set());
@@ -2540,41 +2693,27 @@ function TBJournalPage(){
   const Th=({k,ch,r})=>(<th onClick={()=>toggleSort(k)} style={{padding:'9px 14px',fontSize:10,fontWeight:800,color:sortCol===k?'var(--ac)':'var(--txm)',textTransform:'uppercase',letterSpacing:1.5,cursor:'pointer',userSelect:'none',textAlign:r?'right':'left',whiteSpace:'nowrap',background:'var(--s2)',borderBottom:'1px solid var(--bd)'}}>{ch} <span style={{opacity:.5}}>{arr(k)}</span></th>);
   const SH=({ch,r})=>(<th style={{padding:'9px 14px',fontSize:10,fontWeight:800,color:'var(--txm)',textTransform:'uppercase',letterSpacing:1.5,textAlign:r?'right':'left',whiteSpace:'nowrap',background:'var(--s2)',borderBottom:'1px solid var(--bd)'}}>{ch}</th>);
 
-  const doSync=async()=>{setSyncing(true);await jHook.sync();setSyncing(false);};
+  /* All three just kick the store's job and return — the job itself owns the
+     button state and the result message, so navigating away mid-run is fine. */
+  const doSync=()=>{jHook.sync();};
 
-  const [remerging,setRemerging]=useState(false);
   const doRemerge=async()=>{
     if(!(await window.uiConfirm('Re-merge all Webull trades from their fills using FIFO grouping? Fixes split/mismatched trades. Manual & CSV trades are not touched.',{title:'Re-merge trades',okLabel:'Re-merge'})))return;
-    setRemerging(true);
-    try{
-      const res=await jHook.rebuild();
-      setCsvToast(res&&res.ok?`Re-merged into ${res.made} trade${res.made!==1?'s':''} (was ${res.removed})`:'Re-merge failed');
-    }catch(err){setCsvToast('Re-merge error: '+err.message);}
-    setRemerging(false);
-    setTimeout(()=>setCsvToast(null),3500);
+    jHook.rebuild();
   };
 
   const doImportCSV=async(e)=>{
     const file=e.target.files&&e.target.files[0];
     if(!file){return;}
     e.target.value=''; /* reset so same file can be re-selected */
-    setCsvImporting(true);
-    try{
-      const text=await file.text();
-      const result=await jHook.importCSV(text);
-      if(result.ok){
-        setCsvToast(result.added===0
-          ?'No new trades (all duplicates)'
-          :`Imported ${result.added} trade${result.added!==1?'s':''}${result.skipped?` · ${result.skipped} skipped`:''}`);}
-      else setCsvToast('Import failed: '+(result.error||'unknown error'));
-    }catch(err){setCsvToast('Import error: '+err.message);}
-    setCsvImporting(false);
-    setTimeout(()=>setCsvToast(null),3500);
+    const text=await file.text();
+    const result=await jHook.importCSV(text);
+    if(result&&!result.ok&&!result.busy)_tbJournalStore.note('Import failed: '+(result.error||'unknown error'));
   };
 
   const doExportCSV=()=>{
     const trades=jHook.trades;
-    if(!trades||!trades.length){setCsvToast('No trades to export.');setTimeout(()=>setCsvToast(null),3000);return;}
+    if(!trades||!trades.length){_tbJournalStore.note('No trades to export.');return;}
     /* Helper: wrap cell in quotes, escape internal quotes */
     const cell=v=>{
       if(v==null||v===undefined||v==='')return'';
@@ -2655,8 +2794,7 @@ function TBJournalPage(){
     a.href=url;a.download=`taskhub_trades_${stamp}.csv`;a.style.display='none';
     document.body.appendChild(a);a.click();
     setTimeout(()=>{URL.revokeObjectURL(url);document.body.removeChild(a);},500);
-    setCsvToast(`Exported ${trades.length} trade${trades.length!==1?'s':''}`);
-    setTimeout(()=>setCsvToast(null),3000);
+    _tbJournalStore.note(`Exported ${trades.length} trade${trades.length!==1?'s':''}`);
   };
 
   return(
@@ -2667,10 +2805,10 @@ function TBJournalPage(){
           <div style={{fontSize:13,color:'var(--txm)'}}>{jHook.trades.length} trades{jHook.lastSync?` · Synced ${new Date(jHook.lastSync).toLocaleString([],{dateStyle:'short',timeStyle:'short'})}`:''}</div>
         </div>
         <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
-        {!selectMode&&localStorage.getItem('td6_mainDash')==='tony'&&<button className="tb-btn-ghost" onClick={doSync} disabled={jHook.syncing||syncing} style={{fontSize:13}}><><TBIcon n="refresh"/> {jHook.syncing||syncing?'Syncing…':'Webull Sync'}</></button>}
-        {!selectMode&&localStorage.getItem('td6_mainDash')==='tony'&&<button className="tb-btn-ghost" onClick={doRemerge} disabled={remerging||jHook.syncing||syncing} style={{fontSize:13}} title="Rebuild Webull trades from fills with correct FIFO grouping"><><TBIcon n="rotateCcw"/> {remerging?'Re-merging…':'Re-merge'}</></button>}
+        {!selectMode&&localStorage.getItem('td6_mainDash')==='tony'&&<button className="tb-btn-ghost" onClick={doSync} disabled={!!jHook.busy} style={{fontSize:13}}><><TBIcon n="refresh"/> {syncing?'Syncing…':'Webull Sync'}</></button>}
+        {!selectMode&&localStorage.getItem('td6_mainDash')==='tony'&&<button className="tb-btn-ghost" onClick={doRemerge} disabled={!!jHook.busy} style={{fontSize:13}} title="Rebuild Webull trades from fills with correct FIFO grouping"><><TBIcon n="rotateCcw"/> {remerging?'Re-merging…':'Re-merge'}</></button>}
         {!selectMode&&<button className="tb-btn-ghost" onClick={()=>setModal('add')} style={{fontSize:13}}><TBIcon n="plus"/> Manual Trade</button>}
-        {!selectMode&&<button className="tb-btn-ghost" onClick={()=>csvInputRef.current&&csvInputRef.current.click()} disabled={csvImporting} style={{fontSize:13}}><><TBIcon n="fileIn"/> {csvImporting?'Importing…':'Import CSV'}</></button>}
+        {!selectMode&&<button className="tb-btn-ghost" onClick={()=>csvInputRef.current&&csvInputRef.current.click()} disabled={!!jHook.busy} style={{fontSize:13}}><><TBIcon n="fileIn"/> {csvImporting?'Importing…':'Import CSV'}</></button>}
         {!selectMode&&<button className="tb-btn-ghost" onClick={doExportCSV} disabled={!jHook.trades.length} style={{fontSize:13}}><TBIcon n="download"/> Export CSV</button>}
         {!selectMode&&<button className="tb-btn-ghost" onClick={()=>setSelectMode(true)} style={{fontSize:13}}><TBIcon n="check"/> Select</button>}
         {selectMode&&<span style={{fontSize:13,color:'var(--txm)',fontWeight:600}}>{selected.size} selected</span>}
@@ -2744,7 +2882,7 @@ function TBJournalPage(){
       </div>
       {modal==='add'&&<TBTradeModal onClose={()=>setModal(null)} onSave={jHook.add}/>}
       {modal&&modal!=='add'&&<TBTradeModal entry={modal} onClose={()=>setModal(null)} onSave={(id,fields)=>jHook.patch(id,fields)} onDel={jHook.del}/>}
-      {csvToast&&<TBToast message={csvToast} icon="folder" onClose={()=>setCsvToast(null)}/>}
+      {csvToast&&<TBToast key={_tbJournalStore.msgAt} message={csvToast} icon="folder" onClose={()=>_tbJournalStore.note('')}/>}
     </div>
   );
 }
@@ -3826,6 +3964,10 @@ function tbOrderedNav(order){
    Self-contained (Pointer Events), no libraries. Order changes bubble via onReorder. */
 function TBNavBar({items,page,onNav,onReorder,variant}){
   const isDesktop=variant==='desktop';
+  /* Which tabs have a job running right now — the dot next to a tab's label is
+     the only way to tell that the sync/build you kicked before wandering off is
+     still going. */
+  const jobs=useTBJobs();
   const containerRef=useRef(null);
   const byId=useMemo(()=>{const m={};(items||[]).forEach(i=>m[i.id]=i);return m;},[items]);
   const [liveIds,setLiveIds]=useState(()=>(items||[]).map(i=>i.id));
@@ -3908,6 +4050,7 @@ function TBNavBar({items,page,onNav,onReorder,variant}){
     const isActive=page===item.id;
     const isDrag=dragId===item.id;
     const tabLocked=window._tbTabLock&&window._tbTabLock.isLocked(item.id);
+    const jobLabel=jobs.label(item.id);
     const base = isDesktop
       ? {display:'flex',alignItems:'center',gap:7,padding:'0 16px',height:'100%',fontSize:12}
       : {flex:'0 0 auto',display:'flex',alignItems:'center',justifyContent:'center',gap:5,padding:'8px 16px',fontSize:12};
@@ -3921,6 +4064,8 @@ function TBNavBar({items,page,onNav,onReorder,variant}){
         touchAction:'pan-x',userSelect:'none',WebkitUserSelect:'none',WebkitTouchCallout:'none'}}>
       {isDesktop&&item.icon?<TBIcon n={item.icon} size={13}/>:null}
       <span>{item.label}</span>
+      {jobLabel?<span title={jobLabel} style={{width:6,height:6,borderRadius:'50%',background:'var(--ac)',flexShrink:0,
+        boxShadow:'0 0 0 3px rgba(224,184,116,0.16)',animation:'tb-pulse 1.4s ease-in-out infinite'}}/>:null}
       {tabLocked?<TBIcon n="lock" size={isDesktop?11:10} style={{opacity:.75}}/>:null}
       {item.badge?<span style={{fontSize:isDesktop?8:7,background:'rgba(164,185,134,0.18)',color:'var(--tbb)',border:'1px solid rgba(164,185,134,0.35)',borderRadius:isDesktop?4:3,padding:'1px 5px',fontWeight:800,marginLeft:2}}>{item.badge}</span>:null}
     </button>;
@@ -4780,17 +4925,27 @@ const NH_MAX_POLLS = 16;
    from here so it lands even with the News tab closed. ── */
 const _tbNewsBuild = {
   building:false,
+  kicking:false,  // the request that STARTS a build, before polling takes over
   timer:null,
   polls:0,
   tickers:[],
   baseGen:0,      // generatedAt when the build was kicked — a poll is only DONE past this
   settings:null,  // mirror of the tab's filters; the Firebase write is a full overwrite
   last:null,      // most recent finished payload, adopted by a tab that remounts
+  notice:'', noticeAt:0,   // last message, so a result that landed while you were away is still explained
   listeners:new Set(),
   sub(fn){ this.listeners.add(fn); return()=>this.listeners.delete(fn); },
   emit(evt){ this.listeners.forEach(fn=>{try{fn(evt);}catch(e){}}); },
-  stop(){ if(this.timer){clearTimeout(this.timer);this.timer=null;} this.polls=0; this.building=false; },
+  /* Nav badge: News is "working" from the moment the kick request goes out until
+     the poller stops, so the dot is visible on whatever tab you switch to. */
+  syncJob(){ _tbJobs.set('news',(this.building||this.kicking)?'Building…':''); },
+  note(msg){ this.notice=msg||''; this.noticeAt=msg?Date.now():0; this.emit({type:'notice',message:this.notice}); },
+  setKicking(v){ this.kicking=!!v; this.syncJob(); this.emit({type:v?'kick':'kickend'}); },
+  stop(){ if(this.timer){clearTimeout(this.timer);this.timer=null;} this.polls=0; this.building=false; this.syncJob(); },
 };
+/* A notice older than this is stale context, not news — don't resurrect it on a
+   tab that's being opened much later. */
+const NH_NOTICE_TTL=5*60*1000;
 async function tbNewsPoll(){
   const B=_tbNewsBuild;
   B.timer=null;
@@ -4853,6 +5008,7 @@ function tbNewsWatchBuild(tickers,baseGen){
   B.tickers=(tickers&&tickers.length)?tickers:NH_DEFAULT_TICKERS;
   B.baseGen=baseGen||0;
   B.polls=0;
+  B.syncJob();
   B.emit({type:'start'});
   B.timer=setTimeout(tbNewsPoll,NH_POLL_INTERVAL);
   // Peek runs in parallel with the first 15s wait, so it never delays the watch.
@@ -4861,6 +5017,16 @@ function tbNewsWatchBuild(tickers,baseGen){
     .then(j=>{ if(j&&B.building&&B.polls===0&&(j.generatedAt||0)>B.baseGen) B.baseGen=j.generatedAt; })
     .catch(()=>{});
 }
+
+/* A backgrounded tab gets its timers throttled (and a fully backgrounded PWA can
+   have them frozen outright), so a poll scheduled 15s out can land minutes late —
+   which looks exactly like "I left the app and the build never finished". Poll the
+   moment the app is looked at again instead of waiting out a stretched timer. */
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState!=='visible')return;
+  const B=_tbNewsBuild;
+  if(B.building&&B.timer){ clearTimeout(B.timer); B.timer=null; tbNewsPoll(); }
+});
 
 /* When the cheap path last auto-escalated to a force-fresh (see refresh()). The
    escalation is a real quota spend, so it is throttled: a watchlist that has
@@ -4966,12 +5132,17 @@ function NHHeadlineList({sources}){
 function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
   const [events,setEvents]=useState([]);
   const [generatedAt,setGeneratedAt]=useState(null);
-  const [loading,setLoading]=useState(false);
   // Seed from the module-level manager so the spinner is still there when you come
-  // back to a tab whose build is still running.
+  // back to a tab whose build is still running — `kicking` covers the request that
+  // starts the build, `building` the poll that watches it.
+  const [loading,setLoadingState]=useState(()=>_tbNewsBuild.kicking);
   const [building,setBuilding]=useState(()=>_tbNewsBuild.building);
   const [degraded,setDegraded]=useState(false); // all AI down, showing raw headlines
-  const [notice,setNotice]=useState('');
+  const [notice,setNoticeState]=useState(()=>(_tbNewsBuild.notice&&Date.now()-_tbNewsBuild.noticeAt<NH_NOTICE_TTL)?_tbNewsBuild.notice:'');
+  /* Both write through the manager, so the "Refreshing…" state and the message
+     explaining how a build ended are still there after a tab switch. */
+  const setLoading=useCallback(v=>{_tbNewsBuild.setKicking(v);setLoadingState(v);},[]);
+  const setNotice=useCallback(m=>{_tbNewsBuild.note(m);setNoticeState(m);},[]);
   const [hours,setHours]=useState(72); // 3-day window
   const [sentFilter,setSentFilter]=useState('all');
   const [impFilter,setImpFilter]=useState('all');
@@ -4999,6 +5170,11 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
     setGeneratedAt(p.generatedAt||Date.now());
     setDegraded(!!p.degraded);
     genRef.current=p.generatedAt||Date.now();
+    /* Hand it to the manager too: a force-fresh can come back finished on the
+       first request (no polling involved), and if that lands while the tab is
+       closing, `last` is what a remount adopts before the debounced Firebase
+       write has even gone out. */
+    if((p.generatedAt||0)>=((_tbNewsBuild.last&&_tbNewsBuild.last.generatedAt)||0))_tbNewsBuild.last=p;
   },[]);
 
   // Keep the manager's copy of the filters current — it publishes the finished
@@ -5115,10 +5291,16 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
      hands over a build that finished while News was closed. ── */
   useEffect(()=>{
     setBuilding(_tbNewsBuild.building);
+    setLoadingState(_tbNewsBuild.kicking);
     const lb=_tbNewsBuild.last;
     if(lb&&(lb.generatedAt||0)>genRef.current)applyBuild(lb);
     return _tbNewsBuild.sub((evt)=>{
-      if(evt.type==='start'){setBuilding(true);setLoading(false);setNotice('');}
+      /* A build kicked from ANOTHER mount (or the orchestrator) drives this tab
+         through these two, so the spinner is right the moment you come back. */
+      if(evt.type==='kick'){setLoadingState(true);}
+      else if(evt.type==='kickend'){setLoadingState(false);}
+      else if(evt.type==='notice'){setNoticeState(evt.message||'');}
+      else if(evt.type==='start'){setBuilding(true);setLoading(false);setNotice('');}
       else if(evt.type==='done'){
         applyBuild(evt.payload);
         setBuilding(false);setLoading(false);
@@ -5951,14 +6133,18 @@ let _tbNewsBuildKickedAt=0;
 // the result via its subscription, a remounted tab loads it from Firebase.
 const _tbCatBuild = {
   building:false,
+  last:null,               // {future,degraded,at} — what the last finished build stored
+  notice:'', noticeAt:0,   // and how it ended, so a tab opened later still explains itself
   listeners:new Set(),
   sub(fn){ this.listeners.add(fn); return ()=>this.listeners.delete(fn); },
   emit(evt){ this.listeners.forEach(fn=>{ try{ fn(evt); }catch(e){} }); },
+  note(msg){ this.notice=msg||''; this.noticeAt=msg?Date.now():0; this.emit({type:'notice',message:this.notice}); },
 };
+const TB_CAT_NOTICE_TTL=5*60*1000;
 async function tbRunCatBuild(wl, force){
   if(_tbCatBuild.building) return {ok:false,busy:true};   // one build at a time
   wl=(wl&&wl.length)?wl:NH_DEFAULT_TICKERS;
-  _tbCatBuild.building=true; _tbCatBuild.emit({type:'start'});
+  _tbCatBuild.building=true; _tbJobs.set('catalysts','Building…'); _tbCatBuild.emit({type:'start'});
   try{
     let {future,degraded}=await tbBuildCalendar(wl,{force});
     // ── SELF-HEAL: no earnings → escalate to a real Force, once. ──────────────
@@ -5981,6 +6167,10 @@ async function tbRunCatBuild(wl, force){
       stored=(await tbPublishCalendar(future,wl))||future;
       _tbCatLastSyncedSig=tbCalWlSig(wl);    // this list is now what the stored calendar reflects
     }
+    /* Keep the finished build on the manager: the Firebase write is debounced, so
+       a tab reopened seconds later would otherwise read the PREVIOUS doc back out
+       of Firestore and show the old calendar until something else refreshed it. */
+    _tbCatBuild.last={future:stored,degraded:!!degraded,at:Date.now()};
     _tbCatBuild.emit({type:'done',future:stored,degraded:!!degraded});
     // `earnings` counts what's actually STORED (what the user sees); `builtEarnings`
     // counts what THIS build produced. They differ exactly when the safety net kept
@@ -5993,7 +6183,7 @@ async function tbRunCatBuild(wl, force){
     _tbCatBuild.emit({type:'error',error:e});
     return {ok:false,error:e};
   }finally{
-    _tbCatBuild.building=false; _tbCatBuild.emit({type:'end'});
+    _tbCatBuild.building=false; _tbJobs.set('catalysts',''); _tbCatBuild.emit({type:'end'});
   }
 }
 
@@ -6002,7 +6192,10 @@ function TBCatalystsPage({watchlist=NH_DEFAULT_TICKERS}){
   // Init from the module-level manager so buttons are locked on remount if a
   // background build is still running.
   const [loading,setLoading]=useState(()=>_tbCatBuild.building);
-  const [notice,setNotice]=useState('');
+  /* Notices go through the manager too, so a build that ended while you were on
+     another tab still tells you how it went when you come back. */
+  const [notice,setNoticeState]=useState(()=>(_tbCatBuild.notice&&Date.now()-_tbCatBuild.noticeAt<TB_CAT_NOTICE_TTL)?_tbCatBuild.notice:'');
+  const setNotice=useCallback(m=>{_tbCatBuild.note(m);setNoticeState(m);},[]);
   const [lastSync,setLastSync]=useState(null);
   const eventsRef=useRef([]); const wlRef=useRef(watchlist); const didAuto=useRef(false);
   useEffect(()=>{eventsRef.current=events;},[events]);
@@ -6023,6 +6216,7 @@ function TBCatalystsPage({watchlist=NH_DEFAULT_TICKERS}){
     return _tbCatBuild.sub((evt)=>{
       if(evt.type==='start'){ setLoading(true); setNotice(''); }
       else if(evt.type==='end'){ setLoading(false); }
+      else if(evt.type==='notice'){ setNoticeState(evt.message||''); }
       else if(evt.type==='done'){
         const today=tbLocalDate(0);
         const prev=(eventsRef.current||[]).filter(e=>e&&e.date>=today);
@@ -6055,12 +6249,22 @@ function TBCatalystsPage({watchlist=NH_DEFAULT_TICKERS}){
 
   useEffect(()=>{
     const doLoad=async()=>{
+      let fbGen=0;
       try{
-        if(window._fbLoadMarketCal){const d=await window._fbLoadMarketCal();if(d&&Array.isArray(d.events)){const today=tbLocalDate(0);const fut=d.events.filter(e=>e&&e.date>=today);setEvents(fut);eventsRef.current=fut;setLastSync(d.generatedAt||d.savedAt||null);
+        if(window._fbLoadMarketCal){const d=await window._fbLoadMarketCal();if(d&&Array.isArray(d.events)){const today=tbLocalDate(0);const fut=d.events.filter(e=>e&&e.date>=today);setEvents(fut);eventsRef.current=fut;setLastSync(d.generatedAt||d.savedAt||null);fbGen=d.generatedAt||d.savedAt||0;
           // One-time cleanup: nuke any catalyst reminder docs from the old push
           // flow (ids == event ids) so no 6:30 AM notification ever fires again.
           if(window._fbDeleteReminder){for(const e of (d.events||[])){if(e&&e.id){try{await window._fbDeleteReminder(e.id);}catch(_e){}}}}
         }}
+        // A build that finished while this tab was closed may not have reached
+        // Firebase yet (that write is debounced) — prefer the manager's copy so
+        // reopening the tab shows the calendar you just built, not the old one.
+        const lb=_tbCatBuild.last;
+        if(lb&&lb.at>fbGen&&Array.isArray(lb.future)){
+          const today=tbLocalDate(0);
+          const fut=lb.future.filter(e=>e&&e.date>=today);
+          if(fut.length){setEvents(fut);eventsRef.current=fut;setLastSync(lb.at);}
+        }
       }catch(e){}
       // No auto-refresh on tab open — only load cached events from Firebase.
       // Fresh fetch happens ONLY when the user hits Refresh / Force.
