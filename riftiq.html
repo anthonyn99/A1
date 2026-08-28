@@ -5350,28 +5350,49 @@ function _queueInfo(queueId) {
 
 // Label shown on the row. Curated name first (they read better than Riot's doc
 // strings), then Riot's own description, then the map.
-function queueLabel(queueId, mapId) {
+function queueLabel(queueId, mapId, gameMode) {
   const q = _queueInfo(queueId);
   if (q.name) return q.name;
+  // An undocumented queue id still names itself off the mode or the map rather
+  // than rendering as a bare "Game".
+  const mode = MODE_CAT[String(gameMode || '').toUpperCase()];
+  if (mode && mode !== 'Other') return mode;
   return MAP_NAMES[mapId] || 'Game';
 }
+
+// info.gameMode is the sturdiest signal Riot ships: it rides on the match
+// itself, so it needs neither a documented queue id nor a known map. That
+// matters because Riot runs event modes on maps it has not published — the
+// current Mayhem rotation uses "Koeshin's Crossing", which is in no static
+// table — and those games would otherwise fall through to 'Other'.
+const MODE_CAT = {
+  ARAM: 'ARAM', CHERRY: 'Arena', BRAWL: 'Brawl', NEXUSBLITZ: 'Nexus Blitz',
+  URF: 'URF', ARURF: 'URF', ONEFORALL: 'One for All', ULTBOOK: 'Ultimate Spellbook',
+  STRAWBERRY: 'Swarm', TUTORIAL: 'Other', TUTORIAL_MODULE_1: 'Other',
+  TUTORIAL_MODULE_2: 'Other', TUTORIAL_MODULE_3: 'Other',
+  PRACTICETOOL: 'Custom', DOOMBOTSTEEMO: 'Other', ODYSSEY: 'Other',
+  STARGUARDIAN: 'Other', PROJECT: 'Other', SNOWURF: 'URF', FIRSTBLOOD: 'Other',
+  ASCENSION: 'Other', KINGPORO: 'ARAM', SIEGE: 'Other', ASSASSINATE: 'Other'
+};
 
 // The one classifier every filter path goes through.
 function matchCategory(m) {
   const info = (m && m.info) || {};
   const q = _queueInfo(info.queueId);
   const fam = mapFamily(info.mapId);
+  const mode = MODE_CAT[String(info.gameMode || '').toUpperCase()] || null;
   const text = (q.desc + ' ' + q.name).toLowerCase();
 
-  // 1. The map decides its own family, and only the flavour is read off the
-  //    queue. Mayhem, Clash and ARURF are all Howling Abyss.
-  if (fam === 'ARAM') {
+  // 1. The mode, then the map, decide the family; only the flavour is read off
+  //    the queue. Mayhem, Clash and ARURF all report gameMode ARAM.
+  const family = mode || fam;
+  if (family === 'ARAM') {
     if (/mayhem/.test(text))  return 'ARAM Mayhem';
     if (/clash/.test(text))   return 'Clash';
     if (/urf/.test(text))     return 'URF';
     return 'ARAM';
   }
-  if (fam) return fam;                      // Arena, Brawl, Nexus Blitz, Swarm, TFT
+  if (family) return family;                // Arena, Brawl, Nexus Blitz, Swarm, TFT
 
   // 2. Off a special map, an explicit curated bucket wins.
   if (q.cat) return q.cat;
@@ -5877,7 +5898,7 @@ function renderMatchRow(m, mIdx) {
       ? (p.kills+p.assists).toFixed(1)
       : ((p.kills+p.assists)/p.deaths).toFixed(2);
     const cspm = (p.totalMinionsKilled / (m.info.gameDuration/60)).toFixed(1);
-    const qName   = queueLabel(m.info.queueId, m.info.mapId);
+    const qName   = queueLabel(m.info.queueId, m.info.mapId, m.info.gameMode);
     const mapName = MAP_NAMES[m.info.mapId] || '';
 
     // Build detail panel
