@@ -113,8 +113,9 @@ human at a real desktop:
    `TerminateProcess` on whatever is still standing after 1.5 s. Worth watching
    once with an editor holding unsaved work, to confirm it gets its prompt.
 3. **Shortcut round-trip** — hide, restore, and check the `.lnk` came back to
-   the same folder. Note this machine's Desktop is OneDrive-redirected, which is
-   why `shortcut_dirs()` covers both locations.
+   the same folder. This machine's Desktop is the plain `%USERPROFILE%\Desktop`
+   (it used to be OneDrive-redirected); `shortcut_dirs()` still probes both and
+   keeps only the directories that actually exist, so either layout works.
 4. **Tray and hotkeys with no window open**, and the boot re-arm after a restart
    during an active lockdown.
 5. **`shieldopen:` local-link buttons.** TaskHub's Settings → External Links
