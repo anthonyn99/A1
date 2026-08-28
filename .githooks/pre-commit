@@ -1,13 +1,68 @@
 #!/bin/sh
-# Runs the sync-guard and syntax tests before any commit that touches index.html.
-#
-# index.html ships straight to GitHub Pages with no build step, so a broken commit
-# is live on every device within a minute. The sync guards in particular protect
-# against silent DATA LOSS (the "my edits reverted" bug), which is why they are
-# checked here and not only in CI.
+# Pre-commit guards. Two independent sections:
+#   1. Repository integrity  — always runs, never blocks.
+#   2. index.html test gate  — runs only for commits touching index.html/tests.
 #
 # Enable once per clone:   git config core.hooksPath .githooks
 # Bypass in an emergency:  git commit --no-verify
+
+# ── 1. Repository integrity ──────────────────────────────────────────────────
+# A repo that has lived on a syncing filesystem (OneDrive/Dropbox) can silently
+# lose or corrupt objects under .git/objects. The damage is invisible to
+# `git status`, to `git log -n`, and even to push/pull — those never walk the
+# full history. This repo lost a commit object that way and went ~7 weeks
+# undetected, breaking history at 751 commits deep.
+#
+# Both tiers are NON-BLOCKING on purpose: corruption does not make the current
+# commit wrong, and this hook runs under an unattended auto-commit watcher, so
+# exiting non-zero here would silently freeze every future commit.
+#
+#   fast  (every commit, ~60ms) — walks commit parents. Catches a missing or
+#         unreadable commit: the exact OneDrive failure mode.
+#   deep  (once per 24h, ~3s)   — full fsck. Also catches corrupt object
+#         CONTENT (bad zlib, sha mismatch) that a connectivity walk skips.
+#
+# Findings go to .git/integrity.log (inside .git, so never tracked) and stderr.
+
+GITDIR=$(git rev-parse --git-dir 2>/dev/null) || GITDIR=".git"
+INTEGRITY_LOG="$GITDIR/integrity.log"
+FSCK_STAMP="$GITDIR/last-fsck"
+
+warn() {
+  printf 'pre-commit: %s\n' "$1" >&2
+  printf '%s  %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1" >> "$INTEGRITY_LOG" 2>/dev/null
+}
+
+# Skip entirely on the very first commit, when HEAD does not resolve yet.
+if git rev-parse --verify -q HEAD >/dev/null 2>&1; then
+  if ! git rev-list --count HEAD >/dev/null 2>&1; then
+    warn "INTEGRITY FAILURE: cannot walk history from HEAD — objects missing or unreadable."
+    warn "INTEGRITY FAILURE: repair with →  git fetch --refetch origin"
+  else
+    now=$(date +%s)
+    last=0
+    if [ -f "$FSCK_STAMP" ]; then last=$(cat "$FSCK_STAMP" 2>/dev/null); fi
+    case "$last" in ''|*[!0-9]*) last=0 ;; esac
+
+    if [ $(( now - last )) -ge 86400 ]; then
+      fsck_out=$(git fsck --no-progress --no-dangling 2>&1)
+      if [ -n "$fsck_out" ]; then
+        warn "INTEGRITY: git fsck reported problems —"
+        printf '%s\n' "$fsck_out" | head -20 | while IFS= read -r line; do
+          warn "    $line"
+        done
+        warn "INTEGRITY: if objects are missing, repair with →  git fetch --refetch origin"
+      fi
+      printf '%s' "$now" > "$FSCK_STAMP" 2>/dev/null
+    fi
+  fi
+fi
+
+# ── 2. index.html test gate ──────────────────────────────────────────────────
+# index.html ships straight to GitHub Pages with no build step, so a broken
+# commit is live on every device within a minute. The sync guards in particular
+# protect against silent DATA LOSS (the "my edits reverted" bug), which is why
+# they are checked here and not only in CI. This section DOES block.
 
 if git diff --cached --name-only | grep -qE '^(index\.html|tests/)'; then
   command -v node >/dev/null 2>&1 || {
