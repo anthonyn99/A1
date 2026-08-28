@@ -805,10 +805,13 @@ body.wr-locked #wr-progbar { display: none !important; }
   background: currentColor; flex-shrink: 0;
 }
 #pv-sync-indicator.syncing::before { animation: wrsyncpulse 1.1s ease-in-out infinite; }
+/* Same size as WarRoom's #wr-lock-btn, and as the swap button sitting next to
+   it in this very bar. Matched DOWN to the compact scale rather than up: at
+   30px it was the tallest control in both programs' headers. */
 #wr-progbar-lock {
-  height: 30px; width: 30px; flex-shrink: 0;
+  height: 25px; width: 25px; flex-shrink: 0;
   display: inline-flex; align-items: center; justify-content: center;
-  background: transparent; border: 1px solid rgba(192,174,234,.30); border-radius: 7px;
+  background: transparent; border: 1px solid rgba(192,174,234,.30); border-radius: 6px;
   color: var(--tx2); cursor: pointer; opacity: .8;
   transition: border-color .18s, color .18s, box-shadow .18s, opacity .18s;
 }
@@ -816,7 +819,11 @@ body.wr-locked #wr-progbar { display: none !important; }
   opacity: 1; color: var(--gold2); border-color: var(--gold);
   box-shadow: 0 0 0 1px rgba(192,174,234,.45), 0 0 16px rgba(192,174,234,.45);
 }
-#wr-progbar-lock svg { width: 14px; height: 14px; display: block; }
+#wr-progbar-lock svg { width: 13px; height: 13px; display: block; }
+@media (max-width: 700px) {
+  #wr-progbar-lock { height: 23px; width: 23px; }
+  #wr-progbar-lock svg { width: 12px; height: 12px; }
+}
 
 /* Swap button — same control in both programs' headers. Patch Notes, Lookups
    and the program swapper are the same KIND of control, so they are sized as
@@ -4129,6 +4136,7 @@ async function fetchServerStatus() {
 // re-fetched on next use) and retry. Everything listed here is a cache, never
 // user data — do not add a key that holds something only the browser has.
 const WR_EVICTABLE = [
+  'wr_qmeta_v1',        // Riot queue/map tables — re-fetched from their static JSON
   'pv_sched_v1',        // ProView schedule cache — re-fetched from the worker
   'kc_icon_cache_v1',   // TaskHub link-icon cache — re-fetched per site
   'thwx_data_v2',       // weather payload — refetched on open
@@ -4947,14 +4955,18 @@ async function loadProfile() {
       riotFetch(`/lol/match/v5/matches/by-puuid/${summoner.puuid}/ids?start=0&count=20`, summoner.routing)
     ]);
 
-    // Get match details in batches to avoid rate limit
+    // Get match details in batches to avoid rate limit.
+    // allSettled, NOT all: one match Riot refuses — a mode its match endpoint
+    // chokes on, or a single 429 — used to reject the whole batch of five and
+    // fall through to the catch below, replacing the entire profile with an
+    // error. A game that cannot be read should cost that one game, nothing more.
     const matches = [];
     for (let i = 0; i < matchIds.length; i += 5) {
       const batch = matchIds.slice(i, i + 5);
-      const results = await Promise.all(
+      const results = await Promise.allSettled(
         batch.map(id => riotFetch(`/lol/match/v5/matches/${id}`, summoner.routing))
       );
-      matches.push(...results.filter(Boolean));
+      matches.push(...results.filter(r => r.status === 'fulfilled' && r.value).map(r => r.value));
     }
 
     allMatches = matches;
@@ -5194,36 +5206,41 @@ const QUEUES = {
   990:  { name: 'Star Guardian',           cat: 'Other' },
   1000: { name: 'PROJECT: Hunters',        cat: 'Other' },
   1010: { name: 'Snow ARURF' },
-  1020: { name: 'One for All',             cat: 'Other' },
+  1020: { name: 'One for All',             cat: 'One for All' },
   1030: { name: 'Odyssey',                 cat: 'Other' },
   1040: { name: 'Odyssey',                 cat: 'Other' },
   1050: { name: 'Odyssey',                 cat: 'Other' },
   1060: { name: 'Odyssey',                 cat: 'Other' },
   1070: { name: 'Odyssey',                 cat: 'Other' },
-  1090: { name: 'Teamfight Tactics',       cat: 'Other' },
-  1100: { name: 'Ranked TFT',              cat: 'Other' },
-  1110: { name: 'TFT Tutorial',            cat: 'Other' },
-  1111: { name: 'TFT Test',                cat: 'Other' },
-  1130: { name: 'TFT Hyper Roll',          cat: 'Other' },
-  1150: { name: 'TFT Double Up',           cat: 'Other' },
-  1160: { name: 'TFT Double Up',           cat: 'Other' },
+  1090: { name: 'Teamfight Tactics',       cat: 'Teamfight Tactics' },
+  1100: { name: 'Ranked TFT',              cat: 'Teamfight Tactics' },
+  1110: { name: 'TFT Tutorial',            cat: 'Teamfight Tactics' },
+  1111: { name: 'TFT Test',                cat: 'Teamfight Tactics' },
+  1130: { name: 'TFT Hyper Roll',          cat: 'Teamfight Tactics' },
+  1150: { name: 'TFT Double Up',           cat: 'Teamfight Tactics' },
+  1160: { name: 'TFT Double Up',           cat: 'Teamfight Tactics' },
   1200: { name: 'Nexus Blitz',             cat: 'Nexus Blitz' },
   1300: { name: 'Nexus Blitz',             cat: 'Nexus Blitz' },
-  1400: { name: 'Ultimate Spellbook',      cat: 'Other' },
+  1400: { name: 'Ultimate Spellbook',      cat: 'Ultimate Spellbook' },
   1700: { name: 'Arena' },
   1710: { name: 'Arena' },
-  1810: { name: 'Swarm',                   cat: 'Other' },
-  1820: { name: 'Swarm',                   cat: 'Other' },
-  1830: { name: 'Swarm',                   cat: 'Other' },
-  1840: { name: 'Swarm',                   cat: 'Other' },
-  1900: { name: 'URF',                     cat: 'Other' },
+  1810: { name: 'Swarm',                   cat: 'Swarm' },
+  1820: { name: 'Swarm',                   cat: 'Swarm' },
+  1830: { name: 'Swarm',                   cat: 'Swarm' },
+  1840: { name: 'Swarm',                   cat: 'Swarm' },
+  1900: { name: 'URF',                     cat: 'URF' },
   2000: { name: 'Tutorial',                cat: 'Other' },
   2010: { name: 'Tutorial',                cat: 'Other' },
   2020: { name: 'Tutorial',                cat: 'Other' },
-  // Current-season ids. These were previously only known to the Spectate tab,
-  // so match history rendered them as a bare 'Game' and no chip ever matched.
-  2300: { name: 'ARAM' },
-  2400: { name: 'Normal Draft',            cat: 'Normal' },
+  // Current-season ids, checked against Riot's published queues.json.
+  // 2300 and 2400 were GUESSES here and both were wrong: 2300 is Brawl on The
+  // Bandlewood (it was labelled ARAM) and 2400 is ARAM: Mayhem on Howling Abyss
+  // (it was labelled Normal Draft, with an explicit Normal bucket that beat the
+  // map — which is why Mayhem games were nowhere to be found in the ARAM chip).
+  2300: { name: 'Brawl' },
+  2400: { name: 'ARAM: Mayhem' },
+  // Not in Riot's table; kept as observed-live labels. They are safe now that
+  // the MAP decides the bucket, so a wrong guess here can only affect wording.
   2410: { name: 'ARAM' },
   2420: { name: 'Swiftplay',               cat: 'Normal' },
   2430: { name: 'Swiftplay',               cat: 'Normal' },
@@ -5233,27 +5250,154 @@ const QUEUES = {
   3000: { name: 'Rotating Game Mode',      cat: 'Other' }
 };
 
-// mapId -> filter bucket. This is what makes ARAM reliable: every Howling Abyss
-// game is ARAM no matter which rotating queue id Riot ran it under.
-const MAP_CAT   = { 11: 'Other', 12: 'ARAM', 14: 'ARAM', 21: 'Nexus Blitz', 30: 'Arena' };
-const MAP_NAMES = { 11: "Summoner's Rift", 12: 'Howling Abyss', 14: "Butcher's Bridge", 21: 'Nexus Blitz', 30: 'Rings of Wrath' };
+const MAP_NAMES = {
+  1: "Summoner's Rift", 2: "Summoner's Rift", 3: 'Proving Grounds',
+  4: 'Twisted Treeline', 8: 'Crystal Scar', 10: 'Twisted Treeline',
+  11: "Summoner's Rift", 12: 'Howling Abyss', 14: "Butcher's Bridge",
+  16: 'Cosmic Ruins', 18: 'Valoran City Park', 19: 'Substructure 43',
+  20: 'Crash Site', 21: 'Nexus Blitz', 22: 'Convergence',
+  30: 'Rings of Wrath', 35: 'The Bandlewood'
+};
 
+// ── RUNTIME QUEUE / MAP METADATA ───────────────────────────────────────────
+// Riot publishes both lists as static JSON, CORS-open, no API key:
+//   static.developer.riotgames.com/docs/lol/queues.json  (queueId -> map + description)
+//   static.developer.riotgames.com/docs/lol/maps.json    (mapId  -> map name)
+// They are fetched once a day and cached. This exists because hardcoding queue
+// ids is how ARAM: Mayhem went missing: id 2400 was guessed to be "Normal
+// Draft" and that guess OUTRANKED the map, so every Mayhem game landed in the
+// Normal chip labelled Normal Draft. Riot's own table says 2400 is
+// "ARAM: Mayhem" on Howling Abyss. With this loaded, a queue id Riot adds
+// mid-season names and buckets itself with no code change at all.
+const QMETA_KEY = 'wr_qmeta_v1';
+const QMETA_TTL = 86400000;                 // a day
+let _qRuntime = null;                       // { queues: {id:{desc,map}}, maps: {id:name} }
+
+function _qmetaApply(data) {
+  if (!data || !data.queues) return;
+  _qRuntime = data;
+  for (const id in data.maps) if (!MAP_NAMES[id]) MAP_NAMES[id] = data.maps[id];
+}
+
+async function loadQueueMeta() {
+  try {
+    const raw = localStorage.getItem(QMETA_KEY);
+    if (raw) {
+      const cached = JSON.parse(raw);
+      if (cached && (Date.now() - (cached.at || 0)) < QMETA_TTL) { _qmetaApply(cached); return; }
+    }
+  } catch(e) {}
+  try {
+    const base = 'https://static.developer.riotgames.com/docs/lol/';
+    const [qs, ms] = await Promise.all([
+      fetch(base + 'queues.json').then(r => r.json()),
+      fetch(base + 'maps.json').then(r => r.json())
+    ]);
+    const data = { at: Date.now(), queues: {}, maps: {} };
+    (qs || []).forEach(function(q) {
+      if (q && q.queueId != null) data.queues[q.queueId] = { desc: q.description || '', map: q.map || '' };
+    });
+    (ms || []).forEach(function(mp) {
+      if (mp && mp.mapId != null) data.maps[mp.mapId] = mp.mapName || '';
+    });
+    _qmetaApply(data);
+    wrSetItem(QMETA_KEY, JSON.stringify(data));
+    // Anything already on screen was classified without this; repaint it.
+    if (typeof allMatches !== 'undefined' && allMatches && allMatches.length) {
+      const mh = document.getElementById('match-history-section');
+      if (mh) mh.innerHTML = renderMatchHistory();
+    }
+  } catch(e) {
+    console.warn('[RiftIQ] queue metadata unavailable, using built-in table:', e && e.message);
+  }
+}
+
+// Riot's descriptions are written for docs ("5v5 ARAM games"), so they get
+// tidied before they are ever shown on a row.
+function _tidyQueueDesc(d) {
+  if (!d) return '';
+  return String(d)
+    .replace(/\s*games?$/i, '')
+    .replace(/^5v5\s+/i, '')
+    .replace(/\bgames\b/i, '')
+    .trim();
+}
+
+// Map families that OWN their category. A game on Howling Abyss is ARAM no
+// matter what queue id Riot ran it under — this is the rule that must outrank
+// the queue table, because a wrong queue entry is exactly what hid Mayhem.
+function mapFamily(mapId) {
+  const name = MAP_NAMES[mapId] || (_qRuntime && _qRuntime.maps && _qRuntime.maps[mapId]) || '';
+  if (/howling abyss|butcher's bridge|proving grounds/i.test(name)) return 'ARAM';
+  if (/rings of wrath/i.test(name))  return 'Arena';
+  if (/bandlewood/i.test(name))      return 'Brawl';
+  if (/nexus blitz/i.test(name))     return 'Nexus Blitz';
+  if (/swarm/i.test(name))           return 'Swarm';
+  if (/convergence/i.test(name))     return 'Teamfight Tactics';
+  return null;
+}
+
+function _queueInfo(queueId) {
+  const rt = _qRuntime && _qRuntime.queues && _qRuntime.queues[queueId];
+  const curated = QUEUES[queueId];
+  return {
+    desc: (rt && rt.desc) || '',
+    map:  (rt && rt.map)  || '',
+    name: (curated && curated.name) || _tidyQueueDesc(rt && rt.desc) || '',
+    cat:  (curated && curated.cat)  || ''
+  };
+}
+
+// Label shown on the row. Curated name first (they read better than Riot's doc
+// strings), then Riot's own description, then the map.
 function queueLabel(queueId, mapId) {
-  const q = QUEUES[queueId];
-  if (q && q.name) return q.name;
-  return MAP_CAT[mapId] || 'Game';
+  const q = _queueInfo(queueId);
+  if (q.name) return q.name;
+  return MAP_NAMES[mapId] || 'Game';
 }
 
 // The one classifier every filter path goes through.
 function matchCategory(m) {
   const info = (m && m.info) || {};
-  const q = QUEUES[info.queueId];
-  if (q && q.cat) return q.cat;           // explicit bucket wins
-  return MAP_CAT[info.mapId] || 'Other';  // otherwise the map decides
+  const q = _queueInfo(info.queueId);
+  const fam = mapFamily(info.mapId);
+  const text = (q.desc + ' ' + q.name).toLowerCase();
+
+  // 1. The map decides its own family, and only the flavour is read off the
+  //    queue. Mayhem, Clash and ARURF are all Howling Abyss.
+  if (fam === 'ARAM') {
+    if (/mayhem/.test(text))  return 'ARAM Mayhem';
+    if (/clash/.test(text))   return 'Clash';
+    if (/urf/.test(text))     return 'URF';
+    return 'ARAM';
+  }
+  if (fam) return fam;                      // Arena, Brawl, Nexus Blitz, Swarm, TFT
+
+  // 2. Off a special map, an explicit curated bucket wins.
+  if (q.cat) return q.cat;
+
+  // 3. Otherwise read Riot's own description. New Summoner's Rift queues land
+  //    in the right chip without this table being touched.
+  if (info.queueId === 0 || /custom/.test(text))        return 'Custom';
+  if (/clash/.test(text))                                return 'Clash';
+  if (/ranked solo|solo\/duo/.test(text))                return 'Solo/Duo';
+  if (/ranked flex|flex/.test(text))                     return 'Flex';
+  if (/co-?op|bot|beginner|intermediate|intro/.test(text)) return 'Co-op vs AI';
+  if (/urf/.test(text))                                  return 'URF';
+  if (/one for all/.test(text))                          return 'One for All';
+  if (/ultimate spellbook/.test(text))                   return 'Ultimate Spellbook';
+  if (/tutorial/.test(text))                             return 'Other';
+  if (/draft|blind|quickplay|swiftplay|normal/.test(text)) return 'Normal';
+  return 'Other';
 }
 
 // Chip order; only buckets actually present in the loaded matches get a chip.
-const CAT_ORDER = ['Solo/Duo', 'Flex', 'Normal', 'ARAM', 'Arena', 'Nexus Blitz', 'Clash', 'Co-op vs AI', 'Custom', 'Other'];
+const CAT_ORDER = [
+  'Solo/Duo', 'Flex', 'Normal', 'Clash',
+  'ARAM', 'ARAM Mayhem', 'Arena', 'Brawl', 'Nexus Blitz',
+  'URF', 'One for All', 'Ultimate Spellbook', 'Swarm', 'Teamfight Tactics',
+  'Co-op vs AI', 'Custom', 'Other'
+];
 
 // Filters across EVERY loaded match, not just the visible slice. The old code
 // filtered allMatches.slice(0, displayedMatches), so an ARAM sitting at index 14
@@ -5698,13 +5842,30 @@ async function buildRecentPlayers(matches) {
   }
 }
 
+// Arena is 8 duos on Rings of Wrath, so "Win / Loss" is not the result — the
+// placement is. Riot reports it per participant as `placement` (older matches
+// use `subteamPlacement`); 1st–4th also come back with win:true, which is why
+// the row has to say 2nd rather than just Win.
+function arenaPlacement(m, p) {
+  if (matchCategory(m) !== 'Arena') return null;
+  const n = p.placement || p.subteamPlacement || (p.challenges && p.challenges.subteamPlacement) || 0;
+  return n > 0 ? n : null;
+}
+function ordinal(n) {
+  const s = ['th', 'st', 'nd', 'rd'], v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
 function renderMatchRow(m, mIdx) {
   const p = m.info.participants.find(x => x.puuid === summoner.puuid);
   if (!p) return '';
   let html = '';
 
-
-    const win = p.win;
+    const place = arenaPlacement(m, p);
+    // In Arena the top half of the lobby is a "win"; the badge shows where you
+    // actually finished either way.
+    const win = place ? place <= 4 : p.win;
+    const resultLabel = place ? ordinal(place) : (p.win ? 'Win' : 'Loss');
     const dur = Math.floor(m.info.gameDuration/60) + ':' + String(m.info.gameDuration%60).padStart(2,'0');
     const matchDate = m.info.gameStartTimestamp ? new Date(m.info.gameStartTimestamp) : null;
     // "Aug 23, 2026, 1:47 PM" — one line, device locale and device timezone.
@@ -5931,7 +6092,7 @@ function renderMatchRow(m, mIdx) {
       <div class="match-row" onclick="toggleMatch('${rowKey}')">
         <div class="result-bar ${win?'win':'loss'}"></div>
         <img class="champ-icon" src="${champIconUrl(p.championName)}" alt="${p.championName}" onerror="this.src='data:image/svg+xml,<svg/>'">
-        <div class="result-badge ${win?'win':'loss'}">${win?'Win':'Loss'}</div>
+        <div class="result-badge ${win?'win':'loss'}">${resultLabel}</div>
         <div class="kda-val">
           <span class="kills">${p.kills}</span><span class="slash">/</span><span class="deaths">${p.deaths}</span><span class="slash">/</span><span class="assists">${p.assists??0}</span>
         </div>
@@ -7950,7 +8111,10 @@ async function loadPlayerProfile(name, tag, platform, routing) {
     const matches = [];
     for (let i = 0; i < matchIds.length; i += 5) {
       const batch = matchIds.slice(i, i+5);
-      const results = await Promise.all(batch.map(id => riotFetch('/lol/match/v5/matches/' + id, rout)));
+      // Per-match catch: one unreadable game must not cost the other four, or
+      // the whole profile (see the same note in loadProfile).
+      const results = await Promise.all(batch.map(id =>
+        riotFetch('/lol/match/v5/matches/' + id, rout).catch(function(){ return null; })));
       matches.push(...results.filter(Boolean));
     }
 
@@ -9531,6 +9695,11 @@ window.warRoomBoot = function() {
   // lazily on the first WarRoom open, so booting into the picker or into
   // ProView would leave the history empty until you happened to open WarRoom.
   lkLoad();
+  // Riot's queue/map tables. Started here rather than inside init(), which
+  // awaits the DDragon version first — that delay was enough for the first
+  // profile to paint from the built-in table. Not awaited; if it lands late the
+  // match list repaints itself.
+  loadQueueMeta();
   showProgramPicker();
 };
 if (!window.__wrGateBlocked) window.warRoomBoot();
