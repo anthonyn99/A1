@@ -167,3 +167,5 @@ Method: Gemini-grounded — part of the shared AI-search design (see Walmart sec
 Notes:
 - Same shared grounded function as the other three AI stores, parameterized by
   store name only.
+
+<!-- integrity-wiring verification 1787958336 -->
