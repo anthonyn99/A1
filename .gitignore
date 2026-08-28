@@ -10,6 +10,7 @@ debug.log
 **/launch.log
 trading-auto-launch/.last_run
 trading-auto-launch/__pycache__/
+.claude-queue/
 
 # ── V1 suite (Veda's workspace) ─────────────────────────────────────────────
 # Ported from V1/.gitignore when V1 was absorbed into this repo (was a separate
