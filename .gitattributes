@@ -1,0 +1,25 @@
+# Line-ending policy.
+#
+# core.autocrlf is true on this machine, which converts LF -> CRLF on checkout.
+# For shell scripts that silently breaks execution: `#!/bin/sh\r` is not a valid
+# interpreter, so a fresh clone would get a pre-commit hook that never runs —
+# taking the index.html data-loss guard and the repo-integrity check with it.
+# Pin the formats that care, and leave everything else to autocrlf.
+
+# Shell scripts and git hooks must stay LF or they will not execute.
+*.sh            text eol=lf
+.githooks/**    text eol=lf
+
+# Windows batch genuinely requires CRLF.
+*.bat           text eol=crlf
+*.cmd           text eol=crlf
+
+# Binary assets: never touch.
+*.png           binary
+*.jpg           binary
+*.jpeg          binary
+*.gif           binary
+*.ico           binary
+*.webm          binary
+*.mp4           binary
+*.pem           binary
