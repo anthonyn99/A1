@@ -8347,6 +8347,10 @@ async function loadPlayerProfile(name, tag, platform, routing) {
 
     // Store prev for back button
     window._prevSummoner = prevSummoner;
+
+    // Same recovery as loadProfile: if this player was ever seen live in a queue
+    // Riot's index omits, that game is fetched by id and merged in.
+    backfillAndRepaint(resp.puuid, rout);
   } catch(e) {
     summoner = prev;
     el.innerHTML = _riotErrorHtml(e);
