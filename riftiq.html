@@ -5833,6 +5833,11 @@ async function fetchLiveGame(puuidArg, platformArg) {
     return;
   }
 
+  // Write the id down before anything can throw. This is the only moment Riot
+  // will tell us this game exists — for a queue its match index omits, losing it
+  // here means losing the game.
+  try { rememberLiveGame(puuid, platform, game); } catch(e) { console.warn('[RiftIQ] live capture failed:', e && e.message); }
+
   // Render inside its own try: a throw in here used to land in the same catch as
   // the fetch and blank the card, hiding a game that was actually live.
   try {
