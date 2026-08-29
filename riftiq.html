@@ -5617,6 +5617,155 @@ function renderProfile(_sumData, ranked, mastery, matches, leagueHistory=[]) {
   buildRecentPlayers(allMatches.slice(0, displayedMatches));
 }
 
+// ── LIVE-GAME CAPTURE → MATCH-HISTORY BACKFILL ─────────────────────────────
+// Riot's match INDEX and Riot's match STORE do not agree, and ARAM: Mayhem is
+// the case that exposed it. Checked against this account on 2026-08-28:
+//
+//   /lol/match/v5/matches/by-puuid/{puuid}/ids             → a Mayhem game played
+//       that day is absent from the UNFILTERED list entirely; the newest entry
+//       returned was from the previous day.
+//   /lol/match/v5/matches/by-puuid/{puuid}/ids?queue=2400  → [] here and for 30
+//       other sampled ARAM players, while ?queue=450 and ?queue=480 both answer.
+//   /lol/match/v5/matches/{matchId}                        → serves ANY match id,
+//       including games the caller never played and games in no index we can see.
+//
+// So Mayhem is not mislabelled and no smarter classifier can dig it out: the
+// games are simply not in the list the app pages through. matchCategory() below
+// already buckets a Mayhem match correctly the moment it has one in hand — the
+// missing half is getting one at all.
+//
+// The way in is the spectator endpoint, which DOES report Mayhem (that is why
+// the Live Game card names it): while the game is up it hands over `gameId`.
+// Remember that id, and once the game is over ask match-v5 for
+// `${platformId}_${gameId}` directly, going around the index. A match recovered
+// this way is an ordinary, complete match object — full scoreboard, and it
+// classifies into the ARAM Mayhem chip like anything else.
+//
+// This is also queue-agnostic insurance: any game Riot fails to index (a new
+// event mode, a temporary index hiccup) is picked up the same way.
+const WRCAP_KEY    = 'wr_livecap_v1';
+const WRCAP_TTL    = 14 * 86400000;   // forget a capture after two weeks
+const WRCAP_MAX    = 40;              // captures kept per player
+const WRCAP_TRIES  = 4;               // stop spending requests on an id Riot won't serve
+const WRCAP_SCAN   = 5;               // ids retried per profile load
+// A game is not queryable the instant it ends, so leave it a moment to land
+// before the first attempt is charged against WRCAP_TRIES.
+const WRCAP_SETTLE = 120000;
+
+// Deliberately NOT in WR_EVICTABLE: every other cached key can be re-fetched,
+// but a captured game id exists nowhere except this browser — Riot's index is
+// exactly what does not have it.
+function _capLoad() {
+  try { return JSON.parse(localStorage.getItem(WRCAP_KEY) || '{}') || {}; } catch(e) { return {}; }
+}
+function _capSave(store) { wrSetItem(WRCAP_KEY, JSON.stringify(store)); }
+
+function _matchId(m) { return (m && m.metadata && m.metadata.matchId) || null; }
+
+// Riot hands the index back newest-first and paging relies on that ordering, so
+// a backfilled game has to slot into place rather than land at the end.
+function sortMatchesNewestFirst() {
+  (allMatches || []).sort(function(a, b) {
+    const ta = (a && a.info && (a.info.gameStartTimestamp || a.info.gameCreation)) || 0;
+    const tb = (b && b.info && (b.info.gameStartTimestamp || b.info.gameCreation)) || 0;
+    return tb - ta;
+  });
+}
+
+// Every live game seen, for whoever's card it is, gets its id written down.
+function rememberLiveGame(puuid, platform, game) {
+  if (!puuid || !game || !game.gameId) return;
+  const plat = String(game.platformId || platform || '');
+  if (!plat) return;
+  const id = plat.toUpperCase() + '_' + game.gameId;
+  const store = _capLoad();
+  const list = store[puuid] || [];
+  let e = null;
+  for (const x of list) if (x && x.id === id) { e = x; break; }
+  if (!e) { e = { id: id, rout: wrRoutingFor(plat.toLowerCase()), at: Date.now(), tries: 0 }; list.unshift(e); }
+  // `seen` moves with the poll, so a 40-minute game counts as finished two
+  // minutes after the LAST sighting, not two minutes after the first.
+  e.seen = Date.now();
+  e.q    = game.gameQueueConfigId;
+  store[puuid] = list.slice(0, WRCAP_MAX);
+  _capSave(store);
+}
+
+// Fetch captured games Riot's index never returned and merge them in. Kept
+// cheap on purpose: background priority, a handful of ids per load, and a per-id
+// attempt counter so a match Riot genuinely does not have stops costing
+// requests. Returns how many games were actually added.
+async function backfillCapturedGames(puuid, routing) {
+  if (!puuid) return 0;
+  const store = _capLoad();
+  const list = store[puuid];
+  if (!list || !list.length) return 0;
+
+  const now  = Date.now();
+  const have = new Set((allMatches || []).map(_matchId).filter(Boolean));
+
+  // Anything expired or already delivered by the index is dropped — the normal
+  // case for every queue except the ones Riot forgets, so the store stays tiny.
+  const keep = list.filter(function(e) {
+    return e && e.id && (now - (e.at || 0)) < WRCAP_TTL && !have.has(e.id);
+  });
+  if (keep.length !== list.length) { store[puuid] = keep; _capSave(store); }
+
+  const due = keep.filter(function(e) {
+    return (e.tries || 0) < WRCAP_TRIES && (now - (e.seen || e.at || 0)) > WRCAP_SETTLE;
+  }).slice(0, WRCAP_SCAN);
+  if (!due.length) return 0;
+
+  const found = [];
+  for (const e of due) {
+    e.tries = (e.tries || 0) + 1;
+    let m = null;
+    try {
+      m = await riotFetch('/lol/match/v5/matches/' + e.id, e.rout || routing, 1);
+    } catch(err) {
+      // 429 means "ask again later", not "this match does not exist" — it must
+      // not burn one of the four tries.
+      if (err && err.message === '429') e.tries--;
+      continue;
+    }
+    // Guard against a stale or mistyped id resolving to somebody else's game.
+    if (m && m.info && m.metadata && (m.metadata.participants || []).indexOf(puuid) >= 0) found.push(m);
+  }
+  _capSave(store);
+
+  const seen = new Set((allMatches || []).map(_matchId).filter(Boolean));
+  const add = found.filter(function(m) { const id = _matchId(m); return id && !seen.has(id); });
+  if (!add.length) return 0;
+  allMatches = (allMatches || []).concat(add);
+  sortMatchesNewestFirst();
+  return add.length;
+}
+
+// Repaint everything downstream of allMatches. Used after a backfill, which can
+// land long after the profile itself finished rendering.
+function repaintMatchHistory() {
+  const mh = document.getElementById('match-history-section');
+  if (!mh) return;
+  mh.innerHTML = renderMatchHistory();
+  const shown = visibleMatches();
+  const statsEl = document.getElementById('stats-section');
+  if (statsEl) statsEl.innerHTML = renderStatsSection(shown);
+  buildRecentPlayers(shown);
+}
+
+// Backfill for whoever's profile is on screen, then repaint if it found
+// anything. Silent by design: a profile with nothing missing does no work.
+function backfillAndRepaint(puuid, routing) {
+  return backfillCapturedGames(puuid, routing).then(function(n) {
+    // The user may have navigated to another player while this was in flight.
+    if (n && summoner && summoner.puuid === puuid) repaintMatchHistory();
+    return n;
+  }).catch(function(e) {
+    console.warn('[RiftIQ] capture backfill failed:', e && e.message);
+    return 0;
+  });
+}
+
 // Poll handle for the profile's live-game card. Riot's spectator endpoint is the
 // only way to know, and it is queue-agnostic — ARAM, Swiftplay, Arena, Clash and
 // customs all come back through it, so nothing here filters on gameQueueConfigId.
