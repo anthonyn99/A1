@@ -4978,6 +4978,7 @@ async function loadProfile() {
     allMatches = matches;
     allMastery = mastery;
     displayedMatches = 10;
+    _mhIndexCount = matchIds.length;
     _matchHistoryExhausted = matchIds.length < 20;
     // League history is optional, and a development key is not entitled to it —
     // Riot answers 403 every single time. Ask once, then stop spending a request
@@ -5472,10 +5473,11 @@ async function loadMoreMatches() {
     while (available <= displayedMatches && !_matchHistoryExhausted && pages < 3) {
       pages++;
       const newIds = await riotFetch(
-        '/lol/match/v5/matches/by-puuid/' + summoner.puuid + '/ids?start=' + allMatches.length + '&count=10',
+        '/lol/match/v5/matches/by-puuid/' + summoner.puuid + '/ids?start=' + _mhIndexCount + '&count=10',
         summoner.routing
       );
       if (!newIds || !newIds.length) { _matchHistoryExhausted = true; break; }
+      _mhIndexCount += newIds.length;
       if (newIds.length < 10) _matchHistoryExhausted = true;
 
       const newMatches = [];
@@ -5487,7 +5489,14 @@ async function loadMoreMatches() {
         newMatches.push(...res.filter(Boolean));
       }
       if (!newMatches.length) { _matchHistoryExhausted = true; break; }
-      allMatches.push(...newMatches);
+      // A backfilled game can already be sitting in the list, and it is older
+      // than the page that is arriving now, so a page CAN overlap it.
+      const held = new Set(allMatches.map(_matchId).filter(Boolean));
+      allMatches.push(...newMatches.filter(function(m) {
+        const id = _matchId(m);
+        return !id || !held.has(id);
+      }));
+      sortMatchesNewestFirst();
       available = matchesForFilter(_matchFilter).length;
     }
 
