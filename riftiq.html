@@ -5813,6 +5813,10 @@ async function fetchLiveGame(puuidArg, platformArg) {
     const code = err.message || '';
     if (code === '404' || code === 'Empty response') {
       el.innerHTML = '';                             // genuinely not in a game
+      // The game they were in just ended. If it was one Riot's index will never
+      // return — Mayhem — this is the moment to go and get it by id, so it
+      // appears in Match History without waiting for a manual refresh.
+      if (summoner && summoner.puuid === puuid) backfillAndRepaint(puuid, summoner.routing);
       repoll(LIVE_POLL_MS);
     } else {
       // 429 and friends mean we failed to FIND OUT. The old code hid the card
