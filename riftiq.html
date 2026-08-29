@@ -4992,6 +4992,11 @@ async function loadProfile() {
       }
     }
     renderProfile(null, ranked, mastery, matches.slice(0, 10), leagueHistory);
+
+    // Recover anything the index left out — Mayhem and friends. Deliberately
+    // after the render and not awaited: the profile must not wait on it, and a
+    // player with nothing missing spends no requests.
+    backfillAndRepaint(summoner.puuid, summoner.routing);
   } catch(e) {
     el.innerHTML = _riotErrorHtml(e);
   }
