@@ -40215,7 +40215,15 @@ window._THV={
   function activeProfile() {
     // A modal owns the gesture while open — pulling inside a dialog must scroll
     // the dialog, not refresh the page behind it.
-    if (document.querySelector('.modal-overlay.active, .modal.active, [data-modal-open="1"]')) return null;
+    //
+    // The weather (.thwx-open) and Tesla (.thts-open) widgets are dialogs too:
+    // each lays a full-page scrim under a role="dialog" panel whose body is its
+    // own scroll container. The page behind them is still parked at scrollY 0, so
+    // without this the first downward drag inside the forecast armed a pull and
+    // painted the spinner, then resolved to nothing because the panel swallowed
+    // the movement. An indicator that appears and never refreshes is worse than
+    // no indicator, and the page underneath is not what is being read anyway.
+    if (document.querySelector('.modal-overlay.active, .modal.active, [data-modal-open="1"], .thwx.thwx-open, .thts.thts-open')) return null;
     var vr = document.getElementById('veda-root');
     if (vr && vr.style.display !== 'none' && vr.offsetParent !== null) {
       var tv = document.getElementById('task-view');
