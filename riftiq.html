@@ -3574,6 +3574,12 @@ let   DDRAGON_VER= '16.11.1'; // updated on init
 // ══════════════════════════════════════
 let db, summoner = {}, allChamps = {}, allItems = {};
 let allMatches = [], displayedMatches = 10, allMastery = [];
+// How many ids have been consumed from Riot's match INDEX, which is not the same
+// as allMatches.length: a match whose detail fetch failed is missing from the
+// list, and a backfilled game (see WRCAP_KEY) was never in the index at all.
+// Paging is a cursor into the index, so it has to count the index, not the list —
+// deriving `start` from allMatches.length re-requested or skipped a window.
+let _mhIndexCount = 0;
 // builds state vars declared in TAB 2 section below
 let liveWatching = false, liveUnsub = null;
 let selectedBuildItems = [];
