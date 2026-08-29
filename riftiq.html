@@ -8865,6 +8865,10 @@ async function lookupSpectate(useLast) {
       return;
     }
 
+    // A Spectate lookup is a sighting too: remember the id so this game can be
+    // recovered by id later if Riot's match index never lists it.
+    try { rememberLiveGame(acct.puuid, platform, game); } catch(e) {}
+
     el.innerHTML = renderSpectateGame(game, acct.puuid, dispName, dispTag);
   } catch(e) {
     const code = e.message || '';
