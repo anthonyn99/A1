@@ -38,13 +38,10 @@ body { display: flex; flex-direction: column; }
 body[data-sos-gate="pending"] #study-root,
 body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 
-/* ── 2. App shell header ──────────────────────────────────────────────────── */
-.sos-hdr-outer { background:#1B1C1E; font-family:'IBM Plex Mono',monospace; box-sizing:border-box; position:sticky; top:0; z-index:200; flex-shrink:0; }
-.sos-hdr-inner { max-width:2000px; margin:0 auto; width:100%; display:flex; flex-direction:row; align-items:flex-start; justify-content:space-between; gap:12px; padding:calc(env(safe-area-inset-top,0px) + 4px) 14px 4px; box-sizing:border-box; }
-.sos-hdr-left  { display:flex; flex-direction:column; gap:1px; min-width:0; flex-shrink:0; padding-top:2px; }
-.sos-hdr-right { display:flex; flex-direction:column; gap:4px; align-items:flex-end; min-width:0; flex:1; }
-.sos-hbtns     { display:flex; flex-wrap:wrap; justify-content:flex-end; align-items:center; gap:6px; }
-.sos-hdr-title { font-family:'Playfair Display',serif; font-size:22px; font-weight:900; color:#8D769A; letter-spacing:1px; text-transform:uppercase; line-height:1; }
+/* ── 2. App-lock button ───────────────────────────────────────────────────
+   All that survives of the old sticky "STUDYOS" header strip. The button now
+   sits in the sidebar logo row (or, below 1024px, in the topbar — see
+   shell.js), so only its own chrome is defined here. */
 .sos-hbtn {
   background:transparent; color:#8D769A; border:1px solid #4A4B51; border-radius:5px;
   padding:0 10px; height:28px; box-sizing:border-box; display:inline-flex; align-items:center;
@@ -55,13 +52,6 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 .sos-hbtn:hover  { border-color:#8D769A; }
 .sos-hbtn.active { background:#8D769A; color:#1B1C1E; border-color:#8D769A; }
 .sos-hbtn.icon   { padding:0 8px; font-size:13px; border-color:rgba(141,118,154,0.45); }
-@media(max-width:1000px){
-  .sos-hdr-inner { flex-direction:column; gap:6px; align-items:stretch; }
-  .sos-hdr-left  { flex-shrink:0; min-width:0; }
-  .sos-hdr-right { min-height:unset; align-items:flex-end; width:100%; }
-  .sos-hbtns     { flex-wrap:nowrap; overflow-x:auto; justify-content:flex-end; scrollbar-width:none; -ms-overflow-style:none; }
-  .sos-hbtns::-webkit-scrollbar { display:none; }
-}
 
 /* ── 3. StudyOS proper ────────────────────────────────────────────────────── */
 
@@ -104,12 +94,27 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
   transition: width 0.3s;
 }
 #study-root .sidebar-logo {
-  padding: 10px 20px 16px;
+  padding: 10px 16px 12px 20px;
   border-bottom: 1px solid var(--border);
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  gap: 5px;
 }
+#study-root .sidebar-logo-row { display: flex; align-items: center; gap: 10px; }
+/* Pushed to the far edge of the wordmark row, mirroring where it sat in the
+   header this replaced. */
+#study-root .sidebar-logo-row #sos-lock-btn { margin-left: auto; }
+
+/* Sync state — icon and label are one flex line, so they read as a single
+   token instead of drifting apart the way the old inline-block span did with
+   its min-width and right-alignment. Hidden (not removed) between saves so the
+   logo block never changes height. */
+#study-root #sos-sync-status {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.3px;
+  line-height: 1; white-space: nowrap; visibility: hidden;
+}
+#study-root #sos-sync-status svg { width: 12px; height: 12px; flex-shrink: 0; }
 #study-root .logo-mark {
   width: 28px; height: 28px;
   background: var(--accent);
@@ -920,7 +925,8 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 @media (min-width: 641px) and (max-width: 1024px) {
   /* Sidebar → icon-only 60px */
   #study-root .sidebar { width: 60px; min-width: 60px; overflow: hidden; }
-  #study-root .sidebar-logo { padding: 16px 0; justify-content: center; }
+  #study-root .sidebar-logo { padding: 16px 0; align-items: center; }
+  #study-root .sidebar-logo-row { justify-content: center; }
   #study-root .logo-text { display: none; }
   #study-root .sidebar-nav { padding: 10px 8px; gap: 4px; }
   #study-root .nav-item {
