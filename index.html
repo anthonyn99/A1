@@ -6692,6 +6692,13 @@ function Pomodoro({onClose,T,isMobile}){
 // oneinbox.html's --c-package, which tints filter chips in a list where it has
 // to stay distinguishable from the other categories.
 const OI_COLOR={coupon:"#8d8d94",package:"#c8845e",bill:"#d68a7c",subscription:"#b8a6d0",travel:"#7fc4b8",appointment:"#d9b38f"};
+// Every OneInbox card fills with the SAME soft grey gradient the macro-catalyst
+// cards use (wkCatalystCard below reads this constant too). The kind's colour
+// still carries the left bar, the outline, the header, the amount and the
+// buttons — what it no longer does is wash the whole box orange or pink. A week
+// with three parcels, a bill and a subscription used to read as a paint swatch
+// next to the neutral catalyst rows sitting in the same cell.
+const OI_CARD_BG="linear-gradient(135deg,#232327,#1e1e22)";
 
 // ── One parcel, one card ────────────────────────────────────────────────────
 // The worker owns this: a parcel's card id is derived from its tracking number
@@ -6844,7 +6851,7 @@ function OI_couponRow(c,T,edit){
     fontFamily:"'Inter',system-ui,-apple-system,sans-serif",whiteSpace:"nowrap"}},label);
   return React.createElement("div",{key:c.id,style:{
       border:"1px solid "+T.BD,borderLeft:"3px solid "+col,borderRadius:5,
-      background:T.S2,padding:"6px 9px",marginBottom:5,display:"flex",alignItems:"flex-start",gap:6}},
+      background:OI_CARD_BG,padding:"6px 9px",marginBottom:5,display:"flex",alignItems:"flex-start",gap:6}},
     React.createElement("div",{style:{flex:1,minWidth:0}},
       React.createElement("div",{style:{display:"flex",alignItems:"baseline",gap:6,marginBottom:2}},
         React.createElement("span",{style:{fontSize:11.5,fontWeight:700,color:T.TX,letterSpacing:0.2,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},c.merchant||"Offer"),
@@ -6887,7 +6894,7 @@ function OI_weekCard(c,T,dayTX,edit){
   const tight=isPkg&&!line2;
   return React.createElement("div",{key:c.id,style:{
       border:"1px solid "+col+"33",borderLeft:"2px solid "+col,borderRadius:5,
-      background:col+"0e",padding:tight?"4px 7px":"5px 8px",marginBottom:4,opacity:c.delivered?0.62:1,
+      background:OI_CARD_BG,padding:tight?"4px 7px":"5px 8px",marginBottom:4,opacity:c.delivered?0.62:1,
       display:"flex",alignItems:"flex-start",gap:4}},
     React.createElement("div",{style:{flex:1,minWidth:0}},
       React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4,marginBottom:tight?1:2}},
@@ -8023,7 +8030,7 @@ function App(){
   // Category chip label: true acronyms all-caps (ECB, GDP), everything else Title-case
   // (so "ecb"→"ECB", never "Ecb"; "fed"→"Fed"; "growth"→"Growth").
   const mcCatLabel=c=>{c=String(c||"");const U={ecb:"ECB",gdp:"GDP"};return U[c.toLowerCase()]||(c?c.charAt(0).toUpperCase()+c.slice(1):c);};
-  const wkCatalystCard=cat=>({background:"linear-gradient(135deg,#232327,#1e1e22)",border:"1px solid "+("#34343a"),borderLeft:"3px solid "+("#8d8d94"),borderRadius:10,padding:isMobile?"3px 11px":"2px 9px",boxShadow:"0 1px 2px rgba(0,0,0,0.35)"});
+  const wkCatalystCard=cat=>({background:OI_CARD_BG,border:"1px solid "+("#34343a"),borderLeft:"3px solid "+("#8d8d94"),borderRadius:10,padding:isMobile?"3px 11px":"2px 9px",boxShadow:"0 1px 2px rgba(0,0,0,0.35)"});
 
   // Touch reorder for habits and goals
   const {getTouchHandlers:habitTouchH,getRowProps:habitRowP}=useTouchReorder(habits,setHabits,"tony","habit");
