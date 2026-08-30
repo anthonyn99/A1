@@ -4156,10 +4156,13 @@ var _sosSyncTimer = null;
 function _sosSetSync(status) {
   var el = document.getElementById('sos-sync-status');
   if (!el) return;
-  // Color: use StudyOS accent color (purple)
+  // The indicator sits under the sidebar wordmark on a dark panel, where the old
+  // forest green and dusty salmon barely registered. Both states now use the
+  // saturated success/danger pair, so a failed save is something you notice out
+  // of the corner of your eye.
   var accentColor = '#8D769A';
-  var greenColor  = '#4a7c59';
-  var errColor    = '#d68a7c';
+  var greenColor  = '#4ade80';
+  var errColor    = '#ff6b6b';
   var mutedColor  = 'var(--text2,#888)';
   if (status === 'saving') {
     el.style.visibility = 'visible';
@@ -4169,13 +4172,13 @@ function _sosSetSync(status) {
   } else if (status === 'saved') {
     el.style.visibility = 'visible';
     el.style.color = greenColor;
-    el.innerHTML = SOI.check + ' Synced';
+    el.innerHTML = SOI.check + '<span>Synced</span>';
     if (_sosSyncTimer) clearTimeout(_sosSyncTimer);
     _sosSyncTimer = setTimeout(function() { el.style.visibility = 'hidden'; }, 2500);
   } else if (status === 'error') {
     el.style.visibility = 'visible';
     el.style.color = errColor;
-    el.innerHTML = SOI.alert + ' Sync failed';
+    el.innerHTML = SOI.alert + '<span>Sync failed</span>';
     if (_sosSyncTimer) { clearTimeout(_sosSyncTimer); _sosSyncTimer = null; }
   } else {
     el.style.visibility = 'hidden';
