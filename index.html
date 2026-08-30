@@ -5199,6 +5199,22 @@ function mcTicker(nm){const m=String(nm||'').match(/^\$?([A-Z]{1,6})\b/);return 
 function fmt12h(t,dateKey,tz){if(!t)return '';const[hh,mm]=t.split(':').map(Number);if(tz&&dateKey){try{const d=new Date(thZonedTs(dateKey,hh,mm,tz));return d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})+'\u00a0'+thTzAbbr(d);}catch(e){}}const ap=hh<12?'AM':'PM';const h=hh%12||12;const lbl=thTzAbbr(dateKey?new Date(dateKey+'T12:00:00'):new Date());return h+':'+String(mm).padStart(2,'0')+'\u00a0'+ap+(lbl?'\u00a0'+lbl:'');}
 const CL  = ["work","finance","study","health","personal","urgent","other"];
 
+// ── Outline glow, JS side ───────────────────────────────────────────────────
+// The CSS half of this lives in the <style> at the top of the file (the
+// --glow-* tokens) and covers :hover. It cannot cover RESTING states, because
+// what marks a control as selected/active here is an inline border colour that
+// only React knows. GLOW() rebuilds the identical ring+bloom (1px @ .42 over
+// 10px @ .42) for those, so a chosen repeat option, today's date cell or an
+// open Timer reads as brightly as a hovered button instead of as a dull 1px
+// line. Pass the same colour the border uses.
+const GLOW=(hex)=>{
+  const h=String(hex||"").replace("#","");
+  if(h.length<6)return "none";
+  const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);
+  return "0 0 0 1px rgba("+r+","+g+","+b+",.42),0 0 10px rgba("+r+","+g+","+b+",.42)";
+};
+
+
 
 const THEMES = {
   dark:{BG:"#1a1a1d",S1:"#232327",S2:"#2c2c31",BD:"#34343a",BDL:"#45454c",TX:"#f4f3f0",TXD:"#adadb2",TXM:"#8d8d94",TXDONE:"#8d8d94",AC:"#e0b874",ACL:"#e0b874",ACD:"#e0b874",ACG:"rgba(224,184,116,0.12)",GRN:"#a4b986",ERR:"#d68a7c",SHADOW:"rgba(0,0,0,0.5)",TODAYBG:"#2c2c31",TODAYBD:"#45454c"},
@@ -5423,7 +5439,7 @@ function DayPicker({selected,onChange,T}){
   return React.createElement("div",{style:{display:"flex",gap:5,flexWrap:"wrap"}},
     DS.map((d,i)=>React.createElement("button",{key:i,type:"button",onClick:()=>toggle(i),
       style:{fontSize:11,fontWeight:selected.includes(i)?700:500,padding:"5px 10px",borderRadius:6,cursor:"pointer",fontFamily:"inherit",transition:"all .15s",
-        background:"transparent",color:selected.includes(i)?T.ACL:T.TXD,border:selected.includes(i)?"1px solid "+T.AC:"1px solid "+T.BDL}},d)));
+        background:"transparent",color:selected.includes(i)?T.ACL:T.TXD,border:selected.includes(i)?"1px solid "+T.AC:"1px solid "+T.BDL,boxShadow:selected.includes(i)?GLOW(T.AC):"none"}},d)));
 }
 
 function ConfirmDeleteModal({open,onClose,onConfirm,onThis,T,isAltSeq}){
@@ -5446,7 +5462,7 @@ function ConfirmEditTitleModal({open,onClose,onThisOnly,onAllFuture,T,isAltSeq})
       React.createElement("div",{style:{fontSize:13,color:T.TXD,lineHeight:1.6,marginBottom:20}},isAltSeq?"Apply sequence changes to just this occurrence, or update all future occurrences in the sequence?":"Apply your change to just this day, or to all future repeats of this task?"),
       React.createElement("div",{style:{display:"flex",gap:10,flexWrap:"wrap"}},
         React.createElement("button",{type:"button",style:{flex:1,background:T.S2,border:"1px solid "+T.BDL,borderRadius:4,padding:"10px 14px",fontSize:13,fontWeight:600,color:T.TX,cursor:"pointer"},onClick:onThisOnly},isAltSeq?"This day only":"This day only"),
-        React.createElement("button",{type:"button",style:{flex:1,background:"transparent",color:T.ACL,border:"1px solid "+T.AC,borderRadius:4,padding:"10px 14px",fontSize:13,fontWeight:700,cursor:"pointer"},onClick:onAllFuture},isAltSeq?"All future in seq":"All future repeats"),
+        React.createElement("button",{type:"button",style:{flex:1,background:"transparent",color:T.ACL,border:"1px solid "+T.AC,boxShadow:GLOW(T.AC),borderRadius:4,padding:"10px 14px",fontSize:13,fontWeight:700,cursor:"pointer"},onClick:onAllFuture},isAltSeq?"All future in seq":"All future repeats"),
         React.createElement("button",{type:"button",style:{background:T.S2,border:"1px solid "+T.BDL,borderRadius:4,padding:"10px 14px",fontSize:13,fontWeight:600,color:T.TXD,cursor:"pointer"},onClick:onClose},"Cancel"))));
 }
 
@@ -5596,7 +5612,7 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
   };
   const mi={background:T.S2,border:"1px solid "+T.BDL,borderRadius:4,color:T.TX,fontSize:13,padding:"9px 12px",fontFamily:"inherit",fontWeight:500,outline:"none",width:"100%",boxSizing:"border-box"};
   const lbl={fontSize:10,color:T.TXD,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,marginBottom:6};
-  const tb=(active,danger)=>({fontWeight:600,padding:"7px 18px",borderRadius:6,cursor:"pointer",fontSize:12,fontFamily:"inherit",transition:"all .15s",background:"transparent",color:active?(danger?T.ERR:T.ACL):T.TXD,border:active?"1px solid "+(danger?T.ERR:T.AC):"1px solid "+T.BDL});
+  const tb=(active,danger)=>({fontWeight:600,padding:"7px 18px",borderRadius:6,cursor:"pointer",fontSize:12,fontFamily:"inherit",transition:"all .15s",background:"transparent",color:active?(danger?T.ERR:T.ACL):T.TXD,border:active?"1px solid "+(danger?T.ERR:T.AC):"1px solid "+T.BDL,boxShadow:active?GLOW(danger?T.ERR:T.AC):"none"});
   // Plan is a third kind of thing you can add to a day, so it is a third Type —
   // but only when ADDING. Editing an existing task or event can never turn it
   // into a shared commitment, and a confirmed plan is edited in the panel
@@ -5660,7 +5676,7 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
             React.createElement(DayPicker,{selected:notifyRepeatDays,onChange:setNotifyRepeatDays,T})))),
 
       React.createElement("div",{style:{display:"flex",gap:10,marginTop:18}},
-        React.createElement("button",{type:"button",style:{background:"transparent",color:T.ACL,border:"1px solid "+T.AC,borderRadius:4,padding:"10px 28px",fontSize:13,fontWeight:700,cursor:"pointer"},onClick:save},"Save"),
+        React.createElement("button",{type:"button",style:{background:"transparent",color:T.ACL,border:"1px solid "+T.AC,boxShadow:GLOW(T.AC),borderRadius:4,padding:"10px 28px",fontSize:13,fontWeight:700,cursor:"pointer"},onClick:save},"Save"),
         React.createElement("button",{type:"button",style:{background:T.S2,border:"1px solid "+T.BDL,borderRadius:4,padding:"10px 20px",fontSize:13,fontWeight:600,color:T.TXD,cursor:"pointer"},onClick:onClose},"Cancel")))));
 }
 
@@ -6435,7 +6451,7 @@ function SimpleTextEditModal({open,onClose,onSave,initialText,heading,T}){
       React.createElement("div",{style:{fontFamily:"'Manrope',system-ui,sans-serif",fontSize:15,fontWeight:700,color:T.AC,marginBottom:16}},heading),
       React.createElement("input",{style:mi,value:val,autoFocus:true,onChange:e=>setVal(e.target.value),onKeyDown:e=>{if(e.key==="Enter")save();if(e.key==="Escape")onClose();}}),
       React.createElement("div",{style:{display:"flex",gap:10,marginTop:16}},
-        React.createElement("button",{type:"button",style:{background:"transparent",color:T.ACL,border:"1px solid "+T.AC,borderRadius:4,padding:"9px 24px",fontSize:13,fontWeight:700,cursor:"pointer"},onClick:save},"Save"),
+        React.createElement("button",{type:"button",style:{background:"transparent",color:T.ACL,border:"1px solid "+T.AC,boxShadow:GLOW(T.AC),borderRadius:4,padding:"9px 24px",fontSize:13,fontWeight:700,cursor:"pointer"},onClick:save},"Save"),
         React.createElement("button",{type:"button",style:{background:T.S2,border:"1px solid "+T.BDL,borderRadius:4,padding:"9px 18px",fontSize:13,fontWeight:600,color:T.TXD,cursor:"pointer"},onClick:onClose},"Cancel"))));
 }
 
@@ -6552,7 +6568,7 @@ function HabitModal({open,onClose,onSave,initial,T,titleFont}){
   };
   const mi={background:T.S2,border:"1px solid "+T.BDL,borderRadius:4,color:T.TX,fontSize:13,padding:"9px 12px",fontFamily:"inherit",fontWeight:500,outline:"none",width:"100%",boxSizing:"border-box"};
   const lbl={fontSize:10,color:T.TXD,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,marginBottom:6};
-  const tb=(active)=>({fontWeight:700,padding:"6px 14px",borderRadius:5,cursor:"pointer",fontSize:11,fontFamily:"inherit",transition:"all .15s",background:"transparent",color:active?T.ACL:T.TXD,border:"1px solid "+(active?T.AC:T.BDL)});
+  const tb=(active)=>({fontWeight:700,padding:"6px 14px",borderRadius:5,cursor:"pointer",fontSize:11,fontFamily:"inherit",transition:"all .15s",background:"transparent",color:active?T.ACL:T.TXD,border:"1px solid "+(active?T.AC:T.BDL),boxShadow:active?GLOW(T.AC):"none"});
   return React.createElement("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2500},onClick:onClose},
     React.createElement("div",{style:{background:T.S1,border:"1px solid "+T.BDL,borderRadius:6,padding:24,width:420,maxWidth:"94vw",maxHeight:"92vh",overflowY:"auto",boxShadow:"0 20px 60px "+T.SHADOW},onClick:e=>e.stopPropagation()},
       React.createElement("div",{style:{fontFamily:titleFont||"'Manrope',system-ui,sans-serif",fontSize:15,fontWeight:700,color:T.AC,marginBottom:16}},"Edit Habit"),
@@ -6574,7 +6590,7 @@ function HabitModal({open,onClose,onSave,initial,T,titleFont}){
           React.createElement("div",{style:{fontSize:11,color:T.TXM,marginTop:10,lineHeight:1.5}},
             "Fires on this profile's devices only — a device has to have this TaskHub set as its main dashboard."))),
       React.createElement("div",{style:{display:"flex",gap:10,marginTop:18}},
-        React.createElement("button",{type:"button",style:{background:"transparent",color:T.ACL,border:"1px solid "+T.AC,borderRadius:4,padding:"9px 24px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"},onClick:save},"Save"),
+        React.createElement("button",{type:"button",style:{background:"transparent",color:T.ACL,border:"1px solid "+T.AC,boxShadow:GLOW(T.AC),borderRadius:4,padding:"9px 24px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"},onClick:save},"Save"),
         React.createElement("button",{type:"button",style:{background:T.S2,border:"1px solid "+T.BDL,borderRadius:4,padding:"9px 18px",fontSize:13,fontWeight:600,color:T.TXD,cursor:"pointer",fontFamily:"inherit"},onClick:onClose},"Cancel"))));
 }
 
@@ -8205,13 +8221,13 @@ function App(){
   const _ns=Math.max(0,Math.min(_tIdx<0?0:_tIdx-2,2));
   const _nwd=wd.slice(_ns,_ns+5);
   const _hi=[...wd.slice(0,_ns).map((_,ii)=>ii),...wd.slice(_ns+5).map((_,ii)=>_ns+5+ii)];
-  const hbtn=active=>({background:"transparent",border:"1px solid "+(active?T.AC:T.BD),borderRadius:4,padding:"0 10px",height:"28px",boxSizing:"border-box",fontSize:12,fontWeight:800,color:T.AC,cursor:"pointer",fontFamily:"'Inter',system-ui,-apple-system,sans-serif",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:4,transition:"all .15s",whiteSpace:"nowrap",flexShrink:0});
+  const hbtn=active=>({background:"transparent",border:"1px solid "+(active?T.AC:T.BD),boxShadow:active?GLOW(T.AC):"none",borderRadius:4,padding:"0 10px",height:"28px",boxSizing:"border-box",fontSize:12,fontWeight:800,color:T.AC,cursor:"pointer",fontFamily:"'Inter',system-ui,-apple-system,sans-serif",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:4,transition:"all .15s",whiteSpace:"nowrap",flexShrink:0});
   const sec={background:T.S1,border:"1px solid "+T.BD,borderRadius:4,padding:"12px 16px"};
   const stt={fontFamily:"'Manrope',system-ui,sans-serif",fontSize:13,fontWeight:800,color:T.TX,marginBottom:10,borderBottom:"1px solid "+T.BD,paddingBottom:8,letterSpacing:0.3,textTransform:"none"};
   const inp={background:T.S2,border:"1px solid "+T.BDL,borderRadius:4,color:T.TX,fontSize:14,fontWeight:600,padding:"7px 11px",fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"};
   const dbtn={background:"transparent",border:"none",color:T.ERR,cursor:"pointer",fontSize:15,padding:"0 4px",lineHeight:1,fontFamily:"inherit",fontWeight:700};
   const ebtn={background:"transparent",border:"none",color:T.TXD,cursor:"pointer",fontSize:12,padding:"0 3px",lineHeight:1,fontFamily:"inherit"};
-  const sbtn={background:"transparent",color:T.ACL,border:"1px solid "+T.AC,borderRadius:4,padding:"6px 14px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"'Inter',system-ui,-apple-system,sans-serif"};
+  const sbtn={background:"transparent",color:T.ACL,border:"1px solid "+T.AC,boxShadow:GLOW(T.AC),borderRadius:4,padding:"6px 14px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"'Inter',system-ui,-apple-system,sans-serif"};
   const ctag=c=>({fontSize:9,color:CC[c]||T.TXD,background:(CC[c]||T.TXD)+"1a",borderRadius:6,padding:"1px 5px",marginLeft:2,textTransform:"capitalize",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+(CC[c]||T.TXD)+"30"});
   const mcByDay=useMemo(()=>{const g={};const todayK=dkey(new Date().getFullYear(),new Date().getMonth(),new Date().getDate());(marketCal||[]).forEach(ev=>{if(!ev||!ev.date)return;(g[ev.date]=g[ev.date]||[]).push({id:ev.id,type:"event",_mc:true,kind:ev.kind,title:ev.name,category:ev.category,importance:ev.importance,date:ev.date,notifyAt:ev.notifyAt||null,_past:ev.date<todayK});});return g;},[marketCal]);
   const mcFmt=(iso)=>{const d=new Date(iso);let h=d.getHours();const m=d.getMinutes();const ap=h<12?" AM":" PM";h=h%12||12;return h+":"+(m<10?"0":"")+m+ap;};
@@ -8292,7 +8308,7 @@ function App(){
           vxRedo&&React.createElement("button",{type:"button",key:"vx-redo",title:"Redo",style:{...hbtn(false),color:T.AC,border:"1px solid "+T.BD,fontSize:15,fontWeight:800},onMouseEnter:e=>e.currentTarget.style.borderColor=T.AC,onMouseLeave:e=>e.currentTarget.style.borderColor=T.BD,onClick:()=>window._THV&&window._THV.redo()},React.createElement("span",{style:{width:14,height:14,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.redo}})),
           /* Timer: the whole chip lights up when the timer panel is open — an
              active control reads as a filled state, not a recoloured glyph. */
-          React.createElement("button",{type:"button",title:"Timer",style:{...hbtn(false),background:showPomo?T.AC:"transparent",color:showPomo?T.BG:T.AC,border:"1px solid "+(showPomo?T.AC:T.BD),boxShadow:showPomo?"0 0 10px "+T.AC+"59":"none"},onMouseEnter:e=>e.currentTarget.style.borderColor=T.AC,onMouseLeave:e=>e.currentTarget.style.borderColor=showPomo?T.AC:T.BD,onClick:()=>setShowPomo(p=>!p)},React.createElement("span",{style:{width:14,height:14,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.clock}})),
+          React.createElement("button",{type:"button",title:"Timer",style:{...hbtn(false),background:showPomo?T.AC:"transparent",color:showPomo?T.BG:T.AC,border:"1px solid "+(showPomo?T.AC:T.BD),boxShadow:showPomo?GLOW(T.AC):"none"},onMouseEnter:e=>e.currentTarget.style.borderColor=T.AC,onMouseLeave:e=>e.currentTarget.style.borderColor=showPomo?T.AC:T.BD,onClick:()=>setShowPomo(p=>!p)},React.createElement("span",{style:{width:14,height:14,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.clock}})),
           React.createElement("div",{style:{...hbtn(false),cursor:"pointer",userSelect:"none",border:"1px solid "+T.BD},onMouseEnter:e=>e.currentTarget.style.borderColor=T.AC,onMouseLeave:e=>e.currentTarget.style.borderColor=T.BD,onClick:()=>setEdit(e=>!e)},
             React.createElement("div",{style:{width:26,height:14,borderRadius:7,background:edit?T.AC:T.BD,position:"relative",transition:"background .25s",flexShrink:0}},
               React.createElement("div",{style:{width:10,height:10,borderRadius:"50%",background:edit?"#fff":T.TXD,position:"absolute",top:"50%",transform:"translateY(-50%)",left:edit?13:2,transition:"left .25s",boxShadow:"0 1px 3px rgba(0,0,0,.25)"}})),
@@ -8377,7 +8393,7 @@ function App(){
             const pvMatches=ecByDay[k]||[];
             const events=allItems.filter(i=>i.type==="event");
             return React.createElement("div",{"data-dnd-zone":"week:"+k,style:{background:td?(T.TODAYBG||T.S2):T.BG,border:td?"1.5px solid "+(T.TODAYBD||T.AC+"60"):"1px solid "+T.BD,borderRadius:4,padding:12,minHeight:80,display:"flex",flexDirection:"column"}},
-              edit&&React.createElement("button",{type:"button",style:{fontSize:11,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,borderRadius:4,padding:"9px 0",width:"100%",cursor:"pointer",marginBottom:8,fontFamily:"inherit"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"),
+              edit&&React.createElement("button",{type:"button",style:{fontSize:11,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,boxShadow:GLOW(T.AC),borderRadius:4,padding:"9px 0",width:"100%",cursor:"pointer",marginBottom:8,fontFamily:"inherit"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"),
               React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:tasks.length>0?6:10,gap:4}},
                 React.createElement("div",{style:{minWidth:0}},
                   React.createElement("div",{style:{fontFamily:td?"var(--font-accent)":"'Manrope',system-ui,sans-serif",fontSize:14,fontWeight:700,color:td?T.AC:T.TXD,whiteSpace:"nowrap"}},DOW[mobDayIdx]),
@@ -8446,7 +8462,7 @@ function App(){
                 edit&&React.createElement("button",{type:"button",style:{...ebtn,padding:"0 6px"},onClick:()=>{setEi(e);setMdt(k);setMo(true);},title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px"},onClick:()=>del(k,e.id)},"×"))),
               !tasks.length&&!events.length&&!mcDay.length&&!edit&&React.createElement("div",{style:{fontSize:11,fontWeight:500,color:T.TXM,textAlign:"center",padding:"24px 0"}},"—"),
-              edit&&React.createElement("button",{type:"button",style:{fontSize:11,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,borderRadius:4,padding:"9px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"));
+              edit&&React.createElement("button",{type:"button",style:{fontSize:11,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,boxShadow:GLOW(T.AC),borderRadius:4,padding:"9px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"));
           })())
         :
         // ── 5-day narrow or 7-day desktop ──
@@ -8467,7 +8483,7 @@ function App(){
             const pvMatches=ecByDay[k]||[];
             const events=allItems.filter(i=>i.type==="event");
             return React.createElement("div",{key:k,"data-dnd-zone":"week:"+k,onDragOver:edit?e=>{e.preventDefault();e.dataTransfer.dropEffect="move";if(!isMobile)setDragOverId("day-"+k);}:null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropDay(e,k):null,style:dndDayStyle(k,{background:td?(T.TODAYBG||T.S2):T.BG,border:td?"1.5px solid "+(T.TODAYBD||T.AC+"60"):"1px solid "+T.BD,borderRadius:4,padding:"clamp(8px,1.2vw,12px)",minHeight:"clamp(200px,22vh,280px)",display:"flex",flexDirection:"column"})},
-              edit&&React.createElement("button",{type:"button",style:{fontSize:10,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,borderRadius:4,padding:"5px 0",width:"100%",cursor:"pointer",marginBottom:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"),
+              edit&&React.createElement("button",{type:"button",style:{fontSize:10,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,boxShadow:GLOW(T.AC),borderRadius:4,padding:"5px 0",width:"100%",cursor:"pointer",marginBottom:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"),
               React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:tasks.length>0?4:10,gap:4}},
                 React.createElement("div",{style:{minWidth:0}},
                   React.createElement("div",{style:{fontFamily:td?"var(--font-accent)":"'Manrope',system-ui,sans-serif",fontSize:13,fontWeight:700,color:td?T.AC:T.TXD,whiteSpace:"nowrap",textTransform:"none"}},DS[i]),
@@ -8525,7 +8541,7 @@ function App(){
                 edit&&React.createElement("button",{type:"button",style:ebtn,onClick:()=>{setEi(e);setMdt(k);setMo(true);},title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                 edit&&React.createElement("button",{type:"button",style:dbtn,onClick:()=>del(k,e.id)},"×"))),
               !tasks.length&&!events.length&&!mcDay.length&&!edit&&React.createElement("div",{style:{fontSize:10,fontWeight:500,color:T.TXM,textAlign:"center",padding:"32px 0"}},"—"),
-              edit&&React.createElement("button",{type:"button",style:{fontSize:10,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,borderRadius:4,padding:"5px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"));
+              edit&&React.createElement("button",{type:"button",style:{fontSize:10,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,boxShadow:GLOW(T.AC),borderRadius:4,padding:"5px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"));
           })))),
 
     React.createElement("div",{style:{display:"grid",gridTemplateColumns:isMobile?"1fr":"minmax(0,4fr) minmax(0,2.4fr) minmax(0,4fr)",gap:"clamp(6px,1vw,10px)",flexShrink:0,alignItems:"start"}},
@@ -8561,7 +8577,7 @@ function App(){
           React.createElement("button",{type:"button",style:{background:T.S2,border:"1px solid "+T.BDL,borderRadius:4,color:T.TXD,cursor:"pointer",fontSize:12,fontWeight:700,padding:"2px 8px",fontFamily:"inherit",flexShrink:0},onClick:pm},"‹"),
           React.createElement("div",{style:{display:"flex",gap:4,flex:1,justifyContent:"center"}},
             React.createElement("select",{value:vm,style:{background:T.S2,border:"1px solid "+T.BDL,borderRadius:4,color:T.AC,fontSize:11,fontWeight:700,padding:"3px 5px",fontFamily:"'Manrope',system-ui,sans-serif",outline:"none",cursor:"pointer",maxWidth:64},onChange:e=>setVm(parseInt(e.target.value))},MOS.map((m,i)=>React.createElement("option",{key:i,value:i},m))),
-            React.createElement("select",{value:vy,style:{background:T.S2,border:"1px solid "+T.BDL,borderRadius:4,color:T.AC,fontSize:11,fontWeight:700,padding:"3px 5px",fontFamily:"'Manrope',system-ui,sans-serif",outline:"none",cursor:"pointer",maxWidth:58},onChange:e=>setVy(parseInt(e.target.value))},calYears.map(y=>React.createElement("option",{key:y,value:y},y)))),
+            React.createElement("select",{value:vy,style:{background:T.S2,border:"1px solid "+T.BDL,borderRadius:4,color:T.AC,fontSize:11,fontWeight:700,padding:"3px 5px",fontFamily:"'Manrope',system-ui,sans-serif",outline:"none",cursor:"pointer",minWidth:62,paddingRight:2},onChange:e=>setVy(parseInt(e.target.value))},calYears.map(y=>React.createElement("option",{key:y,value:y},y)))),
           React.createElement("button",{type:"button",style:{background:T.S2,border:"1px solid "+T.BDL,borderRadius:4,color:T.TXD,cursor:"pointer",fontSize:12,fontWeight:700,padding:"2px 8px",fontFamily:"inherit",flexShrink:0},onClick:nm},"›")),
         React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,textAlign:"center",marginBottom:3}},DS.map(d=>React.createElement("div",{key:d,style:{fontSize:8,color:T.TXM,fontWeight:700,padding:"1px 0"}},d.charAt(0)))),
         React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,textAlign:"center"}},
@@ -8571,7 +8587,7 @@ function App(){
             const isSel=sel.year===vy&&sel.month===vm&&sel.day===day;
             const has=!!(data[k]&&data[k].length>0);
             const isToday=vy===now.getFullYear()&&vm===now.getMonth()&&day===now.getDate();
-            return React.createElement("button",{key:i,type:"button",style:{fontSize:10,fontWeight:isSel||isToday?700:500,padding:"3px 0",borderRadius:5,cursor:"pointer",fontFamily:"inherit",transition:"all .15s",background:"transparent",color:isSel?T.ACL:isToday?T.AC:has?T.ACL:T.TXD,border:isSel?"1px solid "+T.AC:isToday?"1px solid "+T.AC+"55":"1px solid transparent"},onClick:()=>{setSel({year:vy,month:vm,day});const _dw=new Date(vy,vm,day).getDay();setMobDayIdx(_dw===0?6:_dw-1);}},day);
+            return React.createElement("button",{key:i,type:"button",style:{fontSize:10,fontWeight:isSel||isToday?700:500,padding:"3px 0",borderRadius:5,cursor:"pointer",fontFamily:"inherit",transition:"all .15s",background:isSel?T.AC+"1f":"transparent",color:isSel?T.ACL:isToday?T.AC:has?T.ACL:T.TXD,border:isSel||isToday?"1px solid "+T.AC:"1px solid transparent",boxShadow:isSel||isToday?GLOW(T.AC):"none"},onClick:()=>{setSel({year:vy,month:vm,day});const _dw=new Date(vy,vm,day).getDay();setMobDayIdx(_dw===0?6:_dw-1);}},day);
           }))),
 
       React.createElement("div",{"data-dnd-zone":goalTab==="short"?"goalm":"goal",style:{...sec},
@@ -12756,6 +12772,15 @@ const BG="#1B1C1E",S1="#26272A",BD="#3D3E43",BDL="#4A4B51",TX="#ECECEE",TXD="#AF
 // Veda's palette expressed in the theme shape the shared TaskHub modals expect
 // (HabitModal, TimePicker, DayPicker), so both profiles drive one component.
 const VD_T={BG:BG,S1:S1,S2:"#2E2F33",BD:BD,BDL:BDL,TX:TX,TXD:TXD,TXM:TXM,AC:A,ACL:AL,ACD:AD,GRN:GRN,SHADOW:"rgba(0,0,0,.5)"};
+// Same outline glow Tony's block defines — Veda's TaskHub is a separate babel
+// block with its own scope, so it gets its own copy. See the comment there.
+const GLOW=(hex)=>{
+  const h=String(hex||"").replace("#","");
+  if(h.length<6)return "none";
+  const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);
+  return "0 0 0 1px rgba("+r+","+g+","+b+",.42),0 0 10px rgba("+r+","+g+","+b+",.42)";
+};
+const GLOW_A=GLOW(A);
 const CC={work:"#6FBFA8",personal:"#8FB8E8",health:"#93CFA0",urgent:"#f85149",study:"#BFA6E0",finance:"#E7A7BE",other:"#B4AEC0"};
 const CL=Object.keys(CC);
 
@@ -13616,7 +13641,7 @@ if(rl==null)saveJ(SK.rules,rules);
 return{data:loadJ(SK.data,{}),habits:loadJ(SK.habits,[]),hc:hcD,goals:loadJ(SK.goals,[]),monthlyGoals:loadJ(SK.mgoals,[]),goalPrefs:{...GOAL_PREFS_DEF,...loadJ(SK.goalPrefs,{})},rules:rules,rulesDaily:{...RULES_DAILY_DEF,...loadJ(SK.rulesDaily,{})}};}else{const d=buildSeed();const rules=vdSeedRules();saveJ(SK.data,d);saveJ(SK.habits,HAB_DEF);saveJ(SK.hc,{});saveJ(SK.goals,MG_DEF);saveJ(SK.mgoals,[]);saveJ(SK.rules,rules);saveJ(SK.rulesDaily,{...RULES_DAILY_DEF});localStorage.setItem(SK.seeded,"1");localStorage.setItem(SK.weekKey,cw);return{data:d,habits:HAB_DEF,hc:{},goals:MG_DEF,monthlyGoals:[],goalPrefs:{...GOAL_PREFS_DEF},rules:rules,rulesDaily:{...RULES_DAILY_DEF}};}}
 const Chk=({s=9})=>React.createElement("svg",{width:s,height:s,viewBox:"0 0 12 12",fill:"none"},React.createElement("path",{d:"M2 6.5L5 9.5L10 3",stroke:BG,strokeWidth:"2.5",strokeLinecap:"round",strokeLinejoin:"round"}));
 function DatePicker({value,onChange,label,maxYears=1}){const now=new Date(),curY=now.getFullYear();const maxDate=new Date(curY+maxYears,now.getMonth(),now.getDate());const years=[];for(let y=curY;y<=curY+maxYears;y++)years.push(y);const selY=value?.year||curY,selM=value?.month!=null?value.month:now.getMonth(),selD=value?.day||1;const maxD=dimM(selY,selM);const days=[];for(let d=1;d<=maxD;d++)days.push(d);const sel={background:BG,border:"1px solid "+BDL,borderRadius:4,color:TX,fontSize:12,fontWeight:600,padding:"5px 5px",fontFamily:"inherit",outline:"none",cursor:"pointer"};const update=(f,v)=>{const nv={month:selM,day:selD,year:selY,...(value||{}),[f]:parseInt(v)};const mx=dimM(nv.year,nv.month);if(nv.day>mx)nv.day=mx;if(new Date(nv.year,nv.month,nv.day)>maxDate){nv.year=maxDate.getFullYear();nv.month=maxDate.getMonth();nv.day=maxDate.getDate();}onChange(nv);};return React.createElement("div",null,React.createElement("div",{style:{fontSize:10,color:TXD,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,marginBottom:5}},label),React.createElement("div",{style:{display:"flex",gap:5,alignItems:"center"}},React.createElement("select",{style:{...sel,minWidth:72},value:selM,onChange:e=>update("month",e.target.value)},MOS.map((m,i)=>React.createElement("option",{key:i,value:i},m))),React.createElement("select",{style:{...sel,minWidth:50},value:selD,onChange:e=>update("day",e.target.value)},days.map(d=>React.createElement("option",{key:d,value:d},d))),React.createElement("select",{style:{...sel,minWidth:66},value:selY,onChange:e=>update("year",e.target.value)},years.map(y=>React.createElement("option",{key:y,value:y},y)))));}
-function VedaDayPicker({selected,onChange}){const toggle=i=>{if(selected.includes(i))onChange(selected.filter(x=>x!==i));else onChange([...selected,i].sort());};return React.createElement("div",{style:{display:"flex",gap:5,flexWrap:"wrap"}},DS.map((d,i)=>React.createElement("button",{key:i,onClick:()=>toggle(i),style:{fontSize:11,fontWeight:selected.includes(i)?700:600,padding:"5px 10px",borderRadius:4,cursor:"pointer",fontFamily:"inherit",background:selected.includes(i)?A:BG,color:selected.includes(i)?BG:TXD,border:selected.includes(i)?"1px solid "+A:"1px solid "+BDL,transition:"all .15s"}},d)));}
+function VedaDayPicker({selected,onChange}){const toggle=i=>{if(selected.includes(i))onChange(selected.filter(x=>x!==i));else onChange([...selected,i].sort());};return React.createElement("div",{style:{display:"flex",gap:5,flexWrap:"wrap"}},DS.map((d,i)=>React.createElement("button",{key:i,onClick:()=>toggle(i),style:{fontSize:11,fontWeight:selected.includes(i)?700:600,padding:"5px 10px",borderRadius:4,cursor:"pointer",fontFamily:"inherit",background:selected.includes(i)?A:BG,color:selected.includes(i)?BG:TXD,border:selected.includes(i)?"1px solid "+A:"1px solid "+BDL,boxShadow:selected.includes(i)?GLOW_A:"none",transition:"all .15s"}},d)));}
 function ConfirmDeleteModal({open,onClose,onConfirm,onThis,isAltSeq}){if(!open)return null;return RC("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2000},onClick:onClose},RC("div",{style:{background:S1,border:"1px solid #f85149",borderRadius:4,padding:24,width:400,maxWidth:"90vw"},onClick:e=>e.stopPropagation()},RC("div",{style:{fontSize:16,fontWeight:700,color:"#f85149",marginBottom:12}},isAltSeq?"Delete Sequence Occurrence":"Delete Repeating Task"),RC("div",{style:{fontSize:13,color:TXD,lineHeight:1.6,marginBottom:18}},isAltSeq?"Delete just this occurrence, or this and all future occurrences in the sequence?":"Delete just this occurrence, or this and all future repeats?"),RC("div",{style:{display:"flex",gap:10,flexWrap:"wrap"}},RC("button",{style:{flex:1,background:"transparent",border:"1px solid "+BDL,borderRadius:5,padding:"10px 16px",fontSize:13,fontWeight:600,color:TX,cursor:"pointer",fontFamily:"inherit"},onClick:onThis},"This only"),RC("button",{style:{flex:1,background:"#f85149",color:BG,border:"none",borderRadius:5,padding:"10px 16px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"},onClick:onConfirm},"This + all future"),RC("button",{style:{background:"transparent",border:"1px solid "+BDL,borderRadius:5,padding:"10px 16px",fontSize:13,fontWeight:600,color:TXD,cursor:"pointer",fontFamily:"inherit"},onClick:onClose},"Cancel"))));}
 function VdConfirmEditTitleModal({open,onClose,onThisOnly,onAllFuture,isAltSeq}){if(!open)return null;return RC("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2100},onClick:onClose},RC("div",{style:{background:S1,border:"1px solid "+BDL,borderRadius:4,padding:24,width:400,maxWidth:"90vw"},onClick:e=>e.stopPropagation()},RC("div",{style:{fontSize:16,fontWeight:700,color:A,marginBottom:12}},isAltSeq?"Edit Alternating Sequence":"Edit Repeating Task"),RC("div",{style:{fontSize:13,color:TXD,lineHeight:1.6,marginBottom:18}},isAltSeq?"Apply changes to just this occurrence, or all future occurrences in the sequence?":"Apply your change to just this day, or all future repeats?"),RC("div",{style:{display:"flex",gap:10,flexWrap:"wrap"}},RC("button",{style:{flex:1,background:"transparent",border:"1px solid "+BDL,borderRadius:5,padding:"10px 16px",fontSize:13,fontWeight:600,color:TX,cursor:"pointer",fontFamily:"inherit"},onClick:onThisOnly},"This day only"),RC("button",{style:{flex:1,background:A,color:BG,border:"none",borderRadius:5,padding:"10px 16px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"},onClick:onAllFuture},isAltSeq?"All future in seq":"All future repeats"),RC("button",{style:{background:"transparent",border:"1px solid "+BDL,borderRadius:5,padding:"10px 16px",fontSize:13,fontWeight:600,color:TXD,cursor:"pointer",fontFamily:"inherit"},onClick:onClose},"Cancel"))));}
 const RC=React.createElement;
@@ -13648,7 +13673,7 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
   useScrollLock(open);
   if(!open)return null;
   const mi={background:BG,border:"1px solid "+BDL,borderRadius:5,color:TX,fontSize:14,padding:"9px 11px",fontFamily:"inherit",fontWeight:600,outline:"none",width:"100%",boxSizing:"border-box"};
-  const tb=(active,danger)=>({fontSize:11,fontWeight:700,padding:"5px 14px",borderRadius:4,cursor:"pointer",fontFamily:"inherit",background:active?(danger?"#f85149":A):BG,color:active?BG:TXD,border:active?"1px solid "+(danger?"#f85149":A):"1px solid "+BDL,transition:"all .15s"});
+  const tb=(active,danger)=>({fontSize:11,fontWeight:700,padding:"5px 14px",borderRadius:4,cursor:"pointer",fontFamily:"inherit",background:active?(danger?"#f85149":A):BG,color:active?BG:TXD,border:active?"1px solid "+(danger?"#f85149":A):"1px solid "+BDL,boxShadow:active?GLOW(danger?"#f85149":A):"none",transition:"all .15s"});
   const lbl={fontSize:10,color:TXD,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,marginBottom:5};
   const save=()=>{
     if(!title.trim()&&repeat!=="altSeq")return;
@@ -13785,7 +13810,7 @@ function GitaLessonsBrowser({onClose, onSelectLesson}){
     if(l.chapter!==lastChapter){grouped.push({type:"header",label:l.chapter});lastChapter=l.chapter;}
     grouped.push({type:"lesson",lesson:l});
   });
-  const gitaBtnStyle=(active)=>({background:active?A:"transparent",color:active?BG:A,border:"1px solid "+(active?A:BDL),borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"});
+  const gitaBtnStyle=(active)=>({background:active?A:"transparent",color:active?BG:A,border:"1px solid "+(active?A:BDL),boxShadow:active?GLOW_A:"none",borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"});
   return RC("div",{className:"lessons-overlay",style:{fontFamily:"'IBM Plex Mono',monospace"}},
     RC("div",{className:"veda-hdr-outer"},
       RC("div",{className:"veda-hdr-inner"},
@@ -14990,7 +15015,7 @@ function App(){
         vxUndo&&RC("button",{key:"vx-undo",title:"Undo",onClick:()=>window._THV&&window._THV.undo(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 11px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}},RC(VdIcon,{name:"undo",size:15})),
         vxRedo&&RC("button",{key:"vx-redo",title:"Redo",onClick:()=>window._THV&&window._THV.redo(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 11px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}},RC(VdIcon,{name:"redo",size:15})),
         RC("button",{onClick:()=>setRulesOpen("manage"),title:"Trading rules checklist",onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},"Rules"),
-        RC("button",{onClick:()=>setShowPomo(p=>!p),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=showPomo?A:BDL;},style:{background:showPomo?A:"transparent",color:showPomo?BG:A,border:"1px solid "+(showPomo?A:BDL),borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},showPomo?"Timer On":"Timer"),
+        RC("button",{onClick:()=>setShowPomo(p=>!p),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=showPomo?A:BDL;},style:{background:showPomo?A:"transparent",color:showPomo?BG:A,border:"1px solid "+(showPomo?A:BDL),boxShadow:showPomo?GLOW_A:"none",borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},showPomo?"Timer On":"Timer"),
         RC("div",{style:{display:"flex",alignItems:"center",gap:6,cursor:"pointer",userSelect:"none",height:28,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",boxSizing:"border-box"},onClick:()=>setEdit(!edit),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;}},
           /* Mode reads as a glyph, not a word — pencil for edit, eye for view (same
              vocabulary as Tony's TaskHub). */
@@ -15044,7 +15069,7 @@ function App(){
             const dayTX=td?TX:TXD;
             const dimA=vdDim(td);
             return RC("div",{"data-dnd-zone":"week:"+k,style:{background:td?"#303135":BG,border:td?"1px solid "+A:"1px solid "+BD,borderRadius:8,padding:12,minHeight:80,display:"flex",flexDirection:"column"}},
-              edit&&RC("button",{style:{fontSize:11,fontWeight:700,color:A,background:"transparent",border:"1px solid "+A,borderRadius:4,padding:"9px 0",width:"100%",cursor:"pointer",marginBottom:8,fontFamily:"inherit"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"),
+              edit&&RC("button",{style:{fontSize:11,fontWeight:700,color:A,background:"transparent",border:"1px solid "+A,boxShadow:GLOW_A,borderRadius:4,padding:"9px 0",width:"100%",cursor:"pointer",marginBottom:8,fontFamily:"inherit"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"),
               RC("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8,gap:4}},
                 RC("div",{style:{minWidth:0}},
                   RC("div",{style:{fontSize:14,fontWeight:700,color:td?A:TXD,letterSpacing:.5,whiteSpace:"nowrap"}},DOW[vrMobDayIdx]),
@@ -15091,7 +15116,7 @@ function App(){
                 edit&&RC("button",{type:"button",title:"Edit",style:vdIcoBtn(TXD),onClick:()=>{setEi(e);setMdt(k);setMo(true);}},vdIco(TNI.pencil)),
                 edit&&RC("button",{type:"button",title:"Delete",style:vdIcoBtn("#f85149"),onClick:()=>del(k,e.id)},vdIco(TNI.x)))),
               !it.length&&!(mcByDay[k]||[]).length&&!edit&&RC("div",{style:{fontSize:11,fontWeight:600,color:TXM,textAlign:"center",padding:"24px 0"}},"—"),
-              edit&&RC("button",{style:{fontSize:11,fontWeight:700,color:A,background:"transparent",border:"1px solid "+A,borderRadius:4,padding:"9px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"));
+              edit&&RC("button",{style:{fontSize:11,fontWeight:700,color:A,background:"transparent",border:"1px solid "+A,boxShadow:GLOW_A,borderRadius:4,padding:"9px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"));
           })())
         :
         RC("div",{style:{display:"grid",gridTemplateColumns:"repeat("+(vrNarrow?5:7)+",minmax(0,1fr))",gap:8}},
@@ -15105,7 +15130,7 @@ function App(){
             const dayTX=td?TX:TXD;
             const dimA=vdDim(td);
             return RC("div",{key:k,"data-dnd-zone":"week:"+k,onDragOver:edit?e=>{e.preventDefault();e.dataTransfer.dropEffect="move";if(!vrMobile)setVdDragOverId("day-"+k);}:null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropDay(e,k):null,style:vdndDayStyle(k,{background:td?"#303135":BG,border:td?"1px solid "+A:"1px solid "+BD,borderRadius:6,padding:"8px 8px",minHeight:150,display:"flex",flexDirection:"column"})},
-              edit&&RC("button",{style:{fontSize:11,fontWeight:700,color:A,background:"transparent",border:"1px solid "+A,borderRadius:4,padding:"4px 0",width:"100%",cursor:"pointer",marginBottom:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"),
+              edit&&RC("button",{style:{fontSize:11,fontWeight:700,color:A,background:"transparent",border:"1px solid "+A,boxShadow:GLOW_A,borderRadius:4,padding:"4px 0",width:"100%",cursor:"pointer",marginBottom:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"),
               RC("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}},
                 RC("div",null,
                   RC("div",{style:{fontSize:13,fontWeight:700,color:td?A:TXD,textTransform:"uppercase",letterSpacing:.5}},DS[i]),
@@ -15147,7 +15172,7 @@ function App(){
                 edit&&RC("button",{type:"button",title:"Edit",style:vdIcoBtn(TXD),onClick:()=>{setEi(e);setMdt(k);setMo(true);}},vdIco(TNI.pencil)),
                 edit&&RC("button",{type:"button",title:"Delete",style:vdIcoBtn("#f85149"),onClick:()=>del(k,e.id)},vdIco(TNI.x)))),
               !it.length&&!(mcByDay[k]||[]).length&&!edit&&RC("div",{style:{fontSize:11,fontWeight:600,color:TXM,textAlign:"center",padding:"30px 0"}},"—"),
-              edit&&RC("button",{style:{fontSize:11,fontWeight:700,color:A,background:"transparent",border:"1px solid "+A,borderRadius:4,padding:"4px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"))})))),
+              edit&&RC("button",{style:{fontSize:11,fontWeight:700,color:A,background:"transparent",border:"1px solid "+A,boxShadow:GLOW_A,borderRadius:4,padding:"4px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"))})))),
 
     // ── Bottom panels ──
     RC("div",{style:{display:"grid",gridTemplateColumns:vrMobile?"1fr":"minmax(0,4fr) minmax(0,2.5fr) minmax(0,4fr)",gap:10}},
@@ -15180,7 +15205,7 @@ function App(){
           RC("span",{style:{fontSize:13,color:A,fontWeight:700,letterSpacing:1}},MOS[vm].toUpperCase()+" "+vy),
           RC("button",{style:{background:"transparent",border:"1px solid "+BDL,borderRadius:4,color:TXD,cursor:"pointer",fontSize:13,fontWeight:700,padding:"3px 9px",fontFamily:"inherit",display:"inline-flex",alignItems:"center",justifyContent:"center"},onClick:nm,title:"Next month","aria-label":"Next month"},RC(VdIcon,{name:"chevRight",size:13}))),
         RC("div",{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,textAlign:"center",marginBottom:3}},DS.map(d=>RC("div",{key:d,style:{fontSize:10,color:TXM,fontWeight:700,padding:"2px 0"}},d.charAt(0)))),
-        RC("div",{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,textAlign:"center"}},calcCells.map((day,i)=>{if(day===null)return RC("div",{key:"e"+i});const k=dkey(vy,vm,day),isSel=sel.year===vy&&sel.month===vm&&sel.day===day,has=!!data[k]&&data[k].length>0,isToday=vy===now.getFullYear()&&vm===now.getMonth()&&day===now.getDate();return RC("button",{key:i,onClick:()=>{if(day){setSel({year:vy,month:vm,day});const _dw=new Date(vy,vm,day).getDay();setVrMobDayIdx(_dw===0?6:_dw-1);}},style:{fontSize:12,fontWeight:isSel?700:isToday?700:600,padding:"4px 0",borderRadius:4,cursor:"pointer",fontFamily:"inherit",background:isSel?A:has?ABG:"transparent",color:isSel?BG:isToday?A:has?AL:TXD,border:isToday&&!isSel?"1px solid "+A+"55":"none",transition:"all .15s"}},day);})),
+        RC("div",{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,textAlign:"center"}},calcCells.map((day,i)=>{if(day===null)return RC("div",{key:"e"+i});const k=dkey(vy,vm,day),isSel=sel.year===vy&&sel.month===vm&&sel.day===day,has=!!data[k]&&data[k].length>0,isToday=vy===now.getFullYear()&&vm===now.getMonth()&&day===now.getDate();return RC("button",{key:i,onClick:()=>{if(day){setSel({year:vy,month:vm,day});const _dw=new Date(vy,vm,day).getDay();setVrMobDayIdx(_dw===0?6:_dw-1);}},style:{fontSize:12,fontWeight:isSel?700:isToday?700:600,padding:"4px 0",borderRadius:4,cursor:"pointer",fontFamily:"inherit",background:isSel?A:has?ABG:"transparent",color:isSel?BG:isToday?A:has?AL:TXD,border:isToday&&!isSel?"1px solid "+A:"none",boxShadow:isSel||isToday?GLOW_A:"none",transition:"all .15s"}},day);})),
         RC("div",{style:{marginTop:10,borderTop:"1px solid "+BD,paddingTop:8,flex:1}},
           RC("div",{style:{fontSize:13,fontWeight:700,color:A,marginBottom:4}},(()=>{const d=new Date(sel.year,sel.month,sel.day),dow=d.getDay();return DOW[dow===0?6:dow-1].slice(0,3);})() +", "+MO[sel.month].slice(0,3)+" "+sel.day),
           (()=>{const k=dkey(sel.year,sel.month,sel.day),it=data[k]||[];if(!it.length)return RC("div",{style:{fontSize:11,fontWeight:600,color:TXM}},"No items scheduled");const ts=it.filter(t=>t.type==="task"),ev=it.filter(t=>t.type==="event"),dn=ts.filter(t=>t.done).length;return RC("div",null,RC("div",{style:{fontSize:11,fontWeight:600,color:TXD,marginBottom:4}},ts.length+" task"+(ts.length!==1?"s":"")+" ("+dn+" done) · "+ev.length+" event"+(ev.length!==1?"s":"")),ts.length>0&&RC("div",{style:{width:"100%",height:4,background:BD,borderRadius:2,overflow:"hidden"}},RC("div",{style:{width:Math.round(dn/ts.length*100)+"%",height:"100%",background:dn===ts.length?GRN:"linear-gradient(90deg,"+AD+","+AL+")",borderRadius:2,transition:"width .35s"}})));})())),
