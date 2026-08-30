@@ -75,15 +75,43 @@
 /* The TaskHub wordmark sits alone at the top of the page with nothing to lean on,
    so it takes a lighter gold than the shared --gold-primary to hold that corner. */
 .suite-title.th-wordmark{color:#eecb92;}
-/* Tony's TaskHub buttons are inline-styled from React, so the suite's hover glow
-   lives here instead of in ~100 onMouseEnter handlers. Those handlers only set
-   border-color/color — never box-shadow — so this rule never fights them. Nothing
-   glows at rest; a button that wants no hover glow opts out with data-noglow. */
-#root button:hover:not([data-noglow]),
-#root [role="button"]:hover:not([data-noglow]){
-  box-shadow:0 0 8px rgba(224,184,116,.30),0 0 0 1px rgba(224,184,116,.10);
+/* ── Suite hover-glow standard ─────────────────────────────────────────────
+   Every hoverable control in the suite lights up at ONE brightness. Only the
+   hue changes: --suite-glow-rgb is redeclared per app root below, and any
+   single button that owns a different colour (a red Delete, a blue primary)
+   redeclares it on its own hover rule. Because custom properties substitute
+   lazily, --suite-glow is written once here and resolves the hue at whichever
+   element actually uses it.
+   The ring is what reads as "outlined"; the blur is what reads as "glow" —
+   the old .10 ring was too faint to see, which is why some buttons looked
+   like a soft smudge next to the crisp ones. */
+:root{
+  --suite-glow-rgb:224,184,116;                    /* gold — suite default */
+  --suite-glow:0 0 0 1px rgba(var(--suite-glow-rgb),.42),
+               0 0 10px rgba(var(--suite-glow-rgb),.42);
 }
-#root button,#root [role="button"]{transition:box-shadow .15s;}
+#veda-root,#bj-root,#cooking-view{--suite-glow-rgb:141,118,154;}   /* Veda purple */
+#wr-root{--suite-glow-rgb:192,174,234;}                            /* WarRoom purple */
+/* Tony's and Veda's TaskHub buttons are inline-styled from React, so the
+   suite's hover glow lives here instead of in ~100 onMouseEnter handlers.
+   Those handlers only set border-color/color — never box-shadow — so these
+   rules never fight them. Nothing glows at rest; a button that wants no hover
+   glow opts out with data-noglow. */
+#root button:hover:not([data-noglow]),
+#root [role="button"]:hover:not([data-noglow]),
+#veda-root button:hover:not([data-noglow]),
+#veda-root [role="button"]:hover:not([data-noglow]),
+#wr-root button:hover:not([data-noglow]),
+#wr-root [role="button"]:hover:not([data-noglow]),
+#tj-root button:hover:not([data-noglow]),
+#bj-root button:hover:not([data-noglow]),
+#tradeboard-root button:hover:not([data-noglow]){
+  box-shadow:var(--suite-glow);
+}
+#root button,#root [role="button"],
+#veda-root button,#veda-root [role="button"],
+#wr-root button,#wr-root [role="button"],
+#tj-root button,#bj-root button,#tradeboard-root button{transition:box-shadow .15s;}
 /* TgScrollBox paints its own draggable thumb — hide the native bar in both engines. */
 .tg-scrollbox{scrollbar-width:none;-ms-overflow-style:none;}
 .tg-scrollbox::-webkit-scrollbar{width:0;height:0;}
@@ -127,13 +155,13 @@ html,body{height:100%;}
   cursor:grab;font-family:'Inter',system-ui,-apple-system,sans-serif;letter-spacing:.5px;
   transition:all .15s;white-space:nowrap;
 }
-#tony-app-nav .tn-btn:hover{background:transparent;color:var(--tn-ac,#c8a15f);border-color:var(--tn-ac,#c8a15f);box-shadow:0 0 8px rgba(200,161,95,0.4),0 0 0 1px rgba(200,161,95,0.15);}
+#tony-app-nav .tn-btn:hover{background:transparent;color:var(--tn-ac,#c8a15f);border-color:var(--tn-ac,#c8a15f);--suite-glow-rgb:200,161,95;box-shadow:var(--suite-glow);}
 #tony-app-nav .wr-btn{color:#c0aeea;border-color:rgba(192,174,234,0.35);}
 /* !important because _showTonyNav writes the resting purple border-color inline on
    every pv/wr button, and an inline value outranks any stylesheet hover rule —
    that is what left these two with a dim outline on hover while gold ones lit up.
    The active button keeps its purple fill, so it opts out. */
-#tony-app-nav .wr-btn:not(.tn-active):hover{color:#dbd0f5!important;border-color:#c0aeea!important;box-shadow:0 0 8px rgba(192,174,234,0.4),0 0 0 1px rgba(192,174,234,0.15);}
+#tony-app-nav .wr-btn:not(.tn-active):hover{color:#dbd0f5!important;border-color:#c0aeea!important;--suite-glow-rgb:192,174,234;box-shadow:var(--suite-glow);}
 #tn-mobile-select option[value="warroom"]{color:#c0aeea!important;}
 #tony-app-nav .tn-btn.tn-active{
   background:transparent;color:var(--tn-ac,#c8a15f);
@@ -146,12 +174,12 @@ html,body{height:100%;}
   padding:0 8px;height:28px;box-sizing:border-box;cursor:pointer;line-height:1;
   transition:all .15s;flex-shrink:0;display:inline-flex;align-items:center;
 }
-#tony-app-nav .tn-star:hover,#tony-app-nav #tn-settings-btn:hover{color:var(--tn-ac,#c8a15f);border-color:var(--tn-ac,#c8a15f);box-shadow:0 0 8px rgba(200,161,95,0.4),0 0 0 1px rgba(200,161,95,0.15);}
+#tony-app-nav .tn-star:hover,#tony-app-nav #tn-settings-btn:hover{color:var(--tn-ac,#c8a15f);border-color:var(--tn-ac,#c8a15f);--suite-glow-rgb:200,161,95;box-shadow:var(--suite-glow);}
 /* Mobile: hide buttons, show select */
 #tn-mobile-select{display:none;background:transparent;border:1px solid var(--tn-bd,#2e3a35);border-radius:4px;color:var(--tn-ac,#c8a15f);font-size:11px;font-weight:700;padding:0 8px;height:28px;box-sizing:border-box;font-family:'Inter',system-ui,-apple-system,sans-serif;outline:none;cursor:pointer;transition:all .15s;}
-#tn-mobile-select:hover{color:var(--tn-ac,#c8a15f);border-color:var(--tn-ac,#c8a15f);box-shadow:0 0 8px rgba(200,161,95,0.4),0 0 0 1px rgba(200,161,95,0.15);}
+#tn-mobile-select:hover{color:var(--tn-ac,#c8a15f);border-color:var(--tn-ac,#c8a15f);--suite-glow-rgb:200,161,95;box-shadow:var(--suite-glow);}
 #tn-mobile-select.tn-wr-active{color:#c0aeea!important;border-color:rgba(192,174,234,0.45)!important;}
-#tn-mobile-select.tn-wr-active:hover{border-color:#dbd0f5!important;box-shadow:0 0 8px rgba(192,174,234,0.4)!important;}
+#tn-mobile-select.tn-wr-active:hover{border-color:#dbd0f5!important;--suite-glow-rgb:192,174,234;box-shadow:var(--suite-glow)!important;}
 #tn-mobile-select option{background:#1a1a1d;color:#c8a15f;}
 @media(max-width:900px){
   #tony-app-nav .tn-btn{display:none;}
@@ -24214,7 +24242,7 @@ window.hideBrainstormJournal = function() {
     box-shadow: none;
     width: calc(100% - 24px);
   }
-#tj-root #tj-new-entry-btn:hover { background: transparent; border-color: rgba(224,184,116,0.6); box-shadow: 0 0 8px rgba(224,184,116,.4), 0 0 0 1px rgba(224,184,116,.15); }
+#tj-root #tj-new-entry-btn:hover { background: transparent; border-color: rgba(224,184,116,0.6); box-shadow: var(--suite-glow); }
 #tj-root #tj-new-entry-btn svg { flex-shrink: 0; }
 
 #tj-root #tj-search-box {
@@ -24375,7 +24403,7 @@ window.hideBrainstormJournal = function() {
   transition: background 0.12s, color 0.12s, border-color 0.12s;
   opacity: 0.75;
 }
-#tj-root #tj-fullscreen-btn:hover { background: var(--card2); color: var(--purple); border-color: var(--purple); opacity: 1; box-shadow: 0 0 8px rgba(224,184,116,.34), 0 0 0 1px rgba(224,184,116,.12); }
+#tj-root #tj-fullscreen-btn:hover { background: var(--card2); color: var(--purple); border-color: var(--purple); opacity: 1; box-shadow: var(--suite-glow); }
 #tj-root.tj-fullscreen #tj-fullscreen-btn { color: var(--purple); border-color: rgba(141,118,154,0.55); background: rgba(141,118,154,0.08); opacity: 1; }
 
   /* ── TOOLBAR ── */
@@ -24417,7 +24445,7 @@ window.hideBrainstormJournal = function() {
     box-shadow: none;
     letter-spacing: 0.03em;
   }
-#tj-root .tb-btn:hover { background: var(--card2); color: var(--text); border-color: #e0b874; box-shadow: 0 0 8px rgba(224,184,116,.34), 0 0 0 1px rgba(224,184,116,.12); }
+#tj-root .tb-btn:hover { background: var(--card2); color: var(--text); border-color: #e0b874; box-shadow: var(--suite-glow); }
 #tj-root .tb-btn.active { background: transparent; color: var(--purple); border-color: #e0b874; }
 #tj-root .tb-btn.save-btn { color: var(--green); border-color: rgba(93,175,109,0.25); }
 #tj-root .tb-btn.save-btn:hover { background: rgba(93,175,109,0.08); color: var(--green); border-color: rgba(93,175,109,0.45); }
@@ -24666,7 +24694,7 @@ window.hideBrainstormJournal = function() {
     transition: background 0.1s, color 0.1s, border-color 0.1s;
     touch-action: manipulation;
   }
-#tj-root .wb-btn:hover { background: var(--card2); color: var(--text); box-shadow: 0 0 7px rgba(224,184,116,.28), 0 0 0 1px rgba(224,184,116,.10); }
+#tj-root .wb-btn:hover { background: var(--card2); color: var(--text); box-shadow: var(--suite-glow); }
 #tj-root .wb-btn.active { background: rgba(141,118,154,0.15); color: var(--purple); border-color: rgba(141,118,154,0.4); }
 #tj-root .wb-color-btn {
     width: 18px; height: 18px; border-radius: 50%;
@@ -24759,7 +24787,7 @@ window.hideBrainstormJournal = function() {
     transition: background 0.1s, color 0.1s, border-color 0.1s;
     white-space: nowrap; letter-spacing: 0.01em; min-width: 26px; justify-content: center;
   }
-#tj-root .pt-btn:hover { background: var(--card); color: var(--text); border-color: rgba(224,184,116,.5); box-shadow: 0 0 7px rgba(224,184,116,.28), 0 0 0 1px rgba(224,184,116,.10); }
+#tj-root .pt-btn:hover { background: var(--card); color: var(--text); border-color: rgba(224,184,116,.5); box-shadow: var(--suite-glow); }
 #tj-root .pt-btn.active { background: transparent; color: var(--purple); border-color: #e0b874; }
 #tj-root .pt-select {
     padding: 3px 6px; border: 1px solid var(--border); border-radius: 4px;
@@ -24947,7 +24975,7 @@ window.hideBrainstormJournal = function() {
   background: var(--card); border: 1px solid var(--border); color: var(--text2);
   white-space: nowrap; flex-shrink: 0;
 }
-#tj-root .tj-attach-btn:hover { border-color: var(--purple2); color: var(--purple); box-shadow: 0 0 7px rgba(224,184,116,.28), 0 0 0 1px rgba(224,184,116,.10); }
+#tj-root .tj-attach-btn:hover { border-color: var(--purple2); color: var(--purple); box-shadow: var(--suite-glow); }
 #tj-root .tj-attach-chips { display: flex; flex-wrap: wrap; gap: 5px; flex: 1; min-width: 0; }
 #tj-root .tj-chip {
   display: inline-flex; align-items: center; gap: 5px;
@@ -30792,9 +30820,9 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
 .docx-modal-b { padding: 12px 18px; overflow-y: auto; flex: 1; font-size: 13px; }
 .docx-modal-f { display: flex; align-items: center; gap: 8px; padding: 11px 18px; border-top: 1px solid rgba(255,255,255,.08); flex-wrap: wrap; }
 .docx-btn { background: #2C2D33; border: 1px solid #3B3C42; border-radius: 7px; color: #f4f3f0; padding: 7px 13px; font-size: 12px; cursor: pointer; font-family: inherit; }
-.docx-btn:hover { background: #37383F; box-shadow: 0 0 8px rgba(244,243,240,.12), 0 0 0 1px rgba(244,243,240,.08); }
+.docx-btn:hover { background: #37383F; --suite-glow-rgb: 244,243,240; box-shadow: var(--suite-glow); }
 .docx-btn.pri { background: #5B7CFF; border-color: #5B7CFF; color: #fff; font-weight: 700; }
-.docx-btn.pri:hover { background: #6E8BFF; box-shadow: 0 0 8px rgba(91,124,255,.45), 0 0 0 1px rgba(91,124,255,.2); }
+.docx-btn.pri:hover { background: #6E8BFF; --suite-glow-rgb: 91,124,255; box-shadow: var(--suite-glow); }
 .docx-btn.danger { color: #FF7B7B; border-color: rgba(255,123,123,.4); }
 .docx-btn.danger:hover { background: rgba(255,123,123,.12); }
 .docx-trash-row { display: flex; align-items: center; gap: 10px; padding: 9px 6px; border-bottom: 1px solid rgba(255,255,255,.06); }
@@ -35509,11 +35537,11 @@ else initAll();
 #thv-dev-box h3{font-size:17px;margin:0 0 4px;font-weight:800;}
 #thv-dev-box .thv-dev-sub{font-size:12px;color:var(--thv-mute,#8a8a98);margin-bottom:14px;}
 #thv-dev-list .thv-dev-item{display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid var(--thv-border,#33333f);border-radius:10px;margin-bottom:8px;cursor:pointer;font-size:14px;}
-#thv-dev-list .thv-dev-item:hover{border-color:var(--thv-accent,#e0b874);}
+#thv-dev-list .thv-dev-item:hover{border-color:var(--thv-accent,#e0b874);--suite-glow-rgb:var(--thv-glow-rgb,224,184,116);box-shadow:var(--suite-glow);}
 #thv-dev-list .thv-dev-item.on{border-color:var(--thv-accent,#e0b874);background:color-mix(in srgb,var(--thv-accent,#e0b874) 14%,transparent);color:var(--thv-accent,#e0b874);font-weight:700;}
 #thv-dev-list .thv-dev-item .thv-tick{margin-left:auto;color:var(--thv-accent,#e0b874);}
 .thv-dev-close{width:100%;justify-content:center;margin-top:6px;background:transparent;border:1px solid var(--thv-border,#33333f);color:var(--thv-mute,#8a8a98);border-radius:9px;padding:9px;font-weight:700;font-size:13px;cursor:pointer;font-family:'Inter',system-ui,-apple-system,sans-serif;}
-.thv-dev-close:hover{border-color:var(--thv-accent,#e0b874);color:var(--thv-accent,#e0b874);}
+.thv-dev-close:hover{border-color:var(--thv-accent,#e0b874);color:var(--thv-accent,#e0b874);--suite-glow-rgb:var(--thv-glow-rgb,224,184,116);box-shadow:var(--suite-glow);}
 #thv-toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 22px);z-index:99600;
   background:var(--thv-surface,#1d1d25);border:1px solid var(--thv-border,#33333f);color:var(--thv-text,#f4f3f0);padding:11px 18px;border-radius:24px;
   font-size:13px;font-weight:700;font-family:'Inter',system-ui,-apple-system,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.45);opacity:0;pointer-events:none;
@@ -35537,7 +35565,7 @@ else initAll();
 .thv-txt-title{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:var(--thv-accent,#e0b874);}
 .thv-txt-dot{width:7px;height:7px;border-radius:50%;background:var(--thv-accent,#e0b874);flex-shrink:0;}
 .thv-txt-x{background:transparent;border:none;color:var(--thv-mute,#8a8a98);cursor:pointer;padding:4px;line-height:0;border-radius:6px;}
-.thv-txt-x:hover{color:var(--thv-text,#f4f3f0);}
+.thv-txt-x:hover{color:var(--thv-text,#f4f3f0);--suite-glow-rgb:244,243,240;box-shadow:var(--suite-glow);}
 /* overscroll-behavior:contain stops a scroll that reaches the end of the box
    from chaining into the TaskHub behind it. */
 #thv-txt-input{width:100%;box-sizing:border-box;min-height:110px;max-height:42vh;overflow-y:auto;overscroll-behavior:contain;resize:none;
@@ -35553,7 +35581,7 @@ else initAll();
 .thv-txt-kbd{border:1px solid var(--thv-border,#33333f);border-radius:4px;padding:1px 5px;font-size:10.5px;font-weight:700;}
 #thv-txt-send{background:var(--thv-accent,#e0b874);color:#1a1a1d;border:none;border-radius:9px;padding:10px 22px;
   font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;flex-shrink:0;transition:opacity .15s,transform .1s;}
-#thv-txt-send:hover{opacity:.88;}
+#thv-txt-send:hover{opacity:.88;--suite-glow-rgb:var(--thv-glow-rgb,224,184,116);box-shadow:var(--suite-glow);}
 #thv-txt-send:active{transform:scale(.97);}
 #thv-txt-send:disabled{opacity:.5;cursor:default;transform:none;}
 @media (max-width:640px){
@@ -35586,6 +35614,9 @@ function themeVars(){
   var light=false;
   var root=document.documentElement.style;
   root.setProperty('--thv-accent',accent());
+  // rgb triplet of the same accent, so the shared --suite-glow hover glow can
+  // tint itself to whichever TaskHub opened this overlay.
+  root.setProperty('--thv-glow-rgb',profile()==='veda'?'141,118,154':'224,184,116');
   root.setProperty('--thv-surface',bg);
   root.setProperty('--thv-text',light?'#1a1a1f':'#f4f3f0');
   root.setProperty('--thv-mute',light?'#7a7785':'#8a8a98');
@@ -38115,13 +38146,13 @@ window._THV={
   transition: border-color .16s, color .16s, box-shadow .16s;
   display: inline-flex; align-items: center; justify-content: center; gap: 8px; line-height: 1;
 }
-.mjd-btn:hover { border-color: var(--mjd-gold); box-shadow: 0 0 0 1px rgba(224,184,116,.16), 0 0 10px rgba(224,184,116,.10); }
+.mjd-btn:hover { border-color: var(--mjd-gold); box-shadow: var(--suite-glow); }
 .mjd-btn:disabled { opacity: .35; cursor: not-allowed; box-shadow: none; border-color: var(--mjd-line2); color: var(--mjd-text3); }
 .mjd-btn svg { width: 13px; height: 13px; flex-shrink: 0; }
 .mjd-btn.ghost { color: var(--mjd-text2); border-color: var(--mjd-line2); }
-.mjd-btn.ghost:hover { color: var(--mjd-text); border-color: var(--mjd-text3); box-shadow: none; }
+.mjd-btn.ghost:hover { color: var(--mjd-text); border-color: var(--mjd-text3); --suite-glow-rgb: 173,173,178; box-shadow: var(--suite-glow); }
 .mjd-btn.danger { color: var(--mjd-red); border-color: rgba(214,138,124,.36); }
-.mjd-btn.danger:hover { border-color: var(--mjd-red); box-shadow: 0 0 0 1px rgba(214,138,124,.16); }
+.mjd-btn.danger:hover { border-color: var(--mjd-red); --suite-glow-rgb: 214,138,124; box-shadow: var(--suite-glow); }
 
 /* ══════════════ Toolbar chip for the open cloud document ══════════════ */
 #tj-root #mjd-docbar { display: none; align-items: center; gap: 7px; min-width: 0; flex-wrap: wrap; }
