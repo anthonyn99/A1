@@ -168,7 +168,7 @@ html,body{height:100%;}
 #tony-app-nav .tn-btn.tn-active{
   background:transparent;color:var(--tn-ac,#c8a15f);
   border-color:var(--tn-ac,#c8a15f);cursor:default;
-  box-shadow:0 0 8px rgba(200,161,95,0.34),0 0 0 1px rgba(200,161,95,0.14);
+  box-shadow:var(--glow-gold-d);
 }
 #tony-app-nav .tn-star,#tony-app-nav #tn-settings-btn{
   background:transparent;border:1px solid var(--tn-bd,#2e3a35);
@@ -15016,7 +15016,7 @@ function App(){
         vxRedo&&RC("button",{key:"vx-redo",title:"Redo",onClick:()=>window._THV&&window._THV.redo(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 11px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}},RC(VdIcon,{name:"redo",size:15})),
         RC("button",{onClick:()=>setRulesOpen("manage"),title:"Trading rules checklist",onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},"Rules"),
         RC("button",{onClick:()=>setShowPomo(p=>!p),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=showPomo?A:BDL;},style:{background:showPomo?A:"transparent",color:showPomo?BG:A,border:"1px solid "+(showPomo?A:BDL),boxShadow:showPomo?GLOW_A:"none",borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},showPomo?"Timer On":"Timer"),
-        RC("div",{style:{display:"flex",alignItems:"center",gap:6,cursor:"pointer",userSelect:"none",height:28,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",boxSizing:"border-box"},onClick:()=>setEdit(!edit),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;}},
+        RC("div",{role:"button",tabIndex:0,"aria-pressed":edit,title:edit?"Switch to view mode":"Switch to edit mode",style:{display:"flex",alignItems:"center",gap:6,cursor:"pointer",userSelect:"none",height:28,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",boxSizing:"border-box"},onClick:()=>setEdit(!edit),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;}},
           /* Mode reads as a glyph, not a word — pencil for edit, eye for view (same
              vocabulary as Tony's TaskHub). */
           RC("span",{style:{color:A,width:16,height:16,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0},title:edit?"Edit mode":"View mode","aria-label":edit?"Edit mode":"View mode"},
