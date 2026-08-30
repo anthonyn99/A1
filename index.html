@@ -14923,6 +14923,11 @@ function App(){
     ?{borderLeft:"3px solid "+(sosPastel(t._sosClassColor)||"#8b949e")}
     :{};
   const vdPlanOverdue=(t,k)=>!!(t&&!t.done&&k<tk);
+  // Open work first, finished work at the bottom. Display-only and STABLE, so
+  // the hand-dragged order inside each group survives untouched — the drops
+  // splice data[k] by id, so they never see this reordered copy. Re-runs on
+  // every render, which is what makes a check/uncheck resort immediately.
+  const vdSortTasks=(ts)=>ts.map((t,i)=>[t,i]).sort((a,b)=>(!!a[0].done-!!b[0].done)||(a[1]-b[1])).map(x=>x[0]);
   const vdOverTag={fontSize:8,fontWeight:700,letterSpacing:.9,textTransform:"uppercase",
     color:PLAN_OVERDUE_RED,background:PLAN_OVERDUE_RED+"1f",
     border:"1px solid "+PLAN_OVERDUE_RED+"4d",borderRadius:3,padding:"1px 4px",
@@ -15064,7 +15069,7 @@ function App(){
               return RC("button",{key:k,type:"button",onClick:()=>setVrMobDayIdx(i),style:{flexShrink:0,padding:"5px 9px",borderRadius:6,cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,transition:"all .15s",background:sel2?A:td?ABG:"transparent",color:sel2?BG:td?A:TXD,border:sel2||td?"1px solid "+A:"1px solid "+BD,...(sel2||td?{boxShadow:GLOW_A}:{}),whiteSpace:"nowrap"}},DS[i]+" "+w.day);
             })),
           (()=>{
-            const w=wd[vrMobDayIdx],k=dkey(w.year,w.month,w.day),it=data[k]||[],ts=it.filter(t=>t.type==="task"),ev=it.filter(t=>t.type==="event"),p=prog(k),l=lft(k),td=k===tk;
+            const w=wd[vrMobDayIdx],k=dkey(w.year,w.month,w.day),it=data[k]||[],ts=vdSortTasks(it.filter(t=>t.type==="task")),ev=it.filter(t=>t.type==="event"),p=prog(k),l=lft(k),td=k===tk;
             // Same rule as Tony's: only today is live, the rest recedes.
             const dayTX=td?TX:TXD;
             const dimA=vdDim(td);
@@ -15124,7 +15129,7 @@ function App(){
             RC("span",{style:{fontSize:10,fontWeight:700,color:TXM,textTransform:"uppercase",letterSpacing:1,marginRight:2}},"Also:"),
             _vhi.map(idx=>{const _dw=wd[idx],_dk=dkey(_dw.year,_dw.month,_dw.day),_dTd=_dk===tk;return RC("button",{key:_dk,type:"button",onClick:()=>{setVrMobDayIdx(idx);setVrNarrowSingleDay(true);},style:{flexShrink:0,padding:"4px 10px",borderRadius:5,cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,transition:"all .15s",background:_dTd?ABG:"transparent",color:_dTd?A:TXD,border:_dTd?"1px solid "+A:"1px solid "+BD,...(_dTd?{boxShadow:GLOW_A}:{}),whiteSpace:"nowrap"}},DS[idx]+" "+_dw.day);})),
           (vrNarrow?_vnwd:wd).map((w,_i)=>{const i=vrNarrow?_vns+_i:_i;
-            const k=dkey(w.year,w.month,w.day),it=data[k]||[],ts=it.filter(t=>t.type==="task"),ev=it.filter(t=>t.type==="event");
+            const k=dkey(w.year,w.month,w.day),it=data[k]||[],ts=vdSortTasks(it.filter(t=>t.type==="task")),ev=it.filter(t=>t.type==="event");
             const p=prog(k),l=lft(k),td=k===tk;
             // Same rule as Tony's: only today is live, the rest recedes.
             const dayTX=td?TX:TXD;

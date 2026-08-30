@@ -609,6 +609,19 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 /* Sits below the pinned .detail-header; --sos-sticky-top is the measured
    header height, set by sosSyncStickyHeader() in js/studyos.js. */
 #study-root .class-events-panel { background: var(--bg3); border: 1px solid var(--border); border-radius: 5px; overflow: hidden; position: sticky; top: calc(var(--sos-sticky-top, 88px) + 14px); }
+/* Each panel scrolls INSIDE its own box: the header stays pinned and only the
+   list body moves, so a class with many events can never push Resources off
+   the screen. --sos-panel-max is the ceiling for one body; both panels plus
+   their headers and the 14px gap still have to fit under the sticky header,
+   hence the vh split. Generic on the class, so every panel added to this
+   column inherits the behaviour. */
+#study-root .class-events-panel { display: flex; flex-direction: column; max-height: calc(100vh - var(--sos-sticky-top, 88px) - 28px); }
+#study-root .class-events-panel > .files-panel-header { flex-shrink: 0; }
+#study-root .class-panel-body {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden;
+  max-height: var(--sos-panel-max, clamp(160px, 34vh, 420px));
+  overscroll-behavior: contain; scrollbar-gutter: stable;
+}
 #study-root .class-event-item { display: flex; gap: 10px; padding: 11px 16px; border-bottom: 1px solid var(--border); align-items: flex-start; cursor: pointer; transition: 0.15s; }
 #study-root .class-event-item:last-child { border-bottom: none; }
 #study-root .class-event-item:hover { background: var(--bg4); }
@@ -1016,7 +1029,8 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 
   /* Class detail stack */
   #study-root .class-detail-layout { grid-template-columns: 1fr; }
-  #study-root .class-events-panel { position: static; }
+  #study-root .class-events-panel { position: static; max-height: none; }
+  #study-root .class-panel-body { max-height: var(--sos-panel-max, clamp(160px, 42vh, 380px)); }
 
   /* Modules tighter */
   #study-root .modules-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
@@ -1184,7 +1198,8 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 
   /* Class detail */
   #study-root .class-detail-layout { grid-template-columns: 1fr; gap: 12px; }
-  #study-root .class-events-panel { position: static; }
+  #study-root .class-events-panel { position: static; max-height: none; }
+  #study-root .class-panel-body { max-height: var(--sos-panel-max, clamp(160px, 42vh, 380px)); }
   #study-root .detail-header { margin-bottom: 16px; padding-bottom: 14px; }
   #study-root .view > .detail-header { --sos-view-pad: 14px; padding-top: 8px; }
   #study-root .detail-title { font-size: 20px; }
