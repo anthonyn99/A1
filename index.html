@@ -8309,7 +8309,7 @@ function App(){
           /* Timer: the whole chip lights up when the timer panel is open — an
              active control reads as a filled state, not a recoloured glyph. */
           React.createElement("button",{type:"button",title:"Timer",style:{...hbtn(false),background:showPomo?T.AC:"transparent",color:showPomo?T.BG:T.AC,border:"1px solid "+(showPomo?T.AC:T.BD),boxShadow:showPomo?GLOW(T.AC):"none"},onMouseEnter:e=>e.currentTarget.style.borderColor=T.AC,onMouseLeave:e=>e.currentTarget.style.borderColor=showPomo?T.AC:T.BD,onClick:()=>setShowPomo(p=>!p)},React.createElement("span",{style:{width:14,height:14,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.clock}})),
-          React.createElement("div",{style:{...hbtn(false),cursor:"pointer",userSelect:"none",border:"1px solid "+T.BD},onMouseEnter:e=>e.currentTarget.style.borderColor=T.AC,onMouseLeave:e=>e.currentTarget.style.borderColor=T.BD,onClick:()=>setEdit(e=>!e)},
+          React.createElement("div",{role:"button",tabIndex:0,"aria-pressed":edit,title:edit?"Switch to view mode":"Switch to edit mode",style:{...hbtn(false),cursor:"pointer",userSelect:"none",border:"1px solid "+T.BD},onMouseEnter:e=>e.currentTarget.style.borderColor=T.AC,onMouseLeave:e=>e.currentTarget.style.borderColor=T.BD,onClick:()=>setEdit(e=>!e)},
             React.createElement("div",{style:{width:26,height:14,borderRadius:7,background:edit?T.AC:T.BD,position:"relative",transition:"background .25s",flexShrink:0}},
               React.createElement("div",{style:{width:10,height:10,borderRadius:"50%",background:edit?"#fff":T.TXD,position:"absolute",top:"50%",transform:"translateY(-50%)",left:edit?13:2,transition:"left .25s",boxShadow:"0 1px 3px rgba(0,0,0,.25)"}})),
             React.createElement("span",{style:{color:T.AC,whiteSpace:"nowrap",lineHeight:1,width:16,height:16,display:"inline-flex",alignItems:"center",justifyContent:"center"}},edit?React.createElement("span",{style:{fontSize:12,fontWeight:800}},RC("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})):React.createElement("svg",{width:14,height:14,viewBox:"0 0 14 14",fill:"none",xmlns:"http://www.w3.org/2000/svg"},React.createElement("ellipse",{cx:7,cy:7,rx:5.5,ry:3.5,stroke:"currentColor",strokeWidth:1.3}),React.createElement("circle",{cx:7,cy:7,r:1.8,fill:"currentColor"}))))))),
@@ -8378,7 +8378,7 @@ function App(){
           React.createElement("div",{style:{display:"flex",gap:3,overflowX:"auto",WebkitOverflowScrolling:"touch",paddingBottom:4,marginBottom:8,scrollbarWidth:"none",msOverflowStyle:"none"},className:"th-mob-day-strip"},
             wd.map((w,i)=>{
               const k=dkey(w.year,w.month,w.day),td=k===tk,sel2=mobDayIdx===i;
-              return React.createElement("button",{key:k,type:"button",onClick:()=>setMobDayIdx(i),style:{flexShrink:0,padding:"5px 9px",borderRadius:4,cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,transition:"all .15s",background:"transparent",color:sel2?T.ACL:td?T.AC:T.TXD,border:sel2?"1px solid "+T.AC:td?"1px solid "+T.AC+"55":"1px solid "+T.BD,whiteSpace:"nowrap"}},DS[i]+" "+w.day);
+              return React.createElement("button",{key:k,type:"button",onClick:()=>setMobDayIdx(i),style:{flexShrink:0,padding:"5px 9px",borderRadius:4,cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,transition:"all .15s",background:"transparent",color:sel2?T.ACL:td?T.AC:T.TXD,border:sel2||td?"1px solid "+T.AC:"1px solid "+T.BD,boxShadow:sel2||td?GLOW(T.AC):"none",whiteSpace:"nowrap"}},DS[i]+" "+w.day);
             })),
           (()=>{
             const w=wd[mobDayIdx],k=dkey(w.year,w.month,w.day),td=k===tk;
@@ -8469,7 +8469,7 @@ function App(){
         React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat("+(isNarrow?5:7)+",minmax(0,1fr))",gap:"clamp(4px,0.8vw,8px)"}},
           isNarrow&&_hi.length>0&&React.createElement("div",{style:{gridColumn:"1/-1",display:"flex",gap:6,marginBottom:4,flexWrap:"wrap",alignItems:"center"}},
             React.createElement("span",{style:{fontSize:10,fontWeight:700,color:T.TXM,textTransform:"uppercase",letterSpacing:1,marginRight:2}},"Also:"),
-            _hi.map(idx=>{const _dw=wd[idx],_dk=dkey(_dw.year,_dw.month,_dw.day),_dTd=_dk===tk;return React.createElement("button",{key:_dk,type:"button",onClick:()=>{setMobDayIdx(idx);setNarrowSingleDay(true);},style:{flexShrink:0,padding:"4px 10px",borderRadius:4,cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,transition:"all .15s",background:"transparent",color:_dTd?T.AC:T.TXD,border:_dTd?"1px solid "+T.AC+"55":"1px solid "+T.BD,whiteSpace:"nowrap"}},DS[idx]+" "+_dw.day);})),
+            _hi.map(idx=>{const _dw=wd[idx],_dk=dkey(_dw.year,_dw.month,_dw.day),_dTd=_dk===tk;return React.createElement("button",{key:_dk,type:"button",onClick:()=>{setMobDayIdx(idx);setNarrowSingleDay(true);},style:{flexShrink:0,padding:"4px 10px",borderRadius:4,cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,transition:"all .15s",background:"transparent",color:_dTd?T.AC:T.TXD,border:_dTd?"1px solid "+T.AC:"1px solid "+T.BD,boxShadow:_dTd?GLOW(T.AC):"none",whiteSpace:"nowrap"}},DS[idx]+" "+_dw.day);})),
           (isNarrow?_nwd:wd).map((w,_i)=>{const i=isNarrow?_ns+_i:_i;
             const k=dkey(w.year,w.month,w.day),td=k===tk;
             // Only TODAY is live; every other day — past or upcoming — recedes one
@@ -15061,7 +15061,7 @@ function App(){
           RC("div",{style:{display:"flex",gap:3,overflowX:"auto",WebkitOverflowScrolling:"touch",paddingBottom:4,marginBottom:8,scrollbarWidth:"none",msOverflowStyle:"none"},className:"vd-mob-day-strip"},
             wd.map((w,i)=>{
               const k=dkey(w.year,w.month,w.day),td=k===tk,sel2=vrMobDayIdx===i;
-              return RC("button",{key:k,type:"button",onClick:()=>setVrMobDayIdx(i),style:{flexShrink:0,padding:"5px 9px",borderRadius:6,cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,transition:"all .15s",background:sel2?A:td?ABG:"transparent",color:sel2?BG:td?A:TXD,border:sel2?"1px solid "+A:td?"1px solid "+A+"55":"1px solid "+BD,whiteSpace:"nowrap"}},DS[i]+" "+w.day);
+              return RC("button",{key:k,type:"button",onClick:()=>setVrMobDayIdx(i),style:{flexShrink:0,padding:"5px 9px",borderRadius:6,cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,transition:"all .15s",background:sel2?A:td?ABG:"transparent",color:sel2?BG:td?A:TXD,border:sel2||td?"1px solid "+A:"1px solid "+BD,boxShadow:sel2||td?GLOW_A:"none",whiteSpace:"nowrap"}},DS[i]+" "+w.day);
             })),
           (()=>{
             const w=wd[vrMobDayIdx],k=dkey(w.year,w.month,w.day),it=data[k]||[],ts=it.filter(t=>t.type==="task"),ev=it.filter(t=>t.type==="event"),p=prog(k),l=lft(k),td=k===tk;
@@ -15122,7 +15122,7 @@ function App(){
         RC("div",{style:{display:"grid",gridTemplateColumns:"repeat("+(vrNarrow?5:7)+",minmax(0,1fr))",gap:8}},
           vrNarrow&&_vhi.length>0&&RC("div",{style:{gridColumn:"1/-1",display:"flex",gap:6,marginBottom:4,flexWrap:"wrap",alignItems:"center"}},
             RC("span",{style:{fontSize:10,fontWeight:700,color:TXM,textTransform:"uppercase",letterSpacing:1,marginRight:2}},"Also:"),
-            _vhi.map(idx=>{const _dw=wd[idx],_dk=dkey(_dw.year,_dw.month,_dw.day),_dTd=_dk===tk;return RC("button",{key:_dk,type:"button",onClick:()=>{setVrMobDayIdx(idx);setVrNarrowSingleDay(true);},style:{flexShrink:0,padding:"4px 10px",borderRadius:5,cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,transition:"all .15s",background:_dTd?ABG:"transparent",color:_dTd?A:TXD,border:_dTd?"1px solid "+A+"55":"1px solid "+BD,whiteSpace:"nowrap"}},DS[idx]+" "+_dw.day);})),
+            _vhi.map(idx=>{const _dw=wd[idx],_dk=dkey(_dw.year,_dw.month,_dw.day),_dTd=_dk===tk;return RC("button",{key:_dk,type:"button",onClick:()=>{setVrMobDayIdx(idx);setVrNarrowSingleDay(true);},style:{flexShrink:0,padding:"4px 10px",borderRadius:5,cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,transition:"all .15s",background:_dTd?ABG:"transparent",color:_dTd?A:TXD,border:_dTd?"1px solid "+A:"1px solid "+BD,boxShadow:_dTd?GLOW_A:"none",whiteSpace:"nowrap"}},DS[idx]+" "+_dw.day);})),
           (vrNarrow?_vnwd:wd).map((w,_i)=>{const i=vrNarrow?_vns+_i:_i;
             const k=dkey(w.year,w.month,w.day),it=data[k]||[],ts=it.filter(t=>t.type==="task"),ev=it.filter(t=>t.type==="event");
             const p=prog(k),l=lft(k),td=k===tk;
