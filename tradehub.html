@@ -85,6 +85,11 @@
   font-weight:750;letter-spacing:-.4px;line-height:1.2;
   color:var(--gold-primary);
 }
+/* The wordmark sits alone at the top of the page with nothing to lean on, so it
+   takes the same lighter gold Tony's TaskHub wordmark uses (index.html
+   .suite-title.th-wordmark) rather than the deeper --gold-primary the borders
+   and icons are tuned for. Mirrored value: keep the two in step. */
+.suite-title.th-wordmark{color:#eecb92;}
 .suite-accent{
   font-family:var(--font-accent);
   font-variation-settings:'opsz' 20,'SOFT' 0,'WONK' 0;
@@ -4099,7 +4104,7 @@ function TBHeader({page,onNav,syncStatus,portfolioConnected,onManageTabLock,navO
       <div style={{padding:'calc(env(safe-area-inset-top,0px) + 7px) clamp(12px,3vw,24px) 0',display:'flex',alignItems:'flex-start',justifyContent:'space-between'}}>
         <div style={{display:'flex',flexDirection:'column',gap:1}}>
           <div style={{whiteSpace:'nowrap',lineHeight:1.05}}>
-            <span className="suite-title">TradeHub</span>
+            <span className="suite-title th-wordmark">TradeHub</span>
           </div>
           <span style={{fontSize:10,fontWeight:600,lineHeight:1,whiteSpace:'nowrap',visibility:syncVisible?'visible':'hidden',color:syncColor}}>{syncLabel}</span>
         </div>
@@ -4131,7 +4136,7 @@ function TBMobileHeader({page,syncStatus,portfolioConnected,onNav,onManageTabLoc
     <div style={{padding:'calc(env(safe-area-inset-top,0px) + 6px) clamp(12px,3vw,24px) 0',display:'flex',alignItems:'flex-start',justifyContent:'space-between',minHeight:24}}>
       <div style={{display:'flex',flexDirection:'column',gap:1}}>
         <div style={{whiteSpace:'nowrap',lineHeight:1.05}}>
-          <span className="suite-title">TradeHub</span>
+          <span className="suite-title th-wordmark">TradeHub</span>
         </div>
         <span style={{fontSize:10,fontWeight:600,visibility:syncVisible?'visible':'hidden',color:syncColor,lineHeight:1}}>{syncLabel}</span>
       </div>
