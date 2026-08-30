@@ -944,7 +944,6 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
   #study-root .topbar { padding: 0 16px; gap: 10px; }
   #study-root .topbar-title { font-size: 16px; }
   #study-root .btn { padding: 6px 10px; font-size: 12px; }
-  #study-root #sos-sync-status { min-width: 0; }
 
   /* Hide pill in topbar on tablet — use banner below instead */
   #study-root #topbar-pomo { display: none !important; }
@@ -1049,13 +1048,12 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
   }
   #study-root .topbar-actions::-webkit-scrollbar { display: none; }
   #study-root .topbar-actions > * { flex-shrink: 0; }
-  /* The status span carries inline `min-width:70px` + `white-space:nowrap`
-   * from the markup. Zeroing min-width (as the rule below used to do on its
-   * own) let flex collapse it mid-word, so "Synced"/"Sync failed" rendered
-   * clipped. Give it back its intrinsic width and let the row scroll instead —
-   * the text is short, and truncating a sync state is worse than scrolling. */
+  /* shell.js parks the sync line here once the sidebar is gone. Let it keep its
+   * intrinsic width and let the row scroll instead — flex collapsing it mid-word
+   * rendered "Synced"/"Sync failed" clipped, and truncating a sync state is
+   * worse than scrolling. */
   #study-root #sos-sync-status {
-    min-width: max-content !important;
+    min-width: max-content;
     overflow: visible;
   }
   #study-root .topbar-title {
