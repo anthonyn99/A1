@@ -4523,6 +4523,27 @@ window._sosBridge.applyD2L = (payload) => {
   return true;
 };
 
+/* ===== STICKY CLASS HEADER =====
+ * .detail-header is position:sticky inside its scrolling .view. The Upcoming /
+ * Resources rail is sticky in the same view, so it has to start below the
+ * header — publish the header's measured height as --sos-sticky-top rather
+ * than hard-coding a number that a wrapped title would break. */
+function sosSyncStickyHeader() {
+  document.querySelectorAll('#study-root .view > .detail-header').forEach(function (h) {
+    var v = h.parentElement;
+    if (h.offsetHeight) v.style.setProperty('--sos-sticky-top', h.offsetHeight + 'px');
+  });
+}
+(function () {
+  var heads = document.querySelectorAll('#study-root .view > .detail-header');
+  if (window.ResizeObserver) {
+    var ro = new ResizeObserver(sosSyncStickyHeader);
+    heads.forEach(function (h) { ro.observe(h); });
+  }
+  window.addEventListener('resize', sosSyncStickyHeader);
+  sosSyncStickyHeader();
+})();
+
 (function () {
   var booted = false;
   function boot() {

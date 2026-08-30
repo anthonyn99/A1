@@ -252,6 +252,35 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
   margin-bottom: 28px; padding-bottom: 20px;
   border-bottom: 1px solid var(--border);
 }
+/* The class / KSU header pins to the top while its view scrolls. The scroll
+   container is .view, so `top:0` means the top of that view's padding box.
+   Negative side margins (plus matching padding) bleed the opaque background
+   out over the view's gutters — without them, module cards scroll visibly
+   through the strip of padding either side of the header. */
+#study-root .view > .detail-header {
+  --sos-view-pad: 24px;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: var(--bg);
+  padding-top: 10px;
+  padding-left: var(--sos-view-pad);
+  padding-right: var(--sos-view-pad);
+  margin-left: calc(-1 * var(--sos-view-pad));
+  margin-right: calc(-1 * var(--sos-view-pad));
+}
+/* A pinned sticky box stops at the scroll container's CONTENT box, so it comes
+   to rest one --sos-view-pad below the top of the view and content would scroll
+   through the strip left above it. This paints that strip in the view's own
+   background; where an engine pins flush to the top instead, the strip simply
+   sits off-screen. */
+#study-root .view > .detail-header::before {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: 100%;
+  height: var(--sos-view-pad);
+  background: var(--bg);
+}
 #study-root .detail-color-bar {
   width: 5px; height: 48px; border-radius: 4px;
   background: var(--card-color, var(--accent));
@@ -577,7 +606,9 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 /* CLASS DETAIL LAYOUT */
 #study-root .class-detail-layout { display: grid; grid-template-columns: 1fr 280px; gap: 20px; align-items: start; }
 #study-root .class-detail-main { min-width: 0; }
-#study-root .class-events-panel { background: var(--bg3); border: 1px solid var(--border); border-radius: 5px; overflow: hidden; position: sticky; top: 0; }
+/* Sits below the pinned .detail-header; --sos-sticky-top is the measured
+   header height, set by sosSyncStickyHeader() in js/studyos.js. */
+#study-root .class-events-panel { background: var(--bg3); border: 1px solid var(--border); border-radius: 5px; overflow: hidden; position: sticky; top: calc(var(--sos-sticky-top, 88px) + 14px); }
 #study-root .class-event-item { display: flex; gap: 10px; padding: 11px 16px; border-bottom: 1px solid var(--border); align-items: flex-start; cursor: pointer; transition: 0.15s; }
 #study-root .class-event-item:last-child { border-bottom: none; }
 #study-root .class-event-item:hover { background: var(--bg4); }
@@ -973,6 +1004,7 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 
   /* Views */
   #study-root .view { padding: 16px; }
+  #study-root .view > .detail-header { --sos-view-pad: 16px; }
 
   /* Stats 2-col */
   #study-root .stats-bar { flex-wrap: wrap; }
@@ -1154,6 +1186,7 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
   #study-root .class-detail-layout { grid-template-columns: 1fr; gap: 12px; }
   #study-root .class-events-panel { position: static; }
   #study-root .detail-header { margin-bottom: 16px; padding-bottom: 14px; }
+  #study-root .view > .detail-header { --sos-view-pad: 14px; padding-top: 8px; }
   #study-root .detail-title { font-size: 20px; }
 
   /* Section headers */
