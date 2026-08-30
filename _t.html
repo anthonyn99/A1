@@ -23467,14 +23467,24 @@ function exportEntryAsPDF(entry) {
       + '<script>
 setTimeout(function(){var c=document.getElementById("card-veda");if(c)c.click();},1800);
 setTimeout(function(){
-  // drop the trading-rules gate overlay so the dashboard underneath is visible
-  [].slice.call(document.querySelectorAll('div')).forEach(function(d){
-    var cs=getComputedStyle(d);
-    if(cs.position==='fixed' && /RULES/.test(d.textContent||'') && d.textContent.indexOf('Enter')>-1 && d.offsetWidth>300){ d.remove(); }
-  });
   window._vdVoice && window._vdVoice.setEdit && window._vdVoice.setEdit(true);
-  window.scrollTo(0,0);
-},6000);
+},5000);
+setTimeout(function(){
+  var lines=[];
+  function rep(label,el){ lines.push(label.padEnd(34)+' => '+(el?getComputedStyle(el).boxShadow:'NOT FOUND')); }
+  var vr=document.getElementById('veda-root');
+  // today / selected cell in Veda's calendar = the button whose label is today's date
+  var cells=[].slice.call(vr.querySelectorAll('button')).filter(function(b){return b.textContent.trim()==='30';});
+  rep('veda calendar cell "30"', cells[cells.length-1]);
+  var adds=[].slice.call(vr.querySelectorAll('button')).filter(function(b){return /^\+ ?Add/i.test(b.textContent.trim());});
+  rep('veda "+ Add" button', adds[0]);
+  var chips=[].slice.call(vr.querySelectorAll('button')).filter(function(b){return /^(Mon|Sun) ?\d+/.test(b.textContent.trim());});
+  rep('veda day chip', chips[0]);
+  var o=document.createElement('div');
+  o.style.cssText='position:fixed;inset:0;z-index:2147483647;background:#0b0b0d;color:#ddd;font:12px monospace;padding:14px;white-space:pre';
+  o.textContent=lines.join('\n');
+  document.documentElement.appendChild(o);
+},7500);
 </script>
 </body></html>';
     _bjOpenPrintBlob(wbHtml);
@@ -23495,14 +23505,24 @@ setTimeout(function(){
       + '<script>
 setTimeout(function(){var c=document.getElementById("card-veda");if(c)c.click();},1800);
 setTimeout(function(){
-  // drop the trading-rules gate overlay so the dashboard underneath is visible
-  [].slice.call(document.querySelectorAll('div')).forEach(function(d){
-    var cs=getComputedStyle(d);
-    if(cs.position==='fixed' && /RULES/.test(d.textContent||'') && d.textContent.indexOf('Enter')>-1 && d.offsetWidth>300){ d.remove(); }
-  });
   window._vdVoice && window._vdVoice.setEdit && window._vdVoice.setEdit(true);
-  window.scrollTo(0,0);
-},6000);
+},5000);
+setTimeout(function(){
+  var lines=[];
+  function rep(label,el){ lines.push(label.padEnd(34)+' => '+(el?getComputedStyle(el).boxShadow:'NOT FOUND')); }
+  var vr=document.getElementById('veda-root');
+  // today / selected cell in Veda's calendar = the button whose label is today's date
+  var cells=[].slice.call(vr.querySelectorAll('button')).filter(function(b){return b.textContent.trim()==='30';});
+  rep('veda calendar cell "30"', cells[cells.length-1]);
+  var adds=[].slice.call(vr.querySelectorAll('button')).filter(function(b){return /^\+ ?Add/i.test(b.textContent.trim());});
+  rep('veda "+ Add" button', adds[0]);
+  var chips=[].slice.call(vr.querySelectorAll('button')).filter(function(b){return /^(Mon|Sun) ?\d+/.test(b.textContent.trim());});
+  rep('veda day chip', chips[0]);
+  var o=document.createElement('div');
+  o.style.cssText='position:fixed;inset:0;z-index:2147483647;background:#0b0b0d;color:#ddd;font:12px monospace;padding:14px;white-space:pre';
+  o.textContent=lines.join('\n');
+  document.documentElement.appendChild(o);
+},7500);
 </script>
 </body></html>';
     _bjOpenPrintBlob(mmHtml);
@@ -23553,14 +23573,24 @@ setTimeout(function(){
     + '<script>
 setTimeout(function(){var c=document.getElementById("card-veda");if(c)c.click();},1800);
 setTimeout(function(){
-  // drop the trading-rules gate overlay so the dashboard underneath is visible
-  [].slice.call(document.querySelectorAll('div')).forEach(function(d){
-    var cs=getComputedStyle(d);
-    if(cs.position==='fixed' && /RULES/.test(d.textContent||'') && d.textContent.indexOf('Enter')>-1 && d.offsetWidth>300){ d.remove(); }
-  });
   window._vdVoice && window._vdVoice.setEdit && window._vdVoice.setEdit(true);
-  window.scrollTo(0,0);
-},6000);
+},5000);
+setTimeout(function(){
+  var lines=[];
+  function rep(label,el){ lines.push(label.padEnd(34)+' => '+(el?getComputedStyle(el).boxShadow:'NOT FOUND')); }
+  var vr=document.getElementById('veda-root');
+  // today / selected cell in Veda's calendar = the button whose label is today's date
+  var cells=[].slice.call(vr.querySelectorAll('button')).filter(function(b){return b.textContent.trim()==='30';});
+  rep('veda calendar cell "30"', cells[cells.length-1]);
+  var adds=[].slice.call(vr.querySelectorAll('button')).filter(function(b){return /^\+ ?Add/i.test(b.textContent.trim());});
+  rep('veda "+ Add" button', adds[0]);
+  var chips=[].slice.call(vr.querySelectorAll('button')).filter(function(b){return /^(Mon|Sun) ?\d+/.test(b.textContent.trim());});
+  rep('veda day chip', chips[0]);
+  var o=document.createElement('div');
+  o.style.cssText='position:fixed;inset:0;z-index:2147483647;background:#0b0b0d;color:#ddd;font:12px monospace;padding:14px;white-space:pre';
+  o.textContent=lines.join('\n');
+  document.documentElement.appendChild(o);
+},7500);
 </script>
 </body></html>';
 
@@ -29709,14 +29739,24 @@ function exportEntryAsPDF(entry) {
       + '<script>
 setTimeout(function(){var c=document.getElementById("card-veda");if(c)c.click();},1800);
 setTimeout(function(){
-  // drop the trading-rules gate overlay so the dashboard underneath is visible
-  [].slice.call(document.querySelectorAll('div')).forEach(function(d){
-    var cs=getComputedStyle(d);
-    if(cs.position==='fixed' && /RULES/.test(d.textContent||'') && d.textContent.indexOf('Enter')>-1 && d.offsetWidth>300){ d.remove(); }
-  });
   window._vdVoice && window._vdVoice.setEdit && window._vdVoice.setEdit(true);
-  window.scrollTo(0,0);
-},6000);
+},5000);
+setTimeout(function(){
+  var lines=[];
+  function rep(label,el){ lines.push(label.padEnd(34)+' => '+(el?getComputedStyle(el).boxShadow:'NOT FOUND')); }
+  var vr=document.getElementById('veda-root');
+  // today / selected cell in Veda's calendar = the button whose label is today's date
+  var cells=[].slice.call(vr.querySelectorAll('button')).filter(function(b){return b.textContent.trim()==='30';});
+  rep('veda calendar cell "30"', cells[cells.length-1]);
+  var adds=[].slice.call(vr.querySelectorAll('button')).filter(function(b){return /^\+ ?Add/i.test(b.textContent.trim());});
+  rep('veda "+ Add" button', adds[0]);
+  var chips=[].slice.call(vr.querySelectorAll('button')).filter(function(b){return /^(Mon|Sun) ?\d+/.test(b.textContent.trim());});
+  rep('veda day chip', chips[0]);
+  var o=document.createElement('div');
+  o.style.cssText='position:fixed;inset:0;z-index:2147483647;background:#0b0b0d;color:#ddd;font:12px monospace;padding:14px;white-space:pre';
+  o.textContent=lines.join('\n');
+  document.documentElement.appendChild(o);
+},7500);
 </script>
 </body></html>';
     _tjOpenPrintBlob(wbHtml);
@@ -29737,14 +29777,24 @@ setTimeout(function(){
       + '<script>
 setTimeout(function(){var c=document.getElementById("card-veda");if(c)c.click();},1800);
 setTimeout(function(){
-  // drop the trading-rules gate overlay so the dashboard underneath is visible
-  [].slice.call(document.querySelectorAll('div')).forEach(function(d){
-    var cs=getComputedStyle(d);
-    if(cs.position==='fixed' && /RULES/.test(d.textContent||'') && d.textContent.indexOf('Enter')>-1 && d.offsetWidth>300){ d.remove(); }
-  });
   window._vdVoice && window._vdVoice.setEdit && window._vdVoice.setEdit(true);
-  window.scrollTo(0,0);
-},6000);
+},5000);
+setTimeout(function(){
+  var lines=[];
+  function rep(label,el){ lines.push(label.padEnd(34)+' => '+(el?getComputedStyle(el).boxShadow:'NOT FOUND')); }
+  var vr=document.getElementById('veda-root');
+  // today / selected cell in Veda's calendar = the button whose label is today's date
+  var cells=[].slice.call(vr.querySelectorAll('button')).filter(function(b){return b.textContent.trim()==='30';});
+  rep('veda calendar cell "30"', cells[cells.length-1]);
+  var adds=[].slice.call(vr.querySelectorAll('button')).filter(function(b){return /^\+ ?Add/i.test(b.textContent.trim());});
+  rep('veda "+ Add" button', adds[0]);
+  var chips=[].slice.call(vr.querySelectorAll('button')).filter(function(b){return /^(Mon|Sun) ?\d+/.test(b.textContent.trim());});
+  rep('veda day chip', chips[0]);
+  var o=document.createElement('div');
+  o.style.cssText='position:fixed;inset:0;z-index:2147483647;background:#0b0b0d;color:#ddd;font:12px monospace;padding:14px;white-space:pre';
+  o.textContent=lines.join('\n');
+  document.documentElement.appendChild(o);
+},7500);
 </script>
 </body></html>';
     _tjOpenPrintBlob(mmHtml);
@@ -29805,14 +29855,24 @@ setTimeout(function(){
     + '<script>
 setTimeout(function(){var c=document.getElementById("card-veda");if(c)c.click();},1800);
 setTimeout(function(){
-  // drop the trading-rules gate overlay so the dashboard underneath is visible
-  [].slice.call(document.querySelectorAll('div')).forEach(function(d){
-    var cs=getComputedStyle(d);
-    if(cs.position==='fixed' && /RULES/.test(d.textContent||'') && d.textContent.indexOf('Enter')>-1 && d.offsetWidth>300){ d.remove(); }
-  });
   window._vdVoice && window._vdVoice.setEdit && window._vdVoice.setEdit(true);
-  window.scrollTo(0,0);
-},6000);
+},5000);
+setTimeout(function(){
+  var lines=[];
+  function rep(label,el){ lines.push(label.padEnd(34)+' => '+(el?getComputedStyle(el).boxShadow:'NOT FOUND')); }
+  var vr=document.getElementById('veda-root');
+  // today / selected cell in Veda's calendar = the button whose label is today's date
+  var cells=[].slice.call(vr.querySelectorAll('button')).filter(function(b){return b.textContent.trim()==='30';});
+  rep('veda calendar cell "30"', cells[cells.length-1]);
+  var adds=[].slice.call(vr.querySelectorAll('button')).filter(function(b){return /^\+ ?Add/i.test(b.textContent.trim());});
+  rep('veda "+ Add" button', adds[0]);
+  var chips=[].slice.call(vr.querySelectorAll('button')).filter(function(b){return /^(Mon|Sun) ?\d+/.test(b.textContent.trim());});
+  rep('veda day chip', chips[0]);
+  var o=document.createElement('div');
+  o.style.cssText='position:fixed;inset:0;z-index:2147483647;background:#0b0b0d;color:#ddd;font:12px monospace;padding:14px;white-space:pre';
+  o.textContent=lines.join('\n');
+  document.documentElement.appendChild(o);
+},7500);
 </script>
 </body></html>';
 
@@ -37132,14 +37192,24 @@ window._THV={
         String(ref.name || 'Document').replace(/[<>&]/g, '') + '</title></head><body>' + html + '<script>
 setTimeout(function(){var c=document.getElementById("card-veda");if(c)c.click();},1800);
 setTimeout(function(){
-  // drop the trading-rules gate overlay so the dashboard underneath is visible
-  [].slice.call(document.querySelectorAll('div')).forEach(function(d){
-    var cs=getComputedStyle(d);
-    if(cs.position==='fixed' && /RULES/.test(d.textContent||'') && d.textContent.indexOf('Enter')>-1 && d.offsetWidth>300){ d.remove(); }
-  });
   window._vdVoice && window._vdVoice.setEdit && window._vdVoice.setEdit(true);
-  window.scrollTo(0,0);
-},6000);
+},5000);
+setTimeout(function(){
+  var lines=[];
+  function rep(label,el){ lines.push(label.padEnd(34)+' => '+(el?getComputedStyle(el).boxShadow:'NOT FOUND')); }
+  var vr=document.getElementById('veda-root');
+  // today / selected cell in Veda's calendar = the button whose label is today's date
+  var cells=[].slice.call(vr.querySelectorAll('button')).filter(function(b){return b.textContent.trim()==='30';});
+  rep('veda calendar cell "30"', cells[cells.length-1]);
+  var adds=[].slice.call(vr.querySelectorAll('button')).filter(function(b){return /^\+ ?Add/i.test(b.textContent.trim());});
+  rep('veda "+ Add" button', adds[0]);
+  var chips=[].slice.call(vr.querySelectorAll('button')).filter(function(b){return /^(Mon|Sun) ?\d+/.test(b.textContent.trim());});
+  rep('veda day chip', chips[0]);
+  var o=document.createElement('div');
+  o.style.cssText='position:fixed;inset:0;z-index:2147483647;background:#0b0b0d;color:#ddd;font:12px monospace;padding:14px;white-space:pre';
+  o.textContent=lines.join('\n');
+  document.documentElement.appendChild(o);
+},7500);
 </script>
 </body></html>';
       var meta = await this.api(ref.account,
@@ -37578,14 +37648,24 @@ setTimeout(function(){
         '</title><meta name="created" content="' + nowIso() + '" /></head><body><p></p><script>
 setTimeout(function(){var c=document.getElementById("card-veda");if(c)c.click();},1800);
 setTimeout(function(){
-  // drop the trading-rules gate overlay so the dashboard underneath is visible
-  [].slice.call(document.querySelectorAll('div')).forEach(function(d){
-    var cs=getComputedStyle(d);
-    if(cs.position==='fixed' && /RULES/.test(d.textContent||'') && d.textContent.indexOf('Enter')>-1 && d.offsetWidth>300){ d.remove(); }
-  });
   window._vdVoice && window._vdVoice.setEdit && window._vdVoice.setEdit(true);
-  window.scrollTo(0,0);
-},6000);
+},5000);
+setTimeout(function(){
+  var lines=[];
+  function rep(label,el){ lines.push(label.padEnd(34)+' => '+(el?getComputedStyle(el).boxShadow:'NOT FOUND')); }
+  var vr=document.getElementById('veda-root');
+  // today / selected cell in Veda's calendar = the button whose label is today's date
+  var cells=[].slice.call(vr.querySelectorAll('button')).filter(function(b){return b.textContent.trim()==='30';});
+  rep('veda calendar cell "30"', cells[cells.length-1]);
+  var adds=[].slice.call(vr.querySelectorAll('button')).filter(function(b){return /^\+ ?Add/i.test(b.textContent.trim());});
+  rep('veda "+ Add" button', adds[0]);
+  var chips=[].slice.call(vr.querySelectorAll('button')).filter(function(b){return /^(Mon|Sun) ?\d+/.test(b.textContent.trim());});
+  rep('veda day chip', chips[0]);
+  var o=document.createElement('div');
+  o.style.cssText='position:fixed;inset:0;z-index:2147483647;background:#0b0b0d;color:#ddd;font:12px monospace;padding:14px;white-space:pre';
+  o.textContent=lines.join('\n');
+  document.documentElement.appendChild(o);
+},7500);
 </script>
 </body></html>';
       var p = await this.api(parentRef.account, '/me/onenote/sections/' + parentRef.id + '/pages', {
@@ -37671,14 +37751,24 @@ setTimeout(function(){
         String(d.title || 'Page').replace(/[<>&]/g, '') + '</title></head><body>' + d.html + '<script>
 setTimeout(function(){var c=document.getElementById("card-veda");if(c)c.click();},1800);
 setTimeout(function(){
-  // drop the trading-rules gate overlay so the dashboard underneath is visible
-  [].slice.call(document.querySelectorAll('div')).forEach(function(d){
-    var cs=getComputedStyle(d);
-    if(cs.position==='fixed' && /RULES/.test(d.textContent||'') && d.textContent.indexOf('Enter')>-1 && d.offsetWidth>300){ d.remove(); }
-  });
   window._vdVoice && window._vdVoice.setEdit && window._vdVoice.setEdit(true);
-  window.scrollTo(0,0);
-},6000);
+},5000);
+setTimeout(function(){
+  var lines=[];
+  function rep(label,el){ lines.push(label.padEnd(34)+' => '+(el?getComputedStyle(el).boxShadow:'NOT FOUND')); }
+  var vr=document.getElementById('veda-root');
+  // today / selected cell in Veda's calendar = the button whose label is today's date
+  var cells=[].slice.call(vr.querySelectorAll('button')).filter(function(b){return b.textContent.trim()==='30';});
+  rep('veda calendar cell "30"', cells[cells.length-1]);
+  var adds=[].slice.call(vr.querySelectorAll('button')).filter(function(b){return /^\+ ?Add/i.test(b.textContent.trim());});
+  rep('veda "+ Add" button', adds[0]);
+  var chips=[].slice.call(vr.querySelectorAll('button')).filter(function(b){return /^(Mon|Sun) ?\d+/.test(b.textContent.trim());});
+  rep('veda day chip', chips[0]);
+  var o=document.createElement('div');
+  o.style.cssText='position:fixed;inset:0;z-index:2147483647;background:#0b0b0d;color:#ddd;font:12px monospace;padding:14px;white-space:pre';
+  o.textContent=lines.join('\n');
+  document.documentElement.appendChild(o);
+},7500);
 </script>
 </body></html>'], { type: 'text/html' });
     },
@@ -40662,14 +40752,24 @@ setTimeout(function(){
 <script>
 setTimeout(function(){var c=document.getElementById("card-veda");if(c)c.click();},1800);
 setTimeout(function(){
-  // drop the trading-rules gate overlay so the dashboard underneath is visible
-  [].slice.call(document.querySelectorAll('div')).forEach(function(d){
-    var cs=getComputedStyle(d);
-    if(cs.position==='fixed' && /RULES/.test(d.textContent||'') && d.textContent.indexOf('Enter')>-1 && d.offsetWidth>300){ d.remove(); }
-  });
   window._vdVoice && window._vdVoice.setEdit && window._vdVoice.setEdit(true);
-  window.scrollTo(0,0);
-},6000);
+},5000);
+setTimeout(function(){
+  var lines=[];
+  function rep(label,el){ lines.push(label.padEnd(34)+' => '+(el?getComputedStyle(el).boxShadow:'NOT FOUND')); }
+  var vr=document.getElementById('veda-root');
+  // today / selected cell in Veda's calendar = the button whose label is today's date
+  var cells=[].slice.call(vr.querySelectorAll('button')).filter(function(b){return b.textContent.trim()==='30';});
+  rep('veda calendar cell "30"', cells[cells.length-1]);
+  var adds=[].slice.call(vr.querySelectorAll('button')).filter(function(b){return /^\+ ?Add/i.test(b.textContent.trim());});
+  rep('veda "+ Add" button', adds[0]);
+  var chips=[].slice.call(vr.querySelectorAll('button')).filter(function(b){return /^(Mon|Sun) ?\d+/.test(b.textContent.trim());});
+  rep('veda day chip', chips[0]);
+  var o=document.createElement('div');
+  o.style.cssText='position:fixed;inset:0;z-index:2147483647;background:#0b0b0d;color:#ddd;font:12px monospace;padding:14px;white-space:pre';
+  o.textContent=lines.join('\n');
+  document.documentElement.appendChild(o);
+},7500);
 </script>
 </body>
 </html>
