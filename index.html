@@ -76,22 +76,29 @@
    so it takes a lighter gold than the shared --gold-primary to hold that corner. */
 .suite-title.th-wordmark{color:#eecb92;}
 /* ── Suite hover-glow standard ─────────────────────────────────────────────
-   Every hoverable control in the suite lights up at ONE brightness. Only the
-   hue changes: --suite-glow-rgb is redeclared per app root below, and any
-   single button that owns a different colour (a red Delete, a blue primary)
-   redeclares it on its own hover rule. Because custom properties substitute
-   lazily, --suite-glow is written once here and resolves the hue at whichever
-   element actually uses it.
+   Every hoverable control in the suite lights up at ONE brightness: a 1px ring
+   at .42 over a 10px bloom at .42. Only the hue changes. --suite-glow carries
+   whichever hue the surrounding app uses; a button that owns a different colour
+   (a red Delete, a blue primary) names its own token on its hover rule.
+   Each token spells its own rgb out on purpose. A var() nested inside another
+   custom property is substituted where that property is DECLARED, not where it
+   is used, so one parameterised glow reading a colour off the app root would
+   quietly resolve to the :root gold for every app.
    The ring is what reads as "outlined"; the blur is what reads as "glow" —
    the old .10 ring was too faint to see, which is why some buttons looked
    like a soft smudge next to the crisp ones. */
 :root{
-  --suite-glow-rgb:224,184,116;                    /* gold — suite default */
-  --suite-glow:0 0 0 1px rgba(var(--suite-glow-rgb),.42),
-               0 0 10px rgba(var(--suite-glow-rgb),.42);
+  --glow-gold:    0 0 0 1px rgba(224,184,116,.42), 0 0 10px rgba(224,184,116,.42);
+  --glow-gold-d:  0 0 0 1px rgba(200,161,95,.42),  0 0 10px rgba(200,161,95,.42);
+  --glow-purple:  0 0 0 1px rgba(141,118,154,.42), 0 0 10px rgba(141,118,154,.42);
+  --glow-lilac:   0 0 0 1px rgba(192,174,234,.42), 0 0 10px rgba(192,174,234,.42);
+  --glow-blue:    0 0 0 1px rgba(91,124,255,.42),  0 0 10px rgba(91,124,255,.42);
+  --glow-red:     0 0 0 1px rgba(214,138,124,.42), 0 0 10px rgba(214,138,124,.42);
+  --glow-neutral: 0 0 0 1px rgba(244,243,240,.42), 0 0 10px rgba(244,243,240,.42);
+  --suite-glow:var(--glow-gold);                   /* whatever the app around it uses */
 }
-#veda-root,#bj-root,#cooking-view{--suite-glow-rgb:141,118,154;}   /* Veda purple */
-#wr-root{--suite-glow-rgb:192,174,234;}                            /* WarRoom purple */
+#veda-root,#bj-root,#cooking-view{--suite-glow:var(--glow-purple);}
+#wr-root{--suite-glow:var(--glow-lilac);}
 /* Tony's and Veda's TaskHub buttons are inline-styled from React, so the
    suite's hover glow lives here instead of in ~100 onMouseEnter handlers.
    Those handlers only set border-color/color — never box-shadow — so these
@@ -155,13 +162,13 @@ html,body{height:100%;}
   cursor:grab;font-family:'Inter',system-ui,-apple-system,sans-serif;letter-spacing:.5px;
   transition:all .15s;white-space:nowrap;
 }
-#tony-app-nav .tn-btn:hover{background:transparent;color:var(--tn-ac,#c8a15f);border-color:var(--tn-ac,#c8a15f);--suite-glow-rgb:200,161,95;box-shadow:var(--suite-glow);}
+#tony-app-nav .tn-btn:hover{background:transparent;color:var(--tn-ac,#c8a15f);border-color:var(--tn-ac,#c8a15f);box-shadow:var(--glow-gold-d);}
 #tony-app-nav .wr-btn{color:#c0aeea;border-color:rgba(192,174,234,0.35);}
 /* !important because _showTonyNav writes the resting purple border-color inline on
    every pv/wr button, and an inline value outranks any stylesheet hover rule —
    that is what left these two with a dim outline on hover while gold ones lit up.
    The active button keeps its purple fill, so it opts out. */
-#tony-app-nav .wr-btn:not(.tn-active):hover{color:#dbd0f5!important;border-color:#c0aeea!important;--suite-glow-rgb:192,174,234;box-shadow:var(--suite-glow);}
+#tony-app-nav .wr-btn:not(.tn-active):hover{color:#dbd0f5!important;border-color:#c0aeea!important;box-shadow:var(--glow-lilac);}
 #tn-mobile-select option[value="warroom"]{color:#c0aeea!important;}
 #tony-app-nav .tn-btn.tn-active{
   background:transparent;color:var(--tn-ac,#c8a15f);
@@ -174,12 +181,12 @@ html,body{height:100%;}
   padding:0 8px;height:28px;box-sizing:border-box;cursor:pointer;line-height:1;
   transition:all .15s;flex-shrink:0;display:inline-flex;align-items:center;
 }
-#tony-app-nav .tn-star:hover,#tony-app-nav #tn-settings-btn:hover{color:var(--tn-ac,#c8a15f);border-color:var(--tn-ac,#c8a15f);--suite-glow-rgb:200,161,95;box-shadow:var(--suite-glow);}
+#tony-app-nav .tn-star:hover,#tony-app-nav #tn-settings-btn:hover{color:var(--tn-ac,#c8a15f);border-color:var(--tn-ac,#c8a15f);box-shadow:var(--glow-gold-d);}
 /* Mobile: hide buttons, show select */
 #tn-mobile-select{display:none;background:transparent;border:1px solid var(--tn-bd,#2e3a35);border-radius:4px;color:var(--tn-ac,#c8a15f);font-size:11px;font-weight:700;padding:0 8px;height:28px;box-sizing:border-box;font-family:'Inter',system-ui,-apple-system,sans-serif;outline:none;cursor:pointer;transition:all .15s;}
-#tn-mobile-select:hover{color:var(--tn-ac,#c8a15f);border-color:var(--tn-ac,#c8a15f);--suite-glow-rgb:200,161,95;box-shadow:var(--suite-glow);}
+#tn-mobile-select:hover{color:var(--tn-ac,#c8a15f);border-color:var(--tn-ac,#c8a15f);box-shadow:var(--glow-gold-d);}
 #tn-mobile-select.tn-wr-active{color:#c0aeea!important;border-color:rgba(192,174,234,0.45)!important;}
-#tn-mobile-select.tn-wr-active:hover{border-color:#dbd0f5!important;--suite-glow-rgb:192,174,234;box-shadow:var(--suite-glow)!important;}
+#tn-mobile-select.tn-wr-active:hover{border-color:#dbd0f5!important;box-shadow:var(--glow-lilac)!important;}
 #tn-mobile-select option{background:#1a1a1d;color:#c8a15f;}
 @media(max-width:900px){
   #tony-app-nav .tn-btn{display:none;}
@@ -30827,9 +30834,9 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
 .docx-modal-b { padding: 12px 18px; overflow-y: auto; flex: 1; font-size: 13px; }
 .docx-modal-f { display: flex; align-items: center; gap: 8px; padding: 11px 18px; border-top: 1px solid rgba(255,255,255,.08); flex-wrap: wrap; }
 .docx-btn { background: #2C2D33; border: 1px solid #3B3C42; border-radius: 7px; color: #f4f3f0; padding: 7px 13px; font-size: 12px; cursor: pointer; font-family: inherit; }
-.docx-btn:hover { background: #37383F; --suite-glow-rgb: 244,243,240; box-shadow: var(--suite-glow); }
+.docx-btn:hover { background: #37383F; box-shadow: var(--glow-neutral); }
 .docx-btn.pri { background: #5B7CFF; border-color: #5B7CFF; color: #fff; font-weight: 700; }
-.docx-btn.pri:hover { background: #6E8BFF; --suite-glow-rgb: 91,124,255; box-shadow: var(--suite-glow); }
+.docx-btn.pri:hover { background: #6E8BFF; box-shadow: var(--glow-blue); }
 .docx-btn.danger { color: #FF7B7B; border-color: rgba(255,123,123,.4); }
 .docx-btn.danger:hover { background: rgba(255,123,123,.12); }
 .docx-trash-row { display: flex; align-items: center; gap: 10px; padding: 9px 6px; border-bottom: 1px solid rgba(255,255,255,.06); }
@@ -35544,11 +35551,11 @@ else initAll();
 #thv-dev-box h3{font-size:17px;margin:0 0 4px;font-weight:800;}
 #thv-dev-box .thv-dev-sub{font-size:12px;color:var(--thv-mute,#8a8a98);margin-bottom:14px;}
 #thv-dev-list .thv-dev-item{display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid var(--thv-border,#33333f);border-radius:10px;margin-bottom:8px;cursor:pointer;font-size:14px;}
-#thv-dev-list .thv-dev-item:hover{border-color:var(--thv-accent,#e0b874);--suite-glow-rgb:var(--thv-glow-rgb,224,184,116);box-shadow:var(--suite-glow);}
+#thv-dev-list .thv-dev-item:hover{border-color:var(--thv-accent,#e0b874);box-shadow:0 0 0 1px rgba(var(--thv-glow-rgb,224,184,116),.42),0 0 10px rgba(var(--thv-glow-rgb,224,184,116),.42);}
 #thv-dev-list .thv-dev-item.on{border-color:var(--thv-accent,#e0b874);background:color-mix(in srgb,var(--thv-accent,#e0b874) 14%,transparent);color:var(--thv-accent,#e0b874);font-weight:700;}
 #thv-dev-list .thv-dev-item .thv-tick{margin-left:auto;color:var(--thv-accent,#e0b874);}
 .thv-dev-close{width:100%;justify-content:center;margin-top:6px;background:transparent;border:1px solid var(--thv-border,#33333f);color:var(--thv-mute,#8a8a98);border-radius:9px;padding:9px;font-weight:700;font-size:13px;cursor:pointer;font-family:'Inter',system-ui,-apple-system,sans-serif;}
-.thv-dev-close:hover{border-color:var(--thv-accent,#e0b874);color:var(--thv-accent,#e0b874);--suite-glow-rgb:var(--thv-glow-rgb,224,184,116);box-shadow:var(--suite-glow);}
+.thv-dev-close:hover{border-color:var(--thv-accent,#e0b874);color:var(--thv-accent,#e0b874);box-shadow:0 0 0 1px rgba(var(--thv-glow-rgb,224,184,116),.42),0 0 10px rgba(var(--thv-glow-rgb,224,184,116),.42);}
 #thv-toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 22px);z-index:99600;
   background:var(--thv-surface,#1d1d25);border:1px solid var(--thv-border,#33333f);color:var(--thv-text,#f4f3f0);padding:11px 18px;border-radius:24px;
   font-size:13px;font-weight:700;font-family:'Inter',system-ui,-apple-system,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.45);opacity:0;pointer-events:none;
@@ -35572,7 +35579,7 @@ else initAll();
 .thv-txt-title{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:var(--thv-accent,#e0b874);}
 .thv-txt-dot{width:7px;height:7px;border-radius:50%;background:var(--thv-accent,#e0b874);flex-shrink:0;}
 .thv-txt-x{background:transparent;border:none;color:var(--thv-mute,#8a8a98);cursor:pointer;padding:4px;line-height:0;border-radius:6px;}
-.thv-txt-x:hover{color:var(--thv-text,#f4f3f0);--suite-glow-rgb:244,243,240;box-shadow:var(--suite-glow);}
+.thv-txt-x:hover{color:var(--thv-text,#f4f3f0);box-shadow:var(--glow-neutral);}
 /* overscroll-behavior:contain stops a scroll that reaches the end of the box
    from chaining into the TaskHub behind it. */
 #thv-txt-input{width:100%;box-sizing:border-box;min-height:110px;max-height:42vh;overflow-y:auto;overscroll-behavior:contain;resize:none;
@@ -35588,7 +35595,7 @@ else initAll();
 .thv-txt-kbd{border:1px solid var(--thv-border,#33333f);border-radius:4px;padding:1px 5px;font-size:10.5px;font-weight:700;}
 #thv-txt-send{background:var(--thv-accent,#e0b874);color:#1a1a1d;border:none;border-radius:9px;padding:10px 22px;
   font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;flex-shrink:0;transition:opacity .15s,transform .1s;}
-#thv-txt-send:hover{opacity:.88;--suite-glow-rgb:var(--thv-glow-rgb,224,184,116);box-shadow:var(--suite-glow);}
+#thv-txt-send:hover{opacity:.88;box-shadow:0 0 0 1px rgba(var(--thv-glow-rgb,224,184,116),.42),0 0 10px rgba(var(--thv-glow-rgb,224,184,116),.42);}
 #thv-txt-send:active{transform:scale(.97);}
 #thv-txt-send:disabled{opacity:.5;cursor:default;transform:none;}
 @media (max-width:640px){
@@ -35621,8 +35628,9 @@ function themeVars(){
   var light=false;
   var root=document.documentElement.style;
   root.setProperty('--thv-accent',accent());
-  // rgb triplet of the same accent, so the shared --suite-glow hover glow can
-  // tint itself to whichever TaskHub opened this overlay.
+  // rgb triplet of the same accent. These overlays sit outside every app root,
+  // so their hover glow is written out against this instead of --suite-glow —
+  // same .42 ring + .42 bloom, tinted to whichever TaskHub opened them.
   root.setProperty('--thv-glow-rgb',profile()==='veda'?'141,118,154':'224,184,116');
   root.setProperty('--thv-surface',bg);
   root.setProperty('--thv-text',light?'#1a1a1f':'#f4f3f0');
@@ -38157,9 +38165,9 @@ window._THV={
 .mjd-btn:disabled { opacity: .35; cursor: not-allowed; box-shadow: none; border-color: var(--mjd-line2); color: var(--mjd-text3); }
 .mjd-btn svg { width: 13px; height: 13px; flex-shrink: 0; }
 .mjd-btn.ghost { color: var(--mjd-text2); border-color: var(--mjd-line2); }
-.mjd-btn.ghost:hover { color: var(--mjd-text); border-color: var(--mjd-text3); --suite-glow-rgb: 173,173,178; box-shadow: var(--suite-glow); }
+.mjd-btn.ghost:hover { color: var(--mjd-text); border-color: var(--mjd-text3); box-shadow: var(--glow-neutral); }
 .mjd-btn.danger { color: var(--mjd-red); border-color: rgba(214,138,124,.36); }
-.mjd-btn.danger:hover { border-color: var(--mjd-red); --suite-glow-rgb: 214,138,124; box-shadow: var(--suite-glow); }
+.mjd-btn.danger:hover { border-color: var(--mjd-red); box-shadow: var(--glow-red); }
 
 /* ══════════════ Toolbar chip for the open cloud document ══════════════ */
 #tj-root #mjd-docbar { display: none; align-items: center; gap: 7px; min-width: 0; flex-wrap: wrap; }
