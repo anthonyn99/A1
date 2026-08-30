@@ -8227,6 +8227,14 @@ function App(){
   const inp={background:T.S2,border:"1px solid "+T.BDL,borderRadius:4,color:T.TX,fontSize:14,fontWeight:600,padding:"7px 11px",fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"};
   const dbtn={background:"transparent",border:"none",color:T.ERR,cursor:"pointer",fontSize:15,padding:"0 4px",lineHeight:1,fontFamily:"inherit",fontWeight:700};
   const ebtn={background:"transparent",border:"none",color:T.TXD,cursor:"pointer",fontSize:12,padding:"0 3px",lineHeight:1,fontFamily:"inherit"};
+  // Today and the day you are standing on are both marked with a bright
+  // outline. In this theme T.ACL and T.AC are the SAME gold, so marking both in
+  // the accent made them pixel-identical — with the 21st selected and the 30th
+  // being today you could not tell which was which. Today keeps the gold: it is
+  // the fixed landmark. The cursor takes the neutral parchment, the same colour
+  // the CSS --glow-neutral token uses, so the two never read as the same state.
+  // On today the two collapse and gold wins, which is right — it is both.
+  const CURSOR=T.TX, GLOW_CURSOR=GLOW(T.TX), GLOW_AC=GLOW(T.AC);
   const sbtn={background:"transparent",color:T.ACL,border:"1px solid "+T.AC,boxShadow:GLOW(T.AC),borderRadius:4,padding:"6px 14px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"'Inter',system-ui,-apple-system,sans-serif"};
   const ctag=c=>({fontSize:9,color:CC[c]||T.TXD,background:(CC[c]||T.TXD)+"1a",borderRadius:6,padding:"1px 5px",marginLeft:2,textTransform:"capitalize",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+(CC[c]||T.TXD)+"30"});
   const mcByDay=useMemo(()=>{const g={};const todayK=dkey(new Date().getFullYear(),new Date().getMonth(),new Date().getDate());(marketCal||[]).forEach(ev=>{if(!ev||!ev.date)return;(g[ev.date]=g[ev.date]||[]).push({id:ev.id,type:"event",_mc:true,kind:ev.kind,title:ev.name,category:ev.category,importance:ev.importance,date:ev.date,notifyAt:ev.notifyAt||null,_past:ev.date<todayK});});return g;},[marketCal]);
@@ -8377,8 +8385,8 @@ function App(){
           isNarrow&&narrowSingleDay&&React.createElement("button",{type:"button",onClick:()=>setNarrowSingleDay(false),style:{fontSize:11,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.BD,borderRadius:4,padding:"5px 12px",cursor:"pointer",fontFamily:"inherit",display:"inline-block",marginBottom:8}},"← Back to week"),
           React.createElement("div",{style:{display:"flex",gap:3,overflowX:"auto",WebkitOverflowScrolling:"touch",paddingBottom:4,marginBottom:8,scrollbarWidth:"none",msOverflowStyle:"none"},className:"th-mob-day-strip"},
             wd.map((w,i)=>{
-              const k=dkey(w.year,w.month,w.day),td=k===tk,sel2=mobDayIdx===i;
-              return React.createElement("button",{key:k,type:"button",onClick:()=>setMobDayIdx(i),style:{flexShrink:0,padding:"5px 9px",borderRadius:4,cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,transition:"all .15s",background:"transparent",color:sel2?T.ACL:td?T.AC:T.TXD,border:sel2||td?"1px solid "+T.AC:"1px solid "+T.BD,...(sel2||td?{boxShadow:GLOW(T.AC)}:{}),whiteSpace:"nowrap"}},DS[i]+" "+w.day);
+              const k=dkey(w.year,w.month,w.day),td=k===tk,sel2=mobDayIdx===i,cur=sel2&&!td;
+              return React.createElement("button",{key:k,type:"button",onClick:()=>setMobDayIdx(i),style:{flexShrink:0,padding:"5px 9px",borderRadius:4,cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,transition:"all .15s",background:"transparent",color:cur?CURSOR:td?T.AC:T.TXD,border:cur?"1px solid "+CURSOR:td?"1px solid "+T.AC:"1px solid "+T.BD,...(cur?{boxShadow:GLOW_CURSOR}:td?{boxShadow:GLOW_AC}:{}),whiteSpace:"nowrap"}},DS[i]+" "+w.day);
             })),
           (()=>{
             const w=wd[mobDayIdx],k=dkey(w.year,w.month,w.day),td=k===tk;
@@ -8587,7 +8595,8 @@ function App(){
             const isSel=sel.year===vy&&sel.month===vm&&sel.day===day;
             const has=!!(data[k]&&data[k].length>0);
             const isToday=vy===now.getFullYear()&&vm===now.getMonth()&&day===now.getDate();
-            return React.createElement("button",{key:i,type:"button",style:{fontSize:10,fontWeight:isSel||isToday?700:500,padding:"3px 0",borderRadius:5,cursor:"pointer",fontFamily:"inherit",transition:"all .15s",background:"transparent",color:isSel?T.ACL:isToday?T.AC:has?T.ACL:T.TXD,border:isSel||isToday?"1px solid "+T.AC:"1px solid transparent",...(isSel||isToday?{boxShadow:GLOW(T.AC)}:{})},onClick:()=>{setSel({year:vy,month:vm,day});const _dw=new Date(vy,vm,day).getDay();setMobDayIdx(_dw===0?6:_dw-1);}},day);
+            const cur=isSel&&!isToday;
+            return React.createElement("button",{key:i,type:"button",style:{fontSize:10,fontWeight:isSel||isToday?700:500,padding:"3px 0",borderRadius:5,cursor:"pointer",fontFamily:"inherit",transition:"all .15s",background:"transparent",color:cur?CURSOR:isToday?T.AC:has?T.ACL:T.TXD,border:cur?"1px solid "+CURSOR:isToday?"1px solid "+T.AC:"1px solid transparent",...(cur?{boxShadow:GLOW_CURSOR}:isToday?{boxShadow:GLOW_AC}:{})},onClick:()=>{setSel({year:vy,month:vm,day});const _dw=new Date(vy,vm,day).getDay();setMobDayIdx(_dw===0?6:_dw-1);}},day);
           }))),
 
       React.createElement("div",{"data-dnd-zone":goalTab==="short"?"goalm":"goal",style:{...sec},
