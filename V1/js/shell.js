@@ -7,8 +7,9 @@
  *
  * The purple "STUDYOS" strip that used to sit above the app is gone — the
  * sidebar's own white wordmark is the only one now, and it carries the lock
- * button and the sync line. Once V1 has sibling pages, add entries to config
- * §6 and they appear here — no markup changes.
+ * button and the sync line. The #sos-shell-nav container went with that strip,
+ * so shell.nav has nowhere to render until V1 gains sibling pages and a bar to
+ * hold them; config §6 is empty, and the loop below no-ops without it.
  * ------------------------------------------------------------------------- */
 (function () {
   'use strict';
@@ -28,12 +29,13 @@
       }
     }
 
+    // No container while StudyOS is standalone — see the file header.
     var nav = document.getElementById('sos-shell-nav');
     var links = Array.isArray(SHELL.nav) ? SHELL.nav : [];
     if (!nav || !links.length) return;
 
-    // Insert before the "Study" pill so sibling links read left-to-right and
-    // the current app stays adjacent to the lock button.
+    // Insert before whatever already sits in the bar, so sibling links read
+    // left-to-right ahead of the current app's own controls.
     var first = nav.firstElementChild;
     links.forEach(function (item) {
       if (!item || !item.label || !item.href) return;
