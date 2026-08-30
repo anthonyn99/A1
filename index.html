@@ -99,26 +99,21 @@
 }
 #veda-root,#bj-root,#cooking-view{--suite-glow:var(--glow-purple);}
 #wr-root{--suite-glow:var(--glow-lilac);}
-/* Tony's and Veda's TaskHub buttons are inline-styled from React, so the
-   suite's hover glow lives here instead of in ~100 onMouseEnter handlers.
-   Those handlers only set border-color/color — never box-shadow — so these
-   rules never fight them. Nothing glows at rest; a button that wants no hover
-   glow opts out with data-noglow. */
-#root button:hover:not([data-noglow]),
-#root [role="button"]:hover:not([data-noglow]),
-#veda-root button:hover:not([data-noglow]),
-#veda-root [role="button"]:hover:not([data-noglow]),
-#wr-root button:hover:not([data-noglow]),
-#wr-root [role="button"]:hover:not([data-noglow]),
-#tj-root button:hover:not([data-noglow]),
-#bj-root button:hover:not([data-noglow]),
-#tradeboard-root button:hover:not([data-noglow]){
+/* Every button in every app root gets the glow by default. The TaskHubs need
+   it most — their buttons are inline-styled from React, and those handlers only
+   set border-color/color, never box-shadow, so this never fights them.
+   The roots are wrapped in :where() to keep the whole selector at class-level
+   specificity: this is a DEFAULT, and the handful of controls that want another
+   colour (.mjd-btn.danger) or another effect entirely (.pt-hl-swatch, which
+   lifts instead of glowing) must be able to win with a plain class rule.
+   Nothing glows at rest; a button that wants no hover glow opts out with
+   data-noglow. */
+:where(#root,#veda-root,#wr-root,#tj-root,#bj-root,#tradeboard-root)
+  :where(button,[role="button"]):hover:not([data-noglow]){
   box-shadow:var(--suite-glow);
 }
-#root button,#root [role="button"],
-#veda-root button,#veda-root [role="button"],
-#wr-root button,#wr-root [role="button"],
-#tj-root button,#bj-root button,#tradeboard-root button{transition:box-shadow .15s;}
+:where(#root,#veda-root,#wr-root,#tj-root,#bj-root,#tradeboard-root)
+  :where(button,[role="button"]){transition:box-shadow .15s;}
 /* TgScrollBox paints its own draggable thumb — hide the native bar in both engines. */
 .tg-scrollbox{scrollbar-width:none;-ms-overflow-style:none;}
 .tg-scrollbox::-webkit-scrollbar{width:0;height:0;}
