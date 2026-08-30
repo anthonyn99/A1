@@ -267,22 +267,42 @@ if (TM.enabled === false) {
     /* ── Ack: TaskHub ticked one of our items ─────────────────────────────
      * Only task done-state comes back. Events have no done-state in StudyOS,
      * so an ack for one is ignored rather than invented. */
-    let ackApplying = false;
+    /* The ack is a DIVERGENCE map, not a full copy of the done-state: TaskHub
+     * lists only the tasks it changed that the mirror does not yet reflect, and
+     * drops each entry once our republished mirror agrees. That is what keeps
+     * this listener safe to run on every snapshot — an entry that is still here
+     * is by construction one we have not applied yet.
+     *
+     * It matters that it is a divergence map. When TaskHub published the state
+     * of EVERY mirrored task, a task unticked here in StudyOS was re-ticked by
+     * the next ack that happened to be sent for some other task, because that
+     * ack still carried the old `true`. StudyOS could not tell an instruction
+     * from a stale restatement.
+     *
+     * `savedAt` is not compared here: applying an ack is idempotent (setTaskDone
+     * returns false when the value already matches) and out-of-order delivery
+     * only ever costs a redundant no-op. */
+    let lastAckSavedAt = 0;
     onSnapshot(ackRef, (snap) => {
       if (!snap.exists()) return;
-      const done = (snap.data() || {}).done || {};
+      const d = snap.data() || {};
+      // Ignore a replay of an ack we have already applied — it cannot carry news
+      // and re-applying it would fight a change made here in the meantime.
+      const at = d.savedAt || 0;
+      if (at && at === lastAckSavedAt) return;
+      lastAckSavedAt = at;
+      const done = d.done || {};
       const B = window._sosBridge;
       if (!B) return;
       let changed = false;
-      ackApplying = true;
-      try {
-        Object.keys(done).forEach(sid => {
-          if (sid.indexOf('t_') !== 0) return;    // tasks only
-          if (B.setTaskDone(sid.slice(2), !!done[sid])) changed = true;
-        });
-      } finally { ackApplying = false; }
+      Object.keys(done).forEach(sid => {
+        if (sid.indexOf('t_') !== 0) return;    // tasks only
+        if (B.setTaskDone(sid.slice(2), !!done[sid])) changed = true;
+      });
       // Re-derive so the mirror reflects the state TaskHub just told us about;
       // without this our next write would push the old done-flag straight back.
+      // This is also what retires the ack entry: TaskHub drops it as soon as the
+      // republished mirror agrees.
       if (changed) schedule(400);
     }, (err) => console.warn('[StudyOS] Task mirror ack listener error:', err && err.code));
 

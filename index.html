@@ -8928,6 +8928,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   let _mjUnsubscribe  = null;
   let _tjUnsubscribe  = null;
   let _sosMirrorUnsub = null;   // StudyOS → TaskHub task mirror (read-only)
+  let _sosAckUnsub    = null;   // our own done-flips, read back (see _sosMergeAck)
   let _plansUnsub     = null;   // Plans → both TaskHubs mirror (read-only)
   let _plansSaveTimer = null;
   let _ecUnsubscribe  = null;
@@ -9768,12 +9769,94 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // checks it off in StudyOS too. Debounced, and the whole map is rewritten
     // each time — it is small (one boolean per mirrored task) and a full write
     // keeps it self-correcting.
+    //
+    // THE ACK IS ALSO READ BACK, and that is the fix for "I ticked a StudyOS
+    // task, it said synced, and a reload unticked it again". The ack doc is the
+    // ONLY record of a TaskHub-side tick until StudyOS happens to be open to
+    // consume it: taskmirror.js applies acks from a live onSnapshot, so with
+    // StudyOS closed (the normal case — it is a different site) the mirror keeps
+    // saying done:false forever. The reconcile below is authoritative for every
+    // _sosId item, so on the next load it faithfully re-applied that false and
+    // wiped the tick. Nothing was ever lost server-side, which is exactly the
+    // signature of a RENDER-path bug rather than a write-path one.
+    //
+    // So the mirror is no longer read raw. `_sosAckLatest` holds our own
+    // unconsumed flips and `_sosMergeAck` overlays them onto the mirror's items.
+    // Once StudyOS does come online it applies the ack, rebuilds the mirror with
+    // the same done value, and the overlay becomes a no-op — it never fights the
+    // mirror, it only fills the gap before StudyOS has caught up.
     let _sosAckTimer = null, _sosAckPending = null;
+    window._sosAckLatest = window._sosAckLatest || {};
+    // savedAt of the ack we last WROTE, so the echo of our own write can never be
+    // treated as older news than what we already hold in memory.
+    let _sosAckOwnSavedAt = 0;
+
+    // Overlay unconsumed acks onto a mirror item set. Only `t_` ids carry a
+    // done-state in StudyOS (events have none), and only items actually present
+    // in the mirror are touched — an ack for a task deleted in StudyOS must not
+    // resurrect it.
+    window._sosMergeAck = (items) => {
+      const ack = window._sosAckLatest || {};
+      if (!items) return items;
+      let out = null;
+      Object.keys(items).forEach(sid => {
+        if (String(sid).indexOf('t_') !== 0) return;
+        if (!Object.prototype.hasOwnProperty.call(ack, sid)) return;
+        const it = items[sid];
+        if (!it || !!it.done === !!ack[sid]) return;
+        if (!out) out = Object.assign({}, items);
+        out[sid] = Object.assign({}, it, { done: !!ack[sid] });
+      });
+      return out || items;
+    };
+
+    // An ack entry is DROPPED once the mirror agrees with it. Without this the
+    // map would grow without bound and, worse, a task later unticked inside
+    // StudyOS would be silently re-ticked here by a months-old ack.
+    window._sosPruneAck = (items) => {
+      const ack = window._sosAckLatest || {};
+      let changed = false;
+      Object.keys(ack).forEach(sid => {
+        const it = items && items[sid];
+        // Gone from the mirror (deleted in StudyOS) → the ack has no subject.
+        // Agrees with the mirror → StudyOS consumed it; it is now redundant.
+        if (!it || !!it.done === !!ack[sid]) { delete ack[sid]; changed = true; }
+      });
+      return changed;
+    };
+
+    if (_sosAckUnsub) { _sosAckUnsub(); _sosAckUnsub = null; }
+    // fromCache is NOT dropped here, unlike the mirror listener. This doc is
+    // written only by us, so its cached copy is our own last write — the single
+    // most valuable thing to have early on a cold open, since it is what keeps a
+    // tick visible before the server responds. The savedAt guard below stops a
+    // stale cache from ever beating newer news.
+    let _sosAckSeenAt = 0;
+    _sosAckUnsub = onSnapshot(sosAckRef, { includeMetadataChanges: true }, (snap) => {
+      if (!snap.exists()) return;
+      const d = snap.data() || {};
+      const at = d.savedAt || 0;
+      // Older than what we already have (a late cached snapshot, or the echo of
+      // a write we have since superseded) carries no news.
+      if (at < _sosAckSeenAt || at < _sosAckOwnSavedAt) return;
+      _sosAckSeenAt = at;
+      window._sosAckLatest = Object.assign({}, d.done || {});
+      // Re-run the reconcile so a tick made on another device shows up here.
+      if (window._sosMirrorLatest) {
+        window.dispatchEvent(new CustomEvent("fb-sosmirror-update", { detail: window._sosMirrorLatest }));
+      }
+    }, (err) => { console.warn('[StudyOS mirror] ack onSnapshot error:', err && err.code); });
+
     window._fbSaveSosAck = (doneMap) => {
+      // Held in memory immediately, not only after the debounce, so a reload in
+      // the 600ms window still sees the tick.
+      window._sosAckLatest = Object.assign({}, doneMap || {});
       _sosAckPending = doneMap || {};
       if (_sosAckTimer) clearTimeout(_sosAckTimer);
       _sosAckTimer = setTimeout(async () => {
-        try { await setDoc(sosAckRef, { done: _sosAckPending, savedAt: Date.now(), app: 'taskhub' }); }
+        const at = Date.now();
+        _sosAckOwnSavedAt = at;
+        try { await setDoc(sosAckRef, { done: _sosAckPending, savedAt: at, app: 'taskhub' }); }
         catch (e) { console.warn('[StudyOS mirror] ack write failed:', e && e.code); }
       }, 600);
     };
@@ -11309,6 +11392,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     if (_mjUnsubscribe)  { _mjUnsubscribe();  _mjUnsubscribe  = null; }
     if (_tjUnsubscribe)  { _tjUnsubscribe();  _tjUnsubscribe  = null; }
     if (_sosMirrorUnsub) { _sosMirrorUnsub(); _sosMirrorUnsub = null; }
+    if (_sosAckUnsub)    { _sosAckUnsub();    _sosAckUnsub    = null; }
     if (_plansUnsub)     { _plansUnsub();     _plansUnsub     = null; }
     if (_ecUnsubscribe)  { _ecUnsubscribe();  _ecUnsubscribe  = null; }
     if (_alUnsubscribe)  { _alUnsubscribe();  _alUnsubscribe  = null; }
@@ -14347,8 +14431,15 @@ function App(){
     // Signature of just the mirrored items in a data map, so we can tell a real
     // mirror change from an unrelated edit to Veda's own tasks.
     const sig=o=>JSON.stringify(Object.keys(o||{}).sort().map(k=>[k,(o[k]||[]).filter(t=>t&&t._sosId).map(t=>[t._sosId,t.title,t.done,t.time||"",t._sosClassName||""]).sort()]));
-    const apply=(items)=>{
-      items=items||{};
+    const apply=(rawItems)=>{
+      // Overlay our own not-yet-consumed done-flips onto the mirror BEFORE
+      // anything else looks at it. StudyOS is usually closed, and until it is
+      // open the mirror still reports done:false for a task ticked here — the
+      // reconcile is authoritative for _sosId items, so without this overlay it
+      // faithfully re-applies that false and the tick vanishes on reload. The
+      // signature is computed from the MERGED set too, so a tick that only
+      // exists in the ack still counts as a real change.
+      let items=(window._sosMergeAck?window._sosMergeAck(rawItems||{}):(rawItems||{}));
       // NEVER reconcile before Veda's OWN document has loaded from the cloud.
       // The mirror lives in a different doc with its own listener, and it usually
       // wins the race on a phone open. Reconciling against a not-yet-loaded grid
@@ -14386,7 +14477,15 @@ function App(){
         return sig(prev)===sig(next)?prev:next;
       });
     };
-    const onMirror=e=>apply(e.detail);
+    const onMirror=e=>{
+      // Prune against the RAW mirror first: once StudyOS has consumed a flip and
+      // republished, or the task is gone from StudyOS entirely, the ack entry has
+      // done its job. Dropping it is what stops a stale ack from re-ticking a task
+      // that was later unticked inside StudyOS — the overlay must expire, or it
+      // becomes a second, competing source of truth that never loses.
+      if(window._sosPruneAck&&window._sosPruneAck(e.detail||{}))sosMirrorSigRef.current=null;
+      apply(e.detail);
+    };
     window.addEventListener("fb-sosmirror-update",onMirror);
     // A snapshot may already have landed before this component mounted.
     if(window._sosMirrorLatest)apply(window._sosMirrorLatest);
@@ -14468,16 +14567,30 @@ function App(){
   },[setDataBg,setMgMonthlyBg]);
 
   // ── StudyOS task mirror — acknowledge ──────────────────────────────────────
-  // Ticking a mirrored task here checks it off in StudyOS. We publish the whole
-  // done-map (one boolean per mirrored task) rather than a delta, so a missed
-  // write self-corrects on the next one. Events have no done-state in StudyOS,
-  // so only task acks are sent.
+  // Ticking a mirrored task here checks it off in StudyOS. The ack doc carries
+  // the flips the mirror does not yet reflect; TaskHub also READS it back and
+  // overlays it (see _sosMergeAck), which is what makes a tick survive a reload
+  // while StudyOS is closed. Events have no done-state in StudyOS, so only task
+  // acks are sent.
   const sosAck=useCallback((nextData)=>{
     if(!window._fbSaveSosAck)return;
+    // Only DIVERGENCES are published. The old version sent the done-state of
+    // every mirrored task on every tick, which made the ack a second full copy
+    // of the truth and gave it a nasty failure of its own: untick a task inside
+    // StudyOS, and the next tick of any OTHER task here re-sent the stale `true`
+    // for it, so StudyOS re-ticked it. An ack entry now means strictly "TaskHub
+    // changed this one and the mirror does not know yet"; anything the mirror
+    // already agrees with is omitted, and _sosPruneAck expires entries as soon
+    // as StudyOS republishes.
+    const mirror=window._sosMirrorLatest||{};
     const map={};
     Object.keys(nextData||{}).forEach(dk=>{
       (nextData[dk]||[]).forEach(t=>{
-        if(t&&t._sosId&&String(t._sosId).indexOf("t_")===0)map[t._sosId]=!!t.done;
+        if(!(t&&t._sosId&&String(t._sosId).indexOf("t_")===0))return;
+        const m=mirror[t._sosId];
+        // Unknown to the mirror → nothing to acknowledge against.
+        if(!m)return;
+        if(!!m.done!==!!t.done)map[t._sosId]=!!t.done;
       });
     });
     window._fbSaveSosAck(map);
