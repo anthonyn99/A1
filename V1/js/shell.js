@@ -1,12 +1,14 @@
 /* ============================================================================
  * StudyOS — app shell
  * ============================================================================
- * Renders the header's sibling-app links from STUDYOS_CONFIG.shell.nav, and
- * applies the configured title/accent.
+ * Applies the configured title/accent, renders sibling-app links from
+ * STUDYOS_CONFIG.shell.nav, and keeps the App Lock button and sync indicator in
+ * whichever bar is actually on screen.
  *
- * Standalone, shell.nav is empty and the header shows just the title, the
- * active "Study" pill and the App Lock button. Once V1 has sibling pages, add
- * entries to config §6 and they appear here — no markup changes.
+ * The purple "STUDYOS" strip that used to sit above the app is gone — the
+ * sidebar's own white wordmark is the only one now, and it carries the lock
+ * button and the sync line. Once V1 has sibling pages, add entries to config
+ * §6 and they appear here — no markup changes.
  * ------------------------------------------------------------------------- */
 (function () {
   'use strict';
@@ -15,13 +17,10 @@
   var SHELL = CFG.shell || {};
 
   function start() {
-    var title = document.querySelector('.sos-hdr-title');
-    if (title && SHELL.title) {
-      title.textContent = SHELL.title;
-      document.title = SHELL.title;
-    }
+    // The sidebar wordmark is deliberately left alone: it is a fixed "S StudyOS"
+    // lockup, not a configurable label. Only the document title follows config.
+    if (SHELL.title) document.title = SHELL.title;
     if (SHELL.accent) {
-      if (title) title.style.color = SHELL.accent;
       var root = document.getElementById('study-root');
       if (root) {
         root.style.setProperty('--accent', SHELL.accent);
@@ -47,6 +46,35 @@
     });
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
-  else start();
+  /* ── Lock + sync placement ───────────────────────────────────────────────
+   * Both live in the sidebar logo block. Below 1024px the sidebar is either a
+   * 60px icon rail (tablet) or gone entirely (phone), so neither has room —
+   * park them in the topbar action row instead. Moving the single nodes keeps
+   * their ids unique, which applock.js and _sosSetSync both look up by id. */
+  var NARROW = window.matchMedia('(max-width: 1024px)');
+  function placeChrome() {
+    var lock = document.getElementById('sos-lock-btn');
+    var sync = document.getElementById('sos-sync-status');
+    var row  = document.querySelector('#study-root .sidebar-logo-row');
+    var logo = document.querySelector('#study-root .sidebar-logo');
+    var bar  = document.querySelector('#study-root .topbar-actions');
+    if (!lock || !sync || !row || !logo || !bar) return;
+    if (NARROW.matches) {
+      bar.insertBefore(sync, bar.firstChild);
+      bar.insertBefore(lock, bar.firstChild);
+    } else {
+      row.appendChild(lock);
+      logo.appendChild(sync);
+    }
+  }
+
+  function boot() {
+    start();
+    placeChrome();
+    if (NARROW.addEventListener) NARROW.addEventListener('change', placeChrome);
+    else if (NARROW.addListener) NARROW.addListener(placeChrome);   // older WebKit
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
 })();
