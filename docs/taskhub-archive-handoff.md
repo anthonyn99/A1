@@ -1,7 +1,172 @@
-# TaskHub — "tasks reverted by a lot of days" (archive overflow)
+# TaskHub — the archive/un-archive failures ("my days got reverted")
 
-Context compiled **2026-09-01**. Self-contained; read this before touching the
-TaskHub archive/un-archive code in `index.html`.
+Two rounds of the same underlying feature failing, both reported by Veda, both
+triggered by opening TaskHub on her phone. Read **Round 2 first** — it is the
+current state of the code. Round 1 is kept in full because it is accurate
+history and explains why the machinery exists at all.
+
+| | Reported | Symptom | Cause |
+|---|---|---|---|
+| Round 1 | 2026-08-31 | history reverted "by a lot of days" | the archiver pruned days out of the UI and the restore was deadlocked against the size cap |
+| Round 2 | 2026-09-01 | **the last 5 days** gone, and gone again on her PC | the archived-key registry did not survive a reload, the size valve had no recent-days floor, and the restore was latched once per device |
+
+Self-contained; read this before touching the TaskHub archive/un-archive code in
+`index.html`.
+
+---
+
+# Round 2 — "my last 5 days are gone" (2026-09-01)
+
+Veda reported the same symptom again, this time on **recent** days, after a phone
+open. Everything in Round 1 below is still accurate history, but the fix it
+describes was **incomplete in three ways**. All three are fixed now.
+
+> Read this section first. If you only read Round 1 you will look for the bug in
+> the wrong place — the size gate and the `setData(split.keep)` prune it blames
+> were genuinely fixed and stayed fixed.
+
+## What went wrong the second time
+
+The Round 1 fix separated "in the live document" from "on screen" using an
+in-memory registry (`thArchivedRef` / `vdArchivedRef`). The registry was
+**memory-only. The merged data was not** — `setDataLocalOnly` writes it straight
+to `localStorage`. So the two halves disagreed on the very next load, and three
+failures fell out of that one asymmetry:
+
+**A. The cache re-uploaded archived history.**
+On a cold load `data` came back from `localStorage` holding all the restored
+sidecar days, while the registry came back **empty**. `buildPayload` therefore
+had nothing to strip, and the next save pushed the whole ~1.1 MB back into the
+live document — re-inflating exactly the doc whose size caused the prune, or
+tripping the 900 KB `FB_MAX_WRITE_BYTES` guard and stopping sync outright.
+
+**B. The size valve then chewed forward into the present.**
+The archiver saw an oversize doc again and ran the valve. Its only floor was
+`if(k>=todayKey)break;` — which protects exactly **one day**. So it archived
+yesterday, and the day before, a few more days on each device's daily run. That
+is the reported symptom, precisely: the last five days.
+
+**C. Other devices could never get them back.**
+The restore was latched once-per-**device** (`td*_unarchived_v2`), while the
+archiver runs once per device per **day**. Any day the phone archived after the
+PC's single restore was simply absent on the PC — gone from the live doc, and
+never looked for again. Hence "I opened TaskHub on my PC and my days were gone."
+
+Round 1 called the `_v2` bump "a real gap in the first version of the fix."
+That was right about the symptom and wrong about the cure: the problem was never
+which key the latch used, it was that a latch existed at all.
+
+## The Round 2 fix
+
+| Piece | Where | What it does |
+|---|---|---|
+| `thLoadArchivedKeys` / `thSaveArchivedKeys` | module scope, both blocks | Registry persisted to `td6_archivedKeys` / `td_archivedKeys` |
+| `useRef(thLoadArchivedKeys(...))` | `thArchivedRef`, `vdArchivedRef` | Hydrated at **first render**, before any payload can be built |
+| `TH_ARCHIVE_MIN_AGE_DAYS = 365` + `thMinAgeKey()` | both blocks | Real floor for the size valve |
+| `out.overCap` + `console.error` | `thSplitArchivable`, both archivers | An unfixable oversize doc is **reported**, not paid for with recent days |
+| Latch deleted | both un-archives | The restore runs on **every** load; the merge only ever adds keys, so it is idempotent |
+| Registry **rebuilt** from the scan | both un-archives | Sidecars are the source of truth; a wrong flag cannot outlive a load |
+| Reclaim loop | both un-archives | Days inside the floor come back **editable**, newest-first, budgeted against the cap |
+| `if(!unarchiveRanRef.current)return;` | both archivers | Never prune before the restore has run — offline that means no pruning at all |
+| `if(a===null)throw` | both un-archives | A failed sidecar read is no longer mistaken for "no archive that year" |
+
+### Why the floor is 365 and not more
+
+The protected window has to **fit under `TH_ARCHIVE_SOFT_BYTES` by itself**, or
+the archiver can never reach the cap and the doc stays permanently oversize.
+At the density measured on Veda's document (~1.46 KB/day):
+
+| Floor | Protected window | Verdict |
+|---|---|---|
+| 365 days | ~520 KB | ~260 KB headroom — chosen |
+| 550 days | ~800 KB | **already over the 780 KB cap** — tried first, rejected |
+
+`tests/archive-visibility.test.js` asserts this directly ("the protected window
+itself fits under the soft cap"), so raising the floor fails the suite rather
+than silently wedging the archiver.
+
+### What Veda actually gets back
+
+Round 1 shipped restored days as **read-only**, which was correct for genuinely
+old history. It was wrong for days the valve should never have taken. The reclaim
+loop now pulls everything inside the floor back into the live document as
+**editable** data and pushes it — so her recent days return writable, on every
+device, automatically. History older than a year stays read-only, and the
+[trade-off](#the-trade-off-read-only) note below still governs that part.
+
+## Verification (Round 2)
+
+```bash
+node tests/archive-visibility.test.js   # 48 checks, was 24
+node tests/sync-guard.test.js           # 99 checks — the 3 older sync races
+node tests/syntax-check.js
+```
+
+Full suite green as of 2026-09-01.
+
+**Confirmed to fail on the pre-fix code.** Run against `6099a24:index.html`,
+every new static guard fails and the behavioural harness cannot even find
+`thMinAgeKey`.
+
+**Driven in a real browser this time** (headless Edge over CDP — the gap Round 1
+left open). Seed `td6_archivedKeys` / `td_archivedKeys` plus matching `td*_data`,
+reload, and inspect:
+
+| | pre-fix (`6099a24`) | fixed |
+|---|---|---|
+| `_thIsArchivedDay(k)` after reload | `false, false, false` | `true, true, true` |
+| archived days in `_thRebuildPayload().data` | **yes** — they get re-uploaded | no |
+| newest day the valve archived (4 yr fixture) | up to yesterday | `2025-03-24`, floor `2025-09-01` |
+
+15/15 browser checks pass on the fixed build. The driver scripts are scratch-dir
+scoped and do not persist; recreate from `.claude/skills/verify`.
+
+### Still not verified
+
+- **Firestore is unreachable from `file://`** — App Check reCAPTCHA cannot attest
+  a file origin, so the sidecar read, the restore and the reclaim were verified as
+  code and in-browser state, **not** end-to-end against live data. Same limitation
+  Round 1 hit.
+- **There are still no Firestore backups** (see below). Unchanged, and still worth
+  fixing separately — a local backup system was being planned as of 2026-09-01.
+
+## How to confirm it worked on a real device
+
+Open TaskHub, wait ~5s, check the console:
+
+```
+[Unarchive] Veda: restored N day(s) [2024:…, 2025:…] as READ-ONLY history;
+  reclaimed M recent day(s) as EDITABLE (2026-08-27 → 2026-08-31);
+  in-memory data now … KB, live doc … KB
+```
+
+Non-zero `M` is the recent days coming back **editable**. If you instead see
+
+```
+[Archive] Veda: live doc is still … KB after archiving everything older than 365 days.
+```
+
+then the document genuinely cannot fit and needs a capacity plan — do **not**
+raise `TH_ARCHIVE_SOFT_BYTES` or lower the floor to silence it.
+
+## Invariants — break these and it happens again
+
+1. **Anything in `*ArchivedRef` must never enter a payload.** (Round 1)
+2. **The registry must be persisted wherever the merged data is persisted.**
+   They are one fact stored in two places; if only one survives a reload, the
+   next save is wrong. This is what broke in Round 2.
+3. **The size valve must never touch the recent window**, whatever the doc size.
+   An oversize doc is a loud failure, not a licence to delete the present.
+4. **Recovery must be as frequent as the damage.** The archiver runs per device
+   per day, so the restore runs per load. A once-per-device latch guarding a
+   once-per-day job is a permanent hole, and no key name fixes that.
+5. **`localStorage` throttles and latches are per-device.** "Runs once a day" does
+   not mean once per user — that asymmetry is why this always presented as a
+   phone bug. (Round 1, still true.)
+
+---
+
+# Round 1 — "reverted by a lot of days" (2026-08-31)
 
 Reported by Veda: *"the tasks got reverted when I opened TaskHub on my phone,
 that too by a lot of days"* — and, importantly, **it happens every time she first
@@ -131,7 +296,7 @@ Plus, on both:
   on every pass.
 - **`tog`/`del` refuse edits** on archived day-keys, with a nudge.
 
-### Why the latch key was bumped to `_v2`
+### Why the latch key was bumped to `_v2` — SUPERSEDED
 
 `_v1` was a one-time flag. A device that took the old *"merged fits under the
 cap"* success path has it stuck at `"1"` — and on that device the corrected
@@ -140,6 +305,12 @@ re-runs the fixed restore exactly once everywhere, regardless of the old value.
 
 This was a real gap in the first version of the fix; without it, the fix silently
 does nothing on some devices.
+
+> **Superseded by Round 2.** The reasoning above is right about the symptom and
+> wrong about the cure. The problem was not *which* key the latch used — it was
+> that a once-per-device latch guarded recovery from a once-per-device-per-day
+> archiver. Both `td_unarchived_v2` and `td6_unarchived_v2` are gone; the restore
+> now runs on every load. See [Round 2](#round-2--my-last-5-days-are-gone-2026-09-01).
 
 ---
 
@@ -161,7 +332,7 @@ Do not just raise the constant; it will trip the write guard and stop sync entir
 ## Verification
 
 ```bash
-node tests/archive-visibility.test.js   # 24 checks — this bug
+node tests/archive-visibility.test.js   # was 24 checks; now 48 — see Round 2
 node tests/sync-guard.test.js           # 99 checks — the 3 older sync races
 node tests/syntax-check.js
 ```
@@ -173,6 +344,10 @@ archived day is visible, none reach the payload, and the payload still fits.
 
 **It was confirmed to fail on the pre-fix code and pass after** — a real
 regression guard, not a rubber stamp.
+
+> Round 2 kept all of this and added the recent-days floor, registry-persistence
+> and reclaim cases, plus a fixture of ~4 years (2 years no longer overflows now
+> that the floor protects the recent window).
 
 Full suite green as of 2026-09-01. (`appcheck-verify` prints a libuv teardown
 warning *after* reporting 14/14 — that is noise, not a failure.)
@@ -217,19 +392,20 @@ days *reappear* on his next load — that is the fix working, not a new bug.
 
 ## If you touch this code again
 
-- Run both test files above. Sync work has regressed twice before precisely
-  because it was verified by reading rather than running.
-- Keep the invariant: **anything in `*ArchivedRef` must never enter a payload.**
-  Breaking that re-creates the oversize document and can trip the 900 KB write
-  guard, which stops syncing altogether.
-- `localStorage` throttles/latches are **per-device**. A "runs once per day" gate
-  does not mean once per user — that asymmetry is the whole reason this presented
-  as a phone-only bug.
-- Related: `memory/taskhub-sync-two-paths.md` (now documents all four paths).
+See [Invariants](#invariants--break-these-and-it-happens-again) in Round 2 — that
+list supersedes this one and includes it. In short: run the tests (this code has
+now regressed three times, every time after being verified by reading), never let
+an archived key into a payload, never let the size valve near the recent window,
+and remember that `localStorage` latches are per-device.
+
+Related: `memory/taskhub-sync-two-paths.md`.
 
 ---
 
 ## Commits
 
-`cc636d7`, `f33b2ee`, `4d621f2` — all `auto: claude code` (repo auto-commit hook).
-Changes are confined to `index.html` and `tests/archive-visibility.test.js`.
+Round 1: `cc636d7`, `f33b2ee`, `4d621f2`, `6099a24`.
+Round 2: everything after `6099a24` on 2026-09-01.
+
+All `auto:` commits from the repo auto-commit hook. Changes are confined to
+`index.html`, `tests/archive-visibility.test.js` and this document.

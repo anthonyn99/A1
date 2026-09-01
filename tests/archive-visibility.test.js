@@ -188,15 +188,32 @@ function grab(name, from) {
 const vedaScope = HTML.indexOf('Weekly-data retention (mirror of');
 const vedaTop = HTML.lastIndexOf('function dkey(', vedaScope);
 const src = [grab('dkey', vedaTop), grab('thDataBytes', vedaScope),
-             grab('thTodayKey', vedaScope), grab('thSplitArchivable', vedaScope)].join('\n');
+             grab('thTodayKey', vedaScope), grab('thMinAgeKey', vedaScope),
+             grab('thLoadArchivedKeys', vedaScope), grab('thSaveArchivedKeys', vedaScope),
+             grab('thSplitArchivable', vedaScope)].join('\n');
 const TH_DAYKEY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TH_ARCHIVE_YEARS = 6, TH_ARCHIVE_SOFT_BYTES = 780000;
-const { thSplitArchivable, thDataBytes, dkey } = new Function(
+// Read the floor out of the shipped source rather than restating it here, so
+// nobody can quietly shrink the guard and still have these tests pass.
+const TH_ARCHIVE_MIN_AGE_DAYS = Number(/const TH_ARCHIVE_MIN_AGE_DAYS=(\d+);/.exec(HTML)[1]);
+// The registry helpers really do touch localStorage, so give them one.
+const _store = {};
+const localStorageShim = {
+  getItem: k => (k in _store ? _store[k] : null),
+  setItem: (k, v) => { _store[k] = String(v); }
+};
+const { thSplitArchivable, thDataBytes, dkey, thMinAgeKey,
+        thLoadArchivedKeys, thSaveArchivedKeys } = new Function(
   'TH_DAYKEY_RE', 'TH_ARCHIVE_YEARS', 'TH_ARCHIVE_SOFT_BYTES',
-  src + '\nreturn {thSplitArchivable,thDataBytes,thTodayKey,dkey};'
-)(TH_DAYKEY_RE, TH_ARCHIVE_YEARS, TH_ARCHIVE_SOFT_BYTES);
+  'TH_ARCHIVE_MIN_AGE_DAYS', 'localStorage',
+  src + '\nreturn {thSplitArchivable,thDataBytes,thTodayKey,dkey,thMinAgeKey,' +
+        'thLoadArchivedKeys,thSaveArchivedKeys};'
+)(TH_DAYKEY_RE, TH_ARCHIVE_YEARS, TH_ARCHIVE_SOFT_BYTES,
+  TH_ARCHIVE_MIN_AGE_DAYS, localStorageShim);
 
-// ~2 years of realistic daily tasks — enough to blow past the soft cap.
+// ~4 years of realistic daily tasks. Two years no longer overflows on its own now
+// that the floor protects the recent window, and the point of this fixture is to
+// make the valve actually fire with plenty of archivable history behind the floor.
 const data = {};
 const today = new Date();
 function mk(n) {
@@ -205,7 +222,7 @@ function mk(n) {
     title: 'Some reasonably long task title for realism ' + i, category: 'study', notes: 'x'.repeat(120) });
   return a;
 }
-for (let back = 0; back < 730; back++) {
+for (let back = 0; back < 1460; back++) {
   const d = new Date(today); d.setDate(d.getDate() - back);
   data[dkey(d.getFullYear(), d.getMonth(), d.getDate())] = mk(6);
 }
@@ -248,7 +265,120 @@ t('the upload payload still fits under the soft cap',
 t('the payload keeps every non-archived day',
   Object.keys(merged).filter(k => !archivedFlags[k]).every(k => k in payloadData));
 
-console.log('\n' + '\u2500'.repeat(64));
+// ────────── the 2026-09-01 recurrence: recent days must survive ──────────
+section('Behaviour: the size valve may never touch recent days');
+
+// The reported symptom, stated as data.
+const lastFive = [];
+for (let back = 1; back <= 5; back++) {
+  const d = new Date(today); d.setDate(d.getDate() - back);
+  lastFive.push(dkey(d.getFullYear(), d.getMonth(), d.getDate()));
+}
+const floorKey = thMinAgeKey();
+
+t('the floor sits ' + TH_ARCHIVE_MIN_AGE_DAYS + ' days back, well clear of this week',
+  lastFive.every(k => k > floorKey));
+
+// A floor is only useful if the archiver can still get under the cap WITH it in
+// place. 550 days was tried first and is 800 KB at this density — over the cap on
+// its own, which would have left the doc permanently oversize.
+const protectedWindow = {};
+Object.keys(data).forEach(k => { if (k >= floorKey) protectedWindow[k] = data[k]; });
+t('the protected window itself fits under the soft cap',
+  thDataBytes(protectedWindow) <= TH_ARCHIVE_SOFT_BYTES,
+  'At ~' + Math.round(thDataBytes(protectedWindow) / Object.keys(protectedWindow).length) +
+  ' bytes/day the floor costs ' + (thDataBytes(protectedWindow) / 1024).toFixed(0) +
+  ' KB of a ' + (TH_ARCHIVE_SOFT_BYTES / 1024).toFixed(0) + ' KB budget. Raise the floor ' +
+  'and the archiver can no longer reach the cap at all.');
+
+t('NO day inside the floor is archived, even though the doc is far over the cap',
+  movedKeys.every(k => k < floorKey),
+  'This is the whole bug: the old valve stopped at todayKey, so it archived ' +
+  'yesterday, then the day before, one bite per device per day.');
+
+t('specifically, all five of the reported days survive in the live doc',
+  lastFive.every(k => k in split.keep) && lastFive.every(k => !movedKeys.includes(k)),
+  'Veda opened TaskHub and found the last five days gone.');
+
+t('an oversize doc that cannot be fixed is REPORTED, not paid for',
+  thDataBytes(split.keep) > TH_ARCHIVE_SOFT_BYTES
+    ? split.overCap === thDataBytes(split.keep)
+    : split.overCap === undefined,
+  'overCap is how the archiver knows to shout instead of eating the present.');
+
+section('Behaviour: the archived-key registry survives a reload');
+
+// A device archives, flags the keys, persists the registry — then the tab closes.
+const reg = {};
+movedKeys.forEach(k => { reg[k] = true; });
+thSaveArchivedKeys('td_archivedKeys', reg);
+
+// …and comes back. `data` rehydrates from localStorage still holding the merged
+// history, because that is exactly what setDataLocalOnly wrote to it.
+const coldData = { ...merged };
+const coldReg = thLoadArchivedKeys('td_archivedKeys');
+
+t('every archived key is still flagged after a cold load',
+  movedKeys.length > 0 && movedKeys.every(k => coldReg[k] === true),
+  'A memory-only registry came back empty here, which is how archived history got ' +
+  're-uploaded into the live document on the very next save.');
+
+const coldPayload = {};
+Object.entries(coldData).forEach(([k, v]) => { if (!coldReg[k]) coldPayload[k] = v; });
+
+t('the cold-load payload still excludes archived history',
+  movedKeys.every(k => !(k in coldPayload)));
+
+t('the cold-load payload stays under the 900 KB write guard',
+  thDataBytes(coldPayload) <= 900000 && thDataBytes(coldData) > thDataBytes(coldPayload),
+  'Without the persisted registry this payload was the full merged doc, which the ' +
+  'guard refuses outright — sync stops and the device silently diverges.');
+
+t('an absent registry reads as empty rather than throwing',
+  Object.keys(thLoadArchivedKeys('td_nope_not_a_key')).length === 0);
+
+section('Behaviour: recent days archived by the OLD valve are reclaimed');
+
+// What Veda's device looks like right now: a registry left behind by the pre-fix
+// valve, flagging days that are only a few days old.
+const staleReg = { ...reg };
+lastFive.forEach(k => { staleReg[k] = true; });
+const staleMerged = { ...merged };
+
+// The shipped reclaim rule, applied to that state.
+const reclaimable = Object.keys(staleReg).filter(k => k >= floorKey && (k in staleMerged));
+
+t('the reclaim rule selects exactly the wrongly-archived recent days',
+  lastFive.every(k => reclaimable.includes(k)) && reclaimable.every(k => k >= floorKey),
+  'Old history stays read-only; only what the valve should never have taken comes back.');
+
+// The shipped loop is budgeted: newest-first, stopping at the cap, so a reclaim
+// can never re-create the oversize document that started all of this.
+const afterReclaim = { ...staleReg };
+const liveOnly = {};
+Object.keys(staleMerged).forEach(k => { if (!afterReclaim[k]) liveOnly[k] = staleMerged[k]; });
+let liveBytes = thDataBytes(liveOnly);
+const reclaimed = [];
+for (const k of reclaimable.slice().sort().reverse()) {
+  const add = thDataBytes({ [k]: staleMerged[k] });
+  if (liveBytes + add > TH_ARCHIVE_SOFT_BYTES) break;
+  liveBytes += add; delete afterReclaim[k]; reclaimed.push(k);
+}
+const reclaimedPayload = {};
+Object.entries(staleMerged).forEach(([k, v]) => { if (!afterReclaim[k]) reclaimedPayload[k] = v; });
+
+t('reclaimed days are back in the upload payload (editable again)',
+  lastFive.every(k => reclaimed.includes(k)) && lastFive.every(k => k in reclaimedPayload),
+  'The newest days are taken first, so the ones the user just lost come back first.');
+
+t('reclaiming does not re-create an oversize live document',
+  thDataBytes(reclaimedPayload) <= TH_ARCHIVE_SOFT_BYTES,
+  'The shipped loop adds days newest-first and stops at the cap for exactly this.');
+
+t('genuinely old history is NOT reclaimed',
+  movedKeys.filter(k => k < floorKey).every(k => afterReclaim[k] === true));
+
+console.log('\n' + '─'.repeat(64));
 if (fail) {
   console.log(fail + ' FAILED:\n  - ' + failures.join('\n  - '));
   process.exit(1);

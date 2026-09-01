@@ -5322,7 +5322,13 @@ const TH_ARCHIVE_SOFT_BYTES=780000;
 // got wiped" was. If the live doc is STILL over the cap with this floor
 // respected, that is a capacity problem to report loudly (split.overCap),
 // never something to quietly pay for with recent days.
-const TH_ARCHIVE_MIN_AGE_DAYS=550;
+//
+// The floor cannot be arbitrarily generous: the window it protects has to FIT
+// under TH_ARCHIVE_SOFT_BYTES on its own, or the archiver is permanently unable
+// to do its job. At the density actually measured on Veda's document (~1.46 KB
+// per day) a year costs ~520 KB, leaving ~260 KB of headroom; 18 months costs
+// ~800 KB, which is already over the cap. One year it is.
+const TH_ARCHIVE_MIN_AGE_DAYS=365;
 function thMinAgeKey(){const n=new Date();n.setDate(n.getDate()-TH_ARCHIVE_MIN_AGE_DAYS);return dkey(n.getFullYear(),n.getMonth(),n.getDate());}
 // The archived-key registry has to OUTLIVE the tab. It is the only thing that
 // tells a cold load "these day-keys live in a sidecar doc, do not upload them"
@@ -7476,6 +7482,11 @@ function App(){
       const _liveOnly={};
       Object.entries(stateRef.current.data||{}).forEach(([k,v])=>{if(!thArchivedRef.current[k])_liveOnly[k]=v;});
       const split=thSplitArchivable(_liveOnly);
+      // Report an unfixable oversize doc HERE, before the "nothing to move"
+      // early return below — that exit is exactly the case worth shouting
+      // about: everything archivable is already archived and the document is
+      // still too big, so the next write may hit the 900 KB guard.
+      if(split.overCap)console.error("[Archive] Tony: live doc is still "+(split.overCap/1024).toFixed(0)+" KB after archiving everything older than "+TH_ARCHIVE_MIN_AGE_DAYS+" days. Recent days are deliberately NOT archived — this needs a capacity plan (see docs/taskhub-archive-handoff.md), not a bigger cap.");
       if(!split.movedCount&&!split.droppedEmpty){
         archiveRanRef.current=true;localStorage.setItem("td6_archive_at",String(Date.now()));return;
       }
@@ -7496,10 +7507,6 @@ function App(){
       Object.entries(stateRef.current.data||{}).forEach(([k,v])=>{if(thArchivedRef.current[k]&&!(k in _merged))_merged[k]=v;});
       setDataLocalOnly(_merged);
       console.log("[Archive] Tony: moved "+split.movedCount+" day(s), dropped "+split.droppedEmpty+" empty; live doc now "+(thDataBytes(split.keep)/1024).toFixed(0)+" KB (archived days still shown, read-only)");
-      // The valve stops at the recent-days floor now, so an oversize doc stays
-      // oversize rather than silently swallowing the present. That is the safe
-      // failure, but it is only safe if somebody hears about it.
-      if(split.overCap)console.error("[Archive] Tony: live doc is still "+(split.overCap/1024).toFixed(0)+" KB after archiving everything older than "+TH_ARCHIVE_MIN_AGE_DAYS+" days. Recent days are deliberately NOT archived — this needs a capacity plan (see docs/taskhub-archive-handoff.md), not a bigger cap.");
     };
     const t=setTimeout(run,20000);
     return()=>clearTimeout(t);
@@ -13712,7 +13719,13 @@ const TH_ARCHIVE_SOFT_BYTES=780000;
 // got wiped" was. If the live doc is STILL over the cap with this floor
 // respected, that is a capacity problem to report loudly (split.overCap),
 // never something to quietly pay for with recent days.
-const TH_ARCHIVE_MIN_AGE_DAYS=550;
+//
+// The floor cannot be arbitrarily generous: the window it protects has to FIT
+// under TH_ARCHIVE_SOFT_BYTES on its own, or the archiver is permanently unable
+// to do its job. At the density actually measured on Veda's document (~1.46 KB
+// per day) a year costs ~520 KB, leaving ~260 KB of headroom; 18 months costs
+// ~800 KB, which is already over the cap. One year it is.
+const TH_ARCHIVE_MIN_AGE_DAYS=365;
 function thMinAgeKey(){const n=new Date();n.setDate(n.getDate()-TH_ARCHIVE_MIN_AGE_DAYS);return dkey(n.getFullYear(),n.getMonth(),n.getDate());}
 // The archived-key registry has to OUTLIVE the tab. It is the only thing that
 // tells a cold load "these day-keys live in a sidecar doc, do not upload them"
@@ -14472,6 +14485,11 @@ function App(){
       const _liveOnly={};
       Object.entries(vdRef.current.data||{}).forEach(([k,v])=>{if(!vdArchivedRef.current[k])_liveOnly[k]=v;});
       const split=thSplitArchivable(_liveOnly);
+      // Report an unfixable oversize doc HERE, before the "nothing to move"
+      // early return below — that exit is exactly the case worth shouting
+      // about: everything archivable is already archived and the document is
+      // still too big, so the next write may hit the 900 KB guard.
+      if(split.overCap)console.error("[Archive] Veda: live doc is still "+(split.overCap/1024).toFixed(0)+" KB after archiving everything older than "+TH_ARCHIVE_MIN_AGE_DAYS+" days. Recent days are deliberately NOT archived — this needs a capacity plan (see docs/taskhub-archive-handoff.md), not a bigger cap.");
       if(!split.movedCount&&!split.droppedEmpty){
         archiveRanRef.current=true;localStorage.setItem("td_archive_at",String(Date.now()));return;
       }
@@ -14492,10 +14510,6 @@ function App(){
       Object.entries(vdRef.current.data||{}).forEach(([k,v])=>{if(vdArchivedRef.current[k]&&!(k in _merged))_merged[k]=v;});
       setDataLocalOnly(_merged);
       console.log("[Archive] Veda: moved "+split.movedCount+" day(s), dropped "+split.droppedEmpty+" empty; live doc now "+(thDataBytes(split.keep)/1024).toFixed(0)+" KB (archived days still shown, read-only)");
-      // The valve stops at the recent-days floor now, so an oversize doc stays
-      // oversize rather than silently swallowing the present. That is the safe
-      // failure, but it is only safe if somebody hears about it.
-      if(split.overCap)console.error("[Archive] Veda: live doc is still "+(split.overCap/1024).toFixed(0)+" KB after archiving everything older than "+TH_ARCHIVE_MIN_AGE_DAYS+" days. Recent days are deliberately NOT archived — this needs a capacity plan (see docs/taskhub-archive-handoff.md), not a bigger cap.");
     };
     const t=setTimeout(run,20000);
     return()=>clearTimeout(t);
