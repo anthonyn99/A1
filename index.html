@@ -10380,12 +10380,15 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // (with retry); if the upload ultimately fails the inline data URI is kept so a
     // pasted screenshot is never silently lost.
     const _bjExtractHtmlImages = async (html, e) => {
-      const div = document.createElement('div');
+      // A <template> is inert: unlike a detached <div>, assigning innerHTML
+      // does not make the browser try to fetch every src it finds — which is
+      // what produced ERR_UNKNOWN_URL_SCHEME for our own placeholders.
+      const div = document.createElement('template');
       div.innerHTML = html;
       // src OR href. The journals hold images in both, and only src was ever
       // looked at — so an entry whose images lived in href stayed inline
       // forever. The rehydrator below restores whichever attribute was used.
-      const imgs = Array.from(div.querySelectorAll('[src],[href]'));
+      const imgs = Array.from(div.content.querySelectorAll('[src],[href]'));
       await Promise.all(imgs.map(async (img) => {
         const attr = (img.getAttribute('src') || '').startsWith('data:') ? 'src'
                    : (img.getAttribute('href') || '').startsWith('data:') ? 'href' : '';
@@ -10772,12 +10775,15 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // ── Rehydrate page HTML: replace bj-fbimg:// placeholders with actual data URIs ──────────────
     window._fbRehydratePageImages = async (html) => {
       if (!html || !html.includes('bj-fbimg://')) return html;
-      const div = document.createElement('div');
+      // A <template> is inert: unlike a detached <div>, assigning innerHTML
+      // does not make the browser try to fetch every src it finds — which is
+      // what produced ERR_UNKNOWN_URL_SCHEME for our own placeholders.
+      const div = document.createElement('template');
       div.innerHTML = html;
       // Must mirror the extractor exactly: it can place the placeholder in
       // src or href, and an attribute it fails to restore is a broken image
       // or a dead link for the reader.
-      const imgs = Array.from(div.querySelectorAll(
+      const imgs = Array.from(div.content.querySelectorAll(
         '[src^="bj-fbimg://"],[href^="bj-fbimg://"]'));
       await Promise.all(imgs.map(async (img) => {
         const attr = (img.getAttribute('src') || '').indexOf('bj-fbimg://') === 0 ? 'src' : 'href';
@@ -11072,9 +11078,12 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
 
     window._fbRehydrateMyJournalImages = async (html) => {
       if (!html || !html.includes('mj-fbimg://')) return html;
-      const div = document.createElement('div');
+      // A <template> is inert: unlike a detached <div>, assigning innerHTML
+      // does not make the browser try to fetch every src it finds — which is
+      // what produced ERR_UNKNOWN_URL_SCHEME for our own placeholders.
+      const div = document.createElement('template');
       div.innerHTML = html;
-      const imgs = Array.from(div.querySelectorAll('img[src^="mj-fbimg://"]'));
+      const imgs = Array.from(div.content.querySelectorAll('img[src^="mj-fbimg://"]'));
       await Promise.all(imgs.map(async (img) => {
         const imgKey = img.getAttribute('src').replace('mj-fbimg://', '');
         try {
@@ -11156,12 +11165,15 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // tj-fbimg:// placeholder is written ONLY after the image is confirmed saved
     // (with retry); on failure the inline data URI is kept so nothing is lost.
     const _tjExtractHtmlImages = async (html, e, dateKey) => {
-      const div = document.createElement('div');
+      // A <template> is inert: unlike a detached <div>, assigning innerHTML
+      // does not make the browser try to fetch every src it finds — which is
+      // what produced ERR_UNKNOWN_URL_SCHEME for our own placeholders.
+      const div = document.createElement('template');
       div.innerHTML = html;
       // src OR href. The journals hold images in both, and only src was ever
       // looked at — so an entry whose images lived in href stayed inline
       // forever. The rehydrator below restores whichever attribute was used.
-      const imgs = Array.from(div.querySelectorAll('[src],[href]'));
+      const imgs = Array.from(div.content.querySelectorAll('[src],[href]'));
       await Promise.all(imgs.map(async (img) => {
         const attr = (img.getAttribute('src') || '').startsWith('data:') ? 'src'
                    : (img.getAttribute('href') || '').startsWith('data:') ? 'href' : '';
@@ -11367,12 +11379,15 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
 
     window._fbRehydrateTonyPageImages = async (html) => {
       if (!html || !html.includes('tj-fbimg://')) return html;
-      const div = document.createElement('div');
+      // A <template> is inert: unlike a detached <div>, assigning innerHTML
+      // does not make the browser try to fetch every src it finds — which is
+      // what produced ERR_UNKNOWN_URL_SCHEME for our own placeholders.
+      const div = document.createElement('template');
       div.innerHTML = html;
       // Must mirror the extractor exactly: it can place the placeholder in
       // src or href, and an attribute it fails to restore is a broken image
       // or a dead link for the reader.
-      const imgs = Array.from(div.querySelectorAll(
+      const imgs = Array.from(div.content.querySelectorAll(
         '[src^="tj-fbimg://"],[href^="tj-fbimg://"]'));
       await Promise.all(imgs.map(async (img) => {
         const attr = (img.getAttribute('src') || '').indexOf('tj-fbimg://') === 0 ? 'src' : 'href';

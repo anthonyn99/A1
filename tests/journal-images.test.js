@@ -79,6 +79,27 @@ const tjRehydrate = grab('window._fbRehydrateTonyPageImages = async (html) => {'
       'A separate document plus a fetch to save a few hundred bytes is a bad trade.');
   });
 
+section('Parsing is inert and fetches nothing');
+
+// A detached <div> is still live: assigning innerHTML makes the browser try to
+// load every src it finds, including our own bj-fbimg:// placeholders. That is
+// where the ERR_UNKNOWN_URL_SCHEME console errors came from - harmless in
+// themselves, but noise that hides real errors. A <template>'s content is inert.
+[['_bjExtractHtmlImages', 'const _bjExtractHtmlImages = async (html, e) => {'],
+ ['_tjExtractHtmlImages', 'const _tjExtractHtmlImages = async (html, e, dateKey) => {'],
+ ['_fbRehydratePageImages', 'window._fbRehydratePageImages = async (html) => {'],
+ ['_fbRehydrateTonyPageImages', 'window._fbRehydrateTonyPageImages = async (html) => {'],
+ ['_fbRehydrateMyJournalImages', 'window._fbRehydrateMyJournalImages = async (html) => {']
+].forEach(([name, marker]) => {
+  const body = grab(marker);
+  t(name + ': parses into an inert template',
+    /createElement\('template'\)/.test(body) && !/createElement\('div'\)/.test(body),
+    'A detached div fetches every src it is given.');
+  t(name + ': queries the template content',
+    /div\.content\.querySelectorAll\(/.test(body),
+    'template.querySelectorAll finds nothing - the nodes live in .content.');
+});
+
 section('No rehydrator uses an attr it never defined');
 
 // My own edit put setAttribute(attr, ...) into the LEGACY myjournal rehydrator,
