@@ -33648,8 +33648,22 @@ function clearAllFormatting(ctx) {
   if (!sel || !sel.rangeCount) return;
   var range = sel.getRangeAt(0);
   if (!ctx.edEl.contains(range.commonAncestorContainer)) return;
-  var CHARPROPS = ['fontFamily','fontSize','fontWeight','fontStyle','color','background','backgroundColor','textDecoration','textDecorationLine','textDecorationColor','letterSpacing','wordSpacing','textShadow','verticalAlign','textTransform','fontVariant','WebkitTextStroke'];
+  var CHARPROPS = ['fontFamily','fontSize','fontWeight','fontStyle','color','background','backgroundColor','backgroundImage','backgroundClip','WebkitBackgroundClip','textDecoration','textDecorationLine','textDecorationColor','letterSpacing','wordSpacing','textShadow','verticalAlign','textTransform','fontVariant','WebkitTextStroke','boxShadow','WebkitTextFillColor'];
+  // Containers a paste can hang a background on. The old list stopped at the
+  // block that holds the text, so a background painted on the <ol>/<table>/
+  // wrapper around it survived every clear — the reported "I can't get rid of
+  // the black box behind pasted text".
+  var STRIPPABLE = /^(P|H[1-6]|LI|OL|UL|BLOCKQUOTE|PRE|DIV|SPAN|SECTION|ARTICLE|MAIN|HEADER|FOOTER|ASIDE|FIGURE|FIGCAPTION|DL|DT|DD|TABLE|THEAD|TBODY|TFOOT|TR|TD|TH|CAPTION|COLGROUP|COL|A|CODE|LABEL|SMALL|ADDRESS|CENTER|FONT)$/;
+  // KaTeX renders math with inline font styling of its own — stripping that
+  // turns a rendered equation into garbage, so math subtrees are left alone.
+  function inMath(el) { return !!(el.closest && el.closest('.docx-math')); }
   function intersects(el) { try { return range.intersectsNode(el); } catch (e) { return true; } }
+  function stripEl(el) {
+    if (inMath(el)) return;
+    CHARPROPS.forEach(function(p) { el.style[p] = ''; });
+    el.removeAttribute('bgcolor');
+    if (!(el.getAttribute('style') || '').trim()) el.removeAttribute('style');
+  }
   // 1) Browser-native inline strip (bold/italic/underline/strike/color/bg/font/size/sub/sup).
   document.execCommand('styleWithCSS', false, true);
   document.execCommand('removeFormat');
@@ -33658,17 +33672,30 @@ function clearAllFormatting(ctx) {
   if (window._docxStripHighlight) window._docxStripHighlight(ctx.edEl, range.cloneRange());
   // 3) Unwrap any inline formatting ELEMENTS the browser left behind (b/i/u/s/strike/…).
   Array.prototype.slice.call(ctx.edEl.querySelectorAll('b,strong,i,em,u,s,strike,del,ins,sub,sup,font,mark,big,tt')).forEach(function(el) {
-    if (intersects(el)) _unwrap(el);
+    if (intersects(el) && !inMath(el)) _unwrap(el);
   });
-  // 4) Strip character styles left on spans AND on the block elements themselves
-  //    (covers block-level strikethrough/color applied to a <p>/<blockquote>/<li>).
-  Array.prototype.slice.call(ctx.edEl.querySelectorAll('[style]')).forEach(function(el) {
+  // 4) Strip character styles left on spans, on the block elements themselves
+  //    (block-level strikethrough/colour on a <p>/<blockquote>/<li>), and on the
+  //    list/table/section containers a paste may have painted.
+  Array.prototype.slice.call(ctx.edEl.querySelectorAll('[style],[bgcolor]')).forEach(function(el) {
     if (!intersects(el)) return;
-    if (/^(P|H[1-6]|LI|BLOCKQUOTE|PRE|DIV|SPAN|DL|DT|DD|TD|TH)$/.test(el.tagName)) {
-      CHARPROPS.forEach(function(p) { el.style[p] = ''; });
-      if (el.tagName === 'SPAN' && !(el.getAttribute('style') || '').trim()) _unwrap(el);
-    }
+    if (!STRIPPABLE.test(el.tagName)) return;
+    stripEl(el);
+    if (el.tagName === 'SPAN' && !el.getAttribute('style')) _unwrap(el);
   });
+  // 5) Walk the ancestors of the selection up to the editor. A wrapper that
+  //    CONTAINS the whole selection is what usually carries a pasted page's
+  //    background, and it is the one thing a selection-based sweep can miss.
+  var anc = range.commonAncestorContainer;
+  if (anc.nodeType === 3) anc = anc.parentNode;
+  while (anc && anc !== ctx.edEl) {
+    if (anc.nodeType === 1 && STRIPPABLE.test(anc.tagName)) stripEl(anc);
+    anc = anc.parentNode;
+  }
+  // The editor itself can be handed a background by a whole-document paste.
+  ctx.edEl.style.background = '';
+  ctx.edEl.style.backgroundColor = '';
+  ctx.edEl.removeAttribute('bgcolor');
   ctx.edEl.normalize();
   fireInput(ctx.edEl);
 }
