@@ -109,7 +109,7 @@ t('Veda archiver refuses to prune before the restore has run',
   'fresh flags would be overwritten by the registry rebuild moments later.');
 
 t('Veda restore reclaims recent days as editable',
-  /const floorKey=thMinAgeKey\(\);[\s\S]{0,800}?delete nextArchived\[k\];reclaimed\.push\(k\)/.test(HTML) &&
+  /const floorKey=thMinAgeKey\(\);[\s\S]{0,1600}?delete nextArchived\[k\];reclaimed\.push\(k\)/.test(HTML) &&
   /if\(reclaimed\.length\)\{reclaimed\.sort\(\);vdFbPush\(\);\}/.test(HTML),
   'Days the old valve took out of the recent window must go BACK into the live doc, ' +
   'editable — and that needs a real write, not just setDataLocalOnly.');
@@ -117,6 +117,34 @@ t('Veda restore reclaims recent days as editable',
 t('archived days are read-only in the UI',
   (HTML.match(/vdArchivedRef\.current\[k\]\)\{if\(window\._planReadOnlyNudge\)/g) || []).length >= 2,
   'Both tog() and del() must refuse edits to archived day-keys.');
+
+section('The reclaim is budgeted against the WHOLE payload');
+
+// TH_ARCHIVE_SOFT_BYTES is measured on `data` alone, but _guardedWrite refuses
+// the whole payload at FB_MAX_WRITE_BYTES (900 KB) — and the payload also
+// carries habits, hc, goals, monthlyGoals, goalPrefs and Veda's rules. Budget
+// only `data` and a reclaim can push the payload past the guard, at which point
+// every save is refused and the profile stops syncing entirely.
+t('a reclaim-specific payload ceiling exists',
+  /const TH_RECLAIM_MAX_PAYLOAD=(\d+);/.test(HTML));
+const RECLAIM_MAX = Number(/const TH_RECLAIM_MAX_PAYLOAD=(\d+);/.exec(HTML)[1]);
+const WRITE_GUARD = Number(/const FB_MAX_WRITE_BYTES = (\d+);/.exec(HTML)[1]);
+t('it leaves real margin under the write guard',
+  RECLAIM_MAX < WRITE_GUARD && WRITE_GUARD - RECLAIM_MAX >= 50000,
+  RECLAIM_MAX + ' vs guard ' + WRITE_GUARD);
+t('the non-data payload overhead is measured, not assumed',
+  (HTML.match(/const overhead=thDataBytes\(\{habits:_s\.habits/g) || []).length === 2);
+t("Veda's overhead includes her rules and rulesDaily",
+  /rules:_s\.rules,rulesDaily:_s\.rulesDaily/.test(HTML),
+  'Veda-only fields; omitting them would under-count her payload.');
+t('the loop stops at the computed budget, not the raw soft cap',
+  (HTML.match(/if\(liveBytes\+add>budget\)break;/g) || []).length === 2 &&
+  !/if\(liveBytes\+add>TH_ARCHIVE_SOFT_BYTES\)break;/.test(HTML));
+t('the budget is the smaller of the two limits',
+  (HTML.match(/const budget=Math\.min\(TH_ARCHIVE_SOFT_BYTES,TH_RECLAIM_MAX_PAYLOAD-overhead\);/g) || []).length === 2);
+t('the budget and overhead are reported, so a capped reclaim is visible',
+  (HTML.match(/KB budget \(payload overhead/g) || []).length === 2,
+  'A silently-capped reclaim looks identical to a bug.');
 
 section('The reclaim converges (2026-09-01 regression)');
 
