@@ -34507,7 +34507,14 @@ function _docxHtmlToMd(root, opts) {
       case 'hr': return '\n\n---\n\n';
       case 'ul': return '\n\n' + listMd(el, false, 0) + '\n\n';
       case 'ol': return '\n\n' + listMd(el, true, 0) + '\n\n';
-      case 'li': return kids(el);
+      case 'li': {
+        // Inside a real list, listMd() has already emitted the marker. Orphaned —
+        // which is what a partial selection clone produces — the item has to carry
+        // its own, or copying half a list yields run-together words.
+        var lip = el.parentNode;
+        if (lip && lip.nodeType === 1 && /^(ul|ol)$/i.test(lip.tagName)) return kids(el);
+        return '- ' + kids(el).replace(/\s+/g, ' ').trim() + '\n';
+      }
       case 'table': return '\n\n' + tableMd(el) + '\n\n';
       case 'p': case 'div': return kids(el) + '\n\n';
       case 'input': return '';
