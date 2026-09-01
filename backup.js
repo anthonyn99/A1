@@ -101,6 +101,19 @@
   function kb(n) { return (n / 1024).toFixed(1) + ' KB'; }
   function mb(n) { return (n / 1048576).toFixed(1) + ' MB'; }
 
+  // Actual gzipped size of a value, via CompressionStream. Returns null where
+  // the API is unavailable (older Safari), so callers can say "unknown" rather
+  // than silently substituting a guess.
+  async function gzipBytes(obj) {
+    try {
+      if (typeof CompressionStream === 'undefined') return null;
+      var blob = new Blob([JSON.stringify(obj)]);
+      var cs = new CompressionStream('gzip');
+      var out = await new Response(blob.stream().pipeThrough(cs)).blob();
+      return out.size;
+    } catch (e) { return null; }
+  }
+
   // The document families Index owns. Groups 1 and 2 are fixed paths; groups
   // 3-5 are derived, because their members are unbounded and un-indexed.
   var SINGLETONS = [
@@ -179,13 +192,14 @@
 
     // Groups 1 + 2 — fixed singletons.
     var singles = [], singleBytes = 0, missing = [], failed = [];
-    var journalCache = {};
+    var journalCache = {}, core = {};
     for (var i = 0; i < SINGLETONS.length; i++) {
       var name = SINGLETONS[i];
       var d = await readDoc(name);
       if (d === undefined) { failed.push(name); continue; }
       if (d === null) { missing.push(name); continue; }
       journalCache[name] = d;             // reused below, so journals cost one read
+      core[name] = d;
       var b = bytesOf(d);
       singleBytes += b;
       singles.push({ path: name, bytes: b });
@@ -203,6 +217,7 @@
       for (var y = year - A1B.ARCHIVE_YEARS_BACK; y <= year; y++) {
         var ad = await readDoc(base + y);
         if (!ad) continue;
+        core[base + y] = ad;
         var ab = bytesOf(ad);
         archiveBytes += ab;
         archives.push({ path: base + y, bytes: ab,
@@ -234,6 +249,7 @@
       for (var e = 0; e < ids.length; e++) {
         var cd = await readDoc(spec.canvasPrefix + ids[e]);
         if (!cd) continue;
+        core[spec.canvasPrefix + ids[e]] = cd;
         var cb = bytesOf(cd);
         canvasBytes += cb;
         canvases.push({ path: spec.canvasPrefix + ids[e], bytes: cb });
@@ -268,9 +284,11 @@
 
     // A "core" snapshot is everything except the image blobs.
     var coreBytes = singleBytes + archiveBytes + canvasBytes;
+    var coreGz = await gzipBytes(core);
     report.totals = {
       readsUsed: reads,
       coreBytesRaw: coreBytes,
+      coreBytesGzip: coreGz,
       docCount: singles.length + archives.length + canvases.length,
       imageCount: imgIds.length,
       imageBytesEst: report.groups.images.estTotalBytes,
@@ -296,7 +314,17 @@
                    g.images.unrecognisedKeys.slice(0, 8));
     }
     console.log('  CORE snapshot ...... ' + kb(coreBytes) + ' raw'
-                + '   (gzip+encrypt typically lands near a tenth of this)');
+                + (coreGz != null
+                    ? '  ->  ' + kb(coreGz) + ' gzipped ('
+                      + (coreBytes / coreGz).toFixed(1) + 'x). AES adds ~0%.'
+                    : '  (gzip unavailable here — compressed size UNKNOWN)'));
+    if (coreGz != null) {
+      // Ciphertext does not delta-compress, so each committed day is a fresh
+      // blob. Retention is 30 daily + 52 weekly + 12 monthly = 94 files/year.
+      var perYear = coreGz * 94;
+      console.log('   git growth ........ ~' + mb(perYear) + '/device/year'
+                  + '  (94 retained files; 3 devices ~= ' + mb(perYear * 3) + '/yr)');
+    }
     console.log('  largest singletons . ' + g.singletons.largest.map(function (x) {
       return x.path + ' ' + kb(x.bytes); }).join('  |  '));
 
