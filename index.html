@@ -35017,6 +35017,35 @@ function wireEditor(ctx) {
   });
   // Delegated image handling so images stay resizable/deletable/copyable no matter how the DOM moves
   wireImageDelegation(ctx);
+  // ── Copy / cut as Markdown ──
+  // The rendered document is a view of Markdown, so that is what the clipboard's
+  // plain-text flavour should carry; text/html keeps the rich markup for targets
+  // that want it (Word, Docs, another editor here).
+  function copyAsMarkdown(e, isCut) {
+    var sel = window.getSelection();
+    if (!sel || !sel.rangeCount || sel.isCollapsed) return;
+    if (!ed.contains(sel.anchorNode) || !ed.contains(sel.focusNode)) return;
+    var range = sel.getRangeAt(0);
+    var holder = document.createElement('div');
+    holder.appendChild(range.cloneContents());
+    var md;
+    try { md = _docxHtmlToMd(holder); } catch (err) { return; }   // fall back to the default copy
+    if (!md) return;
+    var cd = e.clipboardData || window.clipboardData;
+    if (!cd) return;
+    e.preventDefault();
+    try {
+      cd.setData('text/plain', md);
+      cd.setData('text/html', holder.innerHTML);
+    } catch (err) { return; }
+    if (isCut) {
+      range.deleteContents();
+      fireInput(ed);
+    }
+  }
+  ed.addEventListener('copy', function(e) { copyAsMarkdown(e, false); });
+  ed.addEventListener('cut', function(e) { copyAsMarkdown(e, true); });
+
   // Keep selection bookmarked for toolbar/menu actions; reseed history on entry switch
   ed.addEventListener('keyup', function() { saveSel(ctx); syncFontSizeUI(ctx); });
   ed.addEventListener('mouseup', function() { saveSel(ctx); syncFontSizeUI(ctx); });
