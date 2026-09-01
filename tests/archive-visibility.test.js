@@ -118,6 +118,47 @@ t('archived days are read-only in the UI',
   (HTML.match(/vdArchivedRef\.current\[k\]\)\{if\(window\._planReadOnlyNudge\)/g) || []).length >= 2,
   'Both tog() and del() must refuse edits to archived day-keys.');
 
+section('Journal image compaction is interlocked behind a real backup');
+
+// dashboards/journal measured 700 KB on 2026-09-01 - 78% of the 900 KB ceiling
+// where _guardedWrite refuses EVERY save and the journal silently stops
+// syncing. The bulk is base64 still inline in entry HTML.
+t('compaction exists for both journals',
+  /window\._bjCompactImages = /.test(HTML) && /window\._tjCompactImages = /.test(HTML));
+t('it re-saves through the shipped extractor rather than duplicating it',
+  /stripEntry: _bjStripEntry/.test(HTML) && /stripEntry: _tjStripEntry/.test(HTML),
+  'That path only replaces the src once the image doc is CONFIRMED written, and ' +
+  'keeps the inline copy if that write fails - so a failed run loses nothing.');
+const _compactBody = HTML.slice(
+  HTML.indexOf('async function _compactImages'),
+  HTML.indexOf('window._bjCompactImages'));
+t('it never republishes _order',
+  _compactBody.length > 500 && _compactBody.indexOf('_order') === -1,
+  'A stale _order is its own known way to lose a journal entry list. Body was ' +
+  _compactBody.length + ' chars.');
+t('it writes one entry field at a time, not the whole document',
+  /_fbUpsert\(ref, \{ \[key\]: clean, savedAt: Date\.now\(\) \}/.test(_compactBody),
+  'A whole-document write would drag every other entry along with it.');
+t('an entry still holding inline images after extraction is skipped, not rewritten',
+  /images could not be moved \(upload failed\) — left as is/.test(HTML));
+t('it re-reads the document to report the real size',
+  /Re-read rather than assume/.test(HTML),
+  'Only the server knows the size that the write guard actually measures.');
+
+// The interlock must mean "a backup exists", and health().ok does NOT mean that:
+// it reports true for a device with no backup at all so the watchdog does not
+// nag people who never set one up. Used as a guard it waved through exactly the
+// case it existed to stop.
+t('the interlock demands a real, recent snapshot',
+  /const haveBackup = !!\(st && st\.locked === false && st\.lastSnapshot && !st\.stale\);/.test(HTML));
+t('it does not rely on health().ok',
+  !/await window\.A1Backup\.health\(\)\)\.ok/.test(HTML),
+  'health().ok is true for a device that has never backed up anything.');
+t('a refusal explains which condition failed',
+  /no passphrase is set on this device/.test(HTML) &&
+  /nothing has been backed up yet/.test(HTML) &&
+  /the last backup is stale/.test(HTML));
+
 section('The reclaim is budgeted against the WHOLE payload');
 
 // TH_ARCHIVE_SOFT_BYTES is measured on `data` alone, but _guardedWrite refuses
