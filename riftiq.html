@@ -1831,6 +1831,15 @@ html.lk-open, body.lk-open {
 .bld-sections { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
 .bld-sect { min-width: 0; max-width: 100%; }
 .bld-icons { display: flex; gap: 5px; flex-wrap: wrap; }
+.bld-row-del {
+  width: 28px; height: 28px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: 1px solid var(--bd2); border-radius: 6px;
+  color: var(--tx3); font-size: 13px; cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+.bld-row-del:hover { border-color: var(--red); color: var(--red); }
+@media (pointer: coarse) { .bld-row-del { width: 38px; height: 38px; } }
 
 /* ── Build editor ──
    Inline widths here would have to be fought with !important from the phone
@@ -2917,12 +2926,16 @@ body.wr-scrolllocked {
   .recent-player-row { gap: 9px; padding: 9px 11px; }
   .rp-name { font-size: 14px; }
 
-  /* Builds: full-width single column */
+  /* Builds: full-width single column. The panel owns its own scrollers, so the
+     14px the .tab-panel rule above adds to every panel would push its 100%-tall
+     child 28px past the bottom of the viewport — it keeps its own zero. */
+  #builds-panel { padding: 0 !important; }
   #builds-panel.active { grid-template-columns: 1fr !important; grid-template-rows: auto 1fr; }
   .builds-sidebar { max-height: 220px; border-right: none; border-bottom: 1px solid var(--bd); }
   .champ-list { max-height: 120px; }
   .builds-main { padding: 12px; }
   .build-card { padding: 14px; }
+  #builds-home-list, #champ-builds-list { padding: 12px 14px !important; }
   .modal-box { width: calc(100vw - 24px) !important; padding: 20px 16px; max-height: 88dvh; overflow-y: auto; }
   .modal-actions { position: sticky; bottom: 0; background: var(--bg3); padding-top: 10px; }
 
@@ -6716,7 +6729,7 @@ function renderBuildsHome() {
     row.dataset.cid = cid;
     row.dataset.ci = ci;
     row.draggable = true;
-    row.style.cssText = 'display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--bg3);border:1px solid var(--bd);border-radius:8px;margin-bottom:8px;cursor:pointer;transition:border-color 0.15s;user-select:none;';
+    row.style.cssText = 'display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--bg3);border:1px solid var(--bd);border-radius:8px;margin-bottom:8px;cursor:pointer;transition:border-color 0.15s;user-select:none;touch-action:manipulation;';
     row.addEventListener('click', function(){ openChampBuilds(this.dataset.cid); });
     row.onmouseover = function(){ this.style.borderColor='var(--bd2)'; };
     row.onmouseout = function(){ this.style.borderColor='var(--bd)'; };
@@ -6724,12 +6737,13 @@ function renderBuildsHome() {
     img.src = DDRAGON + '/img/champion/' + cid + '.png';
     img.style.cssText = 'width:44px;height:44px;border-radius:8px;flex-shrink:0;pointer-events:none;';
     var info = document.createElement('div');
-    info.style.cssText = 'flex:1;pointer-events:none;';
-    info.innerHTML = '<div style="font-family:var(--head);font-size:15px;font-weight:700;color:var(--tx);">'+(champ?champ.name:cid)+'</div><div style="font-family:var(--mono);font-size:12px;color:var(--tx3);">'+champBuilds.length+' build'+(champBuilds.length!==1?'s':'')+'</div>';
+    info.style.cssText = 'flex:1;min-width:0;pointer-events:none;';
+    info.innerHTML = '<div style="font-family:var(--head);font-size:15px;font-weight:700;color:var(--tx);overflow-wrap:anywhere;">'+(champ?champ.name:cid)+'</div><div style="font-family:var(--mono);font-size:12px;color:var(--tx3);">'+champBuilds.length+' build'+(champBuilds.length!==1?'s':'')+'</div>';
     var delBtn = document.createElement('button');
-    delBtn.style.cssText = 'width:28px;height:28px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx3);font-size:13px;cursor:pointer;';
+    delBtn.className = 'bld-row-del';
     delBtn.innerHTML = wrIco('close',13);
     delBtn.title = 'Delete';
+    delBtn.setAttribute('aria-label', 'Delete builds for ' + (champ?champ.name:cid));
     delBtn.addEventListener('click', function(e){ e.stopPropagation(); deleteChampBuilds(this.parentElement.dataset.cid); });
     delBtn.onmouseover = function(){ this.style.borderColor='var(--red)'; this.style.color='var(--red)'; };
     delBtn.onmouseout = function(){ this.style.borderColor='var(--bd2)'; this.style.color='var(--tx3)'; };
@@ -7473,6 +7487,11 @@ function renderRuneBuilderZone(b) {
   return html;
 }
 
+// A finger, not a mouse — decides the wording of the drop-zone hints.
+function _beCoarse() {
+  return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+}
+
 function refreshBuildZones() {
   var iz = document.getElementById('be-items-zone');
   if (iz) {
@@ -7481,7 +7500,7 @@ function refreshBuildZones() {
     if (!items.length) {
       var hint = document.createElement('span');
       hint.style.cssText = 'font-family:var(--mono);font-size:12px;color:var(--tx3);align-self:center;padding:4px;';
-      hint.innerHTML = 'Drag or click items '+wrIco('arrowR',12);
+      hint.innerHTML = _beCoarse() ? ('Tap or hold-drag items '+wrIco('arrowR',12)) : ('Drag or click items '+wrIco('arrowR',12));
       iz.appendChild(hint);
     } else {
       items.forEach(function(id, i) {
@@ -7516,7 +7535,7 @@ function refreshBuildZones() {
     if (!spells.length) {
       var hint2 = document.createElement('span');
       hint2.style.cssText = 'font-family:var(--mono);font-size:12px;color:var(--tx3);align-self:center;padding:4px;';
-      hint2.innerHTML = 'Drag or click spells '+wrIco('arrowR',12);
+      hint2.innerHTML = _beCoarse() ? ('Tap or hold-drag spells '+wrIco('arrowR',12)) : ('Drag or click spells '+wrIco('arrowR',12));
       sz.appendChild(hint2);
     } else {
       spells.forEach(function(sid, i) {
@@ -7667,6 +7686,13 @@ function _beTdStart() {
   d.src.classList.add('bld-lifted');
   try { d.src.setPointerCapture(d.id); } catch(_e) {}
   try { navigator.vibrate(18); } catch(_e) {}
+  // Stacked on a phone the zone can be scrolled out of the pane above, which
+  // would leave you dragging toward something you cannot see. Bring it up the
+  // moment the drag arms.
+  if (d.from === 'panel') {
+    var tgt = document.getElementById('be-' + d.zone + '-zone');
+    if (tgt && tgt.scrollIntoView) { try { tgt.scrollIntoView({ block: 'nearest' }); } catch(_e) { tgt.scrollIntoView(); } }
+  }
   _beTdFollow();
   _beTdHighlight();
   if (!_beTdRaf) _beTdRaf = requestAnimationFrame(_beTdAutoScroll);
