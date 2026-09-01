@@ -8803,7 +8803,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
   import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
-  import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app-check.js";
+  import { initializeAppCheck, ReCaptchaV3Provider, getToken as getAppCheckToken } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app-check.js";
   import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, persistentSingleTabManager, terminate, clearIndexedDbPersistence, doc, setDoc, updateDoc, onSnapshot, getDoc, getDocFromServer, deleteField, deleteDoc, collection, getDocs, query, orderBy, limit, startAt, startAfter, endBefore, documentId } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
   import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-storage.js";
 
@@ -8818,10 +8818,21 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
 
   const app = initializeApp(firebaseConfig);
   // App Check — ensures only this app can use Firebase, not third-party scripts
-  initializeAppCheck(app, {
+  const _appCheck = initializeAppCheck(app, {
     provider: new ReCaptchaV3Provider('6LeUyAstAAAAAEciRypd1i4Akq6ueFUYfXLaLaUX'),
     isTokenAutoRefreshEnabled: true
   });
+  // A token the Workers can verify. This repo is PUBLIC, so no key committed
+  // anywhere can be a credential — an App Check token is the only thing a
+  // browser app here can hold, because it is minted at runtime against the
+  // registered origin and never stored. Same shape as tradehub.html's helper.
+  // Returns '' rather than throwing: a caller should send the request and let
+  // the Worker answer 401, instead of turning a reCAPTCHA hiccup into a request
+  // that never leaves the browser.
+  window._acToken = async () => {
+    try { const t = await getAppCheckToken(_appCheck, false); return (t && t.token) || ''; }
+    catch (e) { return ''; }
+  };
   // Anon auth — gates Firestore rules without requiring a login screen.
   // Expose an awaitable promise (mirrors tradehub.html) so the first reads/
   // listeners carry a valid token instead of racing auth. When a read fires
