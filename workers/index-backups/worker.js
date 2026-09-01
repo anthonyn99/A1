@@ -33,6 +33,10 @@
 //   GET    /o/<hash>                    → fetch one object
 //   POST   /lease/<name>                → elect one device for a periodic job
 //
+// Auth: App Check for the app; or `Authorization: Bearer <PULL_SECRET>` for
+// READ-ONLY pulls by tools/pull-backups.mjs, which has no browser to mint a
+// token with. Set with: wrangler secret put PULL_SECRET
+//
 // Bindings (wrangler.toml):
 //   [[kv_namespaces]] binding = "A1_BACKUPS"
 // ============================================================================
@@ -67,6 +71,16 @@ function json(obj, status, c) {
 // Device and object names come from the client. Keep them tame so a bad request
 // cannot reach odd KV keys or walk out of its own prefix.
 const safeName = (s) => (/^[A-Za-z0-9._-]{1,120}$/.test(s || '') ? s : null);
+
+// Constant-time compare. A plain === on a secret leaks its prefix through
+// response timing, which is a cheap thing to get right and an awkward one to
+// explain later.
+function timingSafeEq(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
 
 // ─── BEGIN GENERATED: appcheck (workers/_shared/appcheck.js) ───
 // Do not edit here — edit the canonical copy and run tools/sync-appcheck.js
@@ -195,11 +209,23 @@ export default {
 
     if (!env.A1_BACKUPS) return json({ ok: false, error: 'kv-not-bound' }, 500, c);
 
-    // Everything past here is gated. These Workers are called from a public
-    // repo's pages, so there is no secret the client can hold; App Check
-    // attests "this request came from the app" and is the only real gate.
-    const denied = await requireAppCheck(request, c);
-    if (denied) return denied;
+    // Everything past here is gated. Two ways in, deliberately:
+    //
+    //  1. App Check — for the app itself. These Workers are called from a public
+    //     repo's pages, so there is no secret a browser can hold; App Check
+    //     attests "this request came from the app" and is the only real gate.
+    //
+    //  2. A PULL secret — for tools/pull-backups.mjs, which has no browser and
+    //     therefore cannot mint an App Check token. It is READ ONLY: it can
+    //     fetch snapshots and objects, never write or delete. A backup step
+    //     that needs a human to paste a token is a backup step that stops
+    //     happening, and the thing it guards is ciphertext either way.
+    const bearer = (request.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
+    const pullOk = !!(env.PULL_SECRET && bearer && timingSafeEq(bearer, env.PULL_SECRET));
+    if (!(pullOk && request.method === 'GET')) {
+      const denied = await requireAppCheck(request, c);
+      if (denied) return denied;
+    }
 
     // ── /index — what exists, without revealing any of it ────────────────
     if (path === '/index' && request.method === 'GET') {
