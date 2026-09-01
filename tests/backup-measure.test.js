@@ -158,9 +158,22 @@ t('gzipBytes uses CompressionStream and returns null when unavailable',
   'Git growth follows the compressed size; it must be a measurement.');
 t('the old "typically lands near a tenth" guess is gone',
   !/near a tenth of this/.test(SRC));
-t('git growth is projected from the measured gzip size',
-  /coreGz \* 94/.test(SRC),
-  '94 = 30 daily + 52 weekly + 12 monthly retained files.');
+// The first version of this projection multiplied by 94 "retained files",
+// which understated growth by ~4x. Git keeps every blob ever committed, so
+// pruning the working tree reclaims nothing: growth is commits-per-year times
+// blob size, and retention policy is irrelevant to it.
+t('git growth is projected from commits per year, not retained files',
+  /\['daily', 365\], \['weekly', 52\], \['monthly', 12\]/.test(SRC) &&
+  !/coreGz \* 94/.test(SRC),
+  'Retention does not bound a git repository.');
+t('the projection says so explicitly',
+  /git keeps every blob ever committed/.test(SRC));
+t('per-document compression is measured',
+  /report\.perDoc = perDoc;/.test(SRC),
+  'A poor overall ratio is only actionable if you know which document causes it.');
+t('documents approaching the 900 KB write guard are flagged',
+  /Firestore write guard refuses at 900 KB/.test(SRC),
+  'A 700 KB document is a live sync risk, not just a backup sizing question.');
 
 section('Phase 0 is still inert');
 
@@ -224,6 +237,12 @@ A1.measure('fake').then((rep) => {
   t('gzipped core size was measured',
     typeof rep.totals.coreBytesGzip === 'number' && rep.totals.coreBytesGzip > 0,
     'got ' + rep.totals.coreBytesGzip);
+  t('per-document compression was recorded for every core document',
+    Array.isArray(rep.perDoc) && rep.perDoc.length >= 2 &&
+    rep.perDoc.every((d) => typeof d.raw === 'number' && typeof d.gz === 'number'),
+    'got ' + JSON.stringify((rep.perDoc || []).map((d) => d.path)));
+  t('perDoc is sorted by compressed size, largest first',
+    (rep.perDoc || []).every((d, i, a) => i === 0 || a[i - 1].gz >= d.gz));
   t('gzip actually compresses (ratio > 2x)',
     rep.totals.coreBytesRaw / rep.totals.coreBytesGzip > 2,
     'raw ' + rep.totals.coreBytesRaw + ' gz ' + rep.totals.coreBytesGzip);
