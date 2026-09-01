@@ -125,10 +125,11 @@ if (jsdom) {
   vm.createContext(sandbox);
   // `const` at the top of a vm script is a lexical binding and never appears
   // on the context object, so the function has to be exported explicitly.
-  vm.runInContext(bjExtract + ';
-' + bjRehydrate +
-    ';
-globalThis.__extract = _bjExtractHtmlImages;', sandbox);
+  // `const` at the top of a vm script is a lexical binding and never appears
+  // on the context object, so the function has to be exported explicitly.
+  vm.runInContext(
+    bjExtract + '; ' + bjRehydrate + '; globalThis.__extract = _bjExtractHtmlImages;',
+    sandbox);
 
   const extract = sandbox.__extract;
   const rehydrate = sandbox.window._fbRehydratePageImages;
@@ -142,13 +143,18 @@ globalThis.__extract = _bjExtractHtmlImages;', sandbox);
   };
 
   (async () => {
+    // The extractor also stamps data-bjkey on the element so a later save can
+    // reuse the same key - existing behaviour, and not part of the image. What
+    // must survive the round trip is the image content itself.
+    const norm = (h) => String(h).replace(/ data-(bj|tj)key="[^"]*"/g, '');
     for (const [name, original] of Object.entries(cases)) {
       const stripped = await extract(original, { id: 'e1' });
       const back = await rehydrate(stripped);
-      t('round-trips ' + name, back === original,
-        '\n        in:  ' + original.slice(0, 70) +
-        '\n        out: ' + String(back).slice(0, 70));
+      t('round-trips ' + name, norm(back) === norm(original),
+        'in ' + original.length + ' chars, out ' + String(back).length);
     }
+    t('the key is cached on the element for later saves',
+      /data-bjkey=/.test(await extract(cases['an image in href'], { id: 'k1' })));
 
     const original = cases['an image in href'];
     const stripped = await extract(original, { id: 'e2' });
