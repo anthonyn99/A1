@@ -34405,23 +34405,6 @@ function wireEditor(ctx) {
   // _aiSettling: an AI run restores contentEditable (refocusing the editor) while
   // its own undo snapshots are still being committed — reseeding here would wipe them.
   ed.addEventListener('focus', function() { saveSel(ctx); if (!ctx._aiSettling) ctx.history.syncBase(); });
-  // Rich paste for editors without their own paste handler (journal-entries)
-  if (ctx.needsPaste) {
-    ed.addEventListener('paste', function(e) {
-      var items = e.clipboardData && e.clipboardData.items;
-      if (items) {
-        for (var i = 0; i < items.length; i++) {
-          if (items[i].type && items[i].type.startsWith('image/')) return; // let any existing image logic run / default
-        }
-      }
-      var html = e.clipboardData.getData('text/html');
-      if (html) {
-        e.preventDefault();
-        document.execCommand('insertHTML', false, window._docxCleanHTML(html));
-        fireInput(ed);
-      }
-    });
-  }
 }
 
 /* ═══════════ View mode toggle in the main toolbar ═══════════ */
@@ -34631,8 +34614,7 @@ function initApp(app) {
     if (!edEl || !tbEl || !wrapEl) return;
     var ctx = {
       app: app, edEl: edEl, tbEl: tbEl, wrapEl: wrapEl, area: c.area,
-      imgEl: c.img ? $(c.img) : null, mdEl: c.md ? $(c.md) : null,
-      needsPaste: /je-editor/.test(c.ed)
+      imgEl: c.img ? $(c.img) : null, mdEl: c.md ? $(c.md) : null
     };
     c._ctx = ctx;
     ALLCTX.push(ctx);
