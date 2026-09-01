@@ -10585,6 +10585,25 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
      * ==================================================================== */
     const _IMG_URI_RE = /data:[a-z]+\/[a-z0-9.+-]+;base64,/i;
 
+    // Where a data: URI survived extraction, so we know whether the extractor
+    // needs widening. Reports the HTML context only — never the content.
+    function _describeRemainingImages(entry) {
+      try {
+        const raw = JSON.stringify(entry);
+        if (!_IMG_URI_RE.test(raw)) return '';
+        const forms = {};
+        const re = /([a-zA-Z-]+)\s*=\s*\?["']?[^"']{0,40}?data:[a-z]+\/[a-z0-9.+-]+;base64,/gi;
+        let m;
+        while ((m = re.exec(raw)) !== null) {
+          const attr = m[1].toLowerCase();
+          forms[attr] = (forms[attr] || 0) + 1;
+        }
+        const keys = Object.keys(forms);
+        if (!keys.length) return 'unrecognised form';
+        return keys.map((k) => k + ' x' + forms[k]).join(', ');
+      } catch (e) { return ''; }
+    }
+
     function _bytesOfDoc(d) {
       try { return new Blob([JSON.stringify(d || {})]).size; }
       catch (e) { try { return JSON.stringify(d || {}).length; } catch (_) { return 0; } }
@@ -10640,18 +10659,29 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       for (const key of targets) {
         const id = key.slice(2);
         try {
+          const wasBytes = _bytesOfDoc(d[key]);
           const { entry: stripped } = await stripEntry(d[key]);
           const clean = sanitize(stripped);
-          // Still inline after extraction means an image upload failed. Writing
-          // it back would burn a write to change nothing, so skip and say so.
-          if (_IMG_URI_RE.test(JSON.stringify(clean))) {
-            console.warn('  ' + id + ': images could not be moved (upload failed) — left as is');
+          const nowBytes = _bytesOfDoc(clean);
+
+          // Judge by whether this HELPED, not by whether the result is
+          // spotless. The extractor only handles <img src="data:...">, so an
+          // entry can legitimately still hold a data: URI in a style
+          // attribute, a srcset or an SVG <image> afterwards. Demanding a
+          // perfectly clean entry threw away real, already-uploaded work and
+          // left the images orphaned in Firestore having shrunk nothing.
+          if (nowBytes >= wasBytes) {
+            console.warn('  ' + id + ': nothing could be moved — left untouched (' +
+                         (wasBytes / 1024).toFixed(0) + ' KB)');
             failed++;
             continue;
           }
           await _fbUpsert(ref, { [key]: clean, savedAt: Date.now() }, label + ' compact');
           done++;
-          console.log('  ' + id + ': moved');
+          const left = _describeRemainingImages(clean);
+          console.log('  ' + id + ': ' + (wasBytes / 1024).toFixed(0) + ' KB -> ' +
+                      (nowBytes / 1024).toFixed(0) + ' KB' +
+                      (left ? '   (still inline: ' + left + ')' : ''));
         } catch (e) {
           failed++;
           console.warn('  ' + id + ': failed — ' + (e && (e.message || e)));
