@@ -7551,6 +7551,10 @@ function App(){
         // source of truth for what is archived. (Safe because the archiver above
         // refuses to run until this has completed.)
         const nextArchived={};
+        // Day-keys already pulled back into the live document by a previous
+        // reclaim. They stay in the sidecar (nothing is ever deleted there), so
+        // this is the only thing stopping them being re-reclaimed every load.
+        const reclaimedEver=thLoadArchivedKeys("td6_reclaimedKeys");
         let added=0;const years=[];
         const thisYear=new Date().getFullYear();
         for(let y=thisYear-TH_ARCHIVE_YEARS-2;y<=thisYear;y++){
@@ -7565,7 +7569,7 @@ function App(){
           // Flag EVERY key a sidecar returned, including ones the local cache
           // already holds. Missing those is how a cached copy of archived history
           // got re-uploaded into the live document on the next save.
-          Object.keys(a).forEach(k=>{ if(!(k in merged)){merged[k]=a[k];n++;} nextArchived[k]=true; });
+          Object.keys(a).forEach(k=>{ if(!(k in merged)){merged[k]=a[k];n++;} if(!reclaimedEver[k])nextArchived[k]=true; });
           if(n){added+=n;years.push(y+":"+n);}
         }
         // …except recent days. The old size valve stopped at `today`, so it moved
@@ -7583,6 +7587,15 @@ function App(){
           if(liveBytes+add>TH_ARCHIVE_SOFT_BYTES)break;
           liveBytes+=add;delete nextArchived[k];reclaimed.push(k);
         }
+        // A reclaimed day now lives in the LIVE document, but it is still in the
+        // sidecar too (sidecars are never pruned). Without remembering that, the
+        // next load re-flags it from the sidecar, reclaims it again and pushes
+        // the whole document again — a ~640 KB write on EVERY page load, on
+        // every device, forever, racing whatever the user is typing. That is
+        // exactly what "hangs on Syncing and a refresh loses my changes" was.
+        // Recording the reclaim makes this converge after one pass.
+        reclaimed.forEach(k=>{reclaimedEver[k]=true;});
+        thSaveArchivedKeys("td6_reclaimedKeys",reclaimedEver);
         thArchivedRef.current=nextArchived;
         thSaveArchivedKeys("td6_archivedKeys",nextArchived);
         if(!added&&!reclaimed.length)return;
@@ -14586,6 +14599,10 @@ function App(){
         // source of truth for what is archived. (Safe because the archiver above
         // refuses to run until this has completed.)
         const nextArchived={};
+        // Day-keys already pulled back into the live document by a previous
+        // reclaim. They stay in the sidecar (nothing is ever deleted there), so
+        // this is the only thing stopping them being re-reclaimed every load.
+        const reclaimedEver=thLoadArchivedKeys("td_reclaimedKeys");
         let added=0;const years=[];
         const thisYear=new Date().getFullYear();
         for(let y=thisYear-TH_ARCHIVE_YEARS-2;y<=thisYear;y++){
@@ -14600,7 +14617,7 @@ function App(){
           // Flag EVERY key a sidecar returned, including ones the local cache
           // already holds. Missing those is how a cached copy of archived history
           // got re-uploaded into the live document on the next save.
-          Object.keys(a).forEach(k=>{ if(!(k in merged)){merged[k]=a[k];n++;} nextArchived[k]=true; });
+          Object.keys(a).forEach(k=>{ if(!(k in merged)){merged[k]=a[k];n++;} if(!reclaimedEver[k])nextArchived[k]=true; });
           if(n){added+=n;years.push(y+":"+n);}
         }
         // …except recent days. The old size valve stopped at `today`, so it moved
@@ -14618,6 +14635,15 @@ function App(){
           if(liveBytes+add>TH_ARCHIVE_SOFT_BYTES)break;
           liveBytes+=add;delete nextArchived[k];reclaimed.push(k);
         }
+        // A reclaimed day now lives in the LIVE document, but it is still in the
+        // sidecar too (sidecars are never pruned). Without remembering that, the
+        // next load re-flags it from the sidecar, reclaims it again and pushes
+        // the whole document again — a ~640 KB write on EVERY page load, on
+        // every device, forever, racing whatever the user is typing. That is
+        // exactly what "hangs on Syncing and a refresh loses my changes" was.
+        // Recording the reclaim makes this converge after one pass.
+        reclaimed.forEach(k=>{reclaimedEver[k]=true;});
+        thSaveArchivedKeys("td_reclaimedKeys",reclaimedEver);
         vdArchivedRef.current=nextArchived;
         thSaveArchivedKeys("td_archivedKeys",nextArchived);
         if(!added&&!reclaimed.length)return;
