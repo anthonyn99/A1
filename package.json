@@ -7,5 +7,8 @@
   },
   "devDependencies": {
     "@babel/parser": "^7.25.0"
+  },
+  "dependencies": {
+    "jsdom": "^30.0.1"
   }
 }

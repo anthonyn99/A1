@@ -11081,7 +11081,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
           const imgRef = doc(db, 'dashboards', imgKey);
           const snap = await getDoc(imgRef);
           if (snap.exists() && snap.data().img) {
-            img.setAttribute(attr, snap.data().img);
+            img.setAttribute('src', snap.data().img);
           }
         } catch(err) {
           console.warn('MJ image rehydrate failed:', imgKey, err.message);
@@ -11380,7 +11380,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         try {
           const imgRef = doc(db, 'dashboards', imgKey);
           const snap = await getDoc(imgRef);
-          if (snap.exists() && snap.data().img) img.setAttribute('src', snap.data().img);
+          if (snap.exists() && snap.data().img) img.setAttribute(attr, snap.data().img);
         } catch(err) { console.warn('TJ image rehydrate failed:', imgKey, err.message); }
       }));
       return div.innerHTML;
