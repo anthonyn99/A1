@@ -285,6 +285,19 @@
     // A "core" snapshot is everything except the image blobs.
     var coreBytes = singleBytes + archiveBytes + canvasBytes;
     var coreGz = await gzipBytes(core);
+
+    // Per-document gzip. Cheap (the data is already in hand) and it is what
+    // tells us whether a document is worth committing at all.
+    var perDoc = [];
+    var coreKeys = Object.keys(core);
+    for (var pd = 0; pd < coreKeys.length; pd++) {
+      var raw = bytesOf(core[coreKeys[pd]]);
+      var gz = await gzipBytes(core[coreKeys[pd]]);
+      perDoc.push({ path: coreKeys[pd], raw: raw, gz: gz,
+                    ratio: gz ? +(raw / gz).toFixed(1) : null });
+    }
+    perDoc.sort(function (x, y) { return (y.gz || 0) - (x.gz || 0); });
+    report.perDoc = perDoc;
     report.totals = {
       readsUsed: reads,
       coreBytesRaw: coreBytes,
@@ -319,12 +332,29 @@
                       + (coreBytes / coreGz).toFixed(1) + 'x). AES adds ~0%.'
                     : '  (gzip unavailable here — compressed size UNKNOWN)'));
     if (coreGz != null) {
-      // Ciphertext does not delta-compress, so each committed day is a fresh
-      // blob. Retention is 30 daily + 52 weekly + 12 monthly = 94 files/year.
-      var perYear = coreGz * 94;
-      console.log('   git growth ........ ~' + mb(perYear) + '/device/year'
-                  + '  (94 retained files; 3 devices ~= ' + mb(perYear * 3) + '/yr)');
+      // Ciphertext does not delta-compress, so every commit of the file is a
+      // fresh blob — and git keeps every blob ever committed. Pruning the
+      // working tree later reclaims nothing. Growth is therefore
+      // commits-per-year x blob size, whatever the retention policy says.
+      console.log('   git growth (git keeps every blob ever committed):');
+      [['daily', 365], ['weekly', 52], ['monthly', 12]].forEach(function (c) {
+        console.log('     ' + c[0] + ' commits ... ' + mb(coreGz * c[1]) + '/yr for ONE copy'
+                    + '   (' + mb(coreGz * c[1] * 3) + '/yr if all 3 devices commit)');
+      });
     }
+    var near = (report.perDoc || []).filter(function (d) { return d.raw > 500 * 1024; });
+    if (near.length) {
+      console.warn('  LARGE DOCUMENTS (Firestore write guard refuses at 900 KB):');
+      near.forEach(function (d) {
+        console.warn('    ' + d.path + '  ' + kb(d.raw) + ' raw'
+                     + (d.raw > 700 * 1024 ? '   <-- ' + (100 * d.raw / 921600).toFixed(0) + '% of the guard' : ''));
+      });
+    }
+    console.log('  compression by document (largest compressed first):');
+    (report.perDoc || []).slice(0, 8).forEach(function (d) {
+      console.log('    ' + d.path + '  ' + kb(d.raw) + ' -> ' + kb(d.gz)
+                  + '  (' + d.ratio + 'x)');
+    });
     console.log('  largest singletons . ' + g.singletons.largest.map(function (x) {
       return x.path + ' ' + kb(x.bytes); }).join('  |  '));
 
