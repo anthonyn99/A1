@@ -356,6 +356,15 @@
     constants: A1B,
     register: register,
     measure: measure,
-    _apps: apps
+    _apps: apps,
+    // Exposed so tests exercise the SHIPPED functions rather than a copy.
+    // tests/backup-measure.test.js loads this file and calls these directly;
+    // lifting them out by brace-matching is unreliable here because imageKeys
+    // contains a regex literal full of brackets.
+    _internals: {
+      JOURNALS: JOURNALS, SINGLETONS: SINGLETONS,
+      entryIds: entryIds, imageKeys: imageKeys,
+      bytesOf: bytesOf, gzipBytes: gzipBytes
+    }
   };
 })();
