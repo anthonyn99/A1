@@ -10560,6 +10560,109 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       } catch(e) { console.warn('BJ save-one failed:', e.message); }
     });
 
+    /* ── Image compaction ──────────────────────────────────────────────────
+     *
+     * Measured 2026-09-01: dashboards/journal is 700 KB, which is 78% of the
+     * 900 KB ceiling where _guardedWrite refuses EVERY save and the journal
+     * silently stops syncing. Almost all of it is a handful of base64 images
+     * still inline in entry HTML — one entry alone is 468 KB. They compress at
+     * 2.1x, because base64 of an already-compressed image barely compresses.
+     *
+     * _bjExtractHtmlImages moves an inline image into its own document and
+     * leaves a bj-fbimg:// placeholder, which the rehydrator swaps back for
+     * display. It runs on every save, so anything pasted today is already
+     * handled; these entries predate it or arrived by another route.
+     *
+     * So this does not extract anything itself — it re-saves the affected
+     * entries through the SAME path a normal edit takes. Reusing the shipped
+     * extractor matters: it only replaces the src once the image document is
+     * CONFIRMED written, and keeps the inline copy if that write fails. A
+     * failed run therefore shrinks nothing and loses nothing.
+     *
+     * One entry field is written at a time, and `_order` is deliberately never
+     * touched — republishing a stale order is its own known way to lose a
+     * journal's entry list.
+     * ==================================================================== */
+    const _IMG_URI_RE = /data:[a-z]+\/[a-z0-9.+-]+;base64,/i;
+
+    function _bytesOfDoc(d) {
+      try { return new Blob([JSON.stringify(d || {})]).size; }
+      catch (e) { try { return JSON.stringify(d || {}).length; } catch (_) { return 0; } }
+    }
+
+    async function _compactImages(cfg) {
+      const { ref, label, stripEntry, sanitize, opts } = cfg;
+      const o = opts || {};
+
+      // Never rewrite someone's journal without a verified backup to fall back
+      // on. This is the whole reason the backup went first.
+      if (!o.force) {
+        let ok = false;
+        try { ok = !!(window.A1Backup && (await window.A1Backup.health()).ok); } catch (e) {}
+        if (!ok) {
+          console.warn('[Compact] ' + label + ': refusing — no healthy backup on this device. ' +
+                       'Set one up first, or call with { force: true } if you accept the risk.');
+          return { skipped: 'no healthy backup' };
+        }
+      }
+
+      const snap = await _freshGet(ref);
+      if (!snap || !snap.exists()) return { skipped: 'no document' };
+      const d = snap.data() || {};
+      const before = _bytesOfDoc(d);
+
+      const targets = Object.keys(d).filter((k) => {
+        if (k.indexOf('e_') !== 0) return false;
+        try { return _IMG_URI_RE.test(JSON.stringify(d[k])); } catch (e) { return false; }
+      });
+
+      if (!targets.length) {
+        console.log('[Compact] ' + label + ': nothing inline to move; ' +
+                    (before / 1024).toFixed(0) + ' KB.');
+        return { moved: 0, before, after: before };
+      }
+
+      console.log('[Compact] ' + label + ': ' + (before / 1024).toFixed(0) + ' KB, ' +
+                  targets.length + ' entr' + (targets.length === 1 ? 'y' : 'ies') +
+                  ' with inline images. Moving them out…');
+
+      let done = 0, failed = 0;
+      for (const key of targets) {
+        const id = key.slice(2);
+        try {
+          const { entry: stripped } = await stripEntry(d[key]);
+          const clean = sanitize(stripped);
+          // Still inline after extraction means an image upload failed. Writing
+          // it back would burn a write to change nothing, so skip and say so.
+          if (_IMG_URI_RE.test(JSON.stringify(clean))) {
+            console.warn('  ' + id + ': images could not be moved (upload failed) — left as is');
+            failed++;
+            continue;
+          }
+          await _fbUpsert(ref, { [key]: clean, savedAt: Date.now() }, label + ' compact');
+          done++;
+          console.log('  ' + id + ': moved');
+        } catch (e) {
+          failed++;
+          console.warn('  ' + id + ': failed — ' + (e && (e.message || e)));
+        }
+      }
+
+      // Re-read rather than assume. The point of this is the document's real
+      // size against the write guard, and only the server knows that.
+      const after = _bytesOfDoc(((await _freshGet(ref)) || { data: () => ({}) }).data() || {});
+      const pct = (n) => ((100 * n) / 921600).toFixed(0) + '% of the write guard';
+      console.log('[Compact] ' + label + ': ' + (before / 1024).toFixed(0) + ' KB (' + pct(before) +
+                  ')  ->  ' + (after / 1024).toFixed(0) + ' KB (' + pct(after) + ')' +
+                  '   moved ' + done + (failed ? ', failed ' + failed : ''));
+      return { moved: done, failed, before, after };
+    }
+
+    window._bjCompactImages = (opts) => _compactImages({
+      ref: bjDocRef, label: 'Brainstorm Journal',
+      stripEntry: _bjStripEntry, sanitize: _bjSanitize, opts
+    });
+
     window._fbDeleteJournalEntry = (entryId) => _bjWhenServerSeen(async () => {
       try {
         const _delTs = Date.now();
@@ -11140,6 +11243,11 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         await _fbUpsert(tjDocRef, payload, 'TJ save-one');
         window.dispatchEvent(new CustomEvent('fb-tj-saved', { detail: { id: entry.id } }));
       } catch(e) { console.warn('TJ save-one failed:', e.message); }
+    });
+
+    window._tjCompactImages = (opts) => _compactImages({
+      ref: tjDocRef, label: 'MyJournal',
+      stripEntry: _tjStripEntry, sanitize: _tjSanitize, opts
     });
 
     window._fbDeleteTonyJournalEntry = (entryId) => _tjWhenServerSeen(async () => {
