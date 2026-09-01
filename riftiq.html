@@ -1841,6 +1841,28 @@ html.lk-open, body.lk-open {
 .bld-row-del:hover { border-color: var(--red); color: var(--red); }
 @media (pointer: coarse) { .bld-row-del { width: 38px; height: 38px; } }
 
+/* Close buttons on the two Builds pickers were bare glyphs with no box. */
+.bld-modal-x {
+  width: 34px; height: 34px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: none; color: var(--tx2); cursor: pointer; padding: 0;
+}
+.bld-modal-x:hover { color: var(--gold2); }
+@media (pointer: coarse) { .bld-modal-x { width: 42px; height: 42px; } }
+
+@media (max-width: 600px) {
+  /* Both pickers become full-bleed sheets: on a 375px screen the 92vw card
+     wasted margin the champion grid could have used, and the confirm row sat
+     below the fold. */
+  .bld-modal { padding: 10px 10px calc(10px + env(safe-area-inset-bottom)) !important; }
+  .bld-modal-card {
+    width: 100% !important; max-width: 100% !important;
+    max-height: calc(100dvh - 20px) !important;
+  }
+  #matchup-grid { grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)) !important; }
+  #bcp-grid { grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)) !important; padding: 12px !important; }
+}
+
 /* ── Build editor ──
    Inline widths here would have to be fought with !important from the phone
    block, so the split lives in CSS from the start. */
@@ -6797,15 +6819,18 @@ function openBuildsChampPicker() {
   if (existing) { existing.style.display = 'flex'; renderBuildsChampGrid(''); return; }
   const modal = document.createElement('div');
   modal.id = 'builds-champ-picker';
+  modal.className = 'bld-modal';
   modal.style.cssText = 'position:fixed;inset:0;z-index:1500;background:rgba(0,0,0,0.88);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;';
   const inner = document.createElement('div');
+  inner.className = 'bld-modal-card';
   inner.style.cssText = 'width:min(760px,92vw);max-height:82vh;background:var(--bg3);border:1px solid var(--bd2);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;';
   // Header
   const hdr = document.createElement('div');
   hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--bd);';
   hdr.innerHTML = '<span style="font-family:var(--head);font-size:20px;font-weight:800;color:var(--tx);">Select Champion</span>';
   const closeBtn = document.createElement('button');
-  closeBtn.style.cssText = 'width:32px;height:32px;background:none;border:none;color:var(--tx2);font-size:18px;cursor:pointer;';
+  closeBtn.className = 'bld-modal-x';
+  closeBtn.setAttribute('aria-label', 'Close');
   closeBtn.innerHTML = wrIco('close',15);
   closeBtn.onclick = function(){ modal.style.display='none'; };
   hdr.appendChild(closeBtn);
@@ -6826,7 +6851,7 @@ function openBuildsChampPicker() {
   // Grid
   const grid = document.createElement('div');
   grid.id = 'bcp-grid';
-  grid.style.cssText = 'overflow-y:auto;padding:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px;';
+  grid.style.cssText = 'flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px;';
   inner.appendChild(hdr);
   inner.appendChild(searchDiv);
   inner.appendChild(grid);
@@ -7255,12 +7280,13 @@ function openBuildEditor() {
   if (!document.getElementById('matchup-picker-modal')) {
     var mp = document.createElement('div');
     mp.id = 'matchup-picker-modal';
+    mp.className = 'bld-modal';
     mp.style.cssText = 'display:none;position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,0.88);backdrop-filter:blur(10px);align-items:center;justify-content:center;';
     mp.innerHTML =
-      '<div style="width:min(780px,96vw);max-height:88vh;background:var(--bg3);border:1px solid var(--bd2);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;">' +
+      '<div class="bld-modal-card" style="width:min(780px,96vw);max-height:88vh;background:var(--bg3);border:1px solid var(--bd2);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;">' +
         '<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--bd);flex-shrink:0;">' +
           '<span style="font-family:var(--head);font-size:18px;font-weight:800;color:var(--tx);">Select Matchup Champions</span>' +
-          '<button id="mq-close-btn" style="background:none;border:none;color:var(--tx2);font-size:20px;cursor:pointer;padding:4px;">'+wrIco('close',15)+'</button>' +
+          '<button id="mq-close-btn" class="bld-modal-x" aria-label="Close">'+wrIco('close',15)+'</button>' +
         '</div>' +
         '<div style="padding:10px 14px;border-bottom:1px solid var(--bd);position:relative;flex-shrink:0;">' +
           '<input id="matchup-search" placeholder="Search champions..." style="width:100%;height:38px;padding:0 34px 0 12px;background:var(--bg4);border:1px solid var(--bd2);border-radius:8px;color:var(--tx);font-family:var(--body);font-size:14px;outline:none;">' +
@@ -7270,7 +7296,7 @@ function openBuildEditor() {
           '<div><div style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--tx2);font-weight:700;letter-spacing:2px;margin-bottom:4px;">Class</div><div style="display:flex;gap:4px;flex-wrap:wrap;" id="mq-class-chips"></div></div>' +
           '<div><div style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--tx2);font-weight:700;letter-spacing:2px;margin-bottom:4px;">Resource type</div><div style="display:flex;gap:4px;flex-wrap:wrap;" id="mq-res-chips"></div></div>' +
         '</div>' +
-        '<div id="matchup-grid" style="flex:1;overflow-y:auto;padding:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:6px;"></div>' +
+        '<div id="matchup-grid" style="flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:6px;"></div>' +
         '<div style="padding:10px 14px;border-top:1px solid var(--bd);display:flex;flex-direction:column;gap:8px;flex-shrink:0;background:var(--bg2);">' +
           '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><div id="matchup-selected-count" style="font-family:var(--mono);font-size:12px;color:var(--tx3);flex-shrink:0;">None selected</div><div id="matchup-selected-row" style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;"></div></div>' +
           '<div style="display:flex;justify-content:flex-end;gap:8px;"><button id="mq-cancel-btn" style="height:34px;padding:0 18px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx2);font-family:var(--mono);font-size:12px;cursor:pointer;">Cancel</button><button id="mq-confirm-btn" class="wr-cta" style="height:34px;padding:0 22px;background:transparent;border:1px solid rgba(192,174,234,.45);border-radius:6px;color:var(--gold2);font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;">Confirm</button></div>' +
