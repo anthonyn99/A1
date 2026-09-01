@@ -1207,6 +1207,141 @@
     return st;
   }
 
+  /* ── Restore drill ────────────────────────────────────────────────────────
+   *
+   * Everything up to here proves a backup was WRITTEN. None of it proves one
+   * can be READ BACK, and those are different claims — the repo copy spent its
+   * first day holding a manifest with no documents behind it and looked
+   * perfectly healthy the whole time.
+   *
+   * This is the real exercise: fetch the copy from the PUBLIC repo over the
+   * internet, exactly as someone would after losing Firebase, Cloudflare and
+   * every device, then decrypt it with the passphrase and check that what comes
+   * out matches what went in.
+   *
+   * It reads only. It never writes to Firestore, the vault, or anywhere else —
+   * a drill that mutates the thing it is testing is not a drill.
+   * ===================================================================== */
+
+  function backupsBaseUrl() {
+    // Sibling of the page: .../A1/index.html -> .../A1/Index Backups/
+    var dir = location.pathname.replace(/[^/]*$/, '');
+    return location.origin + dir + 'Index%20Backups/';
+  }
+
+  async function drill(opts) {
+    opts = opts || {};
+    var base = opts.base || backupsBaseUrl();
+    var out = { base: base, ok: false, steps: [] };
+    var step = function (name, ok, detail) {
+      out.steps.push({ step: name, ok: !!ok, detail: detail || '' });
+      console.log((ok ? '  ok    ' : '  FAIL  ') + name + (detail ? '   ' + detail : ''));
+      return ok;
+    };
+
+    if (!setupDone()) {
+      console.error('[A1Backup] drill needs the passphrase set on this device.');
+      out.error = 'locked';
+      return out;
+    }
+    console.log('%c[A1Backup] Restore drill — reading the PUBLIC repo copy',
+                'font-weight:bold;font-size:13px');
+    console.log('  from ' + base);
+
+    try {
+      var idxRes = await fetch(base + 'index.json', { cache: 'no-store' });
+      if (!step('fetched index.json', idxRes.ok, 'HTTP ' + idxRes.status)) return out;
+      var idx = await idxRes.json();
+
+      var devices = idx.devices || [];
+      step('index lists ' + devices.length + ' device(s)', devices.length > 0,
+           devices.map(function (d) { return d.device; }).join(', '));
+
+      var pick = opts.device
+        ? devices.filter(function (d) { return d.device === opts.device; })[0]
+        : devices[0];
+      if (!step('chose a device to restore', !!pick, pick ? pick.device : 'none')) return out;
+
+      var stamp = String(pick.iso || '').slice(0, 10);
+      var manUrl = base + encodeURIComponent(pick.device) + '/snapshots/' + stamp + '.enc.json';
+      var manRes = await fetch(manUrl, { cache: 'no-store' });
+      if (!step('fetched the snapshot manifest', manRes.ok, 'HTTP ' + manRes.status)) return out;
+      var env = await manRes.json();
+
+      // Decrypting is also the integrity check: a mismatch between the stored
+      // hash and the content throws rather than returning plausible rubbish.
+      var man;
+      try {
+        man = JSON.parse(await decryptEnv(env));
+        step('decrypted the manifest with this passphrase', true,
+             Object.keys(man.docs || {}).length + ' documents listed');
+      } catch (e) {
+        step('decrypted the manifest with this passphrase', false, String(e && e.message || e));
+        out.error = 'decrypt failed — wrong passphrase, or the file is damaged';
+        return out;
+      }
+
+      var paths = Object.keys(man.docs || {});
+      var restored = {}, missing = [], broken = [];
+      for (var i = 0; i < paths.length; i++) {
+        var p = paths[i], id = man.docs[p];
+        var oRes = await fetch(base + encodeURIComponent(pick.device) + '/objects/' + id + '.enc.json',
+                               { cache: 'no-store' });
+        if (!oRes.ok) { missing.push(p); continue; }
+        try {
+          restored[p] = JSON.parse(await decryptEnv(await oRes.json()));
+        } catch (e) { broken.push(p + ': ' + (e && e.message || e)); }
+      }
+
+      step('every document in the manifest is present', missing.length === 0,
+           missing.length ? 'MISSING: ' + missing.join(', ') : paths.length + '/' + paths.length);
+      step('every document decrypted and passed its integrity check', broken.length === 0,
+           broken.length ? broken.join(' | ') : '');
+
+      // Content check, not just "it parsed". A restore that yields empty
+      // objects would satisfy every structural test above.
+      var nonEmpty = paths.filter(function (p) {
+        var v = restored[p];
+        return v && typeof v === 'object' && Object.keys(v).length > 0;
+      });
+      step('restored documents actually contain data', nonEmpty.length === paths.length,
+           nonEmpty.length + '/' + paths.length + ' non-empty');
+
+      // Compare against what this device holds right now, where they overlap.
+      var live = {};
+      Object.keys(observed).forEach(function (k) { live[k] = observed[k]; });
+      var compared = 0, matched = 0;
+      Object.keys(live).forEach(function (k) {
+        if (!(k in restored)) return;
+        compared++;
+        if (JSON.stringify(live[k]) === JSON.stringify(restored[k])) matched++;
+      });
+      step('restored content matches this device where they overlap',
+           compared === 0 || matched === compared,
+           matched + '/' + compared + ' documents identical' +
+           (compared === 0 ? ' (nothing to compare yet)' : ''));
+
+      out.restored = paths.length;
+      out.devices = devices.length;
+      out.ok = missing.length === 0 && broken.length === 0 &&
+               nonEmpty.length === paths.length && (compared === 0 || matched === compared);
+
+      console.log(out.ok
+        ? '%c  DRILL PASSED — the public repo copy alone can rebuild this data.'
+        : '%c  DRILL FAILED — see the steps above. Do not rely on this copy.',
+        'font-weight:bold;color:' + (out.ok ? '#3a3' : '#c33'));
+      if (out.ok) {
+        console.log('  Restored ' + paths.length + ' documents, e.g. ' +
+                    paths.slice(0, 4).join(', '));
+      }
+      return out;
+    } catch (e) {
+      out.error = String(e && (e.message || e));
+      console.error('[A1Backup] drill threw: ' + out.error);
+      return out;
+    }
+  }
+
   window.A1Backup = {
     version: A1B.SCHEMA,
     constants: A1B,
@@ -1217,6 +1352,7 @@
     unlock: unlock,                 // enter the passphrase once per device
     setup: promptSetup,             // the in-UI first-run dialog
     push: pushNow,                  // mirror to the worker now
+    drill: drill,                   // read the PUBLIC repo copy back and check it
     fleet: fleet,                   // what every device has, from the worker
     device: deviceSlug,
     health: healthCheck,            // quiet: returns {ok, why}
