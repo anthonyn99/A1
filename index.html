@@ -10597,12 +10597,22 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       // Never rewrite someone's journal without a verified backup to fall back
       // on. This is the whole reason the backup went first.
       if (!o.force) {
-        let ok = false;
-        try { ok = !!(window.A1Backup && (await window.A1Backup.health()).ok); } catch (e) {}
-        if (!ok) {
-          console.warn('[Compact] ' + label + ': refusing — no healthy backup on this device. ' +
-                       'Set one up first, or call with { force: true } if you accept the risk.');
-          return { skipped: 'no healthy backup' };
+        // Deliberately NOT health().ok — that reports true for a device with no
+        // backup at all, so the watchdog does not nag people who never set one
+        // up. As an interlock it would have waved through the exact case it
+        // exists to stop. Ask for a real, recent snapshot instead.
+        let st = null;
+        try { st = window.A1Backup && (await window.A1Backup.status()); } catch (e) {}
+        const haveBackup = !!(st && st.locked === false && st.lastSnapshot && !st.stale);
+        if (!haveBackup) {
+          const why = !st ? 'the backup system is not loaded'
+            : st.locked ? 'no passphrase is set on this device'
+            : !st.lastSnapshot ? 'nothing has been backed up yet'
+            : 'the last backup is stale';
+          console.warn('[Compact] ' + label + ': refusing — ' + why + '. This rewrites journal ' +
+                       'entries, so it will not run without a verified backup to fall back on. ' +
+                       'Call with { force: true } only if you accept that risk.');
+          return { skipped: 'no verified backup: ' + why };
         }
       }
 

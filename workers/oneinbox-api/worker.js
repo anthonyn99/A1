@@ -625,6 +625,23 @@ CATEGORY - pick the dominant intent:
  important     needs a human decision or reply, none of the above
  general       everything else (newsletters, marketing with no usable offer)
 
+COMMITMENT TEST - read this before you pick one of the four dated categories.
+The most common mistake is classifying an email by its TOPIC instead of by what
+is actually COMMITTED. bill, subscription, travel and appointment describe
+something that ALREADY EXISTS on the user's calendar or credit card. An email
+merely INVITING the user to create one is NOT one of them.
+ - A link to book a time (Calendly, "schedule a call", "pick a time"), a
+   recruiter asking whether the user is interested, "call us to make an
+   appointment" -> important. NOT appointment: nobody is expecting the user
+   anywhere. Bulk marketing of the same shape -> general.
+ - "upgrade to keep going", "your free trial ends", "start your subscription",
+   "join today", "reactivate" -> general. NOT subscription: nothing is going to
+   be charged unless the user chooses to sign up.
+ - A plan the user ALREADY pays for renewing, its price changing, or a card
+   about to be charged -> subscription. An amount the user OWES -> bill.
+ - appointment and travel require a date the user is expected to SHOW UP for,
+   already fixed, in this email.
+
 SHARED FIELDS - the same field names for every category:
  merchant     the company: store, retailer, biller, airline, provider.
  date         THE one actionable date, as YYYY-MM-DD:
@@ -659,6 +676,13 @@ RULES:
      "arriving tomorrow"                                                      -> the next day
      a named weekday or explicit date                                         -> that date
    Only leave a package's date empty when the email genuinely says nothing about timing.
+ - DATE MUST BE STATED for bill, subscription, travel and appointment. It has to
+   come from the email's own words: an explicit date, or relative wording that
+   resolves to one ("today", "tomorrow", "Tuesday"). NEVER use the date the
+   email was sent, and NEVER turn a vague window ("next week", "within 7 days",
+   "soon", "ends in 3 days") into a date. No stated date -> OMIT date. These
+   four are drawn on a calendar; a guessed day puts the user somewhere they are
+   not expected. (package is the one exception - see the rule above.)
  - confidence is 0..1. Use a LOW confidence when the email is ambiguous or you had to guess.
  - summary: one sentence under 100 characters.
 
@@ -888,6 +912,105 @@ function localParse(text, fromEmail, sentAt) {
   const subj = /^Subject:\s*(.+)$/m.exec(t);
   out.summary = (subj ? subj[1] : (t.split('\n')[0] || '')).slice(0, 100);
   if (!out.merchant && host) out.merchant = host.replace(/^(mail|email|e|news|notices|no-?reply)\./i, '').split('.')[0];
+  return out;
+}
+
+// ── Commitment gate ─────────────────────────────────────────────────────────
+// The prompt asks the model to classify by what is COMMITTED, not by what the
+// email is ABOUT. Models drift on exactly that distinction, and the two failures
+// it produces both land on the TaskHub calendar, where a wrong card is loud:
+//
+//   a recruiter's "here's a link to schedule an interview"  -> "appointment"
+//   Azure's "upgrade before your trial ends next week"      -> "subscription"
+//
+// Neither is real. Nobody is expecting Tony anywhere, and nothing is going to be
+// charged. Worse, both then INVENTED the day that got them onto the week: the
+// recruiter card took the email's own send date, and Azure's turned "next week"
+// into a renewal date. These checks are deterministic and run after the model,
+// so the guarantee survives a prompt edit or a swapped-in model. They only ever
+// demote — a category that passes is left exactly as the model returned it.
+
+// An invitation to BOOK something. Distinct from a booking that already exists.
+const BOOK_INVITE_RE = /(?:calendly\.com|acuityscheduling|scheduleonce|youcanbook|hubspot\.com\/meetings|\bbook(?:ing)?\s+(?:a|your|some)\s+(?:time|call|slot|appointment|demo|meeting)|\bschedule\s+(?:a|an|your|some\s+time|time|to\s+speak|with\s+the)|\b(?:pick|choose|find|select)\s+a\s+time|\brequest\s+an?\s+appointment|\bset\s+up\s+a\s+(?:time|call|meeting)|\bwe(?:'re|\s+are)\s+hiring\b|\bapply\s+now\b|\bif\s+you(?:'re|\s+are)\s+(?:still\s+)?interested\b)/i;
+
+// A booking that DOES already exist. Any of these outrank the invite language:
+// a confirmation mail routinely also carries a "reschedule" or "book another"
+// link, and that must not cost the user a real card.
+const BOOKED_RE = /(?:\byour\s+(?:appointment|reservation|booking|flight|itinerary|stay|visit|table)\b|\bappointment\s+(?:is\s+(?:on|at|confirmed|scheduled)|reminder|confirmed|scheduled)|\byou(?:'re|\s+are)\s+(?:scheduled|booked|confirmed|all\s+set)\b|\bconfirmation\s+(?:number|code|#)|\bboarding\s+pass\b|\bwe(?:'ll|\s+will)\s+see\s+you\s+(?:on|at)\b)/i;
+
+// Marketing that wants the user to START paying for something.
+const SOLICIT_RE = /(?:\bupgrade\s+(?:now|your|to|within|before|today)|\bstart(?:ing)?\s+(?:your\s+)?(?:free\s+)?(?:trial|subscription|plan|membership)|\bfree\s+trial\b|\btrial\s+(?:ends|expires|is\s+ending|period|will\s+end)|\bsign\s+up\b|\bget\s+started\b|\bsubscribe\s+(?:now|today)|\bjoin\s+(?:now|today)|\bkeep\s+going\s+with\b|\btry\s+it\s+free\b|\breactivate\b|\blimited\s+time\b|\b\d{1,2}%\s+off\b)/i;
+
+// A charge that is actually going to happen, or has a balance behind it.
+const CHARGE_RE = /(?:\bwill\s+be\s+charged\b|\bwe(?:'ll|\s+will)\s+charge\b|\bauto[\s-]*renew\w*|\brenews?\s+(?:on|automatically|for)\b|\byour\s+(?:plan|subscription|membership|policy)\s+(?:renews|will\s+renew|is\s+renewing)|\bnext\s+(?:billing|payment|charge)\s+date\b|\b(?:amount|total|balance|payment)\s+due\b|\bminimum\s+payment\b|\binvoice\b|\bstatement\s+is\s+ready\b|\b(?:price|rate)\s+(?:is\s+)?(?:increas|chang)\w+|\bnew\s+price\b|\bpast\s+due\b)/i;
+
+// The four categories that only exist as a day on the calendar.
+const DATED = new Set(['bill', 'subscription', 'travel', 'appointment']);
+
+const WEEKDAY_RE = [/\bsun(?:day)?\b/i, /\bmon(?:day)?\b/i, /\btues?(?:day)?\b/i, /\bwed(?:nes(?:day)?)?\b/i,
+                    /\bthur?s?(?:day)?\b/i, /\bfri(?:day)?\b/i, /\bsat(?:ur(?:day)?)?\b/i];
+const MON3 = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+// Does the email actually SAY this day, or did the model derive it? Accepts
+// every form a human writes a date in, plus the relative words that resolve to
+// one against the day the mail was sent. Deliberately generous: the cost of a
+// false accept is the status quo, the cost of a false reject is a real card
+// silently missing, so anything recognisable counts as stated.
+function dateIsStated(text, iso, sentAt) {
+  if (!iso) return false;
+  const t = String(text || '');
+  const [Y, M, D] = iso.split('-').map(Number);
+  if (!Y || !M || !D) return false;
+  const mon = MON3[M - 1];
+  const yy = String(Y).slice(2);
+  const pats = [
+    new RegExp(`\b${Y}-0?${M}-0?${D}\b`),                                   // 2026-09-06
+    new RegExp(`\b0?${M}[\/\.-]0?${D}(?:[\/\.-](?:${Y}|${yy}))?\b`),     // 9/6, 09-06-2026
+    new RegExp(`\b${mon}[a-z]*\.?\s+0?${D}(?:st|nd|rd|th)?\b`, 'i'),       // Sep 6, September 6th
+    new RegExp(`\b0?${D}(?:st|nd|rd|th)?\s+(?:of\s+)?${mon}[a-z]*\b`, 'i') // 6 September
+  ];
+  if (pats.some(re => re.test(t))) return true;
+
+  // Relative wording, resolved against the SENT date for the same reason
+  // deliveryEta does it: ingestion can lag the mail by hours or days.
+  const base = Date.UTC(sentAt.getUTCFullYear(), sentAt.getUTCMonth(), sentAt.getUTCDate());
+  const off = Math.round((Date.UTC(Y, M - 1, D) - base) / 864e5);
+  if (off === 0 && /\btoday\b|\bthis (?:morning|afternoon|evening)\b|\btonight\b/i.test(t)) return true;
+  if (off === 1 && /\btomorrow\b/i.test(t)) return true;
+  // A bare weekday name can only mean the next fortnight; beyond that the model
+  // is extrapolating, not reading.
+  if (off >= 0 && off <= 13 && WEEKDAY_RE[new Date(Date.UTC(Y, M - 1, D)).getUTCDay()].test(t)) return true;
+  return false;
+}
+
+// Demote a classification the email does not actually support. Returns the
+// input untouched when everything checks out.
+function commitmentGate(ai, text, sentAt) {
+  const t = String(text || '');
+  let out = ai;
+
+  // An invitation to book is a decision to make, not a date to keep.
+  if ((out.category === 'appointment' || out.category === 'travel')
+      && BOOK_INVITE_RE.test(t) && !BOOKED_RE.test(t)) {
+    out = { ...out, category: 'important', gate: 'invitation', date: '', location: '',
+            confidence: Math.min(out.confidence ?? 0, 0.4) };
+  }
+
+  // An ad for a subscription is not a subscription. A real renewal always says
+  // something about the charge itself, which is what CHARGE_RE protects.
+  if ((out.category === 'subscription' || out.category === 'bill')
+      && SOLICIT_RE.test(t) && !CHARGE_RE.test(t)) {
+    out = { ...out, category: 'general', gate: 'solicitation', date: '', amount: '',
+            confidence: Math.min(out.confidence ?? 0, 0.4) };
+  }
+
+  // Last: a dated category whose day the email never gave. Dropping the date
+  // drops the card (cardFor returns null without one) while leaving the
+  // classification on the message, where the reader still shows it.
+  if (DATED.has(out.category) && out.date && !dateIsStated(t, out.date, sentAt)) {
+    out = { ...out, date: '', gate: out.gate || 'unstated-date' };
+  }
+
   return out;
 }
 
