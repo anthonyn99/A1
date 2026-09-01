@@ -2405,16 +2405,27 @@ el('settingsRescan').addEventListener('click', async () => {
   if (btn.disabled) return;
   btn.disabled = true;
   const was = btn.textContent;
-  let cards = 0, failed = [];
+  let cards = 0, removed = 0, failed = [];
   for (const a of S.accounts){
     btn.textContent = `Re-scanning ${a.email}…`;
-    try { cards += (await api('/gmail/rescan', { account: a.email, limit: 10 })).cards || 0; }
+    try {
+      const r = await api('/gmail/rescan', { account: a.email, limit: 10 });
+      cards += r.cards || 0;
+      // A re-read can also RETRACT: mail the old classifier called an
+      // appointment or a subscription that this one does not. Silently dropping
+      // that from the count made the button look like it had done nothing on
+      // exactly the run that fixed the week.
+      removed += r.retracted || 0;
+    }
     catch (e) { failed.push(a.email.split('@')[0] + ': ' + e.message); }
   }
   btn.textContent = was;
   btn.disabled = false;
+  const parts = [];
+  if (cards) parts.push(`${cards} card${cards === 1 ? '' : 's'} rebuilt`);
+  if (removed) parts.push(`${removed} removed`);
   if (failed.length) toast(`Re-scan finished with problems — ${failed[0]}`, false);
-  else toast(cards ? `Re-scan done — ${cards} card${cards === 1 ? '' : 's'} rebuilt` : 'Re-scan done — nothing new to add', true);
+  else toast(parts.length ? `Re-scan done — ${parts.join(', ')}` : 'Re-scan done — nothing new to add', true);
 });
 
 /* ── Reordering the account list ──────────────────────────────────────────
