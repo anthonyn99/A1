@@ -8885,6 +8885,17 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     });
   } catch (e) { console.warn('[A1Backup] register failed (backups only):', e); }
 
+  // ── Backup tap ────────────────────────────────────────────────────────────
+  // Hands a server-confirmed document to the backup vault. The listeners below
+  // already receive this data, so capturing it costs ZERO extra Firestore
+  // reads. Always wrapped: a backup failure must never propagate into a sync
+  // handler, and must never alter control flow or ordering (see
+  // tests/sync-guard.test.js, which pins the sequence inside these callbacks).
+  const _a1b = (path, data) => {
+    try { if (window.A1Backup && data != null) window.A1Backup.observe(path, data); }
+    catch (e) { /* backups are best-effort; sync is not */ }
+  };
+
   // ── Write-pipeline safety: oversized-write guard + auto-recovery ───────────
   // With persistentLocalCache the offline mutation queue lives in IndexedDB and is
   // strictly FIFO. A single write the backend PERMANENTLY rejects — most often a
@@ -9718,6 +9729,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       if (fromCache) return;                          // cached echo, not remote news
       const d = snap.data();
       // Drop a pending local write that is OLDER than the server copy — see the
+      _a1b('dashboards/main', d);
       // Veda listener for the full account. Unlocking writes on a snapshot we then
       // discard is what let a resumed phone flush its stale queued save over newer
       // edits from another device.
@@ -9753,8 +9765,10 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     };
     if (_mcCalUnsub) { _mcCalUnsub(); _mcCalUnsub = null; }
     _mcCalUnsub = onSnapshot(mcCalDocRef, (snap) => {
-      if (snap.exists() && Array.isArray(snap.data().events))
+      if (snap.exists() && Array.isArray(snap.data().events)) {
+        _a1b('dashboards/market_calendar', snap.data());
         window.dispatchEvent(new CustomEvent("fb-marketcal-update", { detail: snap.data().events }));
+      }
     });
 
 
@@ -9895,6 +9909,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       if (fromCache) return;                 // cached echo, not remote news
       const d = snap.data();
       // A PENDING LOCAL WRITE THAT IS OLDER THAN THE SERVER COPY MUST BE DROPPED.
+      _a1b('dashboards/vedasdash', d);
       // This is the bug that reverted the desktop: on resume the phone had an
       // autosave queued from its stale in-memory state. The fresh server snapshot
       // unlocked writes (below) but the old `if (_vdSavePending) return;` threw the
@@ -9944,6 +9959,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       if (snap.metadata && snap.metadata.fromCache) return;
       const d = snap.data() || {};
       window._sosMirrorLatest = d.items || {};
+      _a1b('dashboards/studyos_mirror', d);
       // Per-class launchable resources, published as a side table rather than
       // on each item (see V1/js/taskmirror.js buildClasses). Set inside this
       // callback, i.e. AFTER the fromCache return above, so it can never carry
@@ -10024,6 +10040,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       if (!snap.exists()) return;
       const d = snap.data() || {};
       const at = d.savedAt || 0;
+      _a1b('dashboards/studyos_mirror_ack', d);
       // Older than what we already have (a late cached snapshot, or the echo of
       // a write we have since superseded) carries no news.
       if (at < _sosAckSeenAt || at < _sosAckOwnSavedAt) return;
@@ -10259,6 +10276,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       if (snap.metadata && snap.metadata.fromCache) return;
       const d = snap.data() || {};
       const plans = {};
+      _a1b('dashboards/plans', d);
       Object.keys(d).forEach(k => {
         if (k.indexOf('p_') !== 0) return;
         const p = d[k];
@@ -10630,6 +10648,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       if (!snap.exists()) { if (!_fromCache) _bjMarkServerSeen(); return; }
       const data = snap.data();
       const _bjSnapSavedAt = data.savedAt || 0;
+      _a1b('dashboards/journal', data);
       // Echo detection: skip ONLY when savedAt is exactly what WE wrote AND within 3s.
       // deleteField() writes don't bump savedAt — the old <= comparison falsely matched
       // and suppressed another device's deletion. 15s blanket also dropped legitimate
@@ -11201,6 +11220,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       if (!snap.exists()) { if (!_fromCache) _tjMarkServerSeen(); return; }
       const data = snap.data();
       const _tjSnapSavedAt = data.savedAt || 0;
+      _a1b('dashboards/tony_journal', data);
       // Echo detection: exact timestamp match + within 3s only. deleteField() writes
       // do not bump savedAt so the old <= comparison suppressed remote deletions.
       const isOwnEcho = _tjSnapSavedAt > 0
@@ -11363,6 +11383,9 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       onSnapshot(mjdDocRef, (snap) => {
         if (!snap.exists()) return;
         const d = snap.data();
+        // Observed BEFORE the echo-suppression return: the app can ignore its
+        // own write, but the vault still wants the newest server state.
+        _a1b('dashboards/myjournal_docs', d);
         if (d.savedAt && Math.abs(d.savedAt - _mjdLastOwnSaveAt) < 1500) return;
         window._mjdLoadOk = true;
         window.dispatchEvent(new CustomEvent('fb-mjdocs-remote-update', { detail: d }));
@@ -11395,6 +11418,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     _ecUnsubscribe = onSnapshot(doc(db, EC_DOC_PATH), (snap) => {
       const cards = (snap.exists() ? (snap.data().cards || []) : []).filter(Boolean);
       window._ecCards = cards;
+      _a1b('dashboards/pv_cards', { cards: cards });
       window.dispatchEvent(new CustomEvent('ec-cards-update', { detail: cards }));
     }, (err) => { console.warn('[Cards] onSnapshot error:', err); });
 
@@ -11424,6 +11448,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       if (Date.now() - _alLastOwnSaveAt < 2000) return;
       const d = snap.data();
       if (window._alApplyRemoteLocks) window._alApplyRemoteLocks(d.locks || {});
+      _a1b('dashboards/applock', d);
     }, (err) => { console.warn('[AppLock] onSnapshot error:', err); });
 
     // ── OneInbox → Tony's TaskHub cards (read + dismiss) ─────────────────────
@@ -11447,6 +11472,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     _oiUnsubscribe = onSnapshot(collection(db, 'dashboards/oneinbox/cards'), (snap) => {
       const cards = snap.docs.map(d => d.data()).filter(Boolean);
       window._oiCards = cards;
+      _a1b('dashboards/oneinbox/cards', { cards: cards });
       window.dispatchEvent(new CustomEvent('oi-cards-update', { detail: cards }));
     }, (err) => { console.warn('[OneInbox] cards onSnapshot error:', err); });
 
@@ -11515,6 +11541,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       if (!snap.exists()) { if (!fromCache) _noMarkServerSeen(); return; }
       const d = snap.data();
       // Our own write echoed back — apply nothing, but this IS server contact.
+      _a1b('dashboards/navorder', d);
       if (d.savedAt && _noOwnWrites.has(d.savedAt)) { if (!fromCache) _noMarkServerSeen(); return; }
       if (window._navOrderModule) window._navOrderModule.applyRemote(d);
       // Marked AFTER the merge so any write held by the gate replays on top of
@@ -11542,6 +11569,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       // so this needs no timing window of its own (unlike NavOrder above).
       const data = snap.exists() ? snap.data() : null;
       if (window.THTS && window.THTS.syncFromCloud) window.THTS.syncFromCloud(data);
+      _a1b('dashboards/tesla_cfg', data);
     }, (err) => { console.warn('[Tesla] onSnapshot error:', err); });
 
     window._fbReady = true;

@@ -207,6 +207,51 @@ t('a refused snapshot is parked, not dropped, and raises the alarm',
 t('a refusal leaves the previous snapshot untouched',
   /The previous backup is untouched/.test(cap));
 
+
+section('The listener taps are wired and cannot alter app behaviour');
+
+// Every document Index owns that has a live listener should be tapped, since
+// those cost zero extra Firestore reads.
+const TAPPED = ['main', 'vedasdash', 'journal', 'tony_journal', 'plans', 'navorder',
+                'applock', 'tesla_cfg', 'pv_cards', 'studyos_mirror',
+                'studyos_mirror_ack', 'myjournal_docs', 'market_calendar',
+                'oneinbox/cards'];
+TAPPED.forEach((d) => {
+  t("dashboards/" + d + ' is tapped', HTML.includes("_a1b('dashboards/" + d + "'"),
+    'A listener already delivers this document; not tapping it wastes a free capture.');
+});
+
+t('the tap helper swallows its own failures',
+  /const _a1b = \(path, data\) => \{[\s\S]{0,220}?catch \(e\)/.test(HTML),
+  'A backup fault must never propagate into a sync handler.');
+
+t('the tap helper is defined before any listener uses it',
+  HTML.indexOf('const _a1b = (path, data)') < HTML.indexOf("_a1b('dashboards/"),
+  'Const is in the temporal dead zone until its declaration runs.');
+
+// The regression that prompted this check: a tap was appended under a
+// brace-less `if`, which silently made the ORIGINAL statement unconditional.
+// It was valid JavaScript, so every syntax check and every test still passed.
+const htmlLines = HTML.split(/\r?\n/);
+const badTaps = [];
+htmlLines.forEach((line, i) => {
+  if (line.indexOf('_a1b(') === -1) return;
+  let j = i - 1;
+  while (j >= 0 && (htmlLines[j].trim() === '' || htmlLines[j].trim().indexOf('//') === 0)) j--;
+  const prev = (htmlLines[j] || '').trim();
+  // A preceding `if (...)` with no `{` and no statement on the same line means
+  // this tap became the if's body and displaced whatever followed it.
+  if (/^if\s*\(/.test(prev) && prev.indexOf('{') === -1 && /\)$/.test(prev)) {
+    badTaps.push('line ' + (i + 1) + ' after: ' + prev);
+  }
+});
+t('no tap was inserted as the body of a brace-less if',
+  badTaps.length === 0, badTaps.join('\n      '));
+
+t('no tap participates in control flow',
+  !/return _a1b\(|_a1b\([^)]*\)\s*(&&|\|\||\?)/.test(HTML),
+  'A tap must be a statement with no effect on what the handler does next.');
+
 // ───────────────────────── behavioural ─────────────────────────
 // Everything above is static. This runs the shipped measure() end to end,
 // which is the only part that would have caught the original bug.
