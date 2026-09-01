@@ -6938,13 +6938,13 @@ function renderBuildCard(cid, b, idx) {
 
   const itemIcons = items.map(function(id) {
     var name = (allItems[id]||{}).name||id;
-    return '<div data-id="' + id + '" onclick="openItemOverlay(this.dataset.id)" style="cursor:pointer;" title="' + name + '"><img src="' + DDRAGON + '/img/item/' + id + '.png" style="width:40px;height:40px;border-radius:6px;" onerror="this.style.opacity=0.3"></div>';
+    return '<div data-id="' + id + '" onclick="openItemOverlay(this.dataset.id)" style="cursor:pointer;flex-shrink:0;" title="' + name + '"><img src="' + DDRAGON + '/img/item/' + id + '.png" style="width:40px;height:40px;border-radius:6px;display:block;" onerror="this.style.opacity=0.3"></div>';
   }).join('');
 
   const spellIcons = spells.map(function(sid) {
     const sp = (allSummonerSpells||[]).find(function(s){ return s.id === sid; });
     if (!sp) return '';
-    return '<div data-spid="' + sp.id + '" onclick="openSpellOverlay(this.dataset.spid)" style="cursor:pointer;" title="' + sp.name + '"><img src="' + DDRAGON + '/img/spell/' + sp.image.full + '" style="width:36px;height:36px;border-radius:6px;"></div>';
+    return '<div data-spid="' + sp.id + '" onclick="openSpellOverlay(this.dataset.spid)" style="cursor:pointer;flex-shrink:0;" title="' + sp.name + '"><img src="' + DDRAGON + '/img/spell/' + sp.image.full + '" style="width:36px;height:36px;border-radius:6px;display:block;"></div>';
   }).join('');
 
   // Runes: show every selected rune (all slots) as clickable icons
@@ -6955,7 +6955,7 @@ function renderBuildCard(cid, b, idx) {
     const mainCol  = mainPath ? (COLORS[mainPath.name]||'var(--gold)') : 'var(--gold)';
     const subCol   = subPath  ? (COLORS[subPath.name]||'var(--blue)')  : 'var(--blue)';
 
-    runeHtml += '<div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;">';
+    runeHtml += '<div class="bld-icons" style="align-items:center;">';
 
     // All primary path selected runes (keystones + rows)
     if (mainPath && b.runeMainSlots) {
@@ -6995,30 +6995,30 @@ function renderBuildCard(cid, b, idx) {
 
   // Matchup display
   const matchupHtml = (b.matchupChamps && b.matchupChamps.length)
-    ? b.matchupChamps.map(function(mcid){ return '<img src="' + DDRAGON + '/img/champion/' + mcid + '.png" style="width:22px;height:22px;border-radius:4px;" title="' + ((allChamps[mcid]||{}).name||mcid) + '">'; }).join('')
+    ? b.matchupChamps.map(function(mcid){ return '<img src="' + DDRAGON + '/img/champion/' + mcid + '.png" style="width:22px;height:22px;border-radius:4px;flex-shrink:0;" title="' + ((allChamps[mcid]||{}).name||mcid) + '">'; }).join('')
     : (b.matchup || '');
 
   const SECT = 'font-family:var(--body);font-size:13px;font-weight:700;color:var(--tx2);letter-spacing:-0.2px;margin-bottom:8px;';
 
-  return '<div style="background:var(--bg3);border:1px solid var(--bd);border-radius:10px;padding:16px 18px;margin-bottom:12px;">' +
-    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">' +
-      '<div>' +
-        '<div style="font-family:var(--head);font-size:17px;font-weight:800;color:var(--tx);">' + (b.name||'Build '+(idx+1)) + '</div>' +
-        (matchupHtml ? '<div style="display:flex;gap:3px;align-items:center;margin-top:4px;">' +
+  return '<div class="bld-card" style="margin-bottom:12px;">' +
+    '<div class="bld-card-hd">' +
+      '<div class="bld-card-ttl">' +
+        '<div class="bld-card-name">' + (b.name||'Build '+(idx+1)) + '</div>' +
+        (matchupHtml ? '<div class="bld-matchups">' +
           (matchupHtml.startsWith('<') ? matchupHtml : '<span style="font-family:var(--mono);font-size:12px;color:var(--tx3);">vs ' + matchupHtml + '</span>') +
         '</div>' : '') +
       '</div>' +
-      '<div style="display:flex;gap:6px;">' +
-        '<button onclick="editBuild(\'' + selectedBuildChamp + '\',' + idx + ')" class="btn-ghost" style="height:28px;padding:0 12px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx2);font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;">Edit</button>' +
-        '<button onclick="deleteBuild(\'' + selectedBuildChamp + '\',' + idx + ')" style="height:28px;padding:0 12px;background:transparent;border:1px solid rgba(214,138,124,.35);border-radius:6px;color:var(--red);font-family:var(--mono);font-size:12px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;">'+wrIco('close',14)+'</button>' +
+      '<div class="bld-card-acts">' +
+        '<button onclick="editBuild(\'' + selectedBuildChamp + '\',' + idx + ')" class="btn-ghost" style="background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx2);font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;">Edit</button>' +
+        '<button onclick="deleteBuild(\'' + selectedBuildChamp + '\',' + idx + ')" aria-label="Delete build" title="Delete build" style="background:transparent;border:1px solid rgba(214,138,124,.35);border-radius:6px;color:var(--red);font-family:var(--mono);font-size:12px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;">'+wrIco('close',14)+'</button>' +
       '</div>' +
     '</div>' +
-    '<div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;">' +
-      (itemIcons  ? '<div><div style="' + SECT + '">Items</div><div style="display:flex;gap:5px;flex-wrap:wrap;">'  + itemIcons  + '</div></div>' : '') +
-      (spellIcons ? '<div><div style="' + SECT + '">Spells</div><div style="display:flex;gap:5px;">'               + spellIcons + '</div></div>' : '') +
-      (runeHtml   ? '<div><div style="' + SECT + '">Runes</div>'                                                   + runeHtml   + '</div>'       : '') +
+    '<div class="bld-sections">' +
+      (itemIcons  ? '<div class="bld-sect"><div style="' + SECT + '">Items</div><div class="bld-icons">'  + itemIcons  + '</div></div>' : '') +
+      (spellIcons ? '<div class="bld-sect"><div style="' + SECT + '">Spells</div><div class="bld-icons">' + spellIcons + '</div></div>' : '') +
+      (runeHtml   ? '<div class="bld-sect"><div style="' + SECT + '">Runes</div>'                         + runeHtml   + '</div>'       : '') +
     '</div>' +
-    (b.notes ? '<div style="margin-top:12px;font-family:var(--body);font-size:13px;color:var(--tx3);border-top:1px solid var(--bd);padding-top:10px;line-height:1.6;">' + b.notes + '</div>' : '') +
+    (b.notes ? '<div style="margin-top:12px;font-family:var(--body);font-size:13px;color:var(--tx3);border-top:1px solid var(--bd);padding-top:10px;line-height:1.6;overflow-wrap:anywhere;white-space:pre-wrap;">' + b.notes + '</div>' : '') +
   '</div>';
 }
 
