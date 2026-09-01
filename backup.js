@@ -471,6 +471,34 @@
     return key;
   }
 
+  var _hmacCache = {};
+  async function deriveHmacWith(pass, saltB64, iter) {
+    var ck = saltB64 + '|' + iter;
+    if (_hmacCache[ck] && _hmacCache[ck].pass === pass) return _hmacCache[ck].key;
+    var base = await crypto.subtle.importKey('raw', _enc.encode(pass), 'PBKDF2', false, ['deriveKey']);
+    var key = await crypto.subtle.deriveKey(
+      { name: 'PBKDF2', salt: unb64(saltB64), iterations: iter, hash: 'SHA-256' },
+      base, { name: 'HMAC', hash: 'SHA-256', length: 256 }, false, ['sign']);
+    _hmacCache[ck] = { pass: pass, key: key };
+    return key;
+  }
+
+  // Object id = HMAC(key, path || NUL || plaintext), hex, truncated.
+  // Content-addressed so an unchanged document is stored exactly once; KEYED so
+  // the id reveals nothing to anyone without the passphrase. A plain hash would
+  // let someone who can see an id confirm a GUESSED document — the same
+  // confirmation attack the plaintext hash is hidden inside the ciphertext to
+  // avoid. Keying it is also what makes it safe to publish the id list, which
+  // the pull script needs in order to fetch anything at all.
+  async function objId(path, plain) {
+    var pass = lsGet(A1B.PASS_KEY);
+    if (!pass) throw new Error('locked');
+    var key = await deriveHmacWith(pass, getSalt(), A1B.PBKDF2_ITER);
+    var sig = await crypto.subtle.sign('HMAC', key, _enc.encode(path + '\u0000' + plain));
+    return Array.prototype.map.call(new Uint8Array(sig),
+      function (x) { return ('0' + x.toString(16)).slice(-2); }).join('').slice(0, 32);
+  }
+
   async function deriveKey(pass) {
     if (_key && _keyPass === pass) return _key;
     _key = await deriveKeyWith(pass, getSalt(), A1B.PBKDF2_ITER);
@@ -662,7 +690,7 @@
     for (var i = 0; i < paths.length; i++) {
       var p = paths[i];
       var plain = JSON.stringify(observed[p]);
-      var h = (await sha256Hex(p + '\u0000' + plain)).slice(0, 32);
+      var h = await objId(p, plain);
       manifest.docs[p] = h;
       manifest.bytes += plain.length;
       if (await vGet('objects', h)) { reused++; continue; }
@@ -1000,6 +1028,12 @@
       var envMan = await encryptStr(JSON.stringify(man));
       envMan.docs = Object.keys(man.docs).length;
       envMan.at = at;
+      // The object ids this snapshot needs, in the clear. They are keyed
+      // hashes, so they identify nothing on their own — and pull-backups.mjs
+      // cannot read the manifest, so without this list it has no way to fetch
+      // the documents themselves. Omitting it is what left the repo copy as an
+      // index pointing at nothing.
+      envMan.objects = hashes;
       var mr = await fetch(WORKER + '/s/' + deviceSlug(), {
         method: 'PUT', headers: headers, body: JSON.stringify(envMan)
       });
