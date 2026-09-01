@@ -964,10 +964,10 @@ function dateIsStated(text, iso, sentAt) {
   const mon = MON3[M - 1];
   const yy = String(Y).slice(2);
   const pats = [
-    new RegExp(`\b${Y}-0?${M}-0?${D}\b`),                                   // 2026-09-06
-    new RegExp(`\b0?${M}[\/\.-]0?${D}(?:[\/\.-](?:${Y}|${yy}))?\b`),     // 9/6, 09-06-2026
-    new RegExp(`\b${mon}[a-z]*\.?\s+0?${D}(?:st|nd|rd|th)?\b`, 'i'),       // Sep 6, September 6th
-    new RegExp(`\b0?${D}(?:st|nd|rd|th)?\s+(?:of\s+)?${mon}[a-z]*\b`, 'i') // 6 September
+    new RegExp(`\\b${Y}-0?${M}-0?${D}\\b`),                                    // 2026-09-06
+    new RegExp(`\\b0?${M}[\\/.-]0?${D}(?:[\\/.-](?:${Y}|${yy}))?\\b`),         // 9/6, 09-06-2026
+    new RegExp(`\\b${mon}[a-z]*\\.?\\s+0?${D}(?:st|nd|rd|th)?\\b`, 'i'),       // Sep 6, September 6th
+    new RegExp(`\\b0?${D}(?:st|nd|rd|th)?\\s+(?:of\\s+)?${mon}[a-z]*\\b`, 'i') // 6 September
   ];
   if (pats.some(re => re.test(t))) return true;
 
