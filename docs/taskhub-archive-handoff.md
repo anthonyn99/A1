@@ -398,7 +398,11 @@ now regressed three times, every time after being verified by reading), never le
 an archived key into a payload, never let the size valve near the recent window,
 and remember that `localStorage` latches are per-device.
 
-Related: `memory/taskhub-sync-two-paths.md`.
+Related: `tests/sync-guard.test.js` covers the three earlier "my edits
+reverted" races (stale write path, cache-fallback render path, cold-open
+cross-document race). The archive failures are a fourth, unrelated path.
+(Earlier revisions pointed at `memory/taskhub-sync-two-paths.md`; no such
+file exists in this repo or in the assistant memory directory.)
 
 ---
 
