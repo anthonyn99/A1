@@ -1815,17 +1815,18 @@ html.lk-open, body.lk-open {
   border-radius: 10px; padding: 16px 18px; overflow: hidden;
 }
 .bld-card-hd {
-  display: flex; align-items: flex-start; justify-content: space-between;
-  gap: 10px; flex-wrap: wrap; margin-bottom: 12px;
+  display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px;
 }
-.bld-card-ttl { flex: 1 1 180px; min-width: 0; }
 .bld-card-name {
+  flex: 1 1 auto; min-width: 0;
   font-family: var(--head); font-size: 17px; font-weight: 800; color: var(--tx);
   overflow-wrap: anywhere;
 }
-/* The fix for the reported bug: matchup portraits wrap onto as many rows as
-   they need instead of running past the card's right edge. */
-.bld-matchups { display: flex; gap: 3px; align-items: center; flex-wrap: wrap; margin-top: 4px; }
+/* The fix for the reported bug. The portraits used to share the title's cell on
+   a single non-wrapping line, which pushed Edit / ✕ past the right edge — the
+   only way to reach them on a phone was a horizontal scroll. They get the
+   card's full width and wrap down it; the buttons never move. */
+.bld-matchups { display: flex; gap: 3px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
 .bld-card-acts { display: flex; gap: 6px; flex-shrink: 0; margin-left: auto; }
 .bld-card-acts button { height: 28px; padding: 0 12px; }
 .bld-sections { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
@@ -1917,9 +1918,7 @@ html.lk-open, body.lk-open {
   .bld-sections { gap: 14px; }
   /* Reaching Edit / ✕ is a one-handed tap on a phone, so they get the 44px
      target the rest of the app uses rather than the desktop 28px. */
-  .bld-card-acts button { height: 38px; min-height: 38px; padding: 0 16px; }
-  .bld-card-acts { width: 100%; margin-left: 0; }
-  .bld-card-acts button:first-child { flex: 1; }
+  .bld-card-acts button { height: 38px; min-height: 38px; padding: 0 14px; }
   #be-right { flex: 0 0 42%; min-height: 190px; }
 }
 
@@ -7051,17 +7050,15 @@ function renderBuildCard(cid, b, idx) {
 
   return '<div class="bld-card" style="margin-bottom:12px;">' +
     '<div class="bld-card-hd">' +
-      '<div class="bld-card-ttl">' +
-        '<div class="bld-card-name">' + (b.name||'Build '+(idx+1)) + '</div>' +
-        (matchupHtml ? '<div class="bld-matchups">' +
-          (matchupHtml.startsWith('<') ? matchupHtml : '<span style="font-family:var(--mono);font-size:12px;color:var(--tx3);">vs ' + matchupHtml + '</span>') +
-        '</div>' : '') +
-      '</div>' +
+      '<div class="bld-card-name">' + (b.name||'Build '+(idx+1)) + '</div>' +
       '<div class="bld-card-acts">' +
         '<button onclick="editBuild(\'' + selectedBuildChamp + '\',' + idx + ')" class="btn-ghost" style="background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx2);font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;">Edit</button>' +
         '<button onclick="deleteBuild(\'' + selectedBuildChamp + '\',' + idx + ')" aria-label="Delete build" title="Delete build" style="background:transparent;border:1px solid rgba(214,138,124,.35);border-radius:6px;color:var(--red);font-family:var(--mono);font-size:12px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;">'+wrIco('close',14)+'</button>' +
       '</div>' +
     '</div>' +
+    (matchupHtml ? '<div class="bld-matchups">' +
+      (matchupHtml.startsWith('<') ? matchupHtml : '<span style="font-family:var(--mono);font-size:12px;color:var(--tx3);">vs ' + matchupHtml + '</span>') +
+    '</div>' : '') +
     '<div class="bld-sections">' +
       (itemIcons  ? '<div class="bld-sect"><div style="' + SECT + '">Items</div><div class="bld-icons">'  + itemIcons  + '</div></div>' : '') +
       (spellIcons ? '<div class="bld-sect"><div style="' + SECT + '">Spells</div><div class="bld-icons">' + spellIcons + '</div></div>' : '') +
