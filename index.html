@@ -8235,7 +8235,7 @@ function App(){
   // the CSS --glow-neutral token uses, so the two never read as the same state.
   // On today the two collapse and gold wins, which is right — it is both.
   const CURSOR=T.TX, GLOW_CURSOR=GLOW(T.TX), GLOW_AC=GLOW(T.AC);
-  const sbtn={background:"transparent",color:T.ACL,border:"1px solid "+T.AC,boxShadow:GLOW(T.AC),borderRadius:4,padding:"6px 14px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"'Inter',system-ui,-apple-system,sans-serif"};
+  const sbtn={background:"transparent",color:T.ACL,border:"1px solid "+T.AC,borderRadius:4,padding:"6px 14px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"'Inter',system-ui,-apple-system,sans-serif"};
   const ctag=c=>({fontSize:9,color:CC[c]||T.TXD,background:(CC[c]||T.TXD)+"1a",borderRadius:6,padding:"1px 5px",marginLeft:2,textTransform:"capitalize",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+(CC[c]||T.TXD)+"30"});
   const mcByDay=useMemo(()=>{const g={};const todayK=dkey(new Date().getFullYear(),new Date().getMonth(),new Date().getDate());(marketCal||[]).forEach(ev=>{if(!ev||!ev.date)return;(g[ev.date]=g[ev.date]||[]).push({id:ev.id,type:"event",_mc:true,kind:ev.kind,title:ev.name,category:ev.category,importance:ev.importance,date:ev.date,notifyAt:ev.notifyAt||null,_past:ev.date<todayK});});return g;},[marketCal]);
   const mcFmt=(iso)=>{const d=new Date(iso);let h=d.getHours();const m=d.getMinutes();const ap=h<12?" AM":" PM";h=h%12||12;return h+":"+(m<10?"0":"")+m+ap;};
@@ -8401,7 +8401,7 @@ function App(){
             const pvMatches=ecByDay[k]||[];
             const events=allItems.filter(i=>i.type==="event");
             return React.createElement("div",{"data-dnd-zone":"week:"+k,style:{background:td?(T.TODAYBG||T.S2):T.BG,border:td?"1.5px solid "+(T.TODAYBD||T.AC+"60"):"1px solid "+T.BD,borderRadius:4,padding:12,minHeight:80,display:"flex",flexDirection:"column"}},
-              edit&&React.createElement("button",{type:"button",style:{fontSize:11,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,boxShadow:GLOW(T.AC),borderRadius:4,padding:"9px 0",width:"100%",cursor:"pointer",marginBottom:8,fontFamily:"inherit"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"),
+              edit&&React.createElement("button",{type:"button",style:{fontSize:11,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,borderRadius:4,padding:"9px 0",width:"100%",cursor:"pointer",marginBottom:8,fontFamily:"inherit"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"),
               React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:tasks.length>0?6:10,gap:4}},
                 React.createElement("div",{style:{minWidth:0}},
                   React.createElement("div",{style:{fontFamily:td?"var(--font-accent)":"'Manrope',system-ui,sans-serif",fontSize:14,fontWeight:700,color:td?T.AC:T.TXD,whiteSpace:"nowrap"}},DOW[mobDayIdx]),
@@ -8470,7 +8470,7 @@ function App(){
                 edit&&React.createElement("button",{type:"button",style:{...ebtn,padding:"0 6px"},onClick:()=>{setEi(e);setMdt(k);setMo(true);},title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px"},onClick:()=>del(k,e.id)},"×"))),
               !tasks.length&&!events.length&&!mcDay.length&&!edit&&React.createElement("div",{style:{fontSize:11,fontWeight:500,color:T.TXM,textAlign:"center",padding:"24px 0"}},"—"),
-              edit&&React.createElement("button",{type:"button",style:{fontSize:11,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,boxShadow:GLOW(T.AC),borderRadius:4,padding:"9px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"));
+              edit&&React.createElement("button",{type:"button",style:{fontSize:11,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,borderRadius:4,padding:"9px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"));
           })())
         :
         // ── 5-day narrow or 7-day desktop ──
@@ -8491,7 +8491,7 @@ function App(){
             const pvMatches=ecByDay[k]||[];
             const events=allItems.filter(i=>i.type==="event");
             return React.createElement("div",{key:k,"data-dnd-zone":"week:"+k,onDragOver:edit?e=>{e.preventDefault();e.dataTransfer.dropEffect="move";if(!isMobile)setDragOverId("day-"+k);}:null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropDay(e,k):null,style:dndDayStyle(k,{background:td?(T.TODAYBG||T.S2):T.BG,border:td?"1.5px solid "+(T.TODAYBD||T.AC+"60"):"1px solid "+T.BD,borderRadius:4,padding:"clamp(8px,1.2vw,12px)",minHeight:"clamp(200px,22vh,280px)",display:"flex",flexDirection:"column"})},
-              edit&&React.createElement("button",{type:"button",style:{fontSize:10,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,boxShadow:GLOW(T.AC),borderRadius:4,padding:"5px 0",width:"100%",cursor:"pointer",marginBottom:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"),
+              edit&&React.createElement("button",{type:"button",style:{fontSize:10,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,borderRadius:4,padding:"5px 0",width:"100%",cursor:"pointer",marginBottom:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"),
               React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:tasks.length>0?4:10,gap:4}},
                 React.createElement("div",{style:{minWidth:0}},
                   React.createElement("div",{style:{fontFamily:td?"var(--font-accent)":"'Manrope',system-ui,sans-serif",fontSize:13,fontWeight:700,color:td?T.AC:T.TXD,whiteSpace:"nowrap",textTransform:"none"}},DS[i]),
@@ -8549,7 +8549,7 @@ function App(){
                 edit&&React.createElement("button",{type:"button",style:ebtn,onClick:()=>{setEi(e);setMdt(k);setMo(true);},title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                 edit&&React.createElement("button",{type:"button",style:dbtn,onClick:()=>del(k,e.id)},"×"))),
               !tasks.length&&!events.length&&!mcDay.length&&!edit&&React.createElement("div",{style:{fontSize:10,fontWeight:500,color:T.TXM,textAlign:"center",padding:"32px 0"}},"—"),
-              edit&&React.createElement("button",{type:"button",style:{fontSize:10,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,boxShadow:GLOW(T.AC),borderRadius:4,padding:"5px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"));
+              edit&&React.createElement("button",{type:"button",style:{fontSize:10,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,borderRadius:4,padding:"5px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"));
           })))),
 
     React.createElement("div",{style:{display:"grid",gridTemplateColumns:isMobile?"1fr":"minmax(0,4fr) minmax(0,2.4fr) minmax(0,4fr)",gap:"clamp(6px,1vw,10px)",flexShrink:0,alignItems:"start"}},
@@ -15083,7 +15083,7 @@ function App(){
             const dayTX=td?TX:TXD;
             const dimA=vdDim(td);
             return RC("div",{"data-dnd-zone":"week:"+k,style:{background:td?"#303135":BG,border:td?"1px solid "+A:"1px solid "+BD,borderRadius:8,padding:12,minHeight:80,display:"flex",flexDirection:"column"}},
-              edit&&RC("button",{style:{fontSize:11,fontWeight:700,color:A,background:"transparent",border:"1px solid "+A,boxShadow:GLOW_A,borderRadius:4,padding:"9px 0",width:"100%",cursor:"pointer",marginBottom:8,fontFamily:"inherit"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"),
+              edit&&RC("button",{style:{fontSize:11,fontWeight:700,color:A,background:"transparent",border:"1px solid "+A,borderRadius:4,padding:"9px 0",width:"100%",cursor:"pointer",marginBottom:8,fontFamily:"inherit"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"),
               RC("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8,gap:4}},
                 RC("div",{style:{minWidth:0}},
                   RC("div",{style:{fontSize:14,fontWeight:700,color:td?A:TXD,letterSpacing:.5,whiteSpace:"nowrap"}},DOW[vrMobDayIdx]),
@@ -15130,7 +15130,7 @@ function App(){
                 edit&&RC("button",{type:"button",title:"Edit",style:vdIcoBtn(TXD),onClick:()=>{setEi(e);setMdt(k);setMo(true);}},vdIco(TNI.pencil)),
                 edit&&RC("button",{type:"button",title:"Delete",style:vdIcoBtn("#f85149"),onClick:()=>del(k,e.id)},vdIco(TNI.x)))),
               !it.length&&!(mcByDay[k]||[]).length&&!edit&&RC("div",{style:{fontSize:11,fontWeight:600,color:TXM,textAlign:"center",padding:"24px 0"}},"—"),
-              edit&&RC("button",{style:{fontSize:11,fontWeight:700,color:A,background:"transparent",border:"1px solid "+A,boxShadow:GLOW_A,borderRadius:4,padding:"9px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"));
+              edit&&RC("button",{style:{fontSize:11,fontWeight:700,color:A,background:"transparent",border:"1px solid "+A,borderRadius:4,padding:"9px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"));
           })())
         :
         RC("div",{style:{display:"grid",gridTemplateColumns:"repeat("+(vrNarrow?5:7)+",minmax(0,1fr))",gap:8}},
@@ -15144,7 +15144,7 @@ function App(){
             const dayTX=td?TX:TXD;
             const dimA=vdDim(td);
             return RC("div",{key:k,"data-dnd-zone":"week:"+k,onDragOver:edit?e=>{e.preventDefault();e.dataTransfer.dropEffect="move";if(!vrMobile)setVdDragOverId("day-"+k);}:null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropDay(e,k):null,style:vdndDayStyle(k,{background:td?"#303135":BG,border:td?"1px solid "+A:"1px solid "+BD,borderRadius:6,padding:"8px 8px",minHeight:150,display:"flex",flexDirection:"column"})},
-              edit&&RC("button",{style:{fontSize:11,fontWeight:700,color:A,background:"transparent",border:"1px solid "+A,boxShadow:GLOW_A,borderRadius:4,padding:"4px 0",width:"100%",cursor:"pointer",marginBottom:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"),
+              edit&&RC("button",{style:{fontSize:11,fontWeight:700,color:A,background:"transparent",border:"1px solid "+A,borderRadius:4,padding:"4px 0",width:"100%",cursor:"pointer",marginBottom:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"),
               RC("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}},
                 RC("div",null,
                   RC("div",{style:{fontSize:13,fontWeight:700,color:td?A:TXD,textTransform:"uppercase",letterSpacing:.5}},DS[i]),
@@ -15186,7 +15186,7 @@ function App(){
                 edit&&RC("button",{type:"button",title:"Edit",style:vdIcoBtn(TXD),onClick:()=>{setEi(e);setMdt(k);setMo(true);}},vdIco(TNI.pencil)),
                 edit&&RC("button",{type:"button",title:"Delete",style:vdIcoBtn("#f85149"),onClick:()=>del(k,e.id)},vdIco(TNI.x)))),
               !it.length&&!(mcByDay[k]||[]).length&&!edit&&RC("div",{style:{fontSize:11,fontWeight:600,color:TXM,textAlign:"center",padding:"30px 0"}},"—"),
-              edit&&RC("button",{style:{fontSize:11,fontWeight:700,color:A,background:"transparent",border:"1px solid "+A,boxShadow:GLOW_A,borderRadius:4,padding:"4px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"))})))),
+              edit&&RC("button",{style:{fontSize:11,fontWeight:700,color:A,background:"transparent",border:"1px solid "+A,borderRadius:4,padding:"4px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"))})))),
 
     // ── Bottom panels ──
     RC("div",{style:{display:"grid",gridTemplateColumns:vrMobile?"1fr":"minmax(0,4fr) minmax(0,2.5fr) minmax(0,4fr)",gap:10}},
@@ -24755,69 +24755,6 @@ window.hideBrainstormJournal = function() {
 #tj-root #tj-wb-size-lbl { font-family: var(--font-mono); font-size: 10px; color: var(--text3); min-width: 16px; }
 #tj-root #tj-wb-canvas { display: block; cursor: crosshair; touch-action: none; background: #1B1C1E; }
 
-  /* ── NOTES ── */
-#tj-root #tj-notes-area { display: none; flex-direction: column; gap: 10px; flex: 1; overflow-y: auto; min-height: 0; -webkit-overflow-scrolling: touch; }
-#tj-root .notes-section {
-    background: var(--card); border-radius: 8px; border: 1px solid var(--border); overflow: hidden;
-  }
-#tj-root .notes-section-header {
-    padding: 7px 14px;
-    background: var(--card2);
-    border-bottom: 1px solid var(--border);
-    font-size: 10px; font-weight: 600;
-    color: var(--purple); letter-spacing: 0.10em;
-    text-transform: uppercase;
-    font-family: var(--font);
-    display: flex; align-items: center; gap: 7px;
-  }
-#tj-root .notes-section-header::before {
-    content: '';
-    display: inline-block;
-    width: 5px; height: 5px;
-    border-radius: 50%;
-    background: var(--purple);
-    opacity: 0.5;
-    flex-shrink: 0;
-  }
-#tj-root .notes-text {
-    width: 100%; padding: 13px 15px;
-    border: none;
-    font-family: var(--font);
-    font-size: 14px; line-height: 1.75;
-    color: var(--text); background: transparent; resize: vertical; outline: none; min-height: 90px; font-weight: 400; caret-color: var(--purple);
-  }
-#tj-root .notes-text::placeholder { color: var(--text3); font-style:normal;font-family:var(--font-accent); }
-
-  /* ── CORNELL ── */
-#tj-root #tj-cornell-area { display: none; flex-direction: column; flex: 1; overflow: auto; min-height: 0; -webkit-overflow-scrolling: touch; }
-#tj-root .cornell-grid {
-    background: var(--card); border-radius: 8px; border: 1px solid var(--border); overflow: hidden;
-    display: grid; grid-template-columns: 200px 1fr; grid-template-rows: auto 1fr auto; flex: 1;
-    min-height: 500px;
-  }
-#tj-root .cornell-topic { grid-column: 1/-1; border-bottom: 1px solid var(--border); padding: 10px 15px; background: var(--card2); }
-#tj-root .cornell-topic input {
-    width: 100%; border: none; background: none;
-    font-family: 'Manrope', system-ui, sans-serif; font-size: 16px; font-weight: 700;
-    outline: none; color: var(--purple); caret-color: var(--purple); letter-spacing: -0.01em;
-  }
-#tj-root .cornell-topic input::placeholder { color: var(--text3); font-style:normal;font-family:var(--font-accent); font-weight: 700; }
-#tj-root .cornell-cues { border-right: 1px solid var(--border); padding: 12px; }
-#tj-root .cornell-notes { padding: 12px; }
-#tj-root .section-label {
-    font-family: var(--font);
-    font-size: 10px; color: var(--purple);
-    margin-bottom: 8px; font-weight: 600; letter-spacing: 0.10em; display: block; text-transform: uppercase;
-    opacity: 0.75;
-  }
-#tj-root .cornell-summary { grid-column: 1/-1; border-top: 1px solid var(--border); padding: 12px; background: var(--card2); }
-#tj-root .cornell-ta {
-    width: 100%; border: none; font-family: var(--font);
-    font-size: 14px; line-height: 1.75; color: var(--text); background: none; resize: none; outline: none; min-height: 60px; caret-color: var(--purple);
-  }
-#tj-root .cornell-ta::placeholder { color: var(--text3); font-style:normal;font-family:var(--font-accent); }
-
-
   /* ── PAGE TEMPLATE ── */
 #tj-root #tj-page-area { display: none; flex-direction: column; flex: 1; min-height: 0; }
 #tj-root #tj-page-toolbar {
@@ -24944,72 +24881,203 @@ window.hideBrainstormJournal = function() {
 
 /* ── JOURNAL ENTRIES template ── */
 #tj-root #tj-je-area { display: none; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; position: relative; }
-#tj-root #tj-je-tabs-bar { display: flex; align-items: center; gap: 4px; padding: 8px 12px 0; flex-shrink: 0; overflow-x: auto; border-bottom: 1px solid var(--border2); background: var(--bg); }
-#tj-root #tj-je-tabs-bar::-webkit-scrollbar {display:none;width:0;height:0;}
-#tj-root #tj-je-tabs { display: flex; gap: 4px; flex: 1; overflow-x: auto; min-width: 0; }
-#tj-root #tj-je-tabs::-webkit-scrollbar {display:none;width:0;height:0;}
+
+/* Date strip. Compact pills that scroll, with the arrows and the jump menu
+   appearing only once the strip actually overflows — a handful of dates reads as
+   a plain row, fifty stay reachable without a wall of tabs. */
+#tj-root #tj-je-tabs-bar {
+  display: flex; align-items: center; gap: 6px; padding: 6px 10px;
+  flex-shrink: 0; border-bottom: 1px solid var(--border2); background: var(--bg);
+}
+#tj-root .je-navbtn {
+  flex-shrink: 0; width: 24px; height: 24px; padding: 0;
+  display: none; align-items: center; justify-content: center;
+  background: transparent; border: 1px solid var(--border2); border-radius: 5px;
+  color: var(--text3); cursor: pointer; transition: color .15s, border-color .15s;
+}
+#tj-root .je-navbtn:hover:not(:disabled) { color: var(--purple); border-color: rgba(224,184,116,0.55); }
+#tj-root .je-navbtn:disabled { opacity: .3; cursor: default; }
+#tj-root #tj-je-tabs-bar.je-overflow .je-navbtn { display: inline-flex; }
+#tj-root #tj-je-strip { position: relative; flex: 1; min-width: 0; }
+/* Fade the cut-off edges so a scrolled strip reads as "there is more". */
+#tj-root #tj-je-tabs-bar.je-overflow #tj-je-strip::before,
+#tj-root #tj-je-tabs-bar.je-overflow #tj-je-strip::after {
+  content: ""; position: absolute; top: 0; bottom: 0; width: 20px; pointer-events: none; z-index: 2;
+}
+#tj-root #tj-je-tabs-bar.je-overflow #tj-je-strip::before { left: 0; background: linear-gradient(to right, var(--bg), transparent); }
+#tj-root #tj-je-tabs-bar.je-overflow #tj-je-strip::after { right: 0; background: linear-gradient(to left, var(--bg), transparent); }
+#tj-root #tj-je-tabs { display: flex; align-items: center; gap: 4px; overflow-x: auto; min-width: 0; scroll-behavior: smooth; scrollbar-width: none; }
+#tj-root #tj-je-tabs::-webkit-scrollbar { display: none; width: 0; height: 0; }
+/* Month marker: the first tab of each month run carries the month, the rest of
+   the run is bare day numbers, so a long strip stays scannable. */
+#tj-root .je-month {
+  flex-shrink: 0; padding: 0 4px 0 2px; font-family: var(--font);
+  font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--text3); opacity: .75; white-space: nowrap; align-self: center;
+}
+#tj-root .je-month:not(:first-child) { padding-left: 8px; border-left: 1px solid var(--border2); margin-left: 2px; }
 #tj-root .je-tab {
   flex-shrink: 0; background: transparent; border: 1px solid var(--border2);
-  border-bottom: none; border-radius: 6px 6px 0 0; padding: 5px 12px;
+  border-radius: 999px; padding: 3px 10px; min-width: 30px;
   font-family: var(--font); font-size: 12px; font-weight: 500; color: var(--text3);
-  cursor: pointer; transition: all .15s; white-space: nowrap; position: relative;
-  display: flex; align-items: center; gap: 5px;
+  cursor: pointer; transition: color .15s, border-color .15s, background .15s;
+  white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: 3px;
 }
-#tj-root .je-tab:hover { color: var(--text2); border-color: var(--border); background: var(--card2); }
-#tj-root .je-tab.active { color: var(--purple); border-color: rgba(224,184,116,0.45); background: var(--bg); z-index: 1; margin-bottom: -1px; border-bottom: 1px solid var(--bg); }
-#tj-root .je-tab-del { font-size: 9px; font-weight: 800; color: var(--red); opacity: 0; transition: opacity .15s; cursor: pointer; padding: 1px 2px; }
-#tj-root .je-tab:hover .je-tab-del { opacity: 1; }
-#tj-root #tj-je-add-date { flex-shrink: 0; background: transparent; border: 1px solid rgba(224,184,116,0.25); border-radius: 4px; color: var(--purple); font-size: 11px; font-weight: 500; font-family: var(--font); padding: 4px 10px; cursor: pointer; white-space: nowrap; transition: all .15s; }
-#tj-root #tj-je-add-date:hover { border-color: rgba(224,184,116,0.6); background: transparent; }
+#tj-root .je-tab:hover { color: var(--text2); border-color: var(--border); }
+#tj-root .je-tab.active { color: var(--purple); border-color: rgba(224,184,116,0.55); background: var(--purple-bg); font-weight: 600; }
+#tj-root .je-tab-del {
+  font-size: 9px; font-weight: 800; color: var(--red); cursor: pointer;
+  width: 0; overflow: hidden; opacity: 0; transition: opacity .15s, width .15s;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+#tj-root .je-tab:hover .je-tab-del, #tj-root .je-tab.active .je-tab-del { opacity: .8; width: 11px; }
+#tj-root .je-tab-del:hover { opacity: 1; }
+/* Jump menu: every date in one scrollable list, for when the strip is long. */
+#tj-root #tj-je-jump {
+  flex-shrink: 0; display: none; align-items: center; gap: 5px;
+  background: transparent; border: 1px solid var(--border2); border-radius: 5px;
+  color: var(--text3); font-family: var(--font); font-size: 11px; font-weight: 600;
+  padding: 3px 8px; cursor: pointer; white-space: nowrap; transition: color .15s, border-color .15s;
+}
+#tj-root #tj-je-tabs-bar.je-overflow #tj-je-jump { display: inline-flex; }
+#tj-root #tj-je-jump:hover, #tj-root #tj-je-jump.open { color: var(--purple); border-color: rgba(224,184,116,0.55); }
+#tj-root #tj-je-menu {
+  position: fixed; z-index: 100040; display: none; flex-direction: column;
+  max-height: min(60vh, 380px); overflow-y: auto; width: 215px;
+  background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.45); padding: 5px;
+}
+#tj-root #tj-je-menu.open { display: flex; }
+#tj-root .je-menu-head {
+  font-family: var(--font); font-size: 9px; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--text3); padding: 7px 8px 3px;
+}
+#tj-root .je-menu-item {
+  display: flex; align-items: center; gap: 6px; width: 100%;
+  background: transparent; border: none; border-radius: 5px; padding: 6px 8px;
+  font-family: var(--font); font-size: 12.5px; font-weight: 500; color: var(--text2);
+  cursor: pointer; text-align: left;
+}
+#tj-root .je-menu-item:hover { background: var(--card2); color: var(--text); }
+#tj-root .je-menu-item.active { color: var(--purple); font-weight: 600; }
+#tj-root .je-menu-lbl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+#tj-root .je-menu-del { flex-shrink: 0; color: var(--red); opacity: 0; font-size: 9px; font-weight: 800; padding: 2px 4px; border-radius: 4px; }
+#tj-root .je-menu-item:hover .je-menu-del { opacity: .85; }
+#tj-root #tj-je-add-date {
+  flex-shrink: 0; background: transparent; border: 1px solid rgba(224,184,116,0.25);
+  border-radius: 5px; color: var(--purple); font-size: 11px; font-weight: 600;
+  font-family: var(--font); padding: 3px 10px; cursor: pointer; white-space: nowrap;
+  transition: border-color .15s;
+}
+#tj-root #tj-je-add-date:hover { border-color: rgba(224,184,116,0.6); }
+
+/* The Journal toolbar IS the Page toolbar — same markup, same classes, same docx
+   ribbon injected on top. Only the edit-mode gating is its own. */
 #tj-root #tj-je-toolbar {
-  display: none; align-items: center; flex-wrap: wrap; gap: 3px; padding: 6px 10px;
-  background: var(--card2); border-bottom: 1px solid var(--border2); flex-shrink: 0;
-}
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border);
+    display: none; align-items: center; gap: 3px; flex-wrap: wrap;
+    background: var(--card2); flex-shrink: 0;
+  }
 #tj-root #tj-je-toolbar.edit-mode { display: flex; }
-#tj-root #tj-je-toolbar .pt-btn { background: transparent; border: 1px solid var(--border2); border-radius: 4px; color: var(--text2); cursor: pointer; font-family: var(--font); font-size: 12px; font-weight: 500; padding: 4px 7px; transition: all .15s; white-space: nowrap; min-height: 26px; display: inline-flex; align-items: center; gap: 3px; }
-#tj-root #tj-je-toolbar .pt-btn:hover, #tj-root #tj-je-toolbar .pt-btn.active { background: var(--card); border-color: rgba(224,184,116,0.4); color: var(--purple); }
-#tj-root #tj-je-toolbar .pt-sep { width: 1px; height: 20px; background: var(--border2); margin: 0 2px; flex-shrink: 0; }
-#tj-root #tj-je-toolbar .pt-select { background: var(--card2); border: 1px solid var(--border2); border-radius: 4px; color: var(--text2); font-family: var(--font); font-size: 12px; font-weight: 500; padding: 3px 6px; cursor: pointer; height: 26px; outline: none; }
-#tj-root #tj-je-toolbar .pt-select:hover { border-color: rgba(224,184,116,0.4); }
-#tj-root #tj-je-color-pick { width: 26px; height: 26px; padding: 2px; background: var(--card2); border: 1px solid var(--border2); border-radius: 4px; cursor: pointer; }
+#tj-root #tj-je-color-pick {
+    width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border2);
+    cursor: pointer; padding: 0; overflow: hidden; flex-shrink: 0; background: none;
+  }
 #tj-root #tj-je-color-pick::-webkit-color-swatch-wrapper { padding: 0; }
 #tj-root #tj-je-color-pick::-webkit-color-swatch { border: none; border-radius: 50%; }
 #tj-root #tj-je-img-btn { position: relative; overflow: hidden; }
-#tj-root #tj-je-img-btn input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; font-size: 0; }
-#tj-root #tj-je-editor-wrap { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 28px clamp(24px,4vw,48px) 28px clamp(24px,4vw,48px); background: var(--bg); display: none; }
-#tj-root #tj-je-editor-wrap.active { display: block; }
-#tj-root #tj-je-editor { max-width: 780px; margin: 0; min-height: 480px; outline: none; font-family: var(--font); font-size: 14px; line-height: 1.85; color: var(--text); caret-color: var(--purple); overflow-wrap: break-word; word-break: break-word; }
+#tj-root #tj-je-img-btn input[type=file] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; font-size: 0;
+  }
+
+#tj-root #tj-je-editor-wrap {
+    flex: 1; overflow-y: auto; overflow-x: hidden; padding: 28px clamp(24px,4vw,48px) 28px clamp(48px,8vw,96px); background: var(--bg);
+  }
+#tj-root #tj-je-editor {
+    max-width: 780px; margin: 0; min-height: 480px;
+    outline: none; font-family: var(--font);
+    font-size: 16px; line-height: 1.85; color: var(--text); caret-color: var(--purple);
+    overflow-wrap: break-word; word-break: break-word;
+  }
 #tj-root #tj-je-editor[contenteditable="false"] { pointer-events: none; }
-#tj-root #tj-je-editor:empty::before { content: "Write your entry for this date…"; color: var(--text3); font-style:normal;font-family:var(--font-accent); pointer-events: none; }
+/* In view mode, links stay clickable so they open in the browser */
+#tj-root #tj-je-editor[contenteditable="false"] a { pointer-events: auto; cursor: pointer; }
+#tj-root #tj-je-editor:empty::before {
+    content: "Write your entry for this date…";
+    color: var(--text3); font-style:normal;font-family:var(--font-accent); pointer-events: none;
+  }
 #tj-root #tj-je-editor h1 { font-family: var(--suite-display); font-size: 30px; font-weight: 750; color: var(--text); margin: 18px 0 8px; line-height: 1.2; letter-spacing: -.4px; }
 #tj-root #tj-je-editor h2 { font-family: 'Manrope', system-ui, sans-serif; font-size: 22px; font-weight: 700; color: var(--text); margin: 14px 0 6px; line-height: 1.3; }
-#tj-root #tj-je-editor h3 { font-family: var(--font); font-size: 13px; font-weight: 600; color: var(--purple); margin: 12px 0 4px; text-transform: uppercase; letter-spacing: 0.08em; }
+#tj-root #tj-je-editor h3 { font-family: inherit; font-size: 15pt; font-weight: 700; color: #fff; margin: 12px 0 5px; text-transform: none; letter-spacing: 0; }
 #tj-root #tj-je-editor p { margin: 6px 0; }
 #tj-root #tj-je-editor ul { padding-left: 22px; margin: 6px 0; list-style: disc; }
 #tj-root #tj-je-editor ol { padding-left: 22px; margin: 6px 0; list-style: decimal; }
 #tj-root #tj-je-editor li { margin: 3px 0; }
-#tj-root #tj-je-editor blockquote { border-left: 3px solid var(--purple); margin: 10px 0; padding: 8px 14px; background: var(--purple-bg); border-radius: 0 6px 6px 0; color: var(--text2); font-style: italic; }
-#tj-root #tj-je-editor pre, #tj-root #tj-je-editor code { font-family: var(--font-mono); font-size: 12px; background: var(--card2); border: 1px solid var(--border); border-radius: 4px; color: var(--cyan); }
+#tj-root #tj-je-editor blockquote {
+    border-left: 3px solid var(--purple); margin: 10px 0; padding: 8px 14px;
+    background: var(--purple-bg); border-radius: 0 6px 6px 0; color: var(--text2); font-style: italic;
+  }
+#tj-root #tj-je-editor pre, #tj-root #tj-je-editor code {
+    font-family: var(--font-mono); font-size: 12px; background: var(--card2);
+    border: 1px solid var(--border); border-radius: 4px; color: var(--cyan);
+  }
 #tj-root #tj-je-editor pre { padding: 10px 14px; margin: 8px 0; overflow-x: auto; }
 #tj-root #tj-je-editor code { padding: 1px 5px; }
 #tj-root #tj-je-editor pre code { background: none; border: none; padding: 0; }
 #tj-root #tj-je-editor a { color: var(--cyan); text-decoration: underline; }
 #tj-root #tj-je-editor hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
-#tj-root #tj-je-editor table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 13px; }
+#tj-root #tj-je-editor img {
+    max-width: 100%; border-radius: 6px; border: 1px solid var(--border);
+    margin: 8px 0; display: block; cursor: default;
+  }
+#tj-root #tj-je-editor img.pg-selected { outline: 2px solid var(--purple); outline-offset: 2px; }
+/* Resizable image wrapper in page editor */
+#tj-root #tj-je-editor .pg-img-wrap {
+  display: inline-block; position: relative; cursor: default; margin: 8px 0;
+  max-width: 100%;
+}
+#tj-root #tj-je-editor .pg-img-wrap img {
+  display: block; max-width: 100%; border-radius: 6px; border: 1px solid var(--border);
+  margin: 0; user-select: none; pointer-events: none;
+}
+#tj-root #tj-je-editor .pg-img-resize-handle {
+  position: absolute; bottom: -6px; right: -6px; width: 22px; height: 22px;
+  background: var(--purple); border-radius: 4px; cursor: se-resize;
+  display: none; z-index: 5; border: 2px solid #fff;
+  touch-action: none; -webkit-touch-callout: none; user-select: none;
+}
+#tj-root #tj-je-editor .pg-img-wrap:hover .pg-img-resize-handle,
+#tj-root #tj-je-editor .pg-img-wrap.selected .pg-img-resize-handle { display: block; }
+#tj-root #tj-je-editor .pg-img-del-handle {
+  position: absolute; top: -6px; right: -6px; width: 22px; height: 22px;
+  background: var(--red); border-radius: 50%; cursor: pointer;
+  display: none; z-index: 5; color: #fff; font-size: 11px; font-weight: 800;
+  align-items: center; justify-content: center; border: 1.5px solid #fff;
+  line-height: 1; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+#tj-root #tj-je-editor .pg-img-wrap:hover .pg-img-del-handle,
+#tj-root #tj-je-editor .pg-img-wrap.selected .pg-img-del-handle { display: flex; }
+#tj-root #tj-je-editor table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 12.5px; }
 #tj-root #tj-je-editor th, #tj-root #tj-je-editor td { border: 1px solid var(--border); padding: 7px 12px; text-align: left; }
-#tj-root #tj-je-editor th { background: var(--card2); color: var(--purple); font-weight: 600; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; font-family: var(--font); }
-#tj-root #tj-je-editor .pg-img-wrap { display: inline-block; position: relative; cursor: default; margin: 8px 0; max-width: 100%; }
-#tj-root #tj-je-editor .pg-img-wrap img { display: block; max-width: 100%; border-radius: 6px; border: 1px solid var(--border); margin: 0; user-select: none; pointer-events: none; }
-#tj-root #tj-je-editor .pg-img-resize-handle { position: absolute; bottom: -6px; right: -6px; width: 22px; height: 22px; background: var(--purple); border-radius: 4px; cursor: se-resize; display: none; z-index: 5; border: 2px solid #fff; touch-action: none; user-select: none; }
-#tj-root #tj-je-editor .pg-img-wrap:hover .pg-img-resize-handle, #tj-root #tj-je-editor .pg-img-wrap.selected .pg-img-resize-handle { display: block; }
-#tj-root #tj-je-editor .pg-img-del-handle { position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; background: var(--red); border-radius: 50%; cursor: pointer; display: none; z-index: 5; color: #fff; font-size: 11px; font-weight: 800; align-items: center; justify-content: center; border: 1.5px solid #fff; line-height: 1; touch-action: manipulation; }
-#tj-root #tj-je-editor .pg-img-wrap:hover .pg-img-del-handle, #tj-root #tj-je-editor .pg-img-wrap.selected .pg-img-del-handle { display: flex; }
+#tj-root #tj-je-editor th { background: var(--card2); color: var(--purple); font-weight: 700; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
+#tj-root #tj-je-editor tr:hover td { background: rgba(255,255,255,0.02); }
+#tj-root #tj-je-editor-wrap { display: none; }
+#tj-root #tj-je-editor-wrap.active { display: block; }
 #tj-root #tj-je-empty { flex: 1; display: none; align-items: center; justify-content: center; flex-direction: column; gap: 12px; color: var(--text3); font-size: 13px; text-align: center; padding: 32px; font-family: var(--font); }
-#tj-root #tj-jept-hl-wrap { position: relative; flex-shrink: 0; }
-#tj-root #tj-jept-hl-trigger { display: flex; align-items: center; gap: 1px; }
-#tj-root #tj-jept-hl-icon { display: inline-block; width: 13px; height: 13px; border-radius: 2px; background: #FFE066; border: 1px solid rgba(0,0,0,0.12); flex-shrink: 0; }
-#tj-root #tj-jept-hl-palette { position: absolute; top: calc(100% + 4px); left: 0; z-index: 9999; display: none; flex-wrap: wrap; gap: 4px; padding: 7px; background: var(--card); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.3); width: 130px; }
-#tj-root #tj-jept-hl-palette.open { display: flex; }
+
+/* Phone: the strip collapses to prev / active-date / next, and the date button
+   opens the same jump menu. */
+@media (max-width: 700px) {
+  #tj-root #tj-je-tabs-bar { gap: 5px; padding: 5px 8px; }
+  #tj-root .je-navbtn { display: inline-flex; width: 30px; height: 30px; }
+  #tj-root #tj-je-strip { display: none; }
+  #tj-root #tj-je-jump { display: inline-flex; flex: 1; justify-content: center; min-width: 0; min-height: 30px; font-size: 12px; }
+  #tj-root #tj-je-jump .je-jump-count { display: none; }
+  #tj-root #tj-je-add-date { min-height: 30px; }
+  #tj-root #tj-je-menu { width: calc(100vw - 24px); max-width: 320px; }
+}
+
 #tj-root .tj-attach-bar {
   display: none; align-items: center; gap: 8px; flex-wrap: wrap;
   padding: 6px 10px; background: var(--card2); border-bottom: 1px solid var(--border);
@@ -25084,68 +25152,11 @@ window.hideBrainstormJournal = function() {
   pointer-events: none; text-align: center;
 }
 #tj-root #tj-wb-canvas-wrap { position: relative; }
-#tj-root #tj-notes-area { position: relative; }
-#tj-root #tj-cornell-area { position: relative; }
-#tj-root #tj-mindmap-area { position: relative; }
 #tj-root #tj-page-area { position: relative; }
 #tj-root .tj-page-attach-chips {
   display: flex; flex-wrap: wrap; gap: 5px; padding: 6px 10px 0;
   border-top: 1px solid var(--border); margin-top: 10px;
 }
-#tj-root #tj-mindmap-area { display: none; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
-#tj-root #tj-mm-canvas-wrap {
-    background: var(--card); border-radius: 8px; border: 1px solid var(--border);
-    overflow: auto; position: relative; flex: 1; min-height: 0;
-    -webkit-overflow-scrolling: touch;
-  }
-#tj-root #tj-mm-toolbar {
-    padding: 5px 10px; border-bottom: 1px solid var(--border);
-    display: none; align-items: center; gap: 6px; background: var(--card2);
-    overflow-x: auto; overflow-y: hidden; flex-wrap: nowrap;
-    scrollbar-width: none; flex-shrink: 0; min-height: 40px;
-  }
-#tj-root #tj-mm-toolbar::-webkit-scrollbar { display: none; }
-#tj-root #tj-mm-toolbar .wb-btn { flex-shrink: 0; }
-#tj-root #tj-mm-toolbar .mm-palette-sep { flex-shrink: 0; }
-/* Action buttons: wider with visible labels */
-#tj-root #tj-mm-add-node, #tj-root #tj-mm-connect-mode, #tj-root #tj-mm-delete-node {
-  width: auto; min-width: 82px; padding: 0 10px; gap: 5px; font-size: 11px; letter-spacing: 0.01em;
-}
-#tj-root #tj-mm-delete-node { color: #e07070; border-color: rgba(224,112,112,0.3); }
-#tj-root #tj-mm-delete-node:hover { background: rgba(224,112,112,0.12); color: #e07070; border-color: rgba(224,112,112,0.6); }
-#tj-root #tj-mm-connect-mode.active { background: rgba(93,175,109,0.12); color: #5DAF6D; border-color: rgba(93,175,109,0.4); }
-/* Separator after action group */
-#tj-root .mm-action-sep { width: 1px; background: var(--border); height: 20px; opacity: 0.6; flex-shrink: 0; margin: 0 4px; }
-#tj-root #tj-mm-toolbar .mm-hint { display: none; } /* hide hint on small screens — saves space */
-@media (min-width: 900px) { #tj-root #tj-mm-toolbar .mm-hint { display: inline; } }
-#tj-root #tj-mm-toolbar.edit-mode { display: flex; }
-#tj-root .mm-hint { font-family: var(--font); font-size: 11px; color: var(--text3); margin-left: 8px; letter-spacing: 0.02em; }
-#tj-root .mm-palette-sep { width: 1px; background: var(--border); height: 16px; opacity: 0.5; flex-shrink: 0; }
-#tj-root .mm-color-btn {
-    width: 15px; height: 15px; border-radius: 50%;
-    border: 2px solid transparent; cursor: pointer; flex-shrink: 0;
-    transition: border-color 0.12s, transform 0.12s;
-    outline: none;
-  }
-#tj-root .mm-color-btn:hover { transform: scale(1.25); }
-#tj-root .mm-color-btn.active { border-color: #ECECEE; transform: scale(1.2); box-shadow: 0 0 0 1px rgba(0,0,0,0.4); }
-#tj-root .mm-palette-label {
-    font-family: var(--font); font-size: 10px; color: var(--text3);
-    font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; flex-shrink: 0;
-  }
-#tj-root #tj-mm-canvas { display: block; min-width: 1200px; min-height: 700px; touch-action: none; -webkit-user-select: none; user-select: none; }
-/* mm-canvas-wrap position set above */
-#tj-root #tj-mm-node-input {
-    position: absolute; display: none;
-    padding: 8px 12px;
-    border: 1.5px solid var(--purple); border-radius: 6px; font-size: 13px;
-    font-family: var(--font); outline: none;
-    background: var(--card); color: var(--text); z-index: 10;
-    min-width: 200px; width: 260px;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
-    resize: none; overflow: hidden; line-height: 1.4;
-  }
-
   /* ── TAGS ── */
 #tj-root #tj-tags-row { display: flex; align-items: center; gap: 5px; margin-top: 12px; flex-wrap: wrap; }
 #tj-root .tags-label {
@@ -25178,11 +25189,6 @@ window.hideBrainstormJournal = function() {
 #tj-root ::-webkit-scrollbar-track { background: transparent; }
 #tj-root ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
 #tj-root ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
-/* mm canvas scrollbars */
-#tj-root #tj-mm-canvas-wrap::-webkit-scrollbar {display:none;width:0;height:0;}
-#tj-root #tj-mm-canvas-wrap::-webkit-scrollbar-track { background: var(--bg2); }
-#tj-root #tj-mm-canvas-wrap::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 6px; border: 2px solid var(--bg2); }
-#tj-root #tj-mm-canvas-wrap::-webkit-scrollbar-corner { background: var(--bg2); }
 
   /* ── CHAR COUNT ── */
 #tj-root .char-count {
@@ -25278,16 +25284,12 @@ window.hideBrainstormJournal = function() {
 /* ── TJ MOBILE / IPAD ────────────────────────────────────────────── */
 /* Prevent iOS zoom on input focus — all inputs min 16px */
 #tj-root input, #tj-root textarea, #tj-root select,
-#tj-root #tj-entry-title-input, #tj-root .notes-text,
-#tj-root .cornell-ta, #tj-root .cornell-topic input,
+#tj-root #tj-entry-title-input,
 #tj-root #tj-search-box, #tj-root .search-wrap input,
-#tj-root #tj-add-tag-input, #tj-root #tj-mm-node-input {
+#tj-root #tj-add-tag-input {
   font-size: 16px !important;
   -webkit-text-size-adjust: 100%;
 }
-/* Keep readable but safe size */
-#tj-root .notes-text, #tj-root .cornell-ta { font-size: 15px !important; }
-
 /* Touch targets */
 #tj-root .tb-btn, #tj-root .wb-btn, #tj-root .pt-btn,
 #tj-root #tj-new-entry-btn, #tj-root .modal-close {
@@ -25424,14 +25426,6 @@ window.hideBrainstormJournal = function() {
   /* ── EMPTY STATE ── */
   #tj-root #tj-empty-state { padding-top: 40px; }
 
-  /* ── NOTES ── */
-  #tj-root .notes-text { font-size: 14px !important; padding: 10px 12px !important; min-height: 80px; }
-
-  /* ── CORNELL ── */
-  #tj-root .cornell-grid { grid-template-columns: 1fr; min-height: unset; }
-  #tj-root .cornell-cues { border-right: none; border-bottom: 1px solid var(--border); }
-  #tj-root .cornell-ta { min-height: 80px; }
-
   /* ── PAGE EDITOR ── */
   #tj-root #tj-page-editor-wrap { padding: 14px 12px calc(64px + env(safe-area-inset-bottom, 0px)); }
   #tj-root #tj-page-editor { font-size: 15px; line-height: 1.85; }
@@ -25470,9 +25464,6 @@ window.hideBrainstormJournal = function() {
     flex: 2; padding: 10px 6px !important;
     font-size: 11px !important; min-height: 40px; border-radius: 6px !important;
   }
-
-  /* ── MINDMAP ── */
-  #tj-root #tj-mm-canvas-wrap { overflow: scroll !important; -webkit-overflow-scrolling: touch; }
 }
 
 /* ── PHONE (≤430px) ── */
@@ -25668,90 +25659,6 @@ window.hideBrainstormJournal = function() {
       </div>
     </div>
 
-    <!-- NOTES -->
-    <div id="tj-notes-area">
-      <div class="tj-drop-zone" id="tj-notes-drop-zone"><div class="tj-drop-label"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>Drop files here</div></div>
-      <div class="tj-attach-bar" id="tj-notes-attach-bar">
-        <button class="tj-attach-btn" id="tj-notes-attach-btn" title="Attach files" ><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.4 11 12.3 20a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.9-2.9l8.5-8.5"/></svg><span>Attach Files</span><input type="file" id="tj-notes-attach-input" multiple accept="*/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;font-size:0;"></button>
-        <div class="tj-attach-chips" id="tj-notes-attach-chips"></div>
-      </div>
-      <div class="notes-section">
-        <div class="notes-section-header">Main Ideas</div>
-        <textarea class="notes-text" id="tj-notes-main" placeholder="Write your main ideas here…" rows="5"></textarea>
-      </div>
-      <div class="notes-section">
-        <div class="notes-section-header">Connections &amp; Links</div>
-        <textarea class="notes-text" id="tj-notes-links" placeholder="How do these ideas connect?…" rows="4"></textarea>
-      </div>
-      <div class="notes-section">
-        <div class="notes-section-header">Questions &amp; Next Steps</div>
-        <textarea class="notes-text" id="tj-notes-questions" placeholder="Open questions and next actions…" rows="4"></textarea>
-      </div>
-      <div class="tj-attach-images" id="tj-notes-attach-images"></div>
-    </div>
-
-    <!-- CORNELL -->
-    <div id="tj-cornell-area">
-      <div class="tj-drop-zone" id="tj-cornell-drop-zone"><div class="tj-drop-label"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>Drop files here</div></div>
-      <div class="tj-attach-bar" id="tj-cornell-attach-bar">
-        <button class="tj-attach-btn" id="tj-cornell-attach-btn" title="Attach files" ><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.4 11 12.3 20a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.9-2.9l8.5-8.5"/></svg><span>Attach Files</span><input type="file" id="tj-cornell-attach-input" multiple accept="*/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;font-size:0;"></button>
-        <div class="tj-attach-chips" id="tj-cornell-attach-chips"></div>
-      </div>
-      <div class="tj-attach-images" id="tj-cornell-attach-images"></div>
-      <div class="cornell-grid">
-        <div class="cornell-topic">
-          <input type="text" id="tj-cornell-topic" placeholder="Topic / Subject…" />
-        </div>
-        <div class="cornell-cues">
-          <span class="section-label">Cue Column</span>
-          <textarea class="cornell-ta" id="tj-cornell-cues-ta" placeholder="Key terms, questions, prompts…" style="min-height:300px;"></textarea>
-        </div>
-        <div class="cornell-notes">
-          <span class="section-label">Notes Column</span>
-          <textarea class="cornell-ta" id="tj-cornell-notes-ta" placeholder="Main content, details, facts…" style="min-height:300px;"></textarea>
-        </div>
-        <div class="cornell-summary">
-          <span class="section-label">Summary</span>
-          <textarea class="cornell-ta" id="tj-cornell-summary-ta" placeholder="Summarize the key ideas in 2–3 sentences…" rows="3"></textarea>
-        </div>
-      </div>
-    </div>
-
-    <!-- MIND MAP -->
-    <div id="tj-mindmap-area">
-      <div class="tj-drop-zone" id="tj-mm-drop-zone"><div class="tj-drop-label"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>Drop files here</div></div>
-      <div class="tj-attach-bar" id="tj-mm-attach-bar">
-        <button class="tj-attach-btn" id="tj-mm-attach-btn" title="Attach files" ><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.4 11 12.3 20a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.9-2.9l8.5-8.5"/></svg><span>Attach Files</span><input type="file" id="tj-mm-attach-input" multiple accept="*/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;font-size:0;"></button>
-        <div class="tj-attach-chips" id="tj-mm-attach-chips"></div>
-      </div>
-      <div class="tj-attach-images" id="tj-mm-attach-images"></div>
-      <div id="tj-mm-toolbar">
-          <button class="wb-btn" id="tj-mm-add-node">＋ Add Node</button>
-          <button class="wb-btn" id="tj-mm-connect-mode"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="12" r="2.5"/><path d="M7.5 12h9"/></svg><span>Connect</span></button>
-          <button class="wb-btn" id="tj-mm-delete-node"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg><span>Delete</span></button>
-          <div class="mm-action-sep"></div>
-          <div class="mm-palette-sep"></div>
-          <span class="mm-palette-label">Color</span>
-          <div class="mm-color-btn active" data-fill="#26272A" data-stroke="#4A4B51" style="background:#4A4B51;" title="Default"></div>
-          <div class="mm-color-btn" data-fill="#2E2535" data-stroke="#8D769A" style="background:#8D769A;" title="Purple"></div>
-          <div class="mm-color-btn" data-fill="#1a3a2a" data-stroke="#5DAF6D" style="background:#5DAF6D;" title="Green"></div>
-          <div class="mm-color-btn" data-fill="#0d2a35" data-stroke="#22d3ee" style="background:#22d3ee;" title="Cyan"></div>
-          <div class="mm-color-btn" data-fill="#3a1f1a" data-stroke="#E74C3C" style="background:#E74C3C;" title="Red"></div>
-          <div class="mm-color-btn" data-fill="#2d1f0a" data-stroke="#fb923c" style="background:#fb923c;" title="Orange"></div>
-          <div class="mm-color-btn" data-fill="#2a2510" data-stroke="#e5c84a" style="background:#e5c84a;" title="Yellow"></div>
-          <div class="mm-color-btn" data-fill="#1a2035" data-stroke="#6da8f5" style="background:#6da8f5;" title="Blue"></div>
-          <span class="mm-hint">Dbl-click to rename · Drag to move</span>
-          <div style="flex:1"></div>
-          <button class="wb-btn" id="tj-mm-img-btn" title="Add image to selected node"  style="position:relative;overflow:hidden;"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.8"/><path d="m4 18 5-5 4 4 3-3 4 4"/></svg><span>Image</span><input type="file" id="tj-mm-img-file" accept="image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;font-size:0;"></button>
-          <button class="wb-btn" id="tj-mm-reset"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg><span>Reset</span></button>
-        </div>
-      <div id="tj-mm-canvas-wrap">
-        <canvas id="tj-mm-canvas" height="480"></canvas>
-        <textarea id="tj-mm-node-input" placeholder="Node label…" rows="1"></textarea>
-      </div>
-    </div>
-
-
     <!-- PAGE -->
     <div id="tj-page-area">
       <div class="tj-drop-zone" id="tj-page-drop-zone"><div class="tj-drop-label"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>Drop files here</div></div>
@@ -25839,14 +25746,19 @@ window.hideBrainstormJournal = function() {
     <!-- JOURNAL ENTRIES -->
     <div id="tj-je-area" style="display:none;flex-direction:column;flex:1;min-height:0;overflow:hidden;">
       <div class="tj-drop-zone" id="tj-je-drop-zone"><div class="tj-drop-label"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>Drop files here</div></div>
-      <!-- Date tabs bar -->
-      <div id="tj-je-tabs-bar" style="display:flex;align-items:center;gap:4px;padding:8px 12px 0;flex-shrink:0;overflow-x:auto;border-bottom:1px solid var(--border2);">
-        <div id="tj-je-tabs" style="display:flex;gap:4px;flex:1;overflow-x:auto;min-width:0;"></div>
-        <button id="tj-je-add-date" title="Add a new date entry" style="flex-shrink:0;background:transparent;border:1px solid rgba(224,184,116,0.25);border-radius:4px;color:var(--purple);font-size:11px;font-weight:500;font-family:'DM Sans',sans-serif;padding:4px 10px;cursor:pointer;white-space:nowrap;transition:all .15s;">+ Date</button>
+      <!-- Date strip: pills that scroll, with arrows + a jump menu once it overflows -->
+      <div id="tj-je-tabs-bar">
+        <button class="je-navbtn" id="tj-je-prev" title="Previous date" aria-label="Previous date"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+        <div id="tj-je-strip"><div id="tj-je-tabs"></div></div>
+        <button class="je-navbtn" id="tj-je-next" title="Next date" aria-label="Next date"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
+        <button id="tj-je-jump" title="Jump to a date"><span id="tj-je-jump-lbl">Dates</span><span class="je-jump-count" id="tj-je-jump-count"></span><span style="font-size:9px;opacity:.7;">&#9662;</span></button>
+        <button id="tj-je-add-date" title="Add a new date entry">+ Date</button>
       </div>
-      <!-- Date editor toolbar (same as page) -->
+      <div id="tj-je-menu"></div>
+      <!-- Date editor toolbar — cloned from the Page template -->
       <div id="tj-je-toolbar">
-        <select class="pt-select" id="tj-jept-block">
+        <!-- Block format -->
+        <select class="pt-select docx-r1" id="tj-je-pt-block">
           <option value="p">Paragraph</option>
           <option value="h1">Heading 1</option>
           <option value="h2">Heading 2</option>
@@ -25855,7 +25767,9 @@ window.hideBrainstormJournal = function() {
           <option value="blockquote">Quote</option>
         </select>
         <div class="pt-sep"></div>
-        <select class="pt-select" id="tj-jept-fontsize" title="Font size" style="width:46px;padding:3px 2px;">
+        <!-- Inline formatting -->
+        <!-- Font size -->
+        <select class="pt-select docx-r1" id="tj-je-pt-fontsize" title="Font size" style="width:46px;padding:3px 2px;">
           <option value="">—</option>
           <option value="10">10</option>
           <option value="12">12</option>
@@ -25871,34 +25785,40 @@ window.hideBrainstormJournal = function() {
           <option value="64">64</option>
         </select>
         <div class="pt-sep"></div>
-        <button class="pt-btn" id="tj-jept-bold" title="Bold"><b>B</b></button>
-        <button class="pt-btn" id="tj-jept-italic" title="Italic"><i>I</i></button>
-        <button class="pt-btn" id="tj-jept-underline" title="Underline"><u>U</u></button>
-        <button class="pt-btn" id="tj-jept-strike" title="Strikethrough"><s>S</s></button>
-        <button class="pt-btn" id="tj-jept-code" title="Inline code">&lt;/&gt;</button>
+        <button class="pt-btn docx-r1" id="tj-je-pt-bold" title="Bold (Ctrl+B)"><b>B</b></button>
+        <button class="pt-btn docx-r1" id="tj-je-pt-italic" title="Italic (Ctrl+I)"><i>I</i></button>
+        <button class="pt-btn docx-r1" id="tj-je-pt-underline" title="Underline (Ctrl+U)"><u>U</u></button>
+        <button class="pt-btn docx-r2" id="tj-je-pt-strike" title="Strikethrough"><s>S</s></button>
+        <button class="pt-btn docx-r2" id="tj-je-pt-code" title="Inline code">&lt;/&gt;</button>
         <div class="pt-sep"></div>
-        <input type="color" id="tj-je-color-pick" value="#ECECEE" title="Text color">
+        <!-- Color -->
+        <input type="color" class="docx-r1" id="tj-je-color-pick" value="#ECECEE" title="Text color">
         <div class="pt-sep"></div>
-        <button class="pt-btn" id="tj-jept-ul" title="Bullet list">&#8226;&#8212;</button>
-        <button class="pt-btn" id="tj-jept-ol" title="Numbered list">1.</button>
+        <!-- Lists -->
+        <button class="pt-btn docx-r1" id="tj-je-pt-ul" title="Bullet list">&#8226;&#8212;</button>
+        <button class="pt-btn docx-r1" id="tj-je-pt-ol" title="Numbered list">1.</button>
         <div class="pt-sep"></div>
-        <button class="pt-btn" id="tj-jept-alignL" title="Align left"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16"/><path d="M4 12h10"/><path d="M4 18h13"/></svg></button>
-        <button class="pt-btn" id="tj-jept-alignC" title="Center"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16"/><path d="M7 12h10"/><path d="M5 18h14"/></svg></button>
-        <button class="pt-btn" id="tj-jept-alignR" title="Align right"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16"/><path d="M10 12h10"/><path d="M7 18h13"/></svg></button>
+        <!-- Alignment -->
+        <button class="pt-btn docx-r2" id="tj-je-pt-alignL" title="Align left"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16"/><path d="M4 12h10"/><path d="M4 18h13"/></svg></button>
+        <button class="pt-btn docx-r2" id="tj-je-pt-alignC" title="Center"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16"/><path d="M7 12h10"/><path d="M5 18h14"/></svg></button>
+        <button class="pt-btn docx-r2" id="tj-je-pt-alignR" title="Align right"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16"/><path d="M10 12h10"/><path d="M7 18h13"/></svg></button>
         <div class="pt-sep"></div>
-        <button class="pt-btn" id="tj-jept-link" title="Insert link"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg></button>
-        <button class="pt-btn" id="tj-jept-hr" title="Divider">&#8213;</button>
-        <button class="pt-btn" id="tj-jept-table" title="Insert table"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M3 15h18"/><path d="M9 4v16"/></svg></button>
-        <button class="pt-btn" id="tj-je-img-btn" title="Insert image / attach file">
-          <svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.8"/><path d="m4 18 5-5 4 4 3-3 4 4"/></svg>
+        <!-- Insert -->
+        <button class="pt-btn docx-r2" id="tj-je-pt-link" title="Insert link"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg></button>
+        <button class="pt-btn docx-r2" id="tj-je-pt-hr" title="Divider">&#8213;</button>
+        <button class="pt-btn docx-r2" id="tj-je-pt-table" title="Insert table">&#9783;</button>
+        <button class="pt-btn" id="tj-je-pt-md" title="Render Markdown — convert raw Markdown into formatted text" style="font-weight:700;font-size:11px;">Render Markdown</button>
+        <button class="pt-btn docx-r1" id="tj-je-img-btn" title="Insert image / attach file">
+          &#128247;
           <input type="file" id="tj-je-img-file" accept="*/*" multiple>
         </button>
         <div class="pt-sep"></div>
-        <div class="pt-hl-wrap" id="tj-jept-hl-wrap" title="Highlight text">
-          <button class="pt-btn pt-hl-trigger" id="tj-jept-hl-trigger" title="Highlight">
-            <span class="pt-hl-icon" id="tj-jept-hl-icon">&#9646;</span><span style="font-size:9px;margin-left:1px;">▾</span>
+        <!-- Highlight colors -->
+        <div class="pt-hl-wrap docx-r1" id="tj-je-pt-hl-wrap" title="Highlight text">
+          <button class="pt-btn pt-hl-trigger" id="tj-je-pt-hl-trigger" title="Highlight">
+            <span class="pt-hl-icon" id="tj-je-pt-hl-icon">&#9646;</span><span style="font-size:9px;margin-left:1px;">▾</span>
           </button>
-          <div class="pt-hl-palette" id="tj-jept-hl-palette">
+          <div class="pt-hl-palette" id="tj-je-pt-hl-palette">
             <button class="pt-hl-swatch" data-color="#FFE066" style="background:#FFE066;" title="Yellow"></button>
             <button class="pt-hl-swatch" data-color="#A8F0B0" style="background:#A8F0B0;" title="Green"></button>
             <button class="pt-hl-swatch" data-color="#A8D8FF" style="background:#A8D8FF;" title="Blue"></button>
@@ -25909,7 +25829,8 @@ window.hideBrainstormJournal = function() {
           </div>
         </div>
         <div style="flex:1"></div>
-        <button class="pt-btn" id="tj-jept-clear" title="Clear date content" style="color:var(--red);"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+        <!-- Clear -->
+        <button class="pt-btn" id="tj-je-pt-clear" title="Clear this date’s content" style="color:var(--red);">&#128465;</button>
       </div>
       <!-- Editor area -->
       <div id="tj-je-editor-wrap" style="flex:1;overflow-y:auto;overflow-x:hidden;padding:0;">
@@ -25938,21 +25859,6 @@ window.hideBrainstormJournal = function() {
         <div class="template-card-icon"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19H5a2 2 0 0 1 0-4h5a2 2 0 0 0 0-4H7"/><path d="M17.5 3.5a2.1 2.1 0 0 1 3 3L15 12l-4 1 1-4Z"/></svg></div>
         <h3>Whiteboard</h3>
         <p>Free-draw canvas with pen, shapes, text and undo.</p>
-      </div>
-      <div class="template-card" data-template="notes">
-        <div class="template-card-icon"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16v12l-4 4H4Z"/><path d="M20 16h-4v4"/><path d="M8 9h8"/><path d="M8 13h5"/></svg></div>
-        <h3>Structured Notes</h3>
-        <p>Three sections: ideas, connections, next steps.</p>
-      </div>
-      <div class="template-card" data-template="cornell">
-        <div class="template-card-icon"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="4" width="12" height="18" rx="2"/><path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M9 11h6"/><path d="M9 15h4"/></svg></div>
-        <h3>Cornell Notes</h3>
-        <p>Classic format: cues, notes, and summary.</p>
-      </div>
-      <div class="template-card" data-template="mindmap">
-        <div class="template-card-icon"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5a3 3 0 0 0-6 0 3 3 0 0 0-2 5 3 3 0 0 0 2 5 3 3 0 0 0 6 1Z"/><path d="M12 5a3 3 0 0 1 6 0 3 3 0 0 1 2 5 3 3 0 0 1-2 5 3 3 0 0 1-6 1Z"/></svg></div>
-        <h3>Mind Map</h3>
-        <p>Visual node-based map for exploring ideas.</p>
       </div>
       <div class="template-card" data-template="page">
         <div class="template-card-icon"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h8"/></svg></div>
@@ -26129,23 +26035,7 @@ function _tjApplyRemote(remote) {
     var _fa = document.activeElement;
     var _titleEl = document.getElementById('tj-entry-title-input');
     if (_titleEl && _fa === _titleEl) activeEntry.title = _titleEl.value;
-    if (activeEntry.template === 'notes') {
-      var _m = document.getElementById('tj-notes-main');
-      var _l = document.getElementById('tj-notes-links');
-      var _q = document.getElementById('tj-notes-questions');
-      if (_m && _fa === _m) activeEntry.data.main      = _m.value;
-      if (_l && _fa === _l) activeEntry.data.links     = _l.value;
-      if (_q && _fa === _q) activeEntry.data.questions = _q.value;
-    } else if (activeEntry.template === 'cornell') {
-      var _ct = document.getElementById('tj-cornell-topic');
-      var _cc = document.getElementById('tj-cornell-cues-ta');
-      var _cn = document.getElementById('tj-cornell-notes-ta');
-      var _cs = document.getElementById('tj-cornell-summary-ta');
-      if (_ct && _fa === _ct) activeEntry.data.topic   = _ct.value;
-      if (_cc && _fa === _cc) activeEntry.data.cues    = _cc.value;
-      if (_cn && _fa === _cn) activeEntry.data.notes   = _cn.value;
-      if (_cs && _fa === _cs) activeEntry.data.summary = _cs.value;
-    } else if (activeEntry.template === 'page') {
+    if (activeEntry.template === 'page') {
       var _pe = document.getElementById('tj-page-editor');
       if (_pe && (_fa === _pe || _pe.contains(_fa))) activeEntry.data.html = _pe.innerHTML;
     } else if (activeEntry.template === 'journal-entries') {
@@ -26258,33 +26148,7 @@ function _tjApplyRemote(remote) {
     }
 
     // ── Active entry, remote is newer: apply per-field, skip focused element ──
-    if (remoteEntry.template === 'notes') {
-      var mainEl  = document.getElementById('tj-notes-main');
-      var linksEl = document.getElementById('tj-notes-links');
-      var questEl = document.getElementById('tj-notes-questions');
-      var titleEl = document.getElementById('tj-entry-title-input');
-      var newData = Object.assign({}, local.data);
-      var newTitle = local.title;
-      if (!_tjBusy(titleEl) && remoteEntry.title !== undefined) { newTitle = remoteEntry.title; if (titleEl) titleEl.value = newTitle; }
-      if (!_tjBusy(mainEl)  && remoteEntry.data && remoteEntry.data.main      !== undefined) { newData.main      = remoteEntry.data.main;      if (mainEl)  mainEl.value  = newData.main; }
-      if (!_tjBusy(linksEl) && remoteEntry.data && remoteEntry.data.links     !== undefined) { newData.links     = remoteEntry.data.links;     if (linksEl) linksEl.value = newData.links; }
-      if (!_tjBusy(questEl) && remoteEntry.data && remoteEntry.data.questions !== undefined) { newData.questions = remoteEntry.data.questions; if (questEl) questEl.value = newData.questions; }
-      localById[remoteEntry.id] = Object.assign({}, remoteEntry, { title: newTitle, data: newData });
-    } else if (remoteEntry.template === 'cornell') {
-      var topicEl   = document.getElementById('tj-cornell-topic');
-      var cuesEl    = document.getElementById('tj-cornell-cues-ta');
-      var notesEl   = document.getElementById('tj-cornell-notes-ta');
-      var summaryEl = document.getElementById('tj-cornell-summary-ta');
-      var titleElC  = document.getElementById('tj-entry-title-input');
-      var newDataC = Object.assign({}, local.data);
-      var newTitleC = local.title;
-      if (!_tjBusy(titleElC)  && remoteEntry.title !== undefined)                             { newTitleC = remoteEntry.title;              if (titleElC)  titleElC.value  = newTitleC; }
-      if (!_tjBusy(topicEl)   && remoteEntry.data && remoteEntry.data.topic   !== undefined) { newDataC.topic   = remoteEntry.data.topic;   if (topicEl)   topicEl.value   = newDataC.topic; }
-      if (!_tjBusy(cuesEl)    && remoteEntry.data && remoteEntry.data.cues    !== undefined) { newDataC.cues    = remoteEntry.data.cues;    if (cuesEl)    cuesEl.value    = newDataC.cues; }
-      if (!_tjBusy(notesEl)   && remoteEntry.data && remoteEntry.data.notes   !== undefined) { newDataC.notes   = remoteEntry.data.notes;   if (notesEl)   notesEl.value   = newDataC.notes; }
-      if (!_tjBusy(summaryEl) && remoteEntry.data && remoteEntry.data.summary !== undefined) { newDataC.summary = remoteEntry.data.summary; if (summaryEl) summaryEl.value = newDataC.summary; }
-      localById[remoteEntry.id] = Object.assign({}, remoteEntry, { title: newTitleC, data: newDataC });
-    } else if (remoteEntry.template === 'page') {
+    if (remoteEntry.template === 'page') {
       var pageEd = document.getElementById('tj-page-editor');
       var userInEditor = _tjBusy(pageEd);
       if (!userInEditor) {
@@ -26505,11 +26369,8 @@ function getActive() { return state.entries.find(e => e.id === state.activeId) |
 
 function createEntry(template) {
   const id = 'e_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-  const entry = { id, title: '', template: template || 'notes', created: Date.now(), updated: Date.now(), tags: [], data: {} };
+  const entry = { id, title: '', template: template || 'page', created: Date.now(), updated: Date.now(), tags: [], data: {} };
   if (template === 'whiteboard') entry.data = { canvas: '', history: [], attachments: [] };
-  if (template === 'notes') entry.data = { main: '', links: '', questions: '', attachments: [] };
-  if (template === 'cornell') entry.data = { topic: '', cues: '', notes: '', summary: '', attachments: [] };
-  if (template === 'mindmap') entry.data = { nodes: [{ id: 1, x: 340, y: 220, label: 'Central Idea', root: true }], edges: [], attachments: [] };
   if (template === 'page') entry.data = { html: '', attachments: [] };
   if (template === 'journal-entries') entry.data = { dates: {}, activeDateKey: '', dateOrder: [] };
   // Unsynced until the cloud confirms it — without this an authoritative resync
@@ -26599,7 +26460,6 @@ let tjTagFilters = [];
 function _tjEntryText(e) {
   const d = e.data || {};
   const parts = [e.title || '', (e.tags||[]).join(' ')];
-  ['main','links','questions','topic','cues','notes','summary'].forEach(k => { if (d[k]) parts.push(d[k]); });
   if (d.html) parts.push(String(d.html).replace(/<[^>]*>/g, ' '));
   if (d.dates) Object.values(d.dates).forEach(dd => { if (dd && dd.html) parts.push(String(dd.html).replace(/<[^>]*>/g, ' ')); });
   if (d.nodes) d.nodes.forEach(n => parts.push(n.label || ''));
@@ -26680,7 +26540,7 @@ function renderSidebar() {
     div.className = 'entry-item' + (entry.id === state.activeId ? ' active' : '');
     div.dataset.entryId = entry.id;
     if (isDraggable) div.draggable = true;
-    const tmap = { whiteboard: 'BOARD', notes: 'NOTES', cornell: 'CORNELL', mindmap: 'MAP', page: 'PAGE', 'journal-entries': 'JOURNAL' };
+    const tmap = { whiteboard: 'BOARD', page: 'PAGE', 'journal-entries': 'JOURNAL' };
     const date = new Date(entry.updated).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const titleClass = entry.title ? '' : ' untitled';
     div.innerHTML = `
@@ -26775,9 +26635,6 @@ function renderSidebar() {
 function showTemplate(name) {
   if (name !== 'whiteboard' && window._fbUnwatchTJCanvas) window._fbUnwatchTJCanvas();
   document.getElementById('tj-wb-canvas-wrap').style.display = name === 'whiteboard' ? 'flex' : 'none';
-  document.getElementById('tj-notes-area').style.display = name === 'notes' ? 'flex' : 'none';
-  document.getElementById('tj-cornell-area').style.display = name === 'cornell' ? 'flex' : 'none';
-  document.getElementById('tj-mindmap-area').style.display = name === 'mindmap' ? 'flex' : 'none';
   document.getElementById('tj-page-area').style.display = name === 'page' ? 'flex' : 'none';
   document.getElementById('tj-je-area').style.display = name === 'journal-entries' ? 'flex' : 'none';
   document.getElementById('tj-empty-state').style.display = name ? 'none' : 'flex';
@@ -26788,8 +26645,6 @@ function showTemplate(name) {
   // Journal Entries toolbar edit-mode sync
   const jet = document.getElementById('tj-je-toolbar');
   if (jet) { if (name === 'journal-entries' && isEditMode) jet.classList.add('edit-mode'); else jet.classList.remove('edit-mode'); }
-  // Attach bars for notes/cornell/mindmap
-  if (window._tjRefreshAttachBars) _tjRefreshAttachBars(name, isEditMode);
 }
 
 function loadActiveEntry() {
@@ -26854,25 +26709,6 @@ function loadActiveEntry() {
       });
     }
   }
-  if (entry.template === 'notes') {
-    document.getElementById('tj-notes-main').value = entry.data.main || '';
-    document.getElementById('tj-notes-links').value = entry.data.links || '';
-    document.getElementById('tj-notes-questions').value = entry.data.questions || '';
-    if (window._tjRenderAttachments) _tjRenderAttachments('notes');
-  }
-  if (entry.template === 'cornell') {
-    document.getElementById('tj-cornell-topic').value = entry.data.topic || '';
-    document.getElementById('tj-cornell-cues-ta').value = entry.data.cues || '';
-    document.getElementById('tj-cornell-notes-ta').value = entry.data.notes || '';
-    document.getElementById('tj-cornell-summary-ta').value = entry.data.summary || '';
-    if (window._tjRenderAttachments) _tjRenderAttachments('cornell');
-  }
-  if (entry.template === 'mindmap') {
-    mmNodes = JSON.parse(JSON.stringify(entry.data.nodes || [{ id:1, x:340, y:220, label:'Central Idea', root:true }]));
-    mmEdges = JSON.parse(JSON.stringify(entry.data.edges || []));
-    initMindmap(); renderMindmap();
-    if (window._tjRenderAttachments) _tjRenderAttachments('mindmap');
-  }
   if (entry.template === 'page') {
     const ed = document.getElementById('tj-page-editor');
     const html = entry.data.html || '';
@@ -26936,18 +26772,6 @@ function saveCurrentEntry() {
   // so the two guards below can still refuse it. Nothing is committed until both pass.
   const _next = Object.assign({}, entry.data);
   if (entry.template === 'whiteboard') _next.canvas = wbCanvas ? wbCanvas.toDataURL('image/png') : '';
-  if (entry.template === 'notes') {
-    _next.main = document.getElementById('tj-notes-main').value;
-    _next.links = document.getElementById('tj-notes-links').value;
-    _next.questions = document.getElementById('tj-notes-questions').value;
-  }
-  if (entry.template === 'cornell') {
-    _next.topic = document.getElementById('tj-cornell-topic').value;
-    _next.cues = document.getElementById('tj-cornell-cues-ta').value;
-    _next.notes = document.getElementById('tj-cornell-notes-ta').value;
-    _next.summary = document.getElementById('tj-cornell-summary-ta').value;
-  }
-  if (entry.template === 'mindmap') { _next.nodes = mmNodes; _next.edges = mmEdges; }
   if (entry.template === 'page') { _next.html = document.getElementById('tj-page-editor').innerHTML; }
   if (entry.template === 'journal-entries') {
     // _jeSaveActiveDate writes into entry.data.dates, so give it a detached dates
@@ -26999,9 +26823,6 @@ function _tjAutoTitle(entry) {
   const d = entry.data || {};
   let src = '';
   if (entry.template === 'page') { const ed = document.getElementById('tj-page-editor'); src = ed && ed.innerText ? ed.innerText : String(d.html||'').replace(/<[^>]*>/g,'\n'); }
-  else if (entry.template === 'notes') src = d.main || d.links || d.questions || '';
-  else if (entry.template === 'cornell') src = d.topic || d.notes || d.cues || '';
-  else if (entry.template === 'mindmap') { const root = (d.nodes||[]).find(n=>n.root) || (d.nodes||[])[0]; src = (root && root.label !== 'Central Idea') ? (root.label||'') : ''; }
   else if (entry.template === 'journal-entries') {
     const k = d.activeDateKey || (d.dateOrder||[])[0];
     const dd = (k && d.dates) ? d.dates[k] : null;
@@ -27293,585 +27114,6 @@ document.getElementById('tj-wb-undo').addEventListener('click', () => {
   wbPutSnapshot(prev);
   autoSave(); saveCanvas();
 });
-
-/* MIND MAP */
-let mmCanvas, mmCtx, mmNodes=[], mmEdges=[], mmDragNode=null, mmDragOffset=null;
-let mmConnectMode=false, mmConnectFrom=null, mmSelectedNode=null, mmEditingNode=null, mmNextId=10;
-let mmNodeFill='#26272A', mmNodeStroke='#4A4B51';
-let mmResizing=null;    // node resize: {node, handle, startX, startY, origW, origH, origX, origY}
-let mmImgResizing=null; // image resize: {node, startX, startY, origW, origH}
-var mmImgCache = {};
-
-function initMindmap() {
-  mmCanvas = document.getElementById('tj-mm-canvas');
-  mmCtx = mmCanvas.getContext('2d');
-  mmCanvas.width  = 1200;
-  mmCanvas.height = 700;
-}
-/* Mindmap helpers */
-function mmWrapText(ctx, text, maxWidth) {
-  const hardLines = text.split('\n');
-  const lines = [];
-  for (const hard of hardLines) {
-    if (hard === '') { lines.push(''); continue; }
-    const words = hard.split(' ');
-    let cur = '';
-    for (const w of words) {
-      const test = cur ? cur + ' ' + w : w;
-      if (ctx.measureText(test).width > maxWidth && cur) { lines.push(cur); cur = w; }
-      else { cur = test; }
-    }
-    lines.push(cur);
-  }
-  return lines;
-}
-function mmNodeSize(ctx, node) {
-  // If node has explicit w/h set, use those
-  if (node.w && node.h) {
-    const isRoot = node.root;
-    const fontSize = isRoot ? 13 : 11;
-    ctx.font = `${isRoot?'700 ':'500 '}${fontSize}px DM Mono, monospace`;
-    const label = node.label || 'Node';
-    const lines = mmWrapText(ctx, label, node.w - (isRoot?36:28));
-    const LINE_H = fontSize + 4;
-    const PAD_Y = isRoot ? 10 : 8;
-    return { boxW: node.w, boxH: node.h, lines, fontSize, LINE_H, PAD_Y };
-  }
-  const isRoot = node.root;
-  const fontSize = isRoot ? 13 : 11;
-  ctx.font = `${isRoot?'700 ':'500 '}${fontSize}px DM Mono, monospace`;
-  const label = node.label || 'Node';
-  const MAX_W = node.imageData ? Math.max(160, (node.imgW||160)) : (isRoot ? 160 : 140);
-  const PAD_X = isRoot ? 18 : 14;
-  const PAD_Y = isRoot ? 10 : 8;
-  const LINE_H = fontSize + 4;
-  const singleW = ctx.measureText(label).width;
-  let boxW, lines;
-  if (singleW <= MAX_W) {
-    boxW = Math.max(singleW + PAD_X*2, isRoot ? 90 : 70);
-    lines = [label];
-  } else {
-    lines = mmWrapText(ctx, label, MAX_W);
-    const widest = Math.max(...lines.map(l => ctx.measureText(l).width));
-    boxW = widest + PAD_X*2;
-  }
-  let boxH = lines.length * LINE_H + PAD_Y*2;
-  // If node has image, expand to fit it
-  if (node.imageData) {
-    const imgW = node.imgW || 160;
-    const imgH = node.imgH || 120;
-    boxW = Math.max(boxW, imgW + PAD_X*2);
-    boxH += imgH + 8;
-  }
-  return { boxW, boxH, lines, fontSize, LINE_H, PAD_Y };
-}
-function mmExpandCanvas() {
-  if (!mmCanvas || !mmNodes.length) return;
-  const PAD = 80;
-  // Check if any node is too close to left or top edge — shift all nodes right/down
-  let minX = Infinity, minY = Infinity;
-  mmNodes.forEach(n => {
-    const sz = mmCtx ? mmNodeSize(mmCtx, n) : {boxW:120, boxH:40};
-    minX = Math.min(minX, n.x - sz.boxW/2);
-    minY = Math.min(minY, n.y - sz.boxH/2);
-  });
-  if (minX < PAD || minY < PAD) {
-    const shiftX = minX < PAD ? PAD - minX : 0;
-    const shiftY = minY < PAD ? PAD - minY : 0;
-    mmNodes.forEach(n => { n.x += shiftX; n.y += shiftY; });
-    // Keep scroll position anchored so the view doesn't jump
-    const wrap = document.getElementById('tj-mm-canvas-wrap');
-    if (wrap) { wrap.scrollLeft += shiftX; wrap.scrollTop += shiftY; }
-  }
-  // Expand right and bottom as before
-  let maxX = 1200, maxY = 700;
-  mmNodes.forEach(n => {
-    const sz = mmCtx ? mmNodeSize(mmCtx, n) : {boxW:120, boxH:40};
-    maxX = Math.max(maxX, n.x + sz.boxW/2 + PAD);
-    maxY = Math.max(maxY, n.y + sz.boxH/2 + PAD);
-  });
-  if (mmCanvas.width < maxX) mmCanvas.width = maxX;
-  if (mmCanvas.height < maxY) mmCanvas.height = maxY;
-}
-
-// Get or create cached image for a node
-function mmGetImg(node) {
-  if (!node.imageData) return null;
-  if (mmImgCache[node.id] && mmImgCache[node.id]._src === node.imageData) return mmImgCache[node.id];
-  var img = new Image();
-  img._src = node.imageData;
-  img.onload = function() { mmImgCache[node.id] = img; renderMindmap(); };
-  img.src = node.imageData;
-  return null; // will trigger re-render when loaded
-}
-
-// Resize handle positions for a node (8 handles)
-function mmGetHandles(node) {
-  const {boxW, boxH} = mmNodeSize(mmCtx, node);
-  const L = node.x - boxW/2, R = node.x + boxW/2;
-  const T = node.y - boxH/2, B = node.y + boxH/2;
-  const MX = node.x, MY = node.y;
-  return [
-    {id:'nw', x:L, y:T}, {id:'n',  x:MX, y:T}, {id:'ne', x:R, y:T},
-    {id:'e',  x:R, y:MY},
-    {id:'se', x:R, y:B}, {id:'s',  x:MX, y:B}, {id:'sw', x:L, y:B},
-    {id:'w',  x:L, y:MY},
-  ];
-}
-
-function renderMindmap() {
-  if (!mmCtx) return;
-  mmExpandCanvas();
-  const ctx = mmCtx;
-  ctx.clearRect(0,0,mmCanvas.width,mmCanvas.height);
-  ctx.fillStyle='#1B1C1E'; ctx.fillRect(0,0,mmCanvas.width,mmCanvas.height);
-  ctx.fillStyle='#3D3E4350';
-  for (let x=24; x<mmCanvas.width; x+=28) for (let y=24; y<mmCanvas.height; y+=28) {
-    ctx.beginPath(); ctx.arc(x,y,1.2,0,Math.PI*2); ctx.fill();
-  }
-  mmEdges.forEach(edge => {
-    const a=mmNodes.find(n=>n.id===edge.from), b=mmNodes.find(n=>n.id===edge.to);
-    if(!a||!b) return;
-    const mx=(a.x+b.x)/2, my=(a.y+b.y)/2 - 30;
-    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.quadraticCurveTo(mx,my,b.x,b.y);
-    let edgeColor = a.stroke || '#8D769A', edgeStroke;
-    if (edgeColor.startsWith('#') && edgeColor.length===7) {
-      const r=parseInt(edgeColor.slice(1,3),16),g=parseInt(edgeColor.slice(3,5),16),b2=parseInt(edgeColor.slice(5,7),16);
-      edgeStroke=`rgba(${r},${g},${b2},0.45)`;
-    } else if (edgeColor.startsWith('rgb(')) { edgeStroke=edgeColor.replace('rgb(','rgba(').replace(')',',0.45)'); }
-    else { edgeStroke='rgba(141,118,154,0.35)'; }
-    ctx.strokeStyle=edgeStroke; ctx.lineWidth=1.5; ctx.stroke();
-  });
-  mmNodes.forEach(node => {
-    const isSel=node.id===mmSelectedNode, isCF=node.id===mmConnectFrom;
-    const nodeFill=node.root?'#3a2d4a':(node.fill||'#26272A');
-    const nodeStroke=node.root?'#8D769A':(node.stroke||'#4A4B51');
-    const {boxW,boxH,lines,fontSize,LINE_H,PAD_Y} = mmNodeSize(ctx,node);
-    const rx=node.x-boxW/2, ry=node.y-boxH/2, rad=8;
-    ctx.shadowColor='rgba(0,0,0,0.5)'; ctx.shadowBlur=12; ctx.shadowOffsetY=4;
-    ctx.beginPath();
-    ctx.moveTo(rx+rad,ry); ctx.lineTo(rx+boxW-rad,ry); ctx.quadraticCurveTo(rx+boxW,ry,rx+boxW,ry+rad);
-    ctx.lineTo(rx+boxW,ry+boxH-rad); ctx.quadraticCurveTo(rx+boxW,ry+boxH,rx+boxW-rad,ry+boxH);
-    ctx.lineTo(rx+rad,ry+boxH); ctx.quadraticCurveTo(rx,ry+boxH,rx,ry+boxH-rad);
-    ctx.lineTo(rx,ry+rad); ctx.quadraticCurveTo(rx,ry,rx+rad,ry); ctx.closePath();
-    ctx.fillStyle=isCF?'#0e3d4a':(isSel?'#3d1f1a':nodeFill); ctx.fill();
-    ctx.shadowBlur=0; ctx.shadowOffsetY=0;
-    ctx.strokeStyle=isCF?'#22d3ee':(isSel?'#E74C3C':nodeStroke);
-    ctx.lineWidth=isSel||node.root?2.5:1.5; ctx.stroke();
-    // Draw image if present
-    var img = node.imageData ? mmGetImg(node) : null;
-    if (img && img.complete) {
-      const iw = node.imgW || Math.min(boxW-20, 320);
-      const ih = node.imgH || Math.round(iw * img.naturalHeight / Math.max(img.naturalWidth,1));
-      const imgX = node.x - iw/2;
-      const textH = lines.length * LINE_H + PAD_Y*2;
-      const imgY = ry + textH;
-      ctx.save();
-      ctx.beginPath();
-      ctx.roundRect ? ctx.roundRect(imgX, imgY, iw, ih, 4) : ctx.rect(imgX, imgY, iw, ih);
-      ctx.clip();
-      ctx.drawImage(img, imgX, imgY, iw, ih);
-      ctx.restore();
-      // Image SE resize handle (blue, bottom-right of image)
-      if (isSel) {
-        ctx.fillStyle = '#3b82f6';
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.arc(imgX + iw, imgY + ih, 7, 0, Math.PI*2);
-        ctx.fill(); ctx.stroke();
-        // Draw resize arrow icon inside
-        ctx.fillStyle = '#fff'; ctx.font = 'bold 9px sans-serif';
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText('⤡', imgX + iw, imgY + ih);
-      }
-    }
-    // Draw label text
-    ctx.fillStyle='#ECECEE';
-    ctx.font=`${node.root?'700 ':'500 '}${fontSize}px DM Mono, monospace`;
-    ctx.textAlign='center'; ctx.textBaseline='middle';
-    const textBlockH = lines.length*LINE_H;
-    const textStartY = ry + PAD_Y + LINE_H/2;
-    lines.forEach((line,i)=>{ ctx.fillText(line, node.x, textStartY+i*LINE_H); });
-    // Draw resize handles on selected node
-    if (isSel) {
-      const handles = mmGetHandles(node);
-      handles.forEach(function(h) {
-        ctx.fillStyle = '#E74C3C';
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.arc(h.x, h.y, 5, 0, Math.PI*2);
-        ctx.fill(); ctx.stroke();
-      });
-      // Remove image button if image present
-      if (node.imageData) {
-        const _sz = mmNodeSize(ctx, node);
-        const iw2 = node.imgW || Math.min(_sz.boxW-20, 320);
-        const textH2 = _sz.lines.length*_sz.LINE_H + _sz.PAD_Y*2;
-        const imgY2 = node.y - _sz.boxH/2 + textH2;
-        ctx.fillStyle = '#E74C3C';
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.arc(node.x - iw2/2 + 10, imgY2 + 10, 8, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-        ctx.fillStyle = '#fff'; ctx.font = 'bold 10px sans-serif';
-        ctx.textAlign='center'; ctx.textBaseline='middle';
-        ctx.fillText('✕', node.x - iw2/2 + 10, imgY2 + 10);
-      }
-    }
-  });
-}
-function getNodeAt(x,y) {
-  for (let i=mmNodes.length-1;i>=0;i--) {
-    const n=mmNodes[i];
-    if (!mmCtx) continue;
-    const {boxW,boxH}=mmNodeSize(mmCtx,n);
-    if (x>=n.x-boxW/2&&x<=n.x+boxW/2&&y>=n.y-boxH/2&&y<=n.y+boxH/2) return n;
-  } return null;
-}
-// Hit-test image SE resize handle on selected node — returns {node, imgX, imgY, iw, ih} or null
-function mmHitImgHandle(x, y) {
-  if (!mmSelectedNode) return null;
-  var node = mmNodes.find(function(n) { return n.id === mmSelectedNode; });
-  if (!node || !node.imageData) return null;
-  var sz = mmNodeSize(mmCtx, node);
-  var iw = node.imgW || Math.min(sz.boxW-20, 320);
-  var ih = node.imgH || 120;
-  var textH = sz.lines.length * sz.LINE_H + sz.PAD_Y*2;
-  var ry = node.y - sz.boxH/2;
-  var imgX = node.x - iw/2;
-  var imgY = ry + textH;
-  // SE handle at (imgX+iw, imgY+ih)
-  if (Math.abs(x-(imgX+iw)) <= 12 && Math.abs(y-(imgY+ih)) <= 12) {
-    return { node: node, imgX: imgX, imgY: imgY, iw: iw, ih: ih };
-  }
-  return null;
-}
-// Hit-test remove-image button (top-left of image)
-function mmHitImgRemove(x, y) {
-  if (!mmSelectedNode) return null;
-  var node = mmNodes.find(function(n) { return n.id === mmSelectedNode; });
-  if (!node || !node.imageData) return null;
-  var sz = mmNodeSize(mmCtx, node);
-  var iw = node.imgW || Math.min(sz.boxW-20, 320);
-  var textH = sz.lines.length * sz.LINE_H + sz.PAD_Y*2;
-  var ry = node.y - sz.boxH/2;
-  var imgX = node.x - iw/2;
-  var imgY = ry + textH;
-  if (Math.abs(x-(imgX+10)) <= 12 && Math.abs(y-(imgY+10)) <= 12) return node;
-  return null;
-}
-// Hit-test resize handles — returns handle id or null
-function mmHitHandle(x, y) {
-  if (!mmSelectedNode) return null;
-  const node = mmNodes.find(n => n.id === mmSelectedNode);
-  if (!node) return null;
-  const handles = mmGetHandles(node);
-  for (var i=0; i<handles.length; i++) {
-    var h = handles[i];
-    if (Math.abs(x-h.x) <= 8 && Math.abs(y-h.y) <= 8) return h.id;
-  }
-  return null;
-}
-
-// Hit-test edges: returns index of edge near (x,y) or -1
-function mmHitEdge(x, y) {
-  var THRESH = 8;
-  for (var i = 0; i < mmEdges.length; i++) {
-    var edge = mmEdges[i];
-    var a = mmNodes.find(function(n){return n.id===edge.from;}), b = mmNodes.find(function(n){return n.id===edge.to;});
-    if (!a || !b) continue;
-    var mx = (a.x+b.x)/2, my = (a.y+b.y)/2 - 30;
-    for (var t = 0; t <= 1; t += 0.05) {
-      var bx = (1-t)*(1-t)*a.x + 2*(1-t)*t*mx + t*t*b.x;
-      var by = (1-t)*(1-t)*a.y + 2*(1-t)*t*my + t*t*b.y;
-      if (Math.abs(x-bx) < THRESH && Math.abs(y-by) < THRESH) return i;
-    }
-  }
-  return -1;
-}
-
-(function() {
-  var mmEl = document.getElementById('tj-mm-canvas');
-
-  function mmGetXY(e) {
-    var r = mmCanvas.getBoundingClientRect();
-    var scaleX = mmCanvas.width / r.width, scaleY = mmCanvas.height / r.height;
-    return {
-      x: (e.clientX - r.left) * scaleX,
-      y: (e.clientY - r.top) * scaleY
-    };
-  }
-
-  // Cursor style by handle id
-  var HANDLE_CURSORS = {nw:'nw-resize',n:'n-resize',ne:'ne-resize',e:'e-resize',se:'se-resize',s:'s-resize',sw:'sw-resize',w:'w-resize'};
-
-  mmEl.addEventListener('pointermove', function(e) {
-    if (mmImgResizing) {
-      var pos = mmGetXY(e);
-      var dx = pos.x - mmImgResizing.startX, dy = pos.y - mmImgResizing.startY;
-      var node = mmImgResizing.node;
-      var nw = Math.max(40, mmImgResizing.origW + dx*2); // *2 because centered
-      var nh = Math.max(30, mmImgResizing.origH + dy);
-      node.imgW = Math.round(nw);
-      node.imgH = Math.round(nh);
-      e.preventDefault(); renderMindmap(); return;
-    }
-    if (mmResizing) {
-      var pos = mmGetXY(e);
-      var dx = pos.x - mmResizing.startX, dy = pos.y - mmResizing.startY;
-      var node = mmResizing.node;
-      var h = mmResizing.handle;
-      var origW = mmResizing.origW, origH = mmResizing.origH;
-      var origX = mmResizing.origX, origY = mmResizing.origY;
-      var newW = origW, newH = origH, newX = origX, newY = origY;
-      var MIN = 60;
-      if (h==='e'||h==='ne'||h==='se') newW = Math.max(MIN, origW + dx);
-      if (h==='w'||h==='nw'||h==='sw') { newW = Math.max(MIN, origW - dx); newX = origX + (origW - newW)/2; }
-      if (h==='s'||h==='se'||h==='sw') newH = Math.max(MIN, origH + dy);
-      if (h==='n'||h==='ne'||h==='nw') { newH = Math.max(MIN, origH - dy); newY = origY + (origH - newH)/2; }
-      if (h==='n'||h==='s') newW = origW;
-      if (h==='e'||h==='w') newH = origH;
-      node.w = Math.round(newW); node.h = Math.round(newH);
-      node.x = Math.round(newX); node.y = Math.round(newY);
-      e.preventDefault(); renderMindmap(); return;
-    }
-    if (mmDragNode) {
-      var pos = mmGetXY(e);
-      mmDragNode.x = pos.x - mmDragOffset.x;
-      mmDragNode.y = pos.y - mmDragOffset.y;
-      e.preventDefault(); renderMindmap(); return;
-    }
-    // Update cursor
-    var pos = mmGetXY(e);
-    if (mmHitImgHandle(pos.x, pos.y)) { mmEl.style.cursor = 'se-resize'; return; }
-    var hid = mmHitHandle(pos.x, pos.y);
-    var onEdge = !getNodeAt(pos.x,pos.y) && isEditMode && mmHitEdge(pos.x,pos.y) !== -1;
-    mmEl.style.cursor = hid ? HANDLE_CURSORS[hid] : (getNodeAt(pos.x,pos.y) ? 'grab' : (onEdge ? 'pointer' : 'default'));
-  }, { passive: false });
-
-  mmEl.addEventListener('pointerdown', function(e) {
-    var pos = mmGetXY(e);
-
-    // Check resize handle first
-    var hid = mmHitHandle(pos.x, pos.y);
-    if (hid && isEditMode) {
-      var node = mmNodes.find(n => n.id === mmSelectedNode);
-      var sz = mmNodeSize(mmCtx, node);
-      mmResizing = { node, handle: hid, startX: pos.x, startY: pos.y, origW: sz.boxW, origH: sz.boxH, origX: node.x, origY: node.y };
-      mmEl.setPointerCapture(e.pointerId);
-      e.preventDefault(); return;
-    }
-
-    var node = getNodeAt(pos.x, pos.y);
-
-    if (mmConnectMode) {
-      if (node) {
-        if (!mmConnectFrom) { mmConnectFrom = node.id; renderMindmap(); }
-        else if (mmConnectFrom !== node.id) {
-          var exists = mmEdges.some(function(ed) {
-            return (ed.from===mmConnectFrom&&ed.to===node.id)||(ed.from===node.id&&ed.to===mmConnectFrom);
-          });
-          if (!exists) mmEdges.push({from:mmConnectFrom, to:node.id});
-          mmConnectFrom = null; mmConnectMode = false;
-          document.getElementById('tj-mm-connect-mode').classList.remove('active');
-          renderMindmap(); autoSave();
-        }
-      }
-      return;
-    }
-
-    if (node) {
-      // Check image SE resize handle first
-      var imgH = mmHitImgHandle(pos.x, pos.y);
-      if (imgH && isEditMode) {
-        mmImgResizing = { node: imgH.node, startX: pos.x, startY: pos.y, origW: imgH.iw, origH: imgH.ih };
-        mmEl.setPointerCapture(e.pointerId);
-        e.preventDefault(); return;
-      }
-      // Check remove-image button
-      var rmNode = mmHitImgRemove(pos.x, pos.y);
-      if (rmNode && isEditMode) {
-        rmNode.imageData = null; rmNode.imgW = null; rmNode.imgH = null;
-        delete mmImgCache[rmNode.id];
-        renderMindmap(); autoSave(); e.preventDefault(); return;
-      }
-      mmEl.setPointerCapture(e.pointerId);
-      mmSelectedNode = node.id; mmDragNode = node;
-      mmDragOffset = {x: pos.x - node.x, y: pos.y - node.y};
-      if (!node.root && node.fill) {
-        document.querySelectorAll('.mm-color-btn').forEach(function(b) {
-          b.classList.toggle('active', b.dataset.fill === node.fill);
-        });
-        mmNodeFill = node.fill; mmNodeStroke = node.stroke || '#4A4B51';
-      }
-      e.preventDefault();
-      renderMindmap();
-    } else {
-      // Check if clicked near an edge — if so, delete it (edit mode)
-      if (isEditMode) {
-        var edgeIdx = mmHitEdge(pos.x, pos.y);
-        if (edgeIdx !== -1) {
-          mmEdges.splice(edgeIdx, 1);
-          renderMindmap(); autoSave(); e.preventDefault(); return;
-        }
-      }
-      mmSelectedNode = null; renderMindmap();
-    }
-  }, { passive: false });
-
-  mmEl.addEventListener('pointerup', function(e) {
-    if (mmImgResizing) { mmImgResizing = null; autoSave(); return; }
-    if (mmResizing) { mmResizing = null; autoSave(); return; }
-    if (mmDragNode) { mmDragNode = null; autoSave(); }
-  });
-  mmEl.addEventListener('pointercancel', function() { mmDragNode = null; mmResizing = null; mmImgResizing = null; });
-
-  // Drag-and-drop image files onto canvas
-  mmEl.addEventListener('dragover', function(e) { e.preventDefault(); mmEl.style.outline = '2px dashed #8D769A'; });
-  mmEl.addEventListener('dragleave', function() { mmEl.style.outline = ''; });
-  mmEl.addEventListener('drop', function(e) {
-    e.preventDefault(); mmEl.style.outline = '';
-    var files = e.dataTransfer.files;
-    if (!files || !files.length) return;
-    var file = files[0];
-    if (!file.type.startsWith('image/')) return;
-    var pos = mmGetXY(e);
-    var targetNode = getNodeAt(pos.x, pos.y);
-    var reader = new FileReader();
-    reader.onload = function(ev) {
-      var dataURL = ev.target.result;
-      var tmpImg = new Image();
-      tmpImg.onload = function() {
-        var maxW = 400, maxH = 320;
-        var iw = tmpImg.naturalWidth, ih = tmpImg.naturalHeight;
-        if (iw > maxW) { ih = Math.round(ih * maxW / iw); iw = maxW; }
-        if (ih > maxH) { iw = Math.round(iw * maxH / ih); ih = maxH; }
-        if (targetNode) {
-          // Drop onto node — attach image, resize node to fit
-          targetNode.imageData = dataURL;
-          targetNode.imgW = iw; targetNode.imgH = ih;
-          // Expand node w/h to accommodate image
-          var sz = mmNodeSize(mmCtx, targetNode);
-          targetNode.w = Math.max(sz.boxW, iw + 20);
-          targetNode.h = sz.boxH; // auto-calculated via imageData path
-          delete targetNode.w; delete targetNode.h; // let mmNodeSize auto-calc with image
-          delete mmImgCache[targetNode.id];
-        } else {
-          // Drop onto empty canvas — create new image node
-          mmNextId++;
-          var node = {id:mmNextId, x:pos.x, y:pos.y, label:'Image', fill:mmNodeFill, stroke:mmNodeStroke, imageData:dataURL, imgW:iw, imgH:ih};
-          mmNodes.push(node);
-          mmSelectedNode = node.id;
-        }
-        renderMindmap(); autoSave();
-      };
-      tmpImg.src = dataURL;
-    };
-    reader.readAsDataURL(file);
-  });
-})();
-document.getElementById('tj-mm-canvas').addEventListener('dblclick', e => {
-  if (!isEditMode) return;
-  const r=mmCanvas.getBoundingClientRect();
-  const scaleX=mmCanvas.width/r.width, scaleY=mmCanvas.height/r.height;
-  const x=(e.clientX-r.left)*scaleX, y=(e.clientY-r.top)*scaleY;
-  const node=getNodeAt(x,y); if (!node) return;
-  const inp=document.getElementById('tj-mm-node-input');
-  // Position relative to canvas element (CSS pixels), not canvas pixel coords
-  const cssX=node.x/scaleX, cssY=node.y/scaleY;
-  inp.style.display='block'; inp.style.left=(cssX-130)+'px'; inp.style.top=(cssY-18)+'px';
-  inp.value=node.label; inp.focus(); inp.select(); mmEditingNode=node;
-});
-document.getElementById('tj-mm-node-input').addEventListener('keydown', e => {
-  if (e.key==='Enter'&&!e.shiftKey) {
-    e.preventDefault();
-    const ta=e.target, start=ta.selectionStart, end=ta.selectionEnd;
-    ta.value=ta.value.substring(0,start)+'\n'+ta.value.substring(end);
-    ta.selectionStart=ta.selectionEnd=start+1;
-    ta.style.height='auto'; ta.style.height=ta.scrollHeight+'px';
-    return;
-  }
-  if ((e.key==='Enter'&&e.shiftKey)||e.key==='Escape') {
-    if (e.key!=='Escape'&&mmEditingNode) { mmEditingNode.label=e.target.value||mmEditingNode.label; autoSave(); }
-    if (e.key==='Escape'&&mmEditingNode) { mmEditingNode.label=e.target.value||mmEditingNode.label; autoSave(); }
-    e.target.style.display='none'; e.target.style.height=''; mmEditingNode=null; renderMindmap();
-  }
-});
-document.getElementById('tj-mm-node-input').addEventListener('blur', e => {
-  if (mmEditingNode) { mmEditingNode.label=e.target.value||mmEditingNode.label; autoSave(); }
-  e.target.style.display='none'; e.target.style.height=''; mmEditingNode=null; renderMindmap();
-});
-document.getElementById('tj-mm-node-input').addEventListener('input', e => {
-  e.target.style.height='auto'; e.target.style.height=e.target.scrollHeight+'px';
-});
-document.getElementById('tj-mm-add-node').addEventListener('click', () => {
-  mmNextId++;
-  const cx = mmCanvas ? mmCanvas.width/2 : 340;
-  const cy = mmCanvas ? mmCanvas.height/2 : 240;
-  mmNodes.push({id:mmNextId,x:cx+(Math.random()-.5)*220,y:cy+(Math.random()-.5)*160,label:'Idea',fill:mmNodeFill,stroke:mmNodeStroke});
-  renderMindmap(); autoSave();
-});
-document.querySelectorAll('.mm-color-btn').forEach(btn => {
-  btn.addEventListener('click', function() {
-    mmNodeFill = this.dataset.fill;
-    mmNodeStroke = this.dataset.stroke;
-    document.querySelectorAll('.mm-color-btn').forEach(b => b.classList.remove('active'));
-    this.classList.add('active');
-    // Apply to selected node if any
-    if (mmSelectedNode) {
-      const node = mmNodes.find(n => n.id === mmSelectedNode);
-      if (node && !node.root) {
-        node.fill = mmNodeFill;
-        node.stroke = mmNodeStroke;
-        renderMindmap(); autoSave();
-      }
-    }
-  });
-});
-document.getElementById('tj-mm-connect-mode').addEventListener('click', function() {
-  mmConnectMode=!mmConnectMode; mmConnectFrom=null; this.classList.toggle('active',mmConnectMode);
-});
-document.getElementById('tj-mm-delete-node').addEventListener('click', () => {
-  if (!mmSelectedNode) { alert('Select a node first.'); return; }
-  if (mmNodes.find(n=>n.id===mmSelectedNode)?.root) { alert("Can't delete the root node."); return; }
-  mmNodes=mmNodes.filter(n=>n.id!==mmSelectedNode);
-  mmEdges=mmEdges.filter(e=>e.from!==mmSelectedNode&&e.to!==mmSelectedNode);
-  mmSelectedNode=null; renderMindmap(); autoSave();
-});
-document.getElementById('tj-mm-reset').addEventListener('click', async () => {
-  if (!(await window.uiConfirm('Reset the mind map?', {danger:true, okLabel:'Reset'}))) return;
-  const cx = mmCanvas ? mmCanvas.width/2 : 340;
-  const cy = mmCanvas ? mmCanvas.height/2 : 240;
-  mmNodes=[{id:1,x:cx,y:cy,label:'Central Idea',root:true}];
-  mmEdges=[]; mmNextId=10; renderMindmap(); autoSave();
-});
-
-// Mindmap: add image to selected node via file picker
-document.getElementById('tj-mm-img-file').addEventListener('change', function() {
-  var file = this.files[0]; if (!file) return;
-  if (!mmSelectedNode) { alert('Select a node first, then click Image.'); this.value=''; return; }
-  var node = mmNodes.find(function(n) { return n.id === mmSelectedNode; });
-  if (!node) { this.value=''; return; }
-  var reader = new FileReader();
-  reader.onload = function(e) {
-    var dataURL = e.target.result;
-    var tmpImg = new Image();
-    tmpImg.onload = function() {
-      var maxW = 400, maxH = 320;
-      var iw = tmpImg.naturalWidth, ih = tmpImg.naturalHeight;
-      if (iw > maxW) { ih = Math.round(ih * maxW / iw); iw = maxW; }
-      if (ih > maxH) { iw = Math.round(iw * maxH / ih); ih = maxH; }
-      node.imageData = dataURL;
-      node.imgW = iw; node.imgH = ih;
-      delete mmImgCache[node.id];
-      renderMindmap(); autoSave();
-    };
-    tmpImg.src = dataURL;
-  };
-  reader.readAsDataURL(file);
-  this.value = '';
-});
-
 
 /* PAGE EDITOR */
 function updatePageToolbarState() {
@@ -28264,185 +27506,10 @@ function _tjPageInsertFileChip(name, dataURL, mimeType) {
   autoSave();
 }
 
-// ── ATTACHMENT SYSTEM (Notes / Cornell / Mindmap) ────────────────────────────
-(function() {
-  // Each template stores attachments as entry.data.attachments = [{id,name,mime,data}]
-  var ATTACH_CONFIGS = [
-    { inputId: 'tj-notes-attach-input',   chipsId: 'tj-notes-attach-chips',   imgsId: 'tj-notes-attach-images',   barId: 'tj-notes-attach-bar',   tmpl: 'notes'    },
-    { inputId: 'tj-cornell-attach-input', chipsId: 'tj-cornell-attach-chips', imgsId: 'tj-cornell-attach-images', barId: 'tj-cornell-attach-bar', tmpl: 'cornell'  },
-    { inputId: 'tj-mm-attach-input',      chipsId: 'tj-mm-attach-chips',      imgsId: 'tj-mm-attach-images',      barId: 'tj-mm-attach-bar',      tmpl: 'mindmap'  },
-  ];
-
-  function getAttachments() {
-    var entry = getActive(); if (!entry) return [];
-    if (!entry.data.attachments) entry.data.attachments = [];
-    return entry.data.attachments;
-  }
-  function addAttachment(name, mime, data) {
-    var entry = getActive(); if (!entry) return;
-    if (!entry.data.attachments) entry.data.attachments = [];
-    var id = 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-    entry.data.attachments.push({ id: id, name: name, mime: mime, data: data });
-    autoSave();
-    renderAttachments(entry.template);
-  }
-  function removeAttachment(id) {
-    var entry = getActive(); if (!entry) return;
-    entry.data.attachments = (entry.data.attachments || []).filter(function(a) { return a.id !== id; });
-    autoSave();
-    renderAttachments(entry.template);
-  }
-
-  function renderAttachments(tmpl) {
-    var cfg = ATTACH_CONFIGS.find(function(c) { return c.tmpl === tmpl; });
-    if (!cfg) return;
-    var chipsEl = document.getElementById(cfg.chipsId);
-    var imgsEl  = document.getElementById(cfg.imgsId);
-    if (!chipsEl || !imgsEl) return;
-    var atts = getAttachments();
-    chipsEl.innerHTML = '';
-    imgsEl.innerHTML  = '';
-    atts.forEach(function(att) {
-      var isImg = att.mime && att.mime.startsWith('image/');
-      if (isImg) {
-        var wrap = document.createElement('div');
-        wrap.className = 'tj-img-wrap';
-        wrap.setAttribute('data-id', att.id);
-        var img = document.createElement('img');
-        img.src = att.data;
-        img.style.width  = (att.w || 200) + 'px';
-        img.style.height = 'auto';
-        img.draggable = false;
-        var del = document.createElement('div');
-        del.className = 'tj-img-del';
-        del.innerHTML = window.TNI.x;
-        del.addEventListener('click', function() { removeAttachment(att.id); });
-        var rsz = document.createElement('div');
-        rsz.className = 'tj-img-resize';
-        // Resize drag
-        rsz.addEventListener('pointerdown', function(e) {
-          e.stopPropagation(); e.preventDefault();
-          rsz.setPointerCapture(e.pointerId);
-          var startX = e.clientX, startW = img.offsetWidth;
-          function onMove(ev) {
-            var nw = Math.max(60, startW + (ev.clientX - startX));
-            img.style.width = nw + 'px';
-            att.w = nw;
-          }
-          function onUp() {
-            document.removeEventListener('pointermove', onMove);
-            document.removeEventListener('pointerup', onUp);
-            autoSave();
-          }
-          document.addEventListener('pointermove', onMove);
-          document.addEventListener('pointerup', onUp);
-        });
-        wrap.appendChild(img);
-        wrap.appendChild(del);
-        wrap.appendChild(rsz);
-        // Drag to reorder within images panel
-        _tjMakeImgDraggable(wrap, imgsEl);
-        imgsEl.appendChild(wrap);
-      } else {
-        var chip = document.createElement('a');
-        chip.className = 'tj-chip';
-        chip.href = att.data;
-        chip.download = att.name;
-        chip.title = att.name;
-        chip.innerHTML = '<span class="docx-clip-wrap">' + (window._docxPaperclipSVG || window.TNI.clip) + '</span><span class="tj-chip-name">' + _tjEsc(att.name) + '</span>';
-        if (isEditMode) {
-          var delSpan = document.createElement('span');
-          delSpan.className = 'tj-chip-del';
-          delSpan.innerHTML = window.TNI.x;
-          delSpan.addEventListener('click', function(e) { e.preventDefault(); removeAttachment(att.id); });
-          chip.appendChild(delSpan);
-        }
-        chipsEl.appendChild(chip);
-      }
-    });
-  }
-
-  // Make image wrap draggable for reordering within its container
-  function _tjMakeImgDraggable(wrap, container) {
-    wrap.addEventListener('pointerdown', function(e) {
-      if (e.target.classList.contains('tj-img-resize') || e.target.classList.contains('tj-img-del')) return;
-      e.preventDefault();
-      container.querySelectorAll('.tj-img-wrap').forEach(function(w) { w.classList.remove('selected'); });
-      wrap.classList.add('selected');
-      var startX = e.clientX, startY = e.clientY;
-      var moved = false;
-      var placeholder = document.createElement('div');
-      placeholder.style.cssText = 'width:' + wrap.offsetWidth + 'px;height:' + wrap.offsetHeight + 'px;border:2px dashed var(--border);border-radius:6px;flex-shrink:0;';
-      function onMove(ev) {
-        if (!moved && Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY) < 5) return;
-        moved = true;
-        wrap.style.opacity = '0.5';
-        // Find insertion point
-        var siblings = Array.from(container.children).filter(function(c) { return c !== wrap && c !== placeholder; });
-        var after = null;
-        siblings.forEach(function(s) {
-          var r = s.getBoundingClientRect();
-          if (ev.clientX > r.left + r.width / 2) after = s;
-        });
-        if (after) { container.insertBefore(placeholder, after.nextSibling); }
-        else { container.insertBefore(placeholder, container.firstChild); }
-      }
-      function onUp() {
-        document.removeEventListener('pointermove', onMove);
-        document.removeEventListener('pointerup', onUp);
-        wrap.style.opacity = '';
-        if (moved && placeholder.parentNode) {
-          container.insertBefore(wrap, placeholder);
-          placeholder.remove();
-          // Sync order in entry.data.attachments
-          var entry = getActive(); if (!entry || !entry.data.attachments) return;
-          var orderedImgIds = Array.from(container.querySelectorAll('.tj-img-wrap')).map(function(w) { return w.getAttribute('data-id'); });
-          var nonImgs = entry.data.attachments.filter(function(a) { return !(a.mime && a.mime.startsWith('image/')); });
-          var imgs = orderedImgIds.map(function(id) { return entry.data.attachments.find(function(a) { return a.id === id; }); }).filter(Boolean);
-          entry.data.attachments = imgs.concat(nonImgs);
-          autoSave();
-        } else if (placeholder.parentNode) { placeholder.remove(); }
-      }
-      document.addEventListener('pointermove', onMove);
-      document.addEventListener('pointerup', onUp);
-    });
-  }
-
-  // Wire file inputs
-  ATTACH_CONFIGS.forEach(function(cfg) {
-    var input = document.getElementById(cfg.inputId);
-    if (!input) return;
-    input.addEventListener('change', function() {
-      Array.from(this.files).forEach(function(file) {
-        var reader = new FileReader();
-        reader.onload = function(e) { addAttachment(file.name, file.type, e.target.result); };
-        reader.readAsDataURL(file);
-      });
-      this.value = '';
-    });
-  });
-
-  // Show/hide attach bars with edit mode & template
-  window._tjRenderAttachments = renderAttachments;
-  window._tjRefreshAttachBars = function(tmpl, editMode) {
-    ATTACH_CONFIGS.forEach(function(cfg) {
-      var bar = document.getElementById(cfg.barId);
-      if (bar) {
-        if (cfg.tmpl === tmpl && editMode) bar.classList.add('edit-mode');
-        else bar.classList.remove('edit-mode');
-      }
-    });
-  };
-})();
-
-
 // ── DRAG & DROP FILE UPLOAD (all templates) ─────────────────────────────────
 (function() {
   var DROP_ZONES = [
     { areaId: 'tj-wb-canvas-wrap', zoneId: 'tj-wb-drop-zone',     tmpl: 'whiteboard' },
-    { areaId: 'tj-notes-area',     zoneId: 'tj-notes-drop-zone',   tmpl: 'notes'      },
-    { areaId: 'tj-cornell-area',   zoneId: 'tj-cornell-drop-zone', tmpl: 'cornell'    },
-    { areaId: 'tj-mindmap-area',   zoneId: 'tj-mm-drop-zone',      tmpl: 'mindmap'    },
     { areaId: 'tj-page-area',      zoneId: 'tj-page-drop-zone',    tmpl: 'page'       },
   ];
 
@@ -28517,11 +27584,8 @@ function _tjPageInsertFileChip(name, dataURL, mimeType) {
     });
   });
 
-  // Expose addAttachment globally so drag-drop can call it
-  // (it's defined inside the attachment IIFE; re-expose it here)
-  var _origRefresh = window._tjRefreshAttachBars;
-  // Wrap: when attachment IIFE runs it exposes _tjRenderAttachments
-  // We need addAttachment — re-implement a thin wrapper using the same storage
+  // Whiteboard drops still park the file on the entry; the Page template lands
+  // it in the editor above and never reaches here.
   window._tjAddAttachment = function(name, mime, data) {
     var entry = (typeof getActive === 'function') ? getActive() : null;
     if (!entry) return;
@@ -28529,7 +27593,6 @@ function _tjPageInsertFileChip(name, dataURL, mimeType) {
     var id = 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2);
     entry.data.attachments.push({ id: id, name: name, mime: mime, data: data });
     if (typeof autoSave === 'function') autoSave();
-    if (typeof window._tjRenderAttachments === 'function') window._tjRenderAttachments(entry.template);
   };
 })();
 
@@ -28749,13 +27812,47 @@ function _tjFindMarkAncestor(node, editorEl) {
     return typeof getActive === 'function' ? getActive() : null;
   }
 
+  function _jeDate(key) {
+    const [y, m, d] = key.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+
   function _jeFormatDateLabel(key) {
     // key = "YYYY-MM-DD"
     try {
-      const [y, m, d] = key.split('-').map(Number);
-      const dt = new Date(y, m - 1, d);
-      return dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+      return _jeDate(key).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
     } catch(e) { return key; }
+  }
+
+  // Menu / phone-chip label: weekday + date, year only when it is not this year.
+  function _jeMediumLabel(key) {
+    try {
+      const y = Number(key.slice(0, 4));
+      const opts = { weekday: 'short', month: 'short', day: 'numeric' };
+      if (y !== new Date().getFullYear()) opts.year = 'numeric';
+      return _jeDate(key).toLocaleDateString('en-US', opts);
+    } catch(e) { return key; }
+  }
+
+  // Strip label. Inside a run of one month only the day number is shown — the run
+  // is already introduced by its own month marker — so twenty dates in September
+  // read as "SEP 1 2 3 …" instead of twenty copies of the word September.
+  function _jeTabLabel(key, sameMonthAsPrev) {
+    try {
+      const y = Number(key.slice(0, 4));
+      if (sameMonthAsPrev) return String(Number(key.slice(8, 10)));
+      var s = _jeDate(key).toLocaleDateString('en-US', { day: 'numeric' });
+      return (y !== new Date().getFullYear()) ? s + " '" + key.slice(2, 4) : s;
+    } catch(e) { return key; }
+  }
+
+  function _jeMonthLabel(key) {
+    try {
+      const y = Number(key.slice(0, 4));
+      const opts = { month: 'short' };
+      if (y !== new Date().getFullYear()) opts.year = '2-digit';
+      return _jeDate(key).toLocaleDateString('en-US', opts);
+    } catch(e) { return key.slice(0, 7); }
   }
 
   function _jeTodayKey() {
@@ -28777,6 +27874,122 @@ function _tjFindMarkAncestor(node, editorEl) {
     entry.data.dates[key] = { html: ed.innerHTML };
   };
 
+  // ── Date switching ──────────────────────────────────────────
+  function _jeSwitchTo(key) {
+    const cur = _jeGetEntry();
+    if (!cur || !key || key === cur.data.activeDateKey) return;
+    _jeSaveActiveDate(cur);
+    cur.data.activeDateKey = key;
+    _jeRenderTabs(cur);
+    if (typeof autoSave === 'function') autoSave();
+  }
+
+  async function _jeDeleteDate(key) {
+    const cur = _jeGetEntry();
+    if (!cur) return;
+    if (!(await window.uiConfirm('Delete entry for ' + _jeFormatDateLabel(key) + '?', {danger:true, okLabel:'Delete'}))) return;
+    delete cur.data.dates[key];
+    cur.data.dateOrder = cur.data.dateOrder.filter(function(k) { return k !== key; });
+    if (cur.data.activeDateKey === key) cur.data.activeDateKey = '';
+    _jeCloseMenu();
+    _jeRenderTabs(cur);
+    if (typeof autoSave === 'function') autoSave();
+  }
+
+  // ── Jump menu (all dates, newest first, grouped by month) ────
+  function _jeCloseMenu() {
+    const menu = document.getElementById('tj-je-menu');
+    const btn  = document.getElementById('tj-je-jump');
+    if (menu) menu.classList.remove('open');
+    if (btn) btn.classList.remove('open');
+  }
+
+  function _jeOpenMenu() {
+    const entry = _jeGetEntry();
+    const menu = document.getElementById('tj-je-menu');
+    const btn  = document.getElementById('tj-je-jump');
+    if (!entry || !menu || !btn) return;
+    const order = (entry.data.dateOrder || []).slice().reverse();   // newest first
+    menu.innerHTML = '';
+    let lastMonth = null;
+    order.forEach(function(key) {
+      const month = key.slice(0, 7);
+      if (month !== lastMonth) {
+        lastMonth = month;
+        const h = document.createElement('div');
+        h.className = 'je-menu-head';
+        h.textContent = _jeDate(key).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        menu.appendChild(h);
+      }
+      const it = document.createElement('button');
+      it.type = 'button';
+      it.className = 'je-menu-item' + (key === entry.data.activeDateKey ? ' active' : '');
+      it.dataset.dateKey = key;
+      it.innerHTML = '<span class="je-menu-lbl"></span><span class="je-menu-del" title="Delete this date">' + window.TNI.x + '</span>';
+      it.querySelector('.je-menu-lbl').textContent = _jeMediumLabel(key);
+      menu.appendChild(it);
+    });
+    menu.classList.add('open');
+    btn.classList.add('open');
+    // Anchor under the button, clamped to the viewport (the menu is position:fixed
+    // so a scrolled editor never drags it off-screen).
+    const r = btn.getBoundingClientRect();
+    const w = menu.offsetWidth, h = menu.offsetHeight;
+    menu.style.left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8)) + 'px';
+    menu.style.top = (r.bottom + h > window.innerHeight - 8 ? Math.max(8, r.top - h - 4) : r.bottom + 4) + 'px';
+  }
+
+  (function _jeWireMenu() {
+    const menu = document.getElementById('tj-je-menu');
+    const btn  = document.getElementById('tj-je-jump');
+    if (!menu || !btn) return;
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (menu.classList.contains('open')) _jeCloseMenu(); else _jeOpenMenu();
+    });
+    menu.addEventListener('click', function(e) {
+      const del = e.target.closest('.je-menu-del');
+      const item = e.target.closest('.je-menu-item');
+      if (!item) return;
+      e.stopPropagation();
+      if (del) { _jeDeleteDate(item.dataset.dateKey); return; }
+      _jeCloseMenu();
+      _jeSwitchTo(item.dataset.dateKey);
+    });
+    document.addEventListener('click', function(e) {
+      if (!menu.contains(e.target) && e.target !== btn && !btn.contains(e.target)) _jeCloseMenu();
+    });
+    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') _jeCloseMenu(); });
+
+    // Prev / next walk the ordered dates — the only way to move between them on a
+    // phone, where the strip itself is hidden.
+    function step(dir) {
+      const cur = _jeGetEntry();
+      if (!cur || !cur.data || !cur.data.dateOrder) return;
+      const idx = cur.data.dateOrder.indexOf(cur.data.activeDateKey);
+      const next = cur.data.dateOrder[idx + dir];
+      if (next) _jeSwitchTo(next);
+    }
+    const prevB = document.getElementById('tj-je-prev');
+    const nextB = document.getElementById('tj-je-next');
+    if (prevB) prevB.addEventListener('click', function() { step(-1); });
+    if (nextB) nextB.addEventListener('click', function() { step(1); });
+
+    // The arrows and the jump menu only earn their space once the strip overflows.
+    if (window.ResizeObserver) {
+      const strip = document.getElementById('tj-je-tabs');
+      if (strip) new ResizeObserver(function() { _jeSyncOverflow(); }).observe(strip);
+    }
+    window.addEventListener('resize', _jeSyncOverflow);
+  })();
+
+  function _jeSyncOverflow() {
+    const bar = document.getElementById('tj-je-tabs-bar');
+    const tabs = document.getElementById('tj-je-tabs');
+    if (!bar || !tabs) return;
+    bar.classList.toggle('je-overflow', tabs.scrollWidth > tabs.clientWidth + 2);
+  }
+
   // ── Render tabs + show active date's content ──
   window._jeRenderTabs = function(entry, preserveEditorDOM) {
     if (!entry || entry.template !== 'journal-entries') return;
@@ -28788,14 +28001,25 @@ function _tjFindMarkAncestor(node, editorEl) {
     const emptyEl = document.getElementById('tj-je-empty');
     const edWrap = document.getElementById('tj-je-editor-wrap');
     const ed = document.getElementById('tj-je-editor');
+    const barEl = document.getElementById('tj-je-tabs-bar');
+    const jumpLbl = document.getElementById('tj-je-jump-lbl');
+    const jumpCount = document.getElementById('tj-je-jump-count');
+    const prevB = document.getElementById('tj-je-prev');
+    const nextB = document.getElementById('tj-je-next');
     if (!tabsEl || !ed) return;
 
     const order = entry.data.dateOrder;
     tabsEl.innerHTML = '';
+    _jeCloseMenu();
 
     if (order.length === 0) {
       if (emptyEl) { emptyEl.style.display = 'flex'; }
-      if (edWrap) { edWrap.style.display = 'none'; }
+      if (edWrap) { edWrap.style.display = 'none'; edWrap.classList.remove('active'); }
+      if (barEl) barEl.classList.remove('je-overflow');
+      if (jumpLbl) jumpLbl.textContent = 'Dates';
+      if (jumpCount) jumpCount.textContent = '';
+      if (prevB) prevB.disabled = true;
+      if (nextB) nextB.disabled = true;
       entry.data.activeDateKey = '';
       ed.innerHTML = '';
       return;
@@ -28810,48 +28034,56 @@ function _tjFindMarkAncestor(node, editorEl) {
       entry.data.activeDateKey = order[order.length - 1];
     }
 
+    let activeBtn = null, lastMonth = null;
     order.forEach(function(key) {
+      const month = key.slice(0, 7);
+      const sameMonth = month === lastMonth;
+      if (!sameMonth) {
+        lastMonth = month;
+        const marker = document.createElement('span');
+        marker.className = 'je-month';
+        marker.textContent = _jeMonthLabel(key);
+        tabsEl.appendChild(marker);
+      }
       const btn = document.createElement('button');
-      btn.className = 'je-tab' + (key === entry.data.activeDateKey ? ' active' : '');
+      btn.type = 'button';
+      const isActive = key === entry.data.activeDateKey;
+      btn.className = 'je-tab' + (isActive ? ' active' : '');
       btn.dataset.dateKey = key;
-      btn.innerHTML = _jeFormatDateLabel(key) + ' <span class="je-tab-del" data-date-key="' + key + '" title="Delete this date">' + window.TNI.x + '</span>';
+      btn.title = _jeFormatDateLabel(key);
+      btn.innerHTML = '<span></span><span class="je-tab-del" title="Delete this date">' + window.TNI.x + '</span>';
+      btn.firstChild.textContent = _jeTabLabel(key, sameMonth);
       tabsEl.appendChild(btn);
+      if (isActive) activeBtn = btn;
     });
+
+    // Phone chip + the desktop jump button both name the date you are on.
+    if (jumpLbl) jumpLbl.textContent = _jeMediumLabel(entry.data.activeDateKey);
+    if (jumpCount) jumpCount.textContent = order.length > 1 ? '(' + order.length + ')' : '';
+    const ai = order.indexOf(entry.data.activeDateKey);
+    if (prevB) prevB.disabled = ai <= 0;
+    if (nextB) nextB.disabled = ai < 0 || ai >= order.length - 1;
 
     // Load active date content
     if (!preserveEditorDOM) {
       _jeLoadDateContent(entry.data.activeDateKey, entry);
     }
 
-    // Tab click
-    tabsEl.querySelectorAll('.je-tab').forEach(function(btn) {
-      btn.addEventListener('click', function(e) {
-        if (e.target.classList.contains('je-tab-del') || e.target.closest('.je-tab-del')) return;
-        const key = btn.dataset.dateKey;
-        const cur = _jeGetEntry();
-        if (!cur || key === cur.data.activeDateKey) return;
-        _jeSaveActiveDate(cur);
-        cur.data.activeDateKey = key;
-        _jeRenderTabs(cur);
-        if (typeof autoSave === 'function') autoSave();
-      });
+    tabsEl.addEventListener('click', function(e) {
+      const del = e.target.closest('.je-tab-del');
+      const tab = e.target.closest('.je-tab');
+      if (!tab) return;
+      if (del) { e.stopPropagation(); _jeDeleteDate(tab.dataset.dateKey); return; }
+      _jeSwitchTo(tab.dataset.dateKey);
     });
 
-    // Tab delete
-    tabsEl.querySelectorAll('.je-tab-del').forEach(function(btn) {
-      btn.addEventListener('click', async function(e) {
-        e.stopPropagation();
-        const key = btn.dataset.dateKey;
-        const cur = _jeGetEntry();
-        if (!cur) return;
-        if (!(await window.uiConfirm('Delete entry for ' + _jeFormatDateLabel(key) + '?', {danger:true, okLabel:'Delete'}))) return;
-        delete cur.data.dates[key];
-        cur.data.dateOrder = cur.data.dateOrder.filter(function(k) { return k !== key; });
-        if (cur.data.activeDateKey === key) cur.data.activeDateKey = '';
-        _jeRenderTabs(cur);
-        if (typeof autoSave === 'function') autoSave();
+    _jeSyncOverflow();
+    if (activeBtn) {
+      // Keep the date you are editing visible after a re-render or a prev/next step.
+      requestAnimationFrame(function() {
+        try { activeBtn.scrollIntoView({ block: 'nearest', inline: 'center' }); } catch (err) {}
       });
-    });
+    }
   };
 
   // ── Load a specific date's HTML into the editor ──
@@ -28862,6 +28094,9 @@ function _tjFindMarkAncestor(node, editorEl) {
     const html = dateData.html || '';
     ed.innerHTML = html;
     ed.contentEditable = (typeof isEditMode !== 'undefined' && isEditMode) ? 'true' : 'false';
+    // Each date is a separate document — reseed the docx undo stack so undo never
+    // reaches back across a date switch.
+    if (window._docxOnLoad) window._docxOnLoad('tj-je-editor', (entry.id || 'je') + '::' + key);
     // Rebind image handles
     ed.querySelectorAll('.pg-img-wrap').forEach(function(w) {
       if (typeof _pgBindImgWrap === 'function') _pgBindImgWrap(w);
@@ -28932,7 +28167,7 @@ function _tjFindMarkAncestor(node, editorEl) {
   }
 
   // Block format select
-  var jeBlockSel = document.getElementById('tj-jept-block');
+  var jeBlockSel = document.getElementById('tj-je-pt-block');
   if (jeBlockSel) {
     jeBlockSel.addEventListener('change', function() {
       jeBlock(jeBlockSel.value);
@@ -28941,7 +28176,7 @@ function _tjFindMarkAncestor(node, editorEl) {
   }
 
   // Font size select
-  var jeFontSel = document.getElementById('tj-jept-fontsize');
+  var jeFontSel = document.getElementById('tj-je-pt-fontsize');
   if (jeFontSel) {
     jeFontSel.addEventListener('change', function() {
       var sz = jeFontSel.value;
@@ -28958,11 +28193,11 @@ function _tjFindMarkAncestor(node, editorEl) {
   }
 
   // Inline formatting
-  document.getElementById('tj-jept-bold')      && document.getElementById('tj-jept-bold').addEventListener('click', function() { jeCmd('bold'); });
-  document.getElementById('tj-jept-italic')    && document.getElementById('tj-jept-italic').addEventListener('click', function() { jeCmd('italic'); });
-  document.getElementById('tj-jept-underline') && document.getElementById('tj-jept-underline').addEventListener('click', function() { jeCmd('underline'); });
-  document.getElementById('tj-jept-strike')    && document.getElementById('tj-jept-strike').addEventListener('click', function() { jeCmd('strikeThrough'); });
-  document.getElementById('tj-jept-code')      && document.getElementById('tj-jept-code').addEventListener('click', function() {
+  document.getElementById('tj-je-pt-bold')      && document.getElementById('tj-je-pt-bold').addEventListener('click', function() { jeCmd('bold'); });
+  document.getElementById('tj-je-pt-italic')    && document.getElementById('tj-je-pt-italic').addEventListener('click', function() { jeCmd('italic'); });
+  document.getElementById('tj-je-pt-underline') && document.getElementById('tj-je-pt-underline').addEventListener('click', function() { jeCmd('underline'); });
+  document.getElementById('tj-je-pt-strike')    && document.getElementById('tj-je-pt-strike').addEventListener('click', function() { jeCmd('strikeThrough'); });
+  document.getElementById('tj-je-pt-code')      && document.getElementById('tj-je-pt-code').addEventListener('click', function() {
     var sel = window.getSelection();
     if (!sel || !sel.rangeCount) return;
     var range = sel.getRangeAt(0);
@@ -28970,20 +28205,20 @@ function _tjFindMarkAncestor(node, editorEl) {
     try { range.surroundContents(code); } catch(ex) { document.execCommand('insertHTML', false, '<code>' + range.toString() + '</code>'); }
     if (typeof autoSave === 'function') autoSave();
   });
-  document.getElementById('tj-jept-ul')       && document.getElementById('tj-jept-ul').addEventListener('click', function() { jeCmd('insertUnorderedList'); });
-  document.getElementById('tj-jept-ol')       && document.getElementById('tj-jept-ol').addEventListener('click', function() { jeCmd('insertOrderedList'); });
-  document.getElementById('tj-jept-alignL')   && document.getElementById('tj-jept-alignL').addEventListener('click', function() { jeCmd('justifyLeft'); });
-  document.getElementById('tj-jept-alignC')   && document.getElementById('tj-jept-alignC').addEventListener('click', function() { jeCmd('justifyCenter'); });
-  document.getElementById('tj-jept-alignR')   && document.getElementById('tj-jept-alignR').addEventListener('click', function() { jeCmd('justifyRight'); });
-  document.getElementById('tj-jept-link')     && document.getElementById('tj-jept-link').addEventListener('click', function() {
+  document.getElementById('tj-je-pt-ul')       && document.getElementById('tj-je-pt-ul').addEventListener('click', function() { jeCmd('insertUnorderedList'); });
+  document.getElementById('tj-je-pt-ol')       && document.getElementById('tj-je-pt-ol').addEventListener('click', function() { jeCmd('insertOrderedList'); });
+  document.getElementById('tj-je-pt-alignL')   && document.getElementById('tj-je-pt-alignL').addEventListener('click', function() { jeCmd('justifyLeft'); });
+  document.getElementById('tj-je-pt-alignC')   && document.getElementById('tj-je-pt-alignC').addEventListener('click', function() { jeCmd('justifyCenter'); });
+  document.getElementById('tj-je-pt-alignR')   && document.getElementById('tj-je-pt-alignR').addEventListener('click', function() { jeCmd('justifyRight'); });
+  document.getElementById('tj-je-pt-link')     && document.getElementById('tj-je-pt-link').addEventListener('click', function() {
     var url = prompt('URL:', 'https://');
     if (url) jeCmd('createLink', url);
   });
-  document.getElementById('tj-jept-hr')       && document.getElementById('tj-jept-hr').addEventListener('click', function() {
+  document.getElementById('tj-je-pt-hr')       && document.getElementById('tj-je-pt-hr').addEventListener('click', function() {
     jeEd.focus(); document.execCommand('insertHTML', false, '<hr>');
     if (typeof autoSave === 'function') autoSave();
   });
-  document.getElementById('tj-jept-table')    && document.getElementById('tj-jept-table').addEventListener('click', async function() {
+  document.getElementById('tj-je-pt-table')    && document.getElementById('tj-je-pt-table').addEventListener('click', async function() {
     var _dims = await window.uiForm({ title:'Insert table', okLabel:'Insert', fields:[ {name:'rows',label:'Rows',value:'3'}, {name:'cols',label:'Columns',value:'3'} ] });
     if (!_dims) return;
     var rows = parseInt(_dims.rows, 10) || 3;
@@ -28995,7 +28230,7 @@ function _tjFindMarkAncestor(node, editorEl) {
     jeEd.focus(); document.execCommand('insertHTML', false, tbl);
     if (typeof autoSave === 'function') autoSave();
   });
-  document.getElementById('tj-jept-clear')    && document.getElementById('tj-jept-clear').addEventListener('click', async function() {
+  document.getElementById('tj-je-pt-clear')    && document.getElementById('tj-je-pt-clear').addEventListener('click', async function() {
     if (!(await window.uiConfirm('Clear content for this date?', {danger:true, okLabel:'Clear'}))) return;
     jeEd.innerHTML = '';
     var cur = _jeGetEntry();
@@ -29128,9 +28363,9 @@ function _tjFindMarkAncestor(node, editorEl) {
   (function() {
     var HL_TEXT = { '#FFE066':'#111111','#A8F0B0':'#0a2a10','#A8D8FF':'#0a1a40','#FFB3C6':'#2a0010','#F9C784':'#1a0d00','#D4B0FF':'#1a0030' };
     var activeHlColor = '#FFE066';
-    var palette = document.getElementById('tj-jept-hl-palette');
-    var trigger = document.getElementById('tj-jept-hl-trigger');
-    var icon = document.getElementById('tj-jept-hl-icon');
+    var palette = document.getElementById('tj-je-pt-hl-palette');
+    var trigger = document.getElementById('tj-je-pt-hl-trigger');
+    var icon = document.getElementById('tj-je-pt-hl-icon');
     var savedRange = null;
 
     function saveSel() {
@@ -29293,10 +28528,6 @@ document.getElementById('tj-page-editor').addEventListener('input', autoSave);
 // Journal Entries editor (contenteditable) — must listen for input to catch paste, typing, etc.
 const _jeEdEl = document.getElementById('tj-je-editor');
 if (_jeEdEl) _jeEdEl.addEventListener('input', autoSave);
-['tj-notes-main','tj-notes-links','tj-notes-questions','tj-cornell-topic','tj-cornell-cues-ta','tj-cornell-notes-ta','tj-cornell-summary-ta'].forEach(id => {
-  const el = document.getElementById(id);
-  if (el) el.addEventListener('input', autoSave);
-});
 
 /* KEYBOARD SHORTCUTS */
 document.addEventListener('keydown', e => {
@@ -29314,7 +28545,6 @@ function setEditMode(enabled) {
   isEditMode = enabled;
   const checkbox = document.getElementById('tj-btn-edit');
   const wbToolbar = document.getElementById('tj-wb-toolbar');
-  const mmToolbar = document.getElementById('tj-mm-toolbar');
   checkbox.checked = enabled;
   const modeLabel = document.getElementById('tj-mode-label');
   if (modeLabel) {
@@ -29323,26 +28553,15 @@ function setEditMode(enabled) {
   }
   if (enabled) {
     if (wbToolbar) wbToolbar.classList.add('edit-mode');
-    if (mmToolbar) mmToolbar.classList.add('edit-mode');
   } else {
     if (wbToolbar) wbToolbar.classList.remove('edit-mode');
-    if (mmToolbar) mmToolbar.classList.remove('edit-mode');
   }
-  const editableIds = [
-    'tj-entry-title-input','tj-notes-main','tj-notes-links','tj-notes-questions',
-    'tj-cornell-topic','tj-cornell-cues-ta','tj-cornell-notes-ta','tj-cornell-summary-ta',
-    'tj-add-tag-input'
-  ];
-  editableIds.forEach(id => {
+  ['tj-entry-title-input','tj-add-tag-input'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.readOnly = !enabled;
   });
-  const ctInput = document.getElementById('tj-cornell-topic');
-  if (ctInput) ctInput.readOnly = !enabled;
   const wbC = document.getElementById('tj-wb-canvas');
   if (wbC) wbC.style.pointerEvents = enabled ? 'auto' : 'none';
-  const mmC = document.getElementById('tj-mm-canvas');
-  if (mmC) mmC.style.pointerEvents = enabled ? 'auto' : 'none';
   // Page editor
   const pgEd = document.getElementById('tj-page-editor');
   if (pgEd) pgEd.contentEditable = enabled ? 'true' : 'false';
@@ -29366,11 +28585,6 @@ function setEditMode(enabled) {
     const activeEntry = getActive();
     if (enabled && activeEntry && activeEntry.template === 'journal-entries') jeTb.classList.add('edit-mode');
     else jeTb.classList.remove('edit-mode');
-  }
-  // Show/hide attach bars for notes/cornell/mindmap
-  if (window._tjRefreshAttachBars) {
-    const ae = getActive();
-    _tjRefreshAttachBars(ae ? ae.template : null, enabled);
   }
   document.querySelectorAll('.tag-del').forEach(el => {
     el.style.display = enabled ? '' : 'none';
@@ -29689,22 +28903,6 @@ function exportEntryAsPDF(entry) {
     return;
   }
 
-  // For mindmap: grab canvas snapshot directly
-  if (entry.template === 'mindmap') {
-    var mmCv = document.getElementById('tj-mm-canvas');
-    if (!mmCv) { alert('Mindmap not rendered.'); return; }
-    var dataURL = mmCv.toDataURL('image/png');
-    var mmHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + _tjEsc(_tjPdfName(title)) + '</title>'
-      + '<style>body{margin:0;background:#fff;}img{max-width:100%;display:block;}h1{font-family:serif;font-size:18px;margin:16px;}p{font-family:sans-serif;font-size:12px;color:#666;margin:0 16px 12px;}</style>'
-      + '</head><body>'
-      + '<h1>' + _tjEsc(title) + '</h1>'
-      + '<p>' + _tjEsc(date) + (tags ? ' &middot; ' + _tjEsc(tags) : '') + '</p>'
-      + '<img src="' + dataURL + '" />'
-      + '</body></html>';
-    _tjOpenPrintBlob(mmHtml);
-    return;
-  }
-
   // Text-based templates: build styled HTML print page
   var bodyHTML = '';
   if (entry.template === 'page') {
@@ -29724,11 +28922,6 @@ function exportEntryAsPDF(entry) {
     var pageHtml = (activeKey && entry.data.dates && entry.data.dates[activeKey]) ? (entry.data.dates[activeKey].html || '') : '';
     bodyHTML = (dateLabel ? '<div class="je-date-label">' + _tjEsc(dateLabel) + '</div>' : '')
       + '<div class="page-content">' + pageHtml + '</div>';
-  } else if (entry.template === 'notes') {
-    bodyHTML += '<div style="flex:1;min-width:0;">' + _tjPdfSection('Cues / Keywords', entry.data.cues || '') + '</div>';
-    bodyHTML += '<div style="flex:2.5;min-width:0;">' + _tjPdfSection('Notes', entry.data.notes || '') + '</div>';
-    bodyHTML += '</div>';
-    bodyHTML += _tjPdfSection('Summary', entry.data.summary || '');
   }
 
   var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + _tjEsc(_tjPdfName(title)) + '</title><style>'
@@ -29763,9 +28956,6 @@ function exportEntryAsPDF(entry) {
 
 function _tjEsc(s) {
   return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-function _tjPdfSection(label, text) {
-  return '<div class="section"><div class="section-label">' + _tjEsc(label) + '</div><div class="section-body">' + _tjEsc(text) + '</div></div>';
 }
 
 // ── Tony shared nav ──────────────────────────────────────────────────────
@@ -31098,7 +30288,7 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
     min-height: 38px; font-size: 12px; padding: 4px 5px; border-radius: 7px; max-width: 116px;
   }
   #tj-root #tj-je-toolbar .pt-hl-swatch { width: 32px; height: 32px; }
-  #tj-root #tj-jept-hl-palette { width: 150px; z-index: 100030; }
+  #tj-root #tj-je-pt-hl-palette { width: 150px; z-index: 100030; }
 
   /* Popups/menus: comfortable rows, never wider than the screen. */
   .docx-pop { min-width: 200px; max-width: calc(100vw - 16px); max-height: 68dvh; }
@@ -31692,8 +30882,10 @@ var APPS = {
   tj: {
     root: 'tj-root', lightClass: 'tj-light',
     ctxs: [
-      // Pages template only — the Journal Entries template is intentionally left untouched.
-      { ed: 'tj-page-editor', tb: 'tj-page-toolbar', wrap: 'tj-page-editor-wrap', area: 'tj-page-area', img: 'tj-page-img-file', md: 'tj-pt-md' }
+      // Both rich-text templates run the same editor: the Page template, and the
+      // Journal Entries template (one docx context per date-tabbed editor).
+      { ed: 'tj-page-editor', tb: 'tj-page-toolbar', wrap: 'tj-page-editor-wrap', area: 'tj-page-area', img: 'tj-page-img-file', md: 'tj-pt-md' },
+      { ed: 'tj-je-editor',   tb: 'tj-je-toolbar',   wrap: 'tj-je-editor-wrap',   area: 'tj-je-area',   img: 'tj-je-img-file',   md: 'tj-je-pt-md' }
     ],
     mainToolbar: 'tj-toolbar', syncPill: 'tj-sync-pill', newBtn: 'tj-new-entry-btn',
     exportBtn: 'tj-btn-export-pdf', sidebarBtn: 'tj-fullscreen-btn', trashAPI: '_tjTrashAPI',
