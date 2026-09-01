@@ -68,6 +68,10 @@
     SHRINK_RATIO: 0.5,                 // mirrors THB_KEEP_RATIO (index.html)
     MIN_STORAGE_MB: 200,
     KEEP_CORES: 14,
+    // How long a device may go without mirroring before it pushes even on a
+    // metered connection. Three days of cellular data costs a megabyte; three
+    // days of a phone's only backup living on that phone costs everything.
+    METERED_GRACE_MS: 3 * 86400000,
     ARCHIVE_YEARS_BACK: 8,
     IMG_SAMPLE: 10                     // images sampled to estimate the total
   };
@@ -941,7 +945,18 @@
     if (!setupDone()) return { skipped: 'locked' };
     if (_pushing) return { skipped: 'already pushing' };
     if (!navigator.onLine) return { skipped: 'offline' };
-    if (!opts.force && metered()) return { skipped: 'metered connection' };
+    // Metered connections are skipped for ROUTINE mirroring — the local vault
+    // already holds it, so this can wait for wifi. But "wait for wifi" must not
+    // become "never": a phone that lives on cellular is the device most likely
+    // to be lost or broken, and its backup would be the one that never left it.
+    // After METERED_GRACE_MS with nothing pushed, a megabyte of data is plainly
+    // worth less than the copy.
+    if (!opts.force && metered()) {
+      var lastOk = Number(await vGet('meta', 'lastPushOkAt') || 0);
+      if (Date.now() - lastOk < A1B.METERED_GRACE_MS) {
+        return { skipped: 'metered connection (will retry on wifi)' };
+      }
+    }
     if (!opts.force && pushesToday() >= A1B.MAX_PUSH_PER_DAY) {
       return { skipped: 'daily push cap reached (' + A1B.MAX_PUSH_PER_DAY + ')' };
     }
@@ -994,6 +1009,7 @@
       }
       notePush();
       await vPut('meta', 'lastPushedAt', at);
+      await vPut('meta', 'lastPushOkAt', Date.now());
       return { at: at, uploaded: uploaded, deduped: deduped, failed: failed,
                device: deviceSlug(), pushesToday: pushesToday() };
     } catch (e) {
