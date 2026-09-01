@@ -72,3 +72,11 @@ package-lock.json
 # Cloudflare analytics token — never commit
 .cf-token
 *.token
+
+# ── Index Backups ───────────────────────────────────────────────────────────
+# The committed files are per-device snapshots, written at most once a day by
+# tools/pull-backups.mjs. Anything under live/ is the constantly-rewritten hot
+# copy and must NEVER be tracked: the auto-commit watcher fires 3s after any
+# write, so a tracked hot file would mean hundreds of commits and Pages
+# rebuilds a day. This one line is what keeps that from happening.
+Index Backups/*/live/
