@@ -123,9 +123,14 @@ if (jsdom) {
     window: {},
   };
   vm.createContext(sandbox);
-  vm.runInContext(bjExtract + ';\n' + bjRehydrate + ';', sandbox);
+  // `const` at the top of a vm script is a lexical binding and never appears
+  // on the context object, so the function has to be exported explicitly.
+  vm.runInContext(bjExtract + ';
+' + bjRehydrate +
+    ';
+globalThis.__extract = _bjExtractHtmlImages;', sandbox);
 
-  const extract = sandbox._bjExtractHtmlImages;
+  const extract = sandbox.__extract;
   const rehydrate = sandbox.window._fbRehydratePageImages;
 
   const big = 'A'.repeat(4000);
