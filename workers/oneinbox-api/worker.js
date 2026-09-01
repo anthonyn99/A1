@@ -1085,7 +1085,14 @@ async function classify(env, msg, budget) {
     if (known) base.carrier = known.name;
   }
   if (!base.merchant) base.merchant = parseAddr(msg.from).name;
-  return base;
+
+  // Whatever produced the classification — any model in the chain, or the local
+  // parser — it only leaves here if the email actually supports it.
+  const gated = commitmentGate(base, text, sentAt);
+  if (gated.gate) {
+    console.log('gate', gated.gate, base.category, '->', gated.category, msg.subject.slice(0, 60));
+  }
+  return gated;
 }
 
 // ════════════════════════════════════════════════════════════════════════════
