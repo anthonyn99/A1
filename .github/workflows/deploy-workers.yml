@@ -32,6 +32,7 @@ jobs:
       weather: ${{ steps.filter.outputs.weather }}
       oneinbox: ${{ steps.filter.outputs.oneinbox }}
       tesla: ${{ steps.filter.outputs.tesla }}
+      indexbackups: ${{ steps.filter.outputs.indexbackups }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -68,6 +69,8 @@ jobs:
               - 'workers/oneinbox-api/**'
             tesla:
               - 'workers/tesla-api/**'
+            indexbackups:
+              - 'workers/index-backups/**'
 
   # ---------------------------------------------------------------
   # One deploy job per worker. Each runs ONLY if its folder changed.
@@ -258,3 +261,14 @@ jobs:
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           workingDirectory: workers/tesla-api
+
+  deploy-index-backups:
+    needs: changes
+    if: ${{ needs.changes.outputs.indexbackups == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          workingDirectory: workers/index-backups
