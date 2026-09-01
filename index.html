@@ -34401,7 +34401,22 @@ function _docxConvertRawMath(root) {
 }
 
 // Serialize rendered HTML back into raw Markdown text (the reverse of _mdToHtml) — used by Unrender.
-function _docxHtmlToMd(root) {
+var DOCX_KEEP_OPEN = '\uE000', DOCX_KEEP_CLOSE = '\uE001';
+// A src/href we must never inline into the text: base64 payloads and the
+// journals' Firebase image placeholders, both of which are enormous.
+function _docxIsEmbeddedUrl(u) {
+  u = String(u || '');
+  return /^data:/i.test(u) || /fbimg:\/\//i.test(u) || u.length > 512;
+}
+function _docxHtmlToMd(root, opts) {
+  opts = opts || {};
+  // Set aside a node that must survive the round trip verbatim, and stand a
+  // sentinel in its place; _docxRestoreKept swaps the real node back in.
+  function keepNode(el, placeholder) {
+    if (!opts.keep) return placeholder;
+    opts.keep.push(el.cloneNode(true));
+    return DOCX_KEEP_OPEN + (opts.keep.length - 1) + DOCX_KEEP_CLOSE;
+  }
   function kids(node) { var s = ''; Array.prototype.slice.call(node.childNodes).forEach(function (c) { s += ser(c); }); return s; }
   function listMd(listEl, ordered, depth) {
     var lines = [], idx = 1;
@@ -34444,6 +34459,14 @@ function _docxHtmlToMd(root) {
     if (el.classList) {
       if (el.classList.contains('docx-math')) { var tex = _mathTex(el); return el.classList.contains('docx-math-block') ? ('\n$$' + tex + '$$\n') : ('$' + tex + '$'); }
       if (el.classList.contains('docx-math-resize') || el.classList.contains('docx-file-resize') || el.classList.contains('pg-img-resize-handle') || el.classList.contains('pg-img-del-handle')) return '';
+      // Keep a resizable image as one piece rather than serializing its src.
+      if (el.classList.contains('pg-img-wrap')) {
+        var wImg = el.querySelector('img');
+        var wSrc = wImg ? (wImg.getAttribute('src') || '') : '';
+        var wAlt = wImg ? (wImg.getAttribute('alt') || '') : '';
+        if (_docxIsEmbeddedUrl(wSrc)) return keepNode(el, '![' + wAlt + '](embedded-image)');
+        return keepNode(el, '![' + wAlt + '](' + wSrc + ')');
+      }
     }
     switch (tag) {
       case 'br': return '\n';
@@ -34456,8 +34479,19 @@ function _docxHtmlToMd(root) {
       case 'u': return '<u>' + kids(el) + '</u>';
       case 'code': return '`' + el.textContent.replace(/​/g, '') + '`';
       case 'pre': return '\n```\n' + el.textContent.replace(/​/g, '').replace(/\n$/, '') + '\n```\n';
-      case 'a': return '[' + kids(el) + '](' + (el.getAttribute('href') || '') + ')';
-      case 'img': return '![' + (el.getAttribute('alt') || '') + '](' + (el.getAttribute('src') || '') + ')';
+      case 'a': {
+        var href = el.getAttribute('href') || '';
+        // Attached-file chips carry the whole file in the href.
+        if (el.hasAttribute('download') || /-file-chip/.test(el.className || '') || _docxIsEmbeddedUrl(href)) {
+          return keepNode(el, '[' + el.textContent.replace(/\u200b/g, '').trim() + '](attached-file)');
+        }
+        return '[' + kids(el) + '](' + href + ')';
+      }
+      case 'img': {
+        var isrc = el.getAttribute('src') || '', ialt = el.getAttribute('alt') || '';
+        if (_docxIsEmbeddedUrl(isrc)) return keepNode(el, '![' + ialt + '](embedded-image)');
+        return '![' + ialt + '](' + isrc + ')';
+      }
       case 'h1': case 'h2': case 'h3': case 'h4': case 'h5': case 'h6':
         return '\n\n' + new Array(+tag[1] + 1).join('#') + ' ' + kids(el).replace(/\s+/g, ' ').trim() + '\n\n';
       case 'blockquote': { var inr = kids(el).trim(); return '\n\n' + inr.split('\n').map(function (l) { return '> ' + l; }).join('\n') + '\n\n'; }
@@ -34473,24 +34507,46 @@ function _docxHtmlToMd(root) {
   }
   return kids(root).replace(/\n{3,}/g, '\n\n').replace(/[ \t]+\n/g, '\n').trim();
 }
+// Put the set-aside nodes back where their sentinels landed.
+function _docxRestoreKept(container, kept) {
+  if (!kept || !kept.length) return;
+  var re = /\uE000(\d+)\uE001/;
+  var walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
+  var hits = [], n;
+  while ((n = walker.nextNode())) { if (re.test(n.nodeValue)) hits.push(n); }
+  hits.forEach(function (tn) {
+    var parts = tn.nodeValue.split(/\uE000(\d+)\uE001/);   // [text, idx, text, idx, …]
+    var frag = document.createDocumentFragment();
+    for (var i = 0; i < parts.length; i++) {
+      if (i % 2 === 1) { var el = kept[+parts[i]]; if (el) frag.appendChild(el.cloneNode(true)); }
+      else if (parts[i]) frag.appendChild(document.createTextNode(parts[i]));
+    }
+    if (tn.parentNode) tn.parentNode.replaceChild(frag, tn);
+  });
+}
 // Unrender Markdown — reverse of renderMarkdown. Selection → unrender only it; else → whole doc.
 function unrenderMarkdown(ctx) {
   if (_docxFeatureLocked(ctx.app, 'unrenderMarkdown')) { _docxLockedToast(); return; }
   var ed = ctx.edEl;
   function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
   restoreSel(ctx);
+  var kept = [];
   var sel = window.getSelection();
   if (sel && sel.rangeCount && !sel.isCollapsed && ed.contains(sel.anchorNode) && ed.contains(sel.focusNode)) {
     var range = sel.getRangeAt(0);
     var holder = document.createElement('div'); holder.appendChild(range.cloneContents());
-    var md = _docxHtmlToMd(holder);
+    var md = _docxHtmlToMd(holder, { keep: kept });
     range.deleteContents();
     var tmp = document.createElement('div'); tmp.innerHTML = esc(md).replace(/\n/g, '<br>');
+    _docxRestoreKept(tmp, kept);
     var out = document.createDocumentFragment(); while (tmp.firstChild) out.appendChild(tmp.firstChild);
     range.insertNode(out);
   } else {
-    var mdAll = _docxHtmlToMd(ed);
-    ed.innerHTML = mdAll.split(/\n{2,}/).map(function (p) { return '<p>' + esc(p).replace(/\n/g, '<br>') + '</p>'; }).join('') || '<p><br></p>';
+    var mdAll = _docxHtmlToMd(ed, { keep: kept });
+    var box = document.createElement('div');
+    box.innerHTML = mdAll.split(/\n{2,}/).map(function (p) { return '<p>' + esc(p).replace(/\n/g, '<br>') + '</p>'; }).join('') || '<p><br></p>';
+    _docxRestoreKept(box, kept);
+    ed.innerHTML = box.innerHTML;
   }
   fireInput(ed);
 }
