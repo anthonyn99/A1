@@ -67,6 +67,13 @@ t('archiver excludes already-archived keys from the splitter',
   /if\(!vdArchivedRef\.current\[k\]\)_liveOnly\[k\]=v;/.test(HTML),
   'Otherwise restored history gets re-archived on every pass.');
 
+t('the un-archive latch key was bumped past the stuck _v1',
+  /localStorage\.getItem\("td_unarchived_v2"\)/.test(HTML) &&
+  /localStorage\.setItem\("td_unarchived_v2","1"\)/.test(HTML) &&
+  !/td_unarchived_v1/.test(HTML),
+  'A device that took the old under-cap exit has _v1 stuck at "1"; reusing that key ' +
+  'would skip the corrected restore and the archived days would never reappear.');
+
 t('archived days are read-only in the UI',
   (HTML.match(/vdArchivedRef\.current\[k\]\)\{if\(window\._planReadOnlyNudge\)/g) || []).length >= 2,
   'Both tog() and del() must refuse edits to archived day-keys.');

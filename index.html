@@ -14372,7 +14372,12 @@ function App(){
   useEffect(()=>{
     const run=async()=>{
       if(unarchiveRanRef.current||!fbLoadedRef.current||!window._fbLoadArchive)return;
-      if(localStorage.getItem("td_unarchived_v1"))return;
+      // Key bumped to _v2 deliberately. _v1 was a one-time latch, and a device
+      // that took the old "merged fits under the cap" exit has it stuck at "1" —
+      // on that device the CORRECTED restore below would be skipped and the
+      // archived days would never reappear. A new key re-runs the fixed restore
+      // exactly once everywhere, whatever the old latch says.
+      if(localStorage.getItem("td_unarchived_v2"))return;
       unarchiveRanRef.current=true;
       try{
         const live=vdRef.current.data||{};
@@ -14399,7 +14404,7 @@ function App(){
         // (see buildVdPayload), so merging them costs memory, never doc bytes.
         Object.keys(archivedKeys).forEach(k=>{vdArchivedRef.current[k]=true;});
         setDataLocalOnly(merged);
-        localStorage.setItem("td_unarchived_v1","1");
+        localStorage.setItem("td_unarchived_v2","1");
         console.log("[Unarchive] Veda: restored "+added+" day(s) ["+years.join(", ")+
           "] as READ-ONLY history; live doc unchanged, in-memory data now "+(bytes/1024).toFixed(0)+" KB");
       }catch(e){
