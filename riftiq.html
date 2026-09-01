@@ -1793,6 +1793,95 @@ html.lk-open, body.lk-open {
 
 .builds-main { overflow-y: auto; padding: 24px; }
 
+/* ══ BUILDS — shared structure ═════════════════════════════════════════════
+   Every screen in this tab used to be laid out with inline styles alone, which
+   left no hook for a media query — so on a phone a build with a dozen matchup
+   champions pushed its Edit / ✕ buttons off the right edge and the only way to
+   reach them was a horizontal scroll. The structure now lives in classes that
+   WRAP, and the phone rules below are the same layout at a narrower measure
+   rather than a second one. */
+
+/* Page headers (My Builds / a champion's build list / the editor). */
+.bld-pagehd {
+  display: flex; align-items: center; gap: 12px;
+  flex-wrap: wrap; row-gap: 10px;
+  border-bottom: 1px solid var(--bd); flex-shrink: 0;
+}
+.bld-pagehd .bld-pagehd-spacer { margin-left: auto; }
+
+/* One saved build. */
+.bld-card {
+  background: var(--bg3); border: 1px solid var(--bd);
+  border-radius: 10px; padding: 16px 18px; overflow: hidden;
+}
+.bld-card-hd {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 10px; flex-wrap: wrap; margin-bottom: 12px;
+}
+.bld-card-ttl { flex: 1 1 180px; min-width: 0; }
+.bld-card-name {
+  font-family: var(--head); font-size: 17px; font-weight: 800; color: var(--tx);
+  overflow-wrap: anywhere;
+}
+/* The fix for the reported bug: matchup portraits wrap onto as many rows as
+   they need instead of running past the card's right edge. */
+.bld-matchups { display: flex; gap: 3px; align-items: center; flex-wrap: wrap; margin-top: 4px; }
+.bld-card-acts { display: flex; gap: 6px; flex-shrink: 0; margin-left: auto; }
+.bld-card-acts button { height: 28px; padding: 0 12px; }
+.bld-sections { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+.bld-sect { min-width: 0; max-width: 100%; }
+.bld-icons { display: flex; gap: 5px; flex-wrap: wrap; }
+
+/* ── Build editor ──
+   Inline widths here would have to be fought with !important from the phone
+   block, so the split lives in CSS from the start. */
+#be-split { flex: 1; display: flex; overflow: hidden; min-height: 0; }
+#be-left {
+  width: 50%; flex-shrink: 0; overflow-y: auto; padding: 16px;
+  display: flex; flex-direction: column; gap: 14px;
+  border-right: 1px solid var(--bd); min-height: 0;
+}
+#be-right {
+  width: 50%; flex-shrink: 0; display: flex; flex-direction: column;
+  overflow: hidden; background: var(--bg2); min-height: 0;
+}
+
+/* A tile you can pick up. `manipulation` keeps the grid scrolling under an
+   ordinary swipe while dropping the 300ms tap delay — the drag arms on a long
+   press instead (see beTouchDrag), so both gestures coexist. */
+.bld-drag { touch-action: manipulation; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.bld-drag.bld-lifted { opacity: .35; }
+.bld-dropzone.bld-over { border-color: var(--gold) !important; background: rgba(192,174,234,.10) !important; }
+.bld-ghost {
+  position: fixed; left: 0; top: 0; z-index: 4000; pointer-events: none;
+  border-radius: 8px; border: 2px solid var(--gold);
+  box-shadow: 0 10px 26px rgba(0,0,0,.6); opacity: .93;
+  will-change: transform;
+}
+
+@media (max-width: 900px) {
+  /* Editor stacks: the build on top, the item/spell selector pinned below it,
+     so BOTH are on screen at once and a drag never needs a scroll mid-gesture. */
+  #be-split { flex-direction: column; }
+  #be-left {
+    width: 100%; flex: 1 1 auto; border-right: none;
+    border-bottom: 1px solid var(--bd); padding: 14px;
+  }
+  #be-right { width: 100%; flex: 0 0 46%; min-height: 220px; }
+}
+
+@media (max-width: 600px) {
+  .bld-pagehd { padding: 12px 14px !important; }
+  .bld-card { padding: 13px 13px; }
+  .bld-sections { gap: 14px; }
+  /* Reaching Edit / ✕ is a one-handed tap on a phone, so they get the 44px
+     target the rest of the app uses rather than the desktop 28px. */
+  .bld-card-acts button { height: 38px; min-height: 38px; padding: 0 16px; }
+  .bld-card-acts { width: 100%; margin-left: 0; }
+  .bld-card-acts button:first-child { flex: 1; }
+  #be-right { flex: 0 0 42%; min-height: 190px; }
+}
+
 .builds-champ-hdr {
   display: flex; align-items: center; gap: 16px; margin-bottom: 24px;
 }
