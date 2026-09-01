@@ -19031,13 +19031,20 @@ window.JGuard = {
 
   /* ── PAGE TEMPLATE ── */
 #bj-root #bj-page-area { display: none; flex-direction: column; flex: 1; min-height: 0; }
-#bj-root #bj-page-toolbar {
+/* ── THE EDITOR RIBBON ──────────────────────────────────────────────────
+   One definition for every rich-text toolbar in the suite: MyJournal's Page
+   and Journal templates and Brainstorm Journal's Page. They render the same
+   markup and the docx module injects the same ribbon into each, so they are
+   styled through .docx-toolbar rather than by id — three id-scoped copies is
+   how the Journal ribbon silently drifted out of sync with the Page one.
+   The .edit-mode rule keeps an id in its selector so it outranks the base. */
+#tj-root .docx-toolbar, #bj-root .docx-toolbar {
     padding: 6px 10px;
     border-bottom: 1px solid var(--border);
     display: none; align-items: center; gap: 3px; flex-wrap: wrap;
     background: var(--card2); flex-shrink: 0;
   }
-#bj-root #bj-page-toolbar.edit-mode { display: flex; }
+#tj-root .docx-toolbar.edit-mode, #bj-root .docx-toolbar.edit-mode { display: flex; }
 #bj-root .pt-sep { width: 1px; background: var(--border2); height: 16px; opacity: 0.5; margin: 0 3px; flex-shrink: 0; }
 #bj-root .pt-btn {
     padding: 4px 7px; border: 1px solid transparent; border-radius: 4px;
@@ -19551,7 +19558,7 @@ window.JGuard = {
 
   /* ── PAGE TOOLBAR (sizing lives in docx-responsive-css; it must not be
         forced nowrap or the menu-bar row collapses to zero width) ── */
-  #bj-root #bj-page-toolbar { gap: 4px; padding: 6px 8px; }
+  #bj-root .docx-toolbar { gap: 4px; padding: 6px 8px; }
 
   /* ── CONTENT AREA ── */
   #bj-root #bj-content-area {
@@ -19952,7 +19959,7 @@ window.JGuard = {
     <!-- PAGE -->
     <div id="bj-page-area">
       <div class="bj-drop-zone" id="bj-page-drop-zone"><div class="bj-drop-label"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>Drop files here</div></div>
-      <div id="bj-page-toolbar">
+      <div class="docx-toolbar" id="bj-page-toolbar">
         <!-- Block format -->
         <select class="pt-select docx-r1" id="bj-pt-block">
           <option value="p">Paragraph</option>
@@ -24757,13 +24764,6 @@ window.hideBrainstormJournal = function() {
 
   /* ── PAGE TEMPLATE ── */
 #tj-root #tj-page-area { display: none; flex-direction: column; flex: 1; min-height: 0; }
-#tj-root #tj-page-toolbar {
-    padding: 6px 10px;
-    border-bottom: 1px solid var(--border);
-    display: none; align-items: center; gap: 3px; flex-wrap: wrap;
-    background: var(--card2); flex-shrink: 0;
-  }
-#tj-root #tj-page-toolbar.edit-mode { display: flex; }
 #tj-root .pt-sep { width: 1px; background: var(--border2); height: 16px; opacity: 0.5; margin: 0 3px; flex-shrink: 0; }
 #tj-root .pt-btn {
     padding: 4px 7px; border: 1px solid transparent; border-radius: 4px;
@@ -24918,10 +24918,10 @@ window.hideBrainstormJournal = function() {
 #tj-root .je-month:not(:first-child) { padding-left: 8px; border-left: 1px solid var(--border2); margin-left: 2px; }
 #tj-root .je-tab {
   flex-shrink: 0; background: transparent; border: 1px solid var(--border2);
-  border-radius: 999px; padding: 3px 10px; min-width: 30px;
+  border-radius: 999px; padding: 3px 11px; min-width: 30px;
   font-family: var(--font); font-size: 12px; font-weight: 500; color: var(--text3);
   cursor: pointer; transition: color .15s, border-color .15s, background .15s;
-  white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: 3px;
+  white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: 7px;
 }
 #tj-root .je-tab:hover { color: var(--text2); border-color: var(--border); }
 #tj-root .je-tab.active { color: var(--purple); border-color: rgba(224,184,116,0.55); background: var(--purple-bg); font-weight: 600; }
@@ -24930,7 +24930,7 @@ window.hideBrainstormJournal = function() {
   width: 0; overflow: hidden; opacity: 0; transition: opacity .15s, width .15s;
   display: inline-flex; align-items: center; justify-content: center;
 }
-#tj-root .je-tab:hover .je-tab-del, #tj-root .je-tab.active .je-tab-del { opacity: .8; width: 11px; }
+#tj-root .je-tab:hover .je-tab-del, #tj-root .je-tab.active .je-tab-del { opacity: .8; width: 10px; margin-right: -2px; }
 #tj-root .je-tab-del:hover { opacity: 1; }
 /* Jump menu: every date in one scrollable list, for when the strip is long. */
 #tj-root #tj-je-jump {
@@ -24973,13 +24973,6 @@ window.hideBrainstormJournal = function() {
 
 /* The Journal toolbar IS the Page toolbar — same markup, same classes, same docx
    ribbon injected on top. Only the edit-mode gating is its own. */
-#tj-root #tj-je-toolbar {
-    padding: 6px 10px;
-    border-bottom: 1px solid var(--border);
-    display: none; align-items: center; gap: 3px; flex-wrap: wrap;
-    background: var(--card2); flex-shrink: 0;
-  }
-#tj-root #tj-je-toolbar.edit-mode { display: flex; }
 #tj-root #tj-je-color-pick {
     width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border2);
     cursor: pointer; padding: 0; overflow: hidden; flex-shrink: 0; background: none;
@@ -25414,7 +25407,7 @@ window.hideBrainstormJournal = function() {
 
   /* ── PAGE TOOLBAR (sizing lives in docx-responsive-css; it must not be
         forced nowrap or the menu-bar row collapses to zero width) ── */
-  #tj-root #tj-page-toolbar { gap: 4px; padding: 6px 8px; }
+  #tj-root .docx-toolbar { gap: 4px; padding: 6px 8px; }
 
   /* ── CONTENT AREA ── */
   #tj-root #tj-content-area {
@@ -25662,7 +25655,7 @@ window.hideBrainstormJournal = function() {
     <!-- PAGE -->
     <div id="tj-page-area">
       <div class="tj-drop-zone" id="tj-page-drop-zone"><div class="tj-drop-label"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>Drop files here</div></div>
-      <div id="tj-page-toolbar">
+      <div class="docx-toolbar" id="tj-page-toolbar">
         <!-- Block format -->
         <select class="pt-select docx-r1" id="tj-pt-block">
           <option value="p">Paragraph</option>
@@ -25756,7 +25749,7 @@ window.hideBrainstormJournal = function() {
       </div>
       <div id="tj-je-menu"></div>
       <!-- Date editor toolbar — cloned from the Page template -->
-      <div id="tj-je-toolbar">
+      <div class="docx-toolbar" id="tj-je-toolbar">
         <!-- Block format -->
         <select class="pt-select docx-r1" id="tj-je-pt-block">
           <option value="p">Paragraph</option>
@@ -29827,8 +29820,7 @@ window._tjCloudBridge = {
 #tj-root .docx-sheet pre, #tj-root .docx-sheet code,
 #bj-root .docx-sheet pre, #bj-root .docx-sheet code { background: rgba(0,0,0,.3); border-color: rgba(255,255,255,.12); }
 /* Word-dark toolbar background (dark only) */
-#tj-root #tj-page-toolbar, #tj-root #tj-je-toolbar,
-#bj-root #bj-page-toolbar { background: #1B1C1F; border-bottom-color: #2A2B30; }
+#tj-root .docx-toolbar, #bj-root .docx-toolbar { background: #1B1C1F; border-bottom-color: #2A2B30; }
 
 /* Manual page break */
 .docx-pagebreak { border: none !important; border-top: 2px dashed rgba(140,160,255,.5) !important; margin: 20px 0 !important; page-break-after: always; break-after: page; }
@@ -29894,9 +29886,8 @@ li.docx-cl-item.done > .docx-cl-text { text-decoration: line-through; opacity: .
 #tj-root .docx-ruler-marg.left, #bj-root .docx-ruler-marg.left { margin-left: -6px; }
 #tj-root .docx-ruler-marg.right, #bj-root .docx-ruler-marg.right { margin-right: -6px; }
 @media (min-width: 900px) {
-  #tj-root #tj-page-toolbar.edit-mode ~ .docx-ruler,
-  #tj-root #tj-je-toolbar.edit-mode ~ .docx-ruler,
-  #bj-root #bj-page-toolbar.edit-mode ~ .docx-ruler { display: block; }
+  #tj-root .docx-toolbar.edit-mode ~ .docx-ruler,
+  #bj-root .docx-toolbar.edit-mode ~ .docx-ruler { display: block; }
 }
 
 /* ── Vertical ruler (Batch 11 #1: draggable TOP / BOTTOM margins) ── */
@@ -29943,8 +29934,8 @@ body.docx-page-fs #tony-app-nav { display: none !important; }
   max-width: none !important; margin: 0 !important; z-index: 100000; background: #1a1b1e;
 }
 /* Hide the document bar (menubar + ribbon + rulers) when toggled off in fullscreen. */
-#tj-root.tj-page-fs.tj-fs-nobar #tj-page-toolbar, #tj-root.tj-page-fs.tj-fs-nobar .docx-ruler, #tj-root.tj-page-fs.tj-fs-nobar .docx-vruler,
-#bj-root.bj-page-fs.bj-fs-nobar #bj-page-toolbar, #bj-root.bj-page-fs.bj-fs-nobar .docx-ruler, #bj-root.bj-page-fs.bj-fs-nobar .docx-vruler { display: none !important; }
+#tj-root.tj-page-fs.tj-fs-nobar .docx-toolbar, #tj-root.tj-page-fs.tj-fs-nobar .docx-ruler, #tj-root.tj-page-fs.tj-fs-nobar .docx-vruler,
+#bj-root.bj-page-fs.bj-fs-nobar .docx-toolbar, #bj-root.bj-page-fs.bj-fs-nobar .docx-ruler, #bj-root.bj-page-fs.bj-fs-nobar .docx-vruler { display: none !important; }
 /* Floating fullscreen controls (top-right) — only visible while in page fullscreen. */
 .docx-fs-float { display: none; position: fixed; top: 12px; right: 14px; z-index: 100002; gap: 7px; }
 #tj-root.tj-page-fs .docx-fs-float.for-tj, #bj-root.bj-page-fs .docx-fs-float.for-bj { display: flex; }
@@ -30045,14 +30036,14 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
 /* ── Increase / Decrease font-size buttons ── */
 .docx-fs-step { display: inline-flex; align-items: baseline; justify-content: center; min-width: 26px; }
 
-/* ── Page-toolbar buttons get a boxed outline (matches the Journal-Entries edit menu) ── */
-#tj-root #tj-page-toolbar .pt-btn, #bj-root #bj-page-toolbar .pt-btn { border: 1px solid var(--border2, #45454c); background: rgba(255,255,255,.02); }
-#tj-root #tj-page-toolbar .pt-btn:hover, #bj-root #bj-page-toolbar .pt-btn:hover { border-color: var(--purple, #e0b874); background: rgba(255,255,255,.05); }
-#tj-root #tj-page-toolbar .pt-btn.pt-disabled, #bj-root #bj-page-toolbar .pt-btn.pt-disabled { border-color: var(--border, #34343a); background: transparent; }
+/* ── Ribbon buttons get a boxed outline, and the same hover in every ribbon ── */
+#tj-root .docx-toolbar .pt-btn, #bj-root .docx-toolbar .pt-btn { border: 1px solid var(--border2, #45454c); background: rgba(255,255,255,.02); }
+#tj-root .docx-toolbar .pt-btn:hover, #bj-root .docx-toolbar .pt-btn:hover { border-color: var(--purple, #e0b874); background: rgba(255,255,255,.05); }
+#tj-root .docx-toolbar .pt-btn.pt-disabled, #bj-root .docx-toolbar .pt-btn.pt-disabled { border-color: var(--border, #34343a); background: transparent; }
 
 /* ── Font-family button: dark box like the block-type <select> ── */
-#tj-root #tj-page-toolbar .pt-btn.docx-fontfam-btn, #bj-root #bj-page-toolbar .pt-btn.docx-fontfam-btn { background: var(--card2, #2c2c31); border: 1px solid var(--border, #34343a); }
-#tj-root #tj-page-toolbar .pt-btn.docx-fontfam-btn:hover, #bj-root #bj-page-toolbar .pt-btn.docx-fontfam-btn:hover { border-color: var(--purple, #e0b874); background: var(--card2, #2c2c31); }
+#tj-root .docx-toolbar .pt-btn.docx-fontfam-btn, #bj-root .docx-toolbar .pt-btn.docx-fontfam-btn { background: var(--card2, #2c2c31); border: 1px solid var(--border, #34343a); }
+#tj-root .docx-toolbar .pt-btn.docx-fontfam-btn:hover, #bj-root .docx-toolbar .pt-btn.docx-fontfam-btn:hover { border-color: var(--purple, #e0b874); background: var(--card2, #2c2c31); }
 
 /* ── Pinned live word count (bottom-left) ── */
 .docx-wcpin { position: fixed; left: 16px; bottom: 16px; z-index: 100019; background: #24252A; border: 1px solid #3B3C42; border-radius: 9px; padding: 6px 8px 6px 12px; font-family: 'DM Sans','Segoe UI',sans-serif; font-size: 12px; color: #D6D6DC; display: flex; align-items: center; gap: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.45); }
@@ -30227,8 +30218,7 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
      ════════════════════════════════════════════════════════════════════════ -->
 <style id="docx-responsive-css">
 /* ── Toolbar structure: menu-bar row + ribbon row ── */
-#tj-root #tj-page-toolbar, #tj-root #tj-je-toolbar,
-#bj-root #bj-page-toolbar { flex-wrap: wrap; align-items: center; }
+#tj-root .docx-toolbar, #bj-root .docx-toolbar { flex-wrap: wrap; align-items: center; }
 #tj-root .docx-menubar, #bj-root .docx-menubar { flex: 0 0 100%; min-width: 0; }
 #tj-root .docx-ribbonrow, #bj-root .docx-ribbonrow {
   display: flex; flex-wrap: wrap; align-items: center;
@@ -30282,7 +30272,7 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
   #tj-root .docx-ribbonrow > *:not(.docx-r1):not(.docx-r2),
   #bj-root .docx-ribbonrow > *:not(.docx-r1):not(.docx-r2) { display: none !important; }
 
-  #tj-root #tj-page-toolbar, #bj-root #bj-page-toolbar { padding: 5px 8px !important; gap: 4px; }
+  #tj-root .docx-toolbar, #bj-root .docx-toolbar { padding: 5px 8px !important; gap: 4px; }
   #tj-root .docx-ribbonrow, #bj-root .docx-ribbonrow { gap: 4px; }
 
   /* Menu bar becomes the primary navigation on touch — give it real targets. */
@@ -30360,7 +30350,7 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
 
 /* ════════ NARROW FOLDABLES / COVER SCREENS (≤360px) ════════ */
 @media (max-width: 360px) {
-  #tj-root #tj-page-toolbar, #tj-root #tj-je-toolbar, #bj-root #bj-page-toolbar { padding: 4px 6px !important; gap: 3px; }
+  #tj-root .docx-toolbar, #bj-root .docx-toolbar { padding: 4px 6px !important; gap: 3px; }
   #tj-root .docx-ribbonrow, #bj-root .docx-ribbonrow { gap: 3px; }
   #tj-root .docx-ribbonrow .pt-btn, #bj-root .docx-ribbonrow .pt-btn {
     min-height: 36px; min-width: 34px; padding: 5px 6px;
@@ -30385,7 +30375,7 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
   #tj-root .docx-menu-btn, #bj-root .docx-menu-btn { min-height: 30px; padding: 4px 10px; font-size: 12.5px; }
   #tj-root .docx-ribbonrow .pt-btn, #bj-root .docx-ribbonrow .pt-btn { min-height: 32px; min-width: 32px; padding: 4px 7px; }
   #tj-root .docx-ribbonrow .pt-select, #bj-root .docx-ribbonrow .pt-select { min-height: 32px; max-width: 104px; }
-  #tj-root #tj-page-toolbar, #bj-root #bj-page-toolbar { padding: 3px 8px !important; gap: 3px; }
+  #tj-root .docx-toolbar, #bj-root .docx-toolbar { padding: 3px 8px !important; gap: 3px; }
   #tj-root .docx-wrap.docx-reflow .docx-sheet, #bj-root .docx-wrap.docx-reflow .docx-sheet {
     padding-top: 14px !important;
   }
