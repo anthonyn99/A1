@@ -212,6 +212,25 @@ t('a refusal leaves the previous snapshot untouched',
   /The previous backup is untouched/.test(cap));
 
 
+section('Nothing assumes a DOM or swallows an async failure');
+
+// backup.js runs in the node suites with no DOM at all. An async function
+// guarded by try/catch around the CALL is not guarded: the body runs to its
+// first await and any error becomes a rejected promise the catch never sees.
+// Four call sites did that, and the unhandled rejection crashed the suite.
+t('chipRefresh is never wrapped in a synchronous try/catch',
+  !/try \{ chipRefresh\(\); \} catch/.test(SRC),
+  'try/catch cannot catch an async rejection.');
+t('every chipRefresh call handles its own rejection',
+  (SRC.match(/chipRefresh\(\)\.catch\(/g) || []).length >= 4,
+  'An unhandled rejection is a crash, not a warning.');
+t('chipRefresh returns early without a DOM',
+  /if \(typeof document === 'undefined'\) return;/.test(SRC),
+  'The tests, and any future non-browser consumer, have no document.');
+t('the chip only mounts once a body exists',
+  /if \(!document\.body\) return;/.test(SRC) &&
+  /document\.readyState === 'loading'/.test(SRC));
+
 section('A brief visit still mirrors off-device');
 
 // The push is debounced to stay inside the daily write budget, but a debounce

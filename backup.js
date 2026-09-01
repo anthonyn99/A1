@@ -527,7 +527,7 @@
     if (!pass) throw new Error('passphrase cannot be empty');
     await deriveKey(pass);
     lsSet(A1B.PASS_KEY, pass);
-    try { chipRefresh(); } catch (e) {}
+    chipRefresh().catch(function () {});
     // Prove it round-trips before declaring success, so a broken WebCrypto or a
     // storage failure surfaces now rather than at restore time.
     var probe = await encryptStr('a1b-probe');
@@ -722,7 +722,7 @@
     // Mirror off-device, debounced. Deliberately not awaited: the local vault
     // is the copy that must never be delayed by a network round trip.
     try { schedulePush(); } catch (e) {}
-    try { chipRefresh(); } catch (e) {}
+    chipRefresh().catch(function () {});
     return { at: manifest.at, docs: paths.length, stored: stored, reused: reused,
              bytes: manifest.bytes };
   }
@@ -1051,7 +1051,7 @@
       notePush();
       await vPut('meta', 'lastPushedAt', at);
       await vPut('meta', 'lastPushOkAt', Date.now());
-      try { chipRefresh(); } catch (e) {}
+      chipRefresh().catch(function () {});
       return { at: at, uploaded: uploaded, deduped: deduped, failed: failed,
                device: deviceSlug(), pushesToday: pushesToday() };
     } catch (e) {
@@ -1391,6 +1391,7 @@
   }
 
   async function chipRefresh() {
+    if (typeof document === 'undefined') return;   // no DOM: tests, workers
     var el = document.getElementById(CHIP_ID);
     if (!el) return;
     if (killed()) { el.setAttribute('data-state', 'off'); el.lastChild.textContent = 'Backups paused'; return; }
@@ -1468,7 +1469,7 @@
     status: status,
     kill: function (on) {
       lsSet(A1B.DISABLED_KEY, on === false ? '0' : '1');
-      try { chipRefresh(); } catch (e) {}
+      chipRefresh().catch(function () {});
       return on !== false;
     },
 
