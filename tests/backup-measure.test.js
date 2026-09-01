@@ -49,7 +49,13 @@ const sandbox = {
   window: {}, console: console,
   Blob: global.Blob, Response: global.Response,
   CompressionStream: global.CompressionStream,
-  Date, Math, JSON, Object, Error, RegExp, Promise
+  DecompressionStream: global.DecompressionStream,
+  TextEncoder: global.TextEncoder, TextDecoder: global.TextDecoder,
+  crypto: global.crypto, btoa: global.btoa, atob: global.atob,
+  setTimeout, clearTimeout,
+  // No indexedDB here on purpose: the vault is browser-only and is covered by
+  // the CDP verification, not by this suite.
+  Date, Math, JSON, Object, Error, RegExp, Promise, Array, Uint8Array, String, Number
 };
 sandbox.self = sandbox;
 vm.createContext(sandbox);
@@ -175,13 +181,31 @@ t('documents approaching the 900 KB write guard are flagged',
   /Firestore write guard refuses at 900 KB/.test(SRC),
   'A 700 KB document is a live sync risk, not just a backup sizing question.');
 
-section('Phase 0 is still inert');
+section('Storage writes are gated, not unconditional');
 
 t('no Firestore write call exists anywhere in backup.js',
   !/\bsetDoc\s*\(|\bupdateDoc\s*\(|\bdeleteDoc\s*\(|\baddDoc\s*\(/.test(SRC),
   'Backups are a restore source; they must never write to Firestore.');
-t('no IndexedDB or localStorage write in phase 0',
-  !/localStorage\.setItem|indexedDB\.open/.test(SRC));
+
+// Phase 1 legitimately writes to IndexedDB and localStorage. What must hold is
+// that every capture is gated — kill switch, passphrase, cloud-loaded, storage
+// headroom — before anything is stored.
+const cap = SRC.slice(SRC.indexOf('async function captureNow'),
+                      SRC.indexOf('async function listSnapshots'));
+t('capture checks the kill switch first', /if \(killed\(\)\) return/.test(cap));
+t('capture refuses while locked', /skipped: 'locked/.test(cap));
+t('capture refuses before the cloud has loaded',
+  /if \(!opts\.force && !gatesOpen\(\)\)/.test(cap),
+  'Acting on state that has not arrived is how the archive bug lost data.');
+t('capture refuses when storage headroom is low',
+  /if \(!\(await storageOk\(\)\)\)/.test(cap),
+  'Filling iOS origin storage can evict Firestore own cache and wedge sync.');
+t('the cloud gate checks all three published flags',
+  /window\._fbReady && window\._thCloudLoaded && window\._vdCloudLoaded/.test(SRC));
+t('a refused snapshot is parked, not dropped, and raises the alarm',
+  /suspect-/.test(cap) && /_fbSyncAlert/.test(cap));
+t('a refusal leaves the previous snapshot untouched',
+  /The previous backup is untouched/.test(cap));
 
 // ───────────────────────── behavioural ─────────────────────────
 // Everything above is static. This runs the shipped measure() end to end,
