@@ -212,6 +212,29 @@ t('a refusal leaves the previous snapshot untouched',
   /The previous backup is untouched/.test(cap));
 
 
+section('A brief visit still mirrors off-device');
+
+// The push is debounced to stay inside the daily write budget, but a debounce
+// with nothing to flush it is a promise quietly not kept: close the page before
+// the timer fires and the snapshot never leaves the device. Phones are opened
+// for seconds at a time and are the ones most likely to be lost.
+t('a hidden page flushes the pending push',
+  /document\.addEventListener\('visibilitychange', fire\)/.test(SRC) &&
+  /window\.addEventListener\('pagehide', fire\)/.test(SRC));
+t('it only fires when the page is actually hidden',
+  /if \(document\.visibilityState !== 'hidden'\) return;/.test(SRC),
+  'visibilitychange also fires on becoming visible.');
+t('the pending timer is cancelled so the push is not attempted twice',
+  /if \(_pushTimer\) \{ clearTimeout\(_pushTimer\); _pushTimer = null; \}/.test(SRC));
+t('the flush is registered when an app registers',
+  /try \{ flushPushOnHide\(\); \} catch \(e\) \{\}/.test(SRC));
+t('the FIRST push does not wait out the long debounce',
+  /var wait = everPushed \? A1B\.PUSH_DEBOUNCE_MS : A1B\.FIRST_PUSH_MS;/.test(SRC),
+  'Until something has left the device there is nothing off-device at all.');
+t('a first push is only recorded once it actually succeeded',
+  (SRC.match(/if \(r && r\.at\) lsSet\('a1b_pushed_once', '1'\);/g) || []).length === 2,
+  'Recording an attempt would push the device onto the slow path having sent nothing.');
+
 section('A stopped backup announces itself');
 
 // Every incident in this project has been silent. A backup system that quietly
