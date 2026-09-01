@@ -1880,13 +1880,13 @@ html.lk-open, body.lk-open {
 
 /* A tile you can pick up. `manipulation` keeps the grid scrolling under an
    ordinary swipe while dropping the 300ms tap delay — the drag arms on a long
-   press instead (see beTouchDrag), so both gestures coexist. */
+   press instead (see beEnableTouchDrag), so both gestures coexist. */
 .bld-drag { touch-action: manipulation; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 /* The ✕ on a chip already in a zone. It was a 15px dot: fine under a mouse,
    under a thumb it is smaller than the icon it sits on. */
 .bld-chip-x {
   position: absolute; top: -6px; right: -6px;
-  width: 18px; height: 18px; border-radius: 50%;
+  width: 17px; height: 17px; border-radius: 50%;
   background: var(--red); border: none; color: #fff; cursor: pointer;
   padding: 0; line-height: 0;
   display: flex; align-items: center; justify-content: center;
@@ -1925,10 +1925,16 @@ html.lk-open, body.lk-open {
 @media (max-width: 600px) {
   .bld-card { padding: 13px 13px; }
   .bld-sections { gap: 14px; }
-  /* Reaching Edit / ✕ is a one-handed tap on a phone, so they get the 44px
-     target the rest of the app uses rather than the desktop 28px. */
+  /* Reaching Edit / ✕ is a one-handed tap on a phone, so they grow past the
+     desktop 28px into a real target. */
   .bld-card-acts button { height: 38px; min-height: 38px; padding: 0 14px; }
   #be-right { flex: 0 0 42%; min-height: 190px; }
+  #bp-category-chips {
+    flex-wrap: nowrap !important; overflow-x: auto; overflow-y: hidden;
+    -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  }
+  #bp-category-chips::-webkit-scrollbar { display: none; }
+  #bp-category-chips > span { flex-shrink: 0; }
   /* Back + champion + Save already fill a 390px row; "Edit Build" is a label
      for a screen you are already looking at, and it cost the header a whole
      second line. */
@@ -7218,7 +7224,7 @@ function openBuildEditor() {
   itemsZone.id = 'be-items-zone';
   itemsZone.className = 'bld-dropzone';
   itemsZone.dataset.zone = 'items';
-  itemsZone.style.cssText = 'min-height:56px;padding:8px;background:var(--bg3);border:2px dashed var(--bd2);border-radius:8px;display:flex;gap:6px;flex-wrap:wrap;transition:border-color 0.15s,background 0.15s;';
+  itemsZone.style.cssText = 'min-height:56px;padding:8px;background:var(--bg3);border:2px dashed var(--bd2);border-radius:8px;display:flex;gap:9px;flex-wrap:wrap;transition:border-color 0.15s,background 0.15s;';
   itemsZone.addEventListener('dragover', function(e){ e.preventDefault(); this.style.borderColor='var(--gold)'; });
   itemsZone.addEventListener('dragleave', function(){ this.style.borderColor='var(--bd2)'; });
   itemsZone.addEventListener('drop', function(e){ e.preventDefault(); this.style.borderColor='var(--bd2)'; dropOnBuild(e,'items'); });
@@ -7232,7 +7238,7 @@ function openBuildEditor() {
   spellsZone.id = 'be-spells-zone';
   spellsZone.className = 'bld-dropzone';
   spellsZone.dataset.zone = 'spells';
-  spellsZone.style.cssText = 'min-height:50px;padding:8px;background:var(--bg3);border:2px dashed var(--bd2);border-radius:8px;display:flex;gap:6px;flex-wrap:wrap;transition:border-color 0.15s,background 0.15s;';
+  spellsZone.style.cssText = 'min-height:50px;padding:8px;background:var(--bg3);border:2px dashed var(--bd2);border-radius:8px;display:flex;gap:9px;flex-wrap:wrap;transition:border-color 0.15s,background 0.15s;';
   spellsZone.addEventListener('dragover', function(e){ e.preventDefault(); this.style.borderColor='var(--gold)'; });
   spellsZone.addEventListener('dragleave', function(){ this.style.borderColor='var(--bd2)'; });
   spellsZone.addEventListener('drop', function(e){ e.preventDefault(); this.style.borderColor='var(--bd2)'; dropOnBuild(e,'spells'); });
@@ -7814,18 +7820,23 @@ function _beTdUp(e) {
   var from = d.from, zone = d.zone, itemId = d.itemId, fromIdx = d.idx;
   var x = d.x, y = d.y;
   var wasDrag = d.dragging;
+  // A press that armed but never travelled is someone who simply held too long,
+  // not someone who aimed at nothing — the click is about to be swallowed, so
+  // honour it as the tap it was rather than leaving the gesture dead.
+  var heldStill = Math.abs(x - d.startX) < 12 && Math.abs(y - d.startY) < 12;
   _beTdCleanup();
   if (!wasDrag) return;
   // The press became a drag, so the click it would otherwise fire on release
   // would add the item a SECOND time. Swallow it.
   _beTdSuppress = true;
   setTimeout(function(){ _beTdSuppress = false; }, 350);
-  if (!dropped || !buildEditorData) return;
+  if (!buildEditorData) return;
 
   if (from === 'panel') {
-    addToBuild(zone, itemId);
+    if (dropped || heldStill) addToBuild(zone, itemId);
     return;
   }
+  if (!dropped) return;
   // Reorder inside the zone. Deliberately the SAME two splices attachZoneDrag
   // makes on a mouse drop, index for index — a finger and a mouse landing on
   // the same chip must produce the same order, and a subtly different rule for
