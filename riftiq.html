@@ -409,7 +409,8 @@
     // — misc —
     hourglass:'<path d="M7 3h10M7 21h10"/><path d="M8 3v4.5l4 4.5 4-4.5V3M8 21v-4.5l4-4.5 4 4.5V21"/>',
     dot:      '<circle cx="12" cy="12" r="6"/>',
-    plus:     '<path d="M12 5v14M5 12h14"/>'
+    plus:     '<path d="M12 5v14M5 12h14"/>',
+    grip:     '<path d="M7 10h10M7 14h10"/>'
   };
   // Icons drawn as outlines vs solid shapes. Solid ones read better at pill size.
   var FILLED = { star:1, medal:1, flame:1, sparkle:1, dot:1, crown:1, burst:1,
@@ -7037,7 +7038,7 @@ function renderBuildsChampGrid(q) {
   if (!grid) return;
   const list = Object.values(allChamps).filter(function(c){ return !q || c.name.toLowerCase().includes(q.toLowerCase()); }).sort(function(a,b){ return a.name.localeCompare(b.name); });
   grid.innerHTML = list.map(function(c) {
-    return '<div data-cid="' + c.id + '" onclick="pickBuildChamp(this.dataset.cid)" style="display:flex;flex-direction:column;align-items:center;gap:5px;padding:8px 4px;background:var(--bg4);border:1px solid var(--bd);border-radius:8px;cursor:pointer;transition:all 0.15s;"">' +
+    return '<div class="bld-tile" data-cid="' + c.id + '" onclick="pickBuildChamp(this.dataset.cid)" style="display:flex;flex-direction:column;align-items:center;gap:5px;padding:8px 4px;background:var(--bg4);border:1px solid var(--bd);border-radius:8px;cursor:pointer;transition:all 0.15s;"">' +
       '<img src="' + DDRAGON + '/img/champion/' + c.id + '.png" style="width:56px;height:56px;border-radius:8px;" onerror="this.style.opacity=0.3">' +
       '<span style="font-family:var(--body);font-size:12px;font-weight:600;color:var(--tx);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;">' + c.name + '</span>' +
     '</div>';
@@ -7277,6 +7278,7 @@ function openBuildEditor() {
       '<div id="be-header" class="bld-pagehd" style="padding:12px 20px;background:var(--bg2);"></div>' +
       '<div id="be-split">' +
         '<div id="be-left"></div>' +
+        '<div id="be-resizer" role="separator" tabindex="0" aria-label="Resize panels" title="Drag to resize \u2014 double-click to reset"></div>' +
         '<div id="be-right"></div>' +
       '</div>' +
     '</div>';
@@ -7304,9 +7306,13 @@ function openBuildEditor() {
   // ── Left panel ──
   var left = document.getElementById('be-left');
 
+  // One label treatment for every section on this side: the display face the
+  // rest of WarRoom titles with, at a readable size, instead of 2px-tracked
+  // mono that read as a system caption rather than a heading.
+  var BE_LABEL = 'font-family:var(--head);font-size:14px;font-weight:700;color:var(--tx2);letter-spacing:0.2px;margin-bottom:6px;';
   function mkLabel(text) {
     var d = document.createElement('div');
-    d.style.cssText = 'font-family:var(--mono);font-size:12px;font-weight:700;color:var(--tx2);font-weight:700;letter-spacing:2px;margin-bottom:6px;';
+    d.style.cssText = BE_LABEL;
     d.textContent = text;
     return d;
   }
@@ -7341,13 +7347,13 @@ function openBuildEditor() {
   var itemsSection = mkSection();
   var itemsHdr = document.createElement('div');
   itemsHdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;';
-  itemsHdr.innerHTML = '<div style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--tx2);font-weight:700;letter-spacing:2px;">Items</div><span id="be-items-count" style="font-family:var(--mono);font-size:12px;color:var(--tx3);">0/7</span>';
+  itemsHdr.innerHTML = '<div style="' + BE_LABEL + 'margin-bottom:0;">Items</div><span id="be-items-count" style="font-family:var(--mono);font-size:12px;color:var(--tx3);">0/7</span>';
   itemsSection.appendChild(itemsHdr);
   var itemsZone = document.createElement('div');
   itemsZone.id = 'be-items-zone';
   itemsZone.className = 'bld-dropzone';
   itemsZone.dataset.zone = 'items';
-  itemsZone.style.cssText = 'min-height:56px;padding:8px;background:var(--bg3);border:2px dashed var(--bd2);border-radius:8px;display:flex;gap:9px;flex-wrap:wrap;transition:border-color 0.15s,background 0.15s;';
+  itemsZone.style.cssText = 'min-height:56px;padding:8px;background:var(--bg3);border:2px solid var(--bd2);border-radius:8px;display:flex;gap:9px;flex-wrap:wrap;transition:border-color 0.15s,background 0.15s;';
   itemsZone.addEventListener('dragover', function(e){ e.preventDefault(); this.style.borderColor='var(--gold)'; });
   itemsZone.addEventListener('dragleave', function(){ this.style.borderColor='var(--bd2)'; });
   itemsZone.addEventListener('drop', function(e){ e.preventDefault(); this.style.borderColor='var(--bd2)'; dropOnBuild(e,'items'); });
@@ -7361,7 +7367,7 @@ function openBuildEditor() {
   spellsZone.id = 'be-spells-zone';
   spellsZone.className = 'bld-dropzone';
   spellsZone.dataset.zone = 'spells';
-  spellsZone.style.cssText = 'min-height:50px;padding:8px;background:var(--bg3);border:2px dashed var(--bd2);border-radius:8px;display:flex;gap:9px;flex-wrap:wrap;transition:border-color 0.15s,background 0.15s;';
+  spellsZone.style.cssText = 'min-height:50px;padding:8px;background:var(--bg3);border:2px solid var(--bd2);border-radius:8px;display:flex;gap:9px;flex-wrap:wrap;transition:border-color 0.15s,background 0.15s;';
   spellsZone.addEventListener('dragover', function(e){ e.preventDefault(); this.style.borderColor='var(--gold)'; });
   spellsZone.addEventListener('dragleave', function(){ this.style.borderColor='var(--bd2)'; });
   spellsZone.addEventListener('drop', function(e){ e.preventDefault(); this.style.borderColor='var(--bd2)'; dropOnBuild(e,'spells'); });
@@ -7381,14 +7387,27 @@ function openBuildEditor() {
   // Notes
   var notesSection = mkSection();
   notesSection.appendChild(mkLabel('Notes'));
+  var notesWrap = document.createElement('div');
+  notesWrap.id = 'be-notes-wrap';
   var notesTA = document.createElement('textarea');
   notesTA.id = 'be-notes';
   notesTA.placeholder = 'Strategy, combos...';
-  notesTA.style.cssText = 'width:100%;min-height:100px;padding:10px;background:var(--bg3);border:1px solid var(--bd2);border-radius:6px;color:var(--tx);font-family:var(--body);font-size:12px;outline:none;resize:vertical;box-sizing:border-box;';
+  // resize:none — the browser's own corner grippy is a 7px target no thumb can
+  // find. #be-notes-grip below does the job at a size both a finger and a
+  // cursor can land on, and the extra padding keeps text clear of it.
+  notesTA.style.cssText = 'width:100%;height:110px;min-height:80px;padding:10px 10px 34px;background:var(--bg3);border:1px solid var(--bd2);border-radius:6px;color:var(--tx);font-family:var(--body);font-size:12px;outline:none;resize:none;box-sizing:border-box;display:block;';
   notesTA.value = b.notes || '';
   notesTA.onfocus = function(){ this.style.borderColor='var(--gold)'; };
   notesTA.onblur = function(){ this.style.borderColor='var(--bd2)'; };
-  notesSection.appendChild(notesTA);
+  var notesGrip = document.createElement('button');
+  notesGrip.id = 'be-notes-grip';
+  notesGrip.type = 'button';
+  notesGrip.setAttribute('aria-label', 'Resize notes');
+  notesGrip.title = 'Drag to resize';
+  notesGrip.innerHTML = wrIco('grip', 15);
+  notesWrap.appendChild(notesTA);
+  notesWrap.appendChild(notesGrip);
+  notesSection.appendChild(notesWrap);
   left.appendChild(notesSection);
 
   // ── Right panel ──
@@ -7444,6 +7463,8 @@ function openBuildEditor() {
   refreshBuildZones();
   showBuildPanel('items');
   beEnableTouchDrag();
+  beEnableSplitResize();
+  beEnableNotesResize();
 
   // Matchup picker modal
   if (!document.getElementById('matchup-picker-modal')) {
@@ -7462,12 +7483,12 @@ function openBuildEditor() {
           '<button id="mq-search-clear" class="input-clear-btn" style="position:absolute;right:22px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--tx3);font-size:14px;cursor:pointer;">'+wrIco('close',15)+'</button>' +
         '</div>' +
         '<div style="padding:8px 14px;border-bottom:1px solid var(--bd);display:flex;flex-direction:column;gap:6px;flex-shrink:0;">' +
-          '<div><div style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--tx2);font-weight:700;letter-spacing:2px;margin-bottom:4px;">Class</div><div style="display:flex;gap:4px;flex-wrap:wrap;" id="mq-class-chips"></div></div>' +
-          '<div><div style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--tx2);font-weight:700;letter-spacing:2px;margin-bottom:4px;">Resource type</div><div style="display:flex;gap:4px;flex-wrap:wrap;" id="mq-res-chips"></div></div>' +
+          '<div><div style="font-family:var(--head);font-size:13px;font-weight:700;color:var(--tx2);letter-spacing:0.2px;margin-bottom:5px;">Class</div><div style="display:flex;gap:4px;flex-wrap:wrap;" id="mq-class-chips"></div></div>' +
+          '<div><div style="font-family:var(--head);font-size:13px;font-weight:700;color:var(--tx2);letter-spacing:0.2px;margin-bottom:5px;">Resource type</div><div style="display:flex;gap:4px;flex-wrap:wrap;" id="mq-res-chips"></div></div>' +
         '</div>' +
         '<div id="matchup-grid" style="flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:6px;"></div>' +
         '<div style="padding:10px 14px;border-top:1px solid var(--bd);display:flex;flex-direction:column;gap:8px;flex-shrink:0;background:var(--bg2);">' +
-          '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><div id="matchup-selected-count" style="font-family:var(--mono);font-size:12px;color:var(--tx3);flex-shrink:0;">None selected</div><div id="matchup-selected-row" style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;"></div></div>' +
+          '<div id="matchup-selected-wrap"><div id="matchup-selected-count" style="font-family:var(--head);font-size:13px;font-weight:700;color:var(--tx2);letter-spacing:0.2px;flex-shrink:0;">None selected</div><div id="matchup-selected-row"></div></div>' +
           '<div style="display:flex;justify-content:flex-end;gap:8px;"><button id="mq-cancel-btn" style="height:34px;padding:0 18px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx2);font-family:var(--mono);font-size:12px;cursor:pointer;">Cancel</button><button id="mq-confirm-btn" class="wr-cta" style="height:34px;padding:0 22px;background:transparent;border:1px solid rgba(192,174,234,.45);border-radius:6px;color:var(--gold2);font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;">Confirm</button></div>' +
         '</div>' +
       '</div>';
@@ -7504,6 +7525,7 @@ function openMatchupPicker() {
       sp.textContent = val;
       sp.dataset.val = val;
       sp.dataset.type = ri===0 ? 'class' : 'res';
+      sp.className = 'bld-pill';
       sp.style.cssText = 'padding:3px 10px;border-radius:20px;cursor:pointer;font-family:var(--mono);font-size:12px;font-weight:600;background:'+(val==='All'?col:'var(--bg3)')+';color:'+(val==='All'?'#fff':'var(--tx2)')+';border:1px solid '+(val==='All'?col:'var(--bd2)')+';transition:all 0.1s;';
       sp.addEventListener('click', function() {
         var isClass = this.dataset.type==='class';
@@ -7545,7 +7567,7 @@ function filterMatchupGrid(q) {
   }).sort(function(a,b){ return a.name.localeCompare(b.name); });
   grid.innerHTML = list.map(function(c) {
     var sel = _matchupSelected.includes(c.id);
-    return '<div data-cid="' + c.id + '" onclick="toggleMatchupChamp(this.dataset.cid)" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 4px;background:' + (sel?'rgba(192,174,234,0.15)':'var(--bg4)') + ';border:2px solid ' + (sel?'var(--gold)':'transparent') + ';border-radius:8px;cursor:pointer;transition:all 0.1s;"">' +
+    return '<div class="bld-tile" data-cid="' + c.id + '" onclick="toggleMatchupChamp(this.dataset.cid)" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 4px;background:' + (sel?'rgba(192,174,234,0.15)':'var(--bg4)') + ';border:2px solid ' + (sel?'var(--gold)':'transparent') + ';border-radius:8px;cursor:pointer;transition:all 0.1s;"">' +
       '<img src="' + DDRAGON + '/img/champion/' + c.id + '.png" style="width:50px;height:50px;border-radius:8px;" onerror="this.style.opacity=0.3">' +
       '<span style="font-family:var(--body);font-size:12px;font-weight:600;color:' + (sel?'var(--gold)':'var(--tx)') + ';text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;">' + c.name + '</span>' +
     '</div>';
@@ -7565,16 +7587,19 @@ function renderMatchupSelectedRow() {
   if (!row) return;
   row.innerHTML = '';
   _matchupSelected.forEach(function(cid) {
-    var wrap = document.createElement('div');
-    wrap.style.cssText = 'position:relative;cursor:pointer;flex-shrink:0;';
-    wrap.title = (allChamps[cid]||{}).name || cid;
+    var wrap = document.createElement('button');
+    wrap.type = 'button';
+    wrap.className = 'bld-selchip';
+    wrap.style.cssText = 'position:relative;cursor:pointer;flex-shrink:0;background:none;border:none;padding:0;line-height:0;';
+    wrap.title = 'Remove ' + ((allChamps[cid]||{}).name || cid);
+    wrap.setAttribute('aria-label', 'Remove ' + ((allChamps[cid]||{}).name || cid));
     wrap.addEventListener('click', function(){ toggleMatchupChamp(cid); });
     var img = document.createElement('img');
     img.src = DDRAGON + '/img/champion/' + cid + '.png';
-    img.style.cssText = 'width:28px;height:28px;border-radius:4px;border:2px solid var(--gold);';
+    img.style.cssText = 'width:28px;height:28px;border-radius:4px;border:2px solid var(--gold);display:block;';
     var x = document.createElement('div');
-    x.style.cssText = 'position:absolute;top:-3px;right:-3px;width:11px;height:11px;border-radius:50%;background:var(--red);color:#fff;font-size:6px;line-height:11px;text-align:center;';
-    x.innerHTML = wrIco('close',12);
+    x.style.cssText = 'position:absolute;top:-4px;right:-4px;width:13px;height:13px;border-radius:50%;background:var(--red);color:#fff;display:flex;align-items:center;justify-content:center;';
+    x.innerHTML = wrIco('close',9);
     wrap.appendChild(img);
     wrap.appendChild(x);
     row.appendChild(wrap);

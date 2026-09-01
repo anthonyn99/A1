@@ -1311,24 +1311,38 @@
       step('restored documents actually contain data', nonEmpty.length === paths.length,
            nonEmpty.length + '/' + paths.length + ' non-empty');
 
-      // Compare against what this device holds right now, where they overlap.
+      // How CURRENT the copy is, which is a different question from whether it
+      // can be restored. A snapshot taken before today's edits will differ from
+      // this device and that is correct behaviour, not corruption — there is no
+      // way to tell "changed since" from "damaged" by comparison alone, so this
+      // is reported and never used to fail the drill. Treating an older backup
+      // as a broken one told the user not to rely on a copy that was fine.
       var live = {};
       Object.keys(observed).forEach(function (k) { live[k] = observed[k]; });
-      var compared = 0, matched = 0;
+      var compared = 0, matched = 0, drifted = [];
       Object.keys(live).forEach(function (k) {
         if (!(k in restored)) return;
         compared++;
         if (JSON.stringify(live[k]) === JSON.stringify(restored[k])) matched++;
+        else drifted.push(k.replace('dashboards/', ''));
       });
-      step('restored content matches this device where they overlap',
-           compared === 0 || matched === compared,
-           matched + '/' + compared + ' documents identical' +
-           (compared === 0 ? ' (nothing to compare yet)' : ''));
+      var ageH = pick.ageHours != null ? pick.ageHours
+               : ((Date.now() - (pick.at || 0)) / 3600000);
+      out.matched = matched;
+      out.compared = compared;
+      out.drifted = drifted;
+      out.ageHours = +Number(ageH).toFixed(1);
+      console.log('  age   this snapshot is ' + out.ageHours + 'h old; ' +
+                  matched + '/' + compared + ' documents still match this device' +
+                  (drifted.length ? '   changed since: ' + drifted.join(', ') : ''));
 
       out.restored = paths.length;
       out.devices = devices.length;
+      // The verdict is about RECOVERABILITY only: everything the manifest
+      // promises is present, decrypts, passes its integrity check and is not
+      // empty. Currency is reported above, separately.
       out.ok = missing.length === 0 && broken.length === 0 &&
-               nonEmpty.length === paths.length && (compared === 0 || matched === compared);
+               nonEmpty.length === paths.length && paths.length > 0;
 
       console.log(out.ok
         ? '%c  DRILL PASSED — the public repo copy alone can rebuild this data.'
@@ -1337,6 +1351,11 @@
       if (out.ok) {
         console.log('  Restored ' + paths.length + ' documents, e.g. ' +
                     paths.slice(0, 4).join(', '));
+        if (drifted.length) {
+          console.log('%c  Note: ' + drifted.length + ' document(s) have changed on this ' +
+                      'device since this snapshot. The copy is sound, just older — run a ' +
+                      'fresh pull to bring the repo up to date.', 'color:#8d8d94');
+        }
       }
       return out;
     } catch (e) {
