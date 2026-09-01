@@ -1971,20 +1971,19 @@ html.lk-open, body.lk-open {
   .bld-modal .bld-tile {
     transition: border-color .18s, box-shadow .18s, color .18s, background .18s;
   }
-  #builds-panel button:not(:disabled):not(.bp-tab):not(#be-resizer):hover,
+  #builds-panel button:not(:disabled):not(.bp-tab):not(.bld-danger):hover,
   #builds-panel .bld-pill:hover, #builds-panel .bld-tile:hover,
   #bp-content .bld-drag:hover,
-  .bld-modal button:not(:disabled):hover, .bld-modal .bld-pill:hover,
+  .bld-modal button:not(:disabled):not(.bld-danger):hover, .bld-modal .bld-pill:hover,
   .bld-modal .bld-tile:hover {
     border-color: var(--gold) !important;
     box-shadow: 0 0 0 1px rgba(192,174,234,.45), 0 0 16px rgba(192,174,234,.45);
   }
   /* Destructive controls glow in their OWN colour - a delete that lights up
-     purple like a save is the one place consistency would mislead. */
-  #builds-panel button[aria-label^="Delete"]:hover,
-  #builds-panel button[aria-label^="Remove"]:hover,
-  .bld-modal button[aria-label^="Remove"]:hover,
-  .bld-row-del:hover, .bld-chip-x:hover {
+     purple like a save is the one place consistency would mislead. They carry
+     .bld-danger and the rule above excludes it, so which one wins is decided by
+     the markup rather than by which rule happens to come last. */
+  #builds-panel .bld-danger:hover, .bld-modal .bld-danger:hover {
     border-color: var(--red) !important;
     box-shadow: 0 0 0 1px rgba(214,138,124,.5), 0 0 14px rgba(214,138,124,.45);
   }
@@ -6947,7 +6946,7 @@ function renderBuildsHome() {
     info.style.cssText = 'flex:1;min-width:0;pointer-events:none;';
     info.innerHTML = '<div style="font-family:var(--head);font-size:15px;font-weight:700;color:var(--tx);overflow-wrap:anywhere;">'+(champ?champ.name:cid)+'</div><div style="font-family:var(--mono);font-size:12px;color:var(--tx3);">'+champBuilds.length+' build'+(champBuilds.length!==1?'s':'')+'</div>';
     var delBtn = document.createElement('button');
-    delBtn.className = 'bld-row-del';
+    delBtn.className = 'bld-row-del bld-danger';
     delBtn.innerHTML = wrIco('close',13);
     delBtn.title = 'Delete';
     delBtn.setAttribute('aria-label', 'Delete builds for ' + (champ?champ.name:cid));
@@ -7239,7 +7238,7 @@ function renderBuildCard(cid, b, idx) {
       '<div class="bld-card-name">' + (b.name||'Build '+(idx+1)) + '</div>' +
       '<div class="bld-card-acts">' +
         '<button onclick="editBuild(\'' + selectedBuildChamp + '\',' + idx + ')" class="btn-ghost" style="background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx2);font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;">Edit</button>' +
-        '<button onclick="deleteBuild(\'' + selectedBuildChamp + '\',' + idx + ')" aria-label="Delete build" title="Delete build" style="background:transparent;border:1px solid rgba(214,138,124,.35);border-radius:6px;color:var(--red);font-family:var(--mono);font-size:12px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;">'+wrIco('close',14)+'</button>' +
+        '<button onclick="deleteBuild(\'' + selectedBuildChamp + '\',' + idx + ')" class="bld-danger" aria-label="Delete build" title="Delete build" style="background:transparent;border:1px solid rgba(214,138,124,.35);border-radius:6px;color:var(--red);font-family:var(--mono);font-size:12px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;">'+wrIco('close',14)+'</button>' +
       '</div>' +
     '</div>' +
     (matchupHtml ? '<div class="bld-sect" style="margin-bottom:12px;"><div style="' + SECT + '">Matchups</div>' +
@@ -7604,7 +7603,7 @@ function renderMatchupSelectedRow() {
   _matchupSelected.forEach(function(cid) {
     var wrap = document.createElement('button');
     wrap.type = 'button';
-    wrap.className = 'bld-selchip';
+    wrap.className = 'bld-selchip bld-danger';
     wrap.style.cssText = 'position:relative;cursor:pointer;flex-shrink:0;background:none;border:none;padding:0;line-height:0;';
     wrap.title = 'Remove ' + ((allChamps[cid]||{}).name || cid);
     wrap.setAttribute('aria-label', 'Remove ' + ((allChamps[cid]||{}).name || cid));
@@ -7757,7 +7756,7 @@ function refreshBuildZones() {
         img.title = (allItems[id]||{}).name || id;
         img.onerror = function(){ this.style.opacity=0.3; };
         var xBtn = document.createElement('button');
-        xBtn.className = 'bld-chip-x';
+        xBtn.className = 'bld-chip-x bld-danger';
         xBtn.setAttribute('aria-label', 'Remove item');
         xBtn.innerHTML = wrIco('close',12);
         xBtn.addEventListener('click', (function(itemId){ return function(e){ e.stopPropagation(); removeBuildItem('items',itemId); }; })(id));
@@ -7793,7 +7792,7 @@ function refreshBuildZones() {
         img.style.cssText = 'width:40px;height:40px;border-radius:6px;display:block;';
         img.title = sp.name;
         var xBtn = document.createElement('button');
-        xBtn.className = 'bld-chip-x';
+        xBtn.className = 'bld-chip-x bld-danger';
         xBtn.setAttribute('aria-label', 'Remove spell');
         xBtn.innerHTML = wrIco('close',12);
         xBtn.addEventListener('click', (function(spellId){ return function(e){ e.stopPropagation(); removeBuildItem('spells',spellId); }; })(sid));
