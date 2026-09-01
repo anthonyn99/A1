@@ -8770,7 +8770,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
   import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
   import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app-check.js";
-  import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, persistentSingleTabManager, terminate, clearIndexedDbPersistence, doc, setDoc, updateDoc, onSnapshot, getDoc, getDocFromServer, deleteField, deleteDoc, collection } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
+  import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, persistentSingleTabManager, terminate, clearIndexedDbPersistence, doc, setDoc, updateDoc, onSnapshot, getDoc, getDocFromServer, deleteField, deleteDoc, collection, getDocs, query, orderBy, limit, startAt, startAfter, endBefore, documentId } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
   import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-storage.js";
 
   const firebaseConfig = {
@@ -8866,6 +8866,19 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   // network round-trip every time. Reconnect behavior is unaffected — the SDK
   // still only re-syncs docs with ACTIVE listeners, not every doc ever fetched.
   let db = initializeFirestore(app, { localCache: _makeCache() });
+
+  // ── Backup handshake ──────────────────────────────────────────────────────
+  // backup.js is a classic script and cannot import from this module, so the
+  // Firestore handle and the functions it needs are handed over explicitly.
+  // It is inert until this call, never writes to Firestore, and is wrapped so
+  // that a failure here can never take the app's own sync down with it.
+  try {
+    window.A1Backup && window.A1Backup.register({
+      db: db, projectId: firebaseConfig.projectId, appId: 'index',
+      fs: { doc, getDoc, collection, getDocs, query, orderBy, limit,
+            startAt, startAfter, endBefore, documentId }
+    });
+  } catch (e) { console.warn('[A1Backup] register failed (backups only):', e); }
 
   // ── Write-pipeline safety: oversized-write guard + auto-recovery ───────────
   // With persistentLocalCache the offline mutation queue lives in IndexedDB and is
