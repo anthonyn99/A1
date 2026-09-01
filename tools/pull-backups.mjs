@@ -68,6 +68,12 @@ const headers = SECRET ? { Authorization: 'Bearer ' + SECRET }
               : {};
 const kb = (n) => (n / 1024).toFixed(1) + ' KB';
 
+async function getText(p) {
+  const r = await fetch(WORKER + p, { headers });
+  if (!r.ok) throw new Error('GET ' + p + ' -> ' + r.status);
+  return r.text();
+}
+
 async function get(p) {
   const r = await fetch(WORKER + p, { headers });
   if (!r.ok) {
@@ -120,18 +126,44 @@ async function main() {
     const manFile = path.join(OUT, device, 'snapshots', stamp + '.enc.json');
     if (writeIfChanged(manFile, JSON.stringify(man, null, 2))) wroteManifests++;
 
+    // The documents themselves. The manifest is encrypted, so this script
+    // cannot work out what a snapshot needs — the ids ride outside it for
+    // exactly that reason. Without this loop the repo held a manifest and no
+    // data: an index pointing at nothing, which would have looked like a
+    // backup right up until someone needed it.
+    //
+    // Ids are keyed hashes of the content, so an object that has not changed
+    // keeps its filename and is fetched once, ever. Steady state is a handful
+    // of small files even though the snapshot itself is rewritten constantly.
+    const ids = Array.isArray(man.objects) ? man.objects : [];
+    if (!ids.length) {
+      console.warn('    WARNING: this snapshot lists no objects — it cannot be' +
+        ' restored. The device needs a newer version of backup.js.');
+    }
+    for (const id of ids) {
+      const objFile = path.join(OUT, device, 'objects', id + '.enc.json');
+      if (fs.existsSync(objFile)) { reusedObjects++; continue; }
+      try {
+        const body = await getText('/o/' + id);
+        if (writeIfChanged(objFile, body)) wroteObjects++;
+      } catch (e) {
+        console.warn('    could not fetch object ' + id + ': ' + (e && e.message));
+      }
+    }
+
     summary.push({
       device,
       at,
       iso: new Date(at).toISOString(),
       ageHours: +((Date.now() - at) / 3600000).toFixed(1),
       docs: man.docs ?? meta.docs ?? null,
+      objects: (man.objects || []).length,
       bytes: meta.bytes ?? null,
       stale: Date.now() - at > 48 * 3600000,
     });
 
     console.log('  ' + device + ': snapshot ' + stamp +
-      ' (' + (man.docs ?? '?') + ' docs, ' + kb(meta.bytes || 0) + ')' +
+      ' (' + (man.docs ?? '?') + ' docs, ' + (man.objects || []).length + ' objects)' +
       (Date.now() - at > 48 * 3600000 ? '   <-- STALE' : ''));
   }
 
