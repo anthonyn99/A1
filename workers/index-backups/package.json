@@ -1,0 +1,6 @@
+{
+  "name": "index-backups",
+  "version": "1.0.0",
+  "main": "worker.js",
+  "private": true
+}

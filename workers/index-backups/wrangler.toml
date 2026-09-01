@@ -1,0 +1,16 @@
+name = "index-backups"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+
+[vars]
+WORKER_ORIGIN = "https://index-backups.av1.workers.dev"
+
+# Off-device sink for A1Backup. Every value stored here is AES-256-GCM
+# ciphertext produced in the browser against a passphrase this Worker never
+# sees, so a compromise leaks sizes and timestamps and nothing else.
+#
+# Created with:  wrangler kv namespace create A1_BACKUPS
+# KV free plan: 1 GB total, 25 MB per value, ~1000 writes/day.
+[[kv_namespaces]]
+binding = "A1_BACKUPS"
+id = "e6dd740c6e484fed867ce47714e67f19"

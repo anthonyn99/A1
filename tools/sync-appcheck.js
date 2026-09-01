@@ -22,7 +22,7 @@ const SRC = path.join(ROOT, 'workers', '_shared', 'appcheck.js');
 const BEGIN = '// ─── BEGIN GENERATED: appcheck (workers/_shared/appcheck.js) ───';
 const END = '// ─── END GENERATED: appcheck ───';
 
-const TARGETS = ['tradeboard-api/src/worker.js', 'trade-dashboard/worker.js', 'newshub-api/worker.js', 'tesla-api/worker.js'];
+const TARGETS = ['tradeboard-api/src/worker.js', 'trade-dashboard/worker.js', 'newshub-api/worker.js', 'tesla-api/worker.js', 'index-backups/worker.js'];
 
 const body = fs.readFileSync(SRC, 'utf8').trim();
 const block = `${BEGIN}\n// Do not edit here — edit the canonical copy and run tools/sync-appcheck.js\n${body}\n${END}`;
