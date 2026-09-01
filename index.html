@@ -27118,16 +27118,19 @@ document.getElementById('tj-wb-undo').addEventListener('click', () => {
 });
 
 /* PAGE EDITOR */
-function updatePageToolbarState() {
-  if (!document.getElementById('tj-page-area') || document.getElementById('tj-page-area').style.display === 'none') return;
+// Reflects the caret back into a ribbon. Both sheet templates run the same
+// toolbar, so this takes the id prefix rather than hard-coding the Page one.
+function updateSheetToolbarState(areaId, prefix) {
+  const area = document.getElementById(areaId);
+  if (!area || area.style.display === 'none') return;
   const cmds = ['bold','italic','underline','strikeThrough'];
-  const ids   = ['tj-pt-bold','tj-pt-italic','tj-pt-underline','tj-pt-strike'];
+  const names = ['bold','italic','underline','strike'];
   cmds.forEach((cmd,i) => {
-    const btn = document.getElementById(ids[i]);
+    const btn = document.getElementById(prefix + names[i]);
     if (btn) btn.classList.toggle('active', document.queryCommandState(cmd));
   });
   // Sync block selector
-  const sel = document.getElementById('tj-pt-block');
+  const sel = document.getElementById(prefix + 'block');
   if (!sel) return;
   const node = window.getSelection()?.anchorNode;
   if (!node) return;
@@ -27136,7 +27139,7 @@ function updatePageToolbarState() {
   const map = {h1:'h1',h2:'h2',h3:'h3',pre:'pre',blockquote:'blockquote'};
   sel.value = map[tag] || 'p';
   // Sync font-size selector: read computed size at cursor
-  const fsSel = document.getElementById('tj-pt-fontsize');
+  const fsSel = document.getElementById(prefix + 'fontsize');
   if (fsSel) {
     const computedPx = parseFloat(window.getComputedStyle(el).fontSize);
     const rounded = Math.round(computedPx);
@@ -27148,6 +27151,8 @@ function updatePageToolbarState() {
     fsSel.value = (Math.abs(parseInt(match) - rounded) <= 2) ? match : '';
   }
 }
+function updatePageToolbarState() { updateSheetToolbarState('tj-page-area', 'tj-pt-'); }
+function updateJeToolbarState()   { updateSheetToolbarState('tj-je-area', 'tj-je-pt-'); }
 
 function pgCmd(cmd, val) {
   document.getElementById('tj-page-editor').focus();
@@ -27626,10 +27631,12 @@ document.getElementById('tj-page-editor').addEventListener('paste', function(e) 
   autoSave();
 });
 
-// Update toolbar state on selection change
+// Update toolbar state on selection change — whichever sheet has the caret
 document.addEventListener('selectionchange', () => {
   const ed = document.getElementById('tj-page-editor');
-  if (ed && document.activeElement === ed) updatePageToolbarState();
+  if (ed && document.activeElement === ed) { updatePageToolbarState(); return; }
+  const jeEd = document.getElementById('tj-je-editor');
+  if (jeEd && document.activeElement === jeEd) updateJeToolbarState();
 });
 
 // Clear page
@@ -33279,7 +33286,7 @@ function injectRibbonExtras(ctx) {
   setBtnIcon(tb.querySelector('[id$="-table"]'), IC.table);
   setBtnIcon(tb.querySelector('[id$="-page-img-btn"], [id$="-je-img-btn"]'), IC.image);
   var clearAllB = tb.querySelector('[id$="-pt-clear"]');
-  if (clearAllB) { setBtnIcon(clearAllB, IC.eraser); clearAllB.title = 'Clear all content'; }
+  if (clearAllB) { setBtnIcon(clearAllB, IC.eraser); if (!clearAllB.title) clearAllB.title = 'Clear all content'; }
   var hlIcon = tb.querySelector('[id$="-hl-icon"]');   // keep the color swatch, leave as-is
 
   // ── Table grid picker replaces the old fixed 3×3 insert on the table button. ──
