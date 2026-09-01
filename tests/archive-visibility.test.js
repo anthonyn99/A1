@@ -139,8 +139,24 @@ t('it never republishes _order',
 t('it writes one entry field at a time, not the whole document',
   /_fbUpsert\(ref, \{ \[key\]: clean, savedAt: Date\.now\(\) \}/.test(_compactBody),
   'A whole-document write would drag every other entry along with it.');
-t('an entry still holding inline images after extraction is skipped, not rewritten',
-  /images could not be moved \(upload failed\) — left as is/.test(HTML));
+// First attempt demanded a spotless entry and skipped the write otherwise. The
+// extractor only handles <img src="data:...">, so entries with an image in a
+// style attribute or srcset stayed inline - and the images it HAD already
+// uploaded were left orphaned in Firestore having shrunk nothing. Judge by
+// whether it helped, not by whether the result is perfect.
+t('a partial extraction is still written',
+  /if \(nowBytes >= wasBytes\)/.test(HTML) &&
+  !/images could not be moved \(upload failed\)/.test(HTML),
+  'Demanding perfection threw away real work and orphaned uploaded images.');
+t('an entry that got no smaller is left untouched',
+  /nothing could be moved — left untouched/.test(HTML));
+t('what remains inline is reported, so the extractor can be widened',
+  /function _describeRemainingImages\(entry\)/.test(HTML) &&
+  /still inline: /.test(HTML));
+t('the scan reads the HTML strings, not the JSON of the entry',
+  /function _htmlStringsOf\(entry\)/.test(HTML) &&
+  /_htmlStringsOf\(entry\)\.forEach/.test(HTML),
+  'In JSON every quote is escaped, so an attribute pattern never matches.');
 t('it re-reads the document to report the real size',
   /Re-read rather than assume/.test(HTML),
   'Only the server knows the size that the write guard actually measures.');

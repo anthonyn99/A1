@@ -10586,21 +10586,46 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     const _IMG_URI_RE = /data:[a-z]+\/[a-z0-9.+-]+;base64,/i;
 
     // Where a data: URI survived extraction, so we know whether the extractor
-    // needs widening. Reports the HTML context only — never the content.
+    // needs widening. It only handles <img src="data:...">, so an image can
+    // legitimately remain in a style attribute, a srcset, or an SVG <image>.
+    //
+    // Scans the HTML strings directly rather than the JSON of the entry: in
+    // JSON every quote is escaped as \" and an attribute pattern never matches.
+    // Reports attribute NAMES and counts only — never any content.
+    function _htmlStringsOf(entry) {
+      const out = [];
+      const d = (entry && entry.data) || {};
+      if (typeof d.html === 'string') out.push(d.html);
+      if (d.dates && typeof d.dates === 'object') {
+        Object.keys(d.dates).forEach((k) => {
+          const v = d.dates[k];
+          if (v && typeof v.html === 'string') out.push(v.html);
+        });
+      }
+      return out;
+    }
+
     function _describeRemainingImages(entry) {
       try {
-        const raw = JSON.stringify(entry);
-        if (!_IMG_URI_RE.test(raw)) return '';
         const forms = {};
-        const re = /([a-zA-Z-]+)\s*=\s*\?["']?[^"']{0,40}?data:[a-z]+\/[a-z0-9.+-]+;base64,/gi;
-        let m;
-        while ((m = re.exec(raw)) !== null) {
-          const attr = m[1].toLowerCase();
-          forms[attr] = (forms[attr] || 0) + 1;
-        }
-        const keys = Object.keys(forms);
-        if (!keys.length) return 'unrecognised form';
-        return keys.map((k) => k + ' x' + forms[k]).join(', ');
+        let total = 0;
+        _htmlStringsOf(entry).forEach((html) => {
+          let i = 0;
+          for (;;) {
+            const at = html.indexOf('data:', i);
+            if (at < 0) break;
+            i = at + 5;
+            if (!/^[a-z]+\/[a-z0-9.+-]+;base64,/i.test(html.slice(at + 5, at + 45))) continue;
+            total++;
+            // Walk back to the nearest attribute name before this point.
+            const before = html.slice(Math.max(0, at - 80), at);
+            const m = before.match(/([a-zA-Z][a-zA-Z0-9-]*)\s*=\s*["']?[^"'=]*$/);
+            const name = m ? m[1].toLowerCase() : 'unknown';
+            forms[name] = (forms[name] || 0) + 1;
+          }
+        });
+        if (!total) return '';
+        return Object.keys(forms).map((k) => k + ' x' + forms[k]).join(', ');
       } catch (e) { return ''; }
     }
 
