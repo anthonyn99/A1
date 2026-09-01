@@ -34332,15 +34332,13 @@ function renderMarkdown(ctx) {
   var sel = window.getSelection();
   if (sel && sel.rangeCount && !sel.isCollapsed && ed.contains(sel.anchorNode) && ed.contains(sel.focusNode)) {
     var range = sel.getRangeAt(0);
-    var src = sel.toString();
-    if (!src) {   // robust fallback: read the selected text straight from the range
-      var tmpDiv = document.createElement('div');
-      tmpDiv.style.cssText = 'position:fixed;left:-99999px;top:0;white-space:pre-wrap;';
-      tmpDiv.appendChild(range.cloneContents());
-      document.body.appendChild(tmpDiv);
-      src = tmpDiv.innerText || tmpDiv.textContent || '';
-      tmpDiv.remove();
-    }
+    // Work off a clone: parking media mutates the DOM, and the live range has to
+    // stay valid until deleteContents() below.
+    var holder = document.createElement('div');
+    holder.appendChild(range.cloneContents());
+    var keptSel = _docxParkMedia(holder);
+    var src = keptSel.length ? _docxOffscreenText(holder) : sel.toString();
+    if (!src) src = _docxOffscreenText(holder);   // robust fallback
     var rendered = (window._mdToHtml(src) || '').replace(/<p><br><\/p>\s*$/, '').trim();
     if (window._docxMathify) rendered = window._docxMathify(rendered);
     var tmp = document.createElement('div'); tmp.innerHTML = rendered;
@@ -34351,17 +34349,28 @@ function renderMarkdown(ctx) {
     }
     // NOTHING to render in the selection (no markdown produced any elements) → do nothing (item 3).
     if (tmp.children.length === 0) return;
+    _docxRestoreKept(tmp, keptSel);
     var frag = document.createDocumentFragment();
     while (tmp.firstChild) frag.appendChild(tmp.firstChild);
     range.deleteContents(); range.insertNode(frag);
   } else {
-    var raw = ed.innerText.trim();
     // "Rendered" = ANY rendered structure: block tags OR rendered math OR inline formatting/links.
     // (The old check missed rendered math, so a math-only doc got a destructive FULL re-render.)
+    // An attachment chip is media, not rendered markdown — counting it as "rendered"
+    // left an unrendered document that Render then refused to touch.
     var hasRendered = /<(h[1-6]|ul|ol|blockquote|table|pre)\b/i.test(ed.innerHTML) ||
-                      !!ed.querySelector('.docx-math, .katex, strong, b, em, i, u, s, code, mark, sub, sup, a[href]');
-    if (raw.length > 0 && !hasRendered) {
-      ed.innerHTML = window._mdToHtml(raw);   // entirely raw → full render
+                      !!ed.querySelector('.docx-math, .katex, strong, b, em, i, u, s, code, mark, sub, sup, a[href]:not([download])');
+    if (!hasRendered) {
+      // Park images/chips first: the full render rebuilds from text, and media has none.
+      var keptAll = _docxParkMedia(ed);
+      var raw = ed.innerText.trim();
+      if (raw.length > 0) {
+        ed.innerHTML = window._mdToHtml(raw);   // entirely raw → full render
+        _docxRestoreKept(ed, keptAll);
+      } else {
+        _docxRestoreKept(ed, keptAll);          // nothing to render — put the media straight back
+        return;
+      }
     } else {
       // Partially/fully rendered: convert ONLY leftover raw $…$ math / raw tables IN PLACE, never
       // reparse innerHTML (that broke existing formatting). Nothing raw left → do NOTHING (item 2).
@@ -34506,6 +34515,30 @@ function _docxHtmlToMd(root, opts) {
     }
   }
   return kids(root).replace(/\n{3,}/g, '\n\n').replace(/[ \t]+\n/g, '\n').trim();
+}
+// Replace embedded media in `root` with sentinels and hand back the originals.
+// A full re-render rebuilds the document from its TEXT, and an <img>/file chip has
+// no text — which is how Render used to delete every screenshot in the document.
+function _docxParkMedia(root) {
+  var kept = [];
+  Array.prototype.slice.call(root.querySelectorAll('.pg-img-wrap, a[download], img')).forEach(function (el) {
+    if (!el.parentNode) return;
+    if (el.closest('.docx-math')) return;                       // math serializes as $…$
+    if (el.tagName === 'IMG' && el.closest('.pg-img-wrap')) return;   // its wrapper covers it
+    kept.push(el.cloneNode(true));
+    el.parentNode.replaceChild(document.createTextNode(DOCX_KEEP_OPEN + (kept.length - 1) + DOCX_KEEP_CLOSE), el);
+  });
+  return kept;
+}
+// Read an element's rendered text, sentinels and all (innerText needs layout).
+function _docxOffscreenText(el) {
+  var box = document.createElement('div');
+  box.style.cssText = 'position:fixed;left:-99999px;top:0;white-space:pre-wrap;';
+  box.innerHTML = el.innerHTML;
+  document.body.appendChild(box);
+  var t = box.innerText || box.textContent || '';
+  box.remove();
+  return t;
 }
 // Put the set-aside nodes back where their sentinels landed.
 function _docxRestoreKept(container, kept) {

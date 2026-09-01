@@ -1866,7 +1866,11 @@ html.lk-open, body.lk-open {
 }
 #be-notes-grip:hover, #be-notes-grip.bld-resizing { border-color: var(--gold); color: var(--gold2); }
 #be-notes-grip svg { pointer-events: none; }
-@media (pointer: coarse) { #be-notes-grip { width: 36px; height: 36px; right: 5px; bottom: 5px; } }
+@media (pointer: coarse) {
+  #be-notes-grip { width: 36px; height: 36px; right: 5px; bottom: 5px; }
+  /* The handle is taller under a thumb, so the text has to clear more of it. */
+  #be-notes { padding-bottom: 46px !important; }
+}
 
 /* The matchup picker's "N selected" strip. With 73 champions picked it grew
    without limit, pushed the confirm row off the sheet and buried the grid you
@@ -2008,6 +2012,15 @@ html.lk-open, body.lk-open {
   /* A thumb-sized ✕ overhangs its icon, so the icons need room between them or
      each badge lands on top of its neighbour. */
   #be-items-zone, #be-spells-zone { gap: 13px 14px !important; padding: 12px 10px !important; }
+}
+/* A chip already in a zone owns the SIDEWAYS gesture - that is a reorder - and
+   leaves the vertical one to the pane, which still has to scroll. Once the drag
+   arms, the touchmove handler takes both axes. */
+#be-items-zone .bld-drag, #be-spells-zone .bld-drag { touch-action: pan-y; }
+/* The picker's selected portraits double as their own remove buttons. */
+@media (pointer: coarse) {
+  .bld-selchip img { width: 34px !important; height: 34px !important; }
+  .bld-selchip > div { width: 16px !important; height: 16px !important; top: -5px !important; right: -5px !important; }
 }
 .bld-drag.bld-lifted { opacity: .35; }
 /* The chip a finger is currently over during a reorder - the drop lands here. */
@@ -7728,7 +7741,7 @@ function refreshBuildZones() {
     if (!items.length) {
       var hint = document.createElement('span');
       hint.style.cssText = 'font-family:var(--mono);font-size:12px;color:var(--tx3);align-self:center;padding:4px;';
-      hint.innerHTML = _beCoarse() ? ('Tap or hold-drag items '+wrIco('arrowR',12)) : ('Drag or click items '+wrIco('arrowR',12));
+      hint.innerHTML = _beCoarse() ? ('Tap items to add '+wrIco('arrowR',12)) : ('Drag or click items '+wrIco('arrowR',12));
       iz.appendChild(hint);
     } else {
       items.forEach(function(id, i) {
@@ -7763,7 +7776,7 @@ function refreshBuildZones() {
     if (!spells.length) {
       var hint2 = document.createElement('span');
       hint2.style.cssText = 'font-family:var(--mono);font-size:12px;color:var(--tx3);align-self:center;padding:4px;';
-      hint2.innerHTML = _beCoarse() ? ('Tap or hold-drag spells '+wrIco('arrowR',12)) : ('Drag or click spells '+wrIco('arrowR',12));
+      hint2.innerHTML = _beCoarse() ? ('Tap spells to add '+wrIco('arrowR',12)) : ('Drag or click spells '+wrIco('arrowR',12));
       sz.appendChild(hint2);
     } else {
       spells.forEach(function(sid, i) {
@@ -7888,14 +7901,24 @@ function _beTdFollow() {
 
 function _beTdHighlight() {
   var d = _beTd, zone = _beTdZoneAt(d.x, d.y);
-  if (zone === d.overZone) return;
-  if (d.overZone) d.overZone.classList.remove('bld-over');
-  // Only light up a zone this payload can actually land in, so the highlight
-  // is a promise the drop keeps.
-  d.overZone = (zone && zone.dataset.zone === d.zone) ? zone : null;
-  if (d.overZone) {
-    d.overZone.classList.add('bld-over');
-    try { navigator.vibrate(8); } catch(_e) {}
+  if (zone !== d.overZone) {
+    if (d.overZone) d.overZone.classList.remove('bld-over');
+    // Only light up a zone this payload can actually land in, so the highlight
+    // is a promise the drop keeps.
+    d.overZone = (zone && zone.dataset.zone === d.zone) ? zone : null;
+    if (d.overZone) {
+      d.overZone.classList.add('bld-over');
+      try { navigator.vibrate(8); } catch(_e) {}
+    }
+  }
+  // Reordering is aimed at ONE chip, so mark the one the release would swap
+  // with. Without it the whole zone lights up and you are guessing.
+  var chip = _beTdChipAt(d.x, d.y);
+  var next = (chip && chip !== d.src && chip.dataset.zone === d.zone) ? chip : null;
+  if (next !== d.overChip) {
+    if (d.overChip) d.overChip.classList.remove('bld-target');
+    d.overChip = next;
+    if (d.overChip) d.overChip.classList.add('bld-target');
   }
 }
 
@@ -7914,13 +7937,6 @@ function _beTdStart() {
   d.src.classList.add('bld-lifted');
   try { d.src.setPointerCapture(d.id); } catch(_e) {}
   try { navigator.vibrate(18); } catch(_e) {}
-  // Stacked on a phone the zone can be scrolled out of the pane above, which
-  // would leave you dragging toward something you cannot see. Bring it up the
-  // moment the drag arms.
-  if (d.from === 'panel') {
-    var tgt = document.getElementById('be-' + d.zone + '-zone');
-    if (tgt && tgt.scrollIntoView) { try { tgt.scrollIntoView({ block: 'nearest' }); } catch(_e) { tgt.scrollIntoView(); } }
-  }
   _beTdFollow();
   _beTdHighlight();
   if (!_beTdRaf) _beTdRaf = requestAnimationFrame(_beTdAutoScroll);
@@ -7933,6 +7949,7 @@ function _beTdCleanup() {
   if (!d) return;
   if (d.ghost && d.ghost.parentNode) d.ghost.parentNode.removeChild(d.ghost);
   if (d.overZone) d.overZone.classList.remove('bld-over');
+  if (d.overChip) d.overChip.classList.remove('bld-target');
   if (d.src) d.src.classList.remove('bld-lifted');
   _beTd = null;
 }
@@ -7944,15 +7961,24 @@ function _beTdDown(e) {
   var src = e.target.closest('.bld-drag');
   if (!src) return;
   var inZone = src.dataset.zone || null;
+  // On touch a tile in the SELECTOR is a tap, never a drag. Dragging one out of
+  // a grid that scrolls under the same finger was a gesture fighting itself,
+  // and the tap that already added it is the one people reach for. Dragging
+  // survives only INSIDE a zone, where it means reorder. Mouse never gets here
+  // - _beTdDown bails on pointerType 'mouse' above - so desktop drag-to-add is
+  // exactly as it was.
+  if (!inZone) return;
   _beTd = {
-    src: src, id: e.pointerId, dragging: false, overZone: null, ghost: null,
+    src: src, id: e.pointerId, dragging: false, overZone: null, overChip: null, ghost: null,
     x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY,
-    from: inZone ? 'zone' : 'panel',
-    zone: inZone || src.dataset.src,
+    from: 'zone',
+    zone: inZone,
     itemId: src.dataset.id || null,
-    idx: inZone ? parseInt(src.dataset.idx, 10) : -1
+    idx: parseInt(src.dataset.idx, 10)
   };
-  _beTdHold = setTimeout(function(){ _beTdHold = null; if (_beTd) _beTdStart(); }, 300);
+  // Short, because a chip has nothing else a press could mean; a sideways move
+  // arms it sooner still (_beTdMove).
+  _beTdHold = setTimeout(function(){ _beTdHold = null; if (_beTd) _beTdStart(); }, 200);
 }
 
 function _beTdMove(e) {
@@ -7960,8 +7986,17 @@ function _beTdMove(e) {
   if (!d || e.pointerId !== d.id) return;
   d.x = e.clientX; d.y = e.clientY;
   if (!d.dragging) {
-    // Moved before the press landed — that is a scroll, not a grab.
-    if (Math.abs(d.x - d.startX) > 9 || Math.abs(d.y - d.startY) > 9) _beTdCleanup();
+    var dx = Math.abs(d.x - d.startX), dy = Math.abs(d.y - d.startY);
+    // Sideways off a chip is a reorder and nothing else, so it arms at once
+    // rather than waiting the press out — that wait is what made reordering by
+    // finger feel like it did not work.
+    if (dx > 8 && dx > dy) {
+      clearTimeout(_beTdHold); _beTdHold = null;
+      _beTdStart();
+      return;
+    }
+    // Straight down before the press landed — that is a scroll, not a grab.
+    if (dy > 9) _beTdCleanup();
     return;
   }
   _beTdFollow();
@@ -7973,13 +8008,9 @@ function _beTdUp(e) {
   if (!d) return;
   if (e && e.pointerId != null && e.pointerId !== d.id) return;
   var dropped = d.dragging ? d.overZone : null;
-  var from = d.from, zone = d.zone, itemId = d.itemId, fromIdx = d.idx;
+  var from = d.from, zone = d.zone, fromIdx = d.idx;
   var x = d.x, y = d.y;
   var wasDrag = d.dragging;
-  // A press that armed but never travelled is someone who simply held too long,
-  // not someone who aimed at nothing — the click is about to be swallowed, so
-  // honour it as the tap it was rather than leaving the gesture dead.
-  var heldStill = Math.abs(x - d.startX) < 12 && Math.abs(y - d.startY) < 12;
   _beTdCleanup();
   if (!wasDrag) return;
   // The press became a drag, so the click it would otherwise fire on release
@@ -7988,11 +8019,7 @@ function _beTdUp(e) {
   setTimeout(function(){ _beTdSuppress = false; }, 350);
   if (!buildEditorData) return;
 
-  if (from === 'panel') {
-    if (dropped || heldStill) addToBuild(zone, itemId);
-    return;
-  }
-  if (!dropped) return;
+  if (from !== 'zone' || !dropped) return;
   // Reorder inside the zone. Deliberately the SAME two splices attachZoneDrag
   // makes on a mouse drop, index for index — a finger and a mouse landing on
   // the same chip must produce the same order, and a subtly different rule for
@@ -8034,6 +8061,162 @@ function beEnableTouchDrag() {
   document.addEventListener('touchmove', function(e){
     if (_beTd && _beTd.dragging && e.cancelable) e.preventDefault();
   }, { passive: false });
+}
+
+
+// ══════════════════════════════════════
+// RESIZABLE SPLIT — build editor
+// ══════════════════════════════════════
+// One divider, two axes: side by side above 900px, stacked below it. Rather
+// than branch the layout in JS, a drag writes ONE custom property per axis
+// (--be-split / --be-vsplit) and the CSS decides which it is reading — so the
+// same handler serves a mouse, a tablet and a phone, and rotating between them
+// keeps a sensible position on each. Both are remembered per device.
+var _beRz = null;
+// Floors, not guesses: below this a pane cannot lay its own content out, so the
+// drag stops there rather than collapsing one side to a sliver.
+var BE_MIN_PCT = 22, BE_MAX_PCT = 78;
+
+function _beRzVertical() {
+  var sp = document.getElementById('be-split');
+  return !!sp && getComputedStyle(sp).flexDirection === 'column';
+}
+function _beRzClamp(p) { return Math.max(BE_MIN_PCT, Math.min(BE_MAX_PCT, p)); }
+
+function beApplySplitPrefs() {
+  var sp = document.getElementById('be-split');
+  if (!sp) return;
+  var h, v;
+  try { h = parseFloat(localStorage.getItem('wrBeSplitH')); v = parseFloat(localStorage.getItem('wrBeSplitV')); } catch(_e) {}
+  if (h >= BE_MIN_PCT && h <= BE_MAX_PCT) sp.style.setProperty('--be-split', h + '%');
+  if (v >= BE_MIN_PCT && v <= BE_MAX_PCT) sp.style.setProperty('--be-vsplit', v + '%');
+}
+
+function _beRzApply(clientX, clientY) {
+  var sp = document.getElementById('be-split');
+  if (!sp || !_beRz) return;
+  var r = sp.getBoundingClientRect();
+  if (_beRzVertical()) {
+    if (r.height < 60) return;
+    // --be-vsplit sizes the BOTTOM pane, so it is measured from the bottom up.
+    var v = _beRzClamp((r.bottom - clientY) / r.height * 100);
+    sp.style.setProperty('--be-vsplit', v.toFixed(2) + '%');
+    _beRz.saveKey = 'wrBeSplitV'; _beRz.savePct = v;
+  } else {
+    if (r.width < 60) return;
+    var h = _beRzClamp((clientX - r.left) / r.width * 100);
+    sp.style.setProperty('--be-split', h.toFixed(2) + '%');
+    _beRz.saveKey = 'wrBeSplitH'; _beRz.savePct = h;
+  }
+}
+
+function _beRzMove(e) {
+  if (!_beRz) return;
+  _beRzApply(e.clientX, e.clientY);
+  if (e.cancelable) e.preventDefault();
+}
+
+function _beRzEnd() {
+  if (!_beRz) return;
+  if (_beRz.el) _beRz.el.classList.remove('bld-resizing');
+  document.body.style.userSelect = _beRz.prevSelect || '';
+  document.body.style.cursor = _beRz.prevCursor || '';
+  if (_beRz.saveKey) { try { localStorage.setItem(_beRz.saveKey, _beRz.savePct.toFixed(2)); } catch(_e) {} }
+  _beRz = null;
+  window.removeEventListener('pointermove', _beRzMove);
+  window.removeEventListener('pointerup', _beRzEnd, true);
+  window.removeEventListener('pointercancel', _beRzEnd, true);
+}
+
+function beEnableSplitResize() {
+  var el = document.getElementById('be-resizer');
+  if (!el) return;
+  beApplySplitPrefs();
+  el.setAttribute('aria-orientation', _beRzVertical() ? 'horizontal' : 'vertical');
+  el.addEventListener('pointerdown', function(e) {
+    if (e.button > 0) return;
+    _beRz = { el: el, id: e.pointerId,
+              prevSelect: document.body.style.userSelect,
+              prevCursor: document.body.style.cursor };
+    el.classList.add('bld-resizing');
+    // Once the drag starts the whole window is the surface, so a fast pointer
+    // can outrun the 11px strip without the gesture falling on the floor.
+    try { el.setPointerCapture(e.pointerId); } catch(_e) {}
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = _beRzVertical() ? 'row-resize' : 'col-resize';
+    window.addEventListener('pointermove', _beRzMove, { passive: false });
+    window.addEventListener('pointerup', _beRzEnd, true);
+    window.addEventListener('pointercancel', _beRzEnd, true);
+    e.preventDefault();
+  });
+  // Back to even — the quickest way out of a position dragged too far.
+  el.addEventListener('dblclick', function() {
+    var sp = document.getElementById('be-split');
+    if (!sp) return;
+    var vert = _beRzVertical();
+    sp.style.removeProperty(vert ? '--be-vsplit' : '--be-split');
+    try { localStorage.removeItem(vert ? 'wrBeSplitV' : 'wrBeSplitH'); } catch(_e) {}
+  });
+  el.addEventListener('keydown', function(e) {
+    var sp = document.getElementById('be-split');
+    if (!sp) return;
+    var vert = _beRzVertical();
+    var dir = vert ? ({ ArrowUp: 1, ArrowDown: -1 })[e.key]
+                   : ({ ArrowLeft: -1, ArrowRight: 1 })[e.key];
+    if (!dir) return;
+    var prop = vert ? '--be-vsplit' : '--be-split';
+    var cur = parseFloat(sp.style.getPropertyValue(prop)) || (vert ? 46 : 50);
+    var next = _beRzClamp(cur + dir * 3);
+    sp.style.setProperty(prop, next.toFixed(2) + '%');
+    try { localStorage.setItem(vert ? 'wrBeSplitV' : 'wrBeSplitH', next.toFixed(2)); } catch(_e) {}
+    e.preventDefault();
+  });
+  // Crossing 900px swaps the divider's axis; the label has to follow or a
+  // screen reader announces the wrong one.
+  if (!window._beRzOrientWired) {
+    window._beRzOrientWired = true;
+    window.addEventListener('resize', function() {
+      var r = document.getElementById('be-resizer');
+      if (r) r.setAttribute('aria-orientation', _beRzVertical() ? 'horizontal' : 'vertical');
+    });
+  }
+}
+
+// ── Notes resize handle ──
+// Same pointer contract as the divider, with a floor and a ceiling so the box
+// can neither vanish nor swallow the pane it lives in.
+var _beNr = null;
+
+function _beNrMove(e) {
+  var ta = document.getElementById('be-notes');
+  if (!_beNr || !ta) return;
+  ta.style.height = Math.max(80, Math.min(700, _beNr.startH + (e.clientY - _beNr.startY))) + 'px';
+  if (e.cancelable) e.preventDefault();
+}
+
+function _beNrEnd() {
+  var grip = document.getElementById('be-notes-grip');
+  if (grip) grip.classList.remove('bld-resizing');
+  _beNr = null;
+  window.removeEventListener('pointermove', _beNrMove);
+  window.removeEventListener('pointerup', _beNrEnd, true);
+  window.removeEventListener('pointercancel', _beNrEnd, true);
+}
+
+function beEnableNotesResize() {
+  var grip = document.getElementById('be-notes-grip');
+  var ta = document.getElementById('be-notes');
+  if (!grip || !ta) return;
+  grip.addEventListener('pointerdown', function(e) {
+    if (e.button > 0) return;
+    _beNr = { id: e.pointerId, startY: e.clientY, startH: ta.offsetHeight };
+    grip.classList.add('bld-resizing');
+    try { grip.setPointerCapture(e.pointerId); } catch(_e) {}
+    window.addEventListener('pointermove', _beNrMove, { passive: false });
+    window.addEventListener('pointerup', _beNrEnd, true);
+    window.addEventListener('pointercancel', _beNrEnd, true);
+    e.preventDefault();
+  });
 }
 
 
