@@ -436,6 +436,11 @@
   // path and there must not be one; that is the price of putting ciphertext in
   // a public repository.
   var _key = null, _keyPass = null;
+  // Derived keys cached by passphrase+salt+iterations. A backup is only useful
+  // if ANOTHER device can read it, and the salt is per device, so decryption
+  // must derive against the salt stored in the envelope rather than the local
+  // one. Without this cache that would mean a 600k-iteration PBKDF2 per object.
+  var _keyCache = {};
 
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function lsSet(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } }
@@ -449,12 +454,20 @@
     return s;
   }
 
+  async function deriveKeyWith(pass, saltB64, iter) {
+    var ck = saltB64 + '|' + iter;
+    if (_keyCache[ck] && _keyCache[ck].pass === pass) return _keyCache[ck].key;
+    var base = await crypto.subtle.importKey('raw', _enc.encode(pass), 'PBKDF2', false, ['deriveKey']);
+    var key = await crypto.subtle.deriveKey(
+      { name: 'PBKDF2', salt: unb64(saltB64), iterations: iter, hash: 'SHA-256' },
+      base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+    _keyCache[ck] = { pass: pass, key: key };
+    return key;
+  }
+
   async function deriveKey(pass) {
     if (_key && _keyPass === pass) return _key;
-    var base = await crypto.subtle.importKey('raw', _enc.encode(pass), 'PBKDF2', false, ['deriveKey']);
-    _key = await crypto.subtle.deriveKey(
-      { name: 'PBKDF2', salt: unb64(getSalt()), iterations: A1B.PBKDF2_ITER, hash: 'SHA-256' },
-      base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+    _key = await deriveKeyWith(pass, getSalt(), A1B.PBKDF2_ITER);
     _keyPass = pass;
     return _key;
   }
@@ -498,8 +511,15 @@
   }
 
   async function decryptEnv(env) {
-    var key = await activeKey();
-    if (!key) throw new Error('locked');
+    var pass = lsGet(A1B.PASS_KEY);
+    if (!pass) throw new Error('locked');
+    // Derive against the envelope's OWN salt and iteration count, not this
+    // device's. Salts are per device, so using the local one would make every
+    // backup readable only on the machine that wrote it — and a backup only
+    // one device can read is not a backup.
+    var kdf = env.kdf || {};
+    var key = await deriveKeyWith(pass, kdf.salt || getSalt(),
+                                  kdf.iter || A1B.PBKDF2_ITER);
     var raw = new Uint8Array(await crypto.subtle.decrypt(
       { name: 'AES-GCM', iv: unb64(env.iv) }, key, unb64(env.ct)));
     var body = env.gz ? await gunzipRaw(raw) : raw;
