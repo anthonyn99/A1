@@ -25,6 +25,11 @@
 <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js" crossorigin>
 <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js" crossorigin>
 <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.12.0/firebase-app-check.js" crossorigin>
+<!-- Backup module. A classic script so any page can load it, module or not;
+     it defines window.A1Backup and then does NOTHING until an app calls
+     register(). Placed here so it is defined before the deferred Firebase
+     module runs. See backup.js for the full contract. -->
+<script src="backup.js"></script>
 <!-- ── Cache-Control: forces browser to always revalidate, never serve stale GitHub Pages assets ── -->
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
