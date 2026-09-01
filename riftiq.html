@@ -6688,12 +6688,9 @@ function renderBuildsHome() {
   var champIds = buildsOrder.filter(function(k){ return builds[k]; });
   el.innerHTML =
     '<div style="display:flex;flex-direction:column;height:100%;overflow:hidden;">' +
-      '<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px 12px;border-bottom:1px solid var(--bd);flex-shrink:0;">' +
-        '<div style="display:flex;align-items:center;gap:10px;">' +
-          '<div style="font-family:var(--head);font-size:26px;font-weight:800;letter-spacing:-0.3px;color:var(--tx);">My Builds</div>' +
-          '<div id="builds-sync-status" style="font-family:var(--mono);font-size:12px;letter-spacing:1px;color:var(--tx3);"></div>' +
-        '</div>' +
-        '<button id="new-champ-btn" class="wr-cta" style="height:34px;padding:0 18px;background:transparent;border:1px solid rgba(192,174,234,.45);border-radius:8px;color:var(--gold2);font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:0.2px;cursor:pointer;">+ New Champion</button>' +
+      '<div class="bld-pagehd" style="padding:16px 24px 12px;">' +
+        '<div style="font-family:var(--head);font-size:26px;font-weight:800;letter-spacing:-0.3px;color:var(--tx);">My Builds</div>' +
+        '<button id="new-champ-btn" class="wr-cta bld-pagehd-spacer" style="height:38px;padding:0 18px;background:transparent;border:1px solid rgba(192,174,234,.45);border-radius:8px;color:var(--gold2);font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:0.2px;cursor:pointer;white-space:nowrap;">+ New Champion</button>' +
       '</div>' +
       '<div id="builds-home-list" style="flex:1;overflow-y:auto;padding:16px 24px;">' +
         (champIds.length ? '' : '<div style="text-align:center;padding:60px 20px;color:var(--tx3);font-family:var(--mono);font-size:13px;">No builds yet.<br><br>Click <strong>+ New Champion</strong> to start.</div>') +
@@ -6876,11 +6873,11 @@ function renderChampBuildPage(cid) {
   var el = document.getElementById('builds-panel');
   el.innerHTML =
     '<div style="display:flex;flex-direction:column;height:100%;overflow:hidden;">' +
-      '<div style="display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--bd);flex-shrink:0;">' +
-        '<button id="cbp-back" class="btn-ghost" style="height:32px;padding:0 12px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx2);font-family:var(--mono);font-size:12px;cursor:pointer;">'+wrIco('back',12)+' Back</button>' +
-        '<img src="'+DDRAGON+'/img/champion/'+cid+'.png" style="width:40px;height:40px;border-radius:8px;">' +
-        '<span style="font-family:var(--head);font-size:18px;font-weight:800;color:var(--tx);">'+(champ?champ.name:cid)+'</span>' +
-        '<button id="cbp-new" class="wr-cta" style="margin-left:auto;height:32px;padding:0 16px;background:transparent;border:1px solid rgba(192,174,234,.45);border-radius:8px;color:var(--gold2);font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;">+ New Build</button>' +
+      '<div class="bld-pagehd" style="padding:14px 20px;">' +
+        '<button id="cbp-back" class="btn-ghost" style="height:38px;padding:0 14px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx2);font-family:var(--mono);font-size:12px;cursor:pointer;">'+wrIco('back',12)+' Back</button>' +
+        '<img src="'+DDRAGON+'/img/champion/'+cid+'.png" style="width:40px;height:40px;border-radius:8px;flex-shrink:0;">' +
+        '<span style="font-family:var(--head);font-size:18px;font-weight:800;color:var(--tx);min-width:0;overflow-wrap:anywhere;">'+(champ?champ.name:cid)+'</span>' +
+        '<button id="cbp-new" class="wr-cta bld-pagehd-spacer" style="height:38px;padding:0 16px;background:transparent;border:1px solid rgba(192,174,234,.45);border-radius:8px;color:var(--gold2);font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">+ New Build</button>' +
       '</div>' +
       '<div id="champ-builds-list" style="flex:1;overflow-y:auto;padding:20px;">' +
         (!champBuilds.length ? '<div style="text-align:center;padding:40px;color:var(--tx3);font-family:var(--mono);font-size:12px;">No builds yet. Click <strong>+ New Build</strong></div>' : '') +
