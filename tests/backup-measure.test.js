@@ -208,6 +208,37 @@ t('a refusal leaves the previous snapshot untouched',
   /The previous backup is untouched/.test(cap));
 
 
+section('A stopped backup announces itself');
+
+// Every incident in this project has been silent. A backup system that quietly
+// stops is worse than none, because it is trusted. Neither person can read a
+// console — Veda cannot open one on a phone at all — so a failure has to reach
+// the same visible alert the sync layer already uses.
+const wd = SRC.slice(SRC.indexOf('var STALE_HOURS'), SRC.indexOf('async function report'));
+t('a staleness threshold is defined', /var STALE_HOURS = 48;/.test(wd));
+t('"set up but nothing ever saved" counts as a failure',
+  /nothing has ever been saved/.test(wd),
+  'Capture failing from the start looks identical to being idle unless this is checked.');
+t('an old last-backup counts as a failure', /the last backup on this device is/.test(wd));
+t('an unreadable vault counts as a failure',
+  /vault unreadable/.test(wd) && /vault error/.test(wd));
+t('failures reach the visible alert, not just the console',
+  /window\._fbSyncAlert/.test(wd) && /console\.error\('\[A1Backup\] NOT BACKING UP/.test(wd));
+t('the alert says data sync itself is unaffected',
+  /still syncing normally/.test(wd),
+  'Otherwise a backup warning reads as "you are losing data right now".');
+t('it is rate-limited so it cannot become noise',
+  /NAG_EVERY_MS/.test(wd) && /_lastNag/.test(wd));
+t('the first check is delayed past a slow cold start',
+  /setTimeout\(function \(\) \{ healthCheckLoud\(\)[\s\S]{0,40}?\}, 120000\)/.test(SRC),
+  'A cold start must not be mistaken for a failure.');
+t('it re-checks hourly', /CHECK_EVERY_MS = 3600000/.test(SRC));
+t('the watchdog starts when an app registers',
+  /try \{ startWatchdog\(\); \} catch \(e\) \{\}/.test(SRC));
+t('a disabled or unconfigured device is not nagged',
+  /if \(killed\(\)\) return \{ ok: true, why: 'disabled' \};/.test(wd) &&
+  /if \(!setupDone\(\)\) return \{ ok: true, why: 'not set up' \};/.test(wd));
+
 section('The listener taps are wired and cannot alter app behaviour');
 
 // Every document Index owns that has a live listener should be tapped, since

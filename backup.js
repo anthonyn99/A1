@@ -86,6 +86,7 @@
       fs: opts.fs
     };
     try { scheduleSetupPrompt(); } catch (e) {}
+    try { startWatchdog(); } catch (e) {}
     return true;
   }
 
@@ -853,6 +854,99 @@
     }, 1500);
   }
 
+  /* ── Stale-backup watchdog ────────────────────────────────────────────────
+   *
+   * Every data incident in this project has been SILENT. The goals that
+   * vanished on 2026-08-25, the archived days, the reclaim that hung sync —
+   * none of them announced themselves; they were noticed days later, by which
+   * point the evidence was gone.
+   *
+   * A backup system that quietly stops is worse than none, because it is
+   * trusted. So this checks itself and says so out loud. Neither person can
+   * read a console — Veda has no way to open one on a phone at all — which is
+   * why this reports through the same visible alert the sync layer already
+   * uses rather than console.warn.
+   * ===================================================================== */
+
+  var STALE_HOURS = 48;
+  var CHECK_EVERY_MS = 3600000;          // hourly
+  var _lastNag = 0;
+  var NAG_EVERY_MS = 6 * 3600000;        // at most once every 6 hours
+
+  async function healthCheck(opts) {
+    opts = opts || {};
+    if (killed()) return { ok: true, why: 'disabled' };
+    if (!setupDone()) return { ok: true, why: 'not set up' };
+
+    var st;
+    try { st = await status(); }
+    catch (e) { return { ok: false, why: 'vault unreadable: ' + (e && (e.message || e)) }; }
+
+    if (st.vaultError) return { ok: false, why: 'vault error: ' + st.vaultError };
+
+    // No snapshot at all, despite being set up and having seen documents, means
+    // capture is failing rather than merely idle.
+    if (st.lastSnapshot == null) {
+      return { ok: false, why: 'backups are on but nothing has ever been saved' };
+    }
+    if (st.ageHours != null && st.ageHours > STALE_HOURS) {
+      return { ok: false, why: 'the last backup on this device is ' +
+        Math.round(st.ageHours) + ' hours old' };
+    }
+    return { ok: true, at: st.lastSnapshot, ageHours: st.ageHours, docs: st.observed };
+  }
+
+  async function healthCheckLoud(opts) {
+    var r = await healthCheck(opts);
+    if (r.ok) return r;
+    var now = Date.now();
+    if (!opts || !opts.force) {
+      if (now - _lastNag < NAG_EVERY_MS) return r;      // do not become noise
+    }
+    _lastNag = now;
+    console.error('[A1Backup] NOT BACKING UP — ' + r.why);
+    try {
+      if (window._fbSyncAlert) {
+        window._fbSyncAlert('Backup',
+          'Backups have stopped on this device — ' + r.why + '.\n\n' +
+          'Your data is still syncing normally; this is about the extra local ' +
+          'copy. Reload Index and it will usually start again.');
+      }
+    } catch (e) {}
+    return r;
+  }
+
+  function startWatchdog() {
+    // First check well after load, so a slow cold start is never mistaken for
+    // a failure, then hourly.
+    setTimeout(function () { healthCheckLoud().catch(function () {}); }, 120000);
+    setInterval(function () { healthCheckLoud().catch(function () {}); }, CHECK_EVERY_MS);
+  }
+
+  // A human-readable summary, for people rather than for code. Exposed so it
+  // can be wired to a button later without touching this file again.
+  async function report() {
+    var st = await status();
+    var h = await healthCheck();
+    var lines = [
+      st.locked ? 'Backups: OFF (no passphrase set on this device)'
+                : 'Backups: ON' + (st.killed ? ' but PAUSED' : ''),
+      'Last backup: ' + (st.lastSnapshot
+        ? new Date(st.lastSnapshot).toLocaleString() +
+          '  (' + (st.ageHours < 1 ? 'just now' : Math.round(st.ageHours) + 'h ago') + ')'
+        : 'never'),
+      'Saved snapshots: ' + (st.snapshots || 0),
+      'Documents watched: ' + st.observed,
+      'Stored pieces: ' + (st.objects || 0),
+      '',
+      h.ok ? 'Healthy.' : 'PROBLEM: ' + h.why
+    ];
+    var text = lines.join('\n');
+    try { if (window.uiAlert) await window.uiAlert(text, { title: 'Backup status' }); } catch (e) {}
+    console.log(text);
+    return st;
+  }
+
   window.A1Backup = {
     version: A1B.SCHEMA,
     constants: A1B,
@@ -862,6 +956,8 @@
     // Phase 1 — capture and local vault.
     unlock: unlock,                 // enter the passphrase once per device
     setup: promptSetup,             // the in-UI first-run dialog
+    health: healthCheck,            // quiet: returns {ok, why}
+    report: report,                 // human-readable, shows a dialog
     isSetUp: setupDone,
     profile: mainProfile,
     observe: observe,               // apps feed documents their listeners deliver
