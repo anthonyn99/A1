@@ -34498,7 +34498,9 @@ var DOCX_COLORS = [
   ['#5DAF6D', 'Green'], ['#22D3EE', 'Cyan'], ['#6DA8F5', 'Blue'], ['#A78BDA', 'Purple']
 ];
 function wireColorShortcuts(ctx) {
-  var input = ctx.tbEl.querySelector('[id$="-page-color-pick"]');
+  // Any editor's colour input, not just the Page one (the Journal editor's is
+  // tj-je-color-pick); the lookup is already scoped to this context's toolbar.
+  var input = ctx.tbEl.querySelector('[id$="-color-pick"]');
   if (!input) return;
   var btn = document.createElement('button');
   btn.className = 'pt-btn docx-color-btn';
