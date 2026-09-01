@@ -740,7 +740,11 @@
     _internals: {
       JOURNALS: JOURNALS, SINGLETONS: SINGLETONS,
       entryIds: entryIds, imageKeys: imageKeys,
-      bytesOf: bytesOf, gzipBytes: gzipBytes
+      bytesOf: bytesOf, gzipBytes: gzipBytes,
+      // Phase 1 pieces that can be tested without a browser.
+      encryptStr: encryptStr, decryptEnv: decryptEnv,
+      sha256Hex: sha256Hex, shrinkOk: shrinkOk,
+      gatesOpen: gatesOpen, killed: killed
     }
   };
 })();
