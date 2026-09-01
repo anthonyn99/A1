@@ -118,6 +118,29 @@ t('archived days are read-only in the UI',
   (HTML.match(/vdArchivedRef\.current\[k\]\)\{if\(window\._planReadOnlyNudge\)/g) || []).length >= 2,
   'Both tog() and del() must refuse edits to archived day-keys.');
 
+section('The reclaim converges (2026-09-01 regression)');
+
+// Reclaiming pulls a day out of the sidecar back into the live document. The
+// sidecar is NEVER pruned, so without remembering that a day was already
+// reclaimed, the next load re-flags it from the sidecar, reclaims it again and
+// pushes the whole ~640 KB document again — on every page load, on every
+// device, forever, racing whatever the user is typing. The reported symptom was
+// "edits hang on Syncing and a refresh loses my changes".
+['td6_reclaimedKeys', 'td_reclaimedKeys'].forEach((k) => {
+  t('a persisted reclaimed-set exists (' + k + ')',
+    HTML.includes('thLoadArchivedKeys("' + k + '")') &&
+    HTML.includes('thSaveArchivedKeys("' + k + '",reclaimedEver)'),
+    'Without this the reclaim never converges.');
+});
+t('the sidecar scan skips keys already reclaimed',
+  (HTML.match(/if\(!reclaimedEver\[k\]\)nextArchived\[k\]=true;/g) || []).length === 2,
+  'Re-flagging a reclaimed day is what made the push repeat on every load.');
+t('a reclaim is recorded so it is not repeated',
+  (HTML.match(/reclaimed\.forEach\(k=>\{reclaimedEver\[k\]=true;\}\);/g) || []).length === 2);
+t('the push only happens when something was actually reclaimed',
+  (HTML.match(/if\(reclaimed\.length\)\{reclaimed\.sort\(\);(fbPush|vdFbPush)\(\);\}/g) || []).length === 2,
+  'A push with nothing to say is a large write for no reason.');
+
 section("Static: the same fix is ported to Tony's TaskHub");
 
 t('Tony tracks archived day-keys in a PERSISTED ref',
