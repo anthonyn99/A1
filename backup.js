@@ -681,6 +681,9 @@
     await vPut('meta', 'lastSnapshot', manifest.at);
     _lastSummary = { docs: manifest.docs, bytes: manifest.bytes };
     _dirty = false;
+    // Mirror off-device, debounced. Deliberately not awaited: the local vault
+    // is the copy that must never be delayed by a network round trip.
+    try { schedulePush(); } catch (e) {}
     return { at: manifest.at, docs: paths.length, stored: stored, reused: reused,
              bytes: manifest.bytes };
   }
@@ -735,6 +738,10 @@
       out.ageHours = out.lastSnapshot
         ? +((Date.now() - out.lastSnapshot) / 3600000).toFixed(1) : null;
       out.stale = out.ageHours == null || out.ageHours > 48;
+      out.lastPushedAt = await vGet('meta', 'lastPushedAt') || null;
+      out.pushedOffDevice = out.lastPushedAt != null && String(out.lastPushedAt) === String(out.lastSnapshot);
+      out.pushesToday = pushesToday();
+      out.device = deviceSlug();
     } catch (e) { out.vaultError = String(e && (e.message || e)); }
     return out;
   }
@@ -854,6 +861,177 @@
     }, 1500);
   }
 
+  /* ── Off-device push ──────────────────────────────────────────────────────
+   *
+   * The vault so far lives only in this device's IndexedDB. That survives
+   * Firebase losing the data, but not the device being lost, wiped or left in
+   * a drawer — and no device can see whether any OTHER device is still backing
+   * up, which is how a silent failure hides.
+   *
+   * What goes over the wire is what is already in the vault: envelopes that
+   * were encrypted here, against a passphrase the Worker never receives. The
+   * Worker stores ciphertext and refuses anything else.
+   *
+   * Objects are content-addressed, so only genuinely NEW pieces are uploaded.
+   * A device that has not changed anything sends one small manifest and no
+   * objects at all — which is what keeps this inside KV's ~1000 writes/day on
+   * the free plan without ever having to think about it.
+   * ===================================================================== */
+
+  var WORKER = 'https://index-backups.av1.workers.dev';
+
+  function deviceSlug() {
+    // Reuse the identity the app already has (Plans stamps these) so a device
+    // is called the same thing everywhere, rather than inventing a second
+    // scheme that has to be reconciled later.
+    var id = lsGet('pl_device_id') || lsGet('a1b_device_id') || '';
+    if (!id) {
+      id = Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+      lsSet('a1b_device_id', id);
+    }
+    var nm = lsGet('pl_device_name') || '';
+    if (!nm) {
+      var ua = navigator.userAgent || '';
+      nm = /iPhone/i.test(ua) ? 'iPhone' : /iPad/i.test(ua) ? 'iPad'
+         : /Android/i.test(ua) ? 'Android' : /Mac/i.test(ua) ? 'Mac'
+         : /Windows/i.test(ua) ? 'PC' : 'device';
+    }
+    var slug = String(nm).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    return (slug || 'device') + '-' + String(id).replace(/[^A-Za-z0-9]/g, '').slice(0, 6);
+  }
+
+  // Daily push budget. KV's free plan allows ~1000 writes/day across
+  // everything, so each device holds itself well under a share of that. The
+  // counter is per local day and is surfaced in status(), because a cap that
+  // silently stops a backup is the failure this whole system exists to avoid.
+  function pushDayKey() { var d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
+  function pushesToday() {
+    var raw = lsGet('a1b_push_count') || '';
+    var parts = raw.split('|');
+    return parts[0] === pushDayKey() ? (parseInt(parts[1], 10) || 0) : 0;
+  }
+  function notePush() { lsSet('a1b_push_count', pushDayKey() + '|' + (pushesToday() + 1)); }
+
+  // Connections people pay for by the megabyte are not the place to mirror a
+  // backup. The local vault already has it; this can wait for wifi.
+  function metered() {
+    try {
+      var c = navigator.connection;
+      if (!c) return false;
+      return !!c.saveData || c.type === 'cellular' || /^(slow-2g|2g)$/.test(c.effectiveType || '');
+    } catch (e) { return false; }
+  }
+
+  async function acHeaders() {
+    var h = { 'Content-Type': 'application/json' };
+    try {
+      if (window._acToken) {
+        var t = await window._acToken();
+        if (t) h['X-Firebase-AppCheck'] = t;
+      }
+    } catch (e) {}
+    return h;
+  }
+
+  var _pushTimer = null, _pushing = false;
+
+  async function pushNow(opts) {
+    opts = opts || {};
+    if (killed()) return { skipped: 'kill switch' };
+    if (!setupDone()) return { skipped: 'locked' };
+    if (_pushing) return { skipped: 'already pushing' };
+    if (!navigator.onLine) return { skipped: 'offline' };
+    if (!opts.force && metered()) return { skipped: 'metered connection' };
+    if (!opts.force && pushesToday() >= A1B.MAX_PUSH_PER_DAY) {
+      return { skipped: 'daily push cap reached (' + A1B.MAX_PUSH_PER_DAY + ')' };
+    }
+
+    var snaps = await listSnapshots();
+    if (!snaps.length) return { skipped: 'nothing captured yet' };
+    var at = snaps[0];
+    var man = await vGet('snapshots', String(at));
+    if (!man) return { skipped: 'snapshot missing' };
+    if (!opts.force && String(await vGet('meta', 'lastPushedAt') || '') === String(at)) {
+      return { skipped: 'already pushed' };
+    }
+
+    _pushing = true;
+    try {
+      var headers = await acHeaders();
+      // Hashes this device has already seen accepted. Without it every push
+      // would re-offer every object and turn a quiet no-change push into two
+      // dozen requests.
+      var sent = (await vGet('meta', 'pushedObjects')) || {};
+      var hashes = Object.keys(man.docs).map(function (k) { return man.docs[k]; });
+      var uploaded = 0, deduped = 0, failed = 0;
+
+      for (var i = 0; i < hashes.length; i++) {
+        var h = hashes[i];
+        if (sent[h]) { deduped++; continue; }
+        var env = await vGet('objects', h);
+        if (!env) { failed++; continue; }
+        var r = await fetch(WORKER + '/o/' + h, {
+          method: 'PUT', headers: headers, body: JSON.stringify(env)
+        });
+        if (!r.ok) { failed++; continue; }
+        sent[h] = 1;
+        uploaded++;
+      }
+      await vPut('meta', 'pushedObjects', sent);
+
+      // The manifest is encrypted too — it lists document paths, which is
+      // structure worth not publishing. The document COUNT rides outside so the
+      // health view can show it without anyone decrypting anything.
+      var envMan = await encryptStr(JSON.stringify(man));
+      envMan.docs = Object.keys(man.docs).length;
+      envMan.at = at;
+      var mr = await fetch(WORKER + '/s/' + deviceSlug(), {
+        method: 'PUT', headers: headers, body: JSON.stringify(envMan)
+      });
+      if (!mr.ok) {
+        var why = mr.status === 401 ? 'not authorised (App Check)' : 'HTTP ' + mr.status;
+        return { error: why, uploaded: uploaded, failed: failed };
+      }
+      notePush();
+      await vPut('meta', 'lastPushedAt', at);
+      return { at: at, uploaded: uploaded, deduped: deduped, failed: failed,
+               device: deviceSlug(), pushesToday: pushesToday() };
+    } catch (e) {
+      return { error: String(e && (e.message || e)) };
+    } finally {
+      _pushing = false;
+    }
+  }
+
+  function schedulePush() {
+    if (_pushTimer) clearTimeout(_pushTimer);
+    _pushTimer = setTimeout(function () {
+      pushNow().catch(function () {});
+    }, A1B.PUSH_DEBOUNCE_MS);
+  }
+
+  // What every device has, so one device can tell that ANOTHER has gone quiet.
+  // That cross-device view is the whole reason this leaves the machine.
+  async function fleet() {
+    try {
+      var r = await fetch(WORKER + '/index', { headers: await acHeaders() });
+      if (!r.ok) return { ok: false, error: 'HTTP ' + r.status };
+      var j = await r.json();
+      var now = Date.now();
+      var out = { ok: true, me: deviceSlug(), devices: [] };
+      Object.keys(j.devices || {}).forEach(function (d) {
+        var v = j.devices[d];
+        out.devices.push({
+          device: d, at: v.at, docs: v.docs, bytes: v.bytes,
+          ageHours: +((now - v.at) / 3600000).toFixed(1),
+          stale: (now - v.at) > 48 * 3600000
+        });
+      });
+      out.devices.sort(function (a, b) { return b.at - a.at; });
+      return out;
+    } catch (e) { return { ok: false, error: String(e && (e.message || e)) }; }
+  }
+
   /* ── Stale-backup watchdog ────────────────────────────────────────────────
    *
    * Every data incident in this project has been SILENT. The goals that
@@ -956,6 +1134,9 @@
     // Phase 1 — capture and local vault.
     unlock: unlock,                 // enter the passphrase once per device
     setup: promptSetup,             // the in-UI first-run dialog
+    push: pushNow,                  // mirror to the worker now
+    fleet: fleet,                   // what every device has, from the worker
+    device: deviceSlug,
     health: healthCheck,            // quiet: returns {ok, why}
     report: report,                 // human-readable, shows a dialog
     isSetUp: setupDone,
