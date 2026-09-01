@@ -7505,17 +7505,18 @@ function App(){
     return()=>clearTimeout(t);
   },[setDataLocalOnly]);
 
-  // ── One-time un-archive ─────────────────────────────────────────────────────
-  // The soft-byte pass used to fire at 600KB, which moved YEARS of day-keys into
-  // the sidecar docs even though they were nowhere near the age cutoff. Nothing
-  // was lost — _fbArchiveDays writes the sidecar and only prunes on a server ack
-  // — but _fbLoadArchive was wired to no UI, so the history was invisible and
-  // read as catastrophic data loss.
-  //
-  // Pull it all back once. Runs BEFORE the archiver's 20s timer, and the
-  // threshold above is now high enough that what comes back stays put.
-  // Live values always win a key collision: they are the newer copy. Sidecars
-  // are deliberately NOT deleted — they stay as a backup.
+  // ── Restore archived history — runs on EVERY load ─────────────────────────
+  // This is the recovery leg of the archiver, and it does three jobs:
+  //   1. merge every sidecar day back into `data` so history stays on screen;
+  //   2. REBUILD the archived-key registry (and persist it) so the next cold
+  //      load knows which cached days must never be uploaded;
+  //   3. RECLAIM days the old size valve took out of the recent window — those
+  //      go back into the live document as editable data.
+  // It used to run once per device, latched in localStorage. The archiver runs
+  // once per device per DAY, so anything a second device archived after that one
+  // restore was unreachable here forever. Live values always win a key collision
+  // (they are the newer copy) and sidecars are never deleted — they stay as a
+  // backup. Nothing is ever removed from the live doc on this path.
   const unarchiveRanRef=useRef(false);
   useEffect(()=>{
     const run=async()=>{
@@ -14500,10 +14501,9 @@ function App(){
     return()=>clearTimeout(t);
   },[setDataLocalOnly]);
 
-  // ── One-time un-archive (mirror of Tony's; see the note there) ──────────────
-  // Veda had no archive sidecars when this shipped, so this is a no-op for her
-  // today. It exists so that if the archiver ever does fire on her profile, the
-  // same recovery path is already in place rather than being written in a panic.
+  // ── Restore archived history — every load (mirror of Tony's; note there) ──
+  // Her archiver HAS fired, repeatedly, and this is the leg that brings the days
+  // back — including the recent ones the old size valve should never have taken.
   const unarchiveRanRef=useRef(false);
   useEffect(()=>{
     const run=async()=>{
