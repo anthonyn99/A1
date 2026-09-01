@@ -10382,10 +10382,18 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     const _bjExtractHtmlImages = async (html, e) => {
       const div = document.createElement('div');
       div.innerHTML = html;
-      const imgs = Array.from(div.querySelectorAll('img'));
+      // src OR href. The journals hold images in both, and only src was ever
+      // looked at — so an entry whose images lived in href stayed inline
+      // forever. The rehydrator below restores whichever attribute was used.
+      const imgs = Array.from(div.querySelectorAll('[src],[href]'));
       await Promise.all(imgs.map(async (img) => {
-        const src = img.getAttribute('src') || '';
-        if (!src.startsWith('data:')) return;
+        const attr = (img.getAttribute('src') || '').startsWith('data:') ? 'src'
+                   : (img.getAttribute('href') || '').startsWith('data:') ? 'href' : '';
+        if (!attr) return;
+        const src = img.getAttribute(attr) || '';
+        // Leave trivial ones alone: a separate document plus a fetch to save a
+        // few hundred bytes is a worse trade than leaving it in place.
+        if (src.length < 2048) return;
         let imgKey = img.getAttribute('data-bjkey') || '';
         if (!imgKey) {
           let h = 0;
@@ -10398,7 +10406,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         try {
           await _fbWriteRetry(() => setDoc(imgRef, { img: src, savedAt: Date.now() }), 'BJ img ' + imgKey);
           img.setAttribute('data-bjkey', imgKey);
-          img.setAttribute('src', 'bj-fbimg://' + imgKey);
+          img.setAttribute(attr, 'bj-fbimg://' + imgKey);
         } catch(err) {
           console.warn('BJ image upload failed, keeping inline:', imgKey, err.message);
         }
@@ -10766,14 +10774,19 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       if (!html || !html.includes('bj-fbimg://')) return html;
       const div = document.createElement('div');
       div.innerHTML = html;
-      const imgs = Array.from(div.querySelectorAll('img[src^="bj-fbimg://"]'));
+      // Must mirror the extractor exactly: it can place the placeholder in
+      // src or href, and an attribute it fails to restore is a broken image
+      // or a dead link for the reader.
+      const imgs = Array.from(div.querySelectorAll(
+        '[src^="bj-fbimg://"],[href^="bj-fbimg://"]'));
       await Promise.all(imgs.map(async (img) => {
-        const imgKey = img.getAttribute('src').replace('bj-fbimg://', '');
+        const attr = (img.getAttribute('src') || '').indexOf('bj-fbimg://') === 0 ? 'src' : 'href';
+        const imgKey = img.getAttribute(attr).replace('bj-fbimg://', '');
         try {
           const imgRef = doc(db, 'dashboards', imgKey);
           const snap = await getDoc(imgRef);
           if (snap.exists() && snap.data().img) {
-            img.setAttribute('src', snap.data().img);
+            img.setAttribute(attr, snap.data().img);
           }
         } catch(err) {
           console.warn('BJ image rehydrate failed:', imgKey, err.message);
@@ -11068,7 +11081,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
           const imgRef = doc(db, 'dashboards', imgKey);
           const snap = await getDoc(imgRef);
           if (snap.exists() && snap.data().img) {
-            img.setAttribute('src', snap.data().img);
+            img.setAttribute(attr, snap.data().img);
           }
         } catch(err) {
           console.warn('MJ image rehydrate failed:', imgKey, err.message);
@@ -11145,10 +11158,18 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     const _tjExtractHtmlImages = async (html, e, dateKey) => {
       const div = document.createElement('div');
       div.innerHTML = html;
-      const imgs = Array.from(div.querySelectorAll('img'));
+      // src OR href. The journals hold images in both, and only src was ever
+      // looked at — so an entry whose images lived in href stayed inline
+      // forever. The rehydrator below restores whichever attribute was used.
+      const imgs = Array.from(div.querySelectorAll('[src],[href]'));
       await Promise.all(imgs.map(async (img) => {
-        const src = img.getAttribute('src') || '';
-        if (!src.startsWith('data:')) return;
+        const attr = (img.getAttribute('src') || '').startsWith('data:') ? 'src'
+                   : (img.getAttribute('href') || '').startsWith('data:') ? 'href' : '';
+        if (!attr) return;
+        const src = img.getAttribute(attr) || '';
+        // Leave trivial ones alone: a separate document plus a fetch to save a
+        // few hundred bytes is a worse trade than leaving it in place.
+        if (src.length < 2048) return;
         let imgKey = img.getAttribute('data-tjkey') || '';
         if (!imgKey) {
           let h = 0;
@@ -11162,7 +11183,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         try {
           await _fbWriteRetry(() => setDoc(imgRef, { img: src, savedAt: Date.now() }), 'TJ img ' + imgKey);
           img.setAttribute('data-tjkey', imgKey);
-          img.setAttribute('src', 'tj-fbimg://' + imgKey);
+          img.setAttribute(attr, 'tj-fbimg://' + imgKey);
         } catch(err) {
           console.warn('TJ image upload failed, keeping inline:', imgKey, err.message);
         }
@@ -11348,9 +11369,14 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       if (!html || !html.includes('tj-fbimg://')) return html;
       const div = document.createElement('div');
       div.innerHTML = html;
-      const imgs = Array.from(div.querySelectorAll('img[src^="tj-fbimg://"]'));
+      // Must mirror the extractor exactly: it can place the placeholder in
+      // src or href, and an attribute it fails to restore is a broken image
+      // or a dead link for the reader.
+      const imgs = Array.from(div.querySelectorAll(
+        '[src^="tj-fbimg://"],[href^="tj-fbimg://"]'));
       await Promise.all(imgs.map(async (img) => {
-        const imgKey = img.getAttribute('src').replace('tj-fbimg://', '');
+        const attr = (img.getAttribute('src') || '').indexOf('tj-fbimg://') === 0 ? 'src' : 'href';
+        const imgKey = img.getAttribute(attr).replace('tj-fbimg://', '');
         try {
           const imgRef = doc(db, 'dashboards', imgKey);
           const snap = await getDoc(imgRef);
