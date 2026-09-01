@@ -6454,40 +6454,14 @@ var _saveBuildTimer = null;
 var _buildsUnsubscribe = null;
 var _lastOwnSaveAt = 0;
 
-function _ensureSyncOverlay() {
-  if (document.getElementById('global-sync-status')) return;
-  var el = document.createElement('div');
-  el.id = 'global-sync-status';
-  el.style.cssText = 'position:fixed;bottom:14px;right:18px;z-index:9999;font-family:var(--mono);font-size:11px;letter-spacing:0.8px;padding:5px 10px;border-radius:6px;background:var(--bg3);border:1px solid var(--bd2);color:var(--tx3);opacity:0;pointer-events:none;transition:opacity 0.2s;';
-  document.body.appendChild(el);
-}
-
-var _syncHideTimer = null;
-// Legacy entry point kept so every existing call site still works, but the
-// state now also drives the single pill under the wordmark — requirement is
-// that ONE place tells you whether your data reached the server.
+// Builds used to raise TWO more sync readouts of its own — a fixed pill at the
+// bottom-right of the viewport and an inline one beside the "My Builds" heading
+// — on top of the pill under the wordmark. Three places saying the same thing
+// is two too many, and the floating one sat over the content on a phone. This
+// is now a thin alias onto the single wordmark pill; every existing call site
+// keeps working.
 function showSyncStatus(state) {
   if (typeof wrSetSync === 'function') wrSetSync(state === 'error' ? 'failed' : state);
-  _ensureSyncOverlay();
-  var el = document.getElementById('global-sync-status');
-  if (_syncHideTimer) { clearTimeout(_syncHideTimer); _syncHideTimer = null; }
-  el.style.opacity = '1';
-  // Also update inline element if present on current view
-  var inline = document.getElementById('builds-sync-status');
-  if (state === 'syncing') {
-    el.innerHTML = wrIco('sync',12)+' Syncing'; el.style.color = 'var(--tx3)'; el.style.borderColor = 'var(--bd2)';
-    if (inline) { inline.innerHTML = wrIco('sync',12)+' Syncing'; inline.style.color = 'var(--tx3)'; }
-  } else if (state === 'synced') {
-    el.innerHTML = wrIco('check',12)+' Synced'; el.style.color = 'var(--green)'; el.style.borderColor = 'rgba(164,185,134,0.3)';
-    if (inline) { inline.innerHTML = wrIco('check',12)+' Synced'; inline.style.color = 'var(--green)'; }
-    _syncHideTimer = setTimeout(function(){
-      el.style.opacity = '0';
-      if (inline && /Synced/.test(inline.textContent)) inline.innerHTML = '';
-    }, 3000);
-  } else if (state === 'error') {
-    el.innerHTML = wrIco('warn',12)+' Sync failed'; el.style.color = 'var(--red)'; el.style.borderColor = 'rgba(214,138,124,0.3)';
-    if (inline) { inline.innerHTML = wrIco('warn',12)+' Sync failed'; inline.style.color = 'var(--red)'; }
-  }
 }
 
 // The champion keys Firestore is known to hold. Diffing against the local map
