@@ -5314,6 +5314,25 @@ const TH_ARCHIVE_YEARS=6;
 // the age pass, keep moving the oldest days until it's under this — that's what
 // actually guarantees we never reach the write guard.
 const TH_ARCHIVE_SOFT_BYTES=780000;
+// Hard floor for the size valve below. NOTHING inside this window is ever
+// archived, however big the document gets. The valve used to stop only at
+// TODAY, which is not a floor at all: it would happily archive yesterday. A
+// chronically oversize doc therefore chewed forward one bite per device per
+// day until it was eating last week — which is exactly what "my last 5 days
+// got wiped" was. If the live doc is STILL over the cap with this floor
+// respected, that is a capacity problem to report loudly (split.overCap),
+// never something to quietly pay for with recent days.
+const TH_ARCHIVE_MIN_AGE_DAYS=550;
+function thMinAgeKey(){const n=new Date();n.setDate(n.getDate()-TH_ARCHIVE_MIN_AGE_DAYS);return dkey(n.getFullYear(),n.getMonth(),n.getDate());}
+// The archived-key registry has to OUTLIVE the tab. It is the only thing that
+// tells a cold load "these day-keys live in a sidecar doc, do not upload them"
+// — and the merged history is already sitting in localStorage. While the
+// registry was memory-only, every load after a restore read that history back
+// out of the cache with no idea it was archived, rebuilt a ~1.1 MB payload and
+// either re-inflated the live document or tripped the 900 KB write guard and
+// stopped syncing outright. Persist it in the same breath as setting the flag.
+function thLoadArchivedKeys(k){const o={};try{const a=JSON.parse(localStorage.getItem(k)||"[]");if(Array.isArray(a))a.forEach(x=>{if(typeof x==="string")o[x]=true;});}catch(e){}return o;}
+function thSaveArchivedKeys(k,ref){try{localStorage.setItem(k,JSON.stringify(Object.keys(ref)));}catch(e){}}
 function thDataBytes(d){try{return new Blob([JSON.stringify(d||{})]).size;}catch(e){try{return JSON.stringify(d||{}).length;}catch(_){return 0;}}}
 function thTodayKey(){const n=new Date();return dkey(n.getFullYear(),n.getMonth(),n.getDate());}
 const TH_DAYKEY_RE=/^\d{4}-\d{2}-\d{2}$/;
@@ -5323,7 +5342,6 @@ function thSplitArchivable(data){
   if(!data||typeof data!=="object")return out;
   const cut=new Date();cut.setFullYear(cut.getFullYear()-TH_ARCHIVE_YEARS);
   const cutKey=dkey(cut.getFullYear(),cut.getMonth(),cut.getDate());
-  const todayKey=thTodayKey();
   // Day keys are zero-padded, so a string compare IS a date compare.
   const dayKeys=[],recent=[];
   Object.keys(data).forEach(k=>{
@@ -5346,13 +5364,18 @@ function thSplitArchivable(data){
     if(Array.isArray(arr)&&arr.some(it=>it&&it.notifyAt&&new Date(it.notifyAt).getTime()>Date.now())){out.keep[k]=arr;return;}
     move(k);
   });
-  // Size valve — oldest-first, and never the current day or anything ahead of it.
+  // Size valve — oldest-first, and never inside the recent-days floor. The old
+  // `k>=todayKey` guard protected exactly one day; see TH_ARCHIVE_MIN_AGE_DAYS.
   if(thDataBytes(out.keep)>TH_ARCHIVE_SOFT_BYTES){
+    const floorKey=thMinAgeKey();
     for(const k of recent){
-      if(k>=todayKey)break;
+      if(k>=floorKey)break;
       move(k);delete out.keep[k];
       if(thDataBytes(out.keep)<=TH_ARCHIVE_SOFT_BYTES)break;
     }
+    // Still oversize with recent days protected. Report it; do not eat the present.
+    const over=thDataBytes(out.keep);
+    if(over>TH_ARCHIVE_SOFT_BYTES)out.overCap=over;
   }
   return out;
 }
@@ -7172,7 +7195,7 @@ function App(){
   // Populated by the un-archive/archive effects; consulted by buildPayload (never
   // uploaded) and by the archiver (never re-archived). Read-only in the UI.
   // Mirrors Veda's vdArchivedRef — see the note there for the full failure mode.
-  const thArchivedRef=useRef({});
+  const thArchivedRef=useRef(thLoadArchivedKeys("td6_archivedKeys"));
   // Exposed so the day-grid (and the verify skill) can mark archived days.
   useEffect(()=>{window._thIsArchivedDay=k=>!!thArchivedRef.current[k];return()=>{delete window._thIsArchivedDay;};},[]);
   // Declared here rather than beside the archiver below because the Plans mirror
@@ -7438,6 +7461,13 @@ function App(){
   useEffect(()=>{
     const run=async()=>{
       if(archiveRanRef.current||!fbLoadedRef.current||!window._fbArchiveDays)return;
+      // Never prune before the restore has run. The restore REBUILDS the archived
+      // registry from the sidecars, so running the archiver first would either be
+      // measuring history it has not recognised yet, or have its fresh flags
+      // overwritten by a rebuild moments later. Offline, this correctly means we
+      // do not prune at all: never remove from the live doc what you cannot verify
+      // is safely stored somewhere else.
+      if(!unarchiveRanRef.current)return;
       const last=parseInt(localStorage.getItem("td6_archive_at")||"0",10)||0;
       if(Date.now()-last<24*60*60*1000)return;
       // Exclude display-only archived days: they are already in a sidecar doc and
@@ -7460,11 +7490,16 @@ function App(){
       // deleted them from the UI too — an archive that looked exactly like tasks
       // silently reverting by months.
       Object.keys(split.byYear).forEach(y=>Object.keys(split.byYear[y]).forEach(k=>{thArchivedRef.current[k]=true;}));
+      thSaveArchivedKeys("td6_archivedKeys",thArchivedRef.current);
       const _merged={...split.keep};
       Object.keys(split.byYear).forEach(y=>Object.entries(split.byYear[y]).forEach(([k,v])=>{_merged[k]=v;}));
       Object.entries(stateRef.current.data||{}).forEach(([k,v])=>{if(thArchivedRef.current[k]&&!(k in _merged))_merged[k]=v;});
       setDataLocalOnly(_merged);
       console.log("[Archive] Tony: moved "+split.movedCount+" day(s), dropped "+split.droppedEmpty+" empty; live doc now "+(thDataBytes(split.keep)/1024).toFixed(0)+" KB (archived days still shown, read-only)");
+      // The valve stops at the recent-days floor now, so an oversize doc stays
+      // oversize rather than silently swallowing the present. That is the safe
+      // failure, but it is only safe if somebody hears about it.
+      if(split.overCap)console.error("[Archive] Tony: live doc is still "+(split.overCap/1024).toFixed(0)+" KB after archiving everything older than "+TH_ARCHIVE_MIN_AGE_DAYS+" days. Recent days are deliberately NOT archived — this needs a capacity plan (see docs/taskhub-archive-handoff.md), not a bigger cap.");
     };
     const t=setTimeout(run,20000);
     return()=>clearTimeout(t);
@@ -7485,40 +7520,68 @@ function App(){
   useEffect(()=>{
     const run=async()=>{
       if(unarchiveRanRef.current||!fbLoadedRef.current||!window._fbLoadArchive)return;
-      // Key bumped to _v2 deliberately. _v1 was a one-time latch, and a device
-      // that took the old "merged fits under the cap" exit has it stuck at "1" —
-      // on that device the CORRECTED restore below would be skipped and the
-      // archived days would never reappear. A new key re-runs the fixed restore
-      // exactly once everywhere, whatever the old latch says.
-      if(localStorage.getItem("td6_unarchived_v2"))return;
+      // NO persisted latch any more. The old td*_unarchived_v* keys made the
+      // restore a once-per-DEVICE event, while the archiver runs once per device
+      // per DAY. So every day another device archived AFTER this device's single
+      // restore was simply absent here, permanently: gone from the live document,
+      // and never looked for again. That asymmetry is what "my days got wiped on
+      // my PC" actually was — the phone archived them and the PC had no route
+      // back to them. The merge below only ever ADDS keys the live doc lacks, so
+      // re-running it every load is idempotent, self-healing, and costs a handful
+      // of reads. Whatever the old latch says, it no longer decides anything.
       unarchiveRanRef.current=true;
       try{
         const live=stateRef.current.data||{};
         const merged={...live};
-        const archivedKeys={};
-        let added=0,years=[];
+        // Registry is REBUILT from this scan, not merged into the old one, so a
+        // wrong or stale flag cannot outlive a load: the sidecar docs are the
+        // source of truth for what is archived. (Safe because the archiver above
+        // refuses to run until this has completed.)
+        const nextArchived={};
+        let added=0;const years=[];
         const thisYear=new Date().getFullYear();
         for(let y=thisYear-TH_ARCHIVE_YEARS-2;y<=thisYear;y++){
           const a=await window._fbLoadArchive("main",String(y));
-          if(!a||!Object.keys(a).length)continue;
+          // null means the READ failed (offline, permissions), which is NOT the
+          // same as "no sidecar for that year". Conflating them restored a partial
+          // history and then rebuilt the registry from it. Throw so the catch
+          // re-arms the retry and we leave the previous registry alone.
+          if(a===null)throw new Error("archive read failed for "+y);
+          if(!Object.keys(a).length)continue;
           let n=0;
-          Object.keys(a).forEach(k=>{ if(!(k in merged)){merged[k]=a[k];archivedKeys[k]=true;n++;} });
+          // Flag EVERY key a sidecar returned, including ones the local cache
+          // already holds. Missing those is how a cached copy of archived history
+          // got re-uploaded into the live document on the next save.
+          Object.keys(a).forEach(k=>{ if(!(k in merged)){merged[k]=a[k];n++;} nextArchived[k]=true; });
           if(n){added+=n;years.push(y+":"+n);}
         }
-        if(!added){return;}   // nothing found — do NOT flag done; a transient empty read must be able to retry
+        // …except recent days. The old size valve stopped at `today`, so it moved
+        // days only weeks old into a sidecar. Those come back EDITABLE: dropped
+        // from the registry, so buildPayload uploads them and the live document
+        // owns them again. Only genuinely old history stays read-only. Newest
+        // first, measured incrementally, so a reclaim can never re-create the
+        // oversize doc that started all of this.
+        const floorKey=thMinAgeKey();
+        const liveOnly={};Object.keys(merged).forEach(k=>{if(!nextArchived[k])liveOnly[k]=merged[k];});
+        let liveBytes=thDataBytes(liveOnly);
+        const reclaimed=[];
+        for(const k of Object.keys(nextArchived).filter(x=>x>=floorKey&&(x in merged)).sort().reverse()){
+          const add=thDataBytes({[k]:merged[k]});
+          if(liveBytes+add>TH_ARCHIVE_SOFT_BYTES)break;
+          liveBytes+=add;delete nextArchived[k];reclaimed.push(k);
+        }
+        thArchivedRef.current=nextArchived;
+        thSaveArchivedKeys("td6_archivedKeys",nextArchived);
+        if(!added&&!reclaimed.length)return;
         const bytes=thDataBytes(merged);
-        // NO size gate here any more. The old code refused to restore when the
-        // merged result exceeded TH_ARCHIVE_SOFT_BYTES — but restoring is exactly
-        // what re-creates the oversize doc the prune produced, so the two guards
-        // deadlocked and the days could NEVER come back.
-        // The cap still matters, but it is a LIVE-DOCUMENT limit, not a display
-        // limit: these keys are flagged archived and stripped from every write
-        // (see buildPayload), so merging them costs memory, never doc bytes.
-        Object.keys(archivedKeys).forEach(k=>{thArchivedRef.current[k]=true;});
         setDataLocalOnly(merged);
-        localStorage.setItem("td6_unarchived_v2","1");
+        // Reclaimed days are live data again, so they need a real write —
+        // setDataLocalOnly only renders. This push is what puts them back into the
+        // cloud document, and therefore back on every other device.
+        if(reclaimed.length){reclaimed.sort();fbPush();}
         console.log("[Unarchive] Tony: restored "+added+" day(s) ["+years.join(", ")+
-          "] as READ-ONLY history; live doc unchanged, in-memory data now "+(bytes/1024).toFixed(0)+" KB");
+          "] as READ-ONLY history"+(reclaimed.length?"; reclaimed "+reclaimed.length+" recent day(s) as EDITABLE ("+reclaimed[0]+" → "+reclaimed[reclaimed.length-1]+")":"")+
+          "; in-memory data now "+(bytes/1024).toFixed(0)+" KB, live doc "+(liveBytes/1024).toFixed(0)+" KB");
       }catch(e){
         unarchiveRanRef.current=false;   // let it retry on the next load
         console.warn("[Unarchive] Tony failed — will retry:",e&&(e.message||e));
@@ -7527,11 +7590,11 @@ function App(){
     // Poll rather than fire once: run() bails until Firebase has loaded, and a
     // single 8s timer meant that if auth/App Check/the doc fetch took any longer
     // the restore silently never happened. Retries until it succeeds or 2min.
-    const iv=setInterval(()=>{ if(unarchiveRanRef.current){clearInterval(iv);return;} run(); },3000);
+    const iv=setInterval(()=>{ if(unarchiveRanRef.current){clearInterval(iv);return;} run(); },2000);
     const stop=setTimeout(()=>clearInterval(iv),120000);
-    setTimeout(run,3000);
+    run();
     return()=>{clearInterval(iv);clearTimeout(stop);};
-  },[setDataLocalOnly]);
+  },[setDataLocalOnly,fbPush]);
 
   // Auto-delete goals completed 30+ days ago. Runs shortly after load (once Firebase
   // has settled) and hourly; only writes when something actually expires, so the prune
@@ -13640,6 +13703,25 @@ function saveJ(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
 // so days past the window are MOVED to per-year sidecar docs, never deleted.
 const TH_ARCHIVE_YEARS=6;
 const TH_ARCHIVE_SOFT_BYTES=780000;
+// Hard floor for the size valve below. NOTHING inside this window is ever
+// archived, however big the document gets. The valve used to stop only at
+// TODAY, which is not a floor at all: it would happily archive yesterday. A
+// chronically oversize doc therefore chewed forward one bite per device per
+// day until it was eating last week — which is exactly what "my last 5 days
+// got wiped" was. If the live doc is STILL over the cap with this floor
+// respected, that is a capacity problem to report loudly (split.overCap),
+// never something to quietly pay for with recent days.
+const TH_ARCHIVE_MIN_AGE_DAYS=550;
+function thMinAgeKey(){const n=new Date();n.setDate(n.getDate()-TH_ARCHIVE_MIN_AGE_DAYS);return dkey(n.getFullYear(),n.getMonth(),n.getDate());}
+// The archived-key registry has to OUTLIVE the tab. It is the only thing that
+// tells a cold load "these day-keys live in a sidecar doc, do not upload them"
+// — and the merged history is already sitting in localStorage. While the
+// registry was memory-only, every load after a restore read that history back
+// out of the cache with no idea it was archived, rebuilt a ~1.1 MB payload and
+// either re-inflated the live document or tripped the 900 KB write guard and
+// stopped syncing outright. Persist it in the same breath as setting the flag.
+function thLoadArchivedKeys(k){const o={};try{const a=JSON.parse(localStorage.getItem(k)||"[]");if(Array.isArray(a))a.forEach(x=>{if(typeof x==="string")o[x]=true;});}catch(e){}return o;}
+function thSaveArchivedKeys(k,ref){try{localStorage.setItem(k,JSON.stringify(Object.keys(ref)));}catch(e){}}
 function thDataBytes(d){try{return new Blob([JSON.stringify(d||{})]).size;}catch(e){try{return JSON.stringify(d||{}).length;}catch(_){return 0;}}}
 function thTodayKey(){const n=new Date();return dkey(n.getFullYear(),n.getMonth(),n.getDate());}
 const TH_DAYKEY_RE=/^\d{4}-\d{2}-\d{2}$/;
@@ -13648,7 +13730,6 @@ function thSplitArchivable(data){
   if(!data||typeof data!=="object")return out;
   const cut=new Date();cut.setFullYear(cut.getFullYear()-TH_ARCHIVE_YEARS);
   const cutKey=dkey(cut.getFullYear(),cut.getMonth(),cut.getDate());
-  const todayKey=thTodayKey();
   const dayKeys=[],recent=[];
   Object.keys(data).forEach(k=>{
     if(TH_DAYKEY_RE.test(k))dayKeys.push(k);
@@ -13668,12 +13749,18 @@ function thSplitArchivable(data){
     if(Array.isArray(arr)&&arr.some(it=>it&&it.notifyAt&&new Date(it.notifyAt).getTime()>Date.now())){out.keep[k]=arr;return;}
     move(k);
   });
+  // Size valve — oldest-first, and never inside the recent-days floor. The old
+  // `k>=todayKey` guard protected exactly one day; see TH_ARCHIVE_MIN_AGE_DAYS.
   if(thDataBytes(out.keep)>TH_ARCHIVE_SOFT_BYTES){
+    const floorKey=thMinAgeKey();
     for(const k of recent){
-      if(k>=todayKey)break;
+      if(k>=floorKey)break;
       move(k);delete out.keep[k];
       if(thDataBytes(out.keep)<=TH_ARCHIVE_SOFT_BYTES)break;
     }
+    // Still oversize with recent days protected. Report it; do not eat the present.
+    const over=thDataBytes(out.keep);
+    if(over>TH_ARCHIVE_SOFT_BYTES)out.overCap=over;
   }
   return out;
 }
@@ -14150,7 +14237,7 @@ function App(){
   // Day-keys that live in an archive sidecar doc, not in the live document.
   // Populated by the un-archive effect; consulted by buildVdPayload (never
   // uploaded) and by the archiver (never re-archived). Read-only in the UI.
-  const vdArchivedRef=useRef({});
+  const vdArchivedRef=useRef(thLoadArchivedKeys("td_archivedKeys"));
   // Exposed so the day-grid (and the verify skill) can mark archived days.
   useEffect(()=>{window._vdIsArchivedDay=k=>!!vdArchivedRef.current[k];return()=>{delete window._vdIsArchivedDay;};},[]);
 
@@ -14369,6 +14456,13 @@ function App(){
   useEffect(()=>{
     const run=async()=>{
       if(archiveRanRef.current||!fbLoadedRef.current||!window._fbArchiveDays)return;
+      // Never prune before the restore has run. The restore REBUILDS the archived
+      // registry from the sidecars, so running the archiver first would either be
+      // measuring history it has not recognised yet, or have its fresh flags
+      // overwritten by a rebuild moments later. Offline, this correctly means we
+      // do not prune at all: never remove from the live doc what you cannot verify
+      // is safely stored somewhere else.
+      if(!unarchiveRanRef.current)return;
       const last=parseInt(localStorage.getItem("td_archive_at")||"0",10)||0;
       if(Date.now()-last<24*60*60*1000)return;
       // Exclude display-only archived days: they are already in a sidecar doc and
@@ -14391,11 +14485,16 @@ function App(){
       // deleted them from the UI too — an archive that looked exactly like tasks
       // silently reverting by months.
       Object.keys(split.byYear).forEach(y=>Object.keys(split.byYear[y]).forEach(k=>{vdArchivedRef.current[k]=true;}));
+      thSaveArchivedKeys("td_archivedKeys",vdArchivedRef.current);
       const _merged={...split.keep};
       Object.keys(split.byYear).forEach(y=>Object.entries(split.byYear[y]).forEach(([k,v])=>{_merged[k]=v;}));
       Object.entries(vdRef.current.data||{}).forEach(([k,v])=>{if(vdArchivedRef.current[k]&&!(k in _merged))_merged[k]=v;});
       setDataLocalOnly(_merged);
       console.log("[Archive] Veda: moved "+split.movedCount+" day(s), dropped "+split.droppedEmpty+" empty; live doc now "+(thDataBytes(split.keep)/1024).toFixed(0)+" KB (archived days still shown, read-only)");
+      // The valve stops at the recent-days floor now, so an oversize doc stays
+      // oversize rather than silently swallowing the present. That is the safe
+      // failure, but it is only safe if somebody hears about it.
+      if(split.overCap)console.error("[Archive] Veda: live doc is still "+(split.overCap/1024).toFixed(0)+" KB after archiving everything older than "+TH_ARCHIVE_MIN_AGE_DAYS+" days. Recent days are deliberately NOT archived — this needs a capacity plan (see docs/taskhub-archive-handoff.md), not a bigger cap.");
     };
     const t=setTimeout(run,20000);
     return()=>clearTimeout(t);
@@ -14409,41 +14508,68 @@ function App(){
   useEffect(()=>{
     const run=async()=>{
       if(unarchiveRanRef.current||!fbLoadedRef.current||!window._fbLoadArchive)return;
-      // Key bumped to _v2 deliberately. _v1 was a one-time latch, and a device
-      // that took the old "merged fits under the cap" exit has it stuck at "1" —
-      // on that device the CORRECTED restore below would be skipped and the
-      // archived days would never reappear. A new key re-runs the fixed restore
-      // exactly once everywhere, whatever the old latch says.
-      if(localStorage.getItem("td_unarchived_v2"))return;
+      // NO persisted latch any more. The old td*_unarchived_v* keys made the
+      // restore a once-per-DEVICE event, while the archiver runs once per device
+      // per DAY. So every day another device archived AFTER this device's single
+      // restore was simply absent here, permanently: gone from the live document,
+      // and never looked for again. That asymmetry is what "my days got wiped on
+      // my PC" actually was — the phone archived them and the PC had no route
+      // back to them. The merge below only ever ADDS keys the live doc lacks, so
+      // re-running it every load is idempotent, self-healing, and costs a handful
+      // of reads. Whatever the old latch says, it no longer decides anything.
       unarchiveRanRef.current=true;
       try{
         const live=vdRef.current.data||{};
         const merged={...live};
-        const archivedKeys={};
-        let added=0,years=[];
+        // Registry is REBUILT from this scan, not merged into the old one, so a
+        // wrong or stale flag cannot outlive a load: the sidecar docs are the
+        // source of truth for what is archived. (Safe because the archiver above
+        // refuses to run until this has completed.)
+        const nextArchived={};
+        let added=0;const years=[];
         const thisYear=new Date().getFullYear();
         for(let y=thisYear-TH_ARCHIVE_YEARS-2;y<=thisYear;y++){
           const a=await window._fbLoadArchive("vedasdash",String(y));
-          if(!a||!Object.keys(a).length)continue;
+          // null means the READ failed (offline, permissions), which is NOT the
+          // same as "no sidecar for that year". Conflating them restored a partial
+          // history and then rebuilt the registry from it. Throw so the catch
+          // re-arms the retry and we leave the previous registry alone.
+          if(a===null)throw new Error("archive read failed for "+y);
+          if(!Object.keys(a).length)continue;
           let n=0;
-          Object.keys(a).forEach(k=>{ if(!(k in merged)){merged[k]=a[k];archivedKeys[k]=true;n++;} });
+          // Flag EVERY key a sidecar returned, including ones the local cache
+          // already holds. Missing those is how a cached copy of archived history
+          // got re-uploaded into the live document on the next save.
+          Object.keys(a).forEach(k=>{ if(!(k in merged)){merged[k]=a[k];n++;} nextArchived[k]=true; });
           if(n){added+=n;years.push(y+":"+n);}
         }
-        if(!added){return;}   // nothing found — do NOT flag done; a transient empty read must be able to retry
+        // …except recent days. The old size valve stopped at `today`, so it moved
+        // days only weeks old into a sidecar. Those come back EDITABLE: dropped
+        // from the registry, so buildPayload uploads them and the live document
+        // owns them again. Only genuinely old history stays read-only. Newest
+        // first, measured incrementally, so a reclaim can never re-create the
+        // oversize doc that started all of this.
+        const floorKey=thMinAgeKey();
+        const liveOnly={};Object.keys(merged).forEach(k=>{if(!nextArchived[k])liveOnly[k]=merged[k];});
+        let liveBytes=thDataBytes(liveOnly);
+        const reclaimed=[];
+        for(const k of Object.keys(nextArchived).filter(x=>x>=floorKey&&(x in merged)).sort().reverse()){
+          const add=thDataBytes({[k]:merged[k]});
+          if(liveBytes+add>TH_ARCHIVE_SOFT_BYTES)break;
+          liveBytes+=add;delete nextArchived[k];reclaimed.push(k);
+        }
+        vdArchivedRef.current=nextArchived;
+        thSaveArchivedKeys("td_archivedKeys",nextArchived);
+        if(!added&&!reclaimed.length)return;
         const bytes=thDataBytes(merged);
-        // NO size gate here any more. The old code refused to restore when the
-        // merged result exceeded TH_ARCHIVE_SOFT_BYTES — but restoring is exactly
-        // what re-creates the oversize doc the prune produced, so the two guards
-        // deadlocked and the days could NEVER come back. That is what made an
-        // archive look like "my tasks reverted by a lot of days".
-        // The cap still matters, but it is a LIVE-DOCUMENT limit, not a display
-        // limit: these keys are flagged archived and stripped from every write
-        // (see buildVdPayload), so merging them costs memory, never doc bytes.
-        Object.keys(archivedKeys).forEach(k=>{vdArchivedRef.current[k]=true;});
         setDataLocalOnly(merged);
-        localStorage.setItem("td_unarchived_v2","1");
+        // Reclaimed days are live data again, so they need a real write —
+        // setDataLocalOnly only renders. This push is what puts them back into the
+        // cloud document, and therefore back on every other device.
+        if(reclaimed.length){reclaimed.sort();vdFbPush();}
         console.log("[Unarchive] Veda: restored "+added+" day(s) ["+years.join(", ")+
-          "] as READ-ONLY history; live doc unchanged, in-memory data now "+(bytes/1024).toFixed(0)+" KB");
+          "] as READ-ONLY history"+(reclaimed.length?"; reclaimed "+reclaimed.length+" recent day(s) as EDITABLE ("+reclaimed[0]+" → "+reclaimed[reclaimed.length-1]+")":"")+
+          "; in-memory data now "+(bytes/1024).toFixed(0)+" KB, live doc "+(liveBytes/1024).toFixed(0)+" KB");
       }catch(e){
         unarchiveRanRef.current=false;
         console.warn("[Unarchive] Veda failed — will retry:",e&&(e.message||e));
@@ -14452,11 +14578,11 @@ function App(){
     // Poll rather than fire once: run() bails until Firebase has loaded, and a
     // single 8s timer meant that if auth/App Check/the doc fetch took any longer
     // the restore silently never happened. Retries until it succeeds or 2min.
-    const iv=setInterval(()=>{ if(unarchiveRanRef.current){clearInterval(iv);return;} run(); },3000);
+    const iv=setInterval(()=>{ if(unarchiveRanRef.current){clearInterval(iv);return;} run(); },2000);
     const stop=setTimeout(()=>clearInterval(iv),120000);
-    setTimeout(run,3000);
+    run();
     return()=>{clearInterval(iv);clearTimeout(stop);};
-  },[setDataLocalOnly]);
+  },[setDataLocalOnly,vdFbPush]);
 
   // Auto-delete goals completed 30+ days ago (see Tony's TaskHub). Runs after load and hourly.
   useEffect(()=>{
