@@ -159,9 +159,7 @@ t('Tony archived days are read-only in the UI',
 
 t('the size valve stops at a recent-days floor, not at today',
   !/if\(k>=todayKey\)break;/.test(HTML) &&
-  (HTML.match(/const floorKey=thMinAgeKey\(\);
-\s*for\(const k of recent\)\{
-\s*if\(k>=floorKey\)break;/g) || []).length === 2,
+  (HTML.match(/const floorKey=thMinAgeKey\(\);\s*for\(const k of recent\)\{\s*if\(k>=floorKey\)break;/g) || []).length === 2,
   '`k>=todayKey` protected exactly one day, so an oversize doc archived yesterday.');
 
 t('an unfixable oversize doc is reported, not paid for with recent days',
