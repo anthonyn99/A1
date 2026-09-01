@@ -7786,19 +7786,17 @@ function _beTdUp(e) {
     addToBuild(zone, itemId);
     return;
   }
-  // Reorder inside the zone: land before or after whichever chip the finger
-  // was over, matching what the mouse drop does.
+  // Reorder inside the zone. Deliberately the SAME two splices attachZoneDrag
+  // makes on a mouse drop, index for index — a finger and a mouse landing on
+  // the same chip must produce the same order, and a subtly different rule for
+  // touch is the kind of thing you only notice by never trusting either.
   var arr = zone === 'items' ? buildEditorData.items : buildEditorData.spells;
   if (!arr || fromIdx < 0 || fromIdx >= arr.length) return;
   var overChip = _beTdChipAt(x, y);
-  var toIdx = arr.length - 1;
-  if (overChip && overChip.dataset.zone === zone) {
-    toIdx = parseInt(overChip.dataset.idx, 10);
-    var r = overChip.getBoundingClientRect();
-    if (x > r.left + r.width / 2 && toIdx < arr.length - 1) toIdx++;
-    if (toIdx > fromIdx) toIdx--;
-  }
-  if (toIdx === fromIdx) return;
+  var toIdx = (overChip && overChip.dataset.zone === zone)
+    ? parseInt(overChip.dataset.idx, 10)
+    : arr.length - 1;                       // released over bare zone: send to the end
+  if (isNaN(toIdx) || toIdx === fromIdx) return;
   var moved = arr.splice(fromIdx, 1)[0];
   arr.splice(Math.max(0, Math.min(arr.length, toIdx)), 0, moved);
   refreshBuildZones();
