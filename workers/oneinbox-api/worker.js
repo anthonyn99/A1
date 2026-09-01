@@ -1574,7 +1574,14 @@ async function ingestMessages(env, email, ids, budget, opts = {}) {
   const startedAt = aiRec.n;
 
   const writes = [];
+  const deletes = [];
   const pkgCards = [];
+  // A rescan re-reads mail that was already classified once, so the cards it
+  // wrote last time have to be reconciled against this reading — see the
+  // retraction pass below. Ordinary ingestion only ever sees new mail and has
+  // nothing to reconcile.
+  const retract = new Set();
+  const writtenCards = new Set();
   let cards = 0;
   for (const id of batch) {
     const docId = emailDocId(email, id);
@@ -1617,7 +1624,12 @@ async function ingestMessages(env, email, ids, budget, opts = {}) {
       // Parcels are held back and merged below; everything else is a snapshot
       // of one offer/bill and can go straight out as last-write-wins.
       if (card.kind === 'package') pkgCards.push(card);
-      else writes.push({ update: { name: `${root}/dashboards/oneinbox/cards/${card.id}`, fields: fsFields(card) } });
+      else {
+        writtenCards.add(card.id);
+        writes.push({ update: { name: `${root}/dashboards/oneinbox/cards/${card.id}`, fields: fsFields(card) } });
+      }
+    } else if (opts.rescan) {
+      retract.add(msg.id);
     }
   }
 
@@ -1639,7 +1651,26 @@ async function ingestMessages(env, email, ids, budget, opts = {}) {
     }
   }
 
-  if (writes.length) {
+  // RETRACTION — this reading no longer supports a card the LAST reading wrote.
+  // Improving the classifier only half-works without it: the recruiter mail now
+  // classifies as "important" and produces no card, but the "appointment" its
+  // old reading minted is still sitting on the week, and nothing but its own
+  // expiry would ever have taken it off. cardFor() returning null IS the
+  // retraction; this is what makes it reach Firestore.
+  //
+  // Packages are exempt. Their ids move by design (foldPackages re-keys a
+  // parcel onto the strongest identity it has seen), so "no card under this id
+  // this time" is a re-key there, not a retraction.
+  if (retract.size) {
+    const all = await fsList(env, token, 'dashboards/oneinbox/cards', 300).catch(() => []);
+    for (const c of all) {
+      const id = c.id || c._id;
+      if (!id || c.kind === 'package' || writtenCards.has(id)) continue;
+      if (retract.has(c.emailId)) deletes.push(`${root}/dashboards/oneinbox/cards/${id}`);
+    }
+  }
+
+  if (writes.length || deletes.length) {
     // DEDUPE BY DOCUMENT NAME. Firestore rejects an entire batchWrite with
     // "the same document cannot be written more than once in a single request"
     // if two writes target one doc — and card ids are derived from the OFFER,
@@ -1653,7 +1684,11 @@ async function ingestMessages(env, email, ids, budget, opts = {}) {
     // keeps ANY id collision from costing a whole account's mail.
     const byName = new Map();
     for (const w of writes) byName.set(w.update.name, w);
-    const deduped = [...byName.values()];
+    // Same rule for the retractions: a doc this batch is writing must not also
+    // be deleted by it. writtenCards already covers the cards produced in this
+    // run, and this catches anything else that reaches the same name.
+    const deduped = [...byName.values(),
+      ...[...new Set(deletes)].filter(n => !byName.has(n)).map(n => ({ delete: n }))];
 
     // updateMask keeps this a FIELD write: the meta doc also holds settings the
     // UI owns, and a maskless update would wipe them.
@@ -1675,7 +1710,8 @@ async function ingestMessages(env, email, ids, budget, opts = {}) {
     try { dedupe = await dedupePackageCards(env, token); }
     catch (e) { console.warn('package dedupe failed', e.message); }
   }
-  return { ingested: writes.length, cards, deferred, dedupe, aiUsed: aiRec.n - startedAt, aiToday: aiRec.n };
+  return { ingested: writes.length, cards, retracted: deletes.length, deferred, dedupe,
+           aiUsed: aiRec.n - startedAt, aiToday: aiRec.n };
 }
 
 // ── Gmail push (watch) ──────────────────────────────────────────────────────
