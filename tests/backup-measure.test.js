@@ -179,7 +179,26 @@ const fake = fakeStore({
   journal: journalDoc,
   [imgA]: { img: 'data:image/png;base64,' + 'A'.repeat(4000), savedAt: 1 },
   [imgB]: { img: 'data:image/png;base64,' + 'B'.repeat(6000), savedAt: 1 },
-  main: { data: {}, savedAt: 1 }
+  // A realistically-sized, repetitive TaskHub document. gzip overhead dominates
+  // on a few hundred bytes, so a toy fixture would say nothing useful about the
+  // compression ratio that git growth actually depends on.
+  main: {
+    savedAt: 1,
+    data: (() => {
+      const d = {};
+      for (let i = 0; i < 400; i++) {
+        const k = '2026-' + String((i % 12) + 1).padStart(2, '0') + '-' +
+                  String((i % 28) + 1).padStart(2, '0') + '#' + i;
+        d[k] = [
+          { id: 'id' + i, type: 'task', done: i % 2 === 0, category: 'work',
+            title: 'Some reasonably long task title for realism ' + i },
+          { id: 'ev' + i, type: 'event', time: '09:00', category: 'work',
+            title: 'Recurring stand-up meeting ' + i }
+        ];
+      }
+      return d;
+    })()
+  }
 });
 A1.register({ db: fake.db, projectId: 'test-project', appId: 'fake', fs: fake.fs });
 
