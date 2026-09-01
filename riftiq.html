@@ -1891,7 +1891,12 @@ html.lk-open, body.lk-open {
   padding: 0; line-height: 0;
   display: flex; align-items: center; justify-content: center;
 }
-@media (pointer: coarse) { .bld-chip-x { width: 22px; height: 22px; top: -8px; right: -8px; } }
+@media (pointer: coarse) {
+  .bld-chip-x { width: 22px; height: 22px; top: -7px; right: -7px; }
+  /* A thumb-sized ✕ overhangs its icon, so the icons need room between them or
+     each badge lands on top of its neighbour. */
+  #be-items-zone, #be-spells-zone { gap: 13px 14px !important; padding: 12px 10px !important; }
+}
 .bld-drag.bld-lifted { opacity: .35; }
 .bld-dropzone.bld-over { border-color: var(--gold) !important; background: rgba(192,174,234,.10) !important; }
 .bld-ghost {
@@ -1902,6 +1907,11 @@ html.lk-open, body.lk-open {
 }
 
 @media (max-width: 900px) {
+  /* `height:100%` resolves against nothing here — #content is height:auto below
+     900px — so the panel grew with its content and the editor's selector pane
+     ended up below the fold. --wr-chrome is the measured topbar (wrSyncChrome),
+     so this is the real space left under it. */
+  #builds-panel.active { height: calc(100dvh - var(--wr-chrome, 92px)); }
   /* Editor stacks: the build on top, the item/spell selector pinned below it,
      so BOTH are on screen at once and a drag never needs a scroll mid-gesture. */
   #be-split { flex-direction: column; }
@@ -1913,13 +1923,16 @@ html.lk-open, body.lk-open {
 }
 
 @media (max-width: 600px) {
-  .bld-pagehd { padding: 12px 14px !important; }
   .bld-card { padding: 13px 13px; }
   .bld-sections { gap: 14px; }
   /* Reaching Edit / ✕ is a one-handed tap on a phone, so they get the 44px
      target the rest of the app uses rather than the desktop 28px. */
   .bld-card-acts button { height: 38px; min-height: 38px; padding: 0 14px; }
   #be-right { flex: 0 0 42%; min-height: 190px; }
+  /* Back + champion + Save already fill a 390px row; "Edit Build" is a label
+     for a screen you are already looking at, and it cost the header a whole
+     second line. */
+  .be-mode-tag { display: none; }
 }
 
 .builds-champ-hdr {
@@ -2951,6 +2964,7 @@ body.wr-scrolllocked {
      14px the .tab-panel rule above adds to every panel would push its 100%-tall
      child 28px past the bottom of the viewport — it keeps its own zero. */
   #builds-panel { padding: 0 !important; }
+  .bld-pagehd { padding: 12px 14px !important; }
   #builds-panel.active { grid-template-columns: 1fr !important; grid-template-rows: auto 1fr; }
   .builds-sidebar { max-height: 220px; border-right: none; border-bottom: 1px solid var(--bd); }
   .champ-list { max-height: 120px; }
@@ -3829,6 +3843,7 @@ function showApp() {
   // Tab order + shortcuts are shared state: apply whatever the doc already has,
   // then keep listening so another device reordering shows up here live.
   wrEnableTabDrag();
+  wrWatchChrome();
   wrWatchRemote();
   wrLoadTabOrder();
 }
@@ -3873,6 +3888,33 @@ function wrSynced(promise){
   });
 }
 window.wrSynced = wrSynced; window.wrSetSync = wrSetSync;
+
+// Below 900px the topbar wraps to two rows and its height is not a constant,
+// so anything that wants "the rest of the screen" has to be told what is left.
+// Published as --wr-chrome for the CSS to subtract.
+function wrSyncChrome(){
+  var tb = document.getElementById('topbar');
+  var h = tb ? Math.round(tb.getBoundingClientRect().height) : 0;
+  // A hidden #app measures 0 — never publish that, or the panel below would be
+  // told it has the whole viewport and overlap the bar the moment it appears.
+  if (h > 0) document.documentElement.style.setProperty('--wr-chrome', h + 'px');
+}
+// The bar's height moves on its own: it wraps to two rows below 900px, a third
+// when the controls do, and again when the webfonts land. Observing it is the
+// only version of this that is right at every moment rather than at boot.
+function wrWatchChrome(){
+  var tb = document.getElementById('topbar');
+  if (!tb) return;
+  wrSyncChrome();
+  if (window.ResizeObserver && !tb._wrChromeRO) {
+    tb._wrChromeRO = new ResizeObserver(wrSyncChrome);
+    tb._wrChromeRO.observe(tb);
+  }
+}
+window.addEventListener('resize', wrSyncChrome);
+window.addEventListener('orientationchange', function(){ setTimeout(wrSyncChrome, 120); });
+if (document.readyState !== 'loading') wrWatchChrome();
+else document.addEventListener('DOMContentLoaded', wrWatchChrome);
 
 // ══════════════════════════════════════
 // TAB ORDER — drag to reorder, synced across devices
@@ -6704,6 +6746,7 @@ async function initBuildsTab() {
     await loadBuildsFromFirestore();
     buildsLoaded = true;
   }
+  wrWatchChrome();
   if (!allRuneData.length || !allSummonerSpells.length) await loadDDragonData();
   if (!allItemsData.length) {
     try {
@@ -7121,7 +7164,7 @@ function openBuildEditor() {
   champImg.style.cssText = 'width:36px;height:36px;border-radius:8px;border:2px solid var(--bd2);flex-shrink:0;';
   var title = document.createElement('div');
   title.style.cssText = 'font-family:var(--head);font-size:19px;font-weight:800;color:var(--tx);min-width:0;overflow-wrap:anywhere;';
-  title.innerHTML = (champ?champ.name:cid) + '<span style="font-size:12px;font-weight:400;color:var(--tx3);font-family:var(--mono);margin-left:10px;letter-spacing:1px;">' + (buildEditorIdx>=0?'Edit Build':'New Build') + '</span>';
+  title.innerHTML = (champ?champ.name:cid) + '<span class="be-mode-tag" style="font-size:12px;font-weight:400;color:var(--tx3);font-family:var(--mono);margin-left:10px;letter-spacing:1px;">' + (buildEditorIdx>=0?'Edit Build':'New Build') + '</span>';
   var saveBtn = document.createElement('button');
   saveBtn.className = 'bld-pagehd-spacer';
   saveBtn.style.cssText = 'height:38px;padding:0 22px;background:transparent;border:1px solid rgba(192,174,234,.45);border-radius:8px;color:var(--gold2);font-family:var(--head);font-size:13px;font-weight:700;letter-spacing:0.2px;cursor:pointer;flex-shrink:0;';
