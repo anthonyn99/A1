@@ -213,7 +213,7 @@
 
     // Groups 4 + 5 — derived from the journal documents already read above.
     var canvases = [], canvasBytes = 0;
-    var allImageIds = {}, imgByJournal = {};
+    var allImageIds = {}, imgByJournal = {}, oddKeys = [];
     for (var j = 0; j < JOURNALS.length; j++) {
       var spec = JOURNALS[j];
       var jd = journalCache[spec.doc];
@@ -221,7 +221,15 @@
       var ids = entryIds(jd);
       var keys = imageKeys(jd, spec.scheme);
       imgByJournal[spec.doc] = Object.keys(keys).length;
-      Object.keys(keys).forEach(function (k) { allImageIds[spec.imgPrefix + k] = true; });
+      // The placeholder value is ALREADY the full document id: the writer
+      // builds imgKey = '<prefix>' + entryId + '_' + hash and stores the
+      // placeholder as '<scheme>' + imgKey, and the rehydrator reads
+      // doc(db,'dashboards', imgKey) with nothing added. Prefixing here again
+      // produced journal_img_journal_img_… and silently found nothing.
+      Object.keys(keys).forEach(function (k) {
+        if (k.indexOf(spec.imgPrefix) !== 0) { oddKeys.push(spec.doc + ':' + k); return; }
+        allImageIds[k] = true;
+      });
       // One probe per entry — bounded by entry count, which is small.
       for (var e = 0; e < ids.length; e++) {
         var cd = await readDoc(spec.canvasPrefix + ids[e]);
@@ -245,10 +253,16 @@
       sampled.push(ib);
     }
     var avg = sampled.length ? Math.round(sampleBytes / sampled.length) : 0;
+    // If images exist but none could be sampled, the estimate is UNKNOWN, not
+    // zero. Reporting 0 MB here would green-light putting blobs in git on the
+    // strength of no evidence at all.
+    var imgOk = (imgIds.length === 0) || (sampled.length > 0);
     report.groups.images = {
       count: imgIds.length, perJournal: imgByJournal,
       sampled: sampled.length, avgBytes: avg,
-      estTotalBytes: avg * imgIds.length,
+      estTotalBytes: imgOk ? avg * imgIds.length : null,
+      estimateValid: imgOk,
+      unrecognisedKeys: oddKeys,
       largestSample: sampled.length ? Math.max.apply(null, sampled) : 0
     };
 
@@ -273,18 +287,29 @@
     if (g.singletons.failed.length) console.warn('  READ FAILURES ...... ' + g.singletons.failed.join(', '));
     console.log('  archives ........... ' + g.archives.found + ' docs, ' + kb(g.archives.bytes));
     console.log('  canvases ........... ' + g.canvases.found + ' docs, ' + kb(g.canvases.bytes));
-    console.log('  images ............. ' + g.images.count + ' docs, ~' + mb(g.images.estTotalBytes)
-                + ' (avg ' + kb(g.images.avgBytes) + ' from ' + g.images.sampled + ' sampled)');
+    console.log('  images ............. ' + g.images.count + ' docs, '
+                + (g.images.estimateValid ? '~' + mb(g.images.estTotalBytes)
+                     + ' (avg ' + kb(g.images.avgBytes) + ' from ' + g.images.sampled + ' sampled)'
+                   : 'SIZE UNKNOWN — ' + g.images.count + ' ids found but 0 could be read'));
+    if (g.images.unrecognisedKeys.length) {
+      console.warn('  image ids not matching their journal prefix (scheme changed?):',
+                   g.images.unrecognisedKeys.slice(0, 8));
+    }
     console.log('  CORE snapshot ...... ' + kb(coreBytes) + ' raw'
                 + '   (gzip+encrypt typically lands near a tenth of this)');
     console.log('  largest singletons . ' + g.singletons.largest.map(function (x) {
       return x.path + ' ' + kb(x.bytes); }).join('  |  '));
 
     console.log('%c  Decisions', 'font-weight:bold');
-    var imgMB = g.images.estTotalBytes / 1048576;
-    console.log('   blobs in git? ..... ' + (imgMB < 500
-      ? 'YES — ' + mb(g.images.estTotalBytes) + ' is under the 500 MB threshold'
-      : 'NO — ' + mb(g.images.estTotalBytes) + ' exceeds 500 MB; keep blobs local+git only, or move to R2'));
+    if (!g.images.estimateValid) {
+      console.error('   blobs in git? ..... CANNOT DECIDE — ' + g.images.count
+        + ' image ids were found but none could be read. Do NOT treat this as 0 MB.');
+    } else {
+      var imgMB = g.images.estTotalBytes / 1048576;
+      console.log('   blobs in git? ..... ' + (imgMB < 500
+        ? 'YES — ' + mb(g.images.estTotalBytes) + ' is under the 500 MB threshold'
+        : 'NO — ' + mb(g.images.estTotalBytes) + ' exceeds 500 MB; keep blobs local+git only, or move to R2'));
+    }
     console.log('   single-file risk .. ' + (g.images.largestSample > 50 * 1048576
       ? 'ONE OR MORE IMAGES OVER 50 MB — exclude those from git'
       : 'ok, largest sampled ' + kb(g.images.largestSample)));
