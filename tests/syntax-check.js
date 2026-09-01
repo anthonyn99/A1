@@ -27,8 +27,21 @@ const FILES = [
 let babelParse = null;
 try { babelParse = require('@babel/parser').parse; } catch (e) { /* optional */ }
 
+// Standalone scripts served from the root alongside the pages. These are NOT
+// inline, so the HTML scanner below never sees them — a syntax error here is
+// just as fatal (backup.js runs on every page load) and would otherwise ship
+// unnoticed.
+const ROOT_SCRIPTS = ['backup.js'];
+
 let checked = 0, skipped = 0;
 const errors = [];
+
+for (const name of ROOT_SCRIPTS) {
+  const file = path.join(__dirname, '..', name);
+  if (!fs.existsSync(file)) { errors.push(name + ' — file not found'); continue; }
+  try { new vm.Script(fs.readFileSync(file, 'utf8'), { filename: name }); checked++; }
+  catch (e) { errors.push(name + ' — ' + e.message); }
+}
 
 for (const name of FILES) {
   const file = path.join(__dirname, '..', name);
@@ -83,5 +96,6 @@ if (errors.length) {
   console.error('\nThis would break the app on every device. Fix before shipping.');
   process.exit(1);
 }
-console.log('Syntax OK — parsed ' + checked + ' inline scripts across ' + FILES.join(', ') +
+console.log('Syntax OK — parsed ' + checked + ' scripts across ' +
+  FILES.concat(ROOT_SCRIPTS).join(', ') +
   (skipped ? ' (' + skipped + ' JSX block(s) skipped: @babel/parser not installed)' : '') + '.');
