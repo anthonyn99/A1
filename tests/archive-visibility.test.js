@@ -78,6 +78,37 @@ t('archived days are read-only in the UI',
   (HTML.match(/vdArchivedRef\.current\[k\]\)\{if\(window\._planReadOnlyNudge\)/g) || []).length >= 2,
   'Both tog() and del() must refuse edits to archived day-keys.');
 
+section("Static: the same fix is ported to Tony's TaskHub");
+
+t('Tony tracks archived day-keys in a ref',
+  /const thArchivedRef=useRef\(\{\}\)/.test(HTML));
+
+t('buildPayload strips archived day-keys from the upload',
+  /if\(thArchivedRef\.current\[dk\]\)return;/.test(HTML),
+  'Re-uploading archived days would re-create the oversize doc that pruned them.');
+
+t('Tony un-archive no longer refuses on the soft-byte cap',
+  !/\[Unarchive\] Tony: restore would be/.test(HTML));
+
+t('Tony un-archive latch bumped past the stuck _v1',
+  /td6_unarchived_v2/.test(HTML) && !/td6_unarchived_v1/.test(HTML));
+
+const _thArchIdx = HTML.indexOf('_fbArchiveDays("main"');
+const _thArchBody = HTML.slice(_thArchIdx, HTML.indexOf('const t=setTimeout(run,20000)', _thArchIdx));
+t('Tony archiver keeps just-archived days on screen',
+  !/^\s*setData\(split\.keep\);/m.test(_thArchBody) && /setDataLocalOnly\(_merged\)/.test(_thArchBody));
+
+t('Tony archiver excludes already-archived keys from the splitter',
+  /if\(!thArchivedRef\.current\[k\]\)_liveOnly\[k\]=v;/.test(HTML));
+
+t('Tony archived days are read-only in the UI',
+  (HTML.match(/thArchivedRef\.current\[k\]\)\{if\(window\._planReadOnlyNudge\)/g) || []).length >= 2,
+  'Both tog() and del() must refuse edits to archived day-keys.');
+
+t('no LIVE setData(split.keep) call survives anywhere in the file',
+  !HTML.split(/\r?\n/).some(l => /setData\(split\.keep\)/.test(l) && !/^\s*\/\//.test(l)),
+  'Both profiles must keep archived days visible after a prune (comments are fine).');
+
 // ───────────────────────── behavioural ─────────────────────────
 section('Behaviour: the real thSplitArchivable overflow branch');
 

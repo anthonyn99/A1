@@ -7141,9 +7141,14 @@ function App(){
       }
       return out;
     };
+    // Archived day-keys are merged into `data` for DISPLAY only (thArchivedRef).
+    // They live in dashboards/main_archive_<year> and must never be written back
+    // into the live doc — re-uploading them would re-create the oversize document
+    // whose prune archived them in the first place.
     const sanitizeData=d=>{
       const out={};
       Object.entries(d).forEach(([dk,arr])=>{
+        if(thArchivedRef.current[dk])return;
         out[dk]=Array.isArray(arr)?arr.map(sanitizeItem):arr;
       });
       return out;
@@ -7163,6 +7168,13 @@ function App(){
   // savedAt of the newest state this device has applied or written; anything older
   // arriving from the cloud is stale and must not repaint the UI (see applyRemote).
   const thLastAppliedRef=useRef(0);
+  // Day-keys that live in an archive sidecar doc, not in the live document.
+  // Populated by the un-archive/archive effects; consulted by buildPayload (never
+  // uploaded) and by the archiver (never re-archived). Read-only in the UI.
+  // Mirrors Veda's vdArchivedRef — see the note there for the full failure mode.
+  const thArchivedRef=useRef({});
+  // Exposed so the day-grid (and the verify skill) can mark archived days.
+  useEffect(()=>{window._thIsArchivedDay=k=>!!thArchivedRef.current[k];return()=>{delete window._thIsArchivedDay;};},[]);
   // Declared here rather than beside the archiver below because the Plans mirror
   // reconcile (further down) needs it as a load barrier and would otherwise hit
   // the temporal dead zone. useRef has no ordering constraint.
@@ -7198,6 +7210,11 @@ function App(){
   },[buildPayload]);
 
   const setData=useCallback(fn=>{setDataState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(T_SK.data,next);stateRef.current={...stateRef.current,data:next};fbPush();return next;});},[fbPush]);
+  // Update `data` in memory + localStorage WITHOUT pushing to Firestore. Used by
+  // the un-archive restore and the archiver: archived days are display-only
+  // history, so rendering them must not enqueue a write (buildPayload strips them
+  // anyway, but not pushing at all avoids a no-op save on every cold open).
+  const setDataLocalOnly=useCallback(next=>{setDataState(prev=>{const n=typeof next==="function"?next(prev):next;if(n===prev)return prev;saveJ(T_SK.data,n);stateRef.current={...stateRef.current,data:n};return n;});},[]);
   // Same as setData but flags the write as automated/background, so the Firebase
   // layer can refuse it before cloud data has loaded. Returning prev unchanged
   // skips the push entirely — the mirror reconcile runs on every snapshot and
@@ -7423,7 +7440,12 @@ function App(){
       if(archiveRanRef.current||!fbLoadedRef.current||!window._fbArchiveDays)return;
       const last=parseInt(localStorage.getItem("td6_archive_at")||"0",10)||0;
       if(Date.now()-last<24*60*60*1000)return;
-      const split=thSplitArchivable(stateRef.current.data||{});
+      // Exclude display-only archived days: they are already in a sidecar doc and
+      // are stripped from writes, so feeding them back through the splitter would
+      // re-archive (and re-count) history that never left.
+      const _liveOnly={};
+      Object.entries(stateRef.current.data||{}).forEach(([k,v])=>{if(!thArchivedRef.current[k])_liveOnly[k]=v;});
+      const split=thSplitArchivable(_liveOnly);
       if(!split.movedCount&&!split.droppedEmpty){
         archiveRanRef.current=true;localStorage.setItem("td6_archive_at",String(Date.now()));return;
       }
@@ -7433,12 +7455,20 @@ function App(){
       }
       archiveRanRef.current=true;
       localStorage.setItem("td6_archive_at",String(Date.now()));
-      setData(split.keep);
-      console.log("[Archive] Tony: moved "+split.movedCount+" day(s), dropped "+split.droppedEmpty+" empty; live data now "+(thDataBytes(split.keep)/1024).toFixed(0)+" KB");
+      // Days just moved to a sidecar stay VISIBLE as read-only history. Only the
+      // live document shrinks. Previously this called setData(split.keep), which
+      // deleted them from the UI too — an archive that looked exactly like tasks
+      // silently reverting by months.
+      Object.keys(split.byYear).forEach(y=>Object.keys(split.byYear[y]).forEach(k=>{thArchivedRef.current[k]=true;}));
+      const _merged={...split.keep};
+      Object.keys(split.byYear).forEach(y=>Object.entries(split.byYear[y]).forEach(([k,v])=>{_merged[k]=v;}));
+      Object.entries(stateRef.current.data||{}).forEach(([k,v])=>{if(thArchivedRef.current[k]&&!(k in _merged))_merged[k]=v;});
+      setDataLocalOnly(_merged);
+      console.log("[Archive] Tony: moved "+split.movedCount+" day(s), dropped "+split.droppedEmpty+" empty; live doc now "+(thDataBytes(split.keep)/1024).toFixed(0)+" KB (archived days still shown, read-only)");
     };
     const t=setTimeout(run,20000);
     return()=>clearTimeout(t);
-  },[setData]);
+  },[setDataLocalOnly]);
 
   // ── One-time un-archive ─────────────────────────────────────────────────────
   // The soft-byte pass used to fire at 600KB, which moved YEARS of day-keys into
@@ -7455,33 +7485,40 @@ function App(){
   useEffect(()=>{
     const run=async()=>{
       if(unarchiveRanRef.current||!fbLoadedRef.current||!window._fbLoadArchive)return;
-      if(localStorage.getItem("td6_unarchived_v1"))return;
+      // Key bumped to _v2 deliberately. _v1 was a one-time latch, and a device
+      // that took the old "merged fits under the cap" exit has it stuck at "1" —
+      // on that device the CORRECTED restore below would be skipped and the
+      // archived days would never reappear. A new key re-runs the fixed restore
+      // exactly once everywhere, whatever the old latch says.
+      if(localStorage.getItem("td6_unarchived_v2"))return;
       unarchiveRanRef.current=true;
       try{
         const live=stateRef.current.data||{};
         const merged={...live};
+        const archivedKeys={};
         let added=0,years=[];
         const thisYear=new Date().getFullYear();
         for(let y=thisYear-TH_ARCHIVE_YEARS-2;y<=thisYear;y++){
           const a=await window._fbLoadArchive("main",String(y));
           if(!a||!Object.keys(a).length)continue;
           let n=0;
-          Object.keys(a).forEach(k=>{ if(!(k in merged)){merged[k]=a[k];n++;} });
+          Object.keys(a).forEach(k=>{ if(!(k in merged)){merged[k]=a[k];archivedKeys[k]=true;n++;} });
           if(n){added+=n;years.push(y+":"+n);}
         }
         if(!added){return;}   // nothing found — do NOT flag done; a transient empty read must be able to retry
         const bytes=thDataBytes(merged);
-        if(bytes>TH_ARCHIVE_SOFT_BYTES){
-          // Refuse rather than restore something the archiver will immediately
-          // undo (or, worse, that trips the 900KB write guard and stops syncing).
-          console.warn("[Unarchive] Tony: restore would be "+(bytes/1024).toFixed(0)+
-            "KB, over the "+(TH_ARCHIVE_SOFT_BYTES/1024).toFixed(0)+"KB threshold — skipped. Raise TH_ARCHIVE_SOFT_BYTES or restore selectively.");
-          return;
-        }
-        setData(merged);
-        localStorage.setItem("td6_unarchived_v1","1");
+        // NO size gate here any more. The old code refused to restore when the
+        // merged result exceeded TH_ARCHIVE_SOFT_BYTES — but restoring is exactly
+        // what re-creates the oversize doc the prune produced, so the two guards
+        // deadlocked and the days could NEVER come back.
+        // The cap still matters, but it is a LIVE-DOCUMENT limit, not a display
+        // limit: these keys are flagged archived and stripped from every write
+        // (see buildPayload), so merging them costs memory, never doc bytes.
+        Object.keys(archivedKeys).forEach(k=>{thArchivedRef.current[k]=true;});
+        setDataLocalOnly(merged);
+        localStorage.setItem("td6_unarchived_v2","1");
         console.log("[Unarchive] Tony: restored "+added+" day(s) ["+years.join(", ")+
-          "]; live data now "+(bytes/1024).toFixed(0)+" KB");
+          "] as READ-ONLY history; live doc unchanged, in-memory data now "+(bytes/1024).toFixed(0)+" KB");
       }catch(e){
         unarchiveRanRef.current=false;   // let it retry on the next load
         console.warn("[Unarchive] Tony failed — will retry:",e&&(e.message||e));
@@ -7494,7 +7531,7 @@ function App(){
     const stop=setTimeout(()=>clearInterval(iv),120000);
     setTimeout(run,3000);
     return()=>{clearInterval(iv);clearTimeout(stop);};
-  },[setData]);
+  },[setDataLocalOnly]);
 
   // Auto-delete goals completed 30+ days ago. Runs shortly after load (once Firebase
   // has settled) and hourly; only writes when something actually expires, so the prune
@@ -7790,9 +7827,9 @@ function App(){
 
   // Mirrored plan items are owned by dashboards/plans — ticking one here would be
   // reverted by the next reconcile, so refuse it and say why.
-  const tog=useCallback((k,id)=>{const cur=(stateRef.current.data[k]||[]).find(t=>t.id===id);if(cur&&cur._planId){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This is a shared plan — manage it in Add → Plan.');return;}setData(prev=>{const arr=[...(prev[k]||[])];const i=arr.findIndex(t=>t.id===id);if(i>=0)arr[i]={...arr[i],done:!arr[i].done};return {...prev,[k]:arr};});},[setData]);
+  const tog=useCallback((k,id)=>{if(thArchivedRef.current[k]){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This day is archived history — it can be viewed but not edited.');return;}const cur=(stateRef.current.data[k]||[]).find(t=>t.id===id);if(cur&&cur._planId){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This is a shared plan — manage it in Add → Plan.');return;}setData(prev=>{const arr=[...(prev[k]||[])];const i=arr.findIndex(t=>t.id===id);if(i>=0)arr[i]={...arr[i],done:!arr[i].done};return {...prev,[k]:arr};});},[setData]);
 
-  const del=useCallback((k,id)=>{const cur=(stateRef.current.data[k]||[]).find(t=>t.id===id);if(cur&&cur._planId){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This is a shared plan — cancel it in Add → Plan to remove it.');return;}setData(prev=>{const item=(prev[k]||[]).find(t=>t.id===id);if(item?.repeatId||item?.altSeqId){setDelConfirm({dateKey:k,itemId:id,item});return prev;}if(item?.notifyAt&&window.thCancelNotif)window.thCancelNotif(id,item.notifyRepeatId);const arr=(prev[k]||[]).filter(t=>t.id!==id);const next={...prev};if(!arr.length)delete next[k];else next[k]=arr;return next;});},[setData]);
+  const del=useCallback((k,id)=>{if(thArchivedRef.current[k]){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This day is archived history — it can be viewed but not edited.');return;}const cur=(stateRef.current.data[k]||[]).find(t=>t.id===id);if(cur&&cur._planId){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This is a shared plan — cancel it in Add → Plan to remove it.');return;}setData(prev=>{const item=(prev[k]||[]).find(t=>t.id===id);if(item?.repeatId||item?.altSeqId){setDelConfirm({dateKey:k,itemId:id,item});return prev;}if(item?.notifyAt&&window.thCancelNotif)window.thCancelNotif(id,item.notifyRepeatId);const arr=(prev[k]||[]).filter(t=>t.id!==id);const next={...prev};if(!arr.length)delete next[k];else next[k]=arr;return next;});},[setData]);
 
   const delThisOnly=useCallback(()=>{
     if(!delConfirm)return;const{dateKey,itemId,item}=delConfirm;
