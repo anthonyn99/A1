@@ -18,6 +18,25 @@
  *
  * Nothing was ever lost server-side, which is exactly why it read as a revert.
  *
+ * WHY IT CAME BACK (2026-09-01, "my last 5 days are gone")
+ * The fix above kept archived days on screen via an in-memory registry, but the
+ * registry was memory-only while the MERGED data was written to localStorage.
+ * Three consequences, all now tested here:
+ *
+ *   A. On the next cold load the cache held archived history with no flag on it,
+ *      so buildPayload uploaded ~1.1 MB back into the live doc — re-inflating it
+ *      or tripping the 900 KB write guard and stopping sync outright.
+ *   B. The archiver then saw an oversize doc again and ran the size valve, which
+ *      stopped only at TODAY. So it kept eating forward, one bite per device per
+ *      day, until it was archiving LAST WEEK.
+ *   C. The restore was latched once-per-device (td*_unarchived_v2), while the
+ *      archiver runs once per device per DAY — so days the phone archived after
+ *      the PC's single restore were simply absent on the PC, permanently.
+ *
+ * Fixes: persist the registry (thLoad/thSaveArchivedKeys), give the valve a real
+ * floor (TH_ARCHIVE_MIN_AGE_DAYS), drop the latch so the restore runs every load,
+ * and reclaim recent days the old valve took back into the live document.
+ *
  * Run: node tests/archive-visibility.test.js
  */
 'use strict';
@@ -36,9 +55,10 @@ const HTML = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 
 section('Static: archived days stay visible and stay out of writes');
 
-t('Veda tracks archived day-keys in a ref',
-  /const vdArchivedRef=useRef\(\{\}\)/.test(HTML),
-  'vdArchivedRef is what separates "in the live doc" from "display-only history".');
+t('Veda tracks archived day-keys in a PERSISTED ref',
+  /const vdArchivedRef=useRef\(thLoadArchivedKeys\("td_archivedKeys"\)\)/.test(HTML),
+  'A memory-only registry forgets on reload while the merged data survives in ' +
+  'localStorage — the next save then re-uploads archived history into the live doc.');
 
 t('buildVdPayload strips archived day-keys from the upload',
   /sanitizeData=d=>\{[^\n]*vdArchivedRef\.current\[dk\]\)return;/.test(HTML),
@@ -48,9 +68,14 @@ t('un-archive no longer refuses on the soft-byte cap',
   !/\[Unarchive\] Veda: restore would be/.test(HTML),
   'That size gate deadlocked against the prune: restoring re-made the oversize doc.');
 
-t('un-archive restores WITHOUT pushing to Firestore',
+t('un-archive renders read-only history without pushing it',
   /setDataLocalOnly\(merged\)/.test(HTML),
-  'Display-only history must not enqueue a cloud write.');
+  'Display-only history must not enqueue a cloud write; only a RECLAIM does.');
+
+t('a read failure is not mistaken for an empty sidecar',
+  (HTML.match(/if\(a===null\)throw new Error\("archive read failed for "\+y\);/g) || []).length === 2,
+  'Treating a failed read as "no archive for that year" would rebuild the registry ' +
+  'from a partial scan and un-flag history that is still only in a sidecar.');
 
 t('setDataLocalOnly exists and does not call vdFbPush',
   /const setDataLocalOnly=useCallback\(next=>\{setDataState\(prev=>\{[^}]*saveJ\(SK\.data,n\)/.test(HTML) &&
@@ -67,12 +92,27 @@ t('archiver excludes already-archived keys from the splitter',
   /if\(!vdArchivedRef\.current\[k\]\)_liveOnly\[k\]=v;/.test(HTML),
   'Otherwise restored history gets re-archived on every pass.');
 
-t('the un-archive latch key was bumped past the stuck _v1',
-  /localStorage\.getItem\("td_unarchived_v2"\)/.test(HTML) &&
-  /localStorage\.setItem\("td_unarchived_v2","1"\)/.test(HTML) &&
-  !/td_unarchived_v1/.test(HTML),
-  'A device that took the old under-cap exit has _v1 stuck at "1"; reusing that key ' +
-  'would skip the corrected restore and the archived days would never reappear.');
+t('no persisted un-archive latch survives (Veda)',
+  !/localStorage\.(get|set)Item\("td_unarchived_v\d"/.test(HTML),
+  'A once-per-DEVICE restore cannot recover from a once-per-device-per-DAY archiver: ' +
+  'days the phone archived after the PC restored were unreachable on the PC forever.');
+
+t('Veda restore persists the rebuilt registry',
+  /thSaveArchivedKeys\("td_archivedKeys",nextArchived\)/.test(HTML));
+
+t('Veda archiver persists newly archived keys',
+  /thSaveArchivedKeys\("td_archivedKeys",vdArchivedRef\.current\)/.test(HTML));
+
+t('Veda archiver refuses to prune before the restore has run',
+  /if\(!unarchiveRanRef\.current\)return;[\s\S]{0,400}?"td_archive_at"/.test(HTML),
+  'Pruning first would measure history the restore has not recognised yet, and its ' +
+  'fresh flags would be overwritten by the registry rebuild moments later.');
+
+t('Veda restore reclaims recent days as editable',
+  /const floorKey=thMinAgeKey\(\);[\s\S]{0,800}?delete nextArchived\[k\];reclaimed\.push\(k\)/.test(HTML) &&
+  /if\(reclaimed\.length\)\{reclaimed\.sort\(\);vdFbPush\(\);\}/.test(HTML),
+  'Days the old valve took out of the recent window must go BACK into the live doc, ' +
+  'editable — and that needs a real write, not just setDataLocalOnly.');
 
 t('archived days are read-only in the UI',
   (HTML.match(/vdArchivedRef\.current\[k\]\)\{if\(window\._planReadOnlyNudge\)/g) || []).length >= 2,
@@ -80,8 +120,8 @@ t('archived days are read-only in the UI',
 
 section("Static: the same fix is ported to Tony's TaskHub");
 
-t('Tony tracks archived day-keys in a ref',
-  /const thArchivedRef=useRef\(\{\}\)/.test(HTML));
+t('Tony tracks archived day-keys in a PERSISTED ref',
+  /const thArchivedRef=useRef\(thLoadArchivedKeys\("td6_archivedKeys"\)\)/.test(HTML));
 
 t('buildPayload strips archived day-keys from the upload',
   /if\(thArchivedRef\.current\[dk\]\)return;/.test(HTML),
@@ -90,8 +130,20 @@ t('buildPayload strips archived day-keys from the upload',
 t('Tony un-archive no longer refuses on the soft-byte cap',
   !/\[Unarchive\] Tony: restore would be/.test(HTML));
 
-t('Tony un-archive latch bumped past the stuck _v1',
-  /td6_unarchived_v2/.test(HTML) && !/td6_unarchived_v1/.test(HTML));
+t('no persisted un-archive latch survives (Tony)',
+  !/localStorage\.(get|set)Item\("td6_unarchived_v\d"/.test(HTML));
+
+t('Tony restore persists the rebuilt registry',
+  /thSaveArchivedKeys\("td6_archivedKeys",nextArchived\)/.test(HTML));
+
+t('Tony archiver persists newly archived keys',
+  /thSaveArchivedKeys\("td6_archivedKeys",thArchivedRef\.current\)/.test(HTML));
+
+t('Tony archiver refuses to prune before the restore has run',
+  /if\(!unarchiveRanRef\.current\)return;[\s\S]{0,400}?"td6_archive_at"/.test(HTML));
+
+t('Tony restore reclaims recent days as editable',
+  /if\(reclaimed\.length\)\{reclaimed\.sort\(\);fbPush\(\);\}/.test(HTML));
 
 const _thArchIdx = HTML.indexOf('_fbArchiveDays("main"');
 const _thArchBody = HTML.slice(_thArchIdx, HTML.indexOf('const t=setTimeout(run,20000)', _thArchIdx));
@@ -104,6 +156,17 @@ t('Tony archiver excludes already-archived keys from the splitter',
 t('Tony archived days are read-only in the UI',
   (HTML.match(/thArchivedRef\.current\[k\]\)\{if\(window\._planReadOnlyNudge\)/g) || []).length >= 2,
   'Both tog() and del() must refuse edits to archived day-keys.');
+
+t('the size valve stops at a recent-days floor, not at today',
+  !/if\(k>=todayKey\)break;/.test(HTML) &&
+  (HTML.match(/const floorKey=thMinAgeKey\(\);
+\s*for\(const k of recent\)\{
+\s*if\(k>=floorKey\)break;/g) || []).length === 2,
+  '`k>=todayKey` protected exactly one day, so an oversize doc archived yesterday.');
+
+t('an unfixable oversize doc is reported, not paid for with recent days',
+  (HTML.match(/if\(over>TH_ARCHIVE_SOFT_BYTES\)out\.overCap=over;/g) || []).length === 2 &&
+  (HTML.match(/if\(split\.overCap\)console\.error/g) || []).length === 2);
 
 t('no LIVE setData(split.keep) call survives anywhere in the file',
   !HTML.split(/\r?\n/).some(l => /setData\(split\.keep\)/.test(l) && !/^\s*\/\//.test(l)),
