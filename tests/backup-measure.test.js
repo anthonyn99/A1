@@ -52,7 +52,11 @@ const sandbox = {
   DecompressionStream: global.DecompressionStream,
   TextEncoder: global.TextEncoder, TextDecoder: global.TextDecoder,
   crypto: global.crypto, btoa: global.btoa, atob: global.atob,
-  setTimeout, clearTimeout,
+  // Inert timers. register() starts the setup prompt poll and the watchdog,
+  // whose first check is two minutes out — real timers would hold the node
+  // event loop open and make this suite hang rather than finish.
+  setTimeout: () => 0, clearTimeout: () => {},
+  setInterval: () => 0, clearInterval: () => {},
   // No indexedDB here on purpose: the vault is browser-only and is covered by
   // the CDP verification, not by this suite.
   Date, Math, JSON, Object, Error, RegExp, Promise, Array, Uint8Array, String, Number
@@ -353,6 +357,7 @@ A1.measure('fake').then((rep) => {
     process.exit(1);
   }
   console.log('All ' + pass + ' backup-measure checks passed.');
+  process.exit(0);
 }).catch((e) => {
   console.error('\nmeasure() threw: ' + (e && (e.stack || e.message || e)));
   process.exit(1);
