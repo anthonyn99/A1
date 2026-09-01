@@ -85,6 +85,7 @@
       projectId: opts.projectId || '(unknown)',
       fs: opts.fs
     };
+    try { scheduleSetupPrompt(); } catch (e) {}
     return true;
   }
 
@@ -733,6 +734,121 @@
     return out;
   }
 
+  /* ── First-run setup, in the UI ───────────────────────────────────────────
+   *
+   * The passphrase cannot be set from a console on a phone, and the phone is
+   * the device that most needs a backup, so setup has to be a real dialog.
+   *
+   * WHICH PROFILE IS ASKED
+   * Each device asks for exactly one passphrase: the profile whose TaskHub is
+   * set as MAIN on that device (`td6_mainDash`, the same flag that already
+   * scopes reminder delivery). Tony's PC asks Tony; Veda's phone asks Veda.
+   * Nobody is asked to set a passphrase for someone else's profile.
+   *
+   * Note this is about WHO IS ASKED, not about what gets backed up. Index runs
+   * listeners for both profiles, so a backup taken on any device contains both
+   * TaskHubs, both journals, plans — everything. Each person's devices simply
+   * hold that shared data under their own key, which gives two independent
+   * recovery paths rather than one.
+   * ===================================================================== */
+
+  var PROFILE_LABEL = { tony: 'Tony', veda: 'Veda' };
+
+  function mainProfile() {
+    var m = lsGet('td6_mainDash');
+    return m === 'veda' ? 'veda' : 'tony';
+  }
+
+  function setupDone() { return !!lsGet(A1B.PASS_KEY); }
+
+  // Returns 'set' | 'skipped' | 'unavailable' | 'already'.
+  async function promptSetup(opts) {
+    opts = opts || {};
+    if (killed()) return 'unavailable';
+    if (setupDone() && !opts.force) return 'already';
+    if (typeof window.uiForm !== 'function' || typeof window.uiAlert !== 'function') {
+      return 'unavailable';
+    }
+
+    var who = opts.profile || mainProfile();
+    var name = PROFILE_LABEL[who] || 'you';
+    var note = '';
+
+    for (;;) {
+      var res = await window.uiForm({
+        title: 'Turn on backups for ' + name,
+        message: note +
+          'Index can keep an encrypted backup of everything — both TaskHubs, both ' +
+          'journals, plans and settings — so nothing is lost if the cloud ever fails.\n\n' +
+          'Choose a passphrase. It is the only thing that can open your backups, and ' +
+          'it CANNOT be recovered. Write it down somewhere safe before you continue.',
+        okLabel: 'Turn on backups',
+        cancelLabel: 'Not now',
+        fields: [
+          { name: 'p1', label: 'Passphrase', type: 'password', required: true,
+            placeholder: 'at least 8 characters' },
+          { name: 'p2', label: 'Type it again', type: 'password', required: true }
+        ]
+      });
+
+      if (!res) {                       // "Not now"
+        lsSet('a1b_snoozed_at', String(Date.now()));
+        return 'skipped';
+      }
+
+      var p1 = String(res.p1 || ''), p2 = String(res.p2 || '');
+      if (p1.length < 8) { note = 'That passphrase is too short — use at least 8 characters.\n\n'; continue; }
+      if (p1 !== p2) { note = 'The two entries did not match. Please try again.\n\n'; continue; }
+
+      try {
+        await unlock(p1);               // self-tests encryption before returning
+      } catch (e) {
+        note = 'Could not turn on backups on this device (' +
+               (e && (e.message || e)) + '). Please try again.\n\n';
+        continue;
+      }
+
+      lsSet('a1b_profile', who);
+      lsSet('a1b_setup_at', String(Date.now()));
+
+      await window.uiAlert(
+        'Backups are on for ' + name + '.\n\n' +
+        'From now on, every change is encrypted and saved on this device — it keeps ' +
+        'working with no internet.\n\n' +
+        'Two things worth knowing:\n\n' +
+        '• Write the passphrase down. There is no way to recover it, and without it ' +
+        'the backups cannot be read. That is what makes it safe to store them publicly.\n\n' +
+        '• You will set it once on each device you use. Use the SAME passphrase every ' +
+        'time, so any device can restore a backup made on another one.',
+        { title: 'Backups are on' });
+
+      // Capture immediately so there is a real backup within seconds of setup,
+      // rather than whenever the next edit happens to land.
+      try { await captureNow(); } catch (e) {}
+      return 'set';
+    }
+  }
+
+  // Ask once per load, once the app is actually up. Deliberately polled rather
+  // than fired on a timer: the modal system and the Firebase gates come up at
+  // different times on different devices, and a single missed timeout would
+  // mean a device that silently never gets a backup.
+  function scheduleSetupPrompt() {
+    if (setupDone() || killed()) return;
+    var tries = 0;
+    var iv = setInterval(function () {
+      tries++;
+      if (setupDone() || killed() || tries > 40) { clearInterval(iv); return; }
+      // Wait for the modal system AND for the cloud, so the first thing a
+      // person sees on opening Index is their data, not a passphrase box.
+      if (typeof window.uiForm !== 'function' || !gatesOpen()) return;
+      clearInterval(iv);
+      promptSetup().catch(function (e) {
+        console.warn('[A1Backup] setup prompt failed:', e && (e.message || e));
+      });
+    }, 1500);
+  }
+
   window.A1Backup = {
     version: A1B.SCHEMA,
     constants: A1B,
@@ -741,6 +857,9 @@
 
     // Phase 1 — capture and local vault.
     unlock: unlock,                 // enter the passphrase once per device
+    setup: promptSetup,             // the in-UI first-run dialog
+    isSetUp: setupDone,
+    profile: mainProfile,
     observe: observe,               // apps feed documents their listeners deliver
     capture: captureNow,            // force a snapshot now
     snapshots: listSnapshots,
