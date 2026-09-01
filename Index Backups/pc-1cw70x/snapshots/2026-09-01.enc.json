@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "alg": "AES-256-GCM",
+  "gz": true,
+  "kdf": {
+    "name": "PBKDF2",
+    "hash": "SHA-256",
+    "iter": 600000,
+    "salt": "cffB0PszO2Gvo3hKg2OqdA=="
+  },
+  "iv": "VxBYoWI/CpE4DdHW",
+  "ct": "AEobDQJ/qw3BeoOnvdCxnigyYMZdBQzTWmYsMKF3CB+tQtu+ER+oKSmvRTk8mPYhckw4ItN7YkK8ZD6m/P1FXBkgzCW5QfZJD11vUAw8ZrQsJuNBuU72sH0C43Yq/19jM82Kf6h8eXPUK/qemA8ey689EzODY8s6Ja0ihXiyht1iUr30ZE6VnoHK/iooRrS07B2nsqslR6EWqufvCW1WdPl/Ul/7deEtr0b3y/gxF9kYbTClmH6AFo6u4HI/7Ghb/ecmfJ8Ld1gdyzLAe2J1FoOC7Ac/ZEmCT6BErKyWrwfGZ5OWaOWvDfeYFa/eJSTV7gJKQuvgU/TNV7jAYolggZOj7S23eOppDdz3eINYsky3bEdx6gGRb2Qf3xi8wwIvmyqTEfH+tCrlnuQCh4xCOONLARVKxiRZgUk5eAFJ5KwVqhRi0Xk/SvOTYKOwTEAHxluACi/mn9Qs/hWma5ERe6DwuH20Vpms+G/oT3bbyMpBRWETrnFDmLiicrdmYmlP6S6TOvZS1Q/blCuvv0P37Uut7zsQMCjmjATsmYBkK0I/xw7GrKHjxeL7pinSS9fiyHGOrJBQPtc3srHKMs+Zpii9qxzQBZIvwez1lxik2aXhpa6yOdev49yxcyoVk3DxBnDEr8GxGrrqsJbadSWGBJi8F0Tp0UWiBfEYIK8OSAdteZZGFxPs2zPQGQIyePeA7O+ZVIWpvqutr5/m60B+rRzUpby0WdduO9PxTerAFeKK1w==",
+  "docs": 14,
+  "at": 1788298321564
+}

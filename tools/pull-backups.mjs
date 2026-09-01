@@ -32,10 +32,17 @@
  *   node tools/pull-backups.mjs            # fetch, write, report
  *   node tools/pull-backups.mjs --commit   # ...and commit if anything changed
  *
- * App Check gates the Worker, and this script has no browser to mint a token
- * with, so it needs one passed in:
- *   A1B_TOKEN=<app-check-token> node tools/pull-backups.mjs
- * Get one from the Index console with:  await window._acToken()
+ * AUTH
+ * The Worker is gated by App Check, which only a browser can mint. Rather than
+ * requiring someone to paste a token every time — a backup step that needs a
+ * human is a backup step that stops happening — the Worker also accepts a
+ * READ-ONLY bearer secret, kept in .a1b-pull-secret (gitignored). It can fetch
+ * ciphertext and nothing else: writes and deletes still require App Check.
+ *
+ * Set up once:
+ *   wrangler secret put PULL_SECRET --config workers/index-backups/wrangler.toml
+ * then run unattended:
+ *   node tools/pull-backups.mjs --commit
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -45,17 +52,31 @@ import { execFileSync } from 'node:child_process';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(ROOT, 'Index Backups');
 const WORKER = process.env.A1B_WORKER || 'https://index-backups.av1.workers.dev';
+// Read-only pull secret: env var first, then the gitignored file, so a
+// scheduled task needs no arguments and no human.
+function readSecret() {
+  if (process.env.A1B_PULL_SECRET) return process.env.A1B_PULL_SECRET.trim();
+  const f = path.join(ROOT, '.a1b-pull-secret');
+  try { return fs.readFileSync(f, 'utf8').trim(); } catch (e) { return ''; }
+}
+const SECRET = readSecret();
 const TOKEN = process.env.A1B_TOKEN || '';
 const DO_COMMIT = process.argv.includes('--commit');
 
-const headers = TOKEN ? { 'X-Firebase-AppCheck': TOKEN } : {};
+const headers = SECRET ? { Authorization: 'Bearer ' + SECRET }
+              : TOKEN ? { 'X-Firebase-AppCheck': TOKEN }
+              : {};
 const kb = (n) => (n / 1024).toFixed(1) + ' KB';
 
 async function get(p) {
   const r = await fetch(WORKER + p, { headers });
   if (!r.ok) {
     const hint = r.status === 401
-      ? ' — App Check rejected it. Set A1B_TOKEN from `await window._acToken()` in Index.'
+      ? (SECRET
+          ? ' — the pull secret was rejected. Re-run: wrangler secret put PULL_SECRET' +
+            ' --config workers/index-backups/wrangler.toml (and make sure it has no trailing newline).'
+          : ' — no credential. Create .a1b-pull-secret and upload it with' +
+            ' `wrangler secret put PULL_SECRET`, or pass A1B_TOKEN from `await window._acToken()`.')
       : '';
     throw new Error('GET ' + p + ' -> ' + r.status + hint);
   }
@@ -73,8 +94,8 @@ function writeIfChanged(file, body) {
 
 async function main() {
   console.log('Pulling from ' + WORKER);
-  if (!TOKEN) {
-    console.warn('  (no A1B_TOKEN set — expect 401 unless the Worker is open)');
+  if (!SECRET && !TOKEN) {
+    console.warn('  (no credential — see the AUTH note at the top of this file)');
   }
 
   const index = await get('/index');

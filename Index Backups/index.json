@@ -1,0 +1,16 @@
+{
+  "what": "Encrypted backups of the Index app. Ciphertext only; unreadable without the passphrase.",
+  "generatedAt": "2026-09-01T21:42:35.272Z",
+  "worker": "https://index-backups.av1.workers.dev",
+  "devices": [
+    {
+      "device": "pc-1cw70x",
+      "at": 1788298321564,
+      "iso": "2026-09-01T21:32:01.564Z",
+      "ageHours": 0.2,
+      "docs": 14,
+      "bytes": 939,
+      "stale": false
+    }
+  ]
+}

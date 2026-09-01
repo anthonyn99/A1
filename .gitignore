@@ -80,3 +80,8 @@ package-lock.json
 # write, so a tracked hot file would mean hundreds of commits and Pages
 # rebuilds a day. This one line is what keeps that from happening.
 Index Backups/*/live/
+
+# Read-only secret for tools/pull-backups.mjs. Low blast radius by design - it
+# can only fetch ciphertext, never write or delete - but it is still a
+# credential and this repo is PUBLIC.
+.a1b-pull-secret
