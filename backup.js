@@ -72,6 +72,9 @@
     // metered connection. Three days of cellular data costs a megabyte; three
     // days of a phone's only backup living on that phone costs everything.
     METERED_GRACE_MS: 3 * 86400000,
+    // Delay before the very first push. Long enough not to race the app's own
+    // startup, short enough that a brief visit still mirrors once.
+    FIRST_PUSH_MS: 15000,
     ARCHIVE_YEARS_BACK: 8,
     IMG_SAMPLE: 10                     // images sampled to estimate the total
   };
@@ -91,6 +94,7 @@
     };
     try { scheduleSetupPrompt(); } catch (e) {}
     try { startWatchdog(); } catch (e) {}
+    try { flushPushOnHide(); } catch (e) {}
     return true;
   }
 
@@ -1055,9 +1059,37 @@
 
   function schedulePush() {
     if (_pushTimer) clearTimeout(_pushTimer);
+    // The FIRST push is not debounced the same way. Until something has
+    // actually left this device there is nothing off-device at all, and making
+    // that wait ten minutes means a phone opened briefly never mirrors even
+    // once. After that, the long debounce is what keeps us inside the daily
+    // write budget.
+    var everPushed = !!lsGet('a1b_pushed_once');
+    var wait = everPushed ? A1B.PUSH_DEBOUNCE_MS : A1B.FIRST_PUSH_MS;
     _pushTimer = setTimeout(function () {
-      pushNow().catch(function () {});
-    }, A1B.PUSH_DEBOUNCE_MS);
+      pushNow().then(function (r) {
+        if (r && r.at) lsSet('a1b_pushed_once', '1');
+      }).catch(function () {});
+    }, wait);
+  }
+
+  // A debounce with nothing to flush it is a promise that quietly is not kept:
+  // close the page before the timer fires and the snapshot never leaves. Phones
+  // are opened for seconds at a time, and they are the devices most likely to
+  // be lost, so a visit ending is treated as a reason to mirror now.
+  //
+  // Best-effort by nature — the browser may cut the request short on unload —
+  // but an attempt that usually succeeds beats a timer that usually never runs.
+  function flushPushOnHide() {
+    var fire = function () {
+      if (document.visibilityState !== 'hidden') return;
+      if (_pushTimer) { clearTimeout(_pushTimer); _pushTimer = null; }
+      pushNow().then(function (r) {
+        if (r && r.at) lsSet('a1b_pushed_once', '1');
+      }).catch(function () {});
+    };
+    document.addEventListener('visibilitychange', fire);
+    window.addEventListener('pagehide', fire);
   }
 
   // What every device has, so one device can tell that ANOTHER has gone quiet.
