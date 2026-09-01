@@ -28313,6 +28313,57 @@ function _tjFindMarkAncestor(node, editorEl) {
     if (typeof autoSave === 'function') autoSave();
   });
 
+  // Clipboard: mirrors the Page editor — an image lands as a resizable wrapper,
+  // anything else as sanitized rich HTML (Word / Docs / web keep their formatting).
+  jeEd.addEventListener('paste', function(e) {
+    const items = e.clipboardData ? e.clipboardData.items : null;
+    if (items) {
+      for (const item of items) {
+        if (item.type && item.type.startsWith('image/')) {
+          e.preventDefault();
+          const blob = item.getAsFile();
+          const reader = new FileReader();
+          reader.onload = ev => _jeInsertImage(ev.target.result);
+          reader.readAsDataURL(blob);
+          return;
+        }
+      }
+    }
+    e.preventDefault();
+    const htmlData = e.clipboardData ? e.clipboardData.getData('text/html') : '';
+    if (htmlData && window._docxCleanHTML) {
+      var _clean = window._docxCleanHTML(htmlData);
+      if (window._docxPasteListFix) _clean = window._docxPasteListFix(_clean, jeEd);
+      document.execCommand('insertHTML', false, _clean);
+    } else {
+      document.execCommand('insertText', false, e.clipboardData ? e.clipboardData.getData('text/plain') : '');
+    }
+    if (typeof autoSave === 'function') autoSave();
+  });
+
+  // Shared by paste, the toolbar picker and drag-and-drop.
+  function _jeInsertImage(src) {
+    const put = function(data) {
+      jeEd.focus();
+      const wrap = document.createElement('span');
+      wrap.className = 'pg-img-wrap';
+      wrap.contentEditable = 'false';
+      const img = document.createElement('img');
+      img.src = data;
+      img.alt = 'image';
+      img.style.width = '320px';
+      wrap.appendChild(img);
+      const sel = window.getSelection();
+      const range = sel && sel.rangeCount && jeEd.contains(sel.anchorNode) ? sel.getRangeAt(0) : null;
+      if (range) { range.insertNode(wrap); range.collapse(false); }
+      else { jeEd.appendChild(wrap); }
+      if (typeof _pgBindImgWrap === 'function') _pgBindImgWrap(wrap);
+      if (typeof autoSave === 'function') autoSave();
+    };
+    if (typeof _tjCompressImage === 'function') _tjCompressImage(src, put); else put(src);
+  }
+  window._jeInsertImage = _jeInsertImage;
+
   // Image / file insert
   var jeImgFile = document.getElementById('tj-je-img-file');
   if (jeImgFile) {
@@ -28321,22 +28372,7 @@ function _tjFindMarkAncestor(node, editorEl) {
       jeImgFile.value = '';
       files.forEach(function(file) {
         var reader = new FileReader();
-        reader.onload = function(ev) {
-          var wrap = document.createElement('span');
-          wrap.className = 'pg-img-wrap';
-          wrap.contentEditable = 'false';
-          var img = document.createElement('img');
-          img.src = ev.target.result;
-          img.style.width = '320px';
-          wrap.appendChild(img);
-          jeEd.focus();
-          var sel = window.getSelection();
-          var range = sel && sel.rangeCount ? sel.getRangeAt(0) : null;
-          if (range) { range.insertNode(wrap); range.collapse(false); }
-          else { jeEd.appendChild(wrap); }
-          if (typeof _pgBindImgWrap === 'function') _pgBindImgWrap(wrap);
-          if (typeof autoSave === 'function') autoSave();
-        };
+        reader.onload = function(ev) { _jeInsertImage(ev.target.result); };
         reader.readAsDataURL(file);
       });
     });
@@ -28353,18 +28389,7 @@ function _tjFindMarkAncestor(node, editorEl) {
       var files = Array.from(e.dataTransfer.files).filter(function(f) { return f.type.startsWith('image/'); });
       files.forEach(function(file) {
         var reader = new FileReader();
-        reader.onload = function(ev) {
-          var wrap = document.createElement('span');
-          wrap.className = 'pg-img-wrap';
-          wrap.contentEditable = 'false';
-          var img = document.createElement('img');
-          img.src = ev.target.result;
-          img.style.width = '320px';
-          wrap.appendChild(img);
-          jeEd.appendChild(wrap);
-          if (typeof _pgBindImgWrap === 'function') _pgBindImgWrap(wrap);
-          if (typeof autoSave === 'function') autoSave();
-        };
+        reader.onload = function(ev) { _jeInsertImage(ev.target.result); };
         reader.readAsDataURL(file);
       });
     });
