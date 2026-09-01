@@ -14110,9 +14110,20 @@ function App(){
   // ── stateRef: always current, updated synchronously inside wrapped setters ──
   const vdRef=useRef({data:init.data,habits:init.habits,hc:init.hc,goals:init.goals,monthlyGoals:init.monthlyGoals||[],goalPrefs:{...GOAL_PREFS_DEF,...(init.goalPrefs||{})},rules:init.rules||[],rulesDaily:{...RULES_DAILY_DEF,...(init.rulesDaily||{})}});
 
+  // Day-keys that live in an archive sidecar doc, not in the live document.
+  // Populated by the un-archive effect; consulted by buildVdPayload (never
+  // uploaded) and by the archiver (never re-archived). Read-only in the UI.
+  const vdArchivedRef=useRef({});
+  // Exposed so the day-grid (and the verify skill) can mark archived days.
+  useEffect(()=>{window._vdIsArchivedDay=k=>!!vdArchivedRef.current[k];return()=>{delete window._vdIsArchivedDay;};},[]);
+
   const buildVdPayload=useCallback(()=>{
     const sanitizeItem=item=>{const out={};Object.entries(item).forEach(([k,v])=>{if(v===null||v===undefined)return;out[k]=v;});return out;};
-    const sanitizeData=d=>{const out={};Object.entries(d).forEach(([dk,arr])=>{out[dk]=Array.isArray(arr)?arr.map(sanitizeItem):arr;});return out;};
+    // Archived day-keys are merged into `data` for DISPLAY only (see vdArchivedRef).
+    // They live in dashboards/vedasdash_archive_<year> and must never be written
+    // back into the live doc — re-uploading them would re-create the oversize
+    // document whose prune archived them in the first place.
+    const sanitizeData=d=>{const out={};Object.entries(d).forEach(([dk,arr])=>{if(vdArchivedRef.current[dk])return;out[dk]=Array.isArray(arr)?arr.map(sanitizeItem):arr;});return out;};
     return{data:sanitizeData(vdRef.current.data),habits:vdRef.current.habits,hc:vdRef.current.hc,goals:vdRef.current.goals,monthlyGoals:vdRef.current.monthlyGoals,goalPrefs:vdRef.current.goalPrefs||{...GOAL_PREFS_DEF},rules:vdRef.current.rules||[],rulesDaily:vdRef.current.rulesDaily||{...RULES_DAILY_DEF},weekKey:getMondayKey(new Date()),savedAt:Date.now()};
   },[]);
 
@@ -14146,6 +14157,11 @@ function App(){
   const mg=mgState;
   const mgMonthly=mgMonthlyState;
   const setData=useCallback(fn=>{setDataState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(SK.data,next);vdRef.current={...vdRef.current,data:next};vdFbPush();return next;});},[vdFbPush]);
+  // Update `data` in memory + localStorage WITHOUT pushing to Firestore.
+  // Used by the un-archive restore: archived days are display-only history, so
+  // rendering them must not enqueue a write (buildVdPayload strips them anyway,
+  // but not pushing at all avoids a pointless no-op save on every cold open).
+  const setDataLocalOnly=useCallback(next=>{setDataState(prev=>{const n=typeof next==="function"?next(prev):next;if(n===prev)return prev;saveJ(SK.data,n);vdRef.current={...vdRef.current,data:n};return n;});},[]);
   // Same as setData but flags the resulting write as automated/background, so the
   // Firebase layer can refuse it if cloud data has not loaded yet. Used only by the
   // StudyOS mirror reconcile — the one path that mutates `data` without the user.
@@ -14318,7 +14334,12 @@ function App(){
       if(archiveRanRef.current||!fbLoadedRef.current||!window._fbArchiveDays)return;
       const last=parseInt(localStorage.getItem("td_archive_at")||"0",10)||0;
       if(Date.now()-last<24*60*60*1000)return;
-      const split=thSplitArchivable(vdRef.current.data||{});
+      // Exclude display-only archived days: they are already in a sidecar doc and
+      // are stripped from writes, so feeding them back through the splitter would
+      // re-archive (and re-count) history that never left.
+      const _liveOnly={};
+      Object.entries(vdRef.current.data||{}).forEach(([k,v])=>{if(!vdArchivedRef.current[k])_liveOnly[k]=v;});
+      const split=thSplitArchivable(_liveOnly);
       if(!split.movedCount&&!split.droppedEmpty){
         archiveRanRef.current=true;localStorage.setItem("td_archive_at",String(Date.now()));return;
       }
@@ -14328,12 +14349,20 @@ function App(){
       }
       archiveRanRef.current=true;
       localStorage.setItem("td_archive_at",String(Date.now()));
-      setData(split.keep);
-      console.log("[Archive] Veda: moved "+split.movedCount+" day(s), dropped "+split.droppedEmpty+" empty; live data now "+(thDataBytes(split.keep)/1024).toFixed(0)+" KB");
+      // Days just moved to a sidecar stay VISIBLE as read-only history. Only the
+      // live document shrinks. Previously this called setData(split.keep), which
+      // deleted them from the UI too — an archive that looked exactly like tasks
+      // silently reverting by months.
+      Object.keys(split.byYear).forEach(y=>Object.keys(split.byYear[y]).forEach(k=>{vdArchivedRef.current[k]=true;}));
+      const _merged={...split.keep};
+      Object.keys(split.byYear).forEach(y=>Object.entries(split.byYear[y]).forEach(([k,v])=>{_merged[k]=v;}));
+      Object.entries(vdRef.current.data||{}).forEach(([k,v])=>{if(vdArchivedRef.current[k]&&!(k in _merged))_merged[k]=v;});
+      setDataLocalOnly(_merged);
+      console.log("[Archive] Veda: moved "+split.movedCount+" day(s), dropped "+split.droppedEmpty+" empty; live doc now "+(thDataBytes(split.keep)/1024).toFixed(0)+" KB (archived days still shown, read-only)");
     };
     const t=setTimeout(run,20000);
     return()=>clearTimeout(t);
-  },[setData]);
+  },[setDataLocalOnly]);
 
   // ── One-time un-archive (mirror of Tony's; see the note there) ──────────────
   // Veda had no archive sidecars when this shipped, so this is a no-op for her
@@ -14348,26 +14377,31 @@ function App(){
       try{
         const live=vdRef.current.data||{};
         const merged={...live};
+        const archivedKeys={};
         let added=0,years=[];
         const thisYear=new Date().getFullYear();
         for(let y=thisYear-TH_ARCHIVE_YEARS-2;y<=thisYear;y++){
           const a=await window._fbLoadArchive("vedasdash",String(y));
           if(!a||!Object.keys(a).length)continue;
           let n=0;
-          Object.keys(a).forEach(k=>{ if(!(k in merged)){merged[k]=a[k];n++;} });
+          Object.keys(a).forEach(k=>{ if(!(k in merged)){merged[k]=a[k];archivedKeys[k]=true;n++;} });
           if(n){added+=n;years.push(y+":"+n);}
         }
         if(!added){return;}   // nothing found — do NOT flag done; a transient empty read must be able to retry
         const bytes=thDataBytes(merged);
-        if(bytes>TH_ARCHIVE_SOFT_BYTES){
-          console.warn("[Unarchive] Veda: restore would be "+(bytes/1024).toFixed(0)+
-            "KB, over the "+(TH_ARCHIVE_SOFT_BYTES/1024).toFixed(0)+"KB threshold — skipped.");
-          return;
-        }
-        setData(merged);
+        // NO size gate here any more. The old code refused to restore when the
+        // merged result exceeded TH_ARCHIVE_SOFT_BYTES — but restoring is exactly
+        // what re-creates the oversize doc the prune produced, so the two guards
+        // deadlocked and the days could NEVER come back. That is what made an
+        // archive look like "my tasks reverted by a lot of days".
+        // The cap still matters, but it is a LIVE-DOCUMENT limit, not a display
+        // limit: these keys are flagged archived and stripped from every write
+        // (see buildVdPayload), so merging them costs memory, never doc bytes.
+        Object.keys(archivedKeys).forEach(k=>{vdArchivedRef.current[k]=true;});
+        setDataLocalOnly(merged);
         localStorage.setItem("td_unarchived_v1","1");
         console.log("[Unarchive] Veda: restored "+added+" day(s) ["+years.join(", ")+
-          "]; live data now "+(bytes/1024).toFixed(0)+" KB");
+          "] as READ-ONLY history; live doc unchanged, in-memory data now "+(bytes/1024).toFixed(0)+" KB");
       }catch(e){
         unarchiveRanRef.current=false;
         console.warn("[Unarchive] Veda failed — will retry:",e&&(e.message||e));
@@ -14380,7 +14414,7 @@ function App(){
     const stop=setTimeout(()=>clearInterval(iv),120000);
     setTimeout(run,3000);
     return()=>{clearInterval(iv);clearTimeout(stop);};
-  },[setData]);
+  },[setDataLocalOnly]);
 
   // Auto-delete goals completed 30+ days ago (see Tony's TaskHub). Runs after load and hourly.
   useEffect(()=>{
@@ -14672,8 +14706,8 @@ function App(){
   // Toggling a mirrored (_sosId) item also pushes the done-state back to StudyOS.
   // Plan items are owned by dashboards/plans; a tick here would be reverted by the
   // next reconcile. (StudyOS items ARE tickable — they have an ack channel back.)
-  const tog=useCallback((k,id)=>{const cur=(vdRef.current.data[k]||[]).find(t=>t.id===id);if(cur&&cur._planId){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This is a shared plan — manage it in Add → Plan.');return;}setData(p=>{const it=[...(p[k]||[])];const i=it.findIndex(t=>t.id===id);let mirrored=false;if(i>=0){it[i]={...it[i],done:!it[i].done};mirrored=!!it[i]._sosId;}const next={...p,[k]:it};if(mirrored)sosAck(next);return next;});},[setData,sosAck]);
-  const del=useCallback((k,id)=>{const cur=(vdRef.current.data[k]||[]).find(t=>t.id===id);if(cur&&cur._planId){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This is a shared plan — cancel it in Add → Plan to remove it.');return;}setData(p=>{const item=(p[k]||[]).find(t=>t.id===id);if(item?.repeatId||item?.altSeqId){setDelConfirm({dateKey:k,itemId:id,item});return p;}if(item?.notifyAt&&window.thCancelNotif)window.thCancelNotif(id,item.notifyRepeatId);const it=(p[k]||[]).filter(t=>t.id!==id);const n={...p};if(!it.length)delete n[k];else n[k]=it;return n;});},[]);
+  const tog=useCallback((k,id)=>{if(vdArchivedRef.current[k]){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This day is archived history — it can be viewed but not edited.');return;}const cur=(vdRef.current.data[k]||[]).find(t=>t.id===id);if(cur&&cur._planId){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This is a shared plan — manage it in Add → Plan.');return;}setData(p=>{const it=[...(p[k]||[])];const i=it.findIndex(t=>t.id===id);let mirrored=false;if(i>=0){it[i]={...it[i],done:!it[i].done};mirrored=!!it[i]._sosId;}const next={...p,[k]:it};if(mirrored)sosAck(next);return next;});},[setData,sosAck]);
+  const del=useCallback((k,id)=>{if(vdArchivedRef.current[k]){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This day is archived history — it can be viewed but not edited.');return;}const cur=(vdRef.current.data[k]||[]).find(t=>t.id===id);if(cur&&cur._planId){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This is a shared plan — cancel it in Add → Plan to remove it.');return;}setData(p=>{const item=(p[k]||[]).find(t=>t.id===id);if(item?.repeatId||item?.altSeqId){setDelConfirm({dateKey:k,itemId:id,item});return p;}if(item?.notifyAt&&window.thCancelNotif)window.thCancelNotif(id,item.notifyRepeatId);const it=(p[k]||[]).filter(t=>t.id!==id);const n={...p};if(!it.length)delete n[k];else n[k]=it;return n;});},[]);
   const delThisOnly=useCallback(()=>{if(!delConfirm)return;const{dateKey,itemId,item}=delConfirm;if(item?.notifyAt&&window.thCancelNotif)window.thCancelNotif(itemId,null,{notifyAt:item.notifyAt});setData(p=>{const it=(p[dateKey]||[]).filter(t=>t.id!==itemId);const n={...p};if(!it.length)delete n[dateKey];else n[dateKey]=it;return n;});setDelConfirm(null);},[delConfirm]);
   const delAllFuture=useCallback(()=>{if(!delConfirm)return;const{dateKey,item}=delConfirm;const rid=item.repeatId||item.altSeqId;if(item?.notifyAt&&window.thCancelNotif)window.thCancelNotif(item.id,item.notifyRepeatId);setData(p=>{const next={...p};const cutoff=new Date(dateKey);Object.keys(next).forEach(k=>{const kd=new Date(k);if(kd>=cutoff){next[k]=(next[k]||[]).filter(t=>t.repeatId!==rid&&t.altSeqId!==rid);if(!next[k].length)delete next[k];}});return next;});setDelConfirm(null);},[delConfirm]);
   const savItem=useCallback((dk2,item,ri)=>{
