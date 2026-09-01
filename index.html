@@ -26443,16 +26443,18 @@ window._tjTrashAPI = {
   ttlDays: 30
 };
 
-// ── Per-page margins (Batch 10 #3): stored on the active PAGE entry, synced to
-// Firebase with the entry, so dragging a margin affects only that page. ──
+// ── Per-page margins (Batch 10 #3): stored on the active entry, synced to
+// Firebase with it, so dragging a margin affects only that document. Both sheet
+// templates — Page and Journal Entries — carry their own margins. ──
+const _TJ_SHEET_TEMPLATES = ['page', 'journal-entries'];
 window._tjGetPageMargins = function() {
   const e = state.entries.find(x => x.id === state.activeId);
-  if (e && e.template === 'page' && e.data && e.data.margins && typeof e.data.margins.ml === 'number') return e.data.margins;
+  if (e && _TJ_SHEET_TEMPLATES.includes(e.template) && e.data && e.data.margins && typeof e.data.margins.ml === 'number') return e.data.margins;
   return null;
 };
 window._tjSetPageMargins = function(m) {
   const e = state.entries.find(x => x.id === state.activeId);
-  if (e && e.template === 'page') { e.data.margins = m; e.updated = Date.now(); autoSave(); }
+  if (e && _TJ_SHEET_TEMPLATES.includes(e.template)) { e.data.margins = m; e.updated = Date.now(); autoSave(); }
 };
 
 // ── UNIFIED SEARCH: title + full content + tags; multi-tag filter ──
@@ -29875,6 +29877,7 @@ li.docx-cl-item.done > .docx-cl-text { text-decoration: line-through; opacity: .
 #tj-root .docx-vruler-marg.bottom, #bj-root .docx-vruler-marg.bottom { margin-top: -6px; }
 @media (min-width: 900px) {
   #tj-root #tj-page-editor[contenteditable="true"] ~ .docx-vruler,
+  #tj-root #tj-je-editor[contenteditable="true"] ~ .docx-vruler,
   #bj-root #bj-page-editor[contenteditable="true"] ~ .docx-vruler { display: block; }
 }
 
@@ -30280,18 +30283,6 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
     min-width: 86px !important;
   }
 
-  /* The Journal-Entries template has its own rich-text toolbar (not a docx
-     context, so it gets no ribbon row) — give it the same touch sizing. */
-  #tj-root #tj-je-toolbar { flex-wrap: wrap; gap: 4px; padding: 5px 8px; }
-  #tj-root #tj-je-toolbar .pt-btn {
-    min-height: 38px; min-width: 36px; padding: 6px 7px; border-radius: 7px; font-size: 12px;
-  }
-  #tj-root #tj-je-toolbar .pt-select {
-    min-height: 38px; font-size: 12px; padding: 4px 5px; border-radius: 7px; max-width: 116px;
-  }
-  #tj-root #tj-je-toolbar .pt-hl-swatch { width: 32px; height: 32px; }
-  #tj-root #tj-je-pt-hl-palette { width: 150px; z-index: 100030; }
-
   /* Popups/menus: comfortable rows, never wider than the screen. */
   .docx-pop { min-width: 200px; max-width: calc(100vw - 16px); max-height: 68dvh; }
   .docx-mi { padding: 10px 13px; font-size: 13.5px; }
@@ -30322,8 +30313,7 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
   #bj-root .docx-ribbonrow > *:not(.docx-r1) { display: none !important; }
   /* "AI Format" shrinks to its icon; the label is what made it 110px wide. */
   #tj-root .docx-ai-lbl, #bj-root .docx-ai-lbl { display: none !important; }
-  #tj-root .docx-ribbonrow .pt-select, #bj-root .docx-ribbonrow .pt-select,
-  #tj-root #tj-je-toolbar .pt-select {
+  #tj-root .docx-ribbonrow .pt-select, #bj-root .docx-ribbonrow .pt-select {
     max-width: 116px; font-size: 11.5px; padding-right: 2px;
   }
   #tj-root .docx-wrap.docx-reflow .docx-sheet, #bj-root .docx-wrap.docx-reflow .docx-sheet {
@@ -30338,7 +30328,7 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
 
 /* ════════ NARROW FOLDABLES / COVER SCREENS (≤360px) ════════ */
 @media (max-width: 360px) {
-  #tj-root #tj-page-toolbar, #bj-root #bj-page-toolbar { padding: 4px 6px !important; gap: 3px; }
+  #tj-root #tj-page-toolbar, #tj-root #tj-je-toolbar, #bj-root #bj-page-toolbar { padding: 4px 6px !important; gap: 3px; }
   #tj-root .docx-ribbonrow, #bj-root .docx-ribbonrow { gap: 3px; }
   #tj-root .docx-ribbonrow .pt-btn, #bj-root .docx-ribbonrow .pt-btn {
     min-height: 36px; min-width: 34px; padding: 5px 6px;
@@ -30391,7 +30381,7 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
   }
   #tj-root .docx-ribbonrow .pt-select, #bj-root .docx-ribbonrow .pt-select { min-height: 36px; }
   #tj-root .docx-menu-btn, #bj-root .docx-menu-btn { min-height: 34px; padding: 7px 12px; }
-  #tj-root #tj-page-color-pick, #bj-root #bj-page-color-pick { width: 30px !important; height: 30px !important; }
+  #tj-root #tj-page-color-pick, #tj-root #tj-je-color-pick, #bj-root #bj-page-color-pick { width: 30px !important; height: 30px !important; }
 }
 
 /* The native colour swatch renders ~10px tall under the roots' padding reset —
