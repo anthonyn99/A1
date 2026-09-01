@@ -482,7 +482,11 @@
   }
 
   async function unlock(pass) {
-    if (!pass || pass.length < 8) throw new Error('passphrase must be at least 8 characters');
+    // Any length — that is the user's call. An EMPTY passphrase is still
+    // refused, for a mechanical reason rather than a policy one: activeKey()
+    // reads a falsy stored value as "locked", so an empty passphrase would
+    // quietly turn backups OFF rather than protect them.
+    if (!pass) throw new Error('passphrase cannot be empty');
     await deriveKey(pass);
     lsSet(A1B.PASS_KEY, pass);
     // Prove it round-trips before declaring success, so a broken WebCrypto or a
@@ -653,7 +657,7 @@
     for (var i = 0; i < paths.length; i++) {
       var p = paths[i];
       var plain = JSON.stringify(observed[p]);
-      var h = (await sha256Hex(p + ' ' + plain)).slice(0, 32);
+      var h = (await sha256Hex(p + '\u0000' + plain)).slice(0, 32);
       manifest.docs[p] = h;
       manifest.bytes += plain.length;
       if (await vGet('objects', h)) { reused++; continue; }
@@ -786,7 +790,7 @@
         cancelLabel: 'Not now',
         fields: [
           { name: 'p1', label: 'Passphrase', type: 'password', required: true,
-            placeholder: 'at least 8 characters' },
+            placeholder: 'anything you will remember' },
           { name: 'p2', label: 'Type it again', type: 'password', required: true }
         ]
       });
@@ -797,7 +801,7 @@
       }
 
       var p1 = String(res.p1 || ''), p2 = String(res.p2 || '');
-      if (p1.length < 8) { note = 'That passphrase is too short — use at least 8 characters.\n\n'; continue; }
+      if (!p1) { note = 'Please enter a passphrase.\n\n'; continue; }
       if (p1 !== p2) { note = 'The two entries did not match. Please try again.\n\n'; continue; }
 
       try {
