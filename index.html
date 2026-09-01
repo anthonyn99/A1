@@ -27975,6 +27975,15 @@ function _tjFindMarkAncestor(node, editorEl) {
     if (prevB) prevB.addEventListener('click', function() { step(-1); });
     if (nextB) nextB.addEventListener('click', function() { step(1); });
 
+    // Delegated once: the pills themselves are rebuilt on every render.
+    const tabsEl = document.getElementById('tj-je-tabs');
+    if (tabsEl) tabsEl.addEventListener('click', function(e) {
+      const tab = e.target.closest('.je-tab');
+      if (!tab) return;
+      if (e.target.closest('.je-tab-del')) { e.stopPropagation(); _jeDeleteDate(tab.dataset.dateKey); return; }
+      _jeSwitchTo(tab.dataset.dateKey);
+    });
+
     // The arrows and the jump menu only earn their space once the strip overflows.
     if (window.ResizeObserver) {
       const strip = document.getElementById('tj-je-tabs');
@@ -28069,15 +28078,8 @@ function _tjFindMarkAncestor(node, editorEl) {
       _jeLoadDateContent(entry.data.activeDateKey, entry);
     }
 
-    tabsEl.addEventListener('click', function(e) {
-      const del = e.target.closest('.je-tab-del');
-      const tab = e.target.closest('.je-tab');
-      if (!tab) return;
-      if (del) { e.stopPropagation(); _jeDeleteDate(tab.dataset.dateKey); return; }
-      _jeSwitchTo(tab.dataset.dateKey);
-    });
-
     _jeSyncOverflow();
+    requestAnimationFrame(_jeSyncOverflow);   // again once the strip has laid out
     if (activeBtn) {
       // Keep the date you are editing visible after a re-render or a prev/next step.
       requestAnimationFrame(function() {
