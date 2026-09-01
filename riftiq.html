@@ -1850,6 +1850,16 @@ html.lk-open, body.lk-open {
    ordinary swipe while dropping the 300ms tap delay — the drag arms on a long
    press instead (see beTouchDrag), so both gestures coexist. */
 .bld-drag { touch-action: manipulation; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+/* The ✕ on a chip already in a zone. It was a 15px dot: fine under a mouse,
+   under a thumb it is smaller than the icon it sits on. */
+.bld-chip-x {
+  position: absolute; top: -6px; right: -6px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--red); border: none; color: #fff; cursor: pointer;
+  padding: 0; line-height: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+@media (pointer: coarse) { .bld-chip-x { width: 22px; height: 22px; top: -8px; right: -8px; } }
 .bld-drag.bld-lifted { opacity: .35; }
 .bld-dropzone.bld-over { border-color: var(--gold) !important; background: rgba(192,174,234,.10) !important; }
 .bld-ghost {
@@ -7566,6 +7576,207 @@ function attachZoneDrag(container, zone) {
       refreshBuildZones();
     });
   });
+}
+
+
+// ══════════════════════════════════════
+// TOUCH DRAG-AND-DROP — build editor
+// ══════════════════════════════════════
+// HTML5 drag events (dragstart/drop) never fire from a finger, so on a phone
+// the item and spell selectors could only be TAPPED into a zone — the drag the
+// desktop has simply did not exist. This is that same gesture on touch: a
+// LONG PRESS arms it (the interaction the tab strip already uses, so an
+// ordinary swipe still scrolls the grid), a ghost then follows the finger, and
+// the release drops on whatever zone is under it.
+//
+// Mouse is left entirely to the native handlers above — this bails on
+// pointerType 'mouse' — so desktop behaviour is untouched.
+var _beTd = null;          // the live gesture, or null
+var _beTdHold = null;      // long-press timer
+var _beTdRaf = null;       // edge auto-scroll frame
+var _beTdSuppress = false; // swallow the click a drop would otherwise fire
+var _beTdWired = false;    // window listeners are wired exactly once
+
+function _beTdZoneAt(x, y) {
+  var el = document.elementFromPoint(x, y);
+  return el && el.closest ? el.closest('.bld-dropzone') : null;
+}
+
+function _beTdChipAt(x, y) {
+  var el = document.elementFromPoint(x, y);
+  var chip = el && el.closest ? el.closest('.bld-drag[data-zone]') : null;
+  return chip;
+}
+
+// Nearest ancestor that actually scrolls, so dragging to a pane's edge can
+// bring the rest of it into view instead of dead-ending the gesture.
+function _beTdScroller(x, y) {
+  var el = document.elementFromPoint(x, y);
+  while (el && el !== document.body && el !== document.documentElement) {
+    var oy = getComputedStyle(el).overflowY;
+    if ((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight + 2) return el;
+    el = el.parentElement;
+  }
+  return null;
+}
+
+function _beTdAutoScroll() {
+  var d = _beTd;
+  if (!d || !d.dragging) { _beTdRaf = null; return; }
+  var sc = _beTdScroller(d.x, d.y);
+  if (sc) {
+    var r = sc.getBoundingClientRect(), EDGE = 56, SPEED = 11, step = 0;
+    if (d.y < r.top + EDGE) step = -SPEED;
+    else if (d.y > r.bottom - EDGE) step = SPEED;
+    if (step) sc.scrollTop = Math.max(0, Math.min(sc.scrollHeight - sc.clientHeight, sc.scrollTop + step));
+  }
+  _beTdRaf = requestAnimationFrame(_beTdAutoScroll);
+}
+
+function _beTdFollow() {
+  var d = _beTd;
+  if (!d || !d.ghost) return;
+  d.ghost.style.transform = 'translate(-50%,-50%) translate(' + d.x + 'px,' + d.y + 'px)';
+}
+
+function _beTdHighlight() {
+  var d = _beTd, zone = _beTdZoneAt(d.x, d.y);
+  if (zone === d.overZone) return;
+  if (d.overZone) d.overZone.classList.remove('bld-over');
+  // Only light up a zone this payload can actually land in, so the highlight
+  // is a promise the drop keeps.
+  d.overZone = (zone && zone.dataset.zone === d.zone) ? zone : null;
+  if (d.overZone) {
+    d.overZone.classList.add('bld-over');
+    try { navigator.vibrate(8); } catch(_e) {}
+  }
+}
+
+function _beTdStart() {
+  var d = _beTd;
+  d.dragging = true;
+  var srcImg = d.src.querySelector('img');
+  var g = document.createElement('img');
+  g.className = 'bld-ghost';
+  if (srcImg) g.src = srcImg.src;
+  var box = srcImg ? Math.max(44, Math.min(64, srcImg.offsetWidth || 48)) : 48;
+  g.style.width = box + 'px';
+  g.style.height = box + 'px';
+  document.body.appendChild(g);
+  d.ghost = g;
+  d.src.classList.add('bld-lifted');
+  try { d.src.setPointerCapture(d.id); } catch(_e) {}
+  try { navigator.vibrate(18); } catch(_e) {}
+  _beTdFollow();
+  _beTdHighlight();
+  if (!_beTdRaf) _beTdRaf = requestAnimationFrame(_beTdAutoScroll);
+}
+
+function _beTdCleanup() {
+  var d = _beTd;
+  clearTimeout(_beTdHold); _beTdHold = null;
+  if (_beTdRaf) { cancelAnimationFrame(_beTdRaf); _beTdRaf = null; }
+  if (!d) return;
+  if (d.ghost && d.ghost.parentNode) d.ghost.parentNode.removeChild(d.ghost);
+  if (d.overZone) d.overZone.classList.remove('bld-over');
+  if (d.src) d.src.classList.remove('bld-lifted');
+  _beTd = null;
+}
+
+function _beTdDown(e) {
+  if (e.pointerType === 'mouse' || e.button > 0) return;   // mouse keeps native dnd
+  if (!e.target.closest) return;
+  if (e.target.closest('button')) return;                  // the ✕ is a tap, not a grip
+  var src = e.target.closest('.bld-drag');
+  if (!src) return;
+  var inZone = src.dataset.zone || null;
+  _beTd = {
+    src: src, id: e.pointerId, dragging: false, overZone: null, ghost: null,
+    x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY,
+    from: inZone ? 'zone' : 'panel',
+    zone: inZone || src.dataset.src,
+    itemId: src.dataset.id || null,
+    idx: inZone ? parseInt(src.dataset.idx, 10) : -1
+  };
+  _beTdHold = setTimeout(function(){ _beTdHold = null; if (_beTd) _beTdStart(); }, 300);
+}
+
+function _beTdMove(e) {
+  var d = _beTd;
+  if (!d || e.pointerId !== d.id) return;
+  d.x = e.clientX; d.y = e.clientY;
+  if (!d.dragging) {
+    // Moved before the press landed — that is a scroll, not a grab.
+    if (Math.abs(d.x - d.startX) > 9 || Math.abs(d.y - d.startY) > 9) _beTdCleanup();
+    return;
+  }
+  _beTdFollow();
+  _beTdHighlight();
+}
+
+function _beTdUp(e) {
+  var d = _beTd;
+  if (!d) return;
+  if (e && e.pointerId != null && e.pointerId !== d.id) return;
+  var dropped = d.dragging ? d.overZone : null;
+  var from = d.from, zone = d.zone, itemId = d.itemId, fromIdx = d.idx;
+  var x = d.x, y = d.y;
+  var wasDrag = d.dragging;
+  _beTdCleanup();
+  if (!wasDrag) return;
+  // The press became a drag, so the click it would otherwise fire on release
+  // would add the item a SECOND time. Swallow it.
+  _beTdSuppress = true;
+  setTimeout(function(){ _beTdSuppress = false; }, 350);
+  if (!dropped || !buildEditorData) return;
+
+  if (from === 'panel') {
+    addToBuild(zone, itemId);
+    return;
+  }
+  // Reorder inside the zone: land before or after whichever chip the finger
+  // was over, matching what the mouse drop does.
+  var arr = zone === 'items' ? buildEditorData.items : buildEditorData.spells;
+  if (!arr || fromIdx < 0 || fromIdx >= arr.length) return;
+  var overChip = _beTdChipAt(x, y);
+  var toIdx = arr.length - 1;
+  if (overChip && overChip.dataset.zone === zone) {
+    toIdx = parseInt(overChip.dataset.idx, 10);
+    var r = overChip.getBoundingClientRect();
+    if (x > r.left + r.width / 2 && toIdx < arr.length - 1) toIdx++;
+    if (toIdx > fromIdx) toIdx--;
+  }
+  if (toIdx === fromIdx) return;
+  var moved = arr.splice(fromIdx, 1)[0];
+  arr.splice(Math.max(0, Math.min(arr.length, toIdx)), 0, moved);
+  refreshBuildZones();
+}
+
+// Called once per editor render — #be-split is rebuilt each time, so its own
+// listeners come fresh, while the window-level ones are wired only once.
+function beEnableTouchDrag() {
+  var split = document.getElementById('be-split');
+  if (!split) return;
+  split.addEventListener('pointerdown', _beTdDown);
+  // A long press is a context menu / text selection to the browser otherwise.
+  split.addEventListener('contextmenu', function(e){ if (_beTd) e.preventDefault(); });
+  // Capture phase, so a drop never also reaches the tile's own onclick.
+  split.addEventListener('click', function(e){
+    if (_beTdSuppress) { e.stopPropagation(); e.preventDefault(); }
+  }, true);
+  if (_beTdWired) return;
+  _beTdWired = true;
+  window.addEventListener('pointermove', _beTdMove);
+  window.addEventListener('pointerup', _beTdUp, true);
+  window.addEventListener('pointercancel', _beTdUp, true);
+  window.addEventListener('lostpointercapture', function(e){
+    if (_beTd && _beTd.dragging && e.pointerId === _beTd.id) _beTdUp(e);
+  }, true);
+  window.addEventListener('blur', function(){ if (_beTd) _beTdUp(null); });
+  // Non-passive: once the drag is armed the page must NOT scroll under it.
+  document.addEventListener('touchmove', function(e){
+    if (_beTd && _beTd.dragging && e.cancelable) e.preventDefault();
+  }, { passive: false });
 }
 
 
