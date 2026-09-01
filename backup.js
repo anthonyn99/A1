@@ -36,12 +36,13 @@
  *
  * SCOPE TODAY: Index (index.html) only, both profiles.
  *
- * PHASE 0 — this file currently implements MEASUREMENT ONLY (A1Backup.measure).
- * Nothing is captured, encrypted, stored or uploaded yet. The numbers it
- * reports settle two questions before any of that is built:
- *   - how many documents exist, which sets the read budget;
- *   - how many bytes the journal images total, which decides whether the image
- *     blobs can live in git at all.
+ * PHASE 0 — A1Backup.measure(), read-only sizing. Its results (2026-09-01):
+ * core 3785 KB raw / 1064 KB gzipped (3.6x); 17 images totalling 0.7 MB.
+ *
+ * PHASE 1 — capture, encryption and the local vault (below). Content-addressed:
+ * every document is stored under a hash of its plaintext, so an unchanged
+ * document is stored exactly once however often it is captured. Nothing is
+ * uploaded anywhere yet; phase 2 adds the off-device sink and the repo files.
  * ========================================================================== */
 (function () {
   'use strict';
@@ -381,11 +382,356 @@
     return report;
   }
 
+  /* ══ PHASE 1 — capture, encrypt, store locally ═══════════════════════════
+   *
+   * Content-addressed from the start. Every document is compressed, encrypted
+   * and stored under a name derived from a hash of its PLAINTEXT, so a document
+   * that has not changed keeps the same object name and is stored exactly once
+   * — in the vault today, and in git when phase 2 materialises these files.
+   * That is what makes the repo cost track real change instead of snapshot size:
+   * measured on 2026-09-01, a full core is 1064 KB gzipped, so re-committing it
+   * daily would have cost ~379 MB/year for a single copy.
+   *
+   * A snapshot is therefore just a small manifest: docPath -> objectHash.
+   * ====================================================================== */
+
+  // ── Encoding helpers ─────────────────────────────────────────────────────
+  var _enc = new TextEncoder(), _dec = new TextDecoder();
+
+  function b64(buf) {
+    var b = new Uint8Array(buf), s = '';
+    for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+    return btoa(s);
+  }
+  function unb64(str) {
+    var s = atob(str), b = new Uint8Array(s.length);
+    for (var i = 0; i < s.length; i++) b[i] = s.charCodeAt(i);
+    return b;
+  }
+  async function sha256Hex(str) {
+    var buf = await crypto.subtle.digest('SHA-256', _enc.encode(str));
+    return Array.prototype.map.call(new Uint8Array(buf),
+      function (x) { return ('0' + x.toString(16)).slice(-2); }).join('');
+  }
+  async function gzipRaw(bytes) {
+    if (typeof CompressionStream === 'undefined') return null;
+    var cs = new CompressionStream('gzip');
+    var blob = await new Response(new Blob([bytes]).stream().pipeThrough(cs)).blob();
+    return new Uint8Array(await blob.arrayBuffer());
+  }
+  async function gunzipRaw(bytes) {
+    var ds = new DecompressionStream('gzip');
+    var blob = await new Response(new Blob([bytes]).stream().pipeThrough(ds)).blob();
+    return new Uint8Array(await blob.arrayBuffer());
+  }
+
+  // ── Key management ───────────────────────────────────────────────────────
+  // The passphrase is entered once per device and kept in localStorage so the
+  // backup runs unattended — an attended backup is one that does not happen.
+  // The derived key is cached in memory for the session: PBKDF2 at 600k
+  // iterations costs a phone about a second, which is fine once and unusable
+  // per write.
+  //
+  // If the passphrase is lost the backups are unreadable. There is no recovery
+  // path and there must not be one; that is the price of putting ciphertext in
+  // a public repository.
+  var _key = null, _keyPass = null;
+
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } }
+
+  function getSalt() {
+    var s = lsGet(A1B.SALT_KEY);
+    if (!s) {
+      s = b64(crypto.getRandomValues(new Uint8Array(16)));
+      lsSet(A1B.SALT_KEY, s);
+    }
+    return s;
+  }
+
+  async function deriveKey(pass) {
+    if (_key && _keyPass === pass) return _key;
+    var base = await crypto.subtle.importKey('raw', _enc.encode(pass), 'PBKDF2', false, ['deriveKey']);
+    _key = await crypto.subtle.deriveKey(
+      { name: 'PBKDF2', salt: unb64(getSalt()), iterations: A1B.PBKDF2_ITER, hash: 'SHA-256' },
+      base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+    _keyPass = pass;
+    return _key;
+  }
+
+  // Returns the cached key, deriving from the stored passphrase if needed.
+  // null means "locked" — every write path checks this and does nothing.
+  async function activeKey() {
+    var p = lsGet(A1B.PASS_KEY);
+    if (!p) return null;
+    return deriveKey(p);
+  }
+
+  async function unlock(pass) {
+    if (!pass || pass.length < 8) throw new Error('passphrase must be at least 8 characters');
+    await deriveKey(pass);
+    lsSet(A1B.PASS_KEY, pass);
+    // Prove it round-trips before declaring success, so a broken WebCrypto or a
+    // storage failure surfaces now rather than at restore time.
+    var probe = await encryptStr('a1b-probe');
+    var back = await decryptEnv(probe);
+    if (back !== 'a1b-probe') throw new Error('encryption self-test failed');
+    return true;
+  }
+
+  // ── Envelope ─────────────────────────────────────────────────────────────
+  // serialize -> gzip -> AES-GCM. The plaintext hash lives INSIDE the
+  // ciphertext so a stored file cannot be used to confirm guessed content;
+  // only structural metadata sits outside.
+  async function encryptStr(plain) {
+    var key = await activeKey();
+    if (!key) throw new Error('locked');
+    var body = _enc.encode(JSON.stringify({ h: await sha256Hex(plain), d: plain }));
+    var gz = await gzipRaw(body);
+    var iv = crypto.getRandomValues(new Uint8Array(12));
+    var ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, gz || body);
+    return {
+      v: A1B.SCHEMA, alg: 'AES-256-GCM', gz: !!gz,
+      kdf: { name: 'PBKDF2', hash: 'SHA-256', iter: A1B.PBKDF2_ITER, salt: getSalt() },
+      iv: b64(iv), ct: b64(ct)
+    };
+  }
+
+  async function decryptEnv(env) {
+    var key = await activeKey();
+    if (!key) throw new Error('locked');
+    var raw = new Uint8Array(await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: unb64(env.iv) }, key, unb64(env.ct)));
+    var body = env.gz ? await gunzipRaw(raw) : raw;
+    var obj = JSON.parse(_dec.decode(body));
+    // Integrity is verified on every read. A mismatch is a loud failure, never
+    // a shrug — a corrupted backup that reads as valid is worse than none.
+    var check = await sha256Hex(obj.d);
+    if (check !== obj.h) throw new Error('integrity check failed (stored hash does not match content)');
+    return obj.d;
+  }
+
+  // ── Vault (IndexedDB, one per origin) ────────────────────────────────────
+  var _dbp = null;
+  function vault() {
+    if (_dbp) return _dbp;
+    _dbp = new Promise(function (res, rej) {
+      var r = indexedDB.open(A1B.DB, 1);
+      r.onupgradeneeded = function () {
+        var d = r.result;
+        if (!d.objectStoreNames.contains('objects')) d.createObjectStore('objects');   // hash -> envelope
+        if (!d.objectStoreNames.contains('snapshots')) d.createObjectStore('snapshots'); // ts -> manifest
+        if (!d.objectStoreNames.contains('meta')) d.createObjectStore('meta');         // key -> value
+      };
+      r.onsuccess = function () { res(r.result); };
+      r.onerror = function () { rej(r.error); };
+    });
+    return _dbp;
+  }
+  async function vGet(store, key) {
+    var d = await vault();
+    return new Promise(function (res, rej) {
+      var r = d.transaction(store, 'readonly').objectStore(store).get(key);
+      r.onsuccess = function () { res(r.result); };
+      r.onerror = function () { rej(r.error); };
+    });
+  }
+  async function vPut(store, key, val) {
+    var d = await vault();
+    return new Promise(function (res, rej) {
+      var tx = d.transaction(store, 'readwrite');
+      tx.objectStore(store).put(val, key);
+      tx.oncomplete = function () { res(true); };
+      tx.onerror = function () { rej(tx.error); };
+    });
+  }
+  async function vKeys(store) {
+    var d = await vault();
+    return new Promise(function (res, rej) {
+      var r = d.transaction(store, 'readonly').objectStore(store).getAllKeys();
+      r.onsuccess = function () { res(r.result || []); };
+      r.onerror = function () { rej(r.error); };
+    });
+  }
+
+  // ── Guards ───────────────────────────────────────────────────────────────
+  function killed() { return lsGet(A1B.DISABLED_KEY) === '1'; }
+
+  // Never capture before the cloud has loaded. This is exactly how the archive
+  // bug destroyed data: it acted on state that had not arrived yet and wrote
+  // the result over something good.
+  function gatesOpen() {
+    return !!(window._fbReady && window._thCloudLoaded && window._vdCloudLoaded);
+  }
+
+  // Refuse to compete with Firestore for storage. On iOS a full origin quota
+  // can evict Firestore's own IndexedDB cache and wedge sync outright — the
+  // reason _freeWebStorage exists in index.html.
+  async function storageOk() {
+    try {
+      if (!navigator.storage || !navigator.storage.estimate) return true;
+      var e = await navigator.storage.estimate();
+      if (!e || !e.quota) return true;
+      return (e.quota - (e.usage || 0)) / 1048576 > A1B.MIN_STORAGE_MB;
+    } catch (e) { return true; }
+  }
+
+  // Mirrors _thbAllow in index.html: a snapshot that loses most of its content
+  // is refused rather than allowed to overwrite a good one. Biased toward
+  // refusing — a blocked good backup costs one retry, a permitted bad one costs
+  // everything.
+  function shrinkOk(prev, next) {
+    if (!prev) return { ok: true };
+    var pd = Object.keys(prev.docs || {}).length, nd = Object.keys(next.docs || {}).length;
+    if (pd >= 4 && nd < Math.floor(pd * A1B.SHRINK_RATIO)) {
+      return { ok: false, why: 'document count fell from ' + pd + ' to ' + nd };
+    }
+    if (prev.bytes >= 50000 && next.bytes < Math.floor(prev.bytes * A1B.SHRINK_RATIO)) {
+      return { ok: false, why: 'size fell from ' + prev.bytes + ' to ' + next.bytes + ' bytes' };
+    }
+    return { ok: true };
+  }
+
+  // ── Capture ──────────────────────────────────────────────────────────────
+  // Tier A: index.html hands us documents its EXISTING listeners already
+  // deliver, so the hot path costs no Firestore reads at all.
+  var observed = {};        // docPath -> data
+  var _dirty = false, _capTimer = null;
+
+  function observe(docPath, data) {
+    if (killed() || !docPath || data == null) return false;
+    observed[docPath] = data;
+    _dirty = true;
+    if (_capTimer) clearTimeout(_capTimer);
+    _capTimer = setTimeout(function () { captureNow().catch(function () {}); },
+                           A1B.CAPTURE_DEBOUNCE_MS);
+    return true;
+  }
+
+  var _lastSummary = null;   // { docs, bytes } of the last accepted snapshot
+
+  async function captureNow(opts) {
+    opts = opts || {};
+    if (killed()) return { skipped: 'kill switch' };
+    var key = await activeKey();
+    if (!key) return { skipped: 'locked — call A1Backup.unlock(passphrase)' };
+    if (!opts.force && !gatesOpen()) return { skipped: 'cloud not loaded yet' };
+    if (!(await storageOk())) {
+      console.warn('[A1Backup] storage headroom below ' + A1B.MIN_STORAGE_MB +
+                   ' MB — not writing, so Firestore keeps its cache');
+      return { skipped: 'low storage' };
+    }
+
+    var paths = Object.keys(observed);
+    if (!paths.length) return { skipped: 'nothing observed yet' };
+
+    // Content-address every document. Unchanged ones already exist under the
+    // same hash, so the write is a no-op and the object is stored once.
+    var manifest = { at: Date.now(), schema: A1B.SCHEMA, docs: {}, bytes: 0 };
+    var stored = 0, reused = 0;
+    for (var i = 0; i < paths.length; i++) {
+      var p = paths[i];
+      var plain = JSON.stringify(observed[p]);
+      var h = (await sha256Hex(p + ' ' + plain)).slice(0, 32);
+      manifest.docs[p] = h;
+      manifest.bytes += plain.length;
+      if (await vGet('objects', h)) { reused++; continue; }
+      await vPut('objects', h, await encryptStr(plain));
+      stored++;
+    }
+
+    var guard = shrinkOk(_lastSummary, manifest);
+    if (!guard.ok) {
+      console.error('[A1Backup] REFUSED a snapshot that loses most of its content — ' +
+                    guard.why + '. The previous backup is untouched.');
+      try { window._fbSyncAlert && window._fbSyncAlert('Backup',
+        'A backup was refused because it would have dropped most of your data (' +
+        guard.why + '). Nothing was overwritten.'); } catch (e) {}
+      await vPut('snapshots', 'suspect-' + manifest.at, manifest);
+      return { refused: guard.why };
+    }
+
+    await vPut('snapshots', String(manifest.at), manifest);
+    await vPut('meta', 'lastSnapshot', manifest.at);
+    _lastSummary = { docs: manifest.docs, bytes: manifest.bytes };
+    _dirty = false;
+    return { at: manifest.at, docs: paths.length, stored: stored, reused: reused,
+             bytes: manifest.bytes };
+  }
+
+  // ── Read back ────────────────────────────────────────────────────────────
+  async function listSnapshots() {
+    var keys = await vKeys('snapshots');
+    return keys.filter(function (k) { return String(k).indexOf('suspect-') !== 0; })
+               .map(Number).filter(function (n) { return !isNaN(n); })
+               .sort(function (a, b) { return b - a; });
+  }
+
+  // Decrypts a stored snapshot back to { docPath: data }. This is also the
+  // "verify" path: it exercises the passphrase and the integrity check on real
+  // stored bytes. A backup nobody has ever read back is not a backup.
+  async function restoreSnapshot(at) {
+    var snaps = await listSnapshots();
+    var pick = at || snaps[0];
+    if (!pick) throw new Error('no snapshots stored');
+    var man = await vGet('snapshots', String(pick));
+    if (!man) throw new Error('snapshot ' + pick + ' not found');
+    var out = {};
+    var paths = Object.keys(man.docs);
+    for (var i = 0; i < paths.length; i++) {
+      var env = await vGet('objects', man.docs[paths[i]]);
+      if (!env) throw new Error('missing object for ' + paths[i]);
+      out[paths[i]] = JSON.parse(await decryptEnv(env));
+    }
+    return { at: pick, docs: out };
+  }
+
+  async function verify() {
+    var r = await restoreSnapshot();
+    var n = Object.keys(r.docs).length;
+    console.log('[A1Backup] verified snapshot ' + new Date(r.at).toLocaleString() +
+                ' — ' + n + ' document(s) decrypted and integrity-checked.');
+    return { at: r.at, docs: n };
+  }
+
+  async function status() {
+    var out = {
+      locked: !lsGet(A1B.PASS_KEY),
+      killed: killed(),
+      gatesOpen: gatesOpen(),
+      observed: Object.keys(observed).length,
+      dirty: _dirty
+    };
+    try {
+      out.snapshots = (await listSnapshots()).length;
+      out.lastSnapshot = await vGet('meta', 'lastSnapshot') || null;
+      out.objects = (await vKeys('objects')).length;
+      out.ageHours = out.lastSnapshot
+        ? +((Date.now() - out.lastSnapshot) / 3600000).toFixed(1) : null;
+      out.stale = out.ageHours == null || out.ageHours > 48;
+    } catch (e) { out.vaultError = String(e && (e.message || e)); }
+    return out;
+  }
+
   window.A1Backup = {
     version: A1B.SCHEMA,
     constants: A1B,
     register: register,
     measure: measure,
+
+    // Phase 1 — capture and local vault.
+    unlock: unlock,                 // enter the passphrase once per device
+    observe: observe,               // apps feed documents their listeners deliver
+    capture: captureNow,            // force a snapshot now
+    snapshots: listSnapshots,
+    restore: restoreSnapshot,       // decrypt a snapshot back to plain objects
+    verify: verify,                 // prove the passphrase and integrity still work
+    status: status,
+    kill: function (on) {
+      lsSet(A1B.DISABLED_KEY, on === false ? '0' : '1');
+      return on !== false;
+    },
+
     _apps: apps,
     // Exposed so tests exercise the SHIPPED functions rather than a copy.
     // tests/backup-measure.test.js loads this file and calls these directly;
