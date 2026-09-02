@@ -20257,14 +20257,23 @@ function createBoard(cfg) {
     cfg.mount.appendChild(nodeBar);
     syncNodeBar();
   }
+  /* Enable each action only when it can actually do something. Two of them
+   * cannot always act, and a button that silently no-ops reads as a broken app:
+   *  - Fold needs a node that HAS children. Mind Elixir hangs the expander off
+   *    the parent wrapper, and the root has none, so folding the centre node is
+   *    not a thing the library can do at all.
+   *  - Delete refuses the root, because a mind map without one is not a map. */
   function syncNodeBar() {
     if (!nodeBar) return;
     nodeBar.classList.toggle('viz-on', !!B.editable);
-    var has = !!(B.mind && B.mind.currentNodes && B.mind.currentNodes.length);
+    var sel = (B.mind && B.mind.currentNodes) || [];
+    var one = sel.length === 1 ? sel[0] : null;
+    var has = sel.length > 0;
+    var canFold = !!(one && one.nodeObj && one.nodeObj.parent && (one.nodeObj.children || []).length);
+    var canDelete = has && !sel.some(function (e) { return e.nodeObj && !e.nodeObj.parent; });
+    var enabled = [has, has, has, canFold, true, true, true, canDelete];
     Array.prototype.forEach.call(nodeBar.children, function (b, i) {
-      // Centre / Undo / Redo work with nothing selected; the rest need a node.
-      var needsNode = (i < 4) || i === 7;
-      b.disabled = needsNode && !has;
+      b.disabled = !enabled[i];
       b.style.opacity = b.disabled ? '.35' : '';
     });
   }
