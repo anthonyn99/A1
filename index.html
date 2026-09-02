@@ -36230,14 +36230,38 @@ window._THV={
   // itself — rather than inside the dialog box — is refused outright.
   // This app already sets overflow:hidden on html/body — the document does not
   // scroll, an inner container does. So locking the document achieves nothing
-  // here, and the gesture itself has to be refused: any wheel or drag that is
-  // not inside the dialog box is cancelled while a dialog is up. Registered in
-  // the CAPTURE phase so it wins before any scroll container sees it.
+  // here, and the gesture itself has to be refused: any wheel or drag outside
+  // the open dialog is cancelled. Registered in the CAPTURE phase so it wins
+  // before any scroll container sees it.
+  //
+  // Covers every modal overlay in the app, not just this dialog system: the
+  // journal and app lock screens and the profile gate are all full-screen and
+  // all sit over the same scrollable content. One guard for all of them means a
+  // new modal is protected the day it ships, and both profiles get the fix at
+  // once — uiModal, useScrollLock and this list are all shared between them.
+  var _MODAL_OVERLAYS=['uim-overlay','applock-overlay','bj-lock-overlay',
+                       'tj-lock-overlay','profile-overlay','thset-overlay'];
+  function _openModalOverlay(){
+    for(var i=0;i<_MODAL_OVERLAYS.length;i++){
+      var o=document.getElementById(_MODAL_OVERLAYS[i]);
+      if(!o)continue;
+      var cs=window.getComputedStyle(o);
+      if(cs.display==='none'||cs.visibility==='hidden'||cs.opacity==='0')continue;
+      // Only a thing that actually covers the screen counts. Without this a
+      // small always-present element sharing one of these ids would silently
+      // freeze every gesture in the app, which is far worse than the leak.
+      var r=o.getBoundingClientRect();
+      if(r.width<window.innerWidth*0.8||r.height<window.innerHeight*0.8)continue;
+      return o;
+    }
+    return null;
+  }
   function _uimBlockGesture(e){
-    var ov=el('uim-overlay');
-    if(!ov||!ov.classList.contains('show'))return;
-    var box=el('uim-box');
-    if(box && e.target && box.contains(e.target))return;   // scrolling the dialog itself
+    var ov=_openModalOverlay();
+    if(!ov)return;
+    // Anything inside the overlay keeps its own scrolling — a long dialog or a
+    // lock screen must still be usable.
+    if(e.target && ov.contains(e.target))return;
     if(e.cancelable)e.preventDefault();
   }
   document.addEventListener('touchmove',_uimBlockGesture,{passive:false,capture:true});
