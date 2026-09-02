@@ -140,9 +140,9 @@ for (const app of [{ p: 'bj', doc: 'journal' }, { p: 'tj', doc: 'tony_journal' }
   const strip = body('    const _' + app.p + 'StripEntry = async (e0) => {');
   ok(app.p + ': the entry stripper still drops any legacy canvas before upload',
     !!strip && /canvas,\s*history,\s*\.\.\.rest/.test(strip));
-  const b = src.match(new RegExp('function _' + app.p + 'Board\\(kind\\)[\\s\\S]{0,900}?\\n\\}'));
+  const b = body('function _' + app.p + 'Board(kind) {');
   ok(app.p + ': the board is wired to its own document prefix',
-    !!b && b[0].includes("prefix: '" + app.doc + "'"), b && b[0].slice(0, 120));
+    !!b && b.includes("prefix: '" + app.doc + "'"), b && b.slice(0, 160));
 }
 // What lands on the entry is a fingerprint, never a scene.
 ok('the entry carries only a fingerprint of its board',
