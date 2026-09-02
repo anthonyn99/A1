@@ -947,6 +947,21 @@ const CHARGE_RE = /(?:\bwill\s+be\s+charged\b|\bwe(?:'ll|\s+will)\s+charge\b|\ba
 // The four categories that only exist as a day on the calendar.
 const DATED = new Set(['bill', 'subscription', 'travel', 'appointment']);
 
+// The kinds this gate can speak about at all. package and coupon are excluded
+// on purpose: a parcel is allowed to infer its day, and a coupon is an offer,
+// not a commitment.
+const GATED_KINDS = new Set(['bill', 'subscription', 'travel', 'appointment']);
+
+// "$0.00 due" is a statement, not a bill — the same "money already settled"
+// rule the prompt states, enforced. A MISSING amount is not zero: "your bill is
+// ready" with the figure behind a link is still a real bill, so only an amount
+// that is actually present and actually zero counts.
+function zeroAmount(a) {
+  if (!a) return false;
+  const n = parseFloat(String(a).replace(/[^0-9.]/g, ''));
+  return Number.isFinite(n) && n === 0;
+}
+
 const WEEKDAY_RE = [/\bsun(?:day)?\b/i, /\bmon(?:day)?\b/i, /\btues?(?:day)?\b/i, /\bwed(?:nes(?:day)?)?\b/i,
                     /\bthur?s?(?:day)?\b/i, /\bfri(?:day)?\b/i, /\bsat(?:ur(?:day)?)?\b/i];
 const MON3 = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
@@ -1004,6 +1019,13 @@ function commitmentGate(ai, text, sentAt) {
             confidence: Math.min(out.confidence ?? 0, 0.4) };
   }
 
+  // Nothing owed, nothing to put on the week. "Wells Fargo — $0.00" is a
+  // statement notice that read as a bill.
+  if ((out.category === 'subscription' || out.category === 'bill') && zeroAmount(out.amount)) {
+    out = { ...out, category: 'general', gate: 'zero-amount', date: '', amount: '',
+            confidence: Math.min(out.confidence ?? 0, 0.4) };
+  }
+
   // Last: a dated category whose day the email never gave. Dropping the date
   // drops the card (cardFor returns null without one) while leaving the
   // classification on the message, where the reader still shows it.
@@ -1012,6 +1034,64 @@ function commitmentGate(ai, text, sentAt) {
   }
 
   return out;
+}
+
+// ── Re-checking cards that are ALREADY on the week ──────────────────────────
+// Fixing the classifier does nothing for the cards the old one already wrote.
+// Nothing re-reads old mail on its own — ingestion only ever looks at new
+// messages — so a wrong card sits on the calendar until it expires, and a
+// refresh of TaskHub or OneInbox re-renders it faithfully every time. That is
+// what "I refreshed and they are still there" is: the cards are stored
+// documents, not a live model output.
+//
+// So the rules also have to run against a stored card. It carries no email
+// body, only the subject and the one-line summary the model wrote — enough for
+// the two semantic vetoes, which is where these cards go wrong, and NOT enough
+// for date provenance, which is therefore not attempted here.
+function cardSupported(card) {
+  if (!card || !GATED_KINDS.has(card.kind)) return true;
+  const t = [card.subject, card.summary, card.merchant, card.location].filter(Boolean).join('\n');
+  const booking = card.kind === 'appointment' || card.kind === 'travel';
+  if (booking && BOOK_INVITE_RE.test(t) && !BOOKED_RE.test(t)) return false;
+  if (!booking && SOLICIT_RE.test(t) && !CHARGE_RE.test(t)) return false;
+  if (!booking && zeroAmount(card.amount)) return false;
+  return true;
+}
+
+// Bumped whenever the rules above change. The stamp in KV is what makes a rules
+// change reach cards that already exist: the first run after a deploy sees a
+// stale stamp, re-checks the whole collection once, and stamps itself. Without
+// it every improvement would only apply to mail that had not arrived yet.
+const GATE_VERSION = 2;
+const GATE_KEY = 'oi:gate';
+
+// Delete every card the current rules no longer support. `cards` is optional —
+// a caller already holding a listing passes it in rather than paying to read
+// the collection twice.
+async function purgeUnsupportedCards(env, token, cards) {
+  if (!fsConfigured(env)) return { checked: 0, deleted: 0 };
+  const root = fsRoot(env);
+  const all = cards || await fsList(env, token, 'dashboards/oneinbox/cards', 300);
+  const dead = all.filter(c => !cardSupported(c));
+  if (dead.length) {
+    await fsBatchWrite(env, token, dead.map(c => ({ delete: `${root}/dashboards/oneinbox/cards/${c._id || c.id}` })));
+    for (const c of dead) console.log('purged unsupported card', c.kind, c._id || c.id, (c.summary || '').slice(0, 60));
+  }
+  return { checked: all.length, deleted: dead.length, ids: dead.map(c => c._id || c.id) };
+}
+
+// One KV read on the common path, and a write only on the run that actually
+// re-checks. Safe to call from anywhere: the version stamp makes every call
+// after the first a no-op until the rules change again.
+async function purgeIfStale(env) {
+  if (!fsConfigured(env)) return null;
+  let rec = null;
+  try { rec = await env.OI_KV.get(GATE_KEY, 'json'); } catch { /* treat as stale */ }
+  if (rec && rec.v === GATE_VERSION) return null;
+  const token = await getGoogleAccessToken(env);
+  const r = await purgeUnsupportedCards(env, token);
+  await env.OI_KV.put(GATE_KEY, JSON.stringify({ v: GATE_VERSION, at: Date.now(), deleted: r.deleted })).catch(() => {});
+  return r;
 }
 
 // ── Daily AI budget ─────────────────────────────────────────────────────────
@@ -1468,7 +1548,7 @@ function cardFor(msg, ai) {
   // arrives today is not an appointment today. So skip the card and leave the
   // classification on the message, where the reader still shows it.
   if (ai.category === 'bill' || ai.category === 'subscription') {
-    if (!ai.date) return null;
+    if (!ai.date || zeroAmount(ai.amount)) return null;
     const id = (ai.category === 'bill' ? 'bill_' : 'sub_') + slug(ai.merchant || from.name) + '_' + slug(ai.date || ai.amount);
     return { id, kind: ai.category, ...base, amount: ai.amount || '', due: ai.date };
   }
@@ -2155,6 +2235,13 @@ async function runCron(env, { force = false } = {}) {
   // Every tick: scheduled sends (cheap — one bounded KV list).
   try { out.sent = await drainScheduled(env); } catch (e) { out.sendErr = e.message; }
 
+  // Every tick, but genuinely once: re-check the cards already on the week
+  // against the current rules. Version-stamped, so this is a single KV read on
+  // all but the first tick after a rules change — and that first tick is what
+  // clears a wrong card without anyone having to press anything.
+  try { const p = await purgeIfStale(env); if (p) out.purged = p; }
+  catch (e) { out.purgeErr = e.message; }
+
   const accounts = await getAccountIndex(env);
 
   // Daily: re-arm Gmail watches. Registrations expire after 7 days; re-arming
@@ -2228,6 +2315,11 @@ async function sweepCards(env) {
   // stay far below this, but the bound shouldn't depend on that assumption.
   const cards = await fsOldest(env, token, 'dashboards/oneinbox', 'cards', 'updatedAt', 400);
   const dead = cards.filter(c => {
+    // Unsupported by the current rules — an invitation filed as an appointment,
+    // an ad filed as a subscription, a $0.00 "bill". purgeIfStale clears these
+    // the moment the rules change; this is the standing net underneath it, so
+    // the collection is re-checked daily whether or not a version was bumped.
+    if (!cardSupported(c)) return true;
     if (c.kind === 'coupon') return c.expires && c.expires < grace;
     if (c.kind === 'package') return c.delivered && c.updatedAt < Date.now() - 5 * 864e5;
     if (c.kind === 'bill' || c.kind === 'subscription') return c.due && c.due < grace;
@@ -2366,7 +2458,13 @@ export default {
           catch (err) { res.push({ account: e, error: err.message }); }
         }
         await aiBudgetFlush(env);
-        return json({ ok: true, results: res }, origin);
+        // Refresh is the other thing the user presses when the week looks
+        // wrong, and it should not be the one path that leaves a card the
+        // current rules reject sitting there. Version-stamped, so it is one KV
+        // read unless the rules moved. Never allowed to fail the sync.
+        let purged = null;
+        try { purged = await purgeIfStale(env); } catch (err) { purged = { error: err.message }; }
+        return json({ ok: true, results: res, ...(purged ? { purged } : {}) }, origin);
       }
 
       if (path.startsWith('/gmail/')) return await handleGmail(path, body, env, origin);

@@ -4917,6 +4917,73 @@ async function lkCheckRenames() {
   });
 }
 
+// Re-resolve ONE account. The same call and the same bookkeeping as the sweep
+// above, scoped to a single row — checking whether one player has renamed
+// should not cost a request per account in the list.
+async function lkCheckOne(ev, puuid) {
+  if (ev) { ev.stopPropagation(); ev.preventDefault(); }
+  const e = _lkIndex[puuid];
+  // The sweep is already re-resolving everything, this row included.
+  if (!e || _lkChecking || _lkBusy[puuid]) return;
+
+  _lkBusy[puuid] = true;
+  renderLookups({ note: '' });
+  let note;
+  try {
+    const acct = await riotFetch('/riot/account/v1/accounts/by-puuid/' + e.p, e.r || 'americas', 1, true);
+    const name = acct && acct.gameName ? acct.gameName + '#' + acct.tagLine : null;
+    if (!name) throw new Error('empty');
+    if (name !== e.n) {
+      const from = e.n;
+      e.h = [{ n: e.n, t: e.l || Date.now() }].concat(e.h || []).slice(0, 10);
+      e.n = name;
+      e.rn = Date.now();              // when the rename was spotted
+      note = 'Renamed: ' + from + ' \u2192 ' + name;
+      wrRenameToast({ from: from, to: name });
+    } else {
+      note = name + ' is still current';
+    }
+    if (e.x) delete e.x;
+    lkSaveOne(e);
+  } catch(err) {
+    // 404 means Riot no longer knows this PUUID at all. Flagged, never deleted:
+    // the PUUID is the only handle left on who it was.
+    if (err && err.message === '404') { e.x = true; lkSaveOne(e); note = e.n + ' no longer resolves'; }
+    else note = 'Could not check ' + e.n;
+  }
+  delete _lkBusy[puuid];
+  lkMirror();
+  renderLookups({ note: note });
+}
+
+// Clear one account out of the tracker. No confirm: tidying the list is a thing
+// you do several rows at a time, and a dialog per row is the wrong trade. It is
+// undoable instead for a few seconds — which also covers the real risk, that a
+// removal takes the account's whole rename history with it.
+function lkRemove(ev, puuid) {
+  if (ev) { ev.stopPropagation(); ev.preventDefault(); }
+  const e = _lkIndex[puuid];
+  if (!e) return;
+  delete _lkIndex[puuid];
+  _lkUndo = e;
+  clearTimeout(_lkUndoTimer);
+  _lkUndoTimer = setTimeout(function(){ _lkUndo = null; renderLookups(); }, 9000);
+  lkMirror();
+  lkDeleteOne(puuid);
+  renderLookups({ note: '' });
+}
+
+function lkUndoRemove() {
+  if (!_lkUndo) return;
+  const e = _lkUndo;
+  _lkUndo = null;
+  clearTimeout(_lkUndoTimer);
+  _lkIndex[e.p] = e;
+  lkMirror();
+  lkSaveOne(e);
+  renderLookups({ note: 'Restored ' + e.n });
+}
+
 // ── Lookup history UI ──────────────────────────────────────────────────────
 let _lkFilter = '';
 let _lkNote = '';
@@ -5030,7 +5097,13 @@ function renderLookups(opts) {
     btn.textContent = _lkChecking ? ('Checking ' + (opts.progress || '')) : 'Check for renames';
   }
   const note = document.getElementById('lk-note');
-  if (note) note.textContent = _lkChecking ? '' : _lkNote;
+  if (note) {
+    if (_lkChecking) note.textContent = '';
+    else if (_lkUndo) {
+      note.innerHTML = 'Removed ' + esc(_lkUndo.n) +
+        '<button type="button" class="lk-undo" onclick="lkUndoRemove()">Undo</button>';
+    } else note.textContent = _lkNote;
+  }
 
   let list = Object.values(_lkIndex).sort(function(a, b){ return (b.l||0) - (a.l||0); });
   if (_lkFilter) {
@@ -5064,11 +5137,25 @@ function renderLookups(opts) {
     h += '<div class="lk-puuid" role="button" title="Copy PUUID" onclick="lkCopyPuuid(event,\'' + esc(e.p) + '\')">' +
          esc(e.p.slice(0, 22)) + '…</div>';
     h += '</div>';
+    const busy = !!_lkBusy[e.p];
+    h += '<div class="lk-side">';
     h += '<div class="lk-meta">' +
          '<span class="lk-region">' + esc((e.pl || '').toUpperCase()) + '</span>' +
          '<span>' + lkAgo(e.l) + '</span>' +
          '<span class="lk-count">' + (e.c || 1) + '&times;</span>' +
          '</div>';
+    h += '<div class="lk-acts">' +
+         '<button type="button" class="lk-act' + (busy ? ' lk-act-busy' : '') + '"' +
+           (busy || _lkChecking ? ' disabled' : '') +
+           ' title="Check this name for a rename"' +
+           ' aria-label="Check ' + esc(e.n) + ' for a rename"' +
+           ' onclick="lkCheckOne(event,\'' + esc(e.p) + '\')">' + wrIco('refresh', 12) + '</button>' +
+         '<button type="button" class="lk-act lk-act-del"' +
+           ' title="Remove from lookup history"' +
+           ' aria-label="Remove ' + esc(e.n) + ' from lookup history"' +
+           ' onclick="lkRemove(event,\'' + esc(e.p) + '\')">' + wrIco('close', 12) + '</button>' +
+         '</div>';
+    h += '</div>';
     h += '</div>';
     return h;
   }).join('');

@@ -28,7 +28,7 @@ function loadWorker(names) {
   const body = SRC.replace(/export default \{[\s\S]*$/, '');
   return new Function(body + '\nreturn { ' + names.join(', ') + ' };')();
 }
-const W = loadWorker(['commitmentGate', 'dateIsStated', 'cardFor', 'DATED']);
+const W = loadWorker(['commitmentGate', 'dateIsStated', 'cardFor', 'DATED', 'cardSupported', 'zeroAmount', 'GATE_VERSION']);
 
 const sent = (iso) => new Date(iso + 'T12:00:00Z');
 
@@ -146,6 +146,57 @@ const AZURE = [
   const untouched = { category: 'coupon', confidence: 0.8, code: 'NIKE25', amount: '25% OFF', date: '2026-09-30' };
   const got = W.commitmentGate(untouched, 'Subject: 25% off\nUse code NIKE25. Sign up now. Limited time.', sent('2026-09-01'));
   check('a coupon is returned exactly as it came in', JSON.stringify(got) === JSON.stringify(untouched));
+}
+
+/* ── cards ALREADY on the week ───────────────────────────────────────────────
+   Fixing the classifier does nothing for cards the old one already wrote:
+   nothing re-reads old mail, so a refresh re-renders the same stored document
+   forever. cardSupported() is what re-checks a card that carries no email body
+   — only its subject and the one-line summary the model wrote. These three are
+   the cards that were actually on the week of 2026-09-01. */
+{
+  const recruiter = { kind: 'appointment', subject: 'RDSolutions - Come Work for Us!',
+    summary: 'Invitation to schedule a virtual interview with RDSolutions.',
+    merchant: 'RDSolutions', location: 'Broomfield area', when: '2026-09-01' };
+  check('the RDSolutions card is retired from the week', W.cardSupported(recruiter) === false);
+
+  const azure = { kind: 'subscription', subject: 'Upgrade within seven days to keep going with Azure',
+    summary: 'Upgrade your Azure account before your trial ends next week.',
+    merchant: 'Microsoft Azure', due: '2026-09-06' };
+  check('the Azure card is retired from the week', W.cardSupported(azure) === false);
+
+  const wells = { kind: 'bill', subject: 'Your Wells Fargo statement is ready',
+    summary: 'Your statement is ready to view.', merchant: 'Wells Fargo',
+    amount: '$0.00', due: '2026-09-02' };
+  check('a $0.00 "bill" is not a bill', W.cardSupported(wells) === false);
+}
+{
+  /* …and the real ones stay put. */
+  const keep = [
+    ['a confirmed appointment', { kind: 'appointment', subject: 'Appointment confirmed',
+      summary: 'Your appointment with Dr. Okafor is confirmed for Sep 8.', merchant: 'Boulder Family Medicine' }],
+    ['a real renewal', { kind: 'subscription', subject: 'Your membership renews soon',
+      summary: 'Your plan renews on Sep 12 and your card will be charged $17.99.', merchant: 'Netflix', amount: '$17.99' }],
+    ['a real bill', { kind: 'bill', subject: 'Your Xcel Energy bill is ready',
+      summary: 'Amount due $184.32 by Sep 20.', merchant: 'Xcel Energy', amount: '$184.32' }],
+    ['a bill whose amount is behind a link', { kind: 'bill', subject: 'Your statement is ready',
+      summary: 'Your August statement is ready. Amount due by Sep 20.', merchant: 'Chase', amount: '' }],
+    ['a booked flight', { kind: 'travel', subject: 'Your flight to Denver',
+      summary: 'Your itinerary: UA 2231 departs Sep 14. Confirmation K8JQ2M.', merchant: 'United' }],
+    ['a parcel', { kind: 'package', subject: 'Sign up and save! Your package shipped',
+      summary: 'Out for delivery today.', merchant: 'Amazon' }],
+    ['a coupon', { kind: 'coupon', subject: '25% off - sign up now', summary: 'Use code NIKE25.', merchant: 'Nike' }]
+  ];
+  let dropped = null;
+  for (const [name, c] of keep) if (!W.cardSupported(c)) { dropped = name; break; }
+  check('nothing real is swept up with them', dropped === null, dropped ? 'dropped ' + dropped : keep.length + ' cards');
+}
+{
+  const z = ['$0.00', '0', '$0', '0.00', 'USD 0.00'];
+  const nz = ['', null, undefined, '$184.32', '$0.99', '25% OFF'];
+  check('zeroAmount reads a settled balance and nothing else',
+    z.every(W.zeroAmount) && !nz.some(W.zeroAmount));
+  check('a rules change carries a version stamp with it', W.GATE_VERSION >= 2, 'v' + W.GATE_VERSION);
 }
 
 /* ── report ──────────────────────────────────────────────────────────────── */
