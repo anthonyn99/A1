@@ -22391,6 +22391,9 @@ function _bjApplyRemote(remote) {
   var _winnerTrashed = {};
   remote.entries.forEach(function(remoteEntry) {
     remoteById[remoteEntry.id] = true;
+    // A mind map arriving from another device gets routed the same way one read
+    // from the local cache does — see _bjLegacyTemplate.
+    _bjLegacyTemplate(remoteEntry);
     if (_deletedSet.has(remoteEntry.id)) return;
     var local = localById[remoteEntry.id];
     var remoteUpdated = remoteEntry.updated || 0;
