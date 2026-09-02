@@ -19331,15 +19331,72 @@ function loadScript(src) {
     document.head.appendChild(s);
   });
 }
-function loadCss(href, id) {
+
+/* ── Offline-capable library loading ─────────────────────────────────────────
+ * A drawing that is saved locally is no use if the editor that opens it lives
+ * on a CDN: reload a board on a train and the page would have the work and no
+ * way to show it. So the FIRST successful load of each library also files a
+ * copy of its source in IndexedDB, and a later load that cannot reach the
+ * network runs that copy instead.
+ *
+ * The network is still tried first, so the normal path is an ordinary <script
+ * src> the browser can stream-compile and HTTP-cache. The archive copy is
+ * fetched afterwards, off the critical path, and normally comes straight out of
+ * the HTTP cache. Cache keys carry the pinned version, so a version bump
+ * naturally misses and re-archives rather than resurrecting an old build.
+ *
+ * The Excalidraw fonts and locale chunks it pulls at runtime are NOT archived —
+ * offline it falls back to system fonts and its built-in English. A board that
+ * opens in the wrong typeface is a far better outcome than one that will not
+ * open at all. */
+function archive(url, key) {
+  setTimeout(function () {
+    idbGet('lib:' + key).then(function (have) {
+      if (have && have.t) return;
+      return fetch(url).then(function (r) { return r.ok ? r.text() : null; })
+        .then(function (t) { if (t) return idbPut('lib:' + key, { t: t, at: Date.now() }); });
+    }).catch(function () { /* the archive is a bonus, never a requirement */ });
+  }, 4000);
+}
+function runArchived(key, kind) {
+  return idbGet('lib:' + key).then(function (c) {
+    if (!c || !c.t) throw new Error('no offline copy of ' + key);
+    if (kind === 'css') {
+      var st = document.createElement('style');
+      st.textContent = c.t; st.setAttribute('data-viz-lib', key);
+      document.head.appendChild(st);
+      return;
+    }
+    return new Promise(function (res, rej) {
+      var url = URL.createObjectURL(new Blob([c.t], { type: 'text/javascript' }));
+      var s = document.createElement('script');
+      s.src = url; s.async = false;
+      s.onload = function () { URL.revokeObjectURL(url); res(); };
+      s.onerror = function () { URL.revokeObjectURL(url); rej(new Error('offline copy of ' + key + ' would not run')); };
+      document.head.appendChild(s);
+    });
+  });
+}
+function loadScriptOffline(src, key) {
+  return loadScript(src)
+    .then(function () { archive(src, key); })
+    .catch(function (e) {
+      console.warn('[viz] ' + key + ' unreachable, trying the offline copy:', e.message);
+      return runArchived(key, 'js');
+    });
+}
+function loadCss(href, id, key) {
   if (id && document.getElementById(id)) return Promise.resolve();
-  return new Promise(function (res) {
+  return new Promise(function (res, rej) {
     var l = document.createElement('link');
     l.rel = 'stylesheet'; l.href = href; if (id) l.id = id;
-    l.onload = function () { res(); };
-    l.onerror = function () { res(); };   // styling is not worth failing a board over
+    l.onload = function () { res(true); };
+    l.onerror = function () { l.remove(); rej(new Error('css')); };
     document.head.appendChild(l);
-  });
+  }).then(function () { if (key) archive(href, key); })
+    // Styling is not worth failing a board over: if neither the network nor the
+    // archive has it, the editor still works, just unstyled.
+    .catch(function () { return key ? runArchived(key, 'css').catch(function () {}) : undefined; });
 }
 
 var _excP = null;
@@ -19498,6 +19555,7 @@ var SAVE_IDLE = 1500;      // quiet period before a save
 var SAVE_MAX  = 8000;      // hard ceiling during nonstop drawing
 var RETRY_MS  = [4000, 12000, 30000, 60000, 120000];
 var REMOTE_QUIET = 6000;   // don't take a remote update within this of a local edit
+var SLOW_SAVE = 9000;      // a cloud write still in flight after this is not "saving"
 
 function svg(d, extra) {
   return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" '
@@ -19589,7 +19647,7 @@ function createBoard(cfg) {
     dirty: false, saving: false, closing: false,
     lastSerial: null, rev: 0, count: 0, docTitle: '',
     lastLocalEdit: 0, lastCloudAt: 0, retryIx: 0, retryTimer: null,
-    idleTimer: null, firstDirtyAt: 0,
+    idleTimer: null, firstDirtyAt: 0, slowTimer: null,
     uploaded: {},           // fileId → true, so an unchanged image is never re-sent
     watchOff: null
   };
@@ -19792,19 +19850,31 @@ function createBoard(cfg) {
     // auto-title and the entry's own `updated`/`rev` follow the board.
     if (cfg.onMeta) { try { cfg.onMeta({ rev: rev, count: s.count, title: s.title, kind: cfg.kind }); } catch (e) {} }
 
-    setStatus('saving');
+    // Offline, a Firestore write neither resolves nor rejects — it sits in the
+    // local mutation queue until the connection comes back. Saying "Saving…"
+    // for the whole flight is the one thing this indicator must never do: it
+    // reads as "your work is on its way" while nothing is moving. So the status
+    // is driven on its own clock. The write is NOT cancelled — it is still
+    // queued and will land on reconnect — only the label is corrected.
+    setStatus(navigator.onLine === false ? 'offline' : 'saving');
+    clearTimeout(B.slowTimer);
+    B.slowTimer = setTimeout(function () {
+      if (B.entryId === id && B.saving) setStatus(navigator.onLine === false ? 'offline' : 'error');
+    }, SLOW_SAVE);
     B.saving = (function () {
       if (!S.fbReady()) return Promise.reject(new Error('firebase-not-ready'));
       return uploadFiles(s.files)
         .then(function () { return S.writeChunked(baseId(id), str, { k: cfg.kind, rev: rev }); });
     })()
       .then(function () {
+        clearTimeout(B.slowTimer);
         B.saving = null; B.retryIx = 0; B.lastCloudAt = Date.now();
         if (B.entryId === id) setStatus('saved');
         window.dispatchEvent(new CustomEvent('fb-' + cfg.app + '-canvas-saved', { detail: id }));
         if (B.dirty) markDirty();
       })
       .catch(function (e) {
+        clearTimeout(B.slowTimer);
         B.saving = null;
         console.warn('[viz] cloud save failed:', e && (e.code || e.message));
         if (B.entryId === id) setStatus(navigator.onLine === false ? 'offline' : 'error');
@@ -19822,7 +19892,7 @@ function createBoard(cfg) {
   function retry(id) {
     if (B.entryId !== id || !B.lastSerial) return;
     if (!S.fbReady()) { scheduleRetry(id); return; }
-    setStatus('saving');
+    setStatus(navigator.onLine === false ? 'offline' : 'saving');
     var str = B.lastSerial, rev = B.rev;
     S.idbGet(cacheKey(id)).then(function (c) {
       return uploadFiles((c && c.files) || {})
@@ -20383,6 +20453,7 @@ function createBoard(cfg) {
     stopWatch();
     clearTimeout(B.idleTimer);
     clearTimeout(B.retryTimer);
+    clearTimeout(B.slowTimer);
     var p = (B.ready && B.dirty) ? save() : Promise.resolve();
     return p.then(function () {
       B.closing = false;
