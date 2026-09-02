@@ -231,6 +231,19 @@ t('the chip only mounts once a body exists',
   /if \(!document\.body\) return;/.test(SRC) &&
   /document\.readyState === 'loading'/.test(SRC));
 
+section('Anyone can turn backups on, on any device');
+
+// The setup dialog used to wait for gatesOpen(), which needs BOTH profiles'
+// data to have landed. On a device where the other profile's dashboard never
+// loads, the dialog would never appear and that person could never turn
+// backups on at all. Setting a passphrase writes no backup - it only unlocks
+// the ability to make one - so it needs the app up, not the data in.
+t('the setup prompt waits only for Firebase to be ready',
+  /if \(typeof window\.uiForm !== 'function' \|\| !window\._fbReady\) return;/.test(SRC));
+t('capture still keeps the strict gate',
+  /if \(!opts\.force && !gatesOpen\(\)\) return \{ skipped: 'cloud not loaded yet' \};/.test(SRC),
+  'That is where acting on data that has not arrived actually costs something.');
+
 section('A brief visit still mirrors off-device');
 
 // The push is debounced to stay inside the daily write budget, but a debounce

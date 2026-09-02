@@ -890,9 +890,14 @@
     var iv = setInterval(function () {
       tries++;
       if (setupDone() || killed() || tries > 40) { clearInterval(iv); return; }
-      // Wait for the modal system AND for the cloud, so the first thing a
-      // person sees on opening Index is their data, not a passphrase box.
-      if (typeof window.uiForm !== 'function' || !gatesOpen()) return;
+      // Wait for the modal system and for Firebase to be up — but NOT for both
+      // profiles' data to have landed. Setting a passphrase writes no backup;
+      // it only unlocks the ability to make one. Gating it on the full
+      // cloud-loaded state would mean that on a device where the other
+      // profile's dashboard never loads, the dialog would never appear and
+      // that person could never turn backups on at all. Capture keeps the
+      // strict gate, where it actually matters.
+      if (typeof window.uiForm !== 'function' || !window._fbReady) return;
       clearInterval(iv);
       promptSetup().catch(function (e) {
         console.warn('[A1Backup] setup prompt failed:', e && (e.message || e));
