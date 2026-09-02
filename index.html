@@ -11033,6 +11033,50 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       if (_bjCanvasUnsub) { _bjCanvasUnsub(); _bjCanvasUnsub = null; }
     };
 
+    /* ── Viz boards (Whiteboard / Mind Map) — generic document access ─────────
+     *
+     * The visual templates keep each board in its own dashboards/ document
+     * (see the VizEngine block further down for the layout and why). All they
+     * need from here is get / set / watch on one document id, plus the same
+     * transient-failure retry every other write in this module gets. The engine
+     * owns the chunking, the debounce and the offline queue; this stays a thin
+     * accessor so there is exactly one Firestore setup in the app.
+     *
+     * Writes are BOUNDED BY CONSTRUCTION: the engine never hands over more than
+     * one chunk at a time and sizes chunks in UTF-8 bytes, so the size guard
+     * here is a backstop against a bug, not the mechanism. A refusal is loud —
+     * a board that silently stops syncing is the failure this codebase has
+     * already paid for once. */
+    const _vizWatch = {};
+    window._fbViz = {
+      get: async (id) => {
+        const snap = await getDoc(doc(db, 'dashboards', id));
+        return snap.exists() ? snap.data() : null;
+      },
+      set: (id, payload) => {
+        const bytes = _fbByteSize(payload);
+        if (bytes > FB_MAX_WRITE_BYTES) {
+          const msg = 'A board chunk came out at ' + Math.round(bytes / 1024) + ' KB, over the '
+            + Math.round(FB_MAX_WRITE_BYTES / 1024) + ' KB document limit. It is saved on this device but NOT in the cloud.';
+          console.error('[viz] ' + msg);
+          if (window._fbSyncAlert) window._fbSyncAlert('Board sync', msg);
+          return Promise.reject(new Error('viz-chunk-too-large'));
+        }
+        return _fbWriteRetry(() => setDoc(doc(db, 'dashboards', id), payload), 'viz ' + id);
+      },
+      // One listener per key, replacing whatever that key held. Navigating
+      // between boards therefore cannot stack listeners the way an unkeyed
+      // onSnapshot would.
+      watch: (key, id, cb) => {
+        if (_vizWatch[key]) { try { _vizWatch[key](); } catch (e) {} delete _vizWatch[key]; }
+        const un = onSnapshot(doc(db, 'dashboards', id),
+          (snap) => { if (snap.exists()) cb(snap.data()); },
+          (e) => console.warn('[viz] watch failed:', e && (e.code || e.message)));
+        _vizWatch[key] = un;
+        return () => { try { un(); } catch (e) {} if (_vizWatch[key] === un) delete _vizWatch[key]; };
+      }
+    };
+
 
     // ── MyJournal load ───────────────────────────────────────────────
     const mjDocRef = doc(db, MJ_DOC_PATH);
