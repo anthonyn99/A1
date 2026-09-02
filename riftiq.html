@@ -2391,6 +2391,7 @@ html.lk-open, body.lk-open {
 
 /* Item overlay */
 .io-header { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
+.io-header > div { min-width: 0; }
 .io-header img { width: 72px; height: 72px; border-radius: 8px; border: 2px solid var(--bd2); }
 .io-name { font-family: var(--head); font-size: 28px; font-weight: 800; letter-spacing: -0.5px; color: var(--tx); }
 .io-cost { font-family: var(--mono); font-size: 14px; color: var(--gold); margin-top: 4px; }
@@ -2400,8 +2401,30 @@ html.lk-open, body.lk-open {
 .io-stats { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
 .io-stat { padding: 6px 14px; background: var(--bg3); border: 1px solid var(--bd2); border-radius: 6px; font-family: var(--mono); font-size: 12px; color: var(--blue); font-weight: 600; }
 .io-stat span { color: var(--green); font-weight: 700; }
-.io-close { position: fixed; top: 20px; right: 24px; width: 36px; height: 36px; border-radius: 50%; background: var(--bg4); border: 1px solid var(--bd2); color: var(--tx2); font-size: 18px; line-height: 34px; text-align: center; cursor: pointer; transition: all 0.15s; z-index: 901; }
-.io-close:hover { border-color: var(--gold); color: var(--gold); }
+/* == OVERLAY CLOSE BUTTON =================================================
+   The item, champion, spell and rune sheets all float the same close button at
+   the top-right of the VIEWPORT, so it stays reachable however far the sheet
+   is scrolled. On a phone the sheet is full-bleed, which puts that button
+   straight over the title line, and a long name ran underneath it and lost its
+   last few characters. Two halves to the fix, and both are needed: the button
+   sits above everything the sheet can draw, and .ovl-head reserves the gutter
+   it occupies so a long name WRAPS short of it rather than hiding under it. */
+.io-close, .co-close, .wr-ovl-x {
+  position: fixed; top: 20px; right: 24px;
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--bg4); border: 1px solid var(--bd2);
+  color: var(--tx2); font-size: 18px; line-height: 1; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all 0.15s; z-index: 1000;
+}
+.io-close:hover, .co-close:hover, .wr-ovl-x:hover { border-color: var(--gold); color: var(--gold); }
+@media (pointer: coarse) { .io-close, .co-close, .wr-ovl-x { width: 42px; height: 42px; } }
+/* The button spans from 24px to 60px in from the right edge; the sheet's own
+   padding already covers part of that, and this clears the rest with room to
+   spare at every width the sheet is laid out at. */
+.ovl-head { padding-right: 52px; }
+/* A single unbroken name is the case that overflowed instead of wrapping. */
+.io-name, .ovl-title, .co-name { overflow-wrap: anywhere; min-width: 0; }
 
 .champs-search-bar {
   position: sticky; top: 0; z-index: 20;
@@ -2459,6 +2482,9 @@ html.lk-open, body.lk-open {
   padding: 24px; background: linear-gradient(transparent, rgba(0,0,0,0.9));
   border-radius: 0 0 12px 12px;
 }
+/* The splash normally pushes this well clear of the close button, but it
+   collapses to the header's min-height when the art 404s. */
+.co-header-info.ovl-head { padding-right: 52px; }
 .co-name { font-family: var(--head); font-size: 44px; font-weight: 800; letter-spacing: -1px; color: #fff; }
 .co-title { font-family: var(--body); font-size: 14px; color: rgba(255,255,255,0.6); margin-top: 2px; text-transform: capitalize; }
 .co-tags { display: flex; gap: 6px; margin-top: 8px; }
@@ -2468,14 +2494,6 @@ html.lk-open, body.lk-open {
   font-family: var(--mono); font-size: 11px; color: rgba(255,255,255,0.7);
   letter-spacing: 0.2px;
 }
-.co-close {
-  position: fixed; top: 20px; right: 24px;
-  width: 36px; height: 36px; border-radius: 50%;
-  background: var(--bg4); border: 1px solid var(--bd2);
-  color: var(--tx2); font-size: 18px; line-height: 34px; text-align: center;
-  cursor: pointer; transition: all 0.15s; z-index: 901;
-}
-.co-close:hover { border-color: var(--gold); color: var(--gold); }
 
 .co-lore {
   font-family: var(--body); font-size: 14px; color: var(--tx2);
@@ -9254,10 +9272,10 @@ async function openChampOverlay(champId) {
     ];
 
     inner.innerHTML = `
-      <div class="co-close" onclick="closeChampOverlay()">${wrIco('close',16)}</div>
+      <div class="co-close" onclick="closeChampOverlay()" role="button" aria-label="Close">${wrIco('close',16)}</div>
       <div class="co-header">
         <img class="co-splash" src="https://ddragon.leagueoflegends.com/cdn/img/champion/splash/${champId}_0.jpg" alt="${c.name}" onerror="this.style.display='none'">
-        <div class="co-header-info">
+        <div class="co-header-info ovl-head">
           <div class="co-name">${c.name}</div>
           <div class="co-title">${c.title}</div>
           <div class="co-tags">${c.tags.map(t=>`<span class="co-tag">${t}</span>`).join('')}</div>
@@ -9496,8 +9514,8 @@ function openItemOverlay(itemId) {
   const imgSrc = DDRAGON+'/img/item/'+(item.image&&item.image.full||'');
 
   inner.innerHTML =
-    '<div class="io-close" onclick="closeItemOverlay()">&#x2715;</div>'+
-    '<div class="io-header">'+
+    '<div class="io-close" onclick="closeItemOverlay()" role="button" aria-label="Close">&#x2715;</div>'+
+    '<div class="io-header ovl-head">'+
       '<img src="'+imgSrc+'" alt="'+item.name+'">'+
       '<div>'+
         '<div class="io-name">'+item.name+'</div>'+
@@ -9898,10 +9916,10 @@ function openRuneOverlayByIcon(icon, name) {
   var inner = document.getElementById('rune-overlay-inner');
   overlay.style.display = 'block';
   document.body.style.overflow = 'hidden';
-  inner.innerHTML = '<button onclick="closeRuneOverlay()" style="position:fixed;top:20px;right:24px;width:36px;height:36px;border-radius:50%;background:var(--bg4);border:1px solid var(--bd2);color:var(--tx2);font-size:18px;cursor:pointer;line-height:34px;text-align:center;z-index:901;">&#x2715;</button>' +
-    '<div style="display:flex;align-items:center;gap:20px;margin-bottom:24px;">' +
-    '<img src="https://ddragon.leagueoflegends.com/cdn/img/' + icon + '" style="width:72px;height:72px;border-radius:50%;background:#111;">' +
-    '<div style="font-family:var(--head);font-size:28px;font-weight:800;color:var(--tx);">' + name + '</div></div>';
+  inner.innerHTML = '<button class="wr-ovl-x" onclick="closeRuneOverlay()" aria-label="Close">&#x2715;</button>' +
+    '<div class="ovl-head" style="display:flex;align-items:center;gap:20px;margin-bottom:24px;">' +
+    '<img src="https://ddragon.leagueoflegends.com/cdn/img/' + icon + '" style="width:72px;height:72px;border-radius:50%;background:#111;flex-shrink:0;">' +
+    '<div class="ovl-title" style="font-family:var(--head);font-size:28px;font-weight:800;color:var(--tx);min-width:0;">' + name + '</div></div>';
 }
 
 function openSpellOverlay(spellId) {
@@ -9930,11 +9948,11 @@ function openSpellOverlay(spellId) {
   const imgSrc = DDRAGON + '/img/spell/' + spell.image.full;
 
   inner.innerHTML =
-    '<button onclick="closeSpellOverlay()" style="position:fixed;top:20px;right:24px;width:36px;height:36px;border-radius:50%;background:var(--bg4);border:1px solid var(--bd2);color:var(--tx2);font-size:18px;cursor:pointer;line-height:34px;text-align:center;z-index:901;">&#x2715;</button>' +
-    '<div style="display:flex;align-items:center;gap:20px;margin-bottom:24px;">' +
-      '<img src="' + imgSrc + '" style="width:72px;height:72px;border-radius:10px;border:2px solid var(--bd2);">' +
-      '<div>' +
-        '<div style="font-family:var(--head);font-size:28px;font-weight:800;color:var(--tx);">' + spell.name + '</div>' +
+    '<button class="wr-ovl-x" onclick="closeSpellOverlay()" aria-label="Close">&#x2715;</button>' +
+    '<div class="ovl-head" style="display:flex;align-items:center;gap:20px;margin-bottom:24px;">' +
+      '<img src="' + imgSrc + '" style="width:72px;height:72px;border-radius:10px;border:2px solid var(--bd2);flex-shrink:0;">' +
+      '<div style="min-width:0;">' +
+        '<div class="ovl-title" style="font-family:var(--head);font-size:28px;font-weight:800;color:var(--tx);">' + spell.name + '</div>' +
         '<div style="font-family:var(--mono);font-size:12px;color:var(--tx3);margin-top:4px;">Cooldown: ' + cd + 's · Range: ' + range + '</div>' +
       '</div>' +
     '</div>' +
@@ -10090,12 +10108,12 @@ function openRuneOverlay(runeId, pathId) {
   const longDesc  = cleanDesc(rune.longDesc||'');
 
   inner.innerHTML =
-    '<button onclick="closeRuneOverlay()" style="position:fixed;top:20px;right:24px;width:36px;height:36px;border-radius:50%;background:var(--bg4);border:1px solid var(--bd2);color:var(--tx2);font-size:18px;cursor:pointer;line-height:34px;text-align:center;z-index:901;">&#x2715;</button>' +
-    '<div style="display:flex;align-items:center;gap:20px;margin-bottom:24px;">' +
-      '<img src="' + BASE + rune.icon + '" style="width:72px;height:72px;border-radius:50%;background:#111;border:2px solid ' + pathColor + ';">' +
-      '<div>' +
+    '<button class="wr-ovl-x" onclick="closeRuneOverlay()" aria-label="Close">&#x2715;</button>' +
+    '<div class="ovl-head" style="display:flex;align-items:center;gap:20px;margin-bottom:24px;">' +
+      '<img src="' + BASE + rune.icon + '" style="width:72px;height:72px;border-radius:50%;background:#111;flex-shrink:0;border:2px solid ' + pathColor + ';">' +
+      '<div style="min-width:0;">' +
         '<div style="font-family:var(--mono);font-size:11px;font-weight:600;color:' + pathColor + ';letter-spacing:0.2px;margin-bottom:4px;">' + (path&&path.name||'') + '</div>' +
-        '<div style="font-family:var(--head);font-size:28px;font-weight:800;color:var(--tx);">' + rune.name + '</div>' +
+        '<div class="ovl-title" style="font-family:var(--head);font-size:28px;font-weight:800;color:var(--tx);">' + rune.name + '</div>' +
       '</div>' +
     '</div>' +
     (shortDesc ? '<div style="font-family:var(--body);font-size:16px;font-weight:600;color:var(--tx2);line-height:1.7;margin-bottom:16px;white-space:pre-line;">' + shortDesc + '</div>' : '') +
