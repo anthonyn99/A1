@@ -1042,12 +1042,13 @@ html.lk-open, body.lk-open {
 .lk-row:hover { border-color: var(--bd2); background: var(--bg5); }
 .lk-main { min-width: 0; }
 .lk-name {
+  display: flex; align-items: center; min-width: 0;
   font-family: var(--head); font-size: 14px; font-weight: 700; color: var(--tx);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+.lk-nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lk-tag { font-family: var(--mono); font-size: 11px; font-weight: 500; color: var(--tx3); margin-left: 2px; }
 .lk-badge {
-  margin-left: 8px; padding: 1px 6px; border-radius: 3px; vertical-align: middle;
+  flex-shrink: 0; margin-left: 8px; padding: 1px 6px; border-radius: 3px;
   background: rgba(192,174,234,0.14); color: var(--gold);
   font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: 0.4px;
 }
@@ -5128,7 +5129,8 @@ function renderLookups(opts) {
     let h = '<div class="lk-row' + (e.x ? ' lk-gone' : '') + '" onclick="lkOpen(\'' + esc(e.p) + '\')"' +
             (e.x ? ' title="Riot no longer resolves this PUUID"' : ' title="Open ' + esc(e.n) + '"') + '>';
     h += '<div class="lk-main">';
-    h += '<div class="lk-name">' + esc(nm) + '<span class="lk-tag">#' + esc(tg) + '</span>' +
+    h += '<div class="lk-name">' +
+         '<span class="lk-nm">' + esc(nm) + '<span class="lk-tag">#' + esc(tg) + '</span></span>' +
          (renamedRecently ? '<span class="lk-badge">renamed</span>' : '') +
          (e.x ? '<span class="lk-badge lk-badge-gone">gone</span>' : '') + '</div>';
     if (e.h && e.h.length) {
