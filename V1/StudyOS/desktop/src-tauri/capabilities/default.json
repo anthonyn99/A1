@@ -1,0 +1,14 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Permissions for the StudyOS main window. Deliberately narrow: the app needs core plus the drag plugin, and nothing else. File staging goes through our own typed command in dragcache.rs, which sanitises every name and writes only inside its own cache directory — the webview is never granted filesystem access.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-set-focus",
+    "drag:default"
+  ]
+}

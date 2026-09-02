@@ -1,0 +1,24 @@
+# Single-crate workspace for the StudyOS desktop shell.
+#
+# WHY THIS SHELL EXISTS
+# StudyOS is a browser app, and a browser cannot hand a file to another
+# application. `dataTransfer.items.add(new File(...))` is not serialised across
+# browsing contexts, so dragging a resource onto Gemini/NotebookLM highlighted
+# their dropzone and then delivered nothing. `DownloadURL` reaches the OS shell
+# only. Neither is fixable from a web page. A native window CAN start a real
+# file drag, which is the entire reason this crate exists.
+#
+# Deliberately SEPARATE from TradeBoard/desktop: that shell ships a tray icon
+# and a scheduler, is already installed, and must not be perturbed by this.
+[workspace]
+members = ["src-tauri"]
+resolver = "2"
+
+# Must be declared at the workspace root — Cargo ignores profiles set by a
+# non-root member.
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

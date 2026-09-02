@@ -1868,10 +1868,84 @@ async function sosCopyFileToClipboard(f) {
 // not consumed (dropEffect 'none'), which is exactly the failed-cross-page case.
 let _sosDragHintShown = false;
 function _sosDragOutHint() {
+  // The desktop shell drags natively, so a refused drop there means the target
+  // declined a perfectly good file — not the cross-origin limitation below.
+  if (SOS_NATIVE_DRAG) return;
   if (_sosDragHintShown) return;
   _sosDragHintShown = true;
   showNotif(SOI.clip, 'Nothing accepted that drop',
     'A browser can’t hand a file from one web page to another — Gemini and NotebookLM will highlight the box but receive nothing. Use the paperclip button on the file — it copies images to the clipboard to paste with Ctrl+V, and downloads anything else so you can drag it in from your Downloads folder.');
+}
+
+/* ═══════════ Native file drag-out (desktop shell only) ═══════════
+   In a browser this is impossible: a File built in script is not serialised
+   across browsing contexts, so dragging onto Gemini/NotebookLM highlights
+   their dropzone and delivers nothing. The Tauri shell (V1/StudyOS/desktop)
+   fixes it properly — it stages the bytes to a real file and asks the OS to
+   start a real drag, which every app accepts because it is indistinguishable
+   from dragging out of Explorer.
+
+   Feature-detected: in a plain browser SOS_NATIVE_DRAG is false and every
+   path below is skipped, leaving the existing HTML5 drag + Copy button. */
+const SOS_NATIVE_DRAG = !!(typeof window !== 'undefined' && window.__TAURI__ && window.__TAURI__.drag);
+
+function _sosInvoke(cmd, args) {
+  const t = window.__TAURI__;
+  const invoke = (t && t.core && t.core.invoke) || (t && t.invoke);
+  if (!invoke) return Promise.reject(new Error('no invoke bridge'));
+  return invoke(cmd, args);
+}
+
+// Blob -> base64, in chunks. The JSON bridge can't carry raw bytes, and
+// String.fromCharCode(...bytes) blows the argument limit on a big PDF.
+async function _sosBlobToB64(blob) {
+  const buf = new Uint8Array(await blob.arrayBuffer());
+  let bin = '';
+  const CHUNK = 0x8000;
+  for (let i = 0; i < buf.length; i += CHUNK) {
+    bin += String.fromCharCode.apply(null, buf.subarray(i, i + CHUNK));
+  }
+  return btoa(bin);
+}
+
+// Write the file into the shell's staging directory and return its real path.
+// Cached per file id: staging the same bytes twice is wasted work, and hover
+// fires constantly.
+const _sosStagedPaths = new Map();
+async function sosStageForDrag(f) {
+  const key = f.fileId || f.id;
+  if (!key) return null;
+  if (_sosStagedPaths.has(key)) return _sosStagedPaths.get(key);
+  const p = (async () => {
+    const blob = await sosResolveBlob(f);
+    if (!blob) return null;
+    const res = await _sosInvoke('stage_drag_file', {
+      id: String(key),
+      name: f.name || 'file',
+      bytesB64: await _sosBlobToB64(blob),
+    });
+    return (res && res.path) || null;
+  })().catch(err => {
+    // Drop the rejected promise so a transient failure can be retried on the
+    // next hover instead of being cached forever.
+    _sosStagedPaths.delete(key);
+    console.warn('SOS drag staging failed:', err);
+    return null;
+  });
+  _sosStagedPaths.set(key, p);
+  return p;
+}
+
+// A 1x1 transparent PNG. The plugin REQUIRES a drag image; the OS supplies its
+// own file-drag cursor on Windows, so an invisible one keeps it from drawing a
+// second, stray thumbnail next to it.
+const _SOS_DRAG_PX = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+// Start the real OS drag. Called from a pointer gesture, NOT from dragstart:
+// once the native drag begins the OS owns the pointer, so the HTML5 drag must
+// never have started in the first place.
+function sosStartNativeDrag(path) {
+  return window.__TAURI__.drag.startDrag({ item: [path], icon: _SOS_DRAG_PX, mode: 'copy' });
 }
 
 async function sosOpenFile(f) {
@@ -1986,7 +2060,9 @@ function refreshDocList(listEl, cls, mod) {
     item.className = 'doc-item';
     item.dataset.id = f.id;
     item.style.cursor = 'pointer';
-    item.title = 'Click to open · drag out to a folder · use Copy to paste into another website';
+    item.title = SOS_NATIVE_DRAG
+      ? 'Click to open · drag straight into any app'
+      : 'Click to open · drag out to a folder · use Copy to paste into another website';
 
     // ── Drag-out: drag this file into Explorer / the desktop / a native app ──
     // DownloadURL is what makes the OS shell write a real file out on drop, and
@@ -2014,6 +2090,42 @@ function refreshDocList(listEl, cls, mod) {
     };
     item.addEventListener('mouseenter', _prepDrag);
     item.addEventListener('mousedown', _prepDrag);
+
+    // ── Desktop shell: hand the drag to the OS ──────────────────────────────
+    // A native drag carries a real path, so Gemini/NotebookLM/Word/Slack all
+    // accept it. It must be armed from a pointer gesture rather than dragstart:
+    // startDrag takes over the pointer, and an HTML5 drag already in flight
+    // would fight it for the same gesture. So here draggable is turned OFF and
+    // the drag is started once the pointer has actually moved a few pixels —
+    // which also keeps a plain click (open the file) from starting a drag.
+    if (SOS_NATIVE_DRAG) {
+      item.draggable = false;
+      item.addEventListener('mouseenter', () => { sosStageForDrag(f); });
+      item.addEventListener('mousedown', ev => {
+        if (ev.button !== 0) return;
+        if (ev.target.closest('button, a')) return;   // row actions aren't drag handles
+        const x0 = ev.clientX, y0 = ev.clientY;
+        let armed = true;
+        const move = async mv => {
+          if (!armed) return;
+          if (Math.abs(mv.clientX - x0) < 5 && Math.abs(mv.clientY - y0) < 5) return;
+          armed = false;
+          cleanup();
+          const path = await sosStageForDrag(f);
+          if (!path) { showNotif(SOI.alert, 'Can’t drag yet', 'That file isn’t downloaded to this device yet. Open it once, then drag.'); return; }
+          try { await sosStartNativeDrag(path); }
+          catch (err) { console.warn('SOS native drag failed:', err); }
+        };
+        const cleanup = () => {
+          document.removeEventListener('mousemove', move);
+          document.removeEventListener('mouseup', up);
+        };
+        const up = () => { armed = false; cleanup(); };
+        document.addEventListener('mousemove', move);
+        document.addEventListener('mouseup', up);
+      });
+    }
+
     item.addEventListener('dragstart', ev => {
       if (!_dragFile) { _prepDrag(); ev.preventDefault(); return; }
       const mime = f.mime || 'application/octet-stream';

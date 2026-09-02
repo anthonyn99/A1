@@ -12,7 +12,11 @@
     "test:d2l:client": "node scripts/test-d2l-client.mjs",
     "desktop:dev": "cd TradeBoard/desktop/src-tauri && cargo run",
     "desktop:build": "cd TradeBoard/desktop/src-tauri && cargo build --release",
-    "desktop:test": "cd TradeBoard/desktop/src-tauri && cargo test"
+    "desktop:test": "cd TradeBoard/desktop/src-tauri && cargo test",
+    "studyos:dev": "cd StudyOS/desktop && cargo run",
+    "studyos:build": "cd StudyOS/desktop && cargo build --release",
+    "studyos:bundle": "cd StudyOS/desktop/src-tauri && cargo tauri build",
+    "studyos:test": "cd StudyOS/desktop && cargo test"
   },
   "devDependencies": {
     "wrangler": "^4.114.0"

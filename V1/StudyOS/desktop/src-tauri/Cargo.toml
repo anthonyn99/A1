@@ -1,0 +1,26 @@
+[package]
+name = "studyos-desktop"
+version = "1.0.0"
+edition = "2021"
+description = "StudyOS desktop shell — native file drag-out"
+authors = ["Veda"]
+
+# Deliberately `rlib` ONLY, matching TradeBoard's shell: building a cdylib under
+# the MinGW linker fails with "export ordinal too large". This shell is
+# Windows-desktop only, so the mobile crate types are dead weight anyway.
+[lib]
+name = "studyos_desktop_lib"
+crate-type = ["rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+# The whole point of this shell: starts a real OS drag carrying real file paths.
+tauri-plugin-drag = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+
+# NOTE: release profile settings live in the WORKSPACE root (../Cargo.toml).

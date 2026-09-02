@@ -399,6 +399,50 @@ t('DownloadURL is still set, so dragging to Explorer keeps working',
   /setData\('DownloadURL', mime \+ ':' \+ f\.name \+ ':' \+ _dragUrl\)/.test(STUDYOS),
   'The OS-shell drop is a real, working path and must not be lost in the fix.');
 
+/* ---------- Part 6: the native drag path (desktop shell) --------------------
+   The browser CANNOT hand a file to another app, so the Tauri shell in
+   V1/StudyOS/desktop does it natively. Two things must hold or the feature
+   silently reverts to the broken behaviour it was built to replace:
+   the native path must be feature-detected (so the browser build is untouched),
+   and the HTML5 drag must be OFF in the shell (a drag already in flight fights
+   startDrag for the same gesture and the native drag never begins). */
+section('Native drag-out is gated and does not collide with the HTML5 drag');
+t('the native path is feature-detected, not assumed',
+  /const SOS_NATIVE_DRAG = !!\(typeof window !== 'undefined' && window\.__TAURI__ && window\.__TAURI__\.drag\)/.test(STUDYOS),
+  'Referencing window.__TAURI__.drag unguarded throws in a plain browser and\n' +
+  '      takes the whole resource list down with it.');
+t('the shell turns the HTML5 drag OFF',
+  /if \(SOS_NATIVE_DRAG\) \{\s*\n\s*item\.draggable = false;/.test(STUDYOS),
+  'startDrag seizes the pointer. Leaving draggable=true means an HTML5 drag is\n' +
+  '      already in flight for the same gesture and the native drag never starts.');
+t('the native drag is armed from a pointer gesture, not dragstart',
+  /if \(SOS_NATIVE_DRAG\)[\s\S]{0,900}?addEventListener\('mousedown'[\s\S]{0,900}?sosStartNativeDrag/.test(STUDYOS),
+  'dragstart never fires once draggable is false, so wiring it there would\n' +
+  '      leave the shell with no drag at all.');
+t('a plain click still opens the file rather than starting a drag',
+  /Math\.abs\(mv\.clientX - x0\) < 5 && Math\.abs\(mv\.clientY - y0\) < 5\) return;/.test(STUDYOS),
+  'Without a movement threshold every click begins a drag and the row stops\n' +
+  '      opening.');
+t('row buttons are not drag handles',
+  /ev\.target\.closest\('button, a'\)\) return;/.test(STUDYOS),
+  'Otherwise pressing Copy or Download starts a file drag instead.');
+t('the browser-only hint is suppressed in the shell',
+  /if \(SOS_NATIVE_DRAG\) return;\s*\n\s*if \(_sosDragHintShown\) return;/.test(STUDYOS),
+  'The hint explains a cross-origin limit the shell does not have — showing it\n' +
+  '      there would be actively wrong.');
+t('staging is keyed and cached so hover does not re-encode on every pass',
+  /_sosStagedPaths\.has\(key\)\) return _sosStagedPaths\.get\(key\)/.test(STUDYOS),
+  'mouseenter fires constantly; re-reading and base64-ing a large PDF each\n' +
+  '      time would stall the list.');
+t('a failed staging is evicted so it can be retried',
+  /_sosStagedPaths\.delete\(key\);/.test(STUDYOS),
+  'Caching a rejected promise makes one transient failure permanent for the\n' +
+  '      rest of the session.');
+t('the blob is base64-ed in chunks',
+  /const CHUNK = 0x8000;/.test(STUDYOS),
+  'String.fromCharCode(...bytes) on a whole PDF exceeds the argument limit and\n' +
+  '      throws, so every large file would fail to stage.');
+
 // ---------------------------- summary ---------------------------------------
 console.log('\n' + (fail ? 'FAIL' : 'PASS') + ' class-resources: ' + pass + ' passed, ' + fail + ' failed');
 if (fail) { console.log('\nFailures:\n  - ' + failures.join('\n  - ')); process.exit(1); }
