@@ -1901,17 +1901,57 @@ async function tbJournalImportCSV(csvText){
 function tbUuid(){return([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16));}
 
 /* ── Group a flat, chronologically-sorted leg list for ONE ticker into position
-   entries. A position opens on the first leg while flat and closes once cumulative
-   SELL qty >= cumulative BUY qty (bq>0). Scale-ins/scale-outs stay in one entry.
-   Original leg objects are reused so _wbId dedup keys survive a rebuild. ── */
+   entries, matching shares FIFO.
+
+   A position OPENS on a BUY while flat and CLOSES the instant cumulative SELL
+   qty reaches cumulative BUY qty. Two rules exist because ignoring them is what
+   produced the Frankenstein trades of 2026-09-02 (negative hold times, P&L in
+   the thousands on 1-share trades):
+
+   1. A SELL while flat can NOT open a position. It used to, and because the
+      close test was `bq>0 && sq>=bq` that orphan sell then swallowed the NEXT
+      buy and closed instantly — pairing a June buy with a May sell. Every later
+      leg for that ticker landed in the wrong position too, so one unmatched
+      sell poisoned the whole ticker.
+   2. A SELL bigger than the shares actually open is SPLIT: the covered part
+      closes the position, the excess is orphaned. Without the split a single
+      entry ended up holding e.g. 2 bought vs 6 sold shares.
+
+   An orphan sell is a real fill whose shares were bought before the history
+   window, so its cost basis is unknown. It is kept (the proceeds are real) but
+   tbComputeTradeStats reports its P&L as null instead of inventing one.
+
+   Split parts carry _splitOf/_splitIx so tbReconcileWebull can sum them back
+   into the original fill before regrouping. Un-split legs are reused as-is so
+   their _wbId dedup keys survive a rebuild. ── */
 function tbGroupLegsIntoPositions(ticker,legs,meta){
   const p=n=>{const x=parseFloat(n);return isNaN(x)?0:x;};
-  const out=[];let cur=null,bq=0,sq=0;
+  const EPS=1e-9;
+  const mk=leg=>({id:tbUuid(),ticker,market:(meta&&meta.market)||'STOCK',createdAt:new Date(leg.datetime).getTime()||Date.now(),source:'webull',legs:[],notes:'',status:'OPEN'});
+  /* Partial fill derived from a real one — fee is allocated pro rata. */
+  const part=(leg,qty,ix)=>{const whole=p(leg.qty)||1;return{...leg,id:tbUuid(),qty:String(qty),fee:String(p(leg.fee)*(qty/whole)),_splitOf:leg._wbId||leg.id,_splitIx:ix};};
+  const out=[];let cur=null,openQty=0;
   legs.forEach(leg=>{
-    if(!cur){cur={id:tbUuid(),ticker,market:(meta&&meta.market)||'STOCK',createdAt:new Date(leg.datetime).getTime()||Date.now(),source:'webull',legs:[],notes:'',status:'OPEN'};bq=0;sq=0;}
-    cur.legs.push(leg);
-    if(leg.action==='SELL')sq+=p(leg.qty);else bq+=p(leg.qty);
-    if(bq>0&&sq>=bq){cur.status='CLOSED';out.push(cur);cur=null;}
+    const qty=p(leg.qty);
+    if(leg.action!=='SELL'){
+      if(!cur){cur=mk(leg);openQty=0;}
+      cur.legs.push(leg);openQty+=qty;
+      return;
+    }
+    let remaining=qty,ix=0;
+    if(cur&&openQty>EPS){
+      const covered=Math.min(openQty,remaining);
+      cur.legs.push(covered>=qty-EPS?leg:part(leg,covered,++ix));
+      openQty-=covered;remaining-=covered;
+      if(openQty<=EPS){cur.status='CLOSED';out.push(cur);cur=null;openQty=0;}
+    }
+    if(remaining>EPS){
+      /* Nothing open to match against — unknown basis, stands on its own. */
+      const orphan=mk(leg);
+      orphan.legs.push(remaining>=qty-EPS?leg:part(leg,remaining,++ix));
+      orphan.status='CLOSED';
+      out.push(orphan);
+    }
   });
   if(cur){cur.status='OPEN';out.push(cur);}
   return out;
@@ -1926,20 +1966,45 @@ function tbGroupLegsIntoPositions(ticker,legs,meta){
 function tbReconcileWebull(trades){
   const webull=trades.filter(t=>t.source==='webull');
   const others=trades.filter(t=>t.source!=='webull');
-  const byTicker=new Map();const seen=new Set();
+  const p=n=>{const x=parseFloat(n);return isNaN(x)?0:x;};
+  const byTicker=new Map();const seen=new Map();
   webull.forEach(t=>{
     const tk=(t.ticker||'').toUpperCase();
     if(!byTicker.has(tk))byTicker.set(tk,{market:t.market||'STOCK',legs:[]});
     (t.legs||[]).forEach(l=>{
-      const p=n=>{const x=parseFloat(n);return isNaN(x)?0:x;};
-      const k=l._wbId?('wb:'+l._wbId):(tk+'|'+(l.action||'')+'|'+String(l.datetime||'').slice(0,16)+'|'+p(l.qty)+'|'+p(l.price));
-      if(seen.has(k))return;seen.add(k);
-      byTicker.get(tk).legs.push(l);
+      /* Legs a previous grouping pass split across two positions carry
+         _splitOf/_splitIx. Sum the distinct parts back into the original fill
+         before regrouping, so a rebuild always starts from what Webull actually
+         reported and repeated re-merges stay idempotent. */
+      const origin=l._splitOf||null;
+      const k=origin?('wb:'+origin)
+             :l._wbId?('wb:'+l._wbId)
+             :(tk+'|'+(l.action||'')+'|'+String(l.datetime||'').slice(0,16)+'|'+p(l.qty)+'|'+p(l.price));
+      const hit=seen.get(k);
+      if(hit){
+        if(!origin)return;                     // plain duplicate — drop
+        if(hit.parts.has(l._splitIx))return;   // same part seen twice — drop
+        hit.parts.add(l._splitIx);
+        hit.leg.qty=String(p(hit.leg.qty)+p(l.qty));
+        hit.leg.fee=String(p(hit.leg.fee)+p(l.fee));
+        return;
+      }
+      /* Restore a split part to a standalone fill; keep whole legs untouched
+         (same object identity) so nothing in state is mutated in place. */
+      let leg=l;
+      if(origin){leg={...l,_wbId:origin};delete leg._splitOf;delete leg._splitIx;}
+      seen.set(k,{leg,parts:new Set(origin?[l._splitIx]:[])});
+      byTicker.get(tk).legs.push(leg);
     });
   });
   const rebuilt=[];
   byTicker.forEach((v,tk)=>{
-    const sorted=[...v.legs].sort((a,b)=>new Date(a.datetime)-new Date(b.datetime));
+    /* Leg datetimes are minute-resolution, so a same-minute buy and sell tie.
+       BUY must win that tie or the sell looks unmatched and orphans itself.
+       Unparseable datetimes sort last rather than poisoning the front. */
+    const ts=l=>{const d=new Date(l.datetime).getTime();return isNaN(d)?Infinity:d;};
+    const rank=l=>l.action==='SELL'?1:0;
+    const sorted=[...v.legs].sort((a,b)=>(ts(a)-ts(b))||(rank(a)-rank(b)));
     tbGroupLegsIntoPositions(tk,sorted,{market:v.market}).forEach(e=>rebuilt.push(e));
   });
   return {others,rebuilt,oldWebullIds:webull.map(t=>t.id)};
@@ -1969,16 +2034,28 @@ function tbComputeTradeStats(entry){
   const entryTotal=buys.reduce((s,l)=>s+p(l.price)*p(l.qty),0);const exitTotal=sells.reduce((s,l)=>s+p(l.price)*p(l.qty),0);
   const buyQty=buys.reduce((s,l)=>s+p(l.qty),0);const sellQty=sells.reduce((s,l)=>s+p(l.qty),0);
   const avgEntry=buyQty?entryTotal/buyQty:0;const avgExit=sellQty?exitTotal/sellQty:0;
-  const hasExit=sells.length>0;const rawPnL=hasExit?exitTotal-entryTotal:null;
+  /* Realized P&L is priced on MATCHED shares only. This used to be
+     `exitTotal-entryTotal`, which reports the *value of the size difference* as
+     profit whenever a position's buy and sell quantities disagree — a 2-share
+     buy against a 6-share sell read as +$5,505 instead of -$322. Shares sold
+     with no buy leg in the journal (bought before the sync window) have an
+     unknown basis, so their P&L is null rather than a fabricated number. */
+  const matchedQty=Math.min(buyQty,sellQty);
+  const unmatched=sellQty>0&&buyQty<=0;
+  const rawPnL=matchedQty>0?matchedQty*(avgExit-avgEntry):null;
   const netPnL=entry.netPnL!=null?parseFloat(entry.netPnL):(rawPnL!=null?rawPnL-totalFees:null);
-  const costBasis=entryTotal+totalFees;
+  const costBasis=matchedQty*avgEntry+totalFees;
   const pnlPct=costBasis>0&&netPnL!=null?(netPnL/costBasis)*100:null;
   let holdTime=null;
   const bd=buys.map(l=>new Date(l.datetime)).filter(d=>!isNaN(d.getTime()));
   const sd=sells.map(l=>new Date(l.datetime)).filter(d=>!isNaN(d.getTime()));
-  if(bd.length&&sd.length){const diff=Math.max(...sd)-Math.min(...bd);const mins=Math.floor(diff/60000);holdTime=mins<60?`${mins} MIN`:mins<1440?`${Math.round(mins/60)} HR`:`${Math.round(mins/1440)} DAYS`;}
-  const status=entry.status||(hasExit?'CLOSED':'OPEN');
-  return{status,entryTotal,exitTotal,avgEntry,avgExit,netPnL,pnlPct,holdTime,buyQty,totalFees};
+  /* A negative span means the legs are mis-paired, not a fast trade — show
+     nothing rather than "-19897 MIN". */
+  if(bd.length&&sd.length){const diff=Math.max(...sd)-Math.min(...bd);if(diff>=0){const mins=Math.floor(diff/60000);holdTime=mins<60?`${mins} MIN`:mins<1440?`${Math.round(mins/60)} HR`:`${Math.round(mins/1440)} DAYS`;}}
+  /* Legs are the source of truth for status: a stored 'CLOSED' from an older
+     (mis-grouped) rebuild must not outrank what the fills actually say. */
+  const status=(buyQty>0||sellQty>0)?((buyQty>0&&sellQty>=buyQty)||unmatched?'CLOSED':'OPEN'):(entry.status||'OPEN');
+  return{status,entryTotal,exitTotal,avgEntry,avgExit,netPnL,pnlPct,holdTime,buyQty,sellQty,matchedQty,unmatched,totalFees};
 }
 
 /* ── Portfolio store (Webull, Cloudflare) ────────────────────────────────────
