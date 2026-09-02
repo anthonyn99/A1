@@ -20442,9 +20442,17 @@ function createBoard(cfg) {
         if (B.token !== tok) return;
         console.error('[viz] open failed:', e);
         B.ready = false;
-        setVeil('error', (e && e.message) || 'Something went wrong opening this board.', function () {
-          B.entryId = null; B.open(entry);
-        });
+        var msg = (e && e.message) || '';
+        // The two failures worth wording carefully. Both leave the saved board
+        // completely intact — say so, because a blank canvas with an error on it
+        // is otherwise indistinguishable from a board that has been lost.
+        if (/offline copy|load failed|did not register/i.test(msg)) {
+          msg = 'The drawing tools could not be downloaded, and this device has no offline copy of them yet. '
+              + 'Your board is safe and unchanged — reconnect and try again.';
+        } else if (!msg) {
+          msg = 'Something went wrong opening this board. Nothing has been changed.';
+        }
+        setVeil('error', msg, function () { B.entryId = null; B.open(entry); });
       });
   };
 
