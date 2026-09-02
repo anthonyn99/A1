@@ -152,7 +152,35 @@ ok('saveCurrentEntry no longer serialises a canvas onto the entry',
 ok('JGuard reads the fingerprint when deciding a board is empty',
   /case 'whiteboard': return d\.vizRev \? !\(d\.vizCount > 0\) : !d\.canvas;/.test(src));
 ok('JGuard still falls back to the legacy test for an unconverted board',
-  /if \(d\.vizRev\) return !\(d\.vizCount > 0\);[\s\S]{0,200}?d\.nodes/.test(src));
+  /if \(d\.vizRev && template === 'mindmap'\) return !\(d\.vizCount > 0\);[\s\S]{0,200}?d\.nodes/.test(src));
+
+console.log('\n-- the legacy mind map is intact and reachable --');
+// Veda's original canvas mind map is a template of its own, not a fallback
+// inside the new one. Every map that existed before the rebuild opens there.
+ok('the legacy template is offered in the picker',
+  /data-template="mindmap-legacy"[\s\S]{0,600}?<h3>Mind Map Legacy<\/h3>/.test(src));
+ok('the legacy editor is present', /function renderMindmap\(\)/.test(src) && /function initMindmap\(\)/.test(src));
+ok('it has its own DOM, separate from the Mind Elixir mount',
+  /id="bj-mml-canvas"/.test(src) && /id="bj-mml-area"/.test(src) && /id="bj-mm-mount"/.test(src));
+ok('it still reads and writes the entry fields it always did',
+  /if \(entry\.template === 'mindmap-legacy'\) \{ _next\.nodes = mmNodes; _next\.edges = mmEdges; \}/.test(src));
+const route = body('function _bjLegacyTemplate(entry) {');
+ok('an existing map is routed to it by its own data, not a flag', !!route);
+if (route) {
+  ok('only an entry still carrying the old node list is routed',
+    /entry\.template !== 'mindmap'/.test(route) && /Array\.isArray\(d\.nodes\) && d\.nodes\.length/.test(route));
+  // The whole point: routing must not rewrite anything.
+  ok('routing writes nothing and converts nothing',
+    !/idbPut|_fbViz|setDoc|localStorage|saveState|entry\.data\s*=/.test(route), route);
+}
+ok('maps read from the local cache are routed', /state\.entries\.forEach\(entry => \{\n\s*_bjLegacyTemplate\(entry\);/.test(src));
+ok('maps arriving from another device are routed the same way',
+  /remoteById\[remoteEntry\.id\] = true;[\s\S]{0,300}?_bjLegacyTemplate\(remoteEntry\);/.test(src));
+ok('the legacy template has its own attachments and drop zone',
+  /tmpl: 'mindmap-legacy'/.test(src) && /zoneId: 'bj-mml-drop-zone'/.test(src));
+ok('it appears in the sidebar with a template badge', /'mindmap-legacy': 'MAP'/.test(src));
+ok('a new legacy map still starts from the original seed node',
+  /template === 'mindmap-legacy'\) entry\.data = \{ nodes: \[\{ id: 1, x: 340, y: 220, label: 'Central Idea', root: true \}\]/.test(src));
 
 console.log('\n-- listeners and profile isolation --');
 ok('the board watcher is keyed, so navigating swaps it instead of stacking',
