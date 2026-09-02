@@ -2232,10 +2232,21 @@ window.THSHEET={
 /* Quote banners get condensed inside the band and clamped to 2 lines so a long
    quote can never grow the row taller than the weather bar. */
 .thwx-band .gita-banner{flex:1 1 auto;min-width:0;padding:6px 12px;}
-.thwx-band .gita-banner-hint{display:none;}
+/* !important because Veda's banner sets display:flex INLINE, which outranks a
+   plain rule — so this "hide the hint inside the band" never actually applied
+   on her side, and the extra line is what made her quote card, and the weather
+   bar stretched to match it, twice the height of Tony's. */
+.thwx-band .gita-banner-hint{display:none !important;}
 .thwx-band .gita-quote-line{font-size:11.5px;line-height:1.4;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
-.thwx-band .gita-banner-meta{margin-top:1px;}
+.thwx-band .gita-banner-meta{margin-top:1px;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;}
+/* Two lines of quote is the point of the band; on a phone one is enough, and it
+   keeps the whole strip to a single compact row above Weekly. */
+@media (max-width:780px){
+  .thwx-band .gita-banner{padding:5px 10px;}
+  .thwx-band .gita-quote-line{-webkit-line-clamp:2;font-size:11px;line-height:1.35;}
+}
 .thwx-bq-line{font-family:var(--font-accent);font-style:normal;font-weight:400;
   font-size:clamp(11.5px,1.15vw,13px);line-height:1.45;margin:0;text-align:center;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
