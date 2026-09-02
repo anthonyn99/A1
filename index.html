@@ -19853,13 +19853,14 @@ function createBoard(cfg) {
     try { str = JSON.stringify(s.doc); } catch (e) { console.warn('[viz] stringify failed:', e && e.message); return Promise.resolve(); }
     B.dirty = false; B.firstDirtyAt = 0;
     var id = B.entryId;
+    var local = Promise.resolve();
 
     if (str !== B.lastSerial) {
       B.lastSerial = str;
       B.rev++; B.count = s.count; B.docTitle = s.title;
       B.pendingFiles = s.files;
       // Local first, always.
-      S.idbPut(cacheKey(id), { rev: B.rev, str: str, files: s.files, at: Date.now() });
+      local = S.idbPut(cacheKey(id), { rev: B.rev, str: str, files: s.files, at: Date.now() });
       // Tell the journal the entry's fingerprint moved, so the sidebar, the
       // auto-title and the entry's own updated/rev follow the board.
       if (cfg.onMeta) { try { cfg.onMeta({ rev: B.rev, count: s.count, title: s.title, kind: cfg.kind }); } catch (e) {} }
@@ -19867,11 +19868,30 @@ function createBoard(cfg) {
       // Nothing changed in the editor (a selection, a pan, a tool switch) and
       // the cloud already has this exact content: no write of any kind.
       setStatus(B.lastCloudAt ? 'saved' : 'idle');
-      return B.saving || Promise.resolve();
+      return local;
     }
 
-    if (B.saving) return B.saving;      // in flight; it will chase this when it lands
-    return pushCloud(id);
+    if (B.saving) {
+      // A cloud write is already in the air and will chase this content when it
+      // lands. Re-arm the honesty timer: markDirty() has just said "Saving…"
+      // and, offline, that upload may never settle to correct it.
+      armSlow(id);
+    } else {
+      pushCloud(id);
+    }
+    // WHAT THIS RESOLVES ON is deliberate: the LOCAL write only, never the
+    // cloud one. Offline, a Firestore write neither resolves nor rejects, and
+    // close() awaits this — returning the cloud promise there would freeze
+    // entry switching for as long as the connection is down.
+    return local;
+  }
+
+  function armSlow(id) {
+    clearTimeout(B.slowTimer);
+    setStatus(navigator.onLine === false ? 'offline' : 'saving');
+    B.slowTimer = setTimeout(function () {
+      if (B.entryId === id && B.saving) setStatus(navigator.onLine === false ? 'offline' : 'error');
+    }, SLOW_SAVE);
   }
 
   function pushCloud(id) {
@@ -19883,11 +19903,7 @@ function createBoard(cfg) {
     // reads as "your work is on its way" while nothing is moving. So the status
     // runs on its own clock. The write is NOT cancelled — it is still queued and
     // will land on reconnect — only the label is corrected.
-    setStatus(navigator.onLine === false ? 'offline' : 'saving');
-    clearTimeout(B.slowTimer);
-    B.slowTimer = setTimeout(function () {
-      if (B.entryId === id && B.saving) setStatus(navigator.onLine === false ? 'offline' : 'error');
-    }, SLOW_SAVE);
+    armSlow(id);
     B.saving = (function () {
       if (!S.fbReady()) return Promise.reject(new Error('firebase-not-ready'));
       return uploadFiles(files)
