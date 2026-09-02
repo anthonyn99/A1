@@ -162,8 +162,16 @@ ok('the legacy template is offered in the picker',
 ok('the legacy editor is present', /function renderMindmap\(\)/.test(src) && /function initMindmap\(\)/.test(src));
 ok('it has its own DOM, separate from the Mind Elixir mount',
   /id="bj-mml-canvas"/.test(src) && /id="bj-mml-area"/.test(src) && /id="bj-mm-mount"/.test(src));
-ok('it still reads and writes the entry fields it always did',
-  /if \(entry\.template === 'mindmap-legacy'\) \{ _next\.nodes = mmNodes; _next\.edges = mmEdges; \}/.test(src));
+// The proposed data must never hand the editor's LIVE arrays to the entry:
+// Object.assign would alias them, and the no-op guard below would then compare
+// entry.data.nodes to itself and conclude nothing had changed — so the first
+// edit to a map saved and every later drag quietly did not.
+const legacySave = src.match(/if \(entry\.template === 'mindmap-legacy'\) \{[\s\S]{0,240}?\n  \}/);
+ok('the legacy save reads the editor arrays', !!legacySave && /mmNodes/.test(legacySave[0]) && /mmEdges/.test(legacySave[0]));
+ok('it copies them instead of aliasing them onto the entry',
+  !!legacySave && /JSON\.parse\(JSON\.stringify\(mmNodes\)\)/.test(legacySave[0]) &&
+                  /JSON\.parse\(JSON\.stringify\(mmEdges\)\)/.test(legacySave[0]),
+  legacySave && legacySave[0]);
 const route = body('function _bjLegacyTemplate(entry) {');
 ok('an existing map is routed to it by its own data, not a flag', !!route);
 if (route) {
