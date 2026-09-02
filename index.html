@@ -25792,73 +25792,10 @@ window.hideBrainstormJournal = function() {
     text-transform: uppercase;
   }
 
-  /* ── WHITEBOARD ── */
-/* Whiteboard outer: flex-row, no scroll */
-#tj-root #tj-wb-canvas-wrap {
-    background: var(--card);
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    overflow: hidden;
-    display: none;
-    flex: 1;
-    min-height: 0;
-    flex-direction: row; /* side-by-side: toolbar | scroll area */
-  }
-/* Scrollable canvas container */
-#tj-root #tj-wb-scroll {
-    flex: 1;
-    overflow: scroll;
-    min-width: 0;
-    min-height: 0;
-    -webkit-overflow-scrolling: touch;
-    /* Force persistent visible scrollbars on iPad */
-    scrollbar-width: none;
-/*     scrollbar-color: var(--border2) var(--bg2); */
-    border-radius: 0 8px 8px 0;
-  }
-#tj-root #tj-wb-scroll::-webkit-scrollbar {display:none;width:0;height:0;}
-#tj-root #tj-wb-scroll::-webkit-scrollbar-track { background: var(--bg2); border-radius: 0 8px 8px 0; }
-#tj-root #tj-wb-scroll::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 6px; border: 2px solid var(--bg2); }
-#tj-root #tj-wb-scroll::-webkit-scrollbar-thumb:hover { background: var(--text3); }
-#tj-root #tj-wb-scroll::-webkit-scrollbar-corner { background: var(--bg2); }
-#tj-root #tj-wb-toolbar {
-    width: 40px;
-    padding: 6px 4px;
-    border-right: 1px solid var(--border);
-    display: none;
-    flex-direction: column;
-    align-items: center;
-    gap: 3px;
-    background: var(--card2);
-    overflow-y: auto; overflow-x: hidden;
-    scrollbar-width: none; flex-shrink: 0;
-  }
-#tj-root #tj-wb-toolbar::-webkit-scrollbar { display: none; }
-#tj-root #tj-wb-toolbar.edit-mode { display: flex; }
-#tj-root .wb-tsep { width: 24px; height: 1px; background: var(--border); opacity: 0.5; flex-shrink: 0; margin: 2px 0; }
-#tj-root .wb-btn {
-    width: 30px; height: 30px;
-    padding: 0;
-    border: 1px solid var(--border); border-radius: 5px;
-    background: transparent; flex-shrink: 0;
-    font-size: 13px; font-weight: 700;
-    color: var(--text2); cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    transition: background 0.1s, color 0.1s, border-color 0.1s;
-    touch-action: manipulation;
-  }
-#tj-root .wb-btn:hover { background: var(--card2); color: var(--text); box-shadow: var(--suite-glow); }
-#tj-root .wb-btn.active { background: rgba(141,118,154,0.15); color: var(--purple); border-color: rgba(141,118,154,0.4); }
-#tj-root .wb-color-btn {
-    width: 18px; height: 18px; border-radius: 50%;
-    border: 2px solid transparent; cursor: pointer; flex-shrink: 0;
-    transition: border-color 0.1s, transform 0.1s;
-    touch-action: manipulation;
-  }
-#tj-root .wb-color-btn.active { border-color: white; transform: scale(1.3); }
-#tj-root #tj-wb-size { accent-color: var(--purple); flex-shrink: 0; }
-#tj-root #tj-wb-size-lbl { font-family: var(--font-mono); font-size: 10px; color: var(--text3); min-width: 16px; }
-#tj-root #tj-wb-canvas { display: block; cursor: crosshair; touch-action: none; background: #1B1C1E; }
+  /* ── WHITEBOARD / MIND MAP ──
+     Both are VizEngine shells now; every rule they need is in the shared
+     .viz-* block above, resolved against this root's gold tokens. */
+#tj-root #tj-mindmap-area { position: relative; }
 
   /* ── PAGE TEMPLATE ── */
 #tj-root #tj-page-area { display: none; flex-direction: column; flex: 1; min-height: 0; }
@@ -26391,15 +26328,6 @@ window.hideBrainstormJournal = function() {
 #tj-root .entry-item { min-height: 44px; }
 #tj-root .entry-delete { opacity: 1; width: 28px; height: 28px; font-size: 13px; }
 
-/* Whiteboard — Apple Pencil passthrough, no scroll interference */
-#tj-root #tj-wb-canvas {
-  touch-action: none;
-  -webkit-touch-callout: none;
-  user-select: none;
-}
-/* Larger wb tool buttons on touch */
-#tj-root .wb-color-btn { width: 26px; height: 26px; }
-#tj-root #tj-wb-size { width: 80px; }
 
 @media (max-width: 900px) {
   /* ── NAV HEADER: two-row on mobile ── */
@@ -26486,22 +26414,6 @@ window.hideBrainstormJournal = function() {
   }
   #tj-root #tj-mobile-back { flex-shrink: 0; min-height: 34px; }
 
-  /* ── WB TOOLBAR: horizontal scrollable strip ── */
-  #tj-root #tj-wb-canvas-wrap { flex-direction: column !important; }
-  #tj-root #tj-wb-toolbar {
-    width: auto !important; height: auto !important;
-    flex-direction: row !important;
-    border-right: none !important; border-bottom: 1px solid var(--border) !important;
-    overflow-x: auto !important; overflow-y: hidden !important;
-    padding: 6px 10px !important; gap: 5px !important;
-    align-items: center !important; scrollbar-width: none !important; flex-shrink: 0 !important;
-  }
-  #tj-root #tj-wb-toolbar::-webkit-scrollbar { display: none !important; }
-  #tj-root .wb-tsep { width: 1px !important; height: 20px !important; margin: 0 2px !important; }
-  #tj-root .wb-btn { width: 38px !important; height: 38px !important; font-size: 15px !important; }
-  #tj-root .wb-color-btn { width: 26px !important; height: 26px !important; }
-  #tj-root .wb-flex-spacer { flex: 0 !important; width: 2px !important; }
-  #tj-root #tj-wb-scroll { flex: 1 !important; min-height: 0 !important; }
 
   /* ── PAGE TOOLBAR (sizing lives in docx-responsive-css; it must not be
         forced nowrap or the menu-bar row collapses to zero width) ── */
@@ -26719,35 +26631,14 @@ window.hideBrainstormJournal = function() {
     </div>
 
     <!-- WHITEBOARD -->
-    <div id="tj-wb-canvas-wrap">
-      <div class="tj-drop-zone" id="tj-wb-drop-zone"><div class="tj-drop-label"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>Drop files here</div></div>
-      <!-- Vertical tool sidebar -->
-      <div id="tj-wb-toolbar">
-        <button class="wb-btn active" id="tj-wb-pen" data-tip="Pen" aria-label="Pen"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19H5a2 2 0 0 1 0-4h5a2 2 0 0 0 0-4H7"/><path d="M17.5 3.5a2.1 2.1 0 0 1 3 3L15 12l-4 1 1-4Z"/></svg></button>
-        <button class="wb-btn" id="tj-wb-eraser" data-tip="Erase" aria-label="Erase"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 15.5 11.5 8a2.8 2.8 0 0 1 4 0l4.5 4.5a2.8 2.8 0 0 1 0 4L16 20H8Z"/><path d="M20 20H8"/></svg></button>
-        <button class="wb-btn" id="tj-wb-line" data-tip="Line" aria-label="Line"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19 19 5"/></svg></button>
-        <button class="wb-btn" id="tj-wb-rect" data-tip="Rect" aria-label="Rectangle"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"/></svg></button>
-        <button class="wb-btn" id="tj-wb-circle" data-tip="Circle" aria-label="Circle"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/></svg></button>
-        <button class="wb-btn" id="tj-wb-text-tool" data-tip="Text">T</button>
-        <div class="wb-tsep"></div>
-        <div class="wb-color-btn active" style="background:#ede9f4" data-color="#ede9f4" title="White"></div>
-        <div class="wb-color-btn" style="background:#a78bda" data-color="#a78bda" title="Purple"></div>
-        <div class="wb-color-btn" style="background:#4ade80" data-color="#4ade80" title="Green"></div>
-        <div class="wb-color-btn" style="background:#22d3ee" data-color="#22d3ee" title="Cyan"></div>
-        <div class="wb-color-btn" style="background:#f87171" data-color="#f87171" title="Red"></div>
-        <div class="wb-color-btn" style="background:#fb923c" data-color="#fb923c" title="Orange"></div>
-        <div class="wb-color-btn" style="background:#fbbf24" data-color="#fbbf24" title="Yellow"></div>
-        <div class="wb-tsep"></div>
-        <input type="range" id="tj-wb-size" min="1" max="30" value="3" style="writing-mode:vertical-lr;direction:rtl;width:18px;height:70px;">
-        <span id="tj-wb-size-lbl" style="font-size:9px;text-align:center;">3</span>
-        <div class="wb-flex-spacer"></div>
-        <button class="wb-btn" id="tj-wb-undo" data-tip="Undo" aria-label="Undo"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-4"/></svg></button>
-        <button class="wb-btn" id="tj-wb-clear" data-tip="Clear" aria-label="Clear"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
-      </div>
-      <!-- Scrollable canvas area -->
-      <div id="tj-wb-scroll">
-        <canvas id="tj-wb-canvas"></canvas>
-      </div>
+    <div id="tj-wb-canvas-wrap" class="viz-shell">
+      <div class="viz-mount" id="tj-wb-mount"></div>
+    </div>
+
+    <!-- MIND MAP — Mind Elixir. New to MyJournal; the same engine and the
+         same document model as Veda's, wearing this profile's gold tokens. -->
+    <div id="tj-mindmap-area" class="viz-shell">
+      <div class="viz-mount" id="tj-mm-mount"></div>
     </div>
 
     <!-- PAGE -->
@@ -26955,6 +26846,11 @@ window.hideBrainstormJournal = function() {
         <div class="template-card-icon"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h8"/></svg></div>
         <h3>Page</h3>
         <p>Rich document: text, images, lists, tables, headings.</p>
+      </div>
+      <div class="template-card" data-template="mindmap">
+        <div class="template-card-icon"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="9.5" width="7" height="5" rx="1.5"/><rect x="15" y="3" width="7" height="5" rx="1.5"/><rect x="15" y="16" width="7" height="5" rx="1.5"/><path d="M9 12h3v-6.5h3"/><path d="M12 12v6.5h3"/></svg></div>
+        <h3>Mind Map</h3>
+        <p>Branch one idea outwards: drag, fold and reorganise.</p>
       </div>
       <div class="template-card" data-template="journal-entries">
         <div class="template-card-icon"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/></svg></div>
@@ -27461,7 +27357,8 @@ function getActive() { return state.entries.find(e => e.id === state.activeId) |
 function createEntry(template) {
   const id = 'e_' + Date.now() + '_' + Math.random().toString(36).slice(2);
   const entry = { id, title: '', template: template || 'page', created: Date.now(), updated: Date.now(), tags: [], data: {} };
-  if (template === 'whiteboard') entry.data = { canvas: '', history: [], attachments: [] };
+  if (template === 'whiteboard') entry.data = { attachments: [] };
+  if (template === 'mindmap') entry.data = { attachments: [] };
   if (template === 'page') entry.data = { html: '', attachments: [] };
   if (template === 'journal-entries') entry.data = { dates: {}, activeDateKey: '', dateOrder: [] };
   // Unsynced until the cloud confirms it — without this an authoritative resync
@@ -27633,7 +27530,7 @@ function renderSidebar() {
     div.className = 'entry-item' + (entry.id === state.activeId ? ' active' : '');
     div.dataset.entryId = entry.id;
     if (isDraggable) div.draggable = true;
-    const tmap = { whiteboard: 'BOARD', page: 'PAGE', 'journal-entries': 'JOURNAL' };
+    const tmap = { whiteboard: 'BOARD', mindmap: 'MAP', page: 'PAGE', 'journal-entries': 'JOURNAL' };
     const date = new Date(entry.updated).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const titleClass = entry.title ? '' : ' untitled';
     div.innerHTML = `
@@ -27726,8 +27623,11 @@ function renderSidebar() {
 }
 
 function showTemplate(name) {
-  if (name !== 'whiteboard' && window._fbUnwatchTJCanvas) window._fbUnwatchTJCanvas();
+  // Leaving a board flushes it and drops its remote listener — see the BJ twin.
+  if (name !== 'whiteboard' && _tjBoards.wb) _tjBoards.wb.close();
+  if (name !== 'mindmap'    && _tjBoards.mm) _tjBoards.mm.close();
   document.getElementById('tj-wb-canvas-wrap').style.display = name === 'whiteboard' ? 'flex' : 'none';
+  document.getElementById('tj-mindmap-area').style.display = name === 'mindmap' ? 'flex' : 'none';
   document.getElementById('tj-page-area').style.display = name === 'page' ? 'flex' : 'none';
   document.getElementById('tj-je-area').style.display = name === 'journal-entries' ? 'flex' : 'none';
   document.getElementById('tj-empty-state').style.display = name ? 'none' : 'flex';
@@ -27770,37 +27670,10 @@ function loadActiveEntry() {
   showTemplate(entry.template);
   renderTags(entry.tags || []);
   if (entry.template === 'whiteboard') {
-    initWhiteboard();
-    wbHistory = [];
-    // Load canvas: prefer Firebase (freshest), fall back to local
-    const _loadWbCanvas = (dataURL) => {
-      if (!dataURL) { if (wbCtx) wbClearAll(); return; }
-      const img = new Image();
-      img.onload = () => { wbClearAll(); wbCtx.drawImage(img, 0, 0, WB_LOG_W, WB_LOG_H); };
-      img.src = dataURL;
-    };
-    // Show local immediately for instant feedback
-    _loadWbCanvas(entry.data.canvas || localStorage.getItem(TJ_CANVAS_KEY(entry.id)));
-    // Then fetch Firebase canvas (may be more recent from another device)
-    if (window._fbLoadTJCanvas) {
-      window._fbLoadTJCanvas(entry.id).then(remoteCanvas => {
-        if (remoteCanvas && remoteCanvas !== entry.data.canvas) {
-          entry.data.canvas = remoteCanvas;
-          try { localStorage.setItem(TJ_CANVAS_KEY(entry.id), remoteCanvas); } catch(e) {}
-          _loadWbCanvas(remoteCanvas);
-        }
-      });
-    }
-    // Watch for live canvas changes from other devices
-    if (window._fbWatchTJCanvas) {
-      window._fbWatchTJCanvas(entry.id, (remoteCanvas) => {
-        if (!wbDrawing) { // don't overwrite while user is drawing
-          entry.data.canvas = remoteCanvas;
-          try { localStorage.setItem(TJ_CANVAS_KEY(entry.id), remoteCanvas); } catch(e) {}
-          _loadWbCanvas(remoteCanvas);
-        }
-      });
-    }
+    _tjBoard('wb').open(entry).then(function () { _tjBoard('wb').setEditable(isEditMode); });
+  }
+  if (entry.template === 'mindmap') {
+    _tjBoard('mm').open(entry).then(function () { _tjBoard('mm').setEditable(isEditMode); });
   }
   if (entry.template === 'page') {
     const ed = document.getElementById('tj-page-editor');
@@ -27864,7 +27737,13 @@ function saveCurrentEntry() {
   // Read the DOM into a PROPOSED copy of data rather than straight into the entry,
   // so the two guards below can still refuse it. Nothing is committed until both pass.
   const _next = Object.assign({}, entry.data);
-  if (entry.template === 'whiteboard') _next.canvas = wbCanvas ? wbCanvas.toDataURL('image/png') : '';
+  // See the BJ twin: visual templates put a fingerprint on the entry and keep
+  // their content in their own document.
+  if (entry.template === 'whiteboard' || entry.template === 'mindmap') {
+    var _vb = _tjBoards[entry.template === 'whiteboard' ? 'wb' : 'mm'];
+    var _vs = (_vb && _vb.isOpen(entry.id)) ? _vb.stats() : null;
+    if (_vs) { _next.vizRev = _vs.rev; _next.vizCount = _vs.count; _next.vizTitle = _vs.title; }
+  }
   if (entry.template === 'page') { _next.html = document.getElementById('tj-page-editor').innerHTML; }
   if (entry.template === 'journal-entries') {
     // _jeSaveActiveDate writes into entry.data.dates, so give it a detached dates
@@ -27921,6 +27800,9 @@ function _tjAutoTitle(entry) {
     const dd = (k && d.dates) ? d.dates[k] : null;
     src = (dd && dd.html) ? String(dd.html).replace(/<[^>]*>/g,'\n') : '';
   }
+  // The board reports its own title: a mind map's root topic, or the first text
+  // written on a whiteboard.
+  else if (entry.template === 'whiteboard' || entry.template === 'mindmap') src = d.vizTitle || '';
   const line = (src||'').split('\n').map(s=>s.trim()).find(s=>s.length > 1) || '';
   if (!line) return '';
   return line.length > 60 ? line.slice(0, 57).trimEnd() + '…' : line;
@@ -27967,246 +27849,35 @@ document.getElementById('tj-add-tag-input').addEventListener('keydown', e => {
   }
 });
 
-/* WHITEBOARD */
-let wbCanvas, wbCtx, wbTool='pen', wbColor='#ede9f4', wbSize=3;
-let wbDrawing=false, wbStart=null, wbSnapshot=null, wbHistory=[];
-// Smooth drawing: point buffer for Catmull-Rom spline
-let wbPoints=[], wbLastPressure=0.5;
-// DPR: logical canvas dimensions (CSS/drawing space)
-const WB_LOG_W = 1400, WB_LOG_H = 900;
-let wbDPR = 1;
-
-function initWhiteboard() {
-  wbCanvas = document.getElementById('tj-wb-canvas');
-  wbCtx = wbCanvas.getContext('2d');
-  // Use exact device pixel ratio (no rounding) for pixel-perfect Pencil rendering on iPad
-  const dpr = Math.max(1, window.devicePixelRatio || 1);
-  if (wbDPR !== dpr || wbCanvas.width !== WB_LOG_W * dpr || wbCanvas.height !== WB_LOG_H * dpr) {
-    // Preserve existing drawing across DPR init/change
-    var imgData = null;
-    try {
-      if (wbCtx && wbCanvas.width > 0 && wbCanvas.height > 0)
-        imgData = wbCtx.getImageData(0, 0, wbCanvas.width, wbCanvas.height);
-    } catch(err) {}
-    wbDPR = dpr;
-    wbCanvas.width  = WB_LOG_W * dpr;
-    wbCanvas.height = WB_LOG_H * dpr;
-    // CSS size stays at logical dimensions so layout is unchanged
-    wbCanvas.style.width  = WB_LOG_W + 'px';
-    wbCanvas.style.height = WB_LOG_H + 'px';
-    // Scale all drawing commands so 1 unit = 1 CSS pixel
-    wbCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    if (imgData) {
-      // Restore old pixels — temporarily reset transform so putImageData lands at pixel 0,0
-      wbCtx.save();
-      wbCtx.setTransform(1, 0, 0, 1, 0, 0);
-      wbCtx.putImageData(imgData, 0, 0);
-      wbCtx.restore();
-    } else {
-      // Fresh canvas — fill with bg so pixels are opaque (not transparent gray on iOS)
-      wbCtx.fillStyle = '#1B1C1E';
-      wbCtx.fillRect(0, 0, WB_LOG_W, WB_LOG_H);
-    }
-  }
-}
-// After any putImageData call (which writes to raw pixel buffer, bypassing transform),
-// the transform is preserved — but callers must use this helper to restore a snapshot
-// captured via getImageData (raw pixels), then re-apply transform.
-function wbPutSnapshot(imgData) {
-  wbCtx.save();
-  wbCtx.setTransform(1, 0, 0, 1, 0, 0);
-  wbCtx.putImageData(imgData, 0, 0);
-  wbCtx.restore();
-  // Re-apply DPR scale so subsequent drawing is in logical coords
-  wbCtx.setTransform(wbDPR, 0, 0, wbDPR, 0, 0);
-}
-function wbClearAll() {
-  // Fill with background color (not clearRect) so erased/cleared pixels are opaque black,
-  // not transparent — avoids gray bleed-through on iOS and in JPEG saves
-  wbCtx.save();
-  wbCtx.globalCompositeOperation = 'source-over';
-  wbCtx.fillStyle = '#1B1C1E';
-  wbCtx.fillRect(0, 0, WB_LOG_W, WB_LOG_H);
-  wbCtx.restore();
-}
-function getPos(canvas, e) {
-  const r = canvas.getBoundingClientRect();
-  const src = e.touches ? e.touches[0] : e;
-  // r.width = CSS logical width (WB_LOG_W). Divide clientX offset by CSS width to get 0..1,
-  // then multiply by logical width. DPR scaling is handled by ctx transform, not here.
-  return {
-    x: (src.clientX - r.left) * (WB_LOG_W / r.width),
-    y: (src.clientY - r.top)  * (WB_LOG_H / r.height)
-  };
-}
-function pushHistory() {
-  // getImageData works in raw pixel space regardless of transform
-  wbHistory.push(wbCtx.getImageData(0, 0, wbCanvas.width, wbCanvas.height));
-  if (wbHistory.length > 30) wbHistory.shift();
-}
-
-document.getElementById('tj-wb-canvas').addEventListener('pointerdown', e => {
-  if (wbTool === 'text-tool') return;
-  // Allow pen, mouse, and touch (finger) when in edit mode
-  // Touch without edit mode falls through to scroll
-  if (e.pointerType === 'touch' && !isEditMode) return;
-  pushHistory();
-  wbDrawing = true;
-  wbStart = getPos(wbCanvas, e);
-  wbSnapshot = wbCtx.getImageData(0, 0, wbCanvas.width, wbCanvas.height);
-  wbPoints = [{ ...wbStart, pressure: e.pressure || 0.5 }];
-  wbLastPressure = e.pressure || 0.5;
-  wbCtx.beginPath();
-  wbCtx.moveTo(wbStart.x, wbStart.y);
-  e.preventDefault();
-});
-function _wbHandleMove(e) {
-  if (!wbDrawing) return;
-  // Touch is allowed when wbDrawing is true (set only when edit mode passed check above)
-  const pos = getPos(wbCanvas, e);
-  // Pressure: Apple Pencil gives 0..1, mouse defaults to 0.5
-  const rawPressure = (e.pressure > 0) ? e.pressure : 0.5;
-  // Smooth pressure with exponential moving average to reduce jitter
-  wbLastPressure = wbLastPressure * 0.6 + rawPressure * 0.4;
-  const pressure = wbLastPressure;
-
-  if (wbTool === 'pen' || wbTool === 'eraser') {
-    // Pressure-sensitive line width: base * (0.4 + pressure * 1.2)
-    const baseW = wbTool === 'eraser' ? wbSize * 6 : wbSize;
-    const lw = wbTool === 'eraser' ? baseW : Math.max(0.5, baseW * (0.4 + pressure * 1.2));
-
-    wbPoints.push({ x: pos.x, y: pos.y, pressure });
-
-    // Need at least 3 points to draw a smooth curve
-    if (wbPoints.length < 2) {
-      wbCtx.beginPath(); wbCtx.moveTo(pos.x, pos.y);
-      e.preventDefault(); return;
-    }
-
-    // Use mid-point Catmull-Rom: draw quadratic bezier between consecutive midpoints
-    // moveTo(prevMid) → quadraticCurveTo(p0, currentMid) gives butter-smooth curves
-    const len = wbPoints.length;
-    const p0 = wbPoints[len - 2];
-    const p1 = wbPoints[len - 1];
-    const mid = { x: (p0.x + p1.x) / 2, y: (p0.y + p1.y) / 2 };
-    const prevMid = len >= 3
-      ? { x: (wbPoints[len-3].x + p0.x) / 2, y: (wbPoints[len-3].y + p0.y) / 2 }
-      : p0;
-
-    // Interpolate line width for this segment
-    const w0 = wbTool === 'eraser' ? baseW : Math.max(0.5, baseW * (0.4 + p0.pressure * 1.2));
-    const w1 = lw;
-    const segW = (w0 + w1) / 2;
-
-    wbCtx.beginPath();
-    wbCtx.moveTo(prevMid.x, prevMid.y);
-    wbCtx.quadraticCurveTo(p0.x, p0.y, mid.x, mid.y);
-    if (wbTool === 'eraser') {
-      wbCtx.globalCompositeOperation = 'source-over';
-      wbCtx.strokeStyle = '#1B1C1E'; // paint bg color — avoids transparent gray bleed on iOS
-    } else {
-      wbCtx.globalCompositeOperation = 'source-over';
-      wbCtx.strokeStyle = wbColor;
-    }
-    wbCtx.lineWidth = segW;
-    wbCtx.lineCap = 'round';
-    wbCtx.lineJoin = 'round';
-    // Slight transparency blend for natural ink feel (pen only)
-    wbCtx.globalAlpha = wbTool === 'eraser' ? 1 : Math.min(1, 0.85 + pressure * 0.15);
-    wbCtx.stroke();
-    wbCtx.globalAlpha = 1;
-    wbCtx.globalCompositeOperation = 'source-over';
-
-    // Keep buffer small for performance
-    if (wbPoints.length > 128) wbPoints = wbPoints.slice(-64);
-  } else {
-    // Shape tools: snapshot-restore for live preview
-    wbPutSnapshot(wbSnapshot);
-    wbCtx.beginPath();
-    wbCtx.strokeStyle = wbColor;
-    wbCtx.lineWidth = wbSize;
-    wbCtx.lineCap = 'round'; wbCtx.lineJoin = 'round';
-    if (wbTool === 'line') {
-      wbCtx.moveTo(wbStart.x, wbStart.y); wbCtx.lineTo(pos.x, pos.y); wbCtx.stroke();
-    } else if (wbTool === 'rect') {
-      wbCtx.strokeRect(wbStart.x, wbStart.y, pos.x - wbStart.x, pos.y - wbStart.y);
-    } else if (wbTool === 'circle') {
-      const rx = (pos.x - wbStart.x) / 2, ry = (pos.y - wbStart.y) / 2;
-      wbCtx.ellipse(wbStart.x + rx, wbStart.y + ry, Math.abs(rx), Math.abs(ry), 0, 0, Math.PI * 2);
-      wbCtx.stroke();
-    }
-  }
-  e.preventDefault();
-
-}
-document.getElementById('tj-wb-canvas').addEventListener('pointermove', e => {
-  // getCoalescedEvents: Apple Pencil reports sub-frame points for butter-smooth curves
-  const evts = (e.getCoalescedEvents && e.pointerType === 'pen') ? e.getCoalescedEvents() : [e];
-  evts.forEach(_wbHandleMove);
-  e.preventDefault();
-}, { passive: false });
-document.getElementById('tj-wb-canvas').addEventListener('pointerup', e => {
-  if (!wbDrawing) return;
-  wbDrawing = false;
-  // Draw final point as a dot if no movement (tap)
-  if (wbPoints.length === 1 && (wbTool === 'pen')) {
-    const p = wbPoints[0];
-    const r = Math.max(0.5, wbSize * 0.5 * (0.4 + (e.pressure||0.5) * 1.2));
-    wbCtx.beginPath();
-    wbCtx.arc(p.x, p.y, r, 0, Math.PI * 2);
-    wbCtx.fillStyle = wbColor;
-    wbCtx.fill();
-  }
-  wbPoints = [];
-  wbLastPressure = 0.5;
-  autoSave();   // saves metadata
-  saveCanvas(); // syncs canvas to Firebase
-});
-// Also cancel drawing if pointer leaves canvas
-document.getElementById('tj-wb-canvas').addEventListener('pointercancel', () => {
-  wbDrawing = false; wbPoints = []; autoSave(); saveCanvas();
-});
-document.getElementById('tj-wb-canvas').addEventListener('click', async e => {
-  if (wbTool !== 'text-tool') return;
-  const pos = getPos(wbCanvas, e);
-  const text = await window.uiPrompt('Enter text:', {title:'Add text'});
-  if (text) {
-    pushHistory();
-    wbCtx.fillStyle = wbColor;
-    wbCtx.font = `${Math.max(14,wbSize*4)}px DM Mono, monospace`;
-    wbCtx.fillText(text, pos.x, pos.y);
-    autoSave();
-    saveCanvas(); // sync text to Firebase
-  }
-});
-
-['tj-wb-pen','tj-wb-eraser','tj-wb-line','tj-wb-rect','tj-wb-circle','tj-wb-text-tool'].forEach(id => {
-  document.getElementById(id).addEventListener('click', function() {
-    wbTool = id.replace('tj-wb-','');
-    document.querySelectorAll('#tj-wb-toolbar .wb-btn').forEach(b => b.classList.remove('active'));
-    this.classList.add('active');
+/* ── WHITEBOARD + MIND MAP ─────────────────────────────────────────────────
+ * VizEngine boards, identical to Veda's except for the document prefix and the
+ * tokens they inherit from #tj-root — which is the whole reason the engine is
+ * parameterised rather than copied. See the VizEngine block for how a board is
+ * stored and why it never touches the journal document.
+ * ======================================================================== */
+var _tjBoards = {};
+function _tjBoard(kind) {
+  if (_tjBoards[kind]) return _tjBoards[kind];
+  var isWb = kind === 'wb';
+  _tjBoards[kind] = window.VizEngine.createBoard({
+    kind: kind,
+    app: 'tj',
+    // dashboards/tony_journal_viz_<id> and _vizf_<hash>, beside the legacy
+    // tony_journal_canvas_<id> documents, which are read but never written.
+    prefix: 'tony_journal',
+    shell: document.getElementById(isWb ? 'tj-wb-canvas-wrap' : 'tj-mindmap-area'),
+    mount: document.getElementById(isWb ? 'tj-wb-mount' : 'tj-mm-mount'),
+    title: isWb ? 'Whiteboard' : 'Mind Map',
+    setSync: function (s) { _tjSetSync(s); },
+    entryTitle: function () { var e = getActive(); return (e && e.title) || 'Untitled Entry'; },
+    onMeta: function () { autoSave(); },
+    onPdf: function () { var e = getActive(); if (e) exportEntryAsPDF(e); }
   });
-});
-document.querySelectorAll('.wb-color-btn').forEach(btn => {
-  btn.addEventListener('click', function() {
-    wbColor = this.dataset.color;
-    document.querySelectorAll('.wb-color-btn').forEach(b => b.classList.remove('active'));
-    this.classList.add('active');
-  });
-});
-document.getElementById('tj-wb-size').addEventListener('input', function() {
-  wbSize = parseInt(this.value);
-  document.getElementById('tj-wb-size-lbl').textContent = wbSize;
-});
-document.getElementById('tj-wb-clear').addEventListener('click', async () => {
-  if (await window.uiConfirm('Clear the whiteboard?', {danger:true, okLabel:'Clear'})) { pushHistory(); wbClearAll(); autoSave(); saveCanvas(); }
-});
-document.getElementById('tj-wb-undo').addEventListener('click', () => {
-  if (wbHistory.length === 0) return;
-  const prev = wbHistory.pop();
-  wbPutSnapshot(prev);
-  autoSave(); saveCanvas();
-});
+  return _tjBoards[kind];
+}
+window._tjFlushBoards = function () {
+  return Promise.all(Object.keys(_tjBoards).map(function (k) { return _tjBoards[k].flush(); }));
+};
 
 /* PAGE EDITOR */
 // Reflects the caret back into a ribbon. Both sheet templates run the same
@@ -28607,7 +28278,6 @@ function _tjPageInsertFileChip(name, dataURL, mimeType) {
 // ── DRAG & DROP FILE UPLOAD (all templates) ─────────────────────────────────
 (function() {
   var DROP_ZONES = [
-    { areaId: 'tj-wb-canvas-wrap', zoneId: 'tj-wb-drop-zone',     tmpl: 'whiteboard' },
     { areaId: 'tj-page-area',      zoneId: 'tj-page-drop-zone',    tmpl: 'page'       },
   ];
 
@@ -29671,24 +29341,20 @@ let isEditMode = false;
 function setEditMode(enabled) {
   isEditMode = enabled;
   const checkbox = document.getElementById('tj-btn-edit');
-  const wbToolbar = document.getElementById('tj-wb-toolbar');
   checkbox.checked = enabled;
   const modeLabel = document.getElementById('tj-mode-label');
   if (modeLabel) {
     modeLabel.textContent = enabled ? 'EDIT' : 'VIEW';
     modeLabel.classList.toggle('edit-active', enabled);
   }
-  if (enabled) {
-    if (wbToolbar) wbToolbar.classList.add('edit-mode');
-  } else {
-    if (wbToolbar) wbToolbar.classList.remove('edit-mode');
-  }
+  // View mode hands Excalidraw its own viewModeEnabled and Mind Elixir
+  // disableEdit(): still pannable and readable, but nothing can change.
+  if (_tjBoards.wb) _tjBoards.wb.setEditable(enabled);
+  if (_tjBoards.mm) _tjBoards.mm.setEditable(enabled);
   ['tj-entry-title-input','tj-add-tag-input'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.readOnly = !enabled;
   });
-  const wbC = document.getElementById('tj-wb-canvas');
-  if (wbC) wbC.style.pointerEvents = enabled ? 'auto' : 'none';
   // Page editor
   const pgEd = document.getElementById('tj-page-editor');
   if (pgEd) pgEd.contentEditable = enabled ? 'true' : 'false';
