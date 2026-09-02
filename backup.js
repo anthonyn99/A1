@@ -1261,9 +1261,19 @@
       step('index lists ' + devices.length + ' device(s)', devices.length > 0,
            devices.map(function (d) { return d.device; }).join(', '));
 
+      // Default to THIS device's own snapshot. Picking whichever sorted first
+      // meant restoring another device's copy and then comparing it against
+      // this device's live state — guaranteed drift, and a "run a fresh pull"
+      // note blaming staleness for what was really a different machine.
+      var me = deviceSlug();
       var pick = opts.device
         ? devices.filter(function (d) { return d.device === opts.device; })[0]
-        : devices[0];
+        : (devices.filter(function (d) { return d.device === me; })[0] || devices[0]);
+      if (!opts.device && pick && pick.device !== me) {
+        console.log('  note  this device (' + me + ') has no copy in the repo yet; ' +
+                    'restoring ' + pick.device + ' instead, so the comparison below ' +
+                    'is across devices rather than over time.');
+      }
       if (!step('chose a device to restore', !!pick, pick ? pick.device : 'none')) return out;
 
       var stamp = String(pick.iso || '').slice(0, 10);
@@ -1352,9 +1362,11 @@
         console.log('  Restored ' + paths.length + ' documents, e.g. ' +
                     paths.slice(0, 4).join(', '));
         if (drifted.length) {
-          console.log('%c  Note: ' + drifted.length + ' document(s) have changed on this ' +
-                      'device since this snapshot. The copy is sound, just older — run a ' +
-                      'fresh pull to bring the repo up to date.', 'color:#8d8d94');
+          console.log('%c  Note: ' + drifted.length + ' document(s) differ from this device. ' +
+                      (pick.device === me
+                        ? 'The copy is sound, just older — run a fresh pull to bring the repo up to date.'
+                        : 'Expected: this is ' + pick.device + "'s snapshot, not this device's."),
+                      'color:#8d8d94');
         }
       }
       return out;
