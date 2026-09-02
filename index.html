@@ -20074,10 +20074,14 @@ function createBoard(cfg) {
       (kids[a] = kids[a] || []).push(b);
     });
     var rootN = nodes.find(function (n) { return n.root; }) || nodes[0];
+    // Field names come straight from the old canvas model: label / imageData /
+    // imgW / imgH / fill / stroke. Anything it does not recognise is left
+    // behind rather than guessed at — the original entry.data.nodes is still
+    // there, unmodified, if something needs to be recovered by hand later.
     function conv(n) {
       var o = { id: 'm' + n.id, topic: String(n.label == null ? '' : n.label) || 'Node' };
-      if (n.img) o.image = { url: n.img, width: n.imgW || 160, height: n.imgH || 120 };
-      if (n.stroke) o.style = { background: n.fill || undefined, color: undefined };
+      if (n.imageData) o.image = { url: n.imageData, width: n.imgW || 160, height: n.imgH || 120 };
+      if (n.fill || n.stroke) o.style = { background: n.fill || undefined, color: n.stroke || undefined };
       return o;
     }
     function build(n, depth) {
