@@ -22779,17 +22779,6 @@ function saveCurrentEntry() {
   // write then propagates it everywhere. loadActiveEntry() stamps the id it painted.
   if (_bjDomOwner !== entry.id) return;
 
-  let _title = document.getElementById('bj-entry-title-input').value;
-  // Auto-title: derive from content while the title is empty; a user-typed title always wins
-  if (!_title.trim()) {
-    const _auto = _bjAutoTitle(entry);
-    if (_auto) {
-      _title = _auto;
-      const _ti = document.getElementById('bj-entry-title-input');
-      if (_ti && document.activeElement !== _ti) _ti.value = _auto;
-    }
-  }
-
   // Read the DOM into a PROPOSED copy of data rather than straight into the entry,
   // so the two guards below can still refuse it. Nothing is committed until both pass.
   const _next = Object.assign({}, entry.data);
@@ -22815,6 +22804,20 @@ function saveCurrentEntry() {
     _next.summary = document.getElementById('bj-cornell-summary-ta').value;
   }
   if (entry.template === 'page') { _next.html = document.getElementById('bj-page-editor').innerHTML; }
+
+  // Auto-title: derive from content while the title is empty; a user-typed title
+  // always wins. Read from the PROPOSED data above, not the stored data — otherwise a title taken from the
+  // editor is always one save out of date, which is how a whiteboard whose first
+  // text says "Launch plan" stayed "Untitled".
+  let _title = document.getElementById('bj-entry-title-input').value;
+  if (!_title.trim()) {
+    const _auto = _bjAutoTitle(entry, _next);
+    if (_auto) {
+      _title = _auto;
+      const _ti = document.getElementById('bj-entry-title-input');
+      if (_ti && document.activeElement !== _ti) _ti.value = _auto;
+    }
+  }
 
   // GUARD (blank overwrite): never let an empty field replace stored content unless
   // this save came from a real edit. A genuine select-all-and-delete goes through
@@ -22851,8 +22854,8 @@ function saveCurrentEntry() {
 }
 
 // First meaningful content line → title (max 60 chars)
-function _bjAutoTitle(entry) {
-  const d = entry.data || {};
+function _bjAutoTitle(entry, dataOverride) {
+  const d = dataOverride || entry.data || {};
   let src = '';
   if (entry.template === 'page') { const ed = document.getElementById('bj-page-editor'); src = ed && ed.innerText ? ed.innerText : String(d.html||'').replace(/<[^>]*>/g,'\n'); }
   else if (entry.template === 'notes') src = d.main || d.links || d.questions || '';
@@ -27625,17 +27628,6 @@ function saveCurrentEntry() {
   // this used to happen.
   if (_tjDomOwner !== entry.id) return;
 
-  let _title = document.getElementById('tj-entry-title-input').value;
-  // Auto-title: derive from content while the title is empty; a user-typed title always wins
-  if (!_title.trim()) {
-    const _auto = _tjAutoTitle(entry);
-    if (_auto) {
-      _title = _auto;
-      const _ti = document.getElementById('tj-entry-title-input');
-      if (_ti && document.activeElement !== _ti) _ti.value = _auto;
-    }
-  }
-
   // Read the DOM into a PROPOSED copy of data rather than straight into the entry,
   // so the two guards below can still refuse it. Nothing is committed until both pass.
   const _next = Object.assign({}, entry.data);
@@ -27652,6 +27644,18 @@ function saveCurrentEntry() {
     // map — otherwise the proposal would mutate the entry before it is vetted.
     _next.dates = Object.assign({}, entry.data && entry.data.dates);
     _jeSaveActiveDate({ template: 'journal-entries', data: _next });
+  }
+
+  // Auto-title: derive from content while the title is empty; a user-typed title
+  // always wins. Read from the PROPOSED data above, not the stored data — see the BJ twin for why.
+  let _title = document.getElementById('tj-entry-title-input').value;
+  if (!_title.trim()) {
+    const _auto = _tjAutoTitle(entry, _next);
+    if (_auto) {
+      _title = _auto;
+      const _ti = document.getElementById('tj-entry-title-input');
+      if (_ti && document.activeElement !== _ti) _ti.value = _auto;
+    }
   }
 
   // GUARD (blank overwrite): never let an empty field replace stored content unless
@@ -27693,8 +27697,8 @@ function saveCurrentEntry() {
 }
 
 // First meaningful content line → title (max 60 chars)
-function _tjAutoTitle(entry) {
-  const d = entry.data || {};
+function _tjAutoTitle(entry, dataOverride) {
+  const d = dataOverride || entry.data || {};
   let src = '';
   if (entry.template === 'page') { const ed = document.getElementById('tj-page-editor'); src = ed && ed.innerText ? ed.innerText : String(d.html||'').replace(/<[^>]*>/g,'\n'); }
   else if (entry.template === 'journal-entries') {
