@@ -19560,6 +19560,7 @@ var SAVE_IDLE = 1500;      // quiet period before a save
 var SAVE_MAX  = 8000;      // hard ceiling during nonstop drawing
 var RETRY_MS  = [4000, 12000, 30000, 60000, 120000];
 var REMOTE_QUIET = 6000;   // don't take a remote update within this of a local edit
+var OPEN_READ_MS = 7000;   // a cloud read on the open path may not outlast this
 var SLOW_SAVE = 9000;      // a cloud write still in flight after this is not "saving"
 
 function svg(d, extra) {
@@ -19995,6 +19996,21 @@ function createBoard(cfg) {
     } catch (e) { return '#1b1c1e'; }
   }
 
+  /* A cloud read that never answers must not hold the board hostage. Firestore
+   * offline does not always fail fast: asking for a document it has never
+   * cached can simply hang, and every second of that is a user staring at a
+   * loading veil that swallows their pointer. So every read on the open path is
+   * capped, and a read that misses its deadline is treated as "nothing there" —
+   * the local copy is used instead, and if there is none the board opens blank
+   * and EMPTY, which the first-edit rule keeps harmless: an untouched board
+   * writes nothing, so a slow network can never overwrite a real one. */
+  function capped(p, ms) {
+    return Promise.race([
+      Promise.resolve(p).catch(function () { return null; }),
+      new Promise(function (res) { setTimeout(function () { res(null); }, ms || OPEN_READ_MS); })
+    ]);
+  }
+
   /* Read the board. Local cache first so the canvas paints immediately, the
    * cloud copy second and only if it is genuinely newer. Nothing here writes:
    * a board that has never been saved in the new format is CONVERTED in memory
@@ -20052,7 +20068,7 @@ function createBoard(cfg) {
       var legacy = (entry.data && entry.data.canvas) || '';
       var pull = legacy ? Promise.resolve(legacy)
         : (S.fbReady()
-            ? window._fbViz.get(legacyCanvasId(entry.id)).then(function (d) { return (d && d.canvas) || ''; }).catch(function () { return ''; })
+            ? capped(window._fbViz.get(legacyCanvasId(entry.id))).then(function (d) { return (d && d.canvas) || ''; })
             : Promise.resolve(''));
       return pull.then(function (dataURL) {
         if (!dataURL) return blankDoc();
