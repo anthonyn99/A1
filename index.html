@@ -19407,9 +19407,9 @@ function loadExcalidraw() {
   // resolve the hand-drawn fonts and locale chunks.
   window.EXCALIDRAW_ASSET_PATH = EXC_BASE;
   _excP = (window.React && window.ReactDOM ? Promise.resolve() :
-      loadScript(CDN + 'react@' + V_REACT + '/umd/react.production.min.js')
-        .then(function () { return loadScript(CDN + 'react-dom@' + V_REACT + '/umd/react-dom.production.min.js'); }))
-    .then(function () { return loadScript(EXC_BASE + 'excalidraw.production.min.js'); })
+      loadScriptOffline(CDN + 'react@' + V_REACT + '/umd/react.production.min.js', 'react@' + V_REACT)
+        .then(function () { return loadScriptOffline(CDN + 'react-dom@' + V_REACT + '/umd/react-dom.production.min.js', 'react-dom@' + V_REACT); }))
+    .then(function () { return loadScriptOffline(EXC_BASE + 'excalidraw.production.min.js', 'excalidraw@' + V_EXC); })
     .then(function () {
       if (!window.ExcalidrawLib) throw new Error('Excalidraw did not register');
       return window.ExcalidrawLib;
@@ -19422,8 +19422,8 @@ var _meP = null;
 function loadMindElixir() {
   if (window.MindElixir && window.MindElixir.default) return Promise.resolve(window.MindElixir.default);
   if (_meP) return _meP;
-  _meP = loadCss(CDN + 'mind-elixir@' + V_ME + '/dist/MindElixir.css', 'viz-me-css')
-    .then(function () { return loadScript(CDN + 'mind-elixir@' + V_ME + '/dist/MindElixir.iife.js'); })
+  _meP = loadCss(CDN + 'mind-elixir@' + V_ME + '/dist/MindElixir.css', 'viz-me-css', 'me-css@' + V_ME)
+    .then(function () { return loadScriptOffline(CDN + 'mind-elixir@' + V_ME + '/dist/MindElixir.iife.js', 'mind-elixir@' + V_ME); })
     .then(function () {
       if (!window.MindElixir || !window.MindElixir.default) throw new Error('Mind Elixir did not register');
       return window.MindElixir.default;
