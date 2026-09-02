@@ -19612,7 +19612,7 @@ function createBoard(cfg) {
   var btnDl = mkBtn(null, 'download', 'Export', 'Export this board');
   bar.appendChild(titleEl); bar.appendChild(status); bar.appendChild(spacer);
   bar.appendChild(btnFs); bar.appendChild(btnDl);
-  cfg.shell.insertBefore(bar, cfg.mount);
+  cfg.shell.insertBefore(bar, cfg.shell.firstChild);
 
   var veil = document.createElement('div');
   veil.className = 'viz-veil';
@@ -21221,10 +21221,8 @@ window.VizEngine = { createBoard: createBoard };
   box-shadow: 0 4px 24px rgba(141,118,154,0.18);
   pointer-events: none; text-align: center;
 }
-#bj-root #bj-wb-canvas-wrap { position: relative; }
 #bj-root #bj-notes-area { position: relative; }
 #bj-root #bj-cornell-area { position: relative; }
-#bj-root #bj-mindmap-area { position: relative; }
 #bj-root #bj-page-area { position: relative; }
 #bj-root .bj-page-attach-chips {
   display: flex; flex-wrap: wrap; gap: 5px; padding: 6px 10px 0;
@@ -25714,7 +25712,6 @@ window.hideBrainstormJournal = function() {
   /* ── WHITEBOARD / MIND MAP ──
      Both are VizEngine shells now; every rule they need is in the shared
      .viz-* block above, resolved against this root's gold tokens. */
-#tj-root #tj-mindmap-area { position: relative; }
 
   /* ── PAGE TEMPLATE ── */
 #tj-root #tj-page-area { display: none; flex-direction: column; flex: 1; min-height: 0; }
@@ -26098,7 +26095,6 @@ window.hideBrainstormJournal = function() {
   box-shadow: 0 4px 24px rgba(141,118,154,0.18);
   pointer-events: none; text-align: center;
 }
-#tj-root #tj-wb-canvas-wrap { position: relative; }
 #tj-root #tj-page-area { position: relative; }
 #tj-root .tj-page-attach-chips {
   display: flex; flex-wrap: wrap; gap: 5px; padding: 6px 10px 0;
