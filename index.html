@@ -246,6 +246,11 @@ input[type=time]{color-scheme:dark;}
     .veda-hbtns{width:100%;align-self:stretch;min-width:0;flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;scrollbar-width:none;-ms-overflow-style:none;}
     .veda-hbtns>*{flex-shrink:0;}
     .veda-hbtns>*:first-child{margin-left:auto;}
+    /* The app-switcher row rides ALONGSIDE the title rather than below it, so it
+       must not take the full-width scrolling treatment the tools row needs —
+       that is what pushed the header to three stacked rows on a phone. */
+    .veda-hbtns-top{width:auto;align-self:flex-end;flex-wrap:nowrap;overflow:visible;justify-content:flex-end;}
+    .veda-hbtns-top>*:first-child{margin-left:0;}
     .veda-hbtns::-webkit-scrollbar{display:none;width:0;height:0;}
   }
 
@@ -15574,14 +15579,14 @@ function App(){
     // then owns the notch/Dynamic-Island strip and paints it as it pins, so
     // scrolled content never slides up behind the pill.
     RC("div",{style:{position:"sticky",top:0,zIndex:50,background:BG,marginLeft:-14,marginRight:-14,paddingLeft:14,paddingRight:14,paddingTop:"calc(env(safe-area-inset-top,0px) + 4px)",paddingBottom:4}},
-    RC("div",{style:{display:"flex",flexDirection:vrMobile?"column":"row",alignItems:vrMobile?"stretch":"flex-start",justifyContent:"space-between",gap:vrMobile?6:12,flexShrink:0}},
-      RC("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-start",gap:3,flexShrink:0,paddingTop:2,position:"relative"}},
+    RC("div",{style:{display:"flex",flexDirection:"row",alignItems:"flex-start",justifyContent:"space-between",gap:vrMobile?8:12,flexShrink:0}},
+      RC("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-start",gap:3,flexShrink:1,minWidth:0,paddingTop:2,position:"relative"}},
         RC("div",{style:{display:"flex",flexDirection:"row",alignItems:"center",gap:8}},
-          RC("div",{style:{fontFamily:"'Playfair Display',serif",fontSize:vrMobile?18:26,fontWeight:900,color:A,letterSpacing:1,textTransform:"uppercase",lineHeight:1}},"Veda's TaskHub"),
+          RC("div",{style:{fontFamily:"'Playfair Display',serif",fontSize:vrMobile?16:26,fontWeight:900,color:A,letterSpacing:vrMobile?0.5:1,textTransform:"uppercase",lineHeight:1.05,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},"Veda's TaskHub"),
           RC("button",{id:"vd-setmain-btn",onClick:()=>{localStorage.setItem("td6_mainDash","veda");window._updateMainDashBtn&&window._updateMainDashBtn();},onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:localStorage.getItem("td6_mainDash")==="veda"?A:"transparent",color:localStorage.getItem("td6_mainDash")==="veda"?BG:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:800,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:0.5,transition:"all .2s",whiteSpace:"nowrap",flexShrink:0}},localStorage.getItem("td6_mainDash")==="veda"?RC("span",{style:{display:"inline-flex",alignItems:"center",gap:5}},RC("span",{style:{width:11,height:11,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.star}}),"Main"):"Set as main")),
         RC("span",{style:{position:"absolute",top:"100%",left:0,marginTop:2,fontSize:10,fontWeight:600,whiteSpace:"nowrap",visibility:syncStatus==="saving"||syncStatus==="saved"||syncStatus==="error"?"visible":"hidden",color:syncStatus==="saving"?TXD:syncStatus==="error"?"#f85149":GRN,display:"inline-flex",alignItems:"center",gap:4}},syncStatus==="saving"?"Syncing…":syncStatus==="error"?[RC(VdIcon,{key:"i",name:"alert",size:11}),"Sync failed"]:[RC(VdIcon,{key:"i",name:"check",size:11}),"Synced"])),
       RC("div",{style:{display:"flex",flexDirection:"column",gap:4,alignItems:"flex-end",flex:vrMobile?undefined:1,minWidth:0,minHeight:vrMobile?undefined:60}},
-      RC("div",{className:"veda-hbtns"},
+      RC("div",{className:"veda-hbtns veda-hbtns-top"},
           RC("button",{onClick:()=>{},onMouseEnter:e=>{e.currentTarget.style.opacity="0.85";},onMouseLeave:e=>{e.currentTarget.style.opacity="1";},style:{background:A,color:BG,border:"1px solid "+A,boxShadow:GLOW_A,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},"TaskHub"),
           RC("button",{onClick:()=>window._vedaNav&&window._vedaNav('gita'),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},"Gita"),
           RC("button",{onClick:()=>window._vedaNav&&window._vedaNav('journal'),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},"Journal"),
