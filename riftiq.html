@@ -7081,8 +7081,13 @@ function pickBuildChamp(cid) {
   openChampBuilds(cid);
 }
 
-function deleteChampBuilds(cid) {
-  if (!confirm('Delete all builds for ' + ((allChamps[cid]&&allChamps[cid].name) || cid) + '?')) return;
+async function deleteChampBuilds(cid) {
+  var champName = (allChamps[cid] && allChamps[cid].name) || cid;
+  var n = (builds[cid] || []).length;
+  var ok = await window.uiConfirm(
+    'All ' + n + ' build' + (n === 1 ? '' : 's') + ' saved for ' + champName + ' will be deleted. This cannot be undone.',
+    { title: 'Delete ' + champName + '?', okLabel: 'Delete', cancelLabel: 'Keep', danger: true });
+  if (!ok) return;
   delete builds[cid];
   buildsOrder = buildsOrder.filter(function(k){ return k !== cid; });
   // Re-render immediately so UI reflects deletion
@@ -7273,8 +7278,12 @@ function renderBuildCard(cid, b, idx) {
   '</div>';
 }
 
-function deleteBuild(cid, idx) {
-  if (!confirm('Delete this build?')) return;
+async function deleteBuild(cid, idx) {
+  var b = (builds[cid] || [])[idx] || {};
+  var ok = await window.uiConfirm(
+    (b.name ? '"' + b.name + '"' : 'This build') + ' will be deleted. This cannot be undone.',
+    { title: 'Delete build?', okLabel: 'Delete', cancelLabel: 'Keep', danger: true });
+  if (!ok) return;
   builds[cid].splice(idx, 1);
   _lastOwnSaveAt = Date.now();
   saveBuildsToFirestore();
@@ -7708,7 +7717,7 @@ function renderRuneBuilderZone(b) {
 
   // Secondary path
   if (b.runeMain) {
-    html += '<div style="margin-bottom:8px;"><div style="' + HD + '">Secondary path</div>';
+    html += '<div style="margin-top:20px;margin-bottom:8px;"><div style="' + HD + '">Secondary path</div>';
     html += '<div style="display:flex;gap:4px;flex-wrap:wrap;">';
     allRuneData.filter(function(p){ return p.id !== b.runeMain; }).forEach(function(path) {
       const col = COLORS[path.name] || 'var(--gold)';
@@ -10717,22 +10726,43 @@ if (!window.__wrGateBlocked) window.warRoomBoot();
 <script>
 (function(){
   if (window.uiModal) return;
-  var ACCENT = '#c0aeea';
   var CSS =
     '#uim-overlay{position:fixed;inset:0;z-index:2147483000;display:none;align-items:center;justify-content:center;background:rgba(14,14,16,.66);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);padding:20px;box-sizing:border-box;}'
   + '#uim-overlay.show{display:flex;}'
-  + '#uim-box{width:100%;max-width:370px;background:#232327;border:1px solid #45454c;border-radius:9px;padding:26px 24px;box-shadow:0 30px 70px rgba(0,0,0,.48);box-sizing:border-box;font-family:\'Inter\',system-ui,-apple-system,sans-serif;animation:uimIn .16s ease;}'
+  // Self-contained on purpose - it owns every colour, face and metric it uses,
+  // so it renders identically whether it opens over the app or over the lock
+  // screen before the app's own stylesheet has meant anything. The values are
+  // RiftIQ's: its surfaces, its ProView purple, its three faces.
+  + '#uim-box{width:100%;max-width:380px;max-height:calc(100dvh - 40px);overflow-y:auto;background:#232327;border:1px solid #45454c;border-radius:12px;padding:24px;box-shadow:0 30px 70px rgba(0,0,0,.55);box-sizing:border-box;font-family:\'Plus Jakarta Sans\',system-ui,-apple-system,sans-serif;animation:uimIn .16s ease;-webkit-tap-highlight-color:transparent;}'
   + '@keyframes uimIn{from{transform:translateY(8px) scale(.98);opacity:0}to{transform:none;opacity:1}}'
-  + '#uim-title{font-family:\'Manrope\',system-ui,sans-serif;font-size:20px;font-weight:600;letter-spacing:-.2px;color:#f4f3f0;margin-bottom:8px;line-height:1.25;}'
-  + '#uim-msg{font-size:13.5px;color:#adadb2;line-height:1.55;white-space:pre-wrap;margin-bottom:16px;}'
+  + '#uim-title{font-family:\'Outfit\',system-ui,sans-serif;font-size:20px;font-weight:800;letter-spacing:-.3px;color:#f4f3f0;margin-bottom:8px;line-height:1.25;overflow-wrap:anywhere;}'
+  + '#uim-msg{font-size:13.5px;color:#adadb2;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;margin-bottom:16px;}'
   + '.uim-field{display:block;margin-bottom:12px;}'
-  + '.uim-label{display:block;font-size:10px;font-weight:500;letter-spacing:1.4px;text-transform:uppercase;color:#8d8d94;margin:0 0 7px;}'
-  + '.uim-input{width:100%;box-sizing:border-box;background:#202024;border:1px solid #45454c;border-radius:6px;color:#f4f3f0;font-size:13.5px;font-weight:500;padding:10px 13px;outline:none;font-family:inherit;transition:border-color .18s;}'
+  + '.uim-label{display:block;font-family:\'Outfit\',system-ui,sans-serif;font-size:12px;font-weight:700;letter-spacing:.2px;color:#adadb2;margin:0 0 6px;}'
+  + '.uim-input{width:100%;box-sizing:border-box;background:#2c2c31;border:1px solid #45454c;border-radius:6px;color:#f4f3f0;font-size:14px;font-weight:500;padding:11px 13px;outline:none;font-family:inherit;transition:border-color .18s;}'
   + '.uim-input:focus{border-color:#c0aeea;}'
-  + '#uim-err{font-size:12.5px;color:#d68a7c;font-weight:500;min-height:15px;margin-bottom:4px;}'
+  + '#uim-err{font-family:\'JetBrains Mono\',monospace;font-size:12px;color:#d68a7c;min-height:15px;margin-bottom:4px;}'
   + '#uim-btns{display:flex;gap:10px;margin-top:20px;justify-content:flex-end;}'
-  + '#uim-btns button{border:1px solid #45454c;background:transparent;border-radius:6px;padding:9px 16px;font-size:11.5px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;font-family:inherit;transition:border-color .18s,color .18s;}'
-  + '#uim-cancel{color:#f4f3f0;}'+'#uim-cancel:hover{border-color:#adadb2;}'
+  // A button is an OUTLINE in this program, and primary vs destructive differ
+  // by which colour that outline GLOWS - never by filling it in. A solid purple
+  // block in the dialog would be the one control in RiftIQ that reads that way.
+  + '#uim-btns button{flex:0 0 auto;min-height:38px;border:1px solid #45454c;background:transparent;border-radius:8px;padding:0 18px;font-family:\'JetBrains Mono\',monospace;font-size:12px;font-weight:700;letter-spacing:.2px;cursor:pointer;transition:border-color .18s,color .18s,box-shadow .18s;}'
+  + '#uim-cancel{color:#adadb2;}'
+  + '#uim-cancel:hover{border-color:#adadb2;color:#f4f3f0;}'
+  + '#uim-ok{border-color:rgba(192,174,234,.45);color:#dbd0f5;}'
+  + '#uim-ok:hover{border-color:#c0aeea;box-shadow:0 0 0 1px rgba(192,174,234,.45),0 0 16px rgba(192,174,234,.45);}'
+  + '#uim-ok.uim-danger{border-color:rgba(214,138,124,.5);color:#d68a7c;}'
+  + '#uim-ok.uim-danger:hover{border-color:#d68a7c;box-shadow:0 0 0 1px rgba(214,138,124,.5),0 0 16px rgba(214,138,124,.45);}'
+  + '#uim-box button:focus-visible{outline:none;border-color:#c0aeea;box-shadow:0 0 0 1px rgba(192,174,234,.45),0 0 16px rgba(192,174,234,.45);}'
+  // Touch: real targets, and 16px on the input because anything smaller makes
+  // iOS zoom the page the moment it is focused.
+  + '@media (pointer: coarse){#uim-btns button{min-height:46px;padding:0 20px;font-size:13px;}.uim-input{padding:13px;font-size:16px;}}'
+  // A narrow phone gets a bottom sheet with full-width rows: two buttons side
+  // by side at 390px are thumb-width slivers in the corner, and the primary one
+  // belongs above the cancel where the thumb already is.
+  + '@media (max-width:430px){#uim-overlay{align-items:flex-end;padding:14px 14px calc(14px + env(safe-area-inset-bottom));}'
+  +   '#uim-box{max-width:100%;border-radius:14px;padding:20px 18px;max-height:calc(100dvh - 28px);}'
+  +   '#uim-btns{flex-direction:column-reverse;gap:8px;}#uim-btns button{width:100%;}}'
   + '';
   var queue=[], active=null;
   function el(id){ return document.getElementById(id); }
@@ -10764,7 +10794,8 @@ if (!window.__wrGateBlocked) window.warRoomBoot();
     });
     el('uim-err').textContent='';
     var ok=el('uim-ok'), ca=el('uim-cancel');
-    ok.textContent=cfg.okLabel||'OK'; ok.style.background=cfg.danger?'#c96f60':ACCENT;
+    ok.textContent=cfg.okLabel||'OK';
+    ok.classList.toggle('uim-danger', !!cfg.danger);
     ca.textContent=cfg.cancelLabel||'Cancel'; ca.style.display=(cfg.kind==='alert')?'none':'';
     el('uim-overlay').classList.add('show');
     setTimeout(function(){ var fi=fw.querySelector('input'); if(fi){ fi.focus(); try{fi.select();}catch(e){} } else ok.focus(); }, 40);
