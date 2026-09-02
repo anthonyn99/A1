@@ -18896,12 +18896,20 @@ function emptyData(template, data) {
       var dates = d.dates || {};
       return Object.keys(dates).every(function (k) { return emptyHtml(dates[k] && dates[k].html); });
     }
+    // The two visual templates keep their content in their OWN document (see
+    // the VizEngine block), so the entry carries a fingerprint instead: vizRev
+    // is the board's revision and vizCount its meaningful-content measure —
+    // element count for a whiteboard, branches-plus-a-named-root for a mind
+    // map, deliberately 0 for a freshly created board nobody has touched.
+    // vizRev is what says "this entry has been converted"; without it the entry
+    // is still on the old model and the legacy tests below are the right ones.
     case 'mindmap': {
+      if (d.vizRev) return !(d.vizCount > 0);
       var n = d.nodes || [];
       if (n.length > 1 || (d.edges || []).length) return false;
       return !n.length || !n[0].label || n[0].label === 'Central Idea';   // untouched default
     }
-    case 'whiteboard': return !d.canvas;
+    case 'whiteboard': return d.vizRev ? !(d.vizCount > 0) : !d.canvas;
     // An unrecognised template must never be called empty — the guards below
     // read "not empty" as "leave it alone", which is the safe direction.
     default: return false;
@@ -18951,8 +18959,13 @@ function sig(template, data, title) {
       Object.keys(dates).sort().forEach(function (k) { parts.push(k, (dates[k] && dates[k].html) || ''); });
       break;
     }
-    case 'mindmap':    parts.push(JSON.stringify(d.nodes || []), JSON.stringify(d.edges || [])); break;
-    case 'whiteboard': parts.push(String((d.canvas || '').length)); break;
+    // vizRev increments once per committed board change, so it is a cheaper and
+    // sharper "did anything change" than re-serialising a scene that already
+    // has its own change detection.
+    case 'mindmap':    parts.push('v' + (d.vizRev || 0), String(d.vizCount || 0), d.vizTitle || '',
+                                  JSON.stringify(d.nodes || []), JSON.stringify(d.edges || [])); break;
+    case 'whiteboard': parts.push('v' + (d.vizRev || 0), String(d.vizCount || 0), d.vizTitle || '',
+                                  String((d.canvas || '').length)); break;
     default:           try { parts.push(JSON.stringify(d)); } catch (e) { parts.push('?'); }
   }
   try { parts.push(JSON.stringify(d.attachments || [])); } catch (e) {}
@@ -22102,21 +22115,6 @@ function saveState() {
   }
 }
 
-// Called after every whiteboard stroke to sync canvas live
-function saveCanvas() {
-  var entry = getActive();
-  if (!entry || entry.template !== 'whiteboard' || !wbCanvas) return;
-  if (window._bjGetLock && window._bjGetLock(entry.id) && !(window._bjIsUnlocked && window._bjIsUnlocked(entry.id))) return;
-  // Use JPEG at 0.85 quality — typically 5-10× smaller than PNG, well within 1MB Firestore limit
-  var dataURL = wbCanvas.toDataURL('image/png');
-  entry.data.canvas = dataURL;
-  // localStorage canvas backup
-  try { localStorage.setItem(BJ_CANVAS_KEY(entry.id), dataURL); } catch(e) {}
-  // Firebase canvas sync
-  _bjSetSync('syncing');
-  if (window._fbSaveCanvas) window._fbSaveCanvas(entry.id, dataURL);
-}
-
 // Merge remote state into local.
 // With the new per-entry field storage model, each entry arrives independently.
 // No collision is possible between two users editing different entries.
@@ -22495,10 +22493,10 @@ function getActive() { return state.entries.find(e => e.id === state.activeId) |
 function createEntry(template) {
   const id = 'e_' + Date.now() + '_' + Math.random().toString(36).slice(2);
   const entry = { id, title: '', template: template || 'notes', created: Date.now(), updated: Date.now(), tags: [], data: {} };
-  if (template === 'whiteboard') entry.data = { canvas: '', history: [], attachments: [] };
+  if (template === 'whiteboard') entry.data = { attachments: [] };
   if (template === 'notes') entry.data = { main: '', links: '', questions: '', attachments: [] };
   if (template === 'cornell') entry.data = { topic: '', cues: '', notes: '', summary: '', attachments: [] };
-  if (template === 'mindmap') entry.data = { nodes: [{ id: 1, x: 340, y: 220, label: 'Central Idea', root: true }], edges: [], attachments: [] };
+  if (template === 'mindmap') entry.data = { attachments: [] };
   if (template === 'page') entry.data = { html: '', attachments: [] };
   // Unsynced until the cloud confirms it — without this an authoritative resync
   // arriving in the next second would prune an entry the server has never seen.
@@ -23837,7 +23835,6 @@ function _bjPageInsertFileChip(name, dataURL, mimeType) {
 // ── DRAG & DROP FILE UPLOAD (all templates) ─────────────────────────────────
 (function() {
   var DROP_ZONES = [
-    { areaId: 'bj-wb-canvas-wrap', zoneId: 'bj-wb-drop-zone',     tmpl: 'whiteboard' },
     { areaId: 'bj-notes-area',     zoneId: 'bj-notes-drop-zone',   tmpl: 'notes'      },
     { areaId: 'bj-cornell-area',   zoneId: 'bj-cornell-drop-zone', tmpl: 'cornell'    },
     { areaId: 'bj-mindmap-area',   zoneId: 'bj-mm-drop-zone',      tmpl: 'mindmap'    },
@@ -24222,6 +24219,7 @@ function autoSave() {
 // (DOM→state), then flush the pending Firebase write. Called on tab-hide/close so the
 // last few hundred ms of typing (still inside the debounce) can't be lost.
 window._bjPersistNow = function() {
+  try { if (window._bjFlushBoards) window._bjFlushBoards(); } catch(e) {}
   try { clearTimeout(autoTimer); if (getActive()) saveCurrentEntry(); } catch(e) {}
   try { if (window._fbFlushJournal) return window._fbFlushJournal(); } catch(e) {}
 };
@@ -24236,10 +24234,11 @@ document.getElementById('bj-page-editor').addEventListener('input', autoSave);
 document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 's') {
     e.preventDefault(); saveCurrentEntry();
+    if (window._bjFlushBoards) window._bjFlushBoards();
   }
-  if ((e.ctrlKey || e.metaKey) && e.key === 'z' && getActive()?.template === 'whiteboard') {
-    e.preventDefault(); document.getElementById('bj-wb-undo').click();
-  }
+  // Undo/redo inside a board belong to the board — both editors bind their own
+  // Ctrl+Z / Ctrl+Shift+Z on their container, and a second handler here would
+  // fire for the same keystroke.
 });
 
 /* EDIT MODE */
@@ -24247,21 +24246,17 @@ let isEditMode = false;
 function setEditMode(enabled) {
   isEditMode = enabled;
   const checkbox = document.getElementById('bj-btn-edit');
-  const wbToolbar = document.getElementById('bj-wb-toolbar');
-  const mmToolbar = document.getElementById('bj-mm-toolbar');
   checkbox.checked = enabled;
   const modeLabel = document.getElementById('bj-mode-label');
   if (modeLabel) {
     modeLabel.textContent = enabled ? 'EDIT' : 'VIEW';
     modeLabel.classList.toggle('edit-active', enabled);
   }
-  if (enabled) {
-    if (wbToolbar) wbToolbar.classList.add('edit-mode');
-    if (mmToolbar) mmToolbar.classList.add('edit-mode');
-  } else {
-    if (wbToolbar) wbToolbar.classList.remove('edit-mode');
-    if (mmToolbar) mmToolbar.classList.remove('edit-mode');
-  }
+  // View mode puts Excalidraw into its own viewModeEnabled and Mind Elixir into
+  // disableEdit(), so panning, zooming and reading still work but nothing can be
+  // changed — the same contract the text templates get from readOnly.
+  if (_bjBoards.wb) _bjBoards.wb.setEditable(enabled);
+  if (_bjBoards.mm) _bjBoards.mm.setEditable(enabled);
   const editableIds = [
     'bj-entry-title-input','bj-notes-main','bj-notes-links','bj-notes-questions',
     'bj-cornell-topic','bj-cornell-cues-ta','bj-cornell-notes-ta','bj-cornell-summary-ta',
@@ -24273,10 +24268,6 @@ function setEditMode(enabled) {
   });
   const ctInput = document.getElementById('bj-cornell-topic');
   if (ctInput) ctInput.readOnly = !enabled;
-  const wbC = document.getElementById('bj-wb-canvas');
-  if (wbC) wbC.style.pointerEvents = enabled ? 'auto' : 'none';
-  const mmC = document.getElementById('bj-mm-canvas');
-  if (mmC) mmC.style.pointerEvents = enabled ? 'auto' : 'none';
   // Page editor
   const pgEd = document.getElementById('bj-page-editor');
   if (pgEd) pgEd.contentEditable = enabled ? 'true' : 'false';
@@ -24591,34 +24582,25 @@ function exportEntryAsPDF(entry) {
   var date = new Date(entry.updated || entry.created).toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
   var tags = (entry.tags || []).length ? entry.tags.join(', ') : '';
 
-  // For whiteboard: open canvas image in print window
-  if (entry.template === 'whiteboard') {
-    var canvas = document.getElementById('bj-wb-canvas');
-    var dataURL = canvas ? canvas.toDataURL('image/png') : (entry.data.canvas || '');
-    var wbHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + _bjEsc(_bjPdfName(title)) + '</title>'
-      + '<style>body{margin:0;background:#fff;}img{max-width:100%;display:block;}h1{font-family:serif;font-size:18px;margin:16px;}p{font-family:sans-serif;font-size:12px;color:#666;margin:0 16px 12px;}@media print{h1,p{display:block;}}</style>'
-      + '</head><body>'
-      + '<h1>' + _bjEsc(title) + '</h1>'
-      + '<p>' + _bjEsc(date) + (tags ? ' &middot; ' + _bjEsc(tags) : '') + '</p>'
-      + (dataURL ? '<img src="' + dataURL + '" />' : '<p style="color:#aaa;font-style:italic;padding:16px;">Empty whiteboard.</p>')
-      + '</body></html>';
-    _bjOpenPrintBlob(wbHtml);
-    return;
-  }
-
-  // For mindmap: grab canvas snapshot directly
-  if (entry.template === 'mindmap') {
-    var mmCv = document.getElementById('bj-mm-canvas');
-    if (!mmCv) { alert('Mindmap not rendered.'); return; }
-    var dataURL = mmCv.toDataURL('image/png');
-    var mmHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + _bjEsc(_bjPdfName(title)) + '</title>'
-      + '<style>body{margin:0;background:#fff;}img{max-width:100%;display:block;}h1{font-family:serif;font-size:18px;margin:16px;}p{font-family:sans-serif;font-size:12px;color:#666;margin:0 16px 12px;}</style>'
-      + '</head><body>'
-      + '<h1>' + _bjEsc(title) + '</h1>'
-      + '<p>' + _bjEsc(date) + (tags ? ' &middot; ' + _bjEsc(tags) : '') + '</p>'
-      + '<img src="' + dataURL + '" />'
-      + '</body></html>';
-    _bjOpenPrintBlob(mmHtml);
+  // Visual templates: ask the live board to render itself. Both engines export
+  // at their own resolution with a light background, so the printed page is a
+  // clean image of the work rather than a screenshot of a dark UI.
+  if (entry.template === 'whiteboard' || entry.template === 'mindmap') {
+    var _vbrd = _bjBoards[entry.template === 'whiteboard' ? 'wb' : 'mm'];
+    if (!_vbrd || !_vbrd.isOpen(entry.id)) {
+      window.uiAlert('Open this ' + (entry.template === 'whiteboard' ? 'whiteboard' : 'mind map') + ' before exporting it to PDF.', { title: 'Nothing to export' });
+      return;
+    }
+    _vbrd.toPngDataUrl().then(function (dataURL) {
+      var vHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + _bjEsc(_bjPdfName(title)) + '</title>'
+        + '<style>body{margin:0;background:#fff;}img{max-width:100%;display:block;}h1{font-family:serif;font-size:18px;margin:16px;}p{font-family:sans-serif;font-size:12px;color:#666;margin:0 16px 12px;}@media print{h1,p{display:block;}}</style>'
+        + '</head><body>'
+        + '<h1>' + _bjEsc(title) + '</h1>'
+        + '<p>' + _bjEsc(date) + (tags ? ' &middot; ' + _bjEsc(tags) : '') + '</p>'
+        + (dataURL ? '<img src="' + dataURL + '" />' : '<p style="color:#aaa;font-style:italic;padding:16px;">This board is empty.</p>')
+        + '</body></html>';
+      _bjOpenPrintBlob(vHtml);
+    });
     return;
   }
 
