@@ -1840,6 +1840,40 @@ async function sosResolveBlob(f) {
   return null;
 }
 
+// Put a file on the system clipboard so it can be pasted into ANOTHER web app
+// (Gemini, NotebookLM, ChatGPT, Slack…). This is the only path that actually
+// crosses origins: a drag from one web page to another cannot carry a file,
+// because a script-created File is never serialised outside its own browsing
+// context — the target's dropzone lights up on dragover (it sees a file-kind
+// item) and then reads an empty dataTransfer.files on drop. See _sosDragOutHint.
+// navigator.clipboard.write() only accepts a small set of MIME types; anything
+// else has to fall back to Save (a real on-disk file the user can then drag).
+async function sosCopyFileToClipboard(f) {
+  const blob = await sosResolveBlob(f);
+  if (!blob) return false;
+  if (!navigator.clipboard || !navigator.clipboard.write || typeof ClipboardItem === 'undefined') return false;
+  const mime = f.mime || blob.type || 'application/octet-stream';
+  try {
+    // Must be constructed with the blob's real type; a mismatch throws.
+    const typed = blob.type === mime ? blob : new Blob([blob], { type: mime });
+    await navigator.clipboard.write([new ClipboardItem({ [mime]: typed })]);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+// Explain, once per session, why a drag into another browser tab did nothing —
+// and offer the two routes that do work. Fired from dragend when the drag was
+// not consumed (dropEffect 'none'), which is exactly the failed-cross-page case.
+let _sosDragHintShown = false;
+function _sosDragOutHint() {
+  if (_sosDragHintShown) return;
+  _sosDragHintShown = true;
+  showNotif(SOI.clip, 'Nothing accepted that drop',
+    'A browser can’t hand a file from one web page to another — Gemini and NotebookLM will highlight the box but receive nothing. Use the paperclip button on the file — it copies images to the clipboard to paste with Ctrl+V, and downloads anything else so you can drag it in from your Downloads folder.');
+}
+
 async function sosOpenFile(f) {
   const blob = await sosResolveBlob(f);
   if (blob) {
@@ -1952,15 +1986,17 @@ function refreshDocList(listEl, cls, mod) {
     item.className = 'doc-item';
     item.dataset.id = f.id;
     item.style.cursor = 'pointer';
-    item.title = 'Click to open · drag out to copy into another app';
+    item.title = 'Click to open · drag out to a folder · use Copy to paste into another website';
 
-    // ── Drag-out: drag this file into Explorer / Office / Slack / any app ──
-    // We put a real File into the drag via dataTransfer.items.add() (for
-    // same-browser drop targets) plus DownloadURL (so the OS file manager
-    // writes the actual file out). No text/uri-list — that's what made targets
-    // paste a link as text. NOTE: a sandboxed web page can only offer a
-    // "virtual file", which apps like Claude (that need a real on-disk path)
-    // won't accept — that's a hard browser limitation, not fixable here.
+    // ── Drag-out: drag this file into Explorer / the desktop / a native app ──
+    // DownloadURL is what makes the OS shell write a real file out on drop, and
+    // items.add() covers drop targets inside this same page. What neither can do
+    // is reach ANOTHER web page (Gemini, NotebookLM, ChatGPT): a File built in
+    // script is not serialised across browsing contexts, so their dropzone
+    // highlights on dragover — it sees a file-kind item — and then reads an
+    // empty dataTransfer.files on drop and discards it. That silent failure is
+    // why dragend below offers Copy/Save instead of leaving the user retrying.
+    // No text/uri-list — that's what made targets paste a link as text.
     // The payload must be ready synchronously at dragstart, so we pre-build it
     // on hover / mousedown (IndexedDB reads can't run inside dragstart).
     item.draggable = true;
@@ -1986,7 +2022,10 @@ function refreshDocList(listEl, cls, mod) {
       if (_dragUrl) ev.dataTransfer.setData('DownloadURL', mime + ':' + f.name + ':' + _dragUrl);
       ev.dataTransfer.effectAllowed = 'copy';
     });
-    item.addEventListener('dragend', () => {
+    item.addEventListener('dragend', ev => {
+      // dropEffect 'none' means nothing accepted the drag. A drop onto another
+      // browser tab lands here too: the page took the drop but got no file.
+      if (ev.dataTransfer && ev.dataTransfer.dropEffect === 'none') _sosDragOutHint();
       if (_dragUrl) { const u = _dragUrl; setTimeout(() => URL.revokeObjectURL(u), 60000); }
       _dragFile = null; _dragUrl = null; _dragReady = false;
     });
@@ -2016,6 +2055,30 @@ function refreshDocList(listEl, cls, mod) {
       sosDownloadFile(f);
     });
 
+    // Copy to clipboard — the one route into another web app's upload box
+    // (Gemini/NotebookLM/ChatGPT all accept a pasted file; none can receive a
+    // drag from this page). Falls back to a download when the OS clipboard
+    // refuses the type, since a real on-disk file can be dragged from Explorer.
+    const cpBtn = document.createElement('button');
+    cpBtn.title = 'Send to another app — copies images to the clipboard, downloads everything else';
+    cpBtn.innerHTML = SOI.clip;
+    cpBtn.style.cssText = 'background:none;cursor:pointer;color:var(--text3);text-decoration:none;font-size:14px;padding:4px 8px;border-radius:4px;transition:0.15s;border:1px solid var(--border)';
+    cpBtn.addEventListener('mouseover', () => { cpBtn.style.color='var(--accent)'; cpBtn.style.borderColor='var(--accent)'; });
+    cpBtn.addEventListener('mouseout',  () => { cpBtn.style.color='var(--text3)';  cpBtn.style.borderColor='var(--border)'; });
+    cpBtn.addEventListener('click', async e => {
+      e.stopPropagation();
+      const ok = await sosCopyFileToClipboard(f);
+      if (ok) {
+        showNotif(SOI.check, 'Copied to clipboard', 'Click the upload box in the other app and press Ctrl+V.');
+      } else {
+        // Expected for PDF/DOCX/PPTX: the OS clipboard only carries a short
+        // list of types (images, text), so a download is the working route —
+        // once it's on disk it can be dragged or file-picked into any app.
+        showNotif(SOI.download, 'Downloaded instead', 'The clipboard can’t hold this file type. It’s in your Downloads folder — drag it into the upload box from there.');
+        sosDownloadFile(f);
+      }
+    });
+
     // Cloud-sync status — a readable word + live percentage, not a lone glyph,
     // so it's obvious at a glance whether a file has actually reached the cloud.
     const cloudEl = document.createElement('div');
@@ -2036,6 +2099,7 @@ function refreshDocList(listEl, cls, mod) {
     item.appendChild(nameEl);
     item.appendChild(sizeEl);
     item.appendChild(cloudEl);
+    item.appendChild(cpBtn);
     item.appendChild(dlBtn);
 
     if (editOn) {

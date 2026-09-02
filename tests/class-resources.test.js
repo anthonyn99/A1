@@ -361,6 +361,44 @@ t('class resources are opened with open_target, not open_path',
   'open_path requires Path::exists(), so every website would be dropped as\n' +
   '      "notfound" and only the native apps would open.');
 
+/* ---------- Part 5: file drag-out can't silently no-op ----------------------
+   Dragging a resource onto Gemini/NotebookLM's upload box highlighted the box
+   and then dropped NOTHING, with no error anywhere. The cause is structural:
+   a File built in script is not serialised across browsing contexts, so a
+   cross-page drop reads an empty dataTransfer.files. Nothing here can fix
+   that, so the row must offer a route that does cross origins (clipboard, or
+   a real file on disk) and must SAY so when a drag is refused - otherwise the
+   only feedback is a highlight that lies. */
+section('Drag-out degrades loudly, not silently');
+t('a refused drag tells the user why',
+  /dropEffect === 'none'\) _sosDragOutHint\(\)/.test(STUDYOS),
+  'Without this the failed cross-page drop is indistinguishable from a\n' +
+  '      successful one - the box highlights either way.');
+t('the hint fires at most once per session',
+  /_sosDragHintShown\) return;\s*\n\s*_sosDragHintShown = true;/.test(STUDYOS),
+  'A notification on every retry would bury the advice it is giving.');
+t('_sosDragOutHint takes no argument its caller stopped passing',
+  /function _sosDragOutHint\(\)/.test(STUDYOS),
+  'The call site passes nothing; a named parameter here would read undefined.');
+t('rows offer a clipboard route out',
+  /item\.appendChild\(cpBtn\);/.test(STUDYOS) &&
+  /async function sosCopyFileToClipboard/.test(STUDYOS),
+  'The clipboard is the ONLY transfer that reaches another origin, so without\n' +
+  '      this button the drag failure leaves no working path at all.');
+t('a clipboard type the OS refuses falls back to a download',
+  /const ok = await sosCopyFileToClipboard\(f\);[\s\S]{0,600}?\} else \{[\s\S]{0,900}?sosDownloadFile\(f\)/.test(STUDYOS),
+  'ClipboardItem rejects PDF/DOCX - the common case here - so a bare copy\n' +
+  '      would fail for most resources with nothing to fall back on.');
+t('the clipboard write is guarded for browsers without ClipboardItem',
+  /typeof ClipboardItem === 'undefined'\) return false/.test(STUDYOS),
+  'An unguarded reference throws a ReferenceError instead of falling back.');
+t('the row tooltip no longer promises drag works into any app',
+  !/drag out to copy into another app/.test(STUDYOS),
+  'That wording is what sent the user retrying the drag into Gemini.');
+t('DownloadURL is still set, so dragging to Explorer keeps working',
+  /setData\('DownloadURL', mime \+ ':' \+ f\.name \+ ':' \+ _dragUrl\)/.test(STUDYOS),
+  'The OS-shell drop is a real, working path and must not be lost in the fix.');
+
 // ---------------------------- summary ---------------------------------------
 console.log('\n' + (fail ? 'FAIL' : 'PASS') + ' class-resources: ' + pass + ' passed, ' + fail + ' failed');
 if (fail) { console.log('\nFailures:\n  - ' + failures.join('\n  - ')); process.exit(1); }
