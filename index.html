@@ -23092,7 +23092,17 @@ function saveCurrentEntry() {
     _next.notes = document.getElementById('bj-cornell-notes-ta').value;
     _next.summary = document.getElementById('bj-cornell-summary-ta').value;
   }
-  if (entry.template === 'mindmap-legacy') { _next.nodes = mmNodes; _next.edges = mmEdges; }
+  // COPIED, not handed over. Object.assign below puts whatever is in _next onto
+  // entry.data, so passing the live arrays would make entry.data.nodes and
+  // mmNodes the same object from the first save onwards — and the no-op guard
+  // further down, which asks whether entry.data differs from _next, would be
+  // comparing an array to itself and answering "nothing changed" forever. The
+  // symptom is precise and easy to miss: the first edit to a map saves, and
+  // every later drag only persists if some unrelated saveState() happens to run.
+  if (entry.template === 'mindmap-legacy') {
+    _next.nodes = JSON.parse(JSON.stringify(mmNodes));
+    _next.edges = JSON.parse(JSON.stringify(mmEdges));
+  }
   if (entry.template === 'page') { _next.html = document.getElementById('bj-page-editor').innerHTML; }
 
   // Auto-title: derive from content while the title is empty; a user-typed title
