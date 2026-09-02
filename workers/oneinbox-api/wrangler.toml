@@ -40,6 +40,11 @@ invocation_logs = true
 #   oi:gat                 → cached Google service-account token (Firestore)
 #   oi:state:<nonce>       → in-flight OAuth state (5 min TTL)
 #   oi:cron                → { lastWatch, lastReconcile, lastSched }
+#   oi:gate                → { v } classifier-rules version. When v trails
+#                            GATE_VERSION the next tick re-checks every card
+#                            already on the week and drops the ones the current
+#                            rules reject, then re-stamps. One KV read per tick
+#                            otherwise; a write only when the rules move.
 [[kv_namespaces]]
 binding = "OI_KV"
 id = "b51e916cf3bf4f37ad146af5ca031575"
