@@ -20003,10 +20003,10 @@ function createBoard(cfg) {
   function loadDoc(entry) {
     var id = entry.id;
     var cached = S.idbGet(cacheKey(id));
-    var remote = S.fbReady() ? S.readChunked(baseId(id)).catch(function (e) {
+    var remote = capped(S.fbReady() ? S.readChunked(baseId(id)).catch(function (e) {
       console.warn('[viz] cloud read failed:', e && (e.code || e.message));
       return null;
-    }) : Promise.resolve(null);
+    }) : Promise.resolve(null));
 
     return Promise.all([cached, remote]).then(function (r) {
       var c = r[0], rem = r[1];
