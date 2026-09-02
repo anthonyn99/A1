@@ -338,6 +338,53 @@ function makeRig(opts) {
       /function _fbIsTerminated\(e\)\{/.test(HTML),
       'Swallowing it is what made the popup blame the connection.');
 
+    // BEHAVIOURAL, not textual. The three assertions above all passed while the
+    // detector was broken, because they only prove _fbIsTerminated is CALLED --
+    // not that it returns true for the error Firestore actually throws.
+    //
+    // Firestore throws exactly:
+    //   new FirestoreError(FAILED_PRECONDITION, 'The client has already been terminated')
+    // and FirestoreError sets BOTH `code` and `message`. The old detector tested
+    // `e.code || e.message`, so it only ever saw 'failed-precondition' and the
+    // message-matching regex never received the message. Result: every
+    // terminated-client read was recorded as _fbLastServerErr='failed-precondition'
+    // and shown to the user as 'The cloud could not be reached (failed-precondition)'
+    // with advice to wait -- for a client waiting cannot revive. So run the real
+    // error shape through the real function.
+    {
+      const _i = HTML.indexOf('function _fbIsTerminated');
+      const _end = _i < 0 ? -1 : HTML.indexOf('\n  }', _i);
+      const src = _end < 0 ? '' : HTML.slice(_i, _end + 4);
+      ok('_fbIsTerminated is extractable for behavioural testing', !!src);
+      if (src) {
+        const isTerm = new Function(src + '; return _fbIsTerminated;')();
+        class FirestoreError extends Error {
+          constructor(code, message){ super(message); this.name='FirebaseError'; this.code=code; this.message=message; }
+        }
+        ok('detects the REAL terminated error (code+message, as Firestore throws it)',
+          isTerm(new FirestoreError('failed-precondition','The client has already been terminated')),
+          'e.code||e.message hides the message behind the code -- this is the popup bug.');
+        ok('detects the trailing-period variant from ensureFirestoreConfigured',
+          isTerm(new FirestoreError('failed-precondition','The client has already been terminated.')));
+        ok('detects an INTERNAL ASSERTION failure',
+          isTerm(new FirestoreError('internal','FIRESTORE INTERNAL ASSERTION FAILED: Unexpected state')));
+        ok('detects a bare Error carrying only the message',
+          isTerm(new Error('The client has already been terminated')));
+        // Negatives matter as much: swallowing these as 'terminated' would hide a real
+        // permissions problem or a genuinely missing index behind a silent retry.
+        ok('does NOT swallow permission-denied',
+          !isTerm(new FirestoreError('permission-denied','Missing or insufficient permissions.')),
+          'permission-denied must stay visible -- waiting never fixes it.');
+        ok('does NOT swallow a genuine failed-precondition (missing index)',
+          !isTerm(new FirestoreError('failed-precondition','The query requires an index.')),
+          'Only a failed-precondition ABOUT termination is a terminated client.');
+        ok('does NOT swallow an unavailable outage',
+          !isTerm(new FirestoreError('unavailable','The service is currently unavailable.')));
+        ok('does NOT swallow the fresh-timeout sentinel', !isTerm(new Error('fresh-timeout')));
+        ok('tolerates null', !isTerm(null));
+      }
+    }
+
     for (const [label, rebuild, pend] of [
       ['TaskHub', '_thRebuildPayload', '_pendingPayload'],
       ['Veda',    '_vdRebuildPayload', '_vdPendingPayload'],

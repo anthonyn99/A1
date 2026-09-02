@@ -9068,8 +9068,21 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   // "The client has already been terminated" is not a network condition: it means
   // the ref belongs to a Firestore instance _teardown() killed. It is permanent for
   // that ref, so it must never be retried or reported as an outage.
+  // Test the code AND the message, never one-or-the-other. Firestore throws this
+  // as `new FirestoreError(FAILED_PRECONDITION, "The client has already been
+  // terminated")`, so the object ALWAYS carries a `code` — and `e.code ||
+  // e.message` therefore never reached the message this regex was written to
+  // match. The detector could not detect the one condition it exists for: every
+  // terminated-client read fell through and was recorded as
+  // _fbLastServerErr = 'failed-precondition', then reported to the user as
+  // "The cloud could not be reached (failed-precondition)" — an outage that was
+  // not happening, with advice ("keep this tab open, it retries") that could
+  // never help, because waiting does not revive a terminated client. Matching
+  // the code is what makes the self-heal in _fbWatchStall actually reachable.
   function _fbIsTerminated(e){
-    const m = (e && (e.code || e.message) || '') + '';
+    if (!e) return false;
+    if (e.code === 'failed-precondition' && /terminated/i.test((e.message || '') + '')) return true;
+    const m = [e.code, e.message].filter(Boolean).join(' ');
     return /already been terminated|client has been terminated|INTERNAL ASSERTION/i.test(m);
   }
   // Marks the snapshots that came back from getDocFromServer (a genuine, confirmed
