@@ -1586,10 +1586,15 @@ function useTBJournal(){
           const absorbedWb=new Set();       /* 'wb:'+_wbId */
           const absorbedContent=new Set();  /* content fp of EVERY existing leg */
           map.forEach(entry=>{const tk=entry.ticker;(entry.legs||[]).forEach(l=>{if(l._wbId)absorbedWb.add('wb:'+l._wbId);absorbedContent.add(fpOf(tk,l));});});
-          /* Find the most-recent OPEN entry for a ticker (buyQty > sellQty, not CLOSED) */
+          /* Find the most-recent OPEN entry for a ticker (buyQty > sellQty, not CLOSED).
+             WEBULL entries only. This used to consider every entry for the ticker,
+             so an incoming fill could be appended onto a manual or hand-corrected
+             trade — and since tbReconcileWebull only ever rebuilds source:'webull'
+             entries, that stray leg then stayed there for good. */
           const findOpenEntry=ticker=>{
             let best=null;
             map.forEach(entry=>{
+              if(entry.source!=='webull')return;
               if((entry.ticker||'').toUpperCase()!==ticker.toUpperCase())return;
               const legs=entry.legs||[];
               const bq=legs.filter(l=>l.action==='BUY').reduce((s,l)=>s+(parseFloat(l.qty)||0),0);
@@ -2257,6 +2262,17 @@ function TBTradeModal({entry,onClose,onSave,onDel}){
       side:'BUY',qty:legs.filter(l=>l.action==='BUY').reduce((s,l)=>s+(parseFloat(l.qty)||0),0),
       avgFill:parseFloat(firstBuy.price)||0,date:firstBuy.datetime||new Date().toISOString(),
     };
+    /* ── Editing the legs of a Webull trade takes ownership of it ─────────────
+       tbReconcileWebull rebuilds EVERY source:'webull' entry on every sync and
+       Re-merge: it tips the ticker's legs into one pool and re-runs FIFO over
+       them. A correction typed in here would be dissolved back into that pool
+       and could be re-matched onto a different trade, so hand-fixing a trade the
+       Webull feed got wrong was impossible — the next sync undid it. Re-tagging
+       on a leg change moves the entry out of the pool for good; the row's source
+       badge flips from W to M so it is clear which trades you now own. Notes and
+       setup edits do not trigger this. */
+    const legFp=ls=>(ls||[]).map(l=>[l.action,String(l.datetime||'').slice(0,16),parseFloat(l.qty)||0,parseFloat(l.price)||0,parseFloat(l.fee)||0].join('|')).sort().join(';');
+    if(isEdit&&entry.source==='webull'&&legFp(entry.legs)!==legFp(payload.legs))payload.source='manual';
     const r=isEdit?await onSave(entry.id,payload):await onSave(payload);
     setSaving(false);
     if(r?.ok===false){setErr(r.error||'Failed');return;}
