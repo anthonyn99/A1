@@ -5541,9 +5541,11 @@ function TimePicker({value,onChange,T}){
 // Declared here rather than inside a component so both TaskHubs share ONE
 // counter — this file's two babel blocks are one scope.
 let _thScrollLocks=0,_thScrollPrev=null;
-function useScrollLock(active){
-  useEffect(()=>{
-    if(!active)return;
+// Plain-JS form, on window, so the uiAlert/uiConfirm/uiForm dialogs can share
+// this counter. They live in a separate script block and so could never call a
+// React hook — which is why a swipe behind them scrolled the page underneath.
+window._thScrollLock=function(on){
+  if(on){
     if(_thScrollLocks===0){
       _thScrollPrev={html:document.documentElement.style.overflow,
                      body:document.body.style.overflow};
@@ -5551,15 +5553,21 @@ function useScrollLock(active){
       document.body.style.overflow="hidden";
     }
     _thScrollLocks++;
-    return()=>{
-      _thScrollLocks--;
-      if(_thScrollLocks>0)return;
-      _thScrollLocks=0;
-      if(!_thScrollPrev)return;
-      document.documentElement.style.overflow=_thScrollPrev.html;
-      document.body.style.overflow=_thScrollPrev.body;
-      _thScrollPrev=null;
-    };
+    return;
+  }
+  _thScrollLocks--;
+  if(_thScrollLocks>0)return;
+  _thScrollLocks=0;
+  if(!_thScrollPrev)return;
+  document.documentElement.style.overflow=_thScrollPrev.html;
+  document.body.style.overflow=_thScrollPrev.body;
+  _thScrollPrev=null;
+};
+function useScrollLock(active){
+  useEffect(()=>{
+    if(!active)return;
+    window._thScrollLock(true);
+    return()=>{ window._thScrollLock(false); };
   },[active]);
 }
 
@@ -36137,9 +36145,9 @@ window._THV={
   if (window.uiModal) return;
   var ACCENT = '#e0b874';
   var CSS =
-    '#uim-overlay{position:fixed;inset:0;z-index:2147483000;display:none;align-items:center;justify-content:center;background:rgba(14,14,16,.66);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);padding:20px;box-sizing:border-box;}'
+    '#uim-overlay{position:fixed;inset:0;z-index:2147483000;display:none;align-items:center;justify-content:center;background:rgba(14,14,16,.66);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);padding:20px;box-sizing:border-box;overscroll-behavior:contain;touch-action:none;}'
   + '#uim-overlay.show{display:flex;}'
-  + '#uim-box{width:100%;max-width:370px;background:#2c2c31;border:1px solid #45454c;border-radius:9px;padding:26px 24px;box-shadow:0 30px 70px rgba(0,0,0,.48);box-sizing:border-box;font-family:\'Inter\',system-ui,-apple-system,sans-serif;animation:uimIn .16s ease;}'
+  + '#uim-box{width:100%;max-width:370px;max-height:calc(100vh - 40px);overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;background:#2c2c31;border:1px solid #45454c;border-radius:9px;padding:26px 24px;box-shadow:0 30px 70px rgba(0,0,0,.48);box-sizing:border-box;font-family:\'Inter\',system-ui,-apple-system,sans-serif;animation:uimIn .16s ease;}'
   + '@keyframes uimIn{from{transform:translateY(8px) scale(.98);opacity:0}to{transform:none;opacity:1}}'
   + '#uim-title{font-family:\'Manrope\',system-ui,sans-serif;font-size:20px;font-weight:600;letter-spacing:-.2px;color:#f4f3f0;margin-bottom:8px;line-height:1.25;}'
   + '#uim-msg{font-size:13.5px;color:#adadb2;line-height:1.55;white-space:pre-wrap;margin-bottom:16px;}'

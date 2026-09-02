@@ -715,13 +715,23 @@ body.wr-locked #wr-progbar { display: none !important; }
 
 .pp-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
 
+/* Icon on the left, copy beside it. Stacked, the card was as tall as its four
+   elements added up and the space to the right of a 54px badge went to waste;
+   laid out as a row the height is only ever what the words need, which is what
+   lets the card shrink vertically at every width. */
 .pp-card {
   position: relative; overflow: hidden;
-  display: flex; flex-direction: column; align-items: flex-start; gap: 7px;
-  padding: 24px 22px 26px; text-align: left; cursor: pointer;
+  display: flex; flex-direction: row; align-items: flex-start; gap: 16px;
+  padding: 20px 22px; text-align: left; cursor: pointer;
   background: var(--bg3); border: 1px solid var(--bd2); border-radius: 16px;
   color: var(--tx); font-family: var(--body);
   transition: border-color .2s, background .2s, transform .2s, box-shadow .2s;
+}
+/* min-width:0 so a long description wraps inside the card instead of widening
+   it past its grid track. */
+.pp-copy {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 5px;
+  min-width: 0; flex: 1 1 auto;
 }
 /* A thin accent bar that wipes across the top edge on hover. */
 .pp-card::before {
@@ -739,7 +749,7 @@ body.wr-locked #wr-progbar { display: none !important; }
 
 .pp-well {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 54px; height: 54px; margin-bottom: 6px; border-radius: 13px;
+  flex-shrink: 0; width: 54px; height: 54px; border-radius: 13px;
   background: rgba(192,174,234,.09); border: 1px solid rgba(192,174,234,.2);
   color: var(--gold); transition: background .2s, border-color .2s;
 }
@@ -760,7 +770,8 @@ body.wr-locked #wr-progbar { display: none !important; }
   #program-picker { padding: 20px 16px; align-items: flex-start; padding-top: 12vh; overflow-y: auto; }
   .pp-grid { grid-template-columns: 1fr; gap: 12px; }
   .pp-head { margin-bottom: 26px; }
-  .pp-card { padding: 18px 16px 20px; gap: 5px; }
+  .pp-card { padding: 16px; gap: 13px; }
+  .pp-copy { gap: 4px; }
   .pp-well { width: 46px; height: 46px; border-radius: 11px; }
   .pp-well svg { width: 28px; height: 28px; }
   .pp-name { font-size: 20px; }
@@ -1009,7 +1020,8 @@ html.lk-open, body.lk-open {
 .lk-check:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
 .lk-check:disabled { opacity: 0.55; cursor: default; }
 .lk-note {
-  padding: 8px 24px 0; min-height: 14px;
+  padding: 8px 24px 0; min-height: 22px;
+  display: flex; align-items: center; flex-wrap: wrap;
   font-family: var(--mono); font-size: 10px; letter-spacing: 0.3px; color: var(--gold);
 }
 .lk-body {
@@ -1058,6 +1070,54 @@ html.lk-open, body.lk-open {
 .lk-region { color: var(--tx2); font-weight: 700; }
 .lk-meta .lk-count { margin-left: 0; }
 
+/* The right-hand end of a row: the stats, then the two per-row controls. It
+   WRAPS rather than breaking at a chosen width - on a narrow screen the stats
+   drop above the buttons on their own, and the name keeps the width it needs
+   instead of being squeezed to an ellipsis by a fixed 80px of buttons. */
+.lk-side {
+  flex-shrink: 0; display: flex; align-items: center; justify-content: flex-end;
+  gap: 10px; flex-wrap: wrap; row-gap: 6px; max-width: 62%;
+}
+/* Always visible, never revealed on hover: on a touch screen a hover-only
+   control simply does not exist. */
+.lk-acts { flex-shrink: 0; display: flex; align-items: center; gap: 6px; }
+.lk-act {
+  width: 28px; height: 28px; flex-shrink: 0; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: 1px solid var(--bd2); border-radius: 6px;
+  color: var(--tx3); cursor: pointer;
+  transition: border-color .15s, color .15s, box-shadow .15s;
+}
+.lk-act:hover:not(:disabled) {
+  border-color: var(--gold); color: var(--gold);
+  box-shadow: 0 0 0 1px rgba(192,174,234,.4), 0 0 12px rgba(192,174,234,.35);
+}
+/* Removing is destructive, so it glows in its own colour - the same split the
+   rest of the program makes between a primary action and a deletion. */
+.lk-act-del:hover:not(:disabled) {
+  border-color: var(--red); color: var(--red);
+  box-shadow: 0 0 0 1px rgba(214,138,124,.45), 0 0 12px rgba(214,138,124,.4);
+}
+.lk-act:disabled { opacity: .5; cursor: default; box-shadow: none; }
+.lk-act-busy { border-color: var(--gold); color: var(--gold); opacity: 1; }
+.lk-act-busy svg { animation: lkspin .9s linear infinite; transform-origin: 50% 50%; }
+@keyframes lkspin { to { transform: rotate(360deg); } }
+@media (pointer: coarse) {
+  .lk-act { width: 36px; height: 36px; }
+  .lk-acts { gap: 8px; }
+}
+/* Undo for a removal. A row you tidy away by mistake takes its whole name
+   history with it, and that history is the only reason the tracker exists. */
+.lk-undo {
+  margin-left: 8px; height: 20px; padding: 0 9px; border-radius: 4px;
+  background: transparent; border: 1px solid rgba(192,174,234,.45);
+  color: var(--gold2); font-family: var(--mono); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.3px; cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
+}
+.lk-undo:hover { border-color: var(--gold); box-shadow: 0 0 10px rgba(192,174,234,.4); }
+@media (pointer: coarse) { .lk-undo { height: 28px; padding: 0 12px; font-size: 11px; } }
+
 /* Rename notice. Bottom-right so it never covers the profile header that the
    lookup just painted. */
 #lk-toast {
@@ -1090,6 +1150,7 @@ html.lk-open, body.lk-open {
   /* Meta stays on ONE line here. Stacked, it made every row ~100px tall and
      turned a six-account list into a scroll — the opposite of the point. */
   .lk-meta { gap: 8px; font-size: 9.5px; }
+  .lk-side { max-width: 58%; gap: 8px; }
   .lk-search { font-size: 11px; padding: 0 10px; }
   .lk-check { padding: 0 10px; font-size: 10px; }
   .lk-name { font-size: 13px; }
@@ -3421,9 +3482,11 @@ body.wr-scrolllocked {
             <rect x="45" y="62" width="6" height="11" rx="3" fill="currentColor" opacity=".55"/>
           </svg>
         </span>
-        <span class="pp-kicker">League of Legends</span>
-        <span class="pp-name">WarRoom</span>
-        <span class="pp-desc">Profiles, match history, builds, runes, ladder and live spectate.</span>
+        <span class="pp-copy">
+          <span class="pp-kicker">League of Legends</span>
+          <span class="pp-name">WarRoom</span>
+          <span class="pp-desc">Profiles, match history, builds, runes, ladder and live spectate.</span>
+        </span>
       </button>
       <button class="pp-card" onclick="openProgram('proview')">
         <span class="pp-well">
@@ -3433,9 +3496,11 @@ body.wr-scrolllocked {
             <rect x="34" y="72" width="28" height="5" rx="2.5" fill="currentColor" opacity=".55"/>
           </svg>
         </span>
-        <span class="pp-kicker">Esports</span>
-        <span class="pp-name">ProView</span>
-        <span class="pp-desc">Pro schedules, standings and results. Favorites land on your TaskHub.</span>
+        <span class="pp-copy">
+          <span class="pp-kicker">Esports</span>
+          <span class="pp-name">ProView</span>
+          <span class="pp-desc">Pro schedules, standings and results. Favorites land on your TaskHub.</span>
+        </span>
       </button>
     </div>
   </div>
@@ -4649,6 +4714,30 @@ const LOOKUPS_MAX = 400;
 let _lkIndex = {};       // puuid -> entry
 let _lkLoadOk = false;   // guards the only write that can erase entries
 let _lkChecking = false;
+let _lkSeen = {};        // puuids the SHARED document has actually shown us
+let _lkBusy = {};        // puuid -> a single-row re-check is in flight
+let _lkUndo = null;      // the entry the last ✕ removed, restorable for a moment
+let _lkUndoTimer = null;
+
+// One account, merged into the shared document under its own key. Every write
+// in this module that is not a full rewrite goes through here, so "a device
+// that never loaded the list cannot clobber it" is enforced in one place.
+function lkSaveOne(entry) {
+  if (!entry || !entry.p) return;
+  if (!window._fbSaveLookups) { wrSetSync('failed'); return; }
+  const patch = { lookups: {} };
+  patch.lookups[entry.p] = entry;
+  wrSynced(window._fbSaveLookups(patch)).catch(function(){});
+}
+
+function lkDeleteOne(puuid) {
+  if (!window._fbSaveLookups || !window._fbDeleteField) { wrSetSync('failed'); return; }
+  // A merge patch cannot express "absent" — an omitted key is left alone — so
+  // removing one account needs deleteField() rather than a smaller map.
+  const patch = { lookups: {} };
+  patch.lookups[puuid] = window._fbDeleteField();
+  wrSynced(window._fbSaveLookups(patch)).catch(function(){});
+}
 
 function lkMirror() {
   // Newest first, so a trim keeps what you looked at most recently.
@@ -4656,11 +4745,30 @@ function lkMirror() {
   wrSetItem(LOOKUPS_KEY, JSON.stringify(list.slice(0, LOOKUPS_MAX)));
 }
 
-function lkAdopt(map) {
+// `authoritative` says the map is a FULL read of the shared document (the
+// initial load and every snapshot are; nothing else is).
+function lkAdopt(map, authoritative) {
   if (!map || typeof map !== 'object') return;
+  // What the document no longer holds has been REMOVED somewhere else. Adopting
+  // is otherwise purely additive, so without this a row cleared on one device
+  // would sit on every other one forever — and lkPrune, which writes the whole
+  // map, would eventually put it back.
+  //
+  // Two guards, and both matter. Only puuids this document has previously shown
+  // us are eligible, so an entry recorded here whose write never landed is
+  // never mistaken for a deletion. And an EMPTY map is ignored entirely,
+  // because a document that failed to load and a document with nothing in it
+  // arrive here as the same `{}` — the cost is that clearing your very last
+  // account does not propagate, which is the safe way round to be wrong.
+  if (authoritative && Object.keys(map).length) {
+    for (const p in _lkIndex) {
+      if (!map[p] && _lkSeen[p]) { delete _lkIndex[p]; delete _lkSeen[p]; }
+    }
+  }
   for (const p in map) {
     const e = map[p];
     if (!e || !e.n) continue;
+    _lkSeen[p] = 1;
     const cur = _lkIndex[p];
     // Last-write-wins per account, so two devices looking the same player up
     // cannot walk each other's history backwards.
@@ -4689,7 +4797,7 @@ async function lkLoad() {
   }
   if (!window._fbLoadLookups) return;
   window._fbLoadLookups().then(function(map){
-    lkAdopt(map);
+    lkAdopt(map, true);
     _lkLoadOk = true;                 // full state in hand — pruning is now safe
     lkMirror();
     renderLookups();
@@ -4698,7 +4806,7 @@ async function lkLoad() {
 
   if (window._fbOnLookups) {
     window._fbOnLookups(function(map){
-      lkAdopt(map);
+      lkAdopt(map, true);
       lkMirror();
       renderLookups();
     }, function(e){ console.warn('[RiftIQ] lookup history listener failed:', e && e.message); });
@@ -4739,14 +4847,7 @@ function wrRecordLookup(acct, platform, routing) {
   // away from silently dropping the notice.
   if (renamed) wrRenameToast(renamed);
 
-  // One key, merged: a device that never loaded the list still cannot clobber it.
-  if (window._fbSaveLookups) {
-    const patch = { lookups: {} };
-    patch.lookups[puuid] = entry;
-    wrSynced(window._fbSaveLookups(patch)).catch(function(){});
-  } else {
-    wrSetSync('failed');
-  }
+  lkSaveOne(entry);
   return renamed;
 }
 
@@ -7373,7 +7474,7 @@ function openBuildEditor() {
 
   // Matchup
   var matchSection = mkSection();
-  matchSection.appendChild(mkLabel('Matchup'));
+  matchSection.appendChild(mkLabel('Matchups'));
   var matchDisplay = document.createElement('div');
   matchDisplay.id = 'be-matchup-display';
   matchDisplay.style.cssText = 'min-height:40px;padding:6px 10px;background:var(--bg3);border:1px solid var(--bd2);border-radius:6px;cursor:pointer;display:flex;flex-wrap:wrap;gap:4px;align-items:center;';
