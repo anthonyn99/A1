@@ -36260,8 +36260,10 @@ window._THV={
     var ov=_openModalOverlay();
     if(!ov)return;
     // Anything inside the overlay keeps its own scrolling — a long dialog or a
-    // lock screen must still be usable.
-    if(e.target && ov.contains(e.target))return;
+    // lock screen must still be usable. Note contains() is true for the node
+    // ITSELF, so the backdrop has to be excluded explicitly: without that the
+    // gesture we most need to block is the one treated as allowed.
+    if(e.target && e.target !== ov && ov.contains(e.target))return;
     if(e.cancelable)e.preventDefault();
   }
   document.addEventListener('touchmove',_uimBlockGesture,{passive:false,capture:true});
