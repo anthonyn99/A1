@@ -18820,8 +18820,12 @@ function emptyData(template, data) {
     // map, deliberately 0 for a freshly created board nobody has touched.
     // vizRev is what says "this entry has been converted"; without it the entry
     // is still on the old model and the legacy tests below are the right ones.
+    // The legacy mind map keeps its content on the entry, so it keeps the
+    // original emptiness test — unchanged, because the data it guards is
+    // unchanged.
+    case 'mindmap-legacy':
     case 'mindmap': {
-      if (d.vizRev) return !(d.vizCount > 0);
+      if (d.vizRev && template === 'mindmap') return !(d.vizCount > 0);
       var n = d.nodes || [];
       if (n.length > 1 || (d.edges || []).length) return false;
       return !n.length || !n[0].label || n[0].label === 'Central Idea';   // untouched default
@@ -18879,6 +18883,7 @@ function sig(template, data, title) {
     // vizRev increments once per committed board change, so it is a cheaper and
     // sharper "did anything change" than re-serialising a scene that already
     // has its own change detection.
+    case 'mindmap-legacy':
     case 'mindmap':    parts.push('v' + (d.vizRev || 0), String(d.vizCount || 0), d.vizTitle || '',
                                   JSON.stringify(d.nodes || []), JSON.stringify(d.edges || [])); break;
     case 'whiteboard': parts.push('v' + (d.vizRev || 0), String(d.vizCount || 0), d.vizTitle || '',
@@ -21368,6 +21373,72 @@ window.VizEngine = { createBoard: createBoard };
 #bj-root #bj-notes-area { position: relative; }
 #bj-root #bj-cornell-area { position: relative; }
 #bj-root #bj-page-area { position: relative; }
+#bj-root #bj-mml-area { position: relative; }
+
+  /* ── MIND MAP LEGACY ──
+     Veda's original canvas mind map, kept as its own template. Every rule below
+     is the one that was running before the Mind Elixir rebuild; only the ids
+     changed (bj-mm-* → bj-mml-*) so the two can sit side by side. */
+#bj-root #bj-mml-area { display: none; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+#bj-root #bj-mml-canvas-wrap {
+    background: var(--card); border-radius: 8px; border: 1px solid var(--border);
+    overflow: auto; position: relative; flex: 1; min-height: 0;
+    -webkit-overflow-scrolling: touch;
+  }
+#bj-root #bj-mml-toolbar {
+    padding: 5px 10px; border-bottom: 1px solid var(--border);
+    display: none; align-items: center; gap: 6px; background: var(--card2);
+    overflow-x: auto; overflow-y: hidden; flex-wrap: nowrap;
+    scrollbar-width: none; flex-shrink: 0; min-height: 40px;
+  }
+#bj-root #bj-mml-toolbar::-webkit-scrollbar { display: none; }
+#bj-root #bj-mml-toolbar .wb-btn { flex-shrink: 0; }
+#bj-root #bj-mml-toolbar .mml-palette-sep { flex-shrink: 0; }
+/* Action buttons: wider with visible labels */
+#bj-root #bj-mml-add-node, #bj-root #bj-mml-connect-mode, #bj-root #bj-mml-delete-node {
+  width: auto; min-width: 82px; padding: 0 10px; gap: 5px; font-size: 11px; letter-spacing: 0.01em;
+}
+#bj-root #bj-mml-delete-node { color: #e07070; border-color: rgba(224,112,112,0.3); }
+#bj-root #bj-mml-delete-node:hover { background: rgba(224,112,112,0.12); color: #e07070; border-color: rgba(224,112,112,0.6); }
+#bj-root #bj-mml-connect-mode.active { background: rgba(93,175,109,0.12); color: #5DAF6D; border-color: rgba(93,175,109,0.4); }
+/* Separator after action group */
+#bj-root .mml-action-sep { width: 1px; background: var(--border); height: 20px; opacity: 0.6; flex-shrink: 0; margin: 0 4px; }
+#bj-root #bj-mml-toolbar .mml-hint { display: none; } /* hide hint on small screens — saves space */
+@media (min-width: 900px) { #bj-root #bj-mml-toolbar .mml-hint { display: inline; } }
+#bj-root #bj-mml-toolbar.edit-mode { display: flex; }
+#bj-root .mml-hint { font-family: var(--font-mono); font-size: 10px; color: var(--text3); margin-left: 8px; letter-spacing: 0.03em; }
+#bj-root .mml-palette-sep { width: 1px; background: var(--border); height: 16px; opacity: 0.5; flex-shrink: 0; }
+#bj-root .mml-color-btn {
+    width: 15px; height: 15px; border-radius: 50%;
+    border: 2px solid transparent; cursor: pointer; flex-shrink: 0;
+    transition: border-color 0.12s, transform 0.12s;
+    outline: none;
+  }
+#bj-root .mml-color-btn:hover { transform: scale(1.25); }
+#bj-root .mml-color-btn.active { border-color: #ECECEE; transform: scale(1.2); box-shadow: 0 0 0 1px rgba(0,0,0,0.4); }
+#bj-root .mml-palette-label {
+    font-family: var(--font-mono); font-size: 9px; color: var(--text3);
+    font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; flex-shrink: 0;
+  }
+#bj-root #bj-mml-canvas { display: block; min-width: 1200px; min-height: 700px; touch-action: none; -webkit-user-select: none; user-select: none; }
+/* mm-canvas-wrap position set above */
+#bj-root #bj-mml-node-input {
+    position: absolute; display: none;
+    padding: 8px 12px;
+    border: 1.5px solid var(--purple); border-radius: 6px; font-size: 13px;
+    font-family: var(--font); outline: none;
+    background: var(--card); color: var(--text); z-index: 10;
+    min-width: 200px; width: 260px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    resize: none; overflow: hidden; line-height: 1.4;
+  }
+
+/* mm canvas scrollbars */
+#bj-root #bj-mml-canvas-wrap::-webkit-scrollbar {display:none;width:0;height:0;}
+#bj-root #bj-mml-canvas-wrap::-webkit-scrollbar-track { background: var(--bg2); }
+#bj-root #bj-mml-canvas-wrap::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 6px; border: 2px solid var(--bg2); }
+#bj-root #bj-mml-canvas-wrap::-webkit-scrollbar-corner { background: var(--bg2); }
+
 #bj-root .bj-page-attach-chips {
   display: flex; flex-wrap: wrap; gap: 5px; padding: 6px 10px 0;
   border-top: 1px solid var(--border); margin-top: 10px;
@@ -21953,6 +22024,42 @@ window.VizEngine = { createBoard: createBoard };
       <div class="viz-mount" id="bj-mm-mount"></div>
     </div>
 
+    <!-- MIND MAP LEGACY — the original canvas mind map, restored verbatim.
+         Every mind map made before the Mind Elixir rebuild opens here (see
+         _bjLegacyTemplate), so nothing that existed has changed hands. -->
+    <div id="bj-mml-area">
+      <div class="bj-drop-zone" id="bj-mml-drop-zone"><div class="bj-drop-label"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>Drop files here</div></div>
+      <div class="bj-attach-bar" id="bj-mml-attach-bar">
+        <button class="bj-attach-btn" id="bj-mml-attach-btn" title="Attach files"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.4 11 12.3 20a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.9-2.9l8.5-8.5"/></svg><span>Attach Files</span><input type="file" id="bj-mml-attach-input" multiple accept="*/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;font-size:0;"></button>
+        <div class="bj-attach-chips" id="bj-mml-attach-chips"></div>
+      </div>
+      <div class="bj-attach-images" id="bj-mml-attach-images"></div>
+      <div id="bj-mml-toolbar">
+          <button class="wb-btn" id="bj-mml-add-node"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg><span>Add Node</span></button>
+          <button class="wb-btn" id="bj-mml-connect-mode"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="12" r="2.5"/><path d="M7.5 12h9"/></svg><span>Connect</span></button>
+          <button class="wb-btn" id="bj-mml-delete-node"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg><span>Delete</span></button>
+          <div class="mml-action-sep"></div>
+          <div class="mml-palette-sep"></div>
+          <span class="mml-palette-label">Color</span>
+          <div class="mml-color-btn active" data-fill="#26272A" data-stroke="#4A4B51" style="background:#4A4B51;" title="Default"></div>
+          <div class="mml-color-btn" data-fill="#2E2535" data-stroke="#8D769A" style="background:#8D769A;" title="Purple"></div>
+          <div class="mml-color-btn" data-fill="#1a3a2a" data-stroke="#5DAF6D" style="background:#5DAF6D;" title="Green"></div>
+          <div class="mml-color-btn" data-fill="#0d2a35" data-stroke="#22d3ee" style="background:#22d3ee;" title="Cyan"></div>
+          <div class="mml-color-btn" data-fill="#3a1f1a" data-stroke="#E74C3C" style="background:#E74C3C;" title="Red"></div>
+          <div class="mml-color-btn" data-fill="#2d1f0a" data-stroke="#fb923c" style="background:#fb923c;" title="Orange"></div>
+          <div class="mml-color-btn" data-fill="#2a2510" data-stroke="#e5c84a" style="background:#e5c84a;" title="Yellow"></div>
+          <div class="mml-color-btn" data-fill="#1a2035" data-stroke="#6da8f5" style="background:#6da8f5;" title="Blue"></div>
+          <span class="mml-hint">Dbl-click to rename · Drag to move</span>
+          <div style="flex:1"></div>
+          <button class="wb-btn" id="bj-mml-img-btn" title="Add image to selected node" style="position:relative;overflow:hidden;"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.8"/><path d="m4 18 5-5 4 4 3-3 4 4"/></svg><span>Image</span><input type="file" id="bj-mml-img-file" accept="image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;font-size:0;"></button>
+          <button class="wb-btn" id="bj-mml-reset"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg><span>Reset</span></button>
+        </div>
+      <div id="bj-mml-canvas-wrap">
+        <canvas id="bj-mml-canvas" height="480"></canvas>
+        <textarea id="bj-mml-node-input" placeholder="Node label…" rows="1"></textarea>
+      </div>
+    </div>
+
 
     <!-- PAGE -->
     <div id="bj-page-area">
@@ -22069,6 +22176,11 @@ window.VizEngine = { createBoard: createBoard };
         <h3>Mind Map</h3>
         <p>Visual node-based map for exploring ideas.</p>
       </div>
+      <div class="template-card" data-template="mindmap-legacy">
+        <div class="template-card-icon"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><circle cx="5" cy="5" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="m9.9 9.9-3-3"/><path d="m14.1 9.9 3-3"/><path d="m9.9 14.1-3 3"/><path d="m14.1 14.1 3 3"/></svg></div>
+        <h3>Mind Map Legacy</h3>
+        <p>The original free-placement canvas: drag nodes anywhere, connect any two.</p>
+      </div>
       <div class="template-card" data-template="page">
         <div class="template-card-icon"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h8"/></svg></div>
         <h3>Page</h3>
@@ -22128,11 +22240,33 @@ function _bjSetSync(status) {
 }
 var _bjSyncResetTimer = null;
 
+/* Every mind map that existed before the Mind Elixir rebuild belongs to the
+ * LEGACY template, and this is what sends it there.
+ *
+ * The test is the data itself, not a flag or a date: an entry saved as
+ * 'mindmap' whose data still carries the old free-placement node list was made
+ * by the old editor, so that is the editor that opens it. A mind map created
+ * since the rebuild has no `nodes` array at all — its content lives in its own
+ * document — so it is left alone and opens in Mind Elixir.
+ *
+ * Nothing is written and nothing is converted. The entry's own bytes
+ * (data.nodes / data.edges, including any node images) are untouched; only the
+ * template it is routed to changes, and it changes the same way on every device
+ * because every device applies this same rule to the same data. If the entry is
+ * later edited the new id persists naturally, and if it never is, nothing about
+ * it was ever rewritten. */
+function _bjLegacyTemplate(entry) {
+  if (!entry || entry.template !== 'mindmap') return;
+  const d = entry.data;
+  if (d && Array.isArray(d.nodes) && d.nodes.length) entry.template = 'mindmap-legacy';
+}
+
 function loadState() {
   try { const r = localStorage.getItem(STORAGE_KEY); if (r) state = JSON.parse(r); } catch(e) {}
   if (!Array.isArray(state.deletedIds)) state.deletedIds = [];
   // Restore canvas data from localStorage into whiteboard entries
   state.entries.forEach(entry => {
+    _bjLegacyTemplate(entry);
     if (entry.template === 'whiteboard') {
       const saved = localStorage.getItem(BJ_CANVAS_KEY(entry.id));
       if (saved && !entry.data.canvas) entry.data.canvas = saved;
@@ -22496,7 +22630,7 @@ function _bjApplyRemote(remote) {
   // Re-run the lock check so an entry deleted (or unlocked) on another device
   // can't leave a lock overlay stranded over a document that no longer exists.
   if (window._bjLockCheck) window._bjLockCheck();
-  if (_activeWasUpdated) { var _ae = getActive(); if (_ae && _ae.template === 'mindmap') loadActiveEntry(); }
+  if (_activeWasUpdated) { var _ae = getActive(); if (_ae && (_ae.template === 'mindmap' || _ae.template === 'mindmap-legacy')) loadActiveEntry(); }
 }
 
 // Listen for Firebase sync events
@@ -22558,6 +22692,7 @@ function createEntry(template) {
   if (template === 'notes') entry.data = { main: '', links: '', questions: '', attachments: [] };
   if (template === 'cornell') entry.data = { topic: '', cues: '', notes: '', summary: '', attachments: [] };
   if (template === 'mindmap') entry.data = { attachments: [] };
+  if (template === 'mindmap-legacy') entry.data = { nodes: [{ id: 1, x: 340, y: 220, label: 'Central Idea', root: true }], edges: [], attachments: [] };
   if (template === 'page') entry.data = { html: '', attachments: [] };
   // Unsynced until the cloud confirms it — without this an authoritative resync
   // arriving in the next second would prune an entry the server has never seen.
@@ -22727,7 +22862,7 @@ function renderSidebar() {
     div.className = 'entry-item' + (entry.id === state.activeId ? ' active' : '');
     div.dataset.entryId = entry.id;
     if (isDraggable) div.draggable = true;
-    const tmap = { whiteboard: 'BOARD', notes: 'NOTES', cornell: 'CORNELL', mindmap: 'MAP', page: 'PAGE', 'journal-entries': 'JOURNAL' };
+    const tmap = { whiteboard: 'BOARD', notes: 'NOTES', cornell: 'CORNELL', mindmap: 'MAP', 'mindmap-legacy': 'MAP', page: 'PAGE', 'journal-entries': 'JOURNAL' };
     const date = new Date(entry.updated).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const titleClass = entry.title ? '' : ' untitled';
     div.innerHTML = `
@@ -22830,6 +22965,7 @@ function showTemplate(name) {
   document.getElementById('bj-notes-area').style.display = name === 'notes' ? 'flex' : 'none';
   document.getElementById('bj-cornell-area').style.display = name === 'cornell' ? 'flex' : 'none';
   document.getElementById('bj-mindmap-area').style.display = name === 'mindmap' ? 'flex' : 'none';
+  document.getElementById('bj-mml-area').style.display = name === 'mindmap-legacy' ? 'flex' : 'none';
   document.getElementById('bj-page-area').style.display = name === 'page' ? 'flex' : 'none';
   document.getElementById('bj-empty-state').style.display = name ? 'none' : 'flex';
   document.getElementById('bj-tags-row').style.display = name ? 'flex' : 'none';
@@ -22881,6 +23017,12 @@ function loadActiveEntry() {
   if (entry.template === 'mindmap') {
     _bjBoard('mm').open(entry).then(function () { _bjBoard('mm').setEditable(isEditMode); });
     if (window._bjRenderAttachments) _bjRenderAttachments('mindmap');
+  }
+  if (entry.template === 'mindmap-legacy') {
+    mmNodes = JSON.parse(JSON.stringify(entry.data.nodes || [{ id:1, x:340, y:220, label:'Central Idea', root:true }]));
+    mmEdges = JSON.parse(JSON.stringify(entry.data.edges || []));
+    initMindmap(); renderMindmap();
+    if (window._bjRenderAttachments) _bjRenderAttachments('mindmap-legacy');
   }
   if (entry.template === 'page') {
     const ed = document.getElementById('bj-page-editor');
@@ -22947,6 +23089,7 @@ function saveCurrentEntry() {
     _next.notes = document.getElementById('bj-cornell-notes-ta').value;
     _next.summary = document.getElementById('bj-cornell-summary-ta').value;
   }
+  if (entry.template === 'mindmap-legacy') { _next.nodes = mmNodes; _next.edges = mmEdges; }
   if (entry.template === 'page') { _next.html = document.getElementById('bj-page-editor').innerHTML; }
 
   // Auto-title: derive from content while the title is empty; a user-typed title
@@ -23004,6 +23147,7 @@ function _bjAutoTitle(entry, dataOverride) {
   if (entry.template === 'page') { const ed = document.getElementById('bj-page-editor'); src = ed && ed.innerText ? ed.innerText : String(d.html||'').replace(/<[^>]*>/g,'\n'); }
   else if (entry.template === 'notes') src = d.main || d.links || d.questions || '';
   else if (entry.template === 'cornell') src = d.topic || d.notes || d.cues || '';
+  else if (entry.template === 'mindmap-legacy') { const root = (d.nodes||[]).find(n=>n.root) || (d.nodes||[])[0]; src = (root && root.label !== 'Central Idea') ? (root.label||'') : ''; }
   else if (entry.template === 'mindmap' || entry.template === 'whiteboard') {
     // The board reports its own title — the mind map's root topic, or the first
     // text on the canvas. Legacy mind maps fall back to their old root node.
@@ -23088,6 +23232,599 @@ function _bjBoard(kind) {
 window._bjFlushBoards = function () {
   return Promise.all(Object.keys(_bjBoards).map(function (k) { return _bjBoards[k].flush(); }));
 };
+
+/* ── MIND MAP LEGACY ───────────────────────────────────────────────────────
+ * Veda's original canvas mind map, restored unchanged. It is a separate
+ * template from the Mind Elixir one, not a fallback inside it: the two share no
+ * state, no DOM and no document. Its content lives on the entry exactly where
+ * it always did (data.nodes / data.edges), so every map that existed before the
+ * rebuild still opens from the same bytes it was saved as.
+ * ======================================================================== */
+let mmCanvas, mmCtx, mmNodes=[], mmEdges=[], mmDragNode=null, mmDragOffset=null;
+let mmConnectMode=false, mmConnectFrom=null, mmSelectedNode=null, mmEditingNode=null, mmNextId=10;
+let mmNodeFill='#26272A', mmNodeStroke='#4A4B51';
+let mmResizing=null;    // node resize: {node, handle, startX, startY, origW, origH, origX, origY}
+let mmImgResizing=null; // image resize: {node, startX, startY, origW, origH}
+var mmImgCache = {};
+
+function initMindmap() {
+  mmCanvas = document.getElementById('bj-mml-canvas');
+  mmCtx = mmCanvas.getContext('2d');
+  mmCanvas.width  = 1200;
+  mmCanvas.height = 700;
+}
+/* Mindmap helpers */
+function mmWrapText(ctx, text, maxWidth) {
+  const hardLines = text.split('\n');
+  const lines = [];
+  for (const hard of hardLines) {
+    if (hard === '') { lines.push(''); continue; }
+    const words = hard.split(' ');
+    let cur = '';
+    for (const w of words) {
+      const test = cur ? cur + ' ' + w : w;
+      if (ctx.measureText(test).width > maxWidth && cur) { lines.push(cur); cur = w; }
+      else { cur = test; }
+    }
+    lines.push(cur);
+  }
+  return lines;
+}
+function mmNodeSize(ctx, node) {
+  // If node has explicit w/h set, use those
+  if (node.w && node.h) {
+    const isRoot = node.root;
+    const fontSize = isRoot ? 13 : 11;
+    ctx.font = `${isRoot?'700 ':'500 '}${fontSize}px 'IBM Plex Mono', monospace`;
+    const label = node.label || 'Node';
+    const lines = mmWrapText(ctx, label, node.w - (isRoot?36:28));
+    const LINE_H = fontSize + 4;
+    const PAD_Y = isRoot ? 10 : 8;
+    return { boxW: node.w, boxH: node.h, lines, fontSize, LINE_H, PAD_Y };
+  }
+  const isRoot = node.root;
+  const fontSize = isRoot ? 13 : 11;
+  ctx.font = `${isRoot?'700 ':'500 '}${fontSize}px 'IBM Plex Mono', monospace`;
+  const label = node.label || 'Node';
+  const MAX_W = node.imageData ? Math.max(160, (node.imgW||160)) : (isRoot ? 160 : 140);
+  const PAD_X = isRoot ? 18 : 14;
+  const PAD_Y = isRoot ? 10 : 8;
+  const LINE_H = fontSize + 4;
+  const singleW = ctx.measureText(label).width;
+  let boxW, lines;
+  if (singleW <= MAX_W) {
+    boxW = Math.max(singleW + PAD_X*2, isRoot ? 90 : 70);
+    lines = [label];
+  } else {
+    lines = mmWrapText(ctx, label, MAX_W);
+    const widest = Math.max(...lines.map(l => ctx.measureText(l).width));
+    boxW = widest + PAD_X*2;
+  }
+  let boxH = lines.length * LINE_H + PAD_Y*2;
+  // If node has image, expand to fit it
+  if (node.imageData) {
+    const imgW = node.imgW || 160;
+    const imgH = node.imgH || 120;
+    boxW = Math.max(boxW, imgW + PAD_X*2);
+    boxH += imgH + 8;
+  }
+  return { boxW, boxH, lines, fontSize, LINE_H, PAD_Y };
+}
+function mmExpandCanvas() {
+  if (!mmCanvas || !mmNodes.length) return;
+  const PAD = 80;
+  // Check if any node is too close to left or top edge — shift all nodes right/down
+  let minX = Infinity, minY = Infinity;
+  mmNodes.forEach(n => {
+    const sz = mmCtx ? mmNodeSize(mmCtx, n) : {boxW:120, boxH:40};
+    minX = Math.min(minX, n.x - sz.boxW/2);
+    minY = Math.min(minY, n.y - sz.boxH/2);
+  });
+  if (minX < PAD || minY < PAD) {
+    const shiftX = minX < PAD ? PAD - minX : 0;
+    const shiftY = minY < PAD ? PAD - minY : 0;
+    mmNodes.forEach(n => { n.x += shiftX; n.y += shiftY; });
+    // Keep scroll position anchored so the view doesn't jump
+    const wrap = document.getElementById('bj-mml-canvas-wrap');
+    if (wrap) { wrap.scrollLeft += shiftX; wrap.scrollTop += shiftY; }
+  }
+  // Expand right and bottom as before
+  let maxX = 1200, maxY = 700;
+  mmNodes.forEach(n => {
+    const sz = mmCtx ? mmNodeSize(mmCtx, n) : {boxW:120, boxH:40};
+    maxX = Math.max(maxX, n.x + sz.boxW/2 + PAD);
+    maxY = Math.max(maxY, n.y + sz.boxH/2 + PAD);
+  });
+  if (mmCanvas.width < maxX) mmCanvas.width = maxX;
+  if (mmCanvas.height < maxY) mmCanvas.height = maxY;
+}
+
+// Get or create cached image for a node
+function mmGetImg(node) {
+  if (!node.imageData) return null;
+  if (mmImgCache[node.id] && mmImgCache[node.id]._src === node.imageData) return mmImgCache[node.id];
+  var img = new Image();
+  img._src = node.imageData;
+  img.onload = function() { mmImgCache[node.id] = img; renderMindmap(); };
+  img.src = node.imageData;
+  return null; // will trigger re-render when loaded
+}
+
+// Resize handle positions for a node (8 handles)
+function mmGetHandles(node) {
+  const {boxW, boxH} = mmNodeSize(mmCtx, node);
+  const L = node.x - boxW/2, R = node.x + boxW/2;
+  const T = node.y - boxH/2, B = node.y + boxH/2;
+  const MX = node.x, MY = node.y;
+  return [
+    {id:'nw', x:L, y:T}, {id:'n',  x:MX, y:T}, {id:'ne', x:R, y:T},
+    {id:'e',  x:R, y:MY},
+    {id:'se', x:R, y:B}, {id:'s',  x:MX, y:B}, {id:'sw', x:L, y:B},
+    {id:'w',  x:L, y:MY},
+  ];
+}
+
+function renderMindmap() {
+  if (!mmCtx) return;
+  mmExpandCanvas();
+  const ctx = mmCtx;
+  ctx.clearRect(0,0,mmCanvas.width,mmCanvas.height);
+  ctx.fillStyle='#1B1C1E'; ctx.fillRect(0,0,mmCanvas.width,mmCanvas.height);
+  ctx.fillStyle='#3D3E4350';
+  for (let x=24; x<mmCanvas.width; x+=28) for (let y=24; y<mmCanvas.height; y+=28) {
+    ctx.beginPath(); ctx.arc(x,y,1.2,0,Math.PI*2); ctx.fill();
+  }
+  mmEdges.forEach(edge => {
+    const a=mmNodes.find(n=>n.id===edge.from), b=mmNodes.find(n=>n.id===edge.to);
+    if(!a||!b) return;
+    const mx=(a.x+b.x)/2, my=(a.y+b.y)/2 - 30;
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.quadraticCurveTo(mx,my,b.x,b.y);
+    let edgeColor = a.stroke || '#8D769A', edgeStroke;
+    if (edgeColor.startsWith('#') && edgeColor.length===7) {
+      const r=parseInt(edgeColor.slice(1,3),16),g=parseInt(edgeColor.slice(3,5),16),b2=parseInt(edgeColor.slice(5,7),16);
+      edgeStroke=`rgba(${r},${g},${b2},0.45)`;
+    } else if (edgeColor.startsWith('rgb(')) { edgeStroke=edgeColor.replace('rgb(','rgba(').replace(')',',0.45)'); }
+    else { edgeStroke='rgba(141,118,154,0.35)'; }
+    ctx.strokeStyle=edgeStroke; ctx.lineWidth=1.5; ctx.stroke();
+  });
+  mmNodes.forEach(node => {
+    const isSel=node.id===mmSelectedNode, isCF=node.id===mmConnectFrom;
+    const nodeFill=node.root?'#3a2d4a':(node.fill||'#26272A');
+    const nodeStroke=node.root?'#8D769A':(node.stroke||'#4A4B51');
+    const {boxW,boxH,lines,fontSize,LINE_H,PAD_Y} = mmNodeSize(ctx,node);
+    const rx=node.x-boxW/2, ry=node.y-boxH/2, rad=8;
+    ctx.shadowColor='rgba(0,0,0,0.5)'; ctx.shadowBlur=12; ctx.shadowOffsetY=4;
+    ctx.beginPath();
+    ctx.moveTo(rx+rad,ry); ctx.lineTo(rx+boxW-rad,ry); ctx.quadraticCurveTo(rx+boxW,ry,rx+boxW,ry+rad);
+    ctx.lineTo(rx+boxW,ry+boxH-rad); ctx.quadraticCurveTo(rx+boxW,ry+boxH,rx+boxW-rad,ry+boxH);
+    ctx.lineTo(rx+rad,ry+boxH); ctx.quadraticCurveTo(rx,ry+boxH,rx,ry+boxH-rad);
+    ctx.lineTo(rx,ry+rad); ctx.quadraticCurveTo(rx,ry,rx+rad,ry); ctx.closePath();
+    ctx.fillStyle=isCF?'#0e3d4a':(isSel?'#3d1f1a':nodeFill); ctx.fill();
+    ctx.shadowBlur=0; ctx.shadowOffsetY=0;
+    ctx.strokeStyle=isCF?'#22d3ee':(isSel?'#E74C3C':nodeStroke);
+    ctx.lineWidth=isSel||node.root?2.5:1.5; ctx.stroke();
+    // Draw image if present
+    var img = node.imageData ? mmGetImg(node) : null;
+    if (img && img.complete) {
+      const iw = node.imgW || Math.min(boxW-20, 320);
+      const ih = node.imgH || Math.round(iw * img.naturalHeight / Math.max(img.naturalWidth,1));
+      const imgX = node.x - iw/2;
+      const textH = lines.length * LINE_H + PAD_Y*2;
+      const imgY = ry + textH;
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect ? ctx.roundRect(imgX, imgY, iw, ih, 4) : ctx.rect(imgX, imgY, iw, ih);
+      ctx.clip();
+      ctx.drawImage(img, imgX, imgY, iw, ih);
+      ctx.restore();
+      // Image SE resize handle (blue, bottom-right of image)
+      if (isSel) {
+        ctx.fillStyle = '#3b82f6';
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(imgX + iw, imgY + ih, 7, 0, Math.PI*2);
+        ctx.fill(); ctx.stroke();
+        // Draw resize arrow icon inside
+        // Two short strokes, not a glyph: the resize grip has to stay crisp at
+        // any devicePixelRatio, and ⤡ fell back to whatever the system font had.
+        const _gx = imgX + iw, _gy = imgY + ih;
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.4; ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(_gx - 3.5, _gy + 3.5); ctx.lineTo(_gx + 3.5, _gy - 3.5);
+        ctx.moveTo(_gx + 0.5, _gy + 3.5); ctx.lineTo(_gx + 3.5, _gy + 0.5);
+        ctx.stroke();
+      }
+    }
+    // Draw label text
+    ctx.fillStyle='#ECECEE';
+    ctx.font=`${node.root?'700 ':'500 '}${fontSize}px 'IBM Plex Mono', monospace`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    const textBlockH = lines.length*LINE_H;
+    const textStartY = ry + PAD_Y + LINE_H/2;
+    lines.forEach((line,i)=>{ ctx.fillText(line, node.x, textStartY+i*LINE_H); });
+    // Draw resize handles on selected node
+    if (isSel) {
+      const handles = mmGetHandles(node);
+      handles.forEach(function(h) {
+        ctx.fillStyle = '#E74C3C';
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(h.x, h.y, 5, 0, Math.PI*2);
+        ctx.fill(); ctx.stroke();
+      });
+      // Remove image button if image present
+      if (node.imageData) {
+        const _sz = mmNodeSize(ctx, node);
+        const iw2 = node.imgW || Math.min(_sz.boxW-20, 320);
+        const textH2 = _sz.lines.length*_sz.LINE_H + _sz.PAD_Y*2;
+        const imgY2 = node.y - _sz.boxH/2 + textH2;
+        ctx.fillStyle = '#E74C3C';
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(node.x - iw2/2 + 10, imgY2 + 10, 8, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+        const _cx = node.x - iw2/2 + 10, _cy = imgY2 + 10, _r = 3.2;
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.6; ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(_cx - _r, _cy - _r); ctx.lineTo(_cx + _r, _cy + _r);
+        ctx.moveTo(_cx + _r, _cy - _r); ctx.lineTo(_cx - _r, _cy + _r);
+        ctx.stroke();
+      }
+    }
+  });
+}
+function getNodeAt(x,y) {
+  for (let i=mmNodes.length-1;i>=0;i--) {
+    const n=mmNodes[i];
+    if (!mmCtx) continue;
+    const {boxW,boxH}=mmNodeSize(mmCtx,n);
+    if (x>=n.x-boxW/2&&x<=n.x+boxW/2&&y>=n.y-boxH/2&&y<=n.y+boxH/2) return n;
+  } return null;
+}
+// Hit-test image SE resize handle on selected node — returns {node, imgX, imgY, iw, ih} or null
+function mmHitImgHandle(x, y) {
+  if (!mmSelectedNode) return null;
+  var node = mmNodes.find(function(n) { return n.id === mmSelectedNode; });
+  if (!node || !node.imageData) return null;
+  var sz = mmNodeSize(mmCtx, node);
+  var iw = node.imgW || Math.min(sz.boxW-20, 320);
+  var ih = node.imgH || 120;
+  var textH = sz.lines.length * sz.LINE_H + sz.PAD_Y*2;
+  var ry = node.y - sz.boxH/2;
+  var imgX = node.x - iw/2;
+  var imgY = ry + textH;
+  // SE handle at (imgX+iw, imgY+ih)
+  if (Math.abs(x-(imgX+iw)) <= 12 && Math.abs(y-(imgY+ih)) <= 12) {
+    return { node: node, imgX: imgX, imgY: imgY, iw: iw, ih: ih };
+  }
+  return null;
+}
+// Hit-test remove-image button (top-left of image)
+function mmHitImgRemove(x, y) {
+  if (!mmSelectedNode) return null;
+  var node = mmNodes.find(function(n) { return n.id === mmSelectedNode; });
+  if (!node || !node.imageData) return null;
+  var sz = mmNodeSize(mmCtx, node);
+  var iw = node.imgW || Math.min(sz.boxW-20, 320);
+  var textH = sz.lines.length * sz.LINE_H + sz.PAD_Y*2;
+  var ry = node.y - sz.boxH/2;
+  var imgX = node.x - iw/2;
+  var imgY = ry + textH;
+  if (Math.abs(x-(imgX+10)) <= 12 && Math.abs(y-(imgY+10)) <= 12) return node;
+  return null;
+}
+// Hit-test resize handles — returns handle id or null
+function mmHitHandle(x, y) {
+  if (!mmSelectedNode) return null;
+  const node = mmNodes.find(n => n.id === mmSelectedNode);
+  if (!node) return null;
+  const handles = mmGetHandles(node);
+  for (var i=0; i<handles.length; i++) {
+    var h = handles[i];
+    if (Math.abs(x-h.x) <= 8 && Math.abs(y-h.y) <= 8) return h.id;
+  }
+  return null;
+}
+
+// Hit-test edges: returns index of edge near (x,y) or -1
+function mmHitEdge(x, y) {
+  var THRESH = 8;
+  for (var i = 0; i < mmEdges.length; i++) {
+    var edge = mmEdges[i];
+    var a = mmNodes.find(function(n){return n.id===edge.from;}), b = mmNodes.find(function(n){return n.id===edge.to;});
+    if (!a || !b) continue;
+    var mx = (a.x+b.x)/2, my = (a.y+b.y)/2 - 30;
+    for (var t = 0; t <= 1; t += 0.05) {
+      var bx = (1-t)*(1-t)*a.x + 2*(1-t)*t*mx + t*t*b.x;
+      var by = (1-t)*(1-t)*a.y + 2*(1-t)*t*my + t*t*b.y;
+      if (Math.abs(x-bx) < THRESH && Math.abs(y-by) < THRESH) return i;
+    }
+  }
+  return -1;
+}
+
+(function() {
+  var mmEl = document.getElementById('bj-mml-canvas');
+
+  function mmGetXY(e) {
+    var r = mmCanvas.getBoundingClientRect();
+    var scaleX = mmCanvas.width / r.width, scaleY = mmCanvas.height / r.height;
+    return {
+      x: (e.clientX - r.left) * scaleX,
+      y: (e.clientY - r.top) * scaleY
+    };
+  }
+
+  // Cursor style by handle id
+  var HANDLE_CURSORS = {nw:'nw-resize',n:'n-resize',ne:'ne-resize',e:'e-resize',se:'se-resize',s:'s-resize',sw:'sw-resize',w:'w-resize'};
+
+  mmEl.addEventListener('pointermove', function(e) {
+    if (mmImgResizing) {
+      var pos = mmGetXY(e);
+      var dx = pos.x - mmImgResizing.startX, dy = pos.y - mmImgResizing.startY;
+      var node = mmImgResizing.node;
+      var nw = Math.max(40, mmImgResizing.origW + dx*2); // *2 because centered
+      var nh = Math.max(30, mmImgResizing.origH + dy);
+      node.imgW = Math.round(nw);
+      node.imgH = Math.round(nh);
+      e.preventDefault(); renderMindmap(); return;
+    }
+    if (mmResizing) {
+      var pos = mmGetXY(e);
+      var dx = pos.x - mmResizing.startX, dy = pos.y - mmResizing.startY;
+      var node = mmResizing.node;
+      var h = mmResizing.handle;
+      var origW = mmResizing.origW, origH = mmResizing.origH;
+      var origX = mmResizing.origX, origY = mmResizing.origY;
+      var newW = origW, newH = origH, newX = origX, newY = origY;
+      var MIN = 60;
+      if (h==='e'||h==='ne'||h==='se') newW = Math.max(MIN, origW + dx);
+      if (h==='w'||h==='nw'||h==='sw') { newW = Math.max(MIN, origW - dx); newX = origX + (origW - newW)/2; }
+      if (h==='s'||h==='se'||h==='sw') newH = Math.max(MIN, origH + dy);
+      if (h==='n'||h==='ne'||h==='nw') { newH = Math.max(MIN, origH - dy); newY = origY + (origH - newH)/2; }
+      if (h==='n'||h==='s') newW = origW;
+      if (h==='e'||h==='w') newH = origH;
+      node.w = Math.round(newW); node.h = Math.round(newH);
+      node.x = Math.round(newX); node.y = Math.round(newY);
+      e.preventDefault(); renderMindmap(); return;
+    }
+    if (mmDragNode) {
+      var pos = mmGetXY(e);
+      mmDragNode.x = pos.x - mmDragOffset.x;
+      mmDragNode.y = pos.y - mmDragOffset.y;
+      e.preventDefault(); renderMindmap(); return;
+    }
+    // Update cursor
+    var pos = mmGetXY(e);
+    if (mmHitImgHandle(pos.x, pos.y)) { mmEl.style.cursor = 'se-resize'; return; }
+    var hid = mmHitHandle(pos.x, pos.y);
+    var onEdge = !getNodeAt(pos.x,pos.y) && isEditMode && mmHitEdge(pos.x,pos.y) !== -1;
+    mmEl.style.cursor = hid ? HANDLE_CURSORS[hid] : (getNodeAt(pos.x,pos.y) ? 'grab' : (onEdge ? 'pointer' : 'default'));
+  }, { passive: false });
+
+  mmEl.addEventListener('pointerdown', function(e) {
+    var pos = mmGetXY(e);
+
+    // Check resize handle first
+    var hid = mmHitHandle(pos.x, pos.y);
+    if (hid && isEditMode) {
+      var node = mmNodes.find(n => n.id === mmSelectedNode);
+      var sz = mmNodeSize(mmCtx, node);
+      mmResizing = { node, handle: hid, startX: pos.x, startY: pos.y, origW: sz.boxW, origH: sz.boxH, origX: node.x, origY: node.y };
+      mmEl.setPointerCapture(e.pointerId);
+      e.preventDefault(); return;
+    }
+
+    var node = getNodeAt(pos.x, pos.y);
+
+    if (mmConnectMode) {
+      if (node) {
+        if (!mmConnectFrom) { mmConnectFrom = node.id; renderMindmap(); }
+        else if (mmConnectFrom !== node.id) {
+          var exists = mmEdges.some(function(ed) {
+            return (ed.from===mmConnectFrom&&ed.to===node.id)||(ed.from===node.id&&ed.to===mmConnectFrom);
+          });
+          if (!exists) mmEdges.push({from:mmConnectFrom, to:node.id});
+          mmConnectFrom = null; mmConnectMode = false;
+          document.getElementById('bj-mml-connect-mode').classList.remove('active');
+          renderMindmap(); autoSave();
+        }
+      }
+      return;
+    }
+
+    if (node) {
+      // Check image SE resize handle first
+      var imgH = mmHitImgHandle(pos.x, pos.y);
+      if (imgH && isEditMode) {
+        mmImgResizing = { node: imgH.node, startX: pos.x, startY: pos.y, origW: imgH.iw, origH: imgH.ih };
+        mmEl.setPointerCapture(e.pointerId);
+        e.preventDefault(); return;
+      }
+      // Check remove-image button
+      var rmNode = mmHitImgRemove(pos.x, pos.y);
+      if (rmNode && isEditMode) {
+        rmNode.imageData = null; rmNode.imgW = null; rmNode.imgH = null;
+        delete mmImgCache[rmNode.id];
+        renderMindmap(); autoSave(); e.preventDefault(); return;
+      }
+      mmEl.setPointerCapture(e.pointerId);
+      mmSelectedNode = node.id; mmDragNode = node;
+      mmDragOffset = {x: pos.x - node.x, y: pos.y - node.y};
+      if (!node.root && node.fill) {
+        document.querySelectorAll('.mml-color-btn').forEach(function(b) {
+          b.classList.toggle('active', b.dataset.fill === node.fill);
+        });
+        mmNodeFill = node.fill; mmNodeStroke = node.stroke || '#4A4B51';
+      }
+      e.preventDefault();
+      renderMindmap();
+    } else {
+      // Check if clicked near an edge — if so, delete it (edit mode)
+      if (isEditMode) {
+        var edgeIdx = mmHitEdge(pos.x, pos.y);
+        if (edgeIdx !== -1) {
+          mmEdges.splice(edgeIdx, 1);
+          renderMindmap(); autoSave(); e.preventDefault(); return;
+        }
+      }
+      mmSelectedNode = null; renderMindmap();
+    }
+  }, { passive: false });
+
+  mmEl.addEventListener('pointerup', function(e) {
+    if (mmImgResizing) { mmImgResizing = null; autoSave(); return; }
+    if (mmResizing) { mmResizing = null; autoSave(); return; }
+    if (mmDragNode) { mmDragNode = null; autoSave(); }
+  });
+  mmEl.addEventListener('pointercancel', function() { mmDragNode = null; mmResizing = null; mmImgResizing = null; });
+
+  // Drag-and-drop image files onto canvas
+  mmEl.addEventListener('dragover', function(e) { e.preventDefault(); mmEl.style.outline = '2px dashed #8D769A'; });
+  mmEl.addEventListener('dragleave', function() { mmEl.style.outline = ''; });
+  mmEl.addEventListener('drop', function(e) {
+    e.preventDefault(); mmEl.style.outline = '';
+    var files = e.dataTransfer.files;
+    if (!files || !files.length) return;
+    var file = files[0];
+    if (!file.type.startsWith('image/')) return;
+    var pos = mmGetXY(e);
+    var targetNode = getNodeAt(pos.x, pos.y);
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      var dataURL = ev.target.result;
+      var tmpImg = new Image();
+      tmpImg.onload = function() {
+        var maxW = 400, maxH = 320;
+        var iw = tmpImg.naturalWidth, ih = tmpImg.naturalHeight;
+        if (iw > maxW) { ih = Math.round(ih * maxW / iw); iw = maxW; }
+        if (ih > maxH) { iw = Math.round(iw * maxH / ih); ih = maxH; }
+        if (targetNode) {
+          // Drop onto node — attach image, resize node to fit
+          targetNode.imageData = dataURL;
+          targetNode.imgW = iw; targetNode.imgH = ih;
+          // Expand node w/h to accommodate image
+          var sz = mmNodeSize(mmCtx, targetNode);
+          targetNode.w = Math.max(sz.boxW, iw + 20);
+          targetNode.h = sz.boxH; // auto-calculated via imageData path
+          delete targetNode.w; delete targetNode.h; // let mmNodeSize auto-calc with image
+          delete mmImgCache[targetNode.id];
+        } else {
+          // Drop onto empty canvas — create new image node
+          mmNextId++;
+          var node = {id:mmNextId, x:pos.x, y:pos.y, label:'Image', fill:mmNodeFill, stroke:mmNodeStroke, imageData:dataURL, imgW:iw, imgH:ih};
+          mmNodes.push(node);
+          mmSelectedNode = node.id;
+        }
+        renderMindmap(); autoSave();
+      };
+      tmpImg.src = dataURL;
+    };
+    reader.readAsDataURL(file);
+  });
+})();
+document.getElementById('bj-mml-canvas').addEventListener('dblclick', e => {
+  if (!isEditMode) return;
+  const r=mmCanvas.getBoundingClientRect();
+  const scaleX=mmCanvas.width/r.width, scaleY=mmCanvas.height/r.height;
+  const x=(e.clientX-r.left)*scaleX, y=(e.clientY-r.top)*scaleY;
+  const node=getNodeAt(x,y); if (!node) return;
+  const inp=document.getElementById('bj-mml-node-input');
+  // Position relative to canvas element (CSS pixels), not canvas pixel coords
+  const cssX=node.x/scaleX, cssY=node.y/scaleY;
+  inp.style.display='block'; inp.style.left=(cssX-130)+'px'; inp.style.top=(cssY-18)+'px';
+  inp.value=node.label; inp.focus(); inp.select(); mmEditingNode=node;
+});
+document.getElementById('bj-mml-node-input').addEventListener('keydown', e => {
+  if (e.key==='Enter'&&!e.shiftKey) {
+    e.preventDefault();
+    const ta=e.target, start=ta.selectionStart, end=ta.selectionEnd;
+    ta.value=ta.value.substring(0,start)+'\n'+ta.value.substring(end);
+    ta.selectionStart=ta.selectionEnd=start+1;
+    ta.style.height='auto'; ta.style.height=ta.scrollHeight+'px';
+    return;
+  }
+  if ((e.key==='Enter'&&e.shiftKey)||e.key==='Escape') {
+    if (e.key!=='Escape'&&mmEditingNode) { mmEditingNode.label=e.target.value||mmEditingNode.label; autoSave(); }
+    if (e.key==='Escape'&&mmEditingNode) { mmEditingNode.label=e.target.value||mmEditingNode.label; autoSave(); }
+    e.target.style.display='none'; e.target.style.height=''; mmEditingNode=null; renderMindmap();
+  }
+});
+document.getElementById('bj-mml-node-input').addEventListener('blur', e => {
+  if (mmEditingNode) { mmEditingNode.label=e.target.value||mmEditingNode.label; autoSave(); }
+  e.target.style.display='none'; e.target.style.height=''; mmEditingNode=null; renderMindmap();
+});
+document.getElementById('bj-mml-node-input').addEventListener('input', e => {
+  e.target.style.height='auto'; e.target.style.height=e.target.scrollHeight+'px';
+});
+document.getElementById('bj-mml-add-node').addEventListener('click', () => {
+  mmNextId++;
+  const cx = mmCanvas ? mmCanvas.width/2 : 340;
+  const cy = mmCanvas ? mmCanvas.height/2 : 240;
+  mmNodes.push({id:mmNextId,x:cx+(Math.random()-.5)*220,y:cy+(Math.random()-.5)*160,label:'Idea',fill:mmNodeFill,stroke:mmNodeStroke});
+  renderMindmap(); autoSave();
+});
+document.querySelectorAll('.mml-color-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    mmNodeFill = this.dataset.fill;
+    mmNodeStroke = this.dataset.stroke;
+    document.querySelectorAll('.mml-color-btn').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    // Apply to selected node if any
+    if (mmSelectedNode) {
+      const node = mmNodes.find(n => n.id === mmSelectedNode);
+      if (node && !node.root) {
+        node.fill = mmNodeFill;
+        node.stroke = mmNodeStroke;
+        renderMindmap(); autoSave();
+      }
+    }
+  });
+});
+document.getElementById('bj-mml-connect-mode').addEventListener('click', function() {
+  mmConnectMode=!mmConnectMode; mmConnectFrom=null; this.classList.toggle('active',mmConnectMode);
+});
+document.getElementById('bj-mml-delete-node').addEventListener('click', () => {
+  if (!mmSelectedNode) { alert('Select a node first.'); return; }
+  if (mmNodes.find(n=>n.id===mmSelectedNode)?.root) { alert("Can't delete the root node."); return; }
+  mmNodes=mmNodes.filter(n=>n.id!==mmSelectedNode);
+  mmEdges=mmEdges.filter(e=>e.from!==mmSelectedNode&&e.to!==mmSelectedNode);
+  mmSelectedNode=null; renderMindmap(); autoSave();
+});
+document.getElementById('bj-mml-reset').addEventListener('click', async () => {
+  if (!(await window.uiConfirm('Reset the mind map?', {danger:true, okLabel:'Reset'}))) return;
+  const cx = mmCanvas ? mmCanvas.width/2 : 340;
+  const cy = mmCanvas ? mmCanvas.height/2 : 240;
+  mmNodes=[{id:1,x:cx,y:cy,label:'Central Idea',root:true}];
+  mmEdges=[]; mmNextId=10; renderMindmap(); autoSave();
+});
+
+// Mindmap: add image to selected node via file picker
+document.getElementById('bj-mml-img-file').addEventListener('change', function() {
+  var file = this.files[0]; if (!file) return;
+  if (!mmSelectedNode) { alert('Select a node first, then click Image.'); this.value=''; return; }
+  var node = mmNodes.find(function(n) { return n.id === mmSelectedNode; });
+  if (!node) { this.value=''; return; }
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var dataURL = e.target.result;
+    var tmpImg = new Image();
+    tmpImg.onload = function() {
+      var maxW = 400, maxH = 320;
+      var iw = tmpImg.naturalWidth, ih = tmpImg.naturalHeight;
+      if (iw > maxW) { ih = Math.round(ih * maxW / iw); iw = maxW; }
+      if (ih > maxH) { iw = Math.round(iw * maxH / ih); ih = maxH; }
+      node.imageData = dataURL;
+      node.imgW = iw; node.imgH = ih;
+      delete mmImgCache[node.id];
+      renderMindmap(); autoSave();
+    };
+    tmpImg.src = dataURL;
+  };
+  reader.readAsDataURL(file);
+  this.value = '';
+});
+
 
 /* PAGE EDITOR */
 function updatePageToolbarState() {
@@ -23731,6 +24468,7 @@ function _bjPageInsertFileChip(name, dataURL, mimeType) {
     { inputId: 'bj-notes-attach-input',   chipsId: 'bj-notes-attach-chips',   imgsId: 'bj-notes-attach-images',   barId: 'bj-notes-attach-bar',   tmpl: 'notes'    },
     { inputId: 'bj-cornell-attach-input', chipsId: 'bj-cornell-attach-chips', imgsId: 'bj-cornell-attach-images', barId: 'bj-cornell-attach-bar', tmpl: 'cornell'  },
     { inputId: 'bj-mm-attach-input',      chipsId: 'bj-mm-attach-chips',      imgsId: 'bj-mm-attach-images',      barId: 'bj-mm-attach-bar',      tmpl: 'mindmap'  },
+    { inputId: 'bj-mml-attach-input',     chipsId: 'bj-mml-attach-chips',     imgsId: 'bj-mml-attach-images',     barId: 'bj-mml-attach-bar',     tmpl: 'mindmap-legacy' },
   ];
 
   function getAttachments() {
@@ -23902,6 +24640,7 @@ function _bjPageInsertFileChip(name, dataURL, mimeType) {
     { areaId: 'bj-notes-area',     zoneId: 'bj-notes-drop-zone',   tmpl: 'notes'      },
     { areaId: 'bj-cornell-area',   zoneId: 'bj-cornell-drop-zone', tmpl: 'cornell'    },
     { areaId: 'bj-mindmap-area',   zoneId: 'bj-mm-drop-zone',      tmpl: 'mindmap'    },
+    { areaId: 'bj-mml-area',       zoneId: 'bj-mml-drop-zone',     tmpl: 'mindmap-legacy' },
     { areaId: 'bj-page-area',      zoneId: 'bj-page-drop-zone',    tmpl: 'page'       },
   ];
 
@@ -24321,6 +25060,12 @@ function setEditMode(enabled) {
   // changed — the same contract the text templates get from readOnly.
   if (_bjBoards.wb) _bjBoards.wb.setEditable(enabled);
   if (_bjBoards.mm) _bjBoards.mm.setEditable(enabled);
+  // The legacy mind map gates the same way it always did: its toolbar appears
+  // in edit mode and its canvas stops taking pointer events out of it.
+  const mmlToolbar = document.getElementById('bj-mml-toolbar');
+  if (mmlToolbar) mmlToolbar.classList.toggle('edit-mode', enabled);
+  const mmlC = document.getElementById('bj-mml-canvas');
+  if (mmlC) mmlC.style.pointerEvents = enabled ? 'auto' : 'none';
   const editableIds = [
     'bj-entry-title-input','bj-notes-main','bj-notes-links','bj-notes-questions',
     'bj-cornell-topic','bj-cornell-cues-ta','bj-cornell-notes-ta','bj-cornell-summary-ta',
@@ -24645,6 +25390,22 @@ function exportEntryAsPDF(entry) {
   var title = entry.title || 'Untitled Entry';
   var date = new Date(entry.updated || entry.created).toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
   var tags = (entry.tags || []).length ? entry.tags.join(', ') : '';
+
+  // The legacy mind map draws itself onto a 2D canvas, so its own bitmap is the
+  // export — exactly as it was before the rebuild.
+  if (entry.template === 'mindmap-legacy') {
+    var mmCv = document.getElementById('bj-mml-canvas');
+    if (!mmCv) { window.uiAlert('Open this mind map before exporting it to PDF.', { title: 'Nothing to export' }); return; }
+    var mmlHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + _bjEsc(_bjPdfName(title)) + '</title>'
+      + '<style>body{margin:0;background:#fff;}img{max-width:100%;display:block;}h1{font-family:serif;font-size:18px;margin:16px;}p{font-family:sans-serif;font-size:12px;color:#666;margin:0 16px 12px;}</style>'
+      + '</head><body>'
+      + '<h1>' + _bjEsc(title) + '</h1>'
+      + '<p>' + _bjEsc(date) + (tags ? ' &middot; ' + _bjEsc(tags) : '') + '</p>'
+      + '<img src="' + mmCv.toDataURL('image/png') + '" />'
+      + '</body></html>';
+    _bjOpenPrintBlob(mmlHtml);
+    return;
+  }
 
   // Visual templates: ask the live board to render itself. Both engines export
   // at their own resolution with a light background, so the printed page is a
