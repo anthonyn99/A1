@@ -36228,13 +36228,20 @@ window._THV={
   // Belt and braces for touch: overflow:hidden does not reliably stop a drag on
   // the backdrop on every mobile browser. Movement that starts on the overlay
   // itself — rather than inside the dialog box — is refused outright.
-  document.addEventListener('touchmove',function(e){
+  // This app already sets overflow:hidden on html/body — the document does not
+  // scroll, an inner container does. So locking the document achieves nothing
+  // here, and the gesture itself has to be refused: any wheel or drag that is
+  // not inside the dialog box is cancelled while a dialog is up. Registered in
+  // the CAPTURE phase so it wins before any scroll container sees it.
+  function _uimBlockGesture(e){
     var ov=el('uim-overlay');
     if(!ov||!ov.classList.contains('show'))return;
     var box=el('uim-box');
-    if(box && e.target && box.contains(e.target))return;   // scrolling the dialog
+    if(box && e.target && box.contains(e.target))return;   // scrolling the dialog itself
     if(e.cancelable)e.preventDefault();
-  },{passive:false});
+  }
+  document.addEventListener('touchmove',_uimBlockGesture,{passive:false,capture:true});
+  document.addEventListener('wheel',_uimBlockGesture,{passive:false,capture:true});
   window.uiAlert=function(m,o){ o=o||{}; return open({kind:'alert',message:String(m==null?'':m),title:o.title,okLabel:o.okLabel||'OK'}); };
   window.uiConfirm=function(m,o){ o=o||{}; return open({kind:'confirm',message:String(m==null?'':m),title:o.title,okLabel:o.okLabel||'OK',cancelLabel:o.cancelLabel||'Cancel',danger:o.danger}); };
   window.uiPrompt=function(m,o){ o=o||{}; return open({kind:'prompt',message:String(m==null?'':m),title:o.title,okLabel:o.okLabel||'OK',cancelLabel:o.cancelLabel||'Cancel',
