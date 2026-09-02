@@ -19406,6 +19406,11 @@ function loadExcalidraw() {
   // Must be set BEFORE the bundle evaluates — it is read at module scope to
   // resolve the hand-drawn fonts and locale chunks.
   window.EXCALIDRAW_ASSET_PATH = EXC_BASE;
+  // The page ALREADY carries React 18.2 + ReactDOM 18.2 (the TaskHubs are built
+  // on them, loaded near the top of this file) — the exact pair this Excalidraw
+  // build is compiled against. So the normal path adds no React at all and the
+  // two share one copy. The fallback below only runs if that ever stops being
+  // true; if the app moves off React 18, this pin has to move with it.
   _excP = (window.React && window.ReactDOM ? Promise.resolve() :
       loadScriptOffline(CDN + 'react@' + V_REACT + '/umd/react.production.min.js', 'react@' + V_REACT)
         .then(function () { return loadScriptOffline(CDN + 'react-dom@' + V_REACT + '/umd/react-dom.production.min.js', 'react-dom@' + V_REACT); }))
