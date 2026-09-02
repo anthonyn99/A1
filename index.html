@@ -10936,43 +10936,12 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       if (!_fromCache) _bjMarkServerSeen();
     });
 
-    // ── Brainstorm Journal — Canvas sync (per-entry, separate doc) ───────────    // ── Brainstorm Journal — Canvas sync (per-entry, separate doc) ───────────
-    // Each whiteboard entry canvas stored in dashboards/journal_canvas_<entryId>
-    // to avoid 1MB Firestore doc limit on the main journal doc.
-
-    let _bjCanvasSaveTimers = {};
-    let _bjCanvasLastSaveAt = {};
-    let _bjCanvasUnsub = null; // listener for currently active canvas doc
-
-    window._fbSaveCanvas = (entryId, dataURL) => {
-      const key = entryId;
-      _bjCanvasLastSaveAt[key] = Date.now();
-      if (_bjCanvasSaveTimers[key]) clearTimeout(_bjCanvasSaveTimers[key]);
-      _bjCanvasSaveTimers[key] = setTimeout(async () => {
-        try {
-          const ref = doc(db, 'dashboards', 'journal_canvas_' + entryId);
-          _bjCanvasLastSaveAt[key] = Date.now();
-          await setDoc(ref, { canvas: dataURL, savedAt: Date.now() });
-          _bjCanvasLastSaveAt[key] = Date.now();
-          window.dispatchEvent(new CustomEvent('fb-bj-canvas-saved', { detail: entryId }));
-        } catch(e) {
-          console.error('Firebase canvas save failed:', e.code, e.message);
-          window.dispatchEvent(new CustomEvent('fb-bj-error'));
-        }
-      }, 600);
-    };
-
-    window._fbLoadCanvas = async (entryId) => {
-      try {
-        const ref = doc(db, 'dashboards', 'journal_canvas_' + entryId);
-        const snap = await getDoc(ref);
-        if (snap.exists()) return snap.data().canvas || null;
-        return null;
-      } catch(e) {
-        console.warn('Firebase canvas load failed:', e);
-        return null;
-      }
-    };
+    /* The whiteboard used to upload a full-canvas PNG after every stroke, into
+     * dashboards/journal_canvas_<id>. It is gone: boards now write structured,
+     * chunked documents on a debounce (see _fbViz above and the VizEngine
+     * block). The OLD documents are deliberately left in place and are read
+     * once, on first open, to convert an old drawing into the new model.
+     * ==================================================================== */
 
     // ── AI Format prompt (per-journal, cross-device synced via its own doc) ──
     // Legacy single-prompt doc. The AI Tools store below superseded it, but the
@@ -11014,24 +10983,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       });
     } catch(e) {}
 
-    // Subscribe to live canvas updates for one entry at a time
-    window._fbWatchCanvas = (entryId, onUpdate) => {
-      // Unsubscribe previous listener
-      if (_bjCanvasUnsub) { _bjCanvasUnsub(); _bjCanvasUnsub = null; }
-      if (!entryId) return;
-      const ref = doc(db, 'dashboards', 'journal_canvas_' + entryId);
-      _bjCanvasUnsub = onSnapshot(ref, (snap) => {
-        const lastSave = _bjCanvasLastSaveAt[entryId] || 0;
-        if (Date.now() - lastSave < 4000) return; // skip echo of own save
-        if (snap.exists() && snap.data().canvas) {
-          onUpdate(snap.data().canvas);
-        }
-      });
-    };
-
-    window._fbUnwatchCanvas = () => {
-      if (_bjCanvasUnsub) { _bjCanvasUnsub(); _bjCanvasUnsub = null; }
-    };
 
     /* ── Viz boards (Whiteboard / Mind Map) — generic document access ─────────
      *
@@ -11062,7 +11013,18 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
           if (window._fbSyncAlert) window._fbSyncAlert('Board sync', msg);
           return Promise.reject(new Error('viz-chunk-too-large'));
         }
-        return _fbWriteRetry(() => setDoc(doc(db, 'dashboards', id), payload), 'viz ' + id);
+        return _fbWriteRetry(() => setDoc(doc(db, 'dashboards', id), payload), 'viz ' + id)
+          .then((r) => {
+            // Feed the board into the local backup vault. Every other document
+            // reaches it from a listener that was already running; a board has
+            // no listener on the writing device, so it is handed over here —
+            // still at zero extra Firestore reads, because we just wrote it.
+            // SCENE documents only: the image documents beside them can be
+            // megabytes each and would be re-hashed on every capture, and they
+            // are already durable in Firestore and cached in IndexedDB here.
+            if (id.indexOf('_viz_') > 0) _a1b('dashboards/' + id, payload);
+            return r;
+          });
       },
       // One listener per key, replacing whatever that key held. Navigating
       // between boards therefore cannot stack listeners the way an unkeyed
@@ -11577,35 +11539,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       if (!_fromCache) _tjMarkServerSeen();
     });
 
-    let _tjCanvasSaveTimers = {};
-    let _tjCanvasLastSaveAt = {};
-    let _tjCanvasUnsub = null;
-
-    window._fbSaveTJCanvas = (entryId, dataURL) => {
-      const key = entryId;
-      _tjCanvasLastSaveAt[key] = Date.now();
-      if (_tjCanvasSaveTimers[key]) clearTimeout(_tjCanvasSaveTimers[key]);
-      _tjCanvasSaveTimers[key] = setTimeout(async () => {
-        try {
-          const ref = doc(db, 'dashboards', 'tony_journal_canvas_' + entryId);
-          _tjCanvasLastSaveAt[key] = Date.now();
-          await setDoc(ref, { canvas: dataURL, savedAt: Date.now() });
-          _tjCanvasLastSaveAt[key] = Date.now();
-          window.dispatchEvent(new CustomEvent('fb-tj-canvas-saved', { detail: entryId }));
-        } catch(e) {
-          console.error('Firebase TJ canvas save failed:', e.code, e.message);
-          window.dispatchEvent(new CustomEvent('fb-tj-error'));
-        }
-      }, 600);
-    };
-
-    window._fbLoadTJCanvas = async (entryId) => {
-      try {
-        const ref = doc(db, 'dashboards', 'tony_journal_canvas_' + entryId);
-        const snap = await getDoc(ref);
-        return snap.exists() ? snap.data().canvas || null : null;
-      } catch(e) { return null; }
-    };
 
     // ── AI Format prompt (per-journal, cross-device synced via its own doc) ──
     // Legacy single-prompt doc. The AI Tools store below superseded it, but the
@@ -11648,20 +11581,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       });
     } catch(e) {}
 
-    window._fbWatchTJCanvas = (entryId, onUpdate) => {
-      if (_tjCanvasUnsub) { _tjCanvasUnsub(); _tjCanvasUnsub = null; }
-      if (!entryId) return;
-      const ref = doc(db, 'dashboards', 'tony_journal_canvas_' + entryId);
-      _tjCanvasUnsub = onSnapshot(ref, (snap) => {
-        const lastSave = _tjCanvasLastSaveAt[entryId] || 0;
-        if (Date.now() - lastSave < 4000) return;
-        if (snap.exists() && snap.data().canvas) onUpdate(snap.data().canvas);
-      });
-    };
-
-    window._fbUnwatchTJCanvas = () => {
-      if (_tjCanvasUnsub) { _tjCanvasUnsub(); _tjCanvasUnsub = null; }
-    };
 
     // ── MyJournal cloud documents — PREFERENCES ONLY ──────────────────────────
     // dashboards/myjournal_docs carries provider client ids, favorites, recents
@@ -11948,9 +11867,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     if (_ecUnsubscribe)  { _ecUnsubscribe();  _ecUnsubscribe  = null; }
     if (_alUnsubscribe)  { _alUnsubscribe();  _alUnsubscribe  = null; }
     if (window._tsUnsubscribe) { window._tsUnsubscribe(); window._tsUnsubscribe = null; }
-    if (window._fbUnwatchCanvas)   window._fbUnwatchCanvas();
     if (window._fbUnwatchMJCanvas) window._fbUnwatchMJCanvas();
-    if (window._fbUnwatchTJCanvas) window._fbUnwatchTJCanvas();
     // Kill the WebSocket entirely so no reconnect reads can fire.
     // FCM module uses a separate Firestore instance — unaffected.
     try { await terminate(db); } catch(e) {}
@@ -22271,7 +22188,9 @@ function _bjApplyRemote(remote) {
     if (window.JGuard) window.JGuard.backup('bj', local, remoteEntry.data);
 
     if (remoteEntry.template === 'whiteboard') {
-      // Whiteboard canvas handled by _fbWatchCanvas; only sync metadata
+      // A whiteboard entry carries only its fingerprint now; the board itself
+      // lives in its own document with its own sync. Keep any legacy canvas the
+      // remote copy has had stripped from it.
       var lc2 = local.data && local.data.canvas ? local.data.canvas : localStorage.getItem(BJ_CANVAS_KEY(local.id)) || '';
       localById[remoteEntry.id] = { ...remoteEntry, data: { ...remoteEntry.data, canvas: lc2 } };
       return;
@@ -26968,21 +26887,6 @@ function saveState() {
   }
 }
 
-// Called after every whiteboard stroke to sync canvas live
-function saveCanvas() {
-  var entry = getActive();
-  if (!entry || entry.template !== 'whiteboard' || !wbCanvas) return;
-  if (window._tjGetLock && window._tjGetLock(entry.id) && !(window._tjIsUnlocked && window._tjIsUnlocked(entry.id))) return;
-  // Use JPEG at 0.85 quality — typically 5-10× smaller than PNG, well within 1MB Firestore limit
-  var dataURL = wbCanvas.toDataURL('image/png');
-  entry.data.canvas = dataURL;
-  // localStorage canvas backup
-  try { localStorage.setItem(TJ_CANVAS_KEY(entry.id), dataURL); } catch(e) {}
-  // Firebase canvas sync
-  _tjSetSync('syncing');
-  if (window._fbSaveTJCanvas) window._fbSaveTJCanvas(entry.id, dataURL);
-}
-
 // Merge remote state into local.
 // With the new per-entry field storage model, each entry arrives independently.
 // No collision is possible between two users editing different entries.
@@ -27122,7 +27026,9 @@ function _tjApplyRemote(remote) {
     if (window.JGuard) window.JGuard.backup('tj', local, remoteEntry.data);
 
     if (remoteEntry.template === 'whiteboard') {
-      // Whiteboard canvas handled by _fbWatchCanvas; only sync metadata
+      // A whiteboard entry carries only its fingerprint now; the board itself
+      // lives in its own document with its own sync. Keep any legacy canvas the
+      // remote copy has had stripped from it.
       var lc2 = local.data && local.data.canvas ? local.data.canvas : localStorage.getItem(TJ_CANVAS_KEY(local.id)) || '';
       localById[remoteEntry.id] = { ...remoteEntry, data: { ...remoteEntry.data, canvas: lc2 } };
       return;
@@ -29301,6 +29207,7 @@ function autoSave() {
 }
 // Persist the current entry synchronously RIGHT NOW — see _bjPersistNow.
 window._tjPersistNow = function() {
+  try { if (window._tjFlushBoards) window._tjFlushBoards(); } catch(e) {}
   try { clearTimeout(autoTimer); if (getActive()) saveCurrentEntry(); } catch(e) {}
   try { if (window._fbFlushTonyJournal) return window._fbFlushTonyJournal(); } catch(e) {}
 };
@@ -29330,10 +29237,9 @@ if (_jeEdEl) _jeEdEl.addEventListener('input', autoSave);
 document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 's') {
     e.preventDefault(); saveCurrentEntry();
+    if (window._tjFlushBoards) window._tjFlushBoards();
   }
-  if ((e.ctrlKey || e.metaKey) && e.key === 'z' && getActive()?.template === 'whiteboard') {
-    e.preventDefault(); document.getElementById('tj-wb-undo').click();
-  }
+  // Undo/redo inside a board belong to the board — see the BJ twin.
 });
 
 /* EDIT MODE */
@@ -29681,18 +29587,23 @@ function exportEntryAsPDF(entry) {
   var date = new Date(entry.updated || entry.created).toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
   var tags = (entry.tags || []).length ? entry.tags.join(', ') : '';
 
-  // For whiteboard: open canvas image in print window
-  if (entry.template === 'whiteboard') {
-    var canvas = document.getElementById('tj-wb-canvas');
-    var dataURL = canvas ? canvas.toDataURL('image/png') : (entry.data.canvas || '');
-    var wbHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + _tjEsc(_tjPdfName(title)) + '</title>'
-      + '<style>body{margin:0;background:#fff;}img{max-width:100%;display:block;}h1{font-family:serif;font-size:18px;margin:16px;}p{font-family:sans-serif;font-size:12px;color:#666;margin:0 16px 12px;}@media print{h1,p{display:block;}}</style>'
-      + '</head><body>'
-      + '<h1>' + _tjEsc(title) + '</h1>'
-      + '<p>' + _tjEsc(date) + (tags ? ' &middot; ' + _tjEsc(tags) : '') + '</p>'
-      + (dataURL ? '<img src="' + dataURL + '" />' : '<p style="color:#aaa;font-style:italic;padding:16px;">Empty whiteboard.</p>')
-      + '</body></html>';
-    _tjOpenPrintBlob(wbHtml);
+  // Visual templates: ask the live board to render itself — see the BJ twin.
+  if (entry.template === 'whiteboard' || entry.template === 'mindmap') {
+    var _vbrd = _tjBoards[entry.template === 'whiteboard' ? 'wb' : 'mm'];
+    if (!_vbrd || !_vbrd.isOpen(entry.id)) {
+      window.uiAlert('Open this ' + (entry.template === 'whiteboard' ? 'whiteboard' : 'mind map') + ' before exporting it to PDF.', { title: 'Nothing to export' });
+      return;
+    }
+    _vbrd.toPngDataUrl().then(function (dataURL) {
+      var vHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + _tjEsc(_tjPdfName(title)) + '</title>'
+        + '<style>body{margin:0;background:#fff;}img{max-width:100%;display:block;}h1{font-family:sans-serif;font-size:18px;margin:16px;}p{font-family:sans-serif;font-size:12px;color:#666;margin:0 16px 12px;}@media print{h1,p{display:block;}}</style>'
+        + '</head><body>'
+        + '<h1>' + _tjEsc(title) + '</h1>'
+        + '<p>' + _tjEsc(date) + (tags ? ' &middot; ' + _tjEsc(tags) : '') + '</p>'
+        + (dataURL ? '<img src="' + dataURL + '" />' : '<p style="color:#aaa;font-style:italic;padding:16px;">This board is empty.</p>')
+        + '</body></html>';
+      _tjOpenPrintBlob(vHtml);
+    });
     return;
   }
 
