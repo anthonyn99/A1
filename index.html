@@ -19776,7 +19776,7 @@ function createBoard(cfg) {
     hint.hidden = true;
     var now = Date.now();
     if (!B.firstDirtyAt) B.firstDirtyAt = now;
-    setStatus('saving');
+    setStatus(navigator.onLine === false ? 'offline' : 'saving');
     clearTimeout(B.idleTimer);
     // Idle debounce, with a hard ceiling so an unbroken drawing session still
     // reaches disk. Without the ceiling the timer restarts forever and a crash
