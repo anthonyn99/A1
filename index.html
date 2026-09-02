@@ -36196,6 +36196,11 @@ window._THV={
     ok.style.borderColor=cfg.danger?'rgba(214,138,124,.45)':'rgba(224,184,116,.36)';
     ca.textContent=cfg.cancelLabel||'Cancel'; ca.style.display=(cfg.kind==='alert')?'none':'';
     el('uim-overlay').classList.add('show');
+    // Stop the page scrolling underneath. Shares the counter the React dialogs
+    // use, so a dialog opened over one of those cannot hand scrolling back
+    // early. Guarded by _uimLocked because dialogs queue rather than stack:
+    // one closing straight into the next must not take a second lock.
+    if(!_uimLocked && window._thScrollLock){ _uimLocked=true; window._thScrollLock(true); }
     setTimeout(function(){ var fi=fw.querySelector('input'); if(fi){ fi.focus(); try{fi.select();}catch(e){} } else ok.focus(); }, 40);
   }
   function collect(){ var o={}; var ins=el('uim-fields').querySelectorAll('input'); Array.prototype.forEach.call(ins,function(i){ o[i.getAttribute('data-name')]=i.value; }); return o; }
@@ -36211,11 +36216,25 @@ window._THV={
   function close(result){
     var cfg=active; active=null;
     var ov=el('uim-overlay'); if(ov) ov.classList.remove('show');
+    // Release only when nothing more is waiting — render() below takes the lock
+    // straight back for a queued dialog, and dropping it in between would let
+    // the page jump for a frame.
+    if(!queue.length && _uimLocked && window._thScrollLock){ _uimLocked=false; window._thScrollLock(false); }
     if(cfg && cfg.resolve) cfg.resolve(result);
     if(queue.length){ render(queue.shift()); }
   }
   function open(cfg){ return new Promise(function(res){ cfg.resolve=res; if(active) queue.push(cfg); else render(cfg); }); }
   window.uiModal=open;
+  // Belt and braces for touch: overflow:hidden does not reliably stop a drag on
+  // the backdrop on every mobile browser. Movement that starts on the overlay
+  // itself — rather than inside the dialog box — is refused outright.
+  document.addEventListener('touchmove',function(e){
+    var ov=el('uim-overlay');
+    if(!ov||!ov.classList.contains('show'))return;
+    var box=el('uim-box');
+    if(box && e.target && box.contains(e.target))return;   // scrolling the dialog
+    if(e.cancelable)e.preventDefault();
+  },{passive:false});
   window.uiAlert=function(m,o){ o=o||{}; return open({kind:'alert',message:String(m==null?'':m),title:o.title,okLabel:o.okLabel||'OK'}); };
   window.uiConfirm=function(m,o){ o=o||{}; return open({kind:'confirm',message:String(m==null?'':m),title:o.title,okLabel:o.okLabel||'OK',cancelLabel:o.cancelLabel||'Cancel',danger:o.danger}); };
   window.uiPrompt=function(m,o){ o=o||{}; return open({kind:'prompt',message:String(m==null?'':m),title:o.title,okLabel:o.okLabel||'OK',cancelLabel:o.cancelLabel||'Cancel',
