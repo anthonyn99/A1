@@ -1607,92 +1607,106 @@ function useTBJournal(){
 
 
           sorted.forEach(raw=>{
-            const wbId=String(raw.id||raw.orderId||raw.fillId||(raw.ticker+(raw.date||raw.datetime||raw.filledAt||'')));
-            if(absorbedWb.has('wb:'+wbId))return;
-            const action=(raw.side||raw.action||'BUY').toUpperCase();
             const ticker=(raw.ticker||raw.symbol||'').toUpperCase();
+            const wbBase=String(raw.id||raw.orderId||raw.fillId||(raw.ticker+(raw.date||raw.datetime||raw.filledAt||'')));
             /* ── Webull field aliases ─────────────────────────────────────────
                datetime: filledAt | filledTime | tradeTime | orderTime | createTime | date | datetime
                qty:      filled   | filledQty  | filledQuantity | leavesQuantity | qty
                price:    avgFilledPrice | avgFill | avgPrice | fillPrice | limitPrice | price
                fee:      totalCommission | commission | fee | charges
                ─────────────────────────────────────────────────────────────── */
-            const rawDatetime=
-              raw.date||raw.datetime||raw.filledAt||raw.filledTime||
-              raw.tradeTime||raw.orderTime||raw.createTime||null;
-            /* Webull timestamps can be epoch-ms numbers */
-            const resolvedDatetime=rawDatetime
-              ?( typeof rawDatetime==='number'
-                  ? new Date(rawDatetime).toISOString()
-                  : String(rawDatetime) )
-              : new Date().toISOString();
-            const rawQty=raw.qty??raw.filled??raw.filledQty??raw.filledQuantity??'';
-            const rawPrice=raw.avgFill??raw.avgFilledPrice??raw.avgPrice??raw.price??raw.limitPrice??'';
-            /* Webull API fee fields — covers all known variants from webull-api-client and custom workers:
-               totalCommission (official), commission, fee, charges, secFee, tafFee,
-               regulatory_fee, platform_fee, broker_fee, fees (object with .total),
-               order_fee, trade_fee, transaction_fee */
-            const rawFee=(()=>{
-              /* commission confirmed as fee field; Webull is commission-free so =0.
-               SEC/TAF regulatory fees are not included in this endpoint's data. */
-            const candidates=[
-                raw.commission,raw.totalCommission,raw.total_commission,
-                raw.fee,raw.totalFee,raw.total_fee,
-                raw.secFee,raw.tafFee,raw.commissionFee,
-                raw.fees?.total??raw.fees,
-                raw.charges,raw.brokerFee,raw.orderFee,
+            const resolve=v=>v?(typeof v==='number'?new Date(v).toISOString():String(v)):null; // epoch-ms or string
+            /* Webull API fee fields — covers all known variants from
+               webull-api-client and custom workers. Webull is commission-free so
+               this is usually 0; SEC/TAF regulatory fees do come through. */
+            const feeOf=o=>{
+              const candidates=[
+                o.commission,o.totalCommission,o.total_commission,
+                o.fee,o.totalFee,o.total_fee,
+                o.secFee,o.tafFee,o.commissionFee,
+                o.fees?.total??o.fees,
+                o.charges,o.brokerFee,o.orderFee,
               ];
               for(const c of candidates){
                 const n=parseFloat(c);
                 if(c!==undefined&&c!==null&&c!==''&&!isNaN(n)&&n>0)return n;
               }
               return 0;
-            })();
-
-            const newLeg={
-              id:tbUuid(),
-              _wbId:wbId,
-              action,
-              datetime:tbToLocalDT(resolvedDatetime),
-              qty:String(rawQty),
-              price:String(rawPrice),
-              fee:rawFee!==0?String(rawFee):'0',
             };
-            absorbedWb.add('wb:'+wbId);
-            /* Already present (any source / any prior sync)? Skip — no dup. */
-            const _cfp=fpOf(ticker,newLeg);
-            if(absorbedContent.has(_cfp))return;
-            absorbedContent.add(_cfp);
-            /* Position grouping: attach BOTH buys and sells to the current open
-               position for this ticker. A position opens on the first buy while
-               flat and stays open until cumulative SELL qty >= cumulative BUY qty.
-               This lets scale-ins (extra buys) and scale-outs (partial sells)
-               merge into ONE trade instead of fragmenting per order. */
-            const open=findOpenEntry(ticker);
-            if(open){
-              open.legs=[...open.legs,newLeg];
-              const bq=open.legs.filter(l=>l.action==='BUY').reduce((s,l)=>s+(parseFloat(l.qty)||0),0);
-              const sq=open.legs.filter(l=>l.action==='SELL').reduce((s,l)=>s+(parseFloat(l.qty)||0),0);
-              open.status=(bq>0&&sq>=bq)?'CLOSED':'OPEN';
-              map.set(open.id,open);
-              toSave.set(open.id,open);
-              return;
-            }
-            /* No open position. A BUY opens a new one; a stray SELL with no
-               matching long becomes its own closed entry. */
-            const entryId=tbUuid();
-            const entry={
-              id:entryId,
-              ticker,
-              market:raw.market||raw.assetType||'STOCK',
-              createdAt:new Date(resolvedDatetime).getTime()||Date.now(),
-              source:'webull',
-              legs:[newLeg],
-              notes:'',
-              status:action==='BUY'?'OPEN':'CLOSED',
-            };
-            map.set(entryId,entry);
-            toSave.set(entryId,entry);
+            /* ── Take the entry's OWN legs when it has them ───────────────────
+               A worker journal entry is not always one fill. The worker merges
+               fills into positions, so an entry can carry 3 BUYs + 1 SELL. This
+               used to read only the top-level side/qty/avgFill summary and
+               synthesise a SINGLE leg from it, throwing every other leg away:
+               the 5/21 SNDK position (buys 1@1415 + 1@1406 + 1@1400, then a
+               3-share sell @1457.18) arrived as one lone leg and its buys
+               vanished, which is what left the sell reading NO BASIS. The
+               summary also mixes fields across legs — side of the first leg,
+               qty of all the buys, avgFill of one of them — so even the leg
+               that survived described a fill that never happened. */
+            const fills=Array.isArray(raw.legs)&&raw.legs.length
+              ? raw.legs.map((l,i)=>({
+                  wbId:wbBase+'#'+(l._wbId||l.id||i),
+                  action:(l.action||l.side||'BUY').toUpperCase(),
+                  datetime:resolve(l.datetime||l.date||l.filledAt)||resolve(raw.date)||new Date().toISOString(),
+                  qty:l.qty??l.filled??l.quantity??'',
+                  price:l.price??l.avgFill??l.avgFilledPrice??'',
+                  fee:feeOf(l),
+                }))
+              : [{
+                  wbId:wbBase,
+                  action:(raw.side||raw.action||'BUY').toUpperCase(),
+                  datetime:resolve(raw.date||raw.datetime||raw.filledAt||raw.filledTime||
+                                   raw.tradeTime||raw.orderTime||raw.createTime)||new Date().toISOString(),
+                  qty:raw.qty??raw.filled??raw.filledQty??raw.filledQuantity??'',
+                  price:raw.avgFill??raw.avgFilledPrice??raw.avgPrice??raw.price??raw.limitPrice??'',
+                  fee:feeOf(raw),
+                }];
+            fills.forEach(f=>{
+              if(absorbedWb.has('wb:'+f.wbId))return;
+              const newLeg={
+                id:tbUuid(),
+                _wbId:f.wbId,
+                action:f.action,
+                datetime:tbToLocalDT(f.datetime),
+                qty:String(f.qty),
+                price:String(f.price),
+                fee:f.fee!==0?String(f.fee):'0',
+              };
+              absorbedWb.add('wb:'+f.wbId);
+              /* Already present (any source / any prior sync)? Skip — no dup. */
+              const _cfp=fpOf(ticker,newLeg);
+              if(absorbedContent.has(_cfp))return;
+              absorbedContent.add(_cfp);
+              /* Provisional home only — tbReconcileWebull below regroups every
+                 webull leg from scratch by datetime, so this just has to be
+                 somewhere sane for the ticker. */
+              const open=findOpenEntry(ticker);
+              if(open){
+                open.legs=[...open.legs,newLeg];
+                const bq=open.legs.filter(l=>l.action==='BUY').reduce((s,l)=>s+(parseFloat(l.qty)||0),0);
+                const sq=open.legs.filter(l=>l.action==='SELL').reduce((s,l)=>s+(parseFloat(l.qty)||0),0);
+                open.status=(bq>0&&sq>=bq)?'CLOSED':'OPEN';
+                map.set(open.id,open);
+                toSave.set(open.id,open);
+                return;
+              }
+              /* No open position. A BUY opens a new one; a stray SELL with no
+                 matching long becomes its own closed entry. */
+              const entryId=tbUuid();
+              const entry={
+                id:entryId,
+                ticker,
+                market:raw.market||raw.assetType||'STOCK',
+                createdAt:new Date(f.datetime).getTime()||Date.now(),
+                source:'webull',
+                legs:[newLeg],
+                notes:'',
+                status:f.action==='BUY'?'OPEN':'CLOSED',
+              };
+              map.set(entryId,entry);
+              toSave.set(entryId,entry);
+            });
           });
           /* Reconcile the WHOLE journal: dedup + regroup all webull legs so the
              output is always clean, then atomically replace the Firebase doc so
@@ -1977,23 +1991,43 @@ function tbReconcileWebull(trades){
          before regrouping, so a rebuild always starts from what Webull actually
          reported and repeated re-merges stay idempotent. */
       const origin=l._splitOf||null;
-      const k=origin?('wb:'+origin)
-             :l._wbId?('wb:'+l._wbId)
-             :(tk+'|'+(l.action||'')+'|'+String(l.datetime||'').slice(0,16)+'|'+p(l.qty)+'|'+p(l.price));
-      const hit=seen.get(k);
+      const idKey=origin?('wb:'+origin):(l._wbId?('wb:'+l._wbId):null);
+      /* Content fingerprint, at DAY precision. The worker's journal genuinely
+         holds the same fill twice: once inside a merged position entry whose
+         legs carry no Webull order id, and once as its own per-order entry that
+         the worker later appended because that id looked unknown. The copies
+         disagree on id, on fee (0 vs 0.11) and on clock (08:15 vs 08:42 for the
+         5/21 SNDK sell), so an id key and a minute-precision key both missed the
+         pair — which is why Re-merge could never collapse the duplicate rows.
+         Same ticker, side, quantity and exact cent price on one day is the same
+         fill in practice; the sync path already accepted this trade-off at
+         minute precision. Cost: two genuinely separate same-day fills identical
+         to the cent would merge into one. */
+      const fp=g=>'fp:'+tk+'|'+(g.action||'')+'|'+String(g.datetime||'').slice(0,10)+'|'+p(g.qty)+'|'+p(g.price);
+      const cKey=fp(l);
+      const hit=(idKey&&seen.get(idKey))||seen.get(cKey);
       if(hit){
-        if(!origin)return;                     // plain duplicate — drop
-        if(hit.parts.has(l._splitIx))return;   // same part seen twice — drop
-        hit.parts.add(l._splitIx);
-        hit.leg.qty=String(p(hit.leg.qty)+p(l.qty));
-        hit.leg.fee=String(p(hit.leg.fee)+p(l.fee));
+        if(origin&&!hit.parts.has(l._splitIx)){
+          /* A further part of a fill already restored — add it back. */
+          hit.parts.add(l._splitIx);
+          hit.leg.qty=String(p(hit.leg.qty)+p(l.qty));
+          hit.leg.fee=String(p(hit.leg.fee)+p(l.fee));
+          seen.set(fp(hit.leg),hit);
+          return;
+        }
+        /* Duplicate. Keep the copy already held, but take a fee off the other
+           one if ours came through without it. */
+        if(p(hit.leg.fee)===0&&p(l.fee)>0)hit.leg.fee=String(p(l.fee));
         return;
       }
-      /* Restore a split part to a standalone fill; keep whole legs untouched
-         (same object identity) so nothing in state is mutated in place. */
-      let leg=l;
-      if(origin){leg={...l,_wbId:origin};delete leg._splitOf;delete leg._splitIx;}
-      seen.set(k,{leg,parts:new Set(origin?[l._splitIx]:[])});
+      /* Always store a copy: the dedup above backfills fees onto the kept leg,
+         and these objects come straight out of React state. */
+      const leg={...l};
+      delete leg._splitOf;delete leg._splitIx;
+      if(origin)leg._wbId=origin;
+      const rec={leg,parts:new Set(origin?[l._splitIx]:[])};
+      if(idKey)seen.set(idKey,rec);
+      seen.set(cKey,rec);
       byTicker.get(tk).legs.push(leg);
     });
   });
