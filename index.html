@@ -19650,7 +19650,7 @@ function createBoard(cfg) {
     lib: null, api: null, mind: null, root: null,
     mounted: false, editable: false, ready: false,
     dirty: false, saving: false, closing: false,
-    lastSerial: null, rev: 0, count: 0, docTitle: '',
+    lastSerial: null, cloudSerial: null, pendingFiles: null, rev: 0, count: 0, docTitle: '',
     lastLocalEdit: 0, lastCloudAt: 0, retryIx: 0, retryTimer: null,
     idleTimer: null, firstDirtyAt: 0, slowTimer: null,
     uploaded: {},           // fileId → true, so an unchanged image is never re-sent
@@ -19830,37 +19830,58 @@ function createBoard(cfg) {
   }
   var DEFAULT_ROOT = 'Central Idea';
 
-  /* ── save ───────────────────────────────────────────────────────────── */
+  /* ── save ─────────────────────────────────────────────────────────────
+   *
+   * Two halves, and the split is the whole point. The LOCAL half — serialise,
+   * write to IndexedDB, tell the journal — runs on EVERY save, unconditionally.
+   * The CLOUD half is allowed to be slow, to fail, or (offline, where Firestore
+   * queues a write that neither resolves nor rejects) to hang indefinitely.
+   *
+   * Making the local half wait on the cloud half is a way to lose work: draw
+   * two things on a train and the second one would sit in memory behind a
+   * network write that will not settle until the tunnel ends, and closing the
+   * tab would take it. So local never waits, and the cloud write chases the
+   * newest serialisation once it eventually lands. */
   function save() {
     clearTimeout(B.idleTimer);
     if (!B.ready || !B.entryId) return Promise.resolve();
-    if (B.saving) { B.dirty = true; return B.saving; }
     var s;
     try { s = serialise(); } catch (e) { console.warn('[viz] serialise failed:', e && e.message); return Promise.resolve(); }
     if (!s) return Promise.resolve();
     var str;
     try { str = JSON.stringify(s.doc); } catch (e) { console.warn('[viz] stringify failed:', e && e.message); return Promise.resolve(); }
     B.dirty = false; B.firstDirtyAt = 0;
-    // Nothing actually changed (a selection, a pan, a tool switch): no write.
-    if (str === B.lastSerial) { setStatus(B.lastCloudAt ? 'saved' : 'idle'); return Promise.resolve(); }
-    B.lastSerial = str;
-    B.rev++; B.count = s.count; B.docTitle = s.title;
-    var id = B.entryId, rev = B.rev;
+    var id = B.entryId;
 
-    // Local first, always. This is what makes an offline board safe and what
-    // makes reopening instant — the cloud write below may fail, retry for
-    // minutes, or never happen on this device at all.
-    S.idbPut(cacheKey(id), { rev: rev, str: str, files: s.files, at: Date.now() });
-    // Tell the journal the entry's fingerprint moved, so the sidebar, the
-    // auto-title and the entry's own `updated`/`rev` follow the board.
-    if (cfg.onMeta) { try { cfg.onMeta({ rev: rev, count: s.count, title: s.title, kind: cfg.kind }); } catch (e) {} }
+    if (str !== B.lastSerial) {
+      B.lastSerial = str;
+      B.rev++; B.count = s.count; B.docTitle = s.title;
+      B.pendingFiles = s.files;
+      // Local first, always.
+      S.idbPut(cacheKey(id), { rev: B.rev, str: str, files: s.files, at: Date.now() });
+      // Tell the journal the entry's fingerprint moved, so the sidebar, the
+      // auto-title and the entry's own updated/rev follow the board.
+      if (cfg.onMeta) { try { cfg.onMeta({ rev: B.rev, count: s.count, title: s.title, kind: cfg.kind }); } catch (e) {} }
+    } else if (B.lastSerial === B.cloudSerial) {
+      // Nothing changed in the editor (a selection, a pan, a tool switch) and
+      // the cloud already has this exact content: no write of any kind.
+      setStatus(B.lastCloudAt ? 'saved' : 'idle');
+      return B.saving || Promise.resolve();
+    }
 
+    if (B.saving) return B.saving;      // in flight; it will chase this when it lands
+    return pushCloud(id);
+  }
+
+  function pushCloud(id) {
+    var str = B.lastSerial, rev = B.rev, files = B.pendingFiles || {};
+    if (!str) return Promise.resolve();
     // Offline, a Firestore write neither resolves nor rejects — it sits in the
     // local mutation queue until the connection comes back. Saying "Saving…"
-    // for the whole flight is the one thing this indicator must never do: it
+    // for that whole flight is the one thing this indicator must never do: it
     // reads as "your work is on its way" while nothing is moving. So the status
-    // is driven on its own clock. The write is NOT cancelled — it is still
-    // queued and will land on reconnect — only the label is corrected.
+    // runs on its own clock. The write is NOT cancelled — it is still queued and
+    // will land on reconnect — only the label is corrected.
     setStatus(navigator.onLine === false ? 'offline' : 'saving');
     clearTimeout(B.slowTimer);
     B.slowTimer = setTimeout(function () {
@@ -19868,15 +19889,18 @@ function createBoard(cfg) {
     }, SLOW_SAVE);
     B.saving = (function () {
       if (!S.fbReady()) return Promise.reject(new Error('firebase-not-ready'));
-      return uploadFiles(s.files)
+      return uploadFiles(files)
         .then(function () { return S.writeChunked(baseId(id), str, { k: cfg.kind, rev: rev }); });
     })()
       .then(function () {
         clearTimeout(B.slowTimer);
         B.saving = null; B.retryIx = 0; B.lastCloudAt = Date.now();
+        B.cloudSerial = str;
         if (B.entryId === id) setStatus('saved');
         window.dispatchEvent(new CustomEvent('fb-' + cfg.app + '-canvas-saved', { detail: id }));
-        if (B.dirty) markDirty();
+        // Anything serialised while that was in the air goes now.
+        if (B.entryId === id && B.lastSerial !== B.cloudSerial) pushCloud(id);
+        else if (B.dirty) markDirty();
       })
       .catch(function (e) {
         clearTimeout(B.slowTimer);
@@ -19894,25 +19918,16 @@ function createBoard(cfg) {
     B.retryIx++;
     B.retryTimer = setTimeout(function () { retry(id); }, wait);
   }
+  // A retry is just another cloud push of whatever the newest local copy is —
+  // never of the payload that happened to fail, which by now may be two edits
+  // out of date.
   function retry(id) {
-    if (B.entryId !== id || !B.lastSerial) return;
+    if (B.entryId !== id || !B.lastSerial || B.saving) return;
     if (!S.fbReady()) { scheduleRetry(id); return; }
-    setStatus(navigator.onLine === false ? 'offline' : 'saving');
-    var str = B.lastSerial, rev = B.rev;
-    S.idbGet(cacheKey(id)).then(function (c) {
-      return uploadFiles((c && c.files) || {})
-        .then(function () { return S.writeChunked(baseId(id), str, { k: cfg.kind, rev: rev }); });
-    }).then(function () {
-      B.retryIx = 0; B.lastCloudAt = Date.now();
-      if (B.entryId === id) setStatus('saved');
-      window.dispatchEvent(new CustomEvent('fb-' + cfg.app + '-canvas-saved', { detail: id }));
-    }).catch(function () {
-      if (B.entryId === id) setStatus(navigator.onLine === false ? 'offline' : 'error');
-      scheduleRetry(id);
-    });
+    pushCloud(id);
   }
   B.retryNow = function () {
-    if (B.entryId && B.lastSerial && B.lastCloudAt < B.lastLocalEdit) {
+    if (B.entryId && B.lastSerial && B.lastSerial !== B.cloudSerial) {
       clearTimeout(B.retryTimer); B.retryIx = 0; retry(B.entryId);
     }
   };
@@ -20021,7 +20036,7 @@ function createBoard(cfg) {
           });
           if (inline.length) doc._inlineFiles = inline;
         }
-        return { doc: doc, rev: found.rev, serial: found.str };
+        return { doc: doc, rev: found.rev, serial: found.str, source: found.source };
       }
       return migrate(entry).then(function (m) {
         // rev 0 and NO serial: the converted board is not yet a saved document,
@@ -20120,7 +20135,7 @@ function createBoard(cfg) {
         if (Date.now() - B.lastLocalEdit < REMOTE_QUIET) return;
         var doc; try { doc = JSON.parse(r.str); } catch (e) { return; }
         B.rev = r.meta.rev || rRev;
-        B.lastSerial = r.str;
+        B.lastSerial = r.str; B.cloudSerial = r.str;
         applyDoc(doc, true);
       }).catch(function () {});
     });
@@ -20424,7 +20439,8 @@ function createBoard(cfg) {
         if (B.token !== tok) return null;
         B.entryId = id;
         B.ready = false; B.dirty = false; B.firstDirtyAt = 0;
-        B.lastSerial = null; B.rev = 0; B.count = 0; B.docTitle = '';
+        B.lastSerial = null; B.cloudSerial = null; B.pendingFiles = null;
+        B.rev = 0; B.count = 0; B.docTitle = '';
         B.lastLocalEdit = 0; B.lastCloudAt = 0; B.retryIx = 0;
         clearTimeout(B.retryTimer);
         setStatus('idle');
@@ -20436,6 +20452,9 @@ function createBoard(cfg) {
       .then(function (r) {
         if (!r || B.token !== tok) return;
         B.rev = r.rev; B.lastSerial = r.serial;
+        // A board that came back FROM the cloud is already there — recording that
+        // stops the first open from re-uploading a document nobody changed.
+        if (r.source !== 'local') B.cloudSerial = r.serial;
         return applyDoc(r.doc, false).then(function () {
           if (B.token !== tok) return;
           B.ready = true;
