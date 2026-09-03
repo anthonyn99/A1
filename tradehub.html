@@ -6093,6 +6093,11 @@ function tbMacroET(e){
   if(!e||e.kind==='earnings'||e.kind==='holiday')return null;
   const n=((e.name||'')+' '+(e.category||'')).toLowerCase();
   if(e.category==='ecb'||/\becb\b|european central bank/.test(n))return{hh:8,mm:15}; // ECB: 14:15 CET = 8:15 AM ET
+  // A Fed SPEAKER event has no scheduled release time — 2:00 PM ET is when the
+  // FOMC statement drops, not when a governor talks. Waller spoke on the morning
+  // of 2026-09-03 and the calendar printed 2:00 PM ET for it. The feed carries a
+  // date and no clock, so show no time at all rather than a confident wrong one.
+  if(/speech|remarks|testimony|speaks|speaking|keynote|panel|discussion|interview|appearance|newsmaker|fireside|town hall/.test(n)&&!/fomc|rate decision|minutes/.test(n))return null;
   if(/fomc|rate decision|fed funds|interest rate|fed minutes|meeting minutes/.test(n))return{hh:14,mm:0};   // Fed: 2:00 PM ET
   if(e.category==='fed'||e.category==='rates')return{hh:14,mm:0};
   if(e.category==='oil'||e.category==='energy'||/crude|petroleum|\beia\b|oil inventories|natural gas storage/.test(n))return{hh:10,mm:30}; // EIA: 10:30 AM ET
