@@ -86,6 +86,11 @@ jobs:
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
+          # Pin the major version explicitly. Without this the action falls back
+          # to its own bundled default (3.90.0), which is two majors behind and
+          # warns "update to the latest version to prevent critical errors" on
+          # every run. Same pin the V1 workflow already uses.
+          wranglerVersion: "4"
           workingDirectory: workers/taskhub-reminders
 
   deploy-tradeboard-api:
@@ -97,6 +102,7 @@ jobs:
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
+          wranglerVersion: "4"
           workingDirectory: workers/tradeboard-api
 
   deploy-newshub-api:
@@ -108,6 +114,7 @@ jobs:
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
+          wranglerVersion: "4"
           workingDirectory: workers/newshub-api
 
   deploy-warroom-api:
@@ -119,6 +126,7 @@ jobs:
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
+          wranglerVersion: "4"
           workingDirectory: workers/warroom-api
 
   deploy-trade-dashboard:
@@ -130,6 +138,7 @@ jobs:
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
+          wranglerVersion: "4"
           workingDirectory: workers/trade-dashboard
 
   # Consolidated personal AI worker — replaces mylist-api + taskhub-voice + journal-ai.
@@ -143,6 +152,7 @@ jobs:
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
+          wranglerVersion: "4"
           workingDirectory: workers/personal-ai
 
   deploy-studyos-files:
@@ -154,6 +164,7 @@ jobs:
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
+          wranglerVersion: "4"
           workingDirectory: workers/studyos-files
 
   deploy-vault-files:
@@ -165,6 +176,7 @@ jobs:
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
+          wranglerVersion: "4"
           workingDirectory: workers/vault-files
 
   # Recovered 2026-07-03 from the live Cloudflare deployment — this worker had
@@ -178,6 +190,7 @@ jobs:
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
+          wranglerVersion: "4"
           workingDirectory: workers/proview-api
 
   # Firestore proxy for the Vault browser extension (bypasses App Check via
@@ -192,6 +205,7 @@ jobs:
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
+          wranglerVersion: "4"
           workingDirectory: workers/keychain-sync
 
   deploy-vault-pw-sync:
@@ -203,6 +217,7 @@ jobs:
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
+          wranglerVersion: "4"
           workingDirectory: workers/vault-pw-sync
 
   # Insight (personal finance) — Plaid integration. Sandbox-only until the
@@ -217,6 +232,7 @@ jobs:
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
+          wranglerVersion: "4"
           workingDirectory: workers/insight-api
 
   # OneInbox (oneinbox.html) — Gmail multi-account backend + Gemini
@@ -233,6 +249,7 @@ jobs:
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
+          wranglerVersion: "4"
           workingDirectory: workers/oneinbox-api
 
   # Weather widget on both TaskHubs — KV-cached Open-Meteo proxy. No secrets.
@@ -245,6 +262,7 @@ jobs:
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
+          wranglerVersion: "4"
           workingDirectory: workers/taskhub-weather-api
 
   # Tesla widget on Tony's TaskHub only — Fleet API proxy holding the OAuth
@@ -260,6 +278,7 @@ jobs:
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
+          wranglerVersion: "4"
           workingDirectory: workers/tesla-api
 
   deploy-index-backups:
@@ -271,4 +290,5 @@ jobs:
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
+          wranglerVersion: "4"
           workingDirectory: workers/index-backups
