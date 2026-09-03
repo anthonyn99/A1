@@ -1663,7 +1663,17 @@ const MACRO_WHITELIST = [
   [/\bcpi\b|consumer price/i,                         'inflation'],
   [/\bppi\b|producer price/i,                         'inflation'],
   [/\bpce\b|personal consumption/i,                   'inflation'],
-  [/\bfomc\b|fed(eral)? (reserve|funds)|rate decision|powell|warsh|interest rate decision|fomc minutes|jackson hole|semiannual monetary policy|monetary policy report|(fed|federal reserve)[^.]*(speech|remarks|testimony|speaks|keynote)|(chair|vice chair|governor|president)[^.]*(speech|remarks|testimony|speaks)/i, 'fed'],
+  // Fed. Speaker events used to need the literal word "Fed"/"Federal Reserve" or
+  // a title, so a perfectly normal AI phrasing like "Christopher Waller Speech"
+  // or "Waller at Reuters NEXT Newsmaker Event" was silently rejected here and
+  // never reached the calendar — only Powell and Warsh were known by surname.
+  // Now: sitting Board members and reserve-bank presidents are matched by
+  // surname, and the set of speaking-event words is much wider (panels, fireside
+  // chats, newsmaker appearances — not just "speech"). FED_SPEAKERS needs a look
+  // whenever the Board or a reserve bank changes hands; ambiguous surnames that
+  // collide with well-known non-Fed names (Cook, Barr, Williams) are deliberately
+  // left out and still rely on the "Fed"/title path.
+  [/\bfomc\b|fed(eral)? (reserve|funds)|rate decision|powell|warsh|interest rate decision|fomc minutes|jackson hole|semiannual monetary policy|monetary policy report|beige book|(fed|federal reserve|fomc|board of governors)[^.]*(speech|remarks|testimony|speaks|speaking|keynote|panel|discussion|interview|appearance|newsmaker|fireside|town hall|economic outlook)|(chair|vice chair|governor|president)[^.]*(speech|remarks|testimony|speaks|speaking|keynote|panel|discussion|interview|appearance|newsmaker|fireside|town hall)|\b(waller|jefferson|bowman|kugler|miran|logan|goolsbee|musalem|schmid|hammack|collins|bostic|barkin|daly|kashkari|harker|mester|bullard)\b[^.]*(speech|remarks|testimony|speaks|speaking|keynote|panel|discussion|interview|appearance|newsmaker|fireside|town hall|economic outlook)/i, 'fed'],
   [/nonfarm|non-farm|\bnfp\b|jobs report|payroll|unemployment rate/i, 'jobs'],
   [/\bjolts\b|job openings|labor turnover/i,           'jobs'],
   [/\badp\b|adp (national )?employment/i,              'jobs'],
@@ -1689,8 +1699,12 @@ function macroImportance(name){
   const n = name || '';
   if (/fomc minutes/i.test(n)) return 'medium';
   if (/\bcpi\b|consumer price|nonfarm|non-farm|\bnfp\b|jobs report|\bfomc\b|rate decision|powell|\bpce\b|personal consumption|\bgdp\b|gross domestic|\becb\b|european central bank|jackson hole|semiannual|monetary policy report|humphrey/i.test(n)) return 'high';
-  if (/\bppi\b|producer price|retail sales|\bjolts\b|job openings|\bism\b|\badp\b|jobless claims|initial claims|consumer confidence|flash pmi|s&p global flash/i.test(n)) return 'medium';
-  return 'low'; // michigan, chicago pmi, durable goods, housing, home sales, trade, ad-hoc Fed speeches
+  if (/\bppi\b|producer price|retail sales|\bjolts\b|job openings|\bism\b|\badp\b|jobless claims|initial claims|consumer confidence|flash pmi|s&p global flash|beige book/i.test(n)) return 'medium';
+  // A sitting Chair/Vice-Chair/Governor on the record between meetings routinely
+  // repositions the rate path — a single Waller speech moved September hike odds
+  // from ~65-70% to ~50% — so these read Med, not the Low they used to.
+  if (/chair|vice chair|governor|\bfed\b|federal reserve|waller|jefferson|bowman|kugler|miran/i.test(n)) return 'medium';
+  return 'low'; // michigan, chicago pmi, durable goods, housing, home sales, trade, regional-president remarks
 }
 
 // ── AUTHORITATIVE macro release calendar ─────────────────────────────────────
@@ -2015,6 +2029,10 @@ async function fetchMacroCalendar(env, fromD, toD, diag){
 `You are a financial calendar API. Using Google Search, list scheduled US macroeconomic data releases and Federal Reserve events between ${fromD} and ${toD} (inclusive), US Eastern dates.
 
 Include ONLY these release types if they fall in the window: CPI, PPI, PCE, FOMC rate decision / Fed meeting, FOMC Minutes, Nonfarm Payrolls (jobs report), ADP Employment, JOLTS Job Openings, weekly Initial Jobless Claims, GDP, Retail Sales, ISM/PMI, S&P Global Flash PMI, Durable Goods, Consumer Confidence, Michigan Consumer Sentiment, Housing Starts, Building Permits, Existing Home Sales, New Home Sales, Trade Balance, officially-scheduled Federal Reserve Chair/Vice-Chair/Governor speeches and testimony (incl. semiannual Monetary Policy Report to Congress and the Jackson Hole symposium).
+
+Federal Reserve speaking events count even when they are one-off appearances announced only days ahead — conference keynotes, moderated panels, fireside chats and newsmaker interviews, not just formal speeches and Congressional testimony. Include every sitting Governor and reserve-bank President, not only the Chair.
+
+Name every Fed speaking event in exactly this form so it is machine-readable: "Fed <Title> <Surname> Speech" — for example "Fed Governor Waller Speech", "Fed Chair Warsh Testimony", "Fed President Williams Remarks". Never return a Fed speaker event under a bare personal name.
 
 Return ONLY a JSON array, no prose, no markdown fences. Each item:
 {"name":"<official release name incl. month/period, e.g. 'May CPI Report'>","date":"YYYY-MM-DD"}
@@ -2344,7 +2362,12 @@ async function buildCalendar(wl, env, days, diag){
     const yearIsHardcoded = HARDCODED_YEARS.has(yr);
     // For a hardcoded year, drop AI's version of any release type we hardcode.
     if (yearIsHardcoded && HARDCODED_NAME.test(e.name)) continue;
-    if (authKey.has(e.category + '|' + e.date)) continue; // already covered exactly
+    // Already covered exactly. Keyed by category+date, which is right for data
+    // releases (one CPI per day) but wrong for speakers: officials talk ON macro
+    // days, so an FOMC Minutes or rate-decision entry would swallow every Fed
+    // speech sharing that date. Speaker events are exempt from the collision.
+    const isSpeaker = /speech|remarks|testimony|speaks|speaking|keynote|panel|discussion|interview|appearance|newsmaker|fireside|town hall/i.test(e.name);
+    if (!isSpeaker && authKey.has(e.category + '|' + e.date)) continue;
     // Flag AI-sourced events in non-hardcoded years as approximate.
     if (!yearIsHardcoded && HARDCODED_NAME.test(e.name)) {
       extraMacro.push({ ...e, approx: true, name: /\(approx\)/i.test(e.name) ? e.name : (e.name + ' (approx)') });
