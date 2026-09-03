@@ -21,6 +21,9 @@
   // (CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID) — not Tony's CF_API_TOKEN.
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "tradeboard",
+  // Pinned because a second Cloudflare account exists on this login. Wrangler
+  // cannot pick between accounts in CI and the deploy fails without it.
+  "account_id": "b9a33dd573c14d5f446516ea8b46285f",
   "compatibility_date": "2026-07-24",
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },

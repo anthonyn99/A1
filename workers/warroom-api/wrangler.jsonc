@@ -5,6 +5,9 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "warroom-api",
+	// Pinned because a second Cloudflare account exists on this login. Wrangler
+	// cannot pick between accounts in CI and the deploy fails without it.
+	"account_id": "b9a33dd573c14d5f446516ea8b46285f",
 	"main": "src/index.js",
 	"compatibility_date": "2026-06-01",
 	"observability": {
