@@ -1577,12 +1577,16 @@ function useTBJournal(){
           const map=new Map(prev.map(t=>[t.id,{...t,legs:[...(t.legs||[])]}]));
           /* Dedup keys. Webull orders carry a _wbId; but worker IDs can drift
              between syncs, so we ALSO key every existing leg by a content
-             fingerprint (ticker|action|minute|qty|price). A pull is skipped if
+             fingerprint (ticker|action|DAY|qty|price). A pull is skipped if
              EITHER its _wbId or its content already exists — this is what stops
              the every-sync re-duplication and pre-API orphan reappearance.
-             Trade-off: two genuinely identical fills in the same minute (same
-             qty+price+side) would collapse to one — vanishingly rare in practice. */
-          const fpOf=(tk,l)=>{const p=n=>{const x=parseFloat(n);return isNaN(x)?0:x;};return (tk||'').toUpperCase()+'|'+(l.action||'')+'|'+String(l.datetime||'').slice(0,16)+'|'+p(l.qty)+'|'+p(l.price);};
+             The day granularity matters: correcting a fill's clock by hand (or
+             the feed restating it) used to change a minute-precision key and let
+             the very same fill back in as a second, basis-less row. Matches
+             tbReconcileWebull, which keys the same way. Trade-off: two genuinely
+             separate same-day fills identical in side, qty and cent price would
+             collapse to one. */
+          const fpOf=(tk,l)=>{const p=n=>{const x=parseFloat(n);return isNaN(x)?0:x;};return (tk||'').toUpperCase()+'|'+(l.action||'')+'|'+String(l.datetime||'').slice(0,10)+'|'+p(l.qty)+'|'+p(l.price);};
           const absorbedWb=new Set();       /* 'wb:'+_wbId */
           const absorbedContent=new Set();  /* content fp of EVERY existing leg */
           map.forEach(entry=>{const tk=entry.ticker;(entry.legs||[]).forEach(l=>{if(l._wbId)absorbedWb.add('wb:'+l._wbId);absorbedContent.add(fpOf(tk,l));});});
@@ -1987,6 +1991,25 @@ function tbReconcileWebull(trades){
   const others=trades.filter(t=>t.source!=='webull');
   const p=n=>{const x=parseFloat(n);return isNaN(x)?0:x;};
   const byTicker=new Map();const seen=new Map();
+  const fpKey=(tk,g)=>'fp:'+tk+'|'+(g.action||'')+'|'+String(g.datetime||'').slice(0,10)+'|'+p(g.qty)+'|'+p(g.price);
+  /* ── Manual and CSV entries OWN their fills ───────────────────────────────
+     Seed the dedup with their legs first, so a webull leg repeating one is
+     dropped instead of surfacing as a second, basis-less row next to the trade
+     it duplicates. Without this the repair never held: a trade corrected by
+     hand became source:'manual' and left the FIFO pool, but the feed kept
+     re-delivering the same fill, and nothing downstream knew the manual entry
+     already accounted for it — so a NO BASIS twin reappeared on the next sync.
+     This makes the journal self-healing: whichever way a duplicate got in, the
+     hand-owned copy wins and the webull twin is dropped on the next pass. Only
+     webull legs are ever discarded; manual and CSV entries are never touched. */
+  others.forEach(t=>{
+    const tk=(t.ticker||'').toUpperCase();
+    (t.legs||[]).forEach(l=>{
+      const rec={leg:l,parts:new Set(),owned:true};
+      if(l._wbId)seen.set('wb:'+l._wbId,rec);
+      seen.set(fpKey(tk,l),rec);
+    });
+  });
   webull.forEach(t=>{
     const tk=(t.ticker||'').toUpperCase();
     if(!byTicker.has(tk))byTicker.set(tk,{market:t.market||'STOCK',legs:[]});
@@ -2008,16 +2031,18 @@ function tbReconcileWebull(trades){
          fill in practice; the sync path already accepted this trade-off at
          minute precision. Cost: two genuinely separate same-day fills identical
          to the cent would merge into one. */
-      const fp=g=>'fp:'+tk+'|'+(g.action||'')+'|'+String(g.datetime||'').slice(0,10)+'|'+p(g.qty)+'|'+p(g.price);
-      const cKey=fp(l);
+      const cKey=fpKey(tk,l);
       const hit=(idKey&&seen.get(idKey))||seen.get(cKey);
       if(hit){
+        /* A manual/CSV entry already accounts for this fill — drop it, and
+           never write into that entry's leg objects (they are live state). */
+        if(hit.owned)return;
         if(origin&&!hit.parts.has(l._splitIx)){
           /* A further part of a fill already restored — add it back. */
           hit.parts.add(l._splitIx);
           hit.leg.qty=String(p(hit.leg.qty)+p(l.qty));
           hit.leg.fee=String(p(hit.leg.fee)+p(l.fee));
-          seen.set(fp(hit.leg),hit);
+          seen.set(fpKey(tk,hit.leg),hit);
           return;
         }
         /* Duplicate. Keep the copy already held, but take a fee off the other
