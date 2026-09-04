@@ -1,0 +1,151 @@
+name: Deploy Account-2 Workers
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Deploys every worker under workers2/ to the SECOND Cloudflare account
+# ("My Account 2", subdomain av1-2.workers.dev).
+#
+# THREE CLOUDFLARE ACCOUNTS, ON PURPOSE
+# -------------------------------------
+#   workers/       → deploy-workers.yml     → anthonypn99@gmail.com (av1)
+#   V1/workers/    → deploy-v1-workers.yml  → Veda's account
+#   workers2/      → THIS FILE              → My Account 2 (av1-2)
+#
+# The folder decides the account, because the token does. Each workflow holds
+# exactly one API token and a worker cannot pick its own — so a worker moved
+# between these folders moves accounts, and its *.workers.dev hostname changes
+# with it. That is why nothing is shared across the boundary: KV, D1, R2,
+# Durable Objects and Queues all live in a single account.
+#
+# Free-tier limits are per account. New projects go here so they do not spend
+# account 1's 100k requests/day.
+#
+# DISCOVERY, NOT ENUMERATION
+# --------------------------
+# deploy-workers.yml lists every worker by hand, which is why
+# tests/worker-deploy.test.js has to exist — a new folder there is committed,
+# pushed, and silently never deployed. This workflow finds worker folders
+# instead (same as the V1 one), so a new worker under workers2/ deploys with no
+# change to this file and no test to enforce it.
+#
+# Required repo secrets (Settings → Secrets and variables → Actions):
+#   CF_API_TOKEN_2   — "Edit Cloudflare Workers" token issued FROM account 2
+#   CF_ACCOUNT_ID_2  — account 2's Account ID
+#
+# Until BOTH exist this workflow SKIPS cleanly (see `guard`) rather than
+# failing red on every push. Worker runtime secrets are not set here — they go
+# into Cloudflare via `wrangler secret put`, per account.
+# ═══════════════════════════════════════════════════════════════════════════
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'workers2/**'
+      - '.github/workflows/deploy-workers2.yml'
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Deploy just one worker (directory name under workers2/). Leave blank for all."
+        required: false
+        default: ""
+
+jobs:
+  # ── 0. Skip cleanly when account 2 is not wired up yet ────────────────────
+  # A missing secret would otherwise surface as an opaque wrangler auth error
+  # on every push. This turns it into an obvious, non-blocking skip.
+  guard:
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - id: check
+        env:
+          TOKEN: ${{ secrets.CF_API_TOKEN_2 }}
+          ACCOUNT: ${{ secrets.CF_ACCOUNT_ID_2 }}
+        run: |
+          if [ -n "${TOKEN:-}" ] && [ -n "${ACCOUNT:-}" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Account-2 worker deploys skipped — set CF_API_TOKEN_2 and CF_ACCOUNT_ID_2 to enable them. See workers2/README.md."
+          fi
+
+  # ── 1. Find every deployable worker ───────────────────────────────────────
+  discover:
+    needs: guard
+    if: needs.guard.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      workers: ${{ steps.find.outputs.workers }}
+      count: ${{ steps.find.outputs.count }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: find
+        name: Discover workers
+        env:
+          ONLY: ${{ github.event.inputs.only }}
+        run: |
+          set -euo pipefail
+          list='[]'
+          if [ -d workers2 ]; then
+            list=$(find workers2 -maxdepth 2 \
+                     \( -name 'wrangler.toml' -o -name 'wrangler.jsonc' -o -name 'wrangler.json' \) \
+                     -printf '%h\n' | sort -u | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          fi
+
+          # workflow_dispatch with an `only` input narrows the matrix.
+          if [ -n "${ONLY:-}" ]; then
+            list=$(printf '%s' "$list" | jq -c --arg o "workers2/$ONLY" 'map(select(. == $o))')
+          fi
+
+          count=$(printf '%s' "$list" | jq 'length')
+          echo "workers=$list" >> "$GITHUB_OUTPUT"
+          echo "count=$count"  >> "$GITHUB_OUTPUT"
+          echo "Discovered $count worker(s): $list"
+
+  # ── 2. Deploy each one ────────────────────────────────────────────────────
+  deploy:
+    needs: discover
+    if: needs.discover.outputs.count != '0'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # one bad worker must not block the rest
+      matrix:
+        dir: ${{ fromJSON(needs.discover.outputs.workers) }}
+    name: deploy ${{ matrix.dir }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Install into the worker dir so the deploy uses THAT worker's pinned
+      # wrangler rather than whatever version the runner has cached.
+      #
+      # A worker without a package.json is a hard error, not a fallback: the
+      # deploy action runs `npx --no-install wrangler`, which then resolves to
+      # the runner's cached wrangler (v3), and v3 cannot parse a v4 config —
+      # the deploy fails with an opaque "exit code 1". Failing here makes the
+      # cause obvious.
+      - name: Install dependencies
+        working-directory: ${{ matrix.dir }}
+        run: |
+          if [ ! -f package.json ]; then
+            echo "::error::${{ matrix.dir }} has no package.json. Every worker must declare its own wrangler version (devDependencies: { \"wrangler\": \"^4.0.0\" }), otherwise the deploy silently falls back to the runner's cached wrangler."
+            exit 1
+          fi
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+          echo "wrangler in use: $(npx --no-install wrangler --version)"
+
+      - name: Deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN_2 }}
+          # Supplied here rather than pinned in each wrangler.toml, so the
+          # account id stays out of git and a worker cannot be pointed at the
+          # wrong account by editing its own config.
+          accountId: ${{ secrets.CF_ACCOUNT_ID_2 }}
+          workingDirectory: ${{ matrix.dir }}
+          wranglerVersion: '4'
+          command: deploy
