@@ -123,10 +123,52 @@ a SHA-256 of the trade list, so an unchanged journal is never stored twice. At
 ~50 bytes per trade compressed, a 100-trade journal is ~5 KB and the whole cloud
 set is well under Firestore's 1 MiB per-document cap.
 
+### Firestore cost
+
+Measured, per action, counting **documents** (Firestore bills per document, so
+one `updateDoc` carrying 83 trade fields is one write):
+
+| action | journal r/w | backups r/w |
+|---|---|---|
+| open Journal | 1 / 0 | 1 / 1, at most once a minute |
+| sit on the tab | 0 / 0 | 0 / 0 |
+| Webull Sync, nothing new | 1 / 2 | 0 / 0 |
+| add or edit one trade | 0 / 1 | 1 / 1, at most once a minute |
+| import a 60-row CSV | 0 / 1 | 1 / 1 |
+| open the Backups panel | 0 / 0 | 1 / 0 |
+
+A full session of all of the above is single-digit reads and writes, against a
+free-tier budget of 50,000 reads and 20,000 writes a day. The backup vault is
+not close to being the expensive part of this app.
+
+Two things keep it there:
+
+* **`CLOUD_MIN_GAP_MS` (60s).** Captures are content-addressed, so a push only
+  ever happens for a genuinely changed journal — the gap does not suppress
+  noise, it delays real changes. It is therefore short, and a suppressed push
+  is **queued, not dropped**: a timer fires it when the gap expires, and
+  `pagehide` flushes it if the tab closes first. It was 10 minutes at first,
+  which measured no cheaper and left the last edit of a session on one device.
+* **`_fbSaveTBTradeBulk` is a single `updateDoc`.** It used to fire one write
+  per trade in parallel, making a 60-row CSV import 60 writes — and, worse, a
+  non-atomic import: a dropped connection halfway left some rows saved and some
+  not, with nothing recording which. Now it is one write, all-or-nothing, and
+  the caller reports failure instead of showing trades that only exist in that
+  tab.
+
+The one thing that is *not* free is `_fbReplaceTBTrades`' pre-write read: one
+extra document read per bulk write. That is the price of guards 3 and of having
+a pre-write snapshot at all, and at one read per sync it is not a real cost.
+
 **Every destructive path snapshots first, awaited** (`{now:true}`): CSV import,
 single and bulk delete, Re-merge, Restore, and any bulk write from inside
 `_fbReplaceTBTrades`. A backup taken *after* the delete is not a backup. Routine
 paths (a load, a completed sync, an edit) debounce at 4s and flush on `pagehide`.
+
+A snapshot is a point-in-time copy, so the cloud backup can trail the live
+journal by up to a minute of activity. The journal document itself is always
+written immediately — the lag affects only the backup copy, and only matters if
+the journal document were damaged inside that window.
 
 `Restore` replaces the journal (and takes a `pre-restore` snapshot first, so a
 restore is itself undoable). `Import JSON` only *adds* trades that are missing —

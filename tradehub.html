@@ -1837,7 +1837,7 @@ async function tbBkLocalDel(ats){
 }
 
 /* ── capture ── */
-const _tbBkState={lastAt:0,lastCloudAt:0,lastError:'',local:0,cloud:0,
+const _tbBkState={lastAt:0,lastCloudAt:0,lastCloudHash:'',lastError:'',local:0,cloud:0,
   listeners:new Set(),
   sub(fn){this.listeners.add(fn);return()=>this.listeners.delete(fn);},
   emit(){this.listeners.forEach(fn=>{try{fn();}catch(e){}});},
@@ -1914,6 +1914,11 @@ function tbBkCloudFlush(){
 }
 async function tbBkPushCloud(snap,force){
   if(!window._fbSaveTBBackup||!window._fbLoadTBBackups)return{skipped:'no cloud'};
+  /* Cheapest possible exit: this exact journal is already the newest thing in
+     the cloud, so there is nothing to send and no reason to READ to find that
+     out. Without this, every deferred flush spent a document read only to
+     discover it had nothing to do. */
+  if(snap.hash&&snap.hash===_tbBkState.lastCloudHash)return{skipped:'already in cloud'};
   if(!force&&!TB_BK_CRITICAL.has(snap.reason)&&
      Date.now()-_tbBkState.lastCloudAt<TB_BK.CLOUD_MIN_GAP_MS){
     _tbBkCloudPending=true;
@@ -1928,6 +1933,7 @@ async function tbBkPushCloud(snap,force){
   const existing=cur.snapshots||[];
   if(existing.length&&existing[0].hash===snap.hash){
     _tbBkState.cloud=existing.length;_tbBkState.lastCloudAt=Date.now();
+    _tbBkState.lastCloudHash=snap.hash;
     _tbBkCloudPending=false;_tbBkState.emit();
     return{skipped:'unchanged'};
   }
@@ -1936,6 +1942,7 @@ async function tbBkPushCloud(snap,force){
   const res=await window._fbSaveTBBackup(snap,drop.map(d=>d.at));
   if(res&&res.ok){
     _tbBkState.lastCloudAt=Date.now();_tbBkState.cloud=keep.length;
+    _tbBkState.lastCloudHash=snap.hash;
     _tbBkCloudPending=false;
     if(_tbBkCloudTimer){clearTimeout(_tbBkCloudTimer);_tbBkCloudTimer=null;}
     _tbBkState.emit();
