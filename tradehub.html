@@ -1589,8 +1589,10 @@ function useTBJobs(){
 const _tbJournalStore={
   trades:[],
   loading:true,
-  loaded:false,          // the Firebase load has completed once this page load
-  busy:'',               // '' | 'sync' | 'remerge' | 'import'
+  loaded:false,          // a Firebase read has SUCCEEDED once this page load
+  loadedAt:0,            // when that read landed
+  loadError:'',          // why the last read failed, '' when it did not
+  busy:'',               // '' | 'sync' | 'remerge' | 'import' | 'restore'
   lastJobAt:0,           // when the last job finished — see tbLoadJournal
   msg:'', msgAt:0,       // last result message — survives a tab switch
   lastSync:parseInt(localStorage.getItem(TB_SYNC_TS_KEY)||'0',10)||null,
@@ -1621,7 +1623,13 @@ const TB_JMSG_TTL=25000;
    Still re-reads on every open (the Firestore listeners are torn down on idle, so
    a device that changed the journal while this one was asleep is only picked up
    here) — except right after one of our OWN jobs, whose write may still be in
-   flight, where a server read would hand back the pre-write document. */
+   flight, where a server read would hand back the pre-write document.
+
+   `loaded` now means ONE thing: a read actually succeeded. It used to be set
+   after any attempt, including a failed one, and every job downstream treats
+   `loaded` as "the trade list is real" — so one flaky read left the journal
+   permanently pretending an empty list was the truth. A failed read leaves
+   `loaded` false and `loadError` set, and tbJournalReady retries. */
 let _tbJournalLoadP=null;
 function tbLoadJournal(force){
   const S=_tbJournalStore;
@@ -1633,18 +1641,81 @@ function tbLoadJournal(force){
   _tbJournalLoadP=(async()=>{
     try{
       if(window._fbLoadTBJournal){
-        const data=await window._fbLoadTBJournal();
-        /* Never let a load overwrite a sync/import that finished while it was in
-           flight — the store is already ahead of what Firebase handed back. */
-        if(data&&Array.isArray(data)&&!S.busy)S.set(data);
+        const res=await window._fbLoadTBJournal();
+        /* Tolerate the old bare-array shape so a half-deployed page still works. */
+        const norm=Array.isArray(res)?{ok:true,trades:res}:(res||{ok:false,error:'no result'});
+        if(norm.ok&&Array.isArray(norm.trades)){
+          /* Never let a load overwrite a sync/import that finished while it was
+             in flight — the store is already ahead of what Firebase handed back. */
+          if(!S.busy)S.set(norm.trades);
+          S.loaded=true;S.loadError='';S.loadedAt=Date.now();
+          /* The server's own copy is the best-known-good state there is; keep one. */
+          if(!S.busy)try{tbBackupCapture(norm.trades,'load');}catch(e){}
+        }else{
+          S.loadError=norm.error||'load failed';
+          console.warn('TB journal load failed:',S.loadError);
+        }
+      }else{
+        S.loadError='firebase not ready';
       }
-      S.loaded=true;
-    }catch(e){console.warn('TB journal load error',e);}
+    }catch(e){S.loadError=(e&&e.message)||'load error';console.warn('TB journal load error',e);}
     S.setLoading(false);
     _tbJournalLoadP=null;
     return S.trades;
   })();
   return _tbJournalLoadP;
+}
+
+/* ── The gate every mutating job goes through ────────────────────────────────
+   The journal is one Firestore document, and every job here is read-modify-
+   write over the WHOLE of it. Running one before the read has landed does not
+   merely produce a stale result — it produces a result computed against an
+   empty list, and then writes that list back.
+
+   That is the bug this exists for. Opening TradeHub and landing on Journal ran
+   the tab's morning auto-sync and the Firebase load concurrently; when the sync
+   won, it merged the pulled Webull orders into `prev = []`, so every CSV and
+   manual trade disappeared from the merged output, and tbLoadJournal then threw
+   its own (correct) result away because a job was busy. A second load showed
+   the CSV trades again but the Webull entries were now the mis-grouped ones
+   that broken sync had written, which is why only a MANUAL Webull Sync — the
+   first one that ever ran against a fully loaded store — put things right.
+
+   So: no job starts until a read has genuinely succeeded, and a job that cannot
+   get one does nothing at all rather than guessing. */
+async function tbJournalReady(){
+  const S=_tbJournalStore;
+  if(S.loaded)return true;
+  for(let i=0;i<3&&!S.loaded;i++){
+    if(i)await new Promise(r=>setTimeout(r,500*i));
+    try{await tbLoadJournal(true);}catch(e){}
+  }
+  return S.loaded;
+}
+
+/* One journal job at a time, and never before the load. `_tbJobClaim` is taken
+   SYNCHRONOUSLY so two jobs kicked in the same tick — the tab's auto-sync and
+   the app-level morning orchestrator both fire on 'fb-ready' — cannot both pass
+   the check and then interleave across the first await. S.busy stays the
+   UI-facing flag; this is the actual mutual exclusion. */
+let _tbJobClaim='';
+async function tbRunJournalJob(kind,label,fn){
+  const S=_tbJournalStore;
+  if(_tbJobClaim||S.busy)return{ok:false,busy:true,error:'Another journal job is running'};
+  _tbJobClaim=kind;
+  try{
+    /* Load FIRST, outside S.busy — tbLoadJournal deliberately refuses to apply
+       a server read on top of a running job, so claiming busy before the load
+       would deadlock the very thing we are waiting for. */
+    const ready=await tbJournalReady();
+    if(!ready){
+      S.note('Could not read the journal ('+(S.loadError||'offline')+') — nothing was changed.');
+      return{ok:false,error:'journal not loaded'};
+    }
+    S.setBusy(kind,label);
+    try{ return await fn(); }
+    finally{ S.setBusy(''); }
+  }finally{ _tbJobClaim=''; }
 }
 
 /* ── Firebase-backed journal hook — a thin mirror of the store above ── */
