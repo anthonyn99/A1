@@ -130,16 +130,23 @@ one `updateDoc` carrying 83 trade fields is one write):
 
 | action | journal r/w | backups r/w |
 |---|---|---|
-| open Journal | 1 / 0 | 1 / 1, at most once a minute |
-| sit on the tab | 0 / 0 | 0 / 0 |
-| Webull Sync, nothing new | 1 / 2 | 0 / 0 |
-| add or edit one trade | 0 / 1 | 1 / 1, at most once a minute |
-| import a 60-row CSV | 0 / 1 | 1 / 1 |
+| open Journal, first time | 1 / 0 | 1 / 1 |
+| open Journal again, inside the gap | 1 / 0 | 0 / 0 |
+| sit on the tab, 30s | 0 / 0 | 0 / 0 |
+| Webull Sync, nothing new | 1 / 2 | 1 / 1 |
+| add one trade | 0 / 1 | 0 / 0 — queued |
+| import a 60-row CSV | 0 / 1 | 0 / 0 — queued |
 | open the Backups panel | 0 / 0 | 1 / 0 |
+| a queued push firing on its own | 0 / 0 | 1 / 1 |
+| **all of the above, one session** | **4 / 5** | **4 / 3** |
 
-A full session of all of the above is single-digit reads and writes, against a
-free-tier budget of 50,000 reads and 20,000 writes a day. The backup vault is
-not close to being the expensive part of this app.
+Eight reads and eight writes, against a free-tier budget of 50,000 reads and
+20,000 writes a day. The backup vault is not close to being the expensive part
+of this app.
+
+"Queued" is the rate limit deferring a push, not skipping one — the row near the
+bottom is that same push landing a minute later with nobody touching anything.
+Journal writes are 2 for a sync because the sync also stamps `_syncMeta`.
 
 Two things keep it there:
 
