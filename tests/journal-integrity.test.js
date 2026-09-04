@@ -297,8 +297,13 @@ function gateContext(loader) {
       newTrades.forEach(t => resultIds.add(t.id));
     }
     const after = resultIds.size;
-    return before.length >= FLOOR && !opts.force &&
-           after < Math.floor(before.length * RATIO);
+    // Guard 1: the journal must not collapse.
+    if (before.length >= FLOOR && !opts.force &&
+        after < Math.floor(before.length * RATIO)) return 'collapse';
+    // Guard 2: hand-owned trades must not vanish.
+    const owned = before.filter(t => t.source === 'csv' || t.source === 'manual');
+    if (owned.length && !opts.force && owned.some(t => !resultIds.has(t.id))) return 'owned';
+    return false;
   }
 
   const journal = [];
@@ -311,7 +316,29 @@ function gateContext(loader) {
     // the Webull entries it had just pulled.
     const onlyWebull = journal.filter(t => t.source === 'webull');
     check('a sync that lost the CSV and manual trades is REFUSED',
-          wouldRefuse(journal, journal.map(t => t.id), onlyWebull) === true);
+          wouldRefuse(journal, journal.map(t => t.id), onlyWebull) !== false,
+          String(wouldRefuse(journal, journal.map(t => t.id), onlyWebull)));
+  }
+  {
+    /* The count ratio ALONE is not enough, and this is why guard 2 exists.
+       A journal that is mostly Webull can lose every single CSV and manual
+       trade and still clear a 50% count test — the exact shape of the reported
+       bug. Those are the trades that cannot be re-pulled from the broker. */
+    const mostlyWebull = [];
+    for (let i = 0; i < 18; i++) mostlyWebull.push({ id: 'w' + i, source: 'webull' });
+    for (let i = 0; i < 4; i++) mostlyWebull.push({ id: 'c' + i, source: 'csv' });
+    for (let i = 0; i < 2; i++) mostlyWebull.push({ id: 'm' + i, source: 'manual' });
+    const webullOnly = mostlyWebull.filter(t => t.source === 'webull');
+    const allIds = mostlyWebull.map(t => t.id);
+    // 18 of 24 survives the ratio test outright...
+    check('the count ratio alone would have let this through',
+          18 >= Math.floor(24 * RATIO));
+    // ...so the source guard is what catches it.
+    check('losing every CSV and manual trade is REFUSED even at full count',
+          wouldRefuse(mostlyWebull, allIds, webullOnly) === 'owned',
+          String(wouldRefuse(mostlyWebull, allIds, webullOnly)));
+    check('losing even ONE hand-entered trade is refused',
+          wouldRefuse(mostlyWebull, ['m0'], []) === 'owned');
   }
   {
     // A healthy re-merge writes ONLY the rebuilt Webull entries and deletes only
@@ -321,30 +348,39 @@ function gateContext(loader) {
     const rebuilt = [];
     for (let i = 0; i < 17; i++) rebuilt.push({ id: 'r' + i, source: 'webull' });
     check('a healthy re-merge (17 rebuilt from 20) is ALLOWED',
-          wouldRefuse(journal, oldW, rebuilt) === false);
+          wouldRefuse(journal, oldW, rebuilt) === false,
+          String(wouldRefuse(journal, oldW, rebuilt)));
+    check('...and it leaves every CSV and manual trade in place, by construction',
+          journal.filter(t => t.source !== 'webull').every(t => !oldW.includes(t.id)));
   }
   {
-    const half = journal.slice(0, 60);
-    check('a normal sync result is allowed', wouldRefuse(journal, [], half) === false);
+    /* A sync's real output: every trade, Webull regrouped, others carried
+       through untouched. */
+    const whole = journal.slice();
+    check('a normal sync result is allowed', wouldRefuse(journal, [], whole) === false);
   }
   {
     check('an explicit restore may shrink the journal',
           wouldRefuse(journal, journal.map(t => t.id), [{ id: 'z' }], { force: true, prune: true }) === false);
   }
   {
-    const tiny = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
-    check('a journal below the floor is never judged',
+    const tiny = [{ id: 'a', source: 'webull' }, { id: 'b', source: 'webull' }, { id: 'c', source: 'webull' }];
+    check('a small all-Webull journal is never judged on count',
           wouldRefuse(tiny, ['a', 'b'], [{ id: 'a' }]) === false);
   }
   {
-    // prune (restore) counts only the snapshot's own trades.
-    check('a restore to a smaller-but-sane journal is allowed unforced only above the ratio',
-          wouldRefuse(journal, [], journal.slice(0, 50), { prune: true }) === false);
+    // prune (restore) counts only the snapshot's own trades, and a restore is
+    // always forced — it is the one action where losing trades is the intent.
+    check('an unforced prune that would drop hand-owned trades is still refused',
+          wouldRefuse(journal, [], journal.filter(t => t.source === 'webull'), { prune: true }) !== false);
   }
 
   /* The source must actually call the guard on every bulk path. */
   check('sync passes the whole journal to the bulk write, not just Webull',
         /_fbReplaceTBTrades\(staleIds,finalTrades,\{reason:'pre-sync'\}\)/.test(SRC));
+  check('the source guard is present in the shipped file',
+        /imported and hand-entered trades/.test(SRC) &&
+        /t\.source === 'csv' \|\| t\.source === 'manual'/.test(SRC));
   check('restore is the only bulk write that forces past the guard',
         (SRC.match(/_fbReplaceTBTrades\([^)]*force:true/g) || []).length === 1);
 
