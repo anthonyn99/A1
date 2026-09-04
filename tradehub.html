@@ -603,14 +603,40 @@
       }
       const after = resultIds.size;
 
-      if (before && before.length >= REPLACE_SHRINK_FLOOR && !opts.force &&
-          after < Math.floor(before.length * REPLACE_SHRINK_RATIO)) {
-        const why = 'would cut the journal from ' + before.length + ' trades to ' + after;
+      const refuse = (why) => {
         console.error('[TBJournal] REFUSED a bulk write that ' + why + '. Nothing was written.');
         try { window._tbBackupCapture && window._tbBackupCapture(before, 'refused-write'); } catch(e) {}
         window.dispatchEvent(new CustomEvent('fb-tb-journal-refused',
           { detail: { why: why, before: before.length, after: after, server: before } }));
         return { ok: false, refused: why, server: before };
+      };
+
+      /* GUARD 1 — the journal must not collapse. A blunt backstop against a
+         write computed from state that was never really there. */
+      if (before && before.length >= REPLACE_SHRINK_FLOOR && !opts.force &&
+          after < Math.floor(before.length * REPLACE_SHRINK_RATIO)) {
+        return refuse('would cut the journal from ' + before.length + ' trades to ' + after);
+      }
+
+      /* GUARD 2 — hand-owned trades must not vanish, and this is the sharper
+         one. A count ratio alone is not enough: a journal that is mostly Webull
+         can lose EVERY CSV and manual trade and still clear a 50% test, which is
+         precisely the shape of the bug this was written for (a sync that merged
+         into an empty list wrote back only the orders it had just pulled).
+
+         Neither Webull Sync nor Re-merge can legitimately drop one: both run
+         tbReconcileWebull, which returns every source:'csv' and source:'manual'
+         entry untouched in `others`, and re-merge deletes only Webull ids.
+         Deleting trades by hand goes through _fbDeleteTBTrade, not here. So on
+         this path, losing an imported or hand-entered trade is always a bug —
+         and those are the ones that cannot be re-pulled from the broker. */
+      const ownedBefore = (before || []).filter(t => t && (t.source === 'csv' || t.source === 'manual'));
+      if (ownedBefore.length && !opts.force) {
+        const lost = ownedBefore.filter(t => !resultIds.has(t.id));
+        if (lost.length) {
+          return refuse('would remove ' + lost.length + ' of your ' + ownedBefore.length +
+                        ' imported and hand-entered trades');
+        }
       }
 
       // Snapshot what we are about to overwrite, so a bulk write is recoverable
