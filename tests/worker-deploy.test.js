@@ -30,10 +30,31 @@ function section(s) { console.log('\n' + s); }
 const ROOT = path.join(__dirname, '..');
 const WF = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'deploy-workers.yml'), 'utf8');
 
+// A worker is "deployable" if it has a wrangler config in ANY of wrangler's
+// supported formats — not just TOML. Matching only wrangler.toml meant a
+// .jsonc-configured worker (warroom-api is one) was invisible here: it would
+// vanish from every check below while the suite still reported all green,
+// which is precisely the silent gap this file exists to close.
+//
+// Order matters and mirrors wrangler's own precedence, confirmed by running
+// `wrangler deploy --dry-run` in workers/warroom-api with both files present:
+// it reported configFileType "jsonc". So when a directory has more than one,
+// the FIRST entry here is the one wrangler actually reads, and the one this
+// test must inspect — checking the ignored file would be worse than useless.
+const CONFIG_NAMES = ['wrangler.jsonc', 'wrangler.json', 'wrangler.toml'];
+
+function configFor(name) {
+  for (const f of CONFIG_NAMES) {
+    const p = path.join(ROOT, 'workers', name, f);
+    if (fs.existsSync(p)) return { file: f, text: fs.readFileSync(p, 'utf8') };
+  }
+  return null;
+}
+
 const workers = fs.readdirSync(path.join(ROOT, 'workers'), { withFileTypes: true })
   .filter((d) => d.isDirectory())
   .map((d) => d.name)
-  .filter((n) => fs.existsSync(path.join(ROOT, 'workers', n, 'wrangler.toml')));
+  .filter((n) => configFor(n) !== null);
 
 section('Every deployable worker is wired into the deploy workflow');
 t('found some workers to check', workers.length > 0);
@@ -47,14 +68,29 @@ workers.forEach((n) => {
 
 section('Each worker config is complete enough to deploy');
 workers.forEach((n) => {
-  const toml = fs.readFileSync(path.join(ROOT, 'workers', n, 'wrangler.toml'), 'utf8');
-  t(n + ' names itself', /^\s*name\s*=/m.test(toml));
-  t(n + ' declares an entry point', /^\s*main\s*=/m.test(toml));
+  const { file, text } = configFor(n);
+  // Each check accepts both spellings: TOML `name = "x"` and JSON `"name": "x"`.
+  t(n + ' names itself (' + file + ')', /^\s*name\s*=/m.test(text) || /"name"\s*:/.test(text));
+  t(n + ' declares an entry point', /^\s*main\s*=/m.test(text) || /"main"\s*:/.test(text));
   // A KV binding with a placeholder id deploys and then fails at runtime, which
   // is the same silent-failure shape this file exists to prevent.
-  const ids = toml.match(/^\s*id\s*=\s*"([^"]*)"/gm) || [];
+  // Both patterns require `id` to start the key, so `account_id` never matches.
+  const ids = (text.match(/^\s*id\s*=\s*"([^"]*)"/gm) || [])
+    .concat(text.match(/"id"\s*:\s*"([^"]*)"/g) || []);
   const bad = ids.filter((l) => !/"[0-9a-f]{32}"/.test(l));
   t(n + ' has no placeholder KV ids', bad.length === 0, bad.join(' | '));
+});
+
+// A directory with two configs is a trap: wrangler reads one and silently
+// ignores the other, so an edit to the loser does nothing and reports nothing.
+section('No worker has a second, ignored config file');
+workers.forEach((n) => {
+  const present = CONFIG_NAMES.filter((f) => fs.existsSync(path.join(ROOT, 'workers', n, f)));
+  t(n + ' has exactly one wrangler config', present.length === 1,
+    present.length > 1
+      ? 'Found ' + present.join(' + ') + '. wrangler reads ' + present[0] +
+        ' and ignores the rest — delete the unused one before they drift apart.'
+      : '');
 });
 
 section('The backup worker specifically');
