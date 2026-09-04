@@ -1907,8 +1907,10 @@ async function tbBkCaptureNow(trades,reason){
 let _tbBkCloudTimer=null,_tbBkCloudPending=false;
 function tbBkCloudFlush(){
   if(!_tbBkCloudPending)return Promise.resolve({skipped:'nothing pending'});
-  _tbBkCloudPending=false;
   if(_tbBkCloudTimer){clearTimeout(_tbBkCloudTimer);_tbBkCloudTimer=null;}
+  /* The queued flag is cleared by a push that actually LANDS, never by starting
+     one. Clearing it here would mean a flush whose write failed — offline, a
+     dropped connection — silently forgot the change it was sent to deliver. */
   return tbBkLocalList().then(l=>l.length?tbBkPushCloud(l[0],true):{skipped:'nothing local'})
                         .catch(()=>({skipped:'flush failed'}));
 }
@@ -1918,7 +1920,10 @@ async function tbBkPushCloud(snap,force){
      the cloud, so there is nothing to send and no reason to READ to find that
      out. Without this, every deferred flush spent a document read only to
      discover it had nothing to do. */
-  if(snap.hash&&snap.hash===_tbBkState.lastCloudHash)return{skipped:'already in cloud'};
+  if(snap.hash&&snap.hash===_tbBkState.lastCloudHash){
+    _tbBkCloudPending=false;      // whatever was queued is already up there
+    return{skipped:'already in cloud'};
+  }
   if(!force&&!TB_BK_CRITICAL.has(snap.reason)&&
      Date.now()-_tbBkState.lastCloudAt<TB_BK.CLOUD_MIN_GAP_MS){
     _tbBkCloudPending=true;
