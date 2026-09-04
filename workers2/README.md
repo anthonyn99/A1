@@ -48,3 +48,15 @@ worker here **cannot** bind account 1's KV — including `TOKEN_CACHE`, which
 `personal-ai` and `taskhub-reminders` share. A new project that needs to share
 state with the existing suite either stays in `workers/`, or talks to it over
 HTTP. Secrets (`wrangler secret put`) are per account too and must be re-set here.
+
+## canary
+
+`workers2/canary` is the smoke test for this lane, not a real project. It holds
+no data, no secrets and no bindings, so it is safe to redeploy or delete.
+
+    curl https://canary.av1-2.workers.dev/health
+
+Keep it. When a future `workers2/` deploy fails, one request to the canary
+separates "the lane is broken" (token expired, account access revoked,
+subdomain changed) from "my new worker is broken" — which otherwise costs an
+afternoon of guessing.
