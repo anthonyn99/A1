@@ -1132,6 +1132,8 @@ const TBI=(()=>{
     sort:     I('<path d="m8 4 0 16"/><path d="m5 17 3 3 3-3"/><path d="m16 20 0-16"/><path d="m13 7 3-3 3 3"/>'),
     plus:     I('<path d="M12 5v14"/><path d="M5 12h14"/>'),
     fileIn:   I('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/>'),
+    archive:  I('<rect x="3" y="3" width="18" height="5" rx="1"/><path d="M5 8v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>'),
+    history:  I('<path d="M3 12a9 9 0 1 0 2.6-6.4"/><path d="M3 4v5h5"/><path d="M12 8v4.5l3 1.8"/>'),
     dot:      I('<circle cx="12" cy="12" r="5" fill="currentColor"/>')
   };
 })();
@@ -1623,7 +1625,7 @@ const TB_BK={
 /* Reasons that always push to the cloud immediately, gap or no gap: every one
    of them is the last moment the pre-change journal still exists anywhere. */
 const TB_BK_CRITICAL=new Set(['pre-delete','pre-bulk-delete','pre-import','pre-restore',
-                              'pre-remerge','pre-write','pre-sync','refused-write','manual']);
+                              'pre-remerge','pre-write','pre-sync','pre-merge','refused-write','manual']);
 
 /* ── encoding ── */
 function tbBkB64(u8){let out='';const CH=0x8000;for(let i=0;i<u8.length;i+=CH)out+=String.fromCharCode.apply(null,u8.subarray(i,i+CH));return btoa(out);}
@@ -2446,7 +2448,34 @@ function useTBJournal(){
     catch(err){ S.note('Import error: '+(err&&err.message||'unknown')); return{ok:false,error:err&&err.message}; }
   }),[]);
 
-  return{trades,loading,loadError:S.loadError,syncing,busy:S.busy,lastSync,load,sync,add,patch,del,delBulk,importCSV,rebuild,restore};
+  /* Merge a backup / exported JSON file back in WITHOUT replacing anything.
+     The common recovery is "some trades went missing", not "the whole journal
+     is wrong", and a merge cannot lose what it does not touch. Skips ids we
+     already hold, and re-uses the CSV import's own identity test so a file
+     exported before the ids were regenerated does not come back as twins. */
+  const merge=useCallback(async(incoming)=>tbRunJournalJob('restore','Merging…',async()=>{
+    if(!Array.isArray(incoming)||!incoming.length)return{ok:false,error:'nothing to merge'};
+    const have=new Set(S.trades.map(t=>t.id));
+    const sigs=new Set(S.trades.map(tbCsvSig).filter(Boolean));
+    const additions=[];
+    incoming.forEach(t=>{
+      if(!t||!t.id||have.has(t.id))return;
+      const sg=tbCsvSig(t);
+      if(sg&&sigs.has(sg))return;
+      if(sg)sigs.add(sg);
+      have.add(t.id);additions.push(t);
+    });
+    if(!additions.length){S.note('Nothing new — every trade in that file is already in the journal');return{ok:true,added:0};}
+    await tbBackupCapture(S.trades,'pre-merge',{now:true});
+    S.set(prev=>[...additions,...prev].sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)));
+    if(window._fbSaveTBTradeBulk)await window._fbSaveTBTradeBulk(additions);
+    else if(window._fbSaveTBTrade)additions.forEach(t=>window._fbSaveTBTrade(t));
+    tbBackupCapture(S.trades,'merge');
+    S.note(`Added ${additions.length} trade${additions.length!==1?'s':''} from backup`);
+    return{ok:true,added:additions.length};
+  }),[]);
+
+  return{trades,loading,loadError:S.loadError,syncing,busy:S.busy,lastSync,load,sync,add,patch,del,delBulk,importCSV,rebuild,restore,merge};
 }
 
 /* CSV import (Stonk Journal format) — module level so a big import finishes even
@@ -3110,6 +3139,186 @@ function TBTradeRow({trade,onClick,asFragment}){
   return(<tr onClick={onClick} style={{borderBottom:'1px solid var(--bd)',cursor:'pointer',transition:'background .1s'}} onMouseEnter={e=>e.currentTarget.style.background='var(--s2)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>{cells}</tr>);
 }
 
+/* ── Backups panel ───────────────────────────────────────────────────────────
+   Everything the vault holds, and the two things you would ever want to do
+   with it: put one back, or take a copy off the machine. Restores go through
+   the same job gate as a sync, and take their own snapshot first, so an
+   unwanted restore is itself one click from being undone. */
+function tbBkWhen(ts){
+  const d=new Date(ts);
+  const today=new Date();today.setHours(0,0,0,0);
+  const same=d.getTime()>=today.getTime();
+  return (same?'Today':d.toLocaleDateString([], {month:'short',day:'numeric'}))+' · '+
+         d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
+}
+const TB_BK_REASON={
+  load:'after loading', sync:'after Webull sync', remerge:'after re-merge',
+  import:'after CSV import', merge:'after merge', 'bulk-delete':'after delete',
+  'pre-import':'before CSV import','pre-delete':'before delete',
+  'pre-bulk-delete':'before bulk delete','pre-remerge':'before re-merge',
+  'pre-restore':'before restore','pre-merge':'before merge','pre-sync':'before Webull sync',
+  'pre-write':'before a bulk write','refused-write':'a blocked write',
+  remote:'from another device','manual-add':'after adding a trade',edit:'after an edit',
+  manual:'saved by hand',
+};
+function TBBackupModal({jHook,onClose}){
+  const isMobile=useIsMobile();
+  const [rows,setRows]=useState(null);
+  const [err,setErr]=useState('');
+  const [note,setNote]=useState('');
+  const [working,setWorking]=useState('');
+  const jsonRef=useRef(null);
+
+  const reload=useCallback(async()=>{
+    try{
+      const r=await tbBackupList();
+      setRows(r.snapshots);setErr(r.cloudError?('Cloud backups unreachable: '+r.cloudError):'');
+    }catch(e){setRows([]);setErr((e&&e.message)||'could not read backups');}
+  },[]);
+  useEffect(()=>{reload();},[reload]);
+
+  const backupNow=async()=>{
+    setWorking('now');setNote('');
+    const snap=await tbBackupCapture(jHook.trades,'manual',{now:true});
+    setWorking('');
+    setNote(snap&&snap.at?`Saved ${jHook.trades.length} trades`:'Already saved — nothing has changed since the last backup');
+    reload();
+  };
+
+  const doRestore=async(sn)=>{
+    let trades;
+    try{ trades=await tbBackupRead(sn); }
+    catch(e){ setNote('That backup could not be read: '+((e&&e.message)||'unknown')); return; }
+    const by=sn.by||tbBkBreakdown(trades);
+    const ok=await window.uiConfirm(
+      `Replace the journal with this backup?\n\n${trades.length} trades from ${tbBkWhen(sn.at)}`+
+      `\n· ${by.webull||0} Webull · ${by.csv||0} CSV · ${by.manual||0} manual`+
+      `\n\nYou have ${jHook.trades.length} trades now. A copy of the current journal is saved first, so this can be undone.`,
+      {title:'Restore backup',okLabel:'Restore',danger:true});
+    if(!ok)return;
+    setWorking('restore'+sn.at);
+    const r=await jHook.restore(trades,tbBkWhen(sn.at));
+    setWorking('');
+    if(r&&r.ok){setNote(`Restored ${r.count} trades`);onClose();}
+    else setNote('Restore failed: '+((r&&(r.error||r.busy&&'another job is running'))||'unknown'));
+  };
+
+  const download=async(sn)=>{
+    try{
+      const trades=await tbBackupRead(sn);
+      tbBkDownloadJSON(trades,sn.at);
+      setNote('Downloaded '+trades.length+' trades');
+    }catch(e){setNote('Could not read that backup: '+((e&&e.message)||'unknown'));}
+  };
+
+  const exportNow=()=>{
+    if(!jHook.trades.length){setNote('No trades to export.');return;}
+    tbBkDownloadJSON(jHook.trades,Date.now());
+    setNote(`Exported ${jHook.trades.length} trades`);
+  };
+
+  const importJSON=async(e)=>{
+    const file=e.target.files&&e.target.files[0];
+    e.target.value='';
+    if(!file)return;
+    let parsed=null;
+    try{
+      const raw=JSON.parse(await file.text());
+      parsed=Array.isArray(raw)?raw:(Array.isArray(raw&&raw.trades)?raw.trades:null);
+    }catch(err){}
+    if(!parsed||!parsed.length||!parsed.every(t=>t&&t.id)){
+      setNote('That file is not a TradeHub journal export.');return;
+    }
+    setWorking('import');
+    const r=await jHook.merge(parsed);
+    setWorking('');
+    setNote(r&&r.ok?(r.added?`Added ${r.added} trades`:'Nothing new — all of those trades are already in the journal')
+                   :('Import failed: '+((r&&r.error)||'unknown')));
+    reload();
+  };
+
+  const health=tbBackupHealth();
+  const chip=(label,val,col)=>(<span style={{fontSize:10,fontWeight:800,color:col,background:'var(--s2)',borderRadius:5,padding:'2px 6px',whiteSpace:'nowrap'}}>{val} {label}</span>);
+
+  return(
+    <div className="tb-modal-overlay" style={{position:'fixed',inset:0,zIndex:99999,background:'rgba(0,0,0,0.82)',backdropFilter:'blur(8px)',overflowY:'auto',overflowX:'hidden',padding:isMobile?'calc(env(safe-area-inset-top,0px) + 0px) 0 60px':'70px 16px 60px'}}>
+      <div className="tb-modal-inner" style={{background:'var(--s1)',border:'1px solid var(--bdl)',borderRadius:isMobile?0:16,width:'100%',maxWidth:640,margin:'0 auto',boxShadow:'0 32px 80px rgba(0,0,0,0.6)',overflow:'hidden'}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 22px',borderBottom:'1px solid var(--bd)'}}>
+          <div style={{fontFamily:'Manrope,system-ui,sans-serif',fontSize:16,fontWeight:700,color:'var(--tx)'}}>Journal backups</div>
+          <button onClick={onClose} style={{background:'transparent',border:'none',color:'var(--txm)',cursor:'pointer',padding:'2px 4px',lineHeight:0,display:'inline-flex'}}><TBIcon n="x" size={18}/></button>
+        </div>
+
+        <div style={{padding:'14px clamp(10px,4vw,22px)',borderBottom:'1px solid var(--bd)',display:'flex',flexDirection:'column',gap:10}}>
+          <div style={{fontSize:12,color:health.stale?'var(--tbw)':'var(--txm)',display:'flex',alignItems:'center',gap:7,flexWrap:'wrap'}}>
+            <TBIcon n="shield" size={13}/>
+            {health.lastAt
+              ? <span>Last backup {tbBkWhen(health.lastAt)} · {health.local} on this device · {health.cloud} in the cloud</span>
+              : <span>No backup saved yet on this device.</span>}
+          </div>
+          <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+            <button className="tb-btn-ghost" onClick={backupNow} disabled={working==='now'||!jHook.trades.length} style={{fontSize:13}}><TBIcon n="shield"/> {working==='now'?'Saving…':'Back up now'}</button>
+            <button className="tb-btn-ghost" onClick={exportNow} disabled={!jHook.trades.length} style={{fontSize:13}}><TBIcon n="download"/> Export JSON</button>
+            <button className="tb-btn-ghost" onClick={()=>jsonRef.current&&jsonRef.current.click()} disabled={!!working||!!jHook.busy} style={{fontSize:13}}><TBIcon n="upload"/> {working==='import'?'Merging…':'Import JSON'}</button>
+            <input ref={jsonRef} type="file" accept=".json,application/json" style={{display:'none'}} onChange={importJSON}/>
+          </div>
+          <div style={{fontSize:11,color:'var(--txd)',lineHeight:1.5}}>
+            Snapshots are saved automatically — after every sync or import, and always
+            before anything is deleted or replaced. <b>Import JSON</b> only adds trades
+            that are missing; <b>Restore</b> replaces the whole journal.
+          </div>
+          {err&&<div style={{fontSize:12,color:'var(--tbw)'}}>{err}</div>}
+          {note&&<div style={{fontSize:12,color:'var(--ac)'}}>{note}</div>}
+        </div>
+
+        <div style={{maxHeight:isMobile?'none':420,overflowY:'auto'}}>
+          {rows===null&&<div style={{padding:'22px',fontSize:13,color:'var(--txm)'}}>Reading backups…</div>}
+          {rows&&!rows.length&&<div style={{padding:'34px 22px',textAlign:'center',fontSize:13,color:'var(--txm)'}}>No backups yet. Hit “Back up now” to make the first one.</div>}
+          {rows&&rows.map(sn=>{
+            const by=sn.by||{};
+            return(<div key={sn.at} style={{padding:'11px clamp(10px,4vw,22px)',borderBottom:'1px solid var(--bd)',display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
+              <div style={{flex:1,minWidth:170}}>
+                <div style={{fontSize:13,fontWeight:700,color:'var(--tx)',display:'flex',alignItems:'center',gap:7,flexWrap:'wrap'}}>
+                  {tbBkWhen(sn.at)}
+                  <span style={{fontSize:10,fontWeight:800,color:sn.where==='cloud'?'var(--info)':sn.where==='both'?'var(--tbb)':'var(--txm)',background:'var(--s2)',borderRadius:5,padding:'2px 6px'}}>
+                    {sn.where==='both'?'DEVICE + CLOUD':sn.where==='cloud'?'CLOUD':'DEVICE'}
+                  </span>
+                </div>
+                <div style={{fontSize:11,color:'var(--txm)',marginTop:3,display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
+                  <span style={{fontWeight:700,color:'var(--txd)'}}>{sn.n} trades</span>
+                  {chip('W',by.webull||0,'var(--txm)')}
+                  {chip('CSV',by.csv||0,'var(--tbw)')}
+                  {chip('manual',by.manual||0,'var(--info)')}
+                  <span>· {TB_BK_REASON[sn.reason]||sn.reason||'auto'}{sn.dev?' · '+sn.dev:''}</span>
+                </div>
+              </div>
+              <div style={{display:'flex',gap:6}}>
+                <button className="tb-btn-ghost" onClick={()=>download(sn)} style={{fontSize:12,padding:'6px 11px'}} title="Download this snapshot as JSON"><TBIcon n="download" size={13}/></button>
+                <button className="tb-btn-ghost" onClick={()=>doRestore(sn)} disabled={!!working||!!jHook.busy} style={{fontSize:12,padding:'6px 12px'}}>{working==='restore'+sn.at?'Restoring…':'Restore'}</button>
+              </div>
+            </div>);
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* Full-fidelity export: ids, legs, sources and Webull order ids all survive, so
+   the file can be merged straight back in. The CSV export is for reading in a
+   spreadsheet; this one is for getting your journal back. */
+function tbBkDownloadJSON(trades,at){
+  const payload={app:'tradehub',kind:'journal-backup',v:1,at:at||Date.now(),
+                 count:trades.length,by:tbBkBreakdown(trades),trades};
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const d=new Date(at||Date.now());
+  const stamp=`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}-${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}`;
+  const a=document.createElement('a');
+  a.href=url;a.download=`tradehub-journal-${stamp}.json`;a.style.display='none';
+  document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(url);document.body.removeChild(a);},500);
+}
+
 /* ── Journal Page ── */
 /* ── Equity curve ────────────────────────────────────────────────────────────
    Cumulative realised P&L over time. One series, so there is no legend — the
@@ -3630,6 +3839,7 @@ function TBJournalPage(){
         {!selectMode&&<button className="tb-btn-ghost" onClick={()=>setModal('add')} style={{fontSize:13}}><TBIcon n="plus"/> Manual Trade</button>}
         {!selectMode&&<button className="tb-btn-ghost" onClick={()=>csvInputRef.current&&csvInputRef.current.click()} disabled={!!jHook.busy} style={{fontSize:13}}><><TBIcon n="fileIn"/> {csvImporting?'Importing…':'Import CSV'}</></button>}
         {!selectMode&&<button className="tb-btn-ghost" onClick={doExportCSV} disabled={!jHook.trades.length} style={{fontSize:13}}><TBIcon n="download"/> Export CSV</button>}
+        {!selectMode&&<button className="tb-btn-ghost" onClick={()=>setModal('backups')} style={{fontSize:13}} title="Snapshots of the whole journal — restore, export or re-import"><TBIcon n="archive"/> Backups</button>}
         {!selectMode&&<button className="tb-btn-ghost" onClick={()=>setSelectMode(true)} style={{fontSize:13}}><TBIcon n="check"/> Select</button>}
         {selectMode&&<span style={{fontSize:13,color:'var(--txm)',fontWeight:600}}>{selected.size} selected</span>}
         {selectMode&&<button className="tb-btn-ghost" onClick={selectAll} style={{fontSize:12}}>Select All</button>}
@@ -3701,7 +3911,8 @@ function TBJournalPage(){
         )}
       </div>
       {modal==='add'&&<TBTradeModal onClose={()=>setModal(null)} onSave={jHook.add}/>}
-      {modal&&modal!=='add'&&<TBTradeModal entry={modal} onClose={()=>setModal(null)} onSave={(id,fields)=>jHook.patch(id,fields)} onDel={jHook.del}/>}
+      {modal==='backups'&&<TBBackupModal jHook={jHook} onClose={()=>setModal(null)}/>}
+      {modal&&modal!=='add'&&modal!=='backups'&&<TBTradeModal entry={modal} onClose={()=>setModal(null)} onSave={(id,fields)=>jHook.patch(id,fields)} onDel={jHook.del}/>}
       {csvToast&&<TBToast key={_tbJournalStore.msgAt} message={csvToast} icon="folder" onClose={()=>_tbJournalStore.note('')}/>}
     </div>
   );
