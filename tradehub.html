@@ -1900,22 +1900,45 @@ async function tbBkCaptureNow(trades,reason){
   return _tbBkInFlight;
 }
 
+/* A rate-limited push is DEFERRED, never dropped. Without the retry below, a
+   change made inside the gap reached the cloud only if something else happened
+   to capture later — so the last edit of a session could live nowhere but this
+   device's IndexedDB, which is exactly the copy that dies with the device. */
+let _tbBkCloudTimer=null,_tbBkCloudPending=false;
+function tbBkCloudFlush(){
+  if(!_tbBkCloudPending)return Promise.resolve({skipped:'nothing pending'});
+  _tbBkCloudPending=false;
+  if(_tbBkCloudTimer){clearTimeout(_tbBkCloudTimer);_tbBkCloudTimer=null;}
+  return tbBkLocalList().then(l=>l.length?tbBkPushCloud(l[0],true):{skipped:'nothing local'})
+                        .catch(()=>({skipped:'flush failed'}));
+}
 async function tbBkPushCloud(snap,force){
   if(!window._fbSaveTBBackup||!window._fbLoadTBBackups)return{skipped:'no cloud'};
   if(!force&&!TB_BK_CRITICAL.has(snap.reason)&&
-     Date.now()-_tbBkState.lastCloudAt<TB_BK.CLOUD_MIN_GAP_MS)return{skipped:'rate limited'};
+     Date.now()-_tbBkState.lastCloudAt<TB_BK.CLOUD_MIN_GAP_MS){
+    _tbBkCloudPending=true;
+    if(!_tbBkCloudTimer){
+      const wait=TB_BK.CLOUD_MIN_GAP_MS-(Date.now()-_tbBkState.lastCloudAt);
+      _tbBkCloudTimer=setTimeout(()=>{_tbBkCloudTimer=null;tbBkCloudFlush();},Math.max(1000,wait+250));
+    }
+    return{skipped:'rate limited, queued'};
+  }
   const cur=await window._fbLoadTBBackups();
   if(!cur||!cur.ok)return{skipped:'cloud unreadable'};
   const existing=cur.snapshots||[];
   if(existing.length&&existing[0].hash===snap.hash){
-    _tbBkState.cloud=existing.length;_tbBkState.lastCloudAt=Date.now();_tbBkState.emit();
+    _tbBkState.cloud=existing.length;_tbBkState.lastCloudAt=Date.now();
+    _tbBkCloudPending=false;_tbBkState.emit();
     return{skipped:'unchanged'};
   }
   let {keep,drop}=tbBkPrune([snap].concat(existing),TB_BK.CLOUD_KEEP);
   ({keep,drop}=tbBkBudget(keep,drop,TB_BK.CLOUD_BUDGET,snap));
   const res=await window._fbSaveTBBackup(snap,drop.map(d=>d.at));
   if(res&&res.ok){
-    _tbBkState.lastCloudAt=Date.now();_tbBkState.cloud=keep.length;_tbBkState.emit();
+    _tbBkState.lastCloudAt=Date.now();_tbBkState.cloud=keep.length;
+    _tbBkCloudPending=false;
+    if(_tbBkCloudTimer){clearTimeout(_tbBkCloudTimer);_tbBkCloudTimer=null;}
+    _tbBkState.emit();
   }
   return res;
 }
@@ -1968,10 +1991,16 @@ window.tbBackup={list:tbBackupList,read:tbBackupRead,health:tbBackupHealth,
    close the tab before the timer fires and that snapshot never existed. */
 ['pagehide','visibilitychange'].forEach(ev=>window.addEventListener(ev,()=>{
   if(ev==='visibilitychange'&&document.visibilityState!=='hidden')return;
-  if(!_tbBkTimer||!_tbBkPending)return;
-  clearTimeout(_tbBkTimer);_tbBkTimer=null;
-  const pend=_tbBkPending;_tbBkPending=null;
-  tbBkCaptureNow(pend.trades,pend.reason).catch(()=>{});
+  if(_tbBkTimer&&_tbBkPending){
+    clearTimeout(_tbBkTimer);_tbBkTimer=null;
+    const pend=_tbBkPending;_tbBkPending=null;
+    tbBkCaptureNow(pend.trades,pend.reason).catch(()=>{});
+    return;                       // that capture pushes to the cloud itself
+  }
+  /* A push the rate limit deferred would otherwise wait for a timer that this
+     page is about to stop having. Best-effort — the browser may cut the request
+     short — but an attempt that usually lands beats a timer that never fires. */
+  tbBkCloudFlush();
 }));
 
 /* ── Module-level JOURNAL store ──────────────────────────────────────────────
