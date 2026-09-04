@@ -1576,6 +1576,328 @@ function useTBJobs(){
   return _tbJobs;
 }
 
+/* ══ JOURNAL BACKUP VAULT ═══════════════════════════════════════════════════
+   WHY THIS EXISTS
+   The journal is 83 trades assembled from three sources that cannot be
+   regenerated equally. Webull trades can be re-pulled from the broker. CSV
+   imports and hand-typed manual trades cannot: the CSV came from a Stonk
+   Journal export that will not exist forever, and a manual trade exists
+   nowhere else at all. Firestore on the free plan has no point-in-time
+   recovery, so "the document is wrong now" has, until this, meant "and there
+   is nothing to put back".
+
+   WHAT IT DOES
+   Keeps whole-journal snapshots in two independent places:
+
+     LOCAL   IndexedDB on this device. Written first, always, offline included.
+             Survives the cloud being wrong. Dies with the device.
+     CLOUD   dashboards/tradeboard_journal_backups — a DIFFERENT document from
+             the journal, so emptying the journal does not empty its backups.
+             Survives the device. Rate-limited and pruned to stay small.
+
+   Snapshots are content-addressed by a hash of the trade list, so an unchanged
+   journal is never stored twice however often capture is called. Every
+   destructive path takes an AWAITED snapshot before it acts (`{now:true}`) —
+   a backup taken after the delete is not a backup — while routine paths
+   (a load, a sync, an edit) debounce.
+
+   WHAT IT IS NOT
+   Not a sync layer, and it never writes to the journal document on its own.
+   Restoring is always an explicit human action from Journal → Backups. This is
+   the same rule A1Backup follows in backup.js, for the same reason: a second
+   automatic writer into a document is how data got lost in the first place.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const TB_BK={
+  DB:'tradehub-journal-backups',
+  STORE:'snapshots',
+  /* Retention, applied newest-first: keep the last `recent` whatever their age,
+     then one per day for `daily` further days, then one per week for `weekly`
+     further weeks. Local is generous (it costs only this device's disk); cloud
+     is lean (it shares one Firestore document with a 1 MiB ceiling). */
+  LOCAL_KEEP:{recent:14,daily:14,weekly:10},
+  CLOUD_KEEP:{recent:6,daily:10,weekly:6},
+  CLOUD_BUDGET:640*1024,        // hard ceiling well under Firestore's 1 MiB/doc
+  DEBOUNCE_MS:4000,
+  CLOUD_MIN_GAP_MS:10*60*1000,  // routine cloud pushes, at most one per 10 min
+};
+/* Reasons that always push to the cloud immediately, gap or no gap: every one
+   of them is the last moment the pre-change journal still exists anywhere. */
+const TB_BK_CRITICAL=new Set(['pre-delete','pre-bulk-delete','pre-import','pre-restore',
+                              'pre-remerge','pre-write','pre-sync','refused-write','manual']);
+
+/* ── encoding ── */
+function tbBkB64(u8){let out='';const CH=0x8000;for(let i=0;i<u8.length;i+=CH)out+=String.fromCharCode.apply(null,u8.subarray(i,i+CH));return btoa(out);}
+function tbBkUnb64(str){const bin=atob(str);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return u;}
+async function tbBkEncode(json){
+  const bytes=new TextEncoder().encode(json);
+  if(typeof CompressionStream==='function'){
+    try{
+      const cs=new CompressionStream('gzip');
+      const w=cs.writable.getWriter();w.write(bytes);w.close();
+      const buf=new Uint8Array(await new Response(cs.readable).arrayBuffer());
+      return{enc:'gzip+b64',gz:tbBkB64(buf)};
+    }catch(e){/* fall through — an uncompressed backup beats no backup */}
+  }
+  return{enc:'b64',gz:tbBkB64(bytes)};
+}
+async function tbBkDecode(snap){
+  if(!snap||!snap.gz)return null;
+  const bytes=tbBkUnb64(snap.gz);
+  let json;
+  if(snap.enc==='gzip+b64'){
+    const ds=new DecompressionStream('gzip');
+    const w=ds.writable.getWriter();w.write(bytes);w.close();
+    json=await new Response(ds.readable).text();
+  }else{
+    json=new TextDecoder().decode(bytes);
+  }
+  const arr=JSON.parse(json);
+  return Array.isArray(arr)?arr:null;
+}
+async function tbBkHash(str){
+  try{
+    const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str));
+    return Array.from(new Uint8Array(b)).map(x=>('0'+x.toString(16)).slice(-2)).join('').slice(0,32);
+  }catch(e){
+    /* Non-secure contexts have no crypto.subtle. A weaker fingerprint still
+       stops the vault storing the same journal twice, which is all it is for. */
+    let h=5381;for(let i=0;i<str.length;i++)h=((h*33)^str.charCodeAt(i))>>>0;
+    return 'f'+h.toString(16)+'-'+str.length;
+  }
+}
+function tbBkBreakdown(trades){
+  const b={webull:0,csv:0,manual:0,other:0};
+  (trades||[]).forEach(t=>{const src=t&&t.source;
+    if(src==='webull')b.webull++;else if(src==='csv')b.csv++;else if(src==='manual')b.manual++;else b.other++;});
+  return b;
+}
+function tbBkDevice(){
+  try{
+    const nm=localStorage.getItem('pl_device_name');
+    if(nm)return nm;
+  }catch(e){}
+  const ua=navigator.userAgent||'';
+  return /iPhone/i.test(ua)?'iPhone':/iPad/i.test(ua)?'iPad':/Android/i.test(ua)?'Android'
+        :/Mac/i.test(ua)?'Mac':/Windows/i.test(ua)?'PC':'device';
+}
+
+/* ── retention ──────────────────────────────────────────────────────────────
+   Pure, and exported for tests: the one thing a backup system must never get
+   wrong is which copies it throws away. Newest-first; keeps `recent`
+   unconditionally, then the newest snapshot of each further DAY up to `daily`
+   days, then the newest of each further WEEK up to `weekly` weeks. */
+function tbBkPrune(list,keep){
+  const sorted=(list||[]).filter(x=>x&&x.at).sort((a,b)=>b.at-a.at);
+  const keepAts=new Set(),days=new Set(),weeks=new Set();
+  const dayKey=ts=>{const d=new Date(ts);return d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate();};
+  const weekKey=ts=>Math.floor(ts/604800000);
+  let dailyUsed=0,weeklyUsed=0;
+  sorted.forEach((sn,i)=>{
+    const dk=dayKey(sn.at),wk=weekKey(sn.at);
+    if(i<keep.recent){keepAts.add(sn.at);days.add(dk);weeks.add(wk);return;}
+    if(!days.has(dk)&&dailyUsed<keep.daily){keepAts.add(sn.at);days.add(dk);weeks.add(wk);dailyUsed++;return;}
+    if(!weeks.has(wk)&&weeklyUsed<keep.weekly){keepAts.add(sn.at);weeks.add(wk);weeklyUsed++;return;}
+  });
+  return{keep:sorted.filter(x=>keepAts.has(x.at)),drop:sorted.filter(x=>!keepAts.has(x.at))};
+}
+
+/* Trim a kept set down to a byte ceiling, oldest first. `pin` is never dropped
+   — it is the snapshot being written, and a budget pass that discards the very
+   thing it was called to store is not a budget pass. */
+function tbBkBudget(keep,drop,budget,pin){
+  const k=keep.slice(),d=(drop||[]).slice();
+  let total=k.reduce((a,x)=>a+(x.bytes||0),0);
+  while(total>budget&&k.length>1){
+    const oldest=k[k.length-1];
+    if(pin&&oldest.at===pin.at)break;
+    k.pop();total-=(oldest.bytes||0);d.push(oldest);
+  }
+  return{keep:k,drop:d};
+}
+
+/* ── local vault (IndexedDB) ── */
+let _tbBkDbP=null;
+function tbBkDb(){
+  if(_tbBkDbP)return _tbBkDbP;
+  _tbBkDbP=new Promise((res,rej)=>{
+    if(!window.indexedDB){rej(new Error('no IndexedDB'));return;}
+    const r=indexedDB.open(TB_BK.DB,1);
+    r.onupgradeneeded=()=>{const d=r.result;if(!d.objectStoreNames.contains(TB_BK.STORE))d.createObjectStore(TB_BK.STORE,{keyPath:'at'});};
+    r.onsuccess=()=>res(r.result);
+    r.onerror=()=>rej(r.error);
+  });
+  _tbBkDbP.catch(()=>{_tbBkDbP=null;});
+  return _tbBkDbP;
+}
+async function tbBkLocalList(){
+  try{
+    const db=await tbBkDb();
+    const all=await new Promise((res,rej)=>{
+      const r=db.transaction(TB_BK.STORE,'readonly').objectStore(TB_BK.STORE).getAll();
+      r.onsuccess=()=>res(r.result||[]);r.onerror=()=>rej(r.error);
+    });
+    return all.sort((a,b)=>(b.at||0)-(a.at||0));
+  }catch(e){return[];}
+}
+async function tbBkLocalPut(snap){
+  const db=await tbBkDb();
+  return new Promise((res,rej)=>{
+    const tx=db.transaction(TB_BK.STORE,'readwrite');
+    tx.objectStore(TB_BK.STORE).put(snap);
+    tx.oncomplete=()=>res(true);tx.onerror=()=>rej(tx.error);
+  });
+}
+async function tbBkLocalDel(ats){
+  if(!ats||!ats.length)return;
+  try{
+    const db=await tbBkDb();
+    await new Promise((res,rej)=>{
+      const tx=db.transaction(TB_BK.STORE,'readwrite');
+      const st=tx.objectStore(TB_BK.STORE);
+      ats.forEach(at=>st.delete(at));
+      tx.oncomplete=()=>res(true);tx.onerror=()=>rej(tx.error);
+    });
+  }catch(e){}
+}
+
+/* ── capture ── */
+const _tbBkState={lastAt:0,lastCloudAt:0,lastError:'',local:0,cloud:0,
+  listeners:new Set(),
+  sub(fn){this.listeners.add(fn);return()=>this.listeners.delete(fn);},
+  emit(){this.listeners.forEach(fn=>{try{fn();}catch(e){}});},
+};
+let _tbBkTimer=null,_tbBkPending=null,_tbBkInFlight=null;
+
+/* The one entry point. `opts.now` makes it awaited and immediate — use it
+   before anything destructive; everything else debounces so a burst of edits
+   costs one snapshot. */
+function tbBackupCapture(trades,reason,opts){
+  opts=opts||{};
+  if(!Array.isArray(trades)||!trades.length)return Promise.resolve(null);
+  const snapshotOf=trades.slice();
+  if(opts.now){
+    if(_tbBkTimer){clearTimeout(_tbBkTimer);_tbBkTimer=null;_tbBkPending=null;}
+    return tbBkCaptureNow(snapshotOf,reason).catch(()=>null);
+  }
+  _tbBkPending={trades:snapshotOf,reason};
+  if(_tbBkTimer)clearTimeout(_tbBkTimer);
+  _tbBkTimer=setTimeout(()=>{
+    _tbBkTimer=null;const pend=_tbBkPending;_tbBkPending=null;
+    if(pend)tbBkCaptureNow(pend.trades,pend.reason).catch(()=>{});
+  },TB_BK.DEBOUNCE_MS);
+  return Promise.resolve(null);
+}
+window._tbBackupCapture=tbBackupCapture;   // the Firebase layer calls this too
+
+async function tbBkCaptureNow(trades,reason){
+  /* Serialize: two captures racing would both read "newest" before either
+     wrote, store the same journal twice and prune against a stale list. */
+  const run=async()=>{
+    try{
+      const json=JSON.stringify(trades);
+      const hash=await tbBkHash(json);
+      const local=await tbBkLocalList();
+      if(local.length&&local[0].hash===hash){
+        _tbBkState.local=local.length;_tbBkState.emit();
+        return{skipped:'unchanged',at:local[0].at};
+      }
+      const enc=await tbBkEncode(json);
+      const snap={at:Date.now(),n:trades.length,reason:reason||'auto',hash,
+                  dev:tbBkDevice(),by:tbBkBreakdown(trades),
+                  bytes:enc.gz.length,enc:enc.enc,gz:enc.gz,v:1};
+      await tbBkLocalPut(snap);
+      const pruned=tbBkPrune([snap].concat(local),TB_BK.LOCAL_KEEP);
+      await tbBkLocalDel(pruned.drop.map(d=>d.at));
+      _tbBkState.lastAt=snap.at;_tbBkState.lastError='';_tbBkState.local=pruned.keep.length;
+      _tbBkState.emit();
+      /* Cloud is deliberately NOT awaited by callers: the local copy is the one
+         that must never wait on a network round trip. */
+      tbBkPushCloud(snap).catch(()=>{});
+      return snap;
+    }catch(e){
+      _tbBkState.lastError=(e&&e.message)||'capture failed';_tbBkState.emit();
+      console.warn('[TB backup] capture failed:',e&&e.message);
+      return null;
+    }
+  };
+  _tbBkInFlight=(_tbBkInFlight||Promise.resolve()).then(run,run);
+  return _tbBkInFlight;
+}
+
+async function tbBkPushCloud(snap,force){
+  if(!window._fbSaveTBBackup||!window._fbLoadTBBackups)return{skipped:'no cloud'};
+  if(!force&&!TB_BK_CRITICAL.has(snap.reason)&&
+     Date.now()-_tbBkState.lastCloudAt<TB_BK.CLOUD_MIN_GAP_MS)return{skipped:'rate limited'};
+  const cur=await window._fbLoadTBBackups();
+  if(!cur||!cur.ok)return{skipped:'cloud unreadable'};
+  const existing=cur.snapshots||[];
+  if(existing.length&&existing[0].hash===snap.hash){
+    _tbBkState.cloud=existing.length;_tbBkState.lastCloudAt=Date.now();_tbBkState.emit();
+    return{skipped:'unchanged'};
+  }
+  let {keep,drop}=tbBkPrune([snap].concat(existing),TB_BK.CLOUD_KEEP);
+  ({keep,drop}=tbBkBudget(keep,drop,TB_BK.CLOUD_BUDGET,snap));
+  const res=await window._fbSaveTBBackup(snap,drop.map(d=>d.at));
+  if(res&&res.ok){
+    _tbBkState.lastCloudAt=Date.now();_tbBkState.cloud=keep.length;_tbBkState.emit();
+  }
+  return res;
+}
+
+/* Everything this device can see, local and cloud, newest first. A snapshot
+   present in both is one row marked "both" — the cloud copy is byte-identical
+   to the local one it came from. */
+async function tbBackupList(){
+  const [local,cloudRes]=await Promise.all([
+    tbBkLocalList(),
+    window._fbLoadTBBackups?window._fbLoadTBBackups():Promise.resolve({ok:true,snapshots:[]}),
+  ]);
+  const cloud=(cloudRes&&cloudRes.ok&&cloudRes.snapshots)||[];
+  const byAt=new Map();
+  local.forEach(sn=>byAt.set(sn.at,{...sn,where:'local'}));
+  cloud.forEach(sn=>{
+    const hit=byAt.get(sn.at);
+    if(hit)hit.where='both';
+    else byAt.set(sn.at,{...sn,where:'cloud'});
+  });
+  const out=Array.from(byAt.values()).sort((a,b)=>(b.at||0)-(a.at||0));
+  _tbBkState.local=local.length;_tbBkState.cloud=cloud.length;
+  if(out.length)_tbBkState.lastAt=Math.max(_tbBkState.lastAt,out[0].at||0);
+  _tbBkState.emit();
+  return{snapshots:out,localCount:local.length,cloudCount:cloud.length,
+         cloudError:(cloudRes&&cloudRes.ok===false)?(cloudRes.error||'unreachable'):''};
+}
+
+/* Read a snapshot back and prove it decodes. A backup nobody has ever read
+   back is not a backup — this is what the Verify button actually runs. */
+async function tbBackupRead(snap){
+  const trades=await tbBkDecode(snap);
+  if(!Array.isArray(trades))throw new Error('snapshot did not decode to a trade list');
+  if(snap.n!=null&&trades.length!==snap.n)throw new Error('snapshot holds '+trades.length+' trades, expected '+snap.n);
+  return trades;
+}
+
+/* A backup that has quietly stopped is worse than none, because it is trusted. */
+function tbBackupHealth(){
+  const ageH=_tbBkState.lastAt?(Date.now()-_tbBkState.lastAt)/3600000:null;
+  return{lastAt:_tbBkState.lastAt||null,ageHours:ageH==null?null:+ageH.toFixed(1),
+         local:_tbBkState.local,cloud:_tbBkState.cloud,error:_tbBkState.lastError,
+         stale:_tbBkState.lastAt===0||(ageH!=null&&ageH>48)};
+}
+window.tbBackup={list:tbBackupList,read:tbBackupRead,health:tbBackupHealth,
+                 capture:(reason)=>tbBackupCapture(_tbJournalStore.trades,reason||'manual',{now:true}),
+                 prune:tbBkPrune,push:(s)=>tbBkPushCloud(s,true)};
+
+/* A debounced capture with nothing to flush it is a promise quietly not kept:
+   close the tab before the timer fires and that snapshot never existed. */
+['pagehide','visibilitychange'].forEach(ev=>window.addEventListener(ev,()=>{
+  if(ev==='visibilitychange'&&document.visibilityState!=='hidden')return;
+  if(!_tbBkTimer||!_tbBkPending)return;
+  clearTimeout(_tbBkTimer);_tbBkTimer=null;
+  const pend=_tbBkPending;_tbBkPending=null;
+  tbBkCaptureNow(pend.trades,pend.reason).catch(()=>{});
+}));
+
 /* ── Module-level JOURNAL store ──────────────────────────────────────────────
    The trade list and every job that mutates it (Webull sync, Re-merge, CSV
    import, the Firebase load) run against THIS, not against component state.
