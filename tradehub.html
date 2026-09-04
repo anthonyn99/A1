@@ -588,13 +588,28 @@
         catch(e2) {}
       }
 
+      /* What the document will actually HOLD afterwards -- not how many fields
+         this call happens to write. Re-merge writes only the rebuilt Webull
+         entries and deletes only the old ones, leaving every CSV and manual
+         trade untouched, so comparing `newTrades.length` against the whole
+         journal would refuse every healthy re-merge. */
+      const resultIds = new Set();
+      if (opts.prune) {
+        newTrades.forEach(t => { if (t && t.id) resultIds.add(t.id); });
+      } else {
+        (before || []).forEach(t => { if (t && t.id) resultIds.add(t.id); });
+        (oldIds || []).forEach(id => resultIds.delete(id));
+        newTrades.forEach(t => { if (t && t.id) resultIds.add(t.id); });
+      }
+      const after = resultIds.size;
+
       if (before && before.length >= REPLACE_SHRINK_FLOOR && !opts.force &&
-          newTrades.length < Math.floor(before.length * REPLACE_SHRINK_RATIO)) {
-        const why = 'would cut the journal from ' + before.length + ' trades to ' + newTrades.length;
+          after < Math.floor(before.length * REPLACE_SHRINK_RATIO)) {
+        const why = 'would cut the journal from ' + before.length + ' trades to ' + after;
         console.error('[TBJournal] REFUSED a bulk write that ' + why + '. Nothing was written.');
         try { window._tbBackupCapture && window._tbBackupCapture(before, 'refused-write'); } catch(e) {}
         window.dispatchEvent(new CustomEvent('fb-tb-journal-refused',
-          { detail: { why: why, before: before.length, after: newTrades.length, server: before } }));
+          { detail: { why: why, before: before.length, after: after, server: before } }));
         return { ok: false, refused: why, server: before };
       }
 
@@ -2316,8 +2331,10 @@ function useTBJournal(){
        morning's is what makes the next open skip it and sit on bad data. */
     if(syncOk){
       const nowTs=Date.now();
-      localStorage.setItem(TB_SYNC_TS_KEY,String(nowTs));
-      localStorage.removeItem(TB_SYNC_TRY_KEY);
+      /* Wrapped: a throwing localStorage (private mode, quota) used to be able
+         to escape before _tbSyncInFlight was cleared, wedging every later sync
+         for the rest of the page's life. */
+      try{localStorage.setItem(TB_SYNC_TS_KEY,String(nowTs));localStorage.removeItem(TB_SYNC_TRY_KEY);}catch(e){}
       window._tbLastSyncTs=nowTs; setLastSync(nowTs);
       if(window._fbSaveTBSyncMeta)window._fbSaveTBSyncMeta({lastWebullSync:nowTs});
       S.note(syncNew>0?`Webull sync · ${syncNew} new trade${syncNew!==1?'s':''}`:'Webull sync · up to date');
