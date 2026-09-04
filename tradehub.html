@@ -1729,7 +1729,6 @@ function useTBJournal(){
      this component is long gone. */
   const setTrades=useCallback(u=>S.set(u),[]);
   const setLoading=useCallback(v=>S.setLoading(v),[]);
-  const setSyncing=useCallback(v=>S.setBusy(v?'sync':'',v?'Syncing…':''),[]);
   const setLastSync=useCallback(ts=>S.bumpSync(typeof ts==='function'?ts(S.lastSync):ts),[]);
   useEffect(()=>{
     const bump=ts=>{if(ts)setLastSync(prev=>(!prev||ts>prev)?ts:prev);};
@@ -1987,44 +1986,81 @@ function useTBJournal(){
     return{ok:syncOk,added:syncNew};
   }),[]);
 
-  /* Manual add — tagged source:'manual', saved to Firebase */
+  /* Manual add — tagged source:'manual', saved to Firebase.
+     Single-trade writes are per-FIELD updates, so they cannot damage anything
+     else in the document; they only need the load gate so the trade is added to
+     the REAL list rather than to an empty one that then gets rendered. */
   const add=useCallback(async(fields)=>{
+    await tbJournalReady();
     const trade={...fields,id:fields.id||tbUuid(),createdAt:Date.now(),source:'manual'};
     setTrades(prev=>[trade,...prev]);
     if(window._fbSaveTBTrade)window._fbSaveTBTrade(trade);
+    tbBackupCapture(S.trades,'manual-add');
     return{ok:true,data:trade};
   },[]);
 
   /* Edit — updates Firebase */
   const patch=useCallback(async(id,fields)=>{
+    await tbJournalReady();
     let updated=null;
     setTrades(prev=>prev.map(t=>{if(t.id!==id)return t;updated={...t,...fields,id};return updated;}));
     if(updated&&window._fbSaveTBTrade)window._fbSaveTBTrade(updated);
+    tbBackupCapture(S.trades,'edit');
     return{ok:true,data:updated};
   },[]);
 
-  /* Delete — removes from Firebase */
+  /* Delete — removes from Firebase. Snapshot FIRST: a delete is the one action
+     with nothing left to reconstruct it from afterwards. */
   const del=useCallback(async(id)=>{
+    await tbJournalReady();
+    await tbBackupCapture(S.trades,'pre-delete',{now:true});
     setTrades(prev=>prev.filter(t=>t.id!==id));
     if(window._fbDeleteTBTrade)window._fbDeleteTBTrade(id);
   },[]);
 
   /* Bulk delete — single state update so all IDs are removed atomically */
   const delBulk=useCallback(async(ids)=>{
+    if(!ids||!ids.length)return;
+    await tbJournalReady();
+    /* Awaited, not debounced: the whole point is that the copy exists BEFORE
+       the trades stop existing. */
+    await tbBackupCapture(S.trades,'pre-bulk-delete',{now:true});
     const idSet=new Set(ids);
     setTrades(prev=>prev.filter(t=>!idSet.has(t.id)));
     /* Fire all deletes in parallel */
     if(window._fbDeleteTBTrade)await Promise.all(ids.map(id=>window._fbDeleteTBTrade(id)));
+    tbBackupCapture(S.trades,'bulk-delete');
   },[]);
+
+  /* Restore a backup snapshot over the live journal. Goes through the same job
+     gate as every other bulk operation, and takes its own pre-restore snapshot
+     first so a restore is itself undoable. */
+  const restore=useCallback(async(trades,label)=>tbRunJournalJob('restore','Restoring…',async()=>{
+    if(!Array.isArray(trades)||!trades.length)return{ok:false,error:'empty snapshot'};
+    await tbBackupCapture(S.trades,'pre-restore',{now:true});
+    const clean=trades.filter(t=>t&&t.id);
+    const keep=new Set(clean.map(t=>t.id));
+    const drop=S.trades.map(t=>t.id).filter(id=>!keep.has(id));
+    let res={ok:true};
+    if(window._fbReplaceTBTrades){
+      /* force: a restore is the one time a large shrink is exactly the intent.
+         prune: clear server-side trades the snapshot does not contain, which the
+         caller's own id list cannot know about. */
+      res=await window._fbReplaceTBTrades(drop,clean,{force:true,prune:true,reason:'pre-restore'});
+    }else if(window._fbSaveTBTradeBulk){await window._fbSaveTBTradeBulk(clean);}
+    if(res&&res.ok===false){S.note('Restore failed: '+(res.error||res.refused||'write failed'));return{ok:false,error:res.error};}
+    S.set(clean);
+    S.note(`Restored ${clean.length} trade${clean.length!==1?'s':''}${label?' from '+label:''}`);
+    return{ok:true,count:clean.length};
+  }),[]);
 
   /* Re-merge: same reconciliation Webull Sync now runs — dedup + FIFO regroup of
      all webull legs. Manual/CSV trades untouched. Kept as a manual button for
      one-off cleanups, but routine syncs already self-heal. */
-  const rebuild=useCallback(async()=>{
-    if(S.busy)return{ok:false,busy:true};
-    S.setBusy('remerge','Re-merging…');
-    let removed=0,made=0,oldIds=[],rebuilt=[];
+  const rebuild=useCallback(async()=>tbRunJournalJob('remerge','Re-merging…',async()=>{
+    let removed=0,made=0,oldIds=[],rebuilt=[],before=S.trades;
     try{
+      await tbBackupCapture(before,'pre-remerge',{now:true});
       setTrades(prev=>{
         const r=tbReconcileWebull(prev);
         rebuilt=r.rebuilt;oldIds=r.oldWebullIds;removed=oldIds.length;made=rebuilt.length;
@@ -2033,18 +2069,28 @@ function useTBJournal(){
       /* Persist atomically: one updateDoc drops stale webull docs AND writes the
          merged ones, so every device gets the cleaned journal in a single snapshot. */
       if(window._fbReplaceTBTrades){
-        await window._fbReplaceTBTrades(oldIds,rebuilt);
+        const res=await window._fbReplaceTBTrades(oldIds,rebuilt,{reason:'pre-remerge'});
+        if(res&&res.ok===false){
+          /* Refused or failed — the on-screen list is now a merge Firebase never
+             took. Put back what the server actually holds. */
+          if(Array.isArray(res.server))S.set(res.server);
+          else S.set(before);
+          if(!res.refused)S.note('Re-merge could not be saved ('+(res.error||'write failed')+').');
+          return{ok:false,error:res.error||res.refused};
+        }
       }else{
         if(window._fbDeleteTBTrade)await Promise.all(oldIds.map(id=>window._fbDeleteTBTrade(id)));
         if(window._fbSaveTBTradeBulk)await window._fbSaveTBTradeBulk(rebuilt);
       }
+      tbBackupCapture(S.trades,'remerge');
       S.note(`Re-merged into ${made} trade${made!==1?'s':''} (was ${removed})`);
       return{ok:true,removed,made};
     }catch(err){
+      S.set(before);
       S.note('Re-merge error: '+(err&&err.message||'unknown'));
       return{ok:false,error:err};
-    }finally{ S.setBusy(''); }
-  },[]);
+    }
+  }),[]);
 
   /* Auto-sync: only runs on the "main" device (td6_mainDash==='tony') so phones
      never trigger an independent sync that races with desktop and causes dupes.
@@ -2073,15 +2119,12 @@ function useTBJournal(){
   },[sync]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* CSV import (Stonk Journal format) — dedup by ticker+date+entryPrice+qty */
-  const importCSV=useCallback(async(csvText)=>{
-    if(S.busy)return{ok:false,busy:true,error:'Another journal job is running'};
-    S.setBusy('import','Importing…');
+  const importCSV=useCallback(async(csvText)=>tbRunJournalJob('import','Importing…',async()=>{
     try{ return await tbJournalImportCSV(csvText); }
     catch(err){ S.note('Import error: '+(err&&err.message||'unknown')); return{ok:false,error:err&&err.message}; }
-    finally{ S.setBusy(''); }
-  },[]);
+  }),[]);
 
-  return{trades,loading,syncing,busy:S.busy,lastSync,load,sync,add,patch,del,delBulk,importCSV,rebuild};
+  return{trades,loading,loadError:S.loadError,syncing,busy:S.busy,lastSync,load,sync,add,patch,del,delBulk,importCSV,rebuild,restore};
 }
 
 /* CSV import (Stonk Journal format) — module level so a big import finishes even
