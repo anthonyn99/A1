@@ -2460,7 +2460,10 @@ function useTBJournal(){
          prune: clear server-side trades the snapshot does not contain, which the
          caller's own id list cannot know about. */
       res=await window._fbReplaceTBTrades(drop,clean,{force:true,prune:true,reason:'pre-restore'});
-    }else if(window._fbSaveTBTradeBulk){await window._fbSaveTBTradeBulk(clean);}
+    }else if(window._fbSaveTBTradeBulk){
+      try{ await window._fbSaveTBTradeBulk(clean); }
+      catch(err){ res={ok:false,error:(err&&err.message)||'write failed'}; }
+    }
     if(res&&res.ok===false){S.note('Restore failed: '+(res.error||res.refused||'write failed'));return{ok:false,error:res.error};}
     S.set(clean);
     S.note(`Restored ${clean.length} trade${clean.length!==1?'s':''}${label?' from '+label:''}`);
@@ -2556,9 +2559,19 @@ function useTBJournal(){
     });
     if(!additions.length){S.note('Nothing new — every trade in that file is already in the journal');return{ok:true,added:0};}
     await tbBackupCapture(S.trades,'pre-merge',{now:true});
+    const restore=S.trades;
     S.set(prev=>[...additions,...prev].sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)));
-    if(window._fbSaveTBTradeBulk)await window._fbSaveTBTradeBulk(additions);
-    else if(window._fbSaveTBTrade)additions.forEach(t=>window._fbSaveTBTrade(t));
+    if(window._fbSaveTBTradeBulk){
+      /* One atomic updateDoc. If it fails the trades exist only in this tab and
+         would vanish on reload, so put the list back rather than showing a
+         merge that never happened. */
+      try{ await window._fbSaveTBTradeBulk(additions); }
+      catch(err){
+        S.set(restore);
+        S.note('Could not save those trades ('+((err&&err.message)||'write failed')+') — nothing was changed.');
+        return{ok:false,error:(err&&err.message)||'write failed'};
+      }
+    }else if(window._fbSaveTBTrade)additions.forEach(t=>window._fbSaveTBTrade(t));
     tbBackupCapture(S.trades,'merge');
     S.note(`Added ${additions.length} trade${additions.length!==1?'s':''} from backup`);
     return{ok:true,added:additions.length};
