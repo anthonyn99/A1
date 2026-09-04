@@ -1234,6 +1234,12 @@ function tbSavePromptsLocal(arr){try{localStorage.setItem(TB_PROMPTS_KEY,JSON.st
 /* ── API_BASE: Webull Cloudflare Worker ── */
 const TB_API_BASE=(()=>{const PROD='https://tradeboard-api.av1.workers.dev';try{const v=localStorage.getItem('tb_api_base');return(v&&v.startsWith('https'))?v:PROD;}catch{return PROD;}})();
 const TB_SYNC_TS_KEY='tb_last_webull_sync'; /* localStorage key for 24h auto-sync timestamp */
+/* When a sync last FAILED. The success stamp above is what makes the morning
+   auto-sync fire once a day; it is now only written on success, so without a
+   separate failure stamp a broken Webull worker would have the orchestrator
+   retrying every 5 minutes all day. */
+const TB_SYNC_TRY_KEY='tb_last_webull_try';
+const TB_SYNC_RETRY_MS=30*60*1000;
 
 /* ── Helpers ── */
 function tbFmt$(n,d=2){if(n==null||isNaN(n))return'—';return new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',minimumFractionDigits:d,maximumFractionDigits:d}).format(n);}
@@ -2067,8 +2073,12 @@ function useTBJournal(){
   const load=useCallback(()=>tbLoadJournal(true),[]);
 
   useEffect(()=>{
-    if(window._fbReady)tbLoadJournal(true);
-    else{const h=()=>tbLoadJournal(true);window.addEventListener('fb-ready',h,{once:true});return()=>window.removeEventListener('fb-ready',h);}
+    /* Re-read on every open, and keep trying if that read FAILS. A journal that
+       silently stayed empty because one request timed out is exactly how an
+       empty list became the thing every later job merged into. */
+    const go=async()=>{await tbLoadJournal(true);if(!S.loaded)await tbJournalReady();};
+    if(window._fbReady)go();
+    else{const h=()=>{go();};window.addEventListener('fb-ready',h,{once:true});return()=>window.removeEventListener('fb-ready',h);}
   },[]);
 
   /* Live sync: apply remote journal changes from other devices.
@@ -2106,12 +2116,19 @@ function useTBJournal(){
   /* Webull auto-sync: pull from Cloudflare Worker, merge into state + Firebase.
      SELLs chain as new legs onto the most-recent open BUY entry for the same
      ticker instead of creating a separate top-level entry. */
-  const sync=useCallback(async()=>tbRunJournalJob('sync','Syncing…',async()=>{
+  const sync=useCallback(async(opts)=>tbRunJournalJob('sync','Syncing…',async()=>{
+    /* A failed sync no longer stamps the success key, so an explicit backoff is
+       what stops the 5-minute morning orchestrator from hammering a Webull
+       worker that is down. Pressing the button ignores it. */
+    if(!(opts&&opts.manual)){
+      const lastTry=parseInt(localStorage.getItem(TB_SYNC_TRY_KEY)||'0',10);
+      if(lastTry&&Date.now()-lastTry<TB_SYNC_RETRY_MS)return{ok:false,skipped:'backoff'};
+    }
     window._tbSyncInFlight=true;
     window._tbBuildUntil=Date.now()+120000; // keep Firestore alive through sync write
     /* Result of the merge, reported through the store so the outcome is still
        waiting for you if the sync finished while you were on another tab. */
-    let syncOk=false,syncNew=0,finalTrades=null,staleIds=[],prevCount=0;
+    let syncOk=false,syncNew=0,finalTrades=null,staleIds=[];
     try{
       const r=await fetch(`${TB_API_BASE}/api/journal/sync?t=${Date.now()}`,{method:'POST',cache:'no-store'});
       const j=await r.json();
@@ -2272,7 +2289,6 @@ function useTBJournal(){
           finalTrades=[...others,...rebuilt].sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
           const finalIds=new Set(finalTrades.map(t=>t.id));
           staleIds=prev.map(t=>t.id).filter(id=>!finalIds.has(id));
-          prevCount=prev.length;
           syncOk=true; syncNew=finalTrades.length-prev.length;
           return finalTrades;
         });
@@ -2301,9 +2317,12 @@ function useTBJournal(){
     if(syncOk){
       const nowTs=Date.now();
       localStorage.setItem(TB_SYNC_TS_KEY,String(nowTs));
+      localStorage.removeItem(TB_SYNC_TRY_KEY);
       window._tbLastSyncTs=nowTs; setLastSync(nowTs);
       if(window._fbSaveTBSyncMeta)window._fbSaveTBSyncMeta({lastWebullSync:nowTs});
       S.note(syncNew>0?`Webull sync · ${syncNew} new trade${syncNew!==1?'s':''}`:'Webull sync · up to date');
+    }else{
+      try{localStorage.setItem(TB_SYNC_TRY_KEY,String(Date.now()));}catch(e){}
     }
     window._tbBuildUntil=0;
     window._tbSyncInFlight=false;
@@ -3724,7 +3743,7 @@ function TBJournalPage(){
 
   /* All three just kick the store's job and return — the job itself owns the
      button state and the result message, so navigating away mid-run is fine. */
-  const doSync=()=>{jHook.sync();};
+  const doSync=()=>{jHook.sync({manual:true});};
 
   const doRemerge=async()=>{
     if(!(await window.uiConfirm('Re-merge all Webull trades from their fills using FIFO grouping? Fixes split/mismatched trades. Manual & CSV trades are not touched.',{title:'Re-merge trades',okLabel:'Re-merge'})))return;
@@ -3856,7 +3875,15 @@ function TBJournalPage(){
       </div>
       <div className="tb-card" style={{padding:0,overflow:'hidden'}}>
         {jHook.loading&&<div style={{padding:'16px 20px',fontSize:14,color:'var(--txm)'}}>Loading…</div>}
-        {!jHook.loading&&filtered.length===0&&<div style={{padding:'52px',textAlign:'center',fontFamily:'var(--font-accent)',fontSize:15,color:'var(--txm)'}}>No trades yet. Click "⟳ Webull Sync" to pull from Webull, or "＋ Manual Trade" to log one manually.</div>}
+        {/* An empty list because the READ failed is not an empty journal, and
+            saying "No trades yet" there invites exactly the wrong next action
+            (a sync or an import on top of a journal we simply could not see). */}
+        {!jHook.loading&&jHook.loadError&&<div style={{padding:'40px 22px',textAlign:'center',display:'flex',flexDirection:'column',alignItems:'center',gap:12}}>
+          <div style={{fontSize:14,color:'var(--tbw)',fontWeight:700}}>Could not load your journal</div>
+          <div style={{fontSize:13,color:'var(--txm)',maxWidth:420,lineHeight:1.5}}>Your trades are safe — this device just could not read them ({jHook.loadError}). Nothing will be synced or changed until it can.</div>
+          <button className="tb-btn-ghost" onClick={()=>jHook.load()} style={{fontSize:13}}><TBIcon n="refresh"/> Try again</button>
+        </div>}
+        {!jHook.loading&&!jHook.loadError&&filtered.length===0&&<div style={{padding:'52px',textAlign:'center',fontFamily:'var(--font-accent)',fontSize:15,color:'var(--txm)'}}>No trades yet. Click "⟳ Webull Sync" to pull from Webull, or "＋ Manual Trade" to log one manually.</div>}
         {filtered.length>0&&isMobile&&(
           <div style={{display:'flex',flexDirection:'column'}}>
             {filtered.map(t=>{
