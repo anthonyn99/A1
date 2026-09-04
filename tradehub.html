@@ -3206,12 +3206,22 @@ function TBTradeRow({trade,onClick,asFragment}){
    with it: put one back, or take a copy off the machine. Restores go through
    the same job gate as a sync, and take their own snapshot first, so an
    unwanted restore is itself one click from being undone. */
-function tbBkWhen(ts){
+/* Seconds are shown only when another snapshot shares the same minute. These
+   are recovery points and the label is the only thing telling one from another,
+   so two rows both reading "Today · 8:48 AM" is a real problem — while stamping
+   seconds onto a three-day-old backup is just noise. */
+function tbBkWhen(ts,withSeconds){
   const d=new Date(ts);
   const today=new Date();today.setHours(0,0,0,0);
   const same=d.getTime()>=today.getTime();
   return (same?'Today':d.toLocaleDateString([], {month:'short',day:'numeric'}))+' · '+
-         d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
+         d.toLocaleTimeString([], withSeconds?{hour:'numeric',minute:'2-digit',second:'2-digit'}
+                                            :{hour:'numeric',minute:'2-digit'});
+}
+function tbBkCrowdedMinutes(rows){
+  const seen=new Map();
+  (rows||[]).forEach(r=>{const k=Math.floor((r.at||0)/60000);seen.set(k,(seen.get(k)||0)+1);});
+  return seen;
 }
 const TB_BK_REASON={
   load:'after loading', sync:'after Webull sync', remerge:'after re-merge',
@@ -3253,13 +3263,13 @@ function TBBackupModal({jHook,onClose}){
     catch(e){ setNote('That backup could not be read: '+((e&&e.message)||'unknown')); return; }
     const by=sn.by||tbBkBreakdown(trades);
     const ok=await window.uiConfirm(
-      `Replace the journal with this backup?\n\n${trades.length} trades from ${tbBkWhen(sn.at)}`+
+      `Replace the journal with this backup?\n\n${trades.length} trades from ${when(sn)}`+
       `\n· ${by.webull||0} Webull · ${by.csv||0} CSV · ${by.manual||0} manual`+
       `\n\nYou have ${jHook.trades.length} trades now. A copy of the current journal is saved first, so this can be undone.`,
       {title:'Restore backup',okLabel:'Restore',danger:true});
     if(!ok)return;
     setWorking('restore'+sn.at);
-    const r=await jHook.restore(trades,tbBkWhen(sn.at));
+    const r=await jHook.restore(trades,when(sn));
     setWorking('');
     if(r&&r.ok){setNote(`Restored ${r.count} trades`);onClose();}
     else setNote('Restore failed: '+((r&&(r.error||r.busy&&'another job is running'))||'unknown'));
@@ -3300,6 +3310,8 @@ function TBBackupModal({jHook,onClose}){
   };
 
   const health=tbBackupHealth();
+  const crowded=useMemo(()=>tbBkCrowdedMinutes(rows||[]),[rows]);
+  const when=sn=>tbBkWhen(sn.at,(crowded.get(Math.floor(sn.at/60000))||0)>1);
   const chip=(label,val,col)=>(<span style={{fontSize:10,fontWeight:800,color:col,background:'var(--s2)',borderRadius:5,padding:'2px 6px',whiteSpace:'nowrap'}}>{val} {label}</span>);
 
   return(
@@ -3340,7 +3352,7 @@ function TBBackupModal({jHook,onClose}){
             return(<div key={sn.at} style={{padding:'11px clamp(10px,4vw,22px)',borderBottom:'1px solid var(--bd)',display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
               <div style={{flex:1,minWidth:170}}>
                 <div style={{fontSize:13,fontWeight:700,color:'var(--tx)',display:'flex',alignItems:'center',gap:7,flexWrap:'wrap'}}>
-                  {tbBkWhen(sn.at)}
+                  {when(sn)}
                   <span style={{fontSize:10,fontWeight:800,color:sn.where==='cloud'?'var(--info)':sn.where==='both'?'var(--tbb)':'var(--txm)',background:'var(--s2)',borderRadius:5,padding:'2px 6px'}}>
                     {sn.where==='both'?'DEVICE + CLOUD':sn.where==='cloud'?'CLOUD':'DEVICE'}
                   </span>
