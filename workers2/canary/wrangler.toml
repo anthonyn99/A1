@@ -1,0 +1,18 @@
+# ============================================================================
+# canary — smoke test for the account-2 deploy lane
+# ============================================================================
+# NO account_id ON PURPOSE. deploy-workers2.yml supplies it from the
+# CF_ACCOUNT_ID_2 secret, so the account lives in one place instead of being
+# copy-pasted into every worker (which is how a worker ends up silently
+# deployed to the wrong account). Workers under workers/ pin theirs inline
+# because that older workflow passes no accountId.
+#
+# Deploy by hand (wrangler's login only has account 1 in scope, so name it):
+#   CLOUDFLARE_ACCOUNT_ID=<account 2 id> npx wrangler deploy
+#
+# Verify:  curl https://canary.av1-2.workers.dev/health
+# ============================================================================
+
+name = "canary"
+main = "worker.js"
+compatibility_date = "2025-06-01"
