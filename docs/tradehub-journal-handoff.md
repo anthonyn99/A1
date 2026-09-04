@@ -148,7 +148,7 @@ of this app.
 bottom is that same push landing a minute later with nobody touching anything.
 Journal writes are 2 for a sync because the sync also stamps `_syncMeta`.
 
-Two things keep it there:
+Three things keep it there:
 
 * **`CLOUD_MIN_GAP_MS` (60s).** Captures are content-addressed, so a push only
   ever happens for a genuinely changed journal — the gap does not suppress
@@ -162,6 +162,12 @@ Two things keep it there:
   not, with nothing recording which. Now it is one write, all-or-nothing, and
   the caller reports failure instead of showing trades that only exist in that
   tab.
+
+* **A push short-circuits on `_tbBkState.lastCloudHash`.** If this exact
+  journal is already the newest thing in the cloud there is nothing to send and
+  no reason to spend a READ finding that out. Without it every deferred flush
+  cost a read only to discover it had nothing to do (3 backup reads on a first
+  open instead of 1).
 
 The one thing that is *not* free is `_fbReplaceTBTrades`' pre-write read: one
 extra document read per bulk write. That is the price of guards 3 and of having
