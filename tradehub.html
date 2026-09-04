@@ -1749,31 +1749,46 @@ function useTBJournal(){
   },[]);
 
   /* Live sync: apply remote journal changes from other devices.
-     Also force a fresh server load if we haven't seen this savedAt before — this
-     handles Firestore returning a stale local cache on mobile before the server
-     write arrives, which caused Re-merge on desktop to not reflect on phone. */
-  const lastSeenSavedAt=useRef(0);
+     A snapshot IS a successful read of the document, so it also satisfies the
+     load gate — a device whose getDocFromServer failed but whose listener is
+     delivering is not in the dark. It is dropped while a job is running: the
+     job is mid read-modify-write over this same list and owns it until it
+     finishes, and its own write is what the snapshot would be echoing back. */
   useEffect(()=>{
     const onRemote=(e)=>{
       if(!e.detail||!Array.isArray(e.detail))return;
-      const incoming=e.detail;
-      setTrades(incoming);
+      if(S.busy||_tbJobClaim)return;
+      S.set(e.detail);
+      S.loaded=true;S.loadError='';S.loadedAt=Date.now();S.setLoading(false);
+      try{tbBackupCapture(e.detail,'remote');}catch(err){}
     };
     window.addEventListener('fb-tb-journal-remote',onRemote);
     return()=>window.removeEventListener('fb-tb-journal-remote',onRemote);
-  },[load]);
+  },[]);
+
+  /* A bulk write the Firebase layer refused (it would have wiped most of the
+     journal). Say so out loud — a guard that only writes to the console is a
+     guard nobody knows fired — and put the server's real list back on screen. */
+  useEffect(()=>{
+    const onRefused=(e)=>{
+      const d=(e&&e.detail)||{};
+      if(Array.isArray(d.server))S.set(d.server);
+      S.note('Blocked a change that '+(d.why||'would have removed most of your trades')+'. Nothing was lost.');
+      try{window.uiAlert&&window.uiAlert('TradeHub blocked a journal write that '+(d.why||'would have removed most of your trades')+'.\n\nNothing was written, and your trades are unchanged. If this keeps happening, open Journal → Backups.',{title:'Journal write blocked'});}catch(err){}
+    };
+    window.addEventListener('fb-tb-journal-refused',onRefused);
+    return()=>window.removeEventListener('fb-tb-journal-refused',onRefused);
+  },[]);
 
   /* Webull auto-sync: pull from Cloudflare Worker, merge into state + Firebase.
      SELLs chain as new legs onto the most-recent open BUY entry for the same
      ticker instead of creating a separate top-level entry. */
-  const sync=useCallback(async()=>{
-    if(window._tbSyncInFlight||S.busy)return; // dedupe concurrent syncs (morning orchestrator + tab-mount auto-sync) and never race a re-merge/import
+  const sync=useCallback(async()=>tbRunJournalJob('sync','Syncing…',async()=>{
     window._tbSyncInFlight=true;
-    setSyncing(true);
     window._tbBuildUntil=Date.now()+120000; // keep Firestore alive through sync write
     /* Result of the merge, reported through the store so the outcome is still
        waiting for you if the sync finished while you were on another tab. */
-    let syncOk=false,syncNew=0;
+    let syncOk=false,syncNew=0,finalTrades=null,staleIds=[],prevCount=0;
     try{
       const r=await fetch(`${TB_API_BASE}/api/journal/sync?t=${Date.now()}`,{method:'POST',cache:'no-store'});
       const j=await r.json();
@@ -1931,26 +1946,46 @@ function useTBJournal(){
              broken syncs) and every device receives it in one snapshot. */
           const merged=[...map.values()];
           const {others,rebuilt}=tbReconcileWebull(merged);
-          const finalTrades=[...others,...rebuilt].sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+          finalTrades=[...others,...rebuilt].sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
           const finalIds=new Set(finalTrades.map(t=>t.id));
-          const staleIds=prev.map(t=>t.id).filter(id=>!finalIds.has(id));
+          staleIds=prev.map(t=>t.id).filter(id=>!finalIds.has(id));
+          prevCount=prev.length;
           syncOk=true; syncNew=finalTrades.length-prev.length;
-          if(window._fbReplaceTBTrades)window._fbReplaceTBTrades(staleIds,finalTrades);
-          else if(window._fbSaveTBTradeBulk)window._fbSaveTBTradeBulk(finalTrades);
           return finalTrades;
         });
+        /* The write is AWAITED and its result checked. It used to be fired and
+           forgotten from inside the state updater, so a refusal or a permission
+           error left the screen showing a merge that never reached Firebase. */
+        if(finalTrades){
+          let res=null;
+          if(window._fbReplaceTBTrades)res=await window._fbReplaceTBTrades(staleIds,finalTrades,{reason:'pre-sync'});
+          else if(window._fbSaveTBTradeBulk){await window._fbSaveTBTradeBulk(finalTrades);res={ok:true};}
+          if(res&&res.ok===false){
+            syncOk=false;
+            /* Refused or failed — put the server's truth back on screen rather
+               than leaving a merge that only exists in this tab. */
+            if(Array.isArray(res.server))S.set(res.server);
+            if(!res.refused)S.note('Webull sync could not be saved ('+(res.error||'write failed')+').');
+          }else{
+            tbBackupCapture(finalTrades,'sync');
+          }
+        }
       }
     }catch(e){console.warn('TB Webull sync error (server may be offline)',e);S.note('Webull sync failed — server may be offline.');}
-    /* Record sync timestamp in localStorage + Firebase so all devices know */
-    const nowTs=Date.now();
-    localStorage.setItem(TB_SYNC_TS_KEY,String(nowTs));
-    window._tbLastSyncTs=nowTs; setLastSync(nowTs);
-    if(window._fbSaveTBSyncMeta)window._fbSaveTBSyncMeta({lastWebullSync:nowTs});
-    if(syncOk)S.note(syncNew>0?`Webull sync · ${syncNew} new trade${syncNew!==1?'s':''}`:'Webull sync · up to date');
+    /* Record sync timestamp in localStorage + Firebase so all devices know.
+       Only on a sync that actually succeeded: stamping a FAILED sync as this
+       morning's is what makes the next open skip it and sit on bad data. */
+    if(syncOk){
+      const nowTs=Date.now();
+      localStorage.setItem(TB_SYNC_TS_KEY,String(nowTs));
+      window._tbLastSyncTs=nowTs; setLastSync(nowTs);
+      if(window._fbSaveTBSyncMeta)window._fbSaveTBSyncMeta({lastWebullSync:nowTs});
+      S.note(syncNew>0?`Webull sync · ${syncNew} new trade${syncNew!==1?'s':''}`:'Webull sync · up to date');
+    }
     window._tbBuildUntil=0;
     window._tbSyncInFlight=false;
-    setSyncing(false);
-  },[]);
+    return{ok:syncOk,added:syncNew};
+  }),[]);
 
   /* Manual add — tagged source:'manual', saved to Firebase */
   const add=useCallback(async(fields)=>{
