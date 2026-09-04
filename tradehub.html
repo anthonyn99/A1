@@ -449,23 +449,49 @@
       }
     };
 
-    // Journal: load all trades
+    // Journal: pull the trade list out of a raw journal document.
+    const _tbTradesOf = (data) => {
+      const trades = [];
+      Object.entries(data || {}).forEach(([k, v]) => {
+        if (k.startsWith('t_') && v && typeof v === 'object' && v.id) trades.push(v);
+      });
+      trades.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      if (trades.length) return trades;
+      // Pre-'t_' documents kept one `trades` array. Still read it so an ancient
+      // document is never mistaken for an empty journal.
+      return Array.isArray(data && data.trades) ? data.trades.slice() : [];
+    };
+
+    // Journal: load all trades.
+    //
+    // Returns a RESULT OBJECT, never a bare array, because the two failure
+    // shapes this used to collapse into `null` mean opposite things: "the
+    // document does not exist yet" is an empty journal and safe to render,
+    // while "the read failed" means we know nothing — and the caller that
+    // treated both as null marked the journal loaded anyway, so every later
+    // job ran against an empty list and wrote that emptiness back.
+    //   { ok:true,  trades:[...], exists:bool, savedAt:n }
+    //   { ok:false, error:'…' }
     window._fbLoadTBJournal = async () => {
       try {
         if (window._fbAuthReady) { try { await window._fbAuthReady; } catch(e){} }
-        let snap;
+        let snap, fromCache = false;
         try { snap = await getDocFromServer(tbJournalDocRef); }
-        catch(netErr) { snap = await getDoc(tbJournalDocRef); }
-        if (!snap.exists()) return null;
+        catch(netErr) { snap = await getDoc(tbJournalDocRef); fromCache = true; }
+        if (!snap.exists()) {
+          // A cache MISS is not proof the journal is empty — the memory cache is
+          // empty on every page load. Only the server may report "no journal".
+          if (fromCache) return { ok: false, error: 'offline and nothing cached' };
+          return { ok: true, trades: [], exists: false, savedAt: 0 };
+        }
         const data = snap.data();
         _tbNoteSyncMeta(data);
-        const trades = [];
-        Object.entries(data).forEach(([k, v]) => {
-          if (k.startsWith('t_') && v && typeof v === 'object' && v.id) trades.push(v);
-        });
-        trades.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-        return trades.length > 0 ? trades : (Array.isArray(data.trades) ? data.trades : null);
-      } catch(e) { console.warn('Firebase TBJournal load failed:', e); return null; }
+        return { ok: true, trades: _tbTradesOf(data), exists: true,
+                 savedAt: data.savedAt || 0, fromCache: fromCache };
+      } catch(e) {
+        console.warn('Firebase TBJournal load failed:', e);
+        return { ok: false, error: (e && (e.code || e.message)) || 'load failed' };
+      }
     };
 
     // Journal: save single trade immediately (no debounce — debounce caused bulk drops)
