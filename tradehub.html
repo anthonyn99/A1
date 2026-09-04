@@ -395,6 +395,9 @@
   let db = initializeFirestore(app, { localCache: memoryLocalCache() });
 
   const TB_JOURNAL_PATH  = "dashboards/tradeboard_journal";
+  // Journal backups live in their OWN document. A backup stored inside the
+  // document it protects dies with it.
+  const TB_JOURNAL_BK_PATH = "dashboards/tradeboard_journal_backups";
   const TB_PROMPTS_PATH  = "dashboards/tradeboard_prompts";
   const TB_NEWS_PATH     = "dashboards/tradeboard_news";
   const TB_ANALYSIS_PATH = "dashboards/tradeboard_analysis";
@@ -546,26 +549,134 @@
       }
     };
 
-    // Atomic replace (Re-merge): delete old trade fields AND write new ones in ONE updateDoc.
-    window._fbReplaceTBTrades = async (oldIds, newTrades) => {
+    /* -- Atomic replace (Webull Sync / Re-merge / Restore) -------------------
+       Deletes old trade fields AND writes new ones in ONE updateDoc.
+
+       This is the only write in the app that can shrink the journal wholesale,
+       so it is also the only one that can destroy it. Before writing it:
+
+         1. reads the CURRENT server document (one read per bulk write), and
+         2. hands that pre-write state to the backup vault, and
+         3. refuses a write that would drop most of the journal.
+
+       (3) exists because of the exact bug this guard was added for: a Webull
+       sync that started before the Firebase load had landed merged the pulled
+       orders into an EMPTY trade list and wrote the result -- a journal holding
+       only Webull trades, with every CSV and manual entry gone from view. The
+       ordering fix upstream stops that at the source; this refuses it even if
+       some future path finds its way back here. Biased toward refusing: a
+       blocked good write costs one retry, a permitted bad one costs the
+       journal. `opts.force` is for an explicit user-driven restore or bulk
+       delete, which is the one time a big shrink is the intent. */
+    const REPLACE_SHRINK_RATIO = 0.5;   // in step with A1Backup's SHRINK_RATIO
+    const REPLACE_SHRINK_FLOOR = 8;     // below this a journal is too small to judge
+
+    window._fbReplaceTBTrades = async (oldIds, newTrades, opts) => {
+      opts = opts || {};
+      newTrades = newTrades || [];
+
+      // -- Pre-write read: the backup source AND the guard's evidence --
+      let before = null;
+      try {
+        const snap = await getDocFromServer(tbJournalDocRef);
+        if (snap.exists()) before = _tbTradesOf(snap.data());
+      } catch(e) {
+        // A failed read is not permission to write blind. Fall back to the
+        // cached copy; if that is unavailable too the guard runs on whatever
+        // the caller believed, which still beats nothing.
+        try { const c = await getDoc(tbJournalDocRef); if (c.exists()) before = _tbTradesOf(c.data()); }
+        catch(e2) {}
+      }
+
+      if (before && before.length >= REPLACE_SHRINK_FLOOR && !opts.force &&
+          newTrades.length < Math.floor(before.length * REPLACE_SHRINK_RATIO)) {
+        const why = 'would cut the journal from ' + before.length + ' trades to ' + newTrades.length;
+        console.error('[TBJournal] REFUSED a bulk write that ' + why + '. Nothing was written.');
+        try { window._tbBackupCapture && window._tbBackupCapture(before, 'refused-write'); } catch(e) {}
+        window.dispatchEvent(new CustomEvent('fb-tb-journal-refused',
+          { detail: { why: why, before: before.length, after: newTrades.length, server: before } }));
+        return { ok: false, refused: why, server: before };
+      }
+
+      // Snapshot what we are about to overwrite, so a bulk write is recoverable
+      // even when its RESULT turns out to be wrong.
+      if (before && before.length) {
+        try { window._tbBackupCapture && window._tbBackupCapture(before, opts.reason || 'pre-write'); } catch(e) {}
+      }
+
       _tbJournalLastOwnSaveAt = Date.now();
       window.dispatchEvent(new CustomEvent('fb-tb-saving'));
       const update = { savedAt: Date.now() };
       (oldIds || []).forEach(id => { update['t_' + id] = deleteField(); });
-      (newTrades || []).forEach(t => { if (t && t.id) update['t_' + t.id] = JSON.parse(JSON.stringify(t)); });
+      newTrades.forEach(t => { if (t && t.id) update['t_' + t.id] = JSON.parse(JSON.stringify(t)); });
+      // A restore must also clear trades that exist on the server but not in
+      // the snapshot; the caller only knows the ids IT holds.
+      if (opts.prune && before) {
+        const keep = new Set(newTrades.map(t => t && t.id).filter(Boolean));
+        before.forEach(t => { if (t && t.id && !keep.has(t.id)) update['t_' + t.id] = deleteField(); });
+      }
       try {
         await updateDoc(tbJournalDocRef, update);
         _tbJournalLastOwnSaveAt = Date.now();
         window.dispatchEvent(new CustomEvent('fb-tb-journal-saved'));
+        return { ok: true, wrote: newTrades.length };
       } catch(err) {
         if (err.code === 'not-found') {
           await setDoc(tbJournalDocRef, update);
           _tbJournalLastOwnSaveAt = Date.now();
           window.dispatchEvent(new CustomEvent('fb-tb-journal-saved'));
-        } else {
-          console.warn('TBJournal replace failed:', err.code, err.message);
-          window.dispatchEvent(new CustomEvent('fb-tb-journal-error'));
+          return { ok: true, wrote: newTrades.length };
         }
+        console.warn('TBJournal replace failed:', err.code, err.message);
+        window.dispatchEvent(new CustomEvent('fb-tb-journal-error'));
+        return { ok: false, error: (err && (err.code || err.message)) || 'write failed' };
+      }
+    };
+
+    /* -- Journal backup vault (cloud half) -----------------------------------
+       One document, one field per snapshot ('b_<ts>'), each holding a gzipped,
+       base64 copy of the whole trade list. It is a SEPARATE document from the
+       journal on purpose: the failure this protects against is the journal
+       document being emptied, and a backup living inside the thing it backs up
+       is not a backup. Retention is the caller's job (tbBkPrune) -- this layer
+       only reads, writes and deletes slots. */
+    const tbBackupDocRef = doc(db, TB_JOURNAL_BK_PATH);
+
+    window._fbLoadTBBackups = async () => {
+      try {
+        if (window._fbAuthReady) { try { await window._fbAuthReady; } catch(e){} }
+        let snap;
+        try { snap = await getDocFromServer(tbBackupDocRef); }
+        catch(netErr) { snap = await getDoc(tbBackupDocRef); }
+        if (!snap.exists()) return { ok: true, snapshots: [] };
+        const data = snap.data(), out = [];
+        Object.entries(data).forEach(([k, v]) => {
+          if (k.indexOf('b_') === 0 && v && typeof v === 'object' && v.gz) out.push(v);
+        });
+        out.sort((a, b) => (b.at || 0) - (a.at || 0));
+        return { ok: true, snapshots: out };
+      } catch(e) {
+        console.warn('TBJournal backup load failed:', e && e.message);
+        return { ok: false, error: (e && (e.code || e.message)) || 'load failed' };
+      }
+    };
+
+    // Write one slot and drop any the caller has pruned, in a single update.
+    window._fbSaveTBBackup = async (snapshot, dropAts) => {
+      if (!snapshot || !snapshot.at) return { ok: false, error: 'empty snapshot' };
+      const update = { savedAt: Date.now() };
+      update['b_' + snapshot.at] = JSON.parse(JSON.stringify(snapshot));
+      (dropAts || []).forEach(at => { update['b_' + at] = deleteField(); });
+      try {
+        await updateDoc(tbBackupDocRef, update);
+        return { ok: true };
+      } catch(err) {
+        if (err.code === 'not-found') {
+          try { await setDoc(tbBackupDocRef, update); return { ok: true }; }
+          catch(e2) { return { ok: false, error: (e2 && (e2.code || e2.message)) || 'write failed' }; }
+        }
+        console.warn('TBJournal backup save failed:', err.code, err.message);
+        return { ok: false, error: (err && (err.code || err.message)) || 'write failed' };
       }
     };
 
