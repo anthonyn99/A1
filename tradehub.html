@@ -2146,6 +2146,11 @@ async function tbJournalImportCSV(csvText){
   const iHold=col('hold'),iReturn=col('return'),iTags=col('tags'),iNotes=col('notes');
 
   const newEntries=[];
+  /* Seeded with everything already in the journal, so a re-import of the same
+     file adds nothing. Rows added during this run go in as they are accepted. */
+  const seenSigs=new Set();
+  S.trades.forEach(t=>{const sg=tbCsvSig(t);if(sg)seenSigs.add(sg);});
+  let skipped=0;
   for(let i=1;i<lines.length;i++){
     const row=parseRow(lines[i]);
     const g=idx=>idx>=0?(row[idx]||'').trim():'';
@@ -2184,7 +2189,7 @@ async function tbJournalImportCSV(csvText){
       legs.push(sellLeg);
     }
     const entryId=tbUuid();
-    newEntries.push({
+    const entry={
       id:entryId,
       ticker:symbol,
       market,
@@ -2197,14 +2202,64 @@ async function tbJournalImportCSV(csvText){
       tags,
       notes,
       direction:side==='SHORT'?'SHORT':'LONG',
-    });
+    };
+    /* Dedup — see tbCsvSig. The header has always promised this and the
+       "No new trades (all duplicates)" branch below has always existed, but
+       nothing actually compared anything: every row became a brand-new entry
+       with a brand-new uuid, so re-importing a file (or importing an updated
+       export of the same trades) silently doubled the journal. Both the
+       existing journal and rows earlier in THIS file are checked, so a file
+       that repeats a row imports it once. */
+    const sig=tbCsvSig(entry);
+    if(sig&&seenSigs.has(sig)){skipped++;continue;}
+    if(sig)seenSigs.add(sig);
+    newEntries.push(entry);
   }
-  if(!newEntries.length){S.note('No new trades (all duplicates)');return{ok:true,added:0,skipped:lines.length-1};}
+  if(!newEntries.length){
+    S.note(skipped?`No new trades — ${skipped} already in the journal`:'No new trades found in that file');
+    return{ok:true,added:0,skipped:skipped||(lines.length-1)};
+  }
+  /* Snapshot BEFORE the import lands, so "undo that import" is a restore away. */
+  await tbBackupCapture(S.trades,'pre-import',{now:true});
   setTrades(prev=>[...newEntries,...prev].sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)));
-  if(window._fbSaveTBTradeBulk)await window._fbSaveTBTradeBulk(newEntries);
-  else if(window._fbSaveTBTrade)newEntries.forEach(e=>window._fbSaveTBTrade(e));
-  S.note(`Imported ${newEntries.length} trade${newEntries.length!==1?'s':''}`);
-  return{ok:true,added:newEntries.length,skipped:0};
+  /* Awaited and checked: an import whose write failed must not report success,
+     because the trades are then only in this tab and vanish on reload. */
+  let wrote=true;
+  if(window._fbSaveTBTradeBulk){
+    try{ await window._fbSaveTBTradeBulk(newEntries); }catch(e){ wrote=false; }
+  }else if(window._fbSaveTBTrade){ newEntries.forEach(e=>window._fbSaveTBTrade(e)); }
+  if(!wrote){
+    S.note('Import could not be saved — check your connection and try again.');
+    return{ok:false,error:'save failed'};
+  }
+  tbBackupCapture(S.trades,'import');
+  S.note(`Imported ${newEntries.length} trade${newEntries.length!==1?'s':''}${skipped?` · skipped ${skipped} duplicate${skipped!==1?'s':''}`:''}`);
+  return{ok:true,added:newEntries.length,skipped};
+}
+
+/* ── The identity of an imported trade ───────────────────────────────────────
+   Ticker, buy DAY, quantity and the entry/exit prices to the cent. Deliberately
+   ignores ids (every import mints new ones), clock time (the CSV carries only a
+   close time and the buy time is derived from a rounded "hold" string, so the
+   same trade can land minutes apart across two exports) and notes/tags (those
+   are edited afterwards and a re-import must not resurrect the old copy).
+   Applied to an EXISTING journal entry and to a freshly parsed CSV row through
+   the same function, so the two can never drift apart. */
+function tbCsvSig(entry){
+  if(!entry)return '';
+  const p=n=>{const x=parseFloat(n);return isNaN(x)?0:x;};
+  const legs=entry.legs||[];
+  const buys=legs.filter(l=>l.action==='BUY'),sells=legs.filter(l=>l.action==='SELL');
+  if(!buys.length&&!sells.length)return '';
+  const bq=buys.reduce((a,l)=>a+p(l.qty),0),sq=sells.reduce((a,l)=>a+p(l.qty),0);
+  const bt=buys.reduce((a,l)=>a+p(l.price)*p(l.qty),0),st=sells.reduce((a,l)=>a+p(l.price)*p(l.qty),0);
+  const day=l=>String((l&&l.datetime)||'').slice(0,10);
+  const c=n=>n?n.toFixed(2):'';
+  return [(entry.ticker||'').toUpperCase(),
+          day(buys[0]||sells[0]),
+          bq||sq,
+          c(bq?bt/bq:0),
+          c(sq?st/sq:0)].join('|');
 }
 
 function tbUuid(){return([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16));}
