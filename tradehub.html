@@ -524,17 +524,36 @@
         });
     };
 
-    // Bulk save: writes all trades in parallel immediately
+    /* Bulk save: ONE updateDoc carrying every trade as its own field.
+       This used to fire one write per trade in parallel, which made a CSV
+       import of 83 rows 83 separate Firestore writes — and, worse, a
+       NON-ATOMIC import: if the connection dropped halfway, some rows were
+       saved and some were not, with nothing recording which. A single update
+       is all-or-nothing and costs one write. The whole journal is a few tens
+       of KB, far inside the 1 MiB request ceiling (_fbReplaceTBTrades has
+       always written this way).
+
+       Deliberately still NOT debounced — debouncing is what caused the bulk
+       drops the old comment here warned about. */
     window._fbSaveTBTradeBulk = async (trades) => {
-      if (!trades || !trades.length) return;
+      const list = (trades || []).filter(t => t && t.id);
+      if (!list.length) return;
       _tbJournalLastOwnSaveAt = Date.now();
       window.dispatchEvent(new CustomEvent('fb-tb-saving'));
+      const update = { savedAt: Date.now() };
+      list.forEach(t => { update['t_' + t.id] = JSON.parse(JSON.stringify(t)); });
       try {
-        await Promise.all(trades.map(t => _fbWriteTrade(t)));
+        try { await updateDoc(tbJournalDocRef, update); }
+        catch(err) {
+          if (err.code === 'not-found') await setDoc(tbJournalDocRef, update);
+          else throw err;
+        }
+        _tbJournalLastOwnSaveAt = Date.now();
         window.dispatchEvent(new CustomEvent('fb-tb-journal-saved'));
       } catch(e) {
         console.warn('Firebase TBJournal bulk save failed:', e.code, e.message);
         window.dispatchEvent(new CustomEvent('fb-tb-journal-error'));
+        throw e;   // the caller reports success/failure to the user
       }
     };
 
@@ -1667,7 +1686,15 @@ const TB_BK={
   CLOUD_KEEP:{recent:6,daily:10,weekly:6},
   CLOUD_BUDGET:640*1024,        // hard ceiling well under Firestore's 1 MiB/doc
   DEBOUNCE_MS:4000,
-  CLOUD_MIN_GAP_MS:10*60*1000,  // routine cloud pushes, at most one per 10 min
+  /* Gap between routine cloud pushes. Only ever reached by a snapshot that is
+     genuinely NEW: captures are content-addressed, so an unchanged journal
+     never gets this far. A long gap therefore does not suppress noise, it
+     suppresses real changes — a trade added and then lost with the device
+     would be missing from the cloud copy. Measured cost of a push is one read
+     plus one write on the backups document, against a free-tier budget of
+     50,000 reads / 20,000 writes a day, so a minute is affordable and ten was
+     just delay. The 4s capture debounce is what actually collapses a burst. */
+  CLOUD_MIN_GAP_MS:60*1000,
 };
 /* Reasons that always push to the cloud immediately, gap or no gap: every one
    of them is the last moment the pre-change journal still exists anywhere. */
