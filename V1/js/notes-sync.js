@@ -489,6 +489,215 @@ function _soPageInsertFileChip(name, dataURL, mimeType) {
   autoSave();
 }
 
+/* -- Highlighter ------------------------------------------------------------
+   Port of Brainstorm Journal's palette. Clicking the trigger with an already
+   highlighted selection strips it; otherwise it opens the swatch row. The
+   selection is captured on mousedown/touchstart because opening the palette
+   blurs the editor and would otherwise collapse it. -- */
+// Dark ink for each pastel highlight, so highlighted text keeps its contrast.
+const SO_HL_TEXT = {
+  '#f0e2a6':'#2a2000', '#a8f0b0':'#082b0e', '#a8d8ff':'#052240',
+  '#ffb3c6':'#3a0012', '#f9c784':'#2d1a00', '#d4b0ff':'#1e0050'
+};
+function wireHighlightPalette() {
+  const wrap    = document.getElementById('so-pt-hl-wrap');
+  const palette = document.getElementById('so-pt-hl-palette');
+  const trigger = document.getElementById('so-pt-hl-trigger');
+  const icon    = document.getElementById('so-pt-hl-icon');
+  if (!wrap || !palette || !trigger) return;
+  let savedRange = null;
+
+  function saveRange() {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount && !sel.isCollapsed) savedRange = sel.getRangeAt(0).cloneRange();
+  }
+  // Returns true when the click was consumed by stripping an existing highlight.
+  function triggerToggle() {
+    const ed = document.getElementById('so-page-editor');
+    if (!ed) return false;
+    if (savedRange) { const s = window.getSelection(); s.removeAllRanges(); s.addRange(savedRange); }
+    if (savedRange && !savedRange.collapsed &&
+        window._docxSelectionHighlighted && window._docxSelectionHighlighted(ed)) {
+      applyHighlight('none', savedRange.cloneRange());
+      savedRange = null;
+      return true;
+    }
+    return false;
+  }
+
+  trigger.addEventListener('mousedown', e => { saveRange(); e.preventDefault(); });
+  trigger.addEventListener('touchstart', e => { e.preventDefault(); }, { passive:false });
+  // touchend: the selection is only committed by now on iOS, so re-read it here.
+  trigger.addEventListener('touchend', e => {
+    e.preventDefault(); e.stopPropagation();
+    saveRange();
+    if (triggerToggle()) return;
+    palette.classList.add('open');
+  }, { passive:false });
+  trigger.addEventListener('click', e => {
+    e.stopPropagation();
+    if ('ontouchend' in window) return;   // handled by touchend above
+    if (triggerToggle()) return;
+    palette.classList.toggle('open');
+  });
+
+  palette.addEventListener('mousedown', e => e.preventDefault());
+  palette.addEventListener('touchstart', e => e.preventDefault(), { passive:false });
+
+  function applySwatch(swatch, e) {
+    e.stopPropagation();
+    const color = swatch.getAttribute('data-color');
+    palette.classList.remove('open');
+    const range = savedRange;
+    savedRange = null;
+    if (range) { const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range); }
+    applyHighlight(color, range);
+    if (color !== 'none') {
+      if (icon) icon.style.background = color;
+      palette.querySelectorAll('.pt-hl-swatch').forEach(sw => {
+        sw.classList.toggle('active', sw.getAttribute('data-color') === color);
+      });
+    }
+  }
+  palette.querySelectorAll('.pt-hl-swatch').forEach(sw => {
+    sw.addEventListener('click', e => applySwatch(sw, e));
+    sw.addEventListener('touchend', e => { e.preventDefault(); applySwatch(sw, e); }, { passive:false });
+  });
+  document.addEventListener('click', e => { if (!wrap.contains(e.target)) palette.classList.remove('open'); });
+  document.addEventListener('touchend', e => { if (!wrap.contains(e.target)) palette.classList.remove('open'); }, { passive:true });
+
+  function applyHighlight(color, rangeArg) {
+    const ed = document.getElementById('so-page-editor');
+    if (!ed || ed.contentEditable !== 'true') return;
+    let range = rangeArg;
+    if (!range) {
+      ed.focus();
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed) return;
+      range = sel.getRangeAt(0).cloneRange();
+    }
+    if (color === 'none') {
+      if (window._docxStripHighlight) window._docxStripHighlight(ed, range.cloneRange());
+      window.getSelection().removeAllRanges();
+      autoSave();
+      return;
+    }
+    ed.focus();
+    let live = window.getSelection();
+    live.removeAllRanges(); live.addRange(range);
+    const textColor = SO_HL_TEXT[String(color).toLowerCase()] || '#111111';
+    const mark = document.createElement('mark');
+    mark.setAttribute('data-so-hl', '1');
+    mark.style.background = color;
+    mark.style.color = textColor;
+    mark.style.borderRadius = '2px';
+    mark.style.padding = '0 1px';
+    let inserted = null;
+    try { range.surroundContents(mark); inserted = mark; }
+    catch (ex) {
+      document.execCommand('insertHTML', false,
+        '<mark data-so-hl="1" style="background:' + color + ';color:' + textColor +
+        ';border-radius:2px;padding:0 1px">' + range.toString() + '</mark>');
+    }
+    // Collapse after the mark so continued typing is not highlighted.
+    live = window.getSelection();
+    if (inserted && inserted.parentNode) {
+      const after = document.createRange();
+      after.setStartAfter(inserted); after.collapse(true);
+      live.removeAllRanges(); live.addRange(after);
+    } else if (live.rangeCount) {
+      live.getRangeAt(0).collapse(false);
+    }
+    autoSave();
+  }
+}
+
+/* ── PDF export ─────────────────────────────────────────────────────────────
+   The toolbar's "Export PDF" button was markup only: docx-engine's File menu
+   and Ctrl+P both forward to APPS.so.exportBtn, and nothing ever bound a click
+   to it, so all three did nothing. Port of Brainstorm Journal's exporter,
+   trimmed to the Page template (the only one StudyOS Notes has). ── */
+function _soEsc(v) {
+  return String(v == null ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function _soPdfName(t) {
+  var s = String(t == null ? '' : t).trim();
+  try { s = s.normalize('NFKD').replace(/[\u0300-\u036f]/g, ''); } catch (e) {}
+  s = s.replace(/[^A-Za-z0-9 ._()&,'+-]/g, ' ').replace(/\s+/g, '_').replace(/_+/g, '_');
+  s = s.replace(/^[_.\-]+/, '').replace(/[_.\-]+$/, '');
+  if (s.length > 100) s = s.slice(0, 100).replace(/[_.\-]+$/, '');
+  if (/^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i.test(s)) s += '_';
+  return s || 'Untitled_Page';
+}
+
+// A hidden same-page iframe rather than window.open(): a popup blocker can
+// never eat it, and StudyOS runs inside a modal where a popup is likely blocked.
+function _soOpenPrintBlob(htmlStr) {
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;border:none;';
+  document.body.appendChild(iframe);
+  const doc = iframe.contentDocument || iframe.contentWindow.document;
+  doc.open(); doc.write(htmlStr); doc.close();
+  let printed = false;
+  function go() {
+    if (printed) return; printed = true;
+    // Browsers seed the "Save as PDF" filename from either the printed frame's
+    // title or the host page's, so wear both while the dialog is up.
+    const hostTitle = document.title;
+    let frameTitle = '';
+    try { frameTitle = (iframe.contentDocument && iframe.contentDocument.title) || ''; } catch (e) {}
+    if (frameTitle) { try { document.title = frameTitle; } catch (e) {} }
+    try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch (e) {}
+    setTimeout(() => {
+      try { document.title = hostTitle; } catch (e) {}
+      try { document.body.removeChild(iframe); } catch (e) {}
+    }, 2000);
+  }
+  // Wait for web fonts (and KaTeX, if the page has math) so the print is accurate.
+  iframe.onload = function() {
+    const d = iframe.contentDocument;
+    const fonts = (d && d.fonts && d.fonts.ready) ? d.fonts.ready : Promise.resolve();
+    Promise.resolve(fonts).then(() => setTimeout(go, 250));
+  };
+  setTimeout(go, 4000);   // hard fallback if onload never fires
+}
+
+function exportEntryAsPDF(entry) {
+  const title = entry.title || 'Untitled Page';
+  const date = new Date(entry.updated || entry.created).toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+  const tags = (entry.tags || []).length ? entry.tags.join(', ') : '';
+  const inner = window._docxPdfBlackText ? window._docxPdfBlackText(entry.data.html || '') : (entry.data.html || '');
+  const body = '<div class="page-content">' + inner + '</div>';
+  const hasMath = /docx-math/.test(body);
+
+  const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + _soEsc(_soPdfName(title)) + '</title><style>'
+    + 'body{font-family:Georgia,serif;max-width:750px;margin:32px auto;color:#1a1a2e;font-size:14px;line-height:1.7;padding:0 24px;}'
+    + 'h1{font-size:22px;font-weight:700;margin:0 0 6px;color:#2d1b4e;}'
+    + '.meta{font-size:11px;color:#888;font-family:sans-serif;margin-bottom:20px;}'
+    + '.tag{background:#ede9f4;color:#6b4fa0;border-radius:4px;padding:2px 8px;margin-left:4px;font-size:10px;font-weight:700;}'
+    + '.page-content{line-height:1.7;}'
+    + 'table{border-collapse:collapse;width:100%;margin:10px 0;}th,td{border:1px solid #d8d0e8;padding:6px 10px;text-align:left;}th{background:#f3effa;}'
+    + 'ul.docx-checklist{list-style:none;padding-left:8px;}li.docx-cl-item{list-style:none;}.docx-cl-box{margin-right:8px;}li.docx-cl-item.done .docx-cl-text{text-decoration:line-through;opacity:.6;}'
+    + 'img{max-width:100%;height:auto;}'
+    + 'hr.docx-pagebreak{page-break-after:always;break-after:page;border:none;margin:0;}'
+    + 'hr{border:none;border-top:1px solid #ede9f4;margin:20px 0;}'
+    + '@media print{body{margin:0;padding:16px;}}'
+    + '</style>'
+    + (window._docxExportPageCss ? '<style>' + window._docxExportPageCss('so') + '</style>' : '')
+    + (hasMath && window._docxExportMathHead ? window._docxExportMathHead() : '')
+    + '</head><body>'
+    + '<h1>' + _soEsc(title) + '</h1>'
+    + '<div class="meta">' + _soEsc(date)
+    + (tags ? tags.split(',').map(t => '<span class="tag">' + _soEsc(t.trim()) + '</span>').join('') : '')
+    + '</div><hr/>'
+    + body
+    + (hasMath && window._docxExportMathScript ? window._docxExportMathScript() : '')
+    + '</body></html>';
+
+  _soOpenPrintBlob(html);
+}
+
 /* ── Wire static event listeners once (module-scoped, DOM never destroyed —
      only its content is swapped when a different module's notes are opened) ── */
 let _soListenersWired = false;
@@ -507,6 +716,33 @@ function wireStaticListeners() {
 
   const searchBox = document.getElementById('so-search-box');
   if (searchBox) searchBox.addEventListener('input', renderSoSidebar);
+
+  const exportBtn = document.getElementById('so-btn-export-pdf');
+  if (exportBtn) exportBtn.addEventListener('click', () => {
+    // Flush the live editor first — autosave is debounced 700ms, so exporting
+    // right after a keystroke would otherwise print the previous revision.
+    saveCurrentEntry();
+    const entry = getActive();
+    if (!entry) { window.uiAlert && window.uiAlert('Create or select a page first.', { title: 'Nothing to export' }); return; }
+    exportEntryAsPDF(entry);
+  });
+
+  // Sidebar collapse. The two icons in the button are a show/hide pair; only
+  // one is ever visible, mirroring Brainstorm Journal's toggle.
+  const fsBtn = document.getElementById('so-fullscreen-btn');
+  if (fsBtn) fsBtn.addEventListener('click', () => {
+    const root = document.getElementById('so-root');
+    if (!root) return;
+    const collapsed = root.classList.toggle('so-sidebar-collapsed');
+    const show = document.getElementById('so-fs-icon-show');
+    const hide = document.getElementById('so-fs-icon-hide');
+    if (show) show.style.display = collapsed ? '' : 'none';
+    if (hide) hide.style.display = collapsed ? 'none' : '';
+    fsBtn.title = collapsed ? 'Show sidebar' : 'Hide sidebar';
+    // The page editor auto-fits its zoom to the wrap width; tell it the wrap
+    // just changed size so the sheet re-centers instead of staying off-axis.
+    try { window.dispatchEvent(new Event('resize')); } catch (e) {}
+  });
 
   const titleEl = document.getElementById('so-entry-title-input');
   if (titleEl) titleEl.addEventListener('input', autoSave);
@@ -545,6 +781,52 @@ function wireStaticListeners() {
       saveState(); renderTags(entry.tags); renderSoSidebar();
     }
   });
+
+  /* -- Page-toolbar controls docx-engine does NOT own ------------------------
+     rebindPageButtons() in js/docx-engine.js wires the block/font-size selects
+     and the code, link, list, markdown, table and image buttons; the host app
+     has always owned the rest. TradeBoard's journals wire them in index.html --
+     StudyOS never did, so bold/italic/underline/strike, the three alignments,
+     the divider, the highlighter and clear-all were inert markup. -- */
+
+  // Clicking a toolbar button must not blur the editor, or execCommand runs
+  // with no selection. Selects and pickers still need their focus.
+  const pgToolbar = document.getElementById('so-page-toolbar');
+  if (pgToolbar) pgToolbar.addEventListener('mousedown', e => {
+    const t = e.target;
+    if (t.tagName === 'SELECT' || t.type === 'color' || t.type === 'file' || t.type === 'range') return;
+    e.preventDefault();
+  });
+
+  function pgCmd(cmd, val) {
+    const ed = document.getElementById('so-page-editor');
+    if (!ed || ed.contentEditable !== 'true') return;
+    ed.focus();
+    document.execCommand(cmd, false, val || null);
+    autoSave();
+  }
+  const cmdBtns = {
+    'so-pt-bold':'bold', 'so-pt-italic':'italic', 'so-pt-underline':'underline',
+    'so-pt-strike':'strikeThrough', 'so-pt-alignL':'justifyLeft',
+    'so-pt-alignC':'justifyCenter', 'so-pt-alignR':'justifyRight',
+    'so-pt-hr':'insertHorizontalRule'
+  };
+  Object.keys(cmdBtns).forEach(id => {
+    const b = document.getElementById(id);
+    if (b) b.addEventListener('click', () => pgCmd(cmdBtns[id]));
+  });
+
+  const clearBtn = document.getElementById('so-pt-clear');
+  if (clearBtn) clearBtn.addEventListener('click', async () => {
+    const ed = document.getElementById('so-page-editor');
+    if (!ed) return;
+    if (!(await window.uiConfirm('Clear all page content?', { danger:true, okLabel:'Clear' }))) return;
+    ed.innerHTML = '';
+    if (window._docxScrollToTop) window._docxScrollToTop('so-page-editor');
+    autoSave();
+  });
+
+  wireHighlightPalette();
 
   const dropZone = document.getElementById('so-page-drop-zone');
   const pageArea = document.getElementById('so-page-area');

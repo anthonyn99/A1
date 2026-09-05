@@ -426,7 +426,7 @@
 
     var rb = document.createElement('button');
     rb.innerHTML = ICON.trash + '<span>Remove lock</span>';
-    rb.style.cssText = s + 'background:transparent;color:#d68a7c;border:1px solid #d68a7c;';
+    rb.style.cssText = s + 'background:transparent;color:#dda398;border:1px solid #dda398;';
     rb.onclick = function () { menu.remove(); el('applock-submit').style.display = ''; showOverlay('remove', refreshBtn); };
     menu.appendChild(rb);
 

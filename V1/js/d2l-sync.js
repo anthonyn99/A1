@@ -393,7 +393,7 @@
       '.d2l-row{border:1px solid var(--line,#ece7f0);border-radius:12px;padding:12px 14px;margin-bottom:10px}',
       '.d2l-row h4{margin:0 0 2px;font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px;flex-wrap:wrap}',
       '.d2l-meta{font-size:12px;color:var(--muted,#8b8194);margin-bottom:9px}',
-      '.d2l-flag{font-size:11px;font-weight:700;padding:2px 7px;border-radius:99px;background:rgba(220,150,40,.16);color:#a5701a}',
+      '.d2l-flag{font-size:11px;font-weight:700;padding:2px 7px;border-radius:99px;background:rgba(220,150,40,.16);color:#c2a173}',
       '.d2l-sel{width:100%;padding:9px 10px;border:1px solid var(--line,#ddd6e2);border-radius:9px;font:inherit;font-size:13px;background:var(--bg,#faf8fc);color:inherit;margin-bottom:7px;box-sizing:border-box}',
       '.d2l-seg{display:flex;gap:6px;font-size:12px;align-items:center;flex-wrap:wrap;color:var(--muted,#6f6579)}',
       '.d2l-seg button{padding:5px 11px;border-radius:8px;border:1px solid var(--line,#ddd6e2);background:transparent;color:inherit;font:inherit;font-size:12px;cursor:pointer}',

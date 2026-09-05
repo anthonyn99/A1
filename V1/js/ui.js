@@ -37,7 +37,7 @@
   + '.uim-label{display:block;font-size:10px;font-weight:500;letter-spacing:1.4px;text-transform:uppercase;color:#8d8d94;margin:0 0 7px;}'
   + '.uim-input{width:100%;box-sizing:border-box;background:#232327;border:1px solid #45454c;border-radius:6px;color:#f4f3f0;font-size:13.5px;font-weight:500;padding:10px 13px;outline:none;font-family:inherit;transition:border-color .18s;}'
   + '.uim-input:focus{border-color:' + ACCENT + ';}'
-  + '#uim-err{font-size:12.5px;color:#d68a7c;font-weight:500;min-height:15px;margin-bottom:4px;}'
+  + '#uim-err{font-size:12.5px;color:#dda398;font-weight:500;min-height:15px;margin-bottom:4px;}'
   + '#uim-btns{display:flex;gap:10px;margin-top:20px;justify-content:flex-end;}'
   + '#uim-btns button{border:1px solid #45454c;background:transparent;border-radius:6px;padding:9px 16px;font-size:11.5px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;font-family:inherit;transition:border-color .18s,color .18s;}'
   + '#uim-cancel{color:#f4f3f0;}' + '#uim-cancel:hover{border-color:#adadb2;}';
@@ -76,7 +76,7 @@
     var ok = el('uim-ok'), ca = el('uim-cancel');
     ok.textContent = cfg.okLabel || 'OK';
     ok.style.background = 'transparent';
-    ok.style.color = cfg.danger ? '#d68a7c' : ACCENT;
+    ok.style.color = cfg.danger ? '#dda398' : ACCENT;
     ok.style.borderColor = cfg.danger ? 'rgba(214,138,124,.45)' : tint(ACCENT, .36);
     ca.textContent = cfg.cancelLabel || 'Cancel'; ca.style.display = (cfg.kind === 'alert') ? 'none' : '';
     el('uim-overlay').classList.add('show');

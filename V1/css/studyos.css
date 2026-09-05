@@ -49,9 +49,20 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
   text-transform:uppercase; letter-spacing:1px; transition:all .15s;
   touch-action:manipulation; white-space:nowrap; flex-shrink:0; text-decoration:none;
 }
-.sos-hbtn:hover  { border-color:#8D769A; }
+.sos-hbtn:hover  { border-color:#8D769A; box-shadow:0 0 0 3px rgba(141,118,154,0.16), 0 0 12px rgba(141,118,154,0.38); }
 .sos-hbtn.active { background:#8D769A; color:#1B1C1E; border-color:#8D769A; }
 .sos-hbtn.icon   { padding:0 8px; font-size:13px; border-color:rgba(141,118,154,0.45); }
+/* `.sos-hbtn.icon` re-declares border-color at the same specificity as the
+   `:hover` rule above and wins on source order, so the icon variant (the app-lock
+   button) needs its own hover rule or it never lights up at all. */
+.sos-hbtn.icon:hover {
+  border-color:#8D769A; color:#A892B0;
+  box-shadow:0 0 0 3px rgba(141,118,154,0.16), 0 0 12px rgba(141,118,154,0.38);
+}
+.sos-hbtn:focus-visible {
+  outline:none; border-color:#8D769A;
+  box-shadow:0 0 0 3px rgba(141,118,154,0.16), 0 0 12px rgba(141,118,154,0.38);
+}
 
 /* ── 3. StudyOS proper ────────────────────────────────────────────────────── */
 
@@ -175,8 +186,8 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
   font-size: 10px; font-weight: 800; border-radius: 10px; padding: 1px 6px;
   min-width: 16px; text-align: center; line-height: 1.5; letter-spacing: 0;
 }
-#study-root .sos-cloud-badge.pending { background: #e0a060; color: #2a1c08; }
-#study-root .sos-cloud-badge.synced  { background: #4f9d6b; color: #fff; }
+#study-root .sos-cloud-badge.pending { background: #e3b489; color: #2a1c08; }
+#study-root .sos-cloud-badge.synced  { background: #93c4a4; color: #143323; }
 /* Cloud capacity meter (sidebar, under Sync to Cloud) */
 #study-root .sos-storage { margin-top: 8px; padding: 0 2px; }
 #study-root .sos-storage-track {
@@ -184,10 +195,10 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
   overflow: hidden; border: 1px solid var(--border);
 }
 #study-root .sos-storage-fill {
-  height: 100%; width: 0%; background: #4f9d6b; transition: width 0.4s ease;
+  height: 100%; width: 0%; background: #93c4a4; transition: width 0.4s ease;
 }
-#study-root .sos-storage-fill.near-full { background: #e0a060; }
-#study-root .sos-storage-fill.full      { background: #d46a6a; }
+#study-root .sos-storage-fill.near-full { background: #e3b489; }
+#study-root .sos-storage-fill.full      { background: #dd9b9b; }
 #study-root .sos-storage-text {
   margin-top: 4px; font-size: 9px; letter-spacing: 0.3px;
   color: var(--text3); font-family: var(--mono); text-align: center;
@@ -199,8 +210,8 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
   border: 1px solid transparent; color: var(--text3);
 }
 #study-root .doc-item-cloud.is-up   { color: var(--text3); border-color: var(--border); }
-#study-root .doc-item-cloud.is-ok   { color: #4f9d6b; border-color: rgba(79,157,107,0.4); }
-#study-root .doc-item-cloud.is-warn { color: #e0a060; border-color: rgba(224,160,96,0.4); }
+#study-root .doc-item-cloud.is-ok   { color: #93c4a4; border-color: rgba(147,196,164,0.4); }
+#study-root .doc-item-cloud.is-warn { color: #e3b489; border-color: rgba(227,180,137,0.4); }
 /* VIEWS */
 #study-root .view { flex: 1; overflow-y: auto; padding: 24px; display: none; }
 #study-root .view.active { display: block; }
@@ -303,10 +314,11 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 }
 #study-root .module-btn:hover { border-color: var(--border2); background: var(--bg4); }
 #study-root .module-btn-icon {
-  width: 36px; height: 24px; border-radius: 4px;
+  min-width: 36px; width: fit-content; height: 24px; border-radius: 4px;
+  padding: 0 9px; box-sizing: border-box;
   display: flex; align-items: center; justify-content: center;
   margin-bottom: 12px; font-size: 10px; font-weight: 800;
-  font-family: var(--mono); letter-spacing: 0.5px; text-transform: uppercase;
+  font-family: var(--mono); letter-spacing: 0.5px; text-transform: none;
 }
 #study-root .module-btn-name { font-size: 15px; font-weight: 700; margin-bottom: 3px; }
 #study-root .module-btn-meta { font-size: 11px; color: var(--text2); font-family: var(--mono); }
@@ -653,7 +665,7 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 #study-root .doc-item-name { font-size: 13px; font-weight: 700; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #study-root .doc-item-size { font-size: 11px; color: var(--text3); font-family: var(--mono); }
 #study-root .doc-item-del { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: 4px; transition: 0.15s; }
-#study-root .doc-item-del:hover { color: #ff6b6b; background: var(--bg4); }
+#study-root .doc-item-del:hover { color: #ef9f9f; background: var(--bg4); }
 #study-root .row-drag-handle {
   flex-shrink: 0; width: 16px; text-align: center;
   color: var(--text3); cursor: grab; font-size: 14px; line-height: 1;
@@ -690,9 +702,9 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
   color: var(--text2); cursor: pointer; font-weight: 700; transition: 0.15s; font-family: var(--mono);
 }
 #study-root .prompt-copy-btn:hover { border-color: var(--accent); color: var(--accent); }
-#study-root .prompt-copy-btn.copied { color: #0be881; border-color: #0be881; }
+#study-root .prompt-copy-btn.copied { color: #8fd6ad; border-color: #8fd6ad; }
 #study-root .prompt-del-btn { font-size: 11px; padding: 4px 8px; border-radius: 4px; background: none; border: 1px solid transparent; color: var(--text3); cursor: pointer; transition: 0.15s; }
-#study-root .prompt-del-btn:hover { color: #ff6b6b; border-color: #ff6b6b33; }
+#study-root .prompt-del-btn:hover { color: #ef9f9f; border-color: #ef9f9f33; }
 #study-root .add-prompt-row { display: flex; gap: 8px; align-items: flex-start; }
 #study-root .add-prompt-row textarea {
   flex: 1; background: var(--bg3); border: 1px solid var(--border2);
@@ -708,7 +720,9 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
   min-height: 200px; line-height: 1.8; transition: border-color 0.15s;
 }
 /* POMODORO */
-#study-root .pomo-wrap { display:flex; flex-direction:column; align-items:center; justify-content:center; height:calc(100vh - 56px); gap:32px; }
+/* min-height, not height: the view now carries a "Timer" section header above
+   this block, and a fixed 100vh-56px would push the settings row off-screen. */
+#study-root .pomo-wrap { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:calc(100vh - 150px); gap:32px; }
 #study-root .pomo-modes { display:flex; gap:8px; }
 #study-root .pomo-mode-btn { padding:6px 16px; border-radius:20px; font-size:12px; font-weight:700; cursor:pointer; border:1px solid var(--border2); background:transparent; color:var(--text2); transition:0.15s; font-family:var(--mono); }
 #study-root .pomo-mode-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
@@ -882,7 +896,7 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 .sos-modal .doc-item-name { font-size:13px; font-weight:700; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .sos-modal .doc-item-size { font-size:11px; color:var(--text3); font-family:var(--mono); }
 .sos-modal .doc-item-del { background:none; border:none; color:var(--text3); cursor:pointer; font-size:14px; padding:2px 6px; border-radius:4px; transition:0.15s; }
-.sos-modal .doc-item-del:hover { color:#ff6b6b; background:var(--bg4); }
+.sos-modal .doc-item-del:hover { color:#ef9f9f; background:var(--bg4); }
 .sos-modal .row-drag-handle { flex-shrink:0; width:16px; text-align:center; color:var(--text3); cursor:grab; font-size:14px; line-height:1; opacity:0; transition:opacity 0.15s, color 0.15s; touch-action:none; margin-right:-4px; }
 .sos-modal .doc-item:hover .row-drag-handle, .sos-modal .prompt-entry:hover .row-drag-handle { opacity:1; }
 .sos-modal .row-drag-handle:hover { color:var(--accent); }
@@ -899,9 +913,9 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 .sos-modal .prompt-entry-actions { display:flex; gap:6px; justify-content:flex-end; }
 .sos-modal .prompt-copy-btn { font-size:11px; padding:4px 10px; border-radius:4px; background:var(--bg4); border:1px solid var(--border); color:var(--text2); cursor:pointer; font-weight:700; transition:0.15s; font-family:var(--mono); }
 .sos-modal .prompt-copy-btn:hover { border-color:var(--accent); color:var(--accent); }
-.sos-modal .prompt-copy-btn.copied { color:#0be881; border-color:#0be881; }
+.sos-modal .prompt-copy-btn.copied { color:#8fd6ad; border-color:#8fd6ad; }
 .sos-modal .prompt-del-btn { font-size:11px; padding:4px 8px; border-radius:4px; background:none; border:1px solid transparent; color:var(--text3); cursor:pointer; transition:0.15s; }
-.sos-modal .prompt-del-btn:hover { color:#ff6b6b; border-color:#ff6b6b33; }
+.sos-modal .prompt-del-btn:hover { color:#ef9f9f; border-color:#ef9f9f33; }
 .sos-modal .add-prompt-row { display:flex; gap:8px; align-items:flex-start; }
 .sos-modal .add-prompt-row textarea { flex:1; background:var(--bg3); border:1px solid var(--border2); border-radius:6px; padding:10px 12px; font-size:13px; color:var(--text); font-family:var(--mono); resize:vertical; min-height:70px; transition:border-color 0.15s; }
 .sos-modal .add-prompt-row textarea:focus { outline:none; border-color:var(--accent); }
@@ -926,7 +940,7 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 }
 .sos-modal .module-btn { background:var(--bg3); border:1px solid var(--border); border-radius:5px; padding:18px 20px; cursor:pointer; text-align:left; transition:all 0.15s; position:relative; }
 .sos-modal .module-btn:hover { border-color:var(--border2); background:var(--bg4); }
-.sos-modal .module-btn-icon { width:36px; height:24px; border-radius:4px; display:flex; align-items:center; justify-content:center; margin-bottom:12px; font-size:10px; font-weight:800; font-family:var(--mono); letter-spacing:0.5px; text-transform:uppercase; }
+.sos-modal .module-btn-icon { min-width:36px; width:fit-content; height:24px; padding:0 9px; box-sizing:border-box; border-radius:4px; display:flex; align-items:center; justify-content:center; margin-bottom:12px; font-size:10px; font-weight:800; font-family:var(--mono); letter-spacing:0.5px; text-transform:none; }
 .sos-modal .module-btn-name { font-size:15px; font-weight:700; margin-bottom:3px; }
 .sos-modal .module-btn-meta { font-size:11px; color:var(--text2); font-family:var(--mono); }
 /* notes module inside modal */
@@ -1345,8 +1359,8 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
   transition: border-color .18s;
 }
 #applock-pw:focus { border-color: #e0b874; }
-#applock-pw.error { border-color: #d68a7c; }
-#applock-err { font-size: 12px; color: #d68a7c; font-weight: 700; text-align: center; min-height: 16px; }
+#applock-pw.error { border-color: #dda398; }
+#applock-err { font-size: 12px; color: #dda398; font-weight: 700; text-align: center; min-height: 16px; }
 #applock-submit {
   background: #e0b874; color: #1a1a1d; border: 1px solid #e0b874; border-radius: 6px;
   padding: 12px 0; font-size: 14px; font-weight: 700; cursor: pointer;

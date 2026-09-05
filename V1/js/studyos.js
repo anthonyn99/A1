@@ -74,13 +74,25 @@ var _SOS_CLOUD_OK = !!(window.STUDYOS_CONFIG_READY && window.STUDYOS_CONFIG_READ
 /* Legacy class colors → soft pastel equivalents. Applied on load and at render
  * so classes created before the palette change adopt it without re-picking. */
 var SOS_PASTEL_MAP = {
-  '#7c6fff':'#a99cf0','#ff6b6b':'#ef9f9f','#ff9f43':'#f0bd86','#ffd32a':'#e6cd7c',
+  '#7c6fff':'#a99cf0','#ff6b6b':'#ef9f9f','#ff9f43':'#f0bd86','#ffd32a':'#dcc08a',
   '#0be881':'#8fd6ad','#00d2d3':'#8ccfcf','#54a0ff':'#9dc0ee','#f368e0':'#dea2d6',
   '#ff6b81':'#f0a2af','#48dbfb':'#9bd6ea','#1dd1a1':'#88d2ba','#c8d6e5':'#c2cdda',
-  '#a29bfe':'#bbb4ef','#fd79a8':'#f0a8c2','#e17055':'#dd9f8b','#00b894':'#84ccb6'
+  '#a29bfe':'#bbb4ef','#fd79a8':'#f0a8c2','#e17055':'#dd9f8b','#00b894':'#84ccb6',
+  // Retired in the pastel sweep: the old harsh yellow, and the vibrant leftovers
+  // that were still reachable on classes created before it.
+  '#e6cd7c':'#dcc08a','#4ade80':'#8fd6ad','#22d3ee':'#9bd6ea','#e74c3c':'#dd8f84'
 };
 function sosPastel(c){ if(!c) return c; return SOS_PASTEL_MAP[String(c).toLowerCase()] || c; }
 window.sosPastel = sosPastel;
+
+/* Module-type badge text. The badge used to print type.toUpperCase().slice(0,3),
+ * which rendered "notes" as the non-word "NOT". Spell the singular type out
+ * instead; .module-btn-icon no longer uppercases it. */
+var SOS_MODULE_LABELS = { documents:'Doc', prompts:'Prompt', notes:'Note' };
+function sosModuleLabel(t) {
+  return SOS_MODULE_LABELS[t] || (t ? t.charAt(0).toUpperCase() + t.slice(1) : 'Doc');
+}
+window.sosModuleLabel = sosModuleLabel;
 
 window._sosRoot = null;
 function _sosEl(id) {
@@ -92,12 +104,14 @@ function _sosEl(id) {
 }
 
 const COLORS = [
-  '#a99cf0','#ef9f9f','#f0bd86','#e6cd7c','#8fd6ad',
+  '#a99cf0','#ef9f9f','#f0bd86','#dcc08a','#8fd6ad',
   '#8ccfcf','#9dc0ee','#dea2d6','#f0a2af','#9bd6ea',
   '#88d2ba','#c2cdda','#bbb4ef','#f0a8c2','#dd9f8b','#84ccb6'
 ];
-const EVENT_COLORS = { exam:'#ff6b6b', hw:'#ff9f43', quiz:'#ffd32a', lecture:'#54a0ff', lab:'#0be881', other:'#c8d6e5' };
-const PRIORITY_COLORS = { low:'#54a0ff', medium:'#ffd32a', high:'#ff6b6b' };
+// Fallback tints, used only when an event/task has no class of its own — the
+// calendar prefers the class color (see renderCalendar). No yellow anywhere.
+const EVENT_COLORS = { exam:'#ef9f9f', hw:'#f0bd86', quiz:'#dea2d6', lecture:'#9dc0ee', lab:'#8fd6ad', other:'#c2cdda' };
+const PRIORITY_COLORS = { low:'#9bd6ea', medium:'#f0bd86', high:'#ef9f9f' };
 
 let classes = JSON.parse(localStorage.getItem('studyos_classes') || '[]');
 // Migrate any legacy vibrant class colors to the soft pastel palette in-place.
@@ -259,7 +273,7 @@ function renderKsuModules() {
       <div class="th-drag-handle" title="Drag to reorder" onclick="event.stopPropagation()">⠿</div>
       <button class="rename-btn" title="Rename" onclick="event.stopPropagation();openRenameModule('ksu','${m.id}')">${SOI.pencil}</button>
       <button class="delete-btn" title="Delete" aria-label="Delete" onclick="event.stopPropagation();deleteKsuModule('${m.id}')">${SOI.x}</button>
-      <div class="module-btn-icon" style="background:#8D769A22;color:#8D769A;font-size:11px">${m.type.toUpperCase().slice(0,3)}</div>
+      <div class="module-btn-icon" style="background:#8D769A22;color:#8D769A;font-size:11px">${sosModuleLabel(m.type)}</div>
       <div class="module-btn-name">${m.name}</div>
       <div class="module-btn-meta">${meta}</div>
     `;
@@ -785,7 +799,7 @@ function switchView(view, classId) {
     if (navEl) navEl.classList.add('active');
   }
   activeView = view;
-  const titles = { home:'Dashboard', calendar:'Calendar', notes:'Quick Notes', class:'Class Detail', pomodoro:'Pomodoro', ksu:'KSU' };
+  const titles = { home:'Dashboard', calendar:'Calendar', notes:'Quick Notes', class:'Class Detail', pomodoro:'Timer', ksu:'KSU' };
   if (view === 'ksu') renderKsuModules();
   _sosEl('topbar-title').textContent = titles[view] || 'StudyOS';
   if (view === 'class' && classId) openClassDetail(classId);
@@ -911,7 +925,7 @@ function _sosResHint() {
     el.style.color = 'var(--text3)';
   } else {
     el.textContent = 'Not recognised. Use a full https:// URL or a path like C:\\...';
-    el.style.color = '#ff6b6b';
+    el.style.color = '#ef9f9f';
   }
 }
 
@@ -938,7 +952,7 @@ function renderClassResources(cls) {
         <div class="class-event-meta">${shown}</div>
       </div>
       <button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:2px 4px;border-radius:3px;transition:0.15s" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text3)'" title="Edit" aria-label="Edit" onclick="openEditResource('${r.id}')">${SOI.pencil}</button>
-      <button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:2px 4px;border-radius:3px;transition:0.15s" onmouseover="this.style.color='#ff6b6b'" onmouseout="this.style.color='var(--text3)'" title="Delete" aria-label="Delete" onclick="deleteResource('${r.id}')">${SOI.x}</button>
+      <button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:2px 4px;border-radius:3px;transition:0.15s" onmouseover="this.style.color='#ef9f9f'" onmouseout="this.style.color='var(--text3)'" title="Delete" aria-label="Delete" onclick="deleteResource('${r.id}')">${SOI.x}</button>
     `;
     list.appendChild(item);
   });
@@ -1066,7 +1080,7 @@ function _sosRenderBrowseList() {
     row.onmouseover = function () { row.style.background = 'var(--bg3, rgba(255,255,255,0.06))'; };
     row.onmouseout  = function () { row.style.background = 'none'; };
     const dot = a.running
-      ? '<span title="Running now" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#4ade80;margin-right:6px;vertical-align:middle"></span>'
+      ? '<span title="Running now" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#8fd6ad;margin-right:6px;vertical-align:middle"></span>'
       : '';
     row.innerHTML =
       '<div style="font-size:13px;font-weight:500">' + dot + escHtml(String(a.name)) + '</div>' +
@@ -1274,7 +1288,7 @@ function renderClassEvents(cls) {
       const pColor = PRIORITY_COLORS[t.priority] || '#888';
       item.style.cursor = 'default';
       item.innerHTML = `
-        <div style="width:8px;height:8px;border-radius:2px;margin-top:5px;flex-shrink:0;border:1.5px solid ${pColor};background:${t.done ? pColor : 'transparent'};cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:7px;color:#fff;font-weight:700;transition:0.2s" onclick="toggleTaskDone('${t.id}')">${t.done ? SOI.checkBold : ''}</div>
+        <div style="width:8px;height:8px;border-radius:2px;margin-top:5px;flex-shrink:0;border:1.5px solid ${pColor};background:${t.done ? pColor : 'transparent'};cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:7px;color:#1B1C1E;font-weight:700;transition:0.2s" onclick="toggleTaskDone('${t.id}')">${t.done ? SOI.checkBold : ''}</div>
         <div style="flex:1;min-width:0">
           <div class="class-event-name" style="${t.done ? 'text-decoration:line-through;color:var(--text3)' : ''}">${t.name}</div>
           ${t.dueDate ? `<div class="class-event-meta">${formatDate(t.dueDate)}${t.dueTime ? ' · ' + t.dueTime : ''} · ${t.type || 'task'}</div>` : (t.notes ? `<div class="class-event-meta">${t.notes.slice(0,40)}${t.notes.length>40?'…':''}</div>` : '')}
@@ -1323,7 +1337,7 @@ function renderModules(cls) {
       <div class="th-drag-handle" title="Drag to reorder" onclick="event.stopPropagation()">⠿</div>
       <button class="rename-btn" title="Rename" onclick="event.stopPropagation();openRenameModule('${cls.id}','${m.id}')">${SOI.pencil}</button>
       <button class="delete-btn" title="Delete" aria-label="Delete" onclick="event.stopPropagation();deleteModule('${cls.id}','${m.id}')">${SOI.x}</button>
-      <div class="module-btn-icon" style="background:${cls.color}22;color:${cls.color};font-size:11px">${m.type.toUpperCase().slice(0,3)}</div>
+      <div class="module-btn-icon" style="background:${cls.color}22;color:${cls.color};font-size:11px">${sosModuleLabel(m.type)}</div>
       <div class="module-btn-name">${m.name}</div>
       <div class="module-btn-meta">${meta}</div>
     `;
@@ -2953,7 +2967,7 @@ function renderNotesModule(body, cls, mod) {
         <input id="modnote-title-${mod.id}" style="flex:1;background:transparent;border:none;font-size:13px;font-weight:700;color:var(--text);font-family:var(--sans);outline:none;pointer-events:${editOn ? 'auto' : 'none'}" placeholder="Note title" ${editOn ? '' : 'readonly'}>
         <button class="btn" style="padding:3px 8px;font-size:10px" title="Fullscreen" aria-label="Fullscreen" onclick="fullscreenModuleNote('${cls.id}','${mod.id}')">${SOI.expand}</button>
         <button class="btn" style="padding:3px 8px;font-size:10px" title="Print / Save as PDF" aria-label="Print" onclick="printModuleNote('${mod.id}')">${SOI.printer}</button>
-        ${editOn ? `<button class="btn" style="padding:3px 8px;font-size:10px;color:#ff6b6b" onclick="deleteModuleNote('${cls.id}','${mod.id}')">Delete</button>` : ''}
+        ${editOn ? `<button class="btn" style="padding:3px 8px;font-size:10px;color:#ef9f9f" onclick="deleteModuleNote('${cls.id}','${mod.id}')">Delete</button>` : ''}
       </div>
       <textarea id="modnote-body-${mod.id}" style="flex:1;background:transparent;border:none;padding:12px;font-family:var(--mono);font-size:12px;color:var(--text);resize:none;line-height:1.7;outline:none;${editOn ? '' : 'pointer-events:none'}" placeholder="${editOn ? 'Write here...' : ''}" ${editOn ? '' : 'readonly'}></textarea>
       <div id="modnote-status-${mod.id}" style="padding:4px 10px;font-size:10px;color:var(--text3);font-family:var(--mono);border-top:1px solid var(--border)">${editOn ? 'Auto-saved' : 'Read-only — switch to Edit to modify'}</div>
@@ -3499,7 +3513,7 @@ function renderCalendar() {
       const dot = document.createElement('div');
       dot.className = 'cal-event';
       const cls = classes.find(c => c.id === ev.classId);
-      const color = cls ? cls.color : (EVENT_COLORS[ev.type] || '#888');
+      const color = cls ? sosPastel(cls.color) : (EVENT_COLORS[ev.type] || '#c2cdda');
       dot.style.background = color + '33';
       dot.style.color = color;
       dot.style.cursor = 'pointer';
@@ -3509,11 +3523,16 @@ function renderCalendar() {
     });
     const dayTasks = tasks.filter(t => t.dueDate === dateStr);
     dayTasks.slice(0, 3).forEach(task => {
-      const pColor = PRIORITY_COLORS[task.priority] || '#888';
+      // Color-coded by the class the task belongs to, matching how events are
+      // tinted just above, so a month view reads as "which class" at a glance.
+      // Priority only decides the fallback tint for class-less tasks.
+      const tCls = classes.find(c => c.id === task.classId);
+      const pColor = tCls ? sosPastel(tCls.color)
+                          : (EVENT_COLORS[task.type] || PRIORITY_COLORS[task.priority] || '#c2cdda');
       const row = document.createElement('div');
       row.style.cssText = `display:flex;align-items:center;gap:3px;font-size:10px;padding:2px 4px;border-radius:4px;margin-bottom:2px;background:${pColor}18;color:${pColor};font-family:var(--mono);font-weight:700;min-width:0;overflow:hidden;`;
       const box = document.createElement('div');
-      box.style.cssText = `width:9px;height:9px;border-radius:2px;flex-shrink:0;border:1.5px solid ${pColor};background:${task.done ? pColor : 'transparent'};cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:7px;color:#fff;transition:0.15s`;
+      box.style.cssText = `width:9px;height:9px;border-radius:2px;flex-shrink:0;border:1.5px solid ${pColor};background:${task.done ? pColor : 'transparent'};cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:7px;color:#1B1C1E;transition:0.15s`;
       box.innerHTML = task.done ? SOI.checkBold : '';
       box.onclick = e => {
         e.stopPropagation();
@@ -3680,7 +3699,7 @@ function updateStats() {
     if (upcomingExams.length > 0) {
       const daysUntil = Math.ceil((new Date(upcomingExams[0].date + 'T12:00:00') - today) / 86400000);
       nextExamEl.textContent = daysUntil === 0 ? 'TODAY' : daysUntil === 1 ? '1 day' : daysUntil + ' days';
-      nextExamEl.style.color = daysUntil <= 3 ? '#ff6b6b' : daysUntil <= 7 ? '#ff9f43' : 'var(--accent2)';
+      nextExamEl.style.color = daysUntil <= 3 ? '#ef9f9f' : daysUntil <= 7 ? '#f0bd86' : 'var(--accent2)';
     } else {
       nextExamEl.textContent = '—';
       nextExamEl.style.color = 'var(--accent2)';
@@ -3743,9 +3762,9 @@ function renderExamCountdown() {
 
     // Badge color based on urgency
     let badgeBg, badgeText;
-    if (daysLeft <= 2)       { badgeBg = 'rgba(255,107,107,0.18)'; badgeText = '#ff6b6b'; }
-    else if (daysLeft <= 7)  { badgeBg = 'rgba(255,159,67,0.18)';  badgeText = '#ff9f43'; }
-    else if (daysLeft <= 14) { badgeBg = 'rgba(255,211,42,0.15)';  badgeText = '#ffd32a'; }
+    if (daysLeft <= 2)       { badgeBg = 'rgba(239,159,159,0.18)'; badgeText = '#ef9f9f'; }
+    else if (daysLeft <= 7)  { badgeBg = 'rgba(240,189,134,0.18)';  badgeText = '#f0bd86'; }
+    else if (daysLeft <= 14) { badgeBg = 'rgba(220,192,138,0.15)';  badgeText = '#dcc08a'; }
     else                     { badgeBg = 'rgba(141,118,154,0.15)'; badgeText = '#A892B0'; }
 
     const item = document.createElement('div');
@@ -4337,8 +4356,8 @@ function _sosSetSync(status) {
   // saturated success/danger pair, so a failed save is something you notice out
   // of the corner of your eye.
   var accentColor = '#8D769A';
-  var greenColor  = '#4ade80';
-  var errColor    = '#ff6b6b';
+  var greenColor  = '#8fd6ad';
+  var errColor    = '#ef9f9f';
   var mutedColor  = 'var(--text2,#888)';
   if (status === 'saving') {
     el.style.visibility = 'visible';

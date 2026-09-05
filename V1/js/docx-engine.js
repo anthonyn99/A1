@@ -3266,8 +3266,8 @@ function addFadingScrollbar(ctx) {
 // ── Text-color shortcuts: replace the bare color <input> with a swatch popup ──
 var DOCX_COLORS = [
   ['#FFFFFF', 'White'], ['#D9D9DE', 'Light gray'], ['#9A9AA5', 'Gray'], ['#5C5C66', 'Dark gray'], ['#000000', 'Black'],
-  ['#e0b874', 'Pink'], ['#d68a7c', 'Red'], ['#e0b57c', 'Orange'], ['#E5C84A', 'Yellow'],
-  ['#5DAF6D', 'Green'], ['#22D3EE', 'Cyan'], ['#6DA8F5', 'Blue'], ['#A78BDA', 'Purple']
+  ['#e8a8c0', 'Pink'], ['#dd9b9b', 'Red'], ['#e0b57c', 'Orange'], ['#e0d09a', 'Yellow'],
+  ['#9ccba6', 'Green'], ['#9bd6ea', 'Cyan'], ['#a8c8ef', 'Blue'], ['#A78BDA', 'Purple']
 ];
 function wireColorShortcuts(ctx) {
   var input = ctx.tbEl.querySelector('[id$="-page-color-pick"]');

@@ -71,7 +71,7 @@
       </div>
       <div class="nav-item" onclick="switchView('pomodoro')" id="nav-pomodoro">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        Pomodoro
+        Timer
       </div>
       <div class="nav-section-label">KSU</div>
       <div class="nav-item" onclick="switchView('ksu')" id="nav-ksu">
@@ -245,7 +245,7 @@
           <div id="notes-editor-active" style="display:none;flex-direction:column;height:100%">
             <div class="notes-editor-header">
               <input class="note-title-input" id="note-title-input" placeholder="Untitled" />
-              <button class="btn" style="padding:4px 10px;font-size:11px;color:#ff6b6b" onclick="deleteCurrentNote()">Delete</button>
+              <button class="btn" style="padding:4px 10px;font-size:11px;color:#ef9f9f" onclick="deleteCurrentNote()">Delete</button>
             </div>
             <textarea class="notes-area" id="notes-area" placeholder="Start writing..."></textarea>
           </div>
@@ -255,6 +255,9 @@
 
     <!-- POMODORO VIEW -->
     <div class="view" id="view-pomodoro">
+      <div class="section-header">
+        <h2>Timer</h2>
+      </div>
       <div class="pomo-wrap">
         <div class="pomo-modes">
           <button class="pomo-mode-btn active" id="pomo-btn-work" onclick="setPomoMode('work')">Focus</button>
@@ -336,7 +339,7 @@
         <div style="margin-left:auto;display:flex;gap:8px">
           <button class="btn" onclick="openEditClass()">Edit Class</button>
           <button class="btn" onclick="openAddModule()">+ Add Module</button>
-          <button class="btn" style="color:#ff6b6b" onclick="deleteCurrentClass()">Remove Class</button>
+          <button class="btn" style="color:#ef9f9f" onclick="deleteCurrentClass()">Remove Class</button>
         </div>
       </div>
       <div class="class-detail-layout">
@@ -391,7 +394,7 @@
   </button>
   <button class="sos-bn-item" id="sos-bn-pomodoro" onclick="switchView('pomodoro')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-    Focus
+    Timer
   </button>
 </nav>
 
@@ -716,7 +719,7 @@
                 <span class="pt-hl-icon" id="so-pt-hl-icon"></span><span class="so-pt-caret" aria-hidden="true"></span>
               </button>
               <div class="pt-hl-palette" id="so-pt-hl-palette">
-                <button class="pt-hl-swatch" data-color="#FFE066" style="background:#FFE066;" title="Yellow"></button>
+                <button class="pt-hl-swatch" data-color="#f0e2a6" style="background:#f0e2a6;" title="Yellow"></button>
                 <button class="pt-hl-swatch" data-color="#A8F0B0" style="background:#A8F0B0;" title="Green"></button>
                 <button class="pt-hl-swatch" data-color="#A8D8FF" style="background:#A8D8FF;" title="Blue"></button>
                 <button class="pt-hl-swatch" data-color="#FFB3C6" style="background:#FFB3C6;" title="Pink"></button>
@@ -793,7 +796,7 @@
     <!-- TASK REPEAT SECTION -->
     <div class="field" style="border-top:1px solid var(--border2);padding-top:16px;margin-top:4px;">
       <label>Repeat</label>
-      <div id="sos-task-repeat-warning" style="display:none;font-size:11px;color:#ff6b6b;font-weight:600;margin-bottom:8px;padding:6px 10px;background:rgba(255,107,107,0.08);border-radius:4px;border:1px solid rgba(255,107,107,0.2);">
+      <div id="sos-task-repeat-warning" style="display:none;font-size:11px;color:#ef9f9f;font-weight:600;margin-bottom:8px;padding:6px 10px;background:rgba(239,159,159,0.08);border-radius:4px;border:1px solid rgba(239,159,159,0.2);">
         <svg class="soi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg><span>This is a repeating task. Setting "No repeat" will remove all future occurrences.</span>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
@@ -820,7 +823,7 @@
     </div>
     </div>
     <div class="modal-footer">
-      <button class="btn" id="btn-delete-task" style="color:#ff6b6b;display:none" onclick="deleteEditingTask()">Delete</button>
+      <button class="btn" id="btn-delete-task" style="color:#ef9f9f;display:none" onclick="deleteEditingTask()">Delete</button>
       <button class="btn" onclick="_sosClose('modal-add-task')">Cancel</button>
       <button class="btn primary" onclick="saveTask()">Save Task</button>
     </div>
@@ -875,7 +878,7 @@
     <!-- REPEAT SECTION -->
     <div class="field" style="border-top:1px solid var(--border2);padding-top:16px;margin-top:4px;">
       <label>Repeat</label>
-      <div id="sos-repeat-warning" style="display:none;font-size:11px;color:#ff6b6b;font-weight:600;margin-bottom:8px;padding:6px 10px;background:rgba(255,107,107,0.08);border-radius:4px;border:1px solid rgba(255,107,107,0.2);">
+      <div id="sos-repeat-warning" style="display:none;font-size:11px;color:#ef9f9f;font-weight:600;margin-bottom:8px;padding:6px 10px;background:rgba(239,159,159,0.08);border-radius:4px;border:1px solid rgba(239,159,159,0.2);">
         <svg class="soi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg><span>This is a repeating event. Setting "No repeat" will remove all future occurrences.</span>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
@@ -902,7 +905,7 @@
     </div>
     </div>
     <div class="modal-footer">
-      <button class="btn" id="btn-delete-event" style="color:#ff6b6b;display:none" onclick="deleteEditingEvent()">Delete</button>
+      <button class="btn" id="btn-delete-event" style="color:#ef9f9f;display:none" onclick="deleteEditingEvent()">Delete</button>
       <button class="btn" onclick="_sosClose('modal-add-event')">Cancel</button>
       <button class="btn primary" onclick="saveEvent()">Save Event</button>
     </div>

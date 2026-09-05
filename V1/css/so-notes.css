@@ -24,9 +24,9 @@
   --text3: #76777C;
   --accent: #8D769A;
   --accent-dim: #2E2535;
-  --green: #5DAF6D;
-  --cyan: #22d3ee;
-  --red: #E74C3C;
+  --green: #9ccba6;
+  --cyan: #9bd6ea;
+  --red: #dd8f84;
   --radius: 6px;
   --font: 'IBM Plex Mono', monospace;
   --font-display: 'Playfair Display', serif;
@@ -142,7 +142,7 @@
   transition: opacity 0.1s, color 0.1s, background 0.1s;
 }
 #so-entries-list .entry-item:hover .entry-delete { opacity: 1; }
-#so-entries-list .entry-delete:hover { color: var(--red); background: rgba(247,113,113,0.1); }
+#so-entries-list .entry-delete:hover { color: var(--red); background: rgba(240,163,163,0.1); }
 
 #so-sidebar-stats {
   padding: 8px 14px;
@@ -156,6 +156,15 @@
 
 /* ── MAIN ── */
 #so-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); min-height: 0; min-width: 0; }
+
+/* Sidebar collapse, driven by #so-fullscreen-btn (see wireStaticListeners in
+   js/notes-sync.js). The button is a "toggle sidebar" control, so this hides
+   the page list and gives the editor the full modal width. */
+#so-root.so-sidebar-collapsed #so-sidebar { display: none; }
+#so-root.so-sidebar-collapsed #so-main { width: 100%; }
+#so-root.so-sidebar-collapsed #so-fullscreen-btn {
+  color: var(--accent); border-color: rgba(141,118,154,0.55); background: rgba(141,118,154,0.08);
+}
 
 #so-fullscreen-btn {
   padding: 5px 9px;
@@ -262,7 +271,7 @@
 #so-page-img-btn input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; font-size: 0; }
 .pt-hl-wrap { position: relative; flex-shrink: 0; }
 .pt-hl-trigger { display: flex; align-items: center; gap: 1px; }
-.pt-hl-icon { display: inline-block; width: 13px; height: 13px; border-radius: 2px; background: #FFE066; border: 1px solid rgba(0,0,0,0.12); flex-shrink: 0; }
+.pt-hl-icon { display: inline-block; width: 13px; height: 13px; border-radius: 2px; background: #f0e2a6; border: 1px solid rgba(0,0,0,0.12); flex-shrink: 0; }
 
 /* ── SVG icon set (replaces the emoji this chrome used to render) ──
    Sized in em so every glyph tracks the font-size of the control holding it,
@@ -366,11 +375,11 @@
 .bj-sync-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; transition: background 0.2s; }
 .bj-sync-pill.bj-sync-idle { color: var(--text3); background: transparent; border-color: transparent; }
 .bj-sync-pill.bj-sync-idle .bj-sync-dot { background: var(--text3); opacity: 0.4; }
-.bj-sync-pill.bj-sync-syncing { color: var(--cyan); background: rgba(34,211,238,0.07); border-color: rgba(34,211,238,0.2); }
+.bj-sync-pill.bj-sync-syncing { color: var(--cyan); background: rgba(155,214,234,0.07); border-color: rgba(155,214,234,0.2); }
 .bj-sync-pill.bj-sync-syncing .bj-sync-dot { background: var(--cyan); animation: so-pulse 0.8s ease-in-out infinite; }
-.bj-sync-pill.bj-sync-synced { color: var(--green); background: rgba(93,175,109,0.07); border-color: rgba(93,175,109,0.22); }
+.bj-sync-pill.bj-sync-synced { color: var(--green); background: rgba(156,203,166,0.07); border-color: rgba(156,203,166,0.22); }
 .bj-sync-pill.bj-sync-synced .bj-sync-dot { background: var(--green); }
-.bj-sync-pill.bj-sync-error { color: var(--red); background: rgba(231,76,60,0.07); border-color: rgba(231,76,60,0.22); }
+.bj-sync-pill.bj-sync-error { color: var(--red); background: rgba(221,143,132,0.07); border-color: rgba(221,143,132,0.22); }
 .bj-sync-pill.bj-sync-error .bj-sync-dot { background: var(--red); }
 @keyframes so-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(0.8); } }
 
