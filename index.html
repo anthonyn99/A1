@@ -4925,7 +4925,7 @@ const _XDRAG={tony:null,veda:null};
 function _xRegister(who,fn,infoRef){_XDRAG[who]={fn,infoRef};}
 function _xStart(who,zone,id,dayKey){const e=_XDRAG[who];if(e&&e.infoRef)e.infoRef.current={zone,id,dayKey};}
 function _xDrop(who,destZone,targetId,destDayKey){const e=_XDRAG[who];if(!e||!e.infoRef||!e.infoRef.current)return false;const info=e.infoRef.current;const same=info.zone===destZone&&(destZone!=="week"||info.dayKey===destDayKey);if(same){return false;}e.fn&&e.fn(destZone,targetId,destDayKey);e.infoRef.current=null;return true;}
-function _xZoneOf(el){const z=el&&el.closest&&el.closest('[data-dnd-zone]');return z?z.getAttribute('data-dnd-zone'):null;}
+
 // parse a zone string like "week:2026-5-16" | "habit" | "goal"
 function _xParseZone(zs){if(!zs)return null;const i=zs.indexOf(':');if(i<0)return{zone:zs};return{zone:zs.slice(0,i),dayKey:zs.slice(i+1)};}
 
@@ -5375,6 +5375,7 @@ function thMinAgeKey(){const n=new Date();n.setDate(n.getDate()-TH_ARCHIVE_MIN_A
 function thLoadArchivedKeys(k){const o={};try{const a=JSON.parse(localStorage.getItem(k)||"[]");if(Array.isArray(a))a.forEach(x=>{if(typeof x==="string")o[x]=true;});}catch(e){}return o;}
 function thSaveArchivedKeys(k,ref){try{localStorage.setItem(k,JSON.stringify(Object.keys(ref)));}catch(e){}}
 function thDataBytes(d){try{return new Blob([JSON.stringify(d||{})]).size;}catch(e){try{return JSON.stringify(d||{}).length;}catch(_){return 0;}}}
+
 function thTodayKey(){const n=new Date();return dkey(n.getFullYear(),n.getMonth(),n.getDate());}
 const TH_DAYKEY_RE=/^\d{4}-\d{2}-\d{2}$/;
 // → {keep, byYear:{"2023":{dk:[…]}}, movedCount, droppedEmpty}
@@ -5459,14 +5460,7 @@ function tInitData(){
 
 function Chk({s=9,col="#fff"}){return React.createElement("svg",{width:s,height:s,viewBox:"0 0 12 12",fill:"none"},React.createElement("path",{d:"M2 6.5L5 9.5L10 3",stroke:col,strokeWidth:"2.5",strokeLinecap:"round",strokeLinejoin:"round"}));}
 
-function CircleProgress({pct,color,size=50,strokeW=4.5,label,T}){
-  const r=size/2-strokeW-1,circ=2*Math.PI*r,offset=circ*(1-pct/100),done=pct===100;
-  return React.createElement("div",{style:{position:"relative",width:size,height:size,flexShrink:0}},
-    React.createElement("svg",{width:size,height:size,style:{transform:"rotate(-90deg)"}},
-      React.createElement("circle",{cx:size/2,cy:size/2,r,stroke:T.BD,strokeWidth:strokeW,fill:"none"}),
-      React.createElement("circle",{cx:size/2,cy:size/2,r,stroke:done?T.GRN:T.AC,strokeWidth:strokeW,fill:"none",strokeDasharray:circ,strokeDashoffset:offset,strokeLinecap:"round",style:{transition:"stroke-dashoffset .4s ease, stroke .3s"}})),
-    React.createElement("div",{style:{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:size>44?11:9,fontWeight:700,color:done?T.GRN:T.TXD}},done?"✓":(label||pct+"%")));
-}
+
 
 function DatePicker({value,onChange,label,T,maxYears=1}){
   const now=new Date(),curY=now.getFullYear(),curM=now.getMonth(),curD=now.getDate();
@@ -6666,82 +6660,13 @@ function HabitModal({open,onClose,onSave,initial,T,titleFont}){
         React.createElement("button",{type:"button",style:{background:T.S2,border:"1px solid "+T.BDL,borderRadius:4,padding:"9px 18px",fontSize:13,fontWeight:600,color:T.TXD,cursor:"pointer",fontFamily:"inherit"},onClick:onClose},"Cancel"))));
 }
 
-function playAlarm(){
-  const ctx=new(window.AudioContext||window.webkitAudioContext)();
-  if(ctx.state==="suspended")ctx.resume();
-  const notes=[523.25,659.25,783.99,659.25,783.99,1046.5,783.99,1046.5,783.99,659.25];
-  const dur=0.45,gap=0.05;
-  notes.forEach((freq,i)=>{
-    const osc=ctx.createOscillator();const gain=ctx.createGain();
-    const t=ctx.currentTime+i*(dur+gap);
-    osc.type="sine";osc.frequency.setValueAtTime(freq,t);
-    const osc2=ctx.createOscillator();const g2=ctx.createGain();
-    g2.gain.setValueAtTime(0.08,t);osc2.type="triangle";osc2.frequency.setValueAtTime(freq*2,t);
-    osc2.connect(g2);g2.connect(ctx.destination);osc2.start(t);osc2.stop(t+dur);
-    gain.gain.setValueAtTime(0,t);gain.gain.linearRampToValueAtTime(0.18,t+0.05);
-    gain.gain.setValueAtTime(0.18,t+dur*0.6);gain.gain.linearRampToValueAtTime(0,t+dur);
-    osc.connect(gain);gain.connect(ctx.destination);osc.start(t);osc.stop(t+dur);
-  });
-  setTimeout(()=>ctx.close(),6000);
-}
-
-const _workerBlob=new Blob([`
-let iv=null,end=0;
-onmessage=function(e){
-  if(e.data.cmd==="start"){
-    clearInterval(iv);end=Date.now()+e.data.secs*1000;
-    iv=setInterval(function(){
-      const rem=Math.round((end-Date.now())/1000);
-      if(rem<=0){clearInterval(iv);iv=null;postMessage({type:"done"});}
-      else postMessage({type:"tick",left:rem});
-    },250);
-  }else if(e.data.cmd==="stop"){clearInterval(iv);iv=null;}
-};
-`],{type:"application/javascript"});
-const _workerUrl=URL.createObjectURL(_workerBlob);
-
-function Pomodoro({onClose,T,isMobile}){
-  const[workMin,setWorkMin]=useState(25);
-  const[left,setLeft]=useState(25*60);const[total,setTotal]=useState(25*60);
-  const[running,setRunning]=useState(false);const[done,setDone]=useState(false);
-  const workerRef=useRef(null);const audioCtxRef=useRef(null);
-  useEffect(()=>{
-    const w=new Worker(_workerUrl);workerRef.current=w;
-    w.onmessage=(e)=>{if(e.data.type==="tick"){setLeft(e.data.left);}else if(e.data.type==="done"){setLeft(0);setRunning(false);setDone(true);playAlarm();}};
-    return()=>w.terminate();
-  },[]);
-  const warmAudio=()=>{if(!audioCtxRef.current){audioCtxRef.current=new(window.AudioContext||window.webkitAudioContext)();const o=audioCtxRef.current.createOscillator();const g=audioCtxRef.current.createGain();g.gain.setValueAtTime(0,audioCtxRef.current.currentTime);o.connect(g);g.connect(audioCtxRef.current.destination);o.start();o.stop(audioCtxRef.current.currentTime+0.01);}};
-  const startTimer=(secs)=>{workerRef.current?.postMessage({cmd:"start",secs});};
-  const stopTimer=()=>{workerRef.current?.postMessage({cmd:"stop"});};
-  const toggle=()=>{if(done){setDone(false);setLeft(total);return;}if(!running){warmAudio();startTimer(left);setRunning(true);}else{stopTimer();setRunning(false);}};
-  useEffect(()=>{window._thTimerExec=(cmd,arg)=>{if(cmd==="set"){const m=Math.max(1,Math.min(120,parseInt(arg)||25));setWorkMin(m);setLeft(m*60);setTotal(m*60);setRunning(false);setDone(false);stopTimer();}else if(cmd==="start"){warmAudio();startTimer(left);setRunning(true);setDone(false);}else if(cmd==="stop"){stopTimer();setRunning(false);}else if(cmd==="reset"){stopTimer();setRunning(false);setDone(false);setLeft(total);}};return()=>{if(window._thTimerExec)delete window._thTimerExec;};},[left,total,running,done,workMin]);
-  const cancel=()=>{stopTimer();setRunning(false);setDone(false);setLeft(total);};
-  const adjWork=(delta)=>{const nw=Math.max(1,Math.min(120,workMin+delta));setWorkMin(nw);const s=nw*60;setLeft(s);setTotal(s);setRunning(false);setDone(false);};
-  const canAdj=!running&&!done;
-  const mm=String(Math.floor(left/60)).padStart(2,"0"),ss=String(left%60).padStart(2,"0");
-  const pct=total>0?left/total:0;const R=54,C=2*Math.PI*R;
-  const adjBtn={background:"transparent",border:"1px solid "+T.BDL,borderRadius:4,color:canAdj?T.TX:T.TXM,cursor:canAdj?"pointer":"default",fontSize:13,fontWeight:700,fontFamily:"'Inter',system-ui,-apple-system,sans-serif",width:30,height:30,display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1,opacity:canAdj?1:.35,transition:"all .15s"};
-  const ringColor=done?T.GRN:running?T.AC:T.ACL;const actionBg=done?T.GRN:running?T.BD:T.AC;
-  return React.createElement("div",{style:{background:T.S1,border:"1px solid "+T.BD,borderRadius:isMobile?"16px 16px 0 0":16,padding:"18px 22px 24px",width:isMobile?"100%":272,boxShadow:"0 -4px 40px "+T.SHADOW}},
-    React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}},
-      React.createElement("span",{style:{fontFamily:"'Manrope',system-ui,sans-serif",fontSize:13,fontWeight:700,color:T.AC,letterSpacing:0.5}},"Timer"),
-      React.createElement("button",{type:"button",onClick:onClose,style:{background:"transparent",border:"none",color:T.TXD,cursor:"pointer",fontSize:18,fontWeight:700,fontFamily:"inherit",lineHeight:1,padding:"0 2px"}},"×")),
-    React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:12}},
-      React.createElement("button",{type:"button",style:adjBtn,onClick:()=>canAdj&&adjWork(-5),disabled:!canAdj},"−5"),
-      React.createElement("button",{type:"button",style:{...adjBtn,width:26},onClick:()=>canAdj&&adjWork(-1),disabled:!canAdj},"−"),
-      React.createElement("span",{style:{fontFamily:"'Manrope',system-ui,sans-serif",fontSize:13,fontWeight:700,color:T.AC,minWidth:52,textAlign:"center"}},workMin+" min"),
-      React.createElement("button",{type:"button",style:{...adjBtn,width:26},onClick:()=>canAdj&&adjWork(1),disabled:!canAdj},"+"),
-      React.createElement("button",{type:"button",style:adjBtn,onClick:()=>canAdj&&adjWork(5),disabled:!canAdj},"+5")),
-    React.createElement("div",{style:{display:"flex",justifyContent:"center",marginBottom:16}},
-      React.createElement("svg",{width:130,height:130,viewBox:"0 0 130 130"},
-        React.createElement("circle",{cx:65,cy:65,r:R,fill:"none",stroke:T.BD,strokeWidth:6}),
-        React.createElement("circle",{cx:65,cy:65,r:R,fill:"none",stroke:ringColor,strokeWidth:6,strokeLinecap:"round",strokeDasharray:C,strokeDashoffset:C*(1-pct),transform:"rotate(-90 65 65)",style:{transition:"stroke-dashoffset .4s linear, stroke .3s"}}),
-        React.createElement("text",{x:65,y:62,textAnchor:"middle",fill:done?T.GRN:T.TX,fontSize:28,fontWeight:700,fontFamily:"'Manrope',system-ui,sans-serif"},mm+":"+ss),
-        React.createElement("text",{x:65,y:80,textAnchor:"middle",fill:T.TXD,fontSize:10,fontWeight:600,fontFamily:"'Inter',system-ui,-apple-system,sans-serif"},done?"Done!":running?"Running":"Paused"))),
-    React.createElement("div",{style:{display:"flex",gap:8}},
-      React.createElement("button",{type:"button",onClick:toggle,style:{flex:1,background:actionBg,color:T.BG,border:"none",borderRadius:4,padding:"9px 0",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'Inter',system-ui,-apple-system,sans-serif",letterSpacing:0.5}},done?"Reset":running?"Pause":"Start"),
-      React.createElement("button",{type:"button",onClick:cancel,style:{background:"transparent",border:"1px solid "+T.BDL,borderRadius:4,padding:"9px 16px",fontSize:12,fontWeight:600,color:T.TXD,cursor:"pointer",fontFamily:"'Inter',system-ui,-apple-system,sans-serif"}},"Cancel")));
-}
+// Tony's TaskHub had its own Pomodoro + playAlarm + timer web-worker here.
+// They were unreachable: this file's two text/babel blocks compile to ES5 and
+// share one global scope, so Veda's later `function Pomodoro` overwrote this
+// one and Tony's panel has been mounting VEDA's component (verified in-browser:
+// opening Tony's timer defines window._vdTimerExec, never window._thTimerExec).
+// Removed rather than left to rot. The surviving component is at 'function
+// Pomodoro({onClose})' in Veda's block; its command hook is window._vdTimerExec.
 
 /* ══════════════════════════════════════════════════════════════════════════
    OneInbox → TaskHub cards
@@ -8460,7 +8385,7 @@ function App(){
     refreshQuote:()=>tgNext(),
     goToDate:(y,m,d)=>{setSel({year:y,month:m,day:d});setVm(m);setVy(y);},
     openTimer:()=>setShowPomo(true),
-    timer:(cmd,arg)=>{setShowPomo(true);setTimeout(()=>{if(window._thTimerExec)window._thTimerExec(cmd,arg);},140);},
+    timer:(cmd,arg)=>{setShowPomo(true);setTimeout(()=>{if(window._vdTimerExec)window._vdTimerExec(cmd,arg);},140);},
     undo:vxDoUndo,redo:vxDoRedo,flushHistory:vxFlush,
     canUndo:()=>{const h=vxHist.current;return h.past.length>0||(h.base!=null&&vxSnap()!==h.base);},
     canRedo:()=>vxHist.current.future.length>0};
@@ -12237,24 +12162,7 @@ window._kcMigrateConnsToCloud = async function(conns, cloud, onProgress) {
 };
 
 // Shared "Sync Files" button handler for Keychain + Links.
-async function _kcRunSyncButton(btnId, getMigrateFn, appName) {
-  const btn = document.getElementById(btnId);
-  if (!btn || btn._busy) return;
-  const migrate = getMigrateFn();
-  const orig = btn.textContent;
-  const set = t => { btn.textContent = t; };
-  if (typeof migrate !== 'function') { set('Not ready'); setTimeout(() => set(orig), 3000); return; }
-  btn._busy = true; btn.disabled = true;
-  set('Syncing…');
-  try {
-    const r = await migrate(true, (done, total) => set('Syncing ' + done + '/' + total + '…'));
-    if (r && r.busy) set('Busy…');
-    else if (r && r.uploaded) set(r.uploaded + ' synced' + (r.tooBig ? ' · ' + r.tooBig + ' too big' : ''));
-    else if (r && r.total === 0) set('All synced');
-    else set(r && r.tooBig ? r.tooBig + ' over 25MB' : 'Nothing to sync');
-  } catch (e) { console.warn(appName + ' sync failed:', e); set('Failed — retry'); }
-  finally { btn.disabled = false; setTimeout(() => { set(orig); btn._busy = false; }, 4500); }
-}
+
 // ── A1 suite app icons ────────────────────────────────────────────────────
 // Every A1 program is served off the one host (anthonyn99.github.io/A1), so
 // the favicon service below hands back the same generic globe for all of
@@ -13938,14 +13846,6 @@ const GITA_LESSONS = [
   }
 ];
 
-
-const GITA_QUOTES = GITA_LESSONS.map(l => ({
-  id: l.id,
-  quote: l.quote,
-  chapter: l.chapter,
-  title: l.title
-}));
-
 // ─── original helpers ────────────────────────────────────────────────
 function dimM(y,m){return new Date(y,m+1,0).getDate();}
 function fdow(y,m){const d=new Date(y,m,1).getDay();return d===0?6:d-1;}
@@ -14054,6 +13954,7 @@ function thMinAgeKey(){const n=new Date();n.setDate(n.getDate()-TH_ARCHIVE_MIN_A
 function thLoadArchivedKeys(k){const o={};try{const a=JSON.parse(localStorage.getItem(k)||"[]");if(Array.isArray(a))a.forEach(x=>{if(typeof x==="string")o[x]=true;});}catch(e){}return o;}
 function thSaveArchivedKeys(k,ref){try{localStorage.setItem(k,JSON.stringify(Object.keys(ref)));}catch(e){}}
 function thDataBytes(d){try{return new Blob([JSON.stringify(d||{})]).size;}catch(e){try{return JSON.stringify(d||{}).length;}catch(_){return 0;}}}
+
 function thTodayKey(){const n=new Date();return dkey(n.getFullYear(),n.getMonth(),n.getDate());}
 const TH_DAYKEY_RE=/^\d{4}-\d{2}-\d{2}$/;
 function thSplitArchivable(data){
@@ -16680,7 +16581,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   // Helper: Mon-based index (0=Mon…6=Sun) from JS getDay() (0=Sun…6=Sat)
   function toMonIdxFCM(jsd){return jsd===0?6:jsd-1;}
   // Helper: small uid for repeat occurrence docs
-  function fcmUid(){return Math.random().toString(36).slice(2)+Date.now().toString(36);}
+  
 
   // opts.silent → suppress every on-screen banner. Set by the background re-arm
   // and dashboard-migration sweeps, which call this once per scheduled series.
@@ -24667,10 +24568,7 @@ function _bjPageInsertFileChip(name, dataURL, mimeType) {
     { areaId: 'bj-page-area',      zoneId: 'bj-page-drop-zone',    tmpl: 'page'       },
   ];
 
-  function getActiveTemplate() {
-    var entry = (typeof getActive === 'function') ? getActive() : null;
-    return entry ? entry.template : null;
-  }
+  
 
   function processFiles(files, tmpl) {
     Array.from(files).forEach(function(file) {
@@ -24797,14 +24695,7 @@ document.getElementById('bj-pt-clear').addEventListener('click', async () => {
 });
 
 // Helper: walk up DOM to find a mark/highlighted ancestor within editor
-function _bjFindMarkAncestor(node, editorEl) {
-  var cur = node;
-  while (cur && cur !== editorEl) {
-    if (cur.nodeType === 1 && (cur.tagName === 'MARK' || cur.hasAttribute('data-bj-hl'))) return cur;
-    cur = cur.parentNode;
-  }
-  return null;
-}
+
 
 // Highlight palette
 (function() {
@@ -24957,9 +24848,6 @@ function _bjFindMarkAncestor(node, editorEl) {
   }
   window._bjApplyHighlight = applyHighlight;
 })();
-
-
-
 
 // Keyboard shortcuts inside page editor
 document.getElementById('bj-page-editor').addEventListener('keydown', e => {
@@ -25331,18 +25219,6 @@ loadActiveEntry = function() {
   }
 };
 
-/* Fullscreen (sidebar hide) toggle — handled by fastTouch above */
-var bjFullscreenBtn = document.getElementById('bj-fullscreen-btn');
-var bjFsIconShow = document.getElementById('bj-fs-icon-show');
-var bjFsIconHide = document.getElementById('bj-fs-icon-hide');
-
-/* Bottom bar: edit toggle — handled by fastTouch above */
-var bjBbEdit = document.getElementById('bj-bb-edit');
-
-/* Bottom bar: template and new entry — handled by fastTouch above */
-var bjBbTemplate = document.getElementById('bj-bb-template');
-var bjBbNew = document.getElementById('bj-bb-new');
-
 /* Patch saveState to show mobile saved indicator */
 var bjBbSaved = document.getElementById('bj-bb-saved');
 var _origSaveState = saveState;
@@ -25568,7 +25444,7 @@ window.hideBrainstormJournal = function() {
     entry.updated = Date.now();
     saveState();
   }
-  function blUnlockedKey(id) { return 'bj_unlocked_' + id; }
+  
   // Once per device, forever — same monotonic rule as the app-locks (see
   // alIsUnlocked). blLockVersion() reads entry.lock.v out of Firebase-synced
   // state, so it can briefly read 0 or an older value while a sync is in flight;
@@ -25655,10 +25531,7 @@ window.hideBrainstormJournal = function() {
     return false;
   };
 
-  async function blHash(str) {
-    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
-  }
+  
 
   var overlay = document.getElementById('bj-lock-overlay');
   var lockBtn = document.getElementById('bj-btn-lock');
@@ -29115,10 +28988,7 @@ function _tjPageInsertFileChip(name, dataURL, mimeType) {
     { areaId: 'tj-page-area',      zoneId: 'tj-page-drop-zone',    tmpl: 'page'       },
   ];
 
-  function getActiveTemplate() {
-    var entry = (typeof getActive === 'function') ? getActive() : null;
-    return entry ? entry.template : null;
-  }
+  
 
   function processFiles(files, tmpl) {
     Array.from(files).forEach(function(file) {
@@ -29243,14 +29113,7 @@ document.getElementById('tj-pt-clear').addEventListener('click', async () => {
 });
 
 // Helper: walk up DOM to find a mark/highlighted ancestor within editor
-function _tjFindMarkAncestor(node, editorEl) {
-  var cur = node;
-  while (cur && cur !== editorEl) {
-    if (cur.nodeType === 1 && (cur.tagName === 'MARK' || cur.hasAttribute('data-tj-hl'))) return cur;
-    cur = cur.parentNode;
-  }
-  return null;
-}
+
 
 // Highlight palette
 (function() {
@@ -30432,18 +30295,6 @@ loadActiveEntry = function() {
   }
 };
 
-/* Fullscreen (sidebar hide) toggle — handled by fastTouch above */
-var tjFullscreenBtn = document.getElementById('tj-fullscreen-btn');
-var tjFsIconShow = document.getElementById('tj-fs-icon-show');
-var tjFsIconHide = document.getElementById('tj-fs-icon-hide');
-
-/* Bottom bar: edit toggle — handled by fastTouch above */
-var tjBbEdit = document.getElementById('tj-bb-edit');
-
-/* Bottom bar: template and new entry — handled by fastTouch above */
-var tjBbTemplate = document.getElementById('tj-bb-template');
-var tjBbNew = document.getElementById('tj-bb-new');
-
 /* Patch saveState to show mobile saved indicator */
 var tjBbSaved = document.getElementById('tj-bb-saved');
 var _origSaveState = saveState;
@@ -30763,7 +30614,7 @@ window.tjSwitchTo = function(app) {
     entry.updated = Date.now();
     saveState();
   }
-  function tlUnlockedKey(id) { return 'tj_unlocked_' + id; }
+  
   // Once per device, forever — monotonic version comparison, same reasoning as
   // blIsUnlocked / alIsUnlocked: entry.lock.v arrives via Firebase sync and can
   // read stale or absent mid-flight, and an exact match turned that into a
@@ -30804,10 +30655,7 @@ window.tjSwitchTo = function(app) {
   }
 
   // Simple hash (SHA-256 via subtle crypto)
-  async function tlHash(str) {
-    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
-  }
+  
 
   var overlay = document.getElementById('tj-lock-overlay');
   var lockBtn = document.getElementById('tj-btn-lock');
@@ -31780,9 +31628,6 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
 .docx-kbd-grid kbd { background: #2C2D33; border: 1px solid #3B3C42; border-bottom-width: 2px; border-radius: 5px; padding: 1px 7px; font-size: 11px; font-family: Consolas, monospace; }
 
 /* ── View-mode segmented toggle (main toolbar) ── */
-.docx-viewseg { display: inline-flex; gap: 0; border: 1px solid var(--border2, #444); border-radius: 5px; overflow: hidden; flex-shrink: 0; }
-.docx-viewseg button { background: transparent; border: none; color: var(--text2, #999); font-size: 11px; padding: 5px 9px; cursor: pointer; font-family: inherit; line-height: 1; display: inline-flex; align-items: center; gap: 4px; }
-.docx-viewseg button.on { background: var(--purple, #e0b874); color: #101014; font-weight: 700; }
 
 /* ── AI Format button + overlay + toast ── */
 #tj-root .docx-ai-btn, #bj-root .docx-ai-btn { color: #c3a7ff; border: 1px solid rgba(150,110,255,.4); background: rgba(150,110,255,.08); font-weight: 600; }
@@ -32916,12 +32761,12 @@ function applyZoom(app) {
 }
 function setZoom(app, z) { lsSet('docx_zoom_' + app, z); applyZoom(app); }
 // View mode: continuous ("web") only — no paginated slits, no Pages/Web switcher.
-function vmGet(app) { return 'flow'; }
+
 function applyViewMode(app) {
   var cfg = APPS[app];
   cfg.ctxs.forEach(function(c) { var wrap = $(c.wrap); if (wrap) wrap.classList.remove('docx-pages'); });
 }
-function setViewMode(app, vm) { /* continuous only */ }
+
 
 /* ═══════════ Margins (custom + draggable, default 1 inch) ═══════════ */
 // Stored PER-PAGE on the active entry (entry.data.margins), synced via Firebase,
@@ -35113,39 +34958,9 @@ function changeBlockTag(el, tag) {
   return n;
 }
 // True if the range covers essentially all of the block's content.
-function _rangeCoversBlock(range, block) {
-  var full = document.createRange();
-  full.selectNodeContents(block);
-  var startsAtBegin = range.compareBoundaryPoints(Range.START_TO_START, full) <= 0;
-  var endsAtFinish = range.compareBoundaryPoints(Range.END_TO_END, full) >= 0;
-  return startsAtBegin && endsAtFinish;
-}
+
 // Split a block so ONLY the selected text takes the new tag: before / [selected→tag] / after.
-function _splitBlockApplyTag(ctx, block, range, tag) {
-  var origTag = block.tagName.toLowerCase();
-  var target = (origTag === tag.toLowerCase()) ? 'p' : tag;
-  var beforeR = document.createRange();
-  beforeR.setStart(block, 0);
-  beforeR.setEnd(range.startContainer, range.startOffset);
-  var afterR = document.createRange();
-  afterR.setStart(range.endContainer, range.endOffset);
-  afterR.setEnd(block, block.childNodes.length);
-  var beforeFrag = beforeR.cloneContents();
-  var selFrag = range.cloneContents();
-  var afterFrag = afterR.cloneContents();
-  function nonEmpty(frag) { return (frag.textContent || '').length > 0 || frag.querySelector('img,br,.pg-img-wrap'); }
-  function wrap(t, frag) { var e = document.createElement(t); if (block.style.cssText) e.style.cssText = block.style.cssText; e.appendChild(frag); return e; }
-  var out = document.createDocumentFragment();
-  if (nonEmpty(beforeFrag)) out.appendChild(wrap(origTag, beforeFrag));
-  var mid = wrap(target, selFrag);
-  out.appendChild(mid);
-  if (nonEmpty(afterFrag)) out.appendChild(wrap(origTag, afterFrag));
-  block.parentNode.replaceChild(out, block);
-  var r2 = document.createRange(); r2.selectNodeContents(mid);
-  var s = window.getSelection(); s.removeAllRanges(); s.addRange(r2);
-  fireInput(ctx.edEl);
-  updateBlockSelect(ctx);
-}
+
 function setBlock(ctx, tag) {
   restoreSel(ctx);
   var sel = window.getSelection();
@@ -36153,25 +35968,7 @@ function wireEditor(ctx) {
 }
 
 /* ═══════════ View mode toggle in the main toolbar ═══════════ */
-function injectViewToggle(app) {
-  var cfg = APPS[app];
-  var bar = $(cfg.mainToolbar);
-  if (!bar || $('docx-viewseg-' + app)) return;
-  var seg = document.createElement('span');
-  seg.className = 'docx-viewseg';
-  seg.id = 'docx-viewseg-' + app;
-  [['pages', 'Pages', 'Print layout — real page boundaries'], ['flow', 'Web', 'Continuous — one endless page']].forEach(function(o) {
-    var b = document.createElement('button');
-    b.dataset.vm = o[0];
-    b.innerHTML = o[1];
-    b.title = o[2];
-    b.addEventListener('click', function() { setViewMode(app, o[0]); });
-    seg.appendChild(b);
-  });
-  var pill = $(cfg.syncPill);
-  if (pill && pill.parentNode === bar) bar.insertBefore(seg, pill);
-  else bar.appendChild(seg);
-}
+
 
 /* ═══════════ Init ═══════════ */
 var ALLCTX = [];
@@ -36761,7 +36558,7 @@ function fuzzyIndex(arr,q){
 }
 function ymd(s){var m=/^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(String(s||''));if(!m)return null;return {y:+m[1],mo:+m[2],d:+m[3],key:m[1]+'-'+String(+m[2]).padStart(2,'0')+'-'+String(+m[3]).padStart(2,'0')};}
 function fixTime(t){var m=/^(\d{1,2}):(\d{2})/.exec(String(t||''));if(!m)return '';return String(Math.min(23,Math.max(0,+m[1]))).padStart(2,'0')+':'+m[2];}
-function notifyMs(n){if(!n||!n.date)return 0;var p=ymd(n.date);if(!p)return 0;var tm=/^(\d{1,2}):(\d{2})/.exec(String(n.time||'09:00'));var hh=tm?+tm[1]:9,mm=tm?+tm[2]:0;return new Date(p.y,p.mo-1,p.d,hh,mm,0,0).getTime();}
+
 function clone(o){try{return JSON.parse(JSON.stringify(o==null?null:o));}catch(e){return o;}}
 
 function tzName(){try{return Intl.DateTimeFormat().resolvedOptions().timeZone;}catch(e){return '';}}
@@ -42528,18 +42325,7 @@ function _alPwErr(msg) {
 // Cancel destination. Prefer returning to an UNLOCKED app in the same profile
 // (so the user lands on real content, never a blank screen). Fall back to the
 // profile chooser only if nothing in that profile is openable.
-function _alCancelToSafe(blockedId) {
-  var appId = blockedId || _alPendingAppId || '';
-  var prof  = (AL_LABELS[appId] || {}).profile || 'tony';
-  if (prof === 'tony') {
-    // TaskHub is the safe home; if it's openable, go there.
-    if (!alMustBlock('tony_taskhub') && window._tonyNav) { window._tonyNav('taskhub'); return; }
-  } else {
-    if (!alMustBlock('veda_taskhub') && window._vedaNav) { window._vedaNav('taskhub'); return; }
-  }
-  // Nothing safe → profile chooser.
-  if (window._profileGoSelect) window._profileGoSelect();
-}
+
 
 // _tonyNav gate
 var _origTonyNav = window._tonyNav;
