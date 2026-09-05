@@ -1318,8 +1318,12 @@ async function listTokenDocs(baseUrl, authHdr) {
 // opened on that device, closes exactly that gap, and only for events: reminder
 // scoping is untouched.
 function deviceMatches(d, dash, eventPush) {
-  if (dash === 'all') return true;
   const md = d.fields?.mainDash?.stringValue || 'all';
+  // 'none' = the device pressed Un-main: it is main for NEITHER profile and
+  // opts out of every push, so it is excluded before the 'all' shortcut and
+  // before the lastDash event fallback (which the page also blanks on opt-out).
+  if (md === 'none') return false;
+  if (dash === 'all') return true;
   if (md === dash) return true;
   if (!eventPush) return false;
   return (d.fields?.lastDash?.stringValue || '') === dash;

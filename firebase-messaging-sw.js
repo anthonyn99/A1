@@ -20,7 +20,7 @@ firebase.initializeApp({
 // task) to REPLACE push #1 (e.g. an event) fired at the same minute, so only one
 // showed on mobile. Changing these bytes makes the browser install this build,
 // and skipWaiting + clients.claim below swap it in immediately.
-const SW_VERSION = '2026-08-20-event-scope';
+const SW_VERSION = '2026-09-05-unmain-neutral';
 
 // GUARDED: firebase.messaging() throws in browsers where push is unavailable —
 // notably Brave with "Use Google services for push messaging" off. At top level
@@ -120,6 +120,9 @@ async function setStoredMainDash(dash){
   // deaf while the phone kept working. Treat 'all' as "unknown": leave whatever
   // is stored alone so the gate falls back to trusting the Worker's send-side
   // scoping (which is already correct) instead of swallowing the notification.
+  // 'none' is NOT "unknown" — it is an explicit opt-out (Un-main), so it falls
+  // through and IS persisted; otherwise a closed-app push would keep drawing on
+  // a device the user deliberately unlinked.
   if(!dash || dash === 'all') return;
   try{
     var cache = await caches.open(SW_MAINDASH_CACHE);
@@ -162,8 +165,12 @@ async function getStoredLastDash(){
 // (stored===null), show — the Worker already scoped the send, and the page will
 // populate this on its next load.
 async function shouldShowForDash(dash, kind){
-  if(!dash || dash === 'all') return true;
   var stored = await getStoredMainDash();
+  // 'none' = the user pressed Un-main on this device: it is main for NEITHER
+  // profile and must draw nothing at all. Tested before the 'all' shortcut,
+  // since an 'all'-tagged reminder still belongs to one of the two TaskHubs.
+  if(stored === 'none') return false;
+  if(!dash || dash === 'all') return true;
   if(stored === null) return true;      // unknown — trust the send-side scope
   if(stored === dash) return true;
   // A Plans EVENT is addressed to a person, not to this device's role, so the
