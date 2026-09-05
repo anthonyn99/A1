@@ -98,5 +98,10 @@ const check = (n, ok, d) => { results.push(ok); console.log('  ' + (ok ? 'PASS  
   }
 
   console.log('\n' + results.filter(Boolean).length + '/' + results.length + ' checks passed');
-  process.exit(results.every(Boolean) ? 0 : 1);
+  // Set exitCode rather than calling process.exit(): the 'wrong key' check above
+  // performs a REAL fetch of Google's JWKS, and on Node 24 (Windows) tearing the
+  // process down while undici's socket is still closing trips a libuv assertion
+  // (UV_HANDLE_CLOSING in win/async.c) and aborts with exit 127 — turning a fully
+  // passing run into a hard failure. Letting the loop drain naturally exits clean.
+  process.exitCode = results.every(Boolean) ? 0 : 1;
 })();
