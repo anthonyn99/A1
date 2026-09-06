@@ -3717,7 +3717,12 @@ function TBBackupModal({jHook,onClose}){
           {note&&<div style={{fontSize:12,color:'var(--ac)'}}>{note}</div>}
         </div>
 
-        <div style={{maxHeight:isMobile?'none':420,overflowY:'auto'}}>
+        {/* THE list scroller on desktop: capped at 420px, so this — not the card
+            and not the overlay — is what actually moves when you scroll the
+            history, and it is where the scrollbar has to be. On mobile the cap is
+            lifted and the card scrolls instead (see .tb-modal-inner in the media
+            block), so the class is harmless there. */}
+        <div className="tb-scroll-thin" style={{maxHeight:isMobile?'none':420,overflowY:'auto',overscrollBehavior:'contain'}}>
           {rows===null&&<div style={{padding:'22px',fontSize:13,color:'var(--txm)'}}>Reading backups…</div>}
           {rows&&!rows.length&&<div style={{padding:'34px 22px',textAlign:'center',fontSize:13,color:'var(--txm)'}}>No backups yet. Hit “Back up now” to make the first one.</div>}
           {rows&&rows.map(sn=>{
@@ -7734,8 +7739,8 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
             scroller on all four sides to give the outline room, then pull that
             padding back out with a matching negative margin so the strip still
             lines up with the content above and below it. */}
-        <div className="nh-movers" style={{display:'grid',gridAutoFlow:'column',gridAutoColumns:'minmax(210px,1fr)',gap:10,overflowX:'auto',
-                                           padding:'3px 3px 4px',margin:'0 -3px'}}>
+        <div className="nh-movers tb-scroll-thin" style={{display:'grid',gridAutoFlow:'column',gridAutoColumns:'minmax(210px,1fr)',gap:10,overflowX:'auto',
+                                           padding:'3px 3px 4px',margin:'0 -3px',overscrollBehavior:'contain'}}>
           {movers.map(m=>{
             const ev=topEventByTicker[m.t];
             const hl=ev?(nhHeadlines(ev.sources)[0]?.headline||ev.summary):'';
