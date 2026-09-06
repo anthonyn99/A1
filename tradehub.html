@@ -1389,10 +1389,15 @@ const TB_STYLES=`
 #tradeboard-root .tb-x-close:hover{color:var(--tbr);border-color:rgba(214,138,124,.45);background:rgba(214,138,124,.08);box-shadow:var(--red-glow);}
 #tradeboard-root .tb-x-close:active{transform:translateY(1px);}
 /* Scroll chaining: hitting the end of ANY overlay must not start scrolling the
-   page behind it. Applies to the scroll container itself and to the inner panes
-   that scroll on mobile (where .tb-modal-inner takes over the scrolling). */
-#tradeboard-root .tb-modal-overlay,#tradeboard-root .tb-modal-inner,
-#tradeboard-root .nh-sum-overlay,#tradeboard-root .nh-sum-card,
+   page behind it.
+   ONLY the elements that actually scroll are listed. The inner cards are handled
+   in the mobile block instead, and deliberately NOT here: on desktop they carry
+   overflow:hidden, which still makes them scroll containers, so contain-ing them
+   stopped a wheel over the card from chaining out to the OVERLAY that does the
+   scrolling — the summary could only be scrolled with the cursor off to one
+   side, over the backdrop. */
+#tradeboard-root .tb-modal-overlay,
+#tradeboard-root .nh-sum-overlay,
 #tradeboard-root .tb-pe-overlay,#tradeboard-root .tb-pe-card textarea{overscroll-behavior:contain;}
 #tradeboard-root .tb-star-on svg path{fill:currentColor;}
 #tradeboard-root .tb-star-hit{width:28px;height:28px;}
@@ -1490,14 +1495,21 @@ const TB_STYLES=`
    shows its own scrollbar here, which is what we want anyway — visible and
    draggable. Only Chromium hides scrollbars app-wide, so only it needs opting
    back in. */
+/* IDLE-HIDDEN. The thumb is transparent until you scroll (or put the cursor in
+   the gutter), then fades back out — see tbScrollActivity, which toggles
+   .is-scrolling. Only the COLOUR changes: the gutter itself stays reserved at a
+   constant width, so revealing the thumb never reflows the content next to it.
+   A transition is declared for browsers that animate scrollbar pseudo-elements;
+   where they don't, it simply snaps, which is still the behaviour asked for. */
 #tradeboard-root .tb-scroll-visible::-webkit-scrollbar{display:block;width:14px;height:14px;}
 #tradeboard-root .tb-scroll-visible::-webkit-scrollbar-track{background:transparent;}
 /* A transparent border + padding-box clip makes the thumb read as a floating
    pill instead of filling the gutter; min-height keeps it grabbable on a long
    page. background-COLOR (not the shorthand) so :hover/:active don't reset the
    clip back to border-box and square the pill off. */
-#tradeboard-root .tb-scroll-visible::-webkit-scrollbar-thumb{background-color:rgba(152,152,168,0.45);background-clip:padding-box;border:4px solid transparent;border-radius:10px;min-height:48px;}
-#tradeboard-root .tb-scroll-visible::-webkit-scrollbar-thumb:hover{background-color:rgba(152,152,168,0.75);}
+#tradeboard-root .tb-scroll-visible::-webkit-scrollbar-thumb{background-color:transparent;background-clip:padding-box;border:4px solid transparent;border-radius:10px;min-height:48px;transition:background-color .35s ease;}
+#tradeboard-root .tb-scroll-visible.is-scrolling::-webkit-scrollbar-thumb{background-color:rgba(152,152,168,0.45);}
+#tradeboard-root .tb-scroll-visible.is-scrolling::-webkit-scrollbar-thumb:hover{background-color:rgba(152,152,168,0.75);}
 #tradeboard-root .tb-scroll-visible::-webkit-scrollbar-thumb:active{background-color:var(--ac);}
 #tradeboard-root .tb-scroll-visible::-webkit-scrollbar-button{display:none;height:0;width:0;}
 #tradeboard-root .tb-scroll-visible::-webkit-scrollbar-corner{background:transparent;}
@@ -1508,8 +1520,9 @@ const TB_STYLES=`
    when the content actually overflows — overflow:auto decides that. */
 #tradeboard-root .tb-scroll-thin::-webkit-scrollbar{display:block;width:10px;height:10px;}
 #tradeboard-root .tb-scroll-thin::-webkit-scrollbar-track{background:transparent;}
-#tradeboard-root .tb-scroll-thin::-webkit-scrollbar-thumb{background-color:rgba(152,152,168,0.42);background-clip:padding-box;border:3px solid transparent;border-radius:8px;min-height:32px;}
-#tradeboard-root .tb-scroll-thin::-webkit-scrollbar-thumb:hover{background-color:rgba(152,152,168,0.72);}
+#tradeboard-root .tb-scroll-thin::-webkit-scrollbar-thumb{background-color:transparent;background-clip:padding-box;border:3px solid transparent;border-radius:8px;min-height:32px;transition:background-color .35s ease;}
+#tradeboard-root .tb-scroll-thin.is-scrolling::-webkit-scrollbar-thumb{background-color:rgba(152,152,168,0.42);}
+#tradeboard-root .tb-scroll-thin.is-scrolling::-webkit-scrollbar-thumb:hover{background-color:rgba(152,152,168,0.72);}
 #tradeboard-root .tb-scroll-thin::-webkit-scrollbar-thumb:active{background-color:var(--ac);}
 #tradeboard-root .tb-scroll-thin::-webkit-scrollbar-button{display:none;height:0;width:0;}
 #tradeboard-root .tb-scroll-thin::-webkit-scrollbar-corner{background:transparent;}
@@ -1527,9 +1540,26 @@ const TB_STYLES=`
   #tradeboard-root .tb-mobile-header{display:block!important;}
   #tradeboard-root .tb-page-content{padding:14px 12px 20px!important;}
   #tradeboard-root .tb-grid-4{grid-template-columns:repeat(2,1fr)!important;}
-  /* modal: full-bleed, scrollable, safe-area aware */
-  #tradeboard-root .tb-modal-inner{border-radius:0!important;min-height:100dvh!important;max-height:100dvh!important;overflow-y:auto!important;}
-  #tradeboard-root .tb-modal-overlay{padding:calc(env(safe-area-inset-top,0px) + 0px) 0 0!important;align-items:flex-start!important;}
+  /* Modal on mobile: full-bleed, and the CARD owns the scrolling.
+     This used to pad the OVERLAY down by the safe-area inset while the card was
+     min-height:100dvh — together taller than the screen, so the end of a long
+     list (the backups history) sat below the fold with neither element able to
+     reach it, and the top slid under the header. Now the overlay is a fixed,
+     non-scrolling frame and the card is exactly one viewport tall, insetting
+     itself for the notch and the home indicator so its first and last rows are
+     both reachable. */
+  #tradeboard-root .tb-modal-overlay{padding:0!important;align-items:stretch!important;overflow:hidden!important;}
+  #tradeboard-root .tb-modal-inner{
+    border-radius:0!important;width:100%!important;margin:0!important;
+    height:100dvh!important;max-height:100dvh!important;min-height:0!important;
+    overflow-y:auto!important;overscroll-behavior:contain;
+    padding-top:env(safe-area-inset-top,0px)!important;
+    padding-bottom:calc(env(safe-area-inset-bottom,0px) + 16px)!important;
+  }
+  /* Contain is applied to the inner cards HERE and not globally, because only on
+     mobile are they the element that actually scrolls — see the note by the
+     desktop rule. */
+  #tradeboard-root .nh-sum-card{overscroll-behavior:contain;}
   #tradeboard-root .tb-stat-cards-grid{grid-template-columns:repeat(2,1fr)!important;}
   /* leg grid: compressed for narrow screens (Z Fold ~360px) */
   #tradeboard-root .tb-leg-grid{grid-template-columns:22px 58px 1fr 48px 60px 46px 22px!important;gap:3px!important;font-size:11px!important;}
@@ -1537,8 +1567,9 @@ const TB_STYLES=`
   /* top row of trade modal: 2 cols */
   #tradeboard-root .tb-leg-grid-top{grid-template-columns:1fr 1fr!important;gap:8px!important;}
   #tradeboard-root .tb-toast{bottom:80px!important;right:14px!important;left:14px!important;font-size:12px;}
-  /* modal inner: full width, no side padding issues */
-  #tradeboard-root .tb-modal-inner{width:100%!important;margin:0!important;}
+  /* (width/margin for .tb-modal-inner are set with the rest of its mobile
+     geometry above — a second rule here only made it look like two places
+     disagreed about the same element.) */
   /* inputs inside modal full width */
   #tradeboard-root .tb-modal-inner input,#tradeboard-root .tb-modal-inner select,#tradeboard-root .tb-modal-inner textarea{font-size:16px!important;} /* 16px prevents iOS zoom */
   /* datetime-local: shrink text */
@@ -1547,7 +1578,13 @@ const TB_STYLES=`
   #tradeboard-root .tb-leg-grid select{padding:5px 2px!important;font-size:11px!important;}
   /* prompt page: max width */
   #tradeboard-root .tb-prompt-wrap{max-width:100%!important;padding:14px 12px 40px!important;}
-  #tradeboard-root .tb-wl-card{width:auto!important;margin:0 12px 16px!important;}
+  #tradeboard-root .tb-wl-card{width:auto!important;margin:0 0 16px!important;}
+  /* Page roots that set their OWN side padding on top of the shell's 12px. On a
+     390px screen that doubled the gutter to ~28px a side and squeezed the content
+     to 327px, while News and Catalysts (which add none) ran the full 358px. Drop
+     their horizontal padding on mobile so every tab shares the one shell gutter;
+     the vertical padding in the same shorthand is deliberately left alone. */
+  #tradeboard-root .tb-mob-flush{padding-left:0!important;padding-right:0!important;}
   /* ── News page mobile layout ── */
   #tradeboard-root .nh-page{padding:0!important;}
   /* Stats strip: 3 across, and tighter still than desktop. The label is allowed
@@ -1572,11 +1609,15 @@ const TB_STYLES=`
      you can drag — touch just usually drags the content instead. The thinner
      gutter needs a thinner transparent border or the pill vanishes inside it. */
   #tradeboard-root .tb-scroll-visible::-webkit-scrollbar{width:8px!important;height:8px!important;}
-  #tradeboard-root .tb-scroll-visible::-webkit-scrollbar-thumb{border-width:2px!important;border-radius:8px!important;background-color:rgba(152,152,168,0.55)!important;}
+  /* Geometry only on the base rule — the COLOUR stays on .is-scrolling, or the
+     thumb would be pinned visible on mobile and never fade. */
+  #tradeboard-root .tb-scroll-visible::-webkit-scrollbar-thumb{border-width:2px!important;border-radius:8px!important;}
+  #tradeboard-root .tb-scroll-visible.is-scrolling::-webkit-scrollbar-thumb{background-color:rgba(152,152,168,0.55)!important;}
   /* Nested scrollers get slimmer still — inside a card on a 390px screen, 10px
      of gutter is a real bite out of the content it sits next to. */
   #tradeboard-root .tb-scroll-thin::-webkit-scrollbar{width:7px!important;height:7px!important;}
-  #tradeboard-root .tb-scroll-thin::-webkit-scrollbar-thumb{border-width:2px!important;border-radius:7px!important;background-color:rgba(152,152,168,0.55)!important;}
+  #tradeboard-root .tb-scroll-thin::-webkit-scrollbar-thumb{border-width:2px!important;border-radius:7px!important;}
+  #tradeboard-root .tb-scroll-thin.is-scrolling::-webkit-scrollbar-thumb{background-color:rgba(152,152,168,0.55)!important;}
   /* ── Summary overlay on mobile ──
      Full-bleed, and the CARD owns the scrolling (not the overlay) so the sticky
      header stays pinned while the digest scrolls under it. The bottom padding
@@ -1598,6 +1639,44 @@ const TB_STYLES=`
   const s=document.createElement('style');
   s.textContent=TB_STYLES;
   document.head.appendChild(s);
+})();
+
+/* ── Scrollbar activity ─────────────────────────────────────────────────────
+   Marks a scroller .is-scrolling while it is in use, so the thumb (transparent
+   at rest — see the tb-scroll-* rules) shows and then fades back out.
+
+   Delegated from the document rather than bound per element: these scrollers are
+   React-rendered and come and go with every tab switch, so per-element listeners
+   would have to be attached and torn down on each mount. `scroll` does not
+   bubble, hence the capture phase.
+
+   The mousemove half is what keeps the thumb GRABBABLE: an invisible thumb can't
+   be aimed at, so entering the gutter reveals it. The test is exact rather than
+   "hovering the pane" — clientWidth excludes the scrollbar, so anything at or
+   past it is over the gutter. Without that, the thumb would be showing the whole
+   time the cursor sat anywhere over the content, which is the opposite of what
+   idle-hidden means. */
+(function(){
+  const IDLE_MS=900;
+  const SEL='.tb-scroll-visible,.tb-scroll-thin';
+  const timers=new WeakMap();
+  const show=el=>{
+    if(!el||!el.classList)return;
+    el.classList.add('is-scrolling');
+    clearTimeout(timers.get(el));
+    timers.set(el,setTimeout(()=>el.classList.remove('is-scrolling'),IDLE_MS));
+  };
+  document.addEventListener('scroll',e=>{
+    const el=e.target;
+    if(el&&el.nodeType===1&&el.matches&&el.matches(SEL))show(el);
+  },{capture:true,passive:true});
+  document.addEventListener('mousemove',e=>{
+    const t=e.target;
+    const el=(t&&t.closest)?t.closest(SEL):null;
+    if(!el)return;
+    const r=el.getBoundingClientRect();
+    if(e.clientX>=r.left+el.clientWidth)show(el);   // in the gutter
+  },{capture:true,passive:true});
 })();
 
 /* ── Parser helpers (minimal reimplementation to avoid global collision) ── */
@@ -3534,10 +3613,21 @@ function TBBackupModal({jHook,onClose}){
   },[rows]);
   const fmtBytes=b=>b<1024?b+' B':b<1024*1024?(b/1024).toFixed(0)+' KB':(b/1048576).toFixed(1)+' MB';
 
-  return(
+  /* PORTALLED, like every other modal here — this was the one that wasn't, and
+     it is why the backups popup sat under the header on mobile instead of over
+     it. Rendered in place, its nearest ancestor was the Journal page root, which
+     carries `tb-fade-in`; that animation uses fill-mode `both`, so it leaves a
+     transform permanently applied, and a transformed element becomes the
+     containing block for position:fixed descendants. inset:0 then meant "fill
+     the Journal page", not "fill the viewport" — measured 358x752 at (12,32)
+     rather than 390x844, so the app header showed straight through above it. */
+  return ReactDOM.createPortal(
     <div className="tb-modal-overlay" style={{position:'fixed',inset:0,zIndex:99999,background:'rgba(0,0,0,0.82)',backdropFilter:'blur(8px)',overflowY:'auto',overflowX:'hidden',padding:isMobile?'calc(env(safe-area-inset-top,0px) + 0px) 0 60px':'70px 16px 60px'}}>
-      <div className="tb-modal-inner" style={{background:'var(--s1)',border:'1px solid var(--bdl)',borderRadius:isMobile?0:16,width:'100%',maxWidth:640,margin:'0 auto',boxShadow:'0 32px 80px rgba(0,0,0,0.6)',overflow:'hidden'}}>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 22px',borderBottom:'1px solid var(--bd)'}}>
+      <div className="tb-modal-inner tb-scroll-thin" style={{background:'var(--s1)',border:'1px solid var(--bdl)',borderRadius:isMobile?0:16,width:'100%',maxWidth:640,margin:'0 auto',boxShadow:'0 32px 80px rgba(0,0,0,0.6)',overflow:'hidden'}}>
+        {/* Sticky: on mobile the card itself scrolls through a long history, and
+            Close must not scroll away with the first row. */}
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 22px',borderBottom:'1px solid var(--bd)',
+                     position:'sticky',top:0,background:'var(--s1)',zIndex:2}}>
           <div style={{fontFamily:'Manrope,system-ui,sans-serif',fontSize:16,fontWeight:700,color:'var(--tx)'}}>Journal backups</div>
           <button className="tb-x-close" onClick={onClose} aria-label="Close backups"><TBIcon n="x" size={18}/></button>
         </div>
@@ -3606,7 +3696,8 @@ function TBBackupModal({jHook,onClose}){
           })}
         </div>
       </div>
-    </div>
+    </div>,
+    document.getElementById('tradeboard-root')||document.body
   );
 }
 
@@ -4134,7 +4225,7 @@ function TBJournalPage(){
   };
 
   return(
-    <div className="tb-fade-in" style={{display:'flex',flexDirection:'column',gap:16,padding:'16px clamp(10px,4vw,28px) 40px'}}>
+    <div className="tb-fade-in tb-mob-flush" style={{display:'flex',flexDirection:'column',gap:16,padding:'16px clamp(10px,4vw,28px) 40px'}}>
       <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
         <div style={{flex:1,minWidth:140}}>
           <div style={{fontSize:20,fontWeight:800,color:'var(--tx)'}}>Journal</div>
@@ -4503,7 +4594,7 @@ function TBPortfolioPage(){
     {sub&&<div style={{fontSize:10,color:'var(--txm)',marginTop:3}}>{sub}</div>}
   </div>);
 
-  return(<div className="tb-fade-in" style={{display:'flex',flexDirection:'column',gap:18,padding:'16px clamp(10px,4vw,28px) 40px'}}>
+  return(<div className="tb-fade-in tb-mob-flush" style={{display:'flex',flexDirection:'column',gap:18,padding:'16px clamp(10px,4vw,28px) 40px'}}>
     <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
       <div style={{flex:1}}><div style={{fontSize:20,fontWeight:800,color:'var(--tx)'}}>Portfolio</div>{lastFetch&&<div style={{fontSize:13,color:'var(--txm)'}}>Updated {lastFetch.toLocaleString([],{dateStyle:'short',timeStyle:'short'})}</div>}</div>
       {loading&&<span style={{fontSize:14,color:'var(--txm)',display:'flex',alignItems:'center',gap:5}}><span style={{display:'inline-block',animation:'tb-spin 1s linear infinite'}}>⟳</span>Refreshing…</span>}
@@ -6144,7 +6235,7 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
     saveCfg(next);setEditing(false);setResults([]);
   };
 
-  return(<div className="tb-fade-in" style={{display:'flex',flexDirection:'column',gap:0,padding:'32px clamp(12px,4vw,28px) 40px',maxWidth:680,margin:'0 auto',width:'100%'}}>
+  return(<div className="tb-fade-in tb-mob-flush" style={{display:'flex',flexDirection:'column',gap:0,padding:'32px clamp(12px,4vw,28px) 40px',maxWidth:680,margin:'0 auto',width:'100%'}}>
     {/* Header — white, consistent with other sections */}
     <div style={{fontSize:20,fontWeight:800,color:'var(--tx)',marginBottom:24}}>Analysis</div>
 
@@ -7558,7 +7649,11 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
           <span style={{fontSize:10,fontWeight:900,textTransform:'uppercase',letterSpacing:1.5,color:'var(--txm)'}}>Top Movers</span>
           {quotesAt>0&&<span style={{fontSize:10,color:'var(--txm)'}}>quotes {nhTimeAgo(quotesAt)}</span>}
         </div>
-        <div className="nh-movers" style={{display:'grid',gridAutoFlow:'column',gridAutoColumns:'minmax(210px,1fr)',gap:10,overflowX:'auto',paddingBottom:4}}>
+        {/* paddingTop leaves room for the selected card's outline. overflowX:auto
+            makes the browser clip vertically too, so a 2px outline drawn OUTSIDE
+            the card had its top edge cut off — the selection looked like it only
+            framed three sides. */}
+        <div className="nh-movers" style={{display:'grid',gridAutoFlow:'column',gridAutoColumns:'minmax(210px,1fr)',gap:10,overflowX:'auto',paddingTop:3,paddingBottom:4}}>
           {movers.map(m=>{
             const ev=topEventByTicker[m.t];
             const hl=ev?(nhHeadlines(ev.sources)[0]?.headline||ev.summary):'';
