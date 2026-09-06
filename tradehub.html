@@ -1486,12 +1486,26 @@ const TB_STYLES=`
   #tradeboard-root .tb-wl-card{width:auto!important;margin:0 12px 16px!important;}
   /* ── News page mobile layout ── */
   #tradeboard-root .nh-page{padding:0!important;}
-  #tradeboard-root .nh-stats-grid{grid-template-columns:repeat(3,1fr)!important;gap:6px!important;}
+  /* Stats strip: 3 across, and tighter still than desktop. The label is allowed
+     to ellipsis rather than wrap — two rows of six counters must never cost more
+     height than the headline they sit above. */
+  #tradeboard-root .nh-stats-grid{grid-template-columns:repeat(3,1fr)!important;gap:5px!important;margin-bottom:10px!important;}
+  #tradeboard-root .nh-stat{padding:6px 8px!important;gap:5px!important;}
+  #tradeboard-root .nh-stat-n{font-size:15px!important;}
+  #tradeboard-root .nh-stat-l{font-size:8px!important;letter-spacing:.3px!important;}
   #tradeboard-root .nh-header{flex-direction:column!important;align-items:stretch!important;gap:8px!important;}
   #tradeboard-root .nh-header-btns{justify-content:flex-start!important;}
   #tradeboard-root .nh-filter-row{flex-direction:row!important;flex-wrap:wrap!important;align-items:center!important;gap:6px!important;}
   #tradeboard-root .nh-filter-row .nh-lbl{flex-basis:100%!important;min-width:0!important;margin-bottom:1px!important;}
   #tradeboard-root .nh-seg{flex-wrap:wrap!important;}
+  /* ── Summary overlay on mobile ──
+     Full-bleed, and the CARD owns the scrolling (not the overlay) so the sticky
+     header stays pinned while the digest scrolls under it. The bottom padding
+     clears the home indicator on iOS. */
+  #tradeboard-root .nh-sum-overlay{padding:0!important;align-items:stretch!important;overflow:hidden!important;}
+  #tradeboard-root .nh-sum-card{height:100dvh!important;max-height:100dvh!important;min-height:0!important;
+    display:flex!important;flex-direction:column!important;border-radius:0!important;overflow-y:auto!important;
+    padding-bottom:calc(env(safe-area-inset-bottom,0px) + 12px)!important;}
 }
 @keyframes tb-fadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
 @keyframes tb-spin{to{transform:rotate(360deg);}}
@@ -6228,6 +6242,94 @@ document.addEventListener('visibilitychange',()=>{
 let _tbNewsEscalatedAt = 0;
 const NH_ESCALATE_COOLDOWN = 30*60*1000;   // 30 min
 
+/* ── Module-level NEWS SUMMARY store ─────────────────────────────────────────
+   The digest belongs to a BUILD, not to a tab, so it lives out here for the same
+   reason the build manager does: warming it starts the moment a build lands and
+   must survive the News tab being unmounted, and a remounting tab should find the
+   finished summary already sitting here rather than re-requesting it.
+
+   `gen` pins the digest to the generatedAt of the build it describes. Every read
+   is checked against the CURRENT build's generatedAt, so a summary can never be
+   shown next to events it didn't summarize — a new build simply doesn't match,
+   and the overlay asks for its own.
+
+   Cost: the worker keys its KV copy by that same generatedAt, so warming is one
+   AI call per BUILD. Re-opening the overlay, switching tabs, and every other
+   device all read that one copy for free. ── */
+const _tbNewsSummary = {
+  gen:0,           // generatedAt of the build `data` describes
+  data:null,       // the digest object from the worker
+  loading:false,   // show a spinner — only ever true for a request the user asked for
+  inflight:false,  // a request is on the wire, foreground OR background
+  error:'',
+  warmedGen:0,     // last build we fired a background warm for — stops repeats
+  listeners:new Set(),
+  sub(fn){ this.listeners.add(fn); return()=>this.listeners.delete(fn); },
+  emit(){ this.listeners.forEach(fn=>{try{fn();}catch(e){}}); },
+  /* A build newer than what we hold makes the held digest obsolete. Drop it so
+     nothing can render yesterday's read over today's events. */
+  invalidate(gen){
+    if(gen&&gen!==this.gen&&this.data){ this.gen=0; this.data=null; this.error=''; this.emit(); }
+  },
+};
+
+/* Fetch (or warm) the digest for one build.
+   `background` is the warm fired when a build lands: it must never surface a
+   spinner or an error banner, because nobody asked for it yet — it just quietly
+   makes the overlay instant when it is opened. A foreground call (the user
+   clicked Summary) shows both. */
+async function tbFetchNewsSummary(tickers,gen,background){
+  const S=_tbNewsSummary;
+  if(!gen)return;
+  if(S.data&&S.gen===gen)return;                 // already have this build's digest
+  /* A request is already on the wire. Opening the overlay on top of a background
+     warm must NOT fire a second one — the worker would answer 202 (its lock is
+     held by our own first request) and we'd sit out a pointless 6s retry. Just
+     raise the spinner and let the response in flight populate both. */
+  if(S.inflight){ if(!background&&!S.loading){ S.loading=true; S.emit(); } return; }
+  if(background){
+    if(S.warmedGen===gen)return;                 // warmed this build already
+    S.warmedGen=gen;
+  }
+  S.inflight=true; S.loading=!background; S.error=''; if(!background)S.emit();
+  const url=NH_WORKER_URL+'/summary?tickers='+encodeURIComponent((tickers||NH_DEFAULT_TICKERS).join(','));
+  let keepLoading=false;   // set only by the 202 path, which retries on a timer
+  try{
+    const r=await fetch(url);
+    const j=await r.json().catch(()=>null);
+    /* 202 = ANOTHER device is writing this same digest (the worker holds a lock
+       so only one of us ever pays for it). Wait for that one rather than racing
+       it: a foreground open keeps its spinner up and retries once, a background
+       warm just steps aside and lets the open deal with it. */
+    if(r.status===202||(j&&j.building)){
+      if(!background){
+        keepLoading=true;   // spinner stays up across the wait
+        setTimeout(()=>{S.warmedGen=0;tbFetchNewsSummary(tickers,gen,false);},6000);
+        return;
+      }
+      S.warmedGen=0;
+      return;
+    }
+    if(j&&j.ok&&j.summary){
+      S.data=j.summary; S.gen=j.generatedAt||gen; S.error='';
+      return;
+    }
+    if(!background)S.error=(j&&j.reason)||'Could not build a summary right now.';
+    else S.warmedGen=0;   // let a real open retry a failed warm
+  }catch(e){
+    if(!background)S.error='Summary fetch failed: '+e.message;
+    else S.warmedGen=0;
+  }finally{
+    /* One exit point for both flags, so no branch above can wedge `inflight` and
+       block every later request, or strand the overlay on a spinner. `inflight`
+       always clears here — the 202 retry re-enters this function and sets it
+       again — while `loading` is held only for that deliberate wait. */
+    S.inflight=false;
+    if(!keepLoading)S.loading=false;
+    S.emit();
+  }
+}
+
 const NH_TIER_META = {
   critical:  {label:'Critical',  c:'var(--tbr)'},
   major:     {label:'Major',     c:'var(--ac)'},
@@ -6323,6 +6425,224 @@ function NHHeadlineList({sources}){
   );
 }
 
+/* ── Summary overlay ─────────────────────────────────────────────────────────
+   The market read across the whole build, over everything else. Colour carries
+   the meaning here: green is bullish, red bearish, grey neutral — so a stance is
+   legible before a word of it is read. ── */
+const nhStance=s=>s==='bull'?'var(--tbb)':s==='bear'?'var(--tbr)':'var(--txd)';
+const nhStanceBg=s=>s==='bull'?'rgba(164,185,134,.12)':s==='bear'?'rgba(214,138,124,.12)':'rgba(173,173,178,.09)';
+const nhToneLabel={bull:'Bullish',bear:'Bearish',mixed:'Mixed'};
+const nhToneColor=t=>t==='bull'?'var(--tbb)':t==='bear'?'var(--tbr)':'var(--ac)';
+
+function TBNewsSummaryOverlay({onClose,summary,loading,error,generatedAt,eventCount,onRetry}){
+  const isMobile=useIsMobile();
+
+  /* Escape closes, and the page behind must not scroll while this is up — a
+     fixed overlay stops clicks, but a touch drag would still scroll the feed
+     underneath it on mobile. Restore exactly what was there before. */
+  useEffect(()=>{
+    const onKey=e=>{if(e.key==='Escape')onClose();};
+    document.addEventListener('keydown',onKey);
+    const prev=document.body.style.overflow;
+    document.body.style.overflow='hidden';
+    return()=>{document.removeEventListener('keydown',onKey);document.body.style.overflow=prev;};
+  },[onClose]);
+
+  const S=summary;
+  const sec={fontSize:10,fontWeight:900,textTransform:'uppercase',letterSpacing:1.4,color:'var(--txm)',marginBottom:9};
+  const pad=isMobile?'14px 14px':'20px 26px';
+
+  return ReactDOM.createPortal(
+    <div className="tb-modal-overlay nh-sum-overlay"
+      onClick={e=>{if(e.target===e.currentTarget)onClose();}}
+      style={{position:'fixed',inset:0,zIndex:100001,background:'rgba(10,10,12,0.72)',backdropFilter:'blur(10px)',WebkitBackdropFilter:'blur(10px)',
+              overflowY:'auto',overflowX:'hidden',padding:isMobile?'0':'44px 16px 60px'}}>
+      <div className="tb-modal-inner nh-sum-card" onClick={e=>e.stopPropagation()}
+        style={{background:'var(--s1)',border:'1px solid var(--bdl)',borderRadius:isMobile?0:16,width:'100%',maxWidth:900,margin:'0 auto',
+                boxShadow:'0 32px 90px rgba(0,0,0,0.65)',overflow:'hidden'}}>
+
+        {/* Header — sticky so Close is always reachable in a long digest */}
+        <div style={{display:'flex',alignItems:'center',gap:10,padding:isMobile?'12px 14px':'15px 26px',borderBottom:'1px solid var(--bd)',
+                     position:'sticky',top:0,background:'var(--s1)',zIndex:2}}>
+          <TBIcon n="sparkle" size={16} style={{color:'var(--ac)',flexShrink:0}}/>
+          <div style={{minWidth:0,flex:1}}>
+            <div style={{fontFamily:'Manrope,system-ui,sans-serif',fontSize:isMobile?14:16,fontWeight:800,color:'var(--tx)',lineHeight:1.2}}>Market Summary</div>
+            {generatedAt>0&&(
+              <div style={{fontSize:11,color:'var(--txm)',marginTop:2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+                {eventCount} events · built {nhTimeAgo(generatedAt)}
+              </div>
+            )}
+          </div>
+          {S&&(
+            <span style={{fontSize:10,fontWeight:900,textTransform:'uppercase',letterSpacing:1,padding:'5px 10px',borderRadius:100,flexShrink:0,
+                          color:nhToneColor(S.tone),background:nhStanceBg(S.tone==='mixed'?'neutral':S.tone),border:'1px solid '+nhToneColor(S.tone)}}>
+              {nhToneLabel[S.tone]||S.tone}
+            </span>
+          )}
+          <button onClick={onClose} aria-label="Close summary"
+            style={{background:'transparent',border:'none',color:'var(--txm)',cursor:'pointer',padding:'4px 5px',lineHeight:0,display:'inline-flex',flexShrink:0}}>
+            <TBIcon n="x" size={18}/>
+          </button>
+        </div>
+
+        <div style={{padding:pad}}>
+
+          {loading&&(
+            <div style={{display:'flex',alignItems:'center',gap:12,padding:'34px 6px',color:'var(--txm)'}}>
+              <TBIcon n="refresh" size={18} style={{animation:'tb-spin 1s linear infinite'}}/>
+              <div>
+                <div style={{fontWeight:700,color:'var(--tx)',fontSize:13}}>Reading the build…</div>
+                <div style={{fontSize:12,marginTop:2}}>Synthesizing {eventCount||''} events into one market read. Takes about 5 seconds.</div>
+              </div>
+            </div>
+          )}
+
+          {!loading&&error&&(
+            <div style={{padding:'26px 6px'}}>
+              <div style={{display:'flex',alignItems:'flex-start',gap:10,color:'var(--tbw)'}}>
+                <TBIcon n="alert" size={16} style={{marginTop:2,flexShrink:0}}/>
+                <div style={{fontSize:13,color:'var(--txd)',lineHeight:1.5}}>{error}</div>
+              </div>
+              {onRetry&&<button className="tb-btn-ghost" onClick={onRetry} style={{fontSize:12,marginTop:16}}><TBIcon n="refresh"/> Try again</button>}
+            </div>
+          )}
+
+          {!loading&&!error&&S&&(
+            <div style={{display:'flex',flexDirection:'column',gap:isMobile?18:22}}>
+
+              {/* Headline + tone meter */}
+              <div>
+                <div style={{fontFamily:'Manrope,system-ui,sans-serif',fontSize:isMobile?18:23,fontWeight:800,lineHeight:1.28,color:'var(--tx)'}}>
+                  {S.headline}
+                </div>
+                {/* Where the net read sits between bearish and bullish. */}
+                <div style={{display:'flex',alignItems:'center',gap:9,marginTop:13}}>
+                  <span style={{fontSize:9,fontWeight:800,color:'var(--tbr)',letterSpacing:.5,flexShrink:0}}>BEAR</span>
+                  <div style={{flex:1,height:4,borderRadius:100,position:'relative',background:'linear-gradient(90deg,rgba(214,138,124,.5),rgba(141,141,148,.35),rgba(164,185,134,.5))'}}>
+                    <div style={{position:'absolute',top:-3,left:`calc(${((S.toneScore+1)/2*100).toFixed(1)}% - 5px)`,width:10,height:10,borderRadius:'50%',
+                                 background:nhToneColor(S.tone),border:'2px solid var(--s1)',boxShadow:'0 1px 4px rgba(0,0,0,.5)'}}/>
+                  </div>
+                  <span style={{fontSize:9,fontWeight:800,color:'var(--tbb)',letterSpacing:.5,flexShrink:0}}>BULL</span>
+                  <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,fontWeight:800,color:nhToneColor(S.tone),minWidth:38,textAlign:'right',flexShrink:0}}>
+                    {S.toneScore>0?'+':''}{S.toneScore.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+
+              {S.overview&&(
+                <div style={{fontSize:isMobile?13:14,lineHeight:1.65,color:'var(--txd)',borderLeft:'2px solid var(--bdl)',paddingLeft:14}}>
+                  {S.overview}
+                </div>
+              )}
+
+              {/* Key points — the stance stripe is the fastest read on the page */}
+              {S.keyPoints&&S.keyPoints.length>0&&(
+                <div>
+                  <div style={sec}>Key Points</div>
+                  <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                    {S.keyPoints.map((k,i)=>(
+                      <div key={i} style={{display:'flex',gap:10,padding:'10px 12px',borderRadius:8,background:nhStanceBg(k.stance),
+                                           borderLeft:'3px solid '+nhStance(k.stance)}}>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:isMobile?12.5:13.5,lineHeight:1.55,color:'var(--tx)'}}>{k.text}</div>
+                          {k.tickers&&k.tickers.length>0&&(
+                            <div style={{display:'flex',flexWrap:'wrap',gap:5,marginTop:7}}>
+                              {k.tickers.map(t=>(
+                                <span key={t} style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,fontWeight:700,color:'var(--ac)',
+                                                      background:'var(--s2)',border:'1px solid var(--bd)',padding:'2px 6px',borderRadius:4}}>{t}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Per-ticker read */}
+              {S.tickers&&S.tickers.length>0&&(
+                <div>
+                  <div style={sec}>By Ticker</div>
+                  <div className="nh-sum-tick" style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:7}}>
+                    {S.tickers.map((t,i)=>(
+                      <div key={i} style={{display:'flex',alignItems:'flex-start',gap:9,padding:'9px 11px',borderRadius:8,
+                                           background:'var(--s2)',border:'1px solid var(--bd)',minWidth:0}}>
+                        <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,fontWeight:800,color:nhStance(t.stance),flexShrink:0,minWidth:44}}>
+                          {t.ticker}
+                        </span>
+                        <span style={{fontSize:12,lineHeight:1.45,color:'var(--txd)',minWidth:0}}>{t.note}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Themes */}
+              {S.themes&&S.themes.length>0&&(
+                <div>
+                  <div style={sec}>Themes</div>
+                  <div style={{display:'flex',flexDirection:'column',gap:7}}>
+                    {S.themes.map((t,i)=>(
+                      <div key={i} style={{padding:'9px 12px',borderRadius:8,background:'var(--s2)',border:'1px solid var(--bd)'}}>
+                        <div style={{display:'flex',alignItems:'center',gap:7,flexWrap:'wrap'}}>
+                          <TBIcon n="dot" size={8} style={{color:nhStance(t.stance),flexShrink:0}}/>
+                          <span style={{fontSize:12.5,fontWeight:800,color:nhStance(t.stance)}}>{t.name}</span>
+                        </div>
+                        <div style={{fontSize:12,lineHeight:1.5,color:'var(--txd)',marginTop:4,paddingLeft:15}}>{t.note}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Risks + What to watch — side by side where there's room */}
+              {((S.risks&&S.risks.length>0)||(S.watch&&S.watch.length>0))&&(
+                <div className="nh-sum-cols" style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:isMobile?18:20}}>
+                  {S.risks&&S.risks.length>0&&(
+                    <div>
+                      <div style={{...sec,color:'var(--tbr)'}}>Risks</div>
+                      <div style={{display:'flex',flexDirection:'column',gap:7}}>
+                        {S.risks.map((r,i)=>(
+                          <div key={i} style={{display:'flex',gap:8,fontSize:12.5,lineHeight:1.5,color:'var(--txd)'}}>
+                            <span style={{color:'var(--tbr)',flexShrink:0}}>▾</span><span>{r}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {S.watch&&S.watch.length>0&&(
+                    <div>
+                      <div style={{...sec,color:'var(--ac)'}}>What to Watch</div>
+                      <div style={{display:'flex',flexDirection:'column',gap:7}}>
+                        {S.watch.map((w,i)=>(
+                          <div key={i} style={{display:'flex',gap:8,fontSize:12.5,lineHeight:1.5,color:'var(--txd)'}}>
+                            <TBIcon n="clock" size={12} style={{color:'var(--ac)',flexShrink:0,marginTop:2}}/><span>{w}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div style={{fontSize:10,color:'var(--txm)',borderTop:'1px solid var(--bd)',paddingTop:12,display:'flex',flexWrap:'wrap',gap:8,alignItems:'center'}}>
+                <span>AI summary of {eventCount} analyzed events</span>
+                {S.model&&<span style={{fontFamily:"'IBM Plex Mono',monospace",opacity:.75}}>· {S.model}</span>}
+                <span style={{opacity:.75}}>· rebuilt only when the news is</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>,
+    /* #tradeboard-root, not document.body: every .tb-modal-* rule (the full-bleed
+       mobile layout included) is scoped under that id, so portaling to body would
+       silently drop all of it. */
+    document.getElementById('tradeboard-root')||document.body
+  );
+}
+
 function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
   const [events,setEvents]=useState([]);
   const [generatedAt,setGeneratedAt]=useState(null);
@@ -6351,11 +6671,40 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
   // Live quotes for price-move correlation: { TICKER:{c,d,dp,...} }
   const [quotes,setQuotes]=useState({});
   const [quotesAt,setQuotesAt]=useState(0);
+  // Summary overlay: `sumOpen` is this tab's; the digest itself lives in the
+  // module store so a warm started here survives a tab switch.
+  const [sumOpen,setSumOpen]=useState(false);
+  const [sumState,setSumState]=useState(()=>({data:_tbNewsSummary.data,gen:_tbNewsSummary.gen,loading:_tbNewsSummary.loading,error:_tbNewsSummary.error}));
   const cooldownTimer=useRef(null);
   const hydrated=useRef(false);
   // Latest generatedAt, readable from callbacks without re-creating them.
   const genRef=useRef(0);
   useEffect(()=>{genRef.current=generatedAt||0;},[generatedAt]);
+
+  /* ── Summary: mirror the module store ── */
+  useEffect(()=>{
+    const sync=()=>setSumState({data:_tbNewsSummary.data,gen:_tbNewsSummary.gen,loading:_tbNewsSummary.loading,error:_tbNewsSummary.error});
+    sync();
+    return _tbNewsSummary.sub(sync);
+  },[]);
+
+  /* ── Warm the summary as soon as a build lands ───────────────────────────
+     This is what makes the overlay instant: the digest is requested in the
+     background the moment new events arrive, so by the time Summary is clicked
+     the worker is already serving it from KV.
+
+     It costs at most ONE AI call per build — the worker keys its cached digest
+     by the build's generatedAt, so every later read (this tab, the overlay, the
+     other device) is free. Guarded three ways so it can't turn into a per-render
+     or per-tab-open spend: `warmedGen` inside the store fires once per build,
+     a degraded build is never summarized (there is nothing analyzed to read),
+     and an empty feed is skipped entirely. ── */
+  useEffect(()=>{
+    if(!generatedAt||!events.length||degraded)return;
+    _tbNewsSummary.invalidate(generatedAt);   // a newer build retires the old digest
+    const t=setTimeout(()=>tbFetchNewsSummary(newsTickers,generatedAt,true),1200);
+    return()=>clearTimeout(t);
+  },[generatedAt,events.length,degraded,newsTickers]);
 
   // Apply a finished build (from the manager, a remote device, or a poll).
   const applyBuild=useCallback((p)=>{
@@ -6835,6 +7184,18 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
   const canRefresh=rlUsed<NH_DAILY_LIMIT&&rlCooldown<=0&&!loading&&!building;
   const rlRemaining=NH_DAILY_LIMIT-rlUsed;
 
+  /* A digest is only ever shown against the build it actually summarized. If the
+     feed has moved on, this is null and the overlay asks for the current one —
+     which is what stops yesterday's read appearing over today's headlines. */
+  const summaryForBuild=(sumState.data&&generatedAt&&sumState.gen===generatedAt)?sumState.data:null;
+  const summaryReady=!!summaryForBuild;
+  const openSummary=useCallback(()=>{
+    setSumOpen(true);
+    // Warm may not have run (tab opened cold) or may have failed quietly — this
+    // is the foreground request, so it shows the spinner and any real error.
+    if(!summaryForBuild&&genRef.current)tbFetchNewsSummary(newsTickers,genRef.current,false);
+  },[summaryForBuild,newsTickers]);
+
   /* ── Styles (TB tokens) ── */
   const segWrap={display:'flex',flexWrap:'wrap',background:'var(--s2)',border:'1px solid var(--bd)',borderRadius:8,padding:3,gap:2};
   const segBtn=(on,col)=>({fontFamily:'inherit',fontSize:11,fontWeight:on?800:600,border:'none',background:on?'var(--s1)':'transparent',color:on?(col||'var(--tx)'):'var(--txd)',padding:'6px 10px',borderRadius:6,cursor:'pointer',transition:'all .15s',display:'inline-flex',alignItems:'center',whiteSpace:'nowrap',boxShadow:on?'0 1px 3px var(--shadow)':'none'});
@@ -6870,8 +7231,29 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
         <button className="tb-btn-primary" onClick={()=>refresh(false)} disabled={loading||building} style={{fontSize:12}}>
           {loading?'Loading…':building?'Building…':<span><TBIcon n="refresh"/> Refresh</span>}
         </button>
+        {/* Summary sits on its own row under Refresh so it reads as a separate
+            action, not a third variant of "reload". Full-width on mobile. */}
+        <button className="tb-btn-ghost nh-sum-btn" onClick={openSummary} disabled={!events.length||degraded}
+          title={degraded?'Raw headlines — nothing analyzed to summarize':(!events.length?'No news to summarize yet':'AI summary of this build')}
+          style={{fontSize:11,flexBasis:'100%',justifyContent:'center',opacity:(!events.length||degraded)?0.45:1,
+                  borderColor:summaryReady?'var(--acl)':'var(--bd)'}}>
+          <TBIcon n="sparkle"/> Summary
+          {summaryReady&&<span style={{width:5,height:5,borderRadius:'50%',background:'var(--ac)',marginLeft:6,flexShrink:0}}/>}
+        </button>
       </div>
     </div>
+
+    {sumOpen&&(
+      <TBNewsSummaryOverlay
+        onClose={()=>setSumOpen(false)}
+        summary={summaryForBuild}
+        loading={sumState.loading&&!summaryForBuild}
+        error={summaryForBuild?'':sumState.error}
+        generatedAt={generatedAt||0}
+        eventCount={events.length}
+        onRetry={()=>{_tbNewsSummary.warmedGen=0;tbFetchNewsSummary(newsTickers,genRef.current,false);}}
+      />
+    )}
 
     {notice&&<div className="tb-card" style={{padding:'12px 16px',marginBottom:16,borderLeft:'3px solid var(--ac)',fontSize:13,color:'var(--txd)'}}>{notice}</div>}
 
@@ -6931,9 +7313,11 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
       </div>
     )}
 
-    {/* Stats */}
+    {/* Stats — a glanceable counter strip, not six feature cards. Number and
+        label share ONE line so the whole strip costs a single row of height
+        instead of pushing the feed below the fold. */}
     {events.length>0&&(
-      <div className="nh-stats-grid" style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:8,marginBottom:16}}>
+      <div className="nh-stats-grid" style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:6,marginBottom:12}}>
         {[
           {n:counts.total,l:'Events · '+hours+'h',c:'var(--tx)'},
           {n:breakingCount,l:'Breaking',c:'var(--tbw)'},
@@ -6942,9 +7326,9 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
           {n:counts.bull,l:'Bullish',c:'var(--tbb)'},
           {n:counts.bear,l:'Bearish',c:'var(--tbr)'},
         ].map((s,i)=>(
-          <div key={i} className="tb-card" style={{padding:'14px 16px'}}>
-            <div style={{fontSize:26,fontWeight:800,fontFamily:"'Manrope',system-ui,-apple-system,sans-serif",lineHeight:1,color:s.c}}>{s.n}</div>
-            <div style={{fontSize:10,color:'var(--txm)',fontWeight:700,textTransform:'uppercase',letterSpacing:0.5,marginTop:6}}>{s.l}</div>
+          <div key={i} className="tb-card nh-stat" style={{padding:'7px 10px',display:'flex',alignItems:'baseline',gap:6,minWidth:0}}>
+            <div className="nh-stat-n" style={{fontSize:17,fontWeight:800,fontFamily:"'Manrope',system-ui,-apple-system,sans-serif",lineHeight:1.1,color:s.c,flexShrink:0}}>{s.n}</div>
+            <div className="nh-stat-l" style={{fontSize:9,color:'var(--txm)',fontWeight:700,textTransform:'uppercase',letterSpacing:0.4,lineHeight:1.2,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.l}</div>
           </div>
         ))}
       </div>

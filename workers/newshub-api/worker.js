@@ -3519,11 +3519,18 @@ const SUMMARY_LOCK_TTL = 90; // one generation is ~4-8s; this only stops two
 // quota. gemini-2.5-flash is only a FALLBACK for analysis, so its quota is
 // essentially untouched — and it is the stronger synthesizer of the two, which is
 // what a once-per-build summarization call should be spending on.
+//
+// Every entry below was run against a real 56-event build before being listed
+// (via ?model=&nocache=1) — measured latency in the comments. gemini-2.0-flash is
+// deliberately ABSENT: it is in AI_CHAIN, but it failed this digest twice in a
+// row while /health showed it uncapped, so it cannot handle DIGEST_SCHEMA's
+// nested enum objects. Leaving it in would just spend a dead attempt on the way
+// to a model that works.
 const SUMMARY_CHAIN = [
-  { provider:'gemini', model:'gemini-2.5-flash' },       // PRIMARY: best synthesis, quota barely used by the analysis phase
-  { provider:'gemini', model:'gemini-3.1-flash-lite' },  // fast + highest RPD
-  { provider:'gemini', model:'gemini-2.0-flash' },
-  { provider:'gemini', model:'gemini-2.5-flash-lite' },
+  { provider:'gemini', model:'gemini-2.5-flash' },       // PRIMARY ~5.9s — richest synthesis, and analysis only uses it as a fallback so the quotas stay separate
+  { provider:'gemini', model:'gemini-3.1-flash-lite' },  // ~4.9s — tight and fast, but shares its quota with the analysis phase's primary
+  { provider:'gemini', model:'gemini-2.5-flash-lite' },  // ~3.3s — fastest, thinner notes
+  { provider:'gemini', model:'gemini-3.5-flash' },       // ~8.3s — slow thinker, last Gemini resort
   { provider:'nim',    model:'meta/llama-3.1-70b-instruct' }, // separate provider — survives a Gemini-wide daily cap
 ];
 
@@ -4533,7 +4540,25 @@ export default {
         const digest = await generateDigest(sEvents, sWl, env, modelOverride);
         if (!digest){
           await env.NEWSHUB_CACHE.delete(sLock).catch(()=>{});
-          return new Response(JSON.stringify({ ok:false, unavailable:true, reason:'Every summary model is rate-limited right now. Quotas reset at midnight UTC.' }),
+          // Don't assert a cause we haven't checked. A null here means the chain
+          // ran out, which is usually a daily cap but can equally be a model that
+          // won't produce the schema — saying "rate limited" either way sends the
+          // reader off to wait for a midnight reset that isn't the problem.
+          // Report which models are ACTUALLY on cooldown and let that speak.
+          let capped = [];
+          try {
+            const checks = await Promise.all(SUMMARY_CHAIN.map(async e => {
+              const bk = e.provider === 'gemini' ? 'quota_block:'+e.model : 'quota_block:nim:'+e.model.replace('/','_');
+              return (await env.NEWSHUB_CACHE.get(bk)) ? e.model : null;
+            }));
+            capped = checks.filter(Boolean);
+          } catch(e){}
+          const reason = modelOverride
+            ? `Model ${modelOverride} did not return a usable summary.`
+            : capped.length === SUMMARY_CHAIN.length
+              ? 'Every summary model is rate-limited. Quotas reset at midnight UTC.'
+              : `No summary model returned a usable result.${capped.length ? ' Rate-limited: ' + capped.join(', ') + '.' : ''} Try again shortly.`;
+          return new Response(JSON.stringify({ ok:false, unavailable:true, reason, cappedModels: capped }),
             { status:503, headers: jsonHead() });
         }
         const payload = {
