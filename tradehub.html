@@ -1535,6 +1535,16 @@ const TB_STYLES=`
 #tradeboard-root .tb-scroll-thin::-webkit-scrollbar-thumb:active{background-color:var(--ac);}
 #tradeboard-root .tb-scroll-thin::-webkit-scrollbar-button{display:none;height:0;width:0;}
 #tradeboard-root .tb-scroll-thin::-webkit-scrollbar-corner{background:transparent;}
+/* Backups list scrolls INSIDE its own card on desktop, so the scrollbar sits
+   against the thing it scrolls. Letting the overlay scroll instead put the bar
+   at the far edge of a 1440px screen, ~400px from a centred 640px card. Capped
+   to the viewport minus the overlay's 70px/60px padding so the card never runs
+   off-screen. Scoped to this card, not .tb-modal-inner, so the trade form keeps
+   its existing behaviour. Mobile is unchanged — the card is already the
+   scroller there (see the media block). */
+@media(min-width:769px){
+  #tradeboard-root .tb-bk-card{max-height:calc(100dvh - 130px);overflow-y:auto!important;overscroll-behavior:contain;}
+}
 /* Sidebar + document header hold their position while the page scrolls. */
 #tradeboard-root .tb-pb-side{position:sticky;top:0;align-self:start;z-index:2;background:var(--bg);padding-top:10px;max-height:100vh;overflow-y:auto;scrollbar-width:none;}
 #tradeboard-root .tb-pb-side::-webkit-scrollbar{display:none;}
@@ -3376,7 +3386,11 @@ function TBTradeModal({entry,onClose,onSave,onDel}){
   };
 
   return ReactDOM.createPortal(
-    <div className="tb-modal-overlay" style={{position:'fixed',inset:0,zIndex:99999,background:'rgba(0,0,0,0.82)',backdropFilter:'blur(8px)',overflowY:'auto',overflowX:'hidden',padding:isMobile?'calc(env(safe-area-inset-top,0px) + 0px) 0 60px':'70px 16px 60px'}}>
+    /* tb-scroll-thin on the OVERLAY, which is what scrolls on desktop — the card
+       inside is overflow:hidden there and only becomes the scroller on mobile
+       (where it carries the class too). Without it these modals fell back to the
+       app-wide hidden bars and long ones scrolled blind. */
+    <div className="tb-modal-overlay tb-scroll-thin" style={{position:'fixed',inset:0,zIndex:99999,background:'rgba(0,0,0,0.82)',backdropFilter:'blur(8px)',overflowY:'auto',overflowX:'hidden',padding:isMobile?'calc(env(safe-area-inset-top,0px) + 0px) 0 60px':'70px 16px 60px'}}>
       <div className="tb-modal-inner" style={{background:'var(--s1)',border:'1px solid var(--bdl)',borderRadius:isMobile?0:16,width:'100%',maxWidth:700,margin:'0 auto',boxShadow:'0 32px 80px rgba(0,0,0,0.6)',overflow:'hidden'}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 22px',borderBottom:'1px solid var(--bd)'}}>
           <div style={{fontFamily:'Manrope,system-ui,sans-serif',fontSize:16,fontWeight:700,color:'var(--tx)'}}>{isEdit?`Edit — ${entry.ticker}`:'New Trade'}</div>
@@ -3654,8 +3668,12 @@ function TBBackupModal({jHook,onClose}){
      the Journal page", not "fill the viewport" — measured 358x752 at (12,32)
      rather than 390x844, so the app header showed straight through above it. */
   return ReactDOM.createPortal(
-    <div className="tb-modal-overlay" style={{position:'fixed',inset:0,zIndex:99999,background:'rgba(0,0,0,0.82)',backdropFilter:'blur(8px)',overflowY:'auto',overflowX:'hidden',padding:isMobile?'calc(env(safe-area-inset-top,0px) + 0px) 0 60px':'70px 16px 60px'}}>
-      <div className="tb-modal-inner tb-scroll-thin" style={{background:'var(--s1)',border:'1px solid var(--bdl)',borderRadius:isMobile?0:16,width:'100%',maxWidth:640,margin:'0 auto',boxShadow:'0 32px 80px rgba(0,0,0,0.6)',overflow:'hidden'}}>
+    /* tb-scroll-thin on the OVERLAY, which is what scrolls on desktop — the card
+       inside is overflow:hidden there and only becomes the scroller on mobile
+       (where it carries the class too). Without it these modals fell back to the
+       app-wide hidden bars and long ones scrolled blind. */
+    <div className="tb-modal-overlay tb-scroll-thin" style={{position:'fixed',inset:0,zIndex:99999,background:'rgba(0,0,0,0.82)',backdropFilter:'blur(8px)',overflowY:'auto',overflowX:'hidden',padding:isMobile?'calc(env(safe-area-inset-top,0px) + 0px) 0 60px':'70px 16px 60px'}}>
+      <div className="tb-modal-inner tb-bk-card tb-scroll-thin" style={{background:'var(--s1)',border:'1px solid var(--bdl)',borderRadius:isMobile?0:16,width:'100%',maxWidth:640,margin:'0 auto',boxShadow:'0 32px 80px rgba(0,0,0,0.6)',overflow:'hidden'}}>
         {/* Sticky: on mobile the card itself scrolls through a long history, and
             Close must not scroll away with the first row. */}
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 22px',borderBottom:'1px solid var(--bd)',
