@@ -76,6 +76,9 @@
   --gold-secondary:#e0b874;  /* champagne — accent text on dark surfaces      */
   --gold-line:rgba(224,184,116,.36);
   --gold-glow:0 0 8px rgba(224,184,116,0.40),0 0 0 1px rgba(224,184,116,0.15);
+  /* Same shape as the gold glow, in the destructive red — for close/dismiss
+     affordances, where gold would read as "confirm". */
+  --red-glow:0 0 8px rgba(214,138,124,0.45),0 0 0 1px rgba(214,138,124,0.18);
   --suite-display:'Manrope',system-ui,-apple-system,sans-serif;
   --font-accent:'Fraunces',Georgia,serif;
 }
@@ -1216,6 +1219,34 @@ function useIsMobile(breakpoint=768){
   return mobile;
 }
 
+/* ── Modal scroll lock ───────────────────────────────────────────────────────
+   Freeze the page behind an overlay for as long as it is mounted.
+
+   Without this, an overlay that scrolls internally hands its momentum to the
+   document the moment it hits its end — scroll to the bottom of a long modal and
+   the page behind it starts moving instead. Locking the body is what actually
+   stops that; the `overscroll-behavior:contain` on .tb-modal-overlay and the
+   other overlay classes stops the browser even attempting the hand-off, which is
+   what kills the rubber-band on iOS.
+
+   Nested overlays are counted rather than each restoring on its own: a modal that
+   opens a confirm on top of itself would otherwise have the inner one unlock the
+   page while the outer is still up. Only the last one out restores. */
+let _tbScrollLocks=0, _tbScrollPrev='';
+function useModalScrollLock(){
+  useEffect(()=>{
+    if(_tbScrollLocks===0){
+      _tbScrollPrev=document.body.style.overflow;
+      document.body.style.overflow='hidden';
+    }
+    _tbScrollLocks++;
+    return()=>{
+      _tbScrollLocks=Math.max(0,_tbScrollLocks-1);
+      if(_tbScrollLocks===0)document.body.style.overflow=_tbScrollPrev;
+    };
+  },[]);
+}
+
 /* ── Storage constants ── */
 const TB_PROMPTS_KEY='tradeboard_prompts_v2';
 
@@ -1352,6 +1383,17 @@ const TB_STYLES=`
    (No backticks in here: this whole stylesheet is a JS template literal.) */
 #tradeboard-root .nh-sum-btn.is-ready{border-color:var(--acl);}
 #tradeboard-root .nh-sum-btn.is-ready:hover{border-color:var(--acd);color:var(--acs);box-shadow:var(--gold-glow);}
+/* Shared modal close (X). Red on hover — dismissing is the destructive action
+   here, so it must not borrow the gold "confirm" glow every other control uses. */
+#tradeboard-root .tb-x-close{background:transparent;border:1px solid transparent;border-radius:6px;color:var(--txm);cursor:pointer;padding:5px;line-height:0;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;transition:color .18s,border-color .18s,box-shadow .18s,background .18s;}
+#tradeboard-root .tb-x-close:hover{color:var(--tbr);border-color:rgba(214,138,124,.45);background:rgba(214,138,124,.08);box-shadow:var(--red-glow);}
+#tradeboard-root .tb-x-close:active{transform:translateY(1px);}
+/* Scroll chaining: hitting the end of ANY overlay must not start scrolling the
+   page behind it. Applies to the scroll container itself and to the inner panes
+   that scroll on mobile (where .tb-modal-inner takes over the scrolling). */
+#tradeboard-root .tb-modal-overlay,#tradeboard-root .tb-modal-inner,
+#tradeboard-root .nh-sum-overlay,#tradeboard-root .nh-sum-card,
+#tradeboard-root .tb-pe-overlay,#tradeboard-root .tb-pe-card textarea{overscroll-behavior:contain;}
 #tradeboard-root .tb-star-on svg path{fill:currentColor;}
 #tradeboard-root .tb-star-hit{width:28px;height:28px;}
 @media (max-width:768px){#tradeboard-root .tb-star-hit{width:38px;height:38px;}}
@@ -1435,9 +1477,12 @@ const TB_STYLES=`
 #tradeboard-root .tb-pb-linkrow{display:flex;align-items:center;gap:6px;padding:2px;}
 #tradeboard-root .tb-pb-linkrow input{background:var(--s2);border:1px solid var(--bd);border-radius:7px;color:var(--tx);font-size:13px;padding:7px 10px;width:230px;outline:none;}
 #tradeboard-root .tb-pb-linkrow input:focus{border-color:var(--ac);}
-/* The Playbook is the one tab that shows a real scrollbar: its pages are long
-   documents, and a grabbable thumb is the only way to move through one quickly.
-   Scoped to this container so every other tab keeps the app-wide hidden bars. */
+/* The app's main content pane shows a REAL, grabbable scrollbar. Bars are hidden
+   globally (see the ::-webkit-scrollbar reset above), which looks tidy but leaves
+   every long tab — Playbook documents, the News feed's 50+ cards, the Journal's
+   trade table, the Catalysts calendar — with no way to jump through them and no
+   indication of how far down you are. This one container opts back in, so every
+   tab gets a draggable thumb while nested scrollers stay clean. */
 /* Styled with the ::-webkit-scrollbar pseudo-elements and NOT the standard
    scrollbar-width/scrollbar-color: setting either standard property makes
    Chromium ignore these rules outright and fall back to its stock scrollbar
@@ -1445,17 +1490,29 @@ const TB_STYLES=`
    shows its own scrollbar here, which is what we want anyway — visible and
    draggable. Only Chromium hides scrollbars app-wide, so only it needs opting
    back in. */
-#tradeboard-root .tb-pb-scroll::-webkit-scrollbar{display:block;width:14px;height:14px;}
-#tradeboard-root .tb-pb-scroll::-webkit-scrollbar-track{background:transparent;}
+#tradeboard-root .tb-scroll-visible::-webkit-scrollbar{display:block;width:14px;height:14px;}
+#tradeboard-root .tb-scroll-visible::-webkit-scrollbar-track{background:transparent;}
 /* A transparent border + padding-box clip makes the thumb read as a floating
    pill instead of filling the gutter; min-height keeps it grabbable on a long
    page. background-COLOR (not the shorthand) so :hover/:active don't reset the
    clip back to border-box and square the pill off. */
-#tradeboard-root .tb-pb-scroll::-webkit-scrollbar-thumb{background-color:rgba(152,152,168,0.45);background-clip:padding-box;border:4px solid transparent;border-radius:10px;min-height:48px;}
-#tradeboard-root .tb-pb-scroll::-webkit-scrollbar-thumb:hover{background-color:rgba(152,152,168,0.75);}
-#tradeboard-root .tb-pb-scroll::-webkit-scrollbar-thumb:active{background-color:var(--ac);}
-#tradeboard-root .tb-pb-scroll::-webkit-scrollbar-button{display:none;height:0;width:0;}
-#tradeboard-root .tb-pb-scroll::-webkit-scrollbar-corner{background:transparent;}
+#tradeboard-root .tb-scroll-visible::-webkit-scrollbar-thumb{background-color:rgba(152,152,168,0.45);background-clip:padding-box;border:4px solid transparent;border-radius:10px;min-height:48px;}
+#tradeboard-root .tb-scroll-visible::-webkit-scrollbar-thumb:hover{background-color:rgba(152,152,168,0.75);}
+#tradeboard-root .tb-scroll-visible::-webkit-scrollbar-thumb:active{background-color:var(--ac);}
+#tradeboard-root .tb-scroll-visible::-webkit-scrollbar-button{display:none;height:0;width:0;}
+#tradeboard-root .tb-scroll-visible::-webkit-scrollbar-corner{background:transparent;}
+/* Slim variant for scrollers NESTED inside a card (the equity-curve table, and
+   anything else boxed at a few hundred px tall). Same grabbable pill, narrower
+   gutter: the 14px bar above is sized for a full-height page and would eat an
+   obvious slice of a 520px-wide table. Like the pane above, this only appears
+   when the content actually overflows — overflow:auto decides that. */
+#tradeboard-root .tb-scroll-thin::-webkit-scrollbar{display:block;width:10px;height:10px;}
+#tradeboard-root .tb-scroll-thin::-webkit-scrollbar-track{background:transparent;}
+#tradeboard-root .tb-scroll-thin::-webkit-scrollbar-thumb{background-color:rgba(152,152,168,0.42);background-clip:padding-box;border:3px solid transparent;border-radius:8px;min-height:32px;}
+#tradeboard-root .tb-scroll-thin::-webkit-scrollbar-thumb:hover{background-color:rgba(152,152,168,0.72);}
+#tradeboard-root .tb-scroll-thin::-webkit-scrollbar-thumb:active{background-color:var(--ac);}
+#tradeboard-root .tb-scroll-thin::-webkit-scrollbar-button{display:none;height:0;width:0;}
+#tradeboard-root .tb-scroll-thin::-webkit-scrollbar-corner{background:transparent;}
 /* Sidebar + document header hold their position while the page scrolls. */
 #tradeboard-root .tb-pb-side{position:sticky;top:0;align-self:start;z-index:2;background:var(--bg);padding-top:10px;max-height:100vh;overflow-y:auto;scrollbar-width:none;}
 #tradeboard-root .tb-pb-side::-webkit-scrollbar{display:none;}
@@ -1510,6 +1567,16 @@ const TB_STYLES=`
   #tradeboard-root .nh-filter-row{flex-direction:row!important;flex-wrap:wrap!important;align-items:center!important;gap:6px!important;}
   #tradeboard-root .nh-filter-row .nh-lbl{flex-basis:100%!important;min-width:0!important;margin-bottom:1px!important;}
   #tradeboard-root .nh-seg{flex-wrap:wrap!important;}
+  /* Visible scrollbar on a phone: slimmer, so it reads as a position indicator
+     down the edge rather than eating 14px of a 390px screen. Still a real thumb
+     you can drag — touch just usually drags the content instead. The thinner
+     gutter needs a thinner transparent border or the pill vanishes inside it. */
+  #tradeboard-root .tb-scroll-visible::-webkit-scrollbar{width:8px!important;height:8px!important;}
+  #tradeboard-root .tb-scroll-visible::-webkit-scrollbar-thumb{border-width:2px!important;border-radius:8px!important;background-color:rgba(152,152,168,0.55)!important;}
+  /* Nested scrollers get slimmer still — inside a card on a 390px screen, 10px
+     of gutter is a real bite out of the content it sits next to. */
+  #tradeboard-root .tb-scroll-thin::-webkit-scrollbar{width:7px!important;height:7px!important;}
+  #tradeboard-root .tb-scroll-thin::-webkit-scrollbar-thumb{border-width:2px!important;border-radius:7px!important;background-color:rgba(152,152,168,0.55)!important;}
   /* ── Summary overlay on mobile ──
      Full-bleed, and the CARD owns the scrolling (not the overlay) so the sticky
      header stays pinned while the digest scrolls under it. The bottom padding
@@ -1711,6 +1778,13 @@ const TB_BK={
   LOCAL_KEEP:{recent:14,daily:14,weekly:10},
   CLOUD_KEEP:{recent:6,daily:10,weekly:6},
   CLOUD_BUDGET:640*1024,        // hard ceiling well under Firestore's 1 MiB/doc
+  /* Local needed a byte ceiling too, not just a count. The tiers above cap the
+     NUMBER of local snapshots (~38 worst case) but say nothing about their size,
+     and a snapshot grows with the journal — so the disk this takes was bounded
+     only by how big the journal got. The cloud side has had a budget pass since
+     it was written; this is the same guarantee for the device. 8 MiB is far more
+     than a compressed journal needs and still bounds it to something trivial. */
+  LOCAL_BUDGET:8*1024*1024,
   DEBOUNCE_MS:4000,
   /* Gap between routine cloud pushes. Only ever reached by a snapshot that is
      genuinely NEW: captures are content-addressed, so an unchanged journal
@@ -1908,9 +1982,12 @@ async function tbBkCaptureNow(trades,reason){
                   dev:tbBkDevice(),by:tbBkBreakdown(trades),
                   bytes:enc.gz.length,enc:enc.enc,gz:enc.gz,v:1};
       await tbBkLocalPut(snap);
-      const pruned=tbBkPrune([snap].concat(local),TB_BK.LOCAL_KEEP);
-      await tbBkLocalDel(pruned.drop.map(d=>d.at));
-      _tbBkState.lastAt=snap.at;_tbBkState.lastError='';_tbBkState.local=pruned.keep.length;
+      let {keep,drop}=tbBkPrune([snap].concat(local),TB_BK.LOCAL_KEEP);
+      // Then the byte ceiling, oldest first — `snap` is pinned so the capture we
+      // were just asked to make can never be the thing the budget discards.
+      ({keep,drop}=tbBkBudget(keep,drop,TB_BK.LOCAL_BUDGET,snap));
+      await tbBkLocalDel(drop.map(d=>d.at));
+      _tbBkState.lastAt=snap.at;_tbBkState.lastError='';_tbBkState.local=keep.length;
       _tbBkState.emit();
       /* Cloud is deliberately NOT awaited by callers: the local copy is the one
          that must never wait on a network round trip. */
@@ -1985,10 +2062,27 @@ async function tbBkPushCloud(snap,force){
    present in both is one row marked "both" — the cloud copy is byte-identical
    to the local one it came from. */
 async function tbBackupList(){
-  const [local,cloudRes]=await Promise.all([
-    tbBkLocalList(),
-    window._fbLoadTBBackups?window._fbLoadTBBackups():Promise.resolve({ok:true,snapshots:[]}),
-  ]);
+  /* The cloud read must never be able to hide the LOCAL list.
+     This was a plain Promise.all on the two reads, so a cloud read that rejected
+     — or, worse, one that never settled at all (offline, App Check refusing, a
+     dead socket) — took the whole listing down with it: `reload()` never
+     returned, `rows` stayed null, and the backups modal showed an empty list
+     while the device held a perfectly good set of snapshots. That is the exact
+     moment the list matters most. Bound it and degrade to `cloudError`, which
+     the modal already knows how to display. */
+  /* 5s, not 30: a healthy Firestore read of this one document lands well inside a
+     second, so anything past this is a cloud that is not answering — and the
+     modal sits on "Reading backups…" for the whole wait before it can show the
+     local list it already had. */
+  const CLOUD_READ_TIMEOUT=5000;
+  const cloudP=window._fbLoadTBBackups
+    ? Promise.race([
+        Promise.resolve().then(()=>window._fbLoadTBBackups())
+          .catch(e=>({ok:false,error:(e&&e.message)||'unreachable'})),
+        new Promise(res=>setTimeout(()=>res({ok:false,error:'timed out'}),CLOUD_READ_TIMEOUT)),
+      ])
+    : Promise.resolve({ok:true,snapshots:[]});
+  const [local,cloudRes]=await Promise.all([tbBkLocalList(),cloudP]);
   const cloud=(cloudRes&&cloudRes.ok&&cloudRes.snapshots)||[];
   const byAt=new Map();
   local.forEach(sn=>byAt.set(sn.at,{...sn,where:'local'}));
@@ -3073,22 +3167,27 @@ function TBJournalStats({trades,activeFilter,onFilterChange}){
     const total=wins+losses;
     return{wins,losses,open,wash,totalPnL,avgWin:wins?winSum/wins:0,avgLoss:losses?lossSum/losses:0,winRate:total?Math.round(wins/total*100):0};
   },[trades]);
-  const C=({label,val,sub,col,fk})=>{const active=fk&&activeFilter===fk;return(<div onClick={fk?()=>onFilterChange&&onFilterChange(active?'ALL':fk):undefined} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:2,padding:'10px 18px',background:'transparent',borderRadius:10,border:active?'1px solid var(--ac)':'1px solid var(--bd)',minWidth:72,cursor:fk?'pointer':'default',transition:'all .15s'}}>
+  /* ONE card component for the whole bar. Net P&L used to be a hand-rolled copy
+     of this with its own type scale (label 10px/700, value 18px) — which is
+     exactly why its number sat a hair off the Avg W / Avg L numbers beside it.
+     It only ever needed a different background and border, so those are props
+     now and the typography can no longer drift out of alignment. */
+  const C=({label,val,sub,col,fk,bg,bd})=>{const active=fk&&activeFilter===fk;return(<div onClick={fk?()=>onFilterChange&&onFilterChange(active?'ALL':fk):undefined} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:2,padding:'10px 18px',background:bg||'transparent',borderRadius:10,border:active?'1px solid var(--ac)':`1px solid ${bd||'var(--bd)'}`,minWidth:72,cursor:fk?'pointer':'default',transition:'all .15s'}}>
     <div style={{fontSize:11,color:active?'var(--ac)':'var(--txm)',fontWeight:800,textTransform:'uppercase',letterSpacing:1}}>{label}</div>
     <div style={{fontFamily:'IBM Plex Mono,monospace',fontSize:20,fontWeight:800,color:col||'var(--tx)'}}>{val}</div>
     {sub&&<div style={{fontSize:10,color:'var(--txm)'}}>{sub}</div>}
   </div>);};
-  return(<div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+  const flat=(s.wins+s.losses)===0;
+  return(<div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'flex-start'}}>
     <C label="Wins" val={s.wins} col="var(--tbb)" sub={`${s.winRate}%`} fk="WIN"/>
     <C label="Losses" val={s.losses} col="var(--tbr)" sub={s.losses?`${100-s.winRate}%`:'0%'} fk="LOSS"/>
     <C label="Open" val={s.open} col="var(--tbw)" fk="OPEN"/>
     <C label="Wash" val={s.wash} col="var(--txm)" fk="WASH"/>
     <C label="Avg W" val={s.avgWin?tbFmt$(s.avgWin):'—'} col="var(--tbb)"/>
     <C label="Avg L" val={s.avgLoss?tbFmt$(s.avgLoss):'—'} col="var(--tbr)"/>
-    <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:2,padding:'10px 22px',background:(s.wins+s.losses)===0?'var(--s2)':s.totalPnL>0?'rgba(164,185,134,0.08)':s.totalPnL<0?'rgba(214,138,124,0.08)':'var(--s2)',borderRadius:10,border:`1px solid ${(s.wins+s.losses)===0?'var(--bd)':s.totalPnL>0?'rgba(164,185,134,0.25)':s.totalPnL<0?'rgba(214,138,124,0.25)':'var(--bd)'}`,minWidth:80}}>
-      <div style={{fontSize:10,color:'var(--txm)',fontWeight:700,textTransform:'uppercase',letterSpacing:1}}>Net P&L</div>
-      <div style={{fontFamily:'IBM Plex Mono,monospace',fontSize:18,fontWeight:800,color:(s.wins+s.losses)===0?'var(--txm)':tbPnlCol(s.totalPnL)}}>{(s.wins+s.losses)===0?'—':tbFmt$(s.totalPnL)}</div>
-    </div>
+    <C label="Net P&L" val={flat?'—':tbFmt$(s.totalPnL)} col={flat?'var(--txm)':tbPnlCol(s.totalPnL)}
+       bg={flat?'var(--s2)':s.totalPnL>0?'rgba(164,185,134,0.08)':s.totalPnL<0?'rgba(214,138,124,0.08)':'var(--s2)'}
+       bd={flat?'var(--bd)':s.totalPnL>0?'rgba(164,185,134,0.25)':s.totalPnL<0?'rgba(214,138,124,0.25)':'var(--bd)'}/>
   </div>);
 }
 
@@ -3342,6 +3441,7 @@ const TB_BK_REASON={
 };
 function TBBackupModal({jHook,onClose}){
   const isMobile=useIsMobile();
+  useModalScrollLock();   // page behind stays put; no scroll-chaining off the end of the list
   const [rows,setRows]=useState(null);
   const [err,setErr]=useState('');
   const [note,setNote]=useState('');
@@ -3421,12 +3521,25 @@ function TBBackupModal({jHook,onClose}){
   const when=sn=>tbBkWhen(sn.at,(crowded.get(Math.floor(sn.at/60000))||0)>1);
   const chip=(label,val,col)=>(<span style={{fontSize:10,fontWeight:800,color:col,background:'var(--s2)',borderRadius:5,padding:'2px 6px',whiteSpace:'nowrap'}}>{val} {label}</span>);
 
+  /* What these snapshots actually cost, per side. Retention is automatic and
+     bounded (see TB_BK), but that is invisible unless the numbers are shown —
+     and "is this quietly eating my storage?" is the exact question this answers. */
+  const usage=useMemo(()=>{
+    const sum=(list)=>list.reduce((a,x)=>a+(x.bytes||0),0);
+    const all=rows||[];
+    return{
+      local:sum(all.filter(r=>r.where==='local'||r.where==='both')),
+      cloud:sum(all.filter(r=>r.where==='cloud'||r.where==='both')),
+    };
+  },[rows]);
+  const fmtBytes=b=>b<1024?b+' B':b<1024*1024?(b/1024).toFixed(0)+' KB':(b/1048576).toFixed(1)+' MB';
+
   return(
     <div className="tb-modal-overlay" style={{position:'fixed',inset:0,zIndex:99999,background:'rgba(0,0,0,0.82)',backdropFilter:'blur(8px)',overflowY:'auto',overflowX:'hidden',padding:isMobile?'calc(env(safe-area-inset-top,0px) + 0px) 0 60px':'70px 16px 60px'}}>
       <div className="tb-modal-inner" style={{background:'var(--s1)',border:'1px solid var(--bdl)',borderRadius:isMobile?0:16,width:'100%',maxWidth:640,margin:'0 auto',boxShadow:'0 32px 80px rgba(0,0,0,0.6)',overflow:'hidden'}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 22px',borderBottom:'1px solid var(--bd)'}}>
           <div style={{fontFamily:'Manrope,system-ui,sans-serif',fontSize:16,fontWeight:700,color:'var(--tx)'}}>Journal backups</div>
-          <button onClick={onClose} style={{background:'transparent',border:'none',color:'var(--txm)',cursor:'pointer',padding:'2px 4px',lineHeight:0,display:'inline-flex'}}><TBIcon n="x" size={18}/></button>
+          <button className="tb-x-close" onClick={onClose} aria-label="Close backups"><TBIcon n="x" size={18}/></button>
         </div>
 
         <div style={{padding:'14px clamp(10px,4vw,22px)',borderBottom:'1px solid var(--bd)',display:'flex',flexDirection:'column',gap:10}}>
@@ -3436,6 +3549,13 @@ function TBBackupModal({jHook,onClose}){
               ? <span>Last backup {tbBkWhen(health.lastAt)} · {health.local} on this device · {health.cloud} in the cloud</span>
               : <span>No backup saved yet on this device.</span>}
           </div>
+          {/* Storage actually used, against the ceilings retention enforces. */}
+          {(usage.local>0||usage.cloud>0)&&(
+            <div style={{fontSize:11,color:'var(--txm)',display:'flex',gap:12,flexWrap:'wrap',fontFamily:"'IBM Plex Mono',monospace"}}>
+              <span>device {fmtBytes(usage.local)} <span style={{opacity:.6}}>/ {fmtBytes(TB_BK.LOCAL_BUDGET)}</span></span>
+              <span>cloud {fmtBytes(usage.cloud)} <span style={{opacity:.6}}>/ {fmtBytes(TB_BK.CLOUD_BUDGET)}</span></span>
+            </div>
+          )}
           <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
             <button className="tb-btn-ghost" onClick={backupNow} disabled={working==='now'||!jHook.trades.length} style={{fontSize:13}}><TBIcon n="shield"/> {working==='now'?'Saving…':'Back up now'}</button>
             <button className="tb-btn-ghost" onClick={exportNow} disabled={!jHook.trades.length} style={{fontSize:13}}><TBIcon n="download"/> Export JSON</button>
@@ -3446,6 +3566,12 @@ function TBBackupModal({jHook,onClose}){
             Snapshots are saved automatically — after every sync or import, and always
             before anything is deleted or replaced. <b>Import JSON</b> only adds trades
             that are missing; <b>Restore</b> replaces the whole journal.
+          </div>
+          <div style={{fontSize:11,color:'var(--txm)',lineHeight:1.5}}>
+            Old ones are pruned on their own: the most recent are kept in full, then one
+            per day, then one per week — so history thins out with age instead of piling
+            up. Both sides also stop at the size ceilings above, dropping the oldest
+            first, and an unchanged journal never creates a new snapshot at all.
           </div>
           {err&&<div style={{fontSize:12,color:'var(--tbw)'}}>{err}</div>}
           {note&&<div style={{fontSize:12,color:'var(--ac)'}}>{note}</div>}
@@ -3823,8 +3949,8 @@ function TBEquityCurve({trades}){
             Fixed layout + a max width keeps a row scannable in one fixation and
             the columns in a predictable place. overflowX still lets it scroll
             inside the card on a phone instead of widening it. */}
-        {showTable&&(<div style={{maxHeight:compact?240:280,overflowY:'auto',overflowX:'auto',marginTop:8,
-                                  WebkitOverflowScrolling:'touch'}}>
+        {showTable&&(<div className="tb-scroll-thin" style={{maxHeight:compact?240:280,overflowY:'auto',overflowX:'auto',marginTop:8,
+                                  WebkitOverflowScrolling:'touch',overscrollBehavior:'contain'}}>
           <table style={{width:'100%',maxWidth:compact?'none':520,minWidth:compact?300:0,
                          tableLayout:'fixed',borderCollapse:'collapse',fontSize:12}}>
             <colgroup><col style={{width:'24%'}}/><col style={{width:'20%'}}/>
@@ -4648,6 +4774,84 @@ function TBControlPage({prompts,onSavePrompts,onToast,watchlist,onSaveWatchlist}
 }
 
 /* ── Prompt Page ── */
+/* ── Prompt editor modal ─────────────────────────────────────────────────────
+   Editing used to happen inline, which on a long prompt (the Daily Macro Report
+   runs to hundreds of lines) meant typing into a box wedged between the chip row
+   and the rest of the page. As a modal it gets the whole viewport, and the page
+   behind it is inert.
+
+   Discarding is guarded. Everything else in this app closes an overlay on
+   Escape/backdrop, but here that gesture would throw away an unsaved edit to a
+   long document, so a DIRTY editor asks first; a clean one just closes. ── */
+function TBPromptEditorModal({name,text,onName,onText,onSave,onClose,dirty,saving}){
+  const isMobile=useIsMobile();
+  const taRef=useRef(null);
+
+  const tryClose=useCallback(async()=>{
+    if(dirty&&window.uiConfirm){
+      const ok=await window.uiConfirm('Discard your changes to this prompt?',{title:'Discard changes',okLabel:'Discard',cancelLabel:'Keep editing',danger:true});
+      if(!ok)return;
+    }
+    onClose();
+  },[dirty,onClose]);
+
+  useModalScrollLock();
+  useEffect(()=>{
+    const onKey=e=>{
+      if(e.key==='Escape'){e.stopPropagation();tryClose();}
+      // Ctrl/Cmd+S saves — muscle memory for anything that looks like a document.
+      if((e.ctrlKey||e.metaKey)&&(e.key==='s'||e.key==='S')){e.preventDefault();onSave();}
+    };
+    document.addEventListener('keydown',onKey);
+    return()=>document.removeEventListener('keydown',onKey);
+  },[tryClose,onSave]);
+
+  return ReactDOM.createPortal(
+    <div className="tb-pe-overlay" onClick={e=>{if(e.target===e.currentTarget)tryClose();}}
+      style={{position:'fixed',inset:0,zIndex:100001,background:'rgba(10,10,12,0.72)',backdropFilter:'blur(10px)',WebkitBackdropFilter:'blur(10px)',
+              display:'flex',alignItems:isMobile?'stretch':'center',justifyContent:'center',padding:isMobile?0:'40px 16px'}}>
+      <div className="tb-pe-card" onClick={e=>e.stopPropagation()}
+        style={{background:'var(--s1)',border:'1px solid var(--bdl)',borderRadius:isMobile?0:16,width:'100%',maxWidth:900,
+                height:isMobile?'100dvh':'min(86vh,900px)',display:'flex',flexDirection:'column',overflow:'hidden',
+                boxShadow:'0 32px 90px rgba(0,0,0,0.65)'}}>
+
+        {/* Header: the prompt's NAME is editable right here, as it was inline */}
+        <div style={{display:'flex',alignItems:'center',gap:10,padding:isMobile?'12px 14px':'14px 22px',borderBottom:'1px solid var(--bd)',flexShrink:0}}>
+          <TBIcon n="pencil" size={15} style={{color:'var(--ac)',flexShrink:0}}/>
+          <input value={name} onChange={e=>onName(e.target.value)} aria-label="Prompt name"
+            placeholder="Prompt name…"
+            style={{fontFamily:'var(--font-accent)',fontSize:isMobile?15:17,fontWeight:700,color:'var(--tx)',background:'transparent',
+                    border:'none',borderBottom:'1px solid transparent',outline:'none',flex:1,minWidth:0,padding:'2px 0'}}
+            onFocus={e=>e.currentTarget.style.borderBottomColor='var(--acl)'}
+            onBlur={e=>e.currentTarget.style.borderBottomColor='transparent'}/>
+          {dirty&&<span style={{fontSize:10,fontWeight:800,letterSpacing:1,color:'var(--tbw)',flexShrink:0}}>UNSAVED</span>}
+          <button className="tb-x-close" onClick={tryClose} aria-label="Close editor"><TBIcon n="x" size={18}/></button>
+        </div>
+
+        {/* Body: the textarea takes ALL remaining height — that is the whole point
+            of moving this into a modal, so it must flex, not sit at a fixed 240px. */}
+        <textarea ref={taRef} value={text} onChange={e=>onText(e.target.value)} autoFocus
+          spellCheck={false}
+          style={{flex:1,minHeight:0,width:'100%',display:'block',background:'var(--s2)',border:'none',color:'var(--tx)',
+                  fontFamily:"'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",
+                  fontSize:isMobile?15:15,lineHeight:1.8,letterSpacing:'0.1px',
+                  padding:isMobile?'16px 14px':'20px 24px',outline:'none',resize:'none',
+                  boxSizing:'border-box',WebkitOverflowScrolling:'touch',overflowY:'auto'}}/>
+
+        <div style={{display:'flex',alignItems:'center',gap:8,padding:isMobile?'10px 14px calc(env(safe-area-inset-bottom,0px) + 10px)':'12px 22px',
+                     borderTop:'1px solid var(--bd)',flexShrink:0}}>
+          <span style={{fontSize:11,color:'var(--txm)',flex:1,minWidth:0,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+            {saving?'Saving…':`${text.length.toLocaleString()} characters`}
+          </span>
+          <button className="tb-btn-ghost" onClick={tryClose} style={{fontSize:12}}>Cancel</button>
+          <button className="tb-btn-primary" onClick={onSave} style={{fontSize:12}}>Save</button>
+        </div>
+      </div>
+    </div>,
+    document.getElementById('tradeboard-root')||document.body
+  );
+}
+
 function TBPromptPage({prompts,onSave,onToast}){
   const [selected,setSelected]=useState(0);
   const [editing,setEditing]=useState(false);
@@ -4681,6 +4885,16 @@ function TBPromptPage({prompts,onSave,onToast}){
   },[cur,selected,editing]);
 
   const copy=()=>{navigator.clipboard.writeText(cur.text).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),1500);});};
+
+  /* Seed the editor from the CURRENT prompt on the way in. The sync effect above
+     deliberately refuses to touch these fields while `editing` is true, so if the
+     modal were opened without this it would show whatever was last left in state
+     — a stale draft from a previously cancelled edit. */
+  const openEditor=useCallback(()=>{
+    if(!cur)return;
+    setEditText(cur.text||'');setEditName(cur.name||'');
+    setEditing(true);
+  },[cur]);
 
   const saveEdit=()=>{
     const updated=prompts.map((p,i)=>i===selected?{...p,text:editText,name:editName}:p);
@@ -4786,7 +5000,7 @@ function TBPromptPage({prompts,onSave,onToast}){
 
   return(<div className="tb-fade-in tb-prompt-wrap tb-card" style={{display:'flex',flexDirection:'column',gap:16,padding:'clamp(16px,4vw,24px)',maxWidth:900,margin:'0 auto',width:'100%',boxSizing:'border-box'}}>
     <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
-      <div style={{flex:1}}><div style={{fontSize:20,fontWeight:800,color:'var(--tx)'}}>Prompts</div><div style={{fontSize:13,color:'var(--txm)'}}>{prompts.length} prompt{prompts.length!==1?'s':''} · used by Analysis &amp; TradeBoard</div></div>
+      <div style={{flex:1}}><div style={{fontSize:20,fontWeight:800,color:'var(--tx)'}}>Prompts</div><div style={{fontSize:13,color:'var(--txm)'}}>{prompts.length} prompt{prompts.length!==1?'s':''} · used by Analysis</div></div>
       {fbSaving&&<span style={{fontSize:13,color:'var(--txm)',display:'inline-flex',alignItems:'center',gap:6}}><TBIcon n="refresh"/> Saving…</span>}
     </div>
     {/* Chips row: drag to reorder (mouse + touch), tap to select */}
@@ -4822,14 +5036,25 @@ function TBPromptPage({prompts,onSave,onToast}){
       :<button onClick={()=>setAddingNew(true)} style={{padding:'7px 18px',borderRadius:100,border:'1.5px solid var(--ac)',background:'transparent',color:'var(--ac)',fontSize:13,fontWeight:700,cursor:'pointer',transition:'all .15s',width:'fit-content'}} onMouseEnter={e=>e.currentTarget.style.boxShadow='var(--gold-glow)'} onMouseLeave={e=>e.currentTarget.style.boxShadow='none'}>＋ New Prompt</button>
     }
     <div className="tb-card" style={{padding:0,overflow:'hidden'}}>
+      {/* Editing happens in a modal now, so this header only ever shows the
+          read-only state — no more Save/Cancel branch living in here. */}
       <div style={{display:'flex',alignItems:'center',padding:'12px 18px',borderBottom:'1px solid var(--bd)',gap:10}}>
-        {editing
-          ?<input value={editName} onChange={e=>setEditName(e.target.value)} style={{fontFamily:'var(--font-accent)',fontSize:15,fontWeight:700,color:'var(--tx)',background:'transparent',border:'none',outline:'none',flex:1}}/>
-          :<div style={{fontFamily:'var(--font-accent)',fontSize:15,fontWeight:700,color:'var(--tx)',flex:1}}>{cur?.name}</div>}
+        <div style={{fontFamily:'var(--font-accent)',fontSize:15,fontWeight:700,color:'var(--tx)',flex:1,minWidth:0}}>{cur?.name}</div>
         <div style={{display:'flex',gap:8,flexShrink:0,flexWrap:'wrap'}}>
-          {editing?(<><button className="tb-btn-primary" onClick={saveEdit} style={{fontSize:13}}>Save</button><button className="tb-btn-ghost" style={{fontSize:13}} onClick={()=>{setEditing(false);setEditText(cur.text);setEditName(cur.name);}} style={{fontSize:11}}>Cancel</button></>):(<><button className="tb-btn-ghost" onClick={copy} style={{fontSize:13}}>{copied?'✓ Copied!':'Copy'}</button><button className="tb-btn-ghost" onClick={()=>setEditing(true)} style={{fontSize:13}}>Edit</button>{prompts.length>1&&<button className="tb-btn-danger" onClick={deletePrompt} style={{fontSize:13}}>Delete</button>}</>)}
+          <button className="tb-btn-ghost" onClick={copy} style={{fontSize:13}}>{copied?'✓ Copied!':'Copy'}</button>
+          <button className="tb-btn-ghost" onClick={openEditor} style={{fontSize:13}}>Edit</button>
+          {prompts.length>1&&<button className="tb-btn-danger" onClick={deletePrompt} style={{fontSize:13}}>Delete</button>}
         </div>
       </div>
+      {editing&&cur&&(
+        <TBPromptEditorModal
+          name={editName} text={editText}
+          onName={setEditName} onText={setEditText}
+          onSave={saveEdit}
+          onClose={()=>{setEditing(false);setEditText(cur.text||'');setEditName(cur.name||'');}}
+          dirty={editText!==(cur.text||'')||editName!==(cur.name||'')}
+          saving={fbSaving}/>
+      )}
       {delConfirm&&ReactDOM.createPortal(
         <div onClick={()=>setDelConfirm(false)} style={{position:'fixed',inset:0,zIndex:22000,background:'rgba(0,0,0,0.6)',display:'flex',alignItems:'center',justifyContent:'center'}}>
           <div onClick={e=>e.stopPropagation()} style={{background:'var(--s1)',border:'1px solid var(--bdl)',borderRadius:14,padding:'28px 32px',maxWidth:380,width:'90%',boxShadow:'0 24px 60px rgba(0,0,0,0.5)'}}>
@@ -4843,9 +5068,8 @@ function TBPromptPage({prompts,onSave,onToast}){
         </div>
       ,document.getElementById('tradeboard-root')||document.body)}
       <div ref={promptAreaH} style={{position:'relative',background:'var(--s2)'}}>
-        {editing
-          ?<textarea value={editText} onChange={e=>setEditText(e.target.value)} style={{width:'100%',display:'block',minHeight:240,maxHeight:500,overflowY:'auto',WebkitOverflowScrolling:'touch',background:'var(--s2)',border:'none',color:'var(--tx)',fontFamily:"'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",fontSize:15,lineHeight:1.8,letterSpacing:'0.1px',padding:'20px 50px 20px 20px',outline:'none',resize:'none'}} autoFocus/>
-          :<div className="tb-pb-doc tb-prompt-render" dangerouslySetInnerHTML={{__html:tbSanitizeHtml(tbMdToHtml(cur?.text||''),{dropColor:true})}} style={{wordBreak:'break-word',padding:'20px 50px 20px 20px',background:'var(--s2)',boxSizing:'border-box',minHeight:80,maxHeight:500,overflowY:'auto',WebkitOverflowScrolling:'touch'}}/>}
+        {/* Always the rendered preview — the textarea lives in the modal now. */}
+        <div className="tb-pb-doc tb-prompt-render" dangerouslySetInnerHTML={{__html:tbSanitizeHtml(tbMdToHtml(cur?.text||''),{dropColor:true})}} style={{wordBreak:'break-word',padding:'20px 50px 20px 20px',background:'var(--s2)',boxSizing:'border-box',minHeight:80,maxHeight:500,overflowY:'auto',WebkitOverflowScrolling:'touch'}}/>
         <div ref={resize} style={{position:'absolute',bottom:0,right:0,width:40,height:40,cursor:'ns-resize',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--txm)',borderRadius:'0 0 12px 0',userSelect:'none',zIndex:2,touchAction:'none',transition:'color .15s,background .15s'}} onMouseEnter={e=>{e.currentTarget.style.color='var(--ac)';e.currentTarget.style.background='rgba(224,184,116,0.12)';}} onMouseLeave={e=>{e.currentTarget.style.color='var(--txm)';e.currentTarget.style.background='transparent';}}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M15 1L1 15M15 8L8 15M15 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
         </div>
@@ -6475,15 +6699,13 @@ const nhToneColor=t=>t==='bull'?'var(--tbb)':t==='bear'?'var(--tbr)':'var(--ac)'
 function TBNewsSummaryOverlay({onClose,summary,loading,error,generatedAt,eventCount,onRetry}){
   const isMobile=useIsMobile();
 
-  /* Escape closes, and the page behind must not scroll while this is up — a
-     fixed overlay stops clicks, but a touch drag would still scroll the feed
-     underneath it on mobile. Restore exactly what was there before. */
+  /* A fixed overlay stops clicks, but a touch drag would still scroll the feed
+     underneath it — see useModalScrollLock. */
+  useModalScrollLock();
   useEffect(()=>{
     const onKey=e=>{if(e.key==='Escape')onClose();};
     document.addEventListener('keydown',onKey);
-    const prev=document.body.style.overflow;
-    document.body.style.overflow='hidden';
-    return()=>{document.removeEventListener('keydown',onKey);document.body.style.overflow=prev;};
+    return()=>document.removeEventListener('keydown',onKey);
   },[onClose]);
 
   const S=summary;
@@ -6517,8 +6739,7 @@ function TBNewsSummaryOverlay({onClose,summary,loading,error,generatedAt,eventCo
               {nhToneLabel[S.tone]||S.tone}
             </span>
           )}
-          <button onClick={onClose} aria-label="Close summary"
-            style={{background:'transparent',border:'none',color:'var(--txm)',cursor:'pointer',padding:'4px 5px',lineHeight:0,display:'inline-flex',flexShrink:0}}>
+          <button className="tb-x-close" onClick={onClose} aria-label="Close summary">
             <TBIcon n="x" size={18}/>
           </button>
         </div>
@@ -7342,7 +7563,11 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
             const on=selTickers.length===1&&selTickers[0]===m.t;
             return(
               <div key={m.t} className="tb-card" onClick={()=>setSelTickers(on?[]:[m.t])}
-                style={{padding:'12px 14px',cursor:'pointer',borderLeft:'3px solid '+nhMoveColor(m.dp),outline:on?'2px solid var(--ac)':'none'}}>
+                /* Selected reads WHITE, not gold: the left edge of these cards is
+                   already colour-coded by direction, and a gold ring next to a
+                   green/red bar competed with it. White is neutral, so it marks
+                   selection without arguing with the move colour. */
+                style={{padding:'12px 14px',cursor:'pointer',borderLeft:'3px solid '+nhMoveColor(m.dp),outline:on?'2px solid var(--tx)':'none'}}>
                 <div style={{display:'flex',alignItems:'baseline',gap:8}}>
                   <span style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:800,fontSize:14,color:'var(--ac)'}}>{m.t}</span>
                   <span style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:800,fontSize:13,color:nhMoveColor(m.dp)}}>{m.dp>0?'▲':'▼'} {nhFmtPct(m.dp)}</span>
@@ -9226,7 +9451,7 @@ function TBApp(){
     <TBMobileHeader page={page} syncStatus={tbSyncStatus} portfolioConnected={tbPortfolioOk} onNav={setPage} onManageTabLock={setTabLockManage} navOrder={navOrder} onReorderNav={onReorderNav}/>
     {/* Playbook pages are long documents, so this is the one tab that gets a real,
         draggable scrollbar — every other tab keeps the app's hidden bars. */}
-    <div className={page==='playbook'?'tb-pb-scroll':undefined} style={{flex:1,overflowY:'auto',overflowX:'hidden',WebkitOverflowScrolling:'touch'}}>
+    <div className="tb-scroll-visible" style={{flex:1,overflowY:'auto',overflowX:'hidden',WebkitOverflowScrolling:'touch'}}>
       <div style={{maxWidth:2000,margin:'0 auto',width:'100%',padding:'18px clamp(12px,3vw,24px) calc(env(safe-area-inset-bottom,0px) + 60px)'}}>
         <TBTabGate tabId={page} tabLabel={curNav.label}>
           {pageMap[page]||pageMap.portfolio}
