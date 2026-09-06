@@ -6235,23 +6235,29 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
     saveCfg(next);setEditing(false);setResults([]);
   };
 
-  return(<div className="tb-fade-in tb-mob-flush" style={{display:'flex',flexDirection:'column',gap:0,padding:'32px clamp(12px,4vw,28px) 40px',maxWidth:680,margin:'0 auto',width:'100%'}}>
-    {/* Header — white, consistent with other sections */}
-    <div style={{fontSize:20,fontWeight:800,color:'var(--tx)',marginBottom:24}}>Analysis</div>
-
-    {/* Prompt picker */}
-    <div style={{marginBottom:20}}>
-      <div style={{fontSize:10,fontWeight:800,textTransform:'uppercase',letterSpacing:1.5,color:'var(--txm)',marginBottom:8,display:'flex',alignItems:'center',gap:7}}><TBIcon n="command" size={12}/>Clipboard prompts</div>
-      <TBPromptSelect prompts={prompts} value={cfg.analysisPromptId} onChange={id=>saveCfg({...cfg,analysisPromptId:id})} onGoToPrompts={onGoToPrompts} onQuickLaunch={handleQuickLaunch}/>
-      <div style={{fontSize:11,color:'var(--txd)',marginTop:8,lineHeight:1.6}}>
-        <b>Double-tap</b> a prompt to send just that one{aiSite.id==='none'?'':` to ${aiSite.label}`}, without the searches. The <b>★</b> picks what Launch Analysis and the morning deploy send.
+  /* One card per section, so Analysis reads the way Control does: a titled box
+     per concern instead of a single column of loose label-and-block pairs.
+     `pad` is the same clamp the Control cards use, so the two tabs agree at
+     every width. */
+  const Card=({icon,title,sub,children,style})=>(
+    <div className="tb-card" style={{padding:'clamp(15px,4vw,22px)',display:'flex',flexDirection:'column',gap:14,boxSizing:'border-box',...(style||{})}}>
+      <div>
+        <div style={{fontSize:16,fontWeight:800,color:'var(--tx)',display:'flex',alignItems:'center',gap:8,lineHeight:1.25}}>
+          {icon&&<span style={{color:'var(--ac)',display:'inline-flex',flexShrink:0}}><TBIcon n={icon} size={14}/></span>}{title}
+        </div>
+        {sub&&<div style={{fontSize:12,color:'var(--txm)',marginTop:4,lineHeight:1.5}}>{sub}</div>}
       </div>
+      {children}
     </div>
+  );
 
-    {/* Quick prompt — type one now; sent exactly like a saved prompt */}
-    <div style={{marginBottom:20}}>
-      <div style={{fontSize:10,fontWeight:800,textTransform:'uppercase',letterSpacing:1.5,color:'var(--txm)',marginBottom:8,display:'flex',alignItems:'center',gap:7}}><TBIcon n="pencil" size={12}/>Quick prompt</div>
-      <div style={{display:'flex',flexDirection:'column',gap:10,padding:'14px 16px',borderRadius:8,border:'1px solid var(--bd)',background:'var(--bgc)'}}>
+  return(<div className="tb-fade-in tb-mob-flush" style={{display:'flex',flexDirection:'column',gap:16,padding:'32px clamp(12px,4vw,28px) 40px',maxWidth:680,margin:'0 auto',width:'100%'}}>
+    {/* Header — white, consistent with other sections */}
+    <div style={{fontSize:20,fontWeight:800,color:'var(--tx)',marginBottom:2}}>Analysis</div>
+
+    {/* Quick prompt — first, because it is the one you reach for without setup */}
+    <Card icon="pencil" title="Quick Prompt" sub="A one-off, sent exactly like a saved prompt.">
+      <div style={{display:'flex',flexDirection:'column',gap:10}}>
         <div style={{position:'relative'}}>
           <textarea value={quickText} onChange={e=>setQuick(e.target.value)}
             onKeyDown={e=>{if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){e.preventDefault();sendQuick();}}}
@@ -6286,12 +6292,37 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
             onMouseEnter={e=>e.currentTarget.style.color='var(--tbr)'} onMouseLeave={e=>e.currentTarget.style.color='var(--txm)'}>Clear</button>}
         </div>
       </div>
-    </div>
+    </Card>
+
+    {/* Prompt To Send — the picker AND a live preview of what it will send.
+        These used to be far apart: you chose a prompt at the top of the page and
+        confirmed it in a one-line "Prompt to send" strip near the bottom, with
+        the AI-destination block between them. Showing the real text right under
+        the chips means the selection and its consequence are one thing. */}
+    <Card icon="command" title="Prompt To Send"
+      sub={<><b>Double-tap</b> a prompt to send just that one{aiSite.id==='none'?'':` to ${aiSite.label}`}, without the searches. The <b>★</b> picks what Launch Analysis and the morning deploy send.</>}>
+      <TBPromptSelect prompts={prompts} value={cfg.analysisPromptId} onChange={id=>saveCfg({...cfg,analysisPromptId:id})} onGoToPrompts={onGoToPrompts} onQuickLaunch={handleQuickLaunch}/>
+      {selPromptText
+        ?<div style={{border:'1px solid var(--bd)',borderRadius:8,background:'var(--s2)',overflow:'hidden'}}>
+          <div style={{display:'flex',alignItems:'center',gap:8,padding:'9px 13px',borderBottom:'1px solid var(--bd)'}}>
+            <span style={{fontFamily:'var(--font-accent)',fontSize:13,fontWeight:700,color:'var(--tx)',minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{selPrompt.name}</span>
+            <span style={{marginLeft:'auto',flexShrink:0,fontSize:11,color:'var(--txm)',fontFamily:"'IBM Plex Mono',monospace"}}>{selPromptText.length.toLocaleString()} chars</span>
+          </div>
+          {/* Capped and scrollable rather than clamped to one line: a prompt is a
+              document, and the point of a preview is being able to check it. */}
+          <div className="tb-scroll-thin" style={{maxHeight:170,overflowY:'auto',overscrollBehavior:'contain',padding:'12px 13px',
+                       fontSize:12.5,lineHeight:1.65,color:'var(--txd)',whiteSpace:'pre-wrap',wordBreak:'break-word'}}>
+            {selPromptText}
+          </div>
+        </div>
+        :<div style={{padding:'14px',borderRadius:8,border:'1px dashed var(--bd)',fontSize:12.5,color:'var(--txd)',textAlign:'center'}}>
+          No prompt selected — pick one above.
+        </div>}
+    </Card>
 
     {/* AI destination — where Launch Analysis sends the prompt */}
-    <div style={{marginBottom:20}}>
-      <div style={{fontSize:10,fontWeight:800,textTransform:'uppercase',letterSpacing:1.5,color:'var(--txm)',marginBottom:8,display:'flex',alignItems:'center',gap:7}}><TBIcon n="sparkle" size={12}/>AI destination</div>
-      <div style={{display:'flex',flexDirection:'column',gap:12,padding:'16px',borderRadius:8,border:'1px solid var(--bd)',background:'var(--bgc)'}}>
+    <Card icon="sparkle" title="AI Destination" sub="Where the prompt gets sent.">
+      <div style={{display:'flex',flexDirection:'column',gap:12}}>
         <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
           {TB_AI_SITES.map(s=>{
             const on=s.id===aiSite.id;
@@ -6331,35 +6362,33 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
           <div style={{fontSize:11,color:'var(--txd)',lineHeight:1.5}}>The morning deploy (below) sends to {aiSite.label} too.</div>
         )}
       </div>
-    </div>
+    </Card>
 
-    {/* Config summary (read-only) */}
-    <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:24}}>
-      <div style={{display:'flex',alignItems:'flex-start',gap:12,padding:'13px 16px',borderRadius:8,border:'1px solid var(--bd)',background:'var(--bgc)'}}>
-        <span style={{fontSize:15,marginTop:1,color:selPromptText?'var(--ac)':'var(--txd)',flexShrink:0,width:18,display:'inline-flex',justifyContent:'center'}}><TBIcon n="command" size={14}/></span>
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:10,fontWeight:800,textTransform:'uppercase',letterSpacing:1.5,color:'var(--txm)',marginBottom:2}}>{autoSubmit&&aiUrl?'Prompt to send':'Prompt to copy'}</div>
-          {selPromptText
-            ?<div style={{fontSize:13,color:'var(--tx)',wordBreak:'break-word',lineHeight:1.4}}>{selPromptText.length>120?selPromptText.slice(0,120)+'…':selPromptText}<span style={{marginLeft:6,fontSize:11,color:'var(--txd)',fontFamily:'var(--font-accent)'}}>({selPrompt.name} · {selPromptText.length} chars)</span></div>
-            :<div style={{fontSize:13,color:'var(--txd)',fontFamily:'var(--font-accent)'}}>No prompt selected</div>}
-        </div>
-      </div>
-      {searches.map((val,i)=>(
-        <div key={i} style={{display:'flex',alignItems:'flex-start',gap:12,padding:'13px 16px',borderRadius:8,border:'1px solid var(--bd)',background:'var(--bgc)'}}>
-          <span style={{fontSize:15,marginTop:1,color:(val||'').trim()?'var(--ac)':'var(--txd)',flexShrink:0,width:18,textAlign:'center'}}>{numIcon(i)}</span>
-          <div style={{flex:1,minWidth:0}}>
-            <div style={{fontSize:10,fontWeight:800,textTransform:'uppercase',letterSpacing:1.5,color:'var(--txm)',marginBottom:2}}>Search / URL {i+1}</div>
-            {(val||'').trim()
-              ?<div style={{fontSize:13,color:'var(--tx)',wordBreak:'break-all',lineHeight:1.4}}>{val}</div>
-              :<div style={{fontSize:13,color:'var(--txd)',fontFamily:'var(--font-accent)'}}>Not set</div>}
+    {/* Searches — the tabs that open alongside the AI. The prompt row that used
+        to head this list has moved into Prompt To Send, where the picker is. */}
+    <Card icon="listOrd" title="Searches"
+      sub={`${searches.filter(s=>(s||'').trim()).length} of ${searches.length} set · opens in this order, AI last`}>
+      <div style={{display:'flex',flexDirection:'column',gap:8}}>
+        {searches.map((val,i)=>(
+          <div key={i} style={{display:'flex',alignItems:'flex-start',gap:12,padding:'11px 14px',borderRadius:8,border:'1px solid var(--bd)',background:'var(--s2)'}}>
+            <span style={{fontSize:15,marginTop:1,color:(val||'').trim()?'var(--ac)':'var(--txd)',flexShrink:0,width:18,textAlign:'center'}}>{numIcon(i)}</span>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:10,fontWeight:800,textTransform:'uppercase',letterSpacing:1.5,color:'var(--txm)',marginBottom:2}}>Search / URL {i+1}</div>
+              {(val||'').trim()
+                ?<div style={{fontSize:13,color:'var(--tx)',wordBreak:'break-all',lineHeight:1.4}}>{val}</div>
+                :<div style={{fontSize:13,color:'var(--txd)',fontFamily:'var(--font-accent)'}}>Not set</div>}
+            </div>
           </div>
-        </div>
-      ))}
-    </div>
+        ))}
+      </div>
+      <button className="tb-btn-ghost" onClick={()=>{setEditing(e=>!e);setDraft(getSearches(cfg));setResults([]);}} style={{alignSelf:'flex-start',fontSize:12}}>
+        {editing?<span><TBIcon n="x"/> Cancel</span>:<span><TBIcon n="pencil"/> Edit Searches</span>}
+      </button>
+    </Card>
 
     {/* Edit panel — add/remove any number of searches */}
     {editing&&(
-      <div style={{display:'flex',flexDirection:'column',gap:14,marginBottom:24,padding:'20px',borderRadius:10,border:'1px solid var(--ac)',background:'var(--bgc)'}}>
+      <div style={{display:'flex',flexDirection:'column',gap:14,padding:'20px',borderRadius:10,border:'1px solid var(--ac)',background:'var(--bgc)'}}>
         {draft.map((val,i)=>(
           <div key={i}>
             <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
@@ -6389,29 +6418,24 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
       </div>
     )}
 
-    {/* Action row */}
-    <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap',marginBottom:results.length?16:0}}>
+    {/* Launch — the two things this page exists to fire, in one box */}
+    <Card icon="bolt" title="Launch" sub="Sends the prompt above, then opens your searches.">
       <button onMouseDown={handleLaunch} disabled={isEmpty}
-        style={{display:'inline-flex',alignItems:'center',gap:8,background:isEmpty?'transparent':'var(--ac)',color:isEmpty?'var(--txd)':'#000',border:isEmpty?'1.5px solid var(--bd)':'none',borderRadius:8,padding:'12px 28px',fontSize:15,fontWeight:800,cursor:isEmpty?'not-allowed':'pointer',transition:'all .15s',opacity:isEmpty?.5:1}}>
+        style={{display:'inline-flex',alignItems:'center',justifyContent:'center',gap:8,background:isEmpty?'transparent':'var(--ac)',color:isEmpty?'var(--txd)':'#000',border:isEmpty?'1.5px solid var(--bd)':'none',borderRadius:8,padding:'12px 28px',fontSize:15,fontWeight:800,cursor:isEmpty?'not-allowed':'pointer',transition:'all .15s',opacity:isEmpty?.5:1,alignSelf:'stretch'}}>
         <TBIcon n="bolt" size={15}/> Launch Analysis
       </button>
-      <button className="tb-btn-ghost" onClick={()=>{setEditing(e=>!e);setDraft(getSearches(cfg));setResults([]);}}>
-        {editing?<span><TBIcon n="x"/> Cancel</span>:<span><TBIcon n="pencil"/> Edit Searches</span>}
-      </button>
-    </div>
-
-    {/* Full deploy — runs the native Trading Auto Launch from the beginning */}
-    <div style={{marginTop:18,paddingTop:18,borderTop:'1px solid var(--bd)'}}>
-      <button onClick={handleDeploy}
-        style={{display:'inline-flex',alignItems:'center',gap:9,background:'transparent',color:'var(--tx)',border:'1.5px solid var(--ac)',borderRadius:8,padding:'12px 24px',fontSize:14,fontWeight:800,cursor:'pointer',transition:'all .15s'}}
-        onMouseEnter={e=>{e.currentTarget.style.background='var(--ac)';e.currentTarget.style.color='#000';}}
-        onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color='var(--tx)';}}>
-        <TBIcon n="rocket" size={15}/> Deploy Trading Auto Launch
-      </button>
-      <div style={{fontSize:11,color:'var(--txd)',marginTop:8,lineHeight:1.5,maxWidth:560}}>
-        Runs the whole flow — Daily Reminder → WeBull → TaskHub → window layout — then opens {aiSite.id==='none'?'your searches':<>{aiSite.label} + your searches</>} <b>in this Brave window</b>. Needs <code style={{fontFamily:'monospace'}}>launch.py --setup</code> once; Brave asks permission the first time.
+      <div style={{borderTop:'1px solid var(--bd)',paddingTop:14,display:'flex',flexDirection:'column',gap:8}}>
+        <button onClick={handleDeploy}
+          style={{display:'inline-flex',alignItems:'center',justifyContent:'center',gap:9,background:'transparent',color:'var(--tx)',border:'1.5px solid var(--ac)',borderRadius:8,padding:'12px 24px',fontSize:14,fontWeight:800,cursor:'pointer',transition:'all .15s',alignSelf:'stretch'}}
+          onMouseEnter={e=>{e.currentTarget.style.background='var(--ac)';e.currentTarget.style.color='#000';}}
+          onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color='var(--tx)';}}>
+          <TBIcon n="rocket" size={15}/> Deploy Trading Auto Launch
+        </button>
+        <div style={{fontSize:11,color:'var(--txd)',lineHeight:1.5}}>
+          Runs the whole flow — Daily Reminder → WeBull → TaskHub → window layout — then opens {aiSite.id==='none'?'your searches':<>{aiSite.label} + your searches</>} <b>in this Brave window</b>. Needs <code style={{fontFamily:'monospace'}}>launch.py --setup</code> once; Brave asks permission the first time.
+        </div>
       </div>
-    </div>
+    </Card>
 
     {/* Per-action result pills */}
     {results.length>0&&(
