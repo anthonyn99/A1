@@ -6629,7 +6629,7 @@ function TBNewsSummaryOverlay({onClose,summary,loading,error,generatedAt,eventCo
               <div style={{fontSize:10,color:'var(--txm)',borderTop:'1px solid var(--bd)',paddingTop:12,display:'flex',flexWrap:'wrap',gap:8,alignItems:'center'}}>
                 <span>AI summary of {eventCount} analyzed events</span>
                 {S.model&&<span style={{fontFamily:"'IBM Plex Mono',monospace",opacity:.75}}>· {S.model}</span>}
-                <span style={{opacity:.75}}>· rebuilt only when the news is</span>
+                <span style={{opacity:.75}}>· regenerated only when the news rebuilds</span>
               </div>
             </div>
           )}
