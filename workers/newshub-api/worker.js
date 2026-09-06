@@ -3482,6 +3482,270 @@ async function handleStage(env, ctx, req, buildId, stage, sliceIdx){
   return new Response(JSON.stringify({ error:'unknown stage', stage }), { status:400, headers:{...cors(),'Content-Type':'application/json'} });
 }
 
+// ─── NEWS DIGEST — the Summary overlay ────────────────────────────────────
+// ONE AI call that reads the finished build and writes the market read for it.
+//
+// ── Why this is cheap, and must stay cheap ─────────────────────────────────
+// The digest NEVER re-fetches articles and NEVER re-analyzes events. Its input
+// is the build's own output — events that already carry an AI summary, a
+// sentiment and an impact score — so the whole watchlist compresses to ~5k
+// tokens of one-line-per-event text. That is a single call against a model's
+// daily request quota, versus the 7-16 the analysis phase spends.
+//
+// It is also cached HARDER than the news itself: the KV key embeds the build's
+// generatedAt, so one digest is generated per BUILD, not per view. Opening the
+// Summary overlay ten times, on three devices, costs exactly zero after the
+// first. A new build mints a new key; the old digest just ages out.
+//
+// ── Why it does NOT run inside the build invocation ────────────────────────
+// It can't. A build already spends ~46 of Cloudflare's 50 subrequests per
+// invocation (see BUILD_SUBREQUEST_CAP and the note above FINNHUB_PER_TICKER_CAP
+// about a 34-ticker build hitting 57 and being killed before it wrote anything).
+// Adding an AI call to that budget risks exactly that failure, and a broken
+// build is a far worse outcome than a summary that arrives a few seconds later.
+// So the digest lives on its own endpoint with its own fresh 50-subrequest
+// budget, and the CLIENT warms it in the background the moment a build lands —
+// which is what makes it "already there" when the overlay opens.
+const SUMMARY_TTL = 86400;   // 24h. Tiny doc, and the key is pinned to a single
+                             // build's generatedAt, so it can never go stale —
+                             // outliving the 6h news cache just means a build
+                             // you scroll back to still has its summary free.
+const SUMMARY_LOCK_TTL = 90; // one generation is ~4-8s; this only stops two
+                             // devices opening Summary at once from both paying.
+
+// Digest model chain, DELIBERATELY led by a different model than AI_CHAIN.
+// The analysis phase pounds gemini-3.1-flash-lite (7-16 calls/build), so leading
+// the digest with the same model would make the two compete for one daily request
+// quota. gemini-2.5-flash is only a FALLBACK for analysis, so its quota is
+// essentially untouched — and it is the stronger synthesizer of the two, which is
+// what a once-per-build summarization call should be spending on.
+const SUMMARY_CHAIN = [
+  { provider:'gemini', model:'gemini-2.5-flash' },       // PRIMARY: best synthesis, quota barely used by the analysis phase
+  { provider:'gemini', model:'gemini-3.1-flash-lite' },  // fast + highest RPD
+  { provider:'gemini', model:'gemini-2.0-flash' },
+  { provider:'gemini', model:'gemini-2.5-flash-lite' },
+  { provider:'nim',    model:'meta/llama-3.1-70b-instruct' }, // separate provider — survives a Gemini-wide daily cap
+];
+
+const DIGEST_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    headline:  { type:'STRING' },
+    tone:      { type:'STRING', enum:['bull','bear','mixed'] },
+    toneScore: { type:'NUMBER' },
+    overview:  { type:'STRING' },
+    keyPoints: { type:'ARRAY', items:{ type:'OBJECT', properties:{
+      text:    { type:'STRING' },
+      stance:  { type:'STRING', enum:['bull','bear','neutral'] },
+      tickers: { type:'ARRAY', items:{ type:'STRING' } },
+    }, required:['text','stance'] } },
+    tickers:   { type:'ARRAY', items:{ type:'OBJECT', properties:{
+      ticker: { type:'STRING' },
+      stance: { type:'STRING', enum:['bull','bear','neutral'] },
+      note:   { type:'STRING' },
+    }, required:['ticker','stance','note'] } },
+    themes:    { type:'ARRAY', items:{ type:'OBJECT', properties:{
+      name:   { type:'STRING' },
+      stance: { type:'STRING', enum:['bull','bear','neutral'] },
+      note:   { type:'STRING' },
+    }, required:['name','stance','note'] } },
+    risks:     { type:'ARRAY', items:{ type:'STRING' } },
+    watch:     { type:'ARRAY', items:{ type:'STRING' } },
+  },
+  required: ['headline','tone','overview','keyPoints','tickers','themes'],
+};
+
+// One line per event. This is the whole model input, so it is packed: no ids, no
+// urls, no source lists — none of that changes the market read, and all of it
+// would multiply the token count. Highest-impact first so a truncating model
+// still sees what matters.
+function buildDigestPrompt(events, wl){
+  const rows = events
+    .slice()
+    .sort((a,b) => (b.impact?.score||0) - (a.impact?.score||0))
+    .map(e => {
+      const tks = [e.primaryTicker, ...(e.additionalTickers||[])].filter(Boolean).join('+');
+      const s = e.sentiment || {};
+      const sc = typeof s.score === 'number' ? (s.score > 0 ? '+' : '') + s.score.toFixed(2) : '';
+      return `[${tks}] ${e.impact?.tier||'minor'}/${e.impact?.score||0} ${s.label||'neutral'}${sc} ${e.eventType||''} :: ${e.summary||''}`;
+    })
+    .join('\n');
+
+  return `You are a senior sell-side analyst writing the morning market read for ONE trader who holds/watches this exact list: ${wl.join(', ')}.
+
+Below are ${events.length} already-analyzed news events from the last 72 hours. Each line is:
+[tickers] impactTier/impactScore sentiment±score eventType :: summary
+
+EVENTS
+${rows}
+
+Write a concise, decision-useful digest of THIS news. Rules:
+- Synthesize across events. Connect related stories into one narrative; never restate the list.
+- Be specific and quantitative. Keep the real numbers ($96.2B, -1.96%, 12.9B deal) — they are why this is worth reading.
+- Weight by impactScore. Critical/major events drive the read; minor ones only matter if several point the same way.
+- "stance" is that item's directional read for the trader: bull, bear, or neutral. Judge it, do not average it.
+- Only name tickers that actually appear above.
+- No hedging filler, no "investors should consult", no restating these instructions.
+
+Fields:
+- headline: ONE sentence, under 110 chars — the single most important thing in this news.
+- tone / toneScore: the net read across everything. toneScore is -1 (max bearish) to 1 (max bullish).
+- overview: 2-3 sentences. The narrative tying the biggest stories together.
+- keyPoints: 4-6 items, ordered most to least important. Each ONE sentence with its concrete detail.
+- tickers: only names with news that MOVES them (max 8), ordered by importance. note = one clause, under 90 chars.
+- themes: 2-4 cross-cutting narratives (e.g. "AI capex cycle", "memory pricing"). note = one clause.
+- risks: 2-3 concrete things that could go wrong, drawn from this news.
+- watch: 2-3 specific things to watch next (a date, a print, a confirmation).
+
+Return JSON only.`;
+}
+
+// Standalone Gemini call for the digest. Deliberately NOT callGemini(): that one
+// is wired to the events-array schema and, more importantly, to the BUILD's
+// subrequest/deadline budget (aiCallBudgetLeft / aiBudgetLeft). The digest runs
+// in its own invocation with its own fresh budget, so borrowing those counters
+// would make it refuse to fire whenever a build had recently exhausted them.
+async function callGeminiDigest(model, prompt, env){
+  const gc = {
+    temperature: 0.3,   // a shade above the analysis pass — this is prose, not extraction
+    maxOutputTokens: model.startsWith('gemini-3.5') ? 16384 : 6144,
+    responseMimeType: 'application/json',
+    responseSchema: DIGEST_SCHEMA,
+  };
+  if (model.startsWith('gemini-3')) gc.thinkingConfig = { thinkingLevel: 'low' };
+  else if (model.startsWith('gemini-2.5')) gc.thinkingConfig = { thinkingBudget: 0 };
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_KEY}`;
+  const body = JSON.stringify({ contents:[{ parts:[{ text: prompt }] }], generationConfig: gc });
+
+  let r, lastBody = '';
+  for (let attempt = 0; attempt < 3; attempt++){
+    r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body, signal: AbortSignal.timeout(30000) });
+    if (r.status === 429){
+      lastBody = (await r.text()).slice(0, 500);
+      // Only a DAILY cap earns the shared cooldown block — the same key the
+      // analysis phase reads, so a capped model is skipped everywhere at once.
+      if (/per day|PerDay|daily limit|quota.*exhaust|FreeTier.*Day/i.test(lastBody)){
+        await env.NEWSHUB_CACHE.put('quota_block:'+model, '1', { expirationTtl: QUOTA_COOLDOWN }).catch(()=>{});
+        console.warn(`[digest] ${model} 429 DAILY — blocked ${QUOTA_COOLDOWN}s`);
+        return null;
+      }
+      await new Promise(res => setTimeout(res, 1200 * (attempt + 1)));
+      continue;
+    }
+    if (r.status >= 500){
+      await new Promise(res => setTimeout(res, 1200 * (attempt + 1)));
+      continue;
+    }
+    break;
+  }
+  if (!r || !r.ok){
+    if (r) console.warn(`[digest] ${model} HTTP ${r.status}:`, (await r.text().catch(()=>'')).slice(0,200));
+    return null;
+  }
+  const j = await r.json();
+  const cand = j.candidates?.[0];
+  let text = cand?.content?.parts?.[0]?.text || '';
+  if (!text){ console.warn(`[digest] ${model} empty, finishReason=${cand?.finishReason}`); return null; }
+  text = text.replace(/^```(?:json)?\s*/i,'').replace(/\s*```\s*$/,'').trim();
+  try { return JSON.parse(text); }
+  catch(e){ console.warn(`[digest] ${model} JSON parse failed:`, text.slice(0,200)); return null; }
+}
+
+// NIM fallback — reached only if every Gemini model is capped. Prompted for a
+// bare object since NIM has no responseSchema.
+async function callNimDigest(model, prompt, env){
+  if (!env.NVIDIA_API_KEY) return null;
+  const r = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${env.NVIDIA_API_KEY}` },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role:'system', content:'You are a senior sell-side analyst. Respond with a single valid JSON object only — no markdown, no code fences, no explanation.' },
+        { role:'user', content: prompt + `\n\nReturn ONE JSON object with keys: headline (string), tone ("bull"|"bear"|"mixed"), toneScore (number -1..1), overview (string), keyPoints (array of {text, stance, tickers}), tickers (array of {ticker, stance, note}), themes (array of {name, stance, note}), risks (array of strings), watch (array of strings). stance is "bull"|"bear"|"neutral".` },
+      ],
+      temperature: 0.3, max_tokens: 3000, stream: false,
+    }),
+    signal: AbortSignal.timeout(45000),
+  }).catch(()=>null);
+  if (!r || !r.ok) return null;
+  const j = await r.json().catch(()=>null);
+  let text = j?.choices?.[0]?.message?.content || '';
+  if (!text) return null;
+  text = text.replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'').trim();
+  const a = text.indexOf('{'), b = text.lastIndexOf('}');
+  if (a === -1 || b === -1) return null;
+  try { return JSON.parse(text.slice(a, b+1)); } catch(e){ return null; }
+}
+
+// Normalize whatever the model returned into the exact shape the UI renders, so
+// a model that drops a field or invents a stance can't break the overlay.
+function normalizeDigest(d){
+  if (!d || typeof d !== 'object') return null;
+  const stance = v => (v === 'bull' || v === 'bear') ? v : 'neutral';
+  const str = (v, cap) => typeof v === 'string' ? v.trim().slice(0, cap) : '';
+  const arr = v => Array.isArray(v) ? v : [];
+  const out = {
+    headline:  str(d.headline, 200),
+    tone:      (d.tone === 'bull' || d.tone === 'bear') ? d.tone : 'mixed',
+    toneScore: typeof d.toneScore === 'number' ? Math.max(-1, Math.min(1, d.toneScore)) : 0,
+    overview:  str(d.overview, 900),
+    keyPoints: arr(d.keyPoints).slice(0,8).map(k => ({
+      text: str(k && k.text, 400), stance: stance(k && k.stance),
+      tickers: arr(k && k.tickers).slice(0,6).map(t => String(t||'').toUpperCase()).filter(Boolean),
+    })).filter(k => k.text),
+    tickers:   arr(d.tickers).slice(0,10).map(t => ({
+      ticker: String((t && t.ticker) || '').toUpperCase(), stance: stance(t && t.stance), note: str(t && t.note, 200),
+    })).filter(t => t.ticker),
+    themes:    arr(d.themes).slice(0,6).map(t => ({
+      name: str(t && t.name, 80), stance: stance(t && t.stance), note: str(t && t.note, 200),
+    })).filter(t => t.name),
+    risks:     arr(d.risks).slice(0,4).map(s => str(s, 300)).filter(Boolean),
+    watch:     arr(d.watch).slice(0,4).map(s => str(s, 300)).filter(Boolean),
+  };
+  // Without a headline or any body there is nothing worth showing — treat it as
+  // a failed generation so the chain advances to the next model.
+  if (!out.headline && !out.overview && !out.keyPoints.length) return null;
+  return out;
+}
+
+// Walk the chain until a model returns something usable. `only` pins a single
+// model (used by ?model= when comparing models).
+async function generateDigest(events, wl, env, only){
+  const prompt = buildDigestPrompt(events, wl);
+  const chain = only ? [{ provider: only.startsWith('meta/') ? 'nim' : 'gemini', model: only }] : SUMMARY_CHAIN;
+  for (const entry of chain){
+    // Respect the cooldown the analysis phase sets — no point spending a call on
+    // a model we already know is capped today.
+    if (!only){
+      const bk = entry.provider === 'gemini' ? 'quota_block:'+entry.model : 'quota_block:nim:'+entry.model.replace('/','_');
+      try { if (await env.NEWSHUB_CACHE.get(bk)) continue; } catch(e){}
+    }
+    if (entry.provider === 'gemini' && !env.GEMINI_KEY) continue;
+    const t0 = Date.now();
+    let raw = null;
+    try {
+      raw = entry.provider === 'gemini'
+        ? await callGeminiDigest(entry.model, prompt, env)
+        : await callNimDigest(entry.model, prompt, env);
+    } catch(e){ console.warn(`[digest] ${entry.model} threw:`, e.message); }
+    const d = normalizeDigest(raw);
+    if (d){
+      d.model = entry.model;
+      d.ms = Date.now() - t0;
+      console.log(`[digest] built by ${entry.model} in ${d.ms}ms (${events.length} events)`);
+      return d;
+    }
+    console.warn(`[digest] ${entry.model} produced nothing — advancing chain`);
+  }
+  return null;
+}
+
+function summaryCacheKey(wl, generatedAt){
+  return `summary:v1:${wlHash(wl)}:${generatedAt}`;
+}
+
 // ─── Rate limit helpers ───────────────────────────────────────────────────
 // Free API quotas:
 //   Gemini 2.5-flash: 250 req/day  → ~15 calls/refresh → max 16 fresh/day
@@ -4202,6 +4466,97 @@ export default {
       } catch(e){
         await env.NEWSHUB_CACHE.delete(calLock);
         return new Response(JSON.stringify({ error: e.message, events: [] }), { status:500, headers:{ ...cors(), 'Content-Type':'application/json' } });
+      }
+    }
+
+    // ── /summary?tickers=A,B,C — the Summary overlay's market read ──────────
+    // Reads the CACHED build and returns a digest of it. Never fetches articles,
+    // never starts a news build, never touches the force-fresh rate limit — the
+    // only thing it can spend is one AI call, and only when this exact build has
+    // not been digested yet (the KV key embeds the build's generatedAt).
+    //
+    //   ?peek=1    report whether a digest is ready WITHOUT generating one (free)
+    //   ?model=…   pin one model instead of walking SUMMARY_CHAIN (comparison)
+    //   ?nocache=1 force regeneration — costs a call, so it is gated on ?model=
+    if (url.pathname === '/summary'){
+      const sTickers = parseTickers(url.searchParams.get('tickers'));
+      const sCustom  = !!sTickers && wlHash(sTickers) !== wlHash(WATCHLIST);
+      const sWl      = sCustom ? sTickers : WATCHLIST;
+      const sNewsKey = sCustom ? 'events:v1:' + wlHash(sWl) : 'events:v1';
+      const jsonHead = (extra) => ({ ...cors(), 'Content-Type':'application/json', ...(extra||{}) });
+
+      // The build this digest describes.
+      let news = null;
+      try { const raw = await env.NEWSHUB_CACHE.get(sNewsKey); if (raw) news = JSON.parse(raw); } catch(e){}
+      const sEvents = (news && Array.isArray(news.events)) ? news.events : [];
+      if (!sEvents.length){
+        return new Response(JSON.stringify({ ok:false, unavailable:true, reason:'No build to summarize yet — refresh the news first.' }), { headers: jsonHead() });
+      }
+      // A degraded build is raw headlines with no AI verdicts, and it only ever
+      // happens because the AI chain was unavailable — so there is nothing good to
+      // summarize AND nothing to summarize it with. Say so rather than spending a
+      // call to produce a digest of headlines.
+      if (news.degraded || sEvents.every(e => e.aiAnalyzed === false)){
+        return new Response(JSON.stringify({ ok:false, unavailable:true, reason:'This build is raw headlines (AI analysis unavailable) — nothing to summarize. Try Force fresh.' }), { headers: jsonHead() });
+      }
+
+      const sGen = news.generatedAt || 0;
+      const sKey = summaryCacheKey(sWl, sGen);
+      const modelOverride = url.searchParams.get('model') || '';
+      const noCache = url.searchParams.get('nocache') === '1' && !!modelOverride;
+
+      if (!noCache){
+        try {
+          const hit = await env.NEWSHUB_CACHE.get(sKey);
+          if (hit) return new Response(hit, { headers: jsonHead({ 'X-Cache':'HIT' }) });
+        } catch(e){}
+      }
+
+      // Peek: the client's cheap "is it warm?" check. Must never generate.
+      if (url.searchParams.get('peek') === '1'){
+        return new Response(JSON.stringify({ ok:false, pending:true, generatedAt:sGen }), { headers: jsonHead({ 'X-Cache':'MISS' }) });
+      }
+
+      // One generation per build, even if two devices open Summary together.
+      const sLock = 'summary:lock:' + wlHash(sWl) + ':' + sGen;
+      if (!noCache){
+        let held = null;
+        try { held = await env.NEWSHUB_CACHE.get(sLock); } catch(e){}
+        if (held){
+          return new Response(JSON.stringify({ ok:false, building:true, message:'Summary is being written — retry shortly.' }),
+            { status:202, headers: jsonHead() });
+        }
+        await env.NEWSHUB_CACHE.put(sLock, '1', { expirationTtl: SUMMARY_LOCK_TTL }).catch(()=>{});
+      }
+
+      try {
+        const digest = await generateDigest(sEvents, sWl, env, modelOverride);
+        if (!digest){
+          await env.NEWSHUB_CACHE.delete(sLock).catch(()=>{});
+          return new Response(JSON.stringify({ ok:false, unavailable:true, reason:'Every summary model is rate-limited right now. Quotas reset at midnight UTC.' }),
+            { status:503, headers: jsonHead() });
+        }
+        const payload = {
+          ok: true,
+          summary: digest,
+          generatedAt: sGen,          // the BUILD this describes — the client pins on it
+          builtAt: Date.now(),
+          eventCount: sEvents.length,
+          watchlist: sWl,
+        };
+        const bodyOut = JSON.stringify(payload);
+        // Only the canonical (non-override) digest is cached, so model comparison
+        // runs can never poison the copy everyone else reads.
+        if (!modelOverride){
+          await env.NEWSHUB_CACHE.put(sKey, bodyOut, { expirationTtl: SUMMARY_TTL }).catch(()=>{});
+        }
+        await env.NEWSHUB_CACHE.delete(sLock).catch(()=>{});
+        return new Response(bodyOut, { headers: jsonHead({ 'X-Cache':'MISS' }) });
+      } catch(e){
+        await env.NEWSHUB_CACHE.delete(sLock).catch(()=>{});
+        console.error('[digest] failed:', e.message);
+        return new Response(JSON.stringify({ ok:false, unavailable:true, reason:'Summary failed: ' + e.message }),
+          { status:500, headers: jsonHead() });
       }
     }
 
