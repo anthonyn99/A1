@@ -102,6 +102,12 @@
   html,body{margin:0;padding:0;background:#1a1a1d;}
   body{font-family:'Inter',system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased;}
   button{touch-action:manipulation;}
+  /* Kill the grey/blue flash mobile browsers paint over whatever you tap. It is
+     the UA's own affordance and it does not match anything here — every control
+     already has its own pressed/hover state. Set on html AND * because the
+     property inherits, but a few UA stylesheets re-assert it on form controls
+     and links, which the universal selector covers. */
+  html,*{-webkit-tap-highlight-color:transparent;}
   /* TradeHub is the whole page here — root fills the viewport and is always shown */
   #tradeboard-root{position:fixed;inset:0;height:100dvh;overflow:hidden;display:flex;flex-direction:column;background:#1a1a1d;}
   ::-webkit-scrollbar{display:none;width:0;height:0;}
@@ -1495,21 +1501,24 @@ const TB_STYLES=`
    shows its own scrollbar here, which is what we want anyway — visible and
    draggable. Only Chromium hides scrollbars app-wide, so only it needs opting
    back in. */
-/* IDLE-HIDDEN. The thumb is transparent until you scroll (or put the cursor in
-   the gutter), then fades back out — see tbScrollActivity, which toggles
-   .is-scrolling. Only the COLOUR changes: the gutter itself stays reserved at a
-   constant width, so revealing the thumb never reflows the content next to it.
-   A transition is declared for browsers that animate scrollbar pseudo-elements;
-   where they don't, it simply snaps, which is still the behaviour asked for. */
+/* IDLE-HIDDEN. The thumb's alpha is --tb-sb-a, which is 0 until you scroll (or
+   put the cursor in the gutter); the scrollbar-activity module raises it to
+   --tb-sb-peak and then animates it back down. It has to animate the value
+   itself: Chromium ignores the CSS transition property on ::-webkit-scrollbar
+   pseudo-elements, so a declared transition would just snap. Only the COLOUR
+   changes — the gutter stays a constant width, so revealing the thumb never
+   reflows the content.
+   (Still no backticks anywhere in here: this stylesheet is a JS template
+   literal, and one backtick ends it and takes the whole app down.) */
 #tradeboard-root .tb-scroll-visible::-webkit-scrollbar{display:block;width:14px;height:14px;}
 #tradeboard-root .tb-scroll-visible::-webkit-scrollbar-track{background:transparent;}
 /* A transparent border + padding-box clip makes the thumb read as a floating
    pill instead of filling the gutter; min-height keeps it grabbable on a long
    page. background-COLOR (not the shorthand) so :hover/:active don't reset the
    clip back to border-box and square the pill off. */
-#tradeboard-root .tb-scroll-visible::-webkit-scrollbar-thumb{background-color:transparent;background-clip:padding-box;border:4px solid transparent;border-radius:10px;min-height:48px;transition:background-color .35s ease;}
-#tradeboard-root .tb-scroll-visible.is-scrolling::-webkit-scrollbar-thumb{background-color:rgba(152,152,168,0.45);}
-#tradeboard-root .tb-scroll-visible.is-scrolling::-webkit-scrollbar-thumb:hover{background-color:rgba(152,152,168,0.75);}
+#tradeboard-root .tb-scroll-visible{--tb-sb-peak:.45;}
+#tradeboard-root .tb-scroll-visible::-webkit-scrollbar-thumb{background-color:rgba(152,152,168,var(--tb-sb-a,0));background-clip:padding-box;border:4px solid transparent;border-radius:10px;min-height:48px;}
+#tradeboard-root .tb-scroll-visible::-webkit-scrollbar-thumb:hover{background-color:rgba(152,152,168,.75);}
 #tradeboard-root .tb-scroll-visible::-webkit-scrollbar-thumb:active{background-color:var(--ac);}
 #tradeboard-root .tb-scroll-visible::-webkit-scrollbar-button{display:none;height:0;width:0;}
 #tradeboard-root .tb-scroll-visible::-webkit-scrollbar-corner{background:transparent;}
@@ -1520,9 +1529,9 @@ const TB_STYLES=`
    when the content actually overflows — overflow:auto decides that. */
 #tradeboard-root .tb-scroll-thin::-webkit-scrollbar{display:block;width:10px;height:10px;}
 #tradeboard-root .tb-scroll-thin::-webkit-scrollbar-track{background:transparent;}
-#tradeboard-root .tb-scroll-thin::-webkit-scrollbar-thumb{background-color:transparent;background-clip:padding-box;border:3px solid transparent;border-radius:8px;min-height:32px;transition:background-color .35s ease;}
-#tradeboard-root .tb-scroll-thin.is-scrolling::-webkit-scrollbar-thumb{background-color:rgba(152,152,168,0.42);}
-#tradeboard-root .tb-scroll-thin.is-scrolling::-webkit-scrollbar-thumb:hover{background-color:rgba(152,152,168,0.72);}
+#tradeboard-root .tb-scroll-thin{--tb-sb-peak:.42;}
+#tradeboard-root .tb-scroll-thin::-webkit-scrollbar-thumb{background-color:rgba(152,152,168,var(--tb-sb-a,0));background-clip:padding-box;border:3px solid transparent;border-radius:8px;min-height:32px;}
+#tradeboard-root .tb-scroll-thin::-webkit-scrollbar-thumb:hover{background-color:rgba(152,152,168,.72);}
 #tradeboard-root .tb-scroll-thin::-webkit-scrollbar-thumb:active{background-color:var(--ac);}
 #tradeboard-root .tb-scroll-thin::-webkit-scrollbar-button{display:none;height:0;width:0;}
 #tradeboard-root .tb-scroll-thin::-webkit-scrollbar-corner{background:transparent;}
@@ -1609,15 +1618,15 @@ const TB_STYLES=`
      you can drag — touch just usually drags the content instead. The thinner
      gutter needs a thinner transparent border or the pill vanishes inside it. */
   #tradeboard-root .tb-scroll-visible::-webkit-scrollbar{width:8px!important;height:8px!important;}
-  /* Geometry only on the base rule — the COLOUR stays on .is-scrolling, or the
-     thumb would be pinned visible on mobile and never fade. */
+  /* Geometry only — the colour comes from --tb-sb-a, which tbScrollActivity
+     animates, so nothing here may pin a background-color. */
   #tradeboard-root .tb-scroll-visible::-webkit-scrollbar-thumb{border-width:2px!important;border-radius:8px!important;}
-  #tradeboard-root .tb-scroll-visible.is-scrolling::-webkit-scrollbar-thumb{background-color:rgba(152,152,168,0.55)!important;}
   /* Nested scrollers get slimmer still — inside a card on a 390px screen, 10px
      of gutter is a real bite out of the content it sits next to. */
   #tradeboard-root .tb-scroll-thin::-webkit-scrollbar{width:7px!important;height:7px!important;}
   #tradeboard-root .tb-scroll-thin::-webkit-scrollbar-thumb{border-width:2px!important;border-radius:7px!important;}
-  #tradeboard-root .tb-scroll-thin.is-scrolling::-webkit-scrollbar-thumb{background-color:rgba(152,152,168,0.55)!important;}
+  /* A touch stronger at rest on a phone — a 7px pill on a dark card needs it. */
+  #tradeboard-root .tb-scroll-visible,#tradeboard-root .tb-scroll-thin{--tb-sb-peak:.55;}
   /* ── Summary overlay on mobile ──
      Full-bleed, and the CARD owns the scrolling (not the overlay) so the sticky
      header stays pinned while the digest scrolls under it. The bottom padding
@@ -1642,8 +1651,8 @@ const TB_STYLES=`
 })();
 
 /* ── Scrollbar activity ─────────────────────────────────────────────────────
-   Marks a scroller .is-scrolling while it is in use, so the thumb (transparent
-   at rest — see the tb-scroll-* rules) shows and then fades back out.
+   Raises a scroller's --tb-sb-a while it is in use, so the thumb (invisible at
+   rest — see the tb-scroll-* rules) appears and then fades back out.
 
    Delegated from the document rather than bound per element: these scrollers are
    React-rendered and come and go with every tab switch, so per-element listeners
@@ -1657,15 +1666,38 @@ const TB_STYLES=`
    time the cursor sat anywhere over the content, which is the opposite of what
    idle-hidden means. */
 (function(){
-  const IDLE_MS=900;
+  const IDLE_MS=900;    // how long the thumb stays up after the last movement
+  const FADE_MS=320;    // how long it takes to disappear
   const SEL='.tb-scroll-visible,.tb-scroll-thin';
-  const timers=new WeakMap();
+  const state=new WeakMap();   // el -> {t:timeoutId, raf:rafId, peak:number}
+
+  /* The fade is driven in JS, one --tb-sb-a step per frame, because Chromium
+     does NOT run CSS transitions on ::-webkit-scrollbar pseudo-elements — a
+     `transition` declared on the thumb is simply ignored and it snaps. Custom
+     properties DO reach the pseudo-element (it inherits from its originating
+     element), so stepping the alpha here repaints the thumb progressively and
+     gives a real fade. Only the colour changes; the gutter width is untouched,
+     so none of this reflows the content beside it. */
+  const stop=st=>{ if(st){ clearTimeout(st.t); if(st.raf)cancelAnimationFrame(st.raf); st.raf=0; } };
+
   const show=el=>{
-    if(!el||!el.classList)return;
-    el.classList.add('is-scrolling');
-    clearTimeout(timers.get(el));
-    timers.set(el,setTimeout(()=>el.classList.remove('is-scrolling'),IDLE_MS));
+    if(!el||!el.style)return;
+    let st=state.get(el);
+    if(!st){ st={t:0,raf:0,peak:0}; state.set(el,st); }
+    stop(st);
+    if(!st.peak) st.peak=parseFloat(getComputedStyle(el).getPropertyValue('--tb-sb-peak'))||0.45;
+    el.style.setProperty('--tb-sb-a',String(st.peak));
+    st.t=setTimeout(()=>{
+      const t0=performance.now();
+      const step=now=>{
+        const k=Math.min(1,(now-t0)/FADE_MS);
+        el.style.setProperty('--tb-sb-a',String(st.peak*(1-k)));
+        st.raf=k<1?requestAnimationFrame(step):0;
+      };
+      st.raf=requestAnimationFrame(step);
+    },IDLE_MS);
   };
+
   document.addEventListener('scroll',e=>{
     const el=e.target;
     if(el&&el.nodeType===1&&el.matches&&el.matches(SEL))show(el);
@@ -4224,8 +4256,11 @@ function TBJournalPage(){
     _tbJournalStore.note(`Exported ${trades.length} trade${trades.length!==1?'s':''}`);
   };
 
+  /* No top padding: the shell already pads 18px, and every tab must start at the
+     SAME height. Journal used to add 16 on top of that and Analysis 32, so
+     switching tabs nudged the whole page up and down. */
   return(
-    <div className="tb-fade-in tb-mob-flush" style={{display:'flex',flexDirection:'column',gap:16,padding:'16px clamp(10px,4vw,28px) 40px'}}>
+    <div className="tb-fade-in tb-mob-flush" style={{display:'flex',flexDirection:'column',gap:16,padding:'0 clamp(10px,4vw,28px) 40px'}}>
       <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
         <div style={{flex:1,minWidth:140}}>
           <div style={{fontSize:20,fontWeight:800,color:'var(--tx)'}}>Journal</div>
@@ -4594,7 +4629,7 @@ function TBPortfolioPage(){
     {sub&&<div style={{fontSize:10,color:'var(--txm)',marginTop:3}}>{sub}</div>}
   </div>);
 
-  return(<div className="tb-fade-in tb-mob-flush" style={{display:'flex',flexDirection:'column',gap:18,padding:'16px clamp(10px,4vw,28px) 40px'}}>
+  return(<div className="tb-fade-in tb-mob-flush" style={{display:'flex',flexDirection:'column',gap:18,padding:'0 clamp(10px,4vw,28px) 40px'}}>
     <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
       <div style={{flex:1}}><div style={{fontSize:20,fontWeight:800,color:'var(--tx)'}}>Portfolio</div>{lastFetch&&<div style={{fontSize:13,color:'var(--txm)'}}>Updated {lastFetch.toLocaleString([],{dateStyle:'short',timeStyle:'short'})}</div>}</div>
       {loading&&<span style={{fontSize:14,color:'var(--txm)',display:'flex',alignItems:'center',gap:5}}><span style={{display:'inline-block',animation:'tb-spin 1s linear infinite'}}>⟳</span>Refreshing…</span>}
@@ -6251,11 +6286,57 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
     </div>
   );
 
-  return(<div className="tb-fade-in tb-mob-flush" style={{display:'flex',flexDirection:'column',gap:16,padding:'32px clamp(12px,4vw,28px) 40px',maxWidth:680,margin:'0 auto',width:'100%'}}>
+  return(<div className="tb-fade-in tb-mob-flush" style={{display:'flex',flexDirection:'column',gap:16,padding:'0 clamp(12px,4vw,28px) 40px',maxWidth:680,margin:'0 auto',width:'100%'}}>
     {/* Header — white, consistent with other sections */}
     <div style={{fontSize:20,fontWeight:800,color:'var(--tx)',marginBottom:2}}>Analysis</div>
 
-    {/* Quick prompt — first, because it is the one you reach for without setup */}
+    {/* AI destination first: it decides where EVERYTHING below goes — the quick
+        prompt, the saved prompt, and the morning deploy — and the copy in the
+        cards under it reads off the destination chosen here. */}
+    <Card icon="sparkle" title="AI Destination" sub="Where the prompt gets sent.">
+      <div style={{display:'flex',flexDirection:'column',gap:12}}>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+          {TB_AI_SITES.map(s=>{
+            const on=s.id===aiSite.id;
+            return(<button key={s.id} onClick={()=>saveCfg({...cfg,aiSite:s.id})} title={s.url||s.label}
+              style={{padding:'6px 14px',borderRadius:100,border:`1.5px solid ${on?'var(--ac)':'var(--bd)'}`,
+                background:'transparent',color:on?'var(--ac)':'var(--tx)',
+                boxShadow:on?'var(--gold-glow)':'none',
+                fontSize:13,fontWeight:700,cursor:'pointer',transition:'all .15s'}}>{s.label}</button>);
+          })}
+        </div>
+        {aiSite.id==='custom'&&(
+          <input value={aiCustomDraft} onChange={e=>setAiCustomDraft(e.target.value)}
+            onBlur={commitAiCustom} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();commitAiCustom();e.currentTarget.blur();}}}
+            placeholder="e.g.  https://chat.mistral.ai/chat?q={prompt}"
+            style={{width:'100%',background:'var(--bg)',border:'1px solid var(--bd)',borderRadius:6,color:'var(--tx)',fontSize:13,padding:'10px',boxSizing:'border-box',fontFamily:'inherit'}}/>
+        )}
+        <div style={{fontSize:11,color:'var(--txd)',lineHeight:1.5,display:'flex',alignItems:'flex-start',gap:7}}>
+          <span style={{color:autoSubmit?'var(--ac)':'var(--txd)',flexShrink:0,marginTop:1}}><TBIcon n={autoSubmit?'bolt':'command'} size={12}/></span>
+          <span>{aiSite.id==='none'
+            ? 'No AI tab — the prompt is copied and your searches open.'
+            : autoSubmit
+              ? <>Vault extension detected — opens {aiSite.label}, <b>types the prompt in and sends it</b>. Your clipboard keeps a copy.</>
+              : tbCanPrefill(cfg)
+                ? <>Opens {aiSite.label} with the prompt <b>already typed in</b>{aiSite.sends?<> and <b>sent</b></>:<> — you just hit send</>}. Same on a phone. Over ~{TB_PREFILL_MAX.toLocaleString()} characters it arrives on your clipboard instead.</>
+                : <>Opens {aiSite.label} with the prompt on your clipboard — paste, then Enter. {aiSite.id==='custom'?<>Add <code style={{fontFamily:'monospace'}}>{'{prompt}'}</code> to the URL above to have it typed in.</>:<>This one has no prefill link.</>} The <b>Vault extension</b> (desktop) types and sends it for you.</>}
+          </span>
+        </div>
+        {aiSite.id!=='none'&&(
+          <div style={{fontSize:11,color:'var(--txd)',lineHeight:1.5,display:'flex',alignItems:'flex-start',gap:7}}>
+            <span style={{color:'var(--txd)',flexShrink:0,marginTop:1}}><TBIcon n="link" size={12}/></span>
+            <span>{aiSite.app
+              ? <>On a phone: the <b>{aiSite.label} app</b> if it's installed (already signed in), otherwise the website — never both. The app can't take a prefilled link, so the prompt goes to your clipboard.</>
+              : <>On a phone this stays in the <b>browser</b>{aiSite.id==='custom'?'':<>, not the {aiSite.label} app</>}, so the prefilled link survives.</>}</span>
+          </div>
+        )}
+        {aiSite.id!=='chatgpt'&&aiSite.id!=='none'&&(
+          <div style={{fontSize:11,color:'var(--txd)',lineHeight:1.5}}>The morning deploy (below) sends to {aiSite.label} too.</div>
+        )}
+      </div>
+    </Card>
+
+    {/* Quick prompt — the one you reach for without any setup */}
     <Card icon="pencil" title="Quick Prompt" sub="A one-off, sent exactly like a saved prompt.">
       <div style={{display:'flex',flexDirection:'column',gap:10}}>
         <div style={{position:'relative'}}>
@@ -6318,50 +6399,6 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
         :<div style={{padding:'14px',borderRadius:8,border:'1px dashed var(--bd)',fontSize:12.5,color:'var(--txd)',textAlign:'center'}}>
           No prompt selected — pick one above.
         </div>}
-    </Card>
-
-    {/* AI destination — where Launch Analysis sends the prompt */}
-    <Card icon="sparkle" title="AI Destination" sub="Where the prompt gets sent.">
-      <div style={{display:'flex',flexDirection:'column',gap:12}}>
-        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-          {TB_AI_SITES.map(s=>{
-            const on=s.id===aiSite.id;
-            return(<button key={s.id} onClick={()=>saveCfg({...cfg,aiSite:s.id})} title={s.url||s.label}
-              style={{padding:'6px 14px',borderRadius:100,border:`1.5px solid ${on?'var(--ac)':'var(--bd)'}`,
-                background:'transparent',color:on?'var(--ac)':'var(--tx)',
-                boxShadow:on?'var(--gold-glow)':'none',
-                fontSize:13,fontWeight:700,cursor:'pointer',transition:'all .15s'}}>{s.label}</button>);
-          })}
-        </div>
-        {aiSite.id==='custom'&&(
-          <input value={aiCustomDraft} onChange={e=>setAiCustomDraft(e.target.value)}
-            onBlur={commitAiCustom} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();commitAiCustom();e.currentTarget.blur();}}}
-            placeholder="e.g.  https://chat.mistral.ai/chat?q={prompt}"
-            style={{width:'100%',background:'var(--bg)',border:'1px solid var(--bd)',borderRadius:6,color:'var(--tx)',fontSize:13,padding:'10px',boxSizing:'border-box',fontFamily:'inherit'}}/>
-        )}
-        <div style={{fontSize:11,color:'var(--txd)',lineHeight:1.5,display:'flex',alignItems:'flex-start',gap:7}}>
-          <span style={{color:autoSubmit?'var(--ac)':'var(--txd)',flexShrink:0,marginTop:1}}><TBIcon n={autoSubmit?'bolt':'command'} size={12}/></span>
-          <span>{aiSite.id==='none'
-            ? 'No AI tab — the prompt is copied and your searches open.'
-            : autoSubmit
-              ? <>Vault extension detected — opens {aiSite.label}, <b>types the prompt in and sends it</b>. Your clipboard keeps a copy.</>
-              : tbCanPrefill(cfg)
-                ? <>Opens {aiSite.label} with the prompt <b>already typed in</b>{aiSite.sends?<> and <b>sent</b></>:<> — you just hit send</>}. Same on a phone. Over ~{TB_PREFILL_MAX.toLocaleString()} characters it arrives on your clipboard instead.</>
-                : <>Opens {aiSite.label} with the prompt on your clipboard — paste, then Enter. {aiSite.id==='custom'?<>Add <code style={{fontFamily:'monospace'}}>{'{prompt}'}</code> to the URL above to have it typed in.</>:<>This one has no prefill link.</>} The <b>Vault extension</b> (desktop) types and sends it for you.</>}
-          </span>
-        </div>
-        {aiSite.id!=='none'&&(
-          <div style={{fontSize:11,color:'var(--txd)',lineHeight:1.5,display:'flex',alignItems:'flex-start',gap:7}}>
-            <span style={{color:'var(--txd)',flexShrink:0,marginTop:1}}><TBIcon n="link" size={12}/></span>
-            <span>{aiSite.app
-              ? <>On a phone: the <b>{aiSite.label} app</b> if it's installed (already signed in), otherwise the website — never both. The app can't take a prefilled link, so the prompt goes to your clipboard.</>
-              : <>On a phone this stays in the <b>browser</b>{aiSite.id==='custom'?'':<>, not the {aiSite.label} app</>}, so the prefilled link survives.</>}</span>
-          </div>
-        )}
-        {aiSite.id!=='chatgpt'&&aiSite.id!=='none'&&(
-          <div style={{fontSize:11,color:'var(--txd)',lineHeight:1.5}}>The morning deploy (below) sends to {aiSite.label} too.</div>
-        )}
-      </div>
     </Card>
 
     {/* Searches — the tabs that open alongside the AI. The prompt row that used
@@ -7673,11 +7710,14 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
           <span style={{fontSize:10,fontWeight:900,textTransform:'uppercase',letterSpacing:1.5,color:'var(--txm)'}}>Top Movers</span>
           {quotesAt>0&&<span style={{fontSize:10,color:'var(--txm)'}}>quotes {nhTimeAgo(quotesAt)}</span>}
         </div>
-        {/* paddingTop leaves room for the selected card's outline. overflowX:auto
-            makes the browser clip vertically too, so a 2px outline drawn OUTSIDE
-            the card had its top edge cut off — the selection looked like it only
-            framed three sides. */}
-        <div className="nh-movers" style={{display:'grid',gridAutoFlow:'column',gridAutoColumns:'minmax(210px,1fr)',gap:10,overflowX:'auto',paddingTop:3,paddingBottom:4}}>
+        {/* The selected card's outline is drawn OUTSIDE its box, and overflow-x
+            clips on every side — so it was cut off at the top and, on the first
+            and last cards, at the left and right edges of the strip too. Pad the
+            scroller on all four sides to give the outline room, then pull that
+            padding back out with a matching negative margin so the strip still
+            lines up with the content above and below it. */}
+        <div className="nh-movers" style={{display:'grid',gridAutoFlow:'column',gridAutoColumns:'minmax(210px,1fr)',gap:10,overflowX:'auto',
+                                           padding:'3px 3px 4px',margin:'0 -3px'}}>
           {movers.map(m=>{
             const ev=topEventByTicker[m.t];
             const hl=ev?(nhHeadlines(ev.sources)[0]?.headline||ev.summary):'';
@@ -9054,11 +9094,16 @@ function TBPlaybookEditor({page,onChange,onDelete,onBack,isMobile,onToast}){
         style={{minHeight:isMobile?300:420,padding:isMobile?'18px 16px':'26px 30px'}}/>
     </div>
 
-    <div style={{fontSize:11,color:'var(--txm)',paddingLeft:2}}>
-      {isDaily
-        ? 'The Trading Auto Launch shows this page every trading morning and waits for you to confirm it before opening anything.'
-        : 'Saves automatically. Paste keeps headings, bold, lists, tables, code and links.'}
-    </div>
+    {/* Only the daily page keeps a footer note, and only because it says
+        something you cannot infer from the page: that the morning launch stops
+        here and waits for you. The old generic line ("Saves automatically…") was
+        on every other page describing behaviour the editor already makes
+        obvious. */}
+    {isDaily&&(
+      <div style={{fontSize:11,color:'var(--txm)',paddingLeft:2}}>
+        The Trading Auto Launch shows this page every trading morning and waits for you to confirm it before opening anything.
+      </div>
+    )}
   </div>);
 }
 
