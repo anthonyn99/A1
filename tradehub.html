@@ -1345,6 +1345,13 @@ const TB_STYLES=`
 #tradeboard-root .tb-btn-primary:disabled{opacity:.4;cursor:not-allowed;transform:none;}
 #tradeboard-root .tb-btn-ghost{display:inline-flex;align-items:center;gap:7px;background:transparent;color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:9px 16px;font-size:11.5px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;box-shadow:none;transition:border-color .18s,color .18s,box-shadow .18s;}
 #tradeboard-root .tb-btn-ghost:hover{border-color:var(--acd);color:var(--acs);box-shadow:var(--gold-glow);}
+/* News Summary button. .is-ready tints the border when a digest is already warm,
+   but it must never survive a hover — the hover has to be the SAME gold glow the
+   Refresh button gets. Both rules carry the extra class so they outrank
+   .tb-btn-ghost:hover instead of tying with it and losing on source order.
+   (No backticks in here: this whole stylesheet is a JS template literal.) */
+#tradeboard-root .nh-sum-btn.is-ready{border-color:var(--acl);}
+#tradeboard-root .nh-sum-btn.is-ready:hover{border-color:var(--acd);color:var(--acs);box-shadow:var(--gold-glow);}
 #tradeboard-root .tb-star-on svg path{fill:currentColor;}
 #tradeboard-root .tb-star-hit{width:28px;height:28px;}
 @media (max-width:768px){#tradeboard-root .tb-star-hit{width:38px;height:38px;}}
@@ -1494,7 +1501,12 @@ const TB_STYLES=`
   #tradeboard-root .nh-stat-n{font-size:15px!important;}
   #tradeboard-root .nh-stat-l{font-size:8px!important;letter-spacing:.3px!important;}
   #tradeboard-root .nh-header{flex-direction:column!important;align-items:stretch!important;gap:8px!important;}
-  #tradeboard-root .nh-header-btns{justify-content:flex-start!important;}
+  /* Buttons go full-bleed on mobile: Force fresh and Refresh split the row, and
+     Summary spans the same total width below them — the same uniform block as
+     desktop, just stretched to the screen. */
+  #tradeboard-root .nh-header-btns{align-items:stretch!important;}
+  #tradeboard-root .nh-header-btns-row{width:100%!important;}
+  #tradeboard-root .nh-header-btns-row > button{flex:1 1 0!important;justify-content:center!important;}
   #tradeboard-root .nh-filter-row{flex-direction:row!important;flex-wrap:wrap!important;align-items:center!important;gap:6px!important;}
   #tradeboard-root .nh-filter-row .nh-lbl{flex-basis:100%!important;min-width:0!important;margin-bottom:1px!important;}
   #tradeboard-root .nh-seg{flex-wrap:wrap!important;}
@@ -6178,6 +6190,11 @@ async function tbNewsPoll(){
       };
       B.last=payload;
       B.emit({type:'done',payload});   // paint first — the publish below can await
+      /* Warm the digest here rather than only in the News tab: this poll is what
+         collects a build kicked by the morning orchestrator, and it runs whatever
+         tab is on screen. Without this, a 6am build watched from the Portfolio tab
+         landed with no summary until News was opened. */
+      tbWarmNewsSummary(B.tickers,payload.generatedAt,payload.events,payload.degraded);
       // Publish from HERE, not from the tab — News may well be unmounted.
       if(window._fbSaveTBNews){
         let settings=B.settings;
@@ -6328,6 +6345,27 @@ async function tbFetchNewsSummary(tickers,gen,background){
     if(!keepLoading)S.loading=false;
     S.emit();
   }
+}
+
+/* Warm the digest for a build we have just learned about, from ANYWHERE in the
+   app — the News tab does not have to be open, or ever to have been opened.
+
+   This is what makes the summary ready after the 6am build: the app-level morning
+   orchestrator (TBApp) runs on whatever tab you happen to have open, so opening
+   TradeHub on Portfolio at 7am still leaves a finished digest waiting behind the
+   Summary button. Same call covers a build that lands by polling while News is
+   closed.
+
+   Degraded builds are skipped deliberately — raw headlines carry no AI verdicts
+   to synthesize, and the chain that would write the summary is the very thing
+   that was unavailable. Cost is unchanged: still one AI call per build, because
+   the worker keys its cached digest by generatedAt and every caller here passes
+   the same one. */
+function tbWarmNewsSummary(tickers,gen,events,degraded){
+  if(!gen||!Array.isArray(events)||!events.length)return;
+  if(degraded||events.every(e=>e&&e.aiAnalyzed===false))return;
+  _tbNewsSummary.invalidate(gen);
+  tbFetchNewsSummary(tickers,gen,true);
 }
 
 const NH_TIER_META = {
@@ -6700,9 +6738,11 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
      a degraded build is never summarized (there is nothing analyzed to read),
      and an empty feed is skipped entirely. ── */
   useEffect(()=>{
-    if(!generatedAt||!events.length||degraded)return;
-    _tbNewsSummary.invalidate(generatedAt);   // a newer build retires the old digest
-    const t=setTimeout(()=>tbFetchNewsSummary(newsTickers,generatedAt,true),1200);
+    if(!generatedAt||!events.length)return;
+    // Same helper the morning orchestrator and the build poller use — it owns the
+    // "newer build retires the old digest" and "never summarize a degraded build"
+    // rules, so all four entry points can't drift apart.
+    const t=setTimeout(()=>tbWarmNewsSummary(newsTickers,generatedAt,events,degraded),1200);
     return()=>clearTimeout(t);
   },[generatedAt,events.length,degraded,newsTickers]);
 
@@ -7222,21 +7262,28 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
           {rlCooldown>0&&<span style={{fontSize:11,color:'var(--tbw)',whiteSpace:'nowrap',display:'inline-flex',alignItems:'center',gap:5}}><TBIcon n="clock"/> {nhFmtTime(rlCooldown)}</span>}
         </div>
       </div>
-      <div className="nh-header-btns" style={{display:'flex',gap:6,flexShrink:0,flexWrap:'wrap'}}>
-        <button className="tb-btn-ghost" onClick={()=>refresh(true)} disabled={!canRefresh}
-          style={{fontSize:11,opacity:canRefresh?1:0.45}}
-          title={!canRefresh?(!rlRemaining?'Daily limit reached':`Wait ${nhFmtTime(rlCooldown)}`):'Force full re-fetch'}>
-          <TBIcon n="rotateCcw"/> Force fresh
-        </button>
-        <button className="tb-btn-primary" onClick={()=>refresh(false)} disabled={loading||building} style={{fontSize:12}}>
-          {loading?'Loading…':building?'Building…':<span><TBIcon n="refresh"/> Refresh</span>}
-        </button>
-        {/* Summary sits on its own row under Refresh so it reads as a separate
-            action, not a third variant of "reload". Full-width on mobile. */}
-        <button className="tb-btn-ghost nh-sum-btn" onClick={openSummary} disabled={!events.length||degraded}
+      {/* Column, not a wrapping row: the column is only as wide as the two-button
+          row inside it, so Summary at width:100% lands exactly as long as Force
+          fresh + Refresh combined. A wrapping row sized itself to all THREE
+          buttons laid end to end, which is why Summary used to overhang them. */}
+      <div className="nh-header-btns" style={{display:'flex',flexDirection:'column',gap:6,flexShrink:0}}>
+        <div className="nh-header-btns-row" style={{display:'flex',gap:6}}>
+          <button className="tb-btn-ghost" onClick={()=>refresh(true)} disabled={!canRefresh}
+            style={{fontSize:11,opacity:canRefresh?1:0.45}}
+            title={!canRefresh?(!rlRemaining?'Daily limit reached':`Wait ${nhFmtTime(rlCooldown)}`):'Force full re-fetch'}>
+            <TBIcon n="rotateCcw"/> Force fresh
+          </button>
+          <button className="tb-btn-primary" onClick={()=>refresh(false)} disabled={loading||building} style={{fontSize:12}}>
+            {loading?'Loading…':building?'Building…':<span><TBIcon n="refresh"/> Refresh</span>}
+          </button>
+        </div>
+        {/* Summary reads as a separate action, not a third variant of "reload".
+            The ready state is a class, NOT an inline borderColor: inline styles
+            outrank the :hover rule, so the old inline border pinned this button's
+            edge and stopped it lighting up the way Refresh does. */}
+        <button className={'tb-btn-ghost nh-sum-btn'+(summaryReady?' is-ready':'')} onClick={openSummary} disabled={!events.length||degraded}
           title={degraded?'Raw headlines — nothing analyzed to summarize':(!events.length?'No news to summarize yet':'AI summary of this build')}
-          style={{fontSize:11,flexBasis:'100%',justifyContent:'center',opacity:(!events.length||degraded)?0.45:1,
-                  borderColor:summaryReady?'var(--acl)':'var(--bd)'}}>
+          style={{fontSize:11,width:'100%',justifyContent:'center',opacity:(!events.length||degraded)?0.45:1}}>
           <TBIcon n="sparkle"/> Summary
           {summaryReady&&<span style={{width:5,height:5,borderRadius:'50%',background:'var(--ac)',marginLeft:6,flexShrink:0}}/>}
         </button>
@@ -8904,7 +8951,14 @@ function TBApp(){
         if(parseInt(localStorage.getItem(nKey)||'0',10)<slot && window._fbLoadTBNews){
           const d=await window._fbLoadTBNews();
           const haveFresh=d&&(d.generatedAt||0)>=slot&&Array.isArray(d.events)&&d.events.length>0;
-          if(haveFresh){ localStorage.setItem(nKey,String(slot)); }
+          if(haveFresh){
+            localStorage.setItem(nKey,String(slot));
+            // This morning's build is already published (the cron, or another
+            // device). Nothing to fetch — but the digest for it may still be
+            // unwritten, so warm it now rather than at whatever hour News is
+            // first opened.
+            tbWarmNewsSummary(tbLoadWatchlistLocal(),d.generatedAt,d.events,d.degraded);
+          }
           else{
             const tq='tickers='+encodeURIComponent(tbLoadWatchlistLocal().join(','));
             let warmed=null, staleHit=false;
@@ -8932,6 +8986,9 @@ function TBApp(){
               // Live-update the News tab if it's the one on screen (its own Firebase
               // listener ignores echoes of a write this device just made).
               window.dispatchEvent(new CustomEvent('tb-news-built',{detail:warmed}));
+              // The morning's news is in. Warm its digest on the same tick so the
+              // Summary button is ready the first time it is looked at.
+              tbWarmNewsSummary(tbLoadWatchlistLocal(),warmed.generatedAt,warmed.events,warmed.degraded);
               localStorage.setItem(nKey,String(slot));   // done for this morning
             }else if(Date.now()-_tbNewsBuildKickedAt>10*60*1000){
               // Fire-and-forget build. Non-fresh (free) whenever it can actually
