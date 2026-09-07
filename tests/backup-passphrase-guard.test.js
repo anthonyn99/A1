@@ -256,7 +256,8 @@ async function main() {
       const { A1, store } = boot();
       let err = null;
       try { await A1.unlock(TONY); } catch (e) { err = e; }
-      t('the correct passphrase is accepted', !err, err ? err.message : '');
+      t('the correct passphrase is accepted EVEN on a corrupt payload', !err,
+        err ? err.message : '');
       t('and it IS persisted', store['a1b_pass'] === TONY);
       const st = await A1.status();
       t('status reports how it was verified', st.passphraseVerified === 'match',
