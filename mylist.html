@@ -434,15 +434,25 @@ body.dnd-active *{cursor:grabbing !important;}
 #lock-foot{margin-top:18px;padding-top:14px;border-top:1px solid var(--border);display:flex;justify-content:center;}
 #lock-cancel{background:none;border:none;color:var(--textdim);font-size:13px;text-decoration:underline;text-underline-offset:3px;cursor:pointer;padding:2px 10px;font-family:var(--font-btn);transition:color .15s;}
 #lock-cancel:hover,#lock-forgot:hover,#lock-reset:hover{color:var(--text);}
-/* ── Lock-manager hover + touch sizing ───────────────────────────────────────
-   Tony's .btn already lights up with --gold-glow; Veda's chrome had border-only
-   feedback, so her manage menu gave almost nothing back under a cursor. These
-   rules give both profiles the same halo, keyed off whatever --accent the
-   active profile sets, and are gated behind hover/fine pointers so a tap on a
-   phone never leaves a row stuck looking hovered. */
+/* ── Lock-manager rows: one outline weight for the whole menu ────────────────
+   .solid, .ghost and .danger each brought their own border strength, so the
+   accent and destructive rows shouted over the plain ones between them. Every
+   row now draws its outline at the SAME 36% of its OWN text colour — gold, red
+   and neutral read at one emphasis while each keeps its meaning — and lights to
+   full strength with an identically-sized halo on hover.
+   Gated behind hover/fine pointers so a tap on a phone never leaves a row stuck
+   looking hovered; Veda's chrome had no halo at all before this. */
+#lock-menu .btn{border-color:color-mix(in srgb, currentColor 36%, transparent);
+  transition:border-color .18s,color .18s,box-shadow .18s;}
+/* Veda's .btn.solid is a FILLED accent button, so her top row read as a solid
+   block beside three outlined ones — the same unevenness in the other
+   direction. In this menu every row is an outline; emphasis comes from colour. */
+#lock-menu .btn.solid{background:transparent;color:var(--accent-bright);}
 @media(hover:hover) and (pointer:fine){
-  #lock-menu .btn:hover,#lock-box .btn:hover{border-color:var(--accent);box-shadow:0 0 12px var(--accent-line),0 0 0 1px var(--accent-soft);}
-  #lock-menu .btn.danger:hover{border-color:var(--bad);box-shadow:0 0 12px rgba(214,138,124,.30);}
+  #lock-menu .btn:hover{border-color:currentColor;box-shadow:0 0 12px color-mix(in srgb, currentColor 34%, transparent);}
+  /* The Unlock button in the form below keeps the accent halo — it is a submit,
+     not one of the menu rows. */
+  #lock-box #lock-row .btn:hover{border-color:var(--accent);box-shadow:0 0 12px var(--accent-line),0 0 0 1px var(--accent-soft);}
 }
 #lock-menu .btn{transition:border-color .18s,color .18s,box-shadow .18s;}
 /* Phones: a menu carrying biometrics plus every action has to scroll inside its
@@ -1966,7 +1976,9 @@ function manageLock(){
   });
   var changeBtn=addMenuBtn(m,MLI.key+'<span>Change password</span>','ghost',function(){ showLock(p,'changepw'); });
   addMenuBtn(m,MLI.trash+'<span>Remove lock</span>','danger al-dg',function(){ showLock(p,'remove'); });
-  addMenuBtn(m,'Close','ghost',function(){ hideLock(); });
+  // No "Close" row: #lock-foot's Cancel already dismisses this, and lockCancel()
+  // does exactly what Close did (hideLock, and it cannot strand a locked device
+  // because mlMustBlock is false whenever this menu is reachable).
   if(window.Bio){ Bio.available().then(function(avail){
     if(!avail) return;
     if(Bio.isRegistered('mylist', mlBioKey(p)))

@@ -11289,6 +11289,10 @@ function alShowManageMenu(){
   var _mbio=_el('applock-bio'); if(_mbio){ _mbio.innerHTML=''; _mbio.style.display='none'; }
   _el('applock-pw').value='';
   _el('applock-pw').classList.remove('error');
+  // Nothing in this menu reads the password box — every row that needs one
+  // opens its own prompt — so it sat there inert, inviting a password that
+  // went nowhere. alShowOverlay() puts it back for the modes that use it.
+  _el('applock-pw').style.display='none';
   _el('applock-icon').innerHTML=SLI.lock;
   _el('applock-title').textContent='RiftIQ';
   _el('applock-submit').style.display='none';

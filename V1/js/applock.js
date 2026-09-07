@@ -394,6 +394,10 @@
     var mb = el('applock-bio'); if (mb) { mb.innerHTML = ''; mb.style.display = 'none'; }
     el('applock-pw').value = '';
     el('applock-pw').classList.remove('error');
+    // Nothing in this menu reads the password box — every row that needs one
+    // opens its own prompt — so it sat there inert, inviting a password that
+    // went nowhere. alShowOverlay() puts it back for the modes that use it.
+    el('applock-pw').style.display='none';
     el('applock-icon').innerHTML = ICON.lock;
     el('applock-title').textContent = LABEL;
     el('applock-title').style.color = ACCENT;

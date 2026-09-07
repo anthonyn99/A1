@@ -25785,9 +25785,9 @@ window.hideBrainstormJournal = function() {
     if (resetBtn) resetBtn.style.display = 'none';
     var m = menuEl; m.innerHTML = ''; m.style.display = 'flex';
     if (!blIsUnlocked(entry.id)) {
-      _blMenuBtn(m, TNI.unlock + '<span>Unlock this device</span>', '', function() { blShowOverlay('unlock'); });
+      _blMenuBtn(m, TNI.unlock + '<span>Unlock this entry</span>', '', function() { blShowOverlay('unlock'); });
     } else {
-      _blMenuBtn(m, TNI.lock + '<span>Lock this device now</span>', '', function() { blMarkLocked(entry.id); blHideOverlay(); blUpdateLockBtn(); blCheckEntry(); });
+      _blMenuBtn(m, TNI.lock + '<span>Lock this entry now</span>', '', function() { blMarkLocked(entry.id); blHideOverlay(); blUpdateLockBtn(); blCheckEntry(); });
     }
     var changeBtn = _blMenuBtn(m, TNI.key + '<span>Change password</span>', 'ghost', function() { blShowOverlay('changepw'); });
     _blMenuBtn(m, TNI.trash + '<span>Remove lock</span>', 'danger', function() { blShowOverlay('remove'); });
@@ -30930,9 +30930,9 @@ window.tjSwitchTo = function(app) {
     if (resetBtn) resetBtn.style.display = 'none';
     var m = menuEl; m.innerHTML = ''; m.style.display = 'flex';
     if (!tlIsUnlocked(entry.id)) {
-      _tlMenuBtn(m, TNI.unlock + '<span>Unlock this device</span>', '', function() { tlShowOverlay('unlock'); });
+      _tlMenuBtn(m, TNI.unlock + '<span>Unlock this entry</span>', '', function() { tlShowOverlay('unlock'); });
     } else {
-      _tlMenuBtn(m, TNI.lock + '<span>Lock this device now</span>', '', function() { tlMarkLocked(entry.id); tlHideOverlay(); tlUpdateLockBtn(); tlCheckEntry(); });
+      _tlMenuBtn(m, TNI.lock + '<span>Lock this entry now</span>', '', function() { tlMarkLocked(entry.id); tlHideOverlay(); tlUpdateLockBtn(); tlCheckEntry(); });
     }
     var changeBtn = _tlMenuBtn(m, TNI.key + '<span>Change password</span>', 'ghost', function() { tlShowOverlay('changepw'); });
     _tlMenuBtn(m, TNI.trash + '<span>Remove lock</span>', 'danger', function() { tlShowOverlay('remove'); });
@@ -42246,6 +42246,10 @@ function alShowManageMenu(appId) {
   var _mbio = _el('applock-bio'); if (_mbio) { _mbio.innerHTML = ''; _mbio.style.display = 'none'; }
   _el('applock-pw').value = '';
   _el('applock-pw').classList.remove('error');
+  // Nothing in this menu reads the password box — every row that needs one
+  // opens its own prompt — so it sat there inert, inviting a password that
+  // went nowhere. alShowOverlay() puts it back for the modes that use it.
+  _el('applock-pw').style.display='none';
   _el('applock-icon').innerHTML = TNI.lock;
   _el('applock-title').textContent = meta.label;
   _el('applock-title').style.color = meta.color;
