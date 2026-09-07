@@ -40,7 +40,16 @@ invocation_logs = true
 #   oi:acct:<email>        → { email, refresh_token, name, signature, historyId,
 #                              watchExpiry, addedAt }  ← REFRESH TOKENS LIVE ONLY HERE
 #   oi:accts               → [email, ...] index (avoids a KV list on every request)
-#   oi:tok:<email>         → cached short-lived Gmail access token
+#   oi:toks                → ALL mailboxes' short-lived Gmail access tokens, in
+#                            ONE record. Was oi:tok:<email>, one key each, which
+#                            at five mailboxes and an hourly token lifetime cost
+#                            ~120 KV writes/day — 23% of the account's whole
+#                            1,000/day budget, on a cache. A cron tick polls
+#                            every mailbox in one invocation, so the refreshes
+#                            coincide; staging them and committing once per run
+#                            makes it ~24. Refresh tokens are NOT here (see
+#                            oi:acct:<email>) — losing this record costs one
+#                            re-fetch from Google and nothing else.
 #   oi:locktok:<token>     → { v } app-lock device session (v = password fingerprint)
 #   oi:gat                 → cached Google service-account token (Firestore)
 #   oi:state:<nonce>       → in-flight OAuth state (5 min TTL)
