@@ -2347,6 +2347,7 @@ async function runCron(env, { force = false } = {}) {
 
   if (dirty) await env.OI_KV.put('oi:cron', JSON.stringify(state));
   await aiBudgetFlush(env);   // one write per run, covering every account
+  await flushToks(env);       // likewise: one write, not one per mailbox
   return out;
 }
 
