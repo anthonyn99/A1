@@ -2487,9 +2487,13 @@ export default {
           // Best-effort revoke at Google, then forget the token locally either way.
           await fetch('https://oauth2.googleapis.com/revoke?token=' + encodeURIComponent(a.refresh_token), { method: 'POST' }).catch(() => {});
           await env.OI_KV.delete('oi:acct:' + a.email);
-          await env.OI_KV.delete('oi:tok:' + a.email).catch(() => {});
           await removeAccountIndex(env, a.email);
-          _memTok.delete(a.email);
+          // Evict the cached access token too, so a disconnect takes effect now
+          // rather than whenever the token happened to expire.
+          try {
+            const toks = await loadToks(env);
+            if (toks[a.email]) { delete toks[a.email]; _toksDirty = true; await flushToks(env); }
+          } catch { /* it expires within the hour regardless */ }
         }
         return json({ ok: true }, origin);
       }
