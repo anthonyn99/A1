@@ -44859,3 +44859,126 @@ document.addEventListener('visibilitychange',function(){ if(!document.hidden) sw
 
 })();
 </script>
+
+<!-- ══ Tony's TaskHub — universal hover feedback ══════════════════════════════
+     Ported from StudyOS, where every clickable control answers the cursor the
+     same way: a dim control lifts a step (.btn: bg3 → bg4), a bright one settles
+     a step (.btn.primary: opacity .88). StudyOS can spell that out in CSS
+     because its controls carry classes. TaskHub's are inline-styled React
+     elements with no class to hang a rule on, and there are far too many —
+     header chips, weekly cells, edit-mode add/delete rows, habit circles, goal
+     checkboxes, every dialog — to hand-write a hover handler onto each.
+
+     So this measures instead. On hover it composites the control's own painted
+     background and picks the direction from its luminance, applying the same
+     ±~20% step StudyOS hard-codes. One delegated listener therefore covers
+     controls that do not exist yet, including everything inside a dialog.
+
+     `filter` is the ONLY property written, and nothing else in the app sets an
+     inline filter. React owns background / border / box-shadow inline on these
+     nodes (the mic's glow, the Timer chip's fill, a selected day's outline);
+     clearing one of those on mouseout would wipe whatever React last put there.
+
+     Scoped to #root — Tony's TaskHub. Veda's TaskHub (#vr-root), MyJournal and
+     the shared program nav are untouched. ═══════════════════════════════════ -->
+<style>
+/* Guarantees the fade in BOTH directions. Many of these controls carry an
+   inline `transition` — some `all .15s` (which would cover filter anyway),
+   some a narrow list like `background .15s, border-color .15s` (which would
+   not), and inline wins over any stylesheet rule that is not !important. The
+   list restates every property those inline rules animate, so overriding them
+   costs nothing. Applied by a class the script adds once and never removes:
+   toggling it with the hover would leave the mouse-out unanimated, because a
+   transition needs the property already declared in the after-change style. */
+#root .th-hovfx{
+  transition: filter .15s ease, background .15s ease, background-color .15s ease,
+              border-color .15s ease, box-shadow .15s ease, color .15s ease,
+              opacity .15s ease, transform .15s ease !important;
+}
+</style>
+<script>
+(function(){
+  var LIFT_GHOST = 'brightness(1.35)',  /* transparent chrome: only an outline + label to lift */
+      LIFT_FILL  = 'brightness(1.22)',  /* dark fill: one step lighter, StudyOS's bg3 → bg4    */
+      SETTLE     = 'brightness(0.86)';  /* bright fill: StudyOS's .primary opacity .88         */
+  var PAGE_BG  = {r:26, g:26, b:29};    /* #1a1a1d — the ground everything is painted on */
+  var CONTROLS = 'button,select,summary,a[href],[role="button"]';
+
+  function rgba(str){
+    var m = /rgba?\(([^)]+)\)/.exec(str || '');
+    if(!m) return null;
+    var p = m[1].split(',').map(parseFloat);
+    if(p.length < 3 || p.slice(0,3).some(isNaN)) return null;
+    return {r:p[0], g:p[1], b:p[2], a:p.length > 3 ? p[3] : 1};
+  }
+
+  // What the control actually looks like on screen: its own background layered
+  // over whatever shows through it. Without this a 12%-alpha gold chip measures
+  // as gold and would get dimmed, when on screen it is a dark thing that should
+  // lift.
+  function painted(el){
+    var stack = [], n = el, c;
+    while(n && n.nodeType === 1){
+      c = rgba(getComputedStyle(n).backgroundColor);
+      if(c && c.a > 0){ stack.push(c); if(c.a > 0.99) break; }
+      n = n.parentElement;
+    }
+    var out = PAGE_BG;
+    for(var i = stack.length - 1; i >= 0; i--){
+      c = stack[i];
+      out = {r: c.r*c.a + out.r*(1-c.a),
+             g: c.g*c.a + out.g*(1-c.a),
+             b: c.b*c.a + out.b*(1-c.a)};
+    }
+    return out;
+  }
+
+  function effect(el){
+    var own = rgba(getComputedStyle(el).backgroundColor);
+    if(!own || own.a < 0.06) return LIFT_GHOST;
+    var c = painted(el);
+    return (0.2126*c.r + 0.7152*c.g + 0.0722*c.b) / 255 > 0.42 ? SETTLE : LIFT_FILL;
+  }
+
+  // cursor:pointer is inherited, so a <span> inside a clickable <div> reports it
+  // too — climb to the top of the run to find the element that actually owns the
+  // click. A real control (<button>, <select>, …) ends the walk outright, which
+  // is what stops a button from lighting up the whole row it sits in.
+  function control(from, root){
+    var best = null, n = from;
+    while(n && n !== root && n.nodeType === 1){
+      if(n.matches(CONTROLS)) return n;
+      if(getComputedStyle(n).cursor === 'pointer') best = n;
+      else if(best) return best;
+      n = n.parentElement;
+    }
+    return best;
+  }
+
+  var root = document.getElementById('root');
+  if(!root) return;
+  var cur = null;
+
+  function clear(){ if(cur){ cur.style.filter = ''; cur = null; } }
+
+  root.addEventListener('pointerover', function(e){
+    // A tap fires a synthetic hover that never gets a matching pointerout, which
+    // would leave the control stuck lit until something else repaints it.
+    if(e.pointerType && e.pointerType !== 'mouse'){ clear(); return; }
+    if(cur && cur.contains(e.target)) return;   // still inside the same control
+    var el = control(e.target, root);
+    if(el === cur) return;
+    clear();
+    if(!el || el.disabled || el.getAttribute('aria-disabled') === 'true') return;
+    cur = el;
+    el.classList.add('th-hovfx');
+    el.style.filter = effect(el);
+  });
+
+  root.addEventListener('pointerout', function(e){
+    if(cur && !cur.contains(e.relatedTarget)) clear();
+  });
+  // Alt-tabbing away mid-hover never delivers a pointerout.
+  window.addEventListener('blur', clear);
+})();
+</script>
