@@ -16017,7 +16017,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     document.body.style.background=bg;
     document.documentElement.style.background=bg;
     var tnav=document.getElementById('tony-app-nav');
-    if(tnav&&tnav.style.display!=='none'){tnav.style.setProperty('--tn-ac','#c8a15f');tnav.style.setProperty('--tn-bd','#2e3a35');tnav.style.setProperty('--tn-bg','#1a1a1d');}
+    if(tnav&&tnav.style.display!=='none'){tnav.style.setProperty('--tn-ac','#c8a15f');tnav.style.setProperty('--tn-bd',window._tnCurApp==='taskhub'?'#34343a':'#2e3a35');tnav.style.setProperty('--tn-bg','#1a1a1d');}
     if(window._tjApplyTheme)window._tjApplyTheme();
   };
 
@@ -30562,7 +30562,12 @@ window._updateTonyNavActive = function(app) {
   // Nav gold sits a shade below the in-app gold (#e0b874) so the top bar reads
   // as chrome around the content rather than competing with it.
   nav.style.setProperty('--tn-ac', '#c8a15f');
-  nav.style.setProperty('--tn-bd', '#2e3a35');
+  // TaskHub takes the SAME neutral hairline its own controls use (T.BD, worn by
+  // the mic / undo / timer row directly below this one), so the program row
+  // reads as the top of one stack rather than a differently-tinted bar sitting
+  // above it. Every other Tony app keeps the green-gray chrome border.
+  var navBd = (app === 'taskhub') ? '#34343a' : '#2e3a35';
+  nav.style.setProperty('--tn-bd', navBd);
   nav.style.setProperty('--tn-bg', '#1a1a1d');
   // Star: always pink (uses --tn-ac which is always pink now)
   var star = nav.querySelector('.tn-star');
@@ -30597,7 +30602,7 @@ window._updateTonyNavActive = function(app) {
       if(isPvWrBtn) {
         // Inactive pv/wr: purple text, transparent bg
         btn.style.background='transparent';
-        btn.style.borderColor='rgba(192,174,234,0.35)';
+        btn.style.borderColor = (app === 'taskhub') ? navBd : 'rgba(192,174,234,0.35)';
         btn.style.color='#c0aeea';
       } else {
         // All other buttons: reset to pink via CSS vars
