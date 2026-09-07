@@ -2575,8 +2575,9 @@ export default {
     }
   },
 
-  // Inert today (no [triggers] — the account's cron slots are full). Kept so
-  // restoring a cron trigger is a one-line wrangler.toml change.
+  // Inert today (no [triggers] — taskhub-reminders drives /cron instead). NOT
+  // because the account is out of cron slots: it uses 4 of 5 as of 2026-09-07.
+  // Kept so adopting a real trigger is a one-line wrangler.toml change.
   async scheduled(event, env, ctx) {
     ctx.waitUntil(runCron(env));
   }

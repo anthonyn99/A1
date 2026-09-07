@@ -16,11 +16,22 @@ compatibility_date = "2024-01-01"
 # /transactions debug read-back are inert in this mode (see sandboxOnly).
 PLAID_ENV = "production"
 
-# Daily incremental sync (plan §3): the account's 5-cron free-plan limit is
-# full, so there is NO cron trigger here. taskhub-reminders' every-minute cron
-# POSTs to this worker's /sync at 11:00 UTC instead (see its scheduled()).
-# The scheduled() handler below stays ready — if a cron slot ever frees up,
-# restore:  [triggers] crons = ["0 11 * * *"]
+# ── Cron: this worker has none, and the reason has CHANGED ──────────────────
+# It used to be that account 1's 5-cron free-plan limit was full. It is not any
+# more: as of 2026-09-07 the account uses 4 of 5 (taskhub-reminders every
+# minute, newshub-api 12:00, personal-ai 10:00, tradeboard-api 12:30) — a slot
+# freed up when trade-dashboard's MacroBoard pre-build was removed. Account 2
+# (workers2/, av1-2) has all five free.
+#
+# So the piggyback below is now a CHOICE, not a constraint. Verify before
+# relying on either statement — the previous version of this comment outlived
+# the fact it described and would have stopped anyone using the free slot:
+#   npx wrangler triggers list --name <worker>     (or the Workers dashboard)
+#
+# Daily incremental sync (plan §3): taskhub-reminders' every-minute cron POSTs
+# to this worker's /sync at 11:00 UTC (see its scheduled()). The scheduled()
+# handler below stays ready — to give this worker its own cron instead, add:
+#   [triggers] crons = ["0 11 * * *"]
 
 [observability]
 enabled = false

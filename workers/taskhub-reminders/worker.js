@@ -239,9 +239,10 @@ export default {
   async scheduled(event, env, ctx) {
     ctx.waitUntil(runReminders(env));
 
-    // Insight daily sync piggyback. The account's 5-cron free-plan limit is
-    // full, so insight-api has no cron of its own — this every-minute cron
-    // fires its daily /transactions sync at 11:00 UTC instead. One POST/day;
+    // Insight daily sync piggyback. insight-api has no cron of its own, so this
+    // every-minute cron fires its daily /transactions sync at 11:00 UTC. That
+    // was originally forced by the 5-cron free-plan limit; the account uses 4 of
+    // 5 as of 2026-09-07, so it is now a choice rather than a constraint. One POST/day;
     // a missed tick just means that day's sync waits for tomorrow (the sync
     // is cursor-based/incremental, so nothing is ever lost).
     const t = new Date();

@@ -7,10 +7,22 @@ account_id = "b9a33dd573c14d5f446516ea8b46285f"
 main = "worker.js"
 compatibility_date = "2025-06-01"
 
-# No [triggers] block. The account's 5-cron free-plan limit is FULL, so this
-# worker has no cron of its own — taskhub-reminders' every-minute cron POSTs to
-# /cron here (same piggyback pattern insight-api uses). The scheduled() handler
-# below stays ready in case a slot ever frees up.
+# ── Cron: this worker has none, and the reason has CHANGED ──────────────────
+# It used to be that account 1's 5-cron free-plan limit was full. It is not any
+# more: as of 2026-09-07 the account uses 4 of 5 (taskhub-reminders every
+# minute, newshub-api 12:00, personal-ai 10:00, tradeboard-api 12:30) — a slot
+# freed up when trade-dashboard's MacroBoard pre-build was removed. Account 2
+# (workers2/, av1-2) has all five free.
+#
+# So the piggyback below is now a CHOICE, not a constraint. Verify before
+# relying on either statement — the previous version of this comment outlived
+# the fact it described and would have stopped anyone using the free slot:
+#   npx wrangler triggers list --name <worker>     (or the Workers dashboard)
+#
+# taskhub-reminders' every-minute cron POSTs to /cron here every 5 minutes (same
+# piggyback pattern insight-api uses), and runCron reads the wall clock to decide
+# what is due. The scheduled() handler below stays ready — to give this worker
+# its own cron instead, add:  [triggers] crons = ["*/5 * * * *"]
 
 [vars]
 WORKER_ORIGIN = "https://oneinbox-api.av1.workers.dev"
@@ -53,7 +65,13 @@ invocation_logs = true
 #   oi:locktok:<token>     → { v } app-lock device session (v = password fingerprint)
 #   oi:gat                 → cached Google service-account token (Firestore)
 #   oi:state:<nonce>       → in-flight OAuth state (5 min TTL)
-#   oi:cron                → { lastWatch, lastReconcile, lastSched }
+#   oi:cron                → { lastWatch, lastSweep } — the ONCE-A-DAY jobs only.
+#                            The half-hourly poll used to stamp lastPoll/lastSnap/
+#                            acctCursor here, 48 writes/day, purely to compare
+#                            against a clock the 5-minute tick was already
+#                            holding; runCron now reads the wall clock for those.
+#                            Daily jobs keep timestamps deliberately — clock-
+#                            gating them would mean one missed tick loses a day.
 #   oi:gate                → { v } classifier-rules version. When v trails
 #                            GATE_VERSION the next tick re-checks every card
 #                            already on the week and drops the ones the current
