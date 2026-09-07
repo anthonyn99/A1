@@ -44520,11 +44520,16 @@ function lockSvg(locked){
 // One label + lock pill row. Shared by Internal Programs and the suite lock
 // above it so the two sections stay visually identical.
 function lockRow(app,lockTitle,rerender){
-  var locked=window.alIsLocked&&window.alIsLocked(app.id);
+  var locked=!!(window.alIsLocked&&window.alIsLocked(app.id));
   var row=document.createElement('div'); row.className='thset-row';
+  // Identity for the poll below, so it can repaint this row's pill in place
+  // instead of rebuilding the list and destroying the node under the cursor.
+  row.setAttribute('data-lock-id',app.id);
+  row.setAttribute('data-lock-title',lockTitle);
   var lab=document.createElement('div'); lab.className='thset-label'; lab.textContent=app.label;
   var pill=document.createElement('button');
   pill.className='thset-pill '+(locked?'locked':'unlocked');
+  pill.dataset.locked=locked?'1':'0';   // what is painted, so the first sync is a no-op
   pill.innerHTML=lockSvg(locked)+'<span>'+(locked?'Locked':'Unlocked')+'</span>';
   pill.title=locked?'Manage lock':lockTitle;
   pill.addEventListener('click',function(e){
@@ -44542,14 +44547,14 @@ function lockRow(app,lockTitle,rerender){
 function renderSuiteLock(container,profile){
   container.innerHTML='';
   container.appendChild(lockRow(suiteApp(profile),'Lock this profile',
-    function(){ renderSuiteLock(container,profile); }));
+    function(){ refreshLocks(); }));
 }
 
 function renderLockList(container,profile){
   container.innerHTML='';
   appsForProfile(profile).forEach(function(app){
     container.appendChild(lockRow(app,'Lock this program',
-      function(){ renderLockList(container,profile); }));
+      function(){ refreshLocks(); }));
   });
 }
 
@@ -44709,12 +44714,39 @@ function normalizeUrl(u){
   return 'https://'+u;                                   // bare domain
 }
 
+// Repaint one already-built list's pills, touching only those whose lock state
+// actually changed. Returns nothing — it is a sync, not a render.
+function syncLockPills(container){
+  Array.prototype.slice.call(container.querySelectorAll('.thset-row[data-lock-id]')).forEach(function(row){
+    var pill=row.querySelector('.thset-pill'); if(!pill) return;
+    var locked=!!(window.alIsLocked&&window.alIsLocked(row.getAttribute('data-lock-id')));
+    if(pill.dataset.locked===(locked?'1':'0')) return;
+    pill.dataset.locked=locked?'1':'0';
+    pill.className='thset-pill '+(locked?'locked':'unlocked');
+    pill.innerHTML=lockSvg(locked)+'<span>'+(locked?'Locked':'Unlocked')+'</span>';
+    pill.title=locked?'Manage lock':(row.getAttribute('data-lock-title')||'Lock this program');
+  });
+}
+// Called from a 700ms poll while Settings is open. It used to rebuild BOTH lists
+// wholesale on every tick, which meant the pill under the cursor was destroyed
+// and recreated 1.4 times a second: its hover fade restarted from scratch each
+// time (the flashing glow), its native tooltip was killed just as often, and the
+// panel did a full relayout twice a second for nothing. refreshLinkPills below
+// had already learned this for the External Links section — same fix, same
+// reasoning, now for the two lists above it. A full render is kept only for the
+// case the sync cannot express: the set of rows itself changed.
 function refreshLocks(){
   if(_overlay.style.display==='none') return;
   var s=document.getElementById('thset-suitelock');
-  if(s) renderSuiteLock(s,_curProfile);
+  if(s){
+    if(s.querySelector('.thset-row[data-lock-id]')) syncLockPills(s);
+    else renderSuiteLock(s,_curProfile);
+  }
   var c=document.getElementById('thset-locklist');
-  if(c) renderLockList(c,_curProfile);
+  if(c){
+    if(c.querySelectorAll('.thset-row[data-lock-id]').length===appsForProfile(_curProfile).length) syncLockPills(c);
+    else renderLockList(c,_curProfile);
+  }
 }
 // Custom-button pills follow the same poll as the program locks so a lock/unlock
 // done in the applock overlay shows here without reopening Settings. Only the
