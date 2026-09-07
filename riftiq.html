@@ -672,7 +672,30 @@ body.wr-locked #wr-progbar { display: none !important; }
   padding:2px 0 0;text-decoration:underline;text-underline-offset:3px;width:100%;text-align:center;transition:color .15s;}
 #applock-cancel:hover,#applock-forgot:hover,#applock-reset:hover{color:var(--tx2);}
 #applock-bio button svg,#al-menu-btns button svg{width:15px;height:15px;display:block;flex-shrink:0;}
-#applock-bio button:hover,#al-menu-btns button:hover{border-color:var(--tx3);}
+/* ── Lock-manager hover + touch sizing ───────────────────────────────────────
+   The menu rows are built in JS with an inline `border` shorthand, so a plain
+   stylesheet hover cannot beat it — hence !important on border-color. The glow
+   is what marks the target on desktop, and it is gated behind hover/fine
+   pointers so a tap on a phone never leaves a row stuck looking hovered.
+   `.al-ac` = accent rows (unlock / lock this device now), `.al-dg` = the
+   destructive row. */
+#applock-bio button,#al-menu-btns button{transition:border-color .18s,box-shadow .18s,color .18s;}
+@media (hover:hover) and (pointer:fine){
+  #applock-bio button:hover,#al-menu-btns button:hover{border-color:var(--tx3) !important;box-shadow:0 0 11px rgba(141,141,148,.30);}
+  #al-menu-btns button.al-ac:hover,#applock-bio button:hover{border-color:#c0aeea !important;box-shadow:0 0 12px rgba(192,174,234,.38);}
+  #al-menu-btns button.al-dg:hover{border-color:#d68a7c !important;box-shadow:0 0 12px rgba(214,138,124,.32);}
+  #applock-submit:hover:not(:disabled){box-shadow:0 0 12px rgba(192,174,234,.34);}
+}
+#applock-pw:focus{box-shadow:0 0 11px rgba(192,174,234,.26);}
+#applock-submit,#applock-pw{transition:border-color .18s,box-shadow .18s,opacity .18s;}
+/* Phones: full-bleed card with 46px tap targets, and a scrolling body so a menu
+   carrying biometrics plus every action still fits a short screen. */
+@media (max-width:520px){
+  #applock-overlay{padding:14px;}
+  #applock-box{width:100%;max-width:none;padding:28px 20px;max-height:calc(100vh - 28px);max-height:calc(100dvh - 28px);overflow-y:auto;-webkit-overflow-scrolling:touch;}
+  #applock-bio button,#al-menu-btns button{min-height:46px;font-size:14px;}
+  #applock-pw,#applock-submit{min-height:48px;}
+}
 
 /* ══ PROGRAM PICKER ════════════════════════════════════════════════════════
    RiftIQ's front door. The app is named here; the two cards are the programs. */
@@ -11281,6 +11304,7 @@ function alShowManageMenu(){
   if (!isUnlocked){
     var ub=document.createElement('button');
     ub.innerHTML=SLI.unlock+'<span>Unlock this device</span>';
+    ub.className='al-ac';
     ub.style.cssText=s+'color:#c0aeea;border-color:rgba(192,174,234,.42);';
     ub.onclick=function(){ menu.remove(); _el('applock-submit').style.display=''; alShowOverlay('unlock'); };
     menu.appendChild(ub);
@@ -11292,6 +11316,7 @@ function alShowManageMenu(){
     // device's unlock record; the password and every other device are untouched.
     var lb=document.createElement('button');
     lb.innerHTML=SLI.lock+'<span>Lock this device now</span>';
+    lb.className='al-ac';
     lb.style.cssText=s+'color:#c0aeea;border-color:rgba(192,174,234,.42);';
     lb.onclick=function(){
       menu.remove();
@@ -11325,6 +11350,7 @@ function alShowManageMenu(){
   });
   var rb=document.createElement('button');
   rb.innerHTML=SLI.trash+'<span>Remove lock</span>';
+  rb.className='al-dg';
   rb.style.cssText=s+'color:#d68a7c;border-color:rgba(214,138,124,.35);';
   rb.onclick=function(){ menu.remove(); _el('applock-submit').style.display=''; alShowOverlay('remove'); };
   menu.appendChild(rb);
