@@ -131,6 +131,30 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
   #applock-cancel:hover,#applock-forgot:hover,#applock-reset:hover{color:var(--txd);}
   #applock-bio button svg,#al-menu-btns button svg{width:15px;height:15px;display:block;flex-shrink:0;}
   #applock-bio button:hover,#al-menu-btns button:hover{border-color:var(--txd);}
+  /* ── Lock-manager hover + touch sizing ───────────────────────────────────
+     The menu rows are built in JS with an inline `border` shorthand, so a plain
+     stylesheet hover can never beat it — hence !important on border-color. The
+     glow is what marks the target on desktop, and it is gated behind
+     hover/fine pointers so a tap on a phone never leaves a row stuck in a
+     hover state. `.al-ac` = accent rows (unlock / lock this device now),
+     `.al-dg` = the destructive row. */
+  #applock-bio button,#al-menu-btns button{transition:border-color .18s,box-shadow .18s,color .18s;}
+  @media (hover:hover) and (pointer:fine){
+    #applock-bio button:hover,#al-menu-btns button:hover{border-color:#adadb2 !important;box-shadow:0 0 11px rgba(173,173,178,.28);}
+    #al-menu-btns button.al-ac:hover{border-color:#e0b874 !important;box-shadow:0 0 12px rgba(224,184,116,.34);}
+    #al-menu-btns button.al-dg:hover{border-color:#d68a7c !important;box-shadow:0 0 12px rgba(214,138,124,.32);}
+    #applock-submit:hover:not(:disabled){box-shadow:0 0 12px rgba(224,184,116,.34);}
+  }
+  #applock-pw:focus{box-shadow:0 0 11px rgba(224,184,116,.24);}
+  #applock-submit,#applock-pw{transition:border-color .18s,box-shadow .18s,opacity .18s;}
+  /* Phones: full-bleed card with 46px tap targets, and a scrolling body so a
+     menu carrying biometrics plus every action still fits a short screen. */
+  @media (max-width:520px){
+    #applock-overlay{padding:14px;}
+    #applock-box{width:100%;max-width:none;padding:28px 20px;max-height:calc(100vh - 28px);max-height:calc(100dvh - 28px);overflow-y:auto;-webkit-overflow-scrolling:touch;}
+    #applock-bio button,#al-menu-btns button{min-height:46px;font-size:14px;}
+    #applock-pw,#applock-submit{min-height:48px;}
+  }
 
 #kc-root{
   --bg:#1a1a1d;--s1:#232327;--s2:#2c2c31;--s3:#37373d;
@@ -2910,9 +2934,29 @@ function alShowManageMenu(){
   if (!isUnlocked){
     var ub=document.createElement('button');
     ub.innerHTML=KCI.unlock+'<span>Unlock this device</span>';
+    ub.className='al-ac';
     ub.style.cssText=s+'color:#e0b874;border-color:rgba(224,184,116,.36);';
     ub.onclick=function(){ menu.remove(); _el('applock-submit').style.display=''; alShowOverlay('unlock'); };
     menu.appendChild(ub);
+  } else {
+    // The mirror of "Unlock this device". An unlock is remembered durably, so a
+    // device that has ever entered the password stays open — there was no way to
+    // hand this device over, or put it down, and have Vault ask again without
+    // removing the lock outright. This drops only THIS device's unlock record;
+    // the password and every other device are untouched.
+    var lb=document.createElement('button');
+    lb.innerHTML=KCI.lock+'<span>Lock this device now</span>';
+    lb.className='al-ac';
+    lb.style.cssText=s+'color:#e0b874;border-color:rgba(224,184,116,.36);';
+    lb.onclick=function(){
+      menu.remove();
+      alMarkLocked();
+      alHideRoot();
+      alUpdateLockBtns();
+      _el('applock-submit').style.display='';
+      alShowOverlay('unlock');
+    };
+    menu.appendChild(lb);
   }
   var cb=document.createElement('button');
   cb.innerHTML=KCI.key+'<span>Change password</span>';
@@ -2936,6 +2980,7 @@ function alShowManageMenu(){
   });
   var rb=document.createElement('button');
   rb.innerHTML=KCI.trash+'<span>Remove lock</span>';
+  rb.className='al-dg';
   rb.style.cssText=s+'color:#d68a7c;border-color:rgba(214,138,124,.3);';
   rb.onclick=function(){ menu.remove(); _el('applock-submit').style.display=''; alShowOverlay('remove'); };
   menu.appendChild(rb);

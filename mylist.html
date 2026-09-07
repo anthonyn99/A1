@@ -434,6 +434,25 @@ body.dnd-active *{cursor:grabbing !important;}
 #lock-foot{margin-top:18px;padding-top:14px;border-top:1px solid var(--border);display:flex;justify-content:center;}
 #lock-cancel{background:none;border:none;color:var(--textdim);font-size:13px;text-decoration:underline;text-underline-offset:3px;cursor:pointer;padding:2px 10px;font-family:var(--font-btn);transition:color .15s;}
 #lock-cancel:hover,#lock-forgot:hover,#lock-reset:hover{color:var(--text);}
+/* ── Lock-manager hover + touch sizing ───────────────────────────────────────
+   Tony's .btn already lights up with --gold-glow; Veda's chrome had border-only
+   feedback, so her manage menu gave almost nothing back under a cursor. These
+   rules give both profiles the same halo, keyed off whatever --accent the
+   active profile sets, and are gated behind hover/fine pointers so a tap on a
+   phone never leaves a row stuck looking hovered. */
+@media(hover:hover) and (pointer:fine){
+  #lock-menu .btn:hover,#lock-box .btn:hover{border-color:var(--accent);box-shadow:0 0 12px var(--accent-line),0 0 0 1px var(--accent-soft);}
+  #lock-menu .btn.danger:hover{border-color:var(--bad);box-shadow:0 0 12px rgba(214,138,124,.30);}
+}
+#lock-menu .btn{transition:border-color .18s,color .18s,box-shadow .18s;}
+/* Phones: a menu carrying biometrics plus every action has to scroll inside its
+   own card rather than running off the overlay. */
+@media(max-width:520px){
+  #lock-overlay{padding:14px;}
+  #lock-box{max-width:none;padding:26px 20px 18px;max-height:calc(100vh - 28px);max-height:calc(100dvh - 28px);overflow-y:auto;-webkit-overflow-scrolling:touch;}
+  #lock-menu .btn{min-height:46px;}
+  #lock-pw,#lock-row .btn{min-height:46px;}
+}
 
 /* ── View switcher (Lists | Recipes | Price Watch | Events) ── */
 #view-switch{display:flex;gap:4px;margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:4px;}
@@ -1935,9 +1954,18 @@ function manageLock(){
   $('lock-icon').innerHTML=MLI.lock; $('lock-sub').textContent='Manage lock for '+PROFILE_META[p].label+'.';
   $('lock-pw').style.display='none'; $('lock-row').style.display='none'; $('lock-forgot').style.display='none'; $('lock-reset').style.display='none';
   var m=$('lock-menu'); m.innerHTML='';
-  if(!mlIsUnlocked(p)) addMenuBtn(m,MLI.unlock+'<span>Unlock this device</span>','solid',function(){ showLock(p,'unlock'); });
+  if(!mlIsUnlocked(p)) addMenuBtn(m,MLI.unlock+'<span>Unlock this device</span>','solid al-ac',function(){ showLock(p,'unlock'); });
+  // The mirror of "Unlock this device". An unlock is remembered durably, so a
+  // device that has ever entered the password stays open — there was no way to
+  // hand this phone over, or put it down, and have these lists ask again
+  // without removing the lock outright. This drops only THIS device's unlock
+  // record; the password and every other device are untouched. Back to the
+  // profile picker, where choosing the profile re-runs the gate.
+  else addMenuBtn(m,MLI.lock+'<span>Lock this device now</span>','solid al-ac',function(){
+    mlMarkLocked(p); hideLock(); updateLockBtn(); refreshProfileScreen(); goProfileSelect();
+  });
   var changeBtn=addMenuBtn(m,MLI.key+'<span>Change password</span>','ghost',function(){ showLock(p,'changepw'); });
-  addMenuBtn(m,MLI.trash+'<span>Remove lock</span>','danger',function(){ showLock(p,'remove'); });
+  addMenuBtn(m,MLI.trash+'<span>Remove lock</span>','danger al-dg',function(){ showLock(p,'remove'); });
   addMenuBtn(m,'Close','ghost',function(){ hideLock(); });
   if(window.Bio){ Bio.available().then(function(avail){
     if(!avail) return;

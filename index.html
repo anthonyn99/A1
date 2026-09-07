@@ -21785,6 +21785,30 @@ window.VizEngine = { createBoard: createBoard };
 #bj-lock-overlay .tl-btn.ghost { background: transparent; color: var(--text2); border: 1px solid var(--border2); }
 #bj-lock-overlay .tl-btn.danger { background: transparent; color: #E0607A; border: 1px solid #E0607A; }
 #bj-lock-overlay .tl-btn:hover { opacity: 0.85; }
+/* ── Lock-manager hover + touch sizing ───────────────────────────────────────
+   Opacity alone gave almost no feedback on a pointer device, so each row also
+   lights its outline. Gated behind hover/fine pointers: on a phone a tap would
+   otherwise leave the last-pressed row stuck looking hovered. */
+#bj-lock-overlay .tl-btn { transition: opacity .15s, box-shadow .18s, border-color .18s; }
+@media (hover: hover) and (pointer: fine) {
+  #bj-lock-overlay .tl-btn:hover { box-shadow: 0 0 12px rgba(141,118,154,.42); }
+  #bj-lock-overlay .tl-btn.ghost:hover { border-color: var(--purple); box-shadow: 0 0 11px rgba(141,118,154,.42); }
+  #bj-lock-overlay .tl-btn.danger:hover { border-color: #E0607A; box-shadow: 0 0 12px rgba(224,96,122,.34); }
+  #bj-lock-overlay .tl-forgot:hover { color: var(--purple); }
+}
+#bj-lock-overlay .tl-pw-input:focus { box-shadow: 0 0 11px rgba(141,118,154,.42); }
+#bj-lock-overlay .tl-pw-input { transition: border-color .15s, box-shadow .18s; }
+/* Phones: a taller-than-screen menu (biometrics + every action) has to scroll
+   inside its own card rather than pushing itself off the overlay. */
+@media (max-width: 560px) {
+  #bj-lock-overlay { padding: 14px; }
+  #bj-lock-overlay .tl-box {
+    max-width: none; max-height: calc(100% - 28px);
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
+  }
+  #bj-lock-overlay .tl-btn { min-height: 46px; font-size: 14px; }
+  #bj-lock-overlay .tl-pw-input { min-height: 46px; }
+}
 #bj-lock-overlay .tl-forgot { background: none; border: none; color: var(--text3); font-size: 12px; font-family: var(--font); cursor: pointer; text-decoration: underline; padding: 0; margin-top: 4px; }
 #bj-lock-overlay .tl-forgot:hover { color: var(--text2); }
 #bj-root .entry-item .tl-badge { font-size: 10px; margin-left: 4px; opacity: 0.7; }
@@ -25763,7 +25787,7 @@ window.hideBrainstormJournal = function() {
     if (!blIsUnlocked(entry.id)) {
       _blMenuBtn(m, TNI.unlock + '<span>Unlock this device</span>', '', function() { blShowOverlay('unlock'); });
     } else {
-      _blMenuBtn(m, TNI.lock + '<span>Lock this device</span>', '', function() { blMarkLocked(entry.id); blHideOverlay(); blUpdateLockBtn(); blCheckEntry(); });
+      _blMenuBtn(m, TNI.lock + '<span>Lock this device now</span>', '', function() { blMarkLocked(entry.id); blHideOverlay(); blUpdateLockBtn(); blCheckEntry(); });
     }
     var changeBtn = _blMenuBtn(m, TNI.key + '<span>Change password</span>', 'ghost', function() { blShowOverlay('changepw'); });
     _blMenuBtn(m, TNI.trash + '<span>Remove lock</span>', 'danger', function() { blShowOverlay('remove'); });
@@ -26417,6 +26441,30 @@ window.hideBrainstormJournal = function() {
 #tj-lock-overlay .tl-btn.ghost { background: transparent; color: var(--text2); border: 1px solid var(--border2); }
 #tj-lock-overlay .tl-btn.danger { background: transparent; color: #e0b874; border: 1px solid #e0b874; }
 #tj-lock-overlay .tl-btn:hover { opacity: 0.85; }
+/* ── Lock-manager hover + touch sizing ───────────────────────────────────────
+   Opacity alone gave almost no feedback on a pointer device, so each row also
+   lights its outline. Gated behind hover/fine pointers: on a phone a tap would
+   otherwise leave the last-pressed row stuck looking hovered. */
+#tj-lock-overlay .tl-btn { transition: opacity .15s, box-shadow .18s, border-color .18s; }
+@media (hover: hover) and (pointer: fine) {
+  #tj-lock-overlay .tl-btn:hover { box-shadow: 0 0 12px rgba(224,184,116,.36); }
+  #tj-lock-overlay .tl-btn.ghost:hover { border-color: var(--purple); box-shadow: 0 0 11px rgba(224,184,116,.36); }
+  #tj-lock-overlay .tl-btn.danger:hover { border-color: #e0b874; box-shadow: 0 0 12px rgba(224,184,116,.36); }
+  #tj-lock-overlay .tl-forgot:hover { color: var(--purple); }
+}
+#tj-lock-overlay .tl-pw-input:focus { box-shadow: 0 0 11px rgba(224,184,116,.36); }
+#tj-lock-overlay .tl-pw-input { transition: border-color .15s, box-shadow .18s; }
+/* Phones: a taller-than-screen menu (biometrics + every action) has to scroll
+   inside its own card rather than pushing itself off the overlay. */
+@media (max-width: 560px) {
+  #tj-lock-overlay { padding: 14px; }
+  #tj-lock-overlay .tl-box {
+    max-width: none; max-height: calc(100% - 28px);
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
+  }
+  #tj-lock-overlay .tl-btn { min-height: 46px; font-size: 14px; }
+  #tj-lock-overlay .tl-pw-input { min-height: 46px; }
+}
 #tj-lock-overlay .tl-forgot { background: none; border: none; color: var(--text3); font-size: 12px; font-family: var(--font); cursor: pointer; text-decoration: underline; padding: 0; margin-top: 4px; }
 #tj-lock-overlay .tl-forgot:hover { color: var(--text2); }
 #tj-root .entry-item .tl-badge { font-size: 10px; margin-left: 4px; opacity: 0.7; }
@@ -30884,7 +30932,7 @@ window.tjSwitchTo = function(app) {
     if (!tlIsUnlocked(entry.id)) {
       _tlMenuBtn(m, TNI.unlock + '<span>Unlock this device</span>', '', function() { tlShowOverlay('unlock'); });
     } else {
-      _tlMenuBtn(m, TNI.lock + '<span>Lock this device</span>', '', function() { tlMarkLocked(entry.id); tlHideOverlay(); tlUpdateLockBtn(); tlCheckEntry(); });
+      _tlMenuBtn(m, TNI.lock + '<span>Lock this device now</span>', '', function() { tlMarkLocked(entry.id); tlHideOverlay(); tlUpdateLockBtn(); tlCheckEntry(); });
     }
     var changeBtn = _tlMenuBtn(m, TNI.key + '<span>Change password</span>', 'ghost', function() { tlShowOverlay('changepw'); });
     _tlMenuBtn(m, TNI.trash + '<span>Remove lock</span>', 'danger', function() { tlShowOverlay('remove'); });
@@ -41487,6 +41535,44 @@ window._THV={
   padding: 0; text-decoration: underline; text-underline-offset: 3px; text-align: center; transition: color .15s;
 }
 #applock-cancel:hover, #applock-forgot:hover, #applock-reset:hover { color: #adadb2; }
+/* ── Lock-manager hover + touch sizing ───────────────────────────────────────
+   The manage-menu rows are built in JS with an inline `border` shorthand, which
+   no stylesheet hover can override without !important. The glow is what makes
+   the target obvious on a pointer device, and it is gated behind hover/fine so
+   a tap on a phone never leaves a row stuck looking hovered.
+   --al-glow / --al-glowl are set on the card from the lock's own profile colour
+   (gold for Tony, purple for Veda), so nothing profile-specific is written here.
+   `.al-ac` = accent rows (unlock / lock this device now), `.al-dg` = destructive. */
+#applock-box { --al-glow: #e0b874; --al-glowl: rgba(224,184,116,.34); }
+#applock-bio button, #al-menu-btns button {
+  transition: border-color .18s, box-shadow .18s, color .18s;
+}
+@media (hover: hover) and (pointer: fine) {
+  #applock-bio button:hover, #al-menu-btns button:hover {
+    border-color: #adadb2 !important; box-shadow: 0 0 11px rgba(173,173,178,.28);
+  }
+  #al-menu-btns button.al-ac:hover, #applock-bio button:hover {
+    border-color: var(--al-glow) !important; box-shadow: 0 0 12px var(--al-glowl);
+  }
+  #al-menu-btns button.al-dg:hover {
+    border-color: #d68a7c !important; box-shadow: 0 0 12px rgba(214,138,124,.32);
+  }
+  #applock-submit:hover:not(:disabled) { box-shadow: 0 0 12px var(--al-glowl); }
+}
+#applock-pw:focus { box-shadow: 0 0 11px var(--al-glowl); }
+#applock-submit, #applock-pw { transition: border-color .18s, box-shadow .18s, opacity .18s; }
+/* Phones: full-bleed card with 46px tap targets, and a scrolling body so a menu
+   carrying biometrics plus every action still fits a short screen. */
+@media (max-width: 520px) {
+  #applock-overlay { padding: 14px; }
+  #applock-box {
+    width: 100%; max-width: none; padding: 28px 20px 18px;
+    max-height: calc(100vh - 28px); max-height: calc(100dvh - 28px);
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
+  }
+  #applock-bio button, #al-menu-btns button { min-height: 46px; font-size: 14px; }
+  #applock-pw, #applock-submit { min-height: 48px; }
+}
 /* Lock icon on nav buttons */
 .tn-btn .applock-badge, .veda-nav-btn .applock-badge {
   font-size: 10px; margin-left: 3px; opacity: 0.75; pointer-events: none;
@@ -41877,6 +41963,18 @@ function alMustBlock(appId) { return alIsLocked(appId) && !alIsUnlocked(appId); 
 // DOM REFS (deferred — grabbed on first use)
 function _el(id) { return document.getElementById(id); }
 
+// Paint the card's glow tokens from the lock's own profile colour, so the
+// hover halo reads gold for Tony and purple for Veda with no colour written
+// into the stylesheet. Falls back to gold if a lock has no colour of its own.
+function alSetGlow(color) {
+  var box = _el('applock-box'); if (!box) return;
+  var hex = /^#([0-9a-f]{6})$/i.exec(color || '');
+  if (!hex) { color = '#e0b874'; hex = /^#([0-9a-f]{6})$/i.exec(color); }
+  var n = parseInt(hex[1], 16);
+  box.style.setProperty('--al-glow', color);
+  box.style.setProperty('--al-glowl', 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',.34)');
+}
+
 // ── OVERLAY ───────────────────────────────────────────────────────────────────
 function alShowOverlay(appId, mode, cb, onCancel) {
   _alPendingAppId = appId;
@@ -41895,6 +41993,7 @@ function alShowOverlay(appId, mode, cb, onCancel) {
   _el('applock-title').textContent = meta.label;
   _el('applock-title').style.color = meta.color;
   _el('applock-submit').style.background = meta.color;
+  alSetGlow(meta.color);
   _el('applock-submit').style.display = '';
   _el('applock-pw').style.display = '';   // restore in case a prior biometric prompt hid it
   // Remove any manage menu leftover
@@ -42150,6 +42249,7 @@ function alShowManageMenu(appId) {
   _el('applock-icon').innerHTML = TNI.lock;
   _el('applock-title').textContent = meta.label;
   _el('applock-title').style.color = meta.color;
+  alSetGlow(meta.color);
   _el('applock-submit').style.display = 'none';
   _el('applock-forgot').style.display = 'none';
   if (_el('applock-reset')) _el('applock-reset').style.display = 'none';
@@ -42162,10 +42262,52 @@ function alShowManageMenu(appId) {
   var s = 'border:none;border-radius:4px;padding:10px 0;font-size:13px;font-weight:700;cursor:pointer;font-family:\'Inter\',system-ui,-apple-system,sans-serif;width:100%;';
   if (!isUnlocked) {
     var ub = document.createElement('button');
-    ub.innerHTML = TNI.unlock + '<span>Unlock this session</span>';
+    ub.innerHTML = TNI.unlock + '<span>Unlock this device</span>';
+    ub.className = 'al-ac';
     ub.style.cssText = s + 'background:' + meta.color + ';color:#1a1a1d;';
     ub.onclick = function() { menu.remove(); _el('applock-submit').style.display=''; alShowOverlay(appId,'unlock',function(){alUpdateTonyLockBtn();alUpdateVedaLockBtns();}); };
     menu.appendChild(ub);
+  } else {
+    // The mirror of "Unlock this device". An unlock is remembered durably, so a
+    // device that has ever entered the password stays open — there was no way to
+    // hand this phone over, or put it down, and have the app ask again without
+    // removing the lock outright. This drops only THIS device's unlock record;
+    // the password and every other device are untouched.
+    //
+    // A profile lock has no app root to hide, so it bounces to the profile
+    // chooser instead — clicking the card there re-runs alGate and prompts.
+    var lb = document.createElement('button');
+    lb.innerHTML = TNI.lock + '<span>Lock this device now</span>';
+    lb.className = 'al-ac';
+    lb.style.cssText = s + 'background:' + meta.color + ';color:#1a1a1d;';
+    lb.onclick = function() {
+      menu.remove();
+      alMarkLocked(appId);
+      alUpdateTonyLockBtn(); alUpdateVedaLockBtns();
+      if (window._alProfileRefreshBtns) window._alProfileRefreshBtns();
+      _el('applock-submit').style.display = '';
+      if (meta.isProfile) {
+        alHideOverlay();
+        window._activeProfile = null;
+        if (window._profileGoSelect) window._profileGoSelect();
+      } else if (alIsAppVisible(appId)) {
+        // Its content is on screen right now, so re-gate it immediately.
+        alHideAppRoot(appId);
+        alShowOverlay(appId, 'unlock', function(){ alUpdateTonyLockBtn(); alUpdateVedaLockBtns(); },
+                      function(){ if (window._profileGoSelect) window._profileGoSelect(); });
+      } else {
+        // A nav-button lock (TradeHub / Vault / Shield / a custom link) or an
+        // app that isn't currently showing: nothing to gate here, and bouncing
+        // the user out of the app they ARE in would be wrong. The next click on
+        // that button hits alGate and asks for the password.
+        // Still call alHideAppRoot: it is a no-op for an id with no root, but
+        // it is also what closes Gita, which renders as an overlay rather than
+        // a root and so never reports itself visible above.
+        alHideAppRoot(appId);
+        alHideOverlay();
+      }
+    };
+    menu.appendChild(lb);
   }
   var cb = document.createElement('button');
   cb.innerHTML = TNI.key + '<span>Change password</span>';
@@ -42189,6 +42331,7 @@ function alShowManageMenu(appId) {
   });
   var rb = document.createElement('button');
   rb.innerHTML = TNI.trash + '<span>Remove lock</span>';
+  rb.className = 'al-dg';
   rb.style.cssText = s + 'background:transparent;color:#d68a7c;border:1px solid #d68a7c;';
   rb.onclick = function() { menu.remove(); _el('applock-submit').style.display=''; alShowOverlay(appId,'remove',function(){alUpdateTonyLockBtn();alUpdateVedaLockBtns();}); };
   menu.appendChild(rb);

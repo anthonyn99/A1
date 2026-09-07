@@ -262,6 +262,8 @@ label.fld{display:block;font-size:10.5px;font-weight:600;letter-spacing:1.1px;te
 }
 .lockmsg{font-size:12.5px;color:var(--danger);min-height:18px;line-height:1.4}
 .lockmsg.ok{color:var(--muted)}
+#lockMenu{display:flex;flex-direction:column;gap:8px}
+#lockMenu .btn{text-transform:none;letter-spacing:.2px;font-size:13px;padding:12px 16px}
 .locklinks{display:flex;flex-direction:column;gap:7px;margin-top:3px}
 .locklinks span{font-size:12px;color:var(--faint);cursor:pointer;transition:color .15s}
 .locklinks span:hover{color:var(--gold-soft)}
@@ -276,6 +278,14 @@ label.fld{display:block;font-size:10.5px;font-weight:600;letter-spacing:1.1px;te
 .pw-eye svg{width:17px;height:17px}
 @keyframes shake{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}30%,50%,70%{transform:translateX(-6px)}40%,60%{transform:translateX(6px)}}
 .shake{animation:shake .5s cubic-bezier(.36,.07,.19,.97) both}
+/* Phones: the card fills the width and the manage menu scrolls inside itself
+   rather than running off a short screen, with 46px tap targets throughout. */
+@media(max-width:520px){
+  #lockScreen{padding:16px}
+  .lockbox{max-width:none;max-height:calc(100dvh - 32px);overflow-y:auto;-webkit-overflow-scrolling:touch}
+  #lockMenu .btn,#lockGo,#bioBtn{min-height:46px}
+  .lockbox input{min-height:46px}
+}
 
 /* ══════════════════════════════════════════════════════════════════════════
    APP SHELL — three panes on desktop, one pane with push navigation on phones
@@ -945,10 +955,15 @@ section.readpane{flex:1;display:flex;flex-direction:column;min-width:0;min-heigh
       you connect, and it's stored exactly like your other A1 app locks: hashed, never plaintext.
     </div>
     <input type="text" id="lockCode" placeholder="6-character code from email" style="display:none" autocomplete="one-time-code">
+    <input type="password" id="lockPwCur" placeholder="Current password" style="display:none" autocomplete="current-password">
     <input type="password" id="lockPw1" placeholder="Password" autocomplete="current-password">
     <input type="password" id="lockPw2" placeholder="Confirm password" style="display:none" autocomplete="new-password">
     <input type="text" id="lockHintIn" placeholder="Hint (optional)" style="display:none" autocomplete="off">
     <button class="btn gold" id="lockGo" style="justify-content:center">Unlock</button>
+    <!-- Manage menu. The lock button in the header no longer locks on the spot:
+         it opens this, so "lock this device" is a choice rather than a
+         side-effect of reaching for the settings you actually wanted. -->
+    <div id="lockMenu" style="display:none"></div>
     <div id="lockBio" style="display:none">
       <button class="btn gold" id="bioBtn" style="width:100%;justify-content:center"></button>
     </div>
@@ -1266,8 +1281,8 @@ function addPasswordToggle(id){
   btn._hide = ()=>apply(false);
   wrap.appendChild(btn);
 }
-['lockPw1','lockPw2'].forEach(addPasswordToggle);
-const resetPasswordToggles = () => ['lockPw1','lockPw2'].forEach(id => { const b = el(id)?.parentNode?.querySelector('.pw-eye'); if (b && b._hide) b._hide(); });
+['lockPwCur','lockPw1','lockPw2'].forEach(addPasswordToggle);
+const resetPasswordToggles = () => ['lockPwCur','lockPw1','lockPw2'].forEach(id => { const b = el(id)?.parentNode?.querySelector('.pw-eye'); if (b && b._hide) b._hide(); });
 const lockMsg = (t, ok) => { const m = el('lockMsg'); m.className = 'lockmsg' + (ok?' ok':''); m.textContent = t; };
 
 function renderBioButton(){
@@ -1286,23 +1301,34 @@ function lockView(mode){
   lockMode = mode;
   const show = (id,on) => { const e = el(id); (e.closest('.pw-wrap')||e).style.display = on?'':'none'; };
   resetPasswordToggles(); lockMsg('');
-  ['lockPw1','lockPw2','lockHintIn','lockCode'].forEach(id => el(id).value = '');
+  ['lockPwCur','lockPw1','lockPw2','lockHintIn','lockCode'].forEach(id => el(id).value = '');
+  // 'manage' shows the menu in place of the form; every other mode is a form.
+  const form = mode!=='manage';
   show('lockNote', mode==='setup');
   show('lockCode', mode==='reset');
-  show('lockPw2', mode!=='unlock');
-  show('lockHintIn', mode!=='unlock');
+  show('lockPwCur', mode==='change');
+  show('lockPw1', form);
+  show('lockPw2', form && mode!=='unlock');
+  show('lockHintIn', form && mode!=='unlock');
+  el('lockGo').style.display = form ? '' : 'none';
+  el('lockMenu').style.display = form ? 'none' : '';
+  if (form) el('lockMenu').innerHTML = '';
   el('lockPw1').placeholder = mode==='unlock' ? 'Password' : 'New password';
   el('lockHintIn').placeholder = mode==='reset' ? 'New hint (optional)' : 'Hint (optional)';
   const bioName = window.Bio ? Bio.label() : 'biometrics';
   el('lockSub').textContent = mode==='setup' ? 'Set up your password'
     : mode==='reset' ? 'Reset password'
+    : mode==='change' ? 'Change password'
+    : mode==='manage' ? 'OneInbox is locked. Manage:'
     : bioRemoveMode ? 'Remove ' + bioName : 'Locked';
   el('lockGo').textContent = mode==='setup' ? 'Create & unlock'
     : mode==='reset' ? 'Reset password'
+    : mode==='change' ? 'Change password'
     : bioRemoveMode ? 'Verify password & remove' : 'Unlock';
   const L = el('lockLinks'); L.innerHTML = '';
   const link = (label, fn) => { const s = document.createElement('span'); s.textContent = label; s.addEventListener('click', fn); L.appendChild(s); };
-  if (mode==='unlock' && bioRemoveMode) link('Cancel', () => { bioRemoveMode=false; lockView('unlock'); });
+  if (mode==='manage') renderManageMenu();
+  else if (mode==='unlock' && bioRemoveMode) link('Cancel', () => { bioRemoveMode=false; lockView(lockSession ? 'manage' : 'unlock'); });
   else if (mode==='unlock'){
     link('Email me the hint', emailHint);
     link('Forgot password?', startReset);
@@ -1310,9 +1336,68 @@ function lockView(mode){
   } else if (mode==='reset'){
     link('Resend code', startReset);
     link('Back', () => lockView('unlock'));
+  } else if (mode==='change'){
+    link('Back', () => lockView('manage'));
   }
   renderBioButton();
-  setTimeout(() => el(mode==='reset'?'lockCode':'lockPw1').focus(), 80);
+  if (form) setTimeout(() => el(mode==='reset'?'lockCode':mode==='change'?'lockPwCur':'lockPw1').focus(), 80);
+}
+
+/* == Manage menu ============================================================
+   The lock button in the header used to lock the device on the spot. It opens
+   this instead, so locking is a choice rather than a side-effect of reaching
+   for the settings you actually wanted. Shape follows the rest of the suite
+   (RiftIQ / TradeHub / Vault / Shield): the per-device action first, then
+   biometrics, then the password. There is no "Remove lock" row - OneInbox's
+   password is what mints the device token that authorizes every mailbox call,
+   so the app cannot exist without one. */
+const MI = {
+  lock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10.5" rx="2.2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg>',
+  key:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 8.5-8.5"/><path d="m17 6 3 3"/><path d="m14 9 3 3"/></svg>',
+  user:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+};
+function menuBtn(parent, cls, html, fn, beforeEl){
+  const b = document.createElement('button');
+  b.className = 'btn' + (cls ? ' ' + cls : '');
+  b.style.cssText = 'width:100%;justify-content:center';
+  b.innerHTML = html;                 // trusted markup: an MI icon plus a <span>
+  b.addEventListener('click', fn);
+  if (beforeEl) parent.insertBefore(b, beforeEl); else parent.appendChild(b);
+  return b;
+}
+function renderManageMenu(){
+  const m = el('lockMenu'); m.innerHTML = '';
+  menuBtn(m, 'gold', MI.lock + '<span>Lock this device now</span>', lockNow);
+  const changeBtn = menuBtn(m, '', MI.key + '<span>Change password</span>', () => lockView('change'));
+  menuBtn(m, '', '<span>Cancel</span>', closeManager);
+  // Biometrics lands above "Change password" once the platform has answered.
+  if (window.Bio) Bio.available().then(avail => {
+    if (!avail || lockMode !== 'manage') return;
+    if (bioRegistered())
+      menuBtn(m, '', MI.user + '<span>Remove ' + Bio.label() + '</span>', forgetBio, changeBtn);
+    else
+      menuBtn(m, 'gold', MI.user + '<span>Register ' + Bio.label() + '</span>', registerBioNow, changeBtn);
+  });
+}
+async function registerBioNow(){
+  const name = Bio.label();
+  const r = await Bio.register(BIO_APP, BIO_ID, { rpName:'OneInbox', userName:'oneinbox-tony', displayName:'OneInbox' });
+  if (r.ok){ toast(name + ' enabled', true); closeManager(); }
+  else if (r.error !== 'cancelled' && r.error !== 'NotAllowedError') lockMsg('Could not enable ' + name + '.');
+}
+/* Dismissing the manager must never expose the app when this device is in fact
+   locked, so with no session it falls back to the unlock prompt. */
+function closeManager(){
+  if (!lockSession){ bioRemoveMode = false; lockView(lockSetupNeeded ? 'setup' : 'unlock'); return; }
+  const ls = el('lockScreen');
+  ls.style.transition = 'opacity .3s'; ls.style.opacity = '0';
+  setTimeout(() => { ls.style.display = 'none'; }, 320);
+}
+function showManager(){
+  const ls = el('lockScreen');
+  ls.style.display = 'flex'; ls.style.opacity = '1';
+  bioRemoveMode = false;
+  lockView('manage');
 }
 function showLock(){ const ls = el('lockScreen'); ls.style.display='flex'; ls.style.opacity='1'; bioRemoveMode=false; lockView(lockSetupNeeded?'setup':'unlock'); }
 function hideLock(){
@@ -1399,7 +1484,14 @@ async function maybeOfferBio(){
   else if (r.error !== 'cancelled' && r.error !== 'NotAllowedError') toast('Could not enable ' + name);
 }
 function forgetBio(){ bioRemoveMode = true; lockView('unlock'); lockMsg(`Verify with ${Bio.label()} or your password to remove it from this device.`, true); }
-function doRemoveBio(){ const n = Bio.label(); bioRemoveMode=false; Bio.unregister(BIO_APP, BIO_ID); lockView('unlock'); toast(n + ' removed from this device'); }
+function doRemoveBio(){
+  const n = Bio.label(); bioRemoveMode=false; Bio.unregister(BIO_APP, BIO_ID);
+  // Reachable from the manager now, i.e. while this device is NOT locked, so
+  // finishing has to hand the user back rather than strand them on an unlock
+  // prompt for a device that has a perfectly good session.
+  lockView(lockSession ? 'manage' : 'unlock');
+  toast(n + ' removed from this device');
+}
 
 async function lockSubmit(){
   const p1 = el('lockPw1').value;
@@ -1419,6 +1511,33 @@ async function lockSubmit(){
   if (p1.length < 4){ lockMsg('Use at least 4 characters.'); return; }
   if (p1 !== p2){ lockMsg('Passwords do not match.'); return; }
   const hint = el('lockHintIn').value.trim();
+  if (lockMode === 'change'){
+    // Verify the current password, then swap it: remove-then-set, the same two
+    // calls every other program in the suite makes. The old device token is
+    // stamped with the old password's fingerprint, so a fresh session has to be
+    // opened here or this device would be holding a token the server has just
+    // invalidated — and every OTHER device is asked for the new password once.
+    const cur = el('lockPwCur').value;
+    if (!cur){ lockMsg('Enter your current password.'); return; }
+    const v = await authPost('/auth/journal/verify', { password: cur });
+    if (!v.ok){
+      const b = el('lockBox'); b.classList.remove('shake'); void b.offsetWidth; b.classList.add('shake');
+      lockMsg('Current password is not correct.'); return;
+    }
+    const rm = await authPost('/auth/journal/remove-lock', { password: cur });
+    if (!rm.ok){ lockMsg('Could not replace the old password — try again.'); return; }
+    const st = await authPost('/auth/journal/set-lock', { password: p1, hint });
+    if (!st.ok){
+      // The old record is already gone, so say so plainly rather than leaving
+      // the impression nothing happened.
+      lockMsg('The new password could not be saved. Use "Forgot password?" to set one.');
+      return;
+    }
+    lockHint = hint;
+    if (await openSession(p1)){ hideLock(); toast('Password changed', true); }
+    else lockMsg('Password changed, but this device could not reopen — reload and unlock.');
+    return;
+  }
   if (lockMode === 'setup'){
     const r = await authPost('/auth/journal/set-lock', { password:p1, hint });
     if (!r.ok){ lockMsg(r.error || 'Could not set password.'); return; }
@@ -1441,7 +1560,7 @@ async function lockSubmit(){
 }
 el('lockGo').addEventListener('click', lockSubmit);
 el('bioBtn').addEventListener('click', bioUnlock);
-['lockPw1','lockPw2','lockHintIn','lockCode'].forEach(id => el(id).addEventListener('keydown', e => { if (e.key === 'Enter') lockSubmit(); }));
+['lockPwCur','lockPw1','lockPw2','lockHintIn','lockCode'].forEach(id => el(id).addEventListener('keydown', e => { if (e.key === 'Enter') lockSubmit(); }));
 
 function lockNow(){
   const t = lockSession?.token;
@@ -1454,7 +1573,11 @@ function lockNow(){
   }
   showLock();
 }
-el('lockNowBtn').addEventListener('click', lockNow);
+// Opens the manager rather than locking on the spot — locking is one of the
+// choices in there now, not the whole meaning of the button.
+el('lockNowBtn').addEventListener('click', showManager);
+el('lockNowBtn').title = 'Lock manager';
+el('lockNowBtn').setAttribute('aria-label', 'Lock manager');
 
 async function confirmDeviceTrust(){
   if (!lockSession) return;

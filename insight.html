@@ -586,6 +586,9 @@
     text-transform: none; letter-spacing: .2px;
   }
   #lockBio { margin-top: 9px; }
+  /* Manage menu — one column of full-width rows, the suite's shared shape. */
+  #lockMenu { display: flex; flex-direction: column; gap: 8px; }
+  #lockMenu .btn { margin: 0; }
   .lockmsg { min-height: 20px; font-size: 12.5px; color: var(--danger); margin: 12px 0 0; }
   .lockmsg.ok { color: var(--gold-soft); }
   /* Ruled footer — secondary/dismiss actions sit apart from the form. */
@@ -596,6 +599,17 @@
   .locksetup-note { font-size: 12.5px; color: var(--muted); line-height: 1.6; margin-bottom: 20px; }
   @keyframes lockshake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-7px)} 75%{transform:translateX(7px)} }
   .lockbox.shake { animation: lockshake .3s; }
+  /* Phones: the card fills the width, and the manage menu scrolls inside its
+     own card rather than running off a short screen. .btn already lights its
+     outline on hover, so nothing extra is needed for the desktop glow. */
+  @media (max-width: 520px) {
+    .lockbox {
+      max-width: none; padding: 26px 20px 18px;
+      max-height: calc(100dvh - 40px); overflow-y: auto; -webkit-overflow-scrolling: touch;
+    }
+    .lockbox .btn { min-height: 46px; }
+    .lockbox input { min-height: 46px; }
+  }
 
   /* ── Responsive ── */
   @media (min-width: 1080px) { .wrap { max-width: 960px; } }
@@ -732,10 +746,15 @@
       It's stored the same way as your other app locks (hashed, never plaintext).
     </div>
     <input type="text" id="lockCode" placeholder="6-character code from email" style="display:none" autocomplete="one-time-code">
+    <input type="password" id="lockPwCur" placeholder="Current password" style="display:none" autocomplete="current-password">
     <input type="password" id="lockPw1" placeholder="Password" autocomplete="current-password">
     <input type="password" id="lockPw2" placeholder="Confirm password" style="display:none" autocomplete="new-password">
     <input type="text" id="lockHintIn" placeholder="Hint (optional)" style="display:none" autocomplete="off">
     <button class="btn gold" id="lockGo">Unlock</button>
+    <!-- Manage menu. The header's lock button no longer locks on the spot: it
+         opens this, so locking the device is a choice rather than a
+         side-effect of reaching for the settings you actually wanted. -->
+    <div id="lockMenu" style="display:none"></div>
     <!-- Biometric unlock — sits under the password button and only ever runs
          when it is pressed; nothing fires on load. -->
     <div id="lockBio" style="display:none">
@@ -1094,7 +1113,7 @@
     const name = Bio.label();
     bioRemoveMode = false;
     Bio.unregister(BIO_APP, BIO_ID);
-    lockView('unlock');
+    lockView(lockSession ? 'manage' : 'unlock');
     toast(name + ' removed from this device');
   }
 
@@ -1147,11 +1166,11 @@
     btn._hide = () => apply(false);
     wrap.appendChild(btn);
   }
-  ['lockPw1', 'lockPw2'].forEach(addPasswordToggle);
+  ['lockPwCur', 'lockPw1', 'lockPw2'].forEach(addPasswordToggle);
 
   // Never leave a password revealed when the lock screen re-renders.
   function resetPasswordToggles() {
-    ['lockPw1', 'lockPw2'].forEach(id => {
+    ['lockPwCur', 'lockPw1', 'lockPw2'].forEach(id => {
       const btn = lockEl(id)?.parentNode?.querySelector('.pw-eye');
       if (btn && btn._hide) btn._hide();
     });
@@ -1168,24 +1187,36 @@
     };
     resetPasswordToggles();
     lockMsg('');
-    ['lockPw1', 'lockPw2', 'lockHintIn', 'lockCode'].forEach(id => lockEl(id).value = '');
+    ['lockPwCur', 'lockPw1', 'lockPw2', 'lockHintIn', 'lockCode'].forEach(id => lockEl(id).value = '');
+    // 'manage' swaps the form out for the menu; every other mode is a form.
+    const form = mode !== 'manage';
     show('lockNote', mode === 'setup');
     show('lockCode', mode === 'reset');
-    show('lockPw2', mode !== 'unlock');
-    show('lockHintIn', mode !== 'unlock');
+    show('lockPwCur', mode === 'change');
+    show('lockPw1', form);
+    show('lockPw2', form && mode !== 'unlock');
+    show('lockHintIn', form && mode !== 'unlock');
+    lockEl('lockGo').style.display = form ? '' : 'none';
+    lockEl('lockMenu').style.display = form ? 'none' : '';
+    if (form) lockEl('lockMenu').innerHTML = '';
     lockEl('lockPw1').placeholder = mode === 'unlock' ? 'Password' : 'New password';
     lockEl('lockHintIn').placeholder = mode === 'reset' ? 'New hint (optional)' : 'Hint (optional)';
     const bioName = window.Bio ? Bio.label() : 'biometrics';
     lockEl('lockSub').textContent = mode === 'setup' ? 'Set up your password'
       : mode === 'reset' ? 'Reset password'
+      : mode === 'change' ? 'Change password'
+      : mode === 'manage' ? 'Insight is locked. Manage:'
       : bioRemoveMode ? 'Remove ' + bioName : 'Locked';
     lockEl('lockGo').textContent = mode === 'setup' ? 'Create & unlock'
       : mode === 'reset' ? 'Reset password'
+      : mode === 'change' ? 'Change password'
       : bioRemoveMode ? 'Verify password & remove' : 'Unlock';
     const L = lockEl('lockLinks'); L.innerHTML = '';
     const link = (label, fn) => { const s = document.createElement('span'); s.textContent = label; s.addEventListener('click', fn); L.appendChild(s); };
-    if (mode === 'unlock' && bioRemoveMode) {
-      link('Cancel', () => { bioRemoveMode = false; lockView('unlock'); });
+    if (mode === 'manage') {
+      renderManageMenu();
+    } else if (mode === 'unlock' && bioRemoveMode) {
+      link('Cancel', () => { bioRemoveMode = false; lockView(lockSession ? 'manage' : 'unlock'); });
     } else if (mode === 'unlock') {
       link('Email me the hint', emailHint);
       link('Forgot password?', startReset);
@@ -1193,9 +1224,63 @@
     } else if (mode === 'reset') {
       link('Resend code', startReset);
       link('Back', () => lockView('unlock'));
+    } else if (mode === 'change') {
+      link('Back', () => lockView('manage'));
     }
     renderBioButton();
-    setTimeout(() => lockEl(mode === 'reset' ? 'lockCode' : 'lockPw1').focus(), 80);
+    if (form) setTimeout(() => lockEl(mode === 'reset' ? 'lockCode' : mode === 'change' ? 'lockPwCur' : 'lockPw1').focus(), 80);
+  }
+
+  /* == Manage menu ==========================================================
+     Same shape as the rest of the suite (RiftIQ / TradeHub / Vault / Shield):
+     the per-device action first, then biometrics, then the password. There is
+     no "Remove lock" row - Insight's password is what mints the bearer token
+     that authorizes Plaid Link server-side, so the app cannot exist without
+     one. */
+  const MI = {
+    lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10.5" rx="2.2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg>',
+    key: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 8.5-8.5"/><path d="m17 6 3 3"/><path d="m14 9 3 3"/></svg>',
+    user: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+  };
+  function menuBtn(parent, cls, html, fn, beforeEl) {
+    const b = document.createElement('button');
+    b.className = 'btn' + (cls ? ' ' + cls : '');
+    b.innerHTML = html;              // trusted markup: an MI icon plus a <span>
+    b.addEventListener('click', fn);
+    if (beforeEl) parent.insertBefore(b, beforeEl); else parent.appendChild(b);
+    return b;
+  }
+  function renderManageMenu() {
+    const m = lockEl('lockMenu'); m.innerHTML = '';
+    menuBtn(m, 'gold', MI.lock + '<span>Lock this device now</span>', lockNow);
+    const changeBtn = menuBtn(m, '', MI.key + '<span>Change password</span>', () => lockView('change'));
+    menuBtn(m, '', '<span>Cancel</span>', closeManager);
+    // Biometrics lands above "Change password" once the platform has answered.
+    if (window.Bio) Bio.available().then(avail => {
+      if (!avail || lockMode !== 'manage') return;
+      if (bioRegistered())
+        menuBtn(m, '', MI.user + '<span>Remove ' + Bio.label() + '</span>', forgetBio, changeBtn);
+      else
+        menuBtn(m, 'gold', MI.user + '<span>Register ' + Bio.label() + '</span>', registerBioNow, changeBtn);
+    });
+  }
+  async function registerBioNow() {
+    const name = Bio.label();
+    const r = await Bio.register(BIO_APP, BIO_ID, { rpName: 'Insight', userName: 'insight-tony', displayName: 'Insight' });
+    if (r.ok) { toast(name + ' enabled', true); closeManager(); }
+    else if (r.error !== 'cancelled' && r.error !== 'NotAllowedError') lockMsg('Could not enable ' + name + '.');
+  }
+  /* Dismissing the manager must never expose the app when this device is in
+     fact locked, so with no session it falls back to the unlock prompt. */
+  function closeManager() {
+    if (!lockSession) { bioRemoveMode = false; lockView(lockSetupNeeded ? 'setup' : 'unlock'); return; }
+    hideLock();
+  }
+  function showManager() {
+    const ls = lockEl('lockScreen');
+    ls.style.display = 'flex'; ls.style.opacity = '1';
+    bioRemoveMode = false;
+    lockView('manage');
   }
 
   function showLock() {
@@ -1286,6 +1371,35 @@
     if (p1.length < 4) { lockMsg('Use at least 4 characters.'); return; }
     if (p1 !== p2) { lockMsg('Passwords do not match.'); return; }
     const hint = lockEl('lockHintIn').value.trim();
+    if (lockMode === 'change') {
+      // Verify the current password, then swap it: remove-then-set, the same
+      // two calls every other program in the suite makes. The device token is
+      // stamped with the old password's fingerprint, so a fresh session has to
+      // be opened here or this device would be left holding a token the server
+      // has just invalidated - and every OTHER device is asked once for the new
+      // password, which is exactly the intended behaviour.
+      const cur = lockEl('lockPwCur').value;
+      if (!cur) { lockMsg('Enter your current password.'); return; }
+      const v = await authPost('/auth/journal/verify', { password: cur });
+      if (!v.ok) {
+        const box = lockEl('lockBox');
+        box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake');
+        lockMsg('Current password is not correct.'); return;
+      }
+      const rm = await authPost('/auth/journal/remove-lock', { password: cur });
+      if (!rm.ok) { lockMsg('Could not replace the old password — try again.'); return; }
+      const st = await authPost('/auth/journal/set-lock', { password: p1, hint });
+      if (!st.ok) {
+        // The old record is already gone, so say so plainly rather than leaving
+        // the impression that nothing happened.
+        lockMsg('The new password could not be saved. Use "Forgot password?" to set one.');
+        return;
+      }
+      lockHint = hint;
+      if (await openSession(p1)) { hideLock(); toast('Password changed', true); }
+      else lockMsg('Password changed, but this device could not reopen — reload and unlock.');
+      return;
+    }
     if (lockMode === 'setup') {
       const r = await authPost('/auth/journal/set-lock', { password: p1, hint });
       if (!r.ok) { lockMsg(r.error || 'Could not set password.'); return; }
@@ -1309,7 +1423,7 @@
 
   lockEl('lockGo').addEventListener('click', lockSubmit);
   lockEl('bioBtn').addEventListener('click', bioUnlock);
-  ['lockPw1', 'lockPw2', 'lockHintIn', 'lockCode'].forEach(id =>
+  ['lockPwCur', 'lockPw1', 'lockPw2', 'lockHintIn', 'lockCode'].forEach(id =>
     lockEl(id).addEventListener('keydown', e => { if (e.key === 'Enter') lockSubmit(); }));
 
   // "🔒 Lock". With biometrics enrolled the session is kept (flagged locked)
@@ -1330,7 +1444,11 @@
     }
     showLock();
   }
-  document.getElementById('lockNowBtn').addEventListener('click', lockNow);
+  // Opens the manager rather than locking on the spot — locking is one of the
+  // choices in there now, not the whole meaning of the button.
+  document.getElementById('lockNowBtn').addEventListener('click', showManager);
+  document.getElementById('lockNowBtn').title = 'Lock manager';
+  document.getElementById('lockNowBtn').setAttribute('aria-label', 'Lock manager');
 
   // No auto-lock. The stored token is trusted immediately (so the app opens
   // instantly, even offline) and confirmed with the server in the background;

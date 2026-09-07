@@ -1381,6 +1381,44 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
   padding: 0; text-decoration: underline; text-underline-offset: 3px; text-align: center; transition: color .15s;
 }
 #applock-cancel:hover, #applock-forgot:hover, #applock-reset:hover { color: #adadb2; }
+/* ── Lock-manager rows ───────────────────────────────────────────────────────
+   applock.js builds these buttons as `icon + <span>`, so without the flex line
+   below the glyph sat on the text baseline instead of beside it. The border
+   comes from an inline shorthand in that JS, which is why the hover has to say
+   !important to reach it.
+   --al-glow / --al-glowl are painted on the card from the lock's configured
+   accent (config.js § appLock.accent), so no colour is hardcoded here.
+   `.al-ac` = accent rows (unlock / lock this device now), `.al-dg` = destructive. */
+#applock-box { --al-glow: #8D769A; --al-glowl: rgba(141,118,154,.40); }
+#applock-bio button, #al-menu-btns button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  transition: border-color .18s, box-shadow .18s, color .18s;
+}
+#applock-bio button svg, #al-menu-btns button svg { width: 15px; height: 15px; display: block; flex-shrink: 0; }
+@media (hover: hover) and (pointer: fine) {
+  #applock-bio button:hover, #al-menu-btns button:hover {
+    border-color: #adadb2 !important; box-shadow: 0 0 11px rgba(173,173,178,.28);
+  }
+  #al-menu-btns button.al-ac:hover, #applock-bio button:hover {
+    border-color: var(--al-glow) !important; box-shadow: 0 0 12px var(--al-glowl);
+  }
+  #al-menu-btns button.al-dg:hover { border-color: #dda398 !important; box-shadow: 0 0 12px rgba(221,163,152,.32); }
+  #applock-submit:hover:not(:disabled) { box-shadow: 0 0 12px var(--al-glowl); }
+}
+#applock-pw:focus { border-color: var(--al-glow); box-shadow: 0 0 11px var(--al-glowl); }
+#applock-submit, #applock-pw { transition: border-color .18s, box-shadow .18s, opacity .18s; }
+/* Phones: full-bleed card with 46px tap targets, and a scrolling body so a menu
+   carrying biometrics plus every action still fits a short screen. */
+@media (max-width: 520px) {
+  #applock-overlay { padding: 14px; }
+  #applock-box {
+    width: 100%; max-width: none; padding: 28px 20px 18px;
+    max-height: calc(100vh - 28px); max-height: calc(100dvh - 28px);
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
+  }
+  #applock-bio button, #al-menu-btns button { min-height: 46px; font-size: 14px; }
+  #applock-pw, #applock-submit { min-height: 48px; }
+}
 /* Lock icon on nav buttons */
 .tn-btn .applock-badge, .veda-nav-btn .applock-badge {
   font-size: 10px; margin-left: 3px; opacity: 0.75; pointer-events: none;

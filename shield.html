@@ -755,7 +755,13 @@ label.fld{display:block;font-size:9.5px;font-weight:700;letter-spacing:1.4px;tex
 #applock-pw:focus{box-shadow:0 0 11px var(--acl)}
 #applock-submit,#applock-pw{transition:border-color .18s,box-shadow .18s,opacity .18s}
 
+/* Phones: full-bleed card with 46px tap targets, and a scrolling body so a
+   menu carrying biometrics plus every action still fits a short screen. */
 @media(max-width:520px){
+  #applock-overlay{padding:14px}
+  #applock-box{width:100%;max-width:none;padding:28px 20px;max-height:calc(100vh - 28px);max-height:calc(100dvh - 28px);overflow-y:auto;-webkit-overflow-scrolling:touch}
+  #applock-bio button,#al-menu-btns button{min-height:46px;font-size:13.5px}
+  #applock-pw,#applock-submit{min-height:48px}
   .pf-card{width:118px;height:136px}
   .pf-card .glyph{font-size:52px}
   .nav{padding-left:12px;padding-right:12px}
@@ -1789,11 +1795,21 @@ function showManageMenu(id){
 
   if (!unlocked){
     var ub=document.createElement('button');
-    ub.innerHTML=ICON.unlock+'<span>Unlock</span>';
+    ub.innerHTML=ICON.unlock+'<span>Unlock this device</span>';
     ub.className='al-ac';
     ub.style.cssText=s+'border:1px solid var(--acl);color:var(--ac);';
     ub.onclick=function(){ menu.remove(); showOverlay(id,'unlock', function(){ if (window.SH && window.SH.onLockChange) window.SH.onLockChange(); }); };
     menu.appendChild(ub);
+  } else {
+    // The mirror of "Unlock this device", and the first row for the same reason
+    // — it is the action you came here for. Drops only THIS device's unlock
+    // record; the password and every other device are untouched.
+    var lb=document.createElement('button');
+    lb.innerHTML=ICON.lock+'<span>Lock this device now</span>';
+    lb.className='al-ac';
+    lb.style.cssText=s+'border:1px solid var(--acl);color:var(--ac);';
+    lb.onclick=function(){ menu.remove(); markLocked(id); hideOverlay(); if (window.SH && window.SH.onDeviceRelock) window.SH.onDeviceRelock(); };
+    menu.appendChild(lb);
   }
 
   var cb=document.createElement('button');
@@ -1816,12 +1832,6 @@ function showManageMenu(id){
     }
     menu.insertBefore(bb, cb);
   });
-
-  var lb=document.createElement('button');
-  lb.innerHTML=ICON.lock+'<span>Lock this device</span>';
-  lb.style.cssText=s+'border:1px solid var(--bdl);color:var(--txd);';
-  lb.onclick=function(){ menu.remove(); markLocked(id); hideOverlay(); if (window.SH && window.SH.onDeviceRelock) window.SH.onDeviceRelock(); };
-  menu.appendChild(lb);
 
   var rb=document.createElement('button');
   rb.innerHTML=ICON.trash+'<span>Remove lock</span>';

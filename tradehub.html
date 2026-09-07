@@ -138,7 +138,30 @@
   #applock-reset{background:transparent;border:none;color:#8d8d94;font-size:12px;cursor:pointer;font-family:'Inter',system-ui,-apple-system,sans-serif;padding:2px 0 0;text-decoration:underline;text-underline-offset:3px;width:100%;text-align:center;transition:color .15s;}
   #applock-cancel:hover,#applock-forgot:hover,#applock-reset:hover{color:#adadb2;}
   #applock-bio button svg,#al-menu-btns button svg{width:15px;height:15px;display:block;flex-shrink:0;}
-  #applock-bio button:hover,#al-menu-btns button:hover{border-color:#adadb2;}
+  /* ── Lock-manager hover + touch sizing ───────────────────────────────────
+     The menu buttons are built in JS with an inline `border` shorthand, so a
+     plain stylesheet hover can never win against it — hence !important on the
+     border-color. The glow is what actually marks the target on desktop; it is
+     gated behind hover/fine pointers so a phone never paints a "stuck" hover
+     after a tap. `.al-ac` = accent rows (unlock / lock this device),
+     `.al-dg` = the destructive row. */
+  #applock-bio button,#al-menu-btns button{transition:border-color .18s,box-shadow .18s,color .18s;}
+  @media (hover:hover) and (pointer:fine){
+    #applock-bio button:hover,#al-menu-btns button:hover{border-color:#adadb2 !important;box-shadow:0 0 11px rgba(173,173,178,.30);}
+    #al-menu-btns button.al-ac:hover{border-color:#e0b874 !important;box-shadow:0 0 12px rgba(224,184,116,.34);}
+    #al-menu-btns button.al-dg:hover{border-color:#d68a7c !important;box-shadow:0 0 12px rgba(214,138,124,.32);}
+    #applock-submit:hover:not(:disabled){box-shadow:0 0 12px rgba(224,184,116,.30);}
+  }
+  #applock-pw:focus{box-shadow:0 0 11px rgba(224,184,116,.24);}
+  #applock-submit,#applock-pw{transition:border-color .18s,box-shadow .18s,opacity .18s;}
+  /* Phones: full-bleed card, comfortable 46px tap targets, and a scrolling
+     body so a menu with biometrics + every action still fits a short screen. */
+  @media (max-width:520px){
+    #applock-overlay{padding:14px;}
+    #applock-box{width:100%;max-width:none;padding:28px 20px;max-height:calc(100vh - 28px);max-height:calc(100dvh - 28px);overflow-y:auto;-webkit-overflow-scrolling:touch;}
+    #applock-bio button,#al-menu-btns button{min-height:46px;font-size:14px;}
+    #applock-pw,#applock-submit{min-height:48px;}
+  }
 </style>
 
 <!-- React / ReactDOM / Babel (same CDN builds as the main suite) -->
@@ -1373,6 +1396,23 @@ const TB_STYLES=`
 #tradeboard-root ::-webkit-scrollbar-thumb{background:rgba(128,128,128,0.2);border-radius:4px;}
 #tradeboard-root .tb-card{background:var(--s1);border:1px solid var(--bd);border-radius:9px;padding:20px 22px;box-shadow:none;transition:border-color .18s;}
 #tradeboard-root .tb-card:hover{border-color:var(--bdl);}
+/* ── Per-tab lock manager ────────────────────────────────────────────────────
+   Its buttons carry inline "border" shorthands from JSX, which a plain hover
+   rule cannot override — hence !important on border-color. The glow is desktop
+   only (hover/fine) so a tap on a phone never leaves a row looking stuck. */
+#tradeboard-root .tb-tablock-card button,#tradeboard-root .tb-tablock-gate button{transition:border-color .18s,box-shadow .18s,color .18s;}
+@media (hover:hover) and (pointer:fine){
+  #tradeboard-root .tb-tablock-card button:hover,#tradeboard-root .tb-tablock-gate button:hover{border-color:var(--bdl) !important;box-shadow:0 0 11px rgba(173,173,178,.26);}
+  #tradeboard-root .tb-tablock-card button.al-ac:hover,#tradeboard-root .tb-tablock-gate button.al-ac:hover{border-color:var(--ac) !important;box-shadow:0 0 12px var(--acl);}
+  #tradeboard-root .tb-tablock-card button.al-dg:hover{border-color:var(--tbr) !important;box-shadow:0 0 12px rgba(214,138,124,.34);}
+}
+/* Underlined text links inside the card keep their plain treatment. */
+#tradeboard-root .tb-tablock-card button[style*="underline"]:hover,#tradeboard-root .tb-tablock-gate button[style*="underline"]:hover{border-color:transparent !important;box-shadow:none;color:var(--txd);}
+@media (max-width:520px){
+  #tradeboard-root .tb-tablock-card{width:100% !important;max-width:none !important;padding:26px 20px !important;max-height:calc(100dvh - 32px);overflow-y:auto;-webkit-overflow-scrolling:touch;}
+  #tradeboard-root .tb-tablock-card button,#tradeboard-root .tb-tablock-gate button{min-height:46px;}
+  #tradeboard-root .tb-tablock-gate{padding:36px 16px !important;}
+}
 #tradeboard-root .tb-ico{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;line-height:0;vertical-align:-2px;}
 #tradeboard-root .tb-ico svg{width:100%;height:100%;display:block;}
 #tradeboard-root .tb-btn-primary{display:inline-flex;align-items:center;gap:7px;background:transparent;color:var(--acs);border:1px solid var(--acl);border-radius:6px;padding:9px 16px;font-size:11.5px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;box-shadow:none;transition:border-color .18s,color .18s,box-shadow .18s;}
@@ -5393,7 +5433,7 @@ function TBTabLockPrompt({tabId,tabLabel,onUnlocked}){
       if(ok) onUnlocked();
     }catch(e){ setResetMsg(''); }
   };
-  return <div className="tb-fade-in" style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:18,padding:'60px 20px',maxWidth:380,margin:'0 auto',textAlign:'center'}}>
+  return <div className="tb-fade-in tb-tablock-gate" style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:18,padding:'60px 20px',maxWidth:380,margin:'0 auto',textAlign:'center'}}>
     <TBIcon n="lock" size={34} style={{color:'var(--ac)'}}/>
     <div>
       <div style={{fontFamily:"'Manrope',system-ui,-apple-system,sans-serif",fontSize:22,fontWeight:700,color:'var(--tx)'}}>{tabLabel} is locked</div>
@@ -5430,6 +5470,11 @@ function TBTabLockManager({tabId,tabLabel,onClose}){
   const [bioAvail,setBioAvail]=useState(false);
   const [bioReg,setBioReg]=useState(window.Bio?window.Bio.isRegistered('tradehub-tab',tabId):false);
   useEffect(()=>{ let a=true; if(window.Bio) window.Bio.available().then(v=>{if(a)setBioAvail(!!v);}); return ()=>{a=false;}; },[]);
+  // Locked on the account, but is THIS device still holding an unlock?
+  const deviceUnlocked = !!(isLocked && window._tbTabLock && window._tbTabLock.isUnlocked(tabId));
+  // Drops only this device's unlock record — the password and every other
+  // device are untouched. The gate re-renders through _tbTabLock's notify.
+  const lockThisDevice=()=>{ window._tbTabLock.markLocked(tabId); onClose(); };
   const bioRegister=async()=>{
     const r=await window.Bio.register('tradehub-tab',tabId,{rpName:'TradeHub',userName:'tradehub-tab-'+tabId,displayName:tabLabel+' — TradeHub'});
     if(r.ok){ window._tbTabLock.markUnlocked(tabId); setBioReg(true); onClose(); }
@@ -5488,24 +5533,30 @@ function TBTabLockManager({tabId,tabLabel,onClose}){
     setBusy(false);
   };
   const titleByMode={setpw:'Lock '+tabLabel,remove:'Remove lock',changepw:'Change password',menu:tabLabel+' lock',removebio:'Remove biometrics'};
-  const subByMode={setpw:'Choose a password to lock this tab. Unlock once per device.',remove:'Enter password to remove the lock.',changepw:'Enter current password first.',menu:'This tab is locked. Choose an action.',removebio:'Verify with '+(window.Bio?window.Bio.label():'biometrics')+' or your password to remove biometrics from this device.'};
+  const subByMode={setpw:'Choose a password to lock this tab. Unlock once per device.',remove:'Enter password to remove the lock.',changepw:'Enter current password first.',menu:(deviceUnlocked?'This tab is locked. Manage:':'This tab is locked. Choose:'),removebio:'Verify with '+(window.Bio?window.Bio.label():'biometrics')+' or your password to remove biometrics from this device.'};
   const iconByMode={setpw:'shield',remove:'unlock',changepw:'key',menu:'lock',removebio:'user'};
   return <div onClick={onClose} style={{position:'fixed',inset:0,zIndex:100000,background:'rgba(14,14,16,.66)',backdropFilter:'blur(5px)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
-    <div onClick={e=>e.stopPropagation()} style={{background:'var(--s2)',border:'1px solid var(--bdl)',borderRadius:9,padding:'32px 26px',width:340,maxWidth:'90vw',display:'flex',flexDirection:'column',alignItems:'center',gap:16,boxShadow:'0 30px 70px rgba(0,0,0,.48)'}}>
+    <div className="tb-tablock-card" onClick={e=>e.stopPropagation()} style={{background:'var(--s2)',border:'1px solid var(--bdl)',borderRadius:9,padding:'32px 26px',width:340,maxWidth:'90vw',display:'flex',flexDirection:'column',alignItems:'center',gap:16,boxShadow:'0 30px 70px rgba(0,0,0,.48)'}}>
       <TBIcon n={iconByMode[mode]} size={30} style={{color:'var(--ac)'}}/>
       <div style={{textAlign:'center'}}>
         <div style={{fontFamily:"'Manrope',system-ui,-apple-system,sans-serif",fontSize:22,fontWeight:600,letterSpacing:-.2,color:'var(--tx)'}}>{titleByMode[mode]}</div>
         <div style={{fontSize:12.5,color:'var(--txd)',marginTop:5,lineHeight:1.55}}>{subByMode[mode]}</div>
       </div>
       {mode==='menu'?(
-        <div style={{display:'flex',flexDirection:'column',gap:8,width:'100%'}}>
+        <div className="tb-tablock-menu" style={{display:'flex',flexDirection:'column',gap:8,width:'100%'}}>
+          {/* Per-device state first, mirroring the whole-app lock manager: an
+              unlock is remembered durably, so without this row the only way to
+              make THIS device ask again was to remove the lock outright. */}
+          {deviceUnlocked
+            ?<button className="al-ac" onClick={lockThisDevice} style={{background:'transparent',border:'1px solid var(--acl)',borderRadius:6,padding:'12px 0',fontSize:13.5,fontWeight:500,letterSpacing:.2,cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',gap:8,color:'var(--acs)'}}><TBIcon n="lock"/>Lock this device now</button>
+            :<button className="al-ac" onClick={onClose} style={{background:'transparent',border:'1px solid var(--acl)',borderRadius:6,padding:'12px 0',fontSize:13.5,fontWeight:500,letterSpacing:.2,cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',gap:8,color:'var(--acs)'}}><TBIcon n="unlock"/>Unlock this device</button>}
           {bioAvail&&(bioReg
             ?<button onClick={()=>{setMode('removebio');setPw('');setErr('');}} style={{background:'transparent',border:'1px solid var(--bd)',borderRadius:6,padding:'12px 0',fontSize:13.5,fontWeight:500,letterSpacing:.2,cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',gap:8,color:'var(--txd)'}}><TBIcon n="user"/>Remove biometrics</button>
             :<button onClick={bioRegister} style={{background:'transparent',border:'1px solid var(--bd)',borderRadius:6,padding:'12px 0',fontSize:13.5,fontWeight:500,letterSpacing:.2,cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',gap:8,color:'var(--acs)',borderColor:'var(--acl)'}}><TBIcon n="user"/>Register {window.Bio.label()}</button>)}
           {/* Border matches the weight of the gold/red siblings — on --bd it read as
               a disabled row next to them. */}
           <button onClick={()=>{setMode('changepw');setPw('');setErr('');}} style={{background:'transparent',border:'1px solid var(--bd)',borderRadius:6,padding:'12px 0',fontSize:13.5,fontWeight:500,letterSpacing:.2,cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',gap:8,color:'var(--tx)',borderColor:'rgba(244,243,240,.36)'}}><TBIcon n="key"/>Change password</button>
-          <button onClick={()=>{setMode('remove');setPw('');setErr('');}} style={{background:'transparent',border:'1px solid var(--bd)',borderRadius:6,padding:'12px 0',fontSize:13.5,fontWeight:500,letterSpacing:.2,cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',gap:8,color:'var(--tbr)',borderColor:'rgba(214,138,124,.3)'}}><TBIcon n="trash"/>Remove lock</button>
+          <button className="al-dg" onClick={()=>{setMode('remove');setPw('');setErr('');}} style={{background:'transparent',border:'1px solid var(--bd)',borderRadius:6,padding:'12px 0',fontSize:13.5,fontWeight:500,letterSpacing:.2,cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',gap:8,color:'var(--tbr)',borderColor:'rgba(214,138,124,.3)'}}><TBIcon n="trash"/>Remove lock</button>
           <button onClick={onClose} style={{background:'transparent',color:'var(--txm)',border:'none',fontSize:13,cursor:'pointer',textDecoration:'underline',marginTop:2}}>Cancel</button>
         </div>
       ):(
@@ -9924,9 +9975,29 @@ function alShowManageMenu(){
   if (!isUnlocked){
     var ub=document.createElement('button');
     ub.innerHTML=KCI.unlock+'<span>Unlock this device</span>';
+    ub.className='al-ac';
     ub.style.cssText=s+'color:#e0b874;border-color:rgba(224,184,116,.36);';
     ub.onclick=function(){ menu.remove(); _el('applock-submit').style.display=''; alShowOverlay('unlock'); };
     menu.appendChild(ub);
+  } else {
+    // The mirror of "Unlock this device". An unlock is remembered durably, so a
+    // device that has ever entered the password stays open — there was no way to
+    // hand this phone over, or put it down, and have TradeHub ask again without
+    // removing the lock outright. This drops only THIS device's unlock record;
+    // the password and every other device are untouched.
+    var lb=document.createElement('button');
+    lb.innerHTML=KCI.lock+'<span>Lock this device now</span>';
+    lb.className='al-ac';
+    lb.style.cssText=s+'color:#e0b874;border-color:rgba(224,184,116,.36);';
+    lb.onclick=function(){
+      menu.remove();
+      alMarkLocked();
+      alHideRoot();
+      alUpdateLockBtns();
+      _el('applock-submit').style.display='';
+      alShowOverlay('unlock');
+    };
+    menu.appendChild(lb);
   }
   var cb=document.createElement('button');
   cb.innerHTML=KCI.key+'<span>Change password</span>';
@@ -9950,6 +10021,7 @@ function alShowManageMenu(){
   });
   var rb=document.createElement('button');
   rb.innerHTML=KCI.trash+'<span>Remove lock</span>';
+  rb.className='al-dg';
   rb.style.cssText=s+'color:#d68a7c;border-color:rgba(214,138,124,.3);';
   rb.onclick=function(){ menu.remove(); _el('applock-submit').style.display=''; alShowOverlay('remove'); };
   menu.appendChild(rb);
@@ -10207,8 +10279,11 @@ window._tbTabLock = {
   isLocked: tabIsLocked,
   isUnlocked: tabIsUnlocked,
   mustBlock: tabMustBlock,
-  markUnlocked: tabMarkUnlocked,
-  markLocked: tabMarkLocked,
+  // Wrapped, not passed raw: "Lock this device now" changes only the per-device
+  // unlock marker — no lock-set change, so nothing else would notify the React
+  // gate and the tab would keep showing its content until the next re-render.
+  markUnlocked: function(tabId){ tabMarkUnlocked(tabId); tabNotify(); },
+  markLocked: function(tabId){ tabMarkLocked(tabId); tabNotify(); },
   setLock: tabSetLock,
   removeLock: tabRemoveLock,
   verify: tabVerify,

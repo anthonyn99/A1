@@ -225,6 +225,19 @@
   /* ── DOM ──────────────────────────────────────────────────────────────── */
   function el(id) { return document.getElementById(id); }
 
+  /* Hand the stylesheet the configured accent as a glow pair, so the hover halo
+   * follows config.js § appLock.accent instead of a colour baked into the CSS. */
+  function paintGlow() {
+    var box = el('applock-box'); if (!box) return;
+    var hex = /^#([0-9a-f]{6})$/i.exec(ACCENT);
+    box.style.setProperty('--al-glow', ACCENT);
+    if (hex) {
+      var n = parseInt(hex[1], 16);
+      box.style.setProperty('--al-glowl',
+        'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',.40)');
+    }
+  }
+
   var _mode = 'unlock';
   var _cb = null;
   var _removeBio = false;
@@ -240,6 +253,7 @@
     el('applock-title').style.color = ACCENT;
     el('applock-submit').style.background = ACCENT;
     el('applock-submit').style.display = '';
+    paintGlow();
     el('applock-pw').style.display = '';
     var m = el('al-menu-btns'); if (m) m.remove();
 
@@ -383,6 +397,7 @@
     el('applock-icon').innerHTML = ICON.lock;
     el('applock-title').textContent = LABEL;
     el('applock-title').style.color = ACCENT;
+    paintGlow();
     el('applock-submit').style.display = 'none';
     el('applock-forgot').style.display = 'none';
     if (el('applock-reset')) el('applock-reset').style.display = 'none';
@@ -397,10 +412,30 @@
 
     if (!unlocked) {
       var ub = document.createElement('button');
-      ub.innerHTML = ICON.unlock + '<span>Unlock</span>';
+      ub.innerHTML = ICON.unlock + '<span>Unlock this device</span>';
+      ub.className = 'al-ac';
       ub.style.cssText = s + 'background:' + ACCENT + ';color:#1a1a1d;';
       ub.onclick = function () { menu.remove(); el('applock-submit').style.display = ''; showOverlay('unlock', refreshBtn); };
       menu.appendChild(ub);
+    } else {
+      /* The mirror of "Unlock this device". An unlock is remembered durably, so
+       * a device that has ever entered the password stays open — there was no
+       * way to hand this laptop over, or put it down, and have StudyOS ask
+       * again without removing the lock outright. This drops only THIS device's
+       * unlock record; the password and every other device are untouched. */
+      var lb = document.createElement('button');
+      lb.innerHTML = ICON.lock + '<span>Lock this device now</span>';
+      lb.className = 'al-ac';
+      lb.style.cssText = s + 'background:' + ACCENT + ';color:#1a1a1d;';
+      lb.onclick = function () {
+        menu.remove();
+        markLocked();
+        setGate('locked');
+        refreshBtn();
+        el('applock-submit').style.display = '';
+        showOverlay('unlock', refreshBtn);
+      };
+      menu.appendChild(lb);
     }
 
     var cb = document.createElement('button');
@@ -426,6 +461,7 @@
 
     var rb = document.createElement('button');
     rb.innerHTML = ICON.trash + '<span>Remove lock</span>';
+    rb.className = 'al-dg';
     rb.style.cssText = s + 'background:transparent;color:#dda398;border:1px solid #dda398;';
     rb.onclick = function () { menu.remove(); el('applock-submit').style.display = ''; showOverlay('remove', refreshBtn); };
     menu.appendChild(rb);
