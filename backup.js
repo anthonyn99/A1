@@ -888,6 +888,11 @@
       out.pushedOffDevice = out.lastPushedAt != null && String(out.lastPushedAt) === String(out.lastSnapshot);
       out.pushesToday = pushesToday();
       out.device = deviceSlug();
+      // How the passphrase in use was last proven. 'match' means it opened an
+      // existing backup; 'none' means there was nothing to check it against
+      // (genuine first run); 'overridden' means someone deliberately started a
+      // fresh history and the older backups need the OLD passphrase.
+      out.passphraseVerified = _lastVerify;
     } catch (e) { out.vaultError = String(e && (e.message || e)); }
     return out;
   }
@@ -961,9 +966,36 @@
       try {
         await unlock(p1);               // self-tests encryption before returning
       } catch (e) {
-        note = 'Could not turn on backups on this device (' +
-               (e && (e.message || e)) + '). Please try again.\n\n';
-        continue;
+        // A wrong passphrase is its own outcome, not a generic failure. Saying
+        // "try again" would be the same shrug the guard exists to remove: the
+        // person is most likely typing a NEW passphrase because the old one is
+        // gone, and they need to know what that costs before choosing it.
+        if (e && e.code === 'passphrase-mismatch') {
+          var reset = await window.uiConfirm(
+            'That passphrase does not open the backups already saved for ' + name + '.\n\n' +
+            'Backups on this device are still OFF — nothing was changed.\n\n' +
+            'If it was mistyped, go back and try again.\n\n' +
+            'If the original passphrase is genuinely lost, you can start a fresh ' +
+            'backup history with this new one. The existing backups are NOT deleted, ' +
+            'but they can only ever be opened with the OLD passphrase — this device ' +
+            'will not be able to read them again.',
+            { title: 'Wrong passphrase',
+              okLabel: 'Start fresh (old backups become unreadable)',
+              cancelLabel: 'Go back and try again',
+              danger: true });
+          if (!reset) { note = 'Passphrase did not match. Please try again.\n\n'; continue; }
+          try {
+            await unlock(p1, { allowNewPassphrase: true });
+          } catch (e2) {
+            note = 'Could not turn on backups on this device (' +
+                   (e2 && (e2.message || e2)) + '). Please try again.\n\n';
+            continue;
+          }
+        } else {
+          note = 'Could not turn on backups on this device (' +
+                 (e && (e.message || e)) + '). Please try again.\n\n';
+          continue;
+        }
       }
 
       lsSet('a1b_profile', who);
