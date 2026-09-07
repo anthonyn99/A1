@@ -116,12 +116,33 @@ t('force short-circuits the snapshot gate', /const snapshot = force \|\| isDueTi
 section('The account rotation survived losing its stored cursor');
 {
   // It used to advance a stored counter; it is now derived from which half-hour
-  // of the epoch this is. It still has to reach every mailbox.
+  // of the epoch this is. Exercised on REAL timestamps through the same
+  // expression the worker uses — a rotation test that reduces to `k % n` proves
+  // nothing about the formula that actually ships.
+  const slot = (nowMs, n) => Math.floor(nowMs / (W.POLL_EVERY_MIN * 60e3)) % n;
+  const HALF = W.POLL_EVERY_MIN * 60e3;
+  const base = Date.UTC(2026, 8, 7, 0, 0, 0);
+
+  for (const n of [1, 2, 3, 4, 5, 7]) {
+    const seen = new Set();
+    for (let k = 0; k < n * 3; k++) seen.add(slot(base + k * HALF, n));
+    t('with ' + n + ' mailbox(es), every one eventually leads', seen.size === n,
+      'reached ' + seen.size + ' of ' + n);
+  }
+
+  // Consecutive polls must MOVE, or the rotation is decorative and the same
+  // mailbox spends the shared message budget every time.
   const n = 5;
-  const seen = new Set();
-  for (let k = 0; k < 20; k++) seen.add(Math.floor((k * W.POLL_EVERY_MIN * 60e3) / (W.POLL_EVERY_MIN * 60e3)) % n);
-  t('every mailbox eventually starts the rotation', seen.size === n,
-    [...seen].sort().join(','));
+  let stuck = 0;
+  for (let k = 0; k < 40; k++) {
+    if (slot(base + k * HALF, n) === slot(base + (k + 1) * HALF, n)) stuck++;
+  }
+  t('consecutive polls start on different mailboxes', stuck === 0, stuck + ' repeat(s)');
+
+  // Within one window the value must not change, or two ticks of the same poll
+  // would disagree about where to start.
+  t('the slot is stable across the whole window',
+    slot(base, n) === slot(base + (W.POLL_WINDOW_MIN - 1) * 60e3, n));
 }
 
 console.log('\n' + '─'.repeat(64));
