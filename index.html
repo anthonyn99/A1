@@ -44908,7 +44908,11 @@ document.addEventListener('visibilitychange',function(){ if(!document.hidden) sw
 </style>
 <script>
 (function(){
-  var LIFT_GHOST = 'brightness(1.35)',  /* transparent chrome: only an outline + label to lift */
+  /* Kept below the point where gold (#e0b874) clips its red channel: past ~1.2
+     the lift stops reading as "brighter" and starts reading as a hue shift into
+     neon yellow, which is loud next to the glow several of these controls
+     already grow on hover. */
+  var LIFT_GHOST = 'brightness(1.18)',  /* transparent chrome: only an outline + label to lift */
       LIFT_FILL  = 'brightness(1.22)',  /* dark fill: one step lighter, StudyOS's bg3 → bg4    */
       SETTLE     = 'brightness(0.86)';  /* bright fill: StudyOS's .primary opacity .88         */
   var PAGE_BG  = {r:26, g:26, b:29};    /* #1a1a1d — the ground everything is painted on */
