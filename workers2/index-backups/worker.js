@@ -348,8 +348,18 @@ export default {
         if (!m) continue;
         const d = m[1], at = Number(m[2]);
         const meta = k.metadata || {};
-        if (!devices[d] || at > devices[d].at) {
-          devices[d] = { at, bytes: meta.bytes || null, docs: meta.docs || null };
+        const prev = devices[d];
+        // Carry the count across. Replacing the object outright dropped it, and
+        // because keys list oldest-first every snapshot was newer than the last,
+        // so the counter reset on every key and this always reported 1 — which
+        // is exactly the number that would hide retention having stopped working.
+        if (!prev || at > prev.at) {
+          devices[d] = {
+            at,
+            bytes: meta.bytes || null,
+            docs: meta.docs || null,
+            count: prev ? prev.count : 0,
+          };
         }
         devices[d].count = (devices[d].count || 0) + 1;
       }
