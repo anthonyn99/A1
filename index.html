@@ -44989,9 +44989,13 @@ document.addEventListener('visibilitychange',function(){ if(!document.hidden) sw
   // moment the mouse entered the drawing area. Too-large means stop climbing,
   // not skip: the answer is the last control-sized element found on the way out,
   // never something bigger further up.
+  // getBoundingClientRect, not offsetWidth/offsetHeight: the walk starts at the
+  // deepest descendant, which on an icon button is an <svg>, and SVG elements
+  // have no offset* at all — reading them returned undefined and rejected every
+  // icon button in the app as "too big".
   function sized(el){
-    var w = el.offsetWidth, h = el.offsetHeight;
-    return h <= 180 && w * h <= 0.2 * innerWidth * innerHeight;
+    var r = el.getBoundingClientRect();
+    return r.height <= 180 && r.width * r.height <= 0.2 * innerWidth * innerHeight;
   }
   // cursor:pointer is inherited, so a <span> inside a clickable <div> reports it
   // too — climb to the top of the run to find the element that actually owns the
