@@ -2376,7 +2376,14 @@ async function runCron(env, { force = false } = {}) {
     state.lastSweep = now; dirty = true;
   }
 
-  if (dirty) await env.OI_KV.put('oi:cron', JSON.stringify(state));
+  if (dirty) {
+    // Drop the fields the poll used to keep here. `state` is loaded from KV and
+    // written back wholesale, so without this they would ride along untouched
+    // forever — a record advertising a lastPoll that nothing updates any more,
+    // which is worse than no record at all for whoever reads it next.
+    delete state.lastPoll; delete state.lastSnap; delete state.acctCursor;
+    await env.OI_KV.put('oi:cron', JSON.stringify(state));
+  }
   await aiBudgetFlush(env);   // one write per run, covering every account
   await flushToks(env);       // likewise: one write, not one per mailbox
   return out;

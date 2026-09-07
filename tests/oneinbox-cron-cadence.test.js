@@ -106,6 +106,13 @@ section('The stored state holds ONLY the once-a-day work');
     t('state.' + kept + ' is still stored', fn.includes('state.' + kept + ' = now'),
       'Daily jobs keep timestamps on purpose — see runCron. They cost ~2 writes/day.');
   }
+
+  // The record is loaded from KV and written back wholesale, so not writing a
+  // field is not the same as removing it: the old values would ride along
+  // forever, advertising a lastPoll nothing updates.
+  t('the retired fields are deleted on the next write',
+    /delete state\.lastPoll; delete state\.lastSnap; delete state\.acctCursor;/.test(fn),
+    'Otherwise oi:cron keeps claiming state the code no longer maintains.');
 }
 
 section('A manual refresh still bypasses the clock entirely');
