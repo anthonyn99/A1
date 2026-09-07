@@ -44868,43 +44868,54 @@ document.addEventListener('visibilitychange',function(){ if(!document.hidden) sw
 })();
 </script>
 
-<!-- ══ Tony's TaskHub — universal hover feedback ══════════════════════════════
+<!-- ══ Index — universal hover feedback ══════════════════════════════════════
      Ported from StudyOS, where every clickable control answers the cursor the
      same way: a dim control lifts a step (.btn: bg3 → bg4), a bright one settles
      a step (.btn.primary: opacity .88). StudyOS can spell that out in CSS
-     because its controls carry classes. TaskHub's are inline-styled React
-     elements with no class to hang a rule on, and there are far too many —
-     header chips, weekly cells, edit-mode add/delete rows, habit circles, goal
-     checkboxes, every dialog — to hand-write a hover handler onto each.
+     because its controls carry classes. Index's do not — the two TaskHubs are
+     inline-styled React, the journals and the shared dialogs are hand-built DOM
+     — and there are well over a thousand of them across every program, so
+     hand-writing a hover onto each is not a change anyone could keep correct.
 
      So this measures instead. On hover it composites the control's own painted
      background and picks the direction from its luminance, applying the same
-     ±~20% step StudyOS hard-codes. One delegated listener therefore covers
-     controls that do not exist yet, including everything inside a dialog.
+     ±20% step StudyOS hard-codes. One delegated listener therefore covers
+     controls that do not exist yet: a dialog's buttons, a settings row's lock
+     pill, a weekly cell rendered three renders from now.
 
-     `filter` is the ONLY property written, and nothing else in the app sets an
-     inline filter. React owns background / border / box-shadow inline on these
-     nodes (the mic's glow, the Timer chip's fill, a selected day's outline);
-     clearing one of those on mouseout would wipe whatever React last put there.
+     `filter` is the ONLY property written, and it is written inline. React owns
+     background / border / box-shadow inline on the TaskHub nodes (the mic's
+     glow, the Timer chip's fill, a selected day's outline); clearing one of
+     those on mouseout would wipe whatever React last put there.
 
-     Scoped to #root — Tony's TaskHub. Veda's TaskHub (#vr-root), MyJournal and
-     the shared program nav are untouched. ═══════════════════════════════════ -->
+     SCOPE is the ROOTS list below — every program in this file plus the dialogs
+     they share. Anything outside it is deliberately untouched: the Tony program
+     nav already answers the cursor with its own gold outline + glow, and adding
+     a second signal on top of a designed one is how a hover language stops
+     reading as one language. ═══════════════════════════════════════════════ -->
 <style>
-/* Guarantees the fade in BOTH directions. Many of these controls carry an
-   inline `transition` — some `all .15s` (which would cover filter anyway),
-   some a narrow list like `background .15s, border-color .15s` (which would
-   not), and inline wins over any stylesheet rule that is not !important. The
-   list restates every property those inline rules animate, so overriding them
-   costs nothing. Applied by a class the script adds once and never removes:
-   toggling it with the hover would leave the mouse-out unanimated, because a
-   transition needs the property already declared in the after-change style. */
-#root .th-hovfx{
-  transition: filter .15s ease, background .15s ease, background-color .15s ease,
-              border-color .15s ease, box-shadow .15s ease, color .15s ease,
-              opacity .15s ease, transform .2s ease, left .25s ease,
-              width .35s cubic-bezier(.4,0,.2,1), stroke .3s ease,
-              stroke-dashoffset .4s linear !important;
+/* Makes the filter fade instead of snapping, in BOTH directions.
+   Only `transition-property` is overridden — never duration or easing — so each
+   control keeps the timing it was designed with and merely gains `filter` in
+   the set. That matters because these controls disagree: some carry an inline
+   `all .15s`, some a narrow `background .15s, border-color .15s`, some a
+   `width .35s cubic-bezier(...)` that would look wrong at any other speed, and
+   inline beats any stylesheet rule that is not !important. Listing properties
+   rather than saying `all` keeps a state change that was never animated from
+   suddenly sliding.
+   The class is added once and never removed: toggling it with the hover would
+   leave the mouse-out unanimated, since a transition needs the property already
+   declared in the after-change style. */
+.th-hovfx{
+  transition-property: filter, background, background-color, border-color,
+    border-top-color, border-right-color, border-bottom-color, border-left-color,
+    box-shadow, color, opacity, transform, width, height, left, right,
+    visibility, border-radius, outline-color, fill, stroke, stroke-dashoffset,
+    text-shadow !important;
 }
+/* Only for controls that declare no transition at all — they would otherwise
+   inherit a 0s duration from the rule above and snap. */
+.th-hovfx-t{ transition-duration:.15s!important; transition-timing-function:ease!important; }
 </style>
 <script>
 (function(){
@@ -44913,10 +44924,27 @@ document.addEventListener('visibilitychange',function(){ if(!document.hidden) sw
      neon yellow, which is loud next to the glow several of these controls
      already grow on hover. */
   var LIFT_GHOST = 'brightness(1.18)',  /* transparent chrome: only an outline + label to lift */
-      LIFT_FILL  = 'brightness(1.22)',  /* dark fill: one step lighter, StudyOS's bg3 → bg4    */
+      LIFT_FILL  = 'brightness(1.22)',  /* dark fill: one step lighter, StudyOS's bg3 -> bg4   */
       SETTLE     = 'brightness(0.86)';  /* bright fill: StudyOS's .primary opacity .88         */
   var PAGE_BG  = {r:26, g:26, b:29};    /* #1a1a1d — the ground everything is painted on */
   var CONTROLS = 'button,select,summary,a[href],[role="button"]';
+  /* Every program in this file, then the dialogs all of them share. The shared
+     ones are listed by id even though several are built at runtime — the
+     listener is on `document`, so a root that does not exist yet costs nothing
+     and is covered the moment it is created. */
+  var ROOTS = [
+    '#root',            /* Tony's TaskHub                  */
+    '#veda-root',       /* Veda's TaskHub                  */
+    '#tj-root',         /* MyJournal                       */
+    '#bj-root',         /* Brainstorm Journal              */
+    '#wr-root',         /* RiftIQ                          */
+    '#thset-overlay',   /* Settings (both suites)          */
+    '#uim-overlay',     /* in-UI alert/confirm/prompt/form */
+    '#applock-overlay', /* App Lock                        */
+    '#profile-overlay', /* profile chooser                 */
+    '#thv-txt-overlay', /* Ask-TaskHub text prompt         */
+    '#thv-dev-overlay'  /* mic device picker               */
+  ].join(',');
 
   function rgba(str){
     var m = /rgba?\(([^)]+)\)/.exec(str || '');
@@ -44956,8 +44984,8 @@ document.addEventListener('visibilitychange',function(){ if(!document.hidden) sw
 
   // cursor:pointer is inherited, so a <span> inside a clickable <div> reports it
   // too — climb to the top of the run to find the element that actually owns the
-  // click. A real control (<button>, <select>, …) ends the walk outright, which
-  // is what stops a button from lighting up the whole row it sits in.
+  // click. A real control (<button>, <select>, ...) ends the walk outright,
+  // which is what stops a button from lighting up the whole row it sits in.
   function control(from, root){
     var best = null, n = from;
     while(n && n !== root && n.nodeType === 1){
@@ -44969,29 +44997,36 @@ document.addEventListener('visibilitychange',function(){ if(!document.hidden) sw
     return best;
   }
 
-  var root = document.getElementById('root');
-  if(!root) return;
   var cur = null;
-
   function clear(){ if(cur){ cur.style.filter = ''; cur = null; } }
 
-  root.addEventListener('pointerover', function(e){
+  document.addEventListener('pointerover', function(e){
     // A tap fires a synthetic hover that never gets a matching pointerout, which
     // would leave the control stuck lit until something else repaints it.
     if(e.pointerType && e.pointerType !== 'mouse'){ clear(); return; }
-    if(cur && cur.contains(e.target)) return;   // still inside the same control
-    var el = control(e.target, root);
+    if(cur && cur.contains(e.target)) return;      // still inside the same control
+    var t = e.target;
+    if(!t || !t.closest){ clear(); return; }
+    var root = t.closest(ROOTS);
+    if(!root){ clear(); return; }
+    var el = control(t, root);
     if(el === cur) return;
     clear();
     if(!el || el.disabled || el.getAttribute('aria-disabled') === 'true') return;
+    // A control that already answers the cursor with a filter of its own (the
+    // meal planner dims its filled slots) keeps that answer — an inline filter
+    // here would silently replace it.
+    var cs = getComputedStyle(el);
+    if(cs.filter && cs.filter !== 'none') return;
     cur = el;
     el.classList.add('th-hovfx');
+    if(!/[1-9]/.test(cs.transitionDuration || '')) el.classList.add('th-hovfx-t');
     el.style.filter = effect(el);
-  });
+  }, true);
 
-  root.addEventListener('pointerout', function(e){
+  document.addEventListener('pointerout', function(e){
     if(cur && !cur.contains(e.relatedTarget)) clear();
-  });
+  }, true);
   // Alt-tabbing away mid-hover never delivers a pointerout.
   window.addEventListener('blur', clear);
 })();
