@@ -11745,12 +11745,30 @@ async function workerFetch(path){
   }catch(e){console.warn('[ProView] fetch failed',path,e.message);return null;}
 }
 
+// Which leagues last failed to load, so the empty panel can say "could not
+// reach the data service" instead of the neutral "wait for data" — which reads
+// as idle and is exactly how an outage goes unnoticed.
+const _pvLastError={};
+
 async function fetchLeagueData(leagueId){
   const last=_cfg.lastFetch[leagueId]||0;
   const SCHED_TTL=30*60*1000; // 30 min cache
   if(Date.now()-last<SCHED_TTL&&_cfg.leagueData[leagueId]&&_cfg.leagueData[leagueId].schedule) return;
   try{
     const sched=await workerFetch('/schedule?leagueId='+leagueId);
+    // A FAILED fetch must not destroy what we already have. workerFetch returns
+    // null for any non-OK response or thrown error, and that null used to be
+    // written straight over the cached schedule — so one unreachable moment
+    // (offline, a worker redeploy, a moved hostname) blanked a schedule that was
+    // sitting there perfectly readable, and stamped lastFetch as though it had
+    // just succeeded. Keep the stale copy; stale beats empty, and not stamping
+    // the clock means the next attempt retries immediately instead of waiting
+    // out the 30-minute TTL.
+    if(!sched){
+      _pvLastError[leagueId]=Date.now();
+      return;
+    }
+    delete _pvLastError[leagueId];
     _cfg.leagueData[leagueId]=_cfg.leagueData[leagueId]||{};
     _cfg.leagueData[leagueId].schedule=sched;
     _cfg.lastFetch[leagueId]=Date.now();
