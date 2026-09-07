@@ -922,7 +922,7 @@
    * the free plan without ever having to think about it.
    * ===================================================================== */
 
-  var WORKER = 'https://index-backups.av1.workers.dev';
+  var WORKER = 'https://index-backups.av1-2.workers.dev';
 
   function deviceSlug() {
     // Reuse the identity the app already has (Plans stamps these) so a device
@@ -1053,12 +1053,40 @@
         var why = mr.status === 401 ? 'not authorised (App Check)' : 'HTTP ' + mr.status;
         return { error: why, uploaded: uploaded, failed: failed };
       }
+
+      // REPAIR. `sent` above is an optimisation that assumes anything this
+      // device once uploaded is still there, and that assumption can go stale:
+      // the worker collects objects no snapshot references any more, so a
+      // document whose content reverts to a hash that was collected would be
+      // skipped here and its snapshot would restore incomplete — silently,
+      // because nothing on either side was watching for it.
+      //
+      // So the worker answers with what it actually holds, and anything absent
+      // is re-uploaded now. The manifest is already stored and its object list
+      // does not change, so filling the gap repairs THAT snapshot in place —
+      // no second push, no extra retention slot.
+      var repaired = 0;
+      try {
+        var missing = ((await mr.json()) || {}).missing || [];
+        for (var mi = 0; mi < missing.length; mi++) {
+          var mh = String(missing[mi]);
+          delete sent[mh];
+          var menv = await vGet('objects', mh);
+          if (!menv) continue;             // not held locally either — nothing to send
+          var rr = await fetch(WORKER + '/o/' + mh, {
+            method: 'PUT', headers: headers, body: JSON.stringify(menv)
+          });
+          if (rr.ok) { sent[mh] = 1; repaired++; }
+        }
+        if (missing.length) await vPut('meta', 'pushedObjects', sent);
+      } catch (e) { /* best effort — the snapshot itself is already stored */ }
+
       notePush();
       await vPut('meta', 'lastPushedAt', at);
       await vPut('meta', 'lastPushOkAt', Date.now());
       chipRefresh().catch(function () {});
       return { at: at, uploaded: uploaded, deduped: deduped, failed: failed,
-               device: deviceSlug(), pushesToday: pushesToday() };
+               repaired: repaired, device: deviceSlug(), pushesToday: pushesToday() };
     } catch (e) {
       return { error: String(e && (e.message || e)) };
     } finally {

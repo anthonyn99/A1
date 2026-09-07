@@ -40,8 +40,15 @@
  * ciphertext and nothing else: writes and deletes still require App Check.
  *
  * Set up once:
- *   wrangler secret put PULL_SECRET --config workers/index-backups/wrangler.toml
- * then run unattended:
+ *   CLOUDFLARE_ACCOUNT_ID=<account 2 id> npx wrangler secret put PULL_SECRET \
+ *     --config workers2/index-backups/wrangler.toml
+ *
+ * The account id is needed because this worker moved to the SECOND Cloudflare
+ * account (av1-2.workers.dev) and wrangler's OAuth login only has account 1 in
+ * scope, so it cannot pick. Secrets do not move with a worker — a 401 here
+ * right after that migration means PULL_SECRET has not been set on account 2.
+ *
+ * Then run unattended:
  *   node tools/pull-backups.mjs --commit
  */
 import fs from 'node:fs';
@@ -51,7 +58,7 @@ import { execFileSync } from 'node:child_process';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(ROOT, 'Index Backups');
-const WORKER = process.env.A1B_WORKER || 'https://index-backups.av1.workers.dev';
+const WORKER = process.env.A1B_WORKER || 'https://index-backups.av1-2.workers.dev';
 // Read-only pull secret: env var first, then the gitignored file, so a
 // scheduled task needs no arguments and no human.
 function readSecret() {
@@ -80,7 +87,8 @@ async function get(p) {
     const hint = r.status === 401
       ? (SECRET
           ? ' — the pull secret was rejected. Re-run: wrangler secret put PULL_SECRET' +
-            ' --config workers/index-backups/wrangler.toml (and make sure it has no trailing newline).'
+            ' --config workers2/index-backups/wrangler.toml, with CLOUDFLARE_ACCOUNT_ID set to account 2' +
+            ' (and make sure it has no trailing newline).'
           : ' — no credential. Create .a1b-pull-secret and upload it with' +
             ' `wrangler secret put PULL_SECRET`, or pass A1B_TOKEN from `await window._acToken()`.')
       : '';

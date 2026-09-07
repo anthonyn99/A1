@@ -138,6 +138,23 @@ jobs:
           if [ -f package-lock.json ]; then npm ci; else npm install; fi
           echo "wrangler in use: $(npx --no-install wrangler --version)"
 
+      # ── Resolve `kv:<TITLE>` placeholders into real account-2 namespace ids ──
+      # A KV namespace belongs to ONE account, so a worker moved here from
+      # workers/ cannot keep its old id — it needs a new namespace on account 2,
+      # and only this job holds the credentials to mint one. Configs therefore
+      # name the namespace by title and this step rewrites the id in the runner's
+      # checkout (never committed). A worker with no placeholders is a no-op.
+      #
+      # This runs BEFORE deploy on purpose: a wrangler.toml still holding
+      # `id = "kv:X"` at deploy time fails with an opaque config error, whereas a
+      # failure here names the namespace and the missing token permission.
+      - name: Resolve KV namespaces
+        working-directory: ${{ matrix.dir }}
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN_2 }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID_2 }}
+        run: node ../kv-provision.mjs
+
       - name: Deploy
         uses: cloudflare/wrangler-action@v3
         with:

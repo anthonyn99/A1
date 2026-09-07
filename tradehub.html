@@ -1782,7 +1782,7 @@ function pushWatchlistToWorkers(tickers){
     _wlPushLast=sig;
     const opts={method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tickers}),keepalive:true};
     fetch('https://newshub-api.av1.workers.dev/watchlist',opts).catch(()=>{});
-    fetch('https://trade-dashboard.av1.workers.dev/watchlist',opts).catch(()=>{});
+    fetch('https://trade-dashboard.av1-2.workers.dev/watchlist',opts).catch(()=>{});
   },1500);
 }
 function tbGetWatchlist(){return TB_WL;}
@@ -5273,7 +5273,7 @@ function TBPromptPage({prompts,onSave,onToast}){
    is gone: /watchlist + /calendar (Catalysts), /analysis-config and
    /daily-reminder (both read by Trading Auto Launch).
    ════════════════════════════════════════════════════════════════════════════ */
-const TD_WORKER_URL = "https://trade-dashboard.av1.workers.dev";
+const TD_WORKER_URL = "https://trade-dashboard.av1-2.workers.dev";
 /* ── Shared prompt picker ──────────────────────────────────────────────────
    Prompts are owned solely by the Prompts tab. Analysis just PICKS which one
    to use. This chip row renders the Prompts-tab list and reports
@@ -8071,7 +8071,7 @@ async function tbBuildCalendar(wl,opts){
   if(!hasMacro){
     try{
       const tdq='tickers='+encodeURIComponent(wl.join(','))+'&days=30';
-      const tdr=await fetch('https://trade-dashboard.av1.workers.dev/calendar?'+tdq);
+      const tdr=await fetch('https://trade-dashboard.av1-2.workers.dev/calendar?'+tdq);
       if(tdr.ok){
         const tdj=await tdr.json();
         const tdEvents=(Array.isArray(tdj.events)?tdj.events:[]).filter(e=>e&&e.kind!=='earnings');

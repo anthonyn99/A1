@@ -20,9 +20,21 @@
 // it acceptable for these same bytes to end up in a PUBLIC git repository.
 //
 // LIMITS (free Workers plan, and the reason for the caps below)
-//   KV: 1 GB total, 25 MB per value, ~1000 writes/day, 100k reads/day.
+//   KV: 1 GB total, 25 MB per value, ~1000 writes/day, 100k reads/day — all
+//   PER ACCOUNT. This Worker runs on account 2 (av1-2.workers.dev) for exactly
+//   that reason: it was account 1's fastest-growing writer, going from nothing
+//   to ~105 writes/day within a week as more devices started backing up.
 // The client already debounces to 10 minutes and caps itself at 60 pushes per
 // device per day. Retention here bounds storage from the other end.
+//
+// STORAGE IS BOUNDED AT BOTH ENDS — it was not always
+//   Snapshots: KEEP_SNAPSHOTS per device, oldest evicted on write.
+//   Objects:   collected when no surviving snapshot references them.
+// The second half was missing, and the gap was not small: by the time it was
+// noticed, 316 of 467 objects — 22 MB of the 30 MB stored, 73% — were reachable
+// from nothing at all. Every edit to any document left its previous version
+// behind forever, and the only thing that would ever have stopped it was KV's
+// 1 GB ceiling. See collectOrphans().
 //
 // Routes
 //   GET    /health                      → status
@@ -44,6 +56,29 @@
 const KEEP_SNAPSHOTS = 14;          // per device; mirrors A1B_KEEP_CORES
 const MAX_VALUE = 24 * 1024 * 1024; // under KV's 25 MB ceiling
 const LEASE_MS = 20 * 60 * 60 * 1000;
+
+// ── Object garbage collection ───────────────────────────────────────────────
+// Snapshots are bounded (KEEP_SNAPSHOTS per device) but the content-addressed
+// objects they point at were NOT: every `o/<hash>` ever written stayed forever.
+// Retention would drop a device's oldest snapshot and the documents only that
+// snapshot referenced simply leaked, so storage grew with every edit anyone
+// ever made and only stopped at KV's 1 GB ceiling.
+//
+// GC is safe here only because a snapshot lists its object hashes IN THE CLEAR
+// (backup.js sets `envMan.objects`) — the Worker cannot decrypt anything, so
+// without that list it could never know what is still reachable.
+const GC_KEY = 'gc/objects';
+const GC_MIN_INTERVAL_MS = 6 * 60 * 60 * 1000;
+// An object is uploaded BEFORE the snapshot that references it, so there is a
+// window where a live object looks unreachable. Nothing newer than this is ever
+// collected, which closes that race without any locking.
+const GC_OBJECT_GRACE_MS = 24 * 60 * 60 * 1000;
+// Deletes are capped at 1,000/day per ACCOUNT on the free plan, shared with
+// snapshot retention. A backlog therefore has to be worked off across passes
+// rather than in one sweep that runs into the limit and starts failing — which
+// would leave collection permanently behind. Whatever is left is collected on
+// the next pass.
+const GC_MAX_DELETES = 400;
 
 const ALLOWED_ORIGINS = [
   'https://anthonyn99.github.io',
@@ -198,8 +233,85 @@ async function requireAppCheck(request, cors) {
 }
 // ─── END GENERATED: appcheck ───
 
+// Every key under a prefix, following the cursor.
+//
+// KV's list() returns a bounded page (1000 keys) plus a cursor, and reading only
+// the first page is not a smaller answer — it is a WRONG one. Here it would be
+// actively destructive: a truncated snapshot listing understates what is
+// reachable, and GC would then delete live objects. Every listing in this file
+// goes through here for that reason.
+async function listAll(kv, prefix) {
+  const out = [];
+  let cursor;
+  for (;;) {
+    const page = await kv.list(cursor ? { prefix, cursor } : { prefix });
+    out.push(...page.keys);
+    if (page.list_complete || !page.cursor) return out;
+    cursor = page.cursor;
+  }
+}
+
+// The set of object hashes every stored snapshot still references.
+//
+// FAILS CLOSED. This set decides what gets deleted, so anything that could make
+// it incomplete — an unreadable snapshot, one that does not parse, one written
+// before `objects` rode in the clear — aborts the whole pass and returns null.
+// Deleting a live object is unrecoverable; skipping a GC cycle costs nothing but
+// a few kilobytes until the next one.
+async function liveObjectHashes(env) {
+  const snaps = await listAll(env.A1_BACKUPS, 's/');
+  // No snapshots at all means "nothing is reachable", which would collect the
+  // entire store. That is never a conclusion worth acting on — on an empty or
+  // half-migrated namespace it is simply wrong.
+  if (!snaps.length) return null;
+
+  const live = new Set();
+  for (const k of snaps) {
+    let parsed;
+    try {
+      const raw = await env.A1_BACKUPS.get(k.name);
+      if (raw == null) return null;
+      parsed = JSON.parse(raw);
+    } catch (e) { return null; }
+    if (!parsed || !Array.isArray(parsed.objects)) return null;
+    for (const h of parsed.objects) live.add(String(h));
+  }
+  return live;
+}
+
+// Delete objects no surviving snapshot points at. Rate-limited, and only ever
+// called from ctx.waitUntil() so a push never waits on it.
+async function collectOrphans(env, now) {
+  try {
+    const last = await env.A1_BACKUPS.get(GC_KEY, { type: 'json' });
+    if (last && typeof last.at === 'number' && now - last.at < GC_MIN_INTERVAL_MS) return;
+
+    const live = await liveObjectHashes(env);
+    if (!live) return;                      // incomplete picture — do nothing
+
+    const objects = await listAll(env.A1_BACKUPS, 'o/');
+    let deleted = 0, bytes = 0, held = 0, remaining = 0;
+    for (const k of objects) {
+      if (live.has(k.name.slice(2))) continue;
+      const at = k.metadata && k.metadata.at;
+      // Objects written before this field existed have no `at`; they predate
+      // the current push by definition, so they are collectable.
+      if (typeof at === 'number' && now - at < GC_OBJECT_GRACE_MS) { held++; continue; }
+      if (deleted >= GC_MAX_DELETES) { remaining++; continue; }
+      await env.A1_BACKUPS.delete(k.name);
+      deleted++;
+      bytes += (k.metadata && k.metadata.bytes) || 0;
+    }
+    await env.A1_BACKUPS.put(GC_KEY, JSON.stringify({
+      at: now, deleted, bytes, held, remaining, live: live.size, scanned: objects.length,
+    }));
+  } catch (e) {
+    // GC is maintenance. It must never turn a failed cleanup into a failed backup.
+  }
+}
+
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const c = cors(request.headers.get('Origin') || '');
     const path = url.pathname;
@@ -229,9 +341,9 @@ export default {
 
     // ── /index — what exists, without revealing any of it ────────────────
     if (path === '/index' && request.method === 'GET') {
-      const list = await env.A1_BACKUPS.list({ prefix: 's/' });
+      const list = await listAll(env.A1_BACKUPS, 's/');
       const devices = {};
-      for (const k of list.keys) {
+      for (const k of list) {
         const m = /^s\/([^/]+)\/(\d+)$/.exec(k.name);
         if (!m) continue;
         const d = m[1], at = Number(m[2]);
@@ -241,7 +353,30 @@ export default {
         }
         devices[d].count = (devices[d].count || 0) + 1;
       }
-      return json({ ok: true, devices, now: Date.now() }, 200, c);
+
+      // Storage, so "is this quietly filling up?" is answerable without
+      // guessing. Object bytes dominate — snapshots are small manifests.
+      //
+      // Deliberately built from LIST METADATA plus the last GC record, and not
+      // by recomputing the live set: that needs a read per snapshot, and at ~80ms
+      // each it would turn a status chip into a multi-second call. `lastGc`
+      // already carries what matters — a `remaining` that never reaches zero, or
+      // an `at` that stops advancing, means collection has stopped working.
+      let storage = null;
+      try {
+        const objects = await listAll(env.A1_BACKUPS, 'o/');
+        const bytesOf = (ks) => ks.reduce((n, k) => n + ((k.metadata && k.metadata.bytes) || 0), 0);
+        const snapBytes = bytesOf(list), objBytes = bytesOf(objects);
+        storage = {
+          snapshots: list.length, snapshotBytes: snapBytes,
+          objects: objects.length, objectBytes: objBytes,
+          totalBytes: snapBytes + objBytes,
+          keepPerDevice: KEEP_SNAPSHOTS,
+          lastGc: await env.A1_BACKUPS.get(GC_KEY, { type: 'json' }),
+        };
+      } catch (e) { /* reporting only */ }
+
+      return json({ ok: true, devices, storage, now: Date.now() }, 200, c);
     }
 
     // ── /s/<device> — a device's snapshot ────────────────────────────────
@@ -273,19 +408,46 @@ export default {
         // Retention, so storage is bounded from this end too. Oldest first,
         // and only ever beyond the keep count — this deletes copies, never the
         // newest one.
-        const mine = await env.A1_BACKUPS.list({ prefix: 's/' + device + '/' });
-        const stamps = mine.keys.map((k) => k.name).sort();
+        //
+        // Sorted lexically, which is only the same as chronologically because
+        // every stamp is a fixed-width millisecond epoch. It stops being true in
+        // the year 2286 (14 digits), and would silently start deleting the WRONG
+        // snapshots rather than erroring — noted because that is exactly the
+        // shape of bug this file must not have.
+        const mine = await listAll(env.A1_BACKUPS, 's/' + device + '/');
+        const stamps = mine.map((k) => k.name).sort();
         const excess = stamps.length - KEEP_SNAPSHOTS;
         for (let i = 0; i < excess; i++) await env.A1_BACKUPS.delete(stamps[i]);
 
-        return json({ ok: true, at, kept: Math.min(stamps.length, KEEP_SNAPSHOTS) }, 200, c);
+        // Which of this snapshot's objects are NOT in the store.
+        //
+        // The client keeps a local "already uploaded" set and skips re-offering
+        // anything in it, so an object that left the store — collected as an
+        // orphan after its content briefly stopped being referenced, or simply
+        // lost — would never be re-sent, and this snapshot would restore
+        // incomplete with nothing reporting it. One listing (not one read per
+        // hash) answers it, and the client repairs by uploading just these.
+        let missing = [];
+        try {
+          if (Array.isArray(parsed.objects) && parsed.objects.length) {
+            const have = new Set((await listAll(env.A1_BACKUPS, 'o/')).map((k) => k.name.slice(2)));
+            missing = parsed.objects.map(String).filter((h) => !have.has(h));
+          }
+        } catch (e) { /* reporting only — never fail a stored backup over it */ }
+
+        // Objects can only become unreachable when a snapshot is evicted, so
+        // that is the only time it is worth looking. Rate-limited inside, and
+        // detached so the push does not wait for it.
+        if (excess > 0 && ctx && ctx.waitUntil) ctx.waitUntil(collectOrphans(env, at));
+
+        return json({ ok: true, at, kept: Math.min(stamps.length, KEEP_SNAPSHOTS), missing }, 200, c);
       }
 
       if (request.method === 'GET') {
         const want = url.searchParams.get('at');
-        const mine = await env.A1_BACKUPS.list({ prefix: 's/' + device + '/' });
-        if (!mine.keys.length) return json({ ok: false, error: 'no-snapshots' }, 404, c);
-        const names = mine.keys.map((k) => k.name).sort();
+        const mine = await listAll(env.A1_BACKUPS, 's/' + device + '/');
+        if (!mine.length) return json({ ok: false, error: 'no-snapshots' }, 404, c);
+        const names = mine.map((k) => k.name).sort();
         const key = want ? 's/' + device + '/' + want : names[names.length - 1];
         const val = await env.A1_BACKUPS.get(key);
         if (val == null) return json({ ok: false, error: 'not-found' }, 404, c);
@@ -308,7 +470,12 @@ export default {
         if (existing != null) return json({ ok: true, deduped: true }, 200, c);
         const body = await request.text();
         if (body.length > MAX_VALUE) return json({ ok: false, error: 'too-large' }, 413, c);
-        await env.A1_BACKUPS.put('o/' + hash, body, { metadata: { bytes: body.length } });
+        // `at` is what keeps GC off an object that is still in flight: the
+        // client uploads objects before the snapshot that references them, so
+        // for a moment a live object looks like an orphan.
+        await env.A1_BACKUPS.put('o/' + hash, body, {
+          metadata: { bytes: body.length, at: Date.now() },
+        });
         return json({ ok: true, stored: true }, 200, c);
       }
       if (request.method === 'GET') {

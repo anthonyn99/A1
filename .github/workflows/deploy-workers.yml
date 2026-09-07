@@ -21,18 +21,14 @@ jobs:
       tradeboard: ${{ steps.filter.outputs.tradeboard }}
       newshub: ${{ steps.filter.outputs.newshub }}
       warroom: ${{ steps.filter.outputs.warroom }}
-      tradedashboard: ${{ steps.filter.outputs.tradedashboard }}
       personalai: ${{ steps.filter.outputs.personalai }}
       studyosfiles: ${{ steps.filter.outputs.studyosfiles }}
       vaultfiles: ${{ steps.filter.outputs.vaultfiles }}
-      proview: ${{ steps.filter.outputs.proview }}
       keychainsync: ${{ steps.filter.outputs.keychainsync }}
       vaultpwsync: ${{ steps.filter.outputs.vaultpwsync }}
       insight: ${{ steps.filter.outputs.insight }}
-      weather: ${{ steps.filter.outputs.weather }}
       oneinbox: ${{ steps.filter.outputs.oneinbox }}
       tesla: ${{ steps.filter.outputs.tesla }}
-      indexbackups: ${{ steps.filter.outputs.indexbackups }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -47,30 +43,22 @@ jobs:
               - 'workers/newshub-api/**'
             warroom:
               - 'workers/warroom-api/**'
-            tradedashboard:
-              - 'workers/trade-dashboard/**'
             personalai:
               - 'workers/personal-ai/**'
             studyosfiles:
               - 'workers/studyos-files/**'
             vaultfiles:
               - 'workers/vault-files/**'
-            proview:
-              - 'workers/proview-api/**'
             keychainsync:
               - 'workers/keychain-sync/**'
             vaultpwsync:
               - 'workers/vault-pw-sync/**'
             insight:
               - 'workers/insight-api/**'
-            weather:
-              - 'workers/taskhub-weather-api/**'
             oneinbox:
               - 'workers/oneinbox-api/**'
             tesla:
               - 'workers/tesla-api/**'
-            indexbackups:
-              - 'workers/index-backups/**'
 
   # ---------------------------------------------------------------
   # One deploy job per worker. Each runs ONLY if its folder changed.
@@ -129,20 +117,6 @@ jobs:
           wranglerVersion: "4"
           workingDirectory: workers/warroom-api
 
-  deploy-trade-dashboard:
-    needs: changes
-    if: ${{ needs.changes.outputs.tradedashboard == 'true' || github.event_name == 'workflow_dispatch' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CF_API_TOKEN }}
-          wranglerVersion: "4"
-          workingDirectory: workers/trade-dashboard
-
-  # Consolidated personal AI worker — replaces mylist-api + taskhub-voice + journal-ai.
-  # One worker, one Gemini key per person (TONY_GEMINI_KEY / VEDA_GEMINI_KEY secrets).
   deploy-personal-ai:
     needs: changes
     if: ${{ needs.changes.outputs.personalai == 'true' || github.event_name == 'workflow_dispatch' }}
@@ -181,21 +155,6 @@ jobs:
 
   # Recovered 2026-07-03 from the live Cloudflare deployment — this worker had
   # no source in git before (deployed outside this repo). Now backed up + auto-deploys.
-  deploy-proview-api:
-    needs: changes
-    if: ${{ needs.changes.outputs.proview == 'true' || github.event_name == 'workflow_dispatch' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CF_API_TOKEN }}
-          wranglerVersion: "4"
-          workingDirectory: workers/proview-api
-
-  # Firestore proxy for the Vault browser extension (bypasses App Check via
-  # the Firebase service account). Secrets required on first deploy:
-  #   FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, VAULT_KEY
   deploy-keychain-sync:
     needs: changes
     if: ${{ needs.changes.outputs.keychainsync == 'true' || github.event_name == 'workflow_dispatch' }}
@@ -253,22 +212,6 @@ jobs:
           workingDirectory: workers/oneinbox-api
 
   # Weather widget on both TaskHubs — KV-cached Open-Meteo proxy. No secrets.
-  deploy-taskhub-weather-api:
-    needs: changes
-    if: ${{ needs.changes.outputs.weather == 'true' || github.event_name == 'workflow_dispatch' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CF_API_TOKEN }}
-          wranglerVersion: "4"
-          workingDirectory: workers/taskhub-weather-api
-
-  # Tesla widget on Tony's TaskHub only — Fleet API proxy holding the OAuth
-  # refresh token server-side. Secrets required (already set on first deploy,
-  # done by hand from the CLI — see workers/tesla-api/worker.js header):
-  #   TESLA_CLIENT_SECRET, TESLA_ADMIN_KEY, TESLA_STATE
   deploy-tesla-api:
     needs: changes
     if: ${{ needs.changes.outputs.tesla == 'true' || github.event_name == 'workflow_dispatch' }}
@@ -281,14 +224,3 @@ jobs:
           wranglerVersion: "4"
           workingDirectory: workers/tesla-api
 
-  deploy-index-backups:
-    needs: changes
-    if: ${{ needs.changes.outputs.indexbackups == 'true' || github.event_name == 'workflow_dispatch' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CF_API_TOKEN }}
-          wranglerVersion: "4"
-          workingDirectory: workers/index-backups

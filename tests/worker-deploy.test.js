@@ -9,7 +9,7 @@
  * with no error anywhere. It simply does not exist in production while looking
  * completely fine in the repo.
  *
- * That was nearly the fate of workers/index-backups, which is the off-device
+ * That was nearly the fate of index-backups, which is the off-device
  * half of the backup system: it would have been pushed, appeared to be part of
  * the suite, and quietly never received a single byte.
  *
@@ -43,18 +43,23 @@ const WF = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'deploy-worke
 // test must inspect — checking the ignored file would be worse than useless.
 const CONFIG_NAMES = ['wrangler.jsonc', 'wrangler.json', 'wrangler.toml'];
 
-function configFor(name) {
+function configFor(lane, name) {
   for (const f of CONFIG_NAMES) {
-    const p = path.join(ROOT, 'workers', name, f);
+    const p = path.join(ROOT, lane, name, f);
     if (fs.existsSync(p)) return { file: f, text: fs.readFileSync(p, 'utf8') };
   }
   return null;
 }
 
-const workers = fs.readdirSync(path.join(ROOT, 'workers'), { withFileTypes: true })
-  .filter((d) => d.isDirectory())
-  .map((d) => d.name)
-  .filter((n) => configFor(n) !== null);
+function lane(dir) {
+  return fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => d.name)
+    .filter((n) => configFor(dir, n) !== null);
+}
+
+const workers = lane('workers');
+const workers2 = lane('workers2');
 
 section('Every deployable worker is wired into the deploy workflow');
 t('found some workers to check', workers.length > 0);
@@ -66,35 +71,86 @@ workers.forEach((n) => {
     'Without a filter its job never triggers on a push that changes it.');
 });
 
+// The account-2 lane DISCOVERS its workers instead of enumerating them, so
+// there is no per-worker wiring to check — but a worker there is only deployable
+// if it pins its own wrangler, and getting that wrong fails opaquely rather than
+// loudly (the runner falls back to its cached v3, which cannot read a v4 config).
+section('Account-2 workers can actually be deployed by the workers2 lane');
+workers2.forEach((n) => {
+  const pkgPath = path.join(ROOT, 'workers2', n, 'package.json');
+  t(n + ' has a package.json', fs.existsSync(pkgPath),
+    'deploy-workers2.yml hard-errors without one.');
+  if (fs.existsSync(pkgPath)) {
+    let pkg = {};
+    try { pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8')); } catch (e) {}
+    const w = (pkg.devDependencies || {}).wrangler || (pkg.dependencies || {}).wrangler;
+    t(n + ' pins wrangler v4', /^\^?4/.test(String(w || '')),
+      'Found ' + JSON.stringify(w) + '. Without "wrangler": "^4.0.0" the deploy ' +
+      'silently falls back to the runner\'s cached v3 and fails on a v4 config.');
+  }
+});
+
 section('Each worker config is complete enough to deploy');
-workers.forEach((n) => {
-  const { file, text } = configFor(n);
-  // Each check accepts both spellings: TOML `name = "x"` and JSON `"name": "x"`.
-  t(n + ' names itself (' + file + ')', /^\s*name\s*=/m.test(text) || /"name"\s*:/.test(text));
-  t(n + ' declares an entry point', /^\s*main\s*=/m.test(text) || /"main"\s*:/.test(text));
-  // A KV binding with a placeholder id deploys and then fails at runtime, which
-  // is the same silent-failure shape this file exists to prevent.
-  // Both patterns require `id` to start the key, so `account_id` never matches.
-  const ids = (text.match(/^\s*id\s*=\s*"([^"]*)"/gm) || [])
-    .concat(text.match(/"id"\s*:\s*"([^"]*)"/g) || []);
-  const bad = ids.filter((l) => !/"[0-9a-f]{32}"/.test(l));
-  t(n + ' has no placeholder KV ids', bad.length === 0, bad.join(' | '));
+[['workers', workers], ['workers2', workers2]].forEach(([dir, names]) => {
+  names.forEach((n) => {
+    const { file, text } = configFor(dir, n);
+    // Each check accepts both spellings: TOML `name = "x"` and JSON `"name": "x"`.
+    t(n + ' names itself (' + file + ')', /^\s*name\s*=/m.test(text) || /"name"\s*:/.test(text));
+    t(n + ' declares an entry point', /^\s*main\s*=/m.test(text) || /"main"\s*:/.test(text));
+
+    // A KV binding with a placeholder id deploys and then fails at runtime, which
+    // is the same silent-failure shape this file exists to prevent.
+    // Both patterns require `id` to start the key, so `account_id` never matches.
+    const ids = (text.match(/^\s*id\s*=\s*"([^"]*)"/gm) || [])
+      .concat(text.match(/"id"\s*:\s*"([^"]*)"/g) || []);
+    // workers2 is the exception, and only for the ONE placeholder form the lane
+    // actually resolves: `kv:<TITLE>`, rewritten to a real id by
+    // workers2/kv-provision.mjs before deploy. A namespace lives in a single
+    // account, so a worker there cannot carry a literal account-1 id — and any
+    // OTHER non-hex value is still a bug, which is why this stays narrow.
+    const ok = (l) => /"[0-9a-f]{32}"/.test(l) ||
+      (dir === 'workers2' && /"kv:[A-Za-z0-9_.-]+"/.test(l));
+    const bad = ids.filter((l) => !ok(l));
+    t(n + ' has no placeholder KV ids', bad.length === 0, bad.join(' | '));
+
+    // Account 1 pins its id inline; account 2 gets it from CF_ACCOUNT_ID_2. A
+    // stray account_id in workers2 would send the worker to the wrong account,
+    // which deploys perfectly happily and is exactly the mistake this split
+    // exists to prevent.
+    if (dir === 'workers2') {
+      t(n + ' does not pin an account_id', !/^\s*account_id\s*=/m.test(text) &&
+        !/"account_id"\s*:/.test(text),
+        'workers2 gets its account from CF_ACCOUNT_ID_2 — see workers2/README.md.');
+    }
+  });
 });
 
 // A directory with two configs is a trap: wrangler reads one and silently
 // ignores the other, so an edit to the loser does nothing and reports nothing.
 section('No worker has a second, ignored config file');
-workers.forEach((n) => {
-  const present = CONFIG_NAMES.filter((f) => fs.existsSync(path.join(ROOT, 'workers', n, f)));
-  t(n + ' has exactly one wrangler config', present.length === 1,
-    present.length > 1
-      ? 'Found ' + present.join(' + ') + '. wrangler reads ' + present[0] +
-        ' and ignores the rest — delete the unused one before they drift apart.'
-      : '');
+[['workers', workers], ['workers2', workers2]].forEach(([dir, names]) => {
+  names.forEach((n) => {
+    const present = CONFIG_NAMES.filter((f) => fs.existsSync(path.join(ROOT, dir, n, f)));
+    t(n + ' has exactly one wrangler config', present.length === 1,
+      present.length > 1
+        ? 'Found ' + present.join(' + ') + '. wrangler reads ' + present[0] +
+          ' and ignores the rest — delete the unused one before they drift apart.'
+        : '');
+  });
 });
 
+// The two lanes deploy to different Cloudflare accounts, so the same worker
+// name in both is not a duplicate that merges — it is two live workers on two
+// hostnames, one of them stale, with no error anywhere.
+section('No worker name exists in both lanes');
+const dupes = workers.filter((n) => workers2.includes(n));
+t('workers/ and workers2/ do not overlap', dupes.length === 0,
+  dupes.length ? 'In both: ' + dupes.join(', ') + '. A move must DELETE the old copy.' : '');
+
 section('The backup worker specifically');
-const BW = path.join(ROOT, 'workers', 'index-backups', 'worker.js');
+// workers2/, not workers/: it moved to the second Cloudflare account, being the
+// fastest-growing KV writer on account 1.
+const BW = path.join(ROOT, 'workers2', 'index-backups', 'worker.js');
 t('index-backups worker exists', fs.existsSync(BW));
 if (fs.existsSync(BW)) {
   const src = fs.readFileSync(BW, 'utf8');
@@ -117,8 +173,28 @@ if (fs.existsSync(BW)) {
     'Unvalidated names let a request walk out of its own prefix.');
   t('it is registered in the App Check sync targets',
     fs.readFileSync(path.join(ROOT, 'tools', 'sync-appcheck.js'), 'utf8')
-      .includes("'index-backups/worker.js'"),
+      .includes("'workers2/index-backups/worker.js'"),
     'Otherwise the injected verifier goes stale silently.');
+
+  // Snapshots have always been capped per device; the OBJECTS they point at
+  // were not, so every document version ever captured accumulated forever and
+  // storage only stopped growing at KV's 1 GB ceiling. GC is what bounds the
+  // other half, and it is only safe because it fails closed.
+  t('it collects orphaned objects',
+    /async function collectOrphans\(/.test(src) && /A1_BACKUPS\.delete\('?o\/|delete\(k\.name\)/.test(src),
+    'Without this, o/<hash> objects leak on every snapshot eviction.');
+  t('GC refuses to act on an incomplete reference set',
+    /if \(!snaps\.length\) return null;/.test(src) &&
+    /if \(!parsed \|\| !Array\.isArray\(parsed\.objects\)\) return null;/.test(src),
+    'An unreadable or object-list-less snapshot must abort the pass — under-counting ' +
+    'what is live means deleting data that is still referenced.');
+  t('GC never collects an in-flight upload',
+    /GC_OBJECT_GRACE_MS/.test(src),
+    'Objects are uploaded BEFORE the snapshot referencing them; without a grace ' +
+    'period that window is indistinguishable from an orphan.');
+  t('every KV listing follows its cursor',
+    /async function listAll\(/.test(src) && !/A1_BACKUPS\.list\(\{/.test(src),
+    'A truncated list under-reports what is reachable, which makes GC destructive.');
 }
 
 console.log('\n' + '─'.repeat(64));

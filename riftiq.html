@@ -4460,7 +4460,7 @@ function loadProIndex() {
   // Held in memory only. It is ~250 KB and every A1 program shares one ~5 MB
   // localStorage budget, so caching it there would crowd out real user data for
   // something the worker already serves from its own edge cache.
-  _proIndexPending = fetch('https://proview-api.av1.workers.dev/pro-index')
+  _proIndexPending = fetch('https://proview-api.av1-2.workers.dev/pro-index')
     .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(function(j){
       var teams = j && j.teams;
@@ -11570,7 +11570,7 @@ setTimeout(alEnforce, 300);
 <!-- ══════════════════════════════════════════════════════════════════════════
      ProView — LoL Esports schedules, standings and favourites.
      Moved here from index.html; RiftIQ hosts it as a second program.
-       CF Worker: https://proview-api.av1.workers.dev  (KV-cached API proxy)
+       CF Worker: https://proview-api.av1-2.workers.dev  (KV-cached API proxy)
        Firebase:  dashboards/proview   — leagues + favourites config
                   dashboards/pv_cards  — favourited matches, read by TaskHub
      Renders into #pv-root under #wr-progbar, which reserves the same 48px this
@@ -11580,7 +11580,7 @@ setTimeout(alEnforce, 300);
 (function(){
 'use strict';
 
-const PV_WORKER='https://proview-api.av1.workers.dev';
+const PV_WORKER='https://proview-api.av1-2.workers.dev';
 const LS_KEY='pv_cfg_v1';
 
 const WANTED_LEAGUES=[

@@ -1,0 +1,20 @@
+name = "proview-api"
+# Deploys to Cloudflare "My Account 2" (av1-2.workers.dev) via
+# .github/workflows/deploy-workers2.yml. NO account_id here on purpose -- the
+# workflow supplies it from CF_ACCOUNT_ID_2, so a worker cannot be pointed at
+# the wrong account by editing its own config.
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+# ── KV on ACCOUNT 2 ─────────────────────────────────────────────────────────
+# `kv:<TITLE>` is a PLACEHOLDER, not an id. A KV namespace lives in exactly one
+# account, so the account-1 id this worker used before the move is meaningless
+# here. workers2/kv-provision.mjs resolves the title against account 2 (creating
+# it on first deploy) and writes the real id into this file inside the CI
+# checkout — see .github/workflows/deploy-workers2.yml. Nothing is committed.
+[[kv_namespaces]]
+binding = "PV_CACHE"
+id = "kv:PV_CACHE"
+
+[vars]
+WORKER_ORIGIN = "https://proview-api.av1-2.workers.dev"

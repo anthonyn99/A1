@@ -117,7 +117,7 @@ TRADEHUB_URL = "https://anthonyn99.github.io/A1/tradehub.html"
 # ==============================================================================
 
 CHATGPT_ANALYSIS_ENABLED = True   # master switch for the whole AI analysis step
-TD_WORKER_URL            = "https://trade-dashboard.av1.workers.dev"
+TD_WORKER_URL            = "https://trade-dashboard.av1-2.workers.dev"
 
 # On the morning run, the AI site + searches open as TABS in the existing TradeHub
 # window, so this position is only used in the standalone --test-chatgpt case.

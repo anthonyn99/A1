@@ -1,0 +1,28 @@
+name = "trade-dashboard"
+# Deploys to Cloudflare "My Account 2" (av1-2.workers.dev) via
+# .github/workflows/deploy-workers2.yml. NO account_id here on purpose -- the
+# workflow supplies it from CF_ACCOUNT_ID_2, so a worker cannot be pointed at
+# the wrong account by editing its own config.
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+# No cron. The weekday MacroBoard pre-build was the only scheduled job here and it
+# was removed with the MacroBoard tab; every remaining route is request-driven.
+
+# ── KV on ACCOUNT 2 ─────────────────────────────────────────────────────────
+# `kv:<TITLE>` is a PLACEHOLDER, not an id. A KV namespace lives in exactly one
+# account, so the account-1 id this worker used before the move is meaningless
+# here. workers2/kv-provision.mjs resolves the title against account 2 (creating
+# it on first deploy) and writes the real id into this file inside the CI
+# checkout — see .github/workflows/deploy-workers2.yml. Nothing is committed.
+[[kv_namespaces]]
+binding = "TD_KV"
+id = "kv:TD_KV"
+
+# ── Secrets — PER ACCOUNT. They do not move with a worker, so FINNHUB_KEY had
+#    to be re-set after the account-2 migration:
+#      CLOUDFLARE_ACCOUNT_ID=<account 2 id> npx wrangler secret put FINNHUB_KEY
+#    Without it /calendar returns no earnings dates (the rest of the worker is
+#    unaffected). It is the same key newshub-api uses on account 1.
+# MACRO_GEMINI_KEY, GEMINI_KEY, NVIDIA_KEY, GROQ_KEY, FRED_KEY and STAGE_SECRET are
+# no longer read — delete them with `wrangler secret delete <NAME>` when convenient.

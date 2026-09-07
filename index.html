@@ -2178,7 +2178,7 @@ window.THSHEET={
 </script>
 <!-- ══════════════════════════════════════════════════════════════════════════
      Weather Widget — shared by BOTH TaskHubs (Tony's + Veda's)
-     CF Worker: https://taskhub-weather-api.av1.workers.dev  (KV-cached Open-Meteo)
+     CF Worker: https://taskhub-weather-api.av1-2.workers.dev  (KV-cached Open-Meteo)
 
      ONE module, ONE data layer. Both profiles render window.THWX.Widget and
      pass their own theme tokens in; nothing here is duplicated per profile.
@@ -2398,7 +2398,7 @@ window.THSHEET={
 if(!window.React) return;                  // widget is optional; never break the page
 var h=React.createElement,useState=React.useState,useEffect=React.useEffect,useRef=React.useRef;
 
-var WORKER='https://taskhub-weather-api.av1.workers.dev';
+var WORKER='https://taskhub-weather-api.av1-2.workers.dev';
 var LS_LOC='thwx_loc_v2';                  // v2: v1 could hold a coarse/default fix
 var LS_DATA='thwx_data_v2';
 var POLL_MS=12*60*1000;                    // client refetch cadence while visible

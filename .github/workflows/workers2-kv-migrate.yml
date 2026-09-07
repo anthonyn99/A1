@@ -1,0 +1,80 @@
+name: Migrate a KV namespace to Account 2
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Copies one KV namespace from account 1 (anthonypn99@gmail.com) to account 2,
+# for a worker that has moved from workers/ to workers2/.
+#
+# MANUAL ONLY. This is a migration step, not part of any deploy — it runs when
+# a worker moves accounts and never again. It is idempotent and never deletes
+# anything (see workers2/kv-migrate.mjs), so a re-run is safe, but there is no
+# reason for a push to trigger it.
+#
+# WHY IT HAS TO RUN HERE
+# A KV namespace belongs to one account. The copy needs credentials for BOTH
+# accounts at once, and nothing else has them: wrangler's OAuth login on the
+# desktop only has account 1 in scope. CI holds both tokens already.
+#
+# WHICH NAMESPACES NEED THIS
+#   A1_BACKUPS  yes — the off-device backup sink. Real data, nothing rebuilds it.
+#   TD_KV       yes — watchlist, analysis prompt, daily reminder. Not derived.
+#   PV_CACHE    no  — every entry is written with an expirationTtl. Cold start
+#   WX_CACHE    no    just means the next request repopulates it.
+#
+# Required repo secrets:
+#   CF_API_TOKEN     account 1 — needs Account → Workers KV Storage → Read
+#   CF_API_TOKEN_2   account 2 — needs Account → Workers KV Storage → Edit
+#   CF_ACCOUNT_ID_2  account 2's id
+# ═══════════════════════════════════════════════════════════════════════════
+on:
+  workflow_dispatch:
+    inputs:
+      namespace:
+        description: "KV namespace TITLE to copy (e.g. A1_BACKUPS or TD_KV)"
+        required: true
+        type: choice
+        options:
+          - A1_BACKUPS
+          - TD_KV
+          - PV_CACHE
+          - WX_CACHE
+      dry_run:
+        description: "List what would be copied, write nothing"
+        required: false
+        type: boolean
+        default: true
+      prune_orphans:
+        description: "A1_BACKUPS only — skip objects no snapshot references (73% of it at migration time)"
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Copy namespace
+        env:
+          # Account 1 is pinned here rather than taken from a secret: the
+          # workers/ lane has never passed an account id (each wrangler.toml
+          # pins it inline), so there is no CF_ACCOUNT_ID secret to read.
+          SRC_ACCOUNT: b9a33dd573c14d5f446516ea8b46285f
+          SRC_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          DST_ACCOUNT: ${{ secrets.CF_ACCOUNT_ID_2 }}
+          DST_TOKEN: ${{ secrets.CF_API_TOKEN_2 }}
+          NS: ${{ github.event.inputs.namespace }}
+          DRY: ${{ github.event.inputs.dry_run }}
+          PRUNE: ${{ github.event.inputs.prune_orphans }}
+        run: |
+          set -euo pipefail
+          args=("$NS")
+          [ "$DRY" = "true" ] && args+=(--dry-run)
+          # Only A1_BACKUPS has the snapshot/object layout this understands. On
+          # any other namespace the flag is inert, but passing it would still be
+          # misleading in the log.
+          if [ "$PRUNE" = "true" ] && [ "$NS" = "A1_BACKUPS" ]; then args+=(--prune-orphans); fi
+          node workers2/kv-migrate.mjs "${args[@]}"

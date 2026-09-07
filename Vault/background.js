@@ -156,7 +156,7 @@ async function saveAiPending(map) {
 // That replaces the launcher's old OS-keystroke paste (Shift+Esc / Ctrl+V /
 // Enter), which Brave hijacked — Shift+Esc is Brave's own Task Manager shortcut,
 // so the paste and the Enter landed in the Task Manager instead of the composer.
-const TD_WORKER_URL = "https://trade-dashboard.av1.workers.dev";
+const TD_WORKER_URL = "https://trade-dashboard.av1-2.workers.dev";
 
 const AI_AUTO_MARK = /#tbauto\b/i;
 

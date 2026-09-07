@@ -1,26 +1,46 @@
 {
   "what": "Encrypted backups of the Index app. Ciphertext only; unreadable without the passphrase.",
-  "generatedAt": "2026-09-01T23:50:44.622Z",
+  "generatedAt": "2026-09-07T01:30:16.612Z",
   "worker": "https://index-backups.av1.workers.dev",
   "devices": [
     {
       "device": "android-no8fj5",
-      "at": 1788302516473,
-      "iso": "2026-09-01T22:41:56.473Z",
-      "ageHours": 1.1,
+      "at": 1788702977344,
+      "iso": "2026-09-06T13:56:17.344Z",
+      "ageHours": 11.6,
       "docs": 14,
       "objects": 14,
-      "bytes": 1437,
+      "bytes": 1441,
       "stale": false
     },
     {
+      "device": "iphone-z6wyb1",
+      "at": 1788312833737,
+      "iso": "2026-09-02T01:33:53.737Z",
+      "ageHours": 119.9,
+      "docs": 14,
+      "objects": 14,
+      "bytes": 1441,
+      "stale": true
+    },
+    {
       "device": "pc-1cw70x",
-      "at": 1788306594791,
-      "iso": "2026-09-01T23:49:54.791Z",
+      "at": 1788744590423,
+      "iso": "2026-09-07T01:29:50.423Z",
       "ageHours": 0,
       "docs": 14,
       "objects": 14,
       "bytes": 1441,
+      "stale": false
+    },
+    {
+      "device": "pc-qxjzhk",
+      "at": 1788743224864,
+      "iso": "2026-09-07T01:07:04.864Z",
+      "ageHours": 0.4,
+      "docs": 14,
+      "objects": 14,
+      "bytes": 1437,
       "stale": false
     }
   ]
