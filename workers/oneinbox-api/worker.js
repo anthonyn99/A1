@@ -430,8 +430,9 @@ async function gmailToken(env, email) {
     throw new Error(`gmail token ${email}: ${d.error || 'refresh failed'}`);
   }
   const rec = { token: d.access_token, exp: nowSec + (d.expires_in || 3600) };
-  _memTok.set(email, rec);
-  await env.OI_KV.put('oi:tok:' + email, JSON.stringify(rec), { expirationTtl: Math.max(120, (d.expires_in || 3600) - 60) });
+  // Staged in the isolate; committed by flushToks() once for the whole run.
+  (await loadToks(env))[email] = rec;
+  _toksDirty = true;
   return rec.token;
 }
 
