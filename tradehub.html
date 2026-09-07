@@ -395,7 +395,17 @@
      Done as ONE fetch interceptor rather than by editing each call site: there
      are a dozen of them across this file, a missed one is a broken feature
      rather than a loud error, and any call added later is covered for free. */
-  const _AC_GATED = /^https:\/\/(tradeboard-api|trade-dashboard|newshub-api)\.av1\.workers\.dev/;
+  /* The subdomain is `av1(-N)?` because these Workers are split across two
+     Cloudflare accounts to stay inside the free tier's per-account KV write
+     limit: account 1 serves av1.workers.dev, account 2 av1-2.workers.dev, and
+     trade-dashboard moved to the latter. Matching only `av1` silently stopped
+     attaching the token to it — every request still went out, the Worker
+     answered 401, and the watchlist and Catalysts simply stopped working with
+     no error in this file. Exactly the "missed call site is a broken feature
+     rather than a loud error" this interceptor exists to prevent, arriving
+     through the host instead of through a call site. Keep the `-\d+` so the
+     next account move does not repeat it. */
+  const _AC_GATED = /^https:\/\/(tradeboard-api|trade-dashboard|newshub-api)\.av1(-\d+)?\.workers\.dev/;
   window._acToken = async () => {
     try { const t = await getToken(_appCheck, false); return (t && t.token) || ''; }
     catch { return ''; }
