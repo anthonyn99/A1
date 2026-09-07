@@ -2533,6 +2533,14 @@ export default {
       // `reconnect` lets the UI point at the specific mailbox that needs
       // re-authorising rather than just printing the sentence.
       return json({ ok: false, error: msg, reconnect: e.reconnect || undefined }, origin, 500);
+    } finally {
+      // Commit any Gmail access token this request refreshed — once, after the
+      // response is already on its way, covering every mailbox it touched.
+      // Placed here rather than at each call site because there are many, and a
+      // route that forgets would silently re-refresh from Google forever.
+      // waitUntil, so it never delays the reply; best-effort, because the only
+      // cost of losing it is one extra refresh next time.
+      try { ctx.waitUntil(flushToks(env)); } catch { /* no ctx in a test harness */ }
     }
   },
 
