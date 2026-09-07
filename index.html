@@ -44913,8 +44913,9 @@ document.addEventListener('visibilitychange',function(){ if(!document.hidden) sw
     visibility, border-radius, outline-color, fill, stroke, stroke-dashoffset,
     text-shadow !important;
 }
-/* Only for controls that declare no transition at all — they would otherwise
-   inherit a 0s duration from the rule above and snap. */
+/* For controls whose FIRST transition-duration is 0s — either they declare no
+   transition at all, or their list starts at 0s (`0s, 0.5s`) and `filter`, being
+   first in the property list above, would pair with that zero and snap. */
 .th-hovfx-t{ transition-duration:.15s!important; transition-timing-function:ease!important; }
 </style>
 <script>
@@ -44982,6 +44983,16 @@ document.addEventListener('visibilitychange',function(){ if(!document.hidden) sw
     return (0.2126*c.r + 0.7152*c.g + 0.0722*c.b) / 255 > 0.42 ? SETTLE : LIFT_FILL;
   }
 
+  // A cursor:pointer surface only counts as a control if it is control-SIZED.
+  // Excalidraw sets cursor:pointer on its whole 1128x725 root (that is how it
+  // shows the active tool), and without this the board lit up like a button the
+  // moment the mouse entered the drawing area. Too-large means stop climbing,
+  // not skip: the answer is the last control-sized element found on the way out,
+  // never something bigger further up.
+  function sized(el){
+    var w = el.offsetWidth, h = el.offsetHeight;
+    return h <= 180 && w * h <= 0.2 * innerWidth * innerHeight;
+  }
   // cursor:pointer is inherited, so a <span> inside a clickable <div> reports it
   // too — climb to the top of the run to find the element that actually owns the
   // click. A real control (<button>, <select>, ...) ends the walk outright,
@@ -44990,7 +45001,10 @@ document.addEventListener('visibilitychange',function(){ if(!document.hidden) sw
     var best = null, n = from;
     while(n && n !== root && n.nodeType === 1){
       if(n.matches(CONTROLS)) return n;
-      if(getComputedStyle(n).cursor === 'pointer') best = n;
+      if(getComputedStyle(n).cursor === 'pointer'){
+        if(!sized(n)) return best;
+        best = n;
+      }
       else if(best) return best;
       n = n.parentElement;
     }
@@ -45020,7 +45034,11 @@ document.addEventListener('visibilitychange',function(){ if(!document.hidden) sw
     if(cs.filter && cs.filter !== 'none') return;
     cur = el;
     el.classList.add('th-hovfx');
-    if(!/[1-9]/.test(cs.transitionDuration || '')) el.classList.add('th-hovfx-t');
+    // `filter` is first in the property list above, so it pairs with the FIRST
+    // duration in the element's list — a control declaring `0s, 0.5s` would snap
+    // even though the string looks non-zero. Test that first value, not the
+    // whole string.
+    if(!(parseFloat(cs.transitionDuration) > 0)) el.classList.add('th-hovfx-t');
     el.style.filter = effect(el);
   }, true);
 
