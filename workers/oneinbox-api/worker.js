@@ -2272,6 +2272,22 @@ async function handlePubSub(request, env, origin) {
 // because the 15-minute gate has not elapsed — which is exactly what happened
 // while chasing a missing package card: the request returned 200 and skipped
 // every piece of work.
+// Cadence, in minutes past midnight UTC. See the poll block below for why these
+// are read off the clock rather than out of KV.
+const POLL_EVERY_MIN = 30;
+const SNAPSHOT_EVERY_MIN = 60;
+// Tolerance for the gap between the tick firing and this running. Must stay
+// <= the 5-minute tick interval, or two ticks would land in one window and the
+// poll would run twice.
+const POLL_WINDOW_MIN = 5;
+
+// Is this tick the one that should do `everyMin` work?
+//
+// Pulled out as a pure function so the cadence can actually be tested. Inline,
+// the only way to check "does this run twice an hour, and does it survive a tick
+// arriving 90 seconds late" would be to run the worker for a day and count.
+const isDueTick = (minuteOfDay, everyMin) => minuteOfDay % everyMin < POLL_WINDOW_MIN;
+
 async function runCron(env, { force = false } = {}) {
   const out = { at: new Date().toISOString(), forced: force };
   const state = (await env.OI_KV.get('oi:cron', 'json')) || {};
@@ -2281,6 +2297,13 @@ async function runCron(env, { force = false } = {}) {
   // state key unconditionally burned 288 writes/day — 29% of the entire daily
   // budget — just to record "nothing happened". Only persist when a gated task
   // actually ran and moved a timestamp.
+  //
+  // What is left in `state` is ONLY the once-a-day work. Those keep stored
+  // timestamps deliberately: clock-gating a daily job means "run at exactly
+  // 03:00", and one missed tick then skips a whole day, whereas a stored
+  // timestamp is simply caught up by the next tick. They move twice a day, so
+  // they cost ~2 writes/day — the 48/day was all the half-hourly poll, which is
+  // frequent enough that a skipped cycle costs 30 minutes and nothing else.
   let dirty = false;
 
   // Every tick: scheduled sends (cheap — one bounded KV list).
@@ -2306,35 +2329,43 @@ async function runCron(env, { force = false } = {}) {
     state.lastWatch = now; dirty = true;
   }
 
-  // Every 15 min: incremental history poll. Pure safety net for a dropped
+  // Every 30 min: incremental history poll. Pure safety net for a dropped
   // Pub/Sub delivery or an expired watch — it is incremental, so a quiet
   // mailbox costs one tiny Gmail call and no AI spend.
-  // 30min, not 15. This poll is a SAFETY NET -- the primary delivery path is the
-  // Pub/Sub push -- but each run persists state.lastPoll, and that write lands in
-  // a KV namespace SHARED by six workers against a 1,000 writes/day account cap.
-  // At 15min it spent ~96 writes/day standing guard over a path that normally
-  // never fires. Halving the cadence halves that; the only cost is that a genuinely
-  // dropped push is caught within 30min instead of 15.
-  if (force || now - (state.lastPoll || 0) > 30 * 60e3) {
+  //
+  // GATED ON THE CLOCK, NOT ON STORED STATE. This runs on a fixed 5-minute
+  // tick, so the tick already knows whether it is a half-hour boundary —
+  // `minute % 30` says it for free. Persisting lastPoll to compare against that
+  // same clock cost 48 KV writes/day, in a namespace SHARED by six workers
+  // against a 1,000 writes/day ACCOUNT cap, purely to re-derive something the
+  // caller was already holding.
+  //
+  // The window is `< POLL_WINDOW_MIN`, not `=== 0`: the tick fires on the
+  // minute but this runs inside ctx.waitUntil, so a tick at 12:29:59 can reach
+  // here at 12:30:01 — and an equality test would silently drop that poll. Ticks
+  // are 5 minutes apart and the window is 5 minutes wide, so exactly one tick
+  // per half hour still qualifies. `force` (a manual Refresh) ignores all of it.
+  const minuteOfDay = new Date(now).getUTCHours() * 60 + new Date(now).getUTCMinutes();
+  if (force || isDueTick(minuteOfDay, POLL_EVERY_MIN)) {
     // Once an hour the poll also takes a snapshot of the newest inbox ids, so
     // any gap the forward-only history cursor left behind repairs itself
     // instead of being lost for good.
-    const snapshot = force || now - (state.lastSnap || 0) > 60 * 60e3;
+    const snapshot = force || isDueTick(minuteOfDay, SNAPSHOT_EVERY_MIN);
     // Shared message budget for the whole invocation (see MSGS_PER_RUN), and a
     // rotating start point so a bounded run doesn't always spend its budget on
-    // the same first account and starve the rest. Every mailbox comes up within
-    // a few ticks, and polls run every 15 minutes.
+    // the same first account and starve the rest. Derived from which half-hour
+    // of the epoch this is, so the rotation is free rather than another stored
+    // field; every mailbox still comes up within a few ticks.
     const budget = { msgs: MSGS_PER_RUN };
-    const start = (state.acctCursor || 0) % Math.max(1, accounts.length);
+    const n = Math.max(1, accounts.length);
+    const start = Math.floor(now / (POLL_EVERY_MIN * 60e3)) % n;
     const ordered = accounts.slice(start).concat(accounts.slice(0, start));
     out.polled = [];
     for (const e of ordered) {
       try { const r = await syncHistory(env, e, { snapshot, budget }); out.polled.push({ e, ...r }); }
       catch (err) { out.polled.push({ e, error: err.message }); }
     }
-    state.acctCursor = (start + 1) % Math.max(1, accounts.length);
-    state.lastPoll = now; dirty = true;
-    if (snapshot) { state.lastSnap = now; out.snapshot = true; }
+    if (snapshot) out.snapshot = true;
     out.budgetLeft = budget.msgs;
   }
 
