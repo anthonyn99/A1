@@ -107,7 +107,42 @@ async function sweepLegacyStale(kv){
 // the fallback survives.
 const PV_KEEP = 7*24*3600;
 
+// Even when the payload has not changed, the durable copy has to be rewritten
+// occasionally or its 7-day expirationTtl runs out and the stale-fallback is
+// gone exactly when upstream is down and it is needed.
+const PV_REFRESH_FLOOR_MS = 3*24*3600*1000;
+
+// The Cache API in front of KV.
+//
+// WHY: KV WRITES are the scarce resource — 1,000/day per Cloudflare account,
+// shared by every worker on it — and this worker wrote one on every expiry of
+// every key. The client loads ALL configured leagues on open (ensureCardLeaguesLoaded,
+// so favourited teams in any league can produce a card), so a heavy day was a
+// dozen leagues x the 15-minute schedule TTL, and that is what made ProView
+// spike the account's budget.
+//
+// caches.default costs NOTHING against any quota and is what warroom-api has
+// always used — it has no KV binding at all, which is why WarRoom never
+// contributed to these spikes. Putting it in front means repeat traffic inside
+// a TTL touches neither KV read nor KV write. KV stays underneath as the
+// durable, cross-colo, last-known-good copy, which the edge cache cannot be:
+// it is per-colo and Cloudflare may evict it at any time.
+const PV_EDGE = 'https://proview-cache.internal/';
+
+function pvCorsResponse(body,xcache){
+  return new Response(body,{headers:{...CORS,'X-Cache':xcache}});
+}
+
 async function cachedFetch(env,key,ttl,url,ctx,transform){
+  const edge = caches.default;
+  const edgeKey = new Request(PV_EDGE+encodeURIComponent(key));
+
+  // Free, and the common case on any repeat view.
+  try{
+    const hit=await edge.match(edgeKey);
+    if(hit) return pvCorsResponse(await hit.text(),'EDGE');
+  }catch(e){}
+
   // One read covers both cases: a fresh hit, or the stale fallback if the
   // upstream call below fails.
   let cached=null;
@@ -115,27 +150,58 @@ async function cachedFetch(env,key,ttl,url,ctx,transform){
     const e=await env.PV_CACHE.getWithMetadata(key,'text');
     if(e&&e.value) cached={body:e.value,at:(e.metadata&&e.metadata.at)||0};
   }catch(e){}
-  if(cached&&Date.now()-cached.at<ttl*1000)
-    return new Response(cached.body,{headers:{...CORS,'X-Cache':'HIT'}});
+  if(cached&&Date.now()-cached.at<ttl*1000){
+    // Populate the edge for the rest of this TTL so the next view is free.
+    pvEdgePut(edge,edgeKey,cached.body,ttl,ctx);
+    return pvCorsResponse(cached.body,'HIT');
+  }
 
   let res;
   try{
     res=await fetch(url,{headers:{'x-api-key':LOL_KEY,'Origin':'https://lolesports.com','Referer':'https://lolesports.com/'}});
   }catch(e){
-    if(cached) return new Response(cached.body,{headers:{...CORS,'X-Cache':'STALE'}});
+    if(cached) return pvCorsResponse(cached.body,'STALE');
     return j({error:'Upstream unreachable'},502);
   }
   if(!res.ok){
-    if(cached) return new Response(cached.body,{headers:{...CORS,'X-Cache':'STALE'}});
+    if(cached) return pvCorsResponse(cached.body,'STALE');
     return j({error:'Upstream '+res.status},res.status);
   }
   let body=await res.text();
   // Reduce BEFORE storing, so the KV entry and every later HIT are the small
   // form rather than the raw upstream payload.
   if(transform){ try{ body=transform(body); }catch(e){ return j({error:'Transform failed: '+e.message},502); } }
-  await env.PV_CACHE.put(key,body,{expirationTtl:PV_KEEP,metadata:{at:Date.now()}});
+
+  // Only WRITE when the content actually moved.
+  //
+  // A schedule is mostly static — matches are fixed days ahead — so the great
+  // majority of these refreshes produced a byte-identical payload and spent a
+  // KV write to store something already stored. Upstream fetches are free and
+  // uncapped; KV writes are neither, so re-fetching to discover "nothing
+  // changed" is the cheap half of this trade. The edge cache above bounds how
+  // often that re-fetch happens to once per TTL per colo.
+  //
+  // The floor is what keeps the durable copy alive: skipping the write also
+  // skips renewing its expirationTtl, so an entry that never changes would
+  // quietly expire out of KV and take the stale-fallback with it.
+  const unchanged = cached && cached.body===body;
+  const age = cached ? Date.now()-cached.at : Infinity;
+  if(!unchanged || age>PV_REFRESH_FLOOR_MS){
+    await env.PV_CACHE.put(key,body,{expirationTtl:PV_KEEP,metadata:{at:Date.now()}});
+  }
+  pvEdgePut(edge,edgeKey,body,ttl,ctx);
   if(ctx&&ctx.waitUntil) ctx.waitUntil(sweepLegacyStale(env.PV_CACHE)); else await sweepLegacyStale(env.PV_CACHE);
-  return new Response(body,{headers:{...CORS,'X-Cache':'MISS'}});
+  return pvCorsResponse(body,unchanged?'REVALIDATED':'MISS');
+}
+
+// Store in the edge cache for one TTL. Never awaited on the response path: it
+// is an optimisation, and a cache write must not add latency to the answer.
+function pvEdgePut(edge,edgeKey,body,ttl,ctx){
+  try{
+    const p=edge.put(edgeKey,new Response(body,{status:200,headers:{
+      'Content-Type':'application/json','Cache-Control':'public, max-age='+ttl}}));
+    if(ctx&&ctx.waitUntil) ctx.waitUntil(p); else p.catch(()=>{});
+  }catch(e){}
 }
 function j(o,s=200){return new Response(JSON.stringify(o),{status:s,headers:CORS});}
 
