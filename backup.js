@@ -575,8 +575,9 @@
         var env = await vGet('objects', hashes[i]);
         if (!env || !env.ct) continue;
         reached = true; checked++;
-        try { await decryptEnvWith(env, pass); return { state: VERIFY_STATE.MATCH, checked: checked, source: 'this device' }; }
-        catch (e) { /* keep trying — a single corrupt object is not a verdict */ }
+        if (await canOpenEnvelope(env, pass)) {
+          return { state: VERIFY_STATE.MATCH, checked: checked, source: 'this device' };
+        }
       }
     } catch (e) { /* no vault yet */ }
 
@@ -593,8 +594,9 @@
           var senv = await sr.json();
           if (!senv || !senv.ct) continue;
           reached = true; checked++;
-          try { await decryptEnvWith(senv, pass); return { state: VERIFY_STATE.MATCH, checked: checked, source: devices[d] }; }
-          catch (e) { /* try the next device — profiles may differ */ }
+          if (await canOpenEnvelope(senv, pass)) {
+            return { state: VERIFY_STATE.MATCH, checked: checked, source: devices[d] };
+          }
         }
       }
     } catch (e) { /* offline, or the worker is unreachable */ }
