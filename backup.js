@@ -519,7 +519,105 @@
     return deriveKey(p);
   }
 
-  async function unlock(pass) {
+  // ── Passphrase guard ──────────────────────────────────────────────────────
+  //
+  // WHY THIS EXISTS
+  // unlock() used to accept ANY passphrase. It derived a key, stored it, then
+  // proved encryption worked by round-tripping a probe it had just created —
+  // which tests WebCrypto, not the passphrase. So entering a different one
+  // succeeded, reported success, and quietly split the backup history in two:
+  // everything written afterwards used a new key, everything before it could
+  // only be opened with the old one, and nothing anywhere said so. The failure
+  // would surface at restore time, which is the one moment it must not.
+  //
+  // That is not hypothetical. iOS evicts script-writable storage after ~7 days
+  // without a visit, and the passphrase lives in localStorage — so a phone that
+  // sits unopened comes back asking for it again, with the original possibly
+  // forgotten. The dialog says it cannot be recovered; this makes that true in
+  // a useful way instead of a silent one.
+  //
+  // HOW
+  // Every envelope carries its own KDF salt (see decryptEnv), so ANY existing
+  // envelope tests a candidate passphrase — AES-GCM authenticates, so a wrong
+  // key fails to decrypt rather than returning junk. Local objects first (fast,
+  // works offline); the off-device sink second, which is what still answers
+  // after local storage has been evicted — precisely the case that matters.
+  //
+  // This adds no attack surface. Every stored envelope is already an offline
+  // oracle for guessing the passphrase; PBKDF2 at 600k iterations is what makes
+  // that expensive, not the absence of a check.
+  var VERIFY_STATE = { NONE: 'none', MATCH: 'match', MISMATCH: 'mismatch', UNAVAILABLE: 'unavailable' };
+
+  async function verifyPassphrase(pass) {
+    var checked = 0, reached = false;
+
+    // 1. Local vault. Any one object is enough.
+    try {
+      var hashes = await vKeys('objects');
+      for (var i = 0; i < hashes.length && i < 3; i++) {
+        var env = await vGet('objects', hashes[i]);
+        if (!env || !env.ct) continue;
+        reached = true; checked++;
+        try { await decryptEnvWith(env, pass); return { state: VERIFY_STATE.MATCH, checked: checked, source: 'this device' }; }
+        catch (e) { /* keep trying — a single corrupt object is not a verdict */ }
+      }
+    } catch (e) { /* no vault yet */ }
+
+    // 2. The off-device sink. Survives local eviction, which is the whole point.
+    //    Each device's newest snapshot manifest is a small encrypted envelope.
+    try {
+      var r = await fetch(WORKER + '/index', { headers: await acHeaders() });
+      if (r.ok) {
+        var devices = Object.keys(((await r.json()) || {}).devices || {});
+        for (var d = 0; d < devices.length; d++) {
+          var sr = await fetch(WORKER + '/s/' + encodeURIComponent(devices[d]),
+                               { headers: await acHeaders() });
+          if (!sr.ok) continue;
+          var senv = await sr.json();
+          if (!senv || !senv.ct) continue;
+          reached = true; checked++;
+          try { await decryptEnvWith(senv, pass); return { state: VERIFY_STATE.MATCH, checked: checked, source: devices[d] }; }
+          catch (e) { /* try the next device — profiles may differ */ }
+        }
+      }
+    } catch (e) { /* offline, or the worker is unreachable */ }
+
+    // Nothing to check against is NOT the same as failing to check. The first is
+    // a genuine first run; the second is a network blip, and refusing on it would
+    // lock someone out of their own backups over a dropped request.
+    if (!reached) return { state: VERIFY_STATE.NONE, checked: 0 };
+    return { state: VERIFY_STATE.MISMATCH, checked: checked };
+  }
+
+  // `opts.allowNewPassphrase` deliberately re-keys: existing backups stay
+  // readable ONLY with the old passphrase. Callers must say so out loud.
+  async function unlock(pass, opts) {
+    opts = opts || {};
+    if (!pass) throw new Error('passphrase cannot be empty');
+    await deriveKey(pass);
+
+    if (!opts.allowNewPassphrase) {
+      var v = await verifyPassphrase(pass);
+      if (v.state === VERIFY_STATE.MISMATCH) {
+        // Refuse. Nothing has been stored, so the device stays locked rather
+        // than half-switched — the state that produced the split.
+        var err = new Error('That passphrase does not open the backups already stored (' +
+                            v.checked + ' checked). Nothing was changed.');
+        err.code = 'passphrase-mismatch';
+        err.checked = v.checked;
+        throw err;
+      }
+      _lastVerify = v.state;
+    } else {
+      _lastVerify = 'overridden';
+    }
+
+    return unlockUnchecked(pass);
+  }
+
+  var _lastVerify = null;
+
+  async function unlockUnchecked(pass) {
     // Any length — that is the user's call. An EMPTY passphrase is still
     // refused, for a mechanical reason rather than a policy one: activeKey()
     // reads a falsy stored value as "locked", so an empty passphrase would
