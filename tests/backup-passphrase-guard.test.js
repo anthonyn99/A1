@@ -186,6 +186,86 @@ async function main() {
   t('and the override states what it costs',
     /can only ever be opened with the OLD passphrase/.test(setup) && /danger: true/.test(setup));
 
+  /* ── The SHIPPED unlock(), driven for real ──────────────────────────────
+     Everything above tests the decision table and the wiring. This runs the
+     actual backup.js in a sandbox with a stubbed off-device sink, so the
+     refusal is proven on the code that ships rather than on a re-implementation
+     of it. */
+  section('The shipped unlock() refuses, end to end');
+  {
+    const vm = require('vm');
+    // One envelope, encrypted with TONY, served as another device's snapshot.
+    const salt = b64(webcrypto.getRandomValues(new Uint8Array(16)));
+    const stored = await makeEnvelope(JSON.stringify({ d: 'x', h: 'y' }), TONY, salt);
+
+    function boot() {
+      const store = {};
+      const sandbox = {
+        window: {}, console: { log(){}, warn(){}, error(){} },
+        localStorage: {
+          getItem: (k) => (k in store ? store[k] : null),
+          setItem: (k, v) => { store[k] = String(v); },
+          removeItem: (k) => { delete store[k]; }
+        },
+        Blob: global.Blob, Response: global.Response,
+        CompressionStream: global.CompressionStream, DecompressionStream: global.DecompressionStream,
+        TextEncoder: global.TextEncoder, TextDecoder: global.TextDecoder,
+        crypto: webcrypto, btoa: global.btoa, atob: global.atob,
+        setTimeout, clearTimeout,
+        Date, Math, JSON, Object, Error, RegExp, Promise, Array, Uint8Array, String, Number,
+        // The off-device sink: /index lists one device, /s/<d> returns the envelope.
+        fetch: async (url) => {
+          if (String(url).endsWith('/index')) {
+            return { ok: true, json: async () => ({ devices: { 'pc-1cw70x': { at: Date.now() } } }) };
+          }
+          if (String(url).indexOf('/s/') !== -1) {
+            return { ok: true, json: async () => stored };
+          }
+          return { ok: false, status: 404 };
+        }
+      };
+      sandbox.self = sandbox;
+      vm.createContext(sandbox);
+      vm.runInContext(SRC, sandbox, { filename: 'backup.js' });
+      return { A1: sandbox.window.A1Backup, store };
+    }
+
+    // 1. Wrong passphrase -> refused, and nothing persisted.
+    {
+      const { A1, store } = boot();
+      let err = null;
+      try { await A1.unlock(WRONG); } catch (e) { err = e; }
+      t('a wrong passphrase throws', !!err, err ? err.message : 'NO ERROR THROWN');
+      t('it is identified as a mismatch', err && err.code === 'passphrase-mismatch', err && err.code);
+      t('the device is left LOCKED, not half-switched',
+        !store['a1b_pass'], 'a1b_pass=' + JSON.stringify(store['a1b_pass']));
+      t('isSetUp() still reports false', A1.isSetUp() === false);
+    }
+
+    // 2. Correct passphrase -> accepted, verified against the sink.
+    {
+      const { A1, store } = boot();
+      let err = null;
+      try { await A1.unlock(TONY); } catch (e) { err = e; }
+      t('the correct passphrase is accepted', !err, err ? err.message : '');
+      t('and it IS persisted', store['a1b_pass'] === TONY);
+      const st = await A1.status();
+      t('status reports how it was verified', st.passphraseVerified === 'match',
+        String(st.passphraseVerified));
+    }
+
+    // 3. The deliberate override re-keys without touching old backups.
+    {
+      const { A1, store } = boot();
+      let err = null;
+      try { await A1.unlock(WRONG, { allowNewPassphrase: true }); } catch (e) { err = e; }
+      t('the explicit override is honoured', !err, err ? err.message : '');
+      t('and it is recorded as an override, not a match',
+        (await A1.status()).passphraseVerified === 'overridden');
+      t('the new passphrase is the one in force', store['a1b_pass'] === WRONG);
+    }
+  }
+
   console.log('\n' + '─'.repeat(64));
   if (failures.length) {
     console.log(failures.length + ' FAILED:\n  - ' + failures.join('\n  - '));
