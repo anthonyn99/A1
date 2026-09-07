@@ -6723,6 +6723,19 @@ const NH_ESCALATE_COOLDOWN = 30*60*1000;   // 30 min
    Cost: the worker keys its KV copy by that same generatedAt, so warming is one
    AI call per BUILD. Re-opening the overlay, switching tabs, and every other
    device all read that one copy for free. ── */
+const NH_SUM_LS='tb_news_summary';
+/* Last-resort local copy of the digest, so a reload does not have to depend on
+   the worker still holding one. Guarded on BOTH sides: a corrupt value must not
+   break the News tab, and the write must not throw on a full localStorage — see
+   the journal quota notes. It is a few KB, keyed by build. */
+function _nhSumLoad(){
+  try{ const j=JSON.parse(localStorage.getItem(NH_SUM_LS)||'null');
+       return (j&&j.gen&&j.data)?j:null; }catch(e){ return null; }
+}
+function _nhSumSave(gen,data){
+  try{ localStorage.setItem(NH_SUM_LS,JSON.stringify({gen,data})); }catch(e){}
+}
+
 const _tbNewsSummary = {
   gen:0,           // generatedAt of the build `data` describes
   data:null,       // the digest object from the worker
@@ -6733,12 +6746,21 @@ const _tbNewsSummary = {
   listeners:new Set(),
   sub(fn){ this.listeners.add(fn); return()=>this.listeners.delete(fn); },
   emit(){ this.listeners.forEach(fn=>{try{fn();}catch(e){}}); },
-  /* A build newer than what we hold makes the held digest obsolete. Drop it so
-     nothing can render yesterday's read over today's events. */
-  invalidate(gen){
-    if(gen&&gen!==this.gen&&this.data){ this.gen=0; this.data=null; this.error=''; this.emit(); }
+  /* Adopt whatever the last session left behind. The digest is keyed by build, so
+     restoring it is safe: if the feed has moved on, `gen` simply will not match
+     and nothing renders it. */
+  hydrate(){
+    if(this.data)return;
+    const j=_nhSumLoad();
+    if(j){ this.gen=j.gen; this.data=j.data; }
+  },
+  /* Record a digest against the build it describes, here and on disk. */
+  set(gen,data){
+    this.gen=gen; this.data=data; this.error='';
+    _nhSumSave(gen,data);
   },
 };
+_tbNewsSummary.hydrate();
 
 /* Fetch (or warm) the digest for one build.
    `background` is the warm fired when a build lands: it must never surface a
@@ -6759,7 +6781,13 @@ async function tbFetchNewsSummary(tickers,gen,background){
     S.warmedGen=gen;
   }
   S.inflight=true; S.loading=!background; S.error=''; if(!background)S.emit();
-  const url=NH_WORKER_URL+'/summary?tickers='+encodeURIComponent((tickers||NH_DEFAULT_TICKERS).join(','));
+  /* `gen` pins the request to the build on screen, so the worker can hand back
+     that build's cached digest by key WITHOUT needing its own copy of the news —
+     which expires after 6h while the feed stays on screen far longer. Without it
+     the worker answers "no build to summarize yet" for a summary it is still
+     holding. */
+  const url=NH_WORKER_URL+'/summary?gen='+encodeURIComponent(String(gen))
+    +'&tickers='+encodeURIComponent((tickers||NH_DEFAULT_TICKERS).join(','));
   let keepLoading=false;   // set only by the 202 path, which retries on a timer
   try{
     const r=await fetch(url);
@@ -6778,7 +6806,7 @@ async function tbFetchNewsSummary(tickers,gen,background){
       return;
     }
     if(j&&j.ok&&j.summary){
-      S.data=j.summary; S.gen=j.generatedAt||gen; S.error='';
+      S.set(j.generatedAt||gen, j.summary);
       return;
     }
     if(!background)S.error=(j&&j.reason)||'Could not build a summary right now.';
@@ -6814,7 +6842,11 @@ async function tbFetchNewsSummary(tickers,gen,background){
 function tbWarmNewsSummary(tickers,gen,events,degraded){
   if(!gen||!Array.isArray(events)||!events.length)return;
   if(degraded||events.every(e=>e&&e.aiAnalyzed===false))return;
-  _tbNewsSummary.invalidate(gen);
+  /* Deliberately does NOT discard the digest we already hold. It is keyed by the
+     build it describes and the overlay only renders it when that key matches, so
+     a mismatch is already invisible — while throwing it away meant a generatedAt
+     that changed and changed back (a Firebase echo, a re-adopted build) left the
+     summary permanently gone with no way to get it back short of a rebuild. */
   tbFetchNewsSummary(tickers,gen,true);
 }
 
