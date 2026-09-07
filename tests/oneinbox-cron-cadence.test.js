@@ -95,8 +95,12 @@ section('The stored state holds ONLY the once-a-day work');
   const body = SRC.slice(SRC.indexOf('async function runCron'));
   const end = body.indexOf('\n}\n');
   const fn = body.slice(0, end);
+  // Tests ASSIGNMENT, not mention: the cleanup below deliberately names these
+  // fields in order to delete them, and a substring check would read that as
+  // the very regression it is there to prevent.
   for (const gone of ['lastPoll', 'lastSnap', 'acctCursor']) {
-    t('state.' + gone + ' is no longer written', !fn.includes('state.' + gone),
+    t('state.' + gone + ' is no longer assigned',
+      !new RegExp('state\\.' + gone + '\\s*=[^=]').test(fn),
       'That is the 48 writes/day this change removes.');
   }
   // These must NOT be clock-gated: a daily job that fires at exactly one tick
