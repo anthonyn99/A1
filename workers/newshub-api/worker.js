@@ -3506,10 +3506,15 @@ async function handleStage(env, ctx, req, buildId, stage, sliceIdx){
 // So the digest lives on its own endpoint with its own fresh 50-subrequest
 // budget, and the CLIENT warms it in the background the moment a build lands —
 // which is what makes it "already there" when the overlay opens.
-const SUMMARY_TTL = 86400;   // 24h. Tiny doc, and the key is pinned to a single
-                             // build's generatedAt, so it can never go stale —
-                             // outliving the 6h news cache just means a build
-                             // you scroll back to still has its summary free.
+const SUMMARY_TTL = 7*86400; // 7 days. The key is pinned to one build's
+                             // generatedAt so it can never go stale, and the doc
+                             // is a few KB — so there is no reason for it to
+                             // expire before the build it describes stops being
+                             // the one on screen. It MUST outlive the 6h news
+                             // cache (CACHE_TTL) by a wide margin: the client
+                             // goes on showing a build from Firebase long after
+                             // the worker's copy of it is gone, and the digest
+                             // has to still be there when it does.
 const SUMMARY_LOCK_TTL = 90; // one generation is ~4-8s; this only stops two
                              // devices opening Summary at once from both paying.
 
@@ -4491,6 +4496,28 @@ export default {
       const sWl      = sCustom ? sTickers : WATCHLIST;
       const sNewsKey = sCustom ? 'events:v1:' + wlHash(sWl) : 'events:v1';
       const jsonHead = (extra) => ({ ...cors(), 'Content-Type':'application/json', ...(extra||{}) });
+      const modelOverride = url.searchParams.get('model') || '';
+      const noCache = url.searchParams.get('nocache') === '1' && !!modelOverride;
+
+      // ── Serve a already-built digest WITHOUT needing the news doc ───────────
+      // The caller tells us which build it is looking at (?gen=), so the cached
+      // digest can be fetched by key directly.
+      //
+      // This is what stops a summary from "disappearing" on its own. Everything
+      // below derives sGen by READING the news doc — but that doc lives 6h
+      // (CACHE_TTL) while a digest lives far longer, and the client keeps showing
+      // its build from Firebase long after the worker's copy has expired. So a
+      // few hours after a Force fresh, with the news still on screen, this
+      // endpoint would fall straight through to "No build to summarize yet" and
+      // report that nothing had ever been built — while the digest sat in KV the
+      // whole time under a key nobody could compute any more.
+      const genParam = parseInt(url.searchParams.get('gen') || '0', 10) || 0;
+      if (genParam && !noCache){
+        try {
+          const pinned = await env.NEWSHUB_CACHE.get(summaryCacheKey(sWl, genParam));
+          if (pinned) return new Response(pinned, { headers: jsonHead({ 'X-Cache':'HIT-PINNED' }) });
+        } catch(e){}
+      }
 
       // The build this digest describes.
       let news = null;
@@ -4509,8 +4536,6 @@ export default {
 
       const sGen = news.generatedAt || 0;
       const sKey = summaryCacheKey(sWl, sGen);
-      const modelOverride = url.searchParams.get('model') || '';
-      const noCache = url.searchParams.get('nocache') === '1' && !!modelOverride;
 
       if (!noCache){
         try {
