@@ -557,6 +557,15 @@
   async function decryptEnv(env) {
     var pass = lsGet(A1B.PASS_KEY);
     if (!pass) throw new Error('locked');
+    return decryptEnvWith(env, pass);
+  }
+
+  // Same, with the passphrase passed in rather than read from storage — so a
+  // CANDIDATE can be tested before it is stored. unlock() needs exactly that:
+  // storing first and checking afterwards is how a wrong passphrase gets a
+  // foothold, because every write between the two uses the wrong key.
+  async function decryptEnvWith(env, pass) {
+    if (!pass) throw new Error('locked');
     // Derive against the envelope's OWN salt and iteration count, not this
     // device's. Salts are per device, so using the local one would make every
     // backup readable only on the machine that wrote it — and a backup only
