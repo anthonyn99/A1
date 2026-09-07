@@ -12369,9 +12369,15 @@ function buildSchedule(T,league,ld){
   const panel=D({flex:1});
 
   if(!ld||!ld.schedule){
+    // Three different situations used to share one neutral sentence. "Waiting"
+    // and "the data service is unreachable" look identical to the reader, which
+    // is how an outage sits on screen looking like patience.
+    var msg, failed=league&&_pvLastError[league.id];
+    if(_syncing) msg='Fetching schedule…';
+    else if(failed) msg='Could not reach the schedule service. Retrying on the next refresh.';
+    else msg='Select a league or wait for data…';
     panel.appendChild(D({display:'flex',alignItems:'center',justifyContent:'center',
-      padding:'60px',color:T.txd,fontSize:13},
-      _syncing?'Fetching schedule…':'Select a league or wait for data…'));
+      padding:'60px',color:failed?'#e0a0a0':T.txd,fontSize:13,textAlign:'center'}, msg));
     return panel;
   }
 
