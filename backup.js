@@ -548,6 +548,23 @@
   // that expensive, not the absence of a check.
   var VERIFY_STATE = { NONE: 'none', MATCH: 'match', MISMATCH: 'mismatch', UNAVAILABLE: 'unavailable' };
 
+  // Does this passphrase OPEN this envelope? Only that question.
+  //
+  // Deliberately NOT decryptEnv(), which also parses the payload and checks the
+  // plaintext hash. Those are integrity checks on the CONTENT, and a corrupt
+  // backup would fail them with the correct key — which this would then report
+  // as "wrong passphrase", refusing someone entry to their own backups over a
+  // damaged file. AES-GCM authenticates on decrypt, so a wrong key cannot get
+  // this far: reaching the end IS the proof the key is right.
+  async function canOpenEnvelope(env, pass) {
+    try {
+      var kdf = env.kdf || {};
+      var key = await deriveKeyWith(pass, kdf.salt || getSalt(), kdf.iter || A1B.PBKDF2_ITER);
+      await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(env.iv) }, key, unb64(env.ct));
+      return true;
+    } catch (e) { return false; }
+  }
+
   async function verifyPassphrase(pass) {
     var checked = 0, reached = false;
 
