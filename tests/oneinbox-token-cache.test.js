@@ -204,11 +204,13 @@ t('the record carries a TTL so an abandoned deployment cleans itself up',
   /TOKS_KEY, JSON\.stringify\(merged\), \{ expirationTtl:/.test(SRC));
 }
 
-setTimeout(() => {
+main().then(() => {
+  wiring();
   console.log('\n' + '─'.repeat(64));
   if (failures.length) {
     console.log(failures.length + ' FAILED:\n  - ' + failures.join('\n  - '));
     process.exit(1);
   }
+  if (!pass) { console.log('NO CHECKS RAN — the harness is broken, not passing.'); process.exit(1); }
   console.log('All ' + pass + ' token-cache checks passed.');
-}, 50);
+}).catch((e) => { console.error(e); process.exit(1); });
