@@ -341,15 +341,65 @@ const publicAccount = (a) => ({
 // requests costs one refresh, not one per call.
 // ════════════════════════════════════════════════════════════════════════════
 
-const _memTok = new Map();   // per-isolate cache in front of KV
+// ── Gmail access-token cache: ONE key for every mailbox ─────────────────────
+// These tokens live an hour, so each mailbox needs refreshing ~24 times a day.
+// Held one-key-per-address that was 5 x 24 = 120 KV writes/day — 23% of the
+// ENTIRE account's 1,000/day write budget, spent on a cache. A cron tick polls
+// every mailbox in a single invocation, so the refreshes land together: holding
+// them in one record and committing it ONCE per run makes that ~24 instead.
+// Same shape as the AI budget counter below, for the same reason.
+//
+// This is a pure cache of SHORT-LIVED access tokens. The refresh tokens — the
+// thing that actually matters — live in `oi:acct:<email>` and are not touched
+// here. If this record is lost, stale or never written, the worst case is a
+// re-fetch from Google on the next call, which is why the flush is allowed to
+// be best-effort.
+const TOKS_KEY = 'oi:toks';
+const TOKS_REREAD_MS = 60_000;
+let _toks = null, _toksAt = 0, _toksDirty = false;
+
+async function loadToks(env) {
+  // Re-read at most once a minute per isolate. Tokens last an hour, so a
+  // minute-old view is never the reason one gets refreshed early, and reads are
+  // the abundant resource here (100k/day against ~5k used).
+  if (_toks && Date.now() - _toksAt < TOKS_REREAD_MS) return _toks;
+  try { _toks = (await env.OI_KV.get(TOKS_KEY, 'json')) || {}; }
+  catch { _toks = _toks || {}; }
+  _toksAt = Date.now();
+  return _toks;
+}
+
+// Commit any tokens this isolate refreshed. Called once per cron run and once
+// per request that touched Gmail — never per mailbox, which is the whole point.
+async function flushToks(env) {
+  if (!_toksDirty) return;
+  _toksDirty = false;
+  const nowSec = Math.floor(Date.now() / 1000);
+  try {
+    // Merge rather than overwrite: another isolate may have refreshed a
+    // different mailbox since this one loaded, and clobbering its entry would
+    // force a needless refresh — reintroducing the writes this exists to avoid.
+    const remote = (await env.OI_KV.get(TOKS_KEY, 'json')) || {};
+    const merged = { ...remote };
+    for (const [em, rec] of Object.entries(_toks || {})) {
+      // Later expiry == fresher token.
+      if (!merged[em] || (rec.exp || 0) > (merged[em].exp || 0)) merged[em] = rec;
+    }
+    // Drop what is already dead, so a disconnected mailbox cannot sit in here
+    // forever. The record is only ever as big as the live account list.
+    for (const em of Object.keys(merged)) {
+      if (!merged[em] || (merged[em].exp || 0) <= nowSec) delete merged[em];
+    }
+    _toks = merged; _toksAt = Date.now();
+    await env.OI_KV.put(TOKS_KEY, JSON.stringify(merged), { expirationTtl: 7 * 86400 });
+  } catch { /* next call re-refreshes; nothing is lost but a round trip */ }
+}
 
 async function gmailToken(env, email) {
   const nowSec = Math.floor(Date.now() / 1000);
-  const mem = _memTok.get(email);
-  if (mem && mem.exp > nowSec + 120) return mem.token;
-
-  const cached = await env.OI_KV.get('oi:tok:' + email, 'json');
-  if (cached && cached.exp > nowSec + 120) { _memTok.set(email, cached); return cached.token; }
+  const toks = await loadToks(env);
+  const cached = toks[email];
+  if (cached && cached.exp > nowSec + 120) return cached.token;
 
   const acct = await getAccount(env, email);
   if (!acct || !acct.refresh_token) throw new Error('account not connected: ' + email);
