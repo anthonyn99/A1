@@ -169,6 +169,14 @@ html,body{height:100%;}
    that is what left these two with a dim outline on hover while gold ones lit up.
    The active button keeps its purple fill, so it opts out. */
 #tony-app-nav .wr-btn:not(.tn-active):hover{color:#dbd0f5!important;border-color:#c0aeea!important;box-shadow:var(--glow-lilac);}
+/* In TaskHub the whole program row wears the app's own hairline (see the navBd
+   branch in _updateTonyNavActive), RiftIQ included, so the two header rows read
+   as one stack. It needs its own rule because RiftIQ is an injected custom
+   button: ensureTonyCustomBtns() adds it AFTER _updateTonyNavActive has already
+   written the resting border inline on everything else, so the lilac from the
+   .wr-btn rule above is all it ever gets. Its purple label and its purple hover
+   are untouched, and it stays lilac in every other Tony app. */
+body.th-nav-below-title #tony-app-nav .tn-btn.wr-btn:not(.tn-active){border-color:#34343a;}
 #tn-mobile-select option[value="warroom"]{color:#c0aeea!important;}
 #tony-app-nav .tn-btn.tn-active{
   background:transparent;color:var(--tn-ac,#c8a15f);
