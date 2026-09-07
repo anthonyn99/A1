@@ -71,6 +71,8 @@ const NOW = Math.floor(Date.now() / 1000);
 const tok = (name, ttl) => ({ token: 'tok-' + name, exp: NOW + (ttl === undefined ? 3600 : ttl) });
 const FIVE = ['a@x.com', 'b@x.com', 'c@x.com', 'd@x.com', 'e@x.com'];
 
+async function main() {
+
 /* ── 1. The actual saving ────────────────────────────────────────────────── */
 section('Five mailboxes refreshing costs ONE write, not five');
 {
@@ -78,7 +80,7 @@ section('Five mailboxes refreshing costs ONE write, not five');
   const kv = makeKV();
   const env = { OI_KV: kv };
 
-  (async () => {
+  {
     for (const e of FIVE) { await W.loadToks(env); W.stage(e, tok(e)); }
     await W.flushToks(env);
 
@@ -91,7 +93,7 @@ section('Five mailboxes refreshing costs ONE write, not five');
     t('the old per-mailbox key shape is gone from the source',
       !/['"]oi:tok:['"]|oi:tok:'\s*\+/.test(SRC),
       'A leftover oi:tok:<email> write would silently restore the 120/day cost.');
-  })();
+  }
 }
 
 /* ── 2. A warm cache must not write at all ───────────────────────────────── */
@@ -100,12 +102,12 @@ section('A cached token is reused without touching KV');
   const W = loadIsolate();
   const kv = makeKV({ 'oi:toks': JSON.stringify({ 'a@x.com': tok('a@x.com') }) });
   const env = { OI_KV: kv };
-  (async () => {
+  {
     const toks = await W.loadToks(env);
     t('the stored token is visible to the isolate', !!toks['a@x.com']);
     await W.flushToks(env);
     t('nothing dirty means nothing written', kv.writes === 0, kv.writes + ' write(s)');
-  })();
+  }
 }
 
 /* ── 3. The cross-isolate merge ──────────────────────────────────────────── */
@@ -115,7 +117,7 @@ section('Flushing merges rather than overwrites');
   // Isolate A loaded when the record was empty and refreshed a@x.com.
   const kv = makeKV();
   const env = { OI_KV: kv };
-  (async () => {
+  {
     await W.loadToks(env);
     W.stage('a@x.com', tok('a@x.com'));
 
@@ -127,7 +129,7 @@ section('Flushing merges rather than overwrites');
     t("another isolate's token survives", !!stored['b@x.com'],
       'Clobbering it forces a needless refresh -- the exact cost this removes.');
     t('this isolate\'s token is stored too', !!stored['a@x.com']);
-  })();
+  }
 }
 
 section('The fresher token wins a conflict');
@@ -135,14 +137,14 @@ section('The fresher token wins a conflict');
   const W = loadIsolate();
   const kv = makeKV();
   const env = { OI_KV: kv };
-  (async () => {
+  {
     await W.loadToks(env);
     W.stage('a@x.com', { token: 'older', exp: NOW + 100 });
     kv._raw.set('oi:toks', JSON.stringify({ 'a@x.com': { token: 'newer', exp: NOW + 3000 } }));
     await W.flushToks(env);
     const stored = JSON.parse(kv._raw.get('oi:toks'));
     t('later expiry is kept', stored['a@x.com'].token === 'newer', stored['a@x.com'].token);
-  })();
+  }
 }
 
 /* ── 4. The record cannot grow without bound ─────────────────────────────── */
@@ -151,7 +153,7 @@ section('Dead entries are pruned, so one record cannot become a landfill');
   const W = loadIsolate();
   const kv = makeKV();
   const env = { OI_KV: kv };
-  (async () => {
+  {
     await W.loadToks(env);
     W.stage('live@x.com', tok('live@x.com'));
     W.stage('expired@x.com', { token: 'dead', exp: NOW - 10 });
@@ -159,7 +161,7 @@ section('Dead entries are pruned, so one record cannot become a landfill');
     const stored = JSON.parse(kv._raw.get('oi:toks'));
     t('the expired entry is dropped', !stored['expired@x.com']);
     t('the live entry is kept', !!stored['live@x.com']);
-  })();
+  }
 }
 
 /* ── 5. Failure must degrade to a refresh, never to an error ─────────────── */
@@ -170,7 +172,7 @@ section('KV trouble costs a round trip, never a failed sync');
     async get() { throw new Error('KV unavailable'); },
     async put() { throw new Error('KV unavailable'); },
   } };
-  (async () => {
+  {
     let threw = null;
     try {
       const toks = await W.loadToks(env);
@@ -182,10 +184,13 @@ section('KV trouble costs a round trip, never a failed sync');
     t('a failed write does not propagate', threw === null,
       threw ? String(threw.message) : '',
       );
-  })();
+  }
+}
+
 }
 
 /* ── 6. Wiring: the flush has to actually be called ──────────────────────── */
+function wiring() {
 section('The commit is wired into every path that can refresh a token');
 t('the cron run flushes once at the end',
   /await flushToks\(env\);\s*\/\/ likewise: one write, not one per mailbox/.test(SRC),
@@ -197,6 +202,7 @@ t('disconnecting an account evicts its token',
   /delete toks\[a\.email\];[\s\S]{0,80}?flushToks\(env\)/.test(SRC));
 t('the record carries a TTL so an abandoned deployment cleans itself up',
   /TOKS_KEY, JSON\.stringify\(merged\), \{ expirationTtl:/.test(SRC));
+}
 
 setTimeout(() => {
   console.log('\n' + '─'.repeat(64));
