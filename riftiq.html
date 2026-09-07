@@ -991,9 +991,17 @@ body.wr-locked #wr-progbar { display: none !important; }
 
 #lookups-modal {
   display: none; position: fixed; inset: 0;
+  /* `inset:0` on a phone sizes to the LAYOUT viewport, which extends behind the
+     URL bar and the bottom toolbar — that is why the header and the last rows
+     were sliced off. `dvh` tracks the viewport you can actually see; the plain
+     `vh` line above it is the fallback for anything that doesn't know dvh. */
+  height: 100vh; height: 100dvh;
   background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
   align-items: center; justify-content: center; z-index: 1400;
-  padding: 24px;
+  /* The insets keep the card clear of a notch and the home indicator; the
+     browser's own chrome is already handled by dvh above. */
+  padding: calc(24px + env(safe-area-inset-top, 0px)) calc(24px + env(safe-area-inset-right, 0px))
+           calc(24px + env(safe-area-inset-bottom, 0px)) calc(24px + env(safe-area-inset-left, 0px));
   overscroll-behavior: contain;
 }
 /* The page behind an open overlay must not move. Same treatment ProView's
@@ -1010,13 +1018,18 @@ html.lk-open, body.lk-open {
 }
 .lk-box {
   background: var(--bg3); border: 1px solid var(--bd2); border-radius: 12px;
-  width: 620px; max-width: 100%; max-height: min(760px, 88vh);
+  width: 620px; max-width: 100%;
+  /* 100% of the overlay's content box, which the padding above has already
+     pulled inside the visible viewport. The old `88vh` measured the layout
+     viewport, so the card was taller than the screen it sat on. */
+  max-height: min(760px, 100%);
   display: flex; flex-direction: column; overflow: hidden;
   box-shadow: 0 60px 120px rgba(0,0,0,0.7), 0 0 0 1px rgba(192,174,234,0.12);
 }
+/* The three chrome rows keep their size; the list below takes the rest. */
 .lk-hdr {
   display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
-  padding: 22px 24px 16px; border-bottom: 1px solid var(--bd);
+  padding: 22px 24px 16px; border-bottom: 1px solid var(--bd); flex-shrink: 0;
 }
 .lk-title { font-family: var(--head); font-size: 17px; font-weight: 800; color: var(--tx); }
 .lk-sub   { font-family: var(--body); font-size: 12px; color: var(--tx3); margin-top: 4px; }
@@ -1026,7 +1039,7 @@ html.lk-open, body.lk-open {
   cursor: pointer; font-size: 12px; line-height: 1; transition: all 0.15s;
 }
 .lk-close:hover { border-color: var(--red); color: var(--red); }
-.lk-tools { display: flex; gap: 10px; padding: 14px 24px 0; }
+.lk-tools { display: flex; gap: 10px; padding: 14px 24px 0; flex-shrink: 0; }
 .lk-search {
   flex: 1; height: 34px; padding: 0 12px;
   background: var(--bg4); border: 1px solid var(--bd2); border-radius: 4px;
@@ -1043,11 +1056,15 @@ html.lk-open, body.lk-open {
 .lk-check:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
 .lk-check:disabled { opacity: 0.55; cursor: default; }
 .lk-note {
-  padding: 8px 24px 0; min-height: 22px;
+  padding: 8px 24px 0; min-height: 22px; flex-shrink: 0;
   display: flex; align-items: center; flex-wrap: wrap;
   font-family: var(--mono); font-size: 10px; letter-spacing: 0.3px; color: var(--gold);
 }
 .lk-body {
+  /* flex:1 + min-height:0 is what makes this the only scroller: without the
+     min-height a flex item refuses to shrink below its content, so the list
+     pushed the card past the screen and its last rows became unreachable. */
+  flex: 1 1 auto; min-height: 0;
   overflow-y: auto; padding: 10px 24px 24px;
   overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
   touch-action: pan-y;   /* the list itself still scrolls under the lock above */
@@ -1166,11 +1183,20 @@ html.lk-open, body.lk-open {
 #lk-toast b { color: var(--tx); }
 
 @media (max-width: 560px) {
-  .lk-box { max-height: 92vh; }
-  .lk-hdr { padding: 18px 16px 14px; }
+  /* Tighter gutters so the card is not squeezed, and it may use every pixel
+     the overlay leaves it — the overlay is now the thing that knows where the
+     browser chrome is. */
+  #lookups-modal {
+    padding: calc(10px + env(safe-area-inset-top, 0px)) calc(10px + env(safe-area-inset-right, 0px))
+             calc(10px + env(safe-area-inset-bottom, 0px)) calc(10px + env(safe-area-inset-left, 0px));
+  }
+  .lk-box { max-height: 100%; width: 100%; }
+  .lk-hdr { padding: 16px 16px 12px; }
   .lk-tools { padding: 12px 16px 0; }
-  .lk-note { padding: 8px 16px 0; }
-  .lk-body { padding: 8px 16px 18px; }
+  .lk-note { padding: 6px 16px 0; min-height: 0; }
+  /* The extra bottom padding is scroll runway: it guarantees the last row can
+     be brought fully clear of the card's edge. */
+  .lk-body { padding: 8px 16px 24px; }
   /* Meta stays on ONE line here. Stacked, it made every row ~100px tall and
      turned a six-account list into a scroll — the opposite of the point. */
   .lk-meta { gap: 8px; font-size: 9.5px; }
