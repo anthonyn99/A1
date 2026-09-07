@@ -195,8 +195,17 @@ async function main() {
   {
     const vm = require('vm');
     // One envelope, encrypted with TONY, served as another device's snapshot.
+    //
+    // Its PAYLOAD is deliberately not a valid A1Backup body — {d,h} with a hash
+    // that does not match. That is the case that caught a real bug: the guard
+    // first used decryptEnv(), which also verifies the plaintext hash, so a
+    // CORRECT passphrase on a corrupt backup was reported as the wrong
+    // passphrase — locking someone out of their own backups over a damaged
+    // file. A wrong key cannot decrypt at all (AES-GCM authenticates), so the
+    // unwrap succeeding is the whole proof; the payload is not the guard's
+    // business. Keep this payload invalid, it is the regression.
     const salt = b64(webcrypto.getRandomValues(new Uint8Array(16)));
-    const stored = await makeEnvelope(JSON.stringify({ d: 'x', h: 'y' }), TONY, salt);
+    const stored = await makeEnvelope(JSON.stringify({ d: 'x', h: 'not-the-hash' }), TONY, salt);
 
     function boot() {
       const store = {};
