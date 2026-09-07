@@ -892,6 +892,14 @@
     var out = {
       locked: !lsGet(A1B.PASS_KEY),
       killed: killed(),
+      // How the passphrase in force was last proven: 'match' opened an existing
+      // backup, 'none' had nothing to check against (genuine first run),
+      // 'overridden' means someone deliberately started a fresh history and the
+      // older backups need the OLD passphrase.
+      //
+      // Outside the try below on purpose — that block reads the vault, and a
+      // vault error must not be able to hide how the passphrase was verified.
+      passphraseVerified: _lastVerify,
       gatesOpen: gatesOpen(),
       observed: Object.keys(observed).length,
       dirty: _dirty
@@ -907,11 +915,6 @@
       out.pushedOffDevice = out.lastPushedAt != null && String(out.lastPushedAt) === String(out.lastSnapshot);
       out.pushesToday = pushesToday();
       out.device = deviceSlug();
-      // How the passphrase in use was last proven. 'match' means it opened an
-      // existing backup; 'none' means there was nothing to check it against
-      // (genuine first run); 'overridden' means someone deliberately started a
-      // fresh history and the older backups need the OLD passphrase.
-      out.passphraseVerified = _lastVerify;
     } catch (e) { out.vaultError = String(e && (e.message || e)); }
     return out;
   }
