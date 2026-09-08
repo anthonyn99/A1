@@ -181,7 +181,12 @@ if (route) {
   ok('routing writes nothing and converts nothing',
     !/idbPut|_fbViz|setDoc|localStorage|saveState|entry\.data\s*=/.test(route), route);
 }
-ok('maps read from the local cache are routed', /state\.entries\.forEach\(entry => \{\n\s*_bjLegacyTemplate\(entry\);/.test(src));
+// \s* rather than \n\s*: index.html is stored LF but core.autocrlf checks it out
+// as CRLF on Windows, and a regex demanding a bare \n straight after the `{` can
+// never match `{\r\n` — this assertion was red on every Windows checkout no
+// matter what the code it guards did. \s* still pins the call to the first
+// statement in the block, which is the part worth asserting.
+ok('maps read from the local cache are routed', /state\.entries\.forEach\(entry => \{\s*_bjLegacyTemplate\(entry\);/.test(src));
 ok('maps arriving from another device are routed the same way',
   /remoteById\[remoteEntry\.id\] = true;[\s\S]{0,300}?_bjLegacyTemplate\(remoteEntry\);/.test(src));
 ok('the legacy template has its own attachments and drop zone',

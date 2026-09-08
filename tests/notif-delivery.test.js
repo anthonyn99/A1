@@ -345,9 +345,17 @@ function finish() {
     'a push from an older worker still gets the strict reminder gate',
     /const kind  = d\.kind \|\| 'reminder';/.test(sw)
   );
+  // The guarantee is that no device can still be running a worker from before the
+  // event-scope change — not that this string never moves again. Pinning the
+  // exact value meant the assertion went red the first time someone legitimately
+  // bumped it (it read 2026-09-05-unmain-neutral by the time anyone looked),
+  // which is precisely how a suite teaches people to ignore its red. Assert the
+  // floor instead; the date prefix sorts lexicographically.
+  const swv = /const SW_VERSION = '(\d{4}-\d{2}-\d{2})[^']*';/.exec(sw);
   check(
-    'the service worker version was bumped so devices pick this up',
-    /const SW_VERSION = '2026-08-20-event-scope';/.test(sw)
+    'the service worker version is at or past the event-scope bump, so devices pick it up',
+    !!swv && swv[1] >= '2026-08-20',
+    swv ? 'SW_VERSION = ' + swv[1] : 'no dated SW_VERSION found'
   );
 
   console.log('\n' + '─'.repeat(64));
