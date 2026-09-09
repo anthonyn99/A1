@@ -5485,6 +5485,26 @@ async function loadDDragonData() {
 function champIconUrl(champId) {
   return `${DDRAGON}/img/champion/${champId}.png`;
 }
+// champion-mastery-v4 does not only return the 173 ids DDragon knows about. It
+// also returns a 60000+ band — 60041, 60103, 60117 and about sixty more — which
+// are Riot's alternate 'Jade_' entries for champions that already exist
+// (Jade_Gangplank, Jade_Ahri, Jade_Lulu). DDragon's champion.json has no row for
+// any of them, so a plain key lookup came back empty and the mastery card fell
+// through to printing the raw id: a 60041.png DDragon does not serve, the word
+// "60041" where the name goes, and a click that asked for champion/60041.json
+// and 404'd. The band is a flat offset, 60000 + the real champion id, so strip
+// it and resolve the base champion. One resolver for every id Riot hands us.
+const ALT_CHAMP_OFFSET = 60000;
+function champByRiotId(id) {
+  const n = parseInt(id, 10);
+  if (!isFinite(n)) return null;
+  const vals = Object.values(allChamps || {});
+  return vals.find(function(c){ return parseInt(c.key, 10) === n; })
+      || (n > ALT_CHAMP_OFFSET
+            ? vals.find(function(c){ return parseInt(c.key, 10) === n - ALT_CHAMP_OFFSET; })
+            : null)
+      || null;
+}
 // match-v5's `championName` is DDragon's KEY — "XinZhao", "LeeSin", "MonkeyKing",
 // "Nunu" — not the name a player reads. DDragon's own `name` field is the display
 // form ("Xin Zhao", "Lee Sin", "Wukong", "Nunu & Willump"), so look it up there
@@ -5680,9 +5700,11 @@ function renderStatsSection(matches) {
 // One card renderer for both the inline top-10 and the full overlay, so the
 // two can never drift apart visually.
 function masteryCardHtml(m) {
-  const champKey = Object.values(allChamps).find(c => parseInt(c.key) === m.championId);
+  const champKey = champByRiotId(m.championId);
   const cId = champKey ? champKey.id : String(m.championId);
   const cName = champKey ? champKey.name : cId;
+  // Resolved off the 60000+ band: same champion, a separate mastery record.
+  const isAlt = !!champKey && parseInt(champKey.key, 10) !== m.championId;
   const pts = m.championPoints.toLocaleString();
   const lvl = m.championLevel;
   // Tiered badge colours: Mythic(10+), Gold(7-9), Platinum(5-6), Green(3-4), Grey(1-2)
@@ -5691,7 +5713,11 @@ function masteryCardHtml(m) {
                    : lvl >= 5  ? '#9fc4dd'
                    : lvl >= 3  ? '#a4b986'
                    :             '#adadb2';
-  return `<div class="mastery-card" style="cursor:pointer;" onclick="openChampOverlay('${cId}')">
+  // An id that resolves to nothing is left inert rather than wired to an
+  // overlay that can only 404 — the card still shows what Riot reported.
+  const open = champKey ? ` style="cursor:pointer;" onclick="openChampOverlay('${cId}')"` : '';
+  const tip  = isAlt ? ` title="Riot's alternate mastery entry for ${cName} (champion ${m.championId})"` : '';
+  return `<div class="mastery-card"${open}${tip}>
       <img src="${champIconUrl(cId)}" alt="${cName}" onerror="this.style.opacity=0.3">
       <div class="champ-name">${cName}</div>
       <div class="mastery-pts">${pts}</div>
@@ -6497,7 +6523,7 @@ function renderLiveGame(game, el) {
       '<span>' + wrIco('dot',9,'color:'+(isBlue?'#8fa6d8':'#d68a7c')+';')+(isBlue?' Blue':' Red') + '</span><span>Spells</span><span>Runes</span><span>Rank</span></div>';
     team.forEach(function(p) {
       const isMe = p.puuid === summoner.puuid;
-      const champObj = Object.values(allChamps).find(c => parseInt(c.key)===p.championId);
+      const champObj = champByRiotId(p.championId);
       const cName = champObj ? champObj.id : 'Unknown';
       const spellKeys = {};
       if (allSummonerSpells && allSummonerSpells.length) allSummonerSpells.forEach(s => { spellKeys[parseInt(s.key)]=s; });
@@ -9960,7 +9986,7 @@ function renderSpectateGame(game, targetPuuid, name, tag) {
 
     team.forEach(function(p) {
       const isTarget = p.puuid === targetPuuid;
-      const champObj = Object.values(allChamps).find(c => parseInt(c.key) === p.championId);
+      const champObj = champByRiotId(p.championId);
       const cName = champObj ? champObj.id : 'Unknown';
       const spellKeys = {};
       (allSummonerSpells||[]).forEach(function(s){ spellKeys[parseInt(s.key)] = s; });
