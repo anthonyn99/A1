@@ -111,3 +111,66 @@ def test_normalise_newlines_handles_every_line_ending():
     assert humanize.normalise_newlines("a\nb") == "a\nb"
     # Blank lines survive: the synthesis prompt's paragraph breaks depend on it.
     assert humanize.normalise_newlines("a\r\n\r\nb") == "a\n\nb"
+
+
+class FakeSubmit:
+    """A send button. `inert` clicks cleanly but does not actually send."""
+
+    def __init__(self, inert: bool = False, raises: bool = False):
+        self.inert, self.raises, self.clicks = inert, raises, 0
+
+    async def click(self, timeout: int = 0) -> None:
+        self.clicks += 1
+        if self.raises:
+            raise RuntimeError("not clickable")
+
+
+class FakeComposer:
+    """Empties when the send registers, the way these UIs acknowledge one."""
+
+    def __init__(self, submit: FakeSubmit, text: str = "the prompt"):
+        self.submit, self.text = submit, text
+
+    async def inner_text(self) -> str:
+        sent = self.submit.clicks > 0 and not self.submit.inert
+        return "" if sent else self.text
+
+
+@pytest.mark.asyncio
+async def test_a_working_send_button_is_not_double_sent():
+    page, pacing = FakePage(), Pacing(pre_send_pause_s=(0, 0))
+    submit = FakeSubmit()
+    await humanize.send(page, submit, "Enter", pacing, composer=FakeComposer(submit))
+    assert submit.clicks == 1
+    assert "Enter" not in page.keyboard.pressed, "the click worked; Enter would send twice"
+
+
+@pytest.mark.asyncio
+async def test_an_inert_send_button_falls_back_to_enter():
+    """A click can succeed and still not send.
+
+    Playwright resolves a click as soon as the event is dispatched, so a button
+    whose handler is not wired yet reports success while the prompt stays in the
+    box. Gemini timed out this way -- "0 turns, text unchanged" after 45s -- and
+    it only surfaced once a CRLF prompt stopped pressing Enter by accident.
+    """
+    page, pacing = FakePage(), Pacing(pre_send_pause_s=(0, 0))
+    submit = FakeSubmit(inert=True)
+    await humanize.send(page, submit, "Enter", pacing, composer=FakeComposer(submit))
+    assert submit.clicks == 1
+    assert page.keyboard.pressed == ["Enter"], "an unsent prompt must fall back to Enter"
+
+
+@pytest.mark.asyncio
+async def test_a_click_that_raises_still_falls_back_to_enter():
+    page, pacing = FakePage(), Pacing(pre_send_pause_s=(0, 0))
+    submit = FakeSubmit(raises=True)
+    await humanize.send(page, submit, "Enter", pacing, composer=FakeComposer(submit))
+    assert page.keyboard.pressed == ["Enter"]
+
+
+@pytest.mark.asyncio
+async def test_no_send_button_presses_enter():
+    page, pacing = FakePage(), Pacing(pre_send_pause_s=(0, 0))
+    await humanize.send(page, None, "Enter", pacing, composer=None)
+    assert page.keyboard.pressed == ["Enter"]

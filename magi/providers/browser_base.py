@@ -232,6 +232,10 @@ class BrowserProvider(Provider):
                     submit.locator.first if submit else None,
                     site.send_key,
                     self.settings.pacing,
+                    # Passed so the click can be CONFIRMED: a present-but-inert
+                    # send button reports a successful click while leaving the
+                    # prompt in the box, and the fallback Enter never ran.
+                    composer=box.locator.first,
                 )
                 await self._emit(on_event, ProviderState.WAITING, started=t0)
 
@@ -241,9 +245,22 @@ class BrowserProvider(Provider):
                         on_event, ProviderState.STREAMING, text=text, started=t0
                     )
 
-                result = await completion.wait_for_completion(
-                    page, site, baseline=baseline, on_progress=on_progress, cancel=cancel
-                )
+                # Artifacts are captured HERE, inside the browser context, not
+                # in the `except ProviderError` at the bottom of this method --
+                # that handler runs after `async with launcher.launch(...)` has
+                # already torn the browser down, so there is no page left to
+                # photograph. Every timeout therefore recorded artifacts: [],
+                # which is precisely the failure where a screenshot is the only
+                # way to tell "the send never registered" from "the site
+                # redesigned its answer container".
+                try:
+                    result = await completion.wait_for_completion(
+                        page, site, baseline=baseline,
+                        on_progress=on_progress, cancel=cancel,
+                    )
+                except ProviderError as e:
+                    artifacts = await self._save_artifacts(page, str(e.kind))
+                    raise
 
                 # Strip UI chrome (citation pills, injected ads) before this text
                 # can reach the synthesis prompt.

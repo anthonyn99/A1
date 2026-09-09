@@ -146,18 +146,59 @@ def _chunks(text: str, lo: int = 18, hi: int = 60):
         i += n
 
 
-async def send(page: Page, submit: Locator | None, send_key: str, pacing: Pacing) -> None:
+async def _composer_emptied(composer: Locator, timeout_s: float = 2.5) -> bool:
+    """True if the composer cleared, which is how these UIs acknowledge a send.
+
+    Site-agnostic on purpose: ChatGPT, Claude, Gemini and DeepSeek all empty the
+    box on submit, and none of them exposes a "sent" event we could read.
+    """
+    deadline = asyncio.get_event_loop().time() + timeout_s
+    while asyncio.get_event_loop().time() < deadline:
+        try:
+            if not (await composer.inner_text()).strip():
+                return True
+        except Exception:
+            # The composer can be re-rendered out from under us on submit,
+            # which is itself a sign the send landed.
+            return True
+        await asyncio.sleep(0.2)
+    return False
+
+
+async def send(
+    page: Page,
+    submit: Locator | None,
+    send_key: str,
+    pacing: Pacing,
+    composer: Locator | None = None,
+) -> None:
     """Submit the prompt, preferring a real click on the send button.
 
     Enter is the fallback: on several of these sites Enter inserts a newline
     when a composer plugin is active, so a visible send button is more reliable
     when one is present.
+
+    A click that raises is not the only way sending fails. Playwright's click
+    resolves as soon as the event is dispatched, so a button that is present but
+    inert -- Angular has not wired its handler yet, an overlay swallowed the
+    event, the framework re-rendered mid-click -- reports SUCCESS while the
+    prompt just sits in the box. The old code returned there and never tried
+    Enter, so the run waited out its 45s stall timeout and failed with "0 turns,
+    text unchanged".
+
+    That went unnoticed for as long as it did because a CRLF prompt was pressing
+    Enter on its own (see normalise_newlines): fixing that removed the accidental
+    send this path had been leaning on, and Gemini started timing out. So the
+    click is now CONFIRMED against the composer emptying, and Enter still runs
+    when it did not.
     """
     await asyncio.sleep(pacing.sample_pre_send())
     if submit is not None:
         try:
             await submit.click(timeout=5000)
-            return
+            if composer is None or await _composer_emptied(composer):
+                return
+            # Click landed but the prompt is still sitting there -- fall through.
         except Exception:
             pass  # fall through to the key press
     await page.keyboard.press(send_key)
