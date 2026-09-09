@@ -1001,6 +1001,150 @@ table.doctor code { color: var(--txd); font-size: 11px; }
 @keyframes spin { to { transform: rotate(360deg) } }
 
 
+   the content area, as one full-width panel. Same hard-edged block language
+   as .node and .verdict (2px radius, coloured left accent) so it reads as
+   part of this console rather than a pasted-in widget. */
+.studio-view {
+  background: var(--s1);
+  border: 1px solid var(--bd);
+  border-left: 3px solid var(--sa, var(--ac));
+  border-radius: 2px;
+  margin-bottom: 14px;
+  overflow: hidden;
+  animation: rise .3s ease-out;
+}
+.studio-view-hd {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 9px 12px; border-bottom: 1px solid var(--bd);
+  background: color-mix(in srgb, var(--sa, var(--ac)) 8%, transparent);
+}
+.studio-view-ic { font-size: 13px; color: var(--sa, var(--ac)); flex-shrink: 0; }
+.studio-view-title {
+  font-size: 11px; font-weight: 700; letter-spacing: 2.2px;
+  text-transform: uppercase; color: var(--tx);
+}
+.studio-view-status { color: var(--txm); font-size: 10.5px; letter-spacing: .3px; }
+.studio-view-body { padding: 14px 16px 18px; }
+
+.studio-regen {
+  margin-top: 10px; background: transparent; color: var(--txm); border: 1px solid var(--bd);
+  border-radius: 4px; padding: 4px 10px; font-family: inherit; font-size: 10px;
+  letter-spacing: .5px; text-transform: uppercase; cursor: pointer; transition: all .15s;
+}
+.studio-regen:hover { border-color: var(--ac); color: var(--ac); }
+
+.studio-raw {
+  white-space: pre-wrap; word-break: break-word; font-size: 11.5px;
+  color: var(--txd); margin: 8px 0 0; max-height: 300px; overflow-y: auto;
+}
+
+/* ── Data Table card ── */
+.studio-tablewrap { overflow-x: auto; margin-top: 8px; }
+.studio-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.studio-table th {
+  text-align: left; color: var(--acl); font-size: 9px; font-weight: 700;
+  letter-spacing: 1.2px; text-transform: uppercase; padding: 6px 9px;
+  border-bottom: 1px solid var(--bd);
+}
+.studio-table td { padding: 6px 9px; border-bottom: 1px solid var(--bd); color: var(--txd); }
+.studio-table tr:last-child td { border-bottom: none; }
+
+/* ── Flashcards card ── */
+.flashcards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+@media (max-width: 560px) { .flashcards { grid-template-columns: 1fr; } }
+.flashcard {
+  background: transparent; border: none; padding: 0; cursor: pointer;
+  perspective: 800px; height: 92px; font-family: inherit;
+}
+.flashcard-inner {
+  position: relative; width: 100%; height: 100%;
+  transform-style: preserve-3d; transition: transform .4s;
+}
+.flashcard.flipped .flashcard-inner { transform: rotateY(180deg); }
+.flashcard-face {
+  position: absolute; inset: 0; backface-visibility: hidden;
+  border: 1px solid var(--bd); border-radius: 3px; padding: 10px 11px;
+  display: flex; align-items: center; font-size: 12px; line-height: 1.4;
+  text-align: left; overflow-y: auto;
+}
+.flashcard-front { background: var(--s2); color: var(--tx); font-weight: 600; }
+.flashcard-back { background: color-mix(in srgb, var(--grn) 9%, var(--s2)); color: var(--txd); transform: rotateY(180deg); }
+
+/* ── Quiz card ── */
+.quiz { display: flex; flex-direction: column; gap: 14px; margin-top: 8px; }
+.quiz-q-text { font-size: 12.5px; color: var(--tx); font-weight: 600; margin-bottom: 7px; }
+.quiz-options { display: flex; flex-direction: column; gap: 5px; }
+.quiz-opt {
+  display: flex; align-items: baseline; gap: 8px; text-align: left;
+  background: var(--s2); border: 1px solid var(--bd); border-radius: 3px;
+  padding: 6px 9px; font-family: inherit; font-size: 11.5px; color: var(--txd); cursor: pointer;
+  transition: all .15s;
+}
+.quiz-opt:hover:not(:disabled) { border-color: var(--ac); }
+.quiz-opt:disabled { cursor: default; }
+.quiz-opt.correct { border-color: var(--grn); color: var(--grn); background: rgba(93,175,109,.08); }
+.quiz-opt.incorrect { border-color: var(--red); color: var(--red); background: rgba(248,81,73,.08); }
+.quiz-opt-letter {
+  font-weight: 700; color: var(--acl); flex-shrink: 0; width: 14px;
+}
+.quiz-why { margin-top: 6px; font-size: 11px; color: var(--txm); padding-left: 2px; }
+
+/* ── Mind Map card ── */
+.mindmap { position: relative; display: flex; align-items: center; gap: 26px; padding: 10px 4px; overflow-x: auto; }
+.mm-links { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+.mm-link { stroke: var(--bd); stroke-width: 1.3; fill: none; }
+.mm-root {
+  position: relative; z-index: 1; flex-shrink: 0;
+  background: color-mix(in srgb, var(--ac) 16%, var(--s2)); border: 1px solid var(--ac);
+  border-radius: 3px; padding: 9px 13px; font-size: 12px; font-weight: 700; color: var(--tx);
+  max-width: 160px;
+}
+.mm-branches { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 10px; }
+.mm-col { display: flex; align-items: center; gap: 20px; }
+.mm-node {
+  background: var(--s2); border: 1px solid var(--bd); border-radius: 3px;
+  padding: 6px 10px; font-size: 11px; color: var(--txd); max-width: 150px; white-space: normal;
+}
+.mm-children { display: flex; flex-direction: column; gap: 8px; }
+
+/* ── Slide Deck card ── */
+.slidedeck { margin-top: 8px; }
+.slide {
+  background: var(--s2); border: 1px solid var(--bd); border-radius: 3px;
+  padding: 18px 20px; min-height: 140px;
+}
+.slide-title { font-size: 14px; font-weight: 700; color: var(--tx); margin-bottom: 10px; }
+.slide-bullets { padding-left: 18px; margin: 0; }
+.slide-bullets li { font-size: 12px; color: var(--txd); margin-bottom: 6px; }
+.slide-nav {
+  display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 10px;
+}
+.slide-nav button {
+  background: transparent; border: 1px solid var(--bd); color: var(--txd);
+  border-radius: 4px; width: 26px; height: 26px; cursor: pointer; font-family: inherit;
+}
+.slide-nav button:hover:not(:disabled) { border-color: var(--ac); color: var(--ac); }
+.slide-nav button:disabled { opacity: .35; cursor: not-allowed; }
+.slide-count { font-size: 10.5px; color: var(--txm); letter-spacing: .5px; }
+
+/* ── Audio Overview card ── */
+.audio-overview { margin-top: 8px; }
+.audio-controls { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.audio-note { color: var(--txm); font-size: 10.5px; }
+.audio-transcript {
+  max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;
+}
+.audio-line {
+  font-size: 12px; color: var(--txd); line-height: 1.5; padding: 4px 6px; border-radius: 3px;
+}
+.audio-line.speaking { background: color-mix(in srgb, var(--ac) 10%, transparent); color: var(--tx); }
+.audio-speaker {
+  display: inline-block; font-size: 9px; font-weight: 700; letter-spacing: .8px;
+  text-transform: uppercase; margin-right: 8px; padding: 1px 6px; border-radius: 2px;
+}
+.audio-speaker.host-a { color: var(--ac); background: color-mix(in srgb, var(--ac) 16%, transparent); }
+.audio-speaker.host-b { color: var(--acl); background: color-mix(in srgb, var(--acl) 16%, transparent); }
+
 /* ── link status ──────────────────────────────────────────────────────────
    New in the A1 port, and the one piece of UI the React build had no need
    for. There, the backend url was compiled into the bundle, so the page could
@@ -1119,9 +1263,18 @@ table.doctor code { color: var(--txd); font-size: 11px; }
         </button>
       </div>
 
+      <div class="side-sec" id="studioSec">
+        <div class="side-sec-hd">Studio</div>
+        <div class="side-sec-note" id="studioNote">Available once a verdict is reached.</div>
+        <!-- rows injected by renderStudioNav() -->
+        <div class="side-item disabled" title="No video generation surface exists through browser-automated chat UIs.">
+          <span class="side-ic studio-ic">▶</span><span class="side-label">Video</span><span class="side-tag">—</span>
+        </div>
+      </div>
+
       <div class="side-sec">
         <div class="side-sec-hd">Not yet ported</div>
-        <div class="side-sec-note">Brainstorm and Studio still live in the Python engine — their consoles are the next thing to build here.</div>
+        <div class="side-sec-note">Brainstorm still lives in the Python engine — its console is the next thing to build here.</div>
       </div>
     </nav>
 
@@ -1164,6 +1317,18 @@ table.doctor code { color: var(--txd); font-size: 11px; }
     <div class="drawer" id="doctorDrawer" hidden>
       <div class="drawer-hd" id="doctorHd">Selector doctor</div>
       <div id="doctorBody"></div>
+    </div>
+
+    <div class="studio-view" id="studioView" hidden>
+      <div class="studio-view-hd">
+        <span class="studio-view-ic" id="studioIc"></span>
+        <span class="studio-view-title" id="studioTitle"></span>
+        <span class="studio-view-status" id="studioStatus"></span>
+        <span class="qbar-spacer"></span>
+        <button type="button" class="navitem" id="studioRegen" hidden><span class="navitem-ic">↻</span>Regenerate</button>
+        <button type="button" class="navitem" id="studioClose"><span class="navitem-ic">✕</span>Close</button>
+      </div>
+      <div class="studio-view-body" id="studioBody"></div>
     </div>
 
     <div class="magi" id="magi" hidden>
@@ -2039,8 +2204,9 @@ window.addEventListener("resize", () => requestAnimationFrame(drawLinks));
 function renderVerdict() {
   const n = $("verdict");
   const v = S.verdict;
-  show(n, !!v && S.view === "council");
-  if (!v || S.view !== "council") return;
+  const studioOpen = !!(S.studio && S.studio.active);
+  show(n, !!v && S.view === "council" && !studioOpen);
+  if (!v || S.view !== "council" || studioOpen) return;
   n.textContent = "";
 
   const hd = el("div", "verdict-hd");
@@ -2283,6 +2449,8 @@ async function start() {
       endRun();
       renderVerdict();
       loadHistory();
+      // A verdict is what Studio derives from, so its rows unlock here.
+      renderStudioNav();
       // Slightly after the processing loop stops, so the two don't overlap.
       if (!S.muted) setTimeout(msg.synthesis_ok ? beepResolved : beepBlocked, 180);
     } else if (msg.type === "error") {
@@ -2347,6 +2515,9 @@ function newRun() {
   setErr("attachError", null);
   setErr("refineError", null);
   renderChips();
+  // A new run has none of the previous run's artifacts, and leaving them on
+  // screen would attribute one verdict's material to another.
+  resetStudio();
   setView("council");
 }
 
@@ -2411,9 +2582,11 @@ async function openRun(id) {
       reason: a.degraded_reason || "", chars: a.char_count || 0,
     })),
   } : null;
+  resetStudio();
   setView("council");
   renderGrid();
   renderVerdict();
+  loadStudio();
 }
 
 /* ══ doctor ════════════════════════════════════════════════════════════════ */
@@ -2513,15 +2686,26 @@ function renderDoctor(data) {
    could both be open, stacking two panels above the console. */
 function setView(v) {
   S.view = v;
+  // Leaving the council view closes any open Studio card. Otherwise History
+  // would render UNDER a slide deck, which is how two panels ended up stacked
+  // in the first place.
+  if (v !== "council" && S.studio) S.studio.active = null;
+  const studioOpen = !!(S.studio && S.studio.active);
+
+  show($("studioView"), studioOpen);
   show($("historyDrawer"), v === "history");
   show($("doctorDrawer"), v === "doctor");
-  $("navCouncil").classList.toggle("active", v === "council");
+  $("navCouncil").classList.toggle("active", v === "council" && !studioOpen);
   $("navHistory").classList.toggle("active", v === "history");
   $("navDoctor").classList.toggle("active", v === "doctor");
-  show($("magi"), S.panels.length > 0);
-  show($("emptyState"), S.panels.length === 0 && v === "council" && !S.verdict);
+  // An open card replaces the grid and the verdict rather than sitting above
+  // them: showing both at once is what made this page a scroll.
+  show($("magi"), S.panels.length > 0 && v === "council" && !studioOpen);
+  show($("emptyState"),
+       S.panels.length === 0 && v === "council" && !S.verdict && !studioOpen);
   renderVerdict();
-  if (S.panels.length) requestAnimationFrame(drawLinks);
+  if (typeof renderStudioNav === "function") renderStudioNav();
+  if (S.panels.length && !studioOpen) requestAnimationFrame(drawLinks);
 }
 
 /* ══ units ═════════════════════════════════════════════════════════════════ */
@@ -2555,6 +2739,9 @@ function applyNav() {
   $("navToggle").setAttribute("aria-expanded", String(!S.navCollapsed));
   $("navToggle").title = S.navCollapsed ? "Expand sidebar" : "Collapse sidebar";
   try { localStorage.setItem("magi.nav.collapsed", S.navCollapsed ? "1" : "0"); } catch {}
+  // Collapsed rows carry their label in the tooltip instead, so the Studio
+  // rows have to be redrawn with the other title text.
+  if (typeof renderStudioNav === "function") renderStudioNav();
   // The council wiring is measured from real element positions, so the sidebar
   // changing width invalidates it. The delay matches the grid's transition.
   setTimeout(drawLinks, 220);
@@ -2607,6 +2794,527 @@ qbar.addEventListener("drop", (e) => {
   if (!S.running && e.dataTransfer.files?.length) addFiles(e.dataTransfer.files);
 });
 
+/* ══ STUDIO ════════════════════════════════════════════════════════════════
+   Turns a finished verdict into another format: a table, a longer report,
+   flashcards, a quiz, a mind map, a slide deck, or a two-host audio script.
+
+   Every card is derived from ONE run, so the whole section is disabled until
+   that run has a verdict. Generation is a POST that returns a job id plus an
+   SSE stream, exactly like a council run — the engine drives a real browser
+   for each one, so a card takes about as long as a member's answer does.
+
+   State lives in S.studio rather than in the view, because the sidebar rows
+   and the open card must read the same artifacts. Owning it in either one
+   would mean the other duplicated the fetch, and the two copies would drift
+   the moment a generation finished while the card was closed. */
+
+const CARD_META = {
+  table:      { label: "Data Table",      icon: "▦", accent: "var(--ac)" },
+  report:     { label: "Report",          icon: "▤", accent: "var(--gold)" },
+  flashcards: { label: "Flashcards",      icon: "▥", accent: "var(--grn)" },
+  quiz:       { label: "Quiz",            icon: "?", accent: "var(--amber)" },
+  mindmap:    { label: "Mind Map",        icon: "⌗", accent: "var(--acl)" },
+  slides:     { label: "Slide Deck",      icon: "▭", accent: "#8FB8E8" },
+  audio:      { label: "Audio Overview",  icon: "◈", accent: "#BFA6E0" },
+};
+const KIND_ORDER = ["table", "report", "flashcards", "quiz", "mindmap", "slides", "audio"];
+
+const freshArtifacts = () =>
+  Object.fromEntries(KIND_ORDER.map((k) => [k, { status: "idle" }]));
+
+S.studio = { artifacts: freshArtifacts(), active: null, ui: {} };
+
+/** One-line status per card, shared by the sidebar row and the open viewer so
+ *  the two can never describe the same artifact differently. */
+function statusHint(a) {
+  return {
+    idle: "Not generated yet",
+    pending: "Queued…",
+    running: "Generating…",
+    complete: `Ready — ${a.provider_id || "generated"}`,
+    failed: a.error_detail || "Generation failed",
+  }[a.status];
+}
+
+/** Studio needs a completed run to derive from — the engine refuses otherwise
+ *  (400: "Studio needs a completed run"), so the nav is gated on the same
+ *  condition rather than letting the click fail. */
+const studioEnabled = () => !!(S.runId && S.verdict && S.verdict.synthesis_ok && online());
+
+function resetStudio() {
+  S.studio.artifacts = freshArtifacts();
+  S.studio.active = null;
+  S.studio.ui = {};
+  show($("studioView"), false);
+  renderStudioNav();
+}
+
+/** Restore already-generated cards for this run. Same "a reload recovers state
+ *  from SQLite" principle the council run already has: a card generated an hour
+ *  ago is still on disk and should come back without regenerating it. */
+async function loadStudio() {
+  if (!S.runId || !online()) return;
+  try {
+    const r = await fetch(`${link.api}/api/runs/${S.runId}/studio`, authed());
+    const rows = await r.json();
+    for (const row of rows) {
+      if (row.kind in S.studio.artifacts) {
+        S.studio.artifacts[row.kind] = {
+          status: row.status,
+          provider_id: row.provider_id,
+          raw_text: row.raw_text,
+          parsed_json: row.parsed_json,
+          error_detail: row.error_detail,
+        };
+      }
+    }
+  } catch {}
+  renderStudioNav();
+  if (S.studio.active) renderStudioView();
+}
+
+function generateStudio(kind) {
+  if (!studioEnabled()) return;
+  const runId = S.runId;
+  S.studio.artifacts[kind] = { status: "pending" };
+  // A regenerate must drop the previous card's interaction state, or a quiz
+  // would keep the answers picked against questions that no longer exist.
+  delete S.studio.ui[kind];
+  renderStudioNav();
+  if (S.studio.active === kind) renderStudioView();
+
+  fetch(`${link.api}/api/runs/${runId}/studio/${kind}`, authed({ method: "POST" }))
+    .then((r) => r.json())
+    .then(({ job_id }) => {
+      const es = new EventSource(streamUrl(`/api/runs/${runId}/studio/${job_id}/stream`));
+      es.onmessage = (ev) => {
+        const msg = JSON.parse(ev.data);
+        if (msg.type === "state") {
+          S.studio.artifacts[kind].status = "running";
+        } else if (msg.type === "done") {
+          S.studio.artifacts[kind] = {
+            status: msg.status, provider_id: msg.provider_id,
+            raw_text: msg.raw_text, parsed_json: msg.parsed_json,
+            error_detail: msg.error_detail,
+          };
+          es.close();
+        } else if (msg.type === "error") {
+          S.studio.artifacts[kind] = { status: "failed", error_detail: msg.message };
+          es.close();
+        }
+        renderStudioNav();
+        if (S.studio.active === kind) renderStudioView();
+      };
+      es.onerror = () => es.close();
+    })
+    .catch(() => {
+      S.studio.artifacts[kind] = { status: "failed", error_detail: "Request failed." };
+      renderStudioNav();
+      if (S.studio.active === kind) renderStudioView();
+    });
+}
+
+/** Clicking a card generates it if it has never run, and always opens it — so
+ *  one click does the obvious thing whether the artifact exists yet or not. */
+function openStudio(kind) {
+  if (!studioEnabled()) return;
+  S.studio.active = kind;
+  setView("council");
+  if (S.studio.artifacts[kind].status === "idle") generateStudio(kind);
+  renderStudioNav();
+  renderStudioView();
+}
+
+function closeStudio() {
+  S.studio.active = null;
+  show($("studioView"), false);
+  renderStudioNav();
+  setView("council");
+}
+
+function renderStudioNav() {
+  const sec = $("studioSec");
+  const enabled = studioEnabled();
+  show($("studioNote"), !enabled);
+  for (const el of sec.querySelectorAll(".studio-row")) el.remove();
+
+  const before = sec.querySelector(".side-item.disabled"); // the Video tile
+  for (const kind of KIND_ORDER) {
+    const meta = CARD_META[kind];
+    const a = S.studio.artifacts[kind];
+    const busy = a.status === "pending" || a.status === "running";
+    const b = el("button", `side-item studio-row ${S.studio.active === kind ? "active" : ""}`);
+    b.type = "button";
+    b.style.setProperty("--sa", meta.accent);
+    b.disabled = !enabled;
+    b.title = S.navCollapsed ? meta.label : statusHint(a);
+    b.setAttribute("aria-current", String(S.studio.active === kind));
+    b.append(el("span", "side-ic studio-ic", meta.icon), el("span", "side-label", meta.label));
+    const tag = el("span", "side-tag");
+    if (busy) tag.append(el("span", "spin", "◐"));
+    else tag.textContent = a.status === "complete" ? "✓" : a.status === "failed" ? "!" : "";
+    b.append(tag);
+    b.onclick = () => openStudio(kind);
+    sec.insertBefore(b, before);
+  }
+}
+
+function renderStudioView() {
+  const kind = S.studio.active;
+  const view = $("studioView");
+  show(view, !!kind);
+  if (!kind) return;
+  const meta = CARD_META[kind], a = S.studio.artifacts[kind];
+  const busy = a.status === "pending" || a.status === "running";
+
+  view.style.setProperty("--sa", meta.accent);
+  $("studioIc").textContent = meta.icon;
+  $("studioTitle").textContent = meta.label;
+  $("studioStatus").textContent = statusHint(a);
+  show($("studioRegen"), a.status === "complete");
+
+  const body = $("studioBody");
+  body.textContent = "";
+  if (busy) {
+    const w = el("div", "empty-state");
+    w.append(el("span", "spin", "◐"), document.createTextNode(` Generating ${meta.label.toLowerCase()}…`));
+    body.append(w);
+    return;
+  }
+  if (a.status === "idle") { body.append(el("div", "empty-state", "Not generated yet.")); return; }
+  if (a.status === "failed") {
+    const c = el("div", "callout");
+    c.append(
+      el("div", "kind", "generation failed"),
+      el("div", "cause", a.error_detail || "The provider did not return usable output."),
+    );
+    const again = el("button", "studio-regen", "Try again");
+    again.type = "button";
+    again.onclick = () => generateStudio(kind);
+    c.append(again);
+    body.append(c);
+    return;
+  }
+  body.append(renderCard(kind, a));
+}
+
+/** Raw text fallback: shown whenever the backend parser found nothing usable in
+ *  an otherwise-successful generation. Degrade to plain text rather than hide a
+ *  real response the provider actually gave. */
+const rawFallback = (text) => el("pre", "studio-raw", text || "");
+
+function renderCard(kind, a) {
+  const d = a.parsed_json, raw = a.raw_text || "";
+  switch (kind) {
+    case "table":      return renderStudioTable(raw);
+    // Structurally identical to a verdict — headings, lists, tables, prose — so
+    // it reuses that renderer wholesale rather than duplicating the parser.
+    case "report":     return verdictBody(raw);
+    case "flashcards": return renderFlashcards(d, raw);
+    case "quiz":       return renderQuiz(d, raw);
+    case "mindmap":    return renderMindMap(d, raw);
+    case "slides":     return renderSlides(d, raw);
+    case "audio":      return renderAudio(d, raw);
+  }
+}
+
+/* ── Data Table ─────────────────────────────────────────────────────────── */
+function renderStudioTable(text) {
+  let head = null;
+  const rows = [];
+  for (const line of text.replace(/\r/g, "").split("\n")) {
+    if (!TABLE_ROW.test(line)) continue;
+    if (TABLE_SEP.test(line) && rows.length === 1 && !head) head = rows.shift();
+    else if (!TABLE_SEP.test(line)) rows.push(cells(line));
+  }
+  if (!rows.length && !head) return rawFallback(text);
+  const wrap = el("div", "studio-tablewrap"), t = el("table", "studio-table");
+  if (head) {
+    const tr = el("tr");
+    head.forEach((c) => tr.append(el("th", null, c)));
+    const th = el("thead"); th.append(tr); t.append(th);
+  }
+  const tb = el("tbody");
+  rows.forEach((r) => {
+    const tr = el("tr");
+    r.forEach((c) => tr.append(el("td", null, c)));
+    tb.append(tr);
+  });
+  t.append(tb);
+  wrap.append(t);
+  return wrap;
+}
+
+/* ── Flashcards ─────────────────────────────────────────────────────────── */
+function renderFlashcards(d, raw) {
+  const cards = (d && d.cards) || [];
+  if (!cards.length) return rawFallback(raw);
+  const flipped = (S.studio.ui.flashcards ||= new Set());
+  const box = el("div", "flashcards");
+  cards.forEach((c, i) => {
+    const b = el("button", `flashcard ${flipped.has(i) ? "flipped" : ""}`);
+    b.type = "button";
+    const inner = el("div", "flashcard-inner");
+    inner.append(
+      el("div", "flashcard-face flashcard-front", c.front),
+      el("div", "flashcard-face flashcard-back", c.back),
+    );
+    b.append(inner);
+    b.onclick = () => {
+      flipped.has(i) ? flipped.delete(i) : flipped.add(i);
+      b.classList.toggle("flipped", flipped.has(i));
+    };
+    box.append(b);
+  });
+  return box;
+}
+
+/* ── Quiz ───────────────────────────────────────────────────────────────── */
+function renderQuiz(d, raw) {
+  const questions = (d && d.questions) || [];
+  if (!questions.length) return rawFallback(raw);
+  const picked = (S.studio.ui.quiz ||= {});
+  const box = el("div", "quiz");
+  questions.forEach((q, qi) => {
+    const wrap = el("div", "quiz-q");
+    wrap.append(el("div", "quiz-q-text", `${qi + 1}. ${q.text}`));
+    const opts = el("div", "quiz-options");
+    const why = el("div", "quiz-why", q.why || "");
+
+    const paint = () => {
+      const chosen = picked[qi];
+      for (const btn of opts.children) {
+        const letter = btn.dataset.letter;
+        btn.disabled = !!chosen;
+        btn.className = "quiz-opt " + (!chosen ? ""
+          : letter === q.correct ? "correct"
+          : letter === chosen ? "incorrect" : "");
+      }
+      // The explanation only appears once an answer is locked in — showing it
+      // beforehand gives the answer away.
+      show(why, !!chosen && !!q.why);
+    };
+
+    for (const [letter, text] of Object.entries(q.options)) {
+      const b = el("button", "quiz-opt");
+      b.type = "button";
+      b.dataset.letter = letter;
+      b.append(el("span", "quiz-opt-letter", letter), document.createTextNode(text));
+      b.onclick = () => { if (!picked[qi]) { picked[qi] = letter; paint(); } };
+      opts.append(b);
+    }
+    wrap.append(opts, why);
+    paint();
+    box.append(wrap);
+  });
+  return box;
+}
+
+/* ── Mind Map ───────────────────────────────────────────────────────────── */
+function renderMindMap(d, raw) {
+  const root = (d && d.root) || "", branches = (d && d.branches) || [];
+  if (!root && !branches.length) return rawFallback(raw);
+
+  const host = el("div", "mindmap");
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", "mm-links");
+  svg.setAttribute("aria-hidden", "true");
+  const rootEl = el("div", "mm-root", root);
+  const branchBox = el("div", "mm-branches");
+  const nodeEls = new Map();
+
+  const build = (nodes, parentId) => {
+    const frag = document.createDocumentFragment();
+    nodes.forEach((n, i) => {
+      const id = `${parentId}-${i}`;
+      const col = el("div", "mm-col");
+      const node = el("div", "mm-node", n.text);
+      nodeEls.set(id, { el: node, node });
+      col.append(node);
+      if (n.children && n.children.length) {
+        const kids = el("div", "mm-children");
+        kids.append(build(n.children, id));
+        col.append(kids);
+      }
+      frag.append(col);
+    });
+    return frag;
+  };
+  branchBox.append(build(branches, "b"));
+  host.append(svg, rootEl, branchBox);
+
+  // Same measure-after-layout approach as the council wiring: element positions
+  // are only real once the browser has laid them out, so draw on rAF and redraw
+  // on resize.
+  const draw = () => {
+    if (!host.isConnected) return;
+    const H = host.getBoundingClientRect(), R = rootEl.getBoundingClientRect();
+    if (!R.width) return;
+    const rx = R.left - H.left + R.width, ry = R.top - H.top + R.height / 2;
+    svg.textContent = "";
+    const walk = (nodes, parentId, px, py) => {
+      nodes.forEach((n, i) => {
+        const id = `${parentId}-${i}`;
+        const rec = nodeEls.get(id);
+        if (!rec) return;
+        const B = rec.el.getBoundingClientRect();
+        const x = B.left - H.left, y = B.top - H.top + B.height / 2;
+        const mid = (px + x) / 2;
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("d", `M ${px} ${py} H ${mid} V ${y} H ${x}`);
+        path.setAttribute("class", "mm-link");
+        svg.append(path);
+        walk(n.children || [], id, B.left - H.left + B.width, y);
+      });
+    };
+    walk(branches, "b", rx, ry);
+  };
+  requestAnimationFrame(draw);
+  new ResizeObserver(() => requestAnimationFrame(draw)).observe(host);
+  return host;
+}
+
+/* ── Slide Deck ─────────────────────────────────────────────────────────── */
+function renderSlides(d, raw) {
+  const slides = (d && d.slides) || [];
+  if (!slides.length) return rawFallback(raw);
+  const state = (S.studio.ui.slides ||= { i: 0 });
+  const box = el("div", "slidedeck");
+  const slide = el("div", "slide");
+  const title = el("div", "slide-title");
+  const bullets = el("ul", "slide-bullets");
+  slide.append(title, bullets);
+
+  const nav = el("div", "slide-nav");
+  const prev = el("button", null, "◀"), next = el("button", null, "▶");
+  prev.type = next.type = "button";
+  const count = el("span", "slide-count");
+  nav.append(prev, count, next);
+
+  const paint = () => {
+    state.i = Math.max(0, Math.min(state.i, slides.length - 1));
+    const s = slides[state.i];
+    title.textContent = s.title;
+    bullets.textContent = "";
+    (s.bullets || []).forEach((b) => bullets.append(el("li", null, b)));
+    count.textContent = `${state.i + 1} / ${slides.length}`;
+    prev.disabled = state.i === 0;
+    next.disabled = state.i === slides.length - 1;
+  };
+  prev.onclick = () => { state.i -= 1; paint(); };
+  next.onclick = () => { state.i += 1; paint(); };
+  paint();
+  box.append(slide, nav);
+  return box;
+}
+
+/* ── Audio Overview ─────────────────────────────────────────────────────────
+   No server-side TTS and no audio file: MAGI has no audio generation surface
+   of its own, so the two-host script a provider writes is read aloud entirely
+   client-side with the browser's SpeechSynthesis API. HOST A and HOST B get
+   two distinct voices, falling back to one voice at two pitches where the
+   platform exposes only one. */
+let _voicesPromise = null;
+function listVoices() {
+  if (!window.speechSynthesis) return Promise.resolve([]);
+  if (_voicesPromise) return _voicesPromise;
+  _voicesPromise = new Promise((resolve) => {
+    const synth = window.speechSynthesis;
+    const existing = synth.getVoices();
+    if (existing.length) return resolve(existing);
+    // Most browsers report zero voices until `voiceschanged` fires, and some
+    // never fire it when the voices were already loaded between these two
+    // checks -- so a timeout backs it up rather than hanging forever.
+    const onChange = () => {
+      synth.removeEventListener("voiceschanged", onChange);
+      resolve(synth.getVoices());
+    };
+    synth.addEventListener("voiceschanged", onChange);
+    setTimeout(() => resolve(synth.getVoices()), 1000);
+  });
+  return _voicesPromise;
+}
+
+/** Speaks a two-host script line by line, chaining each utterance's `end` event
+ *  rather than relying on the browser's own queue — that is what lets the
+ *  transcript highlight the line currently being spoken. */
+function playScript({ lines, voiceA, voiceB, onLine, onEnd }) {
+  const synth = window.speechSynthesis;
+  synth.cancel();
+  let stopped = false, i = 0;
+  const speakNext = () => {
+    if (stopped || i >= lines.length) { if (!stopped) onEnd && onEnd(); return; }
+    const line = lines[i];
+    onLine && onLine(i);
+    const utter = new SpeechSynthesisUtterance(line.text);
+    if (line.speaker === "A") { if (voiceA) utter.voice = voiceA; utter.pitch = 1.0; }
+    else { if (voiceB) utter.voice = voiceB; else utter.pitch = 1.35; }
+    utter.onend = utter.onerror = () => { i += 1; speakNext(); };
+    synth.speak(utter);
+  };
+  speakNext();
+  return { stop: () => { stopped = true; synth.cancel(); } };
+}
+
+let _speech = null;
+function renderAudio(d, raw) {
+  const lines = (d && d.lines) || [];
+  if (!lines.length) return rawFallback(raw);
+  const box = el("div", "audio-overview");
+  const controls = el("div", "audio-controls");
+  const btn = el("button", "navitem");
+  btn.type = "button";
+  const note = el("span", "audio-note", "");
+  controls.append(btn, note);
+
+  const transcript = el("div", "audio-transcript");
+  const lineEls = lines.map((l) => {
+    const row = el("div", "audio-line");
+    row.append(
+      el("span", `audio-speaker host-${l.speaker.toLowerCase()}`, l.speaker === "A" ? "Host A" : "Host B"),
+      document.createTextNode(l.text),
+    );
+    transcript.append(row);
+    return row;
+  });
+
+  let playing = false;
+  const setBtn = () => {
+    btn.textContent = "";
+    btn.append(el("span", "navitem-ic", playing ? "■" : "▶"), document.createTextNode(playing ? "Stop" : "Play"));
+  };
+  const highlight = (idx) => lineEls.forEach((r, i) => r.classList.toggle("speaking", i === idx));
+  const stop = () => {
+    _speech && _speech.stop();
+    _speech = null;
+    playing = false;
+    highlight(-1);
+    setBtn();
+  };
+  btn.onclick = async () => {
+    if (playing) return stop();
+    const voices = await listVoices();
+    const english = voices.filter((v) => v.lang.startsWith("en"));
+    const pool = english.length >= 2 ? english : voices;
+    playing = true;
+    setBtn();
+    _speech = playScript({
+      lines, voiceA: pool[0] || null, voiceB: pool[1] || null,
+      onLine: highlight, onEnd: stop,
+    });
+  };
+  setBtn();
+  listVoices().then((v) => {
+    if (!v.length) note.textContent = "No speech voices available on this device.";
+  });
+
+  box.append(controls, transcript);
+  return box;
+}
+
+$("studioClose").onclick = closeStudio;
+$("studioRegen").onclick = () => S.studio.active && generateStudio(S.studio.active);
+
 /* ══ boot ══════════════════════════════════════════════════════════════════ */
 async function boot() {
   if (!online()) return;
@@ -2619,6 +3327,7 @@ async function boot() {
     renderUnitChips();
   } catch {}
   loadHistory();
+  renderStudioNav();
 }
 
 applyNav();

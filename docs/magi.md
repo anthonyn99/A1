@@ -299,12 +299,22 @@ Consolidated or dropped:
 | Tunnel url compiled into the bundle | looked up at load from `magi-link` |
 | A stale 2.4MB copy of TaskHub's `index.html` | deleted |
 
-**Still to port: Brainstorm and Studio.** Their engine code came across intact
-and is fully wired into `app.py` — `/api/brainstorm/*` and
-`/api/runs/{id}/studio/*` work today and `magi ask` is unaffected. What does
-not exist yet is their console: `magi.html` currently renders the Council only.
-That is the next piece of work, and their CSS was left out of `magi.html`
-deliberately so it arrives with the markup it styles rather than sitting unused.
+**Studio is ported.** Seven cards derived from a finished verdict — Data
+Table, Report, Flashcards, Quiz, Mind Map, Slide Deck and Audio Overview — in
+the sidebar under *Studio*, disabled until a run has a verdict. Clicking a card
+generates it if it has never run and opens it either way; an open card replaces
+the grid and verdict rather than stacking above them. Generated cards are
+stored, so reopening a past run from History brings its cards back rather than
+regenerating them. Audio Overview is read aloud by the browser's own
+SpeechSynthesis — MAGI has no audio generation surface, so the two-host script
+is spoken client-side, with a second voice where the platform has one and a
+pitch offset where it does not. Video is a permanently disabled tile: there is
+no video surface reachable through a browser-automated chat UI.
+
+**Still to port: Brainstorm.** Its engine came across intact and
+`/api/brainstorm/*` works today; only the console is missing. Its CSS was left
+out of `magi.html` deliberately so it arrives with the markup it styles rather
+than sitting unused.
 
 Brainstorm is worth knowing about before porting it — a round is three phases
 (propose → critique → merge), and the critique phase is what makes it a debate
