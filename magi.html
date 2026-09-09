@@ -1145,6 +1145,241 @@ table.doctor code { color: var(--txd); font-size: 11px; }
 .audio-speaker.host-a { color: var(--ac); background: color-mix(in srgb, var(--ac) 16%, transparent); }
 .audio-speaker.host-b { color: var(--acl); background: color-mix(in srgb, var(--acl) 16%, transparent); }
 
+/* ── brainstorm ───────────────────────────────────────────────────────────
+   The planning session. Keyed to --gold rather than the council's --ac so a
+   glance at the screen says which mode is running: the two look similar by
+   design (same panels, same grid) and the accent is what tells them apart. */
+.bs { display: flex; flex-direction: column; gap: 16px; margin-bottom: 16px; }
+
+.bs-hd { display: flex; flex-direction: column; gap: 4px; }
+.bs-title {
+  font-size: 11px; font-weight: 700; letter-spacing: 2.2px;
+  text-transform: uppercase; color: var(--gold);
+}
+.bs-sub { color: var(--txd); font-size: 12px; line-height: 1.5; }
+
+.bs-start {
+  background: var(--s1); border: 1px solid var(--bd);
+  border-left: 3px solid var(--gold); border-radius: 2px; padding: 12px;
+}
+.bs-topic {
+  width: 100%; min-height: 92px; resize: vertical; background: transparent;
+  border: 0; outline: 0; color: var(--tx); font-family: var(--font);
+  font-size: 13px; line-height: 1.6;
+}
+.bs-topic::placeholder { color: var(--txm); }
+.bs-topic:disabled { color: var(--txd); }
+.bs-start-bar { display: flex; align-items: center; gap: 8px; padding-top: 8px; }
+.bs-note { color: var(--txm); font-size: 10px; letter-spacing: .5px; }
+
+.bs-phase {
+  display: flex; align-items: center; gap: 9px;
+  color: var(--txd); font-size: 11px; letter-spacing: .5px;
+  background: var(--s1); border: 1px solid var(--bd);
+  border-left: 3px solid var(--gold); border-radius: 2px; padding: 11px 14px;
+}
+
+/* Questions are the thing the user has to act on, so they get the loudest
+   treatment on the page -- louder than the plan draft above them, which is
+   there to be read rather than answered. */
+.bs-questions {
+  background: var(--s1); border: 1px solid var(--bd);
+  border-left: 3px solid var(--amber); border-radius: 2px; overflow: hidden;
+  animation: rise .35s ease-out;
+}
+.bs-questions-hd {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; padding: 9px 14px;
+  border-bottom: 1px solid var(--bd);
+  background: color-mix(in srgb, var(--amber) 8%, transparent);
+  font-size: 11px; font-weight: 700; letter-spacing: 2.2px;
+  text-transform: uppercase; color: var(--amber);
+}
+.bs-qcount {
+  color: var(--txm); font-size: 10px; letter-spacing: .6px;
+  font-weight: 400; text-transform: none;
+}
+/* Question cards. These are the primary controls on the page once a round
+   lands, so they get real hit targets and visible focus -- the option rows are
+   what the user is here to click. */
+.bs-cards { display: grid; gap: 10px; padding: 12px; }
+
+.bs-card {
+  background: var(--bg); border: 1px solid var(--bd);
+  border-radius: var(--r-card); padding: 11px 12px 12px;
+  transition: border-color .15s ease;
+}
+.bs-card.answered { border-color: color-mix(in srgb, var(--grn) 45%, var(--bd)); }
+
+.bs-card-hd { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+.bs-chip {
+  background: color-mix(in srgb, var(--amber) 16%, transparent);
+  color: var(--amber); border: 1px solid color-mix(in srgb, var(--amber) 35%, transparent);
+  border-radius: 3px; padding: 1px 7px;
+  font-size: 9px; letter-spacing: 1.3px; text-transform: uppercase; font-weight: 700;
+}
+/* A question whose answer changes the plan's structure rather than its
+   detail. Deliberately a different hue from the neutral header chip: the
+   person skimming which questions to answer needs these to stand out, since
+   leaving one unanswered is what makes the finished plan provisional. */
+.bs-chip-blocking {
+  background: color-mix(in srgb, var(--red, #d9534f) 16%, transparent);
+  color: var(--red, #d9534f);
+  border-color: color-mix(in srgb, var(--red, #d9534f) 38%, transparent);
+  margin-left: 6px;
+}
+
+.bs-skip {
+  margin-left: auto; background: none; border: 0; cursor: pointer;
+  color: var(--txm); font-family: var(--font); font-size: 10px; letter-spacing: .6px;
+  padding: 2px 4px; border-radius: 3px;
+}
+.bs-skip:hover { color: var(--tx); }
+
+.bs-card-q { color: var(--tx); font-size: 13px; line-height: 1.55; margin-bottom: 10px; }
+
+.bs-opts { display: grid; gap: 5px; }
+.bs-opt {
+  display: flex; align-items: flex-start; gap: 9px; width: 100%;
+  text-align: left; cursor: pointer;
+  background: var(--s1); border: 1px solid var(--bd);
+  border-radius: var(--r-sm); padding: 8px 10px;
+  color: var(--txd); font-family: var(--font);
+  transition: border-color .12s ease, background .12s ease;
+}
+.bs-opt:hover:not(:disabled) { border-color: var(--bdl); background: var(--s2); }
+.bs-opt:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
+.bs-opt:disabled { opacity: .55; cursor: not-allowed; }
+.bs-opt.selected {
+  border-color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 10%, var(--s1));
+}
+.bs-opt-mark { color: var(--txm); font-size: 11px; line-height: 1.5; }
+.bs-opt.selected .bs-opt-mark { color: var(--amber); }
+.bs-opt-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.bs-opt-label { color: var(--tx); font-size: 12px; line-height: 1.45; }
+.bs-opt.selected .bs-opt-label { font-weight: 700; }
+.bs-opt-desc { color: var(--txm); font-size: 11px; line-height: 1.45; }
+
+.bs-open-input {
+  width: 100%; margin-top: 7px;
+  background: var(--s1); border: 1px solid var(--bd); border-radius: var(--r-sm);
+  padding: 8px 10px; color: var(--tx);
+  font-family: var(--font); font-size: 12px;
+}
+.bs-open-input::placeholder { color: var(--txm); }
+.bs-open-input:focus { outline: 0; border-color: var(--amber); }
+.bs-open-input:disabled { opacity: .55; }
+
+.bs-qlist { margin: 0; padding: 14px 20px 16px 38px; display: grid; gap: 10px; }
+.bs-qlist li { color: var(--tx); font-size: 13px; line-height: 1.6; }
+.bs-qlist li::marker { color: var(--amber); font-weight: 700; }
+.bs-qlist.small li { color: var(--txd); font-size: 12px; }
+.bs-qlist.small { padding: 8px 16px 10px 32px; gap: 6px; }
+
+.bs-reply { border-left: 3px solid var(--gold); }
+.bs-ready { color: var(--grn); font-size: 10px; letter-spacing: .5px; }
+.bs-halt { padding: 0; }
+
+.bs-split, .bs-history {
+  background: var(--s1); border: 1px solid var(--bd);
+  border-radius: 2px; overflow: hidden;
+}
+.bs-split > summary, .bs-history > summary {
+  cursor: pointer; padding: 9px 14px; color: var(--txd);
+  font-size: 10px; letter-spacing: 1.4px; text-transform: uppercase;
+  list-style: none; user-select: none;
+}
+.bs-split > summary::-webkit-details-marker,
+.bs-history > summary::-webkit-details-marker { display: none; }
+.bs-split > summary::before, .bs-history > summary::before {
+  content: "▶ "; color: var(--txm); font-size: 8px;
+}
+.bs-split[open] > summary::before, .bs-history[open] > summary::before {
+  content: "▼ ";
+}
+.bs-split > summary:hover, .bs-history > summary:hover { color: var(--tx); }
+
+/* Full council answers, kept collapsed. Four answers of ~3000 chars each
+   would bury the questions, but they are the evidence behind every merge and
+   are never thrown away. */
+.bs-council {
+  background: var(--bg); border: 1px solid var(--bd);
+  border-radius: var(--r-sm); margin-top: 9px; overflow: hidden;
+}
+.bs-council > summary {
+  cursor: pointer; padding: 7px 11px; color: var(--txm);
+  font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase;
+  list-style: none; user-select: none;
+}
+.bs-council > summary::-webkit-details-marker { display: none; }
+.bs-council > summary::before { content: "▶ "; font-size: 8px; }
+.bs-council[open] > summary::before { content: "▼ "; }
+.bs-council > summary:hover { color: var(--tx); }
+
+.bs-council-answer { border-top: 1px solid var(--bd); padding: 9px 12px 11px; }
+.bs-council-hd {
+  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  margin-bottom: 5px;
+}
+.bs-council-name {
+  color: var(--acl); font-size: 11px; letter-spacing: 1.1px;
+  text-transform: uppercase; font-weight: 700;
+}
+.bs-council-meta { color: var(--txm); font-size: 10px; }
+.bs-council-bad { color: var(--amber); font-size: 10px; }
+.bs-council-body {
+  color: var(--txd); font-size: 11.5px; line-height: 1.6;
+  white-space: pre-wrap; max-height: 320px; overflow-y: auto;
+  border-left: 2px solid var(--bd); padding-left: 10px;
+}
+
+.bs-hist-round { border-top: 1px solid var(--bd); padding: 10px 14px 12px; }
+/* A superseded attempt stays visible but recedes -- it happened, and it is
+   not what the session ended up building on. */
+.bs-hist-round.superseded { opacity: .62; }
+.bs-hist-note { color: var(--amber); text-transform: none; letter-spacing: .3px; }
+.bs-hist-hd {
+  color: var(--gold); font-size: 10px; letter-spacing: 1.4px;
+  text-transform: uppercase; margin-bottom: 6px;
+}
+.bs-hist-reply {
+  color: var(--txd); font-size: 12px; line-height: 1.6;
+  border-left: 2px solid var(--bdl); padding: 4px 0 4px 12px; margin-top: 8px;
+  white-space: pre-wrap;
+}
+.bs-hist-label {
+  display: block; color: var(--txm); font-size: 10px;
+  letter-spacing: 1.2px; text-transform: uppercase; margin-bottom: 3px;
+}
+
+/* The finished plan. The path is the payload here -- it is what gets pasted
+   into a coding agent -- so it is selectable and given room to wrap. */
+.bs-plan-bar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  background: var(--s1); border: 1px solid var(--bd);
+  border-left: 3px solid var(--grn); border-radius: 2px; padding: 9px 12px;
+}
+.bs-path {
+  color: var(--grn); font-size: 11px; word-break: break-all;
+  user-select: all; font-family: var(--font);
+}
+.bs-save-state {
+  color: var(--txm); font-size: 11px; letter-spacing: .3px;
+  display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
+}
+.bs-save-state code { color: var(--grn); user-select: all; }
+.bs-saved-tick { color: var(--grn); }
+.bs-hint { color: var(--txm); font-size: 11px; letter-spacing: .4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
 /* ── link status ──────────────────────────────────────────────────────────
    New in the A1 port, and the one piece of UI the React build had no need
    for. There, the backend url was compiled into the bundle, so the page could
