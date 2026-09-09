@@ -22,6 +22,7 @@ const vm = require('vm');
 const FILES = [
   'index.html', 'shield.html', 'tradehub.html', 'vault.html', 'insight.html',
   'mylist.html', 'oneinbox.html', 'solace.html', 'riftiq.html', 'wellness.html',
+  'magi.html',
 ];
 
 let babelParse = null;
