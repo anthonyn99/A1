@@ -36,6 +36,32 @@ async def _clear_composer(page: Page) -> None:
     await pause(0.05, 0.15)
 
 
+def normalise_newlines(text: str) -> str:
+    r"""Collapse CRLF and lone CR to LF before anything is typed.
+
+    Playwright types "\r" as the ENTER KEY, and in these composers Enter SENDS.
+    An HTML <textarea> normalises its value to CRLF, so every question typed
+    into magi.html arrives here with a "\r" ending each line -- and type_text,
+    which correctly turns "\n" into Shift+Enter, was pressing Enter on the
+    stray "\r" immediately before it. The prompt reached the model in
+    FRAGMENTS: one submitted message per line.
+
+    Observed on the first real run. Claude replied "it looks like your question
+    got cut off" and reasoned from "what we've established" -- it had received
+    several separate messages -- while Gemini returned the string "Searching
+    the web", a loading state captured after an early submit. Both were still
+    recorded as resolved, and the verdict claimed HIGH confidence over "three
+    of four members" that nothing in the transcript supported.
+
+    This is the same defect test_humanize.py already guards ("in these chat
+    composers Enter SENDS"); the "\n" route was fixed and the "\r" route was
+    not. Normalising here rather than at the API boundary covers every caller:
+    council questions, the synthesis prompt, brainstorm rounds and studio jobs
+    all reach a composer through this module.
+    """
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
 async def insert_text(page: Page, target: Locator, text: str, pacing: Pacing) -> None:
     """Put `text` into the composer, choosing the method by length.
 
@@ -50,6 +76,9 @@ async def insert_text(page: Page, target: Locator, text: str, pacing: Pacing) ->
     typing a 2,000-character prompt at human speed anyway -- a person pasting
     that much text is exactly what this looks like.
     """
+    # Before the length test, so a CRLF prompt cannot change branch on the two
+    # extra bytes per line either.
+    text = normalise_newlines(text)
     if len(text) >= pacing.paste_threshold:
         await _paste_text(page, target, text)
     else:
@@ -90,6 +119,11 @@ async def type_text(page: Page, target: Locator, text: str, pacing: Pacing) -> N
     await target.click()
     await pause(0.15, 0.4)
     await _clear_composer(page)
+
+    # Normalised again here, not only in insert_text: this is public and called
+    # directly, and a single stray "\r" reaching page.keyboard.type() IS an
+    # Enter press, which submits the half-written prompt.
+    text = normalise_newlines(text)
 
     # Split on newlines and re-insert them as Shift+Enter.
     for i, line in enumerate(text.split("\n")):

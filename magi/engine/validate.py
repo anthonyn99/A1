@@ -135,14 +135,23 @@ def validate_answer(text: str, question: str, *, display_name: str = "") -> Vali
     # clarification failure. Checked BEFORE the length rule so the reason
     # reported is the specific one, not the generic "too short".
     is_question = bool(_QUESTION_LIKE.match(body)) or bool(_CLARIFYING_OPENERS.match(body))
-    # A capture of one or two bare words is a truncated stream, not an answer.
-    # Observed repeatedly on DeepSeek, which exposes no streaming marker and no
-    # stop button: it emits the first word, pauses ~3s, then streams the rest.
-    # Captures of "OK" and "Print" were all recorded as full votes.
+    # A capture of a few bare words is a truncated stream or a UI placeholder,
+    # not an answer. Observed repeatedly on DeepSeek, which exposes no streaming
+    # marker and no stop button: it emits the first word, pauses ~3s, then
+    # streams the rest. Captures of "OK" and "Print" were all recorded as full
+    # votes.
     #
-    # The bar is set at a handful of words rather than a character count so it
-    # cannot catch a real (if terse) sentence.
-    if len(body.split()) <= 2 and not body.rstrip().endswith((".", "!", "?")):
+    # Raised from 2 to 4 words after Gemini returned "Searching the web" -- its
+    # own loading state, captured on a stall_timeout -- and scored as a full
+    # vote at three words, missing the old bar by one. The verdict then claimed
+    # HIGH confidence over "three of four members" on the strength of it.
+    #
+    # The terminal-punctuation exemption is what keeps this safe: a deliberate
+    # terse answer is a SENTENCE and ends like one ("Use Postgres.", "No.
+    # Postgres handles this fine at your volume."), while a truncated stream and
+    # a spinner label both stop mid-air. So the bar counts words rather than
+    # characters and never fires on anything punctuated as finished.
+    if len(body.split()) <= 4 and not body.rstrip().endswith((".", "!", "?")):
         return Validation(
             False,
             Rejection.TRUNCATED,

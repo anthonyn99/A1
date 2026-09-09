@@ -251,3 +251,35 @@ def test_capping_ignores_the_word_high_in_the_answer_body():
         "CONFIDENCE\nMEDIUM -- limited evidence."
     )
     assert cap_confidence(verdict, reason="r") == verdict
+
+
+def test_gemini_loading_state_is_not_an_answer():
+    """"Searching the web" is Gemini's spinner label, not a response.
+
+    Captured on a stall_timeout during the first real council run and scored as
+    a full vote -- three words, one over the old <=2 bar. The verdict then
+    reported HIGH confidence over "three of four members".
+    """
+    v = validate_answer("Searching the web", question="Compare Firestore, KV and D1.",
+                        display_name="Gemini")
+    assert not v.ok
+    assert v.reason is Rejection.TRUNCATED
+
+
+def test_terse_but_finished_answers_still_pass():
+    """The widened bar must not overrule someone who answered briefly.
+
+    Over-rejection is the worse bug here: replaying 86 real captures showed a
+    good short answer introduces new vocabulary rather than echoing the prompt,
+    and brevity is often what was explicitly asked for. Terminal punctuation is
+    what separates a deliberate one-liner from a truncated stream.
+    """
+    q = "Which database should I use?"
+    for good in (
+        "Use Postgres.",
+        "No. Postgres handles this fine at your volume.",
+        "SQLite, without question!",
+        "Firestore, for the offline support.",
+    ):
+        v = validate_answer(good, question=q, display_name="X")
+        assert v.ok, f"rejected a legitimate terse answer: {good!r} ({v.detail})"

@@ -76,3 +76,38 @@ async def test_blank_lines_are_preserved():
     page, pacing = FakePage(), Pacing(typing_delay_ms=(0, 0))
     await humanize.type_text(page, FakeTarget(), "a\n\nb", pacing)
     assert page.keyboard.pressed.count("Shift+Enter") == 2
+
+
+@pytest.mark.asyncio
+async def test_crlf_never_reaches_the_keyboard():
+    r"""A textarea gives CRLF, and Playwright types "\r" as the ENTER KEY.
+
+    This is the SAME bug as the "\n" case above, by a route that fix did not
+    cover. magi.html's composer is an HTML <textarea>, whose value normalises
+    to CRLF, so a three-line question arrived as
+    "...single-user\r\nweb app...\r\nsupport..." -- type_text split on "\n",
+    leaving a "\r" at the end of each line, and typing it SUBMITTED the
+    fragment before Shift+Enter ever ran.
+
+    Caught on the first real council run: Claude answered "it looks like your
+    question got cut off" and Gemini returned "Searching the web" -- both were
+    scored as resolved, and the verdict reported HIGH confidence over four
+    members when only two had actually seen the question.
+    """
+    page, pacing = FakePage(), Pacing(typing_delay_ms=(0, 0))
+    await humanize.type_text(page, FakeTarget(), "alpha\r\nbeta\rgamma", pacing)
+
+    typed = "".join(page.keyboard.typed)
+    assert "\r" not in typed, "a bare CR is an Enter press -- it submits the prompt"
+    assert "\n" not in typed
+    assert typed == "alphabetagamma"
+    assert page.keyboard.pressed.count("Shift+Enter") == 2
+    assert "Enter" not in page.keyboard.pressed
+
+
+def test_normalise_newlines_handles_every_line_ending():
+    assert humanize.normalise_newlines("a\r\nb") == "a\nb"
+    assert humanize.normalise_newlines("a\rb") == "a\nb"
+    assert humanize.normalise_newlines("a\nb") == "a\nb"
+    # Blank lines survive: the synthesis prompt's paragraph breaks depend on it.
+    assert humanize.normalise_newlines("a\r\n\r\nb") == "a\n\nb"
