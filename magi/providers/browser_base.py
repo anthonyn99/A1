@@ -151,7 +151,7 @@ class BrowserProvider(Provider):
                 )
                 if box is None:
                     artifacts = await self._save_artifacts(page, "no-input")
-                    if await resolve.present(page, site.login_selectors):
+                    if await resolve.signed_out(page, site.login_selectors):
                         return fail(
                             FailureKind.NOT_LOGGED_IN,
                             f"No composer found on {self.display_name} and a login "
@@ -161,6 +161,23 @@ class BrowserProvider(Provider):
                         FailureKind.SELECTOR_MISS,
                         f"No 'input' selector matched on {self.display_name}. "
                         f"Tried {len(site.input)}. Run `python -m magi doctor`.",
+                    )
+
+                # A composer is NOT proof of a session. Gemini and ChatGPT both
+                # render one for anonymous visitors, so this check used to be
+                # reachable only when the composer was MISSING -- which meant a
+                # logged-out member answered normally, on the free tier, and the
+                # verdict counted it as a full vote with nothing anywhere saying
+                # which tier had spoken. Failing loudly is the whole point of
+                # FailureKind: a wrong answer presented as a good one is the one
+                # outcome this system must not produce.
+                if await resolve.signed_out(page, site.login_selectors):
+                    artifacts = await self._save_artifacts(page, "signed-out")
+                    return fail(
+                        FailureKind.NOT_LOGGED_IN,
+                        f"{self.display_name} is signed OUT -- it shows a composer to "
+                        f"anonymous visitors, so this would have answered on the free "
+                        f"tier. Run `python -m magi login {self.id}`.",
                     )
 
                 # -- attachments, before typing (matches how a person uses the

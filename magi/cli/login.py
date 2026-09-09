@@ -66,7 +66,7 @@ async def _signed_in(page, site) -> bool:
         return False
     if not await resolve.resolve(page, site.input, timeout_ms=800):
         return False
-    return not await resolve.present(page, site.login_selectors)
+    return not await resolve.signed_out(page, site.login_selectors)
 
 
 async def _await_signed_in(page, site) -> bool:

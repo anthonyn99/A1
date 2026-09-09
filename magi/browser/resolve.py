@@ -152,6 +152,29 @@ async def present(page: Page, candidates: list[str]) -> bool:
     return await resolve(page, candidates, timeout_ms=0) is not None
 
 
+async def signed_out(page: Page, login_candidates: list[str]) -> bool:
+    """True if a "you are not signed in" control is in the DOM.
+
+    Deliberately does NOT require visibility, which is what `present` does and
+    why it was the wrong tool here. Measured on a logged-OUT Gemini: the
+    ServiceLogin anchor is attached (count=1) but `is_visible()` returns False,
+    so a visibility test called it signed in. Attachment separates the four
+    cleanly -- signed-out Gemini attached=1, and signed-in ChatGPT, Claude and
+    DeepSeek attached=0 -- while visibility was False for all four and
+    therefore carried no information at all.
+
+    The risk of the looser test is a logged-IN page keeping a hidden login link
+    somewhere; the measurement above is what rules that out for these four, and
+    a site that starts doing it shows up as a permanent NOT_LOGGED_IN rather
+    than as a silent wrong answer.
+    """
+    if not login_candidates:
+        return False
+    return await resolve(
+        page, login_candidates, timeout_ms=0, require_visible=False
+    ) is not None
+
+
 # Interstitial page titles that mean "you are not looking at the real site".
 # Verified: headless Chrome on chatgpt.com sits on a Cloudflare page titled
 # "Just a moment..." indefinitely, and the challenge markup lives inside a
