@@ -209,7 +209,7 @@
 })();
 </script>
 
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..900&family=Manrope:wght@400..800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
 
 <!-- Firebase - loaded dynamically to handle CORS/blocking -->
 <script type="module">
@@ -466,9 +466,18 @@
   --tan:    #e0b874;   /* suite gold — LoL Gold tier, Precision tree */
   --purple: #dbd0f5;
   --accent: #c0aeea;
-  --head: 'Outfit', sans-serif;
-  --body: 'Plus Jakarta Sans', sans-serif;
-  --mono: 'JetBrains Mono', monospace;
+  /* ── FACES ──────────────────────────────────────────────────────────────
+     The suite's three faces, same as index.html and tradehub.html: Manrope
+     carries every title, Inter every piece of running UI, IBM Plex Mono every
+     number. RiftIQ's own token names are kept so all 370-odd call sites keep
+     resolving; --suite-display is the alias the rest of the suite reaches for.
+     Manrope's axis stops at 800, so the two wordmarks that ask for 900 render
+     at 800 — the heaviest Manrope there is, and the weight .suite-title sits
+     near everywhere else in A1. */
+  --head: 'Manrope', system-ui, -apple-system, sans-serif;
+  --body: 'Inter', system-ui, -apple-system, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --suite-display: var(--head);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -10971,20 +10980,20 @@ if (!window.__wrGateBlocked) window.warRoomBoot();
   // so it renders identically whether it opens over the app or over the lock
   // screen before the app's own stylesheet has meant anything. The values are
   // RiftIQ's: its surfaces, its ProView purple, its three faces.
-  + '#uim-box{width:100%;max-width:380px;max-height:calc(100dvh - 40px);overflow-y:auto;background:#232327;border:1px solid #45454c;border-radius:12px;padding:24px;box-shadow:0 30px 70px rgba(0,0,0,.55);box-sizing:border-box;font-family:\'Plus Jakarta Sans\',system-ui,-apple-system,sans-serif;animation:uimIn .16s ease;-webkit-tap-highlight-color:transparent;}'
+  + '#uim-box{width:100%;max-width:380px;max-height:calc(100dvh - 40px);overflow-y:auto;background:#232327;border:1px solid #45454c;border-radius:12px;padding:24px;box-shadow:0 30px 70px rgba(0,0,0,.55);box-sizing:border-box;font-family:\'Inter\',system-ui,-apple-system,sans-serif;animation:uimIn .16s ease;-webkit-tap-highlight-color:transparent;}'
   + '@keyframes uimIn{from{transform:translateY(8px) scale(.98);opacity:0}to{transform:none;opacity:1}}'
-  + '#uim-title{font-family:\'Outfit\',system-ui,sans-serif;font-size:20px;font-weight:800;letter-spacing:-.3px;color:#f4f3f0;margin-bottom:8px;line-height:1.25;overflow-wrap:anywhere;}'
+  + '#uim-title{font-family:\'Manrope\',system-ui,-apple-system,sans-serif;font-size:20px;font-weight:800;letter-spacing:-.3px;color:#f4f3f0;margin-bottom:8px;line-height:1.25;overflow-wrap:anywhere;}'
   + '#uim-msg{font-size:13.5px;color:#adadb2;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;margin-bottom:16px;}'
   + '.uim-field{display:block;margin-bottom:12px;}'
-  + '.uim-label{display:block;font-family:\'Outfit\',system-ui,sans-serif;font-size:12px;font-weight:700;letter-spacing:.2px;color:#adadb2;margin:0 0 6px;}'
+  + '.uim-label{display:block;font-family:\'Manrope\',system-ui,-apple-system,sans-serif;font-size:12px;font-weight:700;letter-spacing:.2px;color:#adadb2;margin:0 0 6px;}'
   + '.uim-input{width:100%;box-sizing:border-box;background:#2c2c31;border:1px solid #45454c;border-radius:6px;color:#f4f3f0;font-size:14px;font-weight:500;padding:11px 13px;outline:none;font-family:inherit;transition:border-color .18s;}'
   + '.uim-input:focus{border-color:#c0aeea;}'
-  + '#uim-err{font-family:\'JetBrains Mono\',monospace;font-size:12px;color:#d68a7c;min-height:15px;margin-bottom:4px;}'
+  + '#uim-err{font-family:\'IBM Plex Mono\',ui-monospace,monospace;font-size:12px;color:#d68a7c;min-height:15px;margin-bottom:4px;}'
   + '#uim-btns{display:flex;gap:10px;margin-top:20px;justify-content:flex-end;}'
   // A button is an OUTLINE in this program, and primary vs destructive differ
   // by which colour that outline GLOWS - never by filling it in. A solid purple
   // block in the dialog would be the one control in RiftIQ that reads that way.
-  + '#uim-btns button{flex:0 0 auto;min-height:38px;border:1px solid #45454c;background:transparent;border-radius:8px;padding:0 18px;font-family:\'JetBrains Mono\',monospace;font-size:12px;font-weight:700;letter-spacing:.2px;cursor:pointer;transition:border-color .18s,color .18s,box-shadow .18s;}'
+  + '#uim-btns button{flex:0 0 auto;min-height:38px;border:1px solid #45454c;background:transparent;border-radius:8px;padding:0 18px;font-family:\'IBM Plex Mono\',ui-monospace,monospace;font-size:12px;font-weight:700;letter-spacing:.2px;cursor:pointer;transition:border-color .18s,color .18s,box-shadow .18s;}'
   + '#uim-cancel{color:#adadb2;}'
   + '#uim-cancel:hover{border-color:#adadb2;color:#f4f3f0;}'
   + '#uim-ok{border-color:rgba(192,174,234,.45);color:#dbd0f5;}'
@@ -12265,7 +12274,7 @@ function render(){
         border:'1px solid '+(_lgFaved?T.ac:'rgba(192,174,234,0.25)'),
         borderRadius:20,padding:'0 12px',height:'28px',fontSize:11,fontWeight:700,
         cursor:_favSyncBusy?'default':'pointer',opacity:_favSyncBusy?0.5:1,whiteSpace:'nowrap',flexShrink:0,
-        fontFamily:"'Syne','Inter',system-ui,-apple-system,sans-serif",letterSpacing:'0.3px',
+        fontFamily:"'Inter',system-ui,-apple-system,sans-serif",letterSpacing:'0.3px',
         transition:'all .15s',
       },'star',(_activeLg.name||'League'),
       ()=>{ if(!_favSyncBusy) runFavSync(()=>toggleFavLeague(_activeLg)); },
@@ -12279,7 +12288,7 @@ function render(){
   const _gE=()=>{const ld=_cfg.leagueData[_activeLeague];if(!ld||!ld.schedule)return[];return(ld.schedule.data&&ld.schedule.data.schedule&&ld.schedule.data.schedule.events)||[];};
   const _pIds=()=>_gE().filter(e=>e.state==='completed').map(e=>e.match&&e.match.id||e.id).filter(Boolean);
   const _aS=_pIds().length>0&&_pIds().every(id=>_revealedScores.has(id));
-  const _sabStyle={background:'transparent',color:T.acl,border:'1px solid rgba(192,174,234,0.45)',borderRadius:20,padding:'0 14px',height:'28px',fontSize:11,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',flexShrink:0,fontFamily:"'Syne','Inter',system-ui,-apple-system,sans-serif",letterSpacing:'0.3px'};
+  const _sabStyle={background:'transparent',color:T.acl,border:'1px solid rgba(192,174,234,0.45)',borderRadius:20,padding:'0 14px',height:'28px',fontSize:11,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',flexShrink:0,fontFamily:"'Inter',system-ui,-apple-system,sans-serif",letterSpacing:'0.3px'};
   const _sab=B(_sabStyle,_aS?'Hide All Scores':'Show All Scores',()=>{
     const ids=_pIds();
     const anyH=ids.some(id=>!_revealedScores.has(id));
@@ -12297,7 +12306,7 @@ function render(){
   });
   _sab.className='pv-hglow';
   hrow1.appendChild(_sab);
-  const _lgB=B({background:'transparent',color:T.acl,border:'1px solid rgba(192,174,234,0.45)',borderRadius:20,padding:'0 14px',height:'28px',fontSize:11,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',flexShrink:0,fontFamily:"'Syne','Inter',system-ui,-apple-system,sans-serif",letterSpacing:'0.3px'},'+ Leagues',()=>showLeagueMgr());
+  const _lgB=B({background:'transparent',color:T.acl,border:'1px solid rgba(192,174,234,0.45)',borderRadius:20,padding:'0 14px',height:'28px',fontSize:11,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',flexShrink:0,fontFamily:"'Inter',system-ui,-apple-system,sans-serif",letterSpacing:'0.3px'},'+ Leagues',()=>showLeagueMgr());
   _lgB.className='pv-hglow';
   hrow1.appendChild(_lgB);
   hdr.appendChild(hrow1);
@@ -12429,7 +12438,7 @@ function buildSchedule(T,league,ld){
       boxShadow:on?'0 0 0 1px rgba(192,174,234,.45),0 0 16px rgba(192,174,234,.45)':'none',
       borderRadius:20,padding:'0 14px',height:'30px',fontSize:11,fontWeight:700,
       letterSpacing:'0.3px',cursor:'pointer',whiteSpace:'nowrap',flexShrink:0,
-      fontFamily:"'Syne','Inter',system-ui,-apple-system,sans-serif",transition:'all .15s'},
+      fontFamily:"'Inter',system-ui,-apple-system,sans-serif",transition:'all .15s'},
       label+(n?' · '+n:''),
       ()=>{ if(_schedView===id) return;
             _schedView=id;
@@ -12505,7 +12514,7 @@ function matchCard(T,ev,league){
       textAlign:alignRight?'right':'left'},t.name||t.code||'TBD'));
     const rec=pvRecordFor(league&&league.id,t);
     if(rec) col.appendChild(S({fontSize:11,fontWeight:700,color:T.txm,letterSpacing:'.3px',
-      fontFamily:'ui-monospace,SFMono-Regular,Menlo,monospace'},rec.w+'-'+rec.l));
+      fontFamily:"'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace"},rec.w+'-'+rec.l));
     return col;
   }
   const t1w=D({display:'flex',alignItems:'center',gap:12,flex:1,minWidth:0});
