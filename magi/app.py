@@ -24,7 +24,6 @@ from pathlib import Path
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
 
 from .db import Database
 from .engine import brainstorm as brainstorm_engine
@@ -78,18 +77,23 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="MAGI", lifespan=lifespan)
 
 
+# Where magi.html is served from. A1 is a GitHub Pages repo, so this is the
+# one hosted origin that exists -- unlike the Firebase project this replaced,
+# it never changes, which is why it can be a constant instead of a build-time
+# variable. "null" is the origin of a file:// page, so magi.html opened straight
+# off disk works too (the usual way a change gets checked before it is pushed).
+PAGES_ORIGIN = "https://anthonyn99.github.io"
+
+
 def _allowed_origins() -> list[str]:
     """Origins permitted to call this API.
 
-    The two Vite dev origins are always allowed. A hosted UI lives on a
-    different origin (Firebase) from the backend (a tunnel to this machine),
-    so its URL is added through MAGI_ALLOWED_ORIGINS -- comma separated -- and
-    the deployment is configured without editing code.
-
     Deliberately NOT "*": these endpoints launch browsers holding live logins,
-    and a wildcard with credentials is rejected by browsers anyway.
+    and a wildcard with credentials is rejected by browsers anyway. Extra
+    origins can be added through MAGI_ALLOWED_ORIGINS (comma separated) without
+    editing code.
     """
-    origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    origins = [PAGES_ORIGIN, "null"]
     extra = os.environ.get("MAGI_ALLOWED_ORIGINS", "")
     origins += [o.strip().rstrip("/") for o in extra.split(",") if o.strip()]
     return origins
@@ -122,7 +126,17 @@ async def _require_token(request: Request, call_next):
             # response timing.
             if not secrets.compare_digest(sent, token):
                 return JSONResponse({"detail": "unauthorized"}, status_code=401)
-    return await call_next(request)
+    response = await call_next(request)
+
+    # Private Network Access. magi.html on GitHub Pages (a PUBLIC address) can
+    # reach this server on 127.0.0.1 (a LOCAL one) only if the preflight opts
+    # in explicitly -- Chrome blocks public->private otherwise, silently, with
+    # no CORS error to read. This is what lets the hosted page talk straight to
+    # the PC when you are sitting at it, instead of round-tripping through the
+    # tunnel. Harmless when the request is same-origin or already local.
+    if request.headers.get("Access-Control-Request-Private-Network") == "true":
+        response.headers["Access-Control-Allow-Private-Network"] = "true"
+    return response
 
 
 app.add_middleware(
@@ -1405,26 +1419,31 @@ async def doctor(request: Request, provider_ids: list[str] | None = None):
     return out
 
 
-# Serve the built frontend if it exists, so `magi serve` is a single process.
-_dist = ROOT / "frontend" / "dist"
-if _dist.is_dir():
-    app.mount("/assets", StaticFiles(directory=_dist / "assets"), name="assets")
+# ── the UI ───────────────────────────────────────────────────────────────────
+# magi.html is a single self-contained file at the A1 repo root, exactly like
+# every other program in the suite -- there is no build step and no bundle, so
+# there is nothing to mount under /assets and nothing to rebuild when the UI
+# changes. Serving it here gives the local case a SAME-ORIGIN page, which skips
+# CORS and Private Network Access entirely: open http://127.0.0.1:8000 and it
+# just works. The same file served from GitHub Pages is the remote case.
+_UI = ROOT.parent / "magi.html"
 
-    @app.get("/")
-    async def index():
-        # Never cache index.html. Everything under /assets is content-hashed
-        # (index-BXi58C-r.js), so those are safe to cache forever -- but this
-        # file is the thing that NAMES them, and it keeps the same URL across
-        # every build. Cached, it pins the browser to the previous build's
-        # bundle: the server serves a correct new frontend and the user is
-        # shown the old one, with no error anywhere to explain it. Rebuilding
-        # then appears to do nothing, which is a genuinely confusing failure
-        # (it cost a round of "I don't see it here" once already).
-        return FileResponse(
-            _dist / "index.html",
-            headers={
-                "Cache-Control": "no-cache, no-store, must-revalidate",
-                "Pragma": "no-cache",
-                "Expires": "0",
-            },
+
+@app.get("/")
+async def index():
+    if not _UI.is_file():
+        return JSONResponse(
+            {"detail": f"magi.html not found at {_UI}"}, status_code=404
         )
+    # Never cache. The file is edited in place and keeps one URL forever, so a
+    # cached copy pins the browser to an old UI against a new backend with no
+    # error anywhere to explain it -- editing then appears to do nothing.
+    return FileResponse(
+        _UI,
+        media_type="text/html",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )
