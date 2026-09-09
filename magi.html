@@ -1361,9 +1361,11 @@ function openSetup() {
   input.placeholder = "MAGI_API_TOKEN";
   input.autocomplete = "off";
   box.append(lbl, input);
-  box.append(el("div", "sheet-note")).lastChild.innerHTML =
+  const note = el("div", "sheet-note");
+  note.innerHTML =
     'Set the same value on the PC with <code>setx MAGI_API_TOKEN "…"</code>, then run ' +
     '<code>magi cloud</code>. Stored in this browser only — never in the repo, which is public.';
+  box.append(note);
 
   const msg = el("div");
   const bar = el("div", "sheet-bar");
@@ -1755,7 +1757,9 @@ function renderBlocks(host, blocks, lead = false) {
       if (b.head) {
         const tr = el("tr");
         b.head.forEach((c) => tr.append(inline(el("th"), c)));
-        t.append(el("thead")).lastChild.append(tr);
+        const thead = el("thead");
+        thead.append(tr);
+        t.append(thead);
       }
       const tb = el("tbody");
       b.rows.forEach((r) => {
