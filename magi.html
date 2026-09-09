@@ -1498,6 +1498,12 @@ table.doctor code { color: var(--txd); font-size: 11px; }
         </button>
       </div>
 
+      <div class="side-sec" id="bsSec">
+        <div class="side-sec-hd">Brainstorm</div>
+        <div class="side-sec-note" id="bsNote">Plan something with the council, round by round.</div>
+        <!-- rows injected by renderBsNav() -->
+      </div>
+
       <div class="side-sec" id="studioSec">
         <div class="side-sec-hd">Studio</div>
         <div class="side-sec-note" id="studioNote">Available once a verdict is reached.</div>
@@ -1507,10 +1513,6 @@ table.doctor code { color: var(--txd); font-size: 11px; }
         </div>
       </div>
 
-      <div class="side-sec">
-        <div class="side-sec-hd">Not yet ported</div>
-        <div class="side-sec-note">Brainstorm still lives in the Python engine — its console is the next thing to build here.</div>
-      </div>
     </nav>
 
     <button type="button" class="link seeking" id="linkBtn" title="Where the engine is">
@@ -1539,7 +1541,7 @@ table.doctor code { color: var(--txd); font-size: 11px; }
       </div>
     </div>
 
-    <div class="members">
+    <div class="members" id="unitBar">
       <span class="label">Units</span>
       <span id="unitChips"></span>
     </div>
@@ -1553,6 +1555,8 @@ table.doctor code { color: var(--txd); font-size: 11px; }
       <div class="drawer-hd" id="doctorHd">Selector doctor</div>
       <div id="doctorBody"></div>
     </div>
+
+    <div class="bs" id="bsView" hidden></div>
 
     <div class="studio-view" id="studioView" hidden>
       <div class="studio-view-hd">
@@ -2592,9 +2596,13 @@ function undoRefine() {
    forgotten. */
 function updateEnabled() {
   const q = $("composer").value.trim();
-  const busy = S.running || S.refining;
+  // A brainstorm round is already driving these profiles; starting a council
+  // run on top of one would have two Chrome contexts fighting for the same
+  // profile lock. Derived rather than tracked separately, so the two can never
+  // disagree about whether the machine is busy.
+  const busy = S.running || S.refining || (S.bs && S.bs.busy);
   const up = online();
-  $("btnSend").disabled = S.running || !q || S.selected.size === 0 || !up;
+  $("btnSend").disabled = busy || !q || S.selected.size === 0 || !up;
   $("btnSend").textContent = S.running ? "Deliberating…" : "Convene";
   $("btnRefine").disabled = busy || !q || !up;
   $("btnRefine").className = `qbar-refine ${S.refining ? "busy" : ""}`;
@@ -2606,9 +2614,10 @@ function updateEnabled() {
   // input handler.
   show($("btnUndo"), S.preRefine !== null && !S.refining);
   $("btnUndo").disabled = busy;
-  $("navNew").disabled = S.running;
+  $("navNew").disabled = busy;
   show($("navHalt"), S.running);
-  for (const b of document.querySelectorAll(".chip")) b.disabled = S.running;
+  for (const b of document.querySelectorAll(".chip")) b.disabled = busy;
+  if (typeof syncBsStartBar === "function") syncBsStartBar();
 }
 
 /* ══ the run ═══════════════════════════════════════════════════════════════ */
@@ -2926,20 +2935,28 @@ function setView(v) {
   // in the first place.
   if (v !== "council" && S.studio) S.studio.active = null;
   const studioOpen = !!(S.studio && S.studio.active);
+  const bsOpen = v === "brainstorm";
 
   show($("studioView"), studioOpen);
   show($("historyDrawer"), v === "history");
   show($("doctorDrawer"), v === "doctor");
+  // Brainstorm brings its own composer and its own reply box, so the council's
+  // question bar is HIDDEN rather than stacked above a second textarea that
+  // submits somewhere else.
+  show($("qbar"), !bsOpen);
+  show($("unitBar"), !bsOpen || !S.bs.sessionId);
   $("navCouncil").classList.toggle("active", v === "council" && !studioOpen);
   $("navHistory").classList.toggle("active", v === "history");
   $("navDoctor").classList.toggle("active", v === "doctor");
   // An open card replaces the grid and the verdict rather than sitting above
   // them: showing both at once is what made this page a scroll.
-  show($("magi"), S.panels.length > 0 && v === "council" && !studioOpen);
+  show($("magi"), S.panels.length > 0 && !studioOpen && (v === "council" || bsOpen));
   show($("emptyState"),
        S.panels.length === 0 && v === "council" && !S.verdict && !studioOpen);
   renderVerdict();
   if (typeof renderStudioNav === "function") renderStudioNav();
+  if (typeof renderBsNav === "function") renderBsNav();
+  if (typeof renderBsNav === "function") { renderBsNav(); renderBsView(); }
   if (S.panels.length && !studioOpen) requestAnimationFrame(drawLinks);
 }
 
@@ -3550,6 +3567,957 @@ function renderAudio(d, raw) {
 $("studioClose").onclick = closeStudio;
 $("studioRegen").onclick = () => S.studio.active && generateStudio(S.studio.active);
 
+/* ══ BRAINSTORM ════════════════════════════════════════════════════════════
+   Many rounds of council questions until a plan is worth building from, then
+   the chairman writes it out as a markdown brief.
+
+   A round is three phases, not one: every member answers the same prompt
+   independently (propose), each then reads the others VERBATIM and attacks
+   them (critique), and the chairman folds proposals plus critiques into one
+   plan (merge). The critique phase is what makes this a debate rather than a
+   poll — without it four models produce four opinions and a summariser, and a
+   wrong claim from one member is never challenged by the three that could have
+   caught it.
+
+   Rounds stream the SAME per-member events a council run does, so they drive
+   the same grid with no changes to it. Only the merge differs.
+
+   State lives in S.bs so the sidebar, the round panel and the live grid all
+   read one session — the same reason Studio lifts its artifacts out of its
+   panel. */
+
+S.bs = {
+  sessionId: null, topic: "", status: "active", rounds: [], busy: false,
+  phase: "idle",   // idle | council | merging | writing
+  error: null, planFilename: null, planMd: null, savedTo: null,
+  sessions: [], reply: "", answers: {},   // answers keyed by question index
+  es: null, jobId: null,
+  draft: "", refining: false, preRefine: null, refineError: null,
+};
+
+/** Rounds recorded before questions became structured hold plain strings, and
+ *  they still have to render. Normalising on read means every consumer sees one
+ *  shape and the old form needs no second code path. */
+function normaliseQuestion(q) {
+  if (typeof q === "string") return { q, header: "", kind: "open", blocking: false, options: [] };
+  const options = (Array.isArray(q && q.options) ? q.options : [])
+    .map((o) => (typeof o === "string" ? { label: o, description: "" }
+                                       : { label: (o && o.label) || "", description: (o && o.description) || "" }))
+    .filter((o) => o.label);
+  // Trust the option count over the declared kind: a choice with nothing to
+  // pick between is a text box, whatever the backend called it.
+  const choice = options.length >= 2;
+  return {
+    q: (q && q.q) || "", header: (q && q.header) || "",
+    kind: choice ? "choice" : "open",
+    blocking: !!(q && q.blocking),
+    options: choice ? options : [],
+  };
+}
+
+/** Rebuilds the round list from the flat turn log. The backend stores turns,
+ *  not rounds, because a round is not a row — it is a user reply plus N council
+ *  answers plus one merge, and which of those exist depends on how far the
+ *  round got. */
+function roundsFromTurns(turns) {
+  const key = (t) => `${t.round_no}:${t.attempt ?? 1}`;
+  const byKey = new Map();
+  const replies = new Map();
+  const blank = (t) => ({
+    round_no: t.round_no, attempt: t.attempt ?? 1, superseded: false,
+    phase: t.phase === "finalize" ? "finalize" : "round",
+    plan_so_far: "", questions: [], agreement: "", corrections_text: "",
+    dropped_questions: [], council_split: "", ready: false, ready_note: "",
+    parsed: false, raw_text: "", council: [],
+  });
+
+  for (const t of turns) {
+    const k = key(t);
+    // A council-only attempt (one that failed before the merge) still needs a
+    // row, or the members' answers would have nowhere to live.
+    if (!byKey.has(k)) byKey.set(k, blank(t));
+    const round = byKey.get(k);
+    if (t.phase === "finalize") round.phase = "finalize";
+
+    if (t.role === "user" && (t.content || "").trim()) {
+      replies.set(t.round_no, t.content.trim());
+    } else if (t.role === "council") {
+      round.council.push({
+        provider_id: t.provider_id || "member", content: t.content || "",
+        ok: t.ok === 1 || t.ok === undefined || t.ok === null,
+        degraded: t.degraded === 1, degraded_reason: t.degraded_reason,
+        failure_kind: t.failure_kind, error_detail: t.error_detail,
+        latency_ms: t.latency_ms, chars: t.char_count,
+      });
+    } else if (t.role === "chairman" && t.parsed_json) {
+      const p = t.parsed_json;
+      // The finalise turn holds the finished plan, not a round merge; the plan
+      // has its own view and must not masquerade as a round.
+      if (p.kind === "plan") continue;
+      round.plan_so_far = p.plan_so_far || "";
+      round.questions = (p.questions || []).map(normaliseQuestion);
+      round.agreement = p.agreement || p.council_split || "";
+      round.corrections_text = p.corrections_text || "";
+      round.dropped_questions = p.dropped_questions || [];
+      round.council_split = p.council_split || "";
+      round.ready = !!p.ready;
+      round.ready_note = p.ready_note || "";
+      round.parsed = !!p.parsed;
+      round.raw_text = t.content || "";
+      round.chairman = t.provider_id || undefined;
+    }
+  }
+
+  const rounds = [...byKey.values()].sort(
+    (a, b) => a.round_no - b.round_no || a.attempt - b.attempt);
+
+  // Mark every attempt a later one replaced. Kept and shown rather than
+  // hidden: a round that failed still happened, and what the members said
+  // before it failed is part of the record.
+  const best = new Map();
+  for (const r of rounds) best.set(r.round_no, Math.max(best.get(r.round_no) ?? 0, r.attempt));
+  for (const r of rounds) r.superseded = r.attempt < (best.get(r.round_no) ?? 1);
+
+  // The reply to round N's questions is stored on round N+1, which is where
+  // the user typed it. Attaching it back to the round it answers is what makes
+  // the history read as a conversation.
+  for (const [roundNo, reply] of replies) {
+    const answered = [...byKey.values()]
+      .filter((r) => r.round_no === roundNo - 1)
+      .sort((a, b) => b.attempt - a.attempt)[0];
+    if (answered) answered.reply = reply;
+  }
+  return rounds;
+}
+
+/** Suggested filename for the save dialog, mirroring the backend's
+ *  `plan_filename`. Recomputed on the client when an old session is reopened,
+ *  since the filename is only ever a suggestion and never a stored location. */
+function planFilenameFor(topic) {
+  const slug = (topic || "").toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
+    .slice(0, 48).replace(/-[^-]*$/, "") || "plan";
+  const d = new Date();
+  const date = [d.getFullYear(), String(d.getMonth() + 1).padStart(2, "0"),
+                String(d.getDate()).padStart(2, "0")].join("-");
+  return `${date}-${slug}.md`;
+}
+
+/** The round on screen is the newest one that actually produced a merge — a
+ *  superseded attempt, or a fan-out that failed before the chairman, has no
+ *  questions to answer. */
+function latestRound() {
+  const rs = S.bs.rounds;
+  return [...rs].reverse().find((r) => r.parsed || r.questions.length > 0)
+      || (rs.length ? rs[rs.length - 1] : null);
+}
+
+const bsBusy = () => S.running || S.bs.busy;
+
+/* ── actions ───────────────────────────────────────────────────────────── */
+
+async function loadBsSessions() {
+  if (!online()) return;
+  try {
+    const r = await fetch(`${link.api}/api/brainstorm?limit=30`, authed());
+    S.bs.sessions = await r.json();
+  } catch { return; }
+  renderBsNav();
+  if (S.view === "brainstorm") renderBsView();
+}
+
+function closeBsStream() {
+  if (S.bs.es) { S.bs.es.close(); S.bs.es = null; }
+  S.bs.jobId = null;
+}
+
+/** Re-reads the turn log. The database is the complete record — every member
+ *  answer and every attempt — so the view is rebuilt from it rather than
+ *  assembled from the events, which carry only the merge. */
+async function refreshTurns(id) {
+  try {
+    const r = await fetch(`${link.api}/api/brainstorm/${id}`, authed());
+    const data = await r.json();
+    S.bs.rounds = roundsFromTurns(data.turns);
+    if (data.session && data.session.plan_md) S.bs.planMd = data.session.plan_md;
+  } catch {}
+}
+
+/** Rehydrate a session from SQLite. Same principle as the council view's
+ *  reload recovery: a session is many minutes of work and must survive a
+ *  refresh. */
+async function openBsSession(id) {
+  closeBsStream();
+  Object.assign(S.bs, { error: null, busy: false, phase: "idle", reply: "", answers: {} });
+  try {
+    const r = await fetch(`${link.api}/api/brainstorm/${id}`, authed());
+    if (!r.ok) throw new Error("Session not found.");
+    const data = await r.json();
+    Object.assign(S.bs, {
+      sessionId: id, topic: data.session.topic, status: data.session.status,
+      planFilename: planFilenameFor(data.session.topic), savedTo: null,
+      planMd: data.session.plan_md || null, rounds: roundsFromTurns(data.turns),
+    });
+  } catch (e) {
+    S.bs.error = (e && e.message) || "Could not open that session.";
+  }
+  setView("brainstorm");
+}
+
+/** Subscribes to a round or finalise job. Both stream the same per-member
+ *  events the council grid already renders, so they feed it unchanged. */
+function listenBs(sid, jobId, kind) {
+  const es = new EventSource(streamUrl(`/api/brainstorm/${sid}/job/${jobId}/stream`));
+  S.bs.es = es;
+  S.bs.jobId = jobId;
+
+  es.onmessage = async (ev) => {
+    const msg = JSON.parse(ev.data);
+    onBrainstormEvent(msg);
+
+    if (msg.type === "state") {
+      // The chairman's own turn arrives as a waiting state carrying a message;
+      // that is the transition out of the fan-out phase.
+      if (msg.message) { S.bs.phase = kind === "finalize" ? "writing" : "merging"; renderBsView(); }
+    } else if (msg.type === "done") {
+      if (kind === "finalize") {
+        S.bs.status = "complete";
+        S.bs.planFilename = msg.plan_filename || null;
+        S.bs.planMd = msg.plan_md || null;
+      } else {
+        S.bs.reply = "";
+        // The new round's questions are different questions; keeping the old
+        // selections would attach them to the wrong ones by index.
+        S.bs.answers = {};
+      }
+      // Rebuild from the database rather than patching the round in from the
+      // event. The event carries only the merge; the database has the members'
+      // full answers and every earlier attempt.
+      await refreshTurns(sid);
+      Object.assign(S.bs, { busy: false, phase: "idle" });
+      closeBsStream();
+      loadBsSessions();
+      renderBsNav(); renderBsView(); updateEnabled();
+    } else if (msg.type === "error") {
+      S.bs.error = msg.message || "The round failed.";
+      // A failed round still produced member answers, and they are kept:
+      // the failure is then inspectable rather than a dead end with nothing
+      // to show for the minutes it cost.
+      await refreshTurns(sid);
+      Object.assign(S.bs, { busy: false, phase: "idle" });
+      // Finalise failure puts the session back to active server-side, so the
+      // local view has to agree or the retry button stays hidden.
+      if (kind === "finalize") S.bs.status = "active";
+      closeBsStream();
+      renderBsNav(); renderBsView(); updateEnabled();
+    }
+  };
+  es.onerror = () => {
+    Object.assign(S.bs, { busy: false, phase: "idle" });
+    closeBsStream();
+    renderBsNav(); renderBsView(); updateEnabled();
+  };
+}
+
+/** Brainstorm rounds stream the same per-member events a council run does, so
+ *  feeding them through one handler is what lets the existing console render a
+ *  round with no changes to it. */
+function onBrainstormEvent(msg) {
+  if (msg.type === "state") {
+    const p = byId(msg.provider_id);
+    if (!p) return;
+    p.state = msg.state;
+    p.text = msg.text || p.text;
+    p.chars = msg.chars || p.chars;
+    updateNode(p); updateCore(); drawLinks();
+  } else if (msg.type === "done" || msg.type === "error") {
+    // Round over: settle every unit still shown as working, so the grid does
+    // not keep animating after the round has landed.
+    for (const p of S.panels) {
+      if (WORKING.has(p.state)) { p.state = "done"; p.ok = true; updateNode(p); }
+    }
+    updateCore(); drawLinks();
+  }
+}
+
+/** Only the questions the user actually touched go on the wire. */
+function answersPayload() {
+  return JSON.stringify(
+    Object.entries(S.bs.answers)
+      .map(([i, a]) => ({ index: Number(i), value: a.value ?? null, other: a.other ?? null }))
+      .filter((a) => a.value || a.other));
+}
+
+/** Puts the console into the state a run would leave it in, so the grid shows
+ *  the members working through the round. */
+function primeGridForRound() {
+  S.verdict = null;
+  S.settled = new Set();
+  S.opened = new Set();
+  S.panels = S.providers.filter((p) => S.selected.has(p.id)).map((p) => ({
+    id: p.id, display_name: p.display_name, accent: p.accent,
+    state: "queued", text: "", chars: 0,
+  }));
+  renderGrid();
+  renderVerdict();
+}
+
+async function startBrainstorm(rawTopic) {
+  const t = (rawTopic || "").trim();
+  if (!t || bsBusy() || S.selected.size === 0 || !online()) return;
+  Object.assign(S.bs, {
+    error: null, busy: true, phase: "council", rounds: [],
+    planFilename: null, savedTo: null, planMd: null, status: "active",
+    topic: t, reply: "", answers: {},
+  });
+  setView("brainstorm");
+  primeGridForRound();
+  renderBsView(); renderBsNav(); updateEnabled();
+
+  try {
+    const form = new FormData();
+    form.append("topic", t);
+    form.append("providers", [...S.selected].join(","));
+    const res = await fetch(`${link.api}/api/brainstorm`, authed({ method: "POST", body: form }));
+    if (!res.ok) throw new Error(((await res.json()) || {}).detail || "Could not start.");
+    const { session_id } = await res.json();
+    S.bs.sessionId = session_id;
+
+    const rr = await fetch(`${link.api}/api/brainstorm/${session_id}/round`,
+                           authed({ method: "POST", body: new FormData() }));
+    if (!rr.ok) throw new Error(((await rr.json()) || {}).detail || "Round failed to start.");
+    const { job_id } = await rr.json();
+    listenBs(session_id, job_id, "round");
+    loadBsSessions();
+  } catch (e) {
+    Object.assign(S.bs, { error: (e && e.message) || "Could not start the session.", busy: false, phase: "idle" });
+    renderBsView(); updateEnabled();
+  }
+}
+
+async function bsNextRound() {
+  if (!S.bs.sessionId || bsBusy() || !online()) return;
+  Object.assign(S.bs, { error: null, busy: true, phase: "council" });
+  primeGridForRound();
+  renderBsView(); renderBsNav(); updateEnabled();
+  try {
+    const form = new FormData();
+    form.append("reply", S.bs.reply);
+    form.append("answers", answersPayload());
+    const res = await fetch(`${link.api}/api/brainstorm/${S.bs.sessionId}/round`,
+                            authed({ method: "POST", body: form }));
+    if (!res.ok) throw new Error(((await res.json()) || {}).detail || "Round failed to start.");
+    const { job_id } = await res.json();
+    listenBs(S.bs.sessionId, job_id, "round");
+  } catch (e) {
+    Object.assign(S.bs, { error: (e && e.message) || "Could not run the next round.", busy: false, phase: "idle" });
+    renderBsView(); updateEnabled();
+  }
+}
+
+async function bsFinalize() {
+  if (!S.bs.sessionId || bsBusy() || !online()) return;
+  Object.assign(S.bs, { error: null, busy: true, phase: "council", status: "finalizing" });
+  primeGridForRound();
+  renderBsView(); renderBsNav(); updateEnabled();
+  try {
+    const form = new FormData();
+    form.append("reply", S.bs.reply);
+    form.append("answers", answersPayload());
+    const res = await fetch(`${link.api}/api/brainstorm/${S.bs.sessionId}/finalize`,
+                            authed({ method: "POST", body: form }));
+    if (!res.ok) throw new Error(((await res.json()) || {}).detail || "Could not finalise.");
+    const { job_id } = await res.json();
+    listenBs(S.bs.sessionId, job_id, "finalize");
+  } catch (e) {
+    Object.assign(S.bs, {
+      error: (e && e.message) || "Could not finalise the plan.",
+      busy: false, phase: "idle", status: "active",
+    });
+    renderBsView(); updateEnabled();
+  }
+}
+
+async function bsCancel() {
+  if (!S.bs.sessionId || !S.bs.jobId || !online()) return;
+  await fetch(`${link.api}/api/brainstorm/${S.bs.sessionId}/job/${S.bs.jobId}/cancel`,
+              authed({ method: "POST" })).catch(() => {});
+}
+
+/** Clears back to the "start a new session" screen. */
+function bsReset() {
+  if (bsBusy()) return;
+  closeBsStream();
+  Object.assign(S.bs, {
+    sessionId: null, topic: "", rounds: [], status: "active",
+    planFilename: null, savedTo: null, planMd: null, error: null,
+    reply: "", answers: {}, phase: "idle", draft: "", preRefine: null, refineError: null,
+  });
+  renderBsNav(); renderBsView();
+}
+
+/** Hands the plan to the user as a file, wherever they choose to put it.
+ *
+ *  Nothing has been written to disk at this point — the plan lives in the
+ *  database and in memory. Chrome's File System Access API gives a real Save As
+ *  dialog; anything else falls back to an ordinary download, which lands in the
+ *  browser's download folder. */
+async function bsSavePlan() {
+  if (!S.bs.planMd) return;
+  const suggested = S.bs.planFilename || "plan.md";
+  if (typeof window.showSaveFilePicker === "function") {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: suggested,
+        types: [{ description: "Markdown", accept: { "text/markdown": [".md"] } }],
+      });
+      const w = await handle.createWritable();
+      await w.write(S.bs.planMd);
+      await w.close();
+      S.bs.savedTo = handle.name || suggested;
+      renderBsView();
+      return;
+    } catch (e) {
+      // Dismissing the dialog is not an error worth reporting. Anything else
+      // (a permission refusal, a read-only location) falls through to the
+      // download path rather than leaving them with nothing.
+      if (e && e.name === "AbortError") return;
+    }
+  }
+  const url = URL.createObjectURL(new Blob([S.bs.planMd], { type: "text/markdown;charset=utf-8" }));
+  const a = document.createElement("a");
+  a.href = url; a.download = suggested;
+  document.body.append(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  S.bs.savedTo = suggested;
+  renderBsView();
+}
+
+/* ── views ─────────────────────────────────────────────────────────────── */
+
+function renderBsNav() {
+  const sec = $("bsSec");
+  for (const el2 of sec.querySelectorAll(".bs-row")) el2.remove();
+  const bs = S.bs;
+  show($("bsNote"), !S.navCollapsed && !bs.sessionId);
+
+  const main = el("button", `side-item bs-row ${S.view === "brainstorm" ? "active" : ""}`);
+  main.type = "button";
+  main.style.setProperty("--sa", "var(--gold)");
+  main.disabled = !online();
+  main.title = S.navCollapsed ? "Brainstorm" : "Open the planning session";
+  main.setAttribute("aria-current", String(S.view === "brainstorm"));
+  main.append(el("span", "side-ic studio-ic", "◇"),
+              el("span", "side-label", bs.sessionId ? "Current session" : "New session"));
+  const tag = el("span", "side-tag");
+  if (bs.busy) tag.append(el("span", "spin", "◐"));
+  else tag.textContent = bs.status === "complete" ? "✓" : bs.rounds.length ? `R${bs.rounds.length}` : "";
+  main.append(tag);
+  main.onclick = () => setView("brainstorm");
+  sec.append(main);
+
+  if (bs.sessionId && !S.navCollapsed) {
+    const nu = el("button", "side-item bs-row");
+    nu.type = "button";
+    nu.style.setProperty("--sa", "var(--acl)");
+    nu.disabled = bsBusy();
+    nu.title = "Start a different planning session";
+    nu.append(el("span", "side-ic studio-ic", "✦"),
+              el("span", "side-label", "New session"), el("span", "side-tag"));
+    nu.onclick = bsReset;
+    sec.append(nu);
+  }
+}
+
+function phaseNote(phase) {
+  if (phase === "idle") return null;
+  const text = phase === "council"
+    ? "Each unit is thinking about the plan independently…"
+    : phase === "merging"
+      ? "Merging the round into one plan and one set of questions…"
+      : "Writing the plan file…";
+  const n = el("div", "bs-phase");
+  n.append(el("span", "spin", "◐"), document.createTextNode(" " + text));
+  return n;
+}
+
+function bsCallout(kind, cause, remedy) {
+  const c = el("div", "callout");
+  c.append(el("div", "kind", kind), el("div", "cause", cause));
+  if (remedy) c.append(el("div", "remedy", remedy));
+  return c;
+}
+
+/** One question as a card: header chip, the question, then either selectable
+ *  options or a text input. Modelled on Claude Code's AskUserQuestion, which is
+ *  the interaction this is meant to feel like. */
+function questionCard(index, question, disabled) {
+  const answer = S.bs.answers[index];
+  // An open question is "Other" by construction — there is nothing to pick, so
+  // its input IS the answer.
+  const isOpen = question.kind === "open";
+  const otherActive = isOpen || (answer && answer.other !== undefined);
+  const answered = !!(answer && (answer.value || answer.other));
+
+  const card = el("div", `bs-card ${answered ? "answered" : ""}`);
+  const hd = el("div", "bs-card-hd");
+  hd.append(el("span", "bs-chip", question.header || `Q${index + 1}`));
+  if (question.blocking) {
+    const b = el("span", "bs-chip bs-chip-blocking", "shapes the plan");
+    b.title = "The shape of the plan depends on this answer, not just its detail.";
+    hd.append(b);
+  }
+  if (answered && !disabled) {
+    const clr = el("button", "bs-skip", "clear");
+    clr.type = "button";
+    clr.title = "Clear this answer — the council will decide it instead";
+    clr.onclick = () => setBsAnswer(index, null);
+    hd.append(clr);
+  }
+  card.append(hd, el("div", "bs-card-q", question.q));
+
+  if (!isOpen) {
+    const opts = el("div", "bs-opts");
+    opts.setAttribute("role", "radiogroup");
+    opts.setAttribute("aria-label", question.q);
+    for (const o of question.options) {
+      const on = answer && answer.value === o.label && answer.other === undefined;
+      const b = el("button", `bs-opt ${on ? "selected" : ""}`);
+      b.type = "button";
+      b.setAttribute("role", "radio");
+      b.setAttribute("aria-checked", String(!!on));
+      b.disabled = !!disabled;
+      const mark = el("span", "bs-opt-mark", on ? "◉" : "○");
+      mark.setAttribute("aria-hidden", "true");
+      const txt = el("span", "bs-opt-text");
+      txt.append(el("span", "bs-opt-label", o.label));
+      if (o.description) txt.append(el("span", "bs-opt-desc", o.description));
+      b.append(mark, txt);
+      b.onclick = () => setBsAnswer(index, on ? null : { value: o.label });
+      opts.append(b);
+    }
+    const other = el("button", `bs-opt ${otherActive ? "selected" : ""}`);
+    other.type = "button";
+    other.setAttribute("role", "radio");
+    other.setAttribute("aria-checked", String(!!otherActive));
+    other.disabled = !!disabled;
+    const m2 = el("span", "bs-opt-mark", otherActive ? "◉" : "○");
+    m2.setAttribute("aria-hidden", "true");
+    const t2 = el("span", "bs-opt-text");
+    t2.append(el("span", "bs-opt-label", "Other…"),
+              el("span", "bs-opt-desc", "Answer in your own words"));
+    other.append(m2, t2);
+    other.onclick = () => setBsAnswer(index, otherActive ? null : { other: "" });
+    opts.append(other);
+    card.append(opts);
+  }
+
+  if (otherActive) {
+    const inp = el("input", "bs-open-input");
+    inp.type = "text";
+    inp.placeholder = isOpen ? "Your answer — or leave blank to skip" : "Your answer…";
+    inp.value = (answer && answer.other) || "";
+    inp.disabled = !!disabled;
+    inp.oninput = () => {
+      const v = inp.value;
+      // An emptied box on an open question is a skip, not an empty answer —
+      // otherwise a stray keystroke would send blank prose.
+      if (isOpen && !v) S.bs.answers[index] = undefined, delete S.bs.answers[index];
+      else S.bs.answers[index] = { other: v };
+      // Deliberately NOT a re-render: rebuilding the card here would destroy
+      // the input and take the caret with it on every keystroke.
+      card.classList.toggle("answered", !!v);
+    };
+    card.append(inp);
+    if (!isOpen) setTimeout(() => inp.focus(), 0);
+  }
+  return card;
+}
+
+/** Answer changes rebuild the card list, so the radio marks and the clear
+ *  affordance stay in step with the state. */
+function setBsAnswer(index, entry) {
+  if (entry === null) delete S.bs.answers[index];
+  else S.bs.answers[index] = entry;
+  renderBsView();
+}
+
+/** One member's full answer for a round. Collapsed by default — these run to
+ *  thousands of characters each, and four of them per round would bury the
+ *  questions. Collapsed is not the same as discarded. */
+function councilAnswers(council) {
+  if (!council || !council.length) return null;
+  const d = el("details", "bs-council");
+  d.append(el("summary", null, `What each unit said (${council.length})`));
+  for (const a of council) {
+    const row = el("div", "bs-council-answer");
+    const hd = el("div", "bs-council-hd");
+    hd.append(el("span", "bs-council-name", a.provider_id));
+    if (a.degraded) {
+      hd.append(el("span", "bs-council-bad", `excluded — ${a.degraded_reason || "unusable response"}`));
+    } else if (!a.ok) {
+      hd.append(el("span", "bs-council-bad",
+        (a.failure_kind || "failed") + (a.error_detail ? ` — ${a.error_detail}` : "")));
+    } else {
+      hd.append(el("span", "bs-council-meta",
+        (a.latency_ms ? `${(a.latency_ms / 1000).toFixed(1)}s` : "") +
+        (a.chars ? ` · ${a.chars}c` : "")));
+    }
+    row.append(hd);
+    if ((a.content || "").trim()) row.append(el("div", "bs-council-body", a.content));
+    d.append(row);
+  }
+  return d;
+}
+
+function roundHistory(rounds) {
+  if (!rounds.length) return null;
+  const d = el("details", "bs-history");
+  d.append(el("summary", null, `Earlier rounds (${rounds.length})`));
+  for (const r of [...rounds].reverse()) {
+    const box = el("div", `bs-hist-round ${r.superseded ? "superseded" : ""}`);
+    const hd = el("div", "bs-hist-hd");
+    hd.append(document.createTextNode(
+      (r.phase === "finalize" ? "Finalise pass" : `Round ${r.round_no}`) +
+      (r.attempt > 1 ? ` · attempt ${r.attempt}` : "")));
+    if (r.superseded) hd.append(el("span", "bs-hist-note", " — retried, did not complete"));
+    box.append(hd);
+
+    if (r.questions.length) {
+      const ol = el("ol", "bs-qlist small");
+      r.questions.forEach((q) => ol.append(el("li", null, q.q)));
+      box.append(ol);
+    }
+    if (r.reply) {
+      const rep = el("div", "bs-hist-reply");
+      rep.append(el("span", "bs-hist-label", "You answered"), document.createTextNode(r.reply));
+      box.append(rep);
+    }
+    if (r.plan_so_far) {
+      const pd = el("details", "bs-council");
+      pd.append(el("summary", null, "Plan draft at this round"));
+      const inner = el("div", "bs-council-answer");
+      inner.append(verdictBody(r.plan_so_far));
+      pd.append(inner);
+      box.append(pd);
+    }
+    const ca = councilAnswers(r.council);
+    if (ca) box.append(ca);
+    d.append(box);
+  }
+  return d;
+}
+
+function bsDetails(summaryText, bodyText) {
+  const d = el("details", "bs-split");
+  d.append(el("summary", null, summaryText));
+  d.append(verdictBody(bodyText));
+  return d;
+}
+
+/** The whole Brainstorm surface: the start form, the live round, the finished
+ *  plan, and the prior-round history. */
+function renderBsView() {
+  const root = $("bsView");
+  show(root, S.view === "brainstorm");
+  if (S.view !== "brainstorm") return;
+  root.textContent = "";
+  const bs = S.bs, busy = bs.busy;
+
+  /* ── no session yet ─────────────────────────────────────────────────── */
+  if (!bs.sessionId) {
+    const hd = el("div", "bs-hd");
+    hd.append(el("span", "bs-title", "Brainstorm"),
+              el("span", "bs-sub",
+                 "The council asks you questions until the plan is worth building from, " +
+                 "then writes it to a file for a coding agent."));
+    root.append(hd);
+
+    const start = el("div", "bs-start");
+    const ta = el("textarea", "bs-topic");
+    ta.placeholder = "What do you want to plan?  Describe the idea roughly — the questions come next.   (Ctrl+Enter)";
+    ta.value = bs.draft;
+    // Locked during a refine as well as a round: the rewrite replaces this
+    // text, so edits made while it is in flight would be lost.
+    ta.disabled = busy || bs.refining;
+    ta.oninput = () => {
+      bs.draft = ta.value;
+      // Once the rewrite is edited by hand, "Undo" would restore over the
+      // person's own words rather than over a machine rewrite.
+      if (bs.preRefine !== null) bs.preRefine = null;
+      if (bs.refineError) { bs.refineError = null; }
+      syncBsStartBar();
+    };
+    ta.onkeydown = (e) => {
+      if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && ta.value.trim()) {
+        e.preventDefault();
+        const t = ta.value;
+        bs.draft = ""; bs.preRefine = null;
+        startBrainstorm(t);
+      }
+    };
+    start.append(ta);
+    if (bs.refineError) start.append(el("div", "qbar-error", bs.refineError));
+
+    const bar = el("div", "bs-start-bar");
+    const refineBtn = el("button", `qbar-refine ${bs.refining ? "busy" : ""}`);
+    refineBtn.type = "button";
+    refineBtn.id = "bsRefine";
+    refineBtn.title = "Rewrite this into a sharper topic";
+    refineBtn.setAttribute("aria-label", "Refine topic");
+    const rIco = el("span", "qbar-refine-ico", bs.refining ? "◌" : "✦");
+    rIco.setAttribute("aria-hidden", "true");
+    refineBtn.append(rIco, el("span", "qbar-refine-txt", bs.refining ? "Refining…" : "Refine"));
+    refineBtn.onclick = bsRefine;
+    bar.append(refineBtn);
+
+    if (bs.preRefine !== null && !bs.refining) {
+      const undo = el("button", "qbar-undo", "↺ Undo");
+      undo.type = "button";
+      undo.title = "Restore what you wrote";
+      undo.disabled = busy;
+      undo.onclick = () => {
+        bs.draft = bs.preRefine; bs.preRefine = null; bs.refineError = null;
+        renderBsView();
+      };
+      bar.append(undo);
+    }
+
+    const n = S.selected.size;
+    bar.append(el("span", "bs-note",
+      `${n} unit${n === 1 ? "" : "s"} selected · each round takes a few minutes`));
+    bar.append(el("span", "qbar-spacer"));
+    const begin = el("button", "btn active", "Begin session");
+    begin.id = "bsBegin";
+    // Also blocked mid-refine: starting now would seed the session with the
+    // pre-rewrite text and throw the rewrite away as it landed.
+    begin.onclick = () => {
+      const t = ta.value;
+      bs.draft = ""; bs.preRefine = null;
+      startBrainstorm(t);
+    };
+    bar.append(begin);
+    start.append(bar);
+    root.append(start);
+    syncBsStartBar();
+
+    if (bs.error) root.append(bsCallout("could not start", bs.error));
+
+    if (bs.sessions.length) {
+      const drawer = el("div", "drawer");
+      drawer.append(el("div", "drawer-hd", "Past sessions"));
+      for (const s of bs.sessions) {
+        const row = el("div", "row");
+        row.append(el("span", "q", s.topic));
+        row.append(el("span", "meta",
+          `${s.status === "complete" ? "plan ready" : s.status} · ` +
+          `${s.rounds} round${s.rounds === 1 ? "" : "s"} · ` +
+          new Date(s.created_at).toLocaleString()));
+        row.onclick = () => openBsSession(s.id);
+        drawer.append(row);
+      }
+      root.append(drawer);
+    }
+    return;
+  }
+
+  /* ── finished: the plan ─────────────────────────────────────────────── */
+  if (bs.status === "complete" && bs.planMd) {
+    const hd = el("div", "bs-hd");
+    hd.append(el("span", "bs-title", "Plan ready"), el("span", "bs-sub", bs.topic));
+    root.append(hd);
+
+    const bar = el("div", "bs-plan-bar");
+    const state = el("span", "bs-save-state");
+    if (bs.savedTo) {
+      state.append(el("span", "bs-saved-tick", "✓"), document.createTextNode(" Saved as "),
+                   el("code", null, bs.savedTo));
+    } else {
+      state.textContent = "Not saved anywhere yet — nothing has been written to disk.";
+    }
+    bar.append(state, el("span", "qbar-spacer"));
+    const save = el("button", "navitem");
+    save.type = "button";
+    save.append(el("span", "navitem-ic", "↓"),
+                document.createTextNode(bs.savedTo ? "Save again…" : "Save as…"));
+    save.onclick = bsSavePlan;
+    const copy = el("button", "navitem");
+    copy.type = "button";
+    copy.append(el("span", "navitem-ic", "⧉"), document.createTextNode("Copy markdown"));
+    copy.onclick = () => navigator.clipboard && navigator.clipboard.writeText(bs.planMd || "");
+    bar.append(save, copy);
+    root.append(bar);
+
+    const hint = el("div", "bs-hint");
+    hint.append(document.createTextNode(
+      "Hand this to Claude Code — it reads as a standalone brief, with the session " +
+      "transcript folded in at the end. Copy it straight into a prompt, or save it as "),
+      el("code", null, bs.planFilename || "a .md file"),
+      document.createTextNode(" wherever you keep your plans."));
+    root.append(hint);
+
+    const v = el("div", "verdict");
+    v.append(verdictBody(bs.planMd));
+    root.append(v);
+
+    const hist = roundHistory(bs.rounds);
+    if (hist) root.append(hist);
+    return;
+  }
+
+  /* ── active session ─────────────────────────────────────────────────── */
+  const latest = latestRound();
+  const hd = el("div", "bs-hd");
+  hd.append(el("span", "bs-title", `Brainstorm · round ${latest ? latest.round_no : 1}`),
+            el("span", "bs-sub", bs.topic));
+  root.append(hd);
+
+  if (busy) { const pn = phaseNote(bs.phase); if (pn) root.append(pn); }
+  if (bs.error) {
+    root.append(bsCallout("round failed", bs.error,
+      "Nothing was lost — every earlier round is saved. Try again."));
+  }
+
+  if (latest) {
+    if (latest.parsed) {
+      const v = el("div", "verdict");
+      const vh = el("div", "verdict-hd");
+      vh.append(el("span", "verdict-title", "Plan so far"),
+                el("span", "verdict-quorum",
+                   `round ${latest.round_no}` + (latest.chairman ? ` · merged by ${latest.chairman}` : "")));
+      v.append(vh, verdictBody(latest.plan_so_far));
+      root.append(v);
+
+      if (latest.agreement) root.append(bsDetails("Where the council agreed and split", latest.agreement));
+      if (latest.corrections_text) root.append(bsDetails("Factual errors caught this round", latest.corrections_text));
+      if (latest.dropped_questions.length) {
+        root.append(bsDetails(
+          `Questions dropped as already settled (${latest.dropped_questions.length})`,
+          latest.dropped_questions.map((q) => `- ${q}`).join("\n")));
+      }
+    } else {
+      // The headings did not parse. The text still cost minutes of real browser
+      // time and usually contains the plan anyway, so it is shown rather than
+      // thrown away.
+      const v = el("div", "verdict");
+      const vh = el("div", "verdict-hd");
+      vh.append(el("span", "verdict-title", `Round ${latest.round_no}`),
+                el("span", "verdict-quorum", "unstructured response"));
+      v.append(vh, verdictBody(latest.raw_text));
+      root.append(v);
+    }
+
+    // The raw material this round's merge came from, available without leaving
+    // the round.
+    const ca = councilAnswers(latest.council);
+    if (ca) root.append(ca);
+
+    if (latest.questions.length) {
+      const box = el("div", "bs-questions");
+      const qh = el("div", "bs-questions-hd");
+      qh.append(document.createTextNode("Questions for you"),
+                el("span", "bs-qcount",
+                   `${latest.questions.length} · answer what you can, skip the rest`));
+      box.append(qh);
+      const cards = el("div", "bs-cards");
+      latest.questions.forEach((q, i) => cards.append(questionCard(i, q, busy)));
+      box.append(cards);
+      root.append(box);
+    }
+  }
+
+  if (!busy) {
+    const qbar = el("div", "qbar bs-reply");
+    const ta = el("textarea");
+    ta.placeholder = latest && latest.questions.length
+      ? "Anything else the questions didn't cover? Optional.   (Ctrl+Enter)"
+      : "Anything to add before the next round?   (Ctrl+Enter)";
+    ta.value = bs.reply;
+    ta.oninput = () => { bs.reply = ta.value; };
+    ta.onkeydown = (e) => {
+      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); bsNextRound(); }
+    };
+    qbar.append(ta);
+
+    const tools = el("div", "qbar-toolbar");
+    if (latest && latest.ready) {
+      const rd = el("span", "bs-ready", "✓ The council thinks the plan is ready");
+      rd.title = latest.ready_note || "";
+      tools.append(rd);
+    }
+    tools.append(el("span", "qbar-spacer"));
+    const next = el("button", "btn", "Next round");
+    next.onclick = bsNextRound;
+    // Emphasised once the council says it is ready — a hint about when to stop,
+    // never a gate. The user ends the session.
+    const fin = el("button", `btn ${latest && latest.ready ? "active" : ""}`, "Finalize plan");
+    fin.title = "End the session and write the plan file";
+    fin.disabled = !bs.rounds.length;
+    fin.onclick = bsFinalize;
+    tools.append(next, fin);
+    qbar.append(tools);
+    root.append(qbar);
+  } else {
+    const halt = el("div", "qbar-toolbar bs-halt");
+    halt.append(el("span", "qbar-spacer"));
+    const b = el("button", "navitem danger");
+    b.type = "button";
+    b.append(el("span", "navitem-ic", "■"), document.createTextNode("Halt round"));
+    b.onclick = bsCancel;
+    halt.append(b);
+    root.append(halt);
+  }
+
+  // Everything except the round shown above — including attempts that failed,
+  // which are part of the record.
+  const hist = roundHistory(bs.rounds.filter(
+    (r) => !latest || r.round_no !== latest.round_no || r.attempt !== latest.attempt));
+  if (hist) root.append(hist);
+}
+
+/** Enable/disable for the start screen, kept out of renderBsView so typing in
+ *  the topic box does not rebuild the textarea under the caret. */
+function syncBsStartBar() {
+  const begin = $("bsBegin"), refine = $("bsRefine");
+  if (!begin) return;
+  const draft = S.bs.draft.trim();
+  begin.disabled = bsBusy() || S.bs.refining || !draft || S.selected.size === 0 || !online();
+  if (refine) refine.disabled = bsBusy() || S.bs.refining || !draft || !online();
+}
+
+/** Prompt refinement for the topic, same contract as the council composer: the
+ *  rewrite lands in the box to be read and edited, never sent on the user's
+ *  behalf, and preRefine keeps the original so it is undoable.
+ *
+ *  It matters more here, if anything — the topic seeds every round that
+ *  follows, so a vague one costs minutes of questions rather than one answer. */
+async function bsRefine() {
+  const q = S.bs.draft.trim();
+  if (!q || S.bs.refining || bsBusy() || !online()) return;
+  S.bs.refining = true;
+  S.bs.refineError = null;
+  renderBsView();
+  try {
+    const form = new FormData();
+    form.append("question", q);
+    const res = await fetch(`${link.api}/api/refine`, authed({ method: "POST", body: form }));
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error((body && body.detail) || `Refine failed (${res.status})`);
+    }
+    const { refined } = await res.json();
+    // Refining twice must not make the first rewrite the thing Undo restores —
+    // only ever the text the person actually wrote.
+    if (S.bs.preRefine === null) S.bs.preRefine = q;
+    S.bs.draft = refined;
+  } catch (e) {
+    S.bs.refineError = (e && e.message) || "Refine failed.";
+  } finally {
+    S.bs.refining = false;
+    renderBsView();
+  }
+}
+
 /* ══ boot ══════════════════════════════════════════════════════════════════ */
 async function boot() {
   if (!online()) return;
@@ -3563,6 +4531,7 @@ async function boot() {
   } catch {}
   loadHistory();
   renderStudioNav();
+  loadBsSessions();
 }
 
 applyNav();

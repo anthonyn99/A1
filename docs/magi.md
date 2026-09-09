@@ -311,10 +311,22 @@ is spoken client-side, with a second voice where the platform has one and a
 pitch offset where it does not. Video is a permanently disabled tile: there is
 no video surface reachable through a browser-automated chat UI.
 
-**Still to port: Brainstorm.** Its engine came across intact and
-`/api/brainstorm/*` works today; only the console is missing. Its CSS was left
-out of `magi.html` deliberately so it arrives with the markup it styles rather
-than sitting unused.
+**Brainstorm is ported.** Its own section in the sidebar, and it takes over the
+content area when open — it brings its own topic box and its own reply box, so
+the council's question bar is hidden rather than stacked above a second textarea
+that submits somewhere else. Rounds stream the same per-member events a council
+run does, so they drive the same grid with no changes to it.
+
+Questions come back as cards, modelled on Claude Code's own AskUserQuestion: a
+header chip, the question, then either options to pick from or a text box. One
+marked *shapes the plan* is blocking — while it is unanswered the session cannot
+report itself ready. Every answer is optional; skipping one means "you decide".
+The plan is never written to disk on its own: **Save as…** opens a real file
+dialog where the browser supports one and falls back to a download otherwise.
+
+Rounds that were retried are kept and labelled rather than hidden — a round that
+failed still happened, and what the members said before it failed is part of the
+record.
 
 Brainstorm is worth knowing about before porting it — a round is three phases
 (propose → critique → merge), and the critique phase is what makes it a debate
