@@ -20,6 +20,7 @@ the Cloudflare Workers each have their own folder.
 | `riftiq.html` | **RiftIQ** — WarRoom (League) + ProView (esports) (`dashboards/lol_warroom`, `dashboards/proview`) |
 | `wellness.html` | **Wellness** — Veda's tracker |
 | `shield.html` | **Shield** — front end for the desktop agent |
+| `magi.html` | **MAGI** — multi-model council: one question to ChatGPT/Claude/Gemini/DeepSeek, one synthesised verdict. The console only — the engine runs on Tony's PC (`magi/`, `docs/magi.md`) |
 
 `firestore.rules`, `firebase-messaging-sw.js` and `.nojekyll` are deployment
 files and belong at the root.
@@ -36,6 +37,7 @@ files and belong at the root.
 | `V1/` | Veda's earlier suite — StudyOS, Finance, TradeBoard. Still deployed, by `deploy-v1-workers.yml`; self-contained, with its own README and workers |
 | `tests/` | Node test suite for the root apps — `npm test` |
 | `tools/` | App Check maintenance scripts (see `tools/README-appcheck.md`) |
+| `magi/` | MAGI's engine — Python + Playwright, driving four logged-in Chrome profiles. Local-only by nature; start it with `magi.bat`. See `docs/magi.md` |
 | `docs/` | Setup checklists and design notes |
 
 ## Tests

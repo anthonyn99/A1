@@ -1,0 +1,49 @@
+# NOT IN USE — kept for when you register a real domain.
+#
+# MAGI currently uses a QUICK tunnel, which needs no config file at all:
+#
+#     cloudflared tunnel --url http://127.0.0.1:8000
+#
+# `magi cloud` runs exactly that, then publishes the url it prints to the
+# magi-link worker so magi.html can find it. That works, and costs one KV write
+# per PC boot — but a quick tunnel gets a NEW hostname every restart, which is
+# the only reason magi-link has to exist.
+#
+# A registered domain removes that churn AND buys Cloudflare Access, which a
+# quick tunnel cannot have (Access binds to a hostname on a zone you own, and
+# trycloudflare.com belongs to Cloudflare — that is why /api/* is gated on
+# MAGI_API_TOKEN instead). With a permanent hostname you could drop the token
+# gate, drop magi-link, and hardcode the url in magi.html.
+#
+# To switch: register a domain, add it to Cloudflare, create the tunnel, fill
+# in the two ids below, then run
+#
+#     cloudflared tunnel create magi-local
+#     cloudflared tunnel --config magi\config\cloudflared-named-tunnel.yml run magi-local
+#
+# Pass this file with --config rather than overwriting ~\.cloudflared\config.yml
+# — anything else already using the default path keeps working that way.
+#
+# The tunnel connects OUTWARD from this PC to Cloudflare's edge: no router
+# ports opened, no inbound attack surface. uvicorn stays bound to 127.0.0.1, so
+# the tunnel is the only route in.
+
+tunnel: <TUNNEL_ID from `cloudflared tunnel create magi-local`>
+credentials-file: C:\Users\antho\.cloudflared\<TUNNEL_ID>.json
+
+ingress:
+  - hostname: magi-api.<your-domain>
+    service: http://127.0.0.1:8000
+    originRequest:
+      # A council member may stream for the full hard_timeout_s (300s) before
+      # the answer stabilises, and a brainstorm round is three such phases.
+      connectTimeout: 30s
+      tcpKeepAlive: 30s
+      # MAGI's run grid is Server-Sent Events. Chunked encoding must stay ON or
+      # the stream is buffered and the grid fills in one jump at the end
+      # instead of member by member.
+      disableChunkedEncoding: false
+      noTLSVerify: false
+
+  # Required catch-all: anything not matched above is refused.
+  - service: http_status:404
