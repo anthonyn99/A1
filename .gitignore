@@ -85,3 +85,24 @@ Index Backups/*/live/
 # can only fetch ciphertext, never write or delete - but it is still a
 # credential and this repo is PUBLIC.
 .a1b-pull-secret
+
+# ── MAGI ────────────────────────────────────────────────────────────────────
+# SECURITY-CRITICAL on a PUBLIC repo. Each of these holds something that must
+# never leave the machine:
+#
+#   profiles/   live logged-in browser sessions for ChatGPT / Claude / Gemini /
+#               DeepSeek. Committing one hands over those paid accounts.
+#   data/       run history — the full text of every question and every answer,
+#               plus any file attached to a question.
+#   artifacts/  failure screenshots and DOM dumps, taken from logged-in pages,
+#               so they can contain account details in the chrome of the page.
+#   .venv/      the pinned Python 3.12 environment magi.bat builds on first run.
+#
+# .env (the Gemini API key for the Refine button) is already covered by the
+# repo-wide `.env` rule near the top of this file.
+magi/profiles/
+magi/data/
+magi/artifacts/
+magi/.venv/
+magi/**/__pycache__/
+magi/.pytest_cache/
