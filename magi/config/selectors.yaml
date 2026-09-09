@@ -35,25 +35,33 @@ sites:
     # Headless Chrome advertises "HeadlessChrome" in its UA, and that token
     # alone is what Cloudflare blocks on -- strip it and the challenge clears.
     headless_ok: true
-    # VERIFIED 2026-08-12 against the live logged-out page (headful Chrome).
-    # ChatGPT now serves a "wm-*" (web-mobile) shell with a real <textarea>,
-    # NOT the ProseMirror contenteditable that older guides describe. The
-    # documented div#prompt-textarea / data-message-author-role selectors
-    # matched nothing. Legacy selectors are kept as lower-priority fallbacks
-    # in case the old shell is still served to some accounts.
+    # REORDERED 2026-09-09. The "wm-*" (web-mobile) shell these were verified
+    # against on 2026-08-12 is what ChatGPT serves LOGGED OUT, which is how
+    # that check was run. MAGI always drives a SIGNED-IN session, and that gets
+    # the classic desktop shell -- so the entries then labelled "legacy" are in
+    # fact the current ones, and `doctor` reported input, submit and
+    # ready_selector as FALLBACK on every pass.
+    #
+    # Falling back still worked, so this was cosmetic rather than broken. It is
+    # reordered anyway because FALLBACK is the early-warning signal for this
+    # site: with the real selector buried at position 4, a genuine break higher
+    # up the list would have been indistinguishable from the standing noise.
+    #
+    # The wm-* selectors stay as fallbacks -- ChatGPT does serve that shell on
+    # narrow viewports and to signed-out sessions.
     input:
-      - "textarea.wm-composer-textarea"
+      - "div#prompt-textarea[contenteditable='true']"   # desktop shell (signed in)
+      - "div.ProseMirror[contenteditable='true']"
+      - "textarea.wm-composer-textarea"                 # wm-* shell (signed out)
       - "textarea[data-mobile-composer-prompt]"
       - "textarea[name='prompt']"
-      - "div#prompt-textarea[contenteditable='true']"   # legacy shell
-      - "div.ProseMirror[contenteditable='true']"       # legacy shell
     submit:
       # Note: this is ONE button that transforms between send and stop
       # (data-send-label / data-stop-label), it does not get swapped out.
+      - "button[data-testid='send-button']"             # desktop shell
       - "button[data-composer-submit]"
       - "button.wm-composer-submitButton"
       - "button[aria-label='Send message']"
-      - "button[data-testid='send-button']"             # legacy shell
     send_key: Enter
     # UNVERIFIED (not live-checked against the current wm-* shell): the
     # composer's hidden file input, kept in the DOM regardless of whether the
@@ -92,9 +100,9 @@ sites:
       - "button[data-testid='copy-turn-action-button']"
       - "button[aria-label*='Copy' i]"
     ready_selector:
-      - "textarea.wm-composer-textarea"
+      - "div#prompt-textarea"                           # desktop shell
+      - "textarea.wm-composer-textarea"                 # wm-* shell
       - "[data-conversation-transcript]"
-      - "div#prompt-textarea"
     login_selectors:
       - "button.wm-app-loginButton"
       - "button.wm-sidebar-loginButton"
