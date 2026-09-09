@@ -25,6 +25,15 @@ from __future__ import annotations
 # handled by the anchored strip_patterns in extract.py.
 _SKIP = """
   const SKIP = new Set(['BUTTON','SVG','PATH','SCRIPT','STYLE','NOSCRIPT']);
+  // Structural markers whose loss actually changes the meaning of an answer.
+  // Used to decide whether a container must be RECURSED into rather than
+  // flattened -- see the custom-element note in block().
+  //
+  // Deliberately excludes P and DIV: almost every wrapper contains one, so
+  // including them would recurse into everything and split single paragraphs
+  // apart at arbitrary boundaries.
+  const BLOCK_SEL = 'table,ul,ol,pre,blockquote,h1,h2,h3,h4,h5,h6';
+  const hasBlockInside = (n) => !!(n.querySelector && n.querySelector(BLOCK_SEL));
 """
 
 # One expression, so the page is walked atomically. Returns a markdown string.
@@ -151,13 +160,25 @@ DOM_TO_MARKDOWN_JS = """
         // A container may hold either inline content or further blocks. If it
         // has any block-level child, recurse; otherwise treat it as one
         // paragraph. Guessing wrong either way merges or splits paragraphs.
+        // The DESCENDANT check matters as much as the child one: Gemini is an
+        // Angular app and wraps its table in custom elements, so the immediate
+        // children are <some-custom-tag> and the tag test below finds nothing.
         const hasBlock = [...c.children].some((k) =>
-          /^(P|DIV|UL|OL|TABLE|PRE|BLOCKQUOTE|H[1-6]|HR|SECTION|ARTICLE)$/.test(k.tagName));
+          /^(P|DIV|UL|OL|TABLE|PRE|BLOCKQUOTE|H[1-6]|HR|SECTION|ARTICLE)$/.test(k.tagName))
+          || hasBlockInside(c);
         if (hasBlock) out.push(...block(c, depth));
         else { const t = para(c); if (t) out.push(t); }
       } else {
-        const t = para(c);
-        if (t) out.push(t);
+        // An unrecognised tag is usually a framework custom element
+        // (<model-response>, <message-content>, <response-element>). Flattening
+        // one with para() discards every block inside it -- which is exactly
+        // how Gemini's comparison table arrived as
+        // "Metric / FeatureFirebase FirestoreCloudflare KV..." with no cell
+        // boundaries at all, and then went into the synthesis prompt that way.
+        // Recurse when there is real structure in there; flatten when there is
+        // not, so an ordinary inline wrapper still reads as one paragraph.
+        if (hasBlockInside(c)) out.push(...block(c, depth));
+        else { const t = para(c); if (t) out.push(t); }
       }
     }
     return out;

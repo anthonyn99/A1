@@ -61,3 +61,41 @@ def test_toolbar_strip_requires_the_whole_line():
 def test_custom_patterns_are_applied():
     raw = "Real answer.\n\nTake a 5-Minute IQ Test"
     assert clean(raw, [r"\n\s*Take a 5-Minute IQ Test.*$"]) == "Real answer."
+
+
+def _deepseek_patterns():
+    """The real configured patterns, so this test guards selectors.yaml too."""
+    from magi.settings import load_settings
+
+    return load_settings().site("deepseek").strip_patterns
+
+
+def test_strips_deepseek_inline_citations():
+    """DeepSeek's superscript sources flatten to " -7" / " -1-5" mid-sentence.
+
+    Observed live: "despite its potentially higher cost at scale -1-5." and
+    "| Fast with local cache & latency compensation -2. |" -- 26 of them in one
+    3,688-char answer, all reaching the synthesis prompt inside the model's own
+    sentences.
+    """
+    raw = (
+        "Firestore is the default choice -1-5. Its offline support is built in -2.\n"
+        "| Read Latency | Fast, strongly consistent -1. | 5ms for queries -7-11. |"
+    )
+    out = clean(raw, _deepseek_patterns())
+    assert "-1-5" not in out and "-7-11" not in out
+    assert out.startswith("Firestore is the default choice. Its offline support is built in.")
+    assert "| Read Latency | Fast, strongly consistent. | 5ms for queries. |" in out
+
+
+def test_citation_strip_leaves_real_numbers_alone():
+    r"""The whole risk of a mid-answer rule is eating the model's actual numbers.
+
+    Ranges are the case that matters: they either use an en-dash or carry no
+    leading space, which is exactly what the leading \s in the pattern keys on.
+    """
+    raw = (
+        "Latency is 50-150ms typical, 5-20ms cached, and the en-dash form 5–20ms. "
+        "See sections 3-11 and RFC 7231. Costs $0.06 per 100K reads."
+    )
+    assert clean(raw, _deepseek_patterns()) == raw

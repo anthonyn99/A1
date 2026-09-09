@@ -269,6 +269,26 @@ sites:
     streaming_marker: []
     copy_button:
       - "div[class*='copy']"
+    strip_patterns:
+      # Inline source citations. DeepSeek renders them as superscript chips
+      # that flatten to " -7" / " -1-5" / " -3-11" in the extracted text, and
+      # they were reaching the synthesis prompt inside the model's sentences:
+      # "higher cost at scale -1-5." and "| Fast with local cache -2. |".
+      #
+      # Stripping mid-answer is normally forbidden here (see extract.clean),
+      # so this was checked against a real 3,688-char capture before being
+      # added. In that answer:
+      #   · 26 citation groups, ALL of the form <space><hyphen><digits>
+      #   · ZERO cases of a letter followed by "-N", so nothing like "utf-8"
+      #     or "http-2" is at risk
+      #   · every digit-hyphen-digit match was INSIDE a citation group, never
+      #     a standalone range -- real ranges use an en-dash ("5–20ms") or
+      #     carry no leading space ("50-150ms"), and both survive untouched
+      # Result: 115 chars removed, no "-N" left, table cells and ranges intact.
+      #
+      # The leading \s is what makes it safe: it is the one thing a citation
+      # always has and a negative number in prose usually does not.
+      - '\s-\d+(?:-\d+)*(?=[\s.,;:!?)\]]|$)'
     ready_selector:
       - "textarea"
     login_selectors:

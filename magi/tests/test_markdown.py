@@ -141,3 +141,44 @@ def test_full_answer_shape(page):
     assert "- Gap %" in lines
     assert "NOTES" in lines
     assert "CONFIDENCE" in lines
+
+
+def test_table_inside_custom_elements_still_becomes_a_pipe_table(page):
+    """Gemini is Angular and wraps its answer in custom elements.
+
+    Those tags are in none of the block lists, so the walker fell through to
+    para() and flattened everything inside -- the whole comparison table came
+    back as "Metric / FeatureFirebase FirestoreCloudflare KV..." with no cell
+    boundaries, and went into the synthesis prompt in that state.
+    """
+    out = render(page, """
+      <model-response><message-content><response-element>
+        <table>
+          <tr><th>Metric</th><th>Firestore</th><th>KV</th></tr>
+          <tr><td>Read latency</td><td>50-150ms</td><td>&lt;10ms</td></tr>
+        </table>
+      </response-element></message-content></model-response>
+    """)
+    assert "| Metric | Firestore | KV |" in out
+    assert "| Read latency | 50-150ms | <10ms |" in out
+
+
+def test_list_inside_custom_elements_keeps_its_bullets(page):
+    out = render(page, """
+      <model-response><message-content>
+        <ul><li>First point</li><li>Second point</li></ul>
+      </message-content></model-response>
+    """)
+    assert "- First point" in out
+    assert "- Second point" in out
+
+
+def test_a_plain_inline_wrapper_is_still_one_paragraph(page):
+    """The recursion must not split ordinary prose.
+
+    Only containers holding real structure are walked; an inline wrapper with
+    no block inside it still collapses to a single paragraph, or every
+    <span>-wrapped sentence would become its own line.
+    """
+    out = render(page, "<custom-wrap>Some <strong>bold</strong> prose here.</custom-wrap>")
+    assert out == "Some **bold** prose here."
