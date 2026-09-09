@@ -114,10 +114,50 @@ def _required_token() -> str:
     return os.environ.get("MAGI_API_TOKEN", "").strip()
 
 
+def _arrived_over_the_tunnel(request: Request) -> bool:
+    """Did this request come in from the internet, or from this machine?
+
+    The token exists to protect the TUNNEL. uvicorn binds 127.0.0.1, so a
+    request that did not come through cloudflared came from a process already
+    on this PC -- and demanding a shared secret to talk to a server running on
+    your own machine, from a page that same server just handed you, is friction
+    with nothing behind it. That is exactly what happened once MAGI_API_TOKEN
+    was set: `GET /` returned the console and every `GET /api/*` it made came
+    back 401.
+
+    Client IP cannot answer this. cloudflared proxies to 127.0.0.1, so tunnel
+    traffic arrives from the same address local traffic does.
+
+    So two independent signals, and EITHER one means "treat it as remote":
+
+      · Cloudflare's own proxy headers (CF-Ray, CF-Connecting-IP), which
+        cloudflared attaches to everything it forwards;
+      · a Host header that is not a loopback literal -- a browser sends the
+        hostname it dialled, so a tunnel request carries
+        <name>.trycloudflare.com.
+
+    Failing CLOSED is the point of using both: the gate drops only when the
+    request looks local by both measures at once, so one of them changing
+    behaviour cannot silently open the API.
+    """
+    if request.headers.get("cf-ray") or request.headers.get("cf-connecting-ip"):
+        return True
+    raw = (request.headers.get("host") or "").strip().lower()
+    # IPv6 literals are bracketed -- "[::1]:8000" -- so the port cannot just be
+    # split off at the first colon. Chrome really does dial ::1 for localhost,
+    # so getting this wrong locks the console out of its own backend on exactly
+    # the machine it is running on.
+    if raw.startswith("["):
+        host = raw[1 : raw.index("]")] if "]" in raw else raw[1:]
+    else:
+        host = raw.split(":")[0]
+    return host not in ("127.0.0.1", "localhost", "::1")
+
+
 @app.middleware("http")
 async def _require_token(request: Request, call_next):
     token = _required_token()
-    if token:
+    if token and _arrived_over_the_tunnel(request):
         # CORS preflight carries no custom headers by design -- rejecting it
         # would break every cross-origin call before the real request is sent.
         if request.method != "OPTIONS" and request.url.path.startswith("/api/"):

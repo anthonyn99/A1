@@ -1715,10 +1715,20 @@ async function connect() {
   setLink("seeking", "locating engine…");
 
   if (sameOrigin) {
-    // The backend is serving this file. No CORS, no token, nothing to find.
+    // The backend is serving this file. No CORS, and no token either: the
+    // engine exempts requests that did not arrive through the tunnel.
     link.api = "";
-    const s = await probe("", 6000);
+    link.token = loadToken();
+    let s = await probe("", 6000);
+    // An older engine, or one reached some other way, may still demand the
+    // token. Retrying with a stored one keeps that from being a dead end on
+    // the very machine the backend is running on.
+    if (s === "unauthorized" && !link.token) {
+      return setLink("down", "backend wants a token");
+    }
+    if (s === "unauthorized") s = await probe("", 6000);
     if (s === "ok") return setLink("local", "this PC · same origin");
+    if (s === "unauthorized") return setLink("down", "token rejected");
     return setLink("down", "backend not responding");
   }
 
@@ -1808,6 +1818,7 @@ function renderOfflineNote() {
     "PC has not published": "The PC has not published a tunnel. It is probably asleep, off, or was started with <code>magi</code> rather than <code>magi cloud</code>.",
     "tunnel is dead": "The published tunnel no longer answers — cloudflared has stopped since it was published.",
     "backend not responding": "The backend is not answering on this machine.",
+    "backend wants a token": "The engine is running but is asking for the API token, and this page has none saved.",
   }[link.detail] || "The engine is not reachable.";
   const p = el("div");
   p.innerHTML = `<b>Engine offline.</b> ${why} The council cannot run without it — the four Chrome profiles live on that PC.`;
