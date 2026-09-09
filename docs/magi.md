@@ -83,6 +83,7 @@ Finally, `magi doctor` to confirm the selectors still match.
 | `magi cloud` | ...and publish a tunnel, so the console works off this PC too |
 | `magi login <site>` | sign in to a site, or refresh an expired session |
 | `magi doctor` | which selectors still match — **run this first when a member stops responding** |
+| `magi capture <site>` | find the selectors that only exist mid-answer (costs one real question) |
 | `magi ask "…"` | run the council in the terminal, no UI |
 | `magi setup` | rebuild the venv from scratch |
 
@@ -176,6 +177,31 @@ Then open the site, inspect the element, and add the working selector to the
 **top** of that field's list in `magi/config/selectors.yaml`. Every field is a
 list tried in order, so old entries stay as fallbacks and you keep a rollback
 path if the site reverts or is A/B testing.
+
+### The three fields `doctor` can never check
+
+`doctor` can only probe an **idle** page, so `stop_button`, `streaming_marker`
+and `assistant_turn` are permanently unverifiable there — they do not exist
+until a model is actually answering. That gap is why DeepSeek ships with
+`stop_button: []` and `streaming_marker: []`: its completion detection rests on
+text stability alone, so every DeepSeek answer is flagged *"end of response
+inferred, not confirmed"* and pays a 14-second silence before MAGI calls it
+finished, whether or not it actually was.
+
+```
+magi capture deepseek
+```
+
+asks one short throwaway question, snapshots the page before, repeatedly during
+and after the answer, and reports what existed **only while generating**. Those
+are the stop-button and streaming-marker candidates; put the ones that look
+right at the top of their lists. It deliberately ignores build-hashed class
+names (`_4f3769f`), because a selector built from one works today and breaks
+silently at the site's next deploy — looking exactly like a redesign when it
+does.
+
+It costs a real question against your account, which is why it is a command you
+run deliberately rather than something `doctor` does on every pass.
 
 ---
 

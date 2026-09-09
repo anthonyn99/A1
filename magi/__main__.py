@@ -5,6 +5,7 @@
   python -m magi doctor [site ...]   which selectors currently match
   python -m magi login <site>        open a window to sign in by hand
   python -m magi ask "question"      run the council from the terminal
+  python -m magi capture <site>      find mid-generation selectors (costs 1 query)
 
 Run from the A1 repo root, or just use magi.bat, which sets that up.
 """
@@ -38,6 +39,13 @@ def main(argv: list[str] | None = None) -> int:
     lg = sub.add_parser("login", help="open a browser to sign in to a site")
     lg.add_argument("site", help="site id, e.g. chatgpt")
 
+    cap = sub.add_parser(
+        "capture",
+        help="find selectors that only exist while a site is generating",
+    )
+    cap.add_argument("site", help="site id, e.g. deepseek")
+    cap.add_argument("--question", help="what to ask (a short throwaway is best)")
+
     a = sub.add_parser("ask", help="ask the council a question")
     a.add_argument("question", nargs="+")
     a.add_argument("--providers", nargs="*", help="limit to these provider ids")
@@ -56,6 +64,10 @@ def main(argv: list[str] | None = None) -> int:
         return asyncio.run(doctor_cmd.run(settings, args.sites or None))
     if args.cmd == "login":
         return asyncio.run(login_cmd.run(settings, args.site))
+    if args.cmd == "capture":
+        from .cli import capture as capture_cmd
+
+        return asyncio.run(capture_cmd.run(settings, args.site, args.question))
     if args.cmd == "ask":
         from .cli import ask as ask_cmd
 
