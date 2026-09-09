@@ -1,0 +1,286 @@
+# MAGI selector configuration
+#
+# THIS IS THE FILE YOU EDIT WHEN A SITE CHANGES ITS UI.
+# You should never need to touch Python to fix a broken scrape.
+#
+# Every selector field is a LIST. They are tried in order, first match wins.
+# When a site changes, ADD the new selector to the top of the list rather than
+# deleting the old one -- that way the config keeps working if the site rolls
+# the change back or A/B tests it.
+#
+# Run `python -m magi doctor` to see which selectors currently match.
+#
+# STATUS: all four sites have been verified against their live pages and answer
+# correctly. Selectors marked VERIFIED were confirmed by inspecting the real
+# DOM; expect to revisit them whenever a site ships a redesign.
+
+defaults:
+  poll_ms: 700              # how often to sample the response while streaming
+  stability_samples: 4      # identical consecutive samples before "done" (fallback gate)
+  confirm_samples: 3        # quiet polls required to CONFIRM a semantic done-signal.
+                            # Models often pause between a short preamble and the
+                            # real answer; without this the preamble gets captured
+                            # and the actual answer is discarded.
+  stall_timeout_s: 45       # no character growth for this long -> give up
+  hard_timeout_s: 300       # absolute ceiling on one answer
+  nav_timeout_s: 45
+  ready_timeout_s: 30
+
+sites:
+  chatgpt:
+    display_name: ChatGPT
+    url: https://chatgpt.com/
+    accent: "#6FBFA8"
+    # VERIFIED: works in TRUE HEADLESS once the user agent is overridden.
+    # Headless Chrome advertises "HeadlessChrome" in its UA, and that token
+    # alone is what Cloudflare blocks on -- strip it and the challenge clears.
+    headless_ok: true
+    # VERIFIED 2026-08-12 against the live logged-out page (headful Chrome).
+    # ChatGPT now serves a "wm-*" (web-mobile) shell with a real <textarea>,
+    # NOT the ProseMirror contenteditable that older guides describe. The
+    # documented div#prompt-textarea / data-message-author-role selectors
+    # matched nothing. Legacy selectors are kept as lower-priority fallbacks
+    # in case the old shell is still served to some accounts.
+    input:
+      - "textarea.wm-composer-textarea"
+      - "textarea[data-mobile-composer-prompt]"
+      - "textarea[name='prompt']"
+      - "div#prompt-textarea[contenteditable='true']"   # legacy shell
+      - "div.ProseMirror[contenteditable='true']"       # legacy shell
+    submit:
+      # Note: this is ONE button that transforms between send and stop
+      # (data-send-label / data-stop-label), it does not get swapped out.
+      - "button[data-composer-submit]"
+      - "button.wm-composer-submitButton"
+      - "button[aria-label='Send message']"
+      - "button[data-testid='send-button']"             # legacy shell
+    send_key: Enter
+    # UNVERIFIED (not live-checked against the current wm-* shell): the
+    # composer's hidden file input, kept in the DOM regardless of whether the
+    # visible "+" attach button is showing. set_input_files targets this
+    # directly and never needs to click the styled button.
+    file_input:
+      - "input[type='file']"
+      - "input[data-testid='file-upload-input']"
+    assistant_turn:
+      # VERIFIED: [data-assistant-markdown] is the answer body ONLY. The outer
+      # [data-message-role='assistant'] wrapper also contains the "ChatGPT
+      # said:" screen-reader label and, on logged-out sessions, injected
+      # promotional content ("Take a 5-Minute IQ Test..."), which would end up
+      # inside the answer and then inside the synthesis. Always prefer the
+      # inner markdown node.
+      - "[data-assistant-markdown]"
+      - "[data-message-role='assistant'] .markdown"
+      - "[data-message-role='assistant']"
+      - "div[data-message-author-role='assistant']"     # legacy shell
+    stop_button:
+      # The submit button flips to its stop state while generating; it never
+      # disappears. completion.py treats a matched stop_button as "generating".
+      # VERIFIED: the :has(.wm-composer-stopIcon) form is the one that matches;
+      # data-action-mode is not set on the button in the current shell.
+      - "button.wm-composer-submitButton:has(.wm-composer-stopIcon)"
+      - "button[data-composer-submit][data-action-mode='stop']"
+      - "button[aria-label='Stop generating']"
+      - "button[data-testid='stop-button']"             # legacy shell
+    streaming_marker:
+      # Best signal on this site: the turn carries data-message-streaming
+      # while generating and drops it when finished. VERIFIED: the attribute is
+      # present/absent rather than set to "true", so match on presence.
+      - "[data-message-streaming]"
+      - "[data-message-streaming='true']"
+    copy_button:
+      - "button[data-testid='copy-turn-action-button']"
+      - "button[aria-label*='Copy' i]"
+    ready_selector:
+      - "textarea.wm-composer-textarea"
+      - "[data-conversation-transcript]"
+      - "div#prompt-textarea"
+    login_selectors:
+      - "button.wm-app-loginButton"
+      - "button.wm-sidebar-loginButton"
+      - "button[data-testid='login-button']"
+      - "a[href*='/auth/login']"
+    challenge_selectors:
+      # VERIFIED: headless Chrome is served an unclearable Turnstile page
+      # (title "Just a moment...", cf_chl_opt in body). Headful clears it in
+      # ~3s. The title check is the most reliable tell.
+      - "iframe[src*='challenges.cloudflare.com']"
+      - "#cf-chl-widget"
+      - "script[src*='challenges.cloudflare.com']"
+      - "#cf-challenge-running"
+      - "text=/Verify you are human/i"
+
+  claude:
+    display_name: Claude
+    url: https://claude.ai/new
+    accent: "#E2C285"
+    # VERIFIED 2026-08-12 against a logged-in session.
+    # Also verified in TRUE HEADLESS with the UA override (see chatgpt above).
+    headless_ok: true
+    input:
+      - "div[contenteditable='true'].ProseMirror"
+      - "[data-testid='chat-input']"
+      - "div[contenteditable='true'][aria-label*='prompt' i]"
+      - "fieldset div[contenteditable='true']"
+    submit:
+      - "button[aria-label='Send message']"
+      - "button[aria-label*='Send' i]"
+      - "button[type='submit']:has(svg)"
+    send_key: Enter
+    # UNVERIFIED: Claude's composer keeps a hidden file input behind the
+    # paperclip button.
+    file_input:
+      - "input[type='file']"
+      - "[data-testid='file-upload-input']"
+    assistant_turn:
+      # .font-claude-response is the clean answer body. The outer
+      # div[data-is-streaming] wrapper prefixes "Claude responded:" and repeats
+      # the text, so it must not be used for extraction.
+      - ".font-claude-response"
+      - ".standard-markdown"
+      - "div[data-testid='assistant-message']"
+      - "div.font-claude-message"
+    stop_button:
+      - "button[aria-label*='Stop' i]"
+    streaming_marker:
+      # Claude exposes a real streaming flag on the response wrapper.
+      - "div[data-is-streaming='true']"
+    copy_button:
+      - "button[data-testid='action-bar-copy']"
+      - "button[aria-label*='Copy' i]"
+    # Claude opens a long answer with a one-line framing QUESTION, drops the
+    # streaming flag while it thinks, then streams the real answer into the
+    # same node. The default 3-poll (2.1s) confirm window expires inside that
+    # pause, so the preamble was captured as the final answer.
+    #
+    # Measured over 21 archived runs: this hit 11 times overall and 10 out of
+    # 10 on long prompts, always with completion_reason=stream_marker, always
+    # 23-53 chars against 4k-26k for the other three units. Validation now
+    # catches these, but a caught failure is still a lost council member on
+    # exactly the questions where a fourth opinion matters most.
+    #
+    # 14 polls = 9.8s of continuous quiet before a cleared marker is believed.
+    # Sized against the observed pause rather than guessed, and it only costs
+    # time on answers that genuinely finish early -- the marker reappearing
+    # resets the counter, so a still-streaming answer is unaffected.
+    confirm_samples: 14
+    ready_selector:
+      - "div[contenteditable='true']"
+    login_selectors:
+      # Only match on the actual login page. Claude's logged-in UI contains a
+      # "Claude" aria-label and other text that looser patterns caught.
+      - "input[name='email']"
+      - "button:has-text('Continue with Google')"
+      - "a[href*='/login']"
+    challenge_selectors:
+      - "iframe[src*='challenges.cloudflare.com']"
+      - "text=/Verify you are human/i"
+
+  gemini:
+    display_name: Gemini
+    url: https://gemini.google.com/app
+    accent: "#8FB8E8"
+    # VERIFIED: answers correctly in true headless -- no window, no taskbar icon.
+    # Google's bot checks did not trigger here (unlike the Cloudflare-fronted
+    # sites). If Gemini ever starts challenging headless, set this to false.
+    headless_ok: true
+    input:
+      - "rich-textarea div.ql-editor[contenteditable='true']"
+      - "div.ql-editor[contenteditable='true']"
+      - "rich-textarea [contenteditable='true']"
+    # VERIFIED 2026-08-12 (logged out; Gemini allows logged-out use).
+    # Angular app with custom elements. Unlike ChatGPT this is append-style:
+    # model-response nodes go 0 -> 1 on the first answer, so the turn-count
+    # gate works here.
+    submit:
+      - "button[aria-label='Send message']"
+      - "button[aria-label*='Send' i]"
+      - "button.send-button"
+    send_key: Enter
+    # UNVERIFIED: Gemini's "Add files" control drives a hidden native input.
+    file_input:
+      - "input[type='file']"
+    assistant_turn:
+      # .model-response-text is the answer body. The outer model-response
+      # wrapper also carries the disclaimer/action chrome.
+      - ".model-response-text"
+      - "message-content.model-response-text"
+      - "model-response message-content"
+      - "model-response"
+    stop_button:
+      - "button[aria-label*='Stop' i]"
+      - "button.stop-icon"
+    streaming_marker: []
+    copy_button:
+      - "button[data-test-id='copy-button']"
+    strip_patterns:
+      # Gemini appends grounding citations as trailing source names plus a
+      # "+ N" pill (observed: "AcqNotes\n+ 2"). Without stripping, that lands
+      # inside the answer and then inside the synthesis prompt.
+      - "\\n\\s*\\+\\s*\\d+\\s*$"
+      - "\\n\\s*(Sources|Show more|Learn more)\\s*$"
+    ready_selector:
+      - "rich-textarea"
+      - "div.ql-editor"
+    login_selectors:
+      - "a[href*='accounts.google.com/ServiceLogin']"
+      - "text=/^Sign in$/"
+    challenge_selectors:
+      - "text=/unusual traffic/i"
+      - "form#captcha-form"
+
+  deepseek:
+    display_name: DeepSeek
+    url: https://chat.deepseek.com/
+    accent: "#BFA6E0"
+    # VERIFIED: answers correctly in true headless -- no window, no taskbar icon.
+    headless_ok: true
+    # NOTE: DeepSeek uses a native <textarea> driven by React. Typing must go
+    # through real keyboard events (which Playwright's keyboard.type does), not
+    # element.value assignment, or React never sees the input.
+    # VERIFIED 2026-08-12 against a logged-in session.
+    #
+    # DeepSeek is the least automation-friendly of the four: no aria-labels, no
+    # data-testids, and hashed CSS class names that will churn. The send button
+    # has NO stable selector, so `submit` is deliberately left empty and the
+    # Enter key is used instead (humanize.send falls back to send_key when no
+    # submit selector matches). Verified working.
+    input:
+      - "textarea[placeholder*='Message' i]"
+      - "textarea#chat-input"
+      - "textarea"
+    submit: []
+    send_key: Enter
+    # UNVERIFIED: DeepSeek's clip icon drives a hidden native file input.
+    file_input:
+      - "input[type='file']"
+    assistant_turn:
+      - "div.ds-markdown"
+      - "div[class*='markdown']"
+    stop_button: []
+    streaming_marker: []
+    copy_button:
+      - "div[class*='copy']"
+    ready_selector:
+      - "textarea"
+    login_selectors:
+      # Must not match the logged-in UI. Password/phone inputs only exist on
+      # the actual login screen.
+      - "input[type='password']"
+      - "input[placeholder*='phone number' i]"
+    challenge_selectors:
+      - "text=/Verify you are human/i"
+    # With no streaming marker and no stop button, completion here rests on
+    # text stability alone, so the quiet window has to be generous.
+    #
+    # Measured: DeepSeek emits the first word, then pauses ~3s before streaming
+    # the rest ("Print" ... 3s ... the full sentence). At 700ms polls, 8 samples
+    # = 5.6s, which sounds safe but repeatedly truncated the answer to that
+    # first word. 20 samples = 14s of silence before we call it done.
+    #
+    # The cost is real: every DeepSeek answer now takes ~14s longer than it
+    # needs to, because there is no signal telling us it finished. That is the
+    # price of a site that exposes nothing to detect completion with, and a
+    # slow correct answer beats a fast truncated one.
+    stability_samples: 20
+    poll_ms: 700

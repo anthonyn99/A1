@@ -1,0 +1,103 @@
+# MAGI runtime configuration.
+# Selectors live in selectors.yaml; this file is about behaviour.
+
+pacing:
+  # parallel   = all members at once, up to max_concurrency (default).
+  # sequential = one member at a time; slower, use if a site complains.
+  #
+  # Running members concurrently is safe here because each one drives its own
+  # browser profile against a DIFFERENT service. The pattern worth avoiding is
+  # hammering ONE service, which never happens: each site sees a single request.
+  mode: parallel
+  max_concurrency: 4
+
+  # Start gap between members. [0, 0] fires all of them at the same instant.
+  #
+  # Measured on this machine (4 members, cold start to page-ready):
+  #     [0, 0]      -> 15.6s   all four Chrome launches contend for CPU
+  #     [0.8, 0.8]  ->  9.7s   launches spread out, each one finishes faster
+  #
+  # So a small stagger is actually FASTER end to end, because Chrome startup is
+  # CPU-bound and four at once slows each other down (page load went from 1.0s
+  # to 8.2s under contention). Set to [0.6, 1.2] if you'd rather have the
+  # shorter total time; [0, 0] is kept here because it's what was asked for and
+  # it does make every member start together.
+  inter_provider_delay_s: [0, 0]
+  typing_delay_ms: [8, 24]
+  pre_send_pause_s: [0.25, 0.7]
+  post_nav_pause_s: [0.6, 1.4]
+
+  # Prompts this long or longer are inserted in one operation rather than typed
+  # key by key. Typing the 2,372-char synthesis prompt took 86s of a 233s run --
+  # by far the single largest cost, and nobody types 2,000 characters by hand
+  # anyway.
+  paste_threshold: 400
+
+browser:
+  channel: chrome          # real Chrome, not bundled Chromium (less detectable)
+  slow_mo_ms: 0
+
+  # Fallback for any site whose selectors.yaml entry does not set headless_ok.
+  # All four currently do, so every member runs headless: no window, no taskbar
+  # icon, nothing on screen at all.
+  #
+  # This works because MAGI overrides the user agent in headless mode. Headless
+  # Chrome advertises "HeadlessChrome/141..." instead of "Chrome/141...", and
+  # that token alone is what Cloudflare blocks -- with it removed, ChatGPT and
+  # Claude load and answer normally. If either starts being challenged again,
+  # set headless_ok: false for that site and it falls back to a hidden window.
+  headless: true
+
+  # Fallback for sites that cannot run headless: park the window far off-screen
+  # and hide its taskbar button, rather than showing it on your desktop.
+  # Set BOTH this and headless to false to watch runs in tiled windows.
+  offscreen: true
+
+  # Leave empty to derive the UA from your installed Chrome version, so it stays
+  # consistent as Chrome updates. Override only if you need a specific string.
+  headless_user_agent: ""
+  # Windows are sized and positioned to TILE into four quadrants rather than
+  # stack on top of each other. Overlapping windows end up occluded, and
+  # Windows throttles background work in occluded windows -- which would slow
+  # down the very members we launch in parallel to speed up. Tiling also lets
+  # you watch all four answer at once.
+  window_size: [940, 520]
+  window_order: [chatgpt, claude, gemini, deepseek]
+  profile_root: profiles   # one subdirectory per site
+
+  # If a run is interrupted, its browser window can be left holding the site's
+  # profile, which blocks every later run for that member. These windows belong
+  # only to MAGI -- your personal Chrome uses a different profile directory and
+  # is never touched -- so they are closed automatically. Set false to be asked
+  # to close them by hand instead.
+  reclaim_orphaned_profiles: true
+
+providers:
+  chatgpt:
+    enabled: true
+  claude:
+    enabled: true
+  gemini:
+    enabled: true
+  deepseek:
+    enabled: true
+
+chairman:
+  # Which council member writes the final synthesis. If it is unavailable the
+  # fallbacks are tried in order.
+  provider_id: claude
+  fallback_order: [chatgpt, gemini, deepseek]
+  # Minimum successful members required before synthesis is even attempted.
+  min_members: 2
+
+artifacts:
+  on_failure: true         # screenshot + DOM dump for every failed attempt
+  dir: artifacts
+  keep_last: 200
+
+database:
+  path: data/magi.db
+
+# Brainstorm plans are NOT written to disk. A finished plan is kept in the
+# database and offered through a save dialog, so it lands where you choose
+# rather than in a folder you never picked.

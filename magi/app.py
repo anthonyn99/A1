@@ -1,0 +1,1430 @@
+"""FastAPI app: REST for commands, SSE for progress.
+
+SSE rather than WebSocket because the traffic is strictly server->client
+progress; SSE reconnects on its own and can be debugged with curl.
+
+A council run takes minutes, far longer than a sane HTTP timeout, so POST /runs
+starts a background task and returns immediately. Progress arrives on
+GET /runs/{id}/stream, and everything lands in SQLite so a browser reload can
+recover a run that is already in flight.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import os
+import re
+import secrets
+import shutil
+import uuid
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
+
+from .db import Database
+from .engine import brainstorm as brainstorm_engine
+from .engine import refine as refine_engine
+from .engine import studio as studio_engine
+from .engine.orchestrator import Orchestrator
+from .errors import FailureKind, explain
+from .providers import gemini_api
+from .providers.base import ProviderEvent, RunContext
+from .providers.registry import build_provider, build_providers
+from .settings import ROOT, load_settings
+
+settings = load_settings()
+db = Database(settings.db_path)
+
+# run_id -> live state for streaming clients
+_runs: dict[str, dict] = {}
+
+# job_id -> live state for a Studio artifact generation. Keyed separately from
+# _runs (by job_id, not run_id) because one run can have several Studio
+# artifacts generating at once.
+_studio_jobs: dict[str, dict] = {}
+
+# job_id -> live state for one brainstorm round or finalise. Keyed by job
+# rather than session for the same reason as Studio: the stream belongs to the
+# work, not to the thing the work is about.
+_brainstorm_jobs: dict[str, dict] = {}
+
+# Uploads are staged to disk per run and handed to each provider as a real
+# file path -- Playwright's set_input_files needs one, and streaming an
+# UploadFile straight into the browser call would mean re-reading it once per
+# provider (the same file goes to every council member).
+UPLOADS_DIR = ROOT / "data" / "uploads"
+
+# Keeps the on-disk name predictable and shell/path safe without touching the
+# user-visible name shown in the composer, which is stored separately.
+_SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def _stage_upload_name(original: str) -> str:
+    stem = _SAFE_NAME.sub("_", original)[:120] or "file"
+    return f"{uuid.uuid4().hex[:8]}-{stem}"
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await db.init()
+    yield
+
+
+app = FastAPI(title="MAGI", lifespan=lifespan)
+
+
+def _allowed_origins() -> list[str]:
+    """Origins permitted to call this API.
+
+    The two Vite dev origins are always allowed. A hosted UI lives on a
+    different origin (Firebase) from the backend (a tunnel to this machine),
+    so its URL is added through MAGI_ALLOWED_ORIGINS -- comma separated -- and
+    the deployment is configured without editing code.
+
+    Deliberately NOT "*": these endpoints launch browsers holding live logins,
+    and a wildcard with credentials is rejected by browsers anyway.
+    """
+    origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    extra = os.environ.get("MAGI_ALLOWED_ORIGINS", "")
+    origins += [o.strip().rstrip("/") for o in extra.split(",") if o.strip()]
+    return origins
+
+
+def _required_token() -> str:
+    """Shared secret required on every API call, or "" to disable the gate.
+
+    This exists because a quick tunnel (trycloudflare.com) CANNOT sit behind
+    Cloudflare Access -- Access binds to a hostname on a zone you own, and a
+    quick tunnel's hostname belongs to Cloudflare. Without this the tunnel URL
+    is the only secret protecting endpoints that drive live logged-in accounts,
+    and URLs leak: proxies, extensions, history, screenshots.
+
+    Unset (the default) the gate is OFF, so local use over 127.0.0.1 is
+    unchanged. Set MAGI_API_TOKEN on any machine exposing a tunnel.
+    """
+    return os.environ.get("MAGI_API_TOKEN", "").strip()
+
+
+@app.middleware("http")
+async def _require_token(request: Request, call_next):
+    token = _required_token()
+    if token:
+        # CORS preflight carries no custom headers by design -- rejecting it
+        # would break every cross-origin call before the real request is sent.
+        if request.method != "OPTIONS" and request.url.path.startswith("/api/"):
+            sent = request.headers.get("X-MAGI-Token") or request.query_params.get("token", "")
+            # compare_digest avoids leaking the token's length/prefix through
+            # response timing.
+            if not secrets.compare_digest(sent, token):
+                return JSONResponse({"detail": "unauthorized"}, status_code=401)
+    return await call_next(request)
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_allowed_origins(),
+    # Cloudflare Access authenticates via a cookie, which the browser only
+    # sends cross-origin when credentials are allowed on both ends.
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.get("/api/health")
+async def health():
+    # Reports the live pacing settings so "is it actually running in parallel?"
+    # can be answered without reading logs or guessing.
+    return {
+        "ok": True,
+        "providers": settings.enabled_site_ids(),
+        "pacing": {
+            "mode": settings.pacing.mode,
+            "max_concurrency": settings.pacing.max_concurrency,
+            "paste_threshold": settings.pacing.paste_threshold,
+        },
+    }
+
+
+@app.get("/api/providers")
+async def list_providers():
+    return [
+        {
+            "id": s.id,
+            "display_name": s.display_name,
+            "accent": s.accent,
+            "enabled": settings.enabled.get(s.id, True),
+            "url": s.url,
+        }
+        for s in settings.sites.values()
+    ]
+
+
+# Kept small: these are typed/pasted into a chat composer's own upload
+# control, which is itself sized for a few reference files, not bulk transfer.
+MAX_ATTACHMENTS = 8
+MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024
+
+
+@app.post("/api/runs")
+async def create_run(
+    question: str = Form(...),
+    providers: str = Form(""),
+    files: list[UploadFile] = File(default=[]),
+):
+    q = question.strip()
+    if not q:
+        raise HTTPException(400, "question is required")
+    provider_ids = [p for p in providers.split(",") if p] or None
+
+    if len(files) > MAX_ATTACHMENTS:
+        raise HTTPException(400, f"at most {MAX_ATTACHMENTS} attachments per question")
+
+    # Re-read config on every run. Without this, a server started before a
+    # config edit keeps serving the old settings until it is restarted -- which
+    # looks exactly like the change not working (e.g. "it's still sequential"
+    # when parallel is already configured). Selector fixes benefit too: edit
+    # selectors.yaml and the next run picks it up.
+    global settings
+    try:
+        settings = load_settings()
+    except Exception:
+        pass  # keep the last good config rather than failing the run
+
+    run_id = uuid.uuid4().hex[:12]
+    providers = build_providers(settings, provider_ids)
+
+    # Stage attachments under this run's own directory so concurrent runs
+    # never share a name, and so the whole set can be discarded together once
+    # every provider has read them.
+    run_uploads_dir = UPLOADS_DIR / run_id
+    staged_paths: list[Path] = []
+    if files:
+        run_uploads_dir.mkdir(parents=True, exist_ok=True)
+        for f in files:
+            data = await f.read()
+            if len(data) > MAX_ATTACHMENT_BYTES:
+                raise HTTPException(
+                    400, f"{f.filename} exceeds the {MAX_ATTACHMENT_BYTES // (1024*1024)}MB limit"
+                )
+            dest = run_uploads_dir / _stage_upload_name(f.filename or "file")
+            dest.write_bytes(data)
+            staged_paths.append(dest)
+
+    state = {
+        "queue": asyncio.Queue(),
+        "cancel": asyncio.Event(),
+        "done": False,
+        "providers": {
+            p.id: {
+                "id": p.id,
+                "display_name": p.display_name,
+                "accent": p.accent,
+                "state": "queued",
+                "text": "",
+                "chars": 0,
+            }
+            for p in providers
+        },
+        "result": None,
+    }
+    _runs[run_id] = state
+
+    async def on_event(ev: ProviderEvent) -> None:
+        prov = state["providers"].get(ev.provider_id)
+        if prov is not None:
+            prov["state"] = str(ev.state)
+            if ev.partial_text:
+                prov["text"] = ev.partial_text
+                prov["chars"] = ev.chars
+        await state["queue"].put(
+            {
+                "type": "state",
+                "provider_id": ev.provider_id,
+                "state": str(ev.state),
+                "chars": ev.chars,
+                "text": ev.partial_text,
+                "message": ev.message,
+            }
+        )
+
+    async def work() -> None:
+        try:
+            result = await Orchestrator(settings, db).run(
+                q, providers, run_id=run_id,
+                on_event=on_event, cancel=state["cancel"],
+                attachments=staged_paths,
+            )
+            payload = {
+                "type": "done",
+                "run_id": run_id,
+                "responded": result["responded"],
+                "total": result["total"],
+                "chairman": result["chairman"],
+                "verdict": result["verdict"],
+                "synthesis_ok": result["synthesis_ok"],
+                "synthesis_error": result["synthesis_error"],
+                "status": result["status"],
+                "total_ms": result["total_ms"],
+                "degraded": result["degraded"],
+                "answers": [
+                    {
+                        "provider_id": a.provider_id,
+                        "display_name": a.display_name,
+                        "ok": a.ok,
+                        "text": a.text,
+                        "failure": str(a.failure) if a.failure else None,
+                        "failure_cause": explain(a.failure)[0] if a.failure else None,
+                        "failure_remedy": explain(a.failure)[1] if a.failure else None,
+                        "error_detail": a.error_detail,
+                        "degraded": a.degraded,
+                        "degraded_reason": a.degraded_reason,
+                        "low_confidence": a.low_confidence,
+                        "latency_ms": a.latency_ms,
+                        "chars": a.chars,
+                        "completion_reason": a.completion_reason,
+                    }
+                    for a in result["answers"]
+                ],
+            }
+            state["result"] = payload
+            await state["queue"].put(payload)
+        except Exception as e:  # noqa: BLE001
+            await state["queue"].put(
+                {"type": "error", "message": f"{type(e).__name__}: {e}"}
+            )
+        finally:
+            state["done"] = True
+            await state["queue"].put({"type": "__eof__"})
+            # Every provider has either read these or failed trying; nothing
+            # downstream needs the staged copies past this point.
+            if staged_paths:
+                shutil.rmtree(run_uploads_dir, ignore_errors=True)
+
+    asyncio.create_task(work())
+    return {"run_id": run_id}
+
+
+@app.get("/api/runs/{run_id}/stream")
+async def stream_run(run_id: str):
+    state = _runs.get(run_id)
+    if state is None:
+        raise HTTPException(404, "unknown run")
+
+    async def gen():
+        # Replay current provider state so a late or reconnecting client is
+        # not stuck with a blank grid.
+        yield _sse({"type": "init", "providers": list(state["providers"].values())})
+        if state["result"]:
+            yield _sse(state["result"])
+            return
+        while True:
+            item = await state["queue"].get()
+            if item.get("type") == "__eof__":
+                break
+            yield _sse(item)
+
+    return StreamingResponse(
+        gen(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+def _sse(obj: dict) -> str:
+    return f"data: {json.dumps(obj)}\n\n"
+
+
+@app.post("/api/runs/{run_id}/cancel")
+async def cancel_run(run_id: str):
+    state = _runs.get(run_id)
+    if state is None:
+        raise HTTPException(404, "unknown run")
+    state["cancel"].set()
+    return {"ok": True}
+
+
+@app.get("/api/runs/{run_id}")
+async def get_run(run_id: str):
+    row = await db.get_run(run_id)
+    if row is None:
+        raise HTTPException(404, "unknown run")
+    return row
+
+
+@app.get("/api/runs")
+async def list_runs(limit: int = 50, offset: int = 0):
+    return await db.list_runs(limit, offset)
+
+
+def _studio_payload(row: dict) -> dict:
+    """DB row -> API shape: parsed_json decoded, raw_text/status passed through."""
+    out = dict(row)
+    if out.get("parsed_json"):
+        try:
+            out["parsed_json"] = json.loads(out["parsed_json"])
+        except (TypeError, ValueError):
+            out["parsed_json"] = None
+    return out
+
+
+@app.post("/api/runs/{run_id}/studio/{kind}")
+async def create_studio_artifact(run_id: str, kind: str):
+    try:
+        studio_kind = studio_engine.StudioKind(kind)
+    except ValueError:
+        raise HTTPException(
+            400,
+            f"Unknown studio kind {kind!r}. Known: "
+            f"{[k.value for k in studio_engine.StudioKind]}.",
+        )
+
+    run = await db.get_run(run_id)
+    if run is None:
+        raise HTTPException(404, "unknown run")
+    synthesis = run.get("synthesis")
+    if not synthesis or not synthesis.get("ok"):
+        raise HTTPException(
+            400, "This run has no verdict yet -- Studio needs a completed run."
+        )
+
+    global settings
+    try:
+        settings = load_settings()
+    except Exception:
+        pass
+
+    provider_id = studio_engine.pick_generator_id(
+        settings, run["run"].get("chairman_provider")
+    )
+    provider = build_provider(settings, provider_id)
+
+    job_id = uuid.uuid4().hex[:12]
+    await db.create_studio_artifact(job_id, run_id, studio_kind.value, provider_id)
+
+    state = {
+        "queue": asyncio.Queue(),
+        "cancel": asyncio.Event(),
+        "done": False,
+        "result": None,
+    }
+    _studio_jobs[job_id] = state
+
+    async def on_event(ev: ProviderEvent) -> None:
+        await state["queue"].put(
+            {"type": "state", "state": str(ev.state), "message": ev.message}
+        )
+
+    async def work() -> None:
+        try:
+            ctx = RunContext(run_id=run_id, question=run["run"]["question"])
+            raw_text, parsed, ok, error_detail, latency_ms = await studio_engine.generate(
+                provider,
+                studio_kind,
+                question=run["run"]["question"],
+                answers=run["answers"],
+                verdict=synthesis.get("verdict_text") or "",
+                ctx=ctx,
+                cancel=state["cancel"],
+            )
+            status = "complete" if ok else "failed"
+            await db.finish_studio_artifact(
+                job_id,
+                status,
+                raw_text=raw_text,
+                parsed_json=json.dumps(parsed) if parsed is not None else None,
+                error_detail=error_detail,
+                latency_ms=latency_ms,
+            )
+            payload = {
+                "type": "done",
+                "job_id": job_id,
+                "kind": studio_kind.value,
+                "status": status,
+                "provider_id": provider_id,
+                "raw_text": raw_text,
+                "parsed_json": parsed,
+                "error_detail": error_detail,
+                "latency_ms": latency_ms,
+            }
+            state["result"] = payload
+            await state["queue"].put(payload)
+        except Exception as e:  # noqa: BLE001
+            await db.finish_studio_artifact(
+                job_id, "failed", error_detail=f"{type(e).__name__}: {e}"
+            )
+            await state["queue"].put(
+                {"type": "error", "message": f"{type(e).__name__}: {e}"}
+            )
+        finally:
+            state["done"] = True
+            await state["queue"].put({"type": "__eof__"})
+
+    asyncio.create_task(work())
+    return {"job_id": job_id}
+
+
+@app.get("/api/runs/{run_id}/studio/{job_id}/stream")
+async def stream_studio_artifact(run_id: str, job_id: str):
+    state = _studio_jobs.get(job_id)
+    if state is None:
+        raise HTTPException(404, "unknown studio job")
+
+    async def gen():
+        if state["result"]:
+            yield _sse(state["result"])
+            return
+        while True:
+            item = await state["queue"].get()
+            if item.get("type") == "__eof__":
+                break
+            yield _sse(item)
+
+    return StreamingResponse(
+        gen(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.get("/api/runs/{run_id}/studio")
+async def list_studio_artifacts(run_id: str):
+    rows = await db.get_studio_artifacts(run_id)
+    return [_studio_payload(r) for r in rows]
+
+
+@app.get("/api/runs/{run_id}/studio/{job_id}")
+async def get_studio_artifact(run_id: str, job_id: str):
+    row = await db.get_studio_artifact(job_id)
+    if row is None:
+        raise HTTPException(404, "unknown studio job")
+    return _studio_payload(row)
+
+
+# ── brainstorm ──────────────────────────────────────────────────────────────
+
+
+def _reload_settings() -> None:
+    """Pick up config edits without a restart. Same rationale as create_run."""
+    global settings
+    try:
+        settings = load_settings()
+    except Exception:
+        pass  # keep the last good config rather than failing the request
+
+
+def _next_round_no(turns: list[dict]) -> int:
+    """The round this request belongs to.
+
+    A round only counts as finished once the chairman merged it. If the last
+    round failed before that -- quorum shortfall, a cancelled fan-out -- the
+    retry belongs to the SAME round number as a second attempt, not to a new
+    round. Advancing regardless is what made three tries at round one look
+    like rounds one, two and three, none of which had answers to the ones
+    before.
+    """
+    if not turns:
+        return 1
+    highest = max(t["round_no"] for t in turns)
+    merged = any(
+        t["round_no"] == highest
+        and t.get("role") == "chairman"
+        and (t.get("phase") or "round") == "round"
+        for t in turns
+    )
+    return highest + 1 if merged else highest
+
+
+def _last_questions(turns: list[dict]) -> list:
+    """The questions the person is answering: those of the newest chairman turn."""
+    for t in sorted(
+        turns,
+        key=lambda r: (r["round_no"], r.get("attempt") or 1, r["id"]),
+        reverse=True,
+    ):
+        if t.get("role") == "chairman" and t.get("parsed_json"):
+            try:
+                parsed = json.loads(t["parsed_json"])
+            except (TypeError, ValueError):
+                return []
+            # The finalise turn stores the plan, not a round merge; it has no
+            # questions and must not be mistaken for the last round's.
+            if parsed.get("kind") == "plan":
+                continue
+            return parsed.get("questions") or []
+    return []
+
+
+async def _save_council_answers(
+    session_id: str, round_no: int, attempt: int, answers: list, phase: str
+) -> None:
+    """Record every member answer, including the ones that failed.
+
+    A failed member is stored as a real row with its FailureKind rather than
+    dropped, for the same reason the council runs keep theirs: history that
+    quietly omits what went wrong cannot be trusted to say what went right.
+    Degraded answers keep their text too -- it is what the reader needs to see
+    to understand why it was excluded.
+    """
+    for a in answers:
+        await db.add_turn(
+            session_id, round_no, "council",
+            attempt=attempt,
+            provider_id=a.provider_id,
+            content=a.text or "",
+            ok=a.ok,
+            failure_kind=str(a.failure) if a.failure else None,
+            error_detail=a.error_detail,
+            degraded=bool(a.degraded),
+            degraded_reason=a.degraded_reason or None,
+            latency_ms=a.latency_ms,
+            char_count=a.chars,
+            phase=phase,
+        )
+
+
+def _compose_reply(turns: list[dict], answers_json: str, notes: str) -> str:
+    """Structured card answers + notes -> the prose stored as the user turn.
+
+    A request with no `answers` field falls straight through to the notes,
+    which is exactly the old free-text behaviour.
+    """
+    parsed: list = []
+    if answers_json:
+        try:
+            loaded = json.loads(answers_json)
+            if isinstance(loaded, list):
+                parsed = loaded
+        except (TypeError, ValueError):
+            parsed = []
+    if not parsed:
+        return (notes or "").strip()
+    return brainstorm_engine.format_reply(_last_questions(turns), parsed, notes)
+
+
+def _session_payload(data: dict) -> dict:
+    """DB session+turns -> API shape, with chairman parsed_json decoded."""
+    turns = []
+    for t in data["turns"]:
+        row = dict(t)
+        if row.get("parsed_json"):
+            try:
+                row["parsed_json"] = json.loads(row["parsed_json"])
+            except (TypeError, ValueError):
+                row["parsed_json"] = None
+        turns.append(row)
+    return {"session": data["session"], "turns": turns}
+
+
+@app.post("/api/brainstorm")
+async def create_brainstorm(
+    topic: str = Form(...),
+    providers: str = Form(""),
+):
+    t = topic.strip()
+    if not t:
+        raise HTTPException(400, "topic is required")
+
+    _reload_settings()
+    provider_ids = [p for p in providers.split(",") if p] or settings.enabled_site_ids()
+    if not provider_ids:
+        raise HTTPException(400, "no providers available")
+
+    session_id = uuid.uuid4().hex[:12]
+    await db.create_session(session_id, t, provider_ids)
+    return {"session_id": session_id}
+
+
+@app.get("/api/brainstorm")
+async def list_brainstorms(limit: int = 30, offset: int = 0):
+    return await db.list_sessions(limit, offset)
+
+
+@app.get("/api/brainstorm/{session_id}")
+async def get_brainstorm(session_id: str):
+    data = await db.get_session(session_id)
+    if data is None:
+        raise HTTPException(404, "unknown session")
+    return _session_payload(data)
+
+
+@app.post("/api/brainstorm/{session_id}/round")
+async def create_brainstorm_round(
+    session_id: str,
+    reply: str = Form(""),
+    answers: str = Form(""),
+):
+    """One round: fan out to the council, then have the chairman merge.
+
+    The fan-out goes through Orchestrator so a round inherits pacing, start
+    stagger, per-member SSE progress and graceful degradation unchanged -- and
+    so the frontend's existing council grid renders it with no new code. Only
+    the synthesis step differs, which is why the chairman is driven here rather
+    than left to Orchestrator's own verdict path.
+    """
+    data = await db.get_session(session_id)
+    if data is None:
+        raise HTTPException(404, "unknown session")
+    session = data["session"]
+    if session["status"] != "active":
+        raise HTTPException(
+            400, f"This session is {session['status']}, so it cannot take another round."
+        )
+
+    _reload_settings()
+    topic = session["topic"]
+    turns = data["turns"]
+    round_no = _next_round_no(turns)
+
+    provider_ids = session.get("provider_ids") or None
+    try:
+        members = build_providers(settings, provider_ids)
+    except KeyError as e:
+        raise HTTPException(400, str(e))
+
+    # A retried round reuses its number, so both tries are kept side by side
+    # rather than the second silently replacing the first.
+    attempt = await db.next_attempt(session_id, round_no)
+
+    user_reply = _compose_reply(turns, answers, reply)
+    if user_reply:
+        await db.add_turn(
+            session_id, round_no, "user", attempt=attempt, content=user_reply
+        )
+        # Re-read so the transcript this round builds includes the reply just
+        # saved, rather than the state from before it.
+        data = await db.get_session(session_id)
+        turns = data["turns"]
+
+    job_id = uuid.uuid4().hex[:12]
+    state = {
+        "queue": asyncio.Queue(),
+        "cancel": asyncio.Event(),
+        "done": False,
+        "result": None,
+        "providers": {
+            p.id: {
+                "id": p.id,
+                "display_name": p.display_name,
+                "accent": p.accent,
+                "state": "queued",
+                "text": "",
+                "chars": 0,
+            }
+            for p in members
+        },
+    }
+    _brainstorm_jobs[job_id] = state
+
+    async def on_event(ev: ProviderEvent) -> None:
+        prov = state["providers"].get(ev.provider_id)
+        if prov is not None:
+            prov["state"] = str(ev.state)
+            if ev.partial_text:
+                prov["text"] = ev.partial_text
+                prov["chars"] = ev.chars
+        await state["queue"].put(
+            {
+                "type": "state",
+                "provider_id": ev.provider_id,
+                "state": str(ev.state),
+                "chars": ev.chars,
+                "text": ev.partial_text,
+                "message": ev.message,
+            }
+        )
+
+    async def work() -> None:
+        try:
+            orch = Orchestrator(settings, None)
+            # Each member gets its own prompt: identical except for the
+            # corrections block, which replays that member's OWN previously
+            # refuted claims back to it. That is what stops a bad claim
+            # recurring round after round.
+            member_prompts = {
+                m.id: brainstorm_engine.build_member_prompt(
+                    topic, turns, round_no, provider_id=m.id
+                )
+                for m in members
+            }
+            ctx = RunContext(
+                run_id=f"{session_id}-r{round_no}",
+                question=next(iter(member_prompts.values()), topic),
+            )
+
+            answers = await _fan_out_each(
+                orch, members, member_prompts, ctx, on_event, state["cancel"]
+            )
+            await _save_council_answers(
+                session_id, round_no, attempt, answers, "round"
+            )
+
+            responded = [a for a in answers if a.ok and a.text.strip()]
+            if len(responded) < settings.chairman.min_members:
+                raise RuntimeError(
+                    f"Only {len(responded)} of {len(answers)} members responded; "
+                    f"a round needs at least {settings.chairman.min_members}."
+                )
+            if state["cancel"].is_set():
+                raise RuntimeError("Round cancelled before the merge.")
+
+            await state["queue"].put(
+                {
+                    "type": "phase",
+                    "phase": "critique",
+                    "message": "The members are reviewing each other's proposals",
+                }
+            )
+            critiques = await _run_critique(
+                orch, members, answers, topic, turns, ctx, on_event,
+                state["cancel"], session_id, round_no, attempt, "round",
+            )
+
+            if state["cancel"].is_set():
+                raise RuntimeError("Round cancelled before the merge.")
+
+            chair = orch._pick_chairman(members, answers)
+            if chair is None:
+                raise RuntimeError("No member available to act as chairman.")
+
+            # The chairman drives the same browser profile as the member of the
+            # same name, and Chrome's profile lock outlives the Playwright
+            # context. A session hits these profiles once per round, so this
+            # race gets many more chances to bite than in a one-shot run.
+            await orch._await_profile_release(chair)
+            await state["queue"].put(
+                {
+                    "type": "state",
+                    "provider_id": chair.id,
+                    "state": "waiting",
+                    "chars": 0,
+                    "text": "",
+                    "message": f"{chair.display_name} is merging the round",
+                }
+            )
+
+            raw, parsed, ok, err, ms = await brainstorm_engine.merge_round(
+                chair, topic, turns, answers, ctx,
+                critiques=critiques, cancel=state["cancel"],
+            )
+            if not ok:
+                raise RuntimeError(err or "The chairman failed to merge the round.")
+
+            # Enforce the answered-facts ledger on the way out. The chairman is
+            # told not to re-ask a settled question and was observed doing it
+            # anyway, three rounds running, so the filter is applied to the
+            # parsed result rather than trusted to the prompt.
+            kept, dropped = brainstorm_engine.drop_answered_questions(
+                parsed.get("questions") or [], turns
+            )
+            if dropped:
+                parsed["questions"] = kept
+                parsed["dropped_questions"] = dropped
+                parsed["blocking"] = [
+                    q for q in (parsed.get("blocking") or [])
+                    if not any(q == d for d in dropped)
+                ]
+
+            await db.add_turn(
+                session_id, round_no, "chairman",
+                attempt=attempt,
+                provider_id=chair.id,
+                content=raw,
+                parsed_json=json.dumps(parsed),
+                ok=True,
+                latency_ms=ms,
+                char_count=len(raw or ""),
+                phase="round",
+            )
+
+            payload = {
+                "type": "done",
+                "job_id": job_id,
+                "session_id": session_id,
+                "round_no": round_no,
+                "chairman": chair.display_name,
+                "raw_text": raw,
+                "latency_ms": ms,
+                "responded": len(responded),
+                "total": len(answers),
+                **parsed,
+            }
+            state["result"] = payload
+            await state["queue"].put(payload)
+        except Exception as e:  # noqa: BLE001
+            await state["queue"].put(
+                {"type": "error", "message": f"{type(e).__name__}: {e}"}
+            )
+        finally:
+            state["done"] = True
+            await state["queue"].put({"type": "__eof__"})
+
+    asyncio.create_task(work())
+    return {"job_id": job_id, "round_no": round_no}
+
+
+async def _fan_out(orch, members, prompt, ctx, on_event, cancel) -> list:
+    """Ask every member the same prompt, honouring the configured pacing.
+
+    Mirrors Orchestrator.run's gather, but returns the raw answers instead of
+    proceeding to a verdict -- a brainstorm round's synthesis step is a
+    different prompt with a different output contract.
+    """
+    from .providers.base import Answer
+
+    pacing = orch.settings.pacing
+    answers: list = []
+
+    if pacing.mode == "sequential" or pacing.max_concurrency <= 1:
+        for i, p in enumerate(members):
+            if cancel.is_set():
+                break
+            if i > 0:
+                await asyncio.sleep(pacing.sample_inter_provider())
+            answers.append(await p.ask(prompt, ctx=ctx, on_event=on_event, cancel=cancel))
+        return answers
+
+    sem = asyncio.Semaphore(pacing.max_concurrency)
+
+    async def one(p, delay: float):
+        await asyncio.sleep(delay)
+        async with sem:
+            return await p.ask(prompt, ctx=ctx, on_event=on_event, cancel=cancel)
+
+    delays, acc = [], 0.0
+    for _ in members:
+        delays.append(acc)
+        acc += pacing.sample_inter_provider()
+
+    gathered = await asyncio.gather(
+        *(one(p, d) for p, d in zip(members, delays)), return_exceptions=True
+    )
+    for p, g in zip(members, gathered):
+        if isinstance(g, Exception):
+            g = Answer.failed(p.id, p.display_name, FailureKind.UNKNOWN, str(g)[:300])
+        answers.append(g)
+    return answers
+
+
+async def _fan_out_each(orch, members, prompts, ctx, on_event, cancel) -> list:
+    """Like `_fan_out`, but each member gets its OWN prompt.
+
+    The critique step needs this: every member is shown the same proposals but
+    has to be told which one is its own, so the prompts differ per member.
+    Pacing, stagger and failure handling are otherwise identical.
+    """
+    from .providers.base import Answer
+
+    pacing = orch.settings.pacing
+    answers: list = []
+
+    if pacing.mode == "sequential" or pacing.max_concurrency <= 1:
+        for i, p in enumerate(members):
+            if cancel.is_set():
+                break
+            if i > 0:
+                await asyncio.sleep(pacing.sample_inter_provider())
+            answers.append(
+                await p.ask(prompts[p.id], ctx=ctx, on_event=on_event, cancel=cancel)
+            )
+        return answers
+
+    sem = asyncio.Semaphore(pacing.max_concurrency)
+
+    async def one(p, delay: float):
+        await asyncio.sleep(delay)
+        async with sem:
+            return await p.ask(prompts[p.id], ctx=ctx, on_event=on_event, cancel=cancel)
+
+    delays, acc = [], 0.0
+    for _ in members:
+        delays.append(acc)
+        acc += pacing.sample_inter_provider()
+
+    gathered = await asyncio.gather(
+        *(one(p, d) for p, d in zip(members, delays)), return_exceptions=True
+    )
+    for p, g in zip(members, gathered):
+        if isinstance(g, Exception):
+            g = Answer.failed(p.id, p.display_name, FailureKind.UNKNOWN, str(g)[:300])
+        answers.append(g)
+    return answers
+
+
+async def _run_critique(
+    orch, members, answers, topic, turns, ctx, on_event, cancel, session_id,
+    round_no, attempt, phase,
+):
+    """The rebuttal step: every member reads the others and attacks them.
+
+    This is where a council earns its cost over a single model. Without it the
+    members never actually meet -- four parallel opinions and a summariser is a
+    poll, not a debate, and a wrong claim from one member is never challenged
+    by the three that could have caught it.
+
+    Failure here is deliberately NOT fatal. The critiques improve the merge but
+    the merge works without them, and a round that already spent four browser
+    sessions on proposals must not be thrown away because a fifth call failed.
+    """
+    responded = [a for a in answers if a.ok and a.text.strip()]
+    if len(responded) < 2:
+        # Nothing to rebut: one proposal cannot be cross-examined.
+        return []
+
+    by_id = {a.provider_id: a for a in answers}
+    critics = [m for m in members if m.id in {a.provider_id for a in responded}]
+    prompts = {
+        m.id: brainstorm_engine.build_critique_prompt(
+            topic, turns, answers, by_id[m.id].display_name
+        )
+        for m in critics
+    }
+
+    try:
+        results = await _fan_out_each(
+            orch, critics, prompts, ctx, on_event, cancel
+        )
+    except Exception:
+        return []
+
+    critiques: list[dict] = []
+    for a in results:
+        if not (a.ok and a.text.strip()):
+            continue
+        critiques.append(
+            {
+                "provider_id": a.provider_id,
+                "display_name": a.display_name,
+                "raw": a.text,
+                "parsed": brainstorm_engine.parse_critique(a.text),
+            }
+        )
+
+    # Stored as real turns so the transcript can show who challenged what --
+    # a correction that only ever existed inside a prompt is invisible to the
+    # person afterwards, which is the gap this whole change set is closing.
+    for a in results:
+        await db.add_turn(
+            session_id, round_no, "critique",
+            attempt=attempt,
+            provider_id=a.provider_id,
+            content=a.text or "",
+            ok=a.ok,
+            failure_kind=str(a.failure) if a.failure else None,
+            error_detail=a.error_detail,
+            latency_ms=a.latency_ms,
+            char_count=a.chars,
+            phase=phase,
+        )
+
+    return critiques
+
+
+@app.post("/api/brainstorm/{session_id}/finalize")
+async def finalize_brainstorm(
+    session_id: str,
+    reply: str = Form(""),
+    answers: str = Form(""),
+):
+    """Last council pass, then the chairman writes the plan file."""
+    data = await db.get_session(session_id)
+    if data is None:
+        raise HTTPException(404, "unknown session")
+    session = data["session"]
+    if session["status"] != "active":
+        raise HTTPException(
+            400, f"This session is {session['status']}, so it cannot be finalised again."
+        )
+    if not any(t["role"] == "chairman" for t in data["turns"]):
+        raise HTTPException(
+            400, "Run at least one round before finalising -- there is no plan yet."
+        )
+
+    _reload_settings()
+    topic = session["topic"]
+    round_no = _next_round_no(data["turns"])
+
+    provider_ids = session.get("provider_ids") or None
+    try:
+        members = build_providers(settings, provider_ids)
+    except KeyError as e:
+        raise HTTPException(400, str(e))
+
+    attempt = await db.next_attempt(session_id, round_no)
+
+    user_reply = _compose_reply(data["turns"], answers, reply)
+    if user_reply:
+        await db.add_turn(
+            session_id, round_no, "user", attempt=attempt,
+            content=user_reply, phase="finalize",
+        )
+        data = await db.get_session(session_id)
+    turns = data["turns"]
+
+    await db.set_session_status(session_id, "finalizing")
+
+    job_id = uuid.uuid4().hex[:12]
+    state = {
+        "queue": asyncio.Queue(),
+        "cancel": asyncio.Event(),
+        "done": False,
+        "result": None,
+        "providers": {
+            p.id: {
+                "id": p.id,
+                "display_name": p.display_name,
+                "accent": p.accent,
+                "state": "queued",
+                "text": "",
+                "chars": 0,
+            }
+            for p in members
+        },
+    }
+    _brainstorm_jobs[job_id] = state
+
+    async def on_event(ev: ProviderEvent) -> None:
+        prov = state["providers"].get(ev.provider_id)
+        if prov is not None:
+            prov["state"] = str(ev.state)
+            if ev.partial_text:
+                prov["text"] = ev.partial_text
+                prov["chars"] = ev.chars
+        await state["queue"].put(
+            {
+                "type": "state",
+                "provider_id": ev.provider_id,
+                "state": str(ev.state),
+                "chars": ev.chars,
+                "text": ev.partial_text,
+                "message": ev.message,
+            }
+        )
+
+    async def work() -> None:
+        try:
+            orch = Orchestrator(settings, None)
+            member_prompts = {
+                m.id: brainstorm_engine.build_member_prompt(
+                    topic, turns, round_no, provider_id=m.id
+                )
+                for m in members
+            }
+            ctx = RunContext(
+                run_id=f"{session_id}-final",
+                question=next(iter(member_prompts.values()), topic),
+            )
+            answers = await _fan_out_each(
+                orch, members, member_prompts, ctx, on_event, state["cancel"]
+            )
+            await _save_council_answers(
+                session_id, round_no, attempt, answers, "finalize"
+            )
+
+            await state["queue"].put(
+                {
+                    "type": "phase",
+                    "phase": "critique",
+                    "message": "The members are reviewing each other's proposals",
+                }
+            )
+            critiques = await _run_critique(
+                orch, members, answers, topic, turns, ctx, on_event,
+                state["cancel"], session_id, round_no, attempt, "finalize",
+            )
+
+            chair = orch._pick_chairman(members, answers)
+            if chair is None:
+                # The critique round is a bonus, not a requirement -- the plan
+                # can still be written from the transcript alone, and losing a
+                # finished session to a browser hiccup would be the worst
+                # possible moment to fail.
+                chair = build_provider(
+                    settings,
+                    studio_engine.pick_generator_id(settings, None),
+                )
+            else:
+                await orch._await_profile_release(chair)
+
+            await state["queue"].put(
+                {
+                    "type": "state",
+                    "provider_id": chair.id,
+                    "state": "waiting",
+                    "chars": 0,
+                    "text": "",
+                    "message": f"{chair.display_name} is writing the plan",
+                }
+            )
+
+            body, ok, err, ms = await brainstorm_engine.write_plan(
+                chair, topic, turns, answers, ctx,
+                critiques=critiques, cancel=state["cancel"],
+            )
+            if not ok:
+                raise RuntimeError(err or "The chairman failed to write the plan.")
+
+            # The review pass: contradictions, dropped material, unsupported
+            # claims and readability, checked over the finished document. It
+            # runs last because every one of those checks needs the whole thing
+            # to exist first, and it can only ever improve or no-op -- a failed
+            # review returns the document unchanged rather than losing it.
+            await state["queue"].put(
+                {
+                    "type": "state",
+                    "provider_id": chair.id,
+                    "state": "waiting",
+                    "chars": 0,
+                    "text": "",
+                    "message": f"{chair.display_name} is checking the document",
+                }
+            )
+            body, reviewed, review_note, review_ms = await brainstorm_engine.review_plan(
+                chair, body, turns, answers, ctx, cancel=state["cancel"]
+            )
+            ms += review_ms
+
+            # No file is written here. The plan is kept in the database and
+            # handed to the client, which offers Save As -- the person chooses
+            # where it lands, rather than finding it somewhere they never
+            # picked. `filename` is only a suggestion for that dialog.
+            markdown = brainstorm_engine.build_plan_markdown(body, turns)
+            filename = brainstorm_engine.plan_filename(topic)
+
+            # The plan is also a turn -- the last thing the chairman said. It
+            # lives on the session row too, but recording it here keeps the
+            # turn log a complete account of the session rather than one that
+            # stops just before its most important output.
+            await db.add_turn(
+                session_id, round_no, "chairman",
+                attempt=attempt,
+                provider_id=chair.id,
+                content=markdown,
+                parsed_json=json.dumps(
+                    {"kind": "plan", "filename": filename, "body": body}
+                ),
+                ok=True,
+                latency_ms=ms,
+                char_count=len(markdown),
+                phase="finalize",
+            )
+            await db.finish_session(
+                session_id, "complete", plan_path=None, plan_md=markdown,
+            )
+
+            payload = {
+                "type": "done",
+                "job_id": job_id,
+                "session_id": session_id,
+                "status": "complete",
+                "chairman": chair.display_name,
+                "plan_filename": filename,
+                "plan_md": markdown,
+                "latency_ms": ms,
+                "reviewed": reviewed,
+                "review_note": review_note,
+            }
+            state["result"] = payload
+            await state["queue"].put(payload)
+        except Exception as e:  # noqa: BLE001
+            # Back to active, not failed: the session's rounds are all still
+            # there and finalising again is exactly the right thing to try.
+            await db.set_session_status(session_id, "active")
+            await state["queue"].put(
+                {"type": "error", "message": f"{type(e).__name__}: {e}"}
+            )
+        finally:
+            state["done"] = True
+            await state["queue"].put({"type": "__eof__"})
+
+    asyncio.create_task(work())
+    return {"job_id": job_id}
+
+
+@app.get("/api/brainstorm/{session_id}/job/{job_id}/stream")
+async def stream_brainstorm_job(session_id: str, job_id: str):
+    state = _brainstorm_jobs.get(job_id)
+    if state is None:
+        raise HTTPException(404, "unknown brainstorm job")
+
+    async def gen():
+        yield _sse({"type": "init", "providers": list(state["providers"].values())})
+        if state["result"]:
+            yield _sse(state["result"])
+            return
+        while True:
+            item = await state["queue"].get()
+            if item.get("type") == "__eof__":
+                break
+            yield _sse(item)
+
+    return StreamingResponse(
+        gen(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.post("/api/brainstorm/{session_id}/job/{job_id}/cancel")
+async def cancel_brainstorm_job(session_id: str, job_id: str):
+    state = _brainstorm_jobs.get(job_id)
+    if state is None:
+        raise HTTPException(404, "unknown brainstorm job")
+    state["cancel"].set()
+    return {"ok": True}
+
+
+# Refinement runs on the Gemini API rather than a browser member. A refine is
+# one short turn on text the person has not sent anywhere yet, so the seconds
+# spent launching Chrome and polling a page for a stable answer were the whole
+# cost of the feature. The API path answers in about a second.
+REFINER_PROVIDER_ID = "gemini-api"
+
+
+def _refiner_id() -> str:
+    """The provider the refiner should use, falling back if no key is set.
+
+    Without a key the API provider cannot be built, and failing the button
+    outright would be a regression for anyone who has not added one -- so we
+    fall back to the browser path that was here before. Slow, but working.
+    """
+    if gemini_api.load_api_key():
+        return REFINER_PROVIDER_ID
+    return studio_engine.pick_generator_id(settings, None)
+
+
+# The council's browser profiles are single-occupancy, so a refine that ran
+# while a run or a brainstorm round was in flight would fight the same profile
+# lock. Cheap to check here, and a clear 409 beats an opaque Playwright error.
+def _profiles_busy() -> bool:
+    return any(
+        not s.get("done") for s in (*_runs.values(), *_brainstorm_jobs.values())
+    )
+
+
+@app.post("/api/refine")
+async def refine_prompt(
+    question: str = Form(...),
+    provider_id: str = Form(""),
+):
+    """Rewrite the composer's text into a sharper prompt, via one model.
+
+    Synchronous rather than the POST-then-SSE shape the council uses: this is
+    ONE provider doing ONE short turn, so it lands in the same order of time as
+    a single chat message. A job id and a stream would be machinery around a
+    request that finishes before the stream could be opened.
+
+    Runs on the Gemini API by default (see REFINER_PROVIDER_ID) rather than a
+    browser member, because the browser path spent seconds launching Chrome and
+    polling for a stable answer to rewrite one sentence. Pass provider_id to
+    force a specific member; with no key configured it falls back to the
+    browser path so the button keeps working.
+    """
+    q = question.strip()
+    if not q:
+        raise HTTPException(400, "question is required")
+
+    _reload_settings()
+
+    try:
+        pid = provider_id.strip() or _refiner_id()
+        provider = build_provider(settings, pid)
+    except (KeyError, ValueError) as e:
+        raise HTTPException(400, str(e))
+
+    # Only browser members contend for a single-occupancy profile. An API
+    # refiner holds no profile, so it can run while the council works -- which
+    # is the point: you can sharpen your next question without waiting.
+    if provider.kind != "api" and _profiles_busy():
+        raise HTTPException(
+            409,
+            "The council is working right now -- wait for it to finish, then refine.",
+        )
+
+    ctx = RunContext(run_id=f"refine-{uuid.uuid4().hex[:8]}", question=q)
+    text, ok, error, ms = await refine_engine.refine(provider, q, ctx)
+
+    if not ok:
+        raise HTTPException(502, error or "The refiner did not return a rewrite.")
+
+    return {
+        "refined": text,
+        "original": q,
+        "provider_id": provider.id,
+        "display_name": provider.display_name,
+        "latency_ms": ms,
+    }
+
+
+@app.post("/api/doctor")
+async def doctor(request: Request, provider_ids: list[str] | None = None):
+    providers = build_providers(settings, provider_ids or None)
+    out = []
+    for p in providers:
+        # A pass opens a real browser per provider and runs for tens of
+        # seconds, so the user is given a way to cancel it. Aborting the
+        # fetch only drops the client's end of the connection -- without
+        # this check the server would keep launching the remaining browsers
+        # to build a result nobody is waiting for.
+        if await request.is_disconnected():
+            break
+        r = await p.health_check()
+        out.append(
+            {
+                "provider_id": r.provider_id,
+                "display_name": r.display_name,
+                "reachable": r.reachable,
+                "logged_in": r.logged_in,
+                "challenged": r.challenged,
+                "usable": r.usable,
+                "error": r.error,
+                "notes": r.notes,
+                "selectors": [
+                    {
+                        "field": s.field,
+                        "matched": s.matched,
+                        "count": s.count,
+                        "ok": s.ok,
+                        # `status` is what the UI should colour on: a bare
+                        # ok=False conflates a broken selector with one that
+                        # simply cannot match on an idle page.
+                        "status": s.status,
+                        "note": s.note,
+                        "stale": bool(s.ok and s.tried and s.matched != s.tried[0]),
+                        "tried": len(s.tried),
+                    }
+                    for s in r.selectors
+                ],
+            }
+        )
+    return out
+
+
+# Serve the built frontend if it exists, so `magi serve` is a single process.
+_dist = ROOT / "frontend" / "dist"
+if _dist.is_dir():
+    app.mount("/assets", StaticFiles(directory=_dist / "assets"), name="assets")
+
+    @app.get("/")
+    async def index():
+        # Never cache index.html. Everything under /assets is content-hashed
+        # (index-BXi58C-r.js), so those are safe to cache forever -- but this
+        # file is the thing that NAMES them, and it keeps the same URL across
+        # every build. Cached, it pins the browser to the previous build's
+        # bundle: the server serves a correct new frontend and the user is
+        # shown the old one, with no error anywhere to explain it. Rebuilding
+        # then appears to do nothing, which is a genuinely confusing failure
+        # (it cost a round of "I don't see it here" once already).
+        return FileResponse(
+            _dist / "index.html",
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            },
+        )
