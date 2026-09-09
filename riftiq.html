@@ -209,7 +209,7 @@
 })();
 </script>
 
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..900&family=Manrope:wght@400..800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..900&family=Manrope:wght@400..800&family=Outfit:wght@800;900&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
 
 <!-- Firebase - loaded dynamically to handle CORS/blocking -->
 <script type="module">
@@ -468,16 +468,20 @@
   --accent: #c0aeea;
   /* ── FACES ──────────────────────────────────────────────────────────────
      The suite's three faces, same as index.html and tradehub.html: Manrope
-     carries every title, Inter every piece of running UI, IBM Plex Mono every
-     number. RiftIQ's own token names are kept so all 370-odd call sites keep
-     resolving; --suite-display is the alias the rest of the suite reaches for.
-     Manrope's axis stops at 800, so the two wordmarks that ask for 900 render
-     at 800 — the heaviest Manrope there is, and the weight .suite-title sits
-     near everywhere else in A1. */
+     carries every heading, Inter every piece of running UI, IBM Plex Mono
+     every number. RiftIQ's own token names are kept so all 370-odd call sites
+     keep resolving; --suite-display is the alias the rest of the suite reaches
+     for. The logotypes are the one exception and sit on --wordmark below. */
   --head: 'Manrope', system-ui, -apple-system, sans-serif;
   --body: 'Inter', system-ui, -apple-system, sans-serif;
   --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   --suite-display: var(--head);
+  /* The logotypes stay on Outfit. RiftIQ's wordmarks are drawn shapes more
+     than they are text — the gradient half, the -1.6px tracking, the 900
+     weight Manrope does not have — so they keep the face they were cut for
+     while every other word in both programs moves to the suite's. Only the
+     five logotype rules may reach for this. */
+  --wordmark: 'Outfit', system-ui, sans-serif;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -518,7 +522,7 @@ body { cursor: default; }
   overflow: hidden;
 }
 #topbar-logo {
-  font-family: var(--head);
+  font-family: var(--wordmark);
   font-size: 22px;
   font-weight: 800;
   display: flex;
@@ -730,7 +734,7 @@ body.wr-locked #wr-progbar { display: none !important; }
 
 .pp-head { text-align: center; margin-bottom: 30px; }
 .pp-wordmark {
-  font-family: var(--head); font-size: clamp(38px, 8vw, 56px);
+  font-family: var(--wordmark); font-size: clamp(38px, 8vw, 56px);
   font-weight: 900; letter-spacing: -1.6px; line-height: 1;
 }
 .pp-w1 { color: var(--tx); }
@@ -832,7 +836,7 @@ body.wr-locked #wr-progbar { display: none !important; }
   padding: 0 clamp(12px, 2vw, 24px);
 }
 #wr-progbar-mark {
-  font-family: var(--head); font-size: 20px; font-weight: 800;
+  font-family: var(--wordmark); font-size: 20px; font-weight: 800;
   letter-spacing: -0.5px; white-space: nowrap; line-height: 1;
   /* Same lit halo WarRoom's #topbar-logo carries — one identity treatment, so
      swapping programs does not change how the wordmark sits on the bar. */
@@ -926,7 +930,7 @@ body.wr-locked #wr-progbar { display: none !important; }
   line-height: 1;
 }
 .setup-logo-war {
-  font-family: var(--head);
+  font-family: var(--wordmark);
   font-size: 48px;
   font-weight: 900;
   letter-spacing: -1px;
@@ -936,7 +940,7 @@ body.wr-locked #wr-progbar { display: none !important; }
   background-clip: text;
 }
 .setup-logo-room {
-  font-family: var(--head);
+  font-family: var(--wordmark);
   font-size: 48px;
   font-weight: 900;
   color: var(--tx);
