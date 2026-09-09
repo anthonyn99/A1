@@ -2,6 +2,7 @@
 
   python -m magi serve               run the backend + open the UI (local only)
   python -m magi cloud               same, plus a tunnel published to magi-link
+  python -m magi autostart           run the engine at logon (no launcher needed)
   python -m magi doctor [site ...]   which selectors currently match
   python -m magi login <site>        open a window to sign in by hand
   python -m magi ask "question"      run the council from the terminal
@@ -33,6 +34,13 @@ def main(argv: list[str] | None = None) -> int:
     cl = sub.add_parser("cloud", help="serve, tunnel, and publish where to reach it")
     cl.add_argument("--port", type=int, default=8000)
 
+    au = sub.add_parser(
+        "autostart",
+        help="start the engine automatically at logon, so magi.bat is optional",
+    )
+    au.add_argument("action", nargs="?", default="on", choices=["on", "off", "status"])
+    au.add_argument("--port", type=int, default=8000)
+
     d = sub.add_parser("doctor", help="check which selectors match each site")
     d.add_argument("sites", nargs="*", help="sites to check (default: all enabled)")
 
@@ -58,6 +66,8 @@ def main(argv: list[str] | None = None) -> int:
         return serve_cmd.run(args.port, not args.no_browser)
     if args.cmd == "cloud":
         return serve_cmd.cloud(args.port)
+    if args.cmd == "autostart":
+        return serve_cmd.autostart(args.action, args.port)
 
     settings = load_settings()
     if args.cmd == "doctor":

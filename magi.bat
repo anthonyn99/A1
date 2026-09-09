@@ -12,6 +12,7 @@ REM    magi cloud        ...and publish a tunnel, so it works off this PC too
 REM    magi login <site> sign in to chatgpt / claude / gemini / deepseek
 REM    magi doctor       check which selectors still match
 REM    magi ask "..."    run the council in the terminal
+REM    magi autostart    run the engine at logon (then just bookmark the page)
 REM    magi setup        rebuild the venv from scratch
 REM
 REM  Everything runs out of magi\.venv, created on first use. That is the only

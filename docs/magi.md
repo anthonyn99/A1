@@ -39,6 +39,37 @@ access. You are running it on your own accounts at your own risk.
 
 ---
 
+## Opening MAGI
+
+Once set up, **bookmark <http://127.0.0.1:8000>** and open it like any other
+page. `magi autostart` puts the engine on your logon items, so it is already
+running by the time you get there and there is no launcher to remember.
+
+```
+magi autostart          install it (and start it now)
+magi autostart status   is the shortcut installed, and is the engine up?
+magi autostart off      remove it
+```
+
+It writes `MAGI.lnk` into your Startup folder — visible and deletable by hand
+at `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup`. A scheduled
+task would be the nicer object (delays, battery policy, run history) but
+registering one needs elevation, and an autostart that demands an admin prompt
+to install is not an autostart.
+
+It runs `magi cloud`, so the same logon also publishes a tunnel and the page
+works from your phone. **The tunnel never holds up local access**: it is
+verified and published on a background thread, so `127.0.0.1` is answering
+seconds after logon whether or not the tunnel has registered yet.
+
+The engine runs under `pythonw.exe` — no console window — and everything it
+would have printed goes to `magi/data/autostart.log`, truncated per run. That
+is the first place to look when the console says the engine is offline.
+
+`magi.bat` still works and is still the right tool for `login`, `doctor`,
+`capture` and one-off runs. It is just no longer something you need to
+remember before opening the page.
+
 ## First run
 
 Double-click **`magi.bat`**. It builds `magi/.venv` from Python 3.12, installs
@@ -85,6 +116,7 @@ Finally, `magi doctor` to confirm the selectors still match.
 | `magi doctor` | which selectors still match — **run this first when a member stops responding** |
 | `magi capture <site>` | find the selectors that only exist mid-answer (costs one real question) |
 | `magi ask "…"` | run the council in the terminal, no UI |
+| `magi autostart` | run the engine at logon, so there is no launcher to remember |
 | `magi setup` | rebuild the venv from scratch |
 
 Runs are **completely invisible** — no windows, no taskbar icons, nothing on
