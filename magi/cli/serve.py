@@ -200,41 +200,49 @@ def cloud(port: int = 8000) -> int:
         return _serve_only(port, "no tunnel opened — the API would be ungated.")
 
     print("  opening tunnel…")
+    # cloudflared's output goes to a FILE, not a pipe.
+    #
+    # A pipe has to be drained or the writer blocks once the OS buffer fills,
+    # and cloudflared is chatty -- it logs every connection, every precheck and
+    # a heartbeat forever. The first version read the pipe only until it found
+    # the url and then handed it to a drain thread, and tunnels launched that
+    # way kept printing a hostname that never registered, while the same
+    # command run with its stderr redirected to a file registered in ~6s.
+    # Whatever the precise mechanism, a file has no such failure mode, needs no
+    # reader, and leaves the one thing that was missing while diagnosing this:
+    # cloudflared's own account of what it did.
+    cf_log = ROOT / "data" / "cloudflared.log"
+    cf_log.parent.mkdir(parents=True, exist_ok=True)
     try:
+        cf_handle = open(cf_log, "w", encoding="utf-8", errors="replace")
         proc = subprocess.Popen(
             ["cloudflared", "tunnel", "--url", f"http://127.0.0.1:{port}"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-            text=True,
-            bufsize=1,
+            stdout=cf_handle,
+            stderr=cf_handle,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
     except FileNotFoundError:
         return _serve_only(port, "cloudflared is not installed "
                                  "(winget install --id Cloudflare.cloudflared).")
 
-    # cloudflared prints the url on stderr a few seconds in. Read the stream
-    # rather than sleeping a fixed amount, and keep draining it afterwards --
-    # a full stderr pipe blocks the process that is holding the tunnel open.
+    # The url appears a few seconds in, so poll the log rather than sleeping a
+    # fixed amount.
     url = None
     deadline = time.time() + 60
     while time.time() < deadline and proc.poll() is None:
-        line = proc.stderr.readline()
-        if not line:
+        time.sleep(1.5)
+        try:
+            m = QUICK_TUNNEL.search(cf_log.read_text(encoding="utf-8", errors="replace"))
+        except OSError:
             continue
-        m = QUICK_TUNNEL.search(line)
         if m:
             url = m.group(0)
             break
     if not url:
         proc.terminate()
-        return _serve_only(port, "cloudflared never printed a tunnel url.")
-    threading.Thread(target=lambda: [_ for _ in proc.stderr], daemon=True).start()
+        return _serve_only(port, f"cloudflared never printed a tunnel url (see {cf_log}).")
     print(f"  {url}")
 
-    # cloudflared prints the url BEFORE the edge has finished registering it,
-    # and public DNS lags further behind. Publishing inside that window points
-    # the UI at a name that does not resolve yet: the page loads and every call
-    # fails, which reads exactly like a broken backend.
     # Verifying and publishing happen on a BACKGROUND thread, and the local
     # server is never held up waiting for them.
     #
