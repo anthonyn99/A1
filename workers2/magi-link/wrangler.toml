@@ -1,0 +1,21 @@
+name = "magi-link"
+# Deploys to Cloudflare "My Account 2" (av1-2.workers.dev) via
+# .github/workflows/deploy-workers2.yml. NO account_id here on purpose -- the
+# workflow supplies it from CF_ACCOUNT_ID_2, so a worker cannot be pointed at
+# the wrong account by editing its own config.
+main = "worker.js"
+compatibility_date = "2025-06-01"
+
+# ── KV on ACCOUNT 2 ─────────────────────────────────────────────────────────
+# `kv:<TITLE>` is a PLACEHOLDER, not an id -- workers2/kv-provision.mjs resolves
+# it against account 2 in the CI checkout. See workers2/README.md.
+#
+# Write volume is one PUT per PC boot (the tunnel url only changes when
+# cloudflared restarts), so this costs single-digit writes/day against the
+# 1,000/day account cap. That is the whole reason it was safe to add here.
+[[kv_namespaces]]
+binding = "MAGI_LINK"
+id = "kv:MAGI_LINK"
+
+# No secrets. The bearer is MAGI_API_TOKEN itself, which this worker never
+# learns -- see the SHA-256 keying note in worker.js.
