@@ -86,15 +86,19 @@ Finally, `magi doctor` to confirm the selectors still match.
 | `magi ask "…"` | run the council in the terminal, no UI |
 | `magi setup` | rebuild the venv from scratch |
 
-Runs are **completely invisible** — no windows, no taskbar icons. Two
-mechanisms, because the sites differ:
+Runs are **completely invisible** — no windows, no taskbar icons, nothing on
+screen. All four sites currently run in **true headless Chrome**
+(`headless_ok: true` for each in `selectors.yaml`).
 
-- **Gemini and DeepSeek** run in true headless Chrome.
-- **ChatGPT and Claude** cannot: both sit behind Cloudflare, which serves
-  headless Chrome a "Just a moment…" page it never gets past (verified —
-  headless still blocked after 30s, headful clears in ~3s). They run as real
-  windows parked off-screen with their taskbar buttons hidden via the Win32
-  `WS_EX_TOOLWINDOW` style. The page runs normally; only the chrome is hidden.
+That works because MAGI overrides the user agent. Headless Chrome advertises
+`HeadlessChrome/141…` instead of `Chrome/141…`, and that token alone is what
+Cloudflare blocks — with it removed, ChatGPT and Claude load and answer
+normally. Both sit behind Cloudflare and used to need a workaround: a real
+window parked off-screen with its taskbar button hidden via the Win32
+`WS_EX_TOOLWINDOW` style (`magi/browser/winhide.py`). That path still exists as
+the fallback — if either site starts serving "Just a moment…" again, set
+`headless_ok: false` for it and it goes back to a hidden window rather than
+failing.
 
 Set `browser.offscreen: false` in `magi/config/magi.yaml` to watch the four
 windows tile and answer live — useful when a selector breaks. They tile into
