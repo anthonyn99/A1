@@ -1,0 +1,2629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>MAGI</title>
+<meta name="theme-color" content="#1B1C1E">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%231B1C1E%27%2F%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%238D769A%27%20stroke-width%3D%275%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M30%2066V34l18%2020%2018-20v32%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%231B1C1E%27%2F%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%238D769A%27%20stroke-width%3D%275%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M30%2066V34l18%2020%2018-20v32%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ══════════════════════════════════════════════════════════════════════════
+   MAGI — multi-model council. Evangelion MAGI console, in the TaskHub palette.
+   --------------------------------------------------------------------------
+   Ask one question, get independent answers from ChatGPT, Claude, Gemini and
+   DeepSeek, then one synthesised verdict naming agreements, disagreements and
+   confidence. The council runs on Tony's PC — it drives real logged-in Chrome
+   profiles, which cannot leave the machine — so THIS file is only the console.
+   Where the engine is, and how this page finds it, is the `link` section of
+   the script below.
+
+   Ported from Veda's React/Vite build to the A1 single-file shape: one .html
+   at the repo root, no build step, no bundle, served straight off GitHub
+   Pages. The palette tokens are the suite's, unchanged; the MAGI layer on top
+   is structural rather than a recolour — hard-edged blocks wired together with
+   visible connection lines, uppercase tracked labels, and status that animates
+   while the council deliberates.
+   ══════════════════════════════════════════════════════════════════════════ */
+:root{
+  --bg:#1B1C1E; --s1:#26272A; --s2:#2E2F33; --s3:#3A3B40;
+  --bd:#3D3E43; --bdl:#4A4B51;
+  --tx:#ECECEE; --txd:#AFB0B5; --txm:#76777C;
+  --ac:#8D769A; --acl:#A892B0; --acd:#6E5C7A;
+  --grn:#5DAF6D; --red:#f85149; --amber:#E2C285; --gold:#e0b874;
+  --shadow:rgba(0,0,0,.5);
+  --font:'IBM Plex Mono','DM Mono',ui-monospace,Consolas,monospace;
+  --font-display:'Manrope',system-ui,-apple-system,sans-serif;
+  --r-sm:4px; --r-btn:5px; --r-card:6px;
+}
+
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;}
+body{
+  background:var(--bg); color:var(--tx); font-family:var(--font);
+  font-size:13px; line-height:1.55; -webkit-font-smoothing:antialiased;
+  overflow:hidden;
+}
+/* Scrollbars are hidden globally across the suite. */
+*{scrollbar-width:none;-ms-overflow-style:none;}
+*::-webkit-scrollbar{display:none;width:0;height:0;}
+a,button,label,select,[role="button"]{touch-action:manipulation;cursor:pointer;}
+input,select,textarea,button{font-family:var(--font);}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--ac);outline-offset:1px;}
+[hidden]{display:none!important;}
+
+/* Faint scanline wash over the whole console. */
+body::before{
+  content:""; position:fixed; inset:0; z-index:9999; pointer-events:none;
+  background:repeating-linear-gradient(to bottom,
+    rgba(255,255,255,.014) 0px, rgba(255,255,255,.014) 1px,
+    transparent 1px, transparent 3px);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body, #root { height: 100%; }
+
+body {
+  background: var(--bg);
+  color: var(--tx);
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Faint scanline wash over the whole console. */
+body::before {
+  content: "";
+  position: fixed; inset: 0; z-index: 9999; pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255,255,255,.014) 0px,
+    rgba(255,255,255,.014) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
+
+/* ── app shell: fixed sidebar + scrolling content ─────────────────────── */
+/* The sidebar is the app's navigation surface (Claude desktop's shape): a
+   fixed-width rail that owns brand, run controls, system drawers and Studio,
+   collapsing to icons only. The content area scrolls independently so the
+   nav never scrolls away from a long verdict. */
+.shell {
+  display: grid;
+  grid-template-columns: var(--nav-w, 232px) minmax(0, 1fr);
+  height: 100%;
+  transition: grid-template-columns .18s ease;
+}
+.shell.nav-collapsed { --nav-w: 56px; }
+
+.sidebar {
+  background: var(--s1);
+  border-right: 1px solid var(--bd);
+  display: flex; flex-direction: column;
+  min-height: 0; overflow: hidden;
+}
+.side-top {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 10px 10px;
+  border-bottom: 1px solid var(--bd);
+  min-height: 60px;
+}
+.side-toggle {
+  background: transparent; border: none; color: var(--txm);
+  width: 30px; height: 30px; flex-shrink: 0; border-radius: 7px;
+  font-size: 14px; cursor: pointer; font-family: inherit;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: background .15s, color .15s;
+}
+.side-toggle:hover { background: var(--s2); color: var(--tx); }
+/* The brand collapses out of the rail rather than wrapping or clipping
+   mid-word, which is what a plain overflow:hidden would have done. */
+.side-brand { min-width: 0; overflow: hidden; }
+.nav-collapsed .side-brand { display: none; }
+
+.side-nav {
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding: 8px 8px 20px;
+  display: flex; flex-direction: column; gap: 1px;
+}
+
+/* ── sidebar rows ─────────────────────────────────────────────────────── */
+/* Same flat icon+label language the header nav used, turned vertical: no
+   border at rest, soft fill on hover, stronger fill when active. */
+.side-item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  background: transparent; color: var(--txd); border: none; border-radius: 7px;
+  padding: 7px 9px; min-height: 32px;
+  font-family: inherit; font-size: 11.5px; font-weight: 600; letter-spacing: .3px;
+  text-align: left; cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.side-item:hover:not(:disabled):not(.disabled) { background: var(--s2); color: var(--tx); }
+.side-item.active { background: color-mix(in srgb, var(--ac) 16%, transparent); color: var(--acl); }
+.side-item:disabled, .side-item.disabled { opacity: .4; cursor: not-allowed; }
+.side-item.danger { color: var(--red); }
+.side-item.danger:hover:not(:disabled) { background: rgba(248, 81, 73, .12); }
+.side-ic {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; flex-shrink: 0; font-size: 12px; color: var(--ac);
+}
+.side-item.active .side-ic { color: var(--acl); }
+.side-item.danger .side-ic { color: var(--red); }
+/* Studio rows carry their format's own accent, the same colour the open
+   artifact is keyed to -- so the rail and the content agree at a glance. */
+.side-ic.studio-ic { color: var(--sa, var(--ac)); }
+.side-label {
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.side-tag {
+  flex-shrink: 0; font-size: 9.5px; color: var(--txm); letter-spacing: .5px;
+}
+
+/* ── sidebar sections ─────────────────────────────────────────────────── */
+.side-sec { display: flex; flex-direction: column; gap: 1px; margin-top: 14px; }
+.side-sec-hd {
+  font-size: 9px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase;
+  color: var(--txm); padding: 4px 9px 6px;
+}
+.side-sec-note { color: var(--txm); font-size: 10px; padding: 0 9px 6px; line-height: 1.45; }
+
+/* Collapsed: an icon-only rail. Labels and section headings are hidden
+   rather than removed from the DOM, so the title attribute still names each
+   row for both pointer and screen-reader users. */
+.nav-collapsed .side-label,
+.nav-collapsed .side-tag,
+.nav-collapsed .side-sec-note { display: none; }
+.nav-collapsed .side-item { justify-content: center; padding: 7px 0; }
+.nav-collapsed .side-sec-hd {
+  /* A rule instead of text: the heading is unreadable at 56px, but the
+     grouping it marks still needs to be visible. */
+  height: 1px; padding: 0; margin: 8px 10px; overflow: hidden;
+  background: var(--bd); color: transparent;
+}
+
+/* Below this a 232px rail is a third of the viewport, so the icon-only form
+   is forced regardless of the stored preference. The preference is not
+   overwritten -- widening the window restores whatever the user chose. */
+@media (max-width: 820px) {
+  .shell { grid-template-columns: 56px minmax(0, 1fr); }
+  .side-brand,
+  .side-label,
+  .side-tag,
+  .side-sec-note { display: none; }
+  .side-item { justify-content: center; padding: 7px 0; }
+  .side-sec-hd {
+    height: 1px; padding: 0; margin: 8px 10px; overflow: hidden;
+    background: var(--bd); color: transparent;
+  }
+  .side-toggle { display: none; }
+  .side-top { justify-content: center; padding: 12px 4px 10px; }
+}
+
+.wordmark {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 750; letter-spacing: 2px; line-height: 1.2;
+  color: var(--acl); white-space: nowrap;
+}
+.tagline {
+  color: var(--txm); font-size: 8.5px; letter-spacing: 1.4px;
+  text-transform: uppercase; margin-top: 1px; white-space: nowrap;
+}
+/* ── flat icon+label control ──────────────────────────────────────────── */
+/* No outline at rest, a soft fill on hover, a stronger fill when toggled.
+   Used for the inline controls inside panels (Studio's Regenerate/Close, the
+   audio player); the sidebar has its own vertical variant in .side-item. */
+.navitem {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: transparent; color: var(--txd); border: none; border-radius: 7px;
+  padding: 7px 10px; height: 30px; box-sizing: border-box;
+  font-family: inherit; font-size: 11px; font-weight: 600; letter-spacing: .3px;
+  cursor: pointer; transition: background .15s, color .15s;
+}
+.navitem:hover:not(:disabled) { background: var(--s2); color: var(--tx); }
+.navitem.active { background: color-mix(in srgb, var(--ac) 16%, transparent); color: var(--acl); }
+.navitem:disabled { opacity: .45; cursor: not-allowed; }
+.navitem.danger { color: var(--red); }
+.navitem.danger:hover:not(:disabled) { background: rgba(248, 81, 73, .12); color: var(--red); }
+.navitem-ic {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; font-size: 12px; color: var(--ac); flex-shrink: 0;
+}
+.navitem.active .navitem-ic { color: var(--acl); }
+.navitem.danger .navitem-ic { color: var(--red); }
+
+/* ── buttons: the gitaBtnStyle recipe ─────────────────────────────────── */
+.btn {
+  background: transparent; color: var(--ac);
+  border: 1px solid var(--bdl); border-radius: var(--r-btn);
+  padding: 0 10px; height: 28px; box-sizing: border-box;
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 10px; font-weight: 700; cursor: pointer;
+  font-family: inherit; text-transform: uppercase; letter-spacing: 1px;
+  transition: all .15s;
+}
+.btn:hover:not(:disabled) { border-color: var(--ac); }
+.btn.active { background: var(--ac); color: var(--bg); border-color: var(--ac); }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+.btn.danger { color: var(--red); }
+.btn.danger:hover:not(:disabled) { border-color: var(--red); }
+
+/* ── layout ───────────────────────────────────────────────────────────── */
+/* The content column scrolls on its own so the sidebar stays put; min-width:0
+   is load-bearing on a grid child or wide tables push the whole column out. */
+.page {
+  min-width: 0; overflow-y: auto; height: 100%;
+  padding: 20px clamp(12px, 3vw, 28px) 60px;
+}
+.page > * { max-width: 2000px; margin-left: auto; margin-right: auto; }
+
+/* ── composer ─────────────────────────────────────────────────────────── */
+/* Modelled on Claude's own input box: one rounded card holding the text, an
+   attachment strip, and a toolbar row -- rather than a bare textarea beside a
+   button. The card itself is the focus target so the whole thing lights up
+   together, not just the textarea inside it. */
+.qbar {
+  background: var(--s2); border: 1px solid var(--bd); border-radius: 16px;
+  padding: 10px 10px 8px; margin-bottom: 8px;
+  display: flex; flex-direction: column; gap: 2px;
+  transition: border-color .15s, box-shadow .15s, background .15s;
+}
+.qbar:focus-within {
+  border-color: var(--ac);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ac) 16%, transparent);
+}
+.qbar.drag {
+  border-color: var(--ac); border-style: dashed;
+  background: color-mix(in srgb, var(--ac) 6%, var(--s2));
+}
+/* Height is set inline by the auto-grow effect in App.tsx, so the box fits
+   its prompt instead of scrolling internally. max-height is the backstop: a
+   pasted essay caps here and scrolls rather than pushing Convene off-screen.
+   `resize: none` because the drag handle would fight the auto-sizing. */
+.qbar textarea {
+  background: transparent; color: var(--tx); border: none;
+  padding: 6px 6px 4px; font-family: inherit; font-size: 14px;
+  resize: none; min-height: 26px; max-height: 45vh; outline: none;
+  line-height: 1.5;
+  overflow-y: auto;
+}
+.qbar textarea::placeholder { color: var(--txm); }
+.qbar textarea:disabled { color: var(--txd); }
+
+/* Toolbar row: "+" attach on the left, Convene pinned to the right -- same
+   shape as Claude's model-row beneath the composer. */
+.qbar-toolbar { display: flex; align-items: center; gap: 6px; padding: 2px 2px 0; }
+.qbar-spacer { flex: 1; }
+
+.qbar-attach {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: transparent; color: var(--txd); border: 1px solid var(--bdl);
+  font-size: 18px; line-height: 1; font-family: inherit; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: all .15s;
+}
+.qbar-attach:hover:not(:disabled) { border-color: var(--ac); color: var(--ac); }
+.qbar-attach:disabled { opacity: .4; cursor: not-allowed; }
+
+.qbar-send {
+  height: 32px; border-radius: 16px; padding: 0 16px;
+}
+
+/* Refine sits beside "+" on the left, not next to Convene: it acts on the
+   text you are still writing, so it belongs with the other compose-time
+   controls rather than with the button that ends composing. Quieter than
+   .btn.active for the same reason -- Convene stays the one obvious action. */
+.qbar-refine {
+  height: 30px; border-radius: 15px; padding: 0 12px;
+  background: transparent; color: var(--txd);
+  border: 1px solid var(--bdl);
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: inherit; font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1px;
+  cursor: pointer; transition: all .15s;
+  /* Clips any sub-pixel overshoot to the pill, so the spin can never paint
+     over the border it lives in. */
+  overflow: hidden;
+}
+.qbar-refine:hover:not(:disabled) { border-color: var(--ac); color: var(--ac); }
+.qbar-refine:disabled { opacity: .4; cursor: not-allowed; }
+/* A refine is a few seconds, not instant -- so the button has to keep saying
+   it is working the whole time rather than just going dead.
+
+   Everything below exists to keep that animation INSIDE the button's border.
+   Three separate things were escaping it:
+
+   1. The glyph rotated as a bare inline box, so its bounding box grew and
+      shrank through the turn and shoved the label sideways with it.
+   2. "Refining…" is wider than "Refine", so the button itself resized the
+      moment it was clicked -- and being in a flex row, that pushed every
+      control after it along.
+   3. A rotated glyph sweeps a circle of its diagonal, which is wider than the
+      glyph -- enough to graze the 15px border radius at the pill's end cap.
+
+   Fixed by giving the glyph a square box it can spin freely inside, and
+   reserving the label's busy width up front so no layout depends on state. */
+.qbar-refine.busy { color: var(--ac); border-color: var(--ac); opacity: 1; }
+.qbar-refine.busy:disabled { opacity: 1; }
+/* A fixed square that owns the glyph's footprint: the rotation happens inside
+   this box, so no amount of spinning changes what the flex row measures.
+   grid+place-items keeps the glyph optically centred, which is what stops the
+   wobble -- rotating around a box's centre is only stable if it starts there. */
+.qbar-refine-ico {
+  width: 12px; height: 12px;
+  display: grid; place-items: center;
+  flex: 0 0 auto;
+  line-height: 1;
+}
+.qbar-refine.busy .qbar-refine-ico {
+  animation: refine-spin 1s linear infinite;
+  /* Belt and braces: the glyph cannot lay out larger than its box even mid-
+     rotation, so a font that renders ◌ wider than expected still cannot push
+     the border outward. */
+  transform-origin: 50% 50%;
+}
+@keyframes refine-spin { to { transform: rotate(360deg); } }
+/* Reserve the wider of the two labels ("Refining…") at all times, so pressing
+   the button changes only pixels inside it -- never its width, and never the
+   position of anything beside it. Centred so the shorter idle label sits
+   evenly rather than hugging the glyph. */
+.qbar-refine-txt {
+  /* Measured: "Refining…" needs 58.5px at this size/letter-spacing, "Refine"
+     39px. 5.9em (~59px) is the tightest value that still fits the longer label
+     -- 6.2em left a visible dead gap beside the shorter one. Kept in em so it
+     tracks the font-size rather than silently clipping if that changes. */
+  min-width: 5.9em;
+  text-align: center;
+  white-space: nowrap;
+}
+/* Respect a reduced-motion preference: keep the state legible via colour and
+   the label, drop the spin. */
+@media (prefers-reduced-motion: reduce) {
+  .qbar-refine.busy .qbar-refine-ico { animation: none; }
+}
+/* The label is the affordance on a wide composer, but on a narrow one the
+   glyph alone still reads and leaves room for Convene. */
+@media (max-width: 620px) { .qbar-refine-txt { display: none; } }
+
+.qbar-undo {
+  height: 30px; padding: 0 8px;
+  background: transparent; color: var(--txm);
+  border: none; border-radius: 15px;
+  font-family: inherit; font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1px;
+  cursor: pointer; transition: color .15s;
+}
+.qbar-undo:hover:not(:disabled) { color: var(--ac); }
+.qbar-undo:disabled { opacity: .4; cursor: not-allowed; }
+
+.qbar-error {
+  color: var(--red); font-size: 10.5px; letter-spacing: .3px;
+  padding: 0 6px; margin-top: -2px;
+}
+
+/* Attachment strip: file/image chips above the textarea, inside the same card. */
+.qbar-chips {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  padding: 2px 2px 8px;
+}
+.chipfile {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--s1); border: 1px solid var(--bd); border-radius: 10px;
+  padding: 5px 8px 5px 5px; max-width: 220px;
+}
+.chipfile-thumb {
+  width: 32px; height: 32px; border-radius: 6px; object-fit: cover; flex-shrink: 0;
+}
+.chipfile-icon {
+  width: 32px; height: 32px; border-radius: 6px; flex-shrink: 0;
+  background: color-mix(in srgb, var(--ac) 18%, transparent); color: var(--ac);
+  display: flex; align-items: center; justify-content: center; font-size: 14px;
+}
+.chipfile-info { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
+.chipfile-name {
+  font-size: 11.5px; color: var(--tx); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; max-width: 130px;
+}
+.chipfile-size { font-size: 9.5px; color: var(--txm); letter-spacing: .3px; }
+.chipfile-x {
+  background: transparent; border: none; color: var(--txm); cursor: pointer;
+  font-size: 10px; padding: 3px; line-height: 1; border-radius: 50%;
+  flex-shrink: 0; transition: all .15s;
+}
+.chipfile-x:hover:not(:disabled) { color: var(--red); background: rgba(248, 81, 73, .12); }
+.chipfile-x:disabled { opacity: .4; cursor: not-allowed; }
+
+.members { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
+.members .label { color: var(--txm); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
+
+/* Two stacked labels: the model name (what you are actually toggling) over
+   its MAGI codename. Centred so the pair reads as one chip rather than two
+   left-aligned lines. */
+.chip {
+  border: 1px solid var(--bd); border-radius: var(--r-sm);
+  padding: 3px 9px; cursor: pointer; background: transparent; color: var(--txd);
+  font-family: inherit; transition: all .15s;
+  display: inline-flex; flex-direction: column; align-items: center; line-height: 1.25;
+}
+.chip-model {
+  font-size: 10.5px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase;
+}
+/* Dimmed against the model name it sits under. `currentColor` at low opacity
+   rather than a fixed grey, so it stays legible both on the transparent
+   "off" chip and on the accent-filled "on" one. */
+.chip-unit {
+  font-size: 8px; font-weight: 600; letter-spacing: 1.1px; text-transform: uppercase;
+  opacity: .62;
+}
+.chip-unit:empty { display: none; }
+.chip.on { color: var(--bg); }
+.chip:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ══ MAGI CONSOLE ═════════════════════════════════════════════════════ */
+
+.magi {
+  position: relative;
+  margin: 4px 0 18px;
+  padding: 10px 0 0;
+}
+
+/* The wiring between the member blocks and the core, drawn behind them. */
+.magi-links {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  pointer-events: none; z-index: 0;
+}
+.magi-link {
+  stroke: var(--bd);
+  stroke-width: 1.5;
+  fill: none;
+  transition: stroke .25s;
+}
+.magi-link.live {
+  stroke: var(--pa, var(--ac));
+  stroke-dasharray: 5 7;
+  animation: flow 1s linear infinite;
+}
+.magi-link.settled { stroke: var(--pa, var(--ac)); opacity: .5; }
+.magi-link.dead { stroke: var(--red); opacity: .45; stroke-dasharray: 2 4; }
+
+@keyframes flow { to { stroke-dashoffset: -12; } }
+
+/* Grid: two members, core, two members. */
+/* Two unit columns flanking the core, which spans both rows so it sits level
+   with the midpoint of the four blocks -- the wiring then converges on it
+   symmetrically from all four corners. */
+.magi-grid {
+  position: relative; z-index: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr minmax(190px, .62fr);
+  grid-template-rows: auto auto;
+  gap: 14px 26px;
+  align-items: stretch;
+}
+.magi-core-cell {
+  grid-column: 3; grid-row: 1 / span 2;
+  display: flex; align-items: center; justify-content: center;
+}
+
+@media (max-width: 900px) {
+  .magi-grid { grid-template-columns: 1fr; }
+  .magi-core-cell { grid-row: auto; order: 99; }
+  .magi-links { display: none; }
+}
+
+/* ── member block ─────────────────────────────────────────────────────── */
+/* A unit is a closed block by default: four simultaneous answer dumps is more
+   text than anyone reads, and the console is meant to show STATE at a glance.
+   The answer is one click away, and the verdict below is the thing to read. */
+.node {
+  background: var(--s1);
+  border: 1px solid var(--bd);
+  border-left: 3px solid var(--pa, var(--ac));
+  border-radius: 2px;                    /* hard-edged, console-like */
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  transition: border-color .25s, box-shadow .25s;
+}
+/* Collapsed blocks are uniform and short; only an opened one grows. */
+.node.collapsed { min-height: 0; }
+.node.open { min-height: 168px; }
+
+.node.working {
+  border-color: var(--pa, var(--ac));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--pa, var(--ac)) 28%, transparent),
+              0 0 22px -8px var(--pa, var(--ac));
+  /* Each unit pulses in its OWN accent, and --pd staggers the phase so the
+     four blocks are visibly out of step with each other rather than blinking
+     as one bank. That difference is what reads as four independent machines
+     thinking, instead of one animation applied four times. */
+  animation: unitblink 1.9s ease-in-out infinite;
+  animation-delay: var(--pd, 0s);
+}
+@keyframes unitblink {
+  0%, 100% {
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--pa, var(--ac)) 26%, transparent),
+                0 0 20px -10px var(--pa, var(--ac));
+  }
+  50% {
+    box-shadow: 0 0 0 1px var(--pa, var(--ac)),
+                0 0 26px -4px var(--pa, var(--ac));
+  }
+}
+.node.failed { border-color: var(--red); border-left-color: var(--red); }
+
+/* Sweep of light across a block while that member is thinking. Staggered on
+   the same offset as the blink so a unit's two cues move together. */
+.node.working::after {
+  content: "";
+  position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 40%,
+    color-mix(in srgb, var(--pa, var(--ac)) 14%, transparent) 50%,
+    transparent 60%
+  );
+  background-size: 260% 100%;
+  animation: sweep 2.1s ease-in-out infinite;
+  animation-delay: var(--pd, 0s);
+}
+@keyframes sweep {
+  0%   { background-position: 160% 0; }
+  100% { background-position: -60% 0; }
+}
+
+/* The whole header is the toggle, so it is a real button: keyboard reachable,
+   and the hit target is the full width of the block rather than an icon. */
+.node-hd {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; padding: 7px 11px; width: 100%;
+  border: none; border-bottom: 1px solid var(--bd);
+  background: color-mix(in srgb, var(--pa, var(--ac)) 7%, transparent);
+  font-family: inherit; text-align: left; cursor: pointer;
+  transition: background .15s;
+}
+.node.collapsed .node-hd { border-bottom-color: transparent; }
+.node-hd:hover { background: color-mix(in srgb, var(--pa, var(--ac)) 14%, transparent); }
+.node-hd:focus-visible { outline: 1px solid var(--pa, var(--ac)); outline-offset: -2px; }
+
+/* Caret marking open/closed. Rotates rather than swapping glyphs, so the
+   state change is a movement the eye follows. */
+.node-caret {
+  color: var(--txm); font-size: 9px; flex-shrink: 0;
+  transition: transform .2s, color .15s;
+}
+.node.open .node-caret { transform: rotate(90deg); color: var(--pa, var(--ac)); }
+
+/* Closed, a unit still has to report SOMETHING, or four identical boxes tell
+   you nothing. This is the one-line status strip under the header. */
+.node-peek {
+  padding: 7px 11px 9px;
+  display: flex; align-items: center; gap: 8px;
+  font-size: 10px; letter-spacing: .5px; color: var(--txm);
+  border-top: 1px solid color-mix(in srgb, var(--bd) 55%, transparent);
+}
+.node-peek .bar {
+  flex: 1; height: 2px; border-radius: 2px; overflow: hidden;
+  background: color-mix(in srgb, var(--bd) 70%, transparent);
+}
+.node-peek .bar i {
+  display: block; height: 100%; background: var(--pa, var(--ac));
+  transition: width .4s ease-out;
+}
+.node-peek .hint { color: var(--txm); opacity: .75; white-space: nowrap; }
+/* The model name. Less letter-spacing than the codename it replaced -- wide
+   tracking suits a call-sign like MELCHIOR·01 but makes an ordinary word
+   like "DeepSeek" hard to read. */
+.node-id {
+  font-size: 12px; font-weight: 700; letter-spacing: .6px;
+  color: var(--pa, var(--ac));
+}
+/* The codename, demoted to the secondary line: keeps the console flavour
+   without competing with the fact of which model answered. */
+.node-sub {
+  font-size: 8.5px; letter-spacing: 1.3px; text-transform: uppercase;
+  color: var(--txm); margin-top: -1px;
+}
+.node-sub:empty { display: none; }
+.node-meta { color: var(--txm); font-size: 9.5px; letter-spacing: .5px; }
+
+.node-body {
+  padding: 10px 11px; overflow-y: auto; max-height: 300px;
+  white-space: pre-wrap; word-break: break-word;
+  font-size: 12.5px; color: var(--txd); flex: 1;
+}
+.node-body.idle { color: var(--txm); font-style: italic; }
+
+/* Blinking cursor while a member is still writing. */
+.caret {
+  display: inline-block; width: 7px; height: 13px;
+  background: var(--pa, var(--ac)); vertical-align: text-bottom;
+  margin-left: 2px; animation: blink 1s steps(2) infinite;
+}
+@keyframes blink { 0%, 50% { opacity: 1 } 50.01%, 100% { opacity: 0 } }
+
+/* ── status badges ────────────────────────────────────────────────────── */
+.badge {
+  font-size: 8.5px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase;
+  padding: 2px 6px; border-radius: 2px; border: 1px solid currentColor; white-space: nowrap;
+}
+.badge.idle    { color: var(--txm); }
+.badge.working { color: var(--amber); animation: pulse 1.4s ease-in-out infinite; }
+.badge.done    { color: var(--grn); }
+.badge.failed  { color: var(--red); }
+@keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .4 } }
+
+/* ── the core / verdict block ─────────────────────────────────────────── */
+.core {
+  width: 100%;
+  background: var(--s1);
+  border: 1px solid var(--bd);
+  border-radius: 2px;
+  padding: 16px 14px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; text-align: center; min-height: 150px;
+  position: relative; overflow: hidden;
+  transition: border-color .3s;
+}
+.core.deliberating { border-color: var(--ac); }
+.core.resolved     { border-color: var(--grn); }
+.core.blocked      { border-color: var(--red); }
+
+.core-label {
+  font-size: 9px; letter-spacing: 2.4px; text-transform: uppercase; color: var(--txm);
+}
+.core-status {
+  font-family: var(--font-display);
+  font-size: clamp(15px, 2.1vw, 21px);
+  font-weight: 750; letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--ac);
+}
+.core.deliberating .core-status { animation: pulse 1.5s ease-in-out infinite; }
+.core.resolved .core-status { color: var(--grn); }
+.core.blocked  .core-status { color: var(--red); }
+
+.core-count {
+  font-size: 10px; letter-spacing: 1.2px; color: var(--txd);
+}
+
+/* Concentric rings that expand while the council deliberates. */
+.core.deliberating::before,
+.core.deliberating::after {
+  content: "";
+  position: absolute; left: 50%; top: 50%;
+  width: 40px; height: 40px; margin: -20px 0 0 -20px;
+  border: 1px solid var(--ac); border-radius: 50%;
+  opacity: 0; animation: ring 2.6s ease-out infinite;
+}
+.core.deliberating::after { animation-delay: 1.3s; }
+@keyframes ring {
+  0%   { transform: scale(.5); opacity: .5; }
+  100% { transform: scale(6);  opacity: 0; }
+}
+
+/* ── verdict panel ────────────────────────────────────────────────────── */
+.verdict {
+  background: var(--s1); border: 1px solid var(--bd);
+  border-left: 3px solid var(--ac); border-radius: 2px; overflow: hidden;
+  animation: rise .35s ease-out;
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+.verdict-hd {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px; padding: 9px 14px; border-bottom: 1px solid var(--bd); flex-wrap: wrap;
+  background: color-mix(in srgb, var(--ac) 8%, transparent);
+}
+.verdict-title {
+  font-size: 11px; font-weight: 700; letter-spacing: 2.2px;
+  text-transform: uppercase; color: var(--ac);
+}
+.verdict-quorum { color: var(--txm); font-size: 10px; letter-spacing: .6px; }
+
+/* The verdict is the finished answer, so it is set as prose -- wider leading,
+   real paragraphs and lists -- rather than as the monospace console dump the
+   member blocks use. It is the one place in the console meant to be READ.
+   On a wide screen the caveats and the confidence rating move into a sidebar,
+   so the answer keeps a readable measure instead of stretching to 2000px. */
+.verdict-body {
+  padding: 22px 24px 24px;
+  /* The console runs to 2000px but prose does not; the whole verdict block is
+     capped and centred so the answer and its sidebar sit together in the
+     middle rather than leaving a dead gutter down one side. */
+  max-width: 1180px; margin: 0 auto;
+  font-size: 14px; line-height: 1.72; color: var(--tx);
+  /* Set in the display face, not the console mono. The member blocks are a
+     machine dump and stay monospace; the verdict is the finished answer and is
+     the one thing here a person sits and READS. Monospace at paragraph length
+     is what made it a wall. */
+  font-family: var(--font-display);
+  letter-spacing: .1px;
+}
+/* The answer column is capped near 78ch for readability and the sidebar is
+   fixed-width, so on a very wide screen the pair is centred as a unit rather
+   than being flung to opposite edges with dead space between them. */
+/* The pair is centred as a unit and capped, rather than the answer track being
+   allowed to grow to the full 2000px page. `1fr` on the answer with a max-width
+   on the wrapper keeps the two columns adjacent instead of being pushed to
+   opposite edges with a dead gutter between them. */
+.verdict-body.split {
+  display: grid;
+  grid-template-columns: minmax(0, 78ch) minmax(230px, 290px);
+  justify-content: center;
+  gap: 22px 40px;
+  align-items: start;
+}
+/* Without a sidebar there is no grid to cap the measure, so on a 2000px page
+   the answer ran the full width -- ~200 characters a line, which is the single
+   worst thing you can do to a block of prose. Cap and centre it so a
+   one-column verdict reads the same as the answer column of a split one. */
+.verdict-body:not(.split) > .v-main {
+  max-width: 78ch;
+  margin: 0 auto;
+}
+/* min-width:0 is load-bearing: without it a wide table blows out the grid
+   track instead of scrolling inside .v-tablewrap. */
+.v-main { min-width: 0; }
+
+/* ── sidebar ── */
+/* align-self keeps the cards hugging their content instead of stretching to
+   the height of the answer column (or of the collapsed row below it). */
+.v-aside { display: flex; flex-direction: column; gap: 12px; min-width: 0; align-self: start; }
+.v-card {
+  border: 1px solid var(--bd); border-left: 2px solid var(--acd);
+  border-radius: 2px; padding: 10px 12px 11px;
+  background: color-mix(in srgb, var(--s2) 55%, transparent);
+}
+.v-card > *:last-child { margin-bottom: 0; }
+.v-card p, .v-card .v-list li { font-size: 12.5px; line-height: 1.6; color: var(--txd); }
+
+/* ── inline + blocks ── */
+.verdict-body p { margin: 0 0 14px; }
+.verdict-body p:last-child { margin-bottom: 0; }
+.verdict-body strong { color: var(--tx); font-weight: 700; }
+.verdict-body em { color: var(--txd); font-style: italic; }
+.verdict-body code {
+  font-family: var(--font);
+  background: var(--s2); border: 1px solid var(--bd); border-radius: 3px;
+  padding: 1px 5px; font-size: 12px; color: var(--acl);
+}
+
+/* The opening paragraph is the answer in one breath; everything after it is
+   the supporting detail. Sized up so it lands before anything else, and given
+   a tinted panel rather than a bare rule -- at this width a 2px line was not
+   enough to mark it as the thing to read first. */
+.v-main .v-lead {
+  font-size: 16.5px; line-height: 1.62; color: var(--tx);
+  border-left: 2px solid var(--ac);
+  background: color-mix(in srgb, var(--ac) 7%, transparent);
+  padding: 13px 16px; margin-bottom: 20px; border-radius: 0 3px 3px 0;
+}
+
+/* Section label (sidebar cards) and sub-heading (inside the answer). */
+.verdict-body .sec {
+  font-family: var(--font);
+  color: var(--acl); font-weight: 700; letter-spacing: 1.6px;
+  text-transform: uppercase; font-size: 10px;
+  display: block; margin: 0 0 8px;
+  border-bottom: 1px solid var(--bd); padding-bottom: 4px;
+}
+/* Sub-headings sit in the console face, not the prose face: they are labels
+   marking the structure, and the contrast against the body text is what makes
+   the sections scannable at a glance. */
+.verdict-body .v-h {
+  font-family: var(--font);
+  color: var(--acl); font-weight: 700; letter-spacing: 1.5px;
+  text-transform: uppercase; font-size: 10.5px;
+  margin: 26px 0 10px; padding-bottom: 5px;
+  border-bottom: 1px solid var(--bd);
+  display: flex; align-items: center; gap: 8px;
+}
+/* A small tick before each heading, so the eye catches the section boundary
+   even when scrolling fast. */
+.verdict-body .v-h::before {
+  content: ""; flex: 0 0 auto;
+  width: 5px; height: 5px; background: var(--ac);
+  transform: rotate(45deg);
+}
+.verdict-body .v-h:first-child { margin-top: 0; }
+
+/* ── lists ── */
+.verdict-body .v-list { margin: 0 0 14px; padding-left: 20px; }
+.verdict-body .v-list li { margin-bottom: 8px; padding-left: 3px; }
+.verdict-body .v-list li:last-child { margin-bottom: 0; }
+.verdict-body ul.v-list { list-style: none; padding-left: 17px; }
+.verdict-body ul.v-list li { position: relative; }
+.verdict-body ul.v-list li::before {
+  content: "▸"; position: absolute; left: -15px; top: -1px;
+  color: var(--ac); font-size: 11px;
+}
+.verdict-body ol.v-list { padding-left: 22px; }
+.verdict-body ol.v-list li::marker {
+  color: var(--ac); font-weight: 700; font-family: var(--font); font-size: 12px;
+}
+
+/* Nested level: tighter, dimmer, different marker so the hierarchy reads. */
+.verdict-body .v-list .v-list { margin: 5px 0 0; padding-left: 14px; }
+.verdict-body .v-list .v-list li { font-size: 12.5px; color: var(--txd); margin-bottom: 3px; }
+.verdict-body ul.v-list ul.v-list li::before { content: "·"; color: var(--acd); }
+
+/* `- **Sizing:** matters more than brand` -- the lead-in reads as a label. */
+.verdict-body .v-list li > strong:first-child {
+  color: var(--acl); font-weight: 700; letter-spacing: .3px;
+}
+
+/* ── comparison table ── */
+.v-tablewrap { overflow-x: auto; margin: 0 0 13px; border: 1px solid var(--bd); border-radius: 2px; }
+.v-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.v-table th {
+  text-align: left; color: var(--acl); font-size: 9px; font-weight: 700;
+  letter-spacing: 1.4px; text-transform: uppercase; white-space: nowrap;
+  padding: 7px 11px; border-bottom: 1px solid var(--bd);
+  background: color-mix(in srgb, var(--ac) 8%, transparent);
+}
+.v-table td {
+  padding: 6px 11px; border-bottom: 1px solid var(--bd);
+  color: var(--txd); vertical-align: top;
+}
+.v-table tr:last-child td { border-bottom: none; }
+
+/* Confidence reads as a rating, so it gets a tag rather than a sentence. */
+.verdict-body .v-conf { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; }
+.verdict-body .conf-tag {
+  font-size: 9.5px; font-weight: 700; letter-spacing: 1.4px;
+  padding: 2px 8px; border: 1px solid currentColor; border-radius: 2px;
+  white-space: nowrap; flex-shrink: 0;
+}
+.verdict-body .conf-tag.high   { color: var(--grn); }
+.verdict-body .conf-tag.medium { color: var(--amber); }
+.verdict-body .conf-tag.low    { color: var(--red); }
+/* flex-basis 100% drops the justification onto its own line: inside a 240px
+   sidebar it has no room to sit beside the tag. */
+.verdict-body .conf-why { color: var(--txd); font-size: 12.5px; flex: 1 1 100%; min-width: 0; }
+/* When the rating is the sentence's own subject the tag would repeat the word
+   that follows it, so the leading rating is dimmed to read as a lead-in
+   rather than a stutter. */
+.verdict-body .conf-why > .conf-echo { color: var(--txm); }
+
+/* Below this the sidebar has no room to be a sidebar. */
+@media (max-width: 1080px) {
+  .verdict-body.split { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .v-aside { flex-direction: row; flex-wrap: wrap; }
+  .v-aside .v-card { flex: 1 1 260px; }
+}
+@media (max-width: 640px) {
+  /* Stacked again -- the 260px basis above is a WIDTH hint for the side-by-side
+     row, and would otherwise become a fixed HEIGHT once the axis flips. */
+  .v-aside { flex-direction: column; }
+  .v-aside .v-card { flex: 0 0 auto; }
+}
+
+/* ── failure callout ──────────────────────────────────────────────────── */
+.callout {
+  margin: 10px 11px; padding: 9px 11px;
+  border: 1px solid var(--red); border-left-width: 3px;
+  border-radius: 2px; background: rgba(248, 81, 73, .07);
+}
+.callout .kind {
+  color: var(--red); font-size: 9px; font-weight: 700;
+  letter-spacing: 1.4px; text-transform: uppercase; margin-bottom: 4px;
+}
+.callout .cause { color: var(--tx); font-size: 12px; margin-bottom: 6px; }
+.callout .remedy { color: var(--txd); font-size: 11.5px; }
+.callout .detail { color: var(--txm); font-size: 10.5px; margin-top: 6px; }
+
+/* A unit that answered with something unusable is amber, not red: it is a
+   caution about the verdict's basis, not a system failure. Red is reserved
+   for units that could not be reached at all. */
+.callout.degraded {
+  border-color: var(--amber);
+  background: rgba(226, 194, 133, .07);
+}
+.callout.degraded .kind { color: var(--amber); }
+/* The rejected capture itself, quoted back so the user can see what came
+   back -- usually a clarifying question, which tells them the prompt was
+   ambiguous. Monospaced and boxed to read as a quotation, not as prose. */
+.callout.degraded .detail {
+  margin-top: 8px; padding: 6px 8px;
+  border-left: 2px solid var(--bd);
+  color: var(--txd); font-style: italic; font-size: 11px;
+}
+.badge.degraded { color: var(--amber); }
+
+/* Named directly above the verdict body: a verdict built from three units
+   while the display implies four is the failure this exists to prevent. */
+.verdict-degraded {
+  margin: 0 16px 14px; padding: 9px 11px;
+  border: 1px solid var(--amber); border-left-width: 3px;
+  border-radius: 2px; background: rgba(226, 194, 133, .07);
+  color: var(--txd); font-size: 11.5px; line-height: 1.55;
+}
+.verdict-degraded strong { color: var(--amber); font-weight: 600; }
+
+/* ══ STUDIO ═══════════════════════════════════════════════════════════ */
+/* ── history / doctor drawers ─────────────────────────────────────────── */
+.drawer { background: var(--s1); border: 1px solid var(--bd); border-radius: 2px; margin-bottom: 16px; }
+.drawer-hd {
+  padding: 8px 12px; border-bottom: 1px solid var(--bd);
+  font-size: 9.5px; font-weight: 700; letter-spacing: 1.6px;
+  text-transform: uppercase; color: var(--txd);
+}
+.row {
+  display: flex; align-items: center; gap: 10px; padding: 7px 12px;
+  border-bottom: 1px solid var(--bd); cursor: pointer; font-size: 12px;
+}
+.row:last-child { border-bottom: none; }
+.row:hover { background: var(--s2); }
+.row .q { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .meta { color: var(--txm); font-size: 10.5px; white-space: nowrap; }
+
+/* The in-progress state of a doctor pass, carrying its own Stop control so
+   cancelling does not depend on finding the sidebar row again. */
+.doctor-running {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 12px 14px; color: var(--txd); font-size: 11.5px; line-height: 1.5;
+}
+.doctor-running > .spin { color: var(--ac); flex-shrink: 0; }
+
+table.doctor { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+table.doctor th {
+  text-align: left; color: var(--txm); font-size: 9px; font-weight: 700;
+  letter-spacing: 1.4px; text-transform: uppercase;
+  padding: 6px 12px; border-bottom: 1px solid var(--bd);
+}
+table.doctor td { padding: 5px 12px; border-bottom: 1px solid var(--bd); color: var(--txd); }
+table.doctor td.ok    { color: var(--grn); }
+table.doctor td.stale { color: var(--amber); }
+table.doctor td.miss  { color: var(--red); }
+/* Fields that could not have matched in this page state. Deliberately the
+   dimmest row in the table: they are normal, and colouring them like faults
+   is what made a working install read as broken. */
+table.doctor td.na    { color: var(--txm); opacity: .65; }
+table.doctor code { color: var(--txd); font-size: 11px; }
+
+.empty-state { color: var(--txm); text-align: center; padding: 36px 20px; font-size: 12px; letter-spacing: .4px; }
+.spin { display: inline-block; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg) } }
+
+
+/* ── link status ──────────────────────────────────────────────────────────
+   New in the A1 port, and the one piece of UI the React build had no need
+   for. There, the backend url was compiled into the bundle, so the page could
+   only ever be pointed at one place and "am I connected?" was not a question
+   it could answer. Here the page is static and the engine moves, so where it
+   is currently reachable — and whether it is reachable at all — has to be
+   visible rather than inferred from every button failing. */
+.link {
+  display: flex; align-items: center; gap: 7px; width: 100%;
+  padding: 7px 9px; margin-top: auto; border: 0; border-top: 1px solid var(--bd);
+  background: transparent; color: var(--txd); font: inherit; font-size: 10.5px;
+  letter-spacing: .4px; text-align: left;
+}
+.link:hover { background: var(--s2); color: var(--tx); }
+.link-dot {
+  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+  background: var(--txm); box-shadow: 0 0 0 0 currentColor;
+}
+.link.local   .link-dot { background: var(--grn); }
+.link.remote  .link-dot { background: var(--acl); }
+.link.seeking .link-dot { background: var(--amber); animation: pulse 1.1s ease-in-out infinite; }
+.link.down    .link-dot { background: var(--red); }
+.link-txt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav-collapsed .link-txt { display: none; }
+.nav-collapsed .link { justify-content: center; }
+
+/* ── setup dialog ─────────────────────────────────────────────────────────
+   Where the API token is entered. It is kept in this browser's localStorage
+   and never committed: A1 is a PUBLIC repo, and the token is what gates every
+   endpoint that drives Tony's paid accounts. The React build inlined it into
+   the JS bundle, where anyone with the site link could read it out of page
+   source — that is the specific thing this replaces. */
+.sheet {
+  position: fixed; inset: 0; z-index: 200; display: flex;
+  align-items: center; justify-content: center; padding: 20px;
+  background: rgba(0,0,0,.62); backdrop-filter: blur(2px);
+}
+.sheet-box {
+  width: 100%; max-width: 460px; background: var(--s1);
+  border: 1px solid var(--bd); border-radius: var(--r-card);
+  box-shadow: 0 18px 48px var(--shadow); padding: 18px;
+  max-height: 92vh; overflow-y: auto;
+}
+.sheet-hd {
+  font-family: var(--font-display); font-size: 12px; font-weight: 800;
+  letter-spacing: 2px; text-transform: uppercase; color: var(--acl);
+  margin-bottom: 4px;
+}
+.sheet-sub { color: var(--txd); font-size: 11.5px; line-height: 1.6; margin-bottom: 14px; }
+.sheet-lbl {
+  display: block; color: var(--txm); font-size: 9px; font-weight: 700;
+  letter-spacing: 1.4px; text-transform: uppercase; margin: 12px 0 5px;
+}
+.sheet-in {
+  width: 100%; background: var(--bg); border: 1px solid var(--bd);
+  border-radius: var(--r-btn); padding: 8px 10px; color: var(--tx);
+  font-size: 12px; outline: 0;
+}
+.sheet-in:focus { border-color: var(--ac); }
+.sheet-note { color: var(--txm); font-size: 10.5px; line-height: 1.55; margin-top: 6px; }
+.sheet-note code { color: var(--txd); background: var(--bg); padding: 1px 4px; border-radius: 3px; }
+.sheet-bar { display: flex; gap: 7px; align-items: center; margin-top: 16px; }
+.sheet-err { color: var(--red); font-size: 11px; margin-top: 8px; }
+.sheet-ok  { color: var(--grn); font-size: 11px; margin-top: 8px; }
+
+/* A run cannot start until the engine is found, and saying so where the
+   button is beats a Convene click that silently does nothing. */
+.offline-note {
+  background: var(--s1); border: 1px solid var(--bd); border-left: 3px solid var(--amber);
+  border-radius: 2px; padding: 11px 13px; margin-bottom: 16px;
+  color: var(--txd); font-size: 11.5px; line-height: 1.6;
+}
+.offline-note b { color: var(--amber); font-weight: 600; }
+.offline-note button {
+  background: transparent; border: 1px solid var(--bd); border-radius: var(--r-btn);
+  color: var(--txd); font: inherit; font-size: 10.5px; padding: 4px 9px; margin-top: 8px;
+}
+.offline-note button:hover { border-color: var(--ac); color: var(--ac); }
+</style>
+</head>
+<body>
+
+<div class="shell" id="shell">
+  <aside class="sidebar">
+    <div class="side-top">
+      <button type="button" class="side-toggle" id="navToggle" title="Collapse sidebar" aria-expanded="true">☰</button>
+      <div class="side-brand">
+        <div class="wordmark">MAGI</div>
+        <div class="tagline">Deliberation system</div>
+      </div>
+    </div>
+
+    <nav class="side-nav" id="sideNav">
+      <button type="button" class="side-item" id="navNew" title="New deliberation">
+        <span class="side-ic">✦</span><span class="side-label">New deliberation</span>
+      </button>
+      <button type="button" class="side-item active" id="navCouncil" title="Council">
+        <span class="side-ic">◈</span><span class="side-label">Council</span>
+      </button>
+
+      <div class="side-sec">
+        <div class="side-sec-hd">System</div>
+        <button type="button" class="side-item" id="navHistory" title="History">
+          <span class="side-ic">☰</span><span class="side-label">History</span>
+          <span class="side-tag" id="navHistoryTag" hidden></span>
+        </button>
+        <button type="button" class="side-item" id="navDoctor" title="Doctor">
+          <span class="side-ic" id="navDoctorIc">✚</span><span class="side-label" id="navDoctorLbl">Doctor</span>
+          <span class="side-tag" id="navDoctorTag" hidden>✕</span>
+        </button>
+        <button type="button" class="side-item active" id="navAudio" title="Audio on">
+          <span class="side-ic" id="navAudioIc">◈</span><span class="side-label" id="navAudioLbl">Audio on</span>
+        </button>
+        <button type="button" class="side-item danger" id="navHalt" title="Halt run" hidden>
+          <span class="side-ic">■</span><span class="side-label">Halt run</span>
+        </button>
+      </div>
+
+      <div class="side-sec">
+        <div class="side-sec-hd">Not yet ported</div>
+        <div class="side-sec-note">Brainstorm and Studio still live in the Python engine — their consoles are the next thing to build here.</div>
+      </div>
+    </nav>
+
+    <button type="button" class="link seeking" id="linkBtn" title="Where the engine is">
+      <span class="link-dot"></span><span class="link-txt" id="linkTxt">locating engine…</span>
+    </button>
+  </aside>
+
+  <main class="page" id="page">
+    <div class="offline-note" id="offlineNote" hidden></div>
+
+    <div class="qbar" id="qbar">
+      <div class="qbar-chips" id="qbarChips" hidden></div>
+      <textarea id="composer" placeholder="Submit a question to the council…   (Ctrl+Enter)" rows="1"></textarea>
+      <div class="qbar-error" id="attachError" hidden></div>
+      <div class="qbar-error" id="refineError" hidden></div>
+      <div class="qbar-toolbar">
+        <input type="file" id="fileIn" multiple hidden>
+        <button type="button" class="qbar-attach" id="btnAttach" title="Attach files" aria-label="Attach files">+</button>
+        <button type="button" class="qbar-refine" id="btnRefine" title="Rewrite this into a sharper prompt">
+          <span class="qbar-refine-ico" aria-hidden="true">✦</span>
+          <span class="qbar-refine-txt">Refine</span>
+        </button>
+        <button type="button" class="qbar-undo" id="btnUndo" title="Restore what you wrote" hidden>↺ Undo</button>
+        <span class="qbar-spacer"></span>
+        <button class="btn active qbar-send" id="btnSend">Convene</button>
+      </div>
+    </div>
+
+    <div class="members">
+      <span class="label">Units</span>
+      <span id="unitChips"></span>
+    </div>
+
+    <div class="drawer" id="historyDrawer" hidden>
+      <div class="drawer-hd">Past deliberations</div>
+      <div id="historyRows"></div>
+    </div>
+
+    <div class="drawer" id="doctorDrawer" hidden>
+      <div class="drawer-hd" id="doctorHd">Selector doctor</div>
+      <div id="doctorBody"></div>
+    </div>
+
+    <div class="magi" id="magi" hidden>
+      <svg class="magi-links" id="magiLinks" aria-hidden="true"></svg>
+      <div class="magi-grid" id="magiGrid"></div>
+    </div>
+
+    <div class="verdict" id="verdict" hidden></div>
+
+    <div class="empty-state" id="emptyState">
+      Each unit is queried independently. One then synthesises the verdict.
+    </div>
+  </main>
+</div>
+<script>
+"use strict";
+/* ══════════════════════════════════════════════════════════════════════════
+   MAGI console.
+
+   Vanilla port of Veda's React/Vite frontend. The behaviour it describes is
+   hers; what changed is the shape (one file, no build) and how the page finds
+   the backend (see `link` below). Comments explaining WHY something is the way
+   it is are carried over — they document decisions that cost a debugging round
+   to reach, and re-deriving them later would cost it again.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+const $ = (id) => document.getElementById(id);
+const el = (tag, cls, txt) => {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (txt != null) n.textContent = txt;
+  return n;
+};
+const show = (n, on) => { n.hidden = !on; };
+
+/* ══ link ══════════════════════════════════════════════════════════════════
+   Where the engine is, and how this page reaches it.
+
+   MAGI's council cannot leave Tony's PC: it drives real Chrome profiles
+   holding live logins. So this page is static and the engine is local, which
+   gives three deployments:
+
+     same-origin   opened at http://127.0.0.1:8000 — the backend is serving
+                   this very file, so the API is "" and no token is needed.
+     hosted, home  opened from GitHub Pages while sitting at the PC. Chrome
+                   allows an https page to call http://127.0.0.1 (a
+                   "potentially trustworthy" origin), provided the server
+                   answers the Private Network Access preflight — the backend
+                   does. Fastest path, no tunnel involved.
+     hosted, away  the PC is reachable only through a Cloudflare quick tunnel,
+                   whose url changes on every cloudflared restart. `magi cloud`
+                   PUBLISHES that url to the magi-link worker on account 2, and
+                   this asks for it.
+
+   The React build handled only the third and did it at BUILD time — the url
+   was inlined by Vite, so every PC restart meant rewrite .env.production,
+   rebuild, redeploy. Discovering it at load time is what removes that cycle,
+   and is the reason this file never needs rebuilding. */
+const LINK_API = "https://magi-link.av1-2.workers.dev/link";
+const LOCAL_API = "http://127.0.0.1:8000";
+const TOKEN_KEY = "magi.token";
+
+const link = {
+  api: null,        // origin to call, "" meaning same-origin
+  token: "",
+  where: "seeking", // seeking | local | remote | down
+  detail: "",
+};
+
+/** True when this page is being served by the backend itself. */
+const sameOrigin = /^(127\.0\.0\.1|localhost)$/.test(location.hostname) && location.protocol !== "file:";
+
+function loadToken() {
+  try { return localStorage.getItem(TOKEN_KEY) || ""; } catch { return ""; }
+}
+function saveToken(t) {
+  try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); } catch {}
+  link.token = t;
+}
+
+/** fetch() options carrying the token header. Merges with any existing init. */
+function authed(init = {}) {
+  if (!link.token) return init;
+  return { ...init, headers: { ...(init.headers || {}), "X-MAGI-Token": link.token } };
+}
+
+/** EventSource url with the token as a query param.
+ *
+ *  SSE cannot send custom headers — the EventSource constructor takes no
+ *  header option — so the stream endpoints accept ?token= instead. Same
+ *  secret, only the transport differs. */
+function streamUrl(path) {
+  if (!link.token) return `${link.api}${path}`;
+  return `${link.api}${path}${path.includes("?") ? "&" : "?"}token=${encodeURIComponent(link.token)}`;
+}
+
+/** Does a backend answer here, with this token? 401 is a definite NO — the
+ *  host is right but the token is wrong, which is a different problem from
+ *  "nothing is listening" and must not be reported as offline. */
+async function probe(base, ms = 2500) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), ms);
+  try {
+    const r = await fetch(`${base}/api/health`, authed({ signal: ctl.signal }));
+    if (r.status === 401) return "unauthorized";
+    return r.ok ? "ok" : "no";
+  } catch {
+    return "no";
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+/** Ask magi-link where the PC published itself. */
+async function askLink() {
+  try {
+    const r = await fetch(LINK_API, authed());
+    if (!r.ok) return null;
+    const d = await r.json();
+    return d && d.url ? d : null;
+  } catch {
+    return null;
+  }
+}
+
+function setLink(where, detail) {
+  link.where = where;
+  link.detail = detail;
+  const b = $("linkBtn");
+  b.className = `link ${where}`;
+  $("linkTxt").textContent = detail;
+  b.title = {
+    local: "Engine on this PC — click to change the token",
+    remote: "Engine reached over the tunnel — click to change the token",
+    seeking: "Looking for the engine…",
+    down: "Engine not reachable — click for help",
+  }[where];
+  updateEnabled();
+  renderOfflineNote();
+}
+
+/** Find the engine. Ordered fastest-first, and each step is skipped when it
+ *  cannot apply, so the common cases resolve in one request. */
+async function connect() {
+  setLink("seeking", "locating engine…");
+
+  if (sameOrigin) {
+    // The backend is serving this file. No CORS, no token, nothing to find.
+    link.api = "";
+    const s = await probe("", 6000);
+    if (s === "ok") return setLink("local", "this PC · same origin");
+    return setLink("down", "backend not responding");
+  }
+
+  link.token = loadToken();
+  if (!link.token) return setLink("down", "no API token set");
+
+  // At the desk: straight to the PC, no tunnel hop.
+  link.api = LOCAL_API;
+  const local = await probe(LOCAL_API);
+  if (local === "ok") return setLink("local", "this PC · 127.0.0.1");
+  if (local === "unauthorized") { link.api = null; return setLink("down", "token rejected"); }
+
+  // Away: wherever `magi cloud` last published.
+  const pub = await askLink();
+  if (!pub) { link.api = null; return setLink("down", "PC has not published"); }
+  link.api = pub.url;
+  const remote = await probe(pub.url, 8000);
+  if (remote === "ok") {
+    const mins = Math.round((pub.age_s || 0) / 60);
+    return setLink("remote", `tunnel · ${mins < 60 ? mins + "m" : Math.round(mins / 60) + "h"} ago`);
+  }
+  link.api = null;
+  setLink("down", remote === "unauthorized" ? "token rejected" : "tunnel is dead");
+}
+
+const online = () => link.api !== null && (link.where === "local" || link.where === "remote");
+
+/* ══ setup sheet ═══════════════════════════════════════════════════════════ */
+function openSetup() {
+  const sheet = el("div", "sheet");
+  const box = el("div", "sheet-box");
+  box.append(
+    el("div", "sheet-hd", "Connect to the engine"),
+    el("div", "sheet-sub",
+      "MAGI's council runs on Tony's PC — it drives real logged-in Chrome " +
+      "profiles, which cannot leave the machine. This page needs the shared " +
+      "secret that PC gates its API on."),
+  );
+
+  const lbl = el("label", "sheet-lbl", "API token");
+  const input = el("input", "sheet-in");
+  input.type = "password";
+  input.value = link.token;
+  input.placeholder = "MAGI_API_TOKEN";
+  input.autocomplete = "off";
+  box.append(lbl, input);
+  box.append(el("div", "sheet-note")).lastChild.innerHTML =
+    'Set the same value on the PC with <code>setx MAGI_API_TOKEN "…"</code>, then run ' +
+    '<code>magi cloud</code>. Stored in this browser only — never in the repo, which is public.';
+
+  const msg = el("div");
+  const bar = el("div", "sheet-bar");
+  const save = el("button", "btn active", "Save & connect");
+  const retry = el("button", "btn", "Retry");
+  const close = el("button", "btn", "Close");
+  bar.append(save, retry, el("span", "qbar-spacer"), close);
+  box.append(bar, msg);
+
+  const done = () => sheet.remove();
+  close.onclick = done;
+  sheet.onclick = (e) => { if (e.target === sheet) done(); };
+  const go = async () => {
+    msg.className = "sheet-note";
+    msg.textContent = "Looking…";
+    await connect();
+    if (online()) { msg.className = "sheet-ok"; msg.textContent = `Connected — ${link.detail}.`; setTimeout(done, 700); boot(); }
+    else { msg.className = "sheet-err"; msg.textContent = `Not reachable — ${link.detail}.`; }
+  };
+  save.onclick = () => { saveToken(input.value.trim()); go(); };
+  retry.onclick = go;
+  input.onkeydown = (e) => { if (e.key === "Enter") save.click(); };
+
+  sheet.append(box);
+  document.body.append(sheet);
+  input.focus();
+}
+
+function renderOfflineNote() {
+  const n = $("offlineNote");
+  if (online() || link.where === "seeking") return show(n, false);
+  n.innerHTML = "";
+  const why = {
+    "no API token set": "This page has no API token yet.",
+    "token rejected": "The PC is there, but it did not accept this token.",
+    "PC has not published": "The PC has not published a tunnel. It is probably asleep, off, or was started with <code>magi</code> rather than <code>magi cloud</code>.",
+    "tunnel is dead": "The published tunnel no longer answers — cloudflared has stopped since it was published.",
+    "backend not responding": "The backend is not answering on this machine.",
+  }[link.detail] || "The engine is not reachable.";
+  const p = el("div");
+  p.innerHTML = `<b>Engine offline.</b> ${why} The council cannot run without it — the four Chrome profiles live on that PC.`;
+  const b = el("button", null, sameOrigin ? "Retry" : "Set token / retry");
+  b.onclick = sameOrigin ? () => connect().then(boot) : openSetup;
+  n.append(p, b);
+  show(n, true);
+}
+
+/* ══ sound ═════════════════════════════════════════════════════════════════
+   The deliberation beeps, synthesised with Web Audio rather than shipped as
+   files: three short square-wave blips is a handful of oscillators, and
+   generating them keeps this a single file with no binary assets.
+
+   The reference is the MAGI deliberation sequence in Evangelion — a dry, high,
+   clipped tone at a steady machine tempo while the units think, not a musical
+   motif. So: square wave, very short envelope, narrow band around 1.6–2.5kHz,
+   a fixed interval that does not drift, and a small lowpass to take the worst
+   of the square-wave fizz off so it reads as console hardware rather than a
+   piezo buzzer.
+
+   Nothing here creates an AudioContext on load — browsers block audio until a
+   user gesture, so it is built lazily on the first beep, which always follows
+   the click that starts a run. */
+let actx = null, master = null;
+function audio() {
+  if (!actx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    actx = new AC();
+    master = actx.createGain();
+    master.gain.value = 0.5;
+    master.connect(actx.destination);
+  }
+  // Autoplay policy can leave a context suspended even after a gesture.
+  if (actx.state === "suspended") actx.resume();
+  return actx;
+}
+
+/** One clipped tone. The envelope is deliberately abrupt at both ends. */
+function blip({ freq, at = 0, dur = 0.055, gain = 0.12, type = "square" }) {
+  const ac = audio();
+  if (!ac) return;
+  const t = ac.currentTime + at;
+  const osc = ac.createOscillator();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t);
+  // Rolls off the square wave's upper harmonics — without this it reads as a
+  // cheap buzzer rather than a console tone.
+  const lp = ac.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.setValueAtTime(Math.min(freq * 3.2, 9000), t);
+  const g = ac.createGain();
+  // 4ms attack, hold, then a fast decay to silence: short enough to stay
+  // percussive, long enough not to click.
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(gain, t + 0.004);
+  g.gain.setValueAtTime(gain, t + dur * 0.55);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  osc.connect(lp).connect(g).connect(master);
+  osc.start(t);
+  osc.stop(t + dur + 0.02);
+}
+/** The repeating processing tone: a three-blip cluster, once per cycle. */
+const beepProcessing = () => {
+  blip({ freq: 2093, at: 0,     dur: 0.05, gain: 0.10 });
+  blip({ freq: 1568, at: 0.075, dur: 0.05, gain: 0.085 });
+  blip({ freq: 2349, at: 0.15,  dur: 0.06, gain: 0.10 });
+};
+/** A single unit reporting in — one short acknowledgement tick. */
+const beepUnit = () => blip({ freq: 1760, dur: 0.045, gain: 0.09 });
+/** Consensus reached: a rising three-note resolution. */
+const beepResolved = () => {
+  blip({ freq: 1046, at: 0,    dur: 0.07, gain: 0.11 });
+  blip({ freq: 1568, at: 0.09, dur: 0.07, gain: 0.11 });
+  blip({ freq: 2093, at: 0.18, dur: 0.16, gain: 0.13 });
+};
+/** No quorum / failure: a low, flat double tone. */
+const beepBlocked = () => {
+  blip({ freq: 320, at: 0,    dur: 0.13, gain: 0.13, type: "sawtooth" });
+  blip({ freq: 240, at: 0.16, dur: 0.22, gain: 0.13, type: "sawtooth" });
+};
+function applyMute() {
+  if (master && actx) master.gain.setTargetAtTime(S.muted ? 0 : 0.5, actx.currentTime, 0.01);
+  try { localStorage.setItem("magi.muted", S.muted ? "1" : "0"); } catch {}
+}
+
+/* ══ vocabulary ════════════════════════════════════════════════════════════ */
+const WORKING = new Set(["queued", "launching", "navigating", "typing", "waiting", "streaming"]);
+
+/** The MAGI units are named systems, not brands — each member gets one. */
+const UNIT = { chatgpt: "MELCHIOR·01", claude: "BALTHASAR·02", gemini: "CASPER·03", deepseek: "ADAM·04" };
+
+/** Terse console wording for each machine state. */
+const STATE_LABEL = {
+  queued: "standby", launching: "booting", navigating: "linking",
+  typing: "querying", waiting: "thinking", streaming: "reporting",
+  done: "resolved",
+  // The unit responded, but what came back was not an answer. Deliberately
+  // NOT "resolved" (it did not resolve) and not "offline" (it was reachable
+  // and did reply) — conflating it with either is what produced a silent
+  // "4/4 resolved" on a run where one unit returned a clarifying question.
+  degraded: "unusable",
+  failed: "offline", skipped: "skipped", idle: "standby",
+};
+
+/** Phase offset per unit, so the working blocks pulse out of step with each
+ *  other instead of blinking in unison. Fixed per unit rather than derived
+ *  from position, so a unit keeps its own rhythm when others drop out. */
+const PHASE = { chatgpt: "0s", claude: "-0.48s", gemini: "-0.95s", deepseek: "-1.42s" };
+
+function badgeClass(s, ok) {
+  if (s === "done") return ok === false ? "failed" : "done";
+  if (s === "degraded") return "degraded";
+  if (s === "failed") return "failed";
+  if (WORKING.has(s)) return "working";
+  return "idle";
+}
+
+/** Rough progress for the collapsed strip. There is no real total to divide
+ *  by — the model never says how long its answer will be — so this is a
+ *  saturating curve on characters received: informative about movement, and
+ *  deliberately never claiming to reach 100% until the unit actually
+ *  resolves. */
+function progressPct(p) {
+  if (p.state === "done" || p.state === "failed") return 100;
+  if (!p.chars) return WORKING.has(p.state) ? 4 : 0;
+  return Math.min(92, 4 + (1 - Math.exp(-p.chars / 900)) * 88);
+}
+
+const fmtBytes = (n) =>
+  n < 1024 ? `${n}B` : n < 1048576 ? `${(n / 1024).toFixed(0)}KB` : `${(n / 1048576).toFixed(1)}MB`;
+
+/* ══ verdict rendering ═════════════════════════════════════════════════════
+   The chairman writes ANSWER / NOTES / CONFIDENCE with light markdown inside.
+   It is parsed into a small block tree rather than rendered inline, because
+   the answer body and the caveats end up in DIFFERENT columns — which a flat
+   node list cannot express. */
+
+const SECTION = /^\s*(?:#{1,4}\s*)?(ANSWER|NOTES|CONFIDENCE|VERDICT|AGREEMENTS|DISAGREEMENTS|CAVEATS)\b\s*:?\s*$/i;
+const HEADING = /^\s*#{1,6}\s+(.+?)\s*$/;
+const BOLD_ONLY = /^\s*\*\*(.+?)\*\*\s*:?\s*$/;
+const BULLET = /^(\s*)[-*•]\s+(.*)$/;
+const NUMBERED = /^(\s*)(\d+)[.)]\s+(.*)$/;
+/* The rating is split off into a tag only when a separator or a sentence break
+ * follows it — "HIGH — the members agreed" or "HIGH. Everyone agreed". The
+ * chairman often writes the rating as the SUBJECT of the sentence instead
+ * ("HIGH on the architecture and the build order, ..."), and splitting there
+ * strands a fragment that starts mid-clause in lowercase. In that case the
+ * whole line stays together and the tag is derived without consuming it. */
+const CONF = /^\s*(HIGH|MEDIUM|LOW)\b\s*(?:[-—:.]+\s*|,\s+)(.+)$/i;
+/** Any line that merely OPENS with a rating, used when CONF does not split. */
+const CONF_LEAD = /^\s*(HIGH|MEDIUM|LOW)\b/i;
+const TABLE_ROW = /^\s*\|(.+)\|\s*$/;
+const TABLE_SEP = /^\s*\|?[\s:|-]*-[\s:|-]*\|?\s*$/;
+
+/** Splits a `| a | b |` line into trimmed cells. */
+const cells = (line) => (line.match(TABLE_ROW)?.[1] ?? line).split("|").map((c) => c.trim());
+
+/** Inline markdown: **bold**, *italic*, `code`. Appends into `host`. */
+function inline(host, text) {
+  const re = /\*\*(.+?)\*\*|(?<!\*)\*(?!\s)([^*]+?)\*|`([^`]+?)`/g;
+  let last = 0, m;
+  while ((m = re.exec(text))) {
+    if (m.index > last) host.append(text.slice(last, m.index));
+    if (m[1] !== undefined) host.append(el("strong", null, m[1]));
+    else if (m[2] !== undefined) host.append(el("em", null, m[2]));
+    else host.append(el("code", null, m[3]));
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) host.append(text.slice(last));
+  return host;
+}
+
+/** A bare `**Foo**` line is a sub-heading only if it is the whole line and
+ *  reads like a label — an emphasised one-sentence paragraph must not get
+ *  promoted. Sentence-ending punctuation is the tell. */
+function isBoldHeading(line) {
+  const m = line.match(BOLD_ONLY);
+  if (!m) return false;
+  const t = m[1].trim();
+  return t.length > 0 && t.length <= 60 && !/[.!,;]$/.test(t);
+}
+
+function parseVerdict(text) {
+  const g = { main: [], notes: [], conf: [] };
+  const lines = text.replace(/\r/g, "").split("\n");
+  let section = "", para = [], stack = [], table = null;
+
+  /** Where the current section's blocks go. An unknown or absent section goes
+   *  to the answer column, so plain prose still renders instead of vanishing. */
+  const bucket = () =>
+    section === "NOTES" || section === "CAVEATS" ? g.notes
+    : section === "CONFIDENCE" ? g.conf : g.main;
+
+  const flushPara = () => {
+    if (!para.length) return;
+    const body = para.join(" ").trim();
+    para = [];
+    if (!body) return;
+    // A HIGH/MEDIUM/LOW opener is a confidence rating wherever it appears —
+    // some chairmen drop the heading and just write the line.
+    const lead = body.match(CONF_LEAD);
+    if (lead) {
+      const c = body.match(CONF);
+      // Split only on a real separator; otherwise keep the sentence whole so
+      // it still reads as English beside the tag.
+      g.conf.push({ kind: "conf", level: lead[1].toUpperCase(), why: c ? c[2].trim() : body });
+      return;
+    }
+    bucket().push({ kind: "p", text: body });
+  };
+  const flushList = () => {
+    if (!stack.length) return;
+    const root = stack[0].list;
+    stack = [];
+    bucket().push({ kind: "list", list: root });
+  };
+  const flushTable = () => {
+    if (!table) return;
+    const t = table;
+    table = null;
+    if (t.rows.length || t.head) bucket().push({ kind: "table", head: t.head, rows: t.rows });
+  };
+  const flushAll = () => { flushPara(); flushList(); flushTable(); };
+
+  for (const raw of lines) {
+    const line = raw.replace(/\s+$/, "");
+    const trimmed = line.trim();
+
+    // Fenced code is not supported; swallow the fence rather than rendering a
+    // literal ``` line.
+    if (/^```/.test(trimmed)) { flushAll(); continue; }
+
+    const sec = line.match(SECTION);
+    if (sec) {
+      flushAll();
+      const s = sec[1].toUpperCase();
+      section = s === "VERDICT" ? "ANSWER" : s;
+      // Verdicts archived under the older prompt open with AGREEMENTS and
+      // DISAGREEMENTS before reaching the answer. Those are genuine sections
+      // of that format, so label them rather than letting the deliberation
+      // notes masquerade as the answer's opening paragraph.
+      if (s === "AGREEMENTS" || s === "DISAGREEMENTS")
+        g.main.push({ kind: "h", text: s === "AGREEMENTS" ? "Agreements" : "Disagreements" });
+      else if (s === "VERDICT") g.main.push({ kind: "h", text: "Verdict" });
+      continue;
+    }
+
+    // A blank line closes paragraphs and tables but NOT lists: a blank line
+    // between bullets is common and must not split one list in two.
+    if (!trimmed) { flushPara(); flushTable(); continue; }
+
+    if (TABLE_ROW.test(line)) {
+      flushPara(); flushList();
+      const c = cells(line);
+      if (!table) table = { head: null, rows: [] };
+      if (TABLE_SEP.test(line) && table.rows.length === 1 && !table.head) {
+        table.head = table.rows.shift(); // the previous row was the header
+      } else if (!TABLE_SEP.test(line)) {
+        table.rows.push(c);
+      }
+      continue;
+    }
+    flushTable();
+
+    const b = line.match(BULLET), num = line.match(NUMBERED);
+    if (b || num) {
+      flushPara();
+      const indent = (b ? b[1] : num[1]).replace(/\t/g, "  ").length;
+      const ordered = !!num;
+      const body = (b ? b[2] : num[3]).trim();
+      if (!stack.length) {
+        stack = [{ indent, list: { ordered, items: [] } }];
+      } else {
+        // Close any levels indented deeper than this line.
+        while (stack.length > 1 && indent < stack[stack.length - 1].indent) stack.pop();
+        const top = stack[stack.length - 1];
+        if (indent > top.indent + 1 && stack.length < 2) {
+          // Deeper than the open level — nest under the last item. Depth is
+          // capped at 2: a verdict needing three is a badly written verdict,
+          // and flattening is the right failure mode.
+          const parent = top.list.items[top.list.items.length - 1];
+          if (parent) {
+            const child = { ordered, items: [] };
+            parent.children = child;
+            stack.push({ indent, list: child });
+          }
+        } else if (stack.length === 1 && top.list.ordered !== ordered) {
+          // Marker style changed at the top level — a genuinely new list.
+          flushList();
+          stack = [{ indent, list: { ordered, items: [] } }];
+        }
+      }
+      stack[stack.length - 1].list.items.push({ text: body, children: null });
+      continue;
+    }
+    flushList();
+
+    const h = line.match(HEADING);
+    if (h) { flushPara(); bucket().push({ kind: "h", text: h[1] }); continue; }
+    if (isBoldHeading(line)) {
+      flushPara();
+      bucket().push({ kind: "h", text: line.match(BOLD_ONLY)[1].trim() });
+      continue;
+    }
+    para.push(trimmed);
+  }
+  flushAll();
+
+  // A sidebar card reading only "None." is noise.
+  if (g.notes.length === 1 && g.notes[0].kind === "p" && /^none[.!]?$/i.test(g.notes[0].text))
+    g.notes = [];
+  return g;
+}
+
+function renderList(list) {
+  const n = el(list.ordered ? "ol" : "ul", "v-list");
+  for (const it of list.items) {
+    const li = el("li");
+    inline(li, it.text);
+    if (it.children) li.append(renderList(it.children));
+    n.append(li);
+  }
+  return n;
+}
+
+function renderBlocks(host, blocks, lead = false) {
+  blocks.forEach((b, i) => {
+    if (b.kind === "h") { host.append(inline(el("div", "v-h"), b.text)); return; }
+    if (b.kind === "list") { host.append(renderList(b.list)); return; }
+    if (b.kind === "conf") {
+      const p = el("p", "v-conf");
+      p.append(el("span", `conf-tag ${b.level.toLowerCase()}`, b.level));
+      if (b.why) {
+        const why = el("span", "conf-why");
+        // When the justification is the whole sentence it still opens with the
+        // rating word, which the tag beside it already shows. Dim that echo so
+        // it reads as "HIGH · [HIGH] on the architecture…" rather than as a
+        // stutter, without rewriting the chairman's sentence.
+        const echo = b.why.match(new RegExp(`^(${b.level})\\b`, "i"));
+        if (echo) why.append(el("span", "conf-echo", echo[1]));
+        inline(why, echo ? b.why.slice(echo[1].length) : b.why);
+        p.append(why);
+      }
+      host.append(p);
+      return;
+    }
+    if (b.kind === "table") {
+      const wrap = el("div", "v-tablewrap"), t = el("table", "v-table");
+      if (b.head) {
+        const tr = el("tr");
+        b.head.forEach((c) => tr.append(inline(el("th"), c)));
+        t.append(el("thead")).lastChild.append(tr);
+      }
+      const tb = el("tbody");
+      b.rows.forEach((r) => {
+        const tr = el("tr");
+        r.forEach((c) => tr.append(inline(el("td"), c)));
+        tb.append(tr);
+      });
+      t.append(tb);
+      wrap.append(t);
+      host.append(wrap);
+      return;
+    }
+    // Lead styling marks the answer's opening line. It only applies when the
+    // verdict actually opens with a paragraph — a legacy verdict starting with
+    // an "Agreements" heading must not have its deliberation notes dressed up
+    // as the answer.
+    host.append(inline(el("p", lead && i === 0 ? "v-lead" : null), b.text));
+  });
+  return host;
+}
+
+/** The verdict body: answer on the left, notes and confidence in a sidebar on
+ *  wide screens. The sidebar is omitted entirely when there is nothing to put
+ *  in it, so a plain-prose verdict just reads as one column. */
+function verdictBody(text) {
+  const g = parseVerdict(text);
+  const hasAside = g.notes.length > 0 || g.conf.length > 0;
+  const root = el("div", `verdict-body ${hasAside ? "split" : ""}`);
+  root.append(renderBlocks(el("div", "v-main"), g.main, true));
+  if (hasAside) {
+    const aside = el("aside", "v-aside");
+    if (g.notes.length) {
+      const c = el("div", "v-card");
+      c.append(el("div", "sec", "Notes"));
+      renderBlocks(c, g.notes);
+      aside.append(c);
+    }
+    if (g.conf.length) {
+      const c = el("div", "v-card");
+      c.append(el("div", "sec", "Confidence"));
+      renderBlocks(c, g.conf);
+      aside.append(c);
+    }
+    root.append(aside);
+  }
+  return root;
+}
+
+/* ══ state ═════════════════════════════════════════════════════════════════
+   One object rather than scattered variables, so "what is the console showing
+   right now" is answerable by reading one place. `panels` is ordered, because
+   the grid's left/right split is positional. */
+const S = {
+  providers: [],
+  selected: new Set(),
+  panels: [],            // [{id, display_name, accent, state, text, chars, ...}]
+  opened: new Set(),     // which unit blocks are expanded
+  verdict: null,
+  running: false,
+  runId: null,
+  history: [],
+  view: "council",       // council | history | doctor
+  doctorBusy: false,
+  doctorAbort: null,
+  attachments: [],       // {id, file}
+  preRefine: null,
+  refining: false,
+  muted: (() => { try { return localStorage.getItem("magi.muted") === "1"; } catch { return false; } })(),
+  navCollapsed: (() => { try { return localStorage.getItem("magi.nav.collapsed") === "1"; } catch { return false; } })(),
+  es: null,
+  procTimer: null,
+  settled: new Set(),
+};
+
+const MAX_ATTACHMENTS = 8;
+const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+const byId = (id) => S.panels.find((p) => p.id === id);
+
+/* ══ member blocks ═════════════════════════════════════════════════════════
+   Built once per run and then MUTATED as events arrive, rather than rebuilt.
+   Rebuilding on every SSE frame would drop the caret, collapse open blocks and
+   destroy any text the reader had selected mid-stream — the answers arrive a
+   few characters at a time, so that is many times a second. */
+
+function buildNode(p) {
+  const node = el("div", "node collapsed");
+  node.style.setProperty("--pa", p.accent);
+  node.style.setProperty("--pd", PHASE[p.id] || "0s");
+
+  const hd = el("button", "node-hd");
+  hd.type = "button";
+  // Model name leads, codename beneath it. Which model produced an answer is
+  // the load-bearing fact when reading one; the codename is the console's
+  // flavour and was carrying the visual weight instead.
+  const names = el("div");
+  names.append(el("div", "node-id", p.display_name), el("div", "node-sub", UNIT[p.id] || ""));
+  const right = el("span");
+  right.style.cssText = "display:flex;gap:7px;align-items:center";
+  const meta = el("span", "node-meta");
+  const badge = el("span", "badge");
+  right.append(meta, badge, el("span", "node-caret", "▶"));
+  hd.append(names, right);
+  hd.onclick = () => toggleUnit(p.id);
+
+  const peek = el("div", "node-peek");
+  const bar = el("span", "bar");
+  const fill = el("i");
+  bar.append(fill);
+  const hint = el("span", "hint");
+  peek.append(bar, hint);
+
+  const body = el("div", "node-body");
+  node.append(hd, peek, body);
+  p.dom = { node, hd, meta, badge, peek, fill, hint, body };
+  return node;
+}
+
+function updateNode(p) {
+  const d = p.dom;
+  if (!d) return;
+  const isOpen = S.opened.has(p.id);
+  const working = WORKING.has(p.state);
+  d.node.className = `node ${isOpen ? "open" : "collapsed"} ${working ? "working" : ""} ${p.ok === false ? "failed" : ""}`;
+  d.hd.setAttribute("aria-expanded", String(isOpen));
+  d.hd.title = isOpen ? "Collapse this unit" : "Show this unit's response";
+
+  d.meta.textContent = p.latency_ms ? `${(p.latency_ms / 1000).toFixed(1)}s` : p.chars ? `${p.chars}c` : "";
+  d.badge.className = `badge ${badgeClass(p.state, p.ok)}`;
+  d.badge.textContent = STATE_LABEL[p.state] || p.state;
+
+  show(d.peek, !isOpen);
+  if (!isOpen) {
+    d.fill.style.width = `${progressPct(p)}%`;
+    const hasContent = p.ok === false || !!p.text;
+    d.hint.textContent =
+      p.degraded ? "unusable · open"
+      : p.ok === false ? (p.failure || "offline")
+      : hasContent ? `${p.chars}c · open`
+      : working ? "receiving…" : "—";
+  }
+
+  show(d.body, isOpen);
+  if (!isOpen) return;
+  d.body.className = "node-body";
+  d.body.textContent = "";
+
+  if (p.degraded) {
+    // Shown rather than hidden on purpose. What came back is usually a
+    // clarifying question, which tells the user their prompt was ambiguous —
+    // that is useful information, not noise to be swallowed.
+    d.body.className = "callout degraded";
+    d.body.append(
+      el("div", "kind", "unusable response"),
+      el("div", "cause", p.degraded_reason || ""),
+      el("div", "remedy", "Excluded from the verdict. The other units are unaffected."),
+    );
+    if (p.text) d.body.append(el("div", "detail", p.text));
+    return;
+  }
+  if (p.ok === false) {
+    d.body.className = "callout";
+    d.body.append(el("div", "kind", p.failure || "failed"), el("div", "cause", p.failure_cause || ""));
+    if (p.failure_remedy) d.body.append(el("div", "remedy", p.failure_remedy));
+    if (p.error_detail) d.body.append(el("div", "detail", p.error_detail));
+    return;
+  }
+  if (!p.text) {
+    d.body.className = "node-body idle";
+    d.body.textContent = working ? "awaiting response" : "—";
+    return;
+  }
+  d.body.textContent = p.text;
+  if (working) d.body.append(el("span", "caret"));
+  if (p.low_confidence) {
+    const w = el("div", null, "⚠ end of response inferred, not confirmed — may be truncated");
+    w.style.cssText = "color:var(--amber);font-size:10px;margin-top:10px;letter-spacing:.4px";
+    d.body.append(w);
+  }
+}
+
+function toggleUnit(id) {
+  S.opened.has(id) ? S.opened.delete(id) : S.opened.add(id);
+  updateNode(byId(id));
+  // The block just changed height, so the wiring has to be re-measured.
+  drawLinks();
+}
+
+/** Rebuilds the whole grid. Called when the SET of units changes, not when
+ *  their contents do. */
+function renderGrid() {
+  const grid = $("magiGrid");
+  grid.textContent = "";
+  show($("magi"), S.panels.length > 0);
+  show($("emptyState"), S.panels.length === 0 && S.view === "council" && !S.verdict);
+  if (!S.panels.length) return;
+
+  for (const p of S.panels) grid.append(buildNode(p));
+
+  // The core owns its own grid column, so it renders once and stays
+  // vertically centred against the units beside it.
+  const cell = el("div", "magi-core-cell");
+  const core = el("div", "core");
+  core.id = "core";
+  core.append(
+    el("div", "core-label", "Central dogma"),
+    el("div", "core-status"),
+    el("div", "core-count"),
+    el("div", "core-label chair"),
+  );
+  cell.append(core);
+  grid.append(cell);
+
+  for (const p of S.panels) updateNode(p);
+  updateCore();
+  drawLinks();
+}
+
+function updateCore() {
+  const core = $("core");
+  if (!core) return;
+  const done = S.panels.filter((p) => p.ok === true).length;
+  // Degraded units are ok === false, so they must be excluded here or they
+  // would be reported as "offline" — a different claim about what happened,
+  // and one the user would have no way to correct from the display.
+  const degraded = S.panels.filter((p) => p.degraded).length;
+  const failed = S.panels.filter((p) => p.ok === false && !p.degraded).length;
+  const v = S.verdict;
+
+  core.className = `core ${S.running ? "deliberating" : v ? (v.synthesis_ok ? "resolved" : "blocked") : ""}`;
+  core.children[1].textContent = S.running ? "DELIBERATING" : v ? (v.synthesis_ok ? "CONSENSUS" : "NO QUORUM") : "STANDBY";
+  core.children[2].textContent =
+    `${done}/${S.panels.length} resolved` +
+    (degraded ? ` · ${degraded} unusable` : "") +
+    (failed ? ` · ${failed} offline` : "");
+  const chair = core.children[3];
+  chair.textContent = v && v.chairman ? `chair · ${v.chairman}` : "";
+  show(chair, !!(v && v.chairman));
+}
+
+/** Draws the wiring from each member block to the core.
+ *
+ *  Measured from real element positions rather than computed from the layout,
+ *  because the blocks grow as answers stream in and the sidebar can collapse
+ *  under them. */
+function drawLinks() {
+  const host = $("magi"), svg = $("magiLinks"), core = $("core");
+  if (!core || host.hidden) return;
+  const H = host.getBoundingClientRect(), C = core.getBoundingClientRect();
+  if (!C.width) return;
+  const cx = C.left - H.left + C.width / 2;
+  const cy = C.top - H.top + C.height / 2;
+
+  svg.textContent = "";
+  for (const p of S.panels) {
+    if (!p.dom) continue;
+    const R = p.dom.node.getBoundingClientRect();
+    // Anchor on whichever side of the block faces the core.
+    const onLeft = R.left - H.left + R.width / 2 < cx;
+    const x = R.left - H.left + (onLeft ? R.width : 0);
+    const y = R.top - H.top + R.height / 2;
+    const mid = (x + cx) / 2;
+    const cls = p.ok === false ? "dead" : WORKING.has(p.state) ? "live" : p.state === "done" ? "settled" : "";
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    // Elbow route: out horizontally, then into the core.
+    path.setAttribute("d", `M ${x} ${y} H ${mid} V ${cy} H ${cx}`);
+    path.setAttribute("class", `magi-link ${cls}`);
+    path.style.setProperty("--pa", p.accent);
+    svg.append(path);
+  }
+}
+
+// Blocks grow as answers stream in, so the wiring has to follow them.
+new ResizeObserver(() => requestAnimationFrame(drawLinks)).observe(document.documentElement);
+window.addEventListener("resize", () => requestAnimationFrame(drawLinks));
+
+/* ══ verdict panel ═════════════════════════════════════════════════════════ */
+function renderVerdict() {
+  const n = $("verdict");
+  const v = S.verdict;
+  show(n, !!v && S.view === "council");
+  if (!v || S.view !== "council") return;
+  n.textContent = "";
+
+  const hd = el("div", "verdict-hd");
+  hd.append(el("span", "verdict-title", "Verdict"));
+  hd.append(el("span", "verdict-quorum",
+    `${v.responded} of ${v.total} units responded` +
+    (v.chairman ? ` · synthesised by ${v.chairman}` : "") +
+    (v.total_ms ? ` · ${(v.total_ms / 1000).toFixed(0)}s` : "")));
+  n.append(hd);
+
+  // Named here, not only in History. A verdict built from three units while
+  // the display implied four is the exact failure this is here to prevent, and
+  // the Verdict panel is what gets read.
+  if (v.degraded && v.degraded.length) {
+    const d = el("div", "verdict-degraded");
+    d.append(el("strong", null, `Built from ${v.responded} of ${v.total} units.`));
+    d.append(` ${v.degraded.map((x) => x.reason).join(" ")} Confidence is capped accordingly.`);
+    n.append(d);
+  }
+
+  if (v.synthesis_ok) {
+    n.append(verdictBody(v.verdict));
+  } else {
+    const b = el("div", "verdict-body");
+    const s = el("span", null, v.synthesis_error || "Synthesis failed.");
+    s.style.color = "var(--amber)";
+    b.append(s);
+    n.append(b);
+  }
+}
+
+/* ══ composer ══════════════════════════════════════════════════════════════ */
+
+/** Grow the composer to fit its text so a long prompt is readable in full
+ *  rather than scrolling inside a fixed box.
+ *
+ *  Height must be reset to "auto" before reading scrollHeight — scrollHeight
+ *  never reports less than the current height, so without the reset the box
+ *  could only ever grow, never shrink back after a clear. */
+function autosize() {
+  const t = $("composer");
+  t.style.height = "auto";
+  t.style.height = `${t.scrollHeight}px`;
+}
+
+function setQuestion(v) {
+  $("composer").value = v;
+  autosize();
+  updateEnabled();
+}
+
+/** Stages files for the next question. Rejects rather than silently
+ *  truncating, so a user who drops 12 files learns why only some landed. */
+function addFiles(incoming) {
+  const list = Array.from(incoming);
+  if (!list.length) return;
+  let err = null;
+  for (const file of list) {
+    if (S.attachments.length >= MAX_ATTACHMENTS) { err = `Only ${MAX_ATTACHMENTS} attachments per question.`; break; }
+    if (file.size > MAX_ATTACHMENT_BYTES) { err = `${file.name} exceeds the 20MB limit.`; continue; }
+    S.attachments.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, file });
+  }
+  setErr("attachError", err);
+  renderChips();
+}
+
+function setErr(id, msg) {
+  const n = $(id);
+  n.textContent = msg || "";
+  show(n, !!msg);
+}
+
+function renderChips() {
+  const box = $("qbarChips");
+  box.textContent = "";
+  show(box, S.attachments.length > 0);
+  for (const a of S.attachments) {
+    const c = el("div", "chipfile");
+    if (a.file.type.startsWith("image/")) {
+      const img = el("img", "chipfile-thumb");
+      img.src = URL.createObjectURL(a.file);
+      img.alt = "";
+      img.onload = () => URL.revokeObjectURL(img.src);
+      c.append(img);
+    } else {
+      c.append(el("span", "chipfile-icon", "▤"));
+    }
+    const info = el("span", "chipfile-info");
+    info.append(el("span", "chipfile-name", a.file.name), el("span", "chipfile-size", fmtBytes(a.file.size)));
+    const x = el("button", "chipfile-x", "✕");
+    x.type = "button";
+    x.setAttribute("aria-label", `Remove ${a.file.name}`);
+    x.disabled = S.running;
+    x.onclick = () => { S.attachments = S.attachments.filter((v) => v.id !== a.id); renderChips(); };
+    c.append(info, x);
+    box.append(c);
+  }
+  autosize();
+}
+
+/** Rewrite the composer's text into a sharper prompt via one model.
+ *
+ *  Deliberately NOT a step inside start(): refining on the way to Convene
+ *  would send the council a question the person never read, and a rewrite that
+ *  drifted from their intent would be discovered only in the verdict. Here it
+ *  lands in the textarea first, where it can be read, edited or undone before
+ *  anyone is asked anything. */
+async function refine() {
+  const q = $("composer").value.trim();
+  if (!q || S.refining || S.running || !online()) return;
+  S.refining = true;
+  setErr("refineError", null);
+  updateEnabled();
+  try {
+    const form = new FormData();
+    form.append("question", q);
+    const res = await fetch(`${link.api}/api/refine`, authed({ method: "POST", body: form }));
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.detail || `Refine failed (${res.status})`);
+    }
+    const { refined } = await res.json();
+    // Keep the original for Undo, but only the text the person actually wrote
+    // — refining twice must not make the first rewrite the thing Undo restores.
+    if (S.preRefine === null) S.preRefine = q;
+    setQuestion(refined);
+    $("composer").focus();
+  } catch (e) {
+    setErr("refineError", e?.message || "Refine failed.");
+  } finally {
+    S.refining = false;
+    updateEnabled();
+  }
+}
+
+function undoRefine() {
+  if (S.preRefine === null) return;
+  setQuestion(S.preRefine);
+  S.preRefine = null;
+  setErr("refineError", null);
+  $("composer").focus();
+  updateEnabled();
+}
+
+/* ══ enable/disable ════════════════════════════════════════════════════════
+   One function owning every disabled state. Split across handlers, the button
+   that must not be clickable during a run is exactly the one that gets
+   forgotten. */
+function updateEnabled() {
+  const q = $("composer").value.trim();
+  const busy = S.running || S.refining;
+  const up = online();
+  $("btnSend").disabled = S.running || !q || S.selected.size === 0 || !up;
+  $("btnSend").textContent = S.running ? "Deliberating…" : "Convene";
+  $("btnRefine").disabled = busy || !q || !up;
+  $("btnRefine").className = `qbar-refine ${S.refining ? "busy" : ""}`;
+  $("btnRefine").querySelector(".qbar-refine-ico").textContent = S.refining ? "◌" : "✦";
+  $("btnRefine").querySelector(".qbar-refine-txt").textContent = S.refining ? "Refining…" : "Refine";
+  $("btnAttach").disabled = S.running || S.attachments.length >= MAX_ATTACHMENTS;
+  $("composer").disabled = busy;
+  // Only offered while the rewrite is still untouched — see the composer's
+  // input handler.
+  show($("btnUndo"), S.preRefine !== null && !S.refining);
+  $("btnUndo").disabled = busy;
+  $("navNew").disabled = S.running;
+  show($("navHalt"), S.running);
+  for (const b of document.querySelectorAll(".chip")) b.disabled = S.running;
+}
+
+/* ══ the run ═══════════════════════════════════════════════════════════════ */
+async function start() {
+  const q = $("composer").value.trim();
+  if (!q || S.running || S.selected.size === 0 || !online()) return;
+
+  S.verdict = null;
+  S.running = true;
+  // A run in progress is the thing to watch, so any drawer the user was
+  // reading gives way to the console.
+  setView("council");
+  S.settled = new Set();
+  S.panels = S.providers.filter((p) => S.selected.has(p.id)).map((p) => ({
+    id: p.id, display_name: p.display_name, accent: p.accent,
+    state: "queued", text: "", chars: 0,
+  }));
+  S.opened = new Set();
+  renderGrid();
+  renderVerdict();
+  updateEnabled();
+  startProcessingTone();
+
+  const form = new FormData();
+  form.append("question", q);
+  form.append("providers", [...S.selected].join(","));
+  for (const a of S.attachments) form.append("files", a.file, a.file.name);
+  S.attachments = [];
+  renderChips();
+
+  let runId;
+  try {
+    const res = await fetch(`${link.api}/api/runs`, authed({ method: "POST", body: form }));
+    ({ run_id: runId } = await res.json());
+  } catch {
+    endRun();
+    setErr("refineError", "Could not reach the engine to start the run.");
+    return;
+  }
+  S.runId = runId;
+
+  const es = new EventSource(streamUrl(`/api/runs/${runId}/stream`));
+  S.es = es;
+  es.onmessage = (ev) => {
+    const msg = JSON.parse(ev.data);
+    if (msg.type === "state") {
+      const p = byId(msg.provider_id);
+      if (!p) return;
+      p.state = msg.state;
+      p.text = msg.text || p.text;
+      p.chars = msg.chars || p.chars;
+      updateNode(p);
+      updateCore();
+      drawLinks();
+    } else if (msg.type === "done") {
+      for (const a of msg.answers) {
+        const p = byId(a.provider_id);
+        if (!p) continue;
+        // A degraded answer is ok === false, so it must be checked before the
+        // failed branch or it renders as offline.
+        Object.assign(p, {
+          state: a.ok ? "done" : a.degraded ? "degraded" : "failed",
+          text: a.text, ok: a.ok, failure: a.failure,
+          failure_cause: a.failure_cause, failure_remedy: a.failure_remedy,
+          error_detail: a.error_detail, degraded: a.degraded,
+          degraded_reason: a.degraded_reason, low_confidence: a.low_confidence,
+          latency_ms: a.latency_ms, completion_reason: a.completion_reason,
+          chars: a.chars,
+        });
+        updateNode(p);
+      }
+      S.verdict = msg;
+      endRun();
+      renderVerdict();
+      loadHistory();
+      // Slightly after the processing loop stops, so the two don't overlap.
+      if (!S.muted) setTimeout(msg.synthesis_ok ? beepResolved : beepBlocked, 180);
+    } else if (msg.type === "error") {
+      endRun();
+    }
+    ackSettled();
+  };
+  es.onerror = () => endRun();
+}
+
+function endRun() {
+  S.running = false;
+  if (S.es) { S.es.close(); S.es = null; }
+  stopProcessingTone();
+  updateCore();
+  drawLinks();
+  updateEnabled();
+}
+
+/** The deliberation beep: a steady cluster every 1.6s for as long as the
+ *  council is working. Fires immediately on start rather than after the first
+ *  interval, so the sound lands with the animation instead of a beat late. */
+function startProcessingTone() {
+  stopProcessingTone();
+  if (S.muted || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  beepProcessing();
+  S.procTimer = setInterval(beepProcessing, 1600);
+}
+function stopProcessingTone() {
+  if (S.procTimer) { clearInterval(S.procTimer); S.procTimer = null; }
+}
+
+/** One acknowledgement tick as each unit reports in. Tracked in a set so a
+ *  unit only ever beeps on the transition, not on every streaming update that
+ *  touches the same finished panel. */
+function ackSettled() {
+  for (const p of S.panels) {
+    if ((p.state === "done" || p.state === "failed") && !S.settled.has(p.id)) {
+      S.settled.add(p.id);
+      if (!S.muted) beepUnit();
+    }
+  }
+}
+
+async function cancelRun() {
+  if (!S.runId || !online()) return;
+  await fetch(`${link.api}/api/runs/${S.runId}/cancel`, authed({ method: "POST" })).catch(() => {});
+}
+
+/** Clears the composer and the previous run's console so the next question
+ *  starts from a blank slate, rather than being asked while the last verdict
+ *  is still on screen. */
+function newRun() {
+  if (S.running) return;
+  setQuestion("");
+  S.attachments = [];
+  S.preRefine = null;
+  S.panels = [];
+  S.opened = new Set();
+  S.verdict = null;
+  S.runId = null;
+  setErr("attachError", null);
+  setErr("refineError", null);
+  renderChips();
+  setView("council");
+}
+
+/* ══ history ═══════════════════════════════════════════════════════════════ */
+async function loadHistory() {
+  if (!online()) return;
+  try {
+    const r = await fetch(`${link.api}/api/runs?limit=30`, authed());
+    S.history = await r.json();
+  } catch { return; }
+  const tag = $("navHistoryTag");
+  tag.textContent = S.history.length ? String(S.history.length) : "";
+  show(tag, S.history.length > 0);
+  renderHistory();
+}
+
+function renderHistory() {
+  const box = $("historyRows");
+  box.textContent = "";
+  if (!S.history.length) { box.append(el("div", "empty-state", "No runs yet.")); return; }
+  for (const r of S.history) {
+    const row = el("div", "row");
+    row.append(el("span", "q", r.question));
+    row.append(el("span", "meta",
+      `${r.responded_count}/${r.attempted_count} · ` +
+      `${r.total_ms ? (r.total_ms / 1000).toFixed(0) + "s" : "—"} · ` +
+      new Date(r.created_at).toLocaleString()));
+    row.onclick = () => openRun(r.id);
+    box.append(row);
+  }
+}
+
+async function openRun(id) {
+  const r = await fetch(`${link.api}/api/runs/${id}`, authed());
+  const data = await r.json();
+  S.runId = id;
+  setQuestion(data.run.question);
+  S.opened = new Set();
+  S.panels = data.answers.map((a) => ({
+    id: a.provider_id,
+    display_name: a.display_name,
+    accent: S.providers.find((p) => p.id === a.provider_id)?.accent || "#8D769A",
+    state: a.ok ? "done" : a.degraded ? "degraded" : "failed",
+    text: a.answer_text || "", chars: a.char_count || 0, ok: !!a.ok,
+    failure: a.failure_kind, error_detail: a.error_detail,
+    degraded: !!a.degraded, degraded_reason: a.degraded_reason || "",
+    low_confidence: !!a.low_confidence, latency_ms: a.latency_ms,
+    completion_reason: a.completion_reason,
+  }));
+  S.verdict = data.synthesis ? {
+    verdict: data.synthesis.verdict_text || "",
+    synthesis_ok: !!data.synthesis.ok,
+    synthesis_error: data.synthesis.error_detail,
+    chairman: data.synthesis.chairman_provider,
+    responded: data.synthesis.members_responded,
+    total: data.synthesis.members_total,
+    total_ms: data.run.total_ms || 0,
+    // Rebuilt from the stored answers rather than persisted twice, so an
+    // archived run explains its exclusions the same way a live one does.
+    degraded: data.answers.filter((a) => a.degraded).map((a) => ({
+      provider_id: a.provider_id, display_name: a.display_name,
+      reason: a.degraded_reason || "", chars: a.char_count || 0,
+    })),
+  } : null;
+  setView("council");
+  renderGrid();
+  renderVerdict();
+}
+
+/* ══ doctor ════════════════════════════════════════════════════════════════ */
+async function runDoctor() {
+  // Clicking Doctor while a pass is running means "stop", matching the Halt
+  // affordance on a run. Otherwise the button is a no-op precisely when the
+  // user most wants it to do something.
+  if (S.doctorBusy) return stopDoctor();
+  if (S.running || !online()) return;
+
+  const ctl = new AbortController();
+  S.doctorAbort = ctl;
+  S.doctorBusy = true;
+  setView("doctor");
+  renderDoctor(null);
+  try {
+    const r = await fetch(`${link.api}/api/doctor`, authed({ method: "POST", signal: ctl.signal }));
+    const data = await r.json();
+    // A late response from an aborted pass must not overwrite the screen.
+    if (!ctl.signal.aborted) { S.doctorBusy = false; renderDoctor(data); }
+  } catch {
+    // Abort lands here too; either way there is nothing to show.
+  } finally {
+    if (S.doctorAbort === ctl) { S.doctorAbort = null; S.doctorBusy = false; syncDoctorNav(); }
+  }
+}
+
+function stopDoctor() {
+  S.doctorAbort?.abort();
+  S.doctorAbort = null;
+  S.doctorBusy = false;
+  setView("council");
+}
+
+function syncDoctorNav() {
+  $("navDoctorLbl").textContent = S.doctorBusy ? "Stop doctor" : "Doctor";
+  $("navDoctorIc").textContent = S.doctorBusy ? "◐" : "✚";
+  $("navDoctorIc").className = S.doctorBusy ? "side-ic spin" : "side-ic";
+  show($("navDoctorTag"), S.doctorBusy);
+  $("navDoctor").setAttribute("aria-busy", String(S.doctorBusy));
+}
+
+function renderDoctor(data) {
+  syncDoctorNav();
+  const body = $("doctorBody");
+  body.textContent = "";
+  // Rendered while busy too, not just once results land: a pass takes tens of
+  // seconds, and an empty page with only a spinner in the sidebar gave no
+  // indication anything was happening or how to stop it.
+  if (S.doctorBusy) {
+    $("doctorHd").textContent = "Selector doctor — checking";
+    const r = el("div", "doctor-running");
+    r.append(el("span", "spin", "◐"));
+    r.append(el("span", null, "Opening each unit's site to see which selectors match. This launches a real browser per unit and takes a while."));
+    r.append(el("span", "qbar-spacer"));
+    const stop = el("button", "navitem danger");
+    stop.type = "button";
+    stop.append(el("span", "navitem-ic", "■"), document.createTextNode("Stop"));
+    stop.onclick = stopDoctor;
+    r.append(stop);
+    body.append(r);
+    return;
+  }
+  $("doctorHd").textContent = "Selector doctor — live selector match";
+  if (!data) return;
+
+  const t = el("table", "doctor");
+  const thead = el("thead"), htr = el("tr");
+  for (const h of ["Unit", "Field", "Status", "Matched"]) htr.append(el("th", null, h));
+  thead.append(htr);
+  const tb = el("tbody");
+  for (const d of data) {
+    for (const s of d.selectors) {
+      // Colour on `status`, not on ok. A field that cannot match while the
+      // chat is idle is not a fault, and painting it red made a healthy
+      // install look catastrophically broken.
+      const st = s.status || (s.ok ? "ok" : "miss");
+      const cls = st === "ok" ? (s.stale ? "stale" : "ok") : st === "miss" ? "miss" : "na";
+      const label = st === "ok" ? (s.stale ? "FALLBACK" : "OK")
+        : st === "miss" ? "MISS" : st === "unset" ? "—" : "n/a";
+      const tr = el("tr");
+      tr.append(el("td", null, s.field === "input" ? d.display_name : ""));
+      tr.append(el("td", null, s.field));
+      tr.append(el("td", cls, label));
+      const last = el("td");
+      last.append(el("code", null, s.matched || (s.note ? s.note : st === "miss" ? `all ${s.tried} failed` : "—")));
+      tr.append(last);
+      tb.append(tr);
+    }
+  }
+  t.append(thead, tb);
+  body.append(t);
+}
+
+/* ══ views ═════════════════════════════════════════════════════════════════
+   One `view` at a time. History and Doctor were independent booleans that
+   could both be open, stacking two panels above the console. */
+function setView(v) {
+  S.view = v;
+  show($("historyDrawer"), v === "history");
+  show($("doctorDrawer"), v === "doctor");
+  $("navCouncil").classList.toggle("active", v === "council");
+  $("navHistory").classList.toggle("active", v === "history");
+  $("navDoctor").classList.toggle("active", v === "doctor");
+  show($("magi"), S.panels.length > 0);
+  show($("emptyState"), S.panels.length === 0 && v === "council" && !S.verdict);
+  renderVerdict();
+  if (S.panels.length) requestAnimationFrame(drawLinks);
+}
+
+/* ══ units ═════════════════════════════════════════════════════════════════ */
+function renderUnitChips() {
+  const box = $("unitChips");
+  box.textContent = "";
+  for (const p of S.providers) {
+    const on = S.selected.has(p.id);
+    const b = el("button", `chip ${on ? "on" : ""}`);
+    b.type = "button";
+    if (on) { b.style.background = p.accent; b.style.borderColor = p.accent; }
+    else { b.style.color = p.accent; b.style.borderColor = p.accent + "66"; }
+    // Both names, because the codename alone does not say which model you are
+    // switching off. The real model name is the thing being chosen; the MAGI
+    // codename is flavour, so it reads as the smaller, secondary label.
+    b.append(el("span", "chip-model", p.display_name));
+    b.append(el("span", "chip-unit", (UNIT[p.id] || "").split("·")[0]));
+    b.onclick = () => {
+      S.selected.has(p.id) ? S.selected.delete(p.id) : S.selected.add(p.id);
+      renderUnitChips();
+      updateEnabled();
+    };
+    box.append(b);
+  }
+  updateEnabled();
+}
+
+/* ══ wiring ════════════════════════════════════════════════════════════════ */
+function applyNav() {
+  $("shell").classList.toggle("nav-collapsed", S.navCollapsed);
+  $("navToggle").setAttribute("aria-expanded", String(!S.navCollapsed));
+  $("navToggle").title = S.navCollapsed ? "Expand sidebar" : "Collapse sidebar";
+  try { localStorage.setItem("magi.nav.collapsed", S.navCollapsed ? "1" : "0"); } catch {}
+  // The council wiring is measured from real element positions, so the sidebar
+  // changing width invalidates it. The delay matches the grid's transition.
+  setTimeout(drawLinks, 220);
+}
+
+function applyAudioNav() {
+  $("navAudioIc").textContent = S.muted ? "◊" : "◈";
+  $("navAudioLbl").textContent = S.muted ? "Audio muted" : "Audio on";
+  $("navAudio").classList.toggle("active", !S.muted);
+}
+
+$("navToggle").onclick = () => { S.navCollapsed = !S.navCollapsed; applyNav(); };
+$("navNew").onclick = newRun;
+$("navCouncil").onclick = () => setView("council");
+$("navHistory").onclick = () => setView(S.view === "history" ? "council" : "history");
+$("navDoctor").onclick = runDoctor;
+$("navAudio").onclick = () => { S.muted = !S.muted; applyMute(); applyAudioNav(); if (!S.muted) beepUnit(); };
+$("navHalt").onclick = cancelRun;
+$("linkBtn").onclick = () => (sameOrigin ? connect().then(boot) : openSetup());
+
+$("btnSend").onclick = start;
+$("btnRefine").onclick = refine;
+$("btnUndo").onclick = undoRefine;
+$("btnAttach").onclick = () => $("fileIn").click();
+$("fileIn").onchange = (e) => { if (e.target.files?.length) addFiles(e.target.files); e.target.value = ""; };
+
+const composer = $("composer");
+composer.addEventListener("input", () => {
+  // Once they edit the rewrite by hand, "Undo refine" would throw away their
+  // edit too, so it stops being offered.
+  if (S.preRefine !== null) S.preRefine = null;
+  setErr("refineError", null);
+  autosize();
+  updateEnabled();
+});
+composer.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); start(); }
+});
+composer.addEventListener("paste", (e) => {
+  const files = Array.from(e.clipboardData?.files || []);
+  if (files.length) addFiles(files);
+});
+
+const qbar = $("qbar");
+qbar.addEventListener("dragover", (e) => { if (S.running) return; e.preventDefault(); qbar.classList.add("drag"); });
+qbar.addEventListener("dragleave", () => qbar.classList.remove("drag"));
+qbar.addEventListener("drop", (e) => {
+  e.preventDefault();
+  qbar.classList.remove("drag");
+  if (!S.running && e.dataTransfer.files?.length) addFiles(e.dataTransfer.files);
+});
+
+/* ══ boot ══════════════════════════════════════════════════════════════════ */
+async function boot() {
+  if (!online()) return;
+  try {
+    const r = await fetch(`${link.api}/api/providers`, authed());
+    S.providers = await r.json();
+    // First load only: everything the engine has enabled. A later reconnect
+    // must not silently switch units back on that were turned off by hand.
+    if (!S.selected.size) S.selected = new Set(S.providers.filter((p) => p.enabled).map((p) => p.id));
+    renderUnitChips();
+  } catch {}
+  loadHistory();
+}
+
+applyNav();
+applyAudioNav();
+applyMute();
+autosize();
+updateEnabled();
+setView("council");
+connect().then(boot);
+</script>
+</body>
+</html>
