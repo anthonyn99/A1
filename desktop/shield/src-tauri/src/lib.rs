@@ -704,15 +704,27 @@ fn open_from_link(url: &url::Url) {
         // get_current() during setup, and neither should block while a class
         // with several apps is staggered open.
         std::thread::spawn(move || {
-            for (_, target) in hits {
-                // open_target, not open_path: a class resource can be a website
-                // as well as a program. TaskHub cannot open the websites itself
-                // because a browser allows one new tab per user gesture, so a
-                // card with two sites opened only one per press. Shield has no
-                // gesture budget, so opening the whole set here is what makes a
-                // single press open all of them.
+            // Websites are launched together, as one process handed every url —
+            // that is what puts them all in a single new browser WINDOW instead
+            // of scattering across whatever window the OS's per-url `start`
+            // handoff happens to reuse (see open_class_web_grouped). A real
+            // Chrome/Brave "tab group" (the named, colored group strip) is only
+            // creatable by a browser extension via chrome.tabGroups — not
+            // reachable from a spawned process — so one dedicated window is the
+            // grouping this can actually provide. Native apps have no window to
+            // share in the first place, so they still go one process per
+            // resource, exactly as before.
+            let (web, apps): (Vec<String>, Vec<String>) =
+                hits.into_iter().map(|(_, target)| target).partition(|t| proc::is_web_url(t));
+            if !web.is_empty() {
+                let _ = proc::open_class_web_grouped(&web);
+                // Give the browser a moment to claim the foreground before any
+                // native apps start landing their own windows on top of it.
+                std::thread::sleep(std::time::Duration::from_millis(150));
+            }
+            for target in apps {
                 let _ = proc::open_target(&target);
-                // Several `cmd /C start` fired in the same instant race for the
+                // Several launches fired in the same instant race for the
                 // foreground, and Windows' foreground-lock heuristics then pick
                 // an arbitrary winner. A short gap makes the last one land on
                 // top, which is what someone clicking "open my class" expects.

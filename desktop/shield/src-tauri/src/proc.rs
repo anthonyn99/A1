@@ -1033,7 +1033,7 @@ pub fn open_path(path: &str) -> Result<(), String> {
 ///
 /// The control-character check matters more than it looks: a `\r` or `\n` in
 /// the string would let one resource split into extra `cmd` arguments.
-fn is_web_url(s: &str) -> bool {
+pub(crate) fn is_web_url(s: &str) -> bool {
     let low = s.to_ascii_lowercase();
     (low.starts_with("http://") || low.starts_with("https://"))
         && !s.chars().any(|c| c.is_control())
@@ -1063,6 +1063,120 @@ pub fn open_target(target: &str) -> Result<(), String> {
     // Same empty-title slot as open_path; without it `start` reads the URL as
     // the window title and opens nothing.
     match Command::new("cmd").args(["/C", "start", "", t]).spawn() {
+        Ok(_) => Ok(()),
+        Err(e) => Err(classify(&e.to_string())),
+    }
+}
+
+/// The executable behind the user's default web browser, resolved the same
+/// way Windows itself does: `HKCU…UrlAssociations\http\UserChoice` names a
+/// ProgId, and `HKCR\<ProgId>\shell\open\command` holds that browser's launch
+/// command line, quoted exe first.
+///
+/// `open_target` cannot use this — `cmd /C start` already resolves the default
+/// handler on its own and is right for a single URL. This exists only for
+/// `open_class_web_grouped` below, which needs the bare exe path so it can pass
+/// `--new-window` plus every URL as arguments to ONE process, rather than one
+/// `start` per site landing in whatever window/tab the browser feels like
+/// using.
+fn default_browser_exe() -> Option<String> {
+    use windows::core::PCWSTR;
+    use windows::Win32::System::Registry::{
+        RegGetValueW, HKEY_CLASSES_ROOT, HKEY_CURRENT_USER, RRF_RT_REG_SZ,
+    };
+
+    fn reg_sz(hkey: windows::Win32::System::Registry::HKEY, subkey: &str, name: &str) -> Option<String> {
+        let sub: Vec<u16> = subkey.encode_utf16().chain(std::iter::once(0)).collect();
+        let nam: Vec<u16> = name.encode_utf16().chain(std::iter::once(0)).collect();
+        let mut buf = [0u16; 1024];
+        let mut size: u32 = (buf.len() * 2) as u32;
+        let ok = unsafe {
+            RegGetValueW(
+                hkey,
+                PCWSTR(sub.as_ptr()),
+                PCWSTR(nam.as_ptr()),
+                RRF_RT_REG_SZ,
+                None,
+                Some(buf.as_mut_ptr() as *mut _),
+                Some(&mut size),
+            )
+            .is_ok()
+        };
+        if !ok {
+            return None;
+        }
+        // size is bytes including the terminator; convert to a u16 count.
+        let len = (size as usize / 2).saturating_sub(1).min(buf.len());
+        let s = String::from_utf16_lossy(&buf[..len]);
+        let s = s.trim_end_matches('\0').to_string();
+        if s.is_empty() { None } else { Some(s) }
+    }
+
+    let prog_id = reg_sz(
+        HKEY_CURRENT_USER,
+        r"Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice",
+        "ProgId",
+    )?;
+    let cmd = reg_sz(
+        HKEY_CLASSES_ROOT,
+        &format!(r"{prog_id}\shell\open\command"),
+        "",
+    )?;
+    // The command is typically `"C:\...\brave.exe" --single-argument %1` or
+    // similar. Only the quoted (or bare, space-free) leading exe path is
+    // wanted — the %1 placeholder and any fixed flags are for `start`'s use,
+    // not for launching with our own argument list.
+    let cmd = cmd.trim();
+    let exe = if let Some(rest) = cmd.strip_prefix('"') {
+        rest.split('"').next().unwrap_or("").to_string()
+    } else {
+        cmd.split_whitespace().next().unwrap_or("").to_string()
+    };
+    if exe.is_empty() || !std::path::Path::new(&exe).exists() {
+        return None;
+    }
+    Some(exe)
+}
+
+/// Open every http(s) resource in `urls` together in ONE new browser window,
+/// titled by the OS taskbar entry the browser itself gives that window (Shield
+/// has no way to caption a window it did not create the content of — the class
+/// name lives in the page titles/tab strip instead, via `--new-window` keeping
+/// every one of these URLs out of whatever window the user already had open).
+///
+/// This is the "all of a class's sites in one place" behaviour: a browser
+/// still allows only one new WINDOW to be spawned from a single OS process
+/// launch, but that one process can be handed any number of URLs as separate
+/// arguments and it opens all of them as tabs inside that same new window —
+/// unlike `cmd /C start`, which hands off to the shell's URL association once
+/// per call and reuses whatever window is already frontmost.
+///
+/// Falls back to the old one-`start`-per-url behaviour (still no grouping, but
+/// still opens everything) when the default browser can't be resolved, so a
+/// machine where the registry lookup fails is no worse off than before this
+/// existed.
+pub fn open_class_web_grouped(urls: &[String]) -> Result<(), String> {
+    use std::process::Command;
+    let urls: Vec<&str> = urls.iter().map(|s| s.trim()).filter(|s| is_web_url(s)).collect();
+    if urls.is_empty() {
+        return Err("no web urls".into());
+    }
+    let exe = match default_browser_exe() {
+        Some(e) => e,
+        None => {
+            // No exe resolved (unknown browser registration, ancient Windows
+            // build, etc.) — fall back to the ungrouped path per URL rather
+            // than opening nothing.
+            for u in &urls {
+                let _ = open_target(u);
+            }
+            return Ok(());
+        }
+    };
+    let mut c = Command::new(&exe);
+    c.arg("--new-window");
+    c.args(&urls);
+    match c.spawn() {
         Ok(_) => Ok(()),
         Err(e) => Err(classify(&e.to_string())),
     }
@@ -1099,6 +1213,21 @@ mod open_target_tests {
     fn a_windows_path_is_not_a_web_url() {
         assert!(!is_web_url("C:\\Program Files\\MATLAB\\bin\\matlab.exe"));
         assert!(!is_web_url("\\\\fileserver\\share\\app.exe"));
+    }
+}
+
+#[cfg(test)]
+mod open_class_web_grouped_tests {
+    use super::open_class_web_grouped;
+
+    /// Refused before ever touching the registry or spawning anything, so this
+    /// is safe to run without a real browser installed.
+    #[test]
+    fn refuses_when_nothing_is_a_web_url() {
+        let urls = vec!["C:\\Program Files\\MATLAB\\bin\\matlab.exe".to_string()];
+        assert!(open_class_web_grouped(&urls).is_err());
+        let empty: Vec<String> = vec![];
+        assert!(open_class_web_grouped(&empty).is_err());
     }
 }
 
