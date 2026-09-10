@@ -5466,10 +5466,10 @@ async function cloudWatch() {
  *
  *  Called exactly once per run, from the SSE `done` handler -- never from a
  *  progress frame. */
-async function cloudPushRun(runId) {
-  if (!runId || !online()) return;
-  if (!(await cloudInit())) return;
-  setSync("saving");
+async function cloudPushRun(runId, quiet) {
+  if (!runId || !online()) return false;
+  if (!(await cloudInit())) return false;
+  if (!quiet) setSync("saving");
   try {
     // Read the authoritative record back from the engine rather than
     // assembling it from events: the database has every member's full answer
@@ -5501,13 +5501,15 @@ async function cloudPushRun(runId) {
       attempted_count: (data.answers || []).length,
     };
     await cloudUpsertIndex(row);
-    setSync("saved");
+    if (!quiet) setSync("saved");
+    return true;
   } catch (e) {
     // Sync is a convenience layered on a working local run. It must never
     // turn a successful deliberation into an error the user sees -- so this
     // reports in the status line and nowhere else.
-    setSync("error");
+    if (!quiet) setSync("error");
     console.warn("[magi] cloudPushRun:", e);
+    return false;
   }
 }
 
@@ -5531,6 +5533,51 @@ function cloudUpsertIndex(row) {
       res();
     }, 1500);
   });
+}
+
+/** Push every past deliberation the engine has that the cloud does not.
+ *
+ *  cloudPushRun only fires as a run FINISHES, so everything deliberated before
+ *  sync existed lives solely in the PC's SQLite. This walks that gap once.
+ *
+ *  Cost is bounded and paid once: one body write per missing run, and ONE
+ *  index write for the whole batch -- cloudUpsertIndex is debounced, so twenty
+ *  runs still settle into a single index document. Nothing is re-uploaded on
+ *  later loads, because the index IS the record of what is already there.
+ *
+ *  Deliberately serial. Twenty parallel pushes would mean twenty simultaneous
+ *  reads from the local engine and twenty Firestore writes in flight, which is
+ *  the exact burst pattern this sync design exists to avoid -- and the engine
+ *  is a single local process, so nothing is gained by it.
+ */
+async function cloudBackfill() {
+  if (!online()) return { skipped: "engine offline" };
+  if (!(await cloudInit())) return { skipped: "cloud unavailable" };
+
+  // Let the index listener deliver at least once first, or every run would
+  // look missing and be uploaded again on each reload.
+  if (!CLOUD.unsub) await cloudWatch();
+  await new Promise((r) => setTimeout(r, 1200));
+
+  let local = [];
+  try {
+    local = await (await fetch(`${link.api}/api/runs?limit=500`, authed())).json();
+  } catch { return { skipped: "could not list local runs" }; }
+
+  const have = new Set(CLOUD.index.map((r) => r.id));
+  // Only runs that produced something: a failed one has no verdict to read on
+  // another device, so syncing it would just be noise in History.
+  const missing = local.filter((r) => !have.has(r.id) && (r.responded_count || 0) > 0);
+  if (!missing.length) return { pushed: 0, alreadyThere: have.size };
+
+  setSync("saving");
+  let pushed = 0;
+  for (const r of missing) {
+    // quiet: the indicator says "Syncing…" once for the batch, not once per run.
+    if (await cloudPushRun(r.id, true)) pushed++;
+  }
+  setSync(pushed ? "saved" : "error");
+  return { pushed, alreadyThere: have.size };
 }
 
 /** Open a run that exists only in the cloud -- one read, on demand. */
@@ -6027,8 +6074,10 @@ async function boot() {
   loadHistory();
   renderStudioNav();
   loadBsSessions();
-  cloudWatch();
   paintIcons();
+  // Watch first, then close the gap. Backfill is a no-op on every load after
+  // the first, because the index already lists everything.
+  cloudWatch().then(() => cloudBackfill());
 }
 
 const lockBtnClick = () => {
