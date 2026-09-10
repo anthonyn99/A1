@@ -1491,7 +1491,10 @@ table.doctor code { color: var(--txd); font-size: 11px; }
 }
 .lock-btn:hover { border-color: var(--ac); color: var(--ac); }
 .lock-btn.unset { color: var(--txm); opacity: .6; }
-.nav-collapsed .lock-btn { display: none; }
+.nav-collapsed .sidebar .lock-btn { display: none; }
+/* The top bar's copy exists only on mobile, where .mtop itself is hidden
+   above the breakpoint -- so no separate rule is needed to hide it. */
+.mtop .lock-btn { margin-left: 4px; }
 @media (max-width: 760px) { .sidebar .lock-btn { display: flex; } }
 
 /* Pull-to-refresh indicator. Parked above the top of the scroller and pulled
@@ -1639,10 +1642,20 @@ table.doctor code { color: var(--txd); font-size: 11px; }
     letter-spacing: 2.4px; color: var(--acl);
   }
   .mtop-where {
+    /* Allowed to SHRINK, and capped: at 400px the engine status was taking
+       enough width to push the lock control off the right edge entirely --
+       a lock you cannot see is a lock you will not use. flex 0 1 auto plus
+       min-width 0 is what lets the ellipsis do its job instead of the span
+       refusing to give ground. */
     margin-left: auto; display: flex; align-items: center; gap: 6px;
+    flex: 0 1 auto; min-width: 0; max-width: 38%;
     font-size: 10px; color: var(--txm); letter-spacing: .3px;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 44%;
+    overflow: hidden; white-space: nowrap;
   }
+  .mtop-where > span:last-child {
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  .mtop-title { flex-shrink: 0; }
 
   /* ── the drawer ───────────────────────────────────────────────────────── */
   .sidebar {
@@ -1896,6 +1909,7 @@ table.doctor code { color: var(--txd); font-size: 11px; }
       <button type="button" class="mtop-burger" id="navBurger" aria-label="Menu" aria-expanded="false">☰</button>
       <span class="mtop-title">MAGI</span>
       <span class="mtop-where"><span class="link-dot" id="mtopDot"></span><span id="mtopTxt">…</span></span>
+      <button type="button" class="lock-btn" id="lockBtnM" title="Lock MAGI">🔒</button>
     </div>
 
     <div class="offline-note" id="offlineNote" hidden></div>
@@ -5649,11 +5663,16 @@ function showLock(mode) {
  *  not. Clicking it locks immediately if unlocked, or opens setup if there is
  *  no password yet -- one control, and its icon says which. */
 function syncLockBtn() {
-  const b = $("lockBtn");
-  if (!b) return;
-  b.textContent = LOCK.hasLock ? "🔒" : "🔓";
-  b.classList.toggle("unset", !LOCK.hasLock);
-  b.title = LOCK.hasLock ? "Lock MAGI / manage password" : "No password set — click to add one";
+  // Two controls, one state: the sidebar's and the mobile top bar's. On a
+  // phone the sidebar is off-canvas, so a lock only in the drawer is a lock
+  // you cannot reach without first opening the thing it protects.
+  for (const id of ["lockBtn", "lockBtnM"]) {
+    const b = $(id);
+    if (!b) continue;
+    b.textContent = LOCK.hasLock ? "🔒" : "🔓";
+    b.classList.toggle("unset", !LOCK.hasLock);
+    b.title = LOCK.hasLock ? "Lock MAGI / manage password" : "No password set — click to add one";
+  }
 }
 
 async function lockBoot() {
@@ -5696,11 +5715,13 @@ async function boot() {
   cloudWatch();
 }
 
-$("lockBtn").onclick = () => {
+const lockBtnClick = () => {
   if (!LOCK.hasLock) return showLock("setup");
   if (LOCK.session) return showLock("manage");
   showLock("unlock");
 };
+$("lockBtn").onclick = lockBtnClick;
+$("lockBtnM").onclick = lockBtnClick;
 
 applyNav();
 applyAudioNav();
