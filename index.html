@@ -35861,12 +35861,14 @@ function _blockTextSize(b) {
 // size onto the resulting block explicitly, so it survives even if the inline span is lost.
 function toggleListPreserve(ctx, cmd) {
   restoreSel(ctx);
-  // One item per LINE: split <br> lines into real blocks and strip any checklist chrome
-  // (which would otherwise leave stray checkboxes inside the new bullets), then re-anchor
-  // the selection across the result before execCommand sees it -- without that, a
-  // highlighted block of text collapses into a single bullet/number.
-  var before = selLineBlocks(ctx, true);
-  if (_unwrapInPlace(ctx, before, _isClItem)) _selectBlocks(before);
+  // execCommand already gives one item per line for a multi-line selection, <br> lines
+  // included -- but not for CHECKLIST lines: toggling those leaves the stray checkbox and
+  // text span sitting inside the new bullet. Unwrap them to plain blocks first.
+  var before = selBlocks(ctx);
+  if (_unwrapInPlace(ctx, before, _isClItem)) {
+    _selectBlocks(before);
+    before = selBlocks(ctx);
+  }
   var sizes = before.map(_blockTextSize);
   document.execCommand(cmd, false, null);
   var after = selBlocks(ctx);
