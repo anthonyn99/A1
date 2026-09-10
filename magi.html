@@ -1543,6 +1543,7 @@ table.doctor code { color: var(--txd); font-size: 11px; }
 .syncline.saving { color: var(--txm); }
 .syncline.saved  { color: var(--grn); }
 .syncline.error  { color: var(--red); }
+.syncline.off    { color: var(--txm); }
 
 /* ══ SIDEBAR GROUPS ════════════════════════════════════════════════════════
    Each section is a card. Before this the sections were separated only by a
@@ -5439,9 +5440,14 @@ function setSync(state) {
   const n = $("syncLine");
   if (!n) return;
   clearTimeout(setSync._t);
-  const text = { saving: "Syncing…", saved: "Synced", error: "Sync failed" }[state];
+  const text = { saving: "Syncing…", saved: "Synced", error: "Sync failed",
+                 off: "Sync off" }[state];
   n.className = "syncline" + (text ? " on " + state : "");
   n.textContent = text || "";
+  n.title = state === "off"
+    ? "Firebase App Check only issues tokens on anthonyn99.github.io, so a page "
+      + "served from 127.0.0.1 cannot sign in. Open the hosted URL to sync."
+    : "";
   // A failure stays put: it needs acting on. A success does not.
   if (state === "saved") setSync._t = setTimeout(() => setSync("idle"), 2500);
 }
@@ -5488,6 +5494,7 @@ const CLOUD = {
   unsub: null,
   pending: null,    // debounce handle for index writes
   enabled: (() => { try { return localStorage.getItem("magi.cloud") !== "0"; } catch { return true; } })(),
+  blocked: false,   // auth could not complete -- see syncBlockedNote()
 };
 
 // Keep the index doc small and bounded. A row is ~120 bytes, so 300 rows is
@@ -5544,8 +5551,10 @@ function cloudInit() {
         // never resolves would leave the list spinning with no explanation.
         setTimeout(() => settle(false), 8000);
       });
+      if (!signedIn) CLOUD.blocked = true;
       return signedIn;
     } catch (e) {
+      CLOUD.blocked = true;
       console.warn("[magi] cloud init failed:", e);
       return false;
     }
@@ -5661,6 +5670,46 @@ function cloudUpsertIndex(row) {
       res();
     }, 1500);
   });
+}
+
+/** Explain a sync that cannot start, rather than leaving it silently off.
+ *
+ *  Firebase App Check is ENFORCED on this project -- anonymous sign-in itself
+ *  returns 401 "App Check token is invalid" without one -- and App Check only
+ *  issues tokens on a registered domain. anthonyn99.github.io is registered;
+ *  127.0.0.1 is not. So the console served BY the engine can never sign in,
+ *  and every run made there stays on this PC.
+ *
+ *  That is invisible otherwise: runs complete, History fills, and nothing ever
+ *  reaches another device. This says so, and offers the one-click fix -- the
+ *  hosted page talks to this same engine.
+ */
+function syncBlockedNote() {
+  if (!CLOUD.blocked || !CLOUD.enabled) return;
+  setSync("off");
+  if (!sameOrigin) return;               // hosted already; a failure there is
+                                         // something else and the line says so
+  if ($("syncNote")) return;
+  try { if (localStorage.getItem("magi.syncnote") === "0") return; } catch {}
+
+  const n = el("div", "offline-note");
+  n.id = "syncNote";
+  const p = el("div");
+  p.innerHTML =
+    "<b>Deliberations are staying on this PC.</b> Sync needs Firebase App Check, " +
+    "which only issues tokens on <code>anthonyn99.github.io</code> — a page served " +
+    "from <code>127.0.0.1</code> cannot sign in. Open the hosted console instead: " +
+    "it drives this same engine, and everything syncs from there.";
+  const open = el("button", null, "Open the hosted console");
+  open.onclick = () => window.open("https://anthonyn99.github.io/A1/magi.html", "_blank", "noopener");
+  const hide = el("button", null, "Don't show again");
+  hide.style.marginLeft = "8px";
+  hide.onclick = () => {
+    try { localStorage.setItem("magi.syncnote", "0"); } catch {}
+    n.remove();
+  };
+  n.append(p, open, hide);
+  $("offlineNote").after(n);
 }
 
 /** Push every past deliberation the engine has that the cloud does not.
@@ -6204,7 +6253,7 @@ async function boot() {
   paintIcons();
   // Watch first, then close the gap. Backfill is a no-op on every load after
   // the first, because the index already lists everything.
-  cloudWatch().then(() => cloudBackfill());
+  cloudWatch().then(() => cloudBackfill()).then(syncBlockedNote);
 }
 
 const lockBtnClick = () => {
