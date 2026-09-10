@@ -4542,23 +4542,30 @@ function sosInitFirebase() {
     window._fbLoadStudyOs().then(function(remote) {
       if (!remote) return;
       var changed = false;
-      if (Array.isArray(remote.classes) && remote.classes.length) {
+      // Apply every array field the server sent, INCLUDING an empty one: an
+      // empty array is legitimate server state (the last item was deleted on
+      // another device), not "nothing to apply". Skipping empty arrays here
+      // left this device's stale non-empty localStorage copy in place, and the
+      // very next local edit's persist() would push it straight back to
+      // Firestore, resurrecting the deleted items. The fb-sos-remote handler
+      // below already gets this right — this initial load must match it.
+      if (Array.isArray(remote.classes)) {
         classes = remote.classes;
         classes.forEach(c => { if (c && c.color && window.sosPastel) c.color = window.sosPastel(c.color); });
         localStorage.setItem('studyos_classes', JSON.stringify(classes));
         changed = true;
       }
-      if (Array.isArray(remote.events) && remote.events.length) {
+      if (Array.isArray(remote.events)) {
         events = remote.events;
         localStorage.setItem('studyos_events', JSON.stringify(events));
         changed = true;
       }
-      if (Array.isArray(remote.tasks) && remote.tasks.length) {
+      if (Array.isArray(remote.tasks)) {
         tasks = remote.tasks;
         localStorage.setItem('studyos_tasks', JSON.stringify(tasks));
         changed = true;
       }
-      if (Array.isArray(remote.notes) && remote.notes.length) {
+      if (Array.isArray(remote.notes)) {
         notesList = remote.notes;
         localStorage.setItem('studyos_notes_v2', JSON.stringify(notesList));
         changed = true;
