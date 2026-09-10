@@ -69,3 +69,47 @@ def test_lan_and_missing_host_are_gated():
     assert _remote(host="192.168.0.27:8000")
     assert _remote(host="magi.example.com")
     assert _remote()
+
+
+# ── /api/token ──────────────────────────────────────────────────────────────
+# The one endpoint that hands out the secret itself, so it gets its own pins.
+# It exists because magi-link keys its records by the token's HASH: a phone
+# without the secret cannot even ask where the engine is, and the alternative
+# was typing a long random string on a phone keyboard. The console at the desk
+# learns it from the engine and publishes it to Firestore instead.
+#
+# Called directly rather than through TestClient: starlette's client needs
+# httpx, which is not a runtime dependency and is not worth adding to install
+# on every machine for two assertions.
+
+def _token_call(monkeypatch, token, **headers):
+    import asyncio
+
+    from magi.app import link_token
+
+    monkeypatch.setenv("MAGI_API_TOKEN", token)
+    return asyncio.run(link_token(_Req(headers)))
+
+
+def test_token_endpoint_serves_a_loopback_caller(monkeypatch):
+    """Anything that can reach here can already drive four paid accounts."""
+    assert _token_call(monkeypatch, "s3cret-value",
+                       host="127.0.0.1:8000") == {"token": "s3cret-value"}
+
+
+def test_token_endpoint_is_invisible_over_the_tunnel(monkeypatch):
+    """Never serve the secret over the very tunnel it protects.
+
+    404 rather than 401/403 on purpose: an endpoint that answers
+    "unauthorised" advertises that it is worth attacking.
+    """
+    import pytest
+    from fastapi import HTTPException
+
+    for headers in ({"host": "abc-def.trycloudflare.com"},
+                    {"host": "127.0.0.1:8000", "cf-ray": "8a1b2c3d"},
+                    {}):
+        with pytest.raises(HTTPException) as e:
+            _token_call(monkeypatch, "s3cret-value", **headers)
+        assert e.value.status_code == 404, headers
+        assert "s3cret" not in str(e.value.detail)

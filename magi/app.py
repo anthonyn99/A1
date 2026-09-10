@@ -206,6 +206,37 @@ async def health():
     }
 
 
+@app.get("/api/token")
+async def link_token(request: Request):
+    """Hand the API token to a caller that is already on this machine.
+
+    This closes the last manual step in MAGI. The token gates the tunnel, and
+    magi-link keys its records by the token's HASH -- so a phone without the
+    secret cannot even ask where the engine is. It showed "Engine offline -- no
+    API token set" while everything else about it worked, and the cure was
+    typing a long random string on a phone keyboard.
+
+    The console at the desk can now learn the token from the engine itself and
+    publish it to Firestore, where the phone reads it. Nobody types anything.
+
+    THIS ADDS NO EXPOSURE, and that is the only reason it exists:
+
+      · It refuses anything that arrived through cloudflared, by the same
+        two-signal test that gates every other endpoint -- so the token is
+        never served over the very tunnel it protects.
+      · What remains is loopback, from a browser, on an origin in the CORS
+        allowlist. Anything that can reach here can already POST /api/runs and
+        drive four logged-in paid accounts, which is strictly worse than
+        reading a string that authorises exactly that.
+
+    Returns 404, not 403, over the tunnel: an endpoint that answers
+    "unauthorised" advertises that it is worth attacking.
+    """
+    if _arrived_over_the_tunnel(request):
+        raise HTTPException(404, "not found")
+    return {"token": _required_token()}
+
+
 @app.get("/api/providers")
 async def list_providers():
     return [

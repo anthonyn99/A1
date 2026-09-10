@@ -2399,7 +2399,23 @@ async function probe(base, ms = 2500) {
   }
 }
 
-/** Ask magi-link where the PC published itself. */
+/** Ask an engine we can already reach for the token that gates its tunnel.
+ *
+ *  Only ever called when we are ALREADY connected without a token, which means
+ *  loopback -- the engine refuses this over the tunnel. So this asks for
+ *  nothing we do not already have; it just turns "I can reach the engine" into
+ *  "I can reach the engine from my phone too", with nobody typing a long
+ *  random string into a phone keyboard. */
+async function fetchEngineToken(base) {
+  try {
+    const r = await fetch(`${base}/api/token`, authed());
+    if (!r.ok) return "";
+    const d = await r.json();
+    return d && d.token ? String(d.token) : "";
+  } catch { return ""; }
+}
+
+/** Ask magi-link where the engine published itself. */
 async function askLink() {
   try {
     const r = await fetch(LINK_API, authed());
@@ -2462,7 +2478,15 @@ async function connect() {
   link.api = LOCAL_API;
   const local = await probe(LOCAL_API);
   if (local === "ok") {
-    if (link.token) cloudPublishToken(link.token, true);
+    // The engine's own copy beats whatever is in this browser: a token typed
+    // in months ago and rotated since is exactly the stale value that would
+    // otherwise be handed to the phone as gospel.
+    const fromEngine = await fetchEngineToken(LOCAL_API);
+    if (fromEngine && fromEngine !== link.token) {
+      link.token = fromEngine;
+      saveToken(fromEngine);
+    }
+    if (link.token) cloudPublishToken(link.token, !fromEngine);
     return setLink("local", "this device · 127.0.0.1");
   }
 
@@ -2561,7 +2585,7 @@ function renderOfflineNote() {
   if (online() || link.where === "seeking") return show(n, false);
   n.innerHTML = "";
   const why = {
-    "no API token set": "The engine is not answering on this device, and no API token has reached this browser yet — so there is nothing to look up a tunnel with. Set it once here and your other devices pick it up.",
+    "no API token set": "The engine is not answering on this device, and no API token has reached this browser yet — so there is nothing to look up a tunnel with. Open MAGI once on the machine running the engine and it will hand the token over automatically; past deliberations are readable here either way.",
     "token rejected": "The engine is there, but it did not accept this token.",
     "engine has not published": "The engine device has not published a tunnel. It is probably asleep, off, or was started with <code>magi</code> rather than <code>magi cloud</code>.",
     "tunnel is dead": "The published tunnel no longer answers — cloudflared has stopped since it was published.",
@@ -6346,9 +6370,10 @@ async function boot() {
   renderStudioNav();
   loadBsSessions();
   paintIcons();
-  // Watch first, then close the gap. Backfill is a no-op on every load after
-  // the first, because the index already lists everything.
-  cloudWatch().then(() => cloudBackfill()).then(syncBlockedNote);
+  // Backfill needs the engine -- it reads the local SQLite to find what the
+  // cloud is missing -- so unlike the listener it belongs here. It is a no-op
+  // on every load after the first, because the index already lists everything.
+  cloudBackfill().then(syncBlockedNote);
 }
 
 const lockBtnClick = () => {
@@ -6370,6 +6395,17 @@ setView("council");
 // carry on behind it so an unlock lands on a console that is already ready.
 lockBoot();
 connect().then(boot);
+
+// The cloud listener starts INDEPENDENTLY of the engine, and that is the whole
+// point of it. It used to live inside boot(), which returns immediately when
+// the engine is unreachable -- so a phone away from the desk, or one that had
+// not been given the API token yet, showed an empty History and no explanation
+// while Firestore sat there holding every deliberation. Reading past verdicts
+// needs Firestore and nothing else; only MAKING one needs the engine.
+//
+// It also carries the API token, so a phone that has never been told the
+// secret can be handed it here and reconnect on its own.
+cloudWatch();
 /* ══ PULL TO REFRESH ═══════════════════════════════════════════════════════
    The browser's own pull-to-refresh never fires here: `body { overflow:
    hidden }` and a scrolling `.page` mean the document itself is never at
