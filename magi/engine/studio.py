@@ -349,7 +349,11 @@ def parse_result(kind: StudioKind, raw_text: str) -> dict | None:
 
 # ── provider selection ──────────────────────────────────────────────────────
 
-def pick_generator_id(settings: Settings, run_chairman_provider: str | None) -> str:
+def pick_generator_id(
+    settings: Settings,
+    run_chairman_provider: str | None,
+    allowed: list[str] | None = None,
+) -> str:
     """Which provider generates a Studio artifact.
 
     Simpler than orchestrator._pick_chairman: that method filters against a
@@ -358,14 +362,26 @@ def pick_generator_id(settings: Settings, run_chairman_provider: str | None) -> 
     "answered ok just now" set to check. Preference order: the run's own
     chairman (it worked moments ago), else the configured default chairman,
     else whatever is enabled first.
+
+    `allowed` is the units the person currently has SELECTED, and it filters
+    every one of those choices. Without it, a card generated after unticking a
+    member still went to that member -- the run's stored chairman was reused
+    unconditionally, so unticking Claude and generating a Report produced
+    "Ready - claude". Unticking a unit has to mean it is not driven at all,
+    not merely that it is skipped on the next council run: it is someone's
+    paid account and their explicit instruction.
     """
-    if run_chairman_provider and run_chairman_provider in settings.sites:
+    pool = [pid for pid in (allowed or settings.enabled_site_ids()) if pid in settings.sites]
+    if not pool:
+        # Every selected unit is unknown or disabled -- fall back rather than
+        # failing, since the alternative is a Studio that silently cannot run.
+        pool = settings.enabled_site_ids()
+    if run_chairman_provider in pool:
         return run_chairman_provider
-    if settings.chairman.provider_id in settings.sites:
+    if settings.chairman.provider_id in pool:
         return settings.chairman.provider_id
-    enabled = settings.enabled_site_ids()
-    if enabled:
-        return enabled[0]
+    if pool:
+        return pool[0]
     raise ValueError("No provider available to generate a Studio artifact.")
 
 

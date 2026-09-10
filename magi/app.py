@@ -429,7 +429,7 @@ def _studio_payload(row: dict) -> dict:
 
 
 @app.post("/api/runs/{run_id}/studio/{kind}")
-async def create_studio_artifact(run_id: str, kind: str):
+async def create_studio_artifact(run_id: str, kind: str, providers: str = Form("")):
     try:
         studio_kind = studio_engine.StudioKind(kind)
     except ValueError:
@@ -454,8 +454,11 @@ async def create_studio_artifact(run_id: str, kind: str):
     except Exception:
         pass
 
+    # The units the person has selected RIGHT NOW, not the ones that ran the
+    # original council. Unticking a member has to stop it being driven at all.
+    allowed = [p for p in providers.split(",") if p] or None
     provider_id = studio_engine.pick_generator_id(
-        settings, run["run"].get("chairman_provider")
+        settings, run["run"].get("chairman_provider"), allowed
     )
     provider = build_provider(settings, provider_id)
 
@@ -545,6 +548,24 @@ async def stream_studio_artifact(run_id: str, job_id: str):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@app.post("/api/runs/{run_id}/studio/{job_id}/cancel")
+async def cancel_studio_artifact(run_id: str, job_id: str):
+    """Stop a card that is still generating.
+
+    A Studio card drives a real browser against a paid account for the better
+    part of a minute, exactly like a council member -- so it needs the same way
+    out that a run and a brainstorm round already have. The job's cancel Event
+    was already created and already passed into studio_engine.generate; there
+    was simply nothing that could set it, so "Generating…" was a state with no
+    exit but waiting.
+    """
+    state = _studio_jobs.get(job_id)
+    if state is None:
+        raise HTTPException(404, "unknown studio job")
+    state["cancel"].set()
+    return {"ok": True}
 
 
 @app.get("/api/runs/{run_id}/studio")
