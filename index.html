@@ -34772,18 +34772,55 @@ function selLineBlocks(ctx, reselect) {
   return out;
 }
 
-// Lift any selected <li> out of a plain bullet / numbered list, so the lines we are about
-// to re-wrap are ordinary blocks. (Checklist items are unwrapped by hand, see _unChecklist.)
-function _unlistPlainItems(ctx) {
-  for (var i = 0; i < 4; i++) {
-    var li = selBlocks(ctx).filter(function(b) {
-      if (b.tagName !== 'LI' || _isClItem(b)) return false;
-      var p = b.parentNode;
-      return !!p && (p.tagName === 'UL' || p.tagName === 'OL') && !p.classList.contains('docx-checklist');
-    })[0];
-    if (!li) return;
-    document.execCommand(li.parentNode.tagName === 'OL' ? 'insertOrderedList' : 'insertUnorderedList', false, null);
+// True for a bullet / numbered list item (a checklist item is not one).
+function _isPlainLi(b) {
+  if (!b || b.tagName !== 'LI' || _isClItem(b)) return false;
+  var par = b.parentNode;
+  return !!par && (par.tagName === 'UL' || par.tagName === 'OL');
+}
+
+// Lift list items out of their list and back into plain <p> blocks, keeping their text.
+// Items that were NOT passed in stay listed in a list of their own, so a partial selection
+// splits the list rather than flattening it. Returns the new blocks, aligned with `items`.
+// Done by hand rather than through execCommand so the caller keeps live references to the
+// resulting blocks — re-reading the selection after the DOM moved is what used to lose them.
+function _unwrapItems(ctx, items, quiet) {
+  var made = new Array(items.length), groups = [];
+  items.forEach(function(li) {
+    if (!li.parentNode) return;
+    var g = groups.filter(function(x) { return x.list === li.parentNode; })[0];
+    if (!g) { g = { list: li.parentNode, items: [] }; groups.push(g); }
+    g.items.push(li);
+  });
+  groups.forEach(function(g) {
+    var frag = document.createDocumentFragment(), chunk = null;
+    Array.prototype.slice.call(g.list.children).forEach(function(li) {
+      if (g.items.indexOf(li) >= 0) {
+        chunk = null;
+        var b = document.createElement('p');
+        b.innerHTML = _blockLineHTML(li) || '<br>';
+        var sz = li.style.fontSize || _blockTextSize(li);
+        if (sz) b.style.fontSize = sz;
+        if (li.style.textAlign) b.style.textAlign = li.style.textAlign;
+        frag.appendChild(b);
+        made[items.indexOf(li)] = b;
+      } else {
+        if (!chunk) {
+          chunk = document.createElement(g.list.tagName);
+          if (g.list.className) chunk.className = g.list.className;
+          frag.appendChild(chunk);
+        }
+        chunk.appendChild(li);
+      }
+    });
+    if (g.list.parentNode) g.list.parentNode.replaceChild(frag, g.list);
+  });
+  if (!quiet) {
+    _selectItems(made.filter(Boolean));
+    saveSel(ctx);
+    fireInput(ctx.edEl);
   }
+  return made;
 }
 
 // Adjacent single-item checklists (one per converted line) become one list.
@@ -34798,44 +34835,15 @@ function _mergeChecklists(ed) {
   });
 }
 
-// Checklist items back to plain paragraphs, keeping their text. Items that were not
-// selected stay in a checklist of their own, so a partial selection splits the list.
-function _unChecklist(ctx, items) {
-  var groups = [], made = [];
-  items.forEach(function(li) {
-    if (!li.parentNode) return;
-    var g = groups.filter(function(x) { return x.ul === li.parentNode; })[0];
-    if (!g) { g = { ul: li.parentNode, items: [] }; groups.push(g); }
-    g.items.push(li);
-  });
-  groups.forEach(function(g) {
-    var frag = document.createDocumentFragment(), chunk = null;
-    Array.prototype.slice.call(g.ul.children).forEach(function(li) {
-      if (g.items.indexOf(li) >= 0) {
-        chunk = null;
-        var p = document.createElement('p');
-        p.innerHTML = _blockLineHTML(li) || '<br>';
-        if (li.style.fontSize) p.style.fontSize = li.style.fontSize;
-        if (li.style.textAlign) p.style.textAlign = li.style.textAlign;
-        frag.appendChild(p); made.push(p);
-      } else {
-        if (!chunk) { chunk = document.createElement('ul'); chunk.className = 'docx-checklist'; frag.appendChild(chunk); }
-        chunk.appendChild(li);
-      }
-    });
-    if (g.ul.parentNode) g.ul.parentNode.replaceChild(frag, g.ul);
-  });
-  _selectItems(made);
-  saveSel(ctx);
-  fireInput(ctx.edEl);
-  return made;
-}
-
-// Selected checklist items become plain paragraphs first -- otherwise execCommand's list
-// toggle leaves stray checkboxes sitting inside the new bullets/numbers.
-function _stripChecklistInSel(ctx) {
-  var items = selBlocks(ctx).filter(_isClItem);
-  if (items.length) _unChecklist(ctx, items);
+// Replace every list item in `blocks` that matches `pick` with the plain block it unwraps to,
+// so the caller's line list stays valid across the un-listing.
+function _unwrapInPlace(ctx, blocks, pick) {
+  var items = [], at = [];
+  blocks.forEach(function(b, i) { if (pick(b)) { items.push(b); at.push(i); } });
+  if (!items.length) return false;
+  var made = _unwrapItems(ctx, items, true);
+  at.forEach(function(bi, k) { if (made[k]) blocks[bi] = made[k]; });
+  return true;
 }
 
 // Checklist button / Insert > Checklist. Converts EVERY selected line into its own item
@@ -34843,14 +34851,13 @@ function _stripChecklistInSel(ctx) {
 function insertChecklist(ctx) {
   restoreSel(ctx);
   var ed = ctx.edEl, sel = window.getSelection();
-  var blocks = (sel && sel.rangeCount && ed.contains(sel.anchorNode)) ? selLineBlocks(ctx, false) : [];
+  var blocks = (sel && sel.rangeCount && ed.contains(sel.anchorNode)) ? selLineBlocks(ctx, true) : [];
   if (!blocks.length) {   // nothing to convert (empty doc / lost selection) -- drop a fresh item in
     insertHTML(ctx, '<ul class="docx-checklist">' + _clLi('').outerHTML + '</ul>');
     return;
   }
-  if (blocks.every(_isClItem)) { _unChecklist(ctx, blocks); return; }
-  _unlistPlainItems(ctx);
-  blocks = selLineBlocks(ctx, false);
+  if (blocks.every(_isClItem)) { _unwrapItems(ctx, blocks); return; }   // toggle the checklist off
+  _unwrapInPlace(ctx, blocks, _isPlainLi);                              // bullets/numbers -> plain lines
   var made = [];
   blocks.forEach(function(b) {
     if (!b.parentNode || !ed.contains(b)) return;
@@ -35854,11 +35861,12 @@ function _blockTextSize(b) {
 // size onto the resulting block explicitly, so it survives even if the inline span is lost.
 function toggleListPreserve(ctx, cmd) {
   restoreSel(ctx);
-  // One item per LINE: drop any checklist chrome, then split <br> lines into real blocks
-  // (and re-anchor the selection across them) before execCommand sees the selection --
-  // otherwise a highlighted block of text collapses into a single bullet/number.
-  _stripChecklistInSel(ctx);
+  // One item per LINE: split <br> lines into real blocks and strip any checklist chrome
+  // (which would otherwise leave stray checkboxes inside the new bullets), then re-anchor
+  // the selection across the result before execCommand sees it -- without that, a
+  // highlighted block of text collapses into a single bullet/number.
   var before = selLineBlocks(ctx, true);
+  if (_unwrapInPlace(ctx, before, _isClItem)) _selectBlocks(before);
   var sizes = before.map(_blockTextSize);
   document.execCommand(cmd, false, null);
   var after = selBlocks(ctx);
