@@ -30,7 +30,7 @@ sites:
   chatgpt:
     display_name: ChatGPT
     url: https://chatgpt.com/
-    accent: "#6FBFA8"
+    accent: "#a4b986"
     # VERIFIED: works in TRUE HEADLESS once the user agent is overridden.
     # Headless Chrome advertises "HeadlessChrome" in its UA, and that token
     # alone is what Cloudflare blocks on -- strip it and the challenge clears.
@@ -128,7 +128,7 @@ sites:
   claude:
     display_name: Claude
     url: https://claude.ai/new
-    accent: "#E2C285"
+    accent: "#e0b874"
     # VERIFIED 2026-08-12 against a logged-in session.
     # Also verified in TRUE HEADLESS with the UA override (see chatgpt above).
     headless_ok: true
@@ -203,7 +203,7 @@ sites:
   gemini:
     display_name: Gemini
     url: https://gemini.google.com/app
-    accent: "#8FB8E8"
+    accent: "#8fa6d8"
     # VERIFIED: answers correctly in true headless -- no window, no taskbar icon.
     # Google's bot checks did not trigger here (unlike the Cloudflare-fronted
     # sites). If Gemini ever starts challenging headless, set this to false.
@@ -260,7 +260,7 @@ sites:
   deepseek:
     display_name: DeepSeek
     url: https://chat.deepseek.com/
-    accent: "#BFA6E0"
+    accent: "#c0aeea"
     # VERIFIED: answers correctly in true headless -- no window, no taskbar icon.
     headless_ok: true
     # NOTE: DeepSeek uses a native <textarea> driven by React. Typing must go

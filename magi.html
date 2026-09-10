@@ -7,15 +7,15 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>MAGI</title>
-<meta name="theme-color" content="#1B1C1E">
+<meta name="theme-color" content="#1a1a1d">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%231B1C1E%27%2F%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%238D769A%27%20stroke-width%3D%275%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M30%2066V34l18%2020%2018-20v32%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
-<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%231B1C1E%27%2F%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%238D769A%27%20stroke-width%3D%275%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M30%2066V34l18%2020%2018-20v32%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%231a1a1d%27%2F%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%23c0aeea%27%20stroke-width%3D%275%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M30%2066V34l18%2020%2018-20v32%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%231a1a1d%27%2F%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%23c0aeea%27%20stroke-width%3D%275%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M30%2066V34l18%2020%2018-20v32%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..900&family=Manrope:wght@400..800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 /* ══════════════════════════════════════════════════════════════════════════
    MAGI — multi-model council. Evangelion MAGI console, in the TaskHub palette.
@@ -35,15 +35,35 @@
    while the council deliberates.
    ══════════════════════════════════════════════════════════════════════════ */
 :root{
-  --bg:#1B1C1E; --s1:#26272A; --s2:#2E2F33; --s3:#3A3B40;
-  --bd:#3D3E43; --bdl:#4A4B51;
-  --tx:#ECECEE; --txd:#AFB0B5; --txm:#76777C;
-  --ac:#8D769A; --acl:#A892B0; --acd:#6E5C7A;
-  --grn:#5DAF6D; --red:#f85149; --amber:#E2C285; --gold:#e0b874;
+  /* Palette lifted from riftiq.html, which is the suite's current reference:
+     the same gray/purple family, but the surfaces are warmer and every
+     semantic colour is a PASTEL rather than a saturated signal colour. MAGI's
+     old red (#f85149) and green (#5DAF6D) were the loudest things on screen
+     and pulled the eye away from the answers, which are the point. */
+  --bg:#1a1a1d;          /* suite ground   */
+  --s1:#232327;          /* cards          */
+  --s2:#2c2c31;          /* raised         */
+  --s3:#34343a;          /* highest        */
+  --bd:rgba(255,255,255,0.06);
+  --bdl:#45454c;
+  --tx:#f4f3f0; --txd:#adadb2; --txm:#8d8d94;
+  --ac:#c0aeea;          /* identity accent */
+  --acl:#dbd0f5; --acd:#9a86c9;
+  --grn:#a4b986;         /* suite "good"    */
+  --red:#d68a7c;         /* suite "bad"     */
+  --amber:#e0b874; --gold:#e0b874; --blue:#8fa6d8;
   --shadow:rgba(0,0,0,.5);
-  --font:'IBM Plex Mono','DM Mono',ui-monospace,Consolas,monospace;
+
+  /* RiftIQ's three faces, and the reason there are three: Manrope carries
+     headings, Inter every piece of running UI, IBM Plex Mono every NUMBER.
+     MAGI was monospace throughout, which is why long answers read like a log
+     file -- prose in a fixed pitch is slower to scan and the console character
+     it bought is better served by keeping mono where it means something:
+     latencies, char counts, selectors, data tables. */
+  --font:'Inter',system-ui,-apple-system,sans-serif;
   --font-display:'Manrope',system-ui,-apple-system,sans-serif;
-  --r-sm:4px; --r-btn:5px; --r-card:6px;
+  --font-mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --r-sm:4px; --r-btn:6px; --r-card:8px;
 }
 
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
@@ -61,13 +81,7 @@ input,select,textarea,button{font-family:var(--font);}
 button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--ac);outline-offset:1px;}
 [hidden]{display:none!important;}
 
-/* Faint scanline wash over the whole console. */
-body::before{
-  content:""; position:fixed; inset:0; z-index:9999; pointer-events:none;
-  background:repeating-linear-gradient(to bottom,
-    rgba(255,255,255,.014) 0px, rgba(255,255,255,.014) 1px,
-    transparent 1px, transparent 3px);
-}
+
 
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body, #root { height: 100%; }
@@ -81,18 +95,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Faint scanline wash over the whole console. */
-body::before {
-  content: "";
-  position: fixed; inset: 0; z-index: 9999; pointer-events: none;
-  background: repeating-linear-gradient(
-    to bottom,
-    rgba(255,255,255,.014) 0px,
-    rgba(255,255,255,.014) 1px,
-    transparent 1px,
-    transparent 3px
-  );
-}
+
 
 /* ── app shell: fixed sidebar + scrolling content ─────────────────────── */
 /* The sidebar is the app's navigation surface (Claude desktop's shape): a
@@ -752,11 +755,12 @@ body::before {
      middle rather than leaving a dead gutter down one side. */
   max-width: 1180px; margin: 0 auto;
   font-size: 14px; line-height: 1.72; color: var(--tx);
-  /* Set in the display face, not the console mono. The member blocks are a
-     machine dump and stay monospace; the verdict is the finished answer and is
-     the one thing here a person sits and READS. Monospace at paragraph length
-     is what made it a wall. */
-  font-family: var(--font-display);
+  /* The running face, not the display one. This rule used to say
+     var(--font-display) for a good reason -- under the old tokens --font WAS
+     monospace, and a verdict set in mono reads as a wall. Now --font is Inter,
+     so "not mono" and "the reading face" are the same thing, and Manrope here
+     would set whole paragraphs in a heading face. */
+  font-family: var(--font);
   letter-spacing: .1px;
 }
 /* The answer column is capped near 78ch for readability and the sidebar is
@@ -831,7 +835,10 @@ body::before {
    marking the structure, and the contrast against the body text is what makes
    the sections scannable at a glance. */
 .verdict-body .v-h {
-  font-family: var(--font);
+  /* A heading, so the display face -- again the inverse of what it wanted
+     under the old tokens, where var(--font) was the console mono this label
+     was reaching for. */
+  font-family: var(--font-display);
   color: var(--acl); font-weight: 700; letter-spacing: 1.5px;
   text-transform: uppercase; font-size: 10.5px;
   margin: 26px 0 10px; padding-bottom: 5px;
@@ -959,6 +966,34 @@ body::before {
   color: var(--txd); font-size: 11.5px; line-height: 1.55;
 }
 .verdict-degraded strong { color: var(--amber); font-weight: 600; }
+
+/* ══ TYPE ══════════════════════════════════════════════════════════════════
+   RiftIQ's three faces, applied by MEANING rather than by region.
+
+   Inter carries running UI and, most importantly, the answers -- a verdict is
+   prose and prose in a fixed pitch reads like a log file. Manrope carries the
+   headings. IBM Plex Mono is reserved for things where the character grid is
+   the point: latencies, char counts, CSS selectors, codenames, table data.
+   Mixing them at random would just look inconsistent, so the rule is that
+   mono means "this is a value, not a sentence". */
+.node-meta, .core-count, .verdict-quorum, .chip-unit, .node-sub,
+.slide-count, .bs-council-meta, .link-txt, .mtop-where,
+.studio-raw, .verdict-body code, .sheet-note code, .bs-hint code,
+table.doctor, table.doctor code, .v-table, .studio-table,
+.quiz-opt-letter, .side-tag, .bs-chip {
+  font-family: var(--font-mono);
+}
+
+/* Headings take the display face. */
+.wordmark, .mtop-title, .verdict-title, .bs-title, .studio-view-title,
+.sheet-hd, .core-status, .drawer-hd, .side-sec-hd, .v-h, .verdict-body .sec,
+.slide-title, .bs-questions-hd, .badge {
+  font-family: var(--font-display);
+}
+
+/* Prose gets a touch more line-height now it is no longer monospaced --
+   Inter's x-height is larger, so the old 1.55 read tight. */
+.verdict-body p, .verdict-body .v-list li, .node-body { line-height: 1.65; }
 
 /* ══ STUDIO ═══════════════════════════════════════════════════════════ */
 /* ── history / doctor drawers ─────────────────────────────────────────── */
@@ -3013,7 +3048,7 @@ async function openRun(id) {
   S.panels = data.answers.map((a) => ({
     id: a.provider_id,
     display_name: a.display_name,
-    accent: S.providers.find((p) => p.id === a.provider_id)?.accent || "#8D769A",
+    accent: S.providers.find((p) => p.id === a.provider_id)?.accent || "var(--ac)",
     state: a.ok ? "done" : a.degraded ? "degraded" : "failed",
     text: a.answer_text || "", chars: a.char_count || 0, ok: !!a.ok,
     failure: a.failure_kind, error_detail: a.error_detail,
@@ -3276,8 +3311,8 @@ const CARD_META = {
   flashcards: { label: "Flashcards",      icon: "▥", accent: "var(--grn)" },
   quiz:       { label: "Quiz",            icon: "?", accent: "var(--amber)" },
   mindmap:    { label: "Mind Map",        icon: "⌗", accent: "var(--acl)" },
-  slides:     { label: "Slide Deck",      icon: "▭", accent: "#8FB8E8" },
-  audio:      { label: "Audio Overview",  icon: "◈", accent: "#BFA6E0" },
+  slides:     { label: "Slide Deck",      icon: "▭", accent: "var(--blue)" },
+  audio:      { label: "Audio Overview",  icon: "◈", accent: "var(--ac)" },
 };
 const KIND_ORDER = ["table", "report", "flashcards", "quiz", "mindmap", "slides", "audio"];
 
