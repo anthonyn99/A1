@@ -34619,8 +34619,256 @@ function lineSpacingPop(ctx, anchor) {
   });
 }
 
+/* -- Bulk list conversion (checklist / bullets / numbers) --------------------
+   Highlighting a block of text and hitting a list button must give ONE item per line
+   with every line's text intact. Two things used to break that: the checklist button
+   ran insertHTML, which REPLACES the selection with a single empty item (the text was
+   simply gone); and <br>-separated lines inside one block are a single block as far as
+   execCommand is concerned, so bullets/numbers collapsed them into one item. Both now
+   go through the same line-splitting front end below. */
+
+function _isClItem(b) { return !!(b && b.classList && b.classList.contains('docx-cl-item')); }
+
+// A line's markup, with any checklist chrome (the box + text span) stripped off.
+// An "empty" line (nothing but a <br>) comes back as ''.
+function _blockLineHTML(b) {
+  var t = _isClItem(b) ? b.querySelector('.docx-cl-text') : null;
+  var html = t ? t.innerHTML : b.innerHTML;
+  return /^\s*(<br\s*\/?>)?\s*$/i.test(html) ? '' : html;
+}
+
+function _clLi(html) {
+  var li = document.createElement('li');
+  li.className = 'docx-cl-item';
+  li.innerHTML = '<input type="checkbox" class="docx-cl-box" contenteditable="false">' +
+                 '<span class="docx-cl-text">' + (html || '&nbsp;') + '</span>';
+  return li;
+}
+
+// Some stored documents keep bare text / inline runs directly under the editor. Wrap each
+// such run in a <div> so it is a real block and converts like everything else. Renders the
+// same either way -- this only runs when the selection resolved to no block at all.
+function _normalizeBareLines(ed) {
+  var BLOCK = /^(P|H[1-6]|DIV|UL|OL|LI|TABLE|BLOCKQUOTE|PRE|HR|FIGURE|SECTION)$/;
+  var kids = Array.prototype.slice.call(ed.childNodes), run = [], changed = false;
+  function flush() {
+    if (!run.length) return;
+    var d = document.createElement('div');
+    run[0].parentNode.insertBefore(d, run[0]);
+    run.forEach(function(n) { d.appendChild(n); });
+    run = []; changed = true;
+  }
+  kids.forEach(function(n) {
+    if (n.nodeType === 1 && BLOCK.test(n.tagName)) { flush(); return; }
+    if (n.nodeType === 3 && !n.nodeValue.replace(/\s/g, '') && !run.length) return;   // stray whitespace
+    run.push(n);
+  });
+  flush();
+  return changed;
+}
+
+// Split a block holding <br>-separated lines into one sibling block per line, so every
+// visible line is a real block. Returns the blocks that replaced it, or [b] if untouched.
+function _splitBlockLines(b) {
+  if (!b || !b.parentNode || b.tagName === 'PRE') return [b];        // <pre> line breaks are content
+  var kids = Array.prototype.slice.call(b.childNodes);
+  if (!kids.some(function(n) { return n.nodeType === 1 && n.tagName === 'BR'; })) return [b];
+  var segs = [[]];
+  kids.forEach(function(n) {
+    if (n.nodeType === 1 && n.tagName === 'BR') segs.push([]);
+    else segs[segs.length - 1].push(n);
+  });
+  var filled = function(seg) {
+    return seg.some(function(n) {
+      if ((n.textContent || '').replace(/[\u200b\s]/g, '')) return true;
+      return n.nodeType === 1 && (/^(IMG|INPUT|HR)$/.test(n.tagName) || !!n.querySelector('img,input,hr'));
+    });
+  };
+  // A trailing <br> is the block's own line-break padding, not an extra line.
+  while (segs.length > 1 && !filled(segs[segs.length - 1])) segs.pop();
+  if (segs.length < 2) return [b];
+  var frag = document.createDocumentFragment(), out = [];
+  segs.forEach(function(seg) {
+    var c = b.cloneNode(false);                                       // same tag, same block styling
+    seg.forEach(function(n) { c.appendChild(n); });
+    if (!c.childNodes.length) c.appendChild(document.createElement('br'));
+    frag.appendChild(c); out.push(c);
+  });
+  b.parentNode.replaceChild(frag, b);
+  return out;
+}
+
+// Character offsets of `range` inside block `b`, clamped to b's own text.
+function _rangeOffsetsIn(range, b) {
+  var full = (b.textContent || '').length, start = 0, end = full;
+  try {
+    if (b === range.startContainer || b.contains(range.startContainer)) {
+      var a = range.cloneRange(); a.selectNodeContents(b); a.setEnd(range.startContainer, range.startOffset);
+      start = a.toString().length;
+    }
+    if (b === range.endContainer || b.contains(range.endContainer)) {
+      var z = range.cloneRange(); z.selectNodeContents(b); z.setEnd(range.endContainer, range.endOffset);
+      end = z.toString().length;
+    }
+  } catch (e) { return [0, full]; }
+  return start <= end ? [start, end] : [end, start];
+}
+
+function _selectBlocks(blocks) {
+  if (!blocks.length) return;
+  try {
+    var last = blocks[blocks.length - 1], r = document.createRange();
+    r.setStart(blocks[0], 0);
+    r.setEnd(last, last.childNodes.length);
+    var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+  } catch (e) {}
+}
+
+// Put the selection across a freshly built run of items (inside the text span for
+// checklist items), so the converted lines stay highlighted and can be toggled again.
+function _selectItems(items) {
+  if (!items.length) return;
+  try {
+    var a = items[0], z = items[items.length - 1];
+    var an = (a.querySelector && a.querySelector('.docx-cl-text')) || a;
+    var zn = (z.querySelector && z.querySelector('.docx-cl-text')) || z;
+    var r = document.createRange();
+    r.setStart(an, 0);
+    r.setEnd(zn, zn.childNodes.length);
+    var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+  } catch (e) {}
+}
+
+// Every LINE the selection touches, as a real block: blocks holding <br> lines are exploded
+// first and only the lines actually inside the selection come back. `reselect` re-anchors
+// the selection across the result -- execCommand needs that after the DOM moved under it.
+function selLineBlocks(ctx, reselect) {
+  var s = window.getSelection();
+  if (!s || !s.rangeCount || !ctx.edEl.contains(s.anchorNode)) return [];
+  var blocks = selBlocks(ctx);
+  if (!blocks.length && _normalizeBareLines(ctx.edEl)) blocks = selBlocks(ctx);
+  if (!blocks.length) return [];
+  var range = window.getSelection().getRangeAt(0);
+  var out = [], split = false;
+  blocks.forEach(function(b) {
+    if (!b.parentNode) return;
+    // Work out which of b's lines the selection covers BEFORE the split, while the live
+    // range still points into b. Offsets survive the split: it only moves nodes around.
+    var off = _rangeOffsetsIn(range, b);
+    var parts = _splitBlockLines(b);
+    if (parts.length < 2) { out.push(b); return; }
+    split = true;
+    var pos = 0, picked = [];
+    for (var i = 0; i < parts.length; i++) {
+      var len = (parts[i].textContent || '').length, a = pos, z = pos + len;
+      pos = z;
+      if (off[0] === off[1]) { if (off[0] <= z) { picked = [parts[i]]; break; } }   // collapsed caret
+      else if (a < off[1] && z > off[0]) picked.push(parts[i]);
+      else if (len === 0 && a > off[0] && a < off[1]) picked.push(parts[i]);        // blank line inside the span
+    }
+    out = out.concat(picked.length ? picked : [parts[0]]);
+  });
+  if (split && reselect) _selectBlocks(out);
+  return out;
+}
+
+// Lift any selected <li> out of a plain bullet / numbered list, so the lines we are about
+// to re-wrap are ordinary blocks. (Checklist items are unwrapped by hand, see _unChecklist.)
+function _unlistPlainItems(ctx) {
+  for (var i = 0; i < 4; i++) {
+    var li = selBlocks(ctx).filter(function(b) {
+      if (b.tagName !== 'LI' || _isClItem(b)) return false;
+      var p = b.parentNode;
+      return !!p && (p.tagName === 'UL' || p.tagName === 'OL') && !p.classList.contains('docx-checklist');
+    })[0];
+    if (!li) return;
+    document.execCommand(li.parentNode.tagName === 'OL' ? 'insertOrderedList' : 'insertUnorderedList', false, null);
+  }
+}
+
+// Adjacent single-item checklists (one per converted line) become one list.
+function _mergeChecklists(ed) {
+  ed.querySelectorAll('ul.docx-checklist').forEach(function(ul) {
+    var prev = ul.previousSibling;
+    while (prev && prev.nodeType === 3 && !prev.nodeValue.replace(/\s/g, '')) prev = prev.previousSibling;
+    if (prev && prev.nodeType === 1 && prev.tagName === 'UL' && prev.classList.contains('docx-checklist')) {
+      while (ul.firstChild) prev.appendChild(ul.firstChild);
+      ul.parentNode.removeChild(ul);
+    }
+  });
+}
+
+// Checklist items back to plain paragraphs, keeping their text. Items that were not
+// selected stay in a checklist of their own, so a partial selection splits the list.
+function _unChecklist(ctx, items) {
+  var groups = [], made = [];
+  items.forEach(function(li) {
+    if (!li.parentNode) return;
+    var g = groups.filter(function(x) { return x.ul === li.parentNode; })[0];
+    if (!g) { g = { ul: li.parentNode, items: [] }; groups.push(g); }
+    g.items.push(li);
+  });
+  groups.forEach(function(g) {
+    var frag = document.createDocumentFragment(), chunk = null;
+    Array.prototype.slice.call(g.ul.children).forEach(function(li) {
+      if (g.items.indexOf(li) >= 0) {
+        chunk = null;
+        var p = document.createElement('p');
+        p.innerHTML = _blockLineHTML(li) || '<br>';
+        if (li.style.fontSize) p.style.fontSize = li.style.fontSize;
+        if (li.style.textAlign) p.style.textAlign = li.style.textAlign;
+        frag.appendChild(p); made.push(p);
+      } else {
+        if (!chunk) { chunk = document.createElement('ul'); chunk.className = 'docx-checklist'; frag.appendChild(chunk); }
+        chunk.appendChild(li);
+      }
+    });
+    if (g.ul.parentNode) g.ul.parentNode.replaceChild(frag, g.ul);
+  });
+  _selectItems(made);
+  saveSel(ctx);
+  fireInput(ctx.edEl);
+  return made;
+}
+
+// Selected checklist items become plain paragraphs first -- otherwise execCommand's list
+// toggle leaves stray checkboxes sitting inside the new bullets/numbers.
+function _stripChecklistInSel(ctx) {
+  var items = selBlocks(ctx).filter(_isClItem);
+  if (items.length) _unChecklist(ctx, items);
+}
+
+// Checklist button / Insert > Checklist. Converts EVERY selected line into its own item
+// (text intact); toggles back to paragraphs when the selection is already all checklist.
 function insertChecklist(ctx) {
-  insertHTML(ctx, '<ul class="docx-checklist"><li class="docx-cl-item"><input type="checkbox" class="docx-cl-box" contenteditable="false"><span class="docx-cl-text">&nbsp;</span></li></ul>');
+  restoreSel(ctx);
+  var ed = ctx.edEl, sel = window.getSelection();
+  var blocks = (sel && sel.rangeCount && ed.contains(sel.anchorNode)) ? selLineBlocks(ctx, false) : [];
+  if (!blocks.length) {   // nothing to convert (empty doc / lost selection) -- drop a fresh item in
+    insertHTML(ctx, '<ul class="docx-checklist">' + _clLi('').outerHTML + '</ul>');
+    return;
+  }
+  if (blocks.every(_isClItem)) { _unChecklist(ctx, blocks); return; }
+  _unlistPlainItems(ctx);
+  blocks = selLineBlocks(ctx, false);
+  var made = [];
+  blocks.forEach(function(b) {
+    if (!b.parentNode || !ed.contains(b)) return;
+    if (_isClItem(b)) { made.push(b); return; }        // already an item -- leave it alone
+    var size = _blockTextSize(b);
+    var li = _clLi(_blockLineHTML(b));
+    if (size) li.style.fontSize = size;
+    if (b.style.textAlign) li.style.textAlign = b.style.textAlign;
+    var ul = document.createElement('ul');
+    ul.className = 'docx-checklist';
+    ul.appendChild(li);
+    b.parentNode.replaceChild(ul, b);
+    made.push(li);
+  });
+  _mergeChecklists(ed);
+  _selectItems(made);
+  saveSel(ctx);
+  fireInput(ed);
 }
 
 function buildMenubar(ctx) {
@@ -34863,6 +35111,9 @@ function injectRibbonExtras(ctx) {
   var olB = tb.querySelector('[id$="-ol"]');
   var clB = ptBtn(svg(IC.checklist), 'Checklist');
   clB.classList.add('docx-r2');
+  // Same as every other toolbar button: keep the editor's selection alive across the click,
+  // or a multi-line highlight is gone by the time the handler runs.
+  clB.addEventListener('mousedown', function(e) { e.preventDefault(); saveSel(ctx); });
   clB.addEventListener('click', function() { insertChecklist(ctx); });
   if (olB && olB.parentNode === tb) tb.insertBefore(clB, olB.nextSibling);
   else tb.appendChild(clB);
@@ -35603,7 +35854,11 @@ function _blockTextSize(b) {
 // size onto the resulting block explicitly, so it survives even if the inline span is lost.
 function toggleListPreserve(ctx, cmd) {
   restoreSel(ctx);
-  var before = selBlocks(ctx);
+  // One item per LINE: drop any checklist chrome, then split <br> lines into real blocks
+  // (and re-anchor the selection across them) before execCommand sees the selection --
+  // otherwise a highlighted block of text collapses into a single bullet/number.
+  _stripChecklistInSel(ctx);
+  var before = selLineBlocks(ctx, true);
   var sizes = before.map(_blockTextSize);
   document.execCommand(cmd, false, null);
   var after = selBlocks(ctx);
