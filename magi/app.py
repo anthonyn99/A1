@@ -29,7 +29,7 @@ from .db import Database
 from .engine import brainstorm as brainstorm_engine
 from .engine import refine as refine_engine
 from .engine import studio as studio_engine
-from .engine.orchestrator import Orchestrator
+from .engine.orchestrator import Orchestrator, required_members
 from .errors import FailureKind, explain
 from .providers import gemini_api
 from .providers.base import ProviderEvent, RunContext
@@ -872,10 +872,15 @@ async def create_brainstorm_round(
             )
 
             responded = [a for a in answers if a.ok and a.text.strip()]
-            if len(responded) < settings.chairman.min_members:
+            # The merge itself still runs on the single-unit path, unlike the
+            # council's verdict: it is not a summary of several voices, it is
+            # what produces the plan and the questions, and one answer is
+            # enough material for that.
+            need = required_members(settings.chairman.min_members, len(answers))
+            if len(responded) < need:
                 raise RuntimeError(
                     f"Only {len(responded)} of {len(answers)} members responded; "
-                    f"a round needs at least {settings.chairman.min_members}."
+                    f"a round needs at least {need}."
                 )
             if state["cancel"].is_set():
                 raise RuntimeError("Round cancelled before the merge.")

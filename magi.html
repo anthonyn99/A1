@@ -126,7 +126,14 @@ body {
 .side-toggle {
   background: transparent; border: none; color: var(--txm);
   width: 30px; height: 30px; flex-shrink: 0; border-radius: 7px;
-  font-size: 14px; cursor: pointer; font-family: inherit;
+  /* 16px, not 14 -- and this is the whole reason the middle bar of the menu
+     icon looked wrong. The icon is a 24-unit viewBox with rules at y=6, 12 and
+     18, so at a rendered size S their centres land at S/4, S/2 and 3S/4. At
+     S=14 that is 3.5, 7 and 10.5: the outer two straddle a pixel boundary and
+     antialias across two rows, the middle one sits ON a whole pixel and does
+     not -- so it drew crisper and thinner than its neighbours. Any S divisible
+     by 4 puts all three in the same phase and they rasterise identically. */
+  font-size: 16px; cursor: pointer; font-family: inherit;
   display: inline-flex; align-items: center; justify-content: center;
   transition: background .15s, color .15s;
 }
@@ -371,14 +378,11 @@ body {
   flex: 0 0 auto;
   line-height: 1;
 }
-.qbar-refine.busy .qbar-refine-ico {
-  animation: refine-spin 1s linear infinite;
-  /* Belt and braces: the glyph cannot lay out larger than its box even mid-
-     rotation, so a font that renders ◌ wider than expected still cannot push
-     the border outward. */
-  transform-origin: 50% 50%;
-}
-@keyframes refine-spin { to { transform: rotate(360deg); } }
+/* The spinner animates ITSELF (.spin-svg), so the box must not also rotate --
+   two nested rotations at different periods read as a wobble. The box still
+   earns its keep: it fixes the glyph's footprint, so nothing in the flex row
+   moves when the button changes state. */
+.qbar-refine-ico .spin-svg { width: 12px; height: 12px; display: block; }
 /* Reserve the wider of the two labels ("Refining…") at all times, so pressing
    the button changes only pixels inside it -- never its width, and never the
    position of anything beside it. Centred so the shorter idle label sits
@@ -1524,6 +1528,54 @@ table.doctor code { color: var(--txd); font-size: 11px; }
 /* The page is the scroller, so the indicator anchors to it. */
 .page { position: relative; }
 
+/* ══ OVERLAY SCROLLBARS ════════════════════════════════════════════════════
+   A phone gives you no scrollbar at all, so a long verdict has no indication
+   of how much is left and no way to jump; a desktop gives you the platform's,
+   which on Windows is a permanent light-grey slab that fights everything else
+   on the page. This is one behaviour for both: nothing while you are reading,
+   a thumb while you are moving, and something you can actually grab -- with a
+   finger or a cursor.
+
+   The bar is a FIXED overlay positioned from the scroller's own rect rather
+   than a child of it. A child would either scroll away with the content or
+   need the scroller restructured; every scroller here (the page, an open
+   answer, the drawer) then needs the same exception. Reading the rect works
+   for all of them and adds nothing to their markup. */
+[data-sbar] { scrollbar-width: none; -ms-overflow-style: none; }
+[data-sbar]::-webkit-scrollbar { width: 0; height: 0; }
+
+.sbar {
+  position: fixed; width: 14px;
+  pointer-events: none;          /* only the thumb is a target, and only when
+                                    it is visible -- an always-live 14px strip
+                                    down the right edge would eat back-swipes */
+  opacity: 0; transition: opacity .25s ease;
+  z-index: 70;                   /* over page content (60/65), under the
+                                    drawer (80) and any sheet (200) */
+}
+.sbar.on { opacity: 1; }
+.sbar-thumb {
+  position: absolute; right: 4px; width: 5px;
+  border-radius: 999px; background: var(--bdl);
+  transition: background .15s ease, width .12s ease, right .12s ease;
+}
+.sbar.on .sbar-thumb { pointer-events: auto; touch-action: none; cursor: grab; }
+/* A fatter, accented thumb the moment it is worth aiming at. The widening is
+   what makes a 5px target grabbable without giving 14px of edge away when it
+   is not wanted. */
+.sbar-thumb:hover, .sbar.dragging .sbar-thumb {
+  background: var(--ac); width: 9px; right: 2px;
+}
+.sbar.dragging .sbar-thumb { cursor: grabbing; }
+/* Coarse pointers cannot hover, so the resting thumb has to be big enough to
+   hit on the first try. */
+@media (pointer: coarse) {
+  .sbar-thumb { width: 7px; right: 3px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sbar, .sbar-thumb { transition: none; }
+}
+
 /* Sync state, under the wordmark -- the same place and the same wording
    TaskHub uses, so "Syncing… / Synced / Sync failed" means the same thing
    everywhere in the suite. It reserves no space when idle: a line that
@@ -1709,9 +1761,21 @@ table.doctor code { color: var(--txd); font-size: 11px; }
   font-size: 12px; outline: 0;
 }
 .sheet-in:focus { border-color: var(--ac); }
+/* The token field and its unlock button. The button never wraps under the
+   field: on a phone that put "Change" at the bottom of the sheet, nowhere near
+   the thing it changes. */
+.sheet-row { display: flex; gap: 7px; align-items: stretch; }
+.sheet-row .sheet-in { flex: 1 1 auto; min-width: 0; }
+.sheet-row .btn { flex: 0 0 auto; }
+/* Locked reads as a value, not as an invitation to type in it. */
+.sheet-in.locked {
+  color: var(--txm); background: var(--bg); cursor: default;
+  border-color: var(--bd);
+}
 .sheet-note { color: var(--txm); font-size: 10.5px; line-height: 1.55; margin-top: 6px; }
+.sheet-note b { color: var(--txd); }
 .sheet-note code { color: var(--txd); background: var(--bg); padding: 1px 4px; border-radius: 3px; }
-.sheet-bar { display: flex; gap: 7px; align-items: center; margin-top: 16px; }
+.sheet-bar { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; margin-top: 16px; }
 .sheet-err { color: var(--red); font-size: 11px; margin-top: 8px; }
 .sheet-ok  { color: var(--grn); font-size: 11px; margin-top: 8px; }
 
@@ -1758,37 +1822,48 @@ table.doctor code { color: var(--txd); font-size: 11px; }
   .shell,
   .shell.nav-collapsed { grid-template-columns: minmax(0, 1fr); }
 
+  /* The scroller's own top padding used to be a band ABOVE the sticky header
+     -- sticky pins to the content box, not the border box -- so everything you
+     scrolled passed through that gap and was visible between the header and
+     the URL bar. See .page further down: the padding is gone from the top and
+     the gap is now this header's own margin-bottom, where nothing can scroll
+     into it. */
   .mtop {
     display: flex; align-items: center; gap: 10px;
     position: sticky; top: 0; z-index: 60;
-    padding: 10px 12px;
-    padding-top: max(10px, env(safe-area-inset-top));
+    padding: 8px 12px;
+    padding-top: max(8px, env(safe-area-inset-top));
+    margin-bottom: 16px;
     background: var(--s1); border-bottom: 1px solid var(--bd);
   }
+  /* A column, so the sync state sits UNDER the wordmark exactly as it does in
+     the sidebar -- and on a phone the sidebar is a closed drawer, so this is
+     the only place "Syncing… / Synced / Sync failed" can be seen at all. */
+  .mtop-brand {
+    display: flex; flex-direction: column; justify-content: center;
+    flex-shrink: 0; min-width: 0; line-height: 1.1;
+  }
+  .mtop .syncline {
+    font-size: 9px; letter-spacing: .3px;
+    margin-top: 2px; min-height: 12px; line-height: 12px;
+  }
+  /* Where the engine is already has a permanent home at the bottom of the
+     drawer. Repeating it here spent the width that the wordmark, the sync
+     state and the lock all have to share. */
+  .mtop-where { display: none; }
+  .mtop .lock-btn { margin-left: auto; }
   .mtop-burger {
     width: 40px; height: 40px; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
     background: transparent; border: 1px solid var(--bd); border-radius: var(--r-btn);
-    color: var(--txd); font-size: 15px;
+    /* Divisible by 4, for the reason spelled out on .side-toggle: it is what
+       keeps the menu icon's three bars identical to each other. */
+    color: var(--txd); font-size: 16px;
   }
   .mtop-burger:active { background: var(--s2); color: var(--tx); }
   .mtop-title {
     font-family: var(--font-display); font-size: 13px; font-weight: 800;
     letter-spacing: 2.4px; color: var(--acl);
-  }
-  .mtop-where {
-    /* Allowed to SHRINK, and capped: at 400px the engine status was taking
-       enough width to push the lock control off the right edge entirely --
-       a lock you cannot see is a lock you will not use. flex 0 1 auto plus
-       min-width 0 is what lets the ellipsis do its job instead of the span
-       refusing to give ground. */
-    margin-left: auto; display: flex; align-items: center; gap: 6px;
-    flex: 0 1 auto; min-width: 0; max-width: 38%;
-    font-size: 10px; color: var(--txm); letter-spacing: .3px;
-    overflow: hidden; white-space: nowrap;
-  }
-  .mtop-where > span:last-child {
-    overflow: hidden; text-overflow: ellipsis;
   }
   .mtop-title { flex-shrink: 0; }
 
@@ -1828,7 +1903,10 @@ table.doctor code { color: var(--txd); font-size: 11px; }
   .shell.nav-open .scrim { opacity: 1; pointer-events: auto; }
 
   .page {
-    padding: 12px;
+    /* No top padding: it would sit ABOVE the sticky header (sticky pins to the
+       content box) and every line you scrolled would show through it. The
+       header carries that gap as its own margin-bottom instead. */
+    padding: 0 12px;
     padding-bottom: max(24px, env(safe-area-inset-bottom));
   }
 
@@ -1913,7 +1991,7 @@ table.doctor code { color: var(--txd); font-size: 11px; }
 
 /* Very narrow: an extra squeeze for 360px-class phones. */
 @media (max-width: 400px) {
-  .page { padding: 10px; }
+  .page { padding-left: 10px; padding-right: 10px; }
   .chip-unit { display: none; }
   .verdict-quorum { font-size: 9.5px; }
   .v-table, .studio-table { min-width: 380px; }
@@ -2180,7 +2258,10 @@ table.doctor code { color: var(--txd); font-size: 11px; }
   <main class="page" id="page">
     <div class="mtop">
       <button type="button" class="mtop-burger" id="navBurger" aria-label="Menu" aria-expanded="false"></button>
-      <span class="mtop-title">MAGI</span>
+      <span class="mtop-brand">
+        <span class="mtop-title">MAGI</span>
+        <span class="syncline" id="syncLineM"></span>
+      </span>
       <span class="mtop-where"><span class="link-dot" id="mtopDot"></span><span id="mtopTxt">…</span></span>
       <button type="button" class="lock-btn" id="lockBtnM" title="Lock MAGI"></button>
     </div>
@@ -2347,6 +2428,14 @@ const SPINNER =
 const LINK_API = "https://magi-link.av1-2.workers.dev/link";
 const LOCAL_API = "http://127.0.0.1:8000";
 const TOKEN_KEY = "magi.token";
+/* The last token that actually reached the engine.
+ *
+ * The setup sheet is a text box holding a 43-character secret with no
+ * feedback until you press Save, so one stray keystroke in it takes the
+ * console offline with nothing on screen explaining why. This is the way
+ * back: written only when a token has been PROVEN -- the engine handed it
+ * over, or it opened the tunnel -- never merely when it was typed. */
+const GOOD_TOKEN_KEY = "magi.token.ok";
 
 const link = {
   api: null,        // origin to call, "" meaning same-origin
@@ -2361,6 +2450,14 @@ const sameOrigin = /^(127\.0\.0\.1|localhost)$/.test(location.hostname) && locat
 function loadToken() {
   try { return localStorage.getItem(TOKEN_KEY) || ""; } catch { return ""; }
 }
+function loadGoodToken() {
+  try { return localStorage.getItem(GOOD_TOKEN_KEY) || ""; } catch { return ""; }
+}
+function rememberGoodToken(t) {
+  if (!t) return;
+  try { localStorage.setItem(GOOD_TOKEN_KEY, t); } catch {}
+}
+
 function saveToken(t) {
   try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); } catch {}
   link.token = t;
@@ -2482,9 +2579,10 @@ async function connect() {
     // in months ago and rotated since is exactly the stale value that would
     // otherwise be handed to the phone as gospel.
     const fromEngine = await fetchEngineToken(LOCAL_API);
-    if (fromEngine && fromEngine !== link.token) {
-      link.token = fromEngine;
-      saveToken(fromEngine);
+    if (fromEngine) {
+      // Straight from the engine, so this is the definition of "working".
+      rememberGoodToken(fromEngine);
+      if (fromEngine !== link.token) { link.token = fromEngine; saveToken(fromEngine); }
     }
     if (link.token) cloudPublishToken(link.token, !fromEngine);
     return setLink("local", "this device · 127.0.0.1");
@@ -2509,7 +2607,9 @@ async function connect() {
   link.api = pub.url;
   const remote = await probe(pub.url, 8000);
   if (remote === "ok") {
-    // Proven against the tunnel, so it is worth sharing.
+    // Proven against the tunnel, so it is worth sharing -- and worth keeping
+    // as the value to fall back to if the box ever gets edited by accident.
+    rememberGoodToken(link.token);
     cloudPublishToken(link.token);
     const mins = Math.round((pub.age_s || 0) / 60);
     return setLink("remote", `tunnel · ${mins < 60 ? mins + "m" : Math.round(mins / 60) + "h"} ago`);
@@ -2520,7 +2620,28 @@ async function connect() {
 
 const online = () => link.api !== null && (link.where === "local" || link.where === "remote");
 
-/* ══ setup sheet ═══════════════════════════════════════════════════════════ */
+/* ══ setup sheet ═══════════════════════════════════════════════════════════
+   What the token IS, and why this screen is deliberately awkward.
+
+   MAGI_API_TOKEN is a shared secret you invented once and set on the engine
+   machine. It is not an account, not a subscription key, not anything issued
+   by OpenAI or Anthropic or Google -- it is a password on MAGI's own API,
+   there because a Cloudflare quick tunnel cannot sit behind Cloudflare Access
+   and the tunnel url is otherwise the only thing standing between the open
+   internet and endpoints that drive four logged-in paid accounts.
+
+   Which is exactly why editing it by accident is so unpleasant: the field is
+   a text box holding 43 opaque characters, one keystroke breaks it, and the
+   only symptom is the console going quiet. So the field is READ-ONLY until
+   you deliberately unlock it, and there are two ways back that do not involve
+   remembering anything:
+
+     · the engine's own copy, over loopback (GET /api/token), which is
+       authoritative by definition; and
+     · the last token that actually reached the engine from this browser.
+
+   Both are offered as buttons. Neither exists to be clever -- they exist so
+   that "I typed in the wrong box" is a five-second problem. */
 function openSetup() {
   const sheet = el("div", "sheet");
   const box = el("div", "sheet-box");
@@ -2528,20 +2649,27 @@ function openSetup() {
     el("div", "sheet-hd", "Connect to the engine"),
     el("div", "sheet-sub",
       "MAGI's council runs on one device — it drives real logged-in Chrome " +
-      "profiles, which cannot leave that machine. This page needs the shared " +
-      "secret the engine gates its API on. It is saved to your other devices " +
+      "profiles, which cannot leave that machine. The API token is a password " +
+      "you set on that machine (MAGI_API_TOKEN); it gates MAGI's own API and " +
+      "is not connected to any AI account. It is saved to your other devices " +
       "automatically, so you only type it once."),
   );
 
   const lbl = el("label", "sheet-lbl", "API token");
+  const row = el("div", "sheet-row");
   const input = el("input", "sheet-in");
   input.type = "password";
   input.value = link.token;
   input.placeholder = "MAGI_API_TOKEN";
   input.autocomplete = "off";
-  box.append(lbl, input);
+  input.readOnly = true;
+  const edit = el("button", "btn", "Change");
+  row.append(input, edit);
+  box.append(lbl, row);
+
   const note = el("div", "sheet-note");
   note.innerHTML =
+    'Locked so it cannot be changed by a stray keystroke — press <b>Change</b> to edit it. ' +
     'Set the same value on the engine device with <code>setx MAGI_API_TOKEN "…"</code>, ' +
     'then run <code>magi cloud</code>. Never in the repo, which is public.';
   box.append(note);
@@ -2549,14 +2677,43 @@ function openSetup() {
   const msg = el("div");
   const bar = el("div", "sheet-bar");
   const save = el("button", "btn active", "Save & connect");
+  const revert = el("button", "btn", "Restore last working");
   const retry = el("button", "btn", "Retry");
   const close = el("button", "btn", "Close");
-  bar.append(save, retry, el("span", "qbar-spacer"), close);
+  bar.append(save, revert, retry, el("span", "qbar-spacer"), close);
   box.append(bar, msg);
 
   const done = () => sheet.remove();
   close.onclick = done;
   sheet.onclick = (e) => { if (e.target === sheet) done(); };
+
+  const good = () => loadGoodToken();
+  const paint = () => {
+    input.classList.toggle("locked", input.readOnly);
+    edit.textContent = input.readOnly ? "Change" : "Cancel";
+    save.disabled = input.readOnly || !input.value.trim() || input.value.trim() === link.token;
+    // Only offered when it would actually change something. A button that
+    // restores what is already there teaches you to distrust the button.
+    const g = good();
+    show(revert, !!g && g !== input.value.trim());
+  };
+
+  edit.onclick = () => {
+    if (input.readOnly) {
+      input.readOnly = false;
+      input.type = "text";      // you cannot proof-read a row of dots
+      paint();
+      input.focus();
+      input.select();
+    } else {
+      input.value = link.token;
+      input.readOnly = true;
+      input.type = "password";
+      paint();
+    }
+  };
+  input.oninput = paint;
+
   const go = async () => {
     msg.className = "sheet-note";
     msg.textContent = "Looking…";
@@ -2566,18 +2723,33 @@ function openSetup() {
       // the other devices should be given it, and at the desk it is the only
       // moment -- a hosted page beside the PC connects over 127.0.0.1, which
       // never exercises the token at all.
-      if (link.token) cloudPublishToken(link.token);
+      if (link.token) { rememberGoodToken(link.token); cloudPublishToken(link.token); }
       msg.className = "sheet-ok"; msg.textContent = `Connected — ${link.detail}.`; setTimeout(done, 700); boot();
+    } else {
+      msg.className = "sheet-err"; msg.textContent = `Not reachable — ${link.detail}.`;
+      paint();
     }
-    else { msg.className = "sheet-err"; msg.textContent = `Not reachable — ${link.detail}.`; }
   };
-  save.onclick = () => { saveToken(input.value.trim()); go(); };
+  save.onclick = () => {
+    saveToken(input.value.trim());
+    input.readOnly = true; input.type = "password";
+    go();
+  };
+  revert.onclick = () => {
+    const g = good();
+    if (!g) return;
+    input.value = g;
+    saveToken(g);
+    input.readOnly = true; input.type = "password";
+    paint();
+    go();
+  };
   retry.onclick = go;
-  input.onkeydown = (e) => { if (e.key === "Enter") save.click(); };
+  input.onkeydown = (e) => { if (e.key === "Enter" && !save.disabled) save.click(); };
 
+  paint();
   sheet.append(box);
   document.body.append(sheet);
-  input.focus();
 }
 
 function renderOfflineNote() {
@@ -3124,6 +3296,7 @@ function buildNode(p) {
   peek.append(bar, hint);
 
   const body = el("div", "node-body");
+  attachScrollbar(body);
   node.append(hd, peek, body);
   p.dom = { node, hd, meta, badge, peek, fill, hint, body };
   return node;
@@ -3230,6 +3403,9 @@ function renderGrid() {
   for (const p of S.panels) updateNode(p);
   updateCore();
   drawLinks();
+  // The answer bodies were just rebuilt, so the bars belonging to the old
+  // ones are pointing at detached nodes. One pass reaps them.
+  if (typeof _replaceAllBars === "function") _replaceAllBars();
 }
 
 function updateCore() {
@@ -3243,15 +3419,24 @@ function updateCore() {
   const failed = S.panels.filter((p) => p.ok === false && !p.degraded).length;
   const v = S.verdict;
 
+  // One unit is a legitimate way to run MAGI, and calling its answer a
+  // CONSENSUS would be a claim about agreement that nothing was measured
+  // against. There is no chairman on that path either -- the sole member's
+  // answer IS the verdict -- so the chair line is dropped rather than naming
+  // the model as if it had synthesised anything.
+  const solo = S.panels.length === 1;
   core.className = `core ${S.running ? "deliberating" : v ? (v.synthesis_ok ? "resolved" : "blocked") : ""}`;
-  core.children[1].textContent = S.running ? "DELIBERATING" : v ? (v.synthesis_ok ? "CONSENSUS" : "NO QUORUM") : "STANDBY";
+  core.children[1].textContent = S.running ? "DELIBERATING"
+    : v ? (v.synthesis_ok ? (solo ? "SOLE UNIT" : "CONSENSUS") : "NO QUORUM")
+    : "STANDBY";
   core.children[2].textContent =
     `${done}/${S.panels.length} resolved` +
     (degraded ? ` · ${degraded} unusable` : "") +
     (failed ? ` · ${failed} offline` : "");
   const chair = core.children[3];
-  chair.textContent = v && v.chairman ? `chair · ${v.chairman}` : "";
-  show(chair, !!(v && v.chairman));
+  const named = !!(v && v.chairman) && !solo;
+  chair.textContent = named ? `chair · ${v.chairman}` : "";
+  show(chair, named);
 }
 
 /** Draws the wiring from each member block to the core.
@@ -3299,11 +3484,16 @@ function renderVerdict() {
   if (!v || S.view !== "council" || studioOpen) return;
   n.textContent = "";
 
+  // A single-unit run has no synthesis and no chairman: the answer is the
+  // verdict. Saying "synthesised by ChatGPT" there would credit a pass that
+  // never ran.
+  const solo = v.total === 1;
   const hd = el("div", "verdict-hd");
-  hd.append(el("span", "verdict-title", "Verdict"));
+  hd.append(el("span", "verdict-title", solo ? "Answer" : "Verdict"));
   hd.append(el("span", "verdict-quorum",
-    `${v.responded} of ${v.total} units responded` +
-    (v.chairman ? ` · synthesised by ${v.chairman}` : "") +
+    (solo ? `${v.chairman || "one unit"} · answered directly`
+          : `${v.responded} of ${v.total} units responded` +
+            (v.chairman ? ` · synthesised by ${v.chairman}` : "")) +
     (v.total_ms ? ` · ${(v.total_ms / 1000).toFixed(0)}s` : "")));
   n.append(hd);
 
@@ -3467,7 +3657,11 @@ function updateEnabled() {
   $("btnSend").textContent = S.running ? "Deliberating…" : "Convene";
   $("btnRefine").disabled = busy || !q || !up;
   $("btnRefine").className = `qbar-refine ${S.refining ? "busy" : ""}`;
-  $("btnRefine").querySelector(".qbar-refine-ico").textContent = S.refining ? "◌" : "✦";
+  const rico = $("btnRefine").querySelector(".qbar-refine-ico");
+  // The same stroked arc the doctor spins. The old glyph was a dotted circle
+  // whose ink is not centred in its em box, so it orbited rather than spun.
+  if (S.refining) rico.innerHTML = SPINNER;
+  else rico.textContent = "✦";
   $("btnRefine").querySelector(".qbar-refine-txt").textContent = S.refining ? "Refining…" : "Refine";
   $("btnAttach").disabled = S.running || S.attachments.length >= MAX_ATTACHMENTS;
   $("composer").disabled = busy;
@@ -5492,17 +5686,24 @@ function syncMobileLink() {
  *  there. A permanent "Synced" is a label people stop reading; the useful
  *  signals are the two transient ones and the failure, which persists. */
 function setSync(state) {
-  const n = $("syncLine");
-  if (!n) return;
   clearTimeout(setSync._t);
   const text = { saving: "Syncing…", saved: "Synced", error: "Sync failed",
                  off: "Sync off" }[state];
-  n.className = "syncline" + (text ? " on " + state : "");
-  n.textContent = text || "";
-  n.title = state === "off"
+  const title = state === "off"
     ? "Firebase App Check only issues tokens on anthonyn99.github.io, so a page "
       + "served from 127.0.0.1 cannot sign in. Open the hosted URL to sync."
     : "";
+  // Two lines, one state: the sidebar's and the mobile top bar's. On a phone
+  // the sidebar is a closed drawer, so the top-bar copy is the only one that
+  // can ever be seen -- and a state written to only one of them would mean the
+  // two could disagree about whether the last run reached the cloud.
+  for (const id of ["syncLine", "syncLineM"]) {
+    const n = $(id);
+    if (!n) continue;
+    n.className = "syncline" + (text ? " on " + state : "");
+    n.textContent = text || "";
+    n.title = title;
+  }
   // A failure stays put: it needs acting on. A success does not.
   if (state === "saved") setSync._t = setTimeout(() => setSync("idle"), 2500);
 }
@@ -6406,6 +6607,114 @@ connect().then(boot);
 // It also carries the API token, so a phone that has never been told the
 // secret can be handed it here and reconnect on its own.
 cloudWatch();
+/* ══ OVERLAY SCROLLBARS ════════════════════════════════════════════════════
+   See the .sbar rules for why these are fixed overlays rather than children of
+   the scrollers they describe. Everything below is about cost: a bar does no
+   work at all while its scroller is still, and stops existing the moment that
+   scroller leaves the DOM -- which the answer bodies do on every re-render. */
+const SBARS = new Set();
+
+function attachScrollbar(sc, z) {
+  if (!sc || sc.dataset.sbar) return;
+  sc.dataset.sbar = "1";
+
+  const bar = el("div", "sbar");
+  const thumb = el("div", "sbar-thumb");
+  if (z) bar.style.zIndex = String(z);
+  bar.append(thumb);
+  document.body.append(bar);
+
+  const MIN_THUMB = 32;
+  let hideT = 0, raf = 0, dragging = false;
+
+  const scrollable = () => sc.scrollHeight - sc.clientHeight;
+
+  const place = () => {
+    raf = 0;
+    // The scroller is gone -- an answer that re-rendered, a view that closed.
+    // Nothing else reaps these, so the bar reaps itself.
+    if (!sc.isConnected) { bar.remove(); SBARS.delete(entry); return; }
+    const room = scrollable();
+    const r = sc.getBoundingClientRect();
+    if (room < 8 || r.height < 40 || !r.width) { bar.classList.remove("on"); return; }
+    bar.style.top = `${r.top}px`;
+    bar.style.left = `${r.right - 14}px`;
+    bar.style.height = `${r.height}px`;
+    const th = Math.max(MIN_THUMB, r.height * (sc.clientHeight / sc.scrollHeight));
+    const travel = r.height - th;
+    thumb.style.height = `${th}px`;
+    thumb.style.top = `${travel * Math.min(1, Math.max(0, sc.scrollTop / room))}px`;
+  };
+  const schedule = () => { if (!raf) raf = requestAnimationFrame(place); };
+
+  const show = () => {
+    place();
+    if (scrollable() < 8) return;
+    bar.classList.add("on");
+    clearTimeout(hideT);
+    // Held open while dragging: a thumb that faded out from under the finger
+    // holding it would be absurd.
+    if (!dragging) hideT = setTimeout(() => bar.classList.remove("on"), 1200);
+  };
+
+  sc.addEventListener("scroll", show, { passive: true });
+  // A cursor near the right edge is someone looking for the scrollbar, so put
+  // it there before they have to guess.
+  sc.addEventListener("pointermove", (e) => {
+    if (e.pointerType !== "mouse") return;
+    if (e.clientX > sc.getBoundingClientRect().right - 32) show();
+  }, { passive: true });
+
+  thumb.addEventListener("pointerdown", (e) => {
+    if (scrollable() < 8) return;
+    e.preventDefault();
+    dragging = true;
+    bar.classList.add("dragging");
+    thumb.setPointerCapture(e.pointerId);
+    const r = sc.getBoundingClientRect();
+    const th = thumb.offsetHeight;
+    // Grab OFFSET, not thumb centre: jumping the thumb to the finger on
+    // contact throws away the reader's position before the drag even starts.
+    const grab = e.clientY - thumb.getBoundingClientRect().top;
+    const travel = Math.max(1, r.height - th);
+
+    const move = (ev) => {
+      const top = Math.min(travel, Math.max(0, ev.clientY - r.top - grab));
+      sc.scrollTop = (top / travel) * scrollable();
+      show();
+    };
+    const end = () => {
+      dragging = false;
+      bar.classList.remove("dragging");
+      thumb.removeEventListener("pointermove", move);
+      thumb.removeEventListener("pointerup", end);
+      thumb.removeEventListener("pointercancel", end);
+      show();
+    };
+    thumb.addEventListener("pointermove", move);
+    thumb.addEventListener("pointerup", end);
+    thumb.addEventListener("pointercancel", end);
+  });
+
+  const entry = { sc, bar, schedule };
+  SBARS.add(entry);
+  schedule();
+}
+
+// One listener for the lot. A nested scroller MOVES when the page scrolls, and
+// resizes/rotations move all of them, so every bar re-places on any of it --
+// coalesced into a single frame each, and a no-op for bars that are hidden.
+const _replaceAllBars = () => { for (const b of SBARS) b.schedule(); };
+document.addEventListener("scroll", _replaceAllBars, { capture: true, passive: true });
+window.addEventListener("resize", _replaceAllBars);
+window.addEventListener("orientationchange", _replaceAllBars);
+
+attachScrollbar($("page"));
+// Above the drawer it lives in (80), unlike the page's, which must stay below
+// it -- the same rule either way: a scrollbar belongs to the surface it
+// scrolls, so it stacks with that surface.
+attachScrollbar($("sideNav"), 90);
+
 /* ══ PULL TO REFRESH ═══════════════════════════════════════════════════════
    The browser's own pull-to-refresh never fires here: `body { overflow:
    hidden }` and a scrolling `.page` mean the document itself is never at

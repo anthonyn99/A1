@@ -24,6 +24,22 @@ from ..settings import Settings
 from . import chairman as chairman_mod
 
 
+
+def required_members(min_members: int, asked: int) -> int:
+    """How many members must answer before a round is worth continuing.
+
+    You can never need more members than you ASKED. `chairman.min_members`
+    exists to stop a single voice being passed off as a council verdict when
+    three of four members failed -- a real quorum failure, worth saying so.
+    Deliberately running ONE unit is not the same thing: it is a legitimate way
+    to use MAGI, and the flat minimum was the only reason a one-unit run came
+    back "NO QUORUM" with an amber error instead of the answer sitting right
+    there on screen.
+
+    Never below 1: zero answers is nothing to report on, whatever the config.
+    """
+    return max(1, min(min_members, asked))
+
 class Orchestrator:
     def __init__(self, settings: Settings, db: Database | None = None):
         self.settings = settings
@@ -163,7 +179,10 @@ class Orchestrator:
         # -- synthesise -----------------------------------------------------
         verdict, syn_ok, syn_err, syn_ms = "", False, None, 0
         chair = None
-        if len(responded) < self.settings.chairman.min_members:
+        need = required_members(
+            self.settings.chairman.min_members, len(answers)
+        )
+        if len(responded) < need:
             note = ""
             if degraded:
                 note = (
@@ -172,11 +191,20 @@ class Orchestrator:
                 )
             syn_err = (
                 f"Only {len(responded)} of {len(answers)} members responded; "
-                f"synthesis needs at least {self.settings.chairman.min_members}. "
+                f"synthesis needs at least {need}. "
                 f"The individual answers above are unaffected.{note}"
             )
         elif cancel and cancel.is_set():
             syn_err = "Run cancelled before synthesis."
+        elif len(responded) == 1:
+            # Nothing to synthesise. Handing a single answer to a chairman to
+            # "compare" costs a second browser run against a paid account and
+            # returns a worse-written version of what is already on screen --
+            # so the sole member's answer IS the verdict, and the console says
+            # so rather than dressing it up as a consensus.
+            sole = responded[0]
+            verdict, syn_ok = sole.text, True
+            chair = next((p for p in providers if p.id == sole.provider_id), None)
         else:
             chair = self._pick_chairman(providers, answers)
             if chair is None:
