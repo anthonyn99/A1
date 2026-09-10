@@ -89,7 +89,12 @@ magi login deepseek
 MAGI never sees your credentials, and your personal Chrome profile is never
 touched — it can stay open the whole time. Skip any site you don't have an
 account for and disable it in `magi/config/magi.yaml` under `providers:`.
-`chairman.min_members: 2` is the minimum for a verdict to be attempted at all.
+`chairman.min_members: 2` is the minimum for a verdict to be attempted — but
+only ever *out of the units you actually selected*. Tick one unit and MAGI asks
+one model and shows you its answer, with no chairman pass at all: the console
+says **SOLE UNIT** and "answered directly" rather than calling one voice a
+consensus. min_members still does its real job, which is refusing to present a
+verdict built from one member when you asked for four.
 
 Finally, `magi doctor` to confirm the selectors still match.
 
@@ -192,6 +197,20 @@ An *unproven* token — one sitting in a desk browser's `localStorage`, used to
 reach the engine over `127.0.0.1`, which needs no token at all — only ever
 fills a gap. It cannot overwrite a token the phone just proved over a live
 tunnel. Proven ones, and one you have just typed in, replace.
+
+The desk console does not even need it typed once: `GET /api/token` hands the
+engine's own copy to a loopback caller and 404s over the tunnel, so the console
+learns it from the engine and publishes it. That endpoint adds no exposure —
+anything that can reach it can already `POST /api/runs` and drive four
+logged-in paid accounts, which is strictly worse than reading the string that
+authorises exactly that.
+
+**The field in the setup sheet is read-only until you unlock it.** It holds 43
+opaque characters and one stray keystroke takes the console offline with no
+symptom but silence. Press **Change** to edit; **Restore last working** puts
+back the last token that actually reached the engine — remembered only when
+*proven* (handed over by the engine, or used to open the tunnel), never merely
+when typed.
 
 Unset, the gate is **off** — so plain `magi` over 127.0.0.1 behaves as before.
 `magi cloud` refuses to publish without it, and verifies the tunnel returns
@@ -471,6 +490,12 @@ Steady state for heavy use — 30 runs a day, read on three devices — is rough
 Studio cards travel with the body deliberately: each one costs a real browser
 run, so a phone should open one rather than re-earn it. The API token travels
 in the index doc for the same reason — see **The token** above.
+
+**Every scroller has an overlay scrollbar** — the page, the drawer, and each
+open answer. Nothing while you read, a thumb while you move, grabbable with a
+finger or a cursor, gone a moment later. They are fixed overlays positioned
+from each scroller's rect rather than children of it, so no scroller needed
+restructuring to get one.
 
 **Pull down to refresh reloads the page**, exactly like Index and the rest of
 A1: the gesture is what people reach for when the page itself looks wrong, and
