@@ -2057,18 +2057,15 @@ input[type=time]{color-scheme:dark;}
   }
 
   /* ── Tony's TaskHub header on mobile ────────────────────────────────────────
-     Three bands, the way Veda's header stacks: the wordmark owns the top row,
-     the shared app nav sits under it, then the tool buttons. The nav is a fixed
-     body-level bar, so on a phone it used to land in the same band as the title
-     and crowd the Main / "Set as main" button. Offsetting the nav below the
-     title row and reserving that height above the tool row separates all three.
-     --th-title-band is the height the wordmark row occupies (padding + line);
-     --th-nav-band is the nav bar's own height (28px control + 2x10px padding). */
+     Two bands: the wordmark shares its row with the shared app nav (program
+     dropdown + profile star + settings gear — #tony-app-nav, a fixed
+     body-level bar layered on top, right-aligned), then the tool buttons sit
+     on their own row below. This used to be three bands, with the nav pushed
+     into a reserved band of its own between the two, because it collided
+     with the header's Main / "Set as main" button here — now that control
+     lives in Settings instead (see renderMainDeviceRow), the title row has
+     room to share its line with the nav again, same as desktop. */
   @media (max-width: 600px) {
-    body.th-nav-below-title { --th-title-band: 40px; --th-nav-band: 48px; }
-    body.th-nav-below-title #tony-app-nav {
-      top: calc(env(safe-area-inset-top, 0px) + var(--th-title-band));
-    }
     #th-main-header-row {
       flex-wrap: wrap !important;
       padding-bottom: 10px !important;
@@ -2081,8 +2078,6 @@ input[type=time]{color-scheme:dark;}
       width: 100% !important;
       flex: none !important;
       justify-content: flex-end !important;
-      /* Clears the nav band that now sits between the title and these tools. */
-      margin-top: var(--th-nav-band, 48px) !important;
     }
   }
 
