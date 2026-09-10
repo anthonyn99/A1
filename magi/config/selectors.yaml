@@ -108,6 +108,13 @@ sites:
       - "button.wm-sidebar-loginButton"
       - "button[data-testid='login-button']"
       - "a[href*='/auth/login']"
+    rate_limit_selectors:
+      # UNVERIFIED against a live wall -- ChatGPT's wording for the cap on a
+      # free account. Wrong here fails safe: a miss just reports the old
+      # timeout, it cannot invent a limit that is not there.
+      - "text=/You've reached your .{0,40}limit/i"
+      - "text=/message limit/i"
+      - "text=/try again (later|after)/i"
     challenge_selectors:
       # VERIFIED: headless Chrome is served an unclearable Turnstile page
       # (title "Just a moment...", cf_chl_opt in body). Headful clears it in
@@ -180,6 +187,15 @@ sites:
       - "input[name='email']"
       - "button:has-text('Continue with Google')"
       - "a[href*='/login']"
+    rate_limit_selectors:
+      # VERIFIED against magi/artifacts/claude-timeout-20260909-205707.html --
+      # a real 5-hour-limit wall captured mid-run. The toast carries the reset
+      # time ("Limits will reset at 5:00 PM"), which is the one fact the user
+      # actually needs, so it is listed first.
+      - "text=/Limits will reset/i"
+      - "text=/you've hit your limit/i"
+      - "text=/reached your .{0,30}limit/i"
+      - 'text=/Need more usage\?/i'
     challenge_selectors:
       - "iframe[src*='challenges.cloudflare.com']"
       - "text=/Verify you are human/i"
@@ -233,6 +249,10 @@ sites:
     login_selectors:
       - "a[href*='accounts.google.com/ServiceLogin']"
       - "text=/^Sign in$/"
+    rate_limit_selectors:
+      # UNVERIFIED.
+      - "text=/You've reached your .{0,40}limit/i"
+      - "text=/try again later/i"
     challenge_selectors:
       - "text=/unusual traffic/i"
       - "form#captcha-form"
@@ -296,6 +316,12 @@ sites:
       # the actual login screen.
       - "input[type='password']"
       - "input[placeholder*='phone number' i]"
+    rate_limit_selectors:
+      # UNVERIFIED. DeepSeek's overload notice rather than a quota wall, but it
+      # is the same class of failure: the site will not answer, and waiting is
+      # the remedy.
+      - "text=/server is busy/i"
+      - "text=/rate limit/i"
     challenge_selectors:
       - "text=/Verify you are human/i"
     # With no streaming marker and no stop button, completion here rests on

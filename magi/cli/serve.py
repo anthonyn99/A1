@@ -27,6 +27,7 @@ import webbrowser
 from datetime import datetime
 from pathlib import Path
 
+from .. import proc
 from ..settings import ROOT
 
 # The account-2 worker that answers "where is MAGI right now?".
@@ -76,14 +77,14 @@ def _free_port(port: int) -> None:
             return
     if os.name != "nt":
         return
-    out = subprocess.run(
+    out = proc.run(
         ["netstat", "-ano", "-p", "TCP"], capture_output=True, text=True
     ).stdout
     for line in out.splitlines():
         parts = line.split()
         if len(parts) >= 5 and parts[1].endswith(f":{port}") and parts[3] == "LISTENING":
             print(f"  port {port} was held by pid {parts[4]} — stopping it")
-            subprocess.run(["taskkill", "/f", "/pid", parts[4]], capture_output=True)
+            proc.run(["taskkill", "/f", "/pid", parts[4]], capture_output=True)
             time.sleep(1)
 
 
@@ -215,11 +216,10 @@ def cloud(port: int = 8000) -> int:
     cf_log.parent.mkdir(parents=True, exist_ok=True)
     try:
         cf_handle = open(cf_log, "w", encoding="utf-8", errors="replace")
-        proc = subprocess.Popen(
+        tunnel = proc.popen(
             ["cloudflared", "tunnel", "--url", f"http://127.0.0.1:{port}"],
             stdout=cf_handle,
             stderr=cf_handle,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
     except FileNotFoundError:
         return _serve_only(port, "cloudflared is not installed "
@@ -229,7 +229,7 @@ def cloud(port: int = 8000) -> int:
     # fixed amount.
     url = None
     deadline = time.time() + 60
-    while time.time() < deadline and proc.poll() is None:
+    while time.time() < deadline and tunnel.poll() is None:
         time.sleep(1.5)
         try:
             m = QUICK_TUNNEL.search(cf_log.read_text(encoding="utf-8", errors="replace"))
@@ -239,7 +239,7 @@ def cloud(port: int = 8000) -> int:
             url = m.group(0)
             break
     if not url:
-        proc.terminate()
+        tunnel.terminate()
         return _serve_only(port, f"cloudflared never printed a tunnel url (see {cf_log}).")
     print(f"  {url}")
 
@@ -265,12 +265,12 @@ def cloud(port: int = 8000) -> int:
                 print("  [!] /api/health answered 200 without a token — the gate")
                 print("      is OFF, so the tunnel was NOT published. The backend")
                 print("      did not inherit MAGI_API_TOKEN; open a new terminal.")
-                proc.terminate()
+                tunnel.terminate()
                 return
             except urllib.error.HTTPError as e:
                 if e.code != 401:
                     print(f"  [!] tunnel answered {e.code}; not publishing.")
-                    proc.terminate()
+                    tunnel.terminate()
                     return
                 # 401 is the CORRECT answer: it proves the tunnel reaches the
                 # backend AND that the token gate is armed.
@@ -281,7 +281,7 @@ def cloud(port: int = 8000) -> int:
         else:
             print("  [!] the tunnel url never resolved in 15 minutes.")
             print("      Local access is unaffected.")
-            proc.terminate()
+            tunnel.terminate()
             return
 
         try:
@@ -298,14 +298,14 @@ def cloud(port: int = 8000) -> int:
     print("  This PC must stay awake and logged in — the Chrome profiles are here.")
     print("  Ctrl+C to stop.\n")
     try:
-        proc.wait()
+        tunnel.wait()
     except KeyboardInterrupt:
         pass
     finally:
         # Withdraw on the way out, so the UI says "offline" instead of hanging
         # on a tunnel that closed with the process.
         _withdraw(token)
-        proc.terminate()
+        tunnel.terminate()
 
     # cloudflared exiting must not take the console down with it: the engine is
     # the thing that matters and it is still perfectly usable on this PC.
@@ -342,7 +342,7 @@ def _startup_dir() -> Path:
 
 
 def _run_ps(script: str) -> tuple[int, str]:
-    r = subprocess.run(
+    r = proc.run(
         ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
         capture_output=True, text=True,
     )
@@ -407,10 +407,7 @@ def autostart(action: str = "on", port: int = 8000) -> int:
 
     # Start it now rather than making them log out to see it work.
     print("  Starting it now…")
-    subprocess.Popen(
-        [str(pyw), "-m", "magi", "cloud"], cwd=str(root),
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-    )
+    proc.popen([str(pyw), "-m", "magi", "cloud"], cwd=str(root))
     if _wait_healthy(port, timeout=60):
         print(f"\n  MAGI is up. Open http://127.0.0.1:{port} — bookmark it and")
         print("  you never need magi.bat again.\n")

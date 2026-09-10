@@ -152,6 +152,31 @@ async def present(page: Page, candidates: list[str]) -> bool:
     return await resolve(page, candidates, timeout_ms=0) is not None
 
 
+async def rate_limited(page: Page, candidates: list[str]) -> str:
+    """The site's own "you have used your quota" notice, or "".
+
+    A DIFFERENT failure from a timeout, and the distinction is the whole point
+    of the taxonomy. Verified on claude.ai: hitting the 5-hour limit leaves the
+    composer present and the send apparently accepted, but no answer ever
+    streams -- so completion detection reported "No new answer appeared within
+    45s ... the send may not have registered, or the assistant_turn selector is
+    wrong", and the remedy it suggested was editing selectors.yaml. The real
+    remedy was to wait until 5pm.
+
+    Returns the notice TEXT, not just a boolean, because it usually carries the
+    reset time and that is the one thing the user actually needs.
+    """
+    for sel in candidates:
+        try:
+            loc = page.locator(sel).first
+            if await loc.count() and await loc.is_visible():
+                txt = (await loc.inner_text() or "").strip()
+                return " ".join(txt.split())[:200] or "usage limit reached"
+        except Exception:
+            continue
+    return ""
+
+
 async def signed_out(page: Page, login_candidates: list[str]) -> bool:
     """True if a "you are not signed in" control is in the DOM.
 

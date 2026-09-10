@@ -18,13 +18,14 @@ directory under profiles/, so your normal browser can stay open.
 from __future__ import annotations
 
 import asyncio
-import subprocess
+import os
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from pathlib import Path
 
 from playwright.async_api import BrowserContext, async_playwright
 
+from .. import proc
 from ..errors import FailureKind, ProviderError
 from ..settings import BrowserConfig
 from . import winhide
@@ -73,13 +74,7 @@ def _chrome_pids_using(profile_dir: Path) -> list[int]:
         "Get-CimInstance Win32_Process -Filter \"Name='chrome.exe'\" | "
         "ForEach-Object { \"$($_.ProcessId)`t$($_.CommandLine)\" }"
     )
-    try:
-        out = subprocess.run(
-            ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
-            capture_output=True, text=True, timeout=20,
-        ).stdout
-    except Exception:
-        return []
+    out = proc.powershell(ps)
 
     pids: list[int] = []
     for line in out.splitlines():
@@ -97,7 +92,7 @@ def _kill_pids(pids: list[int]) -> None:
     """Close orphaned MAGI browser processes holding a profile."""
     for pid in pids:
         try:
-            subprocess.run(
+            proc.run(
                 ["taskkill", "/f", "/t", "/pid", str(pid)],
                 capture_output=True, timeout=15,
             )
@@ -120,18 +115,32 @@ def _headless_user_agent(cfg: BrowserConfig) -> str:
     if cfg.headless_user_agent:
         return cfg.headless_user_agent
 
+    # Read the version out of Chrome's own layout rather than shelling out for
+    # it. Chrome keeps a version-named folder beside chrome.exe
+    # ("Application\141.0.7390.55\"), so the answer is a directory listing --
+    # no PowerShell, no console window, and nothing to wait on. This ran once
+    # per provider launch: four process spawns a run, for one string.
     version = "141.0.0.0"
-    try:
-        out = subprocess.run(
-            ["powershell", "-NoProfile", "-NonInteractive", "-Command",
-             "(Get-Item 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe')"
-             ".VersionInfo.ProductVersion"],
-            capture_output=True, text=True, timeout=15,
-        ).stdout.strip()
-        if out and out[0].isdigit():
-            version = out
-    except Exception:
-        pass
+    roots = [
+        os.environ.get("PROGRAMFILES", r"C:\Program Files"),
+        os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)"),
+        os.environ.get("LOCALAPPDATA", ""),
+    ]
+    for root in roots:
+        if not root:
+            continue
+        app = Path(root) / "Google" / "Chrome" / "Application"
+        try:
+            names = [
+                d.name for d in app.iterdir()
+                if d.is_dir() and d.name[:1].isdigit()
+            ]
+        except OSError:
+            continue
+        if names:
+            names.sort(key=lambda n: [int(x) for x in n.split(".") if x.isdigit()])
+            version = names[-1]
+            break
 
     return (
         f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "

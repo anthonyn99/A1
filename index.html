@@ -8405,13 +8405,10 @@ function App(){
         React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,minWidth:0,minHeight:30}},
           React.createElement("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-start",gap:2,minWidth:0,position:"relative"}},
             React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8}},
-              React.createElement("div",{className:"suite-title th-wordmark",style:{whiteSpace:"nowrap"}},"Tony's TaskHub"),
-              React.createElement("button",{type:"button",onClick:()=>{localStorage.setItem("td6_mainDash","tony");window._updateMainDashBtn&&window._updateMainDashBtn();},id:"th-setmain-btn",onMouseEnter:e=>{e.currentTarget.style.borderColor=T.AC;},onMouseLeave:e=>{e.currentTarget.style.borderColor=localStorage.getItem("td6_mainDash")==="tony"?T.AC:T.BD;},style:{background:"transparent",color:localStorage.getItem("td6_mainDash")==="tony"?T.ACL:T.AC,border:"1px solid "+(localStorage.getItem("td6_mainDash")==="tony"?T.AC:T.BD),borderRadius:4,fontSize:10,fontWeight:800,padding:"0 10px",height:"28px",boxSizing:"border-box",cursor:"pointer",fontFamily:"'Inter',system-ui,-apple-system,sans-serif",letterSpacing:0.5,whiteSpace:"nowrap",transition:"all .2s"}},localStorage.getItem("td6_mainDash")==="tony"?"Main":"Set as main"),
-              /* Un-main: only rendered as visible while THIS device is main for
-                 Tony. Sibling of the Main badge so the pair reads as one control.
-                 Visibility is re-driven imperatively by _updateMainDashBtn, which
-                 is what keeps the header honest without a React re-render. */
-              React.createElement("button",{type:"button",id:"th-unmain-btn",title:"Stop using this device as a main TaskHub device",onClick:()=>{window._thUnsetMainDash&&window._thUnsetMainDash();},onMouseEnter:e=>{e.currentTarget.style.borderColor=T.ERR;e.currentTarget.style.color=T.ERR;},onMouseLeave:e=>{e.currentTarget.style.borderColor=T.BD;e.currentTarget.style.color=T.TXM;},style:{display:localStorage.getItem("td6_mainDash")==="tony"?"inline-flex":"none",alignItems:"center",background:"transparent",color:T.TXM,border:"1px solid "+T.BD,borderRadius:4,fontSize:10,fontWeight:800,padding:"0 10px",height:"28px",boxSizing:"border-box",cursor:"pointer",fontFamily:"'Inter',system-ui,-apple-system,sans-serif",letterSpacing:0.5,whiteSpace:"nowrap",transition:"all .2s"}},"Un-main")),
+              // Main/Un-main now live in Settings → Profile Lock → Tony's Suite
+              // (see renderMainDeviceRow), not the header — same ids, same
+              // window._updateMainDashBtn/_thUnsetMainDash wiring, just moved.
+              React.createElement("div",{className:"suite-title th-wordmark",style:{whiteSpace:"nowrap"}},"Tony's TaskHub")),
             React.createElement("span",{style:{position:"absolute",top:"100%",left:0,marginTop:2,fontSize:10,fontWeight:600,whiteSpace:"nowrap",visibility:syncStatus==="saving"||syncStatus==="saved"||syncStatus==="error"?"visible":"hidden",color:syncStatus==="saving"?T.TXM:syncStatus==="error"?T.ERR:T.GRN}},syncStatus==="saving"?"Syncing…":syncStatus==="error"?"Sync failed":"Synced")),
           React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4,flexShrink:0}})),
         React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:6,minWidth:0,width:"100%",flexWrap:"wrap"}},
@@ -15468,6 +15465,39 @@ function App(){
     canUndo:()=>{const h=vxHist.current;return h.past.length>0||(h.base!=null&&vxSnap()!==h.base);},
     canRedo:()=>vxHist.current.future.length>0};
 
+  // ── Header pieces, built once and reassembled below ────────────────────
+  // Desktop keeps its original 2-column shape (title left, nav+tools stacked
+  // right). On mobile the nav row (program switch + profile star, gear
+  // injected onto it by injectVedaGears) now rides alongside the title on
+  // one line — freed up by Main/Un-main moving into Settings — leaving only
+  // the tools row on its own line below: 2 bands instead of 3.
+  const vdTitleBlock=RC("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-start",gap:3,flexShrink:1,minWidth:0,paddingTop:2,position:"relative"}},
+      RC("div",{style:{display:"flex",flexDirection:"row",alignItems:"center",gap:8}},
+        RC("div",{style:{fontFamily:"'Playfair Display',serif",fontSize:vrMobile?16:26,fontWeight:900,color:A,letterSpacing:vrMobile?0.5:1,textTransform:"uppercase",lineHeight:1.05,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},"Veda's TaskHub")),
+      RC("span",{style:{position:"absolute",top:"100%",left:0,marginTop:2,fontSize:10,fontWeight:600,whiteSpace:"nowrap",visibility:syncStatus==="saving"||syncStatus==="saved"||syncStatus==="error"?"visible":"hidden",color:syncStatus==="saving"?TXD:syncStatus==="error"?"#f85149":GRN,display:"inline-flex",alignItems:"center",gap:4}},syncStatus==="saving"?"Syncing…":syncStatus==="error"?[RC(VdIcon,{key:"i",name:"alert",size:11}),"Sync failed"]:[RC(VdIcon,{key:"i",name:"check",size:11}),"Synced"]));
+  const vdNavTopRow=RC("div",{className:"veda-hbtns veda-hbtns-top"},
+      RC("button",{onClick:()=>{},onMouseEnter:e=>{e.currentTarget.style.opacity="0.85";},onMouseLeave:e=>{e.currentTarget.style.opacity="1";},style:{background:A,color:BG,border:"1px solid "+A,boxShadow:GLOW_A,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},"TaskHub"),
+      RC("button",{onClick:()=>window._vedaNav&&window._vedaNav('gita'),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},"Gita"),
+      RC("button",{onClick:()=>window._vedaNav&&window._vedaNav('journal'),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},"Journal"),
+      RC("button",{onClick:()=>window._profileGoSelect&&window._profileGoSelect(),title:"Profile Selection",onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s",textTransform:"uppercase",letterSpacing:1}},RC("span",{style:vdStarGlyph},"✦")));
+  const vdToolsRow=RC("div",{className:"veda-hbtns",style:{paddingTop:4}},
+      RC("button",{key:"vx-voice",title:"Voice control",onClick:()=>window._THV&&window._THV.toggleVoice(),style:{background:vxRec?"#c0564a":A,color:BG,border:"1px solid "+(vxRec?"#c0564a":A),borderRadius:5,padding:"0 9px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",cursor:"pointer",fontFamily:"inherit",transition:"all .15s",boxShadow:GLOW(vxRec?"#c0564a":A)}},RC("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},RC("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),RC("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),RC("line",{x1:12,y1:19,x2:12,y2:23}),RC("line",{x1:8,y1:23,x2:16,y2:23}))),
+      /* Text → AI: typed twin of the mic, seated right beside it. */
+      RC("button",{key:"vx-text",title:"Text command (AI)","aria-label":"Text command",onClick:()=>window._THV&&window._THV.openText(),style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 9px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",cursor:"pointer",fontFamily:"inherit",transition:"all .15s"},onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;}},RC("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},RC("path",{d:"M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"}),RC("line",{x1:8.5,y1:10,x2:15.5,y2:10}),RC("line",{x1:8.5,y1:13.5,x2:13,y2:13.5}))),
+      RC("button",{key:"vx-dev",title:"Input device",onClick:()=>window._THV&&window._THV.openDevicePicker(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 9px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}},RC("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},RC("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),RC("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),RC("line",{x1:12,y1:19,x2:12,y2:23}),RC("circle",{cx:18.5,cy:5.5,r:3,fill:"currentColor",stroke:"none"}))),
+      vxUndo&&RC("button",{key:"vx-undo",title:"Undo",onClick:()=>window._THV&&window._THV.undo(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 11px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}},RC(VdIcon,{name:"undo",size:15})),
+      vxRedo&&RC("button",{key:"vx-redo",title:"Redo",onClick:()=>window._THV&&window._THV.redo(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 11px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}},RC(VdIcon,{name:"redo",size:15})),
+      RC("button",{onClick:()=>setRulesOpen("manage"),title:"Trading rules checklist",onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},"Rules"),
+      RC("button",{onClick:()=>setShowPomo(p=>!p),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=showPomo?A:BDL;},style:{background:showPomo?A:"transparent",color:showPomo?BG:A,border:"1px solid "+(showPomo?A:BDL),...(showPomo?{boxShadow:GLOW_A}:{}),borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},showPomo?"Timer On":"Timer"),
+      RC("div",{role:"button",tabIndex:0,"aria-pressed":edit,title:edit?"Switch to view mode":"Switch to edit mode",style:{display:"flex",alignItems:"center",gap:6,cursor:"pointer",userSelect:"none",height:28,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",boxSizing:"border-box"},onClick:()=>setEdit(!edit),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;}},
+        /* Mode reads as a glyph, not a word — pencil for edit, eye for view (same
+           vocabulary as Tony's TaskHub). */
+        RC("span",{style:{color:A,width:16,height:16,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0},title:edit?"Edit mode":"View mode","aria-label":edit?"Edit mode":"View mode"},
+          edit?RC("span",{style:{width:13,height:13,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})
+              :RC("svg",{width:14,height:14,viewBox:"0 0 14 14",fill:"none"},RC("ellipse",{cx:7,cy:7,rx:5.5,ry:3.5,stroke:"currentColor",strokeWidth:1.3}),RC("circle",{cx:7,cy:7,r:1.8,fill:"currentColor"}))),
+        RC("div",{style:{width:34,height:18,borderRadius:9,background:edit?A:BD,border:"1px solid "+BDL,position:"relative",transition:"background .25s"}},RC("div",{style:{width:13,height:13,borderRadius:"50%",background:edit?BG:TXD,position:"absolute",top:"50%",transform:"translateY(-50%)",left:edit?18:2,transition:"left .25s, background .25s"}}))),
+      RC("button",{onClick:toggleFullscreen,title:isFullscreen?"Exit Fullscreen":"Fullscreen",onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=isFullscreen?A:BDL;},style:{background:isFullscreen?A:"transparent",color:isFullscreen?BG:A,border:"1px solid "+(isFullscreen?A:BDL),borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s",textTransform:"uppercase",letterSpacing:1}},RC("span",{style:{width:15,height:15,fontSize:15,lineHeight:0,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0},dangerouslySetInnerHTML:{__html:isFullscreen?TNI.shrink:TNI.expand}})));
+
   return RC("div",{style:{background:BG,minHeight:"100%"}},
     RC("div",{style:{maxWidth:2000,margin:"0 auto",color:TX,fontFamily:"'IBM Plex Mono',monospace",fontSize:14,padding:"0 14px calc(env(safe-area-inset-bottom,0px) + 20px)",boxSizing:"border-box",lineHeight:1.5,display:"flex",flexDirection:"column",gap:8}},
 
@@ -15479,10 +15509,10 @@ function App(){
     RC("div",{style:{display:"flex",flexDirection:vrMobile?"column":"row",alignItems:vrMobile?"stretch":"flex-start",justifyContent:"space-between",gap:vrMobile?6:12,flexShrink:0}},
       RC("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-start",gap:3,flexShrink:1,minWidth:0,paddingTop:2,position:"relative"}},
         RC("div",{style:{display:"flex",flexDirection:"row",alignItems:"center",gap:8}},
-          RC("div",{style:{fontFamily:"'Playfair Display',serif",fontSize:vrMobile?16:26,fontWeight:900,color:A,letterSpacing:vrMobile?0.5:1,textTransform:"uppercase",lineHeight:1.05,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},"Veda's TaskHub"),
-          RC("button",{id:"vd-setmain-btn",onClick:()=>{localStorage.setItem("td6_mainDash","veda");window._updateMainDashBtn&&window._updateMainDashBtn();},onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:localStorage.getItem("td6_mainDash")==="veda"?A:"transparent",color:localStorage.getItem("td6_mainDash")==="veda"?BG:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:800,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:0.5,transition:"all .2s",whiteSpace:"nowrap",flexShrink:0}},localStorage.getItem("td6_mainDash")==="veda"?RC("span",{style:{display:"inline-flex",alignItems:"center",gap:5}},RC("span",{style:{width:11,height:11,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.star}}),"Main"):"Set as main"),
-          /* See Tony's header: shown only while this device is main for Veda. */
-          RC("button",{id:"vd-unmain-btn",title:"Stop using this device as a main TaskHub device",onClick:()=>{window._thUnsetMainDash&&window._thUnsetMainDash();},onMouseEnter:e=>{e.currentTarget.style.borderColor="#f85149";e.currentTarget.style.color="#f85149";},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;e.currentTarget.style.color=TXD;},style:{display:localStorage.getItem("td6_mainDash")==="veda"?"inline-flex":"none",background:"transparent",color:TXD,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",alignItems:"center",fontSize:10,fontWeight:800,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:0.5,transition:"all .2s",whiteSpace:"nowrap",flexShrink:0}},"Un-main")),
+          // Main/Un-main now live in Settings → Profile Lock → Veda's Suite
+          // (see renderMainDeviceRow), not the header — same ids, same
+          // window._updateMainDashBtn/_thUnsetMainDash wiring, just moved.
+          RC("div",{style:{fontFamily:"'Playfair Display',serif",fontSize:vrMobile?16:26,fontWeight:900,color:A,letterSpacing:vrMobile?0.5:1,textTransform:"uppercase",lineHeight:1.05,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},"Veda's TaskHub")),
         RC("span",{style:{position:"absolute",top:"100%",left:0,marginTop:2,fontSize:10,fontWeight:600,whiteSpace:"nowrap",visibility:syncStatus==="saving"||syncStatus==="saved"||syncStatus==="error"?"visible":"hidden",color:syncStatus==="saving"?TXD:syncStatus==="error"?"#f85149":GRN,display:"inline-flex",alignItems:"center",gap:4}},syncStatus==="saving"?"Syncing…":syncStatus==="error"?[RC(VdIcon,{key:"i",name:"alert",size:11}),"Sync failed"]:[RC(VdIcon,{key:"i",name:"check",size:11}),"Synced"])),
       RC("div",{style:{display:"flex",flexDirection:"column",gap:4,alignItems:"flex-end",flex:vrMobile?undefined:1,minWidth:0,minHeight:vrMobile?undefined:60}},
       RC("div",{className:"veda-hbtns veda-hbtns-top"},
@@ -44583,6 +44613,45 @@ function renderSuiteLock(container,profile){
     function(){ refreshLocks(); }));
 }
 
+// ── "Main device" row — the header's old Main/Un-main pair, now living here ──
+// Same ids (th-setmain-btn/th-unmain-btn for Tony, vd-setmain-btn/vd-unmain-btn
+// for Veda) as before the move, so window._updateMainDashBtn (which paints
+// these purely by id, on every "Set as main"/"Un-main" click and on load) keeps
+// driving them with zero changes. Only their home moved — into Settings, next
+// to the suite lock they now sit beside — not their wiring.
+function renderMainDeviceRow(container,profile){
+  container.innerHTML='';
+  var isTony=profile==='tony';
+  var accent=ACCENT[profile];
+  var row=document.createElement('div'); row.className='thset-row';
+  var lab=document.createElement('div'); lab.className='thset-label'; lab.textContent='Main device';
+  var wrap=document.createElement('div'); wrap.style.cssText='display:flex;align-items:center;gap:6px;flex-shrink:0;';
+
+  var setBtn=document.createElement('button');
+  setBtn.type='button'; setBtn.id=isTony?'th-setmain-btn':'vd-setmain-btn';
+  setBtn.style.cssText='border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.5px;padding:5px 11px;height:auto;box-sizing:border-box;cursor:pointer;font-family:inherit;white-space:nowrap;transition:all .15s;background:transparent;border:1px solid #2a2a34;color:'+accent+';';
+  setBtn.addEventListener('mouseenter',function(){ setBtn.style.borderColor=accent; });
+  setBtn.addEventListener('mouseleave',function(){ setBtn.style.borderColor=localStorage.getItem('td6_mainDash')===profile?accent:'#2a2a34'; });
+  setBtn.addEventListener('click',function(){
+    localStorage.setItem('td6_mainDash',profile);
+    if(window._updateMainDashBtn) window._updateMainDashBtn();
+  });
+
+  var unBtn=document.createElement('button');
+  unBtn.type='button'; unBtn.id=isTony?'th-unmain-btn':'vd-unmain-btn';
+  unBtn.title='Stop using this device as a main TaskHub device';
+  unBtn.textContent='Un-main';
+  unBtn.style.cssText='display:none;align-items:center;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.5px;padding:5px 11px;height:auto;box-sizing:border-box;cursor:pointer;font-family:inherit;white-space:nowrap;transition:all .15s;background:transparent;border:1px solid #2a2a34;color:#7a7a88;';
+  unBtn.addEventListener('mouseenter',function(){ unBtn.style.borderColor='#d68a7c'; unBtn.style.color='#d68a7c'; });
+  unBtn.addEventListener('mouseleave',function(){ unBtn.style.borderColor='#2a2a34'; unBtn.style.color='#7a7a88'; });
+  unBtn.addEventListener('click',function(){ window._thUnsetMainDash&&window._thUnsetMainDash(); });
+
+  wrap.appendChild(setBtn); wrap.appendChild(unBtn);
+  row.appendChild(lab); row.appendChild(wrap);
+  container.appendChild(row);
+  if(window._updateMainDashBtn) window._updateMainDashBtn();
+}
+
 function renderLockList(container,profile){
   container.innerHTML='';
   appsForProfile(profile).forEach(function(app){
@@ -44831,6 +44900,7 @@ function openSettings(profile){
     '<div class="thset-sec">'+
       '<div class="thset-sec-title">Profile Lock</div>'+
       '<div id="thset-suitelock"></div>'+
+      '<div id="thset-mainrow"></div>'+
     '</div>'+
     '<div class="thset-sec">'+
       '<div class="thset-sec-title">Internal Programs</div>'+
@@ -44850,6 +44920,7 @@ function openSettings(profile){
 
   _box.querySelector('.thset-close').addEventListener('click',closeSettings);
   renderSuiteLock(document.getElementById('thset-suitelock'),profile);
+  renderMainDeviceRow(document.getElementById('thset-mainrow'),profile);
   renderLockList(document.getElementById('thset-locklist'),profile);
   renderLinkList(document.getElementById('thset-linklist'),profile);
 

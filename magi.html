@@ -196,7 +196,7 @@ body::before {
 /* Below this a 232px rail is a third of the viewport, so the icon-only form
    is forced regardless of the stored preference. The preference is not
    overwritten -- widening the window restores whatever the user chose. */
-@media (max-width: 820px) {
+@media (min-width: 761px) and (max-width: 820px) {
   .shell { grid-template-columns: 56px minmax(0, 1fr); }
   .side-brand,
   .side-label,
@@ -520,7 +520,12 @@ body::before {
 
 @media (max-width: 900px) {
   .magi-grid { grid-template-columns: 1fr; }
-  .magi-core-cell { grid-row: auto; order: 99; }
+  /* grid-COLUMN has to be reset too, not just grid-row. The base rule pins the
+     core to column 3; leaving that in place while declaring a single-column
+     template makes grid invent columns 2 and 3 to satisfy it, and the members
+     were laid out across them at 4px and 156px wide on a 390px phone. The
+     single-column template was there all along and did nothing. */
+  .magi-core-cell { grid-column: auto; grid-row: auto; order: 99; }
   .magi-links { display: none; }
 }
 
@@ -1458,11 +1463,190 @@ table.doctor code { color: var(--txd); font-size: 11px; }
   color: var(--txd); font: inherit; font-size: 10.5px; padding: 4px 9px; margin-top: 8px;
 }
 .offline-note button:hover { border-color: var(--ac); color: var(--ac); }
+
+/* ══ MOBILE ════════════════════════════════════════════════════════════════
+   Below 760px the sidebar stops being a rail and becomes an off-canvas drawer.
+
+   The inherited design collapsed it to a 56px icon-only strip instead. That is
+   fine on a narrow laptop and wrong on a phone: it costs 14% of a 390px screen
+   permanently, and stripping the labels leaves Studio's seven cards and
+   Brainstorm as a column of near-identical glyphs. A drawer gives the content
+   the whole width and the nav its full labels when it is actually open.
+
+   MAGI is genuinely useful on a phone -- the engine is on the PC and the
+   console is just a view of it -- so this is the case where you are most
+   likely to be reading a verdict rather than starting a run.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* The mobile top bar: hidden on desktop, where the sidebar is always present. */
+.mtop { display: none; }
+
+/* The scrim is a CHILD OF .shell, which is a grid -- so if it is merely
+   invisible it still occupies a grid cell. Left in flow it took column 1 and
+   pushed the page into the sidebar's 56px slot, which collapsed the console to
+   a 4px-wide column of member blocks at every width above the mobile
+   breakpoint. display:none removes it from the grid entirely; the mobile layer
+   turns it back on as a FIXED overlay, which is out of flow either way. */
+.scrim { display: none; }
+
+@media (max-width: 760px) {
+  .shell,
+  .shell.nav-collapsed { grid-template-columns: minmax(0, 1fr); }
+
+  .mtop {
+    display: flex; align-items: center; gap: 10px;
+    position: sticky; top: 0; z-index: 60;
+    padding: 10px 12px;
+    padding-top: max(10px, env(safe-area-inset-top));
+    background: var(--s1); border-bottom: 1px solid var(--bd);
+  }
+  .mtop-burger {
+    width: 40px; height: 40px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: transparent; border: 1px solid var(--bd); border-radius: var(--r-btn);
+    color: var(--txd); font-size: 15px;
+  }
+  .mtop-burger:active { background: var(--s2); color: var(--tx); }
+  .mtop-title {
+    font-family: var(--font-display); font-size: 13px; font-weight: 800;
+    letter-spacing: 2.4px; color: var(--acl);
+  }
+  .mtop-where {
+    margin-left: auto; display: flex; align-items: center; gap: 6px;
+    font-size: 10px; color: var(--txm); letter-spacing: .3px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 44%;
+  }
+
+  /* ── the drawer ───────────────────────────────────────────────────────── */
+  .sidebar {
+    position: fixed; inset: 0 auto 0 0; z-index: 80;
+    width: min(82vw, 300px);
+    transform: translateX(-100%);
+    transition: transform .2s cubic-bezier(0.4, 0, 0.2, 1);
+    border-right: 1px solid var(--bd);
+    box-shadow: 0 0 40px var(--shadow);
+    padding-top: env(safe-area-inset-top);
+  }
+  .shell.nav-open .sidebar { transform: translateX(0); }
+
+  /* Everything the collapsed rail hid comes BACK -- the drawer is wide. */
+  .sidebar .side-brand,
+  .sidebar .side-label,
+  .sidebar .side-tag,
+  .sidebar .side-sec-note { display: revert; }
+  .sidebar .side-item { justify-content: flex-start; padding: 11px 10px; }
+  .sidebar .side-sec-hd {
+    height: auto; padding: 0 9px 5px; margin: 0; overflow: visible;
+    background: none; color: var(--txm);
+  }
+  .side-toggle { display: none; }
+  .side-top { justify-content: flex-start; padding: 14px 12px 10px; }
+
+  /* Tapping the scrim is the fastest way out, and on a phone it is the one
+     people reach for before hunting a close button. */
+  .scrim {
+    display: block;
+    position: fixed; inset: 0; z-index: 70;
+    background: rgba(0, 0, 0, .55);
+    opacity: 0; pointer-events: none; transition: opacity .2s ease;
+  }
+  .shell.nav-open .scrim { opacity: 1; pointer-events: auto; }
+
+  .page {
+    padding: 12px;
+    padding-bottom: max(24px, env(safe-area-inset-bottom));
+  }
+
+  /* ── touch targets ────────────────────────────────────────────────────── */
+  /* 44px is the smallest reliably hittable control; the desktop sizes here are
+     28px pills built for a mouse. */
+  .side-item, .navitem, .btn, .chip, .quiz-opt, .bs-opt { min-height: 44px; }
+  .btn { padding: 0 16px; font-size: 12px; }
+  .qbar-attach, .qbar-refine { min-height: 40px; }
+  .chip { padding: 6px 10px; }
+  .node-hd { min-height: 52px; }
+
+  /* iOS zooms the page when a focused input is under 16px. That zoom does not
+     undo itself, so one tap on the composer leaves the whole console
+     magnified and horizontally scrolling. */
+  .qbar textarea, .bs-topic, .bs-open-input, .sheet-in, input, textarea {
+    font-size: 16px;
+  }
+
+  /* ── composer ─────────────────────────────────────────────────────────── */
+  .qbar { padding: 10px; }
+  .qbar textarea { min-height: 72px; }
+  .qbar-toolbar { flex-wrap: wrap; gap: 8px; }
+  /* The send button takes its own row rather than being squeezed to an
+     unreadable width beside Refine. */
+  .qbar-send { flex: 1 1 100%; order: 9; }
+  .qbar-spacer { display: none; }
+
+  .members { gap: 8px; }
+  .members .label { flex: 1 1 100%; }
+
+  /* ── verdict + cards ──────────────────────────────────────────────────── */
+  .verdict-body.split { grid-template-columns: minmax(0, 1fr); }
+  .verdict, .studio-view, .drawer { border-radius: var(--r-card); }
+  .verdict-hd, .studio-view-hd { flex-wrap: wrap; gap: 6px; }
+  .v-lead { font-size: 15px; }
+
+  /* A wide table must scroll INSIDE its own box; the page itself must never
+     scroll sideways. */
+  .v-tablewrap, .studio-tablewrap, .bs-split { max-width: 100%; overflow-x: auto; }
+  .v-table, .studio-table { min-width: 460px; }
+
+  .magi-grid { gap: 10px; }
+  .node-body { max-height: 50vh; }
+
+  /* ── studio ───────────────────────────────────────────────────────────── */
+  .flashcards { grid-template-columns: 1fr; }
+  .studio-view-body { padding: 12px; }
+  .mindmap { gap: 14px; }
+  .mm-node, .mm-root { font-size: 11px; }
+  .slide-nav button { min-width: 44px; min-height: 44px; }
+
+  /* ── brainstorm ───────────────────────────────────────────────────────── */
+  .bs-cards { grid-template-columns: 1fr; }
+  .bs-start-bar { flex-wrap: wrap; gap: 8px; }
+  .bs-note { flex: 1 1 100%; order: 9; }
+  .bs-plan-bar { flex-wrap: wrap; gap: 8px; }
+  .bs-council-body { max-height: 40vh; }
+
+  /* ── history rows ─────────────────────────────────────────────────────── */
+  /* Question and metadata stack; side by side, the question was crushed to a
+     few characters before the ellipsis. */
+  .row { flex-direction: column; align-items: flex-start; gap: 4px; padding: 12px; }
+  .row .q { white-space: normal; overflow: visible; }
+  .row .meta { white-space: normal; }
+
+  table.doctor { font-size: 10.5px; }
+  table.doctor th, table.doctor td { padding: 5px 7px; }
+
+  .sheet { padding: 12px; align-items: flex-start; padding-top: 8vh; }
+}
+
+/* Very narrow: an extra squeeze for 360px-class phones. */
+@media (max-width: 400px) {
+  .page { padding: 10px; }
+  .chip-unit { display: none; }
+  .verdict-quorum { font-size: 9.5px; }
+  .v-table, .studio-table { min-width: 380px; }
+}
+
+/* Landscape phones are SHORT, not narrow: the drawer must still scroll and the
+   composer must not eat the whole viewport. */
+@media (max-width: 900px) and (max-height: 460px) {
+  .sidebar { overflow-y: auto; }
+  .qbar textarea { min-height: 48px; }
+  .node-body { max-height: 60vh; }
+}
 </style>
 </head>
 <body>
 
 <div class="shell" id="shell">
+  <div class="scrim" id="scrim"></div>
   <aside class="sidebar">
     <div class="side-top">
       <button type="button" class="side-toggle" id="navToggle" title="Collapse sidebar" aria-expanded="true">☰</button>
@@ -1521,6 +1705,12 @@ table.doctor code { color: var(--txd); font-size: 11px; }
   </aside>
 
   <main class="page" id="page">
+    <div class="mtop">
+      <button type="button" class="mtop-burger" id="navBurger" aria-label="Menu" aria-expanded="false">☰</button>
+      <span class="mtop-title">MAGI</span>
+      <span class="mtop-where"><span class="link-dot" id="mtopDot"></span><span id="mtopTxt">…</span></span>
+    </div>
+
     <div class="offline-note" id="offlineNote" hidden></div>
 
     <div class="qbar" id="qbar">
@@ -1707,6 +1897,7 @@ function setLink(where, detail) {
   }[where];
   updateEnabled();
   renderOfflineNote();
+  if (typeof syncMobileLink === "function") syncMobileLink();
 }
 
 /** Find the engine. Ordered fastest-first, and each step is skipped when it
@@ -4527,6 +4718,45 @@ async function bsRefine() {
     S.bs.refining = false;
     renderBsView();
   }
+}
+
+/* ══ mobile drawer ═════════════════════════════════════════════════════════
+   Below 760px the sidebar is off-canvas. Opening it is a class on the shell,
+   so the CSS owns the animation and this owns only the intent. */
+function setDrawer(open) {
+  $("shell").classList.toggle("nav-open", open);
+  $("navBurger").setAttribute("aria-expanded", String(open));
+  // The drawer scrolls over the page; letting the page scroll underneath is
+  // the classic phone bug where closing leaves you somewhere else entirely.
+  document.body.style.overflow = open ? "hidden" : "";
+}
+const drawerOpen = () => $("shell").classList.contains("nav-open");
+
+$("navBurger").onclick = () => setDrawer(!drawerOpen());
+$("scrim").onclick = () => setDrawer(false);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && drawerOpen()) setDrawer(false);
+});
+// Any navigation choice closes it -- on a phone the drawer covers what you
+// just asked to see, so leaving it open hides the result of the tap.
+$("sideNav").addEventListener("click", (e) => {
+  if (e.target.closest("button") && drawerOpen()) setDrawer(false);
+});
+// A rotate or a resize back to desktop must not strand the shell in the open
+// state, where `nav-open` would mean nothing and the scrim would be gone.
+window.addEventListener("resize", () => {
+  if (window.innerWidth > 760 && drawerOpen()) setDrawer(false);
+});
+
+/** The top bar mirrors the sidebar's link status, because on mobile the
+ *  sidebar is usually shut and that row is the only "is the engine there?"
+ *  signal the user can see. */
+function syncMobileLink() {
+  const dot = $("mtopDot");
+  if (!dot) return;
+  dot.className = "link-dot";
+  $("linkBtn").classList.forEach((c) => { if (c !== "link") dot.classList.add(c); });
+  $("mtopTxt").textContent = link.detail || "";
 }
 
 /* ══ boot ══════════════════════════════════════════════════════════════════ */

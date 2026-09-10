@@ -163,6 +163,19 @@ class BrowserProvider(Provider):
                         f"Tried {len(site.input)}. Run `python -m magi doctor`.",
                     )
 
+                # A quota notice sits on top of a perfectly working page, so
+                # this must be checked BEFORE typing: otherwise the prompt goes
+                # in, the send appears to land, and nothing ever streams -- the
+                # exact shape that got reported as a timeout with "the send may
+                # not have registered, or the assistant_turn selector is wrong".
+                limit = await resolve.rate_limited(page, site.rate_limit_selectors)
+                if limit:
+                    artifacts = await self._save_artifacts(page, "rate-limited")
+                    return fail(
+                        FailureKind.RATE_LIMITED,
+                        f"{self.display_name} says: {limit}",
+                    )
+
                 # A composer is NOT proof of a session. Gemini and ChatGPT both
                 # render one for anonymous visitors, so this check used to be
                 # reachable only when the composer was MISSING -- which meant a
@@ -259,6 +272,19 @@ class BrowserProvider(Provider):
                         on_progress=on_progress, cancel=cancel,
                     )
                 except ProviderError as e:
+                    # A quota notice can appear DURING a run -- the limit is
+                    # per rolling window, so a member that started fine can be
+                    # cut off mid-answer. Re-checking here turns "timeout, go
+                    # edit your selectors" into "you are out of quota until
+                    # 5pm", which is the difference between a wasted afternoon
+                    # and waiting.
+                    limit = await resolve.rate_limited(page, site.rate_limit_selectors)
+                    if limit:
+                        artifacts = await self._save_artifacts(page, "rate-limited")
+                        return fail(
+                            FailureKind.RATE_LIMITED,
+                            f"{self.display_name} says: {limit}",
+                        )
                     artifacts = await self._save_artifacts(page, str(e.kind))
                     raise
 
