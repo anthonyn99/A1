@@ -1420,15 +1420,38 @@ async def refine_prompt(
 async def doctor(request: Request, provider_ids: list[str] | None = None):
     providers = build_providers(settings, provider_ids or None)
     out = []
+
+    async def _cancel_when_client_leaves(task: asyncio.Task) -> None:
+        """Kill the in-flight check the moment the browser aborts the fetch.
+
+        Checking is_disconnected only BETWEEN providers -- which is what this
+        did before -- means Stop waits for the current provider to finish, and
+        a single health check opens a real browser and runs for tens of
+        seconds. Pressing Stop and watching nothing happen for ten seconds is
+        indistinguishable from a Stop button that does not work, which is
+        exactly how it was reported.
+
+        Cancelling the task unwinds launcher.launch's context manager, so the
+        browser it opened is closed rather than left orphaned holding a
+        profile lock.
+        """
+        while not task.done():
+            if await request.is_disconnected():
+                task.cancel()
+                return
+            await asyncio.sleep(0.35)
+
     for p in providers:
-        # A pass opens a real browser per provider and runs for tens of
-        # seconds, so the user is given a way to cancel it. Aborting the
-        # fetch only drops the client's end of the connection -- without
-        # this check the server would keep launching the remaining browsers
-        # to build a result nobody is waiting for.
         if await request.is_disconnected():
             break
-        r = await p.health_check()
+        check = asyncio.create_task(p.health_check())
+        watcher = asyncio.create_task(_cancel_when_client_leaves(check))
+        try:
+            r = await check
+        except asyncio.CancelledError:
+            break
+        finally:
+            watcher.cancel()
         out.append(
             {
                 "provider_id": r.provider_id,
