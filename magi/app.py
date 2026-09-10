@@ -166,17 +166,7 @@ async def _require_token(request: Request, call_next):
             # response timing.
             if not secrets.compare_digest(sent, token):
                 return JSONResponse({"detail": "unauthorized"}, status_code=401)
-    response = await call_next(request)
-
-    # Private Network Access. magi.html on GitHub Pages (a PUBLIC address) can
-    # reach this server on 127.0.0.1 (a LOCAL one) only if the preflight opts
-    # in explicitly -- Chrome blocks public->private otherwise, silently, with
-    # no CORS error to read. This is what lets the hosted page talk straight to
-    # the PC when you are sitting at it, instead of round-tripping through the
-    # tunnel. Harmless when the request is same-origin or already local.
-    if request.headers.get("Access-Control-Request-Private-Network") == "true":
-        response.headers["Access-Control-Allow-Private-Network"] = "true"
-    return response
+    return await call_next(request)
 
 
 app.add_middleware(
@@ -187,6 +177,17 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # Private Network Access. magi.html on GitHub Pages is a PUBLIC origin
+    # reaching a PRIVATE one (127.0.0.1), and Chrome sends a preflight carrying
+    # Access-Control-Request-Private-Network for that. Starlette REJECTS such a
+    # preflight with 400 unless this is on -- verified: the same preflight
+    # returns 200 without that header and 400 with it -- so the hosted page
+    # could never reach the engine even sitting at the PC.
+    #
+    # This is the real mechanism; the hand-rolled response header that used to
+    # live in _require_token never ran, because CORSMiddleware is the outermost
+    # layer and answers OPTIONS itself without calling anything inside it.
+    allow_private_network=True,
 )
 
 

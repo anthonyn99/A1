@@ -1924,12 +1924,20 @@ async function connect() {
   }
 
   link.token = loadToken();
-  if (!link.token) return setLink("down", "no API token set");
 
-  // At the desk: straight to the PC, no tunnel hop.
+  // At the desk: straight to the PC, no tunnel hop and NO TOKEN NEEDED. The
+  // engine exempts requests that did not arrive through cloudflared, so a
+  // GitHub Pages page sitting beside the PC talks to it with nothing
+  // configured at all. Tried BEFORE the token check on purpose: requiring a
+  // token first meant the hosted page reported "no API token set" while the
+  // engine was running on the same machine, three feet away.
   link.api = LOCAL_API;
   const local = await probe(LOCAL_API);
   if (local === "ok") return setLink("local", "this PC · 127.0.0.1");
+
+  // Only the tunnel genuinely needs the token: magi-link keys its records by
+  // the token's hash, so without one there is nothing to look up.
+  if (!link.token) { link.api = null; return setLink("down", "no API token set"); }
   if (local === "unauthorized") { link.api = null; return setLink("down", "token rejected"); }
 
   // Away: wherever `magi cloud` last published.
@@ -2004,7 +2012,7 @@ function renderOfflineNote() {
   if (online() || link.where === "seeking") return show(n, false);
   n.innerHTML = "";
   const why = {
-    "no API token set": "This page has no API token yet.",
+    "no API token set": "The engine is not answering on this PC, and this page has no API token to look up a tunnel with. If you are AT the PC, start the engine; if you are away, set the token.",
     "token rejected": "The PC is there, but it did not accept this token.",
     "PC has not published": "The PC has not published a tunnel. It is probably asleep, off, or was started with <code>magi</code> rather than <code>magi cloud</code>.",
     "tunnel is dead": "The published tunnel no longer answers — cloudflared has stopped since it was published.",
