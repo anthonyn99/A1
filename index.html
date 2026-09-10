@@ -44702,6 +44702,12 @@ if(document.readyState==='loading'){
   align-items:center;justify-content:center;cursor:pointer;color:#8D769A;
   flex-shrink:0;touch-action:manipulation;transition:all .15s;
 }
+/* Both journals carry a `#xx-root * { margin:0; padding:0 }` reset, and an id in the
+   selector outranks this bare class -- which stripped the gear's side padding and
+   collapsed its outline onto the icon (31px wide in TaskHub, 17px in the Journal).
+   Restate the box at a specificity the reset cannot beat. */
+#bj-root .vd-settings-gear,
+#tj-root .vd-settings-gear{padding:0 7px;height:28px;}
 .vd-settings-gear:hover{border-color:#8D769A;}
 .vd-settings-gear svg{transition:transform .25s;}
 .vd-settings-gear:hover svg{transform:rotate(35deg);}
