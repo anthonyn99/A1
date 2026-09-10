@@ -395,3 +395,57 @@ the prompt (an answered-facts ledger, blocking unknowns that gate the finish,
 refutations replayed to the member that made the claim, disagreement as a table
 rather than prose, and a review pass that can only improve or no-op). Read
 `magi/engine/brainstorm.py` before rebuilding that UI.
+
+---
+
+## Cross-device sync
+
+Every finished deliberation goes to Firestore, so a verdict produced on the PC
+opens on the phone. The engine stays where the Chrome profiles are; only the
+RESULTS travel.
+
+```
+dashboards/magi              one index doc: compact rows, newest first
+dashboards/magi/runs/{id}    one body per run: answers, verdict, Studio cards
+```
+
+Both sit under the existing `/dashboards/{doc=**}` rule, so `firestore.rules`
+needed no change.
+
+**The write budget drove the shape.** The free tier is 20k writes and 50k reads
+a day, shared with every other A1 program:
+
+- **Nothing is written while a run is in flight.** A run emits an SSE frame
+  every few hundred ms per member; mirroring those would be thousands of
+  writes for one question. One completed run is **one body write plus one
+  index update**.
+- **History reads one document, not a collection.** A collection query costs
+  one read per run returned — 30 reads every time the page opens. One index
+  doc is one read.
+- **Exactly one listener**, on that index doc, so a run finished on the PC
+  appears elsewhere without polling. Its cost is bounded by write volume, not
+  by time.
+- **Bodies are read only when you open that run.** Opening History reads
+  nothing extra.
+- Index writes are **debounced**, so generating three Studio cards in a row is
+  still one index write.
+
+Steady state for heavy use — 30 runs a day, read on three devices — is roughly
+90 writes and a few hundred reads. Under half a percent of the allowance.
+
+Studio cards travel with the body deliberately: each one costs a real browser
+run, so a phone should open one rather than re-earn it.
+
+**App Check is registered per domain.** Sync works on
+`https://anthonyn99.github.io/A1/magi.html`; on `http://127.0.0.1:8000` the
+App Check token is refused and sync silently stays off. Everything local —
+running the council, History, Studio, Brainstorm — is unaffected either way,
+and the console degrades to local-only rather than erroring.
+
+## Installing it
+
+`magi.html` carries an inline `data:` manifest, the same pattern every other A1
+program uses, so there is no extra file to deploy. Open it and use the
+browser's **Install** option to get it as a standalone app with its own icon.
+Install from the GitHub Pages URL rather than `127.0.0.1`, so the installed app
+has a stable identity and App Check works.
