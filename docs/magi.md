@@ -177,6 +177,22 @@ setx MAGI_API_TOKEN "<a long random string>"   # then open a NEW terminal
 Enter the same value in the console (click the status row at the bottom of the
 sidebar). It is kept in that browser's `localStorage`.
 
+**You only type it once, on one device.** A browser that has connected with a
+token publishes it into `dashboards/magi` alongside the history it gates, and a
+browser that has none reads it from there before reporting itself offline. That
+was not a nicety: `magi-link` keys its records by the token's *hash*, so a
+phone without the secret cannot even ask where the engine is — and the fix
+otherwise was typing a long random string on a phone keyboard. It lives in the
+same document, under the same rules, the same App Check and the same sign-in
+that already hold every deliberation; Keychain keeps real passwords in this
+project, so guarding the token more heavily than the data it protects would be
+theatre.
+
+An *unproven* token — one sitting in a desk browser's `localStorage`, used to
+reach the engine over `127.0.0.1`, which needs no token at all — only ever
+fills a gap. It cannot overwrite a token the phone just proved over a live
+tunnel. Proven ones, and one you have just typed in, replace.
+
 Unset, the gate is **off** — so plain `magi` over 127.0.0.1 behaves as before.
 `magi cloud` refuses to publish without it, and verifies the tunnel returns
 **401** before publishing: a 200 there would mean the server started without
@@ -194,6 +210,25 @@ the worker never learns the secret, holds no secrets of its own, and a dump of
 its namespace reveals no credential. It costs one KV write per PC boot.
 Registering a domain would remove the tunnel churn entirely; see the named-tunnel
 note in `magi/config/`.
+
+### The tunnel heals itself, and asks Windows for nothing
+
+A quick tunnel is not durable: cloudflared drops out on a network blip, on
+sleep/wake, or when Cloudflare recycles the hostname. `magi cloud` replaces it
+rather than serving locally for the rest of the session — each replacement gets
+a new hostname, which is exactly what `magi-link` is for, and the phone follows
+on its next look. Backoff is capped at a minute.
+
+It is also launched with three flags that exist for one symptom: Windows put up
+**"allow cloudflared?"** at every single logon, and clicking Allow did not stop
+it — four allow rules were already in place. The prompt is not about the rules,
+it is about cloudflared **binding a socket that is not loopback**:
+
+| Flag | Why |
+|---|---|
+| `--protocol http2` | the default QUIC transport binds an unconnected UDP socket to `0.0.0.0`, which Windows cannot tell from a listener. http2 carries the same tunnel over ordinary outbound TCP. |
+| `--metrics 127.0.0.1:0` | pins the metrics server to loopback so it can never land on a routable address. |
+| `--no-autoupdate` | cloudflared replacing its own binary underneath the firewall rules is one of the few ways a settled prompt comes back. |
 
 ---
 
@@ -434,7 +469,17 @@ Steady state for heavy use — 30 runs a day, read on three devices — is rough
 90 writes and a few hundred reads. Under half a percent of the allowance.
 
 Studio cards travel with the body deliberately: each one costs a real browser
-run, so a phone should open one rather than re-earn it.
+run, so a phone should open one rather than re-earn it. The API token travels
+in the index doc for the same reason — see **The token** above.
+
+**Pull down to refresh reloads the page**, exactly like Index and the rest of
+A1: the gesture is what people reach for when the page itself looks wrong, and
+refetching state in place cannot fix that (or pick up a newly deployed
+`magi.html`). The one exception is a deliberation in flight — reloading then
+would drop the SSE stream and leave the council running against your paid
+accounts with nothing watching — so that case refreshes in place instead. The
+gesture is implemented by hand because `body { overflow: hidden }` and an
+installed PWA leave the browser's own version nothing to fire on.
 
 **App Check is registered per domain.** Sync works on
 `https://anthonyn99.github.io/A1/magi.html`; on `http://127.0.0.1:8000` the

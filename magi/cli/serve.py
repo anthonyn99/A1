@@ -48,6 +48,44 @@ QUICK_TUNNEL = re.compile(r"https://[a-z0-9-]+\.trycloudflare\.com")
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36")
 
+# The tunnel hostname currently in play. The keep-alive loop below replaces the
+# tunnel on failure, and each replacement gets a NEW hostname -- so the verify
+# thread cannot close over the url it was started with, or a restarted tunnel
+# would be checked and published under its dead predecessor's name.
+_CURRENT: dict[str, str] = {"url": ""}
+
+
+def _cloudflared_argv(port: int) -> list[str]:
+    """The tunnel command, with every wildcard socket removed.
+
+    Windows put up a "Windows Security Alert — allow cloudflared?" box at every
+    single logon, and clicking Allow did not stop it: four allow rules
+    (TCP+UDP x Private+Public) were already in place and it still asked. The
+    prompt is not really about the rules, it is about cloudflared BINDING a
+    socket that is not loopback, and a quick tunnel binds two:
+
+      · QUIC. The default edge transport is UDP/QUIC, and an outbound UDP
+        socket is bound to 0.0.0.0 with no peer -- indistinguishable from a
+        listener, which is exactly what the firewall notifies on. `http2`
+        carries the tunnel over ordinary outbound TCP instead, which is never
+        announced. Quick tunnels support it fully; the cost is a little latency
+        on reconnect, and this is a text API.
+
+      · The metrics server, pinned to loopback on an ephemeral port so it can
+        never land on a routable address.
+
+    --no-autoupdate is part of the same fix rather than an aside: cloudflared
+    replacing its own binary underneath the firewall rules is one of the few
+    ways a settled prompt comes back.
+    """
+    return [
+        "cloudflared", "tunnel",
+        "--url", f"http://127.0.0.1:{port}",
+        "--protocol", "http2",
+        "--metrics", "127.0.0.1:0",
+        "--no-autoupdate",
+    ]
+
 
 def _ensure_streams() -> None:
     """Give pythonw.exe somewhere to print, and leave a log behind.
@@ -231,9 +269,7 @@ def cloud(port: int = 8000) -> int:
     try:
         cf_handle = open(cf_log, "w", encoding="utf-8", errors="replace")
         tunnel = proc.popen(
-            ["cloudflared", "tunnel", "--url", f"http://127.0.0.1:{port}"],
-            stdout=cf_handle,
-            stderr=cf_handle,
+            _cloudflared_argv(port), stdout=cf_handle, stderr=cf_handle,
         )
     except FileNotFoundError:
         return _serve_only(port, "cloudflared is not installed "
@@ -268,6 +304,7 @@ def cloud(port: int = 8000) -> int:
     # racing a network stack that is itself still coming up, so a fixed
     # deadline is the wrong shape entirely: keep the tunnel and keep trying.
     def verify_and_publish() -> None:
+        url = _CURRENT["url"]
         deadline = time.time() + 15 * 60
         delay = 3
         while time.time() < deadline:
@@ -308,24 +345,70 @@ def cloud(port: int = 8000) -> int:
             return
         print(f"  published — https://anthonyn99.github.io/A1/magi.html now reaches this PC")
 
+    _CURRENT["url"] = url
     threading.Thread(target=verify_and_publish, daemon=True).start()
 
     print(f"\n  MAGI → http://127.0.0.1:{port}  (and over the tunnel once it registers)")
     print("  This PC must stay awake and logged in — the Chrome profiles are here.")
     print("  Ctrl+C to stop.\n")
+
+    # ── keep the tunnel alive ─────────────────────────────────────────────
+    # A quick tunnel is not a durable thing: cloudflared drops out on a network
+    # blip, on sleep/wake, or when Cloudflare recycles the hostname. The first
+    # version simply stopped tunnelling at that point and served locally for
+    # the rest of the session -- fine at the desk, useless from a phone, where
+    # the tunnel is the ONLY route in. Since the phone is the case this exists
+    # for, a dead tunnel is replaced rather than mourned.
+    #
+    # Each replacement gets a NEW hostname, which is exactly what magi-link is
+    # for: republish, and the phone follows on its next look. Backoff is capped
+    # so a long outage settles into one attempt a minute instead of a spin.
+    delay = 5
     try:
-        tunnel.wait()
+        while True:
+            tunnel.wait()
+            print(f"  [!] the tunnel ended; restarting in {delay}s.")
+            _withdraw(token)
+            time.sleep(delay)
+            delay = min(delay * 2, 60)
+            try:
+                handle = open(cf_log, "w", encoding="utf-8", errors="replace")
+                tunnel = proc.popen(
+                    _cloudflared_argv(port), stdout=handle, stderr=handle,
+                )
+            except FileNotFoundError:
+                return _serve_only(port, "cloudflared has gone missing.")
+
+            fresh = None
+            deadline = time.time() + 60
+            while time.time() < deadline and tunnel.poll() is None:
+                time.sleep(1.5)
+                try:
+                    m = QUICK_TUNNEL.search(
+                        cf_log.read_text(encoding="utf-8", errors="replace"))
+                except OSError:
+                    continue
+                if m:
+                    fresh = m.group(0)
+                    break
+            if not fresh:
+                tunnel.terminate()
+                continue
+            print(f"  {fresh}")
+            # A fresh hostname needs the same verify-then-publish the first one
+            # got, so the same worker is reused rather than duplicated.
+            _CURRENT["url"] = fresh
+            threading.Thread(target=verify_and_publish, daemon=True).start()
+            delay = 5
     except KeyboardInterrupt:
         pass
     finally:
-        # Withdraw on the way out, so the UI says "offline" instead of hanging
-        # on a tunnel that closed with the process.
+        # Withdraw on the way out, so the console says "offline" instead of
+        # hanging on a tunnel that closed with the process.
         _withdraw(token)
         tunnel.terminate()
 
-    # cloudflared exiting must not take the console down with it: the engine is
-    # the thing that matters and it is still perfectly usable on this PC.
-    return _serve_only(port, "the tunnel process ended.")
+    return _serve_only(port, "the tunnel was stopped.")
 
 
 # ── autostart ───────────────────────────────────────────────────────────────
