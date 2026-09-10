@@ -1836,7 +1836,17 @@ table.doctor code { color: var(--txd); font-size: 11px; }
      28px pills built for a mouse. */
   .side-item, .navitem, .btn, .chip, .quiz-opt, .bs-opt { min-height: 44px; }
   .btn { padding: 0 16px; font-size: 12px; }
-  .qbar-attach, .qbar-refine { min-height: 40px; }
+  /* Both are icon-only at this width -- .qbar-refine-txt is hidden below
+     620px -- so they must be CIRCLES. Setting only min-height grew the height
+     and left the 30px width alone, which is what made them ovals. Width and
+     height are set together, and padding is zeroed so .qbar-refine's pill
+     padding cannot stretch it back out. */
+  .qbar-attach, .qbar-refine {
+    width: 42px; height: 42px; min-height: 42px;
+    padding: 0; border-radius: 50%; flex: 0 0 auto;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .qbar-refine svg, .qbar-attach svg { width: 17px; height: 17px; }
   .chip { padding: 6px 10px; }
   .node-hd { min-height: 52px; }
 

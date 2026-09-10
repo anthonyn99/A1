@@ -36,6 +36,18 @@ LINK_API = os.environ.get("MAGI_LINK_API", "https://magi-link.av1-2.workers.dev/
 
 QUICK_TUNNEL = re.compile(r"https://[a-z0-9-]+\.trycloudflare\.com")
 
+# Cloudflare blocks urllib's default User-Agent outright: a PUT to magi-link
+# from Python-urllib came back 403 with error code 1010 ("banned based on your
+# browser's signature"), while the identical request with a browser UA returned
+# 200. The tunnel therefore came up fine and was never published -- the engine
+# logged one line about it and carried on serving locally, so from a phone MAGI
+# simply said "Engine offline" with nothing to explain why.
+#
+# This is not an attempt to look like a browser to anything that matters; it is
+# the only way to talk to our OWN worker from a script.
+UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+      "(KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36")
+
 
 def _ensure_streams() -> None:
     """Give pythonw.exe somewhere to print, and leave a log behind.
@@ -162,7 +174,8 @@ def _publish(url: str, token: str) -> None:
         LINK_API,
         data=body.encode(),
         method="PUT",
-        headers={"content-type": "application/json", "X-MAGI-Token": token},
+        headers={"content-type": "application/json", "X-MAGI-Token": token,
+                 "User-Agent": UA},
     )
     with urllib.request.urlopen(req, timeout=15) as r:
         r.read()
@@ -170,7 +183,8 @@ def _publish(url: str, token: str) -> None:
 
 def _withdraw(token: str) -> None:
     req = urllib.request.Request(
-        LINK_API, method="DELETE", headers={"X-MAGI-Token": token}
+        LINK_API, method="DELETE",
+        headers={"X-MAGI-Token": token, "User-Agent": UA}
     )
     with contextlib.suppress(Exception):
         urllib.request.urlopen(req, timeout=10).read()
@@ -258,7 +272,9 @@ def cloud(port: int = 8000) -> int:
         delay = 3
         while time.time() < deadline:
             try:
-                urllib.request.urlopen(f"{url}/api/health", timeout=10)
+                urllib.request.urlopen(
+                    urllib.request.Request(f"{url}/api/health", headers={"User-Agent": UA}),
+                    timeout=10)
                 # A 200 means the server started WITHOUT the token and is wide
                 # open. Publishing that hands the url -- and the accounts
                 # behind it -- to anyone who reads the KV record.
