@@ -1138,11 +1138,71 @@ fn default_browser_exe() -> Option<String> {
     Some(exe)
 }
 
+/// The Chromium "User Data" directory for a browser resolved by
+/// `default_browser_exe`, and which profile folder inside it is the one
+/// actually signed in and in use.
+///
+/// MEASURED CONSTRAINT: `--new-window` alone does not force a new window when
+/// the browser is already running. Chromium's single-instance handling treats
+/// a relaunch of the SAME profile as "send these urls to the existing window"
+/// regardless of that flag — repeated presses kept landing tabs in one window,
+/// which is the bug this exists to fix. `--profile-directory=<name>` is what
+/// actually forces a distinct window, because Chromium always gives a
+/// different profile directory its own window — but naming the wrong profile
+/// opens a signed-out, empty one, defeating the purpose of grouping the user's
+/// OWN logged-in class sites. So this reads the browser's own record of which
+/// profile is signed in (`Local State`'s `profile.last_used`) rather than
+/// guessing "Default", and passes that back — same profile, same cookies and
+/// saved logins, just a window Chromium cannot merge into another.
+///
+/// Chromium's `User Data` lives under `%LOCALAPPDATA%`, NOT next to the
+/// installed exe — `Program Files` is often admin-protected and Chromium
+/// treats per-user state (profiles, cookies, `Local State`) as ordinary user
+/// data, same as any other app respecting Windows' separation of program files
+/// from user files. An earlier version of this function walked up from the
+/// exe's own directory looking for a sibling `User Data` folder and never
+/// found one — `C:\Program Files\BraveSoftware\Brave-Browser\Application` has
+/// no such sibling; the real one is
+/// `%LOCALAPPDATA%\BraveSoftware\Brave-Browser\User Data`. Confirmed by
+/// spawning the real installed Brave and inspecting its install layout rather
+/// than assuming it matched Chrome's on-disk shape.
+///
+/// So this identifies the vendor from the exe path instead (its name, or the
+/// two path segments above `Application\`) and maps that onto the known
+/// `%LOCALAPPDATA%` layout for each of the three Chromium browsers a Windows
+/// default-browser choice realistically resolves to.
+fn active_chromium_profile_dir(exe_path: &str) -> Option<(std::path::PathBuf, String)> {
+    let local_app_data = std::env::var("LOCALAPPDATA").ok()?;
+    let low = exe_path.to_ascii_lowercase();
+    let rel = if low.contains("bravesoftware") {
+        r"BraveSoftware\Brave-Browser\User Data"
+    } else if low.contains("microsoft\\edge") {
+        r"Microsoft\Edge\User Data"
+    } else if low.contains("google\\chrome") {
+        r"Google\Chrome\User Data"
+    } else {
+        return None; // an uncommon or non-Chromium default browser
+    };
+    let candidate = std::path::Path::new(&local_app_data).join(rel);
+    let local_state_path = candidate.join("Local State");
+    if !local_state_path.is_file() {
+        return None;
+    }
+    let local_state = std::fs::read_to_string(&local_state_path).ok()?;
+    let json: serde_json::Value = serde_json::from_str(&local_state).ok()?;
+    let profile = json
+        .get("profile")
+        .and_then(|p| p.get("last_used"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("Default")
+        .to_string();
+    Some((candidate, profile))
+}
+
 /// Open every http(s) resource in `urls` together in ONE new browser window,
 /// titled by the OS taskbar entry the browser itself gives that window (Shield
 /// has no way to caption a window it did not create the content of — the class
-/// name lives in the page titles/tab strip instead, via `--new-window` keeping
-/// every one of these URLs out of whatever window the user already had open).
+/// name lives in the page titles/tab strip instead).
 ///
 /// This is the "all of a class's sites in one place" behaviour: a browser
 /// still allows only one new WINDOW to be spawned from a single OS process
@@ -1151,10 +1211,17 @@ fn default_browser_exe() -> Option<String> {
 /// unlike `cmd /C start`, which hands off to the shell's URL association once
 /// per call and reuses whatever window is already frontmost.
 ///
+/// `--profile-directory=<the signed-in profile>` is passed alongside
+/// `--new-window` — see `active_chromium_profile_dir` for why the plain flag
+/// alone is not enough once the browser is already running. When that lookup
+/// fails (profile folder not found, `Local State` unreadable — a non-Chromium
+/// default browser, for instance) this still passes `--new-window` on its own,
+/// which is the previous best-effort behaviour rather than a regression.
+///
 /// Falls back to the old one-`start`-per-url behaviour (still no grouping, but
-/// still opens everything) when the default browser can't be resolved, so a
-/// machine where the registry lookup fails is no worse off than before this
-/// existed.
+/// still opens everything) when the default browser can't be resolved at all,
+/// so a machine where the registry lookup fails is no worse off than before
+/// this existed.
 pub fn open_class_web_grouped(urls: &[String]) -> Result<(), String> {
     use std::process::Command;
     let urls: Vec<&str> = urls.iter().map(|s| s.trim()).filter(|s| is_web_url(s)).collect();
@@ -1174,6 +1241,9 @@ pub fn open_class_web_grouped(urls: &[String]) -> Result<(), String> {
         }
     };
     let mut c = Command::new(&exe);
+    if let Some((_, profile)) = active_chromium_profile_dir(&exe) {
+        c.arg(format!("--profile-directory={profile}"));
+    }
     c.arg("--new-window");
     c.args(&urls);
     match c.spawn() {
@@ -1228,6 +1298,22 @@ mod open_class_web_grouped_tests {
         assert!(open_class_web_grouped(&urls).is_err());
         let empty: Vec<String> = vec![];
         assert!(open_class_web_grouped(&empty).is_err());
+    }
+
+    /// Manual smoke test only — actually spawns the default browser. Run with
+    /// `cargo test --lib open_class_web_grouped_tests::manual_smoke_test -- --ignored --nocapture`
+    /// while the default browser is already running, then check by eye whether
+    /// a NEW window opened (not just new tabs in the existing one).
+    #[test]
+    #[ignore]
+    fn manual_smoke_test() {
+        let urls = vec![
+            "https://example.com".to_string(),
+            "https://www.rust-lang.org".to_string(),
+        ];
+        let r = open_class_web_grouped(&urls);
+        println!("open_class_web_grouped result: {r:?}");
+        assert!(r.is_ok());
     }
 }
 
