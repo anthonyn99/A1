@@ -1481,6 +1481,14 @@ table.doctor code { color: var(--txd); font-size: 11px; }
 .bs { display: flex; flex-direction: column; gap: 16px; margin-bottom: 16px; }
 
 .bs-hd { display: flex; flex-direction: column; gap: 4px; }
+/* The exit sits with the heading, on the same centred measure as everything
+   else in this panel. */
+.bs-backbar {
+  display: flex; width: 100%; max-width: 900px;
+  margin-left: auto; margin-right: auto;
+}
+.bs-backbar .navitem { border: 1px solid var(--bd); border-radius: 8px; padding: 6px 12px; }
+.bs-backbar .navitem:hover:not(:disabled) { border-color: var(--ac); }
 /* Centred over the centred composer, and the blurb dimmed to match the
    council's idle hint -- it is context, not content. */
 .bs:has(.bs-start) .bs-hd { align-items: center; text-align: center; max-width: 900px; margin: 0 auto; }
@@ -6791,6 +6799,8 @@ function bsReset() {
     sessionId: null, topic: "", rounds: [], status: "active",
     planFilename: null, savedTo: null, planMd: null, error: null,
     reply: "", answers: {}, phase: "idle", draft: "", preRefine: null, refineError: null,
+    // A different session is about different material.
+    attachments: [],
   });
   renderBsNav(); renderBsView();
 }
@@ -7056,10 +7066,35 @@ function bsDetails(summaryText, bodyText) {
 
 /** The whole Brainstorm surface: the start form, the live round, the finished
  *  plan, and the prior-round history. */
+/** The way out of a session you opened from the list.
+ *
+ *  The sidebar has a "New session" row, but a panel you navigated INTO needs
+ *  its exit where you are looking -- and "New session" in a list of rows reads
+ *  as one more row rather than as back. Named for where it takes you.
+ */
+function bsBackButton() {
+  const b = el("button", "navitem");
+  b.type = "button";
+  b.disabled = bsBusy();
+  b.title = "Leave this session and start a new one";
+  b.append(el("span", "navitem-ic", "←"),
+           document.createTextNode(" New session"));
+  b.onclick = bsReset;
+  return b;
+}
+
 function renderBsView() {
   const root = $("bsView");
   show(root, S.view === "brainstorm");
   if (S.view !== "brainstorm") return;
+  // The units row is BORROWED into this panel (see further down), so clearing
+  // the panel would delete a #page element outright -- and the next render
+  // then did root.append(null), which the DOM helpfully stringifies into the
+  // word "null" on screen. Hand it back before wiping.
+  const borrowed = document.getElementById("unitBar");
+  if (borrowed && borrowed.parentElement === root) {
+    $("page").insertBefore(borrowed, $("qbar").nextSibling);
+  }
   root.textContent = "";
   const bs = S.bs, busy = bs.busy;
 
@@ -7182,7 +7217,9 @@ function renderBsView() {
     // composer and the units that belong to it. Adopting the node here puts
     // it exactly where it reads: under the composer, above the list. setView
     // hands it back to #page on the way out, so this is a loan, not a move.
-    root.append($("unitBar"));
+    // Guarded: appending null writes the string "null" into the page, which
+    // is a confusing way to learn that an element has gone missing.
+    if ($("unitBar")) root.append($("unitBar"));
 
     if (bs.sessions.length) {
       const drawer = el("div", "drawer");
@@ -7207,6 +7244,9 @@ function renderBsView() {
     const hd = el("div", "bs-hd");
     hd.append(el("span", "bs-title", "Plan ready"), el("span", "bs-sub", bs.topic));
     root.append(hd);
+    const backBar = el("div", "bs-backbar");
+    backBar.append(bsBackButton());
+    root.append(backBar);
 
     const bar = el("div", "bs-plan-bar");
     const state = el("span", "bs-save-state");
@@ -7252,6 +7292,9 @@ function renderBsView() {
   hd.append(el("span", "bs-title", `Brainstorm · round ${latest ? latest.round_no : 1}`),
             el("span", "bs-sub", bs.topic));
   root.append(hd);
+  const backBar = el("div", "bs-backbar");
+  backBar.append(bsBackButton());
+  root.append(backBar);
 
   if (busy) { const pn = phaseNote(bs.phase); if (pn) root.append(pn); }
   if (bs.error) {
