@@ -1865,7 +1865,13 @@ table.doctor code { color: var(--txd); font-size: 11px; }
    wall. The backdrop is blurred and the page behind it is frozen -- see
    html.modal-open -- because this is something you read, not something you
    glance past. */
-.how-sheet { backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); }
+.sheet.how-sheet {
+  /* .sheet's base and mobile rules are declared further down the file,
+     so an equal-specificity override here would lose on source order.
+     Doubling the class is cheaper than splitting this block in two. */
+  backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px);
+  padding: 20px;
+}
 .how-box {
   width: 100%; max-width: 760px;
   /* dvh, not vh: on a phone vh is the tall URL-bar-hidden height, so the
@@ -1944,7 +1950,7 @@ html.modal-open, html.modal-open body { overflow: hidden; }
 html.modal-open .page, html.modal-open .sidebar { overflow: hidden; }
 
 @media (max-width: 760px) {
-  .how-sheet { padding: 0; align-items: stretch; }
+  .sheet.how-sheet { padding: 0; align-items: stretch; }
   /* Full-bleed on a phone. A centred card with margins wastes the width that
      long sentences need, and the rounded corners only read as "dialog" on a
      screen big enough to show what is behind them. */
