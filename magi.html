@@ -89,7 +89,7 @@ html, body, #root { height: 100%; }
 
 body {
   background: var(--bg);
-    text-transform: uppercase;   text-transform: uppercase; color: var(--tx);
+  color: var(--tx);
   font-family: var(--font);
   font-size: 13px;
   line-height: 1.55;
@@ -122,13 +122,13 @@ body {
   padding: 12px 10px 10px;
   border-bottom: 1px solid var(--bd);
   /* FIXED, not min-height. Collapsing hides .side-brand, so a min-height row
-     shrank from 77px to 60px and the centred toggle moved 8px up -- a button
-     that jumps away from the cursor that just pressed it. 77px is the
+     shrank from 77px to 60px and the centred toggle moved 8px up with it -- a
+     button that jumps away from the cursor that just pressed it. 77px is the
      expanded height, measured, so neither state moves. */
   height: 77px;
 }
 .side-toggle {
-  background: transparent; border: none;     text-transform: uppercase;     text-transform: uppercase; color: var(--txm);
+  background: transparent; border: none; color: var(--txm);
   /* Fixed, and immune to the flex row it sits in. Collapsing the rail hides
      .side-brand, which left the toggle as the only item in .side-top -- and
      a stretch-aligned flex item with no siblings takes the whole 60px row,
@@ -163,7 +163,7 @@ body {
    border at rest, soft fill on hover, stronger fill when active. */
 .side-item {
   display: flex; align-items: center; gap: 10px; width: 100%;
-  background: transparent;   text-transform: uppercase;   text-transform: uppercase; color: var(--txd); border: none; border-radius: 7px;
+  background: transparent; color: var(--txd); border: none; border-radius: 7px;
   padding: 7px 9px; min-height: 32px;
   font-family: inherit; font-size: 11.5px; font-weight: 600; letter-spacing: .3px;
   text-align: left; cursor: pointer;
@@ -176,7 +176,7 @@ body {
 .side-item.danger:hover:not(:disabled) { background: rgba(248, 81, 73, .12); }
 .side-ic {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 18px; flex-shrink: 0; font-size: 12px;   text-transform: uppercase;   text-transform: uppercase; color: var(--ac);
+  width: 18px; flex-shrink: 0; font-size: 12px; color: var(--ac);
 }
 .side-item.active .side-ic { color: var(--acl); }
 .side-item.danger .side-ic { color: var(--red); }
@@ -194,9 +194,10 @@ body {
 /* ── sidebar sections ─────────────────────────────────────────────────── */
 .side-sec { display: flex; flex-direction: column; gap: 1px; margin-top: 14px; }
 .side-sec-hd {
-  font-size: 9px;   text-transform: uppercase;   text-transform: uppercase; font-weight: 700; letter-spacing: 1.6px;  color: var(--txm); padding: 4px 9px 6px;
+  font-size: 9px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase;
+  color: var(--txm); padding: 4px 9px 6px;
 }
-.side-sec-note { color: var(--txm);   text-transform: uppercase;   text-transform: uppercase; font-size: 10px; padding: 0 9px 6px; line-height: 1.45; }
+.side-sec-note { color: var(--txm); font-size: 10px; padding: 0 9px 6px; line-height: 1.45; }
 
 /* Collapsed: an icon-only rail. Labels and section headings are hidden
    rather than removed from the DOM, so the title attribute still names each
@@ -238,7 +239,7 @@ body {
 }
 .tagline { line-height: 1.4; 
   color: var(--txm); font-size: 8.5px; letter-spacing: 1.4px;
-  text-transform: uppercase;   text-transform: uppercase; margin-top: 1px; white-space: nowrap;
+  text-transform: uppercase; margin-top: 1px; white-space: nowrap;
 }
 /* ── flat icon+label control ──────────────────────────────────────────── */
 /* No outline at rest, a soft fill on hover, a stronger fill when toggled.
@@ -270,7 +271,7 @@ body {
   padding: 0 10px; height: 28px; box-sizing: border-box;
   display: inline-flex; align-items: center; gap: 6px;
   font-size: 10px; font-weight: 700; cursor: pointer;
-  font-family: inherit;  text-transform: uppercase;   text-transform: uppercase; letter-spacing: 1px;
+  font-family: inherit; text-transform: uppercase; letter-spacing: 1px;
   transition: all .15s;
 }
 .btn:hover:not(:disabled) { border-color: var(--ac); }
@@ -301,9 +302,9 @@ body {
    too. This moves only the thing that should move, and animates while doing
    it. */
 .page .qbar, .page .view-hd { transition: margin-top .28s cubic-bezier(.4, 0, .2, 1); }
-/* On the HEADING, which sits directly above the composer -- putting it on the
-   composer left the title pinned to the top of the page with a hole under it
-   while the box it labels sat in the middle. Same reason .bs-hd carries it. */
+/* On the HEADING, which sits directly above the composer -- on the composer,
+   the title stayed pinned to the top of the page with a hole under it while
+   the box it labels sat in the middle. Same reason .bs-hd carries it. */
 .council-idle .view-hd { margin-top: clamp(0px, calc(30vh - 170px), 220px); }
 .council-idle .empty-state { opacity: .8; }
 @media (max-width: 760px) {
@@ -379,7 +380,7 @@ body {
   border: 1px solid var(--bdl);
   display: inline-flex; align-items: center; gap: 6px;
   font-family: inherit; font-size: 10px; font-weight: 700;
-letter-spacing: 1px;
+  text-transform: uppercase; letter-spacing: 1px;
   cursor: pointer; transition: all .15s;
   /* Clips any sub-pixel overshoot to the pill, so the spin can never paint
      over the border it lives in. */
@@ -454,7 +455,7 @@ letter-spacing: 1px;
 .qbar-undo:disabled { opacity: .4; cursor: not-allowed; }
 
 .qbar-error {
-  color: var(--red);   text-transform: uppercase;   text-transform: uppercase; font-size: 10.5px; letter-spacing: .3px;
+  color: var(--red); font-size: 10.5px; letter-spacing: .3px;
   padding: 0 6px; margin-top: -2px;
 }
 
@@ -859,7 +860,7 @@ letter-spacing: 1px;
 }
 .verdict-title {
   font-size: 11px; font-weight: 700; letter-spacing: 2.2px;
-color: var(--ac);
+  text-transform: uppercase; color: var(--ac);
 }
 .verdict-quorum { color: var(--txm); font-size: 10px; letter-spacing: .6px; }
 
@@ -947,7 +948,7 @@ color: var(--ac);
 .verdict-body .sec {
   font-family: var(--font);
   color: var(--acl); font-weight: 700; letter-spacing: 1.6px;
-font-size: 10px;
+  text-transform: uppercase; font-size: 10px;
   display: block; margin: 0 0 8px;
   border-bottom: 1px solid var(--bd); padding-bottom: 4px;
 }
@@ -960,7 +961,7 @@ font-size: 10px;
      was reaching for. */
   font-family: var(--font-display);
   color: var(--acl); font-weight: 700; letter-spacing: 1.5px;
-font-size: 10.5px;
+  text-transform: uppercase; font-size: 10.5px;
   margin: 26px 0 10px; padding-bottom: 5px;
   border-bottom: 1px solid var(--bd);
   display: flex; align-items: center; gap: 8px;
@@ -1128,7 +1129,7 @@ table.doctor, table.doctor code, .v-table, .studio-table,
 .drawer-hd {
   padding: 8px 12px; border-bottom: 1px solid var(--bd);
   font-size: 9.5px; font-weight: 700; letter-spacing: 1.6px;
-color: var(--txd);
+  text-transform: uppercase; color: var(--txd);
 }
 .row {
   display: flex; align-items: center; gap: 10px; padding: 7px 12px;
@@ -1356,7 +1357,7 @@ table.doctor code { color: var(--txd); font-size: 11px; }
 .studio-view-ic { font-size: 13px; color: var(--sa, var(--ac)); flex-shrink: 0; }
 .studio-view-title {
   font-size: 11px; font-weight: 700; letter-spacing: 2.2px;
-color: var(--tx);
+  text-transform: uppercase; color: var(--tx);
 }
 .studio-view-status { color: var(--txm); font-size: 10.5px; letter-spacing: .3px; }
 .studio-view-body { padding: 14px 16px 18px; }
@@ -1475,7 +1476,7 @@ color: var(--tx);
 .audio-line.speaking { background: color-mix(in srgb, var(--ac) 10%, transparent); color: var(--tx); }
 .audio-speaker {
   display: inline-block; font-size: 9px; font-weight: 700; letter-spacing: .8px;
-  text-transform: uppercase;   text-transform: uppercase; margin-right: 8px; padding: 1px 6px; border-radius: 2px;
+  text-transform: uppercase; margin-right: 8px; padding: 1px 6px; border-radius: 2px;
 }
 .audio-speaker.host-a { color: var(--ac); background: color-mix(in srgb, var(--ac) 16%, transparent); }
 .audio-speaker.host-b { color: var(--acl); background: color-mix(in srgb, var(--acl) 16%, transparent); }
@@ -1497,14 +1498,18 @@ color: var(--tx);
 .bs-backbar .navitem:hover:not(:disabled) { border-color: var(--ac); }
 /* Centred over the centred composer, and the blurb dimmed to match the
    council's idle hint -- it is context, not content. */
-.bs:has(.bs-start) .bs-hd { align-items: center; text-align: center; max-width: 900px; margin: 0 auto; }
-.bs:has(.bs-start) .bs-sub { color: color-mix(in srgb, var(--txm) 78%, transparent); }
+/* EVERY brainstorm heading, not only the start screen's. A round's title and
+   topic sat hard against the left edge while the reply box they belong to was
+   centred 900px away -- two halves of one screen laid out by different rules. */
+.bs .bs-hd { align-items: center; text-align: center; max-width: 900px; margin: 0 auto; }
+.bs .bs-sub { color: color-mix(in srgb, var(--txm) 78%, transparent); }
+.bs-backbar { justify-content: center; }
 /* Big enough to be a page title. At 11px with 2.2px of tracking it read as a
    label on the panel below it rather than as the name of the screen. */
 .bs-title {
   font-family: var(--font-display);
   font-size: 15px; font-weight: 800; letter-spacing: 1.4px;
-  text-transform: uppercase;   text-transform: uppercase; color: var(--gold);
+  text-transform: uppercase; color: var(--gold);
 }
 .council-title { color: var(--acl); }
 .bs-sub { color: var(--txd); font-size: 12.5px; line-height: 1.55; }
@@ -1741,7 +1746,7 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 }
 .bs-council-name {
   color: var(--acl); font-size: 11px; letter-spacing: 1.1px;
-font-weight: 700;
+  text-transform: uppercase; font-weight: 700;
 }
 .bs-council-meta { color: var(--txm); font-size: 10px; }
 .bs-council-bad { color: var(--amber); font-size: 10px; }
@@ -1927,7 +1932,12 @@ font-weight: 700;
 /* Measured, not guessed: at 232px with two header buttons the tagline needed
    124px and had 103. It is decorative text, so it gives up the letter-spacing
    rather than the header giving up a control. */
-.side-top .tagline { font-size: 7.5px; letter-spacing: .65px; }
+.side-top .tagline {
+  /* 9px rather than 7.5. Small enough to stay secondary, big enough to read
+     as words -- at 7.5 it was a texture under the wordmark. There is room now
+     that the two header buttons are 27px. */
+  font-size: 9px; letter-spacing: .8px;
+}
 .side-top .lock-btn { margin-left: 0; width: 27px; height: 27px; }
 .side-top .lock-btn svg { width: 15px; height: 15px; }
 @media (max-width: 760px) { .sidebar .lock-btn { display: flex; } }
@@ -2070,7 +2080,7 @@ font-weight: 700;
   padding: 2px 7px 6px;
   margin: 0;
   color: var(--txm);
-  font-size: 9px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; text-transform: uppercase;
+  font-size: 9px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase;
 }
 .side-sec-note { padding: 0 7px 6px; }
 
@@ -2404,11 +2414,10 @@ html.modal-open .page, html.modal-open .sidebar { overflow: hidden; }
     flex-shrink: 0; min-width: 0; line-height: 1.1;
   }
   .mtop-tag {
-    font-family: var(--font-mono); font-size: 8px; letter-spacing: .9px;
-color: var(--txm);
-    margin-top: 2px; line-height: 12px; white-space: nowrap;
-  
-}
+    font-family: var(--font-mono); font-size: 9px; letter-spacing: .9px;
+    text-transform: uppercase; color: var(--txm);
+    margin-top: 2px; line-height: 13px; white-space: nowrap;
+  }
   .mtop .syncline {
     font-size: 9px; letter-spacing: .3px;
     margin-top: 2px; min-height: 12px; line-height: 12px;
