@@ -5001,6 +5001,60 @@ window._sosBridge.getModules = (classId) => {
  * The destination module is created on demand ("Generated"), because P-4's
  * auto-run drops results into classes that may never have had such a module.
  */
+/* Markdown → HTML for the page editor.
+ *
+ * The model answers in markdown; the page editor stores contentEditable HTML.
+ * Deliberately small and tag-limited rather than a full parser: the output goes
+ * straight into innerHTML, so every piece of model text is ESCAPED first and
+ * only the structure this recognises is re-introduced as tags. A general
+ * converter would be a way for model output to inject markup.
+ *
+ * Covers what the prompt actually asks for — headings, bold, italic, bullets,
+ * numbered lists, rules — and leaves anything else as escaped text.
+ */
+function _sosMdToHtml(md) {
+  const esc = (s) => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  const inline = (s) => esc(s)
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>')
+    .replace(/`([^`\n]+)`/g, '<code>$1</code>');
+
+  const out = [];
+  let list = null;                       // 'ul' | 'ol' | null
+
+  const closeList = () => { if (list) { out.push('</' + list + '>'); list = null; } };
+
+  for (const raw of String(md || '').split('\n')) {
+    const line = raw.replace(/\s+$/, '');
+    if (!line.trim()) { closeList(); continue; }
+
+    const h = /^(#{1,6})\s+(.*)$/.exec(line);
+    if (h) { closeList(); out.push(`<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`); continue; }
+
+    if (/^\s*(---+|\*\*\*+)\s*$/.test(line)) { closeList(); out.push('<hr>'); continue; }
+
+    const ul = /^\s*[-*•]\s+(.*)$/.exec(line);
+    if (ul) {
+      if (list !== 'ul') { closeList(); out.push('<ul>'); list = 'ul'; }
+      out.push(`<li>${inline(ul[1])}</li>`);
+      continue;
+    }
+    const ol = /^\s*\d+[.)]\s+(.*)$/.exec(line);
+    if (ol) {
+      if (list !== 'ol') { closeList(); out.push('<ol>'); list = 'ol'; }
+      out.push(`<li>${inline(ol[1])}</li>`);
+      continue;
+    }
+
+    closeList();
+    out.push(`<p>${inline(line)}</p>`);
+  }
+  closeList();
+  return out.join('\n');
+}
+
 window._sosBridge.addGeneratedNote = (spec) => {
   if (!spec || !spec.classId) return null;
   const cls = findClassOrKsu(spec.classId);
@@ -5029,11 +5083,32 @@ window._sosBridge.addGeneratedNote = (spec) => {
     cls.modules.push(mod);
   }
   mod.notes = mod.notes || [];
-
-  // Re-running the same source replaces its previous note rather than stacking
-  // near-identical copies — "Regenerate with a different prompt" is a listed
-  // feature, so this path is expected to run repeatedly for one deck.
   const meta = spec.meta || {};
+
+  /* A `type:'notes'` module is rendered by js/notes-sync.js from
+   * localStorage['studyos_notes_<moduleId>'] — NOT from mod.notes, which is
+   * the plain-textarea note type. Writing to mod.notes stored the note
+   * correctly and displayed nothing: the module opened saying "0 pages" while
+   * the content sat in an array that editor never reads.
+   *
+   * So hand it to the editor's own store, converting the model's markdown to
+   * the HTML that editor speaks. */
+  if (window.soAddEntryExternal) {
+    const html = _sosMdToHtml(spec.body || '');
+    const entry = window.soAddEntryExternal(mod.id, {
+      title: String(spec.title || 'Generated note'),
+      html,
+      sourceId: meta.sourceFileId,
+      meta,
+    });
+    persistForCls(cls);
+    try { if (currentClassId === cls.id) renderModules(cls); } catch (e) {}
+    return entry;
+  }
+
+  // Fallback path, used only when notes-sync.js has not loaded. Re-running the
+  // same source replaces its previous note rather than stacking near-identical
+  // copies — "Regenerate with a different prompt" runs repeatedly for one deck.
   const prior = meta.sourceFileId
     ? mod.notes.findIndex(n => n && n._sos && n._sos.sourceFileId === meta.sourceFileId)
     : -1;

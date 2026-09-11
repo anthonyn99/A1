@@ -886,6 +886,62 @@ function wireFbListeners() {
   });
 }
 
+/* ── Add an entry from OUTSIDE the editor (pipeline write-back) ─────────────
+ * A `type:'notes'` module is rendered by THIS file, from
+ * localStorage['studyos_notes_<moduleId>'] — not from the module's own
+ * `notes` array, which studyos.js uses for the plain-textarea note type.
+ *
+ * The pipeline was writing to that other array, so a generated note was stored
+ * correctly and then rendered nowhere: the module opened showing "0 pages"
+ * with the content sitting in a field this editor never reads. Same trap as a
+ * note written into a documents module — every module object carries all three
+ * arrays, and only one of them is the one being displayed.
+ *
+ * Works whether or not the module is currently open: when it is not, this
+ * writes the cache and the per-module Firestore doc directly.
+ *
+ * Idempotent per `sourceId` — re-running the same deck REPLACES its entry
+ * rather than stacking near-identical copies, matching addGeneratedNote.
+ */
+window.soAddEntryExternal = function (moduleId, { title, html, sourceId, meta }) {
+  if (!moduleId) return null;
+  const st = loadModuleState(moduleId);
+  st.entries = Array.isArray(st.entries) ? st.entries : [];
+
+  const now = Date.now();
+  const prior = sourceId
+    ? st.entries.findIndex(e => e && e._sos && e._sos.sourceFileId === sourceId)
+    : -1;
+
+  const entry = {
+    id: prior >= 0 ? st.entries[prior].id : ('e_' + now + '_' + Math.random().toString(36).slice(2, 7)),
+    title: String(title || 'Generated note'),
+    template: 'page',
+    created: prior >= 0 ? st.entries[prior].created : now,
+    updated: now,
+    tags: ['generated'],
+    data: { html: String(html || ''), attachments: [] },
+    _sos: Object.assign({ generated: true }, meta || {}),
+  };
+
+  if (prior >= 0) st.entries[prior] = entry;
+  else st.entries.unshift(entry);
+
+  try { localStorage.setItem(_soCacheKey(moduleId), JSON.stringify(st)); } catch (e) {}
+  try {
+    if (window._fbSaveJournal) {
+      window._fbSaveJournal(moduleId, () => ({ entries: st.entries, activeId: entry.id }));
+    }
+  } catch (e) { console.warn('[notes] cloud save failed:', e); }
+
+  // Repaint if this module happens to be open right now.
+  try {
+    if (_soCurrentModuleId === moduleId && typeof renderEntryList === 'function') renderEntryList();
+  } catch (e) {}
+
+  return entry;
+};
+
 /* ── Public entry point: called from studyos.js when a Notes-type module opens ── */
 window.openNotesModule = function(classId, mod) {
   _soCurrentClassId = classId;

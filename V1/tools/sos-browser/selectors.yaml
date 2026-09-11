@@ -47,7 +47,22 @@ sites:
       - "div[data-is-streaming='true']"
     ready_selector:
       - "div[contenteditable='true']"
-    strip_patterns: []
+    strip_patterns:
+      # When a file is attached, Claude narrates its tool use ABOVE the answer:
+      # "Reading the file-reading router skill…", "Read a file, ran a command".
+      # Those lines render inside the same response node, so the serializer
+      # picks them up and they land at the top of the generated note. Observed
+      # verbatim on a real 95-slide deck.
+      #
+      # Anchored to the START and only to these known phrases: a greedy
+      # "delete everything before the first heading" would silently eat a real
+      # introduction on a deck whose first section has no heading.
+      - "(?s)^\\s*Reading the [^\\n]*skill[^\\n]*\\n+"
+      - "(?s)^\\s*This is a [^\\n]*let me read[^\\n]*\\n+"
+      - "(?s)^\\s*(Read a file, ran a command)+\\s*\\n+"
+      - "(?s)^\\s*(Analyzed data|Viewed image|Searched files)[^\\n]*\\n+"
+      - "(?s)^\\s*\\d+-page slide-deck PDF[^\\n]*\\n+"
+      - "(?s)^\\s*(I'll|Let me) (rasterize|inspect|extract|start)[^\\n]*\\n+"
     # Claude opens a long answer with a one-line framing QUESTION, drops the
     # streaming flag while it thinks, then streams the real answer into the same
     # node. A short confirm window expires inside that pause and captures the

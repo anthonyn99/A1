@@ -470,8 +470,21 @@ async def wait_for_completion(page, site: Site, baseline: tuple[str, int],
 
 
 def strip_trailing(text: str, patterns: list[str]) -> str:
-    for p in patterns or []:
-        text = re.sub(p, "", text)
+    """Remove known chrome from an answer.
+
+    Applied REPEATEDLY until nothing more matches, because the prefix patterns
+    are anchored to the start of the text: Claude narrates several tool-use
+    lines in a row when a file is attached, and a single pass removes only the
+    first, leaving the rest at the top of the generated note.
+
+    Bounded so a pattern that can match its own output cannot spin forever.
+    """
+    for _ in range(10):
+        before = text
+        for p in patterns or []:
+            text = re.sub(p, "", text)
+        if text == before:
+            break
     return text.strip()
 
 

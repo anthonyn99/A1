@@ -199,8 +199,35 @@ export async function resumeWatches() {
   if (!pipeline.enabled()) return;
   try {
     const jobs = await pipeline.listJobs();
+
+    // Still moving — follow them to completion.
     jobs.filter(j => j.status === 'queued' || j.status === 'running')
         .forEach(j => trackJob(j.id));
+
+    // ALREADY FINISHED while the tab was closed. This is the case the whole
+    // feature is built around — "drop a deck and walk away" — and the first
+    // version skipped it: only queued/running jobs were resumed, so a job that
+    // completed in the background had its result sit on the bridge forever
+    // while the app showed nothing. The job said done, the note never existed,
+    // and there was no error anywhere to explain the gap.
+    //
+    // Filing is idempotent: addGeneratedNote replaces the note for a given
+    // sourceFileId rather than stacking copies, so re-filing on every boot is
+    // harmless. `filed` marks them so a later reload is a no-op.
+    const finished = jobs.filter(j => j.status === 'done' && j.hasResult && !j.filed);
+    for (const stub of finished) {
+      try {
+        const job = await pipeline.getJob(stub.id);
+        if (!job || !job.result) continue;
+        const note = pipeline.fileResult(job);
+        if (note) {
+          await pipeline.markFiled(job.id);
+          toast('✅', 'Note ready', job.sourceName || note.title);
+        }
+      } catch (e) {
+        console.warn('[pipeline] could not file a finished job:', stub.id, e);
+      }
+    }
   } catch (e) { /* offline, or not set up yet */ }
 }
 

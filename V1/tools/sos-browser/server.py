@@ -102,6 +102,34 @@ def missing_slides(text: str, lo: int, hi: int) -> list[int]:
     return [i for i in range(lo, hi + 1) if i not in seen]
 
 
+def trim_to_first_slide(text: str) -> str:
+    """Drop everything before the first slide heading.
+
+    When a file is attached, Claude narrates its tool use above the answer
+    ("Reading the file-reading router skill…", "Read 15 files, ran 2 commands",
+    "I've now reviewed all 15 slides…"). Those lines render inside the same
+    response node, so the DOM serializer picks them up and they land at the top
+    of the generated note.
+
+    Chasing each phrasing with a regex is whack-a-mole — the wording changes per
+    run. This uses the one STRUCTURAL fact that holds: the prompt demands the
+    answer begin at "## Slide N", so anything before the first such heading is
+    preamble by definition.
+
+    Deliberately a no-op when no heading is found, rather than returning "":
+    a chunk with no headings is already a coverage failure, and the caller's
+    error should name that rather than an empty answer.
+    """
+    if not text:
+        return text
+    m = _SLIDE_RE.search(text)
+    if not m:
+        return text
+    # Keep from the START OF THE LINE the heading sits on.
+    start = text.rfind("\n", 0, m.start()) + 1
+    return text[start:].strip()
+
+
 # ── The runner ────────────────────────────────────────────────────────────────
 def _run_job(job_id: str):
     with _lock:
@@ -142,7 +170,7 @@ def _run_job(job_id: str):
                 headful=False,
             )
             out = asyncio.run(driver.cmd_ask(args))
-            text = out.get("text") or ""
+            text = trim_to_first_slide(out.get("text") or "")
 
             gaps = missing_slides(text, lo, hi)
             if gaps:
@@ -271,6 +299,18 @@ class Handler(BaseHTTPRequestHandler):
 
         if p == "/api/ai/jobs":
             return self._create(body)
+
+        m = re.match(r"^/api/ai/jobs/([\w.-]+)/filed$", p)
+        if m:
+            # The app has written this result into a class. Recorded so a later
+            # reload does not re-file it and re-toast "Note ready" forever.
+            with _lock:
+                job = _jobs.get(m.group(1))
+                if not job:
+                    return self._send({"ok": False, "error": "not found"}, 404)
+                job["filed"] = True
+                _save()
+            return self._send({"ok": True, "job": {"id": job["id"], "filed": True}})
 
         m = re.match(r"^/api/ai/jobs/([\w.-]+)/retry$", p)
         if m:

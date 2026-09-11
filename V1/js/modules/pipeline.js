@@ -171,6 +171,17 @@ export const deleteJob = (id) => request('/api/ai/jobs/' + encodeURIComponent(id
 export const budget = () => request('/api/ai/budget');
 
 /**
+ * Mark a job's result as filed into the app.
+ *
+ * Without this, every reload would re-file every finished job. Harmless in
+ * effect (addGeneratedNote replaces rather than stacks) but it would re-toast
+ * "Note ready" on every boot forever, which reads as a bug.
+ */
+export const markFiled = (id) =>
+  request('/api/ai/jobs/' + encodeURIComponent(id) + '/filed', { method: 'POST' })
+    .catch(() => null);        // a bridge without this route must not break boot
+
+/**
  * Watch a job until it finishes.
  *
  * Backs off from 2s to 30s: a deck takes minutes, and a fixed 2s poll would
@@ -213,6 +224,30 @@ export function watchJob(id, onUpdate) {
  *
  * Returns the created note, or null when the bridge is not up.
  */
+/**
+ * Drop everything before the first slide heading.
+ *
+ * When a file is attached, Claude narrates its tool use above the answer
+ * ("Reading the file-reading router skill…", "Read 15 files, ran 2 commands").
+ * That renders inside the same response node, so the scraper picks it up and it
+ * lands at the top of the generated note.
+ *
+ * The bridge trims this too, but it must ALSO happen here: a job that finished
+ * before the trim shipped still has the chrome baked into its stored result,
+ * and re-filing it would carry the mess into the note. Trimming at the point of
+ * use makes old and new jobs behave the same.
+ *
+ * A no-op when no slide heading exists, rather than returning empty — a note
+ * with no headings is a coverage problem, and blanking it would hide that.
+ */
+function trimToFirstSlide(text) {
+  const s = String(text || '');
+  const m = /^#{1,6}\s*Slide\s*[:#-]?\s*\d+/im.exec(s);
+  if (!m) return s;
+  const start = s.lastIndexOf('\n', m.index) + 1;
+  return s.slice(start).trim();
+}
+
 export function fileResult(job) {
   if (!job || job.status !== 'done' || !job.result) return null;
   const B = window._sosBridge;
@@ -224,7 +259,7 @@ export function fileResult(job) {
     classId: job.classId,
     moduleId: job.outputModuleId,
     title: job.sourceName ? ('Rewritten — ' + job.sourceName) : 'Generated note',
-    body: job.result,
+    body: trimToFirstSlide(job.result),
     meta: {
       sourceFileId: job.fileId,
       promptId: job.promptId,
