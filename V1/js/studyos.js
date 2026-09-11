@@ -4772,7 +4772,14 @@ window._sosBridge.addGeneratedNote = (spec) => {
   const cls = findClassOrKsu(spec.classId);
   if (!cls) return null;
 
-  let mod = spec.moduleId && (cls.modules || []).find(m => m.id === spec.moduleId);
+  // The requested module is honoured ONLY if it can actually show a note.
+  // Every module carries a `notes` array regardless of type, so writing into a
+  // documents module succeeds silently and then renders nowhere — the note is
+  // stored, invisible and unreachable. P-4's auto-run passes the module the
+  // FILE was dropped into, which is a documents module by definition, so
+  // without this guard every auto-run result would vanish.
+  let mod = spec.moduleId
+    && (cls.modules || []).find(m => m.id === spec.moduleId && m.type === 'notes');
   if (!mod) {
     mod = (cls.modules || []).find(m => m.type === 'notes' && m.name === 'Generated');
   }

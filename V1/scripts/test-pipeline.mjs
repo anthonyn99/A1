@@ -172,6 +172,48 @@ console.log('\nbridge: addGeneratedNote');
 
     t('unknown class is a no-op', fn({ classId: 'nope', body: 'x' }) === null);
     t('missing spec is a no-op', fn(null) === null);
+
+    // A DOCUMENTS module must never receive the note. Every module carries a
+    // `notes` array regardless of type, so this write succeeds silently and
+    // then renders nowhere — the note is stored, invisible and unreachable.
+    // P-4's auto-run passes the module the FILE landed in, which is a
+    // documents module by definition, so without the type guard every
+    // auto-run result vanishes. Caught in a real browser, not by a stub.
+    const classes2 = [{
+      id: 'c2', name: 'Auto', modules: [
+        { id: 'docs', name: 'Source Material', type: 'documents', files: [], prompts: [], notes: [] },
+      ],
+    }];
+    const fn2 = new Function(
+      'classes', 'findClassOrKsu', 'persistForCls', 'renderModules',
+      'refreshModuleNoteList', 'currentClassId', 'ICONS', 'window',
+      m[0] + '; return window._sosBridge.addGeneratedNote;'
+    )(classes2, (id) => classes2.find(c => c.id === id), () => {}, () => {}, () => {},
+      null, { notes: '📝' }, { _sosBridge: {} });
+
+    fn2({ classId: 'c2', moduleId: 'docs', title: 'T', body: 'B', meta: { sourceFileId: 'f9' } });
+    const docsMod = classes2[0].modules.find(x => x.id === 'docs');
+    const genMod = classes2[0].modules.find(x => x.name === 'Generated');
+    t('a documents module never receives the note', docsMod.notes.length === 0, docsMod.notes);
+    t('it goes to a Generated notes module instead', !!genMod && genMod.notes.length === 1);
+    t('and that module is type notes', genMod && genMod.type === 'notes');
+
+    // An explicit NOTES module is still honoured.
+    const classes3 = [{
+      id: 'c3', name: 'N', modules: [
+        { id: 'mynotes', name: 'My Notes', type: 'notes', files: [], prompts: [], notes: [] },
+      ],
+    }];
+    const fn3 = new Function(
+      'classes', 'findClassOrKsu', 'persistForCls', 'renderModules',
+      'refreshModuleNoteList', 'currentClassId', 'ICONS', 'window',
+      m[0] + '; return window._sosBridge.addGeneratedNote;'
+    )(classes3, (id) => classes3.find(c => c.id === id), () => {}, () => {}, () => {},
+      null, { notes: '📝' }, { _sosBridge: {} });
+    fn3({ classId: 'c3', moduleId: 'mynotes', title: 'T', body: 'B', meta: { sourceFileId: 'f1' } });
+    t('an explicit notes module IS honoured',
+      classes3[0].modules.find(x => x.id === 'mynotes').notes.length === 1);
+    t('no extra Generated module was created', classes3[0].modules.length === 1);
   }
 }
 
