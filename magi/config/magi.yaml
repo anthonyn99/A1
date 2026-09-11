@@ -83,12 +83,20 @@ providers:
     enabled: true
   perplexity:
     enabled: true
+  grok:
+    enabled: true
+  # Off until its selectors have been verified against a signed-in session --
+  # an enabled unit that cannot answer is four minutes of every run spent
+  # timing out. Sign in from the Accounts tab, run `magi doctor copilot`, fix
+  # what it names, then flip this.
+  copilot:
+    enabled: false
 
 chairman:
   # Which council member writes the final synthesis. If it is unavailable the
   # fallbacks are tried in order.
   provider_id: claude
-  fallback_order: [chatgpt, gemini, deepseek, perplexity]
+  fallback_order: [chatgpt, gemini, deepseek, perplexity, grok]
   # Minimum successful members required before synthesis is even attempted.
   min_members: 2
 

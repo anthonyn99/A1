@@ -260,7 +260,7 @@ sites:
   perplexity:
     display_name: Perplexity
     url: https://www.perplexity.ai/
-    accent: "#8fcfc8"
+    accent: "#7fcac2"
     # DISCOVERED 2026-09-11 by probing the live site, not guessed: every
     # selector below was counted against the real DOM, logged out, before and
     # during a real answer.
@@ -327,6 +327,108 @@ sites:
       # Cloudflare-fronted, like ChatGPT and Claude.
       - "iframe[src*='challenges.cloudflare.com']"
       - "text=/Verify you are human/i"
+
+  grok:
+    display_name: Grok
+    url: https://grok.com/
+    accent: "#e89a86"
+    # PARTLY VERIFIED 2026-09-11 against the live site, logged out.
+    #
+    # The composer and the send button were counted against the real DOM. The
+    # answer container and the stop control were NOT: logged out, Grok accepts
+    # the question and never answers, so there was no answer-phase DOM to
+    # probe. Sign in, then `magi doctor grok` -- it primes the composer and
+    # names any field that does not match -- and `magi capture grok` for the
+    # two marked below.
+    headless_ok: true
+    input:
+      # VERIFIED: the only labelled composer on the page.
+      - "textarea[aria-label='Ask Grok anything']"
+      - "textarea[aria-label*='Ask Grok' i]"
+      - "textarea"
+    submit:
+      # VERIFIED: present on an idle composer, data-testid and aria agree.
+      - "button[data-testid='chat-submit']"
+      - "button[aria-label='Submit']"
+    send_key: Enter
+    file_input:
+      - "input[type='file']"
+    assistant_turn:
+      # UNVERIFIED -- see the note above. `.message-bubble` was the only
+      # message-shaped container present; `.prose` is NOT usable here because
+      # Grok's own composer carries that class.
+      - "div[class*='message-bubble']"
+      - "[data-testid='message-content']"
+      - "div[class*='response-content']"
+    stop_button:
+      # UNVERIFIED.
+      - "button[aria-label='Stop model response']"
+      - "button[aria-label*='Stop' i]"
+    streaming_marker: []
+    copy_button:
+      - "button[aria-label*='Copy' i]"
+    ready_selector:
+      - "textarea[aria-label*='Ask Grok' i]"
+      - "textarea"
+    login_selectors:
+      # VERIFIED while logged out.
+      - "button:has-text('Sign in')"
+      - "a[href*='/sign-in']"
+    rate_limit_selectors:
+      - "text=/You(?:'ve| have) reached your .{0,40}limit/i"
+      - "text=/out of .{0,20}queries/i"
+    challenge_selectors:
+      - "iframe[src*='challenges.cloudflare.com']"
+      - "text=/Verify you are human/i"
+
+  copilot:
+    display_name: Copilot
+    url: https://copilot.microsoft.com/
+    accent: "#e8a3c4"
+    # UNVERIFIED 2026-09-11. Copilot showed a sign-in wall -- three "Sign in
+    # with ..." buttons and no reachable composer -- so nothing below could be
+    # counted against a real DOM the way the others were.
+    #
+    # Sign in from the console's Accounts tab, then run `magi doctor copilot`.
+    # It opens the real page, primes the composer and names every field that
+    # does not match, with the exact line to change. That is a two-minute fix
+    # and it is why the doctor exists; shipping a guess as though it were
+    # verified is what would waste your time.
+    headless_ok: false
+    input:
+      - "textarea#userInput"
+      - "textarea[data-testid='composer-input']"
+      - "div[contenteditable='true'][role='textbox']"
+      - "textarea"
+    submit:
+      - "button[data-testid='submit-button']"
+      - "button[aria-label*='Submit' i]"
+      - "button[title*='Submit' i]"
+    send_key: Enter
+    file_input:
+      - "input[type='file']"
+    assistant_turn:
+      - "[data-content='ai-message']"
+      - "div[data-testid='message-content']"
+      - "div[class*='response-message']"
+    stop_button:
+      - "button[aria-label*='Stop' i]"
+      - "button[title*='Stop' i]"
+    streaming_marker: []
+    copy_button:
+      - "button[aria-label*='Copy' i]"
+    ready_selector:
+      - "textarea"
+      - "div[contenteditable='true']"
+    login_selectors:
+      # VERIFIED: this is what a logged-out Copilot shows instead of a chat.
+      - "button[title='Sign in with Microsoft']"
+      - "button:has-text('Sign in with')"
+    rate_limit_selectors:
+      - "text=/You(?:'ve| have) reached your .{0,40}limit/i"
+    challenge_selectors:
+      - "text=/Verify you are human/i"
+      - "iframe[src*='challenges.cloudflare.com']"
 
   deepseek:
     display_name: DeepSeek

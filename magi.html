@@ -3386,7 +3386,8 @@ const WORKING = new Set(["queued", "launching", "navigating", "typing", "waiting
 // Adam and Lilith are the two seeds of life; the first four are the MAGI
 // themselves. A fifth unit needed a name that belongs to the same story.
 const UNIT = { chatgpt: "MELCHIOR·01", claude: "BALTHASAR·02", gemini: "CASPER·03",
-               deepseek: "ADAM·04", perplexity: "LILITH·05" };
+               deepseek: "ADAM·04", perplexity: "LILITH·05",
+               grok: "TABRIS·06", copilot: "SEELE·07" };
 
 /** Terse console wording for each machine state. */
 const STATE_LABEL = {
@@ -3405,7 +3406,8 @@ const STATE_LABEL = {
  *  other instead of blinking in unison. Fixed per unit rather than derived
  *  from position, so a unit keeps its own rhythm when others drop out. */
 const PHASE = { chatgpt: "0s", claude: "-0.48s", gemini: "-0.95s",
-                deepseek: "-1.42s", perplexity: "-1.90s" };
+                deepseek: "-1.42s", perplexity: "-1.90s", grok: "-2.37s",
+                copilot: "-2.85s" };
 
 function badgeClass(s, ok) {
   if (s === "done") return ok === false ? "failed" : "done";
