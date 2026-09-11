@@ -585,7 +585,12 @@ body {
 @media (max-width: 760px) { .chair-row { min-height: 52px; } }
 
 .chip-model {
-  font-size: 11px; font-weight: 700; letter-spacing: .3px; text-transform: uppercase;
+  /* No uppercase. The display names are already written correctly in
+     selectors.yaml -- ChatGPT, DeepSeek -- and forcing capitals flattened
+     that into CHATGPT and DEEPSEEK, which are two brands spelled wrong.
+     The codename underneath keeps its capitals: BALTHASAR is written that
+     way, not styled that way. */
+  font-size: 11.5px; font-weight: 700; letter-spacing: .2px;
 }
 /* Dimmed against the model name it sits under. `currentColor` at low opacity
    rather than a fixed grey, so it stays legible both on the transparent
