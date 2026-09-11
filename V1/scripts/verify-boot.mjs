@@ -74,13 +74,27 @@ t('store reads through the bridge', await evalJs('Array.isArray(window.SOS.store
 // getSnapshot must deep-copy, not alias live state.
 t('getSnapshot returns an object', await evalJs('typeof window._sosBridge.getSnapshot() === "object"'));
 
-// ── The pipeline ships OFF and must be completely inert ───────────────────
-console.log('\npipeline is inert while disabled');
-t('config flag is false', (await evalJs(
-  'window.STUDYOS_CONFIG.cloudflare.ai.enabled')) === false);
-t('no run hook defined', (await evalJs('typeof window.sosRunPrompt')) === 'undefined');
-t('pipeline module not loaded', (await evalJs('typeof (window.SOS&&window.SOS.pipeline)')) === 'undefined');
-t('no ⚡ button rendered', (await evalJs(
+// ── The pipeline must match whatever config says, in BOTH directions ──────
+// Asserting "off" outright made this fail the moment the feature was switched
+// on, which is a check that punishes shipping rather than catching a bug. What
+// actually matters is that the flag and the runtime agree: off means nothing
+// loads and nothing renders; on means the hooks exist. A mismatch either way is
+// the real fault.
+const aiOn = await evalJs('!!(window.STUDYOS_CONFIG.cloudflare.ai || {}).enabled');
+console.log(`\npipeline wiring (config says ${aiOn ? 'ENABLED' : 'disabled'})`);
+if (aiOn) {
+  t('run hook defined', (await evalJs('typeof window.sosRunPrompt')) === 'function');
+  t('jobs hook defined', (await evalJs('typeof window.sosOpenJobs')) === 'function');
+  t('pipeline module loaded', (await evalJs('typeof (window.SOS&&window.SOS.pipeline)')) === 'object');
+  t('prompts module loaded', (await evalJs('typeof (window.SOS&&window.SOS.prompts)')) === 'object');
+  t('a baseUrl is configured', (await evalJs(
+    '!!(window.STUDYOS_CONFIG.cloudflare.ai.baseUrl||"").length')) === true);
+} else {
+  t('no run hook defined', (await evalJs('typeof window.sosRunPrompt')) === 'undefined');
+  t('pipeline module not loaded', (await evalJs('typeof (window.SOS&&window.SOS.pipeline)')) === 'undefined');
+}
+// True either way: with no class open there is no file row to carry one.
+t('no stray ⚡ button on the dashboard', (await evalJs(
   'Array.from(document.querySelectorAll("button")).filter(b=>b.textContent==="⚡").length')) === 0);
 
 // ── F-3: the bug that started all this, in a real DOM ─────────────────────

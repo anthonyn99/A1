@@ -187,15 +187,39 @@ window.STUDYOS_CONFIG = {
      * reCAPTCHA against the registered origin — see window._fbAppCheckToken in
      * js/firebase-sync.js. */
     ai: {
-      /* Off until the one-time setup is done: the JOBS KV namespace has to be
-       * created and the binding uncommented in workers/studyos-ai/wrangler.toml,
-       * and the API key secret set. Flipping this on before that yields a
-       * 503 that names the missing step. */
-      enabled: false,
-      baseUrl: 'https://studyos-ai.vedapatel05.workers.dev',
-      /* Client-side mirror of the Worker's own cap, shown in the UI before a
-       * batch runs. The REAL cap is MONTHLY_CAP_USD in the Worker and is
-       * enforced there — this number is only ever advisory. */
+      /* ON, pointed at the LOCAL BROWSER BRIDGE (V1/tools/sos-browser).
+       *
+       * Two backends serve this same /api/ai/* contract, and baseUrl alone
+       * picks between them:
+       *
+       *   127.0.0.1:8781  tools/sos-browser/server.py — drives a logged-in
+       *                   Chrome profile, spending the Pro SUBSCRIPTION. No
+       *                   API key. Works only on this PC (the browser lives
+       *                   here), and only while the bridge is running:
+       *                     cd V1/tools/sos-browser && python server.py
+       *
+       *   studyos-ai...   the Cloudflare Worker — needs ANTHROPIC_API_KEY and
+       *                   a KV namespace, reachable from anywhere including
+       *                   the phone. Built and tested, currently dormant.
+       *
+       * pipeline.js detects a localhost baseUrl and attaches the file bytes,
+       * which the Worker does not need (it fetches them from studyos-files
+       * itself). Everything else about the two paths is identical.
+       *
+       * If the bridge is not running the Run sheet reports a connection
+       * failure — no spend, no silent hang. */
+      enabled: true,
+      baseUrl: 'http://127.0.0.1:8781',
+
+      /* Which chat site the bridge drives. Configured in
+       * tools/sos-browser/selectors.yaml; sign in once per site with
+       *   python driver.py login --site claude
+       */
+      site: 'claude',
+
+      /* Advisory only, and meaningless on the browser backend: a subscription
+       * is not metered per token, so the bridge reports zero spend. The Worker
+       * enforces its own real cap server-side via MONTHLY_CAP_USD. */
       monthlyCapUsd: 20,
     },
   },

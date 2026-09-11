@@ -105,6 +105,9 @@ export async function runPrompt({ file, prompt, promptId, promptVersion, classId
       // the Worker use its own default rather than guess low.
       ...(slideCount ? { slideCount } : {}),
       ...(fileB64 ? { fileB64 } : {}),
+      // Which chat site the local bridge should drive. Ignored by the Worker,
+      // which has exactly one provider.
+      ...(CFG().site ? { site: CFG().site } : {}),
     }),
   });
   return { job: out.job, cached: !!out.cached };
