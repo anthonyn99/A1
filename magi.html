@@ -1826,7 +1826,6 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 .offline-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 
 .row-cloud { color: var(--ac); }
-.row-pinned-tag { color: var(--ac); font-weight: 600; }
 
 /* Pin, rename, delete. ALWAYS VISIBLE -- they used to appear on hover, which
    on a touch screen means never, and a control you cannot see is a control
@@ -3461,7 +3460,7 @@ const HOW = [
     q: "History, pinning and sync",
     a: [
       "Every finished deliberation is stored on the engine device and mirrored to the cloud, so a verdict produced at your desk opens on your phone.",
-      "History keeps __DAYS__ days. Anything older is dropped &mdash; unless you <b>pin</b> it, which keeps it forever. Pins follow you between devices.",
+      "History keeps __DAYS__ days. Anything older is dropped &mdash; unless you <b>pin</b> it, which keeps it forever. Unpinning does not hand something straight to the sweeper: the __DAYS__ days restart from the moment you unpin, so a year-old deliberation you unpin today has another __DAYS__ days. Pins, names and those clocks follow you between devices.",
       "Nothing is written to the cloud while a run is in flight: one finished deliberation is one write. That is deliberate, so MAGI cannot eat the quota the rest of the suite shares.",
     ],
   },
