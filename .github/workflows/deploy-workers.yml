@@ -23,6 +23,11 @@ jobs:
       warroom: ${{ steps.filter.outputs.warroom }}
       personalai: ${{ steps.filter.outputs.personalai }}
       studyosfiles: ${{ steps.filter.outputs.studyosfiles }}
+      # deploy-studyos-ai gates on this and it was never declared here, so the
+      # expression resolved to empty, the job skipped on every run, and
+      # studyos-ai was never deployed at all. Adding a filter and a deploy job
+      # is not enough — the output has to be forwarded out of this job too.
+      studyosai: ${{ steps.filter.outputs.studyosai }}
       vaultfiles: ${{ steps.filter.outputs.vaultfiles }}
       keychainsync: ${{ steps.filter.outputs.keychainsync }}
       vaultpwsync: ${{ steps.filter.outputs.vaultpwsync }}

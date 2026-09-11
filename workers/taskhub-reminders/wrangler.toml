@@ -35,9 +35,34 @@ service = "oneinbox-api"
 # StudyOS pipeline drain (upgrade spec P-1). studyos-ai has no cron trigger of
 # its own — this every-minute tick is what moves its job queue. Same binding
 # reasoning as ONEINBOX above: a plain same-account fetch() can be dropped.
-[[services]]
-binding = "STUDYOSAI"
-service = "studyos-ai"
+#
+# ⚠️ COMMENTED OUT UNTIL studyos-ai IS ACTUALLY DEPLOYED.
+#
+# A service binding is resolved by Cloudflare AT DEPLOY TIME, and studyos-ai
+# does not exist on the account yet — its own wrangler.toml deliberately leaves
+# the JOBS namespace commented out pending a `wrangler kv namespace create`
+# from an authenticated shell. So this block did not merely fail to work: it
+# made `wrangler deploy` REJECT taskhub-reminders outright, and every push
+# touching this folder failed from 2026-09-11 06:16 onward.
+#
+# That is a far bigger blast radius than one unfinished feature. This worker
+# carries the whole suite's auth: app locks, password hints and reset codes.
+# The recovery-email fix sat committed-but-undeployed behind exactly this, so
+# reset codes went on silently not arriving while the code that fixed them was
+# already in main.
+#
+# scheduled() already handles the binding being absent — it falls back to
+# fetching https://studyos-ai.av1.workers.dev/cron, which 404s today and logs a
+# warning, costing nothing that the binding was delivering anyway.
+#
+# TO RE-ENABLE: deploy studyos-ai first (create its JOBS namespace, set
+# ANTHROPIC_API_KEY, let its own deploy job run green), THEN uncomment.
+# tests/worker-deploy.test.js fails if this is uncommented while studyos-ai is
+# still undeployable.
+#
+# [[services]]
+# binding = "STUDYOSAI"
+# service = "studyos-ai"
 
 # Secrets (set via `wrangler secret put <NAME>` — never commit values):
 #   FIREBASE_PROJECT_ID     — already set
