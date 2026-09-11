@@ -2789,12 +2789,21 @@ body { max-width: 2000px; margin-inline: auto; }
     </div>
 
     <nav class="side-nav" id="sideNav">
-      <div class="side-primary">
+      <!-- The three things you do WITH a deliberation: start one, watch the
+           one running, look at the ones that finished. History was filed under
+           System with the doctor and the account manager, which is where you
+           put diagnostics, not where you put the thing the program is for. -->
+      <div class="side-sec side-primary">
+        <div class="side-sec-hd">Deliberations</div>
         <button type="button" class="side-item" id="navNew" title="New deliberation">
           <span class="side-ic" data-ic="new"></span><span class="side-label">New deliberation</span>
         </button>
         <button type="button" class="side-item active" id="navCouncil" title="Council">
           <span class="side-ic" data-ic="council"></span><span class="side-label">Council</span>
+        </button>
+        <button type="button" class="side-item" id="navHistory" title="History">
+          <span class="side-ic" data-ic="history"></span><span class="side-label">History</span>
+          <span class="side-tag" id="navHistoryTag" hidden></span>
         </button>
       </div>
 
@@ -2815,10 +2824,6 @@ body { max-width: 2000px; margin-inline: auto; }
 
       <div class="side-sec">
         <div class="side-sec-hd">System</div>
-        <button type="button" class="side-item" id="navHistory" title="History">
-          <span class="side-ic" data-ic="history"></span><span class="side-label">History</span>
-          <span class="side-tag" id="navHistoryTag" hidden></span>
-        </button>
         <button type="button" class="side-item" id="navDoctor" title="Doctor">
           <span class="side-ic" id="navDoctorIc" data-ic="doctor"></span><span class="side-label" id="navDoctorLbl">Doctor</span>
           <span class="side-tag" id="navDoctorTag" hidden>✕</span>
@@ -5413,8 +5418,17 @@ function setView(v) {
   // ticked would be worse than one in the wrong place. In the markup it
   // follows the council composer, which puts it ABOVE the brainstorm panel.
   const bar = $("unitBar"), bs = $("bsView"), page = $("page");
-  if (bsOpen) { if (bar.previousElementSibling !== bs) page.insertBefore(bar, bs.nextSibling); }
-  else if (bar.previousElementSibling !== $("qbar")) page.insertBefore(bar, $("qbar").nextSibling);
+  // On the way IN, park it after the panel; renderBsView then pulls it inside,
+  // between the composer and Past sessions. On the way OUT it comes home --
+  // and that has to happen even when it is currently a child of bsView, which
+  // is why this checks the parent and not just the sibling.
+  if (bsOpen) {
+    if (bar.parentElement === page && bar.previousElementSibling !== bs) {
+      page.insertBefore(bar, bs.nextSibling);
+    }
+  } else if (bar.parentElement !== page || bar.previousElementSibling !== $("qbar")) {
+    page.insertBefore(bar, $("qbar").nextSibling);
+  }
   $("navCouncil").classList.toggle("active", v === "council" && !studioOpen);
   $("navHistory").classList.toggle("active", v === "history");
   $("navDoctor").classList.toggle("active", v === "doctor");
@@ -7129,6 +7143,13 @@ function renderBsView() {
     syncBsStartBar();
 
     if (bs.error) root.append(bsCallout("could not start", bs.error));
+
+    // The units row is a #page sibling, so setView can only put it before or
+    // after this whole panel -- which left Past sessions wedged between the
+    // composer and the units that belong to it. Adopting the node here puts
+    // it exactly where it reads: under the composer, above the list. setView
+    // hands it back to #page on the way out, so this is a loan, not a move.
+    root.append($("unitBar"));
 
     if (bs.sessions.length) {
       const drawer = el("div", "drawer");
