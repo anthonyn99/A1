@@ -7229,6 +7229,7 @@ function bsAutosize(ta) {
    sync being unavailable and still follow you to another device. */
 const BS_PIN_KEY = "magi.bspins";
 const BS_NICK_KEY = "magi.bsnicks";
+const BS_UNPIN_KEY = "magi.bsunpinned";
 
 const BS_PINS = new Set((() => {
   try { return JSON.parse(localStorage.getItem(BS_PIN_KEY) || "[]"); } catch { return []; }
@@ -7236,11 +7237,17 @@ const BS_PINS = new Set((() => {
 const BS_NICKS = (() => {
   try { return JSON.parse(localStorage.getItem(BS_NICK_KEY) || "{}") || {}; } catch { return {}; }
 })();
+// See UNPINNED_AT: unpinning restarts the window rather than exposing however
+// long the thing had already been sitting there.
+const BS_UNPINNED_AT = (() => {
+  try { return JSON.parse(localStorage.getItem(BS_UNPIN_KEY) || "{}") || {}; } catch { return {}; }
+})();
 
 function saveBsMarks() {
   try {
     localStorage.setItem(BS_PIN_KEY, JSON.stringify([...BS_PINS]));
     localStorage.setItem(BS_NICK_KEY, JSON.stringify(BS_NICKS));
+    localStorage.setItem(BS_UNPIN_KEY, JSON.stringify(BS_UNPINNED_AT));
   } catch {}
   cloudSaveBsMarks();
 }
@@ -7254,7 +7261,7 @@ function cloudSaveBsMarks() {
     if (!(await cloudInit())) { setSync("off"); return; }
     try {
       await CLOUD.fs.setDoc(_indexDoc(), {
-        bsPins: [...BS_PINS], bsNicks: BS_NICKS,
+        bsPins: [...BS_PINS], bsNicks: BS_NICKS, bsUnpinnedAt: BS_UNPINNED_AT,
       }, { merge: true });
       setSync("saved");
     } catch (e) {
@@ -7272,12 +7279,18 @@ const bsTitleOf = (x) => bsNickOf(x) || x.topic;
    on a timer is not something a list should do quietly. */
 const bsExpired = (x) => {
   if (bsPinned(x)) return false;
-  const age = (Date.now() - new Date(x.created_at).getTime()) / 86400000;
+  const stamped = BS_UNPINNED_AT[x.id];
+  const from = stamped && Number.isFinite(new Date(stamped).getTime())
+    ? new Date(stamped).getTime()
+    : new Date(x.created_at).getTime();
+  const age = (Date.now() - from) / 86400000;
   return Number.isFinite(age) && age > HISTORY_DAYS;
 };
 
 function bsTogglePin(id) {
-  BS_PINS.has(id) ? BS_PINS.delete(id) : BS_PINS.add(id);
+  const on = !BS_PINS.has(id);
+  if (on) { BS_PINS.add(id); delete BS_UNPINNED_AT[id]; }
+  else { BS_PINS.delete(id); BS_UNPINNED_AT[id] = new Date().toISOString(); }
   saveBsMarks();
   renderBsView();
 }
@@ -7351,6 +7364,7 @@ async function deleteBsSession(x) {
   }
   BS_PINS.delete(x.id);
   delete BS_NICKS[x.id];
+  delete BS_UNPINNED_AT[x.id];
   saveBsMarks();
   S.bs.sessions = S.bs.sessions.filter((y) => y.id !== x.id);
   // The session that was open has just been deleted; bsReset also puts the
@@ -8164,7 +8178,39 @@ const PINS = new Set((() => {
   try { return JSON.parse(localStorage.getItem(PIN_KEY) || "[]"); } catch { return []; }
 })());
 function savePins() {
-  try { localStorage.setItem(PIN_KEY, JSON.stringify([...PINS])); } catch {}
+  try {
+    localStorage.setItem(PIN_KEY, JSON.stringify([...PINS]));
+    localStorage.setItem(UNPIN_KEY, JSON.stringify(UNPINNED_AT));
+  } catch {}
+}
+
+/* When the retention clock last started.
+ *
+ *  Without this, unpinning something old made it vanish on the spot: the
+ *  window was measured from created_at, and pinning a six-month-old
+ *  deliberation for a year would not change that -- one careless tap and it
+ *  was gone. Pinning is how you say "not yet", so unpinning has to mean
+ *  "start counting now" rather than "you already ran out of time while I was
+ *  protecting it". Pinning clears the mark, so a pinned item is not counting
+ *  at all; unpinning stamps it, so every pin/unpin gives a fresh 30 days.
+ *
+ *  Items never pinned have no entry and fall back to created_at, which is the
+ *  behaviour everything already had.
+ */
+const UNPIN_KEY = "magi.unpinned";
+const UNPINNED_AT = (() => {
+  try { return JSON.parse(localStorage.getItem(UNPIN_KEY) || "{}") || {}; }
+  catch { return {}; }
+})();
+
+/** The moment this item's 30 days began. */
+function clockStart(id, createdAt) {
+  const stamped = UNPINNED_AT[id];
+  if (stamped) {
+    const t = new Date(stamped).getTime();
+    if (Number.isFinite(t)) return t;
+  }
+  return new Date(createdAt).getTime();
 }
 
 const isPinned = (r) => PINS.has(r.id) || !!r.pinned;
@@ -8175,7 +8221,7 @@ const runAgeDays = (r) =>
  *  bug into data loss. */
 function expired(r) {
   if (isPinned(r)) return false;
-  const age = runAgeDays(r);
+  const age = (Date.now() - clockStart(r.id, r.created_at)) / 86400000;
   return Number.isFinite(age) && age > HISTORY_DAYS;
 }
 
@@ -8304,6 +8350,7 @@ async function deleteRun(r) {
   }
 
   delete NICKS[r.id];
+  delete UNPINNED_AT[r.id];
   PINS.delete(r.id);
   saveNicks();
   savePins();
@@ -8339,8 +8386,9 @@ function cloudSaveMarks() {
   _marksT = setTimeout(async () => {
     if (!(await cloudInit())) { setSync("off"); return; }
     try {
-      await CLOUD.fs.setDoc(_indexDoc(), { pins: [...PINS], nicks: NICKS },
-                            { merge: true });
+      await CLOUD.fs.setDoc(_indexDoc(), {
+        pins: [...PINS], nicks: NICKS, unpinnedAt: UNPINNED_AT,
+      }, { merge: true });
       setSync("saved");
     } catch (e) {
       setSync("error", _syncFail("saving your pins and names", e));
@@ -8359,6 +8407,10 @@ async function togglePin(id) {
   const listed = (S.historyMerged || []).find((r) => r.id === id);
   const on = !(PINS.has(id) || !!(row && row.pinned) || !!(listed && listed.pinned));
   if (on) PINS.add(id); else PINS.delete(id);
+  // Pinned: not counting, so the mark is dropped. Unpinned: counting from
+  // this instant.
+  if (on) delete UNPINNED_AT[id];
+  else UNPINNED_AT[id] = new Date().toISOString();
   if (listed) listed.pinned = on;
   savePins();
   cloudSaveMarks();
@@ -8418,8 +8470,35 @@ async function cloudWatch() {
         if (typeof renderUnitChips === "function" && S.providers.length) renderUnitChips();
       }
 
+      // Deliberation pins, names and retention clocks. cloudSaveMarks has
+      // been writing these since it existed; nothing was reading them back,
+      // so a pin made on the phone reached Firestore and stopped there.
+      if (d && (Array.isArray(d.pins) || d.nicks || d.unpinnedAt)) {
+        let changed = false;
+        if (Array.isArray(d.pins)
+            && [...PINS].sort().join("|") !== d.pins.slice().sort().join("|")) {
+          PINS.clear();
+          for (const id of d.pins) PINS.add(id);
+          changed = true;
+        }
+        if (d.nicks && typeof d.nicks === "object"
+            && JSON.stringify(d.nicks) !== JSON.stringify(NICKS)) {
+          for (const k of Object.keys(NICKS)) delete NICKS[k];
+          Object.assign(NICKS, d.nicks);
+          saveNicks();
+          changed = true;
+        }
+        if (d.unpinnedAt && typeof d.unpinnedAt === "object"
+            && JSON.stringify(d.unpinnedAt) !== JSON.stringify(UNPINNED_AT)) {
+          for (const k of Object.keys(UNPINNED_AT)) delete UNPINNED_AT[k];
+          Object.assign(UNPINNED_AT, d.unpinnedAt);
+          changed = true;
+        }
+        if (changed) { savePins(); mergeHistory(); }
+      }
+
       // Session pins and names ride the same document as everything else.
-      if (d && (Array.isArray(d.bsPins) || d.bsNicks)) {
+      if (d && (Array.isArray(d.bsPins) || d.bsNicks || d.bsUnpinnedAt)) {
         if (Array.isArray(d.bsPins)) {
           BS_PINS.clear();
           for (const id of d.bsPins) BS_PINS.add(id);
@@ -8428,9 +8507,14 @@ async function cloudWatch() {
           for (const k of Object.keys(BS_NICKS)) delete BS_NICKS[k];
           Object.assign(BS_NICKS, d.bsNicks);
         }
+        if (d.bsUnpinnedAt && typeof d.bsUnpinnedAt === "object") {
+          for (const k of Object.keys(BS_UNPINNED_AT)) delete BS_UNPINNED_AT[k];
+          Object.assign(BS_UNPINNED_AT, d.bsUnpinnedAt);
+        }
         try {
           localStorage.setItem(BS_PIN_KEY, JSON.stringify([...BS_PINS]));
           localStorage.setItem(BS_NICK_KEY, JSON.stringify(BS_NICKS));
+          localStorage.setItem(BS_UNPIN_KEY, JSON.stringify(BS_UNPINNED_AT));
         } catch {}
         if (S.view === "brainstorm") renderBsView();
       }
