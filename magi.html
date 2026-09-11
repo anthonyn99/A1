@@ -1427,6 +1427,7 @@ table.doctor code { color: var(--txd); font-size: 11px; }
 }
 
 .row-cloud { color: var(--ac); }
+.row-pinned-tag { color: var(--ac); font-weight: 600; }
 
 /* Pinning. The control is quiet until the row is hovered or the pin is on --
    a column of bright pins down the list would read as the point of the list,
@@ -1436,14 +1437,19 @@ table.doctor code { color: var(--txd); font-size: 11px; }
   display: inline-flex; align-items: center; justify-content: center;
   background: transparent; border: 1px solid transparent;
   color: var(--txm); opacity: 0; font-size: 13px;
-  cursor: pointer; transition: opacity .15s, color .15s, border-color .15s;
+  cursor: pointer;
+  transition: opacity .15s, color .15s, border-color .15s, background .15s;
 }
 .row:hover .row-pin, .row-pin:focus-visible { opacity: .75; }
 .row-pin:hover { opacity: 1; color: var(--ac); border-color: var(--ac); }
-.row-pin.on { opacity: 1; color: var(--ac); }
-/* No hover on a touch screen, so the control has to be permanently visible
-   there or it does not exist. */
-@media (pointer: coarse) { .row-pin { opacity: .7; } }
+/* Pinned has to read as a switch that is ON, or there is nothing to tell you
+   that pressing it again is what turns it off. A bare tinted glyph did not:
+   it looked like a status marker, which is not something you press. */
+.row-pin.on {
+  opacity: 1; color: var(--ac);
+  border-color: color-mix(in srgb, var(--ac) 55%, transparent);
+  background: color-mix(in srgb, var(--ac) 14%, transparent);
+}
 .row.pinned { background: color-mix(in srgb, var(--ac) 8%, transparent); }
 
 .history-note {
@@ -1977,6 +1983,17 @@ table.doctor code { color: var(--txd); font-size: 11px; }
   .qbar-refine svg, .qbar-attach svg { width: 17px; height: 17px; }
   .chip { padding: 6px 10px; }
   .node-hd { min-height: 52px; }
+  /* The pin was a 26px square with no hover to reveal it -- the smallest
+     control in the console, on the surface most often used one-handed, and
+     missing it opens the deliberation instead. 44px square, permanently
+     visible (a touch screen has no hover to discover it with), and outlined so
+     it reads as a button rather than a decoration beside the date. */
+  .row-pin {
+    width: 44px; height: 44px; border-radius: 10px;
+    opacity: 1; color: var(--txd);
+    border-color: var(--bd); background: var(--s2);
+  }
+  .row-pin svg { width: 18px; height: 18px; }
 
   /* iOS zooms the page when a focused input is under 16px. That zoom does not
      undo itself, so one tap on the composer leaves the whole console
@@ -3910,6 +3927,10 @@ function renderHistory() {
     // A run from another device has no local SQLite row, so say where it came
     // from rather than letting it look identical to one made here.
     if (r.cloudOnly) meta.append(el("span", "row-cloud", " · synced"));
+    // In words as well as in colour. On a phone there is no tooltip and no
+    // hover, so the tinted pin was the only thing saying this row is being
+    // kept -- and nothing at all saying the button is what undoes it.
+    if (pinned) meta.append(el("span", "row-pinned-tag", " · pinned"));
     row.append(meta);
 
     const pin = el("button", "row-pin" + (pinned ? " on" : ""));
