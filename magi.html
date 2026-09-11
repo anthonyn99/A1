@@ -4878,10 +4878,6 @@ function renderHistory() {
     // A run from another device has no local SQLite row, so say where it came
     // from rather than letting it look identical to one made here.
     if (r.cloudOnly) meta.append(el("span", "row-cloud", " · synced"));
-    // In words as well as in colour. On a phone there is no tooltip and no
-    // hover, so the tinted pin was the only thing saying this row is being
-    // kept -- and nothing at all saying the button is what undoes it.
-    if (pinned) meta.append(el("span", "row-pinned-tag", " · pinned"));
     row.append(meta);
 
     // All three ALWAYS VISIBLE. They were revealed on hover, which on a touch
@@ -7513,7 +7509,6 @@ function renderBsView() {
             year: "numeric", month: "numeric", day: "numeric",
             hour: "numeric", minute: "2-digit",
           }));
-        if (pinned) meta.append(el("span", "row-pinned-tag", " · pinned"));
         row.append(meta);
 
         const acts = el("span", "row-acts");
@@ -8287,6 +8282,35 @@ async function deleteRun(r) {
   if (S.runId === r.id) { newRun(); setView("history"); }
   mergeHistory();
   if (failed) setSync("error", failed); else setSync("saved");
+}
+
+/* Pins and names, written as their OWN fields on the index document.
+ *
+ *  They used to ride on the run's index ROW, which meant a mark only synced
+ *  if that run had reached the cloud at all -- pin something that had never
+ *  been pushed (made while sync was off, or past the point the index is
+ *  capped) and the pin lived and died on one device. Two small maps instead,
+ *  so a mark travels whether or not the body ever did.
+ *
+ *  400ms, not the index's 1500. That longer debounce exists to batch a run's
+ *  Studio cards, which arrive in bursts; a pin is one deliberate press, and a
+ *  tab closed in the meantime should not lose it.
+ */
+let _marksT = 0;
+function cloudSaveMarks() {
+  if (!CLOUD.enabled) return;
+  clearTimeout(_marksT);
+  setSync("saving");
+  _marksT = setTimeout(async () => {
+    if (!(await cloudInit())) { setSync("off"); return; }
+    try {
+      await CLOUD.fs.setDoc(_indexDoc(), { pins: [...PINS], nicks: NICKS },
+                            { merge: true });
+      setSync("saved");
+    } catch (e) {
+      setSync("error", _syncFail("saving your pins and names", e));
+    }
+  }, 400);
 }
 
 async function togglePin(id) {
