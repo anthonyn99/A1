@@ -250,6 +250,73 @@ Job records expire after 30 days; the spend ledger after ~400.
 
 ---
 
+## 3b. Shapes added by Phases 2–3 (recall + sessions)
+
+### `Card` — `localStorage['studyos_cards_<classId>']`, `studyos_cards/{classId}`
+
+```js
+{
+  id: 'cd_<fp>',            // derived from fp, so it is stable across devices
+  fp: 'k3f9x2',             // FNV-1a of kind + normalised question + answer
+  kind: 'cloze'|'qa'|'list',
+  q: 'What is Third Normal Form?',
+  a: 'A relation is in 3NF when…',
+  classId, moduleId,
+  sourceNoteId,             // which note produced it
+  sourceTitle,
+  topic: 'Third Normal Form',
+  sourceSlide: 9 | null,    // "## Slide 9" in a pipeline note → jump-to-source
+  createdAt: 1789…,
+  sched: Schedule | null,   // null until first reviewed
+}
+```
+
+**`fp` is the identity that matters.** Re-extracting an edited note matches on
+it, so unchanged cards keep their schedule, genuinely new content is added, and
+cards whose source text is gone are *reported* rather than deleted — she may
+have reviewed them for weeks.
+
+### `Schedule` — FSRS state, inside `Card.sched`
+
+```js
+{
+  stability: 12.4,          // days until recall decays to 90%
+  difficulty: 5.1,          // 1–10, per card per person
+  due: 1789…,
+  lastReview: 1789… | null,
+  reps: 3, lapses: 0,
+  state: 'new'|'learning'|'review'|'relearning',
+  lastInterval: 15,         // days, for the UI's "Good · 15d" label
+}
+```
+
+Produced only by `fsrs.review()`, which is pure and returns a **new** object —
+that is what makes preview-before-commit and undo possible at all.
+
+### `Session` — `localStorage['studyos_sessions_v1']`, `dashboards/studyos_sessions`
+
+```js
+{
+  id: 'ss_…',
+  kind: 'focus'|'review'|'task',
+  classId, taskId,
+  startedAt: 1789…,
+  durationMs: 1500000,
+  day: '2026-09-11',        // LOCAL date; the day boundary is her midnight
+  completed: true,          // false = a paused block, still counted
+  cards: 23 | 0,            // review sessions only
+  accuracy: 82 | null,
+  note: 'Finished HW3 problem 1',
+}
+```
+
+Sessions under 60 s are **never written** — a timer started and abandoned is
+not study, and logging it would inflate every streak and total built on top.
+Retained ~400 days, which bounds the log while covering the heatmap and any
+weekly review.
+
+---
+
 ## 4. Persistence entry points
 
 | Function | Writes | Line |
@@ -341,8 +408,38 @@ logs `schema v1 → v1, 0 migrations applied`.
 
 ## 7. Sync conflict policy
 
-**Undefined today** — last-write-wins by accident rather than by design, since
-`_sosFirebaseSave()` always writes the entire document. The spec's backlog
-requires this be specified per entity before Phase 1 ships. Not yet decided;
-this section is the placeholder that must be filled before any pipeline job
-starts writing notes from a Worker.
+Decided per entity, by write frequency. The rule: **anything written many times
+per session gets its own document.**
+
+| Entity | Document | Conflict policy |
+|---|---|---|
+| classes, events, tasks, notes, ksu, d2l | `dashboards/studyos` (one doc) | Whole-document last-write-wins, on a 400 ms debounce |
+| Page-editor notes | `studyos_notes/{moduleId}` | Per-module last-write-wins |
+| **Flashcards + review state** | `studyos_cards/{classId}` | **Union by card fingerprint; newest `lastReview` wins** |
+| **Study sessions** | `dashboards/studyos_sessions` | **Union by id** (append-only, so nothing is ever lost) |
+
+### Why cards and sessions are not in the main document
+
+They are the most write-heavy data in the app — one write per card graded,
+dozens per session — and the most likely to change on two devices at once
+(phone between classes, laptop at night). A whole-document `setDoc` from the
+laptop would silently erase a phone session's entire review history, and
+**nothing on screen would look wrong**. Losing a week of scheduling is worse
+than losing a note precisely because it is invisible.
+
+Union-by-fingerprint reduces the worst case to losing a single grade — only if
+the same card is reviewed on two devices inside one sync window. Sessions are
+append-only, so their union loses nothing at all.
+
+### The stale-overwrite guard
+
+Every per-document writer (`_fbSaveCards`, `_fbSaveSessions`, and the existing
+`_fbSaveJournal`) refuses to write until this session has confirmed **real
+server state** for that document at least once — `_cardsWhenServerSeen` and the
+`_ssServerSeen` flag in `js/firebase-sync.js`. Without it, a cold start on a
+second device would push an empty local deck over a full remote one before the
+first snapshot arrived.
+
+An empty result from the server counts as "seen": a class with no cards yet is
+a legitimate state, and treating it as unconfirmed would block the first write
+forever.
