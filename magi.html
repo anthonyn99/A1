@@ -1025,6 +1025,75 @@ table.doctor, table.doctor code, .v-table, .studio-table,
 }
 .doctor-running > .spin { color: var(--ac); flex-shrink: 0; }
 
+/* ── the doctor's report ──────────────────────────────────────────────────
+   A verdict, then one card per unit, then the full field table folded away.
+   It was previously one flat table of every field of every unit -- about
+   thirty rows, almost all of them OK -- which answered "what matched?" when
+   the question being asked is "is anything broken, and what do I do?". */
+.doc-summary {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px; margin: 0 0 12px;
+  border: 1px solid var(--bd); border-radius: var(--r-card);
+  background: var(--s1); font-size: 12.5px; font-weight: 600; color: var(--tx);
+}
+.doc-sum-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; background: var(--txm); }
+.doc-summary.good .doc-sum-dot { background: var(--grn); }
+.doc-summary.warn .doc-sum-dot { background: var(--amber); }
+.doc-summary.bad  .doc-sum-dot { background: var(--red); }
+.doc-summary.good { border-color: color-mix(in srgb, var(--grn) 35%, var(--bd)); }
+.doc-summary.warn { border-color: color-mix(in srgb, var(--amber) 40%, var(--bd)); }
+.doc-summary.bad  { border-color: color-mix(in srgb, var(--red) 45%, var(--bd)); }
+
+.doc-card {
+  border: 1px solid var(--bd); border-left: 3px solid var(--bd);
+  border-radius: var(--r-card); background: var(--s1);
+  padding: 11px 13px; margin-bottom: 10px;
+}
+.doc-card.good { border-left-color: var(--grn); }
+.doc-card.warn { border-left-color: var(--amber); }
+.doc-card.bad  { border-left-color: var(--red); }
+.doc-hd { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.doc-name {
+  font-family: var(--font-display); font-size: 13px; font-weight: 800;
+  color: var(--tx); letter-spacing: .2px;
+}
+.doc-flags { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+.doc-flag {
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: .6px;
+  text-transform: uppercase; padding: 2px 7px; border-radius: 999px;
+  border: 1px solid var(--bd); color: var(--txm);
+}
+.doc-flag.ok   { color: var(--grn); border-color: color-mix(in srgb, var(--grn) 40%, transparent); }
+.doc-flag.miss { color: var(--red); border-color: color-mix(in srgb, var(--red) 45%, transparent); }
+.doc-note { color: var(--txd); font-size: 11.5px; line-height: 1.55; margin-top: 7px; }
+/* The actionable line. Says the file, the key and both selectors, because the
+   fix is a reorder and a reorder needs to name what moves and what it moves
+   above. */
+.doc-fix {
+  margin-top: 8px; padding: 9px 11px; border-radius: 8px;
+  background: color-mix(in srgb, var(--red) 8%, var(--s2));
+  border: 1px solid color-mix(in srgb, var(--red) 30%, transparent);
+  color: var(--txd); font-size: 11.5px; line-height: 1.7;
+}
+.doc-fix.warn {
+  background: color-mix(in srgb, var(--amber) 8%, var(--s2));
+  border-color: color-mix(in srgb, var(--amber) 30%, transparent);
+}
+.doc-fix b { color: var(--tx); font-family: var(--font-mono); font-size: 11px; }
+.doc-fix code {
+  background: var(--bg); color: var(--acl); padding: 1px 5px; border-radius: 3px;
+  font-size: 10.5px; word-break: break-all;
+}
+.doc-details { margin-top: 10px; }
+.doc-details summary {
+  cursor: pointer; color: var(--txm); font-size: 10.5px;
+  letter-spacing: .4px; padding: 3px 0;
+}
+.doc-details summary:hover { color: var(--ac); }
+/* Selectors are long strings; they scroll sideways in their own box rather
+   than widening the page. */
+.doc-tablewrap { overflow-x: auto; overflow-y: hidden; margin-top: 6px; }
+
 table.doctor { width: 100%; border-collapse: collapse; font-size: 11.5px; }
 table.doctor th {
   text-align: left; color: var(--txm); font-size: 9px; font-weight: 700;
