@@ -289,6 +289,44 @@ The content lives in the `HOW` array in `magi.html`. Numbers are interpolated
 from the constants they describe rather than typed, so a retention window
 cannot go stale on its own.
 
+## Every member is told the answer goes in the chat
+
+`DIRECT_ANSWER_PREAMBLE` (in `magi/providers/browser_base.py`) is prepended to
+every browser turn — council members, the chairman's synthesis, Studio, Refine.
+Two sentences, both bought with a lost run:
+
+**"Reply in this chat. Do not create an artifact, canvas, document, file, app
+or tool to hold it."** Asked for a ten-section daily trading report, Claude
+replied *"I'll help you build a template"*, read its memories, and started
+building an interactive generator as a file. MAGI scrapes the conversation — it
+cannot read an artifact — so it waited for text that never settled and the run
+ended `stall_timeout`. A long structured prompt is exactly the shape that makes
+these UIs reach for a tool.
+
+**"This is a single turn and there is no follow-up… look things up if you need
+current information."** With the artifact fixed, Claude came back with *"Should
+I: 1. Search the web for today's data? 2. Wait for you to provide it?"* — a
+reasonable thing to ask a person, and worthless here: nobody is watching that
+tab. The other three units simply looked the data up, which is the only reason
+they answered and Claude did not.
+
+It says nothing about content, tone, length or format, so it cannot bend an
+answer — only where that answer is put and whether there is one.
+`magi/tests/test_tool_use.py` fails if a shaping word creeps in.
+
+**Tool rows are stripped from the capture** (`extract.strip_tool_rows`): "Read
+4 memories", "Searched the web", "Creating a file56srunning" — that last one is
+the label, the elapsed timer and the status word as three sibling nodes with no
+whitespace between them, glued together by `innerText`. Each is matched as a
+whole line that contains nothing else, so a sentence that merely mentions
+searching the web keeps its line.
+
+**A long non-answer is still a non-answer.** The clarifying-question rule stops
+at 300 characters, because a long answer ending in a question mark is a normal
+rhetorical device — but a member can decline at length. An offer to proceed
+("Should I…?", "Would you like me to…?") under 1,200 characters is now rejected
+the same way: in a one-shot council, asking permission is declining.
+
 ## When a site changes its UI
 
 This is the routine maintenance task, and it does not require touching Python.
@@ -583,6 +621,14 @@ would drop the SSE stream and leave the council running against your paid
 accounts with nothing watching — so that case refreshes in place instead. The
 gesture is implemented by hand because `body { overflow: hidden }` and an
 installed PWA leave the browser's own version nothing to fire on.
+
+**When sync fails it says why.** "Sync failed" alone named no operation, no
+cause and no fix, and the detail went to a browser console you cannot open on a
+phone. The line is now clickable: it gives the Firestore code, a plain-language
+cause, what was being written, and a retry. Backfill also stopped crying wolf —
+it used to report failure whenever *zero* runs were pushed, so a batch whose
+only missing run had been deleted from the engine showed "Sync failed" with
+nothing wrong, and a batch where nine of ten failed showed "Synced".
 
 **App Check is registered per domain.** Sync works on
 `https://anthonyn99.github.io/A1/magi.html`; on `http://127.0.0.1:8000` the

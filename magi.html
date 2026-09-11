@@ -2017,6 +2017,12 @@ html.modal-open .page, html.modal-open .sidebar { overflow: hidden; }
 .sheet-note b { color: var(--txd); }
 .sheet-note code { color: var(--txd); background: var(--bg); padding: 1px 4px; border-radius: 3px; }
 .sheet-bar { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; margin-top: 16px; }
+.sync-detail {
+  font-family: var(--font-mono); font-size: 10.5px; line-height: 1.6;
+  white-space: pre-wrap; word-break: break-word;
+  background: var(--bg); border: 1px solid var(--bd); border-radius: 6px;
+  padding: 9px 11px; color: var(--txd); max-height: 30vh; overflow-y: auto;
+}
 .sheet-err { color: var(--red); font-size: 11px; margin-top: 8px; }
 .sheet-ok  { color: var(--grn); font-size: 11px; margin-top: 8px; }
 
@@ -6285,13 +6291,20 @@ function syncMobileLink() {
  *  with "saved" fading back to nothing after a moment rather than sitting
  *  there. A permanent "Synced" is a label people stop reading; the useful
  *  signals are the two transient ones and the failure, which persists. */
-function setSync(state) {
+function setSync(state, why) {
   clearTimeout(setSync._t);
   const text = { saving: "Syncing…", saved: "Synced", error: "Sync failed",
                  off: "Sync off" }[state];
+  // "Sync failed" on its own is a dead end: it names no operation, no cause
+  // and no fix, and the browser console is not somewhere you can look from a
+  // phone. The reason is kept and the line becomes clickable.
+  if (state === "error" && why) SYNC_ERR.last = why;
+  if (state === "saved") SYNC_ERR.last = null;
   const title = state === "off"
     ? "Firebase App Check only issues tokens on anthonyn99.github.io, so a page "
       + "served from 127.0.0.1 cannot sign in. Open the hosted URL to sync."
+    : state === "error"
+    ? "Click for what failed"
     : "";
   // Two lines, one state: the sidebar's and the mobile top bar's. On a phone
   // the sidebar is a closed drawer, so the top-bar copy is the only one that
@@ -6303,9 +6316,93 @@ function setSync(state) {
     n.className = "syncline" + (text ? " on " + state : "");
     n.textContent = text || "";
     n.title = title;
+    n.style.cursor = state === "error" ? "pointer" : "";
+    n.onclick = state === "error" ? showSyncError : null;
   }
   // A failure stays put: it needs acting on. A success does not.
   if (state === "saved") setSync._t = setTimeout(() => setSync("idle"), 2500);
+}
+
+/* What went wrong the last time a write failed.
+ *
+ *  Firestore failures are specific and actionable -- permission-denied,
+ *  resource-exhausted, unavailable, failed-precondition -- and every one of
+ *  them was being collapsed into the words "Sync failed" with the detail going
+ *  to a console nobody can open on a phone. */
+const SYNC_ERR = { last: null };
+
+const _syncFail = (where, e) => ({
+  where,
+  code: (e && (e.code || e.name)) || "",
+  message: (e && (e.message || String(e))) || "unknown",
+  at: new Date().toISOString(),
+});
+
+/** Plain-language cause and fix for the Firestore codes worth knowing. */
+const SYNC_CAUSE = {
+  "permission-denied":
+    "Firestore refused the write. Either this browser is not signed in, or firestore.rules no longer allows dashboards/magi.",
+  "resource-exhausted":
+    "The Firebase project has hit a quota for today. Everything keeps working locally; sync resumes when the quota resets.",
+  unavailable:
+    "Could not reach Firestore — usually the network, occasionally an outage. It retries on its own.",
+  unauthenticated:
+    "Anonymous sign-in has expired or was rejected. Reloading the page signs in again.",
+  "invalid-argument":
+    "Firestore rejected the shape of the document. This one does not fix itself — it is a bug worth reporting.",
+  "deadline-exceeded":
+    "The write took too long and was abandoned. Usually a slow connection.",
+  "failed-precondition":
+    "Firestore needs something that is missing — often an index, occasionally a second tab holding the local cache.",
+};
+
+function showSyncError() {
+  const e = SYNC_ERR.last;
+  const sheet = el("div", "sheet");
+  const box = el("div", "sheet-box");
+  box.append(el("div", "sheet-hd", "Sync failed"));
+  if (!e) {
+    box.append(el("div", "sheet-sub",
+      "No detail was captured for this one. It will be recorded next time."));
+  } else {
+    box.append(el("div", "sheet-sub",
+      SYNC_CAUSE[e.code] || "Firestore rejected the write."));
+    const lbl = el("div", "sheet-lbl", "Detail");
+    const pre = el("div", "sync-detail");
+    pre.textContent =
+      `${e.where}\n${e.code ? e.code + "\n" : ""}${e.message}\n${new Date(e.at).toLocaleString()}`;
+    box.append(lbl, pre);
+  }
+  box.append(el("div", "sheet-note",
+    "Deliberations are safe either way: the engine keeps its own copy, and " +
+    "this only affects reading them on your other devices."));
+
+  const msg = el("div");
+  const bar = el("div", "sheet-bar");
+  const retry = el("button", "btn active", "Try again");
+  const close = el("button", "btn", "Close");
+  bar.append(retry, el("span", "qbar-spacer"), close);
+  box.append(bar, msg);
+
+  const done = () => sheet.remove();
+  close.onclick = done;
+  sheet.onclick = (ev) => { if (ev.target === sheet) done(); };
+  retry.onclick = async () => {
+    msg.className = "sheet-note";
+    msg.textContent = "Retrying…";
+    const r = await cloudBackfill();
+    if (SYNC_ERR.last) {
+      msg.className = "sheet-err";
+      msg.textContent = `Still failing — ${SYNC_ERR.last.code || SYNC_ERR.last.message}.`;
+    } else {
+      msg.className = "sheet-ok";
+      msg.textContent = r && r.pushed ? `Pushed ${r.pushed}.` : "Nothing left to push.";
+      setTimeout(done, 900);
+    }
+  };
+
+  sheet.append(box);
+  document.body.append(sheet);
 }
 
 /* ══ CLOUD SYNC ════════════════════════════════════════════════════════════
@@ -6590,7 +6687,10 @@ async function cloudWatch() {
       // Only on an actual change: the first snapshot always fires, and
       // flashing "Synced" on every page load would make the indicator noise.
       if (before && CLOUD.index.length !== before) setSync("saved");
-    }, (e) => { setSync("error"); console.warn("[magi] index listen:", e); });
+    }, (e) => {
+      setSync("error", _syncFail("listening for other devices' runs", e));
+      console.warn("[magi] index listen:", e);
+    });
   } catch (e) { console.warn("[magi] cloudWatch:", e); }
 }
 
@@ -6607,7 +6707,11 @@ async function cloudPushRun(runId, quiet) {
     // assembling it from events: the database has every member's full answer
     // and the stored synthesis, which the event stream does not carry.
     const r = await fetch(`${link.api}/api/runs/${runId}`, authed());
-    if (!r.ok) return;
+    // Bare `return` here meant undefined -- falsy, so the caller counted it as
+    // a failed push, but nothing was recorded and nothing said why. The engine
+    // not serving a run is a real condition (it restarted, the run was
+    // deleted) and it is not a Firestore fault.
+    if (!r.ok) throw new Error(`the engine returned ${r.status} for this run`);
     const data = await r.json();
     const run = data.run || {};
 
@@ -6638,8 +6742,11 @@ async function cloudPushRun(runId, quiet) {
   } catch (e) {
     // Sync is a convenience layered on a working local run. It must never
     // turn a successful deliberation into an error the user sees -- so this
-    // reports in the status line and nowhere else.
-    if (!quiet) setSync("error");
+    // reports in the status line and nowhere else. Recorded either way: a
+    // quiet failure during a batch still has to be explainable afterwards.
+    const detail = _syncFail("saving a finished deliberation", e);
+    if (quiet) SYNC_ERR.last = detail;
+    else setSync("error", detail);
     console.warn("[magi] cloudPushRun:", e);
     return false;
   }
@@ -6661,7 +6768,10 @@ function cloudUpsertIndex(row) {
         await CLOUD.fs.setDoc(_indexDoc(), {
           runs: CLOUD.index, updated: CLOUD.fs.serverTimestamp(),
         }, { merge: true });
-      } catch (e) { setSync("error"); console.warn("[magi] index write:", e); }
+      } catch (e) {
+        setSync("error", _syncFail("writing the history index", e));
+        console.warn("[magi] index write:", e);
+      }
       res();
     }, 1500);
   });
@@ -6747,13 +6857,20 @@ async function cloudBackfill() {
   if (!missing.length) return { pushed: 0, alreadyThere: have.size };
 
   setSync("saving");
-  let pushed = 0;
+  SYNC_ERR.last = null;
+  let pushed = 0, failed = 0;
   for (const r of missing) {
     // quiet: the indicator says "Syncing…" once for the batch, not once per run.
     if (await cloudPushRun(r.id, true)) pushed++;
+    else failed++;
   }
-  setSync(pushed ? "saved" : "error");
-  return { pushed, alreadyThere: have.size };
+  // Report on what FAILED, not on what succeeded. `pushed ? saved : error`
+  // was wrong in both directions: a batch where nine of ten runs failed
+  // reported "Synced", and one where the only missing run had been deleted
+  // from the engine reported "Sync failed" with nothing actually broken.
+  if (failed) setSync("error", SYNC_ERR.last || _syncFail("saving past deliberations", null));
+  else setSync("saved");
+  return { pushed, failed, alreadyThere: have.size };
 }
 
 /** Drop what the retention window has let go: bodies first, then the index.

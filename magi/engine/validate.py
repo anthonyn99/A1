@@ -81,6 +81,38 @@ _CLARIFYING_OPENERS = re.compile(
 )
 
 
+# An offer to do the work, instead of the work.
+#
+# The rule above only fires under MIN_ANSWER_CHARS, because a long answer
+# ending in a question mark is a normal rhetorical device. But a member can
+# decline at length: observed at 543 characters --
+#
+#     "I'm ready to deliver your Daily Macro Snapshot. However, I need current
+#      market data... Should I: 1. Search the web for today's macro data?
+#      2. Wait for you to provide specific data points? Let me know and I'll
+#      deliver the snapshot in your exact format."
+#
+# -- which sailed past every check and was counted as a full council vote.
+#
+# These phrases are specific enough to be safe: each is a model asking
+# permission to proceed, which in a one-shot council is the same as declining.
+# Still bounded by length, because a genuinely long answer may well close with
+# "let me know if you want more detail" after having ALREADY answered.
+_OFFER_TO_PROCEED = re.compile(
+    r"\b(should i|shall i|would you like me to|do you want me to|"
+    r"want me to|if you(?:'d| would) like[, ]+i can|i can (?:go ahead and )?"
+    # Any characters, not "no sentence punctuation": the real capture put the
+    # question mark after a numbered list, and "1." killed a [^.!?] run before
+    # it ever reached the "?".
+    r"(?:search|look|pull|fetch|gather))\b[\s\S]{0,200}\?",
+    re.IGNORECASE | re.DOTALL,
+)
+
+# Four times the short-answer bar. Above this there is enough text that the
+# member has plainly said something, whatever else it also asked.
+MAX_OFFER_CHARS = MIN_ANSWER_CHARS * 4
+
+
 @dataclass
 class Validation:
     ok: bool
@@ -165,6 +197,18 @@ def validate_answer(text: str, question: str, *, display_name: str = "") -> Vali
             False,
             Rejection.CLARIFYING_QUESTION,
             f"{who} asked a clarifying question instead of answering "
+            f"({len(body)} chars): “{preview}”",
+        )
+
+    # ...and the same failure dressed up at length: an offer to do the work
+    # rather than the work. In a one-shot council, asking permission is
+    # declining -- nobody is watching that tab to say yes.
+    if len(body) < MAX_OFFER_CHARS and _OFFER_TO_PROCEED.search(body):
+        preview = body if len(body) <= 80 else body[:77] + "..."
+        return Validation(
+            False,
+            Rejection.CLARIFYING_QUESTION,
+            f"{who} offered to do the work instead of doing it "
             f"({len(body)} chars): “{preview}”",
         )
 

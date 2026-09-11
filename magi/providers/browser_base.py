@@ -30,6 +30,45 @@ from .base import (
 )
 
 
+# Answer HERE, in the chat.
+#
+# These are real chat UIs with real tool belts, and a long structured prompt is
+# exactly the shape that makes them reach for one. Observed live: asked for a
+# ten-section trading report, Claude replied "I'll help you build a template",
+# read its memories, and started BUILDING AN INTERACTIVE GENERATOR as a file.
+# MAGI waited, the visible text never settled into an answer, and the run ended
+# with stall_timeout -- a member lost for the whole run, and a real question
+# unanswered.
+#
+# MAGI cannot read an artifact, a canvas, a file or a tool result: it scrapes
+# the conversation. An answer that is not in the conversation does not exist as
+# far as the council is concerned. So every member is told, once, where the
+# answer has to go.
+#
+# The second paragraph exists for the same failure one step later. With the
+# artifact fixed, Claude came back with "Should I: 1. Search the web for
+# today's data? 2. Wait for you to provide it?" -- a perfectly reasonable
+# thing to ask a person, and worthless here. A council turn is ONE turn: there
+# is no conversation, nobody is watching that tab, and a member that spends
+# its turn asking has contributed nothing. The other three units simply looked
+# the data up, which is why they answered and Claude did not.
+#
+# Deliberately short and behavioural. It says nothing about content, tone,
+# length or format, so it cannot bend an answer -- only where that answer is
+# put and whether there will be one. It is prepended to EVERY browser turn,
+# which includes the chairman's synthesis and Studio's generation, and those
+# are the turns most likely to be mistaken for "build me a document".
+DIRECT_ANSWER_PREAMBLE = (
+    "Reply with your full answer in this chat message. Do not create an "
+    "artifact, canvas, document, file, app or tool to hold it, and do not "
+    "offer to build one.\n"
+    "This is a single turn and there is no follow-up: nobody will read a "
+    "clarifying question or reply to an offer. Answer with what you have, "
+    "state any assumption you had to make, and look things up if you need "
+    "current information.\n\n"
+)
+
+
 class BrowserProvider(Provider):
     kind = "browser"
 
@@ -233,7 +272,9 @@ class BrowserProvider(Provider):
                     # the synthesis prompt is far too long to type at human
                     # speed without dominating the run time.
                     await humanize.insert_text(
-                        page, box.locator.first, question, self.settings.pacing
+                        page, box.locator.first,
+                        DIRECT_ANSWER_PREAMBLE + question,
+                        self.settings.pacing,
                     )
                 except Exception as e:
                     artifacts = await self._save_artifacts(page, "type-failed")

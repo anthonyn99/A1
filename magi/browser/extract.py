@@ -27,7 +27,7 @@ GENERIC_TRAILING = [
 # These are anchored to the very start and each may repeat, so they are peeled
 # one at a time in the same loop as the trailing rules.
 GENERIC_LEADING = [
-    r"^\s*Recalled\s+\d+\s+memor(y|ies)\s*",
+    r"^\s*(Recalled|Read)\s+\d+\s+memor(y|ies)\s*",
     r"^\s*(Thought|Thinking|Reasoned|Analyzed|Searched|Pondered)\b[^\n]{0,60}\s*\n",
     r"^\s*\d+\s*step[s]?\s+completed\s*\n",
 ]
@@ -53,6 +53,56 @@ def strip_toolbars(text: str) -> str:
     return _CODE_TOOLBAR_LINE.sub("", text)
 
 
+# Tool-call rows. These are the UI's account of what the model DID, rendered
+# inside the response container as its own line, and they sit in the MIDDLE of
+# the text -- so the leading/trailing rules cannot reach them.
+#
+# Captured live from Claude, asked for a trading report, after it decided to
+# build the report as a file instead of writing it:
+#
+#     I'll help you build a Daily Macro & Long-Only Trading Report template.
+#     Read 4 memories
+#     Read 4 memories
+#     Perfect. You've given me the template structure...
+#     Creating a file56srunning
+#     Creating a file
+#
+# Note "Creating a file56srunning": the label, the elapsed timer and the status
+# word are three sibling nodes with no whitespace between them, so innerText
+# glues them together. Each row is matched as a WHOLE LINE and must consist of
+# nothing but a known tool phrase -- a sentence that merely contains the words
+# "creating a file" keeps its line, because a false positive here deletes the
+# model's actual words.
+_TOOL_ROW = re.compile(
+    r"""^[ 	]*(?:
+          (?:Read|Recalled|Wrote|Updated|Searched|Saved)\s+\d+\s+memor(?:y|ies)
+        | (?:Creating|Editing|Updating|Writing|Reading|Viewing|Deleting|Renaming)
+          \s+(?:a|the)\s+(?:file|document|artifact)
+        # Both tenses: the row says "Searching the web" while it runs and
+        # "Searched the web" once it is done, and a capture can land on either.
+        | (?:Search(?:ing|ed)|Brows(?:ing|ed)|Fetch(?:ing|ed)|Analyz(?:ing|ed)
+          |Look(?:ing|ed)\s+up|Running)\s+(?:the\s+web|a\s+search)
+        | Request\s+for\s+.{0,40}
+      )
+      (?:\s*\d+s)?          # glued elapsed timer: "...file56s"
+      (?:\s*(?:running|paused|complete|completed|done|failed))?
+      [ \t]*$\n?""",
+    re.IGNORECASE | re.MULTILINE | re.VERBOSE,
+)
+
+
+def strip_tool_rows(text: str) -> str:
+    """Remove the UI's record of tool calls from inside an answer.
+
+    Not cosmetic. A council member that spent its turn using tools instead of
+    answering produces text that is ENTIRELY these rows plus a sentence of
+    preamble, and the validator's job is to notice that and mark the answer
+    unusable. Leaving the rows in gives it more apparent content to weigh, so
+    the rubbish is likelier to be passed off as an answer.
+    """
+    return _TOOL_ROW.sub("", text)
+
+
 def clean(text: str, strip_patterns: list[str] | None = None) -> str:
     """Remove UI chrome from a scraped answer.
 
@@ -73,9 +123,10 @@ def clean(text: str, strip_patterns: list[str] | None = None) -> str:
     # patterns above -- because a glyph is unambiguous where a word is not.
     out = re.sub(r"[​-‏⁠﻿-]", "", out).strip()
 
-    # Code-block toolbars, which sit mid-answer and so are missed by the
-    # start/end-anchored rules below.
+    # Code-block toolbars and tool-call rows, which sit mid-answer and so are
+    # missed by the start/end-anchored rules below.
     out = strip_toolbars(out).strip()
+    out = strip_tool_rows(out).strip()
 
     # Repeat: removing one element often exposes another.
     for _ in range(4):
