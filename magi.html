@@ -5995,12 +5995,20 @@ function expired(r) {
 }
 
 async function togglePin(id) {
-  const on = !PINS.has(id);
+  // Read the EFFECTIVE state, not this browser's half of it.
+  //
+  // A pin set on another device arrives on the cloud row, and this browser's
+  // PINS set knows nothing about it -- so `!PINS.has(id)` said "not pinned
+  // yet", and tapping the pin on a row that was visibly pinned pinned it
+  // again. There was no way to unpin anything you had not pinned here.
+  const row = CLOUD.index.find((r) => r.id === id);
+  const listed = (S.historyMerged || []).find((r) => r.id === id);
+  const on = !(PINS.has(id) || !!(row && row.pinned) || !!(listed && listed.pinned));
   if (on) PINS.add(id); else PINS.delete(id);
+  if (listed) listed.pinned = on;
   savePins();
   // Mirror onto the cloud row so the pin follows you. Debounced with every
   // other index change, so pinning three in a row is still one write.
-  const row = CLOUD.index.find((r) => r.id === id);
   if (row) { row.pinned = on; cloudUpsertIndex({ ...row, pinned: on }); }
   else mergeHistory();   // local-only run: nothing to write, but the list and
                          // the retention filter both have to be recomputed
@@ -6013,8 +6021,11 @@ function mergeHistory() {
     .map((r) => ({ ...r, cloudOnly: true }));
   // A pin lives on the cloud row, so a local row has to be told about it or
   // the same run would look pinned on one device and not on another.
+  // Assigned, not OR-ed. `if (pinned) r.pinned = true` could only ever set the
+  // flag, so a run unpinned on another device stayed pinned here for the rest
+  // of the session -- and the cloud row it was mirroring said otherwise.
   const pinnedInCloud = new Set(CLOUD.index.filter((r) => r.pinned).map((r) => r.id));
-  for (const r of S.history) if (pinnedInCloud.has(r.id)) r.pinned = true;
+  for (const r of S.history) r.pinned = pinnedInCloud.has(r.id) || PINS.has(r.id);
 
   S.historyMerged = [...S.history, ...extra]
     .filter((r) => !expired(r))
