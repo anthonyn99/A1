@@ -1530,39 +1530,61 @@ async def doctor(
     """
     picked = provider_ids or [p for p in providers.split(",") if p] or None
     providers = build_providers(settings, picked)
-    out = []
 
-    async def _cancel_when_client_leaves(task: asyncio.Task) -> None:
-        """Kill the in-flight check the moment the browser aborts the fetch.
+    # Checked in PARALLEL, for the same reason the council fans out in
+    # parallel: each unit drives its own browser profile against a DIFFERENT
+    # service, so nothing is being hammered. Sequentially this was one real
+    # Chrome launch after another -- roughly half a minute each, so four units
+    # meant two minutes of staring at a spinner. That is long enough that the
+    # doctor stopped being something you just run.
+    async def _one(p):
+        t0 = time.monotonic()
+        r = await p.health_check()
+        return r, int((time.monotonic() - t0) * 1000)
+
+    checks = [asyncio.create_task(_one(p)) for p in providers]
+    gathered = asyncio.gather(*checks, return_exceptions=True)
+
+    async def _cancel_when_client_leaves() -> None:
+        """Kill every in-flight check the moment the browser aborts the fetch.
 
         Checking is_disconnected only BETWEEN providers -- which is what this
-        did before -- means Stop waits for the current provider to finish, and
-        a single health check opens a real browser and runs for tens of
-        seconds. Pressing Stop and watching nothing happen for ten seconds is
-        indistinguishable from a Stop button that does not work, which is
-        exactly how it was reported.
+        did before -- meant Stop waited for the current unit to finish, and a
+        single health check runs for tens of seconds. Pressing Stop and
+        watching nothing happen is indistinguishable from a Stop button that
+        does not work, which is exactly how it was reported.
 
-        Cancelling the task unwinds launcher.launch's context manager, so the
-        browser it opened is closed rather than left orphaned holding a
-        profile lock.
+        Cancelling unwinds launcher.launch's context manager, so the browsers
+        it opened are closed rather than left orphaned holding profile locks.
         """
-        while not task.done():
+        while not gathered.done():
             if await request.is_disconnected():
-                task.cancel()
+                for c in checks:
+                    c.cancel()
                 return
             await asyncio.sleep(0.35)
 
-    for p in providers:
-        if await request.is_disconnected():
-            break
-        check = asyncio.create_task(p.health_check())
-        watcher = asyncio.create_task(_cancel_when_client_leaves(check))
-        try:
-            r = await check
-        except asyncio.CancelledError:
-            break
-        finally:
-            watcher.cancel()
+    watcher = asyncio.create_task(_cancel_when_client_leaves())
+    try:
+        results = await gathered
+    except asyncio.CancelledError:
+        return []
+    finally:
+        watcher.cancel()
+
+    out = []
+    for p, res in zip(providers, results):
+        if isinstance(res, asyncio.CancelledError):
+            continue
+        if isinstance(res, BaseException):
+            out.append({
+                "provider_id": p.id, "display_name": p.display_name,
+                "reachable": False, "logged_in": False, "challenged": False,
+                "usable": False, "error": str(res)[:300], "notes": [],
+                "selectors": [], "duration_ms": 0,
+            })
+            continue
+        r, ms = res
         out.append(
             {
                 "provider_id": r.provider_id,
@@ -1573,6 +1595,10 @@ async def doctor(
                 "usable": r.usable,
                 "error": r.error,
                 "notes": r.notes,
+                # How long this unit took to open and probe. A unit that is
+                # "fine" but took 50 seconds is on its way to timing out mid
+                # run, and nothing else in the console would tell you.
+                "duration_ms": ms,
                 "selectors": [
                     {
                         "field": s.field,
@@ -1586,6 +1612,10 @@ async def doctor(
                         "note": s.note,
                         "stale": bool(s.ok and s.tried and s.matched != s.tried[0]),
                         "tried": len(s.tried),
+                        # The preferred candidate, so the UI can say exactly
+                        # what to put where: a stale field's fix is "move the
+                        # matched selector above this one in selectors.yaml".
+                        "preferred": s.tried[0] if s.tried else "",
                     }
                     for s in r.selectors
                 ],
