@@ -500,8 +500,21 @@ body {
   font-family: inherit; transition: all .15s;
   display: inline-flex; flex-direction: column; align-items: center; line-height: 1.25;
 }
+/* Draggable, and it has to look it. `grab` is the only cue a mouse gets that
+   the row is rearrangeable at all; touch-action keeps the browser from
+   claiming the gesture before the hold completes. */
+.chip { cursor: grab; touch-action: pan-x; -webkit-user-select: none; user-select: none; }
+.chips-drag .chip, .chip.dragged { cursor: grabbing; }
+.chip.dragged {
+  /* Lifted: brighter, slightly larger, and above its neighbours so it reads
+     as being carried rather than swapped. */
+  transform: scale(1.06);
+  box-shadow: 0 6px 18px var(--shadow);
+  position: relative; z-index: 3;
+}
+#unitChips { display: contents; }
 .chip-model {
-  font-size: 10.5px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase;
+  font-size: 11px; font-weight: 700; letter-spacing: .3px; text-transform: uppercase;
 }
 /* Dimmed against the model name it sits under. `currentColor` at low opacity
    rather than a fixed grey, so it stays legible both on the transparent
@@ -1072,23 +1085,48 @@ table.doctor, table.doctor code, .v-table, .studio-table,
 .acc-note b { color: var(--tx); }
 .acc-topbar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .acc-topbar .acc-busy { margin-top: 0; font-size: 11px; }
+/* Seven cards of the same size, the same colour and the same four rows run
+   together into one striped wall -- the 10px gap and a hairline were not
+   enough to say where one unit ended and the next began. Three things fix it,
+   and they work together rather than any one of them being the answer: real
+   space between cards, a card surface that stands off the page instead of
+   matching it, and a full-height accent edge that ties every row of a card to
+   the unit it belongs to. */
 .acc-card {
-  border: 1px solid var(--bd); border-left: 3px solid var(--pa, var(--ac));
-  border-radius: var(--r-card); background: var(--s1);
-  padding: 11px 13px; margin-bottom: 10px;
+  border: 1px solid var(--bdl); border-left: 4px solid var(--pa, var(--ac));
+  border-radius: var(--r-card); background: var(--s2);
+  padding: 14px 16px; margin-bottom: 18px;
+  box-shadow: 0 1px 3px var(--shadow);
+  transition: border-color .15s, box-shadow .15s;
 }
+.acc-card:last-child { margin-bottom: 0; }
+/* The whole card lifts on hover, so which one you are about to act on is
+   never in question when three "Check" buttons are stacked down the page. */
+.acc-card:hover {
+  border-color: color-mix(in srgb, var(--pa, var(--ac)) 45%, var(--bdl));
+  box-shadow: 0 3px 12px var(--shadow);
+}
+/* The name row is the card's header, separated from its controls the way a
+   card's title should be. */
+.acc-card .acc-hd { padding-bottom: 10px; border-bottom: 1px solid var(--bd); }
+.acc-card .acc-row { margin-top: 11px; }
+.acc-card .acc-actions { margin-top: 12px; padding-top: 11px; border-top: 1px solid var(--bd); }
 .acc-hd { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .acc-names { min-width: 0; }
 .acc-name {
   font-family: var(--font-display); font-size: 13px; font-weight: 800;
   color: var(--tx); letter-spacing: .2px;
 }
+/* The codename stays monospaced -- it is an identifier, and MELCHIOR·01 is
+   the one place this console's Evangelion flavour belongs. It was just set
+   too small and too widely tracked to read: 8.5px with 1.3px of letter-spacing
+   is a smear at arm's length. */
 .acc-sub {
-  font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 1.3px;
-  text-transform: uppercase; color: var(--txm); margin-top: 1px;
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .55px;
+  color: var(--txm); margin-top: 2px;
 }
 .acc-flags { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
-.acc-detail { color: var(--txm); font-size: 11px; line-height: 1.55; margin-top: 7px; }
+.acc-detail { color: var(--txd); font-size: 11.5px; line-height: 1.55; margin-top: 6px; }
 .acc-row { margin-top: 9px; }
 .acc-input {
   width: 100%; background: var(--bg); color: var(--tx);
@@ -1098,7 +1136,9 @@ table.doctor, table.doctor code, .v-table, .studio-table,
 .acc-input:focus { border-color: var(--ac); }
 .acc-input::placeholder { color: var(--txm); }
 .acc-actions { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-top: 10px; }
-.acc-meta { color: var(--txm); font-size: 10px; font-family: var(--font-mono); }
+/* "87 MB · used 1m ago" is a sentence about the profile, not a reading off a
+   gauge, so it sets in the body face like one. */
+.acc-meta { color: var(--txm); font-size: 10.5px; letter-spacing: .1px; }
 .acc-busy {
   display: flex; align-items: center; gap: 9px; margin-top: 10px;
   color: var(--txd); font-size: 11.5px; line-height: 1.5;
@@ -1138,10 +1178,15 @@ table.doctor, table.doctor code, .v-table, .studio-table,
   color: var(--tx); letter-spacing: .2px;
 }
 .doc-flags { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+/* A status chip is a short phrase, not a machine token.
+   Mono at 9px with letter-spacing and forced uppercase made "SIGNED IN" and
+   "CHECKED 1M AGO" read as log output -- cramped, hard to scan, and shouting
+   the least important line on the card. Sentence case in the body face at a
+   legible size says the same thing and gets out of the way. */
 .doc-flag {
-  font-family: var(--font-mono); font-size: 9px; letter-spacing: .6px;
-  text-transform: uppercase; padding: 2px 7px; border-radius: 999px;
-  border: 1px solid var(--bd); color: var(--txm);
+  font-family: var(--font); font-size: 10.5px; font-weight: 600;
+  letter-spacing: .1px; padding: 3px 9px; border-radius: 999px;
+  border: 1px solid var(--bd); color: var(--txm); white-space: nowrap;
 }
 .doc-flag.ok   { color: var(--grn); border-color: color-mix(in srgb, var(--grn) 40%, transparent); }
 .doc-flag.miss { color: var(--red); border-color: color-mix(in srgb, var(--red) 45%, transparent); }
@@ -3049,6 +3094,7 @@ const HOW = [
       "The tick boxes under the question decide exactly which models are used, and <b>nothing anywhere drives an unticked one</b>. Not the council, not the chairman, not Studio, not Brainstorm, not Refine, not the Doctor.",
       "That includes reaching the same model another way: unticking Gemini also stops Refine using the Gemini API key, because the boxes name models, not connections.",
       "Selecting a single unit is a completely normal way to use MAGI. There is no minimum.",
+      "<b>Drag a chip to reorder them.</b> Click and drag with a mouse; press and hold, then drag, with a finger &mdash; so a plain swipe still scrolls the row and a plain tap still toggles the unit. The order follows you to your other devices.",
     ],
   },
   {
@@ -3826,6 +3872,10 @@ const S = {
   opened: new Set(),     // which unit blocks are expanded
   verdict: null,
   running: false,
+  // Filled in where loadUnitOrder is defined: UNIT_ORDER_KEY is a const
+  // declared with the drag code below, and reading it from here would hit it
+  // in the temporal dead zone -- which throws before the page paints.
+  unitOrder: [],
   runId: null,
   history: [],
   view: "council",       // council | history | doctor
@@ -4637,16 +4687,16 @@ function renderDoctor(data) {
     const flags = el("span", "doc-flags");
     // Plain words. "reachable=true logged_in=true challenged=false" was a
     // debug print, not a status.
-    if (d.error) flags.append(el("span", "doc-flag miss", "error"));
-    else if (!d.reachable) flags.append(el("span", "doc-flag miss", "unreachable"));
+    if (d.error) flags.append(el("span", "doc-flag miss", "Error"));
+    else if (!d.reachable) flags.append(el("span", "doc-flag miss", "Unreachable"));
     else {
-      if (d.challenged) flags.append(el("span", "doc-flag miss", "bot check"));
+      if (d.challenged) flags.append(el("span", "doc-flag miss", "Bot check"));
       flags.append(el("span", "doc-flag " + (d.logged_in ? "ok" : "miss"),
-                      d.logged_in ? "signed in" : "signed out"));
+                      d.logged_in ? "Signed in" : "Signed out"));
       flags.append(el("span", "doc-flag " + (d.usable ? "ok" : "miss"),
-                      d.usable ? "usable" : "not usable"));
+                      d.usable ? "Usable" : "Not usable"));
     }
-    if (d.duration_ms) flags.append(el("span", "doc-flag na", `${(d.duration_ms / 1000).toFixed(0)}s`));
+    if (d.duration_ms) flags.append(el("span", "doc-flag na", `Took ${(d.duration_ms / 1000).toFixed(0)}s`));
     hd.append(flags);
     card.append(hd);
 
@@ -4760,10 +4810,10 @@ const AGE = (iso) => {
 };
 
 function accStatus(a) {
-  if (!a.profile) return { cls: "miss", txt: "no session" };
-  if (a.signed_in === true) return { cls: "ok", txt: "signed in" };
-  if (a.signed_in === false) return { cls: "miss", txt: "signed out" };
-  return { cls: "na", txt: "not checked" };
+  if (!a.profile) return { cls: "miss", txt: "No session" };
+  if (a.signed_in === true) return { cls: "ok", txt: "Signed in" };
+  if (a.signed_in === false) return { cls: "miss", txt: "Signed out" };
+  return { cls: "na", txt: "Not checked" };
 }
 
 function renderAccounts() {
@@ -4820,8 +4870,8 @@ function renderAccounts() {
 
     const flags = el("div", "acc-flags");
     flags.append(el("span", `doc-flag ${st.cls}`, st.txt));
-    if (!a.enabled) flags.append(el("span", "doc-flag na", "unticked"));
-    if (a.checked_at) flags.append(el("span", "doc-flag na", `checked ${AGE(a.checked_at)}`));
+    if (!a.enabled) flags.append(el("span", "doc-flag na", "Unticked"));
+    if (a.checked_at) flags.append(el("span", "doc-flag na", `Checked ${AGE(a.checked_at)}`));
     hd.append(flags);
     card.append(hd);
 
@@ -5066,8 +5116,12 @@ function setView(v) {
   // Brainstorm brings its own composer and its own reply box, so the council's
   // question bar is HIDDEN rather than stacked above a second textarea that
   // submits somewhere else.
-  show($("qbar"), !bsOpen);
-  show($("unitBar"), !bsOpen || !S.bs.sessionId);
+  // Accounts is a settings screen: a question box and a row of unit toggles
+  // above it are controls for a different job entirely, and they push the
+  // thing you came to read below the fold.
+  const settingsView = v === "accounts";
+  show($("qbar"), !bsOpen && !settingsView);
+  show($("unitBar"), (!bsOpen || !S.bs.sessionId) && !settingsView);
   $("navCouncil").classList.toggle("active", v === "council" && !studioOpen);
   $("navHistory").classList.toggle("active", v === "history");
   $("navDoctor").classList.toggle("active", v === "doctor");
@@ -5086,29 +5140,164 @@ function setView(v) {
 }
 
 /* ══ units ═════════════════════════════════════════════════════════════════ */
+/* ── the order of the units, which is yours ────────────────────────────────
+   Drag a chip to move it. The gesture is TradeHub's, deliberately: a small
+   move starts a drag with a mouse, a ~300ms hold starts one with a finger --
+   so a plain swipe still scrolls the row and a plain tap still toggles the
+   unit. Anything else on a touch screen means the row cannot be scrolled
+   without reordering it by accident.
+
+   Stored per browser AND in the cloud, because the order is a preference, not
+   a fact about the engine: it should follow you to your phone, but a phone
+   that cannot reach Firestore must still remember what you did last time. */
+const UNIT_ORDER_KEY = "magi.unitorder";
+
+function loadUnitOrder() {
+  try {
+    const a = JSON.parse(localStorage.getItem(UNIT_ORDER_KEY) || "[]");
+    return Array.isArray(a) ? a : [];
+  } catch { return []; }
+}
+function saveUnitOrder(order) {
+  S.unitOrder = order.slice();
+  try { localStorage.setItem(UNIT_ORDER_KEY, JSON.stringify(order)); } catch {}
+}
+
+/** Saved order first, then anything new, minus anything gone.
+ *
+ *  A unit added to the config after you last dragged must appear rather than
+ *  vanish, and one removed from it must not leave a hole -- the same merge
+ *  TradeHub does for its tabs, for the same reason. */
+function orderedProviders() {
+  const byId = {};
+  for (const p of S.providers) byId[p.id] = p;
+  const out = [], seen = new Set();
+  for (const id of (S.unitOrder || [])) {
+    if (byId[id] && !seen.has(id)) { out.push(byId[id]); seen.add(id); }
+  }
+  for (const p of S.providers) if (!seen.has(p.id)) { out.push(p); seen.add(p.id); }
+  return out;
+}
+
 function renderUnitChips() {
   const box = $("unitChips");
   box.textContent = "";
-  for (const p of S.providers) {
+  for (const p of orderedProviders()) {
     const on = S.selected.has(p.id);
     const b = el("button", `chip ${on ? "on" : ""}`);
     b.type = "button";
+    b.dataset.unit = p.id;
     if (on) { b.style.background = p.accent; b.style.borderColor = p.accent; }
     else { b.style.color = p.accent; b.style.borderColor = p.accent + "66"; }
     // Both names, because the codename alone does not say which model you are
     // switching off. The real model name is the thing being chosen; the MAGI
     // codename is flavour, so it reads as the smaller, secondary label.
     b.append(el("span", "chip-model", p.display_name));
-    b.append(el("span", "chip-unit", (UNIT[p.id] || "").split("·")[0]));
+    b.append(el("span", "chip-unit", (UNIT[p.id] || "").split("\u00b7")[0]));
     b.onclick = () => {
+      // A drag ends with a click on the chip you were holding. Toggling the
+      // unit off because you moved it would be maddening.
+      if (DRAG.justDragged) return;
       S.selected.has(p.id) ? S.selected.delete(p.id) : S.selected.add(p.id);
       renderUnitChips();
       updateEnabled();
     };
+    b.onpointerdown = (e) => unitDragStart(e, p.id);
     box.append(b);
   }
   updateEnabled();
 }
+
+const DRAG = {
+  id: null, startX: 0, startY: 0, kind: "mouse", pointerId: null,
+  target: null, timer: 0, active: false, justDragged: false, ids: null,
+};
+
+function unitDragStart(e, id) {
+  if (e.button != null && e.button !== 0) return;   // primary button only
+  const kind = e.pointerType || "mouse";
+  Object.assign(DRAG, {
+    id, kind, startX: e.clientX, startY: e.clientY,
+    pointerId: e.pointerId, target: e.currentTarget,
+    ids: orderedProviders().map((p) => p.id),
+  });
+  clearTimeout(DRAG.timer);
+  if (kind !== "mouse") {
+    // Hold to pick up. Without this, every attempt to scroll the row sideways
+    // would reorder it.
+    DRAG.timer = setTimeout(() => {
+      DRAG.timer = 0;
+      if (DRAG.id === id && !DRAG.active) unitDragBegin();
+    }, 300);
+  }
+}
+
+function unitDragBegin() {
+  DRAG.active = true;
+  $("unitChips").classList.add("dragging");
+  $("unitBar").classList.add("chips-drag");
+  const el0 = $("unitChips").querySelector(`[data-unit="${DRAG.id}"]`);
+  if (el0) el0.classList.add("dragged");
+  try { DRAG.target.setPointerCapture(DRAG.pointerId); } catch {}
+  try { navigator.vibrate && navigator.vibrate(12); } catch {}
+}
+
+function unitDragMove(e) {
+  if (!DRAG.id) return;
+  if (!DRAG.active) {
+    const dx = Math.abs(e.clientX - DRAG.startX), dy = Math.abs(e.clientY - DRAG.startY);
+    if (DRAG.kind === "mouse") { if (dx > 5 || dy > 5) unitDragBegin(); }
+    else if ((dx > 8 || dy > 8) && DRAG.timer) {
+      // Moved before the hold completed: that was a scroll, not a drag.
+      clearTimeout(DRAG.timer); DRAG.timer = 0; DRAG.id = null;
+    }
+    if (!DRAG.active) return;
+  }
+  const box = $("unitChips");
+  const without = DRAG.ids.filter((x) => x !== DRAG.id);
+  let insert = without.length;
+  for (let k = 0; k < without.length; k++) {
+    const n = box.querySelector(`[data-unit="${without[k]}"]`);
+    if (!n) continue;
+    const r = n.getBoundingClientRect();
+    if (e.clientX < r.left + r.width / 2) { insert = k; break; }
+  }
+  const next = without.slice();
+  next.splice(insert, 0, DRAG.id);
+  if (next.join("|") === DRAG.ids.join("|")) return;
+  DRAG.ids = next;
+  S.unitOrder = next.slice();
+  renderUnitChips();
+  const moved = box.querySelector(`[data-unit="${DRAG.id}"]`);
+  if (moved) moved.classList.add("dragged");
+}
+
+function unitDragEnd() {
+  clearTimeout(DRAG.timer);
+  DRAG.timer = 0;
+  const was = DRAG.active;
+  DRAG.active = false;
+  DRAG.id = null;
+  $("unitChips").classList.remove("dragging");
+  $("unitBar").classList.remove("chips-drag");
+  for (const n of $("unitChips").querySelectorAll(".dragged")) n.classList.remove("dragged");
+  if (!was) return;
+  // Swallow the click that a drag always ends with.
+  DRAG.justDragged = true;
+  setTimeout(() => { DRAG.justDragged = false; }, 60);
+  saveUnitOrder(DRAG.ids || []);
+  cloudSaveUnitOrder();
+}
+
+S.unitOrder = loadUnitOrder();
+
+document.addEventListener("pointermove", unitDragMove);
+document.addEventListener("pointerup", unitDragEnd);
+document.addEventListener("pointercancel", unitDragEnd);
+// Only while actually dragging, so a plain swipe still scrolls the row.
+$("unitChips").addEventListener("touchmove", (e) => {
+  if (DRAG.active) e.preventDefault();
+}, { passive: false });
 
 /* ══ wiring ════════════════════════════════════════════════════════════════ */
 function applyNav() {
@@ -6999,6 +7188,31 @@ async function cloudFetchToken() {
   } catch (e) { console.warn("[magi] token fetch:", e); return ""; }
 }
 
+/** Push the unit order. One tiny merge write, debounced with everything else.
+ *
+ *  The order is a preference, not a fact about the engine, so it belongs with
+ *  the history it sits beside rather than in the engine's config: you reorder
+ *  on a phone and the desk console follows, without the engine being involved
+ *  at all. */
+let _orderT = 0;
+function cloudSaveUnitOrder() {
+  if (!CLOUD.enabled) return;
+  clearTimeout(_orderT);
+  setSync("saving");
+  // Debounced: dragging a chip across four positions fires four reorders, and
+  // that is one preference, not four writes.
+  _orderT = setTimeout(async () => {
+    if (!(await cloudInit())) { setSync("off"); return; }
+    try {
+      await CLOUD.fs.setDoc(_indexDoc(), { unitOrder: S.unitOrder || [] }, { merge: true });
+      setSync("saved");
+    } catch (e) {
+      setSync("error", _syncFail("saving the unit order", e));
+      console.warn("[magi] unit order:", e);
+    }
+  }, 900);
+}
+
 /** Share a token this browser has. Guarded on the last value seen from the
  *  cloud, so a page that opens twice a day does not write twice a day.
  *
@@ -7128,6 +7342,14 @@ async function cloudWatch() {
       cloudPrune();
       // A rotated token reaches an already-open page here, and only retries
       // the connection if this page is currently stranded without one.
+      // A reorder on another device lands here. Ignored mid-drag, so a
+      // snapshot cannot yank a chip out from under the finger holding it.
+      const ord = d && Array.isArray(d.unitOrder) ? d.unitOrder : null;
+      if (ord && !DRAG.active && (S.unitOrder || []).join("|") !== ord.join("|")) {
+        saveUnitOrder(ord);
+        if (typeof renderUnitChips === "function" && S.providers.length) renderUnitChips();
+      }
+
       const tok = d && d.token ? String(d.token) : "";
       if (tok) {
         CLOUD.tokenSeen = tok;
