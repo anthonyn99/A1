@@ -1853,6 +1853,104 @@ table.doctor code { color: var(--txd); font-size: 11px; }
    endpoint that drives Tony's paid accounts. The React build inlined it into
    the JS bundle, where anyone with the site link could read it out of page
    source — that is the specific thing this replaces. */
+/* ══ HOW IT WORKS ══════════════════════════════════════════════════════════
+   A reading surface, not a dialog: generous measure, real paragraph rhythm,
+   and sections you can collapse so the whole thing is scannable rather than a
+   wall. The backdrop is blurred and the page behind it is frozen -- see
+   html.modal-open -- because this is something you read, not something you
+   glance past. */
+.how-sheet { backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); }
+.how-box {
+  width: 100%; max-width: 760px;
+  /* dvh, not vh: on a phone vh is the tall URL-bar-hidden height, so the
+     panel's own footer sat below the fold and could not be scrolled to. */
+  max-height: min(86dvh, 860px);
+  display: flex; flex-direction: column;
+  background: var(--s1); border: 1px solid var(--bd);
+  border-radius: var(--r-card); box-shadow: 0 24px 64px var(--shadow);
+  overflow: hidden;
+}
+.how-hd {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 16px 18px 13px; border-bottom: 1px solid var(--bd);
+  background: var(--s2); flex-shrink: 0;
+}
+.how-titlewrap { min-width: 0; }
+.how-title {
+  font-family: var(--font-display); font-size: 16px; font-weight: 800;
+  letter-spacing: .3px; color: var(--tx);
+}
+.how-sub { color: var(--txm); font-size: 11.5px; margin-top: 3px; }
+.how-x {
+  margin-left: auto; flex-shrink: 0;
+  width: 34px; height: 34px; border-radius: 9px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: 1px solid var(--bd); color: var(--txd);
+  cursor: pointer; transition: all .15s; font-size: 15px;
+}
+.how-x:hover { border-color: var(--ac); color: var(--ac); background: var(--s1); }
+.how-x svg { width: 17px; height: 17px; }
+
+.how-body { overflow-y: auto; padding: 6px 18px 18px; min-height: 0; }
+
+.how-sec { border-bottom: 1px solid var(--bd); }
+.how-sec:last-child { border-bottom: none; }
+.how-sec > summary {
+  display: flex; align-items: center; gap: 10px;
+  padding: 13px 2px; cursor: pointer; list-style: none;
+  transition: color .15s;
+}
+.how-sec > summary::-webkit-details-marker { display: none; }
+.how-q {
+  font-family: var(--font-display); font-size: 13px; font-weight: 700;
+  color: var(--tx); letter-spacing: .2px; flex: 1; min-width: 0;
+}
+.how-sec > summary:hover .how-q { color: var(--ac); }
+/* A chevron drawn in CSS rather than another icon: it has to rotate, and a
+   rotating glyph wanders inside its em box. */
+.how-caret {
+  width: 8px; height: 8px; flex-shrink: 0; margin-right: 3px;
+  border-right: 1.6px solid var(--txm); border-bottom: 1.6px solid var(--txm);
+  transform: rotate(45deg); transform-origin: 60% 60%;
+  transition: transform .18s ease, border-color .15s;
+}
+.how-sec[open] > summary .how-caret { transform: rotate(225deg); }
+.how-sec > summary:hover .how-caret { border-color: var(--ac); }
+
+.how-p {
+  color: var(--txd); font-size: 12.5px; line-height: 1.75;
+  margin: 0 0 11px; padding-left: 18px; max-width: 66ch;
+}
+.how-sec[open] > summary { padding-bottom: 8px; }
+.how-p:last-child { margin-bottom: 15px; }
+.how-p b { color: var(--tx); font-weight: 700; }
+.how-p i { color: var(--txd); font-style: italic; }
+.how-p code {
+  font-family: var(--font-mono); font-size: 11px;
+  background: var(--bg); color: var(--acl);
+  padding: 1px 5px; border-radius: 3px; word-break: break-word;
+}
+
+/* The page behind a modal is frozen. `overflow: hidden` on the root alone is
+   not enough on iOS, which scrolls the nearest scrollable ancestor anyway --
+   .page IS that ancestor here, so it is pinned too. */
+html.modal-open, html.modal-open body { overflow: hidden; }
+html.modal-open .page, html.modal-open .sidebar { overflow: hidden; }
+
+@media (max-width: 760px) {
+  .how-sheet { padding: 0; align-items: stretch; }
+  /* Full-bleed on a phone. A centred card with margins wastes the width that
+     long sentences need, and the rounded corners only read as "dialog" on a
+     screen big enough to show what is behind them. */
+  .how-box { max-width: none; max-height: 100dvh; height: 100dvh; border: none; border-radius: 0; }
+  .how-hd { padding: 14px 14px 12px; padding-top: max(14px, env(safe-area-inset-top)); }
+  .how-x { width: 44px; height: 44px; }
+  .how-body { padding: 4px 14px; padding-bottom: max(24px, env(safe-area-inset-bottom)); }
+  .how-sec > summary { padding: 15px 2px; min-height: 44px; }
+  .how-p { font-size: 13.5px; line-height: 1.8; padding-left: 0; }
+  .how-title { font-size: 17px; }
+}
+
 .sheet {
   position: fixed; inset: 0; z-index: 200; display: flex;
   align-items: center; justify-content: center; padding: 20px;
@@ -2766,6 +2864,180 @@ async function connect() {
 }
 
 const online = () => link.api !== null && (link.where === "local" || link.where === "remote");
+
+/* ══ HOW IT WORKS ══════════════════════════════════════════════════════════
+   The explanation of MAGI that lives inside MAGI.
+
+   KEEP THIS TRUE. It is the only documentation most people will ever read,
+   and a confidently wrong explanation is worse than none: it teaches you to
+   expect behaviour the program does not have. Any change to how a run fans
+   out, how completion is decided, what unticking a unit does, what the doctor
+   checks, how long history is kept, or where the engine has to be, changes
+   this panel IN THE SAME COMMIT. magi/tests/test_howitworks.py fails when the
+   checkable claims here drift from the code -- it cannot check prose, and
+   that part is on whoever is editing.
+
+   Numbers are interpolated from the constants they describe rather than
+   typed, so a retention window cannot go stale on its own. Sections are
+   <details> so the whole thing is one scroll on a phone and a scannable index
+   on a desktop. */
+const HOW = [
+  {
+    q: "What MAGI is",
+    open: true,
+    a: [
+      "Ask one question, get independent answers from several AI models, then one verdict that weighs them against each other.",
+      "The models never see each other&rsquo;s answers. They are asked at the same time, in isolation &mdash; so when they agree, that agreement means something, and when they disagree you find out, rather than being handed whichever one happened to reply first.",
+    ],
+  },
+  {
+    q: "It uses your own subscriptions, not APIs",
+    a: [
+      "This is what makes MAGI different from every other tool like it. There is no API key and no per-question billing: MAGI drives <b>your own logged-in browser sessions</b> &mdash; your ChatGPT, your Claude, your Gemini, your DeepSeek &mdash; in real Chrome windows you never see.",
+      "It is also why MAGI has an engine at all. Those saved logins live on one device and cannot travel, so this page is only a console: a view of an engine running somewhere else.",
+      "This is against those services&rsquo; terms of use, which prohibit automated access. You are running it on your own accounts, at your own risk.",
+    ],
+  },
+  {
+    q: "What happens when you press Convene",
+    a: [
+      "<b>1 &middot; Fan out.</b> Every selected unit opens its own invisible Chrome, signed in as you, and is given the same question. They go at once; nobody waits for anybody. Long prompts are pasted rather than typed character by character &mdash; typing a 2,000-character prompt was costing more than a minute per run.",
+      "<b>2 &middot; Wait for each one to finish.</b> Harder than it sounds, and four checks rather than one. It counts the assistant&rsquo;s messages <i>before</i> sending and requires that count to grow &mdash; without that it cheerfully returns the <i>previous</i> answer, which is the worst possible failure because it looks perfectly valid. Then it watches Send turn into Stop and back, the most meaningful &ldquo;finished&rdquo; signal these pages give. Failing that it watches the text stop changing, and marks the answer low-confidence, because that can fire early during a pause mid-sentence.",
+      "<b>3 &middot; Check that what came back is an answer.</b> A model that replies &ldquo;could you clarify?&rdquo; has not answered. Those are marked unusable and left out of the verdict &mdash; but the text is kept, so you can see what actually happened instead of just being told it failed.",
+      "<b>4 &middot; One member writes the verdict.</b> Whichever unit chairs reads every answer and produces ANSWER, NOTES and CONFIDENCE. It is told exactly how many members responded and which failed, so a verdict built from two of four can never read as though it were built from four.",
+    ],
+  },
+  {
+    q: "Two cases handled differently",
+    a: [
+      "<b>One unit selected.</b> There is no chairman pass at all &mdash; its answer <i>is</i> the verdict, and the console says SOLE UNIT rather than calling a single voice a consensus.",
+      "<b>Questions about the models themselves</b> &mdash; &ldquo;which model are you?&rdquo;, &ldquo;what would <i>you</i> prefer?&rdquo; Every answer is correct for itself, so there is nothing to resolve. They are listed one per line instead of merged, because merging would state something false about the ones it dropped.",
+    ],
+  },
+  {
+    q: "Units \u2014 what ticking one does",
+    a: [
+      "The tick boxes under the question decide exactly which models are used, and <b>nothing anywhere drives an unticked one</b>. Not the council, not the chairman, not Studio, not Brainstorm, not Refine, not the Doctor.",
+      "That includes reaching the same model another way: unticking Gemini also stops Refine using the Gemini API key, because the boxes name models, not connections.",
+      "Selecting a single unit is a completely normal way to use MAGI. There is no minimum.",
+    ],
+  },
+  {
+    q: "The engine device has to be awake",
+    a: [
+      "A web page cannot start anything on another machine. If the device running the engine is asleep, off, or logged out, MAGI cannot run &mdash; from anywhere. Opening this page on your phone cannot wake it.",
+      "At that device, this page talks to it directly. Away from it, everything goes through a Cloudflare tunnel the engine publishes; the address changes every time the engine restarts, which is why this page looks it up instead of having it built in.",
+      "Past deliberations are a different matter. They are read from the cloud and stay readable with the engine off &mdash; you just cannot start a new one.",
+    ],
+  },
+  {
+    q: "Brainstorm",
+    a: [
+      "The council, but round by round. Instead of one question and one verdict, the members propose, critique each other, and a merge step turns the round into a plan plus the questions it still needs answered.",
+      "You answer those, it runs another round, and when the plan is ready it is written out as a markdown file.",
+    ],
+  },
+  {
+    q: "Studio",
+    a: [
+      "Once a verdict exists, Studio turns it into something else: a report, a data table, flashcards, a quiz, a mind map, a slide deck, or a spoken audio overview.",
+      "Each card is a fresh generation by one of your selected units, so it costs a real browser run. That is why cards are stored with the deliberation and travel to your other devices, rather than being re-earned there.",
+    ],
+  },
+  {
+    q: "Refine",
+    a: [
+      "Rewrites what is in the question box into a sharper prompt before you send it. Undo puts back exactly what you wrote.",
+      "It prefers the Gemini API when that key is set and Gemini is ticked, because it answers in about a second where opening a browser to rewrite one sentence takes several. With Gemini unticked it uses one of your selected units instead &mdash; slower, but yours.",
+    ],
+  },
+  {
+    q: "The Doctor, and why it exists",
+    a: [
+      "The Doctor does not test the AIs. It tests MAGI&rsquo;s grip on their websites.",
+      "MAGI finds things on those pages by CSS selector: the composer is <i>this</i> element, the send button is <i>that</i> one. When a site ships a redesign those selectors stop matching and that unit quietly stops working. The Doctor tells you which specific one broke, so the fix is a one-line config edit rather than a debugging session.",
+      "For each selected unit it opens the real site and probes every field MAGI depends on &mdash; composer, send button, the reply, the stop button, the streaming marker, the login and bot-check markers &mdash; reporting <b>OK</b> (matched), <b>FALLBACK</b> (a later candidate matched, so the preferred one has gone stale: this is the early warning), <b>MISS</b> (nothing matched, so this is broken) or <b>n/a</b> (nothing to match right now, which is fine &mdash; Claude and Gemini have no send button until you type, so it types a character first).",
+      "It also says whether you are still signed in, judged by the composer existing rather than by a login button being visible, since ChatGPT shows one permanently; and whether a bot-check page is in the way, in which case everything below it is meaningless until you clear it.",
+      "It checks the units you have selected, in parallel, and each one opens a real browser. Run it the moment a unit starts failing, then put the working selector at the top of that field&rsquo;s list in <code>magi/config/selectors.yaml</code> &mdash; the report tells you exactly which key.",
+    ],
+  },
+  {
+    q: "History, pinning and sync",
+    a: [
+      "Every finished deliberation is stored on the engine device and mirrored to the cloud, so a verdict produced at your desk opens on your phone.",
+      "History keeps __DAYS__ days. Anything older is dropped &mdash; unless you <b>pin</b> it, which keeps it forever. Pins follow you between devices.",
+      "Nothing is written to the cloud while a run is in flight: one finished deliberation is one write. That is deliberate, so MAGI cannot eat the quota the rest of the suite shares.",
+    ],
+  },
+  {
+    q: "The lock",
+    a: [
+      "The same password lock every other A1 program uses. It covers this console, not the engine &mdash; the engine&rsquo;s own API is gated separately by the API token, which is what stops anyone who learns the tunnel address from driving your paid accounts.",
+    ],
+  },
+];
+
+let _howOpen = false;
+
+function openHow() {
+  if (_howOpen) return;
+  _howOpen = true;
+  // The page behind must not scroll or be clickable. The overlay already
+  // captures clicks; this is about the SCROLL, which on a phone otherwise
+  // drags the console around underneath the panel while you read it.
+  document.documentElement.classList.add("modal-open");
+
+  const sheet = el("div", "sheet how-sheet");
+  const box = el("div", "how-box");
+
+  const hd = el("div", "how-hd");
+  const title = el("div", "how-titlewrap");
+  title.append(el("div", "how-title", "How MAGI works"));
+  title.append(el("div", "how-sub",
+    "Several models, asked independently, then one verdict."));
+  const x = el("button", "how-x");
+  x.type = "button";
+  x.setAttribute("aria-label", "Close");
+  x.innerHTML = IC.close;
+  hd.append(title, x);
+
+  const scroll = el("div", "how-body");
+  for (const sec of HOW) {
+    const d = el("details", "how-sec");
+    if (sec.open) d.open = true;
+    const sm = el("summary");
+    sm.append(el("span", "how-q", sec.q));
+    sm.append(el("span", "how-caret"));
+    d.append(sm);
+    for (const para of sec.a) {
+      const para_el = el("p", "how-p");
+      // Fixed literals in this file, never anything typed by a user.
+      para_el.innerHTML = para.split("__DAYS__").join(String(HISTORY_DAYS));
+      d.append(para_el);
+    }
+    scroll.append(d);
+  }
+  // 210: above the sheet backdrop (200), so the panel's own scrollbar is the
+  // one thing that may paint over it.
+  attachScrollbar(scroll, 210);
+
+  box.append(hd, scroll);
+  sheet.append(box);
+
+  const close = () => {
+    _howOpen = false;
+    document.documentElement.classList.remove("modal-open");
+    document.removeEventListener("keydown", onKey);
+    sheet.remove();
+  };
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  document.addEventListener("keydown", onKey);
+  x.onclick = close;
+  sheet.onclick = (e) => { if (e.target === sheet) close(); };
+
+  document.body.append(sheet);
+  x.focus();
+}
 
 /* ══ setup sheet ═══════════════════════════════════════════════════════════
    What the token IS, and why this screen is deliberately awkward.
@@ -6962,6 +7234,15 @@ const lockBtnClick = () => {
 };
 $("lockBtn").onclick = lockBtnClick;
 $("lockBtnM").onclick = lockBtnClick;
+// Two buttons, one panel: the sidebar's and the mobile top bar's. On a phone
+// the sidebar is a shut drawer, so a Help only in there would be help you have
+// to already know how to find.
+for (const id of ["helpBtn", "helpBtnM"]) {
+  const b = $(id);
+  if (!b) continue;
+  b.innerHTML = IC.help;
+  b.onclick = openHow;
+}
 
 applyNav();
 applyAudioNav();
@@ -7110,6 +7391,9 @@ window.addEventListener("resize", _replaceAllBars);
 window.addEventListener("orientationchange", _replaceAllBars);
 
 attachScrollbar($("page"));
+// The question box grows to 45vh and then scrolls, and a long pasted prompt
+// hits that in a hurry -- with no indication of how much was above the fold.
+attachScrollbar($("composer"));
 // Above the drawer it lives in (80), unlike the page's, which must stay below
 // it -- the same rule either way: a scrollbar belongs to the surface it
 // scrolls, so it stacks with that surface.
