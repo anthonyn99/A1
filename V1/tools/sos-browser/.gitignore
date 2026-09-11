@@ -1,0 +1,4 @@
+# Browser profiles hold live logged-in sessions — never commit them.
+profiles/
+# Failure dumps can contain page content from a logged-in session.
+artifacts/

@@ -1,0 +1,134 @@
+# StudyOS browser driver — per-site selectors.
+#
+# EVERY FIELD IS AN ORDERED LIST, tried top to bottom, first match wins. When a
+# site changes its markup, ADD the new selector at the TOP rather than replacing
+# the old one: these sites A/B test and roll back, and keeping the old entry
+# means a rollback doesn't break you again.
+#
+# ── PROVENANCE ─────────────────────────────────────────────────────────────
+# Carried over from MAGI's config/selectors.yaml in this same repo, which
+# verified them against live logged-in sessions. These are NOT guesses. Where a
+# value looks oddly specific (claude's confirm_samples, gemini's strip_patterns)
+# it was measured against real observed failures — do not "tidy" those.
+#
+# StudyOS drives Claude and Gemini only: they are the two subscriptions on this
+# account, and a deck rewrite wants one good answer, not a council.
+
+sites:
+  claude:
+    display_name: Claude
+    url: https://claude.ai/new
+    # Verified in TRUE HEADLESS with the user-agent override (see driver.py).
+    headless_ok: true
+    input:
+      - "div[contenteditable='true'].ProseMirror"
+      - "[data-testid='chat-input']"
+      - "div[contenteditable='true'][aria-label*='prompt' i]"
+      - "fieldset div[contenteditable='true']"
+    submit:
+      - "button[aria-label='Send message']"
+      - "button[aria-label*='Send' i]"
+      - "button[type='submit']:has(svg)"
+    send_key: Enter
+    file_input:
+      - "input[type='file']"
+      - "[data-testid='file-upload-input']"
+    assistant_turn:
+      # .font-claude-response is the clean answer body. The outer
+      # div[data-is-streaming] wrapper prefixes "Claude responded:" and repeats
+      # the text, so it must NOT be used for extraction.
+      - ".font-claude-response"
+      - ".standard-markdown"
+      - "div[data-testid='assistant-message']"
+      - "div.font-claude-message"
+    stop_button:
+      - "button[aria-label*='Stop' i]"
+    streaming_marker:
+      - "div[data-is-streaming='true']"
+    ready_selector:
+      - "div[contenteditable='true']"
+    strip_patterns: []
+    # Claude opens a long answer with a one-line framing QUESTION, drops the
+    # streaming flag while it thinks, then streams the real answer into the same
+    # node. A short confirm window expires inside that pause and captures the
+    # preamble as the final answer — measured 10/10 on long prompts in MAGI.
+    # 14 polls = ~9.8s of continuous quiet before a cleared marker is believed.
+    # The marker reappearing resets the counter, so a still-streaming answer is
+    # unaffected; this only costs time on answers that genuinely finish early.
+    confirm_samples: 14
+    poll_ms: 700
+    stability_samples: 4
+    # Generous vs MAGI's 45s/300s: a slide-by-slide rewrite of a 15-slide chunk
+    # is a much longer generation than a council question.
+    stall_timeout_s: 90
+    hard_timeout_s: 600
+    login_selectors:
+      # Match only the real login page. Claude's logged-in UI contains "Claude"
+      # aria-labels that looser patterns caught.
+      - "input[name='email']"
+      - "button:has-text('Continue with Google')"
+      - "a[href*='/login']"
+    rate_limit_selectors:
+      # The toast carries the reset time, which is the one fact worth surfacing.
+      - "text=/Limits will reset/i"
+      - "text=/you've hit your limit/i"
+      - "text=/reached your .{0,30}limit/i"
+      - 'text=/Need more usage\?/i'
+    challenge_selectors:
+      - "iframe[src*='challenges.cloudflare.com']"
+      - "text=/Verify you are human/i"
+
+  gemini:
+    display_name: Gemini
+    url: https://gemini.google.com/app
+    # Answers correctly in true headless — Google's bot checks did not trigger
+    # here, unlike the Cloudflare-fronted sites. If Gemini ever starts
+    # challenging headless, set this to false.
+    headless_ok: true
+    input:
+      - "rich-textarea div.ql-editor[contenteditable='true']"
+      - "div.ql-editor[contenteditable='true']"
+      - "rich-textarea [contenteditable='true']"
+    submit:
+      - "button[aria-label='Send message']"
+      - "button[aria-label*='Send' i]"
+      - "button.send-button"
+    send_key: Enter
+    file_input:
+      - "input[type='file']"
+    assistant_turn:
+      # .model-response-text is the answer body. The outer model-response
+      # wrapper also carries the disclaimer/action chrome.
+      - ".model-response-text"
+      - "message-content.model-response-text"
+      - "model-response message-content"
+      - "model-response"
+    stop_button:
+      - "button[aria-label*='Stop' i]"
+      - "button.stop-icon"
+    # Gemini exposes no streaming flag; completion rests on the stop button and
+    # text stability, so a result here is more often low-confidence.
+    streaming_marker: []
+    ready_selector:
+      - "rich-textarea"
+      - "div.ql-editor"
+    strip_patterns:
+      # Gemini appends grounding citations as trailing source names plus a
+      # "+ N" pill (observed: "AcqNotes\n+ 2"). Without stripping, that lands
+      # inside the generated note.
+      - "\\n\\s*\\+\\s*\\d+\\s*$"
+      - "\\n\\s*(Sources|Show more|Learn more)\\s*$"
+    confirm_samples: 4
+    poll_ms: 700
+    stability_samples: 4
+    stall_timeout_s: 90
+    hard_timeout_s: 600
+    login_selectors:
+      - "a[href*='accounts.google.com/ServiceLogin']"
+      - "text=/^Sign in$/"
+    rate_limit_selectors:
+      - "text=/You've reached your .{0,40}limit/i"
+      - "text=/try again later/i"
+    challenge_selectors:
+      - "text=/unusual traffic/i"
+      - "form#captcha-form"
