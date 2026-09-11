@@ -1495,6 +1495,12 @@ table.doctor code { color: var(--txd); font-size: 11px; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 
+/* The offline explanation. Three short blocks rather than one paragraph: what
+   is wrong, the rule that explains it, and what still works. */
+.offline-rule { color: var(--txd); font-size: 11.5px; line-height: 1.65; margin-top: 8px; }
+.offline-rule b { color: var(--tx); }
+.offline-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+
 .row-cloud { color: var(--ac); }
 .row-pinned-tag { color: var(--ac); font-weight: 600; }
 
@@ -3176,7 +3182,7 @@ function renderOfflineNote() {
   if (online() || link.where === "seeking") return show(n, false);
   n.innerHTML = "";
   const why = {
-    "no API token set": "The engine is not answering on this device, and no API token has reached this browser yet — so there is nothing to look up a tunnel with. Open MAGI once on the machine running the engine and it will hand the token over automatically; past deliberations are readable here either way.",
+    "no API token set": "The engine is not answering on this device, and no API token has reached this browser yet — so there is nothing to look up a tunnel with. Open MAGI once on the engine device and it hands the token over automatically.",
     "token rejected": "The engine is there, but it did not accept this token.",
     "engine has not published": "The engine device has not published a tunnel. It is probably asleep, off, or was started with <code>magi</code> rather than <code>magi cloud</code>.",
     "tunnel is dead": "The published tunnel no longer answers. If the engine device was just restarted this clears itself in a minute or two, once the replacement tunnel registers; otherwise cloudflared has stopped since it was published.",
@@ -3184,10 +3190,39 @@ function renderOfflineNote() {
     "backend wants a token": "The engine is running but is asking for the API token, and this page has none saved.",
   }[link.detail] || "The engine is not reachable.";
   const p = el("div");
-  p.innerHTML = `<b>Engine offline.</b> ${why} The council cannot run without it — the four Chrome profiles live on the device running the engine.`;
+  p.innerHTML = `<b>Engine offline.</b> ${why}`;
+  n.append(p);
+
+  /* Say the actual rule, every time.
+   *
+   *  "Engine offline" plus a token button reads like something this page got
+   *  wrong, and on a phone that is the whole screen -- so the obvious response
+   *  is to fiddle with the token, which is almost never what is wrong. What is
+   *  almost always wrong is that the machine holding the logged-in Chrome
+   *  sessions went to sleep. A web page cannot wake it, cannot start anything
+   *  on it, and no amount of retrying here will change that; the fix is
+   *  physical and happens at the other end. */
+  const rule = el("div", "offline-rule");
+  rule.innerHTML =
+    "MAGI runs on <b>one device</b> — the one holding your logged-in Chrome " +
+    "sessions. That device has to be <b>awake and signed in</b> before a " +
+    "deliberation can run anywhere, and opening this page cannot wake it.";
+  n.append(rule);
+
+  // True and worth saying: the cloud copy is independent of the engine, so the
+  // page is not actually dead.
+  const still = el("div", "offline-rule");
+  still.textContent =
+    "Past deliberations still open from here — they are read from the cloud, not from the engine.";
+  n.append(still);
+
+  const bar = el("div", "offline-actions");
   const b = el("button", null, sameOrigin ? "Retry" : "Set token / retry");
   b.onclick = sameOrigin ? () => connect().then(boot) : openSetup;
-  n.append(p, b);
+  const how = el("button", null, "How MAGI works");
+  how.onclick = openHow;
+  bar.append(b, how);
+  n.append(bar);
   show(n, true);
 }
 
