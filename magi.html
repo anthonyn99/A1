@@ -1493,11 +1493,26 @@ table.doctor code { color: var(--txd); font-size: 11px; }
    council's idle hint -- it is context, not content. */
 .bs:has(.bs-start) .bs-hd { align-items: center; text-align: center; max-width: 900px; margin: 0 auto; }
 .bs:has(.bs-start) .bs-sub { color: color-mix(in srgb, var(--txm) 78%, transparent); }
+/* Big enough to be a page title. At 11px with 2.2px of tracking it read as a
+   label on the panel below it rather than as the name of the screen. */
 .bs-title {
-  font-size: 11px; font-weight: 700; letter-spacing: 2.2px;
+  font-family: var(--font-display);
+  font-size: 15px; font-weight: 800; letter-spacing: 1.4px;
   text-transform: uppercase; color: var(--gold);
 }
-.bs-sub { color: var(--txd); font-size: 12px; line-height: 1.5; }
+.council-title { color: var(--acl); }
+.bs-sub { color: var(--txd); font-size: 12.5px; line-height: 1.55; }
+
+/* The council's heading lives outside .bs, so it centres on its own. */
+.view-hd {
+  width: 100%; max-width: 900px; margin: 0 auto 12px;
+  align-items: center; text-align: center;
+}
+.view-hd .bs-sub { color: color-mix(in srgb, var(--txm) 82%, transparent); }
+/* Only above an empty composer: once there are answers below, a title
+   explaining what a deliberation is takes space from the thing you asked for. */
+.view-hd { display: none; }
+.council-idle .view-hd { display: flex; }
 
 /* The brainstorm composer is the council composer: same centred column, same
    width, same units row underneath. They are the two ways of asking the same
@@ -2905,6 +2920,17 @@ body { max-width: 2000px; margin-inline: auto; }
 
     <div class="offline-note" id="offlineNote" hidden></div>
 
+    <!-- The council had no heading at all, so the brainstorm screen and this
+         one did not look like two views of the same program. Same element,
+         same styles; only the accent differs, which is the one thing that
+         should. -->
+    <div class="bs-hd view-hd" id="councilHd">
+      <span class="bs-title council-title">New deliberation</span>
+      <span class="bs-sub">One question, put to every selected unit
+        independently — then one of them reads the answers and writes the
+        verdict.</span>
+    </div>
+
     <div class="qbar" id="qbar">
       <div class="qbar-chips" id="qbarChips" hidden></div>
       <textarea id="composer" placeholder="Submit a question to the council…   (Ctrl+Enter)" rows="1"></textarea>
@@ -2966,9 +2992,10 @@ body { max-width: 2000px; margin-inline: auto; }
 
     <div class="verdict" id="verdict" hidden></div>
 
-    <div class="empty-state" id="emptyState">
-      Each unit is queried independently. One then synthesises the verdict.
-    </div>
+    <!-- The heading above the composer now carries this, and the same
+         sentence twice on one screen is one time too many. Kept as an element
+         so nothing that toggles it has to learn a new shape. -->
+    <div class="empty-state" id="emptyState" hidden></div>
   </main>
 </div>
 <script>
