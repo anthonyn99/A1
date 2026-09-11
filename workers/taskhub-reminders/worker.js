@@ -1141,12 +1141,9 @@ async function handleAuth(path, request, env, origin) {
         body: JSON.stringify({
           email: box.email,
           subject: 'A1 selftest LEGACY',
-          message: 'PROBE 1 of 2 - LEGACY worker shape (no Origin/Referer/User-Agent).
-' +
+          message: 'PROBE 1 of 2 - LEGACY worker shape (no Origin/Referer/User-Agent).\n' +
                    'If this one is missing from your inbox and probe 2 arrived, the ' +
-                   'spam-scoring diagnosis is confirmed.
-
-sent ' + stamp,
+                   'spam-scoring diagnosis is confirmed.\n\nsent ' + stamp,
         }),
       });
       let t = ''; try { t = await r.text(); } catch (e) {}
@@ -1158,11 +1155,8 @@ sent ' + stamp,
 
     // CURRENT: what sendMail now sends.
     const fixed = await sendMailDetailed(box, 'A1 selftest FIXED',
-      'PROBE 2 of 2 - FIXED worker shape (browser Origin/Referer/User-Agent, _subject).
-' +
-      'This is what password hints and reset codes now go out as.
-
-sent ' + stamp);
+      'PROBE 2 of 2 - FIXED worker shape (browser Origin/Referer/User-Agent, _subject).\n' +
+      'This is what password hints and reset codes now go out as.\n\nsent ' + stamp);
     probes.push({ probe: 2, shape: 'browser-headers', result: fixed });
 
     await guessFail(env, mk);
