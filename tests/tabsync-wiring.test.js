@@ -19,6 +19,12 @@
 //     built-in programs and custom links alike — funnels through it, so the
 //     check living there is what makes this apply to links added later.
 //
+//  4. The Vault extension drifts. Its toolbar popup is a THIRD opener for
+//     vault.html, and it cannot name a window, so it hands the key over as
+//     ?a1tab=<key> instead. That key is a bare string in a different codebase
+//     from the one index.html uses — nothing links them but this check, and a
+//     mismatch shows up only as Vault quietly opening twice.
+//
 // Run: node tests/tabsync-wiring.test.js
 
 'use strict';
@@ -85,6 +91,56 @@ ok('a tab only ever clears its own claim', /r\.id === ID\) localStorage\.removeI
 const retire = sync.slice(sync.indexOf('function retire()'));
 ok('retiring gives up the key before trying to close',
   retire.indexOf("window.name = ''") > 0 && retire.indexOf("window.name = ''") < retire.indexOf('window.close()'));
+
+console.log('\nThe Vault extension opens the SAME tab, not a second one');
+const popup = fs.readFileSync(path.join(ROOT, 'Vault', 'popup.js'), 'utf8');
+// The gear is the extension's only route into vault.html. A bare
+// chrome.tabs.create there is the whole bug: it always makes a new tab.
+const gear = popup.slice(popup.indexOf('gearEl.addEventListener("click"')).slice(0, 400);
+ok('the gear goes through openVaultApp', /openVaultApp\(/.test(gear), gear);
+ok('the gear no longer opens a tab unconditionally', !/chrome\.tabs\.create/.test(gear));
+ok('an already-open Vault is focused rather than re-created',
+  /chrome\.tabs\.query\(/.test(popup) && /chrome\.tabs\.update\(/.test(popup));
+// Focusing the tab alone leaves it behind another window, and the click then
+// looks like it did nothing at all.
+ok('and its window is raised too', /chrome\.windows\.update\([^)]*focused/.test(popup));
+
+// The one constant shared across the two codebases. index.html opens Vault as
+// _tnOpenTab(url, 'vault'); the extension must hand the tab that same key, or
+// the two openers pair with two different tabs.
+const vaultKey = (/const VAULT_TAB_KEY = "([^"]+)"/.exec(popup) || [])[1];
+ok('the extension names a tab key', !!vaultKey, vaultKey);
+ok("it is the key index.html uses for Vault ('" + vaultKey + "')",
+  index.includes("_tnOpenTab(URL_VAULT, '" + vaultKey + "')"));
+ok('it travels as ?a1tab=', /a1tab=/.test(popup));
+ok('tabsync reads that parameter', /params\.get\('a1tab'\)/.test(sync));
+// Left in the url it would survive into every later read of location.search,
+// and into anything the user bookmarks or shares.
+ok('and strips it back out of the address bar',
+  /params\.delete\('a1tab'\)/.test(sync) && /history\.replaceState/.test(sync));
+ok('a url key outranks a stale sessionStorage one', /var key = urlKey;/.test(sync));
+
+console.log('\nA url key really does pair the tab (jsdom)');
+try {
+  const { JSDOM } = require('jsdom');
+  const dom = new JSDOM('<!doctype html><html><body></body></html>', {
+    url: 'https://anthonyn99.github.io/A1/vault.html?vaulttab=payments&a1tab=vault',
+    runScripts: 'outside-only',
+  });
+  dom.window.eval(sync);
+  const w = dom.window;
+  ok('the tab takes the name index.html looks for', w.name === 'a1tab_vault', w.name);
+  ok('the parameter is gone from the url', w.location.search === '?vaulttab=payments', w.location.search);
+  ok('?vaulttab still reaches vault-ui.js',
+    new w.URLSearchParams(w.location.search).get('vaulttab') === 'payments');
+  const beat = JSON.parse(w.localStorage.getItem('a1tab:vault') || 'null');
+  ok('it heartbeats under that key, so a restarted Index finds it', !!(beat && beat.t));
+  ok('the key survives a name wipe, via sessionStorage',
+    w.sessionStorage.getItem('a1TabKey') === 'vault');
+  dom.window.close();
+} catch (e) {
+  ok('jsdom run', false, e && e.message);
+}
 
 console.log(`\n  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
