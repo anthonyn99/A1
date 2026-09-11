@@ -4476,7 +4476,7 @@ function renderDoctor(data) {
   const healthy = data.length - broken.length - drifting.length;
   let line;
   if (broken.length) {
-    line = `${broken.length} unit${broken.length > 1 ? "s" : ""} need attention` +
+    line = `${broken.length} unit${broken.length > 1 ? "s need" : " needs"} attention` +
            (healthy || drifting.length ? ` · ${data.length - broken.length} fine` : "");
   } else if (drifting.length) {
     line = `All ${data.length} usable, but ${drifting.length} ` +
