@@ -2872,11 +2872,12 @@ body { max-width: 2000px; margin-inline: auto; }
            put diagnostics, not where you put the thing the program is for. -->
       <div class="side-sec side-primary">
         <div class="side-sec-hd">Deliberations</div>
-        <button type="button" class="side-item" id="navNew" title="New deliberation">
-          <span class="side-ic" data-ic="new"></span><span class="side-label">New deliberation</span>
-        </button>
-        <button type="button" class="side-item active" id="navCouncil" title="Council">
-          <span class="side-ic" data-ic="council"></span><span class="side-label">Council</span>
+        <!-- One row, not two. "New deliberation" and "Council" went to the
+             same screen; the only difference was that one cleared it first,
+             which is what you want from a button called New. Two rows where
+             one was lit and the other was the one you pressed. -->
+        <button type="button" class="side-item active" id="navNew" title="New deliberation">
+          <span class="side-ic" data-ic="council"></span><span class="side-label">New deliberation</span>
         </button>
         <button type="button" class="side-item" id="navHistory" title="History">
           <span class="side-ic" data-ic="history"></span><span class="side-label">History</span>
@@ -5526,7 +5527,7 @@ function setView(v) {
   } else if (bar.parentElement !== page || bar.previousElementSibling !== $("qbar")) {
     page.insertBefore(bar, $("qbar").nextSibling);
   }
-  $("navCouncil").classList.toggle("active", v === "council" && !studioOpen);
+  $("navNew").classList.toggle("active", v === "council" && !studioOpen);
   $("navHistory").classList.toggle("active", v === "history");
   $("navDoctor").classList.toggle("active", v === "doctor");
   $("navAccounts").classList.toggle("active", v === "accounts");
@@ -5876,7 +5877,6 @@ function applyAudioNav() {
 
 $("navToggle").onclick = () => { S.navCollapsed = !S.navCollapsed; applyNav(); };
 $("navNew").onclick = newRun;
-$("navCouncil").onclick = () => setView("council");
 $("navHistory").onclick = () => setView(S.view === "history" ? "council" : "history");
 $("navDoctor").onclick = runDoctor;
 $("navAudio").onclick = () => { S.muted = !S.muted; applyMute(); applyAudioNav(); if (!S.muted) beepUnit(); };
