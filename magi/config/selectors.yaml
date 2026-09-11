@@ -257,6 +257,77 @@ sites:
       - "text=/unusual traffic/i"
       - "form#captcha-form"
 
+  perplexity:
+    display_name: Perplexity
+    url: https://www.perplexity.ai/
+    accent: "#8fcfc8"
+    # DISCOVERED 2026-09-11 by probing the live site, not guessed: every
+    # selector below was counted against the real DOM, logged out, before and
+    # during a real answer.
+    #
+    # Perplexity earns its place in a council by being the one member that is
+    # search-grounded by default -- it cites as it answers, so where the
+    # others reason from training data it reads today's page. That is exactly
+    # the disagreement a council exists to surface.
+    headless_ok: true
+    input:
+      # A real id on a contenteditable div -- the most stable composer of the
+      # five. The role/attribute forms are the fallbacks if the id churns.
+      - "div[contenteditable='true']#ask-input"
+      - "div[contenteditable='true'][role='textbox']"
+      - "#ask-input"
+      - "div[contenteditable='true']"
+    submit:
+      # Does NOT exist on an empty composer -- it appears once there is text,
+      # like Claude's and Gemini's. The doctor primes the box before probing,
+      # which is why this reports n/a rather than MISS on an idle page.
+      - "button[aria-label='Submit']"
+      - "button[aria-label*='Submit' i]"
+    send_key: Enter
+    file_input:
+      - "input[type='file']"
+    assistant_turn:
+      # VERIFIED: exactly one .prose per answer, holding the answer body.
+      # Scoped to main first so a sidebar or a preview card can never be
+      # mistaken for the answer.
+      - "main .prose"
+      - "div.prose"
+      - ".prose"
+    stop_button:
+      # VERIFIED mid-answer: present at t+3s, gone by t+16s. This is the
+      # strongest completion signal MAGI has -- Stop appearing then
+      # disappearing means the model finished, rather than merely paused.
+      - "button[aria-label='Stop response (Esc)']"
+      - "button[aria-label*='Stop response' i]"
+      - "button[aria-label*='Stop' i]"
+    streaming_marker: []
+    copy_button:
+      - "button[aria-label*='Copy' i]"
+    strip_patterns:
+      # Perplexity appends its source names as bare words after the sentence
+      # they support ("...red, yellow, and blue.\nadobe"). Only the trailing
+      # block is stripped -- the same rule Gemini uses -- because a source name
+      # mid-answer is indistinguishable from a word the model meant to write.
+      - "\\n\\s*(Sources|Related|Show more)\\s*$"
+      - "\\n\\s*\\+\\s*\\d+\\s*$"
+    ready_selector:
+      - "div[contenteditable='true']#ask-input"
+      - "div[contenteditable='true']"
+    login_selectors:
+      # VERIFIED: present while logged out, on the sidebar.
+      - "button:has-text('Sign In')"
+      - "a[href*='/sign-in']"
+    rate_limit_selectors:
+      # UNVERIFIED. Perplexity caps Pro searches per day rather than blocking
+      # outright, so this is the wording to check first when it starts
+      # refusing.
+      - "text=/You(?:'ve| have) reached your .{0,40}limit/i"
+      - "text=/upgrade to continue/i"
+    challenge_selectors:
+      # Cloudflare-fronted, like ChatGPT and Claude.
+      - "iframe[src*='challenges.cloudflare.com']"
+      - "text=/Verify you are human/i"
+
   deepseek:
     display_name: DeepSeek
     url: https://chat.deepseek.com/

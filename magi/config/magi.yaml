@@ -81,12 +81,14 @@ providers:
     enabled: true
   deepseek:
     enabled: true
+  perplexity:
+    enabled: true
 
 chairman:
   # Which council member writes the final synthesis. If it is unavailable the
   # fallbacks are tried in order.
   provider_id: claude
-  fallback_order: [chatgpt, gemini, deepseek]
+  fallback_order: [chatgpt, gemini, deepseek, perplexity]
   # Minimum successful members required before synthesis is even attempted.
   min_members: 2
 
