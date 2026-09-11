@@ -4729,6 +4729,67 @@ window._sosBridge.getModules = (classId) => {
   return c ? (c.modules || []) : [];
 };
 
+/* ── Pipeline write-back (spec P-5) ────────────────────────────────────────
+ * js/modules/pipeline.js calls this when a job finishes. It is the only way a
+ * generated note enters the app, and it lives here for the same reason every
+ * other setter does: `classes`, persistForCls() and the render functions are
+ * lexically scoped to this file and unreachable by property access.
+ *
+ * The output is a NOTE, not a file, so it opens in the docx editor and can be
+ * edited and annotated immediately — the spec's argument for why generated
+ * output must not land as a dead artifact.
+ *
+ * The destination module is created on demand ("Generated"), because P-4's
+ * auto-run drops results into classes that may never have had such a module.
+ */
+window._sosBridge.addGeneratedNote = (spec) => {
+  if (!spec || !spec.classId) return null;
+  const cls = findClassOrKsu(spec.classId);
+  if (!cls) return null;
+
+  let mod = spec.moduleId && (cls.modules || []).find(m => m.id === spec.moduleId);
+  if (!mod) {
+    mod = (cls.modules || []).find(m => m.type === 'notes' && m.name === 'Generated');
+  }
+  if (!mod) {
+    mod = {
+      id: Date.now().toString(),
+      name: 'Generated',
+      type: 'notes',
+      icon: (typeof ICONS !== 'undefined' && ICONS.notes) || '📝',
+      files: [], prompts: [], notes: [],
+    };
+    cls.modules = cls.modules || [];
+    cls.modules.push(mod);
+  }
+  mod.notes = mod.notes || [];
+
+  // Re-running the same source replaces its previous note rather than stacking
+  // near-identical copies — "Regenerate with a different prompt" is a listed
+  // feature, so this path is expected to run repeatedly for one deck.
+  const meta = spec.meta || {};
+  const prior = meta.sourceFileId
+    ? mod.notes.findIndex(n => n && n._sos && n._sos.sourceFileId === meta.sourceFileId)
+    : -1;
+
+  const note = {
+    id: Date.now().toString(),
+    title: String(spec.title || 'Generated note'),
+    body: String(spec.body || ''),
+    updated: Date.now(),
+    // Provenance, so "why is this one worse" stays answerable later.
+    _sos: { generated: true, ...meta },
+  };
+
+  if (prior >= 0) { note.id = mod.notes[prior].id; mod.notes[prior] = note; }
+  else mod.notes.unshift(note);
+
+  persistForCls(cls);
+  try { if (currentClassId === cls.id) renderModules(cls); } catch (e) {}
+  try { refreshModuleNoteList(cls, mod); } catch (e) {}
+  return note;
+};
+
 window._sosBridge.getSnapshot = () => {
   try {
     return JSON.parse(JSON.stringify({

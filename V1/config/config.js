@@ -169,6 +169,35 @@ window.STUDYOS_CONFIG = {
       enabled: true,
       baseUrl: 'https://studyos-d2l.vedapatel05.workers.dev',
     },
+
+    /* studyos-ai — the pipeline (upgrade spec Phase 1).
+     *
+     * Runs a saved prompt over a lecture deck server-side and files the
+     * rewritten note back into the class. Jobs outlive the tab, which is the
+     * entire point: drop four decks, close the laptop, come back to four
+     * rewritten notes.
+     *
+     * THE API KEY IS NOT HERE AND MUST NEVER BE. This file is served publicly
+     * at /studyos/config/config.js, so anything in it is world-readable.
+     * ANTHROPIC_API_KEY lives only as a Worker secret
+     * (`wrangler secret put ANTHROPIC_API_KEY`) and is used only inside the
+     * Worker's own route handlers.
+     *
+     * Every /api/ai/* route requires an App Check token, minted at runtime by
+     * reCAPTCHA against the registered origin — see window._fbAppCheckToken in
+     * js/firebase-sync.js. */
+    ai: {
+      /* Off until the one-time setup is done: the JOBS KV namespace has to be
+       * created and the binding uncommented in workers/studyos-ai/wrangler.toml,
+       * and the API key secret set. Flipping this on before that yields a
+       * 503 that names the missing step. */
+      enabled: false,
+      baseUrl: 'https://studyos-ai.vedapatel05.workers.dev',
+      /* Client-side mirror of the Worker's own cap, shown in the UI before a
+       * batch runs. The REAL cap is MONTHLY_CAP_USD in the Worker and is
+       * enforced there — this number is only ever advisory. */
+      monthlyCapUsd: 20,
+    },
   },
 
   /* ── 3. FORMSPREE ────────────────────────────────────────────────────────

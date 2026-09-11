@@ -67,12 +67,33 @@ if (!window.STUDYOS_CONFIG_READY || !window.STUDYOS_CONFIG_READY('firebase')) {
    * request and is indistinguishable from broken security rules. */
   if (FB.appCheck && FB.appCheck.enabled && FB.appCheck.recaptchaSiteKey) {
     try {
-      initializeAppCheck(app, {
+      const _ac = initializeAppCheck(app, {
         provider: new ReCaptchaV3Provider(FB.appCheck.recaptchaSiteKey),
         isTokenAutoRefreshEnabled: true,
       });
+      /* Hand the App Check token to callers that talk to a WORKER rather than
+       * to Firebase (js/modules/pipeline.js and studyos-ai's /api/ai/* routes).
+       *
+       * Those Workers sit on public URLs in a public repo, so there is no
+       * secret the page could hold instead — an App Check token is the one
+       * credential minted at runtime against the registered origin, which is
+       * why workers/_shared/appcheck.js verifies exactly this. Firebase's own
+       * SDK attaches it automatically; a plain fetch() does not, so it has to
+       * be reachable here.
+       *
+       * Returns null rather than throwing when App Check is off or the mint
+       * fails: the caller then gets a clean 401 from the Worker instead of an
+       * unhandled rejection inside an unrelated feature. */
+      window._fbAppCheckToken = async () => {
+        try {
+          const { getToken } = await import('https://www.gstatic.com/firebasejs/12.12.0/firebase-app-check.js');
+          const r = await getToken(_ac, /* forceRefresh */ false);
+          return (r && r.token) || null;
+        } catch (e) { console.warn('[StudyOS] App Check token failed:', e); return null; }
+      };
     } catch (e) { console.warn('[StudyOS] App Check init failed:', e); }
   }
+  if (!window._fbAppCheckToken) window._fbAppCheckToken = async () => null;
 
   /* ── Anonymous auth ────────────────────────────────────────────────────────
    * Gates the security rules without asking anyone to log in. Exposed as a
