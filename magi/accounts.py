@@ -276,3 +276,32 @@ async def run_login(settings: Settings, job: LoginJob) -> None:
         job.state = "failed"
         job.detail = f"Could not open the window: {str(e)[:200]}"
         _record_check(job.site_id, False, job.detail)
+
+
+# ── who chairs the council ──────────────────────────────────────────────────
+# The chairman is the member that reads every answer and writes the verdict,
+# and which one it is genuinely changes the result -- so it belongs in the
+# console next to the units, not only in a YAML file on one machine.
+#
+# Stored as an OVERRIDE rather than by rewriting magi.yaml. Rewriting config
+# means a program editing a file a person also edits, and the first comment or
+# blank line it eats is gone for good; an override is one key that is either
+# set or absent, and deleting it restores whatever the config says.
+#
+# It is stored on the ENGINE, not in Firestore, because unlike the unit order
+# this is not a per-person preference: it decides how a run is actually
+# conducted, and a run happens in exactly one place.
+
+def chairman_override() -> str:
+    return str(_load().get("_chairman", "") or "")
+
+
+def set_chairman(site_id: str) -> dict:
+    """Set the chairman, or clear it with an empty id."""
+    state = _load()
+    if site_id:
+        state["_chairman"] = site_id
+    else:
+        state.pop("_chairman", None)
+    _save(state)
+    return {"chairman": chairman_override()}

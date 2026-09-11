@@ -85,12 +85,14 @@ providers:
     enabled: true
   grok:
     enabled: true
-  # Off until its selectors have been verified against a signed-in session --
-  # an enabled unit that cannot answer is four minutes of every run spent
-  # timing out. Sign in from the Accounts tab, run `magi doctor copilot`, fix
-  # what it names, then flip this.
+  # Enabled so it is ticked by default like every other unit. Its selectors
+  # are still UNVERIFIED -- Copilot was showing a sign-in wall with no
+  # reachable composer when it was probed -- so expect it to fail until
+  # `magi doctor copilot` has been run against a working session and whatever
+  # it names has been fixed. Untick it in the console if that is a nuisance;
+  # the console remembers what you untick.
   copilot:
-    enabled: false
+    enabled: true
 
 chairman:
   # Which council member writes the final synthesis. If it is unavailable the

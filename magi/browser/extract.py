@@ -28,7 +28,8 @@ GENERIC_TRAILING = [
 # one at a time in the same loop as the trailing rules.
 GENERIC_LEADING = [
     r"^\s*(Recalled|Read)\s+\d+\s+memor(y|ies)\s*",
-    r"^\s*(Thought|Thinking|Reasoned|Analyzed|Searched|Pondered)\b[^\n]{0,60}\s*\n",
+    # "Worked for 2s" is Grok's, observed on every answer it gives.
+    r"^\s*(Thought|Thinking|Reasoned|Analyzed|Searched|Pondered|Worked)\b[^\n]{0,60}\s*\n",
     r"^\s*\d+\s*step[s]?\s+completed\s*\n",
 ]
 

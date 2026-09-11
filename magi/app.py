@@ -280,7 +280,9 @@ async def create_run(
     # selectors.yaml and the next run picks it up.
     global settings
     try:
-        settings = load_settings()
+        st = load_settings()
+        _apply_chairman_override(st)
+        settings = st
     except Exception:
         pass  # keep the last good config rather than failing the run
 
@@ -618,11 +620,37 @@ async def get_studio_artifact(run_id: str, job_id: str):
 # ── brainstorm ──────────────────────────────────────────────────────────────
 
 
+def _apply_chairman_override(st) -> None:
+    """Let the console's choice of chairman win over the config file.
+
+    Applied on every settings load rather than once at startup, so choosing a
+    chairman takes effect on the next run without restarting the engine --
+    which is the same reason settings are reloaded per request at all.
+    """
+    pick = accounts_mod.chairman_override()
+    if pick and pick in st.sites:
+        st.chairman.provider_id = pick
+        # ...and it must not also sit in the fallback list, or a failure would
+        # "fall back" to the member that just failed.
+        st.chairman.fallback_order = [
+            p for p in st.chairback_order_source() if p != pick
+        ] if hasattr(st, "chairback_order_source") else [
+            p for p in st.chairman.fallback_order if p != pick
+        ]
+
+
+# Applied to the settings loaded at import, now that the helper exists: the
+# first run must chair with the console's choice, not the config's.
+_apply_chairman_override(settings)
+
+
 def _reload_settings() -> None:
     """Pick up config edits without a restart. Same rationale as create_run."""
     global settings
     try:
-        settings = load_settings()
+        st = load_settings()
+        _apply_chairman_override(st)
+        settings = st
     except Exception:
         pass  # keep the last good config rather than failing the request
 
@@ -1523,6 +1551,35 @@ async def refine_prompt(
 # someone watching a phone for a window that is never coming.
 
 _logins: dict[str, accounts_mod.LoginJob] = {}
+
+
+@app.get("/api/chairman")
+async def get_chairman():
+    """Who chairs, and who could.
+
+    `order` is the fallback chain as configured, so the console can say what
+    happens if the chairman is not among the units you have selected.
+    """
+    _reload_settings()
+    return {
+        "chairman": settings.chairman.provider_id,
+        "override": accounts_mod.chairman_override(),
+        "fallback_order": settings.chairman.fallback_order,
+        "min_members": settings.chairman.min_members,
+    }
+
+
+@app.post("/api/chairman")
+async def put_chairman(provider_id: str = Form("")):
+    """Choose the chairman, or send an empty id to go back to the config's."""
+    _reload_settings()
+    pick = provider_id.strip()
+    if pick and pick not in settings.sites:
+        raise HTTPException(404, f"Unknown unit {pick!r}")
+    accounts_mod.set_chairman(pick)
+    _reload_settings()
+    return {"chairman": settings.chairman.provider_id,
+            "override": accounts_mod.chairman_override()}
 
 
 @app.get("/api/accounts")

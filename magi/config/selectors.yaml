@@ -332,44 +332,44 @@ sites:
     display_name: Grok
     url: https://grok.com/
     accent: "#e89a86"
-    # PARTLY VERIFIED 2026-09-11 against the live site, logged out.
+    # VERIFIED 2026-09-11 against a SIGNED-IN session, end to end: typed a
+    # question, watched it answer, and read the DOM at each stage.
     #
-    # The composer and the send button were counted against the real DOM. The
-    # answer container and the stop control were NOT: logged out, Grok accepts
-    # the question and never answers, so there was no answer-phase DOM to
-    # probe. Sign in, then `magi doctor grok` -- it primes the composer and
-    # names any field that does not match -- and `magi capture grok` for the
-    # two marked below.
+    # THE COMPOSER CHANGES ELEMENT TYPE WHEN YOU SIGN IN. Logged out it is a
+    # <textarea aria-label="Ask Grok anything">; signed in the same label is on
+    # a contenteditable tiptap/ProseMirror <div>. The first pass was probed
+    # logged out and pinned `textarea`, so the moment Tony signed in MAGI
+    # stopped finding any composer at all and reported him signed OUT -- with
+    # a 148MB profile that was perfectly good. The label is the stable part;
+    # the tag is not, so nothing here names a tag.
     headless_ok: true
     input:
-      # VERIFIED: the only labelled composer on the page.
-      - "textarea[aria-label='Ask Grok anything']"
-      - "textarea[aria-label*='Ask Grok' i]"
-      - "textarea"
+      - "[aria-label='Ask Grok anything']"
+      - "div.query-bar-editor[contenteditable='true']"
+      - "[aria-label*='Ask Grok' i]"
     submit:
-      # VERIFIED: present on an idle composer, data-testid and aria agree.
+      # VERIFIED: appears when there is text in the composer, not before.
       - "button[data-testid='chat-submit']"
       - "button[aria-label='Submit']"
     send_key: Enter
     file_input:
       - "input[type='file']"
     assistant_turn:
-      # UNVERIFIED -- see the note above. `.message-bubble` was the only
-      # message-shaped container present; `.prose` is NOT usable here because
-      # Grok's own composer carries that class.
+      # VERIFIED: exactly one per reply, and it distinguishes the model's turn
+      # from yours -- `.message-bubble` and `.prose` match BOTH, and `.prose`
+      # additionally matches Grok's own composer.
+      - "[data-testid='assistant-message']"
       - "div[class*='message-bubble']"
-      - "[data-testid='message-content']"
-      - "div[class*='response-content']"
     stop_button:
-      # UNVERIFIED.
+      # VERIFIED: present at t+4s, gone by t+8s.
       - "button[aria-label='Stop model response']"
       - "button[aria-label*='Stop' i]"
     streaming_marker: []
     copy_button:
       - "button[aria-label*='Copy' i]"
     ready_selector:
-      - "textarea[aria-label*='Ask Grok' i]"
-      - "textarea"
+      - "[aria-label*='Ask Grok' i]"
+      - "div.query-bar-editor"
     login_selectors:
       # VERIFIED while logged out.
       - "button:has-text('Sign in')"
