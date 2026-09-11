@@ -43048,6 +43048,11 @@ setTimeout(enforceProfiles, 1200);
 function tabName(key){ return 'a1tab_' + String(key).replace(/[^A-Za-z0-9_]/g, '_'); }
 window._tnTabName = tabName;
 
+// The key as the destination page will know it. A tab learns its key by reading
+// it back out of window.name, so it only ever sees the sanitised form — keeping
+// both sides on this one means a link id with a dash in it still matches.
+function storeKey(key){ return tabName(key).slice(6); }
+
 // Already showing this destination? Compare ignoring the hash, and treat a
 // deeper path (gmail.com → gmail.com/mail/u/0) as "same place", so we focus the
 // tab instead of yanking it back to the root url.
@@ -43143,10 +43148,10 @@ window._tnOpenTab = function(url, key){
   }
   // A brand-new blank tab. Either nothing was open for this key, or something
   // is open that the window-name lookup cannot see — the post-restart case.
-  var mine = w;
-  try { mine.name = name; } catch(e){}   // so tabsync.js on the destination knows its key
-  if (claimedElsewhere(key)) handOver(mine, url, key);
-  else go(mine, url);
+  var sk = storeKey(key);
+  try { w.name = name; } catch(e){}   // so tabsync.js on the destination knows its key
+  if (claimedElsewhere(sk)) handOver(w, url, sk);
+  else go(w, url);
   return w;
 };
 })();
