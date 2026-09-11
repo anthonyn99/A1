@@ -146,9 +146,15 @@
           <div class="stat-label">Events This Week</div>
           <div class="stat-value" id="stat-events">0</div>
         </div>
-        <div class="stat-card">
-          <div class="stat-label">Exams Coming Up</div>
-          <div class="stat-value" id="stat-exams">0</div>
+        <!-- "Exams Coming Up" lived here and was a pure anxiety number with
+             nothing to click (spec M-7): it measured the size of the mountain
+             and never progress up it. Cards Due is the same glance, except it
+             is actionable — tapping it starts a review. The exam count is
+             still one row down in the countdown panel, where it belongs. -->
+        <div class="stat-card" id="stat-card-cards" onclick="window.sosStudyAll && window.sosStudyAll()"
+             style="cursor:pointer" title="Start a review">
+          <div class="stat-label">Cards Due</div>
+          <div class="stat-value" id="stat-cards">0</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Next Exam In</div>

@@ -264,6 +264,29 @@ export function gradeCard(cardId, grade, now = Date.now()) {
   return null;
 }
 
+/**
+ * Put a card's scheduling state back to exactly what it was.
+ *
+ * The review surface's undo. A mis-tap on a phone is common and would
+ * otherwise silently corrupt a card's schedule with no way back. This is a
+ * direct write rather than a "reverse grade", because there is no inverse of
+ * an FSRS update — only the previous object, which fsrs.review() hands back
+ * untouched precisely because it is pure.
+ */
+export function restoreSched(cardId, sched) {
+  load();
+  for (const [classId, list] of _mem.entries()) {
+    const i = list.findIndex((c) => c.id === cardId);
+    if (i < 0) continue;
+    const copy = list.slice();
+    copy[i] = { ...copy[i], sched: sched ? { ...sched } : null };
+    _mem.set(classId, copy);
+    persist(classId);
+    return copy[i];
+  }
+  return null;
+}
+
 /** What each grade would do, for the review buttons. */
 export function previewCard(cardId, now = Date.now()) {
   const card = get(cardId);
@@ -358,6 +381,6 @@ export function topicBreakdown(classId, now = Date.now()) {
 export default {
   load, applyRemote, forClass, all, get, countsFor,
   generateFromNote, generateFromSelection, remove,
-  gradeCard, previewCard, buildQueue,
+  gradeCard, previewCard, restoreSched, buildQueue,
   mastery, topicBreakdown, nextExamFor,
 };

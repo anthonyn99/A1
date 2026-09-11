@@ -3012,6 +3012,7 @@ function renderNotesModule(body, cls, mod) {
     <div id="modnote-editor-${mod.id}" style="display:none;flex-direction:column;height:100%">
       <div style="padding:8px 10px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center">
         <input id="modnote-title-${mod.id}" style="flex:1;background:transparent;border:none;font-size:13px;font-weight:700;color:var(--text);font-family:var(--sans);outline:none;pointer-events:${editOn ? 'auto' : 'none'}" placeholder="Note title" ${editOn ? '' : 'readonly'}>
+        <button class="btn" style="padding:3px 8px;font-size:10px" title="Make flashcards from this note" aria-label="Make flashcards" onclick="window.sosMakeCardsHere('${cls.id}','${mod.id}')">🃏</button>
         <button class="btn" style="padding:3px 8px;font-size:10px" title="Fullscreen" aria-label="Fullscreen" onclick="fullscreenModuleNote('${cls.id}','${mod.id}')">${SOI.expand}</button>
         <button class="btn" style="padding:3px 8px;font-size:10px" title="Print / Save as PDF" aria-label="Print" onclick="printModuleNote('${mod.id}')">${SOI.printer}</button>
         ${editOn ? `<button class="btn" style="padding:3px 8px;font-size:10px;color:#ef9f9f" onclick="deleteModuleNote('${cls.id}','${mod.id}')">Delete</button>` : ''}
@@ -3053,6 +3054,34 @@ function refreshModuleNoteList(cls, mod) {
     listEl.appendChild(item);
   });
 }
+
+/* Make flashcards from the note currently open in a module (spec R-1).
+ *
+ * Lives here rather than in the module because `currentModuleNoteId` is a
+ * lexical global of this classic script — js/modules/boot.js has no way to
+ * learn which note is on screen. It resolves the note and hands it to
+ * window.sosMakeCards, which the recall module installs. */
+window.sosMakeCardsHere = function (classId, modId) {
+  const cls = findClassOrKsu(classId);
+  const mod = cls && (cls.modules || []).find(m => m.id === modId);
+  const noteId = currentModuleNoteId[modId];
+  if (!cls || !mod || !noteId) {
+    try { showNotif(SOI.alert, 'No note open', 'Open a note first, then make cards from it.'); } catch (e) {}
+    return;
+  }
+  if (!window.sosMakeCards) {
+    try { showNotif(SOI.alert, 'Not ready', 'Flashcards are still loading — try again in a moment.'); } catch (e) {}
+    return;
+  }
+  // Save whatever is in the textarea first: extracting from a stale note body
+  // would silently miss everything typed since the last autosave.
+  try {
+    const bodyEl = _sosEl('modnote-body-' + modId);
+    const n = (mod.notes || []).find(x => x.id === noteId);
+    if (n && bodyEl) { n.body = bodyEl.value; n.updated = Date.now(); persistForCls(cls); }
+  } catch (e) {}
+  window.sosMakeCards(classId, modId, noteId, false);
+};
 
 function openModuleNote(cls, mod, noteId) {
   currentModuleNoteId[mod.id] = noteId;
@@ -3746,7 +3775,23 @@ function updateStats() {
     .sort((a,b) => a.date.localeCompare(b.date));
   const examCountEl = _sosEl('stat-exams');
   const nextExamEl  = _sosEl('stat-next-exam');
+  // Null-guarded: that tile was replaced by Cards Due (spec M-7) and may not
+  // exist. Kept so a layout that still has it keeps working.
   if (examCountEl) examCountEl.textContent = upcomingExams.length;
+
+  // Cards due today (Phase 2). Read through window.SOS rather than an import:
+  // this is a classic script and the deck is an ES module. Absent until the
+  // module boots, so the tile just stays at its previous value.
+  const cardsEl = _sosEl('stat-cards');
+  if (cardsEl && window.SOS && window.SOS.deck) {
+    try {
+      const n = window.SOS.deck.countsFor(null).dueNow;
+      cardsEl.textContent = n;
+      cardsEl.style.color = n > 0 ? 'var(--accent2)' : 'var(--text3)';
+      const tile = _sosEl('stat-card-cards');
+      if (tile) tile.style.opacity = n > 0 ? '1' : '0.6';
+    } catch (e) {}
+  }
   if (nextExamEl) {
     if (upcomingExams.length > 0) {
       const daysUntil = Math.ceil((new Date(upcomingExams[0].date + 'T12:00:00') - today) / 86400000);

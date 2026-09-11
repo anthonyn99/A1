@@ -27,6 +27,59 @@ const aiCfg = () => (window.STUDYOS_CONFIG && window.STUDYOS_CONFIG.cloudflare
 window.SOS = window.SOS || {};
 window.SOS.store = store;
 
+/* ── Active recall (Phase 2) ───────────────────────────────────────────────
+ * Independent of the pipeline: cards are extracted from notes she ALREADY has,
+ * with no model call and no network, so this loads whether or not a backend is
+ * configured. That is the point — it is the half of the app that works today.
+ */
+(async function recall() {
+  const [deck, reviewUi] = await Promise.all([
+    import('./deck.js'),
+    import('./review-ui.js'),
+  ]);
+  window.SOS.deck = deck;
+  window.SOS.review = reviewUi;
+
+  // Called from inline onclick= in markup studyos.js renders; that file is a
+  // classic script and cannot import these.
+  window.sosStudy = (classId, extra) => reviewUi.startReview({ classId, ...(extra || {}) });
+  window.sosStudyAll = () => reviewUi.startReview({});
+  window.sosMakeCards = (classId, moduleId, noteId, isHtml) => {
+    const cls = store.getClass(classId);
+    const mod = cls && (cls.modules || []).find(m => m.id === moduleId);
+    const note = mod && (mod.notes || []).find(n => n.id === noteId);
+    if (!note) return;
+    const r = deck.generateFromNote(classId, moduleId, note, { html: !!isHtml });
+    try {
+      window.showNotif && window.showNotif(
+        r.added.length ? '🃏' : 'ℹ️',
+        r.added.length ? `${r.added.length} card${r.added.length === 1 ? '' : 's'} added` : 'No new cards',
+        r.added.length
+          ? `${deck.countsFor(classId).total} in ${cls ? cls.name : 'this class'}`
+          : 'Nothing new to extract from this note.');
+    } catch (e) {}
+    return r;
+  };
+
+  // Load each class's deck from the cloud once, and keep it current. Without
+  // this a second device starts from an empty local deck.
+  store.onReady(() => {
+    for (const cls of store.getClasses()) {
+      if (!cls || !cls.id) continue;
+      if (!window._fbLoadCards) break;
+      window._fbLoadCards(cls.id)
+        .then(list => { if (Array.isArray(list) && list.length) deck.applyRemote(cls.id, list); })
+        .catch(() => {});
+    }
+  });
+  window.addEventListener('fb-cards-remote', (e) => {
+    const d = (e && e.detail) || {};
+    if (d.classId && Array.isArray(d.cards)) deck.applyRemote(d.classId, d.cards);
+  });
+
+  console.info('[StudyOS] active recall ready.');
+})().catch(e => console.warn('[StudyOS] recall failed to start:', e));
+
 (async function boot() {
   const cfg = aiCfg();
   if (!cfg.enabled || !cfg.baseUrl) {
