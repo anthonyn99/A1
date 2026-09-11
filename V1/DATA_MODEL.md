@@ -164,6 +164,92 @@ not attached to a class. `findClassOrKsu()` treats it as a pseudo-class.
 
 ---
 
+## 3a. Shapes added by Phase 1 (the pipeline)
+
+All additive. No existing field changed type or meaning, so no migration was
+needed and `schemaVersion` stays at 1.
+
+### `Module.defaultPromptId` — new optional field
+
+```js
+{ ...Module, defaultPromptId?: String }   // P-4 auto-run
+```
+
+Stored on the module so it rides the same Firestore document as everything else
+and syncs across devices for free. Absent means auto-run is off; the key is
+deleted rather than set to null when switched off, so `mod.defaultPromptId`
+stays falsy either way.
+
+### Generated note — `Note` plus provenance
+
+A pipeline result is written as a normal note in a `type: 'notes'` module (so it
+opens in the docx editor and is immediately editable), with one extra key:
+
+```js
+{
+  id, title, body, updated,          // the existing Note shape, unchanged
+  _sos: {
+    generated: true,
+    sourceFileId: String,            // which deck produced it
+    promptId: String,
+    promptVersion: Number,           // answers "why is this one worse"
+    model: String,
+    generatedAt: Number,
+    costUsd: Number,
+    slideRanges: [{ from, to }],     // per chunk
+  },
+}
+```
+
+`_sos` is underscore-prefixed but **not** stripped by `_sosSerializeClasses()` —
+that only strips underscore keys from `FileEntry`, not from notes. Provenance
+therefore persists and syncs, which is the point.
+
+Re-running the same `sourceFileId` **replaces** that note (id kept) rather than
+appending, because "regenerate with a different prompt" is a listed feature and
+would otherwise stack near-identical copies.
+
+### `studyos_prompts_v1` — new localStorage key
+
+```js
+Prompt[] = [{
+  id: String,            // 'pr_<base36>_<rand>'
+  name: String,
+  text: String,
+  version: Number,       // bumps only when `text` changes, not on rename
+  classIds: String[],    // empty = offered to every class
+  createdAt, updatedAt: Number,
+  versions: [{ version, text, at }],   // prior texts, newest last
+}]
+```
+
+Read defensively (`try/catch`, non-array coerced to `[]`) — unlike the six keys
+in §2.1, a corrupt value here cannot take the app down.
+
+**Not synced to Firestore yet.** The library is local-only yet; per-class prompts
+continue to sync inside `studyos_classes` as they always have. Making the library
+sync means adding it to `_sosFirebaseSave()`'s payload and to the remote-merge in
+§5.2, which needs the conflict policy in §7 decided first.
+
+**The existing per-module `prompts` arrays are untouched.** `js/modules/prompts.js`
+reads them in place and never migrates or rewrites them, so her already-tuned
+prompt is never relocated or at risk.
+
+### Worker-side (KV, `workers/studyos-ai`)
+
+Not part of the app's synced data; documented here because it is stored state.
+
+| Key | Value |
+|---|---|
+| `job:<id>` | the job record (status, progress, sections, costUsd, …) |
+| `queue:<padded-ts>:<id>` | pending marker; lexical order = FIFO |
+| `idem:<sha256>` | fingerprint → job id, so the same file+prompt never re-spends |
+| `spend:<YYYY-MM>` | month-to-date USD, checked before every model call |
+
+Job records expire after 30 days; the spend ledger after ~400.
+
+---
+
 ## 4. Persistence entry points
 
 | Function | Writes | Line |
