@@ -1070,6 +1070,8 @@ table.doctor, table.doctor code, .v-table, .studio-table,
   background: var(--s1); border: 1px solid var(--bd); border-radius: var(--r-card);
 }
 .acc-note b { color: var(--tx); }
+.acc-topbar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.acc-topbar .acc-busy { margin-top: 0; font-size: 11px; }
 .acc-card {
   border: 1px solid var(--bd); border-left: 3px solid var(--pa, var(--ac));
   border-radius: var(--r-card); background: var(--s1);
@@ -4726,7 +4728,15 @@ function renderDoctor(data) {
    a sign-in, but the window opens where the profiles live, because that is
    the only place it could open. The panel says so rather than leaving you
    watching a phone for a window that is never coming. */
-const ACC = { rows: [], busy: null, login: null, poll: 0 };
+/* `busy` is a SET, not an id.
+ *
+ *  Checks are per-unit and each opens its own browser against its own profile
+ *  -- exactly the shape the doctor already fans out in parallel -- so there
+ *  was never a reason to make you check seven sessions one at a time, each
+ *  one taking ten seconds with the rest of the panel dead. The only collision
+ *  that matters is two checks on the SAME unit, which would fight over one
+ *  profile lock, and membership of this set is what prevents that. */
+const ACC = { rows: [], busy: new Set(), busyText: {}, login: null, poll: 0 };
 
 async function loadAccounts(quiet) {
   if (!online()) { renderAccounts(); return; }
@@ -4782,6 +4792,21 @@ function renderAccounts() {
     "provider, and it never touches your personal Chrome.";
   box.append(note);
 
+  // Named apart from the per-card `bar` below, which it would otherwise
+  // shadow -- legal, and exactly the sort of thing that reads as a bug later.
+  const topbar = el("div", "acc-topbar");
+  const all = el("button", "navitem", "Check all");
+  all.title = "Opens every unit's site at once to see which sessions still work";
+  all.disabled = ACC.busy.size > 0;
+  all.onclick = () => ACC.rows.forEach((r) => checkAccount(r));
+  topbar.append(all);
+  if (ACC.busy.size) {
+    const w = el("span", "acc-busy");
+    w.append(spinnerEl(), el("span", null, `checking ${ACC.busy.size}…`));
+    topbar.append(w);
+  }
+  box.append(topbar);
+
   for (const a of ACC.rows) {
     const st = accStatus(a);
     const card = el("div", "acc-card");
@@ -4825,9 +4850,15 @@ function renderAccounts() {
     card.append(row);
 
     const bar = el("div", "acc-actions");
-    const busy = ACC.busy === a.id;
+    const busy = ACC.busy.has(a.id);
 
-    const signin = el("button", "navitem", a.profile ? "Switch account" : "Sign in");
+    // A saved session that is SIGNED OUT is not an account to switch away
+    // from -- it is an account to get back into, and "Switch account" was the
+    // wrong instruction on precisely the units that needed the right one.
+    // Highlighted there too, because on those cards it is the whole point.
+    const needsLogin = !a.profile || a.signed_in === false;
+    const signin = el("button", "navitem" + (a.signed_in === false ? " active" : ""),
+                      needsLogin ? "Sign in" : "Switch account");
     signin.disabled = busy;
     signin.onclick = () => startLogin(a);
     bar.append(signin);
@@ -4838,9 +4869,14 @@ function renderAccounts() {
     check.onclick = () => checkAccount(a);
     bar.append(check);
 
-    if (a.profile) {
+    // Sign out only when there is something to sign out OF. A card that
+    // already says SIGNED OUT offering "Sign out" is nonsense, and it sat
+    // right beside the one button that card actually needed. Signing back in
+    // reuses the same profile, so nothing has to be cleared first.
+    if (a.profile && a.signed_in !== false) {
       const out = el("button", "navitem danger", "Sign out");
       out.disabled = busy;
+      out.title = "Deletes MAGI's saved session for this unit so you can sign in as someone else";
       out.onclick = () => signOutAccount(a);
       bar.append(out);
     }
@@ -4854,7 +4890,7 @@ function renderAccounts() {
 
     if (busy) {
       const w = el("div", "acc-busy");
-      w.append(spinnerEl(), el("span", null, ACC.busyText || "Working…"));
+      w.append(spinnerEl(), el("span", null, ACC.busyText[a.id] || "Working…"));
       card.append(w);
     }
     box.append(card);
@@ -4862,19 +4898,30 @@ function renderAccounts() {
 }
 
 async function checkAccount(a) {
-  ACC.busy = a.id;
-  ACC.busyText = `Opening ${a.display_name} to see whether the session still works…`;
+  // Two checks of the same unit would fight over one profile lock, and the
+  // loser reports a failure that says nothing about the session.
+  if (ACC.busy.has(a.id)) return;
+  ACC.busy.add(a.id);
+  ACC.busyText[a.id] = `Opening ${a.display_name} to see whether the session still works…`;
   renderAccounts();
   try {
     const r = await fetch(`${link.api}/api/accounts/${a.id}/check`,
                           authed({ method: "POST" }));
     const d = await r.json();
     if (!r.ok) throw new Error(d.detail || "check failed");
+    // Written straight onto the row rather than reloading the whole list: a
+    // reload mid-batch would redraw the other units' spinners from a listing
+    // that does not know they are still running.
+    Object.assign(a, { signed_in: d.signed_in, detail: d.detail,
+                       checked_at: new Date().toISOString() });
   } catch (e) {
     a.detail = String(e.message || e);
   }
-  ACC.busy = null;
-  await loadAccounts(true);
+  ACC.busy.delete(a.id);
+  delete ACC.busyText[a.id];
+  renderAccounts();
+  // One reload once the last one lands, to pick up sizes and timestamps.
+  if (!ACC.busy.size) loadAccounts(true);
 }
 
 async function signOutAccount(a) {
@@ -4885,8 +4932,8 @@ async function signOutAccount(a) {
     " itself, and your personal Chrome is not touched.",
     "Sign out");
   if (!ok) return;
-  ACC.busy = a.id;
-  ACC.busyText = "Removing the saved session…";
+  ACC.busy.add(a.id);
+  ACC.busyText[a.id] = "Removing the saved session…";
   renderAccounts();
   try {
     const r = await fetch(`${link.api}/api/accounts/${a.id}/signout`,
@@ -4896,7 +4943,8 @@ async function signOutAccount(a) {
   } catch (e) {
     a.detail = String(e.message || e);
   }
-  ACC.busy = null;
+  ACC.busy.delete(a.id);
+  delete ACC.busyText[a.id];
   await loadAccounts(true);
 }
 
