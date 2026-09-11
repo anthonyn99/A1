@@ -540,7 +540,9 @@ body {
    runs underneath it, which is exactly what "CLAUDE*" looked like. */
 .chip.is-chair { padding-right: 18px; }
 .chip:not(.on) .chip-chair { color: var(--ac); }
-.chip.is-chair { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bg) 35%, transparent); }
+/* The star is the whole signal. An inset ring on top of it read as a dark
+   box drawn around one chip -- three marks (colour, ticked state, chair) on an
+   object that only needs to carry two. */
 
 /* "Units" is a button now -- it opens the chair picker -- so it has to look
    like one without becoming loud: it is still a section label. */
@@ -1490,10 +1492,14 @@ table.doctor code { color: var(--txd); font-size: 11px; }
 .bs-start .bs-topic { text-align: left; }
 .bs-start .bs-note { text-align: center; }
 .bs-start-bar { justify-content: center; }
-/* Only while there is nothing below it, exactly as the council does. */
-.council-idle .bs-start { margin-top: clamp(0px, calc(26vh - 150px), 200px); }
+/* Only while there is nothing below it, exactly as the council does -- and
+   applied to the HEADING, which sits directly above the box: putting it on
+   the box left the title stranded at the top of the page while the thing it
+   labelled sat in the middle. */
+.council-idle .bs:has(.bs-start) .bs-hd { margin-top: clamp(0px, calc(26vh - 170px), 190px); }
+.bs:has(.bs-start) { gap: 12px; }
 @media (max-width: 760px) {
-  .council-idle .bs-start { margin-top: 2vh; }
+  .council-idle .bs:has(.bs-start) .bs-hd { margin-top: 2vh; }
   .bs-start, .bs-reply, .bs-plan-bar, .bs-round-hd { max-width: none; }
 }
 
@@ -1508,8 +1514,11 @@ table.doctor code { color: var(--txd); font-size: 11px; }
   transition: border-color .15s, box-shadow .15s, background .15s;
 }
 .bs-start:focus-within {
-  border-color: var(--gold);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gold) 16%, transparent);
+  /* The council's accent, not brainstorm's gold. The gold belongs on the
+     heading, which is what distinguishes the two modes; on the composer it
+     made the same control look like a different one. */
+  border-color: var(--ac);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ac) 16%, transparent);
 }
 .bs-topic {
   width: 100%; min-height: 92px; resize: vertical; background: transparent;
