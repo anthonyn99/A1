@@ -259,6 +259,31 @@ MAX_ATTACHMENTS = 8
 MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024
 
 
+async def _stage_uploads(files, into: Path) -> list[Path]:
+    """Write uploads to disk and hand back the paths, in order.
+
+    Extracted so a brainstorm session stages files exactly as a council run
+    does -- same size cap, same name sanitising. Two copies of this would be
+    two places for the cap to drift out of agreement with the error message
+    that quotes it.
+    """
+    out: list[Path] = []
+    if not files:
+        return out
+    into.mkdir(parents=True, exist_ok=True)
+    for f in files:
+        data = await f.read()
+        if len(data) > MAX_ATTACHMENT_BYTES:
+            raise HTTPException(
+                400,
+                f"{f.filename} exceeds the {MAX_ATTACHMENT_BYTES // (1024*1024)}MB limit",
+            )
+        dest = into / _stage_upload_name(f.filename or "file")
+        dest.write_bytes(data)
+        out.append(dest)
+    return out
+
+
 @app.post("/api/runs")
 async def create_run(
     question: str = Form(...),
@@ -292,19 +317,7 @@ async def create_run(
     # Stage attachments under this run's own directory so concurrent runs
     # never share a name, and so the whole set can be discarded together once
     # every provider has read them.
-    run_uploads_dir = UPLOADS_DIR / run_id
-    staged_paths: list[Path] = []
-    if files:
-        run_uploads_dir.mkdir(parents=True, exist_ok=True)
-        for f in files:
-            data = await f.read()
-            if len(data) > MAX_ATTACHMENT_BYTES:
-                raise HTTPException(
-                    400, f"{f.filename} exceeds the {MAX_ATTACHMENT_BYTES // (1024*1024)}MB limit"
-                )
-            dest = run_uploads_dir / _stage_upload_name(f.filename or "file")
-            dest.write_bytes(data)
-            staged_paths.append(dest)
+    staged_paths = await _stage_uploads(files, UPLOADS_DIR / run_id)
 
     state = {
         "queue": asyncio.Queue(),
@@ -785,6 +798,7 @@ def _session_payload(data: dict) -> dict:
 async def create_brainstorm(
     topic: str = Form(...),
     providers: str = Form(""),
+    files: list[UploadFile] = File(default=[]),
 ):
     t = topic.strip()
     if not t:
@@ -795,9 +809,32 @@ async def create_brainstorm(
     if not provider_ids:
         raise HTTPException(400, "no providers available")
 
+    if len(files) > MAX_ATTACHMENTS:
+        raise HTTPException(400, f"at most {MAX_ATTACHMENTS} attachments per session")
+
     session_id = uuid.uuid4().hex[:12]
     await db.create_session(session_id, t, provider_ids)
-    return {"session_id": session_id}
+
+    # Staged under the SESSION's own directory and re-read from disk on every
+    # round, rather than recorded in the database. A brainstorm is many rounds
+    # over a long time, possibly across an engine restart, and a list of paths
+    # in a row would then point at files a cleanup had every right to remove.
+    # The directory is the record.
+    await _stage_uploads(files, UPLOADS_DIR / session_id)
+    return {"session_id": session_id, "attachments": len(files)}
+
+
+def _session_attachments(session_id: str) -> list[Path]:
+    """Whatever was attached when the session was created.
+
+    Sorted, so every round hands the members the same files in the same order
+    -- an unordered directory listing would silently reorder attachments
+    between rounds.
+    """
+    d = UPLOADS_DIR / session_id
+    if not d.is_dir():
+        return []
+    return sorted((f for f in d.iterdir() if f.is_file()), key=lambda f: f.name)
 
 
 @app.get("/api/brainstorm")
@@ -915,6 +952,7 @@ async def create_brainstorm_round(
             ctx = RunContext(
                 run_id=f"{session_id}-r{round_no}",
                 question=next(iter(member_prompts.values()), topic),
+                attachments=_session_attachments(session_id),
             )
 
             answers = await _fan_out_each(
