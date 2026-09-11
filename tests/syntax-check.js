@@ -34,8 +34,48 @@ try { babelParse = require('@babel/parser').parse; } catch (e) { /* optional */ 
 // unnoticed.
 const ROOT_SCRIPTS = ['backup.js', 'hoverfx.js', 'tabsync.js'];
 
+// Cloudflare Worker entrypoints. These were unchecked for a long time and it
+// cost a silent outage: a worker.js with a literal newline inside a quoted
+// string was committed, esbuild rejected it during `wrangler deploy`, the
+// deploy workflow went red, and the OLD worker simply kept serving. Nothing in
+// the app reported a fault -- password-reset email went on claiming it had
+// sent a code, because the code that would have sent it was never deployed.
+//
+// A red workflow is only visible if someone looks at it. This fails in the
+// same run as everything else instead.
+const WORKER_DIRS = ['workers', 'workers2', path.join('V1', 'workers')];
+const WORKER_ENTRIES = ['worker.js', path.join('src', 'index.js'), 'index.js'];
+
+function findWorkerScripts() {
+  const found = [];
+  for (const dir of WORKER_DIRS) {
+    const abs = path.join(__dirname, '..', dir);
+    if (!fs.existsSync(abs)) continue;
+    for (const entry of fs.readdirSync(abs, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      for (const rel of WORKER_ENTRIES) {
+        const file = path.join(abs, entry.name, rel);
+        if (fs.existsSync(file)) { found.push(path.join(dir, entry.name, rel)); break; }
+      }
+    }
+  }
+  return found.sort();
+}
+
 let checked = 0, skipped = 0;
 const errors = [];
+
+// Workers are ES modules (`export default { fetch, scheduled }`), which `vm`
+// cannot take at all -- hence the parser rather than the sandbox.
+for (const rel of findWorkerScripts()) {
+  const file = path.join(__dirname, '..', rel);
+  const src = fs.readFileSync(file, 'utf8');
+  if (!babelParse) { skipped++; continue; }
+  try { babelParse(src, { sourceType: 'module' }); checked++; }
+  catch (e) {
+    errors.push(rel.replace(/\\/g, '/') + ':' + (e.loc ? e.loc.line : '?') + ' — ' + e.message);
+  }
+}
 
 for (const name of ROOT_SCRIPTS) {
   const file = path.join(__dirname, '..', name);
@@ -99,4 +139,5 @@ if (errors.length) {
 }
 console.log('Syntax OK — parsed ' + checked + ' scripts across ' +
   FILES.concat(ROOT_SCRIPTS).join(', ') +
+  ' and ' + findWorkerScripts().length + ' worker entrypoints' +
   (skipped ? ' (' + skipped + ' JSX block(s) skipped: @babel/parser not installed)' : '') + '.');
