@@ -5569,12 +5569,32 @@ function loadUnitPicks() {
   try {
     const raw = localStorage.getItem(UNIT_PICK_KEY);
     if (!raw) return null;
-    const a = JSON.parse(raw);
-    return Array.isArray(a) ? a : null;
+    const v = JSON.parse(raw);
+    // The old shape was a bare array of ticked ids. Read it, so nobody's
+    // existing choice is thrown away by the upgrade -- with no record of what
+    // existed at the time, every unit is treated as already known, which is
+    // right for anyone whose units have not changed since.
+    if (Array.isArray(v)) return { on: v, known: v.slice() };
+    if (v && Array.isArray(v.on) && Array.isArray(v.known)) return v;
+    return null;
   } catch { return null; }
 }
+
+/** Store the ticked units AND the units that existed when you ticked them.
+ *
+ *  Both halves are needed. With only the ticked list there is no way to tell
+ *  "a unit you deliberately unticked" from "a unit that did not exist when you
+ *  chose" -- both are simply absent -- so the rule that welcomes a NEW unit
+ *  also silently re-ticked one you had turned off, every single refresh. That
+ *  was the bug: unticking Copilot never survived a reload.
+ */
 function saveUnitPicks() {
-  try { localStorage.setItem(UNIT_PICK_KEY, JSON.stringify([...S.selected])); } catch {}
+  try {
+    localStorage.setItem(UNIT_PICK_KEY, JSON.stringify({
+      on: [...S.selected],
+      known: S.providers.map((p) => p.id),
+    }));
+  } catch {}
 }
 
 function loadUnitOrder() {
@@ -8848,13 +8868,20 @@ async function boot() {
     // not want to pay for never survived a reload either.
     const saved = loadUnitPicks();
     if (saved) {
-      const known = new Set(S.providers.map((p) => p.id));
-      S.selected = new Set(saved.filter((id) => known.has(id)));
-      // A unit added to the config since you last chose joins in, rather than
-      // being silently off because it did not exist when you picked.
-      for (const p of S.providers) if (p.enabled && !saved.includes(p.id)) S.selected.add(p.id);
+      const exists = new Set(S.providers.map((p) => p.id));
+      S.selected = new Set(saved.on.filter((id) => exists.has(id)));
+      // A unit that did not EXIST when you last chose joins in -- it is new,
+      // not something you turned down. One you unticked stays unticked,
+      // because it is in `known` and simply not in `on`.
+      const knew = new Set(saved.known);
+      for (const p of S.providers) if (p.enabled && !knew.has(p.id)) S.selected.add(p.id);
+    } else {
+      // Never chosen on this device: start from whatever the engine enables.
+      S.selected = new Set(S.providers.filter((p) => p.enabled).map((p) => p.id));
     }
-    if (!S.selected.size) S.selected = new Set(S.providers.filter((p) => p.enabled).map((p) => p.id));
+    // No fallback to "all" when the set is empty. Unticking everything is a
+    // choice -- Convene is disabled and says so -- and quietly re-ticking the
+    // lot would be the same bug in a different disguise.
     saveUnitPicks();
     renderUnitChips();
   } catch {}
