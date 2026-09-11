@@ -398,7 +398,8 @@ async def read_latest(page, site: Site) -> tuple[str, int]:
             return "", r["count"]
 
 
-async def wait_for_completion(page, site: Site, baseline: tuple[str, int]) -> dict:
+async def wait_for_completion(page, site: Site, baseline: tuple[str, int],
+                              saw_active: bool = False) -> dict:
     """Four layered gates. See the module docstring of MAGI's completion.py.
 
     1. BASELINE. Snapshot turn count AND last-turn text before sending. Two UI
@@ -418,7 +419,6 @@ async def wait_for_completion(page, site: Site, baseline: tuple[str, int]) -> di
     started = time.monotonic()
     last_text, last_growth = "", time.monotonic()
     stable = 0
-    saw_active = False
     poll = site.poll_ms / 1000
 
     while True:
@@ -514,7 +514,24 @@ async def cmd_ask(args) -> dict:
             else:
                 await page.keyboard.press(site.send_key)
 
-            out = await wait_for_completion(page, site, baseline)
+            # Catch the generation signal before the main poll loop starts.
+            # Measured against live Claude: both signals DO fire, but a short
+            # answer can finish inside one 700ms poll, so the loop never sees
+            # them and the result is downgraded to low-confidence "stability"
+            # even though generation completed cleanly. Sampling fast for the
+            # first couple of seconds closes that window. A long deck rewrite
+            # never needed this; a short one silently lost its clean signal.
+            saw_signal = False
+            for _ in range(20):                       # 2s at 100ms
+                await asyncio.sleep(0.1)
+                if site.streaming_marker and await any_matches(page, site.streaming_marker):
+                    saw_signal = True
+                    break
+                if site.stop_button and await resolve(page, site.stop_button, timeout_ms=0):
+                    saw_signal = True
+                    break
+
+            out = await wait_for_completion(page, site, baseline, saw_active=saw_signal)
             text = strip_trailing(out["text"], site.strip_patterns)
             if not text:
                 path = await save_artifacts(page, f"{site.id}-empty")

@@ -263,6 +263,23 @@ console.log('\nresume: a checkpointed job restarts mid-deck');
   t('kept the earlier section', job.sections.length === 2);
 }
 
+console.log('\nslide headings: real model output, not just the prompted form');
+{
+  // Live Claude emitted "### Slide 1" when asked for "## Slide 1". A verifier
+  // requiring exactly two hashes failed the whole chunk as "slides not
+  // covered" even though every slide was present.
+  const kv = makeKV();
+  await seedJob(kv, { id: 'jh', slideCount: 3 });
+  fetchPlan = [filePdf, () => new Response(JSON.stringify({
+    stop_reason: 'end_turn',
+    content: [{ type: 'text', text: '### Slide 1\na\n\n### Slide 2:\nb\n\n# Slide 3\nc' }],
+    usage: { input_tokens: 10, output_tokens: 10 },
+  }), { status: 200 })];
+  await worker.fetch(post('/cron'), envWith(kv), {});
+  const job = JSON.parse(await kv.get('job:jh'));
+  t('accepts ### and # heading levels', job.status === 'done', job.error);
+}
+
 console.log('\nidempotency: the same deck + prompt must not re-spend');
 {
   // createJob is App Check gated, so exercise the fingerprint through the queue:
