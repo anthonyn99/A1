@@ -39,10 +39,15 @@
  *     has recent user interaction, so the first branch is the lucky one and the
  *     retire-and-reopen branch is the usual outcome after a restart. Both end
  *     with exactly one tab, which is the point.
- *   • window.close() is refused for a tab the browser does not consider
- *     script-closable. A retired tab that cannot close has already given up the
- *     key, so the next click is clean, but that one time you are left with the
- *     old tab sitting there — the behaviour we had before, never worse.
+ *   • window.close() only works on a tab the browser considers script-closable:
+ *     one it opened itself, or one whose session history holds a single entry.
+ *     A tab opened the normal way qualifies — the destination replaces the
+ *     initial empty document rather than pushing onto it, measured at
+ *     history.length === 1 — but a page that pushes history entries as you use
+ *     it (Solace does) can grow out of it. A retired tab that cannot close has
+ *     already given up the key, so the next click is clean; that one time you
+ *     are left with the old tab sitting there, which is the behaviour we had
+ *     before and never worse.
  *
  * Cross-origin destinations (a custom link to gmail.com) cannot run any of
  * this. They keep the window-name pairing and nothing else, which is all a page

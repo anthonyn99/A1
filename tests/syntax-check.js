@@ -32,7 +32,7 @@ try { babelParse = require('@babel/parser').parse; } catch (e) { /* optional */ 
 // inline, so the HTML scanner below never sees them — a syntax error here is
 // just as fatal (backup.js runs on every page load) and would otherwise ship
 // unnoticed.
-const ROOT_SCRIPTS = ['backup.js', 'hoverfx.js'];
+const ROOT_SCRIPTS = ['backup.js', 'hoverfx.js', 'tabsync.js'];
 
 let checked = 0, skipped = 0;
 const errors = [];
