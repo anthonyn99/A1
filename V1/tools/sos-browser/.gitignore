@@ -2,3 +2,8 @@
 profiles/
 # Failure dumps can contain page content from a logged-in session.
 artifacts/
+# Local job journal and staged uploads — machine state, not source.
+jobs.json
+uploads/
+bridge.log
+__pycache__/

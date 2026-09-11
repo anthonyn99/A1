@@ -76,6 +76,19 @@ export async function runPrompt({ file, prompt, promptId, promptVersion, classId
   if (!file || !file.id) throw new Error('file required');
   if (!prompt || !String(prompt).trim()) throw new Error('prompt required');
 
+  // The Cloudflare Worker fetches the source itself from studyos-files, so it
+  // only needs an id. The LOCAL bridge (tools/sos-browser) has no access to
+  // that store — it drives a browser on this machine — so it needs the actual
+  // bytes. Read them from IndexedDB and send base64 alongside.
+  //
+  // Only for the local bridge: attaching a megabyte of base64 to every Worker
+  // request would be pure waste, and the Worker ignores the field anyway.
+  let fileB64 = null;
+  if (isLocalBridge()) {
+    fileB64 = await readFileB64(file);
+    if (!fileB64) throw new Error('could not read the file to attach');
+  }
+
   const out = await request('/api/ai/jobs', {
     method: 'POST',
     body: JSON.stringify({
@@ -91,9 +104,45 @@ export async function runPrompt({ file, prompt, promptId, promptVersion, classId
       // deck, so when it is unknown the caller should pass nothing and let
       // the Worker use its own default rather than guess low.
       ...(slideCount ? { slideCount } : {}),
+      ...(fileB64 ? { fileB64 } : {}),
     }),
   });
   return { job: out.job, cached: !!out.cached };
+}
+
+/** True when baseUrl points at the local browser bridge rather than the Worker. */
+export function isLocalBridge() {
+  const u = CFG().baseUrl || '';
+  return /^https?:\/\/(127\.0\.0\.1|localhost)\b/i.test(u);
+}
+
+/**
+ * The file's bytes as base64, read from the same IndexedDB store the app uses.
+ *
+ * Falls back to the cloud copy when the blob isn't local — a file uploaded on
+ * her phone and synced here has metadata but no local bytes, and that case is
+ * common enough that failing on it would make the feature look broken.
+ */
+async function readFileB64(file) {
+  // Reuses studyos.js's own sosResolveBlob via the bridge rather than
+  // reimplementing it: that function already tries local IndexedDB, falls back
+  // to the cloud copy, and caches the result back for offline use. A second
+  // copy here would drift from it and miss the caching.
+  const B = window._sosBridge;
+  if (!B || typeof B.resolveBlob !== 'function') return null;
+
+  let blob = null;
+  try { blob = await B.resolveBlob(file); } catch (e) { return null; }
+  if (!blob) return null;
+
+  return await new Promise((resolve) => {
+    const fr = new FileReader();
+    // readAsDataURL gives "data:<mime>;base64,<payload>" — the bridge wants
+    // only the payload.
+    fr.onload = () => resolve(String(fr.result).split(',')[1] || null);
+    fr.onerror = () => resolve(null);
+    fr.readAsDataURL(blob);
+  });
 }
 
 /** Queue several files through one prompt. Failures are reported per file. */

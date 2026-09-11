@@ -4851,6 +4851,15 @@ function _sosFileAdded(cls, mod, file) {
   } catch (e) {}
 }
 
+/* A file's bytes, for the local pipeline bridge (tools/sos-browser).
+ *
+ * The Cloudflare Worker fetches the source from studyos-files itself, but the
+ * local bridge drives a browser on this machine and has no access to that
+ * store, so it needs the actual blob. Exposed rather than reimplemented in the
+ * module: sosResolveBlob already tries IndexedDB, falls back to the cloud copy
+ * and caches it back, and a second copy of that logic would drift. */
+window._sosBridge.resolveBlob = (file) => sosResolveBlob(file);
+
 window._sosBridge.getSnapshot = () => {
   try {
     return JSON.parse(JSON.stringify({
