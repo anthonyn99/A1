@@ -274,7 +274,7 @@ function renderKsuModules() {
       <button class="rename-btn" title="Rename" onclick="event.stopPropagation();openRenameModule('ksu','${m.id}')">${SOI.pencil}</button>
       <button class="delete-btn" title="Delete" aria-label="Delete" onclick="event.stopPropagation();deleteKsuModule('${m.id}')">${SOI.x}</button>
       <div class="module-btn-icon" style="background:#8D769A22;color:#8D769A;font-size:11px">${sosModuleLabel(m.type)}</div>
-      <div class="module-btn-name">${m.name}</div>
+      <div class="module-btn-name">${escHtml(m.name)}</div>
       <div class="module-btn-meta">${meta}</div>
     `;
     btn.onclick = () => openKsuModuleDetail(m);
@@ -948,8 +948,8 @@ function renderClassResources(cls) {
     item.innerHTML = `
       <div style="width:14px;flex-shrink:0;margin-top:3px;color:${cls.color};font-size:12px;display:flex">${icon}</div>
       <div style="flex:1;min-width:0">
-        <div class="class-event-name">${r.label}</div>
-        <div class="class-event-meta">${shown}</div>
+        <div class="class-event-name">${escHtml(r.label)}</div>
+        <div class="class-event-meta">${escHtml(shown)}</div>
       </div>
       <button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:2px 4px;border-radius:3px;transition:0.15s" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text3)'" title="Edit" aria-label="Edit" onclick="openEditResource('${r.id}')">${SOI.pencil}</button>
       <button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:2px 4px;border-radius:3px;transition:0.15s" onmouseover="this.style.color='#ef9f9f'" onmouseout="this.style.color='var(--text3)'" title="Delete" aria-label="Delete" onclick="deleteResource('${r.id}')">${SOI.x}</button>
@@ -1179,10 +1179,10 @@ function renderClasses() {
     card.style.setProperty('--card-color', cls.color);
     card.onclick = () => switchView('class', cls.id);
     card.innerHTML = `
-      <div class="class-name">${cls.name}</div>
-      <div class="class-code">${cls.code}${cls.instructor ? ' · ' + cls.instructor : ''}</div>
+      <div class="class-name">${escHtml(cls.name)}</div>
+      <div class="class-code">${escHtml(cls.code)}${cls.instructor ? ' · ' + escHtml(cls.instructor) : ''}</div>
       <div class="class-modules">
-        ${cls.modules.map(m => `<div class="module-chip">${m.name}</div>`).join('')}
+        ${cls.modules.map(m => `<div class="module-chip">${escHtml(m.name)}</div>`).join('')}
         ${cls.modules.length === 0 ? '<div class="module-chip" style="color:var(--text3)">No modules yet</div>' : ''}
       </div>
     `;
@@ -1211,7 +1211,10 @@ function renderSidebarClasses() {
     item.style.borderLeft = '3px solid ' + cls.color;
     item.style.paddingLeft = '9px';
     item.onclick = () => switchView('class', cls.id);
-    item.innerHTML = cls.name;
+    // textContent, not innerHTML: a class named "Computer Organization &
+    // Architecture" is stored raw, so assigning it as HTML made the browser
+    // parse "& Architecture" as an entity and render "& amp".
+    item.textContent = cls.name;
     el.appendChild(item);
   });
 }
@@ -1278,8 +1281,8 @@ function renderClassEvents(cls) {
       item.innerHTML = `
         <div class="class-event-dot" style="background:${color}"></div>
         <div style="flex:1;min-width:0">
-          <div class="class-event-name">${ev.name}</div>
-          <div class="class-event-meta">${formatDate(ev.date)}${ev.time ? ' · ' + ev.time : ''} · ${ev.type}</div>
+          <div class="class-event-name">${escHtml(ev.name)}</div>
+          <div class="class-event-meta">${formatDate(ev.date)}${ev.time ? ' · ' + escHtml(ev.time) : ''} · ${escHtml(ev.type)}</div>
         </div>
         <button style="background:none;border:1px solid var(--border2);color:var(--text3);cursor:pointer;font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;white-space:nowrap;flex-shrink:0;font-family:inherit;transition:0.15s" title="Convert to Task" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text3)'" onclick="event.stopPropagation();convertEventToTask('${ev.id}')">→ Task</button>
       `;
@@ -1290,8 +1293,8 @@ function renderClassEvents(cls) {
       item.innerHTML = `
         <div style="width:8px;height:8px;border-radius:2px;margin-top:5px;flex-shrink:0;border:1.5px solid ${pColor};background:${t.done ? pColor : 'transparent'};cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:7px;color:#1B1C1E;font-weight:700;transition:0.2s" onclick="toggleTaskDone('${t.id}')">${t.done ? SOI.checkBold : ''}</div>
         <div style="flex:1;min-width:0">
-          <div class="class-event-name" style="${t.done ? 'text-decoration:line-through;color:var(--text3)' : ''}">${t.name}</div>
-          ${t.dueDate ? `<div class="class-event-meta">${formatDate(t.dueDate)}${t.dueTime ? ' · ' + t.dueTime : ''} · ${t.type || 'task'}</div>` : (t.notes ? `<div class="class-event-meta">${t.notes.slice(0,40)}${t.notes.length>40?'…':''}</div>` : '')}
+          <div class="class-event-name" style="${t.done ? 'text-decoration:line-through;color:var(--text3)' : ''}">${escHtml(t.name)}</div>
+          ${t.dueDate ? `<div class="class-event-meta">${formatDate(t.dueDate)}${t.dueTime ? ' · ' + escHtml(t.dueTime) : ''} · ${escHtml(t.type || 'task')}</div>` : (t.notes ? `<div class="class-event-meta">${escHtml(t.notes.slice(0,40))}${t.notes.length>40?'…':''}</div>` : '')}
         </div>
         <button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:2px 4px;border-radius:3px;transition:0.15s" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text3)'" title="Edit" aria-label="Edit" onclick="openEditTask('${t.id}')">${SOI.pencil}</button>
         <button style="background:none;border:1px solid var(--border2);color:var(--text3);cursor:pointer;font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;white-space:nowrap;flex-shrink:0;font-family:inherit;transition:0.15s" title="Convert to Event" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text3)'" onclick="convertTaskToEvent('${t.id}')">→ Event</button>
@@ -1338,7 +1341,7 @@ function renderModules(cls) {
       <button class="rename-btn" title="Rename" onclick="event.stopPropagation();openRenameModule('${cls.id}','${m.id}')">${SOI.pencil}</button>
       <button class="delete-btn" title="Delete" aria-label="Delete" onclick="event.stopPropagation();deleteModule('${cls.id}','${m.id}')">${SOI.x}</button>
       <div class="module-btn-icon" style="background:${cls.color}22;color:${cls.color};font-size:11px">${sosModuleLabel(m.type)}</div>
-      <div class="module-btn-name">${m.name}</div>
+      <div class="module-btn-name">${escHtml(m.name)}</div>
       <div class="module-btn-meta">${meta}</div>
     `;
     btn.onclick = () => openModuleDetail(cls, m);
@@ -2997,7 +3000,7 @@ function refreshModuleNoteList(cls, mod) {
     const isActive = currentModuleNoteId[mod.id] === n.id;
     item.style.cssText = `padding:9px 10px;cursor:pointer;border-bottom:1px solid var(--border);border-left:3px solid ${isActive ? 'var(--accent)' : 'transparent'};background:${isActive ? 'var(--bg4)' : 'transparent'};transition:0.15s`;
     item.innerHTML = `
-      <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${n.title || 'Untitled'}</div>
+      <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(n.title || 'Untitled')}</div>
       <div style="font-size:10px;color:var(--text3);font-family:var(--mono);margin-top:2px">${new Date(n.updated).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>
     `;
     item.onmouseover = () => { if (!isActive) item.style.background = 'var(--bg3)'; };
@@ -3145,8 +3148,13 @@ function _doPrint(title, body) {
   win.document.close();
 }
 
+// Escapes text for interpolation into an HTML *text node*. Coerces first:
+// callers pass stored values (class/event names) that may be null or numeric,
+// and the bare .replace() this used to do threw on anything but a string.
+// Covers & < > only — NOT safe for attribute values, which also need " and '.
 function escHtml(s) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
 // ===== AI PROMPTS =====
@@ -3168,7 +3176,7 @@ function renderNotesList() {
     const d = new Date(n.updated);
     const dateStr = d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
     item.innerHTML = `
-      <div class="note-list-title">${n.title || 'Untitled'}</div>
+      <div class="note-list-title">${escHtml(n.title || 'Untitled')}</div>
       <div class="note-list-preview">${preview}</div>
       <div class="note-list-date">${dateStr}</div>
     `;
@@ -3590,8 +3598,8 @@ function renderUpcoming() {
     item.innerHTML = `
       <div class="timeline-dot" style="background:${color}"></div>
       <div class="timeline-content" style="flex:1;min-width:0">
-        <div class="timeline-title">${ev.name}</div>
-        <div class="timeline-meta">${formatDate(ev.date)}${ev.time ? ' · ' + ev.time : ''}${cls ? ' · ' + cls.name : ''}</div>
+        <div class="timeline-title">${escHtml(ev.name)}</div>
+        <div class="timeline-meta">${formatDate(ev.date)}${ev.time ? ' · ' + escHtml(ev.time) : ''}${cls ? ' · ' + escHtml(cls.name) : ''}</div>
       </div>
       <button style="background:none;border:1px solid var(--border2);color:var(--text3);cursor:pointer;font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;white-space:nowrap;flex-shrink:0;font-family:inherit;transition:0.15s;margin-right:4px" title="Convert to Task" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text3)'" onclick="event.stopPropagation();convertEventToTask('${ev.id}')">→ Task</button>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" style="color:var(--text3);flex-shrink:0"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -3777,8 +3785,8 @@ function renderExamCountdown() {
         <div class="sos-exam-cd-lbl" style="color:${badgeText}">${daysLeft === 0 ? 'TODAY' : 'days'}</div>
       </div>
       <div class="sos-exam-info">
-        <div class="sos-exam-name">${ev.name}</div>
-        <div class="sos-exam-meta">${formatDate(ev.date)}${ev.time ? ' · ' + ev.time : ''}${cls ? ' · ' + cls.name : ''} · ${ev.type}</div>
+        <div class="sos-exam-name">${escHtml(ev.name)}</div>
+        <div class="sos-exam-meta">${formatDate(ev.date)}${ev.time ? ' · ' + escHtml(ev.time) : ''}${cls ? ' · ' + escHtml(cls.name) : ''} · ${escHtml(ev.type)}</div>
       </div>
       ${weight > 0 ? `<div class="sos-exam-score-pill" style="background:${badgeBg};color:${badgeText}">${weight}%</div>` : ''}
     `;
@@ -3825,8 +3833,8 @@ function renderPriorityQueue() {
       <div class="sos-pq-rank">${i + 1}</div>
       <div class="sos-pq-dot" style="background:${color}"></div>
       <div class="sos-pq-info">
-        <div class="sos-pq-name">${ev.name}</div>
-        <div class="sos-pq-meta">${daysStr} away${cls ? ' · ' + cls.name : ''} · ${ev.type}${weight > 0 ? ' · ' + weight + '%' : ''}</div>
+        <div class="sos-pq-name">${escHtml(ev.name)}</div>
+        <div class="sos-pq-meta">${daysStr} away${cls ? ' · ' + escHtml(cls.name) : ''} · ${escHtml(ev.type)}${weight > 0 ? ' · ' + weight + '%' : ''}</div>
       </div>
       <div class="sos-pq-score">${pct}</div>
     `;
