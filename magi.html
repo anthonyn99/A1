@@ -125,7 +125,12 @@ body {
 }
 .side-toggle {
   background: transparent; border: none; color: var(--txm);
-  width: 30px; height: 30px; flex-shrink: 0; border-radius: 7px;
+  /* Fixed, and immune to the flex row it sits in. Collapsing the rail hides
+     .side-brand, which left the toggle as the only item in .side-top -- and
+     a stretch-aligned flex item with no siblings takes the whole 60px row,
+     so the button visibly grew the moment you collapsed the sidebar. */
+  width: 30px; height: 30px; min-height: 30px; max-height: 30px;
+  flex: 0 0 auto; align-self: center; border-radius: 7px;
   /* 16px, not 14 -- and this is the whole reason the middle bar of the menu
      icon looked wrong. The icon is a 24-unit viewBox with rules at y=6, 12 and
      18, so at a rendered size S their centres land at S/4, S/2 and 3S/4. At
@@ -1464,6 +1469,10 @@ table.doctor code { color: var(--txd); font-size: 11px; }
 .bs { display: flex; flex-direction: column; gap: 16px; margin-bottom: 16px; }
 
 .bs-hd { display: flex; flex-direction: column; gap: 4px; }
+/* Centred over the centred composer, and the blurb dimmed to match the
+   council's idle hint -- it is context, not content. */
+.bs:has(.bs-start) .bs-hd { align-items: center; text-align: center; max-width: 900px; margin: 0 auto; }
+.bs:has(.bs-start) .bs-sub { color: color-mix(in srgb, var(--txm) 78%, transparent); }
 .bs-title {
   font-size: 11px; font-weight: 700; letter-spacing: 2.2px;
   text-transform: uppercase; color: var(--gold);
@@ -1488,9 +1497,19 @@ table.doctor code { color: var(--txd); font-size: 11px; }
   .bs-start, .bs-reply, .bs-plan-bar, .bs-round-hd { max-width: none; }
 }
 
+/* The same card as the council's composer: same surface, same 16px radius,
+   same focus ring. It was a hard-edged panel with a gold rule down its left
+   side, which said "log entry" where the council's says "type here" -- and
+   they are the same act. The gold stays on the heading, which is what
+   actually distinguishes the two modes. */
 .bs-start {
-  background: var(--s1); border: 1px solid var(--bd);
-  border-left: 3px solid var(--gold); border-radius: 2px; padding: 12px;
+  background: var(--s2); border: 1px solid var(--bd);
+  border-radius: 16px; padding: 10px 10px 8px;
+  transition: border-color .15s, box-shadow .15s, background .15s;
+}
+.bs-start:focus-within {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gold) 16%, transparent);
 }
 .bs-topic {
   width: 100%; min-height: 92px; resize: vertical; background: transparent;
@@ -3496,7 +3515,7 @@ function renderOfflineNote() {
   const why = {
     "no API token set": "The engine is not answering on this device, and no API token has reached this browser yet — so there is nothing to look up a tunnel with. Open MAGI once on the engine device and it hands the token over automatically.",
     "token rejected": "The engine is there, but it did not accept this token.",
-    "engine has not published": "The engine device has not published a tunnel. It is probably asleep, off, or was started with <code>magi</code> rather than <code>magi cloud</code>.",
+    "engine has not published": "The engine has not published a tunnel yet. If it was just restarted this takes a few minutes — a fresh tunnel gets a new address and MAGI waits for public DNS to catch up before publishing it, so a half-registered address is never handed to your phone. Otherwise the device is asleep, off, or was started with <code>magi</code> rather than <code>magi cloud</code>.",
     "tunnel is dead": "The published tunnel no longer answers. If the engine device was just restarted this clears itself in a minute or two, once the replacement tunnel registers; otherwise cloudflared has stopped since it was published.",
     "backend not responding": "The backend is not answering on this machine.",
     "backend wants a token": "The engine is running but is asking for the API token, and this page has none saved.",
