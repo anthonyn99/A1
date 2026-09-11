@@ -254,6 +254,31 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .wl-muted{color:var(--txm);font-size:11px;line-height:1.7;}
 .wl-loading{text-align:center;padding:60px 16px;color:var(--txm);font-size:11px;text-transform:uppercase;letter-spacing:2px;font-weight:700;}
 </style>
+<style id="ui-cap-2000">
+/* == Suite-wide 2000px UI cap ==============================================
+   Past 2000px the interface stops growing and only the page BACKGROUND keeps
+   going, so on an ultrawide monitor Wellness stays a readable centred column
+   instead of stretching its layout across a metre of glass. index.html has
+   worked this way from the start; this is the same cap, stated once.
+
+   body carries it because every piece of chrome lives inside body -- with one
+   exception that is easy to miss: a position:fixed element is laid out against
+   the VIEWPORT, so it ignores an ancestor's max-width completely. Such a bar
+   stays full width while everything around it narrows, which looks like the
+   cap simply failed rather than like one rule missing. Each is therefore
+   listed below by name, so a NEW fixed bar shows up as absent from this list
+   instead of silently inheriting nothing.
+
+   `margin-inline:auto` is what centres them: for a fixed box with both left
+   and right resolved, auto margins split the leftover space. So the bars need
+   no transform and keep their own inset rules intact.
+
+   The background still fills the screen: a body background propagates to the
+   canvas, and the apps that also paint html paint it the same colour.
+
+   tests/ui-width-cap.test.js fails the build if any of this goes missing. */
+body { max-width: 2000px; margin-inline: auto; }
+</style>
 </head>
 <body>
 

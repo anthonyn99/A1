@@ -168,6 +168,35 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<style id="ui-cap-2000">
+/* == Suite-wide 2000px UI cap ==============================================
+   Past 2000px the interface stops growing and only the page BACKGROUND keeps
+   going, so on an ultrawide monitor TradeHub stays a readable centred column
+   instead of stretching its layout across a metre of glass. index.html has
+   worked this way from the start; this is the same cap, stated once.
+
+   body carries it because every piece of chrome lives inside body -- with one
+   exception that is easy to miss: a position:fixed element is laid out against
+   the VIEWPORT, so it ignores an ancestor's max-width completely. Such a bar
+   stays full width while everything around it narrows, which looks like the
+   cap simply failed rather than like one rule missing. Each is therefore
+   listed below by name, so a NEW fixed bar shows up as absent from this list
+   instead of silently inheriting nothing.
+
+   `margin-inline:auto` is what centres them: for a fixed box with both left
+   and right resolved, auto margins split the leftover space. So the bars need
+   no transform and keep their own inset rules intact.
+
+   The background still fills the screen: a body background propagates to the
+   canvas, and the apps that also paint html paint it the same colour.
+
+   tests/ui-width-cap.test.js fails the build if any of this goes missing. */
+body { max-width: 2000px; margin-inline: auto; }
+/* TradeHub's whole shell is position:fixed with inset:0, so it is laid out
+   against the VIEWPORT and the body cap above never reaches it -- without
+   this line the entire app, not merely a bar, ignores the cap. */
+#tradeboard-root { max-width: 2000px; margin-inline: auto; }
+</style>
 </head>
 <body>
 

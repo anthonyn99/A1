@@ -32,6 +32,25 @@ html, body {
 body { display: flex; flex-direction: column; }
 #study-root { flex: 1; min-height: 0; }
 
+/* == Suite-wide 2000px UI cap (ui-cap-2000) ================================
+   Past 2000px the interface stops growing and only the page BACKGROUND keeps
+   going, so on an ultrawide monitor StudyOS stays a readable centred column
+   instead of stretching its sidebar-plus-content layout across a metre of
+   glass. Every other A1 program carries the identical cap.
+
+   The background still fills the screen because html paints #1B1C1E in its
+   own right (see the html,body rule above) -- narrowing body therefore
+   reveals the page ground, not white.
+
+   #sos-bottom-nav needs the cap restated because a position:fixed element is
+   laid out against the VIEWPORT and ignores an ancestor's max-width entirely;
+   without this it is the one bar still running the full width of the screen.
+   `margin-inline:auto` centres it: with left and right both 0, auto margins
+   split the leftover space, so its existing inset rules stay untouched. */
+body { max-width: 2000px; margin-inline: auto; }
+#sos-bottom-nav { max-width: 2000px; margin-inline: auto; }
+
+
 /* Hide the app until the App Lock has decided whether to gate it. Removing
  * the attribute is the ONLY thing that reveals content, so a locked StudyOS
  * can never flash its data before the overlay paints. */
