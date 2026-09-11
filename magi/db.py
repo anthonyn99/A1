@@ -338,6 +338,30 @@ class Database:
                 "synthesis": dict(syn) if syn else None,
             }
 
+    async def delete_run(self, run_id: str) -> bool:
+        """Forget a deliberation completely.
+
+        Every child table is named explicitly rather than relying on cascade:
+        SQLite enforces foreign keys only when PRAGMA foreign_keys is ON, which
+        is per-connection and off by default, so a cascade that "works" in a
+        test can silently leave orphans in production. Answers and syntheses
+        are the whole point of deleting -- they are the model's full text --
+        and a run row that is gone while its answers remain is a leak that
+        nothing would ever surface again.
+
+        Returns whether there was anything to delete, so the caller can tell
+        "removed" from "was not there" instead of reporting success either way.
+        """
+        async with aiosqlite.connect(self.path) as db:
+            cur = await db.execute("SELECT 1 FROM runs WHERE id=?", (run_id,))
+            if not await cur.fetchone():
+                return False
+            for table in ("answers", "syntheses", "run_events", "studio_artifacts"):
+                await db.execute(f"DELETE FROM {table} WHERE run_id=?", (run_id,))
+            await db.execute("DELETE FROM runs WHERE id=?", (run_id,))
+            await db.commit()
+        return True
+
     async def list_runs(self, limit: int = 50, offset: int = 0) -> list[dict]:
         async with aiosqlite.connect(self.path) as db:
             db.row_factory = aiosqlite.Row

@@ -463,6 +463,29 @@ def _studio_payload(row: dict) -> dict:
     return out
 
 
+@app.delete("/api/runs/{run_id}")
+async def delete_run(run_id: str):
+    """Forget a deliberation on this machine.
+
+    The engine's copy only. The console removes the cloud copy itself, from
+    the browser that has the Firestore session -- the engine has no Firebase
+    credentials and should not grow any, because that would mean the machine
+    holding four logged-in accounts also holding the keys to the sync store.
+
+    Refuses while the run is in flight: deleting the rows a live SSE stream is
+    still writing to would leave half a run behind and a stream reporting
+    progress on something that no longer exists.
+    """
+    state = _runs.get(run_id)
+    if state and not state.get("done"):
+        raise HTTPException(409, "That deliberation is still running.")
+    removed = await db.delete_run(run_id)
+    _runs.pop(run_id, None)
+    # Attachments were staged per run, so they go with it.
+    shutil.rmtree(UPLOADS_DIR / run_id, ignore_errors=True)
+    return {"id": run_id, "removed": removed}
+
+
 @app.post("/api/runs/{run_id}/studio/{kind}")
 async def create_studio_artifact(run_id: str, kind: str, providers: str = Form("")):
     try:
