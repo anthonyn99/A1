@@ -1605,6 +1605,18 @@ table.doctor code { color: var(--txd); font-size: 11px; }
 /* The top bar's copy exists only on mobile, where .mtop itself is hidden
    above the breakpoint -- so no separate rule is needed to hide it. */
 .mtop .lock-btn { margin-left: 4px; }
+/* Two icon buttons share the sidebar header with a 232px rail and a wordmark.
+   `margin-left: auto` on EACH of them put a spring before both, so the pair
+   was pushed apart and the tagline lost the width -- it clipped to
+   "DELIBERATION SYS". The brand takes the slack instead, and the buttons sit
+   together at the end where a pair of controls belongs. */
+.side-top .side-brand { flex: 1 1 auto; }
+/* Measured, not guessed: at 232px with two header buttons the tagline needed
+   124px and had 103. It is decorative text, so it gives up the letter-spacing
+   rather than the header giving up a control. */
+.side-top .tagline { font-size: 7.5px; letter-spacing: .65px; }
+.side-top .lock-btn { margin-left: 0; width: 27px; height: 27px; }
+.side-top .lock-btn svg { width: 15px; height: 15px; }
 @media (max-width: 760px) { .sidebar .lock-btn { display: flex; } }
 
 /* Pull-to-refresh indicator. Parked above the top of the scroller and pulled
