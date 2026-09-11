@@ -49,6 +49,12 @@
  *     are left with the old tab sitting there, which is the behaviour we had
  *     before and never worse.
  *
+ * A tab can also be handed its key in the url as ?a1tab=<key>, for an opener
+ * that has no way to set window.name — the Vault extension's toolbar popup
+ * opens vault.html with chrome.tabs.create, which takes a url and nothing else.
+ * The parameter is adopted and stripped on load, and from there the tab behaves
+ * like any other named one.
+ *
  * Cross-origin destinations (a custom link to gmail.com) cannot run any of
  * this. They keep the window-name pairing and nothing else, which is all a page
  * is allowed to know about another origin's tabs.
@@ -64,15 +70,45 @@
   var LS_PREFIX = 'a1tab:';
   var BEAT_MS = 5000;
 
-  // The key comes from window.name, which _tnOpenTab set when it opened this
-  // tab. sessionStorage is the backup copy: it is per-tab and IS restored with
-  // the tab, so the pairing survives even if the name does not come back.
-  var key = null;
-  var m = /^a1tab_(.+)$/.exec(String(window.name || ''));
-  if (m) key = m[1];
+  // A third way in, for openers that cannot name a window: ?a1tab=<key> in the
+  // url. The Vault browser extension opens vault.html from its toolbar popup,
+  // where there is no window.open to name the tab with — chrome.tabs.create
+  // takes a url and nothing else — so the key travels in the query string. It
+  // is consumed here and stripped from the address bar, leaving the tab paired
+  // exactly as if _tnOpenTab had opened it, so Index's Vault button finds it
+  // instead of opening a second copy.
+  //
+  // Sanitised the same way index.html's tabName()/storeKey() sanitise, or the
+  // two sides would disagree about the key for any id carrying a dash, and
+  // ranked FIRST: a key in the url is the opener saying what this tab is for
+  // now, which outranks one left in sessionStorage from what it used to be.
+  var urlKey = null;
   try {
-    if (key) sessionStorage.setItem('a1TabKey', key);
-    else {
+    var params = new URLSearchParams(location.search);
+    var raw = params.get('a1tab');
+    if (raw) {
+      urlKey = raw.replace(/[^A-Za-z0-9_]/g, '_');
+      params.delete('a1tab');
+      var qs = params.toString();
+      history.replaceState(history.state, '',
+        location.pathname + (qs ? '?' + qs : '') + location.hash);
+    }
+  } catch (e) { urlKey = null; }
+
+  // Otherwise the key comes from window.name, which _tnOpenTab set when it
+  // opened this tab. sessionStorage is the backup copy: it is per-tab and IS
+  // restored with the tab, so the pairing survives even if the name does not
+  // come back.
+  var key = urlKey;
+  if (!key) {
+    var m = /^a1tab_(.+)$/.exec(String(window.name || ''));
+    if (m) key = m[1];
+  }
+  try {
+    if (key) {
+      sessionStorage.setItem('a1TabKey', key);
+      window.name = PREFIX + key;   // a no-op unless the key arrived by url
+    } else {
       key = sessionStorage.getItem('a1TabKey') || null;
       if (key) window.name = PREFIX + key;
     }
