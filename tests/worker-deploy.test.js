@@ -147,6 +147,74 @@ const dupes = workers.filter((n) => workers2.includes(n));
 t('workers/ and workers2/ do not overlap', dupes.length === 0,
   dupes.length ? 'In both: ' + dupes.join(', ') + '. A move must DELETE the old copy.' : '');
 
+// ── The two ways a deploy dies silently ────────────────────────────────────
+// Both of these actually happened, together, on 2026-09-11, and between them
+// they kept EVERY workers/ deploy red from 06:16 onward. taskhub-reminders was
+// the worker stuck, and it carries the suite's auth — app locks, password
+// hints, reset codes — so a fix for recovery email sat in main, committed and
+// undeployed, while reset codes went on not arriving.
+section('Every output a deploy job reads is actually declared');
+// deploy-studyos-ai gates on `needs.changes.outputs.studyosai`. The filter
+// existed, the job existed, and the OUTPUT did not — so the expression
+// resolved to empty string, the job skipped on every run since the day it was
+// added, and studyos-ai was never deployed even once. Nothing reported it: a
+// skipped job is green.
+// Normalised: the workflow file is checked out CRLF on Windows (.gitattributes
+// pins only *.sh and *.bat), and a \n-anchored pattern silently matches nothing
+// there — which would have made this check pass by finding no outputs at all.
+const WF_LF = WF.replace(/\r\n/g, '\n');
+const changesBlock = (WF_LF.match(/outputs:\n([\s\S]*?)\n\s*steps:/) || [])[1] || '';
+const declared = new Set(
+  (changesBlock.match(/^\s*([A-Za-z0-9_]+):/gm) || [])
+    .map((l) => l.trim().replace(':', '')));
+const readOutputs = new Set(
+  (WF_LF.match(/needs\.changes\.outputs\.([A-Za-z0-9_]+)/g) || [])
+    .map((s) => s.split('.').pop()));
+const undeclared = [...readOutputs].filter((o) => !declared.has(o));
+t('no job gates on an undeclared output', undeclared.length === 0,
+  undeclared.length
+    ? 'Read but never declared on the changes job: ' + undeclared.join(', ') +
+      '. The job silently never runs.'
+    : '');
+
+section('No worker binds to a worker that is not deployable');
+// A service binding is resolved by Cloudflare AT DEPLOY TIME. Binding to a
+// worker that does not exist on the account does not degrade — it makes
+// `wrangler deploy` REJECT the worker doing the binding. That is how one
+// unfinished feature (studyos-ai, whose KV namespace is deliberately still
+// commented out) took the whole auth worker off the air.
+//
+// A config that is not ready to ship says so with the marker below, and this
+// check makes that declaration binding on everyone else.
+const NOT_DEPLOYABLE = /DO NOT DEPLOY/i;
+const notReady = new Set();
+[['workers', workers], ['workers2', workers2]].forEach(([dir, names]) => {
+  names.forEach((n) => { if (NOT_DEPLOYABLE.test(configFor(dir, n).text)) notReady.add(n); });
+});
+[['workers', workers], ['workers2', workers2]].forEach(([dir, names]) => {
+  names.forEach((n) => {
+    const { text } = configFor(dir, n);
+    // Uncommented lines only — a binding parked behind `#` is the documented
+    // way to wait for the target, and must not be reported as live.
+    const live = text.split('\n').filter((l) => !/^\s*(#|\/\/)/.test(l));
+    const targets = [];
+    live.forEach((l) => {
+      const m = l.match(/^\s*service\s*=\s*"([^"]+)"/) || l.match(/"service"\s*:\s*"([^"]+)"/);
+      if (m) targets.push(m[1]);
+    });
+    targets.forEach((target) => {
+      t(n + ' binds to ' + target + ', which is deployable', !notReady.has(target),
+        target + "'s config is marked DO NOT DEPLOY, so it does not exist on the " +
+        'account. Cloudflare resolves service bindings at deploy time, so this ' +
+        'does not degrade — it fails ' + n + "'s deploy outright. Comment the " +
+        'binding out until ' + target + ' ships.');
+      t(n + ' binds to ' + target + ', which exists in the repo',
+        workers.includes(target) || workers2.includes(target),
+        'No worker directory named ' + target + ' in either lane.');
+    });
+  });
+});
+
 section('The backup worker specifically');
 // workers2/, not workers/: it moved to the second Cloudflare account, being the
 // fastest-growing KV writer on account 1.

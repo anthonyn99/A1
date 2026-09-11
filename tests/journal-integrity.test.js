@@ -29,7 +29,16 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'tradehub.html'), 'utf8');
+// Normalised to LF. The slice markers below are written with \n (see
+// slice('function tbCsvSig(entry){', '\n}\n')), and core.autocrlf checks these
+// pages out as CRLF on Windows — so against a fresh clone the markers matched
+// nothing and this file died with "end marker not found". It passed here only
+// because tradehub.html happened to be sitting in the working tree with LF
+// endings; the moment git rewrote it, a test of the journal's data-loss guards
+// stopped running at all. Reading the file is not the same as reading the bytes
+// git stores, and the markers must not care which one they got.
+const SRC = fs.readFileSync(path.join(__dirname, '..', 'tradehub.html'), 'utf8')
+  .replace(/\r\n/g, '\n');
 
 let failures = 0;
 const check = (name, pass, detail) => {
