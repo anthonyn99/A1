@@ -26,6 +26,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
+from . import accounts as accounts_mod
 from .db import Database
 from .engine import brainstorm as brainstorm_engine
 from .engine import refine as refine_engine
@@ -1510,6 +1511,101 @@ async def refine_prompt(
         "display_name": provider.display_name,
         "latency_ms": ms,
     }
+
+
+# ── accounts ────────────────────────────────────────────────────────────────
+# Which account each unit is signed in as, and how to change it. See
+# magi/accounts.py for why none of this scrapes an email address.
+#
+# Everything here drives a browser ON THE ENGINE DEVICE. A phone can start a
+# sign-in, but the window opens where the profiles live, which is the only
+# place it could possibly open -- so the console says so rather than leaving
+# someone watching a phone for a window that is never coming.
+
+_logins: dict[str, accounts_mod.LoginJob] = {}
+
+
+@app.get("/api/accounts")
+async def list_accounts():
+    _reload_settings()
+    return accounts_mod.listing(settings)
+
+
+@app.post("/api/accounts/{site_id}/label")
+async def label_account(site_id: str, label: str = Form("")):
+    if site_id not in settings.sites:
+        raise HTTPException(404, f"Unknown unit {site_id!r}")
+    return accounts_mod.set_label(site_id, label)
+
+
+@app.post("/api/accounts/{site_id}/check")
+async def check_account(site_id: str):
+    """One browser, one unit, on request.
+
+    Opening seven to render a settings tab would be absurd, so the listing
+    reads the filesystem and this is the live answer for a single unit.
+    """
+    _reload_settings()
+    if site_id not in settings.sites:
+        raise HTTPException(404, f"Unknown unit {site_id!r}")
+    if _profiles_busy():
+        raise HTTPException(
+            409, "The council is working right now — wait for it to finish."
+        )
+    return await accounts_mod.check(settings, site_id)
+
+
+@app.post("/api/accounts/{site_id}/signout")
+async def signout_account(site_id: str):
+    if site_id not in settings.sites:
+        raise HTTPException(404, f"Unknown unit {site_id!r}")
+    if _profiles_busy():
+        raise HTTPException(
+            409, "The council is working right now — wait for it to finish."
+        )
+    return accounts_mod.sign_out(site_id)
+
+
+@app.post("/api/accounts/{site_id}/login")
+async def start_login(site_id: str):
+    """Open a sign-in window on the engine device.
+
+    One at a time per unit: two windows onto the same profile directory means
+    Chrome refuses the second with a profile lock, and the first one's session
+    is what you were half-way through typing into.
+    """
+    _reload_settings()
+    if site_id not in settings.sites:
+        raise HTTPException(404, f"Unknown unit {site_id!r}")
+    if _profiles_busy():
+        raise HTTPException(
+            409, "The council is working right now — wait for it to finish, then sign in."
+        )
+    live = _logins.get(site_id)
+    if live and live.state in ("opening", "waiting"):
+        return live.snapshot()
+
+    job = accounts_mod.LoginJob(site_id=site_id)
+    _logins[site_id] = job
+    asyncio.create_task(accounts_mod.run_login(settings, job))
+    return job.snapshot()
+
+
+@app.get("/api/accounts/{site_id}/login")
+async def login_status(site_id: str):
+    job = _logins.get(site_id)
+    if not job:
+        raise HTTPException(404, "No sign-in is running for that unit.")
+    return job.snapshot()
+
+
+@app.post("/api/accounts/{site_id}/login/cancel")
+async def cancel_login(site_id: str):
+    job = _logins.get(site_id)
+    if not job:
+        raise HTTPException(404, "No sign-in is running for that unit.")
+    job.cancel.set()
+    return job.snapshot()
 
 
 @app.post("/api/doctor")
