@@ -1321,6 +1321,7 @@ async def finalize_brainstorm(
             ctx = RunContext(
                 run_id=f"{session_id}-final",
                 question=next(iter(member_prompts.values()), topic),
+                attachments=_session_attachments(session_id),
             )
             answers = await _fan_out_each(
                 orch, members, member_prompts, ctx, on_event, state["cancel"]

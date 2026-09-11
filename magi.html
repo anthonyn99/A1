@@ -1156,7 +1156,10 @@ table.doctor, table.doctor code, .v-table, .studio-table,
 /* Narrower than the panel. At full width the label input ran the length of
    the screen for a phrase like "personal gmail", and the buttons ended up a
    forearm away from the name they act on. */
-.acc-note, .acc-topbar, .acc-card { max-width: 720px; }
+/* Centred, not left-hugging. A 720px column pinned to the left edge of a
+   1400px panel reads as an unfinished layout rather than a deliberate
+   measure -- and every other panel in this console centres. */
+.acc-note, .acc-topbar, .acc-card { max-width: 720px; margin-left: auto; margin-right: auto; }
 .acc-card {
   border: 1px solid var(--bdl); border-left: 4px solid var(--pa, var(--ac));
   border-radius: var(--r-card); background: var(--s2);
@@ -1823,11 +1826,16 @@ table.doctor code { color: var(--txd); font-size: 11px; }
 .lock-row .btn { flex: 1; justify-content: center; }
 .lock-msg { min-height: 17px; font-size: 11.5px; color: var(--red); text-align: center; margin-top: 10px; }
 .lock-msg.ok { color: var(--grn); }
+/* Outlined like every other control on this screen. It was the one bare
+   text link among four framed buttons, which read as a footnote rather than
+   as the way out -- and it is the way out. */
 .lock-link {
-  display: block; width: 100%; margin-top: 12px; background: none; border: 0;
+  display: block; width: 100%; margin-top: 12px; background: none;
+  border: 1px solid var(--bd); border-radius: var(--r-btn);
+  padding: 9px 14px;
   color: var(--txm); font: inherit; font-size: 11px; text-align: center;
 }
-.lock-link:hover { color: var(--ac); }
+.lock-link:hover { color: var(--ac); border-color: var(--ac); }
 .lock-bio { margin-top: 12px; }
 .lock-bio .btn { width: 100%; justify-content: center; }
 /* A wrong password shakes rather than only printing -- the message is small
@@ -2866,7 +2874,7 @@ body { max-width: 2000px; margin-inline: auto; }
 
     <div class="members" id="unitBar">
       <button type="button" class="label label-btn" id="chairBtn"
-              title="Who writes the verdict">Units</button>
+              title="Units, and which one chairs">Units</button>
       <span id="unitChips"></span>
     </div>
 
@@ -4345,6 +4353,62 @@ function setQuestion(v) {
 
 /** Stages files for the next question. Rejects rather than silently
  *  truncating, so a user who drops 12 files learns why only some landed. */
+/** The brainstorm's attachment list. Same rules as the council's, and the
+ *  same reason for each: a cap because these are typed into a chat composer's
+ *  own upload control, and a size limit because that control is sized for a
+ *  few reference files rather than bulk transfer. */
+function bsAddFiles(incoming) {
+  const bs = S.bs;
+  bs.attachments = bs.attachments || [];
+  const list = Array.from(incoming);
+  if (!list.length) return;
+  let err = null;
+  for (const file of list) {
+    if (bs.attachments.length >= MAX_ATTACHMENTS) {
+      err = `Only ${MAX_ATTACHMENTS} attachments per session.`;
+      break;
+    }
+    if (file.size > MAX_ATTACHMENT_BYTES) { err = `${file.name} exceeds the 20MB limit.`; continue; }
+    bs.attachments.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, file });
+  }
+  renderBsView();
+  if (err) setErr("bsAttachError", err);
+}
+
+/** The chip strip, built into whatever box it is given.
+ *
+ *  Takes its container rather than looking one up by id: renderBsView rebuilds
+ *  the whole panel, so the element this writes into is younger than any
+ *  reference captured before the render. */
+function renderBsChipsInto(box) {
+  const bs = S.bs;
+  box.textContent = "";
+  for (const a of bs.attachments || []) {
+    const c = el("div", "chipfile");
+    if (a.file.type.startsWith("image/")) {
+      const img = el("img", "chipfile-thumb");
+      img.src = URL.createObjectURL(a.file);
+      img.alt = "";
+      img.onload = () => URL.revokeObjectURL(img.src);
+      c.append(img);
+    } else {
+      c.append(el("span", "chipfile-icon", "\u25a4"));
+    }
+    const info = el("span", "chipfile-info");
+    info.append(el("span", "chipfile-name", a.file.name),
+                el("span", "chipfile-size", fmtBytes(a.file.size)));
+    const x = el("button", "chipfile-x", "\u2715");
+    x.type = "button";
+    x.title = "Remove";
+    x.onclick = () => {
+      bs.attachments = (bs.attachments || []).filter((f) => f.id !== a.id);
+      renderBsView();
+    };
+    c.append(info, x);
+    box.append(c);
+  }
+}
+
 function addFiles(incoming) {
   const list = Array.from(incoming);
   if (!list.length) return;
@@ -5449,7 +5513,7 @@ function renderUnitChips() {
       // unit's identity and for whether it is ticked.
       const st = el("span", "chip-chair");
       st.innerHTML = IC.chair;
-      st.title = `${p.display_name} writes the verdict \u2014 click to change`;
+      st.title = `${p.display_name} is the chairman \u2014 it writes the verdict. Click to change.`;
       b.append(st);
       b.classList.add("is-chair");
     }
@@ -5520,11 +5584,13 @@ async function setChair(id) {
 function openChairPicker() {
   const sheet = el("div", "sheet");
   const box = el("div", "sheet-box");
-  box.append(el("div", "sheet-hd", "Head of the council"));
+  box.append(el("div", "sheet-hd", "Chairman"));
   box.append(el("div", "sheet-sub",
-    "The head reads every member's answer and writes the verdict. Which one " +
-    "it is changes the verdict, so it is worth choosing deliberately \u2014 a " +
-    "member you trust to weigh the others, rather than the one you like most."));
+    "The chairman is the member that reads every other answer and writes the " +
+    "verdict. It does not get a vote and it is not a tie-breaker \u2014 it decides " +
+    "what the council's answer actually says, so the choice changes the " +
+    "verdict. Pick the member you would trust to weigh the others, not the " +
+    "one you rate highest on its own."));
 
   const list = el("div", "chair-list");
   for (const p of orderedProviders()) {
@@ -5536,7 +5602,7 @@ function openChairPicker() {
     names.append(el("div", "chair-sub", UNIT[p.id] || p.id));
     row.append(names);
     const tags = el("div", "chair-tags");
-    if (CHAIR.id === p.id) tags.append(el("span", "doc-flag ok", "Head"));
+    if (CHAIR.id === p.id) tags.append(el("span", "doc-flag ok", "Chairman"));
     if (!S.selected.has(p.id)) tags.append(el("span", "doc-flag na", "Unticked"));
     row.append(tags);
     row.onclick = () => { setChair(p.id); sheet.remove(); };
@@ -5547,11 +5613,11 @@ function openChairPicker() {
   const note = el("div", "sheet-note");
   const chairSelected = CHAIR.id && S.selected.has(CHAIR.id);
   note.innerHTML = chairSelected
-    ? "A single-unit run has no head at all: with one member there is nothing " +
-      "to synthesise, so its answer <i>is</i> the verdict."
-    : "<b>The head is not ticked.</b> It cannot chair a run it is not part of, " +
-      "so the verdict will be written by the first ticked member in the " +
-      "fallback order instead. Tick it, or pick a head you are using.";
+    ? "A single-unit run has no chairman at all: with one member there is " +
+      "nothing to synthesise, so its answer <i>is</i> the verdict."
+    : "<b>The chairman is not ticked.</b> It cannot chair a run it is not part " +
+      "of, so the verdict will be written by the first ticked member in the " +
+      "fallback order instead. Tick it, or choose a chairman you are using.";
   box.append(note);
 
   const bar = el("div", "sheet-bar");
@@ -6312,6 +6378,7 @@ $("studioCancel").onclick = () => S.studio.active && cancelStudio(S.studio.activ
 
 S.bs = {
   sessionId: null, topic: "", status: "active", rounds: [], busy: false,
+  attachments: [],
   phase: "idle",   // idle | council | merging | writing
   error: null, planFilename: null, planMd: null, savedTo: null,
   sessions: [], reply: "", answers: {},   // answers keyed by question index
@@ -6602,6 +6669,7 @@ async function startBrainstorm(rawTopic) {
     const form = new FormData();
     form.append("topic", t);
     form.append("providers", [...S.selected].join(","));
+    for (const a of S.bs.attachments || []) form.append("files", a.file, a.file.name);
     const res = await fetch(`${link.api}/api/brainstorm`, authed({ method: "POST", body: form }));
     if (!res.ok) throw new Error(((await res.json()) || {}).detail || "Could not start.");
     const { session_id } = await res.json();
@@ -6983,7 +7051,39 @@ function renderBsView() {
     start.append(ta);
     if (bs.refineError) start.append(el("div", "qbar-error", bs.refineError));
 
+    // Attachments, exactly as the council's composer does them: the same
+    // limits, the same chip strip, the same hidden native input behind a +.
+    // They are staged with the SESSION rather than with a round, because
+    // every round of a brainstorm is about the same material.
+    const chips = el("div", "qbar-chips");
+    chips.id = "bsChips";
+    show(chips, (bs.attachments || []).length > 0);
+    renderBsChipsInto(chips);
+    start.append(chips);
+    const aerr = el("div", "qbar-error");
+    aerr.id = "bsAttachError";
+    show(aerr, false);
+    start.append(aerr);
+
     const bar = el("div", "bs-start-bar");
+
+    const fileIn = el("input");
+    fileIn.type = "file";
+    fileIn.multiple = true;
+    fileIn.hidden = true;
+    fileIn.onchange = (e) => {
+      if (e.target.files && e.target.files.length) bsAddFiles(e.target.files);
+      e.target.value = "";
+    };
+    const attach = el("button", "qbar-attach");
+    attach.type = "button";
+    attach.title = "Attach files";
+    attach.setAttribute("aria-label", "Attach files");
+    attach.innerHTML = IC.attach;
+    attach.disabled = busy || (bs.attachments || []).length >= MAX_ATTACHMENTS;
+    attach.onclick = () => fileIn.click();
+    bar.append(fileIn, attach);
+
     const refineBtn = el("button", `qbar-refine ${bs.refining ? "busy" : ""}`);
     refineBtn.type = "button";
     refineBtn.id = "bsRefine";
@@ -7007,9 +7107,12 @@ function renderBsView() {
       bar.append(undo);
     }
 
-    const n = S.selected.size;
-    bar.append(el("span", "bs-note",
-      `${n} unit${n === 1 ? "" : "s"} selected · each round takes a few minutes`));
+    // A spacer, not a note. The unit count was already on the chips directly
+    // underneath, and "each round takes a few minutes" is something you learn
+    // once -- so it was two facts competing for the place where the council
+    // puts nothing, and it pushed Begin session away from the right edge
+    // where Convene sits.
+    bar.append(el("span", "qbar-spacer"));
     bar.append(el("span", "qbar-spacer"));
     const begin = el("button", "btn active", "Begin session");
     begin.id = "bsBegin";
@@ -7767,7 +7870,10 @@ async function deleteRun(r) {
   S.history = S.history.filter((x) => x.id !== r.id);
   // The run that was open has just been deleted -- leaving it on screen
   // invites a Studio card generated from something that no longer exists.
-  if (S.runId === r.id) newRun();
+  // But newRun() also switches to the council, and being thrown onto a blank
+  // composer after tidying up History is not what tidying up means: you were
+  // in a list, you are still in a list.
+  if (S.runId === r.id) { newRun(); setView("history"); }
   mergeHistory();
   if (failed) setSync("error", failed); else setSync("saved");
 }
