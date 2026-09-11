@@ -327,6 +327,66 @@ rhetorical device — but a member can decline at length. An offer to proceed
 ("Should I…?", "Would you like me to…?") under 1,200 characters is now rejected
 the same way: in a one-shot council, asking permission is declining.
 
+## Accounts — which account each unit is signed in as
+
+**System → Accounts.** One card per unit: whether a session is saved, whether
+it still works, how big the profile is, and a label you write yourself.
+
+Three deliberate omissions, all in `magi/accounts.py`:
+
+- **It does not scrape the account's email.** Seven more selectors, all behind
+  logins, each of which would rot into showing the *wrong* account — worse
+  than showing none. You label the profile instead; a label you wrote is never
+  stale in a way that lies.
+- **It does not open a browser to build the list.** Seven Chrome launches to
+  render a settings tab is absurd. The listing reads the filesystem; **Check**
+  is one unit, on request, and is the only honest answer to "does this session
+  still work" — a profile folder existing proves nothing.
+- **It never sees your credentials.** *Sign in* opens the real site in a real
+  window **on the engine device** — the only place it can open, since that is
+  where the profiles live — and MAGI watches the page until the composer
+  appears. *Sign out* deletes MAGI's copy of that session so you can sign in
+  as somebody else; it is not a sign-out at the provider, and your personal
+  Chrome is never touched.
+
+A phone can start a sign-in. The window still opens at the engine device, and
+the panel says so rather than leaving you watching a phone for a window that
+is never coming.
+
+## Adding a unit
+
+Three files, and the two that are easy to forget are both in `magi.html`:
+
+1. `magi/config/selectors.yaml` — the site block. **Discover the selectors
+   against the live page**; a guess ships a unit that looks configured and
+   never answers. `magi doctor <site>` then confirms them and names anything
+   that does not match.
+2. `magi/config/magi.yaml` — `providers.<id>.enabled`.
+3. `magi.html` — a codename in `UNIT` and a stagger in `PHASE`. Neither throws
+   when missing, so neither gets noticed: `magi/tests/test_units.py` fails
+   instead, and also refuses two units sharing an accent colour.
+
+### The seven
+
+| Unit | Codename | Verified |
+|---|---|---|
+| ChatGPT | MELCHIOR·01 | yes |
+| Claude | BALTHASAR·02 | yes |
+| Gemini | CASPER·03 | yes |
+| DeepSeek | ADAM·04 | yes |
+| Perplexity | LILITH·05 | composer, submit, answer and stop probed live |
+| Grok | TABRIS·06 | composer and submit probed live; answer and stop **not** — logged out, Grok accepts the question and never answers |
+| Copilot | SEELE·07 | **none** — a sign-in wall, no reachable composer. Shipped `enabled: false` |
+
+Perplexity earns its place by being the one member that is search-grounded by
+default: where the others reason from training data, it reads today's page.
+That is exactly the disagreement a council exists to surface.
+
+For Grok and Copilot: sign in from the Accounts tab, then `magi doctor <id>`.
+It primes the composer, names every field that does not match and prints the
+line to change. Enabling a unit whose selectors are unverified costs a timeout
+on every run, which is why Copilot ships off.
+
 ## When a site changes its UI
 
 This is the routine maintenance task, and it does not require touching Python.

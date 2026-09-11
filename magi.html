@@ -280,6 +280,29 @@ body {
 }
 .page > * { max-width: 2000px; margin-left: auto; margin-right: auto; }
 
+/* ── the idle council ─────────────────────────────────────────────────────
+   Before a question is asked there is nothing below the composer but an empty
+   page, so the composer sits in the middle of it -- the shape every search
+   page has, for the same reason. Hitting Convene drops this class and the
+   whole block rises to the top, making room for the units, the grid and the
+   verdict underneath.
+
+   A margin rather than a centring flex container: .page is the scroller and
+   holds the sticky mobile header, the offline banner and every drawer, so
+   turning it into a centred column would drag all of those into the middle
+   too. This moves only the thing that should move, and animates while doing
+   it. */
+.page .qbar { transition: margin-top .28s cubic-bezier(.4, 0, .2, 1); }
+.council-idle .qbar { margin-top: clamp(0px, calc(34vh - 150px), 260px); }
+.council-idle .empty-state { opacity: .8; }
+@media (max-width: 760px) {
+  /* A phone has no spare height to spend on this. */
+  .council-idle .qbar { margin-top: 4vh; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .page .qbar { transition: none; }
+}
+
 /* ── composer ─────────────────────────────────────────────────────────── */
 /* Modelled on Claude's own input box: one rounded card holding the text, an
    attachment strip, and a toolbar row -- rather than a bare textarea beside a
@@ -453,7 +476,19 @@ body {
 .chipfile-x:hover:not(:disabled) { color: var(--red); background: rgba(248, 81, 73, .12); }
 .chipfile-x:disabled { opacity: .4; cursor: not-allowed; }
 
-.members { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
+/* The composer is a centred column, not a full-bleed bar.
+   At 2000px a question box spanning the whole content area puts the caret
+   nowhere near the middle of the screen and leaves the Convene button a
+   thousand pixels from the text it sends. The grid and the verdict below stay
+   full width, because those genuinely use it. */
+.qbar, .members { max-width: 900px; margin-left: auto; margin-right: auto; width: 100%; }
+.members {
+  display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px;
+  align-items: center;
+  /* Centred under the composer rather than hugging the left edge, so the two
+     read as one control. */
+  justify-content: center;
+}
 .members .label { color: var(--txm); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
 
 /* Two stacked labels: the model name (what you are actually toggling) over
@@ -1024,6 +1059,49 @@ table.doctor, table.doctor code, .v-table, .studio-table,
   padding: 12px 14px; color: var(--txd); font-size: 11.5px; line-height: 1.5;
 }
 .doctor-running > .spin { color: var(--ac); flex-shrink: 0; }
+
+/* ── accounts ─────────────────────────────────────────────────────────────
+   One card per unit, in the same language as the doctor's report: an accent
+   stripe for identity, a status chip for the answer, and the actions at the
+   bottom where they cannot be hit by accident while reading. */
+.acc-note {
+  color: var(--txd); font-size: 11.5px; line-height: 1.65;
+  padding: 11px 13px; margin-bottom: 12px;
+  background: var(--s1); border: 1px solid var(--bd); border-radius: var(--r-card);
+}
+.acc-note b { color: var(--tx); }
+.acc-card {
+  border: 1px solid var(--bd); border-left: 3px solid var(--pa, var(--ac));
+  border-radius: var(--r-card); background: var(--s1);
+  padding: 11px 13px; margin-bottom: 10px;
+}
+.acc-hd { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.acc-names { min-width: 0; }
+.acc-name {
+  font-family: var(--font-display); font-size: 13px; font-weight: 800;
+  color: var(--tx); letter-spacing: .2px;
+}
+.acc-sub {
+  font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 1.3px;
+  text-transform: uppercase; color: var(--txm); margin-top: 1px;
+}
+.acc-flags { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+.acc-detail { color: var(--txm); font-size: 11px; line-height: 1.55; margin-top: 7px; }
+.acc-row { margin-top: 9px; }
+.acc-input {
+  width: 100%; background: var(--bg); color: var(--tx);
+  border: 1px solid var(--bd); border-radius: 7px;
+  padding: 8px 10px; font-family: inherit; font-size: 12px; outline: none;
+}
+.acc-input:focus { border-color: var(--ac); }
+.acc-input::placeholder { color: var(--txm); }
+.acc-actions { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-top: 10px; }
+.acc-meta { color: var(--txm); font-size: 10px; font-family: var(--font-mono); }
+.acc-busy {
+  display: flex; align-items: center; gap: 9px; margin-top: 10px;
+  color: var(--txd); font-size: 11.5px; line-height: 1.5;
+}
+.acc-busy .spin { color: var(--ac); flex-shrink: 0; }
 
 /* ── the doctor's report ──────────────────────────────────────────────────
    A verdict, then one card per unit, then the full field table folded away.
@@ -2523,6 +2601,9 @@ html.modal-open .page, html.modal-open .sidebar { overflow: hidden; }
           <span class="side-ic" id="navDoctorIc" data-ic="doctor"></span><span class="side-label" id="navDoctorLbl">Doctor</span>
           <span class="side-tag" id="navDoctorTag" hidden>✕</span>
         </button>
+        <button type="button" class="side-item" id="navAccounts" title="Accounts">
+          <span class="side-ic" data-ic="accounts"></span><span class="side-label">Accounts</span>
+        </button>
         <button type="button" class="side-item active" id="navAudio" title="Audio on">
           <span class="side-ic" id="navAudioIc" data-ic="audioOn"></span><span class="side-label" id="navAudioLbl">Audio on</span>
         </button>
@@ -2582,6 +2663,11 @@ html.modal-open .page, html.modal-open .sidebar { overflow: hidden; }
     <div class="drawer" id="doctorDrawer" hidden>
       <div class="drawer-hd" id="doctorHd">Selector doctor</div>
       <div id="doctorBody"></div>
+    </div>
+
+    <div class="drawer" id="accountsDrawer" hidden>
+      <div class="drawer-hd">Accounts</div>
+      <div id="accountsBody"></div>
     </div>
 
     <div class="bs" id="bsView" hidden></div>
@@ -2661,6 +2747,7 @@ const IC = {
   slides:     ICON('<rect x="2" y="4" width="20" height="13" rx="2"/><path d="m9 21 3-3 3 3"/>'),
   audioCard:  ICON('<path d="M9 18V6l10-2v12"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/>'),
   video:      ICON('<path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/>'),
+  accounts:   ICON('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'),
   help:       ICON('<circle cx="12" cy="12" r="9.5"/><path d="M9.2 9.2a2.9 2.9 0 0 1 5.65.97c0 1.93-2.9 2.9-2.9 2.9"/><path d="M12 17.1h.01"/>'),
   pin:        ICON('<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>'),
   menu:       ICON('<path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h18"/>'),
@@ -3897,6 +3984,7 @@ function renderGrid() {
   for (const p of S.panels) updateNode(p);
   updateCore();
   drawLinks();
+  syncCouncilIdle();
   // The answer bodies were just rebuilt, so the bars belonging to the old
   // ones are pointing at detached nodes. One pass reaps them.
   if (typeof _replaceAllBars === "function") _replaceAllBars();
@@ -4146,6 +4234,22 @@ function engineBusy() {
   return !!(S.running || S.refining || (S.bs && S.bs.busy) || studio);
 }
 
+/** Is the council showing nothing yet?
+ *
+ *  Deliberately derived rather than tracked: a flag would have to be cleared
+ *  by the run, by opening a past run, by New deliberation, by a brainstorm
+ *  and by Studio, and the one that gets forgotten leaves the composer
+ *  floating in the middle of a page full of answers. */
+function syncCouncilIdle() {
+  const idle =
+    S.view === "council" &&
+    !S.running &&
+    !S.panels.length &&
+    !S.verdict &&
+    !(S.studio && S.studio.active);
+  document.getElementById("shell").classList.toggle("council-idle", idle);
+}
+
 function updateEnabled() {
   const q = $("composer").value.trim();
   const busy = S.running || S.refining || (S.bs && S.bs.busy);
@@ -4170,6 +4274,7 @@ function updateEnabled() {
   show($("navHalt"), S.running);
   for (const b of document.querySelectorAll(".chip")) b.disabled = busy;
   if (typeof syncBsStartBar === "function") syncBsStartBar();
+  syncCouncilIdle();
 }
 
 /* ══ the run ═══════════════════════════════════════════════════════════════ */
@@ -4604,6 +4709,296 @@ function renderDoctor(data) {
   }
 }
 
+/* ══ ACCOUNTS ══════════════════════════════════════════════════════════════
+   Which account each unit is signed in as, and how to change it.
+
+   This matters more than a settings tab usually does: MAGI drives your own
+   logged-in sessions, so a unit quietly signed in to a free personal account
+   answers a run you thought was going to your subscription, and nothing else
+   on screen would say so.
+
+   THE ACCOUNT NAME IS YOURS TO WRITE. MAGI does not scrape the email off each
+   site: seven more selectors, all behind logins, each of which would rot into
+   showing the WRONG account -- which is worse than showing none. A label you
+   typed is never stale in a way that lies.
+
+   EVERY BUTTON HERE DRIVES A BROWSER ON THE ENGINE DEVICE. A phone can start
+   a sign-in, but the window opens where the profiles live, because that is
+   the only place it could open. The panel says so rather than leaving you
+   watching a phone for a window that is never coming. */
+const ACC = { rows: [], busy: null, login: null, poll: 0 };
+
+async function loadAccounts(quiet) {
+  if (!online()) { renderAccounts(); return; }
+  if (!quiet) ACC.loading = true, renderAccounts();
+  try {
+    const r = await fetch(`${link.api}/api/accounts`, authed());
+    ACC.rows = await r.json();
+  } catch { ACC.rows = []; }
+  ACC.loading = false;
+  renderAccounts();
+}
+
+const AGE = (iso) => {
+  if (!iso) return "";
+  const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (!Number.isFinite(m)) return "";
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.round(m / 60);
+  return h < 48 ? `${h}h ago` : `${Math.round(h / 24)}d ago`;
+};
+
+function accStatus(a) {
+  if (!a.profile) return { cls: "miss", txt: "no session" };
+  if (a.signed_in === true) return { cls: "ok", txt: "signed in" };
+  if (a.signed_in === false) return { cls: "miss", txt: "signed out" };
+  return { cls: "na", txt: "not checked" };
+}
+
+function renderAccounts() {
+  const box = $("accountsBody");
+  if (!box) return;
+  box.textContent = "";
+
+  if (!online()) {
+    box.append(el("div", "empty-state",
+      "Accounts live on the engine device, so this needs the engine to be reachable."));
+    return;
+  }
+  if (ACC.loading && !ACC.rows.length) {
+    const w = el("div", "doctor-running");
+    w.append(spinnerEl(), el("span", null, "Reading saved sessions…"));
+    box.append(w);
+    return;
+  }
+
+  const note = el("div", "acc-note");
+  note.innerHTML =
+    "Each unit keeps its own browser profile on the engine device. " +
+    "<b>Sign in</b> opens the real site in a window <b>on that device</b> — you type your " +
+    "password into the site itself, never into MAGI. <b>Sign out</b> deletes MAGI's copy " +
+    "of that session so you can sign in as someone else; it does not sign you out at the " +
+    "provider, and it never touches your personal Chrome.";
+  box.append(note);
+
+  for (const a of ACC.rows) {
+    const st = accStatus(a);
+    const card = el("div", "acc-card");
+    card.style.setProperty("--pa", a.accent || "var(--ac)");
+
+    const hd = el("div", "acc-hd");
+    const names = el("div", "acc-names");
+    names.append(el("div", "acc-name", a.display_name));
+    names.append(el("div", "acc-sub", UNIT[a.id] || a.id));
+    hd.append(names);
+
+    const flags = el("div", "acc-flags");
+    flags.append(el("span", `doc-flag ${st.cls}`, st.txt));
+    if (!a.enabled) flags.append(el("span", "doc-flag na", "unticked"));
+    if (a.checked_at) flags.append(el("span", "doc-flag na", `checked ${AGE(a.checked_at)}`));
+    hd.append(flags);
+    card.append(hd);
+
+    if (a.detail) card.append(el("div", "acc-detail", a.detail));
+
+    // The label. Written on blur rather than per keystroke: one write per
+    // edit, and no request racing the next character.
+    const row = el("div", "acc-row");
+    const lbl = el("input", "acc-input");
+    lbl.type = "text";
+    lbl.value = a.label || "";
+    lbl.placeholder = "Which account is this? e.g. personal gmail";
+    lbl.setAttribute("aria-label", `Account label for ${a.display_name}`);
+    lbl.onblur = async () => {
+      if ((a.label || "") === lbl.value) return;
+      a.label = lbl.value;
+      const form = new FormData();
+      form.append("label", lbl.value);
+      try {
+        await fetch(`${link.api}/api/accounts/${a.id}/label`,
+                    authed({ method: "POST", body: form }));
+      } catch {}
+    };
+    lbl.onkeydown = (e) => { if (e.key === "Enter") lbl.blur(); };
+    row.append(lbl);
+    card.append(row);
+
+    const bar = el("div", "acc-actions");
+    const busy = ACC.busy === a.id;
+
+    const signin = el("button", "navitem", a.profile ? "Switch account" : "Sign in");
+    signin.disabled = busy;
+    signin.onclick = () => startLogin(a);
+    bar.append(signin);
+
+    const check = el("button", "navitem", "Check");
+    check.disabled = busy;
+    check.title = "Opens this site once to see whether the saved session still works";
+    check.onclick = () => checkAccount(a);
+    bar.append(check);
+
+    if (a.profile) {
+      const out = el("button", "navitem danger", "Sign out");
+      out.disabled = busy;
+      out.onclick = () => signOutAccount(a);
+      bar.append(out);
+    }
+
+    bar.append(el("span", "qbar-spacer"));
+    const meta = [];
+    if (a.size_mb) meta.push(`${a.size_mb} MB`);
+    if (a.last_used) meta.push(`used ${AGE(a.last_used)}`);
+    if (meta.length) bar.append(el("span", "acc-meta", meta.join(" · ")));
+    card.append(bar);
+
+    if (busy) {
+      const w = el("div", "acc-busy");
+      w.append(spinnerEl(), el("span", null, ACC.busyText || "Working…"));
+      card.append(w);
+    }
+    box.append(card);
+  }
+}
+
+async function checkAccount(a) {
+  ACC.busy = a.id;
+  ACC.busyText = `Opening ${a.display_name} to see whether the session still works…`;
+  renderAccounts();
+  try {
+    const r = await fetch(`${link.api}/api/accounts/${a.id}/check`,
+                          authed({ method: "POST" }));
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || "check failed");
+  } catch (e) {
+    a.detail = String(e.message || e);
+  }
+  ACC.busy = null;
+  await loadAccounts(true);
+}
+
+async function signOutAccount(a) {
+  const ok = await uiConfirmMagi(
+    `Sign out of ${a.display_name}?`,
+    "This deletes MAGI's saved session for this unit so you can sign in as a " +
+    "different account. It does not sign you out at " + a.display_name +
+    " itself, and your personal Chrome is not touched.",
+    "Sign out");
+  if (!ok) return;
+  ACC.busy = a.id;
+  ACC.busyText = "Removing the saved session…";
+  renderAccounts();
+  try {
+    const r = await fetch(`${link.api}/api/accounts/${a.id}/signout`,
+                          authed({ method: "POST" }));
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || "sign out failed");
+  } catch (e) {
+    a.detail = String(e.message || e);
+  }
+  ACC.busy = null;
+  await loadAccounts(true);
+}
+
+/** Start a sign-in and watch it, in a panel that says where the window is. */
+async function startLogin(a) {
+  const sheet = el("div", "sheet");
+  const box = el("div", "sheet-box");
+  box.append(el("div", "sheet-hd", `Sign in to ${a.display_name}`));
+  const sub = el("div", "sheet-sub");
+  sub.innerHTML =
+    "A real " + a.display_name + " window is opening <b>on the engine device</b> — " +
+    "that is where the browser profiles live, so it is the only place it can open. " +
+    "Sign in there as normal. MAGI watches the page and finishes on its own; " +
+    "you never type a password into MAGI.";
+  box.append(sub);
+
+  const status = el("div", "acc-busy");
+  const spin = spinnerEl();
+  const txt = el("span", null, "Opening the window…");
+  status.append(spin, txt);
+  box.append(status);
+
+  const bar = el("div", "sheet-bar");
+  const cancel = el("button", "btn", "Cancel");
+  const close = el("button", "btn", "Close");
+  bar.append(cancel, el("span", "qbar-spacer"), close);
+  box.append(bar);
+
+  let stopped = false;
+  const done = () => { stopped = true; clearTimeout(ACC.poll); sheet.remove(); loadAccounts(true); };
+  close.onclick = done;
+  cancel.onclick = async () => {
+    try {
+      await fetch(`${link.api}/api/accounts/${a.id}/login/cancel`, authed({ method: "POST" }));
+    } catch {}
+    done();
+  };
+
+  sheet.append(box);
+  document.body.append(sheet);
+
+  try {
+    const r = await fetch(`${link.api}/api/accounts/${a.id}/login`, authed({ method: "POST" }));
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || "could not start");
+  } catch (e) {
+    spin.remove();
+    status.className = "sheet-err";
+    txt.textContent = String(e.message || e);
+    cancel.remove();
+    return;
+  }
+
+  // Polled, not streamed: this finishes in a person's own time -- a minute
+  // for a password manager, five for a 2FA code on another device -- and a
+  // held-open SSE stream buys nothing at that timescale.
+  const tick = async () => {
+    if (stopped) return;
+    try {
+      const r = await fetch(`${link.api}/api/accounts/${a.id}/login`, authed());
+      const d = await r.json();
+      txt.textContent = d.detail || d.state;
+      if (d.state === "done") {
+        spin.remove();
+        status.className = "sheet-ok";
+        cancel.remove();
+        setTimeout(done, 1200);
+        return;
+      }
+      if (d.state === "failed" || d.state === "cancelled") {
+        spin.remove();
+        status.className = "sheet-err";
+        cancel.remove();
+        return;
+      }
+    } catch {}
+    ACC.poll = setTimeout(tick, 2000);
+  };
+  ACC.poll = setTimeout(tick, 1200);
+}
+
+/** A confirm in MAGI's own UI. No browser dialogs anywhere in this console. */
+function uiConfirmMagi(title, body, okLabel) {
+  return new Promise((res) => {
+    const sheet = el("div", "sheet");
+    const box = el("div", "sheet-box");
+    box.append(el("div", "sheet-hd", title), el("div", "sheet-sub", body));
+    const bar = el("div", "sheet-bar");
+    const ok = el("button", "btn active", okLabel || "OK");
+    const no = el("button", "btn", "Cancel");
+    bar.append(ok, el("span", "qbar-spacer"), no);
+    box.append(bar);
+    const end = (v) => { sheet.remove(); res(v); };
+    ok.onclick = () => end(true);
+    no.onclick = () => end(false);
+    sheet.onclick = (e) => { if (e.target === sheet) end(false); };
+    sheet.append(box);
+    document.body.append(sheet);
+    no.focus();
+  });
+}
+
 /* ══ views ═════════════════════════════════════════════════════════════════
    One `view` at a time. History and Doctor were independent booleans that
    could both be open, stacking two panels above the console. */
@@ -4619,6 +5014,7 @@ function setView(v) {
   show($("studioView"), studioOpen);
   show($("historyDrawer"), v === "history");
   show($("doctorDrawer"), v === "doctor");
+  show($("accountsDrawer"), v === "accounts");
   // Brainstorm brings its own composer and its own reply box, so the council's
   // question bar is HIDDEN rather than stacked above a second textarea that
   // submits somewhere else.
@@ -4627,12 +5023,14 @@ function setView(v) {
   $("navCouncil").classList.toggle("active", v === "council" && !studioOpen);
   $("navHistory").classList.toggle("active", v === "history");
   $("navDoctor").classList.toggle("active", v === "doctor");
+  $("navAccounts").classList.toggle("active", v === "accounts");
   // An open card replaces the grid and the verdict rather than sitting above
   // them: showing both at once is what made this page a scroll.
   show($("magi"), S.panels.length > 0 && !studioOpen && (v === "council" || bsOpen));
   show($("emptyState"),
        S.panels.length === 0 && v === "council" && !S.verdict && !studioOpen);
   renderVerdict();
+  syncCouncilIdle();
   if (typeof renderStudioNav === "function") renderStudioNav();
   if (typeof renderBsNav === "function") renderBsNav();
   if (typeof renderBsNav === "function") { renderBsNav(); renderBsView(); }
@@ -7404,6 +7802,7 @@ async function boot() {
     renderUnitChips();
   } catch {}
   loadHistory();
+  loadAccounts(true);
   renderStudioNav();
   loadBsSessions();
   paintIcons();
@@ -7418,6 +7817,7 @@ const lockBtnClick = () => {
   if (LOCK.session) return showLock("manage");
   showLock("unlock");
 };
+$("navAccounts").onclick = () => { setView("accounts"); loadAccounts(); };
 $("lockBtn").onclick = lockBtnClick;
 $("lockBtnM").onclick = lockBtnClick;
 // Two buttons, one panel: the sidebar's and the mobile top bar's. On a phone
