@@ -245,6 +245,14 @@ rather than serving locally for the rest of the session — each replacement get
 a new hostname, which is exactly what `magi-link` is for, and the phone follows
 on its next look. Backoff is capped at a minute.
 
+It also **withdraws the old record before opening the new tunnel**. A quick
+tunnel dies with the process that opened it, but magi-link keeps serving that
+hostname until the replacement is verified and published — minutes, while
+public DNS catches up — and for that whole window the phone follows the record
+to something answering 530 and the console says "tunnel is dead". A clean exit
+withdraws on its way out; a crash, a power cut or a force-kill does not, and
+those are exactly the times MAGI gets restarted.
+
 It is also launched with three flags that exist for one symptom: Windows put up
 **"allow cloudflared?"** at every single logon, and clicking Allow did not stop
 it — four allow rules were already in place. The prompt is not about the rules,
