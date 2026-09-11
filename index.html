@@ -43028,7 +43028,19 @@ setTimeout(enforceProfiles, 1200);
          himself added.
        • A tab the user opened themselves (typed URL, bookmark, a second copy of
          TaskHub) carries no name this page can see. There is no web API to find
-         it, so that one still gets a new tab. Only tabs opened from here pair. -->
+         it, so that one still gets a new tab. Only tabs opened from here pair.
+
+     And one limit that is now handled rather than accepted: closing the browser
+     breaks the pairing, because Chrome restores the tabs but not the opener
+     links between them, and a named window is only findable inside its own
+     browsing-context group. That is why reopening the browser and clicking MAGI
+     used to leave two MAGI tabs. tabsync.js (loaded by every A1 page, and by
+     this one) gives a restored tab a second way to be found: a localStorage
+     heartbeat plus a BroadcastChannel, neither of which cares about openers. If
+     the name lookup comes up blank but the heartbeat says a tab still holds the
+     key, handOver below asks it over the channel, and either focuses it or
+     retires it — never both tabs. Cross-origin links can't run tabsync, so they
+     keep the name pairing and nothing more. -->
 <script>
 (function(){
 'use strict';
@@ -43044,6 +43056,62 @@ function atDest(cur, url){
   return c === u || c.indexOf(u) === 0;
 }
 
+function go(w, url){
+  try { w.location.href = url; } catch(e){ try { w.location.replace(url); } catch(e2){} }
+  try { w.focus(); } catch(e){}
+}
+
+// Does some tab, anywhere in this browser, still claim this key? tabsync.js
+// heartbeats into localStorage from every A1 page it runs on, so this is the
+// one signal that outlives a restart — unlike the window name, which only
+// works inside one browsing-context group. Stale by up to BEAT+slack, hence
+// the generous window: a false yes costs a 300ms handshake, a false no costs
+// the duplicate tab we are here to prevent.
+function claimedElsewhere(key){
+  try {
+    var r = JSON.parse(localStorage.getItem('a1tab:' + key) || 'null');
+    return !!(r && r.t && (Date.now() - r.t) < 20000);
+  } catch(e){ return false; }
+}
+
+/* The blank tab in hand belongs to a destination some OTHER tab claims — an
+ * orphan from before the browser was last closed. Ask it what it can do, and
+ * decide between the tab we just opened and the one that already exists.
+ *
+ * The blank tab has to be opened first and held: opening it is what needs the
+ * click's user gesture, and the gesture is gone by the time an answer arrives.
+ * Closing it again afterwards is always allowed, because we opened it. */
+function handOver(w, url, key){
+  var bc = null;
+  try { bc = new BroadcastChannel('a1tabs'); } catch(e){ bc = null; }
+  if (!bc) { go(w, url); return; }
+  var rid = Math.random().toString(36).slice(2);
+  var settled = false, answered = false;
+  var timer = setTimeout(function(){ finish(false); }, 300);
+  function finish(focused){
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    if (focused) {
+      // The old tab came forward with all its state. Ours is redundant.
+      try { w.close(); } catch(e){}
+    } else {
+      // It exists but cannot bring itself forward, so it would just sit there
+      // as a duplicate. Retire it and use the tab we already have.
+      if (answered) { try { bc.postMessage({ t:'retire', k:key }); } catch(e){} }
+      go(w, url);
+    }
+    setTimeout(function(){ try { bc.close(); } catch(e){} }, 1500);
+  }
+  bc.onmessage = function(ev){
+    var d = ev && ev.data;
+    if (!d || d.t !== 'claimed' || d.k !== key || d.rid !== rid) return;
+    answered = true;
+    finish(!!d.ok);
+  };
+  try { bc.postMessage({ t:'claim', k:key, rid:rid }); } catch(e){ finish(false); }
+}
+
 // Returns the window on success, or null if the browser blocked it (the caller
 // then falls back to its own popup-blocked path).
 window._tnOpenTab = function(url, key){
@@ -43055,18 +43123,30 @@ window._tnOpenTab = function(url, key){
     try { if (d) d.opener = null; } catch(e){}
     return d;
   }
+  var name = tabName(key);
   var w = null;
-  try { w = window.open('', tabName(key)); } catch(e){ w = null; }
+  try { w = window.open('', name); } catch(e){ w = null; }
   if (!w) return null;
   var cur = null;
   try { cur = w.location.href; } catch(e){ cur = null; }   // cross-origin ⇒ a real page is loaded there
   if (cur === null) {
     // Unreadable means it isn't blank — it's the destination (or wherever the
     // user browsed inside it). Leave it alone and just bring it forward.
-  } else if (cur === '' || cur === 'about:blank' || !atDest(cur, url)) {
-    try { w.location.href = url; } catch(e){ try { w.location.replace(url); } catch(e2){} }
+    try { w.focus(); } catch(e){}   // deliberately NOT w.opener = null — see the note above
+    return w;
   }
-  try { w.focus(); } catch(e){}   // deliberately NOT w.opener = null — see the note above
+  if (cur !== '' && cur !== 'about:blank') {
+    // A paired tab that wandered off the destination: send it back, or focus it
+    // if it is already somewhere under that url.
+    if (atDest(cur, url)) { try { w.focus(); } catch(e){} } else { go(w, url); }
+    return w;
+  }
+  // A brand-new blank tab. Either nothing was open for this key, or something
+  // is open that the window-name lookup cannot see — the post-restart case.
+  var mine = w;
+  try { mine.name = name; } catch(e){}   // so tabsync.js on the destination knows its key
+  if (claimedElsewhere(key)) handOver(mine, url, key);
+  else go(mine, url);
   return w;
 };
 })();
@@ -45322,4 +45402,5 @@ document.addEventListener('visibilitychange',function(){ if(!document.hidden) sw
      nav is deliberately NOT in the list: it already answers the cursor with a
      gold outline and glow, and stacking a second signal on a designed one is
      how a hover language stops reading as one language. -->
+<script src="tabsync.js"></script>
 <script src="hoverfx.js" data-roots="#root,#veda-root,#tj-root,#bj-root,#wr-root,#thset-overlay,#uim-overlay,#applock-overlay,#profile-overlay,#thv-txt-overlay,#thv-dev-overlay"></script>

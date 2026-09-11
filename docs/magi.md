@@ -14,6 +14,13 @@ question ──> ChatGPT  ─┐
 Members are queried **independently** — none sees the others' answers — then
 one member reads all of them and writes the verdict.
 
+**Except when the question is about the responder.** "Which model are you?",
+"what would you prefer?", "how would *you* approach this?" — every member's
+answer is correct for itself, there is no disagreement to resolve, and merging
+means stating something false about the members you dropped. The chairman is
+told to list one line per member for those, naming each; for everything else,
+merging is exactly the job. `magi/tests/test_chairman_prompt.py` pins it.
+
 Built by Veda; taken over on 2026-09-09 and reorganised as an A1 program. This
 file replaces her `README.md`, `SETUP-FOR-TONY.md` and `magi-setup.md`.
 
@@ -488,7 +495,23 @@ Steady state for heavy use — 30 runs a day, read on three devices — is rough
 90 writes and a few hundred reads. Under half a percent of the allowance.
 
 Studio cards travel with the body deliberately: each one costs a real browser
-run, so a phone should open one rather than re-earn it. The API token travels
+run, so a phone should open one rather than re-earn it.
+
+### Retention: 30 days, or pinned
+
+History keeps 30 days; everything older is dropped, body document first and
+then the index row, so an interruption leaves an invisible orphan rather than a
+History entry that opens to nothing. The sweep runs once per load and only when
+something has actually expired, so the usual cost is zero writes.
+
+**Pin a deliberation to keep it forever.** Pins live BOTH in that browser and on
+the cloud row, and either one counts — a pin has to survive sync being
+unavailable (App Check refuses to sign in on `127.0.0.1`) *and* reach your other
+devices when sync works. Both paths fail towards keeping the run: the cost of
+getting this wrong is deleting something you asked to keep. Backfill skips
+expired runs too, or the engine's SQLite — which keeps everything — would
+re-upload them on the next load and pruning would be a loop rather than a
+policy. The API token travels
 in the index doc for the same reason — see **The token** above.
 
 **Every scroller has an overlay scrollbar** — the page, the drawer, and each

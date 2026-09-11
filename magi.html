@@ -1444,7 +1444,7 @@ table.doctor code { color: var(--txd); font-size: 11px; }
 /* No hover on a touch screen, so the control has to be permanently visible
    there or it does not exist. */
 @media (pointer: coarse) { .row-pin { opacity: .7; } }
-.row.pinned { background: color-mix(in srgb, var(--ac) 5%, transparent); }
+.row.pinned { background: color-mix(in srgb, var(--ac) 8%, transparent); }
 
 .history-note {
   padding: 9px 12px; color: var(--txm); font-size: 10.5px;
@@ -2027,10 +2027,18 @@ table.doctor code { color: var(--txd); font-size: 11px; }
 
   /* ── history rows ─────────────────────────────────────────────────────── */
   /* Question and metadata stack; side by side, the question was crushed to a
-     few characters before the ellipsis. */
-  .row { flex-direction: column; align-items: flex-start; gap: 4px; padding: 12px; }
-  .row .q { white-space: normal; overflow: visible; }
-  .row .meta { white-space: normal; }
+     few characters before the ellipsis. A grid rather than a column flex, so
+     the pin can sit to the RIGHT of both lines instead of becoming a third
+     thing stacked under them. */
+  .row {
+    display: grid; align-items: center;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "q pin" "meta pin";
+    gap: 4px 10px; padding: 12px;
+  }
+  .row .q { grid-area: q; white-space: normal; overflow: visible; }
+  .row .meta { grid-area: meta; white-space: normal; }
+  .row .row-pin { grid-area: pin; }
 
   table.doctor { font-size: 10.5px; }
   table.doctor th, table.doctor td { padding: 5px 7px; }
@@ -7003,5 +7011,6 @@ attachScrollbar($("sideNav"), 90);
   }, { passive: true });
 })();
 </script>
+<script src="tabsync.js"></script>
 </body>
 </html>
