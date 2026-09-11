@@ -526,10 +526,14 @@ body {
 .chip { position: relative; }
 .chip-chair {
   position: absolute; top: 3px; right: 4px;
-  display: inline-flex; font-size: 9px; line-height: 1;
-  color: color-mix(in srgb, var(--bg) 72%, transparent);
+  display: inline-flex; font-size: 10px; line-height: 1;
+  color: color-mix(in srgb, var(--bg) 78%, transparent);
   pointer-events: none;
 }
+/* The star is absolute so it cannot change what the flex row measures, which
+   means the label has to be told to get out of its way -- otherwise the name
+   runs underneath it, which is exactly what "CLAUDE*" looked like. */
+.chip.is-chair { padding-right: 18px; }
 .chip:not(.on) .chip-chair { color: var(--ac); }
 .chip.is-chair { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bg) 35%, transparent); }
 
