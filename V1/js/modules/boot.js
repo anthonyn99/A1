@@ -30,9 +30,25 @@ window.SOS.store = store;
 (async function boot() {
   const cfg = aiCfg();
   if (!cfg.enabled || !cfg.baseUrl) {
-    console.info('[StudyOS] pipeline disabled — set cloudflare.ai.enabled once the Worker is set up.');
+    console.info('[StudyOS] pipeline disabled — set cloudflare.ai.enabled once a backend is set up.');
     return;
   }
+
+  /* Run ONCE per page, even if this module is evaluated more than once.
+   *
+   * A module is normally a singleton, but the cache key is the URL: importing
+   * './boot.js?x=1' creates a SECOND instance that re-registers every listener.
+   * The auto-run handler below is the one that matters — two registrations mean
+   * one dropped deck queues two jobs, doing (and, on the Worker backend,
+   * charging for) the same work twice.
+   *
+   * Caught by scripts/verify-autorun.mjs, which re-imports boot.js with a query
+   * string to enable the pipeline mid-test and got exactly that double POST. */
+  if (window.SOS.__booted) {
+    console.info('[StudyOS] pipeline already started; skipping duplicate boot.');
+    return;
+  }
+  window.SOS.__booted = true;
 
   // Imported lazily so a disabled pipeline costs nothing on a cold load.
   const [pipeline, prompts, ui] = await Promise.all([

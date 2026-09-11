@@ -68,13 +68,32 @@ await send('Page.addScriptToEvaluateOnNewDocument', {
   `,
 });
 
+// Point the app at the stub BEFORE anything loads, so the page's own single
+// boot picks it up. Re-importing boot.js with a query string would create a
+// second module instance and register the auto-run listener twice -- one
+// dropped deck, two jobs. boot.js now guards against that; this avoids
+// provoking it in the first place.
+await send('Page.addScriptToEvaluateOnNewDocument', {
+  source: `
+    Object.defineProperty(window, 'STUDYOS_CONFIG', {
+      configurable: true,
+      set(v) {
+        try {
+          v.cloudflare = v.cloudflare || {};
+          v.cloudflare.ai = Object.assign({}, v.cloudflare.ai, {
+            enabled: true, baseUrl: 'https://ai.test',
+          });
+        } catch (e) {}
+        Object.defineProperty(window, 'STUDYOS_CONFIG',
+          { value: v, writable: true, configurable: true });
+      },
+    });
+    window._fbAppCheckToken = async () => 'tok-auto';
+  `,
+});
+
 await send('Page.navigate', { url: PAGE });
-await new Promise(r => setTimeout(r, 3000));
-await evalJs(`window.STUDYOS_CONFIG.cloudflare.ai.enabled = true;
-              window.STUDYOS_CONFIG.cloudflare.ai.baseUrl = 'https://ai.test';
-              window._fbAppCheckToken = async () => 'tok-auto'; true;`);
-await evalJs(`import('./js/modules/boot.js?autorun=1').then(()=>'ok')`);
-await new Promise(r => setTimeout(r, 2000));
+await new Promise(r => setTimeout(r, 5000));
 
 console.log('\nsetup');
 t('boot enabled the pipeline', await evalJs('typeof window.sosRunPrompt === "function"'));
