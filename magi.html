@@ -89,7 +89,7 @@ html, body, #root { height: 100%; }
 
 body {
   background: var(--bg);
-  color: var(--tx);
+    text-transform: uppercase; color: var(--tx);
   font-family: var(--font);
   font-size: 13px;
   line-height: 1.55;
@@ -128,7 +128,7 @@ body {
   height: 77px;
 }
 .side-toggle {
-  background: transparent; border: none; color: var(--txm);
+  background: transparent; border: none;     text-transform: uppercase; color: var(--txm);
   /* Fixed, and immune to the flex row it sits in. Collapsing the rail hides
      .side-brand, which left the toggle as the only item in .side-top -- and
      a stretch-aligned flex item with no siblings takes the whole 60px row,
@@ -163,7 +163,7 @@ body {
    border at rest, soft fill on hover, stronger fill when active. */
 .side-item {
   display: flex; align-items: center; gap: 10px; width: 100%;
-  background: transparent; color: var(--txd); border: none; border-radius: 7px;
+  background: transparent;   text-transform: uppercase; color: var(--txd); border: none; border-radius: 7px;
   padding: 7px 9px; min-height: 32px;
   font-family: inherit; font-size: 11.5px; font-weight: 600; letter-spacing: .3px;
   text-align: left; cursor: pointer;
@@ -176,7 +176,7 @@ body {
 .side-item.danger:hover:not(:disabled) { background: rgba(248, 81, 73, .12); }
 .side-ic {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 18px; flex-shrink: 0; font-size: 12px; color: var(--ac);
+  width: 18px; flex-shrink: 0; font-size: 12px;   text-transform: uppercase; color: var(--ac);
 }
 .side-item.active .side-ic { color: var(--acl); }
 .side-item.danger .side-ic { color: var(--red); }
@@ -194,9 +194,9 @@ body {
 /* ── sidebar sections ─────────────────────────────────────────────────── */
 .side-sec { display: flex; flex-direction: column; gap: 1px; margin-top: 14px; }
 .side-sec-hd {
-  font-size: 9px; font-weight: 700; letter-spacing: 1.6px;  color: var(--txm); padding: 4px 9px 6px;
+  font-size: 9px;   text-transform: uppercase; font-weight: 700; letter-spacing: 1.6px;  color: var(--txm); padding: 4px 9px 6px;
 }
-.side-sec-note { color: var(--txm); font-size: 10px; padding: 0 9px 6px; line-height: 1.45; }
+.side-sec-note { color: var(--txm);   text-transform: uppercase; font-size: 10px; padding: 0 9px 6px; line-height: 1.45; }
 
 /* Collapsed: an icon-only rail. Labels and section headings are hidden
    rather than removed from the DOM, so the title attribute still names each
@@ -238,7 +238,7 @@ body {
 }
 .tagline { line-height: 1.4; 
   color: var(--txm); font-size: 8.5px; letter-spacing: 1.4px;
-margin-top: 1px; white-space: nowrap;
+  text-transform: uppercase; margin-top: 1px; white-space: nowrap;
 }
 /* ── flat icon+label control ──────────────────────────────────────────── */
 /* No outline at rest, a soft fill on hover, a stronger fill when toggled.
@@ -270,7 +270,7 @@ margin-top: 1px; white-space: nowrap;
   padding: 0 10px; height: 28px; box-sizing: border-box;
   display: inline-flex; align-items: center; gap: 6px;
   font-size: 10px; font-weight: 700; cursor: pointer;
-  font-family: inherit;letter-spacing: 1px;
+  font-family: inherit;  text-transform: uppercase; letter-spacing: 1px;
   transition: all .15s;
 }
 .btn:hover:not(:disabled) { border-color: var(--ac); }
@@ -454,7 +454,7 @@ letter-spacing: 1px;
 .qbar-undo:disabled { opacity: .4; cursor: not-allowed; }
 
 .qbar-error {
-  color: var(--red); font-size: 10.5px; letter-spacing: .3px;
+  color: var(--red);   text-transform: uppercase; font-size: 10.5px; letter-spacing: .3px;
   padding: 0 6px; margin-top: -2px;
 }
 
@@ -1474,7 +1474,7 @@ color: var(--tx);
 .audio-line.speaking { background: color-mix(in srgb, var(--ac) 10%, transparent); color: var(--tx); }
 .audio-speaker {
   display: inline-block; font-size: 9px; font-weight: 700; letter-spacing: .8px;
-margin-right: 8px; padding: 1px 6px; border-radius: 2px;
+  text-transform: uppercase; margin-right: 8px; padding: 1px 6px; border-radius: 2px;
 }
 .audio-speaker.host-a { color: var(--ac); background: color-mix(in srgb, var(--ac) 16%, transparent); }
 .audio-speaker.host-b { color: var(--acl); background: color-mix(in srgb, var(--acl) 16%, transparent); }
@@ -1503,7 +1503,7 @@ margin-right: 8px; padding: 1px 6px; border-radius: 2px;
 .bs-title {
   font-family: var(--font-display);
   font-size: 15px; font-weight: 800; letter-spacing: 1.4px;
-color: var(--gold);
+  text-transform: uppercase; color: var(--gold);
 }
 .council-title { color: var(--acl); }
 .bs-sub { color: var(--txd); font-size: 12.5px; line-height: 1.55; }
@@ -2069,7 +2069,7 @@ font-weight: 700;
   padding: 2px 7px 6px;
   margin: 0;
   color: var(--txm);
-  font-size: 9px; font-weight: 700; letter-spacing: 1.4px;
+  font-size: 9px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase;
 }
 .side-sec-note { padding: 0 7px 6px; }
 
