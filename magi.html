@@ -1509,10 +1509,15 @@ table.doctor code { color: var(--txd); font-size: 11px; }
   align-items: center; text-align: center;
 }
 .view-hd .bs-sub { color: color-mix(in srgb, var(--txm) 82%, transparent); }
-/* Only above an empty composer: once there are answers below, a title
-   explaining what a deliberation is takes space from the thing you asked for. */
-.view-hd { display: none; }
-.council-idle .view-hd { display: flex; }
+/* Shown only above an EMPTY council composer -- once there are answers below,
+   a title explaining what a deliberation is takes space from the thing you
+   asked for -- and never on the brainstorm screen, which has its own. That is
+   two conditions, so it is decided in syncCouncilIdle rather than in CSS;
+   this pair just makes `hidden` win over the flex display. */
+.view-hd { display: flex; }
+.view-hd[hidden] { display: none; }
+/* A hint with nothing in it should not hold 36px of padding open. */
+.empty-state:empty { display: none; }
 
 /* The brainstorm composer is the council composer: same centred column, same
    width, same units row underneath. They are the two ways of asking the same
@@ -4616,6 +4621,9 @@ function syncCouncilIdle() {
     !S.verdict &&
     !(S.studio && S.studio.active));
   document.getElementById("shell").classList.toggle("council-idle", idle);
+  // The council's heading: only on the council, and only while it is empty.
+  const hd = document.getElementById("councilHd");
+  if (hd) hd.hidden = !(idle && S.view === "council");
 }
 
 function updateEnabled() {
