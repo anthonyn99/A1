@@ -118,8 +118,11 @@ body {
   min-height: 0; overflow: hidden;
 }
 .side-top {
-  display: flex; align-items: center; gap: 8px;
-  padding: 12px 10px 10px;
+  /* Tighter gap and padding than the rest of the rail, bought deliberately:
+     the tagline needs every pixel of a 232px header it shares with three
+     controls, and at 7.5px it was a texture rather than a word. */
+  display: flex; align-items: center; gap: 6px;
+  padding: 12px 8px 10px;
   border-bottom: 1px solid var(--bd);
   /* FIXED, not min-height. Collapsing hides .side-brand, so a min-height row
      shrank from 77px to 60px and the centred toggle moved 8px up with it -- a
@@ -1566,6 +1569,12 @@ table.doctor code { color: var(--txd); font-size: 11px; }
   border-radius: 16px; padding: 10px 10px 8px;
   transition: border-color .15s, box-shadow .15s, background .15s;
 }
+/* The same cue the council's composer gives: the card itself lights up, so
+   there is no doubt about where the file is going to land. */
+.bs-start.drag {
+  border-color: var(--ac); border-style: dashed;
+  background: color-mix(in srgb, var(--ac) 6%, var(--s2));
+}
 .bs-start:focus-within {
   /* The council's accent, not brainstorm's gold. The gold belongs on the
      heading, which is what distinguishes the two modes; on the composer it
@@ -1933,12 +1942,12 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
    124px and had 103. It is decorative text, so it gives up the letter-spacing
    rather than the header giving up a control. */
 .side-top .tagline {
-  /* 9px rather than 7.5. Small enough to stay secondary, big enough to read
-     as words -- at 7.5 it was a texture under the wordmark. There is room now
-     that the two header buttons are 27px. */
-  font-size: 9px; letter-spacing: .8px;
+  /* Measured, not guessed: 8px with .55px of tracking is the largest setting
+     of "DELIBERATION SYSTEM" that still fits the header beside three
+     controls. 9px clipped it to "DELIBERATION SYST". */
+  font-size: 8px; letter-spacing: .55px;
 }
-.side-top .lock-btn { margin-left: 0; width: 27px; height: 27px; }
+.side-top .lock-btn { margin-left: 0; width: 26px; height: 26px; }
 .side-top .lock-btn svg { width: 15px; height: 15px; }
 @media (max-width: 760px) { .sidebar .lock-btn { display: flex; } }
 
@@ -2561,11 +2570,16 @@ html.modal-open .page, html.modal-open .sidebar { overflow: hidden; }
 
   /* ── composer ─────────────────────────────────────────────────────────── */
   .qbar { padding: 10px; }
-  .qbar textarea { min-height: 72px; }
-  .qbar-toolbar { flex-wrap: wrap; gap: 8px; }
-  /* The send button takes its own row rather than being squeezed to an
-     unreadable width beside Refine. */
-  .qbar-send { flex: 1 1 100%; order: 9; }
+  /* The same box as brainstorm's: it grows from one line rather than opening
+     with 72px of empty space. Two composers for the same council had no
+     reason to be different sizes. */
+  .qbar textarea { min-height: 26px; }
+  /* One row: attach, Refine, then Convene pushed to the end -- exactly the
+     shape Begin session has in brainstorm. Convene used to take a whole row of
+     its own below them, which on a phone is a third of the composer spent on
+     a button you press once. */
+  .qbar-toolbar { flex-wrap: nowrap; gap: 8px; }
+  .qbar-send { flex: 0 0 auto; margin-left: auto; }
   .qbar-spacer { display: none; }
 
   .members { gap: 8px; }
@@ -2610,7 +2624,15 @@ html.modal-open .page, html.modal-open .sidebar { overflow: hidden; }
     grid-template-areas: "q q" "meta meta" "acts acts";
     gap: 4px 10px; padding: 12px;
   }
-  .row .q { grid-area: q; white-space: normal; overflow: visible; }
+  /* Two lines, then an ellipsis. A prompt can be a 10-section template, and
+     wrapping the whole thing turned one row into half a screen -- so the list
+     you came to scan became a list you have to scroll. The full text is still
+     one tap away, in the deliberation itself. */
+  .row .q {
+    grid-area: q; white-space: normal; overflow: hidden;
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
   .row .meta { grid-area: meta; white-space: normal; }
   .row .row-acts { grid-area: acts; justify-content: flex-start; margin-top: 4px; }
 
@@ -2887,7 +2909,6 @@ body { max-width: 2000px; margin-inline: auto; }
 
       <div class="side-sec" id="bsSec">
         <div class="side-sec-hd">Brainstorm</div>
-        <div class="side-sec-note" id="bsNote">Plan something with the council, round by round.</div>
         <!-- rows injected by renderBsNav() -->
       </div>
 
@@ -6928,7 +6949,6 @@ function renderBsNav() {
   const sec = $("bsSec");
   for (const el2 of sec.querySelectorAll(".bs-row")) el2.remove();
   const bs = S.bs;
-  show($("bsNote"), !S.navCollapsed && !bs.sessionId);
 
   const main = el("button", `side-item bs-row ${S.view === "brainstorm" ? "active" : ""}`);
   main.type = "button";
@@ -7165,6 +7185,147 @@ function bsAutosize(ta) {
   ta.style.height = `${ta.scrollHeight}px`;
 }
 
+/* ── past sessions: pin, rename, delete ───────────────────────────────────
+   The same three things History offers, because a planning session is the
+   same KIND of object: something you made, will come back to, and will
+   eventually want gone. It would be strange for one list to offer them and
+   the list directly below it not to.
+
+   Pins and names are kept per browser AND in the cloud index, exactly as the
+   deliberation ones are -- two more small fields on a document that is
+   already written on a debounce, for the same reason: they have to survive
+   sync being unavailable and still follow you to another device. */
+const BS_PIN_KEY = "magi.bspins";
+const BS_NICK_KEY = "magi.bsnicks";
+
+const BS_PINS = new Set((() => {
+  try { return JSON.parse(localStorage.getItem(BS_PIN_KEY) || "[]"); } catch { return []; }
+})());
+const BS_NICKS = (() => {
+  try { return JSON.parse(localStorage.getItem(BS_NICK_KEY) || "{}") || {}; } catch { return {}; }
+})();
+
+function saveBsMarks() {
+  try {
+    localStorage.setItem(BS_PIN_KEY, JSON.stringify([...BS_PINS]));
+    localStorage.setItem(BS_NICK_KEY, JSON.stringify(BS_NICKS));
+  } catch {}
+  cloudSaveBsMarks();
+}
+
+let _bsMarkT = 0;
+function cloudSaveBsMarks() {
+  if (!CLOUD.enabled) return;
+  clearTimeout(_bsMarkT);
+  setSync("saving");
+  _bsMarkT = setTimeout(async () => {
+    if (!(await cloudInit())) { setSync("off"); return; }
+    try {
+      await CLOUD.fs.setDoc(_indexDoc(), {
+        bsPins: [...BS_PINS], bsNicks: BS_NICKS,
+      }, { merge: true });
+      setSync("saved");
+    } catch (e) {
+      setSync("error", _syncFail("saving your session pins and names", e));
+    }
+  }, 900);
+}
+
+const bsPinned = (x) => BS_PINS.has(x.id);
+const bsNickOf = (x) => (BS_NICKS[x.id] || "").trim();
+const bsTitleOf = (x) => bsNickOf(x) || x.topic;
+/* Same window as a deliberation, and the pin means the same thing. Sessions
+   live only on the engine, so "expired" hides rather than deletes -- the
+   engine keeps its own copy either way, and deleting someone's planning work
+   on a timer is not something a list should do quietly. */
+const bsExpired = (x) => {
+  if (bsPinned(x)) return false;
+  const age = (Date.now() - new Date(x.created_at).getTime()) / 86400000;
+  return Number.isFinite(age) && age > HISTORY_DAYS;
+};
+
+function bsTogglePin(id) {
+  BS_PINS.has(id) ? BS_PINS.delete(id) : BS_PINS.add(id);
+  saveBsMarks();
+  renderBsView();
+}
+
+function openBsNickSheet(x) {
+  const sheet = el("div", "sheet");
+  const box = el("div", "sheet-box");
+  box.append(el("div", "sheet-hd", bsNickOf(x) ? "Rename" : "Give it a name"));
+  box.append(el("div", "sheet-sub",
+    "Shown in Past sessions instead of the topic. The topic itself is " +
+    "unchanged \u2014 it is what the council was asked to plan."));
+  box.append(el("div", "sheet-lbl", "Name"));
+  const input = el("input", "sheet-in");
+  input.type = "text";
+  input.value = bsNickOf(x);
+  input.placeholder = String(x.topic || "").slice(0, 60);
+  input.maxLength = 120;
+  box.append(input);
+  box.append(el("div", "sheet-note", "Follows you to your other devices."));
+
+  const bar = el("div", "sheet-bar");
+  const save = el("button", "btn active", "Save");
+  const clear = el("button", "btn", "Remove name");
+  const close = el("button", "btn", "Cancel");
+  bar.append(save);
+  if (bsNickOf(x)) bar.append(clear);
+  bar.append(el("span", "qbar-spacer"), close);
+  box.append(bar);
+
+  const done = () => sheet.remove();
+  const set = (v) => {
+    const clean = (v || "").trim().slice(0, 120);
+    if (clean) BS_NICKS[x.id] = clean; else delete BS_NICKS[x.id];
+    saveBsMarks();
+    done();
+    renderBsView();
+  };
+  close.onclick = done;
+  sheet.onclick = (e) => { if (e.target === sheet) done(); };
+  save.onclick = () => set(input.value);
+  clear.onclick = () => set("");
+  input.onkeydown = (e) => { if (e.key === "Enter") save.click(); };
+  sheet.append(box);
+  document.body.append(sheet);
+  input.focus();
+  input.select();
+}
+
+async function deleteBsSession(x) {
+  const name = String(bsTitleOf(x) || "");
+  const shown = name.length > 90 ? name.slice(0, 90) + "\u2026" : name;
+  const ok = await uiConfirmMagi(
+    "Delete this session?",
+    "\u201c" + shown + "\u201d\n\n" +
+    "Every round, every question and the plan go with it. This cannot be undone.",
+    "Delete");
+  if (!ok) return;
+  if (!online()) return;
+  setSync("saving");
+  try {
+    const r = await fetch(`${link.api}/api/brainstorm/${x.id}`,
+                          authed({ method: "DELETE" }));
+    if (!r.ok) {
+      const d = await r.json().catch(() => null);
+      throw new Error((d && d.detail) || `HTTP ${r.status}`);
+    }
+    setSync("saved");
+  } catch (e) {
+    setSync("error", _syncFail("deleting a planning session", e));
+    return;
+  }
+  BS_PINS.delete(x.id);
+  delete BS_NICKS[x.id];
+  saveBsMarks();
+  S.bs.sessions = S.bs.sessions.filter((y) => y.id !== x.id);
+  // The session that was open has just been deleted; bsReset also puts the
+  // panel back on the start screen, which is where you now are.
+  if (S.bs.sessionId === x.id) bsReset(); else renderBsView();
+}
+
 function bsBackButton() {
   const b = el("button", "navitem");
   b.type = "button";
@@ -7196,11 +7357,29 @@ function renderBsView() {
     const hd = el("div", "bs-hd");
     hd.append(el("span", "bs-title", "Brainstorm"),
               el("span", "bs-sub",
-                 "The council asks you questions until the plan is worth building from, " +
-                 "then writes it to a file for a coding agent."));
+                 "Plan something round by round: the council asks you questions until " +
+                 "the plan is worth building from, then writes it out as a file for a " +
+                 "coding agent."));
     root.append(hd);
 
     const start = el("div", "bs-start");
+    // Drop files on it, exactly as the council's composer takes them. Wired
+    // here rather than once at startup because renderBsView rebuilds this
+    // element on every state change, so a listener attached to an earlier one
+    // would be attached to a node that is no longer on the page.
+    start.addEventListener("dragover", (e) => {
+      if (bsBusy()) return;
+      e.preventDefault();
+      start.classList.add("drag");
+    });
+    start.addEventListener("dragleave", () => start.classList.remove("drag"));
+    start.addEventListener("drop", (e) => {
+      e.preventDefault();
+      start.classList.remove("drag");
+      if (!bsBusy() && e.dataTransfer && e.dataTransfer.files.length) {
+        bsAddFiles(e.dataTransfer.files);
+      }
+    });
     const ta = el("textarea", "bs-topic");
     ta.placeholder = "What do you want to plan?  Describe the idea roughly — the questions come next.   (Ctrl+Enter)";
     ta.value = bs.draft;
@@ -7319,16 +7498,50 @@ function renderBsView() {
     if (bs.sessions.length) {
       const drawer = el("div", "drawer");
       drawer.append(el("div", "drawer-hd", "Past sessions"));
-      for (const s of bs.sessions) {
-        const row = el("div", "row");
-        row.append(el("span", "q", s.topic));
-        row.append(el("span", "meta",
-          `${s.status === "complete" ? "plan ready" : s.status} · ` +
-          `${s.rounds} round${s.rounds === 1 ? "" : "s"} · ` +
-          new Date(s.created_at).toLocaleString()));
-        row.onclick = () => openBsSession(s.id);
+      for (const x of bs.sessions.filter((y) => !bsExpired(y))
+                        .sort((a, b) => (bsPinned(b) - bsPinned(a)) ||
+                                        String(b.created_at).localeCompare(String(a.created_at)))) {
+        const pinned = bsPinned(x), nick = bsNickOf(x);
+        const row = el("div", "row" + (pinned ? " pinned" : ""));
+        const q = el("span", "q" + (nick ? " named" : ""), bsTitleOf(x));
+        if (nick) q.title = x.topic;
+        row.append(q);
+        const meta = el("span", "meta",
+          `${x.status === "complete" ? "plan ready" : x.status} · ` +
+          `${x.rounds} round${x.rounds === 1 ? "" : "s"} · ` +
+          new Date(x.created_at).toLocaleString([], {
+            year: "numeric", month: "numeric", day: "numeric",
+            hour: "numeric", minute: "2-digit",
+          }));
+        if (pinned) meta.append(el("span", "row-pinned-tag", " · pinned"));
+        row.append(meta);
+
+        const acts = el("span", "row-acts");
+        const pin = el("button", "row-act" + (pinned ? " on" : ""));
+        pin.type = "button";
+        pin.innerHTML = IC.pin;
+        pin.title = pinned
+          ? "Pinned \u2014 kept forever. Click to unpin."
+          : `Pin this, to keep it past ${HISTORY_DAYS} days`;
+        pin.onclick = (e) => { e.stopPropagation(); bsTogglePin(x.id); };
+        const ren = el("button", "row-act" + (nick ? " on" : ""));
+        ren.type = "button";
+        ren.innerHTML = IC.rename;
+        ren.title = nick ? "Rename, or remove the name" : "Give this a name";
+        ren.onclick = (e) => { e.stopPropagation(); openBsNickSheet(x); };
+        const del = el("button", "row-act danger");
+        del.type = "button";
+        del.innerHTML = IC.trash;
+        del.title = "Delete this session";
+        del.onclick = (e) => { e.stopPropagation(); deleteBsSession(x); };
+        acts.append(pin, ren, del);
+        row.append(acts);
+
+        row.onclick = () => openBsSession(x.id);
         drawer.append(row);
       }
+      drawer.append(el("div", "history-note",
+        `Sessions are kept for ${HISTORY_DAYS} days. Pin one to keep it forever.`));
       root.append(drawer);
     }
     return;
@@ -7964,6 +8177,7 @@ async function setNick(id, name) {
   const clean = (name || "").trim().slice(0, 120);
   if (clean) NICKS[id] = clean; else delete NICKS[id];
   saveNicks();
+  cloudSaveMarks();
   const row = CLOUD.index.find((r) => r.id === id);
   if (row) {
     row.nick = clean;
@@ -8063,6 +8277,7 @@ async function deleteRun(r) {
   PINS.delete(r.id);
   saveNicks();
   savePins();
+  cloudSaveMarks();
   S.history = S.history.filter((x) => x.id !== r.id);
   // The run that was open has just been deleted -- leaving it on screen
   // invites a Studio card generated from something that no longer exists.
@@ -8087,11 +8302,12 @@ async function togglePin(id) {
   if (on) PINS.add(id); else PINS.delete(id);
   if (listed) listed.pinned = on;
   savePins();
-  // Mirror onto the cloud row so the pin follows you. Debounced with every
-  // other index change, so pinning three in a row is still one write.
+  cloudSaveMarks();
+  // The row's own flag is kept in step for anything still reading it, but the
+  // marks map above is what actually travels -- see cloudSaveMarks.
   if (row) { row.pinned = on; cloudUpsertIndex({ ...row, pinned: on }); }
-  else mergeHistory();   // local-only run: nothing to write, but the list and
-                         // the retention filter both have to be recomputed
+  else mergeHistory();   // local-only run: nothing on the index to update, but
+                         // the list and the retention filter must be recomputed
 }
 
 function mergeHistory() {
@@ -8141,6 +8357,23 @@ async function cloudWatch() {
       if (ord && !DRAG.active && (S.unitOrder || []).join("|") !== ord.join("|")) {
         saveUnitOrder(ord);
         if (typeof renderUnitChips === "function" && S.providers.length) renderUnitChips();
+      }
+
+      // Session pins and names ride the same document as everything else.
+      if (d && (Array.isArray(d.bsPins) || d.bsNicks)) {
+        if (Array.isArray(d.bsPins)) {
+          BS_PINS.clear();
+          for (const id of d.bsPins) BS_PINS.add(id);
+        }
+        if (d.bsNicks && typeof d.bsNicks === "object") {
+          for (const k of Object.keys(BS_NICKS)) delete BS_NICKS[k];
+          Object.assign(BS_NICKS, d.bsNicks);
+        }
+        try {
+          localStorage.setItem(BS_PIN_KEY, JSON.stringify([...BS_PINS]));
+          localStorage.setItem(BS_NICK_KEY, JSON.stringify(BS_NICKS));
+        } catch {}
+        if (S.view === "brainstorm") renderBsView();
       }
 
       const tok = d && d.token ? String(d.token) : "";

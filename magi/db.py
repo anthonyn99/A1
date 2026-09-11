@@ -518,6 +518,29 @@ class Database:
                     out["provider_ids"] = []
             return {"session": out, "turns": turns}
 
+    async def delete_session(self, session_id: str) -> bool:
+        """Forget a planning session and every turn in it.
+
+        The turns table declares ON DELETE CASCADE, which SQLite honours only
+        when PRAGMA foreign_keys is on -- and that is per-connection and off by
+        default, so relying on it would leave every round of the session behind
+        with nothing pointing at them. Named explicitly, like delete_run.
+        """
+        async with aiosqlite.connect(self.path) as db:
+            cur = await db.execute(
+                "SELECT 1 FROM brainstorm_sessions WHERE id=?", (session_id,)
+            )
+            if not await cur.fetchone():
+                return False
+            await db.execute(
+                "DELETE FROM brainstorm_turns WHERE session_id=?", (session_id,)
+            )
+            await db.execute(
+                "DELETE FROM brainstorm_sessions WHERE id=?", (session_id,)
+            )
+            await db.commit()
+        return True
+
     async def list_sessions(self, limit: int = 50, offset: int = 0) -> list[dict]:
         async with aiosqlite.connect(self.path) as db:
             db.row_factory = aiosqlite.Row

@@ -850,6 +850,24 @@ async def get_brainstorm(session_id: str):
     return _session_payload(data)
 
 
+@app.delete("/api/brainstorm/{session_id}")
+async def delete_brainstorm(session_id: str):
+    """Forget a planning session, its rounds and the files it carried.
+
+    Refuses while a round is in flight, for the same reason a run does:
+    deleting the rows a live stream is still writing to leaves half a session
+    behind and a stream reporting progress on something that no longer exists.
+    """
+    job = _brainstorm_jobs.get(session_id)
+    if job and not job.get("done"):
+        raise HTTPException(409, "That session is in the middle of a round.")
+    removed = await db.delete_session(session_id)
+    _brainstorm_jobs.pop(session_id, None)
+    # Attachments were staged under the session's own directory.
+    shutil.rmtree(UPLOADS_DIR / session_id, ignore_errors=True)
+    return {"id": session_id, "removed": removed}
+
+
 @app.post("/api/brainstorm/{session_id}/round")
 async def create_brainstorm_round(
     session_id: str,
