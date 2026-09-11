@@ -401,6 +401,93 @@ if (!window.STUDYOS_CONFIG_READY || !window.STUDYOS_CONFIG_READY('firebase')) {
     // before this is called; nothing further to do here.
   };
 
+  /* ══ Flashcards + review state ═══════════════════════════════════════════
+   * ONE DOCUMENT PER CLASS, deliberately NOT part of the main StudyOS document.
+   *
+   * That document is written with a whole-document setDoc. Review state is the
+   * most write-heavy data in the app — one write per card graded — and the most
+   * likely to change on two devices at once (phone between classes, laptop at
+   * night). Putting it there would mean the laptop's save silently erasing a
+   * phone session's review history, and nothing on screen would look wrong.
+   *
+   * Same shape and same stale-overwrite guard as the per-module notes above: no
+   * write for a class may land until this session has confirmed real server
+   * state for THAT class at least once, so a cold start cannot overwrite
+   * another device with an empty local deck. */
+  const CARDS_COLLECTION = PATHS.studyosCards || 'studyos_cards';
+  const _cardsServerSeen = {};
+  const _cardsPendingWrites = {};
+  const _cardsSaveTimers = {};
+  const _cardsPendingPayload = {};
+  const _cardsUnsub = {};
+
+  function _cardsMarkServerSeen(classId) {
+    if (_cardsServerSeen[classId]) return;
+    _cardsServerSeen[classId] = true;
+    const q = _cardsPendingWrites[classId] || []; _cardsPendingWrites[classId] = [];
+    q.forEach((fn) => { try { fn(); } catch (e) { console.warn('[StudyOS Cards] deferred write failed:', e && e.message); } });
+  }
+  function _cardsWhenServerSeen(classId, fn) {
+    if (_cardsServerSeen[classId]) return fn();
+    if (!_cardsPendingWrites[classId]) _cardsPendingWrites[classId] = [];
+    if (_cardsPendingWrites[classId].indexOf(fn) === -1) _cardsPendingWrites[classId].push(fn);
+    return Promise.resolve();
+  }
+  function _cardsDocRef(classId) { return doc(db, CARDS_COLLECTION, String(classId)); }
+
+  async function _cardsDoSave(classId) {
+    const payload = _cardsPendingPayload[classId];
+    if (!payload) return;
+    delete _cardsPendingPayload[classId];
+    try {
+      await setDoc(_cardsDocRef(classId), payload, { merge: false });
+    } catch (e) {
+      console.warn('[StudyOS Cards] save failed:', classId, e && e.code);
+    }
+  }
+
+  function _cardsWatch(classId) {
+    if (_cardsUnsub[classId]) return;
+    _cardsUnsub[classId] = onSnapshot(_cardsDocRef(classId), { includeMetadataChanges: false }, (snap) => {
+      if (snap.metadata && snap.metadata.fromCache === false) _cardsMarkServerSeen(classId);
+      if (!snap.exists()) return;
+      if (snap.metadata && snap.metadata.hasPendingWrites) return;   // our own echo
+      const data = snap.data() || {};
+      window.dispatchEvent(new CustomEvent('fb-cards-remote', {
+        detail: { classId, cards: Array.isArray(data.cards) ? data.cards : [] },
+      }));
+    }, (err) => console.warn('[StudyOS Cards] onSnapshot error:', classId, err && err.code));
+  }
+
+  window._fbSaveCards = (classId, list) => {
+    if (!classId) return;
+    _cardsPendingPayload[classId] = { cards: list || [], savedAt: Date.now() };
+    if (_cardsSaveTimers[classId]) clearTimeout(_cardsSaveTimers[classId]);
+    _cardsSaveTimers[classId] = setTimeout(() => {
+      _cardsWhenServerSeen(classId, () => _cardsDoSave(classId));
+    }, NOTES_SAVE_DEBOUNCE_MS);
+  };
+
+  window._fbLoadCards = async (classId) => {
+    if (!classId) return null;
+    _cardsWatch(classId);
+    try {
+      const snap = await _freshGet(_cardsDocRef(classId));
+      if (snap && snap.metadata && snap.metadata.fromCache === false) _cardsMarkServerSeen(classId);
+      if (snap && snap.exists()) {
+        const d = snap.data() || {};
+        return Array.isArray(d.cards) ? d.cards : [];
+      }
+      // A class with no deck yet is a legitimate empty state, and confirming
+      // that from the server is what unblocks the first write.
+      if (snap) _cardsMarkServerSeen(classId);
+      return [];
+    } catch (e) {
+      console.warn('[StudyOS Cards] load failed:', classId, e && e.code);
+      return null;
+    }
+  };
+
   /* ══ App Lock state ══════════════════════════════════════════════════════
    * WHICH lock is on, and at what version — shared across all devices. The
    * password itself never touches Firestore; only its salted hash lives in the
