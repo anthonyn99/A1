@@ -1543,9 +1543,14 @@ table.doctor code { color: var(--txd); font-size: 11px; }
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--ac) 16%, transparent);
 }
 .bs-topic {
-  width: 100%; min-height: 92px; resize: vertical; background: transparent;
+  /* Grows with what you type and stops at the same cap the council's does.
+     It was a fixed 92px box with a drag handle in the corner: three empty
+     lines before you have typed anything, and a control asking you to resize
+     a box that should never have needed resizing. */
+  width: 100%; min-height: 26px; max-height: 45vh; resize: none;
+  background: transparent;
   border: 0; outline: 0; color: var(--tx); font-family: var(--font);
-  font-size: 13px; line-height: 1.6;
+  font-size: 13px; line-height: 1.6; overflow-y: auto;
 }
 /* The global focus ring is `textarea:focus-visible`, which outranks a bare
    class -- so `.bs-topic { outline: 0 }` never applied and clicking into the
@@ -6802,7 +6807,11 @@ function bsReset() {
     // A different session is about different material.
     attachments: [],
   });
-  renderBsNav(); renderBsView();
+  // setView, not the two renderers directly. They redraw the panel but not
+  // the things AROUND it: the units row stays hidden because its `hidden` is
+  // set by setView from bs.sessionId, and the idle class stays off, so the
+  // composer loses its centred offset and the whole screen jumps to the top.
+  setView("brainstorm");
 }
 
 /** Hands the plan to the user as a file, wherever they choose to put it.
@@ -7072,6 +7081,19 @@ function bsDetails(summaryText, bodyText) {
  *  its exit where you are looking -- and "New session" in a list of rows reads
  *  as one more row rather than as back. Named for where it takes you.
  */
+/** Grow a brainstorm textarea to fit its content, capped by CSS.
+ *
+ *  The same two lines the council's composer uses: reset to auto so the
+ *  scrollHeight is measured against no height at all, then adopt it. Taking
+ *  the element rather than an id because renderBsView rebuilds the panel, so
+ *  the box this runs on is younger than any id lookup done before the render.
+ */
+function bsAutosize(ta) {
+  if (!ta) return;
+  ta.style.height = "auto";
+  ta.style.height = `${ta.scrollHeight}px`;
+}
+
 function bsBackButton() {
   const b = el("button", "navitem");
   b.type = "button";
@@ -7114,8 +7136,10 @@ function renderBsView() {
     // Locked during a refine as well as a round: the rewrite replaces this
     // text, so edits made while it is in flight would be lost.
     ta.disabled = busy || bs.refining;
+    bsAutosize(ta);
     ta.oninput = () => {
       bs.draft = ta.value;
+      bsAutosize(ta);
       // Once the rewrite is edited by hand, "Undo" would restore over the
       // person's own words rather than over a machine rewrite.
       if (bs.preRefine !== null) bs.preRefine = null;
