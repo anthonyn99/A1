@@ -1719,27 +1719,33 @@ table.doctor code { color: var(--txd); font-size: 11px; }
 .row-cloud { color: var(--ac); }
 .row-pinned-tag { color: var(--ac); font-weight: 600; }
 
-/* Pinning. The control is quiet until the row is hovered or the pin is on --
-   a column of bright pins down the list would read as the point of the list,
-   which it is not. */
-.row-pin {
-  flex-shrink: 0; width: 26px; height: 26px; border-radius: 6px;
+/* Pin, rename, delete. ALWAYS VISIBLE -- they used to appear on hover, which
+   on a touch screen means never, and a control you cannot see is a control
+   that does not exist. Outlined and evenly weighted, so a row reads as "a
+   deliberation, and three things you can do to it". */
+.row-acts { display: flex; gap: 5px; flex-shrink: 0; align-items: center; }
+.row-act {
+  flex-shrink: 0; width: 30px; height: 30px; border-radius: 7px;
   display: inline-flex; align-items: center; justify-content: center;
-  background: transparent; border: 1px solid transparent;
-  color: var(--txm); opacity: 0; font-size: 13px;
-  cursor: pointer;
-  transition: opacity .15s, color .15s, border-color .15s, background .15s;
+  background: transparent; border: 1px solid var(--bd);
+  color: var(--txm); font-size: 13px; cursor: pointer;
+  transition: color .15s, border-color .15s, background .15s;
 }
-.row:hover .row-pin, .row-pin:focus-visible { opacity: .75; }
-.row-pin:hover { opacity: 1; color: var(--ac); border-color: var(--ac); }
-/* Pinned has to read as a switch that is ON, or there is nothing to tell you
-   that pressing it again is what turns it off. A bare tinted glyph did not:
-   it looked like a status marker, which is not something you press. */
-.row-pin.on {
-  opacity: 1; color: var(--ac);
+.row-act svg { width: 15px; height: 15px; }
+.row-act:hover { color: var(--ac); border-color: var(--ac); background: var(--s2); }
+/* Pinned and named both have to read as a switch that is ON, or nothing says
+   that pressing again is what turns it off. */
+.row-act.on {
+  color: var(--ac);
   border-color: color-mix(in srgb, var(--ac) 55%, transparent);
   background: color-mix(in srgb, var(--ac) 14%, transparent);
 }
+.row-act.danger:hover {
+  color: var(--red); border-color: var(--red);
+  background: color-mix(in srgb, var(--red) 12%, transparent);
+}
+/* A named row shows a name, not a prompt, so it gets to look deliberate. */
+.row .q.named { color: var(--tx); font-weight: 600; }
 .row.pinned { background: color-mix(in srgb, var(--ac) 8%, transparent); }
 
 .history-note {
@@ -2424,12 +2430,14 @@ html.modal-open .page, html.modal-open .sidebar { overflow: hidden; }
      missing it opens the deliberation instead. 44px square, permanently
      visible (a touch screen has no hover to discover it with), and outlined so
      it reads as a button rather than a decoration beside the date. */
-  .row-pin {
+  /* 44px is the smallest reliably hittable control, and three of them will
+     not fit beside a question on a 360px screen -- so they take their own row
+     underneath rather than squeezing the question to nothing. */
+  .row-act {
     width: 44px; height: 44px; border-radius: 10px;
-    opacity: 1; color: var(--txd);
-    border-color: var(--bd); background: var(--s2);
+    color: var(--txd); background: var(--s2);
   }
-  .row-pin svg { width: 18px; height: 18px; }
+  .row-act svg { width: 18px; height: 18px; }
 
   /* iOS zooms the page when a focused input is under 16px. That zoom does not
      undo itself, so one tap on the composer leaves the whole console
@@ -2486,12 +2494,12 @@ html.modal-open .page, html.modal-open .sidebar { overflow: hidden; }
   .row {
     display: grid; align-items: center;
     grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas: "q pin" "meta pin";
+    grid-template-areas: "q q" "meta meta" "acts acts";
     gap: 4px 10px; padding: 12px;
   }
   .row .q { grid-area: q; white-space: normal; overflow: visible; }
   .row .meta { grid-area: meta; white-space: normal; }
-  .row .row-pin { grid-area: pin; }
+  .row .row-acts { grid-area: acts; justify-content: flex-start; margin-top: 4px; }
 
   table.doctor { font-size: 10.5px; }
   table.doctor th, table.doctor td { padding: 5px 7px; }
@@ -2929,6 +2937,8 @@ const IC = {
   chair:      ICON('<path d="M12 2.6l2.6 5.6 6 .8-4.4 4.2 1.1 6-5.3-3-5.3 3 1.1-6L3.4 9l6-.8z"/>', ' fill="currentColor" stroke-width="1"'),
   accounts:   ICON('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'),
   help:       ICON('<circle cx="12" cy="12" r="9.5"/><path d="M9.2 9.2a2.9 2.9 0 0 1 5.65.97c0 1.93-2.9 2.9-2.9 2.9"/><path d="M12 17.1h.01"/>'),
+  rename:     ICON('<path d="M11 4H7a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-4"/><path d="M18.4 2.6a2 2 0 0 1 2.8 2.8L12 14.6l-3.5.9.9-3.5z"/>'),
+  trash:      ICON('<path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>'),
   pin:        ICON('<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>'),
   menu:       ICON('<path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h18"/>'),
   close:      ICON('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'),
@@ -4633,12 +4643,22 @@ function renderHistory() {
   if (!rows.length) { box.append(el("div", "empty-state", "No runs yet.")); return; }
   for (const r of rows) {
     const pinned = isPinned(r);
+    const nick = nickOf(r);
     const row = el("div", "row" + (pinned ? " pinned" : ""));
-    row.append(el("span", "q", r.question));
+    const q = el("span", "q" + (nick ? " named" : ""), titleOf(r));
+    // The prompt is still what it was, so it stays reachable rather than being
+    // replaced outright by a name you chose.
+    if (nick) q.title = r.question;
+    row.append(q);
+    // Seconds are noise in a history list: never what you are looking for, and
+    // they push the part you are looking for off a phone screen.
     const meta = el("span", "meta",
       `${r.responded_count}/${r.attempted_count} · ` +
       `${r.total_ms ? (r.total_ms / 1000).toFixed(0) + "s" : "—"} · ` +
-      new Date(r.created_at).toLocaleString());
+      new Date(r.created_at).toLocaleString([], {
+        year: "numeric", month: "numeric", day: "numeric",
+        hour: "numeric", minute: "2-digit",
+      }));
     // A run from another device has no local SQLite row, so say where it came
     // from rather than letting it look identical to one made here.
     if (r.cloudOnly) meta.append(el("span", "row-cloud", " · synced"));
@@ -4648,7 +4668,12 @@ function renderHistory() {
     if (pinned) meta.append(el("span", "row-pinned-tag", " · pinned"));
     row.append(meta);
 
-    const pin = el("button", "row-pin" + (pinned ? " on" : ""));
+    // All three ALWAYS VISIBLE. They were revealed on hover, which on a touch
+    // screen means never, and a control you cannot see is one that does not
+    // exist.
+    const acts = el("span", "row-acts");
+
+    const pin = el("button", "row-act" + (pinned ? " on" : ""));
     pin.type = "button";
     pin.innerHTML = IC.pin;
     // Says what it will DO, and what pinning is for -- "Pin" alone does not
@@ -4658,7 +4683,23 @@ function renderHistory() {
       : `Pin this, to keep it past ${HISTORY_DAYS} days`;
     pin.setAttribute("aria-pressed", String(pinned));
     pin.onclick = (e) => { e.stopPropagation(); togglePin(r.id); };
-    row.append(pin);
+    acts.append(pin);
+
+    const ren = el("button", "row-act" + (nick ? " on" : ""));
+    ren.type = "button";
+    ren.innerHTML = IC.rename;
+    ren.title = nick ? "Rename, or remove the name" : "Give this a name";
+    ren.onclick = (e) => { e.stopPropagation(); openNickSheet(r); };
+    acts.append(ren);
+
+    const del = el("button", "row-act danger");
+    del.type = "button";
+    del.innerHTML = IC.trash;
+    del.title = "Delete this deliberation";
+    del.onclick = (e) => { e.stopPropagation(); deleteRun(r); };
+    acts.append(del);
+
+    row.append(acts);
 
     row.onclick = () => (r.cloudOnly ? cloudOpenRun(r.id) : openRun(r.id));
     box.append(row);
@@ -5230,7 +5271,12 @@ function uiConfirmMagi(title, body, okLabel) {
   return new Promise((res) => {
     const sheet = el("div", "sheet");
     const box = el("div", "sheet-box");
-    box.append(el("div", "sheet-hd", title), el("div", "sheet-sub", body));
+    const sub = el("div", "sheet-sub");
+    // pre-line, so a body can separate the thing being acted on from the
+    // consequences of acting on it.
+    sub.style.whiteSpace = "pre-line";
+    sub.textContent = body;
+    box.append(el("div", "sheet-hd", title), sub);
     const bar = el("div", "sheet-bar");
     const ok = el("button", "btn active", okLabel || "OK");
     const no = el("button", "btn", "Cancel");
@@ -7561,6 +7607,141 @@ function expired(r) {
   if (isPinned(r)) return false;
   const age = runAgeDays(r);
   return Number.isFinite(age) && age > HISTORY_DAYS;
+}
+
+/* A name you gave it.
+ *
+ *  A deliberation is listed by its prompt, and a good prompt is long -- three
+ *  of these are the same 10-section trading-report template, identical for
+ *  the first ninety characters, so History showed rows that could not be told
+ *  apart at all. A nickname replaces the prompt in the list; removing it puts
+ *  the prompt back. The prompt itself is never touched, because it is the
+ *  question that was actually asked and the verdict is an answer to it.
+ *
+ *  Stored the way pins are -- locally AND on the cloud row, either counting --
+ *  for the same reason: it has to survive sync being unavailable and still
+ *  reach your other devices when sync works. */
+const NICK_KEY = "magi.nicks";
+
+const NICKS = (() => {
+  try { return JSON.parse(localStorage.getItem(NICK_KEY) || "{}") || {}; }
+  catch { return {}; }
+})();
+function saveNicks() {
+  try { localStorage.setItem(NICK_KEY, JSON.stringify(NICKS)); } catch {}
+}
+const nickOf = (r) => (NICKS[r.id] || r.nick || "").trim();
+const titleOf = (r) => nickOf(r) || r.question;
+
+async function setNick(id, name) {
+  const clean = (name || "").trim().slice(0, 120);
+  if (clean) NICKS[id] = clean; else delete NICKS[id];
+  saveNicks();
+  const row = CLOUD.index.find((r) => r.id === id);
+  if (row) {
+    row.nick = clean;
+    cloudUpsertIndex({ ...row, nick: clean });
+  } else {
+    const listed = (S.historyMerged || []).find((r) => r.id === id);
+    if (listed) listed.nick = clean;
+    mergeHistory();
+  }
+}
+
+/** Ask for a name in MAGI's own UI. No browser dialogs anywhere here. */
+function openNickSheet(r) {
+  const sheet = el("div", "sheet");
+  const box = el("div", "sheet-box");
+  box.append(el("div", "sheet-hd", nickOf(r) ? "Rename" : "Give it a name"));
+  box.append(el("div", "sheet-sub",
+    "Shown in History instead of the prompt. The prompt itself is unchanged " +
+    "— it is the question that was asked, and the verdict answers it."));
+
+  box.append(el("div", "sheet-lbl", "Name"));
+  const input = el("input", "sheet-in");
+  input.type = "text";
+  input.value = nickOf(r);
+  input.placeholder = String(r.question || "").slice(0, 60);
+  input.maxLength = 120;
+  box.append(input);
+  box.append(el("div", "sheet-note", "Follows you to your other devices."));
+
+  const bar = el("div", "sheet-bar");
+  const save = el("button", "btn active", "Save");
+  const clear = el("button", "btn", "Remove name");
+  const close = el("button", "btn", "Cancel");
+  bar.append(save);
+  if (nickOf(r)) bar.append(clear);
+  bar.append(el("span", "qbar-spacer"), close);
+  box.append(bar);
+
+  const done = () => sheet.remove();
+  close.onclick = done;
+  sheet.onclick = (e) => { if (e.target === sheet) done(); };
+  save.onclick = () => { setNick(r.id, input.value); done(); };
+  clear.onclick = () => { setNick(r.id, ""); done(); };
+  input.onkeydown = (e) => { if (e.key === "Enter") save.click(); };
+
+  sheet.append(box);
+  document.body.append(sheet);
+  input.focus();
+  input.select();
+}
+
+/* ── deleting one ──────────────────────────────────────────────────────────
+   Both copies, and the CLOUD one first.
+
+   The cloud row is the copy that comes back: left behind after the engine has
+   forgotten the run it is a History entry that opens to nothing, and worse,
+   backfill would see a local run missing from the cloud and cheerfully
+   re-upload it. Doing the cloud first means the worst an interruption can
+   leave is an engine copy with no cloud row -- which is the state every
+   never-synced run is already in, and is harmless. */
+async function deleteRun(r) {
+  const name = String(titleOf(r) || "");
+  const shown = name.length > 90 ? name.slice(0, 90) + "…" : name;
+  const ok = await uiConfirmMagi(
+    "Delete this deliberation?",
+    "“" + shown + "”\n\n" +
+    "Every member's answer and the verdict go with it, on this device and on " +
+    "your others. This cannot be undone.",
+    "Delete");
+  if (!ok) return;
+
+  setSync("saving");
+  let failed = null;
+  if (await cloudInit()) {
+    try {
+      await CLOUD.fs.deleteDoc(_runDoc(r.id));
+      CLOUD.index = CLOUD.index.filter((x) => x.id !== r.id);
+      await CLOUD.fs.setDoc(_indexDoc(), {
+        runs: CLOUD.index, updated: CLOUD.fs.serverTimestamp(),
+      }, { merge: true });
+    } catch (e) { failed = _syncFail("deleting a deliberation from the cloud", e); }
+  }
+
+  if (!r.cloudOnly && online()) {
+    try {
+      const res = await fetch(`${link.api}/api/runs/${r.id}`,
+                              authed({ method: "DELETE" }));
+      if (!res.ok) {
+        const d = await res.json().catch(() => null);
+        failed = _syncFail("deleting a deliberation from the engine",
+                           new Error((d && d.detail) || ("HTTP " + res.status)));
+      }
+    } catch (e) { failed = _syncFail("deleting a deliberation from the engine", e); }
+  }
+
+  delete NICKS[r.id];
+  PINS.delete(r.id);
+  saveNicks();
+  savePins();
+  S.history = S.history.filter((x) => x.id !== r.id);
+  // The run that was open has just been deleted -- leaving it on screen
+  // invites a Studio card generated from something that no longer exists.
+  if (S.runId === r.id) newRun();
+  mergeHistory();
+  if (failed) setSync("error", failed); else setSync("saved");
 }
 
 async function togglePin(id) {
