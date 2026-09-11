@@ -3678,6 +3678,9 @@ async function refine() {
   try {
     const form = new FormData();
     form.append("question", q);
+    // Refine drives a model too, quietly and with no History row to show for
+    // it -- so it gets the same tick boxes as everything else.
+    form.append("providers", [...S.selected].join(","));
     const res = await fetch(`${link.api}/api/refine`, authed({ method: "POST", body: form }));
     if (!res.ok) {
       const body = await res.json().catch(() => null);
@@ -4007,7 +4010,13 @@ async function runDoctor() {
   setView("doctor");
   renderDoctor(null);
   try {
-    const r = await fetch(`${link.api}/api/doctor`, authed({ method: "POST", signal: ctl.signal }));
+    // A doctor pass opens a real Chrome per unit, signed in as you. It checks
+    // what you have SELECTED -- it was the last place in the console where
+    // unticking a unit did not stop MAGI driving it.
+    const form = new FormData();
+    form.append("providers", [...S.selected].join(","));
+    const r = await fetch(`${link.api}/api/doctor`,
+      authed({ method: "POST", body: form, signal: ctl.signal }));
     const data = await r.json();
     // A late response from an aborted pass must not overwrite the screen.
     if (!ctl.signal.aborted) { S.doctorBusy = false; renderDoctor(data); }
@@ -4049,7 +4058,9 @@ function renderDoctor(data) {
     $("doctorHd").textContent = "Selector doctor — checking";
     const r = el("div", "doctor-running");
     r.append(spinnerEl());
-    r.append(el("span", null, "Opening each unit's site to see which selectors match. This launches a real browser per unit and takes a while."));
+    r.append(el("span", null,
+      `Opening each SELECTED unit's site to see which selectors match — ` +
+      `${S.selected.size} of ${S.providers.length}. This launches a real browser per unit and takes a while.`));
     r.append(el("span", "qbar-spacer"));
     const stop = el("button", "navitem danger");
     stop.type = "button";
@@ -5719,6 +5730,7 @@ async function bsRefine() {
   try {
     const form = new FormData();
     form.append("question", q);
+    form.append("providers", [...S.selected].join(","));
     const res = await fetch(`${link.api}/api/refine`, authed({ method: "POST", body: form }));
     if (!res.ok) {
       const body = await res.json().catch(() => null);

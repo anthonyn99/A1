@@ -1258,7 +1258,10 @@ async def finalize_brainstorm(
                 # possible moment to fail.
                 chair = build_provider(
                     settings,
-                    studio_engine.pick_generator_id(settings, None),
+                    # `provider_ids` is this session's selection, and the
+                    # fallback has to stay inside it: an emergency is not a
+                    # licence to drive a unit that was unticked.
+                    studio_engine.pick_generator_id(settings, None, provider_ids),
                 )
             else:
                 await orch._await_profile_release(chair)
@@ -1397,17 +1400,50 @@ async def cancel_brainstorm_job(session_id: str, job_id: str):
 # cost of the feature. The API path answers in about a second.
 REFINER_PROVIDER_ID = "gemini-api"
 
+# Which UNIT an API-backed provider is. The tick boxes are about models, not
+# about transports: unticking GEMINI means "do not use Gemini", and reaching
+# the same model through an API key instead of a logged-in tab is still using
+# it -- same company, same account, same instruction being ignored.
+API_PROVIDER_UNIT = {"gemini-api": "gemini"}
 
-def _refiner_id() -> str:
-    """The provider the refiner should use, falling back if no key is set.
 
-    Without a key the API provider cannot be built, and failing the button
-    outright would be a regression for anyone who has not added one -- so we
-    fall back to the browser path that was here before. Slow, but working.
+def _refiner_id(allowed: list[str] | None = None) -> str:
+    """The provider the refiner should use, within the units selected.
+
+    Refine is the quiet one. It is not a council run, it produces no History
+    row, and it is easy to forget it drives a model at all -- which is exactly
+    why it was the last place an unticked unit could still be used. It takes
+    the selection like everything else now.
+
+    Preference is still the Gemini API when its key is set AND Gemini is
+    selected: it answers in a second where the browser path spends several
+    launching Chrome to rewrite one sentence. Otherwise it falls back to a
+    selected browser member -- slow, but yours.
     """
-    if gemini_api.load_api_key():
+    if (
+        gemini_api.load_api_key()
+        and (allowed is None or API_PROVIDER_UNIT[REFINER_PROVIDER_ID] in allowed)
+    ):
         return REFINER_PROVIDER_ID
-    return studio_engine.pick_generator_id(settings, None)
+    return studio_engine.pick_generator_id(settings, None, allowed)
+
+
+def _resolve_refiner(requested: str, allowed: list[str] | None) -> str:
+    """Which provider refines, honouring a request only if it is selected.
+
+    An explicit provider_id is a convenience for scripts, not a way around the
+    tick boxes -- so a request for a unit that is not selected is dropped and
+    the normal choice is made instead.
+    """
+    requested = (requested or "").strip()
+    if (
+        requested
+        and allowed
+        and requested not in allowed
+        and API_PROVIDER_UNIT.get(requested) not in allowed
+    ):
+        requested = ""
+    return requested or _refiner_id(allowed)
 
 
 # The council's browser profiles are single-occupancy, so a refine that ran
@@ -1423,6 +1459,7 @@ def _profiles_busy() -> bool:
 async def refine_prompt(
     question: str = Form(...),
     provider_id: str = Form(""),
+    providers: str = Form(""),
 ):
     """Rewrite the composer's text into a sharper prompt, via one model.
 
@@ -1433,9 +1470,10 @@ async def refine_prompt(
 
     Runs on the Gemini API by default (see REFINER_PROVIDER_ID) rather than a
     browser member, because the browser path spent seconds launching Chrome and
-    polling for a stable answer to rewrite one sentence. Pass provider_id to
-    force a specific member; with no key configured it falls back to the
-    browser path so the button keeps working.
+    polling for a stable answer to rewrite one sentence. `providers` is the
+    units currently selected and constrains every choice here, the API refiner
+    included -- see _refiner_id. Pass provider_id to force a specific member,
+    which is honoured only if that member is selected too.
     """
     q = question.strip()
     if not q:
@@ -1443,9 +1481,9 @@ async def refine_prompt(
 
     _reload_settings()
 
+    allowed = [p for p in providers.split(",") if p] or None
     try:
-        pid = provider_id.strip() or _refiner_id()
-        provider = build_provider(settings, pid)
+        provider = build_provider(settings, _resolve_refiner(provider_id, allowed))
     except (KeyError, ValueError) as e:
         raise HTTPException(400, str(e))
 
@@ -1474,8 +1512,24 @@ async def refine_prompt(
 
 
 @app.post("/api/doctor")
-async def doctor(request: Request, provider_ids: list[str] | None = None):
-    providers = build_providers(settings, provider_ids or None)
+async def doctor(
+    request: Request,
+    provider_ids: list[str] | None = None,
+    providers: str = Form(""),
+):
+    """Check the selectors still match, for the units that are SELECTED.
+
+    A doctor pass opens a real Chrome against each site it checks, signed in as
+    you. Running it across every configured site meant unticking a unit did not
+    stop MAGI driving it -- the one place in the console that still did. A unit
+    you are not using is also a unit whose selectors you do not need to know
+    about, so scoping this loses nothing and honours the tick box.
+
+    `providers` (form) is what the console sends; `provider_ids` (json) is kept
+    so scripts and the older shape keep working.
+    """
+    picked = provider_ids or [p for p in providers.split(",") if p] or None
+    providers = build_providers(settings, picked)
     out = []
 
     async def _cancel_when_client_leaves(task: asyncio.Task) -> None:
