@@ -3840,13 +3840,62 @@ function _sosScheduleItems() {
   return fromEvents.concat(fromTasks);
 }
 
+/* Priority score v2 (spec G-2).
+ *
+ * Was `urgency × weight`, which cannot tell a 5% quiz she has already mastered
+ * from a 25% exam she is weak on — they rank purely by date and weight. Now
+ * mastery exists (js/modules/deck.js), the missing term is available:
+ *
+ *     priority = urgency × weight × (1 − mastery × MASTERY_MAX_DISCOUNT)
+ *
+ * Mastery only ever DISCOUNTS, capped at 60%. Fully mastered material still
+ * ranks — an exam you feel good about is not an exam you skip — but it steps
+ * aside for the thing you cannot do yet. Capping the discount also means a
+ * wrong mastery estimate can never bury a real deadline.
+ *
+ * Degrades to the old behaviour when the deck module has not booted, or when a
+ * class has no cards: with no evidence, assume nothing.
+ */
+const MASTERY_MAX_DISCOUNT = 0.6;
+
 function _sosPriorityScore(ev) {
   const today = new Date();
   const daysLeft = Math.max(0, Math.ceil((new Date(ev.date + 'T12:00:00') - today) / 86400000));
   const weight = parseFloat(ev.weight) || 10; // default 10% if unset
   // Urgency: 100 at 0 days, halves every 7 days (exponential decay)
   const urgency = 100 * Math.pow(0.5, daysLeft / 7);
-  return Math.round(urgency * weight);
+
+  let readiness = 1;
+  try {
+    if (ev.classId && window.SOS && window.SOS.deck) {
+      const m = window.SOS.deck.mastery(ev.classId);
+      // No cards means no evidence, not "0% mastered" — treating an
+      // un-carded class as totally unknown would shove it to the top of the
+      // queue purely for having no flashcards.
+      if (m && m.total > 0) readiness = 1 - (m.pct / 100) * MASTERY_MAX_DISCOUNT;
+    }
+  } catch (e) { /* fall back to urgency × weight */ }
+
+  return Math.round(urgency * weight * readiness);
+}
+
+/** Why a row is ranked where it is — shown on hover so the order is trustable
+ *  rather than magic (spec G-2). */
+function _sosPriorityWhy(ev) {
+  const today = new Date();
+  const daysLeft = Math.max(0, Math.ceil((new Date(ev.date + 'T12:00:00') - today) / 86400000));
+  const weight = parseFloat(ev.weight) || 10;
+  const bits = [
+    daysLeft === 0 ? 'due today' : `${daysLeft} day${daysLeft === 1 ? '' : 's'} away`,
+    `${weight}% of the grade`,
+  ];
+  try {
+    if (ev.classId && window.SOS && window.SOS.deck) {
+      const m = window.SOS.deck.mastery(ev.classId);
+      if (m && m.total > 0) bits.push(`${m.pct}% mastered`);
+    }
+  } catch (e) {}
+  return bits.join(' · ');
 }
 
 // ── Exam Countdown ──────────────────────────────────────────────────────────
@@ -3933,7 +3982,7 @@ function renderPriorityQueue() {
 
     const item = document.createElement('div');
     item.className = 'sos-pq-item';
-    item.title = 'Click to edit';
+    item.title = _sosPriorityWhy(ev) + ' — click to edit';
     item.onclick = () => ev.src === 'task' ? openEditTask(ev.id) : openAddEvent(ev.ref);
     // ▶ Start and ✓ Done (spec S-2). The queue ranked eight things and gave her
     // nothing to do with any of them — it said what mattered and never "do this
