@@ -1010,12 +1010,18 @@ async function handleAuth(path, request, env, origin) {
     const box = mailboxFor(env, body);
     const label = String(body.label || entryId);
     const m = hintMail(label, rec.hint, body.appName);
-    const sent = await sendMailDetailed(box, m.subject, m.message);
+    const sent = await sendMailDetailed(env, box, m.subject, m.message);
     await guessFail(env, mk);
     // `mail` is only present on failure, and carries Formspree's own words --
     // "hint emailed" that silently wasn't is the bug this whole path had.
     const out = { ok: sent.ok, emailed: sent.ok, to: maskEmail(box.email) };
-    if (!sent.ok) { out.error = 'email-failed'; out.mail = { status: sent.status, body: sent.body }; }
+    // `via` names the provider that actually accepted it. Formspree here is a
+    // warning, not a success: from a worker it usually files rather than mails.
+    out.via = sent.provider;
+    if (!sent.ok) {
+      out.error = 'email-failed';
+      out.mail = { status: sent.status, body: sent.body, tried: sent.tried };
+    }
     return json(out, origin);
   }
 
@@ -1070,16 +1076,17 @@ async function handleAuth(path, request, env, origin) {
     const m = resetMail(label, code, body.appName);
     // Mail FIRST: if it can't be delivered there is no point storing a code
     // nobody will ever see, and the caller must be told the reset didn't start.
-    const sent = await sendMailDetailed(box, m.subject, m.message);
+    const sent = await sendMailDetailed(env, box, m.subject, m.message);
     if (!sent.ok) {
       return json({ ok: false, error: 'email-failed',
-                    mail: { status: sent.status, body: sent.body } }, origin, 502);
+                    mail: { status: sent.status, body: sent.body, tried: sent.tried } },
+                  origin, 502);
     }
     await env.TOKEN_CACHE.put('reset:' + key,
       JSON.stringify({ code: codeRec, exp: Date.now() + RESET_TTL * 1000, tries: 0 }),
       { expirationTtl: RESET_TTL });
     await guessFail(env, mk);   // rate-limit the mailer itself
-    return json({ ok: true, emailed: true, to: maskEmail(box.email) }, origin);
+    return json({ ok: true, emailed: true, via: sent.provider, to: maskEmail(box.email) }, origin);
   }
 
   if (path === '/auth/reset/confirm') {
@@ -1130,45 +1137,43 @@ async function handleAuth(path, request, env, origin) {
     if (wait) return throttled(wait, origin);
     const stamp = new Date().toISOString();
     const probes = [];
+    const body_ = (n, who) =>
+      'A1 mail selftest, probe ' + n + ' of 3, sent via ' + who + '.\n\n' +
+      'Each probe goes out through a DIFFERENT provider. Whichever ones land in ' +
+      'the inbox are the providers that actually work from this worker; a ' +
+      'provider that is missing was accepted and then filed.\n\nsent ' + stamp;
 
-    // LEGACY: no browser headers, plain `subject` -- the exact shape that was
-    // accepted and then never delivered. Kept so the comparison stays honest.
-    let legacy;
-    try {
-      const r = await fetch(box.form, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify({
-          email: box.email,
-          subject: 'A1 selftest LEGACY',
-          message: 'PROBE 1 of 2 - LEGACY worker shape (no Origin/Referer/User-Agent).\n' +
-                   'If this one is missing from your inbox and probe 2 arrived, the ' +
-                   'spam-scoring diagnosis is confirmed.\n\nsent ' + stamp,
-        }),
-      });
-      let t = ''; try { t = await r.text(); } catch (e) {}
-      legacy = { ok: r.ok, status: r.status, body: t.slice(0, 200) };
-    } catch (e) {
-      legacy = { ok: false, status: 0, body: String((e && e.message) || e).slice(0, 200) };
-    }
-    probes.push({ probe: 1, shape: 'legacy-no-browser-headers', result: legacy });
+    // One probe per provider, each sent DIRECTLY rather than through the
+    // fallback chain -- the chain stops at the first success, which would hide
+    // exactly the comparison this endpoint exists to make.
+    const brevo = await brevoSend(env, box.email, 'A1 selftest 1/3 (Brevo)', body_(1, 'Brevo'));
+    probes.push({ probe: 1, provider: 'brevo',
+                  result: brevo || { skipped: 'BREVO_API_KEY not set' } });
 
-    // CURRENT: what sendMail now sends.
-    const fixed = await sendMailDetailed(box, 'A1 selftest FIXED',
-      'PROBE 2 of 2 - FIXED worker shape (browser Origin/Referer/User-Agent, _subject).\n' +
-      'This is what password hints and reset codes now go out as.\n\nsent ' + stamp);
-    probes.push({ probe: 2, shape: 'browser-headers', result: fixed });
+    const resend = await resendSend(env, box.email, 'A1 selftest 2/3 (Resend)', body_(2, 'Resend'));
+    probes.push({ probe: 2, provider: 'resend',
+                  result: resend || { skipped: 'RESEND_API_KEY not set' } });
+
+    const fs_ = await formspreeSend(box, 'A1 selftest 3/3 (Formspree)', body_(3, 'Formspree'));
+    probes.push({ probe: 3, provider: 'formspree', result: fs_ });
 
     await guessFail(env, mk);
+    const configured = probes.filter((p) => !p.result.skipped).map((p) => p.provider);
     return json({
       ok: true,
       who: box.who,
       to: maskEmail(box.email),
       form: box.form,
       sentAt: stamp,
-      note: 'Check the inbox. Formspree answers a dropped submission the same way ' +
-            'it answers a delivered one, so these results prove only that it ' +
-            'accepted them -- which probe actually ARRIVES is the real answer.',
+      configured,
+      chain: 'brevo -> resend -> formspree (first configured provider that ' +
+             'accepts wins; see sendMailDetailed)',
+      note: 'A 2xx below is NOT delivery -- Formspree in particular answers a ' +
+            'spam-filed submission exactly as it answers a delivered one. WHICH ' +
+            'PROBE ARRIVES is the only real answer. If only Formspree is ' +
+            'configured and its probe does not arrive, set BREVO_API_KEY: ' +
+            "Formspree files this worker's mail as spam because it comes from " +
+            'a datacentre IP, which no request header can change.',
       probes,
     }, origin);
   }
@@ -1232,39 +1237,104 @@ function genResetCode() {
   return s;
 }
 
-// Mail from the WORKER so secrets never travel back to the requester.
-// Formspree is the same transport the pages already use, so this needs no new
-// account, key or secret -- but a Worker is not a browser, and that difference
-// is what silently broke recovery email.
+// ══════════════════════════════════════════════════════════════════════════
+//  RECOVERY MAIL — why this is not just a Formspree POST
+// ══════════════════════════════════════════════════════════════════════════
 //
-// THE FAILURE THIS EXISTS TO PREVENT. Formspree accepted the Worker's POST with
-// HTTP 200 and {"ok":true} and then never delivered it: a submission that looks
-// automated is spam-scored and filed, not mailed, and the reply is identical to
-// a successful one. So the page said "a code was emailed to you", the Worker
-// logged success, and no email ever arrived -- with nothing anywhere reporting
-// a fault. The same POST sent from the page had worked for months.
+// WHAT WENT WRONG (2026-09-11). Recovery email moved from the page to this
+// worker so the reset code would stop travelling back to whoever asked for it.
+// Formspree then accepted every submission with HTTP 200 {"ok":true} and never
+// delivered one. The page said "a code was emailed to you", the worker recorded
+// success, and nothing anywhere reported a fault.
 //
-// Two things are therefore load-bearing here:
+// The cause was not the request. It was WHO SENT IT. Formspree's own dashboard
+// showed the worker's submissions arriving and being filed as SPAM — a red spam
+// line spiking to ~14/day against ~5 reaching the inbox. The identical payload,
+// same form, posted from a laptop arrived every time; posted from Cloudflare's
+// edge it was filed every time. Adding browser Origin/Referer/User-Agent
+// headers did not move it, which is what ruled out request shape and left
+// sender reputation: Formspree is a BROWSER FORM service, and a datacentre IP
+// with no human behind it is exactly what its filter exists to catch.
 //
-//  1. The three browser headers. A Worker's fetch() sends no Origin, no Referer
-//     and a non-browser User-Agent, which is precisely a bot's signature.
-//     Setting them makes the submission indistinguishable from the one the page
-//     used to send -- same form, same origin, same shape. (Browsers forbid
-//     setting these; Workers allow it, which is the whole reason this works.)
-//  2. Reading the BODY, not just the status. `r.ok` is true for a submission
-//     Formspree has decided to drop, so status alone can never be evidence of
-//     delivery. Formspree reports a refusal as {"ok":false} or an `errors`
-//     array under a 200, and that is the only signal there is.
+// So Formspree cannot be the transport for mail sent by a worker. It is kept
+// below only as a last resort, because a spam-filed email still beats no
+// attempt at all when nothing else is configured.
 //
-// If recovery mail ever goes quiet again, call /auth/mail/selftest before
-// changing anything -- it sends labelled probes and reports exactly what
-// Formspree said to each, which is the test that identified this bug.
+// THE RULE THIS LEAVES BEHIND: a 2xx is not delivery. Every provider here must
+// report what it actually said, and `sendMailDetailed` returns which provider
+// finally accepted the message so a silent failure can never look like a send
+// again. /auth/mail/selftest exercises all of them and names the winner.
+//
+// TO CONFIGURE A REAL SENDER (either one; first match wins):
+//   cd workers/taskhub-reminders
+//   npx wrangler secret put BREVO_API_KEY     # free 300/day, any recipient
+//   npx wrangler secret put MAIL_FROM         # a sender address verified there
+//     …or…
+//   npx wrangler secret put RESEND_API_KEY    # free 3,000/mo
+// Both are plain REST APIs authenticated by key, so the caller's IP carries no
+// weight — which is the whole reason they work here and Formspree does not.
+
 const MAIL_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
                 '(KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36';
+const MAIL_FROM_DEFAULT = 'anthonypn99@gmail.com';
 
-async function formspreePost(form, payload) {
+function mailResult(provider, ok, status, body) {
+  return { provider, ok, status, body: String(body == null ? '' : body).slice(0, 300) };
+}
+
+// Brevo: free 300/day, and it will send to ANY recipient once ONE sender
+// address is verified — which is why it covers Tony and Veda from a single
+// account, where Resend's keyless sandbox sender only reaches the account owner.
+async function brevoSend(env, to, subject, message) {
+  const key = env && env.BREVO_API_KEY;
+  if (!key) return null;
   try {
-    const r = await fetch(form, {
+    const r = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: { 'api-key': key, 'content-type': 'application/json', 'accept': 'application/json' },
+      body: JSON.stringify({
+        sender: { name: 'A1', email: (env && env.MAIL_FROM) || MAIL_FROM_DEFAULT },
+        to: [{ email: to }],
+        subject,
+        textContent: message,
+      }),
+    });
+    let text = ''; try { text = await r.text(); } catch (e) {}
+    return mailResult('brevo', r.ok, r.status, text);
+  } catch (e) {
+    return mailResult('brevo', false, 0, (e && e.message) || e);
+  }
+}
+
+async function resendSend(env, to, subject, message) {
+  const key = env && env.RESEND_API_KEY;
+  if (!key) return null;
+  try {
+    const r = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: (env && env.MAIL_FROM_RESEND) || 'A1 <onboarding@resend.dev>',
+        to: [to],
+        subject,
+        text: message,
+      }),
+    });
+    let text = ''; try { text = await r.text(); } catch (e) {}
+    return mailResult('resend', r.ok, r.status, text);
+  } catch (e) {
+    return mailResult('resend', false, 0, (e && e.message) || e);
+  }
+}
+
+// Last resort. Retained with its browser headers because they cost nothing and
+// a marginally less bot-shaped submission is marginally likelier to survive the
+// filter — but see the header comment: from a worker this usually gets filed,
+// not delivered, and a {"ok":true} here is NOT evidence that it arrived.
+async function formspreeSend(box, subject, message) {
+  if (!box || !box.form) return mailResult('formspree', false, 0, 'no form configured');
+  try {
+    const r = await fetch(box.form, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1273,32 +1343,38 @@ async function formspreePost(form, payload) {
         'Referer': ALLOWED_ORIGIN + '/',
         'User-Agent': MAIL_UA,
       },
-      body: JSON.stringify(payload),
+      // `_subject` is Formspree's field for the subject line; a plain `subject`
+      // key is swallowed, which is why these mails all arrived titled
+      // "New form submission on ..." with no clue which app or person sent them.
+      body: JSON.stringify({ email: box.email, _subject: subject, subject, message }),
     });
-    let text = '';
-    try { text = await r.text(); } catch (e) {}
-    let data = null;
-    try { data = JSON.parse(text); } catch (e) {}
-    // A 200 is not delivery. Only the absence of a stated refusal is.
+    let text = ''; try { text = await r.text(); } catch (e) {}
+    let data = null; try { data = JSON.parse(text); } catch (e) {}
     const refused = !!(data && (data.ok === false ||
       (Array.isArray(data.errors) && data.errors.length)));
-    return { ok: r.ok && !refused, status: r.status, body: text.slice(0, 300) };
+    return mailResult('formspree', r.ok && !refused, r.status, text);
   } catch (e) {
-    return { ok: false, status: 0, body: String((e && e.message) || e).slice(0, 300) };
+    return mailResult('formspree', false, 0, (e && e.message) || e);
   }
 }
 
-async function sendMailDetailed(box, subject, message) {
-  if (!box || !box.form) return { ok: false, status: 0, body: 'no form configured' };
-  // `_subject` is Formspree's field for the email's subject line; a plain
-  // `subject` key is swallowed, which is why these mails all arrived titled
-  // "New form submission on ..." with no clue which app or person sent them.
-  return await formspreePost(box.form, {
-    email: box.email,
-    _subject: subject,
-    subject,
-    message,
-  });
+// Try real senders first, Formspree last. A provider with no key configured
+// returns null and is skipped entirely, so this file needs no edit to switch:
+// setting BREVO_API_KEY is the whole migration.
+async function sendMailDetailed(env, box, subject, message) {
+  const tried = [];
+  for (const attempt of [
+    () => brevoSend(env, box && box.email, subject, message),
+    () => resendSend(env, box && box.email, subject, message),
+    () => formspreeSend(box, subject, message),
+  ]) {
+    const res = await attempt();
+    if (!res) continue;                 // not configured
+    tried.push(res.provider + ':' + res.status);
+    if (res.ok) return Object.assign({}, res, { tried });
+  }
+  const last = { provider: 'none', ok: false, status: 0, body: 'every provider failed' };
+  return Object.assign(last, { tried });
 }
 
 function resetMail(label, code, appName) {
