@@ -1512,6 +1512,9 @@ table.doctor code { color: var(--txd); font-size: 11px; }
 .bs .bs-hd { align-items: center; text-align: center; max-width: 900px; margin: 0 auto; }
 .bs .bs-sub { color: color-mix(in srgb, var(--txm) 78%, transparent); }
 .bs-backbar { justify-content: center; }
+/* Sits above the grid on the council view, on the same centred measure as the
+   composer -- it belongs to the screen, not to the answers. */
+.view-backbar { margin-bottom: 12px; }
 /* Big enough to be a page title. At 11px with 2.2px of tracking it read as a
    label on the panel below it rather than as the name of the screen. */
 .bs-title {
@@ -3037,6 +3040,15 @@ body { max-width: 2000px; margin-inline: auto; }
       <div class="studio-view-body" id="studioBody"></div>
     </div>
 
+    <!-- Shown only while you are looking at a deliberation you opened FROM
+         History. The sidebar keeps History lit at the same time: you did not
+         leave that list, you drilled into a row of it. -->
+    <div class="bs-backbar view-backbar" id="histBackBar" hidden>
+      <button type="button" class="navitem" id="histBack">
+        <span class="navitem-ic">←</span> All deliberations
+      </button>
+    </div>
+
     <div class="magi" id="magi" hidden>
       <svg class="magi-links" id="magiLinks" aria-hidden="true"></svg>
       <div class="magi-grid" id="magiGrid"></div>
@@ -4181,6 +4193,10 @@ const S = {
   opened: new Set(),     // which unit blocks are expanded
   verdict: null,
   running: false,
+  // True while the council view is showing a run opened from History rather
+  // than one you just started. The difference is not cosmetic: it decides
+  // which sidebar row is lit and whether there is a way back to the list.
+  fromHistory: false,
   // Filled in where loadUnitOrder is defined: UNIT_ORDER_KEY is a const
   // declared with the drag code below, and reading it from here would hit it
   // in the temporal dead zone -- which throws before the page paints.
@@ -4707,6 +4723,7 @@ async function start() {
 
   S.verdict = null;
   S.running = true;
+  S.fromHistory = false;
   // A run in progress is the thing to watch, so any drawer the user was
   // reading gives way to the console.
   setView("council");
@@ -4831,6 +4848,7 @@ async function cancelRun() {
  *  is still on screen. */
 function newRun() {
   if (S.running) return;
+  S.fromHistory = false;
   setQuestion("");
   S.attachments = [];
   S.preRefine = null;
@@ -4964,6 +4982,7 @@ async function openRun(id) {
     })),
   } : null;
   resetStudio();
+  S.fromHistory = true;
   setView("council");
   renderGrid();
   renderVerdict();
@@ -5527,6 +5546,7 @@ function setView(v) {
 
   show($("studioView"), studioOpen);
   show($("historyDrawer"), v === "history");
+  show($("histBackBar"), v === "council" && S.fromHistory && !studioOpen);
   show($("doctorDrawer"), v === "doctor");
   show($("accountsDrawer"), v === "accounts");
   // Brainstorm brings its own composer and its own reply box, so the council's
@@ -5556,8 +5576,12 @@ function setView(v) {
   } else if (bar.parentElement !== page || bar.previousElementSibling !== $("qbar")) {
     page.insertBefore(bar, $("qbar").nextSibling);
   }
-  $("navNew").classList.toggle("active", v === "council" && !studioOpen);
-  $("navHistory").classList.toggle("active", v === "history");
+  // A run opened from History keeps History lit -- you drilled into that
+  // list, you did not leave it -- and New deliberation is only lit for a
+  // screen you would actually be starting one on.
+  const viewingPast = v === "council" && S.fromHistory;
+  $("navNew").classList.toggle("active", v === "council" && !studioOpen && !viewingPast);
+  $("navHistory").classList.toggle("active", v === "history" || viewingPast);
   $("navDoctor").classList.toggle("active", v === "doctor");
   $("navAccounts").classList.toggle("active", v === "accounts");
   // An open card replaces the grid and the verdict rather than sitting above
@@ -8685,6 +8709,7 @@ async function cloudOpenRun(id) {
         };
       }
     }
+    S.fromHistory = true;
     setView("council");
     renderGrid(); renderVerdict(); renderStudioNav();
     return true;
@@ -9171,6 +9196,10 @@ const lockBtnClick = () => {
   showLock("unlock");
 };
 $("navAccounts").onclick = () => { setView("accounts"); loadAccounts(); };
+// Back to the list you came from. It does NOT clear the deliberation: coming
+// back to the list and then returning to the same row should show the same
+// thing, and clearing would make the trip destructive.
+$("histBack").onclick = () => setView("history");
 $("chairBtn").onclick = openChairPicker;
 $("lockBtn").onclick = lockBtnClick;
 $("lockBtnM").onclick = lockBtnClick;
