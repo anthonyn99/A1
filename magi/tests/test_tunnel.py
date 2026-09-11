@@ -50,3 +50,20 @@ def test_the_current_url_is_shared_not_captured():
     assert 'url = _CURRENT["url"]' in body
     # Set for the first tunnel and for every replacement.
     assert body.count('_CURRENT["url"] =') == 2
+
+
+def test_the_stale_record_is_cleared_before_a_new_tunnel_opens():
+    """A dead hostname must not be served while its replacement registers.
+
+    A quick tunnel dies with the process that opened it, but magi-link keeps
+    pointing at it until the new one is verified and published -- minutes,
+    while public DNS catches up. Observed: the console said "tunnel is dead"
+    for the whole window after an unclean restart, which reads as a broken
+    engine rather than one that is still coming up.
+    """
+    import inspect
+
+    body = inspect.getsource(serve.cloud)
+    withdraw_at_start = body.index("_withdraw(token)")
+    opens_tunnel = body.index('print("  opening tunnel')
+    assert withdraw_at_start < opens_tunnel

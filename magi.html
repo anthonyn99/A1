@@ -2818,7 +2818,7 @@ function renderOfflineNote() {
     "no API token set": "The engine is not answering on this device, and no API token has reached this browser yet — so there is nothing to look up a tunnel with. Open MAGI once on the machine running the engine and it will hand the token over automatically; past deliberations are readable here either way.",
     "token rejected": "The engine is there, but it did not accept this token.",
     "engine has not published": "The engine device has not published a tunnel. It is probably asleep, off, or was started with <code>magi</code> rather than <code>magi cloud</code>.",
-    "tunnel is dead": "The published tunnel no longer answers — cloudflared has stopped since it was published.",
+    "tunnel is dead": "The published tunnel no longer answers. If the engine device was just restarted this clears itself in a minute or two, once the replacement tunnel registers; otherwise cloudflared has stopped since it was published.",
     "backend not responding": "The backend is not answering on this machine.",
     "backend wants a token": "The engine is running but is asking for the API token, and this page has none saved.",
   }[link.detail] || "The engine is not reachable.";

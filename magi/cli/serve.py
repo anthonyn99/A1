@@ -252,6 +252,22 @@ def cloud(port: int = 8000) -> int:
         print('      setx MAGI_API_TOKEN "<a long random string>"\n')
         return _serve_only(port, "no tunnel opened — the API would be ungated.")
 
+    # Clear the old record BEFORE opening a new tunnel.
+    #
+    # The previous hostname is dead the moment this process starts -- _free_port
+    # has just killed whatever held the port, and a quick tunnel dies with the
+    # process that opened it. But magi-link keeps serving that hostname until
+    # the replacement is verified and published, which takes as long as public
+    # DNS takes to catch up: measured at several minutes. For that whole window
+    # the phone follows the record to a hostname that answers 530, and the
+    # console says "tunnel is dead" -- which reads as "your engine is broken"
+    # when the truth is "it is thirty seconds into starting up".
+    #
+    # An unclean exit is the case that matters here. A clean one withdraws in
+    # the `finally` below; a crash, a power cut or a force-kill does not, and
+    # those are exactly the times MAGI is restarted.
+    _withdraw(token)
+
     print("  opening tunnel…")
     # cloudflared's output goes to a FILE, not a pipe.
     #
