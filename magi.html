@@ -1546,14 +1546,27 @@ table.doctor code { color: var(--txd); font-size: 11px; }
 
 .sbar {
   position: fixed; width: 14px;
+  /* Parked off-screen and zero-height until place() has measured its scroller.
+     A fixed box with `top`/`left` unset falls back to its STATIC position --
+     which for a body child is wherever the flow happens to leave it, and the
+     thumb inside carries its own absolute offset. That is the "scrollbar
+     flashed in the middle of the screen" on a view change: a bar shown before
+     it had been measured. It cannot happen from here. */
+  top: 0; left: -9999px; height: 0;
   pointer-events: none;          /* only the thumb is a target, and only when
                                     it is visible -- an always-live 14px strip
                                     down the right edge would eat back-swipes */
-  opacity: 0; transition: opacity .25s ease;
+  opacity: 0; visibility: hidden;
+  /* visibility flips instantly ON and only after the fade OFF, so a hidden bar
+     genuinely cannot paint and the fade-out still reads as a fade. */
+  transition: opacity .25s ease, visibility 0s linear .25s;
   z-index: 70;                   /* over page content (60/65), under the
                                     drawer (80) and any sheet (200) */
 }
-.sbar.on { opacity: 1; }
+.sbar.on {
+  opacity: 1; visibility: visible;
+  transition: opacity .25s ease, visibility 0s;
+}
 .sbar-thumb {
   position: absolute; right: 4px; width: 5px;
   border-radius: 999px; background: var(--bdl);
@@ -1820,7 +1833,7 @@ table.doctor code { color: var(--txd); font-size: 11px; }
 
 @media (max-width: 760px) {
   .shell,
-  .shell.nav-collapsed { grid-template-columns: minmax(0, 1fr); }
+  .shell.nav-collapsed { grid-template-columns: minmax(0, 1fr); height: 100dvh; }
 
   /* The scroller's own top padding used to be a band ABOVE the sticky header
      -- sticky pins to the content box, not the border box -- so everything you
@@ -1868,8 +1881,13 @@ table.doctor code { color: var(--txd); font-size: 11px; }
   .mtop-title { flex-shrink: 0; }
 
   /* ── the drawer ───────────────────────────────────────────────────────── */
+  /* 100dvh, not `bottom: 0`. A fixed element's bottom edge is the LAYOUT
+     viewport, which on a phone stays the size it was when the URL bar was
+     showing -- so once that bar retracted the drawer stopped short of the
+     screen and the page behind it showed through the gap at the bottom. dvh
+     tracks the viewport that is actually on screen. */
   .sidebar {
-    position: fixed; inset: 0 auto 0 0; z-index: 80;
+    position: fixed; inset: 0 auto auto 0; height: 100dvh; z-index: 80;
     width: min(82vw, 300px);
     transform: translateX(-100%);
     transition: transform .2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1896,7 +1914,7 @@ table.doctor code { color: var(--txd); font-size: 11px; }
      people reach for before hunting a close button. */
   .scrim {
     display: block;
-    position: fixed; inset: 0; z-index: 70;
+    position: fixed; inset: 0 0 auto 0; height: 100dvh; z-index: 70;
     background: rgba(0, 0, 0, .55);
     opacity: 0; pointer-events: none; transition: opacity .2s ease;
   }
@@ -2001,6 +2019,10 @@ table.doctor code { color: var(--txd); font-size: 11px; }
    composer must not eat the whole viewport. */
 @media (max-width: 900px) and (max-height: 460px) {
   .sidebar { overflow-y: auto; }
+  /* Reaching the end of the drawer does NOTHING -- no rubber band, and no
+     handing the gesture to the page underneath, which is what let the
+     background appear past the bottom of the list. Same in both directions. */
+  .sidebar, .side-nav, .page { overscroll-behavior: none; }
   .qbar textarea { min-height: 48px; }
   .node-body { max-height: 60vh; }
 }
