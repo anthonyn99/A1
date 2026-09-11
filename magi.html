@@ -4070,35 +4070,119 @@ function renderDoctor(data) {
     body.append(r);
     return;
   }
-  $("doctorHd").textContent = "Selector doctor — live selector match";
+  $("doctorHd").textContent = "Selector doctor";
   if (!data) return;
+  if (!data.length) { body.append(el("div", "empty-state", "Nothing was checked.")); return; }
 
-  const t = el("table", "doctor");
-  const thead = el("thead"), htr = el("tr");
-  for (const h of ["Unit", "Field", "Status", "Matched"]) htr.append(el("th", null, h));
-  thead.append(htr);
-  const tb = el("tbody");
+  /* A verdict first, then the detail.
+   *
+   *  This used to be one flat table of every field of every unit -- around
+   *  thirty rows, almost all of them OK, with the unit's name printed on one
+   *  row in four. The answer to "is anything broken?" was in there somewhere,
+   *  and you had to read the whole thing to find it. Now the top line answers
+   *  that question and the rows underneath explain it. */
+  const faults = (d) => d.selectors.filter((x) => (x.status || (x.ok ? "ok" : "miss")) === "miss");
+  const stale  = (d) => d.selectors.filter((x) => x.stale);
+  const broken = data.filter((d) => !d.usable || d.error || faults(d).length);
+  const drifting = data.filter((d) => !broken.includes(d) && stale(d).length);
+
+  const sum = el("div", "doc-summary " + (broken.length ? "bad" : drifting.length ? "warn" : "good"));
+  sum.append(el("span", "doc-sum-dot"));
+  const healthy = data.length - broken.length - drifting.length;
+  let line;
+  if (broken.length) {
+    line = `${broken.length} unit${broken.length > 1 ? "s" : ""} need attention` +
+           (healthy || drifting.length ? ` · ${data.length - broken.length} fine` : "");
+  } else if (drifting.length) {
+    line = `All ${data.length} usable, but ${drifting.length} ` +
+           `${drifting.length > 1 ? "are" : "is"} running on a fallback selector`;
+  } else {
+    line = `All ${data.length} unit${data.length > 1 ? "s" : ""} healthy`;
+  }
+  sum.append(el("span", null, line));
+  body.append(sum);
+
   for (const d of data) {
-    for (const s of d.selectors) {
+    const bad = broken.includes(d), drift = drifting.includes(d);
+    const card = el("div", "doc-card " + (bad ? "bad" : drift ? "warn" : "good"));
+
+    const hd = el("div", "doc-hd");
+    hd.append(el("span", "doc-name", d.display_name));
+    const flags = el("span", "doc-flags");
+    // Plain words. "reachable=true logged_in=true challenged=false" was a
+    // debug print, not a status.
+    if (d.error) flags.append(el("span", "doc-flag miss", "error"));
+    else if (!d.reachable) flags.append(el("span", "doc-flag miss", "unreachable"));
+    else {
+      if (d.challenged) flags.append(el("span", "doc-flag miss", "bot check"));
+      flags.append(el("span", "doc-flag " + (d.logged_in ? "ok" : "miss"),
+                      d.logged_in ? "signed in" : "signed out"));
+      flags.append(el("span", "doc-flag " + (d.usable ? "ok" : "miss"),
+                      d.usable ? "usable" : "not usable"));
+    }
+    if (d.duration_ms) flags.append(el("span", "doc-flag na", `${(d.duration_ms / 1000).toFixed(0)}s`));
+    hd.append(flags);
+    card.append(hd);
+
+    if (d.error) card.append(el("div", "doc-note", d.error));
+    for (const n of d.notes || []) card.append(el("div", "doc-note", n));
+
+    // What to actually DO. A stale field still works today and will stop
+    // working the next time the site tidies up, and "put the matched selector
+    // above the preferred one" is the whole fix -- so say it, with both
+    // strings, rather than leaving it to be inferred from two table columns.
+    for (const x of [...faults(d), ...stale(d)]) {
+      const fix = el("div", "doc-fix" + (x.stale ? " warn" : ""));
+      fix.append(el("b", null, x.field));
+      if (x.stale) {
+        fix.append(el("span", null, " is running on a fallback. In "));
+        fix.append(el("code", null, `magi/config/selectors.yaml → ${d.provider_id}.${x.field}`));
+        fix.append(el("span", null, ", move "));
+        fix.append(el("code", null, x.matched));
+        fix.append(el("span", null, " above "));
+        fix.append(el("code", null, x.preferred || "the first entry"));
+        fix.append(el("span", null, "."));
+      } else {
+        fix.append(el("span", null, ` matched none of its ${x.tried} selectors. Find the right one in the site's DOM and add it to the top of `));
+        fix.append(el("code", null, `magi/config/selectors.yaml → ${d.provider_id}.${x.field}`));
+        fix.append(el("span", null, "."));
+      }
+      card.append(fix);
+    }
+
+    // The full table, folded away: it is reference material, not the answer.
+    const det = el("details", "doc-details");
+    const okCount = d.selectors.filter((x) => (x.status || (x.ok ? "ok" : "miss")) === "ok").length;
+    det.append(el("summary", null, `All ${d.selectors.length} fields (${okCount} matching)`));
+    const t = el("table", "doctor");
+    const thead = el("thead"), htr = el("tr");
+    for (const h of ["Field", "Status", "Matched"]) htr.append(el("th", null, h));
+    thead.append(htr);
+    const tb = el("tbody");
+    for (const x of d.selectors) {
       // Colour on `status`, not on ok. A field that cannot match while the
       // chat is idle is not a fault, and painting it red made a healthy
       // install look catastrophically broken.
-      const st = s.status || (s.ok ? "ok" : "miss");
-      const cls = st === "ok" ? (s.stale ? "stale" : "ok") : st === "miss" ? "miss" : "na";
-      const label = st === "ok" ? (s.stale ? "FALLBACK" : "OK")
+      const st = x.status || (x.ok ? "ok" : "miss");
+      const cls = st === "ok" ? (x.stale ? "stale" : "ok") : st === "miss" ? "miss" : "na";
+      const label = st === "ok" ? (x.stale ? "FALLBACK" : "OK")
         : st === "miss" ? "MISS" : st === "unset" ? "—" : "n/a";
       const tr = el("tr");
-      tr.append(el("td", null, s.field === "input" ? d.display_name : ""));
-      tr.append(el("td", null, s.field));
+      tr.append(el("td", null, x.field));
       tr.append(el("td", cls, label));
       const last = el("td");
-      last.append(el("code", null, s.matched || (s.note ? s.note : st === "miss" ? `all ${s.tried} failed` : "—")));
+      last.append(el("code", null, x.matched || (x.note ? x.note : st === "miss" ? `all ${x.tried} failed` : "—")));
       tr.append(last);
       tb.append(tr);
     }
+    t.append(thead, tb);
+    const wrap = el("div", "doc-tablewrap");
+    wrap.append(t);
+    attachScrollbar(wrap);
+    det.append(wrap);
+    card.append(det);
+    body.append(card);
   }
-  t.append(thead, tb);
-  body.append(t);
 }
 
 /* ══ views ═════════════════════════════════════════════════════════════════
