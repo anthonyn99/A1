@@ -1010,9 +1010,13 @@ async function handleAuth(path, request, env, origin) {
     const box = mailboxFor(env, body);
     const label = String(body.label || entryId);
     const m = hintMail(label, rec.hint, body.appName);
-    const ok = await sendMail(box, m.subject, m.message);
+    const sent = await sendMailDetailed(box, m.subject, m.message);
     await guessFail(env, mk);
-    return json({ ok, emailed: ok, to: maskEmail(box.email) }, origin);
+    // `mail` is only present on failure, and carries Formspree's own words --
+    // "hint emailed" that silently wasn't is the bug this whole path had.
+    const out = { ok: sent.ok, emailed: sent.ok, to: maskEmail(box.email) };
+    if (!sent.ok) { out.error = 'email-failed'; out.mail = { status: sent.status, body: sent.body }; }
+    return json(out, origin);
   }
 
   if (path === '/auth/profile/verify') {
@@ -1066,8 +1070,10 @@ async function handleAuth(path, request, env, origin) {
     const m = resetMail(label, code, body.appName);
     // Mail FIRST: if it can't be delivered there is no point storing a code
     // nobody will ever see, and the caller must be told the reset didn't start.
-    if (!(await sendMail(box, m.subject, m.message))) {
-      return json({ ok: false, error: 'email-failed' }, origin, 502);
+    const sent = await sendMailDetailed(box, m.subject, m.message);
+    if (!sent.ok) {
+      return json({ ok: false, error: 'email-failed',
+                    mail: { status: sent.status, body: sent.body } }, origin, 502);
     }
     await env.TOKEN_CACHE.put('reset:' + key,
       JSON.stringify({ code: codeRec, exp: Date.now() + RESET_TTL * 1000, tries: 0 }),
@@ -1105,6 +1111,72 @@ async function handleAuth(path, request, env, origin) {
     // is meaningless — clear it rather than making a recovered user wait it out.
     await guessClear(env, key);
     return json({ ok: true }, origin);
+  }
+
+  // ── RECOVERY-MAIL SELF-TEST ──────────────────────────────────────────────
+  // Delivery cannot be observed from here: Formspree answers a dropped
+  // submission exactly as it answers a delivered one, so the only way to tell
+  // them apart is to send labelled probes and look in the inbox. This sends one
+  // probe per transport shape and reports what Formspree said to each, so a
+  // silent-mail report can be diagnosed in a single call instead of by guessing.
+  //
+  // Safe to leave open: it can only ever mail the two fixed addresses in
+  // MAILBOXES (never one the caller names), carries no secret, and shares the
+  // mail throttle -- so the worst it does is send its owner a test email.
+  if (path === '/auth/mail/selftest') {
+    const box = mailboxFor(env, body);
+    const mk = 'mail:selftest:' + box.who;
+    const wait = await guessBlocked(env, mk);
+    if (wait) return throttled(wait, origin);
+    const stamp = new Date().toISOString();
+    const probes = [];
+
+    // LEGACY: no browser headers, plain `subject` -- the exact shape that was
+    // accepted and then never delivered. Kept so the comparison stays honest.
+    let legacy;
+    try {
+      const r = await fetch(box.form, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({
+          email: box.email,
+          subject: 'A1 selftest LEGACY',
+          message: 'PROBE 1 of 2 - LEGACY worker shape (no Origin/Referer/User-Agent).
+' +
+                   'If this one is missing from your inbox and probe 2 arrived, the ' +
+                   'spam-scoring diagnosis is confirmed.
+
+sent ' + stamp,
+        }),
+      });
+      let t = ''; try { t = await r.text(); } catch (e) {}
+      legacy = { ok: r.ok, status: r.status, body: t.slice(0, 200) };
+    } catch (e) {
+      legacy = { ok: false, status: 0, body: String((e && e.message) || e).slice(0, 200) };
+    }
+    probes.push({ probe: 1, shape: 'legacy-no-browser-headers', result: legacy });
+
+    // CURRENT: what sendMail now sends.
+    const fixed = await sendMailDetailed(box, 'A1 selftest FIXED',
+      'PROBE 2 of 2 - FIXED worker shape (browser Origin/Referer/User-Agent, _subject).
+' +
+      'This is what password hints and reset codes now go out as.
+
+sent ' + stamp);
+    probes.push({ probe: 2, shape: 'browser-headers', result: fixed });
+
+    await guessFail(env, mk);
+    return json({
+      ok: true,
+      who: box.who,
+      to: maskEmail(box.email),
+      form: box.form,
+      sentAt: stamp,
+      note: 'Check the inbox. Formspree answers a dropped submission the same way ' +
+            'it answers a delivered one, so these results prove only that it ' +
+            'accepted them -- which probe actually ARRIVES is the real answer.',
+      probes,
+    }, origin);
   }
 
   return json({ ok: false, error: 'unknown route' }, origin, 404);
@@ -1167,18 +1239,74 @@ function genResetCode() {
 }
 
 // Mail from the WORKER so secrets never travel back to the requester.
-// Formspree is the same transport the pages already use and it accepts a
-// server-side POST, so this needs no new account, key or secret.
-async function sendMail(box, subject, message) {
+// Formspree is the same transport the pages already use, so this needs no new
+// account, key or secret -- but a Worker is not a browser, and that difference
+// is what silently broke recovery email.
+//
+// THE FAILURE THIS EXISTS TO PREVENT. Formspree accepted the Worker's POST with
+// HTTP 200 and {"ok":true} and then never delivered it: a submission that looks
+// automated is spam-scored and filed, not mailed, and the reply is identical to
+// a successful one. So the page said "a code was emailed to you", the Worker
+// logged success, and no email ever arrived -- with nothing anywhere reporting
+// a fault. The same POST sent from the page had worked for months.
+//
+// Two things are therefore load-bearing here:
+//
+//  1. The three browser headers. A Worker's fetch() sends no Origin, no Referer
+//     and a non-browser User-Agent, which is precisely a bot's signature.
+//     Setting them makes the submission indistinguishable from the one the page
+//     used to send -- same form, same origin, same shape. (Browsers forbid
+//     setting these; Workers allow it, which is the whole reason this works.)
+//  2. Reading the BODY, not just the status. `r.ok` is true for a submission
+//     Formspree has decided to drop, so status alone can never be evidence of
+//     delivery. Formspree reports a refusal as {"ok":false} or an `errors`
+//     array under a 200, and that is the only signal there is.
+//
+// If recovery mail ever goes quiet again, call /auth/mail/selftest before
+// changing anything -- it sends labelled probes and reports exactly what
+// Formspree said to each, which is the test that identified this bug.
+const MAIL_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
+                '(KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36';
+
+async function formspreePost(form, payload) {
   try {
-    const r = await fetch(box.form, {
+    const r = await fetch(form, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify({ email: box.email, subject, message }),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Origin': ALLOWED_ORIGIN,
+        'Referer': ALLOWED_ORIGIN + '/',
+        'User-Agent': MAIL_UA,
+      },
+      body: JSON.stringify(payload),
     });
-    return r.ok;
-  } catch (e) { return false; }
+    let text = '';
+    try { text = await r.text(); } catch (e) {}
+    let data = null;
+    try { data = JSON.parse(text); } catch (e) {}
+    // A 200 is not delivery. Only the absence of a stated refusal is.
+    const refused = !!(data && (data.ok === false ||
+      (Array.isArray(data.errors) && data.errors.length)));
+    return { ok: r.ok && !refused, status: r.status, body: text.slice(0, 300) };
+  } catch (e) {
+    return { ok: false, status: 0, body: String((e && e.message) || e).slice(0, 300) };
+  }
 }
+
+async function sendMailDetailed(box, subject, message) {
+  if (!box || !box.form) return { ok: false, status: 0, body: 'no form configured' };
+  // `_subject` is Formspree's field for the email's subject line; a plain
+  // `subject` key is swallowed, which is why these mails all arrived titled
+  // "New form submission on ..." with no clue which app or person sent them.
+  return await formspreePost(box.form, {
+    email: box.email,
+    _subject: subject,
+    subject,
+    message,
+  });
+}
+
 function resetMail(label, code, appName) {
   const app = appName || 'A1';
   return {
