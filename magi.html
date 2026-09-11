@@ -1111,6 +1111,13 @@ table.doctor, table.doctor code, .v-table, .studio-table,
 
 /* ══ STUDIO ═══════════════════════════════════════════════════════════ */
 /* ── history / doctor drawers ─────────────────────────────────────────── */
+/* The two lists are capped and centred, like the accounts column -- a row of
+   history spanning 1,400px puts the date a hand's width from the question it
+   belongs to. 900px rather than the accounts' 720 so each aligns with the
+   composer directly above it and the pair reads as one column. */
+#historyDrawer, .bs .drawer {
+  width: 100%; max-width: 900px; margin-left: auto; margin-right: auto;
+}
 .drawer { background: var(--s1); border: 1px solid var(--bd); border-radius: 2px; margin-bottom: 16px; }
 .drawer-hd {
   padding: 8px 12px; border-bottom: 1px solid var(--bd);
@@ -1489,7 +1496,11 @@ table.doctor code { color: var(--txd); font-size: 11px; }
    council a question, and there was no reason for one to be a centred card
    and the other a full-bleed bar. */
 .bs-start, .bs-reply, .bs-plan-bar, .bs-round-hd {
-  max-width: 900px; margin-left: auto; margin-right: auto;
+  /* width: 100% is load-bearing. .bs is a flex COLUMN, and auto side margins
+     on a flex item turn off the stretch that would otherwise fill the line --
+     so the composer shrank to the width of its own buttons (299px) while
+     claiming a 900px cap it never reached. Same fix .qbar needed. */
+  width: 100%; max-width: 900px; margin-left: auto; margin-right: auto;
 }
 .bs-start { text-align: center; }
 .bs-start .bs-topic { text-align: left; }
@@ -1528,6 +1539,12 @@ table.doctor code { color: var(--txd); font-size: 11px; }
   border: 0; outline: 0; color: var(--tx); font-family: var(--font);
   font-size: 13px; line-height: 1.6;
 }
+/* The global focus ring is `textarea:focus-visible`, which outranks a bare
+   class -- so `.bs-topic { outline: 0 }` never applied and clicking into the
+   box drew a purple rectangle INSIDE the purple ring the card already draws
+   with :focus-within. Two rings for one focus. The card's is the right one;
+   this selector is specific enough to win. */
+textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 .bs-topic::placeholder { color: color-mix(in srgb, var(--txm) 62%, transparent); }
 .bs-topic:disabled { color: var(--txd); }
 .bs-start-bar { display: flex; align-items: center; gap: 8px; padding-top: 8px; }
@@ -2347,10 +2364,21 @@ html.modal-open .page, html.modal-open .sidebar { overflow: hidden; }
     display: flex; flex-direction: column; justify-content: center;
     flex-shrink: 0; min-width: 0; line-height: 1.1;
   }
+  .mtop-tag {
+    font-family: var(--font-mono); font-size: 8px; letter-spacing: .9px;
+    text-transform: uppercase; color: var(--txm);
+    margin-top: 2px; line-height: 12px; white-space: nowrap;
+  }
   .mtop .syncline {
     font-size: 9px; letter-spacing: .3px;
     margin-top: 2px; min-height: 12px; line-height: 12px;
+    /* Out of flow when idle, so it cannot reserve a line the tagline is
+       already using -- `visibility: hidden` would still hold the space and the
+       header would grow by 12px for nothing. */
+    display: none;
   }
+  .mtop-brand.showsync .mtop-tag { display: none; }
+  .mtop-brand.showsync .syncline { display: block; }
   /* Where the engine is already has a permanent home at the bottom of the
      drawer. Repeating it here spent the width that the wordmark, the sync
      state and the lock all have to share. */
@@ -2848,8 +2876,13 @@ body { max-width: 2000px; margin-inline: auto; }
   <main class="page" id="page">
     <div class="mtop">
       <button type="button" class="mtop-burger" id="navBurger" aria-label="Menu" aria-expanded="false"></button>
-      <span class="mtop-brand">
+      <span class="mtop-brand" id="mtopBrand">
         <span class="mtop-title">MAGI</span>
+        <!-- One slot, two purposes: the tagline normally, the sync state while
+             there is one. Stacking both would add a third line to a 40px bar,
+             and the sync state is always transient -- so it borrows the line
+             rather than being given its own. -->
+        <span class="mtop-tag">Deliberation system</span>
         <span class="syncline" id="syncLineM"></span>
       </span>
       <span class="mtop-where"><span class="link-dot" id="mtopDot"></span><span id="mtopTxt">…</span></span>
@@ -7431,6 +7464,10 @@ function setSync(state, why) {
   // the sidebar is a closed drawer, so the top-bar copy is the only one that
   // can ever be seen -- and a state written to only one of them would mean the
   // two could disagree about whether the last run reached the cloud.
+  // The mobile brand hands its tagline line over while there is something to
+  // say, and takes it back when there is not.
+  const brand = $("mtopBrand");
+  if (brand) brand.classList.toggle("showsync", !!text);
   for (const id of ["syncLine", "syncLineM"]) {
     const n = $(id);
     if (!n) continue;
