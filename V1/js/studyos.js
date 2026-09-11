@@ -2227,6 +2227,26 @@ function refreshDocList(listEl, cls, mod) {
       }
     });
 
+    // ⚡ Run — the pipeline (spec P-3). This is the button the two above exist
+    // to work around: copy/download are the manual route into another app's
+    // upload box, and this one does the same job without leaving StudyOS.
+    // Rendered only when the pipeline is configured AND on; otherwise the row
+    // looks exactly as it always has.
+    let runBtn = null;
+    if (window.sosRunPrompt && (f.storageUrl || f.storagePath)) {
+      runBtn = document.createElement('button');
+      runBtn.title = 'Run a saved prompt on this file';
+      runBtn.textContent = '⚡';
+      runBtn.style.cssText = 'background:none;cursor:pointer;color:var(--text3);font-size:13px;padding:4px 8px;border-radius:4px;transition:0.15s;border:1px solid var(--border)';
+      runBtn.addEventListener('mouseover', () => { runBtn.style.color='var(--accent)'; runBtn.style.borderColor='var(--accent)'; });
+      runBtn.addEventListener('mouseout',  () => { runBtn.style.color='var(--text3)';  runBtn.style.borderColor='var(--border)'; });
+      runBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        try { window.sosRunPrompt(cls.id, f.id, mod.id); }
+        catch (err) { console.warn('run prompt failed:', err); }
+      });
+    }
+
     // Cloud-sync status — a readable word + live percentage, not a lone glyph,
     // so it's obvious at a glance whether a file has actually reached the cloud.
     const cloudEl = document.createElement('div');
@@ -2247,6 +2267,7 @@ function refreshDocList(listEl, cls, mod) {
     item.appendChild(nameEl);
     item.appendChild(sizeEl);
     item.appendChild(cloudEl);
+    if (runBtn) item.appendChild(runBtn);
     item.appendChild(cpBtn);
     item.appendChild(dlBtn);
 
@@ -2307,6 +2328,10 @@ function handleFilesAdded(files, classId, modId) {
         added++;
         // Push to cloud so it's viewable/downloadable on every device.
         sosUploadToCloud(file, meta, cls, mod, modId)
+          // Auto-run (spec P-4) hangs off the CLOUD upload, not the local save:
+          // the pipeline Worker fetches the source from studyos-files, so a job
+          // queued before the bytes are up there would just 404.
+          .then(() => { try { _sosFileAdded(cls, mod, meta); } catch (e) {} })
           .catch(err => console.warn('SOS cloud upload threw:', file.name, err));
       } catch (err) {
         console.error('SOS post-save step failed:', file.name, err);
@@ -4789,6 +4814,35 @@ window._sosBridge.addGeneratedNote = (spec) => {
   try { refreshModuleNoteList(cls, mod); } catch (e) {}
   return note;
 };
+
+/* Per-module default prompt (spec P-4). Stored on the module so it rides the
+ * same Firestore document as everything else and syncs across devices for
+ * free, rather than becoming a second thing to keep in step. */
+window._sosBridge.setModuleDefaultPrompt = (classId, moduleId, promptId) => {
+  const cls = findClassOrKsu(classId);
+  if (!cls) return false;
+  const mod = (cls.modules || []).find(m => m.id === moduleId);
+  if (!mod) return false;
+  if (promptId) mod.defaultPromptId = String(promptId);
+  else delete mod.defaultPromptId;
+  persistForCls(cls);
+  return true;
+};
+
+/* Fired by the upload path when a file lands in a module, so P-4's auto-run
+ * can pick it up. Dispatched as an event rather than calling the pipeline
+ * directly: studyos.js is a classic script and must not import an ES module,
+ * and this keeps the pipeline entirely optional — with the feature off, this
+ * event simply has no listener. */
+function _sosFileAdded(cls, mod, file) {
+  if (!cls || !mod || !file) return;
+  if (!mod.defaultPromptId) return;
+  try {
+    window.dispatchEvent(new CustomEvent('sos-file-added', {
+      detail: { classId: cls.id, moduleId: mod.id, file, promptId: mod.defaultPromptId },
+    }));
+  } catch (e) {}
+}
 
 window._sosBridge.getSnapshot = () => {
   try {

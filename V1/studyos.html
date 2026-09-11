@@ -957,6 +957,11 @@
 <script type="module" src="js/taskmirror.js"></script>
 <!-- Brightspace import. After studyos.js because it consumes _sosBridge. -->
 <script src="js/d2l-sync.js"></script>
+<!-- Feature modules (js/modules/). One entry point so load order between them
+     is explicit rather than left to chance, and so the pipeline feature flag
+     has a single place to be honoured. Deferred like every module, so it runs
+     after studyos.js has installed _sosBridge, which it consumes. -->
+<script type="module" src="js/modules/boot.js"></script>
 <!-- Last: binds the pull gesture to the renderers studyos.js defines above. -->
 <script src="js/pulltorefresh.js"></script>
 </body>
