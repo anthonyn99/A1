@@ -1,144 +1,152 @@
-# StudyOS Pipeline — one-time setup
+# StudyOS Pipeline — how to run it
 
-The pipeline (upgrade spec Phase 1) is **built, tested, and shipped switched
-off**. Three manual steps turn it on. They need Cloudflare credentials, which is
-why they were not done automatically — `wrangler kv namespace create` fails from
-the dev machine with `Authentication error [code: 10000]`, because the logged-in
-OAuth token does not cover the `account_id` pinned in the worker configs.
+Drop a lecture deck into a class, walk away, come back to a rewritten
+slide-by-slide note filed in that class.
 
-Everything below is a one-time cost. After it, dropping a deck into a class is
-the whole workflow.
+There are **two interchangeable backends** behind the same `/api/ai/*` contract.
+`config.cloudflare.ai.baseUrl` alone decides which one is used.
 
----
+| | Local browser bridge | Cloudflare Worker |
+|---|---|---|
+| Cost | **Free** — spends your Pro subscription | Per-token API billing |
+| Needs | A logged-in Chrome profile | `ANTHROPIC_API_KEY` + a KV namespace |
+| Reachable from | This PC only | Anywhere, including the phone |
+| Status | **Active** | Built and tested, dormant |
 
-## What it does once it is on
-
-She drops a lecture deck into a Documents module and walks away. The deck is
-rewritten slide-by-slide with her existing prompt, filed into the class as an
-editable note, and a push notification says it is ready. The tab can be closed
-the whole time — jobs live in the Worker, not the page.
-
-This replaces the current loop: open StudyOS → copy prompt → open the other app
-→ find the PDF → upload → paste → wait → download → come back → upload → file it.
+The local bridge is what ships enabled today.
 
 ---
 
-## Step 1 — create the job store
+## The local bridge (current setup)
+
+### One time
 
 ```bash
-cd workers/studyos-ai
-wrangler kv namespace create JOBS
+cd V1/tools/sos-browser
+pip install playwright pyyaml
+playwright install chromium
+python driver.py login --site claude
 ```
 
-It prints a 32-character hex id. Open `workers/studyos-ai/wrangler.toml`, find
-the commented `[[kv_namespaces]]` block near the top, paste the id in, and
-uncomment all three lines:
+The last command opens a real Chrome window. Sign in by hand, then press Enter
+in the terminal. The profile lives in `tools/sos-browser/profiles/claude/` and
+stays authenticated for weeks — it is never your everyday Chrome profile, and it
+is gitignored.
 
-```toml
-[[kv_namespaces]]
-binding = "JOBS"
-id = "<the 32-hex id>"
-```
+> **Close that window when you're done.** A browser still holding the profile
+> makes the next run fail with `Opening in existing browser session`.
 
-**Why it ships commented out rather than with a placeholder:**
-`tests/worker-deploy.test.js` rejects placeholder KV ids, because a fake id
-deploys perfectly and then fails at runtime — the exact silent failure that test
-exists to catch. With the block absent the Worker returns a 503 that names the
-missing step instead.
-
-## Step 2 — set the API key
+### Every time you want the pipeline
 
 ```bash
-cd workers/studyos-ai
-wrangler secret put ANTHROPIC_API_KEY
+cd V1/tools/sos-browser
+python server.py
 ```
 
-**The key must never go anywhere else.** `V1/config/config.js` is served
-publicly at `/studyos/config/config.js`, so anything in it is world-readable.
-The key is used only inside the Worker's own route handlers and is never
-returned to a client. `npm run test:pipeline` fails the build if a key literal
-or a direct `api.anthropic.com` call ever appears in a client file.
+Leave it running. StudyOS talks to `http://127.0.0.1:8781`. With it stopped, the
+Run sheet reports a connection failure — no silent hang, no spend.
 
-## Step 3 — deploy and switch on
+### Check it works
 
 ```bash
-# from the repo root
-wrangler deploy --config workers/studyos-ai/wrangler.toml
-wrangler deploy --config workers/taskhub-reminders/wrangler.toml   # picks up the new service binding
+curl http://127.0.0.1:8781/health
+# {"ok": true, "bridge": "sos-browser", "driver": true, "jobs": 0}
+
+python driver.py doctor --site claude
+# want: "signed_in": true, "challenge": false
 ```
 
-Then in `V1/config/config.js`, set:
+If `signed_in` is false, run the `login` command again.
+
+---
+
+## Using it
+
+1. Open a class → a Documents module → upload a deck (PDF).
+2. Click **⚡** on the file row.
+3. Pick a prompt, optionally give the slide count, hit **Run**.
+4. The note lands in a `Generated` module in that class, created on demand.
+
+**Auto-run**: set a module's default prompt (P-4) and anything dropped into it
+runs itself. No clicks at all.
+
+**Jobs panel**: progress, retry, cancel. Jobs survive closing the StudyOS tab —
+they run in the bridge process, not the page. They do *not* survive stopping the
+bridge; a job caught mid-run is marked `interrupted` rather than left claiming to
+be running.
+
+---
+
+## When something breaks
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `needs_login` | Session expired | `python driver.py login --site claude` |
+| `Opening in existing browser session` | A browser still holds the profile | Close it, or kill Chrome processes whose command line contains `sos-browser\profiles` |
+| `bot_challenge` | Cloudflare wants a human | `login`, clear it by hand once |
+| `rate_limited` | Subscription limit hit | Wait for the reset the message names |
+| `slides not covered: N` | The model skipped slides | Retry from the Jobs panel; the chunker resumes, it does not restart |
+| Run sheet says connection failed | Bridge isn't running | `python server.py` |
+| `no_input` / `doctor` shows missing selectors | The site changed its markup | Add the new selector at the **top** of that list in `selectors.yaml` — never replace the old one, sites roll changes back |
+
+Failure dumps (HTML + screenshot) land in `tools/sos-browser/artifacts/`.
+
+---
+
+## Switching to the Worker backend
+
+Only worth it if you want the pipeline on your phone, and are willing to pay per
+token. In `config/config.js`:
 
 ```js
-ai: { enabled: true, ... }
+baseUrl: 'https://studyos-ai.vedapatel05.workers.dev',
 ```
 
-Check it came up:
+Then, from a shell authenticated to the Cloudflare account that owns the other
+workers (`b9a33dd573c14d5f446516ea8b46285f`):
 
 ```bash
-curl https://studyos-ai.<your-subdomain>.workers.dev/health
-# { "ok": true, "worker": "studyos-ai", "kv": true, "apiKey": true }
+cd workers/studyos-ai
+wrangler kv namespace create JOBS      # paste the id into wrangler.toml
+                                       # and uncomment the three binding lines
+wrangler secret put ANTHROPIC_API_KEY
+wrangler deploy
 ```
 
-`kv: false` or `apiKey: false` means step 1 or 2 did not take; the response
-carries a `setup` field naming which.
+Then uncomment the `STUDYOSAI` service binding in
+`workers/taskhub-reminders/wrangler.toml` — **only after `studyos-ai` is actually
+deployed.** A binding to a worker that does not exist makes
+`wrangler deploy` reject `taskhub-reminders` outright, and that worker carries
+the whole suite's app locks and password reset codes.
 
-> **Check the subdomain.** `config.js` currently points at
-> `vedapatel05.workers.dev` while the worker configs deploy to
-> `av1.workers.dev`. Whichever is right, the `ai.baseUrl` in config.js must
-> match the URL `wrangler deploy` actually prints.
+`pipeline.js` detects the localhost URL and attaches file bytes for the bridge;
+the Worker fetches them from `studyos-files` itself. Nothing else differs.
 
 ---
 
-## How it runs
+## Testing
 
-- **Queue:** jobs live in KV. The spec preferred Durable Objects, but those need
-  a paid Workers plan and every worker on this account is free-plan — so this
-  uses the spec's own stated fallback, KV + a cron drain.
-- **Drain:** `taskhub-reminders` already ticks every minute and is the account's
-  fan-out point; it POSTs `/cron` here over a **service binding**. Not a plain
-  fetch — a same-account worker-to-worker fetch can be silently dropped, a bug
-  that already cost this repo a debugging session.
-- **One job per tick** by design. A backlog clears at one a minute, so a bulk
-  import costs a predictable trickle rather than a burst against the cap.
-- **Chunking:** long decks are processed in 15-slide segments with a running
-  outline for continuity. The stitcher verifies slide-number coverage and fails
-  loudly on a gap, because her prompt forbids skipping slides and a note that
-  quietly lost slide 23 still *looks* complete.
-- **Checkpointing:** a job that dies at slide 40 of 60 resumes at 41 rather than
-  re-paying for the first 40.
-- **Idempotency:** the same file + prompt + prompt version returns the cached
-  result and spends nothing.
+```bash
+cd V1
+npm run test:studyos          # unit: store, pipeline, prompts, d2l
+npm run verify                # real browser: boot + pipeline UI
+node scripts/verify-autorun.mjs
 
-## Cost control
+cd tools/sos-browser
+python test_driver.py         # driver: config, markdown walker, strip patterns
+```
 
-`MONTHLY_CAP_USD` in `workers/studyos-ai/wrangler.toml` (default `20`) is
-re-read **before every single model call** and blocks there. The number in
-`config.js` is only a display mirror — the enforcement is server-side, per the
-spec's non-negotiable. Month-to-date spend shows in the Run sheet before a batch
-and at `GET /api/ai/budget`.
-
-To change it: edit the var and redeploy. It takes effect on the next call.
-
-## Security
-
-Every `/api/ai/*` route requires a Firebase App Check token, verified against
-the canonical `workers/_shared/appcheck.js` (this worker is registered in
-`tools/sync-appcheck.js`, so the verifier is never a hand-copied fork that can
-drift weaker). `/cron` is deliberately **not** gated: it arrives over a service
-binding and carries no token.
+The `verify-*` scripts drive the built page in headless Edge and skip cleanly
+(exit 0) when no browser is installed.
 
 ---
 
-## Turning it off
+## A note on what this is
 
-Set `ai.enabled: false` in `config.js`. The feature is fully inert when off —
-`boot.js` imports nothing, no run hooks are defined, and the ⚡ button does not
-render. Nothing else in StudyOS is affected either way.
+The bridge automates a chat UI you are already logged into — the same thing as
+typing into the box yourself. It deliberately does **not** solve CAPTCHAs,
+automate signing in, or work around a rate limit; any of those stops the run and
+asks for a human.
 
-## Tests
-
-```bash
-node workers/studyos-ai/test-worker.mjs   # 27 — queue, chunking, cap, refusals, resume
-cd V1 && npm run test:studyos             # 144 — store, pipeline client, prompts, d2l
-```
+Automating these UIs may be against the site's terms of service. That is the
+operator's call for their own account.
