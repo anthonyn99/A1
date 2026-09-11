@@ -130,6 +130,15 @@ class SiteSelectors:
     # entry at all). Cloudflare-fronted sites do not -- they serve headless an
     # unclearable challenge -- so this is per-site rather than global.
     headless_ok: bool = False
+    # Does a visible sign-in control prove you are signed OUT?
+    #
+    # Usually not: ChatGPT and Gemini render a permanent "Log in" button to
+    # signed-in users, so treating it as proof would report every session as
+    # dead. Copilot is the opposite -- it shows a sign-in WALL with no usable
+    # composer, and MAGI called it "usable" anyway because a bare `textarea`
+    # fallback matched a hidden decoy on that wall. So the question has a
+    # different answer per site and has to be asked per site.
+    login_is_proof: bool = False
 
     poll_ms: int = 700
     stability_samples: int = 4
@@ -160,6 +169,7 @@ class SiteSelectors:
             copy_button=_as_list(merged.get("copy_button")),
             ready_selector=_as_list(merged.get("ready_selector")),
             login_selectors=_as_list(merged.get("login_selectors")),
+            login_is_proof=bool(merged.get("login_is_proof", False)),
             challenge_selectors=_as_list(merged.get("challenge_selectors")),
             rate_limit_selectors=_as_list(merged.get("rate_limit_selectors")),
             strip_patterns=_as_list(merged.get("strip_patterns")),

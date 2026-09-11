@@ -2608,7 +2608,11 @@ html.modal-open .page, html.modal-open .sidebar { overflow: hidden; }
 
   /* ── brainstorm ───────────────────────────────────────────────────────── */
   .bs-cards { grid-template-columns: 1fr; }
-  .bs-start-bar { flex-wrap: wrap; gap: 8px; }
+  /* The council's toolbar exactly: one row, attach and Refine as circles,
+     the action button pushed to the end. Two composers for the same council
+     had no reason to lay their controls out differently. */
+  .bs-start-bar { flex-wrap: nowrap; gap: 8px; }
+  .bs-start-bar .btn { flex: 0 0 auto; margin-left: auto; }
   .bs-note { flex: 1 1 100%; order: 9; }
   .bs-plan-bar { flex-wrap: wrap; gap: 8px; }
   .bs-council-body { max-height: 40vh; }
@@ -5526,7 +5530,10 @@ function setView(v) {
   // Accounts is a settings screen: a question box and a row of unit toggles
   // above it are controls for a different job entirely, and they push the
   // thing you came to read below the fold.
-  const settingsView = v === "accounts";
+  // Accounts and the Doctor are settings screens: a question box and a row of
+  // unit toggles above them are controls for a different job, and they push
+  // the thing you came to read below the fold.
+  const settingsView = v === "accounts" || v === "doctor" || v === "history";
   show($("qbar"), !bsOpen && !settingsView);
   show($("unitBar"), (!bsOpen || !S.bs.sessionId) && !settingsView);
   // Moved, not duplicated: two unit rows that could disagree about what is
@@ -7464,7 +7471,6 @@ function renderBsView() {
     // once -- so it was two facts competing for the place where the council
     // puts nothing, and it pushed Begin session away from the right edge
     // where Convene sits.
-    bar.append(el("span", "qbar-spacer"));
     bar.append(el("span", "qbar-spacer"));
     const begin = el("button", "btn active", "Begin session");
     begin.id = "bsBegin";

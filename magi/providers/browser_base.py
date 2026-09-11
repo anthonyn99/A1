@@ -450,11 +450,16 @@ class BrowserProvider(Provider):
                 # A composer is what matters. Some sites (ChatGPT) show a login
                 # button permanently even when usable, so its presence alone
                 # does not mean logged out.
-                report.logged_in = has_input
-                if has_input and has_login:
+                report.logged_in = has_input and not (has_login and site.login_is_proof)
+                if has_input and has_login and not site.login_is_proof:
                     report.notes.append(
                         "A login control is visible but the composer works "
                         "(this site allows logged-out use)."
+                    )
+                elif has_input and has_login:
+                    report.notes.append(
+                        "Signed OUT: this site shows a sign-in wall, so a "
+                        "composer on the page is not proof of a session."
                     )
                 elif not has_input and has_login:
                     report.notes.append(

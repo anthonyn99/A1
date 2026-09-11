@@ -160,6 +160,10 @@ async def check(settings: Settings, site_id: str) -> dict:
             elif not await resolve.resolve(page, site.input, timeout_ms=1500):
                 detail = "No message box on the page — either signed out or the selector is stale."
             elif await resolve.signed_out(page, site.login_selectors):
+                # Both branches below are "a sign-in control is on the page";
+                # only the wording differs, because on a site that shows a wall
+                # that IS the answer, and on one that shows a permanent Log in
+                # button it is not.
                 detail = "The page still offers a sign-in control."
             else:
                 signed_in = True

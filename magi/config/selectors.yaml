@@ -395,11 +395,18 @@ sites:
     # and it is why the doctor exists; shipping a guess as though it were
     # verified is what would waste your time.
     headless_ok: false
+    # A visible sign-in control here means signed OUT -- unlike ChatGPT and
+    # Gemini, Copilot shows a wall and no usable composer.
+    login_is_proof: true
     input:
+      # NO bare `textarea` fallback. The sign-in wall keeps one hidden textarea
+      # with no id, no class and no aria, and matching it made MAGI report a
+      # signed-out Copilot as "usable" -- in the doctor AND on the accounts
+      # card. A selector loose enough to match a decoy is worse than one that
+      # matches nothing: nothing is reported honestly.
       - "textarea#userInput"
       - "textarea[data-testid='composer-input']"
       - "div[contenteditable='true'][role='textbox']"
-      - "textarea"
     submit:
       - "button[data-testid='submit-button']"
       - "button[aria-label*='Submit' i]"
