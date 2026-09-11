@@ -2092,7 +2092,17 @@ html.modal-open .page, html.modal-open .sidebar { overflow: hidden; }
      drawer. Repeating it here spent the width that the wordmark, the sync
      state and the lock all have to share. */
   .mtop-where { display: none; }
-  .mtop .lock-btn { margin-left: auto; }
+  /* The same trap as the sidebar header: `margin-left: auto` on EACH icon
+     button puts a spring before both, so the pair drifts apart and the free
+     width lands between them instead of before them. The brand takes the
+     slack; the two controls sit together at the end. */
+  .mtop-brand { flex: 1 1 auto; }
+  .mtop .lock-btn { margin-left: 0; }
+  .mtop #helpBtnM { margin-left: auto; }
+  /* 30px was fine as a lone control at the end of a row. Two of them side by
+     side at 30px is a pair of targets you have to aim between. */
+  .mtop .lock-btn { width: 40px; height: 40px; }
+  .mtop .lock-btn svg { width: 18px; height: 18px; }
   .mtop-burger {
     width: 40px; height: 40px; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;

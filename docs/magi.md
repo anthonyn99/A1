@@ -266,6 +266,29 @@ it is about cloudflared **binding a socket that is not loopback**:
 
 ---
 
+## "How it works", inside the app
+
+There is a **?** button in the header — the sidebar's on desktop, the top bar's
+on a phone — that opens the explanation of MAGI as a panel: what it is, what
+happens when you press Convene, what ticking a unit does, why the engine device
+has to be awake, and what the Doctor is for.
+
+**It is part of the contract, not a nicety.** It is the only documentation most
+people will ever read, and a confidently wrong explanation is worse than none —
+it teaches you to expect behaviour the program does not have, and then the
+program looks broken. So: *any change to how a run fans out, how completion is
+decided, what unticking a unit does, what the doctor checks, how long history
+is kept, or where the engine has to be, updates that panel in the same commit.*
+
+`magi/tests/test_howitworks.py` fails when the checkable claims drift — the
+doctor's status words, the units it names, the retention window, the promises
+about unticked units and about the single-unit path. It cannot check prose;
+that part is on whoever is editing.
+
+The content lives in the `HOW` array in `magi.html`. Numbers are interpolated
+from the constants they describe rather than typed, so a retention window
+cannot go stale on its own.
+
 ## When a site changes its UI
 
 This is the routine maintenance task, and it does not require touching Python.
@@ -278,6 +301,30 @@ Then open the site, inspect the element, and add the working selector to the
 **top** of that field's list in `magi/config/selectors.yaml`. Every field is a
 list tried in order, so old entries stay as fallbacks and you keep a rollback
 path if the site reverts or is A/B testing.
+
+### What the report tells you
+
+A verdict line first — *"all 4 units healthy"*, or *"1 unit needs attention ·
+3 fine"* — then one card per unit, then the full field table folded away. It
+used to be a single flat table of every field of every unit, about thirty rows
+and almost all of them OK, which answered "what matched?" when the question is
+"is anything broken, and what do I do?".
+
+A stale or missing field now prints the fix: the file, the key, the selector
+that matched and the one it should be moved above. That is the whole repair,
+and it was previously something you inferred from two table columns.
+
+The units are checked **in parallel**, for the same reason the council fans out
+in parallel — each drives its own profile against a different service, so
+nothing is being hammered. Sequentially, four units meant about two minutes of
+staring at a spinner, which is long enough that the doctor stopped being
+something you just run. Each card also reports how long that unit took: one
+that is "fine" but took fifty seconds is on its way to timing out mid-run, and
+nothing else would tell you.
+
+It checks the units you have **selected**. A unit you are not using is a unit
+whose selectors you do not need to know about — and it opens a real signed-in
+browser per unit, which is not something an unticked model should get.
 
 ### The three fields `doctor` can never check
 
