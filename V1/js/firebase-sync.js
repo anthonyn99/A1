@@ -488,6 +488,64 @@ if (!window.STUDYOS_CONFIG_READY || !window.STUDYOS_CONFIG_READY('firebase')) {
     }
   };
 
+  /* ══ Study sessions ══════════════════════════════════════════════════════
+   * One document, same reasoning as the cards above: sessions are written from
+   * whichever device she is studying on, and folding them into the main
+   * whole-document save would let a laptop save erase an afternoon logged on
+   * the phone. Union by id on the client, so append-only data never collides. */
+  const SESSIONS_DOC = PATHS.studyosSessions || 'dashboards/studyos_sessions';
+  let _ssServerSeen = false;
+  let _ssPending = null;
+  let _ssTimer = null;
+  const _ssRef = doc(db, SESSIONS_DOC);
+
+  async function _ssDoSave() {
+    if (!_ssPending) return;
+    const payload = _ssPending;
+    _ssPending = null;
+    try {
+      await setDoc(_ssRef, payload, { merge: false });
+    } catch (e) {
+      console.warn('[StudyOS Sessions] save failed:', e && e.code);
+    }
+  }
+
+  window._fbSaveSessions = (list) => {
+    _ssPending = { sessions: list || [], savedAt: Date.now() };
+    if (_ssTimer) clearTimeout(_ssTimer);
+    _ssTimer = setTimeout(() => {
+      // Same stale-overwrite guard as everywhere else: never write before this
+      // session has confirmed real server state, or a cold start would push an
+      // empty log over another device's history.
+      if (_ssServerSeen) _ssDoSave();
+    }, NOTES_SAVE_DEBOUNCE_MS);
+  };
+
+  window._fbLoadSessions = async () => {
+    try {
+      const snap = await _freshGet(_ssRef);
+      if (snap && snap.metadata && snap.metadata.fromCache === false) _ssServerSeen = true;
+      onSnapshot(_ssRef, { includeMetadataChanges: false }, (s) => {
+        if (s.metadata && s.metadata.fromCache === false) _ssServerSeen = true;
+        if (!s.exists() || (s.metadata && s.metadata.hasPendingWrites)) return;
+        const d = s.data() || {};
+        window.dispatchEvent(new CustomEvent('fb-sessions-remote', {
+          detail: { sessions: Array.isArray(d.sessions) ? d.sessions : [] },
+        }));
+      }, (err) => console.warn('[StudyOS Sessions] onSnapshot error:', err && err.code));
+
+      if (snap && snap.exists()) {
+        const d = snap.data() || {};
+        return Array.isArray(d.sessions) ? d.sessions : [];
+      }
+      if (snap) _ssServerSeen = true;    // an empty log is a legitimate state
+      return [];
+    } catch (e) {
+      console.warn('[StudyOS Sessions] load failed:', e && e.code);
+      return null;
+    }
+  };
+
   /* ══ App Lock state ══════════════════════════════════════════════════════
    * WHICH lock is on, and at what version — shared across all devices. The
    * password itself never touches Firestore; only its salted hash lives in the

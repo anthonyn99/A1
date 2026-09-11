@@ -3792,6 +3792,23 @@ function updateStats() {
       if (tile) tile.style.opacity = n > 0 ? '1' : '0.6';
     } catch (e) {}
   }
+
+  // Streak (M-1) — the one number here that goes up.
+  const streakEl = _sosEl('stat-streak');
+  if (streakEl && window.SOS && window.SOS.sessions) {
+    try {
+      const n = window.SOS.sessions.streak();
+      const today = window.SOS.sessions.dayTotals();
+      streakEl.textContent = n === 0 ? '—' : n + (n === 1 ? ' day' : ' days');
+      streakEl.style.color = n > 0 ? 'var(--accent2)' : 'var(--text3)';
+      const tile = _sosEl('stat-card-streak');
+      if (tile) {
+        tile.title = today.minutes
+          ? `${today.minutes} min today · ${today.sessions} session${today.sessions === 1 ? '' : 's'}`
+          : 'No session logged today yet';
+      }
+    } catch (e) {}
+  }
   if (nextExamEl) {
     if (upcomingExams.length > 0) {
       const daysUntil = Math.ceil((new Date(upcomingExams[0].date + 'T12:00:00') - today) / 86400000);
@@ -3918,6 +3935,10 @@ function renderPriorityQueue() {
     item.className = 'sos-pq-item';
     item.title = 'Click to edit';
     item.onclick = () => ev.src === 'task' ? openEditTask(ev.id) : openAddEvent(ev.ref);
+    // ▶ Start and ✓ Done (spec S-2). The queue ranked eight things and gave her
+    // nothing to do with any of them — it said what mattered and never "do this
+    // now", which is the whole gap between "HW3 · 5d · score 100" and actually
+    // starting HW3. Tick is tasks-only: an exam is not something you complete.
     item.innerHTML = `
       <div class="sos-pq-rank">${i + 1}</div>
       <div class="sos-pq-dot" style="background:${color}"></div>
@@ -3925,11 +3946,85 @@ function renderPriorityQueue() {
         <div class="sos-pq-name">${escHtml(ev.name)}</div>
         <div class="sos-pq-meta">${daysStr} away${cls ? ' · ' + escHtml(cls.name) : ''} · ${escHtml(ev.type)}${weight > 0 ? ' · ' + weight + '%' : ''}</div>
       </div>
+      <div class="sos-pq-actions" style="display:flex;gap:4px;align-items:center">
+        <button class="sos-pq-btn" data-act="start" title="Start a focus session on this"
+          style="background:none;border:1px solid var(--border);color:var(--text3);border-radius:4px;cursor:pointer;font-size:10px;padding:3px 6px;min-height:26px">▶</button>
+        ${ev.src === 'task' ? `<button class="sos-pq-btn" data-act="done" title="Mark done"
+          style="background:none;border:1px solid var(--border);color:var(--text3);border-radius:4px;cursor:pointer;font-size:10px;padding:3px 6px;min-height:26px">✓</button>` : ''}
+      </div>
       <div class="sos-pq-score">${pct}</div>
     `;
+    item.querySelectorAll('.sos-pq-btn').forEach(b => {
+      b.onmouseover = () => { b.style.color = 'var(--accent)'; b.style.borderColor = 'var(--accent)'; };
+      b.onmouseout  = () => { b.style.color = 'var(--text3)';  b.style.borderColor = 'var(--border)'; };
+      b.onclick = (e) => {
+        e.stopPropagation();                 // the row itself opens the editor
+        if (b.dataset.act === 'done' && ev.src === 'task') {
+          toggleTaskDone(ev.id);
+          renderPriorityQueue();
+        } else if (b.dataset.act === 'start') {
+          startFocusOn(ev);
+        }
+      };
+    });
     el.appendChild(item);
   });
 }
+
+/* ── Start Session (spec S-1 / S-2) ────────────────────────────────────────
+ * The blocker is activation energy, not information. She knows HW3 matters;
+ * the gap is between knowing and starting. So this reduces starting to one
+ * click: pick the work, open its class, start the clock.
+ *
+ * Deliberately does NOT ask which class, how long, or what to work on. Every
+ * decision put between her and starting is a place to stop.
+ */
+function startFocusOn(ev, minutes) {
+  try {
+    if (ev && ev.classId) {
+      currentClassId = ev.classId;
+      _sosPomoClassId = ev.classId;
+    }
+    switchView('pomodoro');
+    if (minutes) {
+      const inp = _sosEl('pomo-inp-work');
+      if (inp) { inp.value = String(minutes); onPomoSettingChange(); }
+    }
+    if (!pomoRunning) {
+      if (pomoMode !== 'work') setPomoMode('work');
+      togglePomo();
+    }
+    const what = ev && ev.name ? ev.name : 'Focus';
+    showNotif(SOI.check, 'Started', what + (minutes ? ` · ${minutes} min` : ''));
+  } catch (e) { console.warn('startFocusOn failed:', e); }
+}
+
+/**
+ * The dashboard's one button. Takes the top of the priority queue and starts.
+ * `minutes` lets "Just 10 minutes" lower the bar to something that cannot
+ * reasonably be refused — a ten-minute session that happens beats a fifty
+ * minute one that does not.
+ */
+window.sosStartSession = function (minutes) {
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  const in30 = new Date(today); in30.setDate(today.getDate() + 30);
+  const top = _sosScheduleItems()
+    .filter(e => ['exam', 'hw', 'quiz'].includes(e.type)
+              && e.date >= todayStr && e.date <= in30.toISOString().split('T')[0])
+    .map(e => ({ ev: e, score: _sosPriorityScore(e) }))
+    .sort((a, b) => b.score - a.score)[0];
+
+  if (!top) {
+    // Nothing due is not nothing to do: due cards are still worth the minutes.
+    if (window.SOS && window.SOS.deck && window.SOS.deck.countsFor(null).dueNow > 0) {
+      return window.sosStudyAll && window.sosStudyAll();
+    }
+    showNotif(SOI.check, 'Nothing queued', 'No work due in the next 30 days.');
+    return;
+  }
+  startFocusOn(top.ev, minutes);
+};
 
 // ===== TASKS =====
 function persistTasks() { localStorage.setItem('studyos_tasks', JSON.stringify(tasks)); _sosFirebaseSave(); _sosEmit('tasks'); }
@@ -4277,6 +4372,16 @@ pomoWorker.onmessage = function(e) {
     updateTopbarPomo();
     playPomoAlarm();
     if (pomoMode === 'work') {
+      // The whole point of S-3: a completed focus block is written down.
+      if (_sosPomoStartedAt) {
+        _sosLogSession('focus', {
+          classId: _sosPomoClassId,
+          startedAt: _sosPomoStartedAt,
+          durationMs: Date.now() - _sosPomoStartedAt,
+          completed: true,
+        });
+        _sosPomoStartedAt = null;
+      }
       pomoSession = (pomoSession + 1) % 4;
       updatePomoDots();
       const nextMode = pomoSession === 0 ? 'long' : 'short';
@@ -4341,13 +4446,48 @@ function setPomoMode(mode) {
   updateTopbarPomo();
 }
 
+/* ── Session logging (spec S-3) ────────────────────────────────────────────
+ * The timer recorded nothing: no storage key, no persist call, no Firestore
+ * field. When the 25 minutes ended a chime played and the evidence evaporated,
+ * which is why the app produced no sense of progress — there was nothing to
+ * look back at. These three lines of state are what streaks, the heatmap and
+ * hours-by-class are all views over.
+ *
+ * `_sosPomoClassId` lets a session be attributed to whatever class she was
+ * looking at when she started it, which is the honest default and costs her no
+ * extra decision. */
+let _sosPomoStartedAt = null;
+let _sosPomoClassId = '';
+
+function _sosLogSession(kind, fields) {
+  try {
+    if (window.SOS && window.SOS.sessions) return window.SOS.sessions.log(kind, fields);
+  } catch (e) { console.warn('session log failed:', e); }
+  return null;
+}
+
 function togglePomo() {
   if (pomoRunning) {
     pomoWorker.postMessage({cmd:'stop'});
     pomoRunning = false;
+    // A paused focus block still happened. Log what was done rather than
+    // discarding it — pausing to answer the door should not erase 18 minutes.
+    if (pomoMode === 'work' && _sosPomoStartedAt) {
+      _sosLogSession('focus', {
+        classId: _sosPomoClassId,
+        startedAt: _sosPomoStartedAt,
+        durationMs: Date.now() - _sosPomoStartedAt,
+        completed: false,
+      });
+      _sosPomoStartedAt = null;
+    }
   } else {
     pomoWorker.postMessage({cmd:'start', secs: pomoSeconds});
     pomoRunning = true;
+    if (pomoMode === 'work' && !_sosPomoStartedAt) {
+      _sosPomoStartedAt = Date.now();
+      _sosPomoClassId = currentClassId || '';
+    }
   }
   updatePomoPlayBtn();
   updateTopbarPomo();

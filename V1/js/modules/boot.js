@@ -33,12 +33,26 @@ window.SOS.store = store;
  * configured. That is the point — it is the half of the app that works today.
  */
 (async function recall() {
-  const [deck, reviewUi] = await Promise.all([
+  const [deck, reviewUi, sessions] = await Promise.all([
     import('./deck.js'),
     import('./review-ui.js'),
+    import('./sessions.js'),
   ]);
   window.SOS.deck = deck;
   window.SOS.review = reviewUi;
+  window.SOS.sessions = sessions;
+
+  // Sessions sync as one document, unioned by id (append-only, so nothing is
+  // ever lost). Loaded once at boot and kept current by the listener.
+  if (window._fbLoadSessions) {
+    window._fbLoadSessions()
+      .then(list => { if (Array.isArray(list) && list.length) sessions.applyRemote(list); })
+      .catch(() => {});
+  }
+  window.addEventListener('fb-sessions-remote', (e) => {
+    const d = (e && e.detail) || {};
+    if (Array.isArray(d.sessions)) sessions.applyRemote(d.sessions);
+  });
 
   // Called from inline onclick= in markup studyos.js renders; that file is a
   // classic script and cannot import these.

@@ -159,6 +159,23 @@ export function startReview(scope = {}, opts = {}) {
 
   function finish() {
     const mins = Math.max(1, Math.round((Date.now() - started) / 60000));
+
+    // Card review is studying and must count toward streaks and hours exactly
+    // as a focus block does (S-3). Logged here rather than per card so twenty
+    // minutes of review is one session, not forty.
+    try {
+      if (window.SOS && window.SOS.sessions && stats.done > 0) {
+        window.SOS.sessions.log('review', {
+          classId: (scope && scope.classId) || '',
+          startedAt: started,
+          durationMs: Date.now() - started,
+          completed: true,
+          cards: stats.done,
+          accuracy: stats.done ? Math.round(((stats.done - stats.again) / stats.done) * 100) : null,
+        });
+      }
+    } catch (e) { console.warn('[review] session log failed:', e); }
+
     const m = cls ? deck.mastery(cls.id) : deck.mastery(null);
     const acc = stats.done ? Math.round(((stats.done - stats.again) / stats.done) * 100) : 0;
     body.innerHTML = `

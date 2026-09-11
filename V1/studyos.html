@@ -141,6 +141,25 @@
     <!-- HOME VIEW -->
     <div class="view active" id="view-home">
       <!-- STATS BAR -->
+      <!-- START SESSION (spec S-1). The blocker is activation energy, not
+           information: she knows what matters, the gap is starting. One click
+           takes the top of the priority queue, opens its class and starts the
+           clock. "Just 10 minutes" lowers the bar to something that cannot
+           reasonably be refused — a ten-minute session that happens beats a
+           fifty-minute one that does not. -->
+      <div id="sos-start-row" style="display:flex;gap:10px;align-items:stretch;margin-bottom:14px">
+        <button class="btn primary" id="sos-start-btn"
+                onclick="window.sosStartSession && window.sosStartSession()"
+                style="flex:1;min-height:52px;font-size:15px;font-weight:700;font-family:'Lora',serif">
+          Start Session
+        </button>
+        <button class="btn" id="sos-start-10"
+                onclick="window.sosStartSession && window.sosStartSession(10)"
+                style="min-height:52px;padding:0 16px;font-size:12px;white-space:nowrap">
+          Just 10 min
+        </button>
+      </div>
+
       <div class="stats-bar" id="stats-bar">
         <div class="stat-card">
           <div class="stat-label">Events This Week</div>
@@ -159,6 +178,12 @@
         <div class="stat-card">
           <div class="stat-label">Next Exam In</div>
           <div class="stat-value" id="stat-next-exam" style="font-size:18px;padding-top:4px">—</div>
+        </div>
+        <!-- A number that goes UP, to counterbalance a dashboard otherwise made
+             entirely of numbers counting DOWN (spec M-1). -->
+        <div class="stat-card" id="stat-card-streak">
+          <div class="stat-label">Streak</div>
+          <div class="stat-value" id="stat-streak" style="font-size:22px;padding-top:2px">0</div>
         </div>
       </div>
 
