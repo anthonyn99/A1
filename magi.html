@@ -6673,6 +6673,7 @@ function attachScrollbar(sc, z) {
     place();
     if (scrollable() < 8) return;
     bar.classList.add("on");
+    _startBarPump();
     clearTimeout(hideT);
     // Held open while dragging: a thumb that faded out from under the finger
     // holding it would be absurd.
@@ -6718,10 +6719,31 @@ function attachScrollbar(sc, z) {
     thumb.addEventListener("pointercancel", end);
   });
 
-  const entry = { sc, bar, schedule };
+  const entry = { sc, bar, place, schedule };
   SBARS.add(entry);
   schedule();
 }
+
+/* While a bar is visible it re-measures every frame.
+ *
+ *  Scroll and resize events are not enough: a view change, a drawer sliding
+ *  open, an answer expanding -- all move a scroller without either firing, and
+ *  a bar left at its previous coordinates is a thumb sitting in the middle of
+ *  nothing. Re-placing costs one getBoundingClientRect per VISIBLE bar, and
+ *  bars are visible for about a second at a time, so the loop is idle almost
+ *  always: it stops itself the moment none are on. */
+let _sbarPump = 0;
+function _pumpBars() {
+  _sbarPump = 0;
+  let live = false;
+  for (const b of SBARS) {
+    if (!b.bar.classList.contains("on")) continue;
+    b.place();
+    live = true;
+  }
+  if (live) _sbarPump = requestAnimationFrame(_pumpBars);
+}
+function _startBarPump() { if (!_sbarPump) _sbarPump = requestAnimationFrame(_pumpBars); }
 
 // One listener for the lot. A nested scroller MOVES when the page scrolls, and
 // resizes/rotations move all of them, so every bar re-places on any of it --
