@@ -36,6 +36,7 @@ const TARGETS = [
   'workers/tradeboard-api/src/worker.js',
   'workers/newshub-api/worker.js',
   'workers/tesla-api/worker.js',
+  'workers/studyos-ai/worker.js',
   'workers2/trade-dashboard/worker.js',
   'workers2/index-backups/worker.js',
 ];

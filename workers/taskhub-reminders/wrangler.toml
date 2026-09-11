@@ -32,6 +32,13 @@ id = "b51e916cf3bf4f37ad146af5ca031575"
 binding = "ONEINBOX"
 service = "oneinbox-api"
 
+# StudyOS pipeline drain (upgrade spec P-1). studyos-ai has no cron trigger of
+# its own — this every-minute tick is what moves its job queue. Same binding
+# reasoning as ONEINBOX above: a plain same-account fetch() can be dropped.
+[[services]]
+binding = "STUDYOSAI"
+service = "studyos-ai"
+
 # Secrets (set via `wrangler secret put <NAME>` — never commit values):
 #   FIREBASE_PROJECT_ID     — already set
 #   FIREBASE_CLIENT_EMAIL   — already set

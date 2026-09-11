@@ -1,0 +1,77 @@
+name = "studyos-ai"
+# Pinned for the same reason every other worker here pins it: a second
+# Cloudflare account exists on this login, and wrangler cannot choose between
+# accounts in non-interactive mode ("More than one account available but unable
+# to select one"). Every CI deploy fails until the account is named.
+account_id = "b9a33dd573c14d5f446516ea8b46285f"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+
+[vars]
+WORKER_ORIGIN = "https://studyos-ai.av1.workers.dev"
+# Server-enforced monthly spend cap in USD (spec P-7). The worker re-reads this
+# before EVERY model call, so lowering it takes effect immediately — it is not
+# merely displayed in the UI.
+MONTHLY_CAP_USD = "20"
+
+# ── Job records, the queue and the spend ledger ─────────────────────────────
+# Create it ONCE, then paste the id below (the deploy fails until this is real):
+#
+#   wrangler kv namespace create JOBS
+#
+# KV rather than Durable Objects on purpose: DO requires a paid Workers plan and
+# every worker on this account is on the free plan. The spec names KV + cron as
+# its own fallback for exactly this case.
+# ⚠️ COMMENTED OUT ON PURPOSE — DO NOT DEPLOY UNTIL THIS IS FILLED IN.
+#
+# The namespace could not be created from this machine: `wrangler kv namespace
+# create JOBS` returns "Authentication error [code: 10000]" because the logged-in
+# OAuth token does not cover the account_id pinned above.
+#
+# A placeholder id here would be WORSE than no binding: tests/worker-deploy.test.js
+# rejects it precisely because a fake id deploys clean and then fails at runtime,
+# which is the silent failure that test exists to prevent. With the block absent,
+# env.JOBS is undefined and the worker fails loudly on its first request instead.
+#
+# To finish the setup (one time, from an authenticated shell):
+#
+#   cd workers/studyos-ai
+#   wrangler kv namespace create JOBS
+#   # paste the returned 32-hex id below, then uncomment all three lines
+#   wrangler secret put ANTHROPIC_API_KEY
+#
+# [[kv_namespaces]]
+# binding = "JOBS"
+# id = "<32-hex id from the command above>"
+
+# ── Reading the source deck ─────────────────────────────────────────────────
+# A service binding, not a plain fetch: a same-account worker-to-worker fetch()
+# can be silently dropped (that bug already cost a debugging session here — see
+# workers/taskhub-reminders/worker.js:284). The worker keeps a URL fallback in
+# code for when the binding is absent.
+[[services]]
+binding = "FILES"
+service = "studyos-files"
+
+[observability]
+enabled = true
+
+# ── NO [triggers] BLOCK ON PURPOSE ──────────────────────────────────────────
+# The account is capped at 5 cron triggers and 4 are already spent (newshub-api,
+# personal-ai, taskhub-reminders, tradeboard-api). Instead of consuming the last
+# one, taskhub-reminders' existing every-minute tick POSTs /cron here, which is
+# already the account's fan-out point for insight-api and oneinbox-api.
+#
+# To wire it up, add to workers/taskhub-reminders/wrangler.toml:
+#
+#   [[services]]
+#   binding = "STUDYOSAI"
+#   service = "studyos-ai"
+#
+# …and call env.STUDYOSAI.fetch('https://studyos-ai/cron', { method: 'POST' })
+# from its scheduled() handler.
+#
+# Secrets (set via `wrangler secret put <NAME>` — never commit a value, and
+# never put this key in config/config.js or any file under /studyos/, which is
+# publicly served):
+#   ANTHROPIC_API_KEY

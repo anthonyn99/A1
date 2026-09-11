@@ -47,6 +47,8 @@ jobs:
               - 'workers/personal-ai/**'
             studyosfiles:
               - 'workers/studyos-files/**'
+            studyosai:
+              - 'workers/studyos-ai/**'
             vaultfiles:
               - 'workers/vault-files/**'
             keychainsync:
@@ -140,6 +142,22 @@ jobs:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           wranglerVersion: "4"
           workingDirectory: workers/studyos-files
+
+  # The StudyOS pipeline (upgrade spec Phase 1). Needs two things set once,
+  # outside CI, before its first deploy succeeds:
+  #   wrangler kv namespace create JOBS     -> paste the id into its wrangler.toml
+  #   wrangler secret put ANTHROPIC_API_KEY -> never committed, never sent to a client
+  deploy-studyos-ai:
+    needs: changes
+    if: ${{ needs.changes.outputs.studyosai == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          wranglerVersion: "4"
+          workingDirectory: workers/studyos-ai
 
   deploy-vault-files:
     needs: changes

@@ -299,6 +299,29 @@ export default {
         }
       })());
     }
+
+    // StudyOS pipeline drain — every minute, because the whole promise of the
+    // feature is "drop a deck and walk away": a lecture queued at 9:01 should
+    // be rewritten by the time she next looks, not on tomorrow's tick.
+    //
+    // studyos-ai drains ONE job per call by design (free-plan subrequest and
+    // CPU limits, and it keeps the spend read-modify-write from racing itself),
+    // so a backlog clears at one job a minute rather than all at once. That is
+    // deliberate: a bulk import then costs a predictable trickle instead of a
+    // burst against the monthly cap.
+    //
+    // Service binding first for the reason documented above — a plain
+    // same-account fetch() can be silently dropped.
+    ctx.waitUntil((async () => {
+      try {
+        const r = env.STUDYOSAI
+          ? await env.STUDYOSAI.fetch('https://studyos-ai/cron', { method: 'POST' })
+          : await fetch('https://studyos-ai.av1.workers.dev/cron', { method: 'POST' });
+        if (!r.ok) console.warn(`[studyos-ai] drain → ${r.status}`);
+      } catch (e) {
+        console.warn('[studyos-ai] drain failed:', e.message);
+      }
+    })());
   }
 };
 
