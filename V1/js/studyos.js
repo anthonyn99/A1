@@ -254,7 +254,7 @@ function _sosTaskRepeatDates(startDate) {
 
 // ===== KSU MODULES =====
 let ksuData = JSON.parse(localStorage.getItem('studyos_ksu') || 'null') || { modules: [] };
-function persistKsu() { localStorage.setItem('studyos_ksu', JSON.stringify(ksuData)); _sosFirebaseSave(); }
+function persistKsu() { localStorage.setItem('studyos_ksu', JSON.stringify(ksuData)); _sosFirebaseSave(); _sosEmit('ksu'); }
 
 function renderKsuModules() {
   const grid = _sosEl('ksu-modules-grid');
@@ -349,6 +349,25 @@ function findClassOrKsu(classId) {
 }
 function persistForCls(cls) {
   if (cls && cls._ksu) persistKsu(); else persist();
+}
+
+/* ── Local-change notification (F-2) ───────────────────────────────────────
+ * firebase-sync.js already publishes REMOTE changes as window CustomEvents
+ * (fb-sos-remote / fb-sos-saved), and four modules listen to them. What had no
+ * signal was a LOCAL edit: nothing fired when this tab changed its own data,
+ * so a module could only learn about it by polling.
+ *
+ * Emitted from the persist* functions rather than from each call site: those
+ * are the single chokepoint every mutation already funnels through, so this
+ * cannot drift the way per-call-site notifications would. Same reasoning as
+ * taskmirror.js's derived-not-incremental mirror.
+ *
+ * Fire-and-forget and individually try/caught — a throwing listener must never
+ * break the save that triggered it. */
+function _sosEmit(entity) {
+  try {
+    window.dispatchEvent(new CustomEvent('sos-changed', { detail: { entity } }));
+  } catch (e) {}
 }
 
 // ===== INIT =====
@@ -3160,7 +3179,7 @@ function escHtml(s) {
 // ===== AI PROMPTS =====
 
 // ===== NOTES =====
-function persistNotes() { localStorage.setItem('studyos_notes_v2', JSON.stringify(notesList)); _sosFirebaseSave(); }
+function persistNotes() { localStorage.setItem('studyos_notes_v2', JSON.stringify(notesList)); _sosFirebaseSave(); _sosEmit('notes'); }
 
 function renderNotesList() {
   const list = _sosEl('notes-list');
@@ -3843,7 +3862,7 @@ function renderPriorityQueue() {
 }
 
 // ===== TASKS =====
-function persistTasks() { localStorage.setItem('studyos_tasks', JSON.stringify(tasks)); _sosFirebaseSave(); }
+function persistTasks() { localStorage.setItem('studyos_tasks', JSON.stringify(tasks)); _sosFirebaseSave(); _sosEmit('tasks'); }
 
 function openAddTaskForClass() {
   editingTaskId = null;
@@ -4423,6 +4442,7 @@ function _sosFirebaseSave() {
 function persist() {
   localStorage.setItem('studyos_classes', JSON.stringify(_sosSerializeClasses()));
   _sosFirebaseSave();
+  _sosEmit('classes');
   // also re-render ksu grid if open
   if (activeView === 'ksu') renderKsuModules();
 }
@@ -4430,8 +4450,8 @@ function _ksuPersistHook() {
   persistKsu();
   if (activeView === 'ksu') renderKsuModules();
 }
-function persistEvents()  { localStorage.setItem('studyos_events', JSON.stringify(events));     _sosFirebaseSave(); }
-function persistTasks_()  { localStorage.setItem('studyos_tasks',  JSON.stringify(tasks));      _sosFirebaseSave(); }
+function persistEvents()  { localStorage.setItem('studyos_events', JSON.stringify(events));     _sosFirebaseSave(); _sosEmit('events'); }
+function persistTasks_()  { localStorage.setItem('studyos_tasks',  JSON.stringify(tasks));      _sosFirebaseSave(); _sosEmit('tasks'); }
 
 // ===== CONVERT EVENT ↔ TASK =====
 async function convertEventToTask(evId) {
@@ -4687,6 +4707,51 @@ window._sosBridge = {
     if (cur) { try { renderClassEvents(cur); } catch (e) {} }
     return true;
   },
+};
+
+/* ── Store surface (F-2) ───────────────────────────────────────────────────
+ * The spec asked for a separate store.js owning this state. It cannot: these
+ * are top-level `let` bindings in a CLASSIC script, and every ES module on the
+ * page is deferred, so a module is guaranteed to run AFTER studyos.js has
+ * already read localStorage and rendered. A module-owned store would therefore
+ * be a second copy of the truth, not the truth — exactly the failure the
+ * strangler rule exists to prevent.
+ *
+ * So the bridge stays the seam and simply grows the accessors that were
+ * missing. js/modules/store.js is a thin facade over this; it holds no state.
+ *
+ * Getters return the live arrays (cheap, and callers only read). getSnapshot()
+ * deep-copies instead, because the search index must not alias live data. */
+window._sosBridge.getNotes   = () => notesList;
+window._sosBridge.getKsu     = () => ksuData;
+window._sosBridge.getModules = (classId) => {
+  const c = findClassOrKsu(classId);
+  return c ? (c.modules || []) : [];
+};
+
+window._sosBridge.getSnapshot = () => {
+  try {
+    return JSON.parse(JSON.stringify({
+      classes: _sosSerializeClasses(),
+      events, tasks, notes: notesList, ksu: ksuData,
+    }));
+  } catch (e) { return null; }
+};
+
+/* Both a local edit (sos-changed, emitted by the persist* functions) and a
+ * remote one (fb-sos-remote, from firebase-sync.js) mean "the data moved".
+ * Subscribers almost always want both, so this collapses them into one
+ * callback and hands back an unsubscribe. */
+window._sosBridge.subscribe = (fn) => {
+  if (typeof fn !== 'function') return () => {};
+  const onLocal  = (e) => { try { fn((e.detail && e.detail.entity) || 'all', 'local'); } catch (_) {} };
+  const onRemote = () => { try { fn('all', 'remote'); } catch (_) {} };
+  window.addEventListener('sos-changed', onLocal);
+  window.addEventListener('fb-sos-remote', onRemote);
+  return () => {
+    window.removeEventListener('sos-changed', onLocal);
+    window.removeEventListener('fb-sos-remote', onRemote);
+  };
 };
 
 /* ── Brightspace import bridge (js/d2l-sync.js) ────────────────────────────
