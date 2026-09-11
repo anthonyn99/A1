@@ -23,10 +23,8 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-// magi.html is deliberately absent: it is owned elsewhere and is not to be
-// edited from here. Add it when that changes.
 const PAGES = [
-  'index.html', 'insight.html', 'mylist.html', 'oneinbox.html',
+  'index.html', 'insight.html', 'magi.html', 'mylist.html', 'oneinbox.html',
   'riftiq.html', 'shield.html', 'solace.html', 'tradehub.html', 'vault.html',
   'wellness.html',
 ];
@@ -64,6 +62,26 @@ const RE_SPECIAL = '.*+?^${}()|[]' + BS;
 const escapeRe = (s) =>
   s.split('').map((c) => (RE_SPECIAL.indexOf(c) >= 0 ? BS + c : c)).join('');
 
+// `inset` is a shorthand and only SOME of its forms pin both horizontal edges.
+// Matching the bare word treated MAGI's phone drawer — `inset: 0 auto auto 0`,
+// which is top+left only and 300px wide — as a full-width bar, and a test that
+// cries wolf gets an exemption written for it, which is how a real one later
+// slips through. The forms, per CSS box-edge order:
+//   1 value  -> all four            : spans
+//   2 values -> block, inline       : spans iff inline is 0
+//   3 values -> top, inline, bottom : spans iff inline is 0
+//   4 values -> top, right, bottom, left : spans iff right AND left are 0
+function insetSpans(decls) {
+  const m = decls.match(/(^|[;{ ])inset:\s*([^;}]+)/);
+  if (!m) return false;
+  const v = m[2].trim().split(/\s+/);
+  const zero = (s) => /^0([a-z%]*)$/.test(s);
+  if (v.length === 1) return zero(v[0]);
+  if (v.length === 2 || v.length === 3) return zero(v[1]);
+  if (v.length === 4) return zero(v[1]) && zero(v[3]);
+  return false;
+}
+
 function bodyIsCapped(css, file) {
   if (!/body\s*\{[^{}]*max-width:\s*2000px[^{}]*\}/.test(css)) {
     failures.push(file + ': no `body { max-width: 2000px }` -- the UI is uncapped');
@@ -84,8 +102,8 @@ function findEscapingFixedBars(css, file) {
     const decls = m[3].replace(/\s+/g, ' ');
     const spans = (/left:\s*0/.test(decls) && /right:\s*0/.test(decls)) ||
                   /width:\s*100(%|vw)/.test(decls) ||
-                  /inset:\s*0/.test(decls) ||
-                  /inset-inline:\s*0/.test(decls);
+                  insetSpans(decls) ||
+                  /inset-inline:\s*0(\s|;|})/.test(decls);
     if (!spans) continue;
     if (CAP.test(decls)) continue;                                      // caps itself
     // Covering all four insets does NOT make something a backdrop. TradeHub's

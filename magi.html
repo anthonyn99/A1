@@ -2411,6 +2411,33 @@ html.modal-open .page, html.modal-open .sidebar { overflow: hidden; }
   .node-body { max-height: 60vh; }
 }
 </style>
+<style id="ui-cap-2000">
+/* == Suite-wide 2000px UI cap ==============================================
+   Past 2000px the interface stops growing and only the page BACKGROUND keeps
+   going, so on an ultrawide monitor MAGI stays a readable centred column
+   instead of stretching its sidebar-plus-content grid across a metre of glass.
+   Every other A1 program carries the identical cap.
+
+   body carries it because every piece of chrome lives inside body -- with one
+   exception that is easy to miss: a position:fixed element is laid out against
+   the VIEWPORT, so it ignores an ancestor's max-width completely, and would
+   stay full width while everything around it narrowed.
+
+   MAGI needs no such exception today, and the reason is worth recording so a
+   future reader does not "fix" a bar that is already fine. Its fixed elements
+   are .lock-screen, .sheet and #uim-overlay -- backdrops, whose cards centre
+   themselves -- plus .sidebar and .scrim, which exist ONLY inside
+   `@media (max-width: 760px)` as the phone drawer. None of them can be on
+   screen at a width where this cap applies. The DESKTOP sidebar is not fixed
+   at all: it is the first column of `.shell`'s grid, so the cap reaches it
+   through body like everything else.
+
+   The background still fills the screen: body's background propagates to the
+   canvas, so narrowing body reveals the page ground, not white.
+
+   tests/ui-width-cap.test.js fails the build if this goes missing. */
+body { max-width: 2000px; margin-inline: auto; }
+</style>
 </head>
 <body>
 
