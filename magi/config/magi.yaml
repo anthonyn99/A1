@@ -85,14 +85,11 @@ providers:
     enabled: true
   grok:
     enabled: true
-  # Enabled so it is ticked by default like every other unit. Its selectors
-  # are still UNVERIFIED -- Copilot was showing a sign-in wall with no
-  # reachable composer when it was probed -- so expect it to fail until
-  # `magi doctor copilot` has been run against a working session and whatever
-  # it names has been fixed. Untick it in the console if that is a nuisance;
-  # the console remembers what you untick.
-  copilot:
-    enabled: true
+  # Copilot was removed on 2026-09-11. It never worked: a sign-in wall with no
+  # reachable composer, and the only selector loose enough to match anything
+  # matched a hidden decoy on that wall, so it reported itself usable and then
+  # returned nothing. A member that cannot answer is worse than one that is
+  # absent -- it costs a browser, a timeout and a slot in the quorum.
 
 chairman:
   # Which council member writes the final synthesis. If it is unavailable the

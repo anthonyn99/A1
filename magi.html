@@ -359,6 +359,42 @@ body {
 .qbar-toolbar { display: flex; align-items: center; gap: 6px; padding: 2px 2px 0; }
 .qbar-spacer { flex: 1; }
 
+/* The resize grip, last in the toolbar row -- so it is in the box's
+   bottom-right corner, where a resize handle belongs, without sitting on top
+   of Convene.
+   28px of ink inside a 34px target: a native textarea corner is about 14px
+   square, which on a phone is a control you stab at rather than grab.
+   `touch-action: none` is what makes the drag work on a touch screen at all;
+   without it the browser claims the gesture as a page scroll. */
+.qbar-grip {
+  flex: 0 0 auto;
+  width: 34px; height: 30px; padding: 0;
+  background: transparent; border: 1px solid var(--bdl); border-radius: 9px;
+  color: var(--txd); cursor: ns-resize; touch-action: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.qbar-grip::before {
+  /* Two stacked bars: the same "grab me" shorthand as a sheet handle, and it
+     reads at 28px in a way a diagonal hatch does not. */
+  content: ""; width: 14px; height: 6px;
+  border-top: 2px solid currentColor; border-bottom: 2px solid currentColor;
+}
+.qbar-grip:hover { color: var(--txm); border-color: var(--bd); }
+.qbar-grip.on { color: var(--ac); border-color: var(--ac); }
+.qbar-grip:active { background: color-mix(in srgb, var(--ac) 10%, transparent); }
+
+/* The caption under the units. --txd, not --txm: it is the dimmest text on
+   the screen on purpose. */
+.view-note {
+  max-width: 720px; margin: 2px auto 0; padding: 0 4px;
+  color: var(--txd); font-size: 12px; line-height: 1.55; text-align: center;
+}
+.view-note[hidden] { display: none; }
+@media (max-width: 720px) {
+  .view-note { font-size: 11px; }
+}
+
 .qbar-attach {
   width: 30px; height: 30px; border-radius: 50%;
   background: transparent; color: var(--txd); border: 1px solid var(--bdl);
@@ -3016,10 +3052,7 @@ window._mailRelay = window._mailRelay || async function (res) {
          same styles; only the accent differs, which is the one thing that
          should. -->
     <div class="bs-hd view-hd" id="councilHd">
-      <span class="bs-title council-title">New deliberation</span>
-      <span class="bs-sub">One question, put to every selected unit
-        independently — then one of them reads the answers and writes the
-        verdict.</span>
+      <span class="bs-title council-title">Deliberation</span>
     </div>
 
     <div class="qbar" id="qbar">
@@ -3037,6 +3070,9 @@ window._mailRelay = window._mailRelay || async function (res) {
         <button type="button" class="qbar-undo" id="btnUndo" title="Restore what you wrote" hidden><span data-ic="undo"></span> Undo</button>
         <span class="qbar-spacer"></span>
         <button class="btn active qbar-send" id="btnSend">Convene</button>
+        <button type="button" class="qbar-grip" id="composerGrip"
+                title="Drag to resize. Click to expand or compress."
+                aria-label="Resize the prompt box"></button>
       </div>
     </div>
 
@@ -3045,6 +3081,13 @@ window._mailRelay = window._mailRelay || async function (res) {
               title="Units, and which one chairs">Units</button>
       <span id="unitChips"></span>
     </div>
+
+    <!-- Under the units, not above the composer. It explains what the screen
+         does, which is worth reading ONCE -- so it belongs at the bottom of
+         the screen it explains, out of the way of the box you came here to
+         type in, and dim enough to read as a caption rather than as content.
+         Brainstorm's description is the same element for the same reason. -->
+    <div class="view-note" id="councilNote" hidden>One question, put to every selected unit independently — then one of them reads the answers and writes the verdict.</div>
 
     <div class="drawer" id="historyDrawer" hidden>
       <div class="drawer-hd">Past deliberations</div>
@@ -3451,7 +3494,9 @@ const HOW = [
       "The tick boxes under the question decide exactly which models are used, and <b>nothing anywhere drives an unticked one</b>. Not the council, not the chairman, not Studio, not Brainstorm, not Refine, not the Doctor.",
       "That includes reaching the same model another way: unticking Gemini also stops Refine using the Gemini API key, because the boxes name models, not connections.",
       "Selecting a single unit is a completely normal way to use MAGI. There is no minimum.",
+      "<b>The council has six members.</b> Copilot was a seventh until it was removed: it showed a sign-in wall with no reachable composer, so it took a browser and a timeout on every run and answered nothing.",
       "<b>Drag a chip to reorder them.</b> Click and drag with a mouse; press and hold, then drag, with a finger &mdash; so a plain swipe still scrolls the row and a plain tap still toggles the unit. The order follows you to your other devices.",
+      "<b>The handle in the corner of the prompt box</b> resizes it: drag it for an exact height, or click it to expand and click again to compress. A height you set by hand is remembered and stops the box resizing itself as you type. Every prompt box here has one — the council&rsquo;s, Brainstorm&rsquo;s, and the reply box inside a round.",
     ],
   },
   {
@@ -3879,7 +3924,7 @@ const WORKING = new Set(["queued", "launching", "navigating", "typing", "waiting
 // themselves. A fifth unit needed a name that belongs to the same story.
 const UNIT = { chatgpt: "MELCHIOR·01", claude: "BALTHASAR·02", gemini: "CASPER·03",
                deepseek: "ADAM·04", perplexity: "LILITH·05",
-               grok: "TABRIS·06", copilot: "SEELE·07" };
+               grok: "TABRIS·06" };
 
 /** Terse console wording for each machine state. */
 const STATE_LABEL = {
@@ -3898,8 +3943,7 @@ const STATE_LABEL = {
  *  other instead of blinking in unison. Fixed per unit rather than derived
  *  from position, so a unit keeps its own rhythm when others drop out. */
 const PHASE = { chatgpt: "0s", claude: "-0.48s", gemini: "-0.95s",
-                deepseek: "-1.42s", perplexity: "-1.90s", grok: "-2.37s",
-                copilot: "-2.85s" };
+                deepseek: "-1.42s", perplexity: "-1.90s", grok: "-2.37s" };
 
 function badgeClass(s, ok) {
   if (s === "done") return ok === false ? "failed" : "done";
@@ -4523,8 +4567,93 @@ function renderVerdict() {
  *  could only ever grow, never shrink back after a clear. */
 function autosize() {
   const t = $("composer");
+  if (t.dataset.userH) return;   // sized by hand -- see attachGrip
   t.style.height = "auto";
   t.style.height = `${t.scrollHeight}px`;
+}
+
+/* Resize by dragging the grip; expand or compress by clicking it.
+ *
+ *  Both, because they answer different needs with the same control: a click
+ *  is "give me room" without aiming, and a drag is "give me exactly this
+ *  much". A click on a corner you can only drag is a dead press, and a drag
+ *  on a button that only toggles is a fight with the page.
+ *
+ *  While a height has been chosen by hand, autosize stops touching the box:
+ *  a box you sized is a box you decided about, and having it spring back on
+ *  the next keystroke is the thing that makes handles feel broken. Clicking
+ *  the grip while it is tall hands it back to auto-grow.
+ */
+const GRIP_MIN = 26;
+function gripCap() { return Math.max(160, Math.round(innerHeight * 0.6)); }
+
+/** The grip button itself, for the panels that build their bars in script. */
+function gripButton() {
+  const g = el("button", "qbar-grip");
+  g.type = "button";
+  g.title = "Drag to resize. Click to expand or compress.";
+  g.setAttribute("aria-label", "Resize the prompt box");
+  return g;
+}
+
+function attachGrip(ta, grip, key, resize) {
+  if (!ta || !grip) return;
+  const store = key ? "magi.h." + key : null;
+
+  const apply = (h) => {
+    ta.style.height = h ? `${h}px` : "auto";
+    // The stylesheet caps these boxes at 45vh so a pasted essay cannot push
+    // Convene off the screen. That cap has to give way to a height asked for
+    // by hand, or the box stops halfway through the drag and the grip looks
+    // broken -- gripCap() is the ceiling instead.
+    ta.style.maxHeight = h ? `${h}px` : "";
+    ta.dataset.userH = h ? String(h) : "";
+    grip.classList.toggle("on", !!h);
+    if (!h && resize) resize();
+    try { if (store) h ? localStorage.setItem(store, String(h))
+                       : localStorage.removeItem(store); } catch {}
+  };
+
+  // A height chosen on an earlier visit is still the height that was wanted.
+  try {
+    const saved = store ? parseInt(localStorage.getItem(store) || "", 10) : NaN;
+    if (Number.isFinite(saved) && saved > GRIP_MIN) apply(Math.min(saved, gripCap()));
+  } catch {}
+
+  let id = null, y0 = 0, h0 = 0, moved = 0;
+  grip.addEventListener("pointerdown", (e) => {
+    id = e.pointerId; y0 = e.clientY; moved = 0;
+    h0 = Math.round(ta.getBoundingClientRect().height);
+    grip.setPointerCapture(id);
+    e.preventDefault();
+  });
+  grip.addEventListener("pointermove", (e) => {
+    if (e.pointerId !== id) return;
+    const dy = e.clientY - y0;
+    moved = Math.max(moved, Math.abs(dy));
+    if (moved < 3) return;                      // not a drag yet, just a press
+    apply(Math.max(GRIP_MIN, Math.min(h0 + dy, gripCap())));
+  });
+  const end = (e) => {
+    if (e.pointerId !== id) return;
+    try { grip.releasePointerCapture(id); } catch {}
+    id = null;
+    // A press that went nowhere is a click: toggle instead of resize.
+    if (moved < 3) {
+      if (ta.dataset.userH) apply(0);
+      else apply(Math.min(gripCap(), Math.max(h0 + 120, 260)));
+    }
+  };
+  grip.addEventListener("pointerup", end);
+  grip.addEventListener("pointercancel", end);
+  // Keyboard reach: the grip is a button, so Enter and Space must do the
+  // thing the button says it does.
+  grip.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    e.preventDefault();
+    if (ta.dataset.userH) apply(0);
+    else apply(Math.min(gripCap(), 260));
+  });
 }
 
 function setQuestion(v) {
@@ -4723,6 +4852,10 @@ function syncCouncilIdle() {
   // The council's heading: only on the council, and only while it is empty.
   const hd = document.getElementById("councilHd");
   if (hd) hd.hidden = !(idle && S.view === "council");
+  // Its description keeps the heading company -- the two are one thought,
+  // split around the composer and the units they describe.
+  const note = document.getElementById("councilNote");
+  if (note) note.hidden = !(idle && S.view === "council");
 }
 
 function updateEnabled() {
@@ -7248,7 +7381,7 @@ function bsDetails(summaryText, bodyText) {
  *  the box this runs on is younger than any id lookup done before the render.
  */
 function bsAutosize(ta) {
-  if (!ta) return;
+  if (!ta || ta.dataset.userH) return;   // sized by hand -- see attachGrip
   ta.style.height = "auto";
   ta.style.height = `${ta.scrollHeight}px`;
 }
@@ -7445,11 +7578,9 @@ function renderBsView() {
   /* ── no session yet ─────────────────────────────────────────────────── */
   if (!bs.sessionId) {
     const hd = el("div", "bs-hd");
-    hd.append(el("span", "bs-title", "Brainstorm"),
-              el("span", "bs-sub",
-                 "Plan something round by round: the council asks you questions until " +
-                 "the plan is worth building from, then writes it out as a file for a " +
-                 "coding agent."));
+    // Heading only. The description goes under the units -- see the note
+    // appended after the borrowed unit bar below.
+    hd.append(el("span", "bs-title", "Brainstorm"));
     root.append(hd);
 
     const start = el("div", "bs-start");
@@ -7569,7 +7700,10 @@ function renderBsView() {
       startBrainstorm(t);
     };
     bar.append(begin);
+    const bsGrip = gripButton();
+    bar.append(bsGrip);
     start.append(bar);
+    attachGrip(ta, bsGrip, "bstopic", () => bsAutosize(ta));
     root.append(start);
     syncBsStartBar();
 
@@ -7583,6 +7717,8 @@ function renderBsView() {
     // Guarded: appending null writes the string "null" into the page, which
     // is a confusing way to learn that an element has gone missing.
     if ($("unitBar")) root.append($("unitBar"));
+    root.append(el("div", "view-note",
+      "Plan something round by round: the council asks you questions until the plan is worth building from, then writes it out as a file for a coding agent."));
 
     if (bs.sessions.length) {
       const drawer = el("div", "drawer");
@@ -7775,8 +7911,11 @@ function renderBsView() {
     fin.disabled = !bs.rounds.length;
     fin.onclick = bsFinalize;
     tools.append(next, fin);
+    const rGrip = gripButton();
+    tools.append(rGrip);
     qbar.append(tools);
     root.append(qbar);
+    attachGrip(ta, rGrip, "bsreply", () => bsAutosize(ta));
   } else {
     const halt = el("div", "qbar-toolbar bs-halt");
     halt.append(el("span", "qbar-spacer"));
@@ -9432,6 +9571,7 @@ applyAudioNav();
 paintIcons();
 applyMute();
 autosize();
+attachGrip($("composer"), $("composerGrip"), "composer", autosize);
 updateEnabled();
 setView("council");
 // The lock paints first and covers everything; discovery and the engine

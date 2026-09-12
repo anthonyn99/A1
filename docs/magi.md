@@ -376,16 +376,20 @@ Three files, and the two that are easy to forget are both in `magi.html`:
 | DeepSeek | ADAM·04 | yes |
 | Perplexity | LILITH·05 | composer, submit, answer and stop probed live |
 | Grok | TABRIS·06 | composer and submit probed live; answer and stop **not** — logged out, Grok accepts the question and never answers |
-| Copilot | SEELE·07 | **none** — a sign-in wall, no reachable composer. Shipped `enabled: false` |
 
 Perplexity earns its place by being the one member that is search-grounded by
 default: where the others reason from training data, it reads today's page.
 That is exactly the disagreement a council exists to surface.
 
-For Grok and Copilot: sign in from the Accounts tab, then `magi doctor <id>`.
-It primes the composer, names every field that does not match and prints the
-line to change. Enabling a unit whose selectors are unverified costs a timeout
-on every run, which is why Copilot ships off.
+Copilot was a member until 2026-09-11 and is gone. It showed a sign-in wall
+with no reachable composer, and the only input selector loose enough to match
+anything on that wall matched a hidden decoy — so it reported itself usable
+and then answered nothing. A member that cannot answer is worse than one that
+is absent: it costs a browser, a timeout, and a slot in the quorum.
+
+For Grok: sign in from the Accounts tab, then `magi doctor grok`. It primes
+the composer, names every field that does not match and prints the line to
+change.
 
 ## When a site changes its UI
 
