@@ -5,7 +5,7 @@
 //
 // The Worker is stubbed at fetch() level: the point is to prove the browser
 // code (module imports, the Run sheet, the ⚡ button, the jobs panel, the
-// note write-back) works, not to re-test the Worker.
+// generated-PDF write-back) works, not to re-test the Worker.
 import { launch, connect } from './cdp.mjs';
 
 import { fileURLToPath } from 'node:url';
@@ -58,6 +58,14 @@ await send('Page.addScriptToEvaluateOnNewDocument', {
         if (u.endsWith('/api/ai/jobs')) {
           return new Response(JSON.stringify({ ok:true, jobs: window.__jobs }), {status:200});
         }
+        // The generated deck's BYTES, served from their own endpoint. A real
+        // minimal PDF so the client's %PDF- magic check sees what it would in
+        // production; a JSON blob here would (correctly) be refused.
+        if (/\\/api\\/ai\\/jobs\\/[^/]+\\/pdf$/.test(u)) {
+          var pdf = '%PDF-1.4\\n1 0 obj<</Type/Catalog>>endobj\\ntrailer<</Root 1 0 R>>\\n%%EOF';
+          return new Response(new Blob([pdf], {type:'application/pdf'}),
+            {status:200, headers:{'Content-Type':'application/pdf'}});
+        }
         if (/\\/api\\/ai\\/jobs\\/[^/]+$/.test(u)) {
           return new Response(JSON.stringify({ ok:true, job:{
             id:'jx1', status:'done', progress:100, classId: window.__clsId,
@@ -65,6 +73,7 @@ await send('Page.addScriptToEvaluateOnNewDocument', {
             promptId:'p1', promptVersion:1, costUsd:0.02, finishedAt:Date.now(),
             sections:[{from:1,to:3,model:'claude-opus-5'}],
             result:'## Slide 1\\nrewritten body',
+            hasPdf:true, pdfBytes:64,
           }}), {status:200});
         }
         return new Response(JSON.stringify({ok:true}), {status:200});
@@ -100,6 +109,23 @@ t('pipeline reports enabled', await evalJs('window.SOS.pipeline.enabled() === tr
 
 // ── Seed a class + prompt + cloud file, then drive the real UI ────────────
 console.log('\nreal UI: the Run sheet');
+// Isolate this run from every other one.
+//
+// persistForCls() calls _fbSaveStudyOs(), so without this the test WRITES ITS
+// FIXTURE to the real Firestore project and the next run syncs it straight back.
+// Generated decks then piled up across runs — nine copies of one deck — and the
+// assertions below read the oldest survivor instead of what this run just filed.
+// Stub the cloud save and drop any leftover copy of this fixture's class.
+const isolated = await evalJs(`(function(){
+  window._fbSaveStudyOs = function(){};
+  var n = 0;
+  for (var i = classes.length - 1; i >= 0; i--) {
+    if (classes[i].id === 'vt1') { classes.splice(i, 1); n++; }
+  }
+  return n;
+})()`);
+if (isolated) console.log('  --   cleared ' + isolated + ' leftover fixture class(es)');
+
 const seeded = await evalJs(`(function(){
   try {
     var cls = { id:'vt1', name:'Intro to Database Systems & Design', code:'CS 4400',
@@ -177,23 +203,47 @@ if (posted.length) {
     posted[posted.length - 1].headers);
 }
 
-// The watcher should file the finished note back into the class.
-await new Promise(r => setTimeout(r, 3000));
+// The watcher should file the finished deck back into the class AS A PDF FILE.
+// Fetching the bytes is async, so this needs longer than the note path did.
+await new Promise(r => setTimeout(r, 4000));
 const filed = await evalJs(`(function(){
   var cls = classes.find(c=>c.id==='vt1');
   if (!cls) return { error:'class gone' };
-  var gen = cls.modules.find(m=>m.name==='Generated');
-  if (!gen) return { noModule:true, modules: cls.modules.map(m=>m.name) };
-  var n = gen.notes[0];
-  return { module: gen.name, type: gen.type, count: gen.notes.length,
-           title: n && n.title, body: n && n.body, meta: n && n._sos };
+  // By TYPE as well as name: a notes module called "Generated" can exist
+  // alongside this one, and matching on name alone found that one instead.
+  var gen = cls.modules.find(m=>m.name==='Generated' && m.type==='documents');
+  if (!gen) return { noModule:true, modules: cls.modules.map(m=>m.name+':'+m.type) };
+  var f = gen.files && gen.files[0];
+  return { module: gen.name, type: gen.type,
+           fileCount: (gen.files||[]).length, noteCount: (gen.notes||[]).length,
+           name: f && f.name, mime: f && f.mime, size: f && f.size,
+           fileId: f && f.fileId, meta: f && f.gen };
 })()`);
+// TEMP DEBUG
 t('a Generated module was created on demand', !filed.noModule && filed.module === 'Generated', filed);
 if (!filed.noModule) {
-  t('the note was filed', filed.count === 1, filed);
-  t('it holds the generated body', /rewritten body/.test(filed.body || ''), filed.body);
+  // A documents module, not a notes one — a notes module would render this
+  // nowhere at all.
+  t('the Generated module is type documents', filed.type === 'documents', filed);
+  t('the deck was filed as a FILE, not a note',
+    filed.fileCount === 1 && filed.noteCount === 0, filed);
+  t('it is stored as a PDF', filed.mime === 'application/pdf', filed);
   t('provenance recorded', filed.meta && filed.meta.promptId === 'p1' && filed.meta.generated === true, filed.meta);
   t('model recorded', filed.meta && filed.meta.model === 'claude-opus-5', filed.meta);
+
+  // The bytes themselves must be a real PDF in IndexedDB. Without this the
+  // whole thing can "succeed" while storing an error page under a .pdf name.
+  const bytes = await evalJs(`(async function(){
+    var cls = classes.find(c=>c.id==='vt1');
+    var gen = cls.modules.find(m=>m.name==='Generated' && m.type==='documents');
+    var f = gen.files[0];
+    var blob = await window._sosBridge.resolveBlob(f);
+    if (!blob) return { none:true };
+    var head = new Uint8Array(await blob.slice(0,5).arrayBuffer());
+    return { magic: String.fromCharCode.apply(null, head), size: blob.size };
+  })()`);
+  t('the stored blob really is a PDF', bytes && bytes.magic === '%PDF-', bytes);
+  t('the stored blob is not empty', bytes && bytes.size > 0, bytes);
 }
 
 console.log('\nreal UI: the ⚡ button appears on a cloud file');

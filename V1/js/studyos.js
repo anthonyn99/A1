@@ -5131,6 +5131,137 @@ window._sosBridge.addGeneratedNote = (spec) => {
   return note;
 };
 
+/* File a generated PDF deck as a real document (P-5).
+ *
+ * The pipeline's output is a slide deck — one page per slide, the original
+ * slide image above its rewritten text — so it is a DOCUMENT, not editor text.
+ * It lands in the class's documents list and opens, downloads and syncs
+ * exactly like a file she uploaded herself.
+ *
+ * ── THE INGEST SEQUENCE IS THE RULE, NOT A DETAIL ────────────────────────
+ * This repeats handleFilesAdded's four steps in order — saveBlob -> push meta
+ * -> sosUploadToCloud -> persist — for the reason spelled out above
+ * sosIngestFiles(): sosUploadToCloud performs the _sosCloudUrls.set()-before-
+ * persist dance that stops a mid-upload Firestore sync from orphaning the
+ * storageUrl. Writing to IndexedDB or KV directly here would reintroduce that
+ * bug, and the file would silently stay local-only on every other device.
+ *
+ * ── WHY NOT INTO THE SOURCE MODULE ───────────────────────────────────────
+ * _sosFileAdded fires auto-run for any module carrying a defaultPromptId. The
+ * source module is exactly such a module — that is how the job was started —
+ * so filing the result beside its source would queue a new job ON THE
+ * GENERATED FILE, whose output would queue another. A separate "Generated"
+ * module breaks that loop, and _sosFileAdded is deliberately NOT called here.
+ *
+ * Re-running one source REPLACES its previous deck rather than stacking
+ * near-identical copies: "regenerate with a different prompt" is a normal
+ * thing to do repeatedly to one deck.
+ */
+/* Serialises filing per source file.
+ *
+ * Two things can file the same finished job at once — trackJob's watcher and
+ * resumeWatches' catch-up sweep — and this function awaits a blob write before
+ * it touches mod.files. Without a lock both calls read the array BEFORE either
+ * writes to it, both miss the dedup, and the same deck lands several times.
+ * That is exactly what it did: six copies of one deck in a single run. */
+const _sosGenDocLocks = new Map();
+
+window._sosBridge.addGeneratedDoc = (spec) => {
+  const key = (spec && spec.classId) + '|'
+    + ((spec && spec.meta && spec.meta.sourceFileId) || (spec && spec.name) || '');
+  const prev = _sosGenDocLocks.get(key) || Promise.resolve();
+  // Chain onto whatever is already filing this source, so the second caller
+  // sees the first one's file in mod.files and replaces it instead of adding.
+  const run = prev.then(() => _sosAddGeneratedDoc(spec), () => _sosAddGeneratedDoc(spec));
+  const settled = run.catch(() => {});
+  _sosGenDocLocks.set(key, settled);
+  // Drop the entry once nothing is queued behind it, so the map does not grow
+  // for the life of the session.
+  settled.then(() => {
+    if (_sosGenDocLocks.get(key) === settled) _sosGenDocLocks.delete(key);
+  });
+  return run;
+};
+
+const _sosAddGeneratedDoc = async (spec) => {
+  if (!spec || !spec.classId || !spec.blob) return null;
+  const cls = findClassOrKsu(spec.classId);
+  if (!cls) return null;
+
+  // A documents module, never a notes one: a notes module renders from the
+  // editor's own store and would show this file nowhere.
+  cls.modules = cls.modules || [];
+  let mod = (cls.modules || []).find(m => m.type === 'documents' && m.name === 'Generated');
+  if (!mod) {
+    mod = {
+      id: Date.now().toString(),
+      name: 'Generated',
+      type: 'documents',
+      icon: (typeof ICONS !== 'undefined' && ICONS.documents) || '📄',
+      files: [], prompts: [], notes: [],
+    };
+    cls.modules.push(mod);
+  }
+  mod.files = mod.files || [];
+
+  const meta0 = spec.meta || {};
+  const name = String(spec.name || 'Generated deck.pdf');
+  // A File, not a bare Blob: SosCloud.upload reads .name for the manifest and
+  // the X-File-Name header, and a Blob would sync as "document".
+  const file = new File([spec.blob], name, { type: 'application/pdf' });
+
+  let fileId;
+  try {
+    fileId = await SosFileStore.saveBlob(file, name);
+  } catch (e) {
+    console.error('SOS generated-doc save failed:', name, e);
+    showNotif('⚠️', 'Could not save', name + ' could not be stored on this device.');
+    return null;
+  }
+
+  const meta = {
+    id: fileId, name, size: file.size, mime: 'application/pdf', fileId,
+    // `gen`, NOT `_sos`: _sosSerializeClasses() strips every underscore-prefixed
+    // key on its way to localStorage and Firestore (they mark transient UI flags
+    // like _uploading). Provenance stored under an underscore therefore vanished
+    // on the first save — which also broke the dedup below, since the
+    // sourceFileId it matches on had been deleted, so every regenerate stacked
+    // another copy instead of replacing one.
+    gen: { generated: true, ...meta0 },
+  };
+
+  // Replace the previous deck for this source rather than stacking copies.
+  const prior = meta0.sourceFileId
+    ? mod.files.findIndex(f => f && f.gen && f.gen.sourceFileId === meta0.sourceFileId)
+    : -1;
+  let old = null;
+  if (prior >= 0) { old = mod.files[prior]; mod.files[prior] = meta; }
+  else mod.files.push(meta);
+
+  persistForCls(cls);
+
+  // Cloud upload is awaited so the caller's "ready" toast means the file is
+  // actually reachable from her phone, not merely written to this laptop.
+  try {
+    await sosUploadToCloud(file, meta, cls, mod, mod.id);
+  } catch (e) {
+    // The bytes are safe locally and the retry loop owns it from here.
+    console.warn('SOS generated-doc cloud upload threw:', name, e);
+  }
+
+  // Drop the replaced file's bytes only after the new one is filed, so a
+  // failure above never leaves her with neither.
+  if (old && old.fileId && old.fileId !== fileId) {
+    SosFileStore.delete(old.fileId).catch(() => {});
+    try { SosCloud.remove(old.fileId); } catch (e) {}
+  }
+
+  try { if (currentClassId === cls.id) renderModules(cls); } catch (e) {}
+  try { _sosRefreshModFiles(cls, mod, mod.id); } catch (e) {}
+  // NOT _sosFileAdded: see the auto-run loop note above.
+  return { title: name, meta };
+};
+
 /* Per-module default prompt (spec P-4). Stored on the module so it rides the
  * same Firestore document as everything else and syncs across devices for
  * free, rather than becoming a second thing to keep in step. */

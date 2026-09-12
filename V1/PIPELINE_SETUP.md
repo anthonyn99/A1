@@ -1,7 +1,8 @@
 # StudyOS Pipeline — how to run it
 
-Drop a lecture deck into a class, walk away, come back to a rewritten
-slide-by-slide note filed in that class.
+Drop a lecture deck into a class, walk away, come back to a rewritten PDF
+filed in that class — one page per slide, the original slide image paired with
+its rewritten explanation.
 
 There are **two interchangeable backends** behind the same `/api/ai/*` contract.
 `config.cloudflare.ai.baseUrl` alone decides which one is used.
@@ -23,7 +24,7 @@ The local bridge is what ships enabled today.
 
 ```bash
 cd V1/tools/sos-browser
-pip install playwright pyyaml
+pip install playwright pyyaml pymupdf
 playwright install chromium
 python driver.py login --site claude
 ```
@@ -65,7 +66,17 @@ If `signed_in` is false, run the `login` command again.
 1. Open a class → a Documents module → upload a deck (PDF).
 2. Click **⚡** on the file row.
 3. Pick a prompt, optionally give the slide count, hit **Run**.
-4. The note lands in a `Generated` module in that class, created on demand.
+4. The rewritten deck lands as a **PDF file** in a `Generated` documents
+   module in that class, created on demand. It opens, downloads and syncs like
+   any file you uploaded yourself.
+
+   Each page carries the real slide image (re-rendered from your source PDF by
+   PyMuPDF) above Claude's rewritten text for that slide, matched by the
+   `## Slide N` numbers. Re-running the same source replaces its previous deck
+   rather than stacking copies.
+
+   If the layout step fails, the job still completes with its text and says why
+   in `pdfError` — a broken render never costs you the generation.
 
 **Auto-run**: set a module's default prompt (P-4) and anything dropped into it
 runs itself. No clicks at all.
@@ -134,6 +145,7 @@ node scripts/verify-autorun.mjs
 
 cd tools/sos-browser
 python test_driver.py         # driver: config, markdown walker, strip patterns
+python test_pdfrender.py      # output: slide splitting, layout, PDF assembly
 ```
 
 The `verify-*` scripts drive the built page in headless Edge and skip cleanly

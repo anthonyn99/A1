@@ -174,8 +174,8 @@ export const budget = () => request('/api/ai/budget');
  * Mark a job's result as filed into the app.
  *
  * Without this, every reload would re-file every finished job. Harmless in
- * effect (addGeneratedNote replaces rather than stacks) but it would re-toast
- * "Note ready" on every boot forever, which reads as a bug.
+ * effect (addGeneratedDoc replaces rather than stacks) but it would re-fetch
+ * the PDF and re-toast "Deck ready" on every boot forever, which reads as a bug.
  */
 export const markFiled = (id) =>
   request('/api/ai/jobs/' + encodeURIComponent(id) + '/filed', { method: 'POST' })
@@ -197,7 +197,11 @@ export function watchJob(id, onUpdate) {
     try {
       const job = await getJob(id);
       if (stopped) return;
-      try { onUpdate && onUpdate(job); } catch (e) { console.warn('[pipeline] onUpdate threw:', e); }
+      // Awaited: onUpdate files the finished deck, which is async. Without the
+      // await a rejection there would surface as an unhandled promise
+      // rejection instead of this warning, and the poll below would race it.
+      try { if (onUpdate) await onUpdate(job); }
+      catch (e) { console.warn('[pipeline] onUpdate threw:', e); }
       if (job.status === 'done' || job.status === 'error' || job.status === 'canceled') return;
       delay = Math.min(Math.round(delay * 1.5), 30000);
     } catch (e) {
@@ -212,54 +216,89 @@ export function watchJob(id, onUpdate) {
 }
 
 /**
- * File a finished job's output into the class as a note (P-5).
+ * Fetch the generated deck's PDF bytes.
  *
- * The result is written as a NOTE rather than a flat file so she can edit,
- * highlight and annotate it in the existing docx editor immediately — the
- * spec's whole argument for why generated output must not be a dead artifact.
- *
- * Provenance (sourceFileId / promptId / promptVersion / model / generatedAt)
- * rides along on the note so "why is this one worse than that one" stays
- * answerable after the fact.
- *
- * Returns the created note, or null when the bridge is not up.
+ * Deliberately NOT routed through `request()`: that helper parses every
+ * response as JSON, which would corrupt a binary body. The bytes are fetched
+ * from their own endpoint rather than inlined into the job JSON, because that
+ * JSON is polled on a timer while the job runs — an 11MB base64 string would
+ * ride along on every poll.
  */
-/**
- * Drop everything before the first slide heading.
- *
- * When a file is attached, Claude narrates its tool use above the answer
- * ("Reading the file-reading router skill…", "Read 15 files, ran 2 commands").
- * That renders inside the same response node, so the scraper picks it up and it
- * lands at the top of the generated note.
- *
- * The bridge trims this too, but it must ALSO happen here: a job that finished
- * before the trim shipped still has the chrome baked into its stored result,
- * and re-filing it would carry the mess into the note. Trimming at the point of
- * use makes old and new jobs behave the same.
- *
- * A no-op when no slide heading exists, rather than returning empty — a note
- * with no headings is a coverage problem, and blanking it would hide that.
- */
-function trimToFirstSlide(text) {
-  const s = String(text || '');
-  const m = /^#{1,6}\s*Slide\s*[:#-]?\s*\d+/im.exec(s);
-  if (!m) return s;
-  const start = s.lastIndexOf('\n', m.index) + 1;
-  return s.slice(start).trim();
+async function fetchResultPdf(jobId) {
+  const c = CFG();
+  if (!c.baseUrl) throw new Error('pipeline not configured');
+
+  const headers = {};
+  try {
+    const tok = window._fbAppCheckToken ? await window._fbAppCheckToken() : null;
+    if (tok) headers['X-Firebase-AppCheck'] = tok;
+  } catch (e) { /* the bridge will answer 401 if it cares */ }
+
+  const url = c.baseUrl.replace(/\/$/, '')
+    + '/api/ai/jobs/' + encodeURIComponent(jobId) + '/pdf';
+  const res = await fetch(url, { headers });
+  if (!res.ok) throw new Error('pdf fetch failed: HTTP ' + res.status);
+
+  const blob = await res.blob();
+  // Guard the one failure that would otherwise file silently: an error page or
+  // truncated body stored as a "PDF" that opens to nothing.
+  const magic = new Uint8Array(await blob.slice(0, 5).arrayBuffer());
+  if (String.fromCharCode(...magic) !== '%PDF-') {
+    throw new Error('server returned something that is not a PDF');
+  }
+  return blob;
 }
 
-export function fileResult(job) {
+/**
+ * File a finished job's output into the class as a real PDF document (P-5).
+ *
+ * ── WHY A FILE AND NOT A NOTE ─────────────────────────────────────────────
+ * The output is a slide deck: one page per slide, the ORIGINAL slide image
+ * paired with its rewritten text. That is a document, not editor text, and the
+ * images are the point — Claude's reply never carries them (the API path keeps
+ * only text blocks; the browser scraper has no IMG case), so they are
+ * re-rendered from the source PDF server-side and joined to the text by the
+ * "## Slide N" numbers the coverage checker already enforces.
+ *
+ * ── WHY THIS GOES THROUGH handleFilesAdded's PATH AND NOT STRAIGHT TO IDB ──
+ * Filing reuses the sanctioned ingest sequence (save blob -> push meta ->
+ * upload to cloud -> announce). studyos.js warns explicitly against any
+ * "simpler" direct IndexedDB/KV write: sosUploadToCloud performs the
+ * _sosCloudUrls-before-persist dance that stops a mid-upload Firestore sync
+ * from orphaning the storageUrl. Bypassing it makes the file local-only on
+ * every other device, silently.
+ *
+ * Returns { title, meta } once the file is stored, or null when the bridge
+ * cannot file it. Async because the bytes are fetched over HTTP first.
+ */
+export async function fileResult(job) {
   if (!job || job.status !== 'done' || !job.result) return null;
   const B = window._sosBridge;
-  if (!B || typeof B.addGeneratedNote !== 'function') {
-    console.warn('[pipeline] bridge cannot file notes yet');
+  if (!B || typeof B.addGeneratedDoc !== 'function') {
+    console.warn('[pipeline] bridge cannot file generated documents yet');
     return null;
   }
-  return B.addGeneratedNote({
+  if (!job.hasPdf) {
+    // The text generation succeeded but the layout step did not. Say so rather
+    // than filing nothing and leaving the run looking like it vanished.
+    console.warn('[pipeline] job has no PDF:', job.pdfError || 'unknown reason');
+    return null;
+  }
+
+  let blob;
+  try {
+    blob = await fetchResultPdf(job.id);
+  } catch (e) {
+    console.warn('[pipeline] could not fetch generated PDF:', e);
+    return null;
+  }
+
+  const base = (job.sourceName || 'Generated deck').replace(/\.pdf$/i, '');
+  return B.addGeneratedDoc({
     classId: job.classId,
     moduleId: job.outputModuleId,
-    title: job.sourceName ? ('Rewritten — ' + job.sourceName) : 'Generated note',
-    body: trimToFirstSlide(job.result),
+    name: base + ' — Rewritten.pdf',
+    blob,
     meta: {
       sourceFileId: job.fileId,
       promptId: job.promptId,

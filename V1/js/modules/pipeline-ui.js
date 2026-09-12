@@ -181,11 +181,14 @@ const watching = new Map();
  */
 export function trackJob(id) {
   if (!id || watching.has(id)) return;
-  const cancel = pipeline.watchJob(id, (job) => {
+  const cancel = pipeline.watchJob(id, async (job) => {
     if (job.status === 'done') {
       watching.delete(id);
-      const note = pipeline.fileResult(job);
-      if (note) toast('✅', 'Note ready', job.sourceName || note.title);
+      // Async now: the deck's bytes are fetched from the bridge and filed as a
+      // real document before this resolves.
+      const doc = await pipeline.fileResult(job);
+      if (doc) toast('✅', 'Deck ready', job.sourceName || doc.title);
+      else if (job.pdfError) toast('⚠️', 'Deck not built', job.pdfError);
     } else if (job.status === 'error') {
       watching.delete(id);
       toast('⚠️', 'Job failed', job.error || 'unknown');
@@ -211,18 +214,19 @@ export async function resumeWatches() {
     // while the app showed nothing. The job said done, the note never existed,
     // and there was no error anywhere to explain the gap.
     //
-    // Filing is idempotent: addGeneratedNote replaces the note for a given
-    // sourceFileId rather than stacking copies, so re-filing on every boot is
-    // harmless. `filed` marks them so a later reload is a no-op.
+    // Filing is idempotent: addGeneratedDoc replaces the deck for a given
+    // sourceFileId rather than stacking copies, and serialises concurrent
+    // filings of the same source, so re-filing on every boot is harmless.
+    // `filed` marks them so a later reload is a no-op.
     const finished = jobs.filter(j => j.status === 'done' && j.hasResult && !j.filed);
     for (const stub of finished) {
       try {
         const job = await pipeline.getJob(stub.id);
         if (!job || !job.result) continue;
-        const note = pipeline.fileResult(job);
-        if (note) {
+        const doc = await pipeline.fileResult(job);
+        if (doc) {
           await pipeline.markFiled(job.id);
-          toast('✅', 'Note ready', job.sourceName || note.title);
+          toast('✅', 'Deck ready', job.sourceName || doc.title);
         }
       } catch (e) {
         console.warn('[pipeline] could not file a finished job:', stub.id, e);

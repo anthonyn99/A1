@@ -50,10 +50,12 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import driver
+import pdfrender
 
 HERE = Path(__file__).resolve().parent
 JOBS_FILE = HERE / "jobs.json"
 UPLOADS = HERE / "uploads"
+OUTPUTS = HERE / "outputs"
 
 SLIDES_PER_CHUNK = 15
 MAX_ATTEMPTS = 2          # a browser run is slow; don't grind on a broken one
@@ -192,11 +194,41 @@ def _run_job(job_id: str):
                 job["lowConfidence"] = any(not s.get("clean") for s in sections)
                 _save()
 
+        result_text = "\n\n".join(s["text"] for s in sections)
+
+        # ── Output stage: lay the text out against the real slide images ──────
+        # Deliberately AFTER the text is safe in `sections`, and inside its own
+        # try: a PDF that fails to assemble must not throw away a generation
+        # that cost many minutes of browser time. The job still completes with
+        # its text; only `pdfError` reports what went wrong.
+        pdf_path, pdf_error, pdf_size = "", "", 0
+        if job.get("filePath"):
+            try:
+                stem = Path(job.get("sourceName") or "deck.pdf").stem
+                pdf_bytes = pdfrender.build_deck_pdf(
+                    job["filePath"], result_text, stem + " \u2014 Rewritten")
+                OUTPUTS.mkdir(parents=True, exist_ok=True)
+                out_file = OUTPUTS / (job["id"] + ".pdf")
+                out_file.write_bytes(pdf_bytes)
+                pdf_path, pdf_size = str(out_file), len(pdf_bytes)
+            except Exception as e:
+                pdf_error = str(e)[:300]
+                print("[pdf] job " + job["id"] + " assembly failed: " + str(e))
+        else:
+            pdf_error = "no source file attached to this job"
+
         with _lock:
             job["status"] = "done"
             job["progress"] = 100
             job["finishedAt"] = int(time.time() * 1000)
-            job["result"] = "\n\n".join(s["text"] for s in sections)
+            job["result"] = result_text
+            # The bytes stay on disk and are fetched from /pdf on demand. Inlining
+            # 11MB of base64 here would ride along on every poll of this job.
+            job["pdfPath"] = pdf_path
+            job["hasPdf"] = bool(pdf_path)
+            job["pdfBytes"] = pdf_size
+            if pdf_error:
+                job["pdfError"] = pdf_error
             _save()
 
     except driver.DriverError as e:
@@ -259,6 +291,21 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _send_bytes(self, data: bytes, ctype: str, filename: str = ""):
+        """Raw-body twin of _send(), for the generated PDF."""
+        self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(data)))
+        if filename:
+            self.send_header("Content-Disposition",
+                             f'inline; filename="{filename}"')
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Firebase-AppCheck")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(data)
+
     def do_OPTIONS(self):
         self._send({}, 204)
 
@@ -276,10 +323,30 @@ class Handler(BaseHTTPRequestHandler):
             with _lock:
                 jobs = sorted(_jobs.values(), key=lambda j: j.get("createdAt", 0), reverse=True)[:50]
                 slim = [{k: v for k, v in j.items()
-                         if k not in ("result", "sections", "prompt", "filePath")} for j in jobs]
+                         if k not in ("result", "sections", "prompt", "filePath", "pdfPath")} for j in jobs]
                 for s, j in zip(slim, jobs):
                     s["hasResult"] = bool(j.get("result"))
             return self._send({"ok": True, "jobs": slim})
+        # The generated deck's bytes. Served from disk rather than inlined into
+        # the job JSON, which is polled repeatedly while a job runs — an 11MB
+        # base64 blob would ride along on every one of those polls.
+        # Matched BEFORE the single-job route below, which would otherwise
+        # swallow "<id>/pdf" as an id.
+        m = re.match(r"^/api/ai/jobs/([\w.-]+)/pdf$", p)
+        if m:
+            with _lock:
+                job = _jobs.get(m.group(1))
+            if not job or not job.get("pdfPath"):
+                return self._send({"ok": False, "error": "no pdf for this job"}, 404)
+            try:
+                data = Path(job["pdfPath"]).read_bytes()
+            except OSError as e:
+                return self._send({"ok": False, "error": f"pdf unreadable: {e}"}, 410)
+            name = re.sub(r"[^\w.\- ]", "_",
+                          Path(job.get("sourceName") or "deck.pdf").stem)
+            return self._send_bytes(data, "application/pdf",
+                                    f"{name} - Rewritten.pdf")
+
         m = re.match(r"^/api/ai/jobs/([\w.-]+)$", p)
         if m:
             with _lock:

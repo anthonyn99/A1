@@ -2,8 +2,10 @@
 profiles/
 # Failure dumps can contain page content from a logged-in session.
 artifacts/
-# Local job journal and staged uploads — machine state, not source.
+# Local job journal, staged uploads and generated decks — machine state, not
+# source. The PDFs in outputs/ are rebuilt from a job at any time.
 jobs.json
 uploads/
+outputs/
 bridge.log
 __pycache__/

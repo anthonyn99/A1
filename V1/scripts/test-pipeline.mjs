@@ -1,11 +1,16 @@
-// Tests for js/modules/pipeline.js and the addGeneratedNote bridge (spec P-3/P-5).
+// Tests for js/modules/pipeline.js and the generated-output bridge (spec P-3/P-5).
 //
 // Three behaviours here are the reason the file exists:
 //
 //   "regenerating replaces rather than stacks"
 //       "Regenerate with a different prompt" is a listed feature, so this path
 //       runs repeatedly for one deck. Without the replace, a class accumulates
-//       near-identical notes and the newest is indistinguishable from the rest.
+//       near-identical copies and the newest is indistinguishable from the rest.
+//
+//   "provenance survives serialization"
+//       _sosSerializeClasses() strips underscore-prefixed keys on the way to
+//       storage. Provenance kept under one vanished on the first save, which
+//       silently broke the dedup that depends on it.
 //
 //   "the App Check token is attached"
 //       Every /api/ai/* route is gated. If the client silently stops sending
@@ -237,6 +242,150 @@ console.log('\nsecurity');
     if (/api\.anthropic\.com/.test(code)) leaked.push(f + ' (calls Anthropic directly)');
   }
   t('no Anthropic key or direct call in any client file', leaked.length === 0);
+}
+
+// ── addGeneratedDoc: the generated deck is filed as a real PDF document ────
+console.log('\nbridge: addGeneratedDoc');
+{
+  // Lifted from the shipped source, like addGeneratedNote above.
+  const src = readFileSync(resolve(root, 'js/studyos.js'), 'utf8');
+  // Three pieces: the per-source lock map, the wrapper that chains onto it, and
+  // the implementation — all lifted from the shipped source, so the concurrency
+  // test below exercises the real serialisation rather than a paraphrase.
+  const _lock = src.match(/const _sosGenDocLocks = new Map\(\);/);
+  const _wrap = src.match(/window\._sosBridge\.addGeneratedDoc = \(spec\) => \{[\s\S]*?\n\};/);
+  const _impl = src.match(/const _sosAddGeneratedDoc = async \(spec\) => \{[\s\S]*?\n\};/);
+  const m = (_lock && _wrap && _impl)
+    ? [_lock[0] + '\n' + _impl[0] + '\n' + _wrap[0]] : null;
+  if (!m) { fail++; console.log('  FAIL could not locate addGeneratedDoc'); }
+  else {
+    const mk = () => {
+      const classes = [{ id: 'c1', name: 'DB', modules: [] }];
+      const calls = { saved: 0, uploaded: [], persisted: 0, deleted: [], fileAdded: 0 };
+      const ctx = {
+        classes,
+        findClassOrKsu: (id) => classes.find(c => c.id === id),
+        persistForCls: () => { calls.persisted++; },
+        renderModules: () => {},
+        _sosRefreshModFiles: () => {},
+        currentClassId: null,
+        ICONS: { documents: '📄' },
+        showNotif: () => {},
+        SosFileStore: {
+          saveBlob: async (blob, name) => { calls.saved++; return 'sf_' + calls.saved; },
+          delete: async (id) => { calls.deleted.push(id); },
+        },
+        SosCloud: { remove: (id) => {} },
+        sosUploadToCloud: async (file, meta) => { calls.uploaded.push(file.name); },
+        // _sosFileAdded must NOT be reachable; if the code ever calls it the
+        // counter moves and the auto-run-loop test below fails loudly.
+        _sosFileAdded: () => { calls.fileAdded++; },
+        window: { _sosBridge: {} },
+      };
+      const fn = new Function(
+        'classes', 'findClassOrKsu', 'persistForCls', 'renderModules',
+        '_sosRefreshModFiles', 'currentClassId', 'ICONS', 'showNotif',
+        'SosFileStore', 'SosCloud', 'sosUploadToCloud', '_sosFileAdded', 'window',
+        m[0] + '; return window._sosBridge.addGeneratedDoc;'
+      )(ctx.classes, ctx.findClassOrKsu, ctx.persistForCls, ctx.renderModules,
+        ctx._sosRefreshModFiles, ctx.currentClassId, ctx.ICONS, ctx.showNotif,
+        ctx.SosFileStore, ctx.SosCloud, ctx.sosUploadToCloud, ctx._sosFileAdded,
+        ctx.window);
+      return { fn, classes, calls };
+    };
+
+    const pdfBlob = (bytes = 2048) =>
+      new Blob([new Uint8Array(bytes)], { type: 'application/pdf' });
+
+    {
+      const { fn, classes, calls } = mk();
+      const r = await fn({
+        classId: 'c1', name: 'Lecture 3 — Rewritten.pdf', blob: pdfBlob(),
+        meta: { sourceFileId: 'f1', promptId: 'p1', promptVersion: 2 },
+      });
+      t('files the deck', !!r && r.title === 'Lecture 3 — Rewritten.pdf');
+      t('creates a Generated DOCUMENTS module', classes[0].modules.length === 1
+        && classes[0].modules[0].name === 'Generated'
+        && classes[0].modules[0].type === 'documents');
+
+      const f = classes[0].modules[0].files[0];
+      t('lands in files[], not notes[]', !!f && classes[0].modules[0].notes.length === 0);
+      t('stored as a real PDF', f.mime === 'application/pdf' && f.size === 2048);
+      t('carries provenance', f.gen.generated === true && f.gen.sourceFileId === 'f1');
+      t('went through the blob store', calls.saved === 1);
+      t('went through the sanctioned cloud upload', calls.uploaded.length === 1
+        && calls.uploaded[0] === 'Lecture 3 — Rewritten.pdf');
+      t('persisted', calls.persisted >= 1);
+      // The loop guard: filing output must never re-trigger auto-run.
+      t('does NOT re-trigger auto-run', calls.fileAdded === 0);
+
+      // REGRESSION: _sosSerializeClasses() strips every underscore-prefixed key
+      // before localStorage/Firestore. Provenance kept under `_sos` was silently
+      // dropped on the first save, which also broke the dedup that matches on
+      // sourceFileId — so every regenerate stacked another copy of the deck.
+      const persisted = JSON.parse(JSON.stringify(f, (k, v) =>
+        (k.charAt && k.charAt(0) === '_') ? undefined : v));
+      t('provenance survives serialization (no _-prefixed key)',
+        persisted.gen && persisted.gen.sourceFileId === 'f1', persisted);
+    }
+
+    // Regenerating the same source replaces rather than stacks.
+    {
+      const { fn, classes, calls } = mk();
+      await fn({ classId: 'c1', name: 'A — Rewritten.pdf', blob: pdfBlob(100),
+                 meta: { sourceFileId: 'f1' } });
+      await fn({ classId: 'c1', name: 'A — Rewritten.pdf', blob: pdfBlob(200),
+                 meta: { sourceFileId: 'f1' } });
+      const files = classes[0].modules[0].files;
+      t('regenerate replaces rather than stacks', files.length === 1);
+      t('keeps the newest bytes', files[0].size === 200);
+      t('drops the superseded blob', calls.deleted.length === 1 && calls.deleted[0] === 'sf_1');
+
+      // A different source is a genuinely different deck.
+      await fn({ classId: 'c1', name: 'B — Rewritten.pdf', blob: pdfBlob(50),
+                 meta: { sourceFileId: 'f2' } });
+      t('a different source adds a second deck', classes[0].modules[0].files.length === 2);
+    }
+
+    // CONCURRENCY: trackJob's watcher and resumeWatches' catch-up sweep can
+    // file the SAME finished job at once. Both await a blob write before they
+    // touch mod.files, so without serialisation both miss the dedup and the
+    // deck lands twice. This is not hypothetical — it produced seven copies of
+    // one deck in a browser run.
+    {
+      const { fn, classes } = mk();
+      await Promise.all([
+        fn({ classId:'c1', name:'D.pdf', blob: pdfBlob(10), meta:{ sourceFileId:'dup' } }),
+        fn({ classId:'c1', name:'D.pdf', blob: pdfBlob(20), meta:{ sourceFileId:'dup' } }),
+        fn({ classId:'c1', name:'D.pdf', blob: pdfBlob(30), meta:{ sourceFileId:'dup' } }),
+      ]);
+      t('concurrent filing of one source yields ONE file',
+        classes[0].modules[0].files.length === 1,
+        classes[0].modules[0].files.map(f => f.size));
+    }
+
+    // Bad input is a no-op, not a throw.
+    {
+      const { fn, classes } = mk();
+      t('unknown class is a no-op', (await fn({ classId: 'nope', blob: pdfBlob() })) === null);
+      t('missing blob is a no-op', (await fn({ classId: 'c1' })) === null);
+      t('missing spec is a no-op', (await fn(null)) === null);
+      t('nothing was created', classes[0].modules.length === 0);
+    }
+
+  }
+}
+
+// ── fileResult only files a real PDF ──────────────────────────────────────
+console.log('\npipeline: fileResult guards');
+{
+  const src = readFileSync(resolve(root, 'js/modules/pipeline.js'), 'utf8');
+  t('fetches the PDF from its own endpoint, not the job JSON',
+    /\/pdf['"`]/.test(src) && !/pdfB64/.test(src));
+  t('verifies the %PDF- magic before filing', src.includes("'%PDF-'"));
+  t('files through addGeneratedDoc, not addGeneratedNote',
+    src.includes('addGeneratedDoc') && !src.includes('B.addGeneratedNote'));
+  t('refuses to file when the job has no PDF', /if \(!job\.hasPdf\)/.test(src));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

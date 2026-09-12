@@ -65,7 +65,7 @@ console.log('\nF-2 store seam');
 t('bridge installed', await evalJs('!!window._sosBridge'));
 for (const m of ['getClasses', 'getEvents', 'getTasks', 'getNotes', 'getKsu',
                  'getModules', 'getSnapshot', 'subscribe', 'setTaskDone',
-                 'addGeneratedNote', 'setModuleDefaultPrompt']) {
+                 'addGeneratedNote', 'addGeneratedDoc', 'setModuleDefaultPrompt']) {
   t('bridge.' + m, await evalJs(`typeof window._sosBridge.${m} === "function"`));
 }
 t('SOS.store exposed by boot.js', await evalJs('!!(window.SOS && window.SOS.store)'));
