@@ -3830,20 +3830,24 @@ function renderOfflineNote() {
 }
 
 /* ══ sound ═════════════════════════════════════════════════════════════════
-   The deliberation beeps, synthesised with Web Audio rather than shipped as
-   files: three short square-wave blips is a handful of oscillators, and
-   generating them keeps this a single file with no binary assets.
+   The deliberation tones, synthesised with Web Audio rather than shipped as
+   files: a handful of oscillators keeps this a single file with no binary
+   assets, and nothing to load before the first one can play.
 
-   Originally a dry square-wave buzz, after the Evangelion deliberation
-   sequence. That is the right IDEA and the wrong execution to listen to: a
-   square wave carries every odd harmonic at full strength, and at 2kHz
-   repeating every 1.6 seconds for a two-minute run it wears you down.
+   Two voices have been through here. A dry square-wave buzz after the
+   Evangelion deliberation sequence -- the right idea, played through every odd
+   harmonic at full strength, and wearing at 2kHz every 1.6 seconds. Then
+   struck sines with an octave partial, which fixed the harshness and landed
+   somewhere anonymous: an octave adds no colour, so it read as a clean beep
+   rather than as an instrument.
 
-   These are struck sine tones with a quiet octave partial and a long
-   exponential tail -- the same percussive, electronic shape, but consonant
-   and left to ring rather than clipped off. The intervals carry the meaning:
-   a fifth while working, a major triad for consensus, a falling minor third
-   when there is no quorum.
+   This one is struck GLASS. Inharmonic bell partials so each tone is an
+   object rather than a note, a detuned twin so the tail shimmers instead of
+   sitting still, and stereo placement so a figure opens outward. The harmony
+   is quintal -- stacked fifths on D -- where it used to be an A major triad:
+   a triad states a key and sounds like a task completing, and for most of a
+   run nothing has been decided yet. Rising and opening for consensus, falling
+   onto a low D left ringing when there is no quorum.
 
    Nothing here creates an AudioContext on load — browsers block audio until a
    user gesture, so it is built lazily on the first beep, which always follows
@@ -3863,84 +3867,118 @@ function audio() {
   return actx;
 }
 
-/** One struck tone: a sine fundamental with a quiet octave above it.
+/** One struck tone.
  *
- *  The old version was a hard square wave through a lowpass -- a deliberate
- *  Evangelion console buzz, but square means every odd harmonic at full
- *  strength, and at 2kHz repeating every 1.6s for a two-minute run that is
- *  genuinely fatiguing. This keeps the shape (struck, short, unmistakably
- *  electronic) and loses the harshness:
+ *  THE VOICE, and what it replaced. This was a sine fundamental with a quiet
+ *  octave partial: consonant, safe, and a little anonymous -- an octave is the
+ *  one interval that adds no colour at all, so what came out was a clean beep
+ *  rather than an instrument. Before that it was a square wave, which was the
+ *  right idea (an Evangelion console) played back through every odd harmonic
+ *  at full strength, and genuinely fatiguing over a two-minute run.
  *
- *    · SINE fundamental -- no harmonics to grate at all;
- *    · one octave partial at ~18%, which is what stops a pure sine sounding
- *      like a hearing test and gives it the "struck" quality of a bell;
- *    · a 12ms attack rather than 4ms -- fast enough to read as percussive,
- *      slow enough not to click;
- *    · an exponential decay two to three times longer than before, so tones
- *      RING out instead of being cut off, which is most of what made the old
- *      ones sound cheap;
- *    · a gentle lowpass that opens with pitch, taking the edge off without
- *      dulling it.
+ *  This is struck glass. Four things make it that rather than a beep:
+ *
+ *    · INHARMONIC partials at 2.76x and 5.40x, which are bell ratios -- not
+ *      whole-number multiples, so they never fuse into "one note with
+ *      harmonics" and you hear a struck OBJECT instead. This is the whole
+ *      character, and it is why the octave went: 2x fused, 2.76x rings.
+ *    · A detuned twin three-thousandths sharp under the fundamental. Two
+ *      close sines beat against each other roughly once a second, so the tail
+ *      shimmers slowly instead of sitting still. It is the difference between
+ *      a struck glass and a tuning fork.
+ *    · An 18ms attack, and a decay that is exponential per PARTIAL: the high
+ *      inharmonic ones fade fastest (x0.45), exactly as they do on a real
+ *      bell, so the strike is bright and what rings on is warm.
+ *    · Stereo placement, so an arpeggio opens outward across the field rather
+ *      than arriving stacked in the middle of your head.
  */
-function blip({ freq, at = 0, dur = 0.34, gain = 0.09, partial = 0.18 }) {
+function strike({ freq, at = 0, dur = 0.9, gain = 0.07, bright = 1, pan = 0 }) {
   const ac = audio();
   if (!ac) return;
   const t = ac.currentTime + at;
 
+  // Opens with pitch so low tones stay warm and high ones keep their edge,
+  // and caps well under Nyquist so the top partial can never alias.
   const lp = ac.createBiquadFilter();
   lp.type = "lowpass";
-  lp.frequency.setValueAtTime(Math.min(freq * 4.5, 12000), t);
-  lp.Q.setValueAtTime(0.7, t);
+  lp.frequency.setValueAtTime(Math.min(freq * 6, 13000), t);
+  lp.Q.setValueAtTime(0.6, t);
 
-  const g = ac.createGain();
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(gain, t + 0.012);
-  // A long exponential tail. exponentialRamp never reaches zero, so it is
-  // taken to a floor and the node is stopped after it.
-  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  lp.connect(g).connect(master);
+  let out = lp;
+  // Not in every engine MAGI might run in, and a missing panner must cost the
+  // sound its width, not its existence.
+  if (ac.createStereoPanner && pan) {
+    const pn = ac.createStereoPanner();
+    pn.pan.setValueAtTime(Math.max(-1, Math.min(1, pan)), t);
+    lp.connect(pn);
+    out = pn;
+  }
+  out.connect(master);
 
-  for (const [mult, level] of [[1, 1], [2, partial]]) {
+  // [ratio, level, how much faster this partial dies than the fundamental]
+  const PARTIALS = [
+    [1,    1.00, 1.00],
+    [1.003, 0.85, 1.00],   // the detuned twin -- the shimmer
+    [2.76, 0.30 * bright, 0.45],
+    [5.40, 0.09 * bright, 0.30],
+  ];
+  for (const [mult, level, decay] of PARTIALS) {
     if (level <= 0) continue;
+    const life = Math.max(0.08, dur * decay);
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(gain * level, t + 0.018);
+    // exponentialRamp never reaches zero, so it is taken to a floor and the
+    // oscillator stopped just after.
+    g.gain.exponentialRampToValueAtTime(0.0001, t + life);
     const osc = ac.createOscillator();
     osc.type = "sine";
     osc.frequency.setValueAtTime(freq * mult, t);
-    const og = ac.createGain();
-    og.gain.setValueAtTime(level, t);
-    osc.connect(og).connect(lp);
+    osc.connect(g).connect(lp);
     osc.start(t);
-    osc.stop(t + dur + 0.05);
+    osc.stop(t + life + 0.05);
   }
 }
 
-/** Deliberating: two soft tones a fifth apart, once per cycle.
- *
- *  Three blips became a two-note figure because this repeats every 1.6s for
- *  the length of a run -- the fewer events per cycle, the less it nags. A
- *  perfect fifth (E5 over A4) is consonant, so it reads as "working" rather
- *  than "alerting". */
+/* The harmony is QUINTAL -- stacked fifths, D as the centre -- where it used
+ * to be an A major triad. A triad states a key and sounds like a product
+ * chime finishing a task; stacked fifths state nothing, which is the right
+ * thing for a machine that is still deciding. */
+const N = { D3: 146.83, D4: 293.66, A4: 440.00, Bb4: 466.16, D5: 587.33,
+            E5: 659.25, A5: 880.00, E6: 1318.51 };
+
+/** Deliberating: one struck fifth, every cycle, for as long as the council
+ *  works. Two notes, 40ms apart like a rolled chord rather than a beep -- and
+ *  quiet, because this repeats for minutes and anything with presence would
+ *  become something to endure. */
 const beepProcessing = () => {
-  blip({ freq: 440.0, at: 0,    dur: 0.42, gain: 0.055 });
-  blip({ freq: 659.3, at: 0.13, dur: 0.50, gain: 0.045 });
+  strike({ freq: N.D4, at: 0,    dur: 1.20, gain: 0.040, bright: 0.7, pan: -0.18 });
+  strike({ freq: N.A4, at: 0.04, dur: 1.05, gain: 0.032, bright: 0.7, pan: 0.18 });
 };
 
-/** A single unit reporting in: one quiet high tone, short and unobtrusive --
- *  this can fire four times in quick succession. */
-const beepUnit = () => blip({ freq: 880.0, dur: 0.28, gain: 0.05, partial: 0.12 });
+/** A unit reporting in: one bright, brief tick. It can fire four times in a
+ *  second when the council lands together, so it stays short and quiet. */
+const beepUnit = () => strike({ freq: N.A5, dur: 0.42, gain: 0.038, bright: 1.2 });
 
-/** Consensus: a major triad, arpeggiated up and left to ring.
- *  A4 - C#5 - E5, with the top note held longest. */
+/** Consensus: fifths rising, opening left to right, the last note left to
+ *  ring for two seconds. It resolves by ARRIVING rather than by cadencing --
+ *  no leading tone, nothing that sounds like a jingle. */
 const beepResolved = () => {
-  blip({ freq: 440.0, at: 0,    dur: 0.55, gain: 0.06 });
-  blip({ freq: 554.4, at: 0.11, dur: 0.60, gain: 0.06 });
-  blip({ freq: 659.3, at: 0.22, dur: 0.95, gain: 0.07, partial: 0.24 });
+  strike({ freq: N.D4, at: 0,    dur: 1.30, gain: 0.050, bright: 0.8, pan: -0.32 });
+  strike({ freq: N.A4, at: 0.10, dur: 1.50, gain: 0.048, bright: 0.9, pan: -0.12 });
+  strike({ freq: N.E5, at: 0.20, dur: 1.80, gain: 0.046, bright: 1.0, pan: 0.14 });
+  strike({ freq: N.A5, at: 0.30, dur: 2.20, gain: 0.042, bright: 1.1, pan: 0.34 });
 };
 
-/** No quorum: the same shape falling instead of rising, and a minor third
- *  rather than a major one. Unmistakably "not that" without a buzzer. */
+/** No quorum: the same gesture inverted -- falling, and landing on a low D
+ *  that is still ringing when everything above it has gone. A whole tone down
+ *  (D5 to B-flat is the minor sixth below) leaves it unresolved on purpose:
+ *  the run did not finish, and it should not sound as though it did. Not a
+ *  buzzer; nothing here should ever startle. */
 const beepBlocked = () => {
-  blip({ freq: 493.9, at: 0,    dur: 0.50, gain: 0.06 });
-  blip({ freq: 415.3, at: 0.13, dur: 0.85, gain: 0.06, partial: 0.10 });
+  strike({ freq: N.D5, at: 0,    dur: 0.95, gain: 0.046, bright: 0.9, pan: 0.22 });
+  strike({ freq: N.Bb4, at: 0.14, dur: 1.30, gain: 0.044, bright: 0.7, pan: -0.22 });
+  strike({ freq: N.D3, at: 0.26, dur: 2.40, gain: 0.036, bright: 0.4 });
 };
 
 function applyMute() {

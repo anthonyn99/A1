@@ -518,6 +518,49 @@ It checks the units you have **selected**. A unit you are not using is a unit
 whose selectors you do not need to know about — and it opens a real signed-in
 browser per unit, which is not something an unticked model should get.
 
+### Dialogs that land on the composer
+
+A cookie banner cost a run. Perplexity served its consent card — fixed,
+bottom-right, over the composer — and the unit failed after thirty seconds with
+`Could not type: Locator.click: Timeout 30000ms exceeded … locator resolved to
+<div id="ask-input" …>`.
+
+Read that closely: the selector **matched**. Playwright's click then waits for
+the element to pass its actionability checks, one of which is a hit test, and a
+click at that point would have landed on the dialog. It was reported as
+`selector_miss`, whose remedy is "rewrite selectors.yaml" — against a selector
+that was perfectly correct.
+
+`magi/browser/overlay.py` makes that class of thing a non-event, in two halves:
+
+- **Known dialogs are clicked away** before the prompt is typed, from
+  `dismiss_selectors` — a shared list in `defaults` that every site gets, plus
+  per-site entries, unioned rather than overridden. They are scoped to a
+  `role="dialog"` wherever the site gives us one, and the **refusing** option
+  is always listed before the accepting one: "Decline optional" before "Got
+  it", "Maybe later" and never its sibling "Get started". MAGI answers a
+  consent prompt on your behalf, so it answers conservatively.
+- **Unknown dialogs cannot stop a run anyway.** The click is only the first of
+  three routes into a composer. The second is `focus()`, which does no hit
+  testing at all, so nothing painted on top can block it — and everything after
+  that point is keyboard-driven (`Input.insertText`, `keyboard.type`), which
+  follows focus and needs no pointer. Focus is read back out of
+  `document.activeElement` before it is believed, because a `focus()` that
+  silently did nothing would type the whole prompt into the page body.
+
+When it does fail, it fails as `overlay_blocked` and the cause NAMES what was
+in front — `elementFromPoint` at the click position, walked up to its dialog.
+
+`magi doctor` reports the same thing: it now says when a dialog was covering
+the composer and whether the configured selectors closed it. It also waits for
+the composer as long as a run does rather than a flat three seconds — measured
+on perplexity.ai with two dialogs to render, that flat wait reported `input`
+and `ready_selector` as MISS, which is the same false alarm in a different
+place.
+
+`magi/tests/test_overlay.py` pins all of it, including that the shared list
+cannot click anything but a dismissal.
+
 ### The three fields `doctor` can never check
 
 `doctor` can only probe an **idle** page, so `stop_button`, `streaming_marker`
@@ -555,6 +598,7 @@ cause and remedy inline on the failing unit.
 |---|---|---|
 | `not_logged_in` | Saved session isn't logged in | `magi login <site>` |
 | `selector_miss` | Site's UI changed | `magi doctor`, then edit `config/selectors.yaml` |
+| `overlay_blocked` | Something is covering the composer | the cause names it; add the button that closes it to that site's `dismiss_selectors` |
 | `bot_challenge` | Human-verification challenge served | `magi login <site>` and clear it by hand; consider slowing `pacing` |
 | `timeout` | Model didn't finish in time | raise `hard_timeout_s` for that site, or retry |
 | `rate_limited` | Usage limit hit | wait, or disable that provider |
@@ -608,7 +652,7 @@ back to the slow browser path.
 
 | File | What it controls |
 |---|---|
-| `magi/config/selectors.yaml` | per-site selectors and timeouts — **edit this when a site changes** |
+| `magi/config/selectors.yaml` | per-site selectors, timeouts and `dismiss_selectors` — **edit this when a site changes** |
 | `magi/config/magi.yaml` | pacing, which members are enabled, who chairs, artifact settings |
 | `magi/.env` | `GEMINI_API_KEY` for Refine (gitignored) |
 | `MAGI_API_TOKEN` | env var; gates `/api/*` (see above) |

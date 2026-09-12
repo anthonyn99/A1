@@ -26,6 +26,39 @@ defaults:
   nav_timeout_s: 45
   ready_timeout_s: 30
 
+  # Consent dialogs, privacy notices, "what's new" popovers -- anything a site
+  # paints ON TOP of its own composer. These are clicked away before the prompt
+  # is typed, and again if a click is blocked.
+  #
+  # This cost a real run: Perplexity's cookie card sits over the right half of
+  # the composer, so Playwright's click never passed its hit test, waited out
+  # thirty seconds and failed the unit as SELECTOR_MISS -- with the selector
+  # matching perfectly. See browser/overlay.py.
+  #
+  # These are UNIONED with each site's own list (site entries first), not
+  # overridden by it, so a site can add a dialog without restating these.
+  #
+  # Keep them tight. Everything here is clicked automatically on a signed-in
+  # page, so the bar is "this button can only ever dismiss a notice". Buttons
+  # are scoped to a dialog wherever the site gives us one to scope to, and the
+  # REFUSING option is listed before the accepting one: if MAGI is going to
+  # answer a consent prompt on your behalf, it should answer it conservatively.
+  dismiss_selectors:
+    - "[role='dialog'] button:has-text('Decline optional')"
+    - "[role='dialog'] button:has-text('Reject all')"
+    - "[role='dialog'] button:has-text('Only essential')"
+    - "[role='dialog'] button:has-text('Got it')"
+    - "[role='dialog'] button:has-text('Accept all')"
+    - "[aria-modal='true'] button:has-text('Got it')"
+    # Feature promos, which is the other thing these sites put over a composer.
+    # Only the DECLINING verb is ever listed: "Maybe later" closes the modal,
+    # while its sibling "Get started" would walk the session into a product
+    # tour, which is the last thing a headless run should be doing.
+    - "[role='dialog'] button:has-text('Maybe later')"
+    - "[role='dialog'] button:has-text('Not now')"
+    - "[role='dialog'] button:has-text('Dismiss')"
+    - "button[aria-label='Close banner' i]"
+
 sites:
   chatgpt:
     display_name: ChatGPT
@@ -323,6 +356,18 @@ sites:
       # refusing.
       - "text=/You(?:'ve| have) reached your .{0,40}limit/i"
       - "text=/upgrade to continue/i"
+    dismiss_selectors:
+      # VERIFIED from the DOM dump of the run this was found in
+      # (artifacts/perplexity-type-failed-20260912-191946.html): a fixed card,
+      # role=dialog, data-testid=consent-dialog, pinned bottom-right directly
+      # over the composer. "Decline optional" and "Got it" both close it; the
+      # refusing one goes first.
+      - "[data-testid='consent-dialog'] button:has-text('Decline optional')"
+      - "[data-testid='consent-dialog'] button:has-text('Got it')"
+      # The feature promo that shipped alongside it, seen live 2026-09-12: a
+      # radix modal, aria-hidden-ing the whole page behind it. "Maybe later",
+      # never its sibling "Get started".
+      - "[role='dialog'][aria-label*='Computer is available' i] button:has-text('Maybe later')"
     challenge_selectors:
       # Cloudflare-fronted, like ChatGPT and Claude.
       - "iframe[src*='challenges.cloudflare.com']"

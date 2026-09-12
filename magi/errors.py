@@ -18,6 +18,11 @@ from enum import StrEnum
 class FailureKind(StrEnum):
     NOT_LOGGED_IN = "not_logged_in"
     SELECTOR_MISS = "selector_miss"
+    # The composer was found and is correct -- something was sitting on top of
+    # it. Split out from SELECTOR_MISS because that kind's remedy is "rewrite
+    # selectors.yaml", which is exactly the wrong thing to go and do when the
+    # selector matched perfectly. See browser/overlay.py.
+    OVERLAY_BLOCKED = "overlay_blocked"
     TIMEOUT = "timeout"
     BOT_CHALLENGE = "bot_challenge"
     RATE_LIMITED = "rate_limited"
@@ -39,6 +44,13 @@ EXPLANATIONS: dict[FailureKind, tuple[str, str]] = {
         "The configured selectors no longer match this site's page.",
         "Run `python -m magi doctor` to see which selector failed, then add a "
         "working one to the top of that list in config/selectors.yaml.",
+    ),
+    FailureKind.OVERLAY_BLOCKED: (
+        "Something on the page was covering the composer, so the prompt could "
+        "not be entered. The selectors are fine.",
+        "Usually a cookie or privacy dialog. Add the button that closes it to "
+        "that site's `dismiss_selectors` in config/selectors.yaml -- the cause "
+        "above names it.",
     ),
     FailureKind.TIMEOUT: (
         "The model did not finish answering within the time limit.",

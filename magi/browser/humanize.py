@@ -16,6 +16,7 @@ import random
 
 from playwright.async_api import Locator, Page
 
+from . import overlay
 from ..settings import Pacing
 
 
@@ -87,7 +88,10 @@ async def insert_text(page: Page, target: Locator, text: str, pacing: Pacing) ->
 
 async def _paste_text(page: Page, target: Locator, text: str) -> None:
     """Insert text in one shot via CDP, then verify it landed."""
-    await target.click()
+    # Not a bare click: a dialog painted over the composer makes one wait out
+    # its whole timeout and then fail, with nothing wrong with the selector.
+    # CDP's insertText goes to whatever holds focus, which is all this needs.
+    await overlay.enter_composer(page, target)
     await pause(0.15, 0.35)
     await _clear_composer(page)
 
@@ -116,7 +120,9 @@ async def type_text(page: Page, target: Locator, text: str, pacing: Pacing) -> N
     chairman answer something nobody asked. Verified live on chatgpt.com:
     typing "a\\nb\\nc" sent "a" and left "bc" in the box.
     """
-    await target.click()
+    # See _paste_text: keyboard input follows focus, so this must not hang on a
+    # click that an overlay is intercepting.
+    await overlay.enter_composer(page, target)
     await pause(0.15, 0.4)
     await _clear_composer(page)
 

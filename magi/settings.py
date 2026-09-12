@@ -98,6 +98,16 @@ class BrowserConfig:
         return d
 
 
+def _dedup(items: list[str]) -> list[str]:
+    """Order-preserving de-duplication, for lists built by union."""
+    seen, out = set(), []
+    for x in items:
+        if x not in seen:
+            seen.add(x)
+            out.append(x)
+    return out
+
+
 @dataclass
 class SiteSelectors:
     """Selectors for one site. Every field is a list, tried in order."""
@@ -124,6 +134,10 @@ class SiteSelectors:
     # Markers for "you have used your quota" -- a DIFFERENT failure from a
     # challenge and from a timeout, with a different remedy (wait, or pay).
     rate_limit_selectors: list[str] = field(default_factory=list)
+    # Controls that close whatever the site has painted over its own composer:
+    # consent dialogs, privacy notices, feature announcements. Unioned with the
+    # shared list in `defaults`, site entries first. See browser/overlay.py.
+    dismiss_selectors: list[str] = field(default_factory=list)
     # Regexes stripped from scraped answers (citation chips, injected ads, etc).
     strip_patterns: list[str] = field(default_factory=list)
     # Whether this site tolerates true headless Chrome (no window, no taskbar
@@ -154,6 +168,14 @@ class SiteSelectors:
     @classmethod
     def from_yaml(cls, site_id: str, raw: dict, defaults: dict) -> "SiteSelectors":
         merged = {**defaults, **raw}
+        # The one field that is UNIONED rather than overridden. Every other
+        # default is a value a site replaces; this one is a shared list of
+        # dialogs any site can serve, and a site naming its own must not lose
+        # them. Site entries lead, being the more specific.
+        dismiss = _dedup(
+            _as_list(raw.get("dismiss_selectors"))
+            + _as_list(defaults.get("dismiss_selectors"))
+        )
         return cls(
             id=site_id,
             display_name=merged.get("display_name", site_id),
@@ -172,6 +194,7 @@ class SiteSelectors:
             login_is_proof=bool(merged.get("login_is_proof", False)),
             challenge_selectors=_as_list(merged.get("challenge_selectors")),
             rate_limit_selectors=_as_list(merged.get("rate_limit_selectors")),
+            dismiss_selectors=dismiss,
             strip_patterns=_as_list(merged.get("strip_patterns")),
             headless_ok=bool(merged.get("headless_ok", False)),
             poll_ms=int(merged.get("poll_ms", 700)),

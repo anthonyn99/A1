@@ -14,7 +14,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from ..browser import completion, extract, humanize, launcher, resolve
+from ..browser import completion, extract, humanize, launcher, overlay, resolve
 from ..engine import validate
 from ..errors import FailureKind, ProviderError
 from ..settings import Settings, SiteSelectors
@@ -286,11 +286,43 @@ class BrowserProvider(Provider):
                             f"Could not attach files: {str(e)[:300]}",
                         )
 
+                # -- clear whatever the site painted over its own composer ----
+                # Before the baseline, so a dialog closing cannot be mistaken
+                # for the page changing, and before typing, so the click below
+                # is not fighting it. Costs a few milliseconds when there is
+                # nothing to close, which is the usual case; when there is, it
+                # is the difference between a run and a dead unit. A cookie
+                # card over Perplexity's composer is what put this here.
+                await overlay.dismiss(page, site.dismiss_selectors)
+
                 # -- baseline BEFORE sending ----------------------------------
                 baseline = await completion.capture_baseline(page, site)
 
                 # -- type + send ----------------------------------------------
                 await self._emit(on_event, ProviderState.TYPING, started=t0)
+                # Get the caret in FIRST, and separately from typing, so the two
+                # failures stay distinguishable: something covering the composer
+                # is not a broken selector and must not be reported as one.
+                try:
+                    await overlay.focus_composer(
+                        page, box.locator.first,
+                        dismiss_selectors=site.dismiss_selectors,
+                    )
+                except Exception as e:
+                    blocked = await overlay.blocker(box.locator.first)
+                    artifacts = await self._save_artifacts(page, "composer-blocked")
+                    if blocked:
+                        return fail(
+                            FailureKind.OVERLAY_BLOCKED,
+                            f"{self.display_name}'s composer is covered by "
+                            f"'{blocked}', which none of this site's "
+                            f"dismiss_selectors closed.",
+                        )
+                    return fail(
+                        FailureKind.OVERLAY_BLOCKED,
+                        f"Could not put the caret in {self.display_name}'s "
+                        f"composer: {str(e)[:200]}",
+                    )
                 try:
                     # insert_text types short prompts and pastes long ones --
                     # the synthesis prompt is far too long to type at human
@@ -444,6 +476,45 @@ class BrowserProvider(Provider):
                         "A bot-verification page is showing. Selector results below "
                         "are meaningless until it is cleared."
                     )
+
+                # What a run would hit before it could type. Checked BEFORE
+                # the dialogs are cleared, because "a cookie banner is over
+                # your composer every time" is a finding, not a detail -- and
+                # then cleared, so the probes below see the page a run sees.
+                blocked = ""
+                # The site's OWN ready timeout, not a flat sleep. Measured on
+                # perplexity.ai: with two dialogs to render, the composer was
+                # not there three seconds after navigation, and the doctor
+                # reported `input` and `ready_selector` as MISS -- a false
+                # alarm whose printed remedy is "update them in
+                # selectors.yaml", against selectors that were perfectly fine.
+                # A run has always waited this long for the composer; the
+                # health check that is supposed to be the more careful of the
+                # two was the one giving up early.
+                box = await resolve.resolve(
+                    page, site.input, timeout_ms=site.ready_timeout_s * 1000
+                )
+                if box is not None:
+                    blocked = await overlay.blocker(box.locator.first)
+                closed = await overlay.dismiss(page, site.dismiss_selectors)
+                if blocked:
+                    still = ""
+                    if box is not None:
+                        still = await overlay.blocker(box.locator.first)
+                    if still:
+                        report.notes.append(
+                            f"Something is covering the composer ({still!r}) and "
+                            f"none of this site's dismiss_selectors closed it. A run "
+                            f"will still get the prompt in -- it focuses the composer "
+                            f"rather than clicking it -- but add the button that "
+                            f"closes this to dismiss_selectors in selectors.yaml."
+                        )
+                    else:
+                        report.notes.append(
+                            f"A dialog was covering the composer ({blocked!r}); "
+                            f"clicking {', '.join(closed) or 'it'} closed it. Runs do "
+                            f"the same thing automatically, so this is handled."
+                        )
 
                 fields = {
                     "input": site.input,

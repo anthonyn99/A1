@@ -16,6 +16,8 @@ from enum import StrEnum
 
 from playwright.async_api import Locator, Page
 
+from . import overlay
+
 
 @dataclass
 class Resolved:
@@ -244,7 +246,12 @@ async def prime_composer(page: Page, input_candidates: list[str]) -> bool:
     if box is None:
         return False
     try:
-        await box.locator.first.click(timeout=3000)
+        # Through overlay.py, like a run: a consent dialog over the composer
+        # used to make this return False, and the doctor then reported the send
+        # button as "not applicable" instead of actually testing it. A health
+        # check that goes quiet in exactly the state that breaks runs is worse
+        # than no health check.
+        await overlay.focus_composer(page, box.locator.first, timeout_ms=3000)
         # A single character is enough to flip the button into existence, and
         # keeps the composer trivially clearable afterwards.
         await page.keyboard.type(".")

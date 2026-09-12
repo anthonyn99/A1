@@ -38,8 +38,32 @@ class FakePage:
 
 
 class FakeTarget:
-    async def click(self) -> None:
-        return None
+    """A composer the typing helpers can enter.
+
+    Stands in for a Playwright Locator, so it carries the three things
+    browser/overlay.py asks of one: a click that takes a timeout, a focus, and
+    an `evaluate` to read the focus back. `focused` starts False so the entry
+    path is genuinely exercised rather than short-circuited.
+    """
+
+    def __init__(self, *, clickable: bool = True):
+        self.clickable = clickable
+        self.focused = False
+        self.clicks = 0
+        self.focus_calls = 0
+
+    async def click(self, timeout: int = 0, force: bool = False) -> None:
+        self.clicks += 1
+        if not self.clickable and not force:
+            raise TimeoutError("element is covered")
+        self.focused = True
+
+    async def focus(self, timeout: int = 0) -> None:
+        self.focus_calls += 1
+        self.focused = True
+
+    async def evaluate(self, expr: str):
+        return self.focused
 
 
 @pytest.mark.asyncio
