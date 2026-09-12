@@ -6587,7 +6587,7 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
         prompt, the saved prompt, and the morning deploy — and the copy in the
         cards under it reads off the destination chosen here. */}
     <Card icon="sparkle" title="AI Destination"
-      sub={aiSite.magi?'Where the prompt goes. MAGI asks every ticked model at once and writes one verdict.':'Where the prompt gets sent.'}>
+      sub={aiSite.magi?'Where the prompt goes. MAGI asks every ticked model at once, then writes one verdict.':'Where the prompt gets sent.'}>
       <div style={{display:'flex',flexDirection:'column',gap:12}}>
         <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
           {TB_AI_SITES.map(s=>{
@@ -6632,7 +6632,7 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
           <span style={{color:(autoSubmit||aiSite.magi)?'var(--ac)':'var(--txd)',flexShrink:0,marginTop:1}}><TBIcon n={(autoSubmit||aiSite.magi)?'bolt':'command'} size={12}/></span>
           <span>{aiSite.magi
             ? magiUnits.length
-              ? <>The prompt is <b>sent and answered</b> — no pasting, on any device. Each unit answers alone, then one of them weighs the answers into a single verdict. <b>One unit</b> ticked answers directly, with no verdict pass.</>
+              ? <><b>Sent and answered</b> — no pasting, on any device. Each unit answers alone, then one weighs them all into a single verdict. Tick one and it answers directly, with no verdict pass.</>
               : <>No units ticked — MAGI has nothing to ask. Pick at least one above.</>
             : aiSite.id==='none'
             ? 'No AI tab — the prompt is copied and your searches open.'
@@ -6647,7 +6647,7 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
           <div style={{fontSize:11,color:'var(--txd)',lineHeight:1.5,display:'flex',alignItems:'flex-start',gap:7}}>
             <span style={{color:'var(--txd)',flexShrink:0,marginTop:1}}><TBIcon n="link" size={12}/></span>
             <span>{aiSite.magi
-              ? <>MAGI drives your own signed-in sessions, so the <b>engine PC has to be awake</b> — a phone can watch a run, not start one without it. It opens in the one MAGI tab, here or on your phone.</>
+              ? <>It runs in your own signed-in sessions, so the <b>engine PC has to be awake</b> — a phone can watch a run, not start one without it.</>
               : aiSite.app
               ? <>On a phone: the <b>{aiSite.label} app</b> if it's installed (already signed in), otherwise the website — never both. The app can't take a prefilled link, so the prompt goes to your clipboard.</>
               : <>On a phone this stays in the <b>browser</b>{aiSite.id==='custom'?'':<>, not the {aiSite.label} app</>}, so the prefilled link survives.</>}</span>
