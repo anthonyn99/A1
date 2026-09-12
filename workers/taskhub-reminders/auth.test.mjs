@@ -11,25 +11,45 @@ src = src.replace(/^export default \{[\s\S]*?\n\};/m, '');
 src += '\nexport { handleAuth };\n';
 writeFileSync(SP + '/_w.mjs', src);
 
+// The stub has to understand every provider shape, because which one is used
+// is exactly what these tests are about. Brevo nests the recipient and calls
+// the body `textContent`; Formspree puts both at the top level.
 const MAILS = [];
 globalThis.fetch = async (url, opts) => {
   const body = JSON.parse(opts.body);
-  MAILS.push({ url, to: body.email, subject: body.subject, message: body.message });
-  return { ok: true, json: async () => ({ ok: true }) };
+  const brevo = String(url).includes('brevo');
+  MAILS.push({
+    url,
+    to: brevo ? body.to[0].email : body.email,
+    subject: body.subject || body._subject,
+    message: brevo ? body.textContent : body.message,
+  });
+  return { ok: true, status: 201, text: async () => '{"messageId":"stub"}', json: async () => ({ ok: true }) };
 };
 
 const { handleAuth } = await import(pathToFileURL(SP + '/_w.mjs').href);
 
 const store = new Map();
-const env = { AUTH_SETUP_KEY: 'testkey', TOKEN_CACHE: {
+const KV = {
   get: async (k, t) => { const v = store.get(k); return v == null ? null : (t === 'json' ? JSON.parse(v) : v); },
   put: async (k, v) => { store.set(k, v); },
   delete: async (k) => { store.delete(k); },
-}};
-const call = async (path, body) => {
-  const res = await handleAuth(path, { method: 'POST', json: async () => body }, env, 'x');
+};
+// The default env has a REAL server-side sender configured, because that is the
+// state worth protecting: the code stays inside the worker and the reply says
+// only that it was sent. `envRelay` is the same worker with no provider — the
+// state the suite actually ships in until a key is set — where the worker hands
+// the page an envelope to post instead, since Formspree files worker-sent mail
+// as spam. Both are exercised below; they are different contracts.
+const env = { AUTH_SETUP_KEY: 'testkey', BREVO_API_KEY: 'stub', TOKEN_CACHE: KV };
+const envRelay = { AUTH_SETUP_KEY: 'testkey', TOKEN_CACHE: KV };
+
+const callWith = (e) => async (path, body) => {
+  const res = await handleAuth(path, { method: 'POST', json: async () => body }, e, 'x');
   return { status: res.status, body: JSON.parse(await res.text()) };
 };
+const call = callWith(env);
+const callRelay = callWith(envRelay);
 
 let pass = 0, fail = 0;
 const t = (name, cond, extra) => {
@@ -57,11 +77,13 @@ t('remove-lock with correct pw', r.body.ok === true, r.body);
 r = await call('/auth/journal/set-lock', { ...J, password: 'rotated', hint: 'h' });
 t('set-lock after remove (no record) — unchanged for every app', r.body.ok === true, r.body);
 
-console.log('\n3. reset flow no longer leaks the code');
+console.log('\n3. reset flow, with a server-side sender: the code never leaves the worker');
 MAILS.length = 0;
 r = await call('/auth/reset/request', { ...J, appName: 'Links', label: 'Links' });
 t('response carries NO code', r.body.code === undefined, r.body);
-t('response says emailed', r.body.ok === true && r.body.emailed === true, r.body);
+t('response carries NO relay either', r.body.relay === undefined, r.body);
+t('response says emailed, and names the provider', r.body.ok === true && r.body.emailed === true && r.body.via === 'brevo', r.body);
+t('sent via Brevo, not Formspree', MAILS[0] && String(MAILS[0].url).includes('brevo'), MAILS[0] && MAILS[0].url);
 t('mail routed to Veda by entry id, not by caller', MAILS[0] && MAILS[0].to === 'vedaapatel1605@gmail.com', MAILS[0] && MAILS[0].to);
 const code = (MAILS[0].message.match(/\n    ([A-Z0-9]{6})\n/) || [])[1];
 t('code present in the EMAIL only', !!code, MAILS[0].message.slice(0, 90));
@@ -71,6 +93,39 @@ r = await call('/auth/reset/confirm', { ...J, code, password: 'afterreset' });
 t('emailed code completes the reset', r.body.ok === true, r.body);
 r = await call('/auth/journal/verify', { ...J, password: 'afterreset' });
 t('password changed by reset', r.body.ok === true, r.body);
+
+console.log('\n3b. reset flow with NO server-side sender: the page is asked to post it');
+// This is the state the suite ships in until BREVO_API_KEY is set. The worker
+// cannot deliver (Formspree files anything a Worker posts as spam), so it hands
+// the page a ready-made envelope. The code IS in that envelope — a real and
+// deliberate weakening, taken because a reset nobody receives is not security,
+// it is a lockout. Setting a provider key removes it with no client change.
+MAILS.length = 0;
+const RJ = { journal: 'applock', entryId: 'veda_links_relay' };
+await callRelay('/auth/journal/set-lock', { ...RJ, password: 'p', hint: 'h' });
+r = await callRelay('/auth/reset/request', { ...RJ, appName: 'Links', label: 'Links', owner: 'veda' });
+t('request still succeeds', r.body.ok === true, r.body);
+t('worker sent nothing itself', MAILS.length === 0, MAILS);
+t('an envelope is returned for the page to post', !!(r.body.relay && r.body.relay.form), r.body);
+t('addressed to Veda, chosen by the worker not the caller',
+  r.body.relay && r.body.relay.email === 'vedaapatel1605@gmail.com', r.body.relay);
+t('and to Veda\'s form, not Tony\'s',
+  r.body.relay && r.body.relay.form.includes('xzdlwaqg'), r.body.relay);
+const relayCode = (((r.body.relay || {}).message || '').match(/\n    ([A-Z0-9]{6})\n/) || [])[1];
+t('the envelope carries the code (the accepted tradeoff)', !!relayCode, r.body.relay);
+r = await callRelay('/auth/reset/confirm', { ...RJ, code: relayCode, password: 'viarelay' });
+t('that code completes the reset', r.body.ok === true, r.body);
+r = await callRelay('/auth/journal/verify', { ...RJ, password: 'viarelay' });
+t('password really changed', r.body.ok === true, r.body);
+
+console.log('\n3c. the hint takes the same two paths');
+MAILS.length = 0;
+r = await callRelay('/auth/journal/hint', { ...RJ, appName: 'Links', label: 'Links', owner: 'veda' });
+t('no sender configured -> envelope, nothing sent', MAILS.length === 0 && !!(r.body.relay), r.body);
+MAILS.length = 0;
+r = await call('/auth/journal/hint', { ...RJ, appName: 'Links', label: 'Links', owner: 'veda' });
+t('sender configured -> worker sends it, no envelope',
+  MAILS.length === 1 && r.body.emailed === true && r.body.relay === undefined, r.body);
 
 console.log('\n4. hint no longer readable by a stranger');
 MAILS.length = 0;

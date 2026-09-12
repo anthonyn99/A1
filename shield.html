@@ -884,6 +884,43 @@ label.fld{display:block;font-size:9.5px;font-weight:700;letter-spacing:1.4px;tex
    tests/ui-width-cap.test.js fails the build if any of this goes missing. */
 body { max-width: 2000px; margin-inline: auto; }
 </style>
+<script id="mail-relay">
+/* == Recovery-mail relay ===================================================
+   The worker mints the reset code and the hint text, but it cannot always
+   DELIVER them. Formspree files anything posted from a Cloudflare Worker as
+   spam -- it answers {"ok":true} and the mail never arrives -- while the exact
+   same submission sent from a browser has worked for months. So when the
+   worker has no server-side sender configured it hands the page an envelope
+   instead of sending, and this posts it from here, where it works.
+
+   `relay` only appears when the worker could not send it itself. Set
+   BREVO_API_KEY (or RESEND_API_KEY) on taskhub-reminders and the worker sends
+   it directly, stops returning `relay`, and this quietly stops being used --
+   no page change needed. Until then, note that a relayed reset code passes
+   through this browser, so whoever asked for it can read it.
+
+   Returns true if the mail went out, false if nothing was sent. A response
+   that was already delivered server-side (`emailed`) counts as sent. */
+window._mailRelay = window._mailRelay || async function (res) {
+  if (res && res.emailed) return true;
+  var r = res && res.relay;
+  if (!r || !r.form) return false;
+  try {
+    var out = await fetch(r.form, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      /* `_subject` is the field Formspree uses for the subject line; a plain
+         `subject` key is swallowed. Both are sent so either spelling works. */
+      body: JSON.stringify({ email: r.email, _subject: r.subject, subject: r.subject, message: r.message })
+    });
+    var d = null;
+    try { d = await out.json(); } catch (e) {}
+    /* A 2xx is not delivery on its own -- Formspree states a refusal as
+       {"ok":false} or an errors array underneath one. */
+    return !!out.ok && !(d && (d.ok === false || (d.errors && d.errors.length)));
+  } catch (e) { return false; }
+};
+</script>
 </head>
 <body data-gate="boot" data-profile="tony">
 
@@ -1889,6 +1926,10 @@ async function resetFlow(id){
   if (rq && rq.error==='throttled'){ await window.uiAlert('Too many reset emails have gone out just now. Wait a few minutes and try again.'); return; }
   if (rq && rq.error==='email-failed'){ await window.uiAlert('Could not send the reset email. Please try again in a moment.'); return; }
   if (!rq || !rq.ok){ await window.uiAlert('Could not start the reset. Please try again.'); return; }
+  // The worker sends it when it has a provider that can. When it cannot it
+  // returns a `relay` envelope and the BROWSER sends it -- Formspree files
+  // worker-sent mail as spam, so this is the path that reaches the inbox.
+  if (!(await window._mailRelay(rq))){ await window.uiAlert('Could not send the reset email. Please try again in a moment.'); return; }
 
   var vals = await window.uiForm({
     title:'Reset password',
@@ -2026,7 +2067,8 @@ function wire(){
         el('applock-err').textContent='No lock on the server. Try re-locking.';
         btn.disabled=false; btn.textContent='Forgot password?'; return;
       }
-      if (hd.ok){ btn.textContent='Hint sent!'; setTimeout(function(){ btn.textContent='Forgot password?'; btn.disabled=false; }, 3000); }
+      var hsent = await window._mailRelay(hd);
+      if (hsent){ btn.textContent='Hint sent!'; setTimeout(function(){ btn.textContent='Forgot password?'; btn.disabled=false; }, 3000); }
       else { btn.textContent='Failed — try again'; btn.disabled=false; }
     } catch(e){ btn.textContent='Failed — try again'; btn.disabled=false; }
   });

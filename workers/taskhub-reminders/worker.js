@@ -1010,19 +1010,15 @@ async function handleAuth(path, request, env, origin) {
     const box = mailboxFor(env, body);
     const label = String(body.label || entryId);
     const m = hintMail(label, rec.hint, body.appName);
-    const sent = await sendMailDetailed(env, box, m.subject, m.message);
+    const sent = await serverSideSend(env, box, m.subject, m.message);
     await guessFail(env, mk);
-    // `mail` is only present on failure, and carries Formspree's own words --
-    // "hint emailed" that silently wasn't is the bug this whole path had.
-    const out = { ok: sent.ok, emailed: sent.ok, to: maskEmail(box.email) };
-    // `via` names the provider that actually accepted it. Formspree here is a
-    // warning, not a success: from a worker it usually files rather than mails.
-    out.via = sent.provider;
-    if (!sent.ok) {
-      out.error = 'email-failed';
-      out.mail = { status: sent.status, body: sent.body, tried: sent.tried };
+    if (sent && sent.ok) {
+      return json({ ok: true, emailed: true, via: sent.provider, to: maskEmail(box.email) }, origin);
     }
-    return json(out, origin);
+    // No server-side sender could deliver it, so hand the page the email to
+    // send. See the RELAY note above relayFor().
+    return json({ ok: true, relay: relayFor(box, m.subject, m.message),
+                  to: maskEmail(box.email) }, origin);
   }
 
   if (path === '/auth/profile/verify') {
@@ -1053,12 +1049,18 @@ async function handleAuth(path, request, env, origin) {
   // the new password. Works for any journal/entryId lock (MyList, journals,
   // app-locks, tab-locks) and for profile passwords.
   //
-  // This endpoint used to return the code in its own response so the page could
-  // email it. That made the reset flow a complete bypass of the lock: ask for a
-  // code, read it off the reply, confirm with it, own the lock. The code now
-  // goes only to the address derived from the lock id (see mailboxFor) and the
-  // reply carries nothing but "sent, to t***@…". Asking for someone else's
-  // reset now just sends them an email.
+  // WHO SENDS THE EMAIL, and why that is not a free choice. Keeping the code
+  // out of the reply is strictly better — set-lock/remove-lock/update-hint all
+  // demand the current password now, so the code is the ONLY bypass left, and
+  // handing it to whoever asked is handing them the lock. But that is only
+  // available when a sender exists that can actually deliver from here, and
+  // Formspree cannot (see the RECOVERY MAIL header: it files worker mail as
+  // spam, answers {"ok":true}, and no header changes that).
+  //
+  // A reset nobody receives is not more secure, it is just broken. So delivery
+  // decides: a real server-side provider keeps the code server-side, and with
+  // none configured the page is handed the email to send — the browser
+  // transport that worked for months. relayFor() carries the tradeoff in full.
   if (path === '/auth/reset/request') {
     const key = resetKeyFor(body);
     if (!key) return json({ ok: false, error: 'missing fields' }, origin, 400);
@@ -1074,19 +1076,21 @@ async function handleAuth(path, request, env, origin) {
     const box = mailboxFor(env, body);
     const label = String(body.label || body.entryId || body.profile || 'your lock');
     const m = resetMail(label, code, body.appName);
-    // Mail FIRST: if it can't be delivered there is no point storing a code
-    // nobody will ever see, and the caller must be told the reset didn't start.
-    const sent = await sendMailDetailed(env, box, m.subject, m.message);
-    if (!sent.ok) {
-      return json({ ok: false, error: 'email-failed',
-                    mail: { status: sent.status, body: sent.body, tried: sent.tried } },
-                  origin, 502);
-    }
+    // Try to deliver it ourselves first. If that works the code never leaves
+    // the worker, which is the outcome worth having.
+    const sent = await serverSideSend(env, box, m.subject, m.message);
+    const delivered = !!(sent && sent.ok);
+
     await env.TOKEN_CACHE.put('reset:' + key,
       JSON.stringify({ code: codeRec, exp: Date.now() + RESET_TTL * 1000, tries: 0 }),
       { expirationTtl: RESET_TTL });
     await guessFail(env, mk);   // rate-limit the mailer itself
-    return json({ ok: true, emailed: true, via: sent.provider, to: maskEmail(box.email) }, origin);
+
+    if (delivered) {
+      return json({ ok: true, emailed: true, via: sent.provider, to: maskEmail(box.email) }, origin);
+    }
+    return json({ ok: true, relay: relayFor(box, m.subject, m.message),
+                  to: maskEmail(box.email) }, origin);
   }
 
   if (path === '/auth/reset/confirm') {
@@ -1358,9 +1362,54 @@ async function formspreeSend(box, subject, message) {
   }
 }
 
+// ── Who sends it: the worker, or the page? ─────────────────────────────────
+//
+// Only providers that CAN deliver from a Worker belong here. Formspree is
+// deliberately absent, and that absence is the whole point: it answers
+// {"ok":true} to a submission it has filed as spam, so including it would make
+// this function claim a delivery that never happened — and the caller would
+// then skip the relay below, which is the path that actually reaches the inbox.
+// Adding Formspree here would re-create the original bug exactly.
+//
+// Returns null when NOTHING is configured, which is the signal to relay.
+async function serverSideSend(env, box, subject, message) {
+  for (const attempt of [
+    () => brevoSend(env, box && box.email, subject, message),
+    () => resendSend(env, box && box.email, subject, message),
+  ]) {
+    const res = await attempt();
+    if (res) return res;    // configured — its verdict stands, ok or not
+  }
+  return null;              // none configured
+}
+
+// RELAY — the page sends the email instead of the worker.
+//
+// This hands the reset code to whoever asked for it, and that is a real
+// weakening: set-lock, remove-lock and update-hint all require the current
+// password, so the emailed code is the ONLY way past a lock without it.
+// Someone who knows an app's URL and a lock id can therefore request a reset,
+// read the code out of this reply, and take the lock.
+//
+// It is here anyway, because the alternative is worse. Recovery mail sent from
+// the worker does not arrive at all (see the RECOVERY MAIL header), and a
+// "secure" reset that can never be completed just means a real lockout with no
+// way back in. This is also exactly how the suite worked for months before the
+// send was moved server-side — the exposure is not new, and the delivery is
+// what regressed.
+//
+// It switches itself off: the moment BREVO_API_KEY or RESEND_API_KEY is set,
+// serverSideSend() succeeds, `relay` stops being returned, and the code never
+// leaves the worker again. No client change is needed for that — the pages
+// already prefer `emailed` and only relay when asked to.
+function relayFor(box, subject, message) {
+  return { form: box.form, email: box.email, subject, message };
+}
+
 // Try real senders first, Formspree last. A provider with no key configured
-// returns null and is skipped entirely, so this file needs no edit to switch:
-// setting BREVO_API_KEY is the whole migration.
+// returns null and is skipped entirely. Used by /auth/mail/selftest; the live
+// recovery paths use serverSideSend + relayFor instead, because they must be
+// able to tell "delivered" from "accepted and filed".
 async function sendMailDetailed(env, box, subject, message) {
   const tried = [];
   for (const attempt of [

@@ -2696,6 +2696,43 @@ html.modal-open .page, html.modal-open .sidebar { overflow: hidden; }
    tests/ui-width-cap.test.js fails the build if this goes missing. */
 body { max-width: 2000px; margin-inline: auto; }
 </style>
+<script id="mail-relay">
+/* == Recovery-mail relay ===================================================
+   The worker mints the reset code and the hint text, but it cannot always
+   DELIVER them. Formspree files anything posted from a Cloudflare Worker as
+   spam -- it answers {"ok":true} and the mail never arrives -- while the exact
+   same submission sent from a browser has worked for months. So when the
+   worker has no server-side sender configured it hands the page an envelope
+   instead of sending, and this posts it from here, where it works.
+
+   `relay` only appears when the worker could not send it itself. Set
+   BREVO_API_KEY (or RESEND_API_KEY) on taskhub-reminders and the worker sends
+   it directly, stops returning `relay`, and this quietly stops being used --
+   no page change needed. Until then, note that a relayed reset code passes
+   through this browser, so whoever asked for it can read it.
+
+   Returns true if the mail went out, false if nothing was sent. A response
+   that was already delivered server-side (`emailed`) counts as sent. */
+window._mailRelay = window._mailRelay || async function (res) {
+  if (res && res.emailed) return true;
+  var r = res && res.relay;
+  if (!r || !r.form) return false;
+  try {
+    var out = await fetch(r.form, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      /* `_subject` is the field Formspree uses for the subject line; a plain
+         `subject` key is swallowed. Both are sent so either spelling works. */
+      body: JSON.stringify({ email: r.email, _subject: r.subject, subject: r.subject, message: r.message })
+    });
+    var d = null;
+    try { d = await out.json(); } catch (e) {}
+    /* A 2xx is not delivery on its own -- Formspree states a refusal as
+       {"ok":false} or an errors array underneath one. */
+    return !!out.ok && !(d && (d.ok === false || (d.errors && d.errors.length)));
+  } catch (e) { return false; }
+};
+</script>
 </head>
 <body>
 
@@ -7252,21 +7289,29 @@ function saveBsMarks() {
 }
 
 let _bsMarkT = 0;
+let _bsMarksDirty = false;   // see _marksDirty; a session mark is no different
 function cloudSaveBsMarks() {
   if (!CLOUD.enabled) return;
+  _bsMarksDirty = true;
   clearTimeout(_bsMarkT);
   setSync("saving");
+  // 400, not 900. The old delay left a nine-tenths-of-a-second window in
+  // which any snapshot reverted the pin you had just set, and there is
+  // nothing to batch here -- a pin is one deliberate press.
   _bsMarkT = setTimeout(async () => {
     if (!(await cloudInit())) { setSync("off"); return; }
     try {
+      // mergeFields for the same reason as the deliberation marks: so that
+      // removing a name removes it there too.
       await CLOUD.fs.setDoc(_indexDoc(), {
         bsPins: [...BS_PINS], bsNicks: BS_NICKS, bsUnpinnedAt: BS_UNPINNED_AT,
-      }, { merge: true });
+      }, { mergeFields: ["bsPins", "bsNicks", "bsUnpinnedAt"] });
+      _bsMarksDirty = false;
       setSync("saved");
     } catch (e) {
       setSync("error", _syncFail("saving your session pins and names", e));
     }
-  }, 900);
+  }, 400);
 }
 
 const bsPinned = (x) => BS_PINS.has(x.id);
@@ -8002,6 +8047,7 @@ const CLOUD = {
   blocked: false,   // auth could not complete -- see syncBlockedNote()
   tokenSeen: null,  // last API token seen in the cloud; null = not looked yet
   pruned: false,    // retention sweep already run this load -- see cloudPrune()
+  folded: false,    // pre-maps pins/names carried over -- see cloudWatch()
 };
 
 // Keep the index doc small and bounded. A row is ~120 bytes, so 300 rows is
@@ -8212,7 +8258,7 @@ function clockStart(id, createdAt) {
   return new Date(createdAt).getTime();
 }
 
-const isPinned = (r) => PINS.has(r.id) || !!r.pinned;
+const isPinned = (r) => PINS.has(r.id);
 const runAgeDays = (r) =>
   (Date.now() - new Date(r.created_at).getTime()) / 86400000;
 /** Unpinned and past the window. An unparseable date is NEVER expired: a row
@@ -8245,23 +8291,25 @@ const NICKS = (() => {
 function saveNicks() {
   try { localStorage.setItem(NICK_KEY, JSON.stringify(NICKS)); } catch {}
 }
-const nickOf = (r) => (NICKS[r.id] || r.nick || "").trim();
+/* NICKS only, and PINS only.
+ *
+ *  Both used to fall back to a copy of the mark kept on the run's own index
+ *  row, and that copy was the reason nothing could be undone. Unpin a run and
+ *  PINS lost it -- but the row still said pinned:true, the fallback believed
+ *  the row, and the list came back pinned. Same for a removed name. The row
+ *  fields are now read exactly once, to carry old marks into the maps (see
+ *  the legacy fold in cloudWatch), and never consulted again.
+ */
+const nickOf = (r) => (NICKS[r.id] || "").trim();
 const titleOf = (r) => nickOf(r) || r.question;
 
+/** A name, like a pin, lives in one map. See togglePin. */
 async function setNick(id, name) {
   const clean = (name || "").trim().slice(0, 120);
   if (clean) NICKS[id] = clean; else delete NICKS[id];
   saveNicks();
   cloudSaveMarks();
-  const row = CLOUD.index.find((r) => r.id === id);
-  if (row) {
-    row.nick = clean;
-    cloudUpsertIndex({ ...row, nick: clean });
-  } else {
-    const listed = (S.historyMerged || []).find((r) => r.id === id);
-    if (listed) listed.nick = clean;
-    mergeHistory();
-  }
+  mergeHistory();
 }
 
 /** Ask for a name in MAGI's own UI. No browser dialogs anywhere here. */
@@ -8378,16 +8426,44 @@ async function deleteRun(r) {
  *  tab closed in the meantime should not lose it.
  */
 let _marksT = 0;
+/* True from the moment a mark changes here until that change is safely in
+ * Firestore. The listener will not apply an incoming copy of these fields
+ * while it is set.
+ *
+ *  Without it, every edit undid itself. A tap changes PINS and schedules the
+ *  write; before the write lands, any OTHER snapshot -- a finished run
+ *  elsewhere, this page's own index write, a token rotation -- arrives
+ *  carrying the document as it was BEFORE the tap, and the listener dutifully
+ *  restored it. The pin lit up and went out again, which is exactly what
+ *  "pinning does nothing" looks like.
+ *
+ *  It is only cleared on a SUCCESSFUL write: if the write failed, this
+ *  browser holds the newer truth and must not be overwritten by the older
+ *  document it failed to replace.
+ */
+let _marksDirty = false;
 function cloudSaveMarks() {
   if (!CLOUD.enabled) return;
+  _marksDirty = true;
   clearTimeout(_marksT);
   setSync("saving");
   _marksT = setTimeout(async () => {
     if (!(await cloudInit())) { setSync("off"); return; }
     try {
+      // mergeFields, NOT merge:true.
+      //
+      //   merge:true merges a map field key by key, so a key removed here was
+      //   never removed there: "Remove name" deleted NICKS[id], wrote the map
+      //   without it, and Firestore kept the old key -- which the next
+      //   snapshot handed straight back. The name returned every time, and no
+      //   amount of trying again could shift it.
+      //
+      //   mergeFields names the fields to REPLACE outright, leaving runs and
+      //   token alone. A key absent from the map is then genuinely gone.
       await CLOUD.fs.setDoc(_indexDoc(), {
         pins: [...PINS], nicks: NICKS, unpinnedAt: UNPINNED_AT,
-      }, { merge: true });
+      }, { mergeFields: ["pins", "nicks", "unpinnedAt"] });
+      _marksDirty = false;
       setSync("saved");
     } catch (e) {
       setSync("error", _syncFail("saving your pins and names", e));
@@ -8395,29 +8471,24 @@ function cloudSaveMarks() {
   }, 400);
 }
 
+/* A pin is a change to PINS and to nothing else.
+ *
+ *  It used to ALSO rewrite the run's index row and push the whole index back
+ *  up on a 1500ms debounce. Two writers for one fact, on two different
+ *  clocks: the marks write landed first and the index write followed with a
+ *  copy of the row it had read before the tap, so the pin arrived and was
+ *  then contradicted by the slower write. Now there is one writer.
+ */
 async function togglePin(id) {
-  // Read the EFFECTIVE state, not this browser's half of it.
-  //
-  // A pin set on another device arrives on the cloud row, and this browser's
-  // PINS set knows nothing about it -- so `!PINS.has(id)` said "not pinned
-  // yet", and tapping the pin on a row that was visibly pinned pinned it
-  // again. There was no way to unpin anything you had not pinned here.
-  const row = CLOUD.index.find((r) => r.id === id);
-  const listed = (S.historyMerged || []).find((r) => r.id === id);
-  const on = !(PINS.has(id) || !!(row && row.pinned) || !!(listed && listed.pinned));
+  const on = !PINS.has(id);
   if (on) PINS.add(id); else PINS.delete(id);
   // Pinned: not counting, so the mark is dropped. Unpinned: counting from
   // this instant.
   if (on) delete UNPINNED_AT[id];
   else UNPINNED_AT[id] = new Date().toISOString();
-  if (listed) listed.pinned = on;
   savePins();
   cloudSaveMarks();
-  // The row's own flag is kept in step for anything still reading it, but the
-  // marks map above is what actually travels -- see cloudSaveMarks.
-  if (row) { row.pinned = on; cloudUpsertIndex({ ...row, pinned: on }); }
-  else mergeHistory();   // local-only run: nothing on the index to update, but
-                         // the list and the retention filter must be recomputed
+  mergeHistory();        // redraws the list, the pin, and the retention filter
 }
 
 function mergeHistory() {
@@ -8425,14 +8496,6 @@ function mergeHistory() {
   const extra = CLOUD.index
     .filter((r) => !seen.has(r.id))
     .map((r) => ({ ...r, cloudOnly: true }));
-  // A pin lives on the cloud row, so a local row has to be told about it or
-  // the same run would look pinned on one device and not on another.
-  // Assigned, not OR-ed. `if (pinned) r.pinned = true` could only ever set the
-  // flag, so a run unpinned on another device stayed pinned here for the rest
-  // of the session -- and the cloud row it was mirroring said otherwise.
-  const pinnedInCloud = new Set(CLOUD.index.filter((r) => r.pinned).map((r) => r.id));
-  for (const r of S.history) r.pinned = pinnedInCloud.has(r.id) || PINS.has(r.id);
-
   S.historyMerged = [...S.history, ...extra]
     .filter((r) => !expired(r))
     // Pinned first: they are the ones kept on purpose, and burying them under
@@ -8469,10 +8532,37 @@ async function cloudWatch() {
         if (typeof renderUnitChips === "function" && S.providers.length) renderUnitChips();
       }
 
-      // Deliberation pins, names and retention clocks. cloudSaveMarks has
-      // been writing these since it existed; nothing was reading them back,
-      // so a pin made on the phone reached Firestore and stopped there.
-      if (d && (Array.isArray(d.pins) || d.nicks || d.unpinnedAt)) {
+      /* Marks that predate the maps, carried over once.
+       *
+       *  Pins and names used to be stored on each run's index row. Those rows
+       *  are still up there with pinned/nick on them, and nothing reads those
+       *  fields any more -- so without this, every pin and name made before
+       *  today would simply vanish. Folded in as a UNION on the first
+       *  snapshot only: on first contact there is no way to tell "unpinned on
+       *  the other device" from "never pinned", and keeping a pin you did not
+       *  want is recoverable in one tap while losing one is not.
+       */
+      if (d && !CLOUD.folded) {
+        CLOUD.folded = true;
+        let found = false;
+        for (const r of (Array.isArray(d.runs) ? d.runs : [])) {
+          if (r.pinned && !PINS.has(r.id)) { PINS.add(r.id); found = true; }
+          if (r.nick && !NICKS[r.id]) { NICKS[r.id] = String(r.nick); found = true; }
+        }
+        for (const id of (Array.isArray(d.pins) ? d.pins : [])) {
+          if (!PINS.has(id)) { PINS.add(id); found = true; }
+        }
+        if (found) {
+          savePins(); saveNicks();
+          cloudSaveMarks();   // sets _marksDirty, so the block below stands
+          mergeHistory();     // aside until the folded set is safely written
+        }
+      }
+
+      // Deliberation pins, names and retention clocks. Skipped while an edit
+      // made here is still on its way up: that document is the one this
+      // browser is in the middle of replacing.
+      if (d && !_marksDirty && (Array.isArray(d.pins) || d.nicks || d.unpinnedAt)) {
         let changed = false;
         if (Array.isArray(d.pins)
             && [...PINS].sort().join("|") !== d.pins.slice().sort().join("|")) {
@@ -8496,26 +8586,39 @@ async function cloudWatch() {
         if (changed) { savePins(); mergeHistory(); }
       }
 
-      // Session pins and names ride the same document as everything else.
-      if (d && (Array.isArray(d.bsPins) || d.bsNicks || d.bsUnpinnedAt)) {
-        if (Array.isArray(d.bsPins)) {
+      // Session pins and names ride the same document as everything else,
+      // and are guarded the same way -- this block used to apply every
+      // snapshot unconditionally, which is why a session pin lit up and then
+      // went out the moment anything else touched the document.
+      if (d && !_bsMarksDirty
+          && (Array.isArray(d.bsPins) || d.bsNicks || d.bsUnpinnedAt)) {
+        let bsChanged = false;
+        if (Array.isArray(d.bsPins)
+            && [...BS_PINS].sort().join("|") !== d.bsPins.slice().sort().join("|")) {
           BS_PINS.clear();
           for (const id of d.bsPins) BS_PINS.add(id);
+          bsChanged = true;
         }
-        if (d.bsNicks && typeof d.bsNicks === "object") {
+        if (d.bsNicks && typeof d.bsNicks === "object"
+            && JSON.stringify(d.bsNicks) !== JSON.stringify(BS_NICKS)) {
           for (const k of Object.keys(BS_NICKS)) delete BS_NICKS[k];
           Object.assign(BS_NICKS, d.bsNicks);
+          bsChanged = true;
         }
-        if (d.bsUnpinnedAt && typeof d.bsUnpinnedAt === "object") {
+        if (d.bsUnpinnedAt && typeof d.bsUnpinnedAt === "object"
+            && JSON.stringify(d.bsUnpinnedAt) !== JSON.stringify(BS_UNPINNED_AT)) {
           for (const k of Object.keys(BS_UNPINNED_AT)) delete BS_UNPINNED_AT[k];
           Object.assign(BS_UNPINNED_AT, d.bsUnpinnedAt);
+          bsChanged = true;
         }
-        try {
-          localStorage.setItem(BS_PIN_KEY, JSON.stringify([...BS_PINS]));
-          localStorage.setItem(BS_NICK_KEY, JSON.stringify(BS_NICKS));
-          localStorage.setItem(BS_UNPIN_KEY, JSON.stringify(BS_UNPINNED_AT));
-        } catch {}
-        if (S.view === "brainstorm") renderBsView();
+        if (bsChanged) {
+          try {
+            localStorage.setItem(BS_PIN_KEY, JSON.stringify([...BS_PINS]));
+            localStorage.setItem(BS_NICK_KEY, JSON.stringify(BS_NICKS));
+            localStorage.setItem(BS_UNPIN_KEY, JSON.stringify(BS_UNPINNED_AT));
+          } catch {}
+          if (S.view === "brainstorm") renderBsView();
+        }
       }
 
       const tok = d && d.token ? String(d.token) : "";
@@ -8598,7 +8701,11 @@ async function cloudPushRun(runId, quiet) {
  *
  *  Debounced because generating three Studio cards in a row would otherwise
  *  be three index writes for one run's worth of change. */
+/* One compact row per run. `pinned` and `nick` are deliberately NOT on it:
+ * they are per-person marks, not properties of the deliberation, and keeping
+ * a second copy here is what made them impossible to undo. */
 function cloudUpsertIndex(row) {
+  delete row.pinned; delete row.nick;
   CLOUD.index = [row, ...CLOUD.index.filter((r) => r.id !== row.id)]
     .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
     .slice(0, CLOUD_INDEX_MAX);
@@ -9046,19 +9153,22 @@ async function enrolBio() {
 async function lockForgot() {
   lockMsg("Sending…");
   try {
+    // The worker composes both messages now, so MAGI no longer builds the text
+    // or reads the code. It sends them itself when it has a provider that can;
+    // otherwise it returns a `relay` envelope and _mailRelay posts it FROM THIS
+    // BROWSER, because Formspree files worker-sent mail as spam. This block used
+    // to key off `h.hint` and `rq.code` being returned — neither is any more, so
+    // it had silently stopped emailing anything at all.
     const h = await authPost("/auth/journal/hint", { appName: "MAGI", label: "MAGI" });
-    if (h && h.hint) {
-      await formspree("MAGI password hint", "Your MAGI hint: " + h.hint);
-      lockMsg("Hint emailed.", true);
-    }
+    const hintSent = await window._mailRelay(h);
+    if (hintSent) lockMsg("Hint emailed.", true);
+
     const rq = await authPost("/auth/reset/request", { appName: "MAGI", label: "MAGI" });
-    if (rq && rq.code) {
-      await formspree("MAGI reset code", "Your MAGI reset code: " + rq.code + "\n\nIt expires shortly.");
-      lockMsg("Reset code emailed. Enter it below.", true);
+    if (await window._mailRelay(rq)) {
       LOCK.mode = "reset";
       renderLock();
       lockMsg("Reset code emailed. Enter it below.", true);
-    } else if (!h || !h.hint) {
+    } else if (!hintSent) {
       lockMsg("Could not send anything — is the lock service reachable?");
     }
   } catch {

@@ -692,6 +692,43 @@
    tests/ui-width-cap.test.js fails the build if any of this goes missing. */
 body { max-width: 2000px; margin-inline: auto; }
 </style>
+<script id="mail-relay">
+/* == Recovery-mail relay ===================================================
+   The worker mints the reset code and the hint text, but it cannot always
+   DELIVER them. Formspree files anything posted from a Cloudflare Worker as
+   spam -- it answers {"ok":true} and the mail never arrives -- while the exact
+   same submission sent from a browser has worked for months. So when the
+   worker has no server-side sender configured it hands the page an envelope
+   instead of sending, and this posts it from here, where it works.
+
+   `relay` only appears when the worker could not send it itself. Set
+   BREVO_API_KEY (or RESEND_API_KEY) on taskhub-reminders and the worker sends
+   it directly, stops returning `relay`, and this quietly stops being used --
+   no page change needed. Until then, note that a relayed reset code passes
+   through this browser, so whoever asked for it can read it.
+
+   Returns true if the mail went out, false if nothing was sent. A response
+   that was already delivered server-side (`emailed`) counts as sent. */
+window._mailRelay = window._mailRelay || async function (res) {
+  if (res && res.emailed) return true;
+  var r = res && res.relay;
+  if (!r || !r.form) return false;
+  try {
+    var out = await fetch(r.form, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      /* `_subject` is the field Formspree uses for the subject line; a plain
+         `subject` key is swallowed. Both are sent so either spelling works. */
+      body: JSON.stringify({ email: r.email, _subject: r.subject, subject: r.subject, message: r.message })
+    });
+    var d = null;
+    try { d = await out.json(); } catch (e) {}
+    /* A 2xx is not delivery on its own -- Formspree states a refusal as
+       {"ok":false} or an errors array underneath one. */
+    return !!out.ok && !(d && (d.ok === false || (d.errors && d.errors.length)));
+  } catch (e) { return false; }
+};
+</script>
 </head>
 <body>
 
@@ -1329,7 +1366,8 @@ body { max-width: 2000px; margin-inline: auto; }
       const h = await authPost('/auth/journal/hint', { appName: 'Insight', label: 'Insight' });
       if (h.noLock) { lockMsg('No password is set yet.'); return; }
       if (h.error === 'throttled') { lockMsg('Too many hint emails just now — wait a few minutes.'); return; }
-      lockMsg(h.ok ? 'Hint emailed to ' + (h.to || LOCK_EMAIL) : 'Email failed — try again shortly.', h.ok);
+      const hsent = await window._mailRelay(h);
+    lockMsg(hsent ? 'Hint emailed to ' + (h.to || LOCK_EMAIL) : 'Email failed — try again shortly.', hsent);
     } catch { lockMsg('Email failed — try again shortly.'); }
   }
 
@@ -1343,6 +1381,7 @@ body { max-width: 2000px; margin-inline: auto; }
       if (rq.error === 'throttled') { lockMsg('Too many reset emails just now — wait a few minutes.'); return; }
       if (rq.error === 'email-failed') { lockMsg('Could not send the email — try again shortly.'); return; }
       if (!rq.ok) { lockMsg('Could not start the reset — try again.'); return; }
+    if (!(await window._mailRelay(rq))){ lockMsg('Could not send the email — try again shortly.'); return; }
       if (lockMode !== 'reset') lockView('reset');
       lockMsg('Code sent to ' + (rq.to || LOCK_EMAIL) + ' — check spam if it\'s not there in a minute.', true);
     } catch { lockMsg('Network error — try again.'); }
