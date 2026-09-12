@@ -4954,10 +4954,215 @@ function TBPortfolioPage(){
   </div>);
 }
 
+/* ════════════════════════════════════════════════════════════════════════════
+   TRASH CAN — Playbook pages · Control tickers · Control prompts
+   Modelled on the Trash in MyJournal / Brainstorm Journal (index.html): deleting
+   is a soft delete, the item is recoverable for 30 days, and restoring it RESETS
+   that clock (the stamp is written fresh on each delete, never carried over).
+
+   Storage is deliberately parasitic on what already exists — there is no trash
+   document, no extra listener and no extra read:
+     · a trashed Playbook page keeps its slot in the playbook doc's pages[] with
+       a `trashed` stamp, exactly as a journal entry does;
+     · a trashed prompt does the same inside the prompts doc's prompts[];
+     · tickers are bare strings and cannot carry a stamp, so the watchlist doc
+       gains a sibling `trash: [{t, trashed}]` field.
+   Deleting already wrote its source document, so the write count is unchanged,
+   and the live listeners those documents already have sync the trash for free.
+   ════════════════════════════════════════════════════════════════════════════ */
+const TB_TRASH_TTL = 30*24*60*60*1000;          // 30 days, then auto-purge
+/* Per-section cap. Firestore documents stop at 1 MiB and a trashed Playbook page
+   keeps its full HTML body, so the trash can is not allowed to grow without
+   bound — past this the oldest deletions are purged early. */
+const TB_TRASH_MAX = 60;
+
+const tbTrashDaysLeft = ts => Math.max(0, Math.ceil(((ts||0) + TB_TRASH_TTL - Date.now())/86400000));
+const tbTrashExpired  = ts => !ts || ts < Date.now() - TB_TRASH_TTL;
+/* Newest-first, then capped — the order the modal renders in and the rule the
+   early-purge uses, kept in one place so the two can never disagree. */
+const tbTrashSort = arr => (arr||[]).slice().sort((a,b)=>(b.trashed||0)-(a.trashed||0));
+const tbTrashCap  = arr => tbTrashSort(arr).slice(0, TB_TRASH_MAX);
+
+/* Section descriptors. `id` turns an item into the stable key the restore/purge
+   callbacks receive, `name` into its row label. */
+const TB_TRASH_SECTIONS = [
+  { key:'playbook', label:'Playbook pages', icon:'doc',    kind:'PAGE',
+    id:i=>i.id, name:i=>i.title||'Untitled page',   mono:false },
+  { key:'tickers',  label:'Tickers',        icon:'list',   kind:'TICKER',
+    id:i=>i.t,  name:i=>i.t,                        mono:true  },
+  { key:'prompts',  label:'Prompts',        icon:'pencil', kind:'PROMPT',
+    id:i=>i.id, name:i=>i.name||'Untitled prompt',  mono:false },
+];
+
+/* Total across every section — what the Trash buttons badge. */
+function tbTrashCount(trash){
+  return TB_TRASH_SECTIONS.reduce((n,s)=>n+(((trash&&trash[s.key])||[]).length),0);
+}
+
+/* The Trash button itself — one per surface you can delete from (the Playbook
+   sidebar, the Watchlist card, the Prompts card). They all open the same modal. */
+function TBTrashButton({count=0,onClick,style,block}){
+  return(<button type="button" onClick={onClick} title="Deleted items — recoverable for 30 days"
+    style={{display:'inline-flex',alignItems:'center',justifyContent:block?'center':'flex-start',gap:7,
+      padding:'7px 14px',borderRadius:100,border:'1px solid var(--bd)',background:'transparent',
+      color:'var(--txd)',fontSize:12,fontWeight:700,cursor:'pointer',transition:'all .15s',
+      width:block?'100%':'auto',boxSizing:'border-box',...(style||{})}}
+    onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--ac)';e.currentTarget.style.color='var(--ac)';}}
+    onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--bd)';e.currentTarget.style.color='var(--txd)';}}>
+    <TBIcon n="trash"/> Trash
+    {count>0&&<span style={{marginLeft:2,background:'var(--ac)',color:'#101014',borderRadius:9,
+      padding:'0 7px',fontWeight:800,fontSize:10,lineHeight:'16px'}}>{count}</span>}
+  </button>);
+}
+
+/* ── Trash modal ── one can, a section per source. Mirrors the journals' modal:
+   per-row Restore / Delete forever, checkbox multi-select, and a footer that acts
+   on the selection across every section at once. */
+function TBTrashModal({trash,onRestore,onPurge,onClose,focus}){
+  const isMobile=useIsMobile();
+  useModalScrollLock();
+  /* Selection is keyed "<section>:<id>" so one Set spans all three lists. */
+  const [sel,setSel]=useState(()=>new Set());
+
+  useEffect(()=>{
+    const onKey=e=>{ if(e.key==='Escape'){e.stopPropagation();onClose();} };
+    document.addEventListener('keydown',onKey);
+    return()=>document.removeEventListener('keydown',onKey);
+  },[onClose]);
+
+  /* Rows, already sorted newest-first, paired with their section descriptor. */
+  const rows=useMemo(()=>{
+    const out=[];
+    TB_TRASH_SECTIONS.forEach(s=>{
+      tbTrashSort((trash&&trash[s.key])||[]).forEach(item=>out.push({s,item,k:s.key+':'+s.id(item)}));
+    });
+    return out;
+  },[trash]);
+
+  /* Drop selections whose row is gone — restored or purged here, or on another
+     device — or the footer would keep acting on ids that no longer exist. */
+  useEffect(()=>{
+    setSel(prev=>{
+      if(!prev.size) return prev;
+      const live=new Set(rows.map(r=>r.k));
+      let changed=false; const next=new Set();
+      prev.forEach(k=>{ if(live.has(k)) next.add(k); else changed=true; });
+      return changed?next:prev;
+    });
+  },[rows]);
+
+  const total=rows.length;
+  const toggle=k=>setSel(prev=>{const n=new Set(prev);if(n.has(k))n.delete(k);else n.add(k);return n;});
+
+  /* Fan a selection out into one {section: ids[]} payload, so each source
+     document is written at most once for the whole batch. */
+  const bySection=()=>{
+    const map={};
+    rows.forEach(r=>{ if(sel.has(r.k)){ (map[r.s.key]||(map[r.s.key]=[])).push(r.s.id(r.item)); } });
+    return map;
+  };
+  const restoreSel=()=>{ const m=bySection(); if(!Object.keys(m).length)return; onRestore(m); setSel(new Set()); };
+  const purgeSel=async()=>{
+    const m=bySection(); const n=Object.values(m).reduce((a,b)=>a+b.length,0);
+    if(!n)return;
+    if(window.uiConfirm&&!(await window.uiConfirm('Permanently delete '+n+' item'+(n!==1?'s':'')+'? This cannot be undone.',
+      {title:'Delete forever',okLabel:'Delete forever',danger:true})))return;
+    onPurge(m); setSel(new Set());
+  };
+  const selectAll=()=>setSel(prev=>prev.size===total?new Set():new Set(rows.map(r=>r.k)));
+
+  const purgeOne=async(s,item)=>{
+    const nm=s.name(item);
+    if(window.uiConfirm&&!(await window.uiConfirm('Permanently delete "'+nm+'"? This cannot be undone.',
+      {title:'Delete forever',okLabel:'Delete forever',danger:true})))return;
+    onPurge({[s.key]:[s.id(item)]});
+  };
+
+  return ReactDOM.createPortal(
+    <div className="tb-pe-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}
+      style={{position:'fixed',inset:0,zIndex:100001,background:'rgba(10,10,12,0.72)',
+        backdropFilter:'blur(10px)',WebkitBackdropFilter:'blur(10px)',display:'flex',
+        alignItems:isMobile?'stretch':'center',justifyContent:'center',padding:isMobile?0:'40px 16px'}}>
+      <div onClick={e=>e.stopPropagation()}
+        style={{background:'var(--s1)',border:'1px solid var(--bdl)',borderRadius:isMobile?0:16,width:'100%',
+          maxWidth:760,height:isMobile?'100dvh':'min(84vh,780px)',display:'flex',flexDirection:'column',
+          overflow:'hidden',boxShadow:'0 32px 90px rgba(0,0,0,0.65)'}}>
+
+        <div style={{display:'flex',alignItems:'center',gap:10,padding:isMobile?'12px 14px':'14px 22px',
+          borderBottom:'1px solid var(--bd)',flexShrink:0}}>
+          <TBIcon n="trash" size={16} style={{color:'var(--ac)',flexShrink:0}}/>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontFamily:'var(--font-accent)',fontSize:isMobile?15:17,fontWeight:700,color:'var(--tx)'}}>Trash</div>
+            <div style={{fontSize:11.5,color:'var(--txm)',marginTop:1}}>Items delete permanently after 30 days · restoring resets the countdown</div>
+          </div>
+          <button className="tb-x-close" onClick={onClose} aria-label="Close trash"><TBIcon n="x" size={18}/></button>
+        </div>
+
+        <div className="tb-scroll-thin" style={{flex:1,minHeight:0,overflowY:'auto',
+          padding:isMobile?'8px 14px':'10px 22px',WebkitOverflowScrolling:'touch'}}>
+          {total===0
+            ?<div style={{textAlign:'center',opacity:.5,padding:'46px 0',fontSize:13.5,color:'var(--txd)'}}>Trash is empty.</div>
+            :TB_TRASH_SECTIONS.map(s=>{
+              const items=tbTrashSort((trash&&trash[s.key])||[]);
+              if(!items.length) return null;
+              return(<div key={s.key} style={{marginBottom:16}}>
+                <div style={{display:'flex',alignItems:'center',gap:7,padding:'12px 2px 7px',
+                  position:'sticky',top:0,background:'var(--s1)',zIndex:1,
+                  fontSize:11,fontWeight:800,textTransform:'uppercase',letterSpacing:1.4,
+                  color:focus===s.key?'var(--ac)':'var(--txm)'}}>
+                  <TBIcon n={s.icon} size={12}/>{s.label}
+                  <span style={{opacity:.7,fontWeight:700,letterSpacing:.6}}>({items.length})</span>
+                </div>
+                {items.map(item=>{
+                  const k=s.key+':'+s.id(item), days=tbTrashDaysLeft(item.trashed);
+                  return(<div key={k} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 4px',
+                    borderBottom:'1px solid var(--bd)',flexWrap:'wrap'}}>
+                    <input type="checkbox" checked={sel.has(k)} onChange={()=>toggle(k)}
+                      aria-label={'Select '+s.name(item)}
+                      style={{width:15,height:15,flexShrink:0,accentColor:'var(--ac)',cursor:'pointer'}}/>
+                    <div style={{flex:'1 1 160px',minWidth:0,overflow:'hidden'}}>
+                      <div style={{fontWeight:700,fontSize:13.5,color:'var(--tx)',whiteSpace:'nowrap',
+                        overflow:'hidden',textOverflow:'ellipsis',
+                        ...(s.mono?{fontFamily:"'IBM Plex Mono',monospace",letterSpacing:.5,fontWeight:800}:null)}}>{s.name(item)}</div>
+                      <div style={{fontSize:10.5,color:'var(--txm)',marginTop:2}}>
+                        {s.kind} · deleted {new Date(item.trashed).toLocaleDateString()} · auto-deletes in {days}d
+                      </div>
+                    </div>
+                    <div style={{display:'flex',gap:5,flexShrink:0}}>
+                      <button className="tb-btn-ghost" style={{fontSize:11.5,padding:'5px 11px'}}
+                        onClick={()=>onRestore({[s.key]:[s.id(item)]})}>Restore</button>
+                      <button className="tb-btn-danger" style={{fontSize:11.5,padding:'5px 11px'}}
+                        onClick={()=>purgeOne(s,item)}>Delete forever</button>
+                    </div>
+                  </div>);
+                })}
+              </div>);
+            })}
+        </div>
+
+        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',
+          padding:isMobile?'10px 14px calc(env(safe-area-inset-bottom,0px) + 10px)':'12px 22px',
+          borderTop:'1px solid var(--bd)',flexShrink:0}}>
+          <span style={{fontSize:11.5,color:'var(--txm)',flex:1,minWidth:80}}>
+            {sel.size?sel.size+' selected':total+' item'+(total!==1?'s':'')}
+          </span>
+          {total>0&&<button className="tb-btn-ghost" onClick={selectAll} style={{fontSize:12}}>
+            {sel.size===total?'Clear selection':'Select all'}</button>}
+          <button className="tb-btn-primary" onClick={restoreSel} disabled={!sel.size}
+            style={{fontSize:12,opacity:sel.size?1:.4,cursor:sel.size?'pointer':'default'}}>Restore selected</button>
+          <button className="tb-btn-danger" onClick={purgeSel} disabled={!sel.size}
+            style={{fontSize:12,opacity:sel.size?1:.4,cursor:sel.size?'pointer':'default'}}>Delete selected forever</button>
+        </div>
+      </div>
+    </div>,
+    document.getElementById('tradeboard-root')||document.body
+  );
+}
+
 /* ── Watchlist Editor ── (Control tab) — single shared ticker list that drives
    News fetch, report parsing, sector inference, and the catalysts calendar.
    Same UX the News settings panel used to have; now the one source of truth. */
-function TBWatchlistEditor({watchlist=[],onChange,onToast}){
+function TBWatchlistEditor({watchlist=[],onChange,onToast,onTrashTickers,trashCount=0,onOpenTrash}){
   const [tickerInput,setTickerInput]=React.useState('');
   // Bump on async AI-sector arrival so chips repaint from 'Diversified' → real sector.
   const [sectorTick,setSectorTick]=React.useState(0);
@@ -4974,8 +5179,17 @@ function TBWatchlistEditor({watchlist=[],onChange,onToast}){
     onChange(next.slice(0,40));
     setTickerInput('');
   };
-  const removeTicker=(t)=>onChange(watchlist.filter(x=>x!==t));
-  const resetTickers=()=>onChange(tbGetDefaultWatchlist());
+  /* Removing a ticker is a SOFT delete — it lands in the 30-day trash can rather
+     than vanishing, same as a Playbook page or a prompt. */
+  const removeTicker=(t)=>onTrashTickers?onTrashTickers([t]):onChange(watchlist.filter(x=>x!==t));
+  /* Reset drops every ticker that is not in the default list, so those go to the
+     trash too — one call, one write, and nothing is lost by accident. */
+  const resetTickers=()=>{
+    const def=tbGetDefaultWatchlist();
+    const dropped=watchlist.filter(t=>!def.includes(t));
+    if(onTrashTickers&&dropped.length) onTrashTickers(dropped,def);
+    else onChange(def);
+  };
   // Persist the CURRENT list as the new default (what "Reset to default" restores).
   const setAsDefault=()=>{if(!watchlist.length)return;tbSetDefaultWatchlist(watchlist);onToast&&onToast(`Saved ${watchlist.length} ticker${watchlist.length!==1?'s':''} as your default watchlist`,'✓');};
   const canAdd=(tickerInput||'').split(/[,\s\[\]]+/).map(normTicker).filter(Boolean).length>0;
@@ -4996,6 +5210,7 @@ function TBWatchlistEditor({watchlist=[],onChange,onToast}){
           style={{padding:'7px 14px',borderRadius:100,border:'1px solid var(--bd)',background:'transparent',color:'var(--txd)',fontSize:12,fontWeight:700,cursor:'pointer',transition:'all .15s'}}
           onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--ac)';e.currentTarget.style.color='var(--ac)';}}
           onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--bd)';e.currentTarget.style.color='var(--txd)';}}><TBIcon n="rotateCcw"/> Reset to default</button>
+        {onOpenTrash&&<TBTrashButton count={trashCount} onClick={()=>onOpenTrash('tickers')}/>}
       </div>
     </div>
 
@@ -5048,11 +5263,15 @@ function TBWatchlistEditor({watchlist=[],onChange,onToast}){
   </div>);
 }
 
-/* ── Control Page ── watchlist editor + prompt manager in one place. */
-function TBControlPage({prompts,onSavePrompts,onToast,watchlist,onSaveWatchlist}){
+/* ── Control Page ── watchlist editor + prompt manager in one place. Both halves
+   delete into the SAME trash can, so both get a Trash button that opens it. */
+function TBControlPage({prompts,onSavePrompts,onToast,watchlist,onSaveWatchlist,
+                        onTrashTickers,onTrashPrompt,trashCount,onOpenTrash}){
   return(<div style={{width:'100%'}}>
-    <TBWatchlistEditor watchlist={watchlist} onChange={onSaveWatchlist} onToast={onToast}/>
-    <TBPromptPage prompts={prompts} onSave={onSavePrompts} onToast={onToast}/>
+    <TBWatchlistEditor watchlist={watchlist} onChange={onSaveWatchlist} onToast={onToast}
+      onTrashTickers={onTrashTickers} trashCount={trashCount} onOpenTrash={onOpenTrash}/>
+    <TBPromptPage prompts={prompts} onSave={onSavePrompts} onToast={onToast}
+      onTrash={onTrashPrompt} trashCount={trashCount} onOpenTrash={onOpenTrash}/>
   </div>);
 }
 
@@ -5135,7 +5354,7 @@ function TBPromptEditorModal({name,text,onName,onText,onSave,onClose,dirty,savin
   );
 }
 
-function TBPromptPage({prompts,onSave,onToast}){
+function TBPromptPage({prompts,onSave,onToast,onTrash,trashCount=0,onOpenTrash}){
   const [selected,setSelected]=useState(0);
   const [editing,setEditing]=useState(false);
   const [editText,setEditText]=useState('');
@@ -5179,10 +5398,13 @@ function TBPromptPage({prompts,onSave,onToast}){
     setEditing(true);
   },[cur]);
 
+  /* Every write goes through onSave. The parent is the only place that knows
+     about trashed prompts, and they share this component's Firestore document —
+     writing the live-only array from here would empty the trash can. */
   const saveEdit=()=>{
     const updated=prompts.map((p,i)=>i===selected?{...p,text:editText,name:editName}:p);
     onSave(updated);
-    if(window._fbSaveTBPrompts){setFbSaving(true);window._fbSaveTBPrompts(updated);setTimeout(()=>setFbSaving(false),1600);}
+    setFbSaving(true);setTimeout(()=>setFbSaving(false),1600);
     setEditing(false);onToast('Prompt saved','check');
   };
 
@@ -5191,7 +5413,7 @@ function TBPromptPage({prompts,onSave,onToast}){
     const name=(newName.trim()||'New Prompt');
     const np={id:'p_'+Date.now(),name,text:''};
     const updated=[...prompts,np];
-    onSave(updated);if(window._fbSaveTBPrompts)window._fbSaveTBPrompts(updated);
+    onSave(updated);
     /* Point the editor at the new prompt HERE instead of leaving it to the sync
        effect above. The parent owns the prompts array, so its prop can land a
        render behind this click, and until it does `cur` still resolves to the
@@ -5207,11 +5429,16 @@ function TBPromptPage({prompts,onSave,onToast}){
     if(prompts.length<=1){onToast('Cannot delete last prompt','alert');return;}
     setDelConfirm(true);
   };
+  /* Soft delete: the prompt moves to the 30-day trash can and is recoverable
+     from there. The parent stamps it and re-writes the document. */
   const confirmDelete=()=>{
-    const updated=prompts.filter((_,i)=>i!==selected);
-    onSave(updated);if(window._fbSaveTBPrompts)window._fbSaveTBPrompts(updated);
-    setSelected(Math.max(0,selected-1));
+    const victim=prompts[selected];
     setDelConfirm(false);
+    if(!victim)return;
+    setSelected(Math.max(0,selected-1));
+    if(onTrash)onTrash(victim.id);
+    else onSave(prompts.filter((_,i)=>i!==selected));
+    onToast&&onToast('Moved to Trash','trash');
   };
 
   const promptAreaH=useRef(null);
@@ -5273,7 +5500,7 @@ function TBPromptPage({prompts,onSave,onToast}){
       if(from!==to){
         const curId=(prompts[selected]||{}).id;
         const next=arrMove(prompts,from,to);
-        onSave(next);if(window._fbSaveTBPrompts)window._fbSaveTBPrompts(next);
+        onSave(next);
         const ni=next.findIndex(p=>p.id===curId);setSelected(ni>=0?ni:to);
       }
     }else if(ds){ setSelected(ds.from);setEditing(false);setAddingNew(false); }
@@ -5285,6 +5512,7 @@ function TBPromptPage({prompts,onSave,onToast}){
     <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
       <div style={{flex:1}}><div style={{fontSize:20,fontWeight:800,color:'var(--tx)'}}>Prompts</div><div style={{fontSize:13,color:'var(--txm)'}}>{prompts.length} prompt{prompts.length!==1?'s':''} · used by Analysis</div></div>
       {fbSaving&&<span style={{fontSize:13,color:'var(--txm)',display:'inline-flex',alignItems:'center',gap:6}}><TBIcon n="refresh"/> Saving…</span>}
+      {onOpenTrash&&<TBTrashButton count={trashCount} onClick={()=>onOpenTrash('prompts')}/>}
     </div>
     {/* Chips row: drag to reorder (mouse + touch), tap to select */}
     <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
@@ -5341,11 +5569,11 @@ function TBPromptPage({prompts,onSave,onToast}){
       {delConfirm&&ReactDOM.createPortal(
         <div onClick={()=>setDelConfirm(false)} style={{position:'fixed',inset:0,zIndex:22000,background:'rgba(0,0,0,0.6)',display:'flex',alignItems:'center',justifyContent:'center'}}>
           <div onClick={e=>e.stopPropagation()} style={{background:'var(--s1)',border:'1px solid var(--bdl)',borderRadius:14,padding:'28px 32px',maxWidth:380,width:'90%',boxShadow:'0 24px 60px rgba(0,0,0,0.5)'}}>
-            <div style={{fontFamily:'Manrope,system-ui,sans-serif',fontSize:16,fontWeight:700,color:'var(--tbe)',marginBottom:10}}>Delete Prompt?</div>
-            <div style={{fontSize:15,color:'var(--txd)',marginBottom:20,lineHeight:1.7}}>Delete <strong style={{color:'var(--tx)'}}>{prompts[selected]?.name}</strong>? This cannot be undone.</div>
+            <div style={{fontFamily:'Manrope,system-ui,sans-serif',fontSize:16,fontWeight:700,color:'var(--tbe)',marginBottom:10}}>Move to Trash?</div>
+            <div style={{fontSize:15,color:'var(--txd)',marginBottom:20,lineHeight:1.7}}>Move <strong style={{color:'var(--tx)'}}>{prompts[selected]?.name}</strong> to the Trash? You can restore it for 30 days.</div>
             <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
               <button className="tb-btn-ghost" onClick={()=>setDelConfirm(false)} style={{fontSize:12}}>Cancel</button>
-              <button className="tb-btn-danger" onClick={confirmDelete} style={{fontSize:12}}>Delete</button>
+              <button className="tb-btn-danger" onClick={confirmDelete} style={{fontSize:12}}>Move to Trash</button>
             </div>
           </div>
         </div>
@@ -9533,7 +9761,7 @@ function TBPlaybookEditor({page,onChange,onDelete,onBack,isMobile,onToast}){
         {!isDaily&&(!confirmDel
           ?<button className="tb-btn-danger" onClick={()=>setConfirmDel(true)} style={{padding:'6px 14px',fontSize:12}}><TBIcon n="trash"/> Delete</button>
           :<div style={{display:'flex',gap:7,alignItems:'center'}}>
-            <span style={{fontSize:12,color:'var(--tbe)',whiteSpace:'nowrap'}}>Delete page?</span>
+            <span style={{fontSize:12,color:'var(--tbe)',whiteSpace:'nowrap'}}>Move to Trash?</span>
             <button onClick={onDelete} style={{padding:'6px 14px',borderRadius:100,border:'none',background:'var(--tbr)',color:'#fff',fontWeight:700,fontSize:12,cursor:'pointer'}}>Yes</button>
             <button className="tb-btn-ghost" onClick={()=>setConfirmDel(false)} style={{padding:'6px 14px',fontSize:12}}>No</button>
           </div>)}
@@ -9562,7 +9790,7 @@ function TBPlaybookEditor({page,onChange,onDelete,onBack,isMobile,onToast}){
   </div>);
 }
 
-function TBPlaybookPage({pages,onSavePages,onToast}){
+function TBPlaybookPage({pages,onSavePages,onToast,onTrashPage,trashCount=0,onOpenTrash}){
   const list=tbPbNormalize(pages);
   const [selId,setSelId]=useState(list[0].id);
   const [mobileEditing,setMobileEditing]=useState(false);
@@ -9580,12 +9808,16 @@ function TBPlaybookPage({pages,onSavePages,onToast}){
     setSelId(p.id); setMobileEditing(true);
     onToast&&onToast('Page added','＋');
   };
+  /* Soft delete — the page moves to the 30-day trash can and stays restorable.
+     Selection has to move off it first, or the editor would keep rendering a page
+     that is no longer in the live list. */
   const deletePage=(id)=>{
     if(id===TB_PB_DAILY_ID) return;                       // AutoLaunch depends on it
-    const next=tbPbNormalize(list.filter(x=>x.id!==id));
-    onSavePages(next);
-    setSelId(next[0].id); setMobileEditing(false);
-    onToast&&onToast('Page deleted','trash');
+    const rest=list.filter(x=>x.id!==id);
+    setSelId((rest[0]||list[0]).id); setMobileEditing(false);
+    if(onTrashPage) onTrashPage(id);
+    else onSavePages(tbPbNormalize(rest));
+    onToast&&onToast('Moved to Trash','trash');
   };
 
   const sidebar=(<div className={isMobile?undefined:'tb-pb-side'} style={{display:'flex',flexDirection:'column',gap:6,minWidth:0}}>
@@ -9600,6 +9832,7 @@ function TBPlaybookPage({pages,onSavePages,onToast}){
       </button>
     ))}
     <button className="tb-btn-ghost" onClick={addPage} style={{marginTop:8,justifyContent:'center',padding:'8px 14px',fontSize:12.5}}>＋ New page</button>
+    {onOpenTrash&&<TBTrashButton block count={trashCount} onClick={()=>onOpenTrash('playbook')} style={{marginTop:2}}/>}
   </div>);
 
   const editor=<TBPlaybookEditor key={sel.id} page={sel} onChange={updatePage} onDelete={()=>deletePage(sel.id)}
