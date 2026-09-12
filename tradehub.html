@@ -6137,6 +6137,13 @@ function tbLoadWatchlistLocal(){
   try{const a=JSON.parse(localStorage.getItem(TB_WATCHLIST_KEY)||'null');return (Array.isArray(a)&&a.length)?a:[...TB_WATCHLIST];}catch{return [...TB_WATCHLIST];}
 }
 function tbSaveWatchlistLocal(arr){try{localStorage.setItem(TB_WATCHLIST_KEY,JSON.stringify(arr));}catch{}}
+/* Ticker trash can — mirrored locally so the badge is right before the cloud
+   copy lands, exactly as the watchlist itself is. */
+const TB_WL_TRASH_KEY = 'td6_watchlist_trash';
+function tbLoadWlTrashLocal(){
+  try{const a=JSON.parse(localStorage.getItem(TB_WL_TRASH_KEY)||'null');return Array.isArray(a)?a.filter(x=>x&&x.t):[];}catch{return [];}
+}
+function tbSaveWlTrashLocal(arr){try{localStorage.setItem(TB_WL_TRASH_KEY,JSON.stringify(arr||[]));}catch{}}
 /* User-overridable default watchlist. "Set current as default" (Control tab)
    stores the live list here; "Reset to default" restores it. Falls back to the
    hardcoded TB_WATCHLIST when the user hasn't set their own default yet. */
@@ -9410,7 +9417,10 @@ function tbSavePlaybookLocal(pages){ try{ localStorage.setItem(TB_PLAYBOOK_KEY,J
 /* Daily Reminder is pinned first and always exists — Trading Auto Launch depends on it. */
 function tbPbNormalize(pages){
   const arr=Array.isArray(pages)?pages.filter(p=>p&&p.id):[];
-  const daily=arr.find(p=>p.id===TB_PB_DAILY_ID)||tbPbDefaultPages()[0];
+  let daily=arr.find(p=>p.id===TB_PB_DAILY_ID)||tbPbDefaultPages()[0];
+  // Trading Auto Launch reads this page, so it is never deletable and therefore
+  // must never carry a trash stamp — strip one if some older state has it.
+  if(daily.trashed){ daily={...daily}; delete daily.trashed; }
   return [daily,...arr.filter(p=>p.id!==TB_PB_DAILY_ID)];
 }
 
@@ -9867,6 +9877,8 @@ function TBApp(){
   const [analysisCfg,setAnalysisCfg]=useState(tbLoadAnalysisCfg);
   const [watchlist,setWatchlist]=useState(tbLoadWatchlistLocal);
   const [playbook,setPlaybook]=useState(tbLoadPlaybookLocal);
+  const [wlTrash,setWlTrash]=useState(tbLoadWlTrashLocal);   // trashed tickers (Control)
+  const [trashOpen,setTrashOpen]=useState(null);             // null | section key in focus
   const [toast,setToast]=useState(null);
   const [fbLoaded,setFbLoaded]=useState(false);
   const [tbSyncStatus,setTbSyncStatus]=useState(''); // 'saving'|'saved'|'error'|''
@@ -10145,7 +10157,14 @@ function TBApp(){
       }
       if(window._fbLoadTBWatchlist){
         const fw=await window._fbLoadTBWatchlist();
-        if(Array.isArray(fw)&&fw.length){setWatchlist(fw);tbSaveWatchlistLocal(fw);tbSetWatchlist(fw);}
+        if(fw&&Array.isArray(fw.tickers)&&fw.tickers.length){
+          setWatchlist(fw.tickers);tbSaveWatchlistLocal(fw.tickers);tbSetWatchlist(fw.tickers);
+          if(Array.isArray(fw.trash)){
+            // A ticker is never live and trashed at once: the live list wins.
+            const t=tbTrashCap(fw.trash.filter(x=>x&&x.t&&!fw.tickers.includes(x.t)));
+            setWlTrash(t);tbSaveWlTrashLocal(t);
+          }
+        }
       }
       /* Playbook. Nothing stored yet (first device / fresh account) → seed the
          Daily Reminder so AutoLaunch always has a page to show. The id is fixed,
@@ -10165,6 +10184,8 @@ function TBApp(){
         if(seed<TB_WATCHLIST_SEED){
           const def=[...TB_WATCHLIST];
           setWatchlist(def);tbSaveWatchlistLocal(def);tbSetWatchlist(def);
+          // Anything the seed puts back on the live list leaves the trash can.
+          setWlTrash(prev=>{const n=(prev||[]).filter(x=>!def.includes(x.t));tbSaveWlTrashLocal(n);return n;});
           if(window._fbSaveTBWatchlist)window._fbSaveTBWatchlist(def);
           localStorage.setItem(TB_WATCHLIST_SEED_KEY,String(TB_WATCHLIST_SEED));
         }
@@ -10192,7 +10213,15 @@ function TBApp(){
 
   /* Live sync: apply remote watchlist from other devices */
   useEffect(()=>{
-    const onRemote=(e)=>{if(Array.isArray(e.detail)&&e.detail.length){setWatchlist(e.detail);tbSaveWatchlistLocal(e.detail);tbSetWatchlist(e.detail);}}
+    const onRemote=(e)=>{
+      const d=e.detail;
+      if(!d||!Array.isArray(d.tickers)||!d.tickers.length)return;
+      setWatchlist(d.tickers);tbSaveWatchlistLocal(d.tickers);tbSetWatchlist(d.tickers);
+      if(Array.isArray(d.trash)){
+        const t=tbTrashCap(d.trash.filter(x=>x&&x.t&&!d.tickers.includes(x.t)));
+        setWlTrash(t);tbSaveWlTrashLocal(t);
+      }
+    };
     window.addEventListener('fb-tb-watchlist-remote',onRemote);
     return()=>window.removeEventListener('fb-tb-watchlist-remote',onRemote);
   },[]);
@@ -10299,10 +10328,150 @@ function TBApp(){
 
   const showToast=(msg,icon='check')=>{setToast({msg,icon,k:Date.now()});};
 
-  const savePrompts=arr=>{setPrompts(arr);tbSavePromptsLocal(arr);};
+  /* ── Persistence ────────────────────────────────────────────────────────────
+     The playbook and prompts arrays hold LIVE *and* trashed items, because the
+     trash can shares their Firestore document (see TB_TRASH_TTL above). The three
+     persist* helpers below are the only writers, and they take the COMPLETE array
+     so they can never accidentally drop what is in the trash. Everything that
+     edits the visible lists goes through the save* wrappers, which splice the
+     trashed items back on before persisting. */
+  const persistPrompts=useCallback(full=>{
+    const live=full.filter(p=>!p.trashed), dead=tbTrashCap(full.filter(p=>p.trashed));
+    const next=[...live,...dead];
+    setPrompts(next);tbSavePromptsLocal(next);
+    if(window._fbSaveTBPrompts)window._fbSaveTBPrompts(next);
+  },[]);
+  const persistPlaybook=useCallback(full=>{
+    const n=tbPbNormalize(full);
+    const live=n.filter(p=>!p.trashed), dead=tbTrashCap(n.filter(p=>p.trashed));
+    const next=[...live,...dead];
+    setPlaybook(next);tbSavePlaybookLocal(next);
+    if(window._fbSaveTBPlaybook)window._fbSaveTBPlaybook(next);
+  },[]);
+  const persistWatchlist=useCallback((wl,trash)=>{
+    const list=Array.isArray(wl)?wl:[];
+    // Invariant: a ticker is either live or trashed, never both.
+    const t=tbTrashCap((trash||[]).filter(x=>x&&x.t&&!list.includes(x.t)));
+    setWatchlist(list);tbSaveWatchlistLocal(list);tbSetWatchlist(list);
+    setWlTrash(t);tbSaveWlTrashLocal(t);
+    if(window._fbSaveTBWatchlist)window._fbSaveTBWatchlist(list,t);
+  },[]);
+
+  /* Live views — everything outside the trash modal sees only these. */
+  const livePrompts =useMemo(()=>prompts.filter(p=>!p.trashed),[prompts]);
+  const livePlaybook=useMemo(()=>tbPbNormalize(playbook).filter(p=>!p.trashed),[playbook]);
+
+  const savePrompts=arr=>persistPrompts([...arr,...prompts.filter(p=>p.trashed)]);
   const saveAnalysisCfg=cfg=>{setAnalysisCfg(cfg);try{localStorage.setItem(TB_ANALYSIS_KEY,JSON.stringify(cfg));}catch{} if(window._fbSaveTBAnalysis)window._fbSaveTBAnalysis(cfg);};
-  const saveWatchlist=arr=>{const wl=Array.isArray(arr)?arr:[];setWatchlist(wl);tbSaveWatchlistLocal(wl);tbSetWatchlist(wl);if(window._fbSaveTBWatchlist)window._fbSaveTBWatchlist(wl);};
-  const savePlaybook=pages=>{const n=tbPbNormalize(pages);setPlaybook(n);tbSavePlaybookLocal(n);if(window._fbSaveTBPlaybook)window._fbSaveTBPlaybook(n);};
+  const saveWatchlist=arr=>persistWatchlist(arr,wlTrash);
+  const savePlaybook=pages=>persistPlaybook([...pages,...playbook.filter(p=>p.trashed)]);
+
+  /* ── Trash actions ──────────────────────────────────────────────────────────
+     Deleting stamps `trashed` with a FRESH Date.now() every time, which is what
+     makes restoring-then-deleting restart the 30-day clock rather than resume it.
+     Each of these writes exactly one document — the same one the old hard delete
+     wrote — so the trash can costs no extra Firestore traffic. */
+  const trashPlaybookPage=useCallback(id=>{
+    if(id===TB_PB_DAILY_ID)return;                    // AutoLaunch depends on it
+    const ts=Date.now();
+    persistPlaybook(playbook.map(p=>p.id===id?{...p,trashed:ts}:p));
+  },[playbook,persistPlaybook]);
+
+  const trashPrompt=useCallback(id=>{
+    const ts=Date.now();
+    persistPrompts(prompts.map(p=>p.id===id?{...p,trashed:ts}:p));
+  },[prompts,persistPrompts]);
+
+  /* `nextList` lets "Reset to default" hand over the list it wants left behind;
+     without it the removed tickers are simply subtracted from the current one. */
+  const trashTickers=useCallback((removed,nextList)=>{
+    const gone=(removed||[]).filter(Boolean);
+    if(!gone.length)return;
+    const ts=Date.now();
+    const wl=Array.isArray(nextList)?nextList:watchlist.filter(t=>!gone.includes(t));
+    // Re-deleting a ticker that is already in the can refreshes its stamp.
+    persistWatchlist(wl,[...wlTrash.filter(x=>!gone.includes(x.t)),...gone.map(t=>({t,trashed:ts}))]);
+  },[watchlist,wlTrash,persistWatchlist]);
+
+  /* Restore / purge take a { section: ids[] } map so a multi-section selection
+     still writes each source document at most once. */
+  const tbUntrash=o=>{const c={...o};delete c.trashed;return c;};
+  const restoreTrash=useCallback(map=>{
+    let n=0;
+    if(map.playbook&&map.playbook.length){
+      const ids=new Set(map.playbook);
+      persistPlaybook(playbook.map(p=>ids.has(p.id)&&p.trashed?tbUntrash(p):p));
+      n+=map.playbook.length;
+    }
+    if(map.prompts&&map.prompts.length){
+      const ids=new Set(map.prompts);
+      persistPrompts(prompts.map(p=>ids.has(p.id)&&p.trashed?tbUntrash(p):p));
+      n+=map.prompts.length;
+    }
+    if(map.tickers&&map.tickers.length){
+      const ids=new Set(map.tickers);
+      const wl=[...watchlist];
+      wlTrash.forEach(x=>{if(ids.has(x.t)&&!wl.includes(x.t))wl.push(x.t);});
+      persistWatchlist(wl.slice(0,40),wlTrash.filter(x=>!ids.has(x.t)));
+      n+=map.tickers.length;
+    }
+    if(n)showToast('Restored '+n+' item'+(n!==1?'s':''),'rotateCcw');
+  },[playbook,prompts,watchlist,wlTrash,persistPlaybook,persistPrompts,persistWatchlist]);
+
+  const purgeTrash=useCallback(map=>{
+    let n=0;
+    if(map.playbook&&map.playbook.length){
+      const ids=new Set(map.playbook);
+      persistPlaybook(playbook.filter(p=>!(p.trashed&&ids.has(p.id))));
+      n+=map.playbook.length;
+    }
+    if(map.prompts&&map.prompts.length){
+      const ids=new Set(map.prompts);
+      persistPrompts(prompts.filter(p=>!(p.trashed&&ids.has(p.id))));
+      n+=map.prompts.length;
+    }
+    if(map.tickers&&map.tickers.length){
+      const ids=new Set(map.tickers);
+      persistWatchlist(watchlist,wlTrash.filter(x=>!ids.has(x.t)));
+      n+=map.tickers.length;
+    }
+    if(n)showToast('Deleted '+n+' item'+(n!==1?'s':'')+' permanently','trash');
+  },[playbook,prompts,watchlist,wlTrash,persistPlaybook,persistPrompts,persistWatchlist]);
+
+  /* ── 30-day auto-purge ──────────────────────────────────────────────────────
+     Reads through a ref rather than a closure so a sweep scheduled minutes ago
+     still sees current state, and writes ONLY when something actually expired —
+     a sweep that finds nothing must not cost a write. */
+  const _tbTrashLatest=useRef(null);
+  _tbTrashLatest.current={playbook,prompts,watchlist,wlTrash};
+  const sweepTrash=useCallback(()=>{
+    const L=_tbTrashLatest.current||{};
+    const pb=L.playbook||[],pr=L.prompts||[],wt=L.wlTrash||[];
+    const pbKeep=pb.filter(p=>!(p.trashed&&tbTrashExpired(p.trashed)));
+    if(pbKeep.length!==pb.length)persistPlaybook(pbKeep);
+    const prKeep=pr.filter(p=>!(p.trashed&&tbTrashExpired(p.trashed)));
+    if(prKeep.length!==pr.length)persistPrompts(prKeep);
+    const wtKeep=wt.filter(x=>!tbTrashExpired(x.trashed));
+    if(wtKeep.length!==wt.length)persistWatchlist(L.watchlist||[],wtKeep);
+  },[persistPlaybook,persistPrompts,persistWatchlist]);
+
+  /* One sweep per session, once the cloud copy has landed and the snapshot
+     listeners have had a moment to settle — sweeping against a half-loaded state
+     would write a list this device only partly knows. */
+  useEffect(()=>{
+    if(!fbLoaded)return;
+    const t=setTimeout(sweepTrash,6000);
+    return()=>clearTimeout(t);
+  },[fbLoaded,sweepTrash]);
+
+  const trash=useMemo(()=>({
+    playbook:playbook.filter(p=>p.trashed),
+    tickers:wlTrash,
+    prompts:prompts.filter(p=>p.trashed),
+  }),[playbook,prompts,wlTrash]);
+  const trashTotal=tbTrashCount(trash);
+  // Opening the can is also a good moment to drop anything that has aged out.
+  const openTrash=useCallback(section=>{sweepTrash();setTrashOpen(section||'playbook');},[sweepTrash]);
 
 
 
@@ -10313,11 +10482,13 @@ function TBApp(){
   const pageMap={
     portfolio:<TBPortfolioPage/>,
     journal:  <TBJournalPage/>,
-    playbook: <TBPlaybookPage pages={playbook} onSavePages={savePlaybook} onToast={showToast}/>,
+    playbook: <TBPlaybookPage pages={livePlaybook} onSavePages={savePlaybook} onToast={showToast}
+                onTrashPage={trashPlaybookPage} trashCount={trashTotal} onOpenTrash={openTrash}/>,
     news:     <TBNewsPage watchlist={watchlist}/>,
     catalysts:<TBCatalystsPage watchlist={watchlist}/>,
-    prompt:   <TBControlPage prompts={prompts} onSavePrompts={savePrompts} onToast={showToast} watchlist={watchlist} onSaveWatchlist={saveWatchlist}/>,
-    analysis: <TBAnalysisPage cfg={analysisCfg} onSave={saveAnalysisCfg} prompts={prompts} onGoToPrompts={()=>setPage('prompt')}/>,
+    prompt:   <TBControlPage prompts={livePrompts} onSavePrompts={savePrompts} onToast={showToast} watchlist={watchlist} onSaveWatchlist={saveWatchlist}
+                onTrashTickers={trashTickers} onTrashPrompt={trashPrompt} trashCount={trashTotal} onOpenTrash={openTrash}/>,
+    analysis: <TBAnalysisPage cfg={analysisCfg} onSave={saveAnalysisCfg} prompts={livePrompts} onGoToPrompts={()=>setPage('prompt')}/>,
   };
   const curNav=TB_NAV.find(n=>n.id===page)||TB_NAV[0];
 
@@ -10334,6 +10505,7 @@ function TBApp(){
       </div>
     </div>
     {tabLockManage&&<TBTabLockManager tabId={tabLockManage.id} tabLabel={tabLockManage.label} onClose={()=>setTabLockManage(null)}/>}
+    {trashOpen&&<TBTrashModal trash={trash} focus={trashOpen} onRestore={restoreTrash} onPurge={purgeTrash} onClose={()=>setTrashOpen(null)}/>}
     {toast&&<TBToast key={toast.k} message={toast.msg} icon={toast.icon} onClose={()=>setToast(null)}/>}
   </div>);
 }
