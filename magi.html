@@ -387,12 +387,16 @@ body {
 /* The caption under the units. --txd, not --txm: it is the dimmest text on
    the screen on purpose. */
 .view-note {
-  max-width: 720px; margin: 2px auto 0; padding: 0 4px;
-  color: var(--txd); font-size: 12px; line-height: 1.55; text-align: center;
+  max-width: 680px; margin: 26px auto 0; padding: 0 4px;
+  /* Fainter than --txd, which is already the dimmest token on the page.
+     This is a caption about the screen, read once and then never again --
+     it should sit below the reading line, not on it. */
+  color: color-mix(in srgb, var(--txd) 64%, transparent);
+  font-size: 11.5px; line-height: 1.55; text-align: center;
 }
 .view-note[hidden] { display: none; }
 @media (max-width: 720px) {
-  .view-note { font-size: 11px; }
+  .view-note { font-size: 11px; margin-top: 20px; }
 }
 
 .qbar-attach {
@@ -3087,7 +3091,7 @@ window._mailRelay = window._mailRelay || async function (res) {
          the screen it explains, out of the way of the box you came here to
          type in, and dim enough to read as a caption rather than as content.
          Brainstorm's description is the same element for the same reason. -->
-    <div class="view-note" id="councilNote" hidden>One question, put to every selected unit independently — then one of them reads the answers and writes the verdict.</div>
+    <div class="view-note" id="councilNote" hidden>Every selected unit answers independently. One of them writes the verdict.</div>
 
     <div class="drawer" id="historyDrawer" hidden>
       <div class="drawer-hd">Past deliberations</div>
@@ -4273,6 +4277,17 @@ const S = {
   opened: new Set(),     // which unit blocks are expanded
   verdict: null,
   running: false,
+  /* Which screen the grid and the verdict belong to: "council", "brainstorm"
+   * or null for neither.
+   *
+   *  Both screens fill the SAME panels: a deliberation puts one unit per
+   *  member in the grid, and so does a brainstorm round. Without a record of
+   *  which one put them there, opening a past deliberation and then going to
+   *  Brainstorm carried that deliberation's units and its CENTRAL DOGMA panel
+   *  along with it -- a finished verdict sitting under a composer that has
+   *  nothing to do with it.
+   */
+  gridOwner: null,
   // True while the council view is showing a run opened from History rather
   // than one you just started. The difference is not cosmetic: it decides
   // which sidebar row is lit and whether there is a way back to the list.
@@ -4517,7 +4532,10 @@ window.addEventListener("resize", () => requestAnimationFrame(drawLinks));
 /* ══ verdict panel ═════════════════════════════════════════════════════════ */
 function renderVerdict() {
   const n = $("verdict");
-  const v = S.verdict;
+  // Only while the council still owns what is on screen. A verdict belongs to
+  // the grid it was drawn from -- left on its own after that grid went away,
+  // it is a conclusion with nothing above it and nothing to click into.
+  const v = S.gridOwner === "council" ? S.verdict : null;
   const studioOpen = !!(S.studio && S.studio.active);
   show(n, !!v && S.view === "council" && !studioOpen);
   if (!v || S.view !== "council" || studioOpen) return;
@@ -4842,11 +4860,14 @@ function syncCouncilIdle() {
   // Brainstorm's start screen is the same situation as the council's: a
   // composer with nothing under it yet.
   const bsIdle = S.view === "brainstorm" && S.bs && !S.bs.sessionId && !S.bs.busy;
+  // Another screen's grid does not make this one busy: a brainstorm round
+  // left on screen used to un-centre the council's composer even though the
+  // council had nothing to show.
+  const ownGrid = S.gridOwner === "council" && (S.panels.length > 0 || !!S.verdict);
   const idle = bsIdle || (
     S.view === "council" &&
     !S.running &&
-    !S.panels.length &&
-    !S.verdict &&
+    !ownGrid &&
     !(S.studio && S.studio.active));
   document.getElementById("shell").classList.toggle("council-idle", idle);
   // The council's heading: only on the council, and only while it is empty.
@@ -4893,6 +4914,7 @@ async function start() {
   S.verdict = null;
   S.running = true;
   S.fromHistory = false;
+  S.gridOwner = "council";
   // A run in progress is the thing to watch, so any drawer the user was
   // reading gives way to the console.
   setView("council");
@@ -5025,6 +5047,7 @@ function newRun() {
   S.opened = new Set();
   S.verdict = null;
   S.runId = null;
+  S.gridOwner = null;
   setErr("attachError", null);
   setErr("refineError", null);
   renderChips();
@@ -5122,6 +5145,7 @@ async function openRun(id) {
   const r = await fetch(`${link.api}/api/runs/${id}`, authed());
   const data = await r.json();
   S.runId = id;
+  S.gridOwner = "council";
   setQuestion(data.run.question);
   S.opened = new Set();
   S.panels = data.answers.map((a) => ({
@@ -5755,15 +5779,19 @@ function setView(v) {
   $("navAccounts").classList.toggle("active", v === "accounts");
   // An open card replaces the grid and the verdict rather than sitting above
   // them: showing both at once is what made this page a scroll.
-  show($("magi"), S.panels.length > 0 && !studioOpen && (v === "council" || bsOpen));
+  // Owned by this screen, not merely present. See S.gridOwner.
+  const gridMine = S.gridOwner === (bsOpen ? "brainstorm" : "council");
+  show($("magi"), S.panels.length > 0 && !studioOpen && gridMine
+                  && (v === "council" || bsOpen));
   show($("emptyState"),
-       S.panels.length === 0 && v === "council" && !S.verdict && !studioOpen);
+       (S.panels.length === 0 || !gridMine) && v === "council"
+       && !(S.verdict && gridMine) && !studioOpen);
   renderVerdict();
   syncCouncilIdle();
   if (typeof renderStudioNav === "function") renderStudioNav();
   if (typeof renderBsNav === "function") renderBsNav();
   if (typeof renderBsNav === "function") { renderBsNav(); renderBsView(); }
-  if (S.panels.length && !studioOpen) requestAnimationFrame(drawLinks);
+  if (S.panels.length && gridMine && !studioOpen) requestAnimationFrame(drawLinks);
 }
 
 /* ══ units ═════════════════════════════════════════════════════════════════ */
@@ -6182,7 +6210,12 @@ function statusHint(a) {
 /** Studio needs a completed run to derive from — the engine refuses otherwise
  *  (400: "Studio needs a completed run"), so the nav is gated on the same
  *  condition rather than letting the click fail. */
-const studioEnabled = () => !!(S.runId && S.verdict && S.verdict.synthesis_ok && online());
+/* Studio derives from a verdict that is ON SCREEN. Tied to the same
+   ownership as the grid: when a brainstorm session takes the screen the
+   deliberation behind it is gone, and offering to build a slide deck from
+   something no longer shown is a half-state. */
+const studioEnabled = () => !!(S.runId && S.gridOwner === "council"
+  && S.verdict && S.verdict.synthesis_ok && online());
 
 function resetStudio() {
   S.studio.artifacts = freshArtifacts();
@@ -6996,6 +7029,7 @@ function answersPayload() {
  *  the members working through the round. */
 function primeGridForRound() {
   S.verdict = null;
+  S.gridOwner = "brainstorm";
   S.settled = new Set();
   S.opened = new Set();
   S.panels = S.providers.filter((p) => S.selected.has(p.id)).map((p) => ({
@@ -7093,6 +7127,10 @@ async function bsCancel() {
 function bsReset() {
   if (bsBusy()) return;
   closeBsStream();
+  // A new session shows nothing yet. Whatever is in the grid came from
+  // somewhere else -- a past deliberation, or the round just abandoned.
+  if (S.gridOwner === "brainstorm") { S.panels = []; S.verdict = null; }
+  S.gridOwner = null;
   Object.assign(S.bs, {
     sessionId: null, topic: "", rounds: [], status: "active",
     planFilename: null, savedTo: null, planMd: null, error: null,
@@ -9024,6 +9062,7 @@ async function cloudOpenRun(id) {
     if (!snap.exists()) return false;
     const data = snap.data();
     S.runId = id;
+    S.gridOwner = "council";
     setQuestion((data.run && data.run.question) || "");
     S.opened = new Set();
     S.panels = (data.answers || []).map((a) => ({

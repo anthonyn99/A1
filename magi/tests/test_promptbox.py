@@ -95,3 +95,50 @@ def test_the_council_description_appears_with_its_heading():
         "the description no longer follows the heading's visibility, so it "
         "will linger over a screen full of answers"
     )
+
+
+# ── one grid, two screens ───────────────────────────────────────────────────
+def _fn(name: str) -> str:
+    i = PAGE.index(f"function {name}(")
+    depth, j = 0, PAGE.index("{", i)
+    for k in range(j, len(PAGE)):
+        if PAGE[k] == "{":
+            depth += 1
+        elif PAGE[k] == "}":
+            depth -= 1
+            if depth == 0:
+                return PAGE[i : k + 1]
+    raise AssertionError(f"{name} never closes")
+
+
+def test_the_grid_records_which_screen_filled_it():
+    """A deliberation and a brainstorm round fill the SAME panels.
+
+    Without an owner, opening a past deliberation and then starting a
+    brainstorm session carried that deliberation's units and its CENTRAL
+    DOGMA panel onto the brainstorm screen.
+    """
+    assert "gridOwner: null," in PAGE, "S.gridOwner is gone"
+    assert 'S.gridOwner = "brainstorm";' in _fn("primeGridForRound")
+    for fn in ("start", "openRun", "cloudOpenRun"):
+        assert 'S.gridOwner = "council";' in _fn(fn), f"{fn} does not claim the grid"
+    assert "S.gridOwner = null;" in _fn("newRun")
+    assert "S.gridOwner = null;" in _fn("bsReset")
+
+
+@pytest.mark.parametrize(
+    "fn,needle",
+    [("setView", "gridMine"),
+     ("renderVerdict", 'S.gridOwner === "council"'),
+     ("syncCouncilIdle", "ownGrid")],
+)
+def test_each_screen_only_shows_a_grid_it_owns(fn, needle):
+    assert needle in _fn(fn), f"{fn} shows another screen's grid again"
+
+
+def test_studio_follows_the_verdict_it_builds_from():
+    line = [l for l in PAGE.splitlines() if "const studioEnabled" in l][0]
+    tail = PAGE[PAGE.index(line):PAGE.index(line) + 260]
+    assert 'S.gridOwner === "council"' in tail, (
+        "Studio offers cards built from a verdict that is no longer on screen"
+    )
