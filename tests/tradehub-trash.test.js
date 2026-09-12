@@ -60,11 +60,12 @@ const sandbox = {
 vm.createContext(sandbox);
 // `const` in a vm context does not land on the sandbox object, so the script
 // hands the bindings back explicitly as its completion value.
-const EXPORTS = ['TB_TRASH_TTL', 'TB_TRASH_MAX', 'tbTrashDaysLeft', 'tbTrashExpired',
-                 'tbTrashSort', 'tbTrashCap', 'tbTrashCount', 'TB_TRASH_SECTIONS',
-                 'tbPbNormalize', 'TB_PB_DAILY_ID'];
-const { TB_TRASH_TTL, TB_TRASH_MAX, tbTrashDaysLeft, tbTrashExpired, tbTrashSort,
-        tbTrashCap, tbTrashCount, TB_TRASH_SECTIONS, tbPbNormalize, TB_PB_DAILY_ID } =
+const EXPORTS = ['TB_TRASH_TTL', 'TB_TRASH_MAX', 'TB_TRASH_BYTES', 'tbTrashDaysLeft',
+                 'tbTrashExpired', 'tbTrashSort', 'tbTrashCap', 'tbTrashCount',
+                 'TB_TRASH_SECTIONS', 'tbPbNormalize', 'TB_PB_DAILY_ID'];
+const { TB_TRASH_TTL, TB_TRASH_MAX, TB_TRASH_BYTES, tbTrashDaysLeft, tbTrashExpired,
+        tbTrashSort, tbTrashCap, tbTrashCount, TB_TRASH_SECTIONS, tbPbNormalize,
+        TB_PB_DAILY_ID } =
   vm.runInContext(helperSrc + '\n' + pbSrc + '\n({' + EXPORTS.join(',') + '})', sandbox);
 
 const DAY = 86400000;
@@ -110,6 +111,34 @@ check('a cap is set', typeof TB_TRASH_MAX === 'number' && TB_TRASH_MAX > 0, Stri
   check('the cap is enforced', capped.length === TB_TRASH_MAX, capped.length + ' of ' + many.length);
   check('it keeps the NEWEST deletions', capped[0].id === 'x0' && capped[capped.length - 1].id === 'x' + (TB_TRASH_MAX - 1),
         'dropping what you just deleted instead of what has nearly aged out would be the wrong way round');
+}
+/* The byte budget is the limit that actually protects the document. A trashed
+   Playbook page keeps its full HTML body in the SAME document as the live pages,
+   so sixty long pages would push it past Firestore's 1 MiB ceiling — at which
+   point every save fails and the LIVE playbook stops persisting too. */
+{
+  const big = n => ({ id: 'b' + n, trashed: Date.now() - n * 1000, body: 'x'.repeat(90 * 1024) });
+  const capped = tbTrashCap([big(1), big(2), big(3), big(4), big(5)]);
+  const bytes = capped.reduce((n, i) => n + JSON.stringify(i).length, 0);
+  check('a few huge pages are capped by SIZE, not count', capped.length < 5,
+        capped.length + ' of 5 kept, ' + Math.round(bytes / 1024) + 'KB');
+  check('the kept set stays inside the byte budget', bytes <= TB_TRASH_BYTES,
+        Math.round(bytes / 1024) + 'KB of ' + Math.round(TB_TRASH_BYTES / 1024) + 'KB');
+  check('it keeps the newest of them', capped[0].id === 'b1',
+        'the page you just deleted is the one you are most likely to want back');
+}
+{
+  // A single item over budget is still kept — dropping it would make the delete
+  // look as though it had silently failed.
+  const huge = { id: 'h', trashed: Date.now(), body: 'x'.repeat(TB_TRASH_BYTES * 2) };
+  check('one oversized item is never dropped on its own', tbTrashCap([huge]).length === 1);
+}
+{
+  // Small items must still get the full count allowance.
+  const many = [];
+  for (let i = 0; i < TB_TRASH_MAX + 10; i++) many.push({ t: 'T' + i, trashed: ago(i) });
+  check('tiny items are capped by COUNT', tbTrashCap(many).length === TB_TRASH_MAX,
+        'tickers are a few bytes each — the byte budget must not bite first');
 }
 {
   const out = tbTrashSort([{ trashed: ago(5) }, { trashed: ago(1) }, { trashed: ago(9) }]);

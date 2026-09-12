@@ -4971,17 +4971,35 @@ function TBPortfolioPage(){
    and the live listeners those documents already have sync the trash for free.
    ════════════════════════════════════════════════════════════════════════════ */
 const TB_TRASH_TTL = 30*24*60*60*1000;          // 30 days, then auto-purge
-/* Per-section cap. Firestore documents stop at 1 MiB and a trashed Playbook page
-   keeps its full HTML body, so the trash can is not allowed to grow without
-   bound — past this the oldest deletions are purged early. */
-const TB_TRASH_MAX = 60;
+/* Per-section caps. Firestore documents stop at 1 MiB and a trashed Playbook page
+   keeps its full HTML body inside the SAME document as the live pages, so the can
+   is bounded two ways — past either limit the oldest deletions are purged early.
+   The byte budget is the one that matters: sixty long pages would blow the
+   document limit and every save would start failing, taking the LIVE playbook
+   down with it. Counting is not enough when one item can be 100 KB. */
+const TB_TRASH_MAX   = 60;
+const TB_TRASH_BYTES = 250 * 1024;
 
 const tbTrashDaysLeft = ts => Math.max(0, Math.ceil(((ts||0) + TB_TRASH_TTL - Date.now())/86400000));
 const tbTrashExpired  = ts => !ts || ts < Date.now() - TB_TRASH_TTL;
 /* Newest-first, then capped — the order the modal renders in and the rule the
    early-purge uses, kept in one place so the two can never disagree. */
 const tbTrashSort = arr => (arr||[]).slice().sort((a,b)=>(b.trashed||0)-(a.trashed||0));
-const tbTrashCap  = arr => tbTrashSort(arr).slice(0, TB_TRASH_MAX);
+/* Keep the newest deletions that fit in both budgets. The first item is always
+   kept, however big it is: dropping what was just deleted would make the delete
+   look like it silently failed. */
+function tbTrashCap(arr){
+  const sorted = tbTrashSort(arr);
+  const out = []; let bytes = 0;
+  for (const item of sorted) {
+    if (out.length >= TB_TRASH_MAX) break;
+    let size = 0;
+    try { size = JSON.stringify(item).length; } catch(e) { size = 0; }
+    if (out.length && bytes + size > TB_TRASH_BYTES) break;
+    out.push(item); bytes += size;
+  }
+  return out;
+}
 
 /* Section descriptors. `id` turns an item into the stable key the restore/purge
    callbacks receive, `name` into its row label. */
