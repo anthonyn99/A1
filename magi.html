@@ -324,6 +324,7 @@ body {
    button. The card itself is the focus target so the whole thing lights up
    together, not just the textarea inside it. */
 .qbar {
+  position: relative;   /* the frame the corner grip is pinned to */
   background: var(--s2); border: 1px solid var(--bd); border-radius: 16px;
   padding: 10px 10px 8px; margin-bottom: 8px;
   display: flex; flex-direction: column; gap: 2px;
@@ -355,21 +356,28 @@ body {
 .qbar textarea:disabled { color: var(--txd); }
 
 /* Toolbar row: "+" attach on the left, Convene pinned to the right -- same
-   shape as Claude's model-row beneath the composer. */
-.qbar-toolbar { display: flex; align-items: center; gap: 6px; padding: 2px 2px 0; }
+   shape as Claude's model-row beneath the composer.
+   The right padding is the grip's seat: the grip is taken out of the flow and
+   parked in the corner, so without it Convene would sit underneath. */
+.qbar-toolbar { display: flex; align-items: center; gap: 6px;
+                padding: 2px 40px 0 2px; }
 .qbar-spacer { flex: 1; }
 
-/* The resize grip, last in the toolbar row -- so it is in the box's
-   bottom-right corner, where a resize handle belongs, without sitting on top
-   of Convene.
-   28px of ink inside a 34px target: a native textarea corner is about 14px
-   square, which on a phone is a control you stab at rather than grab.
-   `touch-action: none` is what makes the drag work on a touch screen at all;
-   without it the browser claims the gesture as a page scroll. */
+/* The resize grip, in the box's actual bottom-right CORNER.
+   Taken out of the flow and pinned there, because that is where a resize
+   handle belongs and where a hand goes looking for one -- in the toolbar row
+   it was merely near the corner, one control among four.
+   Its bottom-right radius matches the box's own 16px minus the 4px inset, so
+   it nests into the curve instead of cutting across it.
+   32px square, not the ~14px of a native textarea corner, which on a phone is
+   a control you stab at rather than grab. `touch-action: none` is what makes
+   the drag work on a touch screen at all; without it the browser claims the
+   gesture as a page scroll. */
 .qbar-grip {
-  flex: 0 0 auto;
-  width: 34px; height: 30px; padding: 0;
-  background: transparent; border: 1px solid var(--bdl); border-radius: 9px;
+  position: absolute; right: 4px; bottom: 4px;
+  width: 32px; height: 32px; padding: 0;
+  background: transparent; border: 1px solid var(--bdl);
+  border-radius: 9px 9px 12px 9px;
   color: var(--txd); cursor: ns-resize; touch-action: none;
   display: inline-flex; align-items: center; justify-content: center;
   transition: color .15s, border-color .15s, background .15s;
@@ -1623,6 +1631,7 @@ table.doctor code { color: var(--txd); font-size: 11px; }
    they are the same act. The gold stays on the heading, which is what
    actually distinguishes the two modes. */
 .bs-start {
+  position: relative;   /* the frame the corner grip is pinned to */
   background: var(--s2); border: 1px solid var(--bd);
   border-radius: 16px; padding: 10px 10px 8px;
   transition: border-color .15s, box-shadow .15s, background .15s;
@@ -1658,7 +1667,8 @@ table.doctor code { color: var(--txd); font-size: 11px; }
 textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 .bs-topic::placeholder { color: color-mix(in srgb, var(--txm) 62%, transparent); }
 .bs-topic:disabled { color: var(--txd); }
-.bs-start-bar { display: flex; align-items: center; gap: 8px; padding-top: 8px; }
+.bs-start-bar { display: flex; align-items: center; gap: 8px;
+                padding: 8px 40px 0 0; }   /* right: the grip's seat */
 .bs-note { color: var(--txm); font-size: 10px; letter-spacing: .5px; }
 
 .bs-phase {
