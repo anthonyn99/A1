@@ -34,6 +34,20 @@
  *     One tab again, freshly loaded.
  *   • nobody answers                       → ordinary open, same as before.
  *
+ * THE FOURTH MESSAGE: 'deliver'
+ * An opener that is not merely re-opening a destination but SENDING it
+ * something — TradeHub's Analysis tab hands MAGI a prompt in the url fragment
+ * — cannot use the first branch as it stands: the old tab comes forward
+ * holding everything it had, which is everything except the thing it was just
+ * sent. So the opener may hand over the url instead of only asking for focus,
+ * and the tab navigates itself to it. When the two differ by fragment alone
+ * that is a same-document navigation — no reload, so a page mid-something is
+ * not wiped, and it hears `hashchange` exactly as if the opener had reached in.
+ *
+ * The url is trusted only as far as the channel is: BroadcastChannel is
+ * same-origin, and this checks that the url is too, so 'deliver' can never
+ * send one of these tabs somewhere off-origin.
+ *
  * TWO HONEST LIMITS
  *   • Chrome only lets a background tab call window.focus() on itself when it
  *     has recent user interaction, so the first branch is the lucky one and the
@@ -157,10 +171,24 @@
     try { window.close(); } catch (e) {}
   }
 
+  // Same-origin only. The channel already guarantees it for the SENDER; this
+  // is about the payload, so a delivered url cannot point off-origin.
+  function ownOrigin(u) {
+    try { return new URL(String(u), location.href).origin === location.origin; }
+    catch (e) { return false; }
+  }
+
   bc.onmessage = function (ev) {
     var d = ev && ev.data;
     if (!d || d.k !== key || retired) return;
     if (d.t === 'retire') { retire(); return; }
+    if (d.t === 'deliver') {
+      // Come forward if the browser allows it, and take the url either way:
+      // being handed the question matters more than winning the focus race.
+      try { window.focus(); } catch (e) {}
+      if (ownOrigin(d.url)) { try { location.href = d.url; } catch (e) {} }
+      return;
+    }
     if (d.t !== 'claim') return;
     try { window.focus(); } catch (e) {}
     // Answer on the next frames, not immediately: the opener has just opened a

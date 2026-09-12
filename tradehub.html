@@ -5979,26 +5979,109 @@ function tbMagiLink(text,units){
   const payload={v:1,src:'tradehub',q:String(text||''),units:units||[],run:1,t:Date.now()};
   return TB_MAGI_URL+'#tb='+tbB64u(JSON.stringify(payload));
 }
-/* One MAGI tab for the whole suite. 'a1tab_magi' is the name TaskHub's MAGI
-   button already uses (index.html's tabName), and tabsync.js keeps that key
-   claimed, so a second launch re-targets the console that is already open
-   instead of stacking another copy of it. A hash-only change does not reload
-   that tab — magi.html listens for hashchange exactly so an open console picks
-   the new prompt up. Deliberately NOT routed through tbOpenTab: the Android
-   intent hop there exists to keep a search out of a native app, and MAGI has
-   no app to be stolen by.
+/* ── One MAGI tab for the whole suite ────────────────────────────────
+   This is TaskHub's `_tnOpenTab` (index.html), ported, because the problem is
+   the same one: a second Launch must land in the console that is already open
+   rather than stacking another copy of it beside the first.
 
-   The one case the name alone cannot cover is a console restored by the
-   BROWSER after a restart — Chrome brings the tab back but not the opener link
-   that makes the name findable, so that launch opens a second tab (TaskHub
-   pays a BroadcastChannel handshake to avoid it). The prompt still arrives,
-   which is the part that matters, and the pairing is back from then on. */
-function tbOpenMagi(url){
+   'a1tab_magi' is the window name TaskHub's own MAGI button uses, so all three
+   openers — that button, Launch Analysis and the morning launcher — point at
+   one tab. Claiming it by name is the whole mechanism, and it works for exactly
+   as long as the browser is running: a named window is only findable from
+   inside its own browsing-context group, and Chrome restores tabs WITHOUT the
+   opener links that form those groups. After a restart the restored console is
+   invisible here, the lookup hands back a blank tab, and the click used to open
+   a duplicate.
+
+   tabsync.js (loaded by every A1 page, MAGI included) is the second channel
+   that survives a restart: a localStorage heartbeat saying the key is still
+   claimed, and a BroadcastChannel to ask the claimant what it can do. Both are
+   same-origin and neither cares about openers.
+
+   One deliberate difference from TaskHub's version. There, a tab that comes
+   forward is the end of it — it is already showing the destination. Here the
+   point of the click is the PROMPT, so the url is handed over too ('deliver'),
+   and the console navigates itself. Fragment-only, so it is not a reload: the
+   tab keeps whatever it was doing and hears `hashchange`, which is the same
+   path a launch into an already-visible tab takes.
+
+   Not routed through tbOpenTab: the Android intent hop there exists to keep a
+   search out of a native app, and MAGI has no app to be stolen by. */
+const TB_MAGI_TAB_KEY='magi';
+const TB_MAGI_TAB_NAME='a1tab_'+TB_MAGI_TAB_KEY;
+
+/* Does some tab, anywhere in this browser, still claim MAGI? Stale by up to a
+   heartbeat plus slack, hence the generous window — a false yes costs a 300ms
+   handshake, a false no costs the duplicate tab this exists to prevent. */
+function tbTabClaimed(key){
   try{
-    const w=window.open(url,'a1tab_magi');
-    if(w){try{w.focus();}catch(e){}return true;}
-  }catch(e){}
-  try{return !!window.open(url,'_blank');}catch(e){return false;}
+    const r=JSON.parse(localStorage.getItem('a1tab:'+key)||'null');
+    return !!(r&&r.t&&(Date.now()-r.t)<20000);
+  }catch(e){return false;}
+}
+function tbTabGo(w,url){
+  try{w.location.href=url;}catch(e){try{w.location.replace(url);}catch(e2){}}
+  try{w.focus();}catch(e){}
+}
+/* The blank tab in hand belongs to a console some OTHER tab claims — an orphan
+   from before the browser was last closed. Ask it what it can do.
+
+   The blank tab has to be opened first and held: opening it is what needs the
+   click's user gesture, and the gesture is long gone by the time an answer
+   arrives. Closing it again afterwards is always allowed, because we opened it. */
+function tbHandOverMagi(w,url,key){
+  let bc=null;
+  try{bc=new BroadcastChannel('a1tabs');}catch(e){bc=null;}
+  if(!bc){tbTabGo(w,url);return;}
+  const rid=Math.random().toString(36).slice(2);
+  let settled=false,answered=false;
+  const timer=setTimeout(()=>finish(false),300);
+  function finish(focused){
+    if(settled)return;settled=true;clearTimeout(timer);
+    if(focused){
+      /* The old console came forward with everything it had — except the
+         prompt, which is the entire reason for the click. Hand it over; ours
+         is then redundant. */
+      try{bc.postMessage({t:'deliver',k:key,url});}catch(e){}
+      try{w.close();}catch(e){}
+    }else{
+      /* It exists but cannot bring itself forward, so it would sit there as a
+         duplicate. Retire it and use the tab we already have. Safe even though
+         a council can be long-running: this path is only reached when the NAME
+         lookup missed, which means the claimant is from a previous browser
+         session and cannot have a run in flight. */
+      if(answered){try{bc.postMessage({t:'retire',k:key});}catch(e){}}
+      tbTabGo(w,url);
+    }
+    setTimeout(()=>{try{bc.close();}catch(e){}},1500);
+  }
+  bc.onmessage=(ev)=>{
+    const d=ev&&ev.data;
+    if(!d||d.t!=='claimed'||d.k!==key||d.rid!==rid)return;
+    answered=true;finish(!!d.ok);
+  };
+  try{bc.postMessage({t:'claim',k:key,rid});}catch(e){finish(false);}
+}
+function tbOpenMagi(url){
+  if(!url)return false;
+  let w=null;
+  try{w=window.open('',TB_MAGI_TAB_NAME);}catch(e){w=null;}
+  /* Popup blocked, or a browser that will not hand the handle back. Still aim
+     at the same name, so the tab it opens is the one the next launch finds. */
+  if(!w){try{return !!window.open(url,TB_MAGI_TAB_NAME);}catch(e){return false;}}
+  let cur=null;
+  try{cur=w.location.href;}catch(e){cur=null;}  // unreadable ⇒ a real page, another origin
+  if(cur===''||cur==='about:blank'){
+    // A brand-new blank tab: either nothing was open for MAGI, or something is
+    // open that the window-name lookup cannot see — the post-restart case.
+    try{w.name=TB_MAGI_TAB_NAME;}catch(e){}   // so tabsync.js there knows its key
+    if(tbTabClaimed(TB_MAGI_TAB_KEY)){tbHandOverMagi(w,url,TB_MAGI_TAB_KEY);return true;}
+  }
+  /* Either the console itself (ours, or a cross-origin one at 127.0.0.1) or the
+     blank tab nobody claimed. Navigate it: with only the fragment differing
+     this is not a reload, and MAGI picks the prompt up from `hashchange`. */
+  tbTabGo(w,url);
+  return true;
 }
 
 /* ── AI destination ─────────────────────────────────────────────────────────
