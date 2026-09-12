@@ -927,24 +927,36 @@ window._mailRelay = window._mailRelay || async function (res) {
       } catch(e) { console.warn('Firebase TBAnalysis load failed:', e); return false; }
     };
 
-    // Watchlist: load (single shared ticker list — drives News, parsing, sectors)
+    // Watchlist: load (single shared ticker list — drives News, parsing, sectors).
+    // Returns { tickers, trash }. `trash` is the Control tab's 30-day ticker trash
+    // can and lives in THIS doc on purpose: a delete already writes the watchlist,
+    // so carrying the trash along costs no extra document, read, or write.
     window._fbLoadTBWatchlist = async () => {
       try {
         const snap = await getDoc(tbWatchlistDocRef);
         if (!snap.exists()) return null;
         const data = snap.data();
-        return Array.isArray(data.tickers) ? data.tickers : null;
+        return {
+          tickers: Array.isArray(data.tickers) ? data.tickers : null,
+          trash:   Array.isArray(data.trash)   ? data.trash   : []
+        };
       } catch(e) { console.warn('Firebase TBWatchlist load failed:', e); return null; }
     };
-    // Watchlist: save (800ms debounce)
-    window._fbSaveTBWatchlist = (tickers) => {
+    // Watchlist: save (800ms debounce). `trash` is optional — callers that know
+    // nothing about the trash can (e.g. the one-time default-watchlist seed) omit
+    // it, and the merge write then leaves the stored trash untouched rather than
+    // silently emptying somebody's trash can.
+    window._fbSaveTBWatchlist = (tickers, trash) => {
       _tbWatchlistLastOwnSaveAt = Date.now();
       window.dispatchEvent(new CustomEvent('fb-tb-saving'));
       if (_tbWatchlistSaveTimer) clearTimeout(_tbWatchlistSaveTimer);
+      const _trash = (trash === undefined || trash === null) ? undefined : JSON.parse(JSON.stringify(trash));
       _tbWatchlistSaveTimer = setTimeout(async () => {
         try {
           _tbWatchlistLastOwnSaveAt = Date.now();
-          await setDoc(tbWatchlistDocRef, { tickers: JSON.parse(JSON.stringify(tickers||[])), savedAt: Date.now() });
+          const payload = { tickers: JSON.parse(JSON.stringify(tickers||[])), savedAt: Date.now() };
+          if (_trash !== undefined) payload.trash = _trash;
+          await setDoc(tbWatchlistDocRef, payload, { merge: true });
           _tbWatchlistLastOwnSaveAt = Date.now();
           window.dispatchEvent(new CustomEvent('fb-tb-watchlist-saved'));
         } catch(e) {
@@ -1143,7 +1155,9 @@ window._mailRelay = window._mailRelay || async function (res) {
       if (Date.now() - _tbWatchlistLastOwnSaveAt < 8000) return;
       const data = snap.data();
       if (Array.isArray(data.tickers)) {
-        window.dispatchEvent(new CustomEvent('fb-tb-watchlist-remote', { detail: data.tickers }));
+        window.dispatchEvent(new CustomEvent('fb-tb-watchlist-remote', {
+          detail: { tickers: data.tickers, trash: Array.isArray(data.trash) ? data.trash : [] }
+        }));
       }
     });
 
