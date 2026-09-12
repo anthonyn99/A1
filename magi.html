@@ -386,17 +386,27 @@ body {
 
 /* The caption under the units. --txd, not --txm: it is the dimmest text on
    the screen on purpose. */
+/* 54px clear of the units on BOTH screens, which is not the same margin on
+   both. In the council the note is a block sibling of the unit row, so its
+   margin-top collapses with that row's own 16px bottom margin -- the larger
+   of the two wins and 26px produced 26px of space. Inside the brainstorm
+   panel nothing collapses: the 16px, this margin and the panel's 12px flex
+   gap all add up, which is how the same rule read as 54px there and 26px
+   here. Stated in full, and taken back off inside the panel. */
 .view-note {
-  max-width: 680px; margin: 26px auto 0; padding: 0 4px;
+  max-width: 680px; margin: 54px auto 0; padding: 0 4px;
   /* Fainter than --txd, which is already the dimmest token on the page.
      This is a caption about the screen, read once and then never again --
      it should sit below the reading line, not on it. */
   color: color-mix(in srgb, var(--txd) 64%, transparent);
   font-size: 11.5px; line-height: 1.55; text-align: center;
 }
+/* The panel's gap and the unit row's margin already supply 28 of the 54. */
+.bs .view-note { margin-top: 26px; }
 .view-note[hidden] { display: none; }
 @media (max-width: 720px) {
-  .view-note { font-size: 11px; margin-top: 20px; }
+  .view-note { font-size: 11px; margin-top: 42px; }
+  .bs .view-note { margin-top: 14px; }
 }
 
 .qbar-attach {
@@ -3091,7 +3101,7 @@ window._mailRelay = window._mailRelay || async function (res) {
          the screen it explains, out of the way of the box you came here to
          type in, and dim enough to read as a caption rather than as content.
          Brainstorm's description is the same element for the same reason. -->
-    <div class="view-note" id="councilNote" hidden>Every selected unit answers independently. One of them writes the verdict.</div>
+    <div class="view-note" id="councilNote" hidden>Every selected unit answers independently. The chairman writes the verdict.</div>
 
     <div class="drawer" id="historyDrawer" hidden>
       <div class="drawer-hd">Past deliberations</div>

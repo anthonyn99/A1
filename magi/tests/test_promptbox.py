@@ -82,6 +82,23 @@ def test_both_descriptions_sit_under_the_units():
     )
 
 
+def test_both_captions_clear_the_units_by_the_same_distance():
+    """Same rule, two layouts: one collapses margins and one does not.
+
+    In the council the note's margin-top collapses with the unit row's own
+    16px bottom margin; inside the brainstorm panel nothing collapses and the
+    panel's flex gap adds on top. One margin for both read as 26px on one
+    screen and 54px on the other.
+    """
+    css = PAGE[PAGE.index(".view-note {"):]
+    css = css[: css.index("}")]
+    assert "margin: 54px auto 0" in css
+    assert ".bs .view-note { margin-top: 26px; }" in PAGE, (
+        "the brainstorm caption no longer takes back the panel's own spacing, "
+        "so the two screens have drifted apart again"
+    )
+
+
 def test_the_descriptions_are_dimmed():
     css = PAGE[PAGE.index(".view-note {"):]
     css = css[: css.index("}")]
