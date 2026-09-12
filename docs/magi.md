@@ -411,6 +411,37 @@ in that path at all.
 machine above; it also fails if TradeHub offers a unit `selectors.yaml` does
 not have.
 
+## Copying a result
+
+Every surface that finishes with something worth keeping carries the same
+button (`copyButton` in `magi.html`): the verdict, each unit's answer, a
+brainstorm plan, an earlier round's draft, a Studio report, and any run
+reopened from History.
+
+One click writes **two flavours** and lets the destination choose:
+
+| | |
+|---|---|
+| `text/plain` | the original markdown, untouched — for another model, an editor, a commit message |
+| `text/html` | the rendered result with its styling inlined — for a document or an email |
+
+Emoji are characters and survive either way. The **colours are inverted on the
+way out**: this console is white-on-black and a document is black-on-white, so
+each colour's lightness is flipped while its hue and saturation are kept — the
+gold stays gold, near-white becomes near-black, and the three-level hierarchy
+of heading, body and muted aside survives as three distinct greys. Only
+typography is inlined; the box model is deliberately left behind, because
+carrying a 2000px console's padding and flex layout into Word is what makes
+pasted HTML look broken.
+
+The async clipboard API is not available everywhere (it needs a secure
+context), so there are two fallbacks, and the last one — `execCommand` over an
+offscreen selection — overrides both types through a one-shot `copy` listener.
+Without that it would hand over the text the BROWSER derives from the html,
+which is the rendered prose with every `**` and `#` stripped: the one thing the
+button exists to preserve. `magi/tests/test_copy.py` pins that, and that every
+surface is still wired up.
+
 ## Accounts — which account each unit is signed in as
 
 **System → Accounts.** One card per unit: whether a session is saved, whether

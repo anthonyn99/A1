@@ -930,6 +930,40 @@ body {
 }
 .verdict-quorum { color: var(--txm); font-size: 10px; letter-spacing: .6px; }
 
+/* The copy control. One class for every surface that produces a result --
+   the verdict, a brainstorm plan, a round draft, a single unit's answer --
+   because a control that means "take this away with you" should not look
+   like four different buttons.
+
+   `margin-left:auto` rather than a place in the flex order: these headers
+   already lay out title-then-meta with space-between, and pinning the button
+   to the end keeps it in the same corner whether or not the meta text wraps. */
+.copybtn {
+  margin-left: auto; flex: 0 0 auto;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 10px; min-height: 28px;
+  border: 1px solid var(--bd); border-radius: 7px;
+  background: transparent; color: var(--txm);
+  font: inherit; font-size: 10px; font-weight: 600;
+  letter-spacing: 1.1px; text-transform: uppercase;
+  cursor: pointer; transition: color .15s, border-color .15s, background .15s;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+.copybtn:hover { color: var(--ac); border-color: var(--ac); }
+.copybtn:focus-visible { outline: 2px solid var(--ac); outline-offset: 2px; }
+.copybtn svg { width: 13px; height: 13px; display: block; }
+.copybtn.done { color: var(--grn); border-color: var(--grn); }
+/* Under a finished answer rather than in a header -- a unit's block is a
+   button itself, so its copy control cannot live in the heading. */
+.copybtn.under { margin: 14px 0 0; }
+
+@media (max-width: 760px) {
+  /* A fingertip target. The label stays: an unlabelled icon in a console of
+     dingbats is a guess, and there is room for five characters. */
+  .copybtn { min-height: 36px; padding: 8px 12px; font-size: 11px; }
+  .copybtn svg { width: 15px; height: 15px; }
+}
+
 /* The verdict is the finished answer, so it is set as prose -- wider leading,
    real paragraphs and lists -- rather than as the monospace console dump the
    member blocks use. It is the one place in the console meant to be READ.
@@ -3231,6 +3265,7 @@ const IC = {
   attach:     ICON('<path d="M12 5v14"/><path d="M5 12h14"/>'),
   undo:       ICON('<path d="M3 8h11a5 5 0 0 1 0 10H8"/><path d="m7 4-4 4 4 4"/>'),
   caret:      ICON('<path d="m9 6 6 6-6 6"/>'),
+  tick:       ICON('<path d="m4 12.5 5 5L20 6.5"/>'),
 };
 
 /** An indeterminate spinner: a rotating arc, not a spinning glyph.
@@ -3544,6 +3579,14 @@ const HOW = [
     a: [
       "The council, but round by round. Instead of one question and one verdict, the members propose, critique each other, and a merge step turns the round into a plan plus the questions it still needs answered.",
       "You answer those, it runs another round, and when the plan is ready it is written out as a markdown file.",
+    ],
+  },
+  {
+    q: "Taking a result with you",
+    a: [
+      "Every finished result has a <b>Copy</b> button: the verdict, each unit&rsquo;s own answer, a brainstorm plan, an earlier round&rsquo;s draft, a Studio report. A run reopened from History has it too.",
+      "One click puts the result on the clipboard <i>twice</i>, and the app you paste into takes the one it understands: the original <b>markdown</b> for another model, a code editor or a commit message, and <b>formatted text</b> &mdash; headings, bold, lists, tables, colour, emoji &mdash; for a document or an email.",
+      "The colours are inverted on the way out. This console is white on black and a document is black on white, so pasting the colours verbatim would put near-white text on a white page; what lands keeps the hue and the hierarchy, set for paper.",
     ],
   },
   {
@@ -4308,6 +4351,187 @@ function verdictBody(text) {
   return root;
 }
 
+/* ══ copying a result ══════════════════════════════════════════════════════
+   Every surface that finishes with something worth keeping gets the same
+   button: the verdict, a brainstorm plan, an earlier round's draft, one
+   unit's answer, a Studio report.
+
+   TWO FLAVOURS, ONE CLICK. The clipboard can hold the same content in several
+   types at once and let the destination pick, which is exactly the right shape
+   here because the two destinations want opposite things:
+
+     text/plain  the MARKDOWN, untouched. This is what another model wants,
+                 what a markdown editor wants, and what a commit message
+                 wants. Emoji are just characters and survive as themselves.
+     text/html   the rendered thing, with its styling inlined, for a document
+                 or an email -- headings, bold, lists, tables and colour.
+
+   WHY THE COLOURS ARE FLIPPED ON THE WAY OUT. This console is white-on-black;
+   documents are black-on-white. Copying the computed colours verbatim would
+   paste near-white text onto a white page -- technically "the colours", and
+   unreadable. So each colour's LIGHTNESS is inverted while its hue and
+   saturation are kept: the gold stays gold, the green stays green, the near
+   white becomes near black, and the muted greys stay muted rather than
+   flattening into one colour. What arrives looks like the panel, set for
+   paper.
+
+   Only typography is inlined -- colour, weight, slant, monospace, underline,
+   pre-wrap. Deliberately NOT the box model: this console's padding, widths
+   and flex layout are for a 2000px console, and carrying them into a Word
+   document is what makes pasted HTML look broken. */
+
+/** rgb(...) -> a colour that reads on white, keeping hue and saturation. */
+function forPaper(css) {
+  const m = /rgba?\(([^)]+)\)/.exec(css || "");
+  if (!m) return null;
+  const [r, g, b] = m[1].split(",").map((x) => parseFloat(x) / 255);
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let l = (max + min) / 2;
+  if (l <= 0.5) return null;              // already dark enough to read on white
+  const d = max - min;
+  const sat = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+  let h = 0;
+  if (d !== 0) {
+    h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+  // Flipped, then floored a little short of black so the hierarchy the panel
+  // had -- heading, body, muted aside -- survives as three distinct greys.
+  l = Math.min(0.42, 1 - l);
+  return `hsl(${Math.round(h)} ${Math.round(sat * 100)}% ${Math.round(l * 100)}%)`;
+}
+
+/** Copy the styling that matters from a live tree onto its clone.
+ *
+ *  Walked in parallel rather than read from the clone: a detached node has no
+ *  computed style at all, so the original is the only thing that can answer
+ *  what colour anything actually is. */
+function inlineStyle(src, dst) {
+  const cs = getComputedStyle(src);
+  const out = [];
+  const col = forPaper(cs.color);
+  if (col) out.push("color:" + col);
+  if (parseInt(cs.fontWeight, 10) >= 600) out.push("font-weight:700");
+  if (cs.fontStyle === "italic") out.push("font-style:italic");
+  if (/mono/i.test(cs.fontFamily)) out.push("font-family:ui-monospace,SFMono-Regular,Consolas,monospace");
+  if (cs.textDecorationLine && cs.textDecorationLine !== "none") out.push("text-decoration:" + cs.textDecorationLine);
+  if (/^pre/.test(cs.whiteSpace)) out.push("white-space:pre-wrap");
+  if (out.length) dst.setAttribute("style", out.join(";"));
+  const a = src.children, b = dst.children;
+  for (let i = 0; i < a.length && i < b.length; i++) inlineStyle(a[i], b[i]);
+}
+
+const esc = (t) => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/** The html flavour: a rendered node with its styling baked in, or -- for the
+ *  unit answers, which are plain text and not markdown -- the text itself,
+ *  wrapped so its line breaks survive. */
+function richHtml(node, text) {
+  if (!node) {
+    return '<div style="white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Consolas,monospace">'
+      + esc(text) + "</div>";
+  }
+  const clone = node.cloneNode(true);
+  // Styled first, pruned second. inlineStyle walks the live tree and the clone
+  // together BY INDEX, so removing anything from the clone beforehand shifts
+  // every later sibling onto its neighbour's styling.
+  inlineStyle(node, clone);
+  // Controls are not content: a copy button pasted into a document would be an
+  // empty box captioned COPY.
+  for (const b of clone.querySelectorAll(".copybtn, button")) b.remove();
+  return '<div style="font-family:Georgia,\'Times New Roman\',serif;line-height:1.55">'
+    + clone.innerHTML + "</div>";
+}
+
+/** Put both flavours on the clipboard. Returns whether anything landed.
+ *
+ *  Three routes, because the good one is not available everywhere: async
+ *  clipboard writes need a secure context (https, or 127.0.0.1 -- but not a
+ *  console opened from a file:// path), and ClipboardItem is newer than the
+ *  rest. Nothing is awaited before the write, so the user gesture that
+ *  authorises it is still in scope. */
+async function putOnClipboard(html, text) {
+  try {
+    if (navigator.clipboard && window.ClipboardItem) {
+      await navigator.clipboard.write([new ClipboardItem({
+        "text/html": new Blob([html], { type: "text/html" }),
+        "text/plain": new Blob([text], { type: "text/plain" }),
+      })]);
+      return true;
+    }
+  } catch { /* fall through -- a refused rich write must not lose the text */ }
+  try {
+    if (navigator.clipboard) { await navigator.clipboard.writeText(text); return true; }
+  } catch { /* fall through */ }
+  // The last resort, and it keeps both flavours rather than degrading to one.
+  // execCommand copies a SELECTION, which would hand the destination whatever
+  // plain text the browser derives from the html -- the rendered prose, with
+  // every asterisk and heading marker gone. So a one-shot copy listener
+  // overwrites both types with exactly what was asked for; the offscreen
+  // selection is still needed, because a collapsed selection makes the whole
+  // command a no-op in Safari.
+  try {
+    const host = el("div");
+    host.contentEditable = "true";
+    host.innerHTML = html;
+    host.style.cssText = "position:fixed;left:-9999px;top:0;white-space:pre-wrap";
+    document.body.append(host);
+    const range = document.createRange();
+    range.selectNodeContents(host);
+    const sel = getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    const onCopy = (e) => {
+      e.clipboardData.setData("text/html", html);
+      e.clipboardData.setData("text/plain", text);
+      e.preventDefault();
+    };
+    document.addEventListener("copy", onCopy, { once: true, capture: true });
+    const ok = document.execCommand("copy");
+    document.removeEventListener("copy", onCopy, true);
+    sel.removeAllRanges();
+    host.remove();
+    return ok;
+  } catch { return false; }
+}
+
+/** The button itself.
+ *
+ *  `payload` is a function, not a value: these panels re-render on every
+ *  streaming frame and on every round, so a node captured at build time would
+ *  be a detached copy of something the user is no longer looking at. Asking at
+ *  click time always copies what is on screen. */
+function copyButton(payload, { label = "Copy", cls = "" } = {}) {
+  const b = el("button", `copybtn ${cls}`.trim());
+  b.type = "button";
+  const ico = icSpan("", "copy");
+  const txt = el("span", null, label);
+  b.append(ico, txt);
+  b.title = "Copy this — formatted for a document, markdown for anything else";
+  let reset = 0;
+  b.onclick = async (ev) => {
+    // These buttons sit inside <summary> and other things that act on a
+    // click; copying must not also fold the section away.
+    ev.preventDefault();
+    ev.stopPropagation();
+    const { node = null, md = "" } = payload() || {};
+    const text = (md || (node ? node.innerText : "") || "").trim();
+    if (!text) return;
+    const ok = await putOnClipboard(richHtml(node, text), text);
+    clearTimeout(reset);
+    b.classList.toggle("done", ok);
+    ico.innerHTML = IC[ok ? "tick" : "copy"];
+    txt.textContent = ok ? "Copied" : "Press Ctrl+C";
+    reset = setTimeout(() => {
+      b.classList.remove("done");
+      ico.innerHTML = IC.copy;
+      txt.textContent = label;
+    }, 1600);
+  };
+  return b;
+}
+
 /** Fill every [data-ic] with its drawn icon. Called after any render that can
  *  introduce one, so markup stays declarative and the table stays the single
  *  place an icon is defined. */
@@ -4486,6 +4710,14 @@ function updateNode(p) {
   }
   d.body.textContent = p.text;
   if (working) d.body.append(el("span", "caret"));
+  // Under the answer rather than in the heading: the heading IS a button (it
+  // expands the unit), and a button inside a button is neither valid nor
+  // clickable. Only once the unit has finished -- copying half a stream is a
+  // promise this cannot keep.
+  if (!working) {
+    d.body.append(copyButton(() => ({ md: p.text }),
+                             { label: `Copy ${p.display_name}`, cls: "under" }));
+  }
   if (p.low_confidence) {
     // No glyph: U+26A0 is one of the few characters here with EMOJI
     // presentation, so it rendered as a colour pictograph among monochrome
@@ -4627,6 +4859,7 @@ function renderVerdict() {
           : `${v.responded} of ${v.total} units responded` +
             (v.chairman ? ` · synthesised by ${v.chairman}` : "")) +
     (v.total_ms ? ` · ${(v.total_ms / 1000).toFixed(0)}s` : "")));
+
   n.append(hd);
 
   // Named here, not only in History. A verdict built from three units while
@@ -4640,7 +4873,14 @@ function renderVerdict() {
   }
 
   if (v.synthesis_ok) {
-    n.append(verdictBody(v.verdict));
+    // The body is built first so the header's copy button can point at it --
+    // the header is already in the DOM, so adding to it here still lands in
+    // the right corner. History reopens a past run through this very function,
+    // so that button is there too without a second code path. There is none on
+    // a failed synthesis: an error message is not a result to take away.
+    const body = verdictBody(v.verdict);
+    hd.append(copyButton(() => ({ node: body, md: v.verdict })));
+    n.append(body);
   } else {
     const b = el("div", "verdict-body");
     const s = el("span", null, v.synthesis_error || "Synthesis failed.");
@@ -6665,7 +6905,15 @@ function renderCard(kind, a) {
     case "table":      return renderStudioTable(raw);
     // Structurally identical to a verdict — headings, lists, tables, prose — so
     // it reuses that renderer wholesale rather than duplicating the parser.
-    case "report":     return verdictBody(raw);
+    case "report":     {
+      // The one Studio card that is a document rather than a widget, so it is
+      // the one worth taking away whole.
+      const body = verdictBody(raw);
+      const wrap = el("div");
+      wrap.append(body, copyButton(() => ({ node: body, md: raw }),
+                                   { label: "Copy report", cls: "under" }));
+      return wrap;
+    }
     case "flashcards": return renderFlashcards(d, raw);
     case "quiz":       return renderQuiz(d, raw);
     case "mindmap":    return renderMindMap(d, raw);
@@ -7614,7 +7862,9 @@ function roundHistory(rounds) {
       const pd = el("details", "bs-council");
       pd.append(el("summary", null, "Plan draft at this round"));
       const inner = el("div", "bs-council-answer");
-      inner.append(verdictBody(r.plan_so_far));
+      const draft = verdictBody(r.plan_so_far);
+      inner.append(draft, copyButton(() => ({ node: draft, md: r.plan_so_far }),
+                                     { label: "Copy draft", cls: "under" }));
       pd.append(inner);
       box.append(pd);
     }
@@ -8061,11 +8311,12 @@ function renderBsView() {
     save.append(el("span", "navitem-ic", "↓"),
                 document.createTextNode(bs.savedTo ? "Save again…" : "Save as…"));
     save.onclick = bsSavePlan;
-    const copy = el("button", "navitem");
-    copy.type = "button";
-    copy.append(icSpan("navitem-ic", "copy"), document.createTextNode("Copy markdown"));
-    copy.onclick = () => navigator.clipboard && navigator.clipboard.writeText(bs.planMd || "");
-    bar.append(save, copy);
+    // Built here so the bar's copy button can point at the rendered plan; it
+    // is appended further down, where it belongs on screen.
+    const planBody = el("div", "verdict");
+    planBody.append(verdictBody(bs.planMd));
+    bar.append(save, copyButton(() => ({ node: planBody, md: bs.planMd || "" }),
+                                { label: "Copy plan" }));
     root.append(bar);
 
     const hint = el("div", "bs-hint");
@@ -8076,9 +8327,7 @@ function renderBsView() {
       document.createTextNode(" wherever you keep your plans."));
     root.append(hint);
 
-    const v = el("div", "verdict");
-    v.append(verdictBody(bs.planMd));
-    root.append(v);
+    root.append(planBody);
 
     const hist = roundHistory(bs.rounds);
     if (hist) root.append(hist);
@@ -8108,7 +8357,9 @@ function renderBsView() {
       vh.append(el("span", "verdict-title", "Plan so far"),
                 el("span", "verdict-quorum",
                    `round ${latest.round_no}` + (latest.chairman ? ` · merged by ${latest.chairman}` : "")));
-      v.append(vh, verdictBody(latest.plan_so_far));
+      const planNow = verdictBody(latest.plan_so_far);
+      vh.append(copyButton(() => ({ node: planNow, md: latest.plan_so_far })));
+      v.append(vh, planNow);
       root.append(v);
 
       if (latest.agreement) root.append(bsDetails("Where the council agreed and split", latest.agreement));
@@ -8126,7 +8377,9 @@ function renderBsView() {
       const vh = el("div", "verdict-hd");
       vh.append(el("span", "verdict-title", `Round ${latest.round_no}`),
                 el("span", "verdict-quorum", "unstructured response"));
-      v.append(vh, verdictBody(latest.raw_text));
+      const rawNow = verdictBody(latest.raw_text);
+      vh.append(copyButton(() => ({ node: rawNow, md: latest.raw_text })));
+      v.append(vh, rawNow);
       root.append(v);
     }
 
