@@ -93,14 +93,21 @@ TRADEHUB_URL = "https://anthonyn99.github.io/A1/tradehub.html"
 # ==============================================================================
 #  AI ANALYSIS AUTOMATION
 #  After the morning windows open, fetch the prompt you selected in TradeHub's
-#  Analysis tab (TradeHub pushes it to this worker) and open your AI site with the
-#  prompt already submitted — no manual paste / Enter.
+#  Analysis tab (TradeHub pushes it to this worker) and get it ANSWERED — no manual
+#  paste / Enter.
 #
-#  WHICH SITE: TradeHub → Analysis → "AI destination" pushes its aiUrl alongside the
-#  prompt, and we open that. Nothing to configure here.
+#  WHICH DESTINATION: TradeHub → Analysis → "AI destination" pushes its aiUrl (and,
+#  for MAGI, the ticked units) alongside the prompt. Nothing to configure here.
 #
-#  HOW IT WORKS: the AI tab is opened with a "#tbauto" marker in its URL, and the
-#  VAULT EXTENSION does the rest — its content script runs inside the AI page, so it
+#  MAGI — THE DEFAULT PATH. When Analysis is set to the council, the prompt is not
+#  typed into anything: magi.html is opened with the prompt and the unit list in the
+#  URL FRAGMENT, and it convenes on arrival. A fragment never reaches a server, so a
+#  long prompt cannot 431, nothing extra is stored to carry it, and no extension is
+#  involved at all. The MAGI engine must be running on this PC (it starts at logon).
+#
+#  A CHAT SITE — the other path, for a destination you have to type into. The AI tab
+#  is opened with a "#tbauto" marker in its URL and the VAULT EXTENSION does the
+#  rest — its content script runs inside the AI page, so it
 #  can pull the prompt, type it into the composer and click send. That is the only
 #  approach that actually works:
 #    · A ?q=<prompt> URL is out — real prompts are long enough that the URL plus the
@@ -112,8 +119,9 @@ TRADEHUB_URL = "https://anthonyn99.github.io/A1/tradehub.html"
 #
 #  The prompt is still copied to the clipboard as a manual fallback.
 #
-#  PRECONDITIONS: you must be signed in to that AI site in Brave's default profile,
-#  and the Vault extension must be enabled.
+#  PRECONDITIONS: for MAGI, the engine running on this PC and each unit signed in
+#  (magi login <site>). For a chat site, being signed in to it in Brave's default
+#  profile, with the Vault extension enabled.
 # ==============================================================================
 
 CHATGPT_ANALYSIS_ENABLED = True   # master switch for the whole AI analysis step
@@ -214,6 +222,7 @@ TASKHUB_PROFILE_DIR   = "Default"
 # ==============================================================================
 
 import argparse
+import base64
 import ctypes
 import ctypes.wintypes as wt
 import json
@@ -1204,6 +1213,31 @@ def _is_ai_url(u: str, ai_url: str) -> bool:
     return h == a or h.endswith("." + a)
 
 
+def _is_magi_url(u: str) -> bool:
+    """Is this the MAGI console? Matched on the PAGE, not the host: magi.html shares
+    anthonyn99.github.io with every other A1 page, so a hostname test would treat a
+    search pointing at TaskHub as the AI tab and silently drop it."""
+    try:
+        path = (urllib.parse.urlparse(u).path or "").lower()
+    except Exception:
+        return False
+    return path.endswith("/magi.html") or path == "/magi.html"
+
+
+def _magi_link(base_url: str, text: str, units: list) -> str:
+    """magi.html#tb=<base64url JSON> — the same hand-off TradeHub's Launch Analysis
+    button uses, built here so the morning run lands in exactly the same place.
+
+    The payload carries a timestamp so two mornings running the same prompt are two
+    distinct urls: a console left open from yesterday only notices a fragment that
+    actually changed."""
+    payload = {"v": 1, "src": "autolaunch", "q": text, "units": list(units),
+               "run": 1, "t": int(time.time() * 1000)}
+    raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    b64 = base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+    return base_url.split("#", 1)[0] + "#tb=" + b64
+
+
 def _mark_autosubmit(u: str) -> str:
     """Tag the AI URL with #tbauto. That marker is the whole hand-off to the Vault
     extension: its content script sees it, pulls this same Analysis prompt from the
@@ -1302,16 +1336,22 @@ def open_chatgpt_analysis(target_hwnd=None):
     INSIDE that window so everything shares one browser window. Otherwise (e.g.
     --test-chatgpt) a fresh window is opened at CHATGPT_POS.
 
-    WHICH AI SITE: whatever TradeHub's Analysis tab is set to (it pushes aiUrl with the
-    prompt). Older configs have no aiUrl — those fall back to ChatGPT, as before.
+    WHICH DESTINATION: whatever TradeHub's Analysis tab is set to (it pushes aiUrl with
+    the prompt). Older configs have no aiUrl — those fall back to ChatGPT, as before.
 
-    HOW THE PROMPT GETS IN: the AI tab is opened with a #tbauto marker and the Vault
-    extension takes it from there — it fetches this same prompt from the worker, brings
-    the tab to the front, types into the composer and clicks send. We do NOT drive the
-    page with keystrokes any more; see the AI ANALYSIS AUTOMATION block at the top of
-    this file for why that was actively dangerous in Brave. The prompt still goes on
-    the clipboard, so if the extension is missing or a site redesign defeats it, Ctrl+V
-    is one keypress away."""
+    HOW THE PROMPT GETS IN — MAGI: nothing is typed. The console is opened with the
+    prompt and the ticked units in the url fragment and it convenes on arrival, so
+    there is no composer to find and no extension in the path. This is the case when
+    the config carries magiUnits.
+
+    HOW THE PROMPT GETS IN — a chat site: the AI tab is opened with a #tbauto marker
+    and the Vault extension takes it from there — it fetches this same prompt from the
+    worker, brings the tab to the front, types into the composer and clicks send. We do
+    NOT drive the page with keystrokes any more; see the AI ANALYSIS AUTOMATION block at
+    the top of this file for why that was actively dangerous in Brave.
+
+    Either way the prompt also goes on the clipboard, so if the extension is missing, a
+    site redesign defeats it, or the MAGI engine is down, Ctrl+V is one keypress away."""
     if not CHATGPT_ANALYSIS_ENABLED:
         return
 
@@ -1329,13 +1369,18 @@ def open_chatgpt_analysis(target_hwnd=None):
     prompt   = (cfg.get("text") or "")[:16000]
     name     = cfg.get("name") or "Prompt"
     searches = cfg.get("searches") or []
+    # A non-empty unit list IS the signal that Analysis is set to the council.
+    # Both halves are required: a stale KV record could hold units from before the
+    # destination was changed back to a chat site.
+    magi_units = [str(u) for u in (cfg.get("magiUnits") or []) if str(u).strip()]
 
     # The AI destination chosen in TradeHub. An empty aiUrl there means "open no AI
     # tab at all", which is a deliberate setting — honour it and just open searches.
     ai_url = (cfg.get("aiUrl") or "").strip()
     if "aiUrl" not in cfg:
         ai_url = "https://chatgpt.com/"      # pre-aiUrl config: behave as it always did
-    ai_label = _host_of(ai_url) or "AI"
+    use_magi = bool(magi_units) and _is_magi_url(ai_url)
+    ai_label = "MAGI" if use_magi else (_host_of(ai_url) or "AI")
 
     # 1) Load the prompt onto the clipboard BEFORE opening anything — the manual
     #    fallback for the case where the extension can't do it.
@@ -1345,14 +1390,20 @@ def open_chatgpt_analysis(target_hwnd=None):
     else:
         log(f"AI analysis: prompt '{name}' ({len(prompt)} chars) copied to clipboard.")
 
-    # 2) Build the tab list: searches first (skipping any that point at the AI site
-    #    itself), the AI tab last and marked for auto-submit.
-    tabs = [u for u in (_resolve_search_url(q) for q in searches)
-            if u and not _is_ai_url(u, ai_url)]
-    if ai_url:
-        tabs.append(_mark_autosubmit(ai_url))
+    # 2) Build the tab list: searches first (skipping any that point at the AI
+    #    destination itself), then the AI tab last — carrying the prompt for MAGI,
+    #    or the #tbauto marker for a chat site the extension has to type into.
+    if use_magi:
+        tabs = [u for u in (_resolve_search_url(q) for q in searches)
+                if u and not _is_magi_url(u)]
+        tabs.append(_magi_link(ai_url, prompt, magi_units))
     else:
-        log("AI analysis: no AI destination set in TradeHub — opening searches only.")
+        tabs = [u for u in (_resolve_search_url(q) for q in searches)
+                if u and not _is_ai_url(u, ai_url)]
+        if ai_url:
+            tabs.append(_mark_autosubmit(ai_url))
+        else:
+            log("AI analysis: no AI destination set in TradeHub — opening searches only.")
     if not tabs:
         log("AI analysis: nothing to open.")
         return
@@ -1392,7 +1443,11 @@ def open_chatgpt_analysis(target_hwnd=None):
         time.sleep(1)
         _place(hwnd, x, y, w, h)
 
-    if ai_url:
+    if use_magi:
+        log(f"AI analysis: MAGI opened with the prompt '{name}' and {len(magi_units)} unit(s) "
+            f"({', '.join(magi_units)}) — it convenes on arrival. If nothing happens, the MAGI "
+            "engine is not running on this PC (it starts at logon; see docs/magi.md).")
+    elif ai_url:
         log(f"AI analysis: {ai_label} opened with the #tbauto marker — the Vault extension "
             "types the prompt in and sends it, and brings that tab to the front. If nothing "
             "is submitted, check that the Vault extension is enabled (the prompt is on your "

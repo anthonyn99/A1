@@ -10,7 +10,7 @@
  *   GET  /                     health
  *   GET  /calendar             Catalysts feed (deterministic macro + Finnhub earnings)
  *   GET/POST /watchlist        the universal Control-tab ticker list (KV)
- *   GET/POST /analysis-config  Analysis-tab selection (prompt + searches);
+ *   GET/POST /analysis-config  Analysis-tab selection (prompt + searches + MAGI units);
  *                              Trading Auto Launch reads it to open ChatGPT
  *   GET/POST /daily-reminder   Playbook's "Daily Reminder" page (Markdown);
  *                              Trading Auto Launch blocks the morning launch on it
@@ -224,10 +224,21 @@ function tdAiUrl(u){
   return /^https?:\/\//i.test(s) ? s.slice(0,500) : '';
 }
 
+/* The MAGI units the Analysis tab has ticked. A non-empty list is how the
+   launcher knows the destination is the council rather than a chat site: it
+   convenes these on the prompt instead of opening a page to type into. Ids
+   only, as the MAGI engine names them. */
+function tdMagiUnits(v){
+  if(!Array.isArray(v)) return [];
+  const ok=new Set(['chatgpt','claude','gemini','deepseek','perplexity','grok']);
+  return [...new Set(v.map(x=>String(x||'').trim().toLowerCase()))].filter(x=>ok.has(x)).slice(0,8);
+}
+
 async function getAnalysisConfig(env){
   const p=await kvGet(env,'td_analysis_prompt');
   if(p&&p.text&&String(p.text).trim())
     return { name:p.name||'Prompt', text:String(p.text), searches:Array.isArray(p.searches)?p.searches:[],
+             magiUnits:tdMagiUnits(p.magiUnits),
              /* Deliberately left UNDEFINED (so JSON.stringify drops the key) for
                 configs written before this field existed: the launcher reads a
                 MISSING aiUrl as "use ChatGPT, as always" but an EMPTY one as the
@@ -244,7 +255,7 @@ async function setAnalysisConfig(env, p){
      aiUrl must not be recorded as having chosen "None". */
   const aiUrl=(p&&p.aiUrl!==undefined&&p.aiUrl!==null)?tdAiUrl(p.aiUrl):undefined;
   await kvPut(env,'td_analysis_prompt',{ name:String(p&&p.name||'Prompt').slice(0,80), text:text.slice(0,8000), searches,
-    aiUrl, updatedAt:Date.now() });
+    aiUrl, magiUnits:tdMagiUnits(p&&p.magiUnits), updatedAt:Date.now() });
   return true;
 }
 
@@ -341,7 +352,7 @@ async function handle(request, env, ctx){
   if(path==='/analysis-config'&&method==='GET'){
     const p=await getAnalysisConfig(env);
     if(!p) return json({ok:false,error:'no analysis config set'},404,request);
-    return json({ok:true,name:p.name,text:p.text,searches:p.searches,aiUrl:p.aiUrl},200,request);
+    return json({ok:true,name:p.name,text:p.text,searches:p.searches,aiUrl:p.aiUrl,magiUnits:p.magiUnits},200,request);
   }
 
   // Daily Reminder — TradeHub (Playbook → Daily Reminder) pushes the page here;

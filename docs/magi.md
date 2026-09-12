@@ -347,6 +347,55 @@ rhetorical device — but a member can decline at length. An offer to proceed
 ("Should I…?", "Would you like me to…?") under 1,200 characters is now rejected
 the same way: in a one-shot council, asking permission is declining.
 
+## Questions handed over by another A1 program
+
+TradeHub's **Analysis** tab no longer opens a chat site and types a prompt into
+it. It opens MAGI:
+
+```
+magi.html#tb=<base64url of {v, src, q, units, run, t}>
+```
+
+The units it ticks are ticked here, and the council convenes on arrival. Its
+searches still open as ordinary browser tabs — only the AI half changed.
+
+**The payload is in the fragment, and that is the whole design.** A fragment is
+never sent to a server, so a long prompt cannot overflow a request line — that
+is the HTTP 431 that made TradeHub fall back to putting the prompt on your
+clipboard, and it is why `?q=` was never an option for a real trading prompt.
+Nothing is written to a worker, to KV or to Firestore to carry it either: a
+hand-off costs zero reads and zero writes. It also works cross-origin, so the
+same link opens the console whether it is on GitHub Pages or being served by
+the engine.
+
+**It is consumed once.** `takeHandoff()` strips the fragment *before* the
+payload is parsed, so a reload cannot fire a second council run against your
+paid accounts. `t` is a nonce for the opposite case: re-sending the same prompt
+to a console that is already open has to change the url, or the browser fires
+no `hashchange` and the launch looks like it did nothing.
+
+**Nothing is ever dropped silently.** The link waits for whichever of these is
+in the way and runs when it clears:
+
+| In the way | What happens |
+|---|---|
+| MAGI is locked | held; `hideLock()` runs it |
+| The unit list has not arrived | held; `boot()` runs it |
+| A council is already in flight | held; `endRun()` runs it |
+| The engine is asleep | the prompt lands in the box and says so; press Convene when it is up |
+| It names units this engine has none of | the selection already made here is kept, and the run goes ahead with it |
+
+The morning launcher builds the same link in Python
+(`trading-auto-launch/launch.py`, `_magi_link`), from the prompt and unit list
+TradeHub pushes to `trade-dashboard`'s `/analysis-config`. A non-empty
+`magiUnits` there is exactly what tells it the destination is the council
+rather than a chat site — the Vault extension and its `#tbauto` marker are not
+in that path at all.
+
+`tests/magi-handoff.test.js` runs the encoder, both decoders and the state
+machine above; it also fails if TradeHub offers a unit `selectors.yaml` does
+not have.
+
 ## Accounts — which account each unit is signed in as
 
 **System → Accounts.** One card per unit: whether a session is saved, whether
@@ -385,6 +434,12 @@ Three files, and the two that are easy to forget are both in `magi.html`:
 3. `magi.html` — a codename in `UNIT` and a stagger in `PHASE`. Neither throws
    when missing, so neither gets noticed: `magi/tests/test_units.py` fails
    instead, and also refuses two units sharing an accent colour.
+
+A fourth place names units, outside MAGI: **TradeHub's Analysis tab**
+(`TB_MAGI_UNITS` in `tradehub.html`) and the allow-list that carries its choice
+through `workers2/trade-dashboard`. A unit missing there is simply one you
+cannot tick from TradeHub; a unit *misspelled* there is a tick box that does
+nothing at all. `tests/magi-handoff.test.js` fails on either.
 
 ### The seven
 

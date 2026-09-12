@@ -913,14 +913,18 @@ window._mailRelay = window._mailRelay || async function (res) {
       }, 1000);
     };
 
-    // Analysis cfg: load
+    // Analysis cfg: load. `false` means the READ FAILED, which is not the same
+    // as "nothing saved yet" (null) — the same distinction the playbook loader
+    // makes, and for the same reason: anything that would WRITE off the back of
+    // this read must not do so when the read never happened, or a transient
+    // network error overwrites the real config with whatever this device had.
     window._fbLoadTBAnalysis = async () => {
       try {
         const snap = await getDoc(tbAnalysisDocRef);
         if (!snap.exists()) return null;
         const data = snap.data();
         return data.cfg || null;
-      } catch(e) { console.warn('Firebase TBAnalysis load failed:', e); return null; }
+      } catch(e) { console.warn('Firebase TBAnalysis load failed:', e); return false; }
     };
 
     // Watchlist: load (single shared ticker list — drives News, parsing, sectors)
@@ -5901,8 +5905,11 @@ function tbGetDefaultWatchlist(){
 function tbSetDefaultWatchlist(arr){try{if(Array.isArray(arr)&&arr.length)localStorage.setItem(TB_WATCHLIST_DEFAULT_KEY,JSON.stringify(arr));}catch{}}
 tbSetWatchlist(tbLoadWatchlistLocal()); // prime parser's active list before first parse
 
-/* ── Shared Analysis URL helpers (used by the Launch Analysis button AND the
-   app-level ?autoanalyze auto-run) ──────────────────────────────────────────── */
+/* ── Shared Analysis URL helpers ── used by Launch Analysis, by a double-tapped
+   prompt chip, by the quick prompt, and — through the worker push further down
+   — by the morning Trading Auto Launch. (There is no ?autoanalyze auto-run: the
+   comment here claimed one, and no such parameter has ever been read anywhere in
+   this file.) */
 /* Resolve a search entry → URL: full URL passthrough, www. auto-scheme, else Google. */
 function tbResolveUrl(query){
   const t=(query||'').trim();
@@ -5917,6 +5924,83 @@ function tbResolveUrl(query){
    Trading Auto Launch submits automatically by pasting + Enter for you.) */
 const TB_CHATGPT_URL='https://chatgpt.com/';
 
+/* ── MAGI ── the multi-model council at /A1/magi.html ─────────────────────
+   Every other destination is ONE chat site that has to be typed into. MAGI
+   takes the prompt as DATA: it is handed the text plus the units to run, it
+   ticks them, asks all of them the same question at once in your own
+   signed-in sessions, and one of them then writes the verdict. That is why
+   the clipboard / prefill / extension apparatus below does not apply to it —
+   there is no composer on the far side to fight with.
+
+   The prompt travels in the URL FRAGMENT, which is what makes this clean where
+   ?q= never was:
+     · a fragment is never sent to a server, so a 3,000-character prompt cannot
+       overflow a request line (the HTTP 431 that forced the clipboard on us);
+     · nothing is written to a worker, to KV or to Firestore to carry it — a
+       launch costs zero reads and zero writes;
+     · it works whichever origin the console is opened on.
+   magi.html consumes it once and strips it, so a reload there cannot re-run a
+   council against your paid accounts. */
+const TB_MAGI_URL='https://anthonyn99.github.io/A1/magi.html';
+/* The council's members. `id` is exactly what the MAGI engine calls each one;
+   `code` is MAGI's own codename for it (magi.html's UNIT map), so the two
+   pages name the same thing the same way. */
+const TB_MAGI_UNITS=[
+  {id:'chatgpt',   label:'ChatGPT',    code:'MELCHIOR·01'},
+  {id:'claude',    label:'Claude',     code:'BALTHASAR·02'},
+  {id:'gemini',    label:'Gemini',     code:'CASPER·03'},
+  {id:'deepseek',  label:'DeepSeek',   code:'ADAM·04'},
+  {id:'perplexity',label:'Perplexity', code:'LILITH·05'},
+  {id:'grok',      label:'Grok',       code:'TABRIS·06'},
+];
+/* The four verified members. Perplexity and Grok are left to be ticked by
+   hand: they are configured but not fully proven in MAGI, and a member that
+   cannot answer costs a browser and a timeout on every run. */
+const TB_MAGI_DEFAULT_UNITS=['chatgpt','claude','gemini','deepseek'];
+/* Which units this config runs. An ARRAY — even an empty one — is a choice and
+   is honoured; only a config that has never picked gets the defaults. */
+function tbMagiUnits(cfg){
+  const ok=new Set(TB_MAGI_UNITS.map(u=>u.id));
+  const a=cfg&&cfg.magiUnits;
+  return Array.isArray(a)?a.filter(id=>ok.has(id)):TB_MAGI_DEFAULT_UNITS.slice();
+}
+/* base64url of UTF-8. Chunked, because a long prompt spread over apply()'s
+   argument list blows the stack somewhere north of 100k characters. */
+function tbB64u(str){
+  const b=new TextEncoder().encode(str);
+  let bin='';
+  for(let i=0;i<b.length;i+=0x8000) bin+=String.fromCharCode.apply(null,b.subarray(i,i+0x8000));
+  return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+/* The link MAGI reads on arrival. `t` is a nonce, and it earns its place: two
+   launches of the same prompt must be two different urls, or re-sending it to
+   an already-open console would change nothing at all and look broken. */
+function tbMagiLink(text,units){
+  const payload={v:1,src:'tradehub',q:String(text||''),units:units||[],run:1,t:Date.now()};
+  return TB_MAGI_URL+'#tb='+tbB64u(JSON.stringify(payload));
+}
+/* One MAGI tab for the whole suite. 'a1tab_magi' is the name TaskHub's MAGI
+   button already uses (index.html's tabName), and tabsync.js keeps that key
+   claimed, so a second launch re-targets the console that is already open
+   instead of stacking another copy of it. A hash-only change does not reload
+   that tab — magi.html listens for hashchange exactly so an open console picks
+   the new prompt up. Deliberately NOT routed through tbOpenTab: the Android
+   intent hop there exists to keep a search out of a native app, and MAGI has
+   no app to be stolen by.
+
+   The one case the name alone cannot cover is a console restored by the
+   BROWSER after a restart — Chrome brings the tab back but not the opener link
+   that makes the name findable, so that launch opens a second tab (TaskHub
+   pays a BroadcastChannel handshake to avoid it). The prompt still arrives,
+   which is the part that matters, and the pairing is back from then on. */
+function tbOpenMagi(url){
+  try{
+    const w=window.open(url,'a1tab_magi');
+    if(w){try{w.focus();}catch(e){}return true;}
+  }catch(e){}
+  try{return !!window.open(url,'_blank');}catch(e){return false;}
+}
+
 /* ── AI destination ─────────────────────────────────────────────────────────
    Where "Launch Analysis" sends the selected prompt. With the Vault extension
    installed the prompt is typed in and submitted for you (see the auto-submit
@@ -5927,6 +6011,12 @@ const TB_CHATGPT_URL='https://chatgpt.com/';
    and can't do. `sends` marks the one destination whose link actually runs the
    prompt instead of just typing it in. */
 const TB_AI_SITES=[
+  /* `magi` is the odd one out, and the default: not a site to type into but a
+     console that takes the prompt and a list of models. `hosts` stays empty
+     because MAGI shares a hostname with every other A1 page — matching on it
+     would make a search for TaskHub look like the AI tab, so tbIsAiUrl matches
+     the page instead. */
+  {id:'magi',      label:'MAGI',       url:TB_MAGI_URL,                        hosts:[], magi:true},
   {id:'chatgpt',   label:'ChatGPT',    url:TB_CHATGPT_URL,                     hosts:['chatgpt.com','chat.openai.com'], qUrl:'https://chatgpt.com/?q='},
   /* `app` = open the native app when it's installed, instead of the site. Opt-in
      per destination and deliberately rare: it's here for Claude because claude.ai
@@ -5942,7 +6032,7 @@ const TB_AI_SITES=[
   {id:'custom',    label:'Custom URL', url:'',                                 hosts:[]},
   {id:'none',      label:'None',       url:'',                                 hosts:[]},
 ];
-function tbAiSite(cfg){const id=(cfg&&cfg.aiSite)||'chatgpt';return TB_AI_SITES.find(s=>s.id===id)||TB_AI_SITES[0];}
+function tbAiSite(cfg){const id=(cfg&&cfg.aiSite)||'magi';return TB_AI_SITES.find(s=>s.id===id)||TB_AI_SITES[0];}
 /* A custom destination may carry a {prompt} placeholder (see tbPrefillUrl). When
    we open that site WITHOUT prefilling it — prompt too long, or none picked — the
    template must not leak into the address bar, so drop whichever query parameter
@@ -5959,6 +6049,9 @@ function tbStripPromptToken(u){
 function tbAiUrl(cfg){
   const s=tbAiSite(cfg);
   if(s.id==='none')return '';
+  /* The bare console. The prompt is added at launch time (tbMagiLink); this is
+     the destination on its own, which is what the morning launcher is pushed. */
+  if(s.magi)return TB_MAGI_URL;
   if(s.id==='custom'){const c=((cfg&&cfg.aiCustomUrl)||'').trim();return c?tbStripPromptToken(tbResolveUrl(c)):'';}
   return s.url;
 }
@@ -5997,8 +6090,11 @@ function tbHostOf(u){try{return new URL(u).hostname.replace(/^www\./,'').toLower
 /* True if a search entry resolves to the AI destination itself — those are
    skipped so the AI tab isn't opened a second time (unsubmitted). */
 function tbIsAiUrl(u,cfg){
-  const h=tbHostOf(u); if(!h)return false;
   const site=tbAiSite(cfg);
+  // MAGI lives on the same host as every other A1 page, so matching on the
+  // hostname alone would silently swallow a search pointing at one of them.
+  if(site.magi)return /\/magi\.html(?:[?#]|$)/i.test(String(u||''));
+  const h=tbHostOf(u); if(!h)return false;
   const hosts=site.id==='custom'?[tbHostOf(tbAiUrl(cfg))].filter(Boolean):site.hosts;
   return hosts.some(x=>h===x||h.endsWith('.'+x));
 }
@@ -6200,9 +6296,34 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
 
   const resolveUrl=tbResolveUrl;
 
-  // Selected AI destination (ChatGPT by default — same as before this setting existed).
+  // Selected AI destination (MAGI by default — the council, not a chat site).
   const aiSite=tbAiSite(cfg);
   const aiUrl=tbAiUrl(cfg);
+  /* The units MAGI will convene, and the one thing that can stop it: ticking
+     none. That is a real choice, not an oversight to paper over — it is never
+     quietly re-filled with four models. Sending is what it disables; Launch
+     still opens your searches and says why the council did not convene. */
+  const magiUnits=aiSite.magi?tbMagiUnits(cfg):[];
+  const magiBlocked=aiSite.magi&&magiUnits.length===0;
+  const unitWord=(n)=>`${n} unit${n===1?'':'s'}`;
+  const toggleMagiUnit=(id)=>{
+    const cur=tbMagiUnits(cfg);
+    const on=cur.includes(id);
+    // Rebuilt from the canonical list rather than pushed onto, so the ticked
+    // order is always the order they are shown in.
+    const next=TB_MAGI_UNITS.map(u=>u.id).filter(x=>x===id?!on:cur.includes(x));
+    saveCfg({...cfg,magiUnits:next});
+  };
+  /* Hand the prompt to MAGI. Shared by Launch Analysis, a double-tapped
+     prompt chip and the quick prompt, so there is exactly one place that
+     knows how a prompt reaches the council. Returns the result pill. */
+  const sendToMagi=(text,label)=>{
+    if(!magiUnits.length)return {ok:false,icon:'sparkle',label:'No units ticked — pick at least one above'};
+    const ok=tbOpenMagi(tbMagiLink(text,magiUnits));
+    return ok
+      ?{ok:true,icon:'sparkle',label:`MAGI convening ${unitWord(magiUnits.length)} — ${label}`}
+      :{ok:false,icon:'sparkle',label:'MAGI blocked by the popup blocker — allow pop-ups for TradeHub'};
+  };
   const [aiCustomDraft,setAiCustomDraft]=React.useState(cfg.aiCustomUrl||'');
   React.useEffect(()=>{setAiCustomDraft(cfg.aiCustomUrl||'');},[cfg.aiCustomUrl]);
   const commitAiCustom=()=>{const v=(aiCustomDraft||'').trim();if(v!==(cfg.aiCustomUrl||''))saveCfg({...cfg,aiCustomUrl:v});};
@@ -6258,6 +6379,18 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
       if(aiUrl&&tbIsAiUrl(u,cfg))return;   // don't open the AI twice
       searchUrls.push({u,i});
     });
+
+    /* ── MAGI path ────────────────────────────────────────────────────────────
+       Nothing is typed anywhere: the searches open as ordinary tabs and the
+       council is handed the prompt plus the ticked units in one link. The
+       searches go first so MAGI ends up the tab in front, which is the one
+       you are waiting on. */
+    if(aiSite.magi&&selPromptText){
+      searchUrls.forEach(({u,i})=>{tbOpenTab(u);res.push({ok:true,icon:numIcon(i),label:`Search ${i+1} opened`});});
+      res.push(sendToMagi(selPromptText,selPrompt.name));
+      setResults(res);
+      return;
+    }
 
     /* ── Auto-submit path (Vault extension installed) ─────────────────────────
        The extension opens the searches + the AI tab, brings the AI tab to the
@@ -6320,6 +6453,13 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
                   {ok:false,icon:'sparkle',label:'No AI destination set — pick one above to send it there'}]);
       return;
     }
+    /* MAGI takes the prompt as data — no composer to type into, so none of the
+       paths below apply. */
+    if(aiSite.magi){
+      const pill=sendToMagi(text,name);
+      setResults(copied?[{ok:true,icon:'command',label:`Prompt copied — ${name}`},pill]:[pill]);
+      return;
+    }
     if(autoSubmit){
       tbAiLaunch({aiUrl,text,searches:[]}).then(acked=>{
         if(acked)return;
@@ -6360,6 +6500,9 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
   const [quickText,setQuickText]=React.useState(()=>{try{return localStorage.getItem(QUICK_KEY)||'';}catch(e){return '';}});
   const setQuick=(v)=>{setQuickText(v);try{localStorage.setItem(QUICK_KEY,v);}catch(e){}};
   const quickReady=!!quickText.trim();
+  // Typed but with nowhere to go: MAGI picked and no units ticked. The text is
+  // still text — the counter and Clear stay — only sending is off.
+  const quickSendable=quickReady&&!magiBlocked;
   /* onClick, not onMouseDown: the tab-opening below only survives inside a real
      user gesture, and click is the one event a finger and a mouse both raise —
      the prompt chips send on click for exactly this reason. */
@@ -6443,7 +6586,8 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
     {/* AI destination first: it decides where EVERYTHING below goes — the quick
         prompt, the saved prompt, and the morning deploy — and the copy in the
         cards under it reads off the destination chosen here. */}
-    <Card icon="sparkle" title="AI Destination" sub="Where the prompt gets sent.">
+    <Card icon="sparkle" title="AI Destination"
+      sub={aiSite.magi?'Where the prompt goes. MAGI asks every ticked model at once and writes one verdict.':'Where the prompt gets sent.'}>
       <div style={{display:'flex',flexDirection:'column',gap:12}}>
         <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
           {TB_AI_SITES.map(s=>{
@@ -6455,6 +6599,29 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
                 fontSize:13,fontWeight:700,cursor:'pointer',transition:'all .15s'}}>{s.label}</button>);
           })}
         </div>
+        {/* The council's members. Multi-select, because this is the one
+            destination that runs more than one model per prompt. */}
+        {aiSite.magi&&(
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            <div style={{fontSize:10,fontWeight:800,textTransform:'uppercase',letterSpacing:1.5,color:'var(--txm)'}}>
+              Units · {magiUnits.length} of {TB_MAGI_UNITS.length}
+            </div>
+            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+              {TB_MAGI_UNITS.map(u=>{
+                const on=magiUnits.includes(u.id);
+                return(<button key={u.id} onClick={()=>toggleMagiUnit(u.id)} title={u.code}
+                  aria-pressed={on}
+                  style={{display:'inline-flex',alignItems:'center',gap:6,padding:'6px 13px',borderRadius:100,
+                    border:`1.5px solid ${on?'var(--ac)':'var(--bd)'}`,background:'transparent',
+                    color:on?'var(--ac)':'var(--txm)',boxShadow:on?'var(--gold-glow)':'none',
+                    fontSize:13,fontWeight:700,cursor:'pointer',transition:'all .15s'}}>
+                  <span style={{display:'inline-flex',width:12,flexShrink:0,justifyContent:'center'}}>{on?<TBIcon n="check" size={12}/>:null}</span>
+                  {u.label}
+                </button>);
+              })}
+            </div>
+          </div>
+        )}
         {aiSite.id==='custom'&&(
           <input value={aiCustomDraft} onChange={e=>setAiCustomDraft(e.target.value)}
             onBlur={commitAiCustom} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();commitAiCustom();e.currentTarget.blur();}}}
@@ -6462,8 +6629,12 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
             style={{width:'100%',background:'var(--bg)',border:'1px solid var(--bd)',borderRadius:6,color:'var(--tx)',fontSize:13,padding:'10px',boxSizing:'border-box',fontFamily:'inherit'}}/>
         )}
         <div style={{fontSize:11,color:'var(--txd)',lineHeight:1.5,display:'flex',alignItems:'flex-start',gap:7}}>
-          <span style={{color:autoSubmit?'var(--ac)':'var(--txd)',flexShrink:0,marginTop:1}}><TBIcon n={autoSubmit?'bolt':'command'} size={12}/></span>
-          <span>{aiSite.id==='none'
+          <span style={{color:(autoSubmit||aiSite.magi)?'var(--ac)':'var(--txd)',flexShrink:0,marginTop:1}}><TBIcon n={(autoSubmit||aiSite.magi)?'bolt':'command'} size={12}/></span>
+          <span>{aiSite.magi
+            ? magiUnits.length
+              ? <>The prompt is <b>sent and answered</b> — no pasting, on any device. Each unit answers alone, then one of them weighs the answers into a single verdict. <b>One unit</b> ticked answers directly, with no verdict pass.</>
+              : <>No units ticked — MAGI has nothing to ask. Pick at least one above.</>
+            : aiSite.id==='none'
             ? 'No AI tab — the prompt is copied and your searches open.'
             : autoSubmit
               ? <>Vault extension detected — opens {aiSite.label}, <b>types the prompt in and sends it</b>. Your clipboard keeps a copy.</>
@@ -6475,13 +6646,17 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
         {aiSite.id!=='none'&&(
           <div style={{fontSize:11,color:'var(--txd)',lineHeight:1.5,display:'flex',alignItems:'flex-start',gap:7}}>
             <span style={{color:'var(--txd)',flexShrink:0,marginTop:1}}><TBIcon n="link" size={12}/></span>
-            <span>{aiSite.app
+            <span>{aiSite.magi
+              ? <>MAGI drives your own signed-in sessions, so the <b>engine PC has to be awake</b> — a phone can watch a run, not start one without it. It opens in the one MAGI tab, here or on your phone.</>
+              : aiSite.app
               ? <>On a phone: the <b>{aiSite.label} app</b> if it's installed (already signed in), otherwise the website — never both. The app can't take a prefilled link, so the prompt goes to your clipboard.</>
               : <>On a phone this stays in the <b>browser</b>{aiSite.id==='custom'?'':<>, not the {aiSite.label} app</>}, so the prefilled link survives.</>}</span>
           </div>
         )}
         {aiSite.id!=='chatgpt'&&aiSite.id!=='none'&&(
-          <div style={{fontSize:11,color:'var(--txd)',lineHeight:1.5}}>The morning deploy (below) sends to {aiSite.label} too.</div>
+          <div style={{fontSize:11,color:'var(--txd)',lineHeight:1.5}}>
+            {aiSite.magi?<>The morning deploy (below) convenes the same units.</>:<>The morning deploy (below) sends to {aiSite.label} too.</>}
+          </div>
         )}
       </div>
     </Card>
@@ -6510,10 +6685,10 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
           </span>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
-          <button onClick={sendQuick} disabled={!quickReady}
+          <button onClick={sendQuick} disabled={!quickSendable}
             style={{display:'inline-flex',alignItems:'center',gap:7,borderRadius:8,padding:'9px 18px',fontSize:13,fontWeight:800,
-              border:quickReady?'none':'1.5px solid var(--bd)',background:quickReady?'var(--ac)':'transparent',
-              color:quickReady?'#000':'var(--txd)',cursor:quickReady?'pointer':'not-allowed',opacity:quickReady?1:.5,
+              border:quickSendable?'none':'1.5px solid var(--bd)',background:quickSendable?'var(--ac)':'transparent',
+              color:quickSendable?'#000':'var(--txd)',cursor:quickSendable?'pointer':'not-allowed',opacity:quickSendable?1:.5,
               transition:'all .15s',touchAction:'manipulation'}}>
             <TBIcon n="bolt" size={14}/> {aiSite.id==='none'?'Copy prompt':`Send to ${aiSite.label}`}
           </button>
@@ -6606,7 +6781,8 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
     )}
 
     {/* Launch — the two things this page exists to fire, in one box */}
-    <Card icon="bolt" title="Launch" sub="Sends the prompt above, then opens your searches.">
+    <Card icon="bolt" title="Launch"
+      sub={aiSite.magi?<>Opens your searches, then convenes MAGI on the prompt above{magiUnits.length?<> — {unitWord(magiUnits.length)}</>:''}.</>:'Sends the prompt above, then opens your searches.'}>
       <button onMouseDown={handleLaunch} disabled={isEmpty}
         style={{display:'inline-flex',alignItems:'center',justifyContent:'center',gap:8,background:isEmpty?'transparent':'var(--ac)',color:isEmpty?'var(--txd)':'#000',border:isEmpty?'1.5px solid var(--bd)':'none',borderRadius:8,padding:'12px 28px',fontSize:15,fontWeight:800,cursor:isEmpty?'not-allowed':'pointer',transition:'all .15s',opacity:isEmpty?.5:1,alignSelf:'stretch'}}>
         <TBIcon n="bolt" size={15}/> Launch Analysis
@@ -6619,7 +6795,7 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
           <TBIcon n="rocket" size={15}/> Deploy Trading Auto Launch
         </button>
         <div style={{fontSize:11,color:'var(--txd)',lineHeight:1.5}}>
-          Runs the whole flow — Daily Reminder → WeBull → TaskHub → window layout — then opens {aiSite.id==='none'?'your searches':<>{aiSite.label} + your searches</>} <b>in this Brave window</b>. Needs <code style={{fontFamily:'monospace'}}>launch.py --setup</code> once; Brave asks permission the first time.
+          Runs the whole flow — Daily Reminder → WeBull → TaskHub → window layout — then opens {aiSite.id==='none'?'your searches':aiSite.magi?<>your searches + MAGI{magiUnits.length?<>, convening the same {unitWord(magiUnits.length)}</>:''}</>:<>{aiSite.label} + your searches</>} <b>in this Brave window</b>. Needs <code style={{fontFamily:'monospace'}}>launch.py --setup</code> once; Brave asks permission the first time.
         </div>
       </div>
     </Card>
@@ -9620,6 +9796,9 @@ function TBApp(){
     return()=>{stop=true;if(timer)clearInterval(timer);window.removeEventListener('fb-ready',start);};
   },[]);
 
+  /* Set when the Analysis-cfg read FAILED (as opposed to finding nothing):
+     anything that would write the config back stays out in that case. */
+  const _tbAnalysisReadFailed=useRef(false);
   /* Load prompts + reports from Firebase on mount */
   useEffect(()=>{
     const doLoad=async()=>{
@@ -9629,7 +9808,10 @@ function TBApp(){
       }
       if(window._fbLoadTBAnalysis){
         const fa=await window._fbLoadTBAnalysis();
-        if(fa&&typeof fa==='object'){setAnalysisCfg(fa);try{localStorage.setItem(TB_ANALYSIS_KEY,JSON.stringify(fa));}catch{}}
+        // false = the read failed. Keep this device's copy and, unlike a doc
+        // that simply does not exist yet, write nothing back.
+        if(fa===false)_tbAnalysisReadFailed.current=true;
+        else if(fa&&typeof fa==='object'){setAnalysisCfg(fa);try{localStorage.setItem(TB_ANALYSIS_KEY,JSON.stringify(fa));}catch{}}
       }
       if(window._fbLoadTBWatchlist){
         const fw=await window._fbLoadTBWatchlist();
@@ -9728,11 +9910,11 @@ function TBApp(){
 
   /* ── Push the Analysis-tab selection (prompt + searches + AI site) to the worker ──
      App-level (not inside the Analysis tab) so it stays in sync even when that tab
-     is never opened. Trading Auto Launch GETs /analysis-config to open the AI site
-     with this exact prompt (auto-submitted) and open each search. aiUrl is part of
-     the payload so the morning launch follows the SAME destination the Analysis tab
-     is set to, instead of always opening ChatGPT. Deduped so we only POST on real
-     changes. */
+     is never opened. Trading Auto Launch GETs /analysis-config and reproduces the
+     SAME launch: the searches, and either the AI site with this exact prompt
+     auto-submitted, or — when the destination is MAGI — the council convened on
+     it with `magiUnits` ticked. Deduped so we only POST on real changes, which
+     matters: this is a KV write per push. */
   const _tbAnalysisPushSig=useRef(null);
   useEffect(()=>{
     const sel=(prompts.find(p=>p.id===analysisCfg.analysisPromptId)||prompts[0])||null;
@@ -9740,11 +9922,26 @@ function TBApp(){
     const searches=(Array.isArray(analysisCfg.searches)?analysisCfg.searches
       :[analysisCfg.searchQuery1,analysisCfg.searchQuery2]).map(s=>(s||'').trim()).filter(Boolean);
     const aiUrl=tbAiUrl(analysisCfg);
-    const sig=(sel.name||'')+' '+sel.text+' | '+searches.join(' | ')+' | '+aiUrl;
+    // Only meaningful for the MAGI destination; empty everywhere else, which is
+    // exactly how the launcher tells the two apart.
+    const magiUnits=tbAiSite(analysisCfg).magi?tbMagiUnits(analysisCfg):[];
+    const sig=(sel.name||'')+' '+sel.text+' | '+searches.join(' | ')+' | '+aiUrl+' | '+magiUnits.join(',');
     if(_tbAnalysisPushSig.current===sig)return;
-    const push=()=>{fetch(TD_WORKER_URL+'/analysis-config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:sel.name||'Prompt',text:sel.text,searches,aiUrl})}).then(r=>{if(r.ok)_tbAnalysisPushSig.current=sig;}).catch(()=>{});};
+    const push=()=>{fetch(TD_WORKER_URL+'/analysis-config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:sel.name||'Prompt',text:sel.text,searches,aiUrl,magiUnits})}).then(r=>{if(r.ok)_tbAnalysisPushSig.current=sig;}).catch(()=>{});};
     if(window._fbReady)push(); else window.addEventListener('fb-ready',push,{once:true});
-  },[prompts,analysisCfg.analysisPromptId,analysisCfg.searches,analysisCfg.aiSite,analysisCfg.aiCustomUrl]);
+  },[prompts,analysisCfg.analysisPromptId,analysisCfg.searches,analysisCfg.aiSite,analysisCfg.aiCustomUrl,analysisCfg.magiUnits]);
+
+  /* ── One-time move to MAGI ────────────────────────────────────────────────────
+     Analysis used to send the prompt to a single chat site and have it typed in.
+     It sends it to the council now, and a config saved before that change would
+     otherwise keep opening ChatGPT — including every morning — until the new chip
+     was noticed. Runs once, after the cloud copy has loaded so it cannot overwrite
+     a newer choice made on another device, and the flag means picking a single
+     site afterwards sticks. */
+  useEffect(()=>{
+    if(!fbLoaded||_tbAnalysisReadFailed.current||analysisCfg.magiMigrated)return;
+    saveAnalysisCfg({...analysisCfg,aiSite:'magi',magiMigrated:1});
+  },[fbLoaded,analysisCfg.magiMigrated]);
 
   /* ── Push Playbook → Daily Reminder to the worker ─────────────────────────────
      Trading Auto Launch GETs /daily-reminder and makes you confirm it before it opens

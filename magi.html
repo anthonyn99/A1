@@ -3532,6 +3532,14 @@ const HOW = [
     ],
   },
   {
+    q: "Questions sent from TradeHub",
+    a: [
+      "TradeHub&rsquo;s Analysis tab sends its prompt <i>here</i> rather than opening a chat site and typing into it. The models ticked there are ticked here, and the council convenes on arrival &mdash; the searches it opens alongside are still ordinary browser tabs.",
+      "The prompt rides in the link&rsquo;s fragment, which never leaves the browser: nothing is stored in a worker or in the cloud to carry it. It is used <b>once</b> &mdash; reloading this page cannot run the same question a second time.",
+      "If MAGI is locked, or the engine is asleep, the question waits in the box with the reason showing instead of being lost.",
+    ],
+  },
+  {
     q: "Brainstorm",
     a: [
       "The council, but round by round. Instead of one question and one verdict, the members propose, critique each other, and a merge step turns the round into a plan plus the questions it still needs answered.",
@@ -5032,7 +5040,129 @@ function endRun() {
   updateCore();
   drawLinks();
   updateEnabled();
+  // A handoff that arrived mid-run has been waiting for exactly this.
+  handoffTry();
 }
+
+/* ══ handoff — a question sent here by another A1 program ══════════════
+   TradeHub's Analysis tab no longer opens a chat site and types into it. It
+   opens THIS page with the prompt and the units it wants:
+
+       magi.html#tb=<base64url of {v,src,q,units,run,t}>
+
+   A FRAGMENT, deliberately, and it is the whole channel:
+     · a fragment is never sent to a server, so a long trading prompt cannot
+       overflow a request line the way ?q= did (that is the HTTP 431 TradeHub
+       hit and the reason it fell back to the clipboard);
+     · nothing is written to a worker, to KV or to Firestore to carry it, so
+       handing a prompt over costs zero reads and zero writes;
+     · it works cross-origin, so the same link opens MAGI whether this page is
+       on GitHub Pages or being served by the engine itself.
+
+   It is consumed ONCE. The hash is stripped before anything acts on it, so a
+   reload cannot fire a second council run against four paid accounts — which
+   is also why `t` is in the payload: two identical prompts must still be two
+   distinct urls, or re-sending the same one to an open tab would change
+   nothing and look broken. */
+let HANDOFF = null;
+
+function b64uDecode(str) {
+  const p = String(str).replace(/-/g, "+").replace(/_/g, "/");
+  const bin = atob(p + "=".repeat((4 - (p.length % 4)) % 4));
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
+
+/** Read #tb= if it is there, and strip it either way. Never throws: a mangled
+ *  link must leave the console usable, not blank. */
+function takeHandoff() {
+  let raw = "";
+  try {
+    const m = /[#&]tb=([^&]+)/.exec(location.hash || "");
+    if (!m) return null;
+    raw = m[1];
+  } catch { return null; }
+  // Off the address bar BEFORE the payload is read, so no path through the
+  // parse below can leave behind a link that fires again on the next reload.
+  // Its own try, because a browser that refuses replaceState (file://) must
+  // not also cost us the prompt.
+  try {
+    history.replaceState(history.state, "", location.pathname + location.search);
+  } catch {}
+  try {
+    const h = JSON.parse(b64uDecode(decodeURIComponent(raw)));
+    const q = String((h && h.q) || "").trim();
+    if (!q) return null;
+    return {
+      q,
+      units: Array.isArray(h.units) ? h.units.map(String).slice(0, 12) : [],
+      run: !!h.run,
+      src: String((h && h.src) || "").slice(0, 24),
+    };
+  } catch { return null; }
+}
+
+/** Everything a handoff needs is asynchronous — the units come from the
+ *  engine, and the lock paints over the console before either. So this is
+ *  called from every point where one of those arrives (boot, unlock, the end
+ *  of a run) and applies the handoff on whichever call finds the console
+ *  ready. It is a no-op on all the others. */
+function handoffTry() {
+  if (!HANDOFF) return;
+  // The lock has not decided yet. It is a network answer and can land after
+  // the engine has already listed its units, so "the lock screen is not up"
+  // is not the same question as "this page is unlocked".
+  if (!LOCK.booted) return;
+  const scr = $("lockScreen");
+  if (scr && !scr.hidden) return;                    // still behind the lock
+  if (S.running || S.refining) return;               // busy; endRun() comes back
+  // Wait for the unit list, but only while there is an engine to get it from:
+  // offline, the prompt still belongs in the box.
+  if (online() && !S.providers.length) return;
+  const h = HANDOFF;
+  HANDOFF = null;
+  applyHandoff(h);
+}
+
+function applyHandoff(h) {
+  const box = $("composer");
+  if (box) { box.value = h.q; autosize(); }
+  // The text is new, so there is nothing to restore.
+  S.preRefine = null;
+  // Tick exactly what was sent, minus anything this engine does not have. If
+  // that leaves nothing (a link naming units none of which are configured),
+  // keep the selection already made here rather than convening with none.
+  if (h.units.length && S.providers.length) {
+    const have = new Set(S.providers.map((p) => p.id));
+    const want = h.units.filter((id) => have.has(id));
+    if (want.length) {
+      S.selected = new Set(want);
+      saveUnitPicks();
+      renderUnitChips();
+    }
+  }
+  setView("council");
+  updateEnabled();
+  if (!h.run) return;
+  if (!online()) {
+    setErr("refineError", "Engine offline — the prompt is in the box. Press Convene once it is reachable.");
+    return;
+  }
+  start();
+}
+
+// The tab is already open and TradeHub sent another one. A hash-only change
+// does not reload the page, so this is the only thing that hears it.
+window.addEventListener("hashchange", () => {
+  const h = takeHandoff();
+  if (!h) return;
+  HANDOFF = h;
+  handoffTry();
+});
+
+// Read at load, before anything else can touch the address bar.
+HANDOFF = takeHandoff();
 
 /** The deliberation beep: a steady cluster every 1.6s for as long as the
  *  council is working. Fires immediately on start rather than after the first
@@ -9203,6 +9333,11 @@ const LOCK = {
   hasLock: false,
   bioRemove: false,
   box: null,
+  // Has lockBoot finished deciding? Whether this page is locked is a NETWORK
+  // answer, and it can land well after the engine has listed its units -- so
+  // a handed-over question that only looked at the lock screen could convene a
+  // council a moment before the lock painted over it. Measured, not theorised.
+  booted: false,
 };
 
 const lockGet = () => { try { return JSON.parse(localStorage.getItem(LOCK_LS) || "null"); } catch { return null; } };
@@ -9551,6 +9686,8 @@ function hideLock() {
   const scr = $("lockScreen");
   if (scr) scr.hidden = true;
   syncLockBtn();
+  // A handoff that arrived while MAGI was locked runs now, not silently never.
+  if (typeof handoffTry === "function") handoffTry();
 }
 
 function showLock(mode) {
@@ -9577,7 +9714,10 @@ function syncLockBtn() {
   }
 }
 
-async function lockBoot() {
+/** Decide whether this device is trusted, and paint the lock if it is not.
+ *  Wrapped by lockBoot so every exit from it -- including the early ones and a
+ *  throw -- lands on the same "the lock has decided" point. */
+async function lockBootDecide() {
   syncLockBtn();
   const stored = lockGet();
   const wasLocked = lockedFlag();
@@ -9600,9 +9740,23 @@ async function lockBoot() {
   showLock("unlock");
 }
 
+async function lockBoot() {
+  try {
+    await lockBootDecide();
+  } finally {
+    // Only now can a handed-over question tell whether it is allowed to run.
+    // hideLock() has already tried once on the unlocked paths; that call is a
+    // no-op while this flag is still false, and this one is the real attempt.
+    LOCK.booted = true;
+    handoffTry();
+  }
+}
+
 /* ══ boot ══════════════════════════════════════════════════════════════════ */
 async function boot() {
-  if (!online()) return;
+  // No engine: the units cannot be listed and nothing can be run, but a
+  // handed-over prompt still belongs in the box with the reason showing.
+  if (!online()) { handoffTry(); return; }
   try {
     const r = await fetch(`${link.api}/api/providers`, authed());
     S.providers = await r.json();
@@ -9642,6 +9796,9 @@ async function boot() {
   // cloud is missing -- so unlike the listener it belongs here. It is a no-op
   // on every load after the first, because the index already lists everything.
   cloudBackfill().then(syncBlockedNote);
+  // A question handed over by another A1 program needs the unit list, so this
+  // is the earliest it can run. Nothing happens if there was no handoff.
+  handoffTry();
 }
 
 const lockBtnClick = () => {
