@@ -155,11 +155,29 @@ export function openRunSheet(cls, files, destModuleId) {
       if (failed.length) {
         toast('⚠️', `${ok} queued, ${failed.length} failed`, failed[0].error);
       } else if (cached === results.length) {
-        toast('✅', 'Already done', 'These were generated before — nothing was spent.');
+        toast('✅', 'Already done', 'Re-filing the deck that was generated before — nothing was spent.');
       } else {
         toast('⚡', `${ok} queued`, 'They keep running if you close the tab.');
       }
       results.filter(r => r.ok && r.job && !r.cached).forEach(r => trackJob(r.job.id));
+
+      // A CACHED hit still has to be filed.
+      //
+      // The cache answers "this was generated before", which is not the same as
+      // "the deck is still in the app". Deleting the Generated module (or the
+      // file inside it) leaves the result sitting on the bridge with no way to
+      // ask for it again: re-running reported "Already done" and produced
+      // nothing, with the source file's only copy of its output unreachable.
+      // Re-filing is idempotent — addGeneratedDoc replaces by sourceFileId — so
+      // this restores a deleted deck and is a no-op when one is already there.
+      for (const r of results.filter(r => r.ok && r.job && r.cached)) {
+        try {
+          const job = r.job.result ? r.job : await pipeline.getJob(r.job.id);
+          if (job) await pipeline.fileResult(job);
+        } catch (e) {
+          console.warn('[pipeline] could not re-file a cached job:', e);
+        }
+      }
     } catch (e) {
       run.disabled = false;
       run.textContent = 'Run';

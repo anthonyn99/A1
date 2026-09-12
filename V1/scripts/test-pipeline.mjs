@@ -385,7 +385,24 @@ console.log('\npipeline: fileResult guards');
   t('verifies the %PDF- magic before filing', src.includes("'%PDF-'"));
   t('files through addGeneratedDoc, not addGeneratedNote',
     src.includes('addGeneratedDoc') && !src.includes('B.addGeneratedNote'));
-  t('refuses to file when the job has no PDF', /if \(!job\.hasPdf\)/.test(src));
+  // A job from BEFORE the layout stage shipped has no hasPdf at all. The bridge
+  // builds one on demand, so `undefined` must fall through rather than be
+  // refused — otherwise the idempotency cache ("Already done") leaves the user
+  // with no way to get the output ever again.
+  t('refuses to file only when the layout actually FAILED',
+    /job\.hasPdf === false/.test(src) && !/if \(!job\.hasPdf\)/.test(src));
+}
+
+// ── A cached job must still be filed ──────────────────────────────────────
+console.log('\npipeline-ui: cached results are re-filed');
+{
+  const src = readFileSync(resolve(root, 'js/modules/pipeline-ui.js'), 'utf8');
+  // The reported bug: delete the Generated module, re-run, and the server says
+  // "already generated" while nothing lands in the app.
+  t('files cached hits instead of dropping them',
+    /r\.cached\)/.test(src) && /re-file a cached job/.test(src));
+  t('still only WATCHES the jobs that are actually running',
+    /!r\.cached\)\.forEach\(r => trackJob/.test(src));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

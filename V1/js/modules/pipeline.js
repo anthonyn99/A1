@@ -278,9 +278,11 @@ export async function fileResult(job) {
     console.warn('[pipeline] bridge cannot file generated documents yet');
     return null;
   }
-  if (!job.hasPdf) {
-    // The text generation succeeded but the layout step did not. Say so rather
-    // than filing nothing and leaving the run looking like it vanished.
+  // `hasPdf === false` means the layout step ran and failed — don't ask again.
+  // `undefined` means it never ran (a job finished before this stage shipped),
+  // and the bridge builds one on demand when /pdf is requested, so those must
+  // fall through rather than being refused here.
+  if (job.hasPdf === false) {
     console.warn('[pipeline] job has no PDF:', job.pdfError || 'unknown reason');
     return null;
   }

@@ -132,6 +132,57 @@ def trim_to_first_slide(text: str) -> str:
     return text[start:].strip()
 
 
+# ── The output stage ──────────────────────────────────────────────────────────
+def build_job_pdf(job: dict, *, force: bool = False) -> bool:
+    """Render a finished job's text into a PDF deck on disk.
+
+    Split out of _run_job so the /pdf route can call it too. Jobs generated
+    before this stage existed have their text but no deck, and without an
+    on-demand build they were a dead end: the idempotency cache answers
+    "already generated" and refuses to re-run, so there was no way left to ask
+    for the output at all.
+
+    Never raises — a layout failure records `pdfError` and returns False, so it
+    can never cost a caller the (expensive) generated text.
+    """
+    if not force and job.get("pdfPath") and Path(job["pdfPath"]).exists():
+        return True
+    if not job.get("result"):
+        return False
+
+    if not job.get("filePath") or not Path(job["filePath"]).exists():
+        with _lock:
+            job["hasPdf"] = False
+            job["pdfError"] = "the source PDF is no longer on disk"
+            _save()
+        return False
+
+    try:
+        stem = Path(job.get("sourceName") or "deck.pdf").stem
+        pdf_bytes = pdfrender.build_deck_pdf(
+            job["filePath"], job["result"], stem + " \u2014 Rewritten")
+        OUTPUTS.mkdir(parents=True, exist_ok=True)
+        out_file = OUTPUTS / (job["id"] + ".pdf")
+        out_file.write_bytes(pdf_bytes)
+    except Exception as e:
+        print("[pdf] job " + job["id"] + " assembly failed: " + str(e))
+        with _lock:
+            job["hasPdf"] = False
+            job["pdfError"] = str(e)[:300]
+            _save()
+        return False
+
+    with _lock:
+        # The bytes stay on disk and are fetched from /pdf on demand. Inlining
+        # 11MB of base64 here would ride along on every poll of this job.
+        job["pdfPath"] = str(out_file)
+        job["hasPdf"] = True
+        job["pdfBytes"] = len(pdf_bytes)
+        job.pop("pdfError", None)
+        _save()
+    return True
+
+
 # ── The runner ────────────────────────────────────────────────────────────────
 def _run_job(job_id: str):
     with _lock:
@@ -196,40 +247,18 @@ def _run_job(job_id: str):
 
         result_text = "\n\n".join(s["text"] for s in sections)
 
-        # ── Output stage: lay the text out against the real slide images ──────
-        # Deliberately AFTER the text is safe in `sections`, and inside its own
-        # try: a PDF that fails to assemble must not throw away a generation
-        # that cost many minutes of browser time. The job still completes with
-        # its text; only `pdfError` reports what went wrong.
-        pdf_path, pdf_error, pdf_size = "", "", 0
-        if job.get("filePath"):
-            try:
-                stem = Path(job.get("sourceName") or "deck.pdf").stem
-                pdf_bytes = pdfrender.build_deck_pdf(
-                    job["filePath"], result_text, stem + " \u2014 Rewritten")
-                OUTPUTS.mkdir(parents=True, exist_ok=True)
-                out_file = OUTPUTS / (job["id"] + ".pdf")
-                out_file.write_bytes(pdf_bytes)
-                pdf_path, pdf_size = str(out_file), len(pdf_bytes)
-            except Exception as e:
-                pdf_error = str(e)[:300]
-                print("[pdf] job " + job["id"] + " assembly failed: " + str(e))
-        else:
-            pdf_error = "no source file attached to this job"
-
         with _lock:
             job["status"] = "done"
             job["progress"] = 100
             job["finishedAt"] = int(time.time() * 1000)
             job["result"] = result_text
-            # The bytes stay on disk and are fetched from /pdf on demand. Inlining
-            # 11MB of base64 here would ride along on every poll of this job.
-            job["pdfPath"] = pdf_path
-            job["hasPdf"] = bool(pdf_path)
-            job["pdfBytes"] = pdf_size
-            if pdf_error:
-                job["pdfError"] = pdf_error
             _save()
+
+        # Lay the text out against the real slide images. Deliberately AFTER the
+        # text is journaled above, and build_job_pdf swallows its own errors: a
+        # layout failure must not throw away a generation that cost many minutes
+        # of browser time. The job keeps its text; pdfError says what went wrong.
+        build_job_pdf(job)
 
     except driver.DriverError as e:
         _fail(job, e.message, retryable=e.kind in ("slide_gap", "empty_answer", "unexpected"))
@@ -336,8 +365,18 @@ class Handler(BaseHTTPRequestHandler):
         if m:
             with _lock:
                 job = _jobs.get(m.group(1))
-            if not job or not job.get("pdfPath"):
-                return self._send({"ok": False, "error": "no pdf for this job"}, 404)
+            if not job:
+                return self._send({"ok": False, "error": "not found"}, 404)
+            # Build it now if this job has never had one. Jobs finished before
+            # the layout stage shipped have their text but no deck, and the
+            # idempotency cache refuses to re-run them — so without this they
+            # could never produce output again. Also covers a deck deleted off
+            # disk, and a job whose first layout attempt failed.
+            if not job.get("pdfPath") or not Path(job["pdfPath"]).exists():
+                if not build_job_pdf(job, force=True):
+                    return self._send(
+                        {"ok": False,
+                         "error": job.get("pdfError") or "no pdf for this job"}, 404)
             try:
                 data = Path(job["pdfPath"]).read_bytes()
             except OSError as e:
