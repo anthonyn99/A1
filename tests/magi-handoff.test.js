@@ -329,6 +329,184 @@ console.log('\nNo link at all');
 }
 
 
+// ── One tab, even after a browser restart ──────────────────────────────────
+// The opener lifted out of tradehub.html and run against a fake browser. Every
+// branch below was a way to end up with two MAGI tabs, or with one tab that
+// never heard the question.
+const TABSYNC = fs.readFileSync(path.join(ROOT, 'tabsync.js'), 'utf8');
+
+/** A window.open() result: a tab, real or blank, with the bits the opener reads. */
+function fakeTab(href, opts) {
+  const t = Object.assign({ href, name: '', closed: false, focused: 0, navs: [] }, opts || {});
+  t.location = {
+    get href() { if (t.crossOrigin) throw new Error('cross-origin'); return t.href; },
+    set href(v) { t.navs.push(v); t.href = v; },
+    replace(v) { t.navs.push(v); t.href = v; },
+  };
+  t.focus = () => { t.focused++; };
+  t.close = () => { t.closed = true; };
+  return t;
+}
+
+/** The opener, with window.open, localStorage and BroadcastChannel in hand. */
+function opener(scenario) {
+  const posted = [];
+  const chans = [];
+  const store = scenario.claim
+    ? { 'a1tab:magi': JSON.stringify({ id: 'x', t: Date.now() - (scenario.claimAge || 0) }) }
+    : {};
+  function Chan() {
+    const c = { onmessage: null, closed: false, postMessage: (m) => { posted.push(m); if (c.onmessage) chans.push(c); }, close() { c.closed = true; } };
+    chans.push(c);
+    return c;
+  }
+  const env = new Function(
+    'window', 'localStorage', 'BroadcastChannel', 'opened',
+    lift(TRADEHUB, 'tbTabClaimed') + '\n' + lift(TRADEHUB, 'tbTabGo') + '\n' +
+    lift(TRADEHUB, 'tbHandOverMagi') + '\n' + lift(TRADEHUB, 'tbOpenMagi') + '\n' +
+    "const TB_MAGI_TAB_KEY='magi';const TB_MAGI_TAB_NAME='a1tab_'+TB_MAGI_TAB_KEY;\n" +
+    'return tbOpenMagi;'
+  )(
+    { open: (u, n) => { scenario.opened.push({ u, n }); return scenario.tab; } },
+    { getItem: (k) => (k in store ? store[k] : null) },
+    Chan, scenario.opened
+  );
+  return { run: (url) => env(url), posted, chans };
+}
+
+console.log('\nOne MAGI tab, whatever state the browser is in');
+(async () => {
+  const URL_ONE = 'https://anthonyn99.github.io/A1/magi.html#tb=AAA';
+  const URL_TWO = 'https://anthonyn99.github.io/A1/magi.html#tb=BBB';
+  const settle = () => new Promise((r) => setTimeout(r, 420));
+
+  // 1 — nothing open yet.
+  {
+    const tab = fakeTab('about:blank');
+    const o = opener({ tab, opened: [], claim: false });
+    const r = o.run(URL_ONE);
+    ok('a first launch opens one tab and navigates it', r === true && tab.navs.length === 1 && tab.navs[0] === URL_ONE, tab.navs);
+    ok('  it claims the name TaskHub uses', tab.name === 'a1tab_magi', tab.name);
+    ok('  and it is brought forward', tab.focused === 1);
+  }
+
+  // 2 — the console is already open in this browsing-context group.
+  {
+    const tab = fakeTab('https://anthonyn99.github.io/A1/magi.html');
+    const opened = [];
+    const o = opener({ tab, opened, claim: false });
+    o.run(URL_TWO);
+    ok('an open console is re-used, not duplicated', opened.length === 1 && opened[0].u === '', opened);
+    ok('  and it is handed the new prompt', tab.navs.length === 1 && tab.navs[0] === URL_TWO, tab.navs);
+    ok('  by fragment only, so it is not reloaded',
+      tab.navs[0].split('#')[0] === 'https://anthonyn99.github.io/A1/magi.html');
+    ok('  and brought forward', tab.focused === 1);
+  }
+
+  // 3 — a console restored by the browser: invisible to the name lookup, but
+  //     still claiming the key, and able to focus itself.
+  {
+    const tab = fakeTab('about:blank');
+    const o = opener({ tab, opened: [], claim: true });
+    o.run(URL_ONE);
+    const claim = o.posted.find((m) => m.t === 'claim');
+    ok('a restored console is asked before a second tab is used', !!claim, o.posted);
+    o.chans.filter((c) => c.onmessage).forEach((c) => c.onmessage({ data: { t: 'claimed', k: 'magi', rid: claim.rid, ok: true } }));
+    await settle();
+    const deliver = o.posted.find((m) => m.t === 'deliver');
+    ok('it is handed the prompt rather than merely focused', !!deliver && deliver.url === URL_ONE, o.posted);
+    ok('  and our spare tab is closed, so there is one', tab.closed === true);
+    ok('  the spare is never navigated', tab.navs.length === 0, tab.navs);
+  }
+
+  // 4 — the same, but it cannot bring itself forward (the usual outcome: Chrome
+  //     only lets a background tab focus itself with recent interaction).
+  {
+    const tab = fakeTab('about:blank');
+    const o = opener({ tab, opened: [], claim: true });
+    o.run(URL_ONE);
+    const claim = o.posted.find((m) => m.t === 'claim');
+    o.chans.filter((c) => c.onmessage).forEach((c) => c.onmessage({ data: { t: 'claimed', k: 'magi', rid: claim.rid, ok: false } }));
+    await settle();
+    ok('a console that cannot come forward stands down', o.posted.some((m) => m.t === 'retire'));
+    ok('  and our tab takes the prompt, so there is still one', tab.navs[0] === URL_ONE && !tab.closed);
+  }
+
+  // 5 — the heartbeat was stale: nobody is really there.
+  {
+    const tab = fakeTab('about:blank');
+    const o = opener({ tab, opened: [], claim: true });
+    o.run(URL_ONE);
+    await settle();
+    ok('an unanswered claim just opens the tab', tab.navs[0] === URL_ONE && !tab.closed);
+    ok('  and nothing is told to retire', !o.posted.some((m) => m.t === 'retire'), o.posted);
+  }
+
+  // 6 — an expired heartbeat is not consulted at all.
+  {
+    const tab = fakeTab('about:blank');
+    const o = opener({ tab, opened: [], claim: true, claimAge: 60000 });
+    o.run(URL_ONE);
+    ok('a stale claim costs no handshake', !o.posted.length && tab.navs[0] === URL_ONE, o.posted);
+  }
+
+  // 7 — popup blocked.
+  {
+    const opened = [];
+    const o = opener({ tab: null, opened, claim: false });
+    const r = o.run(URL_ONE);
+    ok('a blocked popup still aims at the same tab name',
+      r === false || (opened.length === 2 && opened[1].n === 'a1tab_magi'), opened);
+  }
+
+  // ── and the other end: the console answering ────────────────────────────
+  console.log('\nThe console answers for its own tab');
+  {
+    // tabsync.js in a fake browser, so a real navigation can be observed.
+    function tab(url, name) {
+      const st = { navs: [], focused: 0, closed: false, name, ls: {}, ss: {}, chans: [] };
+      const location = {
+        get href() { return url; },
+        set href(v) { st.navs.push(v); },
+        origin: 'https://anthonyn99.github.io', pathname: '/A1/magi.html', search: '', hash: '',
+      };
+      const win = {
+        get name() { return st.name; }, set name(v) { st.name = v; },
+        addEventListener() {}, focus() { st.focused++; }, close() { st.closed = true; },
+      };
+      function Chan() {
+        const c = { onmessage: null, postMessage() {}, close() {} };
+        st.chans.push(c);
+        return c;
+      }
+      new Function('window', 'location', 'localStorage', 'sessionStorage', 'history',
+        'document', 'BroadcastChannel', 'setInterval', 'clearInterval', 'URLSearchParams', 'URL', TABSYNC)(
+        win, location,
+        { getItem: (k) => (k in st.ls ? st.ls[k] : null), setItem: (k, v) => { st.ls[k] = v; }, removeItem: (k) => { delete st.ls[k]; } },
+        { getItem: (k) => (k in st.ss ? st.ss[k] : null), setItem: (k, v) => { st.ss[k] = v; }, removeItem: (k) => { delete st.ss[k]; } },
+        { replaceState() {} }, { addEventListener() {}, visibilityState: 'hidden' },
+        Chan, () => 0, () => {}, URLSearchParams, URL);
+      return st;
+    }
+
+    const t = tab('https://anthonyn99.github.io/A1/magi.html', 'a1tab_magi');
+    ok('it claims the key on load', !!t.ls['a1tab:magi']);
+    const send = (d) => t.chans.forEach((c) => c.onmessage && c.onmessage({ data: d }));
+
+    send({ t: 'deliver', k: 'magi', url: URL_ONE });
+    ok('a delivered url navigates it', t.navs[0] === URL_ONE, t.navs);
+    ok('  and it tries to come forward', t.focused >= 1);
+
+    send({ t: 'deliver', k: 'vault', url: URL_TWO });
+    ok('a delivery for another destination is ignored', t.navs.length === 1, t.navs);
+
+    send({ t: 'deliver', k: 'magi', url: 'https://evil.example/steal' });
+    ok('an off-origin url is refused', t.navs.length === 1, t.navs);
+
+    send({ t: 'retire', k: 'magi' });
+    ok('retire still stands the tab down', t.closed === true && !t.ls['a1tab:magi']);
+  }
+
 // ── The worker actually stores and returns them ────────────────────────────
 // Lifted and run against a fake KV, because "the field is in the file" is not
 // the same as "the field survives a write and a read".
@@ -369,3 +547,4 @@ console.log('\nThe worker round-trips the unit list');
     process.exit(fail ? 1 : 0);
   })();
 }
+})();

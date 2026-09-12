@@ -72,6 +72,12 @@ for (const [msg, who] of [['claim', 'the opener asks'], ['claimed', 'the tab ans
   ok(`"${msg}" is handled on both ends (${who})`,
     index.includes(`'${msg}'`) && sync.includes(`'${msg}'`));
 }
+// The fourth message has a different opener: TradeHub, handing MAGI a prompt.
+// Focus alone would bring the console forward without the question it was sent.
+const tradehub = fs.readFileSync(path.join(ROOT, 'tradehub.html'), 'utf8');
+ok('"deliver" is handled on both ends (the opener hands over a url)',
+  /t:'deliver'/.test(tradehub) && /d\.t === 'deliver'/.test(sync));
+ok('a delivered url must be same-origin', /function ownOrigin\(/.test(sync) && /ownOrigin\(d\.url\)/.test(sync));
 
 console.log('\nThe opener actually consults the heartbeat');
 ok('_tnOpenTab exists', /window\._tnOpenTab\s*=\s*function/.test(index));
@@ -84,6 +90,23 @@ ok('the key is sanitised the same way the tab will read it back',
 // to this page; noopener would put it in its own group and every click would
 // spawn a fresh tab. This has regressed once already.
 ok('the named-tab path never passes noopener', !/window\.open\('',\s*name,/.test(index));
+
+console.log('\nTradeHub opens MAGI through the same pairing');
+// Analysis sends its prompt to the console rather than to a chat site, so it is
+// a second opener for a tab TaskHub also opens. Two openers that disagree about
+// the key are two tabs.
+const magiKey = (/const TB_MAGI_TAB_KEY='([^']+)'/.exec(tradehub) || [])[1];
+ok('TradeHub names a tab key for MAGI', !!magiKey, magiKey);
+ok("it is the key index.html uses for MAGI ('" + magiKey + "')",
+  index.includes("_tnOpenTab(URL_MAGI, '" + magiKey + "')"));
+ok('and it builds the same window name', /const TB_MAGI_TAB_NAME='a1tab_'\+TB_MAGI_TAB_KEY/.test(tradehub));
+const opener = tradehub.slice(tradehub.indexOf('function tbOpenMagi(url){'));
+const openerFn = opener.slice(0, opener.indexOf('\n}'));
+ok('it claims the tab by name before opening anything',
+  /window\.open\('',\s*TB_MAGI_TAB_NAME\)/.test(openerFn), openerFn.slice(0, 300));
+ok('a blank tab triggers the handover', /tbTabClaimed\([^)]*\)\)\{tbHandOverMagi\(/.test(openerFn), openerFn.slice(-400));
+ok('it reads the same heartbeat key tabsync writes', /'a1tab:'\+key/.test(tradehub));
+ok('the named-tab path never passes noopener', !/window\.open\('',\s*TB_MAGI_TAB_NAME,/.test(tradehub));
 
 console.log('\nA tab that was not opened from TaskHub stays out of it');
 ok('no key means tabsync does nothing', /if \(!key\) return;/.test(sync));

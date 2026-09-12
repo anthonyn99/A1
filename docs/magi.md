@@ -385,6 +385,21 @@ in the way and runs when it clears:
 | The engine is asleep | the prompt lands in the box and says so; press Convene when it is up |
 | It names units this engine has none of | the selection already made here is kept, and the run goes ahead with it |
 
+**It always lands in the one MAGI tab.** TradeHub opens the console exactly
+the way TaskHub's MAGI button does — `_tnOpenTab`'s pairing, ported: the window
+name `a1tab_magi` first, and when that misses (Chrome restores tabs but not the
+opener links that make a name findable) the `tabsync.js` heartbeat and its
+`a1tabs` BroadcastChannel. A console that is already open is navigated rather
+than duplicated, and because only the fragment differs that is not a reload —
+whatever it was doing survives, and it hears `hashchange`.
+
+One message was added to `tabsync.js` for this: **`deliver`**. TaskHub's
+handshake ends with the old tab merely coming forward, which for a prompt would
+mean focusing a console that never heard the question; `deliver` hands it the
+url instead, and it navigates itself. Same-origin only, both sender (the
+channel guarantees it) and payload (checked), so it can never send one of these
+tabs off-origin.
+
 The morning launcher builds the same link in Python
 (`trading-auto-launch/launch.py`, `_magi_link`), from the prompt and unit list
 TradeHub pushes to `trade-dashboard`'s `/analysis-config`. A non-empty
