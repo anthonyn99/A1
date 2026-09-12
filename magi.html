@@ -8532,31 +8532,39 @@ async function cloudWatch() {
         if (typeof renderUnitChips === "function" && S.providers.length) renderUnitChips();
       }
 
-      /* Marks that predate the maps, carried over once.
+      /* Marks that predate the maps, dealt with once.
        *
-       *  Pins and names used to be stored on each run's index row. Those rows
-       *  are still up there with pinned/nick on them, and nothing reads those
-       *  fields any more -- so without this, every pin and name made before
-       *  today would simply vanish. Folded in as a UNION on the first
-       *  snapshot only: on first contact there is no way to tell "unpinned on
-       *  the other device" from "never pinned", and keeping a pin you did not
-       *  want is recoverable in one tap while losing one is not.
+       *  Pins and names used to be stored on each run's index row, and a
+       *  stale pinned:true left lying there is precisely what made unpinning
+       *  impossible: the maps said no, the row said yes, and the row won.
+       *  They are stripped here so nothing can read them again.
+       *
+       *  A row's mark is only ADOPTED when there is no modern field to trust
+       *  -- a document written entirely by the old code. When pins or nicks
+       *  exists, that field is the answer, including when it is EMPTY: an
+       *  empty pins array is a pin deliberately removed, and folding the old
+       *  row flag back in would hand it straight back.
        */
       if (d && !CLOUD.folded) {
         CLOUD.folded = true;
+        const legacy = Array.isArray(d.runs) ? d.runs : [];
         let found = false;
-        for (const r of (Array.isArray(d.runs) ? d.runs : [])) {
-          if (r.pinned && !PINS.has(r.id)) { PINS.add(r.id); found = true; }
-          if (r.nick && !NICKS[r.id]) { NICKS[r.id] = String(r.nick); found = true; }
+        if (!Array.isArray(d.pins)) {
+          for (const r of legacy) {
+            if (r.pinned && !PINS.has(r.id)) { PINS.add(r.id); found = true; }
+          }
         }
-        for (const id of (Array.isArray(d.pins) ? d.pins : [])) {
-          if (!PINS.has(id)) { PINS.add(id); found = true; }
+        if (!d.nicks) {
+          for (const r of legacy) {
+            if (r.nick && !NICKS[r.id]) { NICKS[r.id] = String(r.nick); found = true; }
+          }
         }
         if (found) {
           savePins(); saveNicks();
           cloudSaveMarks();   // sets _marksDirty, so the block below stands
           mergeHistory();     // aside until the folded set is safely written
         }
+        if (legacy.some((r) => "pinned" in r || "nick" in r)) cloudStripRowMarks();
       }
 
       // Deliberation pins, names and retention clocks. Skipped while an edit
@@ -8701,6 +8709,19 @@ async function cloudPushRun(runId, quiet) {
  *
  *  Debounced because generating three Studio cards in a row would otherwise
  *  be three index writes for one run's worth of change. */
+/** Take the duplicated pin/name fields off the index rows, once.
+ *
+ *  One write, and then never again: after it no row carries either field, so
+ *  the caller's test finds nothing to do on every later load.
+ */
+async function cloudStripRowMarks() {
+  for (const r of CLOUD.index) { delete r.pinned; delete r.nick; }
+  try {
+    await CLOUD.fs.setDoc(_indexDoc(), { runs: CLOUD.index },
+                          { mergeFields: ["runs"] });
+  } catch (e) { console.warn("[magi] stripping old row marks:", e); }
+}
+
 /* One compact row per run. `pinned` and `nick` are deliberately NOT on it:
  * they are per-person marks, not properties of the deliberation, and keeping
  * a second copy here is what made them impossible to undo. */
