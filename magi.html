@@ -4308,6 +4308,15 @@ const S = {
    *  nothing to do with it.
    */
   gridOwner: null,
+  /* True when the deliberation on screen exists in this engine's database.
+   *
+   *  Studio builds a card by driving a real browser against the run's stored
+   *  answers, so it can only run where those answers live. A deliberation
+   *  made on another device opens here from the cloud -- its answers, verdict
+   *  and any cards already built all travel -- but the engine has never seen
+   *  it, and asking it to build a new card returns 404 "unknown run".
+   */
+  runLocal: false,
   // True while the council view is showing a run opened from History rather
   // than one you just started. The difference is not cosmetic: it decides
   // which sidebar row is lit and whether there is a way back to the list.
@@ -4935,6 +4944,7 @@ async function start() {
   S.running = true;
   S.fromHistory = false;
   S.gridOwner = "council";
+  S.runLocal = true;
   // A run in progress is the thing to watch, so any drawer the user was
   // reading gives way to the console.
   setView("council");
@@ -5068,6 +5078,7 @@ function newRun() {
   S.verdict = null;
   S.runId = null;
   S.gridOwner = null;
+  S.runLocal = false;
   setErr("attachError", null);
   setErr("refineError", null);
   renderChips();
@@ -5166,6 +5177,7 @@ async function openRun(id) {
   const data = await r.json();
   S.runId = id;
   S.gridOwner = "council";
+  S.runLocal = true;          // read from the engine, so the engine has it
   setQuestion(data.run.question);
   S.opened = new Set();
   S.panels = data.answers.map((a) => ({
@@ -6235,7 +6247,7 @@ function statusHint(a) {
    deliberation behind it is gone, and offering to build a slide deck from
    something no longer shown is a half-state. */
 const studioEnabled = () => !!(S.runId && S.gridOwner === "council"
-  && S.verdict && S.verdict.synthesis_ok && online());
+  && S.runLocal && S.verdict && S.verdict.synthesis_ok && online());
 
 function resetStudio() {
   S.studio.artifacts = freshArtifacts();
@@ -6288,7 +6300,17 @@ function generateStudio(kind) {
   pickForm.append("providers", [...S.selected].join(","));
   fetch(`${link.api}/api/runs/${runId}/studio/${kind}`,
         authed({ method: "POST", body: pickForm }))
-    .then((r) => r.json())
+    // Checked, not assumed. A refusal (404 unknown run, 400 no verdict) is
+    // JSON too -- it just has `detail` where `job_id` should be, so the old
+    // code opened a stream at /studio/undefined/stream and the card sat on
+    // "Queued..." for ever with nothing said.
+    .then(async (r) => {
+      const d = await r.json().catch(() => null);
+      if (!r.ok || !d || !d.job_id) {
+        throw new Error((d && d.detail) || `the engine returned ${r.status}`);
+      }
+      return d;
+    })
     .then(({ job_id }) => {
       // Kept so Cancel has something to cancel. Cleared when the job settles,
       // so a stale id can never be sent for a card that already finished.
@@ -6320,8 +6342,13 @@ function generateStudio(kind) {
       };
       es.onerror = () => es.close();
     })
-    .catch(() => {
-      S.studio.artifacts[kind] = { status: "failed", error_detail: "Request failed." };
+    .catch((e) => {
+      // What the engine actually said. "Request failed." was true of every
+      // refusal and useful for none of them.
+      S.studio.artifacts[kind] = {
+        status: "failed",
+        error_detail: (e && e.message) || "Request failed.",
+      };
       renderStudioNav();
       if (S.studio.active === kind) renderStudioView();
     });
@@ -6371,6 +6398,20 @@ function renderStudioNav() {
   const sec = $("studioSec");
   const enabled = studioEnabled();
   show($("studioNote"), !enabled);
+  // Three different reasons a card cannot be built, and "Available once a
+  // verdict is reached" is only one of them. A row greyed out with the wrong
+  // explanation reads as a bug in the program rather than a fact about this
+  // deliberation.
+  const note = $("studioNote");
+  if (!enabled) {
+    note.textContent =
+      !online()
+        ? "Needs the engine device to be awake."
+      : (S.runId && S.gridOwner === "council" && !S.runLocal)
+        ? "This deliberation is synced from another device. Cards already " +
+          "built travel with it, but new ones have to be made where it ran."
+      : "Available once a verdict is reached.";
+  }
   for (const el of sec.querySelectorAll(".studio-row")) el.remove();
 
   const before = sec.querySelector(".side-item.disabled"); // the Video tile
@@ -9083,6 +9124,7 @@ async function cloudOpenRun(id) {
     const data = snap.data();
     S.runId = id;
     S.gridOwner = "council";
+    S.runLocal = false;       // read from the cloud; this engine never ran it
     setQuestion((data.run && data.run.question) || "");
     S.opened = new Set();
     S.panels = (data.answers || []).map((a) => ({

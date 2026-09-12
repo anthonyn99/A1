@@ -73,15 +73,35 @@ The engine runs under `pythonw.exe` — no console window — and everything it
 would have printed goes to `magi/data/autostart.log`, truncated per run. That
 is the first place to look when the console says the engine is offline.
 
-`magi.bat` still works and is still the right tool for `login`, `doctor`,
-`capture` and one-off runs. It is just no longer something you need to
-remember before opening the page.
+There was a `magi.bat` launcher. It was deleted on 2026-09-12, once the
+startup shortcut had made it redundant for daily use: the shortcut runs the
+venv's `pythonw.exe` directly and never went through the batch file. Every
+command it wrapped is one line of the venv's Python, and they are written out
+below.
 
 ## First run
 
-Double-click **`magi.bat`**. It builds `magi/.venv` from Python 3.12, installs
-the dependencies, downloads Playwright's Chromium, starts the server and opens
-the console. That takes a few minutes once and is never repeated.
+Build the environment once. From the repo root:
+
+```
+py -3.12 -m venv magi\.venv
+magi\.venv\Scripts\python.exe -m pip install -r magi\requirements.txt
+magi\.venv\Scripts\python.exe -m playwright install chromium
+```
+
+3.12 is pinned deliberately: Veda verified against 3.11, this machine has no
+3.11, and `py` on its own picks 3.14 — further from that baseline than 3.12
+is. Playwright's Chromium is downloaded even though `config/magi.yaml` runs
+`channel: chrome` (your real Chrome), because some Playwright internals expect
+the bundled browser to be present regardless.
+
+Then start it:
+
+```
+magi\.venv\Scripts\python.exe -m magi serve
+```
+
+Or `-m magi autostart` once, and it starts itself at every logon.
 
 Then sign in to each site — one window opens per command, you log in by hand
 exactly as you would normally, and the session is saved under `magi/profiles/`:
@@ -111,8 +131,8 @@ Finally, `magi doctor` to confirm the selectors still match.
   `config/magi.yaml` sets `channel: chrome` because a real Chrome fingerprint
   is part of what clears ChatGPT/Claude's Cloudflare challenge.
 - **Python 3.11+.** Veda verified against 3.11; this machine has no 3.11, so
-  `magi.bat` pins **3.12** — closest to that baseline, and further from the
-  3.14 that `py` would otherwise pick. All 147 tests pass on it.
+  the venv is built from **3.12** — closest to that baseline, and further from
+  the 3.14 that `py` would otherwise pick.
 - **Windows.** The off-screen window mechanism (`magi/browser/winhide.py`) uses
   Win32 APIs directly.
 
@@ -533,7 +553,6 @@ to scroll past pacing and chairman config to do it.
 
 ```
 magi.html               the console — single file, no build step
-magi.bat                the only launcher
 magi/
   app.py                FastAPI + SSE
   __main__.py           the CLI
@@ -567,7 +586,7 @@ Consolidated or dropped:
 | Before | After |
 |---|---|
 | `README.md` + `SETUP-FOR-TONY.md` + `magi-setup.md` | this file |
-| `MAGI.bat` + `MAGI-Login.bat` + `MAGI-Doctor.bat` + `MAGI-Cloud.ps1` | `magi.bat` |
+| `MAGI.bat` + `MAGI-Login.bat` + `MAGI-Doctor.bat` + `MAGI-Cloud.ps1` | one `magi.bat`, and then nothing — the startup shortcut runs the venv directly |
 | `backend/magi/` | `magi/` |
 | React + Vite + TypeScript frontend (23 files, a build step) | `magi.html` |
 | Firebase Hosting | GitHub Pages, with the rest of A1 |

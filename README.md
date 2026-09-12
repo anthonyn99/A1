@@ -37,7 +37,7 @@ files and belong at the root.
 | `V1/` | Veda's earlier suite — StudyOS, Finance, TradeBoard. Still deployed, by `deploy-v1-workers.yml`; self-contained, with its own README and workers |
 | `tests/` | Node test suite for the root apps — `npm test` |
 | `tools/` | App Check maintenance scripts (see `tools/README-appcheck.md`) |
-| `magi/` | MAGI's engine — Python + Playwright, driving four logged-in Chrome profiles. Local-only by nature; start it with `magi.bat`. See `docs/magi.md` |
+| `magi/` | MAGI's engine — Python + Playwright, driving four logged-in Chrome profiles. Local-only by nature; it starts itself at logon. See `docs/magi.md` |
 | `docs/` | Setup checklists and design notes |
 
 ## Tests
