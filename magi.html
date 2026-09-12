@@ -3884,18 +3884,59 @@ function renderOfflineNote() {
    somewhere anonymous: an octave adds no colour, so it read as a clean beep
    rather than as an instrument.
 
-   This one is struck GLASS. Inharmonic bell partials so each tone is an
-   object rather than a note, a detuned twin so the tail shimmers instead of
-   sitting still, and stereo placement so a figure opens outward. The harmony
-   is quintal -- stacked fifths on D -- where it used to be an A major triad:
-   a triad states a key and sounds like a task completing, and for most of a
-   run nothing has been decided yet. Rising and opening for consensus, falling
-   onto a low D left ringing when there is no quorum.
+   Then struck glass on stacked fifths, which fixed the anonymity and brought
+   two problems of its own: bell partials heard dry and close clang rather than
+   ring, and bare fifths are austere at the exact moment the council has
+   finally agreed on something.
+
+   This one is a soft mallet on warm metal, in a room. Harmonic partials carry
+   the body and a single inharmonic one survives as the strike, gone in a tenth
+   of a second. Everything is fed to a generated reverb, which is what stops a
+   synthesised tone happening inside your head. The harmony keeps a bare fifth
+   while the council is working -- nothing has been decided yet -- and warms to
+   D major with a ninth when it lands, falling to a low D left ringing when
+   there is no quorum.
 
    Nothing here creates an AudioContext on load — browsers block audio until a
    user gesture, so it is built lazily on the first beep, which always follows
    the click that starts a run. */
-let actx = null, master = null;
+let actx = null, master = null, room = null;
+
+/** A small dark room, generated rather than downloaded.
+ *
+ *  This is the single biggest thing separating a tone that sounds like an
+ *  instrument from one that sounds like a beep. Dry synthesis arrives with no
+ *  space around it -- it happens INSIDE your head rather than in front of you
+ *  -- and no amount of work on the spectrum fixes that. A reverb tail does.
+ *
+ *  The impulse is exponentially decaying noise, which is the cheapest thing
+ *  that behaves like a room, filtered dark on the way in so the tail is a
+ *  bloom rather than a hiss. Around a second and a half: long enough to hear
+ *  as space, short enough that the deliberating tone's tail has faded before
+ *  the next one lands. */
+function buildRoom(ac) {
+  const seconds = 1.5, len = Math.floor(ac.sampleRate * seconds);
+  const buf = ac.createBuffer(2, len, ac.sampleRate);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = buf.getChannelData(ch);
+    for (let i = 0; i < len; i++) {
+      const t = i / len;
+      // Squared decay, plus a short pre-delay of near-silence so the direct
+      // sound is heard before the room answers it.
+      d[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 3.4) * (t < 0.012 ? t / 0.012 : 1);
+    }
+  }
+  const conv = ac.createConvolver();
+  conv.buffer = buf;
+  const dark = ac.createBiquadFilter();
+  dark.type = "lowpass";
+  dark.frequency.value = 2600;
+  const wet = ac.createGain();
+  wet.gain.value = 0.9;
+  dark.connect(conv).connect(wet).connect(master);
+  return dark;                    // send tones here to put them in the room
+}
+
 function audio() {
   if (!actx) {
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -3904,6 +3945,8 @@ function audio() {
     master = actx.createGain();
     master.gain.value = 0.5;
     master.connect(actx.destination);
+    // Not fatal if unavailable: the tones simply stay dry.
+    try { room = buildRoom(actx); } catch { room = null; }
   }
   // Autoplay policy can leave a context suspended even after a gesture.
   if (actx.state === "suspended") actx.resume();
@@ -3912,40 +3955,45 @@ function audio() {
 
 /** One struck tone.
  *
- *  THE VOICE, and what it replaced. This was a sine fundamental with a quiet
- *  octave partial: consonant, safe, and a little anonymous -- an octave is the
- *  one interval that adds no colour at all, so what came out was a clean beep
- *  rather than an instrument. Before that it was a square wave, which was the
- *  right idea (an Evangelion console) played back through every odd harmonic
- *  at full strength, and genuinely fatiguing over a two-minute run.
+ *  THE VOICE, and the two it replaced. First a square wave -- the right idea
+ *  (an Evangelion console) carried by every odd harmonic at full strength, and
+ *  genuinely tiring over a two-minute run. Then struck sines with an octave
+ *  partial: clean, and a little anonymous, because an octave is the one
+ *  interval that adds no colour.
  *
- *  This is struck glass. Four things make it that rather than a beep:
+ *  Then struck glass, with bell partials at 2.76x and 5.40x. Those ratios are
+ *  what a tubular bell really has, and they are also why a bell needs a
+ *  cathedral: heard dry and close, inharmonic partials do not ring, they
+ *  CLANG. That is the note this lands on instead -- a soft mallet on warm
+ *  metal, in a room:
  *
- *    · INHARMONIC partials at 2.76x and 5.40x, which are bell ratios -- not
- *      whole-number multiples, so they never fuse into "one note with
- *      harmonics" and you hear a struck OBJECT instead. This is the whole
- *      character, and it is why the octave went: 2x fused, 2.76x rings.
- *    · A detuned twin three-thousandths sharp under the fundamental. Two
- *      close sines beat against each other roughly once a second, so the tail
- *      shimmers slowly instead of sitting still. It is the difference between
- *      a struck glass and a tuning fork.
- *    · An 18ms attack, and a decay that is exponential per PARTIAL: the high
- *      inharmonic ones fade fastest (x0.45), exactly as they do on a real
- *      bell, so the strike is bright and what rings on is warm.
- *    · Stereo placement, so an arpeggio opens outward across the field rather
- *      than arriving stacked in the middle of your head.
+ *    · HARMONIC partials carry the body -- the octave and the twelfth, both
+ *      quiet. Whole-number ratios fuse into one note, which is what makes a
+ *      tone sound like a pitch rather than a collision.
+ *    · ONE inharmonic partial survives, at a fifth of its old level and a
+ *      third of its old life. It is the strike, not the tone: present for
+ *      about a tenth of a second, which reads as "struck" and is gone before
+ *      it can sour anything.
+ *    · A twin detuned by half of what it was. Two sines a thousandth apart
+ *      beat slowly enough to shimmer; at three thousandths they beat fast
+ *      enough to sound out of tune, which is what the last version did on the
+ *      high notes.
+ *    · A 28ms attack, nearly twice as long. Below about 10ms a tone starts
+ *      with a click; this is the difference between struck and hit.
+ *    · The room, above, at a level set per tone -- more on the ones that are
+ *      meant to ring, less on the tick that fires four times in a second.
  */
-function strike({ freq, at = 0, dur = 0.9, gain = 0.07, bright = 1, pan = 0 }) {
+function strike({ freq, at = 0, dur = 0.9, gain = 0.07, bright = 1, pan = 0, wet = 0.3 }) {
   const ac = audio();
   if (!ac) return;
   const t = ac.currentTime + at;
 
   // Opens with pitch so low tones stay warm and high ones keep their edge,
-  // and caps well under Nyquist so the top partial can never alias.
+  // and capped well under Nyquist so nothing can alias.
   const lp = ac.createBiquadFilter();
   lp.type = "lowpass";
-  lp.frequency.setValueAtTime(Math.min(freq * 6, 13000), t);
-  lp.Q.setValueAtTime(0.6, t);
+  lp.frequency.setValueAtTime(Math.min(freq * 6, 12000), t);
+  lp.Q.setValueAtTime(0.5, t);
 
   let out = lp;
   // Not in every engine MAGI might run in, and a missing panner must cost the
@@ -3957,20 +4005,26 @@ function strike({ freq, at = 0, dur = 0.9, gain = 0.07, bright = 1, pan = 0 }) {
     out = pn;
   }
   out.connect(master);
+  if (room && wet > 0) {
+    const send = ac.createGain();
+    send.gain.setValueAtTime(wet, t);
+    out.connect(send).connect(room);
+  }
 
   // [ratio, level, how much faster this partial dies than the fundamental]
   const PARTIALS = [
-    [1,    1.00, 1.00],
-    [1.003, 0.85, 1.00],   // the detuned twin -- the shimmer
-    [2.76, 0.30 * bright, 0.45],
-    [5.40, 0.09 * bright, 0.30],
+    [1,     1.00, 1.00],
+    [1.0015, 0.55, 1.00],        // the twin -- a slow shimmer, not a beat
+    [2,     0.16, 0.60],         // octave: body
+    [3,     0.05, 0.40],         // twelfth: a little air
+    [2.76,  0.06 * bright, 0.12] // the strike itself, gone almost at once
   ];
   for (const [mult, level, decay] of PARTIALS) {
     if (level <= 0) continue;
     const life = Math.max(0.08, dur * decay);
     const g = ac.createGain();
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(gain * level, t + 0.018);
+    g.gain.exponentialRampToValueAtTime(gain * level, t + 0.028);
     // exponentialRamp never reaches zero, so it is taken to a floor and the
     // oscillator stopped just after.
     g.gain.exponentialRampToValueAtTime(0.0001, t + life);
@@ -3983,45 +4037,49 @@ function strike({ freq, at = 0, dur = 0.9, gain = 0.07, bright = 1, pan = 0 }) {
   }
 }
 
-/* The harmony is QUINTAL -- stacked fifths, D as the centre -- where it used
- * to be an A major triad. A triad states a key and sounds like a product
- * chime finishing a task; stacked fifths state nothing, which is the right
- * thing for a machine that is still deciding. */
-const N = { D3: 146.83, D4: 293.66, A4: 440.00, Bb4: 466.16, D5: 587.33,
-            E5: 659.25, A5: 880.00, E6: 1318.51 };
+/* D, and warmer than it was. The fifths-only version was chosen so nothing
+ * would sound like a product chime finishing a task -- correct while the
+ * council is still working, and needlessly austere at the moment it arrives at
+ * something. So the deliberating tone keeps its bare fifth, and the verdict
+ * gets a third and a ninth: D - F# - A - E, which resolves without closing,
+ * because it lands on the ninth rather than thumping back onto the root. */
+const N = { D3: 146.83, F3: 174.61, A3: 220.00, D4: 293.66, E4: 329.63,
+            F4: 349.23, Fs4: 369.99, A4: 440.00, D5: 587.33, E5: 659.25,
+            A5: 880.00 };
 
-/** Deliberating: one struck fifth, every cycle, for as long as the council
- *  works. Two notes, 40ms apart like a rolled chord rather than a beep -- and
- *  quiet, because this repeats for minutes and anything with presence would
- *  become something to endure. */
+/** Deliberating: one struck fifth, low and quiet, every cycle for as long as
+ *  the council works. Dropped an octave from where it was -- the same interval
+ *  sits under the ear down here instead of in front of it, which is what you
+ *  want from something you will hear eighty times. Rolled, not struck flat. */
 const beepProcessing = () => {
-  strike({ freq: N.D4, at: 0,    dur: 1.20, gain: 0.040, bright: 0.7, pan: -0.18 });
-  strike({ freq: N.A4, at: 0.04, dur: 1.05, gain: 0.032, bright: 0.7, pan: 0.18 });
+  strike({ freq: N.A3, at: 0,    dur: 1.30, gain: 0.046, bright: 0.5, pan: -0.16, wet: 0.22 });
+  strike({ freq: N.E4, at: 0.05, dur: 1.15, gain: 0.036, bright: 0.5, pan: 0.16, wet: 0.22 });
 };
 
-/** A unit reporting in: one bright, brief tick. It can fire four times in a
- *  second when the council lands together, so it stays short and quiet. */
-const beepUnit = () => strike({ freq: N.A5, dur: 0.42, gain: 0.038, bright: 1.2 });
+/** A unit reporting in: one brief tick, barely there. Four of these can land
+ *  inside a second, so it is the driest and shortest thing here. */
+const beepUnit = () =>
+  strike({ freq: N.A5, dur: 0.40, gain: 0.044, bright: 0.9, wet: 0.18 });
 
-/** Consensus: fifths rising, opening left to right, the last note left to
- *  ring for two seconds. It resolves by ARRIVING rather than by cadencing --
- *  no leading tone, nothing that sounds like a jingle. */
+/** Consensus: D major with a ninth on top, rolled upward and opening across
+ *  the field, the last note left to ring for two and a half seconds in the
+ *  room. It arrives rather than cadences -- no leading tone, and it finishes
+ *  on the ninth, so it sounds finished without sounding like a jingle. */
 const beepResolved = () => {
-  strike({ freq: N.D4, at: 0,    dur: 1.30, gain: 0.050, bright: 0.8, pan: -0.32 });
-  strike({ freq: N.A4, at: 0.10, dur: 1.50, gain: 0.048, bright: 0.9, pan: -0.12 });
-  strike({ freq: N.E5, at: 0.20, dur: 1.80, gain: 0.046, bright: 1.0, pan: 0.14 });
-  strike({ freq: N.A5, at: 0.30, dur: 2.20, gain: 0.042, bright: 1.1, pan: 0.34 });
+  strike({ freq: N.D4,  at: 0,    dur: 1.60, gain: 0.056, bright: 0.7, pan: -0.30, wet: 0.34 });
+  strike({ freq: N.Fs4, at: 0.11, dur: 1.80, gain: 0.051, bright: 0.8, pan: -0.10, wet: 0.36 });
+  strike({ freq: N.A4,  at: 0.22, dur: 2.10, gain: 0.049, bright: 0.8, pan: 0.12, wet: 0.38 });
+  strike({ freq: N.E5,  at: 0.33, dur: 2.50, gain: 0.042, bright: 0.9, pan: 0.32, wet: 0.42 });
 };
 
-/** No quorum: the same gesture inverted -- falling, and landing on a low D
- *  that is still ringing when everything above it has gone. A whole tone down
- *  (D5 to B-flat is the minor sixth below) leaves it unresolved on purpose:
- *  the run did not finish, and it should not sound as though it did. Not a
- *  buzzer; nothing here should ever startle. */
+/** No quorum: the same gesture inverted. Falling, and landing on a low D that
+ *  is still ringing after everything above it has gone -- with an F natural on
+ *  the way down, so what is left is a minor colour rather than a buzzer. It
+ *  should read as "this did not land", never as an alarm. */
 const beepBlocked = () => {
-  strike({ freq: N.D5, at: 0,    dur: 0.95, gain: 0.046, bright: 0.9, pan: 0.22 });
-  strike({ freq: N.Bb4, at: 0.14, dur: 1.30, gain: 0.044, bright: 0.7, pan: -0.22 });
-  strike({ freq: N.D3, at: 0.26, dur: 2.40, gain: 0.036, bright: 0.4 });
+  strike({ freq: N.A4, at: 0,    dur: 1.10, gain: 0.051, bright: 0.7, pan: 0.20, wet: 0.32 });
+  strike({ freq: N.F4, at: 0.15, dur: 1.40, gain: 0.046, bright: 0.6, pan: -0.20, wet: 0.34 });
+  strike({ freq: N.D3, at: 0.30, dur: 2.60, gain: 0.041, bright: 0.3, wet: 0.40 });
 };
 
 function applyMute() {
