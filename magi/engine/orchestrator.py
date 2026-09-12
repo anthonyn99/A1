@@ -14,6 +14,7 @@ Two behaviours the original sketch lacked and this depends on:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import time
 import uuid
 from pathlib import Path
@@ -95,6 +96,53 @@ class Orchestrator:
                 return
             await asyncio.sleep(0.25)
 
+    @staticmethod
+    async def _ask(p, question, ctx, emit, cancel):
+        """Ask one member, and let a halt actually interrupt it.
+
+        A provider checks `cancel` where it can do so safely: before sending,
+        and on every poll while it waits for the answer. That covers the long
+        middle of a run and nothing else -- launching a browser, navigating,
+        clearing a dialog and pasting the prompt are all uninterruptible, and
+        together they are most of the first thirty seconds. Which is exactly
+        when someone presses Halt.
+
+        So the ask is raced against the event. When the event wins, the task is
+        cancelled outright: that unwinds `async with launcher.launch(...)`,
+        which closes the browser, whatever phase it had reached. Halting a
+        four-member fan-out used to mean waiting for four browsers to finish
+        what they were doing; now it means four `CancelledError`s and four
+        closed browsers.
+
+        The member still returns an Answer rather than vanishing, so a halted
+        run reports what happened to each unit instead of showing gaps.
+        """
+        if cancel is None:
+            return await p.ask(question, ctx=ctx, on_event=emit, cancel=cancel)
+
+        task = asyncio.create_task(
+            p.ask(question, ctx=ctx, on_event=emit, cancel=cancel)
+        )
+        halt = asyncio.create_task(cancel.wait())
+        try:
+            await asyncio.wait({task, halt}, return_when=asyncio.FIRST_COMPLETED)
+        finally:
+            halt.cancel()
+        if task.done():
+            return task.result()
+
+        task.cancel()
+        # Let the cancellation propagate so the browser context closes before
+        # this returns; the browser teardown is the whole point of cancelling.
+        with contextlib.suppress(BaseException):
+            await task
+        from ..errors import FailureKind
+
+        return Answer.failed(
+            p.id, p.display_name, FailureKind.CANCELLED,
+            "Halted before this unit finished.",
+        )
+
     async def run(
         self,
         question: str,
@@ -126,7 +174,7 @@ class Orchestrator:
                     break
                 if i > 0:
                     await asyncio.sleep(pacing.sample_inter_provider())
-                a = await p.ask(question, ctx=ctx, on_event=emit, cancel=cancel)
+                a = await self._ask(p, question, ctx, emit, cancel)
                 answers.append(a)
                 if self.db:
                     await self.db.save_answer(run_id, a)
@@ -144,7 +192,7 @@ class Orchestrator:
             async def one(p: Provider, delay: float) -> Answer:
                 await asyncio.sleep(delay)
                 async with sem:
-                    return await p.ask(question, ctx=ctx, on_event=emit, cancel=cancel)
+                    return await self._ask(p, question, ctx, emit, cancel)
 
             # Cumulative stagger, sampled per provider -- provider N waits for
             # the sum of N gaps, not N x one fixed gap.

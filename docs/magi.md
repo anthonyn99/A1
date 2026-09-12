@@ -668,6 +668,22 @@ are flagged low-confidence rather than presented as certain.
 prompt carries every member's full answer, and typing 2,372 characters at human
 speed took 86 seconds — a third of a whole run.
 
+**Halt stops a run on the first click**, and both halves of that were once
+too slow to look like anything had happened. Cancelling is cooperative on the
+engine — an event is set and a provider acts on it where it safely can, which
+is before sending and on every poll while it waits. That covers the long middle
+of a run and nothing else: launching Chrome, navigating, clearing a dialog and
+pasting the prompt are uninterruptible, and together they are most of the first
+thirty seconds, which is exactly when somebody presses Halt. So the fan-out is
+now raced against the event and the member's task is cancelled outright, which
+unwinds `async with launcher.launch(...)` and closes the browser mid-phase; the
+member still returns a CANCELLED answer rather than vanishing from the grid.
+The console does not wait for any of that: the click stops the tone, marks
+working units HALTED and disables the button before the POST is even sent, and
+ends the run locally if the engine never answers. It used to `await` the POST
+and change nothing, so the click looked like it had missed — which is why
+people clicked twice. `magi/tests/test_halt.py` pins both halves.
+
 **Refine is a separate button, not a step inside Convene.** Refining on the way
 to a run would send the council a question the person never read. It lands in
 the composer instead, where it can be read, edited or undone first. It runs on

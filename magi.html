@@ -3902,6 +3902,15 @@ function renderOfflineNote() {
    the click that starts a run. */
 let actx = null, master = null, room = null;
 
+/* How loud the console is, in one place -- audio() sets it and applyMute()
+   restores it, and two constants that must agree is one constant.
+   Above 1 deliberately: these are quiet, widely-spaced tones whose peaks sit
+   around a tenth of full scale even here, so there is room to be heard over a
+   laptop fan without any risk of clipping. The warmer voice needed it twice
+   over, because the ear is least sensitive exactly where that voice gave up
+   energy -- the old bright one measured the same peak and sounded louder. */
+const VOLUME = 1.5;
+
 /** A small dark room, generated rather than downloaded.
  *
  *  This is the single biggest thing separating a tone that sounds like an
@@ -3943,7 +3952,7 @@ function audio() {
     if (!AC) return null;
     actx = new AC();
     master = actx.createGain();
-    master.gain.value = 0.5;
+    master.gain.value = VOLUME;
     master.connect(actx.destination);
     // Not fatal if unavailable: the tones simply stay dry.
     try { room = buildRoom(actx); } catch { room = null; }
@@ -4083,7 +4092,7 @@ const beepBlocked = () => {
 };
 
 function applyMute() {
-  if (master && actx) master.gain.setTargetAtTime(S.muted ? 0 : 0.5, actx.currentTime, 0.01);
+  if (master && actx) master.gain.setTargetAtTime(S.muted ? 0 : VOLUME, actx.currentTime, 0.01);
   try { localStorage.setItem("magi.muted", S.muted ? "1" : "0"); } catch {}
 }
 
@@ -4108,6 +4117,10 @@ const STATE_LABEL = {
   // "4/4 resolved" on a run where one unit returned a clarifying question.
   degraded: "unusable",
   failed: "offline", skipped: "skipped", idle: "standby",
+  // Set by the console the instant Halt is pressed, so a unit stops claiming
+  // to be thinking while the engine is still winding its browser down. The
+  // engine's own final word overwrites it if it arrives.
+  halted: "halted",
 };
 
 /** Phase offset per unit, so the working blocks pulse out of step with each
@@ -4625,6 +4638,8 @@ const S = {
   opened: new Set(),     // which unit blocks are expanded
   verdict: null,
   running: false,
+  // Halt has been pressed and the engine has not finished winding down yet.
+  halting: false,
   /* Which screen the grid and the verdict belong to: "council", "brainstorm"
    * or null for neither.
    *
@@ -5274,6 +5289,12 @@ function updateEnabled() {
   $("btnUndo").disabled = busy;
   $("navNew").disabled = busy;
   show($("navHalt"), S.running);
+  // It stays VISIBLE while halting, and says so. Hiding it would answer "did
+  // that work?" with the control disappearing, which is the same silence in a
+  // different shape.
+  $("navHalt").disabled = S.halting;
+  const haltLbl = $("navHalt").querySelector(".side-label");
+  if (haltLbl) haltLbl.textContent = S.halting ? "Halting\u2026" : "Halt run";
   for (const b of document.querySelectorAll(".chip")) b.disabled = busy;
   if (typeof syncBsStartBar === "function") syncBsStartBar();
   syncCouncilIdle();
@@ -5371,6 +5392,8 @@ async function start() {
 
 function endRun() {
   S.running = false;
+  S.halting = false;
+  clearTimeout(haltFallback);
   if (S.es) { S.es.close(); S.es = null; }
   stopProcessingTone();
   updateCore();
@@ -5525,9 +5548,43 @@ function ackSettled() {
   }
 }
 
-async function cancelRun() {
-  if (!S.runId || !online()) return;
-  await fetch(`${link.api}/api/runs/${S.runId}/cancel`, authed({ method: "POST" })).catch(() => {});
+/** Halt a run -- and make the FIRST click do it.
+ *
+ *  Cancelling is cooperative on the engine: it sets an event, and a provider
+ *  acts on it at the points where it can safely stop. That is the right design
+ *  and it is not instant, so this used to POST, await the response, and change
+ *  nothing at all on screen. The units went on saying "thinking", the tone went
+ *  on pulsing, and the button went on offering to do the thing you had just
+ *  asked for -- so the click looked like it had missed, and the natural
+ *  response was to click again. That is the bug: not that halting was slow,
+ *  but that nothing acknowledged it.
+ *
+ *  So the click now owns the console immediately -- working units read HALTED,
+ *  the tone stops, the button says Halting -- while the POST goes out
+ *  UNAWAITED, because the UI must not wait on a round trip to admit it heard
+ *  you. The engine's `done` frame overwrites all of it with the truth when it
+ *  lands, which is usually well under a second (the fan-out is raced against
+ *  the cancel event now, so a browser mid-launch is torn down rather than
+ *  running to the end of its phase). If it never lands, the timer below ends
+ *  the run locally rather than leaving the console pretending. */
+let haltFallback = 0;
+function cancelRun() {
+  if (!S.running || S.halting) return;
+  S.halting = true;
+  stopProcessingTone();
+  for (const p of S.panels) {
+    if (WORKING.has(p.state)) { p.state = "halted"; updateNode(p); }
+  }
+  updateCore();
+  drawLinks();
+  updateEnabled();
+  if (S.runId && online()) {
+    fetch(`${link.api}/api/runs/${S.runId}/cancel`, authed({ method: "POST" })).catch(() => {});
+  }
+  clearTimeout(haltFallback);
+  // Long enough for a healthy engine to answer, short enough that a wedged one
+  // does not leave the console claiming a run is still going.
+  haltFallback = setTimeout(() => { if (S.running) endRun(); }, 4000);
 }
 
 /** Clears the composer and the previous run's console so the next question
