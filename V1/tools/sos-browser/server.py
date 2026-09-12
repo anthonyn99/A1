@@ -41,7 +41,10 @@ import argparse
 import asyncio
 import base64
 import json
+import os
 import re
+import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -487,10 +490,140 @@ class Handler(BaseHTTPRequestHandler):
         return self._send({"ok": True, "job": job})
 
 
+# ── autostart ─────────────────────────────────────────────────────────────────
+# The bridge is the one part of StudyOS that cannot be "just a page": the logged-in
+# Chrome profile lives on this PC, so a browser tab can never start it. Having to
+# run `python server.py` first makes the ⚡ button the only thing in StudyOS with a
+# manual step, and a button that is dead until you remember something is a button
+# you stop pressing.
+#
+# So the bridge becomes a logon item. After this, opening StudyOS is enough.
+#
+# A STARTUP SHORTCUT, NOT A SCHEDULED TASK — the same decision, for the same
+# reason, as `magi autostart` (see magi/cli/serve.py): Register-ScheduledTask
+# needs elevation, and an autostart that prompts for admin to install is not an
+# autostart. The Startup folder is per-user, needs no rights, and is somewhere
+# you can see and delete by hand.
+#
+# pythonw.exe, not python.exe: a console window on every logon is exactly the
+# thing this exists to remove.
+SHORTCUT_NAME = "StudyOS Bridge.lnk"
+
+
+def _startup_dir() -> Path:
+    return (Path(os.environ["APPDATA"]) / "Microsoft" / "Windows"
+            / "Start Menu" / "Programs" / "Startup")
+
+
+def _healthy(port: int, timeout: float = 2.0) -> bool:
+    """True when something is already answering /health on this port."""
+    import urllib.request
+    try:
+        with urllib.request.urlopen(
+                f"http://127.0.0.1:{port}/health", timeout=timeout) as r:
+            return json.loads(r.read()).get("ok") is True
+    except Exception:
+        return False
+
+
+def _pythonw() -> Path:
+    """The windowless twin of the interpreter running this script."""
+    exe = Path(sys.executable)
+    cand = exe.with_name("pythonw.exe")
+    return cand if cand.exists() else exe
+
+
+def autostart(action: str, port: int) -> int:
+    if os.name != "nt":
+        print("  autostart is Windows-only (it writes a Startup-folder shortcut).")
+        return 1
+
+    lnk = _startup_dir() / SHORTCUT_NAME
+
+    if action == "status":
+        print()
+        print(f"  startup shortcut: {'present' if lnk.exists() else 'not installed'}")
+        print(f"  {lnk}")
+        print(f"  bridge on 127.0.0.1:{port}: "
+              f"{'up' if _healthy(port) else 'not responding'}")
+        print()
+        return 0
+
+    if action == "off":
+        try:
+            lnk.unlink()
+            print(f"\n  Removed {lnk.name} - the bridge no longer starts at logon.")
+        except FileNotFoundError:
+            print("\n  Nothing to remove; it was not installed.")
+        print("  Any bridge already running is left alone.\n")
+        return 0
+
+    pyw = _pythonw()
+    here = Path(__file__).resolve().parent
+    lnk.parent.mkdir(parents=True, exist_ok=True)
+
+    # Quoting: the repo path contains no quotes, but it may contain spaces, so
+    # every path goes inside single quotes for PowerShell.
+    script = (
+        "$w = New-Object -ComObject WScript.Shell; "
+        f"$s = $w.CreateShortcut('{lnk}'); "
+        f"$s.TargetPath = '{pyw}'; "
+        f"$s.Arguments = '\"{here / 'server.py'}\" --port {port}'; "
+        f"$s.WorkingDirectory = '{here}'; "
+        "$s.Description = 'StudyOS pipeline bridge'; "
+        "$s.WindowStyle = 7; "
+        "$s.Save(); "
+        "if (Test-Path $s.FullName) { 'ok' } else { throw 'shortcut not written' }"
+    )
+    r = subprocess.run(["powershell", "-NoProfile", "-NonInteractive",
+                        "-Command", script], capture_output=True, text=True)
+    out = (r.stdout or r.stderr).strip()
+    # Checked, not assumed: a script that prints its own confirmation regardless
+    # of what the cmdlet did reports success while silently failing.
+    if r.returncode != 0 or "ok" not in out:
+        print(f"\n  [X] could not write the shortcut:\n{out}\n")
+        return 1
+
+    print(f"\n  Installed {lnk.name} - the bridge now starts when you log in.")
+
+    if _healthy(port):
+        print(f"  Already running on 127.0.0.1:{port}.\n")
+        return 0
+
+    # Start it now rather than making you log out to see it work.
+    print("  Starting it now...")
+    subprocess.Popen([str(pyw), str(here / "server.py"), "--port", str(port)],
+                     cwd=str(here))
+    for _ in range(30):
+        if _healthy(port, timeout=1):
+            print(f"\n  The bridge is up on 127.0.0.1:{port}. Open StudyOS and")
+            print("  press the lightning button - no terminal needed again.\n")
+            return 0
+        time.sleep(1)
+    print("\n  [!] Installed, but it has not answered yet.")
+    print(f"      Check `python server.py autostart status` in a moment.\n")
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser(description="StudyOS local pipeline bridge")
     ap.add_argument("--port", type=int, default=8781)
+    sub = ap.add_subparsers(dest="cmd")
+    a = sub.add_parser("autostart", help="run the bridge at logon")
+    a.add_argument("action", nargs="?", default="on",
+                   choices=["on", "off", "status"])
     args = ap.parse_args()
+
+    if args.cmd == "autostart":
+        raise SystemExit(autostart(args.action, args.port))
+
+    # Refuse to start a second copy. Two bridges on one port means the newcomer
+    # dies with a confusing bind error, and two driving one Chrome profile is the
+    # "Opening in existing browser session" failure. Silent under pythonw, where
+    # there is no console to read anyway.
+    if _healthy(args.port, timeout=1):
+        print(f"  A bridge is already running on 127.0.0.1:{args.port}. Nothing to do.")
+        return
 
     _load()
     _ensure_worker()

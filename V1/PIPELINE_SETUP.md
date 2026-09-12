@@ -37,7 +37,33 @@ is gitignored.
 > **Close that window when you're done.** A browser still holding the profile
 > makes the next run fail with `Opening in existing browser session`.
 
-### Every time you want the pipeline
+### Start it at logon (do this once, then forget it)
+
+```bash
+cd V1/tools/sos-browser
+python server.py autostart
+```
+
+Installs a per-user Startup shortcut and starts the bridge immediately, so you
+never type a command again — open StudyOS and press ⚡.
+
+It runs under `pythonw.exe`, so there is no console window. A second copy cannot
+start: the bridge checks `/health` first and exits if one is already up (two
+processes sharing one Chrome profile is the `Opening in existing browser session`
+failure).
+
+```bash
+python server.py autostart status   # installed? running?
+python server.py autostart off      # stop starting at logon
+```
+
+A Startup shortcut, not a Scheduled Task — the same call `magi autostart` makes,
+for the same reason: `Register-ScheduledTask` needs elevation, and an autostart
+that prompts for admin to install is not an autostart. The shortcut lives in
+`%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup` and you can delete it
+by hand.
+
+### Or run it in the foreground
 
 ```bash
 cd V1/tools/sos-browser
@@ -45,7 +71,8 @@ python server.py
 ```
 
 Leave it running. StudyOS talks to `http://127.0.0.1:8781`. With it stopped, the
-Run sheet reports a connection failure — no silent hang, no spend.
+Run sheet says **Bridge not running** and names the autostart command — no silent
+hang, no spend.
 
 ### Check it works
 
@@ -97,7 +124,8 @@ be running.
 | `bot_challenge` | Cloudflare wants a human | `login`, clear it by hand once |
 | `rate_limited` | Subscription limit hit | Wait for the reset the message names |
 | `slides not covered: N` | The model skipped slides | Retry from the Jobs panel; the chunker resumes, it does not restart |
-| Run sheet says connection failed | Bridge isn't running | `python server.py` |
+| `Bridge not running` on the Run sheet | The bridge is down | `python server.py autostart` (once, then never again) |
+| It did not come back after a reboot | Startup shortcut missing | `python server.py autostart status` |
 | `no_input` / `doctor` shows missing selectors | The site changed its markup | Add the new selector at the **top** of that list in `selectors.yaml` — never replace the old one, sites roll changes back |
 
 Failure dumps (HTML + screenshot) land in `tools/sos-browser/artifacts/`.

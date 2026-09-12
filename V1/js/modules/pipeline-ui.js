@@ -181,7 +181,16 @@ export function openRunSheet(cls, files, destModuleId) {
     } catch (e) {
       run.disabled = false;
       run.textContent = 'Run';
-      toast('⚠️', 'Could not queue', String(e.message || e));
+      // A dead local bridge surfaces as a bare "Failed to fetch", which says
+      // nothing about what to do. Name the actual cause and the one-time fix.
+      const dead = pipeline.isLocalBridge()
+        && /failed to fetch|networkerror|load failed/i.test(String(e.message || e));
+      if (dead) {
+        toast('🔌', 'Bridge not running',
+          'Start it once with:  python server.py autostart');
+      } else {
+        toast('⚠️', 'Could not queue', String(e.message || e));
+      }
     }
   };
   s.footer.append(cancel, run);
