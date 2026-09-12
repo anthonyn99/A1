@@ -159,7 +159,7 @@ check('a cap is set', typeof TB_TRASH_MAX === 'number' && TB_TRASH_MAX > 0, Stri
 section('The trash yields to live content as the playbook grows');
 
 check('there is a document budget', typeof TB_DOC_SAFE === 'number' && TB_DOC_SAFE < 1048576,
-      Math.round(TB_DOC_SAFE / 1024) + 'KB, under Firestore's 1MiB ceiling');
+      Math.round(TB_DOC_SAFE / 1024) + 'KB, under the 1MiB Firestore ceiling');
 
 {
   const page = n => ({ id: 'p' + n, trashed: Date.now() - n * 1000, body: 'x'.repeat(40 * 1024) });
@@ -196,7 +196,7 @@ check('there is a document budget', typeof TB_DOC_SAFE === 'number' && TB_DOC_SA
 }
 
 check('both shared-document writers pass their leftover room',
-      (SRC.match(/tbTrashCap\([^)]*TB_DOC_SAFE-tbJsonBytes\(live\)\)/g) || []).length === 2,
+      (SRC.match(/tbTrashCap\(.{0,60}?TB_DOC_SAFE-tbJsonBytes\(live\)\)/g) || []).length === 2,
       'persistPlaybook and persistPrompts');
 check('the Playbook warns before the document fills up', /storageWarn/.test(SRC),
       'the failure mode is silent otherwise — saves just stop');
