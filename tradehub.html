@@ -4971,31 +4971,41 @@ function TBPortfolioPage(){
    and the live listeners those documents already have sync the trash for free.
    ════════════════════════════════════════════════════════════════════════════ */
 const TB_TRASH_TTL = 30*24*60*60*1000;          // 30 days, then auto-purge
-/* Per-section caps. Firestore documents stop at 1 MiB and a trashed Playbook page
-   keeps its full HTML body inside the SAME document as the live pages, so the can
-   is bounded two ways — past either limit the oldest deletions are purged early.
-   The byte budget is the one that matters: sixty long pages would blow the
-   document limit and every save would start failing, taking the LIVE playbook
-   down with it. Counting is not enough when one item can be 100 KB. */
+/* Per-section caps. A trashed Playbook page keeps its full HTML body inside the
+   SAME document as the live pages, and Firestore documents stop at 1 MiB, so the
+   can is bounded two ways — past either limit the oldest deletions are purged
+   early. Counting alone is not enough when one item can be 100 KB.
+
+   TB_TRASH_BYTES is only the CEILING. The real budget is whatever the live items
+   leave behind (see persistPlaybook / persistPrompts), because the live pages
+   must always win: the trash can must never be the reason a save fails. A
+   playbook that grows shrinks its own can rather than taking the document — and
+   with it everything still being written — down with it. */
 const TB_TRASH_MAX   = 60;
 const TB_TRASH_BYTES = 250 * 1024;
+/* Firestore's hard ceiling is 1 MiB. Stay well clear of it: the estimate here is
+   the JSON length, which is close to but not exactly how Firestore bills a
+   document, and a save that lands at 99% today fails on the next keystroke. */
+const TB_DOC_SAFE    = 760 * 1024;
+const tbJsonBytes = v => { try { return JSON.stringify(v||[]).length; } catch(e) { return 0; } };
 
 const tbTrashDaysLeft = ts => Math.max(0, Math.ceil(((ts||0) + TB_TRASH_TTL - Date.now())/86400000));
 const tbTrashExpired  = ts => !ts || ts < Date.now() - TB_TRASH_TTL;
 /* Newest-first, then capped — the order the modal renders in and the rule the
    early-purge uses, kept in one place so the two can never disagree. */
 const tbTrashSort = arr => (arr||[]).slice().sort((a,b)=>(b.trashed||0)-(a.trashed||0));
-/* Keep the newest deletions that fit in both budgets. The first item is always
+/* Keep the newest deletions that fit in both budgets. `maxBytes` lets a caller
+   hand over only the room its LIVE items left behind. The first item is always
    kept, however big it is: dropping what was just deleted would make the delete
-   look like it silently failed. */
-function tbTrashCap(arr){
+   look as though it had silently failed. */
+function tbTrashCap(arr, maxBytes){
+  const budget = Math.max(0, typeof maxBytes === 'number' ? Math.min(maxBytes, TB_TRASH_BYTES) : TB_TRASH_BYTES);
   const sorted = tbTrashSort(arr);
   const out = []; let bytes = 0;
   for (const item of sorted) {
     if (out.length >= TB_TRASH_MAX) break;
-    let size = 0;
-    try { size = JSON.stringify(item).length; } catch(e) { size = 0; }
-    if (out.length && bytes + size > TB_TRASH_BYTES) break;
+    const size = tbJsonBytes(item);
+    if (out.length && bytes + size > budget) break;
     out.push(item); bytes += size;
   }
   return out;
@@ -9818,7 +9828,7 @@ function TBPlaybookEditor({page,onChange,onDelete,onBack,isMobile,onToast}){
   </div>);
 }
 
-function TBPlaybookPage({pages,onSavePages,onToast,onTrashPage,trashCount=0,onOpenTrash}){
+function TBPlaybookPage({pages,onSavePages,onToast,onTrashPage,trashCount=0,onOpenTrash,storageWarn}){
   const list=tbPbNormalize(pages);
   const [selId,setSelId]=useState(list[0].id);
   const [mobileEditing,setMobileEditing]=useState(false);
@@ -9868,6 +9878,17 @@ function TBPlaybookPage({pages,onSavePages,onToast,onTrashPage,trashCount=0,onOp
 
   return(<div className="tb-fade-in" style={{display:'flex',flexDirection:'column',gap:8}}>
     <div style={{fontSize:20,fontWeight:800,color:'var(--tx)'}}>Playbook</div>
+    {/* Every page lives in ONE Firestore document, which stops at 1 MiB. There is
+        plenty of room for a normal playbook, but pages pasted in with heavy
+        formatting add up, and the failure mode is silent: saves simply stop. */}
+    {storageWarn&&<div style={{display:'flex',alignItems:'flex-start',gap:9,padding:'10px 13px',marginBottom:4,
+      borderRadius:9,background:'rgba(224,184,116,0.09)',border:'1px solid rgba(224,184,116,0.3)',
+      fontSize:12.5,lineHeight:1.55,color:'var(--txd)'}}>
+      <TBIcon n="alert" size={14} style={{color:'var(--ac)',flexShrink:0,marginTop:2}}/>
+      <span>These pages are using about <strong style={{color:'var(--tx)'}}>{storageWarn.pct}%</strong> of the
+      space the Playbook can sync. Shortening or deleting a long page keeps everything saving —
+      the Trash frees its share as soon as an item is deleted forever.</span>
+    </div>}
     {isMobile
       ? (mobileEditing?editor:sidebar)
       : <div style={{display:'grid',gridTemplateColumns:'240px 1fr',gap:22,alignItems:'start'}}>{sidebar}{editor}</div>}
@@ -10353,15 +10374,22 @@ function TBApp(){
      so they can never accidentally drop what is in the trash. Everything that
      edits the visible lists goes through the save* wrappers, which splice the
      trashed items back on before persisting. */
+  /* The trash shares a document with the live items, so it gets only the room
+     they leave behind — never a fixed slice. Prompts and Playbook pages are both
+     free-form text that can run to tens of KB each, so as they grow the can
+     shrinks, and a can that would crowd the real content purges early instead of
+     pushing the document past Firestore's limit and stopping ALL saves. */
   const persistPrompts=useCallback(full=>{
-    const live=full.filter(p=>!p.trashed), dead=tbTrashCap(full.filter(p=>p.trashed));
+    const live=full.filter(p=>!p.trashed);
+    const dead=tbTrashCap(full.filter(p=>p.trashed), TB_DOC_SAFE-tbJsonBytes(live));
     const next=[...live,...dead];
     setPrompts(next);tbSavePromptsLocal(next);
     if(window._fbSaveTBPrompts)window._fbSaveTBPrompts(next);
   },[]);
   const persistPlaybook=useCallback(full=>{
     const n=tbPbNormalize(full);
-    const live=n.filter(p=>!p.trashed), dead=tbTrashCap(n.filter(p=>p.trashed));
+    const live=n.filter(p=>!p.trashed);
+    const dead=tbTrashCap(n.filter(p=>p.trashed), TB_DOC_SAFE-tbJsonBytes(live));
     const next=[...live,...dead];
     setPlaybook(next);tbSavePlaybookLocal(next);
     if(window._fbSaveTBPlaybook)window._fbSaveTBPlaybook(next);
@@ -10482,6 +10510,15 @@ function TBApp(){
     return()=>clearTimeout(t);
   },[fbLoaded,sweepTrash]);
 
+  /* The live pages alone can still approach the 1 MiB document limit — that was
+     true before the trash existed and the trash now yields rather than adds to
+     it. Past ~75% say so in the Playbook itself, because the alternative is
+     finding out when saves start failing. */
+  const playbookFull=useMemo(()=>{
+    const bytes=tbJsonBytes(livePlaybook);
+    return bytes>TB_DOC_SAFE*0.75 ? {bytes,pct:Math.round(bytes/10485.76)} : null;
+  },[livePlaybook]);
+
   const trash=useMemo(()=>({
     playbook:playbook.filter(p=>p.trashed),
     tickers:wlTrash,
@@ -10501,7 +10538,8 @@ function TBApp(){
     portfolio:<TBPortfolioPage/>,
     journal:  <TBJournalPage/>,
     playbook: <TBPlaybookPage pages={livePlaybook} onSavePages={savePlaybook} onToast={showToast}
-                onTrashPage={trashPlaybookPage} trashCount={trashTotal} onOpenTrash={openTrash}/>,
+                onTrashPage={trashPlaybookPage} trashCount={trashTotal} onOpenTrash={openTrash}
+                storageWarn={playbookFull}/>,
     news:     <TBNewsPage watchlist={watchlist}/>,
     catalysts:<TBCatalystsPage watchlist={watchlist}/>,
     prompt:   <TBControlPage prompts={livePrompts} onSavePrompts={savePrompts} onToast={showToast} watchlist={watchlist} onSaveWatchlist={saveWatchlist}

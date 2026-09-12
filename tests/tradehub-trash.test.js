@@ -62,10 +62,11 @@ vm.createContext(sandbox);
 // hands the bindings back explicitly as its completion value.
 const EXPORTS = ['TB_TRASH_TTL', 'TB_TRASH_MAX', 'TB_TRASH_BYTES', 'tbTrashDaysLeft',
                  'tbTrashExpired', 'tbTrashSort', 'tbTrashCap', 'tbTrashCount',
-                 'TB_TRASH_SECTIONS', 'tbPbNormalize', 'TB_PB_DAILY_ID'];
+                 'TB_TRASH_SECTIONS', 'tbPbNormalize', 'TB_PB_DAILY_ID', 'TB_DOC_SAFE',
+                 'tbJsonBytes'];
 const { TB_TRASH_TTL, TB_TRASH_MAX, TB_TRASH_BYTES, tbTrashDaysLeft, tbTrashExpired,
         tbTrashSort, tbTrashCap, tbTrashCount, TB_TRASH_SECTIONS, tbPbNormalize,
-        TB_PB_DAILY_ID } =
+        TB_PB_DAILY_ID, TB_DOC_SAFE, tbJsonBytes } =
   vm.runInContext(helperSrc + '\n' + pbSrc + '\n({' + EXPORTS.join(',') + '})', sandbox);
 
 const DAY = 86400000;
@@ -149,6 +150,56 @@ check('a cap is set', typeof TB_TRASH_MAX === 'number' && TB_TRASH_MAX > 0, Stri
     return src[0].trashed === 1;
   })(), 'these arrays are React state');
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   The playbook grows: every page the user adds shares ONE Firestore document
+   with the trash. The rule that keeps that safe is that the trash yields — the
+   live pages get the room first, always.
+   ════════════════════════════════════════════════════════════════════════════ */
+section('The trash yields to live content as the playbook grows');
+
+check('there is a document budget', typeof TB_DOC_SAFE === 'number' && TB_DOC_SAFE < 1048576,
+      Math.round(TB_DOC_SAFE / 1024) + 'KB, under Firestore's 1MiB ceiling');
+
+{
+  const page = n => ({ id: 'p' + n, trashed: Date.now() - n * 1000, body: 'x'.repeat(40 * 1024) });
+  const dead = [page(1), page(2), page(3), page(4), page(5), page(6)];
+
+  // A small playbook: the can gets its full ceiling.
+  const roomy = tbTrashCap(dead, TB_DOC_SAFE - 5 * 1024);
+  // A nearly-full playbook: the same deletions must be cut back hard.
+  const tight = tbTrashCap(dead, TB_DOC_SAFE - (TB_DOC_SAFE - 50 * 1024));
+
+  check('a small playbook leaves the can its full allowance', roomy.length > tight.length,
+        roomy.length + ' kept vs ' + tight.length + ' when the pages are large');
+  check('a large playbook shrinks the can instead of the document',
+        tbJsonBytes(tight) <= 50 * 1024 + 41 * 1024,
+        Math.round(tbJsonBytes(tight) / 1024) + 'KB kept');
+  check('the can still keeps the most recent deletion', tight[0].id === 'p1',
+        'yielding must not mean losing what you just deleted');
+}
+{
+  // The extreme: live pages have consumed everything. One item is still kept
+  // (tbTrashCap never drops the newest), but the can cannot grow past that.
+  const dead = [];
+  for (let i = 0; i < 10; i++) dead.push({ id: 'p' + i, trashed: Date.now() - i * 1000, body: 'y'.repeat(20 * 1024) });
+  const starved = tbTrashCap(dead, 0);
+  check('a full playbook starves the can rather than failing the save', starved.length === 1,
+        'live pages win — a document that will not save loses work that is still being written');
+  check('a negative leftover is treated as no room', tbTrashCap(dead, -50000).length === 1);
+}
+{
+  check('the ceiling still applies when there is lots of room',
+        tbTrashCap([{ id: 'a', trashed: 2, body: 'z'.repeat(200 * 1024) },
+                    { id: 'b', trashed: 1, body: 'z'.repeat(200 * 1024) }], TB_DOC_SAFE).length === 1,
+        'TB_TRASH_BYTES caps the can even in an empty playbook');
+}
+
+check('both shared-document writers pass their leftover room',
+      (SRC.match(/tbTrashCap\([^)]*TB_DOC_SAFE-tbJsonBytes\(live\)\)/g) || []).length === 2,
+      'persistPlaybook and persistPrompts');
+check('the Playbook warns before the document fills up', /storageWarn/.test(SRC),
+      'the failure mode is silent otherwise — saves just stop');
 
 /* ════════════════════════════════════════════════════════════════════════════ */
 section('Sections and counts');
