@@ -200,6 +200,11 @@ class Settings:
     enabled: dict[str, bool]
     artifacts_on_failure: bool = True
     artifacts_dir: Path = ROOT / "artifacts"
+    # How many artifact FILES to keep. config/magi.yaml has carried
+    # `keep_last: 200` since the beginning and nothing ever read it, so the
+    # directory grew without limit -- 93MB in three days of ordinary use,
+    # because every doctor probe leaves a screenshot and a full DOM dump.
+    artifacts_keep_last: int = 200
     db_path: Path = ROOT / "data" / "magi.db"
 
     def site(self, site_id: str) -> SiteSelectors:
@@ -274,5 +279,6 @@ def load_settings(config_dir: Path | None = None) -> Settings:
         enabled=enabled,
         artifacts_on_failure=bool(art.get("on_failure", True)),
         artifacts_dir=ROOT / art.get("dir", "artifacts"),
+        artifacts_keep_last=max(0, int(art.get("keep_last", 200))),
         db_path=ROOT / db.get("path", "data/magi.db"),
     )
