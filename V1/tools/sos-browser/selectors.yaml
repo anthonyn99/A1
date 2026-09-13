@@ -312,19 +312,46 @@ decks:
     # A finished artifact is one whose row carries its own "More" button; the
     # generating placeholder has no menu because there is nothing to act on
     # yet. That is the difference readiness has to key on.
+    # A row that is finished AND not failed. Both conditions matter, because a
+    # notebook accumulates artifacts: a failed Slide Deck from an earlier
+    # attempt sits in the same list as the one that just succeeded.
+    #
+    # :has(More) excludes the generating placeholder, which has no menu.
+    # :not(:has(.artifact-failed-subtitle)) excludes a failed row, which does
+    # have one — so without it the flow would happily open the failed deck's
+    # menu and find no download.
+    # MEASURED against a finished deck: the More button is a SIBLING of
+    # .artifact-primary-content, both inside .artifact-button-content — not a
+    # descendant of the row, which is what an earlier :has() assumed, so it
+    # matched nothing and a perfectly good deck looked unfinished.
+    #
+    # So anchor on the WRAPPER: it must contain a menu (excludes the
+    # generating placeholder, which has none) and must not contain a failure
+    # subtitle (excludes a failed deck from an earlier attempt sitting in the
+    # same list).
     artifact_ready:
-      - ".artifact-primary-content:has(button[aria-label='More'])"
-      - "[id^='artifact-labels-']:has(button[aria-label='More'])"
+      - ".artifact-button-content:has(button[aria-label='More']):not(:has(.artifact-failed-subtitle))"
+      - ".artifact-primary-content:not(:has(.artifact-failed-subtitle))"
       - "[data-testid='artifact-ready']"
     # Explicitly NOT ready. Checked before artifact_ready so a half-built deck
     # can never be mistaken for a finished one.
     artifact_generating:
       - "text=/Generating Slide Deck/i"
       - "text=/Generating\\b/i"
+    # SCOPED TO A ROW, never page-wide text.
+    #
+    # These were bare text matches, and that was a real bug: a notebook keeps
+    # every artifact it has ever produced, so ONE failed Slide Deck from an
+    # earlier attempt made every later run abort — including runs whose own
+    # deck had generated perfectly and was sitting in the list beside it. The
+    # page also contains the literal string "Something went wrong." inside an
+    # unrelated inline script, which matched even with no failure on screen.
+    #
+    # Failure is now a property of a ROW, and the flow only consults it after
+    # finding no usable row (see _wait_for_deck).
     artifact_failed:
-      - "text=/generation failed/i"
-      - "text=/couldn't generate/i"
-      - "text=/something went wrong/i"
+      - ".artifact-primary-content:has(.artifact-failed-subtitle)"
+      - ".artifact-failed-subtitle"
     # NOT A FAILURE, AND NOT PROGRESS — a third outcome the first design had no
     # concept of. When the account is out of Slide Deck quota, NotebookLM does
     # not refuse: it DEFERS the job ("Scheduled for after 12am") and the Studio

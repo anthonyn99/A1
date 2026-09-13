@@ -694,7 +694,22 @@ async def _wait_for_deck(page, site: DeckSite):
         # mid-generation is reported, never worked around.
         await check_blockers(page, site, pre_send=False)
 
+        # A READY row wins over a failed one, always.
+        #
+        # Order reversed on purpose from the earlier version. A notebook keeps
+        # every artifact it has produced, so a failed deck from a previous
+        # attempt lives in the same list as the one that just succeeded —
+        # and checking failure first aborted runs whose own deck was sitting
+        # right there, finished. Failure only matters when nothing is usable.
+        if await resolve(page, site.artifact_ready, timeout_ms=0,
+                         require_visible=True):
+            return
+
         if await any_matches(page, site.artifact_failed):
+            # Do not give up while something is still being built: the failed
+            # row may be old news and this run's deck may still be coming.
+            if await any_matches(page, site.artifact_generating):
+                continue
             path = await save_artifacts(page, f"{site.id}-generation-failed")
             raise DriverError(
                 "nlm_generation_failed",
@@ -726,17 +741,6 @@ async def _wait_for_deck(page, site: DeckSite):
                 f"a usage limit, not a bug, and waiting here cannot make it "
                 f"start. Re-run after the reset. Artifacts: {path}")
 
-        # Still building — never mistake the placeholder row for a result.
-        # Checked BEFORE readiness for the same reason failure is: the
-        # generating row and the finished row share a class, so whichever is
-        # tested first wins, and being wrong here sends the flow off to click
-        # the source file's menu.
-        if await any_matches(page, site.artifact_generating):
-            continue
-
-        if await resolve(page, site.artifact_ready, timeout_ms=0,
-                         require_visible=True):
-            return
 
     path = await save_artifacts(page, f"{site.id}-timeout")
     raise DriverError(
@@ -816,9 +820,15 @@ async def _download_deck(page, site: DeckSite, dest: Path) -> Path:
     # when only one artifact exists that source menu is the only match .last
     # finds — so the flow opened it, found no download, and blamed the menu
     # selector. Anchor to the row that owns the deck instead.
+    # Scoped to a row that is finished and NOT failed — the same predicate
+    # readiness uses. A bare ".artifact-primary-content More" would happily
+    # open the failed deck's menu, which holds no download.
+    # The menu is a SIBLING of the row, both inside .artifact-button-content,
+    # so scope to that wrapper — and exclude a failed artifact, whose menu
+    # holds no download.
     scoped = page.locator(
-        ".artifact-primary-content button[aria-label='More'], "
-        "[id^='artifact-labels-'] button[aria-label='More']")
+        ".artifact-button-content:not(:has(.artifact-failed-subtitle)) "
+        "button[aria-label='More']")
     if await scoped.count():
         await scoped.last.click()
     else:

@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import driver
 
 URL = sys.argv[1]
-DEST = Path("./outputs/deck-verified.pdf")
+DEST = Path("./outputs/marie.pdf")
 
 
 async def main():
