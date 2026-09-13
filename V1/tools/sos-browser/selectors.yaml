@@ -300,17 +300,27 @@ decks:
     # _wait_for_deck). If a failed artifact row still matches the ready
     # selector — plausible, same row with a different badge — ready-first would
     # report success and then hand back a download that never arrives.
-    # MEASURED against a finished deck. The earlier guesses (a Download button
-    # sitting in the panel) matched NOTHING: there is no download control on the
-    # row at all, only a generated-artifact row whose own kebab menu holds it.
+    # MEASURED against a finished deck. There is no Download button on the row;
+    # the control lives in the row's own kebab menu.
     #
-    # `.artifact-primary-content` is the row itself, which exists only once the
-    # deck has been generated — a queued one renders differently and is caught
-    # by artifact_queued before this is ever consulted.
+    # `.artifact-primary-content` alone is NOT sufficient and was a real bug:
+    # the row exists while the deck is still being built ("Generating Slide
+    # Deck... based on 1 source"), so readiness fired immediately, the flow
+    # went looking for a download and clicked the SOURCE FILE's kebab instead
+    # — a menu holding "Remove source / Rename source" and no download at all.
+    #
+    # A finished artifact is one whose row carries its own "More" button; the
+    # generating placeholder has no menu because there is nothing to act on
+    # yet. That is the difference readiness has to key on.
     artifact_ready:
-      - ".artifact-primary-content"
-      - "[id^='artifact-labels-']"
+      - ".artifact-primary-content:has(button[aria-label='More'])"
+      - "[id^='artifact-labels-']:has(button[aria-label='More'])"
       - "[data-testid='artifact-ready']"
+    # Explicitly NOT ready. Checked before artifact_ready so a half-built deck
+    # can never be mistaken for a finished one.
+    artifact_generating:
+      - "text=/Generating Slide Deck/i"
+      - "text=/Generating\\b/i"
     artifact_failed:
       - "text=/generation failed/i"
       - "text=/couldn't generate/i"

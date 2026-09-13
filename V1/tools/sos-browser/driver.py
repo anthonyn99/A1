@@ -51,6 +51,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import random
 import re
 import shutil
@@ -159,6 +160,7 @@ class DeckSite:
     # Completion, and its opposite.
     generate_later_button: list[str] = field(default_factory=list)
     artifact_ready: list[str] = field(default_factory=list)
+    artifact_generating: list[str] = field(default_factory=list)
     artifact_failed: list[str] = field(default_factory=list)
     artifact_queued: list[str] = field(default_factory=list)
     download_trigger: list[str] = field(default_factory=list)
@@ -724,6 +726,14 @@ async def _wait_for_deck(page, site: DeckSite):
                 f"a usage limit, not a bug, and waiting here cannot make it "
                 f"start. Re-run after the reset. Artifacts: {path}")
 
+        # Still building — never mistake the placeholder row for a result.
+        # Checked BEFORE readiness for the same reason failure is: the
+        # generating row and the finished row share a class, so whichever is
+        # tested first wins, and being wrong here sends the flow off to click
+        # the source file's menu.
+        if await any_matches(page, site.artifact_generating):
+            continue
+
         if await resolve(page, site.artifact_ready, timeout_ms=0,
                          require_visible=True):
             return
@@ -801,11 +811,18 @@ async def _download_deck(page, site: DeckSite, dest: Path) -> Path:
             "nlm_no_download",
             f"nothing matched `download_trigger` on {site.display_name}. "
             f"Artifacts: {path}")
-    # .last, NOT .first: several "More" kebabs share the page (the notebook
-    # header carries its own), and the generated artifact's row is the one at
-    # the bottom. Clicking the first opens a menu with no Download item, and
-    # the run then fails on the menu item — pointing at the wrong selector.
-    await trigger["locator"].last.click()
+    # Scoped to the ARTIFACT ROW, not "the last More button on the page".
+    # The sources list has its own kebab ("Remove source / Rename source"), and
+    # when only one artifact exists that source menu is the only match .last
+    # finds — so the flow opened it, found no download, and blamed the menu
+    # selector. Anchor to the row that owns the deck instead.
+    scoped = page.locator(
+        ".artifact-primary-content button[aria-label='More'], "
+        "[id^='artifact-labels-'] button[aria-label='More']")
+    if await scoped.count():
+        await scoped.last.click()
+    else:
+        await trigger["locator"].last.click()
     await asyncio.sleep(2.0)
 
     menu = await resolve(page, site.download_menu_item, timeout_ms=5000)
@@ -1116,6 +1133,62 @@ async def cmd_ask(args) -> dict:
             await ctx.close()
 
 
+class _RunLock:
+    """One deck run at a time, enforced across PROCESSES.
+
+    Two overlapping runs each create their own notebook and each consume
+    generation quota, and the second one also fights the first for the Chrome
+    profile. That happened for real: a run was launched while an earlier one
+    was still alive, and the account ended up with two notebooks built from
+    the same source within a minute of each other.
+
+    The bridge already serialises its own jobs, but the CLI is a separate
+    entry point and had no such guard — so this lives at the lowest level that
+    both share. A stale lock (the process died without releasing) is detected
+    by checking whether that pid is still alive, rather than by a timeout.
+    """
+
+    def __init__(self, path: Path):
+        self.path = path
+
+    def _stale(self) -> bool:
+        try:
+            pid = int(self.path.read_text(encoding="utf-8").strip())
+        except Exception:
+            return True
+        if pid == os.getpid():
+            return True
+        try:
+            # Signal 0 checks liveness without touching the process.
+            out = subprocess.run(
+                ["powershell", "-NoProfile", "-Command",
+                 f"(Get-Process -Id {pid} -ErrorAction SilentlyContinue) -ne $null"],
+                capture_output=True, text=True, timeout=10)
+            return "True" not in (out.stdout or "")
+        except Exception:
+            return True
+
+    def __enter__(self):
+        if self.path.exists() and not self._stale():
+            raise DriverError(
+                "already_running",
+                f"another deck run is already in progress (pid "
+                f"{self.path.read_text(encoding='utf-8').strip()}). Two runs "
+                f"create two notebooks and spend twice the quota, so this one "
+                f"is refusing to start. Wait for it, or stop it first.")
+        self.path.write_text(str(os.getpid()), encoding="utf-8")
+        return self
+
+    def __exit__(self, *exc):
+        try:
+            if self.path.exists() and \
+                    self.path.read_text(encoding="utf-8").strip() == str(os.getpid()):
+                self.path.unlink()
+        except Exception:
+            pass
+        return False
+
+
 async def cmd_deck(args) -> dict:
     """Generate a slide deck through a multi-step site and save the PDF.
 
@@ -1134,7 +1207,9 @@ async def cmd_deck(args) -> dict:
     dest = Path(args.out)
 
     headless = site.headless_ok and not args.headful
-    async with async_playwright() as pw:
+    # Refuse to run alongside another deck run — see _RunLock.
+    with _RunLock(HERE / ".deck-run.lock"):
+      async with async_playwright() as pw:
         # downloads_dir is what turns on Playwright download handling; only
         # this path passes it.
         ctx = await launch(pw, site, headless=headless,

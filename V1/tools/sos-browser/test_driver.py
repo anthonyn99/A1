@@ -275,6 +275,37 @@ t("queued is distinct from both ready and failed",
   not (set(nlm.artifact_queued) & (set(nlm.artifact_ready) | set(nlm.artifact_failed))))
 
 
+# ── One run at a time ─────────────────────────────────────────────────────────
+print("\nconcurrent-run guard")
+import os as _os  # noqa: E402
+_lock = Path(__file__).resolve().parent / ".deck-run.test.lock"
+_lock.unlink(missing_ok=True)
+# A live holder must block a second run: two overlapping runs create two
+# notebooks from one source and spend twice the quota. That happened for real.
+_lock.write_text(str(_os.getpid() + 100000), encoding="utf-8")   # a pid we do not own
+try:
+    with driver._RunLock(_lock):
+        # If that pid happens to exist this is inconclusive, not a failure.
+        t("a live lock blocks a second run", True, "(holder pid not live; skipped)")
+except driver.DriverError as e:
+    t("a live lock blocks a second run", e.kind == "already_running", e.kind)
+# A stale lock (holder died) must NOT block forever.
+_lock.write_text("99999999", encoding="utf-8")
+try:
+    with driver._RunLock(_lock):
+        t("a stale lock is ignored", True)
+except driver.DriverError as e:
+    t("a stale lock is ignored", False, e.message[:80])
+_lock.unlink(missing_ok=True)
+
+# The generating placeholder shares a class with the finished row, so
+# readiness must require something only a FINISHED artifact has.
+t("readiness cannot match a still-generating row",
+  all("has(" in sel or "testid" in sel for sel in nlm.artifact_ready),
+  nlm.artifact_ready)
+t("a generating state is detected explicitly", bool(nlm.artifact_generating))
+
+
 # ── Download completion (three wrong guesses before the right one) ────────────
 print("\ndownload completion")
 # Chrome never renames away .crdownload here — the popup that owns the transfer

@@ -9,3 +9,7 @@ uploads/
 outputs/
 bridge.log
 __pycache__/
+# Run lock — live process state, not source. Guards against two deck runs
+# overlapping, which creates two notebooks and spends twice the quota.
+.deck-run.lock
+.deck-run.test.lock
