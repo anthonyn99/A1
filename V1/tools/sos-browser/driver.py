@@ -704,13 +704,23 @@ async def _wait_for_deck(page, site: DeckSite):
         # this is checked every round and reported for what it is.
         if await any_matches(page, site.artifact_queued):
             path = await save_artifacts(page, f"{site.id}-queued")
+            # The row names the window ("Scheduled for after 12am"). Lift it
+            # into the message: "re-run later" is useless without a when, and
+            # the one fact the user needs is already on screen.
+            when = ""
+            try:
+                row = page.locator(site.artifact_queued[0]).first
+                when = ((await row.inner_text()) or "").strip()[:60]
+            except Exception:
+                pass
             raise DriverError(
                 "nlm_queued",
                 f"{site.display_name} has deferred this deck to a later quota "
-                f"window rather than generating it now — the Studio row says it "
-                f"is scheduled, not running. This is a usage limit, not a bug, "
-                f"and waiting here cannot make it start. Re-run after the reset. "
-                f"Artifacts: {path}")
+                f"window rather than generating it now"
+                + (f" ({when})" if when else "")
+                + ". The Studio row says it is scheduled, not running. This is "
+                f"a usage limit, not a bug, and waiting here cannot make it "
+                f"start. Re-run after the reset. Artifacts: {path}")
 
         if await resolve(page, site.artifact_ready, timeout_ms=0,
                          require_visible=True):
