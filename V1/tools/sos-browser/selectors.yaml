@@ -256,7 +256,17 @@ decks:
 
     # ── Sentinels ───────────────────────────────────────────────────────────
     # Same hard stop as every site above: never solved, only reported.
+    #
+    # MEASURED, unlike the wizard selectors above. A signed-out visit to
+    # notebooklm.google.com redirects to
+    #   accounts.google.com/v3/signin/identifier?continue=https://notebook.google.com/...
+    # (note: notebook.google.com, no "lm" — that is Google's own redirect, the
+    # URL above is still right). Of the original two guesses only the loose
+    # text match fired there, so #identifierId is first now: it is the id of
+    # the email field on Google's sign-in page and the most stable of the
+    # three. Checked against the real redirect, not assumed.
     login_selectors:
+      - "#identifierId"
       - "a[href*='accounts.google.com/ServiceLogin']"
       - "text=/^Sign in$/"
     rate_limit_selectors:
