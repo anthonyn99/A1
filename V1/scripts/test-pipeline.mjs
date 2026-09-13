@@ -65,6 +65,27 @@ const sent = JSON.parse(lastReq.init.body);
 t('carries fileId', sent.fileId === 'f1');
 t('carries the prompt text', sent.prompt === 'rewrite it');
 t('omits slideCount when unknown', !('slideCount' in sent));
+// The rewrite path's wire format must be byte-identical to before `mode`
+// existed: the dormant Worker knows nothing about the field, and an absent
+// mode is what makes every job already in jobs.json keep working.
+t('omits mode on the default rewrite path', !('mode' in sent));
+
+// ── Deck jobs go to NotebookLM ────────────────────────────────────────────
+console.log('\npipeline: deck mode');
+await pipeline.runPrompt({
+  file: { id: 'f3', name: 'Lecture 4.pdf' },
+  prompt: 'make slides', classId: 'c1', mode: 'notebooklm',
+});
+const deckSent = JSON.parse(lastReq.init.body);
+t('carries mode when asked', deckSent.mode === 'notebooklm');
+// config.site is 'claude'. A deck job carrying that would send the driver to
+// load_deck_site('claude'), which exits — so mode has to win here.
+t('forces site=notebooklm over the configured chat site',
+  deckSent.site === 'notebooklm');
+
+await pipeline.runPrompt({ file: { id: 'f4' }, prompt: 'p', mode: 'rewrite' });
+t("an explicit mode:'rewrite' is still omitted from the wire",
+  !('mode' in JSON.parse(lastReq.init.body)));
 
 // A missing token must not throw here — the Worker answers 401 and that is the
 // single failure path.
@@ -391,6 +412,29 @@ console.log('\npipeline: fileResult guards');
   // with no way to get the output ever again.
   t('refuses to file only when the layout actually FAILED',
     /job\.hasPdf === false/.test(src) && !/if \(!job\.hasPdf\)/.test(src));
+
+  // The two pipelines produce different artifacts from one source, so they
+  // must be distinguishable in the Generated module...
+  t('names a NotebookLM deck distinctly from a rewrite',
+    src.includes('— Slides.pdf') && src.includes('— Rewritten.pdf'));
+  // ...and, more importantly, must not overwrite each other. addGeneratedDoc
+  // dedups on provenance, not on filename, so `mode` has to reach it.
+  t('sends mode in meta so the dedup can tell them apart',
+    /meta:\s*\{[\s\S]*?\bmode,/.test(src));
+}
+
+// ── The dedup keeps both pipelines' output ────────────────────────────────
+console.log('\nstudyos: generated-doc dedup is keyed by mode');
+{
+  const src = readFileSync(resolve(root, 'js/studyos.js'), 'utf8');
+  // Matching on sourceFileId alone meant a NotebookLM deck REPLACED the Claude
+  // rewrite of the same lecture and then deleted its bytes, silently.
+  t('matches on mode as well as sourceFileId',
+    /f\.gen\.sourceFileId === meta0\.sourceFileId[\s\S]{0,120}f\.gen\.mode \|\| 'rewrite'/.test(src));
+  // Every doc filed before `mode` existed carries none, so both sides must
+  // default or an old rewrite would stop matching a rewrite re-run.
+  t("defaults missing mode to 'rewrite' on both sides",
+    (src.match(/\|\| 'rewrite'/g) || []).length >= 2);
 }
 
 // ── A cached job must still be filed ──────────────────────────────────────

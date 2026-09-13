@@ -51,6 +51,15 @@ await send('Page.addScriptToEvaluateOnNewDocument', {
           return new Response(JSON.stringify({ ok:false, error:'monthly_cap' }), {status:402});
         }
         if (u.endsWith('/api/ai/budget')) return new Response(JSON.stringify({ok:true,spend:0,cap:20}),{status:200});
+        // The finished deck's BYTES. fileResult fetches these from their own
+        // endpoint and checks the %PDF- magic before filing, so a job that
+        // completes with nothing serving them files nothing — which looks
+        // exactly like auto-run being broken.
+        if (/\\/api\\/ai\\/jobs\\/[^/]+\\/pdf$/.test(u)) {
+          var pdf = '%PDF-1.4\\n1 0 obj<</Type/Catalog>>endobj\\ntrailer<</Root 1 0 R>>\\n%%EOF';
+          return new Response(new Blob([pdf], {type:'application/pdf'}),
+            {status:200, headers:{'Content-Type':'application/pdf'}});
+        }
         if (/\\/api\\/ai\\/jobs$/.test(u) && init && init.method === 'POST') {
           return new Response(JSON.stringify({ ok:true, job:{ id:'ja1', status:'queued' } }), {status:200});
         }
@@ -152,13 +161,22 @@ const filed = await evalJs(`(function(){
   var cls = classes.find(c=>c.id==='at1');
   var gen = cls.modules.find(m=>m.name==='Generated');
   if (!gen) return { noModule:true, modules: cls.modules.map(m=>m.name) };
-  return { count: gen.notes.length, body: gen.notes[0] && gen.notes[0].body,
-           meta: gen.notes[0] && gen.notes[0]._sos };
+  // A DOCUMENT, not a note: the output is a PDF deck, and a notes module would
+  // render it nowhere. Provenance lives under gen rather than _sos, because
+  // _sosSerializeClasses strips every underscore-prefixed key on its way to
+  // localStorage and Firestore.
+  return { type: gen.type, count: gen.files.length,
+           name: gen.files[0] && gen.files[0].name,
+           mime: gen.files[0] && gen.files[0].mime,
+           meta: gen.files[0] && gen.files[0].gen };
 })()`);
-t('the note was filed with no user action', !filed.noModule && filed.count === 1, filed);
+t('the deck was filed with no user action', !filed.noModule && filed.count === 1, filed);
+t('into a documents module', filed.type === 'documents', filed.type);
 if (!filed.noModule) {
-  t('holds the generated body', /auto body/.test(filed.body || ''), filed.body);
+  t('stored as a PDF', filed.mime === 'application/pdf', filed.mime);
   t('provenance recorded', !!(filed.meta && filed.meta.generated), filed.meta);
+  // Auto-run stays on the rewrite path; only the run sheet routes to NotebookLM.
+  t('auto-run is still a rewrite', (filed.meta || {}).mode !== 'notebooklm', filed.meta);
 }
 
 // ── A pipeline failure must not break the upload ──────────────────────────

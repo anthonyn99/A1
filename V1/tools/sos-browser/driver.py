@@ -34,6 +34,16 @@ is the operator's call to make for their own account.
     python driver.py login  --site claude
     python driver.py ask    --site claude --prompt-file p.txt --attach deck.pdf
     python driver.py doctor --site claude
+
+Slide decks come from NotebookLM instead, which is a wizard rather than a chat
+box — a different command with its own selector block (`decks:` in the yaml):
+
+    python driver.py login  --site notebooklm
+    python driver.py deck   --site notebooklm --source deck.pdf --out out.pdf \
+                            --prompt-file p.txt [--dry-run]
+
+--dry-run walks every step except Generate and reports which selectors matched.
+Use it to repair a guessed selector in about a minute instead of ~25.
 """
 
 from __future__ import annotations
@@ -106,6 +116,82 @@ def load_site(site_id: str) -> Site:
         raise SystemExit(f"unknown site {site_id!r}; configured: {have}")
     known = {f for f in Site.__dataclass_fields__ if f != "id"}
     return Site(id=site_id, **{k: v for k, v in raw.items() if k in known})
+
+
+@dataclass
+class DeckSite:
+    """A multi-step deck generator (NotebookLM), not a chat composer.
+
+    Kept SEPARATE from Site rather than widening it with a dozen optional
+    fields. Site is the contract cmd_ask, wait_for_completion and cmd_doctor all
+    read; every field added there is a field those three have to know to ignore.
+    The two shapes have nothing in common but the browser.
+
+    ── THE ONE SHARED CONTRACT ────────────────────────────────────────────────
+    check_blockers() — the ethical stop — reads exactly five attributes:
+    `id`, `display_name`, `login_selectors`, `rate_limit_selectors` and
+    `challenge_selectors`. They are spelled identically here so that function,
+    and the refusal it enforces, works on both classes unmodified. Renaming one
+    here silently removes the challenge/rate-limit check from this path, so
+    test_driver.py pins it.
+    """
+
+    id: str
+    display_name: str
+    url: str
+    headless_ok: bool = False
+
+    # The wizard, in click order.
+    create_notebook: list[str] = field(default_factory=list)
+    source_file_input: list[str] = field(default_factory=list)
+    source_ready: list[str] = field(default_factory=list)
+    studio_tab: list[str] = field(default_factory=list)
+    slide_deck_button: list[str] = field(default_factory=list)
+    customize_button: list[str] = field(default_factory=list)
+    prompt_input: list[str] = field(default_factory=list)
+    generate_button: list[str] = field(default_factory=list)
+
+    # Completion, and its opposite.
+    artifact_ready: list[str] = field(default_factory=list)
+    artifact_failed: list[str] = field(default_factory=list)
+    download_trigger: list[str] = field(default_factory=list)
+    download_menu_item: list[str] = field(default_factory=list)
+
+    # Sentinels — the five-attribute contract above.
+    login_selectors: list[str] = field(default_factory=list)
+    rate_limit_selectors: list[str] = field(default_factory=list)
+    challenge_selectors: list[str] = field(default_factory=list)
+
+    gen_poll_ms: int = 5000
+    gen_timeout_s: int = 1800
+    source_timeout_s: int = 300
+    download_timeout_s: int = 120
+
+
+def load_deck_site(deck_id: str) -> DeckSite:
+    with open(CONFIG, encoding="utf-8") as fh:
+        cfg = yaml.safe_load(fh)
+    raw = (cfg.get("decks") or {}).get(deck_id)
+    if not raw:
+        have = ", ".join((cfg.get("decks") or {}).keys())
+        raise SystemExit(f"unknown deck {deck_id!r}; configured: {have}")
+    known = {f for f in DeckSite.__dataclass_fields__ if f != "id"}
+    return DeckSite(id=deck_id, **{k: v for k, v in raw.items() if k in known})
+
+
+def is_deck_site(site_id: str) -> bool:
+    """True when this id names a deck generator rather than a chat site.
+
+    Used by login and doctor to dispatch. Without it `login --site notebooklm`
+    hits load_site() and dies with "unknown site", which would make the one
+    sanctioned way to authenticate this path impossible.
+    """
+    try:
+        with open(CONFIG, encoding="utf-8") as fh:
+            cfg = yaml.safe_load(fh)
+    except Exception:
+        return False
+    return site_id in (cfg.get("decks") or {})
 
 
 class DriverError(Exception):
@@ -265,13 +351,22 @@ def headless_user_agent() -> str:
             f"(KHTML, like Gecko) Chrome/{chrome_version()} Safari/537.36")
 
 
-async def launch(pw, site: Site, headless: bool, visible: bool = False):
+async def launch(pw, site, headless: bool, visible: bool = False,
+                 downloads_dir: Path | None = None):
     """Persistent per-site profile, real Chrome.
 
     launch_persistent_context (not launch() + storage_state) because a persistent
     user-data dir keeps IndexedDB and refresh tokens; the cookie-JSON approach
     drops them, which is why those sessions die within days. Log in once by hand
     and the profile stays authenticated for weeks, like a normal browser.
+
+    `site` is a Site OR a DeckSite: only `.id` is read off it, which is why the
+    annotation is bare. That is now load-bearing — keep it that way.
+
+    downloads_dir turns on Playwright's download handling, and ONLY the deck
+    path passes it. The chat path stays byte-identical: a download appearing
+    while scraping a chat answer is a symptom, not a feature, and accepting it
+    globally would hide that.
     """
     profile = PROFILES / site.id
     profile.mkdir(parents=True, exist_ok=True)
@@ -287,14 +382,31 @@ async def launch(pw, site: Site, headless: bool, visible: bool = False):
         # anyone's monitor. The practical answer to a site that detects headless.
         args.append("--window-position=-32000,-32000")
 
+    extra = {}
+    if downloads_dir is not None:
+        downloads_dir.mkdir(parents=True, exist_ok=True)
+        extra = {"accept_downloads": True, "downloads_path": str(downloads_dir)}
+
     ctx = await pw.chromium.launch_persistent_context(
         user_data_dir=str(profile),
         channel="chrome",
         headless=headless,
         args=args,
         viewport={"width": 1280, "height": 900},
+        **extra,
     )
     return ctx
+
+
+def looks_like_pdf(head: bytes) -> bool:
+    """True when these first bytes are a real PDF header.
+
+    A pure function so it is testable without a browser. The failure it catches
+    is specific and silent: a site that answers an expired-session redirect or
+    an error page, saved under a .pdf name. Without this the job reports success
+    and files an HTML document into the class as a slide deck.
+    """
+    return bool(head) and head[:5] == b"%PDF-"
 
 
 async def save_artifacts(page, tag: str) -> str:
@@ -488,6 +600,205 @@ def strip_trailing(text: str, patterns: list[str]) -> str:
     return text.strip()
 
 
+# ── Deck generation (NotebookLM) ──────────────────────────────────────────────
+# EVERYTHING GOOGLE-SPECIFIC LIVES BELOW THIS LINE.
+#
+# The chat path scrapes text; this one drives a seven-step wizard and catches a
+# real file download. Sharing wait_for_completion between them was considered
+# and rejected: its four gates exist to answer "text is streaming into a node,
+# has it stopped?" — a question with no meaning here, where there is no text and
+# no stream, only a state that flips.
+#
+# The point of this section being one flat sequence is that when Google changes
+# the UI, you read it top to bottom against the artifacts/ dump and fix one
+# selector. Keep it flat. Resist extracting clever helpers.
+
+
+async def _step(page, site: DeckSite, field_name: str, kind: str, *,
+                timeout_ms: int = 15000, require_visible: bool = True,
+                click: bool = True):
+    """Resolve one wizard selector, optionally click it, or fail by name.
+
+    Each step carries its OWN error kind and its OWN artifact tag. A single
+    generic nlm_step_failed would leave the repair loop guessing which of seven
+    steps broke, which is most of the cost of fixing a guessed selector.
+    """
+    r = await resolve(page, getattr(site, field_name), timeout_ms=timeout_ms,
+                      require_visible=require_visible)
+    if not r:
+        path = await save_artifacts(page, f"{site.id}-{field_name}")
+        raise DriverError(
+            kind,
+            f"{site.display_name}: no element matched `{field_name}`. "
+            f"The selector guess is wrong — repair it in selectors.yaml under "
+            f"decks.{site.id}.{field_name}. Artifacts: {path}")
+    if click:
+        await r["locator"].first.click()
+    return r
+
+
+async def _wait_for_deck(page, site: DeckSite):
+    """Block until the generated artifact exists, or say why it never will.
+
+    State-based, never a fixed sleep: generation time is genuinely unpredictable
+    and a sleep long enough to be safe wastes that long on every run.
+
+    Three deliberate differences from the chat poller:
+
+      * Polls every gen_poll_ms (5s), not 700ms. A 30-minute wait at 700ms is
+        ~2,500 DOM queries that tell us nothing new, and it reads as automation.
+      * Checks FAILURE BEFORE SUCCESS. If a failed artifact row still matches
+        the ready selector — plausible, same row with a different badge —
+        checking ready first reports success and then hands back a download
+        that never comes. Failure wins ties.
+      * No stall timeout. There is no growth signal to stall on; the only
+        honest bound is the hard deadline.
+    """
+    deadline = time.monotonic() + site.gen_timeout_s
+    while time.monotonic() < deadline:
+        await asyncio.sleep(site.gen_poll_ms / 1000)
+
+        # The ethical stop, on every poll: a challenge or a limit appearing
+        # mid-generation is reported, never worked around.
+        await check_blockers(page, site, pre_send=False)
+
+        if await any_matches(page, site.artifact_failed):
+            path = await save_artifacts(page, f"{site.id}-generation-failed")
+            raise DriverError(
+                "nlm_generation_failed",
+                f"{site.display_name} reported that generation failed. "
+                f"Artifacts: {path}")
+
+        if await resolve(page, site.artifact_ready, timeout_ms=0,
+                         require_visible=True):
+            return
+
+    path = await save_artifacts(page, f"{site.id}-timeout")
+    raise DriverError(
+        "nlm_timeout",
+        f"no finished deck after {site.gen_timeout_s}s. If the deck DID finish "
+        f"on screen, `artifact_ready` is the wrong selector — fix that before "
+        f"raising gen_timeout_s. Artifacts: {path}")
+
+
+async def _download_deck(page, site: DeckSite, dest: Path) -> Path:
+    """Click through to the PDF and save it where the caller asked.
+
+    expect_download WRAPS the click rather than listening after it: the download
+    event can fire before a post-click await resolves, and a listener attached
+    afterwards races it and hangs until timeout.
+    """
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    async with page.expect_download(
+            timeout=site.download_timeout_s * 1000) as dl_info:
+        trigger = await resolve(page, site.download_trigger, timeout_ms=10000)
+        if not trigger:
+            path = await save_artifacts(page, f"{site.id}-no-download")
+            raise DriverError(
+                "nlm_no_download",
+                f"nothing matched `download_trigger` on {site.display_name}. "
+                f"Artifacts: {path}")
+        await trigger["locator"].first.click()
+
+        # Optional: only if the Download control opened a menu. Whether it is a
+        # direct button or an overflow item differs between UI revisions, so
+        # tolerate both rather than guessing one.
+        menu = await resolve(page, site.download_menu_item, timeout_ms=3000)
+        if menu:
+            await menu["locator"].first.click()
+
+    download = await dl_info.value
+    # save_as, not download.path(): the latter points into a temp area that is
+    # cleaned up when the browser context closes.
+    await download.save_as(str(dest))
+
+    # Validate HERE, where the bytes first exist, not only at the client.
+    if not dest.exists() or dest.stat().st_size == 0:
+        raise DriverError("nlm_empty_download",
+                          "the download saved zero bytes")
+    head = dest.read_bytes()[:5]
+    if not looks_like_pdf(head):
+        raise DriverError(
+            "nlm_not_pdf",
+            f"the downloaded file is not a PDF (starts {head!r}) — "
+            f"probably an error or sign-in page saved under a .pdf name")
+    return dest
+
+
+async def run_notebooklm_flow(page, site: DeckSite, source: Path, prompt: str,
+                              dest: Path, dry_run: bool = False) -> dict:
+    """Source PDF + prompt -> a generated slide deck on disk.
+
+    The ONLY function that knows what NotebookLM's UI looks like. When Google
+    changes it, this is the blast radius.
+    """
+    walked: dict[str, str] = {}
+
+    await page.goto(site.url, wait_until="domcontentloaded", timeout=60000)
+    await check_blockers(page, site, pre_send=True)
+
+    # 1. A fresh notebook per run: reusing one would mix sources, and the deck
+    #    is generated from everything the notebook contains.
+    r = await _step(page, site, "create_notebook", "nlm_no_create")
+    walked["create_notebook"] = r["selector"]
+
+    # 2. The source. Inline rather than via attach_files(), which takes a Site
+    #    and raises `no_file_input` — a kind the server retry table already
+    #    classifies for the chat path. Two lines is cheaper than one shared
+    #    function whose error kind means two different things.
+    r = await _step(page, site, "source_file_input", "nlm_no_file_input",
+                    timeout_ms=20000, require_visible=False, click=False)
+    walked["source_file_input"] = r["selector"]
+    await r["locator"].first.set_input_files([str(source)])
+
+    # 3. Wait for INGEST, not just for the dialog to accept the file. Its own
+    #    deadline: upload+parse is slow and varies with deck size, and it is a
+    #    different failure from generation taking too long.
+    r = await resolve(page, site.source_ready,
+                      timeout_ms=site.source_timeout_s * 1000)
+    if not r:
+        path = await save_artifacts(page, f"{site.id}-source-ready")
+        raise DriverError(
+            "nlm_source_timeout",
+            f"the source never finished processing after "
+            f"{site.source_timeout_s}s. Artifacts: {path}")
+    walked["source_ready"] = r["selector"]
+
+    # 4. Into the Studio panel and onto the Slide Deck generator.
+    for fname, kind in (("studio_tab", "nlm_no_studio"),
+                        ("slide_deck_button", "nlm_no_slide_deck"),
+                        ("customize_button", "nlm_no_customize")):
+        r = await _step(page, site, fname, kind)
+        walked[fname] = r["selector"]
+        await asyncio.sleep(1.0)          # let the panel settle between clicks
+
+    # 5. The custom prompt. type_prompt() is reused deliberately: above 800
+    #    chars it pastes via CDP insertText, which is exactly the case a real
+    #    study prompt hits, and assigning .value to an Angular control leaves
+    #    the framework unaware so Generate stays disabled.
+    r = await _step(page, site, "prompt_input", "nlm_no_prompt_input",
+                    click=False)
+    walked["prompt_input"] = r["selector"]
+    await type_prompt(page, r["locator"].first, prompt)
+
+    # 6. The dry-run stop. Everything above is cheap, and every selector above
+    #    has now been proven against the live page; Generate is the expensive,
+    #    slow, account-visible part. Stopping here is what makes repairing a
+    #    guessed selector a one-minute loop instead of a 25-minute one.
+    if dry_run:
+        path = await save_artifacts(page, f"{site.id}-dryrun")
+        return {"dryRun": True, "matched": walked,
+                "stoppedAt": "before Generate", "artifacts": path}
+
+    r = await _step(page, site, "generate_button", "nlm_no_generate")
+    walked["generate_button"] = r["selector"]
+
+    await _wait_for_deck(page, site)
+    out = await _download_deck(page, site, dest)
+    return {"dryRun": False, "matched": walked, "pdfPath": str(out),
+            "bytes": out.stat().st_size}
+
+
 # ── Commands ──────────────────────────────────────────────────────────────────
 async def cmd_ask(args) -> dict:
     site = load_site(args.site)
@@ -555,9 +866,47 @@ async def cmd_ask(args) -> dict:
             await ctx.close()
 
 
+async def cmd_deck(args) -> dict:
+    """Generate a slide deck through a multi-step site and save the PDF.
+
+    Same shape as cmd_ask — one JSON line out, ctx closed in a finally — so it
+    slots into main()'s dispatch and error wrapper unchanged.
+    """
+    site = load_deck_site(args.site)
+    prompt = (Path(args.prompt_file).read_text(encoding="utf-8")
+              if args.prompt_file else args.prompt)
+    if not prompt or not prompt.strip():
+        raise DriverError("bad_input", "empty prompt")
+
+    source = Path(args.source)
+    if not source.exists():
+        raise DriverError("bad_input", f"source not found: {args.source}")
+    dest = Path(args.out)
+
+    headless = site.headless_ok and not args.headful
+    async with async_playwright() as pw:
+        # downloads_dir is what turns on Playwright download handling; only
+        # this path passes it.
+        ctx = await launch(pw, site, headless=headless,
+                           downloads_dir=dest.parent)
+        page = ctx.pages[0] if ctx.pages else await ctx.new_page()
+        try:
+            out = await run_notebooklm_flow(
+                page, site, source, prompt, dest,
+                dry_run=bool(getattr(args, "dry_run", False)))
+            return {"ok": True, "site": site.id, **out}
+        finally:
+            await ctx.close()
+
+
 async def cmd_login(args) -> dict:
-    """Open the site visibly so a human can sign in once. Never automated."""
-    site = load_site(args.site)
+    """Open the site visibly so a human can sign in once. Never automated.
+
+    Dispatches on whether the id names a chat site or a deck generator. Without
+    this, `login --site notebooklm` dies with "unknown site" and the one
+    sanctioned way to authenticate that path would not exist.
+    """
+    site = load_deck_site(args.site) if is_deck_site(args.site) else load_site(args.site)
     async with async_playwright() as pw:
         ctx = await launch(pw, site, headless=False, visible=True)
         page = ctx.pages[0] if ctx.pages else await ctx.new_page()
@@ -571,8 +920,46 @@ async def cmd_login(args) -> dict:
                 "profile": str(PROFILES / site.id)}
 
 
+async def _doctor_deck(args) -> dict:
+    """Which deck selectors match on the LANDING page — and, honestly, which
+    cannot be checked from there at all.
+
+    Only create_notebook and the sentinels exist before a notebook is open.
+    Reporting studio_tab or prompt_input as "missing" here would be a false
+    alarm on every single run, and a check that always cries wolf is a check
+    you learn to ignore. They are listed as `unchecked` instead, pointing at
+    the dry-run probe that CAN verify them.
+    """
+    site = load_deck_site(args.site)
+    headless = site.headless_ok and not args.headful
+    async with async_playwright() as pw:
+        ctx = await launch(pw, site, headless=headless)
+        page = ctx.pages[0] if ctx.pages else await ctx.new_page()
+        try:
+            await page.goto(site.url, wait_until="domcontentloaded", timeout=60000)
+            r = await resolve(page, site.create_notebook, timeout_ms=15000)
+            return {
+                "ok": True, "site": site.id, "kind": "deck",
+                "signed_in": not await any_matches(page, site.login_selectors),
+                "challenge": await any_matches(page, site.challenge_selectors),
+                "matched": {"create_notebook": r["selector"] if r else None},
+                "missing": [] if r else ["create_notebook"],
+                "unchecked": ["source_file_input", "source_ready", "studio_tab",
+                              "slide_deck_button", "customize_button",
+                              "prompt_input", "generate_button",
+                              "artifact_ready", "artifact_failed",
+                              "download_trigger", "download_menu_item"],
+                "note": ("the unchecked selectors only exist once a notebook is "
+                         "open — probe them with:  deck --dry-run"),
+            }
+        finally:
+            await ctx.close()
+
+
 async def cmd_doctor(args) -> dict:
     """Report which selectors still match — the early warning for UI churn."""
+    if is_deck_site(args.site):
+        return await _doctor_deck(args)
     site = load_site(args.site)
     headless = site.headless_ok and not args.headful
     async with async_playwright() as pw:
@@ -611,6 +998,17 @@ def main():
     a.add_argument("--attach", action="append")
     a.add_argument("--headful", action="store_true", help="force a real window")
 
+    dk = sub.add_parser("deck", help="generate a slide deck and save the PDF")
+    dk.add_argument("--site", default="notebooklm")
+    dk.add_argument("--prompt")
+    dk.add_argument("--prompt-file")
+    dk.add_argument("--source", required=True, help="the source PDF to upload")
+    dk.add_argument("--out", required=True, help="where to save the generated PDF")
+    dk.add_argument("--headful", action="store_true", help="force a real window")
+    dk.add_argument("--dry-run", action="store_true",
+                    help="walk the wizard and stop before Generate, reporting "
+                         "which selectors matched — the cheap repair loop")
+
     lo = sub.add_parser("login", help="open the site so a human can sign in")
     lo.add_argument("--site", default="claude")
 
@@ -619,7 +1017,8 @@ def main():
     d.add_argument("--headful", action="store_true")
 
     args = ap.parse_args()
-    fn = {"ask": cmd_ask, "login": cmd_login, "doctor": cmd_doctor}[args.cmd]
+    fn = {"ask": cmd_ask, "deck": cmd_deck,
+          "login": cmd_login, "doctor": cmd_doctor}[args.cmd]
     try:
         print(json.dumps(asyncio.run(fn(args)), ensure_ascii=False))
     except DriverError as e:

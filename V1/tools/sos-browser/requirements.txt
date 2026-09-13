@@ -1,0 +1,11 @@
+# StudyOS browser bridge.
+#
+# After installing these, fetch the browser binaries once:
+#     playwright install chromium
+#
+# The driver launches real Chrome (channel="chrome") for the logged-in profiles,
+# but pdfrender's HTML->PDF stage uses bundled Chromium, so both are needed.
+
+playwright>=1.61.0     # drives the logged-in profiles; supplies the download API
+pyyaml>=6.0            # selectors.yaml
+pymupdf>=1.24.0        # rasterises source slides for the rewrite layout stage

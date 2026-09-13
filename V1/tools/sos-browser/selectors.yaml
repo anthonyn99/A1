@@ -147,3 +147,121 @@ sites:
     challenge_selectors:
       - "text=/unusual traffic/i"
       - "form#captcha-form"
+
+# ── decks: (UNVERIFIED) ───────────────────────────────────────────────────────
+# Everything under `decks:` is a GUESS, written without a live NotebookLM
+# session. Unlike `sites:` above, NONE of these were measured against a real
+# page — the provenance note at the top of this file does NOT cover them.
+#
+# The first real run is EXPECTED to fail on a missing selector. That is the
+# design, not a defect:
+#
+#     python driver.py deck --site notebooklm --source deck.pdf \
+#         --out probe.pdf --prompt test --dry-run --headful
+#
+# walks the wizard, stops before Generate, and names the field that missed.
+# Fix that one field, re-run — about a minute per iteration, against ~25
+# minutes if you had to generate a real deck to discover each miss. The
+# artifacts/ dump has the HTML to repair it from.
+#
+# Treat a match here as unconfirmed until dry-run reports `missing: []`.
+#
+# Same ordered-list rule as above: ADD a new selector at the TOP, never replace.
+#
+# WHY A SEPARATE TOP-LEVEL KEY AND NOT A THIRD ENTRY UNDER `sites:`
+# load_site() filters against Site.__dataclass_fields__, so a notebooklm entry
+# under `sites:` would silently DROP every field below and hand back a Site
+# with empty input/assistant_turn lists — config that loads perfectly and then
+# fails at runtime as `no_input`, pointing at the composer instead of at this
+# file. A separate key makes load_site('notebooklm') say "unknown site", which
+# is the honest answer.
+decks:
+  notebooklm:
+    display_name: NotebookLM
+    url: https://notebooklm.google.com/
+    # Deliberately FALSE while the selectors are guesses: a headful run (parked
+    # off-screen by launch()) makes the save_artifacts screenshots readable
+    # during the repair loop, and a real rendering browser is the less
+    # distinguishable choice for a content-generation action.
+    headless_ok: false
+
+    # ── The wizard, in click order ───────────────────────────────────────────
+    create_notebook:
+      - "button:has-text('Create new notebook')"
+      - "button:has-text('New notebook')"
+      - "[aria-label*='Create new' i]"
+      - "button:has-text('Create new')"
+    source_file_input:
+      - "input[type='file']"
+      - "[data-testid='file-upload-input']"
+    # Proof the source finished UPLOADING AND INGESTING, not merely that the
+    # file dialog accepted it. Clicking Studio before ingest completes is the
+    # failure this guards.
+    source_ready:
+      - "[data-testid='source-item']"
+      - "mat-chip:has-text('.pdf')"
+      - "[class*='source-item']"
+      - "[aria-label*='source' i][role='listitem']"
+    studio_tab:
+      - "button:has-text('Studio')"
+      - "[aria-label='Studio']"
+      - "[role='tab']:has-text('Studio')"
+    slide_deck_button:
+      - "button:has-text('Slide Deck')"
+      - "[aria-label*='Slide Deck' i]"
+      - "button:has-text('Slides')"
+    customize_button:
+      - "button:has-text('Customize')"
+      - "[aria-label*='Customize' i]"
+    prompt_input:
+      - "textarea"
+      - "div[contenteditable='true']"
+      - "[role='textbox']"
+    generate_button:
+      - "button:has-text('Generate')"
+      - "[aria-label*='Generate' i]"
+      - "button:has-text('Create')"
+
+    # ── Completion, and its opposite ─────────────────────────────────────────
+    # artifact_failed is checked BEFORE artifact_ready on every poll (see
+    # _wait_for_deck). If a failed artifact row still matches the ready
+    # selector — plausible, same row with a different badge — ready-first would
+    # report success and then hand back a download that never arrives.
+    artifact_ready:
+      - "button[aria-label*='Download' i]"
+      - "[data-testid='artifact-ready']"
+      - "button:has-text('Download')"
+    artifact_failed:
+      - "text=/generation failed/i"
+      - "text=/couldn't generate/i"
+      - "text=/something went wrong/i"
+    download_trigger:
+      - "button[aria-label*='Download' i]"
+      - "button:has-text('Download')"
+      - "[aria-label='More'][role='button']"
+    # OPTIONAL second click: only used if it matches. Whether Download is a
+    # direct button or hidden behind an overflow menu is exactly the kind of
+    # thing a guess gets wrong, so the flow tolerates both shapes.
+    download_menu_item:
+      - "[role='menuitem']:has-text('PDF')"
+      - "[role='menuitem']:has-text('Download')"
+
+    # ── Timing ──────────────────────────────────────────────────────────────
+    # 5s, not the chat path's 700ms: a 30-minute wait at 700ms is ~2,500 DOM
+    # queries for no extra information, and it reads as automation.
+    gen_poll_ms: 5000
+    gen_timeout_s: 1800        # 30 min; deck generation is genuinely slow
+    source_timeout_s: 300      # upload + ingest, a separate and variable wait
+    download_timeout_s: 120
+
+    # ── Sentinels ───────────────────────────────────────────────────────────
+    # Same hard stop as every site above: never solved, only reported.
+    login_selectors:
+      - "a[href*='accounts.google.com/ServiceLogin']"
+      - "text=/^Sign in$/"
+    rate_limit_selectors:
+      - "text=/You've reached your .{0,40}limit/i"
+      - "text=/try again later/i"
+    challenge_selectors:
+      - "text=/unusual traffic/i"
+      - "form#captcha-form"

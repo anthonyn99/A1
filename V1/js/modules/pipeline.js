@@ -71,7 +71,7 @@ async function request(path, init = {}) {
  * Returns `{ job, cached }`. `cached: true` means the identical file+prompt
  * already produced a result and nothing was spent.
  */
-export async function runPrompt({ file, prompt, promptId, promptVersion, classId, outputModuleId, slideCount }) {
+export async function runPrompt({ file, prompt, promptId, promptVersion, classId, outputModuleId, slideCount, mode }) {
   if (!enabled()) throw new Error('pipeline disabled');
   if (!file || !file.id) throw new Error('file required');
   if (!prompt || !String(prompt).trim()) throw new Error('prompt required');
@@ -105,9 +105,21 @@ export async function runPrompt({ file, prompt, promptId, promptVersion, classId
       // the Worker use its own default rather than guess low.
       ...(slideCount ? { slideCount } : {}),
       ...(fileB64 ? { fileB64 } : {}),
-      // Which chat site the local bridge should drive. Ignored by the Worker,
-      // which has exactly one provider.
-      ...(CFG().site ? { site: CFG().site } : {}),
+      // Which SHAPE of job this is. Omitted entirely for the default rewrite
+      // path so the wire format stays byte-identical to before this existed —
+      // the dormant Worker never receives a field it does not know, and the
+      // existing tests keep passing unchanged.
+      ...(mode && mode !== 'rewrite' ? { mode } : {}),
+      // Which site the local bridge should drive. Ignored by the Worker, which
+      // has exactly one provider.
+      //
+      // A deck job MUST override the configured chat site: config.site is
+      // 'claude', and a notebooklm job carrying site:'claude' would send the
+      // driver to load_deck_site('claude'), which exits. The bridge forces this
+      // too — that is the real guard; this keeps the job record honest before
+      // it ever round-trips.
+      ...(mode === 'notebooklm' ? { site: 'notebooklm' }
+        : CFG().site ? { site: CFG().site } : {}),
     }),
   });
   return { job: out.job, cached: !!out.cached };
@@ -296,13 +308,23 @@ export async function fileResult(job) {
   }
 
   const base = (job.sourceName || 'Generated deck').replace(/\.pdf$/i, '');
+  // Named for what produced it. The two paths make genuinely different things —
+  // a rewrite carries YOUR slide images with new text, a NotebookLM deck is a
+  // new deck built from the source — and a shared name would make them
+  // indistinguishable in the Generated module.
+  const mode = job.mode || 'rewrite';
+  const suffix = mode === 'notebooklm' ? ' — Slides.pdf' : ' — Rewritten.pdf';
   return B.addGeneratedDoc({
     classId: job.classId,
     moduleId: job.outputModuleId,
-    name: base + ' — Rewritten.pdf',
+    name: base + suffix,
     blob,
     meta: {
       sourceFileId: job.fileId,
+      // Part of the dedup key in addGeneratedDoc: without it a NotebookLM deck
+      // would REPLACE the Claude rewrite of the same lecture and delete its
+      // bytes, because the match is on provenance rather than on filename.
+      mode,
       promptId: job.promptId,
       promptVersion: job.promptVersion,
       model: (job.sections && job.sections[0] && job.sections[0].model) || '',

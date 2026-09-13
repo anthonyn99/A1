@@ -211,9 +211,19 @@ window.STUDYOS_CONFIG = {
       enabled: true,
       baseUrl: 'http://127.0.0.1:8781',
 
-      /* Which chat site the bridge drives. Configured in
-       * tools/sos-browser/selectors.yaml; sign in once per site with
+      /* Which CHAT site the bridge drives, for prompts and notes. Configured
+       * in tools/sos-browser/selectors.yaml; sign in once per site with
        *   python driver.py login --site claude
+       *
+       * SLIDE DECKS DO NOT USE THIS. Deck generation goes to NotebookLM, which
+       * is a wizard rather than a chat box: it lives under the `decks:` key in
+       * that same yaml, and pipeline-ui sets mode:'notebooklm' per job, which
+       * overrides this value. It needs its own one-time sign-in:
+       *   python driver.py login --site notebooklm
+       *
+       * Deck generation therefore needs the LOCAL BRIDGE — the Worker cannot
+       * drive a browser, and the Run sheet says so rather than quietly falling
+       * back to a rewrite.
        */
       site: 'claude',
 

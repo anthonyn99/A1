@@ -59,13 +59,29 @@ function toast(icon, title, body) {
 
 // ── P-3: run a prompt on one or more files ────────────────────────────────
 /**
+ * Generate a slide deck from one or more source files.
+ *
+ * ── WHY THERE IS NO ENGINE PICKER ─────────────────────────────────────────
+ * Decks come from NotebookLM, full stop. Claude remains the engine for prompts
+ * and notes, but it is no longer offered as a way to make a deck: the two
+ * produce genuinely different artifacts from one source file, and asking on
+ * every run is a question with the same answer every time.
+ *
  * @param {object} cls      the class the files belong to
  * @param {Array}  files    one or more file entries
- * @param {string} destModuleId  where the generated note should land
+ * @param {string} destModuleId  where the generated deck should land
  */
 export function openRunSheet(cls, files, destModuleId) {
   if (!pipeline.enabled()) {
     toast('⚠️', 'Pipeline is off', 'Set up the studyos-ai Worker first, then enable it in config.');
+    return;
+  }
+  // NotebookLM needs a browser on this machine, which is what the local bridge
+  // is. The Cloudflare Worker cannot drive one and never will, so against a
+  // Worker baseUrl this says so rather than silently producing a rewrite.
+  if (!pipeline.isLocalBridge()) {
+    toast('⚠️', 'Needs the local bridge',
+      'Deck generation drives NotebookLM in a browser on this PC. Point config.cloudflare.ai.baseUrl at http://127.0.0.1:8781.');
     return;
   }
   const list = (Array.isArray(files) ? files : [files]).filter(Boolean);
@@ -89,11 +105,11 @@ export function openRunSheet(cls, files, destModuleId) {
         ${choices.map(p => `<option value="${esc(p.id)}">${esc(p.name || 'Untitled')}${p.source === 'class' ? ' (this class)' : ''}</option>`).join('')}
       </select>
     </div>
-    <div class="field">
-      <label>Slides in the deck <span style="color:var(--text3);font-weight:400">— leave blank if unsure</span></label>
-      <input type="number" id="sos-ai-slides" min="1" max="600" placeholder="e.g. 42">
-    </div>
     <div id="sos-ai-vars"></div>
+    <div style="font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:10px;line-height:1.5">
+      NotebookLM builds the deck from this source under your prompt. It takes a
+      while — you can close the tab.
+    </div>
     <div id="sos-ai-budget" style="font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:8px"></div>
     `, { wide: true });
 
@@ -137,7 +153,6 @@ export function openRunSheet(cls, files, destModuleId) {
     run.disabled = true;
     run.textContent = 'Queueing…';
     const p = choices.find(x => x.id === sel.value);
-    const slides = parseInt(s.overlay.querySelector('#sos-ai-slides').value, 10);
     try {
       const results = await pipeline.runBatch(list, {
         prompt: prompts.interpolate(p.text, { cls }),
@@ -145,7 +160,10 @@ export function openRunSheet(cls, files, destModuleId) {
         promptVersion: p.version || 1,
         classId: cls.id,
         outputModuleId: destModuleId || '',
-        ...(Number.isFinite(slides) && slides > 0 ? { slideCount: slides } : {}),
+        // No slideCount: NotebookLM generates the whole deck in one pass and
+        // never reads it. The input that used to collect it is gone with it —
+        // a field for a value nothing reads is a lie the UI tells.
+        mode: 'notebooklm',
       });
       const ok = results.filter(r => r.ok).length;
       const cached = results.filter(r => r.cached).length;
@@ -157,7 +175,7 @@ export function openRunSheet(cls, files, destModuleId) {
       } else if (cached === results.length) {
         toast('✅', 'Already done', 'Re-filing the deck that was generated before — nothing was spent.');
       } else {
-        toast('⚡', `${ok} queued`, 'They keep running if you close the tab.');
+        toast('⚡', `${ok} queued`, 'NotebookLM is building them. They keep running if you close the tab.');
       }
       results.filter(r => r.ok && r.job && !r.cached).forEach(r => trackJob(r.job.id));
 

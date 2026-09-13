@@ -78,6 +78,15 @@ await send('Page.addScriptToEvaluateOnNewDocument', {
         }
         return new Response(JSON.stringify({ok:true}), {status:200});
       }
+      // The SOURCE file's bytes. The local bridge cannot reach studyos-files,
+      // so pipeline.js resolves the blob and attaches it as base64; the fixture
+      // file is cloud-only, so that resolution comes through here. Without it
+      // runPrompt throws "could not read the file to attach" before posting.
+      if (u.indexOf('https://files/') === 0) {
+        var src = '%PDF-1.4\\n1 0 obj<</Type/Catalog>>endobj\\ntrailer<</Root 1 0 R>>\\n%%EOF';
+        return new Response(new Blob([src], {type:'application/pdf'}),
+          {status:200, headers:{'Content-Type':'application/pdf'}});
+      }
       return realFetch(url, init);
     };
   `,
@@ -88,7 +97,10 @@ await new Promise(r => setTimeout(r, 3000));
 
 // Flip the flag and re-run boot, since config.js already evaluated.
 await evalJs(`window.STUDYOS_CONFIG.cloudflare.ai.enabled = true;
-              window.STUDYOS_CONFIG.cloudflare.ai.baseUrl = 'https://ai.test';
+              // A LOCALHOST url on purpose: deck generation drives NotebookLM
+              // in a browser on this machine, so openRunSheet refuses a Worker
+              // baseUrl outright. Requests are stubbed below either way.
+              window.STUDYOS_CONFIG.cloudflare.ai.baseUrl = 'http://127.0.0.1:8781';
               window._fbAppCheckToken = async () => 'tok-live'; true;`);
 await evalJs(`import('./js/modules/boot.js?enabled=1').then(()=>'ok')`);
 await new Promise(r => setTimeout(r, 2500));
@@ -176,6 +188,11 @@ t('it names the file', (sheet.bodyHtml||'').includes('Lecture 3.pdf'));
 t('the ampersand in the class name is escaped, not doubled',
   !/&\s*amp;\s*amp/i.test(sheet.bodyHtml || ''));
 t('has Run and Cancel', (sheet.buttons||[]).join(',').includes('Run'), sheet.buttons);
+// NotebookLM generates the whole deck in one pass and never reads a slide
+// count, so the field that used to collect one is gone. A visible input for a
+// value nothing reads is a lie the UI tells.
+t('no slide-count field (NotebookLM ignores it)',
+  !(sheet.bodyHtml || '').includes('sos-ai-slides'));
 
 // Budget must be fetched and shown before spending.
 await new Promise(r => setTimeout(r, 400));
@@ -198,6 +215,16 @@ if (posted.length) {
   t('sent the file id', body.fileId === 'f1', body);
   t('sent interpolated prompt text', /Intro to Database Systems & Design/.test(body.prompt), body.prompt);
   t('sent the class id', body.classId === 'vt1');
+  // Deck generation goes to NotebookLM, and the bridge forces the site to match
+  // — a job carrying the configured chat site would send the driver to
+  // load_deck_site('claude'), which exits.
+  t('sent mode=notebooklm', body.mode === 'notebooklm', body.mode);
+  t('sent site=notebooklm, not the configured chat site',
+    body.site === 'notebooklm', body.site);
+  // The local bridge has no access to studyos-files, so the bytes ride along.
+  t('attached the source bytes for the local bridge',
+    typeof body.fileB64 === 'string' && body.fileB64.length > 0);
+  t('did not send a slide count', !('slideCount' in body));
   t('attached the App Check token',
     posted[posted.length - 1].headers['X-Firebase-AppCheck'] === 'tok-live',
     posted[posted.length - 1].headers);

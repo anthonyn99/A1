@@ -63,6 +63,47 @@ OUTPUTS = HERE / "outputs"
 SLIDES_PER_CHUNK = 15
 MAX_ATTEMPTS = 2          # a browser run is slow; don't grind on a broken one
 
+# Two shapes of job, chosen per-job by the client.
+#
+#   rewrite     the original flow: Claude rewrites a deck slide by slide, and
+#               pdfrender pairs each answer with the real slide image.
+#   notebooklm  NotebookLM generates a NEW deck from the source and we catch
+#               the download. No chunking, no coverage check, no layout stage.
+#
+# Absent `mode` means 'rewrite', so every job already in jobs.json keeps working
+# with no migration.
+MODES = ("rewrite", "notebooklm")
+
+# Retryable = "the identical run again might just work".
+#
+# This table is the single most consequential judgment in the deck path. Every
+# NotebookLM selector is an unverified guess, so selector misses will be common
+# — and MAX_ATTEMPTS=2 on a non-retryable-in-practice failure means two browser
+# launches and two artifact dumps to learn exactly what the first one said.
+RETRYABLE_KINDS = {
+    # rewrite path (unchanged behaviour)
+    "slide_gap", "empty_answer", "unexpected",
+    # deck path: transient, or the far side's own failure
+    "nlm_generation_failed",    # NotebookLM's own failure badge; often transient
+    "nlm_timeout",              # generation outran the deadline
+    "nlm_source_timeout",       # ingest was slow; a second run often clears it
+    "nlm_empty_download",       # zero bytes; a re-click usually works
+}
+# Deliberately NOT retryable, and each for its own reason:
+#
+#   needs_login / bot_challenge / rate_limited
+#       THE ETHICAL STOP. Retrying one of these is precisely the bypass this
+#       tool refuses to perform. Pinned by test_server.py.
+#   nlm_no_* (every selector miss)
+#       The markup will not have changed in the 90 seconds before attempt 2.
+#       A retry burns a browser launch to fail identically; the fix is a human
+#       editing selectors.yaml, guided by `deck --dry-run`.
+#   nlm_not_pdf
+#       The site handed back something that is not a deck. Cause unknown, and a
+#       retry risks filing garbage into a class.
+#   bad_input
+#       The source file is gone. Running again will not bring it back.
+
 _jobs: dict[str, dict] = {}
 _lock = threading.Lock()
 _queue: list[str] = []
@@ -148,6 +189,24 @@ def build_job_pdf(job: dict, *, force: bool = False) -> bool:
     Never raises — a layout failure records `pdfError` and returns False, so it
     can never cost a caller the (expensive) generated text.
     """
+    # A NotebookLM deck was DOWNLOADED, not assembled here — there is no text to
+    # lay out against slide images. Without this guard the /pdf route (which
+    # calls this with force=True whenever the file is missing from disk) would
+    # rasterise the SOURCE deck and pair it against the marker string from
+    # _run_notebooklm_job, producing a plausible-looking, entirely wrong PDF.
+    # That is the nastiest failure available in this file.
+    #
+    # Returning False makes /pdf answer 404, which is the truth: a deleted
+    # NotebookLM output can only be recovered by running the job again.
+    if job.get("mode") == "notebooklm":
+        have = bool(job.get("pdfPath") and Path(job["pdfPath"]).exists())
+        if not have:
+            with _lock:
+                job["hasPdf"] = False
+                job["pdfError"] = "the downloaded deck is gone; re-run this job"
+                _save()
+        return have
+
     if not force and job.get("pdfPath") and Path(job["pdfPath"]).exists():
         return True
     if not job.get("result"):
@@ -198,75 +257,132 @@ def _run_job(job_id: str):
         _save()
 
     try:
-        total = int(job.get("slideCount") or SLIDES_PER_CHUNK)
-        sections = job.get("sections") or []
-        outline = job.get("outline") or ""
-        attach = [Path(job["filePath"])] if job.get("filePath") else []
-
-        start = job.get("nextSlide") or 1
-        for lo in range(start, total + 1, SLIDES_PER_CHUNK):
-            hi = min(lo + SLIDES_PER_CHUNK - 1, total)
-
-            guard = (
-                f"\n\nYou are being given ONE SEGMENT of a longer deck: slides {lo}-{hi}.\n"
-                f"Cover EVERY slide in {lo}-{hi} inclusive, in order, and stop at {hi}.\n"
-                f'Begin each slide\'s section with a heading of exactly the form "## Slide N".\n'
-            )
-            if outline:
-                guard += f"\nFor continuity, earlier segments covered:\n{outline}\n(Do not repeat them.)"
-
-            args = argparse.Namespace(
-                site=job.get("site") or "claude",
-                prompt=job["prompt"] + guard,
-                prompt_file=None,
-                # Attach the deck on the FIRST chunk only: the conversation keeps
-                # it, and re-uploading per chunk wastes minutes and can trip an
-                # attachment limit.
-                attach=[str(p) for p in attach] if lo == start else None,
-                headful=False,
-            )
-            out = asyncio.run(driver.cmd_ask(args))
-            text = trim_to_first_slide(out.get("text") or "")
-
-            gaps = missing_slides(text, lo, hi)
-            if gaps:
-                raise driver.DriverError(
-                    "slide_gap",
-                    f"slides not covered: {', '.join(map(str, gaps))}")
-
-            sections.append({"from": lo, "to": hi, "text": text,
-                             "site": out.get("site"), "clean": out.get("clean")})
-            outline = (outline + f"\nSlides {lo}-{hi} covered.")[-2000:]
-
-            with _lock:
-                job["sections"] = sections
-                job["outline"] = outline
-                job["nextSlide"] = hi + 1
-                job["progress"] = round(hi / total * 100)
-                # A chunk that finished on the weakest gate is worth surfacing:
-                # the text is probably fine, but it was never confirmed.
-                job["lowConfidence"] = any(not s.get("clean") for s in sections)
-                _save()
-
-        result_text = "\n\n".join(s["text"] for s in sections)
-
-        with _lock:
-            job["status"] = "done"
-            job["progress"] = 100
-            job["finishedAt"] = int(time.time() * 1000)
-            job["result"] = result_text
-            _save()
-
-        # Lay the text out against the real slide images. Deliberately AFTER the
-        # text is journaled above, and build_job_pdf swallows its own errors: a
-        # layout failure must not throw away a generation that cost many minutes
-        # of browser time. The job keeps its text; pdfError says what went wrong.
-        build_job_pdf(job)
-
+        if job.get("mode") == "notebooklm":
+            _run_notebooklm_job(job)
+        else:
+            _run_rewrite_job(job)
     except driver.DriverError as e:
-        _fail(job, e.message, retryable=e.kind in ("slide_gap", "empty_answer", "unexpected"))
+        _fail(job, e.message, retryable=e.kind in RETRYABLE_KINDS)
     except Exception as e:
         _fail(job, str(e)[:400], retryable=True)
+
+
+def _run_notebooklm_job(job: dict):
+    """One generation, one download. No chunking: NotebookLM produces the whole
+    deck in a single pass, so slideCount is advisory at most."""
+    if not job.get("filePath") or not Path(job["filePath"]).exists():
+        raise driver.DriverError("bad_input",
+                                 "the source PDF is no longer on disk")
+
+    OUTPUTS.mkdir(parents=True, exist_ok=True)
+    out_file = OUTPUTS / (job["id"] + ".pdf")
+
+    with _lock:
+        job["progress"] = 5
+        _save()
+
+    args = argparse.Namespace(
+        site=job.get("site") or "notebooklm",
+        prompt=job["prompt"], prompt_file=None,
+        source=job["filePath"], out=str(out_file),
+        headful=False, dry_run=False,
+    )
+    # Deliberately no per-step progress ladder. Reporting 20/40/60 would mean
+    # threading a callback from here into the driver, puncturing the "all
+    # Google UI churn in one function" boundary for a cosmetic gain. A job that
+    # says "running" for twenty minutes is honest.
+    out = asyncio.run(driver.cmd_deck(args))
+
+    with _lock:
+        job["status"] = "done"
+        job["progress"] = 100
+        job["finishedAt"] = int(time.time() * 1000)
+        # NOT EMPTY, and not text either. Three places gate on the truthiness
+        # of `result`: build_job_pdf above, fileResult in pipeline.js, and
+        # resumeWatches in pipeline-ui.js (via hasResult). An empty result here
+        # means the deck downloads perfectly and is then never filed into the
+        # class — the exact silent dead end the resumeWatches comment describes.
+        # A marker is one line; teaching three consumers about hasPdf instead is
+        # three chances to miss one. Do not "clean this up" to "".
+        job["result"] = f"NotebookLM slide deck ({out['bytes']} bytes)"
+        job["pdfPath"] = str(out_file)
+        job["hasPdf"] = True
+        job["pdfBytes"] = out["bytes"]
+        job["sections"] = []          # no chunks on this path
+        job.pop("pdfError", None)
+        _save()
+
+
+def _run_rewrite_job(job: dict):
+    """The original Claude path, moved here VERBATIM from _run_job.
+
+    Unchanged on purpose: a regression in the working path should be impossible
+    to introduce by inspection of this diff.
+    """
+    total = int(job.get("slideCount") or SLIDES_PER_CHUNK)
+    sections = job.get("sections") or []
+    outline = job.get("outline") or ""
+    attach = [Path(job["filePath"])] if job.get("filePath") else []
+
+    start = job.get("nextSlide") or 1
+    for lo in range(start, total + 1, SLIDES_PER_CHUNK):
+        hi = min(lo + SLIDES_PER_CHUNK - 1, total)
+
+        guard = (
+            f"\n\nYou are being given ONE SEGMENT of a longer deck: slides {lo}-{hi}.\n"
+            f"Cover EVERY slide in {lo}-{hi} inclusive, in order, and stop at {hi}.\n"
+            f'Begin each slide\'s section with a heading of exactly the form "## Slide N".\n'
+        )
+        if outline:
+            guard += f"\nFor continuity, earlier segments covered:\n{outline}\n(Do not repeat them.)"
+
+        args = argparse.Namespace(
+            site=job.get("site") or "claude",
+            prompt=job["prompt"] + guard,
+            prompt_file=None,
+            # Attach the deck on the FIRST chunk only: the conversation keeps
+            # it, and re-uploading per chunk wastes minutes and can trip an
+            # attachment limit.
+            attach=[str(p) for p in attach] if lo == start else None,
+            headful=False,
+        )
+        out = asyncio.run(driver.cmd_ask(args))
+        text = trim_to_first_slide(out.get("text") or "")
+
+        gaps = missing_slides(text, lo, hi)
+        if gaps:
+            raise driver.DriverError(
+                "slide_gap",
+                f"slides not covered: {', '.join(map(str, gaps))}")
+
+        sections.append({"from": lo, "to": hi, "text": text,
+                         "site": out.get("site"), "clean": out.get("clean")})
+        outline = (outline + f"\nSlides {lo}-{hi} covered.")[-2000:]
+
+        with _lock:
+            job["sections"] = sections
+            job["outline"] = outline
+            job["nextSlide"] = hi + 1
+            job["progress"] = round(hi / total * 100)
+            # A chunk that finished on the weakest gate is worth surfacing:
+            # the text is probably fine, but it was never confirmed.
+            job["lowConfidence"] = any(not s.get("clean") for s in sections)
+            _save()
+
+    result_text = "\n\n".join(s["text"] for s in sections)
+
+    with _lock:
+        job["status"] = "done"
+        job["progress"] = 100
+        job["finishedAt"] = int(time.time() * 1000)
+        job["result"] = result_text
+        _save()
+
+    # Lay the text out against the real slide images. Deliberately AFTER the
+    # text is journaled above, and build_job_pdf swallows its own errors: a
+    # layout failure must not throw away a generation that cost many minutes
+    # of browser time. The job keeps its text; pdfError says what went wrong.
+    build_job_pdf(job)
 
 
 def _fail(job: dict, message: str, *, retryable: bool):
@@ -345,7 +461,8 @@ class Handler(BaseHTTPRequestHandler):
         p = urlparse(self.path).path
         if p == "/health":
             return self._send({"ok": True, "bridge": "sos-browser",
-                               "driver": True, "jobs": len(_jobs)})
+                               "driver": True, "jobs": len(_jobs),
+                               "modes": list(MODES)})
         if p == "/api/ai/budget":
             # A subscription, not per-token billing. Reported as zero spend with
             # no cap so the UI's budget line stays truthful rather than fake.
@@ -448,9 +565,25 @@ class Handler(BaseHTTPRequestHandler):
         if not prompt:
             return self._send({"ok": False, "error": "prompt required"}, 400)
 
+        # Validated here rather than branched on later: a client typo should
+        # fail at create time, not fall through to an unknown runner branch.
+        mode = body.get("mode") or "rewrite"
+        if mode not in MODES:
+            return self._send({"ok": False,
+                               "error": f"unknown mode {mode!r}; "
+                                        f"expected one of {', '.join(MODES)}"}, 400)
+
         # Idempotency, matching the Worker: same file + prompt + version returns
         # the existing result instead of re-running a slow browser job.
-        fp = f"{body.get('fileId')}|{body.get('promptId')}|{body.get('promptVersion', 1)}"
+        #
+        # MODE IS PART OF THE KEY. Without it, the same file+prompt run through
+        # both paths collides and the cache hands back the other path's job —
+        # a silent wrong answer rather than an error. This does invalidate every
+        # fingerprint written before this change, so the first re-run of an old
+        # job regenerates once. That one-off cost beats a conditional key that
+        # breaks the day a third mode appears.
+        fp = (f"{body.get('fileId')}|{body.get('promptId')}"
+              f"|{body.get('promptVersion', 1)}|{mode}")
         with _lock:
             for j in _jobs.values():
                 if j.get("fingerprint") == fp and j.get("status") == "done":
@@ -476,7 +609,13 @@ class Handler(BaseHTTPRequestHandler):
             "classId": body.get("classId") or "",
             "outputModuleId": body.get("outputModuleId") or "",
             "slideCount": max(1, min(600, int(body.get("slideCount") or SLIDES_PER_CHUNK))),
-            "site": body.get("site") or "claude",
+            "mode": mode,
+            # Forced, not merely defaulted: this is the trust boundary. A job
+            # with mode=notebooklm and site=claude would send cmd_deck to
+            # load_deck_site('claude'), which exits. The client sets this too;
+            # this is the half that has to be right.
+            "site": ("notebooklm" if mode == "notebooklm"
+                     else (body.get("site") or "claude")),
             "filePath": str(file_path) if file_path else "",
             "fingerprint": fp,
             "status": "queued", "progress": 0, "attempts": 0, "costUsd": 0,

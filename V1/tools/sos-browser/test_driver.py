@@ -17,6 +17,20 @@ wrong answer rather than an error:
   "gemini's trailing citations are stripped"
       Otherwise "AcqNotes\\n+ 2" lands inside the generated note.
 
+  "notebooklm is not loadable as a chat site"
+      load_site() filters against Site's fields, so a deck config placed under
+      `sites:` would load happily and drop every wizard selector — failing much
+      later as a misleading `no_input`.
+
+  "DeckSite carries the five attributes check_blockers reads"
+      That function is the ethical stop. It works on both classes only by
+      structural typing, so renaming a field here would silently remove the
+      challenge and rate-limit checks from the deck path.
+
+  "looks_like_pdf rejects an HTML error page"
+      A sign-in redirect saved under a .pdf name is the failure that would
+      otherwise be filed into a class as a slide deck.
+
 The DOM walker is JS, so it is exercised in a real browser via Playwright and
 skipped cleanly if no browser is installed.
 
@@ -142,6 +156,63 @@ async def walker_tests():
     t("chrome buttons are skipped", "Copy" not in md, md)
     # The whole point: inner_text would have produced none of the above.
     t("output is markdown, not flattened prose", md.count("\n") > 5, md)
+
+
+# ── Deck config (NotebookLM) ──────────────────────────────────────────────────
+print("\ndeck config (notebooklm)")
+nlm = driver.load_deck_site("notebooklm")
+t("notebooklm loads", nlm.display_name == "NotebookLM")
+
+_WIZARD = ("create_notebook", "source_file_input", "source_ready", "studio_tab",
+           "slide_deck_button", "customize_button", "prompt_input",
+           "generate_button", "artifact_ready", "artifact_failed",
+           "download_trigger", "download_menu_item")
+t("every wizard field is an ordered fallback list",
+  all(isinstance(getattr(nlm, f), list) for f in _WIZARD),
+  [f for f in _WIZARD if not isinstance(getattr(nlm, f), list)])
+t("no wizard field is empty",
+  all(getattr(nlm, f) for f in _WIZARD),
+  [f for f in _WIZARD if not getattr(nlm, f)])
+
+# It must NOT be reachable through load_site: that call filters against Site's
+# fields, so it would return a Site with empty input/assistant_turn — a config
+# that loads fine and then fails at runtime pointing at the wrong thing.
+try:
+    driver.load_site("notebooklm")
+    t("notebooklm is not loadable as a chat site", False,
+      "load_site accepted it; the wizard fields would be silently dropped")
+except SystemExit:
+    t("notebooklm is not loadable as a chat site", True)
+t("is_deck_site tells the two apart",
+  driver.is_deck_site("notebooklm") and not driver.is_deck_site("claude"))
+
+# check_blockers() works on both classes purely by structural typing.
+t("DeckSite carries the five attributes check_blockers reads",
+  all(hasattr(nlm, a) for a in ("id", "display_name", "login_selectors",
+                                "rate_limit_selectors", "challenge_selectors")))
+
+t("generation deadline is generous (minutes, not seconds)",
+  nlm.gen_timeout_s >= 900, nlm.gen_timeout_s)
+t("ingest gets its own, shorter deadline",
+  0 < nlm.source_timeout_s < nlm.gen_timeout_s,
+  (nlm.source_timeout_s, nlm.gen_timeout_s))
+# 700ms over a 30-minute wait is ~2,500 pointless DOM queries.
+t("generation polls slowly, unlike the chat path",
+  nlm.gen_poll_ms >= 2000, nlm.gen_poll_ms)
+# Failure is checked BEFORE success in _wait_for_deck; if they were the same
+# list, a failed run would be read as a finished one.
+t("failure has its own detector, distinct from ready",
+  nlm.artifact_failed and nlm.artifact_failed != nlm.artifact_ready)
+t("headless is off while the selectors are guesses", nlm.headless_ok is False)
+
+
+# ── Downloaded-file validation ────────────────────────────────────────────────
+print("\ndownload validation")
+t("a real PDF header passes", driver.looks_like_pdf(b"%PDF-1.7\n%..."))
+t("an HTML error page is rejected", not driver.looks_like_pdf(b"<!DOCTYPE html>"))
+t("a sign-in redirect is rejected", not driver.looks_like_pdf(b"<html><head>"))
+t("an empty download is rejected", not driver.looks_like_pdf(b""))
+t("a truncated header is rejected", not driver.looks_like_pdf(b"%PD"))
 
 
 asyncio.run(walker_tests())

@@ -5231,8 +5231,23 @@ const _sosAddGeneratedDoc = async (spec) => {
   };
 
   // Replace the previous deck for this source rather than stacking copies.
+  //
+  // KEYED ON (sourceFileId, mode), NOT sourceFileId ALONE. Two pipelines can
+  // generate from one lecture — a Claude rewrite (your slide images, rewritten
+  // text) and a NotebookLM deck (a new deck built from the source) — and they
+  // are different artifacts that should coexist. Matching on sourceFileId only
+  // meant the second one REPLACED the first and then deleted its bytes below,
+  // silently, with no way to get them back. Distinct filenames do not help:
+  // the match is on provenance, not on name.
+  //
+  // `|| 'rewrite'` on BOTH sides so every doc filed before `mode` existed —
+  // none of which carries one — still matches a rewrite re-run exactly as it
+  // did before. Re-running either pipeline replaces only its own output.
+  const priorMode = meta0.mode || 'rewrite';
   const prior = meta0.sourceFileId
-    ? mod.files.findIndex(f => f && f.gen && f.gen.sourceFileId === meta0.sourceFileId)
+    ? mod.files.findIndex(f => f && f.gen
+        && f.gen.sourceFileId === meta0.sourceFileId
+        && (f.gen.mode || 'rewrite') === priorMode)
     : -1;
   let old = null;
   if (prior >= 0) { old = mod.files[prior]; mod.files[prior] = meta; }
