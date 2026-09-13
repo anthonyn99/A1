@@ -186,41 +186,100 @@ decks:
     headless_ok: false
 
     # ── The wizard, in click order ───────────────────────────────────────────
+    # MEASURED against the live app on 2026-09-12 unless marked otherwise. The
+    # product is branded "Gemini Notebook" in the UI now; the host and the URL
+    # are still notebooklm.google.com.
+    #
+    # An announcement modal (mat-dialog, "We're giving you more flexibility...")
+    # can cover the whole app on first load and swallows every click behind it.
+    # Dismissed first, best-effort — absent on later runs, which is why the flow
+    # treats a miss here as normal rather than as a failure.
+    dismiss_dialog:
+      - "button[aria-label='Close dialog']"
+      - "button[aria-label='Dismiss banner']"
+      - "mat-dialog-container button[aria-label*='close' i]"
     create_notebook:
+      - "[aria-label*='Create new' i]"
+      - "button:has-text('Create notebook')"
       - "button:has-text('Create new notebook')"
       - "button:has-text('New notebook')"
-      - "[aria-label*='Create new' i]"
-      - "button:has-text('Create new')"
+    # There is NO input[type=file] in the DOM until this is clicked — the first
+    # guess waited for one that could not exist yet.
+    add_source_button:
+      - "button:has-text('Add sources')"
+      - "[aria-label='Add source']"
+      - "button:has-text('Add source')"
+    # Inside the Add-sources dialog. Clicking this opens a NATIVE file chooser
+    # rather than revealing an input[type=file] in the DOM — the reason two
+    # rounds of waiting for such an input timed out. Driven with Playwright's
+    # expect_file_chooser, which intercepts the OS dialog.
+    upload_files_button:
+      - "button:has-text('Upload files')"
+      - "[aria-label*='Upload file' i]"
+    # Fallback only: used when a hidden input IS present, which some layouts do
+    # expose. The flow prefers the file chooser and falls back to this.
     source_file_input:
       - "input[type='file']"
       - "[data-testid='file-upload-input']"
-    # Proof the source finished UPLOADING AND INGESTING, not merely that the
-    # file dialog accepted it. Clicking Studio before ingest completes is the
-    # failure this guards.
+    # Proof the source finished UPLOADING AND INGESTING.
+    #
+    # MEASURED, and it is the opposite of what the first guess assumed. The
+    # source ROW appears the instant the upload starts, so matching on it
+    # returned "ready" while the file was still being processed — the Studio
+    # buttons were still greyed out, the Slide Deck click landed on a disabled
+    # control, did nothing but show a tooltip, and the run failed three steps
+    # later pointing at an innocent selector.
+    #
+    # Worse, is_enabled() is useless here: these are styled divs, not real
+    # buttons, so Playwright reports enabled=True the whole time.
+    #
+    # The one honest signal is the SPINNER DISAPPEARING (measured ~20s for a
+    # 30-page PDF). So source_ready names the row (it must exist at all) and
+    # ingest_spinner names what must then go AWAY — the flow waits for both.
     source_ready:
+      - "[aria-label$='.pdf']"
       - "[data-testid='source-item']"
-      - "mat-chip:has-text('.pdf')"
       - "[class*='source-item']"
       - "[aria-label*='source' i][role='listitem']"
+    ingest_spinner:
+      - "mat-spinner"
+      - "[role='progressbar']"
+      - ".mdc-circular-progress"
+    # The Studio is a PANEL that is already open on the right, not a tab that
+    # has to be selected. Kept as an optional step: clicked only if it matches,
+    # so a layout where it IS collapsed still works.
     studio_tab:
+      - "[aria-label='Expand Studio panel']"
       - "button:has-text('Studio')"
-      - "[aria-label='Studio']"
       - "[role='tab']:has-text('Studio')"
     slide_deck_button:
+      - "[aria-label='Slide Deck']"
       - "button:has-text('Slide Deck')"
-      - "[aria-label*='Slide Deck' i]"
       - "button:has-text('Slides')"
+    # WARNING: `[aria-label*='Customize' i]` matches "Customize notebook" — the
+    # global settings dialog (title, cover image, summary), which is NOT the
+    # Slide Deck prompt. Anchored to the Studio panel's own control instead.
+    # Left optional in the flow: on the current layout the Slide Deck click
+    # opens its prompt directly, with no separate Customize step.
     customize_button:
-      - "button:has-text('Customize')"
-      - "[aria-label*='Customize' i]"
+      - "[aria-label='Customize Slide Deck']"
+      - "button[aria-label*='Customize slide' i]"
+    # MEASURED. A bare `textarea` matched the SIDEBAR's "Search the web for new
+    # sources" box — invisible behind the dialog, so the click timed out after
+    # 30s pointing at the wrong control entirely. Always anchor to the aria
+    # label; there are three visible textareas on this screen and only one of
+    # them is the prompt.
     prompt_input:
-      - "textarea"
-      - "div[contenteditable='true']"
-      - "[role='textbox']"
+      - "[aria-label='Describe the slide deck you want to create']"
+      - "textarea[aria-label*='slide deck' i]"
+      - "mat-dialog-container textarea"
+    # Two Generate buttons exist once the dialog is open (the Studio card keeps
+    # its own). Scoped to the dialog so the click lands on the one that submits
+    # the prompt rather than the one that reopens the panel.
     generate_button:
+      - "mat-dialog-container button:has-text('Generate')"
+      - "[role='dialog'] button:has-text('Generate')"
       - "button:has-text('Generate')"
-      - "[aria-label*='Generate' i]"
-      - "button:has-text('Create')"
 
     # ── Completion, and its opposite ─────────────────────────────────────────
     # artifact_failed is checked BEFORE artifact_ready on every poll (see

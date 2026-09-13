@@ -142,9 +142,13 @@ class DeckSite:
     headless_ok: bool = False
 
     # The wizard, in click order.
+    dismiss_dialog: list[str] = field(default_factory=list)
     create_notebook: list[str] = field(default_factory=list)
+    add_source_button: list[str] = field(default_factory=list)
+    upload_files_button: list[str] = field(default_factory=list)
     source_file_input: list[str] = field(default_factory=list)
     source_ready: list[str] = field(default_factory=list)
+    ingest_spinner: list[str] = field(default_factory=list)
     studio_tab: list[str] = field(default_factory=list)
     slide_deck_button: list[str] = field(default_factory=list)
     customize_button: list[str] = field(default_factory=list)
@@ -614,6 +618,29 @@ def strip_trailing(text: str, patterns: list[str]) -> str:
 # selector. Keep it flat. Resist extracting clever helpers.
 
 
+async def _dismiss_overlays(page, site: DeckSite, walked: dict) -> None:
+    """Close any announcement modal sitting over the app.
+
+    Google ships product-announcement dialogs that cover the whole UI and
+    swallow every click behind them — the first live run of this flow hit one
+    ("We are giving you more flexibility...") and failed three steps later
+    pointing at an innocent selector.
+
+    Best-effort by design: no dialog is the normal case, so a miss is silence,
+    never an error. Loops because dismissing one can reveal another.
+    """
+    for _ in range(3):
+        hit = await resolve(page, site.dismiss_dialog, timeout_ms=1200)
+        if not hit:
+            return
+        try:
+            await hit["locator"].first.click()
+            walked.setdefault("dismiss_dialog", hit["selector"])
+            await asyncio.sleep(0.8)
+        except Exception:
+            return
+
+
 async def _step(page, site: DeckSite, field_name: str, kind: str, *,
                 timeout_ms: int = 15000, require_visible: bool = True,
                 click: bool = True):
@@ -737,40 +764,113 @@ async def run_notebooklm_flow(page, site: DeckSite, source: Path, prompt: str,
     await page.goto(site.url, wait_until="domcontentloaded", timeout=60000)
     await check_blockers(page, site, pre_send=True)
 
+    # 0. Announcement modals cover the app and swallow every click behind them.
+    #    Best-effort and deliberately NOT a _step: it is absent on most runs,
+    #    and a missing dialog is the normal case, not a failure.
+    await _dismiss_overlays(page, site, walked)
+
     # 1. A fresh notebook per run: reusing one would mix sources, and the deck
     #    is generated from everything the notebook contains.
     r = await _step(page, site, "create_notebook", "nlm_no_create")
     walked["create_notebook"] = r["selector"]
+    await asyncio.sleep(2.0)
+    # Creating the notebook can raise its own first-run dialog.
+    await _dismiss_overlays(page, site, walked)
 
-    # 2. The source. Inline rather than via attach_files(), which takes a Site
-    #    and raises `no_file_input` — a kind the server retry table already
-    #    classifies for the chat path. Two lines is cheaper than one shared
-    #    function whose error kind means two different things.
-    r = await _step(page, site, "source_file_input", "nlm_no_file_input",
-                    timeout_ms=20000, require_visible=False, click=False)
-    walked["source_file_input"] = r["selector"]
-    await r["locator"].first.set_input_files([str(source)])
+    # 2. Open the upload dialog. THE FILE INPUT DOES NOT EXIST UNTIL THIS IS
+    #    CLICKED — waiting for one on the bare notebook page waits forever.
+    r = await _step(page, site, "add_source_button", "nlm_no_add_source")
+    walked["add_source_button"] = r["selector"]
+    await asyncio.sleep(1.5)
 
-    # 3. Wait for INGEST, not just for the dialog to accept the file. Its own
-    #    deadline: upload+parse is slow and varies with deck size, and it is a
-    #    different failure from generation taking too long.
+    # 3. The source itself.
+    #
+    #    "Upload files" opens a NATIVE OS file chooser; it does not put an
+    #    input[type=file] in the DOM, which is why waiting for one timed out.
+    #    expect_file_chooser intercepts that dialog — it must WRAP the click,
+    #    because the event fires during it.
+    #
+    #    Some layouts do expose a hidden input instead, so that is kept as a
+    #    fallback rather than deleted.
+    upload_btn = await resolve(page, site.upload_files_button, timeout_ms=8000)
+    if upload_btn:
+        walked["upload_files_button"] = upload_btn["selector"]
+        try:
+            async with page.expect_file_chooser(timeout=15000) as fc_info:
+                await upload_btn["locator"].first.click()
+            chooser = await fc_info.value
+            await chooser.set_files(str(source))
+            walked["source_file_input"] = "(native file chooser)"
+        except Exception as e:
+            path = await save_artifacts(page, f"{site.id}-file-chooser")
+            raise DriverError(
+                "nlm_no_file_input",
+                f"the file chooser never opened or rejected the file: "
+                f"{str(e)[:120]}. Artifacts: {path}")
+    else:
+        r = await _step(page, site, "source_file_input", "nlm_no_file_input",
+                        timeout_ms=20000, require_visible=False, click=False)
+        walked["source_file_input"] = r["selector"]
+        await r["locator"].first.set_input_files([str(source)])
+
+    # 4. Wait for INGEST TO FINISH, which is not the same as the file appearing.
+    #
+    #    The source row shows up the instant the upload starts. Treating that as
+    #    ready meant clicking Studio controls that were still greyed out: the
+    #    click silently did nothing (they are styled divs, so Playwright reports
+    #    them enabled and does not complain) and the run failed later pointing
+    #    at an innocent selector. The spinner going away is the honest signal.
     r = await resolve(page, site.source_ready,
                       timeout_ms=site.source_timeout_s * 1000)
     if not r:
         path = await save_artifacts(page, f"{site.id}-source-ready")
         raise DriverError(
             "nlm_source_timeout",
-            f"the source never finished processing after "
-            f"{site.source_timeout_s}s. Artifacts: {path}")
+            f"the source never appeared after {site.source_timeout_s}s. "
+            f"Artifacts: {path}")
     walked["source_ready"] = r["selector"]
 
+    deadline = time.monotonic() + site.source_timeout_s
+    while time.monotonic() < deadline:
+        if not await any_matches(page, site.ingest_spinner):
+            break
+        await asyncio.sleep(2.5)
+    else:
+        path = await save_artifacts(page, f"{site.id}-ingest-stuck")
+        raise DriverError(
+            "nlm_source_timeout",
+            f"the source was still processing after {site.source_timeout_s}s. "
+            f"Artifacts: {path}")
+    # The panel enables its controls a beat after the spinner clears.
+    await asyncio.sleep(3.0)
+
     # 4. Into the Studio panel and onto the Slide Deck generator.
-    for fname, kind in (("studio_tab", "nlm_no_studio"),
-                        ("slide_deck_button", "nlm_no_slide_deck"),
-                        ("customize_button", "nlm_no_customize")):
-        r = await _step(page, site, fname, kind)
-        walked[fname] = r["selector"]
-        await asyncio.sleep(1.0)          # let the panel settle between clicks
+    #
+    #    studio_tab is OPTIONAL: the Studio is a panel that is already open on
+    #    the right in the current layout, so there is nothing to click. Treating
+    #    a miss as failure would break a working run over a control that only
+    #    exists when the panel is collapsed.
+    opt = await resolve(page, site.studio_tab, timeout_ms=2000)
+    if opt:
+        walked["studio_tab"] = opt["selector"]
+        await opt["locator"].first.click()
+        await asyncio.sleep(1.0)
+    else:
+        walked["studio_tab"] = "(already open — nothing to click)"
+
+    r = await _step(page, site, "slide_deck_button", "nlm_no_slide_deck")
+    walked["slide_deck_button"] = r["selector"]
+    await asyncio.sleep(3.0)
+
+    # Customize is OPTIONAL: on the current layout Slide Deck opens its prompt
+    # directly. Required here would fail a run that is working fine.
+    opt = await resolve(page, site.customize_button, timeout_ms=3000)
+    if opt:
+        walked["customize_button"] = opt["selector"]
+        await opt["locator"].first.click()
+        await asyncio.sleep(2.0)
+    else:
+        walked["customize_button"] = "(not needed — prompt opens directly)"
 
     # 5. The custom prompt. type_prompt() is reused deliberately: above 800
     #    chars it pastes via CDP insertText, which is exactly the case a real
@@ -895,6 +995,18 @@ async def cmd_deck(args) -> dict:
                 page, site, source, prompt, dest,
                 dry_run=bool(getattr(args, "dry_run", False)))
             return {"ok": True, "site": site.id, **out}
+        except DriverError:
+            # Already carries its own artifact path from _step / the waiters.
+            raise
+        except Exception as e:
+            # A raw Playwright error (a click timing out on a control that
+            # resolved but never became clickable) would otherwise escape with
+            # no HTML and no screenshot — which is exactly the failure that is
+            # hardest to diagnose, because the message names a selector that
+            # matched rather than the step that was actually wrong.
+            path = await save_artifacts(page, f"{site.id}-unexpected")
+            raise DriverError(
+                "unexpected", f"{str(e)[:220]} Artifacts: {path}")
         finally:
             await ctx.close()
 
