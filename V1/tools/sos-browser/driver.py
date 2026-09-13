@@ -738,57 +738,60 @@ async def _wait_for_deck(page, site: DeckSite):
 async def _download_deck(page, site: DeckSite, dest: Path) -> Path:
     """Click through to the PDF and save it where the caller asked.
 
-    ── WHY THE DOWNLOAD IS CAUGHT ON THE CONTEXT, AND SAVED INSIDE THE HANDLER ──
-    MEASURED, and both halves matter.
+    ── WHY THIS IS NOT page.expect_download() ─────────────────────────────────
+    MEASURED. NotebookLM serves the deck into a NEW PAGE that Chrome closes the
+    instant the transfer starts, and that produces two separate failures:
 
-    NotebookLM serves the deck into a NEW PAGE, which Chrome then closes the
-    instant the download starts. Two consequences, each of which looked like a
-    different bug:
+      * expect_download() on the clicked page never fires, because the download
+        belongs to the popup. It waits out its full timeout and reports
+        "waiting for event download" — which reads like a broken selector even
+        though every selector was correct.
+      * Every Playwright download API (save_as, path) proxies through the
+        browser connection that is being torn down, so all of them lose the
+        race even when called from inside the download handler.
 
-      * page.expect_download() never fires — the download does not belong to
-        the page that was clicked. It waits out its whole timeout and reports
-        "waiting for event download", which reads like a bad selector even
-        though every selector was right.
-      * Awaiting save_as() AFTER the event still loses the race: by then the
-        popup has gone, and with it the context, so the save fails with
-        "Target page, context or browser has been closed" — while the download
-        event itself had already reported the correct filename.
+    So the bytes are collected as FILES, with no browser round-trip:
+    CDP Browser.setDownloadBehavior points Chrome at a private, empty directory
+    created for this one call, and the finished file is taken from there.
 
-    So: listen on the CONTEXT (catches a download begun in any page), and write
-    the bytes inside the handler, before the teardown that is already in
-    flight can take the temp file with it.
+    ── WHY A PRIVATE DIRECTORY AND NOT "THE NEWEST PDF" ───────────────────────
+    An earlier version scanned a shared directory for the newest PDF. Twice it
+    returned a file it had never downloaded — once an unrelated generated deck,
+    once one of the user's own files out of ~/Downloads — and reported success
+    both times. A collector that can return something it did not fetch is worse
+    than one that fails, because it fails silently and plausibly. An empty
+    directory makes that mistake unrepresentable: anything in it came from this
+    download.
     """
     dest.parent.mkdir(parents=True, exist_ok=True)
-    ctx = page.context
-    done: asyncio.Event = asyncio.Event()
-    saved: dict = {}
 
-    # Snapshot what is ALREADY here before clicking anything.
-    #
-    # Without this, "take the newest PDF in the directory" happily grabs a file
-    # that was sitting there beforehand and reports a confident success — which
-    # is exactly what happened once, moving an unrelated generated deck and
-    # renaming it. A collector that can return a file it did not download is
-    # worse than one that fails, because it fails silently and plausibly.
-    pre_existing = {p.resolve() for p in dest.parent.glob("*.pdf")}
+    # A private landing zone for exactly this download.
+    stage = dest.parent / f".dl-{int(time.time())}-{random.randint(1000, 9999)}"
+    stage.mkdir(parents=True, exist_ok=True)
+    # Absolute: Chrome resolves downloadPath against its OWN working directory,
+    # not this process's, so a relative path silently lands somewhere else.
+    stage = stage.resolve()
 
-    async def _save(download):
-        # EVERY Playwright download API — save_as(), path() — proxies through
-        # the browser connection, and that connection is precisely what is
-        # being torn down when the popup closes. All of them lose the race,
-        # even called from inside this handler.
-        #
-        # So record only the suggested filename (already delivered with the
-        # event, no round-trip needed) and let the file be collected from the
-        # downloads directory afterwards with plain file IO.
+    # Browser.setDownloadBehavior WITHOUT a browserContextId applies to the
+    # whole browser, which is what makes it cover the popup NotebookLM opens.
+    # Page.setDownloadBehavior (and a context-scoped call) binds to the page
+    # that is clicked, and the download belongs to the new one — so the popup
+    # falls back to Chrome's default directory and the staging dir stays empty.
+    cdp = await page.context.new_cdp_session(page)
+    await cdp.send("Browser.setDownloadBehavior",
+                   {"behavior": "allowAndName", "downloadPath": str(stage),
+                    "eventsEnabled": True})
+    # Also catch the popup as it is created and point IT at the same directory,
+    # for builds where the browser-wide call does not reach an already-opening
+    # target.
+    async def _route_popup(new_page):
         try:
-            saved["name"] = download.suggested_filename
+            c = await new_page.context.new_cdp_session(new_page)
+            await c.send("Page.setDownloadBehavior",
+                         {"behavior": "allow", "downloadPath": str(stage)})
         except Exception:                           # noqa: BLE001
-            saved["name"] = ""
-        finally:
-            done.set()
-
-    ctx.on("download", lambda dl: asyncio.create_task(_save(dl)))
+            pass
+    page.context.on("page", lambda np: asyncio.create_task(_route_popup(np)))
 
     trigger = await resolve(page, site.download_trigger, timeout_ms=10000)
     if not trigger:
@@ -799,9 +802,8 @@ async def _download_deck(page, site: DeckSite, dest: Path) -> Path:
             f"Artifacts: {path}")
     # .last, NOT .first: several "More" kebabs share the page (the notebook
     # header carries its own), and the generated artifact's row is the one at
-    # the bottom. Clicking the first opens the wrong menu, which has no
-    # Download item, and the run then fails on the menu item instead of here —
-    # pointing at the wrong selector.
+    # the bottom. Clicking the first opens a menu with no Download item, and
+    # the run then fails on the menu item — pointing at the wrong selector.
     await trigger["locator"].last.click()
     await asyncio.sleep(2.0)
 
@@ -814,55 +816,51 @@ async def _download_deck(page, site: DeckSite, dest: Path) -> Path:
             f"Artifacts: {path}")
     await menu["locator"].first.click()
 
-    try:
-        await asyncio.wait_for(done.wait(), timeout=site.download_timeout_s)
-    except asyncio.TimeoutError:
+    # Wait for a COMPLETE PDF, judged by its own trailer.
+    #
+    # MEASURED, after two wrong guesses:
+    #
+    #   * Waiting for Chrome to rename away ".crdownload" hangs forever — the
+    #     popup that owns the transfer is already gone, so the rename never
+    #     happens and a finished file sits there under a UUID with no suffix.
+    #   * Waiting for the size to settle copied half-written files. A partial
+    #     PDF still starts with %PDF-, so every cheap check passed and the
+    #     pages rendered as pure noise: a corrupt deck reported as a success.
+    #
+    # %%EOF is the last thing written to a PDF, so its presence IS completion.
+    # Cheap to poll (last 2KB), and it cannot fire early the way a size
+    # heuristic can. The real download lands in about two seconds; this loop
+    # exists for the slow case, not the normal one.
+    deadline = time.monotonic() + site.download_timeout_s
+    got = None
+    while time.monotonic() < deadline:
+        await asyncio.sleep(1.0)
+        for f in sorted(stage.iterdir(), key=lambda p: p.stat().st_mtime,
+                        reverse=True):
+            if not f.is_file() or f.stat().st_size < 1024:
+                continue
+            try:
+                if b"%%EOF" in f.read_bytes()[-2048:]:
+                    got = f
+                    break
+            except OSError:
+                continue          # still being written; look again next poll
+        if got:
+            break
+
+    if not got:
+        partial = [p for p in stage.iterdir() if p.is_file()]
+        hint = (f" {partial[0].stat().st_size} bytes had arrived but the file "
+                f"never completed." if partial else "")
         raise DriverError(
             "nlm_no_download",
-            f"clicked the PDF download but no download began within "
-            f"{site.download_timeout_s}s")
-    # Collected from disk, not through the browser.
-    #
-    # Chrome does not reliably honour downloads_path for a download begun in a
-    # popup it then closes, so both the context directory AND the user's real
-    # Downloads folder are watched. Only files that were NOT present before the
-    # click are eligible, and .crdownload (still being written) is skipped.
-    name = saved.get("name") or ""
-    search_dirs = [dest.parent]
+            f"no complete PDF appeared within {site.download_timeout_s}s.{hint}")
+
+    shutil.move(str(got), str(dest))
     try:
-        home_dl = Path.home() / "Downloads"
-        if home_dl.is_dir():
-            search_dirs.append(home_dl)
+        shutil.rmtree(stage, ignore_errors=True)
     except Exception:                               # noqa: BLE001
         pass
-
-    found = None
-    for _ in range(int(site.download_timeout_s / 2)):
-        for d_ in search_dirs:
-            # Prefer the exact filename the download event announced.
-            if name:
-                cand = d_ / name
-                if cand.exists() and cand.stat().st_size > 0:
-                    found = cand
-                    break
-            fresh = [p for p in d_.glob("*.pdf")
-                     if p.resolve() not in pre_existing
-                     and p.resolve() != dest.resolve()
-                     and p.stat().st_size > 0]
-            if fresh:
-                found = max(fresh, key=lambda p: p.stat().st_mtime)
-                break
-        if found:
-            break
-        await asyncio.sleep(2.0)
-
-    if not found:
-        raise DriverError(
-            "nlm_no_download",
-            f"the download began ({name or 'unnamed'}) but no new file "
-            f"appeared within {site.download_timeout_s}s. Looked in: "
-            f"{', '.join(str(d_) for d_ in search_dirs)}")
-    shutil.move(str(found), str(dest))
 
     # Validate HERE, where the bytes first exist, not only at the client.
     if not dest.exists() or dest.stat().st_size == 0:
@@ -874,6 +872,20 @@ async def _download_deck(page, site: DeckSite, dest: Path) -> Path:
             "nlm_not_pdf",
             f"the downloaded file is not a PDF (starts {head!r}) — "
             f"probably an error or sign-in page saved under a .pdf name")
+
+    # A TRUNCATED pdf still starts with %PDF-, so the magic bytes alone are not
+    # enough. A half-written download once passed every cheap check and
+    # rendered as pure noise. %%EOF is the trailer Chrome writes last, so its
+    # absence means the transfer was cut short.
+    tail = dest.read_bytes()[-2048:]
+    if b"%%EOF" not in tail:
+        size = dest.stat().st_size
+        dest.unlink(missing_ok=True)
+        raise DriverError(
+            "nlm_empty_download",
+            f"the download is truncated: {size} bytes with no %%EOF trailer. "
+            f"The transfer was cut short, and a partial PDF renders as noise "
+            f"while still looking valid.")
     return dest
 
 

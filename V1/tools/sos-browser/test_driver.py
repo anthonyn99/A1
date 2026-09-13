@@ -259,6 +259,28 @@ t("queued is distinct from both ready and failed",
   not (set(nlm.artifact_queued) & (set(nlm.artifact_ready) | set(nlm.artifact_failed))))
 
 
+# ── Download completion (three wrong guesses before the right one) ────────────
+print("\ndownload completion")
+# Chrome never renames away .crdownload here — the popup that owns the transfer
+# is gone — so a finished file sits under a UUID with no suffix.
+t("download budget is generous enough for a large deck",
+  nlm.download_timeout_s >= 300, nlm.download_timeout_s)
+
+
+def complete_pdf(b: bytes) -> bool:
+    """Mirrors the completion gate in _download_deck."""
+    return b[:5] == b"%PDF-" and b"%%EOF" in b[-2048:]
+
+
+t("a complete PDF is accepted", complete_pdf(b"%PDF-1.7" + b"x" * 500 + b"%%EOF"))
+# THE ONE THAT MATTERED: a truncated download still starts with %PDF-, passes
+# every cheap check, and renders as pure noise. It was reported as a success
+# twice before the trailer check existed.
+t("a truncated PDF is REJECTED (it renders as noise but looks valid)",
+  not complete_pdf(b"%PDF-1.7" + b"x" * 5000))
+t("an HTML error page is rejected", not complete_pdf(b"<!DOCTYPE html>"))
+
+
 # ── Downloaded-file validation ────────────────────────────────────────────────
 print("\ndownload validation")
 t("a real PDF header passes", driver.looks_like_pdf(b"%PDF-1.7\n%..."))

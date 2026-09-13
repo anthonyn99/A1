@@ -338,7 +338,11 @@ decks:
     gen_poll_ms: 5000
     gen_timeout_s: 1800        # 30 min; deck generation is genuinely slow
     source_timeout_s: 300      # upload + ingest, a separate and variable wait
-    download_timeout_s: 120
+    # 600, not 120: the generated deck is image-heavy and served slowly (a
+    # measured run was still writing at 844KB when a 120s budget expired,
+    # producing a truncated file). The wait ends as soon as the bytes settle,
+    # so a fast download does not pay this.
+    download_timeout_s: 600
 
     # ── Sentinels ───────────────────────────────────────────────────────────
     # Same hard stop as every site above: never solved, only reported.
