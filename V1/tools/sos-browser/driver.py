@@ -1281,13 +1281,19 @@ def main():
     args = ap.parse_args()
     fn = {"ask": cmd_ask, "deck": cmd_deck,
           "login": cmd_login, "doctor": cmd_doctor}[args.cmd]
+    # flush=True on every exit path. A deck run takes minutes and its single
+    # line of JSON is the whole result; buffered behind a pipe it arrives only
+    # at process exit, and a caller reading the stream early sees nothing at
+    # all. That cost several debugging cycles looking at empty output files.
     try:
-        print(json.dumps(asyncio.run(fn(args)), ensure_ascii=False))
+        print(json.dumps(asyncio.run(fn(args)), ensure_ascii=False), flush=True)
     except DriverError as e:
-        print(json.dumps({"ok": False, "kind": e.kind, "error": e.message}, ensure_ascii=False))
+        print(json.dumps({"ok": False, "kind": e.kind, "error": e.message},
+                         ensure_ascii=False), flush=True)
         sys.exit(1)
     except Exception as e:
-        print(json.dumps({"ok": False, "kind": "unexpected", "error": str(e)[:500]}, ensure_ascii=False))
+        print(json.dumps({"ok": False, "kind": "unexpected", "error": str(e)[:500]},
+                         ensure_ascii=False), flush=True)
         sys.exit(1)
 
 
