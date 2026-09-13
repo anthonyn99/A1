@@ -22822,9 +22822,65 @@ function hardDeleteEntry(id) {
   if (state.activeId === id) state.activeId = (state.entries.find(e => !e.trashed) || {}).id || null;
   saveState(); renderSidebar(); loadActiveEntry();
 }
-function purgeExpiredTrash() {
+/* The 30-day trash purge is the ONE automatic, irreversible delete in this app:
+ * it calls deleteField() on the server, which removes the entry for every device
+ * at once, and tombstones the id locally so nothing can bring it back.
+ *
+ * It used to run at BOOT, straight off localStorage, before Firebase had said a
+ * word — `loadState(); purgeExpiredTrash();`. That is a permanent delete decided
+ * from this device's cached memory of the journal, and the cache is exactly what
+ * cannot be trusted on a cold start:
+ *
+ *   - a `trashed` stamp that was already REVERTED on another device (restored
+ *     from the Trash there) still sits in this cache until a sync arrives;
+ *   - a cache written before this device went stale can be weeks behind;
+ *   - _bjWhenServerSeen does NOT save us. It defers the WRITE until the server
+ *     connects, but the DECISION was already made from stale data, so the delete
+ *     fires the instant the connection opens — with no re-check against what the
+ *     server actually holds.
+ *
+ * So the purge now waits for an authoritative server read and re-reads its own
+ * decision from the reconciled state. The TTL is 30 days; nothing is lost by
+ * waiting seconds for the truth, and what was lost by not waiting was real work.
+ *
+ * Ordering note: _bjApplyRemote is what reconciles state with the server, so
+ * running after it means `state.entries` here is the merged truth — an entry
+ * restored elsewhere has had its `trashed` cleared before we look at it. */
+let _bjPurgeDone = false, _bjPurgeScheduled = false;
+function purgeExpiredTrash(opts) {
+  // Never decide a permanent delete from the cache. Anything but an explicit
+  // authoritative call is a request to schedule the purge, not to run it.
+  if (!opts || !opts.authoritative) { _bjSchedulePurge(); return; }
+  if (_bjPurgeDone) return;
+  _bjPurgeDone = true;
   const cutoff = Date.now() - BJ_TRASH_TTL;
-  state.entries.filter(e => e.trashed && e.trashed < cutoff).map(e => e.id).forEach(hardDeleteEntry);
+  const doomed = state.entries.filter(e => e.trashed && e.trashed < cutoff).map(e => e.id);
+  if (!doomed.length) return;
+  console.warn('[BJ] purging ' + doomed.length + ' entr' + (doomed.length === 1 ? 'y' : 'ies') +
+               ' past the ' + (BJ_TRASH_TTL / 86400000) + '-day trash limit');
+  doomed.forEach(hardDeleteEntry);
+}
+/* Run the purge once, against server-reconciled state.
+ *
+ * The signal has to be an AUTHORITATIVE remote update, not fb-bj-synced. That
+ * event also fires for cache-sourced snapshots (`_fromCache`), and purging off
+ * a cached snapshot is precisely the bug above wearing a different hat. The
+ * `_authoritative` flag on fb-bj-remote-update is set only for a forced server
+ * read or a genuine server-sourced snapshot — see _bjBuildRemote.
+ *
+ * If Firebase never connects, the purge simply never runs. A deferred purge is
+ * harmless — the entry stays in the Trash, visible and restorable, until some
+ * later session can check properly. A wrong purge is not recoverable. */
+function _bjSchedulePurge() {
+  if (_bjPurgeDone || _bjPurgeScheduled) return;
+  _bjPurgeScheduled = true;
+  window.addEventListener('fb-bj-remote-update', function _once(ev) {
+    if (!ev || !ev.detail || !ev.detail._authoritative) return;   // cached view — keep waiting
+    window.removeEventListener('fb-bj-remote-update', _once);
+    // One turn late, so the merge that this event triggers has finished writing
+    // state.entries before the purge reads it.
+    setTimeout(() => purgeExpiredTrash({ authoritative: true }), 0);
+  });
 }
 window._bjTrashAPI = {
   list: () => state.entries.filter(e => e.trashed).sort((a,b) => (b.trashed||0)-(a.trashed||0)),
@@ -28313,9 +28369,38 @@ function hardDeleteEntry(id) {
   if (state.activeId === id) state.activeId = (state.entries.find(e => !e.trashed) || {}).id || null;
   saveState(); renderSidebar(); loadActiveEntry();
 }
-function purgeExpiredTrash() {
+/* The MyJournal twin of the Brainstorm Journal purge guard — same bug, same
+ * reasoning, and it must stay in step with it. See the long comment on the BJ
+ * side: a boot-time purge decides a PERMANENT, cross-device delete from this
+ * device's localStorage, which on a cold start can hold a `trashed` stamp that
+ * another device has already reverted. _tjWhenServerSeen defers the write but
+ * not the decision, so the delete fires as soon as the connection opens.
+ *
+ * Waits for an authoritative server read, then re-reads its own decision from
+ * the reconciled state. */
+let _tjPurgeDone = false, _tjPurgeScheduled = false;
+function purgeExpiredTrash(opts) {
+  if (!opts || !opts.authoritative) { _tjSchedulePurge(); return; }
+  if (_tjPurgeDone) return;
+  _tjPurgeDone = true;
   const cutoff = Date.now() - TJ_TRASH_TTL;
-  state.entries.filter(e => e.trashed && e.trashed < cutoff).map(e => e.id).forEach(hardDeleteEntry);
+  const doomed = state.entries.filter(e => e.trashed && e.trashed < cutoff).map(e => e.id);
+  if (!doomed.length) return;
+  console.warn('[TJ] purging ' + doomed.length + ' entr' + (doomed.length === 1 ? 'y' : 'ies') +
+               ' past the ' + (TJ_TRASH_TTL / 86400000) + '-day trash limit');
+  doomed.forEach(hardDeleteEntry);
+}
+/* Gated on an AUTHORITATIVE remote update, not fb-tj-synced — that event also
+ * fires for cache-sourced snapshots, and purging off the cache is the very bug
+ * being fixed. See the BJ twin. */
+function _tjSchedulePurge() {
+  if (_tjPurgeDone || _tjPurgeScheduled) return;
+  _tjPurgeScheduled = true;
+  window.addEventListener('fb-tj-remote-update', function _once(ev) {
+    if (!ev || !ev.detail || !ev.detail._authoritative) return;   // cached view — keep waiting
+    window.removeEventListener('fb-tj-remote-update', _once);
+    setTimeout(() => purgeExpiredTrash({ authoritative: true }), 0);
+  });
 }
 window._tjTrashAPI = {
   list: () => state.entries.filter(e => e.trashed).sort((a,b) => (b.trashed||0)-(a.trashed||0)),
