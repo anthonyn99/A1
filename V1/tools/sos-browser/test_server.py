@@ -71,6 +71,10 @@ t("no nlm_no_* kind slipped in",
   [k for k in server.RETRYABLE_KINDS if k.startswith("nlm_no_")])
 t("nlm_not_pdf is NOT retryable (a retry risks filing garbage)",
   "nlm_not_pdf" not in server.RETRYABLE_KINDS)
+# A quota reset is hours away; retrying in 90s would just queue a second
+# deferred deck. Same family as rate_limited, treated the same way.
+t("nlm_queued is NOT retryable (it is a quota wait, not a fault)",
+  "nlm_queued" not in server.RETRYABLE_KINDS)
 
 
 # ── Genuinely transient ───────────────────────────────────────────────────────

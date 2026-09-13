@@ -158,6 +158,7 @@ class DeckSite:
     # Completion, and its opposite.
     artifact_ready: list[str] = field(default_factory=list)
     artifact_failed: list[str] = field(default_factory=list)
+    artifact_queued: list[str] = field(default_factory=list)
     download_trigger: list[str] = field(default_factory=list)
     download_menu_item: list[str] = field(default_factory=list)
 
@@ -696,6 +697,21 @@ async def _wait_for_deck(page, site: DeckSite):
                 f"{site.display_name} reported that generation failed. "
                 f"Artifacts: {path}")
 
+        # DEFERRED, which is neither progress nor failure. Out of quota,
+        # NotebookLM schedules the deck for the next window instead of
+        # refusing, and the row then sits still for hours. Polling it to the
+        # deadline would report a timeout that blames the ready selector, so
+        # this is checked every round and reported for what it is.
+        if await any_matches(page, site.artifact_queued):
+            path = await save_artifacts(page, f"{site.id}-queued")
+            raise DriverError(
+                "nlm_queued",
+                f"{site.display_name} has deferred this deck to a later quota "
+                f"window rather than generating it now — the Studio row says it "
+                f"is scheduled, not running. This is a usage limit, not a bug, "
+                f"and waiting here cannot make it start. Re-run after the reset. "
+                f"Artifacts: {path}")
+
         if await resolve(page, site.artifact_ready, timeout_ms=0,
                          require_visible=True):
             return
@@ -893,6 +909,9 @@ async def run_notebooklm_flow(page, site: DeckSite, source: Path, prompt: str,
     r = await _step(page, site, "generate_button", "nlm_no_generate")
     walked["generate_button"] = r["selector"]
 
+    # The queue verdict lands within a few seconds of pressing Generate, so
+    # look before settling into a poll loop measured in tens of minutes.
+    await asyncio.sleep(6.0)
     await _wait_for_deck(page, site)
     out = await _download_deck(page, site, dest)
     return {"dryRun": False, "matched": walked, "pdfPath": str(out),

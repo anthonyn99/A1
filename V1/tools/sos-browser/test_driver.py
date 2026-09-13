@@ -250,6 +250,15 @@ t("generate_button prefers the dialog-scoped one",
   "dialog" in nlm.generate_button[0].lower(), nlm.generate_button[:1])
 
 
+# A deferred deck is a THIRD outcome, not a slow success. Out of quota,
+# NotebookLM schedules the job ("Scheduled for after 12am") and the row sits
+# still for hours; a live run polled one for 22 minutes before this existed.
+t("a queued/deferred deck is detectable", bool(nlm.artifact_queued),
+  nlm.artifact_queued)
+t("queued is distinct from both ready and failed",
+  not (set(nlm.artifact_queued) & (set(nlm.artifact_ready) | set(nlm.artifact_failed))))
+
+
 # ── Downloaded-file validation ────────────────────────────────────────────────
 print("\ndownload validation")
 t("a real PDF header passes", driver.looks_like_pdf(b"%PDF-1.7\n%..."))

@@ -294,6 +294,20 @@ decks:
       - "text=/generation failed/i"
       - "text=/couldn't generate/i"
       - "text=/something went wrong/i"
+    # NOT A FAILURE, AND NOT PROGRESS — a third outcome the first design had no
+    # concept of. When the account is out of Slide Deck quota, NotebookLM does
+    # not refuse: it DEFERS the job ("Scheduled for after 12am") and the Studio
+    # row sits there, generating nothing, until the quota window resets.
+    #
+    # Observed live: a run polled a deferred job for 22 minutes and would have
+    # burned the full 30-minute deadline to report a timeout that blamed the
+    # artifact_ready selector. Detected in seconds now, with its own error kind
+    # so the message can say "wait for the reset" rather than "fix a selector".
+    artifact_queued:
+      - "text=/scheduled for after/i"
+      - "text=/scheduled for/i"
+      - "text=/added to (the )?queue/i"
+      - "text=/will generate automatically/i"
     download_trigger:
       - "button[aria-label*='Download' i]"
       - "button:has-text('Download')"

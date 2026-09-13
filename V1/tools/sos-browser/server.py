@@ -101,6 +101,11 @@ RETRYABLE_KINDS = {
 #   nlm_not_pdf
 #       The site handed back something that is not a deck. Cause unknown, and a
 #       retry risks filing garbage into a class.
+#   nlm_queued
+#       Out of quota: NotebookLM deferred the deck to a later window instead of
+#       generating it. Retrying in 90 seconds cannot change a quota reset that
+#       is hours away — it would just queue a second deferred deck. Same family
+#       as rate_limited, and treated the same way.
 #   bad_input
 #       The source file is gone. Running again will not bring it back.
 
