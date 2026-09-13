@@ -286,10 +286,17 @@ decks:
     # _wait_for_deck). If a failed artifact row still matches the ready
     # selector — plausible, same row with a different badge — ready-first would
     # report success and then hand back a download that never arrives.
+    # MEASURED against a finished deck. The earlier guesses (a Download button
+    # sitting in the panel) matched NOTHING: there is no download control on the
+    # row at all, only a generated-artifact row whose own kebab menu holds it.
+    #
+    # `.artifact-primary-content` is the row itself, which exists only once the
+    # deck has been generated — a queued one renders differently and is caught
+    # by artifact_queued before this is ever consulted.
     artifact_ready:
-      - "button[aria-label*='Download' i]"
+      - ".artifact-primary-content"
+      - "[id^='artifact-labels-']"
       - "[data-testid='artifact-ready']"
-      - "button:has-text('Download')"
     artifact_failed:
       - "text=/generation failed/i"
       - "text=/couldn't generate/i"
@@ -308,16 +315,22 @@ decks:
       - "text=/scheduled for/i"
       - "text=/added to (the )?queue/i"
       - "text=/will generate automatically/i"
+    # The download IS behind an overflow menu — the guess allowed for that, and
+    # that is the shape it turned out to be. This kebab is the LAST 'More'
+    # button on the page (the artifact row sits below the notebook's own), so
+    # the flow clicks .last rather than .first.
     download_trigger:
-      - "button[aria-label*='Download' i]"
-      - "button:has-text('Download')"
-      - "[aria-label='More'][role='button']"
-    # OPTIONAL second click: only used if it matches. Whether Download is a
-    # direct button or hidden behind an overflow menu is exactly the kind of
-    # thing a guess gets wrong, so the flow tolerates both shapes.
+      - "button[aria-label='More']"
+      - "button:has-text('more_vert')"
+    # Measured menu text, verbatim: "Download PDF Document (.pdf)". Anchored on
+    # PDF specifically — the very next item is "Download PowerPoint (.pptx)",
+    # so a looser :has-text('Download') would be a coin flip between them, and
+    # a .pptx saved as .pdf would fail the magic-byte check with a confusing
+    # message about the file not being a PDF.
     download_menu_item:
-      - "[role='menuitem']:has-text('PDF')"
-      - "[role='menuitem']:has-text('Download')"
+      - "[role='menuitem']:has-text('Download PDF Document')"
+      - ".mat-mdc-menu-item:has-text('Download PDF')"
+      - "[role='menuitem']:has-text('.pdf')"
 
     # ── Timing ──────────────────────────────────────────────────────────────
     # 5s, not the chat path's 700ms: a 30-minute wait at 700ms is ~2,500 DOM

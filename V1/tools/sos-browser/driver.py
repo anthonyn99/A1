@@ -53,6 +53,7 @@ import asyncio
 import json
 import random
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -737,33 +738,131 @@ async def _wait_for_deck(page, site: DeckSite):
 async def _download_deck(page, site: DeckSite, dest: Path) -> Path:
     """Click through to the PDF and save it where the caller asked.
 
-    expect_download WRAPS the click rather than listening after it: the download
-    event can fire before a post-click await resolves, and a listener attached
-    afterwards races it and hangs until timeout.
+    ── WHY THE DOWNLOAD IS CAUGHT ON THE CONTEXT, AND SAVED INSIDE THE HANDLER ──
+    MEASURED, and both halves matter.
+
+    NotebookLM serves the deck into a NEW PAGE, which Chrome then closes the
+    instant the download starts. Two consequences, each of which looked like a
+    different bug:
+
+      * page.expect_download() never fires — the download does not belong to
+        the page that was clicked. It waits out its whole timeout and reports
+        "waiting for event download", which reads like a bad selector even
+        though every selector was right.
+      * Awaiting save_as() AFTER the event still loses the race: by then the
+        popup has gone, and with it the context, so the save fails with
+        "Target page, context or browser has been closed" — while the download
+        event itself had already reported the correct filename.
+
+    So: listen on the CONTEXT (catches a download begun in any page), and write
+    the bytes inside the handler, before the teardown that is already in
+    flight can take the temp file with it.
     """
     dest.parent.mkdir(parents=True, exist_ok=True)
-    async with page.expect_download(
-            timeout=site.download_timeout_s * 1000) as dl_info:
-        trigger = await resolve(page, site.download_trigger, timeout_ms=10000)
-        if not trigger:
-            path = await save_artifacts(page, f"{site.id}-no-download")
-            raise DriverError(
-                "nlm_no_download",
-                f"nothing matched `download_trigger` on {site.display_name}. "
-                f"Artifacts: {path}")
-        await trigger["locator"].first.click()
+    ctx = page.context
+    done: asyncio.Event = asyncio.Event()
+    saved: dict = {}
 
-        # Optional: only if the Download control opened a menu. Whether it is a
-        # direct button or an overflow item differs between UI revisions, so
-        # tolerate both rather than guessing one.
-        menu = await resolve(page, site.download_menu_item, timeout_ms=3000)
-        if menu:
-            await menu["locator"].first.click()
+    # Snapshot what is ALREADY here before clicking anything.
+    #
+    # Without this, "take the newest PDF in the directory" happily grabs a file
+    # that was sitting there beforehand and reports a confident success — which
+    # is exactly what happened once, moving an unrelated generated deck and
+    # renaming it. A collector that can return a file it did not download is
+    # worse than one that fails, because it fails silently and plausibly.
+    pre_existing = {p.resolve() for p in dest.parent.glob("*.pdf")}
 
-    download = await dl_info.value
-    # save_as, not download.path(): the latter points into a temp area that is
-    # cleaned up when the browser context closes.
-    await download.save_as(str(dest))
+    async def _save(download):
+        # EVERY Playwright download API — save_as(), path() — proxies through
+        # the browser connection, and that connection is precisely what is
+        # being torn down when the popup closes. All of them lose the race,
+        # even called from inside this handler.
+        #
+        # So record only the suggested filename (already delivered with the
+        # event, no round-trip needed) and let the file be collected from the
+        # downloads directory afterwards with plain file IO.
+        try:
+            saved["name"] = download.suggested_filename
+        except Exception:                           # noqa: BLE001
+            saved["name"] = ""
+        finally:
+            done.set()
+
+    ctx.on("download", lambda dl: asyncio.create_task(_save(dl)))
+
+    trigger = await resolve(page, site.download_trigger, timeout_ms=10000)
+    if not trigger:
+        path = await save_artifacts(page, f"{site.id}-no-download")
+        raise DriverError(
+            "nlm_no_download",
+            f"nothing matched `download_trigger` on {site.display_name}. "
+            f"Artifacts: {path}")
+    # .last, NOT .first: several "More" kebabs share the page (the notebook
+    # header carries its own), and the generated artifact's row is the one at
+    # the bottom. Clicking the first opens the wrong menu, which has no
+    # Download item, and the run then fails on the menu item instead of here —
+    # pointing at the wrong selector.
+    await trigger["locator"].last.click()
+    await asyncio.sleep(2.0)
+
+    menu = await resolve(page, site.download_menu_item, timeout_ms=5000)
+    if not menu:
+        path = await save_artifacts(page, f"{site.id}-no-download-item")
+        raise DriverError(
+            "nlm_no_download",
+            f"the artifact menu opened but held no PDF download item. "
+            f"Artifacts: {path}")
+    await menu["locator"].first.click()
+
+    try:
+        await asyncio.wait_for(done.wait(), timeout=site.download_timeout_s)
+    except asyncio.TimeoutError:
+        raise DriverError(
+            "nlm_no_download",
+            f"clicked the PDF download but no download began within "
+            f"{site.download_timeout_s}s")
+    # Collected from disk, not through the browser.
+    #
+    # Chrome does not reliably honour downloads_path for a download begun in a
+    # popup it then closes, so both the context directory AND the user's real
+    # Downloads folder are watched. Only files that were NOT present before the
+    # click are eligible, and .crdownload (still being written) is skipped.
+    name = saved.get("name") or ""
+    search_dirs = [dest.parent]
+    try:
+        home_dl = Path.home() / "Downloads"
+        if home_dl.is_dir():
+            search_dirs.append(home_dl)
+    except Exception:                               # noqa: BLE001
+        pass
+
+    found = None
+    for _ in range(int(site.download_timeout_s / 2)):
+        for d_ in search_dirs:
+            # Prefer the exact filename the download event announced.
+            if name:
+                cand = d_ / name
+                if cand.exists() and cand.stat().st_size > 0:
+                    found = cand
+                    break
+            fresh = [p for p in d_.glob("*.pdf")
+                     if p.resolve() not in pre_existing
+                     and p.resolve() != dest.resolve()
+                     and p.stat().st_size > 0]
+            if fresh:
+                found = max(fresh, key=lambda p: p.stat().st_mtime)
+                break
+        if found:
+            break
+        await asyncio.sleep(2.0)
+
+    if not found:
+        raise DriverError(
+            "nlm_no_download",
+            f"the download began ({name or 'unnamed'}) but no new file "
+            f"appeared within {site.download_timeout_s}s. Looked in: "
+            f"{', '.join(str(d_) for d_ in search_dirs)}")
+    shutil.move(str(found), str(dest))
 
     # Validate HERE, where the bytes first exist, not only at the client.
     if not dest.exists() or dest.stat().st_size == 0:

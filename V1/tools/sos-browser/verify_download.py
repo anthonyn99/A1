@@ -43,10 +43,20 @@ async def main():
             await driver._wait_for_deck(page, site)
             out = await driver._download_deck(page, site, DEST)
             print(json.dumps({"ok": True, "pdfPath": str(out),
-                              "bytes": out.stat().st_size}))
+                              "bytes": out.stat().st_size}), flush=True)
         except driver.DriverError as e:
-            print(json.dumps({"ok": False, "kind": e.kind, "error": e.message}))
+            print(json.dumps({"ok": False, "kind": e.kind, "error": e.message}),
+                  flush=True)
+        except Exception as e:
+            print(json.dumps({"ok": False, "kind": "unexpected",
+                              "error": str(e)[:300]}), flush=True)
         finally:
-            await ctx.close()
+            # Closing can itself throw if the browser already went away, and
+            # that traceback would otherwise be the ONLY thing printed —
+            # masking the result the caller actually needs.
+            try:
+                await ctx.close()
+            except Exception:
+                pass
 
 asyncio.run(main())
