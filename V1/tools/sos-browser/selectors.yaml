@@ -273,13 +273,27 @@ decks:
       - "[aria-label='Describe the slide deck you want to create']"
       - "textarea[aria-label*='slide deck' i]"
       - "mat-dialog-container textarea"
-    # Two Generate buttons exist once the dialog is open (the Studio card keeps
-    # its own). Scoped to the dialog so the click lands on the one that submits
-    # the prompt rather than the one that reopens the panel.
+    # THE TWO BUTTONS ARE "Generate later" AND "Generate now", SIDE BY SIDE.
+    #
+    # `:has-text()` is a SUBSTRING match, so `has-text('Generate')` matched both
+    # — and "Generate later" comes first in the DOM, so every single run clicked
+    # it. NotebookLM then queued the deck ("Scheduled for after 12am") and did
+    # nothing, which looked exactly like an exhausted quota. It was not: the
+    # automation was choosing to defer, every time.
+    #
+    # has-text('Generate now') is still a substring match, but "Generate now" is
+    # not a substring of "Generate later", so it can only hit the right one.
+    # get_by_role with an exact name leads the list as the least ambiguous form
+    # available. NEVER put a bare has-text('Generate') back in this list.
     generate_button:
-      - "mat-dialog-container button:has-text('Generate')"
-      - "[role='dialog'] button:has-text('Generate')"
-      - "button:has-text('Generate')"
+      - "button:text-is('Generate now')"
+      - "button:has-text('Generate now')"
+      - "[role='dialog'] button:has-text('Generate now')"
+    # Present in the same dialog and deliberately NEVER clicked. Listed only so
+    # the flow can detect it and refuse, rather than silently deferring.
+    generate_later_button:
+      - "button:text-is('Generate later')"
+      - "button:has-text('Generate later')"
 
     # ── Completion, and its opposite ─────────────────────────────────────────
     # artifact_failed is checked BEFORE artifact_ready on every poll (see

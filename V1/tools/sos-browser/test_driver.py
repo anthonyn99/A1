@@ -246,8 +246,24 @@ t("customize_button cannot match the notebook settings dialog",
           for sel in nlm.customize_button), nlm.customize_button)
 
 # Two Generate buttons exist once the prompt dialog opens.
-t("generate_button prefers the dialog-scoped one",
-  "dialog" in nlm.generate_button[0].lower(), nlm.generate_button[:1])
+# THE EXPENSIVE ONE. The dialog has "Generate later" AND "Generate now" side by
+# side, and :has-text() is a SUBSTRING match — so has-text('Generate') matched
+# both and, since "Generate later" comes first in the DOM, every run clicked it.
+# The deck was deferred rather than built, and the symptom (a row reading
+# "Scheduled for after 12am") is indistinguishable from an exhausted quota.
+# A whole day was spent waiting for a reset that was never the problem.
+t("generate_button can never match 'Generate later'",
+  all("later" not in sel.lower() for sel in nlm.generate_button),
+  nlm.generate_button)
+t("every generate_button candidate names 'Generate now'",
+  all("generate now" in sel.lower() for sel in nlm.generate_button),
+  nlm.generate_button)
+# A bare has-text('Generate') is the exact bug. It must not come back.
+t("no bare has-text('Generate') candidate",
+  not any(sel.strip().endswith("has-text('Generate')")
+          for sel in nlm.generate_button), nlm.generate_button)
+t("'Generate later' is listed so it can be refused, not clicked",
+  bool(nlm.generate_later_button))
 
 
 # A deferred deck is a THIRD outcome, not a slow success. Out of quota,

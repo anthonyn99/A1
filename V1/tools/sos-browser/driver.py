@@ -157,6 +157,7 @@ class DeckSite:
     generate_button: list[str] = field(default_factory=list)
 
     # Completion, and its opposite.
+    generate_later_button: list[str] = field(default_factory=list)
     artifact_ready: list[str] = field(default_factory=list)
     artifact_failed: list[str] = field(default_factory=list)
     artifact_queued: list[str] = field(default_factory=list)
@@ -1027,8 +1028,17 @@ async def run_notebooklm_flow(page, site: DeckSite, source: Path, prompt: str,
         return {"dryRun": True, "matched": walked,
                 "stoppedAt": "before Generate", "artifacts": path}
 
+    # "Generate NOW", never "Generate later" — see the note in selectors.yaml.
+    # Clicking the wrong one queues the deck and returns nothing, and the
+    # symptom (a deck scheduled for hours away) is indistinguishable from an
+    # exhausted quota, which is how it went unnoticed for a whole day.
     r = await _step(page, site, "generate_button", "nlm_no_generate")
     walked["generate_button"] = r["selector"]
+    if "later" in (r["selector"] or "").lower():
+        raise DriverError(
+            "nlm_no_generate",
+            "refusing to click 'Generate later' — that defers the deck instead "
+            "of building it. Fix decks.notebooklm.generate_button.")
 
     # The queue verdict lands within a few seconds of pressing Generate, so
     # look before settling into a poll loop measured in tens of minutes.
