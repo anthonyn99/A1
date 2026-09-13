@@ -206,6 +206,50 @@ t("failure has its own detector, distinct from ready",
 t("headless is off while the selectors are guesses", nlm.headless_ok is False)
 
 
+# ── The selectors that cost the most to get wrong ─────────────────────────────
+# Each of these was a real failure during the live repair loop, and each failed
+# in the expensive way: the selector MATCHED something, so the run died several
+# steps later pointing at an innocent control.
+print("\nselector traps (each one a real failure, pinned)")
+
+# A bare `textarea` matched the sidebar's "Search the web for new sources" box,
+# which is invisible behind the dialog — the click timed out after 30s naming
+# the wrong element. Three visible textareas exist on that screen.
+t("prompt_input is anchored, never a bare tag",
+  all(sel.strip() not in ("textarea", "div[contenteditable='true']",
+                          "[role='textbox']", "input")
+      for sel in nlm.prompt_input), nlm.prompt_input)
+t("prompt_input names the slide-deck box specifically",
+  any("slide deck" in sel.lower() or "dialog" in sel.lower()
+      for sel in nlm.prompt_input), nlm.prompt_input)
+
+# The source ROW appears the instant the upload starts, so matching it alone
+# reported "ready" while the file was still processing — and the Studio
+# controls are styled divs, so is_enabled() stays True and nothing complains.
+t("ingest completion has its own signal, not just the row",
+  bool(nlm.ingest_spinner), nlm.ingest_spinner)
+t("source_ready and ingest_spinner are different things",
+  not (set(nlm.source_ready) & set(nlm.ingest_spinner)))
+
+# The file input does not exist until "Add sources" is clicked, and "Upload
+# files" then opens a native chooser rather than revealing an input.
+t("the upload dialog is opened before any input is sought",
+  bool(nlm.add_source_button) and bool(nlm.upload_files_button))
+
+# An announcement modal covers the app and swallows clicks behind it.
+t("announcement modals can be dismissed", bool(nlm.dismiss_dialog))
+
+# [aria-label*='Customize' i] matches "Customize notebook" — the global
+# settings dialog for title and cover image, NOT the slide-deck prompt.
+t("customize_button cannot match the notebook settings dialog",
+  not any(sel == "[aria-label*='Customize' i]" or sel == "button:has-text('Customize')"
+          for sel in nlm.customize_button), nlm.customize_button)
+
+# Two Generate buttons exist once the prompt dialog opens.
+t("generate_button prefers the dialog-scoped one",
+  "dialog" in nlm.generate_button[0].lower(), nlm.generate_button[:1])
+
+
 # ── Downloaded-file validation ────────────────────────────────────────────────
 print("\ndownload validation")
 t("a real PDF header passes", driver.looks_like_pdf(b"%PDF-1.7\n%..."))
