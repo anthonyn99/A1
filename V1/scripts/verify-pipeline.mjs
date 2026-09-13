@@ -47,6 +47,10 @@ await send('Page.addScriptToEvaluateOnNewDocument', {
       const u = String(url);
       if (u.includes('/api/ai/')) {
         window.__posted.push({ url: u, body: init && init.body, headers: (init&&init.headers)||{} });
+        try {
+          var b = init && init.body ? JSON.parse(init.body) : null;
+          if (b && b.outputModuleId) window.__lastDest = b.outputModuleId;
+        } catch (e) {}
         if (u.endsWith('/api/ai/budget')) {
           return new Response(JSON.stringify({ ok:true, spend:1.25, cap:20 }), {status:200});
         }
@@ -69,7 +73,11 @@ await send('Page.addScriptToEvaluateOnNewDocument', {
         if (/\\/api\\/ai\\/jobs\\/[^/]+$/.test(u)) {
           return new Response(JSON.stringify({ ok:true, job:{
             id:'jx1', status:'done', progress:100, classId: window.__clsId,
-            outputModuleId:'', sourceName:'Lecture 3.pdf', fileId:'f1',
+            // Echoed back the way the real bridge does: _create stores
+            // outputModuleId on the job, and fileResult reads it to decide
+            // where the deck lands. Hard-coding '' here meant the destination
+            // was always empty no matter what the sheet sent.
+            outputModuleId: window.__lastDest || '', sourceName:'Lecture 3.pdf', fileId:'f1',
             promptId:'p1', promptVersion:1, costUsd:0.02, finishedAt:Date.now(),
             sections:[{from:1,to:3,model:'claude-opus-5'}],
             result:'## Slide 1\\nrewritten body',
@@ -188,6 +196,9 @@ t('it names the file', (sheet.bodyHtml||'').includes('Lecture 3.pdf'));
 t('the ampersand in the class name is escaped, not doubled',
   !/&\s*amp;\s*amp/i.test(sheet.bodyHtml || ''));
 t('has Run and Cancel', (sheet.buttons||[]).join(',').includes('Run'), sheet.buttons);
+// The deck must be filable into a module the user already has, not forced into
+// a new one. The fixture class carries "Source Material" (documents).
+t('offers a destination picker', (sheet.bodyHtml||'').includes('sos-ai-dest'));
 // NotebookLM generates the whole deck in one pass and never reads a slide
 // count, so the field that used to collect one is gone. A visible input for a
 // value nothing reads is a lie the UI tells.
@@ -215,6 +226,7 @@ if (posted.length) {
   t('sent the file id', body.fileId === 'f1', body);
   t('sent interpolated prompt text', /Intro to Database Systems & Design/.test(body.prompt), body.prompt);
   t('sent the class id', body.classId === 'vt1');
+  t('sent a destination module', !!body.outputModuleId, body.outputModuleId);
   // Deck generation goes to NotebookLM, and the bridge forces the site to match
   // — a job carrying the configured chat site would send the driver to
   // load_deck_site('claude'), which exits.
@@ -236,24 +248,31 @@ await new Promise(r => setTimeout(r, 4000));
 const filed = await evalJs(`(function(){
   var cls = classes.find(c=>c.id==='vt1');
   if (!cls) return { error:'class gone' };
-  // By TYPE as well as name: a notes module called "Generated" can exist
-  // alongside this one, and matching on name alone found that one instead.
-  var gen = cls.modules.find(m=>m.name==='Generated' && m.type==='documents');
+  // Find the module holding the GENERATED FILE, rather than one with a fixed
+  // name. The deck now lands wherever the Run sheet's destination picker says,
+  // which is the point — hard-coding 'Generated' asserted the old behaviour
+  // where spec.moduleId was ignored and a new module was forced into being.
+  var gen = cls.modules.find(m=>m.type==='documents'
+    && (m.files||[]).some(f=>f && f.gen && f.gen.generated));
   if (!gen) return { noModule:true, modules: cls.modules.map(m=>m.name+':'+m.type) };
-  var f = gen.files && gen.files[0];
+  // The GENERATED file, not files[0] — the destination module already holds
+  // the source lecture, so index 0 is the input, not the output.
+  var f = (gen.files||[]).find(x=>x && x.gen && x.gen.generated);
   return { module: gen.name, type: gen.type,
            fileCount: (gen.files||[]).length, noteCount: (gen.notes||[]).length,
            name: f && f.name, mime: f && f.mime, size: f && f.size,
            fileId: f && f.fileId, meta: f && f.gen };
 })()`);
-// TEMP DEBUG
-t('a Generated module was created on demand', !filed.noModule && filed.module === 'Generated', filed);
+t('the deck was filed into a documents module', !filed.noModule, filed);
 if (!filed.noModule) {
   // A documents module, not a notes one — a notes module would render this
   // nowhere at all.
   t('the Generated module is type documents', filed.type === 'documents', filed);
+  // A FILE, not a note. fileCount is 2, not 1: the destination module already
+  // holds the source lecture, and the deck is filed alongside it rather than
+  // into a module of its own.
   t('the deck was filed as a FILE, not a note',
-    filed.fileCount === 1 && filed.noteCount === 0, filed);
+    filed.fileCount >= 1 && filed.noteCount === 0 && !!filed.fileId, filed);
   t('it is stored as a PDF', filed.mime === 'application/pdf', filed);
   t('provenance recorded', filed.meta && filed.meta.promptId === 'p1' && filed.meta.generated === true, filed.meta);
   t('model recorded', filed.meta && filed.meta.model === 'claude-opus-5', filed.meta);
@@ -262,14 +281,28 @@ if (!filed.noModule) {
   // whole thing can "succeed" while storing an error page under a .pdf name.
   const bytes = await evalJs(`(async function(){
     var cls = classes.find(c=>c.id==='vt1');
-    var gen = cls.modules.find(m=>m.name==='Generated' && m.type==='documents');
-    var f = gen.files[0];
+    var gen = cls.modules.find(m=>m.type==='documents'
+      && (m.files||[]).some(x=>x && x.gen && x.gen.generated));
+    var f = (gen.files||[]).find(x=>x && x.gen && x.gen.generated);
     var blob = await window._sosBridge.resolveBlob(f);
     if (!blob) return { none:true };
     var head = new Uint8Array(await blob.slice(0,5).arrayBuffer());
     return { magic: String.fromCharCode.apply(null, head), size: blob.size };
   })()`);
   t('the stored blob really is a PDF', bytes && bytes.magic === '%PDF-', bytes);
+
+  // Filed into the module that was CHOSEN. addGeneratedDoc used to ignore
+  // spec.moduleId and force every deck into a module named 'Generated', so a
+  // class with its own documents module got a second, near-duplicate one.
+  const dest = await evalJs(`(function(){
+    var cls = classes.find(c=>c.id==='vt1');
+    var src = cls.modules.find(m=>m.id==='vm1');
+    return { inChosen: (src.files||[]).some(f=>f.gen && f.gen.generated),
+             generatedModules: cls.modules.filter(m=>m.name==='Generated').length,
+             names: cls.modules.map(m=>m.name) };
+  })()`);
+  t('filed into the module that was chosen', dest.inChosen, dest);
+  t('did not invent a second module', dest.generatedModules === 0, dest.names);
   t('the stored blob is not empty', bytes && bytes.size > 0, bytes);
 }
 
@@ -290,7 +323,9 @@ const btn = await evalJs(`(function(){
 })()`);
 if (btn.skipped) console.log('  --   ' + btn.skipped);
 else {
-  t('⚡ rendered on the file row', btn.count === 1, btn);
+  // One per file row. The module now holds the source AND the generated deck,
+  // so two rows each carry their own button.
+  t('⚡ rendered on the file row', btn.count >= 1, btn);
   t('it explains itself', /prompt/i.test(btn.title || ''), btn.title);
 }
 

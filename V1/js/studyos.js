@@ -5188,10 +5188,27 @@ const _sosAddGeneratedDoc = async (spec) => {
   const cls = findClassOrKsu(spec.classId);
   if (!cls) return null;
 
-  // A documents module, never a notes one: a notes module renders from the
-  // editor's own store and would show this file nowhere.
+  // Where the deck lands, in order of preference:
+  //
+  //   1. spec.moduleId, when it names a DOCUMENTS module on this class. This
+  //      is the whole point of the Run sheet collecting a destination, and it
+  //      used to be ignored outright — every deck was forced into a module
+  //      literally named 'Generated', so a class with its own "GEMINI NOTES"
+  //      documents module got a second, near-duplicate one it never asked for.
+  //   2. an existing 'Generated' module, so nothing moves for anyone who was
+  //      relying on the old behaviour.
+  //   3. a new 'Generated' module, created on demand.
+  //
+  // A DOCUMENTS module in every case, never a notes one: a notes module
+  // renders from the editor's own store and would show this file nowhere.
+  // spec.moduleId pointing at a notes module is therefore declined rather
+  // than honoured — filing there would "succeed" and display nothing.
   cls.modules = cls.modules || [];
-  let mod = (cls.modules || []).find(m => m.type === 'documents' && m.name === 'Generated');
+  let mod = spec.moduleId
+    && (cls.modules || []).find(m => m.id === spec.moduleId && m.type === 'documents');
+  if (!mod) {
+    mod = (cls.modules || []).find(m => m.type === 'documents' && m.name === 'Generated');
+  }
   if (!mod) {
     mod = {
       id: Date.now().toString(),

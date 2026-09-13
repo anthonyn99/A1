@@ -105,6 +105,10 @@ export function openRunSheet(cls, files, destModuleId) {
         ${choices.map(p => `<option value="${esc(p.id)}">${esc(p.name || 'Untitled')}${p.source === 'class' ? ' (this class)' : ''}</option>`).join('')}
       </select>
     </div>
+    <div class="field">
+      <label>File the deck into</label>
+      <select id="sos-ai-dest"></select>
+    </div>
     <div id="sos-ai-vars"></div>
     <div style="font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:10px;line-height:1.5">
       NotebookLM builds the deck from this source under your prompt. It takes a
@@ -115,6 +119,24 @@ export function openRunSheet(cls, files, destModuleId) {
 
   const sel = s.overlay.querySelector('#sos-ai-prompt');
   const varsEl = s.overlay.querySelector('#sos-ai-vars');
+
+  // Destination: documents modules only. A notes module renders from the
+  // editor's own store, so a PDF filed there would display nowhere.
+  //
+  // The default is deliberately NOT destModuleId — that is the module the
+  // SOURCE file lives in, so accepting it would file a generated deck back
+  // into "Lecture Notes" alongside the lecture it was made from. Prefer a
+  // module that already looks like a home for generated output, then the
+  // caller's hint, then anything.
+  const destSel = s.overlay.querySelector('#sos-ai-dest');
+  const docMods = (cls.modules || []).filter(m => m.type === 'documents');
+  const looksGenerated = (m) => /generated|gemini|ai\b/i.test(m.name || '');
+  const preferred = docMods.find(looksGenerated)
+    || docMods.find(m => m.id === destModuleId)
+    || docMods[0];
+  destSel.innerHTML = docMods
+    .map(m => `<option value="${esc(m.id)}"${m === preferred ? ' selected' : ''}>${esc(m.name || 'Untitled')}</option>`)
+    .join('') + '<option value="">New "Generated" module</option>';
 
   // Show which {{variables}} will be filled, and which will not. An unfilled
   // one stays literal at run time on purpose, so surface it before spending.
@@ -159,7 +181,7 @@ export function openRunSheet(cls, files, destModuleId) {
         promptId: p.id,
         promptVersion: p.version || 1,
         classId: cls.id,
-        outputModuleId: destModuleId || '',
+        outputModuleId: destSel.value || '',
         // No slideCount: NotebookLM generates the whole deck in one pass and
         // never reads it. The input that used to collect it is gone with it —
         // a field for a value nothing reads is a lie the UI tells.
