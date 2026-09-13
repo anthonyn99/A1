@@ -154,6 +154,7 @@ be running.
 | `nlm_source_timeout` | The upload never finished ingesting | Usually a large PDF; retry. If it completed on screen, `source_ready` is the wrong selector |
 | `nlm_timeout` | No finished deck within 30 min | If the deck **did** finish on screen, `artifact_ready` is wrong — fix that before raising `gen_timeout_s` |
 | `nlm_generation_failed` | NotebookLM said it failed | Retry from the Jobs panel; often transient |
+| `nlm_queued` | **Out of Slide Deck quota.** NotebookLM defers rather than refusing — the Studio row reads "Scheduled for after 12am" | Wait for the window (it is Google's clock, not yours — likely Pacific) and re-run. Retrying sooner only queues a second deferred deck |
 | `nlm_not_pdf` | The download was not a PDF | Usually a sign-in page. Re-run `login --site notebooklm` |
 | A Claude job sat queued for half an hour | A NotebookLM deck was ahead of it | Expected: one job at a time, because two runs cannot share one Chrome profile |
 
@@ -204,9 +205,18 @@ Then run it once **without** `--dry-run` and open the resulting PDF by hand. Tha
 last check is manual on purpose: no assertion can tell you whether the deck is
 actually about your source.
 
-> Each dry run creates a real notebook with a real uploaded source in your
-> NotebookLM account. Eight iterations leaves eight junk notebooks — delete them
-> by hand when you are done.
+> **Each run costs real quota, and the dry run is what protects it.** A dry run
+> creates a notebook and uploads the source but STOPS BEFORE GENERATE, so it
+> spends no Slide Deck quota. Anything that presses Generate does — including
+> hand-probing the UI, which is how this account's daily quota was exhausted in
+> ten minutes during development.
+>
+> So: inspect freely (`doctor`, `--dry-run`, the artifacts/ dumps, the
+> read-only `check_queued.py`), and press Generate **once**, when the path is
+> already proven. If you need to poll whether a deferred deck has finished, use
+> `check_queued.py` — it only reads.
+>
+> Dry runs still leave a junk notebook each; delete them by hand afterwards.
 
 ---
 
@@ -250,6 +260,7 @@ npm run verify                # real browser: boot + pipeline UI
 node scripts/verify-autorun.mjs
 
 cd tools/sos-browser
+python check_queued.py        # read-only: has a deferred deck finished? (free)
 python test_driver.py         # driver: config, deck config, markdown walker
 python test_server.py         # bridge: mode routing, retry table, pdf guard
 python test_pdfrender.py      # output: slide splitting, layout, PDF assembly
