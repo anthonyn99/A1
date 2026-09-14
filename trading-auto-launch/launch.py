@@ -178,6 +178,10 @@ DAILY_REMINDER_FETCH_ATTEMPTS = 3    # GET retries before showing the fallback n
 WEBULL_AUTO_ACTIONS = True
 WEBULL_ACTION_DELAY = 2    # seconds before clicking. WeBull opened first and has been up
                            # ~25s by the time this runs, so it's already loaded — small buffer only.
+                           # Not the thing that decides whether the clicks land: the run waits for
+                           # the FOREGROUND to settle after the browser opens its tabs, and retries
+                           # the focus for 12s, because that race is what skipped this step on
+                           # 2026-09-14 ("could not focus the window").
 
 # (x, y) offsets from the WeBull window's top-left (measured via --webull-coords):
 WEBULL_TRACKERS_TAB   = (626, 60)    # the "Trackers" tab in the tab row
@@ -948,14 +952,29 @@ def webull_post_launch(hwnd, initial_delay=None):
     wait = WEBULL_ACTION_DELAY if initial_delay is None else initial_delay
     time.sleep(wait)   # let WeBull finish loading (accounts populated)
 
+    # This step runs LAST, straight after the browser tabs are opened, and Brave
+    # is still raising its window while we get here. Wait that out before asking
+    # for the foreground, or we ask during the one moment Windows will refuse.
+    _foreground_settled()
+
     # Re-resolve the CURRENT WeBull window rather than trusting the handle captured at
     # launch — Electron apps can recreate their top-level window while loading, which
-    # would silently invalidate an old hwnd even though WeBull is still open. Falls back
-    # to the original hwnd if a fresh lookup somehow finds nothing.
-    hwnd = _find_largest_title_window("webull") or hwnd
-    if not _focus_window(hwnd):
-        log("WeBull: could not focus the window — skipping tab/account switch.")
+    # would silently invalidate an old hwnd even though WeBull is still open. BOTH are
+    # tried: a re-resolve that lands on some other "webull" top-level window (a helper,
+    # a torn-off panel) is unfocusable, and the handle from launch is then the good one.
+    tried, focused = [], None
+    for cand in (_find_largest_title_window("webull"), hwnd):
+        if not cand or cand in tried:
+            continue
+        tried.append(cand)
+        if _focus_window_patient(cand):
+            focused = cand
+            break
+    if focused is None:
+        log("WeBull: could not bring the window to the front after 12s — skipping "
+            "tab/account switch. (Clicking blind would land in whatever IS in front.)")
         return
+    hwnd = focused
     r = _get_frame_bounds(hwnd) or _get_window_rect(hwnd)
     if not r:
         log("WeBull: no window rectangle — skipping tab/account switch.")
@@ -979,7 +998,9 @@ def webull_post_launch(hwnd, initial_delay=None):
     #    WeBull is already the foreground window here (we just clicked in it), so the
     #    focus call returns instantly, and the tab is a static control that's been on
     #    screen the whole time — no need to dwell on it before pressing.
-    _focus_window(hwnd)
+    if not _focus_window_patient(hwnd, timeout=4.0):
+        log("WeBull: lost the foreground before the Trackers tab — not clicking blind.")
+        return
     _click_at(ox + WEBULL_TRACKERS_TAB[0], oy + WEBULL_TRACKERS_TAB[1], hover=0.04)
     log("WeBull: Trackers tab selected.")
 
@@ -1308,7 +1329,7 @@ def _focus_window(hwnd) -> bool:
             if attached:
                 _u32.AttachThreadInput(cur_tid, fg_tid, False)
         except Exception as e:
-            log(f"ChatGPT: focus error: {e}")
+            log(f"Focus error: {e}")
         # Poll for the focus change instead of sleeping a flat 0.4s — the switch is
         # usually done in well under 100ms, so this returns as soon as it lands and
         # only spends the full budget when the window is genuinely slow to come up.
@@ -1317,6 +1338,46 @@ def _focus_window(hwnd) -> bool:
             if _u32.GetForegroundWindow() == hwnd:
                 return True
     return False
+
+
+def _foreground_settled(timeout: float = 8.0, quiet: float = 1.2) -> None:
+    """Wait until whatever is grabbing the foreground has finished doing it.
+
+    Windows refuses SetForegroundWindow while another process is mid-activation
+    -- that is the foreground lock, and it is why AttachThreadInput alone is not
+    enough. Brave raises its window ASYNCHRONOUSLY as it opens tabs, so the
+    moment right after `brave <urls>` returns is the worst possible time to ask
+    for the foreground, and it is exactly when the morning run used to ask.
+
+    Returns as soon as the foreground has held still for `quiet`, or at
+    `timeout` regardless -- a machine where something keeps stealing focus must
+    still get its WeBull actions attempted rather than waiting forever."""
+    deadline = time.time() + timeout
+    last, since = _u32.GetForegroundWindow(), time.time()
+    while time.time() < deadline:
+        time.sleep(0.15)
+        fg = _u32.GetForegroundWindow()
+        if fg != last:
+            last, since = fg, time.time()
+        elif time.time() - since >= quiet:
+            return
+
+
+def _focus_window_patient(hwnd, timeout: float = 12.0) -> bool:
+    """_focus_window, but it keeps asking.
+
+    One call gives up after about 1.6 seconds, which is right for "is this
+    window still there" and wrong for "another app is currently taking the
+    foreground": that lock is transient, and the answer a second later is
+    usually yes. Giving up after 1.6s is what made the morning skip WeBull's
+    tab and account switch entirely."""
+    deadline = time.time() + timeout
+    while True:
+        if _focus_window(hwnd):
+            return True
+        if time.time() >= deadline:
+            return False
+        time.sleep(0.4)
 
 
 #  ── No keyboard automation lives here any more ──────────────────────────────
