@@ -300,10 +300,66 @@ _lock.unlink(missing_ok=True)
 
 # The generating placeholder shares a class with the finished row, so
 # readiness must require something only a FINISHED artifact has.
+#
+# The old assertion here was `'has(' in sel`, and it PASSED while the bug was
+# live: the offending fallback was
+#   .artifact-primary-content:not(:has(.artifact-failed-subtitle))
+# which contains 'has(' via the :not(:has(...)) NEGATION. That negation
+# excludes a FAILED row; it says nothing about a GENERATING one. So the test
+# was satisfied by the very selector that matched the placeholder and sent the
+# run on to click the source row's kebab. Assert the positive requirement
+# instead: a readiness selector must demand something a finished row HAS.
+def _requires_finished_marker(sel: str) -> bool:
+    if "testid" in sel:
+        return True
+    # Strip every :not(...) group, then look for a surviving :has().
+    depth = 0
+    out = []
+    i = 0
+    while i < len(sel):
+        if sel.startswith(":not(", i):
+            depth += 1
+            i += 5
+            continue
+        c = sel[i]
+        if depth:
+            if c == "(":
+                depth += 1
+            elif c == ")":
+                depth -= 1
+        else:
+            out.append(c)
+        i += 1
+    return ":has(" in "".join(out)
+
+
 t("readiness cannot match a still-generating row",
-  all("has(" in sel or "testid" in sel for sel in nlm.artifact_ready),
+  all(_requires_finished_marker(sel) for sel in nlm.artifact_ready),
+  nlm.artifact_ready)
+t("the bare .artifact-primary-content fallback is gone",
+  not any(sel.strip().startswith(".artifact-primary-content")
+          for sel in nlm.artifact_ready),
   nlm.artifact_ready)
 t("a generating state is detected explicitly", bool(nlm.artifact_generating))
+
+# Pinned against the REAL page captured when this failed
+# (artifacts/notebooklm-no-download-item-20260914-024201.html): the Studio
+# showed 'Generating Slide Deck...' and the page's ONLY aria-label='More'
+# button belonged to the source row, so any readiness match there sends the
+# flow to 'Remove source / Rename source'.
+_cap = (driver.ARTIFACTS
+        / "notebooklm-no-download-item-20260914-024201.html")
+if _cap.exists():
+    _html = _cap.read_text(encoding="utf-8", errors="replace")
+    t("the captured failure really was mid-generation",
+      "Generating Slide Deck" in _html)
+    t("and its only More button was the source row's",
+      _html.count('aria-label=\"More\"') == 1
+      and "source-item-more-button" in _html)
+    # The generating row carries .artifact-primary-content and no failure
+    # subtitle — which is exactly why the removed fallback matched it.
+    t("the generating row is why the bare fallback was unsafe",
+      ".artifact-primary-content".lstrip('.') in _html)
 
 
 # ── Download completion (three wrong guesses before the right one) ────────────

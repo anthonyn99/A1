@@ -675,14 +675,21 @@ async def _wait_for_deck(page, site: DeckSite):
     State-based, never a fixed sleep: generation time is genuinely unpredictable
     and a sleep long enough to be safe wastes that long on every run.
 
-    Three deliberate differences from the chat poller:
+    The poll order is the contract, and it is not arbitrary:
+
+      1. GENERATING wins over everything, ready included. While the Studio
+         says it is building, no other row on the page can mean 'done' — see
+         the measured failure at that check. This is what makes a drifted
+         readiness selector cost a timeout instead of a wrong menu click.
+      2. READY beats FAILED. A notebook keeps every artifact it has produced,
+         so a failed deck from an earlier attempt sits in the same list as the
+         one that just succeeded; failure only matters when nothing is usable.
+      3. QUEUED is its own verdict, neither progress nor failure.
+
+    Two further differences from the chat poller:
 
       * Polls every gen_poll_ms (5s), not 700ms. A 30-minute wait at 700ms is
         ~2,500 DOM queries that tell us nothing new, and it reads as automation.
-      * Checks FAILURE BEFORE SUCCESS. If a failed artifact row still matches
-        the ready selector — plausible, same row with a different badge —
-        checking ready first reports success and then hands back a download
-        that never comes. Failure wins ties.
       * No stall timeout. There is no growth signal to stall on; the only
         honest bound is the hard deadline.
     """
@@ -693,6 +700,25 @@ async def _wait_for_deck(page, site: DeckSite):
         # The ethical stop, on every poll: a challenge or a limit appearing
         # mid-generation is reported, never worked around.
         await check_blockers(page, site, pre_send=False)
+
+        # STILL BUILDING beats every other verdict, including ready.
+        #
+        # MEASURED, 2026-09-14: a readiness selector matched the GENERATING
+        # placeholder row (it carries .artifact-primary-content and has no
+        # failure subtitle), so this loop returned while the deck was still
+        # being built. _download_deck then found the page's only 'More' button
+        # — the SOURCE row's kebab in the left panel — and opened
+        # 'Remove source / Rename source', failing with a message that blamed
+        # the menu selector. The readiness selector has been tightened, but
+        # the ordering is the structural fix: while NotebookLM says it is
+        # generating, nothing else on the page can mean 'done'. A selector
+        # that drifts again costs a timeout, not a wrong menu.
+        #
+        # Deliberately BEFORE the ready check, and `continue` rather than a
+        # verdict: generating is a transient state, and the only honest
+        # response is to keep waiting until the hard deadline.
+        if await any_matches(page, site.artifact_generating):
+            continue
 
         # A READY row wins over a failed one, always.
         #

@@ -331,7 +331,25 @@ decks:
     # same list).
     artifact_ready:
       - ".artifact-button-content:has(button[aria-label='More']):not(:has(.artifact-failed-subtitle))"
-      - ".artifact-primary-content:not(:has(.artifact-failed-subtitle))"
+      # NO `.artifact-primary-content` FALLBACK. It was one, and it silently
+      # undid everything the selector above is careful about.
+      #
+      # MEASURED, 2026-09-14 (artifacts/notebooklm-no-download-item-20260914-024201):
+      # the GENERATING placeholder row also carries .artifact-primary-content
+      # and has no .artifact-failed-subtitle, so this fallback matched it while
+      # the deck was still building. _wait_for_deck returned 'ready' early, and
+      # _download_deck then looked for a More button and found the page's only
+      # one — source-item-more-button, on the SOURCE row in the left panel —
+      # and opened 'Remove source / Rename source'. The run died reporting
+      # 'the artifact menu opened but held no PDF download item', blaming the
+      # menu selector, when readiness was what had actually lied.
+      #
+      # The whole point of the first selector is that a finished artifact has
+      # its own menu and a generating placeholder does not. A fallback that
+      # drops the :has(More) requirement is not a looser version of that rule,
+      # it is the opposite of it. Better to time out honestly — the timeout
+      # message already says to fix this selector — than to proceed on a deck
+      # that does not exist yet.
       - "[data-testid='artifact-ready']"
     # Explicitly NOT ready. Checked before artifact_ready so a half-built deck
     # can never be mistaken for a finished one.
