@@ -172,5 +172,56 @@ t("path separators cannot escape the filename",
   '/' not in server.download_name({'sourceName': 'a/b/c.pdf'})
   and chr(92) not in server.download_name({'sourceName': 'a' + chr(92) + 'b.pdf'}))
 
+# -- Recovery: never pay for the same deck twice ------------------------------
+# A run killed mid-download leaves the deck FINISHED in its notebook. Because
+# `deck` always creates a NEW notebook, a naive retry regenerates and spends the
+# quota again. _run_notebooklm_job branches to cmd_fetch when notebookUrl is
+# known; these pin that branch without driving a browser.
+print("\nrecovery via fetch")
+t("the driver exposes a fetch command", hasattr(server.driver, 'cmd_fetch'))
+t("fetch is registered in the CLI dispatch",
+  'fetch' in Path(server.driver.__file__).read_text(encoding='utf-8'))
+
+_calls = {}
+
+
+def _fake_fetch(args):
+    _calls['fetch'] = dict(url=getattr(args, 'url', None),
+                           out=getattr(args, 'out', None))
+    Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+    Path(args.out).write_bytes(b'%PDF-1.4 recovered %%EOF')
+    return {'pdfPath': args.out, 'bytes': 23, 'fetched': True}
+
+
+def _fake_deck(args):
+    _calls['deck'] = True
+    raise AssertionError('cmd_deck must NOT run when the notebook is known')
+
+
+_real_fetch = getattr(server.driver, 'cmd_fetch', None)
+_real_deck = server.driver.cmd_deck
+_real_run = server.asyncio.run
+server.driver.cmd_fetch = _fake_fetch
+server.driver.cmd_deck = _fake_deck
+server.asyncio.run = lambda c: c   # our fakes are plain functions
+try:
+    _job = {'id': 'sb_recover', 'mode': 'notebooklm', 'prompt': 'p',
+            'filePath': __file__, 'notebookUrl': 'https://notebooklm/x',
+            'sourceName': 'L.pdf'}
+    server._run_notebooklm_job(_job)
+    t('a known notebook is fetched, not regenerated',
+      'fetch' in _calls and 'deck' not in _calls, _calls)
+    t('fetch is pointed at the stored notebook',
+      _calls.get('fetch', {}).get('url') == 'https://notebooklm/x')
+    t('the recovered job is marked done', _job.get('status') == 'done')
+    t('and carries a non-empty result (three consumers gate on it)',
+      bool(_job.get('result')), _job.get('result'))
+    t('and reports a pdf', _job.get('hasPdf') is True)
+finally:
+    server.driver.cmd_deck = _real_deck
+    if _real_fetch is not None:
+        server.driver.cmd_fetch = _real_fetch
+    server.asyncio.run = _real_run
+
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

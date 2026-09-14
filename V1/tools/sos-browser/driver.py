@@ -944,7 +944,8 @@ async def _download_deck(page, site: DeckSite, dest: Path) -> Path:
 
 
 async def run_notebooklm_flow(page, site: DeckSite, source: Path, prompt: str,
-                              dest: Path, dry_run: bool = False) -> dict:
+                              dest: Path, dry_run: bool = False,
+                              on_notebook_url=None) -> dict:
     """Source PDF + prompt -> a generated slide deck on disk.
 
     The ONLY function that knows what NotebookLM's UI looks like. When Google
@@ -1093,13 +1094,32 @@ async def run_notebooklm_flow(page, site: DeckSite, source: Path, prompt: str,
             "refusing to click 'Generate later' — that defers the deck instead "
             "of building it. Fix decks.notebooklm.generate_button.")
 
+    # RECORD THE NOTEBOOK NOW — quota has just been spent.
+    #
+    # MEASURED, 2026-09-14: a run generated its deck, the download began, and
+    # the bridge was killed mid-transfer. The deck was finished and sitting in
+    # the notebook, but nothing had stored WHERE, and `deck` always creates a
+    # new notebook — so the only way to get it back was to generate it a second
+    # time and pay the quota twice.
+    #
+    # Published here rather than at creation because this is the instant the run
+    # becomes expensive to lose. Everything before Generate is cheap to redo.
+    # Failure to record must never break a run that is otherwise fine, so this
+    # is best-effort.
+    notebook_url = page.url
+    try:
+        if on_notebook_url:
+            on_notebook_url(notebook_url)
+    except Exception:                               # noqa: BLE001
+        pass
+
     # The queue verdict lands within a few seconds of pressing Generate, so
     # look before settling into a poll loop measured in tens of minutes.
     await asyncio.sleep(6.0)
     await _wait_for_deck(page, site)
     out = await _download_deck(page, site, dest)
     return {"dryRun": False, "matched": walked, "pdfPath": str(out),
-            "bytes": out.stat().st_size}
+            "bytes": out.stat().st_size, "notebookUrl": notebook_url}
 
 
 # ── Commands ──────────────────────────────────────────────────────────────────
@@ -1254,7 +1274,12 @@ async def cmd_deck(args) -> dict:
         try:
             out = await run_notebooklm_flow(
                 page, site, source, prompt, dest,
-                dry_run=bool(getattr(args, "dry_run", False)))
+                dry_run=bool(getattr(args, "dry_run", False)),
+                # Lets the caller (the bridge) persist the notebook URL the
+                # moment quota is spent, so a run killed mid-download can be
+                # recovered with `fetch` instead of regenerating. Optional:
+                # the CLI passes nothing and behaves exactly as before.
+                on_notebook_url=getattr(args, "on_notebook_url", None))
             return {"ok": True, "site": site.id, **out}
         except DriverError:
             # Already carries its own artifact path from _step / the waiters.
@@ -1266,6 +1291,65 @@ async def cmd_deck(args) -> dict:
             # hardest to diagnose, because the message names a selector that
             # matched rather than the step that was actually wrong.
             path = await save_artifacts(page, f"{site.id}-unexpected")
+            raise DriverError(
+                "unexpected", f"{str(e)[:220]} Artifacts: {path}")
+        finally:
+            await ctx.close()
+
+
+async def cmd_fetch(args) -> dict:
+    """Download a deck that ALREADY EXISTS in a notebook. Spends no quota.
+
+    ── WHY THIS COMMAND EXISTS ────────────────────────────────────────────────
+    MEASURED, 2026-09-14: a run generated its deck (11 minutes of real quota),
+    the download started, and the bridge process was killed mid-transfer. The
+    staged file was left truncated — 801KB, no %%EOF, no xref — so the
+    completion gate correctly refused it, and the job sat at 'running' until the
+    next start marked it interrupted.
+
+    The deck itself was FINE. It was sitting in the notebook, finished. But
+    `deck` always creates a NEW notebook, so the only way to get it was to
+    generate it a second time and spend the quota again.
+
+    This is the recovery path: point it at the notebook that already holds the
+    finished deck and it walks only the last two steps — wait for ready, then
+    download. No notebook is created, no source uploaded, no Generate pressed.
+
+    Same output shape as cmd_deck, so _run_notebooklm_job can file the result
+    through the identical path.
+    """
+    site = load_deck_site(args.site)
+    dest = Path(args.out)
+    headless = site.headless_ok and not args.headful
+
+    # The same lock as cmd_deck: this drives the one logged-in Chrome profile,
+    # so it must not run beside a generation.
+    with _RunLock(HERE / ".deck-run.lock"):
+      async with async_playwright() as pw:
+        ctx = await launch(pw, site, headless=headless,
+                           downloads_dir=dest.parent)
+        page = ctx.pages[0] if ctx.pages else await ctx.new_page()
+        try:
+            await page.goto(args.url, wait_until="domcontentloaded",
+                            timeout=60000)
+            await check_blockers(page, site, pre_send=True)
+            # The Studio panel paints its rows a beat after the shell loads.
+            await asyncio.sleep(8.0)
+            walked: dict[str, str] = {}
+            await _dismiss_overlays(page, site, walked)
+            await asyncio.sleep(1.5)
+
+            # Reuses the real waiter, so a deck still generating here is waited
+            # out (and a deferred one is reported as deferred) exactly as it is
+            # on the generate path.
+            await _wait_for_deck(page, site)
+            out = await _download_deck(page, site, dest)
+            return {"dryRun": False, "matched": walked, "pdfPath": str(out),
+                    "bytes": out.stat().st_size, "fetched": True}
+        except DriverError:
+            raise
+        except Exception as e:
+            path = await save_artifacts(page, f"{site.id}-fetch-unexpected")
             raise DriverError(
                 "unexpected", f"{str(e)[:220]} Artifacts: {path}")
         finally:
@@ -1382,6 +1466,14 @@ def main():
                     help="walk the wizard and stop before Generate, reporting "
                          "which selectors matched — the cheap repair loop")
 
+    ft = sub.add_parser(
+        "fetch", help="download a deck that already exists (spends no quota)")
+    ft.add_argument("--site", default="notebooklm")
+    ft.add_argument("--url", required=True,
+                    help="the notebook URL holding the finished deck")
+    ft.add_argument("--out", required=True, help="where to save the PDF")
+    ft.add_argument("--headful", action="store_true")
+
     lo = sub.add_parser("login", help="open the site so a human can sign in")
     lo.add_argument("--site", default="claude")
 
@@ -1390,7 +1482,7 @@ def main():
     d.add_argument("--headful", action="store_true")
 
     args = ap.parse_args()
-    fn = {"ask": cmd_ask, "deck": cmd_deck,
+    fn = {"ask": cmd_ask, "deck": cmd_deck, "fetch": cmd_fetch,
           "login": cmd_login, "doctor": cmd_doctor}[args.cmd]
     # flush=True on every exit path. A deck run takes minutes and its single
     # line of JSON is the whole result; buffered behind a pipe it arrives only

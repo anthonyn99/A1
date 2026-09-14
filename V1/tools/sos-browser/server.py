@@ -303,17 +303,43 @@ def _run_notebooklm_job(job: dict):
         job["progress"] = 5
         _save()
 
-    args = argparse.Namespace(
-        site=job.get("site") or "notebooklm",
-        prompt=job["prompt"], prompt_file=None,
-        source=job["filePath"], out=str(out_file),
-        headful=False, dry_run=False,
-    )
-    # Deliberately no per-step progress ladder. Reporting 20/40/60 would mean
-    # threading a callback from here into the driver, puncturing the "all
-    # Google UI churn in one function" boundary for a cosmetic gain. A job that
-    # says "running" for twenty minutes is honest.
-    out = asyncio.run(driver.cmd_deck(args))
+    # Persisted the instant Generate is pressed, which is when this job becomes
+    # expensive to lose. See the recovery branch below.
+    def _remember_notebook(url: str):
+        with _lock:
+            job["notebookUrl"] = url
+            _save()
+
+    # ── RECOVERY: the deck already exists, so do not pay for it twice ────────
+    #
+    # MEASURED, 2026-09-14: a run generated its deck (~11 min of quota), the
+    # download started, and this process was killed mid-transfer. The staged
+    # file was truncated and correctly refused; the job was marked interrupted
+    # on the next start. But the DECK was fine, sitting finished in its
+    # notebook — and because every `deck` run creates a NEW notebook, retrying
+    # regenerated it from scratch and spent the quota a second time.
+    #
+    # So when a job already knows its notebook, a retry fetches rather than
+    # generates: no notebook created, no upload, no Generate pressed.
+    if job.get("notebookUrl"):
+        args = argparse.Namespace(
+            site=job.get("site") or "notebooklm",
+            url=job["notebookUrl"], out=str(out_file), headful=False,
+        )
+        out = asyncio.run(driver.cmd_fetch(args))
+    else:
+        args = argparse.Namespace(
+            site=job.get("site") or "notebooklm",
+            prompt=job["prompt"], prompt_file=None,
+            source=job["filePath"], out=str(out_file),
+            headful=False, dry_run=False,
+            on_notebook_url=_remember_notebook,
+        )
+        # Deliberately no per-step progress ladder. Reporting 20/40/60 would
+        # mean threading a callback from here into the driver, puncturing the
+        # "all Google UI churn in one function" boundary for a cosmetic gain. A
+        # job that says "running" for twenty minutes is honest.
+        out = asyncio.run(driver.cmd_deck(args))
 
     with _lock:
         job["status"] = "done"
