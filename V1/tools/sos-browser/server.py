@@ -88,7 +88,46 @@ RETRYABLE_KINDS = {
     "nlm_timeout",              # generation outran the deadline
     "nlm_source_timeout",       # ingest was slow; a second run often clears it
     "nlm_empty_download",       # zero bytes; a re-click usually works
+    # Everything below is a DOWNLOAD-stage failure, which means generation
+    # already succeeded and the deck is finished in its notebook. Since a job
+    # that knows its notebookUrl retries via cmd_fetch (see
+    # _run_notebooklm_job), retrying these costs no quota and no generation —
+    # it just re-opens the notebook and downloads. Before the notebook URL was
+    # recorded these were correctly NOT retryable, because a retry meant
+    # regenerating from scratch.
+    "nlm_no_download",          # the menu/trigger missed, or nothing completed
+    "nlm_staging_gone",         # the landing folder was deleted mid-transfer
 }
+# The subset above that is only SAFE to retry when the notebook is already
+# known. See is_retryable().
+_DOWNLOAD_STAGE_KINDS = {
+    "nlm_no_download", "nlm_staging_gone", "nlm_empty_download",
+}
+
+
+def is_retryable(kind: str, job: dict) -> bool:
+    """Whether a failure of `kind` on `job` is worth another attempt.
+
+    Not a plain set lookup, because for DOWNLOAD-stage failures the answer
+    depends on the job: generation has already succeeded and the deck is
+    finished in its notebook, so
+
+      * WITH a notebookUrl, the retry is a cmd_fetch — re-open the notebook and
+        download. It spends no quota, so it is worth trying.
+      * WITHOUT one, the retry falls back to cmd_deck and REGENERATES, pressing
+        Generate a second time and burning another slice of a hard daily quota
+        to recover from what is usually a selector miss that will fail
+        identically.
+
+    The same failure kind is therefore cheap or ruinous depending on one field,
+    which no static table can express. Split out as a function so the tests can
+    pin the real decision rather than the contents of a set.
+    """
+    if kind not in RETRYABLE_KINDS:
+        return False
+    if kind in _DOWNLOAD_STAGE_KINDS and not (job or {}).get("notebookUrl"):
+        return False
+    return True
 # Deliberately NOT retryable, and each for its own reason:
 #
 #   needs_login / bot_challenge / rate_limited
@@ -284,7 +323,7 @@ def _run_job(job_id: str):
         else:
             _run_rewrite_job(job)
     except driver.DriverError as e:
-        _fail(job, e.message, retryable=e.kind in RETRYABLE_KINDS)
+        _fail(job, e.message, retryable=is_retryable(e.kind, job))
     except Exception as e:
         _fail(job, str(e)[:400], retryable=True)
 

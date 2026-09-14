@@ -62,13 +62,38 @@ for kind in ("needs_login", "bot_challenge", "rate_limited"):
 
 # ── Selector misses ───────────────────────────────────────────────────────────
 print("\nretry table — selector misses cost a browser launch to learn nothing")
+_NO_NOTEBOOK = {"id": "j"}          # a job that would have to REGENERATE
 for kind in ("nlm_no_create", "nlm_no_file_input", "nlm_no_studio",
              "nlm_no_slide_deck", "nlm_no_customize", "nlm_no_prompt_input",
              "nlm_no_generate", "nlm_no_download"):
-    t(f"{kind} is NOT retryable", kind not in server.RETRYABLE_KINDS)
-t("no nlm_no_* kind slipped in",
-  not [k for k in server.RETRYABLE_KINDS if k.startswith("nlm_no_")],
-  [k for k in server.RETRYABLE_KINDS if k.startswith("nlm_no_")])
+    t(f"{kind} is NOT retryable", not server.is_retryable(kind, _NO_NOTEBOOK))
+# Every pre-Generate selector miss stays unconditionally non-retryable: those
+# fail before a notebook exists, so there is nothing to fetch and a retry can
+# only repeat the same miss.
+t("no pre-Generate nlm_no_* kind slipped into the table",
+  not [k for k in server.RETRYABLE_KINDS
+       if k.startswith("nlm_no_") and k not in server._DOWNLOAD_STAGE_KINDS],
+  [k for k in server.RETRYABLE_KINDS
+   if k.startswith("nlm_no_") and k not in server._DOWNLOAD_STAGE_KINDS])
+
+# ── Download-stage failures: cheap to retry, but ONLY with a notebook ─────────
+# Generation already succeeded, so the deck is finished in its notebook. With
+# the URL recorded the retry is a fetch (spends nothing); without it the retry
+# regenerates and spends the quota a second time.
+print("\nretry table — download-stage failures depend on the notebook")
+_WITH = {"id": "j", "notebookUrl": "https://notebooklm/x"}
+for kind in sorted(server._DOWNLOAD_STAGE_KINDS):
+    t(f"{kind} IS retryable once the notebook is known",
+      server.is_retryable(kind, _WITH))
+    t(f"{kind} is NOT retryable without one (it would regenerate)",
+      not server.is_retryable(kind, _NO_NOTEBOOK))
+t("a notebookUrl never makes the ethical stops retryable",
+  not any(server.is_retryable(k, _WITH)
+          for k in ("needs_login", "bot_challenge", "rate_limited")))
+t("a notebookUrl never makes a pre-Generate miss retryable",
+  not server.is_retryable("nlm_no_slide_deck", _WITH))
+t("nlm_queued stays a quota wait, notebook or not",
+  not server.is_retryable("nlm_queued", _WITH))
 t("nlm_not_pdf is NOT retryable (a retry risks filing garbage)",
   "nlm_not_pdf" not in server.RETRYABLE_KINDS)
 # A quota reset is hours away; retrying in 90s would just queue a second

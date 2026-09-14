@@ -44,6 +44,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import inspect as _inspect  # noqa: E402
 import driver  # noqa: E402
 
 PASS = FAIL = 0
@@ -394,6 +395,41 @@ t("a truncated header is rejected", not driver.looks_like_pdf(b"%PD"))
 
 
 asyncio.run(walker_tests())
+
+# -- The staging directory must not look like garbage ------------------------
+# A partially downloaded deck sits there NOT growing for minutes (NotebookLM
+# streams a large deck slowly). The folder used to be '.dl-<ts>-<rand>', which
+# is indistinguishable from junk — and it was deleted mid-transfer, killing the
+# download and stranding a deck that had already cost real quota.
+print("\nstaging directory")
+_dl_src = _inspect.getsource(driver._download_deck)
+t("the folder says not to delete it",
+  "ACTIVE-DOWNLOAD-do-not-delete" in _dl_src)
+# Comments may still mention the old ".dl-*" name (the history is the reason the
+# current name exists), so check the CODE lines only.
+_dl_code = "\n".join(l for l in _dl_src.splitlines()
+                     if not l.lstrip().startswith("#"))
+t("it is not hidden behind a dot",
+  ".dl-" not in _dl_code, "the old hidden .dl-* name is back in code")
+t("it records the owning pid, so liveness is checkable",
+  "os.getpid()" in _dl_src)
+t("it drops a README explaining the risk",
+  "README.txt" in _dl_src)
+t("the README is not mistaken for the deck",
+  'f.name != \"README.txt\"' in _dl_src)
+t("deletion mid-transfer is reported as its own kind",
+  "nlm_staging_gone" in _dl_src)
+t("and every download failure points at the no-quota recovery",
+  _dl_src.count("driver.py fetch") >= 2, _dl_src.count("driver.py fetch"))
+
+# The URL is published straight after Generate — BEFORE the download — so a
+# failure at the download stage still leaves the deck recoverable.
+_flow_src = _inspect.getsource(driver.run_notebooklm_flow)
+_gen_at = _flow_src.index("generate_button")
+_url_at = _flow_src.index("on_notebook_url(notebook_url)")
+_dl_at = _flow_src.index("_download_deck")
+t("the notebook URL is recorded after Generate", _url_at > _gen_at)
+t("and BEFORE the download can fail", _url_at < _dl_at)
 
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

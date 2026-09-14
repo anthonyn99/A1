@@ -807,8 +807,39 @@ async def _download_deck(page, site: DeckSite, dest: Path) -> Path:
     dest.parent.mkdir(parents=True, exist_ok=True)
 
     # A private landing zone for exactly this download.
-    stage = dest.parent / f".dl-{int(time.time())}-{random.randint(1000, 9999)}"
+    #
+    # NAMED, NOT HIDDEN, AND IT SAYS WHAT IT IS. This used to be ".dl-<ts>-<rand>",
+    # which is indistinguishable from leftover junk: a partially downloaded PDF
+    # sits there not growing for minutes at a time (NotebookLM streams a large
+    # deck slowly), and anything tidying the outputs folder — a person, a script,
+    # an agent — reads "hidden dot-directory containing a stale .crdownload" as
+    # garbage and deletes it. That happened, mid-transfer, and cost a full
+    # generation: the download died with WinError 3 and the finished deck was
+    # stranded in its notebook.
+    #
+    # So the directory announces that it is live and must not be touched, and
+    # _RunLock's pid is written inside it so anyone (or anything) cleaning up can
+    # check whether the owner is still alive instead of guessing from mtime.
+    stage = dest.parent / f"ACTIVE-DOWNLOAD-do-not-delete-{os.getpid()}"
+    if stage.exists():
+        # A previous run with this pid died; its bytes are worthless (a partial
+        # PDF is unreadable) and reusing the directory would make "newest file"
+        # ambiguous.
+        shutil.rmtree(stage, ignore_errors=True)
     stage.mkdir(parents=True, exist_ok=True)
+    try:
+        (stage / "README.txt").write_text(
+            "A slide deck is downloading into this folder right now.\n"
+            f"Owner process id: {os.getpid()}\n\n"
+            "Do NOT delete this folder while that process is alive: doing\n"
+            "so kills the transfer, and the generated deck (which costs\n"
+            "real NotebookLM quota) then has to be fetched again from\n"
+            "its notebook.\n\n"
+            "The folder is removed automatically once the download\n"
+            "completes.\n",
+            encoding="utf-8")
+    except OSError:
+        pass
     # Absolute: Chrome resolves downloadPath against its OWN working directory,
     # not this process's, so a relative path silently lands somewhere else.
     stage = stage.resolve()
@@ -885,15 +916,44 @@ async def _download_deck(page, site: DeckSite, dest: Path) -> Path:
     # Cheap to poll (last 2KB), and it cannot fire early the way a size
     # heuristic can. The real download lands in about two seconds; this loop
     # exists for the slow case, not the normal one.
+    def _candidates() -> list[Path]:
+        """Files in the staging dir that could be the deck, newest first.
+
+        Skips README.txt (this function's own do-not-delete marker) and tolerates
+        the directory disappearing: iterdir() raises FileNotFoundError if the
+        folder is removed mid-poll, which used to escape as a bare WinError and
+        abort the run with a message about a missing path rather than about the
+        download.
+        """
+        try:
+            entries = [f for f in stage.iterdir()
+                       if f.is_file() and f.name != "README.txt"]
+        except OSError:
+            return []
+        try:
+            return sorted(entries, key=lambda p: p.stat().st_mtime, reverse=True)
+        except OSError:
+            return entries
+
     deadline = time.monotonic() + site.download_timeout_s
     got = None
     while time.monotonic() < deadline:
         await asyncio.sleep(1.0)
-        for f in sorted(stage.iterdir(), key=lambda p: p.stat().st_mtime,
-                        reverse=True):
-            if not f.is_file() or f.stat().st_size < 1024:
-                continue
+        if not stage.exists():
+            # Someone removed the landing zone while Chrome was writing into it.
+            # Say so precisely: this is not a NotebookLM failure, and the deck
+            # itself is fine and still in the notebook.
+            raise DriverError(
+                "nlm_staging_gone",
+                f"the download folder {stage} was deleted while the deck was "
+                f"still transferring, so the transfer died. The generated deck "
+                f"is UNHARMED and still in its notebook — recover it with "
+                f"`driver.py fetch --url <notebook-url>` rather than "
+                f"regenerating, which would spend quota again.")
+        for f in _candidates():
             try:
+                if f.stat().st_size < 1024:
+                    continue
                 if b"%%EOF" in f.read_bytes()[-2048:]:
                     got = f
                     break
@@ -903,12 +963,19 @@ async def _download_deck(page, site: DeckSite, dest: Path) -> Path:
             break
 
     if not got:
-        partial = [p for p in stage.iterdir() if p.is_file()]
-        hint = (f" {partial[0].stat().st_size} bytes had arrived but the file "
-                f"never completed." if partial else "")
+        partial = _candidates()
+        hint = ""
+        if partial:
+            try:
+                hint = (f" {partial[0].stat().st_size} bytes had arrived but "
+                        f"the file never completed.")
+            except OSError:
+                pass
         raise DriverError(
             "nlm_no_download",
-            f"no complete PDF appeared within {site.download_timeout_s}s.{hint}")
+            f"no complete PDF appeared within {site.download_timeout_s}s.{hint}"
+            f" The deck itself is still in its notebook, so recover it with "
+            f"`driver.py fetch --url <notebook-url>` instead of regenerating.")
 
     shutil.move(str(got), str(dest))
     try:
