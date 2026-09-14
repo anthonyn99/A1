@@ -3712,6 +3712,10 @@ function showNotif(icon, title, body) {
     notif.classList.remove('show');
     setTimeout(() => notif.remove(), 300);
   }, 4000);
+  // Returned so a caller can make the toast actionable (the pipeline's "Deck
+  // ready" opens the module it filed into). Callers that ignore it are
+  // unaffected.
+  return notif;
 }
 
 function scheduleNotifications() {
@@ -5290,8 +5294,69 @@ const _sosAddGeneratedDoc = async (spec) => {
 
   try { if (currentClassId === cls.id) renderModules(cls); } catch (e) {}
   try { _sosRefreshModFiles(cls, mod, mod.id); } catch (e) {}
+
+  /* Make the deck VISIBLE, not merely stored.
+   *
+   * _sosRefreshModFiles above repaints `doc-list-<modId>`, and returns silently
+   * when that element is not in the DOM. That is every case that matters here:
+   *
+   *   - the destination module was CREATED by this function a moment ago, so it
+   *     has never been rendered and owns no doc-list;
+   *   - the module-detail modal is open on a DIFFERENT module (commonly the
+   *     source one the run was started from), so the only doc-list present
+   *     belongs to somewhere else;
+   *   - the modal is open on THIS module, but was rendered before the file
+   *     existed.
+   *
+   * In all three the deck finished, downloaded, uploaded and persisted, and the
+   * screen kept showing exactly what it showed before — the "nothing happened"
+   * that makes a working pipeline look broken until a manual reload. The
+   * detail modal is re-rendered in place when it is already showing this
+   * module, so the new file appears under the user's cursor rather than after
+   * a reload.
+   */
+  try {
+    if (_sosCurrentModuleId === mod.id && _sosCurrentModuleClassId === cls.id
+        && document.querySelector('#modal-module-detail.open')) {
+      const content = _sosEl('module-content-' + mod.id);
+      if (content) { content.innerHTML = ''; renderModuleContent(content, cls, mod); }
+    }
+  } catch (e) {}
+
   // NOT _sosFileAdded: see the auto-run loop note above.
-  return { title: name, meta };
+  //
+  // moduleId/moduleName ride along so the caller's toast can say WHERE the deck
+  // landed. The destination is frequently not the module the run was started
+  // from — it can be one created by this call — and "Deck ready" naming only
+  // the source file left the user hunting for it.
+  return { title: name, meta, moduleId: mod.id, moduleName: mod.name || '', classId: cls.id };
+};
+
+/* Bring a module on screen. Used by the pipeline's "Deck ready" toast so the
+ * finished deck is one click away instead of somewhere in the class. */
+window._sosBridge.revealModule = (classId, moduleId) => {
+  const cls = findClassOrKsu(classId);
+  const mod = cls && (cls.modules || []).find(m => m.id === moduleId);
+  if (!cls || !mod) return false;
+  try {
+    // Get the class itself on screen first: openModuleDetail renders into the
+    // shared detail modal, and leaving the class view behind it stale means
+    // closing the deck drops you somewhere unrelated.
+    //
+    // openClassDetail resolves through `classes`, which does NOT contain the
+    // KSU pseudo-class — calling it for that id returns silently and leaves the
+    // wrong class underneath. KSU modules have their own opener, so dispatch on
+    // the same _ksu flag findClassOrKsu keys off.
+    if (cls._ksu) {
+      if (typeof openKsuModuleDetail === 'function') {
+        openKsuModuleDetail(mod);
+        return true;
+      }
+    } else if (currentClassId !== cls.id && typeof openClassDetail === 'function') {
+      openClassDetail(cls.id);
+    }
+  } catch (e) {}
+  try { openModuleDetail(cls, mod); return true; } catch (e) { return false; }
 };
 
 /* Per-module default prompt (spec P-4). Stored on the module so it rides the

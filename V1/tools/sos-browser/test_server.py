@@ -146,5 +146,31 @@ t("missing_slides still finds a gap",
 t("trim_to_first_slide still drops preamble",
   server.trim_to_first_slide("Read a file.\n## Slide 1\nbody").startswith("## Slide 1"))
 
+# -- The served filename names the pipeline that made it ----------------------
+# A NotebookLM deck and a Claude rewrite of the SAME source are both allowed to
+# exist (the dedup key is (sourceFileId, mode)), so the filename is the only
+# thing separating them once saved. This was hardcoded to "Rewritten".
+print("\ndownload filename")
+t("a notebooklm deck is served as Slides",
+  server.download_name({'sourceName': 'Lecture 4.pdf', 'mode': 'notebooklm'})
+  == 'Lecture 4 - Slides.pdf',
+  server.download_name({'sourceName': 'Lecture 4.pdf', 'mode': 'notebooklm'}))
+t("a rewrite keeps its old name",
+  server.download_name({'sourceName': 'Lecture 4.pdf', 'mode': 'rewrite'})
+  == 'Lecture 4 - Rewritten.pdf',
+  server.download_name({'sourceName': 'Lecture 4.pdf', 'mode': 'rewrite'}))
+t("a job from before `mode` existed is still a rewrite",
+  server.download_name({'sourceName': 'Lecture 4.pdf'})
+  == 'Lecture 4 - Rewritten.pdf')
+t("the two pipelines never collide on one source",
+  server.download_name({'sourceName': 'L.pdf', 'mode': 'notebooklm'})
+  != server.download_name({'sourceName': 'L.pdf', 'mode': 'rewrite'}))
+t("a nameless job still produces a usable filename",
+  server.download_name({'mode': 'notebooklm'}) == 'deck - Slides.pdf',
+  server.download_name({'mode': 'notebooklm'}))
+t("path separators cannot escape the filename",
+  '/' not in server.download_name({'sourceName': 'a/b/c.pdf'})
+  and chr(92) not in server.download_name({'sourceName': 'a' + chr(92) + 'b.pdf'}))
+
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

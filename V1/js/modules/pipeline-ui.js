@@ -55,6 +55,38 @@ function sheet(title, bodyHtml, { wide } = {}) {
 function toast(icon, title, body) {
   try { if (window.showNotif) return window.showNotif(icon, title, body); } catch (e) {}
   console.log(`[pipeline] ${title}: ${body || ''}`);
+  return null;
+}
+
+/**
+ * "Deck ready" — naming where it landed, and opening it when clicked.
+ *
+ * The destination is often NOT the module the run was started from (the Run
+ * sheet defaults away from the source module, and can create a new one), so a
+ * toast that named only the source file left the deck to be hunted for. Saying
+ * the module name and making the toast open it closes the loop: generate ->
+ * filed -> on screen, in one go.
+ */
+function deckReadyToast(job, doc) {
+  const where = doc && doc.moduleName ? ` → ${doc.moduleName}` : '';
+  const el = toast('✅', 'Deck ready',
+    (job && job.sourceName) || (doc && doc.title) || 'Slide deck');
+  if (!el || !doc || !doc.moduleId) return;
+  try {
+    el.style.cursor = 'pointer';
+    el.title = 'Open ' + (doc.moduleName || 'the module');
+    const bodyEl = el.querySelector('.notif-body');
+    if (bodyEl && where) bodyEl.textContent = bodyEl.textContent + where;
+    el.addEventListener('click', (e) => {
+      // The × has its own handler that removes the toast; don't also navigate.
+      if (e.target && e.target.classList.contains('notif-close')) return;
+      const B = window._sosBridge;
+      if (B && typeof B.revealModule === 'function') {
+        B.revealModule(doc.classId || (job && job.classId), doc.moduleId);
+      }
+      el.remove();
+    });
+  } catch (e) {}
 }
 
 // ── P-3: run a prompt on one or more files ────────────────────────────────
@@ -254,7 +286,7 @@ export function trackJob(id) {
       // Async now: the deck's bytes are fetched from the bridge and filed as a
       // real document before this resolves.
       const doc = await pipeline.fileResult(job);
-      if (doc) toast('✅', 'Deck ready', job.sourceName || doc.title);
+      if (doc) deckReadyToast(job, doc);
       else if (job.pdfError) toast('⚠️', 'Deck not built', job.pdfError);
     } else if (job.status === 'error') {
       watching.delete(id);
@@ -293,7 +325,7 @@ export async function resumeWatches() {
         const doc = await pipeline.fileResult(job);
         if (doc) {
           await pipeline.markFiled(job.id);
-          toast('✅', 'Deck ready', job.sourceName || doc.title);
+          deckReadyToast(job, doc);
         }
       } catch (e) {
         console.warn('[pipeline] could not file a finished job:', stub.id, e);

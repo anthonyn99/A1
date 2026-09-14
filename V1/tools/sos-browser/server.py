@@ -182,6 +182,23 @@ def trim_to_first_slide(text: str) -> str:
 
 
 # ── The output stage ──────────────────────────────────────────────────────────
+def download_name(job: dict) -> str:
+    """The filename the /pdf route serves a finished job under.
+
+    The suffix must name the path that ACTUALLY produced these bytes. This was
+    hardcoded to "Rewritten", which labelled every NotebookLM deck as a Claude
+    rewrite — the one artifact it is not. The two are deliberately allowed to
+    coexist for a single source (see the (sourceFileId, mode) dedup key in
+    studyos.js), so once both are saved the filename is the only thing telling
+    them apart. Mirrors the suffix fileResult() picks in pipeline.js; the two
+    must stay in step.
+    """
+    stem = re.sub(r"[^\w.\- ]", "_",
+                  Path(job.get("sourceName") or "deck.pdf").stem)
+    suffix = "Slides" if job.get("mode") == "notebooklm" else "Rewritten"
+    return f"{stem} - {suffix}.pdf"
+
+
 def build_job_pdf(job: dict, *, force: bool = False) -> bool:
     """Render a finished job's text into a PDF deck on disk.
 
@@ -506,10 +523,8 @@ class Handler(BaseHTTPRequestHandler):
                 data = Path(job["pdfPath"]).read_bytes()
             except OSError as e:
                 return self._send({"ok": False, "error": f"pdf unreadable: {e}"}, 410)
-            name = re.sub(r"[^\w.\- ]", "_",
-                          Path(job.get("sourceName") or "deck.pdf").stem)
             return self._send_bytes(data, "application/pdf",
-                                    f"{name} - Rewritten.pdf")
+                                    download_name(job))
 
         m = re.match(r"^/api/ai/jobs/([\w.-]+)$", p)
         if m:
