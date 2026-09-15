@@ -326,11 +326,6 @@
     return composerText(live).length === 0; // placeholders are CSS ::before, not innerText
   }
 
-  function looksSent(profile, el) {
-    if (location.pathname !== startPath) return true;
-    return composerEmpty(profile, el);
-  }
-
   // ── "is it already in the conversation?" ─────────────────────────────────
   // The question looksSent() cannot answer, and the reason a prompt could end
   // up BOTH sent and sitting in the composer.
@@ -370,13 +365,35 @@
     var probe = norm(text).slice(0, POSTED_PROBE);
     if (probe.length < 40) return false;          // too short to be distinctive
     var page = '';
-    try { page = norm(document.body ? document.body.innerText : ''); } catch (e) { return false; }
+    try {
+      // innerText, because it is what is RENDERED -- a hidden template holding
+      // the prompt must not read as "already sent". textContent only when
+      // innerText is not a string at all, which is a test DOM, not a browser.
+      var body = document.body;
+      if (!body) return false;
+      var raw = body.innerText;
+      page = norm(typeof raw === 'string' ? raw : body.textContent);
+    } catch (e) { return false; }
     var seen = countOf(page, probe);
     if (!seen) return false;
     var live = (el && el.isConnected) ? el : findComposer(profile);
     var box = live ? norm(composerText(live)) : '';
     if (strict) return box.length === 0;
     return seen - countOf(box, probe) > 0;
+  }
+
+  /** Did the send take?
+   *
+   *  `text` is optional and it is the best of the three signals: the prompt
+   *  appearing in the transcript is the thing actually being asked about,
+   *  where an empty box and a changed url are only its usual side effects.
+   *  Threading it through is what lets a slow page -- one that takes longer to
+   *  clear its composer than fireSend spends confirming -- be recognised as a
+   *  success instead of sending the retry loop off to type it all again. */
+  function looksSent(profile, el, text) {
+    if (location.pathname !== startPath) return true;
+    if (text && alreadyPosted(profile, el, text)) return true;
+    return composerEmpty(profile, el);
   }
 
   // A plain .click() is enough for most React buttons, but some composers commit
@@ -399,13 +416,13 @@
     try { btn.click(); } catch (e) {}
   }
 
-  async function fireSend(profile, el) {
+  async function fireSend(profile, el, text) {
     // Never return "sent" before we have actually tried something — that single
     // guard is what stops a false read of the composer from silently skipping the
     // whole send.
     var tried = false;
     for (var i = 0; i < SEND_TRIES; i++) {
-      if (tried && looksSent(profile, el)) return true;
+      if (tried && looksSent(profile, el, text)) return true;
 
       var btn = findSend(profile);
       if (btn) {
@@ -425,7 +442,7 @@
       }
       await wait(SEND_GAP_MS);
     }
-    return looksSent(profile, el);
+    return looksSent(profile, el, text);
   }
 
   async function deliver(text) {
@@ -505,7 +522,7 @@
         continue;
       }
 
-      if (await fireSend(profile, el)) {
+      if (await fireSend(profile, el, text)) {
         // Only now tell the background it's done — a failed attempt must stay
         // pending so the next document (or a reload) can have another go.
         report();
