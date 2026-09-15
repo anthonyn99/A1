@@ -259,6 +259,64 @@ selectors are marked UNVERIFIED because a menu that only exists once clicked
 cannot be confirmed from a saved page — so failing to set the model degrades to
 "answered on whatever was selected, and said so", never to a failed run.
 
+### What the account MAGI drives can actually do
+
+Checked on 2026-09-15 by opening the picker on that account, because this is
+not knowable from a saved page: **every model other than the active one is an
+upgrade offer.** The menu lists Fable 5.1, Opus 5, Opus 4.8/4.7/4.6/3 and each
+row ends in *Upgrade*; Haiku is not in the menu at all; and the current model
+is not a row, it is simply what the trigger already reads.
+
+So on that plan, switching models cannot work — there is nothing else to pick.
+MAGI handles that explicitly rather than pretending:
+
+- A row whose text contains one of `model_locked_text` (`Upgrade`) is **never
+  clicked**. Clicking one opens billing and changes no model, and the run
+  would then report a model that never answered.
+- Models behind `More models` are looked for there too, so a submenu is not
+  mistaken for an absent model.
+- The label is re-read afterwards, and any mismatch becomes a note on the
+  unit's card: *"opus is not on this Claude plan (the menu offers it as an
+  upgrade), so it answered on Sonnet 5 Medium"*.
+
+**Effort is the lever that does work.** Behind the `Effort` row sit Low /
+Medium (default) / High / Extra / Max as `role="menuitemradio"`, and the choice
+lands in the trigger's own label. Verified live:
+
+```
+effort High   -> label now: 'Sonnet 5 High'
+effort Low    -> label now: 'Sonnet 5 Low'
+effort Medium -> back to   'Sonnet 5 Medium'
+```
+
+`modelpick` scales effort with the same score it uses for the model, so a
+prompt heavy enough for Opus thinks harder on Sonnet. **Max is deliberately
+excluded from the automatic range** — its own menu row says "3.5× or more
+usage", and a heuristic that can quietly cost that much is not one to leave
+running by itself.
+
+### Capping what Claude may spend
+
+Accounts → Claude model → *Stop using Claude*. Set a token budget for one
+5-hour window and a percentage of it; past that mark, `_claude_gate` drops
+Claude from **new** deliberations and brainstorm sessions and the response says
+which unit it dropped. If Claude was the only unit selected, the run is refused
+with that reason rather than starting an empty council.
+
+Two deliberate limits:
+
+- **It only governs Claude.** Nothing local records what the other units have
+  spent, so a cap on them would be an invented number about a number that does
+  not exist.
+- **It never interrupts.** The gate is called as a run starts and nowhere else.
+  A deliberation or session already going keeps Claude to the end — stopping
+  mid-run would throw away browser time already spent and produce a verdict
+  built from fewer members than the console said were asked.
+
+An unreadable transcript counts as zero used, which keeps Claude available:
+that is the failure that loses nothing, where guessing high would silently drop
+a unit from every run.
+
 ## Claude usage
 
 `GET /api/usage/claude` reports the rolling 5-hour window, its tokens and

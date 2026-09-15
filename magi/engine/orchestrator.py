@@ -153,11 +153,12 @@ class Orchestrator:
         cancel: asyncio.Event | None = None,
         attachments: list[Path] | None = None,
         model: str | None = None,
+        effort: str | None = None,
     ) -> dict:
         run_id = run_id or uuid.uuid4().hex[:12]
         ctx = RunContext(
             run_id=run_id, question=question, attachments=attachments or [],
-            model=model,
+            model=model, effort=effort,
         )
         t0 = time.monotonic()
 

@@ -27,7 +27,7 @@ the item says "auto".
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 #: The aliases the rest of MAGI passes around. They are deliberately NOT
 #: version numbers: the composer shows "Sonnet 5", "Opus 4.5" and so on, and
@@ -35,8 +35,23 @@ from dataclasses import dataclass
 #: one. browser_base matches these against whatever the live menu offers.
 OPUS = "opus"
 SONNET = "sonnet"
+HAIKU = "haiku"
 AUTO = "auto"
-MODELS = (AUTO, OPUS, SONNET)
+MODELS = (AUTO, OPUS, SONNET, HAIKU)
+
+#: How hard the model thinks, where the site offers it as its own control.
+#:
+#:  This is the lever that actually WORKS on a plan with one model. Verified
+#:  on the account MAGI drives: every other model in Claude's menu is an
+#:  upgrade offer, but Low / Medium / High / Extra / Max are all selectable
+#:  and land in the trigger's own label ("Sonnet 5 High").
+#:
+#:  MAX is not in EFFORT_AUTO on purpose. Its own menu row reads "3.5x or more
+#:  usage", and a heuristic that can quietly cost three and a half times as
+#:  much is not one to leave running by itself -- it is reachable only by
+#:  asking for it by name.
+EFFORTS = (AUTO, "low", "medium", "high", "extra", "max")
+EFFORT_AUTO = ("low", "medium", "high")
 
 #: Above this, length alone is enough: a long prompt is carrying detail that
 #: only matters if the model actually holds all of it.
@@ -92,14 +107,28 @@ class Pick:
     reason: str
     score: int
     signals: tuple[str, ...]
+    #: The same judgement expressed as effort, for the plans where that is the
+    #: only thing that can actually be changed.
+    effort: str = "medium"
 
     def as_dict(self) -> dict:
         return {
             "model": self.model,
+            "effort": self.effort,
             "reason": self.reason,
             "score": self.score,
             "signals": list(self.signals),
         }
+
+
+def _effort_for(score: int) -> str:
+    """One scale, two expressions. A prompt heavy enough for Opus is heavy
+    enough to think hard about on Sonnet, and the same is true downwards."""
+    if score >= 2:
+        return "high"
+    if score <= -1:
+        return "low"
+    return "medium"
 
 
 def suggest(question: str, *, attachments: int = 0, units: int = 1) -> Pick:
@@ -168,8 +197,9 @@ def suggest(question: str, *, attachments: int = 0, units: int = 1) -> Pick:
         # A cap rather than a penalty: however long the text, correcting it is
         # not reasoning, and no amount of it should reach for the bigger model.
         signals.append("mechanical: " + ", ".join(mech[:2]))
+        capped = min(score, 1)
         return Pick(model=SONNET, reason="mechanical work, whatever its size",
-                    score=min(score, 1), signals=tuple(signals))
+                    score=capped, signals=tuple(signals), effort="low")
 
     if score >= 2:
         model, reason = OPUS, "heavier reasoning than Sonnet is meant for"
@@ -178,17 +208,24 @@ def suggest(question: str, *, attachments: int = 0, units: int = 1) -> Pick:
     else:
         model, reason = SONNET, "no signal that it needs Opus"
 
-    return Pick(model=model, reason=reason, score=score, signals=tuple(signals))
+    return Pick(model=model, reason=reason, score=score,
+                signals=tuple(signals), effort=_effort_for(score))
 
 
 def resolve(choice: str | None, question: str, *, attachments: int = 0,
-            units: int = 1) -> Pick:
+            units: int = 1, effort: str | None = None) -> Pick:
     """An explicit choice, or the suggestion when the choice is "auto".
 
     One entry point for both, so nothing downstream has to remember that
-    "auto" is not a model name the composer would recognise.
+    "auto" is not a model name the composer would recognise. `effort` is
+    resolved the same way and independently: choosing a model by hand does not
+    mean choosing how hard it thinks.
     """
     c = (choice or AUTO).strip().lower()
-    if c in (OPUS, SONNET):
-        return Pick(model=c, reason="you chose it", score=0, signals=())
-    return suggest(question, attachments=attachments, units=units)
+    e = (effort or AUTO).strip().lower()
+    base = (Pick(model=c, reason="you chose it", score=0, signals=())
+            if c in (OPUS, SONNET, HAIKU)
+            else suggest(question, attachments=attachments, units=units))
+    if e in EFFORTS and e != AUTO:
+        return replace(base, effort=e)
+    return base

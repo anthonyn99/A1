@@ -167,3 +167,45 @@ def test_the_model_that_answered_is_read_not_assumed():
     assert "p.model_used" in body[:3000], (
         "the unit card no longer names the model that answered"
     )
+
+
+# ── nothing is thrown away without asking ───────────────────────────────────
+def test_removing_a_row_asks_first():
+    body = _fn("queueRemove")
+    assert "uiConfirmMagi" in body, (
+        "a typed prompt is deleted by a button that sits a thumb's width from "
+        "the reorder arrows"
+    )
+    assert "silent" in body, (
+        "Clear finished has no way to remove rows without asking once per row"
+    )
+
+
+def test_clearing_the_finished_rows_asks_once_for_the_lot():
+    body = _fn("queueClearDone")
+    assert "uiConfirmMagi" in body
+    assert "going.length" in body, "the question does not say how many are going"
+    assert "stay in " in body, (
+        "it does not say the deliberations themselves survive, which is the "
+        "thing that makes the answer obvious"
+    )
+
+
+def test_the_confirmations_are_magis_own_ui():
+    """No browser dialogs anywhere in this program."""
+    for fn in ("queueRemove", "queueClearDone"):
+        body = _fn(fn)
+        for native in ("window.confirm", "confirm(", "alert("):
+            assert native not in body, f"{fn} uses a browser dialog ({native})"
+
+
+def test_the_row_controls_are_thumb_sized_on_a_phone():
+    css = PAGE[PAGE.index("@media (max-width: 720px) {", PAGE.index(".q-row {")):]
+    css = css[: css.index("\n}")]
+    assert "width: 34px" in css and "height: 34px" in css, (
+        "26px between two other 26px targets is a tap you have to aim"
+    )
+    assert ".q-acts { flex: 1 1 100%" in css, (
+        "the controls squeeze the prompt into a narrow column instead of "
+        "wrapping under it"
+    )

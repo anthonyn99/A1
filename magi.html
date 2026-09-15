@@ -1249,6 +1249,39 @@ table.doctor, table.doctor code, .v-table, .studio-table,
   height: 4px; border-radius: 999px; background: var(--s1); overflow: hidden;
 }
 .usage-fill { height: 100%; background: var(--ac); border-radius: 999px; }
+.pref-row, .pref-cap { display: flex; flex-direction: column; gap: 5px; }
+.pref-cap { padding-top: 8px; margin-top: 2px; border-top: 1px solid var(--bdl); }
+.pref-head { display: flex; align-items: center; gap: 8px; }
+.pref-label {
+  font-size: 10px; font-weight: 700; letter-spacing: 1.2px;
+  text-transform: uppercase; color: var(--txm);
+}
+.pref-hint { font-size: 10px; color: var(--txd); }
+.pref-opts { display: flex; flex-wrap: wrap; gap: 4px; }
+.pref-opt {
+  border: 1px solid var(--bdl); background: transparent; color: var(--txm);
+  border-radius: 999px; padding: 3px 10px; font-size: 10px; font-weight: 600;
+  letter-spacing: .4px; cursor: pointer; font-family: inherit;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.pref-opt:hover:not(:disabled) { border-color: var(--ac); color: var(--ac); }
+.pref-opt.on {
+  border-color: var(--ac); color: var(--ac);
+  background: color-mix(in srgb, var(--ac) 12%, transparent);
+}
+.pref-opt:disabled { opacity: .4; cursor: default; }
+.pref-fields { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
+.pref-inline { font-size: 11px; color: var(--txd); }
+.pref-in {
+  width: 58px; background: var(--s1); border: 1px solid var(--bdl);
+  border-radius: 7px; color: var(--tx); font-family: inherit; font-size: 11px;
+  padding: 3px 7px;
+}
+.pref-in-wide { width: 116px; }
+.pref-in:focus { outline: none; border-color: var(--ac); }
+.usage-fill.over { background: var(--red); }
+.cap-over { color: var(--red); }
+
 .usage-foot {
   font-size: 10px; line-height: 1.5;
   color: color-mix(in srgb, var(--txd) 75%, transparent);
@@ -1261,6 +1294,7 @@ table.doctor, table.doctor code, .v-table, .studio-table,
   color: var(--txm); font-weight: 600; letter-spacing: .6px;
   text-transform: none; font-size: 10px;
 }
+.queue-acts { margin-left: auto; display: flex; align-items: center; gap: 6px; }
 .queue-act { padding: 3px 9px; font-size: 10px; }
 .q-row {
   display: flex; align-items: flex-start; gap: 8px; padding: 8px 12px;
@@ -1319,8 +1353,21 @@ table.doctor, table.doctor code, .v-table, .studio-table,
 .q-state.failed { color: var(--red); }
 @media (max-width: 720px) {
   .queue { max-width: none; }
-  .q-row { padding: 8px 10px; gap: 6px; }
+  .q-row { padding: 10px; gap: 6px; }
   .q-text { -webkit-line-clamp: 2; font-size: 12px; }
+  /* 34px, and the row's controls wrap under the prompt rather than squeezing
+     it into a column three words wide. A 26px target between two others is a
+     tap you have to aim. */
+  .q-row { flex-wrap: wrap; }
+  .q-main { flex: 1 1 100%; }
+  .q-acts { flex: 1 1 100%; justify-content: flex-end; gap: 4px; }
+  .q-act { width: 34px; height: 34px; border-color: var(--bdl); }
+  .q-model { padding: 3px 9px; font-size: 10px; }
+  .queue-hd { flex-wrap: wrap; row-gap: 8px; }
+  .queue-acts { flex: 1 1 100%; margin-left: 0; justify-content: flex-end; }
+  .queue-act { padding: 5px 11px; font-size: 11px; }
+  /* The sheet's buttons too: this is where a delete is confirmed. */
+  .sheet-bar .btn { padding: 9px 16px; }
 }
 
 /* The model a run is going out under, next to the heading that names it. */
@@ -3254,9 +3301,13 @@ window._mailRelay = window._mailRelay || async function (res) {
       <div class="drawer-hd queue-hd">
         <span>Queue</span>
         <span class="queue-count" id="queueCount"></span>
-        <span class="qbar-spacer"></span>
-        <button type="button" class="navitem queue-act" id="queueRunBtn"></button>
-        <button type="button" class="navitem queue-act" id="queueClearBtn">Clear finished</button>
+        <!-- Grouped, so that when the header wraps on a phone the two buttons
+             travel together to the next line instead of a flexible spacer
+             opening a gap between them. -->
+        <span class="queue-acts">
+          <button type="button" class="navitem queue-act" id="queueRunBtn"></button>
+          <button type="button" class="navitem queue-act" id="queueClearBtn">Clear finished</button>
+        </span>
       </div>
       <div id="queueRows"></div>
     </div>
@@ -3693,7 +3744,9 @@ const HOW = [
     q: "Which Claude model answers",
     a: [
       "Claude&rsquo;s composer lets you pick a model per message, and MAGI picks one for you unless you say otherwise. <b>Auto</b> reads the prompt: length, whether it asks for design, debugging, comparison or a report, whether it carries code or attachments, how many units are deliberating. Heavy prompts go to Opus, and everything else to Sonnet, which answers a short factual question just as well and leaves more of the window for the prompts that need the bigger model.",
-      "The pick always shows its reasoning &mdash; hover the model on a queue row. Click it to fix that row to <b>Opus</b> or <b>Sonnet</b> yourself; an explicit choice is never overridden.",
+      "The pick always shows its reasoning &mdash; hover the model on a queue row. Click it to cycle that row through <b>Opus</b>, <b>Sonnet</b> and <b>Haiku</b> yourself; an explicit choice is never overridden. Accounts has the same two controls as a default for every run.",
+      "<b>Effort is the lever that works on any plan.</b> Claude&rsquo;s composer also sets how hard the model thinks &mdash; Low, Medium, High, Extra, Max &mdash; and MAGI scales it with the same reading of the prompt. <b>Max is never chosen automatically</b>: Claude&rsquo;s own menu says it costs 3.5&times; or more usage, so it is reachable only by asking for it by name.",
+      "<b>A model your plan does not offer cannot be selected.</b> Checked against the account MAGI drives: its menu lists Opus and Fable, but every one of them says <i>Upgrade</i>, and Haiku is not there at all. MAGI refuses to click a row that sells a model &mdash; that opens billing and changes nothing &mdash; so the run answers on the active model and says so on the unit&rsquo;s card. What answered is read back off the picker, never assumed from what was asked.",
       "What each unit ACTUALLY answered on is read back off the composer&rsquo;s own picker and shown on its card, so a model MAGI asked for and failed to select can never be reported as though it had been used. Only Claude has a picker MAGI drives; the others answer on whatever they are set to.",
     ],
   },
@@ -3703,6 +3756,7 @@ const HOW = [
       "The Accounts screen shows what Claude Code on the engine device has spent: the rolling 5-hour window, how much of it is left, tokens and messages in it, a breakdown by model, and the past week.",
       "<b>It is not a percentage of your limit.</b> Anthropic publishes no limit figure and it is not in the data, so any percentage would be invented &mdash; and an invented number about how much you have left is worse than no number.",
       "It also cannot see MAGI&rsquo;s own browser turns: those are ordinary chat messages that nothing records locally. It is the same subscription, so it is the best available signal of where your window stands, and the card says exactly whose usage it is showing.",
+      "<b>You can cap it.</b> Set a token budget for one 5-hour window and a percentage of it, and once the window passes that mark MAGI stops putting Claude in NEW deliberations and brainstorm sessions &mdash; it says which unit it dropped rather than quietly shrinking the council. Anything already running keeps Claude to the end; the cap decides what new work may use, never what unfinished work loses halfway through. The percentage is of <i>your</i> budget, because Anthropic publishes no limit for it to be a percentage of.",
     ],
   },
   {
@@ -5548,6 +5602,9 @@ function runOne({ question, units, model = "auto", files = [] }) {
     // What the engine resolved "auto" to, and why -- shown before the first
     // answer lands, because by the time one has landed it is no longer news.
     S.runModel = d.model || null;
+    // A council that quietly shrank is the same class of problem as a verdict
+    // that does not say how many answered.
+    if (d.capped) setErr("refineError", d.capped);
   } catch {
     endRun();
     setErr("refineError", "Could not reach the engine to start the run.");
@@ -6253,6 +6310,152 @@ const prettyModel = (m) => String(m || "")
   .replace(/-/g, " ")
   .trim() || "unknown";
 
+/* ── Claude: model, effort, and a budget you set ──────────────────────────
+   The cap is a percentage of YOUR number, never of Anthropic's: they publish
+   no limit and it is not in the data, so the only honest denominator is one
+   you choose. The card says that where the number is entered, not in a
+   footnote somewhere else.
+   ───────────────────────────────────────────────────────────────────────── */
+const CLAUDE = { prefs: null, cap: null, loading: false, saving: false };
+
+async function loadClaudePrefs(force) {
+  if (!online() || (CLAUDE.prefs && !force)) return;
+  if (CLAUDE.loading) return;
+  CLAUDE.loading = true;
+  try {
+    const r = await fetch(`${link.api}/api/claude/prefs`, authed());
+    if (r.ok) { const d = await r.json(); CLAUDE.prefs = d.prefs; CLAUDE.cap = d.cap; }
+  } catch {}
+  CLAUDE.loading = false;
+  if (S.view === "accounts") renderAccounts();
+}
+
+async function saveClaudePrefs(changes) {
+  if (!online()) return;
+  CLAUDE.saving = true;
+  setSync("saving");
+  try {
+    const form = new FormData();
+    for (const [k, v] of Object.entries(changes)) form.append(k, String(v));
+    const r = await fetch(`${link.api}/api/claude/prefs`,
+                          authed({ method: "PUT", body: form }));
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const d = await r.json();
+    CLAUDE.prefs = d.prefs; CLAUDE.cap = d.cap;
+    setSync("saved");
+  } catch (e) {
+    setSync("error", _syncFail("saving Claude's settings", e));
+  }
+  CLAUDE.saving = false;
+  if (S.view === "accounts") renderAccounts();
+}
+
+/** A labelled row of choices, used for both model and effort. */
+function prefRow(label, hint, options, current, onPick) {
+  const row = el("div", "pref-row");
+  const head = el("div", "pref-head");
+  head.append(el("span", "pref-label", label));
+  if (hint) head.append(el("span", "pref-hint", hint));
+  row.append(head);
+  const opts = el("div", "pref-opts");
+  for (const o of options) {
+    const b = el("button", `pref-opt ${o.id === current ? "on" : ""}`, o.label);
+    b.type = "button";
+    if (o.title) b.title = o.title;
+    b.onclick = () => onPick(o.id);
+    opts.append(b);
+  }
+  row.append(opts);
+  return row;
+}
+
+function claudeCard() {
+  const card = el("div", "acc-card usage-card");
+  card.append(el("div", "usage-title", "Claude model"));
+
+  const p = CLAUDE.prefs;
+  if (!p) {
+    card.append(el("div", "usage-empty",
+      CLAUDE.loading ? "Reading Claude's settings\u2026" : "Not read yet."));
+    loadClaudePrefs();
+    return card;
+  }
+
+  card.append(prefRow(
+    "Model", "auto reads the prompt",
+    [{ id: "auto", label: "Auto", title: "Chosen from the prompt, per deliberation" },
+     { id: "opus", label: "Opus", title: "Pin every run to Opus" },
+     { id: "sonnet", label: "Sonnet", title: "Pin every run to Sonnet" },
+     { id: "haiku", label: "Haiku", title: "Pin every run to Haiku" }],
+    p.model, (v) => saveClaudePrefs({ model: v })));
+
+  card.append(prefRow(
+    "Effort", "how hard it thinks",
+    [{ id: "auto", label: "Auto", title: "Scales with the same reading of the prompt" },
+     { id: "low", label: "Low" }, { id: "medium", label: "Medium" },
+     { id: "high", label: "High" }, { id: "extra", label: "Extra" },
+     { id: "max", label: "Max", title: "Claude's own menu says 3.5\u00d7 or more usage" }],
+    p.effort, (v) => saveClaudePrefs({ effort: v })));
+
+  // A model the plan does not offer is worth saying out loud, because the
+  // request will be honoured as far as it can be and no further.
+  card.append(el("div", "usage-foot",
+    "A model your Claude plan does not offer cannot be selected \u2014 the run "
+    + "says so and answers on the one that is active, rather than reporting a "
+    + "model that never ran. Effort works on any plan."));
+
+  // ── the cap ──────────────────────────────────────────────────────────────
+  const cap = CLAUDE.cap || {};
+  const capBox = el("div", "pref-cap");
+  const hd = el("div", "pref-head");
+  hd.append(el("span", "pref-label", "Stop using Claude"));
+  const toggle = el("button", `pref-opt ${p.cap_enabled ? "on" : ""}`,
+                    p.cap_enabled ? "On" : "Off");
+  toggle.type = "button";
+  toggle.disabled = !p.cap_tokens;
+  toggle.title = p.cap_tokens
+    ? "Drop Claude from new runs once the budget is spent"
+    : "Set a budget first";
+  toggle.onclick = () => saveClaudePrefs({ cap_enabled: !p.cap_enabled });
+  hd.append(el("span", "qbar-spacer"), toggle);
+  capBox.append(hd);
+
+  const line = el("div", "pref-fields");
+  const at = el("input", "pref-in");
+  at.type = "number"; at.min = "1"; at.max = "100"; at.value = String(p.cap_percent);
+  at.title = "Share of your budget at which Claude is dropped";
+  at.onchange = () => saveClaudePrefs({ cap_percent: at.value });
+  const budget = el("input", "pref-in pref-in-wide");
+  budget.type = "number"; budget.min = "0"; budget.step = "1000000";
+  budget.value = String(p.cap_tokens || "");
+  budget.placeholder = "e.g. 40000000";
+  budget.title = "Tokens you are willing to spend in one 5-hour window";
+  budget.onchange = () => saveClaudePrefs({ cap_tokens: budget.value || 0 });
+  line.append(el("span", "pref-inline", "at"), at,
+              el("span", "pref-inline", "% of"), budget,
+              el("span", "pref-inline", "tokens per 5-hour window"));
+  capBox.append(line);
+
+  if (cap.enabled && cap.budget) {
+    const bar = el("div", "usage-bar");
+    const fill = el("div", `usage-fill ${cap.over ? "over" : ""}`);
+    fill.style.width = `${Math.min(100, cap.percent)}%`;
+    bar.append(fill);
+    capBox.append(bar);
+    capBox.append(el("div", `usage-line ${cap.over ? "cap-over" : ""}`,
+      cap.over
+        ? cap.note
+        : `${fmtTok(cap.used)} of ${fmtTok(cap.budget)} used \u00b7 ${cap.percent}% of your budget`));
+  }
+
+  capBox.append(el("div", "usage-foot",
+    "Your number, not Anthropic's \u2014 they publish no limit, so a percentage "
+    + "of one would be invented. A deliberation or session already running "
+    + "keeps Claude to the end; the cap only decides what a new one may use."));
+  card.append(capBox);
+  return card;
+}
+
 function usageCard() {
   const card = el("div", "acc-card usage-card");
   const hd = el("div", "usage-hd");
@@ -6338,6 +6541,7 @@ function renderAccounts() {
   }
 
   box.append(usageCard());
+  box.append(claudeCard());
 
   const note = el("div", "acc-note");
   note.innerHTML =
@@ -6643,7 +6847,7 @@ function setView(v) {
   show($("backToLive"), !!pastWhileRunning && !studioOpen);
   show($("doctorDrawer"), v === "doctor");
   show($("accountsDrawer"), v === "accounts");
-  if (v === "accounts") loadUsage();
+  if (v === "accounts") { loadUsage(); loadClaudePrefs(); }
   // Brainstorm brings its own composer and its own reply box, so the council's
   // question bar is HIDDEN rather than stacked above a second textarea that
   // submits somewhere else.
@@ -9473,7 +9677,27 @@ async function queueSuggest(id) {
   } catch {}
 }
 
-function queueRemove(id) {
+/* Asked first, in MAGI's own sheet -- never a browser dialog.
+ *
+ *  A queued prompt is typed work, and on a phone the X sits a thumb's width
+ *  from the arrows that reorder the row. `silent` exists for the one caller
+ *  that has already asked (Clear finished, which asks once for the lot rather
+ *  than once per row).
+ */
+async function queueRemove(id, silent) {
+  const it = S.queue.find((x) => x.id === id);
+  if (!it) return;
+  if (!silent) {
+    const shown = String(it.q || "");
+    const ok = await uiConfirmMagi(
+      "Remove this prompt?",
+      "“" + (shown.length > 120 ? shown.slice(0, 120) + "…" : shown) + "”"
+      + (it.status === "done" || it.status === "failed"
+          ? "\n\nThe deliberation it produced stays in History."
+          : "\n\nIt has not run yet, so nothing else is lost."),
+      "Remove");
+    if (!ok) return;
+  }
   S.queue = S.queue.filter((x) => x.id !== id);
   QUEUE_FILES.delete(id);
   queueChanged();
@@ -9496,11 +9720,19 @@ function queueEdit(id) {
   updateEnabled();
 }
 
-/** Auto -> Opus -> Sonnet -> Auto. Three states, one control. */
+/** Auto -> Opus -> Sonnet -> Haiku -> Auto. One control, four states.
+ *
+ *  A model your Claude plan does not offer can still be chosen here on
+ *  purpose: the row is a request, and the run reports what actually answered.
+ *  Hiding models that are unavailable today would hide them again on the day
+ *  the plan changes.
+ */
+const QUEUE_MODELS = ["auto", "opus", "sonnet", "haiku"];
 function queueCycleModel(id) {
   const it = S.queue.find((x) => x.id === id);
   if (!it) return;
-  it.model = it.model === "auto" ? "opus" : it.model === "opus" ? "sonnet" : "auto";
+  const i = QUEUE_MODELS.indexOf(it.model || "auto");
+  it.model = QUEUE_MODELS[(i + 1) % QUEUE_MODELS.length];
   queueChanged();
   if (it.model === "auto") queueSuggest(id);
 }
@@ -9519,8 +9751,21 @@ function queueMove(id, dir) {
   queueChanged();
 }
 
-function queueClearDone() {
-  for (const it of S.queue) if (it.status !== "queued" && it.status !== "running") QUEUE_FILES.delete(it.id);
+async function queueClearDone() {
+  const going = S.queue.filter(
+    (it) => it.status !== "queued" && it.status !== "running");
+  if (!going.length) return;
+  const done = going.filter((it) => it.status === "done").length;
+  const failed = going.length - done;
+  const ok = await uiConfirmMagi(
+    `Clear ${going.length} finished prompt${going.length === 1 ? "" : "s"}?`,
+    [done ? `${done} finished` : "", failed ? `${failed} failed` : ""]
+      .filter(Boolean).join(" and ")
+    + " will leave the queue.\n\nThe deliberations they produced stay in "
+    + "History; only the rows go.",
+    "Clear");
+  if (!ok) return;
+  for (const it of going) QUEUE_FILES.delete(it.id);
   S.queue = S.queue.filter((it) => it.status === "queued" || it.status === "running");
   queueChanged();
 }

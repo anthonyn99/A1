@@ -233,6 +233,10 @@ class RunContext:
     # whatever it is already set to" -- the behaviour before this existed, and
     # still the behaviour for every site without a picker configured.
     model: str | None = None
+    # How hard the model should think, where the site offers that as its own
+    # control ("low" / "medium" / "high" / "extra" / "max" on Claude). On a
+    # plan with one model this is the only lever there is.
+    effort: str | None = None
 
 
 ProgressFn = Callable[[ProviderEvent], Awaitable[None]]

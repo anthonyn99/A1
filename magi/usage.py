@@ -352,3 +352,46 @@ def _parse_ts(raw) -> float | None:
 #: One tracker for the process, so byte offsets survive between requests --
 #: which is the whole point of reading incrementally.
 TRACKER = UsageTracker()
+
+
+def cap_state(prefs: dict, now: float | None = None) -> dict:
+    """Where this window stands against the budget YOU set.
+
+    There is no percentage of Anthropic's limit anywhere in MAGI, because the
+    limit is not published and not in the data -- so the denominator here is a
+    number you choose. That makes the percentage honest: it is the share of
+    your own budget, and the UI says so.
+
+    Returns `over` (the budget is enabled and spent), the numbers behind it,
+    and a sentence that can be shown as-is.
+    """
+    used = 0
+    try:
+        used = int(TRACKER.read(now=now)["session"]["tokens"]["total"])
+    except Exception:
+        # Unreadable transcripts must not silently disable the cap NOR
+        # silently trip it. Reporting zero used keeps Claude available, which
+        # is the failure that loses nothing.
+        used = 0
+
+    budget = int(prefs.get("cap_tokens") or 0)
+    pct_of = int(prefs.get("cap_percent") or 90)
+    enabled = bool(prefs.get("cap_enabled")) and budget > 0
+    threshold = int(budget * pct_of / 100) if budget else 0
+    pct_used = round(100 * used / budget) if budget else 0
+    over = bool(enabled and used >= threshold)
+
+    return {
+        "enabled": enabled,
+        "used": used,
+        "budget": budget,
+        "percent": pct_used,
+        "cap_percent": pct_of,
+        "threshold": threshold,
+        "over": over,
+        "note": (
+            f"Claude is paused: this 5-hour window has used {used:,} tokens, "
+            f"past the {pct_of}% mark of the {budget:,} you budgeted."
+            if over else ""
+        ),
+    }

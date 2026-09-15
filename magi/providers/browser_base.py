@@ -129,17 +129,37 @@ class BrowserProvider(Provider):
         except Exception:
             return None
 
+    async def _close_menu(self, page, times: int = 2) -> None:
+        """Leave the page as it was found, not with a menu over the composer."""
+        for _ in range(times):
+            try:
+                await page.keyboard.press("Escape")
+                await page.wait_for_timeout(150)
+            except Exception:
+                return
+
+    def _locked(self, text: str) -> bool:
+        """Is this row selling the model rather than offering it?
+
+        VERIFIED on the account MAGI drives: a plan without Opus still LISTS
+        Opus, with "Upgrade" in the row. Clicking it opens billing and changes
+        no model -- so a match on one of these is a reason to stop, not a
+        thing to click. Nothing else in the markup distinguishes them: no
+        aria-disabled, no data attribute, just the word.
+        """
+        low = (text or "").lower()
+        return any(w.lower() in low for w in (self.site.model_locked_text or ()))
+
     async def _ensure_model(self, page, want: str | None) -> tuple[str | None, str]:
         """Put the composer on `want` if it is not there already.
 
         Returns (label now showing, note). NEVER raises and never fails the
-        run: the menu selectors cannot be verified from a saved page (the menu
-        only exists once opened), so this has to degrade to "answered on
-        whatever was already selected, and said so" rather than taking down a
-        working council run over a renamed menu item.
+        run: a model that cannot be selected has to degrade to "answered on
+        what was already there, and said so", because the alternative is
+        losing a whole council run over a menu.
 
-        Matching is by TEXT against the alias -- "opus" finds "Claude Opus
-        4.5" -- because the version numbers move and the aliases do not.
+        Matching is by TEXT against the alias -- "opus" finds "Opus 4.8" --
+        because the version numbers move and the aliases do not.
         """
         site = self.site
         current = await self._read_model(page)
@@ -154,38 +174,59 @@ class BrowserProvider(Provider):
 
         try:
             await btn.locator.first.click()
-            await page.wait_for_timeout(350)
+            await page.wait_for_timeout(400)
         except Exception as e:
             return current, f"could not open the model picker ({type(e).__name__})"
 
-        picked = False
-        for sel in site.model_option:
-            try:
-                # has-text is a substring match, case-insensitive when given a
-                # string, which is exactly the "find Opus whatever they call
-                # it this month" behaviour wanted here.
-                opt = page.locator(f"{sel}:has-text('{want}')")
-                if await opt.count() == 0:
+        picked, locked = False, False
+        for attempt in range(2):
+            for sel in site.model_option:
+                try:
+                    opt = page.locator(f"{sel}:has-text('{want}')")
+                    if await opt.count() == 0:
+                        continue
+                    row = opt.first
+                    text = (await row.inner_text()) or ""
+                    if self._locked(text):
+                        locked = True
+                        continue
+                    await row.click()
+                    picked = True
+                    break
+                except Exception:
                     continue
-                await opt.first.click()
-                picked = True
+            if picked or locked or attempt:
                 break
-            except Exception:
-                continue
+            # Not at the top level. Some models sit behind a submenu.
+            opened = False
+            for sel in site.model_more:
+                try:
+                    more = page.locator(sel)
+                    if await more.count():
+                        await more.first.click()
+                        await page.wait_for_timeout(500)
+                        opened = True
+                        break
+                except Exception:
+                    continue
+            if not opened:
+                break
 
+        if locked and not picked:
+            await self._close_menu(page)
+            return current, (
+                f"{want} is not on this {self.display_name} plan (the menu "
+                f"offers it as an upgrade), so it answered on "
+                f"{current or 'its current model'}"
+            )
         if not picked:
-            # Leave the page as it was found rather than with a menu hanging
-            # open over the composer.
-            try:
-                await page.keyboard.press("Escape")
-            except Exception:
-                pass
+            await self._close_menu(page)
             return current, (
                 f"{want} was not in {self.display_name}'s model menu, so it "
                 f"answered on {current or 'its current model'}"
             )
 
-        await page.wait_for_timeout(350)
+        await page.wait_for_timeout(400)
         after = await self._read_model(page)
         if after and want.lower() in after.lower():
             return after, ""
@@ -193,6 +234,64 @@ class BrowserProvider(Provider):
             f"asked for {want} but the picker still reads "
             f"{after or 'unknown'} -- answered on that"
         )
+
+    async def _ensure_effort(self, page, want: str | None) -> tuple[str | None, str]:
+        """Set how hard the model thinks, where the site offers that.
+
+        The lever that actually works on a one-model plan. VERIFIED on the
+        account MAGI drives: behind the "Effort" row sit Low / Medium
+        (default) / High / Extra / Max as [role='menuitemradio'], and the
+        choice appears in the trigger's own label -- "Model: Sonnet 5 Medium"
+        -- so it can be read back the same way the model is.
+
+        Max is deliberately reachable only by asking for it by name: its own
+        row says "3.5x or more usage", and a heuristic that can quietly cost
+        three and a half times as much is not one to leave on by default.
+        """
+        site = self.site
+        if not want or not site.effort_button or not site.effort_option:
+            return None, ""
+
+        current = await self._read_model(page)
+        if current and want.lower() in current.lower():
+            return want, ""                        # already there
+
+        btn = await resolve.resolve(page, site.model_button, timeout_ms=1500)
+        if btn is None:
+            return None, ""
+        try:
+            await btn.locator.first.click()
+            await page.wait_for_timeout(400)
+        except Exception:
+            return None, ""
+
+        row = await resolve.resolve(page, site.effort_button, timeout_ms=1200)
+        if row is None:
+            await self._close_menu(page)
+            return None, f"{self.display_name} has no effort control"
+        try:
+            await row.locator.first.click()
+            await page.wait_for_timeout(500)
+        except Exception:
+            await self._close_menu(page)
+            return None, "could not open the effort menu"
+
+        for sel in site.effort_option:
+            try:
+                opt = page.locator(f"{sel}:has-text('{want}')")
+                if await opt.count() == 0:
+                    continue
+                await opt.first.click()
+                await page.wait_for_timeout(400)
+                after = await self._read_model(page)
+                if after and want.lower() in after.lower():
+                    return want, ""
+                return None, f"asked for {want} effort; the picker reads {after or 'unknown'}"
+            except Exception:
+                continue
+
+        await self._close_menu(page)
+        return None, f"{want} effort was not in the menu"
 
     async def _save_artifacts(self, page, tag: str) -> list[str]:
         """Screenshot + DOM on failure, so a broken selector is diagnosable later."""
@@ -347,8 +446,17 @@ class BrowserProvider(Provider):
                         f"tier. Run `python -m magi login {self.id}`.",
                     )
 
-                # -- the model, before anything is composed ------------------
+                # -- the model and how hard it thinks, before anything is
+                #    composed --------------------------------------------------
                 model_used, model_note = await self._ensure_model(page, ctx.model)
+                effort_used, effort_note = await self._ensure_effort(page, ctx.effort)
+                # Re-read once: setting the effort rewrites the same label the
+                # model is read from, so the value from before the change is
+                # stale by exactly one word.
+                if effort_used:
+                    model_used = await self._read_model(page) or model_used
+                model_note = " \u00b7 ".join(
+                    n for n in (model_note, effort_note) if n)
 
                 # -- attachments, before typing (matches how a person uses the
                 # composer: attach first, then write the message about them) --
