@@ -431,5 +431,52 @@ _dl_at = _flow_src.index("_download_deck")
 t("the notebook URL is recorded after Generate", _url_at > _gen_at)
 t("and BEFORE the download can fail", _url_at < _dl_at)
 
+# -- A stalled transfer is restarted, not waited out -------------------------
+# MEASURED (job sb_fdf7b00723): 47KB arrived, the transfer died, and the loop
+# waited the remaining ~590s for a %%EOF that could never come, then blamed a
+# timeout. The deck was finished; only the transfer was broken.
+print("\nstalled download")
+_dd = _inspect.getsource(driver._download_deck)
+t("the download click is restartable",
+  hasattr(driver, '_click_download_item'))
+t("a stall is detected from bytes that stop growing",
+  'last_growth' in _dd and 'STALL_S' in _dd)
+t("Chrome's own cancel verdict is subscribed to",
+  'Browser.downloadProgress' in _dd)
+t("restarts are bounded", 'MAX_RESTARTS' in _dd)
+t("the dead partial is removed before restarting",
+  'f.unlink()' in _dd)
+t("the stall budget is generous enough for a slow export",
+  driver.STALL_S >= 30, driver.STALL_S)
+t("restarts cannot spin forever",
+  1 <= driver.MAX_RESTARTS <= 5, driver.MAX_RESTARTS)
+
+# -- The recovery URL must actually be reachable ------------------------------
+# MEASURED: the URL recorded for recovery was https://notebook.google.com/...
+# (no 'lm') because page.url was sampled while Google bounced through that
+# host. The id was right and the host was wrong, so `fetch` would have failed
+# at exactly the moment recovery mattered.
+print("\nnotebook URL repair")
+_SITE = "https://notebooklm.google.com/"
+_BAD = "https://notebook.google.com/notebook/88dbf417-49a9-48c6-98b3-0b21a648e304"
+_GOOD = "https://notebooklm.google.com/notebook/88dbf417-49a9-48c6-98b3-0b21a648e304"
+t("the redirect host is repaired",
+  driver._canonical_notebook_url(_BAD, _SITE) == _GOOD,
+  driver._canonical_notebook_url(_BAD, _SITE))
+t("an already-correct URL is unchanged",
+  driver._canonical_notebook_url(_GOOD, _SITE) == _GOOD)
+t("a query string is dropped",
+  driver._canonical_notebook_url(_GOOD + '?hl=en', _SITE) == _GOOD)
+t("a URL with no notebook id is left alone, not invented",
+  driver._canonical_notebook_url(_SITE, _SITE) == _SITE)
+t("empty input cannot crash the recorder",
+  driver._canonical_notebook_url('', _SITE) == '' and
+  driver._canonical_notebook_url(None, _SITE) == '')
+t("the recorded URL is canonicalised at the source",
+  '_canonical_notebook_url(page.url' in _inspect.getsource(
+      driver.run_notebooklm_flow))
+t("and again on the way into fetch",
+  '_canonical_notebook_url(args.url' in _inspect.getsource(driver.cmd_fetch))
+
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

@@ -776,6 +776,91 @@ async def _wait_for_deck(page, site: DeckSite):
         f"raising gen_timeout_s. Artifacts: {path}")
 
 
+def _canonical_notebook_url(url: str, site_url: str) -> str:
+    """Repair the notebook URL read off the live page.
+
+    MEASURED, 2026-09-14 (job sb_fdf7b00723): the URL recorded for recovery was
+    `https://notebook.google.com/notebook/<id>` — note the missing "lm". Google
+    bounces through that host while the app boots, and page.url was sampled
+    during the bounce. The id is right, the host is not, so `fetch` would have
+    navigated somewhere useless and the whole recovery path would have failed at
+    the one moment it is needed.
+
+    Rebuilds the URL from the configured site host whenever the path carries a
+    notebook id, and otherwise leaves it alone rather than inventing one.
+    """
+    try:
+        m = re.search(r"/notebook/([A-Za-z0-9_-]{8,})", url or "")
+        if not m:
+            return url or ""
+        host = (site_url or "").rstrip("/")
+        if not host:
+            return url
+        # site.url is the app root ("https://notebooklm.google.com/"), so its
+        # scheme+host is the authority every notebook link must carry.
+        m2 = re.match(r"^(https?://[^/]+)", host)
+        if not m2:
+            return url
+        return f"{m2.group(1)}/notebook/{m.group(1)}"
+    except Exception:                               # noqa: BLE001
+        return url or ""
+
+
+# How long the bytes on disk may sit unchanged before the transfer is treated as
+# dead rather than slow, and how many times it may be restarted.
+#
+# 45s is deliberately generous: NotebookLM's own server can pause for a while
+# mid-deck on a large export, and a false restart costs a wasted click. The real
+# failure this catches wrote nothing for ~590s, so anything in this range
+# distinguishes it cleanly.
+STALL_S = 45
+MAX_RESTARTS = 3
+
+
+async def _click_download_item(page, site: DeckSite) -> None:
+    """Open the finished artifact's menu and click "Download PDF".
+
+    Split out of _download_deck so a stalled transfer can be RESTARTED by
+    clicking it again. The scoping below is the hard-won part and must stay
+    identical between the first click and any retry.
+    """
+    trigger = await resolve(page, site.download_trigger, timeout_ms=10000)
+    if not trigger:
+        path = await save_artifacts(page, f"{site.id}-no-download")
+        raise DriverError(
+            "nlm_no_download",
+            f"nothing matched `download_trigger` on {site.display_name}. "
+            f"Artifacts: {path}")
+    # Scoped to the ARTIFACT ROW, not "the last More button on the page".
+    # The sources list has its own kebab ("Remove source / Rename source"), and
+    # when only one artifact exists that source menu is the only match .last
+    # finds — so the flow opened it, found no download, and blamed the menu
+    # selector. Anchor to the row that owns the deck instead.
+    # Scoped to a row that is finished and NOT failed — the same predicate
+    # readiness uses. A bare ".artifact-primary-content More" would happily
+    # open the failed deck's menu, which holds no download.
+    # The menu is a SIBLING of the row, both inside .artifact-button-content,
+    # so scope to that wrapper — and exclude a failed artifact, whose menu
+    # holds no download.
+    scoped = page.locator(
+        ".artifact-button-content:not(:has(.artifact-failed-subtitle)) "
+        "button[aria-label='More']")
+    if await scoped.count():
+        await scoped.last.click()
+    else:
+        await trigger["locator"].last.click()
+    await asyncio.sleep(2.0)
+
+    menu = await resolve(page, site.download_menu_item, timeout_ms=5000)
+    if not menu:
+        path = await save_artifacts(page, f"{site.id}-no-download-item")
+        raise DriverError(
+            "nlm_no_download",
+            f"the artifact menu opened but held no PDF download item. "
+            f"Artifacts: {path}")
+    await menu["locator"].first.click()
+
+
 async def _download_deck(page, site: DeckSite, dest: Path) -> Path:
     """Click through to the PDF and save it where the caller asked.
 
@@ -853,53 +938,56 @@ async def _download_deck(page, site: DeckSite, dest: Path) -> Path:
     await cdp.send("Browser.setDownloadBehavior",
                    {"behavior": "allowAndName", "downloadPath": str(stage),
                     "eventsEnabled": True})
+
+    # LISTEN to what Chrome says about the transfer, rather than inferring it
+    # from the filesystem.
+    #
+    # MEASURED, 2026-09-14 (job sb_fdf7b00723): a deck began downloading, wrote
+    # 47KB, and then never advanced again. The poll loop below watches for a
+    # %%EOF that was never going to arrive, so it waited the full 600s and
+    # reported "no complete PDF appeared" — a timeout message for what was
+    # actually an ABORTED transfer that Chrome knew about within a second.
+    #
+    # `eventsEnabled: True` was already set above but nothing subscribed, so
+    # every one of these verdicts was being thrown away.
+    dl_state: dict[str, object] = {"state": None, "received": 0, "total": 0,
+                                   "guid": None}
+
+    def _on_begin(evt):
+        dl_state["guid"] = evt.get("guid")
+        dl_state["state"] = "inProgress"
+
+    def _on_progress(evt):
+        # states: inProgress | completed | canceled
+        dl_state["state"] = evt.get("state") or dl_state["state"]
+        dl_state["received"] = evt.get("receivedBytes") or dl_state["received"]
+        dl_state["total"] = evt.get("totalBytes") or dl_state["total"]
+
+    cdp.on("Browser.downloadWillBegin", _on_begin)
+    cdp.on("Browser.downloadProgress", _on_progress)
+
     # Also catch the popup as it is created and point IT at the same directory,
     # for builds where the browser-wide call does not reach an already-opening
     # target.
+    #
+    # `allowAndName` (not the plain `allow` this used to send): the two disagree
+    # about the filename, and when the popup's call wins the race the file lands
+    # under the site's own name instead of a GUID. That is cosmetic on its own —
+    # but it proves the POPUP owns the transfer, and the popup is exactly what
+    # NotebookLM tears down mid-download. Matching the browser-wide behaviour
+    # keeps one owner and one naming scheme.
     async def _route_popup(new_page):
         try:
             c = await new_page.context.new_cdp_session(new_page)
-            await c.send("Page.setDownloadBehavior",
-                         {"behavior": "allow", "downloadPath": str(stage)})
+            await c.send("Browser.setDownloadBehavior",
+                         {"behavior": "allowAndName", "downloadPath": str(stage),
+                          "eventsEnabled": True})
+            c.on("Browser.downloadProgress", _on_progress)
         except Exception:                           # noqa: BLE001
             pass
     page.context.on("page", lambda np: asyncio.create_task(_route_popup(np)))
 
-    trigger = await resolve(page, site.download_trigger, timeout_ms=10000)
-    if not trigger:
-        path = await save_artifacts(page, f"{site.id}-no-download")
-        raise DriverError(
-            "nlm_no_download",
-            f"nothing matched `download_trigger` on {site.display_name}. "
-            f"Artifacts: {path}")
-    # Scoped to the ARTIFACT ROW, not "the last More button on the page".
-    # The sources list has its own kebab ("Remove source / Rename source"), and
-    # when only one artifact exists that source menu is the only match .last
-    # finds — so the flow opened it, found no download, and blamed the menu
-    # selector. Anchor to the row that owns the deck instead.
-    # Scoped to a row that is finished and NOT failed — the same predicate
-    # readiness uses. A bare ".artifact-primary-content More" would happily
-    # open the failed deck's menu, which holds no download.
-    # The menu is a SIBLING of the row, both inside .artifact-button-content,
-    # so scope to that wrapper — and exclude a failed artifact, whose menu
-    # holds no download.
-    scoped = page.locator(
-        ".artifact-button-content:not(:has(.artifact-failed-subtitle)) "
-        "button[aria-label='More']")
-    if await scoped.count():
-        await scoped.last.click()
-    else:
-        await trigger["locator"].last.click()
-    await asyncio.sleep(2.0)
-
-    menu = await resolve(page, site.download_menu_item, timeout_ms=5000)
-    if not menu:
-        path = await save_artifacts(page, f"{site.id}-no-download-item")
-        raise DriverError(
-            "nlm_no_download",
-            f"the artifact menu opened but held no PDF download item. "
-            f"Artifacts: {path}")
-    await menu["locator"].first.click()
+    await _click_download_item(page, site)
 
     # Wait for a COMPLETE PDF, judged by its own trailer.
     #
@@ -937,6 +1025,8 @@ async def _download_deck(page, site: DeckSite, dest: Path) -> Path:
 
     deadline = time.monotonic() + site.download_timeout_s
     got = None
+    # Stall tracking: bytes-on-disk and when they last changed.
+    last_size, last_growth, restarts = 0, time.monotonic(), 0
     while time.monotonic() < deadline:
         await asyncio.sleep(1.0)
         if not stage.exists():
@@ -962,6 +1052,58 @@ async def _download_deck(page, site: DeckSite, dest: Path) -> Path:
         if got:
             break
 
+        # ── The transfer died rather than being slow ────────────────────────
+        #
+        # MEASURED (job sb_fdf7b00723): 47KB arrived at 22:29:18 and the file
+        # was never written again; the loop then waited out the remaining ~590s
+        # looking for a trailer that could not come, and blamed a timeout.
+        #
+        # Two independent signals, because they fail in different ways:
+        #   * Chrome SAYS canceled — authoritative, act immediately.
+        #   * Chrome says nothing (the popup owning the transfer was torn down
+        #     before reporting), but the bytes on disk have not grown for
+        #     STALL_S. The popup teardown is the common case here, so the
+        #     filesystem signal is the one that actually fires.
+        #
+        # The response is to re-click the download item, which restarts the
+        # transfer on the page that is still open. Bounded retries: a genuinely
+        # unreachable deck must still fail rather than loop to the deadline.
+        now = time.monotonic()
+        sizes = []
+        for f in _candidates():
+            try:
+                sizes.append(f.stat().st_size)
+            except OSError:
+                pass
+        total_now = sum(sizes)
+        if total_now != last_size:
+            last_size, last_growth = total_now, now
+
+        stalled = (total_now > 0 and now - last_growth > STALL_S)
+        canceled = dl_state.get("state") == "canceled"
+        if (stalled or canceled) and restarts < MAX_RESTARTS:
+            restarts += 1
+            why = "Chrome reported it canceled" if canceled else \
+                  f"no bytes for {int(now - last_growth)}s"
+            print(f"[deck] download stalled ({why}); "
+                  f"re-clicking Download ({restarts}/{MAX_RESTARTS})",
+                  file=sys.stderr, flush=True)
+            # Drop the dead partial so it cannot be mistaken for the real file
+            # (and so growth detection starts clean).
+            for f in _candidates():
+                try:
+                    f.unlink()
+                except OSError:
+                    pass
+            dl_state["state"] = None
+            last_size, last_growth = 0, time.monotonic()
+            try:
+                await _click_download_item(page, site)
+            except DriverError:
+                # The menu is gone or changed; fall through and let the loop
+                # time out with its own message rather than masking this one.
+                pass
+
     if not got:
         partial = _candidates()
         hint = ""
@@ -971,6 +1113,9 @@ async def _download_deck(page, site: DeckSite, dest: Path) -> Path:
                         f"the file never completed.")
             except OSError:
                 pass
+        if restarts:
+            hint += (f" The transfer was restarted {restarts} time(s) and "
+                     f"stalled again each time.")
         raise DriverError(
             "nlm_no_download",
             f"no complete PDF appeared within {site.download_timeout_s}s.{hint}"
@@ -1173,7 +1318,7 @@ async def run_notebooklm_flow(page, site: DeckSite, source: Path, prompt: str,
     # becomes expensive to lose. Everything before Generate is cheap to redo.
     # Failure to record must never break a run that is otherwise fine, so this
     # is best-effort.
-    notebook_url = page.url
+    notebook_url = _canonical_notebook_url(page.url, site.url)
     try:
         if on_notebook_url:
             on_notebook_url(notebook_url)
@@ -1397,8 +1542,12 @@ async def cmd_fetch(args) -> dict:
                            downloads_dir=dest.parent)
         page = ctx.pages[0] if ctx.pages else await ctx.new_page()
         try:
-            await page.goto(args.url, wait_until="domcontentloaded",
-                            timeout=60000)
+            # Repaired on the way in too, so a URL recorded by an older build
+            # (or pasted by hand off the address bar mid-redirect) still works.
+            # notebook.google.com — no "lm" — is a real thing Google bounces
+            # through, and navigating there finds no notebook at all.
+            await page.goto(_canonical_notebook_url(args.url, site.url),
+                            wait_until="domcontentloaded", timeout=60000)
             await check_blockers(page, site, pre_send=True)
             # The Studio panel paints its rows a beat after the shell loads.
             await asyncio.sleep(8.0)
