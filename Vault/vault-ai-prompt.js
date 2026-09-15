@@ -331,6 +331,54 @@
     return composerEmpty(profile, el);
   }
 
+  // ── "is it already in the conversation?" ─────────────────────────────────
+  // The question looksSent() cannot answer, and the reason a prompt could end
+  // up BOTH sent and sitting in the composer.
+  //
+  // looksSent reads two NEGATIVE signals -- the box went empty, the url
+  // changed -- and neither separates "the send I just fired worked" from "a
+  // send worked half a minute ago". So a round that sent successfully but did
+  // not prove it inside its window sent the retry loop off to clear the box and
+  // type all 5,592 characters in again; and by then the site was streaming the
+  // answer, its send control was a STOP button (correctly refused, see
+  // SEND_DENY), and no later round could send anything. The last round typed it
+  // and left it there, then looksSent saw the url from the FIRST round's
+  // success and reported the whole thing a win. One answer, one abandoned copy
+  // of the prompt in the box.
+  //
+  // This is the positive signal: the prompt's own opening words, present on the
+  // page somewhere that is not the composer. Every one of these sites renders
+  // your message into the transcript, and a collapsed "Show more" bubble still
+  // carries the start of it -- which is the part matched here.
+  var POSTED_PROBE = 140;
+
+  function countOf(hay, needle) {
+    if (!needle) return 0;
+    var n = 0, i = 0;
+    while ((i = hay.indexOf(needle, i)) !== -1) { n++; i += needle.length; }
+    return n;
+  }
+
+  /** `strict` also requires the composer to be EMPTY.
+   *
+   *  Used before anything has been typed, where a false positive would mean
+   *  never sending at all: with an empty box, text of ours on the page cannot
+   *  be an echo of what is in the box. After a send has been fired the looser
+   *  test is right -- the copy in the composer is subtracted from the count, so
+   *  what is left is the transcript. */
+  function alreadyPosted(profile, el, text, strict) {
+    var probe = norm(text).slice(0, POSTED_PROBE);
+    if (probe.length < 40) return false;          // too short to be distinctive
+    var page = '';
+    try { page = norm(document.body ? document.body.innerText : ''); } catch (e) { return false; }
+    var seen = countOf(page, probe);
+    if (!seen) return false;
+    var live = (el && el.isConnected) ? el : findComposer(profile);
+    var box = live ? norm(composerText(live)) : '';
+    if (strict) return box.length === 0;
+    return seen - countOf(box, probe) > 0;
+  }
+
   // A plain .click() is enough for most React buttons, but some composers commit
   // on pointerdown/mousedown and never see a bare click. Fire the whole sequence.
   function clickHard(btn) {
@@ -404,6 +452,16 @@
     }
     await wait(400);
 
+    // Already there? The prompt stays pending in the background until a send is
+    // CONFIRMED, deliberately, so that a reload can retry a failed attempt --
+    // which means a reload after a successful-but-unconfirmed one arrives here
+    // with the job already done. Typing it again is exactly the bug.
+    if (alreadyPosted(profile, el, text, true)) {
+      console.log('[Vault] AI prompt: already in the conversation — not sending it twice.');
+      report();
+      return true;
+    }
+
     // WHY THIS IS A LOOP OVER *TYPING*, NOT JUST OVER SENDING
     // These composers are a DOM tree (ProseMirror) driven by a framework's own
     // copy of the text. execCommand writes the DOM and normally the framework
@@ -417,6 +475,15 @@
     // for the site to prove it noticed by ENABLING its send control, then send.
     for (var round = 0; round < TYPE_ROUNDS; round++) {
       var last = (round === TYPE_ROUNDS - 1);
+
+      // Every path that leads back here is a RETRY, and every retry starts by
+      // clearing and retyping. One innerText read is what makes that safe.
+      if (round > 0 && alreadyPosted(profile, el, text)) {
+        console.log('[Vault] AI prompt: it went after all (round ' + round + ') — stopping.');
+        clearComposer(findComposer(profile) || el);
+        report();
+        return true;
+      }
 
       el = findComposer(profile) || el;
       var typed = await ensureTyped(profile, el, text);
@@ -445,6 +512,16 @@
         console.log('[Vault] AI prompt submitted on ' + profile.name + ' (round ' + (round + 1) + ')');
         return true;
       }
+      // A send reported as failed is often a send that simply did not finish
+      // proving itself: the transcript needs a moment to render, and these
+      // sites clear the composer on their own schedule. Ask before retyping.
+      await wait(900);
+      if (alreadyPosted(profile, el, text)) {
+        console.log('[Vault] AI prompt: send landed after all (round ' + (round + 1) + ').');
+        clearComposer(findComposer(profile) || el);
+        report();
+        return true;
+      }
       if (!last) {
         console.warn('[Vault] AI prompt: send did not take on round ' + (round + 1) + ' — retyping');
         clearComposer(el);
@@ -452,6 +529,19 @@
       }
     }
 
+    // Out of rounds. If the prompt DID land at some point, what is in the box is
+    // a duplicate of a message that has already been answered -- take it out.
+    // Leaving it is the reported symptom: "it runs but pastes another in the
+    // chatbox".
+    if (alreadyPosted(profile, el, text)) {
+      console.log('[Vault] AI prompt: sent earlier — clearing the duplicate left in the box.');
+      clearComposer(findComposer(profile) || el);
+      report();
+      return true;
+    }
+
+    // Genuinely never sent: the text stays in the composer ON PURPOSE, because
+    // one keypress is then all that is left to do.
     console.warn('[Vault] AI prompt: typed it in, but no send control fired — press Enter yourself. ' +
                  'Send button found: ' + !!findSend(profile));
     return false;   // stays pending, so a reload retries
