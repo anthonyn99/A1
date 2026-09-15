@@ -185,16 +185,38 @@ sites:
     model_button:
       - "button[data-testid='model-selector-dropdown']"
       - "button[aria-label^='Model:']"
-    # UNVERIFIED, and unverifiable from a dump: the menu is rendered only once
-    # the trigger is clicked, so nothing about its items appears in a saved
-    # page. Written as containers to search rather than as exact item
-    # selectors, and the item is then matched BY ITS TEXT against the model
-    # alias -- "opus" finds "Claude Opus 4.5" whatever the version is, and
-    # keeps working when Anthropic renames one.
+    # VERIFIED 2026-09-15 by opening the menu on the account MAGI drives.
+    #
+    #   Items are [role='menuitem'], matched BY TEXT against the alias, so
+    #   "opus" finds "Opus 4.8" whatever the version is.
+    #
+    #   What that account's menu actually contains matters more than the
+    #   selector: every model other than the active one reads "Upgrade"
+    #   (Fable 5.1, Opus 5, Opus 4.8/4.7/4.6/3), Haiku is absent entirely, and
+    #   the CURRENT model is not a row at all -- it is simply what the trigger
+    #   already says. Clicking an Upgrade row opens billing and changes no
+    #   model, so browser_base refuses to click one; see _locked_text.
     model_option:
       - "[role='menuitem']"
       - "[role='option']"
       - "[role='menu'] button"
+    # Some models are behind a submenu rather than absent.
+    model_more:
+      - "[role='menuitem']:has-text('More models')"
+    # A row offering the model for money rather than selecting it. Matched on
+    # text because the markup carries nothing else to go on: no aria-disabled,
+    # no data-attribute, nothing but the word.
+    model_locked_text:
+      - "Upgrade"
+    # ── effort ───────────────────────────────────────────────────────────────
+    # The lever that DOES work on a plan with one model. Low / Medium
+    # (default) / High / Extra / Max, as [role='menuitemradio'] behind the
+    # "Effort" row, and the choice shows up in the trigger's own label
+    # ("Model: Sonnet 5 Medium") so it can be read back like the model.
+    effort_button:
+      - "[role='menuitem']:has-text('Effort')"
+    effort_option:
+      - "[role='menuitemradio']"
     # UNVERIFIED: Claude's composer keeps a hidden file input behind the
     # paperclip button.
     file_input:

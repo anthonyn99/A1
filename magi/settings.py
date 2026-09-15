@@ -130,6 +130,11 @@ class SiteSelectors:
     # the behaviour every site had before this existed.
     model_button: list[str] = field(default_factory=list)
     model_option: list[str] = field(default_factory=list)
+    model_more: list[str] = field(default_factory=list)
+    #: Words that mean "this row sells the model rather than selecting it".
+    model_locked_text: list[str] = field(default_factory=list)
+    effort_button: list[str] = field(default_factory=list)
+    effort_option: list[str] = field(default_factory=list)
     assistant_turn: list[str] = field(default_factory=list)
     stop_button: list[str] = field(default_factory=list)
     streaming_marker: list[str] = field(default_factory=list)
@@ -193,6 +198,10 @@ class SiteSelectors:
             send_key=merged.get("send_key", "Enter"),
             model_button=_as_list(merged.get("model_button")),
             model_option=_as_list(merged.get("model_option")),
+            model_more=_as_list(merged.get("model_more")),
+            model_locked_text=_as_list(merged.get("model_locked_text")),
+            effort_button=_as_list(merged.get("effort_button")),
+            effort_option=_as_list(merged.get("effort_option")),
             assistant_turn=_as_list(merged.get("assistant_turn")),
             stop_button=_as_list(merged.get("stop_button")),
             streaming_marker=_as_list(merged.get("streaming_marker")),
