@@ -124,6 +124,12 @@ class SiteSelectors:
     # real input and hand it files via Playwright's set_input_files.
     file_input: list[str] = field(default_factory=list)
     send_key: str = "Enter"
+    # The model picker, for sites that let you choose per message. Claude's
+    # composer does; the others either have no picker or one MAGI does not
+    # touch. Both empty means "whatever the site is already set to", which is
+    # the behaviour every site had before this existed.
+    model_button: list[str] = field(default_factory=list)
+    model_option: list[str] = field(default_factory=list)
     assistant_turn: list[str] = field(default_factory=list)
     stop_button: list[str] = field(default_factory=list)
     streaming_marker: list[str] = field(default_factory=list)
@@ -185,6 +191,8 @@ class SiteSelectors:
             submit=_as_list(merged.get("submit")),
             file_input=_as_list(merged.get("file_input")),
             send_key=merged.get("send_key", "Enter"),
+            model_button=_as_list(merged.get("model_button")),
+            model_option=_as_list(merged.get("model_option")),
             assistant_turn=_as_list(merged.get("assistant_turn")),
             stop_button=_as_list(merged.get("stop_button")),
             streaming_marker=_as_list(merged.get("streaming_marker")),

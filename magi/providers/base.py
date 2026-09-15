@@ -89,6 +89,13 @@ class Answer:
     chars: int = 0
     artifacts: list[str] = field(default_factory=list)
     provider_kind: str = "browser"
+    # The model that actually answered, as the site's own composer labelled it
+    # ("Sonnet 5 Medium"), and a note when the requested one could not be set.
+    # Read from the picker rather than assumed from the request: a model MAGI
+    # asked for and failed to select, reported as though it had been used,
+    # would be a lie about which model wrote the text on screen.
+    model_used: str | None = None
+    model_note: str = ""
 
     @classmethod
     def failed(
@@ -221,6 +228,11 @@ class RunContext:
     # Files staged to disk for this run, shared read-only across every member
     # -- each provider attaches the same set to its own composer.
     attachments: list[Path] = field(default_factory=list)
+    # Which model to ask for, as an alias ("opus" / "sonnet"), on the sites
+    # that have a per-message picker. None means "leave the composer on
+    # whatever it is already set to" -- the behaviour before this existed, and
+    # still the behaviour for every site without a picker configured.
+    model: str | None = None
 
 
 ProgressFn = Callable[[ProviderEvent], Awaitable[None]]

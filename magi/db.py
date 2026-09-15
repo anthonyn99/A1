@@ -49,6 +49,8 @@ CREATE TABLE IF NOT EXISTS answers(
   started_at TEXT, ended_at TEXT,
   latency_ms INTEGER, char_count INTEGER,
   artifacts TEXT,
+  model_used TEXT,
+  model_note TEXT,
   UNIQUE(run_id, provider_id)
 );
 
@@ -165,6 +167,8 @@ class Database:
             for col, ddl in (
                 ("degraded", "INTEGER DEFAULT 0"),
                 ("degraded_reason", "TEXT"),
+                ("model_used", "TEXT"),
+                ("model_note", "TEXT"),
             ):
                 if col not in have:
                     await db.execute(f"ALTER TABLE answers ADD COLUMN {col} {ddl}")
@@ -269,8 +273,9 @@ class Database:
                      run_id,provider_id,display_name,provider_kind,state,ok,answer_text,
                      failure_kind,error_detail,completion_reason,low_confidence,
                      degraded,degraded_reason,
-                     started_at,ended_at,latency_ms,char_count,artifacts)
-                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                     started_at,ended_at,latency_ms,char_count,artifacts,
+                     model_used,model_note)
+                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     run_id, a.provider_id, a.display_name, a.provider_kind,
                     str(a.state), 1 if a.ok else 0, a.text,
@@ -279,6 +284,7 @@ class Database:
                     1 if a.degraded else 0, a.degraded_reason or None,
                     a.started_at.isoformat(), a.ended_at.isoformat(),
                     a.latency_ms, a.chars, json.dumps(a.artifacts),
+                    a.model_used, a.model_note or None,
                 ),
             )
             await db.commit()

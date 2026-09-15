@@ -146,7 +146,10 @@ def test_the_council_description_appears_with_its_heading():
 # ── one grid, two screens ───────────────────────────────────────────────────
 def _fn(name: str) -> str:
     i = PAGE.index(f"function {name}(")
-    depth, j = 0, PAGE.index("{", i)
+    # The body's brace, not a destructured parameter's: runOne takes
+    # ({question, units, ...}), and starting at the first "{" after the name
+    # extracts the parameter list and calls it the function.
+    depth, j = 0, PAGE.index("{", PAGE.index(") {", i))
     for k in range(j, len(PAGE)):
         if PAGE[k] == "{":
             depth += 1
@@ -166,7 +169,9 @@ def test_the_grid_records_which_screen_filled_it():
     """
     assert "gridOwner: null," in PAGE, "S.gridOwner is gone"
     assert 'S.gridOwner = "brainstorm";' in _fn("primeGridForRound")
-    for fn in ("start", "openRun", "cloudOpenRun"):
+    # runOne, not start: start() reads the composer and hands off to it, so
+    # the function that actually begins a run is the one that claims the grid.
+    for fn in ("runOne", "openRun", "cloudOpenRun"):
         assert 'S.gridOwner = "council";' in _fn(fn), f"{fn} does not claim the grid"
     assert "S.gridOwner = null;" in _fn("newRun")
     assert "S.gridOwner = null;" in _fn("bsReset")

@@ -30,6 +30,8 @@ from . import accounts as accounts_mod
 from .db import Database
 from .engine import brainstorm as brainstorm_engine
 from .engine import refine as refine_engine
+from . import usage as usage_mod
+from .engine import modelpick
 from .engine import studio as studio_engine
 from .engine.orchestrator import Orchestrator, required_members
 from .errors import FailureKind, explain
@@ -289,6 +291,11 @@ async def create_run(
     question: str = Form(...),
     providers: str = Form(""),
     files: list[UploadFile] = File(default=[]),
+    # "auto" (or absent) lets modelpick choose from the prompt itself; "opus"
+    # and "sonnet" are the person's own choice and are passed through
+    # untouched. Only sites with a model picker configured do anything with
+    # it -- see browser_base._ensure_model.
+    model: str = Form("auto"),
 ):
     q = question.strip()
     if not q:
@@ -313,6 +320,14 @@ async def create_run(
 
     run_id = uuid.uuid4().hex[:12]
     providers = build_providers(settings, provider_ids)
+
+    # Resolved HERE, once, rather than per provider: every member of one
+    # deliberation should be asked under the same conditions, and the console
+    # needs to be told which model the run is going out under before the first
+    # answer comes back.
+    pick = modelpick.resolve(
+        model, q, attachments=len(files or []), units=len(providers),
+    )
 
     # Stage attachments under this run's own directory so concurrent runs
     # never share a name, and so the whole set can be discarded together once
@@ -361,7 +376,7 @@ async def create_run(
             result = await Orchestrator(settings, db).run(
                 q, providers, run_id=run_id,
                 on_event=on_event, cancel=state["cancel"],
-                attachments=staged_paths,
+                attachments=staged_paths, model=pick.model,
             )
             payload = {
                 "type": "done",
@@ -391,6 +406,8 @@ async def create_run(
                         "latency_ms": a.latency_ms,
                         "chars": a.chars,
                         "completion_reason": a.completion_reason,
+                        "model_used": a.model_used,
+                        "model_note": a.model_note,
                     }
                     for a in result["answers"]
                 ],
@@ -410,7 +427,10 @@ async def create_run(
                 shutil.rmtree(run_uploads_dir, ignore_errors=True)
 
     asyncio.create_task(work())
-    return {"run_id": run_id}
+    # The pick travels with the run id so the console can name the model
+    # before the first answer lands -- and can show WHY, which is the only
+    # thing that makes an automatic choice arguable rather than mysterious.
+    return {"run_id": run_id, "model": pick.as_dict()}
 
 
 @app.get("/api/runs/{run_id}/stream")
@@ -637,6 +657,35 @@ async def cancel_studio_artifact(run_id: str, job_id: str):
         raise HTTPException(404, "unknown studio job")
     state["cancel"].set()
     return {"ok": True}
+
+
+@app.post("/api/model/suggest")
+async def suggest_model(
+    question: str = Form(""),
+    attachments: int = Form(0),
+    units: int = Form(1),
+):
+    """What modelpick would choose for this prompt.
+
+    Exists so a queue row can show the pick (and its reasoning) before the
+    prompt runs, WITHOUT the console owning a second copy of the heuristic.
+    Pure computation on text already in memory: no browser, no network, no
+    database.
+    """
+    return modelpick.suggest(
+        question, attachments=max(0, attachments), units=max(1, units)
+    ).as_dict()
+
+
+@app.get("/api/usage/claude")
+async def claude_usage(force: bool = False):
+    """Claude usage read from Claude Code's transcripts on this device.
+
+    See magi/usage.py for what this can and cannot say: real token totals and
+    the rolling 5-hour window, never a percentage of a limit that is not
+    knowable from here.
+    """
+    return usage_mod.TRACKER.read(force=force)
 
 
 @app.get("/api/runs/{run_id}/studio")

@@ -175,6 +175,26 @@ sites:
       - "button[aria-label*='Send' i]"
       - "button[type='submit']:has(svg)"
     send_key: Enter
+    # The per-message model picker.
+    #
+    # VERIFIED 2026-09-15 from a saved DOM of a logged-in session: the trigger
+    # is data-testid="model-selector-dropdown" and it carries the current
+    # model in its own aria-label ("Model: Sonnet 5 Medium"). That label is
+    # why MAGI can report which model answered without clicking anything --
+    # reading is free, opening a menu is not.
+    model_button:
+      - "button[data-testid='model-selector-dropdown']"
+      - "button[aria-label^='Model:']"
+    # UNVERIFIED, and unverifiable from a dump: the menu is rendered only once
+    # the trigger is clicked, so nothing about its items appears in a saved
+    # page. Written as containers to search rather than as exact item
+    # selectors, and the item is then matched BY ITS TEXT against the model
+    # alias -- "opus" finds "Claude Opus 4.5" whatever the version is, and
+    # keeps working when Anthropic renames one.
+    model_option:
+      - "[role='menuitem']"
+      - "[role='option']"
+      - "[role='menu'] button"
     # UNVERIFIED: Claude's composer keeps a hidden file input behind the
     # paperclip button.
     file_input:

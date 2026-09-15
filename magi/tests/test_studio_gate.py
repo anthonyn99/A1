@@ -26,7 +26,10 @@ APP = (REPO / "magi" / "app.py").read_text(encoding="utf-8")
 
 def _fn(name: str) -> str:
     i = PAGE.index(f"function {name}(")
-    depth, j = 0, PAGE.index("{", i)
+    # The body's brace, not a destructured parameter's: runOne takes
+    # ({question, units, ...}), and starting at the first "{" after the name
+    # extracts the parameter list and calls it the function.
+    depth, j = 0, PAGE.index("{", PAGE.index(") {", i))
     for k in range(j, len(PAGE)):
         if PAGE[k] == "{":
             depth += 1
@@ -53,7 +56,7 @@ def test_studio_is_gated_on_the_run_being_here():
 
 def test_the_flag_is_set_wherever_a_run_is_opened():
     assert "runLocal: false," in PAGE, "S.runLocal is gone"
-    for fn in ("start", "openRun"):
+    for fn in ("runOne", "openRun"):
         assert "S.runLocal = true;" in _fn(fn), f"{fn} does not mark the run local"
     assert "S.runLocal = false;" in _fn("cloudOpenRun"), (
         "a run opened from the cloud claims to be on this engine"

@@ -173,6 +173,109 @@ in parallel to go faster.
 
 ---
 
+## The prompt queue
+
+**Queue** beside Convene puts a prompt on a list instead of running it now.
+Each row carries its own units and its own Claude model, and the list runs one
+prompt at a time, in order.
+
+Technically this is a port of the ideas in Veda's Claude Queue, not of its
+code — that drives `claude.exe` through a PTY, this drives browser sessions —
+but three of its decisions carried over directly:
+
+- **Fractional ordering.** Rows sit on multiples of 1000, so moving one is one
+  number changing rather than a renumbering of its siblings. In a field that
+  syncs as a whole, that keeps a move to a small diff.
+- **A generation counter.** Pressing Pause then Run quickly would otherwise
+  start a *second* drain loop over the same list, interleaving two prompts into
+  one engine. Every loop iteration rechecks the generation after each `await`
+  and a superseded loop exits silently.
+- **Per-item model.** A queue row's model is fixed for that row, and an
+  explicit choice is never overridden.
+
+Where it deliberately differs: Claude Queue **stops the queue on any failure**,
+because its tasks are steps that build on each other and a failed step poisons
+the rest. MAGI's queued prompts are independent questions, so a failed one is
+marked failed and the queue carries on. The exception is a rate limit — the
+next prompt would only hit the same wall, so that stops the queue and says so.
+
+### What syncs, and what it costs
+
+The queue is a `queue` field on the same `dashboards/magi` document as the
+history index. That document already has a live listener, so a prompt added on
+the phone reaches the PC with **no extra read at all**, and an edit is one
+debounced write (700ms) to one field via `mergeFields`, which is also what lets
+a removed row actually disappear.
+
+**Attachment bytes never sync.** A row carries its files' names, sizes and
+types — enough for every device to show what is attached — while the files
+themselves stay on the device that picked them, in an in-memory map that is
+deliberately not part of the synced state. A device that does not hold the
+bytes says so on the row and runs the prompt without them, rather than
+silently asking the council about files it was never given.
+
+The queue is also mirrored to `localStorage`. That is not belt and braces: the
+console **served by the engine** (127.0.0.1) can never sign in to Firebase —
+App Check only issues tokens on a registered domain — and that is exactly the
+page you would sit at to run a queue.
+
+### One device at a time
+
+Draining is leased. A device writes `queueLease` with its id and a timestamp,
+refreshes it every 30s while it works, and clears it at the end. Another
+device sees the lease and says where the queue is running. A lease nobody has
+refreshed for 90 seconds is treated as abandoned, so a closed laptop cannot
+freeze the queue.
+
+## Which Claude model answers
+
+Claude's composer picks a model per message, and `magi/engine/modelpick.py`
+chooses one from the prompt unless you choose for it. The scoring is
+deliberately in **one place** — the engine — and the console asks for it over
+`POST /api/model/suggest` rather than keeping a second copy of the rules that
+could drift out of step with the one that actually runs.
+
+It scores length, whether the prompt asks for design/debugging/comparison/a
+report, whether it carries code or attachments, and how many units are
+deliberating. Two rules earned their place by being wrong first:
+
+- **Shortness only counts when nothing else does.** "Why does this deadlock?"
+  is eighty characters and squarely Opus work; the first cut discounted it for
+  being short. Shortness is also ignored when files are attached — the prompt
+  is short because the material is in the files.
+- **Mechanical work is mechanical at any length.** Four thousand words asking
+  for a spelling fix was reaching Opus purely on its size, so spelling, typos,
+  proofreading and formatting cap the score whatever the length.
+
+Every pick comes back with its reasoning attached (`reason`, `signals`), which
+is what the queue row shows on hover — an automatic choice nobody can see the
+basis of is one nobody can argue with.
+
+**What actually answered** is read back off the composer's own picker
+(`aria-label="Model: Sonnet 5 Medium"`, verified from a saved DOM) and shown on
+the unit's card. A model MAGI asked for and failed to select is never reported
+as though it had been used. Only Claude has a picker MAGI drives; the menu
+selectors are marked UNVERIFIED because a menu that only exists once clicked
+cannot be confirmed from a saved page — so failing to set the model degrades to
+"answered on whatever was selected, and said so", never to a failed run.
+
+## Claude usage
+
+`GET /api/usage/claude` reports the rolling 5-hour window, its tokens and
+messages, a per-model breakdown and the past week, read from Claude Code's own
+JSONL transcripts under `~/.claude/projects/`. Ported from Claude Queue's
+`usage.js`, including the incremental byte-offset reads that make a week of
+sessions cost one scan rather than one per poll (0.21s cold, 0.006s warm here).
+
+Two things it will not do:
+
+- **No percentage of a limit.** The account's limit is not in the data and
+  Anthropic publishes no figure, so the denominator would have to be invented.
+- **No claim to cover MAGI's own turns.** Those are ordinary browser chat
+  messages and nothing records them locally. It is the same subscription, so it
+  is the best signal available for where the window stands, and the card says
+  whose usage it is showing rather than letting you assume.
+
 ## Opening the console from somewhere else
 
 `magi.html` is at `https://anthonyn99.github.io/A1/magi.html`, and there is a

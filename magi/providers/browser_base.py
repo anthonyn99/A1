@@ -103,6 +103,97 @@ class BrowserProvider(Provider):
             )
         )
 
+    # ------------------------------------------------------------- the model
+
+    async def _read_model(self, page) -> str | None:
+        """What the composer's picker currently says, or None if it has none.
+
+        Free: the label is an attribute on the trigger button, so knowing which
+        model is about to answer costs no clicks and no risk. Claude writes it
+        as aria-label="Model: Sonnet 5 Medium".
+        """
+        site = self.site
+        if not site.model_button:
+            return None
+        btn = await resolve.resolve(page, site.model_button, timeout_ms=1500)
+        if btn is None:
+            return None
+        try:
+            label = await btn.locator.first.get_attribute("aria-label") or ""
+            if ":" in label:
+                return label.split(":", 1)[1].strip() or None
+            if label.strip():
+                return label.strip()
+            txt = (await btn.locator.first.inner_text()).strip()
+            return txt or None
+        except Exception:
+            return None
+
+    async def _ensure_model(self, page, want: str | None) -> tuple[str | None, str]:
+        """Put the composer on `want` if it is not there already.
+
+        Returns (label now showing, note). NEVER raises and never fails the
+        run: the menu selectors cannot be verified from a saved page (the menu
+        only exists once opened), so this has to degrade to "answered on
+        whatever was already selected, and said so" rather than taking down a
+        working council run over a renamed menu item.
+
+        Matching is by TEXT against the alias -- "opus" finds "Claude Opus
+        4.5" -- because the version numbers move and the aliases do not.
+        """
+        site = self.site
+        current = await self._read_model(page)
+        if not want or not site.model_button:
+            return current, ""
+        if current and want.lower() in current.lower():
+            return current, ""                     # already there; no clicking
+
+        btn = await resolve.resolve(page, site.model_button, timeout_ms=1500)
+        if btn is None:
+            return current, f"no model picker found, so {self.display_name} answered on its current model"
+
+        try:
+            await btn.locator.first.click()
+            await page.wait_for_timeout(350)
+        except Exception as e:
+            return current, f"could not open the model picker ({type(e).__name__})"
+
+        picked = False
+        for sel in site.model_option:
+            try:
+                # has-text is a substring match, case-insensitive when given a
+                # string, which is exactly the "find Opus whatever they call
+                # it this month" behaviour wanted here.
+                opt = page.locator(f"{sel}:has-text('{want}')")
+                if await opt.count() == 0:
+                    continue
+                await opt.first.click()
+                picked = True
+                break
+            except Exception:
+                continue
+
+        if not picked:
+            # Leave the page as it was found rather than with a menu hanging
+            # open over the composer.
+            try:
+                await page.keyboard.press("Escape")
+            except Exception:
+                pass
+            return current, (
+                f"{want} was not in {self.display_name}'s model menu, so it "
+                f"answered on {current or 'its current model'}"
+            )
+
+        await page.wait_for_timeout(350)
+        after = await self._read_model(page)
+        if after and want.lower() in after.lower():
+            return after, ""
+        return after or current, (
+            f"asked for {want} but the picker still reads "
+            f"{after or 'unknown'} -- answered on that"
+        )
+
     async def _save_artifacts(self, page, tag: str) -> list[str]:
         """Screenshot + DOM on failure, so a broken selector is diagnosable later."""
         if not self.settings.artifacts_on_failure:
@@ -255,6 +346,9 @@ class BrowserProvider(Provider):
                         f"anonymous visitors, so this would have answered on the free "
                         f"tier. Run `python -m magi login {self.id}`.",
                     )
+
+                # -- the model, before anything is composed ------------------
+                model_used, model_note = await self._ensure_model(page, ctx.model)
 
                 # -- attachments, before typing (matches how a person uses the
                 # composer: attach first, then write the message about them) --
@@ -439,6 +533,8 @@ class BrowserProvider(Provider):
                     latency_ms=int((time.monotonic() - t0) * 1000),
                     chars=len(cleaned),
                     provider_kind=self.kind,
+                    model_used=model_used,
+                    model_note=model_note,
                 )
 
         except ProviderError as e:

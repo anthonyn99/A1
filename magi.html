@@ -564,11 +564,14 @@ body {
   display: flex; flex-direction: column; align-items: center;
   gap: 7px; margin-bottom: 16px;
 }
-/* The chips are ONE object, not seven. Butted together they read as a single
-   segmented control -- which is what they are, a set you pick from -- where
-   gaps made them seven unrelated buttons that happened to be in a row. */
+/* A set you pick from, with the chips just clear of each other.
+   They were butted into one segmented control, which read as a single object
+   rather than as seven things you tick independently -- and a tick is exactly
+   what each one is. 4px: enough to separate them, not enough to scatter the
+   row into seven unrelated buttons. Both composer screens share this element,
+   so the deliberation and brainstorm rows change together. */
 #unitChips {
-  display: flex; flex-wrap: wrap; justify-content: center; gap: 0;
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 4px;
 }
 .members .label { color: var(--txm); font-size: 11px; letter-spacing: .2px; }
 
@@ -1231,6 +1234,104 @@ table.doctor, table.doctor code, .v-table, .studio-table,
   font-size: 9.5px; font-weight: 700; letter-spacing: 1.6px;
   text-transform: uppercase; color: var(--txd);
 }
+/* ── Claude usage ───────────────────────────────────────────────────────── */
+.usage-card { display: flex; flex-direction: column; gap: 6px; }
+.usage-hd { display: flex; align-items: center; gap: 8px; }
+.usage-title {
+  font-size: 9.5px; font-weight: 700; letter-spacing: 1.6px;
+  text-transform: uppercase; color: var(--txd);
+}
+.usage-big { font-size: 15px; font-weight: 600; color: var(--tx); }
+.usage-line { font-size: 11px; color: var(--txm); }
+.usage-week { padding-top: 4px; border-top: 1px solid var(--bdl); }
+.usage-empty { font-size: 11px; color: var(--txd); }
+.usage-bar {
+  height: 4px; border-radius: 999px; background: var(--s1); overflow: hidden;
+}
+.usage-fill { height: 100%; background: var(--ac); border-radius: 999px; }
+.usage-foot {
+  font-size: 10px; line-height: 1.5;
+  color: color-mix(in srgb, var(--txd) 75%, transparent);
+}
+
+/* ── the queue ──────────────────────────────────────────────────────────── */
+.queue { max-width: 720px; margin: 10px auto 0; }
+.queue-hd { display: flex; align-items: center; gap: 8px; }
+.queue-count {
+  color: var(--txm); font-weight: 600; letter-spacing: .6px;
+  text-transform: none; font-size: 10px;
+}
+.queue-act { padding: 3px 9px; font-size: 10px; }
+.q-row {
+  display: flex; align-items: flex-start; gap: 8px; padding: 8px 12px;
+  border-bottom: 1px solid var(--bdl);
+}
+.q-row:last-child { border-bottom: 0; }
+.q-row.running { background: color-mix(in srgb, var(--ac) 9%, transparent); }
+.q-row.done { opacity: .62; }
+.q-row.failed { background: color-mix(in srgb, var(--red) 8%, transparent); }
+.q-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+/* Two lines of prompt, never more: a queue is a list you scan, and one long
+   prompt should not push the next five off the screen. */
+.q-text {
+  font-size: 12.5px; color: var(--tx); line-height: 1.45;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.q-meta {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+  font-size: 10px; color: var(--txd);
+}
+.q-units { display: inline-flex; gap: 3px; }
+/* The units as their own colours, small -- the same identity the chips above
+   use, so a row reads as "these ones" without naming them. */
+.q-unit {
+  width: 7px; height: 7px; border-radius: 2px;
+  display: inline-block; flex: 0 0 auto;
+}
+.q-model {
+  border: 1px solid var(--bdl); background: transparent; color: var(--txm);
+  border-radius: 999px; padding: 1px 7px; font-size: 9.5px; font-weight: 700;
+  letter-spacing: .8px; text-transform: uppercase; cursor: pointer;
+  font-family: inherit;
+}
+.q-model:hover { border-color: var(--ac); color: var(--ac); }
+.q-model.opus { border-color: var(--acl); color: var(--acl); }
+.q-model.sonnet { border-color: var(--grn); color: var(--grn); }
+.q-att { color: var(--txm); }
+.q-err { color: var(--red); }
+.q-acts { display: flex; align-items: center; gap: 2px; flex: 0 0 auto; }
+.q-act {
+  width: 26px; height: 26px; border-radius: 7px; padding: 0;
+  background: transparent; border: 1px solid transparent; color: var(--txd);
+  cursor: pointer; font-family: inherit; font-size: 12px; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.q-act:hover { border-color: var(--bdl); color: var(--tx); }
+.q-act.danger:hover { border-color: var(--red); color: var(--red); }
+.q-act:disabled { opacity: .3; cursor: default; }
+.q-state {
+  font-size: 9px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+}
+.q-state.queued { color: var(--txd); }
+.q-state.running { color: var(--ac); }
+.q-state.done { color: var(--grn); }
+.q-state.failed { color: var(--red); }
+@media (max-width: 720px) {
+  .queue { max-width: none; }
+  .q-row { padding: 8px 10px; gap: 6px; }
+  .q-text { -webkit-line-clamp: 2; font-size: 12px; }
+}
+
+/* The model a run is going out under, next to the heading that names it. */
+.run-model {
+  display: inline-flex; align-items: center; gap: 5px; margin-left: 8px;
+  border: 1px solid var(--bdl); border-radius: 999px; padding: 1px 8px;
+  font-size: 9.5px; font-weight: 700; letter-spacing: .9px;
+  text-transform: uppercase; color: var(--txm); vertical-align: middle;
+}
+.run-model[hidden] { display: none; }
+
 .row {
   display: flex; align-items: center; gap: 10px; padding: 7px 12px;
   border-bottom: 1px solid var(--bd); cursor: pointer; font-size: 12px;
@@ -3128,6 +3229,8 @@ window._mailRelay = window._mailRelay || async function (res) {
         <button type="button" class="qbar-undo" id="btnUndo" title="Restore what you wrote" hidden><span data-ic="undo"></span> Undo</button>
         <span class="qbar-spacer"></span>
         <button class="btn active qbar-send" id="btnSend">Convene</button>
+        <button type="button" class="btn qbar-queue" id="btnQueue"
+                title="Add this prompt to the queue instead of running it now">Queue</button>
         <button type="button" class="qbar-grip" id="composerGrip"
                 title="Drag to resize. Click to expand or compress."
                 aria-label="Resize the prompt box"></button>
@@ -3145,6 +3248,19 @@ window._mailRelay = window._mailRelay || async function (res) {
          the screen it explains, out of the way of the box you came here to
          type in, and dim enough to read as a caption rather than as content.
          Brainstorm's description is the same element for the same reason. -->
+    <!-- The queue. Sits under the units because each row carries its own
+         selection: the row IS the prompt plus who is being asked. -->
+    <div class="drawer queue" id="queueDrawer" hidden>
+      <div class="drawer-hd queue-hd">
+        <span>Queue</span>
+        <span class="queue-count" id="queueCount"></span>
+        <span class="qbar-spacer"></span>
+        <button type="button" class="navitem queue-act" id="queueRunBtn"></button>
+        <button type="button" class="navitem queue-act" id="queueClearBtn">Clear finished</button>
+      </div>
+      <div id="queueRows"></div>
+    </div>
+
     <div class="view-note" id="councilNote" hidden>Every selected unit answers independently. The chairman writes the verdict.</div>
 
     <div class="drawer" id="historyDrawer" hidden>
@@ -3556,6 +3672,31 @@ const HOW = [
       "<b>The council has six members.</b> Copilot was a seventh until it was removed: it showed a sign-in wall with no reachable composer, so it took a browser and a timeout on every run and answered nothing.",
       "<b>Drag a chip to reorder them.</b> Click and drag with a mouse; press and hold, then drag, with a finger &mdash; so a plain swipe still scrolls the row and a plain tap still toggles the unit. The order follows you to your other devices.",
       "<b>The handle in the corner of the prompt box</b> resizes it: drag it for an exact height, or click it to expand and click again to compress. A height you set by hand is remembered and stops the box resizing itself as you type. Every prompt box here has one — the council&rsquo;s, Brainstorm&rsquo;s, and the reply box inside a round.",
+    ],
+  },
+  {
+    q: "The queue",
+    a: [
+      "<b>Queue</b> beside Convene puts a prompt in a list instead of running it now. Each row keeps its OWN units and its own Claude model, so a queue can ask three units one thing and one unit the next, and they run one at a time in order.",
+      "<b>It follows you between devices.</b> The queue rides the same document as your history, so a prompt added on your phone is on the PC without a single extra read. Attachment <i>names</i> travel; the files themselves stay on the device that picked them, and a row says so rather than quietly running a prompt without the file it refers to.",
+      "<b>Only one device runs it.</b> Whichever device presses Run takes a lease and refreshes it as it works; the others see that it is running elsewhere. A lease nobody refreshes for 90 seconds is treated as abandoned, so a closed laptop cannot freeze the queue.",
+      "<b>Pause stops after the prompt in flight</b> &mdash; never mid-deliberation. A failed prompt does not stop the rest, because queued prompts are separate questions rather than steps; the one exception is a rate limit, which stops the queue, since the next prompt would only hit the same wall.",
+    ],
+  },
+  {
+    q: "Which Claude model answers",
+    a: [
+      "Claude&rsquo;s composer lets you pick a model per message, and MAGI picks one for you unless you say otherwise. <b>Auto</b> reads the prompt: length, whether it asks for design, debugging, comparison or a report, whether it carries code or attachments, how many units are deliberating. Heavy prompts go to Opus, and everything else to Sonnet, which answers a short factual question just as well and leaves more of the window for the prompts that need the bigger model.",
+      "The pick always shows its reasoning &mdash; hover the model on a queue row. Click it to fix that row to <b>Opus</b> or <b>Sonnet</b> yourself; an explicit choice is never overridden.",
+      "What each unit ACTUALLY answered on is read back off the composer&rsquo;s own picker and shown on its card, so a model MAGI asked for and failed to select can never be reported as though it had been used. Only Claude has a picker MAGI drives; the others answer on whatever they are set to.",
+    ],
+  },
+  {
+    q: "Claude usage",
+    a: [
+      "The Accounts screen shows what Claude Code on the engine device has spent: the rolling 5-hour window, how much of it is left, tokens and messages in it, a breakdown by model, and the past week.",
+      "<b>It is not a percentage of your limit.</b> Anthropic publishes no limit figure and it is not in the data, so any percentage would be invented &mdash; and an invented number about how much you have left is worse than no number.",
+      "It also cannot see MAGI&rsquo;s own browser turns: those are ordinary chat messages that nothing records locally. It is the same subscription, so it is the best available signal of where your window stands, and the card says exactly whose usage it is showing.",
     ],
   },
   {
@@ -4660,6 +4801,12 @@ const S = {
    *  it, and asking it to build a new card returns 404 "unknown run".
    */
   runLocal: false,
+  // The prompt queue. One entry per prompt waiting to be put to the council,
+  // each carrying its OWN units and model -- see the QUEUE section.
+  queue: [],
+  queueRunning: false,
+  // What the engine resolved the current run's model to, and why.
+  runModel: null,
   // True while the council view is showing a run opened from History rather
   // than one you just started. The difference is not cosmetic: it decides
   // which sidebar row is lit and whether there is a way back to the list.
@@ -4736,7 +4883,12 @@ function updateNode(p) {
   d.hd.setAttribute("aria-expanded", String(isOpen));
   d.hd.title = isOpen ? "Collapse this unit" : "Show this unit's response";
 
-  d.meta.textContent = p.latency_ms ? `${(p.latency_ms / 1000).toFixed(1)}s` : p.chars ? `${p.chars}c` : "";
+  // The model that answered goes next to the time it took. Read from the
+  // composer's own picker (see browser_base._read_model), so it is what
+  // actually answered rather than what was asked for.
+  const took = p.latency_ms ? `${(p.latency_ms / 1000).toFixed(1)}s` : p.chars ? `${p.chars}c` : "";
+  d.meta.textContent = [p.model_used, took].filter(Boolean).join(" \u00b7 ");
+  d.meta.title = p.model_note || "";
   d.badge.className = `badge ${badgeClass(p.state, p.ok)}`;
   d.badge.textContent = STATE_LABEL[p.state] || p.state;
 
@@ -5274,6 +5426,9 @@ function updateEnabled() {
   $("btnSend").disabled = busy || !q || S.selected.size === 0 || !up;
   $("btnSend").textContent = S.running ? "Deliberating…" : "Convene";
   $("btnRefine").disabled = busy || !q || !up;
+  // Queueing needs a prompt and units, but NOT a reachable engine: building
+  // the list up on a phone while the PC is asleep is half the point of it.
+  $("btnQueue").disabled = !q || S.selected.size === 0;
   $("btnRefine").className = `qbar-refine ${S.refining ? "busy" : ""}`;
   const rico = $("btnRefine").querySelector(".qbar-refine-ico");
   // The same stroked arc the doctor spins. The old glyph was a dotted circle
@@ -5301,9 +5456,32 @@ function updateEnabled() {
 }
 
 /* ══ the run ═══════════════════════════════════════════════════════════════ */
+/** Convene with what is in the composer. */
 async function start() {
   const q = $("composer").value.trim();
   if (!q || S.running || S.selected.size === 0 || !online()) return;
+  const files = S.attachments.map((a) => a.file);
+  S.attachments = [];
+  renderChips();
+  await runOne({ question: q, units: [...S.selected], model: "auto", files });
+}
+
+/* One deliberation, start to finish.
+ *
+ *  Extracted from start() so the queue can run an item without pretending to
+ *  be a person typing: the prompt, the units, the model and the files are all
+ *  arguments now. start() passes exactly what it used to read from the
+ *  composer, so the single-run path behaves as it always did.
+ *
+ *  The promise settles when the run is OVER -- verdict, error, or a dropped
+ *  stream -- which is what lets the queue await one item before starting the
+ *  next. Nothing else in the console awaited a run before, so this is the
+ *  only reason it returns anything at all.
+ */
+function runOne({ question, units, model = "auto", files = [] }) {
+  const ids = (units && units.length ? units : [...S.selected]).filter(
+    (id) => S.providers.some((p) => p.id === id));
+  if (!question || !ids.length || !online()) return Promise.resolve(null);
 
   S.verdict = null;
   S.running = true;
@@ -5314,7 +5492,10 @@ async function start() {
   // reading gives way to the console.
   setView("council");
   S.settled = new Set();
-  S.panels = S.providers.filter((p) => S.selected.has(p.id)).map((p) => ({
+  // Built from the units THIS run was given, not from S.selected: a queue
+  // item carries its own selection, and overwriting the ticked set would
+  // rewrite a per-device preference every time the queue moved on.
+  S.panels = S.providers.filter((p) => ids.includes(p.id)).map((p) => ({
     id: p.id, display_name: p.display_name, accent: p.accent,
     state: "queued", text: "", chars: 0,
   }));
@@ -5324,23 +5505,33 @@ async function start() {
   updateEnabled();
   startProcessingTone();
 
+  return new Promise((settle) => {
+  let done = false;
+  const finish = (outcome) => { if (!done) { done = true; settle(outcome); } };
+
+  (async () => {
   const form = new FormData();
-  form.append("question", q);
-  form.append("providers", [...S.selected].join(","));
-  for (const a of S.attachments) form.append("files", a.file, a.file.name);
-  S.attachments = [];
-  renderChips();
+  form.append("question", question);
+  form.append("providers", ids.join(","));
+  form.append("model", model || "auto");
+  for (const f of files) form.append("files", f, f.name);
 
   let runId;
   try {
     const res = await fetch(`${link.api}/api/runs`, authed({ method: "POST", body: form }));
-    ({ run_id: runId } = await res.json());
+    const d = await res.json();
+    runId = d.run_id;
+    // What the engine resolved "auto" to, and why -- shown before the first
+    // answer lands, because by the time one has landed it is no longer news.
+    S.runModel = d.model || null;
   } catch {
     endRun();
     setErr("refineError", "Could not reach the engine to start the run.");
+    finish({ ok: false, error: "unreachable" });
     return;
   }
   S.runId = runId;
+  renderRunModel();
 
   const es = new EventSource(streamUrl(`/api/runs/${runId}/stream`));
   S.es = es;
@@ -5369,6 +5560,7 @@ async function start() {
           degraded_reason: a.degraded_reason, low_confidence: a.low_confidence,
           latency_ms: a.latency_ms, completion_reason: a.completion_reason,
           chars: a.chars,
+          model_used: a.model_used, model_note: a.model_note,
         });
         updateNode(p);
       }
@@ -5382,12 +5574,25 @@ async function start() {
       cloudPushRun(runId);
       // Slightly after the processing loop stops, so the two don't overlap.
       if (!S.muted) setTimeout(msg.synthesis_ok ? beepResolved : beepBlocked, 180);
+      renderRunModel();
+      finish({
+        ok: !!msg.synthesis_ok, runId, responded: msg.responded,
+        total: msg.total, answers: msg.answers || [],
+      });
     } else if (msg.type === "error") {
       endRun();
+      finish({ ok: false, error: msg.message || "the run failed" });
     }
     ackSettled();
   };
-  es.onerror = () => endRun();
+  es.onerror = () => {
+    endRun();
+    // A dropped stream is not a verdict. Settling here rather than hanging is
+    // what stops one lost connection from stalling a queue for ever.
+    finish({ ok: false, error: "the run stream dropped" });
+  };
+  })();
+  });
 }
 
 function endRun() {
@@ -5981,6 +6186,113 @@ function accStatus(a) {
   return { cls: "na", txt: "Not checked" };
 }
 
+/* ── Claude usage ─────────────────────────────────────────────────────────
+   Read from Claude Code's own transcripts on the engine device (see
+   magi/usage.py). Two things this deliberately does NOT do:
+
+     · no percentage of a limit. The account's limit is not in the data, so
+       the only way to show "63% used" would be to invent the denominator.
+     · no claim to cover MAGI's own browser turns. Anthropic records those
+       nowhere local, so the card says whose usage it is showing instead of
+       letting you assume it is everything.
+   ───────────────────────────────────────────────────────────────────────── */
+const USAGE = { data: null, at: 0, loading: false };
+
+/** Poll-free: fetched when the Accounts screen is opened, and no oftener
+ *  than once a minute, because nothing on it changes faster than that. */
+async function loadUsage(force) {
+  if (!online()) return;
+  if (!force && USAGE.data && Date.now() - USAGE.at < 60000) return;
+  if (USAGE.loading) return;
+  USAGE.loading = true;
+  try {
+    const r = await fetch(`${link.api}/api/usage/claude`, authed());
+    if (r.ok) { USAGE.data = await r.json(); USAGE.at = Date.now(); }
+  } catch {}
+  USAGE.loading = false;
+  if (S.view === "accounts") renderAccounts();
+}
+
+const fmtTok = (n) =>
+  n >= 1e9 ? `${(n / 1e9).toFixed(1)}B`
+  : n >= 1e6 ? `${(n / 1e6).toFixed(1)}M`
+  : n >= 1e3 ? `${(n / 1e3).toFixed(0)}k` : String(n || 0);
+
+/** A model id as the picker would name it: claude-opus-5 -> Opus 5. */
+const prettyModel = (m) => String(m || "")
+  .replace(/^claude-/, "")
+  .replace(/-(\d)/, " $1")
+  .replace(/\b\w/g, (c) => c.toUpperCase())
+  .replace(/-/g, " ")
+  .trim() || "unknown";
+
+function usageCard() {
+  const card = el("div", "acc-card usage-card");
+  const hd = el("div", "usage-hd");
+  hd.append(el("span", "usage-title", "Claude usage"));
+  const refresh = el("button", "q-act", "\u21BB");
+  refresh.type = "button";
+  refresh.title = "Read the transcripts again";
+  refresh.onclick = () => loadUsage(true);
+  hd.append(el("span", "qbar-spacer"), refresh);
+  card.append(hd);
+
+  const d = USAGE.data;
+  if (!d || !d.ok) {
+    card.append(el("div", "usage-empty",
+      USAGE.loading ? "Reading Claude Code's transcripts\u2026"
+                    : "No usage read yet."));
+    loadUsage();
+    return card;
+  }
+
+  const sess = d.session || {};
+  if (sess.active) {
+    const pct = Math.max(0, Math.min(100,
+      100 * (sess.elapsed_ms || 0) / (sess.window_ms || 1)));
+    const bar = el("div", "usage-bar");
+    const fill = el("div", "usage-fill");
+    // The bar is the WINDOW elapsing, not a quota filling. Labelled as time
+    // for that reason: a bar that looks like a fuel gauge would be read as
+    // one, and this system cannot know how full the tank is.
+    fill.style.width = `${pct}%`;
+    bar.append(fill);
+    card.append(bar);
+    const when = new Date(sess.reset_at);
+    const hrs = Math.floor((sess.ms_left || 0) / 3600000);
+    const mins = Math.round(((sess.ms_left || 0) % 3600000) / 60000);
+    card.append(el("div", "usage-line",
+      `5-hour window \u00b7 ${hrs}h ${mins}m left, resets ${when.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`));
+    card.append(el("div", "usage-big",
+      `${fmtTok(sess.tokens && sess.tokens.total)} tokens \u00b7 ${sess.messages || 0} messages`));
+    if (sess.tokens_per_hour) {
+      card.append(el("div", "usage-line", `${fmtTok(sess.tokens_per_hour)} per hour so far`));
+    }
+    for (const m of sess.models || []) {
+      card.append(el("div", "usage-line",
+        `${prettyModel(m.model)} \u00b7 ${fmtTok(m.tokens)}`));
+    }
+  } else {
+    card.append(el("div", "usage-big", "No window open"));
+    card.append(el("div", "usage-line",
+      sess.last_active
+        ? `Last message ${new Date(sess.last_active).toLocaleString([], { month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" })}`
+        : "Nothing in the last week."));
+  }
+
+  const wk = d.week || {};
+  card.append(el("div", "usage-line usage-week",
+    `Past week \u00b7 ${fmtTok(wk.tokens && wk.tokens.total)} tokens across ${wk.messages || 0} messages`));
+
+  // Said plainly, every time. Someone reading a usage number needs to know
+  // which usage it is before they act on it.
+  card.append(el("div", "usage-foot",
+    "Claude Code on the engine device \u2014 the same subscription MAGI's Claude "
+    + "unit uses. Anthropic publishes no limit figure, so nothing here is a "
+    + "percentage of one."));
+  return card;
+}
+
 function renderAccounts() {
   const box = $("accountsBody");
   if (!box) return;
@@ -5997,6 +6309,8 @@ function renderAccounts() {
     box.append(w);
     return;
   }
+
+  box.append(usageCard());
 
   const note = el("div", "acc-note");
   note.innerHTML =
@@ -6297,6 +6611,7 @@ function setView(v) {
   show($("histBackBar"), v === "council" && S.fromHistory && !studioOpen);
   show($("doctorDrawer"), v === "doctor");
   show($("accountsDrawer"), v === "accounts");
+  if (v === "accounts") loadUsage();
   // Brainstorm brings its own composer and its own reply box, so the council's
   // question bar is HIDDEN rather than stacked above a second textarea that
   // submits somewhere else.
@@ -6342,6 +6657,7 @@ function setView(v) {
        (S.panels.length === 0 || !gridMine) && v === "council"
        && !(S.verdict && gridMine) && !studioOpen);
   renderVerdict();
+  renderQueue();
   syncCouncilIdle();
   if (typeof renderStudioNav === "function") renderStudioNav();
   if (typeof renderBsNav === "function") renderBsNav();
@@ -8822,6 +9138,7 @@ const CLOUD = {
   tokenSeen: null,  // last API token seen in the cloud; null = not looked yet
   pruned: false,    // retention sweep already run this load -- see cloudPrune()
   folded: false,    // pre-maps pins/names carried over -- see cloudWatch()
+  lease: null,      // who is draining the queue right now, if anyone
 };
 
 // Keep the index doc small and bounded. A row is ~120 bytes, so 300 rows is
@@ -8974,6 +9291,567 @@ async function cloudPublishToken(tok, onlyIfEmpty) {
  *
  *  Local rows win on conflict: the PC has the authoritative SQLite copy and
  *  the cloud row is a summary of it. */
+/* ══ QUEUE ═════════════════════════════════════════════════════════════════
+   A list of prompts to put to the council one at a time, each with its own
+   units and its own Claude model.
+
+   ── Where it lives ───────────────────────────────────────────────────────
+   As a `queue` field on the SAME index document as everything else, which is
+   the cheapest possible sync: that document already has a live listener, so
+   another device's queue arrives with ZERO extra reads, and an edit here is
+   one debounced write to one field. A separate collection would have meant a
+   second listener and a read per item per device.
+
+   ── What is NOT synced ───────────────────────────────────────────────────
+   Attachment BYTES. A queued prompt carries its files' names, sizes and types
+   so every device can see what is attached, while the files themselves stay
+   on the device that picked them -- images in Firestore would be the one
+   thing here big enough to matter. A device that does not hold the bytes says
+   so on the row and runs the prompt without them rather than silently
+   dropping them.
+
+   ── One runner, never two ────────────────────────────────────────────────
+   Two devices draining one queue would interleave prompts into one engine, so
+   draining is leased: a device claims `queueLease`, refreshes it while it
+   works, and releases it at the end. A stale lease (nothing refreshed it for
+   LEASE_STALE_MS) is fair game, so a closed laptop cannot freeze the queue
+   for ever. Within one page a generation counter does the same job for the
+   Run/Pause button, which is Veda's fix for the same bug in Claude Queue:
+   pressing Pause then Run quickly would otherwise start a second drain loop
+   against the same list.
+   ════════════════════════════════════════════════════════════════════════ */
+
+const MAX_QUEUE = 100;
+/* Fractional ordering, from Claude Queue: new items land on multiples of
+   1000, so an insert or a move between two rows is one item's own number
+   changing and never a renumbering of its siblings. In a document that syncs
+   as one field that keeps a move to a single small diff. */
+const QUEUE_STEP = 1000;
+const LEASE_STALE_MS = 90000;
+const LEASE_REFRESH_MS = 30000;
+
+/** This browser, named well enough to say where a queue item came from. */
+const DEVICE_NAME = (() => {
+  try {
+    const ua = navigator.userAgent;
+    if (/iPhone|iPad/i.test(ua)) return "iPhone";
+    if (/Android/i.test(ua)) return "Android";
+    if (/Mac/i.test(ua)) return "Mac";
+    if (/Windows/i.test(ua)) return "PC";
+  } catch {}
+  return "device";
+})();
+
+/** A per-tab id, so a lease can tell "me" from "my other window". */
+const DEVICE_ID = (() => {
+  try {
+    let v = localStorage.getItem("magi.device");
+    if (!v) {
+      v = `${DEVICE_NAME}-${Math.random().toString(36).slice(2, 8)}`;
+      localStorage.setItem("magi.device", v);
+    }
+    return v;
+  } catch { return `${DEVICE_NAME}-temp`; }
+})();
+
+/* The actual File objects for queued attachments, by item id.
+   Deliberately NOT in S.queue: S.queue is what gets serialised to Firestore,
+   and a File cannot be and must not be. */
+const QUEUE_FILES = new Map();
+
+/** Generation counter: an older drain loop exits when it sees a newer one. */
+let _queueGen = 0;
+let _leaseTimer = 0;
+
+const queueSorted = () =>
+  [...S.queue].sort((a, b) => (a.order || 0) - (b.order || 0));
+
+const queuePending = () => queueSorted().filter((it) => it.status === "queued");
+
+function queueNextOrder() {
+  const last = queueSorted()[S.queue.length - 1];
+  return (last ? (last.order || 0) : 0) + QUEUE_STEP;
+}
+
+/** Add what is in the composer, with the units currently ticked. */
+function queueAdd() {
+  const q = $("composer").value.trim();
+  if (!q) return;
+  if (S.queue.length >= MAX_QUEUE) {
+    setErr("refineError", `The queue holds ${MAX_QUEUE} prompts.`);
+    return;
+  }
+  if (!S.selected.size) {
+    setErr("refineError", "Tick at least one unit for this prompt.");
+    return;
+  }
+  const id = `q${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  const files = S.attachments.map((a) => a.file);
+  if (files.length) QUEUE_FILES.set(id, files);
+  S.queue.push({
+    id,
+    q,
+    units: [...S.selected],
+    model: "auto",
+    // Names, sizes and types travel; the bytes do not. This is what another
+    // device shows instead of a file it cannot have.
+    atts: files.map((f) => ({ n: f.name, s: f.size, t: f.type || "" })),
+    status: "queued",
+    order: queueNextOrder(),
+    dev: DEVICE_NAME,
+    runId: null,
+    err: null,
+  });
+  // The composer is now empty because its contents are IN the queue -- a
+  // prompt left behind in the box after queueing it is the shape of a
+  // double-send.
+  setQuestion("");
+  S.attachments = [];
+  renderChips();
+  setErr("refineError", null);
+  queueChanged();
+  queueSuggest(id);
+}
+
+/** Ask the engine which model it would pick, and show it on the row.
+ *
+ *  The heuristic lives in the engine (magi/engine/modelpick.py) and is asked
+ *  for over HTTP rather than reimplemented here: two copies of a scoring
+ *  function in two languages drift, and the drift shows up as a row promising
+ *  Opus for a prompt the engine then sends to Sonnet. Best-effort -- with no
+ *  engine the row simply says "auto" until it runs.
+ */
+async function queueSuggest(id) {
+  const it = S.queue.find((x) => x.id === id);
+  if (!it || !online()) return;
+  try {
+    const form = new FormData();
+    form.append("question", it.q);
+    form.append("attachments", String((it.atts || []).length));
+    form.append("units", String((it.units || []).length || 1));
+    const r = await fetch(`${link.api}/api/model/suggest`,
+                          authed({ method: "POST", body: form }));
+    if (!r.ok) return;
+    const d = await r.json();
+    const cur = S.queue.find((x) => x.id === id);
+    if (!cur || cur.model !== "auto") return;   // they chose one meanwhile
+    cur.autoModel = d.model;
+    cur.autoWhy = [d.reason, ...(d.signals || [])].filter(Boolean).join(" \u00b7 ");
+    renderQueue();     // local only: a suggestion is not worth a write
+  } catch {}
+}
+
+function queueRemove(id) {
+  S.queue = S.queue.filter((x) => x.id !== id);
+  QUEUE_FILES.delete(id);
+  queueChanged();
+}
+
+/** Put a queued prompt back in the composer to work on. */
+function queueEdit(id) {
+  const it = S.queue.find((x) => x.id === id);
+  if (!it || it.status === "running") return;
+  setQuestion(it.q);
+  // Its units become the ticked set, because that is what editing it means.
+  const known = new Set(S.providers.map((p) => p.id));
+  S.selected = new Set((it.units || []).filter((u) => known.has(u)));
+  saveUnitPicks();
+  renderUnitChips();
+  const files = QUEUE_FILES.get(id) || [];
+  S.attachments = files.map((f, i) => ({ id: `e${i}-${Date.now()}`, file: f }));
+  renderChips();
+  queueRemove(id);
+  updateEnabled();
+}
+
+/** Auto -> Opus -> Sonnet -> Auto. Three states, one control. */
+function queueCycleModel(id) {
+  const it = S.queue.find((x) => x.id === id);
+  if (!it) return;
+  it.model = it.model === "auto" ? "opus" : it.model === "opus" ? "sonnet" : "auto";
+  queueChanged();
+  if (it.model === "auto") queueSuggest(id);
+}
+
+/** Move one row, by changing only its own order number. */
+function queueMove(id, dir) {
+  const rows = queueSorted();
+  const i = rows.findIndex((x) => x.id === id);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= rows.length) return;
+  const it = rows[i], other = rows[j];
+  const beyond = rows[j + dir];
+  it.order = beyond
+    ? ((other.order || 0) + (beyond.order || 0)) / 2
+    : (other.order || 0) + dir * QUEUE_STEP;
+  queueChanged();
+}
+
+function queueClearDone() {
+  for (const it of S.queue) if (it.status !== "queued" && it.status !== "running") QUEUE_FILES.delete(it.id);
+  S.queue = S.queue.filter((it) => it.status === "queued" || it.status === "running");
+  queueChanged();
+}
+
+/* Kept on this device as well as in the cloud.
+ *
+ *  Not belt and braces: the console SERVED BY THE ENGINE (127.0.0.1) can
+ *  never sign in to Firebase -- App Check only issues tokens on a registered
+ *  domain -- and that is exactly the page you would sit at to run a queue.
+ *  Without this the list would live in memory there and be gone on the next
+ *  refresh. Attachments are still not stored: File objects are not JSON, and
+ *  the names in `atts` are what a reload has to work from.
+ */
+const QUEUE_KEY = "magi.queue";
+
+function saveQueueLocal() {
+  try { localStorage.setItem(QUEUE_KEY, JSON.stringify(queueForCloud())); } catch {}
+}
+
+function loadQueueLocal() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(QUEUE_KEY) || "[]");
+    if (Array.isArray(raw)) {
+      // A prompt that was mid-run when the page closed is not running now.
+      S.queue = raw.map((it) => ({
+        ...it,
+        status: it.status === "running" ? "queued" : it.status,
+      }));
+    }
+  } catch {}
+}
+
+/** Every local change goes through here: redraw, then save, then sync. */
+function queueChanged() {
+  renderQueue();
+  updateEnabled();
+  saveQueueLocal();
+  cloudSaveQueue();
+}
+
+/* ── the runner ───────────────────────────────────────────────────────────*/
+
+async function queueStart() {
+  if (S.queueRunning || !queuePending().length) return;
+  if (!online()) {
+    setErr("refineError", "The engine device has to be awake to run the queue.");
+    return;
+  }
+  if (!(await leaseClaim())) return;
+  S.queueRunning = true;
+  const gen = ++_queueGen;
+  renderQueue();
+  _leaseTimer = setInterval(leaseRefresh, LEASE_REFRESH_MS);
+  try {
+    await queueDrain(gen);
+  } finally {
+    if (gen === _queueGen) {
+      S.queueRunning = false;
+      clearInterval(_leaseTimer);
+      await leaseRelease();
+      renderQueue();
+      updateEnabled();
+    }
+  }
+}
+
+function queueStop() {
+  // Bumping the generation is what actually stops it: the loop rechecks
+  // after every await and a superseded loop exits without touching anything.
+  _queueGen++;
+  S.queueRunning = false;
+  clearInterval(_leaseTimer);
+  leaseRelease();
+  renderQueue();
+  updateEnabled();
+}
+
+async function queueDrain(gen) {
+  for (;;) {
+    if (gen !== _queueGen) return;              // paused, or superseded
+    const it = queuePending()[0];
+    if (!it) return;
+    if (!online()) {
+      setErr("refineError", "Lost the engine; the queue is holding.");
+      return;
+    }
+
+    it.status = "running";
+    it.err = null;
+    queueChanged();
+
+    const files = QUEUE_FILES.get(it.id) || [];
+    // An item added on another device has its names but not its bytes. Said
+    // out loud on the row rather than quietly running a prompt that refers to
+    // files the council was never given.
+    const missing = (it.atts || []).length && !files.length;
+
+    let outcome = null;
+    try {
+      outcome = await runOne({
+        question: it.q, units: it.units, model: it.model || "auto", files,
+      });
+    } catch (e) {
+      outcome = { ok: false, error: (e && e.message) || "the run failed" };
+    }
+    if (gen !== _queueGen) return;
+
+    if (outcome && outcome.runId) {
+      it.runId = outcome.runId;
+      it.status = outcome.ok ? "done" : "failed";
+      if (!outcome.ok) {
+        it.err = outcome.error
+          || `${outcome.responded || 0} of ${outcome.total || 0} units answered`;
+      }
+      if (missing) {
+        it.err = [it.err, `attachments stayed on the ${it.dev}`]
+          .filter(Boolean).join(" \u00b7 ");
+      }
+    } else {
+      it.status = "failed";
+      it.err = (outcome && outcome.error) || "could not start";
+    }
+    queueChanged();
+
+    // A rate limit is the one failure worth stopping for: the next prompt
+    // would hit the same wall, and a queue that empties itself into a wall
+    // has thrown away the whole list. Everything else is per-prompt, so the
+    // queue carries on -- these are independent questions, not steps.
+    if (queueHitLimit(outcome)) {
+      setErr("refineError",
+             "Stopped: the council is rate limited. Resume when it resets.");
+      return;
+    }
+  }
+}
+
+/** Did every unit that spoke say "rate limited"? */
+function queueHitLimit(outcome) {
+  const answers = (outcome && outcome.answers) || [];
+  if (!answers.length) return false;
+  const limited = answers.filter((a) => a.failure === "FailureKind.RATE_LIMITED"
+                                     || /rate.?limit/i.test(a.failure || ""));
+  return limited.length > 0 && limited.length === answers.length;
+}
+
+/* ── the lease ────────────────────────────────────────────────────────────*/
+
+async function leaseClaim() {
+  if (!CLOUD.enabled) return true;             // local-only: nothing to race
+  if (!(await cloudInit())) return true;
+  const held = CLOUD.lease;
+  if (held && held.device !== DEVICE_ID
+      && Date.now() - (held.at || 0) < LEASE_STALE_MS) {
+    setErr("refineError", `The queue is already running on ${held.name || "another device"}.`);
+    return false;
+  }
+  await leaseWrite({ device: DEVICE_ID, name: DEVICE_NAME, at: Date.now() });
+  return true;
+}
+
+const leaseRefresh = () =>
+  leaseWrite({ device: DEVICE_ID, name: DEVICE_NAME, at: Date.now() });
+
+const leaseRelease = () => leaseWrite(null);
+
+async function leaseWrite(v) {
+  if (!CLOUD.enabled || !(await cloudInit())) return;
+  try {
+    await CLOUD.fs.setDoc(_indexDoc(), { queueLease: v },
+                          { mergeFields: ["queueLease"] });
+  } catch {}
+}
+
+/* ── the sync ─────────────────────────────────────────────────────────────*/
+
+let _queueT = 0;
+/** See _marksDirty: an edit in flight is not overwritten by an older copy. */
+let _queueDirty = false;
+
+function cloudSaveQueue() {
+  if (!CLOUD.enabled) return;
+  _queueDirty = true;
+  clearTimeout(_queueT);
+  setSync("saving");
+  // 700ms: long enough that typing a model choice twice is one write, short
+  // enough that a queue added on the phone is on the PC before you look up.
+  _queueT = setTimeout(async () => {
+    if (!(await cloudInit())) { setSync("off"); return; }
+    try {
+      await CLOUD.fs.setDoc(_indexDoc(), { queue: queueForCloud() },
+                            { mergeFields: ["queue"] });
+      _queueDirty = false;
+      setSync("saved");
+    } catch (e) {
+      setSync("error", _syncFail("saving the queue", e));
+    }
+  }, 700);
+}
+
+/** Only the fields worth carrying. Firestore rejects undefined outright, and
+ *  the local-only suggestion fields would be stale everywhere else anyway. */
+const queueForCloud = () => queueSorted().map((it) => ({
+  id: it.id,
+  q: it.q,
+  units: it.units || [],
+  model: it.model || "auto",
+  atts: (it.atts || []).map((a) => ({ n: a.n, s: a.s || 0, t: a.t || "" })),
+  status: it.status || "queued",
+  order: it.order || 0,
+  dev: it.dev || "",
+  runId: it.runId || null,
+  err: it.err || null,
+}));
+
+/** Apply an incoming queue. Returns true when anything actually changed. */
+function queueFromCloud(rows) {
+  if (!Array.isArray(rows)) return false;
+  const mine = JSON.stringify(queueForCloud());
+  const theirs = JSON.stringify(rows.map((it) => ({
+    id: it.id, q: it.q, units: it.units || [], model: it.model || "auto",
+    atts: (it.atts || []).map((a) => ({ n: a.n, s: a.s || 0, t: a.t || "" })),
+    status: it.status || "queued", order: it.order || 0, dev: it.dev || "",
+    runId: it.runId || null, err: it.err || null,
+  })));
+  if (mine === theirs) return false;
+  // Suggestions are per-device and not synced, so they are carried across
+  // rather than lost every time another device touches the queue.
+  const why = new Map(S.queue.map((it) => [it.id, [it.autoModel, it.autoWhy]]));
+  S.queue = rows.map((it) => {
+    const [autoModel, autoWhy] = why.get(it.id) || [];
+    return { ...it, autoModel, autoWhy };
+  });
+  return true;
+}
+
+/** The queue, drawn. */
+function renderQueue() {
+  const drawer = $("queueDrawer");
+  if (!drawer) return;
+  const rows = queueSorted();
+  // Shown only where it can be acted on: the council screen, and only when
+  // there is something in it.
+  show(drawer, rows.length > 0 && S.view === "council" && !(S.studio && S.studio.active));
+
+  const pending = queuePending().length;
+  const count = $("queueCount");
+  count.textContent = rows.length
+    ? `${pending} waiting${rows.length - pending ? ` \u00b7 ${rows.length - pending} finished` : ""}`
+    : "";
+
+  const runBtn = $("queueRunBtn");
+  runBtn.textContent = S.queueRunning ? "Pause" : "Run queue";
+  runBtn.disabled = !S.queueRunning && (!pending || !online());
+  runBtn.title = S.queueRunning
+    ? "Stop after the prompt that is running"
+    : !online() ? "The engine device has to be awake"
+    : "Put each prompt to the council in turn";
+  runBtn.onclick = () => (S.queueRunning ? queueStop() : queueStart());
+
+  const clearBtn = $("queueClearBtn");
+  const finished = rows.length - pending;
+  show(clearBtn, finished > 0);
+  clearBtn.onclick = queueClearDone;
+
+  const box = $("queueRows");
+  box.textContent = "";
+  for (const it of rows) {
+    const row = el("div", `q-row ${it.status}`);
+    const main = el("div", "q-main");
+    main.append(el("div", "q-text", it.q));
+
+    const meta = el("div", "q-meta");
+    meta.append(el("span", `q-state ${it.status}`, it.status));
+
+    // Who is being asked, as colour rather than seven names.
+    const units = el("span", "q-units");
+    for (const id of it.units || []) {
+      const p = S.providers.find((x) => x.id === id);
+      const dot = el("span", "q-unit");
+      dot.style.background = (p && p.accent) || "var(--bdl)";
+      dot.title = (p && p.display_name) || id;
+      units.append(dot);
+    }
+    if ((it.units || []).length) {
+      meta.append(units, el("span", "", `${it.units.length} unit${it.units.length === 1 ? "" : "s"}`));
+    }
+
+    // The model, as a three-state button. Auto shows what auto WOULD pick.
+    const m = it.model || "auto";
+    const label = m === "auto"
+      ? (it.autoModel ? `auto \u00b7 ${it.autoModel}` : "auto")
+      : m;
+    const mb = el("button", `q-model ${m === "auto" ? "" : m}`, label);
+    mb.type = "button";
+    mb.title = m === "auto"
+      ? `Claude's model, chosen from the prompt${it.autoWhy ? ": " + it.autoWhy : ""}. Click to fix it to Opus.`
+      : `Claude runs on ${m}. Click to change.`;
+    mb.onclick = () => queueCycleModel(it.id);
+    meta.append(mb);
+
+    // Attachments: names always, bytes only where they were added.
+    const atts = it.atts || [];
+    if (atts.length) {
+      const here = (QUEUE_FILES.get(it.id) || []).length > 0;
+      const names = atts.map((a) => a.n).join(", ");
+      const att = el("span", "q-att",
+        `\u{1F4C4} ${atts.length} file${atts.length === 1 ? "" : "s"}`);
+      att.title = here
+        ? names
+        : `${names}\n\nAdded on the ${it.dev || "other device"}; the files stay there, so this prompt runs without them.`;
+      if (!here) att.textContent += ` (on the ${it.dev || "other device"})`;
+      meta.append(att);
+    }
+
+    if (it.err) meta.append(el("span", "q-err", it.err));
+    main.append(meta);
+    row.append(main);
+
+    const acts = el("div", "q-acts");
+    const up = el("button", "q-act", "\u2191");
+    up.type = "button"; up.title = "Move up";
+    up.disabled = it.status !== "queued" || rows.indexOf(it) === 0;
+    up.onclick = () => queueMove(it.id, -1);
+    const down = el("button", "q-act", "\u2193");
+    down.type = "button"; down.title = "Move down";
+    down.disabled = it.status !== "queued" || rows.indexOf(it) === rows.length - 1;
+    down.onclick = () => queueMove(it.id, 1);
+    const edit = el("button", "q-act", "\u270E");
+    edit.type = "button"; edit.title = "Put this back in the composer";
+    edit.disabled = it.status === "running";
+    edit.onclick = () => queueEdit(it.id);
+    const open = el("button", "q-act", "\u2197");
+    open.type = "button"; open.title = "Open the deliberation this produced";
+    open.disabled = !it.runId;
+    open.onclick = () => it.runId && openRun(it.runId);
+    const del = el("button", "q-act danger", "\u2715");
+    del.type = "button"; del.title = "Remove from the queue";
+    del.disabled = it.status === "running";
+    del.onclick = () => queueRemove(it.id);
+    acts.append(up, down, edit, open, del);
+    row.append(acts);
+    box.append(row);
+  }
+}
+
+/** The model the current run is going out under, beside the heading. */
+function renderRunModel() {
+  let chip = $("runModel");
+  const hd = document.querySelector("#councilHd .council-title");
+  if (!chip && hd) {
+    chip = el("span", "run-model");
+    chip.id = "runModel";
+    hd.after(chip);
+  }
+  if (!chip) return;
+  const m = S.runModel;
+  show(chip, !!(m && m.model));
+  if (!m || !m.model) return;
+  chip.textContent = `Claude \u00b7 ${m.model}`;
+  chip.title = [m.reason, ...(m.signals || [])].filter(Boolean).join(" \u00b7 ")
+    || "the model this run asked Claude for";
+}
+
 /* ── retention ──────────────────────────────────────────────────────────────
    History keeps 30 days. Everything older goes, unless it is PINNED.
 
@@ -9366,6 +10244,18 @@ async function cloudWatch() {
           changed = true;
         }
         if (changed) { savePins(); mergeHistory(); }
+      }
+
+      /* The queue, and who is draining it.
+       *
+       *  Same document, same listener, so a prompt queued on the phone is on
+       *  the PC with no extra read -- and skipped while an edit made here is
+       *  still on its way up, for the reason _marksDirty exists: an older
+       *  copy arriving mid-edit would undo what was just typed.
+       */
+      CLOUD.lease = (d && d.queueLease) || null;
+      if (d && !_queueDirty && Array.isArray(d.queue)) {
+        if (queueFromCloud(d.queue)) { saveQueueLocal(); renderQueue(); }
       }
 
       // Session pins and names ride the same document as everything else,
@@ -10236,6 +11126,9 @@ paintIcons();
 applyMute();
 autosize();
 attachGrip($("composer"), $("composerGrip"), "composer", autosize);
+$("btnQueue").onclick = queueAdd;
+loadQueueLocal();
+renderQueue();
 updateEnabled();
 setView("council");
 // The lock paints first and covers everything; discovery and the engine
