@@ -68,14 +68,55 @@ t('a deliberate new-tab gesture is still honoured',
   'ctrl/cmd/middle-click should still open Instagram');
 t('the band card opens the player directly',
   blk.includes('S.playing=reel.shortcode'));
-t("it frames Instagram's own embed page", blk.includes("/embed/'"));
-t('the iframe is keyed by shortcode',
-  blk.includes('key:playingReel.shortcode'),
-  'a reused iframe keeps playing the PREVIOUS reel');
-t('autoplay and fullscreen are requested',
+t("it frames Instagram's own embed page", blk.includes("/embed/"),
+  'reels are DASH-segmented (79 paths for one 13s reel), so <video> is not an '
+  + 'option and the embed is the only way to play one');
+t('autoplay and muted are both requested',
+  blk.includes('autoplay=1&muted=1'),
+  'browsers only honour autoplay when muted; a feed needing a tap per reel '
+  + 'is not a feed');
+t('autoplay and fullscreen are permitted on the frame',
   /allow:'autoplay;[^']*fullscreen'/.test(blk));
-t('the player replaces the grid rather than stacking',
-  blk.includes('player||grid'));
+t('the feed replaces the grid rather than stacking',
+  blk.includes('feed||grid'));
+
+// ── The feed ────────────────────────────────────────────────────────────────
+// The ask was "that exact Instagram feel": no chrome, autoplay, loop, scroll to
+// the next reel. These pin the parts that deliver it.
+t('slides snap one reel at a time',
+  html.includes('scroll-snap-type:y mandatory') &&
+  html.includes('scroll-snap-stop:always'),
+  'without scroll-snap-stop a flick skips several reels');
+t("the embed's chrome is cropped by the slide, not styled away",
+  html.includes('--thrl-crop-top') && html.includes('overflow:hidden'),
+  'the header is inside a cross-origin document; only geometry can hide it');
+t('the crop values are measured, not guessed',
+  html.includes('--thrl-crop-top:54px') && html.includes('--thrl-video-ratio:1.2025'),
+  'MEASURED at 300/340/400px: header is 54px always, video is width x 1.2');
+t('the crop is width-relative, not a fixed footer offset',
+  html.includes('var(--thrl-video-ratio)'),
+  'a fixed offset was wrong at every width but the one it was guessed at');
+t('only a window of slides mounts an iframe',
+  blk.includes('MOUNT_RADIUS') && blk.includes('Math.abs(i - cur) <= MOUNT_RADIUS'),
+  'mounting ~1239 iframes would be thousands of requests to Instagram on open');
+t('unmounted slides still show their thumbnail',
+  blk.includes("className:'thrl-slide-idle'"),
+  'black gaps while scrolling ahead read as broken');
+t('the visible slide is tracked with IntersectionObserver',
+  blk.includes('IntersectionObserver') && blk.includes('threshold'),
+  'a scroll handler would run on every frame');
+t('the feed opens AT the chosen reel',
+  blk.includes('startIdx') && blk.includes('scrollIntoView'),
+  'it would otherwise always start at the top of the collection');
+t('the caption overlays the video rather than sitting above it',
+  html.includes('.thrl-slide-cap') && html.includes('pointer-events:none'),
+  'a bar above the video is the chrome this change removes');
+t('the feed panel drops its own scrolling',
+  html.includes('.thrl-panel.thrl-panel-feed') && blk.includes('thrl-panel-feed'),
+  'two nested scroll containers fight each other');
+t('the feed contains its overscroll',
+  html.includes('overscroll-behavior:contain'),
+  'reaching the end would scroll the dashboard behind it');
 t('playback stops when the panel closes',
   blk.includes('if(!open&&S.playing)'),
   'a mounted iframe in a closed tree keeps its audio going');

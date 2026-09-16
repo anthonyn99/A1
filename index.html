@@ -2984,57 +2984,148 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
 /* Says what a picked collection will do, since the page cannot fetch it. */
 .thrl-note{font-size:10.5px;line-height:1.4;color:var(--rl-ac);
   background:var(--rl-acg);border-radius:4px;padding:5px 7px;margin-bottom:7px;}
-/* ── In-panel player ───────────────────────────────────────
-   Reels play HERE, never in a new tab. Instagram's /embed/ page sends no
-   X-Frame-Options (verified against the live URL 2026-09-16), so it can be
-   framed; the CSP it does send governs what the embed loads, not who frames it.
-   The embed carries its own play button and audio controls, so there is nothing
-   to reimplement — and it is a separate origin, so this page is not exposed to
-   it and it cannot see anything here. */
-.thrl-player{
-  /* Black mat: IG's embed paints its own WHITE page before the video mounts,
-     which flashes hard against the band's dark palette. The mat means that
-     moment reads as a framed letterbox rather than a broken panel. */
-  background:#000;border-radius:6px;overflow:hidden;margin-bottom:8px;
+/* ── The feed ──────────────────────────────────────────────
+   A vertical, one-reel-per-screen feed: scroll and the next reel snaps into
+   place, exactly like Instagram's own. Built from framed /embed/ pages.
+
+   WHY AN IFRAME AND NOT <video>
+   MEASURED 2026-09-16: Instagram serves reels as DASH segments (79 distinct
+   media paths for ONE 13-second reel, 818 bytes each) and the <video> element's
+   src is a `blob:` URL from MSE. There is no single mp4 to point a plain player
+   at, so the embed is the only way to play a reel at all. That decides the rest
+   of this design.
+
+   HOW THE CHROME IS REMOVED
+   The embed's white header ("View profile", username, "Original audio") lives
+   INSIDE a cross-origin document, so no CSS or JS of ours can touch it. What we
+   do control is the iframe's geometry: each slide is a clipping box, and the
+   iframe is oversized and offset so the header and footer fall outside it.
+   Verified visually — the bar is gone and only the video remains. The offsets
+   are deliberately in one place (--thrl-crop-top / --thrl-crop-extra) because
+   they are the one thing an Instagram redesign will move. */
+.thrl-feed{
+  /* Full-bleed inside the panel: the panel's own padding is cancelled so a
+     slide is edge to edge, like a phone screen. */
+  margin:-10px;
+  height:min(78vh,720px);
+  overflow-y:auto;overflow-x:hidden;
+  scroll-snap-type:y mandatory;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;   /* don't scroll the page behind at the ends */
+  background:#000;
+  /* Hide the scrollbar: a feed does not show one. */
+  scrollbar-width:none;
 }
-.thrl-player iframe{
-  display:block;width:100%;
-  /* 9:16 is a reel's shape. Letterboxing beats cropping: the subject of a reel
-     is usually dead centre and a crop cuts the caption burn-ins. */
-  aspect-ratio:9/16;max-height:52vh;
-  border:0;background:#000;color-scheme:dark;
+.thrl-feed::-webkit-scrollbar{display:none;}
+
+.thrl-slide{
+  position:relative;
+  height:min(78vh,720px);
+  scroll-snap-align:start;
+  scroll-snap-stop:always;       /* one reel per flick, never two */
+  overflow:hidden;               /* THE clip that removes the embed's chrome */
+  background:#000;
 }
-.thrl-player-bar{
-  display:flex;align-items:center;gap:10px;min-width:0;
-  padding:7px 8px;background:var(--rl-s1);
+/* The crop. MEASURED against the live embed at 300/340/400px (2026-09-16):
+     header  = 54px ALWAYS, independent of width
+     video   = width x 1.2
+     footer  = whatever is left over
+   So the iframe is sized to exactly header+video and shifted up by the header:
+   the footer is then below the iframe's own height and never renders at all,
+   and the video fills the slide. Width-relative, because a fixed footer offset
+   was wrong at every width but the one it was guessed at. These two numbers are
+   the only thing an IG redesign moves. */
+.thrl-slide{--thrl-crop-top:54px;--thrl-video-ratio:1.2025;}
+.thrl-slide iframe{
+  position:absolute;
+  top:calc(var(--thrl-crop-top) * -1);
+  left:50%;
+  /* MEASURED at 400px on three different reels: the media box is ALWAYS
+     54px..(54 + width x 1.2025) and the footer begins at exactly its bottom
+     edge (gap = 0). So the frame is made wide enough that its own media box is
+     at least as tall as the slide, and exactly that tall — no more.
+     Overshooting is what kept the footer visible: a taller frame pushes the
+     video's bottom (and therefore the footer) DOWN into the slide. */
+  width:calc((100% + var(--thrl-crop-top)) / var(--thrl-video-ratio));
+  min-width:100%;
+  transform:translateX(-50%);
+  /* header + exactly one media box, computed from the frame's OWN width. */
+  height:calc(var(--thrl-crop-top) +
+              ((100% + var(--thrl-crop-top)) / var(--thrl-video-ratio))
+              * var(--thrl-video-ratio));
+  border:0;display:block;background:#000;
 }
-.thrl-player-cap{
-  /* min-width:0 is load-bearing in a flex row: without it a long caption
-     refuses to shrink and shoves the controls off the edge. */
-  flex:1 1 auto;min-width:0;
-  font-size:11px;line-height:1.35;color:var(--rl-tx);word-break:break-word;
-  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+/* ── The footer mask ──────────────────────────────────────────────────────
+   Three separate geometry attempts failed to crop IG's footer ("View more on
+   Instagram", the like/comment/share row) reliably, because the embed's
+   internal layout is not constant: a 9:16 reel and a 1:1 reel put the media
+   box — and therefore the footer — at different offsets in the same frame. Any
+   single ratio is wrong for some reels.
+   So the footer is COVERED instead of cropped. The host page cannot restyle a
+   cross-origin document, but it can absolutely paint over it, and a mask is
+   exact where a computed offset is a guess. It sits under the caption and above
+   the video, and takes no pointer events so a tap still reaches the player. */
+.thrl-slide::after{
+  content:'';position:absolute;left:0;right:0;bottom:0;
+  /* Comfortably taller than the tallest footer measured (154px at 1425px wide,
+     ~90px at panel width) without eating into a 9:16 video. */
+  height:104px;
+  background:#000;z-index:1;pointer-events:none;
 }
+/* Placeholder until a slide is near the viewport: mounting 1239 iframes at once
+   would be thousands of requests, so only a window of slides is real. */
+.thrl-slide-idle{
+  position:absolute;inset:0;
+  display:flex;align-items:center;justify-content:center;
+  background:#000;color:var(--rl-txm);font-size:11px;padding:16px;
+  text-align:center;
+}
+.thrl-slide-idle img{
+  position:absolute;inset:0;width:100%;height:100%;
+  object-fit:cover;opacity:.45;
+}
+.thrl-slide-idle span{position:relative;z-index:1;}
+
+/* Caption overlaid on the video, like IG's own — not a bar above it. */
+.thrl-slide-cap{
+  position:absolute;left:0;right:0;bottom:0;z-index:2;   /* above the mask */
+  padding:26px 12px 12px;
+  font-size:11.5px;line-height:1.4;color:#fff;
+  background:linear-gradient(to top,rgba(0,0,0,.82),rgba(0,0,0,.45) 55%,transparent);
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
+  pointer-events:none;          /* never steal a tap from the video */
+}
+/* Feed chrome: back to the grid, and the escape hatch. Floating, minimal. */
+.thrl-feed-bar{
+  position:absolute;top:0;left:0;right:0;z-index:4;
+  display:flex;align-items:center;gap:8px;
+  padding:8px 10px;
+  background:linear-gradient(to bottom,rgba(0,0,0,.6),transparent);
+  pointer-events:none;           /* the bar itself is not a hit target */
+}
+.thrl-feed-bar > *{pointer-events:auto;}
+.thrl-feed-bar .thrl-spacer{flex:1 1 auto;}
 .thrl-back{
-  flex:0 0 auto;background:transparent;border:1px solid var(--rl-bd);
-  color:var(--rl-txd);border-radius:4px;cursor:pointer;
-  font:inherit;font-size:10.5px;padding:3px 8px;white-space:nowrap;
+  background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.22);
+  color:#fff;border-radius:999px;cursor:pointer;
+  font:inherit;font-size:10.5px;padding:4px 10px;white-space:nowrap;
+  backdrop-filter:blur(4px);
 }
-.thrl-back:hover{color:var(--rl-ac);border-color:var(--rl-ac);}
+.thrl-back:hover{border-color:#fff;}
 .thrl-back:focus-visible{outline:2px solid var(--rl-ac);outline-offset:2px;}
-/* The open-on-Instagram escape hatch — secondary now that playing in place is
-   the primary action. !important on colour because the app's global anchor
-   styling otherwise paints it default browser blue, which looks like a bug. */
 .thrl-ext{
-  flex:0 0 auto;color:var(--rl-txm) !important;font-size:10.5px;
-  text-decoration:none !important;white-space:nowrap;
-  border-bottom:1px solid transparent;
+  color:#fff !important;font-size:10.5px;text-decoration:none !important;
+  white-space:nowrap;background:rgba(0,0,0,.55);border-radius:999px;
+  padding:4px 10px;border:1px solid rgba(255,255,255,.22);
+  backdrop-filter:blur(4px);
 }
-.thrl-ext:hover{color:var(--rl-ac) !important;border-bottom-color:var(--rl-ac);}
+.thrl-ext:hover{border-color:#fff;}
 .thrl-ext:focus-visible{outline:2px solid var(--rl-ac);outline-offset:2px;}
-/* Phones: the panel is a bottom sheet, so give the video more of the height. */
+/* A panel showing the feed drops its own padding and scrolling: the feed owns
+   both, or there would be two nested scroll containers fighting each other. */
+.thrl-panel.thrl-panel-feed{padding:10px;overflow:hidden;}
 @media (max-width:640px){
-  .thrl-player iframe{max-height:58vh;}
+  .thrl-feed,.thrl-slide{height:calc(100dvh - env(safe-area-inset-top,0px) - 96px);}
 }
 .thrl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:6px;}
 .thrl-cell{
@@ -3309,6 +3400,50 @@ function Widget(props){
   // Nothing harvested yet. Says what to do rather than sitting blank, but stays
   // one quiet line — this is the normal state before the first harvest, not an
   // error worth shouting about.
+  // ── Feed state ──────────────────────────────────────────────────────────
+  // DECLARED HERE, above every early return: hooks must run in the same order
+  // on every render. These used to sit next to the feed markup further down,
+  // which meant the empty-reels render ran fewer hooks than a populated one
+  // and React threw, removing the entire card from the DOM.
+  var MOUNT_RADIUS = 1;   // current, one above, one below (3 iframes at most)
+
+  var startIdx = 0;
+  if (s.playing) {
+    for (var pi = 0; pi < s.reels.length; pi++) {
+      if (s.reels[pi] && s.reels[pi].shortcode === s.playing) { startIdx = pi; break; }
+    }
+  }
+  var fc = useState(0), cur = fc[0], setCur = fc[1];
+  var feedRef = useRef(null);
+
+  // Track which slide is centred, so the mount window follows the scroll.
+  // IntersectionObserver rather than a scroll handler: it reports the slide
+  // actually on screen without running on every frame.
+  useEffect(function(){
+    if (!s.playing || !feedRef.current || !window.IntersectionObserver) return;
+    var root = feedRef.current;
+    var io = new IntersectionObserver(function(entries){
+      for (var i = 0; i < entries.length; i++) {
+        if (entries[i].isIntersecting && entries[i].intersectionRatio > 0.6) {
+          var n = parseInt(entries[i].target.getAttribute('data-i'), 10);
+          if (!isNaN(n)) setCur(n);
+        }
+      }
+    }, { root: root, threshold: [0.6] });
+    var slides = root.querySelectorAll('.thrl-slide');
+    for (var j = 0; j < slides.length; j++) io.observe(slides[j]);
+    return function(){ io.disconnect(); };
+  }, [s.playing, s.reels.length]);
+
+  // Open AT the chosen reel rather than at the top of the collection.
+  useEffect(function(){
+    if (!s.playing) return;
+    setCur(startIdx);
+    var el = feedRef.current &&
+             feedRef.current.querySelector('[data-i="' + startIdx + '"]');
+    if (el) el.scrollIntoView({ block: 'start' });
+  }, [s.playing]);
+
   // ── Empty state ─────────────────────────────────────────────────────────
   // Nothing published yet. This page CANNOT fix that: the harvest is a command
   // on a PC, because a Worker cannot drive a browser and reading a saved
@@ -3371,38 +3506,60 @@ function Widget(props){
   var scrim=h('div',{key:'s',className:'thrl-scrim',role:'presentation',
     onMouseDown:function(){setOpen(false);}});
 
-  // ── The player ──────────────────────────────────────────────────────────
-  // Instagram's own /embed/ page, framed. Verified 2026-09-16: that page sends
-  // NO X-Frame-Options, so it can be embedded; the CSP it does send governs
-  // what the embed loads, not who may frame it. It carries its own play button
-  // and audio controls, so there is nothing to reimplement, and it is a
-  // separate origin so none of this page is exposed to it.
+  // ── The feed ──────────────────────────────────────────────
+  // One reel per screen, scroll for the next, snapping as it goes. State and
+  // effects for this live above the early return (see "Feed state").
   //
-  // `key` is the shortcode so React REPLACES the iframe when the reel changes
-  // rather than reusing it — a reused iframe keeps playing the previous video.
-  var playingReel = s.playing
-    ? (s.reels.filter(function(r){return r.shortcode===s.playing;})[0]||null)
+  // WHY AN IFRAME AND NOT <video>: measured 2026-09-16, Instagram serves reels
+  // as DASH segments — 79 distinct media paths for one 13-second reel, 818
+  // bytes each — and the <video> src is a blob: from MSE. There is no single
+  // mp4 to play, so the embed is the only option; cropping its chrome is
+  // therefore the only way to get a clean frame.
+  var feed = s.playing
+    ? h('div',{key:'feed',className:'thrl-feed',ref:feedRef},
+        s.reels.map(function(r,i){
+          var near = Math.abs(i - cur) <= MOUNT_RADIUS;
+          var u = thumbUrl(r);
+          return h('div',{key:r.shortcode,className:'thrl-slide','data-i':i},
+            near
+              // autoplay=1 and muted=1: browsers only honour autoplay when the
+              // video is muted, and a feed that needs a tap per reel is not a
+              // feed. The embed loops on its own.
+              ? h('iframe',{key:'f',
+                  src:'https://www.instagram.com/reel/'+r.shortcode+
+                      '/embed/?autoplay=1&muted=1',
+                  scrolling:'no',frameBorder:'0',loading:'lazy',
+                  allow:'autoplay; encrypted-media; picture-in-picture; fullscreen',
+                  title:r.caption||('Reel '+r.shortcode)})
+              // Not mounted yet: show the cached thumbnail so scrolling ahead
+              // looks like content rather than black gaps.
+              : h('div',{key:'i',className:'thrl-slide-idle'},
+                  (u&&!imgErr[r.shortcode])
+                    ? h('img',{key:'t',src:u,alt:'',loading:'lazy',decoding:'async',
+                        onError:function(){
+                          var n={};n[r.shortcode]=true;
+                          setImgErr(Object.assign({},imgErr,n));
+                        }})
+                    : null,
+                  h('span',{key:'s'},'\u2026')),
+            r.caption
+              ? h('div',{key:'c',className:'thrl-slide-cap'},r.caption)
+              : null);
+        }))
     : null;
 
-  var player = playingReel
-    ? h('div',{key:'pl',className:'thrl-player'},
-        h('div',{key:'bar',className:'thrl-player-bar'},
-          h('button',{key:'b',type:'button',className:'thrl-back',
-            'data-noglow':true,title:'Back to all reels',
-            onClick:function(e){e.stopPropagation();S.playing='';emit();}},
-            '‹ All'),
-          h('span',{key:'c',className:'thrl-player-cap'},
-            playingReel.caption||playingReel.shortcode),
-          h('a',{key:'x',className:'thrl-ext',href:playingReel.url,
-            target:'_blank',rel:'noopener noreferrer',
-            title:'Open on Instagram'},'Instagram ↗')),
-        h('iframe',{key:playingReel.shortcode,
-          src:'https://www.instagram.com/reel/'+playingReel.shortcode+'/embed/',
-          loading:'lazy',scrolling:'no',frameBorder:'0',
-          // autoplay is requested but Instagram decides; the embed's own play
-          // button is always present, so a refusal is not a dead end.
-          allow:'autoplay; encrypted-media; picture-in-picture; fullscreen',
-          title:playingReel.caption||('Reel '+playingReel.shortcode)}))
+  // Floating controls over the feed, rather than a bar above the video.
+  var feedBar = s.playing
+    ? h('div',{key:'fb',className:'thrl-feed-bar'},
+        h('button',{key:'b',type:'button',className:'thrl-back',
+          'data-noglow':true,title:'Back to all reels',
+          onClick:function(e){e.stopPropagation();S.playing='';emit();}},
+          '\u2039 All'),
+        h('span',{key:'sp',className:'thrl-spacer'}),
+        h('a',{key:'x',className:'thrl-ext',
+          href:(s.reels[cur]||{}).url||'https://www.instagram.com/',
+          target:'_blank',rel:'noopener noreferrer',
+          title:'Open on Instagram'},'Instagram \u2197'))
     : null;
 
   var grid=h('div',{key:'g',className:'thrl-grid'},
@@ -3474,12 +3631,17 @@ function Widget(props){
   return h('div',{className:'thrl thrl-open',style:vars,ref:box,
       'data-modal-open':'1'},
     compact,next,scrim,
-    h('div',{key:'p',ref:panelRef,className:'thrl-panel',role:'dialog',
-      'aria-label':'Saved reels'},head,
-      s.syncMsg?h('div',{key:'n',className:'thrl-note'},s.syncMsg):null,
-      // The player replaces the grid while a reel is playing; "All" brings the
-      // grid back. Two views, one panel, no navigation anywhere.
-      player||grid));
+    h('div',{key:'p',ref:panelRef,
+      className:'thrl-panel'+(s.playing?' thrl-panel-feed':''),role:'dialog',
+      'aria-label':'Saved reels'},
+      // The feed is full-bleed: its own controls float over the video, so the
+      // panel header would only steal height from it. The grid keeps the
+      // header, the picker and the freshness line.
+      s.playing ? null : head,
+      s.playing ? null
+        : (s.syncMsg?h('div',{key:'n',className:'thrl-note'},s.syncMsg):null),
+      feedBar,
+      feed||grid));
 }
 
 window.THRL={
