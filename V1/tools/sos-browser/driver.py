@@ -234,6 +234,10 @@ class ReelsSite:
     stall_polls: int = 3
     poll_ms: int = 1200
     nav_timeout_s: int = 60
+    # Bounds for the loading-wait branch and for the harvest as a whole. Both
+    # exist because `max_scrolls` does not bound a branch that never scrolls.
+    max_waits: int = 12
+    harvest_timeout_s: int = 600
 
 
 def load_reels_site(site_id: str) -> ReelsSite:
@@ -1858,6 +1862,7 @@ async def _harvest_reels(page, site: ReelsSite) -> dict:
     stalled = 0
     last_count = -1
     stopped = "exhausted"
+    deadline = time.monotonic() + site.harvest_timeout_s
 
     grid = await resolve(page, site.grid_container, timeout_ms=8000)
     if not grid:
@@ -1869,14 +1874,30 @@ async def _harvest_reels(page, site: ReelsSite) -> dict:
             f"reels.{site.id}.grid_container. Artifacts: {path}")
 
     while scrolls < site.max_scrolls:
+        # A wall clock over the whole harvest. `max_scrolls` alone is not a
+        # bound: any branch that continues without scrolling escapes it, which
+        # is precisely the hang this loop shipped with. A deadline holds
+        # regardless of which branch misbehaves.
+        if time.monotonic() > deadline:
+            stopped = "harvest_timeout"
+            break
+
         await check_blockers(page, site, pre_send=False)
 
-        # 1. Still loading outranks every other verdict.
-        if await any_matches(page, site.loading_more):
-            await asyncio.sleep(site.poll_ms / 1000)
-            continue
-
-        # 2. Read whatever has mounted.
+        # 1. Read whatever has mounted.
+        #
+        #    THERE IS NO "STILL LOADING" GATE, deliberately. Measured against
+        #    the live saved grid: IG's infinite-scroll sentinel is permanent
+        #    (count=1 forever), is never CSS-hidden (is_visible()=True forever)
+        #    and sits far below the fold (top=3043, moving as you scroll). No
+        #    form of that check can separate "fetching" from "that element
+        #    exists", and two harvests returned 0 reels proving it.
+        #
+        #    GROWTH is the signal, and it is sufficient: while IG is fetching,
+        #    the tile count rises; `stall_polls` consecutive polls with no new
+        #    tiles is the only honest end-of-feed verdict. `stall_polls` is what
+        #    absorbs a slow fetch — each poll costs one scroll-pause, so a page
+        #    that is merely slow gets several beats before it is called done.
         for sel in site.reel_link or []:
             try:
                 anchors = page.locator(sel)
@@ -1907,14 +1928,14 @@ async def _harvest_reels(page, site: ReelsSite) -> dict:
             except Exception:
                 continue
 
-        # 3. Growth check. No growth and nothing loading == the end.
+        # 2. Growth check — the end-of-feed verdict. See above.
         count = len(seen)
         stalled = stalled + 1 if count == last_count else 0
         last_count = count
         if stalled >= site.stall_polls:
             break
 
-        # 4. Scroll on, at human pace.
+        # 3. Scroll on, at human pace.
         try:
             await page.mouse.wheel(0, random.randint(600, 1100))
         except Exception:

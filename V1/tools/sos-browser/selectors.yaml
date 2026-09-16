@@ -505,6 +505,14 @@ reels:
     # feed and the harvest returns a truncated list that looks complete. This is
     # the same ordering bug that cost a deck run — see the readiness-vs-
     # generating note in the decks section above.
+    # UNUSED — kept as the record of a dead end, so nobody re-adds the gate
+    # believing it was never tried. MEASURED against the live saved grid
+    # (2026-09-16): this sentinel is PERMANENT (count=1 always), is never
+    # CSS-hidden (is_visible()=True always) and sits far below the fold
+    # (top=3043, moving as you scroll). Presence, CSS visibility and viewport
+    # position all fail to separate "fetching the next page" from "this element
+    # exists" — two harvests returned 0 reels proving it. The harvest uses
+    # GROWTH instead (stall_polls). Do not reinstate a loading gate here.
     loading_more:
       - "main svg[aria-label='Loading...']"
       - "main [data-visualcompletion='loading-state']"
@@ -539,6 +547,20 @@ reels:
     scroll_pause_s: [1.5, 4.0]     # between scroll steps
     settle_pause_s: [0.8, 2.0]     # after navigation, before reading
     max_scrolls: 40                # hard cap per run — bounds a runaway feed
-    stall_polls: 3                 # unchanged tile count this many times = dead
+    # Growth is now the ONLY end-of-feed signal (the loading gate was removed —
+    # see the loading_more note above), so this number alone decides "done".
+    # Each poll costs one scroll_pause (1.5-4s), so 5 buys ~7.5-20s of patience
+    # for a slow fetch before the feed is called exhausted. Too low truncates a
+    # collection silently; too high just costs time on the last page.
+    stall_polls: 5
     poll_ms: 1200                  # slow on purpose; fast polling reads as automation
     nav_timeout_s: 60
+    # max_scrolls does NOT bound a branch that never scrolls. IG keeps a loading
+    # element in the DOM, and an unbounded wait on it hung a real run for 23.7
+    # minutes (2026-09-16) — alive, holding the lock, writing nothing. These are
+    # the two bounds that make that impossible:
+    # Retained but UNUSED: the loading gate it bounded was removed as
+    # unworkable on this site. Kept so a re-added gate inherits a bound rather
+    # than shipping unbounded again.
+    max_waits: 12
+    harvest_timeout_s: 600         # wall clock over the whole harvest, whatever loops

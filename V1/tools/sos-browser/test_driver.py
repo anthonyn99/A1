@@ -624,6 +624,94 @@ t("an empty cache counts as changed (so a first run harvests)",
   "or not cached" in _rr)
 t("probe still runs the blocker check first",
   _rr.index("check_blockers") < _rr.index('getattr(args, "probe", False)'))
+# ── The hang, and its two bounds ──────────────────────────────────────────────
+# SHIPPED BROKEN and caught on a real run (2026-09-16): `loading_more` correctly
+# outranks the end-of-feed verdict, but the branch continued WITHOUT
+# incrementing `scrolls`, and `scrolls` was the loop's only bound. IG keeps a
+# loading element in the DOM, so the loop ran 23.7 minutes — alive, burning CPU,
+# holding the run lock, writing nothing — until it was killed. A hang is worse
+# than a wrong answer here because nothing reports it.
+# ── No loading gate, and why ──────────────────────────────────────────────────
+# Three attempts failed against the live page (all measured 2026-09-16):
+#   presence       -> IG's scroll sentinel is permanent, count=1 forever
+#   CSS visibility -> never hidden, is_visible()=True forever
+#   viewport       -> top=3043, below the fold and moving as you scroll
+# Both shipped forms returned 0 reels with stoppedAt=loading_stuck. GROWTH is
+# the only workable signal, so the gate is gone. These tests keep it gone.
+t("there is no loading gate in the harvest loop",
+  "loading_stuck" not in _hr and "site.loading_more" not in _hr,
+  "the loading gate is back; it cannot work on this site — see selectors.yaml")
+t("growth is the end-of-feed verdict",
+  "stalled >= site.stall_polls" in _hr)
+t("the growth check does NOT require a non-zero count",
+  "len(seen) > 0 and" not in _hr and "count > 0 and" not in _hr,
+  "a harvest that never starts must still terminate")
+t("stall_polls is generous enough to absorb a slow fetch",
+  ig.stall_polls >= 4, f"stall_polls={ig.stall_polls} is the ONLY signal now")
+t("the harvest still has a wall clock",
+  "harvest_timeout_s" in _hr and "deadline" in _hr)
+_loop_body = _hr[_hr.index("while scrolls < site.max_scrolls:"):]
+t("the deadline is checked at the TOP of the loop, before any branch",
+  "time.monotonic() > deadline" in _loop_body
+  and _loop_body.index("deadline") < _loop_body.index("scrolls += 1"),
+  "a deadline checked after a continue-branch cannot bound that branch")
+t("every while-level path either scrolls or breaks",
+  _loop_body.count("scrolls += 1") == 1,
+  "max_scrolls cannot bound a branch that never increments it — this is the "
+  "bug that hung a real run for 23.7 minutes")
+t("the dead-end selector is retained as documentation, not used",
+  bool(ig.loading_more) and "site.loading_more" not in _hr)
+
+# Behavioural: a page that never yields a tile must terminate, not hang. This
+# is the hang regression, now expressed against the growth path.
+class _StuckPage:
+    async def evaluate(self, *a, **k): return ''
+    def locator(self, sel):
+        class _L:
+            async def count(self): return 0
+            @property
+            def first(self): return self
+            async def is_visible(self): return True
+            def nth(self, i): return self
+            async def get_attribute(self, n): return None
+        return _L()
+    class _M:
+        async def wheel(self, x, y): pass
+    mouse = _M()
+    class _K:
+        async def press(self, k): pass
+    keyboard = _K()
+    async def screenshot(self, **k): pass
+    async def content(self): return '<html></html>'
+
+def _probe_barren():
+    """A grid that resolves but never yields a tile. Must end via the growth
+    stall, never spin."""
+    import asyncio as _a
+    _sv = (driver.any_matches, driver.check_blockers, driver.resolve)
+    async def _no(page, cands): return False
+    async def _ok(page, site, *, pre_send): pass
+    async def _res(page, cands, **k): return {"selector": "x", "locator": None, "count": 1}
+    driver.any_matches, driver.check_blockers, driver.resolve = _no, _ok, _res
+    try:
+        st = driver.load_reels_site("instagram")
+        st.poll_ms, st.stall_polls, st.max_scrolls = 10, 2, 50
+        st.scroll_pause_s = [0.001, 0.002]
+        return _a.run(_a.wait_for(driver._harvest_reels(_StuckPage(), st), timeout=20))
+    finally:
+        driver.any_matches, driver.check_blockers, driver.resolve = _sv
+
+try:
+    _barren = _probe_barren()
+    t("a grid that never yields a tile TERMINATES (the 23.7-min hang)",
+      _barren["stoppedAt"] == "exhausted" and _barren["reels"] == [],
+      str(_barren)[:140])
+    t("and it stops at the stall, not by exhausting max_scrolls",
+      _barren["scrolls"] <= 4, f"scrolls={_barren['scrolls']}")
+except Exception as _e:
+    t("a grid that never yields a tile TERMINATES (the 23.7-min hang)", False,
+      f"hangs or errors: {str(_e)[:120]}")
+
 t("the harvest runs under a pid-based run lock",
   "_RunLock(HERE / \".reels-run.lock\")" in _cr,
   "two concurrent harvests would fight over the one IG profile")
