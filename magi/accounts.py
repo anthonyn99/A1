@@ -296,58 +296,6 @@ async def run_login(settings: Settings, job: LoginJob) -> None:
 # this is not a per-person preference: it decides how a run is actually
 # conducted, and a run happens in exactly one place.
 
-# ── Claude's own settings ───────────────────────────────────────────────────
-#
-#  Kept beside the chairman and for the same reason: these decide how a run is
-#  conducted, and a run happens in exactly one place -- the engine device. A
-#  per-browser preference would mean the phone and the PC disagreeing about
-#  which model a queued prompt goes out under.
-
-#: Defaults, and what each one means.
-#:
-#:   model  "auto" lets modelpick choose from the prompt; "opus"/"sonnet"/
-#:          "haiku" pin it. On a plan that offers only one model the pin is
-#:          simply unavailable and the run says so rather than pretending.
-#:   effort "auto" scales with the same judgement; low/medium/high/extra/max
-#:          pin it. This is the lever that works on a one-model plan.
-#:   cap    a budget YOU set, because Anthropic publishes no limit. See
-#:          usage_cap_state().
-_CLAUDE_DEFAULTS = {
-    "model": "auto",
-    "effort": "auto",
-    "cap_enabled": False,
-    # Tokens per rolling 5-hour window that you are willing to spend before
-    # MAGI stops using Claude. Zero means "no budget set", which is why the
-    # cap cannot be enabled into a meaningless state.
-    "cap_tokens": 0,
-    # The share of that budget at which Claude is dropped.
-    "cap_percent": 90,
-}
-
-
-def claude_prefs() -> dict:
-    raw = _load().get("_claude") or {}
-    out = dict(_CLAUDE_DEFAULTS)
-    for k, v in raw.items():
-        if k in out:
-            out[k] = v
-    return out
-
-
-def set_claude_prefs(**changes) -> dict:
-    state = _load()
-    prefs = claude_prefs()
-    for k, v in changes.items():
-        if k in _CLAUDE_DEFAULTS and v is not None:
-            prefs[k] = v
-    prefs["cap_tokens"] = max(0, int(prefs["cap_tokens"] or 0))
-    prefs["cap_percent"] = min(100, max(1, int(prefs["cap_percent"] or 90)))
-    prefs["cap_enabled"] = bool(prefs["cap_enabled"]) and prefs["cap_tokens"] > 0
-    state["_claude"] = prefs
-    _save(state)
-    return prefs
-
-
 def chairman_override() -> str:
     return str(_load().get("_chairman", "") or "")
 

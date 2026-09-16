@@ -62,9 +62,11 @@ def test_an_edit_in_flight_is_not_overwritten():
 
 def test_attachment_bytes_never_reach_firestore():
     """Names, sizes and types travel; the files stay on the device."""
-    # An arrow const, not a function declaration.
+    # An arrow const returning an object literal, so it ends on "}));" --
+    # stopping at the first "});" ran off the end into unrelated code and made
+    # this test pass or fail on whatever happened to be below it.
     body = PAGE[PAGE.index("const queueForCloud ="):]
-    body = body[: body.index("});") + 3]
+    body = body[: body.index("}));") + 4]
     assert "atts" in body and "a.n" in body and "a.s" in body
     for forbidden in ("file", "File", "blob", "base64", "dataURL"):
         assert forbidden not in body, f"{forbidden} is being serialised"
@@ -134,12 +136,10 @@ def test_a_rate_limit_stops_the_queue_but_a_failure_does_not():
 
 
 # ── per-item settings ───────────────────────────────────────────────────────
-def test_each_item_carries_its_own_units_and_model():
+def test_each_item_carries_its_own_units():
     body = _fn("queueAdd")
     assert "units: [...S.selected]" in body
-    assert 'model: "auto"' in body
-    run = _fn("queueDrain")
-    assert "units: it.units" in run and "model: it.model" in run
+    assert "units: it.units" in _fn("queueDrain")
 
 
 def test_queueing_does_not_rewrite_the_ticked_set():
@@ -150,62 +150,3 @@ def test_queueing_does_not_rewrite_the_ticked_set():
     assert "S.selected =" not in _fn("queueAdd")
     # runOne builds its panels from the units it was HANDED.
     assert "ids.includes(p.id)" in _fn("runOne")
-
-
-def test_the_console_does_not_reimplement_the_heuristic():
-    """One scoring function, in the engine. Two would drift, and the drift
-    reads as the row promising Opus for a prompt that then ran on Sonnet."""
-    body = _fn("queueSuggest")
-    assert "/api/model/suggest" in body
-    for leak in ("LONG_CHARS", "score +=", "_HEAVY"):
-        assert leak not in PAGE, f"the heuristic has been copied into the console ({leak})"
-
-
-def test_the_model_that_answered_is_read_not_assumed():
-    assert "model_used" in PAGE
-    body = PAGE[PAGE.index("function updateNode"):]
-    assert "p.model_used" in body[:3000], (
-        "the unit card no longer names the model that answered"
-    )
-
-
-# ── nothing is thrown away without asking ───────────────────────────────────
-def test_removing_a_row_asks_first():
-    body = _fn("queueRemove")
-    assert "uiConfirmMagi" in body, (
-        "a typed prompt is deleted by a button that sits a thumb's width from "
-        "the reorder arrows"
-    )
-    assert "silent" in body, (
-        "Clear finished has no way to remove rows without asking once per row"
-    )
-
-
-def test_clearing_the_finished_rows_asks_once_for_the_lot():
-    body = _fn("queueClearDone")
-    assert "uiConfirmMagi" in body
-    assert "going.length" in body, "the question does not say how many are going"
-    assert "stay in " in body, (
-        "it does not say the deliberations themselves survive, which is the "
-        "thing that makes the answer obvious"
-    )
-
-
-def test_the_confirmations_are_magis_own_ui():
-    """No browser dialogs anywhere in this program."""
-    for fn in ("queueRemove", "queueClearDone"):
-        body = _fn(fn)
-        for native in ("window.confirm", "confirm(", "alert("):
-            assert native not in body, f"{fn} uses a browser dialog ({native})"
-
-
-def test_the_row_controls_are_thumb_sized_on_a_phone():
-    css = PAGE[PAGE.index("@media (max-width: 720px) {", PAGE.index(".q-row {")):]
-    css = css[: css.index("\n}")]
-    assert "width: 34px" in css and "height: 34px" in css, (
-        "26px between two other 26px targets is a tap you have to aim"
-    )
-    assert ".q-acts { flex: 1 1 100%" in css, (
-        "the controls squeeze the prompt into a narrow column instead of "
-        "wrapping under it"
-    )

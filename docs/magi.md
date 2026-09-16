@@ -176,8 +176,8 @@ in parallel to go faster.
 ## The prompt queue
 
 **Queue** beside Convene puts a prompt on a list instead of running it now.
-Each row carries its own units and its own Claude model, and the list runs one
-prompt at a time, in order.
+Each row carries its own units, and the list runs one prompt at a time, in
+order.
 
 Technically this is a port of the ideas in Veda's Claude Queue, not of its
 code — that drives `claude.exe` through a PTY, this drives browser sessions —
@@ -190,8 +190,6 @@ but three of its decisions carried over directly:
   start a *second* drain loop over the same list, interleaving two prompts into
   one engine. Every loop iteration rechecks the generation after each `await`
   and a superseded loop exits silently.
-- **Per-item model.** A queue row's model is fixed for that row, and an
-  explicit choice is never overridden.
 
 Where it deliberately differs: Claude Queue **stops the queue on any failure**,
 because its tasks are steps that build on each other and a failed step poisons
@@ -226,113 +224,6 @@ refreshes it every 30s while it works, and clears it at the end. Another
 device sees the lease and says where the queue is running. A lease nobody has
 refreshed for 90 seconds is treated as abandoned, so a closed laptop cannot
 freeze the queue.
-
-## Which Claude model answers
-
-Claude's composer picks a model per message, and `magi/engine/modelpick.py`
-chooses one from the prompt unless you choose for it. The scoring is
-deliberately in **one place** — the engine — and the console asks for it over
-`POST /api/model/suggest` rather than keeping a second copy of the rules that
-could drift out of step with the one that actually runs.
-
-It scores length, whether the prompt asks for design/debugging/comparison/a
-report, whether it carries code or attachments, and how many units are
-deliberating. Two rules earned their place by being wrong first:
-
-- **Shortness only counts when nothing else does.** "Why does this deadlock?"
-  is eighty characters and squarely Opus work; the first cut discounted it for
-  being short. Shortness is also ignored when files are attached — the prompt
-  is short because the material is in the files.
-- **Mechanical work is mechanical at any length.** Four thousand words asking
-  for a spelling fix was reaching Opus purely on its size, so spelling, typos,
-  proofreading and formatting cap the score whatever the length.
-
-Every pick comes back with its reasoning attached (`reason`, `signals`), which
-is what the queue row shows on hover — an automatic choice nobody can see the
-basis of is one nobody can argue with.
-
-**What actually answered** is read back off the composer's own picker
-(`aria-label="Model: Sonnet 5 Medium"`, verified from a saved DOM) and shown on
-the unit's card. A model MAGI asked for and failed to select is never reported
-as though it had been used. Only Claude has a picker MAGI drives; the menu
-selectors are marked UNVERIFIED because a menu that only exists once clicked
-cannot be confirmed from a saved page — so failing to set the model degrades to
-"answered on whatever was selected, and said so", never to a failed run.
-
-### What the account MAGI drives can actually do
-
-Checked on 2026-09-15 by opening the picker on that account, because this is
-not knowable from a saved page: **every model other than the active one is an
-upgrade offer.** The menu lists Fable 5.1, Opus 5, Opus 4.8/4.7/4.6/3 and each
-row ends in *Upgrade*; Haiku is not in the menu at all; and the current model
-is not a row, it is simply what the trigger already reads.
-
-So on that plan, switching models cannot work — there is nothing else to pick.
-MAGI handles that explicitly rather than pretending:
-
-- A row whose text contains one of `model_locked_text` (`Upgrade`) is **never
-  clicked**. Clicking one opens billing and changes no model, and the run
-  would then report a model that never answered.
-- Models behind `More models` are looked for there too, so a submenu is not
-  mistaken for an absent model.
-- The label is re-read afterwards, and any mismatch becomes a note on the
-  unit's card: *"opus is not on this Claude plan (the menu offers it as an
-  upgrade), so it answered on Sonnet 5 Medium"*.
-
-**Effort is the lever that does work.** Behind the `Effort` row sit Low /
-Medium (default) / High / Extra / Max as `role="menuitemradio"`, and the choice
-lands in the trigger's own label. Verified live:
-
-```
-effort High   -> label now: 'Sonnet 5 High'
-effort Low    -> label now: 'Sonnet 5 Low'
-effort Medium -> back to   'Sonnet 5 Medium'
-```
-
-`modelpick` scales effort with the same score it uses for the model, so a
-prompt heavy enough for Opus thinks harder on Sonnet. **Max is deliberately
-excluded from the automatic range** — its own menu row says "3.5× or more
-usage", and a heuristic that can quietly cost that much is not one to leave
-running by itself.
-
-### Capping what Claude may spend
-
-Accounts → Claude model → *Stop using Claude*. Set a token budget for one
-5-hour window and a percentage of it; past that mark, `_claude_gate` drops
-Claude from **new** deliberations and brainstorm sessions and the response says
-which unit it dropped. If Claude was the only unit selected, the run is refused
-with that reason rather than starting an empty council.
-
-Two deliberate limits:
-
-- **It only governs Claude.** Nothing local records what the other units have
-  spent, so a cap on them would be an invented number about a number that does
-  not exist.
-- **It never interrupts.** The gate is called as a run starts and nowhere else.
-  A deliberation or session already going keeps Claude to the end — stopping
-  mid-run would throw away browser time already spent and produce a verdict
-  built from fewer members than the console said were asked.
-
-An unreadable transcript counts as zero used, which keeps Claude available:
-that is the failure that loses nothing, where guessing high would silently drop
-a unit from every run.
-
-## Claude usage
-
-`GET /api/usage/claude` reports the rolling 5-hour window, its tokens and
-messages, a per-model breakdown and the past week, read from Claude Code's own
-JSONL transcripts under `~/.claude/projects/`. Ported from Claude Queue's
-`usage.js`, including the incremental byte-offset reads that make a week of
-sessions cost one scan rather than one per poll (0.21s cold, 0.006s warm here).
-
-Two things it will not do:
-
-- **No percentage of a limit.** The account's limit is not in the data and
-  Anthropic publishes no figure, so the denominator would have to be invented.
-- **No claim to cover MAGI's own turns.** Those are ordinary browser chat
-  messages and nothing records them locally. It is the same subscription, so it
-  is the best signal available for where the window stands, and the card says
-  whose usage it is showing rather than letting you assume.
 
 ## Opening the console from somewhere else
 

@@ -30,8 +30,6 @@ from . import accounts as accounts_mod
 from .db import Database
 from .engine import brainstorm as brainstorm_engine
 from .engine import refine as refine_engine
-from . import usage as usage_mod
-from .engine import modelpick
 from .engine import studio as studio_engine
 from .engine.orchestrator import Orchestrator, required_members
 from .errors import FailureKind, explain
@@ -291,11 +289,6 @@ async def create_run(
     question: str = Form(...),
     providers: str = Form(""),
     files: list[UploadFile] = File(default=[]),
-    # "auto" (or absent) lets modelpick choose from the prompt itself; "opus"
-    # and "sonnet" are the person's own choice and are passed through
-    # untouched. Only sites with a model picker configured do anything with
-    # it -- see browser_base._ensure_model.
-    model: str = Form("auto"),
 ):
     q = question.strip()
     if not q:
@@ -318,14 +311,6 @@ async def create_run(
     except Exception:
         pass  # keep the last good config rather than failing the run
 
-    provider_ids, capped_note = _claude_gate(provider_ids)
-    if provider_ids is not None and not provider_ids:
-        raise HTTPException(
-            400,
-            (capped_note or "No units selected.")
-            + " Untick the cap in Accounts, or select another unit.",
-        )
-
     run_id = uuid.uuid4().hex[:12]
     providers = build_providers(settings, provider_ids)
 
@@ -333,16 +318,6 @@ async def create_run(
     # deliberation should be asked under the same conditions, and the console
     # needs to be told which model the run is going out under before the first
     # answer comes back.
-    prefs = accounts_mod.claude_prefs()
-    # A per-prompt choice beats the System default, which beats the heuristic.
-    pick = modelpick.resolve(
-        model if model and model != "auto" else prefs.get("model"),
-        q,
-        attachments=len(files or []),
-        units=len(providers),
-        effort=prefs.get("effort"),
-    )
-
     # Stage attachments under this run's own directory so concurrent runs
     # never share a name, and so the whole set can be discarded together once
     # every provider has read them.
@@ -390,7 +365,7 @@ async def create_run(
             result = await Orchestrator(settings, db).run(
                 q, providers, run_id=run_id,
                 on_event=on_event, cancel=state["cancel"],
-                attachments=staged_paths, model=pick.model, effort=pick.effort,
+                attachments=staged_paths,
             )
             payload = {
                 "type": "done",
@@ -420,8 +395,6 @@ async def create_run(
                         "latency_ms": a.latency_ms,
                         "chars": a.chars,
                         "completion_reason": a.completion_reason,
-                        "model_used": a.model_used,
-                        "model_note": a.model_note,
                     }
                     for a in result["answers"]
                 ],
@@ -444,14 +417,7 @@ async def create_run(
     # The pick travels with the run id so the console can name the model
     # before the first answer lands -- and can show WHY, which is the only
     # thing that makes an automatic choice arguable rather than mysterious.
-    return {
-        "run_id": run_id,
-        "model": pick.as_dict(),
-        # Said out loud rather than leaving a unit silently missing from the
-        # grid: a council that quietly shrank is the same class of problem as
-        # a verdict that does not say how many answered.
-        "capped": capped_note or None,
-    }
+    return {"run_id": run_id}
 
 
 @app.get("/api/runs/{run_id}/stream")
@@ -680,61 +646,6 @@ async def cancel_studio_artifact(run_id: str, job_id: str):
     return {"ok": True}
 
 
-@app.post("/api/model/suggest")
-async def suggest_model(
-    question: str = Form(""),
-    attachments: int = Form(0),
-    units: int = Form(1),
-):
-    """What modelpick would choose for this prompt.
-
-    Exists so a queue row can show the pick (and its reasoning) before the
-    prompt runs, WITHOUT the console owning a second copy of the heuristic.
-    Pure computation on text already in memory: no browser, no network, no
-    database.
-    """
-    return modelpick.suggest(
-        question, attachments=max(0, attachments), units=max(1, units)
-    ).as_dict()
-
-
-@app.get("/api/claude/prefs")
-async def get_claude_prefs():
-    """Claude's own settings, plus where the budget currently stands."""
-    prefs = accounts_mod.claude_prefs()
-    return {"prefs": prefs, "cap": usage_mod.cap_state(prefs)}
-
-
-@app.put("/api/claude/prefs")
-async def put_claude_prefs(
-    model: str = Form(None),
-    effort: str = Form(None),
-    cap_enabled: bool = Form(None),
-    cap_tokens: int = Form(None),
-    cap_percent: int = Form(None),
-):
-    if model is not None and model not in modelpick.MODELS:
-        raise HTTPException(400, f"model must be one of {list(modelpick.MODELS)}")
-    if effort is not None and effort not in modelpick.EFFORTS:
-        raise HTTPException(400, f"effort must be one of {list(modelpick.EFFORTS)}")
-    prefs = accounts_mod.set_claude_prefs(
-        model=model, effort=effort, cap_enabled=cap_enabled,
-        cap_tokens=cap_tokens, cap_percent=cap_percent,
-    )
-    return {"prefs": prefs, "cap": usage_mod.cap_state(prefs)}
-
-
-@app.get("/api/usage/claude")
-async def claude_usage(force: bool = False):
-    """Claude usage read from Claude Code's transcripts on this device.
-
-    See magi/usage.py for what this can and cannot say: real token totals and
-    the rolling 5-hour window, never a percentage of a limit that is not
-    knowable from here.
-    """
-    return usage_mod.TRACKER.read(force=force)
-
-
 @app.get("/api/runs/{run_id}/studio")
 async def list_studio_artifacts(run_id: str):
     rows = await db.get_studio_artifacts(run_id)
@@ -750,38 +661,6 @@ async def get_studio_artifact(run_id: str, job_id: str):
 
 
 # ── brainstorm ──────────────────────────────────────────────────────────────
-
-
-#: The unit the cap governs. Only Claude, because the usage MAGI can read is
-#: Claude's -- nothing local records what the others have spent, so a cap on
-#: them would be a number made up about a number that does not exist.
-CAPPED_ID = "claude"
-
-#: Per-session note about a unit the cap dropped, so the console can say so.
-_bs_capped: dict[str, str | None] = {}
-
-
-def _claude_gate(provider_ids: list[str] | None) -> tuple[list[str] | None, str]:
-    """Drop Claude from a run that is starting if the budget is spent.
-
-    Checked when a run STARTS and never again: a deliberation already in
-    flight keeps Claude to the end. Stopping mid-run would throw away the
-    browser time already spent and leave a verdict built from fewer members
-    than the console said were asked, which is the one outcome this system
-    must not produce.
-    """
-    ids = provider_ids
-    if ids is not None and CAPPED_ID not in ids:
-        return ids, ""
-    prefs = accounts_mod.claude_prefs()
-    if not prefs.get("cap_enabled"):
-        return ids, ""
-    state = usage_mod.cap_state(prefs)
-    if not state["over"]:
-        return ids, ""
-    if ids is None:
-        ids = [p for p in settings.enabled_site_ids()]
-    return [p for p in ids if p != CAPPED_ID], state["note"]
 
 
 def _apply_chairman_override(st) -> None:
@@ -937,22 +816,10 @@ async def create_brainstorm(
     if not provider_ids:
         raise HTTPException(400, "no providers available")
 
-    # Checked once, as the session opens. A session already running keeps
-    # Claude for every remaining round: the cap decides what a NEW piece of
-    # work may use, not what an unfinished one loses halfway through.
-    provider_ids, capped_note = _claude_gate(provider_ids)
-    if not provider_ids:
-        raise HTTPException(
-            400,
-            (capped_note or "No units selected.")
-            + " Untick the cap in Accounts, or select another unit.",
-        )
-
     if len(files) > MAX_ATTACHMENTS:
         raise HTTPException(400, f"at most {MAX_ATTACHMENTS} attachments per session")
 
     session_id = uuid.uuid4().hex[:12]
-    _bs_capped[session_id] = capped_note or None
     await db.create_session(session_id, t, provider_ids)
 
     # Staged under the SESSION's own directory and re-read from disk on every
@@ -961,11 +828,7 @@ async def create_brainstorm(
     # in a row would then point at files a cleanup had every right to remove.
     # The directory is the record.
     await _stage_uploads(files, UPLOADS_DIR / session_id)
-    return {
-        "session_id": session_id,
-        "attachments": len(files),
-        "capped": capped_note or None,
-    }
+    return {"session_id": session_id, "attachments": len(files)}
 
 
 def _session_attachments(session_id: str) -> list[Path]:

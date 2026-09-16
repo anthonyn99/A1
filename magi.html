@@ -1234,57 +1234,19 @@ table.doctor, table.doctor code, .v-table, .studio-table,
   font-size: 9.5px; font-weight: 700; letter-spacing: 1.6px;
   text-transform: uppercase; color: var(--txd);
 }
-/* ── Claude usage ───────────────────────────────────────────────────────── */
-.usage-card { display: flex; flex-direction: column; gap: 6px; }
-.usage-hd { display: flex; align-items: center; gap: 8px; }
-.usage-title {
-  font-size: 9.5px; font-weight: 700; letter-spacing: 1.6px;
-  text-transform: uppercase; color: var(--txd);
+/* The way out of a deliberation you opened, in the header of the verdict
+   itself -- see renderVerdict. Pushed to the end of the row, beside Copy. */
+.verdict-close {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 6px;
+  background: transparent; border: 1px solid var(--bdl); border-radius: 9px;
+  color: var(--txm); font-family: inherit; font-size: 10.5px; font-weight: 600;
+  letter-spacing: .4px; padding: 4px 10px; cursor: pointer;
+  transition: border-color .15s, color .15s;
 }
-.usage-big { font-size: 15px; font-weight: 600; color: var(--tx); }
-.usage-line { font-size: 11px; color: var(--txm); }
-.usage-week { padding-top: 4px; border-top: 1px solid var(--bdl); }
-.usage-empty { font-size: 11px; color: var(--txd); }
-.usage-bar {
-  height: 4px; border-radius: 999px; background: var(--s1); overflow: hidden;
-}
-.usage-fill { height: 100%; background: var(--ac); border-radius: 999px; }
-.pref-row, .pref-cap { display: flex; flex-direction: column; gap: 5px; }
-.pref-cap { padding-top: 8px; margin-top: 2px; border-top: 1px solid var(--bdl); }
-.pref-head { display: flex; align-items: center; gap: 8px; }
-.pref-label {
-  font-size: 10px; font-weight: 700; letter-spacing: 1.2px;
-  text-transform: uppercase; color: var(--txm);
-}
-.pref-hint { font-size: 10px; color: var(--txd); }
-.pref-opts { display: flex; flex-wrap: wrap; gap: 4px; }
-.pref-opt {
-  border: 1px solid var(--bdl); background: transparent; color: var(--txm);
-  border-radius: 999px; padding: 3px 10px; font-size: 10px; font-weight: 600;
-  letter-spacing: .4px; cursor: pointer; font-family: inherit;
-  transition: border-color .15s, color .15s, background .15s;
-}
-.pref-opt:hover:not(:disabled) { border-color: var(--ac); color: var(--ac); }
-.pref-opt.on {
-  border-color: var(--ac); color: var(--ac);
-  background: color-mix(in srgb, var(--ac) 12%, transparent);
-}
-.pref-opt:disabled { opacity: .4; cursor: default; }
-.pref-fields { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
-.pref-inline { font-size: 11px; color: var(--txd); }
-.pref-in {
-  width: 58px; background: var(--s1); border: 1px solid var(--bdl);
-  border-radius: 7px; color: var(--tx); font-family: inherit; font-size: 11px;
-  padding: 3px 7px;
-}
-.pref-in-wide { width: 116px; }
-.pref-in:focus { outline: none; border-color: var(--ac); }
-.usage-fill.over { background: var(--red); }
-.cap-over { color: var(--red); }
-
-.usage-foot {
-  font-size: 10px; line-height: 1.5;
-  color: color-mix(in srgb, var(--txd) 75%, transparent);
+.verdict-close:hover { border-color: var(--ac); color: var(--ac); }
+.verdict-close-x { font-size: 11px; line-height: 1; }
+@media (max-width: 720px) {
+  .verdict-close { padding: 7px 12px; font-size: 11px; }
 }
 
 /* ── the queue ──────────────────────────────────────────────────────────── */
@@ -1323,15 +1285,6 @@ table.doctor, table.doctor code, .v-table, .studio-table,
   width: 7px; height: 7px; border-radius: 2px;
   display: inline-block; flex: 0 0 auto;
 }
-.q-model {
-  border: 1px solid var(--bdl); background: transparent; color: var(--txm);
-  border-radius: 999px; padding: 1px 7px; font-size: 9.5px; font-weight: 700;
-  letter-spacing: .8px; text-transform: uppercase; cursor: pointer;
-  font-family: inherit;
-}
-.q-model:hover { border-color: var(--ac); color: var(--ac); }
-.q-model.opus { border-color: var(--acl); color: var(--acl); }
-.q-model.sonnet { border-color: var(--grn); color: var(--grn); }
 .q-att { color: var(--txm); }
 .q-err { color: var(--red); }
 .q-acts { display: flex; align-items: center; gap: 2px; flex: 0 0 auto; }
@@ -1362,7 +1315,6 @@ table.doctor, table.doctor code, .v-table, .studio-table,
   .q-main { flex: 1 1 100%; }
   .q-acts { flex: 1 1 100%; justify-content: flex-end; gap: 4px; }
   .q-act { width: 34px; height: 34px; border-color: var(--bdl); }
-  .q-model { padding: 3px 9px; font-size: 10px; }
   .queue-hd { flex-wrap: wrap; row-gap: 8px; }
   .queue-acts { flex: 1 1 100%; margin-left: 0; justify-content: flex-end; }
   .queue-act { padding: 5px 11px; font-size: 11px; }
@@ -1371,14 +1323,6 @@ table.doctor, table.doctor code, .v-table, .studio-table,
 }
 
 /* The model a run is going out under, next to the heading that names it. */
-.run-model {
-  display: inline-flex; align-items: center; gap: 5px; margin-left: 8px;
-  border: 1px solid var(--bdl); border-radius: 999px; padding: 1px 8px;
-  font-size: 9.5px; font-weight: 700; letter-spacing: .9px;
-  text-transform: uppercase; color: var(--txm); vertical-align: middle;
-}
-.run-model[hidden] { display: none; }
-
 .row {
   display: flex; align-items: center; gap: 10px; padding: 7px 12px;
   border-bottom: 1px solid var(--bd); cursor: pointer; font-size: 12px;
@@ -3734,29 +3678,10 @@ const HOW = [
   {
     q: "The queue",
     a: [
-      "<b>Queue</b> beside Convene puts a prompt in a list instead of running it now. Each row keeps its OWN units and its own Claude model, so a queue can ask three units one thing and one unit the next, and they run one at a time in order.",
+      "<b>Queue</b> beside Convene puts a prompt in a list instead of running it now. Each row keeps its OWN units, so a queue can ask three units one thing and one unit the next, and they run one at a time in order.",
       "<b>It follows you between devices.</b> The queue rides the same document as your history, so a prompt added on your phone is on the PC without a single extra read. Attachment <i>names</i> travel; the files themselves stay on the device that picked them, and a row says so rather than quietly running a prompt without the file it refers to.",
       "<b>Only one device runs it.</b> Whichever device presses Run takes a lease and refreshes it as it works; the others see that it is running elsewhere. A lease nobody refreshes for 90 seconds is treated as abandoned, so a closed laptop cannot freeze the queue.",
       "<b>Pause stops after the prompt in flight</b> &mdash; never mid-deliberation. A failed prompt does not stop the rest, because queued prompts are separate questions rather than steps; the one exception is a rate limit, which stops the queue, since the next prompt would only hit the same wall.",
-    ],
-  },
-  {
-    q: "Which Claude model answers",
-    a: [
-      "Claude&rsquo;s composer lets you pick a model per message, and MAGI picks one for you unless you say otherwise. <b>Auto</b> reads the prompt: length, whether it asks for design, debugging, comparison or a report, whether it carries code or attachments, how many units are deliberating. Heavy prompts go to Opus, and everything else to Sonnet, which answers a short factual question just as well and leaves more of the window for the prompts that need the bigger model.",
-      "The pick always shows its reasoning &mdash; hover the model on a queue row. Click it to cycle that row through <b>Opus</b>, <b>Sonnet</b> and <b>Haiku</b> yourself; an explicit choice is never overridden. Accounts has the same two controls as a default for every run.",
-      "<b>Effort is the lever that works on any plan.</b> Claude&rsquo;s composer also sets how hard the model thinks &mdash; Low, Medium, High, Extra, Max &mdash; and MAGI scales it with the same reading of the prompt. <b>Max is never chosen automatically</b>: Claude&rsquo;s own menu says it costs 3.5&times; or more usage, so it is reachable only by asking for it by name.",
-      "<b>A model your plan does not offer cannot be selected.</b> Checked against the account MAGI drives: its menu lists Opus and Fable, but every one of them says <i>Upgrade</i>, and Haiku is not there at all. MAGI refuses to click a row that sells a model &mdash; that opens billing and changes nothing &mdash; so the run answers on the active model and says so on the unit&rsquo;s card. What answered is read back off the picker, never assumed from what was asked.",
-      "What each unit ACTUALLY answered on is read back off the composer&rsquo;s own picker and shown on its card, so a model MAGI asked for and failed to select can never be reported as though it had been used. Only Claude has a picker MAGI drives; the others answer on whatever they are set to.",
-    ],
-  },
-  {
-    q: "Claude usage",
-    a: [
-      "The Accounts screen shows what Claude Code on the engine device has spent: the rolling 5-hour window, how much of it is left, tokens and messages in it, a breakdown by model, and the past week.",
-      "<b>It is not a percentage of your limit.</b> Anthropic publishes no limit figure and it is not in the data, so any percentage would be invented &mdash; and an invented number about how much you have left is worse than no number.",
-      "It also cannot see MAGI&rsquo;s own browser turns: those are ordinary chat messages that nothing records locally. It is the same subscription, so it is the best available signal of where your window stands, and the card says exactly whose usage it is showing.",
-      "<b>You can cap it.</b> Set a token budget for one 5-hour window and a percentage of it, and once the window passes that mark MAGI stops putting Claude in NEW deliberations and brainstorm sessions &mdash; it says which unit it dropped rather than quietly shrinking the council. Anything already running keeps Claude to the end; the cap decides what new work may use, never what unfinished work loses halfway through. The percentage is of <i>your</i> budget, because Anthropic publishes no limit for it to be a percentage of.",
     ],
   },
   {
@@ -4862,11 +4787,9 @@ const S = {
    */
   runLocal: false,
   // The prompt queue. One entry per prompt waiting to be put to the council,
-  // each carrying its OWN units and model -- see the QUEUE section.
+  // each carrying its own units -- see the QUEUE section.
   queue: [],
   queueRunning: false,
-  // What the engine resolved the current run's model to, and why.
-  runModel: null,
   /* The run that is actually in flight, held apart from whatever is on
    * screen.
    *
@@ -4954,12 +4877,7 @@ function updateNode(p) {
   d.hd.setAttribute("aria-expanded", String(isOpen));
   d.hd.title = isOpen ? "Collapse this unit" : "Show this unit's response";
 
-  // The model that answered goes next to the time it took. Read from the
-  // composer's own picker (see browser_base._read_model), so it is what
-  // actually answered rather than what was asked for.
-  const took = p.latency_ms ? `${(p.latency_ms / 1000).toFixed(1)}s` : p.chars ? `${p.chars}c` : "";
-  d.meta.textContent = [p.model_used, took].filter(Boolean).join(" \u00b7 ");
-  d.meta.title = p.model_note || "";
+  d.meta.textContent = p.latency_ms ? `${(p.latency_ms / 1000).toFixed(1)}s` : p.chars ? `${p.chars}c` : "";
   d.badge.className = `badge ${badgeClass(p.state, p.ok)}`;
   d.badge.textContent = STATE_LABEL[p.state] || p.state;
 
@@ -5155,6 +5073,27 @@ function renderVerdict() {
           : `${v.responded} of ${v.total} units responded` +
             (v.chairman ? ` · synthesised by ${v.chairman}` : "")) +
     (v.total_ms ? ` · ${(v.total_ms / 1000).toFixed(0)}s` : "")));
+
+  /* A way out, ON the verdict.
+   *
+   *  There is already one at the top of the screen, but a verdict is long and
+   *  you read it at the bottom -- by then the control that dismisses it is a
+   *  page and a half away, which is the same as not having one. This sits in
+   *  the header of the thing being closed.
+   */
+  if (S.fromHistory) {
+    const shut = el("button", "verdict-close");
+    shut.type = "button";
+    const live = S.running && S.live && S.panels !== S.live.panels;
+    shut.append(el("span", "verdict-close-x", "✕"),
+                document.createTextNode(live ? "Close — back to the running prompt"
+                                             : "Close"));
+    shut.title = live
+      ? "Put the prompt that is still running back on screen"
+      : "Clear this deliberation from the screen";
+    shut.onclick = () => (live ? backToLive() : newRun());
+    hd.append(shut);
+  }
 
   n.append(hd);
 
@@ -5534,7 +5473,7 @@ async function start() {
   const files = S.attachments.map((a) => a.file);
   S.attachments = [];
   renderChips();
-  await runOne({ question: q, units: [...S.selected], model: "auto", files });
+  await runOne({ question: q, units: [...S.selected], files });
 }
 
 /* One deliberation, start to finish.
@@ -5549,7 +5488,7 @@ async function start() {
  *  next. Nothing else in the console awaited a run before, so this is the
  *  only reason it returns anything at all.
  */
-function runOne({ question, units, model = "auto", files = [] }) {
+function runOne({ question, units, files = [] }) {
   const ids = (units && units.length ? units : [...S.selected]).filter(
     (id) => S.providers.some((p) => p.id === id));
   if (!question || !ids.length || !online()) return Promise.resolve(null);
@@ -5591,7 +5530,6 @@ function runOne({ question, units, model = "auto", files = [] }) {
   const form = new FormData();
   form.append("question", question);
   form.append("providers", ids.join(","));
-  form.append("model", model || "auto");
   for (const f of files) form.append("files", f, f.name);
 
   let runId;
@@ -5599,12 +5537,7 @@ function runOne({ question, units, model = "auto", files = [] }) {
     const res = await fetch(`${link.api}/api/runs`, authed({ method: "POST", body: form }));
     const d = await res.json();
     runId = d.run_id;
-    // What the engine resolved "auto" to, and why -- shown before the first
-    // answer lands, because by the time one has landed it is no longer news.
-    S.runModel = d.model || null;
-    // A council that quietly shrank is the same class of problem as a verdict
-    // that does not say how many answered.
-    if (d.capped) setErr("refineError", d.capped);
+
   } catch {
     endRun();
     setErr("refineError", "Could not reach the engine to start the run.");
@@ -5613,7 +5546,6 @@ function runOne({ question, units, model = "auto", files = [] }) {
   }
   S.runId = showingLive() ? runId : S.runId;
   S.live.runId = runId;
-  renderRunModel();
 
   const es = new EventSource(streamUrl(`/api/runs/${runId}/stream`));
   S.es = es;
@@ -5643,7 +5575,6 @@ function runOne({ question, units, model = "auto", files = [] }) {
           degraded_reason: a.degraded_reason, low_confidence: a.low_confidence,
           latency_ms: a.latency_ms, completion_reason: a.completion_reason,
           chars: a.chars,
-          model_used: a.model_used, model_note: a.model_note,
         });
         if (showingLive()) updateNode(p);
       }
@@ -5658,7 +5589,6 @@ function runOne({ question, units, model = "auto", files = [] }) {
       cloudPushRun(runId);
       // Slightly after the processing loop stops, so the two don't overlap.
       if (!S.muted) setTimeout(msg.synthesis_ok ? beepResolved : beepBlocked, 180);
-      renderRunModel();
       finish({
         ok: !!msg.synthesis_ok, runId, responded: msg.responded,
         total: msg.total, answers: msg.answers || [],
@@ -6273,257 +6203,10 @@ function accStatus(a) {
 /* ── Claude usage ─────────────────────────────────────────────────────────
    Read from Claude Code's own transcripts on the engine device (see
    magi/usage.py). Two things this deliberately does NOT do:
-
-     · no percentage of a limit. The account's limit is not in the data, so
-       the only way to show "63% used" would be to invent the denominator.
-     · no claim to cover MAGI's own browser turns. Anthropic records those
-       nowhere local, so the card says whose usage it is showing instead of
-       letting you assume it is everything.
-   ───────────────────────────────────────────────────────────────────────── */
-const USAGE = { data: null, at: 0, loading: false };
-
-/** Poll-free: fetched when the Accounts screen is opened, and no oftener
- *  than once a minute, because nothing on it changes faster than that. */
-async function loadUsage(force) {
-  if (!online()) return;
-  if (!force && USAGE.data && Date.now() - USAGE.at < 60000) return;
-  if (USAGE.loading) return;
-  USAGE.loading = true;
-  try {
-    const r = await fetch(`${link.api}/api/usage/claude`, authed());
-    if (r.ok) { USAGE.data = await r.json(); USAGE.at = Date.now(); }
-  } catch {}
-  USAGE.loading = false;
-  if (S.view === "accounts") renderAccounts();
-}
-
-const fmtTok = (n) =>
-  n >= 1e9 ? `${(n / 1e9).toFixed(1)}B`
+B`
   : n >= 1e6 ? `${(n / 1e6).toFixed(1)}M`
   : n >= 1e3 ? `${(n / 1e3).toFixed(0)}k` : String(n || 0);
-
-/** A model id as the picker would name it: claude-opus-5 -> Opus 5. */
-const prettyModel = (m) => String(m || "")
-  .replace(/^claude-/, "")
-  .replace(/-(\d)/, " $1")
-  .replace(/\b\w/g, (c) => c.toUpperCase())
-  .replace(/-/g, " ")
-  .trim() || "unknown";
-
-/* ── Claude: model, effort, and a budget you set ──────────────────────────
-   The cap is a percentage of YOUR number, never of Anthropic's: they publish
-   no limit and it is not in the data, so the only honest denominator is one
-   you choose. The card says that where the number is entered, not in a
-   footnote somewhere else.
-   ───────────────────────────────────────────────────────────────────────── */
-const CLAUDE = { prefs: null, cap: null, loading: false, saving: false };
-
-async function loadClaudePrefs(force) {
-  if (!online() || (CLAUDE.prefs && !force)) return;
-  if (CLAUDE.loading) return;
-  CLAUDE.loading = true;
-  try {
-    const r = await fetch(`${link.api}/api/claude/prefs`, authed());
-    if (r.ok) { const d = await r.json(); CLAUDE.prefs = d.prefs; CLAUDE.cap = d.cap; }
-  } catch {}
-  CLAUDE.loading = false;
-  if (S.view === "accounts") renderAccounts();
-}
-
-async function saveClaudePrefs(changes) {
-  if (!online()) return;
-  CLAUDE.saving = true;
-  setSync("saving");
-  try {
-    const form = new FormData();
-    for (const [k, v] of Object.entries(changes)) form.append(k, String(v));
-    const r = await fetch(`${link.api}/api/claude/prefs`,
-                          authed({ method: "PUT", body: form }));
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const d = await r.json();
-    CLAUDE.prefs = d.prefs; CLAUDE.cap = d.cap;
-    setSync("saved");
-  } catch (e) {
-    setSync("error", _syncFail("saving Claude's settings", e));
-  }
-  CLAUDE.saving = false;
-  if (S.view === "accounts") renderAccounts();
-}
-
-/** A labelled row of choices, used for both model and effort. */
-function prefRow(label, hint, options, current, onPick) {
-  const row = el("div", "pref-row");
-  const head = el("div", "pref-head");
-  head.append(el("span", "pref-label", label));
-  if (hint) head.append(el("span", "pref-hint", hint));
-  row.append(head);
-  const opts = el("div", "pref-opts");
-  for (const o of options) {
-    const b = el("button", `pref-opt ${o.id === current ? "on" : ""}`, o.label);
-    b.type = "button";
-    if (o.title) b.title = o.title;
-    b.onclick = () => onPick(o.id);
-    opts.append(b);
-  }
-  row.append(opts);
-  return row;
-}
-
-function claudeCard() {
-  const card = el("div", "acc-card usage-card");
-  card.append(el("div", "usage-title", "Claude model"));
-
-  const p = CLAUDE.prefs;
-  if (!p) {
-    card.append(el("div", "usage-empty",
-      CLAUDE.loading ? "Reading Claude's settings\u2026" : "Not read yet."));
-    loadClaudePrefs();
-    return card;
-  }
-
-  card.append(prefRow(
-    "Model", "auto reads the prompt",
-    [{ id: "auto", label: "Auto", title: "Chosen from the prompt, per deliberation" },
-     { id: "opus", label: "Opus", title: "Pin every run to Opus" },
-     { id: "sonnet", label: "Sonnet", title: "Pin every run to Sonnet" },
-     { id: "haiku", label: "Haiku", title: "Pin every run to Haiku" }],
-    p.model, (v) => saveClaudePrefs({ model: v })));
-
-  card.append(prefRow(
-    "Effort", "how hard it thinks",
-    [{ id: "auto", label: "Auto", title: "Scales with the same reading of the prompt" },
-     { id: "low", label: "Low" }, { id: "medium", label: "Medium" },
-     { id: "high", label: "High" }, { id: "extra", label: "Extra" },
-     { id: "max", label: "Max", title: "Claude's own menu says 3.5\u00d7 or more usage" }],
-    p.effort, (v) => saveClaudePrefs({ effort: v })));
-
-  // A model the plan does not offer is worth saying out loud, because the
-  // request will be honoured as far as it can be and no further.
-  card.append(el("div", "usage-foot",
-    "A model your Claude plan does not offer cannot be selected \u2014 the run "
-    + "says so and answers on the one that is active, rather than reporting a "
-    + "model that never ran. Effort works on any plan."));
-
-  // ── the cap ──────────────────────────────────────────────────────────────
-  const cap = CLAUDE.cap || {};
-  const capBox = el("div", "pref-cap");
-  const hd = el("div", "pref-head");
-  hd.append(el("span", "pref-label", "Stop using Claude"));
-  const toggle = el("button", `pref-opt ${p.cap_enabled ? "on" : ""}`,
-                    p.cap_enabled ? "On" : "Off");
-  toggle.type = "button";
-  toggle.disabled = !p.cap_tokens;
-  toggle.title = p.cap_tokens
-    ? "Drop Claude from new runs once the budget is spent"
-    : "Set a budget first";
-  toggle.onclick = () => saveClaudePrefs({ cap_enabled: !p.cap_enabled });
-  hd.append(el("span", "qbar-spacer"), toggle);
-  capBox.append(hd);
-
-  const line = el("div", "pref-fields");
-  const at = el("input", "pref-in");
-  at.type = "number"; at.min = "1"; at.max = "100"; at.value = String(p.cap_percent);
-  at.title = "Share of your budget at which Claude is dropped";
-  at.onchange = () => saveClaudePrefs({ cap_percent: at.value });
-  const budget = el("input", "pref-in pref-in-wide");
-  budget.type = "number"; budget.min = "0"; budget.step = "1000000";
-  budget.value = String(p.cap_tokens || "");
-  budget.placeholder = "e.g. 40000000";
-  budget.title = "Tokens you are willing to spend in one 5-hour window";
-  budget.onchange = () => saveClaudePrefs({ cap_tokens: budget.value || 0 });
-  line.append(el("span", "pref-inline", "at"), at,
-              el("span", "pref-inline", "% of"), budget,
-              el("span", "pref-inline", "tokens per 5-hour window"));
-  capBox.append(line);
-
-  if (cap.enabled && cap.budget) {
-    const bar = el("div", "usage-bar");
-    const fill = el("div", `usage-fill ${cap.over ? "over" : ""}`);
-    fill.style.width = `${Math.min(100, cap.percent)}%`;
-    bar.append(fill);
-    capBox.append(bar);
-    capBox.append(el("div", `usage-line ${cap.over ? "cap-over" : ""}`,
-      cap.over
-        ? cap.note
-        : `${fmtTok(cap.used)} of ${fmtTok(cap.budget)} used \u00b7 ${cap.percent}% of your budget`));
-  }
-
-  capBox.append(el("div", "usage-foot",
-    "Your number, not Anthropic's \u2014 they publish no limit, so a percentage "
-    + "of one would be invented. A deliberation or session already running "
-    + "keeps Claude to the end; the cap only decides what a new one may use."));
-  card.append(capBox);
-  return card;
-}
-
-function usageCard() {
-  const card = el("div", "acc-card usage-card");
-  const hd = el("div", "usage-hd");
-  hd.append(el("span", "usage-title", "Claude usage"));
-  const refresh = el("button", "q-act", "\u21BB");
-  refresh.type = "button";
-  refresh.title = "Read the transcripts again";
-  refresh.onclick = () => loadUsage(true);
-  hd.append(el("span", "qbar-spacer"), refresh);
-  card.append(hd);
-
-  const d = USAGE.data;
-  if (!d || !d.ok) {
-    card.append(el("div", "usage-empty",
-      USAGE.loading ? "Reading Claude Code's transcripts\u2026"
-                    : "No usage read yet."));
-    loadUsage();
-    return card;
-  }
-
-  const sess = d.session || {};
-  if (sess.active) {
-    const pct = Math.max(0, Math.min(100,
-      100 * (sess.elapsed_ms || 0) / (sess.window_ms || 1)));
-    const bar = el("div", "usage-bar");
-    const fill = el("div", "usage-fill");
-    // The bar is the WINDOW elapsing, not a quota filling. Labelled as time
-    // for that reason: a bar that looks like a fuel gauge would be read as
-    // one, and this system cannot know how full the tank is.
-    fill.style.width = `${pct}%`;
-    bar.append(fill);
-    card.append(bar);
-    const when = new Date(sess.reset_at);
-    const hrs = Math.floor((sess.ms_left || 0) / 3600000);
-    const mins = Math.round(((sess.ms_left || 0) % 3600000) / 60000);
-    card.append(el("div", "usage-line",
-      `5-hour window \u00b7 ${hrs}h ${mins}m left, resets ${when.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`));
-    card.append(el("div", "usage-big",
-      `${fmtTok(sess.tokens && sess.tokens.total)} tokens \u00b7 ${sess.messages || 0} messages`));
-    if (sess.tokens_per_hour) {
-      card.append(el("div", "usage-line", `${fmtTok(sess.tokens_per_hour)} per hour so far`));
-    }
-    for (const m of sess.models || []) {
-      card.append(el("div", "usage-line",
-        `${prettyModel(m.model)} \u00b7 ${fmtTok(m.tokens)}`));
-    }
-  } else {
-    card.append(el("div", "usage-big", "No window open"));
-    card.append(el("div", "usage-line",
-      sess.last_active
-        ? `Last message ${new Date(sess.last_active).toLocaleString([], { month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" })}`
-        : "Nothing in the last week."));
-  }
-
-  const wk = d.week || {};
-  card.append(el("div", "usage-line usage-week",
-    `Past week \u00b7 ${fmtTok(wk.tokens && wk.tokens.total)} tokens across ${wk.messages || 0} messages`));
-
-  // Said plainly, every time. Someone reading a usage number needs to know
-  // which usage it is before they act on it.
-  card.append(el("div", "usage-foot",
-    "Claude Code on the engine device \u2014 the same subscription MAGI's Claude "
-    + "unit uses. Anthropic publishes no limit figure, so nothing here is a "
-    + "percentage of one."));
-  return card;
-}
-
-function renderAccounts() {
+async async function renderAccounts() {
   const box = $("accountsBody");
   if (!box) return;
   box.textContent = "";
@@ -6540,8 +6223,6 @@ function renderAccounts() {
     return;
   }
 
-  box.append(usageCard());
-  box.append(claudeCard());
 
   const note = el("div", "acc-note");
   note.innerHTML =
@@ -6847,7 +6528,6 @@ function setView(v) {
   show($("backToLive"), !!pastWhileRunning && !studioOpen);
   show($("doctorDrawer"), v === "doctor");
   show($("accountsDrawer"), v === "accounts");
-  if (v === "accounts") { loadUsage(); loadClaudePrefs(); }
   // Brainstorm brings its own composer and its own reply box, so the council's
   // question bar is HIDDEN rather than stacked above a second textarea that
   // submits somewhere else.
@@ -9628,7 +9308,6 @@ function queueAdd() {
     id,
     q,
     units: [...S.selected],
-    model: "auto",
     // Names, sizes and types travel; the bytes do not. This is what another
     // device shows instead of a file it cannot have.
     atts: files.map((f) => ({ n: f.name, s: f.size, t: f.type || "" })),
@@ -9646,37 +9325,7 @@ function queueAdd() {
   renderChips();
   setErr("refineError", null);
   queueChanged();
-  queueSuggest(id);
 }
-
-/** Ask the engine which model it would pick, and show it on the row.
- *
- *  The heuristic lives in the engine (magi/engine/modelpick.py) and is asked
- *  for over HTTP rather than reimplemented here: two copies of a scoring
- *  function in two languages drift, and the drift shows up as a row promising
- *  Opus for a prompt the engine then sends to Sonnet. Best-effort -- with no
- *  engine the row simply says "auto" until it runs.
- */
-async function queueSuggest(id) {
-  const it = S.queue.find((x) => x.id === id);
-  if (!it || !online()) return;
-  try {
-    const form = new FormData();
-    form.append("question", it.q);
-    form.append("attachments", String((it.atts || []).length));
-    form.append("units", String((it.units || []).length || 1));
-    const r = await fetch(`${link.api}/api/model/suggest`,
-                          authed({ method: "POST", body: form }));
-    if (!r.ok) return;
-    const d = await r.json();
-    const cur = S.queue.find((x) => x.id === id);
-    if (!cur || cur.model !== "auto") return;   // they chose one meanwhile
-    cur.autoModel = d.model;
-    cur.autoWhy = [d.reason, ...(d.signals || [])].filter(Boolean).join(" \u00b7 ");
-    renderQueue();     // local only: a suggestion is not worth a write
-  } catch {}
-}
-
 /* Asked first, in MAGI's own sheet -- never a browser dialog.
  *
  *  A queued prompt is typed work, and on a phone the X sits a thumb's width
@@ -9719,24 +9368,6 @@ function queueEdit(id) {
   queueRemove(id);
   updateEnabled();
 }
-
-/** Auto -> Opus -> Sonnet -> Haiku -> Auto. One control, four states.
- *
- *  A model your Claude plan does not offer can still be chosen here on
- *  purpose: the row is a request, and the run reports what actually answered.
- *  Hiding models that are unavailable today would hide them again on the day
- *  the plan changes.
- */
-const QUEUE_MODELS = ["auto", "opus", "sonnet", "haiku"];
-function queueCycleModel(id) {
-  const it = S.queue.find((x) => x.id === id);
-  if (!it) return;
-  const i = QUEUE_MODELS.indexOf(it.model || "auto");
-  it.model = QUEUE_MODELS[(i + 1) % QUEUE_MODELS.length];
-  queueChanged();
-  if (it.model === "auto") queueSuggest(id);
-}
-
 /** Move one row, by changing only its own order number. */
 function queueMove(id, dir) {
   const rows = queueSorted();
@@ -9815,6 +9446,15 @@ async function queueStart() {
     return;
   }
   if (!(await leaseClaim())) return;
+  // Nothing can be running now: this page is not running it, and holding the
+  // lease means no other device is either. A row still marked running was
+  // left there by a tab that closed mid-prompt, and it has to be startable
+  // again or the queue is stuck on a row nothing will ever finish.
+  let orphans = 0;
+  for (const it of S.queue) {
+    if (it.status === "running") { it.status = "queued"; orphans++; }
+  }
+  if (orphans) queueChanged();
   S.queueRunning = true;
   const gen = ++_queueGen;
   renderQueue();
@@ -9865,14 +9505,15 @@ async function queueDrain(gen) {
 
     let outcome = null;
     try {
-      outcome = await runOne({
-        question: it.q, units: it.units, model: it.model || "auto", files,
-      });
+      outcome = await runOne({ question: it.q, units: it.units, files });
     } catch (e) {
       outcome = { ok: false, error: (e && e.message) || "the run failed" };
     }
-    if (gen !== _queueGen) return;
-
+    // Recorded BEFORE the generation is rechecked. Returning here left the
+    // row stuck on "running" for ever: it then counted as neither waiting nor
+    // finished, so Run queue had nothing to start and sat greyed out with a
+    // prompt that had actually finished. Pause means "stop after this one",
+    // which only makes sense if this one is written down.
     if (outcome && outcome.runId) {
       it.runId = outcome.runId;
       it.status = outcome.ok ? "done" : "failed";
@@ -9889,6 +9530,7 @@ async function queueDrain(gen) {
       it.err = (outcome && outcome.error) || "could not start";
     }
     queueChanged();
+    if (gen !== _queueGen) return;              // paused: stop after this one
 
     // A rate limit is the one failure worth stopping for: the next prompt
     // would hit the same wall, and a queue that empties itself into a wall
@@ -9971,7 +9613,6 @@ const queueForCloud = () => queueSorted().map((it) => ({
   id: it.id,
   q: it.q,
   units: it.units || [],
-  model: it.model || "auto",
   atts: (it.atts || []).map((a) => ({ n: a.n, s: a.s || 0, t: a.t || "" })),
   status: it.status || "queued",
   order: it.order || 0,
@@ -9985,19 +9626,13 @@ function queueFromCloud(rows) {
   if (!Array.isArray(rows)) return false;
   const mine = JSON.stringify(queueForCloud());
   const theirs = JSON.stringify(rows.map((it) => ({
-    id: it.id, q: it.q, units: it.units || [], model: it.model || "auto",
+    id: it.id, q: it.q, units: it.units || [],
     atts: (it.atts || []).map((a) => ({ n: a.n, s: a.s || 0, t: a.t || "" })),
     status: it.status || "queued", order: it.order || 0, dev: it.dev || "",
     runId: it.runId || null, err: it.err || null,
   })));
   if (mine === theirs) return false;
-  // Suggestions are per-device and not synced, so they are carried across
-  // rather than lost every time another device touches the queue.
-  const why = new Map(S.queue.map((it) => [it.id, [it.autoModel, it.autoWhy]]));
-  S.queue = rows.map((it) => {
-    const [autoModel, autoWhy] = why.get(it.id) || [];
-    return { ...it, autoModel, autoWhy };
-  });
+  S.queue = rows.map((it) => ({ ...it }));
   return true;
 }
 
@@ -10022,6 +9657,7 @@ function renderQueue() {
   runBtn.title = S.queueRunning
     ? "Stop after the prompt that is running"
     : !online() ? "The engine device has to be awake"
+    : !pending ? "Nothing is waiting — add a prompt to the queue"
     : "Put each prompt to the council in turn";
   runBtn.onclick = () => (S.queueRunning ? queueStop() : queueStart());
 
@@ -10052,19 +9688,6 @@ function renderQueue() {
     if ((it.units || []).length) {
       meta.append(units, el("span", "", `${it.units.length} unit${it.units.length === 1 ? "" : "s"}`));
     }
-
-    // The model, as a three-state button. Auto shows what auto WOULD pick.
-    const m = it.model || "auto";
-    const label = m === "auto"
-      ? (it.autoModel ? `auto \u00b7 ${it.autoModel}` : "auto")
-      : m;
-    const mb = el("button", `q-model ${m === "auto" ? "" : m}`, label);
-    mb.type = "button";
-    mb.title = m === "auto"
-      ? `Claude's model, chosen from the prompt${it.autoWhy ? ": " + it.autoWhy : ""}. Click to fix it to Opus.`
-      : `Claude runs on ${m}. Click to change.`;
-    mb.onclick = () => queueCycleModel(it.id);
-    meta.append(mb);
 
     // Attachments: names always, bytes only where they were added.
     const atts = it.atts || [];
@@ -10133,25 +9756,6 @@ function backToLive() {
   renderVerdict();
   if (S.panels.length) requestAnimationFrame(drawLinks);
 }
-
-/** The model the current run is going out under, beside the heading. */
-function renderRunModel() {
-  let chip = $("runModel");
-  const hd = document.querySelector("#councilHd .council-title");
-  if (!chip && hd) {
-    chip = el("span", "run-model");
-    chip.id = "runModel";
-    hd.after(chip);
-  }
-  if (!chip) return;
-  const m = S.runModel;
-  show(chip, !!(m && m.model));
-  if (!m || !m.model) return;
-  chip.textContent = `Claude \u00b7 ${m.model}`;
-  chip.title = [m.reason, ...(m.signals || [])].filter(Boolean).join(" \u00b7 ")
-    || "the model this run asked Claude for";
-}
-
 /* ── retention ──────────────────────────────────────────────────────────────
    History keeps 30 days. Everything older goes, unless it is PINNED.
 
