@@ -231,3 +231,13 @@ would be claimed by the wrong order and a real fill dropped.
 The worker's fee-backfill fingerprint also includes qty and price now, never
 indexes source:'webull' entries (they are orders, matched by id), and only
 swallows an order when it actually patched a fee.
+
+### Hand-fixing a fill the feed never delivered
+
+The 9/15 PLTR sell stayed NO BASIS after the fixes above: the second 9/9 buy
+never reached the journal, so there was nothing to keep. The fix is by hand —
+edit the row and add the buy — which makes it `source:'manual'` (see
+TBTradeModal). A leg ADDED to a Webull-derived trade is tagged `_hand`, and a
+`_hand` leg only stands in for a Webull fill within `TB_HAND_NEAR_MS` (3h) of
+its clock. Without that, the added 1@170 buy — identical to the 09:31 buy at
+day precision — absorbed the 09:31 buy and broke the 9/9 trade instead.

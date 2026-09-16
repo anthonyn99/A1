@@ -473,6 +473,35 @@ function gateContext(loader) {
       .reduce((n, t) => n + t.legs.filter(l => l.action === 'BUY').length, 0);
     eq('an id-less copy absorbs one order and the second order survives', buys, 2);
 
+    /* The hand fix for 9/15: the NO BASIS row edited into a manual trade with
+       the missing 15:13 buy added. That buy is identical to the 09:31 one, so it
+       must not swallow it — the 9/9 trade has to survive every re-merge/sync. */
+    const hand = (dt) => ({ id: 'm', source: 'manual', ticker: 'PLTR', createdAt: 9, legs: [
+      { id: 'hb', _hand: true, action: 'BUY', datetime: dt, qty: '1', price: '170', fee: '0' },
+      leg('s2', 'O4', 'SELL', '2026-09-15T12:44', '174.30')] });
+    const feed = [
+      w('a', [leg('b1', 'O1', 'BUY', '2026-09-09T09:31', '170'), leg('s1', 'O2', 'SELL', '2026-09-09T10:43', '171.30')]),
+      w('c', [leg('s2', 'O4', 'SELL', '2026-09-15T12:44', '174.30')]),
+    ];
+    let h = reconCtx.tbReconcileWebull([hand('2026-09-09T15:13')].concat(feed));
+    eq('hand fix: the manual trade stays untouched', h.others.map(t => t.id), ['m']);
+    eq('hand fix: the 9/9 09:31 buy and its sell survive as one position',
+       h.rebuilt.map(t => t.legs.map(l => l.id).join(',')), ['b1,s1']);
+    h = reconCtx.tbReconcileWebull([].concat(h.others, h.rebuilt, [w('c2', [leg('s2', 'O4', 'SELL', '2026-09-15T12:44', '174.30')])]));
+    eq('hand fix holds on the next re-merge', h.rebuilt.map(t => t.legs.map(l => l.id).join(',')), ['b1,s1']);
+    const late = reconCtx.tbReconcileWebull([hand('2026-09-09T15:13')].concat(feed,
+      [w('b', [leg('b2', 'O3', 'BUY', '2026-09-09T15:13', '170')])]));
+    eq('if the feed later delivers the missing buy, the hand leg absorbs it',
+       late.rebuilt.map(t => t.legs.map(l => l.id).join(',')), ['b1,s1']);
+    const tz = reconCtx.tbReconcileWebull([hand('2026-09-09T17:13')].concat(feed,
+      [w('b', [leg('b2', 'O3', 'BUY', '2026-09-09T15:13', '170')])]));
+    eq('...even when the hand time was typed in another timezone',
+       tz.rebuilt.map(t => t.legs.map(l => l.id).join(',')), ['b1,s1']);
+    check('a CSV/manual leg without _hand still dedups a same-day twin (unchanged)',
+          !reconCtx.tbReconcileWebull([{ id: 'c', source: 'csv', ticker: 'PLTR',
+            legs: [{ id: 'x', action: 'BUY', datetime: '2026-09-09T15:13', qty: '1', price: '170' }] }].concat(feed))
+            .rebuilt.some(t => t.legs.some(l => l.id === 'b1')));
+
     const ledger = reconCtx.tbFillLedger();
     ledger.add('k', { leg: {}, order: null, owned: true });
     check('a manual fill is claimed by the first matching order', !!ledger.match('k', 'X'));
