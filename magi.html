@@ -9439,8 +9439,15 @@ function queueChanged() {
 
 /* ── the runner ───────────────────────────────────────────────────────────*/
 
+/** Anything left marked running while nothing is running: a tab that closed
+ *  mid-prompt. Counted as startable, or the queue is stuck on a row that no
+ *  longer has anything behind it. */
+const queueStuck = () =>
+  !S.queueRunning && S.queue.some((it) => it.status === "running");
+
 async function queueStart() {
-  if (S.queueRunning || !queuePending().length) return;
+  if (S.queueRunning) return;
+  if (!queuePending().length && !queueStuck()) return;
   if (!online()) {
     setErr("refineError", "The engine device has to be awake to run the queue.");
     return;
@@ -9653,11 +9660,12 @@ function renderQueue() {
 
   const runBtn = $("queueRunBtn");
   runBtn.textContent = S.queueRunning ? "Pause" : "Run queue";
-  runBtn.disabled = !S.queueRunning && (!pending || !online());
+  runBtn.disabled = !S.queueRunning
+    && ((!pending && !queueStuck()) || !online());
   runBtn.title = S.queueRunning
     ? "Stop after the prompt that is running"
     : !online() ? "The engine device has to be awake"
-    : !pending ? "Nothing is waiting — add a prompt to the queue"
+    : (!pending && !queueStuck()) ? "Nothing is waiting — add a prompt to the queue"
     : "Put each prompt to the council in turn";
   runBtn.onclick = () => (S.queueRunning ? queueStop() : queueStart());
 

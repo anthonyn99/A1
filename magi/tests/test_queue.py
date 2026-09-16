@@ -150,3 +150,38 @@ def test_queueing_does_not_rewrite_the_ticked_set():
     assert "S.selected =" not in _fn("queueAdd")
     # runOne builds its panels from the units it was HANDED.
     assert "ids.includes(p.id)" in _fn("runOne")
+
+
+# ── pausing, and picking it back up ─────────────────────────────────────────
+def test_the_prompt_in_flight_is_recorded_even_when_you_pause():
+    """The pause bug: the loop returned on the generation check BEFORE writing
+    the outcome, so the row stayed "running" for ever. It then counted as
+    neither waiting nor finished, Run queue had nothing to start, and the
+    button sat greyed out over a prompt that had actually finished."""
+    body = _fn("queueDrain")
+    after_run = body[body.index("await runOne"):]
+    record = after_run.index("it.status = outcome.ok")
+    pause = after_run.index("gen !== _queueGen")
+    assert record < pause, (
+        "the generation is rechecked before the outcome is written, which "
+        "leaves the paused row stuck on running"
+    )
+
+
+def test_a_row_left_running_by_a_closed_tab_can_be_started_again():
+    assert "const queueStuck" in PAGE
+    start = _fn("queueStart")
+    assert "queueStuck()" in start, "the start guard ignores an orphaned row"
+    assert 'it.status = "queued"' in start, "an orphan is never reset"
+    # ...and the button has to be clickable for that to be reachable at all.
+    render = _fn("renderQueue")
+    assert "queueStuck()" in render, "Run queue stays greyed over a stuck row"
+
+
+def test_an_orphan_is_only_reclaimed_once_the_lease_is_held():
+    """Another device may legitimately be running that row."""
+    start = _fn("queueStart")
+    assert start.index("leaseClaim()") < start.index('it.status = "queued"'), (
+        "rows are reset before the lease is claimed, so a row another device "
+        "is running would be restarted here as well"
+    )
