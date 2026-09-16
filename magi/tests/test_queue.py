@@ -390,3 +390,17 @@ def test_a_verdict_says_which_question_it_answers():
     )
     for fn in ("runOne", "openRun", "cloudOpenRun", "backToLive"):
         assert "S.viewQuestion" in _fn(fn), f"{fn} leaves the caption stale"
+
+
+# ── failed prompts can be run again ─────────────────────────────────────────
+def test_a_failed_row_offers_retry_and_many_offer_retry_all():
+    page = (Path(__file__).resolve().parents[2] / "magi.html").read_text(encoding="utf-8")
+    assert "function queueRetry(ids)" in page
+    assert 'el("button", "q-act retry"' in page
+    assert 'id="queueRetryBtn"' in page and "failed.length > 1" in page
+
+
+def test_unit_colours_do_not_wait_for_the_engine():
+    page = (Path(__file__).resolve().parents[2] / "magi.html").read_text(encoding="utf-8")
+    assert "const UNIT_FALLBACK" in page
+    assert "dot.style.background = unitAccent(id);" in page

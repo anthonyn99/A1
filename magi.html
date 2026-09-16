@@ -360,7 +360,7 @@ body {
    The right padding is the grip's seat: the grip is taken out of the flow and
    parked in the corner, so without it Convene would sit underneath. */
 .qbar-toolbar { display: flex; align-items: center; gap: 6px;
-                padding: 2px 40px 0 2px; }
+                padding: 2px 30px 0 2px; }
 .qbar-spacer { flex: 1; }
 
 /* The resize grip, in the box's actual bottom-right CORNER.
@@ -373,24 +373,31 @@ body {
    a control you stab at rather than grab. `touch-action: none` is what makes
    the drag work on a touch screen at all; without it the browser claims the
    gesture as a page scroll. */
+/* A corner resize handle -- the diagonal hatch a textarea draws for itself,
+   because that is the shape people already read as "drag this corner".
+   The mark is small; the target is not. 38px of invisible hit area sits over
+   the corner so it is grabbed rather than aimed at, and on a phone, where no
+   browser offers a native handle at all, it is the only way to resize. */
 .qbar-grip {
-  position: absolute; right: 4px; bottom: 4px;
-  width: 32px; height: 32px; padding: 0;
-  background: transparent; border: 1px solid var(--bdl);
-  border-radius: 9px 9px 12px 9px;
-  color: var(--txd); cursor: ns-resize; touch-action: none;
-  display: inline-flex; align-items: center; justify-content: center;
-  transition: color .15s, border-color .15s, background .15s;
+  position: absolute; right: 0; bottom: 0;
+  width: 38px; height: 38px; padding: 0;
+  background: transparent; border: 0; border-radius: 0 0 16px 0;
+  color: var(--txd); cursor: nwse-resize; touch-action: none;
+  display: block;
+  transition: color .15s;
 }
 .qbar-grip::before {
-  /* Two stacked bars: the same "grab me" shorthand as a sheet handle, and it
-     reads at 28px in a way a diagonal hatch does not. */
-  content: ""; width: 14px; height: 6px;
-  border-top: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  content: ""; position: absolute; right: 7px; bottom: 7px;
+  width: 11px; height: 11px;
+  /* Two diagonal strokes, bottom-right, like the native handle. */
+  background:
+    linear-gradient(135deg, transparent 45%, currentColor 45%, currentColor 55%, transparent 55%) no-repeat right bottom / 11px 11px,
+    linear-gradient(135deg, transparent 45%, currentColor 45%, currentColor 55%, transparent 55%) no-repeat right bottom / 6px 6px;
 }
-.qbar-grip:hover { color: var(--txm); border-color: var(--bd); }
-.qbar-grip.on { color: var(--ac); border-color: var(--ac); }
-.qbar-grip:active { background: color-mix(in srgb, var(--ac) 10%, transparent); }
+.qbar-grip:hover, .qbar-grip:focus-visible { color: var(--tx); }
+.qbar-grip.on { color: var(--ac); }
+.qbar-grip:active { color: var(--ac); }
+.qbar-grip:focus-visible { outline: 1px solid var(--ac); outline-offset: -4px; border-radius: 8px; }
 
 /* The caption under the units. --txd, not --txm: it is the dimmest text on
    the screen on purpose. */
@@ -1511,6 +1518,10 @@ table.doctor, table.doctor code, .v-table, .studio-table,
 }
 .q-act:hover { border-color: var(--bdl); color: var(--tx); }
 .q-act.danger:hover { border-color: var(--red); color: var(--red); }
+/* The one control on a failed row that fixes it. */
+.q-act.retry { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 40%, transparent); }
+.q-act.retry:hover:not(:disabled) { border-color: var(--amber); color: var(--amber); }
+#queueRetryBtn { color: var(--amber); }
 /* The one control on a running row that does something right now. */
 .q-act.watching { color: var(--ac); border-color: color-mix(in srgb, var(--ac) 45%, transparent); }
 .q-act.watching:hover { border-color: var(--ac); }
@@ -2012,7 +2023,7 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 .bs-topic::placeholder { color: color-mix(in srgb, var(--txm) 62%, transparent); }
 .bs-topic:disabled { color: var(--txd); }
 .bs-start-bar { display: flex; align-items: center; gap: 8px;
-                padding: 8px 40px 0 0; }   /* right: the grip's seat */
+                padding: 8px 30px 0 0; }   /* right: the grip's seat */
 .bs-note { color: var(--txm); font-size: 10px; letter-spacing: .5px; }
 
 .bs-phase {
@@ -2788,6 +2799,15 @@ html.modal-open .page, html.modal-open .sidebar { overflow: hidden; }
   transition: border-color .15s, box-shadow .15s;
 }
 /* The same ring the composer draws, for the same reason: this IS a composer. */
+.qedit-textwrap { position: relative; }
+/* Our handle, not the browser's: two handles in one corner is one too many,
+   and a phone has no native one. */
+.qedit-text { resize: none; }
+.qedit-textwrap .qbar-grip { border-radius: 0 0 12px 0; }
+.qedit.drag {
+  border-color: var(--ac); border-style: dashed;
+  background: color-mix(in srgb, var(--ac) 6%, var(--s1));
+}
 .qedit-text:focus {
   border-color: var(--ac);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--ac) 16%, transparent);
@@ -3534,6 +3554,7 @@ window._mailRelay = window._mailRelay || async function (res) {
              travel together to the next line instead of a flexible spacer
              opening a gap between them. -->
         <span class="queue-acts">
+          <button type="button" class="navitem queue-act" id="queueRetryBtn" hidden></button>
           <button type="button" class="navitem queue-act" id="queueRunBtn"></button>
           <button type="button" class="navitem queue-act" id="queueClearBtn">Clear finished</button>
         </span>
@@ -4520,6 +4541,46 @@ const WORKING = new Set(["queued", "launching", "navigating", "typing", "waiting
 /** The MAGI units are named systems, not brands — each member gets one. */
 // Adam and Lilith are the two seeds of life; the first four are the MAGI
 // themselves. A fifth unit needed a name that belongs to the same story.
+/* Each unit's name and colour, known to the console itself.
+ *
+ *  The colour used to come ONLY from the engine's provider list, so on a
+ *  device that had not reached the engine yet -- a phone, a fresh tab, the
+ *  first second after load -- every unit dot in the queue fell back to grey,
+ *  and a row stopped saying who it was going to ask. Same values as
+ *  config/selectors.yaml; the engine's list still wins when it has loaded.
+ */
+const UNIT_FALLBACK = [
+  { id: "claude", display_name: "Claude", accent: "#e0b874" },
+  { id: "chatgpt", display_name: "ChatGPT", accent: "#a4b986" },
+  { id: "gemini", display_name: "Gemini", accent: "#8fa6d8" },
+  { id: "deepseek", display_name: "DeepSeek", accent: "#c0aeea" },
+  { id: "perplexity", display_name: "Perplexity", accent: "#7fcac2" },
+  { id: "grok", display_name: "Grok", accent: "#e89a86" },
+];
+
+/** The units to offer: the engine's list when there is one, else the known set. */
+function knownUnits() {
+  if (S.providers && S.providers.length) return orderedProviders();
+  const order = S.unitOrder || [];
+  return [...UNIT_FALLBACK].sort((a, b) => {
+    const ia = order.indexOf(a.id), ib = order.indexOf(b.id);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+  });
+}
+
+/** One unit's colour, never grey for a unit MAGI knows. */
+function unitAccent(id) {
+  const p = (S.providers || []).find((x) => x.id === id)
+         || UNIT_FALLBACK.find((x) => x.id === id);
+  return (p && p.accent) || "var(--bdl)";
+}
+
+function unitName(id) {
+  const p = (S.providers || []).find((x) => x.id === id)
+         || UNIT_FALLBACK.find((x) => x.id === id);
+  return (p && p.display_name) || id;
+}
+
 const UNIT = { chatgpt: "MELCHIOR·01", claude: "BALTHASAR·02", gemini: "CASPER·03",
                deepseek: "ADAM·04", perplexity: "LILITH·05",
                grok: "TABRIS·06" };
@@ -7295,6 +7356,9 @@ function orderedProviders() {
 }
 
 function renderUnitChips() {
+  // The engine's list has just arrived or changed: the queue's unit dots were
+  // drawn from whatever was known before it, so they are redrawn with it.
+  if (typeof renderQueue === "function") queueMicrotask(renderQueue);
   const box = $("unitChips");
   box.textContent = "";
   for (const p of orderedProviders()) {
@@ -7576,12 +7640,14 @@ composer.addEventListener("paste", (e) => {
 });
 
 const qbar = $("qbar");
-qbar.addEventListener("dragover", (e) => { if (S.running) return; e.preventDefault(); qbar.classList.add("drag"); });
+// Not blocked by a run: the composer is where the NEXT prompt is written, and
+// that includes its files.
+qbar.addEventListener("dragover", (e) => { e.preventDefault(); qbar.classList.add("drag"); });
 qbar.addEventListener("dragleave", () => qbar.classList.remove("drag"));
 qbar.addEventListener("drop", (e) => {
   e.preventDefault();
   qbar.classList.remove("drag");
-  if (!S.running && e.dataTransfer.files?.length) addFiles(e.dataTransfer.files);
+  if (e.dataTransfer.files?.length) addFiles(e.dataTransfer.files);
 });
 
 /* ══ STUDIO ════════════════════════════════════════════════════════════════
@@ -10019,6 +10085,37 @@ async function queueWatch(id) {
   }
 }
 
+/* Run failed prompts again.
+ *
+ *  A prompt fails for reasons that usually pass -- you halted it, a unit
+ *  timed out, a session had lapsed -- and re-typing it to try again throws
+ *  away its units and files. Retrying puts the row back as it was queued and
+ *  moves it to the FRONT, because a retry is something you want now rather
+ *  than after everything else in the list; and it starts the queue if the
+ *  queue was idle, because pressing Retry and then having to find Run as well
+ *  is the same request made twice.
+ */
+function queueRetry(ids) {
+  const want = new Set(ids);
+  const rows = S.queue.filter((it) => want.has(it.id) && it.status === "failed");
+  if (!rows.length) return;
+  const front = Math.min(0, ...queuePending().map((it) => it.order || 0));
+  rows
+    .sort((a, b) => (a.order || 0) - (b.order || 0))
+    .forEach((it, k) => {
+      it.status = "queued";
+      it.err = null;
+      it.runId = null;
+      it.resumable = false;
+      // Kept in their original relative order, all ahead of what was waiting.
+      it.order = front - QUEUE_STEP * (rows.length - k);
+    });
+  queueChanged();
+  if (!S.queueRunning && online()) queueStart();
+}
+
+const queueFailed = () => S.queue.filter((it) => it.status === "failed");
+
 /* Edit a queued prompt where it lives, in its own panel.
  *
  *  It used to move the prompt back into the composer and drop the row, which
@@ -10036,7 +10133,7 @@ function queueEdit(id) {
   const it = S.queue.find((x) => x.id === id);
   if (!it || it.status === "running") return;
 
-  const known = new Set(S.providers.map((p) => p.id));
+  const known = new Set(knownUnits().map((p) => p.id));
   // Worked on as COPIES. A half-finished edit must not reach the other
   // devices, and Cancel has to be able to mean cancel.
   let text = it.q;
@@ -10049,14 +10146,16 @@ function queueEdit(id) {
 
   const sheet = el("div", "sheet");
   const box = el("div", "sheet-box sheet-wide qedit");
-  box.append(el("div", "sheet-hd", "Edit prompt"),
-             el("div", "sheet-sub", "Nothing changes until you save."));
+  box.append(el("div", "sheet-hd", "Edit prompt"));
 
+  const taWrap = el("div", "qedit-textwrap");
   const ta = el("textarea", "sheet-in qedit-text");
   ta.value = text;
   ta.rows = 6;
   ta.oninput = () => { text = ta.value; sync(); };
-  box.append(ta);
+  const taGrip = gripButton();
+  taWrap.append(ta, taGrip);
+  box.append(taWrap);
 
   const err = el("div", "qbar-error");
   err.hidden = true;
@@ -10071,7 +10170,7 @@ function queueEdit(id) {
   const chips = el("div", "qedit-units");
   const drawChips = () => {
     chips.textContent = "";
-    for (const p of orderedProviders()) {
+    for (const p of knownUnits()) {
       const on = units.has(p.id);
       const b = el("button", `chip ${on ? "on" : ""}`);
       b.type = "button";
@@ -10150,6 +10249,42 @@ function queueEdit(id) {
   drawAtts();
   box.append(atts, fileIn);
 
+  // Dropped files land here exactly as they do on the composer: anywhere on
+  // the panel, with the panel lighting up so it is obvious where they go.
+  const takeFiles = (list) => {
+    for (const f of list || []) {
+      if (files.length + carried.length >= MAX_ATTACHMENTS) {
+        setErrEl(`Only ${MAX_ATTACHMENTS} attachments per prompt.`);
+        break;
+      }
+      if (f.size > MAX_ATTACHMENT_BYTES) {
+        setErrEl(`${f.name} exceeds the 20MB limit.`);
+        continue;
+      }
+      files.push(f);
+    }
+    drawAtts();
+    sync();
+  };
+  box.addEventListener("dragover", (e) => {
+    if (![...(e.dataTransfer?.types || [])].includes("Files")) return;
+    e.preventDefault();
+    box.classList.add("drag");
+  });
+  box.addEventListener("dragleave", (e) => {
+    if (!box.contains(e.relatedTarget)) box.classList.remove("drag");
+  });
+  box.addEventListener("drop", (e) => {
+    if (!e.dataTransfer?.files?.length) return;
+    e.preventDefault();
+    box.classList.remove("drag");
+    takeFiles(e.dataTransfer.files);
+  });
+  ta.addEventListener("paste", (e) => {
+    const pasted = Array.from(e.clipboardData?.files || []);
+    if (pasted.length) takeFiles(pasted);
+  });
+
   // ── the bar ──────────────────────────────────────────────────────────────
   const bar = el("div", "sheet-bar qedit-bar");
   const save = el("button", "btn active", "Save");
@@ -10175,7 +10310,7 @@ function queueEdit(id) {
     // Said out loud, because a Save that is greyed for a reason you cannot
     // see is indistinguishable from a broken button.
     unitCount.textContent = units.size
-      ? `${units.size} of ${S.providers.length}`
+      ? `${units.size} of ${knownUnits().length}`
       : "none \u2014 pick at least one";
     unitCount.classList.toggle("empty", units.size === 0);
   }
@@ -10242,6 +10377,7 @@ function queueEdit(id) {
 
   sheet.append(box);
   document.body.append(sheet);
+  attachGrip(ta, taGrip, null, null);
   sync();
   ta.focus();
   ta.setSelectionRange(ta.value.length, ta.value.length);
@@ -10579,6 +10715,15 @@ function renderQueue() {
     : "Put each prompt to the council in turn";
   runBtn.onclick = () => (S.queueRunning ? queueStop() : queueStart());
 
+  // Retry all: offered once there is more than one to retry. With one, the
+  // row's own button is right next to it and a second copy is clutter.
+  const failed = queueFailed();
+  const retryAll = $("queueRetryBtn");
+  show(retryAll, failed.length > 1);
+  retryAll.textContent = `Retry ${failed.length} failed`;
+  retryAll.title = "Put every failed prompt back at the front of the queue and run them";
+  retryAll.onclick = () => queueRetry(failed.map((it) => it.id));
+
   const clearBtn = $("queueClearBtn");
   const finished = rows.length - pending;
   show(clearBtn, finished > 0);
@@ -10597,10 +10742,9 @@ function renderQueue() {
     // Who is being asked, as colour rather than seven names.
     const units = el("span", "q-units");
     for (const id of it.units || []) {
-      const p = S.providers.find((x) => x.id === id);
       const dot = el("span", "q-unit");
-      dot.style.background = (p && p.accent) || "var(--bdl)";
-      dot.title = (p && p.display_name) || id;
+      dot.style.background = unitAccent(id);
+      dot.title = unitName(id);
       units.append(dot);
     }
     if ((it.units || []).length) {
@@ -10649,11 +10793,24 @@ function renderQueue() {
       : "Open the deliberation this produced";
     open.disabled = !it.runId;
     open.onclick = () => (live ? queueWatch(it.id) : openRun(it.runId));
+    // Only on a failed row, and before Open: it is the thing you came to the
+    // row to do.
+    let retry = null;
+    if (it.status === "failed") {
+      retry = el("button", "q-act retry", "\u21BB");
+      retry.type = "button";
+      // Never disabled: putting it back in the queue syncs from any device,
+      // and whichever device runs the queue picks it up.
+      retry.title = "Run this prompt again";
+      retry.onclick = () => queueRetry([it.id]);
+    }
     const del = el("button", "q-act danger", "\u2715");
     del.type = "button"; del.title = "Remove from the queue";
     del.disabled = it.status === "running";
     del.onclick = () => queueRemove(it.id);
-    acts.append(up, down, edit, open, del);
+    acts.append(up, down, edit);
+    if (retry) acts.append(retry);
+    acts.append(open, del);
     row.append(acts);
     box.append(row);
   }

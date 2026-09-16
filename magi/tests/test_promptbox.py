@@ -38,8 +38,9 @@ def test_the_grip_is_usable_with_a_finger():
     """Without touch-action:none the browser claims the drag as a scroll."""
     css = _grip_css()
     assert "touch-action: none" in css
-    # A 14px native corner is a stab target, not a grab target.
-    assert "width: 32px" in css and "height: 32px" in css
+    # A 14px native corner is a stab target, not a grab target: the MARK is
+    # small, the hit area over the corner is not.
+    assert "width: 38px" in css and "height: 38px" in css
 
 
 def test_the_grip_is_in_the_corner():
@@ -50,7 +51,8 @@ def test_the_grip_is_in_the_corner():
     and the grip lands under Convene.
     """
     css = _grip_css()
-    assert "position: absolute" in css and "right: 4px" in css and "bottom: 4px" in css
+    assert "position: absolute" in css and "right: 0" in css and "bottom: 0" in css
+    assert "nwse-resize" in css, "the cursor no longer says diagonal-corner resize"
     for box in (".qbar {", ".bs-start {"):
         # The rule that draws the box, not the one-liners that also start
         # with this selector (a reduced-motion override, for one).
@@ -58,11 +60,11 @@ def test_the_grip_is_in_the_corner():
             f"{box.strip(' {')} is not the frame the grip is measured from"
         )
     bar = PAGE[PAGE.index(".qbar-toolbar { display: flex"):]
-    assert "padding: 2px 40px 0 2px" in bar[: bar.index("}")], (
+    assert "padding: 2px 30px 0 2px" in bar[: bar.index("}")], (
         "the toolbar no longer reserves the corner, so Convene sits under the grip"
     )
     bs_bar = PAGE[PAGE.index(".bs-start-bar { display: flex"):]
-    assert "padding: 8px 40px 0 0" in bs_bar[: bs_bar.index("}")], (
+    assert "padding: 8px 30px 0 0" in bs_bar[: bs_bar.index("}")], (
         "the brainstorm bar no longer reserves the corner"
     )
 
