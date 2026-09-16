@@ -3190,6 +3190,45 @@ function tbGroupLegsIntoPositions(ticker,legs,meta){
   return out;
 }
 
+/* ── Same-day identical fills: one fill, or two? ─────────────────────────────
+   Both dedup paths key a fill by content at DAY precision
+   (ticker|side|day|qty|price), because the feed repeats a fill under a
+   different id, fee and clock. On its own that key also swallowed a genuine
+   second fill: PLTR was bought 1@170 at 09:31 AND again at 15:13 on 9/9, the
+   second buy collapsed into the first, and the 9/15 sell it paid for read
+   NO BASIS. The Webull order id is what tells them apart. A leg carries it as
+   _wbOrder only when it came from the worker's per-order entry (source
+   'webull', one leg, id = Webull orderId); the merged copies behind the
+   duplicates carry none. Within one content key:
+     same order id          → the same fill
+     no order id either way → the same fill; an id-less copy is claimed by the
+                              first order that matches it, and only by one
+     two different ids      → two separate fills
+   rec: {leg, order, owned?} — an owned (manual/CSV) leg is never written to. */
+function tbFillLedger(){
+  const byFp=new Map();
+  return{
+    match(fp,order){
+      const recs=byFp.get(fp);
+      if(!recs||!recs.length)return null;
+      if(!order)return recs[0];
+      const same=recs.find(r=>r.order===order);
+      if(same)return same;
+      const free=recs.find(r=>!r.order);
+      if(free){free.order=order;if(!free.owned&&free.leg)free.leg._wbOrder=order;return free;}
+      return null;
+    },
+    add(fp,rec){if(!byFp.has(fp))byFp.set(fp,[]);byFp.get(fp).push(rec);},
+  };
+}
+/* The Webull order id a raw worker entry stands for, or null when it is not
+   exactly one order (a merged position, or a hand-posted entry). */
+function tbWbOrderOf(raw){
+  if(!raw||raw.source!=='webull'||!raw.id)return null;
+  if(Array.isArray(raw.legs)&&raw.legs.length>1)return null;
+  return String(raw.id);
+}
+
 /* ── Reconcile an entire trade list: leave manual/CSV trades alone; take ALL
    webull legs, dedup them (by _wbId, else content fingerprint), and regroup
    per ticker into clean FIFO positions. Returns the clean webull entries, the
@@ -3200,7 +3239,7 @@ function tbReconcileWebull(trades){
   const webull=trades.filter(t=>t.source==='webull');
   const others=trades.filter(t=>t.source!=='webull');
   const p=n=>{const x=parseFloat(n);return isNaN(x)?0:x;};
-  const byTicker=new Map();const seen=new Map();
+  const byTicker=new Map();const seen=new Map();const ledger=tbFillLedger();
   const fpKey=(tk,g)=>'fp:'+tk+'|'+(g.action||'')+'|'+String(g.datetime||'').slice(0,10)+'|'+p(g.qty)+'|'+p(g.price);
   /* ── Manual and CSV entries OWN their fills ───────────────────────────────
      Seed the dedup with their legs first, so a webull leg repeating one is
@@ -3215,9 +3254,9 @@ function tbReconcileWebull(trades){
   others.forEach(t=>{
     const tk=(t.ticker||'').toUpperCase();
     (t.legs||[]).forEach(l=>{
-      const rec={leg:l,parts:new Set(),owned:true};
+      const rec={leg:l,parts:new Set(),owned:true,order:l._wbOrder||null};
       if(l._wbId)seen.set('wb:'+l._wbId,rec);
-      seen.set(fpKey(tk,l),rec);
+      ledger.add(fpKey(tk,l),rec);
     });
   });
   webull.forEach(t=>{
@@ -3238,11 +3277,10 @@ function tbReconcileWebull(trades){
          5/21 SNDK sell), so an id key and a minute-precision key both missed the
          pair — which is why Re-merge could never collapse the duplicate rows.
          Same ticker, side, quantity and exact cent price on one day is the same
-         fill in practice; the sync path already accepted this trade-off at
-         minute precision. Cost: two genuinely separate same-day fills identical
-         to the cent would merge into one. */
+         fill in practice — unless the two carry different Webull order ids,
+         which is how a genuine second same-day fill survives (tbFillLedger). */
       const cKey=fpKey(tk,l);
-      const hit=(idKey&&seen.get(idKey))||seen.get(cKey);
+      const hit=(idKey&&seen.get(idKey))||ledger.match(cKey,l._wbOrder||null);
       if(hit){
         /* A manual/CSV entry already accounts for this fill — drop it, and
            never write into that entry's leg objects (they are live state). */
