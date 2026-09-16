@@ -970,19 +970,26 @@ async def _download_deck(page, site: DeckSite, dest: Path) -> Path:
     # for builds where the browser-wide call does not reach an already-opening
     # target.
     #
-    # `allowAndName` (not the plain `allow` this used to send): the two disagree
-    # about the filename, and when the popup's call wins the race the file lands
-    # under the site's own name instead of a GUID. That is cosmetic on its own —
-    # but it proves the POPUP owns the transfer, and the popup is exactly what
-    # NotebookLM tears down mid-download. Matching the browser-wide behaviour
-    # keeps one owner and one naming scheme.
+    # `Page.setDownloadBehavior` with plain `allow` — DO NOT "upgrade" this to
+    # the browser-wide `allowAndName` call used above.
+    #
+    # MEASURED, and learned the hard way twice. On 2026-09-15 this was changed
+    # to Browser.setDownloadBehavior/allowAndName on the theory that one owner
+    # and one naming scheme was tidier. The result was that NO BYTES ARRIVED AT
+    # ALL: the staging directory was created and stayed empty through a full
+    # 600s window, on two consecutive runs, where the previous build had
+    # downloaded the same kind of deck successfully. Re-issuing the
+    # browser-scoped command from the popup's own session evidently re-binds
+    # the download the popup is already performing, and it is dropped.
+    #
+    # The page-scoped `allow` is what worked on 2026-09-13 and 2026-09-14.
+    # The filename disagreement it causes (site name vs GUID) is cosmetic and
+    # is handled downstream by scanning the directory rather than by name.
     async def _route_popup(new_page):
         try:
             c = await new_page.context.new_cdp_session(new_page)
-            await c.send("Browser.setDownloadBehavior",
-                         {"behavior": "allowAndName", "downloadPath": str(stage),
-                          "eventsEnabled": True})
-            c.on("Browser.downloadProgress", _on_progress)
+            await c.send("Page.setDownloadBehavior",
+                         {"behavior": "allow", "downloadPath": str(stage)})
         except Exception:                           # noqa: BLE001
             pass
     page.context.on("page", lambda np: asyncio.create_task(_route_popup(np)))
@@ -1079,12 +1086,30 @@ async def _download_deck(page, site: DeckSite, dest: Path) -> Path:
         if total_now != last_size:
             last_size, last_growth = total_now, now
 
-        stalled = (total_now > 0 and now - last_growth > STALL_S)
+        # `total_now > 0` is NOT required, and requiring it was a real bug.
+        #
+        # MEASURED (job sb_49fbc5a20e, 2026-09-15): the click on "Download PDF"
+        # did not take — the staging directory was created and then stayed
+        # EMPTY, so total_now was 0 forever and this guard never fired. The run
+        # sat out the full 600s and reported a timeout, which is the same
+        # misleading message the stall detection was added to remove. A download
+        # that never starts is just as dead as one that dies at 47KB, and it is
+        # fixed by the same re-click.
+        #
+        # The `sum() == 0` case is safe to treat as a stall because last_growth
+        # is initialised at loop start: a legitimately slow FIRST byte still has
+        # the whole STALL_S window to arrive.
+        stalled = now - last_growth > STALL_S
         canceled = dl_state.get("state") == "canceled"
         if (stalled or canceled) and restarts < MAX_RESTARTS:
             restarts += 1
-            why = "Chrome reported it canceled" if canceled else \
-                  f"no bytes for {int(now - last_growth)}s"
+            waited = int(now - last_growth)
+            if canceled:
+                why = "Chrome reported it canceled"
+            elif total_now == 0:
+                why = f"the download never started ({waited}s)"
+            else:
+                why = f"no new bytes for {waited}s"
             print(f"[deck] download stalled ({why}); "
                   f"re-clicking Download ({restarts}/{MAX_RESTARTS})",
                   file=sys.stderr, flush=True)

@@ -478,5 +478,33 @@ t("the recorded URL is canonicalised at the source",
 t("and again on the way into fetch",
   '_canonical_notebook_url(args.url' in _inspect.getsource(driver.cmd_fetch))
 
+# A download that NEVER STARTS is as dead as one that dies partway.
+# MEASURED (job sb_49fbc5a20e, 2026-09-15): the Download click did not take,
+# the staging dir stayed empty, and the stall guard was written as
+# `total_now > 0 and ...` — so with zero bytes it never fired and the run sat
+# out the full 600s, reporting the same misleading timeout the stall detection
+# existed to remove.
+t("a stall is detected even with ZERO bytes on disk",
+  'total_now > 0 and' not in _dd,
+  'the zero-byte blind spot is back: stalled requires total_now > 0')
+t("and the message distinguishes never-started from died-partway",
+  'never started' in _dd and 'no new bytes' in _dd)
+
+# The POPUP must be routed with page-scoped `allow`, never the browser-wide
+# `allowAndName`. MEASURED 2026-09-15: switching it to Browser.setDownload-
+# Behavior/allowAndName made the staging dir stay COMPLETELY EMPTY for a full
+# 600s window on two consecutive runs — re-issuing the browser-scoped command
+# from the popup's session drops the transfer the popup is already doing.
+# The builds that actually downloaded decks (09-13, 09-14) used page `allow`.
+_popup = _dd[_dd.index('async def _route_popup'):]
+_popup = _popup[:_popup.index('page.context.on')]
+t("the popup is routed page-scoped, not browser-scoped",
+  'Page.setDownloadBehavior' in _popup
+  and 'Browser.setDownloadBehavior' not in _popup, _popup[:200])
+t("the popup uses plain allow, not allowAndName",
+  'allowAndName' not in _popup, _popup[:200])
+t("the browser-wide call still names files and enables events",
+  'allowAndName' in _dd and 'eventsEnabled' in _dd)
+
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

@@ -32,6 +32,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import pdfrender  # noqa: E402
+import shutil as _shutil  # noqa: E402
+import tempfile as _tempfile  # noqa: E402
 import server  # noqa: E402
 
 PASS = FAIL = 0
@@ -226,6 +228,15 @@ def _fake_deck(args):
 _real_fetch = getattr(server.driver, 'cmd_fetch', None)
 _real_deck = server.driver.cmd_deck
 _real_run = server.asyncio.run
+# Redirect OUTPUTS at a throwaway directory for the duration.
+#
+# _run_notebooklm_job writes the recovered deck to OUTPUTS/<job id>.pdf, and
+# without this the test drops a 24-byte "sb_recover.pdf" into the REAL outputs
+# folder beside genuine decks — test pollution sitting in a production
+# directory, which then has to be told apart from a real (if tiny) result.
+_real_outputs = server.OUTPUTS
+_tmp_outputs = _tempfile.mkdtemp(prefix="sos-test-outputs-")
+server.OUTPUTS = Path(_tmp_outputs)
 server.driver.cmd_fetch = _fake_fetch
 server.driver.cmd_deck = _fake_deck
 server.asyncio.run = lambda c: c   # our fakes are plain functions
@@ -247,6 +258,11 @@ finally:
     if _real_fetch is not None:
         server.driver.cmd_fetch = _real_fetch
     server.asyncio.run = _real_run
+    server.OUTPUTS = _real_outputs
+    _shutil.rmtree(_tmp_outputs, ignore_errors=True)
+t("the test wrote nothing into the real outputs folder",
+  not (_real_outputs / "sb_recover.pdf").exists(),
+  "sb_recover.pdf leaked into outputs/")
 
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)
