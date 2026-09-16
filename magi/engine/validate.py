@@ -140,13 +140,13 @@ MAX_REFERENCE_WORDS = 120
 
 
 _STOP = {
-        "the", "a", "an", "and", "or", "but", "if", "then", "than", "that",
-        "this", "these", "those", "is", "are", "was", "were", "be", "been",
-        "to", "of", "in", "on", "for", "with", "as", "at", "by", "from",
-        "it", "its", "i", "you", "we", "they", "he", "she", "do", "does",
-        "did", "can", "could", "should", "would", "will", "what", "which",
-        "how", "why", "when", "where", "who", "my", "your", "our", "me",
-    }
+    "the", "a", "an", "and", "or", "but", "if", "then", "than", "that",
+    "this", "these", "those", "is", "are", "was", "were", "be", "been",
+    "to", "of", "in", "on", "for", "with", "as", "at", "by", "from",
+    "it", "its", "i", "you", "we", "they", "he", "she", "do", "does",
+    "did", "can", "could", "should", "would", "will", "what", "which",
+    "how", "why", "when", "where", "who", "my", "your", "our", "me",
+}
 
 
 def _words(question: str) -> set[str]:
