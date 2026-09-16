@@ -188,6 +188,80 @@ def load_deck_site(deck_id: str) -> DeckSite:
     return DeckSite(id=deck_id, **{k: v for k, v in raw.items() if k in known})
 
 
+@dataclass
+class ReelsSite:
+    """A saved-collection harvester (Instagram), not a chat box and not a wizard.
+
+    A third shape beside Site and DeckSite, for the same reason those two are
+    separate: an infinite-scroll grid harvest has nothing in common with either
+    but the browser. Widening one of them would add a dozen fields the other
+    paths must know to ignore.
+
+    ── THE ONE SHARED CONTRACT ────────────────────────────────────────────────
+    check_blockers() reads exactly five attributes: `id`, `display_name`,
+    `login_selectors`, `rate_limit_selectors` and `challenge_selectors`. They
+    are spelled identically here so the ethical stop — challenge and rate limit
+    detected, never solved — works on this path unmodified. Renaming one here
+    silently removes that check from the scraper, so test_driver.py pins it.
+    """
+
+    id: str
+    display_name: str
+    url: str
+    headless_ok: bool = False
+    saved_url: str = ""
+
+    # The grid.
+    grid_container: list[str] = field(default_factory=list)
+    reel_link: list[str] = field(default_factory=list)
+    reel_thumb: list[str] = field(default_factory=list)
+    reel_caption: list[str] = field(default_factory=list)
+
+    # Readiness / end-of-feed. loading_more OUTRANKS everything — see
+    # _harvest_reels: a spinner still on screen must never read as "done".
+    loading_more: list[str] = field(default_factory=list)
+    empty_sentinel: list[str] = field(default_factory=list)
+
+    # Sentinels — the five-attribute contract above.
+    login_selectors: list[str] = field(default_factory=list)
+    rate_limit_selectors: list[str] = field(default_factory=list)
+    challenge_selectors: list[str] = field(default_factory=list)
+
+    # Pacing. Ranges, not constants: a fixed delay is a recognisable pattern.
+    scroll_pause_s: list[float] = field(default_factory=lambda: [1.5, 4.0])
+    settle_pause_s: list[float] = field(default_factory=lambda: [0.8, 2.0])
+    max_scrolls: int = 40
+    stall_polls: int = 3
+    poll_ms: int = 1200
+    nav_timeout_s: int = 60
+
+
+def load_reels_site(site_id: str) -> ReelsSite:
+    with open(CONFIG, encoding="utf-8") as fh:
+        cfg = yaml.safe_load(fh)
+    raw = (cfg.get("reels") or {}).get(site_id)
+    if not raw:
+        have = ", ".join((cfg.get("reels") or {}).keys())
+        raise SystemExit(f"unknown reels site {site_id!r}; configured: {have}")
+    known = {f for f in ReelsSite.__dataclass_fields__ if f != "id"}
+    return ReelsSite(id=site_id, **{k: v for k, v in raw.items() if k in known})
+
+
+def is_reels_site(site_id: str) -> bool:
+    """True when this id names a saved-collection harvester.
+
+    Same role as is_deck_site: without it `login --site instagram` would hit
+    load_site(), die with "unknown site", and make the one sanctioned way to
+    authenticate this path impossible.
+    """
+    try:
+        with open(CONFIG, encoding="utf-8") as fh:
+            cfg = yaml.safe_load(fh)
+    except Exception:
+        return False
+    return site_id in (cfg.get("reels") or {})
+
+
 def is_deck_site(site_id: str) -> bool:
     """True when this id names a deck generator rather than a chat site.
 
@@ -1597,6 +1671,301 @@ async def cmd_fetch(args) -> dict:
             await ctx.close()
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# Saved-reels harvest (Instagram)
+# ══════════════════════════════════════════════════════════════════════════════
+# Results are written to outputs/reels.json and served over loopback by
+# server.py; the PAGE files them to Firestore. This module holds no Firebase
+# credential and must never gain one — see the boundary note at the top of
+# V1/js/modules/pipeline.js. A scraper driving a logged-in session is exactly
+# the process that should not also hold cloud write access.
+
+REELS_OUT = HERE / "outputs" / "reels.json"
+
+# Bounds the per-run thumbnail work the PAGE will do. The Workers KV namespace
+# it uploads into is free-plan (~1000 writes/day) and SHARED with StudyOS file
+# uploads, so an unbounded first run could burn the day's quota and break file
+# uploads as a side effect. Reels past the cap are still recorded; they just
+# collect their thumbnail on a later run.
+REELS_THUMB_CAP = 60
+
+
+def _pace(rng) -> float:
+    """Sample a delay from a [lo, hi] pair.
+
+    Ranges, not constants, everywhere a delay is used: the original MAGI sketch
+    typed with a fixed 15ms delay, and a metronome is a recognisable pattern. A
+    bare number is accepted too, so a config that hardcodes one still works.
+    """
+    try:
+        lo, hi = float(rng[0]), float(rng[1])
+    except (TypeError, IndexError, ValueError):
+        try:
+            return max(0.0, float(rng))
+        except (TypeError, ValueError):
+            return 0.0
+    if hi < lo:
+        lo, hi = hi, lo
+    return random.uniform(lo, hi)
+
+
+def shortcode_of(href: str):
+    """The stable id in an Instagram permalink, or None.
+
+    /reel/<code>/, /reels/<code>/ and /p/<code>/ all appear in a saved grid — a
+    saved reel is sometimes filed under /p/ — and all three carry the same
+    shortcode, which is what makes it a safe dedup key across them.
+
+    A pure function so the dedup rule is testable without a browser.
+    """
+    if not href:
+        return None
+    m = re.search(r"/(?:reel|reels|p)/([A-Za-z0-9_-]{5,})", href)
+    return m.group(1) if m else None
+
+
+def merge_reels(old, new):
+    """Union by shortcode, newest metadata winning, order preserved.
+
+    MERGE, never replace. A harvest that IG cut short mid-scroll returns a
+    partial list, and replacing on that would silently drop reels the widget was
+    already showing. New entries append, so the feed keeps a stable order
+    between runs instead of reshuffling whenever IG reorders its grid.
+
+    A field that came back empty this run does NOT clobber a good stored value:
+    that is how a thumbKey collected on an earlier run survives a later harvest
+    which skipped thumbnails because it hit the cap.
+    """
+    out = []
+    index = {}
+    for r in list(old or []) + list(new or []):
+        code = (r or {}).get("shortcode")
+        if not code:
+            continue
+        if code in index:
+            merged = dict(out[index[code]])
+            for k, v in r.items():
+                if v not in (None, "", []):
+                    merged[k] = v
+            out[index[code]] = merged
+        else:
+            index[code] = len(out)
+            out.append(dict(r))
+    return out
+
+
+def read_reels_cache() -> dict:
+    try:
+        return json.loads(REELS_OUT.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def write_reels_cache(doc: dict) -> None:
+    REELS_OUT.parent.mkdir(parents=True, exist_ok=True)
+    REELS_OUT.write_text(json.dumps(doc, ensure_ascii=False, indent=2),
+                         encoding="utf-8")
+
+
+async def _harvest_reels(page, site: ReelsSite) -> dict:
+    """Scroll the saved grid, collecting tiles until the feed is exhausted.
+
+    ── POLL ORDER IS THE CONTRACT ─────────────────────────────────────────────
+    `loading_more` is checked BEFORE any end-of-feed verdict, and while it
+    matches, nothing else can mean "done". This is the ordering a deck run
+    learned the hard way: a readiness selector matched a *generating*
+    placeholder, the loop returned early, and the failure surfaced somewhere
+    else entirely. Here the equivalent bug returns a truncated list that looks
+    like a complete one — no error, just missing reels. A drifting selector
+    should cost a stall timeout, not silent data loss.
+
+    ── DEAD vs SLOW ───────────────────────────────────────────────────────────
+    The only honest end-of-feed signal is growth: the tile count not moving
+    across `stall_polls` consecutive polls while nothing is loading. Note the
+    guard fires at a count of ZERO too. Requiring count > 0 first was a real bug
+    on the download path (a transfer that never started sat out the whole 600s
+    budget reporting a misleading timeout) — a harvest that never starts is just
+    as dead as one that dies mid-scroll, and both are bounded the same way.
+    """
+    seen = {}
+    scrolls = 0
+    stalled = 0
+    last_count = -1
+    stopped = "exhausted"
+
+    grid = await resolve(page, site.grid_container, timeout_ms=8000)
+    if not grid:
+        path = await save_artifacts(page, f"{site.id}-grid")
+        raise DriverError(
+            "ig_grid_missing",
+            f"{site.display_name}: no element matched `grid_container`. The "
+            f"selector guess is wrong — repair it in selectors.yaml under "
+            f"reels.{site.id}.grid_container. Artifacts: {path}")
+
+    while scrolls < site.max_scrolls:
+        await check_blockers(page, site, pre_send=False)
+
+        # 1. Still loading outranks every other verdict.
+        if await any_matches(page, site.loading_more):
+            await asyncio.sleep(site.poll_ms / 1000)
+            continue
+
+        # 2. Read whatever has mounted.
+        for sel in site.reel_link or []:
+            try:
+                anchors = page.locator(sel)
+                for i in range(await anchors.count()):
+                    a = anchors.nth(i)
+                    href = await a.get_attribute("href")
+                    code = shortcode_of(href or "")
+                    if not code or code in seen:
+                        continue
+                    thumb, caption = None, None
+                    for tsel in site.reel_thumb or []:
+                        img = a.locator(tsel).first
+                        if await img.count():
+                            thumb = (await img.get_attribute("src")
+                                     or await img.get_attribute("srcset"))
+                            break
+                    for csel in site.reel_caption or []:
+                        cap = a.locator(csel).first
+                        if await cap.count():
+                            caption = await cap.get_attribute("alt")
+                            break
+                    seen[code] = {
+                        "shortcode": code,
+                        "url": f"https://www.instagram.com/reel/{code}/",
+                        "thumbSrc": thumb or "",
+                        "caption": (caption or "").strip()[:400],
+                    }
+            except Exception:
+                continue
+
+        # 3. Growth check. No growth and nothing loading == the end.
+        count = len(seen)
+        stalled = stalled + 1 if count == last_count else 0
+        last_count = count
+        if stalled >= site.stall_polls:
+            break
+
+        # 4. Scroll on, at human pace.
+        try:
+            await page.mouse.wheel(0, random.randint(600, 1100))
+        except Exception:
+            await page.keyboard.press("PageDown")
+        scrolls += 1
+        await asyncio.sleep(_pace(site.scroll_pause_s))
+    else:
+        # Hit the cap rather than the end of the feed. Reported, never silent:
+        # the caller needs to know this list is a prefix, not the whole set.
+        stopped = "scroll_cap"
+
+    return {"reels": list(seen.values()), "scrolls": scrolls, "stoppedAt": stopped}
+
+
+async def cmd_reels(args) -> dict:
+    """Harvest one saved collection into outputs/reels.json.
+
+    --dry-run stops after navigation and selector resolution, before the scroll
+    harvest. That is the whole repair loop for a guessed selector and it costs
+    one page load instead of a full scrape. More page visits is precisely the
+    cost this design exists to avoid, so repairing by re-running a real harvest
+    is the wrong move.
+    """
+    site = load_reels_site(args.site)
+    if not args.user:
+        raise DriverError("ig_no_user", "--user is required (your IG handle).")
+
+    headless = site.headless_ok and not args.headful
+    collection = args.collection or "all-posts"
+    target = (site.saved_url or site.url).replace("{user}", args.user) \
+                                         .replace("{collection}", collection)
+
+    # One harvest at a time, across PROCESSES — the CLI and the bridge are
+    # separate entry points, exactly as for deck runs. Two overlapping harvests
+    # would fight over the single Instagram browser profile AND double the
+    # automated traffic to a logged-in personal account. Staleness is judged by
+    # PID liveness rather than a timeout: the bridge runs as pythonw, so a lock
+    # left behind by a crash must not block every later run forever.
+    with _RunLock(HERE / ".reels-run.lock"):
+        return await _reels_run(site, args, target, collection, headless)
+
+
+async def _reels_run(site, args, target, collection, headless) -> dict:
+    """The harvest proper. Split out of cmd_reels so the run lock wraps it.
+
+    Same shape as the deck path: the lock is acquired by the command, and the
+    body that actually drives the browser is a separate function.
+    """
+    async with async_playwright() as pw:
+        ctx = await launch(pw, site, headless=headless)
+        page = ctx.pages[0] if ctx.pages else await ctx.new_page()
+        try:
+            await page.goto(target, wait_until="domcontentloaded",
+                            timeout=site.nav_timeout_s * 1000)
+            await asyncio.sleep(_pace(site.settle_pause_s))
+
+            # Sentinels before anything else: a logged-out page renders an empty
+            # grid indistinguishable from an empty collection.
+            await check_blockers(page, site, pre_send=True)
+
+            walked = {}
+            for fname in ("grid_container", "reel_link", "reel_thumb", "reel_caption"):
+                r = await resolve(page, getattr(site, fname), timeout_ms=6000,
+                                  require_visible=(fname == "grid_container"))
+                walked[fname] = r["selector"] if r else "(no match)"
+
+            is_empty = await any_matches(page, site.empty_sentinel)
+
+            if args.dry_run:
+                path = await save_artifacts(page, f"{site.id}-dryrun")
+                return {"ok": True, "dryRun": True, "matched": walked,
+                        "emptySentinel": is_empty, "url": target,
+                        "stoppedAt": "before harvest", "artifacts": path}
+
+            if is_empty:
+                # An explicitly empty collection is a real answer, but it still
+                # must not overwrite a good cached list — see the refusal below.
+                got = {"reels": [], "scrolls": 0, "stoppedAt": "empty_sentinel"}
+            else:
+                got = await _harvest_reels(page, site)
+        finally:
+            await ctx.close()
+
+    cache = read_reels_cache()
+    stored = cache.get("reels") or []
+
+    # ── The empty-result refusal ──────────────────────────────────────────────
+    # A logged-out page, a changed selector and a genuinely empty collection all
+    # produce zero tiles, and only the last is not a bug. Overwriting a good list
+    # with [] on any of them would delete the widget's contents for a reason
+    # nobody could reconstruct afterwards, so zero results never persist over a
+    # non-empty cache. The cached list keeps serving; the run says why.
+    if not got["reels"] and stored:
+        return {"ok": False, "kind": "ig_empty_harvest",
+                "error": f"harvested 0 reels but {len(stored)} are cached — "
+                         f"refusing to overwrite. Usually a changed selector or "
+                         f"an expired session: run  python driver.py reels "
+                         f"--dry-run --user {args.user}  to see which.",
+                "kept": len(stored), "stoppedAt": got["stoppedAt"]}
+
+    merged = merge_reels(stored, got["reels"])
+    doc = {
+        "savedAt": int(time.time() * 1000),
+        "site": site.id,
+        "user": args.user,
+        "collection": collection,
+        "count": len(merged),
+        "thumbCap": REELS_THUMB_CAP,
+        "stoppedAt": got["stoppedAt"],
+        "reels": merged,
+    }
+    write_reels_cache(doc)
+    return {"ok": True, "count": len(merged), "new": len(merged) - len(stored),
+            "scrolls": got["scrolls"], "stoppedAt": got["stoppedAt"],
+            "out": str(REELS_OUT)}
+
+
 async def cmd_login(args) -> dict:
     """Open the site visibly so a human can sign in once. Never automated.
 
@@ -1604,7 +1973,12 @@ async def cmd_login(args) -> dict:
     this, `login --site notebooklm` dies with "unknown site" and the one
     sanctioned way to authenticate that path would not exist.
     """
-    site = load_deck_site(args.site) if is_deck_site(args.site) else load_site(args.site)
+    if is_reels_site(args.site):
+        site = load_reels_site(args.site)
+    elif is_deck_site(args.site):
+        site = load_deck_site(args.site)
+    else:
+        site = load_site(args.site)
     async with async_playwright() as pw:
         ctx = await launch(pw, site, headless=False, visible=True)
         page = ctx.pages[0] if ctx.pages else await ctx.new_page()
@@ -1715,6 +2089,17 @@ def main():
     ft.add_argument("--out", required=True, help="where to save the PDF")
     ft.add_argument("--headful", action="store_true")
 
+    rl = sub.add_parser(
+        "reels", help="harvest a saved Instagram collection into outputs/reels.json")
+    rl.add_argument("--site", default="instagram")
+    rl.add_argument("--user", help="your Instagram handle (the /<user>/saved/ path)")
+    rl.add_argument("--collection", default="all-posts",
+                    help="the collection slug as it appears in the saved URL")
+    rl.add_argument("--headful", action="store_true", help="force a real window")
+    rl.add_argument("--dry-run", action="store_true",
+                    help="navigate and resolve selectors, stopping BEFORE the "
+                         "scroll harvest — the cheap repair loop")
+
     lo = sub.add_parser("login", help="open the site so a human can sign in")
     lo.add_argument("--site", default="claude")
 
@@ -1724,7 +2109,7 @@ def main():
 
     args = ap.parse_args()
     fn = {"ask": cmd_ask, "deck": cmd_deck, "fetch": cmd_fetch,
-          "login": cmd_login, "doctor": cmd_doctor}[args.cmd]
+          "reels": cmd_reels, "login": cmd_login, "doctor": cmd_doctor}[args.cmd]
     # flush=True on every exit path. A deck run takes minutes and its single
     # line of JSON is the whole result; buffered behind a pipe it arrives only
     # at process exit, and a caller reading the stream early sees nothing at

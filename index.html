@@ -2825,6 +2825,461 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
 })();
 </script>
 <!-- ══════════════════════════════════════════════════════════════════════════
+     Saved-Reels Widget — Veda's TaskHub ONLY (Tony's TaskHub never renders it)
+     Public surface: window.THRL = {Widget, refresh, ingest, configure, config,
+                                    syncFromCloud, applyRemote}
+
+     Same shape as the two widgets above: ONE module, ONE data layer, colour
+     supplied entirely by the host through CSS custom properties so the widget
+     inherits TaskHub's palette. Rendered from a plain <script> (not text/babel)
+     for the same reason THWX and THTS are — it stays out of the shared babel
+     scope that Tony's and Veda's TaskHub blocks both live in.
+
+     ── WHERE THE DATA COMES FROM ─────────────────────────────────────────────
+     Instagram exposes no API for saved posts or collections (the Graph API
+     covers only your own published media; Basic Display was retired in Dec
+     2024). So the list is harvested from a logged-in browser session by
+     V1/tools/sos-browser (driver.py reels), served over loopback, and filed to
+     dashboards/veda_reels by V1/js/modules/reels-sync.js — the page has the
+     Firebase credential, the scraper deliberately does not.
+
+     This widget NEVER talks to the bridge or to Instagram. It renders the
+     Firestore doc and nothing else, because the bridge is a PC-only capability
+     and the phone must still show the reels.
+
+     ── ONE FEATURED REEL, NOT A GRID ────────────────────────────────────────
+     The band slot is 330px. An Instagram embed renders poorly below ~320px, and
+     a grid of thumbnails at that width is unreadable, so one reel shows at a
+     time with a shuffle control — the same shape as the Gita banner it sits
+     beside, which keeps the band reading as one system rather than three.
+     ══════════════════════════════════════════════════════════════════════════ -->
+<style>
+.thrl{
+  position:relative;                 /* anchor for the expanded panel */
+  align-self:stretch;
+  width:100%;
+  box-sizing:border-box;
+  background:var(--rl-s1);
+  border:1px solid var(--rl-bd);
+  border-radius:var(--rl-radius);
+  color:var(--rl-tx);
+  overflow:hidden;
+  transition:border-color .2s;
+}
+.thrl:hover{border-color:var(--rl-bdl);}
+/* Above the sticky TaskHub header (200) and the app nav (10001), for the same
+   reason the other two widgets are: while open, the scrim must be able to dim
+   everything on the page. */
+.thrl.thrl-open{z-index:10050;}
+
+/* ── Band: Veda's band reserves a 330px phantom ::after purely to keep the
+   quote optically centred against the weather bar. With a real third child
+   that phantom would double-count the right column and push the quote left,
+   so this class retires it — exactly as .thts-band does on Tony's side. It is
+   only ever on Veda's band. ── */
+.thrl-band::after{display:none;}
+.thrl-band > .thrl{flex:0 1 330px;max-width:330px;}
+/* Tablet: two cards plus a column of prose won't fit, so the quote drops to its
+   own full-width row and the two widgets share the top one. Mirrors the
+   equivalent rule for Tony's Tesla card. */
+@media (max-width:1080px) and (min-width:781px){
+  .thrl-band{flex-wrap:wrap;}
+  .thrl-band > .thwx,.thrl-band > .thrl{flex:1 1 260px;max-width:none;}
+  .thrl-band > .gita-banner{flex:1 1 100%;order:3;}
+}
+@media (max-width:780px){
+  .thrl-band > .thrl{flex:none;max-width:100%;}
+}
+
+/* ── Compact card (always visible) ── */
+.thrl-compact{
+  position:relative;z-index:2;       /* stays crisp above the scrim */
+  display:flex; align-items:center; gap:10px;
+  width:100%; height:100%; box-sizing:border-box;
+  padding:6px 10px;
+  border-radius:inherit;
+  background:none;border:none;color:inherit;font:inherit;
+  text-align:left; cursor:pointer;
+}
+.thrl-compact:hover{background:var(--rl-hov);}
+.thrl-compact:focus-visible{outline:2px solid var(--rl-ac);outline-offset:-2px;}
+
+/* The thumbnail. contain, never cover: a cropped reel is worse than a
+   letterboxed one, and a 9:16 reel in a 4:3 box is mostly crop. */
+.thrl-thumb{
+  flex:0 0 auto;width:38px;height:52px;border-radius:4px;
+  object-fit:cover;display:block;background:var(--rl-bg);
+}
+/* Placeholder for a reel whose thumbnail has not been cached (or 403'd). Keeps
+   the same footprint so swapping one for the other never reflows the row. */
+.thrl-ph{
+  flex:0 0 auto;width:38px;height:52px;border-radius:4px;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--rl-acg);color:var(--rl-ac);
+}
+.thrl-body{flex:1 1 auto;min-width:0;}
+.thrl-label{
+  font-size:9.5px;letter-spacing:.7px;text-transform:uppercase;
+  color:var(--rl-txm);margin-bottom:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.thrl-cap{
+  font-size:11.5px;line-height:1.35;color:var(--rl-tx);
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
+.thrl-msg{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 10px;font-size:11px;color:var(--rl-txd);
+}
+/* The shuffle control, bottom-right — the same affordance and placement as the
+   Gita banner's "next lesson" button beside it. */
+.thrl-next{
+  position:absolute;bottom:5px;right:7px;z-index:3;
+  background:transparent;border:none;cursor:pointer;color:var(--rl-txd);
+  padding:2px 4px;line-height:1;opacity:.35;transition:opacity .15s;
+}
+.thrl-next:hover{opacity:.8;color:var(--rl-ac);}
+.thrl-next:focus-visible{outline:2px solid var(--rl-ac);outline-offset:2px;opacity:.8;}
+.thrl-next svg{width:12px;height:12px;display:block;}
+/* Touch has no hover, so the control would be invisible until tapped. */
+@media (hover:none){ .thrl-next{opacity:.5;} }
+
+/* ── Expanded panel ── */
+.thrl-scrim{
+  position:fixed;inset:0;z-index:1;
+  background:rgba(0,0,0,.45);
+  backdrop-filter:blur(7px) saturate(.9);
+  -webkit-backdrop-filter:blur(7px) saturate(.9);
+}
+.thrl-panel{
+  position:fixed;z-index:2;
+  width:min(420px,calc(100vw - 28px));
+  max-height:min(70vh,560px);
+  overflow-y:auto;-webkit-overflow-scrolling:touch;
+  background:var(--rl-s1);border:1px solid var(--rl-bdl);
+  border-radius:calc(var(--rl-radius) + 2px);
+  box-shadow:0 18px 40px rgba(0,0,0,.5);
+  padding:10px;
+}
+.thrl-head{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  margin-bottom:8px;
+}
+.thrl-title{font-size:11px;letter-spacing:.7px;color:var(--rl-txd);}
+.thrl-x{
+  background:transparent;border:1px solid var(--rl-bd);color:var(--rl-txd);
+  border-radius:4px;cursor:pointer;width:22px;height:22px;line-height:1;
+  font-size:14px;padding:0;
+}
+.thrl-x:hover{color:var(--rl-ac);border-color:var(--rl-ac);}
+.thrl-x:focus-visible{outline:2px solid var(--rl-ac);outline-offset:2px;}
+/* A small grid IS usable at panel width, unlike in the 330px band slot. */
+.thrl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:6px;}
+.thrl-cell{
+  position:relative;display:block;border-radius:5px;overflow:hidden;
+  aspect-ratio:9/16;background:var(--rl-bg);
+  border:1px solid var(--rl-bd);text-decoration:none;
+}
+.thrl-cell:hover{border-color:var(--rl-ac);}
+.thrl-cell img{width:100%;height:100%;object-fit:cover;display:block;}
+.thrl-cell .thrl-ph{width:100%;height:100%;border-radius:0;}
+/* Narrow-screen sizing is placed AFTER the base rules on purpose: at equal
+   specificity a media query earlier in the source loses to a later base rule,
+   which is a bug this file has already paid for once (see the Tesla art caps). */
+@media (max-width:640px){
+  .thrl-panel{
+    left:8px;right:8px;width:auto;
+    bottom:calc(env(safe-area-inset-bottom,0px) + 8px);
+    max-height:calc(100dvh - env(safe-area-inset-top,0px) - 52px);
+  }
+  .thrl-grid{grid-template-columns:repeat(auto-fill,minmax(76px,1fr));}
+}
+</style>
+<script>
+(function(){
+'use strict';
+if(!window.React) return;                  // widget is optional; never break the page
+var h=React.createElement,useState=React.useState,useEffect=React.useEffect,useRef=React.useRef;
+
+var LS_CFG='thrl_cfg_v1';                  // user setup — synced across devices
+var LS_CACHE='thrl_cache_v1';              // the reel list — per device
+var HYDRATE_MAX=7*24*60*60*1000;           // a saved reel does not go stale in a week
+
+// ── Config ────────────────────────────────────────────────────────────────
+// Which collection to show, and whose account. Synced, because linking once on
+// one device should be enough. The reel LIST is not synced through here — it
+// arrives in its own Firestore doc, see syncFromCloud below.
+var CFG_KEYS=['user','collection','shuffle'];
+function readCfg(){try{var c=JSON.parse(localStorage.getItem(LS_CFG));return(c&&typeof c==='object')?c:{};}catch(e){return{};}}
+function writeCfg(c){try{localStorage.setItem(LS_CFG,JSON.stringify(c));}catch(e){}}
+var CFG=readCfg();
+
+// ── Store ─────────────────────────────────────────────────────────────────
+// `at` is the doc's savedAt, not when we read it: the widget shows how fresh
+// the HARVEST is, which is the number that actually matters here.
+var S={reels:[],at:0,collection:'',filesBase:'',idx:0,err:null};
+var subs=[];
+function emit(){
+  // A NEW object literal every time. Mutating S in place and handing the same
+  // reference to setState means React bails on the update and nothing repaints
+  // — the easiest trap in this pattern, and the reason the other two widgets
+  // are written exactly this way.
+  S={reels:S.reels,at:S.at,collection:S.collection,filesBase:S.filesBase,
+     idx:S.idx,err:S.err};
+  for(var i=0;i<subs.length;i++)subs[i](S);
+}
+function subscribe(fn){subs.push(fn);return function(){var i=subs.indexOf(fn);if(i>=0)subs.splice(i,1);};}
+
+// Paint from the last known list before any network/Firestore work, so the band
+// never renders an empty card on a cold load.
+(function hydrate(){
+  try{
+    var c=JSON.parse(localStorage.getItem(LS_CACHE));
+    if(c&&c.reels&&c.reels.length&&c.at&&Date.now()-c.at<HYDRATE_MAX){
+      S.reels=c.reels;S.at=c.at;S.collection=c.collection||'';
+      S.filesBase=c.filesBase||'';
+      S.idx=Math.floor(Math.random()*c.reels.length);
+    }
+  }catch(e){}
+})();
+
+function applyList(payload){
+  var reels=(payload&&payload.reels)||[];
+  S.reels=reels;
+  S.at=payload.savedAt||Date.now();
+  S.collection=payload.collection||'';
+  S.filesBase=payload.filesBase||'';
+  S.err=null;
+  if(S.idx>=reels.length)S.idx=0;
+  if(reels.length&&!S.idx)S.idx=Math.floor(Math.random()*reels.length);
+  try{localStorage.setItem(LS_CACHE,JSON.stringify(
+    {at:S.at,collection:S.collection,filesBase:S.filesBase,reels:reels}));}catch(e){}
+  emit();
+}
+
+function applyCfg(patch,push){
+  Object.keys(patch||{}).forEach(function(k){
+    if(patch[k]===null||patch[k]===undefined)delete CFG[k];else CFG[k]=patch[k];
+  });
+  writeCfg(CFG);
+  if(push)pushCfg();
+  emit();
+  return CFG;
+}
+// Nulls are written explicitly rather than omitted, so clearing a setting on
+// one device actually clears it on the others instead of being read as "absent,
+// keep what you have".
+function pushCfg(){
+  if(typeof window._fbSaveReelsCfg!=='function')return false;
+  var out={};
+  CFG_KEYS.forEach(function(k){out[k]=(CFG[k]===undefined)?null:CFG[k];});
+  try{window._fbSaveReelsCfg(out);return true;}catch(e){return false;}
+}
+
+// ── Inbound from Firestore ────────────────────────────────────────────────
+// Two guards, same as the Tesla widget's: a payload without savedAt is not one
+// this feature wrote, and a no-op when nothing differs absorbs the echo of our
+// own write without needing a timing window.
+function applyRemote(remote){
+  if(!remote||typeof remote!=='object'||!remote.savedAt)return false;
+  var next=JSON.stringify((remote.reels||[]).map(function(r){return r.shortcode;}));
+  var cur=JSON.stringify(S.reels.map(function(r){return r.shortcode;}));
+  if(next===cur&&remote.savedAt===S.at)return false;
+  applyList(remote);
+  return true;
+}
+function syncFromCloud(remote){
+  if(remote&&typeof remote==='object'&&remote.savedAt)return applyRemote(remote);
+  return false;
+}
+function syncCfgFromCloud(remote){
+  if(!remote||typeof remote!=='object'||!remote.savedAt){
+    // A device configured before this synced adopts itself as the source of
+    // truth rather than asking to be set up again.
+    if(CFG.user)pushCfg();
+    return false;
+  }
+  var patch={},changed=false;
+  CFG_KEYS.forEach(function(k){
+    var nx=(remote[k]===undefined)?null:remote[k];
+    var cu=(CFG[k]===undefined)?null:CFG[k];
+    if(JSON.stringify(nx)!==JSON.stringify(cu)){patch[k]=nx;changed=true;}
+  });
+  if(!changed)return false;
+  applyCfg(patch,false);              // false: do not echo straight back
+  return true;
+}
+
+function thumbUrl(reel){
+  if(!reel||!reel.thumbKey||!S.filesBase)return '';
+  return S.filesBase+'/f/'+encodeURIComponent(reel.thumbKey);
+}
+
+function shuffle(){
+  var n=S.reels.length;
+  if(n<2){S.idx=0;emit();return;}
+  // Never land on the same reel twice in a row — a shuffle button that appears
+  // to do nothing reads as broken.
+  var next=S.idx;
+  while(next===S.idx)next=Math.floor(Math.random()*n);
+  S.idx=next;
+  emit();
+}
+
+var PLACEHOLDER=h('span',{className:'thrl-ph','aria-hidden':'true'},
+  h('svg',{width:14,height:14,viewBox:'0 0 24 24',fill:'none',
+    stroke:'currentColor','strokeWidth':1.6},
+    h('rect',{key:'r',x:3,y:3,width:18,height:18,rx:4}),
+    h('path',{key:'p',d:'M10 8.5v7l6-3.5-6-3.5z',fill:'currentColor',stroke:'none'})));
+
+var ICON_SHUFFLE=h('svg',{viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',
+  strokeWidth:1.8,strokeLinecap:'round',strokeLinejoin:'round'},
+  h('path',{key:'a',d:'M16 3h5v5'}),
+  h('path',{key:'b',d:'M4 20L21 3'}),
+  h('path',{key:'c',d:'M21 16v5h-5'}),
+  h('path',{key:'d',d:'M15 15l6 6'}),
+  h('path',{key:'e',d:'M4 4l5 5'}));
+
+function Widget(props){
+  var t=props.t||{};
+  var st=useState(S),s=st[0],setS=st[1];
+  var op=useState(false),open=op[0],setOpen=op[1];
+  var er=useState({}),imgErr=er[0],setImgErr=er[1];
+  var box=useRef(null),panelRef=useRef(null);
+
+  useEffect(function(){ return subscribe(setS); },[]);
+
+  // Measured placement, shared with the other band widgets.
+  useEffect(function(){
+    if(!open||!window.THSHEET)return;
+    return window.THSHEET.bind(box.current,function(){return panelRef.current;},
+      {width:420,cap:560,align:'right'});
+  },[open]);
+
+  // Body-scroll lock + outside-click + Escape, owned locally like the other two.
+  useEffect(function(){
+    if(!open)return;
+    var prevOverflow=document.body.style.overflow;
+    document.body.style.overflow='hidden';
+    function down(e){if(box.current&&!box.current.contains(e.target))setOpen(false);}
+    function key(e){if(e.key==='Escape')setOpen(false);}
+    document.addEventListener('mousedown',down);
+    document.addEventListener('touchstart',down,{passive:true});
+    document.addEventListener('keydown',key);
+    return function(){
+      document.body.style.overflow=prevOverflow;
+      document.removeEventListener('mousedown',down);
+      document.removeEventListener('touchstart',down);
+      document.removeEventListener('keydown',key);
+    };
+  },[open]);
+
+  var vars={
+    '--rl-s1':t.S1,'--rl-bg':t.BG,'--rl-bd':t.BD,'--rl-bdl':t.BDL||t.BD,
+    '--rl-tx':t.TX,'--rl-txd':t.TXD,'--rl-txm':t.TXM||t.TXD,
+    '--rl-ac':t.AC,'--rl-acg':t.ACG||'transparent','--rl-hov':t.hov||t.BD,
+    '--rl-radius':(t.radius==null?6:t.radius)+'px',
+    fontFamily:t.font||'inherit'
+  };
+  var upper=t.upper?{textTransform:'uppercase',letterSpacing:'.6px'}:null;
+
+  // Nothing harvested yet. Says what to do rather than sitting blank, but stays
+  // one quiet line — this is the normal state before the first harvest, not an
+  // error worth shouting about.
+  if(!s.reels.length){
+    return h('div',{className:'thrl',style:vars,ref:box},
+      h('div',{className:'thrl-msg'},PLACEHOLDER,
+        h('span',{key:'m',style:upper},'No saved reels yet')));
+  }
+
+  var reel=s.reels[Math.min(s.idx,s.reels.length-1)]||{};
+  var src=thumbUrl(reel);
+  var broken=!!imgErr[reel.shortcode];
+
+  var compact=h('button',{key:'c',type:'button',className:'thrl-compact',
+    'data-noglow':true,
+    title:'Open saved reels',
+    onClick:function(){setOpen(!open);}},
+    (src&&!broken)
+      ? h('img',{key:'i',className:'thrl-thumb',src:src,alt:'',loading:'lazy',
+          decoding:'async',draggable:false,
+          onError:function(){
+            var n={};n[reel.shortcode]=true;
+            setImgErr(Object.assign({},imgErr,n));
+          }})
+      : PLACEHOLDER,
+    h('span',{key:'b',className:'thrl-body'},
+      h('span',{key:'l',className:'thrl-label',style:upper},
+        'Saved'+(s.collection?' · '+s.collection:'')+' · '+s.reels.length),
+      h('span',{key:'c2',className:'thrl-cap'},
+        reel.caption||'Reel '+(reel.shortcode||''))));
+
+  var next=h('button',{key:'n',type:'button',className:'thrl-next',
+    'data-noglow':true,title:'Shuffle',
+    'aria-label':'Show another saved reel',
+    onClick:function(e){e.stopPropagation();shuffle();}},ICON_SHUFFLE);
+
+  if(!open)return h('div',{className:'thrl',style:vars,ref:box},compact,next);
+
+  // Scrim has no children, so every mousedown on it IS a background click.
+  var scrim=h('div',{key:'s',className:'thrl-scrim',role:'presentation',
+    onMouseDown:function(){setOpen(false);}});
+
+  var grid=h('div',{key:'g',className:'thrl-grid'},
+    s.reels.map(function(r){
+      var u=thumbUrl(r);
+      return h('a',{key:r.shortcode,className:'thrl-cell',
+        href:r.url,target:'_blank',rel:'noopener noreferrer',
+        title:r.caption||r.shortcode},
+        (u&&!imgErr[r.shortcode])
+          ? h('img',{src:u,alt:r.caption||'',loading:'lazy',decoding:'async',
+              onError:function(){
+                var n={};n[r.shortcode]=true;
+                setImgErr(Object.assign({},imgErr,n));
+              }})
+          : PLACEHOLDER);
+    }));
+
+  var head=h('div',{key:'h',className:'thrl-head'},
+    h('span',{key:'t',className:'thrl-title',style:upper},
+      (s.collection||'Saved')+' · '+s.reels.length+' reels'),
+    h('button',{key:'x',type:'button',className:'thrl-x','data-noglow':true,
+      'aria-label':'Close saved reels',title:'Close',
+      onClick:function(e){e.stopPropagation();setOpen(false);}},'×'));
+
+  // data-modal-open is what the pull-to-refresh gate already looks for, so the
+  // first downward drag inside this panel scrolls the panel instead of arming a
+  // page refresh that then resolves to nothing.
+  return h('div',{className:'thrl thrl-open',style:vars,ref:box,
+      'data-modal-open':'1'},
+    compact,next,scrim,
+    h('div',{key:'p',ref:panelRef,className:'thrl-panel',role:'dialog',
+      'aria-label':'Saved reels'},head,grid));
+}
+
+window.THRL={
+  Widget:Widget,
+  // There is no fetch to force: the list arrives from Firestore. `refresh` only
+  // re-rolls which reel is featured, so the band's control has something honest
+  // to do while offline.
+  refresh:shuffle,
+  shuffle:shuffle,
+  // For the sync shim, or a paste-in during development: hand it the same
+  // payload shape the Firestore doc holds.
+  ingest:function(payload){
+    if(!payload||!payload.reels)return false;
+    applyList(payload);return true;
+  },
+  configure:function(patch){return applyCfg(patch,true);},
+  config:function(){try{return JSON.parse(JSON.stringify(CFG));}catch(e){return{};}},
+  syncFromCloud:syncFromCloud,
+  applyRemote:applyRemote,
+  syncCfgFromCloud:syncCfgFromCloud
+};
+})();
+</script>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
      Tesla Widget — Tony's TaskHub ONLY (Veda's TaskHub never renders it)
      Public surface: window.THTS = {Widget, refresh, ingest, configure, config,
                                     disconnect, afterCommand}
@@ -11829,6 +12284,58 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       _a1b('dashboards/tesla_cfg', data);
     }, (err) => { console.warn('[Tesla] onSnapshot error:', err); });
 
+    // ── Saved reels — the harvested list, and which collection to show ──────
+    // TWO docs, deliberately:
+    //
+    //   dashboards/veda_reels     the LIST. Display-only here: it is written by
+    //                             V1/js/modules/reels-sync.js after the local
+    //                             bridge harvests it, and TaskHub never writes
+    //                             it. Kept out of dashboards/vedasdash for the
+    //                             same reason pv_cards is — that doc is
+    //                             rewritten wholesale from React state, and
+    //                             external data injected into it once pushed it
+    //                             past Firestore's 1 MiB ceiling and wedged a
+    //                             device's write queue for good. In its own
+    //                             small doc the worst case is "a reel is
+    //                             missing".
+    //   dashboards/veda_reels_cfg the SETUP (handle + collection), which syncs
+    //                             like any other widget config.
+    const _rlDocRef    = doc(db, "dashboards/veda_reels");
+    const _rlCfgDocRef = doc(db, "dashboards/veda_reels_cfg");
+
+    window._fbSaveReels = async (payload) => {
+      try { await setDoc(_rlDocRef, { ...payload, savedAt: Date.now() }); }
+      catch(e) { console.warn('[Reels] Firebase save failed:', e); }
+    };
+    window._fbSaveReelsCfg = async (payload) => {
+      try { await setDoc(_rlCfgDocRef, { ...payload, savedAt: Date.now() }); }
+      catch(e) { console.warn('[Reels] config save failed:', e); }
+    };
+
+    if (window._rlUnsubscribe) { window._rlUnsubscribe(); window._rlUnsubscribe = null; }
+    window._rlUnsubscribe = onSnapshot(_rlDocRef, { includeMetadataChanges: true }, (snap) => {
+      // CACHED SNAPSHOTS ARE DROPPED. This is a second document with its own
+      // listener, and its cached copy lands before vedasdash has loaded — the
+      // exact cold-open ordering that made the day-grid reconcile from empty
+      // state and queue a whole-document write. A render-only doc must never
+      // participate in that race, and it loses nothing by waiting for the
+      // server: the widget is already painting from its own localStorage cache.
+      if (snap.metadata && snap.metadata.fromCache) return;
+      const data = snap.exists() ? snap.data() : null;
+      if (window.THRL && window.THRL.syncFromCloud) window.THRL.syncFromCloud(data);
+      _a1b('dashboards/veda_reels', data);
+    }, (err) => { console.warn('[Reels] onSnapshot error:', err); });
+
+    if (window._rlCfgUnsubscribe) { window._rlCfgUnsubscribe(); window._rlCfgUnsubscribe = null; }
+    window._rlCfgUnsubscribe = onSnapshot(_rlCfgDocRef, (snap) => {
+      // Unlike the list above, the CONFIG does not bail on a missing doc: a
+      // device already set up needs to publish its own, so the others stop
+      // asking to be configured. Same self-adoption branch the Tesla widget has.
+      const data = snap.exists() ? snap.data() : null;
+      if (window.THRL && window.THRL.syncCfgFromCloud) window.THRL.syncCfgFromCloud(data);
+      _a1b('dashboards/veda_reels_cfg', data);
+    }, (err) => { console.warn('[Reels] config onSnapshot error:', err); });
+
     window._fbReady = true;
     window.dispatchEvent(new CustomEvent("fb-ready"));
   }
@@ -11870,6 +12377,8 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     if (_ecUnsubscribe)  { _ecUnsubscribe();  _ecUnsubscribe  = null; }
     if (_alUnsubscribe)  { _alUnsubscribe();  _alUnsubscribe  = null; }
     if (window._tsUnsubscribe) { window._tsUnsubscribe(); window._tsUnsubscribe = null; }
+    if (window._rlUnsubscribe) { window._rlUnsubscribe(); window._rlUnsubscribe = null; }
+    if (window._rlCfgUnsubscribe) { window._rlCfgUnsubscribe(); window._rlCfgUnsubscribe = null; }
     if (window._fbUnwatchMJCanvas) window._fbUnwatchMJCanvas();
     // Kill the WebSocket entirely so no reconnect reads can fire.
     // FCM module uses a separate Firestore instance — unaffected.
@@ -15626,7 +16135,7 @@ function App(){
     // The weather bar sits level with the quote banner so the compact view costs
     // no vertical space above Weekly. Same shared window.THWX.Widget Tony renders,
     // with Veda's tokens/mono type passed in. Stacks under 780px.
-    RC("div",{className:"thwx-band"},
+    RC("div",{className:"thwx-band thrl-band"},
       window.THWX&&RC(window.THWX.Widget,{key:"wx",t:{
         BG:BG,S1:S1,BD:BD,BDL:BDL,TX:TX,TXD:TXD,TXM:TXM,AC:A,ACG:ABG,
         hov:"#303135",radius:8,font:"'IBM Plex Mono',monospace",upper:true}}),
@@ -15637,7 +16146,15 @@ function App(){
         RC("div",{className:"gita-banner-meta"},bannerLesson.chapter+" · "+bannerLesson.title)
       ),
       RC("button",{type:"button",title:"Next lesson",onClick:function(e){e.stopPropagation();vgNextBanner();},style:{position:"absolute",bottom:8,right:10,background:"transparent",border:"none",cursor:"pointer",color:"inherit",fontSize:13,lineHeight:1,opacity:0.35,transition:"opacity .15s",fontFamily:"inherit",padding:"2px 4px"},onMouseEnter:function(e){e.currentTarget.style.opacity="0.7";},onMouseLeave:function(e){e.currentTarget.style.opacity="0.35";}},RC("span",{style:{width:13,height:13,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.refresh}}))
-    )),
+    ),
+    // Saved reels — Veda's only. Takes the 330px slot the band's phantom
+    // ::after was reserving to centre the quote (retired by .thrl-band above),
+    // so the row gains a card without gaining height. Same token contract the
+    // weather bar takes, so it inherits this TaskHub's palette, radius and
+    // mono type rather than carrying colours of its own.
+    window.THRL&&RC(window.THRL.Widget,{key:"rl",t:{
+      BG:BG,S1:S1,BD:BD,BDL:BDL,TX:TX,TXD:TXD,TXM:TXM,AC:A,ACG:ABG,
+      hov:"#303135",radius:8,font:"'IBM Plex Mono',monospace",upper:true}})),
 
     // ── Weekly ──
     RC("div",{style:{...sec,flexShrink:0}},

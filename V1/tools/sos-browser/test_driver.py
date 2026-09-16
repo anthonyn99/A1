@@ -506,5 +506,103 @@ t("the popup uses plain allow, not allowAndName",
 t("the browser-wide call still names files and enables events",
   'allowAndName' in _dd and 'eventsEnabled' in _dd)
 
+# ── Reels harvest (Instagram) ─────────────────────────────────────────────────
+print("\nreels")
+ig = driver.load_reels_site("instagram")
+
+# The five-attribute contract check_blockers() reads. Renaming one here would
+# silently remove the challenge/rate-limit refusal from the scraper path — the
+# one path where it matters most, since it drives a logged-in personal account.
+for _attr in ("id", "display_name", "login_selectors",
+              "rate_limit_selectors", "challenge_selectors"):
+    t(f"ReelsSite carries `{_attr}` for check_blockers",
+      hasattr(ig, _attr) and getattr(ig, _attr) not in (None, ""),
+      f"{_attr} missing or empty")
+
+t("instagram is NOT loadable as a chat site",
+  not driver.is_deck_site("instagram") and driver.is_reels_site("instagram"))
+t("headless stays off while the selectors are guesses",
+  ig.headless_ok is False, ig.headless_ok)
+t("a per-run scroll cap exists and is finite",
+  isinstance(ig.max_scrolls, int) and 0 < ig.max_scrolls <= 200, ig.max_scrolls)
+t("pacing is a RANGE, not a constant",
+  isinstance(ig.scroll_pause_s, list) and len(ig.scroll_pause_s) == 2
+  and ig.scroll_pause_s[0] < ig.scroll_pause_s[1], ig.scroll_pause_s)
+t("_pace samples inside the range",
+  all(ig.scroll_pause_s[0] <= driver._pace(ig.scroll_pause_s) <= ig.scroll_pause_s[1]
+      for _ in range(50)))
+t("_pace never returns the same value twice in a row (not a metronome)",
+  len({driver._pace([1.5, 4.0]) for _ in range(20)}) > 15)
+
+# shortcode_of — the dedup key. /p/ matters: a saved reel is sometimes filed
+# under /p/, and treating that as a different item would double every entry.
+t("shortcode from /reel/", driver.shortcode_of("/reel/Cx1y2Z3aBcD/") == "Cx1y2Z3aBcD")
+t("shortcode from /reels/", driver.shortcode_of("/reels/Cx1y2Z3aBcD/") == "Cx1y2Z3aBcD")
+t("shortcode from /p/ (same reel, different path)",
+  driver.shortcode_of("/p/Cx1y2Z3aBcD/") == "Cx1y2Z3aBcD")
+t("shortcode from a full URL with query",
+  driver.shortcode_of("https://www.instagram.com/reel/AbCdEfGhIjK/?img_index=1")
+  == "AbCdEfGhIjK")
+t("a profile link yields no shortcode",
+  driver.shortcode_of("/veda/saved/all-posts/") is None)
+t("empty href yields no shortcode", driver.shortcode_of("") is None)
+
+# merge_reels — MERGE, never replace. A partial harvest must not drop reels the
+# widget is already showing.
+_old = [{"shortcode": "A", "caption": "first", "thumbKey": "reel_A"},
+        {"shortcode": "B", "caption": "second"}]
+_new = [{"shortcode": "B", "caption": "second (edited)"},
+        {"shortcode": "C", "caption": "third"}]
+_m = driver.merge_reels(_old, _new)
+t("merge unions by shortcode", [r["shortcode"] for r in _m] == ["A", "B", "C"],
+  [r["shortcode"] for r in _m])
+t("a partial harvest never drops a known reel",
+  any(r["shortcode"] == "A" for r in driver.merge_reels(_old, [{"shortcode": "C"}])))
+t("newer metadata wins",
+  [r for r in _m if r["shortcode"] == "B"][0]["caption"] == "second (edited)")
+t("an empty field does NOT clobber a stored value",
+  [r for r in driver.merge_reels(_old, [{"shortcode": "A", "thumbKey": ""}])
+   if r["shortcode"] == "A"][0]["thumbKey"] == "reel_A")
+t("entries without a shortcode are dropped, not stored keyless",
+  driver.merge_reels([], [{"caption": "no code"}]) == [])
+t("merge is idempotent", driver.merge_reels(_m, _m) == _m)
+
+# The harvest's two load-bearing orderings, asserted against the source so a
+# later refactor cannot quietly undo them.
+_hr = _inspect.getsource(driver._harvest_reels)
+t("loading_more is checked BEFORE the growth/end-of-feed verdict",
+  _hr.index("loading_more") < _hr.index("stalled >= site.stall_polls"),
+  "poll order inverted: a spinner would read as a finished feed")
+t("the stall guard does NOT require a non-zero count",
+  "len(seen) > 0 and" not in _hr and "count > 0 and" not in _hr,
+  "the zero-item blind spot is back: a harvest that never starts would hang")
+t("hitting the scroll cap is reported, not silent",
+  "scroll_cap" in _hr)
+t("the harvest re-checks blockers every pass",
+  "check_blockers" in _hr)
+
+# The empty-result refusal — the single most destructive failure mode, since a
+# logged-out page and an empty collection are indistinguishable.
+_cr = _inspect.getsource(driver.cmd_reels)
+# The browser work moved into _reels_run when the run lock was added; the
+# refusal and the dry-run cut live there, so assert against the pair.
+_rr = _inspect.getsource(driver._reels_run)
+_cr_all = _cr + _rr
+t("zero results never overwrite a non-empty cache",
+  "ig_empty_harvest" in _cr_all and "refusing to overwrite" in _cr_all)
+t("the refusal names the dry-run repair loop, not a retry",
+  "--dry-run" in _cr_all and "retry" not in _cr_all.lower())
+t("--dry-run stops before the harvest",
+  _rr.index("args.dry_run") < _rr.index("_harvest_reels(page, site)"))
+t("the harvest runs under a pid-based run lock",
+  "_RunLock(HERE / \".reels-run.lock\")" in _cr,
+  "two concurrent harvests would fight over the one IG profile")
+t("the lock wraps the browser work, not just the config read",
+  _cr.index("_RunLock") < _cr.index("_reels_run("))
+t("the scraper holds no Firebase credential",
+  not any(w in _inspect.getsource(driver).lower()
+          for w in ("firebase_admin", "service_account", "firestore.client")),
+  "the credential boundary is broken: the page must own the cloud write")
+
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

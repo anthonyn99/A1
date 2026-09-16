@@ -72,7 +72,7 @@ MAX_ATTEMPTS = 2          # a browser run is slow; don't grind on a broken one
 #
 # Absent `mode` means 'rewrite', so every job already in jobs.json keeps working
 # with no migration.
-MODES = ("rewrite", "notebooklm")
+MODES = ("rewrite", "notebooklm", "reels")
 
 # Retryable = "the identical run again might just work".
 #
@@ -318,7 +318,9 @@ def _run_job(job_id: str):
         _save()
 
     try:
-        if job.get("mode") == "notebooklm":
+        if job.get("mode") == "reels":
+            _run_reels_job(job)
+        elif job.get("mode") == "notebooklm":
             _run_notebooklm_job(job)
         else:
             _run_rewrite_job(job)
@@ -326,6 +328,48 @@ def _run_job(job_id: str):
         _fail(job, e.message, retryable=is_retryable(e.kind, job))
     except Exception as e:
         _fail(job, str(e)[:400], retryable=True)
+
+
+def _run_reels_job(job: dict):
+    """One saved-collection harvest.
+
+    Goes through the same single-job queue as everything else, which is the
+    point: two harvests at once would fight over the one Instagram browser
+    profile (the "Opening in existing browser session" failure), and would
+    double the automated traffic to a logged-in personal account for no gain.
+
+    Nothing is uploaded from here. The harvest lands in outputs/reels.json and
+    the PAGE reads it over loopback and files it — this process holds no cloud
+    credential, deliberately.
+    """
+    args = argparse.Namespace(
+        site=job.get("site") or "instagram",
+        user=job.get("igUser") or "",
+        collection=job.get("igCollection") or "all-posts",
+        headful=False, dry_run=False,
+    )
+    out = asyncio.run(driver.cmd_reels(args))
+
+    # cmd_reels returns ok:False for the empty-harvest refusal rather than
+    # raising: it is a REFUSAL, not a crash — the cached list is intact and
+    # still serving. Surfaced as a failed job so it is visible, and marked
+    # non-retryable because re-running cannot fix a changed selector.
+    if not out.get("ok"):
+        _fail(job, out.get("error") or "harvest refused", retryable=False)
+        return
+
+    with _lock:
+        job["status"] = "done"
+        job["progress"] = 100
+        job["finishedAt"] = int(time.time() * 1000)
+        # Non-empty for the same reason the deck path's marker is non-empty:
+        # consumers gate on the truthiness of `result`.
+        job["result"] = f"{out['count']} saved reels ({out['new']} new)"
+        job["reelCount"] = out["count"]
+        job["reelsNew"] = out["new"]
+        job["stoppedAt"] = out.get("stoppedAt")
+        job["sections"] = []
+        _save()
 
 
 def _run_notebooklm_job(job: dict):
@@ -549,7 +593,18 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/health":
             return self._send({"ok": True, "bridge": "sos-browser",
                                "driver": True, "jobs": len(_jobs),
-                               "modes": list(MODES)})
+                               "modes": list(MODES), "reels": True})
+        if p == "/api/ig/reels":
+            # The harvested list, straight off disk. The page polls this when it
+            # can reach the bridge and files the result to Firestore; when the
+            # bridge is down (a phone, or this PC asleep) the page's cached copy
+            # keeps serving and nothing here is needed.
+            doc = driver.read_reels_cache()
+            if not doc:
+                return self._send({"ok": True, "reels": [], "count": 0,
+                                   "note": "no harvest yet — run: "
+                                           "python driver.py reels --user <handle>"})
+            return self._send({"ok": True, **doc})
         if p == "/api/ai/budget":
             # A subscription, not per-token billing. Reported as zero spend with
             # no cap so the UI's budget line stays truthful rather than fake.
@@ -610,6 +665,36 @@ class Handler(BaseHTTPRequestHandler):
 
         if p == "/api/ai/jobs":
             return self._create(body)
+
+        if p == "/api/ig/refresh":
+            user = (body.get("user") or "").strip()
+            if not user:
+                return self._send({"ok": False, "error": "user is required"}, 400)
+            # One harvest at a time, enforced by the same queue the AI jobs use.
+            # An already-queued or running harvest is returned as-is rather than
+            # stacking a second one: more automated visits to a logged-in account
+            # is the cost this whole path is built to minimise.
+            with _lock:
+                live = [j for j in _jobs.values()
+                        if j.get("mode") == "reels"
+                        and j.get("status") in ("queued", "running")]
+                if live:
+                    return self._send({"ok": True, "already": True, "job": live[0]})
+                job = {
+                    "id": "ig_" + uuid.uuid4().hex[:10],
+                    "mode": "reels",
+                    "site": "instagram",
+                    "igUser": user,
+                    "igCollection": (body.get("collection") or "all-posts").strip(),
+                    "prompt": "",
+                    "status": "queued", "progress": 0, "attempts": 0, "costUsd": 0,
+                    "createdAt": int(time.time() * 1000),
+                }
+                _jobs[job["id"]] = job
+                _queue.append(job["id"])
+                _save()
+            _ensure_worker()
+            return self._send({"ok": True, "job": job})
 
         m = re.match(r"^/api/ai/jobs/([\w.-]+)/filed$", p)
         if m:

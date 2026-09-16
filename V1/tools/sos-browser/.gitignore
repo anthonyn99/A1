@@ -13,3 +13,7 @@ __pycache__/
 # overlapping, which creates two notebooks and spends twice the quota.
 .deck-run.lock
 .deck-run.test.lock
+.reels-run.lock
+# Harvested saved-reels list. Machine state, and it names the content of a
+# private Instagram collection — not source, and not something to commit.
+outputs/reels.json

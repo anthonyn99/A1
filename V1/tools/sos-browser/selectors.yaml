@@ -434,3 +434,111 @@ decks:
     challenge_selectors:
       - "text=/unusual traffic/i"
       - "form#captcha-form"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# reels — saved-collection harvesters (Instagram)
+# ══════════════════════════════════════════════════════════════════════════════
+# A THIRD site shape, beside `sites:` (chat composers) and `decks:` (wizards).
+# Kept separate for the same reason DeckSite is separate from Site: a saved-grid
+# harvester has nothing in common with either but the browser. The one shared
+# contract is check_blockers()'s five attributes — id, display_name,
+# login_selectors, rate_limit_selectors, challenge_selectors — spelled
+# identically here so the ethical stop works on this path unmodified.
+#
+# ── EVERY SELECTOR BELOW IS A GUESS ────────────────────────────────────────────
+# Unlike the claude/gemini entries at the top of this file, NOTHING here has been
+# verified against a live logged-in page. Instagram ships obfuscated, churning
+# class names and A/B tests heavily, so these are written as structural/role
+# guesses rather than class matches wherever possible.
+#
+# REPAIR THEM WITH:  python driver.py reels --dry-run
+# That walks navigation and selector resolution and stops BEFORE the scroll
+# harvest, so a repair costs one page load instead of a full scrape. Never
+# repair by re-running a real harvest: more page visits is the one cost this
+# whole design is trying to avoid.
+#
+# When Instagram changes its markup, ADD the new selector at the TOP rather than
+# replacing the old one — same rollback logic as the rest of this file.
+reels:
+  instagram:
+    display_name: Instagram
+    url: https://www.instagram.com/
+    # Deliberately false while the selectors are guesses: a real window gives
+    # readable failure screenshots, and headless IG is both more detectable and
+    # more likely to be served a challenge. driver.py parks it off-screen, so it
+    # is still not on anyone's monitor. Do not flip this to buy speed.
+    headless_ok: false
+
+    # The saved page for a given collection. {user} and {collection} are filled
+    # by cmd_reels; IG has no stable numeric id in the UI, so the collection is
+    # addressed by its slug as it appears in the URL when you open it by hand.
+    saved_url: "https://www.instagram.com/{user}/saved/{collection}/"
+
+    # ── The grid ──────────────────────────────────────────────────────────────
+    # The container that scrolls. IG virtualises long grids, so the harvest reads
+    # tiles as they mount rather than expecting them all to exist at once.
+    grid_container:
+      - "main article"
+      - "main div[style*='flex-direction']"
+      - "main"
+
+    # One tile. An anchor is the load-bearing part — it carries the shortcode.
+    # /reel/ and /p/ both appear: a saved reel is sometimes filed under /p/.
+    reel_link:
+      - "main a[href*='/reel/']"
+      - "main a[href*='/reels/']"
+      - "main a[href*='/p/']"
+
+    # Thumbnail inside a tile. Relative to the tile, not the page.
+    reel_thumb:
+      - "img[src]"
+      - "img[srcset]"
+
+    # Caption/alt text. IG puts a generated description in img[alt], which is
+    # the only text a grid tile reliably carries.
+    reel_caption:
+      - "img[alt]"
+
+    # ── Readiness and end-of-feed ─────────────────────────────────────────────
+    # POLL ORDER IS THE CONTRACT (see _harvest_reels): "still loading" must beat
+    # "reached the end", or a spinner still on screen gets read as a finished
+    # feed and the harvest returns a truncated list that looks complete. This is
+    # the same ordering bug that cost a deck run — see the readiness-vs-
+    # generating note in the decks section above.
+    loading_more:
+      - "main svg[aria-label='Loading...']"
+      - "main [data-visualcompletion='loading-state']"
+      - "main circle[role='progressbar']"
+
+    # A collection with nothing in it. Distinguishing this from a failed load is
+    # what stops an empty harvest from overwriting a good cached list.
+    empty_sentinel:
+      - "text=/Nothing saved yet/i"
+      - "text=/Start saving/i"
+
+    # ── Sentinels — the five-attribute contract ───────────────────────────────
+    # Detected, never solved: no CAPTCHA solving, no automated login, no
+    # rate-limit evasion. Each of these stops the run and asks for a human.
+    login_selectors:
+      - "input[name='username']"
+      - "text=/^Log in$/"
+      - "a[href='/accounts/login/']"
+    rate_limit_selectors:
+      - "text=/Please wait a few minutes/i"
+      - "text=/Try again later/i"
+      - "text=/temporarily blocked/i"
+    challenge_selectors:
+      - "text=/Suspicious Login Attempt/i"
+      - "text=/confirm it.s you/i"
+      - "text=/We detected unusual activity/i"
+      - "input[name='verificationCode']"
+
+    # ── Pacing ────────────────────────────────────────────────────────────────
+    # Ranges, not constants: a fixed delay is a recognisable pattern. driver.py
+    # samples uniformly from each pair on every use.
+    scroll_pause_s: [1.5, 4.0]     # between scroll steps
+    settle_pause_s: [0.8, 2.0]     # after navigation, before reading
+    max_scrolls: 40                # hard cap per run — bounds a runaway feed
+    stall_polls: 3                 # unchanged tile count this many times = dead
+    poll_ms: 1200                  # slow on purpose; fast polling reads as automation
+    nav_timeout_s: 60
