@@ -139,9 +139,23 @@ class Validation:
 MAX_REFERENCE_WORDS = 120
 
 
+_STOP = {
+        "the", "a", "an", "and", "or", "but", "if", "then", "than", "that",
+        "this", "these", "those", "is", "are", "was", "were", "be", "been",
+        "to", "of", "in", "on", "for", "with", "as", "at", "by", "from",
+        "it", "its", "i", "you", "we", "they", "he", "she", "do", "does",
+        "did", "can", "could", "should", "would", "will", "what", "which",
+        "how", "why", "when", "where", "who", "my", "your", "our", "me",
+    }
+
+
+def _words(question: str) -> set[str]:
+    return {w for w in re.findall(r"[a-z0-9]+", question.lower()) if w not in _STOP and len(w) > 2}
+
+
 def _content_words(question: str) -> int:
     """How many distinct words of the question the overlap check can use."""
-    return len({w for w in re.findall(r"[a-z0-9]+", question.lower()) if len(w) > 3})
+    return len(_words(question))
 
 
 def _overlap(question: str, text: str) -> float:
@@ -154,15 +168,7 @@ def _overlap(question: str, text: str) -> float:
     with its question, which is why a low score alone never rejects anything
     long enough to be a real answer.
     """
-    stop = {
-        "the", "a", "an", "and", "or", "but", "if", "then", "than", "that",
-        "this", "these", "those", "is", "are", "was", "were", "be", "been",
-        "to", "of", "in", "on", "for", "with", "as", "at", "by", "from",
-        "it", "its", "i", "you", "we", "they", "he", "she", "do", "does",
-        "did", "can", "could", "should", "would", "will", "what", "which",
-        "how", "why", "when", "where", "who", "my", "your", "our", "me",
-    }
-    words = {w for w in re.findall(r"[a-z0-9]+", question.lower()) if w not in stop and len(w) > 2}
+    words = _words(question)
     if not words:
         return 1.0
     # A reference this wide is not a question -- it is an instruction block,
@@ -279,7 +285,7 @@ def validate_answer(
     if (
         MIN_ANSWER_CHARS <= len(body) < 1200
         and not has_attachments
-        and _content_words(question) >= 4
+        and _content_words(question) >= 3
         and _overlap(question, body) < 0.10
     ):
         return Validation(
