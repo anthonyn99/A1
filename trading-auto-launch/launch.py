@@ -457,8 +457,9 @@ _SPI_GETWORKAREA = 0x0030
 _DWMWA_EXTENDED_FRAME_BOUNDS = 9
 _VK_MENU         = 0x12   # ALT
 # The keyboard VKs that used to live here (RETURN/TAB/SHIFT/CONTROL/ESCAPE/V/9) went
-# with the ChatGPT paste automation — see the note above _is_ai_url. Nothing here
-# synthesises keystrokes any more.
+# with the ChatGPT paste automation — see the note above _is_ai_url. The only
+# keystroke left is a lone Alt tap in _focus_window_patient, which releases the
+# foreground lock and types nothing into anything.
 _MOUSEEVENTF_LEFTDOWN = 0x0002
 _MOUSEEVENTF_LEFTUP   = 0x0004
 _CF_UNICODETEXT  = 13
@@ -939,6 +940,23 @@ def webull_select_account(ox: int, oy: int) -> bool:
     return False
 
 
+def _wait_webull_ready(timeout: float = 60.0) -> bool:
+    """Block until WeBull has loaded far enough to show its account label.
+
+    That label comes from the same UI Automation tree webull_select_account
+    reads, so "the label is readable" is exactly "the switch can work". Returns
+    False at the timeout rather than hanging the morning; the step then carries
+    on and its own checks decide what is safe to do."""
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        if _wb_current_account():
+            log(f"WeBull: loaded after {time.time() - t0:.0f}s of waiting.")
+            return True
+        time.sleep(1.0)
+    log(f"WeBull: account label still unreadable after {timeout:.0f}s — trying anyway.")
+    return False
+
+
 def webull_post_launch(hwnd, initial_delay=None):
     """After WeBull loads, switch it to the Trackers tab + the Individual Margin account
     via coordinate clicks (WeBull has no scripting API). Clicks are offset from the
@@ -950,7 +968,12 @@ def webull_post_launch(hwnd, initial_delay=None):
         return
 
     wait = WEBULL_ACTION_DELAY if initial_delay is None else initial_delay
-    time.sleep(wait)   # let WeBull finish loading (accounts populated)
+    time.sleep(wait)
+    # Moving this step earlier took away the ~20s of loading it used to get for
+    # free, so readiness is now MEASURED rather than assumed: WeBull is ready
+    # when UI Automation can read its account label, which is the very thing
+    # the account switch depends on.
+    _wait_webull_ready()
 
     # This step runs LAST, straight after the browser tabs are opened, and Brave
     # is still raising its window while we get here. Wait that out before asking
@@ -1372,11 +1395,24 @@ def _focus_window_patient(hwnd, timeout: float = 12.0) -> bool:
     usually yes. Giving up after 1.6s is what made the morning skip WeBull's
     tab and account switch entirely."""
     deadline = time.time() + timeout
+    unlocked = False
     while True:
         if _focus_window(hwnd):
             return True
         if time.time() >= deadline:
             return False
+        # Halfway through, release the foreground lock the one way Windows
+        # documents: SetForegroundWindow is allowed for the process that received
+        # the last input event, so give this process one -- a bare Alt tap. It
+        # carries no meaning of its own, and focus moves to WeBull straight after,
+        # so nothing that briefly noticed it is left in a changed state.
+        if not unlocked and time.time() >= deadline - timeout / 2:
+            unlocked = True
+            try:
+                _u32.keybd_event(_VK_MENU, 0, 0, 0)
+                _u32.keybd_event(_VK_MENU, 0, 2, 0)      # KEYEVENTF_KEYUP
+            except Exception:
+                pass
         time.sleep(0.4)
 
 
@@ -1879,10 +1915,17 @@ def _launch_all(test: bool, from_tradehub: bool = False):
 
     time.sleep(1.5)
     open_taskhub_app()
+    # WeBull BEFORE the AI step, not after it. The AI step hands its tab to the
+    # Vault extension, which deliberately holds that tab in front for as long as
+    # it takes to type and send the prompt -- tens of seconds -- and Windows will
+    # not give a background process the foreground while another app is using
+    # it. Run after, the WeBull step lost that fight on 09-14 (1.6s of trying)
+    # and again on 09-16 (8s settle + 12s of retries, still inside the typing).
+    # Nothing is competing for the foreground here: the launcher has just had
+    # the Daily Reminder's Confirm click, and the windows above are placed.
+    webull_post_launch(webull_hwnd)
     # Open the AI site + searches as tabs in the SAME TradeHub window, auto-submitted.
     open_chatgpt_analysis(target_hwnd=tradehub_hwnd)
-    # WeBull has now had ~20s to load — switch it to Trackers + Individual Margin.
-    webull_post_launch(webull_hwnd)
     if not test:
         mark_ran()
     log("=== Done ===")
