@@ -14317,7 +14317,7 @@ function VdSimpleEditModal({open,onClose,onSave,initialText,heading,multiline,zI
    by a finished countdown. That is what makes the sequence unskippable — no
    click path can move the frontier forward.
    ═══════════════════════════════════════════════════════════════════════════ */
-function VdRulesChecklist({open,mode,rules,daily,onComplete,onClose,onSetRules,onToggleDaily,onRunNow}){
+function VdRulesChecklist({open,mode,rules,daily,onComplete,onClose,onSetRules,onToggleDaily,onRunNow,locked,onManageLock}){
   const[unlocked,setUnlocked]=React.useState(-1);   // highest row index that may be ticked
   const[checked,setChecked]=React.useState([]);     // ticked row indices, in order
   const[editing,setEditing]=React.useState(null);   // {index,text} | {index:-1} for add
@@ -14452,7 +14452,20 @@ function VdRulesChecklist({open,mode,rules,daily,onComplete,onClose,onSetRules,o
 
       // ── foot ──
       manage
-        ? RC("div",{style:{padding:"12px 26px 16px",borderTop:"1px solid #34353A",flexShrink:0,display:"flex",justifyContent:"flex-end"}},
+        ? RC("div",{style:{padding:"12px 26px 16px",borderTop:"1px solid #34353A",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}},
+            // Padlock — sets, changes or removes the password on the manage view.
+            // Shows shut when a password is set, open when not, matching every
+            // other app-lock button in the suite.
+            RC("button",{onClick:()=>onManageLock&&onManageLock(),
+              title:locked?"Locked — click to manage":"Unlocked — click to lock",
+              "aria-label":locked?"Rules lock — locked, click to manage":"Rules lock — unlocked, click to lock",
+              style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:7,padding:"0 12px",height:34,boxSizing:"border-box",display:"inline-flex",alignItems:"center",gap:7,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",opacity:locked?1:.6,transition:"all .15s"},
+              onMouseEnter:e=>{e.currentTarget.style.borderColor=A;e.currentTarget.style.opacity=1;},
+              onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;e.currentTarget.style.opacity=locked?1:.6;}},
+              RC("svg",{width:13,height:13,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round","aria-hidden":"true"},
+                RC("rect",{x:4,y:11,width:16,height:10,rx:2}),
+                RC("path",{d:locked?"M8 11V7a4 4 0 0 1 8 0v4":"M8 11V7a4 4 0 0 1 7.5-2"})),
+              RC("span",null,locked?"Locked":"Lock")),
             RC("button",{onClick:onClose,style:{background:"transparent",color:TXD,border:"1px solid "+BDL,borderRadius:7,padding:"0 18px",height:34,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}},"Close"))
         : RC("div",{style:{padding:"14px 26px 18px",borderTop:"1px solid #34353A",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"flex-end",gap:16,flexWrap:"wrap"}},
             RC("button",{disabled:!complete,onClick:finish,style:{background:A,color:BG,border:"1px solid "+A,boxShadow:GLOW_A,borderRadius:7,padding:"0 22px",height:36,fontSize:13,fontWeight:700,cursor:complete?"pointer":"not-allowed",opacity:complete?1:.4,fontFamily:"inherit"}},"Enter")),
@@ -14753,6 +14766,31 @@ function App(){
     setRulesDaily(prev=>({...prev,lastCompleted:vdTodayLocal()}));
     setRulesOpen(null);
   },[setRulesDaily]);
+
+  // ── Rules lock ────────────────────────────────────────────────────────────
+  // The MANAGE view is behind the shared app-lock ('veda_rules'); the gate is
+  // not, and must never be — see the AL_LABELS note. Opening manage therefore
+  // goes through alGate, which prompts only when the lock is on AND this device
+  // has not unlocked it. alGate calls back synchronously when it is not blocked,
+  // so the unlocked path stays a plain click with no flash of a password box.
+  const openRulesManage=useCallback(()=>{
+    const go=()=>setRulesOpen("manage");
+    if(window.alGate)window.alGate("veda_rules",go);else go();
+  },[]);
+  // The padlock's on/off state lives in the app-lock module, not in React, and
+  // it changes from two places React cannot see: the overlay (set / change /
+  // remove here on this device) and a Firebase sync from another device. So
+  // mirror it into state and re-read on a poll while the manage view is open —
+  // cheap, and the only way this footer learns the lock turned over.
+  const[rulesLocked,setRulesLocked]=useState(()=>!!(window.alIsLocked&&window.alIsLocked("veda_rules")));
+  useEffect(()=>{
+    if(rulesOpen!=="manage")return;
+    const read=()=>setRulesLocked(!!(window.alIsLocked&&window.alIsLocked("veda_rules")));
+    read();
+    const iv=setInterval(read,400);
+    return()=>clearInterval(iv);
+  },[rulesOpen]);
+  const manageRulesLock=useCallback(()=>{ if(window.alManage)window.alManage("veda_rules"); },[]);
 
   // ── Archive day-keys older than TH_ARCHIVE_YEARS (see Tony's TaskHub) ──────
   // Same three gates: only after a confirmed remote load, archive write must
@@ -15550,7 +15588,7 @@ function App(){
       RC("button",{key:"vx-dev",title:"Input device",onClick:()=>window._THV&&window._THV.openDevicePicker(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 9px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}},RC("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},RC("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),RC("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),RC("line",{x1:12,y1:19,x2:12,y2:23}),RC("circle",{cx:18.5,cy:5.5,r:3,fill:"currentColor",stroke:"none"}))),
       vxUndo&&RC("button",{key:"vx-undo",title:"Undo",onClick:()=>window._THV&&window._THV.undo(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 11px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}},RC(VdIcon,{name:"undo",size:15})),
       vxRedo&&RC("button",{key:"vx-redo",title:"Redo",onClick:()=>window._THV&&window._THV.redo(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 11px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}},RC(VdIcon,{name:"redo",size:15})),
-      RC("button",{onClick:()=>setRulesOpen("manage"),title:"Trading rules checklist",onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},"Rules"),
+      RC("button",{onClick:openRulesManage,title:"Trading rules checklist",onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},"Rules"),
       RC("button",{onClick:()=>setShowPomo(p=>!p),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=showPomo?A:BDL;},style:{background:showPomo?A:"transparent",color:showPomo?BG:A,border:"1px solid "+(showPomo?A:BDL),...(showPomo?{boxShadow:GLOW_A}:{}),borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},showPomo?"Timer On":"Timer"),
       RC("div",{role:"button",tabIndex:0,"aria-pressed":edit,title:edit?"Switch to view mode":"Switch to edit mode",style:{display:"flex",alignItems:"center",gap:6,cursor:"pointer",userSelect:"none",height:28,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",boxSizing:"border-box"},onClick:()=>setEdit(!edit),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;}},
         /* Mode reads as a glyph, not a word — pencil for edit, eye for view (same
@@ -15806,7 +15844,8 @@ function App(){
     RC(VdSimpleEditModal,{open:!!editingGoalM,onClose:()=>setEditingGoalM(null),onSave:title=>renameMM(editingGoalM.id,title),initialText:editingGoalM?.title||"",heading:"Edit Short-Term Goal"}),
     RC(VdRulesChecklist,{open:!!rulesOpen,mode:rulesOpen||"gate",rules:rules,daily:rulesDaily,
       onComplete:finishRules,onClose:()=>setRulesOpen(null),onRunNow:()=>setRulesOpen("gate"),
-      onSetRules:setRules,onToggleDaily:on=>setRulesDaily(prev=>({...prev,enabled:!!on}))})
+      onSetRules:setRules,onToggleDaily:on=>setRulesDaily(prev=>({...prev,enabled:!!on})),
+      locked:rulesLocked,onManageLock:manageRulesLock})
   );
 }
 ReactDOM.render(RC(App),document.getElementById("vr-root"));
@@ -42262,6 +42301,15 @@ var AL_LABELS  = {
   veda_taskhub:   { label: 'TaskHub',    profile: 'veda', color: '#8D769A' },
   veda_gita:      { label: 'Gita',       profile: 'veda', color: '#8D769A' },
   veda_journal:   { label: 'Journal',    profile: 'veda', color: '#8D769A' },
+  // Rules (Veda's TaskHub → RULES button) — locks the MANAGE view only, never
+  // the daily gate. The gate is the point of the program; making it need a
+  // password would mean a device that can't produce one simply never sees the
+  // checklist, and the day passes unreviewed. Locking only the authoring side
+  // is the integrity model: the rules still run, but they cannot be edited,
+  // deleted, reordered, or the daily prompt switched off in a weak moment.
+  // Deliberately absent from AL_APP_ROOTS — this gates a modal, not a page, so
+  // it must never blank veda-root the way an app-level lock does.
+  veda_rules:     { label: 'Rules',      profile: 'veda', color: '#8D769A' },
   // Shield (shield.html) — the emergency closer / lockdown system, and the only
   // program in the suite that both profiles run. Two independent locks, because
   // one profile must never be able to open the other's emergency configuration.
