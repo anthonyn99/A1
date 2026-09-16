@@ -67,7 +67,9 @@ t('a deliberate new-tab gesture is still honoured',
   blk.includes('e.metaKey||e.ctrlKey||e.shiftKey'),
   'ctrl/cmd/middle-click should still open Instagram');
 t('the band card opens the player directly',
-  blk.includes('S.playing=reel.shortcode'));
+  blk.includes('S.playing=reelForOpen.shortcode'),
+  'refactored into openReelsGated() so the lock gate wraps it — the shortcode '
+  + 'is now set via the captured reelForOpen, not the raw reel var');
 t("it frames Instagram's own embed page", blk.includes("/embed/"),
   'reels are DASH-segmented (79 paths for one 13s reel), so <video> is not an '
   + 'option and the embed is the only way to play one');
@@ -204,6 +206,60 @@ t('.thrl-band retires the phantom column',
 t('Tony\'s band never renders it',
   (html.match(/window\.THRL&&RC\(window\.THRL\.Widget/g) || []).length === 1,
   'more than one render site means it leaked into the other profile');
+
+// ── Lock ─────────────────────────────────────────────────────────────────────
+// Reuses the shared app-lock module ('veda_rules' is the model), rather than a
+// bespoke password system: one AL_LABELS entry, alGate to open, alManage to
+// set/change/remove, alIsLocked for the padlock icon. No new persistence, no
+// new crypto, no new UI to audit — the whole password/overlay/cross-device-sync
+// system already exists and is reused as-is.
+console.log('\nlock');
+t('veda_reels is registered with the shared app-lock module',
+  /veda_reels:\s*\{\s*label:\s*'Reels'/.test(html));
+t('it is deliberately absent from AL_APP_ROOTS',
+  !new RegExp('AL_APP_ROOTS\\s*=\\s*\\{[^}]*veda_reels').test(html),
+  'this gates opening the panel, not a page — registering a root would try '
+  + 'to blank a DOM id that does not exist for a band widget');
+t('opening the panel goes through alGate, not straight to setOpen',
+  blk.includes('function openReelsGated') &&
+  blk.includes('window.alGate') &&
+  blk.includes('alGate("veda_reels"'));
+t('alGate is called with a fallback for when the module has not loaded',
+  /window\.alGate\)\s*go\(\)\s*;\s*else\s*go\(\)|if\(window\.alGate\)go\(\);else go\(\)|if\(window\.alGate\)\s*window\.alGate\("veda_reels",go\);else go\(\)/.test(blk),
+  'a missing alGate must never brick the widget — it should behave as unlocked');
+t('the picker/empty-state tap is gated',
+  blk.includes('openReelsGated(false)'),
+  'the empty-state button used to call setOpen(true) directly, bypassing any lock');
+t('the featured-card tap is gated',
+  blk.includes('openReelsGated(true)'),
+  'the featured card used to set S.playing and open directly, bypassing any lock');
+t('closing the panel never re-triggers the gate',
+  /if\(open\)\{setOpen\(false\);return;\}/.test(blk),
+  'a lock must never block CLOSING what is already open — only revealing it');
+t('the lock state is polled while the panel is open, like Rules does',
+  blk.includes('alIsLocked') && blk.includes('setInterval(read,400)'),
+  'the padlock icon and manage menu can change from another device or from '
+  + 'this device\'s own overlay — React cannot see either without a poll');
+t('the poll runs only while open, and is cleared on close',
+  /useEffect\(function\(\)\{\s*if\(!open\)return;[\s\S]{0,300}setReelsLocked/.test(blk),
+  'a poll that outlives the panel is a leaked interval');
+t('a manage button exists to set/change/remove the password',
+  blk.includes('window.alManage') && blk.includes('alManage("veda_reels")'));
+t('the manage button never goes through the gate',
+  (() => {
+    const start = blk.indexOf('var lockBtn=h(');
+    const end = blk.indexOf(');', blk.indexOf('alManage("veda_reels")'));
+    const region = start >= 0 && end > start ? blk.slice(start, end) : '';
+    return region.includes('alManage') && !region.includes('alGate');
+  })(),
+  'managing a lock on an already-open widget is voluntary, not an access gate '
+  + '— routing it through alGate would prompt for the OLD password to open the '
+  + 'menu that changes it');
+t('the padlock icon reflects lock state, not just presence of the button',
+  blk.includes('reelsLocked?') && blk.includes("'M8 11V7a4 4 0 0 1 8 0v4'") &&
+  blk.includes("'M8 11V7a4 4 0 0 1 7.5-2'"),
+  'the closed-shackle and open-shackle paths must both be present and switched '
+  + 'on state, matching every other app-lock button in the suite');
 
 console.log(`\n${PASS} passed, ${FAIL} failed`);
 process.exit(FAIL ? 1 : 0);

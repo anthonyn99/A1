@@ -3364,6 +3364,25 @@ function Widget(props){
 
   useEffect(function(){ return subscribe(setS); },[]);
 
+  // ── Lock ────────────────────────────────────────────────────────────────
+  // Same shape as Rules' 'veda_rules' gate: this locks OPENING the panel, never
+  // the band card itself, and is deliberately absent from AL_APP_ROOTS (see the
+  // AL_LABELS note) — a lock here must never blank the widget the way an
+  // app-level lock blanks a whole page. Password state lives in the shared
+  // app-lock module, not in React, and it can change from two places React
+  // cannot see (this device's own overlay, or a Firestore sync from another
+  // device), so it is mirrored into state and re-read on a poll while the
+  // panel is open — the only way the padlock icon learns the lock turned over.
+  var lk=useState(function(){return !!(window.alIsLocked&&window.alIsLocked("veda_reels"));}),
+      reelsLocked=lk[0],setReelsLocked=lk[1];
+  useEffect(function(){
+    if(!open)return;
+    var read=function(){setReelsLocked(!!(window.alIsLocked&&window.alIsLocked("veda_reels")));};
+    read();
+    var iv=setInterval(read,400);
+    return function(){clearInterval(iv);};
+  },[open]);
+
   // Measured placement, shared with the other band widgets.
   useEffect(function(){
     if(!open||!window.THSHEET)return;
@@ -3459,6 +3478,25 @@ function Widget(props){
   //
   // It stays a button for one real case: once a collection list has been
   // published, tapping opens the picker so the choice can be made here.
+  //
+  // ── Gated open ────────────────────────────────────────────────────────────
+  // Every path that reveals the panel content goes through this, so a locked
+  // collection cannot be reached by the picker OR the featured card. alGate
+  // calls back SYNCHRONOUSLY when the lock is off (or already unlocked on this
+  // device), so the unlocked path stays a plain tap with no flash of a
+  // password box; when it is on, this shows the overlay first and only runs
+  // the callback on success. `startPlaying` is optional — the picker's tap
+  // just opens the grid, the featured card's tap also starts a reel.
+  function openReelsGated(startPlaying){
+    var go=function(){
+      if(startPlaying&&reelForOpen&&reelForOpen.shortcode){
+        S.playing=reelForOpen.shortcode;emit();
+      }
+      setOpen(true);
+    };
+    if(window.alGate)window.alGate("veda_reels",go);else go();
+  }
+
   if(!s.reels.length){
     var pickable = s.collections && s.collections.length > 1;
     var hint = s.syncMsg || (pickable
@@ -3469,13 +3507,14 @@ function Widget(props){
         title:pickable
           ? 'Choose which saved collection to show'
           : 'On your PC:  cd V1/tools/sos-browser && python driver.py reels',
-        onClick:function(){ if(pickable)setOpen(true); }},
+        onClick:function(){ if(pickable)openReelsGated(false); }},
       PLACEHOLDER,
       h('span',{key:'b',className:'thrl-body'},
         h('span',{key:'m',className:'thrl-cap',style:upper},hint)));
   }
 
   var reel=s.reels[Math.min(s.idx,s.reels.length-1)]||{};
+  var reelForOpen=reel;   // captured by openReelsGated's closure above
   var src=thumbUrl(reel);
   var broken=!!imgErr[reel.shortcode];
 
@@ -3483,10 +3522,10 @@ function Widget(props){
     'data-noglow':true,
     title:'Play this reel',
     onClick:function(){
-      // One tap from the band to a playing video, which is the point of the
-      // widget. Opening the grid first would be an extra step every time.
-      if(!open&&reel.shortcode){S.playing=reel.shortcode;emit();}
-      setOpen(!open);
+      // Closing needs no gate — only revealing content does. One tap from the
+      // band to a playing video is the point of the widget when unlocked.
+      if(open){setOpen(false);return;}
+      openReelsGated(true);
     }},
     (src&&!broken)
       ? h('img',{key:'i',className:'thrl-thumb',src:src,alt:'',loading:'lazy',
@@ -3637,12 +3676,37 @@ function Widget(props){
         }))
     : null;
 
+  // Manage button: opens the shared app-lock's set/change/remove menu for
+  // "veda_reels". Same call whether a lock exists yet or not — alManage shows
+  // "set password" the first time and the manage menu (change/remove/lock this
+  // device) once one is set. This is voluntary management of a program already
+  // open, not a gate, so it never runs through alGate.
+  var lockBtn=h('button',{key:'lk',type:'button',className:'thrl-x',
+    'data-noglow':true,
+    'aria-label':reelsLocked?'Reels lock — manage':'Lock saved reels',
+    title:reelsLocked?'Locked — click to manage':'Click to lock this widget',
+    style:{opacity:reelsLocked?1:0.55},
+    onClick:function(e){
+      e.stopPropagation();
+      if(window.alManage)window.alManage("veda_reels");
+    }},
+    reelsLocked
+      ? h('svg',{key:'i',width:13,height:13,viewBox:'0 0 24 24',fill:'none',
+          stroke:'currentColor',strokeWidth:2,strokeLinecap:'round',strokeLinejoin:'round'},
+          h('rect',{key:'r',x:4,y:11,width:16,height:10,rx:2}),
+          h('path',{key:'p',d:'M8 11V7a4 4 0 0 1 8 0v4'}))
+      : h('svg',{key:'i',width:13,height:13,viewBox:'0 0 24 24',fill:'none',
+          stroke:'currentColor',strokeWidth:2,strokeLinecap:'round',strokeLinejoin:'round'},
+          h('rect',{key:'r',x:4,y:11,width:16,height:10,rx:2}),
+          h('path',{key:'p',d:'M8 11V7a4 4 0 0 1 7.5-2'})));
+
   var head=h('div',{key:'h',className:'thrl-head'},
     h('span',{key:'t',className:'thrl-title',style:upper},
       (s.collection||'Saved')+' · '+s.reels.length+' reels'
       +(s.omitted?' (+'+s.omitted+' older)':'')
       +(ageTxt?' · '+ageTxt:'')),
     picker,
+    lockBtn,
     h('button',{key:'x',type:'button',className:'thrl-x','data-noglow':true,
       'aria-label':'Close saved reels',title:'Close',
       onClick:function(e){e.stopPropagation();setOpen(false);}},'×'));
@@ -43278,6 +43342,12 @@ var AL_LABELS  = {
   // Deliberately absent from AL_APP_ROOTS — this gates a modal, not a page, so
   // it must never blank veda-root the way an app-level lock does.
   veda_rules:     { label: 'Rules',      profile: 'veda', color: '#8D769A' },
+  // Saved Reels (Veda's TaskHub widget) — same shape as Rules above: this gates
+  // OPENING the panel (the featured-card tap and the picker), never blanks the
+  // band card itself, and is deliberately absent from AL_APP_ROOTS for the same
+  // reason. A collection of saved reels is exactly the kind of thing worth a
+  // lock on a shared or borrowed device.
+  veda_reels:     { label: 'Reels',      profile: 'veda', color: '#8D769A' },
   // Shield (shield.html) — the emergency closer / lockdown system, and the only
   // program in the suite that both profiles run. Two independent locks, because
   // one profile must never be able to open the other's emergency configuration.
