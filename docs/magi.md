@@ -217,6 +217,27 @@ console **served by the engine** (127.0.0.1) can never sign in to Firebase —
 App Check only issues tokens on a registered domain — and that is exactly the
 page you would sit at to run a queue.
 
+### Watching, and surviving a refresh
+
+A deliberation runs in the **engine**, not in the page, so closing or
+reloading the console does not stop it — but the grid is built by the tab that
+started the run, so a reload used to leave it invisible.
+
+The row records its run id the moment the engine hands one back (not when the
+run ends), and `GET /api/runs/{id}/stream` replays state to a reconnecting
+client: an `init` frame carrying every unit as it stands, and the finished
+verdict if it has already landed. So:
+
+- A running row has a **◉** that attaches to that stream and puts the units
+  back on screen, live.
+- On load, a row left mid-run **reconnects** rather than being requeued —
+  requeuing would ask the whole council a question the engine is already
+  answering. Nothing else starts by itself: the rest of the queue waits for
+  Run, because a page that starts deliberations on load spends your accounts
+  while you are reading something else.
+- If the engine has forgotten the run (it restarted), the attach fails
+  cleanly and the row says so instead of sitting on "running" for ever.
+
 ### One device at a time
 
 Draining is leased. A device writes `queueLease` with its id and a timestamp,

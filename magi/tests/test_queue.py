@@ -185,3 +185,65 @@ def test_an_orphan_is_only_reclaimed_once_the_lease_is_held():
         "rows are reset before the lease is claimed, so a row another device "
         "is running would be restarted here as well"
     )
+
+
+# ── watching a prompt that is already running ───────────────────────────────
+def test_a_row_records_its_run_id_as_the_run_starts():
+    """Not when it ends. A refresh mid-prompt has to have something to point
+    at, or the row says "running" about a run nothing can find."""
+    body = _fn("queueDrain")
+    assert "onRunStart" in body, "the id is only recorded once the run finishes"
+    assert body.index("onRunStart") < body.index("await runOne"), (
+        "the callback is armed after the run has already started"
+    )
+    assert "onRunStart = null" in body, "the callback outlives the run"
+
+
+def test_a_running_row_can_be_watched():
+    body = _fn("renderQueue")
+    assert "queueWatch" in body, "a running row offers no way to see it happen"
+    assert "Watch this deliberation" in body
+
+
+def test_watching_attaches_rather_than_starting_another_run():
+    """The expensive mistake: re-running a prompt the engine is still running
+    would ask the whole council the same question twice."""
+    watch = _fn("watchRun")
+    assert "attachTo: runId" in watch
+    one = _fn("runOne")
+    assert "if (!runId) {" in one, "runOne always POSTs, so attaching restarts"
+    assert 'form.append("question"' in one
+
+
+def test_the_engines_replay_rebuilds_the_grid_only_when_attaching():
+    body = _fn("runOne")
+    assert 'msg.type === "init"' in body, "the replay frame is ignored"
+    assert "if (!attachTo || !msg.providers) return;" in body, (
+        "a run started here would have its panels rebuilt from the replay, "
+        "throwing away text already on screen"
+    )
+
+
+def test_a_reload_reconnects_instead_of_requeuing_a_run_that_has_an_id():
+    load = _fn("loadQueueLocal")
+    assert "resumable" in load, (
+        "a row mid-run is requeued outright, so the next Run asks the council "
+        "a question it is already answering"
+    )
+    resume = _fn("queueResume")
+    assert "queueWatch" in resume
+    # ...and nothing else starts by itself on load.
+    assert "queueStart" not in resume, (
+        "a page that starts deliberations on load spends your accounts while "
+        "you are reading something else"
+    )
+
+
+def test_the_close_control_sits_with_copy():
+    body = _fn("renderVerdict")
+    assert "verdict-acts" in body, "Close and Copy are no longer one group"
+    assert 'acts.append(shut)' in body
+    assert '(n.querySelector(".verdict-acts") || hd)' in body, (
+        "the copy button went back to the header, so the header's spare width "
+        "sits between the two controls again"
+    )

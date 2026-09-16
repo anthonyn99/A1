@@ -101,7 +101,11 @@ def test_every_surface_that_produces_a_result_has_one():
     """The wiring. Each of these is a place the user asked to copy from."""
     surfaces = {
         "the verdict (live, and reopened from History)":
-            re.compile(r"const body = verdictBody\(v\.verdict\);\s*\n\s*hd\.append\(copyButton"),
+            # The button moved into the header's action group, beside
+            # Close -- what matters is still that it is built from the
+            # verdict body that was just rendered.
+            re.compile(r"const body = verdictBody\(v\.verdict\);[\s\S]{0,200}?"
+                       r"append\(copyButton\(\(\) => \(\{ node: body, md: v\.verdict"),
         "a single unit's answer":
             re.compile(r"copyButton\(\(\) => \(\{ md: p\.text \}\)"),
         "a finished brainstorm plan":

@@ -1236,8 +1236,9 @@ table.doctor, table.doctor code, .v-table, .studio-table,
 }
 /* The way out of a deliberation you opened, in the header of the verdict
    itself -- see renderVerdict. Pushed to the end of the row, beside Copy. */
+.verdict-acts { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; }
 .verdict-close {
-  margin-left: auto; display: inline-flex; align-items: center; gap: 6px;
+  display: inline-flex; align-items: center; gap: 6px;
   background: transparent; border: 1px solid var(--bdl); border-radius: 9px;
   color: var(--txm); font-family: inherit; font-size: 10.5px; font-weight: 600;
   letter-spacing: .4px; padding: 4px 10px; cursor: pointer;
@@ -1296,6 +1297,9 @@ table.doctor, table.doctor code, .v-table, .studio-table,
 }
 .q-act:hover { border-color: var(--bdl); color: var(--tx); }
 .q-act.danger:hover { border-color: var(--red); color: var(--red); }
+/* The one control on a running row that does something right now. */
+.q-act.watching { color: var(--ac); border-color: color-mix(in srgb, var(--ac) 45%, transparent); }
+.q-act.watching:hover { border-color: var(--ac); }
 .q-act:disabled { opacity: .3; cursor: default; }
 .q-state {
   font-size: 9px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
@@ -3681,6 +3685,7 @@ const HOW = [
       "<b>Queue</b> beside Convene puts a prompt in a list instead of running it now. Each row keeps its OWN units, so a queue can ask three units one thing and one unit the next, and they run one at a time in order.",
       "<b>It follows you between devices.</b> The queue rides the same document as your history, so a prompt added on your phone is on the PC without a single extra read. Attachment <i>names</i> travel; the files themselves stay on the device that picked them, and a row says so rather than quietly running a prompt without the file it refers to.",
       "<b>Only one device runs it.</b> Whichever device presses Run takes a lease and refreshes it as it works; the others see that it is running elsewhere. A lease nobody refreshes for 90 seconds is treated as abandoned, so a closed laptop cannot freeze the queue.",
+      "<b>Watch one as it happens.</b> A running row has a ◉ that puts its units back on screen. The deliberation runs in the engine, not in this page, so it survives a refresh &mdash; MAGI reconnects to it on load and picks up the grid mid-flight rather than leaving it blank, and it never re-asks a question the engine is already answering.",
       "<b>Pause stops after the prompt in flight</b> &mdash; never mid-deliberation. A failed prompt does not stop the rest, because queued prompts are separate questions rather than steps; the one exception is a rate limit, which stops the queue, since the next prompt would only hit the same wall.",
     ],
   },
@@ -5081,6 +5086,11 @@ function renderVerdict() {
    *  page and a half away, which is the same as not having one. This sits in
    *  the header of the thing being closed.
    */
+  // One group at the right end, so Close and Copy are neighbours rather than
+  // two controls with the header's spare width pushed between them.
+  const acts = el("span", "verdict-acts");
+  hd.append(acts);
+
   if (S.fromHistory) {
     const shut = el("button", "verdict-close");
     shut.type = "button";
@@ -5092,7 +5102,7 @@ function renderVerdict() {
       ? "Put the prompt that is still running back on screen"
       : "Clear this deliberation from the screen";
     shut.onclick = () => (live ? backToLive() : newRun());
-    hd.append(shut);
+    acts.append(shut);
   }
 
   n.append(hd);
@@ -5114,7 +5124,8 @@ function renderVerdict() {
     // so that button is there too without a second code path. There is none on
     // a failed synthesis: an error message is not a result to take away.
     const body = verdictBody(v.verdict);
-    hd.append(copyButton(() => ({ node: body, md: v.verdict })));
+    (n.querySelector(".verdict-acts") || hd)
+      .append(copyButton(() => ({ node: body, md: v.verdict })));
     n.append(body);
   } else {
     const b = el("div", "verdict-body");
@@ -5488,10 +5499,26 @@ async function start() {
  *  next. Nothing else in the console awaited a run before, so this is the
  *  only reason it returns anything at all.
  */
-function runOne({ question, units, files = [] }) {
+/* Attach to a run that is ALREADY going, instead of starting one.
+ *
+ *  The engine replays state to a reconnecting client -- an `init` frame with
+ *  every unit as it stands, and the whole verdict if it has already landed --
+ *  so this needs no history of its own. It is what makes a refresh survivable:
+ *  the deliberation carries on in the engine either way, and without this the
+ *  console simply stopped showing it.
+ */
+function watchRun(runId, question) {
+  if (!runId || !online()) return Promise.resolve(null);
+  return runOne({ question, units: [], files: [], attachTo: runId });
+}
+
+function runOne({ question, units, files = [], attachTo = null }) {
   const ids = (units && units.length ? units : [...S.selected]).filter(
     (id) => S.providers.some((p) => p.id === id));
-  if (!question || !ids.length || !online()) return Promise.resolve(null);
+  // Attaching brings its own units with it, in the stream's first frame.
+  if ((!question && !attachTo) || (!ids.length && !attachTo) || !online()) {
+    return Promise.resolve(null);
+  }
 
   S.verdict = null;
   S.running = true;
@@ -5527,31 +5554,49 @@ function runOne({ question, units, files = [] }) {
   const finish = (outcome) => { if (!done) { done = true; settle(outcome); } };
 
   (async () => {
-  const form = new FormData();
-  form.append("question", question);
-  form.append("providers", ids.join(","));
-  for (const f of files) form.append("files", f, f.name);
-
-  let runId;
-  try {
-    const res = await fetch(`${link.api}/api/runs`, authed({ method: "POST", body: form }));
-    const d = await res.json();
-    runId = d.run_id;
-
-  } catch {
-    endRun();
-    setErr("refineError", "Could not reach the engine to start the run.");
-    finish({ ok: false, error: "unreachable" });
-    return;
+  let runId = attachTo;
+  if (!runId) {
+    const form = new FormData();
+    form.append("question", question);
+    form.append("providers", ids.join(","));
+    for (const f of files) form.append("files", f, f.name);
+    try {
+      const res = await fetch(`${link.api}/api/runs`,
+                              authed({ method: "POST", body: form }));
+      const d = await res.json();
+      runId = d.run_id;
+    } catch {
+      endRun();
+      setErr("refineError", "Could not reach the engine to start the run.");
+      finish({ ok: false, error: "unreachable" });
+      return;
+    }
   }
   S.runId = showingLive() ? runId : S.runId;
   S.live.runId = runId;
+  // The queue row learns the id AS THE RUN STARTS, not when it ends, so a
+  // refresh mid-prompt can find its way back to the run still going.
+  if (typeof onRunStart === "function") onRunStart(runId);
 
   const es = new EventSource(streamUrl(`/api/runs/${runId}/stream`));
   S.es = es;
   es.onmessage = (ev) => {
     const msg = JSON.parse(ev.data);
-    if (msg.type === "state") {
+    if (msg.type === "init") {
+      // Only when attaching: a run started here already has its panels, and
+      // rebuilding them would throw away text already on screen.
+      if (!attachTo || !msg.providers) return;
+      livePanels.length = 0;
+      for (const p of msg.providers) {
+        livePanels.push({
+          id: p.id, display_name: p.display_name,
+          accent: p.accent || (S.providers.find((x) => x.id === p.id) || {}).accent
+                  || "var(--ac)",
+          state: p.state, text: p.text || "", chars: p.chars || 0,
+        });
+      }
+      if (showingLive()) { renderGrid(); requestAnimationFrame(drawLinks); }
+    } else if (msg.type === "state") {
       const p = liveById(msg.provider_id);
       if (!p) return;
       p.state = msg.state;
@@ -5602,8 +5647,15 @@ function runOne({ question, units, files = [] }) {
   es.onerror = () => {
     endRun();
     // A dropped stream is not a verdict. Settling here rather than hanging is
-    // what stops one lost connection from stalling a queue for ever.
-    finish({ ok: false, error: "the run stream dropped" });
+    // what stops one lost connection from stalling a queue for ever. When
+    // ATTACHING this is also how "the engine no longer knows that run"
+    // arrives -- it restarted, or the run finished long ago -- and the row
+    // says so rather than sitting on "running" for ever.
+    finish({
+      ok: false,
+      error: attachTo ? "the engine is no longer streaming that run"
+                      : "the run stream dropped",
+    });
   };
   })();
   });
@@ -9275,6 +9327,10 @@ const DEVICE_ID = (() => {
    and a File cannot be and must not be. */
 const QUEUE_FILES = new Map();
 
+/** Told the run id the moment a run starts, so the queue row can record it
+ *  before the run finishes. Set around a call and cleared after. */
+let onRunStart = null;
+
 /** Generation counter: an older drain loop exits when it sees a newer one. */
 let _queueGen = 0;
 let _leaseTimer = 0;
@@ -9352,6 +9408,37 @@ async function queueRemove(id, silent) {
   queueChanged();
 }
 
+/* Show what a running prompt is doing.
+ *
+ *  The deliberation runs in the ENGINE, so it carries on across a refresh --
+ *  but the console's grid is built by the tab that started it, and a reload
+ *  left the units invisible with the run still going. Attaching to the
+ *  stream brings the whole thing back: the engine replays every unit's state
+ *  as its first frame.
+ *
+ *  When the queue is draining in THIS tab there is nothing to attach to --
+ *  the grid is already live -- so that case just puts it back on screen.
+ */
+async function queueWatch(id) {
+  const it = S.queue.find((x) => x.id === id);
+  if (!it || !it.runId) return;
+  if (S.live && S.live.runId === it.runId) { backToLive(); return; }
+
+  const outcome = await watchRun(it.runId, it.q);
+  const cur = S.queue.find((x) => x.id === id);
+  if (!cur || !outcome) return;
+  // Attaching means this tab now sees the end of the run, so the row is
+  // finished here even though another tab started it.
+  if (cur.status === "running") {
+    cur.status = outcome.ok ? "done" : "failed";
+    if (!outcome.ok) {
+      cur.err = outcome.error
+        || `${outcome.responded || 0} of ${outcome.total || 0} units answered`;
+    }
+    queueChanged();
+  }
+}
+
 /** Put a queued prompt back in the composer to work on. */
 function queueEdit(id) {
   const it = S.queue.find((x) => x.id === id);
@@ -9420,13 +9507,39 @@ function loadQueueLocal() {
   try {
     const raw = JSON.parse(localStorage.getItem(QUEUE_KEY) || "[]");
     if (Array.isArray(raw)) {
-      // A prompt that was mid-run when the page closed is not running now.
+      // A prompt that was mid-run when the page closed is not running HERE
+      // any more -- but if it got as far as an id, the engine may still be
+      // running it, and queueResume reconnects rather than asking the council
+      // the same question twice.
       S.queue = raw.map((it) => ({
         ...it,
+        resumable: it.status === "running" && !!it.runId,
         status: it.status === "running" ? "queued" : it.status,
       }));
     }
   } catch {}
+}
+
+/* A prompt that was mid-run when the page reloaded.
+ *
+ *  loadQueueLocal turns a stale "running" row back into "queued" -- right for
+ *  a row that never got an id, wrong for one that did, because that run is
+ *  still going in the engine and re-running it would ask the council the same
+ *  question twice. This reconnects to it instead, shows it, and records how
+ *  it ends.
+ *
+ *  Deliberately not automatic beyond that: the rest of the queue waits for
+ *  Run, because a page that starts deliberations by itself on load is a page
+ *  that spends your accounts while you are reading something else.
+ */
+async function queueResume() {
+  if (!online()) return;
+  const live = S.queue.find((it) => it.runId && (it.status === "running"
+    || it.status === "queued" && it.resumable));
+  if (!live) return;
+  live.status = "running";
+  queueChanged();
+  await queueWatch(live.id);
 }
 
 /** Every local change goes through here: redraw, then save, then sync. */
@@ -9512,9 +9625,15 @@ async function queueDrain(gen) {
 
     let outcome = null;
     try {
+      // Recorded the moment the engine hands back an id, not when the run
+      // ends: a refresh mid-prompt can then find the run still going instead
+      // of leaving a row that says "running" with nothing to point at.
+      onRunStart = (id) => { it.runId = id; queueChanged(); };
       outcome = await runOne({ question: it.q, units: it.units, files });
     } catch (e) {
       outcome = { ok: false, error: (e && e.message) || "the run failed" };
+    } finally {
+      onRunStart = null;
     }
     // Recorded BEFORE the generation is rechecked. Returning here left the
     // row stuck on "running" for ever: it then counted as neither waiting nor
@@ -9728,10 +9847,17 @@ function renderQueue() {
     edit.type = "button"; edit.title = "Put this back in the composer";
     edit.disabled = it.status === "running";
     edit.onclick = () => queueEdit(it.id);
-    const open = el("button", "q-act", "\u2197");
-    open.type = "button"; open.title = "Open the deliberation this produced";
+    // Running: watch it happen. Finished: open what it produced. One slot,
+    // because they are the same question asked at two different times.
+    const live = it.status === "running";
+    const open = el("button", `q-act ${live ? "watching" : ""}`,
+                    live ? "\u25C9" : "\u2197");
+    open.type = "button";
+    open.title = live
+      ? "Watch this deliberation as it happens"
+      : "Open the deliberation this produced";
     open.disabled = !it.runId;
-    open.onclick = () => it.runId && openRun(it.runId);
+    open.onclick = () => (live ? queueWatch(it.id) : openRun(it.runId));
     const del = el("button", "q-act danger", "\u2715");
     del.type = "button"; del.title = "Remove from the queue";
     del.disabled = it.status === "running";
@@ -11042,6 +11168,9 @@ $("btnQueue").onclick = queueAdd;
 $("backToLive").onclick = backToLive;
 loadQueueLocal();
 renderQueue();
+// A prompt that was mid-run when this page reloaded is still running in the
+// engine; reconnect to it rather than leaving the grid blank.
+queueResume();
 updateEnabled();
 setView("council");
 // The lock paints first and covers everything; discovery and the engine
