@@ -185,3 +185,32 @@ def test_a_correct_description_of_a_photo_is_not_off_topic(attach):
     v = validate.validate_answer(text, "Describe this environment",
                                  display_name="Gemini", has_attachments=attach)
     assert v.ok, v.detail
+
+
+def test_a_limit_reset_time_is_read_from_the_sites_wording():
+    from datetime import datetime, timedelta, timezone
+    from magi.engine import usage
+    seen = datetime(2026, 9, 16, 16, 42, tzinfo=timezone.utc)
+    assert usage.parse_reset("6 hours 50 minutes before limit is gone", seen) == seen + timedelta(hours=6, minutes=50)
+    assert usage.parse_reset("Try again in 45 minutes", seen) == seen + timedelta(minutes=45)
+    assert usage.parse_reset("You've reached your upload limit.", seen) is None
+
+
+def test_an_old_timeout_whose_snapshot_shows_a_limit_is_reported_as_one(tmp_path):
+    import json, sqlite3
+    from datetime import datetime, timezone
+    from magi.engine import usage
+    snap = tmp_path / "grok.html"
+    snap.write_text("<div><p>Describe this environment</p></div>"
+                    "<div class='x'>6 hours 50 minutes before limit is gone</div>", encoding="utf-8")
+    db = tmp_path / "m.db"
+    con = sqlite3.connect(db)
+    con.execute("CREATE TABLE answers(provider_id, ok, failure_kind, error_detail, degraded_reason, ended_at, artifacts)")
+    now = datetime.now(timezone.utc).isoformat()
+    con.execute("INSERT INTO answers VALUES('grok',0,'empty_response','stayed empty',NULL,?,?)",
+                (now, json.dumps([str(snap)])))
+    con.commit(); con.close()
+    r = usage._recent_sync(str(db), "grok", ["text=/before limit is gone/i"])
+    (i,) = r["issues"]
+    assert i["limit"] and i["resets_at"] and not i["cleared"]
+    assert i["detail"] == "The site said: 6 hours 50 minutes before limit is gone"

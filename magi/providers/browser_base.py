@@ -535,6 +535,10 @@ class BrowserProvider(Provider):
                         "A bot-verification page is showing. Selector results below "
                         "are meaningless until it is cleared."
                     )
+                # A limit notice that is already on the page. Most limits only
+                # show once you send or attach -- those come from run history,
+                # see engine/usage.py -- but some sites say it up front.
+                report.limit = await resolve.rate_limited(page, site.rate_limit_selectors)
 
                 # What a run would hit before it could type. Checked BEFORE
                 # the dialogs are cleared, because "a cookie banner is over

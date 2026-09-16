@@ -1723,6 +1723,34 @@ table.doctor, table.doctor code, .v-table, .studio-table,
   background: var(--bg); color: var(--acl); padding: 1px 5px; border-radius: 3px;
   font-size: 10.5px; word-break: break-all;
 }
+/* A usage limit: amber, not red. Nothing is broken; there is a wait. */
+.doc-fix.doc-limit {
+  background: color-mix(in srgb, var(--amber) 9%, var(--s2));
+  border-color: color-mix(in srgb, var(--amber) 38%, transparent);
+}
+.doc-limit b { color: var(--amber); font-family: var(--font); font-size: 11.5px; }
+.doc-limit-said { color: var(--tx); overflow-wrap: anywhere; }
+.doc-limit-when { margin-top: 3px; color: var(--txm); }
+
+.doc-recent { margin-top: 10px; border-top: 1px solid var(--bdl); padding-top: 8px; }
+.doc-recent-hd {
+  font-size: 10px; font-weight: 700; letter-spacing: .9px; text-transform: uppercase;
+  color: var(--txm); margin-bottom: 4px;
+}
+.doc-recent-row { padding: 6px 0; border-bottom: 1px dashed var(--bdl); }
+.doc-recent-row:last-child { border-bottom: 0; }
+.doc-recent-top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 11.5px; }
+.doc-recent-kind { color: var(--amber); font-weight: 700; }
+.doc-recent-at { color: var(--txm); }
+.doc-recent-state { margin-left: auto; color: var(--txd); font-size: 10.5px; }
+.doc-recent-row.cleared .doc-recent-kind { color: var(--txm); }
+.doc-recent-row.cleared .doc-recent-state { color: var(--grn); }
+.doc-recent-detail {
+  color: var(--txd); font-size: 11px; line-height: 1.5; margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+.doc-recent-row.cleared .doc-recent-detail { opacity: .7; }
+
 .doc-details { margin-top: 10px; }
 .doc-details summary {
   cursor: pointer; color: var(--txm); font-size: 10.5px;
@@ -6718,6 +6746,65 @@ function syncDoctorNav() {
   $("navDoctor").setAttribute("aria-busy", String(S.doctorBusy));
 }
 
+/* ── what runs have hit lately ─────────────────────────────────────────────
+ *
+ *  A usage limit is almost never on a site's idle page -- ChatGPT's upload cap
+ *  is in a tooltip once a file is attached, Grok's replaces an answer after a
+ *  send -- so a doctor that only probes the page calls those units healthy.
+ *  The engine reads its run history back instead (engine/usage.py) and this
+ *  shows it: each unit's most recent problems, a limit's reset time when the
+ *  site gave one, and whether the unit has answered fine since. */
+const DOC_KIND = {
+  rate_limited: "Usage limit",
+  timeout: "Timed out",
+  empty_response: "Empty response",
+  not_logged_in: "Signed out",
+  selector_miss: "Page changed",
+  overlay_blocked: "Blocked by a dialog",
+  bot_challenge: "Bot check",
+  navigation: "Could not load",
+  browser_crash: "Browser crashed",
+  profile_locked: "Profile in use",
+  unusable: "Unusable answer",
+  unknown: "Error",
+};
+
+function docAgo(iso) {
+  const ms = Date.now() - Date.parse(iso);
+  if (!isFinite(ms)) return "";
+  const m = Math.round(ms / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ${m % 60 ? (m % 60) + "m " : ""}ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
+function docUntil(iso) {
+  const ms = Date.parse(iso) - Date.now();
+  if (!isFinite(ms) || ms <= 0) return "";
+  const m = Math.ceil(ms / 60000);
+  const clock = new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const rel = m < 60 ? `${m}m` : `${Math.floor(m / 60)}h${m % 60 ? " " + (m % 60) + "m" : ""}`;
+  return `${clock} (in ${rel})`;
+}
+
+/** A limit that still stands: live on the page, or seen in a run, not
+ *  answered past since, and not past the reset time the site gave. */
+function docActiveLimits(d) {
+  const out = [];
+  if (d.limit) out.push({ live: true, detail: d.limit });
+  for (const i of (d.recent && d.recent.issues) || []) {
+    if (i.limit && !i.cleared && !i.reset_passed) out.push(i);
+  }
+  return out;
+}
+
+/** Problems from runs that the unit has not answered past since. */
+function docOpenIssues(d) {
+  return ((d.recent && d.recent.issues) || []).filter((i) => !i.limit && !i.cleared);
+}
+
 function renderDoctor(data) {
   syncDoctorNav();
   const body = $("doctorBody");
@@ -6754,8 +6841,9 @@ function renderDoctor(data) {
    *  that question and the rows underneath explain it. */
   const faults = (d) => d.selectors.filter((x) => (x.status || (x.ok ? "ok" : "miss")) === "miss");
   const stale  = (d) => d.selectors.filter((x) => x.stale);
-  const broken = data.filter((d) => !d.usable || d.error || faults(d).length);
-  const drifting = data.filter((d) => !broken.includes(d) && stale(d).length);
+  const limited = data.filter((d) => docActiveLimits(d).length);
+  const broken = data.filter((d) => !d.usable || d.error || faults(d).length || limited.includes(d));
+  const drifting = data.filter((d) => !broken.includes(d) && (stale(d).length || docOpenIssues(d).length));
 
   const sum = el("div", "doc-summary " + (broken.length ? "bad" : drifting.length ? "warn" : "good"));
   sum.append(el("span", "doc-sum-dot"));
@@ -6763,10 +6851,11 @@ function renderDoctor(data) {
   let line;
   if (broken.length) {
     line = `${broken.length} unit${broken.length > 1 ? "s need" : " needs"} attention` +
+           (limited.length ? ` (${limited.length} at a usage limit)` : "") +
            (healthy || drifting.length ? ` · ${data.length - broken.length} fine` : "");
   } else if (drifting.length) {
     line = `All ${data.length} usable, but ${drifting.length} ` +
-           `${drifting.length > 1 ? "are" : "is"} running on a fallback selector`;
+           `${drifting.length > 1 ? "have" : "has"} a recent problem or a fallback selector`;
   } else {
     line = `All ${data.length} unit${data.length > 1 ? "s" : ""} healthy`;
   }
@@ -6791,12 +6880,48 @@ function renderDoctor(data) {
       flags.append(el("span", "doc-flag " + (d.usable ? "ok" : "miss"),
                       d.usable ? "Usable" : "Not usable"));
     }
+    if (docActiveLimits(d).length) flags.append(el("span", "doc-flag miss", "Usage limit"));
     if (d.duration_ms) flags.append(el("span", "doc-flag na", `Took ${(d.duration_ms / 1000).toFixed(0)}s`));
     hd.append(flags);
     card.append(hd);
 
     if (d.error) card.append(el("div", "doc-note", d.error));
     for (const n of d.notes || []) card.append(el("div", "doc-note", n));
+
+    // Usage limits first: they are the one problem here with nothing to fix,
+    // only a time to wait for, so the time is the headline.
+    for (const lim of docActiveLimits(d)) {
+      const box = el("div", "doc-fix doc-limit");
+      box.append(el("b", null, "Usage limit"));
+      const when = lim.live ? "showing on the site now" : `hit ${docAgo(lim.at)}`;
+      box.append(el("span", null, ` ${when}. `));
+      box.append(el("span", "doc-limit-said", lim.detail.replace(/^The site said:\s*/, "")));
+      const until = lim.resets_at ? docUntil(lim.resets_at) : "";
+      box.append(el("div", "doc-limit-when",
+        until ? `Lifts around ${until}. Until then this unit fails fast with this message.`
+              : `The site gave no reset time. Until it lifts this unit fails fast with this message.`));
+      card.append(box);
+    }
+
+    const issues = (d.recent && d.recent.issues) || [];
+    const shown = issues.filter((i) => !(i.limit && !i.cleared && !i.reset_passed));
+    if (shown.length) {
+      const wrap = el("div", "doc-recent");
+      wrap.append(el("div", "doc-recent-hd",
+        `Recent problems · last ${(d.recent && d.recent.window_hours) || 48}h`));
+      for (const i of shown) {
+        const row = el("div", "doc-recent-row" + (i.cleared || i.reset_passed ? " cleared" : ""));
+        const top = el("div", "doc-recent-top");
+        top.append(el("span", "doc-recent-kind", DOC_KIND[i.kind] || i.kind));
+        top.append(el("span", "doc-recent-at", docAgo(i.at)));
+        top.append(el("span", "doc-recent-state",
+          i.cleared ? "Answered fine since" : i.reset_passed ? "Limit should have lifted" : "Not answered since"));
+        row.append(top);
+        if (i.detail) row.append(el("div", "doc-recent-detail", i.detail.replace(/^The site said:\s*/, "")));
+        wrap.append(row);
+      }
+      card.append(wrap);
+    }
 
     // What to actually DO. A stale field still works today and will stop
     // working the next time the site tidies up, and "put the matched selector

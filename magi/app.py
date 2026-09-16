@@ -31,6 +31,7 @@ from .db import Database
 from .engine import brainstorm as brainstorm_engine
 from .engine import refine as refine_engine
 from .engine import studio as studio_engine
+from .engine import usage
 from .engine.orchestrator import Orchestrator, required_members
 from .errors import FailureKind, explain
 from .providers import gemini_api
@@ -1817,12 +1818,15 @@ async def doctor(
     for p, res in zip(providers, results):
         if isinstance(res, asyncio.CancelledError):
             continue
+        # What runs have hit lately -- usage limits above all, which an idle
+        # page almost never shows.
+        recent = await usage.recent(settings.db_path, p.id, p.site.rate_limit_selectors)
         if isinstance(res, BaseException):
             out.append({
                 "provider_id": p.id, "display_name": p.display_name,
                 "reachable": False, "logged_in": False, "challenged": False,
                 "usable": False, "error": str(res)[:300], "notes": [],
-                "selectors": [], "duration_ms": 0,
+                "selectors": [], "duration_ms": 0, "limit": "", "recent": recent,
             })
             continue
         r, ms = res
@@ -1840,6 +1844,8 @@ async def doctor(
                 # "fine" but took 50 seconds is on its way to timing out mid
                 # run, and nothing else in the console would tell you.
                 "duration_ms": ms,
+                "limit": r.limit,
+                "recent": recent,
                 "selectors": [
                     {
                         "field": s.field,

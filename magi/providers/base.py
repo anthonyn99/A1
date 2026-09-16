@@ -192,6 +192,8 @@ class HealthReport:
     notes: list[str] = field(default_factory=list)
     screenshot_path: str | None = None
     error: str | None = None
+    # The site's own usage-limit notice, if one is on the page right now.
+    limit: str = ""
 
     @property
     def usable(self) -> bool:
