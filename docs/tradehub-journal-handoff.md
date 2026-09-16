@@ -210,3 +210,23 @@ clock time (the CSV carries only a close time and the buy time is derived from a
 rounded "hold" string) and notes/tags (edited afterwards; a re-import must not
 resurrect the old copy). The same function is applied to existing entries and to
 freshly parsed rows, so the two cannot drift.
+
+---
+
+## Same-day identical fills (2026-09-16)
+
+Both dedup paths key a fill by content at DAY precision
+(`ticker|side|day|qty|price`) so a fill the feed repeats under another id, fee
+or clock collapses. That key alone also collapsed a *genuine* second fill: PLTR
+was bought 1@170 at 09:31 and again at 15:13 on 9/9, the second buy vanished,
+and the 9/15 sell read **NO BASIS**.
+
+`tbFillLedger` now separates them by Webull order id. A leg carries `_wbOrder`
+only when it came from a worker per-order entry (`tbWbOrderOf`: source
+`webull`, one leg, id = orderId). Same content + different order ids = two
+fills; an id-less copy is claimed by exactly one order. Webull Sync stamps
+order ids onto legs it already holds *before* matching, or an old id-less leg
+would be claimed by the wrong order and a real fill dropped.
+
+The worker's fee-backfill fingerprint also includes qty and price now, and only
+swallows an order when it actually patched a fee.
