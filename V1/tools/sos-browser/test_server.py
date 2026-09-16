@@ -51,7 +51,7 @@ def t(name, cond, extra=""):
 
 # ── Modes ─────────────────────────────────────────────────────────────────────
 print("\nmodes")
-t("every pipeline is declared", set(server.MODES) == {"rewrite", "notebooklm", "reels"},
+t("both pipelines are declared", set(server.MODES) == {"rewrite", "notebooklm"},
   server.MODES)
 t("rewrite is first, so it reads as the default", server.MODES[0] == "rewrite")
 

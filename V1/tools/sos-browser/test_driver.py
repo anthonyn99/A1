@@ -620,7 +620,7 @@ t("probe stops before the harvest",
 t("probe never scrolls",
   "mouse.wheel" not in _rr.split('args, "probe"')[1].split("_harvest_reels")[0])
 t("probe never writes the cache",
-  "write_reels_cache" not in _rr.split('args, "probe"')[1].split("_harvest_reels")[0])
+  "write_reels_cloud" not in _rr.split('args, "probe"')[1].split("_harvest_reels")[0])
 t("an empty cache counts as changed (so a first run harvests)",
   "or not cached" in _rr)
 t("probe still runs the blocker check first",

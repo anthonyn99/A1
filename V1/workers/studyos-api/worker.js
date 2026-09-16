@@ -95,6 +95,8 @@ export default {
 
     if (path.startsWith('/auth/')) return handleAuth(path, request, env, origin);
 
+    if (path === '/reels') return handleReels(request, env, origin);
+
     return json({ ok: false, error: 'unknown route' }, origin, env, 404);
   },
 
@@ -440,4 +442,188 @@ function b64url(data) {
   const b = typeof data === 'string' ? new TextEncoder().encode(data) : new Uint8Array(data);
   let s = ''; b.forEach(x => s += String.fromCharCode(x));
   return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+/* ══ SAVED REELS ══════════════════════════════════════════════════════════
+ * The cloud home for the saved-Instagram-reels widget in Veda's TaskHub.
+ *
+ * WHY A WORKER AND NOT DIRECT FIRESTORE
+ * The widget itself reads Firestore directly through the page's own SDK, so
+ * this route exists for the WRITE side: the harvest runs on a PC (Workers
+ * cannot drive a browser, and reading a saved collection needs a logged-in
+ * Instagram session) and has no Firebase credential by design — a process
+ * driving a logged-in session is exactly the one that should not also hold
+ * cloud write access. It POSTs here instead, and this Worker writes Firestore
+ * with the service account.
+ *
+ * Nothing is stored on disk and nothing is served from localhost: after the
+ * harvest POSTs, every device — phone included — reads the cloud.
+ *
+ * GET  /reels  → { ok, reels, collections, collection, user, count, omitted,
+ *                  filesBase, savedAt }
+ * PUT  /reels  ← { reels, collections, collection, user, filesBase }
+ *
+ * AUTH: X-Reels-Key must match the REELS_KEY secret. The document holds the
+ * contents of a private collection, so the route is not public.
+ */
+
+// Firestore rejects any document over 1 MiB, and a rejected write is how
+// external data once wedged a device's write queue for good. Capped here,
+// server-side, so no client can push the document over the edge. Truncation is
+// newest-first: the harvest appends, so the tail is the oldest saves, and a
+// shuffle widget wants recent ones most.
+const REELS_DOC_BUDGET = 700 * 1024;
+const REELS_DOC_PATH   = 'dashboards/veda_reels';
+
+// Firestore typed values, for the shapes this route actually stores.
+function fsEnc(v) {
+  if (v === null || v === undefined) return { nullValue: null };
+  if (typeof v === 'string')  return { stringValue: v };
+  if (typeof v === 'boolean') return { booleanValue: v };
+  if (typeof v === 'number')  return Number.isInteger(v)
+    ? { integerValue: String(v) } : { doubleValue: v };
+  if (Array.isArray(v)) return { arrayValue: { values: v.map(fsEnc) } };
+  const fields = {};
+  for (const k of Object.keys(v)) fields[k] = fsEnc(v[k]);
+  return { mapValue: { fields } };
+}
+
+function fsDec(v) {
+  if (!v || typeof v !== 'object') return null;
+  if ('nullValue'    in v) return null;
+  if ('stringValue'  in v) return v.stringValue;
+  if ('booleanValue' in v) return v.booleanValue;
+  if ('integerValue' in v) return Number(v.integerValue);
+  if ('doubleValue'  in v) return v.doubleValue;
+  if ('arrayValue'   in v) return (v.arrayValue.values || []).map(fsDec);
+  if ('mapValue'     in v) {
+    const out = {}, f = v.mapValue.fields || {};
+    for (const k of Object.keys(f)) out[k] = fsDec(f[k]);
+    return out;
+  }
+  return null;
+}
+
+async function handleReels(request, env, origin) {
+  const key = env.REELS_KEY;
+  if (!key || request.headers.get('X-Reels-Key') !== key) {
+    return json({ ok: false, error: 'unauthorized' }, origin, env, 401);
+  }
+  const projectId = env.FIREBASE_PROJECT_ID;
+  if (!projectId) return json({ ok: false, error: 'no project id' }, origin, env, 500);
+
+  let token;
+  try { token = await getGoogleAccessToken(env); }
+  catch (e) { return json({ ok: false, error: 'auth: ' + (e && e.message || e) }, origin, env, 502); }
+
+  const docUrl = `https://firestore.googleapis.com/v1/projects/${projectId}` +
+                 `/databases/(default)/documents/${REELS_DOC_PATH}`;
+  const authHdr = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+  if (request.method === 'GET') {
+    const r = await fetch(docUrl, { headers: authHdr });
+    // A missing document is the pre-first-harvest state, not an error.
+    if (r.status === 404) {
+      return json({ ok: true, reels: [], collections: [], collection: '',
+                    user: '', count: 0, omitted: 0, filesBase: '', savedAt: 0 },
+                  origin, env);
+    }
+    if (!r.ok) return json({ ok: false, error: 'firestore read ' + r.status }, origin, env, 502);
+    const f = (await r.json()).fields || {};
+    return json({
+      ok: true,
+      reels:       f.reels       ? fsDec(f.reels)       : [],
+      collections: f.collections ? fsDec(f.collections) : [],
+      collection:  f.collection  ? fsDec(f.collection)  : '',
+      user:        f.user        ? fsDec(f.user)        : '',
+      count:       f.count       ? fsDec(f.count)       : 0,
+      omitted:     f.omitted     ? fsDec(f.omitted)     : 0,
+      filesBase:   f.filesBase   ? fsDec(f.filesBase)   : '',
+      savedAt:     f.savedAt     ? fsDec(f.savedAt)     : 0,
+    }, origin, env);
+  }
+
+  if (request.method === 'PUT' || request.method === 'POST') {
+    let body;
+    try { body = await request.json(); }
+    catch { return json({ ok: false, error: 'bad json' }, origin, env, 400); }
+
+    const incoming = Array.isArray(body.reels) ? body.reels : [];
+
+    // An empty list never overwrites a populated one. A logged-out scrape, a
+    // changed selector and a genuinely empty collection are indistinguishable
+    // from here, and only the last is benign — so the destructive reading is
+    // refused. Clearing on purpose is ?allowEmpty=1, which must be asked for.
+    const url = new URL(request.url);
+    if (!incoming.length && url.searchParams.get('allowEmpty') !== '1') {
+      const cur = await fetch(docUrl, { headers: authHdr });
+      if (cur.ok) {
+        const cf = (await cur.json()).fields || {};
+        const had = cf.reels ? fsDec(cf.reels).length : 0;
+        if (had) {
+          return json({ ok: false, error: `refusing to overwrite ${had} stored reels with an empty list`,
+                        kept: had }, origin, env, 409);
+        }
+      }
+    }
+
+    // Only the fields the widget reads. thumbSrc is deliberately dropped: IG's
+    // CDN URLs are signed and expire within days, so storing one guarantees a
+    // broken image later. The bytes live in studyos-files, keyed by thumbKey.
+    const slim = incoming
+      .filter((x) => x && typeof x.shortcode === 'string' && x.shortcode)
+      .map((x) => ({
+        shortcode: String(x.shortcode).slice(0, 40),
+        url: (typeof x.url === 'string' && x.url)
+          ? x.url.slice(0, 300)
+          : `https://www.instagram.com/reel/${x.shortcode}/`,
+        thumbKey: typeof x.thumbKey === 'string' ? x.thumbKey.slice(0, 80) : '',
+        caption:  typeof x.caption  === 'string' ? x.caption.slice(0, 300) : '',
+      }));
+
+    const size = (a) => new TextEncoder().encode(JSON.stringify(a)).length;
+    let kept = slim, omitted = 0;
+    if (size(kept) > REELS_DOC_BUDGET) {
+      let lo = 0, hi = kept.length;
+      while (lo < hi) {                      // largest prefix that fits
+        const mid = (lo + hi + 1) >> 1;
+        if (size(slim.slice(0, mid)) <= REELS_DOC_BUDGET) lo = mid; else hi = mid - 1;
+      }
+      omitted = slim.length - lo;
+      kept = slim.slice(0, lo);
+    }
+
+    // The collection index, so the widget can offer a picker without the page
+    // ever talking to Instagram.
+    const collections = (Array.isArray(body.collections) ? body.collections : [])
+      .filter((c) => c && typeof c.slug === 'string' && c.slug)
+      .slice(0, 100)
+      .map((c) => ({
+        slug: String(c.slug).slice(0, 80),
+        name: typeof c.name === 'string' && c.name ? c.name.slice(0, 120) : String(c.slug),
+        count: Number.isFinite(c.count) ? c.count : 0,
+      }));
+
+    const payload = { fields: {
+      reels:       fsEnc(kept),
+      collections: fsEnc(collections),
+      collection:  fsEnc(typeof body.collection === 'string' ? body.collection : ''),
+      user:        fsEnc(typeof body.user === 'string' ? body.user : ''),
+      count:       fsEnc(kept.length),
+      omitted:     fsEnc(omitted),
+      filesBase:   fsEnc(typeof body.filesBase === 'string' ? body.filesBase : ''),
+      savedAt:     fsEnc(Date.now()),
+    } };
+
+    const w = await fetch(docUrl, { method: 'PATCH', headers: authHdr,
+                                    body: JSON.stringify(payload) });
+    if (!w.ok) {
+      return json({ ok: false, error: 'firestore write ' + w.status,
+                    detail: (await w.text()).slice(0, 300) }, origin, env, 502);
+    }
+    return json({ ok: true, count: kept.length, omitted,
+                  collections: collections.length }, origin, env);
+  }
+
+  return json({ ok: false, error: 'method not allowed' }, origin, env, 405);
 }

@@ -14,6 +14,8 @@ __pycache__/
 .deck-run.lock
 .deck-run.test.lock
 .reels-run.lock
-# Harvested saved-reels list. Machine state, and it names the content of a
-# private Instagram collection — not source, and not something to commit.
-outputs/reels.json
+# NOTE: there is no local reels file any more. The harvest POSTs to Veda's
+# Worker (V1/workers/studyos-api /reels) and the cloud is the only store, so
+# nothing reel-shaped lands on disk to ignore. Kept as a reminder not to
+# reintroduce one: a local copy would be a second source of truth that only
+# this machine can see, and the phone is the whole point.

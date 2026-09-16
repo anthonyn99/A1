@@ -1690,13 +1690,35 @@ async def cmd_fetch(args) -> dict:
 # ══════════════════════════════════════════════════════════════════════════════
 # Saved-reels harvest (Instagram)
 # ══════════════════════════════════════════════════════════════════════════════
-# Results are written to outputs/reels.json and served over loopback by
-# server.py; the PAGE files them to Firestore. This module holds no Firebase
-# credential and must never gain one — see the boundary note at the top of
-# V1/js/modules/pipeline.js. A scraper driving a logged-in session is exactly
-# the process that should not also hold cloud write access.
+# Results are POSTed to Veda's Worker (V1/workers/studyos-api /reels), which
+# writes Firestore with the service account. NOTHING is stored locally and
+# nothing is served over loopback: the widget reads only the cloud, so a phone
+# behaves exactly like this PC.
+#
+# This module holds no Firebase credential and must never gain one — a scraper
+# driving a logged-in Instagram session is exactly the process that should not
+# also hold cloud write access. The Worker is the only thing with keys.
 
-REELS_OUT = HERE / "outputs" / "reels.json"
+# ── THE CLOUD IS THE ONLY STORE ─────────────────────────────────────────────
+# There is deliberately NO local reels file. The harvest POSTs straight to
+# Veda's Worker (V1/workers/studyos-api, on her Cloudflare account) which writes
+# Firestore with the service account, and every device reads from there. A local
+# copy would be a second source of truth that only one machine can see, and the
+# whole point of this path is that the phone works.
+#
+# The scrape itself cannot move to the cloud: Workers cannot drive a browser,
+# and reading a saved collection needs a logged-in Instagram session. So this
+# command is the one local step, and it stores nothing.
+REELS_API = os.environ.get("REELS_API",
+                           "https://studyos-api.vedapatel05.workers.dev/reels")
+# Auth for that route. Set once:  setx REELS_KEY "<the REELS_KEY secret>"
+REELS_KEY_ENV = "REELS_KEY"
+# Cloudflare's browser-integrity check answers 1010 to urllib's default
+# "Python-urllib/3.x" agent, which reads as a failed publish rather than a
+# blocked one. A plain UA clears it; this is our own authenticated request to
+# our own Worker, so nothing is being circumvented.
+REELS_UA = "studyos-reels-harvester/1.0"
+
 
 # Bounds the per-run thumbnail work the PAGE will do. The Workers KV namespace
 # it uploads into is free-plan (~1000 writes/day) and SHARED with StudyOS file
@@ -1826,17 +1848,61 @@ def merge_reels(old, new):
     return out
 
 
-def read_reels_cache() -> dict:
+def _reels_key() -> str:
+    key = os.environ.get(REELS_KEY_ENV, "").strip()
+    if not key:
+        raise DriverError(
+            "reels_no_key",
+            f"{REELS_KEY_ENV} is not set. This command writes to Veda's Worker, "
+            f"so it needs the shared key:\n"
+            f"  PowerShell:  $env:{REELS_KEY_ENV} = '<key>'   (one shell)\n"
+            f"               setx {REELS_KEY_ENV} '<key>'      (permanent)\n"
+            f"Set the same value as the Worker secret:\n"
+            f"  cd V1/workers/studyos-api && npx wrangler secret put {REELS_KEY_ENV}")
+    return key
+
+
+def read_reels_cloud() -> dict:
+    """The stored document, straight from the Worker. {} when unreachable.
+
+    Read before every harvest so the merge and the empty-result refusal both
+    compare against what is actually published, not a local guess.
+    """
+    import urllib.request
+    req = urllib.request.Request(
+        REELS_API, method="GET",
+        headers={"X-Reels-Key": _reels_key(), "User-Agent": REELS_UA})
     try:
-        return json.loads(REELS_OUT.read_text(encoding="utf-8"))
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return json.loads(r.read().decode("utf-8"))
     except Exception:
         return {}
 
 
-def write_reels_cache(doc: dict) -> None:
-    REELS_OUT.parent.mkdir(parents=True, exist_ok=True)
-    REELS_OUT.write_text(json.dumps(doc, ensure_ascii=False, indent=2),
-                         encoding="utf-8")
+def write_reels_cloud(doc: dict) -> dict:
+    """Publish the harvest. The Worker caps the document and refuses an empty
+    list over a populated one, so those guards hold even if this is called by
+    something else later."""
+    import urllib.request, urllib.error
+    body = json.dumps(doc, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(
+        REELS_API, data=body, method="PUT",
+        headers={"X-Reels-Key": _reels_key(), "Content-Type": "application/json",
+                 "User-Agent": REELS_UA})
+    try:
+        with urllib.request.urlopen(req, timeout=120) as r:
+            return json.loads(r.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        detail = ""
+        try:
+            detail = e.read().decode("utf-8")[:300]
+        except Exception:
+            pass
+        raise DriverError("reels_publish_failed",
+                          f"the Worker rejected the harvest ({e.code}): {detail}")
+    except Exception as e:
+        raise DriverError("reels_publish_failed",
+                          f"could not reach {REELS_API}: {str(e)[:200]}")
 
 
 async def resolve_ig_user(page) -> str:
@@ -1903,6 +1969,81 @@ async def resolve_ig_user(page) -> str:
         except Exception:
             continue
     return ""
+
+
+COLLECTIONS_JS = """() => {
+  const out = [];
+  const seen = new Set();
+  document.querySelectorAll("a[href]").forEach(a => {
+    const href = a.getAttribute("href") || "";
+    // /<user>/saved/<slug>/ — split rather than regex, so this string needs no
+    // backslash escapes and cannot be broken by a mangled insertion again.
+    const clean = href.split("?")[0].split("#")[0];
+    const parts = clean.split("/").filter(Boolean);
+    const i = parts.indexOf("saved");
+    if (i < 0 || parts.length < i + 2) return;
+    const slug = parts[i + 1];
+    if (!slug || seen.has(slug)) return;
+    seen.add(slug);
+    // The numeric id that follows the slug, when present. A collection's real
+    // URL is /saved/<slug>/<id>/ — the slug alone redirects to the index, so
+    // the full path is what the harvest must navigate to. "all-posts" is the
+    // one exception: it has no id and works as a bare slug.
+    const id = (parts.length > i + 2) ? parts[i + 2] : "";
+    // textContent, not innerText: no newline handling needed, and IG renders
+    // the tile name and its count as separate descendants.
+    const bits = [];
+    a.querySelectorAll("span,div").forEach(e => {
+      const t = (e.textContent || "").trim();
+      if (t && t.length < 60 && bits.indexOf(t) < 0) bits.push(t);
+    });
+    out.push({ slug: slug, id: id, path: clean,
+               name: bits[0] || slug, meta: bits[1] || "" });
+  });
+  return out;
+}"""
+
+
+async def discover_collections(page) -> list:
+    """Every saved collection, read off IG's own saved index.
+
+    Read from the page the harvest is already on, so it costs no extra visit.
+    Published alongside the reels so the widget can offer a picker without the
+    page ever talking to Instagram — the whole app reads only the cloud.
+
+    "all-posts" is IG's built-in everything bucket; it is kept in the list
+    because it is a legitimate choice, just not usually the interesting one.
+    """
+    try:
+        raw = await page.evaluate(COLLECTIONS_JS)
+    except Exception as e:
+        # NEVER silent. A JS error here used to return [] and read exactly like
+        # "this account has no collections" — which cost real debugging time.
+        raise DriverError(
+            "ig_collections_js",
+            f"the collection reader failed to run: {str(e)[:160]}. This is a "
+            f"code fault, not an empty account — fix COLLECTIONS_JS in "
+            f"driver.py.")
+    seen, out = set(), []
+    for c in raw or []:
+        slug = (c.get("slug") or "").strip()
+        if not slug or slug in seen:
+            continue
+        seen.add(slug)
+        # IG renders the tile's count as a second line ("12 posts").
+        n = 0
+        m = re.search(r"(\d+)", str(c.get("meta") or ""))
+        if m:
+            n = int(m.group(1))
+        out.append({"slug": slug,
+                    # The full path is what the harvest navigates to; the slug
+                    # alone redirects to the index for every collection except
+                    # all-posts.
+                    "id": (c.get("id") or "").strip()[:40],
+                    "path": (c.get("path") or "").strip()[:200],
+                    "name": (c.get("name") or slug).strip()[:120],
+                    "count": n})
+    return out
 
 
 async def _harvest_reels(page, site: ReelsSite) -> dict:
@@ -2019,7 +2160,7 @@ async def _harvest_reels(page, site: ReelsSite) -> dict:
 
 
 async def cmd_reels(args) -> dict:
-    """Harvest one saved collection into outputs/reels.json.
+    """Harvest one saved collection and publish it to the cloud.
 
     --dry-run stops after navigation and selector resolution, before the scroll
     harvest. That is the whole repair loop for a guessed selector and it costs
@@ -2070,6 +2211,20 @@ async def _reels_run(site, args, target, collection, headless, user="") -> dict:
             # grid indistinguishable from an empty collection.
             await check_blockers(page, site, pre_send=True)
 
+            collections = []
+
+            # --collections reads IG's saved INDEX, which is the only page that
+            # lists collections. A supplied --user skips the index below (it is
+            # only visited to resolve the handle), so go there explicitly or
+            # discovery runs on a collection page and finds nothing.
+            if getattr(args, "collections", False) and user:
+                await page.goto(f"https://www.instagram.com/{user}/saved/",
+                                wait_until="domcontentloaded",
+                                timeout=site.nav_timeout_s * 1000)
+                await asyncio.sleep(_pace(site.settle_pause_s))
+                await check_blockers(page, site, pre_send=True)
+                collections = await discover_collections(page)
+
             if not target:
                 user = await resolve_ig_user(page)
                 if not user:
@@ -2080,12 +2235,38 @@ async def _reels_run(site, args, target, collection, headless, user="") -> dict:
                         "Pass it explicitly:  python driver.py reels --user "
                         "yourhandle   (no angle brackets — PowerShell treats "
                         f"'<' as an operator). Artifacts: {path}")
-                target = (site.saved_url or site.url) \
+                # Already authenticated and on instagram.com: stop at the
+                # saved index to read the collection list before drilling into
+                # one. One page load, and the widget gets its picker.
+                await page.goto(f"https://www.instagram.com/{user}/saved/",
+                                wait_until="domcontentloaded",
+                                timeout=site.nav_timeout_s * 1000)
+                await asyncio.sleep(_pace(site.settle_pause_s))
+                await check_blockers(page, site, pre_send=True)
+                collections = await discover_collections(page)
+
+                # Prefer the path discovered on the index: it carries the
+                # numeric id, without which IG bounces straight back here.
+                hit = next((c for c in collections
+                            if c.get("slug") == collection and c.get("path")), None)
+                target = ("https://www.instagram.com" + hit["path"].rstrip("/") + "/"
+                          ) if hit else (site.saved_url or site.url) \
                     .replace("{user}", user).replace("{collection}", collection)
                 await page.goto(target, wait_until="domcontentloaded",
                                 timeout=site.nav_timeout_s * 1000)
                 await asyncio.sleep(_pace(site.settle_pause_s))
                 await check_blockers(page, site, pre_send=True)
+
+            # A collection URL that lost its numeric id redirects to the saved
+            # INDEX, which has no reels on it. Harvesting there yields zero and
+            # looks like an empty collection, so it is caught explicitly.
+            landed = page.url.rstrip("/")
+            if collection != "all-posts" and landed.endswith("/saved"):
+                raise DriverError(
+                    "ig_collection_redirect",
+                    f"'{collection}' redirected to the saved index, so its "
+                    f"numeric id is missing. Refresh the collection list "
+                    f"first:  python driver.py reels --collections")
 
             walked = {}
             for fname in ("grid_container", "reel_link", "reel_thumb", "reel_caption"):
@@ -2094,6 +2275,26 @@ async def _reels_run(site, args, target, collection, headless, user="") -> dict:
                 walked[fname] = r["selector"] if r else "(no match)"
 
             is_empty = await any_matches(page, site.empty_sentinel)
+
+            # ── --collections: publish the picker, harvest nothing ───────
+            # Cheap (one page load, no scrolling) and it is how a collection
+            # made in the IG app becomes selectable in the widget. Publishing
+            # only the index leaves the stored reels untouched.
+            if getattr(args, "collections", False):
+                if not collections:
+                    collections = await discover_collections(page)
+                cur = read_reels_cloud()
+                write_reels_cloud({
+                    "user": user,
+                    "collection": cur.get("collection") or "",
+                    "collections": collections,
+                    "filesBase": cur.get("filesBase")
+                        or "https://studyos-files.vedapatel05.workers.dev",
+                    "reels": cur.get("reels") or [],
+                })
+                return {"ok": True, "user": user, "collections": collections,
+                        "published": len(collections),
+                        "stoppedAt": "collections only"}
 
             if args.dry_run:
                 path = await save_artifacts(page, f"{site.id}-dryrun")
@@ -2126,7 +2327,7 @@ async def _reels_run(site, args, target, collection, headless, user="") -> dict:
                     except Exception:
                         continue
                 cached = [r.get("shortcode") for r in
-                          (read_reels_cache().get("reels") or [])]
+                          (read_reels_cloud().get("reels") or [])]
                 fresh = [c for c in seen if c not in set(cached)]
                 return {"ok": True, "probe": True, "user": user,
                         "collection": collection,
@@ -2141,11 +2342,15 @@ async def _reels_run(site, args, target, collection, headless, user="") -> dict:
                 got = {"reels": [], "scrolls": 0, "stoppedAt": "empty_sentinel"}
             else:
                 got = await _harvest_reels(page, site)
+            got["collections"] = collections
         finally:
             await ctx.close()
 
-    cache = read_reels_cache()
+    cache = read_reels_cloud()
     stored = cache.get("reels") or []
+    # Whether the stored document describes the SAME collection we just
+    # harvested. Drives both the empty-result refusal and the merge below.
+    same = (cache.get("collection") or "") == collection
 
     # ── The empty-result refusal ──────────────────────────────────────────────
     # A logged-out page, a changed selector and a genuinely empty collection all
@@ -2153,7 +2358,11 @@ async def _reels_run(site, args, target, collection, headless, user="") -> dict:
     # with [] on any of them would delete the widget's contents for a reason
     # nobody could reconstruct afterwards, so zero results never persist over a
     # non-empty cache. The cached list keeps serving; the run says why.
-    if not got["reels"] and stored:
+    # The refusal only makes sense WITHIN a collection. Switching from
+    # all-posts (1218 reels) to an empty collection legitimately harvests zero,
+    # and comparing across the two produced a scary "0 but 1218 cached" refusal
+    # for a correct run. A different collection is compared against nothing.
+    if not got["reels"] and stored and same:
         return {"ok": False, "kind": "ig_empty_harvest",
                 "error": f"harvested 0 reels but {len(stored)} are cached — "
                          f"refusing to overwrite. Usually a changed selector or "
@@ -2161,21 +2370,27 @@ async def _reels_run(site, args, target, collection, headless, user="") -> dict:
                          f"--dry-run  to see which.",
                 "kept": len(stored), "stoppedAt": got["stoppedAt"]}
 
-    merged = merge_reels(stored, got["reels"])
+    # Merging is per COLLECTION. Switching collections must not union two
+    # different sets into one list — that would silently mix them with no way
+    # to tell them apart afterwards. Same collection ⇒ merge (so a partial
+    # harvest never loses reels); different ⇒ replace.
+    merged = merge_reels(stored, got["reels"]) if same else got["reels"]
+
     doc = {
-        "savedAt": int(time.time() * 1000),
-        "site": site.id,
         "user": user,
         "collection": collection,
-        "count": len(merged),
-        "thumbCap": REELS_THUMB_CAP,
-        "stoppedAt": got["stoppedAt"],
+        "collections": got.get("collections") or [],
+        "filesBase": "https://studyos-files.vedapatel05.workers.dev",
         "reels": merged,
     }
-    write_reels_cache(doc)
-    return {"ok": True, "count": len(merged), "new": len(merged) - len(stored),
+    res = write_reels_cloud(doc)
+    return {"ok": True, "count": res.get("count", len(merged)),
+            "new": len(merged) - (len(stored) if same else 0),
+            "omitted": res.get("omitted", 0),
+            "collections": res.get("collections", 0),
+            "replacedCollection": (not same) and bool(stored),
             "scrolls": got["scrolls"], "stoppedAt": got["stoppedAt"],
-            "out": str(REELS_OUT)}
+            "publishedTo": REELS_API}
 
 
 async def cmd_login(args) -> dict:
@@ -2302,7 +2517,8 @@ def main():
     ft.add_argument("--headful", action="store_true")
 
     rl = sub.add_parser(
-        "reels", help="harvest a saved Instagram collection into outputs/reels.json")
+        "reels", help="harvest a saved Instagram collection and publish it "
+                      "to Veda's Worker (nothing is stored locally)")
     rl.add_argument("--site", default="instagram")
     rl.add_argument("--user", default="",
                     help="your Instagram handle; auto-detected from the "
@@ -2313,6 +2529,9 @@ def main():
     rl.add_argument("--dry-run", action="store_true",
                     help="navigate and resolve selectors, stopping BEFORE the "
                          "scroll harvest — the cheap repair loop")
+    rl.add_argument("--collections", action="store_true",
+                    help="list your saved collections and publish them as the "
+                         "widget's picker; harvests no reels")
     rl.add_argument("--probe", action="store_true",
                     help="read the first screen only and report whether the "
                          "collection changed; no scrolling, no write")
