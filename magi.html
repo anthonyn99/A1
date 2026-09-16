@@ -1260,39 +1260,6 @@ table.doctor, table.doctor code, .v-table, .studio-table,
   border-left: 2px solid var(--bdl); padding-left: 10px;
 }
 
-/* ── editing a queued prompt ─────────────────────────────────────────────── */
-.sheet-wide { max-width: 640px; width: 100%; }
-.qedit-text {
-  min-height: 130px; resize: vertical; line-height: 1.55; font-size: 13px;
-}
-.qedit-units { display: flex; flex-wrap: wrap; gap: 4px; }
-/* Not a drag surface here: this row picks units, it does not reorder them. */
-.qedit-units .chip { cursor: pointer; }
-.qedit-atts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.qedit-att {
-  display: inline-flex; align-items: center; gap: 6px;
-  border: 1px solid var(--bdl); border-radius: 8px; padding: 3px 6px 3px 9px;
-  font-size: 11px; color: var(--txm); max-width: 100%;
-}
-.qedit-att.elsewhere { border-style: dashed; color: var(--txd); }
-.qedit-att-n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
-.qedit-att-s { color: var(--txd); font-size: 10px; }
-.qedit-att-x {
-  background: transparent; border: 0; color: var(--txd); cursor: pointer;
-  font-family: inherit; font-size: 11px; line-height: 1; padding: 2px 3px;
-}
-.qedit-att-x:hover { color: var(--red); }
-.qedit-add {
-  background: transparent; border: 1px dashed var(--bdl); border-radius: 8px;
-  color: var(--txm); font-family: inherit; font-size: 11px; padding: 4px 10px;
-  cursor: pointer;
-}
-.qedit-add:hover { border-color: var(--ac); color: var(--ac); }
-@media (max-width: 720px) {
-  .qedit-text { min-height: 150px; font-size: 14px; }
-  .qedit-att-n { max-width: 130px; }
-  .qedit-add, .qedit-att { padding: 7px 10px; }
-}
 
 /* ── the queue ──────────────────────────────────────────────────────────── */
 .queue { max-width: 720px; margin: 10px auto 0; }
@@ -2599,6 +2566,73 @@ html.modal-open .page, html.modal-open .sidebar { overflow: hidden; }
 .sheet-err { color: var(--red); font-size: 11px; margin-top: 8px; }
 .sheet-ok  { color: var(--grn); font-size: 11px; margin-top: 8px; }
 
+/* ── editing a queued prompt ─────────────────────────────────────────────── */
+.sheet-wide { max-width: 620px; width: 100%; }
+/* Sections spaced by the container rather than by each label's own margin,
+   so the panel reads as four bands instead of a column of loose parts. */
+.qedit { display: flex; flex-direction: column; gap: 4px; }
+.qedit .sheet-sub { margin-bottom: 10px; }
+.qedit .sheet-lbl { margin: 10px 0 6px; }
+.qedit-lbl { display: flex; align-items: baseline; gap: 8px; }
+.qedit-count {
+  font-size: 9px; font-weight: 600; letter-spacing: .6px;
+  text-transform: none; color: var(--txd);
+}
+.qedit-count.empty { color: var(--amber); }
+.qedit-text {
+  min-height: 132px; resize: vertical; line-height: 1.6; font-size: 13.5px;
+  padding: 11px 12px; border-radius: 12px;
+  transition: border-color .15s, box-shadow .15s;
+}
+/* The same ring the composer draws, for the same reason: this IS a composer. */
+.qedit-text:focus {
+  border-color: var(--ac);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ac) 16%, transparent);
+}
+.qedit-bar { margin-top: 14px; }
+.qedit-units { display: flex; flex-wrap: wrap; gap: 4px; }
+/* Not a drag surface here: this row picks units, it does not reorder them. */
+.qedit-units .chip { cursor: pointer; }
+.qedit-atts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.qedit-att {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid var(--bdl); border-radius: 8px; padding: 3px 6px 3px 9px;
+  font-size: 11px; color: var(--txm); max-width: 100%;
+}
+.qedit-att.elsewhere { border-style: dashed; color: var(--txd); }
+.qedit-att-n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
+.qedit-att-s { color: var(--txd); font-size: 10px; }
+.qedit-att-x {
+  background: transparent; border: 0; color: var(--txd); cursor: pointer;
+  font-family: inherit; font-size: 11px; line-height: 1; padding: 2px 3px;
+}
+.qedit-att-x:hover { color: var(--red); }
+.qedit-add {
+  background: transparent; border: 1px dashed var(--bdl); border-radius: 8px;
+  color: var(--txm); font-family: inherit; font-size: 11px; padding: 4px 10px;
+  cursor: pointer;
+}
+.qedit-add:hover { border-color: var(--ac); color: var(--ac); }
+@media (max-width: 720px) {
+  /* Sized to the VISIBLE viewport. 92vh counts the browser's own chrome, so a
+     tall sheet put its buttons under the URL bar; dvh is what is actually on
+     screen. Placement is left to the existing rule further down, which pins
+     sheets near the top on a phone so an open keyboard cannot bury them.
+     Full width, because 460px of panel inside a 390px screen is a scrollbar. */
+  .sheet-box {
+    max-width: none;
+    max-height: 84dvh; padding: 16px 14px calc(16px + env(safe-area-inset-bottom));
+  }
+  .qedit-text { min-height: 120px; font-size: 15px; }
+  .qedit-att-n { max-width: 130px; }
+  .qedit-add, .qedit-att { padding: 7px 10px; }
+  /* Reachable buttons, and Cancel kept away from Save so the two are not one
+     ambiguous target at the bottom of the screen. */
+  .sheet-bar { gap: 8px; }
+  .sheet-bar .btn { padding: 10px 16px; }
+  .qedit-units .chip { padding: 5px 11px; }
+}
+
 /* A run cannot start until the engine is found, and saying so where the
    button is beats a Convene click that silently does nothing. */
 .offline-note {
@@ -3860,7 +3894,7 @@ function openHow() {
   const onKey = (e) => { if (e.key === "Escape") close(); };
   document.addEventListener("keydown", onKey);
   x.onclick = close;
-  sheet.onclick = (e) => { if (e.target === sheet) close(); };
+  dismissOnBackdrop(sheet, close);
 
   document.body.append(sheet);
   x.focus();
@@ -3931,7 +3965,7 @@ function openSetup() {
 
   const done = () => sheet.remove();
   close.onclick = done;
-  sheet.onclick = (e) => { if (e.target === sheet) done(); };
+  dismissOnBackdrop(sheet, done);
 
   const good = () => loadGoodToken();
   const paint = () => {
@@ -5537,12 +5571,18 @@ function updateEnabled() {
   if (S.refining) rico.innerHTML = SPINNER;
   else rico.textContent = "✦";
   $("btnRefine").querySelector(".qbar-refine-txt").textContent = S.refining ? "Refining…" : "Refine";
-  $("btnAttach").disabled = S.running || S.attachments.length >= MAX_ATTACHMENTS;
-  $("composer").disabled = busy;
+  // Typing is never blocked by a run in flight. The queue exists so the next
+  // prompts can be written WHILE the council works -- disabling the box made
+  // the one screen where you would queue something the one screen where you
+  // could not. Only the actions that need the engine right now are held:
+  // Convene (one run at a time) and Refine (it drives a unit).
+  $("btnAttach").disabled = S.refining
+    || S.attachments.length >= MAX_ATTACHMENTS;
+  $("composer").disabled = S.refining;
   // Only offered while the rewrite is still untouched — see the composer's
   // input handler.
   show($("btnUndo"), S.preRefine !== null && !S.refining);
-  $("btnUndo").disabled = busy;
+  $("btnUndo").disabled = S.refining;
   $("navNew").disabled = busy;
   show($("navHalt"), S.running);
   // It stays VISIBLE while halting, and says so. Hiding it would answer "did
@@ -5551,7 +5591,9 @@ function updateEnabled() {
   $("navHalt").disabled = S.halting;
   const haltLbl = $("navHalt").querySelector(".side-label");
   if (haltLbl) haltLbl.textContent = S.halting ? "Halting\u2026" : "Halt run";
-  for (const b of document.querySelectorAll(".chip")) b.disabled = busy;
+  for (const b of document.querySelectorAll("#unitChips .chip")) {
+    b.disabled = S.refining;
+  }
   if (typeof syncBsStartBar === "function") syncBsStartBar();
   syncCouncilIdle();
 }
@@ -6631,7 +6673,7 @@ function uiConfirmMagi(title, body, okLabel) {
     const end = (v) => { sheet.remove(); res(v); };
     ok.onclick = () => end(true);
     no.onclick = () => end(false);
-    sheet.onclick = (e) => { if (e.target === sheet) end(false); };
+    dismissOnBackdrop(sheet, () => end(false));
     sheet.append(box);
     document.body.append(sheet);
     no.focus();
@@ -6926,7 +6968,7 @@ function openChairPicker() {
   bar.append(el("span", "qbar-spacer"), close);
   box.append(bar);
   close.onclick = () => sheet.remove();
-  sheet.onclick = (e) => { if (e.target === sheet) sheet.remove(); };
+  dismissOnBackdrop(sheet, () => sheet.remove());
   sheet.append(box);
   document.body.append(sheet);
 }
@@ -8502,7 +8544,7 @@ function openBsNickSheet(x) {
     renderBsView();
   };
   close.onclick = done;
-  sheet.onclick = (e) => { if (e.target === sheet) done(); };
+  dismissOnBackdrop(sheet, done);
   save.onclick = () => set(input.value);
   clear.onclick = () => set("");
   input.onkeydown = (e) => { if (e.key === "Enter") save.click(); };
@@ -9548,8 +9590,9 @@ function queueEdit(id) {
   let refining = false, preRefine = null;
 
   const sheet = el("div", "sheet");
-  const box = el("div", "sheet-box sheet-wide");
-  box.append(el("div", "sheet-hd", "Edit prompt"));
+  const box = el("div", "sheet-box sheet-wide qedit");
+  box.append(el("div", "sheet-hd", "Edit prompt"),
+             el("div", "sheet-sub", "Nothing changes until you save."));
 
   const ta = el("textarea", "sheet-in qedit-text");
   ta.value = text;
@@ -9562,7 +9605,11 @@ function queueEdit(id) {
   box.append(err);
 
   // ── who gets asked ───────────────────────────────────────────────────────
-  box.append(el("div", "sheet-lbl", "Units"));
+  const unitLbl = el("div", "sheet-lbl qedit-lbl");
+  unitLbl.append(el("span", null, "Units"));
+  const unitCount = el("span", "qedit-count");
+  unitLbl.append(unitCount);
+  box.append(unitLbl);
   const chips = el("div", "qedit-units");
   const drawChips = () => {
     chips.textContent = "";
@@ -9646,10 +9693,13 @@ function queueEdit(id) {
   box.append(atts, fileIn);
 
   // ── the bar ──────────────────────────────────────────────────────────────
-  const bar = el("div", "sheet-bar");
+  const bar = el("div", "sheet-bar qedit-bar");
   const save = el("button", "btn active", "Save");
+  save.title = "Save this prompt back to the queue   (Ctrl+Enter)";
   const refine = el("button", "btn", "Refine");
+  refine.title = "Have a unit rewrite this into a sharper prompt";
   const undo = el("button", "btn", "Undo");
+  undo.title = "Put back what you wrote before Refine";
   const cancel = el("button", "btn", "Cancel");
   undo.hidden = true;
   bar.append(save, refine, undo, el("span", "qbar-spacer"), cancel);
@@ -9664,6 +9714,12 @@ function queueEdit(id) {
     save.disabled = !text.trim() || units.size === 0;
     refine.disabled = refining || !text.trim() || !online();
     refine.textContent = refining ? "Refining\u2026" : "Refine";
+    // Said out loud, because a Save that is greyed for a reason you cannot
+    // see is indistinguishable from a broken button.
+    unitCount.textContent = units.size
+      ? `${units.size} of ${S.providers.length}`
+      : "none \u2014 pick at least one";
+    unitCount.classList.toggle("empty", units.size === 0);
   }
 
   refine.onclick = async () => {
@@ -9704,7 +9760,7 @@ function queueEdit(id) {
 
   const close = () => sheet.remove();
   cancel.onclick = close;
-  sheet.onclick = (e) => { if (e.target === sheet) close(); };
+  dismissOnBackdrop(sheet, close);
   ta.onkeydown = (e) => {
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); save.click(); }
   };
@@ -10279,6 +10335,45 @@ async function setNick(id, name) {
   mergeHistory();
 }
 
+/* Dismissing a sheet by its backdrop, without dismissing it by accident.
+ *
+ *  `click` fires on the nearest ancestor SHARED by where the press started
+ *  and where it ended -- so dragging to select text in a box and releasing
+ *  past its edge fires a click on the backdrop, and every sheet in this
+ *  program took that as "close". Selecting the text of a prompt closed the
+ *  editor and threw the edit away.
+ *
+ *  Both ends of the gesture must be on the backdrop itself. Escape closes too,
+ *  which is what a keyboard expects of anything modal.
+ */
+function dismissOnBackdrop(sheet, close) {
+  let down = false, up = false;
+  sheet.addEventListener("pointerdown", (e) => { down = e.target === sheet; });
+  sheet.addEventListener("pointerup", (e) => { up = e.target === sheet; });
+  sheet.addEventListener("click", (e) => {
+    if (e.target === sheet && down && up) close();
+    down = up = false;
+  });
+  const onKey = (e) => {
+    if (e.key !== "Escape") return;
+    // Only the topmost sheet: two stacked sheets must not both go.
+    const sheets = document.querySelectorAll(".sheet");
+    if (sheets[sheets.length - 1] !== sheet) return;
+    document.removeEventListener("keydown", onKey);
+    close();
+  };
+  document.addEventListener("keydown", onKey);
+  // The listener outlives the node otherwise: a sheet closed by its own
+  // buttons would leave a handler behind that fires on a detached element.
+  const obs = new MutationObserver(() => {
+    if (!sheet.isConnected) {
+      document.removeEventListener("keydown", onKey);
+      obs.disconnect();
+    }
+  });
+  obs.observe(document.body, { childList: true });
+}
+
 /** Ask for a name in MAGI's own UI. No browser dialogs anywhere here. */
 function openNickSheet(r) {
   const sheet = el("div", "sheet");
@@ -10308,7 +10403,7 @@ function openNickSheet(r) {
 
   const done = () => sheet.remove();
   close.onclick = done;
-  sheet.onclick = (e) => { if (e.target === sheet) done(); };
+  dismissOnBackdrop(sheet, done);
   save.onclick = () => { setNick(r.id, input.value); done(); };
   clear.onclick = () => { setNick(r.id, ""); done(); };
   input.onkeydown = (e) => { if (e.key === "Enter") save.click(); };

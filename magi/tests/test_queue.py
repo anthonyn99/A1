@@ -302,3 +302,56 @@ def test_a_failed_verdict_does_not_read_as_a_failed_deliberation():
     assert "cleanSynthError" in body, "the raw FailureKind reaches the screen"
     clean = _fn("cleanSynthError")
     assert "None" in clean, "the None case is no longer stripped"
+
+
+# ── popups ──────────────────────────────────────────────────────────────────
+def test_no_sheet_keeps_its_own_dismissal_rule():
+    """`click` fires on the nearest ancestor SHARED by where a press started
+    and where it ended -- so dragging to select text in a box and releasing
+    past its edge fired a click on the backdrop, and every sheet took that as
+    "close". Selecting the text of a prompt closed the editor."""
+    assert "sheet.onclick = (e) =>" not in PAGE, (
+        "a sheet dismisses itself again, which means it closes on a text drag"
+    )
+    assert PAGE.count("dismissOnBackdrop(") >= 8, "not every sheet uses the helper"
+
+
+def test_the_backdrop_needs_both_ends_of_the_gesture():
+    body = _fn("dismissOnBackdrop")
+    assert "pointerdown" in body and "pointerup" in body
+    assert "down && up" in body, "one end of the gesture is enough again"
+
+
+def test_escape_closes_only_the_topmost_sheet():
+    body = _fn("dismissOnBackdrop")
+    assert 'querySelectorAll(".sheet")' in body, (
+        "Escape closes every open sheet at once"
+    )
+    assert "removeEventListener" in body, "the key handler outlives its sheet"
+
+
+def test_the_editors_styles_are_declared_after_the_sheet_styles():
+    """They lost every tie when they came first: .sheet-lbl{display:block}
+    beat .qedit-lbl{display:flex} on source order alone, and the units count
+    rendered as "UNITS3 of 6"."""
+    assert PAGE.index("\n.sheet {") < PAGE.index(".qedit-lbl {"), (
+        "the editor's rules are back above the sheet rules they extend, so "
+        "they are silently overridden"
+    )
+    assert PAGE.index("\n.sheet-lbl {") < PAGE.index(".qedit-lbl {")
+
+
+# ── the composer during a run ───────────────────────────────────────────────
+def test_typing_is_never_blocked_by_a_run():
+    """The queue exists so the next prompts can be written WHILE the council
+    works; disabling the box made the one screen where you would queue
+    something the one screen where you could not."""
+    body = _fn("updateEnabled")
+    assert '$("composer").disabled = S.refining;' in body, (
+        "the composer is disabled by a run in flight again"
+    )
+    assert '$("btnQueue").disabled = !q || S.selected.size === 0;' in body, (
+        "Queue needs the engine, which is the opposite of the point"
+    )
+    # Convene still waits its turn: one run at a time.
+    assert '$("btnSend").disabled = busy' in body
