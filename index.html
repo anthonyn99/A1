@@ -2840,7 +2840,7 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
      covers only your own published media; Basic Display was retired in Dec
      2024). So the list is harvested from a logged-in browser session by
      V1/tools/sos-browser (driver.py reels), served over loopback, and filed to
-     dashboards/veda_reels by V1/js/modules/reels-sync.js — the page has the
+     dashboards/veda_reels by the sync in the Firebase block below — the page has the
      Firebase credential, the scraper deliberately does not.
 
      This widget NEVER talks to the bridge or to Instagram. It renders the
@@ -3026,7 +3026,8 @@ var CFG=readCfg();
 // ── Store ─────────────────────────────────────────────────────────────────
 // `at` is the doc's savedAt, not when we read it: the widget shows how fresh
 // the HARVEST is, which is the number that actually matters here.
-var S={reels:[],at:0,collection:'',filesBase:'',idx:0,err:null};
+var S={reels:[],at:0,collection:'',filesBase:'',idx:0,err:null,
+       syncing:false,syncMsg:'',omitted:0};
 var subs=[];
 function emit(){
   // A NEW object literal every time. Mutating S in place and handing the same
@@ -3034,7 +3035,8 @@ function emit(){
   // — the easiest trap in this pattern, and the reason the other two widgets
   // are written exactly this way.
   S={reels:S.reels,at:S.at,collection:S.collection,filesBase:S.filesBase,
-     idx:S.idx,err:S.err};
+     idx:S.idx,err:S.err,syncing:S.syncing,syncMsg:S.syncMsg,
+     omitted:S.omitted};
   for(var i=0;i<subs.length;i++)subs[i](S);
 }
 function subscribe(fn){subs.push(fn);return function(){var i=subs.indexOf(fn);if(i>=0)subs.splice(i,1);};}
@@ -3058,9 +3060,22 @@ function applyList(payload){
   S.at=payload.savedAt||Date.now();
   S.collection=payload.collection||'';
   S.filesBase=payload.filesBase||'';
+  S.omitted=payload.omitted||0;
   S.err=null;
   if(S.idx>=reels.length)S.idx=0;
-  if(reels.length&&!S.idx)S.idx=Math.floor(Math.random()*reels.length);
+  if(reels.length&&!S.idx){
+    // Same preference as shuffle(): open on a reel that has a picture.
+    var both=[],thumbOnly=[];
+    for(var i=0;i<reels.length;i++){
+      var rr=reels[i];
+      if(!rr||!rr.thumbKey)continue;
+      thumbOnly.push(i);
+      if(rr.caption)both.push(i);
+    }
+    var pool=both.length?both:thumbOnly;
+    S.idx = pool.length ? pool[Math.floor(Math.random()*pool.length)]
+                        : Math.floor(Math.random()*reels.length);
+  }
   try{localStorage.setItem(LS_CACHE,JSON.stringify(
     {at:S.at,collection:S.collection,filesBase:S.filesBase,reels:reels}));}catch(e){}
   emit();
@@ -3124,13 +3139,39 @@ function thumbUrl(reel){
   return S.filesBase+'/f/'+encodeURIComponent(reel.thumbKey);
 }
 
+// Indices of reels whose thumbnail is actually cached. Thumbnails upload 60
+// per sync, so a large collection fills in over several runs — picking purely
+// at random would show the placeholder icon on a large fraction of loads while
+// hundreds of real thumbnails sit unused. Falls back to the whole list once
+// (or while) nothing has a thumbnail.
+function _withThumbs(){
+  // Three tiers: a reel with BOTH a picture and a caption is what the card is
+  // for; a picture alone still looks right; anything else falls back to the
+  // whole list. Without the caption tier the card can read "Reel DOYr7lojrF4",
+  // which is a shortcode — it tells the reader nothing and looks broken.
+  var both=[],thumbOnly=[];
+  for(var i=0;i<S.reels.length;i++){
+    var r=S.reels[i];
+    if(!r||!r.thumbKey)continue;
+    thumbOnly.push(i);
+    if(r.caption)both.push(i);
+  }
+  if(both.length)return both;
+  return thumbOnly.length?thumbOnly:null;
+}
+
 function shuffle(){
   var n=S.reels.length;
   if(n<2){S.idx=0;emit();return;}
   // Never land on the same reel twice in a row — a shuffle button that appears
   // to do nothing reads as broken.
+  var pool=_withThumbs();
   var next=S.idx;
-  while(next===S.idx)next=Math.floor(Math.random()*n);
+  if(pool&&pool.length>1){
+    while(next===S.idx)next=pool[Math.floor(Math.random()*pool.length)];
+  }else{
+    while(next===S.idx)next=Math.floor(Math.random()*n);
+  }
   S.idx=next;
   emit();
 }
@@ -3195,10 +3236,38 @@ function Widget(props){
   // Nothing harvested yet. Says what to do rather than sitting blank, but stays
   // one quiet line — this is the normal state before the first harvest, not an
   // error worth shouting about.
+  // ── Empty state ─────────────────────────────────────────────────────────
+  // This is the state on a device that has never received a harvest, and it
+  // used to be an inert div: nothing to click, no explanation, no way to
+  // retry. A card that looks interactive and does nothing when tapped is worse
+  // than one that says why it is empty, so this one is a button that retries
+  // the sync and reports what happened.
   if(!s.reels.length){
-    return h('div',{className:'thrl',style:vars,ref:box},
-      h('div',{className:'thrl-msg'},PLACEHOLDER,
-        h('span',{key:'m',style:upper},'No saved reels yet')));
+    var hint = s.syncMsg
+      || (s.syncing ? 'Checking the bridge\u2026' : 'No saved reels \u2014 tap to sync');
+    return h('button',{type:'button',className:'thrl thrl-compact',
+        style:vars,ref:box,'data-noglow':true,
+        title:'Pull the latest harvest from the local bridge',
+        disabled:!!s.syncing,
+        onClick:function(){
+          if(S.syncing)return;
+          S.syncing=true;S.syncMsg='';emit();
+          var done=function(msg){S.syncing=false;S.syncMsg=msg;emit();};
+          if(typeof window._reelsSync!=='function'){
+            done('Sync unavailable \u2014 reload the page');return;
+          }
+          window._reelsSync().then(function(r){
+            if(r&&r.ok)done('');                       // applyList repaints
+            else if(r&&r.reason==='bridge-down')
+              done('Bridge offline \u2014 start it on your PC');
+            else if(r&&r.reason==='empty-refused')
+              done('Nothing harvested yet \u2014 run driver.py reels');
+            else done('Sync failed \u2014 check the bridge');
+          }).catch(function(){done('Sync failed');});
+        }},
+      PLACEHOLDER,
+      h('span',{key:'b',className:'thrl-body'},
+        h('span',{key:'m',className:'thrl-cap',style:upper},hint)));
   }
 
   var reel=s.reels[Math.min(s.idx,s.reels.length-1)]||{};
@@ -3263,6 +3332,7 @@ function Widget(props){
   var head=h('div',{key:'h',className:'thrl-head'},
     h('span',{key:'t',className:'thrl-title',style:upper},
       (s.collection||'Saved')+' · '+s.reels.length+' reels'
+      +(s.omitted?' (+'+s.omitted+' older)':'')
       +(ageTxt?' · '+ageTxt:'')),
     h('button',{key:'x',type:'button',className:'thrl-x','data-noglow':true,
       'aria-label':'Close saved reels',title:'Close',
@@ -12309,7 +12379,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // TWO docs, deliberately:
     //
     //   dashboards/veda_reels     the LIST. Display-only here: it is written by
-    //                             V1/js/modules/reels-sync.js after the local
+    //                             window._reelsSync (defined below) after the local
     //                             bridge harvests it, and TaskHub never writes
     //                             it. Kept out of dashboards/vedasdash for the
     //                             same reason pv_cards is — that doc is
@@ -12356,6 +12426,195 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       if (window.THRL && window.THRL.syncCfgFromCloud) window.THRL.syncCfgFromCloud(data);
       _a1b('dashboards/veda_reels_cfg', data);
     }, (err) => { console.warn('[Reels] config onSnapshot error:', err); });
+
+    // ── Pulling the harvest in from the local bridge ────────────────────────
+    // The scraper holds no Firebase credential (deliberately — it drives a
+    // logged-in Instagram session, and that process must not also hold cloud
+    // write access), so it leaves the harvest on disk and serves it over
+    // loopback. THIS page has the credential, so it does the write.
+    //
+    // Runs only where it can: the bridge is 127.0.0.1, unreachable from a
+    // phone or from a sleeping PC. That is the NORMAL case, not a degraded
+    // one — the widget renders from dashboards/veda_reels on every device, and
+    // this function only refills it. When the bridge is not there it returns
+    // quietly rather than logging a failure, because nothing is broken.
+    //
+    // NOT on a timer. Every harvest is a visit to a logged-in account, so a
+    // refresh is an explicit act: this runs once per page load, and only to
+    // publish a harvest that has ALREADY happened. It never triggers one.
+    const REELS_BRIDGE = 'http://127.0.0.1:8781';
+    const REELS_FILES  = 'https://studyos-files.vedapatel05.workers.dev';
+    // Per-sync thumbnail upload cap. MEASURED: 1218 reels, 688 cached after a
+    // few syncs, ~530 to go. The binding limit is the KV namespace's ~1000
+    // writes/DAY on the free plan, SHARED with StudyOS file uploads — storage
+    // is only 25% used, so bytes are not the constraint. 150 fills a large
+    // backlog in a handful of page loads while leaving most of the day's quota
+    // for StudyOS, which is the thing that breaks (invisibly, and elsewhere) if
+    // this is greedy. Reads are free, so an already-cached thumbnail costs
+    // nothing and a re-sync is cheap.
+    const REELS_THUMB_CAP = 150;
+    const REELS_THUMB_MAX = 512 * 1024;
+
+    async function _reelsBridgeUp() {
+      try {
+        const ctl = new AbortController();
+        const t = setTimeout(() => ctl.abort(), 1500);
+        const r = await fetch(REELS_BRIDGE + '/health', { signal: ctl.signal });
+        clearTimeout(t);
+        if (!r.ok) return false;
+        const j = await r.json();
+        return !!(j && j.ok && j.reels);
+      } catch (_) { return false; }
+    }
+
+    // A GET is a READ, effectively unmetered; a PUT is one of ~1000 daily KV
+    // writes SHARED with StudyOS file uploads. So checking first is close to
+    // free, and it is what stops a re-run from costing anything at all.
+    async function _reelsThumbExists(key) {
+      try {
+        const r = await fetch(REELS_FILES + '/f/' + encodeURIComponent(key));
+        return r.ok;
+      } catch (_) { return false; }
+    }
+
+    // Failure here is never fatal and never retried: a missing thumbnail
+    // degrades to a caption-only tile, which beats spending a write on a
+    // signed URL that has already expired.
+    async function _reelsCopyThumb(shortcode, src) {
+      const key = 'reel_' + shortcode;
+      try {
+        const img = await fetch(src);
+        if (!img.ok) return null;
+        const blob = await img.blob();
+        if (!blob.size || blob.size > REELS_THUMB_MAX) return null;
+        const put = await fetch(REELS_FILES + '/f/' + encodeURIComponent(key), {
+          method: 'PUT',
+          headers: { 'Content-Type': blob.type || 'image/jpeg',
+                     'X-File-Name': encodeURIComponent(shortcode + '.jpg') },
+          body: blob,
+        });
+        return put.ok ? key : null;
+      } catch (_) { return null; }
+    }
+
+    window._reelsSync = async function () {
+      if (!(await _reelsBridgeUp())) return { ok: false, reason: 'bridge-down' };
+      let doc0;
+      try {
+        const r = await fetch(REELS_BRIDGE + '/api/ig/reels');
+        if (!r.ok) return { ok: false, reason: 'bridge-unreadable' };
+        doc0 = await r.json();
+      } catch (_) { return { ok: false, reason: 'bridge-unreadable' }; }
+      if (!doc0 || !doc0.ok) return { ok: false, reason: 'bridge-unreadable' };
+
+      const reels = Array.isArray(doc0.reels) ? doc0.reels : [];
+      // The empty guard, on this side of the wire too. driver.py already
+      // refuses to persist an empty harvest over a good cache, but this page
+      // can also be pointed at a bridge whose file was deleted. Writing [] to
+      // Firestore would blank the widget on every device, and nothing in the
+      // UI could undo it.
+      if (!reels.length) return { ok: false, reason: 'empty-refused' };
+
+      // Thumbnails: only what is missing, only up to the cap. A naive
+      // re-upload-everything over a few hundred reels would burn the day's KV
+      // write quota and break StudyOS file uploads as a side effect — a
+      // failure that would surface nowhere near this feature.
+      let uploaded = 0;
+      for (const x of reels) {
+        if (uploaded >= REELS_THUMB_CAP) break;
+        if (!x.shortcode || x.thumbKey) continue;
+        const key = 'reel_' + x.shortcode;
+        if (await _reelsThumbExists(key)) { x.thumbKey = key; continue; }
+        if (!x.thumbSrc) continue;
+        const got = await _reelsCopyThumb(x.shortcode, x.thumbSrc);
+        if (got) { x.thumbKey = got; uploaded += 1; }
+      }
+
+      // thumbSrc is a SIGNED, expiring URL: useful for the copy above and
+      // worthless once stored, so it is dropped. The widget reads thumbKey.
+      const slim = reels.map((x) => ({
+        shortcode: x.shortcode,
+        url: x.url || ('https://www.instagram.com/reel/' + x.shortcode + '/'),
+        thumbKey: x.thumbKey || '',
+        caption: x.caption || '',
+      }));
+
+      // ── Firestore's 1 MiB per-document ceiling ───────────────────────────
+      // MEASURED: 1218 reels = ~456 KB (44.5%), and that harvest had still not
+      // reached the end of the collection. A write over the ceiling is
+      // REJECTED, and that is how external data once wedged a device's write
+      // queue for good (see the pv_cards note). So the page caps what it
+      // publishes instead of finding the limit in production.
+      //
+      // Truncation is newest-first: the harvest appends, so the tail is the
+      // oldest saves, and a shuffle widget wants recent reels most. The count
+      // of what was dropped is published so the panel can be honest about it.
+      const REELS_DOC_BUDGET = 700 * 1024;   // ~68% of 1 MiB, leaving headroom
+      let kept = slim, dropped = 0;
+      const bytes = (a) => new TextEncoder().encode(JSON.stringify(a)).length;
+      if (bytes(kept) > REELS_DOC_BUDGET) {
+        let lo = 0, hi = kept.length;
+        while (lo < hi) {                     // largest prefix that fits
+          const mid = (lo + hi + 1) >> 1;
+          if (bytes(slim.slice(0, mid)) <= REELS_DOC_BUDGET) lo = mid; else hi = mid - 1;
+        }
+        dropped = slim.length - lo;
+        kept = slim.slice(0, lo);
+        console.warn('[Reels] doc budget: publishing ' + kept.length
+          + ' of ' + slim.length + ' reels (' + dropped + ' oldest omitted)');
+      }
+
+      const payload = {
+        collection: doc0.collection || 'all-posts',
+        user: doc0.user || '',
+        count: kept.length,
+        harvested: slim.length,
+        omitted: dropped,
+        stoppedAt: doc0.stoppedAt || '',
+        filesBase: REELS_FILES,
+        reels: kept,
+      };
+      await window._fbSaveReels(payload);
+      // Paint immediately rather than waiting for the snapshot to echo back.
+      if (window.THRL && window.THRL.ingest) {
+        window.THRL.ingest(Object.assign({ savedAt: Date.now() }, payload));
+      }
+      return { ok: true, count: kept.length, harvested: slim.length,
+               omitted: dropped, uploaded };
+    };
+
+    // One attempt per load, and it must wait for AUTH, not for a stopwatch.
+    // A fixed 4s delay raced anonymous sign-in on a cold load: _fbSaveReels
+    // resolved but the write was unauthenticated, so nothing landed and the
+    // widget stayed empty with no error anywhere. Retried on a backoff until
+    // the saver actually succeeds, then never again this load.
+    //
+    // Deliberately silent on the common "no bridge here" path — a phone, or
+    // this PC asleep, is the normal case and nothing is broken.
+    (function scheduleReelsSync(attempt) {
+      // 1.5s, then 2s steps. MEASURED: an exponential backoff from 3s took
+      // ~39s to land on a cold load, because the only thing being waited for
+      // is Firebase anonymous auth (a couple of seconds). Long waits here are
+      // dead time staring at an empty card, not politeness to a remote API —
+      // nothing in this path touches Instagram.
+      var delay = attempt === 0 ? 1500 : 2000;
+      setTimeout(function () {
+        window._reelsSync().then(function (r) {
+          if (r && r.ok) {
+            console.log('[Reels] synced ' + r.count + ' reels ('
+              + r.uploaded + ' new thumbnails'
+              + (r.omitted ? ', ' + r.omitted + ' omitted for doc size' : '') + ')');
+            return;
+          }
+          // bridge-down is terminal for this load: it is not going to appear.
+          // Anything else (auth not ready, a transient read) is worth a retry.
+          if (r && r.reason === 'bridge-down') return;
+          if (attempt < 8) scheduleReelsSync(attempt + 1);
+        }).catch(function () {
+          if (attempt < 8) scheduleReelsSync(attempt + 1);
+        });
+      }, delay);
+    })(0);
 
     window._fbReady = true;
     window.dispatchEvent(new CustomEvent("fb-ready"));
