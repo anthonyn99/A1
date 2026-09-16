@@ -40,6 +40,7 @@ Run:  python test_driver.py
 from __future__ import annotations
 
 import asyncio
+import json
 import sys
 from pathlib import Path
 
@@ -711,6 +712,54 @@ try:
 except Exception as _e:
     t("a grid that never yields a tile TERMINATES (the 23.7-min hang)", False,
       f"hangs or errors: {str(_e)[:120]}")
+
+# clean_caption — IG alt text is a whole post body, and the card clamps to two
+# lines in a 330px slot. MEASURED on the real harvest: 42 of the first 60
+# captions carry newlines or lead with hashtags, so raw text renders as "." or
+# a wall of tags. Cleaned at read time so the widget renders what it is given.
+t("the headline survives, spacer dots and hashtags do not",
+  driver.clean_caption("Animation done by me!\n.\n.\n.\n#digitalart #art")
+  == "Animation done by me!")
+t("a single-line caption is untouched",
+  driver.clean_caption("i think we got em") == "i think we got em")
+t("trailing hashtags on the headline itself are stripped",
+  driver.clean_caption("Lil jork as requested #deer #fawn") == "Lil jork as requested")
+t("an emoji-only opener yields to the real sentence",
+  driver.clean_caption("\U0001F43F\U0001F43F\nthere was a chipmunk in the tub")
+  == "there was a chipmunk in the tub")
+t("a hashtag-only post still yields something, not an empty card",
+  driver.clean_caption("#fyp #viral") != "",
+  "a wrong-looking caption beats a blank card")
+t("newlines never survive (they break the 2-line clamp)",
+  "\n" not in driver.clean_caption("a\nb\nc"))
+t("whitespace is collapsed",
+  driver.clean_caption("too   many    spaces") == "too many spaces")
+t("an empty caption stays empty rather than becoming junk",
+  driver.clean_caption("") == "" and driver.clean_caption(None) == "")
+t("the result is length-capped for the doc",
+  len(driver.clean_caption("x" * 5000)) <= 300)
+t("cleaning is applied at the read site, not left to the widget",
+  'clean_caption(caption or "")' in _hr)
+
+# Emoji in captions vs a cp1252 console. The driver's whole result is one line
+# of JSON on stdout with ensure_ascii=False, so a caption emoji raised
+# UnicodeEncodeError while PRINTING a finished harvest — work complete, data
+# written, and still a traceback and a non-zero exit. Observed 2026-09-16.
+_src_all = _inspect.getsource(driver)
+t("stdout is reconfigured to UTF-8 (emoji captions are the normal case)",
+  'reconfigure(encoding="utf-8"' in _src_all)
+t("the reconfigure tolerates pythonw's absent streams",
+  _src_all.count("except Exception") >= 1
+  and "for _stream in (sys.stdout, sys.stderr)" in _src_all)
+t("a caption emoji survives a round-trip through json.dumps",
+  json.loads(json.dumps({"c": "cues 💪"}, ensure_ascii=False))["c"].endswith("💪"))
+
+# The scroll cap must be able to finish a real library, not just bound a feed.
+t("max_scrolls can reach the end of a real collection",
+  ig.max_scrolls >= 200,
+  f"max_scrolls={ig.max_scrolls}; a measured run hit the cap at 273 reels")
+t("the wall clock allows the larger cap",
+  ig.harvest_timeout_s >= 900, f"harvest_timeout_s={ig.harvest_timeout_s}")
 
 t("the harvest runs under a pid-based run lock",
   "_RunLock(HERE / \".reels-run.lock\")" in _cr,

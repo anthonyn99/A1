@@ -546,7 +546,12 @@ reels:
     # samples uniformly from each pair on every use.
     scroll_pause_s: [1.5, 4.0]     # between scroll steps
     settle_pause_s: [0.8, 2.0]     # after navigation, before reading
-    max_scrolls: 40                # hard cap per run — bounds a runaway feed
+    # MEASURED: ~6.8 new reels per scroll on a real saved grid, and 40 scrolls
+    # stopped at the cap with 273 collected rather than reaching the end. 200
+    # covers ~1350 reels while still bounding a runaway feed; harvest_timeout_s
+    # is the real backstop. Raising this costs nothing when the feed ends first,
+    # because the growth stall breaks out well before the cap.
+    max_scrolls: 200
     # Growth is now the ONLY end-of-feed signal (the loading gate was removed —
     # see the loading_more note above), so this number alone decides "done".
     # Each poll costs one scroll_pause (1.5-4s), so 5 buys ~7.5-20s of patience
@@ -563,4 +568,7 @@ reels:
     # unworkable on this site. Kept so a re-added gate inherits a bound rather
     # than shipping unbounded again.
     max_waits: 12
-    harvest_timeout_s: 600         # wall clock over the whole harvest, whatever loops
+    # Wall clock over the whole harvest, whatever loops. 121s collected 273
+    # reels, so 900s leaves generous room for a much larger collection while
+    # still guaranteeing the run ends and releases its lock.
+    harvest_timeout_s: 900

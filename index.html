@@ -3003,7 +3003,16 @@ var h=React.createElement,useState=React.useState,useEffect=React.useEffect,useR
 
 var LS_CFG='thrl_cfg_v1';                  // user setup — synced across devices
 var LS_CACHE='thrl_cache_v1';              // the reel list — per device
-var HYDRATE_MAX=7*24*60*60*1000;           // a saved reel does not go stale in a week
+// NO staleness cap on the cache, deliberately — unlike the weather and Tesla
+// widgets above, which paint live readings that are WRONG when old.
+//
+// A saved reel does not expire. The harvest needs this PC awake, so the honest
+// worst case is "the laptop was shut for three weeks", and on that morning the
+// phone should still show the collection rather than "No saved reels yet". An
+// age cap here would blank the widget precisely when the bridge is least able
+// to refill it, which is the phone path this whole design exists to serve.
+// Freshness is communicated in the panel instead of by withholding the data.
+var HYDRATE_MAX=Infinity;
 
 // ── Config ────────────────────────────────────────────────────────────────
 // Which collection to show, and whose account. Synced, because linking once on
@@ -3240,9 +3249,21 @@ function Widget(props){
           : PLACEHOLDER);
     }));
 
+  // Freshness is SHOWN rather than enforced: the cache has no age cap (a saved
+  // reel does not expire), so the panel says how old the harvest is instead of
+  // silently withholding it. "3 weeks ago" is actionable; a blank card is not.
+  var ageTxt='';
+  if(s.at){
+    var mins=Math.floor((Date.now()-s.at)/60000);
+    ageTxt = mins<60 ? 'just now'
+      : mins<1440 ? Math.floor(mins/60)+'h ago'
+      : Math.floor(mins/1440)+'d ago';
+  }
+
   var head=h('div',{key:'h',className:'thrl-head'},
     h('span',{key:'t',className:'thrl-title',style:upper},
-      (s.collection||'Saved')+' · '+s.reels.length+' reels'),
+      (s.collection||'Saved')+' · '+s.reels.length+' reels'
+      +(ageTxt?' · '+ageTxt:'')),
     h('button',{key:'x',type:'button',className:'thrl-x','data-noglow':true,
       'aria-label':'Close saved reels',title:'Close',
       onClick:function(e){e.stopPropagation();setOpen(false);}},'×'));

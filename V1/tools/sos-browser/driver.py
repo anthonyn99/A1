@@ -73,6 +73,18 @@ except ImportError:
     print(json.dumps({"ok": False, "error": "playwright missing — pip install playwright && playwright install chromium"}))
     sys.exit(2)
 
+# stdout/stderr carry this tool's entire result as one line of JSON, and
+# Instagram captions routinely contain emoji. A Windows console defaults to
+# cp1252, which raises UnicodeEncodeError while printing them — turning a
+# finished harvest into a traceback and a non-zero exit. Reconfigure both
+# streams to UTF-8 so the result is always printable; errors="backslashreplace"
+# keeps a byte that still cannot be encoded from killing the process.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="backslashreplace")
+    except Exception:
+        pass   # pythonw has no console: streams may be None or unreconfigurable
+
 HERE = Path(__file__).resolve().parent
 CONFIG = HERE / "selectors.yaml"
 PROFILES = HERE / "profiles"          # one per site; never your real Chrome profile
@@ -1728,6 +1740,62 @@ def shortcode_of(href: str):
     return m.group(1) if m else None
 
 
+def clean_caption(raw: str) -> str:
+    """Instagram alt text reduced to the part worth reading in a 330px card.
+
+    IG hands over the whole post body, which is typically a headline followed
+    by spacer dots and a hashtag block:
+
+        "Animation done by me for a game trailer!\n.\n.\n.\n#digitalart #art"
+
+    The widget clamps to two lines, so rendered raw the card often shows "." or
+    nothing but hashtags. MEASURED: 42 of the first 60 real captions look like
+    this, so it is the normal case, not an edge case.
+
+    Rules, in order:
+      * split on newlines and drop spacer-only lines ('.', '·', '-', '')
+      * drop lines that are purely hashtags/mentions — they carry no meaning
+        at card size, and the reel is one tap away for anyone who wants them
+      * keep the first surviving line as the headline
+      * if NOTHING survives (a hashtag-only post), fall back to the original
+        first non-empty line, because a wrong-looking caption still beats an
+        empty card
+      * strip trailing hashtags from the chosen line
+      * collapse whitespace
+
+    A pure function, so the rules are testable without a browser.
+    """
+    if not raw:
+        return ""
+    lines = [ln.strip() for ln in raw.replace("\r", "\n").split("\n")]
+    spacer = {"", ".", "..", "...", "·", "-", "—", "_"}
+
+    def is_tags_only(ln: str) -> bool:
+        toks = ln.split()
+        return bool(toks) and all(t.startswith(("#", "@")) for t in toks)
+
+    kept = [ln for ln in lines if ln not in spacer and not is_tags_only(ln)]
+
+    # An emoji-only opener ("🐿️🐿️🐿️") survives the filters above but says
+    # nothing at card size, and the real sentence is usually the next line.
+    # Prefer the first line that contains an actual word; fall back to the
+    # emoji line rather than dropping the caption entirely.
+    def has_word(ln: str) -> bool:
+        return any(ch.isalnum() for ch in ln)
+
+    head = next((ln for ln in kept if has_word(ln)),
+                kept[0] if kept else
+                next((ln for ln in lines if ln not in spacer), ""))
+
+    # Trailing hashtags on the headline itself ("great tip #trading #fyp").
+    toks = head.split()
+    while toks and toks[-1].startswith(("#", "@")):
+        toks.pop()
+    out = " ".join(toks) if toks else head
+
+    return " ".join(out.split())[:300]
+
+
 def merge_reels(old, new):
     """Union by shortcode, newest metadata winning, order preserved.
 
@@ -1923,7 +1991,7 @@ async def _harvest_reels(page, site: ReelsSite) -> dict:
                         "shortcode": code,
                         "url": f"https://www.instagram.com/reel/{code}/",
                         "thumbSrc": thumb or "",
-                        "caption": (caption or "").strip()[:400],
+                        "caption": clean_caption(caption or ""),
                     }
             except Exception:
                 continue
