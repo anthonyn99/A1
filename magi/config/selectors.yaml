@@ -254,9 +254,14 @@ sites:
       - "button[aria-label*='Send' i]"
       - "button.send-button"
     send_key: Enter
-    # UNVERIFIED: Gemini's "Add files" control drives a hidden native input.
+    # VERIFIED 2026-09-16 (signed in): there is NO file input until the
+    # "Upload & tools" menu is opened; then two appear, and set_input_files on
+    # the first shows the image preview (uploader-file-preview).
     file_input:
       - "input[type='file']"
+    attach_open:
+      - "button[aria-label='Upload & tools']"
+      - "button[aria-label*='Upload' i]"
     assistant_turn:
       # .model-response-text is the answer body. The outer model-response
       # wrapper also carries the disclaimer/action chrome.
@@ -404,7 +409,10 @@ sites:
       # from yours -- `.message-bubble` and `.prose` match BOTH, and `.prose`
       # additionally matches Grok's own composer.
       - "[data-testid='assistant-message']"
-      - "div[class*='message-bubble']"
+      # No `message-bubble` fallback. It matches YOUR message too, and on an
+      # empty chat the assistant selector has nothing to match, so the fallback
+      # won -- a run with an image (slower to answer) captured the prompt
+      # itself and counted it as Grok's vote (2026-09-16).
     stop_button:
       # VERIFIED: present at t+4s, gone by t+8s.
       - "button[aria-label='Stop model response']"

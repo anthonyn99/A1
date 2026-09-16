@@ -123,6 +123,11 @@ class SiteSelectors:
     # clicks it -- so upload never needs to simulate that click, only find the
     # real input and hand it files via Playwright's set_input_files.
     file_input: list[str] = field(default_factory=list)
+    # ...except when it does not. Gemini creates its file inputs only once its
+    # "Upload & tools" menu has been opened (verified live 2026-09-16: 0 inputs
+    # before the click, 2 after). When file_input finds nothing, the first of
+    # these that matches is clicked and file_input is tried again.
+    attach_open: list[str] = field(default_factory=list)
     send_key: str = "Enter"
     assistant_turn: list[str] = field(default_factory=list)
     stop_button: list[str] = field(default_factory=list)
@@ -184,6 +189,7 @@ class SiteSelectors:
             input=_as_list(merged.get("input")),
             submit=_as_list(merged.get("submit")),
             file_input=_as_list(merged.get("file_input")),
+            attach_open=_as_list(merged.get("attach_open")),
             send_key=merged.get("send_key", "Enter"),
             assistant_turn=_as_list(merged.get("assistant_turn")),
             stop_button=_as_list(merged.get("stop_button")),

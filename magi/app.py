@@ -411,7 +411,7 @@ async def create_run(
             # Every provider has either read these or failed trying; nothing
             # downstream needs the staged copies past this point.
             if staged_paths:
-                shutil.rmtree(run_uploads_dir, ignore_errors=True)
+                shutil.rmtree(UPLOADS_DIR / run_id, ignore_errors=True)
 
     asyncio.create_task(work())
     # The pick travels with the run id so the console can name the model

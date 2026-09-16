@@ -163,3 +163,12 @@ def test_web_search_rows_go_in_both_tenses():
     # ...but the same words inside a sentence are the model's, not the UI's.
     prose = "I searched the web for the latest CPI print and found 3.4%."
     assert strip_tool_rows(prose + chr(10)).strip() == prose
+
+
+def test_a_capture_of_the_sent_prompt_is_not_a_vote():
+    """Grok 2026-09-16: the user's own bubble was scraped and counted."""
+    from magi.engine import validate
+    assert " ".join(DIRECT_ANSWER_PREAMBLE.lower().split()).startswith(validate.ECHO_PREFIX)
+    v = validate.validate_answer(DIRECT_ANSWER_PREAMBLE + "Describe this environment",
+                                 "Describe this environment", display_name="Grok")
+    assert not v.ok and v.reason == validate.Rejection.ECHO

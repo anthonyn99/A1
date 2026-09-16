@@ -161,7 +161,13 @@ async def _composer_emptied(composer: Locator, timeout_s: float = 2.5) -> bool:
     deadline = asyncio.get_event_loop().time() + timeout_s
     while asyncio.get_event_loop().time() < deadline:
         try:
-            if not (await composer.inner_text()).strip():
+            # A <textarea>'s typed text is its VALUE; innerText only ever holds
+            # its initial markup, so on DeepSeek this reported "sent" at once.
+            text = await composer.evaluate(
+                "el => (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT')"
+                " ? el.value : el.innerText"
+            )
+            if not (text or "").strip():
                 return True
         except Exception:
             # The composer can be re-rendered out from under us on submit,
@@ -208,3 +214,18 @@ async def send(
         except Exception:
             pass  # fall through to the key press
     await page.keyboard.press(send_key)
+    if composer is None:
+        return
+    # A site that is still uploading an attachment ignores the send: DeepSeek
+    # (2026-09-16) sat with the image and the prompt in its box until the 45s
+    # stall timeout. The prompt still being there is proof nothing was sent, so
+    # pressing again cannot double-send; stop the moment the box empties.
+    for _ in range(6):
+        if await _composer_emptied(composer):
+            return
+        await asyncio.sleep(2.0)
+        try:
+            await composer.focus()
+        except Exception:
+            pass
+        await page.keyboard.press(send_key)

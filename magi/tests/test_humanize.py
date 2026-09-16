@@ -9,6 +9,8 @@ asked -- while the output still looked like a plausible verdict.
 
 from __future__ import annotations
 
+import asyncio
+
 import sys
 from pathlib import Path
 
@@ -152,12 +154,27 @@ class FakeSubmit:
 class FakeComposer:
     """Empties when the send registers, the way these UIs acknowledge one."""
 
-    def __init__(self, submit: FakeSubmit, text: str = "the prompt"):
+    def __init__(self, submit: FakeSubmit | None, text: str = "the prompt",
+                 page=None, busy_enters: int = 0):
         self.submit, self.text = submit, text
+        # busy_enters: Enter presses the site ignores, as while an upload runs.
+        self.page, self.busy_enters = page, busy_enters
+
+    def _sent(self) -> bool:
+        if self.submit and self.submit.clicks > 0 and not self.submit.inert:
+            return True
+        if self.page is not None:
+            return self.page.keyboard.pressed.count("Enter") > self.busy_enters
+        return False
 
     async def inner_text(self) -> str:
-        sent = self.submit.clicks > 0 and not self.submit.inert
-        return "" if sent else self.text
+        return "" if self._sent() else self.text
+
+    async def evaluate(self, _js: str) -> str:
+        return await self.inner_text()
+
+    async def focus(self) -> None:
+        pass
 
 
 @pytest.mark.asyncio
@@ -180,7 +197,7 @@ async def test_an_inert_send_button_falls_back_to_enter():
     """
     page, pacing = FakePage(), Pacing(pre_send_pause_s=(0, 0))
     submit = FakeSubmit(inert=True)
-    await humanize.send(page, submit, "Enter", pacing, composer=FakeComposer(submit))
+    await humanize.send(page, submit, "Enter", pacing, composer=FakeComposer(submit, page=page))
     assert submit.clicks == 1
     assert page.keyboard.pressed == ["Enter"], "an unsent prompt must fall back to Enter"
 
@@ -189,7 +206,7 @@ async def test_an_inert_send_button_falls_back_to_enter():
 async def test_a_click_that_raises_still_falls_back_to_enter():
     page, pacing = FakePage(), Pacing(pre_send_pause_s=(0, 0))
     submit = FakeSubmit(raises=True)
-    await humanize.send(page, submit, "Enter", pacing, composer=FakeComposer(submit))
+    await humanize.send(page, submit, "Enter", pacing, composer=FakeComposer(submit, page=page))
     assert page.keyboard.pressed == ["Enter"]
 
 
@@ -198,3 +215,15 @@ async def test_no_send_button_presses_enter():
     page, pacing = FakePage(), Pacing(pre_send_pause_s=(0, 0))
     await humanize.send(page, None, "Enter", pacing, composer=None)
     assert page.keyboard.pressed == ["Enter"]
+
+
+@pytest.mark.asyncio
+async def test_an_ignored_enter_is_pressed_again_until_the_prompt_leaves(monkeypatch):
+    """DeepSeek 2026-09-16: Enter pressed while the image was still uploading
+    did nothing, and the run sat out its 45s stall timeout."""
+    real_sleep = asyncio.sleep
+    monkeypatch.setattr(humanize.asyncio, "sleep", lambda s: real_sleep(0))
+    page, pacing = FakePage(), Pacing(pre_send_pause_s=(0, 0))
+    composer = FakeComposer(None, page=page, busy_enters=2)
+    await humanize.send(page, None, "Enter", pacing, composer=composer)
+    assert page.keyboard.pressed == ["Enter"] * 3, "stops as soon as the send lands"

@@ -46,6 +46,15 @@ class Rejection(StrEnum):
     # The capture does not engage with the question -- typically a leftover
     # turn from a previous conversation.
     OFF_TOPIC = "off_topic"
+    # The capture is the prompt MAGI sent -- the user's own message, scraped
+    # because a turn selector matched it.
+    ECHO = "echo"
+
+
+#: The opening words of the instruction MAGI puts before every question
+#: (providers/browser_base.DIRECT_ANSWER_PREAMBLE). No model begins its answer
+#: with them; a capture that does is the prompt, read back.
+ECHO_PREFIX = "reply with your full answer in this chat message"
 
 
 # The length below which a capture is treated as SUSPICIOUS -- not the length
@@ -176,6 +185,16 @@ def validate_answer(text: str, question: str, *, display_name: str = "") -> Vali
 
     if not body:
         return Validation(False, Rejection.EMPTY, f"{who} returned no text.")
+
+    # Checked before anything else can accept it: an echo is long, on topic
+    # and punctuated, so every later rule would wave it through as a vote.
+    if " ".join(body.lower().split()).startswith(ECHO_PREFIX):
+        return Validation(
+            False,
+            Rejection.ECHO,
+            f"{who}: MAGI read back the prompt it sent instead of the reply, "
+            f"so this was not counted.",
+        )
 
     # A short capture that is itself a question: the signature preamble/
     # clarification failure. Checked BEFORE the length rule so the reason

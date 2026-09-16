@@ -262,6 +262,23 @@ class BrowserProvider(Provider):
                     file_box = await resolve.resolve(
                         page, site.file_input, timeout_ms=3000, require_visible=False
                     )
+                    opened_menu = False
+                    if file_box is None and site.attach_open:
+                        # The site builds its file input on demand: open the
+                        # control that builds it, then look again.
+                        opener = await resolve.resolve(
+                            page, site.attach_open, timeout_ms=3000
+                        )
+                        if opener is not None:
+                            try:
+                                await opener.locator.first.click()
+                                opened_menu = True
+                                file_box = await resolve.resolve(
+                                    page, site.file_input, timeout_ms=4000,
+                                    require_visible=False,
+                                )
+                            except Exception:
+                                file_box = None
                     if file_box is None:
                         artifacts = await self._save_artifacts(page, "no-file-input")
                         return fail(
@@ -274,6 +291,9 @@ class BrowserProvider(Provider):
                         await file_box.locator.first.set_input_files(
                             [str(p) for p in ctx.attachments]
                         )
+                        if opened_menu:
+                            # The menu stays open over the composer otherwise.
+                            await page.keyboard.press("Escape")
                         # Sites render the upload preview and finish reading the
                         # file asynchronously after set_input_files resolves, so
                         # a short pause here gives that a chance to settle before
