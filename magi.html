@@ -9452,7 +9452,10 @@ function queueEdit(id) {
   const files = QUEUE_FILES.get(id) || [];
   S.attachments = files.map((f, i) => ({ id: `e${i}-${Date.now()}`, file: f }));
   renderChips();
-  queueRemove(id);
+  // Silent: the row has just been moved INTO the composer, so asking "remove
+  // this prompt?" would be asking about something that is no longer going
+  // anywhere. The confirmation belongs to the X, not to the pencil.
+  queueRemove(id, true);
   updateEnabled();
 }
 /** Move one row, by changing only its own order number. */
