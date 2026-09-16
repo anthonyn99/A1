@@ -1104,19 +1104,153 @@ body {
 }
 
 /* ── comparison table ── */
-.v-tablewrap { overflow-x: auto; margin: 0 0 13px; border: 1px solid var(--bd); border-radius: 2px; }
-.v-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+/* Tables wrap before they scroll. Every cell may break its text, so a
+   three-column comparison fits a phone without a sideways scroll; only a table
+   with genuinely too many columns to fit falls back to scrolling inside its own
+   frame -- the page itself never scrolls sideways. min-width stops a column
+   collapsing to one character a line. */
+.v-tablewrap {
+  overflow-x: auto; margin: 4px 0 14px; max-width: 100%;
+  border: 1px solid var(--bd); border-radius: 8px;
+}
+.v-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .v-table th {
-  text-align: left; color: var(--acl); font-size: 9px; font-weight: 700;
-  letter-spacing: 1.4px; text-transform: uppercase; white-space: nowrap;
-  padding: 7px 11px; border-bottom: 1px solid var(--bd);
+  text-align: left; color: var(--acl); font-size: 10px; font-weight: 700;
+  letter-spacing: .9px; text-transform: uppercase;
+  padding: 8px 12px; border-bottom: 1px solid var(--bd); vertical-align: bottom;
   background: color-mix(in srgb, var(--ac) 8%, transparent);
+  min-width: 70px; overflow-wrap: anywhere;
 }
 .v-table td {
-  padding: 6px 11px; border-bottom: 1px solid var(--bd);
-  color: var(--txd); vertical-align: top;
+  padding: 8px 12px; border-bottom: 1px solid var(--bd);
+  color: var(--txm); vertical-align: top; line-height: 1.5;
+  min-width: 70px; overflow-wrap: anywhere;
 }
+/* Zebra, faintly: a wide table's rows are hard to follow across without it. */
+.v-table tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--s2) 45%, transparent); }
 .v-table tr:last-child td { border-bottom: none; }
+
+/* ══ markdown, everywhere a unit's words are shown ══════════════════════════
+   One stylesheet for the verdict, the plan, and every unit's answer card, so a
+   heading or a table looks the same wherever it came from. */
+.md, .verdict-body { overflow-wrap: anywhere; word-break: normal; }
+.md { font-size: 12.5px; line-height: 1.62; color: var(--txm); }
+.md > :first-child { margin-top: 0; }
+.md > :last-child { margin-bottom: 0; }
+.md p { margin: 0 0 10px; }
+
+/* A real scale. Every level used to render identically, so a report's H1
+   title and its H4 sub-points carried the same weight. */
+.md-h { color: var(--tx); font-weight: 700; line-height: 1.3; letter-spacing: .1px; }
+.md .md-h, .verdict-body .md-h { margin: 18px 0 8px; }
+.md-h1 { font-size: 19px; padding-bottom: 6px; border-bottom: 1px solid var(--bd); }
+.md-h2 { font-size: 16.5px; padding-bottom: 4px; border-bottom: 1px solid var(--bdl); }
+.md-h3 { font-size: 14.5px; }
+.md-h4 { font-size: 13px; color: var(--acl); }
+.md-h5, .md-h6 {
+  font-size: 11px; color: var(--txm); text-transform: uppercase; letter-spacing: 1.1px;
+}
+/* Inside a verdict, the small uppercase label style is kept for the levels
+   that act as section labels (H4 and below) -- that is what makes a long
+   verdict scannable. H1-H3 are TITLES and get the real scale: under the old
+   single style a report's title rendered as a 10px caps label, which is the
+   "H1 does not render" that was reported. Two classes, to outrank
+   `.verdict-body .v-h`. */
+.verdict-body .md-h1, .verdict-body .md-h2, .verdict-body .md-h3 {
+  font-family: inherit; text-transform: none; letter-spacing: .1px;
+  color: var(--tx); display: block;
+}
+.verdict-body .md-h1 { font-size: 21px; margin: 22px 0 10px; }
+.verdict-body .md-h2 { font-size: 17px; margin: 20px 0 9px; }
+.verdict-body .md-h3 { font-size: 14.5px; margin: 18px 0 8px; border-bottom: 0; padding-bottom: 0; }
+.verdict-body .md-h1::before, .verdict-body .md-h2::before,
+.verdict-body .md-h3::before { display: none; }
+
+.md-code {
+  font-family: var(--font-mono);
+  font-size: .92em; padding: 1px 5px; border-radius: 5px;
+  background: color-mix(in srgb, var(--s2) 80%, transparent);
+  border: 1px solid var(--bdl); color: var(--acl);
+  overflow-wrap: anywhere;
+}
+.md-link { color: var(--ac); text-decoration: underline; text-underline-offset: 2px; }
+.md-link:hover { color: var(--acl); }
+.md s { color: var(--txd); }
+
+/* Code blocks keep their lines: they scroll sideways inside their own frame
+   rather than wrapping a line of code into something that no longer runs. */
+.md-pre-wrap {
+  position: relative; margin: 6px 0 14px; border: 1px solid var(--bd);
+  border-radius: 9px; background: var(--bg); overflow: hidden; max-width: 100%;
+}
+.md-pre-lang {
+  font-size: 9.5px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--txd); padding: 5px 11px; border-bottom: 1px solid var(--bdl);
+}
+.md-pre {
+  margin: 0; padding: 10px 12px; overflow-x: auto; white-space: pre;
+  font-family: var(--font-mono);
+  font-size: 12px; line-height: 1.55; color: var(--tx); tab-size: 2;
+}
+.md-quote {
+  margin: 6px 0 14px; padding: 4px 0 4px 13px;
+  border-left: 3px solid color-mix(in srgb, var(--ac) 55%, transparent);
+  color: var(--txm);
+}
+.md-quote > :last-child { margin-bottom: 0; }
+.md-hr { border: 0; border-top: 1px solid var(--bd); margin: 16px 0; }
+
+/* Lists in a unit's card read like the verdict's. */
+.md .v-list { margin: 0 0 10px; padding-left: 20px; }
+.md .v-list li { margin-bottom: 5px; }
+.md .v-list .v-list { margin: 5px 0 0; }
+.md ul.v-list { list-style: disc; }
+.md ul.v-list ul.v-list { list-style: circle; }
+.md ul.v-list ul.v-list ul.v-list { list-style: square; }
+.md li::marker { color: var(--ac); }
+.md-task { list-style: none; position: relative; }
+.md-check {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 13px; height: 13px; margin-right: 6px; vertical-align: -2px;
+  border: 1px solid var(--bdl); border-radius: 3px; font-size: 10px; line-height: 1;
+}
+.md-check.on { background: var(--ac); border-color: var(--ac); color: var(--bg); }
+
+/* Tables in an ANSWER read as prose. The console sets .v-table in the mono
+   face, which suits Studio's data tables and is wrong here: mono is wide, so a
+   three-column comparison overflowed a phone and broke "Epsilon" mid-word.
+   Numbers still line up, through tabular figures rather than a mono font. */
+.md .v-table, .verdict-body .v-table {
+  font-family: var(--font); font-variant-numeric: tabular-nums;
+  /* The phone rules pin every .v-table to 380-460px so it scrolls. That made
+     even a two-column table scroll on a phone. Here the floor is per CELL
+     (min-width on th/td), so a table fits whenever its columns can, and only
+     one with genuinely too many columns scrolls inside its own frame. */
+  min-width: 0;
+}
+.md .v-table th, .md .v-table td,
+.verdict-body .v-table th, .verdict-body .v-table td {
+  overflow-wrap: break-word; word-break: normal;
+}
+/* Code inside a block is the block's text, not another inline chip: the
+   blanket `.verdict-body code` rule drew a second box inside the first. */
+.md .md-pre code, .verdict-body .md-pre code {
+  background: none; border: 0; padding: 0; border-radius: 0;
+  color: inherit; font-size: inherit; font-family: inherit;
+}
+
+/* The unit card: markdown flows as normal text, not pre-wrapped source. */
+.node-body.md-node { white-space: normal; }
+
+@media (max-width: 720px) {
+  .md { font-size: 13px; }
+  .md-h1 { font-size: 17px; }
+  .md-h2 { font-size: 15px; }
+  .md-h3 { font-size: 14px; }
+  .v-table { font-size: 12px; }
+  .v-table th, .v-table td { padding: 7px 9px; min-width: 64px; }
+  .md-pre { font-size: 11.5px; }
+}
 
 /* Confidence reads as a rating, so it gets a tag rather than a sentence. */
 .verdict-body .v-conf { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; }
@@ -4461,18 +4595,70 @@ const TABLE_SEP = /^\s*\|?[\s:|-]*-[\s:|-]*\|?\s*$/;
 /** Splits a `| a | b |` line into trimmed cells. */
 const cells = (line) => (line.match(TABLE_ROW)?.[1] ?? line).split("|").map((c) => c.trim());
 
-/** Inline markdown: **bold**, *italic*, `code`. Appends into `host`. */
+/* Inline markdown, built as DOM -- never innerHTML, so nothing a model writes
+ * can become markup.
+ *
+ *  Covers what the units actually produce: ***bold italic***, **bold** and
+ *  __bold__, *italic* and _italic_, ~~strike~~, `code`, [links](https://...)
+ *  and bare URLs. Emphasis nests (a bold phrase containing a link or code
+ *  renders both), because models write exactly that constantly -- "**See
+ *  [the docs](...)**" came out as literal asterisks around a raw bracket.
+ *
+ *  Only http, https and mailto links are made clickable. Anything else is left
+ *  as text: a "javascript:" link from a model is not something to hand the
+ *  browser.
+ */
+const INLINE_RE = new RegExp([
+  "(`+)([\\s\\S]+?)\\1",                                  // 1,2  code
+  "\\*\\*\\*(?=\\S)([\\s\\S]+?\\S)\\*\\*\\*",             // 3    bold italic
+  "\\*\\*(?=\\S)([\\s\\S]+?\\S)\\*\\*",                   // 4    bold
+  "(?<![\\w_])__(?=\\S)([\\s\\S]+?\\S)__(?![\\w_])",      // 5    bold
+  "~~(?=\\S)([\\s\\S]+?\\S)~~",                           // 6    strike
+  "(?<![*\\w])\\*(?=[^\\s*])([^*\\n]+?[^\\s*]|[^\\s*])\\*(?![*\\w])", // 7 italic
+  "(?<![\\w_])_(?=[^\\s_])([^_\\n]+?[^\\s_]|[^\\s_])_(?![\\w_])",     // 8 italic
+  "\\[([^\\]\\n]+)\\]\\(\\s*([^)\\s]+)(?:\\s+\"[^\"]*\")?\\s*\\)",    // 9,10 link
+  "(https?:\\/\\/[^\\s<>()\\[\\]]+[^\\s<>()\\[\\].,;:!?'\"])",        // 11 bare url
+].join("|"), "g");
+
+const SAFE_HREF = /^(https?:\/\/|mailto:)/i;
+
 function inline(host, text) {
-  const re = /\*\*(.+?)\*\*|(?<!\*)\*(?!\s)([^*]+?)\*|`([^`]+?)`/g;
+  const src = String(text == null ? "" : text);
+  INLINE_RE.lastIndex = 0;
   let last = 0, m;
-  while ((m = re.exec(text))) {
-    if (m.index > last) host.append(text.slice(last, m.index));
-    if (m[1] !== undefined) host.append(el("strong", null, m[1]));
-    else if (m[2] !== undefined) host.append(el("em", null, m[2]));
-    else host.append(el("code", null, m[3]));
+  // A fresh regex per call: inline recurses, and a shared global regex would
+  // have its lastIndex moved underneath the outer loop.
+  const re = new RegExp(INLINE_RE.source, "g");
+  while ((m = re.exec(src))) {
+    if (m.index > last) host.append(src.slice(last, m.index));
+    if (m[2] !== undefined) {
+      host.append(el("code", "md-code", m[2].replace(/^ (.*) $/, "$1")));
+    } else if (m[3] !== undefined) {
+      const b = el("strong"); const it = el("em"); inline(it, m[3]); b.append(it); host.append(b);
+    } else if (m[4] !== undefined || m[5] !== undefined) {
+      host.append(inline(el("strong"), m[4] !== undefined ? m[4] : m[5]));
+    } else if (m[6] !== undefined) {
+      host.append(inline(el("s"), m[6]));
+    } else if (m[7] !== undefined || m[8] !== undefined) {
+      host.append(inline(el("em"), m[7] !== undefined ? m[7] : m[8]));
+    } else if (m[9] !== undefined) {
+      const href = m[10];
+      if (SAFE_HREF.test(href)) {
+        const a = el("a", "md-link");
+        a.href = href; a.target = "_blank"; a.rel = "noopener noreferrer";
+        inline(a, m[9]);
+        host.append(a);
+      } else {
+        host.append(m[0]);
+      }
+    } else if (m[11] !== undefined) {
+      const a = el("a", "md-link", m[11]);
+      a.href = m[11]; a.target = "_blank"; a.rel = "noopener noreferrer";
+      host.append(a);
+    }
     last = m.index + m[0].length;
   }
-  if (last < text.length) host.append(text.slice(last));
+  if (last < src.length) host.append(src.slice(last));
   return host;
 }
 
@@ -4486,131 +4672,225 @@ function isBoldHeading(line) {
   return t.length > 0 && t.length <= 60 && !/[.!,;]$/.test(t);
 }
 
+/* Block markdown -> a small AST.
+ *
+ *  What it replaced swallowed fenced code (the fence lines were dropped and the
+ *  code rendered as prose), rendered every heading level identically, capped
+ *  lists at two levels, and had no blockquotes, rules or task lists. Models
+ *  use all of those in ordinary answers, so the gaps showed up as literal
+ *  markup or as a report with no visible structure.
+ */
+const MD = {
+  fence: /^(\s*)(`{3,}|~{3,})\s*([\w+#.-]*)\s*$/,
+  heading: /^\s{0,3}(#{1,6})\s+(.+?)\s*#*\s*$/,
+  hr: /^\s{0,3}([-*_])(\s*\1){2,}\s*$/,
+  quote: /^\s{0,3}>\s?(.*)$/,
+  bullet: /^(\s*)([-*+•])\s+(.*)$/,
+  ordered: /^(\s*)(\d{1,9})([.)])\s+(.*)$/,
+  task: /^\[([ xX])\]\s+(.*)$/,
+};
+
+function mdParse(text) {
+  const lines = String(text || "").replace(/\r\n?/g, "\n").replace(/\t/g, "    ").split("\n");
+  const out = [];
+  let i = 0;
+
+  const isTableRow = (l) => TABLE_ROW.test(l) || (/\|/.test(l) && /\S/.test(l.replace(/\|/g, "")) && l.split("|").length > 2);
+  const startsBlock = (l, next) =>
+    MD.fence.test(l) || MD.heading.test(l) || MD.quote.test(l) ||
+    MD.bullet.test(l) || MD.ordered.test(l) || MD.hr.test(l) ||
+    (isTableRow(l) && next !== undefined && TABLE_SEP.test(next));
+
+  while (i < lines.length) {
+    const line = lines[i];
+    if (!line.trim()) { i++; continue; }
+
+    // ── fenced code: kept verbatim, language remembered ─────────────────────
+    const f = line.match(MD.fence);
+    if (f) {
+      const fence = f[2], body = [];
+      i++;
+      while (i < lines.length && !new RegExp(`^\\s*${fence[0]}{${fence.length},}\\s*$`).test(lines[i])) {
+        body.push(lines[i]); i++;
+      }
+      i++;                               // the closing fence, if there was one
+      out.push({ kind: "code", lang: f[3] || "", text: body.join("\n") });
+      continue;
+    }
+
+    const h = line.match(MD.heading);
+    if (h) { out.push({ kind: "h", level: h[1].length, text: h[2] }); i++; continue; }
+
+    // ── table: a header row with a separator under it ───────────────────────
+    if (isTableRow(line) && i + 1 < lines.length && TABLE_SEP.test(lines[i + 1])) {
+      const head = cells(line);
+      const align = cells(lines[i + 1]).map((c) =>
+        /^:-+:$/.test(c) ? "center" : /^-+:$/.test(c) ? "right" : /^:-+$/.test(c) ? "left" : "");
+      const rows = [];
+      i += 2;
+      while (i < lines.length && lines[i].trim() && isTableRow(lines[i])) {
+        rows.push(cells(lines[i])); i++;
+      }
+      out.push({ kind: "table", head, align, rows });
+      continue;
+    }
+
+    if (MD.hr.test(line)) { out.push({ kind: "hr" }); i++; continue; }
+
+    // ── blockquote: its own content is markdown too ─────────────────────────
+    if (MD.quote.test(line)) {
+      const inner = [];
+      while (i < lines.length && (MD.quote.test(lines[i]) || (lines[i].trim() && inner.length && !startsBlock(lines[i], lines[i + 1])))) {
+        const q = lines[i].match(MD.quote);
+        inner.push(q ? q[1] : lines[i]);
+        i++;
+      }
+      out.push({ kind: "quote", blocks: mdParse(inner.join("\n")) });
+      continue;
+    }
+
+    // ── lists, nested to any depth by indentation ───────────────────────────
+    if (MD.bullet.test(line) || MD.ordered.test(line)) {
+      const { list, next } = parseList(lines, i);
+      out.push({ kind: "list", list });
+      i = next;
+      continue;
+    }
+
+    // ── paragraph: until a blank line or the start of another block ─────────
+    const para = [];
+    while (i < lines.length && lines[i].trim() && !startsBlock(lines[i], lines[i + 1])) {
+      para.push(lines[i].trim());
+      i++;
+    }
+    out.push({ kind: "p", lines: para, text: para.join(" ") });
+  }
+  return out;
+}
+
+/* A list from `start`, with nested lists wherever indentation grows.
+ *
+ *  A blank line inside a list does NOT end it -- models put blank lines
+ *  between bullets all the time -- unless what follows is not a list item and
+ *  not indented continuation.
+ */
+function parseList(lines, start) {
+  const itemOf = (l) => {
+    const b = l.match(MD.bullet);
+    if (b) return { indent: b[1].length, ordered: false, body: b[3], num: null };
+    const o = l.match(MD.ordered);
+    if (o) return { indent: o[1].length, ordered: true, body: o[4], num: +o[2] };
+    return null;
+  };
+  const first = itemOf(lines[start]);
+  const list = { ordered: first.ordered, start: first.num || 1, items: [] };
+  const base = first.indent;
+  let i = start;
+
+  while (i < lines.length) {
+    const l = lines[i];
+    if (!l.trim()) {
+      // Look past blank lines: still this list only if an item follows.
+      let k = i + 1;
+      while (k < lines.length && !lines[k].trim()) k++;
+      const nx = k < lines.length ? itemOf(lines[k]) : null;
+      if (!nx || nx.indent < base) break;
+      i = k;
+      continue;
+    }
+    const it = itemOf(l);
+    if (it && it.indent === base) {
+      if (it.ordered !== list.ordered && list.items.length) break;
+      const t = it.body.match(MD.task);
+      list.items.push({
+        text: t ? t[2] : it.body,
+        task: t ? t[1].toLowerCase() === "x" : null,
+        children: [],
+        extra: [],
+      });
+      i++;
+      continue;
+    }
+    if (it && it.indent > base && list.items.length) {
+      const sub = parseList(lines, i);
+      list.items[list.items.length - 1].children.push(sub.list);
+      i = sub.next;
+      continue;
+    }
+    if (it && it.indent < base) break;
+    // Indented continuation of the previous item's text.
+    if (!it && list.items.length && /^\s{2,}\S/.test(l)) {
+      list.items[list.items.length - 1].extra.push(l.trim());
+      i++;
+      continue;
+    }
+    break;
+  }
+  return { list, next: i };
+}
+
+/* The verdict: its ANSWER / NOTES / CONFIDENCE sections, each parsed as
+ * markdown in its own right.
+ *
+ *  The section split is the only thing verdict-specific here. It used to be
+ *  tangled into a line-by-line parser that had to reimplement every block
+ *  type for itself, which is how the gaps above appeared.
+ */
 function parseVerdict(text) {
   const g = { main: [], notes: [], conf: [] };
-  const lines = text.replace(/\r/g, "").split("\n");
-  let section = "", para = [], stack = [], table = null;
+  const buckets = { main: [], notes: [], conf: [] };
+  let where = "main";
+  let fenced = false;
 
-  /** Where the current section's blocks go. An unknown or absent section goes
-   *  to the answer column, so plain prose still renders instead of vanishing. */
-  const bucket = () =>
-    section === "NOTES" || section === "CAVEATS" ? g.notes
-    : section === "CONFIDENCE" ? g.conf : g.main;
-
-  const flushPara = () => {
-    if (!para.length) return;
-    const body = para.join(" ").trim();
-    para = [];
-    if (!body) return;
-    // A HIGH/MEDIUM/LOW opener is a confidence rating wherever it appears —
-    // some chairmen drop the heading and just write the line.
-    const lead = body.match(CONF_LEAD);
-    if (lead) {
-      const c = body.match(CONF);
-      // Split only on a real separator; otherwise keep the sentence whole so
-      // it still reads as English beside the tag.
-      g.conf.push({ kind: "conf", level: lead[1].toUpperCase(), why: c ? c[2].trim() : body });
-      return;
-    }
-    bucket().push({ kind: "p", text: body });
-  };
-  const flushList = () => {
-    if (!stack.length) return;
-    const root = stack[0].list;
-    stack = [];
-    bucket().push({ kind: "list", list: root });
-  };
-  const flushTable = () => {
-    if (!table) return;
-    const t = table;
-    table = null;
-    if (t.rows.length || t.head) bucket().push({ kind: "table", head: t.head, rows: t.rows });
-  };
-  const flushAll = () => { flushPara(); flushList(); flushTable(); };
-
-  for (const raw of lines) {
-    const line = raw.replace(/\s+$/, "");
-    const trimmed = line.trim();
-
-    // Fenced code is not supported; swallow the fence rather than rendering a
-    // literal ``` line.
-    if (/^```/.test(trimmed)) { flushAll(); continue; }
-
-    const sec = line.match(SECTION);
+  for (const raw of String(text || "").replace(/\r/g, "").split("\n")) {
+    if (MD.fence.test(raw)) fenced = !fenced;
+    const sec = !fenced && raw.match(SECTION);
     if (sec) {
-      flushAll();
       const s = sec[1].toUpperCase();
-      section = s === "VERDICT" ? "ANSWER" : s;
+      where = s === "NOTES" || s === "CAVEATS" ? "notes" : s === "CONFIDENCE" ? "conf" : "main";
       // Verdicts archived under the older prompt open with AGREEMENTS and
-      // DISAGREEMENTS before reaching the answer. Those are genuine sections
-      // of that format, so label them rather than letting the deliberation
-      // notes masquerade as the answer's opening paragraph.
-      if (s === "AGREEMENTS" || s === "DISAGREEMENTS")
-        g.main.push({ kind: "h", text: s === "AGREEMENTS" ? "Agreements" : "Disagreements" });
-      else if (s === "VERDICT") g.main.push({ kind: "h", text: "Verdict" });
-      continue;
-    }
-
-    // A blank line closes paragraphs and tables but NOT lists: a blank line
-    // between bullets is common and must not split one list in two.
-    if (!trimmed) { flushPara(); flushTable(); continue; }
-
-    if (TABLE_ROW.test(line)) {
-      flushPara(); flushList();
-      const c = cells(line);
-      if (!table) table = { head: null, rows: [] };
-      if (TABLE_SEP.test(line) && table.rows.length === 1 && !table.head) {
-        table.head = table.rows.shift(); // the previous row was the header
-      } else if (!TABLE_SEP.test(line)) {
-        table.rows.push(c);
+      // DISAGREEMENTS before the answer; label them rather than letting the
+      // deliberation notes masquerade as the answer's opening paragraph.
+      if (s === "AGREEMENTS" || s === "DISAGREEMENTS" || s === "VERDICT") {
+        buckets.main.push("", `### ${s[0] + s.slice(1).toLowerCase()}`, "");
       }
       continue;
     }
-    flushTable();
-
-    const b = line.match(BULLET), num = line.match(NUMBERED);
-    if (b || num) {
-      flushPara();
-      const indent = (b ? b[1] : num[1]).replace(/\t/g, "  ").length;
-      const ordered = !!num;
-      const body = (b ? b[2] : num[3]).trim();
-      if (!stack.length) {
-        stack = [{ indent, list: { ordered, items: [] } }];
-      } else {
-        // Close any levels indented deeper than this line.
-        while (stack.length > 1 && indent < stack[stack.length - 1].indent) stack.pop();
-        const top = stack[stack.length - 1];
-        if (indent > top.indent + 1 && stack.length < 2) {
-          // Deeper than the open level — nest under the last item. Depth is
-          // capped at 2: a verdict needing three is a badly written verdict,
-          // and flattening is the right failure mode.
-          const parent = top.list.items[top.list.items.length - 1];
-          if (parent) {
-            const child = { ordered, items: [] };
-            parent.children = child;
-            stack.push({ indent, list: child });
-          }
-        } else if (stack.length === 1 && top.list.ordered !== ordered) {
-          // Marker style changed at the top level — a genuinely new list.
-          flushList();
-          stack = [{ indent, list: { ordered, items: [] } }];
-        }
-      }
-      stack[stack.length - 1].list.items.push({ text: body, children: null });
-      continue;
-    }
-    flushList();
-
-    const h = line.match(HEADING);
-    if (h) { flushPara(); bucket().push({ kind: "h", text: h[1] }); continue; }
-    if (isBoldHeading(line)) {
-      flushPara();
-      bucket().push({ kind: "h", text: line.match(BOLD_ONLY)[1].trim() });
-      continue;
-    }
-    para.push(trimmed);
+    buckets[where].push(raw);
   }
-  flushAll();
+
+  const promote = (blocks) => blocks.map((b) =>
+    // A bare "**Label**" line is a sub-heading, as before.
+    b.kind === "p" && b.lines.length === 1 && isBoldHeading(b.lines[0])
+      ? { kind: "h", level: 4, text: b.lines[0].match(BOLD_ONLY)[1].trim() }
+      : b);
+
+  g.main = promote(mdParse(buckets.main.join("\n")));
+  g.notes = promote(mdParse(buckets.notes.join("\n")));
+
+  // Confidence: a HIGH/MEDIUM/LOW opener is a rating wherever it appears --
+  // some chairmen drop the heading and just write the line.
+  const pull = (list) => list.filter((b) => {
+    if (b.kind !== "p") return true;
+    const lead = b.text.match(CONF_LEAD);
+    if (!lead) return true;
+    const c = b.text.match(CONF);
+    g.conf.push({ kind: "conf", level: lead[1].toUpperCase(), why: c ? c[2].trim() : b.text });
+    return false;
+  });
+  g.main = pull(g.main);
+  g.notes = pull(g.notes);
+  for (const b of mdParse(buckets.conf.join("\n"))) {
+    if (b.kind === "p") {
+      const lead = b.text.match(CONF_LEAD);
+      if (lead) {
+        const c = b.text.match(CONF);
+        g.conf.push({ kind: "conf", level: lead[1].toUpperCase(), why: c ? c[2].trim() : b.text });
+        continue;
+      }
+    }
+    g.conf.push(b);
+  }
 
   // A sidebar card reading only "None." is noise.
   if (g.notes.length === 1 && g.notes[0].kind === "p" && /^none[.!]?$/i.test(g.notes[0].text))
@@ -4620,28 +4900,61 @@ function parseVerdict(text) {
 
 function renderList(list) {
   const n = el(list.ordered ? "ol" : "ul", "v-list");
+  if (list.ordered && list.start && list.start !== 1) n.start = list.start;
   for (const it of list.items) {
     const li = el("li");
+    if (it.task !== null && it.task !== undefined) {
+      li.classList.add("md-task");
+      const box = el("span", `md-check ${it.task ? "on" : ""}`, it.task ? "\u2713" : "");
+      box.setAttribute("aria-hidden", "true");
+      li.append(box);
+    }
     inline(li, it.text);
-    if (it.children) li.append(renderList(it.children));
+    for (const x of it.extra || []) { li.append(el("br")); inline(li, x); }
+    for (const child of it.children || []) li.append(renderList(child));
     n.append(li);
   }
   return n;
 }
 
+/** Paragraph lines keep their breaks: a model that put two things on two
+ *  lines meant them apart, and joining them into one run-on reads wrong. */
+function renderPara(host, lines) {
+  lines.forEach((l, k) => {
+    if (k) host.append(el("br"));
+    inline(host, l);
+  });
+  return host;
+}
+
 function renderBlocks(host, blocks, lead = false) {
   blocks.forEach((b, i) => {
-    if (b.kind === "h") { host.append(inline(el("div", "v-h"), b.text)); return; }
+    if (b.kind === "h") {
+      const lvl = Math.min(6, Math.max(1, b.level || 3));
+      host.append(inline(el("div", `v-h md-h md-h${lvl}`), b.text));
+      return;
+    }
     if (b.kind === "list") { host.append(renderList(b.list)); return; }
+    if (b.kind === "hr") { host.append(el("hr", "md-hr")); return; }
+    if (b.kind === "quote") {
+      host.append(renderBlocks(el("blockquote", "md-quote"), b.blocks));
+      return;
+    }
+    if (b.kind === "code") {
+      const wrap = el("div", "md-pre-wrap");
+      if (b.lang) wrap.append(el("div", "md-pre-lang", b.lang));
+      const pre = el("pre", "md-pre");
+      pre.append(el("code", null, b.text));
+      wrap.append(pre);
+      attachScrollbar(pre);
+      host.append(wrap);
+      return;
+    }
     if (b.kind === "conf") {
       const p = el("p", "v-conf");
       p.append(el("span", `conf-tag ${b.level.toLowerCase()}`, b.level));
       if (b.why) {
         const why = el("span", "conf-why");
-        // When the justification is the whole sentence it still opens with the
-        // rating word, which the tag beside it already shows. Dim that echo so
-        // it reads as "HIGH · [HIGH] on the architecture…" rather than as a
-        // stutter, without rewriting the chairman's sentence.
         const echo = b.why.match(new RegExp(`^(${b.level})\\b`, "i"));
         if (echo) why.append(el("span", "conf-echo", echo[1]));
         inline(why, echo ? b.why.slice(echo[1].length) : b.why);
@@ -4652,31 +4965,44 @@ function renderBlocks(host, blocks, lead = false) {
     }
     if (b.kind === "table") {
       const wrap = el("div", "v-tablewrap"), t = el("table", "v-table");
+      const cols = Math.max(b.head ? b.head.length : 0, ...b.rows.map((r) => r.length));
+      const cell = (tag, text, k) => {
+        const c = inline(el(tag), text || "");
+        const a = b.align && b.align[k];
+        if (a) c.style.textAlign = a;
+        return c;
+      };
       if (b.head) {
         const tr = el("tr");
-        b.head.forEach((c) => tr.append(inline(el("th"), c)));
+        for (let k = 0; k < cols; k++) tr.append(cell("th", b.head[k], k));
         const thead = el("thead");
         thead.append(tr);
         t.append(thead);
       }
       const tb = el("tbody");
-      b.rows.forEach((r) => {
+      for (const r of b.rows) {
         const tr = el("tr");
-        r.forEach((c) => tr.append(inline(el("td"), c)));
+        // Short rows are padded, so a ragged table keeps its grid.
+        for (let k = 0; k < cols; k++) tr.append(cell("td", r[k], k));
         tb.append(tr);
-      });
+      }
       t.append(tb);
       wrap.append(t);
+      attachScrollbar(wrap);
       host.append(wrap);
       return;
     }
-    // Lead styling marks the answer's opening line. It only applies when the
-    // verdict actually opens with a paragraph — a legacy verdict starting with
-    // an "Agreements" heading must not have its deliberation notes dressed up
-    // as the answer.
-    host.append(inline(el("p", lead && i === 0 ? "v-lead" : null), b.text));
+    // Lead styling marks the answer's opening line, only when the answer
+    // actually opens with a paragraph.
+    const p = el("p", lead && i === 0 ? "v-lead" : null);
+    host.append(renderPara(p, b.lines || [b.text]));
   });
   return host;
+}
+
+/** Any unit's answer, rendered as markdown rather than as a wall of symbols. */
+function mdBody(text) {
+  return renderBlocks(el("div", "md"), mdParse(text));
 }
 
 /** The verdict body: answer on the left, notes and confidence in a sidebar on
@@ -5088,8 +5414,14 @@ function updateNode(p) {
     d.body.textContent = working ? "awaiting response" : "—";
     return;
   }
-  d.body.textContent = p.text;
-  if (working) d.body.append(el("span", "caret"));
+  // Markdown, not raw text: every unit writes bold, lists, headings and
+  // tables, and the card showed them as literal ** and - characters.
+  d.body.className = "node-body md-node";
+  d.body.append(mdBody(p.text));
+  if (working) {
+    const tail = d.body.querySelector(".md > :last-child") || d.body;
+    tail.append(el("span", "caret"));
+  }
   // Under the answer rather than in the heading: the heading IS a button (it
   // expands the unit), and a button inside a button is neither valid nor
   // clickable. Only once the unit has finished -- copying half a stream is a
