@@ -1767,6 +1767,72 @@ def write_reels_cache(doc: dict) -> None:
                          encoding="utf-8")
 
 
+async def resolve_ig_user(page) -> str:
+    """The signed-in account's handle, read off the session itself.
+
+    Asking for --user was friction with a sharp edge: the obvious placeholder
+    (<your-handle>) is a PowerShell parse error, and the handle is something the
+    logged-in profile already knows. So it is auto-detected and the flag becomes
+    an override rather than a requirement.
+
+    Two sources, cheapest first, and NEITHER navigates anywhere new:
+      1. the `ds_user_id` cookie plus IG's own web_profile_info endpoint, read
+         from inside the authenticated page so no separate auth is involved;
+      2. the profile link IG renders in its own nav.
+    Returns "" when neither works, and the caller then asks for --user rather
+    than guessing.
+    """
+    # 1. IG's own bootstrap payload names the viewer. Read from the page's own
+    #    fetch so the session cookies ride along automatically.
+    try:
+        handle = await page.evaluate("""async () => {
+          const pick = (o) => (o && (o.username || (o.user && o.user.username))) || '';
+          // The shared-data blob, when this build still ships it.
+          try {
+            if (window._sharedData && window._sharedData.config
+                && window._sharedData.config.viewer) {
+              const u = pick(window._sharedData.config.viewer);
+              if (u) return u;
+            }
+          } catch (e) {}
+          // Otherwise ask the endpoint the app itself uses.
+          try {
+            const r = await fetch('/api/v1/users/web_profile_info/?username=',
+                                  {headers: {'x-ig-app-id': '936619743392459'}});
+            if (r.ok) {
+              const j = await r.json();
+              const u = pick(j && j.data);
+              if (u) return u;
+            }
+          } catch (e) {}
+          return '';
+        }""")
+        if handle:
+            return str(handle).strip().lstrip("@")
+    except Exception:
+        pass
+
+    # 2. The profile link in IG's own nav — /<handle>/ with nothing after it.
+    for sel in ("a[href^='/'][role='link'] img[alt*='profile picture' i]",
+                "nav a[href^='/']"):
+        try:
+            loc = page.locator(sel)
+            for i in range(min(await loc.count(), 12)):
+                el = loc.nth(i)
+                href = await el.get_attribute("href")
+                if not href:
+                    anc = el.locator("xpath=ancestor::a[1]")
+                    if await anc.count():
+                        href = await anc.first.get_attribute("href")
+                m = re.fullmatch(r"/([A-Za-z0-9._]{1,30})/", href or "")
+                if m and m.group(1) not in (
+                        "explore", "reels", "direct", "accounts", "p"):
+                    return m.group(1)
+        except Exception:
+            continue
+    return ""
+
+
 async def _harvest_reels(page, site: ReelsSite) -> dict:
     """Scroll the saved grid, collecting tiles until the feed is exhausted.
 
@@ -1873,13 +1939,16 @@ async def cmd_reels(args) -> dict:
     is the wrong move.
     """
     site = load_reels_site(args.site)
-    if not args.user:
-        raise DriverError("ig_no_user", "--user is required (your IG handle).")
-
     headless = site.headless_ok and not args.headful
     collection = args.collection or "all-posts"
-    target = (site.saved_url or site.url).replace("{user}", args.user) \
-                                         .replace("{collection}", collection)
+
+    # --user is now an OVERRIDE, not a requirement: when it is absent the handle
+    # is read off the logged-in session inside _reels_run, which also avoids the
+    # placeholder-in-a-shell trap that <your-handle> creates in PowerShell.
+    user = (args.user or "").strip().lstrip("@")
+    target = None if not user else (
+        (site.saved_url or site.url).replace("{user}", user)
+                                    .replace("{collection}", collection))
 
     # One harvest at a time, across PROCESSES — the CLI and the bridge are
     # separate entry points, exactly as for deck runs. Two overlapping harvests
@@ -1888,10 +1957,10 @@ async def cmd_reels(args) -> dict:
     # PID liveness rather than a timeout: the bridge runs as pythonw, so a lock
     # left behind by a crash must not block every later run forever.
     with _RunLock(HERE / ".reels-run.lock"):
-        return await _reels_run(site, args, target, collection, headless)
+        return await _reels_run(site, args, target, collection, headless, user)
 
 
-async def _reels_run(site, args, target, collection, headless) -> dict:
+async def _reels_run(site, args, target, collection, headless, user="") -> dict:
     """The harvest proper. Split out of cmd_reels so the run lock wraps it.
 
     Same shape as the deck path: the lock is acquired by the command, and the
@@ -1901,13 +1970,33 @@ async def _reels_run(site, args, target, collection, headless) -> dict:
         ctx = await launch(pw, site, headless=headless)
         page = ctx.pages[0] if ctx.pages else await ctx.new_page()
         try:
-            await page.goto(target, wait_until="domcontentloaded",
+            # Land on the site root first when the handle is unknown: the
+            # session names its own account, so one navigation both proves we
+            # are signed in and tells us where the saved page lives.
+            await page.goto(target or site.url, wait_until="domcontentloaded",
                             timeout=site.nav_timeout_s * 1000)
             await asyncio.sleep(_pace(site.settle_pause_s))
 
             # Sentinels before anything else: a logged-out page renders an empty
             # grid indistinguishable from an empty collection.
             await check_blockers(page, site, pre_send=True)
+
+            if not target:
+                user = await resolve_ig_user(page)
+                if not user:
+                    path = await save_artifacts(page, f"{site.id}-nouser")
+                    raise DriverError(
+                        "ig_no_user",
+                        "could not read the signed-in handle off the session. "
+                        "Pass it explicitly:  python driver.py reels --user "
+                        "yourhandle   (no angle brackets — PowerShell treats "
+                        f"'<' as an operator). Artifacts: {path}")
+                target = (site.saved_url or site.url) \
+                    .replace("{user}", user).replace("{collection}", collection)
+                await page.goto(target, wait_until="domcontentloaded",
+                                timeout=site.nav_timeout_s * 1000)
+                await asyncio.sleep(_pace(site.settle_pause_s))
+                await check_blockers(page, site, pre_send=True)
 
             walked = {}
             for fname in ("grid_container", "reel_link", "reel_thumb", "reel_caption"):
@@ -1920,8 +2009,42 @@ async def _reels_run(site, args, target, collection, headless) -> dict:
             if args.dry_run:
                 path = await save_artifacts(page, f"{site.id}-dryrun")
                 return {"ok": True, "dryRun": True, "matched": walked,
-                        "emptySentinel": is_empty, "url": target,
+                        "emptySentinel": is_empty, "url": target, "user": user,
                         "stoppedAt": "before harvest", "artifacts": path}
+
+            # ── probe: the change gate, one screen, no scrolling ────────────
+            # Reads only what has already mounted and compares the newest
+            # shortcodes against the cache. Cheap relative to a harvest (one
+            # screen vs up to 40 scrolls) but NOT free: it is still a page
+            # visit to a logged-in account, which is why the watcher that uses
+            # it is opt-in and rate-floored rather than on by default.
+            #
+            # "Changed" is deliberately conservative: a NEW top-of-grid
+            # shortcode, or a count that grew. A reel merely being unsaved does
+            # not trigger a harvest, because the merge would not remove it
+            # anyway and a visit that cannot change the outcome is a visit not
+            # worth making.
+            if getattr(args, "probe", False):
+                seen = []
+                for sel in site.reel_link or []:
+                    try:
+                        anchors = page.locator(sel)
+                        for i in range(await anchors.count()):
+                            code = shortcode_of(
+                                await anchors.nth(i).get_attribute("href") or "")
+                            if code and code not in seen:
+                                seen.append(code)
+                    except Exception:
+                        continue
+                cached = [r.get("shortcode") for r in
+                          (read_reels_cache().get("reels") or [])]
+                fresh = [c for c in seen if c not in set(cached)]
+                return {"ok": True, "probe": True, "user": user,
+                        "collection": collection,
+                        "seen": len(seen), "cached": len(cached),
+                        "newOnScreen": len(fresh),
+                        "changed": bool(fresh) or not cached,
+                        "stoppedAt": "probe only"}
 
             if is_empty:
                 # An explicitly empty collection is a real answer, but it still
@@ -1946,14 +2069,14 @@ async def _reels_run(site, args, target, collection, headless) -> dict:
                 "error": f"harvested 0 reels but {len(stored)} are cached — "
                          f"refusing to overwrite. Usually a changed selector or "
                          f"an expired session: run  python driver.py reels "
-                         f"--dry-run --user {args.user}  to see which.",
+                         f"--dry-run  to see which.",
                 "kept": len(stored), "stoppedAt": got["stoppedAt"]}
 
     merged = merge_reels(stored, got["reels"])
     doc = {
         "savedAt": int(time.time() * 1000),
         "site": site.id,
-        "user": args.user,
+        "user": user,
         "collection": collection,
         "count": len(merged),
         "thumbCap": REELS_THUMB_CAP,
@@ -2092,13 +2215,18 @@ def main():
     rl = sub.add_parser(
         "reels", help="harvest a saved Instagram collection into outputs/reels.json")
     rl.add_argument("--site", default="instagram")
-    rl.add_argument("--user", help="your Instagram handle (the /<user>/saved/ path)")
+    rl.add_argument("--user", default="",
+                    help="your Instagram handle; auto-detected from the "
+                         "signed-in session when omitted")
     rl.add_argument("--collection", default="all-posts",
                     help="the collection slug as it appears in the saved URL")
     rl.add_argument("--headful", action="store_true", help="force a real window")
     rl.add_argument("--dry-run", action="store_true",
                     help="navigate and resolve selectors, stopping BEFORE the "
                          "scroll harvest — the cheap repair loop")
+    rl.add_argument("--probe", action="store_true",
+                    help="read the first screen only and report whether the "
+                         "collection changed; no scrolling, no write")
 
     lo = sub.add_parser("login", help="open the site so a human can sign in")
     lo.add_argument("--site", default="claude")

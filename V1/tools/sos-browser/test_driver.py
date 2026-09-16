@@ -594,6 +594,36 @@ t("the refusal names the dry-run repair loop, not a retry",
   "--dry-run" in _cr_all and "retry" not in _cr_all.lower())
 t("--dry-run stops before the harvest",
   _rr.index("args.dry_run") < _rr.index("_harvest_reels(page, site)"))
+# --user auto-detect. The placeholder <your-handle> is a PowerShell parse error
+# ('<' is a reserved operator), so the handle is read off the logged-in session
+# and the flag is an override. Verified live 2026-09-16: resolved veda.1611.
+_ru = _inspect.getsource(driver.resolve_ig_user)
+t("the handle can be auto-detected from the session",
+  callable(driver.resolve_ig_user))
+t("auto-detect never navigates (it reads the page it is already on)",
+  "page.goto" not in _ru, "a detour costs an extra page visit")
+t("it strips a leading @ if one is returned",
+  'lstrip("@")' in _ru or "lstrip('@')" in _ru)
+t("IG's own reserved paths are not mistaken for a handle",
+  all(w in _ru for w in ("explore", "direct", "accounts")))
+t("--user is optional, not required",
+  "--user is required" not in _cr_all,
+  "the hard requirement is back; the placeholder trap returns with it")
+t("the failure message warns about the angle-bracket trap",
+  "PowerShell" in _rr and "no angle brackets" in _rr)
+# --probe: the change gate. One screen, no scrolling, no write. It exists so a
+# recurring check costs a screen instead of 40 scrolls — but it is STILL a page
+# visit, which is why nothing schedules it by default.
+t("probe stops before the harvest",
+  _rr.index('getattr(args, "probe", False)') < _rr.index("_harvest_reels(page, site)"))
+t("probe never scrolls",
+  "mouse.wheel" not in _rr.split('args, "probe"')[1].split("_harvest_reels")[0])
+t("probe never writes the cache",
+  "write_reels_cache" not in _rr.split('args, "probe"')[1].split("_harvest_reels")[0])
+t("an empty cache counts as changed (so a first run harvests)",
+  "or not cached" in _rr)
+t("probe still runs the blocker check first",
+  _rr.index("check_blockers") < _rr.index('getattr(args, "probe", False)'))
 t("the harvest runs under a pid-based run lock",
   "_RunLock(HERE / \".reels-run.lock\")" in _cr,
   "two concurrent harvests would fight over the one IG profile")
