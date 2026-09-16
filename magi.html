@@ -1250,6 +1250,50 @@ table.doctor, table.doctor code, .v-table, .studio-table,
   .verdict-close { padding: 7px 12px; font-size: 11px; }
 }
 
+/* A verdict that did not land. Not styled as a catastrophe: the answers it
+   was built from are still on the screen above it. */
+.verdict-failed { display: flex; flex-direction: column; gap: 7px; }
+.vf-head { color: var(--amber); font-size: 14px; font-weight: 600; }
+.vf-sub { color: var(--txm); font-size: 12.5px; line-height: 1.55; max-width: 70ch; }
+.vf-why {
+  color: var(--txd); font-size: 11.5px; line-height: 1.5; max-width: 80ch;
+  border-left: 2px solid var(--bdl); padding-left: 10px;
+}
+
+/* ── editing a queued prompt ─────────────────────────────────────────────── */
+.sheet-wide { max-width: 640px; width: 100%; }
+.qedit-text {
+  min-height: 130px; resize: vertical; line-height: 1.55; font-size: 13px;
+}
+.qedit-units { display: flex; flex-wrap: wrap; gap: 4px; }
+/* Not a drag surface here: this row picks units, it does not reorder them. */
+.qedit-units .chip { cursor: pointer; }
+.qedit-atts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.qedit-att {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid var(--bdl); border-radius: 8px; padding: 3px 6px 3px 9px;
+  font-size: 11px; color: var(--txm); max-width: 100%;
+}
+.qedit-att.elsewhere { border-style: dashed; color: var(--txd); }
+.qedit-att-n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
+.qedit-att-s { color: var(--txd); font-size: 10px; }
+.qedit-att-x {
+  background: transparent; border: 0; color: var(--txd); cursor: pointer;
+  font-family: inherit; font-size: 11px; line-height: 1; padding: 2px 3px;
+}
+.qedit-att-x:hover { color: var(--red); }
+.qedit-add {
+  background: transparent; border: 1px dashed var(--bdl); border-radius: 8px;
+  color: var(--txm); font-family: inherit; font-size: 11px; padding: 4px 10px;
+  cursor: pointer;
+}
+.qedit-add:hover { border-color: var(--ac); color: var(--ac); }
+@media (max-width: 720px) {
+  .qedit-text { min-height: 150px; font-size: 14px; }
+  .qedit-att-n { max-width: 130px; }
+  .qedit-add, .qedit-att { padding: 7px 10px; }
+}
+
 /* ── the queue ──────────────────────────────────────────────────────────── */
 .queue { max-width: 720px; margin: 10px auto 0; }
 .queue-hd { display: flex; align-items: center; gap: 8px; }
@@ -5128,12 +5172,48 @@ function renderVerdict() {
       .append(copyButton(() => ({ node: body, md: v.verdict })));
     n.append(body);
   } else {
-    const b = el("div", "verdict-body");
-    const s = el("span", null, v.synthesis_error || "Synthesis failed.");
-    s.style.color = "var(--amber)";
-    b.append(s);
+    /* A failed synthesis is not a failed deliberation.
+     *
+     *  What was on screen was a wall of orange reading "Chairman (ChatGPT)
+     *  failed: None -- ..." over NO QUORUM, with five good answers sitting
+     *  above it -- which reads as "everything broke" when the truth is
+     *  "everyone answered and the last step, the merge, did not land". The
+     *  panel now says which of those it is, and the raw FailureKind ("None",
+     *  which is what a rejected-but-successful capture reports) never reaches
+     *  the screen.
+     */
+    const b = el("div", "verdict-body verdict-failed");
+    const answered = (S.panels || []).filter((p) => p.ok).length;
+
+    b.append(el("div", "vf-head", answered
+      ? `The merge did not land \u2014 but ${answered} unit${answered === 1 ? "" : "s"} answered.`
+      : "No verdict was produced."));
+
+    if (answered) {
+      b.append(el("div", "vf-sub",
+        "Every answer above is intact and is what you asked for; only the "
+        + "chairman's pass at merging them into one verdict failed. Open the "
+        + "units to read them, or convene again to retry the merge."));
+    }
+
+    b.append(el("div", "vf-why", cleanSynthError(v.synthesis_error)));
     n.append(b);
   }
+}
+
+/** The engine's reason, without its internals.
+ *
+ *  "Chairman (ChatGPT) failed: None -- ChatGPT's response shares almost no
+ *  vocabulary with the question" carries a FailureKind of None, because the
+ *  capture SUCCEEDED and was then rejected by validation. Printing "None" at
+ *  the user is showing them a variable.
+ */
+function cleanSynthError(raw) {
+  let t = String(raw || "Synthesis failed.");
+  t = t.replace(/failed:\s*None\s*--\s*/i, "failed: ");
+  t = t.replace(/failed:\s*FailureKind\.(\w+)\s*--\s*/i,
+                (_, k) => `failed (${k.toLowerCase().replace(/_/g, " ")}): `);
+  return t;
 }
 
 /* ══ composer ══════════════════════════════════════════════════════════════ */
@@ -9439,24 +9519,218 @@ async function queueWatch(id) {
   }
 }
 
-/** Put a queued prompt back in the composer to work on. */
+/* Edit a queued prompt where it lives, in its own panel.
+ *
+ *  It used to move the prompt back into the composer and drop the row, which
+ *  is wrong whenever the composer is busy: with a prompt running, the pencil
+ *  took your queued text, put it behind a DELIBERATING button you could not
+ *  press, and left the row gone. Editing something in a list should not
+ *  depend on what the rest of the screen is doing.
+ *
+ *  Everything the composer can do to a prompt, this can do to a queued one:
+ *  change the text, change who is asked, add and remove attachments, and
+ *  Refine. Nothing is written back until Save, so Cancel really does leave
+ *  the row as it was.
+ */
 function queueEdit(id) {
   const it = S.queue.find((x) => x.id === id);
   if (!it || it.status === "running") return;
-  setQuestion(it.q);
-  // Its units become the ticked set, because that is what editing it means.
+
   const known = new Set(S.providers.map((p) => p.id));
-  S.selected = new Set((it.units || []).filter((u) => known.has(u)));
-  saveUnitPicks();
-  renderUnitChips();
-  const files = QUEUE_FILES.get(id) || [];
-  S.attachments = files.map((f, i) => ({ id: `e${i}-${Date.now()}`, file: f }));
-  renderChips();
-  // Silent: the row has just been moved INTO the composer, so asking "remove
-  // this prompt?" would be asking about something that is no longer going
-  // anywhere. The confirmation belongs to the X, not to the pencil.
-  queueRemove(id, true);
-  updateEnabled();
+  // Worked on as COPIES. A half-finished edit must not reach the other
+  // devices, and Cancel has to be able to mean cancel.
+  let text = it.q;
+  let units = new Set((it.units || []).filter((u) => known.has(u)));
+  let files = [...(QUEUE_FILES.get(id) || [])];
+  // Names carried for the attachments this device does not hold the bytes of.
+  let carried = (it.atts || []).filter(
+    (a) => !files.some((f) => f.name === a.n));
+  let refining = false, preRefine = null;
+
+  const sheet = el("div", "sheet");
+  const box = el("div", "sheet-box sheet-wide");
+  box.append(el("div", "sheet-hd", "Edit prompt"));
+
+  const ta = el("textarea", "sheet-in qedit-text");
+  ta.value = text;
+  ta.rows = 6;
+  ta.oninput = () => { text = ta.value; sync(); };
+  box.append(ta);
+
+  const err = el("div", "qbar-error");
+  err.hidden = true;
+  box.append(err);
+
+  // ── who gets asked ───────────────────────────────────────────────────────
+  box.append(el("div", "sheet-lbl", "Units"));
+  const chips = el("div", "qedit-units");
+  const drawChips = () => {
+    chips.textContent = "";
+    for (const p of orderedProviders()) {
+      const on = units.has(p.id);
+      const b = el("button", `chip ${on ? "on" : ""}`);
+      b.type = "button";
+      // Filled exactly as the composer's row fills them -- the colour IS
+      // the ticked state there, and a chip that reads as ticked in one
+      // place and unticked in another is worse than no colour at all.
+      if (on) { b.style.background = p.accent; b.style.borderColor = p.accent; }
+      else { b.style.color = p.accent; b.style.borderColor = p.accent + "66"; }
+      b.append(el("span", "chip-name", p.display_name),
+               el("span", "chip-unit", (UNIT[p.id] || "").split("\u00b7")[0]));
+      b.onclick = () => {
+        on ? units.delete(p.id) : units.add(p.id);
+        drawChips();
+        sync();
+      };
+      chips.append(b);
+    }
+  };
+  drawChips();
+  box.append(chips);
+
+  // ── attachments ──────────────────────────────────────────────────────────
+  box.append(el("div", "sheet-lbl", "Attachments"));
+  const atts = el("div", "qedit-atts");
+  const fileIn = el("input");
+  fileIn.type = "file";
+  fileIn.multiple = true;
+  fileIn.hidden = true;
+  fileIn.onchange = (e) => {
+    for (const f of e.target.files || []) {
+      if (files.length + carried.length >= MAX_ATTACHMENTS) {
+        setErrEl(`Only ${MAX_ATTACHMENTS} attachments per prompt.`);
+        break;
+      }
+      if (f.size > MAX_ATTACHMENT_BYTES) {
+        setErrEl(`${f.name} exceeds the 20MB limit.`);
+        continue;
+      }
+      files.push(f);
+    }
+    e.target.value = "";
+    drawAtts();
+    sync();
+  };
+  const drawAtts = () => {
+    atts.textContent = "";
+    for (const f of files) {
+      const c = el("span", "qedit-att");
+      c.append(el("span", "qedit-att-n", f.name),
+               el("span", "qedit-att-s", fmtBytes(f.size)));
+      const x = el("button", "qedit-att-x", "\u2715");
+      x.type = "button";
+      x.title = "Remove";
+      x.onclick = () => { files = files.filter((g) => g !== f); drawAtts(); sync(); };
+      c.append(x);
+      atts.append(c);
+    }
+    // Added on another device: the name is all this one has, and it says so
+    // rather than showing a file it cannot send.
+    for (const a of carried) {
+      const c = el("span", "qedit-att elsewhere");
+      c.append(el("span", "qedit-att-n", a.n),
+               el("span", "qedit-att-s", `on the ${it.dev || "other device"}`));
+      const x = el("button", "qedit-att-x", "\u2715");
+      x.type = "button";
+      x.title = "Remove";
+      x.onclick = () => { carried = carried.filter((b) => b !== a); drawAtts(); sync(); };
+      c.append(x);
+      atts.append(c);
+    }
+    const add = el("button", "qedit-add", "+ Add files");
+    add.type = "button";
+    add.onclick = () => fileIn.click();
+    atts.append(add);
+  };
+  drawAtts();
+  box.append(atts, fileIn);
+
+  // ── the bar ──────────────────────────────────────────────────────────────
+  const bar = el("div", "sheet-bar");
+  const save = el("button", "btn active", "Save");
+  const refine = el("button", "btn", "Refine");
+  const undo = el("button", "btn", "Undo");
+  const cancel = el("button", "btn", "Cancel");
+  undo.hidden = true;
+  bar.append(save, refine, undo, el("span", "qbar-spacer"), cancel);
+  box.append(bar);
+
+  function setErrEl(msg) {
+    err.textContent = msg || "";
+    err.hidden = !msg;
+  }
+
+  function sync() {
+    save.disabled = !text.trim() || units.size === 0;
+    refine.disabled = refining || !text.trim() || !online();
+    refine.textContent = refining ? "Refining\u2026" : "Refine";
+  }
+
+  refine.onclick = async () => {
+    if (refining || !online()) return;
+    refining = true; setErrEl(null); sync();
+    try {
+      const form = new FormData();
+      form.append("question", text);
+      // The row's own units, not the ticked set: this prompt is the one being
+      // rewritten, and an unticked unit must not be driven for it.
+      form.append("providers", [...units].join(","));
+      const r = await fetch(`${link.api}/api/refine`,
+                            authed({ method: "POST", body: form }));
+      if (!r.ok) {
+        const d = await r.json().catch(() => null);
+        throw new Error((d && d.detail) || `Refine failed (${r.status})`);
+      }
+      const { refined } = await r.json();
+      if (preRefine === null) preRefine = text;
+      text = refined;
+      ta.value = refined;
+      undo.hidden = false;
+    } catch (e) {
+      setErrEl((e && e.message) || "Refine failed.");
+    }
+    refining = false;
+    sync();
+  };
+
+  undo.onclick = () => {
+    if (preRefine === null) return;
+    text = preRefine;
+    ta.value = text;
+    preRefine = null;
+    undo.hidden = true;
+    sync();
+  };
+
+  const close = () => sheet.remove();
+  cancel.onclick = close;
+  sheet.onclick = (e) => { if (e.target === sheet) close(); };
+  ta.onkeydown = (e) => {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); save.click(); }
+  };
+
+  save.onclick = () => {
+    const cur = S.queue.find((x) => x.id === id);
+    if (!cur) return close();
+    cur.q = text.trim();
+    cur.units = [...units];
+    if (files.length) QUEUE_FILES.set(id, files); else QUEUE_FILES.delete(id);
+    cur.atts = [
+      ...files.map((f) => ({ n: f.name, s: f.size, t: f.type || "" })),
+      ...carried,
+    ];
+    // Edited here, so the row belongs to this device now as far as its files
+    // are concerned.
+    if (files.length) cur.dev = DEVICE_NAME;
+    close();
+    queueChanged();
+  };
+
+  sheet.append(box);
+  document.body.append(sheet);
+  sync();
+  ta.focus();
+  ta.setSelectionRange(ta.value.length, ta.value.length);
 }
 /** Move one row, by changing only its own order number. */
 function queueMove(id, dir) {
@@ -9847,7 +10121,7 @@ function renderQueue() {
     down.disabled = it.status !== "queued" || rows.indexOf(it) === rows.length - 1;
     down.onclick = () => queueMove(it.id, 1);
     const edit = el("button", "q-act", "\u270E");
-    edit.type = "button"; edit.title = "Put this back in the composer";
+    edit.type = "button"; edit.title = "Edit this prompt";
     edit.disabled = it.status === "running";
     edit.onclick = () => queueEdit(it.id);
     // Running: watch it happen. Finished: open what it produced. One slot,

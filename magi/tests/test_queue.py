@@ -250,10 +250,55 @@ def test_the_close_control_sits_with_copy():
 
 
 def test_editing_a_row_does_not_ask_to_delete_it():
-    """Edit moves the prompt INTO the composer and then drops the row -- it
-    reused the confirming remove, so the pencil popped "Remove this prompt?"
-    about something that was no longer going anywhere."""
+    """The pencil reused the confirming remove, so it popped "Remove this
+    prompt?" at someone who had asked to edit. It no longer removes anything
+    at all -- see the editor tests below."""
     body = _fn("queueEdit")
-    assert "queueRemove(id, true)" in body, (
-        "the pencil asks for a deletion confirmation again"
+    assert "Remove this prompt" not in body
+
+
+# ── editing a queued prompt ─────────────────────────────────────────────────
+def test_editing_opens_its_own_panel_rather_than_borrowing_the_composer():
+    """With a prompt running, the composer is busy: the pencil used to move
+    your queued text behind a DELIBERATING button you could not press, and
+    drop the row on the way."""
+    body = _fn("queueEdit")
+    assert "uiConfirmMagi" not in body, "the pencil confirms a deletion again"
+    assert "queueRemove" not in body, "editing still deletes the row"
+    assert 'el("div", "sheet")' in body, "no panel of its own"
+    assert "setQuestion(" not in body, "it writes into the composer again"
+
+
+def test_the_editor_can_do_what_the_composer_can():
+    body = _fn("queueEdit")
+    assert "/api/refine" in body, "no Refine"
+    assert "MAX_ATTACHMENTS" in body and "fileIn.click()" in body, "cannot add files"
+    assert "units.delete(p.id)" in body, "cannot change who is asked"
+
+
+def test_nothing_is_written_back_until_save():
+    """Cancel has to mean cancel, and a half-finished edit must not sync."""
+    body = _fn("queueEdit")
+    i = body.index("save.onclick")
+    before, after = body[:i], body[i:]
+    assert "queueChanged()" not in before, (
+        "an edit reaches the other devices before it is saved"
     )
+    assert "queueChanged()" in after
+    assert "let text = it.q" in before, "the row is edited in place, not copied"
+
+
+def test_an_attachment_from_another_device_is_shown_but_not_faked():
+    body = _fn("queueEdit")
+    assert "elsewhere" in body, (
+        "a file whose bytes live on another device is offered as though this "
+        "one could send it"
+    )
+
+
+def test_a_failed_verdict_does_not_read_as_a_failed_deliberation():
+    body = _fn("renderVerdict")
+    assert "verdict-failed" in body
+    assert "cleanSynthError" in body, "the raw FailureKind reaches the screen"
+    clean = _fn("cleanSynthError")
+    assert "None" in clean, "the None case is no longer stripped"
