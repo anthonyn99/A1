@@ -357,6 +357,29 @@ class BrowserProvider(Provider):
                     return fail(FailureKind.SELECTOR_MISS, f"Could not type: {str(e)[:300]}")
 
                 submit = await resolve.resolve(page, site.submit, timeout_ms=3000)
+
+                # A send button that is disabled with the prompt already in the
+                # box is the site refusing, and the reason is in its tooltip,
+                # which only exists while hovered. ChatGPT 2026-09-16: "You've
+                # reached your upload limit. Remove all files to continue." --
+                # and without this the run waited out 45s and said "timeout".
+                if submit is not None:
+                    try:
+                        btn = submit.locator.first
+                        refused = (await btn.get_attribute("aria-disabled")) == "true"                             or await btn.is_disabled()
+                        if refused:
+                            await btn.hover(force=True, timeout=2000)
+                            await asyncio.sleep(1.0)
+                            limit = await resolve.rate_limited(page, site.rate_limit_selectors)
+                            if limit:
+                                artifacts = await self._save_artifacts(page, "rate-limited")
+                                return fail(
+                                    FailureKind.RATE_LIMITED,
+                                    f"{self.display_name} says: {limit}",
+                                )
+                    except Exception:
+                        pass
+
                 await humanize.send(
                     page,
                     submit.locator.first if submit else None,
@@ -438,6 +461,7 @@ class BrowserProvider(Provider):
                 verdict = validate.validate_answer(
                     cleaned, ctx.question or question,
                     display_name=self.display_name,
+                    has_attachments=bool(ctx.attachments),
                 )
                 if not verdict.ok:
                     artifacts = await self._save_artifacts(page, "degraded")

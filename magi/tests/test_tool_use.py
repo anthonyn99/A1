@@ -15,6 +15,8 @@ Two defences, both pinned here:
 
 from __future__ import annotations
 
+import pytest
+
 import sys
 from pathlib import Path
 
@@ -172,3 +174,14 @@ def test_a_capture_of_the_sent_prompt_is_not_a_vote():
     v = validate.validate_answer(DIRECT_ANSWER_PREAMBLE + "Describe this environment",
                                  "Describe this environment", display_name="Grok")
     assert not v.ok and v.reason == validate.Rejection.ECHO
+
+
+@pytest.mark.parametrize("attach", [True, False])
+def test_a_correct_description_of_a_photo_is_not_off_topic(attach):
+    """Gemini and Claude, 2026-09-16: rejected for describing the photo."""
+    from magi.engine import validate
+    text = ("The image depicts a tranquil night landscape dominated by Mount Fuji, "
+            "set against a clear starry sky with mist hanging over a dark lake. ") * 3
+    v = validate.validate_answer(text, "Describe this environment",
+                                 display_name="Gemini", has_attachments=attach)
+    assert v.ok, v.detail

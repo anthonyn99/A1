@@ -139,6 +139,11 @@ class Validation:
 MAX_REFERENCE_WORDS = 120
 
 
+def _content_words(question: str) -> int:
+    """How many distinct words of the question the overlap check can use."""
+    return len({w for w in re.findall(r"[a-z0-9]+", question.lower()) if len(w) > 3})
+
+
 def _overlap(question: str, text: str) -> float:
     """Fraction of the question's content words that appear in the answer.
 
@@ -173,7 +178,9 @@ def _overlap(question: str, text: str) -> float:
     return len(words & body) / len(words)
 
 
-def validate_answer(text: str, question: str, *, display_name: str = "") -> Validation:
+def validate_answer(
+    text: str, question: str, *, display_name: str = "", has_attachments: bool = False
+) -> Validation:
     """Decide whether a capture is a usable answer.
 
     Ordered cheapest-first, and each check is narrow enough to name its own
@@ -264,7 +271,17 @@ def validate_answer(text: str, question: str, *, display_name: str = "") -> Vali
     # Overlap is therefore consulted only in the narrow band where a capture is
     # too long to be a deliberate one-liner but too short to be a full answer,
     # which is the shape a stale turn from a previous conversation takes.
-    if MIN_ANSWER_CHARS <= len(body) < 1200 and _overlap(question, body) < 0.10:
+    #
+    # And never when files came with the question, or the question is only a
+    # few words: "Describe this environment" with a photo is answered entirely
+    # in the photo's vocabulary -- mountains, lake, stars -- and Gemini and
+    # Claude were both thrown out for describing it correctly (2026-09-16).
+    if (
+        MIN_ANSWER_CHARS <= len(body) < 1200
+        and not has_attachments
+        and _content_words(question) >= 4
+        and _overlap(question, body) < 0.10
+    ):
         return Validation(
             False,
             Rejection.OFF_TOPIC,

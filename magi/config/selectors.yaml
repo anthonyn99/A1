@@ -430,6 +430,9 @@ sites:
     rate_limit_selectors:
       - "text=/You(?:'ve| have) reached your .{0,40}limit/i"
       - "text=/out of .{0,20}queries/i"
+      # VERIFIED 2026-09-16: the free-tier card that replaces the answer,
+      # "6 hours 50 minutes before limit is gone".
+      - "text=/before limit is gone/i"
     challenge_selectors:
       - "iframe[src*='challenges.cloudflare.com']"
       - "text=/Verify you are human/i"
