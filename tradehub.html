@@ -3290,7 +3290,7 @@ function tbReconcileWebull(trades){
           hit.parts.add(l._splitIx);
           hit.leg.qty=String(p(hit.leg.qty)+p(l.qty));
           hit.leg.fee=String(p(hit.leg.fee)+p(l.fee));
-          seen.set(fpKey(tk,hit.leg),hit);
+          ledger.add(fpKey(tk,hit.leg),hit);
           return;
         }
         /* Duplicate. Keep the copy already held, but take a fee off the other
@@ -3303,9 +3303,9 @@ function tbReconcileWebull(trades){
       const leg={...l};
       delete leg._splitOf;delete leg._splitIx;
       if(origin)leg._wbId=origin;
-      const rec={leg,parts:new Set(origin?[l._splitIx]:[])};
+      const rec={leg,parts:new Set(origin?[l._splitIx]:[]),order:leg._wbOrder||null};
       if(idKey)seen.set(idKey,rec);
-      seen.set(cKey,rec);
+      ledger.add(cKey,rec);
       byTicker.get(tk).legs.push(leg);
     });
   });
