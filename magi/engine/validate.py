@@ -125,6 +125,11 @@ class Validation:
         return self.detail
 
 
+#: Above this many distinct content words, the reference is not a question.
+#: Real questions measured 2-40; the chairman's synthesis prompt measured 600+.
+MAX_REFERENCE_WORDS = 120
+
+
 def _overlap(question: str, text: str) -> float:
     """Fraction of the question's content words that appear in the answer.
 
@@ -145,6 +150,15 @@ def _overlap(question: str, text: str) -> float:
     }
     words = {w for w in re.findall(r"[a-z0-9]+", question.lower()) if w not in stop and len(w) > 2}
     if not words:
+        return 1.0
+    # A reference this wide is not a question -- it is an instruction block,
+    # and the ratio below stops meaning anything: a correct short answer can
+    # only ever contain a sliver of it, so every short answer scores as
+    # off-topic. 1.0 is "no signal", which is what this crude check is
+    # entitled to say about material it cannot judge. The caller passing the
+    # wrong reference is the real bug (see browser_base), and this is the
+    # guard that stops the next caller repeating it.
+    if len(words) > MAX_REFERENCE_WORDS:
         return 1.0
     body = set(re.findall(r"[a-z0-9]+", text.lower()))
     return len(words & body) / len(words)

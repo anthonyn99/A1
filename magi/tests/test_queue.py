@@ -247,3 +247,13 @@ def test_the_close_control_sits_with_copy():
         "the copy button went back to the header, so the header's spare width "
         "sits between the two controls again"
     )
+
+
+def test_editing_a_row_does_not_ask_to_delete_it():
+    """Edit moves the prompt INTO the composer and then drops the row -- it
+    reused the confirming remove, so the pencil popped "Remove this prompt?"
+    about something that was no longer going anywhere."""
+    body = _fn("queueEdit")
+    assert "queueRemove(id, true)" in body, (
+        "the pencil asks for a deletion confirmation again"
+    )

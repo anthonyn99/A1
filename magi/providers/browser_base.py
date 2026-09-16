@@ -401,8 +401,23 @@ class BrowserProvider(Provider):
                 # that was counted as a full vote and reported as consensus.
                 # Checked here rather than in the orchestrator so the artifacts
                 # are still available for diagnosis.
+                # Against the QUESTION, not against the prompt that was sent.
+                #
+                #   They are the same thing for a council member, and nothing
+                #   like it for the chairman: its prompt is the whole synthesis
+                #   instruction plus every member's answer -- 6,492 characters
+                #   on the run that exposed this. _overlap divides by the
+                #   reference's vocabulary, so a short, perfectly good verdict
+                #   scored 0.098 against that prompt (threshold 0.10) and was
+                #   thrown away as "a previous conversation turn"; against the
+                #   real question, "Does uranus have rings", it scores 0.667.
+                #
+                #   It hit every SHORT verdict, which means it hit simple
+                #   factual questions and left long analytical ones alone --
+                #   the opposite of a failure you would notice in testing.
                 verdict = validate.validate_answer(
-                    cleaned, question, display_name=self.display_name
+                    cleaned, ctx.question or question,
+                    display_name=self.display_name,
                 )
                 if not verdict.ok:
                     artifacts = await self._save_artifacts(page, "degraded")
