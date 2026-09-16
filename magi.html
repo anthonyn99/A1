@@ -1261,6 +1261,28 @@ table.doctor, table.doctor code, .v-table, .studio-table,
 }
 
 
+/* The question a verdict answers, above the answer. Quiet and clamped: it is
+   here to identify the block below it, not to be read twice. */
+.verdict-q {
+  display: flex; gap: 10px; align-items: baseline;
+  padding: 9px 14px; border-bottom: 1px solid var(--bdl);
+  background: color-mix(in srgb, var(--s2) 55%, transparent);
+}
+.verdict-q-tag {
+  flex: 0 0 auto; color: var(--txd); font-size: 9px; font-weight: 700;
+  letter-spacing: 1.4px; text-transform: uppercase;
+}
+.verdict-q-text {
+  flex: 1 1 auto; min-width: 0; color: var(--txm); font-size: 12.5px;
+  line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+@media (max-width: 720px) {
+  .verdict-q { padding: 8px 12px; gap: 8px; }
+  .verdict-q-text { font-size: 12px; -webkit-line-clamp: 4; }
+}
+
 /* The prompt on the wire. Quiet -- it is a label, not an alert -- but with
    the accent and a live dot so it reads as happening now rather than as
    something that happened. */
@@ -4937,6 +4959,14 @@ const S = {
    *  and the stream writes to them whether or not they are the ones showing.
    */
   live: null,
+  /* The question the verdict on screen answers.
+   *
+   *  The composer used to be that label. It no longer is: it is typable
+   *  during a run, so while one prompt works you can be reading another
+   *  prompt's verdict with a third one half-written in the box above it.
+   *  Kept with the run rather than read off the screen.
+   */
+  viewQuestion: "",
   // True while the council view is showing a run opened from History rather
   // than one you just started. The difference is not cosmetic: it decides
   // which sidebar row is lit and whether there is a way back to the list.
@@ -5237,6 +5267,20 @@ function renderVerdict() {
   }
 
   n.append(hd);
+
+  /* The question this verdict answers, when the composer cannot be trusted to
+   * say it: you opened this from History or the queue, or something else is
+   * running and the box above holds a different prompt entirely. A verdict
+   * with no question attached is a paragraph of answer to something you have
+   * to remember.
+   */
+  if (S.viewQuestion && (S.fromHistory || S.running)) {
+    const q = el("div", "verdict-q");
+    q.append(el("span", "verdict-q-tag", "asked"),
+             el("span", "verdict-q-text", S.viewQuestion));
+    q.title = S.viewQuestion;
+    n.append(q);
+  }
 
   // Named here, not only in History. A verdict built from three units while
   // the display implied four is the exact failure this is here to prevent, and
@@ -5700,6 +5744,7 @@ function runOne({ question, units, files = [], attachTo = null }) {
   S.fromHistory = false;
   S.gridOwner = "council";
   S.runLocal = true;
+  S.viewQuestion = question || "";
   // A run in progress is the thing to watch, so any drawer the user was
   // reading gives way to the console.
   setView("council");
@@ -6079,6 +6124,7 @@ function newRun() {
   S.runId = null;
   S.gridOwner = null;
   S.runLocal = false;
+  S.viewQuestion = "";
   setErr("attachError", null);
   setErr("refineError", null);
   renderChips();
@@ -6178,6 +6224,7 @@ async function openRun(id) {
   S.runId = id;
   S.gridOwner = "council";
   S.runLocal = true;          // read from the engine, so the engine has it
+  S.viewQuestion = data.run.question || "";
   setQuestion(data.run.question);
   S.opened = new Set();
   S.panels = data.answers.map((a) => ({
@@ -6458,13 +6505,7 @@ function accStatus(a) {
   return { cls: "na", txt: "Not checked" };
 }
 
-/* ── Claude usage ─────────────────────────────────────────────────────────
-   Read from Claude Code's own transcripts on the engine device (see
-   magi/usage.py). Two things this deliberately does NOT do:
-B`
-  : n >= 1e6 ? `${(n / 1e6).toFixed(1)}M`
-  : n >= 1e3 ? `${(n / 1e3).toFixed(0)}k` : String(n || 0);
-async async function renderAccounts() {
+function renderAccounts() {
   const box = $("accountsBody");
   if (!box) return;
   box.textContent = "";
@@ -10298,6 +10339,7 @@ function backToLive() {
   S.panels = live.panels;
   S.verdict = live.verdict;
   S.runId = live.runId;
+  S.viewQuestion = live.question || "";
   S.opened = new Set();
   S.fromHistory = false;
   S.gridOwner = "council";
@@ -11047,6 +11089,7 @@ async function cloudOpenRun(id) {
     S.runId = id;
     S.gridOwner = "council";
     S.runLocal = false;       // read from the cloud; this engine never ran it
+    S.viewQuestion = (data.run && data.run.question) || "";
     setQuestion((data.run && data.run.question) || "");
     S.opened = new Set();
     S.panels = (data.answers || []).map((a) => ({

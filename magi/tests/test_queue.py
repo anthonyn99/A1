@@ -355,3 +355,38 @@ def test_typing_is_never_blocked_by_a_run():
     )
     # Convene still waits its turn: one run at a time.
     assert '$("btnSend").disabled = busy' in body
+
+
+# ── knowing what is running, and what you are reading ───────────────────────
+def test_the_running_prompt_is_named_above_the_units():
+    """The composer used to be that label. It stopped being one the moment it
+    became typable during a run."""
+    assert 'id="runNow"' in PAGE
+    assert PAGE.index('id="runNow"') < PAGE.index('<div class="magi" id="magi"'), (
+        "the banner is below the units it is meant to caption"
+    )
+    body = _fn("renderRunNow")
+    assert "S.live" in body and "S.running" in body
+    assert "backToLive" in body, (
+        "the banner is the one thing on screen saying a run is in flight, so "
+        "it should also be the way back to it"
+    )
+
+
+def test_the_banner_follows_the_run_not_the_composer():
+    for fn in ("runOne", "endRun", "setView", "backToLive"):
+        assert "renderRunNow()" in _fn(fn), f"{fn} leaves the banner stale"
+
+
+def test_a_verdict_says_which_question_it_answers():
+    """Reading one prompt's verdict while another runs and a third is
+    half-typed in the box: nothing on screen said what the verdict was for."""
+    assert "viewQuestion" in PAGE
+    body = _fn("renderVerdict")
+    assert "S.viewQuestion" in body
+    assert "S.fromHistory || S.running" in body, (
+        "the caption shows even when the composer above it already says the "
+        "same thing, or hides when it does not"
+    )
+    for fn in ("runOne", "openRun", "cloudOpenRun", "backToLive"):
+        assert "S.viewQuestion" in _fn(fn), f"{fn} leaves the caption stale"
