@@ -438,6 +438,52 @@ function gateContext(loader) {
   }
 
   {
+    /* 9/9 PLTR: two genuine buys identical to the cent on one day (09:31 and
+       15:13). Day-precision content dedup collapsed them, so the 9/15 sell the
+       second buy paid for read NO BASIS. Different Webull order ids keep both. */
+    const leg = (id, order, action, datetime, price) => Object.assign(
+      { id, _wbId: id, action, datetime, qty: '1', price, fee: '0' }, order ? { _wbOrder: order } : {});
+    const w = (id, legs) => ({ id, source: 'webull', ticker: 'PLTR', createdAt: 1, legs });
+    const trades = [
+      w('a', [leg('b1', 'O1', 'BUY', '2026-09-09T09:31', '170'), leg('s1', 'O2', 'SELL', '2026-09-09T10:43', '171.30')]),
+      w('b', [leg('b2', 'O3', 'BUY', '2026-09-09T15:13', '170')]),
+      w('c', [leg('s2', 'O4', 'SELL', '2026-09-15T12:44', '174.30')]),
+      /* A merged copy of the first buy with no order id — must still collapse. */
+      w('d', [leg('dup', null, 'BUY', '2026-09-09T09:45', '170')]),
+    ];
+    const r = reconCtx.tbReconcileWebull(trades);
+    const stats = r.rebuilt.map(t => {
+      const b = t.legs.filter(l => l.action === 'BUY').length, s = t.legs.filter(l => l.action === 'SELL').length;
+      return t.legs[0].datetime.slice(0, 10) + ':' + b + 'b' + s + 's';
+    }).sort();
+    eq('two same-day identical buys with different order ids are two positions',
+       stats, ['2026-09-09:1b1s', '2026-09-09:1b1s']);
+    check('the 9/15 sell is matched to the second buy, not orphaned',
+          r.rebuilt.some(t => t.legs.some(l => l.id === 's2') && t.legs.some(l => l.id === 'b2')));
+    const again = reconCtx.tbReconcileWebull([].concat(r.others, r.rebuilt));
+    eq('re-merge keeps both buys', again.rebuilt.length, 2);
+
+    /* An id-less leg already in the journal is claimed by ONE order only. */
+    const legacy = [
+      w('e', [leg('old', null, 'BUY', '2026-09-09T09:31', '170')]),
+      w('f', [leg('n1', 'O1', 'BUY', '2026-09-09T09:31', '170')]),
+      w('g', [leg('n2', 'O3', 'BUY', '2026-09-09T15:13', '170')]),
+    ];
+    const buys = reconCtx.tbReconcileWebull(legacy).rebuilt
+      .reduce((n, t) => n + t.legs.filter(l => l.action === 'BUY').length, 0);
+    eq('an id-less copy absorbs one order and the second order survives', buys, 2);
+
+    const ledger = reconCtx.tbFillLedger();
+    ledger.add('k', { leg: {}, order: null, owned: true });
+    check('a manual fill is claimed by the first matching order', !!ledger.match('k', 'X'));
+    check('a second, different order is not a duplicate of it', ledger.match('k', 'Y') === null);
+    check('only single-order worker entries carry an order id',
+          reconCtx.tbWbOrderOf({ source: 'webull', id: 'X', legs: [{}] }) === 'X' &&
+          reconCtx.tbWbOrderOf({ source: 'webull', id: 'X', legs: [{}, {}] }) === null &&
+          reconCtx.tbWbOrderOf({ source: 'manual', id: 'X', legs: [{}] }) === null);
+  }
+
+  {
     /* CSV identity: the same trade from two exports collides; different trades
        do not. Ids, clock time and notes are deliberately ignored. */
     const mk = (over) => Object.assign({

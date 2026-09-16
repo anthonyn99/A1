@@ -2621,7 +2621,7 @@ function useTBJournal(){
 
         setTrades(prev=>{
           /* Mutable map: entry id → entry (deep-copy legs so we can push) */
-          const map=new Map(prev.map(t=>[t.id,{...t,legs:[...(t.legs||[])]}]));
+          const map=new Map(prev.map(t=>[t.id,{...t,legs:(t.legs||[]).map(l=>({...l}))}]));
           /* Dedup keys. Webull orders carry a _wbId; but worker IDs can drift
              between syncs, so we ALSO key every existing leg by a content
              fingerprint (ticker|action|DAY|qty|price). A pull is skipped if
@@ -2630,13 +2630,18 @@ function useTBJournal(){
              The day granularity matters: correcting a fill's clock by hand (or
              the feed restating it) used to change a minute-precision key and let
              the very same fill back in as a second, basis-less row. Matches
-             tbReconcileWebull, which keys the same way. Trade-off: two genuinely
-             separate same-day fills identical in side, qty and cent price would
-             collapse to one. */
+             tbReconcileWebull, which keys the same way. Two same-day fills
+             identical in side, qty and cent price stay two when their Webull
+             order ids differ — see tbFillLedger. */
           const fpOf=(tk,l)=>{const p=n=>{const x=parseFloat(n);return isNaN(x)?0:x;};return (tk||'').toUpperCase()+'|'+(l.action||'')+'|'+String(l.datetime||'').slice(0,10)+'|'+p(l.qty)+'|'+p(l.price);};
           const absorbedWb=new Set();       /* 'wb:'+_wbId */
-          const absorbedContent=new Set();  /* content fp of EVERY existing leg */
-          map.forEach(entry=>{const tk=entry.ticker;(entry.legs||[]).forEach(l=>{if(l._wbId)absorbedWb.add('wb:'+l._wbId);absorbedContent.add(fpOf(tk,l));});});
+          const wbRecs=new Map();           /* 'wb:'+_wbId → ledger rec of that leg */
+          const ledger=tbFillLedger();      /* content fp of EVERY existing leg */
+          map.forEach(entry=>{const tk=entry.ticker;const owned=entry.source!=='webull';(entry.legs||[]).forEach(l=>{
+            const rec={leg:l,order:l._wbOrder||null,owned};
+            if(l._wbId){absorbedWb.add('wb:'+l._wbId);wbRecs.set('wb:'+l._wbId,rec);}
+            ledger.add(fpOf(tk,l),rec);
+          });});
           /* Find the most-recent OPEN entry for a ticker (buyQty > sellQty, not CLOSED).
              WEBULL entries only. This used to consider every entry for the ticker,
              so an incoming fill could be appended onto a manual or hand-corrected
@@ -2662,8 +2667,9 @@ function useTBJournal(){
           const toSave=new Map(); /* entry id → entry — collect all mutations, save once */
 
 
-          sorted.forEach(raw=>{
+          const pulled=sorted.map(raw=>{
             const ticker=(raw.ticker||raw.symbol||'').toUpperCase();
+            const order=tbWbOrderOf(raw);
             const wbBase=String(raw.id||raw.orderId||raw.fillId||(raw.ticker+(raw.date||raw.datetime||raw.filledAt||'')));
             /* ── Webull field aliases ─────────────────────────────────────────
                datetime: filledAt | filledTime | tradeTime | orderTime | createTime | date | datetime
@@ -2708,6 +2714,7 @@ function useTBJournal(){
                   qty:l.qty??l.filled??l.quantity??'',
                   price:l.price??l.avgFill??l.avgFilledPrice??'',
                   fee:feeOf(l),
+                  order,
                 }))
               : [{
                   wbId:wbBase,
@@ -2717,7 +2724,20 @@ function useTBJournal(){
                   qty:raw.qty??raw.filled??raw.filledQty??raw.filledQuantity??'',
                   price:raw.avgFill??raw.avgFilledPrice??raw.avgPrice??raw.price??raw.limitPrice??'',
                   fee:feeOf(raw),
+                  order,
                 }];
+            return{raw,ticker,fills};
+          });
+          /* Stamp the order id onto legs this journal already holds BEFORE any
+             content matching. Otherwise a fill absorbed under its _wbId before
+             order ids were recorded looks id-less, and the next same-day
+             identical order would claim it as its own copy — dropping a real
+             fill, which is exactly how the 9/9 PLTR buy went missing. */
+          pulled.forEach(({fills})=>fills.forEach(f=>{
+            const rec=f.order&&wbRecs.get('wb:'+f.wbId);
+            if(rec&&!rec.order){rec.order=f.order;if(!rec.owned)rec.leg._wbOrder=f.order;}
+          }));
+          pulled.forEach(({raw,ticker,fills})=>{
             fills.forEach(f=>{
               if(absorbedWb.has('wb:'+f.wbId))return;
               const newLeg={
@@ -2729,11 +2749,13 @@ function useTBJournal(){
                 price:String(f.price),
                 fee:f.fee!==0?String(f.fee):'0',
               };
+              if(f.order)newLeg._wbOrder=f.order;
               absorbedWb.add('wb:'+f.wbId);
               /* Already present (any source / any prior sync)? Skip — no dup. */
               const _cfp=fpOf(ticker,newLeg);
-              if(absorbedContent.has(_cfp))return;
-              absorbedContent.add(_cfp);
+              if(ledger.match(_cfp,f.order))return;
+              const _rec={leg:newLeg,order:f.order||null};
+              ledger.add(_cfp,_rec);wbRecs.set('wb:'+f.wbId,_rec);
               /* Provisional home only — tbReconcileWebull below regroups every
                  webull leg from scratch by datetime, so this just has to be
                  somewhere sane for the ticker. */

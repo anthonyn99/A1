@@ -637,13 +637,18 @@ async function syncJournalFromWebull(env) {
       });
     });
 
-    /* Also build a map: ticker+side+datePrefix → trade index, for fee backfill matching */
+    /* Also build a map: ticker+side+day+qty+price → trade index, for fee backfill
+       matching. Quantity and price are part of the key: keyed on the day alone,
+       a second same-day order in the same ticker matched the first one's entry
+       and was dropped instead of added. */
+    const num = v => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
+    const fpOf = (tk, side, dt, qty, price) =>
+      `${(tk||'').toUpperCase()}|${(side||'').toUpperCase()}|${String(dt||'').slice(0, 10)}|${num(qty)}|${num(price)}`;
     const tradeByFingerprint = new Map();
     journal.trades.forEach((t, idx) => {
       (t.legs || []).forEach(l => {
-        const dt = (l.datetime || t.date || '').slice(0, 10);
-        const fp = `${(t.ticker||'').toUpperCase()}|${(l.action||t.side||'').toUpperCase()}|${dt}`;
-        tradeByFingerprint.set(fp, idx);
+        const fp = fpOf(t.ticker, l.action || t.side, l.datetime || t.date, l.qty, l.price);
+        if (!tradeByFingerprint.has(fp)) tradeByFingerprint.set(fp, { idx, leg: l });
       });
     });
 
@@ -677,8 +682,8 @@ async function syncJournalFromWebull(env) {
       if (!id) continue;
 
       const fee = parseFloat(o.fee) || 0;
-      const oDate = (o.filledAt || o.createdAt || '').slice(0, 10);
-      const fp = `${(o.ticker||'').toUpperCase()}|${(o.side||'').toUpperCase()}|${oDate}`;
+      const fp = fpOf(o.ticker, o.side, o.filledAt || o.createdAt,
+                      parseFloat(o.filled) || o.qty, parseFloat(o.avgFill) || o.price);
 
       if (knownIds.has(id)) {
         /* Known by id — patch fee if missing */
@@ -702,19 +707,17 @@ async function syncJournalFromWebull(env) {
         continue;
       }
 
-      /* Not known by id — try fingerprint match to backfill fee on imported/manual entries */
-      if (fee > 0 && tradeByFingerprint.has(fp)) {
-        const idx = tradeByFingerprint.get(fp);
-        const legs = journal.trades[idx].legs || [];
-        const legIdx = legs.findIndex(l => l.action === (o.side||'').toUpperCase());
-        if (legIdx >= 0 && (!legs[legIdx].fee || legs[legIdx].fee === 0)) {
-          journal.trades[idx].legs[legIdx].fee = fee;
-          if (!journal.trades[idx].commission || journal.trades[idx].commission === 0) {
-            journal.trades[idx].commission = fee;
-          }
-          knownIds.add(id);
-          added++;
-        }
+      /* Not known by id — try fingerprint match to backfill fee on imported/manual
+         entries. Only an actual patch consumes the order: it used to `continue`
+         regardless, so an order whose twin already had a fee was never added. */
+      const fpHit = fee > 0 && tradeByFingerprint.get(fp);
+      if (fpHit && !(parseFloat(fpHit.leg.fee) > 0)) {
+        const t = journal.trades[fpHit.idx];
+        fpHit.leg.fee = fee;
+        if (!t.commission || t.commission === 0) t.commission = fee;
+        tradeByFingerprint.delete(fp);
+        knownIds.add(id);
+        added++;
         continue;
       }
 
