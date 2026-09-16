@@ -1719,6 +1719,18 @@ REELS_KEY_ENV = "REELS_KEY"
 # our own Worker, so nothing is being circumvented.
 REELS_UA = "studyos-reels-harvester/1.0"
 
+# Where thumbnail bytes live. Reachable from every device, unlike IG's signed
+# CDN urls, which expire within days — storing one of those guarantees a broken
+# image later, so the bytes are copied once and referenced by key.
+FILES_API = os.environ.get(
+    "REELS_FILES_API", "https://studyos-files.vedapatel05.workers.dev")
+
+# Per-run upload ceiling. That KV namespace is free-plan (~1000 writes/DAY) and
+# SHARED with StudyOS's own file uploads, so a greedy harvest would break file
+# uploads somewhere completely unrelated. Reads are free, so an already-cached
+# thumbnail costs nothing and a re-run is cheap.
+REELS_THUMB_UPLOADS = 150
+
 
 # Bounds the per-run thumbnail work the PAGE will do. The Workers KV namespace
 # it uploads into is free-plan (~1000 writes/day) and SHARED with StudyOS file
@@ -2159,6 +2171,86 @@ async def _harvest_reels(page, site: ReelsSite) -> dict:
     return {"reels": list(seen.values()), "scrolls": scrolls, "stoppedAt": stopped}
 
 
+def thumb_key(shortcode: str) -> str:
+    return "reel_" + shortcode
+
+
+def thumb_exists(key: str) -> bool:
+    """Is this thumbnail already in KV?
+
+    A GET is a READ, effectively unmetered; a PUT is one of ~1000 daily writes.
+    So checking first is close to free and is what keeps a re-harvest from
+    costing anything at all.
+    """
+    import urllib.request
+    req = urllib.request.Request(
+        f"{FILES_API}/f/{key}", method="GET", headers={"User-Agent": REELS_UA})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return r.status == 200
+    except Exception:
+        return False
+
+
+def upload_thumb(key: str, src: str) -> bool:
+    """Copy one IG thumbnail into KV. False on any failure.
+
+    Never retried: a missing thumbnail degrades to a caption-only tile, which
+    beats spending a write on a signed url that has already expired.
+    """
+    import urllib.request
+    if not src:
+        return False
+    try:
+        get = urllib.request.Request(src, headers={"User-Agent": REELS_UA})
+        with urllib.request.urlopen(get, timeout=30) as r:
+            if r.status != 200:
+                return False
+            body = r.read()
+            mime = r.headers.get("Content-Type") or "image/jpeg"
+        if not body or len(body) > 512 * 1024:
+            return False
+        put = urllib.request.Request(
+            f"{FILES_API}/f/{key}", data=body, method="PUT",
+            headers={"Content-Type": mime, "User-Agent": REELS_UA,
+                     "X-File-Name": key + ".jpg"})
+        with urllib.request.urlopen(put, timeout=60) as r:
+            return r.status == 200
+    except Exception:
+        return False
+
+
+def attach_thumbs(reels: list) -> dict:
+    """Give every reel a thumbKey, uploading only what is missing.
+
+    Order matters: check KV first (free), upload second (metered), and stop at
+    the per-run ceiling. Reels past the ceiling keep thumbKey:"" and collect
+    their image on a later run — the widget renders those as caption tiles,
+    which is a correct intermediate state rather than a bug.
+    """
+    had = uploaded = skipped = 0
+    for r in reels:
+        code = r.get("shortcode")
+        if not code:
+            continue
+        key = thumb_key(code)
+        if thumb_exists(key):
+            r["thumbKey"] = key
+            had += 1
+            continue
+        if uploaded >= REELS_THUMB_UPLOADS:
+            r["thumbKey"] = ""
+            skipped += 1
+            continue
+        if upload_thumb(key, r.get("thumbSrc") or ""):
+            r["thumbKey"] = key
+            uploaded += 1
+        else:
+            r["thumbKey"] = ""
+            skipped += 1
+    return {"cached": had, "uploaded": uploaded, "pending": skipped}
+
+
 async def cmd_reels(args) -> dict:
     """Harvest one saved collection and publish it to the cloud.
 
@@ -2376,11 +2468,15 @@ async def _reels_run(site, args, target, collection, headless, user="") -> dict:
     # harvest never loses reels); different ⇒ replace.
     merged = merge_reels(stored, got["reels"]) if same else got["reels"]
 
+    # Thumbnails, before publishing: this is the only moment the signed CDN
+    # urls are still valid, and the only writer that has them.
+    thumbs = attach_thumbs(merged)
+
     doc = {
         "user": user,
         "collection": collection,
         "collections": got.get("collections") or [],
-        "filesBase": "https://studyos-files.vedapatel05.workers.dev",
+        "filesBase": FILES_API,
         "reels": merged,
     }
     res = write_reels_cloud(doc)
@@ -2389,6 +2485,7 @@ async def _reels_run(site, args, target, collection, headless, user="") -> dict:
             "omitted": res.get("omitted", 0),
             "collections": res.get("collections", 0),
             "replacedCollection": (not same) and bool(stored),
+            "thumbs": thumbs,
             "scrolls": got["scrolls"], "stoppedAt": got["stoppedAt"],
             "publishedTo": REELS_API}
 

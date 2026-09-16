@@ -741,6 +741,34 @@ t("the result is length-capped for the doc",
 t("cleaning is applied at the read site, not left to the widget",
   'clean_caption(caption or "")' in _hr)
 
+# ── Thumbnails are the HARVESTER's job now ────────────────────────────────────
+# REGRESSION 2026-09-16: moving the store to the cloud removed the page's
+# thumbnail step and nothing replaced it, so a harvest published 1239 reels with
+# thumbKey:"" — every tile a placeholder, while 1313 thumbnails sat unused in
+# KV. Nothing errored; the widget just looked broken. The harvester is the only
+# writer AND the only party holding IG's signed CDN url (which expires within
+# days), so it owns this.
+t("the harvester attaches thumbnails before publishing",
+  "attach_thumbs(merged)" in _cr_all,
+  "a published doc with no thumbKeys renders as all placeholders")
+t("existence is checked before uploading (a read is free, a write is not)",
+  _inspect.getsource(driver.attach_thumbs).index("thumb_exists")
+  < _inspect.getsource(driver.attach_thumbs).index("upload_thumb"))
+t("uploads are capped per run",
+  "uploaded >= REELS_THUMB_UPLOADS" in _inspect.getsource(driver.attach_thumbs),
+  "the KV namespace is ~1000 writes/DAY and SHARED with StudyOS uploads")
+t("the cap leaves the rest pending rather than failing the run",
+  '"pending"' in _inspect.getsource(driver.attach_thumbs))
+t("an oversized image is skipped, not uploaded",
+  "512 * 1024" in _inspect.getsource(driver.upload_thumb))
+t("a failed thumbnail is never retried",
+  "retry" not in _inspect.getsource(driver.upload_thumb).lower(),
+  "a signed url that already expired will not start working")
+t("the signed CDN url is never published",
+  '"thumbSrc"' not in _cr_all.split("doc = {")[1].split("}")[0]
+  if "doc = {" in _cr_all else True,
+  "IG's thumbSrc expires; only thumbKey belongs in the doc")
+
 # Emoji in captions vs a cp1252 console. The driver's whole result is one line
 # of JSON on stdout with ensure_ascii=False, so a caption emoji raised
 # UnicodeEncodeError while PRINTING a finished harvest — work complete, data
