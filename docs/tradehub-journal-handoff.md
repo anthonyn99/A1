@@ -228,5 +228,6 @@ fills; an id-less copy is claimed by exactly one order. Webull Sync stamps
 order ids onto legs it already holds *before* matching, or an old id-less leg
 would be claimed by the wrong order and a real fill dropped.
 
-The worker's fee-backfill fingerprint also includes qty and price now, and only
+The worker's fee-backfill fingerprint also includes qty and price now, never
+indexes source:'webull' entries (they are orders, matched by id), and only
 swallows an order when it actually patched a fee.

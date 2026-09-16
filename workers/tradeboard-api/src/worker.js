@@ -640,12 +640,17 @@ async function syncJournalFromWebull(env) {
     /* Also build a map: ticker+side+day+qty+price → trade index, for fee backfill
        matching. Quantity and price are part of the key: keyed on the day alone,
        a second same-day order in the same ticker matched the first one's entry
-       and was dropped instead of added. */
+       and was dropped instead of added.
+       Only imported/manual entries are indexed. A source:'webull' entry IS an
+       order, already matched by id above — letting an unknown order "patch" it
+       is how the second 9/9 PLTR buy (1@170, same as the first) was consumed as
+       a fee backfill on the first buy and never added. */
     const num = v => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
     const fpOf = (tk, side, dt, qty, price) =>
       `${(tk||'').toUpperCase()}|${(side||'').toUpperCase()}|${String(dt||'').slice(0, 10)}|${num(qty)}|${num(price)}`;
     const tradeByFingerprint = new Map();
     journal.trades.forEach((t, idx) => {
+      if (t.source === 'webull') return;
       (t.legs || []).forEach(l => {
         const fp = fpOf(t.ticker, l.action || t.side, l.datetime || t.date, l.qty, l.price);
         if (!tradeByFingerprint.has(fp)) tradeByFingerprint.set(fp, { idx, leg: l });
