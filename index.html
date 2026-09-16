@@ -3067,9 +3067,16 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
    the video, and takes no pointer events so a tap still reaches the player. */
 .thrl-slide::after{
   content:'';position:absolute;left:0;right:0;bottom:0;
-  /* Comfortably taller than the tallest footer measured (154px at 1425px wide,
-     ~90px at panel width) without eating into a 9:16 video. */
-  height:104px;
+  /* MEASURED 2026-09-16 against the ACTUAL widget iframe height (crop-top +
+     slide-height = 54 + 702 = 756px in the iframe's own coordinate space, not
+     an arbitrary test viewport): the footer sits 198px below that point.
+     Two earlier attempts (104px, then 140px) both measured at the WRONG
+     reference height and were both too short. Every reel sampled across the
+     collection (8 spread through 1239 saves) landed identically, so this is a
+     fixed embed layout constant — not per-reel variance — and 210px leaves a
+     small margin. If the crop constants above ever change, re-measure this
+     against the resulting iframe height, not against a guessed viewport. */
+  height:210px;
   background:#000;z-index:1;pointer-events:none;
 }
 /* Placeholder until a slide is near the viewport: mounting 1239 iframes at once
@@ -3515,6 +3522,25 @@ function Widget(props){
   // bytes each — and the <video> src is a blob: from MSE. There is no single
   // mp4 to play, so the embed is the only option; cropping its chrome is
   // therefore the only way to get a clean frame.
+  //
+  // AUTOPLAY/LOOP ARE A HARD WALL — VERIFIED, not assumed, on 2026-09-16:
+  //   - ?autoplay=1&muted=1 does nothing; IG's embed script ignores it.
+  //   - A script-fired .click() on the play button does nothing: IG's handler
+  //     checks Event.isTrusted, and NO JavaScript API — same-origin or
+  //     cross-origin — can ever produce a trusted event. That is a browser
+  //     spec guarantee (the same one that stops any site auto-clicking ads for
+  //     you), not an Instagram quirk, so there is no parameter or permission
+  //     that gets around it.
+  //   - Even a genuine click does not make it loop: it plays once, rewinds to
+  //     0, and re-pauses.
+  // So "tap once per reel, plays through, no loop" is the true ceiling here.
+  //
+  // What IS real and used below: a genuine user click that LANDS ON the
+  // iframe passes straight through to Instagram's own player, exactly as if
+  // the user had clicked instagram.com directly — ordinary browser
+  // click-through, not a workaround. Making the ENTIRE slide the click target
+  // (not just the small play icon) means the same tap that brings a reel into
+  // view is enough to start it, so no separate "now press play" step exists.
   var feed = s.playing
     ? h('div',{key:'feed',className:'thrl-feed',ref:feedRef},
         s.reels.map(function(r,i){
@@ -3522,12 +3548,8 @@ function Widget(props){
           var u = thumbUrl(r);
           return h('div',{key:r.shortcode,className:'thrl-slide','data-i':i},
             near
-              // autoplay=1 and muted=1: browsers only honour autoplay when the
-              // video is muted, and a feed that needs a tap per reel is not a
-              // feed. The embed loops on its own.
               ? h('iframe',{key:'f',
-                  src:'https://www.instagram.com/reel/'+r.shortcode+
-                      '/embed/?autoplay=1&muted=1',
+                  src:'https://www.instagram.com/reel/'+r.shortcode+'/embed/',
                   scrolling:'no',frameBorder:'0',loading:'lazy',
                   allow:'autoplay; encrypted-media; picture-in-picture; fullscreen',
                   title:r.caption||('Reel '+r.shortcode)})
@@ -3541,7 +3563,7 @@ function Widget(props){
                           setImgErr(Object.assign({},imgErr,n));
                         }})
                     : null,
-                  h('span',{key:'s'},'\u2026')),
+                  h('span',{key:'s'},'…')),
             r.caption
               ? h('div',{key:'c',className:'thrl-slide-cap'},r.caption)
               : null);

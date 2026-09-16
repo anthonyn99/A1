@@ -71,12 +71,27 @@ t('the band card opens the player directly',
 t("it frames Instagram's own embed page", blk.includes("/embed/"),
   'reels are DASH-segmented (79 paths for one 13s reel), so <video> is not an '
   + 'option and the embed is the only way to play one');
-t('autoplay and muted are both requested',
-  blk.includes('autoplay=1&muted=1'),
-  'browsers only honour autoplay when muted; a feed needing a tap per reel '
-  + 'is not a feed');
+t('the iframe src line itself carries no autoplay query params',
+  !/src:'https:\/\/www\.instagram\.com\/reel\/[^']*\?[^']*'/.test(blk),
+  'VERIFIED 2026-09-16: IG\'s embed silently ignores these; leaving them in '
+  + 'the actual src (as opposed to a comment describing the finding) would '
+  + 'be shipping a lie as code');
 t('autoplay and fullscreen are permitted on the frame',
-  /allow:'autoplay;[^']*fullscreen'/.test(blk));
+  /allow:'autoplay;[^']*fullscreen'/.test(blk),
+  'this only grants PERMISSION to autoplay if IG\'s own script ever calls '
+  + 'play() on its own — it does not, so this alone starts nothing, but a '
+  + 'real click-through still needs the permission granted');
+t('the isTrusted limitation is documented at the point it matters',
+  blk.includes('isTrusted'),
+  'without this note, a future edit could "helpfully" add a script-fired '
+  + '.click() on the iframe believing it will start playback — it will not, '
+  + 'and no test can catch that regression because the failure is invisible '
+  + 'until a human watches the feed');
+t('click-through relies on real geometry, not a synthetic dispatch',
+  !blk.includes("querySelector('.thrl-slide iframe').click()") &&
+  !blk.includes('dispatchEvent(new MouseEvent'),
+  'a synthetic click on the iframe would silently do nothing (isTrusted:false) '
+  + '— the design must rely on the USER\'s own real tap landing on the slide');
 t('the feed replaces the grid rather than stacking',
   blk.includes('feed||grid'));
 
