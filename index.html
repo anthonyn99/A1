@@ -3178,6 +3178,17 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
 }
 .thrl-back:hover{border-color:#fff;}
 .thrl-back:focus-visible{outline:2px solid var(--rl-ac);outline-offset:2px;}
+/* Sound toggle. Same floating pill as .thrl-back / .thrl-ext, sized square
+   because it holds an icon rather than a word. */
+.thrl-mute{
+  display:flex;align-items:center;justify-content:center;
+  width:24px;height:24px;flex:0 0 auto;padding:0;
+  background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.22);
+  color:#fff;border-radius:999px;cursor:pointer;
+  backdrop-filter:blur(4px);
+}
+.thrl-mute:hover{border-color:#fff;}
+.thrl-mute:focus-visible{outline:2px solid var(--rl-ac);outline-offset:2px;}
 .thrl-ext{
   color:#fff !important;font-size:10.5px;text-decoration:none !important;
   white-space:nowrap;background:rgba(0,0,0,.55);border-radius:999px;
@@ -3557,6 +3568,15 @@ function Widget(props){
   var fc = useState(0), cur = fc[0], setCur = fc[1];
   var feedRef = useRef(null);
 
+  // Sound is OFF for the first frame and not by preference: every browser
+  // blocks autoplay with audio, so a <video muted> that starts on its own is
+  // the only way a reel plays without a tap. Unmuting is therefore a control,
+  // not a default — one tap arms it, and it then sticks for the rest of the
+  // session so it is not one tap PER reel. Deliberately not persisted to
+  // localStorage: a widget that opens making noise is the behaviour every
+  // autoplay policy exists to prevent.
+  var mu = useState(true), muted = mu[0], setMuted = mu[1];
+
   // Track which slide is centred, so the mount window follows the scroll.
   // IntersectionObserver rather than a scroll handler: it reports the slide
   // actually on screen without running on every frame.
@@ -3717,9 +3737,22 @@ function Widget(props){
               className:'thrl-slide'+(hasVideo?' thrl-slide-video':''),'data-i':i},
             !near ? null
             : hasVideo
-              ? h('video',{key:'v',src:r.videoUrl,autoPlay:true,muted:true,
+              ? h('video',{key:'v',src:r.videoUrl,autoPlay:true,muted:muted,
                   loop:true,playsInline:true,controls:false,
                   title:r.caption||('Reel '+r.shortcode),
+                  // React sets `muted` as a PROPERTY on first mount only — it
+                  // is not a reflected attribute, so a later prop change does
+                  // not reach the element and the video stays silent however
+                  // many times the button is pressed. The ref writes the
+                  // property directly on every render, which is what actually
+                  // turns the sound on. Do not "simplify" this away.
+                  ref:function(el){
+                    if(!el)return;
+                    el.muted=muted;
+                    // Unmuting mid-playback can trip the autoplay policy and
+                    // pause the element; nudge it back if that happens.
+                    if(!muted&&el.paused){var p=el.play();if(p&&p.catch)p.catch(function(){});}
+                  },
                   // A signed url occasionally 404s early (edge propagation,
                   // or it expired between harvest and now despite the stored
                   // timestamp saying otherwise) — degrade to the iframe for
@@ -3753,6 +3786,14 @@ function Widget(props){
         }))
     : null;
 
+  // Only a real <video> has audio this page can reach. The iframe embed is a
+  // cross-origin document, so its sound is Instagram's own player's business
+  // and no button here could touch it \u2014 showing a dead control on those
+  // slides would be worse than showing none.
+  var curReel = s.reels[cur] || {};
+  var curHasVideo = !!(curReel.videoUrl && curReel.videoUrlExpiresAt
+    && curReel.videoUrlExpiresAt > Date.now() && !videoErr[curReel.shortcode]);
+
   // Floating controls over the feed, rather than a bar above the video.
   var feedBar = s.playing
     ? h('div',{key:'fb',className:'thrl-feed-bar'},
@@ -3761,6 +3802,27 @@ function Widget(props){
           onClick:function(e){e.stopPropagation();S.playing='';emit();}},
           '\u2039 All'),
         h('span',{key:'sp',className:'thrl-spacer'}),
+        curHasVideo
+          ? h('button',{key:'m',type:'button',className:'thrl-mute',
+              'data-noglow':true,
+              'aria-label':muted?'Unmute':'Mute',
+              'aria-pressed':muted?'false':'true',
+              title:muted?'Sound off \u2014 tap for sound':'Sound on \u2014 tap to mute',
+              onClick:function(e){e.stopPropagation();setMuted(!muted);}},
+              muted
+                ? h('svg',{key:'i',width:13,height:13,viewBox:'0 0 24 24',fill:'none',
+                    stroke:'currentColor',strokeWidth:2,strokeLinecap:'round',
+                    strokeLinejoin:'round'},
+                    h('path',{key:'p',d:'M11 5 6 9H2v6h4l5 4V5z'}),
+                    h('line',{key:'a',x1:23,y1:9,x2:17,y2:15}),
+                    h('line',{key:'b',x1:17,y1:9,x2:23,y2:15}))
+                : h('svg',{key:'i',width:13,height:13,viewBox:'0 0 24 24',fill:'none',
+                    stroke:'currentColor',strokeWidth:2,strokeLinecap:'round',
+                    strokeLinejoin:'round'},
+                    h('path',{key:'p',d:'M11 5 6 9H2v6h4l5 4V5z'}),
+                    h('path',{key:'w',d:'M15.5 8.5a5 5 0 0 1 0 7'}),
+                    h('path',{key:'w2',d:'M19 5a9 9 0 0 1 0 14'})))
+          : null,
         h('a',{key:'x',className:'thrl-ext',
           href:(s.reels[cur]||{}).url||'https://www.instagram.com/',
           target:'_blank',rel:'noopener noreferrer',
