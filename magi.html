@@ -12479,6 +12479,41 @@ attachScrollbar($("sideNav"), 90);
 
   let startY = 0, pulling = false, dist = 0, busy = false;
 
+  /* A pull only starts on the page itself, never on something being used.
+   *
+   *  Dragging the corner handle of a prompt box DOWN on a phone is exactly a
+   *  pull-down gesture from the top of the page, and it reloaded MAGI
+   *  mid-resize. The same is true of anything else a finger drags: a unit chip
+   *  being reordered, text being selected, a slider, a box that scrolls on its
+   *  own. So a touch that lands on any of those is theirs, not the page's. */
+  const OWNED = [
+    "input", "textarea", "select", "button", "a[href]", "label",
+    "[contenteditable]", "[draggable='true']", "[role='slider']",
+    ".qbar-grip", ".sheet", ".sheet-box", "audio", "video", "canvas",
+  ].join(",");
+
+  const ownedBy = (target) => {
+    for (let n = target; n && n !== page; n = n.parentElement) {
+      if (!(n instanceof Element)) continue;
+      if (n.matches(OWNED)) return true;
+      const cs = getComputedStyle(n);
+      // Anything that has claimed touches for itself (drag handles, maps).
+      if (cs.touchAction === "none" || cs.touchAction === "pan-x") return true;
+      // An inner scroller that is not at its own top: the pull scrolls it.
+      if (/(auto|scroll)/.test(cs.overflowY) && n.scrollHeight > n.clientHeight + 1 && n.scrollTop > 0) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // A drag that some other control began -- by pointer capture, which is how
+  // the resize handle and the unit reorder work -- also cancels a pull that
+  // was already under way.
+  document.addEventListener("gotpointercapture", () => {
+    if (pulling) { pulling = false; reset(); }
+  }, true);
+
   const setPull = (d) => {
     dist = d;
     ind.style.transform = `translateY(${Math.min(d, MAX)}px)`;
@@ -12495,6 +12530,10 @@ attachScrollbar($("sideNav"), 90);
     // Only from the very top, and never mid-refresh or while a drawer is open.
     if (busy || page.scrollTop > 0 || e.touches.length !== 1) return;
     if ($("shell").classList.contains("nav-open")) return;
+    if (ownedBy(e.target)) return;
+    // Text is being selected: the drag extends the selection.
+    const sel = window.getSelection && window.getSelection();
+    if (sel && !sel.isCollapsed && String(sel).trim()) return;
     startY = e.touches[0].clientY;
     pulling = true;
   }, { passive: true });
@@ -12503,6 +12542,8 @@ attachScrollbar($("sideNav"), 90);
     if (!pulling) return;
     const d = e.touches[0].clientY - startY;
     if (d <= 0) { pulling = false; reset(); return; }
+    // The page scrolled after all (momentum, an inner scroller handing off).
+    if (page.scrollTop > 0) { pulling = false; reset(); return; }
     // Rubber-band: the pull gets heavier the further it goes, so overshooting
     // is hard and the threshold feels like a detent rather than a cliff.
     setPull(Math.pow(d, 0.85));
