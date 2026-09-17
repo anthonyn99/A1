@@ -3009,7 +3009,10 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
   /* Full-bleed inside the panel: the panel's own padding is cancelled so a
      slide is edge to edge, like a phone screen. */
   margin:-10px;
-  height:min(78vh,720px);
+  /* Kept in step with the panel cap the widget asks THSHEET for while
+     playing. A slide taller than the video it contains is just black bar,
+     because the frame letterboxes instead of cropping. */
+  height:min(70vh,500px);
   overflow-y:auto;overflow-x:hidden;
   scroll-snap-type:y mandatory;
   -webkit-overflow-scrolling:touch;
@@ -3022,7 +3025,7 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
 
 .thrl-slide{
   position:relative;
-  height:min(78vh,720px);
+  height:min(70vh,500px);        /* must match .thrl-feed's height exactly */
   scroll-snap-align:start;
   scroll-snap-stop:always;       /* one reel per flick, never two */
   overflow:hidden;               /* THE clip that removes the embed's chrome */
@@ -3064,27 +3067,33 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
    exactly the header height, matching the old top:-54px / oversized-frame
    trick but anchored to a correctly-computed width. */
 .thrl-slide{--thrl-crop-top:54px;--thrl-video-ratio:1.2025;}
+/* CONTAIN, NOT COVER — the picture-in-picture model.
+   Every previous version sized this frame so it was LARGER than the slide and
+   relied on overflow:hidden to trim the excess. That is `cover`, and cover's
+   whole job is to cut the edges off: captions burned into the video ran off
+   both sides, which is exactly what kept being reported as "still clipped".
+   The frame is now sized from the slide's WIDTH, so it can never be wider than
+   the slide, and its height simply follows the ratio. Whatever height is left
+   over stays black, top and bottom — letterboxing, like a PiP window. Nothing
+   is ever cut off; the video is just as large as it can be while whole. */
 .thrl-slide-frame{
-  position:absolute;top:0;left:50%;
-  height:100%;                              /* = H, the slide's own height */
-  aspect-ratio:1 / var(--thrl-video-ratio); /* width:height = 1:R -> width = H/R */
-  min-width:100%;
-  transform:translateX(-50%);
-  overflow:hidden;                          /* re-clip after the iframe overhangs */
+  position:absolute;left:0;
+  width:100%;                                /* never wider than the slide */
+  aspect-ratio:1 / var(--thrl-video-ratio);  /* height = W x R, from the width */
+  max-height:100%;                           /* ...but never taller than it */
+  top:50%;transform:translateY(-50%);        /* centred, black bars either side */
+  overflow:hidden;                           /* clips the embed's own chrome */
 }
 .thrl-slide iframe{
   position:absolute;
   top:calc(var(--thrl-crop-top) * -1);
   left:0;
-  width:100%;                    /* 100% of .thrl-slide-frame's WIDTH: H/R = W */
-  /* header + exactly one media box. The frame's HEIGHT is already H (set
-     directly by .thrl-slide-frame{height:100%} against the slide), and H
-     equals W x ratio by construction — so this "100%" (which resolves
-     against the frame's height, since this is a `height:` declaration) IS
-     the video's height already; it must not be multiplied by the ratio
-     again, or the iframe comes out taller than IG will actually render it,
-     leaving a visible gap where the video stops short of the slide's bottom
-     (or, worse, the reverse: too SHORT an iframe crops real video). */
+  width:100%;                    /* = the frame's width = the slide's width */
+  /* header + exactly one media box. 100% here resolves against the frame's
+     HEIGHT (this is a `height:` declaration), and the frame's height is
+     already the video's height, so the ratio must NOT be applied a second
+     time. Shifted up by the header so the video's top edge sits at the
+     frame's top; the footer falls past the frame's bottom and is clipped. */
   height:calc(var(--thrl-crop-top) + 100%);
   border:0;display:block;background:#000;
 }
@@ -3093,7 +3102,10 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
    matches how the embed itself scales a reel edge-to-edge. */
 .thrl-slide video{
   position:absolute;inset:0;width:100%;height:100%;
-  object-fit:cover;border:0;background:#000;
+  /* `contain`, for the same reason the iframe frame above letterboxes: cover
+     crops a portrait reel's left and right edges, taking burned-in caption
+     text with them. */
+  object-fit:contain;border:0;background:#000;
 }
 /* ── The footer mask ──────────────────────────────────────────────────────
    Three separate geometry attempts failed to crop IG's footer ("View more on
@@ -3106,20 +3118,23 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
    exact where a computed offset is a guess. It sits under the caption and above
    the video, and takes no pointer events so a tap still reaches the player. */
 /* Only slides using the IFRAME fallback need this — a real <video> has no
-   cross-origin footer to hide, and masking its bottom 210px would cover
-   actual video content for no reason. */
-.thrl-slide:not(.thrl-slide-video)::after{
+   cross-origin footer to hide, and masking the bottom of one would cover
+   actual video content for no reason.
+   ANCHORED TO THE FRAME, NOT THE SLIDE. While the frame filled the slide edge
+   to edge these were the same box, so `bottom:0` on the slide was the bottom
+   of the video. Now that the frame letterboxes (see .thrl-slide-frame above)
+   the slide's bottom is black bar, and a mask pinned there would sit BELOW the
+   video covering nothing.
+   PROPORTIONAL, NOT A PIXEL COUNT. The old value was 210px, measured against a
+   756px-tall iframe — about 28% of it. The frame is now sized to the panel and
+   is often only ~457px tall, where a literal 210px would black out nearly HALF
+   the picture. Expressed as a share of the frame it keeps the same coverage the
+   measurement intended at any size. The frame's own overflow:hidden already
+   clips the footer in the common case; this stays only as cover for reels whose
+   aspect puts the footer higher than --thrl-video-ratio predicts. */
+.thrl-slide:not(.thrl-slide-video) .thrl-slide-frame::after{
   content:'';position:absolute;left:0;right:0;bottom:0;
-  /* MEASURED 2026-09-16 against the ACTUAL widget iframe height (crop-top +
-     slide-height = 54 + 702 = 756px in the iframe's own coordinate space, not
-     an arbitrary test viewport): the footer sits 198px below that point.
-     Two earlier attempts (104px, then 140px) both measured at the WRONG
-     reference height and were both too short. Every reel sampled across the
-     collection (8 spread through 1239 saves) landed identically, so this is a
-     fixed embed layout constant — not per-reel variance — and 210px leaves a
-     small margin. If the crop constants above ever change, re-measure this
-     against the resulting iframe height, not against a guessed viewport. */
-  height:210px;
+  height:6%;
   background:#000;z-index:1;pointer-events:none;
 }
 /* Placeholder until a slide is near the viewport: mounting 1239 iframes at once
@@ -3175,7 +3190,12 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
    both, or there would be two nested scroll containers fighting each other. */
 .thrl-panel.thrl-panel-feed{padding:10px;overflow:hidden;}
 @media (max-width:640px){
-  .thrl-feed,.thrl-slide{height:calc(100dvh - env(safe-area-inset-top,0px) - 96px);}
+  /* Capped at the available screen height as before, but no longer forced to
+     it: the frame letterboxes rather than crops, so a slide taller than the
+     video only adds black bars. Whichever is smaller wins. */
+  .thrl-feed,.thrl-slide{
+    height:min(70vh,500px,calc(100dvh - env(safe-area-inset-top,0px) - 96px));
+  }
 }
 .thrl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:6px;}
 .thrl-cell{
@@ -3474,9 +3494,13 @@ function Widget(props){
   // so switching between grid and feed re-places the panel each time.
   useEffect(function(){
     if(!open||!window.THSHEET)return;
+    // The feed's cap is deliberately close to what one slide actually needs
+    // (width x --thrl-video-ratio, plus a little). The frame letterboxes
+    // rather than crops, so any cap TALLER than that buys nothing but black
+    // bars above and below the video.
     return s.playing
       ? window.THSHEET.bind(box.current,function(){return panelRef.current;},
-          {width:340,cap:680,align:'right'})
+          {width:400,cap:520,align:'right'})
       : window.THSHEET.bind(box.current,function(){return panelRef.current;},
           {width:420,cap:560,align:'right'});
   },[open,s.playing]);
