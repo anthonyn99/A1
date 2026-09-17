@@ -5759,11 +5759,17 @@ body { max-width: 2000px; margin-inline: auto; }
    and only then starts scrolling -- so growth is bounded and the Save button
    never gets pushed off the modal.
 
-   Height is measured in JS (window.ThAutoGrowTitle); everything here is the
-   scrollbar, which is deliberately invisible until it is wanted: it fades in
-   on hover, on focus, and while a finger or wheel is actually scrolling, then
-   fades back out. `line-height` is stated here rather than inline because the
-   JS reads the COMPUTED value to work out how tall one row is. */
+   Height, and the scrollbar's geometry, are computed in JS (see
+   window.ThAutoGrowTitle). `line-height` is stated here rather than inline
+   because that JS reads the COMPUTED value to work out how tall one row is.
+
+   The NATIVE scrollbar is switched off and replaced with the thumb below.
+   That is not decoration: current Edge/Chrome on Windows draw an overlay
+   scrollbar, which ignores ::-webkit-scrollbar styling altogether (measured,
+   not assumed) and paints its own stepper arrows inside the text box; and on
+   a phone the native bar is a hint you cannot grab at all. One drawn thumb
+   behaves identically everywhere and can be dragged with a finger. */
+.th-agt-wrap { position: relative; display: block; width: 100%; }
 .th-agt {
   resize: none;
   overflow-y: hidden;
@@ -5774,32 +5780,39 @@ body { max-width: 2000px; margin-inline: auto; }
   overflow-wrap: break-word;
   touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;                      /* Firefox */
-  scrollbar-color: transparent transparent;
-  transition: scrollbar-color .25s ease;
+  scrollbar-width: none;              /* Firefox + Chrome 121+ */
+  -ms-overflow-style: none;
 }
-.th-agt.is-scrollable:hover,
-.th-agt.is-scrollable:focus,
-.th-agt.is-scrollable.th-agt-active { scrollbar-color: rgba(150,162,180,.55) transparent; }
+.th-agt::-webkit-scrollbar { width: 0; height: 0; display: none; }
 
-/* WebKit/Blink. The thumb is drawn inside a transparent border so it reads as
-   a slim pill with breathing room, while the HIT AREA stays the full 12px --
-   wide enough to grab with a fingertip, not just a mouse. */
-.th-agt::-webkit-scrollbar { width: 12px; }
-.th-agt::-webkit-scrollbar-track { background: transparent; }
-.th-agt::-webkit-scrollbar-thumb {
-  background-color: transparent;
-  border-radius: 999px;
-  border: 4px solid transparent;
-  background-clip: padding-box;
-  transition: background-color .25s ease;
-  min-height: 28px;
+/* The thumb. The visible pill is 6px, but it is centred inside a wider
+   transparent strip so the HIT AREA is a fingertip, not a hairline -- wider
+   still on a touch screen, where there is no cursor to aim with. */
+.th-agt-bar {
+  position: absolute;
+  width: 16px;
+  display: flex;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  touch-action: none;
+  transition: opacity .22s ease;
+  z-index: 1;
 }
-.th-agt:hover::-webkit-scrollbar-thumb,
-.th-agt:focus::-webkit-scrollbar-thumb,
-.th-agt.th-agt-active::-webkit-scrollbar-thumb { background-color: rgba(150,162,180,.5); }
-.th-agt::-webkit-scrollbar-thumb:hover  { background-color: rgba(185,196,212,.72); }
-.th-agt::-webkit-scrollbar-thumb:active { background-color: rgba(210,220,235,.9); }
+.th-agt-bar.on { opacity: 1; pointer-events: auto; }
+.th-agt-thumb {
+  width: 6px;
+  height: 100%;
+  border-radius: 999px;
+  background: rgba(150,162,180,.55);
+  transition: background-color .15s ease, width .12s ease;
+}
+.th-agt-bar:hover .th-agt-thumb { background: rgba(192,202,216,.8); width: 8px; }
+.th-agt-bar.drag .th-agt-thumb { background: rgba(214,223,236,.92); width: 8px; }
+@media (pointer: coarse) {
+  .th-agt-bar { width: 24px; }
+  .th-agt-thumb { width: 7px; }
+}
 
 /* Phones: 16px is the threshold below which iOS Safari zooms the page on
    focus, which on this modal leaves you typing into a field you can no longer
@@ -5813,7 +5826,7 @@ body { max-width: 2000px; margin-inline: auto; }
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .th-agt, .th-agt::-webkit-scrollbar-thumb { transition: none; }
+  .th-agt-bar, .th-agt-thumb { transition: none; }
 }
 </style>
 <script id="th-autogrow-title-js">
@@ -5826,41 +5839,86 @@ body { max-width: 2000px; margin-inline: auto; }
    inserting a newline, and pasted line breaks collapse to spaces, so a title
    is still exactly one line of text no matter how many lines it is DRAWN on.
    Props mirror the <input> it replaced -- style/value/onChange/placeholder/
-   autoFocus/readOnly -- plus `onSubmit` (Enter) and `maxRows`.             */
+   autoFocus/readOnly -- plus `onSubmit` (Enter) and `maxRows`.
+
+   The scrollbar is drawn here too (the stylesheet above says why): it exists
+   only once the text actually overflows, fades in on hover, on focus and
+   while scrolling, fades out ~900ms after the scrolling stops, and can be
+   dragged with a pointer or a finger.                                      */
 (function(){
   var React = window.React;
   if(!React) return;
   var useRef = React.useRef, useEffect = React.useEffect,
       useCallback = React.useCallback,
       useLayoutEffect = React.useLayoutEffect || React.useEffect;
+  var INSET = 4;          // gap between the thumb and the top/bottom edge
+  var MIN_THUMB = 26;     // never let the pill shrink to an invisible dot
 
   function ThAutoGrowTitle(props){
-    var ref = useRef(null), fade = useRef(0);
+    var ref = useRef(null), barRef = useRef(null), fade = useRef(0),
+        hot = useRef({hover:false, focus:false, drag:false, pad:null});
+
+    // Where the thumb sits and how tall it is. Runs after every height change
+    // and on every scroll; it also decides whether there is a thumb at all,
+    // since a field that fits its text has nothing to scroll.
+    var place = useCallback(function(){
+      var el = ref.current, bar = barRef.current;
+      if(!el || !bar) return;
+      var view = el.clientHeight, full = el.scrollHeight;
+      // Nothing to scroll: hide the thumb AND drop `on`, or a thumb pinned
+      // visible by focus would hang over a box that has since shrunk.
+      if(full <= view + 1){ bar.classList.remove("on"); bar.style.display = "none"; return; }
+      var cs = getComputedStyle(el);
+      var bt = parseFloat(cs.borderTopWidth) || 0;
+      var br = parseFloat(cs.borderRightWidth) || 0;
+      var track = view - INSET * 2;
+      var h = Math.max(MIN_THUMB, Math.round(track * view / full));
+      var max = full - view;
+      var top = bt + INSET + (max > 0 ? (el.scrollTop / max) * (track - h) : 0);
+      bar.style.display = "flex";
+      bar.style.top = Math.round(top) + "px";
+      bar.style.height = h + "px";
+      bar.style.right = (br + 2) + "px";
+    }, []);
 
     // Measure, then clamp. Height goes to `auto` first so scrollHeight reports
     // what the text WANTS rather than what we last gave it -- otherwise the
-    // box can only ever grow, never shrink back when text is deleted.
+    // box could only ever grow, never shrink back when text is deleted.
     var fit = useCallback(function(){
       var el = ref.current; if(!el) return;
       var cs = getComputedStyle(el);
       var line = parseFloat(cs.lineHeight);
       if(!line || isNaN(line)) line = Math.round((parseFloat(cs.fontSize)||13) * 1.45);
-      var chrome = (parseFloat(cs.paddingTop)||0) + (parseFloat(cs.paddingBottom)||0)
-                 + (parseFloat(cs.borderTopWidth)||0) + (parseFloat(cs.borderBottomWidth)||0);
+      var pad = (parseFloat(cs.paddingTop)||0) + (parseFloat(cs.paddingBottom)||0);
+      var bord = (parseFloat(cs.borderTopWidth)||0) + (parseFloat(cs.borderBottomWidth)||0);
+      // These fields are border-box, and scrollHeight counts padding but NOT
+      // border -- so a height of exactly scrollHeight leaves the text two
+      // pixels short of its own box and every field claims to overflow. Which
+      // way the conversion goes depends on box-sizing, so ask rather than
+      // assume.
+      var edge = cs.boxSizing === "border-box" ? bord : -pad;
       // Fewer rows on a phone: the modal is already near full height there, so
       // an eight-line title box would push Save under the fold.
       var rows = props.maxRows || (window.innerWidth <= 640 ? 4 : 5);
-      var max = Math.ceil(line * rows + chrome);
+      var max = Math.ceil(line * rows) + (cs.boxSizing === "border-box" ? pad + bord : 0);
+      if(hot.current.pad == null) hot.current.pad = parseFloat(cs.paddingRight) || 0;
       el.style.height = "auto";
-      var full = el.scrollHeight;
+      var full = el.scrollHeight + edge;
       el.style.height = Math.min(full, max) + "px";
       var scrollable = full > max + 1;
       el.style.overflowY = scrollable ? "auto" : "hidden";
+      // Keep the last word clear of the thumb, but only when there IS one.
+      el.style.paddingRight = (hot.current.pad + (scrollable ? 10 : 0)) + "px";
       el.classList.toggle("is-scrollable", scrollable);
-    }, [props.maxRows]);
+      place();
+      // Typing is the moment you find out the box has stopped growing, so the
+      // thumb shows itself then too -- and settle() decides whether it stays
+      // (you are still in the field) or fades.
+      if(scrollable){ show(); settle(); }
+    }, [props.maxRows, place]);
 
-    // Layout effect, not effect: resize before paint so the box never shows up
-    // one line tall for a frame and then jumps.
+    // Layout effect, not effect: resize before paint, so the box never shows
+    // up one line tall for a frame and then jumps.
     useLayoutEffect(function(){ fit(); }, [props.value, fit]);
 
     useEffect(function(){
@@ -5881,47 +5939,98 @@ body { max-width: 2000px; margin-inline: auto; }
       try { var n = (props.value||"").length; el.setSelectionRange(n, n); } catch(e){}
     }, []);
 
-    var flash = function(){
-      var el = ref.current; if(!el) return;
-      el.classList.add("th-agt-active");
+    var show = function(){
+      var bar = barRef.current, el = ref.current;
+      if(!bar || !el) return;
+      if(el.classList.contains("is-scrollable")) bar.classList.add("on");
+      if(fade.current) clearTimeout(fade.current);
+    };
+    // Hover, focus and an in-progress drag each PIN the thumb visible; the
+    // timer only applies to the transient reasons for showing it.
+    var settle = function(){
+      var h = hot.current;
+      if(h.hover || h.focus || h.drag) return;
       if(fade.current) clearTimeout(fade.current);
       fade.current = setTimeout(function(){
-        if(ref.current) ref.current.classList.remove("th-agt-active");
+        if(barRef.current) barRef.current.classList.remove("on");
       }, 900);
     };
 
-    return React.createElement("textarea", {
-      ref: ref,
-      rows: 1,
-      className: "th-agt" + (props.className ? " " + props.className : ""),
-      style: props.style,
-      value: props.value,
-      placeholder: props.placeholder,
-      readOnly: props.readOnly,
-      maxLength: props.maxLength,
-      title: props.title,
-      spellCheck: props.spellCheck,
-      "aria-label": props["aria-label"] || "Title",
-      onScroll: flash,
-      onChange: function(e){
-        var v = e.target.value;
-        // A title is one line of text. Anything pasted in with line breaks
-        // becomes spaces rather than smuggling newlines into stored data.
-        if(v.indexOf("\n") >= 0 || v.indexOf("\r") >= 0){
-          v = v.replace(/[\r\n]+/g, " ");
-          e.target.value = v;
+    var onDown = function(e){
+      var el = ref.current, bar = barRef.current;
+      if(!el || !bar) return;
+      e.preventDefault();
+      var startY = e.clientY, startTop = el.scrollTop;
+      var view = el.clientHeight, full = el.scrollHeight;
+      var track = view - INSET * 2;
+      var h = Math.max(MIN_THUMB, Math.round(track * view / full));
+      var range = track - h;                 // pixels of thumb travel
+      var max = full - view;                 // pixels of content travel
+      hot.current.drag = true;
+      bar.classList.add("drag"); show();
+      try { bar.setPointerCapture(e.pointerId); } catch(err){}
+      var move = function(ev){
+        var dy = ev.clientY - startY;
+        el.scrollTop = range > 0 ? startTop + dy * (max / range) : startTop;
+        place();
+      };
+      var up = function(){
+        hot.current.drag = false;
+        bar.classList.remove("drag");
+        bar.removeEventListener("pointermove", move);
+        bar.removeEventListener("pointerup", up);
+        bar.removeEventListener("pointercancel", up);
+        settle();
+      };
+      bar.addEventListener("pointermove", move);
+      bar.addEventListener("pointerup", up);
+      bar.addEventListener("pointercancel", up);
+    };
+
+    return React.createElement("div", {
+      className: "th-agt-wrap",
+      onMouseEnter: function(){ hot.current.hover = true; show(); },
+      onMouseLeave: function(){ hot.current.hover = false; settle(); }
+    },
+      React.createElement("textarea", {
+        ref: ref,
+        rows: 1,
+        className: "th-agt" + (props.className ? " " + props.className : ""),
+        style: props.style,
+        value: props.value,
+        placeholder: props.placeholder,
+        readOnly: props.readOnly,
+        maxLength: props.maxLength,
+        title: props.title,
+        spellCheck: props.spellCheck,
+        "aria-label": props["aria-label"] || "Title",
+        onScroll: function(){ place(); show(); settle(); },
+        onFocus: function(){ hot.current.focus = true; show(); },
+        onBlur: function(){ hot.current.focus = false; settle(); },
+        onChange: function(e){
+          var v = e.target.value;
+          // A title is one line of text. Anything pasted in with line breaks
+          // becomes spaces rather than smuggling newlines into stored data.
+          if(v.indexOf("\n") >= 0 || v.indexOf("\r") >= 0){
+            v = v.replace(/[\r\n]+/g, " ");
+            e.target.value = v;
+          }
+          if(props.onChange) props.onChange({ target: { value: v } });
+        },
+        onKeyDown: function(e){
+          if(e.key === "Enter" && !e.shiftKey){
+            e.preventDefault();               // never a newline, even with no handler
+            if(props.onSubmit) props.onSubmit(e);
+            return;
+          }
+          if(props.onKeyDown) props.onKeyDown(e);
         }
-        if(props.onChange) props.onChange({ target: { value: v } });
-      },
-      onKeyDown: function(e){
-        if(e.key === "Enter" && !e.shiftKey){
-          e.preventDefault();                 // never a newline, even with no handler
-          if(props.onSubmit) props.onSubmit(e);
-          return;
-        }
-        if(props.onKeyDown) props.onKeyDown(e);
-      }
-    });
+      }),
+      React.createElement("div", {
+        ref: barRef, className: "th-agt-bar", style: {display:"none"},
+        "aria-hidden": "true", onPointerDown: onDown
+      }, React.createElement("div", {className: "th-agt-thumb"}))
+    );
   }
 
   window.ThAutoGrowTitle = ThAutoGrowTitle;
