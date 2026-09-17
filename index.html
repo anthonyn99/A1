@@ -3030,31 +3030,55 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
 }
 /* The crop. MEASURED against the live embed at 300/340/400px (2026-09-16):
      header  = 54px ALWAYS, independent of width
-     video   = width x 1.2
+     video   = width x 1.2025
      footer  = whatever is left over
    So the iframe is sized to exactly header+video and shifted up by the header:
    the footer is then below the iframe's own height and never renders at all,
-   and the video fills the slide. Width-relative, because a fixed footer offset
-   was wrong at every width but the one it was guessed at. These two numbers are
-   the only thing an IG redesign moves. */
+   and the video fills the slide. These two numbers are the only thing an IG
+   redesign moves.
+
+   WIDTH MUST COME FROM THE SLIDE'S HEIGHT, NOT ITS WIDTH. IG's relationship,
+   given an iframe of width W, is: it renders header(54) + video(W x 1.2025)
+   tall — controlled by W alone. To fill a slide of height H with video, solve
+   for W: W x 1.2025 = H, i.e. W = H / 1.2025. The previous version instead
+   derived W from `100%` inside a `width:` declaration, which ALWAYS resolves
+   against the containing block's WIDTH, never its height — so it was really
+   computing W from the slide's width, not H. That only looked right by
+   coincidence when the panel was squarish (~420x560, width and height close
+   enough that the wrong basis barely showed). Once the panel became a true
+   phone shape (~340x680, see the THSHEET.bind feed-mode box below), width and
+   height diverged sharply, the iframe came out far too narrow for how tall
+   the slide had become, and the video rendered narrower than the frame with
+   both edges clipped.
+   Fix: a CSS custom property does not remember "I was assigned inside a
+   height declaration" — var() substitution is a raw token swap, so a percent
+   stashed from `height:100%` still resolves against WIDTH the moment it lands
+   inside a `width:` calc(). The one construct that actually converts a
+   resolved HEIGHT into a WIDTH is `aspect-ratio`, applied to a box whose own
+   height is set in percent (which resolves correctly, since it's still a
+   `height:` declaration on that box) — the browser computes that height first
+   in pixels, then derives width from the ratio, not from any container width.
+   So the video-sized region (excluding the header) gets its own wrapper,
+   sized to exactly the slide's height via `height:100%` + `aspect-ratio`; the
+   iframe itself is then absolutely positioned to overhang that wrapper by
+   exactly the header height, matching the old top:-54px / oversized-frame
+   trick but anchored to a correctly-computed width. */
 .thrl-slide{--thrl-crop-top:54px;--thrl-video-ratio:1.2025;}
+.thrl-slide-frame{
+  position:absolute;top:0;left:50%;
+  height:100%;                              /* = H, the slide's own height */
+  aspect-ratio:1 / var(--thrl-video-ratio); /* width:height = 1:R -> width = H/R */
+  min-width:100%;
+  transform:translateX(-50%);
+  overflow:hidden;                          /* re-clip after the iframe overhangs */
+}
 .thrl-slide iframe{
   position:absolute;
   top:calc(var(--thrl-crop-top) * -1);
-  left:50%;
-  /* MEASURED at 400px on three different reels: the media box is ALWAYS
-     54px..(54 + width x 1.2025) and the footer begins at exactly its bottom
-     edge (gap = 0). So the frame is made wide enough that its own media box is
-     at least as tall as the slide, and exactly that tall — no more.
-     Overshooting is what kept the footer visible: a taller frame pushes the
-     video's bottom (and therefore the footer) DOWN into the slide. */
-  width:calc((100% + var(--thrl-crop-top)) / var(--thrl-video-ratio));
-  min-width:100%;
-  transform:translateX(-50%);
-  /* header + exactly one media box, computed from the frame's OWN width. */
-  height:calc(var(--thrl-crop-top) +
-              ((100% + var(--thrl-crop-top)) / var(--thrl-video-ratio))
-              * var(--thrl-video-ratio));
+  left:0;
+  width:100%;                    /* 100% of .thrl-slide-frame, i.e. H/R = W */
+  /* header + exactly one media box, both driven by the frame's own width. */
+  height:calc(var(--thrl-crop-top) + (100% * var(--thrl-video-ratio)));
   border:0;display:block;background:#000;
 }
 /* A real <video> tag needs none of the iframe's crop hack — there is no
@@ -3673,11 +3697,12 @@ function Widget(props){
                     var n={};n[r.shortcode]=true;
                     setVideoErr(Object.assign({},videoErr,n));
                   }})
-              : h('iframe',{key:'f',
-                  src:'https://www.instagram.com/reel/'+r.shortcode+'/embed/',
-                  scrolling:'no',frameBorder:'0',loading:'lazy',
-                  allow:'autoplay; encrypted-media; picture-in-picture; fullscreen',
-                  title:r.caption||('Reel '+r.shortcode)}),
+              : h('div',{key:'f',className:'thrl-slide-frame'},
+                  h('iframe',{
+                    src:'https://www.instagram.com/reel/'+r.shortcode+'/embed/',
+                    scrolling:'no',frameBorder:'0',loading:'lazy',
+                    allow:'autoplay; encrypted-media; picture-in-picture; fullscreen',
+                    title:r.caption||('Reel '+r.shortcode)})),
             // Not mounted yet: show the cached thumbnail so scrolling ahead
             // looks like content rather than black gaps.
             !near
