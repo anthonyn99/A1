@@ -7920,7 +7920,8 @@ function OI_pretty(iso){
 // It shares the panel with the hand-written goals, which are single 13px rows,
 // so the coupon stays quiet: neutral greys off the theme (no accent tint), the
 // code folded onto the meta line instead of owning a row of its own, and the
-// weekly cards' smaller button scale. Three rows, not four.
+// weekly cards' smaller button scale, with the buttons tucked under the
+// discount. Two rows, not four.
 function OI_couponRow(c,T,edit){
   const col=OI_COLOR.coupon;
   const btn=(label,fn,primary)=>React.createElement("button",{type:"button",onClick:fn,style:{
@@ -7928,19 +7929,21 @@ function OI_couponRow(c,T,edit){
     border:"1px solid "+(primary?T.BDL:T.BD),borderRadius:4,
     fontSize:9.5,fontWeight:700,letterSpacing:0.4,padding:"3px 7px",cursor:"pointer",
     fontFamily:"'Inter',system-ui,-apple-system,sans-serif",whiteSpace:"nowrap"}},label);
+  // Two rows, not three: the buttons sit in a right-hand column UNDER the
+  // discount, beside the meta line, instead of owning a row of their own.
   return React.createElement("div",{key:c.id,style:{
       border:"1px solid "+T.BD,borderLeft:"3px solid "+col,borderRadius:5,
       background:OI_CARD_BG,padding:"6px 9px",marginBottom:5,display:"flex",alignItems:"flex-start",gap:6}},
     React.createElement("div",{style:{flex:1,minWidth:0}},
-      React.createElement("div",{style:{display:"flex",alignItems:"baseline",gap:6,marginBottom:2}},
-        React.createElement("span",{style:{fontSize:11.5,fontWeight:700,color:T.TX,letterSpacing:0.2,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},c.merchant||"Offer"),
-        c.discount&&React.createElement("span",{style:{marginLeft:"auto",fontSize:11.5,fontWeight:800,color:T.TXD,whiteSpace:"nowrap"}},c.discount)),
-      React.createElement("div",{style:{fontSize:9.5,color:T.TXM,marginBottom:6,lineHeight:1.45,wordBreak:"break-word"}},
+      React.createElement("div",{style:{fontSize:11.5,fontWeight:700,color:T.TX,letterSpacing:0.2,marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},c.merchant||"Offer"),
+      React.createElement("div",{style:{fontSize:9.5,color:T.TXM,lineHeight:1.45,wordBreak:"break-word"}},
         c.code&&React.createElement("span",{style:{fontFamily:"ui-monospace,SFMono-Regular,Menlo,monospace",fontSize:10.5,fontWeight:700,color:T.TXD,letterSpacing:0.8}},c.code),
         c.code&&" · ",
         c.expires?("Expires "+OI_pretty(c.expires)):"No expiry listed",
-        c.restrictions?(" · "+c.restrictions):""),
-      React.createElement("div",{style:{display:"flex",gap:5,flexWrap:"wrap"}},
+        c.restrictions?(" · "+c.restrictions):"")),
+    React.createElement("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:3,flexShrink:0,maxWidth:"60%"}},
+      c.discount&&React.createElement("span",{style:{fontSize:11.5,fontWeight:800,color:T.TXD,whiteSpace:"nowrap"}},c.discount),
+      React.createElement("div",{style:{display:"flex",gap:5,flexWrap:"wrap",justifyContent:"flex-end"}},
         c.code&&btn("Copy Code",e=>OI_copy(e,c.code),true),
         c.storeUrl&&btn("Open Store",()=>{try{window.open(c.storeUrl,"_blank","noopener");}catch(e){}}),
         btn("View Email",()=>OI_openEmail(c)))),
@@ -7971,17 +7974,21 @@ function OI_weekCard(c,T,dayTX,edit){
   // A parcel with no second line is only a label, a reference and its buttons —
   // tighten it further so a day with three deliveries still fits its cell.
   const tight=isPkg&&!line2;
+  const amt=c.amount&&!isPkg?c.amount:"";
+  // Two rows, not three: the text stacks on the left, and the amount with the
+  // buttons UNDER it stacks on the right, so the buttons share a row with the
+  // title instead of adding one of their own.
   return React.createElement("div",{key:c.id,style:{
       border:"1px solid "+col+"33",borderLeft:"2px solid "+col,borderRadius:5,
       background:OI_CARD_BG,padding:tight?"4px 7px":"5px 8px",marginBottom:4,opacity:c.delivered?0.62:1,
       display:"flex",alignItems:"flex-start",gap:4}},
     React.createElement("div",{style:{flex:1,minWidth:0}},
-      React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4,marginBottom:tight?1:2}},
-        React.createElement("span",{style:{fontSize:9,fontWeight:800,letterSpacing:0.9,textTransform:"uppercase",color:col,lineHeight:1.1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},head),
-        c.amount&&!isPkg&&React.createElement("span",{style:{marginLeft:"auto",fontSize:11,fontWeight:800,color:col,whiteSpace:"nowrap"}},c.amount)),
+      React.createElement("div",{style:{fontSize:9,fontWeight:800,letterSpacing:0.9,textTransform:"uppercase",color:col,lineHeight:amt?"15px":1.1,marginBottom:tight?2:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},head),
       line2&&React.createElement("div",{style:{fontSize:12,fontWeight:700,color:dayTX,lineHeight:1.25,wordBreak:"break-word"}},line2),
-      detail&&React.createElement("div",{style:{fontSize:9.5,color:T.TXM,marginTop:1,lineHeight:1.3,fontFamily:isPkg?"ui-monospace,SFMono-Regular,Menlo,monospace":"inherit",wordBreak:"break-all"}},detail),
-      React.createElement("div",{style:{display:"flex",gap:4,flexWrap:"wrap",marginTop:tight?4:5}},
+      detail&&React.createElement("div",{style:{fontSize:9.5,color:T.TXM,marginTop:1,lineHeight:1.3,fontFamily:isPkg?"ui-monospace,SFMono-Regular,Menlo,monospace":"inherit",wordBreak:"break-all"}},detail)),
+    React.createElement("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:3,flexShrink:0,maxWidth:"55%"}},
+      amt&&React.createElement("span",{style:{fontSize:11,fontWeight:800,color:col,lineHeight:"15px",whiteSpace:"nowrap"}},amt),
+      React.createElement("div",{style:{display:"flex",gap:3,flexWrap:"wrap",justifyContent:"flex-end"}},
         isPkg&&c.trackUrl&&btn("Track",()=>{try{window.open(c.trackUrl,"_blank","noopener");}catch(e){}}),
         isPkg&&c.tracking&&btn("Copy #",e=>OI_copy(e,c.tracking)),
         btn("Email",()=>OI_openEmail(c)))),
