@@ -195,3 +195,13 @@ def test_studio_follows_the_verdict_it_builds_from():
     assert 'S.gridOwner === "council"' in tail, (
         "Studio offers cards built from a verdict that is no longer on screen"
     )
+
+
+def test_dragging_a_control_down_does_not_pull_to_refresh():
+    """Mobile: dragging a prompt box's corner handle down reloaded MAGI."""
+    ptr = PAGE[PAGE.index("/* ══ PULL TO REFRESH"):]
+    assert "if (ownedBy(e.target)) return;" in ptr
+    owned = ptr[ptr.index("const OWNED = ["):ptr.index("].join")]
+    for sel in (".qbar-grip", "textarea", "button", "[contenteditable]"):
+        assert sel in owned, f"a pull can start on {sel} again"
+    assert "gotpointercapture" in ptr, "a drag begun elsewhere no longer cancels a pull"
