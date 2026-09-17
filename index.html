@@ -3720,6 +3720,16 @@ function Widget(props){
         s.reels.map(function(r,i){
           var near = Math.abs(i - cur) <= MOUNT_RADIUS;
           var u = thumbUrl(r);
+          // An IFRAME's audio cannot be reached from here — it is a
+          // cross-origin document, so there is no pause() to call on it and
+          // unmounting is the only way to silence one. A neighbouring embed
+          // that the reader had started would otherwise keep playing
+          // underneath the reel actually on screen. So the iframe fallback
+          // mounts for the CENTRED slide only; the <video> path keeps the
+          // wider window, because those can simply be paused (see the ref
+          // below). Costs one embed load when scrolling onto an iframe reel,
+          // which is the cheaper half of the trade.
+          var isCur = (i === cur);
           // A reel with a fresh, unexpired videoUrl gets a REAL <video> tag:
           // genuine autoplay and loop, no tap, exactly what the iframe embed
           // can never do (verified: Instagram's own click handler requires a
@@ -3737,21 +3747,41 @@ function Widget(props){
               className:'thrl-slide'+(hasVideo?' thrl-slide-video':''),'data-i':i},
             !near ? null
             : hasVideo
-              ? h('video',{key:'v',src:r.videoUrl,autoPlay:true,muted:muted,
-                  loop:true,playsInline:true,controls:false,
+              // NO autoPlay ATTRIBUTE. It races the ref below: a newly
+              // mounted neighbour starts playing the moment the element
+              // exists, and the pause only lands afterwards — leaving it
+              // running (muted, so inaudible, but still looping and still
+              // fetching). Playback is driven ENTIRELY from the ref, which
+              // knows which slide is centred.
+              ? h('video',{key:'v',src:r.videoUrl,muted:true,
+                  loop:true,playsInline:true,controls:false,preload:'auto',
                   title:r.caption||('Reel '+r.shortcode),
-                  // React sets `muted` as a PROPERTY on first mount only — it
-                  // is not a reflected attribute, so a later prop change does
-                  // not reach the element and the video stays silent however
-                  // many times the button is pressed. The ref writes the
-                  // property directly on every render, which is what actually
-                  // turns the sound on. Do not "simplify" this away.
+                  // THE MOUNT WINDOW HOLDS THREE VIDEOS, ONLY ONE IS THE REEL
+                  // BEING WATCHED. MOUNT_RADIUS keeps the slide above and the
+                  // slide below alive so scrolling is instant, but they are
+                  // loopable players like this one — so without the check
+                  // below they all play at once, forever, and scrolling away
+                  // from a reel left its audio running underneath the next.
+                  // Only the centred slide plays and carries the sound; its
+                  // neighbours are muted AND paused (muting alone would leave
+                  // them silently burning through their loop, and unmuting
+                  // later would jump in mid-reel).
+                  //
+                  // `muted` is also a PROPERTY, not a reflected attribute, so
+                  // React applies it on mount only and a later prop change
+                  // never reaches the element. Both facts are why this is done
+                  // imperatively in a ref rather than through props. The prop
+                  // above stays hardcoded true so the first frame can never
+                  // autoplay with sound. Do not "simplify" this away.
                   ref:function(el){
                     if(!el)return;
-                    el.muted=muted;
-                    // Unmuting mid-playback can trip the autoplay policy and
-                    // pause the element; nudge it back if that happens.
-                    if(!muted&&el.paused){var p=el.play();if(p&&p.catch)p.catch(function(){});}
+                    el.muted=muted||!isCur;
+                    if(isCur){
+                      if(el.paused){var p=el.play();if(p&&p.catch)p.catch(function(){});}
+                    }else if(!el.paused){
+                      el.pause();
+                      el.currentTime=0;   // next visit starts at the beginning
+                    }
                   },
                   // A signed url occasionally 404s early (edge propagation,
                   // or it expired between harvest and now despite the stored
@@ -3761,15 +3791,21 @@ function Widget(props){
                     var n={};n[r.shortcode]=true;
                     setVideoErr(Object.assign({},videoErr,n));
                   }})
-              : h('div',{key:'f',className:'thrl-slide-frame'},
-                  h('iframe',{
-                    src:'https://www.instagram.com/reel/'+r.shortcode+'/embed/',
-                    scrolling:'no',frameBorder:'0',loading:'lazy',
-                    allow:'autoplay; encrypted-media; picture-in-picture; fullscreen',
-                    title:r.caption||('Reel '+r.shortcode)})),
-            // Not mounted yet: show the cached thumbnail so scrolling ahead
-            // looks like content rather than black gaps.
-            !near
+              : isCur
+                ? h('div',{key:'f',className:'thrl-slide-frame'},
+                    h('iframe',{
+                      src:'https://www.instagram.com/reel/'+r.shortcode+'/embed/',
+                      scrolling:'no',frameBorder:'0',loading:'lazy',
+                      allow:'autoplay; encrypted-media; picture-in-picture; fullscreen',
+                      title:r.caption||('Reel '+r.shortcode)}))
+                : null,
+            // Nothing playable mounted here: show the cached thumbnail so
+            // scrolling ahead looks like content rather than black gaps. That
+            // covers slides outside the mount window AND in-window iframe
+            // reels that are not the centred one, since those deliberately do
+            // not mount an embed (see isCur above) and would otherwise be a
+            // black rectangle with a caption floating on it.
+            (!near || (!hasVideo && !isCur))
               ? h('div',{key:'i',className:'thrl-slide-idle'},
                   (u&&!imgErr[r.shortcode])
                     ? h('img',{key:'t',src:u,alt:'',loading:'lazy',decoding:'async',
