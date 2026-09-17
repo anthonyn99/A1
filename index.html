@@ -16097,6 +16097,14 @@ function App(){
   const RULES_CLOUD_WAIT=8000;
   const maybeShowDaily=useCallback(()=>{
     if(rulesShownRef.current)return;
+    // Never fires on a device that hasn't been explicitly marked as Veda's own
+    // (Settings → "This is my device"). Without this, anyone who opens Veda's
+    // profile view on THEIR device — e.g. Tony peeking at it — looks identical
+    // to Veda's own device to every check below, and can both trigger the gate
+    // for themselves and claim the shared lastShown flag, silently skipping it
+    // on Veda's real devices later that day. This flag is plain localStorage,
+    // never part of SK/buildVdPayload, so it can't be set remotely or leak.
+    if(localStorage.getItem("td6_vedaOwnDevice")!=="1")return;
     // Veda's App stays MOUNTED while Tony's profile is on screen (#veda-root is
     // just display:none). Without this check the gate would fire behind Tony's
     // TaskHub, burning the once-a-session latch on a modal nobody could see —
@@ -46652,6 +46660,35 @@ function renderMainDeviceRow(container,profile){
   row.appendChild(lab); row.appendChild(wrap);
   container.appendChild(row);
   if(window._updateMainDashBtn) window._updateMainDashBtn();
+
+  // Veda-only: marks this device as one of Veda's own, so the daily rules gate
+  // (maybeShowDaily) will run here. Deliberately a manual tap, never an
+  // auto-claim like td6_mainDash above — auto-claiming this one is exactly
+  // what let Tony's device trigger Veda's gate by opening her profile view.
+  // Plain localStorage, outside SK/buildVdPayload, so it never syncs and can
+  // never be set from another device.
+  if(!isTony){
+    var ownRow=document.createElement('div'); ownRow.className='thset-row';
+    var ownLab=document.createElement('div'); ownLab.className='thset-label'; ownLab.textContent='Rules gate device';
+    var ownBtn=document.createElement('button');
+    ownBtn.type='button'; ownBtn.id='vd-owndevice-btn';
+    ownBtn.style.cssText='border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.5px;padding:5px 11px;height:auto;box-sizing:border-box;cursor:pointer;font-family:inherit;white-space:nowrap;transition:all .15s;border:1px solid #2a2a34;';
+    var paintOwnBtn=function(){
+      var mine=localStorage.getItem('td6_vedaOwnDevice')==='1';
+      ownBtn.textContent=mine?'This is my device':'Mark as my device';
+      ownBtn.style.background=mine?accent:'transparent';
+      ownBtn.style.color=mine?'#fff':accent;
+      ownBtn.style.borderColor=mine?accent:'#2a2a34';
+    };
+    ownBtn.addEventListener('click',function(){
+      var mine=localStorage.getItem('td6_vedaOwnDevice')==='1';
+      localStorage.setItem('td6_vedaOwnDevice',mine?'0':'1');
+      paintOwnBtn();
+    });
+    paintOwnBtn();
+    ownRow.appendChild(ownLab); ownRow.appendChild(ownBtn);
+    container.appendChild(ownRow);
+  }
 }
 
 function renderLockList(container,profile){
