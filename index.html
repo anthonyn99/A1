@@ -3432,12 +3432,23 @@ function Widget(props){
     return function(){clearTimeout(t);};
   },[s.playing]);
 
-  // Measured placement, shared with the other band widgets.
+  // Measured placement, shared with the other band widgets. The feed needs
+  // its own box: THSHEET sets width/maxHeight as an INLINE style, which beats
+  // any CSS this file could write for .thrl-panel-feed, so the grid's
+  // 420x560 (roughly square) box was being forced onto the playing view too
+  // — and the iframe crop math below assumes a narrow, phone-shaped column
+  // (--thrl-video-ratio measured at 300/340/400px). Fed a wide, short box
+  // instead, the crop math sized the video for a shape the panel wasn't,
+  // and it spilled out past the left/right edges. Re-binds on s.playing too,
+  // so switching between grid and feed re-places the panel each time.
   useEffect(function(){
     if(!open||!window.THSHEET)return;
-    return window.THSHEET.bind(box.current,function(){return panelRef.current;},
-      {width:420,cap:560,align:'right'});
-  },[open]);
+    return s.playing
+      ? window.THSHEET.bind(box.current,function(){return panelRef.current;},
+          {width:340,cap:680,align:'right'})
+      : window.THSHEET.bind(box.current,function(){return panelRef.current;},
+          {width:420,cap:560,align:'right'});
+  },[open,s.playing]);
 
   // Stop playback when the panel closes, or the iframe can keep its audio
   // going in a closed tree — a bug only ever found by ear.
