@@ -5750,6 +5750,183 @@ body { max-width: 2000px; margin-inline: auto; }
   max-width: 2000px; margin-inline: auto;
 }
 </style>
+<style id="th-autogrow-title">
+/* == Auto-growing title field ==============================================
+   The New/Edit box on both TaskHubs used a single-line <input>, so a long
+   title scrolled sideways forever and you could never see the whole thing you
+   were typing. The field is now a <textarea> that LOOKS like that input: it
+   opens one line tall and grows DOWNWARD as the text wraps, up to a few lines,
+   and only then starts scrolling -- so growth is bounded and the Save button
+   never gets pushed off the modal.
+
+   Height is measured in JS (window.ThAutoGrowTitle); everything here is the
+   scrollbar, which is deliberately invisible until it is wanted: it fades in
+   on hover, on focus, and while a finger or wheel is actually scrolling, then
+   fades back out. `line-height` is stated here rather than inline because the
+   JS reads the COMPUTED value to work out how tall one row is. */
+.th-agt {
+  resize: none;
+  overflow-y: hidden;
+  overflow-x: hidden;
+  display: block;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;                      /* Firefox */
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color .25s ease;
+}
+.th-agt.is-scrollable:hover,
+.th-agt.is-scrollable:focus,
+.th-agt.is-scrollable.th-agt-active { scrollbar-color: rgba(150,162,180,.55) transparent; }
+
+/* WebKit/Blink. The thumb is drawn inside a transparent border so it reads as
+   a slim pill with breathing room, while the HIT AREA stays the full 12px --
+   wide enough to grab with a fingertip, not just a mouse. */
+.th-agt::-webkit-scrollbar { width: 12px; }
+.th-agt::-webkit-scrollbar-track { background: transparent; }
+.th-agt::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: 999px;
+  border: 4px solid transparent;
+  background-clip: padding-box;
+  transition: background-color .25s ease;
+  min-height: 28px;
+}
+.th-agt:hover::-webkit-scrollbar-thumb,
+.th-agt:focus::-webkit-scrollbar-thumb,
+.th-agt.th-agt-active::-webkit-scrollbar-thumb { background-color: rgba(150,162,180,.5); }
+.th-agt::-webkit-scrollbar-thumb:hover  { background-color: rgba(185,196,212,.72); }
+.th-agt::-webkit-scrollbar-thumb:active { background-color: rgba(210,220,235,.9); }
+
+/* Phones: 16px is the threshold below which iOS Safari zooms the page on
+   focus, which on this modal leaves you typing into a field you can no longer
+   see all of. The extra padding keeps the one-line box a comfortable tap
+   target at that size. */
+@media (max-width: 640px) {
+  .th-agt {
+    font-size: 16px !important;
+    padding-top: 11px !important;
+    padding-bottom: 11px !important;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .th-agt, .th-agt::-webkit-scrollbar-thumb { transition: none; }
+}
+</style>
+<script id="th-autogrow-title-js">
+/* == window.ThAutoGrowTitle ================================================
+   One component, used by BOTH TaskHub item modals (Tony's ItemModal and
+   Veda's). It lives in a plain <script> rather than in either babel block so
+   neither TaskHub owns it and the two can never drift apart.
+
+   It is a textarea wearing an input's clothes: Enter submits instead of
+   inserting a newline, and pasted line breaks collapse to spaces, so a title
+   is still exactly one line of text no matter how many lines it is DRAWN on.
+   Props mirror the <input> it replaced -- style/value/onChange/placeholder/
+   autoFocus/readOnly -- plus `onSubmit` (Enter) and `maxRows`.             */
+(function(){
+  var React = window.React;
+  if(!React) return;
+  var useRef = React.useRef, useEffect = React.useEffect,
+      useCallback = React.useCallback,
+      useLayoutEffect = React.useLayoutEffect || React.useEffect;
+
+  function ThAutoGrowTitle(props){
+    var ref = useRef(null), fade = useRef(0);
+
+    // Measure, then clamp. Height goes to `auto` first so scrollHeight reports
+    // what the text WANTS rather than what we last gave it -- otherwise the
+    // box can only ever grow, never shrink back when text is deleted.
+    var fit = useCallback(function(){
+      var el = ref.current; if(!el) return;
+      var cs = getComputedStyle(el);
+      var line = parseFloat(cs.lineHeight);
+      if(!line || isNaN(line)) line = Math.round((parseFloat(cs.fontSize)||13) * 1.45);
+      var chrome = (parseFloat(cs.paddingTop)||0) + (parseFloat(cs.paddingBottom)||0)
+                 + (parseFloat(cs.borderTopWidth)||0) + (parseFloat(cs.borderBottomWidth)||0);
+      // Fewer rows on a phone: the modal is already near full height there, so
+      // an eight-line title box would push Save under the fold.
+      var rows = props.maxRows || (window.innerWidth <= 640 ? 4 : 5);
+      var max = Math.ceil(line * rows + chrome);
+      el.style.height = "auto";
+      var full = el.scrollHeight;
+      el.style.height = Math.min(full, max) + "px";
+      var scrollable = full > max + 1;
+      el.style.overflowY = scrollable ? "auto" : "hidden";
+      el.classList.toggle("is-scrollable", scrollable);
+    }, [props.maxRows]);
+
+    // Layout effect, not effect: resize before paint so the box never shows up
+    // one line tall for a frame and then jumps.
+    useLayoutEffect(function(){ fit(); }, [props.value, fit]);
+
+    useEffect(function(){
+      var onResize = function(){ fit(); };
+      window.addEventListener("resize", onResize);
+      return function(){
+        window.removeEventListener("resize", onResize);
+        if(fade.current) clearTimeout(fade.current);
+      };
+    }, [fit]);
+
+    // Caret at the END on open, so editing an existing title starts where you
+    // would keep typing rather than in front of it.
+    useEffect(function(){
+      if(!props.autoFocus) return;
+      var el = ref.current; if(!el) return;
+      el.focus();
+      try { var n = (props.value||"").length; el.setSelectionRange(n, n); } catch(e){}
+    }, []);
+
+    var flash = function(){
+      var el = ref.current; if(!el) return;
+      el.classList.add("th-agt-active");
+      if(fade.current) clearTimeout(fade.current);
+      fade.current = setTimeout(function(){
+        if(ref.current) ref.current.classList.remove("th-agt-active");
+      }, 900);
+    };
+
+    return React.createElement("textarea", {
+      ref: ref,
+      rows: 1,
+      className: "th-agt" + (props.className ? " " + props.className : ""),
+      style: props.style,
+      value: props.value,
+      placeholder: props.placeholder,
+      readOnly: props.readOnly,
+      maxLength: props.maxLength,
+      title: props.title,
+      spellCheck: props.spellCheck,
+      "aria-label": props["aria-label"] || "Title",
+      onScroll: flash,
+      onChange: function(e){
+        var v = e.target.value;
+        // A title is one line of text. Anything pasted in with line breaks
+        // becomes spaces rather than smuggling newlines into stored data.
+        if(v.indexOf("\n") >= 0 || v.indexOf("\r") >= 0){
+          v = v.replace(/[\r\n]+/g, " ");
+          e.target.value = v;
+        }
+        if(props.onChange) props.onChange({ target: { value: v } });
+      },
+      onKeyDown: function(e){
+        if(e.key === "Enter" && !e.shiftKey){
+          e.preventDefault();                 // never a newline, even with no handler
+          if(props.onSubmit) props.onSubmit(e);
+          return;
+        }
+        if(props.onKeyDown) props.onKeyDown(e);
+      }
+    });
+  }
+
+  window.ThAutoGrowTitle = ThAutoGrowTitle;
+})();
+</script>
 <script id="mail-relay">
 /* == Recovery-mail relay ===================================================
    The worker mints the reset code and the hint text, but it cannot always
@@ -6761,9 +6938,9 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
           ?React.createElement("div",{style:{fontSize:11,color:T.TXD,padding:"8px 10px",background:T.S2,borderRadius:4,border:"1px solid "+T.BDL}},"Title set by sequence steps below.")
           :initial?.altSeqId
           ?React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:4}},
-              React.createElement("input",{style:{...mi,opacity:0.7},value:title,readOnly:true,title:"Title is controlled by the sequence"}),
+              React.createElement(window.ThAutoGrowTitle,{style:{...mi,opacity:0.7},value:title,readOnly:true,title:"Title is controlled by the sequence"}),
               React.createElement("div",{style:{fontSize:10,color:T.TXD,marginTop:2}},"Sequence step "+(((initial.altSeqIdx||0)+1))+" of "+(initial.altSeqTitles?.length||"?")+" — edit titles in sequence steps below."))
-          :React.createElement("input",{style:mi,value:title,autoFocus:true,placeholder:"Enter title...",onChange:e=>setTitle(e.target.value),onKeyDown:e=>{if(e.key==="Enter"&&repeat==="none")save();}})),
+          :React.createElement(window.ThAutoGrowTitle,{style:mi,value:title,autoFocus:true,placeholder:"Enter title...",onChange:e=>setTitle(e.target.value),onSubmit:()=>{if(repeat==="none")save();}})),
       React.createElement("div",{style:{marginBottom:14}},React.createElement("div",{style:lbl},"Category"),React.createElement("select",{style:{...mi,width:"auto",cursor:"pointer"},value:cat,onChange:e=>setCat(e.target.value)},React.createElement("option",{value:""},"— None —"),...CL.map(c=>React.createElement("option",{key:c,value:c},c.charAt(0).toUpperCase()+c.slice(1))))),
       type==="event"&&React.createElement("div",{style:{marginBottom:14}},React.createElement("div",{style:lbl},"Event Time"),React.createElement(TimePicker,{value:time,onChange:setTime,T})),
       React.createElement("div",{style:{marginBottom:14,borderTop:"1px solid "+T.BD,paddingTop:14,marginTop:4}},
@@ -15266,9 +15443,9 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
           ?RC("div",{style:{fontSize:11,color:TXD,padding:"8px 10px",background:BG,borderRadius:4,border:"1px solid "+BDL}},"Title set by sequence steps below.")
           :initial?.altSeqId
           ?RC("div",{style:{display:"flex",flexDirection:"column",gap:4}},
-              RC("input",{style:{...mi,opacity:0.7},value:title,readOnly:true,title:"Title controlled by sequence"}),
+              RC(window.ThAutoGrowTitle,{style:{...mi,opacity:0.7},value:title,readOnly:true,title:"Title controlled by sequence"}),
               RC("div",{style:{fontSize:10,color:TXD,marginTop:2}},"Sequence step "+((initial.altSeqIdx||0)+1)+" of "+(initial.altSeqTitles?.length||"?")+" \u2014 edit titles in sequence steps below."))
-          :RC("input",{style:mi,value:title,onChange:e=>setTitle(e.target.value),placeholder:"Enter title...",autoFocus:true,onKeyDown:e=>{if(e.key==="Enter"&&repeat==="none")save();}})),
+          :RC(window.ThAutoGrowTitle,{style:mi,value:title,onChange:e=>setTitle(e.target.value),placeholder:"Enter title...",autoFocus:true,onSubmit:()=>{if(repeat==="none")save();}})),
       RC("div",{style:{marginBottom:12}},RC("div",{style:lbl},"Category"),RC("select",{style:{...mi,width:"auto",cursor:"pointer"},value:cat,onChange:e=>setCat(e.target.value)},RC("option",{value:""},"— None —"),...CL.map(c=>RC("option",{key:c,value:c},c.charAt(0).toUpperCase()+c.slice(1))))),
       type==="event"&&RC("div",{style:{marginBottom:12}},RC("div",{style:lbl},"Time"),RC("input",{style:{...mi,width:"auto"},type:"time",value:time,onChange:e=>setTime(e.target.value)})),
       RC("div",{style:{marginTop:4,marginBottom:12,borderTop:"1px solid "+BD,paddingTop:12}},
