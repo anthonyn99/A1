@@ -2973,6 +2973,8 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
 }
 .thrl-x:hover{color:var(--rl-ac);border-color:var(--rl-ac);}
 .thrl-x:focus-visible{outline:2px solid var(--rl-ac);outline-offset:2px;}
+.thrl-x:disabled{cursor:not-allowed;}
+.thrl-x:disabled:hover{color:var(--rl-txd);border-color:var(--rl-bd);}
 /* A small grid IS usable at panel width, unlike in the 330px band slot. */
 /* Collection picker — inherits the host's tokens like everything else here. */
 .thrl-sel{flex:0 0 auto;max-width:48%;
@@ -3195,8 +3197,12 @@ var HYDRATE_MAX=Infinity;
 // all reels every run) reads this to decide WHERE to start its batch. Without
 // it, a real video would only ever land on whichever reels happen to be near
 // the front of the list, never on the one actually being watched.
-var CFG_KEYS=['user','collection','shuffle','watchShortcode'];
-function readCfg(){try{var c=JSON.parse(localStorage.getItem(LS_CFG));return(c&&typeof c==='object')?c:{};}catch(e){return{};}}
+var CFG_KEYS=['user','collection','shuffle','watchShortcode','refreshRequestedAt'];
+// Boosts is the only collection Veda cares about, so a device that has never
+// set a preference should still request it rather than falling through to
+// whatever the harvester's own default ("all posts") happens to be.
+var CFG_DEFAULTS={collection:'boosts'};
+function readCfg(){try{var c=JSON.parse(localStorage.getItem(LS_CFG));return(c&&typeof c==='object')?Object.assign({},CFG_DEFAULTS,c):Object.assign({},CFG_DEFAULTS);}catch(e){return Object.assign({},CFG_DEFAULTS);}}
 function writeCfg(c){try{localStorage.setItem(LS_CFG,JSON.stringify(c));}catch(e){}}
 var CFG=readCfg();
 
@@ -3206,7 +3212,10 @@ var CFG=readCfg();
 var S={reels:[],at:0,collection:'',filesBase:'',idx:0,err:null,
        syncing:false,syncMsg:'',omitted:0,collections:[],
        // The shortcode playing in the panel, or '' for the grid view.
-       playing:''};
+       playing:'',
+       // Timestamp of an in-flight refresh request this device is waiting
+       // on, or 0. Cleared once applyRemote sees a savedAt newer than it.
+       pendingRefreshAt:0};
 var subs=[];
 function emit(){
   // A NEW object literal every time. Mutating S in place and handing the same
@@ -3215,7 +3224,8 @@ function emit(){
   // are written exactly this way.
   S={reels:S.reels,at:S.at,collection:S.collection,filesBase:S.filesBase,
      idx:S.idx,err:S.err,syncing:S.syncing,syncMsg:S.syncMsg,
-     omitted:S.omitted,collections:S.collections,playing:S.playing};
+     omitted:S.omitted,collections:S.collections,playing:S.playing,
+     pendingRefreshAt:S.pendingRefreshAt};
   for(var i=0;i<subs.length;i++)subs[i](S);
 }
 function subscribe(fn){subs.push(fn);return function(){var i=subs.indexOf(fn);if(i>=0)subs.splice(i,1);};}
@@ -3288,9 +3298,15 @@ function pushCfg(){
 // own write without needing a timing window.
 function applyRemote(remote){
   if(!remote||typeof remote!=='object'||!remote.savedAt)return false;
+  // A fresh harvest answers any pending refresh request regardless of
+  // whether the reel list actually changed (re-harvesting Boosts with no
+  // new saves is still a completed refresh, not a stuck one).
+  if(S.pendingRefreshAt&&remote.savedAt>S.pendingRefreshAt){
+    S.pendingRefreshAt=0;S.syncMsg='';
+  }
   var next=JSON.stringify((remote.reels||[]).map(function(r){return r.shortcode;}));
   var cur=JSON.stringify(S.reels.map(function(r){return r.shortcode;}));
-  if(next===cur&&remote.savedAt===S.at)return false;
+  if(next===cur&&remote.savedAt===S.at){emit();return false;}
   applyList(remote);
   return true;
 }
@@ -3718,24 +3734,44 @@ function Widget(props){
       : Math.floor(mins/1440)+'d ago';
   }
 
-  // The collection picker. Writing the choice to the synced config is all the
-  // page can do — the reels for another collection do not exist until a harvest
-  // runs — so the note below says so rather than pretending to switch.
-  var picker = (s.collections && s.collections.length > 1)
-    ? h('select',{key:'sel',className:'thrl-sel','data-noglow':true,
-        value:s.collection||'',
-        title:'Choose which collection the next harvest publishes',
-        onChange:function(e){
-          var v=e.target.value;
-          if(window.THRL&&window.THRL.configure)window.THRL.configure({collection:v});
-          S.syncMsg='Set to '+v+' — run driver.py reels on your PC to fetch it';
+  // Boosts is the only collection this widget shows — the picker used to let
+  // Veda switch between every IG Saved collection, but that surfaced noise
+  // ("All posts", other collections) that was never wanted. No UI for
+  // switching means nothing else can accidentally get selected here again.
+  var picker = null;
+
+  // Refresh: writes a timestamp into the synced cfg doc; the PC-side bridge
+  // watcher (server.py) polls that doc and runs a real Boosts harvest, and
+  // the result arrives back through the existing onSnapshot listener — this
+  // button never talks to Instagram or Firestore reels data directly.
+  var refreshing = !!S.pendingRefreshAt;
+  var refreshBtn = h('button',{key:'rf',type:'button',className:'thrl-x',
+    'data-noglow':true,
+    disabled:refreshing,
+    'aria-label':refreshing?'Refresh in progress':'Refresh saved reels now',
+    title:refreshing?'Refreshing…':'Harvest Boosts now',
+    style:{opacity:refreshing?0.5:0.85},
+    onClick:function(e){
+      e.stopPropagation();
+      if(refreshing)return;
+      var now=Date.now();
+      S.pendingRefreshAt=now;
+      S.syncMsg='Refresh requested — harvesting…';
+      emit();
+      if(window.THRL&&window.THRL.configure)window.THRL.configure({refreshRequestedAt:now});
+      setTimeout(function(){
+        if(S.pendingRefreshAt===now){
+          S.pendingRefreshAt=0;
+          S.syncMsg='Still working — check your PC (bridge may be offline)';
           emit();
-        }},
-        s.collections.map(function(c){
-          return h('option',{key:c.slug,value:c.slug},
-            (c.name||c.slug)+(c.count?' ('+c.count+')':''));
-        }))
-    : null;
+        }
+      },90000);
+    }},
+    h('svg',{key:'i',width:13,height:13,viewBox:'0 0 24 24',fill:'none',
+        stroke:'currentColor',strokeWidth:2,strokeLinecap:'round',strokeLinejoin:'round'},
+      h('path',{key:'p1',d:'M23 4v6h-6'}),
+      h('path',{key:'p2',d:'M1 20v-6h6'}),
+      h('path',{key:'p3',d:'M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15'})));
 
   // Manage button: opens the shared app-lock's set/change/remove menu for
   // "veda_reels". Same call whether a lock exists yet or not — alManage shows
@@ -3767,6 +3803,7 @@ function Widget(props){
       +(s.omitted?' (+'+s.omitted+' older)':'')
       +(ageTxt?' · '+ageTxt:'')),
     picker,
+    refreshBtn,
     lockBtn,
     h('button',{key:'x',type:'button',className:'thrl-x','data-noglow':true,
       'aria-label':'Close saved reels',title:'Close',

@@ -504,6 +504,63 @@ def _ensure_worker():
         _worker_started = True
 
 
+# ── Reels: one-click refresh from the widget ──────────────────────────────────
+# The widget cannot scrape Instagram itself — only this PC has the logged-in
+# session — so a click there just writes a timestamp into the synced
+# dashboards/veda_reels_cfg doc. This loop is the other half: it polls that
+# same doc (via the Worker's existing read-only /reels-cfg route, the one
+# read_reels_cfg() already uses for watch-position lookups) and, on a new
+# request, runs a real harvest in-process. No subprocess: this module already
+# imports driver, so it calls straight into cmd_reels the same way
+# _run_notebooklm_job calls cmd_deck.
+REELS_WATCH_POLL_S = 12
+REELS_WATCH_COLLECTION = "boosts"
+_reels_watch_started = False
+_reels_last_seen_refresh = 0
+
+
+def _reels_watch_loop():
+    global _reels_last_seen_refresh
+    while True:
+        time.sleep(REELS_WATCH_POLL_S)
+        try:
+            cfg = driver.read_reels_cfg()
+        except Exception as e:
+            print(f"[reels-watch] cfg read failed: {e}")
+            continue
+        requested = cfg.get("refreshRequestedAt") or 0
+        if not requested or requested <= _reels_last_seen_refresh:
+            continue
+        # Mark it seen before running: a harvest can take minutes, and a
+        # second poll tick landing mid-run must not queue a repeat of the
+        # same request once the lock below clears.
+        _reels_last_seen_refresh = requested
+        args = argparse.Namespace(
+            site="instagram", user="", collection=REELS_WATCH_COLLECTION,
+            headful=False, dry_run=False, collections=False, probe=False,
+        )
+        try:
+            out = asyncio.run(driver.cmd_reels(args))
+            print(f"[reels-watch] harvested {REELS_WATCH_COLLECTION}: {out}")
+        except driver.DriverError as e:
+            if e.kind == "already_running":
+                # A manual `driver.py reels` is already mid-run on this PC.
+                # Un-mark it seen so the NEXT tick tries again once that run
+                # releases the lock, instead of dropping this request.
+                _reels_last_seen_refresh = 0
+            else:
+                print(f"[reels-watch] harvest failed: {e.kind}: {e.message}")
+        except Exception as e:
+            print(f"[reels-watch] harvest crashed: {e}")
+
+
+def _ensure_reels_watcher():
+    global _reels_watch_started
+    if not _reels_watch_started:
+        threading.Thread(target=_reels_watch_loop, daemon=True).start()
+        _reels_watch_started = True
+
+
 # ── HTTP ──────────────────────────────────────────────────────────────────────
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
@@ -851,6 +908,7 @@ def main():
 
     _load()
     _ensure_worker()
+    _ensure_reels_watcher()
     srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
     print(f"  StudyOS bridge on http://127.0.0.1:{args.port}")
     print(f"  Point config.cloudflare.ai.baseUrl at that, and set enabled: true.")

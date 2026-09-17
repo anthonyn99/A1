@@ -101,8 +101,9 @@ export default {
     // directly (it's already authenticated, so there is no need to round-trip
     // through this Worker for that write) — this route exists purely so the
     // harvester, which runs as a plain Python script with no Firebase SDK, can
-    // read it: specifically watchShortcode, to know which reel the person is
-    // actually on before spending a page visit extracting a video URL for it.
+    // read it: watchShortcode (which reel to prioritize a video URL for) and
+    // now refreshRequestedAt (the PC-side bridge watcher's poll target for the
+    // widget's one-click refresh button — see server.py's _reels_watch_loop).
     if (path === '/reels-cfg' && request.method === 'GET') {
       const key = env.REELS_KEY;
       if (!key || request.headers.get('X-Reels-Key') !== key) {
@@ -121,6 +122,7 @@ export default {
         ok: true,
         watchShortcode: f.watchShortcode ? fsDec(f.watchShortcode) : '',
         collection: f.collection ? fsDec(f.collection) : '',
+        refreshRequestedAt: f.refreshRequestedAt ? fsDec(f.refreshRequestedAt) : 0,
       }, origin, env);
     }
 
