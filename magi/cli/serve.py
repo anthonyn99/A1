@@ -54,6 +54,24 @@ UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
 # would be checked and published under its dead predecessor's name.
 _CURRENT: dict[str, str] = {"url": ""}
 
+# ── the tunnel watchdog ──────────────────────────────────────────────────────
+# How often the live tunnel is checked, and how many failed checks in a row
+# (with the internet otherwise up) mean it is gone rather than blipping.
+WATCH_EVERY_S = 60
+DEAD_AFTER = 3
+# magi-link forgets a record after 36h (workers2/magi-link TTL). A tunnel that
+# stays healthy longer than that used to vanish from the phone anyway, because
+# it was only ever published once. Refreshed well inside that window: four KV
+# writes a day.
+REPUBLISH_EVERY_S = 6 * 3600
+# A gap this much longer than one watch interval means the PC was asleep.
+SLEEP_GAP_S = 120
+# cloudflared's words for "Cloudflare deleted this quick tunnel". It does not
+# exit when this happens -- it retries a tunnel that no longer exists, forever,
+# which is why waiting for the process to end never noticed (2026-09-13 and
+# 2026-09-17, both after the laptop slept overnight).
+TUNNEL_GONE = "Tunnel not found"
+
 
 def _cloudflared_argv(port: int) -> list[str]:
     """The tunnel command, with every wildcard socket removed.
@@ -228,6 +246,116 @@ def _withdraw(token: str) -> None:
         urllib.request.urlopen(req, timeout=10).read()
 
 
+def _public_state(url: str) -> str:
+    """"ok" if the tunnel reaches the backend, "dead" if it does not.
+
+    A 401 is the healthy answer: the request crossed the tunnel and the token
+    gate turned it away. Anything else from Cloudflare (530, 404, 502) or no
+    answer at all means the hostname no longer leads here.
+    """
+    try:
+        urllib.request.urlopen(
+            urllib.request.Request(f"{url}/api/health", headers={"User-Agent": UA}),
+            timeout=15)
+        return "ok"   # ungated, but reachable; the publish step refuses those
+    except urllib.error.HTTPError as e:
+        return "ok" if e.code == 401 else "dead"
+    except OSError:
+        return "dead"
+
+
+def _internet_up() -> bool:
+    """Whether this PC can reach Cloudflare at all.
+
+    Without this, a Wi-Fi drop would look exactly like a dead tunnel and the
+    watchdog would churn through tunnels that were fine all along.
+    """
+    try:
+        urllib.request.urlopen(
+            urllib.request.Request(LINK_API, headers={"User-Agent": UA}), timeout=10)
+        return True
+    except urllib.error.HTTPError:
+        return True   # any HTTP answer at all proves the route is up
+    except OSError:
+        return False
+
+
+def _log_says_gone(cf_log: Path) -> bool:
+    try:
+        return TUNNEL_GONE in cf_log.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+
+
+def _watch_tunnel(tunnel, cf_log: Path, token: str) -> str:
+    """Block until the tunnel has to be replaced; return why.
+
+    Ends the cloudflared process itself when the tunnel is dead but the
+    process is not, so the caller's replace-and-republish loop runs.
+    """
+    fails = 0
+    last = time.time()
+    while True:
+        if tunnel.poll() is not None:
+            return "cloudflared exited"
+        # Slept in short steps so a wake from sleep is noticed at once rather
+        # than a full interval later.
+        woke = False
+        for _ in range(WATCH_EVERY_S // 5):
+            time.sleep(5)
+            now = time.time()
+            if now - last > SLEEP_GAP_S:
+                woke = True
+            last = now
+            if woke or tunnel.poll() is not None:
+                break
+        if tunnel.poll() is not None:
+            return "cloudflared exited"
+        if woke:
+            print("  [.] woke from sleep; checking the tunnel.")
+            # A network stack coming back up needs a moment before a probe
+            # means anything.
+            time.sleep(20)
+
+        url = _CURRENT.get("url", "")
+        published = _CURRENT.get("published") == url
+
+        why = ""
+        if _log_says_gone(cf_log):
+            why = "Cloudflare deleted the tunnel"
+        elif published:
+            if _public_state(url) == "ok":
+                fails = 0
+            else:
+                fails += 1
+                if fails >= DEAD_AFTER:
+                    why = f"the tunnel stopped answering ({fails} checks)"
+        if why:
+            if not _internet_up():
+                # Nothing to fix from here; check again next round.
+                fails = 0
+                continue
+            print(f"  [!] {why}; replacing it.")
+            _stop(tunnel)
+            return why
+
+        if published and time.time() - float(_CURRENT.get("published_at") or 0) > REPUBLISH_EVERY_S:
+            try:
+                _publish(url, token)
+                _CURRENT["published_at"] = str(time.time())
+            except Exception as e:  # noqa: BLE001
+                print(f"  [!] could not refresh the magi-link record: {e}")
+
+
+def _stop(tunnel) -> None:
+    tunnel.terminate()
+    try:
+        tunnel.wait(timeout=10)
+    except Exception:  # noqa: BLE001
+        with contextlib.suppress(Exception):
+            tunnel.kill()
+
+
 def cloud(port: int = 8000) -> int:
     """Local + reachable from anywhere, via a quick tunnel this publishes."""
     _ensure_streams()
@@ -359,6 +487,11 @@ def cloud(port: int = 8000) -> int:
             print(f"  [!] could not publish to magi-link: {e}")
             print("      Local access is unaffected.")
             return
+        # Only for the url this worker verified: a replacement tunnel may have
+        # taken over while it was waiting on DNS.
+        if _CURRENT.get("url") == url:
+            _CURRENT["published"] = url
+            _CURRENT["published_at"] = str(time.time())
         print(f"  published — https://anthonyn99.github.io/A1/magi.html now reaches this PC")
 
     _CURRENT["url"] = url
@@ -382,8 +515,8 @@ def cloud(port: int = 8000) -> int:
     delay = 5
     try:
         while True:
-            tunnel.wait()
-            print(f"  [!] the tunnel ended; restarting in {delay}s.")
+            why = _watch_tunnel(tunnel, cf_log, token)
+            print(f"  [!] the tunnel ended ({why}); restarting in {delay}s.")
             _withdraw(token)
             time.sleep(delay)
             delay = min(delay * 2, 60)
