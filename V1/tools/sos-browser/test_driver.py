@@ -799,5 +799,140 @@ t("the scraper holds no Firebase credential",
           for w in ("firebase_admin", "service_account", "firestore.client")),
   "the credential boundary is broken: the page must own the cloud write")
 
+# ── Real autoplay + loop, via a genuine <video> tag ─────────────────────────────
+# Instagram's embed iframe can NEVER autoplay or loop on its own — VERIFIED
+# 2026-09-16, not assumed: ?autoplay=1&muted=1 is silently ignored, a
+# script-fired click on the play button does nothing (Event.isTrusted cannot be
+# set by any JS API, same- or cross-origin — a browser spec guarantee), and even
+# a genuine click does not loop (plays once, rewinds to 0, re-pauses). The one
+# way around all of that is a real <video> tag pointed at Instagram's own
+# progressive-download mp4 — confirmed a genuine complete file (real ftyp
+# header, plays with zero session/cookies from a browser that had never visited
+# instagram.com) and DISTINCT from the DASH fragments the live page streams (79
+# ~800-byte pieces measured for one 13s reel — there is no single file behind
+# that path).
+print("\nreal video extraction (the autoplay/loop fix)")
+
+# Two shapes actually captured from live embed pages 2026-09-16 (verbatim, not
+# re-guessed — the earlier version of this test fabricated a double-slash-
+# escaped form that does not occur in practice and it caught nothing).
+_HTML_PLAIN = (
+    'blah blah "count":851560}},"video_url":'
+    '"https://scontent-atl3-1.cdninstagram.com/o1/v/t2/f2/m86/'
+    'AQM3abc123.mp4?_nc_cat=110&_nc_sid=5e9851" more json here'
+)
+# CAPTURED VERBATIM from the real embed page's outerHTML: the key/value quotes
+# are escaped (this JSON is itself embedded as a string literal inside a
+# <script> tag), but the URL's OWN slashes carry only a single backslash each —
+# not the doubled escaping a naive "JSON serialized twice" assumption predicts.
+# Trailing `,\"oh\":...` included on purpose: a real page always has more JSON
+# after the url, and a fixture truncated exactly AT the closing quote (an
+# earlier version of this test did that) hides a real off-by-one at the string
+# boundary instead of exercising it.
+_HTML_REAL_CAPTURE = (
+    'count\\":851560}},\\"video_url\\":\\"https:\\/\\/scontent-atl3-1'
+    '.cdninstagram.com\\/o1\\/v\\/t2\\/f2\\/m86\\/AQM3TTa58V6YX6ss0u2RWOdP1p9E9w'
+    'QGLB1VRkyc1-Vm5D-b2jbV_Z6wA2POveuJubJm_eX05Iipax-quYj7jUbw8PDAsnRNRYx_Y7M'
+    '.mp4?_nc_cat=110\\u0026_nc_sid=5e9851\\",\\"oh\\":\\"00_AQIabc\\"}'
+)
+
+_u1 = driver.extract_video_url(_HTML_PLAIN)
+t("extracts a video_url from an unescaped JSON blob",
+  _u1 is not None and _u1.startswith("https://") and ".mp4" in _u1, _u1)
+t("does not mangle a URL that needed no unescaping",
+  _u1 is not None and "&" in _u1 and "_nc_sid=5e9851" in _u1, _u1)
+
+_u2 = driver.extract_video_url(_HTML_REAL_CAPTURE)
+t("extracts a video_url from the REAL escaped shape captured off a live page",
+  _u2 is not None and _u2.startswith("https://") and ".mp4" in _u2, _u2)
+t("fully un-escapes \\/ to / (no backslashes survive in the result)",
+  _u2 is not None and "\\" not in _u2, _u2)
+t("un-escapes \\u0026 to a literal &",
+  _u2 is not None and "_nc_cat=110&_nc_sid=5e9851" in _u2, _u2)
+
+t("returns None when the reel has no video_url at all",
+  driver.extract_video_url("<html>no such field here</html>") is None,
+  "a removed/broken post correctly yields nothing, not a crash")
+t("returns None on a truncated/malformed key with no colon",
+  driver.extract_video_url('"video_url" garbage no colon here') is None)
+
+# CAPTURED VERBATIM from a live embed page via page.content() on 2026-09-16
+# (saved to disk and inspected byte-by-byte with open(path, 'rb') before being
+# pasted here) — a THIRD, deeper shape distinct from _HTML_REAL_CAPTURE above:
+# the URL's own slashes are escaped with a doubled backslash pair (\\\/, i.e.
+# three literal backslash characters before each /), while the query string's
+# `&` is a bare, unescaped ampersand. This is the shape that caught the actual
+# bug: a combined regex with a literal \" in its Python source silently made
+# every delimiter quote OPTIONAL (in Python's `re`, \" is just an escaped
+# bare ", never "backslash then quote" — the backslash is consumed by the
+# regex engine, not required in the text), which happened to still pass every
+# fixture above but broke the moment escape depth got deeper than they modeled.
+_HTML_LIVE_CAPTURE = (
+    'ed_by\\":{\\"count\\":851560}},\\"video_url\\":\\"https:\\\\\\/\\\\\\/'
+    'scontent-atl3-1.cdninstagram.com\\\\\\/o1\\\\\\/v\\\\\\/t2\\\\\\/f2\\\\\\/m86'
+    '\\\\\\/AQM3TTa58V6YX6ss0u2RWOdP1p9E9wQGLB1VRkyc1-Vm5D-b2jbV_Z6wA2POveuJubJm'
+    '_eX05Iipax-quYj7jUbw8PDAsnRNRYx_Y7M.mp4?_nc_cat=110&_nc_sid=5e9851\\",'
+    '\\"oh\\":\\"00_AQIabc\\"}'
+)
+_u3 = driver.extract_video_url(_HTML_LIVE_CAPTURE)
+t("extracts a video_url from a REAL page.content() capture, triple-backslash slashes",
+  _u3 is not None and _u3.startswith("https://") and ".mp4" in _u3, _u3)
+t("collapses \\\\\\/ (triple backslash + slash) down to a single /",
+  _u3 is not None and "\\" not in _u3
+  and "cdninstagram.com/o1/v/t2/f2/m86/AQM3" in _u3, _u3)
+t("a bare unescaped & in the query string survives untouched",
+  _u3 is not None and "_nc_cat=110&_nc_sid=5e9851" in _u3, _u3)
+
+# ── Batching, pacing, prioritization ────────────────────────────────────────────
+_avu = _inspect.getsource(driver.attach_video_urls)
+t("each extraction is a real page visit (page.goto), not a fetch",
+  "await page.goto" in _avu and "/embed/" in _avu)
+t("the batch is capped per run (a page visit is ~9-10s, not a cheap fetch)",
+  "REELS_VIDEO_BATCH" in _avu and "extracted >= REELS_VIDEO_BATCH" in _avu)
+t("pacing between visits is sampled from a range, not a fixed delay",
+  "_pace([1.2, 2.4])" in _avu or "_pace(" in _avu,
+  "a fixed delay between automated visits to a logged-in account is a "
+  "recognisable pattern")
+t("the batch starts from the WATCHED reel, not always the top of the list",
+  "watch_shortcode" in _avu and "order = reels[start:] + reels[:start]" in _avu,
+  "otherwise a video url only ever lands near the front of a large collection, "
+  "never on what is actually being watched")
+t("a reel already fresh is skipped rather than re-visited",
+  'r.get("videoUrl")' in _avu and "videoUrlExpiresAt" in _avu,
+  "re-fetching a URL that has not expired wastes a page visit for nothing")
+t("a per-reel extraction failure never aborts the whole batch",
+  "except Exception" in _avu,
+  "one removed post or transient miss must not lose every other reel's video")
+
+t("videoUrl has an absolute expiry timestamp, not a relative TTL alone",
+  "videoUrlExpiresAt" in _avu and "now + REELS_VIDEO_URL_TTL_MS" in _avu,
+  "the widget must be able to check freshness without knowing when the "
+  "harvest ran")
+t("the TTL is set BELOW the measured real-world expiry, with margin",
+  driver.REELS_VIDEO_URL_TTL_MS < 36 * 60 * 60 * 1000 + 1
+  and driver.REELS_VIDEO_URL_TTL_MS > 24 * 60 * 60 * 1000,
+  f"REELS_VIDEO_URL_TTL_MS={driver.REELS_VIDEO_URL_TTL_MS}ms — measured expiry "
+  f"was ~1.5 days (129600000ms); serving a url the CDN has already invalidated "
+  f"is worse than falling back to the iframe early")
+
+# ── Wiring into the harvest ──────────────────────────────────────────────────────
+t("video extraction happens BEFORE the browser context closes",
+  _cr_all.index("attach_video_urls") < _cr_all.index("await ctx.close()"),
+  "extracting a video url needs an open page — this cannot run after ctx.close()")
+t("it operates on the MERGED list, not just this run's fresh harvest",
+  "attach_video_urls(\n                merged" in _cr_all
+  or "attach_video_urls(merged" in _cr_all.replace("\n", " ").replace("  ", " "),
+  "a watched reel harvested in an EARLIER run must still be eligible for a "
+  "video url refresh now")
+t("the watch position is read from the widget's own config, not guessed",
+  "read_reels_cfg()" in _cr_all and "watchShortcode" in _cr_all)
+t("a config-read failure degrades gracefully rather than failing the harvest",
+  _inspect.getsource(driver.read_reels_cfg).count("except Exception") >= 1,
+  "prioritization is a nice-to-have; the harvest itself must not depend on it")
+t("thumbnails (plain HTTP fetches) still run AFTER the context closes",
+  _cr_all.index("attach_thumbs(merged)") > _cr_all.index("await ctx.close()"),
+  "thumbnails need no browser at all — running them before ctx.close() would "
+  "hold the Instagram session open for no reason")
+
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

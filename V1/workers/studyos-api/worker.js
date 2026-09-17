@@ -97,6 +97,33 @@ export default {
 
     if (path === '/reels') return handleReels(request, env, origin);
 
+    // Read-only. The widget's OWN Firebase SDK writes dashboards/veda_reels_cfg
+    // directly (it's already authenticated, so there is no need to round-trip
+    // through this Worker for that write) — this route exists purely so the
+    // harvester, which runs as a plain Python script with no Firebase SDK, can
+    // read it: specifically watchShortcode, to know which reel the person is
+    // actually on before spending a page visit extracting a video URL for it.
+    if (path === '/reels-cfg' && request.method === 'GET') {
+      const key = env.REELS_KEY;
+      if (!key || request.headers.get('X-Reels-Key') !== key) {
+        return json({ ok: false, error: 'unauthorized' }, origin, env, 401);
+      }
+      let token;
+      try { token = await getGoogleAccessToken(env); }
+      catch (e) { return json({ ok: false, error: String(e) }, origin, env, 502); }
+      const docUrl = `https://firestore.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}` +
+                     `/databases/(default)/documents/dashboards/veda_reels_cfg`;
+      const r = await fetch(docUrl, { headers: { Authorization: `Bearer ${token}` } });
+      if (r.status === 404) return json({ ok: true, watchShortcode: '' }, origin, env);
+      if (!r.ok) return json({ ok: false, error: 'firestore read ' + r.status }, origin, env, 502);
+      const f = (await r.json()).fields || {};
+      return json({
+        ok: true,
+        watchShortcode: f.watchShortcode ? fsDec(f.watchShortcode) : '',
+        collection: f.collection ? fsDec(f.collection) : '',
+      }, origin, env);
+    }
+
     return json({ ok: false, error: 'unknown route' }, origin, env, 404);
   },
 
@@ -570,6 +597,17 @@ async function handleReels(request, env, origin) {
     // Only the fields the widget reads. thumbSrc is deliberately dropped: IG's
     // CDN URLs are signed and expire within days, so storing one guarantees a
     // broken image later. The bytes live in studyos-files, keyed by thumbKey.
+    //
+    // videoUrl is the ONE exception to "never store a signed CDN url" — it is
+    // Instagram's own progressive-download mp4 (verified: real ftyp header,
+    // no session/cookies needed, plays with a plain <video> tag — DASH
+    // fragments are NOT this). It also expires (measured ~1.5 days), but
+    // unlike a thumbnail it cannot be re-copied into permanent storage: the
+    // files are large (a 13s reel was already 693 KB) and this doc has a
+    // 700 KB TOTAL budget, so only a handful can ever be kept here at once.
+    // The harvester refreshes a small batch per run (see cmd_reels_video); an
+    // expired or absent videoUrl means the widget falls back to the iframe
+    // embed for that reel, never a broken player.
     const slim = incoming
       .filter((x) => x && typeof x.shortcode === 'string' && x.shortcode)
       .map((x) => ({
@@ -579,18 +617,33 @@ async function handleReels(request, env, origin) {
           : `https://www.instagram.com/reel/${x.shortcode}/`,
         thumbKey: typeof x.thumbKey === 'string' ? x.thumbKey.slice(0, 80) : '',
         caption:  typeof x.caption  === 'string' ? x.caption.slice(0, 300) : '',
+        videoUrl: typeof x.videoUrl === 'string' ? x.videoUrl.slice(0, 2000) : '',
+        videoUrlExpiresAt: Number.isFinite(x.videoUrlExpiresAt) ? x.videoUrlExpiresAt : 0,
       }));
 
     const size = (a) => new TextEncoder().encode(JSON.stringify(a)).length;
     let kept = slim, omitted = 0;
     if (size(kept) > REELS_DOC_BUDGET) {
-      let lo = 0, hi = kept.length;
+      // Reels carrying a real videoUrl are EXEMPT from truncation, wherever
+      // they sit in the list. A plain newest-first prefix cut would silently
+      // drop whatever the harvester just spent a real page visit fetching for
+      // "the reel you're on right now" the moment that reel is not near the
+      // start of a large collection — the exact case this feature exists for.
+      const withVideo = slim.filter((x) => x.videoUrl);
+      const withoutVideo = slim.filter((x) => !x.videoUrl);
+      const videoBudget = size(withVideo);
+      const remaining = Math.max(0, REELS_DOC_BUDGET - videoBudget);
+      let lo = 0, hi = withoutVideo.length;
       while (lo < hi) {                      // largest prefix that fits
         const mid = (lo + hi + 1) >> 1;
-        if (size(slim.slice(0, mid)) <= REELS_DOC_BUDGET) lo = mid; else hi = mid - 1;
+        if (size(withoutVideo.slice(0, mid)) <= remaining) lo = mid; else hi = mid - 1;
       }
-      omitted = slim.length - lo;
-      kept = slim.slice(0, lo);
+      omitted = withoutVideo.length - lo;
+      // Restore original relative order rather than grouping video reels first,
+      // so the widget's own ordering/shuffle logic sees nothing unusual.
+      const keepSet = new Set([...withVideo, ...withoutVideo.slice(0, lo)]
+        .map((x) => x.shortcode));
+      kept = slim.filter((x) => keepSet.has(x.shortcode));
     }
 
     // The collection index, so the widget can offer a picker without the page

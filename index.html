@@ -3055,6 +3055,13 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
               * var(--thrl-video-ratio));
   border:0;display:block;background:#000;
 }
+/* A real <video> tag needs none of the iframe's crop hack — there is no
+   cross-origin chrome to hide, so it simply fills the slide. object-fit:cover
+   matches how the embed itself scales a reel edge-to-edge. */
+.thrl-slide video{
+  position:absolute;inset:0;width:100%;height:100%;
+  object-fit:cover;border:0;background:#000;
+}
 /* ── The footer mask ──────────────────────────────────────────────────────
    Three separate geometry attempts failed to crop IG's footer ("View more on
    Instagram", the like/comment/share row) reliably, because the embed's
@@ -3065,7 +3072,10 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
    cross-origin document, but it can absolutely paint over it, and a mask is
    exact where a computed offset is a guess. It sits under the caption and above
    the video, and takes no pointer events so a tap still reaches the player. */
-.thrl-slide::after{
+/* Only slides using the IFRAME fallback need this — a real <video> has no
+   cross-origin footer to hide, and masking its bottom 210px would cover
+   actual video content for no reason. */
+.thrl-slide:not(.thrl-slide-video)::after{
   content:'';position:absolute;left:0;right:0;bottom:0;
   /* MEASURED 2026-09-16 against the ACTUAL widget iframe height (crop-top +
      slide-height = 54 + 702 = 756px in the iframe's own coordinate space, not
@@ -3178,7 +3188,14 @@ var HYDRATE_MAX=Infinity;
 // Which collection to show, and whose account. Synced, because linking once on
 // one device should be enough. The reel LIST is not synced through here — it
 // arrives in its own Firestore doc, see syncFromCloud below.
-var CFG_KEYS=['user','collection','shuffle'];
+//
+// watchShortcode: the reel currently playing/featured, written on every
+// change. The harvester (which alone can extract a real, autoplay-capable
+// video URL — that needs an actual page visit, ~9s each, so it cannot cover
+// all reels every run) reads this to decide WHERE to start its batch. Without
+// it, a real video would only ever land on whichever reels happen to be near
+// the front of the list, never on the one actually being watched.
+var CFG_KEYS=['user','collection','shuffle','watchShortcode'];
 function readCfg(){try{var c=JSON.parse(localStorage.getItem(LS_CFG));return(c&&typeof c==='object')?c:{};}catch(e){return{};}}
 function writeCfg(c){try{localStorage.setItem(LS_CFG,JSON.stringify(c));}catch(e){}}
 var CFG=readCfg();
@@ -3360,6 +3377,7 @@ function Widget(props){
   var st=useState(S),s=st[0],setS=st[1];
   var op=useState(false),open=op[0],setOpen=op[1];
   var er=useState({}),imgErr=er[0],setImgErr=er[1];
+  var ve=useState({}),videoErr=ve[0],setVideoErr=ve[1];
   var box=useRef(null),panelRef=useRef(null);
 
   useEffect(function(){ return subscribe(setS); },[]);
@@ -3382,6 +3400,21 @@ function Widget(props){
     var iv=setInterval(read,400);
     return function(){clearInterval(iv);};
   },[open]);
+
+  // ── Report the watch position ──────────────────────────────────────────────
+  // Debounced: shuffling fires several times a second, and each report is a
+  // Firestore write the harvester will read on its NEXT run anyway — there is
+  // no reason to sync every intermediate shuffle, only where the person
+  // settles. 1200ms is long enough to skip a rapid shuffle burst and short
+  // enough that a deliberate pick is captured before anyone closes the panel.
+  useEffect(function(){
+    if(!s.playing)return;
+    var code=s.playing;
+    var t=setTimeout(function(){
+      if(window.THRL&&window.THRL.configure)window.THRL.configure({watchShortcode:code});
+    },1200);
+    return function(){clearTimeout(t);};
+  },[s.playing]);
 
   // Measured placement, shared with the other band widgets.
   useEffect(function(){
@@ -3585,16 +3618,43 @@ function Widget(props){
         s.reels.map(function(r,i){
           var near = Math.abs(i - cur) <= MOUNT_RADIUS;
           var u = thumbUrl(r);
-          return h('div',{key:r.shortcode,className:'thrl-slide','data-i':i},
-            near
-              ? h('iframe',{key:'f',
+          // A reel with a fresh, unexpired videoUrl gets a REAL <video> tag:
+          // genuine autoplay and loop, no tap, exactly what the iframe embed
+          // can never do (verified: Instagram's own click handler requires a
+          // browser-trusted event, which no script — same- or cross-origin —
+          // can ever produce, and even a real click does not loop). videoUrl
+          // is Instagram's own progressive-download mp4 (a real ftyp header,
+          // no session needed — confirmed distinct from the DASH fragments
+          // the live page streams), extracted by the harvester because that
+          // needs an actual page visit it cannot do for every reel every run.
+          // A missing or expired one falls back to the iframe rather than a
+          // broken player — this is a strict upgrade, never a regression.
+          var hasVideo = r.videoUrl && r.videoUrlExpiresAt
+            && r.videoUrlExpiresAt > Date.now() && !videoErr[r.shortcode];
+          return h('div',{key:r.shortcode,
+              className:'thrl-slide'+(hasVideo?' thrl-slide-video':''),'data-i':i},
+            !near ? null
+            : hasVideo
+              ? h('video',{key:'v',src:r.videoUrl,autoPlay:true,muted:true,
+                  loop:true,playsInline:true,controls:false,
+                  title:r.caption||('Reel '+r.shortcode),
+                  // A signed url occasionally 404s early (edge propagation,
+                  // or it expired between harvest and now despite the stored
+                  // timestamp saying otherwise) — degrade to the iframe for
+                  // THIS slide rather than showing a broken video box.
+                  onError:function(){
+                    var n={};n[r.shortcode]=true;
+                    setVideoErr(Object.assign({},videoErr,n));
+                  }})
+              : h('iframe',{key:'f',
                   src:'https://www.instagram.com/reel/'+r.shortcode+'/embed/',
                   scrolling:'no',frameBorder:'0',loading:'lazy',
                   allow:'autoplay; encrypted-media; picture-in-picture; fullscreen',
-                  title:r.caption||('Reel '+r.shortcode)})
-              // Not mounted yet: show the cached thumbnail so scrolling ahead
-              // looks like content rather than black gaps.
-              : h('div',{key:'i',className:'thrl-slide-idle'},
+                  title:r.caption||('Reel '+r.shortcode)}),
+            // Not mounted yet: show the cached thumbnail so scrolling ahead
+            // looks like content rather than black gaps.
+            !near
+              ? h('div',{key:'i',className:'thrl-slide-idle'},
                   (u&&!imgErr[r.shortcode])
                     ? h('img',{key:'t',src:u,alt:'',loading:'lazy',decoding:'async',
                         onError:function(){
@@ -3602,7 +3662,8 @@ function Widget(props){
                           setImgErr(Object.assign({},imgErr,n));
                         }})
                     : null,
-                  h('span',{key:'s'},'…')),
+                  h('span',{key:'s'},'…'))
+              : null,
             r.caption
               ? h('div',{key:'c',className:'thrl-slide-cap'},r.caption)
               : null);

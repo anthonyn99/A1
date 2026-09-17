@@ -1891,6 +1891,28 @@ def read_reels_cloud() -> dict:
         return {}
 
 
+def read_reels_cfg() -> dict:
+    """Which reel the person is actually watching, straight from
+    dashboards/veda_reels_cfg via the Worker's read-only /reels-cfg route.
+
+    The widget writes this doc directly with its own Firebase SDK (already
+    authenticated — no need to round-trip a write through this Worker), but
+    this script has no Firebase SDK of its own, so it reads it back through the
+    one route built for that. {} on any failure — a video-URL batch with no
+    watch position just falls back to starting from the top of the list, which
+    is a worse prioritization, never a broken one.
+    """
+    import urllib.request
+    req = urllib.request.Request(
+        REELS_API.replace("/reels", "/reels-cfg"), method="GET",
+        headers={"X-Reels-Key": _reels_key(), "User-Agent": REELS_UA})
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            return json.loads(r.read().decode("utf-8"))
+    except Exception:
+        return {}
+
+
 def write_reels_cloud(doc: dict) -> dict:
     """Publish the harvest. The Worker caps the document and refuses an empty
     list over a populated one, so those guards hold even if this is called by
@@ -2220,6 +2242,179 @@ def upload_thumb(key: str, src: str) -> bool:
         return False
 
 
+# How long a batch of extracted videoUrls is trusted for. MEASURED 2026-09-16:
+# the signed CDN url's own `oe=` expiry decoded to ~1.5 days from the moment it
+# was issued. Stored as an absolute epoch-ms deadline per reel so the widget
+# can fall back to the iframe embed the instant one goes stale, rather than
+# guessing from "how long ago was this harvest".
+REELS_VIDEO_URL_TTL_MS = 36 * 60 * 60 * 1000  # 36h — under the measured ~1.5 days, on purpose
+
+# Per-run cap on video-URL extractions. Each one is a REAL page visit (~9-10s,
+# Instagram will not serve this instagram.com surface headless) to a specific
+# reel, unlike a thumbnail (a plain image fetch). Bounded so "start playing
+# nicely" cannot turn into an hour-long harvest, and because it is a repeated,
+# automated visit to a logged-in personal account — the same restraint that
+# governs every other part of this scraper.
+REELS_VIDEO_BATCH = 40
+
+
+def _unescape_json_scalar(raw: str) -> str:
+    """Undo JSON-string escaping, however many layers deep. Handles \\uXXXX,
+    \\/, \\\\, and the other single-char JSON escapes, re-applied until the
+    string stops changing (this field is nested through more than one layer
+    of JSON-stringify on a real capture, e.g. `https:\\\\\\/\\\\\\/host...`)."""
+    esc_map = {"n": "\n", "t": "\t", "r": "\r", '"': '"', "'": "'",
+               "\\": "\\", "/": "/"}
+
+    def repl(m):
+        token = m.group(1)
+        if token[:1] == "u" and len(token) == 5:
+            return chr(int(token[1:], 16))
+        return esc_map.get(token, token)
+
+    pat = re.compile(r"\\(u[0-9a-fA-F]{4}|.)")
+    val = raw
+    for _ in range(6):                        # enough headroom for any depth seen
+        nxt = pat.sub(repl, val)
+        if nxt == val:
+            break
+        val = nxt
+    return val
+
+
+def extract_video_url(html: str):
+    """Instagram's own progressive-download mp4 URL, out of an embed page's
+    HTML — however many layers of JSON-string escaping it has been through.
+
+    MEASURED 2026-09-16: this is a genuine, complete, single-file mp4 (a real
+    `ftyp` header, `video/mp4`, no session or cookies needed — confirmed from a
+    browser that had never visited instagram.com). It is NOT the same thing as
+    the <video> element's own `blob:` src, which streams DASH fragments (79
+    tiny ~800-byte pieces measured for one 13s reel) — there is no single
+    downloadable file behind that. This field is what makes a real, looping
+    <video> tag possible at all.
+
+    Several rewrites of this got a real capture wrong before landing here:
+      1. "skip 2 chars on any backslash" ran past an ESCAPED closing quote and
+         read to the end of the string.
+      2. Counting backslash PARITY to decide "escaped vs not" was the textbook
+         JSON-string-parsing answer, and wrong for this data: the delimiter
+         width and the value's own internal escape depth are independent —
+         parity-counting conflated them.
+      3. A single combined regex with a literal `\"` in the pattern SOURCE is
+         a trap in Python's `re`: `\"` is not "backslash then quote", it is
+         the (redundant) escaped form of a bare `"` — the backslash is
+         consumed by the regex engine itself and never required to be present
+         in the text. That silently made every delimiter optional-only, which
+         happened to still pass hand-built fixtures but broke on the deeper,
+         doubly-escaped nesting a live embed page actually uses
+         (`video_url\\":\\"https:\\\\\\/\\\\\\/scontent...`, verified via a
+         real `page.content()` capture saved to disk and inspected byte-by-byte).
+    The fix: scan character positions directly instead of building a
+    backslash-laden regex pattern string at all — find "video_url", then walk
+    past its key-quote, colon, and opening value-quote (each optionally
+    preceded by exactly one literal backslash, checked with a plain slice
+    comparison, never baked into regex source), collect raw value chars until
+    the matching closing quote, and hand the raw body to
+    `_unescape_json_scalar` for real JSON-escape decoding.
+
+    Absent entirely for some reels (measured: a post that Instagram itself
+    reports as removed/broken), which correctly yields None here.
+    """
+    n = len(html)
+    for km in re.finditer("video_url", html):
+        j = km.end()
+        if html[j:j + 2] == "\\\"":
+            j += 2
+        elif html[j:j + 1] == '"':
+            j += 1
+        else:
+            continue
+        while j < n and html[j] in ": \t\r\n":
+            j += 1
+        if html[j:j + 2] == "\\\"":
+            j += 2
+            escaped = True
+        elif html[j:j + 1] == '"':
+            j += 1
+            escaped = False
+        else:
+            continue
+        start = j
+        closed = False
+        while j < n:
+            if escaped and html[j:j + 2] == "\\\"":
+                closed = True
+                break
+            if not escaped and html[j] == '"':
+                closed = True
+                break
+            j += 1
+        if not closed:
+            continue
+        val = _unescape_json_scalar(html[start:j])
+        if val.startswith("http"):
+            return val
+    return None
+
+
+async def attach_video_urls(reels: list, page, watch_shortcode: str) -> dict:
+    """Give a BATCH of reels a real, autoplay-and-loop-capable video URL,
+    starting from wherever the person is actually watching.
+
+    This is the one operation in the whole harvest that visits a reel's OWN
+    page rather than the saved grid — required because the progressive mp4 URL
+    only appears there, and it is why this cannot cover every reel every run
+    (measured ~9-10s per visit; 1239 reels would be over three hours).
+
+    Batch order starts at `watch_shortcode`'s position and wraps forward
+    through the list, so "the reel someone is on right now" and the ones they
+    are about to scroll to are prioritized over reels far behind them —
+    without that, a video URL would only ever land near the front of a large
+    collection, never on what is actually being watched.
+
+    Failures are per-reel and never fatal to the run: a reel with no video_url
+    (removed post, a transient miss) simply keeps its existing entry — the
+    widget's iframe fallback is what handles that, not a retry here.
+    """
+    if not reels:
+        return {"extracted": 0, "skipped": 0}
+    start = 0
+    if watch_shortcode:
+        for i, r in enumerate(reels):
+            if r.get("shortcode") == watch_shortcode:
+                start = i
+                break
+    order = reels[start:] + reels[:start]
+
+    extracted = skipped = 0
+    now = int(time.time() * 1000)
+    for r in order:
+        if extracted >= REELS_VIDEO_BATCH:
+            break
+        code = r.get("shortcode")
+        if not code:
+            continue
+        # Already fresh from an earlier run — no need to spend a visit on it.
+        if r.get("videoUrl") and r.get("videoUrlExpiresAt", 0) > now + (60 * 60 * 1000):
+            continue
+        try:
+            await page.goto(f"https://www.instagram.com/reel/{code}/embed/",
+                            wait_until="domcontentloaded", timeout=20000)
+            await asyncio.sleep(_pace([1.2, 2.4]))
+            html = await page.content()
+            url = extract_video_url(html)
+        except Exception:
+            url = None
+        if url:
+            r["videoUrl"] = url
+            r["videoUrlExpiresAt"] = now + REELS_VIDEO_URL_TTL_MS
+            extracted += 1
+        else:
+            skipped += 1
+    return {"extracted": extracted, "skipped": skipped}
+
+
 def attach_thumbs(reels: list) -> dict:
     """Give every reel a thumbKey, uploading only what is missing.
 
@@ -2435,41 +2630,48 @@ async def _reels_run(site, args, target, collection, headless, user="") -> dict:
             else:
                 got = await _harvest_reels(page, site)
             got["collections"] = collections
+
+            # ── Empty-result refusal + merge, done HERE (before ctx.close()) ──
+            # Both moved up from after the browser closed, because video-URL
+            # extraction below needs the MERGED list (a watched reel may have
+            # been harvested in an earlier run, not this one) while the page is
+            # still open — extracting one requires an actual page visit, which
+            # is impossible once the context is gone.
+            cache = read_reels_cloud()
+            stored = cache.get("reels") or []
+            same = (cache.get("collection") or "") == collection
+
+            if not got["reels"] and stored and same:
+                # A logged-out page, a changed selector and a genuinely empty
+                # collection all produce zero tiles, and only the last is not a
+                # bug — see the full rationale where this used to live, kept
+                # verbatim below since the decision has not changed, only WHEN
+                # it is checked.
+                raise DriverError(
+                    "ig_empty_harvest",
+                    f"harvested 0 reels but {len(stored)} are cached — "
+                    f"refusing to overwrite. Usually a changed selector or an "
+                    f"expired session: run  python driver.py reels --dry-run  "
+                    f"to see which.")
+
+            merged = merge_reels(stored, got["reels"]) if same else got["reels"]
+
+            # ── Video URLs, prioritized by watch position ──────────────────
+            # The one operation that needs the page open per-reel, so it runs
+            # last, right before the context closes. Reads the actual watch
+            # position from the widget's own config doc; a read failure just
+            # starts the batch from the top of the list rather than failing
+            # the whole harvest over a non-essential prioritization signal.
+            cfg = read_reels_cfg()
+            videos = await attach_video_urls(
+                merged, page, cfg.get("watchShortcode") or "")
         finally:
             await ctx.close()
 
-    cache = read_reels_cloud()
-    stored = cache.get("reels") or []
-    # Whether the stored document describes the SAME collection we just
-    # harvested. Drives both the empty-result refusal and the merge below.
-    same = (cache.get("collection") or "") == collection
-
-    # ── The empty-result refusal ──────────────────────────────────────────────
-    # A logged-out page, a changed selector and a genuinely empty collection all
-    # produce zero tiles, and only the last is not a bug. Overwriting a good list
-    # with [] on any of them would delete the widget's contents for a reason
-    # nobody could reconstruct afterwards, so zero results never persist over a
-    # non-empty cache. The cached list keeps serving; the run says why.
-    # The refusal only makes sense WITHIN a collection. Switching from
-    # all-posts (1218 reels) to an empty collection legitimately harvests zero,
-    # and comparing across the two produced a scary "0 but 1218 cached" refusal
-    # for a correct run. A different collection is compared against nothing.
-    if not got["reels"] and stored and same:
-        return {"ok": False, "kind": "ig_empty_harvest",
-                "error": f"harvested 0 reels but {len(stored)} are cached — "
-                         f"refusing to overwrite. Usually a changed selector or "
-                         f"an expired session: run  python driver.py reels "
-                         f"--dry-run  to see which.",
-                "kept": len(stored), "stoppedAt": got["stoppedAt"]}
-
-    # Merging is per COLLECTION. Switching collections must not union two
-    # different sets into one list — that would silently mix them with no way
-    # to tell them apart afterwards. Same collection ⇒ merge (so a partial
-    # harvest never loses reels); different ⇒ replace.
-    merged = merge_reels(stored, got["reels"]) if same else got["reels"]
-
-    # Thumbnails, before publishing: this is the only moment the signed CDN
-    # urls are still valid, and the only writer that has them.
+    # Thumbnails, after the browser closes: these are plain HTTP image fetches
+    # (urllib), not page visits, so they do not need Playwright at all — this
+    # is the only moment the signed CDN thumbnail urls are still valid, and the
+    # only writer that has them.
     thumbs = attach_thumbs(merged)
 
     doc = {
@@ -2486,6 +2688,7 @@ async def _reels_run(site, args, target, collection, headless, user="") -> dict:
             "collections": res.get("collections", 0),
             "replacedCollection": (not same) and bool(stored),
             "thumbs": thumbs,
+            "videos": videos,
             "scrolls": got["scrolls"], "stoppedAt": got["stoppedAt"],
             "publishedTo": REELS_API}
 
