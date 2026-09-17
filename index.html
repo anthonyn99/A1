@@ -3076,9 +3076,16 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
   position:absolute;
   top:calc(var(--thrl-crop-top) * -1);
   left:0;
-  width:100%;                    /* 100% of .thrl-slide-frame, i.e. H/R = W */
-  /* header + exactly one media box, both driven by the frame's own width. */
-  height:calc(var(--thrl-crop-top) + (100% * var(--thrl-video-ratio)));
+  width:100%;                    /* 100% of .thrl-slide-frame's WIDTH: H/R = W */
+  /* header + exactly one media box. The frame's HEIGHT is already H (set
+     directly by .thrl-slide-frame{height:100%} against the slide), and H
+     equals W x ratio by construction — so this "100%" (which resolves
+     against the frame's height, since this is a `height:` declaration) IS
+     the video's height already; it must not be multiplied by the ratio
+     again, or the iframe comes out taller than IG will actually render it,
+     leaving a visible gap where the video stops short of the slide's bottom
+     (or, worse, the reverse: too SHORT an iframe crops real video). */
+  height:calc(var(--thrl-crop-top) + 100%);
   border:0;display:block;background:#000;
 }
 /* A real <video> tag needs none of the iframe's crop hack — there is no
