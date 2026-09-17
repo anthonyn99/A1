@@ -6707,6 +6707,28 @@ function tbCopySync(text){
   return ok;
 }
 
+  /* One card per section, so Analysis reads the way Control does: a titled box
+     per concern instead of a single column of loose label-and-block pairs.
+     `pad` is the same clamp the Control cards use, so the two tabs agree at
+     every width.
+   Defined at top level, NOT inside TBAnalysisPage: a component declared inside
+   another is a new type on every render, so React remounted each card and
+   everything in it on each keystroke — Quick Prompt took one character and
+   lost focus. */
+function TBAnalysisCard({icon,title,sub,children,style}){
+  return(
+    <div className="tb-card" style={{padding:'clamp(15px,4vw,22px)',display:'flex',flexDirection:'column',gap:14,boxSizing:'border-box',...(style||{})}}>
+      <div>
+        <div style={{fontSize:16,fontWeight:800,color:'var(--tx)',display:'flex',alignItems:'center',gap:8,lineHeight:1.25}}>
+          {icon&&<span style={{color:'var(--ac)',display:'inline-flex',flexShrink:0}}><TBIcon n={icon} size={14}/></span>}{title}
+        </div>
+        {sub&&<div style={{fontSize:12,color:'var(--txm)',marginTop:4,lineHeight:1.5}}>{sub}</div>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
 function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
   const isMobile=useIsMobile();
   const [editing,setEditing]=React.useState(false);
@@ -6999,21 +7021,6 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
     saveCfg(next);setEditing(false);setResults([]);
   };
 
-  /* One card per section, so Analysis reads the way Control does: a titled box
-     per concern instead of a single column of loose label-and-block pairs.
-     `pad` is the same clamp the Control cards use, so the two tabs agree at
-     every width. */
-  const Card=({icon,title,sub,children,style})=>(
-    <div className="tb-card" style={{padding:'clamp(15px,4vw,22px)',display:'flex',flexDirection:'column',gap:14,boxSizing:'border-box',...(style||{})}}>
-      <div>
-        <div style={{fontSize:16,fontWeight:800,color:'var(--tx)',display:'flex',alignItems:'center',gap:8,lineHeight:1.25}}>
-          {icon&&<span style={{color:'var(--ac)',display:'inline-flex',flexShrink:0}}><TBIcon n={icon} size={14}/></span>}{title}
-        </div>
-        {sub&&<div style={{fontSize:12,color:'var(--txm)',marginTop:4,lineHeight:1.5}}>{sub}</div>}
-      </div>
-      {children}
-    </div>
-  );
 
   return(<div className="tb-fade-in tb-mob-flush" style={{display:'flex',flexDirection:'column',gap:16,padding:'0 clamp(12px,4vw,28px) 40px',maxWidth:680,margin:'0 auto',width:'100%'}}>
     {/* Header — white, consistent with other sections */}
@@ -7022,7 +7029,7 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
     {/* AI destination first: it decides where EVERYTHING below goes — the quick
         prompt, the saved prompt, and the morning deploy — and the copy in the
         cards under it reads off the destination chosen here. */}
-    <Card icon="sparkle" title="AI Destination"
+    <TBAnalysisCard icon="sparkle" title="AI Destination"
       sub={aiSite.magi?'Where the prompt goes. MAGI asks every ticked model at once, then writes one verdict.':'Where the prompt gets sent.'}>
       <div style={{display:'flex',flexDirection:'column',gap:12}}>
         <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
@@ -7095,10 +7102,10 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
           </div>
         )}
       </div>
-    </Card>
+    </TBAnalysisCard>
 
     {/* Quick prompt — the one you reach for without any setup */}
-    <Card icon="pencil" title="Quick Prompt" sub="A one-off, sent exactly like a saved prompt.">
+    <TBAnalysisCard icon="pencil" title="Quick Prompt" sub="A one-off, sent exactly like a saved prompt.">
       <div style={{display:'flex',flexDirection:'column',gap:10}}>
         <div style={{position:'relative'}}>
           <textarea value={quickText} onChange={e=>setQuick(e.target.value)}
@@ -7134,14 +7141,14 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
             onMouseEnter={e=>e.currentTarget.style.color='var(--tbr)'} onMouseLeave={e=>e.currentTarget.style.color='var(--txm)'}>Clear</button>}
         </div>
       </div>
-    </Card>
+    </TBAnalysisCard>
 
     {/* Prompt To Send — the picker AND a live preview of what it will send.
         These used to be far apart: you chose a prompt at the top of the page and
         confirmed it in a one-line "Prompt to send" strip near the bottom, with
         the AI-destination block between them. Showing the real text right under
         the chips means the selection and its consequence are one thing. */}
-    <Card icon="command" title="Prompt To Send"
+    <TBAnalysisCard icon="command" title="Prompt To Send"
       sub={<><b>Double-tap</b> a prompt to send just that one{aiSite.id==='none'?'':` to ${aiSite.label}`}, without the searches. The <b>★</b> picks what Launch Analysis and the morning deploy send.</>}>
       <TBPromptSelect prompts={prompts} value={cfg.analysisPromptId} onChange={id=>saveCfg({...cfg,analysisPromptId:id})} onGoToPrompts={onGoToPrompts} onQuickLaunch={handleQuickLaunch}/>
       {selPromptText
@@ -7160,11 +7167,11 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
         :<div style={{padding:'14px',borderRadius:8,border:'1px dashed var(--bd)',fontSize:12.5,color:'var(--txd)',textAlign:'center'}}>
           No prompt selected — pick one above.
         </div>}
-    </Card>
+    </TBAnalysisCard>
 
     {/* Searches — the tabs that open alongside the AI. The prompt row that used
         to head this list has moved into Prompt To Send, where the picker is. */}
-    <Card icon="listOrd" title="Searches"
+    <TBAnalysisCard icon="listOrd" title="Searches"
       sub={`${searches.filter(s=>(s||'').trim()).length} of ${searches.length} set · opens in this order, AI last`}>
       <div style={{display:'flex',flexDirection:'column',gap:8}}>
         {searches.map((val,i)=>(
@@ -7182,7 +7189,7 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
       <button className="tb-btn-ghost" onClick={()=>{setEditing(e=>!e);setDraft(getSearches(cfg));setResults([]);}} style={{alignSelf:'flex-start',fontSize:12}}>
         {editing?<span><TBIcon n="x"/> Cancel</span>:<span><TBIcon n="pencil"/> Edit Searches</span>}
       </button>
-    </Card>
+    </TBAnalysisCard>
 
     {/* Edit panel — add/remove any number of searches */}
     {editing&&(
@@ -7217,7 +7224,7 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
     )}
 
     {/* Launch — the two things this page exists to fire, in one box */}
-    <Card icon="bolt" title="Launch"
+    <TBAnalysisCard icon="bolt" title="Launch"
       sub={aiSite.magi?<>Opens your searches, then convenes MAGI on the prompt above{magiUnits.length?<> — {unitWord(magiUnits.length)}</>:''}.</>:'Sends the prompt above, then opens your searches.'}>
       <button onMouseDown={handleLaunch} disabled={isEmpty}
         style={{display:'inline-flex',alignItems:'center',justifyContent:'center',gap:8,background:isEmpty?'transparent':'var(--ac)',color:isEmpty?'var(--txd)':'#000',border:isEmpty?'1.5px solid var(--bd)':'none',borderRadius:8,padding:'12px 28px',fontSize:15,fontWeight:800,cursor:isEmpty?'not-allowed':'pointer',transition:'all .15s',opacity:isEmpty?.5:1,alignSelf:'stretch'}}>
@@ -7234,7 +7241,7 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
           Runs the whole flow — Daily Reminder → WeBull → TaskHub → window layout — then opens {aiSite.id==='none'?'your searches':aiSite.magi?<>your searches + MAGI{magiUnits.length?<>, convening the same {unitWord(magiUnits.length)}</>:''}</>:<>{aiSite.label} + your searches</>} <b>in this Brave window</b>. Needs <code style={{fontFamily:'monospace'}}>launch.py --setup</code> once; Brave asks permission the first time.
         </div>
       </div>
-    </Card>
+    </TBAnalysisCard>
 
     {/* Per-action result pills */}
     {results.length>0&&(
