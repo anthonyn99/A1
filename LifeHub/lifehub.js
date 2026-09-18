@@ -674,7 +674,7 @@
     'color:var(--ac);border:1px solid color-mix(in srgb,var(--ac) 45%,transparent);-webkit-tap-highlight-color:transparent}' +
     '.done:hover{background:color-mix(in srgb,var(--ac) 10%,transparent)}' +
     '.sc{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:4px 10px 10px;scrollbar-width:thin;scrollbar-color:var(--bd2) transparent}' +
-    '.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px}' +
+    '.grid{position:relative;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px}' +
     '.m .grid{grid-template-columns:repeat(4,minmax(0,1fr))}' +
     '@media (max-width:359px){.m .grid{grid-template-columns:repeat(3,minmax(0,1fr))}}' +
     '.t{all:unset;box-sizing:border-box;position:relative;min-width:0;display:flex;flex-direction:column;align-items:center;gap:8px;' +
@@ -684,6 +684,7 @@
     '.t:active{background:var(--act)}' +
     '.ic{position:relative;width:48px;height:48px;border-radius:12px;display:grid;place-items:center;overflow:hidden;flex:none;' +
     'transition:transform .18s cubic-bezier(.2,.8,.2,1);pointer-events:none}' +
+    '.ic::after{content:"";position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 0 0 1px rgba(255,255,255,.07);pointer-events:none}' +
     '.ic svg{width:100%;height:100%;display:block}.ic img{width:100%;height:100%;object-fit:cover;display:block}' +
     '.ic.site,.ic.mono{background:var(--bg2);border:1px solid var(--bd)}.ic.site img{width:26px;height:26px;object-fit:contain}' +
     '.ic.mono{font-size:20px;font-weight:600;color:var(--ac)}' +
@@ -885,7 +886,9 @@
     try { ui.pop.focus({ preventScroll: true }); } catch (e) {}
   }
 
-  function close() {
+  // `instant` skips the exit animation — used when leaving for another tab,
+  // where the page is backgrounded and its timers throttled.
+  function close(instant) {
     if (!ui.open) return;
     if (D) endDrag(true);
     if (ui.view === 'ed') closeEditor(true);
@@ -895,11 +898,15 @@
     window.removeEventListener('scroll', queuePlace, true);
     document.removeEventListener('keydown', onDocKey, true);
     var hadFocus = ui.root.activeElement != null;
-    ui.wrap.classList.add('closing');
-    ui.closeT = setTimeout(function () {
+    if (instant === true || document.visibilityState !== 'visible') {
       ui.host.style.display = 'none';
-      ui.wrap.classList.remove('closing');
-    }, 190);
+    } else {
+      ui.wrap.classList.add('closing');
+      ui.closeT = setTimeout(function () {
+        ui.host.style.display = 'none';
+        ui.wrap.classList.remove('closing');
+      }, 190);
+    }
     if (hadFocus && ui.anchor && ui.anchor._btn && ui.anchor.isConnected && !ui.anchor.hidden) {
       try { ui.anchor._btn.focus({ preventScroll: true }); } catch (e) {}
     }
@@ -1018,7 +1025,7 @@
     if (!isWeb(url)) {
       // Another program's protocol (shieldopen:, …): hand it to the OS, the
       // same way TaskHub hands local paths to Shield.
-      close();
+      close(true);
       try { location.href = url; } catch (e) {}
       return;
     }
@@ -1034,7 +1041,7 @@
         document.body.appendChild(an); an.click(); document.body.removeChild(an);
       } catch (e) {}
     }
-    close();
+    close(true);
   }
 
   /* ── Drag to reorder ──────────────────────────────────────────────────────
@@ -1054,14 +1061,17 @@
     t.addEventListener('dragstart', function (e) { e.preventDefault(); });
   }
 
+  // Move/up are heard on window in the CAPTURE phase: the dragged tile is
+  // re-inserted as it travels, which silently drops pointer capture, and the
+  // panel stops bubbling events at its edge — capture on window sees them
+  // before either can get in the way.
   function onPD(e) {
     if (e.pointerType === 'touch' || e.button !== 0 || D) return;
     var t = e.currentTarget;
     P = { t: t, x: e.clientX, y: e.clientY, id: e.pointerId };
-    try { t.setPointerCapture(e.pointerId); } catch (err) {}
-    t.addEventListener('pointermove', onPM);
-    t.addEventListener('pointerup', onPU);
-    t.addEventListener('pointercancel', onPU);
+    window.addEventListener('pointermove', onPM, true);
+    window.addEventListener('pointerup', onPU, true);
+    window.addEventListener('pointercancel', onPU, true);
   }
   function onPM(e) {
     if (!P || e.pointerId !== P.id) return;
@@ -1073,12 +1083,10 @@
     moveDrag(e.clientX, e.clientY);
   }
   function onPU(e) {
-    if (!P) return;
-    var t = P.t;
-    t.removeEventListener('pointermove', onPM);
-    t.removeEventListener('pointerup', onPU);
-    t.removeEventListener('pointercancel', onPU);
-    try { t.releasePointerCapture(P.id); } catch (err) {}
+    if (!P || e.pointerId !== P.id) return;
+    window.removeEventListener('pointermove', onPM, true);
+    window.removeEventListener('pointerup', onPU, true);
+    window.removeEventListener('pointercancel', onPU, true);
     P = null;
     if (D) { endDrag(e.type === 'pointercancel'); ui.noClickUntil = Date.now() + 350; }
   }
@@ -1135,12 +1143,18 @@
     retarget();
   }
 
+  // Hit-test against each tile's LAYOUT slot (offsetLeft/Top ignore
+  // transforms), not where it is drawn: mid-slide a neighbour is still painted
+  // under the pointer, and testing that would bounce the order back and forth.
   function retarget() {
-    var hit = null;
-    try { hit = ui.root.elementFromPoint(D.x, D.y); } catch (e) { hit = null; }
-    var over = hit && hit.closest ? hit.closest('.t') : null;
-    if (!over || over === D.t || over.classList.contains('add') || over.classList.contains('ghost') || over.parentNode !== ui.grid) return;
-    var tiles = gridTiles();
+    var g = ui.grid.getBoundingClientRect();
+    var px = D.x - g.left, py = D.y - g.top;
+    var tiles = gridTiles(), over = null;
+    for (var i = 0; i < tiles.length; i++) {
+      var n = tiles[i];
+      if (px >= n.offsetLeft && px < n.offsetLeft + n.offsetWidth && py >= n.offsetTop && py < n.offsetTop + n.offsetHeight) { over = n; break; }
+    }
+    if (!over || over === D.t) return;
     var from = tiles.indexOf(D.t), to = tiles.indexOf(over);
     if (from < 0 || to < 0) return;
     flip(function () { ui.grid.insertBefore(D.t, to > from ? over.nextSibling : over); });

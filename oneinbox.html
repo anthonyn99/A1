@@ -1061,6 +1061,8 @@ window._mailRelay = window._mailRelay || async function (res) {
     <button class="iconbtn" id="lockNowBtn" title="Lock OneInbox" aria-label="Lock">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10.5" rx="2.2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg>
     </button>
+    <!-- LifeHub app switcher (LifeHub/lifehub.js) — hidden while #lockScreen is up. -->
+    <a1-lifehub></a1-lifehub>
   </header>
 
   <div class="panes">
@@ -3380,5 +3382,6 @@ if (lockSession) el('lockScreen').style.display = 'none';
 })();
 </script>
 <script src="tabsync.js"></script>
-<script src="hoverfx.js"></script></body>
+<script src="hoverfx.js"></script>
+<script src="LifeHub/lifehub.js" data-lock="#lockScreen" defer></script></body>
 </html>

@@ -630,9 +630,30 @@ fn class_id_of(id: &str) -> Option<&str> {
     Some(cid)
 }
 
+/// `shieldopen:show` — bring the agent's own window forward.
+///
+/// LifeHub (LifeHub/lifehub.js) lists "Shield" as an app, but the desktop agent
+/// has no page a browser could open: its window IS shield.html. A link is the
+/// only way a page can reach it, and every other link is deliberately
+/// invisible (see the single-instance handler), so raising the window gets a
+/// verb of its own rather than riding on an id.
+fn is_show_link(url: &url::Url) -> bool {
+    // `shieldopen:show` carries it as the path; `shieldopen://show` as the host.
+    let path = url.path().trim_matches('/');
+    path == "show" || (path.is_empty() && url.host_str() == Some("show"))
+}
+
 #[cfg(test)]
 mod link_tests {
-    use super::class_id_of;
+    use super::{class_id_of, is_show_link};
+
+    #[test]
+    fn show_verb_parses_in_both_spellings() {
+        assert!(is_show_link(&url::Url::parse("shieldopen:show").unwrap()));
+        assert!(is_show_link(&url::Url::parse("shieldopen://show").unwrap()));
+        assert!(!is_show_link(&url::Url::parse("shieldopen:class/123").unwrap()));
+        assert!(!is_show_link(&url::Url::parse("shieldopen:showx").unwrap()));
+    }
 
     /// Pins what `url::Url::path()` actually yields for our scheme, because the
     /// whole verb hangs off it. `shieldopen:x` is cannot-be-a-base so the path
@@ -954,16 +975,25 @@ pub fn run() {
                 // Subsequent links: TaskHub is already open somewhere, this agent
                 // is already running, and the OS hands the new link straight back
                 // in via the single-instance forwarding wired up above.
-                handle.deep_link().on_open_url(|event| {
+                let link_handle = handle.clone();
+                handle.deep_link().on_open_url(move |event| {
                     for url in event.urls() {
-                        open_from_link(&url);
+                        if is_show_link(&url) {
+                            show_window(&link_handle);
+                        } else {
+                            open_from_link(&url);
+                        }
                     }
                 });
                 // Cold start via the link itself — Shield was not running yet and
                 // the OS launched it to handle a shieldopen: click directly.
                 if let Ok(Some(urls)) = handle.deep_link().get_current() {
                     for url in urls {
-                        open_from_link(&url);
+                        if is_show_link(&url) {
+                            show_window(&handle);
+                        } else {
+                            open_from_link(&url);
+                        }
                     }
                 }
             }

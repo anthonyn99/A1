@@ -2442,6 +2442,12 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 .lock-btn:hover { border-color: var(--ac); color: var(--ac); }
 .lock-btn.unset { color: var(--txm); opacity: .6; }
 .nav-collapsed .sidebar .lock-btn { display: none; }
+.nav-collapsed .sidebar a1-lifehub { display: none; }
+/* LifeHub rides at the right end of the engine row (#linkBtn), overlaid so the
+   row keeps its full-width hover and nothing above it moves. */
+.sidebar { position: relative; }
+.sidebar > a1-lifehub { position: absolute; right: 5px; bottom: 2px; }
+.sidebar:has(> a1-lifehub:not([hidden])) .link { padding-right: 38px; }
 /* The top bar's copy exists only on mobile, where .mtop itself is hidden
    above the breakpoint -- so no separate rule is needed to hide it. */
 .mtop .lock-btn { margin-left: 4px; }
@@ -3572,6 +3578,11 @@ window._mailRelay = window._mailRelay || async function (res) {
     <button type="button" class="link seeking" id="linkBtn" title="Where the engine is">
       <span class="link-dot"></span><span class="link-txt" id="linkTxt">locating engine…</span>
     </button>
+    <!-- LifeHub app switcher (LifeHub/lifehub.js) — hidden while #lockScreen is
+         up. It sits at the end of the engine row rather than in .side-top:
+         that row's 232px is already spent, and a third button there cut the
+         tagline to "DELIBERATION SYSTE". -->
+    <a1-lifehub style="--lh-size:26px"></a1-lifehub>
   </aside>
 
   <main class="page" id="page">
@@ -3589,6 +3600,7 @@ window._mailRelay = window._mailRelay || async function (res) {
       <span class="mtop-where"><span class="link-dot" id="mtopDot"></span><span id="mtopTxt">…</span></span>
       <button type="button" class="lock-btn" id="helpBtnM" title="How MAGI works"></button>
       <button type="button" class="lock-btn" id="lockBtnM" title="Lock MAGI"></button>
+      <a1-lifehub style="--lh-size:30px"></a1-lifehub>
     </div>
 
     <div class="offline-note" id="offlineNote" hidden></div>
@@ -10202,6 +10214,12 @@ function cloudInit() {
   return CLOUD.ready;
 }
 
+/* LifeHub (LifeHub/lifehub.js) borrows this Firebase instead of starting its
+   own. It has to: this page's Firestore is created on demand, with a
+   persistent cache, and a default one made first by anyone else would make
+   the initializeFirestore above throw. Called only when the launcher is used. */
+window.LifeHubFirebase = () => cloudInit().then((ok) => (ok ? { db: CLOUD.db, fs: CLOUD.fs } : null));
+
 const _indexDoc = () => CLOUD.fs.doc(CLOUD.db, "dashboards", "magi");
 const _runDoc = (id) => CLOUD.fs.doc(CLOUD.db, "dashboards", "magi", "runs", id);
 
@@ -12831,5 +12849,6 @@ attachScrollbar($("sideNav"), 90);
 })();
 </script>
 <script src="tabsync.js"></script>
+<script src="LifeHub/lifehub.js" data-lock="#lockScreen" data-accent="#c0aeea" defer></script>
 </body>
 </html>

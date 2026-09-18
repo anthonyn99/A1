@@ -857,6 +857,8 @@ window._mailRelay = window._mailRelay || async function (res) {
         <span class="sol-spacer"></span>
         <span class="sync-pill" id="sync-pill"><span class="sync-dot"></span><span id="sync-text">Offline</span></span>
         <button class="icon-btn" id="sol-lock-btn" title="Lock" onclick="SOL.manageLock()"></button>
+        <!-- LifeHub app switcher (LifeHub/lifehub.js) — hidden while #applock-overlay is up. -->
+        <a1-lifehub style="--lh-size:36px"></a1-lifehub>
       </div>
       <div id="sol-sections"></div>
     </div>
@@ -3356,5 +3358,6 @@ mcInitFirebase();
 </script>
 
 <script src="tabsync.js"></script>
-<script src="hoverfx.js"></script></body>
+<script src="hoverfx.js"></script>
+<script src="LifeHub/lifehub.js" data-lock="#applock-overlay" defer></script></body>
 </html>

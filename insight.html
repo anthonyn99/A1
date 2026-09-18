@@ -847,6 +847,8 @@ window._mailRelay = window._mailRelay || async function (res) {
           <svg id="dmIconOff" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M17.9 17.9A10.1 10.1 0 0 1 12 19.8c-6.2 0-10.2-6.5-10.2-6.5a18.4 18.4 0 0 1 4.7-5.4M9.9 5.7A9.1 9.1 0 0 1 12 5.5c6.2 0 10.2 6.5 10.2 6.5a18.5 18.5 0 0 1-2 2.9m-6.2-1.1a2.8 2.8 0 1 1-3.9-3.9"/><line x1="2.5" y1="2.5" x2="21.5" y2="21.5"/></svg>
         </button>
         <button class="btn icononly" id="lockNowBtn" title="Lock Insight now" aria-label="Lock Insight now"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><rect x="4.5" y="10.5" width="15" height="10.5" rx="2.2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg></button>
+        <!-- LifeHub app switcher (LifeHub/lifehub.js) — hidden while #lockScreen is up. -->
+        <a1-lifehub></a1-lifehub>
       </div>
     </div>
   </header>
@@ -3559,5 +3561,6 @@ window._mailRelay = window._mailRelay || async function (res) {
   }
 </script>
 <script src="tabsync.js"></script>
-<script src="hoverfx.js"></script></body>
+<script src="hoverfx.js"></script>
+<script src="LifeHub/lifehub.js" data-lock="#lockScreen" defer></script></body>
 </html>

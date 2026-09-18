@@ -32,7 +32,7 @@ try { babelParse = require('@babel/parser').parse; } catch (e) { /* optional */ 
 // inline, so the HTML scanner below never sees them — a syntax error here is
 // just as fatal (backup.js runs on every page load) and would otherwise ship
 // unnoticed.
-const ROOT_SCRIPTS = ['backup.js', 'hoverfx.js', 'tabsync.js'];
+const ROOT_SCRIPTS = ['backup.js', 'hoverfx.js', 'tabsync.js', path.join('LifeHub', 'lifehub.js')];
 
 // Cloudflare Worker entrypoints. These were unchecked for a long time and it
 // cost a silent outage: a worker.js with a literal newline inside a quoted
@@ -92,7 +92,12 @@ for (const name of FILES) {
   // Strip HTML comments first: several contain the literal text "<script ...>",
   // which otherwise gets scanned as if it were real code and reported as a
   // bogus syntax error.
-  const scrubbed = src.replace(/<!--[\s\S]*?-->/g, (m) => m.replace(/[^\n]/g, ' '));
+  // Only comments OUTSIDE <script> blocks, though: JavaScript can hold the
+  // text "<!--" too (MAGI's markdown renderer matches it with /^<!--/), and
+  // blanking from there to the next "-->" gutted that script and reported a
+  // syntax error that did not exist — which also jammed the pre-commit hook.
+  const scrubbed = src.replace(/<script\b[^>]*>[\s\S]*?<\/script>|<!--[\s\S]*?-->/g,
+    (m) => (m.startsWith('<!--') ? m.replace(/[^\n]/g, ' ') : m));
 
   const re = /<script([^>]*)>([\s\S]*?)<\/script>/g;
   let m;

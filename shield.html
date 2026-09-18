@@ -981,6 +981,9 @@ window._mailRelay = window._mailRelay || async function (res) {
     <div class="spacer"></div>
     <span class="sync" id="sync">·</span>
     <button class="iconbtn" id="lock-btn" title="Manage lock"></button>
+    <!-- LifeHub app switcher (LifeHub/lifehub.js) — Tony's profile only
+         (body[data-profile]), hidden while #applock-overlay is up. -->
+    <a1-lifehub></a1-lifehub>
     <button class="pf-badge" id="pf-badge" title="Switch profile">T</button>
   </header>
 
@@ -5303,6 +5306,7 @@ return {
 })();
 </script>
 <script src="tabsync.js"></script>
-<script src="hoverfx.js"></script></body>
+<script src="hoverfx.js"></script>
+<script src="LifeHub/lifehub.js" data-lock="#applock-overlay" data-profile-attr="data-profile" defer></script></body>
 </html>
 

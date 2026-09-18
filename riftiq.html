@@ -3667,6 +3667,7 @@ window._mailRelay = window._mailRelay || async function (res) {
       WarRoom
     </button>
     <button id="wr-progbar-lock" title="Lock" onclick="window._wrManageLock && window._wrManageLock()"></button>
+    <a1-lifehub style="--lh-size:28px"></a1-lifehub>
   </div>
 </div>
 
@@ -3861,6 +3862,8 @@ window._mailRelay = window._mailRelay || async function (res) {
     </button>
     <button id="wr-lock-btn" title="Lock RiftIQ behind a password"
             onclick="window._wrManageLock && window._wrManageLock()"></button>
+    <!-- LifeHub app switcher (LifeHub/lifehub.js) — hidden while #applock-overlay is up. -->
+    <a1-lifehub style="--lh-size:28px"></a1-lifehub>
   </div>
   </div>
 
@@ -13058,5 +13061,6 @@ setInterval(()=>{
 </script>
 
 <script src="tabsync.js"></script>
-<script src="hoverfx.js"></script></body>
+<script src="hoverfx.js"></script>
+<script src="LifeHub/lifehub.js" data-lock="#applock-overlay" data-accent="#c0aeea" defer></script></body>
 </html>
