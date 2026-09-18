@@ -3151,7 +3151,7 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
 }
 .thrl-slide-idle span{position:relative;z-index:1;}
 
-/* Feed chrome: back to the grid, and the escape hatch. Floating, minimal. */
+/* Feed chrome: back to the grid, and the sound toggle. Floating, minimal. */
 .thrl-feed-bar{
   position:absolute;top:0;left:0;right:0;z-index:4;
   display:flex;align-items:center;gap:8px;
@@ -3169,8 +3169,8 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
 }
 .thrl-back:hover{border-color:#fff;}
 .thrl-back:focus-visible{outline:2px solid var(--rl-ac);outline-offset:2px;}
-/* Sound toggle. Same floating pill as .thrl-back / .thrl-ext, sized square
-   because it holds an icon rather than a word. */
+/* Sound toggle. Same floating pill as .thrl-back, sized square because it
+   holds an icon rather than a word. */
 .thrl-mute{
   display:flex;align-items:center;justify-content:center;
   width:24px;height:24px;flex:0 0 auto;padding:0;
@@ -3180,14 +3180,6 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
 }
 .thrl-mute:hover{border-color:#fff;}
 .thrl-mute:focus-visible{outline:2px solid var(--rl-ac);outline-offset:2px;}
-.thrl-ext{
-  color:#fff !important;font-size:10.5px;text-decoration:none !important;
-  white-space:nowrap;background:rgba(0,0,0,.55);border-radius:999px;
-  padding:4px 10px;border:1px solid rgba(255,255,255,.22);
-  backdrop-filter:blur(4px);
-}
-.thrl-ext:hover{border-color:#fff;}
-.thrl-ext:focus-visible{outline:2px solid var(--rl-ac);outline-offset:2px;}
 /* A panel showing the feed drops its own padding and scrolling: the feed owns
    both, or there would be two nested scroll containers fighting each other. */
 .thrl-panel.thrl-panel-feed{padding:10px;overflow:hidden;}
@@ -3846,11 +3838,7 @@ function Widget(props){
                     h('path',{key:'p',d:'M11 5 6 9H2v6h4l5 4V5z'}),
                     h('path',{key:'w',d:'M15.5 8.5a5 5 0 0 1 0 7'}),
                     h('path',{key:'w2',d:'M19 5a9 9 0 0 1 0 14'})))
-          : null,
-        h('a',{key:'x',className:'thrl-ext',
-          href:(s.reels[cur]||{}).url||'https://www.instagram.com/',
-          target:'_blank',rel:'noopener noreferrer',
-          title:'Open on Instagram'},'Instagram \u2197'))
+          : null)
     : null;
 
   var grid=h('div',{key:'g',className:'thrl-grid'},

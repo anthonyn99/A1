@@ -142,7 +142,11 @@ t('playback stops when the panel closes',
   blk.includes('if(!open&&S.playing)'),
   'a mounted iframe in a closed tree keeps its audio going');
 t('there is a way back to the grid', blk.includes("'thrl-back'"));
-t('and an escape hatch to Instagram', blk.includes("'thrl-ext'"));
+// The "open on Instagram" link was REMOVED on request — no outbound links in
+// this widget. Inverted rather than deleted so it cannot quietly return.
+t('no outbound Instagram link in the feed bar',
+  !blk.includes("'thrl-ext'") && !html.includes('.thrl-ext'),
+  'the feed bar is deliberately link-free');
 
 // ── Every class the JS uses must exist in the stylesheet ────────────────────
 // The bug: JS referencing .thrl-player / .thrl-back / .thrl-ext while the CSS
