@@ -58,8 +58,11 @@ DOM_TO_MARKDOWN_JS = """
   // ChatGPT drops the annotation and keeps the TeX on its wrapper instead:
   // <span role="math" data-math-source="E = mc^2"> (verified 2026-09-18).
   const tex = (n) => {
-    const src = n.getAttribute && (n.getAttribute('data-math-source')
-      || (n.querySelector('[data-math-source]') || { getAttribute: () => null }).getAttribute('data-math-source'));
+    // On the element, inside it, or -- for display math, where the TeX sits on
+    // a wrapper AROUND the .katex-display -- on its nearest ancestor.
+    const holder = n.getAttribute && (n.hasAttribute('data-math-source') ? n
+      : n.querySelector('[data-math-source]') || (n.closest && n.closest('[data-math-source]')));
+    const src = holder && holder.getAttribute('data-math-source');
     if (src) return src.trim();
     const a = n.querySelector && n.querySelector('annotation[encoding="application/x-tex"]');
     return a ? a.textContent.trim() : null;
