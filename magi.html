@@ -126,9 +126,10 @@ body {
   border-bottom: 1px solid var(--bd);
   /* FIXED, not min-height. Collapsing hides .side-brand, so a min-height row
      shrank from 77px to 60px and the centred toggle moved 8px up with it -- a
-     button that jumps away from the cursor that just pressed it. 77px is the
-     expanded height, measured, so neither state moves. */
-  height: 77px;
+     button that jumps away from the cursor that just pressed it. 109px is the
+     expanded height (brand row + the .side-actions row), measured, so neither
+     state moves. */
+  height: 109px;
 }
 .side-toggle {
   background: transparent; border: none; color: var(--txm);
@@ -232,6 +233,9 @@ body {
   }
   .side-toggle { display: none; }
   .side-top { justify-content: center; padding: 12px 4px 10px; }
+  /* 56px rail: the header's buttons stack instead of overflowing sideways. */
+  .side-top { height: auto; }
+  .side-top .side-actions { flex-direction: column; }
 }
 
 .wordmark {
@@ -2446,26 +2450,18 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 /* The top bar's copy exists only on mobile, where .mtop itself is hidden
    above the breakpoint -- so no separate rule is needed to hide it. */
 .mtop .lock-btn { margin-left: 4px; }
-/* Two icon buttons share the sidebar header with a 232px rail and a wordmark.
-   `margin-left: auto` on EACH of them put a spring before both, so the pair
-   was pushed apart and the tagline lost the width -- it clipped to
-   "DELIBERATION SYS". The brand takes the slack instead, and the buttons sit
-   together at the end where a pair of controls belongs. */
-.side-top .side-brand { flex: 1 1 auto; }
-/* Measured, not guessed: at 232px with two header buttons the tagline needed
-   124px and had 103. It is decorative text, so it gives up the letter-spacing
-   rather than the header giving up a control. */
-.side-top .tagline {
-  /* Measured, not guessed: 8px with .55px of tracking is the largest setting
-     of "DELIBERATION SYSTEM" that still fits the header beside three
-     controls. 9px clipped it to "DELIBERATION SYST". */
-  font-size: 8px; letter-spacing: .55px;
-}
-/* A fourth control (the LifeHub launcher) costs 32px. Same trade as above:
-   the decorative tagline gives up tracking and the row a little gap, measured
-   so "DELIBERATION SYSTEM" still fits whole. Only while the launcher shows. */
-.side-top:has(> a1-lifehub:not([hidden])) { gap: 4px; }
-.side-top:has(> a1-lifehub:not([hidden])) .tagline { letter-spacing: .2px; }
+/* Two rows: toggle + brand on the first, the header's buttons (help, lock,
+   LifeHub) together on a second row, flush right. Sharing one row with three
+   buttons left the tagline ~90px and it clipped to "DELIBERATION SYSTE"
+   however the tracking was trimmed; on its own row it has the whole rail. */
+/* Top-aligned rather than centred, so the toggle sits at the same height
+   whether the rail is expanded (two rows) or collapsed (toggle alone) -- the
+   same no-jump rule the fixed height above exists for. */
+.side-top { flex-wrap: wrap; align-content: flex-start; row-gap: 6px; }
+.side-top .side-toggle { align-self: flex-start; }
+.side-top .side-brand { flex: 1 1 0; }
+.side-actions { flex: 0 0 100%; display: flex; justify-content: flex-end; align-items: center; gap: 6px; }
+.nav-collapsed .side-actions { display: none; }
 .side-top .lock-btn { margin-left: 0; width: 26px; height: 26px; }
 .side-top .lock-btn svg { width: 15px; height: 15px; }
 @media (max-width: 760px) { .sidebar .lock-btn { display: flex; } }
@@ -3090,7 +3086,7 @@ html.modal-open .page, html.modal-open .sidebar { overflow: hidden; }
     background: none; color: var(--txm);
   }
   .side-toggle { display: none; }
-  .side-top { justify-content: flex-start; padding: 14px 12px 10px; }
+  .side-top { justify-content: flex-start; padding: 14px 12px 10px; height: auto; }
 
   /* Tapping the scrim is the fastest way out, and on a phone it is the one
      people reach for before hunting a close button. */
@@ -3519,10 +3515,14 @@ window._mailRelay = window._mailRelay || async function (res) {
         <div class="tagline">Deliberation system</div>
         <div class="syncline" id="syncLine"></div>
       </div>
-      <button type="button" class="lock-btn" id="helpBtn" title="How MAGI works"></button>
-      <button type="button" class="lock-btn" id="lockBtn" title="Lock MAGI"></button>
-      <!-- LifeHub app switcher (LifeHub/lifehub.js) — hidden while #lockScreen is up. -->
-      <a1-lifehub style="--lh-size:26px"></a1-lifehub>
+      <!-- The header's controls get a row of their own under the brand, so
+           "DELIBERATION SYSTEM" keeps the full width of the rail. -->
+      <div class="side-actions">
+        <button type="button" class="lock-btn" id="helpBtn" title="How MAGI works"></button>
+        <button type="button" class="lock-btn" id="lockBtn" title="Lock MAGI"></button>
+        <!-- LifeHub app switcher (LifeHub/lifehub.js) — hidden while #lockScreen is up. -->
+        <a1-lifehub style="--lh-size:26px"></a1-lifehub>
+      </div>
     </div>
 
     <nav class="side-nav" id="sideNav">
