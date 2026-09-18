@@ -606,18 +606,17 @@
     'button:focus-visible{outline:2px solid var(--lh-ac,#e0b874);outline-offset:2px}' +
     '@media (pointer:coarse){button::after{content:"";position:absolute;inset:-5px}}';
 
-  function LauncherEl() { return Reflect.construct(HTMLElement, [], LauncherEl); }
-  LauncherEl.prototype = Object.create(HTMLElement.prototype);
-  LauncherEl.prototype.constructor = LauncherEl;
-  Object.setPrototypeOf(LauncherEl, HTMLElement);
-  LauncherEl.prototype.connectedCallback = function () {
-    var self = this;
-    if (!this.shadowRoot) {
-      var root = this.attachShadow({ mode: 'open' });
+  class LauncherEl extends HTMLElement {
+    connectedCallback() { launcherConnected(this); }
+    disconnectedCallback() { launcherDisconnected(this); }
+  }
+  function launcherConnected(self) {
+    if (!self.shadowRoot) {
+      var root = self.attachShadow({ mode: 'open' });
       root.innerHTML = '<style>' + LAUNCHER_CSS + '</style>' +
         '<button type="button" part="button" aria-label="A1 apps" aria-haspopup="dialog" aria-expanded="false" title="A1 apps">' + GRID_SVG + '</button>';
       var b = root.querySelector('button');
-      this._btn = b;
+      self._btn = b;
       // Warm the one listener while the pointer is still on its way.
       b.addEventListener('pointerenter', ensureSync);
       b.addEventListener('focus', ensureSync);
