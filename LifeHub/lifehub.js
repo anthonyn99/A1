@@ -748,6 +748,7 @@
     host.id = 'a1-lifehub-panel';
     host.setAttribute('data-no-hoverfx', '');
     host.style.cssText = 'position:fixed;inset:0;z-index:2147482600;display:none;pointer-events:none;';
+    if (CFG.accent) host.style.setProperty('--lh-ac', CFG.accent);
     var root = host.attachShadow({ mode: 'open' });
     root.innerHTML = '<style>' + PANEL_CSS + '</style>' +
       '<div class="wrap">' +
