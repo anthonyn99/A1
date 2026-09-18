@@ -2,7 +2,7 @@
  * LifeHub — the A1 app switcher. Built once, used by every program.
  *
  * WHAT IT IS
- * A 9-dot launcher that sits in a program's header and opens a grid of every
+ * A launcher (three app tiles and an accent diamond) that sits in a program's header and opens a grid of every
  * A1 app. Tap one and it opens — or, if it is already open in another tab,
  * that tab comes forward instead of a duplicate appearing. The list is data,
  * not code: names, links, icons, order and visibility are edited inside the
@@ -591,7 +591,7 @@
     '<rect x="3.5" y="3.5" width="7" height="7" rx="2.2"/>' +
     '<rect x="3.5" y="13.5" width="7" height="7" rx="2.2"/>' +
     '<rect x="13.5" y="13.5" width="7" height="7" rx="2.2"/>' +
-    '<rect class="core" x="14" y="4" width="6" height="6" rx="1.5" transform="rotate(45 17 7)"/>' +
+    '<rect class="core" x="14" y="4" width="6" height="6" rx="1.5"/>' +
     '</svg>';
 
   var LAUNCHER_CSS =
@@ -601,7 +601,7 @@
     'display:inline-grid;place-items:center;border-radius:10px;cursor:pointer;color:var(--lh-fg,#a3a1a6);' +
     '-webkit-tap-highlight-color:transparent;transition:background-color .15s,color .15s,transform .12s}' +
     'button svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linejoin:round;overflow:visible}' +
-    'button svg .core{fill:var(--lh-ac,#e0b874);stroke:none;transform-box:fill-box;transform-origin:center;' +
+    'button svg .core{fill:var(--lh-ac,#e0b874);stroke:none;transform-box:fill-box;transform-origin:center;transform:rotate(45deg);' +
     'transition:transform .35s cubic-bezier(.2,.8,.2,1)}' +
     '@media (hover:hover){button:hover{background:rgba(128,128,128,.14);color:var(--lh-fg-hover,#ecebe8)}' +
     'button:hover svg .core{transform:rotate(135deg)}}' +

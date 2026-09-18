@@ -29,7 +29,7 @@ files and belong at the root.
 
 | Path | What it is |
 | --- | --- |
-| `LifeHub/` | **LifeHub** — the 9-dot A1 app switcher, built once (`lifehub.js`) and dropped into each program with an `<a1-lifehub>` tag + one script. Not in Index or any Veda profile. See `LifeHub/README.md` |
+| `LifeHub/` | **LifeHub** — the A1 app switcher, built once (`lifehub.js`) and dropped into each program with an `<a1-lifehub>` tag + one script. Not in Index or any Veda profile. See `LifeHub/README.md` |
 | `Vault/` | Vault Launcher browser extension, and the modules `vault.html` loads |
 | `PriceWatch/` | Price Watch browser extension — reads store pages for MyList |
 | `desktop/shield/` | Shield desktop agent (Tauri / Rust). Rebuild and reinstall with `powershell -File desktop\shield\launch.ps1`; the installed copy has its own Start-menu shortcut |

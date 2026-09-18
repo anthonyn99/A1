@@ -1,6 +1,6 @@
 # LifeHub
 
-The A1 app switcher: a 9-dot launcher in a program's header that opens a grid of
+The A1 app switcher: a launcher (three app tiles and an accent diamond) in a program's header that opens a grid of
 every A1 app. It is built **once**, in `lifehub.js`, and every program uses that one
 file. Don't copy its code into a program, and don't fork it.
 

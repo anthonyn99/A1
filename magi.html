@@ -2461,6 +2461,11 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
      controls. 9px clipped it to "DELIBERATION SYST". */
   font-size: 8px; letter-spacing: .55px;
 }
+/* A fourth control (the LifeHub launcher) costs 32px. Same trade as above:
+   the decorative tagline gives up tracking and the row a little gap, measured
+   so "DELIBERATION SYSTEM" still fits whole. Only while the launcher shows. */
+.side-top:has(> a1-lifehub:not([hidden])) { gap: 4px; }
+.side-top:has(> a1-lifehub:not([hidden])) .tagline { letter-spacing: .2px; }
 .side-top .lock-btn { margin-left: 0; width: 26px; height: 26px; }
 .side-top .lock-btn svg { width: 15px; height: 15px; }
 @media (max-width: 760px) { .sidebar .lock-btn { display: flex; } }
