@@ -1406,9 +1406,4 @@
   };
 
   if (!customElements.get('a1-lifehub')) customElements.define('a1-lifehub', LauncherEl);
-  if (CFG.accent) {
-    // The panel reads the same variable once it is built.
-    var origBuild = build;
-    build = function () { origBuild(); ui.host.style.setProperty('--lh-ac', CFG.accent); };
-  }
 })();
