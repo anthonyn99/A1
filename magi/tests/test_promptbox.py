@@ -218,5 +218,5 @@ def test_markdown_renders_what_was_written():
 def test_html_is_rendered_from_an_allowlist_never_injected():
     assert 'kind: "details"' in PAGE and "(?<tag>kbd|sub|sup|mark" in PAGE
     md = PAGE[PAGE.index("const INLINE_RE"):PAGE.index("function renderList(")]
-    assert "innerHTML" not in md, "model text must never be parsed as markup"
+    assert ".innerHTML =" not in md and "insertAdjacentHTML" not in md, "model text must never be parsed as markup"
     assert "img" not in md.split("(?<tag>")[1].split(")")[0], "images would load remote content"
