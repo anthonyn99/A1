@@ -626,18 +626,18 @@
         if (ui.open && ui.anchor === self) close(); else open(self);
       });
     }
-    this.setAttribute('data-no-hoverfx', '');
-    if (CFG.accent && !this.style.getPropertyValue('--lh-ac')) this.style.setProperty('--lh-ac', CFG.accent);
-    launchers.add(this);
+    self.setAttribute('data-no-hoverfx', '');
+    if (CFG.accent && !self.style.getPropertyValue('--lh-ac')) self.style.setProperty('--lh-ac', CFG.accent);
+    launchers.add(self);
     var v = computeVisible();
-    if (this.hidden === v) this.hidden = !v;
+    if (self.hidden === v) self.hidden = !v;
     lastVis = v;
     startWatch();
-  };
-  LauncherEl.prototype.disconnectedCallback = function () {
-    launchers.delete(this);
-    if (ui.open && ui.anchor === this) close();
-  };
+  }
+  function launcherDisconnected(self) {
+    launchers.delete(self);
+    if (ui.open && ui.anchor === self) close();
+  }
 
   /* ══ Panel ═════════════════════════════════════════════════════════════════ */
   var PANEL_CSS =
