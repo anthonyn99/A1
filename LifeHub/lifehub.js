@@ -661,13 +661,20 @@
     '@keyframes lh-rise{from{transform:translateY(100%)}to{transform:none}}' +
     '@keyframes lh-fade{from{opacity:0}to{opacity:1}}' +
     '.grab{display:none}' +
-    '.m .bd{background:rgba(6,6,8,.52);animation:lh-fade .2s}' +
+    '.m .bd{background:rgba(6,6,8,.52);animation:lh-fade .2s;will-change:opacity}' +
+    // will-change: the sheet and dim get their own GPU layers up front, so the
+    // dismiss animation starts on the first frame instead of after a layer is
+    // built mid-gesture. A tighter shadow keeps that layer cheap on phones.
     '.m .pop{left:0!important;right:0;bottom:0;top:auto!important;width:auto!important;border-radius:22px 22px 0 0;border-bottom:0;' +
-    'padding-bottom:env(safe-area-inset-bottom,0px);animation:lh-rise .26s cubic-bezier(.2,.8,.2,1)}' +
+    'padding-bottom:env(safe-area-inset-bottom,0px);animation:lh-rise .26s cubic-bezier(.2,.8,.2,1);will-change:transform;' +
+    'box-shadow:0 -8px 32px -10px rgba(0,0,0,.6)}' +
     '.m .grab{display:block;width:38px;height:4px;border-radius:2px;background:var(--bd2);margin:9px auto 0;flex:none}' +
     '.m .hd{touch-action:none}' +
-    '.closing .pop{opacity:0;transition:opacity .12s}.m.closing .pop{opacity:1;transform:translateY(100%);transition:transform .18s ease-in}' +
-    '.closing .bd{opacity:0;transition:opacity .18s}' +
+    // Exit curves that move from the first frame (a plain ease-in barely
+    // moves at the start, which reads as a hesitation after the tap).
+    '.closing .pop{opacity:0;transform:scale(.97);transition:opacity .14s ease-out,transform .14s ease-out}' +
+    '.m.closing .pop{opacity:1;transform:translateY(100%);transition:transform .22s cubic-bezier(.4,0,.2,1)}' +
+    '.closing .bd{opacity:0;transition:opacity .22s cubic-bezier(.4,0,.2,1)}' +
     '.hd{display:flex;align-items:center;gap:8px;padding:14px 12px 6px 18px;flex:none}' +
     '.ttl{flex:1;min-width:0;font-size:15px;font-weight:600;letter-spacing:.1px;color:var(--tx)}' +
     '.st{font-size:11px;color:var(--dim);white-space:nowrap}.st.bad{color:var(--bad)}' +
@@ -794,9 +801,15 @@
     });
 
     var bd = root.querySelector('.bd');
-    // Closed on CLICK, not pointerdown: if the backdrop vanished on the way
-    // down, the click that follows would land on whatever is underneath.
-    bd.addEventListener('pointerdown', function (e) { e.preventDefault(); });
+    // Dismissed the moment the finger/button LIFTS, not on the synthesized
+    // click — on a phone that click can trail the tap, and waiting for it read
+    // as lag. The backdrop itself stays in place (invisible) until the closing
+    // animation ends, so that trailing click still lands on it and never on
+    // whatever is underneath.
+    var bdDown = false;
+    bd.addEventListener('pointerdown', function (e) { e.preventDefault(); bdDown = true; });
+    bd.addEventListener('pointerup', function () { if (bdDown) { bdDown = false; close(); } });
+    bd.addEventListener('pointercancel', function () { bdDown = false; });
     bd.addEventListener('click', function (e) { e.preventDefault(); close(); });
     bd.addEventListener('wheel', function (e) { e.preventDefault(); }, { passive: false });
     bd.addEventListener('touchmove', function (e) { e.preventDefault(); }, { passive: false });
@@ -910,7 +923,7 @@
       ui.closeT = setTimeout(function () {
         ui.host.style.display = 'none';
         ui.wrap.classList.remove('closing');
-      }, 190);
+      }, 240);
     }
     if (hadFocus && ui.anchor && ui.anchor._btn && ui.anchor.isConnected && !ui.anchor.hidden) {
       try { ui.anchor._btn.focus({ preventScroll: true }); } catch (e) {}
