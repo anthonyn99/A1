@@ -41,8 +41,9 @@ def test_headings_become_hashes(page):
     """A heading rendered as <h3> must not arrive as a bare line -- that is the
     exact bug that made every verdict render as flat prose."""
     assert render(page, "<h3>Define the target first</h3>") == "### Define the target first"
-    # Level is normalised: the UIs pick inconsistently and the parser does not care.
-    assert render(page, "<h1>Top</h1>") == "### Top"
+    # The level is kept: the console draws each level at its own size.
+    assert render(page, "<h1>Top</h1>") == "# Top"
+    assert render(page, "<h4>Sub</h4>") == "#### Sub"
 
 
 def test_bullets_keep_their_markers(page):
@@ -182,3 +183,38 @@ def test_a_plain_inline_wrapper_is_still_one_paragraph(page):
     """
     out = render(page, "<custom-wrap>Some <strong>bold</strong> prose here.</custom-wrap>")
     assert out == "Some **bold** prose here."
+
+
+def test_links_strikethrough_and_checkboxes_survive(page):
+    assert render(page, '<p><a href="https://openai.com">OpenAI</a></p>') == "[OpenAI](https://openai.com)"
+    assert render(page, "<p><del>old</del></p>") == "~~old~~"
+    out = render(page, '<ul><li><input type="checkbox" checked> done</li><li><input type="checkbox"> todo</li></ul>')
+    assert out == "- [x] done\n- [ ] todo"
+
+
+def test_text_shown_literally_stays_literal(page):
+    """ChatGPT showed "*This is not italicized*"; MAGI rendered it in italics."""
+    assert render(page, "<p>*not italic*</p>") == "\*not italic\*"
+    assert render(page, "<p># not a heading</p>") == "\# not a heading"
+    assert render(page, "<p>snake_case</p>") == "snake_case"
+
+
+def test_code_label_is_the_language_not_a_line_of_code(page):
+    html = ('<pre><div><div>Python</div><button>Copy</button></div>'
+            '<div><code>print(1)</code></div></pre>')
+    assert render(page, html) == "```python\nprint(1)\n```"
+
+
+def test_math_is_kept_as_tex(page):
+    html = ('<p>E: <span class="katex"><span class="katex-mathml"><math><semantics>'
+            '<annotation encoding="application/x-tex">E = mc^2</annotation>'
+            '</semantics></math></span><span class="katex-html">E=mc2</span></span></p>')
+    assert render(page, html) == "E: $E = mc^2$"
+
+
+def test_footnotes_keep_their_shape(page):
+    html = ('<p>Claim.<sup><a href="#user-content-fn-1" data-footnote-ref="">1</a></sup></p>'
+            '<section data-footnotes="" class="footnotes"><h2 class="sr-only">Footnotes</h2>'
+            '<ol><li id="user-content-fn-1"><p>Source. <a href="#user-content-fnref-1" '
+            'data-footnote-backref="">↩</a></p></li></ol></section>')
+    assert render(page, html) == "Claim.[^1]\n\n[^1]: Source."
