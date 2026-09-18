@@ -218,3 +218,10 @@ def test_footnotes_keep_their_shape(page):
             '<ol><li id="user-content-fn-1"><p>Source. <a href="#user-content-fnref-1" '
             'data-footnote-backref="">↩</a></p></li></ol></section>')
     assert render(page, html) == "Claim.[^1]\n\n[^1]: Source."
+
+
+def test_chatgpt_math_is_read_from_its_source_attribute(page):
+    """ChatGPT's KaTeX has no annotation; the TeX is on the wrapper."""
+    html = ('<p><span role="math" data-math-source="E = mc^2"><span class="katex">'
+            '<span class="katex-html">E=mc2</span></span></span></p>')
+    assert render(page, html) == "$E = mc^2$"

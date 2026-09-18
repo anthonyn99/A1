@@ -55,7 +55,12 @@ DOM_TO_MARKDOWN_JS = """
 
   // KaTeX keeps the TeX the model wrote in an annotation; everything visible
   // is layout, and flattening it gave "∫0∞e−xdx=1".
+  // ChatGPT drops the annotation and keeps the TeX on its wrapper instead:
+  // <span role="math" data-math-source="E = mc^2"> (verified 2026-09-18).
   const tex = (n) => {
+    const src = n.getAttribute && (n.getAttribute('data-math-source')
+      || (n.querySelector('[data-math-source]') || { getAttribute: () => null }).getAttribute('data-math-source'));
+    if (src) return src.trim();
     const a = n.querySelector && n.querySelector('annotation[encoding="application/x-tex"]');
     return a ? a.textContent.trim() : null;
   };
@@ -74,6 +79,11 @@ DOM_TO_MARKDOWN_JS = """
       // para() converts back after collapsing the source whitespace.
       if (tag === 'BR') { out += '\\u0000'; continue; }
       const cls = c.classList || { contains: () => false };
+      if (c.hasAttribute('data-math-source')) {
+        const t = tex(c);
+        const display = !!c.querySelector('.katex-display') || tag === 'DIV';
+        if (t) { out += display ? '$$' + t + '$$' : '$' + t + '$'; continue; }
+      }
       if (cls.contains('katex-display') || cls.contains('katex')) {
         const t = tex(c);
         if (t) { out += cls.contains('katex-display') ? '$$' + t + '$$' : '$' + t + '$'; continue; }
