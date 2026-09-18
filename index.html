@@ -3115,8 +3115,8 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
    single ratio is wrong for some reels.
    So the footer is COVERED instead of cropped. The host page cannot restyle a
    cross-origin document, but it can absolutely paint over it, and a mask is
-   exact where a computed offset is a guess. It sits under the caption and above
-   the video, and takes no pointer events so a tap still reaches the player. */
+   exact where a computed offset is a guess. It sits above the video and takes
+   no pointer events, so a tap still reaches the player. */
 /* Only slides using the IFRAME fallback need this — a real <video> has no
    cross-origin footer to hide, and masking the bottom of one would cover
    actual video content for no reason.
@@ -3151,15 +3151,6 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
 }
 .thrl-slide-idle span{position:relative;z-index:1;}
 
-/* Caption overlaid on the video, like IG's own — not a bar above it. */
-.thrl-slide-cap{
-  position:absolute;left:0;right:0;bottom:0;z-index:2;   /* above the mask */
-  padding:26px 12px 12px;
-  font-size:11.5px;line-height:1.4;color:#fff;
-  background:linear-gradient(to top,rgba(0,0,0,.82),rgba(0,0,0,.45) 55%,transparent);
-  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
-  pointer-events:none;          /* never steal a tap from the video */
-}
 /* Feed chrome: back to the grid, and the escape hatch. Floating, minimal. */
 .thrl-feed-bar{
   position:absolute;top:0;left:0;right:0;z-index:4;
@@ -3804,7 +3795,7 @@ function Widget(props){
             // covers slides outside the mount window AND in-window iframe
             // reels that are not the centred one, since those deliberately do
             // not mount an embed (see isCur above) and would otherwise be a
-            // black rectangle with a caption floating on it.
+            // plain black rectangle.
             (!near || (!hasVideo && !isCur))
               ? h('div',{key:'i',className:'thrl-slide-idle'},
                   (u&&!imgErr[r.shortcode])
@@ -3815,9 +3806,6 @@ function Widget(props){
                         }})
                     : null,
                   h('span',{key:'s'},'…'))
-              : null,
-            r.caption
-              ? h('div',{key:'c',className:'thrl-slide-cap'},r.caption)
               : null);
         }))
     : null;

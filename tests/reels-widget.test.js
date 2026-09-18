@@ -125,9 +125,13 @@ t('the visible slide is tracked with IntersectionObserver',
 t('the feed opens AT the chosen reel',
   blk.includes('startIdx') && blk.includes('scrollIntoView'),
   'it would otherwise always start at the top of the collection');
-t('the caption overlays the video rather than sitting above it',
-  html.includes('.thrl-slide-cap') && html.includes('pointer-events:none'),
-  'a bar above the video is the chrome this change removes');
+// Captions were REMOVED from the feed on request: they covered the bottom of
+// every reel and were never read. This replaces the old assertion that one was
+// present and overlaid — inverted rather than deleted, so a future edit cannot
+// quietly put the overlay back.
+t('no caption overlays the reel',
+  !html.includes('.thrl-slide-cap') && !blk.includes('thrl-slide-cap'),
+  'the caption overlay was removed deliberately; it obscured the video');
 t('the feed panel drops its own scrolling',
   html.includes('.thrl-panel.thrl-panel-feed') && blk.includes('thrl-panel-feed'),
   'two nested scroll containers fight each other');
