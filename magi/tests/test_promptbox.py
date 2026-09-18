@@ -213,3 +213,10 @@ def test_markdown_renders_what_was_written():
     assert "function mathEl(" in PAGE and "katex" in PAGE
     assert "isBoldHeading" not in PAGE, "a bold line is being promoted to a heading again"
     assert ".verdict-body .md-h3 { font-size: 17px;" in PAGE, "H3 is back to body size"
+
+
+def test_html_is_rendered_from_an_allowlist_never_injected():
+    assert 'kind: "details"' in PAGE and "(?<tag>kbd|sub|sup|mark" in PAGE
+    md = PAGE[PAGE.index("const INLINE_RE"):PAGE.index("function renderList(")]
+    assert "innerHTML" not in md, "model text must never be parsed as markup"
+    assert "img" not in md.split("(?<tag>")[1].split(")")[0], "images would load remote content"
