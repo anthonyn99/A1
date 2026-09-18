@@ -1589,6 +1589,15 @@
 
   var CHIP_ID = 'a1b-chip';
 
+  /* The chip is fixed at the bottom-left above everything else on the page
+     (see chipStyles), so a floating panel anchored to the bottom lands
+     UNDERNEATH it. This is how much room to leave: the 10px offset plus the
+     pill itself plus a small gap. It is published from here, next to the
+     styles it is derived from, so the number cannot drift away from the
+     thing it describes -- TaskHub's timer panel reads it. */
+  var CHIP_CLEAR = 44;
+  if (typeof window !== 'undefined') window.A1_BACKUP_CHIP_CLEAR = CHIP_CLEAR;
+
   function chipStyles() {
     if (document.getElementById(CHIP_ID + '-css')) return;
     var css = document.createElement('style');

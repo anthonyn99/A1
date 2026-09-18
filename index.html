@@ -10285,7 +10285,12 @@ function App(){
     React.createElement(HabitModal,{open:!!editingHabit,onClose:()=>setEditingHabit(null),onSave:patch=>saveHabit(editingHabit.id,patch),initial:editingHabit,T}),
     React.createElement(SimpleTextEditModal,{open:!!editingGoal,onClose:()=>setEditingGoal(null),onSave:title=>renameM(editingGoal.id,title),initialText:editingGoal?.title||"",heading:"Edit Goal",T}),
     React.createElement(SimpleTextEditModal,{open:!!editingGoalM,onClose:()=>setEditingGoalM(null),onSave:title=>renameMM(editingGoalM.id,title),initialText:editingGoalM?.title||"",heading:"Edit Short-Term Goal",T}),
-    showPomo&&React.createElement("div",{style:{position:"fixed",bottom:isMobile?0:22,right:isMobile?0:22,left:isMobile?0:"auto",zIndex:999}},React.createElement(Pomodoro,{onClose:()=>setShowPomo(false),T,isMobile}))));
+    // The timer floats bottom-RIGHT on every size. On a phone it used to span
+    // the full width from bottom:0, which parked Start directly under the
+    // backup chip (backup.js pins that chip bottom-left at a z-index nothing
+    // here can outrank, so the chip wins and the button cannot be pressed).
+    // Right-anchored and lifted clear of the chip's row, the two never meet.
+    showPomo&&React.createElement("div",{style:{position:"fixed",bottom:isMobile?(window.A1_BACKUP_CHIP_CLEAR||44):22,right:isMobile?10:22,left:"auto",zIndex:999}},React.createElement(Pomodoro,{onClose:()=>setShowPomo(false),T,isMobile}))));
 }
 
 ReactDOM.render(React.createElement(Root),document.getElementById("root"));
@@ -17408,7 +17413,9 @@ function App(){
   ),RC(Modal,{open:mo,onClose:()=>{setMo(false);setEi(null);},onSave:savItem,initial:ei,startDateKey:mdt,dateLabel:mdt?(()=>{const p=mdt.split("-");return MOS[parseInt(p[1])-1]+" "+parseInt(p[2]);})():""}),
     RC(ConfirmDeleteModal,{open:!!delConfirm,onClose:()=>setDelConfirm(null),onConfirm:delAllFuture,onThis:delThisOnly,isAltSeq:!!(delConfirm?.item?.altSeqId)}),
     RC(VdConfirmEditTitleModal,{open:!!titleEditConfirm,onClose:()=>setTitleEditConfirm(null),onThisOnly:titleEditThisOnly,onAllFuture:titleEditAllFuture,isAltSeq:!!(titleEditConfirm?.isAltSeq)}),
-    showPomo&&RC("div",{style:{position:"fixed",bottom:20,right:20,zIndex:999}},RC(Pomodoro,{onClose:()=>setShowPomo(false)})),
+    // Lifted clear of the backup chip on a phone -- see the same note on Tony's
+    // timer: at bottom:20 the panel's Start button sits in the chip's row.
+    showPomo&&RC("div",{style:{position:"fixed",bottom:vrMobile?(window.A1_BACKUP_CHIP_CLEAR||44):20,right:vrMobile?10:20,zIndex:999}},RC(Pomodoro,{onClose:()=>setShowPomo(false)})),
     RC(GitaQuoteModal,{lesson:gitaModal,onClose:()=>setGitaModal(null),onNext:gitaNext,onPrev:gitaPrev,onBackToLessons:gitaFromBrowser?closeGitaToLessons:null}),
     showLessons&&RC(GitaLessonsBrowser,{onClose:()=>setShowLessons(false),onSelectLesson:openGitaLesson}),
     RC(HabitModal,{open:!!editingHabit,onClose:()=>setEditingHabit(null),onSave:patch=>saveHabit(editingHabit.id,patch),initial:editingHabit,T:VD_T,titleFont:"'Lora',serif"}),
