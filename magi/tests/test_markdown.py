@@ -194,8 +194,8 @@ def test_links_strikethrough_and_checkboxes_survive(page):
 
 def test_text_shown_literally_stays_literal(page):
     """ChatGPT showed "*This is not italicized*"; MAGI rendered it in italics."""
-    assert render(page, "<p>*not italic*</p>") == "\*not italic\*"
-    assert render(page, "<p># not a heading</p>") == "\# not a heading"
+    assert render(page, "<p>*not italic*</p>") == r"\*not italic\*"
+    assert render(page, "<p># not a heading</p>") == r"\# not a heading"
     assert render(page, "<p>snake_case</p>") == "snake_case"
 
 
