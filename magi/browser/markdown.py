@@ -232,7 +232,10 @@ DOM_TO_MARKDOWN_JS = """
         }
       } else if (tag === 'BLOCKQUOTE') {
         for (const l of block(c, depth)) out.push('> ' + l);
-      } else if (cls(c).contains('katex-display') && tex(c)) {
+      } else if ((cls(c).contains('katex-display') || (c.hasAttribute && c.hasAttribute('data-math-source'))) && tex(c)) {
+        // Math standing on its own between blocks is display math. ChatGPT's
+        // is a <span role="math" data-math-source="..." style="display:block">
+        // directly in the answer, which the generic path flattened to "E=mc2".
         out.push('$$\\n' + tex(c) + '\\n$$');
       } else if (tag === 'HR') {
         out.push('---');
