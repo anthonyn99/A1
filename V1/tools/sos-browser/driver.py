@@ -1767,11 +1767,34 @@ def shortcode_of(href: str):
     shortcode, which is what makes it a safe dedup key across them.
 
     A pure function so the dedup rule is testable without a browser.
+
+    BOUNDED AT 12, AND THE SEGMENT MUST END. Instagram shortcodes are
+    fixed-width base64url: 11 characters, or 12 on some older posts. The
+    pattern used to be `{5,}` with no upper bound and no requirement that the
+    path segment end, so anything path-safe that followed was swallowed into
+    the code. OBSERVED 2026-09-17: one reel in Boosts stored as
+    `DVomTTOEnkot0nscGQGISyTIassL9DojYviFsQ0` — the real code `DVomTTOEnko`
+    plus a 28-char tracking blob. It still PLAYED (Instagram ignores trailing
+    junk on a permalink, verified: both forms return HTTP 200), so nothing
+    looked broken — but shortcode is the dedup key in merge_reels() and the
+    thumbnail key in thumb_key(), so the same reel arriving once with a suffix
+    and once without becomes two permanent entries that never reconcile, each
+    with its own thumbnail upload. Capping the run and requiring the segment to
+    end at / ? # or end-of-string makes the key stable no matter what IG
+    appends.
     """
     if not href:
         return None
     m = re.search(r"/(?:reel|reels|p)/([A-Za-z0-9_-]{5,})", href)
-    return m.group(1) if m else None
+    if not m:
+        return None
+    code = m.group(1)
+    # Over-long means IG appended something to the segment (see above). Keep
+    # the leading 11 — the real shortcode — rather than returning None, which
+    # would silently DROP a genuinely saved reel from the harvest. Verified
+    # against the live site: the 11-char prefix of the observed bad value
+    # resolves to the same reel.
+    return code[:11] if len(code) > 12 else code
 
 
 def clean_caption(raw: str) -> str:

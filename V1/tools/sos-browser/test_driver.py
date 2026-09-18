@@ -548,6 +548,24 @@ t("a profile link yields no shortcode",
   driver.shortcode_of("/veda/saved/all-posts/") is None)
 t("empty href yields no shortcode", driver.shortcode_of("") is None)
 
+# OBSERVED IN REAL DATA 2026-09-17: one reel in Boosts stored as a 39-char
+# "shortcode" — the real 11-char code plus a tracking blob IG had appended to
+# the path segment. It still played (IG ignores trailing junk on a permalink),
+# so nothing looked wrong, but shortcode is the DEDUP key in merge_reels and
+# the thumbnail key in thumb_key: the same reel arriving once with the suffix
+# and once without becomes two permanent entries that never reconcile.
+_ODD = "/reel/DVomTTOEnkot0nscGQGISyTIassL9DojYviFsQ0/"
+t("an over-long path segment is truncated to the real 11-char shortcode",
+  driver.shortcode_of(_ODD) == "DVomTTOEnko", driver.shortcode_of(_ODD))
+t("...so both spellings of the same reel collapse to ONE dedup key",
+  driver.shortcode_of(_ODD) == driver.shortcode_of("/reel/DVomTTOEnko/"))
+t("an over-long segment is never DROPPED (that would lose a saved reel)",
+  driver.shortcode_of(_ODD) is not None,
+  "returning None here would silently discard a reel the person really saved")
+# 12 is legitimate on some older posts, so the cap must not cut those.
+t("a legitimate 12-char shortcode is left intact",
+  driver.shortcode_of("/p/ABCDEFGHIJKL/") == "ABCDEFGHIJKL")
+
 # merge_reels — MERGE, never replace. A partial harvest must not drop reels the
 # widget is already showing.
 _old = [{"shortcode": "A", "caption": "first", "thumbKey": "reel_A"},
