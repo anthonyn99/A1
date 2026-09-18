@@ -883,12 +883,58 @@ t("collapses \\\\\\/ (triple backslash + slash) down to a single /",
 t("a bare unescaped & in the query string survives untouched",
   _u3 is not None and "_nc_cat=110&_nc_sid=5e9851" in _u3, _u3)
 
+# ── video_versions: the DASH-only reels ─────────────────────────────────────
+# CAPTURED 2026-09-17 from the REAL (non-embed) page of a reel whose embed
+# carried no video_url anywhere. Shape verified against the live document:
+# the key is followed by an ARRAY, so the url sits one object deep — which is
+# why the plain video_url scanner cannot read it and a separate entry point
+# exists. The url's own escaping is the same as every other capture here.
+_HTML_VERSIONS = (
+    '</MPD>\\n\\",\\"video_versions\\":[{\\"type\\":101,\\"url\\":\\"'
+    'https:\\\\\\/\\\\\\/scontent-atl3-1.cdninstagram.com\\\\\\/o1\\\\\\/v'
+    '\\\\\\/t2\\\\\\/f2\\\\\\/m86\\\\\\/AQOrOvu47PUamxICRSt8xr4KSi8w1.mp4'
+    '?_nc_cat=103&_nc_sid=5e9851\\"},{\\"type\\":102,\\"url\\":\\"https:'
+    '\\\\\\/\\\\\\/example.com\\\\\\/lower.mp4\\"}]'
+)
+_v1 = driver.extract_video_versions_url(_HTML_VERSIONS)
+t("extracts the progressive mp4 out of video_versions",
+  _v1 is not None and _v1.startswith("https://") and ".mp4" in _v1, _v1)
+t("it decodes the escaped slashes like the video_url path does",
+  _v1 is not None and "\\" not in _v1
+  and "cdninstagram.com/o1/v/t2/f2/m86/AQOrOvu47" in _v1, _v1)
+t("it takes the FIRST rendition (Instagram orders these best-first)",
+  _v1 is not None and "lower.mp4" not in _v1,
+  "index 0 was the highest rendition in every sample inspected")
+t("returns None when there is no video_versions key",
+  driver.extract_video_versions_url('{"something_else":[{"url":"x.mp4"}]}') is None)
+t("returns None when video_versions holds no usable mp4 url",
+  driver.extract_video_versions_url('"video_versions":[{"type":101}]') is None,
+  "an entry without a url must not fall through to some unrelated later key")
+
 # ── Batching, pacing, prioritization ────────────────────────────────────────────
 _avu = _inspect.getsource(driver.attach_video_urls)
 t("each extraction is a real page visit (page.goto), not a fetch",
   "await page.goto" in _avu and "/embed/" in _avu)
+# The cap is now resolved into `cap` at the top of the function so --videos can
+# override it per run; REELS_VIDEO_BATCH remains the default it falls back to.
 t("the batch is capped per run (a page visit is ~9-10s, not a cheap fetch)",
-  "REELS_VIDEO_BATCH" in _avu and "extracted >= REELS_VIDEO_BATCH" in _avu)
+  "REELS_VIDEO_BATCH" in _avu and "extracted >= cap" in _avu)
+t("the per-run cap is overridable, defaulting to REELS_VIDEO_BATCH",
+  "batch if batch and batch > 0 else REELS_VIDEO_BATCH" in _avu,
+  "a small collection should be coverable in full; a large one must stay "
+  "bounded by default")
+# The fallback that removed the iframe path for DASH-only reels. MEASURED
+# 2026-09-17: 17 of 57 reels in Boosts carried no video_url on EITHER page,
+# but did carry a progressive mp4 under video_versions on the real one.
+t("a reel with no video_url falls back to its real page",
+  "/embed/" in _avu and 'f"https://www.instagram.com/reel/{code}/"' in _avu,
+  "the embed alone leaves DASH-only reels stuck on the iframe player")
+t("the real-page fallback tries video_versions too",
+  "extract_video_versions_url" in _avu)
+t("the fallback is only spent when the embed came back empty",
+  "if not url:" in _avu,
+  "it is a SECOND page visit; spending it on every reel would double the "
+  "automated traffic to a logged-in account for no gain")
 t("pacing between visits is sampled from a range, not a fixed delay",
   "_pace([1.2, 2.4])" in _avu or "_pace(" in _avu,
   "a fixed delay between automated visits to a logged-in account is a "

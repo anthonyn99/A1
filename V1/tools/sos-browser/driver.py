@@ -2321,8 +2321,15 @@ def extract_video_url(html: str):
     Absent entirely for some reels (measured: a post that Instagram itself
     reports as removed/broken), which correctly yields None here.
     """
+    return _scan_json_string_value(html, "video_url")
+
+
+def _scan_json_string_value(html: str, key: str):
+    """The scanner described above, for any key. Split out so `video_versions`
+    can reuse it — the escaping problem it solves is identical, and
+    re-implementing it was how three of the four bugs above got written."""
     n = len(html)
-    for km in re.finditer("video_url", html):
+    for km in re.finditer(re.escape(key), html):
         j = km.end()
         if html[j:j + 2] == "\\\"":
             j += 2
@@ -2358,7 +2365,40 @@ def extract_video_url(html: str):
     return None
 
 
-async def attach_video_urls(reels: list, page, watch_shortcode: str) -> dict:
+def extract_video_versions_url(html: str):
+    """The progressive mp4 out of `video_versions`, for reels whose page has
+    no `video_url` at all.
+
+    MEASURED 2026-09-17: a subset of reels (17 of 57 in Boosts) serve NO
+    `video_url` on either the embed or the real page — those are DASH-only as
+    far as that key is concerned, which is why the widget kept falling back to
+    the iframe and its "Watch on Instagram" overlay for exactly those.
+    Their real (non-embed) page does carry `video_versions`, a list of
+    progressive renditions shaped like:
+
+        "video_versions":[{"type":101,"url":"https://...mp4?..."} , ...]
+
+    and the url inside it decodes to `xpv_progressive...` — the same complete,
+    single-file mp4 the working reels use, on the same CDN host. So this is
+    not a second-class source; it is the same asset under a different key.
+
+    Takes the FIRST entry: Instagram orders these best-first, and every sample
+    inspected had the highest rendition at index 0.
+    """
+    i = html.find("video_versions")
+    if i == -1:
+        return None
+    # Bounded window: the first url after the key, without scanning a 290KB
+    # document for every candidate.
+    window = html[i:i + 4000]
+    val = _scan_json_string_value(window, "url")
+    if val and val.startswith("http") and ".mp4" in val:
+        return val
+    return None
+
+
+async def attach_video_urls(reels: list, page, watch_shortcode: str,
+                            batch: int = 0) -> dict:
     """Give a BATCH of reels a real, autoplay-and-loop-capable video URL,
     starting from wherever the person is actually watching.
 
@@ -2376,9 +2416,16 @@ async def attach_video_urls(reels: list, page, watch_shortcode: str) -> dict:
     Failures are per-reel and never fatal to the run: a reel with no video_url
     (removed post, a transient miss) simply keeps its existing entry — the
     widget's iframe fallback is what handles that, not a retry here.
+
+    `batch` overrides REELS_VIDEO_BATCH for this run (0 = use the default).
+    The default is tuned for a collection far larger than it can ever cover in
+    one pass; a small collection can be covered completely, which is what
+    removes the iframe fallback — and its "Watch on Instagram" overlay — from
+    every reel in it.
     """
     if not reels:
         return {"extracted": 0, "skipped": 0}
+    cap = batch if batch and batch > 0 else REELS_VIDEO_BATCH
     start = 0
     if watch_shortcode:
         for i, r in enumerate(reels):
@@ -2390,7 +2437,7 @@ async def attach_video_urls(reels: list, page, watch_shortcode: str) -> dict:
     extracted = skipped = 0
     now = int(time.time() * 1000)
     for r in order:
-        if extracted >= REELS_VIDEO_BATCH:
+        if extracted >= cap:
             break
         code = r.get("shortcode")
         if not code:
@@ -2406,6 +2453,22 @@ async def attach_video_urls(reels: list, page, watch_shortcode: str) -> dict:
             url = extract_video_url(html)
         except Exception:
             url = None
+        # SECOND VISIT, only for reels the embed had nothing for. MEASURED
+        # 2026-09-17: some reels carry no `video_url` on the embed page at
+        # all, but their REAL page still lists a progressive mp4 under
+        # `video_versions`. Those are precisely the ones that were stuck on
+        # the iframe fallback. Deliberately a fallback rather than the first
+        # choice: it is a second page visit, so it is only spent where the
+        # cheap path already came back empty.
+        if not url:
+            try:
+                await page.goto(f"https://www.instagram.com/reel/{code}/",
+                                wait_until="domcontentloaded", timeout=25000)
+                await asyncio.sleep(_pace([2.0, 3.5]))
+                html = await page.content()
+                url = extract_video_url(html) or extract_video_versions_url(html)
+            except Exception:
+                pass
         if url:
             r["videoUrl"] = url
             r["videoUrlExpiresAt"] = now + REELS_VIDEO_URL_TTL_MS
@@ -2664,7 +2727,8 @@ async def _reels_run(site, args, target, collection, headless, user="") -> dict:
             # the whole harvest over a non-essential prioritization signal.
             cfg = read_reels_cfg()
             videos = await attach_video_urls(
-                merged, page, cfg.get("watchShortcode") or "")
+                merged, page, cfg.get("watchShortcode") or "",
+                getattr(args, "videos", 0) or 0)
         finally:
             await ctx.close()
 
@@ -2835,6 +2899,13 @@ def main():
     rl.add_argument("--probe", action="store_true",
                     help="read the first screen only and report whether the "
                          "collection changed; no scrolling, no write")
+    rl.add_argument("--videos", type=int, default=0, metavar="N",
+                    help=f"how many reels to extract a real video URL for this "
+                         f"run (default {REELS_VIDEO_BATCH}). Each one is a "
+                         f"~10s page visit. A reel without one falls back to "
+                         f"the Instagram embed, which cannot autoplay and shows "
+                         f"a 'Watch on Instagram' overlay — so set this at or "
+                         f"above the collection size to cover all of it")
 
     lo = sub.add_parser("login", help="open the site so a human can sign in")
     lo.add_argument("--site", default="claude")

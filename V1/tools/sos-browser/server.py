@@ -515,6 +515,10 @@ def _ensure_worker():
 # _run_notebooklm_job calls cmd_deck.
 REELS_WATCH_POLL_S = 12
 REELS_WATCH_COLLECTION = "boosts"
+# Generous enough to cover Boosts entirely (57 reels at the time of writing).
+# Only reels MISSING a still-fresh url cost a visit, so a routine refresh
+# spends nothing here — the cap only bites the first run after an expiry.
+REELS_WATCH_VIDEO_BATCH = 120
 _reels_watch_started = False
 _reels_last_seen_refresh = 0
 
@@ -538,6 +542,11 @@ def _reels_watch_loop():
         args = argparse.Namespace(
             site="instagram", user="", collection=REELS_WATCH_COLLECTION,
             headful=False, dry_run=False, collections=False, probe=False,
+            # Cover the whole collection, so no reel is left on the iframe
+            # fallback (which cannot autoplay and shows Instagram's own
+            # "Watch on Instagram" overlay). Boosts is small enough that this
+            # is a few minutes; the CLI default stays tuned for big ones.
+            videos=REELS_WATCH_VIDEO_BATCH,
         )
         try:
             out = asyncio.run(driver.cmd_reels(args))
