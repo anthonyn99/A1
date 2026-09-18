@@ -584,13 +584,15 @@
   }
 
   /* ══ Launcher element ═════════════════════════════════════════════════════ */
-  var GRID_SVG = (function () {
-    var s = '<svg viewBox="0 0 24 24" aria-hidden="true">';
-    for (var r = 0; r < 3; r++) for (var c = 0; c < 3; c++) {
-      s += '<rect x="' + (3 + c * 7) + '" y="' + (3 + r * 7) + '" width="4" height="4" rx="1.3"' + (r === 1 && c === 1 ? ' class="core"' : '') + '/>';
-    }
-    return s + '</svg>';
-  })();
+  // Three outlined app tiles and one solid diamond in the program's accent —
+  // "your apps, and the one that moves you between them". The diamond turns
+  // a quarter on hover and while the panel is open.
+  var GRID_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+    '<rect x="3.5" y="3.5" width="7" height="7" rx="2.2"/>' +
+    '<rect x="3.5" y="13.5" width="7" height="7" rx="2.2"/>' +
+    '<rect x="13.5" y="13.5" width="7" height="7" rx="2.2"/>' +
+    '<rect class="core" x="14" y="4" width="6" height="6" rx="1.5" transform="rotate(45 17 7)"/>' +
+    '</svg>';
 
   var LAUNCHER_CSS =
     ':host{display:inline-flex;flex:none;vertical-align:middle;line-height:0}' +
@@ -598,9 +600,12 @@
     'button{all:unset;box-sizing:border-box;position:relative;width:var(--lh-size,34px);height:var(--lh-size,34px);' +
     'display:inline-grid;place-items:center;border-radius:10px;cursor:pointer;color:var(--lh-fg,#a3a1a6);' +
     '-webkit-tap-highlight-color:transparent;transition:background-color .15s,color .15s,transform .12s}' +
-    'button svg{width:20px;height:20px;fill:currentColor;transition:transform .2s cubic-bezier(.2,.8,.2,1)}' +
-    'button svg .core{fill:var(--lh-ac,#e0b874)}' +
-    '@media (hover:hover){button:hover{background:rgba(128,128,128,.14);color:var(--lh-fg-hover,#ecebe8)}button:hover svg{transform:scale(1.06)}}' +
+    'button svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linejoin:round;overflow:visible}' +
+    'button svg .core{fill:var(--lh-ac,#e0b874);stroke:none;transform-box:fill-box;transform-origin:center;' +
+    'transition:transform .35s cubic-bezier(.2,.8,.2,1)}' +
+    '@media (hover:hover){button:hover{background:rgba(128,128,128,.14);color:var(--lh-fg-hover,#ecebe8)}' +
+    'button:hover svg .core{transform:rotate(135deg)}}' +
+    'button[aria-expanded="true"] svg .core{transform:rotate(135deg)}' +
     'button:active{transform:scale(.9);background:rgba(128,128,128,.2)}' +
     'button[aria-expanded="true"]{background:rgba(128,128,128,.18);color:var(--lh-fg-hover,#ecebe8)}' +
     'button:focus-visible{outline:2px solid var(--lh-ac,#e0b874);outline-offset:2px}' +

@@ -2443,11 +2443,6 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 .lock-btn.unset { color: var(--txm); opacity: .6; }
 .nav-collapsed .sidebar .lock-btn { display: none; }
 .nav-collapsed .sidebar a1-lifehub { display: none; }
-/* LifeHub rides at the right end of the engine row (#linkBtn), overlaid so the
-   row keeps its full-width hover and nothing above it moves. */
-.sidebar { position: relative; }
-.sidebar > a1-lifehub { position: absolute; right: 5px; bottom: 2px; }
-.sidebar:has(> a1-lifehub:not([hidden])) .link { padding-right: 38px; }
 /* The top bar's copy exists only on mobile, where .mtop itself is hidden
    above the breakpoint -- so no separate rule is needed to hide it. */
 .mtop .lock-btn { margin-left: 4px; }
@@ -3521,6 +3516,8 @@ window._mailRelay = window._mailRelay || async function (res) {
       </div>
       <button type="button" class="lock-btn" id="helpBtn" title="How MAGI works"></button>
       <button type="button" class="lock-btn" id="lockBtn" title="Lock MAGI"></button>
+      <!-- LifeHub app switcher (LifeHub/lifehub.js) — hidden while #lockScreen is up. -->
+      <a1-lifehub style="--lh-size:26px"></a1-lifehub>
     </div>
 
     <nav class="side-nav" id="sideNav">
@@ -3578,11 +3575,6 @@ window._mailRelay = window._mailRelay || async function (res) {
     <button type="button" class="link seeking" id="linkBtn" title="Where the engine is">
       <span class="link-dot"></span><span class="link-txt" id="linkTxt">locating engine…</span>
     </button>
-    <!-- LifeHub app switcher (LifeHub/lifehub.js) — hidden while #lockScreen is
-         up. It sits at the end of the engine row rather than in .side-top:
-         that row's 232px is already spent, and a third button there cut the
-         tagline to "DELIBERATION SYSTE". -->
-    <a1-lifehub style="--lh-size:26px"></a1-lifehub>
   </aside>
 
   <main class="page" id="page">
