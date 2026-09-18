@@ -17067,11 +17067,20 @@ function App(){
     ?{borderLeft:"3px solid "+(sosPastel(t._sosClassColor)||"#8b949e")}
     :{};
   const vdPlanOverdue=(t,k)=>!!(t&&!t.done&&k<tk);
-  // Open work first, finished work at the bottom. Display-only and STABLE, so
-  // the hand-dragged order inside each group survives untouched — the drops
-  // splice data[k] by id, so they never see this reordered copy. Re-runs on
-  // every render, which is what makes a check/uncheck resort immediately.
-  const vdSortTasks=(ts)=>ts.map((t,i)=>[t,i]).sort((a,b)=>(!!a[0].done-!!b[0].done)||(a[1]-b[1])).map(x=>x[0]);
+  // Open work first, finished work at the bottom, and within the open group the
+  // tasks mirrored from StudyOS (_sosId) sit above Veda's own — study work is
+  // externally dated and cannot be rescheduled from here, so it is the part that
+  // must not scroll out of sight. The pin applies to UNCHECKED rows only: once a
+  // study task is ticked it drops into the finished group with everything else,
+  // which is the whole point of the first key.
+  // Display-only and STABLE, so the hand-dragged order inside each group
+  // survives untouched — the drops splice data[k] by id, so they never see this
+  // reordered copy. Re-runs on every render, which is what makes a
+  // check/uncheck resort immediately.
+  const vdSortTasks=(ts)=>ts.map((t,i)=>[t,i]).sort((a,b)=>
+    (!!a[0].done-!!b[0].done)
+    ||(a[0].done?0:((b[0]._sosId?1:0)-(a[0]._sosId?1:0)))
+    ||(a[1]-b[1])).map(x=>x[0]);
   const vdOverTag={fontSize:8,fontWeight:700,letterSpacing:.9,textTransform:"uppercase",
     color:PLAN_OVERDUE_RED,background:PLAN_OVERDUE_RED+"1f",
     border:"1px solid "+PLAN_OVERDUE_RED+"4d",borderRadius:3,padding:"1px 4px",
