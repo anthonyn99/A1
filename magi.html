@@ -1104,6 +1104,9 @@ body {
 .verdict-body .v-list .v-list { margin: 5px 0 0; padding-left: 14px; }
 .verdict-body .v-list .v-list li { font-size: 12.5px; color: var(--txd); margin-bottom: 3px; }
 .verdict-body ul.v-list ul.v-list li::before { content: "·"; color: var(--acd); }
+/* A task item is marked by its checkbox; a bullet beside it is a second marker. */
+.verdict-body ul.v-list li.md-task::before { content: none; }
+.verdict-body ul.v-list li.md-task { margin-left: -14px; }
 
 /* `- **Sizing:** matters more than brand` -- the lead-in reads as a label. */
 .verdict-body .v-list li > strong:first-child {
@@ -1167,11 +1170,41 @@ body {
   font-family: inherit; text-transform: none; letter-spacing: .1px;
   color: var(--tx); display: block;
 }
-.verdict-body .md-h1 { font-size: 21px; margin: 22px 0 10px; }
-.verdict-body .md-h2 { font-size: 17px; margin: 20px 0 9px; }
-.verdict-body .md-h3 { font-size: 14.5px; margin: 18px 0 8px; border-bottom: 0; padding-bottom: 0; }
+/* A scale measured against the 14px body, so every level is visibly its own
+   size: H3 at 14.5px sat level with the text around it and read as bold
+   prose, which is what "headings aren't different sizes" was. H4 keeps the
+   accent colour; H5-H6 keep the small caps label, the verdict's own
+   section-marker look. */
+.verdict-body .md-h1 { font-size: 25px; margin: 26px 0 12px; }
+.verdict-body .md-h2 { font-size: 20.5px; margin: 24px 0 10px; }
+.verdict-body .md-h3 { font-size: 17px; margin: 20px 0 8px; border-bottom: 0; padding-bottom: 0; }
+.verdict-body .md-h4 {
+  font-family: inherit; text-transform: none; letter-spacing: .1px;
+  font-size: 15px; color: var(--acl); display: block;
+  border-bottom: 0; padding-bottom: 0; margin: 18px 0 6px;
+}
 .verdict-body .md-h1::before, .verdict-body .md-h2::before,
-.verdict-body .md-h3::before { display: none; }
+.verdict-body .md-h3::before, .verdict-body .md-h4::before { display: none; }
+
+/* ── math and footnotes ── */
+.md-math { font-family: var(--font-mono); font-size: .92em; color: var(--acl); }
+.md-math.typeset { font-family: inherit; font-size: 1.05em; color: inherit; }
+.md-math-block {
+  display: block; margin: 8px 0 14px; padding: 6px 0;
+  overflow-x: auto; overflow-y: hidden; text-align: center; max-width: 100%;
+}
+.md-math .katex-display { margin: 0; }
+.md-fn { font-size: .72em; color: var(--ac); margin-left: 1px; }
+.md-footnotes {
+  margin-top: 18px; padding-top: 10px; border-top: 1px solid var(--bd);
+  font-size: .9em; color: var(--txd);
+}
+.md-footnotes ol { list-style: none; margin: 0; padding: 0; }
+.md-footnotes li { margin: 0 0 6px; }
+.md-fn-id {
+  display: inline-block; min-width: 18px; margin-right: 6px;
+  color: var(--ac); font-size: .8em; vertical-align: super;
+}
 
 .md-code {
   font-family: var(--font-mono);
@@ -4679,7 +4712,6 @@ const fmtBytes = (n) =>
 
 const SECTION = /^\s*(?:#{1,4}\s*)?(ANSWER|NOTES|CONFIDENCE|VERDICT|AGREEMENTS|DISAGREEMENTS|CAVEATS)\b\s*:?\s*$/i;
 const HEADING = /^\s*#{1,6}\s+(.+?)\s*$/;
-const BOLD_ONLY = /^\s*\*\*(.+?)\*\*\s*:?\s*$/;
 const BULLET = /^(\s*)[-*•]\s+(.*)$/;
 const NUMBERED = /^(\s*)(\d+)[.)]\s+(.*)$/;
 /* The rating is split off into a tag only when a separator or a sentence break
@@ -4711,51 +4743,74 @@ const cells = (line) => (line.match(TABLE_ROW)?.[1] ?? line).split("|").map((c) 
  *  browser.
  */
 const INLINE_RE = new RegExp([
-  "(`+)([\\s\\S]+?)\\1",                                  // 1,2  code
-  "\\*\\*\\*(?=\\S)([\\s\\S]+?\\S)\\*\\*\\*",             // 3    bold italic
-  "\\*\\*(?=\\S)([\\s\\S]+?\\S)\\*\\*",                   // 4    bold
-  "(?<![\\w_])__(?=\\S)([\\s\\S]+?\\S)__(?![\\w_])",      // 5    bold
-  "~~(?=\\S)([\\s\\S]+?\\S)~~",                           // 6    strike
-  "(?<![*\\w])\\*(?=[^\\s*])([^*\\n]+?[^\\s*]|[^\\s*])\\*(?![*\\w])", // 7 italic
-  "(?<![\\w_])_(?=[^\\s_])([^_\\n]+?[^\\s_]|[^\\s_])_(?![\\w_])",     // 8 italic
-  "\\[([^\\]\\n]+)\\]\\(\\s*([^)\\s]+)(?:\\s+\"[^\"]*\")?\\s*\\)",    // 9,10 link
-  "(https?:\\/\\/[^\\s<>()\\[\\]]+[^\\s<>()\\[\\].,;:!?'\"])",        // 11 bare url
+  "\\\\(?<esc>[\\\\`*_{}\\[\\]()#+\\-.!|~>$<])",                    // \* -> *
+  "(?<tick>`+)(?<code>[\\s\\S]+?)\\k<tick>",                         // code
+  "\\$\\$(?<mathd>[^$]+?)\\$\\$",                                   // $$display$$
+  "\\\\\\[(?<mathb>[\\s\\S]+?)\\\\\\]",                             // \[display\]
+  "\\\\\\((?<mathp>[\\s\\S]+?)\\\\\\)",                             // \(inline\)
+  // $inline$. Not "$5 and $10": the opening $ must be followed by something
+  // other than a digit or a space, and the closing one must not touch a word.
+  "(?<![\\\\$\\w])\\$(?=[^\\s$\\d])(?<math>[^$\\n]*?[^\\s$\\\\])\\$(?![\\w$])",
+  "\\[\\^(?<fn>[^\\]\\s]+)\\]",                                     // [^1]
+  "\\*\\*\\*(?=\\S)(?<bi>[\\s\\S]+?\\S)\\*\\*\\*",                   // bold italic
+  "\\*\\*(?=\\S)(?<b>[\\s\\S]+?\\S)\\*\\*",                         // bold
+  "(?<![\\w_])__(?=\\S)(?<b2>[\\s\\S]+?\\S)__(?![\\w_])",           // bold
+  "~~(?=\\S)(?<s>[\\s\\S]+?\\S)~~",                                 // strike
+  "(?<![*\\w\\\\])\\*(?=[^\\s*])(?<i>[^*\\n]+?[^\\s*\\\\]|[^\\s*])\\*(?![*\\w])", // italic
+  "(?<![\\w_\\\\])_(?=[^\\s_])(?<i2>[^_\\n]+?[^\\s_\\\\]|[^\\s_])_(?![\\w_])",     // italic
+  "\\[(?<lt>[^\\]\\n]+)\\]\\(\\s*(?<href>[^)\\s]+)(?:\\s+\"[^\"]*\")?\\s*\\)",    // link
+  "(?<url>https?:\\/\\/[^\\s<>()\\[\\]]+[^\\s<>()\\[\\].,;:!?'\"])",              // bare url
 ].join("|"), "g");
 
 const SAFE_HREF = /^(https?:\/\/|mailto:)/i;
 
+/* Inline markdown, built as DOM -- never innerHTML, so nothing a model writes
+ * can become markup.
+ *
+ *  A backslash makes the next character literal, the way every markdown
+ *  renderer treats it: "\*not italic\*" and "\# not a heading" are what a
+ *  model writes when it means the symbols themselves, and the engine now
+ *  escapes text the chat page showed literally, for the same reason.
+ */
 function inline(host, text) {
   const src = String(text == null ? "" : text);
-  INLINE_RE.lastIndex = 0;
   let last = 0, m;
   // A fresh regex per call: inline recurses, and a shared global regex would
   // have its lastIndex moved underneath the outer loop.
   const re = new RegExp(INLINE_RE.source, "g");
   while ((m = re.exec(src))) {
+    const g = m.groups;
     if (m.index > last) host.append(src.slice(last, m.index));
-    if (m[2] !== undefined) {
-      host.append(el("code", "md-code", m[2].replace(/^ (.*) $/, "$1")));
-    } else if (m[3] !== undefined) {
-      const b = el("strong"); const it = el("em"); inline(it, m[3]); b.append(it); host.append(b);
-    } else if (m[4] !== undefined || m[5] !== undefined) {
-      host.append(inline(el("strong"), m[4] !== undefined ? m[4] : m[5]));
-    } else if (m[6] !== undefined) {
-      host.append(inline(el("s"), m[6]));
-    } else if (m[7] !== undefined || m[8] !== undefined) {
-      host.append(inline(el("em"), m[7] !== undefined ? m[7] : m[8]));
-    } else if (m[9] !== undefined) {
-      const href = m[10];
-      if (SAFE_HREF.test(href)) {
+    if (g.esc !== undefined) {
+      host.append(g.esc);
+    } else if (g.code !== undefined) {
+      host.append(el("code", "md-code", g.code.replace(/^ (.*) $/, "$1")));
+    } else if (g.mathd !== undefined || g.mathb !== undefined) {
+      host.append(mathEl(g.mathd !== undefined ? g.mathd : g.mathb, true));
+    } else if (g.mathp !== undefined || g.math !== undefined) {
+      host.append(mathEl(g.mathp !== undefined ? g.mathp : g.math, false));
+    } else if (g.fn !== undefined) {
+      host.append(el("sup", "md-fn", g.fn));
+    } else if (g.bi !== undefined) {
+      const b = el("strong"); const it = el("em"); inline(it, g.bi); b.append(it); host.append(b);
+    } else if (g.b !== undefined || g.b2 !== undefined) {
+      host.append(inline(el("strong"), g.b !== undefined ? g.b : g.b2));
+    } else if (g.s !== undefined) {
+      host.append(inline(el("s"), g.s));
+    } else if (g.i !== undefined || g.i2 !== undefined) {
+      host.append(inline(el("em"), g.i !== undefined ? g.i : g.i2));
+    } else if (g.lt !== undefined) {
+      if (SAFE_HREF.test(g.href)) {
         const a = el("a", "md-link");
-        a.href = href; a.target = "_blank"; a.rel = "noopener noreferrer";
-        inline(a, m[9]);
+        a.href = g.href; a.target = "_blank"; a.rel = "noopener noreferrer";
+        inline(a, g.lt);
         host.append(a);
       } else {
-        host.append(m[0]);
+        inline(host, g.lt);
       }
-    } else if (m[11] !== undefined) {
-      const a = el("a", "md-link", m[11]);
-      a.href = m[11]; a.target = "_blank"; a.rel = "noopener noreferrer";
+    } else if (g.url !== undefined) {
+      const a = el("a", "md-link", g.url);
+      a.href = g.url; a.target = "_blank"; a.rel = "noopener noreferrer";
       host.append(a);
     }
     last = m.index + m[0].length;
@@ -4764,15 +4819,40 @@ function inline(host, text) {
   return host;
 }
 
-/** A bare `**Foo**` line is a sub-heading only if it is the whole line and
- *  reads like a label — an emphasised one-sentence paragraph must not get
- *  promoted. Sentence-ending punctuation is the tell. */
-function isBoldHeading(line) {
-  const m = line.match(BOLD_ONLY);
-  if (!m) return false;
-  const t = m[1].trim();
-  return t.length > 0 && t.length <= 60 && !/[.!,;]$/.test(t);
+/* ── math ─────────────────────────────────────────────────────────────────
+ *  TeX is typeset with KaTeX, fetched the first time an answer contains any
+ *  math and never otherwise. Until it arrives -- or if it cannot -- the TeX
+ *  itself is shown in the code face, which is readable, rather than the
+ *  flattened glyph soup ("∫0∞e−xdx=1") the answer used to arrive as. */
+const KATEX = "https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/";
+let katexReady = null;
+function loadKatex() {
+  if (window.katex) return Promise.resolve(window.katex);
+  if (katexReady) return katexReady;
+  katexReady = new Promise((resolve, reject) => {
+    const css = document.createElement("link");
+    css.rel = "stylesheet"; css.href = KATEX + "katex.min.css";
+    document.head.append(css);
+    const js = document.createElement("script");
+    js.src = KATEX + "katex.min.js";
+    js.onload = () => resolve(window.katex);
+    js.onerror = () => { katexReady = null; reject(new Error("katex")); };
+    document.head.append(js);
+  });
+  return katexReady;
 }
+
+function mathEl(tex, display) {
+  const n = el(display ? "div" : "span", display ? "md-math md-math-block" : "md-math", tex.trim());
+  loadKatex().then((k) => {
+    try {
+      k.render(tex.trim(), n, { displayMode: display, throwOnError: false, output: "htmlAndMathml" });
+      n.classList.add("typeset");
+    } catch {}
+  }).catch(() => {});
+  return n;
+}
+
 
 /* Block markdown -> a small AST.
  *
@@ -4790,16 +4870,29 @@ const MD = {
   bullet: /^(\s*)([-*+•])\s+(.*)$/,
   ordered: /^(\s*)(\d{1,9})([.)])\s+(.*)$/,
   task: /^\[([ xX])\]\s+(.*)$/,
+  math: /^\s*(\$\$|\\\[)\s*$/,
+  mathLine: /^\s*(?:\$\$([\s\S]+)\$\$|\\\[([\s\S]+)\\\])\s*$/,
+  footdef: /^\s{0,3}\[\^([^\]\s]+)\]:\s*(.*)$/,
 };
+
+/* A code block with no language whose first line IS a language name was
+ *  captured with the page's label inside it ("Python" above the code).
+ *  Answers saved before the engine learned to separate the two are repaired
+ *  here, rather than showing the label as a line of code. */
+const CODE_LANGS = new Set(("python py javascript js typescript ts jsx tsx json html css scss " +
+  "bash sh shell zsh powershell ps1 sql java kotlin swift go golang rust c cpp c++ csharp c# " +
+  "ruby php r matlab yaml yml toml xml markdown md plaintext text lua perl scala dart haskell").split(" "));
 
 function mdParse(text) {
   const lines = String(text || "").replace(/\r\n?/g, "\n").replace(/\t/g, "    ").split("\n");
   const out = [];
+  const notes = [];
   let i = 0;
 
   const isTableRow = (l) => TABLE_ROW.test(l) || (/\|/.test(l) && /\S/.test(l.replace(/\|/g, "")) && l.split("|").length > 2);
   const startsBlock = (l, next) =>
     MD.fence.test(l) || MD.heading.test(l) || MD.quote.test(l) ||
+    MD.math.test(l) || MD.mathLine.test(l) || MD.footdef.test(l) ||
     MD.bullet.test(l) || MD.ordered.test(l) || MD.hr.test(l) ||
     (isTableRow(l) && next !== undefined && TABLE_SEP.test(next));
 
@@ -4816,7 +4909,35 @@ function mdParse(text) {
         body.push(lines[i]); i++;
       }
       i++;                               // the closing fence, if there was one
-      out.push({ kind: "code", lang: f[3] || "", text: body.join("\n") });
+      let lang = f[3] || "";
+      if (!lang && body.length > 1 && CODE_LANGS.has(body[0].trim().toLowerCase())) {
+        lang = body.shift().trim().toLowerCase();
+      }
+      out.push({ kind: "code", lang, text: body.join("\n") });
+      continue;
+    }
+
+    // ── display math: $$ ... $$ or \[ ... \], on its own lines or one ──────
+    const ml = line.match(MD.mathLine);
+    if (ml) { out.push({ kind: "math", tex: ml[1] !== undefined ? ml[1] : ml[2] }); i++; continue; }
+    const mo = line.match(MD.math);
+    if (mo) {
+      const close = mo[1] === "$$" ? /^\s*\$\$\s*$/ : /^\s*\\\]\s*$/;
+      const body = [];
+      i++;
+      while (i < lines.length && !close.test(lines[i])) { body.push(lines[i]); i++; }
+      i++;
+      out.push({ kind: "math", tex: body.join("\n") });
+      continue;
+    }
+
+    // ── footnote definitions: gathered, and listed at the end ───────────────
+    const fd = line.match(MD.footdef);
+    if (fd) {
+      const text = [fd[2]];
+      i++;
+      while (i < lines.length && /^\s{2,}\S/.test(lines[i])) { text.push(lines[i].trim()); i++; }
+      notes.push({ id: fd[1], text: text.join(" ") });
       continue;
     }
 
@@ -4867,6 +4988,7 @@ function mdParse(text) {
     }
     out.push({ kind: "p", lines: para, text: para.join(" ") });
   }
+  if (notes.length) out.push({ kind: "footnotes", notes });
   return out;
 }
 
@@ -4961,14 +5083,11 @@ function parseVerdict(text) {
     buckets[where].push(raw);
   }
 
-  const promote = (blocks) => blocks.map((b) =>
-    // A bare "**Label**" line is a sub-heading, as before.
-    b.kind === "p" && b.lines.length === 1 && isBoldHeading(b.lines[0])
-      ? { kind: "h", level: 4, text: b.lines[0].match(BOLD_ONLY)[1].trim() }
-      : b);
-
-  g.main = promote(mdParse(buckets.main.join("\n")));
-  g.notes = promote(mdParse(buckets.notes.join("\n")));
+  // A line that is only **bold** stays bold text. It used to be promoted to a
+  // sub-heading, which is how "**Bold text**" in a markdown demo rendered as
+  // a "BOLD TEXT" section label; a model that wants a heading writes one.
+  g.main = mdParse(buckets.main.join("\n"));
+  g.notes = mdParse(buckets.notes.join("\n"));
 
   // Confidence: a HIGH/MEDIUM/LOW opener is a rating wherever it appears --
   // some chairmen drop the heading and just write the line.
@@ -5038,6 +5157,20 @@ function renderBlocks(host, blocks, lead = false) {
     }
     if (b.kind === "list") { host.append(renderList(b.list)); return; }
     if (b.kind === "hr") { host.append(el("hr", "md-hr")); return; }
+    if (b.kind === "math") { host.append(mathEl(b.tex, true)); return; }
+    if (b.kind === "footnotes") {
+      const box = el("div", "md-footnotes");
+      const ol = el("ol");
+      for (const n of b.notes) {
+        const li = el("li");
+        li.append(el("span", "md-fn-id", n.id));
+        inline(li, n.text);
+        ol.append(li);
+      }
+      box.append(ol);
+      host.append(box);
+      return;
+    }
     if (b.kind === "quote") {
       host.append(renderBlocks(el("blockquote", "md-quote"), b.blocks));
       return;

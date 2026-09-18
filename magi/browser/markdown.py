@@ -44,12 +44,28 @@ DOM_TO_MARKDOWN_JS = """
   // and layout hints. They carry no meaning in an answer and corrupt the text.
   const clean = (s) => s.replace(/[\\u200b-\\u200f\\u2060\\ufeff\\ue000-\\uf8ff]/g, '');
 
+  // Text the page shows LITERALLY is escaped, so reading it back as markdown
+  // gives the same thing. Without this, an answer that displayed
+  // "*This is not italicized*" arrived as italics. An underscore inside a word
+  // (snake_case) is left alone: it cannot start emphasis anyway.
+  const esc = (s) => s
+    .replace(/([\\\\`*~])/g, '\\\\$1')
+    .replace(/_/g, (m, off, str) =>
+      (/\\w/.test(str[off - 1] || '') && /\\w/.test(str[off + 1] || '')) ? '_' : '\\\\_');
+
+  // KaTeX keeps the TeX the model wrote in an annotation; everything visible
+  // is layout, and flattening it gave "∫0∞e−xdx=1".
+  const tex = (n) => {
+    const a = n.querySelector && n.querySelector('annotation[encoding="application/x-tex"]');
+    return a ? a.textContent.trim() : null;
+  };
+
   // Inline content: recurse for text, but wrap the emphasis tags back into
   // their markdown form so **bold** and `code` survive.
   const inline = (node) => {
     let out = '';
     for (const c of node.childNodes) {
-      if (c.nodeType === 3) { out += clean(c.nodeValue); continue; }
+      if (c.nodeType === 3) { out += esc(clean(c.nodeValue)); continue; }
       if (c.nodeType !== 1) continue;
       const tag = c.tagName;
       if (SKIP.has(tag)) continue;
@@ -57,11 +73,30 @@ DOM_TO_MARKDOWN_JS = """
       // both are '\\n' they are indistinguishable, so <br> gets a sentinel that
       // para() converts back after collapsing the source whitespace.
       if (tag === 'BR') { out += '\\u0000'; continue; }
+      const cls = c.classList || { contains: () => false };
+      if (cls.contains('katex-display') || cls.contains('katex')) {
+        const t = tex(c);
+        if (t) { out += cls.contains('katex-display') ? '$$' + t + '$$' : '$' + t + '$'; continue; }
+      }
+      if (tag === 'INPUT') {
+        if ((c.getAttribute('type') || '').toLowerCase() === 'checkbox') out += c.checked ? '[x] ' : '[ ] ';
+        continue;
+      }
+      const href = tag === 'A' ? (c.getAttribute('href') || '') : '';
+      // A footnote's "back to text" arrow is navigation, not content.
+      if (tag === 'A' && (c.hasAttribute('data-footnote-backref') || /fnref/.test(href))) continue;
+      if (tag === 'SUP' && (c.hasAttribute('data-footnote-ref') || c.querySelector('a[data-footnote-ref], a[href*="fn"]'))) {
+        out += '[^' + c.textContent.trim() + ']';
+        continue;
+      }
+      // Code is literal: its text is taken as-is, never escaped.
+      if (tag === 'CODE') { const t = clean(c.textContent || ''); if (t.trim()) out += '`' + t.trim() + '`'; continue; }
       const inner = inline(c);
       if (!inner.trim()) { out += inner; continue; }
       if (tag === 'STRONG' || tag === 'B') out += '**' + inner.trim() + '**';
       else if (tag === 'EM' || tag === 'I') out += '*' + inner.trim() + '*';
-      else if (tag === 'CODE') out += '`' + inner.trim() + '`';
+      else if (tag === 'DEL' || tag === 'S' || tag === 'STRIKE') out += '~~' + inner.trim() + '~~';
+      else if (tag === 'A' && /^(https?:|mailto:)/i.test(href)) out += '[' + inner.trim() + '](' + href + ')';
       else out += inner;
     }
     return out;
@@ -79,12 +114,14 @@ DOM_TO_MARKDOWN_JS = """
   const para = (node) => inline(node)
     .split('\\u0000')
     .map((l) => l.replace(/\\s+/g, ' ').trim())
+    .map((l) => l.replace(/^(#{1,6}\\s|>|[-+]\\s|\\d+[.)]\\s)/, '\\\\$1'))
     .join('\\n')
     .replace(/\\n{3,}/g, '\\n\\n')
     .trim();
 
   // Block content. `depth` drives list indentation; two spaces per level is
   // what the verdict parser treats as one nesting step.
+  const cls = (n) => n.classList || { contains: () => false };
   const block = (node, depth) => {
     const out = [];
     for (const c of node.childNodes) {
@@ -98,11 +135,12 @@ DOM_TO_MARKDOWN_JS = """
       if (SKIP.has(tag)) continue;
 
       if (/^H[1-6]$/.test(tag)) {
-        const t = inline(c).trim();
-        // Normalised to ### regardless of the level the UI chose to render:
-        // chat UIs map heading levels inconsistently, and the verdict parser
-        // treats any depth the same way.
-        if (t) out.push('### ' + t);
+        const t = inline(c).replace(/\\u0000/g, ' ').trim();
+        // The level is kept. It used to be normalised to ### on the grounds
+        // that the console drew every level alike; it no longer does, and an
+        // H1 title and its H4 sub-points arriving as equals was the bug.
+        // A screen-reader-only heading (ChatGPT's "Footnotes") is chrome.
+        if (t && !cls(c).contains('sr-only')) out.push('#'.repeat(+tag[1]) + ' ' + t);
       } else if (tag === 'UL' || tag === 'OL') {
         const ordered = tag === 'OL';
         let n = 1;
@@ -120,7 +158,14 @@ DOM_TO_MARKDOWN_JS = """
             if (k.nodeType === 1 && (k.tagName === 'UL' || k.tagName === 'OL')) sub.push(k);
             else own.appendChild(k.cloneNode(true));
           }
-          const marker = ordered ? (n++) + '. ' : '- ';
+          let marker = ordered ? (n++) + '. ' : '- ';
+          // A checkbox is the item's state, not its text.
+          const box = [...li.children].find((k) => k.tagName === 'INPUT' && (k.getAttribute('type') || '').toLowerCase() === 'checkbox');
+          if (box) {
+            marker += box.checked ? '[x] ' : '[ ] ';
+            const copy = own.querySelector('input[type="checkbox"]');
+            if (copy) copy.remove();
+          }
           // inline() when the item is just text and emphasis -- routing that
           // through block() would drop the **bold** lead-in that the frontend
           // styles as a label. Only recurse when there is a real block inside.
@@ -148,12 +193,34 @@ DOM_TO_MARKDOWN_JS = """
           out.push(lines.join('\\n'));
         }
       } else if (tag === 'PRE') {
-        const t = (c.innerText || '').replace(/\\s+$/, '');
-        // Fenced code is dropped by the verdict parser, but keeping the fence
-        // means it is dropped as a unit instead of leaking as loose lines.
-        if (t.trim()) out.push('```\\n' + t + '\\n```');
+        // The <code> inside, when there is one: ChatGPT puts a "Python" label
+        // and a Copy button in the same <pre>, and reading the whole <pre>
+        // made the label the first line of the code.
+        const code = c.querySelector('code');
+        const t = ((code || c).innerText || (code || c).textContent || '').replace(/\\s+$/, '');
+        let lang = '';
+        const m = code && (code.className || '').match(/language-([\\w+#.-]+)/);
+        if (m) lang = m[1];
+        if (!lang && code) {
+          // Whatever text the <pre> holds OUTSIDE the code and its buttons is
+          // the header, and its first word is the language.
+          const chrome = c.cloneNode(true);
+          for (const k of chrome.querySelectorAll('code, button')) k.remove();
+          const head = (chrome.textContent || '').trim().split(/\\s+/)[0] || '';
+          if (/^[\\w+#.-]{1,20}$/.test(head)) lang = head.toLowerCase();
+        }
+        if (t.trim()) out.push('```' + lang + '\\n' + t + '\\n```');
+      } else if (c.matches && c.matches('section[data-footnotes], .footnotes')) {
+        // Footnote definitions, in the form they were written.
+        for (const li of c.querySelectorAll('li')) {
+          const id = (li.id || '').match(/fn-?([\\w-]+)$/);
+          const body = inline(li).replace(/\\u0000/g, ' ').replace(/\\s+/g, ' ').trim();
+          if (body) out.push('[^' + (id ? id[1] : out.length + 1) + ']: ' + body);
+        }
       } else if (tag === 'BLOCKQUOTE') {
         for (const l of block(c, depth)) out.push('> ' + l);
+      } else if (cls(c).contains('katex-display') && tex(c)) {
+        out.push('$$\\n' + tex(c) + '\\n$$');
       } else if (tag === 'HR') {
         out.push('---');
       } else if (tag === 'P' || tag === 'DIV' || tag === 'SECTION' || tag === 'ARTICLE') {

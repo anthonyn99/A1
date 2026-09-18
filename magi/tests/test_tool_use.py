@@ -214,3 +214,14 @@ def test_an_old_timeout_whose_snapshot_shows_a_limit_is_reported_as_one(tmp_path
     (i,) = r["issues"]
     assert i["limit"] and i["resets_at"] and not i["cleared"]
     assert i["detail"] == "The site said: 6 hours 50 minutes before limit is gone"
+
+
+def test_the_answer_reader_keeps_what_the_page_rendered():
+    """ChatGPT's full-markdown demo arrived with every heading as ###, links,
+    strikethrough and checkboxes gone, the code label inside the code, math
+    flattened to glyphs and literal asterisks turned into italics."""
+    from magi.browser.markdown import DOM_TO_MARKDOWN_JS as js
+    assert "'#'.repeat(+tag[1])" in js, "heading levels are normalised again"
+    for tag in ("'DEL'", "data-footnote-ref", "application/x-tex", "checkbox", "language-"):
+        assert tag in js, f"the reader no longer handles {tag}"
+    assert "const esc = " in js and "esc(clean(c.nodeValue))" in js, "literal text is no longer escaped"

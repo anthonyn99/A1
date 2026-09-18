@@ -205,3 +205,11 @@ def test_dragging_a_control_down_does_not_pull_to_refresh():
     for sel in (".qbar-grip", "textarea", "button", "[contenteditable]"):
         assert sel in owned, f"a pull can start on {sel} again"
     assert "gotpointercapture" in ptr, "a drag begun elsewhere no longer cancels a pull"
+
+
+def test_markdown_renders_what_was_written():
+    assert "(?<esc>" in PAGE, "backslash escapes are not honoured"
+    assert "(?<fn>" in PAGE and 'kind: "footnotes"' in PAGE
+    assert "function mathEl(" in PAGE and "katex" in PAGE
+    assert "isBoldHeading" not in PAGE, "a bold line is being promoted to a heading again"
+    assert ".verdict-body .md-h3 { font-size: 17px;" in PAGE, "H3 is back to body size"
