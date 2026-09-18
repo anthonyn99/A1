@@ -225,3 +225,11 @@ def test_chatgpt_math_is_read_from_its_source_attribute(page):
     html = ('<p><span role="math" data-math-source="E = mc^2"><span class="katex">'
             '<span class="katex-html">E=mc2</span></span></span></p>')
     assert render(page, html) == "$E = mc^2$"
+
+
+def test_chatgpt_display_math_standing_alone(page):
+    """Display math sits between blocks, not in a <p>; it arrived as "E=mc2"."""
+    html = ('<h1>Display Math</h1><span role="math" data-math-source="E = mc^2" '
+            'style="display: block;"><span class="katex-display"><span class="katex">'
+            '<span class="katex-html">E=mc2</span></span></span></span><p>After.</p>')
+    assert render(page, html) == "# Display Math\n\n$$\nE = mc^2\n$$\n\nAfter."
