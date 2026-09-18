@@ -89,6 +89,22 @@ function deckReadyToast(job, doc) {
   } catch (e) {}
 }
 
+/**
+ * Where a prompt comes from, as a short suffix for its <option>.
+ *
+ * A prompt pinned to several classes is ONE entry (see prompts.all()), so
+ * "(this class)" can no longer be inferred from `source` alone — it has to be
+ * checked against classIds, or a prompt borrowed from another class would
+ * claim to be local.
+ */
+function promptOrigin(p, classId) {
+  const ids = p.classIds || [];
+  if (ids.includes(classId)) return p.source === 'class' ? ' (this class)' : '';
+  if (!ids.length) return '';
+  const from = p._from && p._from.className;
+  return from ? ` (from ${from})` : ' (another class)';
+}
+
 // ── P-3: run a prompt on one or more files ────────────────────────────────
 /**
  * Generate a slide deck from one or more source files.
@@ -121,7 +137,11 @@ export function openRunSheet(cls, files, destModuleId) {
 
   const choices = prompts.forClass(cls.id);
   if (!choices.length) {
-    toast('⚠️', 'No prompts yet', 'Add a prompt to this class first.');
+    // Genuinely empty now: forClass() falls back to every prompt that exists,
+    // so reaching here means the whole library and every prompts module are
+    // empty — not merely that this class has not pinned one.
+    toast('⚠️', 'No prompts yet',
+      'Add a prompt to a prompts module in any class first.');
     return;
   }
 
@@ -134,7 +154,7 @@ export function openRunSheet(cls, files, destModuleId) {
     <div class="field">
       <label>Prompt</label>
       <select id="sos-ai-prompt">
-        ${choices.map(p => `<option value="${esc(p.id)}">${esc(p.name || 'Untitled')}${p.source === 'class' ? ' (this class)' : ''}</option>`).join('')}
+        ${choices.map(p => `<option value="${esc(p.id)}">${esc(p.name || 'Untitled')}${esc(promptOrigin(p, cls.id))}</option>`).join('')}
       </select>
     </div>
     <div class="field">

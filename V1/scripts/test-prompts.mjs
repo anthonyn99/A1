@@ -128,12 +128,41 @@ console.log('\nforClass');
   const forC1 = P.forClass('c1');
   const forC2 = P.forClass('nope');
   t('a pinned prompt is offered to its class', forC1.some(x => x.id === p.id));
-  t('and not to another class', !forC2.some(x => x.id === p.id));
+
+  /* Pinning is about ORDER, not permission. Withholding a pinned prompt from
+   * other classes is what produced "No prompts yet" in a class that had not
+   * pinned one of its own, so it is still offered here -- just ranked last. */
+  t('and still offered to another class, ranked last',
+    forC2.some(x => x.id === p.id));
+
+  const g0 = P.add({ name: 'Global0', text: 'global0 text' });
+  const forC3 = P.forClass('nope');
+  t('a global outranks a pinned prompt from another class',
+    forC3.findIndex(x => x.id === g0.id) < forC3.findIndex(x => x.id === p.id));
+  P.remove(g0.id);
   P.remove(p.id);
 
   const g = P.add({ name: 'Global', text: 'global text' });
   t('an unpinned prompt is offered everywhere', P.forClass('anything').some(x => x.id === g.id));
   P.remove(g.id);
+
+  /* The reported bug: the same text pasted into several classes collapsed to
+   * ONE entry tagged with only the first class, so every other class holding
+   * it saw an empty Run sheet. Dedup must merge the owners, not drop them. */
+  const SHARED = 'shared prompt text';
+  const classes = [
+    { id: 'art', name: 'Art', modules: [{ id: 'm1', type: 'prompts', prompts: [{ id: 'q1', text: SHARED }] }] },
+    { id: 'ds',  name: 'Data Structures', modules: [{ id: 'm2', type: 'prompts', prompts: [{ id: 'q2', text: SHARED }] }] },
+  ];
+  const prevBridge = globalThis.window && globalThis.window._sosBridge;
+  globalThis.window._sosBridge = { getClasses: () => classes };
+  const shared = P.all().filter(x => (x.text || '').trim() === SHARED);
+  t('duplicate prompt text still collapses to one entry', shared.length === 1);
+  t('and carries every class that holds it',
+    ['art', 'ds'].every(id => (shared[0].classIds || []).includes(id)));
+  t('so a later class still sees its own prompt',
+    P.forClass('ds').some(x => (x.text || '').trim() === SHARED));
+  globalThis.window._sosBridge = prevBridge;
 }
 
 console.log('\nrobustness');

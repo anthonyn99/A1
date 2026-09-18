@@ -60,13 +60,14 @@ export function library() { return loadLib(); }
  */
 export function all() {
   const out = [];
-  const seen = new Set();
+  const seen = new Map();   // trimmed text -> the entry already in `out`
 
   for (const p of loadLib()) {
     const key = (p.text || '').trim();
     if (key && seen.has(key)) continue;
-    if (key) seen.add(key);
-    out.push({ ...p, source: 'library' });
+    const entry = { ...p, source: 'library' };
+    if (key) seen.set(key, entry);
+    out.push(entry);
   }
 
   for (const cls of store.getClasses()) {
@@ -74,9 +75,28 @@ export function all() {
       if (mod.type !== 'prompts') continue;
       for (const p of (mod.prompts || [])) {
         const key = (p.text || '').trim();
-        if (!key || seen.has(key)) continue;
-        seen.add(key);
-        out.push({
+        if (!key) continue;
+
+        /* The same prompt text really is pasted into several classes today,
+         * and showing it once per class would make the Run sheet useless. But
+         * collapsing duplicates must MERGE the classes, not drop the losers:
+         * an entry tagged only with the first class that claimed the text is
+         * invisible to forClass() for every other class holding it, which is
+         * what made "No prompts yet" appear in a class whose prompt module was
+         * plainly non-empty. Whoever is first in `classes` worked; the rest
+         * silently did not. */
+        const dup = seen.get(key);
+        if (dup) {
+          if (!Array.isArray(dup.classIds)) dup.classIds = [];
+          if (!dup.classIds.includes(cls.id)) dup.classIds.push(cls.id);
+          // Remember every home, so the Run sheet can still say where it came
+          // from and so per-class bookkeeping has a module id to work with.
+          (dup._alsoFrom || (dup._alsoFrom = [])).push(
+            { classId: cls.id, className: cls.name, moduleId: mod.id, promptId: p.id });
+          continue;
+        }
+
+        const entry = {
           id: p.id,
           name: p.name || firstLine(p.text),
           text: p.text,
@@ -84,19 +104,31 @@ export function all() {
           classIds: [cls.id],
           source: 'class',
           _from: { classId: cls.id, className: cls.name, moduleId: mod.id },
-        });
+        };
+        seen.set(key, entry);
+        out.push(entry);
       }
     }
   }
   return out;
 }
 
-/** Prompts worth offering for a class: its own first, then unpinned globals. */
+/**
+ * Prompts worth offering for a class: its own first, then unpinned globals,
+ * then anything else that exists.
+ *
+ * That last group is deliberate. Pinning a prompt to class A is a hint about
+ * ORDER, not a permission check — there is nothing about a prompt that makes
+ * it unusable on another class's file, and hiding it turns a full library into
+ * a "No prompts yet" dead end in every class that has not pinned one. Ranked
+ * last, it costs a reader nothing and keeps the sheet openable.
+ */
 export function forClass(classId) {
   const list = all();
   const mine = list.filter(p => (p.classIds || []).includes(classId));
   const global = list.filter(p => !(p.classIds || []).length);
-  return [...mine, ...global];
+  const others = list.filter(p => !mine.includes(p) && !global.includes(p));
+  return [...mine, ...global, ...others];
 }
 
 function firstLine(text) {
