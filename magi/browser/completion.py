@@ -156,6 +156,12 @@ ADAPTIVE_QUIET_FACTOR = 4.0
 # ...and always at least this many identical samples, so a single lucky poll
 # can never end an answer on its own.
 MIN_QUIET_SAMPLES = 3
+# The adaptive window needs to have SEEN the answer's rhythm before it may
+# shorten anything. With only a growth or two observed, the longest pause so
+# far says nothing -- an answer that opens with a preamble and then thinks for
+# three seconds would be cut off at the preamble, which is the exact failure
+# the long fixed window exists to prevent.
+ADAPTIVE_MIN_GROWTHS = 6
 
 
 async def wait_for_completion(
@@ -187,9 +193,10 @@ async def wait_for_completion(
     stable_count = 0
     last_text = ""
     last_growth = start
-    # The longest pause BETWEEN growths in this answer, which is what makes
-    # the quiet-window gate below adaptive (see it for why).
+    # The longest pause BETWEEN growths in this answer, and how many growths
+    # have been seen: together they make the quiet-window gate adaptive.
     max_gap = 0.0
+    growths = 0
 
     while True:
         if cancel is not None and cancel.is_set():
@@ -261,6 +268,14 @@ async def wait_for_completion(
         # same node. Trusting the first clear signal captured the preamble and
         # threw the actual verdict away. So a done-signal only counts once the
         # text has also held still for `confirm_samples` polls.
+        # NOT adaptive, deliberately. Shortening this window against the
+        # answer's own rhythm was tried and reverted: a site that clears its
+        # marker between a preamble and the real answer (Claude, routinely)
+        # streams the preamble at a perfectly steady rhythm, so the rhythm says
+        # "settled" exactly when it is least true -- test_completion.py's
+        # framing-question and confirm-window tests both caught the preamble
+        # being returned as the answer. A done-signal that can lie needs a
+        # window sized against the lie, not against the streaming.
         if site.streaming_marker:
             if streaming_now:
                 marker_seen = True
@@ -311,7 +326,9 @@ async def wait_for_completion(
         else:
             if len(text) > len(last_text):
                 now = time.monotonic()
-                max_gap = max(max_gap, now - last_growth)
+                if growths:
+                    max_gap = max(max_gap, now - last_growth)
+                growths += 1
                 last_growth = now
             stable_count = 0
             last_text = text
@@ -361,7 +378,7 @@ async def wait_for_completion(
         # so this can only ever return sooner than before, and never on weaker
         # evidence than the answer's own behaviour supports.
         quiet_needed = needed * poll_s
-        if not has_semantic_signal:
+        if not has_semantic_signal and growths >= ADAPTIVE_MIN_GROWTHS:
             quiet_needed = min(quiet_needed, max(ADAPTIVE_QUIET_FLOOR_S, max_gap * ADAPTIVE_QUIET_FACTOR))
         quiet_for = time.monotonic() - last_growth
         if (

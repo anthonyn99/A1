@@ -15,9 +15,15 @@
 # DOM; expect to revisit them whenever a site ships a redesign.
 
 defaults:
-  poll_ms: 700              # how often to sample the response while streaming
-  stability_samples: 4      # identical consecutive samples before "done" (fallback gate)
-  confirm_samples: 3        # quiet polls required to CONFIRM a semantic done-signal.
+  # Sampled at 400ms rather than 700ms: the poll rate decides how late MAGI
+  # notices an answer has finished, so this alone takes ~0.3s off every ask.
+  # Every window below is expressed in SAMPLES, so each one was rescaled to
+  # keep exactly the same length in seconds as it had at 700ms -- faster
+  # sampling must not quietly shorten a window that was tuned against a real
+  # pause on a real site.
+  poll_ms: 400              # how often to sample the response while streaming
+  stability_samples: 7      # identical consecutive samples before "done" (fallback gate, 2.8s)
+  confirm_samples: 5        # quiet polls (2.0s) required to CONFIRM a semantic done-signal.
                             # Models often pause between a short preamble and the
                             # real answer; without this the preamble gets captured
                             # and the actual answer is discarded.
@@ -213,11 +219,13 @@ sites:
     # catches these, but a caught failure is still a lost council member on
     # exactly the questions where a fourth opinion matters most.
     #
-    # 14 polls = 9.8s of continuous quiet before a cleared marker is believed.
+    # 25 polls at 400ms = 10s of continuous quiet before a cleared marker is
+    # believed (was 14 polls at 700ms = 9.8s; the window, not the count, is
+    # what was measured against Claude's pause).
     # Sized against the observed pause rather than guessed, and it only costs
     # time on answers that genuinely finish early -- the marker reappearing
     # resets the counter, so a still-streaming answer is unaffected.
-    confirm_samples: 14
+    confirm_samples: 25
     ready_selector:
       - "div[contenteditable='true']"
     login_selectors:
@@ -522,5 +530,10 @@ sites:
     # needs to, because there is no signal telling us it finished. That is the
     # price of a site that exposes nothing to detect completion with, and a
     # slow correct answer beats a fast truncated one.
-    stability_samples: 20
-    poll_ms: 700
+    # 35 samples at 400ms = 14s, the same window as before. It is now also a
+    # CEILING rather than a fixed cost: completion.py shortens it to four times
+    # the longest pause this answer actually took (never below 2.5s), so a
+    # smoothly streaming DeepSeek answer settles in ~2.5s instead of 14s, while
+    # one that pauses to think still gets the full window.
+    stability_samples: 35
+    poll_ms: 400

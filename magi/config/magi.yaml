@@ -22,10 +22,13 @@ pacing:
   # to 8.2s under contention). Set to [0.6, 1.2] if you'd rather have the
   # shorter total time; [0, 0] is kept here because it's what was asked for and
   # it does make every member start together.
+  # [0, 0] still starts the first two together; a third member onwards is
+  # held back 0.6s each, because that is where Chrome startup contention
+  # begins to cost more than the stagger (see orchestrator.CONTENTION_FROM).
   inter_provider_delay_s: [0, 0]
   typing_delay_ms: [8, 24]
-  pre_send_pause_s: [0.25, 0.7]
-  post_nav_pause_s: [0.6, 1.4]
+  pre_send_pause_s: [0.15, 0.45]
+  post_nav_pause_s: [0.4, 0.9]
 
   # Prompts this long or longer are inserted in one operation rather than typed
   # key by key. Typing the 2,372-char synthesis prompt took 86s of a 233s run --

@@ -41,6 +41,12 @@ def required_members(min_members: int, asked: int) -> int:
     """
     return max(1, min(min_members, asked))
 
+# A third simultaneous Chrome launch is where startup contention starts to
+# cost more than the stagger does (measured: 4 at once 15.6s vs staggered 9.7s).
+CONTENTION_FROM = 2
+CONTENTION_GAP_S = 0.6
+
+
 class Orchestrator:
     def __init__(self, settings: Settings, db: Database | None = None):
         self.settings = settings
@@ -196,10 +202,21 @@ class Orchestrator:
 
             # Cumulative stagger, sampled per provider -- provider N waits for
             # the sum of N gaps, not N x one fixed gap.
+            #
+            # With the gap configured to zero (start everyone together) the
+            # first two still start together, but a THIRD onwards is held back
+            # a beat. Chrome startup is CPU-bound: measured here, four members
+            # launched at the same instant took 15.6s to all be page-ready,
+            # against 9.7s when spread out, because they slowed each other
+            # down. Two browsers do not contend, so a two-unit council pays
+            # nothing for this.
             delays, acc = [], 0.0
-            for _ in providers:
+            for i, _ in enumerate(providers):
                 delays.append(acc)
-                acc += pacing.sample_inter_provider()
+                gap = pacing.sample_inter_provider()
+                if gap <= 0 and i + 1 >= CONTENTION_FROM:
+                    gap = CONTENTION_GAP_S
+                acc += gap
 
             gathered = await asyncio.gather(
                 *(one(p, d) for p, d in zip(providers, delays)),

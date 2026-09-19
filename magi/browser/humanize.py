@@ -92,7 +92,7 @@ async def _paste_text(page: Page, target: Locator, text: str) -> None:
     # its whole timeout and then fail, with nothing wrong with the selector.
     # CDP's insertText goes to whatever holds focus, which is all this needs.
     await overlay.enter_composer(page, target)
-    await pause(0.15, 0.35)
+    await pause(0.1, 0.22)
     await _clear_composer(page)
 
     session = await page.context.new_cdp_session(page)
@@ -103,7 +103,7 @@ async def _paste_text(page: Page, target: Locator, text: str) -> None:
         await session.send("Input.insertText", {"text": text})
     finally:
         await session.detach()
-    await pause(0.2, 0.45)
+    await pause(0.12, 0.28)
 
 
 async def type_text(page: Page, target: Locator, text: str, pacing: Pacing) -> None:

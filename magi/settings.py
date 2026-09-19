@@ -47,8 +47,8 @@ class Pacing:
     max_concurrency: int = 4
     inter_provider_delay_s: tuple[float, float] = (0.4, 1.5)
     typing_delay_ms: tuple[int, int] = (8, 24)
-    pre_send_pause_s: tuple[float, float] = (0.25, 0.7)
-    post_nav_pause_s: tuple[float, float] = (0.6, 1.4)
+    pre_send_pause_s: tuple[float, float] = (0.15, 0.45)
+    post_nav_pause_s: tuple[float, float] = (0.4, 0.9)
     # Prompts at or above this length are inserted in one operation instead of
     # typed. Typing a 2,372-char synthesis prompt took 86s of a 233s run.
     paste_threshold: int = 400
@@ -159,12 +159,12 @@ class SiteSelectors:
     # different answer per site and has to be asked per site.
     login_is_proof: bool = False
 
-    poll_ms: int = 700
-    stability_samples: int = 4
+    poll_ms: int = 400
+    stability_samples: int = 7
     # How many quiet polls must follow a semantic "finished" signal (streaming
     # marker cleared / stop button gone) before we believe it. Guards against
     # models that pause between a preamble and the real answer.
-    confirm_samples: int = 3
+    confirm_samples: int = 5
     stall_timeout_s: int = 120
     hard_timeout_s: int = 1200
     nav_timeout_s: int = 45
@@ -203,9 +203,9 @@ class SiteSelectors:
             dismiss_selectors=dismiss,
             strip_patterns=_as_list(merged.get("strip_patterns")),
             headless_ok=bool(merged.get("headless_ok", False)),
-            poll_ms=int(merged.get("poll_ms", 700)),
-            stability_samples=int(merged.get("stability_samples", 4)),
-            confirm_samples=int(merged.get("confirm_samples", 3)),
+            poll_ms=int(merged.get("poll_ms", 400)),
+            stability_samples=int(merged.get("stability_samples", 7)),
+            confirm_samples=int(merged.get("confirm_samples", 5)),
             stall_timeout_s=int(merged.get("stall_timeout_s", 120)),
             hard_timeout_s=int(merged.get("hard_timeout_s", 1200)),
             nav_timeout_s=int(merged.get("nav_timeout_s", 45)),
