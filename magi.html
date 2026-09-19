@@ -1399,6 +1399,141 @@ del.md-html { color: var(--txd); }
 }
 .verdict-degraded strong { color: var(--amber); font-weight: 600; }
 
+/* ══ BRIEF VIEW ════════════════════════════════════════════════════════════
+   The verdict laid out as a briefing (briefBody). It keeps .verdict-body, so
+   every inline rule above -- bold, code, tables, nested lists -- still applies
+   inside its cards; these rules only add the layout around them. */
+.verdict-body.brief { max-width: 920px; padding: 22px 24px 26px; }
+.br-hero {
+  position: relative; overflow: hidden;
+  padding: 22px 24px 18px; margin-bottom: 14px;
+  border: 1px solid var(--bdl); border-radius: 14px;
+  background:
+    radial-gradient(90% 140% at 100% 0%, color-mix(in srgb, var(--ac) 11%, transparent), transparent 60%),
+    linear-gradient(160deg, var(--s2), var(--s1));
+}
+.br-headline {
+  font-family: var(--font-display); font-size: 22px; font-weight: 800;
+  line-height: 1.32; letter-spacing: -.1px; color: var(--tx); text-wrap: balance;
+}
+.br-headline.long { font-size: 19px; line-height: 1.4; font-weight: 700; }
+.br-summary {
+  margin-top: 12px; padding-left: 14px; border-left: 2px solid var(--acd);
+  font-size: 15px; line-height: 1.65; color: var(--txd); text-wrap: pretty;
+}
+.br-summary:first-child { margin-top: 0; }
+.br-conf { margin-top: 16px; }
+.br-conf-top { display: flex; align-items: center; gap: 10px; }
+.br-conf-k {
+  font-family: var(--font-display); font-size: 10px; font-weight: 700;
+  letter-spacing: 1.4px; text-transform: uppercase; color: var(--txm);
+}
+.br-conf-bar { display: flex; gap: 4px; width: 132px; }
+.br-conf-bar i { flex: 1; height: 6px; border-radius: 3px; background: var(--s3); }
+.br-conf.high .br-conf-bar i.on { background: var(--grn); }
+.br-conf.medium .br-conf-bar i.on { background: var(--amber); }
+.br-conf.low .br-conf-bar i.on { background: var(--red); }
+.br-conf-v { font-family: var(--font-mono); font-size: 11px; font-weight: 600; letter-spacing: .6px; }
+.br-conf.high .br-conf-v { color: var(--grn); }
+.br-conf.medium .br-conf-v { color: var(--amber); }
+.br-conf.low .br-conf-v { color: var(--red); }
+.br-conf-why { margin-top: 6px; font-size: 12.5px; line-height: 1.6; color: var(--txd); }
+.br-meta { margin-top: 14px; font-family: var(--font-mono); font-size: 10.5px; color: var(--txm); letter-spacing: .3px; }
+
+.br-toc { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.br-toc-chip {
+  height: 30px; padding: 0 13px; border-radius: 999px;
+  background: var(--s1); border: 1px solid var(--bd); color: var(--txd);
+  font-size: 12px; font-weight: 500; white-space: nowrap; max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.br-toc-chip:hover { background: var(--s2); color: var(--tx); border-color: var(--bdl); }
+.br-toc-chip strong { font-weight: 500; color: inherit; }
+
+.br-intro { margin: 0 4px 14px; }
+.br-sec {
+  padding: 18px 20px 16px; margin-bottom: 12px; scroll-margin-top: 76px;
+  border: 1px solid var(--bd); border-radius: 12px;
+  background: color-mix(in srgb, var(--s1) 70%, transparent);
+}
+.br-sec-hd { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.br-sec-n {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: color-mix(in srgb, var(--ac) 18%, transparent); color: var(--acl);
+  font-family: var(--font-mono); font-size: 11.5px; font-weight: 700;
+}
+.br-sec-title {
+  margin: 0; font-family: var(--font-display); font-size: 16.5px; font-weight: 700;
+  line-height: 1.35; color: var(--tx);
+}
+.br-sec-body > *:last-child { margin-bottom: 0; }
+
+.br-points { display: grid; gap: 8px; margin: 4px 0 14px; }
+.br-points:last-child { margin-bottom: 0; }
+.br-points.two { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.br-point {
+  padding: 11px 14px; border-radius: 9px;
+  background: var(--bg); border: 1px solid var(--bd); border-left: 3px solid var(--ac);
+}
+.br-point-label { font-size: 13.5px; font-weight: 650; color: var(--tx); line-height: 1.4; }
+.br-point-body { margin-top: 3px; font-size: 13.5px; line-height: 1.6; color: var(--txd); }
+.br-point-label:only-child, .br-point > .br-point-body:first-child { margin-top: 0; }
+.br-point .v-list { margin: 6px 0 0; }
+
+.br-steps { list-style: none; margin: 4px 0 14px; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.br-steps:last-child { margin-bottom: 0; }
+.br-step { display: flex; gap: 12px; align-items: flex-start; }
+.br-step-n {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; margin-top: 1px; border-radius: 50%;
+  background: var(--s3); color: var(--acl); font-family: var(--font-mono); font-size: 11.5px; font-weight: 700;
+}
+.br-step-body { min-width: 0; line-height: 1.65; }
+.br-step-label { font-weight: 650; color: var(--tx); }
+
+.br-notes {
+  margin-top: 4px; padding: 14px 18px; border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--amber) 26%, transparent);
+  background: color-mix(in srgb, var(--amber) 5%, transparent);
+}
+.br-notes-hd {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+  font-family: var(--font-display); font-size: 10.5px; font-weight: 700;
+  letter-spacing: 1.4px; text-transform: uppercase; color: var(--amber);
+}
+.br-notes-ic { display: inline-flex; font-size: 14px; }
+.br-notes p, .br-notes .v-list li { font-size: 13px; color: var(--txd); }
+.br-notes > *:last-child { margin-bottom: 0; }
+.br-notes .br-point { background: transparent; border-left-color: var(--amber); }
+
+/* Brief / Text switch in the verdict header */
+.br-seg { display: inline-flex; padding: 2px; gap: 2px; border-radius: 999px; background: var(--bg); border: 1px solid var(--bd); }
+.br-seg-btn {
+  height: 24px; padding: 0 11px; border: 0; border-radius: 999px; background: none;
+  color: var(--txm); font-size: 11px; font-weight: 500;
+}
+.br-seg-btn:hover { color: var(--tx); }
+.br-seg-btn.on { background: var(--s3); color: var(--tx); }
+
+@media (max-width: 760px) {
+  .verdict-body.brief { padding: 14px 12px 18px; }
+  .br-hero { padding: 16px 16px 14px; border-radius: 12px; }
+  .br-headline { font-size: 19px; }
+  .br-headline.long { font-size: 17px; }
+  .br-summary { font-size: 14.5px; }
+  .br-conf-bar { width: 96px; }
+  .br-toc { flex-wrap: nowrap; overflow-x: auto; margin: 0 -12px 12px; padding: 0 12px; }
+  .br-toc-chip { height: 36px; flex: 0 0 auto; max-width: 70vw; }
+  .br-intro { margin: 0 2px 12px; }
+  .br-sec { padding: 14px 14px 12px; border-radius: 11px; }
+  .br-sec-title { font-size: 15.5px; }
+  .br-points.two { grid-template-columns: minmax(0, 1fr); }
+  .br-notes { padding: 12px 14px; }
+  .br-seg-btn { height: 32px; padding: 0 13px; }
+}
+
 /* ══ TYPE ══════════════════════════════════════════════════════════════════
    RiftIQ's three faces, applied by MEANING rather than by region.
 
@@ -5949,6 +6084,193 @@ function verdictBody(text) {
   return root;
 }
 
+/* ══ the brief: a verdict laid out as a briefing ═══════════════════════════
+   The same text as verdictBody, drawn the way TradeHub's Market Summary is:
+   a headline and summary up top with a confidence meter, then each section as
+   its own card, bold-led bullets as key-point cards, notes as a "worth
+   knowing" panel. Everything comes from structure the chairman ALREADY
+   writes (ANSWER / NOTES / CONFIDENCE, ### sections, **bold** lead phrases),
+   so it costs no extra prompt, no engine change and no time -- and every past
+   deliberation gets it too. A verdict with no structure to find simply reads
+   as a hero plus prose, never worse than the text view. */
+
+const VERDICT_VIEW = {
+  get: () => { try { return localStorage.getItem("magi.verdict.view") === "text" ? "text" : "brief"; } catch { return "brief"; } },
+  set: (v) => { try { localStorage.setItem("magi.verdict.view", v); } catch {} },
+};
+
+/** "**Label:** rest" / "**Label** — rest" -> { label, rest }; null otherwise. */
+function boldLead(text) {
+  const m = String(text || "").match(/^\s*(?:\*\*|__)(.{2,90}?)(?:\*\*|__)\s*(?:[:：—–-]\s*)?([\s\S]*)$/);
+  if (!m) return null;
+  return { label: m[1].replace(/[:：]\s*$/, "").trim(), rest: m[2].trim() };
+}
+
+/** A list, as cards when it is a list of labelled points, as numbered steps
+ *  when it is ordered, and as a plain list otherwise. */
+function briefList(list) {
+  const items = list.items;
+  const leads = items.map((it) => boldLead(it.text));
+  const labelled = leads.filter(Boolean).length;
+  if (items.length >= 2 && labelled / items.length >= 0.6) {
+    const short = items.every((it) => (it.text.length + (it.extra || []).join(" ").length) < 260 && !(it.children || []).length);
+    const grid = el("div", `br-points ${short && items.length > 1 ? "two" : ""}`);
+    items.forEach((it, k) => {
+      const card = el("div", "br-point");
+      const lead = leads[k];
+      if (lead) card.append(inline(el("div", "br-point-label"), lead.label));
+      const body = el("div", "br-point-body");
+      const rest = lead ? lead.rest : it.text;
+      if (rest) inline(body, rest);
+      for (const x of it.extra || []) { body.append(el("br")); inline(body, x); }
+      if (rest || (it.extra || []).length) card.append(body);
+      for (const c of it.children || []) card.append(renderList(c));
+      grid.append(card);
+    });
+    return grid;
+  }
+  if (list.ordered && items.length >= 2) {
+    const steps = el("ol", "br-steps");
+    items.forEach((it, k) => {
+      const li = el("li", "br-step");
+      li.append(el("span", "br-step-n", String((list.start || 1) + k)));
+      const body = el("div", "br-step-body");
+      const lead = leads[k];
+      if (lead) {
+        body.append(inline(el("div", "br-step-label"), lead.label));
+        if (lead.rest) body.append(inline(el("div"), lead.rest));
+      } else inline(body, it.text);
+      for (const x of it.extra || []) { body.append(el("br")); inline(body, x); }
+      for (const c of it.children || []) body.append(renderList(c));
+      li.append(body);
+      steps.append(li);
+    });
+    return steps;
+  }
+  return renderList(list);
+}
+
+function briefBlocks(host, blocks) {
+  for (const b of blocks) {
+    if (b.kind === "list") host.append(briefList(b.list));
+    else renderBlocks(host, [b]);
+  }
+  return host;
+}
+
+/** Splits a lead paragraph into a headline and the rest, when its first
+ *  sentence is short enough to be one. */
+function splitHeadline(text) {
+  const t = String(text || "").trim();
+  if (t.length <= 170) return { head: t, rest: "" };
+  // First sentence end: . ! ? followed by a space and a capital -- so "e.g."
+  // and "U.S. data" do not end it.
+  const m = t.match(/^([\s\S]{25,170}?[.!?])\s+(?=[A-Z"“(])/);
+  if (m) return { head: m[1], rest: t.slice(m[0].length) };
+  // One long sentence is still the headline, just set a size down.
+  return t.length <= 280 ? { head: t, rest: "", long: true } : { head: "", rest: t };
+}
+
+function briefBody(text) {
+  const g = parseVerdict(text);
+  const root = el("div", "verdict-body brief");
+  const blocks = [...g.main];
+
+  /* hero */
+  const hero = el("div", "br-hero");
+  const lead = blocks[0] && blocks[0].kind === "p" ? blocks.shift() : null;
+  if (lead) {
+    const { head, rest, long } = splitHeadline(lead.text);
+    if (head) hero.append(inline(el("div", `br-headline ${long ? "long" : ""}`), head));
+    // The headline stood alone and the answer goes on with a short framing
+    // paragraph before its first section: that paragraph is the summary.
+    const next = blocks[0];
+    const summary = rest || (next && next.kind === "p" && next.text.length <= 420 ? (blocks.shift(), next.text) : "");
+    if (summary) hero.append(inline(el("div", "br-summary"), summary));
+  }
+  const conf = g.conf.find((b) => b.kind === "conf");
+  if (conf) {
+    const lv = { LOW: 1, MEDIUM: 2, HIGH: 3 }[conf.level] || 0;
+    const meter = el("div", `br-conf ${conf.level.toLowerCase()}`);
+    const top = el("div", "br-conf-top");
+    const bar = el("div", "br-conf-bar");
+    for (let k = 1; k <= 3; k++) bar.append(el("i", k <= lv ? "on" : ""));
+    top.append(el("span", "br-conf-k", "Confidence"), bar, el("span", "br-conf-v", conf.level));
+    meter.append(top);
+    if (conf.why) {
+      let why = conf.why.replace(new RegExp(`^${conf.level}\\b\\s*[-—:.,]*\\s*`, "i"), "");
+      why = why.charAt(0).toUpperCase() + why.slice(1);
+      if (why) meter.append(inline(el("div", "br-conf-why"), why));
+    }
+    hero.append(meter);
+  }
+
+  /* sections: split on the shallowest heading level present */
+  const levels = blocks.filter((b) => b.kind === "h").map((b) => b.level || 3);
+  const top = levels.length ? Math.min(...levels) : 0;
+  const sections = [];
+  let cur = { title: null, blocks: [] };
+  for (const b of blocks) {
+    if (b.kind === "h" && (b.level || 3) === top) {
+      if (cur.title !== null || cur.blocks.length) sections.push(cur);
+      cur = { title: b.text, blocks: [] };
+    } else cur.blocks.push(b);
+  }
+  if (cur.title !== null || cur.blocks.length) sections.push(cur);
+  const titled = sections.filter((s) => s.title !== null);
+
+  // meta: how much there is to read
+  const words = String(text || "").split(/\s+/).filter(Boolean).length;
+  const meta = el("div", "br-meta");
+  const bits = [];
+  if (titled.length) bits.push(`${titled.length} section${titled.length === 1 ? "" : "s"}`);
+  bits.push(`${Math.max(1, Math.round(words / 230))} min read`);
+  meta.textContent = bits.join(" · ");
+  if (hero.childNodes.length) { hero.append(meta); root.append(hero); }
+
+  // contents chips when there is enough to navigate
+  const secEls = [];
+  if (titled.length >= 3) {
+    const toc = el("div", "br-toc");
+    titled.forEach((s, k) => {
+      const b = el("button", "br-toc-chip");
+      b.type = "button";
+      inline(b, s.title.replace(/^\d+[.)]\s+/, ""));
+      b.onclick = () => secEls[k] && secEls[k].scrollIntoView({ behavior: "smooth", block: "start" });
+      toc.append(b);
+    });
+    root.append(toc);
+  }
+
+  for (const s of sections) {
+    if (s.title === null) {
+      if (s.blocks.length) root.append(briefBlocks(el("div", "br-intro"), s.blocks));
+      continue;
+    }
+    const card = el("section", "br-sec");
+    const hd = el("div", "br-sec-hd");
+    const num = s.title.match(/^(\d+)[.)]\s+(.*)$/);
+    if (num) hd.append(el("span", "br-sec-n", num[1]));
+    hd.append(inline(el("h3", "br-sec-title"), num ? num[2] : s.title));
+    card.append(hd);
+    if (s.blocks.length) card.append(briefBlocks(el("div", "br-sec-body"), s.blocks));
+    secEls.push(card);
+    root.append(card);
+  }
+
+  /* notes + the rest of the confidence section */
+  const confRest = g.conf.filter((b) => b.kind !== "conf");
+  if (g.notes.length || confRest.length) {
+    const notes = el("div", "br-notes");
+    const hd = el("div", "br-notes-hd");
+    hd.append(icSpan("br-notes-ic", "help"), el("span", null, "Worth knowing"));
+    notes.append(hd);
+    briefBlocks(notes, [...g.notes, ...confRest]);
+    root.append(notes);
+  }
+  return root;
+}
+
 /* ══ copying a result ══════════════════════════════════════════════════════
    Every surface that finishes with something worth keeping gets the same
    button: the verdict, a brainstorm plan, an earlier round's draft, one
@@ -6547,9 +6869,21 @@ function renderVerdict() {
     // the right corner. History reopens a past run through this very function,
     // so that button is there too without a second code path. There is none on
     // a failed synthesis: an error message is not a result to take away.
-    const body = verdictBody(v.verdict);
-    (n.querySelector(".verdict-acts") || hd)
-      .append(copyButton(() => ({ node: body, md: v.verdict })));
+    const view = VERDICT_VIEW.get();
+    const body = view === "brief" ? briefBody(v.verdict) : verdictBody(v.verdict);
+    // Brief (the laid-out briefing) or Text (the plain reading view) --
+    // remembered per device, since a phone and a desk can want different ones.
+    const seg = el("span", "br-seg");
+    for (const [k, label] of [["brief", "Brief"], ["text", "Text"]]) {
+      const b = el("button", `br-seg-btn ${view === k ? "on" : ""}`, label);
+      b.type = "button";
+      b.setAttribute("aria-pressed", String(view === k));
+      b.onclick = () => { if (VERDICT_VIEW.get() !== k) { VERDICT_VIEW.set(k); renderVerdict(); } };
+      seg.append(b);
+    }
+    const group = (n.querySelector(".verdict-acts") || hd);
+    group.prepend(seg);
+    group.append(copyButton(() => ({ node: body, md: v.verdict })));
     n.append(body);
   } else {
     /* A failed synthesis is not a failed deliberation.

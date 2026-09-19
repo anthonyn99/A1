@@ -104,7 +104,9 @@ def test_every_surface_that_produces_a_result_has_one():
             # The button moved into the header's action group, beside
             # Close -- what matters is still that it is built from the
             # verdict body that was just rendered.
-            re.compile(r"const body = verdictBody\(v\.verdict\);[\s\S]{0,200}?"
+            # Built from whichever view is on screen -- the laid-out brief or
+            # the plain text -- but always from THIS verdict's body.
+            re.compile(r"const body = [^;]*verdictBody\(v\.verdict\);[\s\S]{0,900}?"
                        r"append\(copyButton\(\(\) => \(\{ node: body, md: v\.verdict"),
         "a single unit's answer":
             re.compile(r"copyButton\(\(\) => \(\{ md: p\.text \}\)"),
