@@ -21550,7 +21550,8 @@ function createBoard(cfg) {
     // mid-drawing loses the lot.
     // A shared board saves sooner: the other person is watching it live.
     var live = isLive(B.entryId);
-    var wait = (now - B.firstDirtyAt >= (live ? LIVE_MAX : SAVE_MAX)) ? 0 : (live ? LIVE_IDLE : SAVE_IDLE);
+    var wait = live ? ((now - B.firstDirtyAt >= LIVE_MAX) ? 0 : LIVE_IDLE)
+                    : ((now - B.firstDirtyAt >= SAVE_MAX) ? 0 : SAVE_IDLE);
     B.idleTimer = setTimeout(function () { save(); }, wait);
   }
 
@@ -22630,6 +22631,55 @@ function createBoard(cfg) {
 window.VizEngine = { createBoard: createBoard };
 })();
 </script>
+<style id="oj-css">
+/* ══════════════ OurJournal — tabs + shared-entry chrome (both journals) ══════════════
+   Every rule is root-prefixed: #bj-root * / #tj-root * zero padding at id
+   specificity, so an unprefixed class here would collapse. Colours come from each
+   app's own tokens, so the tab reads gold in MyJournal and purple in Brainstorm. */
+#bj-root .oj-rail, #tj-root .oj-rail { display: flex; gap: 6px; padding: 12px 12px 4px; flex-shrink: 0; }
+#bj-root .oj-tab, #tj-root .oj-rail .oj-tab {
+  flex: 1 1 0; min-width: 0;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  background: transparent; border: 1px solid var(--border); border-radius: 7px;
+  color: var(--text3); font-family: var(--font); font-size: 10.5px; font-weight: 600;
+  letter-spacing: .07em; text-transform: uppercase; padding: 9px 6px;
+  cursor: pointer; white-space: nowrap; transition: border-color .16s, color .16s, box-shadow .16s;
+}
+#bj-root .oj-tab svg, #tj-root .oj-tab svg { width: 13px; height: 13px; flex-shrink: 0; }
+#bj-root .oj-tab:hover, #tj-root .oj-rail .oj-tab:hover { color: var(--text2); border-color: var(--border2); }
+#bj-root .oj-tab.on, #tj-root .oj-tab.on {
+  color: var(--purple); border-color: var(--purple);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--purple) 22%, transparent), 0 0 10px color-mix(in srgb, var(--purple) 12%, transparent);
+}
+#tj-root .oj-tab.on { border-color: var(--gold-line, var(--purple)); }
+/* MyJournal's rail gains a fourth source: two rows of two, OurJournal top-left. */
+#tj-root .mjd-rail.oj-has-tab { flex-wrap: wrap; }
+#tj-root .mjd-rail.oj-has-tab .mjd-rail-btn { flex: 1 1 calc(50% - 3px); }
+@media (max-width: 600px) {
+  #tj-root .mjd-rail.oj-has-tab { flex-wrap: nowrap; }
+  #tj-root .mjd-rail.oj-has-tab .mjd-rail-btn { flex: 1 1 0; }
+  #bj-root .oj-tab .oj-lbl, #tj-root .oj-rail .oj-tab .oj-lbl { font-size: 10px; }
+}
+/* Who created a shared entry. */
+#bj-root .entry-item-meta .oj-by, #tj-root .entry-item-meta .oj-by {
+  margin-left: auto; flex-shrink: 0;
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 10px; font-weight: 600; letter-spacing: .04em; color: var(--text2);
+}
+#bj-root .entry-item-meta .oj-by::before, #tj-root .entry-item-meta .oj-by::before {
+  content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+}
+#bj-root .entry-item-meta .oj-by-tony::before, #tj-root .entry-item-meta .oj-by-tony::before { background: #e0b874; }
+#bj-root .entry-item-meta .oj-by-veda::before, #tj-root .entry-item-meta .oj-by-veda::before { background: #a98bbb; }
+/* Shared entries use only the templates BOTH journals have (Page, Mind Map,
+   Whiteboard), and have no per-person password lock. */
+#bj-root.oj-on .template-card[data-template="notes"],
+#bj-root.oj-on .template-card[data-template="cornell"],
+#bj-root.oj-on .template-card[data-template="mindmap-legacy"],
+#tj-root.oj-on .template-card[data-template="journal-entries"],
+#bj-root.oj-on #bj-btn-lock, #bj-root.oj-on #bj-mobile-lock-btn,
+#tj-root.oj-on #tj-btn-lock, #tj-root.oj-on #tj-mobile-lock-btn { display: none !important; }
+</style>
 <script>
 /* ══════════════════════════════════════════════════════════════════════════
    OurJournal engine (window.OJ) — the journal Tony and Veda share.
@@ -23389,7 +23439,11 @@ function writeNow(a, s) {
   if (!s.want || s.inflight || !s.seen || !f || !e._ojLoaded || a.docs[s.id] !== s) return s.inflight || Promise.resolve();
   var k = know(a, s.id), pending = [];
   var d = localD(a, s, pending);
-  if (k.known && stable(d) === stable(k.known.d)) { s.want = false; maybeClose(a, s); return Promise.resolve(); }
+  if (k.known && stable(d) === stable(k.known.d)) {
+    s.want = false;
+    if (!a.metaInflight && !Object.keys(a.dirty).length) a.h.setSync('synced');
+    maybeClose(a, s); return Promise.resolve();
+  }
   // Never let a blank become the first published state of an entry: an absent
   // content document already means "blank", and this is the shape a not-yet-
   // painted editor has.
@@ -25268,6 +25322,9 @@ function _bjWithPersonal(fn) {
 // the exact textarea/field the user is currently typing in — that field is protected.
 function _bjApplyRemote(remote) {
   if (!remote || !Array.isArray(remote.entries)) return;
+  // This is always the personal journal's own document. With OurJournal on
+  // screen, apply it to the personal collection waiting off-screen.
+  if (_bjIsOJ() && !_bjHidden) return _bjWithPersonal(function() { _bjApplyRemote(remote); });
 
   var focused = document.activeElement;
 
@@ -25606,7 +25663,7 @@ window.addEventListener('fb-bj-canvas-saved', function() { _bjSetSync('synced');
 window.addEventListener('fb-bj-error', function() { _bjSetSync('error'); });
 window.addEventListener('fb-bj-prompt-saved', function() { _bjSetSync('synced'); });
 window._bjSetSync = _bjSetSync;   // exposed so the AI-prompt save can drive the sync pill
-window.addEventListener('fb-bj-remote-update', function(e) { _bjWithPersonal(function() { _bjApplyRemote(e.detail); }); });
+window.addEventListener('fb-bj-remote-update', function(e) { _bjApplyRemote(e.detail); });
 
 // Initial Firebase load when FB ready
 function _bjInitFirebase() {
@@ -25736,6 +25793,8 @@ function purgeExpiredTrash(opts) {
   // Never decide a permanent delete from the cache. Anything but an explicit
   // authoritative call is a request to schedule the purge, not to run it.
   if (!opts || !opts.authoritative) { _bjSchedulePurge(); return; }
+  // Purges the personal journal only (OurJournal's trash is the OJ engine's).
+  if (_bjIsOJ() && !_bjHidden) return _bjWithPersonal(function() { purgeExpiredTrash(opts); });
   if (_bjPurgeDone) return;
   _bjPurgeDone = true;
   const cutoff = Date.now() - BJ_TRASH_TTL;
@@ -25764,7 +25823,7 @@ function _bjSchedulePurge() {
     window.removeEventListener('fb-bj-remote-update', _once);
     // One turn late, so the merge that this event triggers has finished writing
     // state.entries before the purge reads it.
-    setTimeout(() => _bjWithPersonal(() => purgeExpiredTrash({ authoritative: true })), 0);
+    setTimeout(() => purgeExpiredTrash({ authoritative: true }), 0);
   });
 }
 window._bjTrashAPI = {
@@ -30826,6 +30885,14 @@ window.hideBrainstormJournal = function() {
 const STORAGE_KEY = 'tony_journal_v3';
 const TJ_CANVAS_KEY = (id) => 'tj_canvas_' + id;
 let state = { entries: [], activeId: null, deletedIds: [] };
+// ── OurJournal (see the OJ engine) ───────────────────────────────────────────
+// `state` is whichever collection is ON SCREEN — see the Brainstorm twin. With
+// the OurJournal tab on it is the shared collection; Tony's own waits in
+// _tjPersonal, and every persistence call routes by which one `state` is.
+let _tjPersonal = null;
+let _tjOJState  = null;
+let _tjHidden   = false;
+function _tjIsOJ() { return !!_tjOJState && state === _tjOJState; }
 let saveTimer = null;
 // ── Anti-regression state (see the JGuard block above) ────────────────────────
 // _tjDomOwner: the entry id the editor DOM was last PAINTED for. The templates
@@ -30907,11 +30974,13 @@ function _tjSlimHtml(h) {
   });
 }
 function _tjWriteCache() {
+  if (_tjIsOJ()) { if (window.OJ) window.OJ.writeCache('tj'); return; }
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state, _tjOmitCanvas)); }
   catch (e) { /* quota exceeded / private mode: keep last good cache; Firebase holds the full data */ }
 }
 
 function saveState() {
+  if (_tjIsOJ()) { if (window.OJ) window.OJ.touched('tj'); return; }
   // Save full state to localStorage (minus bulky canvases) — instant, best-effort
   _tjWriteCache();
   state.entries.forEach(entry => {
@@ -30924,8 +30993,37 @@ function saveState() {
   if (window._fbSaveTonyJournal) {
     // Capture activeId NOW — see BJ saveState. Prevents an entry-switch inside the
     // debounce window from redirecting the save to the wrong (newly-active) entry.
-    var _tjSid = state.activeId;
-    window._fbSaveTonyJournal(() => ({ entries: state.entries, activeId: _tjSid }));
+    // The state object too: OurJournal may be on screen by the time this runs.
+    var _tjSid = state.activeId, _tjSt = state;
+    window._fbSaveTonyJournal(() => ({ entries: _tjSt.entries, activeId: _tjSid }));
+  }
+}
+
+// Persistence routers — see the Brainstorm twins.
+function _tjFbSaveEntry(e) {
+  if (_tjIsOJ()) { if (window.OJ) window.OJ.touched('tj'); return; }
+  if (window._fbSaveTonyJournalEntry) window._fbSaveTonyJournalEntry(e, state.entries);
+}
+function _tjFbDelete(id) {
+  if (_tjIsOJ()) { if (window.OJ) window.OJ.hardDelete('tj', id); return; }
+  if (window._fbDeleteTonyJournalEntry) window._fbDeleteTonyJournalEntry(id);
+}
+function _tjFbFlush() {
+  if (_tjIsOJ()) return window.OJ ? window.OJ.flush('tj') : undefined;
+  if (window._fbFlushTonyJournal) return window._fbFlushTonyJournal();
+}
+function _tjFbOrder() {
+  if (_tjIsOJ()) { if (window.OJ) window.OJ.touched('tj'); return; }
+  if (window._fbSaveTonyJournalOrder) window._fbSaveTonyJournalOrder(state.entries);
+}
+function _tjWithPersonal(fn) {
+  if (!_tjIsOJ() || !_tjPersonal) return fn();
+  var shown = state, keep = _tjPersonal.activeId;
+  state = _tjPersonal; state.activeId = null; _tjHidden = true;
+  try { return fn(); }
+  finally {
+    _tjPersonal = state; _tjPersonal.activeId = keep;
+    _tjHidden = false; state = shown;
   }
 }
 
@@ -30936,6 +31034,9 @@ function saveState() {
 // the exact textarea/field the user is currently typing in — that field is protected.
 function _tjApplyRemote(remote) {
   if (!remote || !Array.isArray(remote.entries)) return;
+  // This is always the personal journal's own document. With OurJournal on
+  // screen, apply it to the personal collection waiting off-screen.
+  if (_tjIsOJ() && !_tjHidden) return _tjWithPersonal(function() { _tjApplyRemote(remote); });
 
   var focused = document.activeElement;
 
@@ -31239,7 +31340,7 @@ function _tjApplyRemote(remote) {
   if (_auth) {
     state.entries.forEach(function(e) {
       if (!e._dirty || e.id === state.activeId) return;
-      if (window._fbSaveTonyJournalEntry) window._fbSaveTonyJournalEntry(e, state.entries);
+      _tjFbSaveEntry(e);
     });
   }
 
@@ -31247,7 +31348,7 @@ function _tjApplyRemote(remote) {
   _tjWriteCache();
   renderSidebar();
   // Re-run lock check in case remote updated lock status on current entry
-  if (window._tjLockCheck) window._tjLockCheck();
+  if (window._tjLockCheck && !_tjHidden) window._tjLockCheck();
 }
 
 // Listen for Firebase sync events
@@ -31256,9 +31357,11 @@ window.addEventListener('fb-tj-saved', function(ev) {
   // Confirmed in the cloud: record that it has been pushed and drop the unsynced
   // mark. Keyed by the id the event names, because the save that just landed is not
   // always for the entry that is active NOW.
-  var _sid = ev && ev.detail && ev.detail.id;
-  var ae = _sid ? state.entries.find(function(x){ return x.id === _sid; }) : getActive();
-  if (ae) { ae._fbPushed = true; delete ae._dirty; _tjWriteCache(); }
+  _tjWithPersonal(function() {
+    var _sid = ev && ev.detail && ev.detail.id;
+    var ae = _sid ? state.entries.find(function(x){ return x.id === _sid; }) : getActive();
+    if (ae) { ae._fbPushed = true; delete ae._dirty; _tjWriteCache(); }
+  });
 });
 window.addEventListener('fb-tj-synced', function() { _tjSetSync('synced'); });
 window.addEventListener('fb-tj-canvas-saved', function() { _tjSetSync('synced'); });
@@ -31312,6 +31415,8 @@ function createEntry(template) {
   // Unsynced until the cloud confirms it — without this an authoritative resync
   // arriving in the next second would prune an entry the server has never seen.
   entry._dirty = true;
+  // A shared entry records who made it (Tony, from here) and opens its live document.
+  if (_tjIsOJ() && window.OJ) window.OJ.created('tj', entry);
   state.entries.unshift(entry);
   state.activeId = id;
   saveState(); renderSidebar(); loadActiveEntry();
@@ -31329,7 +31434,7 @@ function deleteEntry(id) {
   if (state.activeId === id) state.activeId = (state.entries.find(e => !e.trashed) || {}).id || null;
   saveState(); renderSidebar(); loadActiveEntry();
   // Push the trashed entry itself (it isn't the active one, so the debounced save skips it)
-  if (window._fbSaveTonyJournalEntry) window._fbSaveTonyJournalEntry(entry, state.entries);
+  _tjFbSaveEntry(entry);
 }
 // Tombstone one or more ids that are gone for good — locally purged here, or
 // purged on another device and pruned by the remote merge. Recording them in
@@ -31357,7 +31462,7 @@ function _tjForgetDeleted(ids) {
 // Permanent delete — used by the Trash UI and the 30-day auto-purge
 function hardDeleteEntry(id) {
   _tjForgetDeleted([id]);
-  if (window._fbDeleteTonyJournalEntry) window._fbDeleteTonyJournalEntry(id);
+  _tjFbDelete(id);
   state.entries = state.entries.filter(e => e.id !== id);
   if (state.activeId === id) state.activeId = (state.entries.find(e => !e.trashed) || {}).id || null;
   saveState(); renderSidebar(); loadActiveEntry();
@@ -31374,6 +31479,8 @@ function hardDeleteEntry(id) {
 let _tjPurgeDone = false, _tjPurgeScheduled = false;
 function purgeExpiredTrash(opts) {
   if (!opts || !opts.authoritative) { _tjSchedulePurge(); return; }
+  // Purges the personal journal only (OurJournal's trash is the OJ engine's).
+  if (_tjIsOJ() && !_tjHidden) return _tjWithPersonal(function() { purgeExpiredTrash(opts); });
   if (_tjPurgeDone) return;
   _tjPurgeDone = true;
   const cutoff = Date.now() - TJ_TRASH_TTL;
@@ -31400,7 +31507,7 @@ window._tjTrashAPI = {
   restore: (ids) => {
     (ids||[]).forEach(id => {
       const e = state.entries.find(x => x.id === id);
-      if (e) { var _rTs = Date.now(); delete e.trashed; e.trashChangedAt = _rTs; e.updated = _rTs; if (window._fbSaveTonyJournalEntry) window._fbSaveTonyJournalEntry(e, state.entries); }
+      if (e) { var _rTs = Date.now(); delete e.trashed; e.trashChangedAt = _rTs; e.updated = _rTs; _tjFbSaveEntry(e); }
     });
     saveState(); renderSidebar();
   },
@@ -31485,6 +31592,7 @@ function _tjRenderTrashBtn() {
 }
 
 function renderSidebar() {
+  if (_tjHidden) return;
   const list = document.getElementById('tj-entries-list');
   const search = document.getElementById('tj-search-box').value.toLowerCase().trim();
   const live = state.entries.filter(e => !e.trashed);
@@ -31497,7 +31605,7 @@ function renderSidebar() {
   });
   list.innerHTML = '';
   if (entries.length === 0) {
-    list.innerHTML = `<div class="list-empty">${search || tjTagFilters.length ? 'No entries match your search.' : 'No entries yet.<br>Click "New Entry" to begin.'}</div>`;
+    list.innerHTML = `<div class="list-empty">${search || tjTagFilters.length ? 'No entries match your search.' : (_tjIsOJ() ? 'Nothing shared yet.<br>Anything created here is visible to Tony and Veda.' : 'No entries yet.<br>Click "New Entry" to begin.')}</div>`;
   }
   const isDraggable = !search && tjTagFilters.length === 0;
   let dragSrcId = null;
@@ -31517,6 +31625,7 @@ function renderSidebar() {
         <span class="template-badge">${tmap[entry.template]||'NOTE'}</span>
         <span>${date}</span>
         ${(entry.tags||[]).length ? `<span>· ${entry.tags.slice(0,2).join(', ')}${entry.tags.length > 2 ? '…' : ''}</span>` : ''}
+        ${_tjIsOJ() && entry.creator && window.OJ ? `<span class="oj-by oj-by-${entry.creator}" title="Created by ${window.OJ.name(entry.creator)}">${window.OJ.name(entry.creator)}</span>` : ''}
       </div>
       <button class="entry-delete" data-id="${entry.id}" title="Move to Trash">${window.TNI.x}</button>
     `;
@@ -31524,7 +31633,7 @@ function renderSidebar() {
       if (e.target.classList.contains('entry-delete') || e.target.closest('.entry-delete')) return;
       if (e.target.classList.contains('entry-drag-handle') || e.target.closest('.entry-drag-handle')) return;
       // Flush the just-edited entry BEFORE changing activeId — see BJ sidebar handler.
-      saveCurrentEntry(); if (window._fbFlushTonyJournal) window._fbFlushTonyJournal(); state.activeId = entry.id; renderSidebar(); loadActiveEntry();
+      saveCurrentEntry(); _tjFbFlush(); state.activeId = entry.id; renderSidebar(); loadActiveEntry();
     });
     div.querySelector('.entry-delete').addEventListener('click', async e => {
       e.stopPropagation();
@@ -31588,7 +31697,7 @@ function renderSidebar() {
       // Touch drag for mobile
       const tjHandle = div.querySelector('.entry-drag-handle');
       if (tjHandle && window._attachJournalTouchDrag) {
-        window._attachJournalTouchDrag(tjHandle, div, entry, list, state, 'tj-drag-over', 'tj-dragging', () => { saveState(); renderSidebar(); if (window._fbSaveTonyJournalOrder) window._fbSaveTonyJournalOrder(state.entries); });
+        window._attachJournalTouchDrag(tjHandle, div, entry, list, state, 'tj-drag-over', 'tj-dragging', () => { saveState(); renderSidebar(); _tjFbOrder(); });
       }
     }
     list.appendChild(div);
@@ -31618,6 +31727,7 @@ function showTemplate(name) {
 }
 
 function loadActiveEntry() {
+  if (_tjHidden) return;
   const entry = getActive();
   // A Journal entry is claiming the editor while a cloud document still holds it
   // (clicked in the sidebar, created, restored from Trash, opened from a search
@@ -31629,7 +31739,15 @@ function loadActiveEntry() {
   // returns below, so the blank editor they leave behind can never be read back as
   // an entry's new content.
   _tjDomOwner = null;
-  if (!entry) { document.getElementById('tj-entry-title-input').value = ''; showTemplate(null); renderTags([]); return; }
+  if (!entry) { document.getElementById('tj-entry-title-input').value = ''; showTemplate(null); renderTags([]); if (_tjIsOJ() && window.OJ) window.OJ.painted('tj', null); return; }
+  // A shared entry's content is fetched on first open (only the index is kept
+  // live for the whole list). The engine calls back here once it has it.
+  if (_tjIsOJ() && window.OJ && !window.OJ.isLoaded(entry)) {
+    document.getElementById('tj-entry-title-input').value = entry.title || '';
+    showTemplate(null); renderTags(entry.tags || []);
+    window.OJ.open('tj', entry);
+    return;
+  }
   // Lock guard: if entry is locked and not yet unlocked this session, show lock screen — no content
   if (window._tjGetLock && window._tjGetLock(entry.id) && !(window._tjIsUnlocked && window._tjIsUnlocked(entry.id))) {
     document.getElementById('tj-entry-title-input').value = '';
@@ -31682,6 +31800,7 @@ function loadActiveEntry() {
   // line on purpose: everything above either paints or bails, and a save that lands
   // mid-paint must find the editor still marked as nobody's.
   _tjDomOwner = entry.id;
+  if (_tjIsOJ() && window.OJ) window.OJ.painted('tj', entry);
 }
 
 function saveCurrentEntry() {
@@ -31843,6 +31962,10 @@ function _tjBoard(kind) {
     // dashboards/tony_journal_viz_<id> and _vizf_<hash>, beside the legacy
     // tony_journal_canvas_<id> documents, which are read but never written.
     prefix: 'tony_journal',
+    // A shared (OurJournal) entry's board lives in ourjournal_viz_<id> — the same
+    // document Brainstorm Journal opens — and merges live with the other person.
+    prefixFor: function (e) { return (_tjOJState && _tjOJState.entries.indexOf(e) >= 0 && window.OJ) ? window.OJ.NS : 'tony_journal'; },
+    liveFor: function (e) { return !!(_tjOJState && _tjOJState.entries.indexOf(e) >= 0); },
     shell: document.getElementById(isWb ? 'tj-wb-canvas-wrap' : 'tj-mindmap-area'),
     mount: document.getElementById(isWb ? 'tj-wb-mount' : 'tj-mm-mount'),
     title: isWb ? 'Whiteboard' : 'Mind Map',
@@ -33271,7 +33394,7 @@ function autoSave() {
 window._tjPersistNow = function() {
   try { if (window._tjFlushBoards) window._tjFlushBoards(); } catch(e) {}
   try { clearTimeout(autoTimer); if (getActive()) saveCurrentEntry(); } catch(e) {}
-  try { if (window._fbFlushTonyJournal) return window._fbFlushTonyJournal(); } catch(e) {}
+  try { return _tjFbFlush(); } catch(e) {}
 };
 // ── Global persistence safety net (wired once) ────────────────────────────────
 // On tab hide / close / mobile suspend, synchronously flush every pending debounced
@@ -33474,7 +33597,7 @@ document.getElementById('tj-template-modal').addEventListener('click', e => {
   document.getElementById('tj-new-entry-btn')._creating=false;
   // Always create a new entry — never mutate/wipe the current one. Flush the entry
   // we're leaving BEFORE createEntry reschedules the debounce onto the new one.
-  saveCurrentEntry(); if (window._fbFlushTonyJournal) window._fbFlushTonyJournal(); createEntry(tmpl); saveState(); renderSidebar(); loadActiveEntry();
+  saveCurrentEntry(); _tjFbFlush(); createEntry(tmpl); saveState(); renderSidebar(); loadActiveEntry();
   setEditMode(true);
 });
 document.getElementById('tj-new-entry-btn').addEventListener('click', () => {
@@ -33484,6 +33607,136 @@ document.getElementById('tj-new-entry-btn').addEventListener('click', () => {
 document.getElementById('tj-search-box').addEventListener('input', renderSidebar);
 
 loadState(); purgeExpiredTrash(); renderSidebar(); loadActiveEntry(); setEditMode(false);
+
+/* ── OurJournal tab ──────────────────────────────────────────────────────────
+ * Sits first in the sidebar's source rail (OurJournal · Journal · Docs ·
+ * OneNote). MJDocs builds that rail after Firebase is up, so the tab is added
+ * when the rail appears; until then a stand-in rail carries it. Choosing any
+ * other rail button, a cloud document, or a Journal page from search always
+ * returns to Tony's own journal first. */
+function _tjModeUI() {
+  var on = _tjIsOJ();
+  var root = document.getElementById('tj-root');
+  if (root) root.classList.toggle('oj-on', on);
+  var nav = document.getElementById('mjd-nav');
+  if (nav) {
+    if (on) {
+      // OurJournal lists natively, like the Journal tab — never under a cloud panel.
+      var panel = document.getElementById('mjd-panel');
+      var pages = nav.querySelector('[data-sec="pages"]');
+      if (panel && panel.classList.contains('on') && pages) { _tjRailBusy = true; try { pages.click(); } finally { _tjRailBusy = false; } }
+      nav.querySelectorAll('[data-sec]').forEach(function(b) { b.classList.remove('on'); });
+    } else if (!nav.querySelector('[data-sec].on')) {
+      var pg = nav.querySelector('[data-sec="pages"]'); if (pg) pg.classList.add('on');
+    }
+  }
+  document.querySelectorAll('#tj-root .oj-tab').forEach(function(b) {
+    var mine = b.getAttribute('data-oj') === '1';
+    b.classList.toggle('on', mine === on);
+    b.setAttribute('aria-selected', mine === on ? 'true' : 'false');
+  });
+  var sb = document.getElementById('tj-search-box');
+  if (sb) sb.placeholder = on ? 'Search OurJournal…' : 'Search entries…';
+}
+var _tjRailBusy = false;
+function _tjOJEnter() {
+  if (_tjIsOJ() || !window.OJ) return;
+  if (window._tjCloudMode && window.MJDocsUI && window.MJDocsUI.release) { try { window.MJDocsUI.release(); } catch (e) {} }
+  try { saveCurrentEntry(); } catch (e) {}
+  try { _tjFbFlush(); } catch (e) {}
+  _tjPersonal = state;
+  _tjOJState = window.OJ.state('tj');
+  state = _tjOJState;
+  tjTagFilters = [];
+  var sb = document.getElementById('tj-search-box'); if (sb) sb.value = '';
+  window.OJ.enter('tj');
+  _tjModeUI();
+  renderSidebar(); loadActiveEntry();
+}
+function _tjOJLeave() {
+  if (!_tjIsOJ()) return;
+  try { saveCurrentEntry(); } catch (e) {}
+  try { if (window._tjFlushBoards) window._tjFlushBoards(); } catch (e) {}
+  state = _tjPersonal; _tjPersonal = null;
+  if (window.OJ) window.OJ.leave('tj');
+  tjTagFilters = [];
+  var sb = document.getElementById('tj-search-box'); if (sb) sb.value = '';
+  if (state.activeId && !state.entries.some(function(e) { return e.id === state.activeId && !e.trashed; })) {
+    state.activeId = (state.entries.find(function(e) { return !e.trashed; }) || {}).id || null;
+  }
+  _tjModeUI();
+  renderSidebar(); loadActiveEntry();
+}
+window._tjOJ = { enter: _tjOJEnter, leave: _tjOJLeave, active: _tjIsOJ };
+(function() {
+  if (!window.OJ) return;
+  _tjOJState = window.OJ.register('tj', {
+    shown: function() { return _tjIsOJ(); },
+    render: function() { if (_tjIsOJ()) renderSidebar(); },
+    reload: function() { if (_tjIsOJ()) loadActiveEntry(); },
+    editor: function() { return document.getElementById('tj-page-editor'); },
+    pageOwned: function(id) { var e = _tjIsOJ() && !window._tjCloudMode ? getActive() : null; return !!(e && e.id === id && e.template === 'page' && _tjDomOwner === id); },
+    titleInput: function() { return document.getElementById('tj-entry-title-input'); },
+    renderTags: function(t) { if (_tjIsOJ()) renderTags(t); },
+    setSync: function(st) { if (_tjIsOJ()) _tjSetSync(st); },
+    rebind: function(ed) { ed.querySelectorAll('.pg-img-wrap').forEach(_pgBindImgWrap); },
+    pageSetup: function() { if (window._docxApplyPageSetup) window._docxApplyPageSetup('tj'); }
+  });
+  var ICON_OJ = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14.2c3 .2 5.5 2.6 5.5 5.8"/></svg>';
+  var ICON_J = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5V5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2.5Z"/><path d="M8 7h7"/></svg>';
+  function onTab(ev) {
+    var b = ev.target.closest('.oj-tab'); if (!b) return;
+    if (b.getAttribute('data-oj') === '1') {
+      // From a cloud tab, come back to the native list first, then go shared.
+      var pages = document.querySelector('#mjd-nav [data-sec="pages"]');
+      var panel = document.getElementById('mjd-panel');
+      if (pages && panel && panel.classList.contains('on')) { _tjRailBusy = true; try { pages.click(); } finally { _tjRailBusy = false; } }
+      _tjOJEnter();
+    } else _tjOJLeave();
+  }
+  function standIn() {
+    var side = document.getElementById('tj-sidebar'), nb = document.getElementById('tj-new-entry-btn');
+    if (!side || !nb || document.getElementById('tj-oj-rail') || document.getElementById('mjd-nav')) return;
+    var rail = document.createElement('div');
+    rail.id = 'tj-oj-rail'; rail.className = 'oj-rail'; rail.setAttribute('role', 'tablist');
+    rail.innerHTML = '<button class="oj-tab" data-oj="1" role="tab" title="OurJournal — shared with Veda">' + ICON_OJ + '<span class="oj-lbl">OurJournal</span></button>' +
+                     '<button class="oj-tab" data-oj="0" role="tab" title="MyJournal — your own entries">' + ICON_J + '<span class="oj-lbl">Journal</span></button>';
+    side.insertBefore(rail, nb);
+    rail.addEventListener('click', onTab);
+  }
+  function intoMjd() {
+    var nav = document.getElementById('mjd-nav');
+    var rail = nav && nav.querySelector('.mjd-rail');
+    if (!rail || rail.querySelector('.oj-tab')) return !!rail;
+    var own = document.getElementById('tj-oj-rail'); if (own) own.remove();
+    var b = document.createElement('button');
+    b.className = 'mjd-rail-btn oj-tab';
+    b.setAttribute('data-oj', '1'); b.setAttribute('role', 'tab');
+    b.title = 'OurJournal — shared with Veda';
+    b.innerHTML = ICON_OJ + '<span class="mjd-lbl">OurJournal</span>';
+    rail.insertBefore(b, rail.firstChild);
+    rail.classList.add('oj-has-tab');
+    b.addEventListener('click', onTab);
+    // Any other source (Journal, Docs, OneNote, Starred, Recent) is Tony's own:
+    // leave OurJournal before MJDocs acts on the click (capture phase).
+    nav.addEventListener('click', function(ev) {
+      if (_tjRailBusy || ev.target.closest('.oj-tab')) return;
+      if (ev.target.closest('[data-sec]') && _tjIsOJ()) _tjOJLeave();
+    }, true);
+    _tjModeUI();
+    return true;
+  }
+  standIn();
+  if (!intoMjd()) {
+    var side = document.getElementById('tj-sidebar');
+    if (side && window.MutationObserver) {
+      var mo = new MutationObserver(function() { if (intoMjd()) mo.disconnect(); });
+      mo.observe(side, { childList: true, subtree: true });
+    }
+  }
+  _tjModeUI();
+  if (window.OJ.wasOn('tj')) _tjOJEnter();
+})();
 
 /* ── MOBILE UI LOGIC ─────────────────────────────────────────────── */
 var tjIsMobile = false;
@@ -34425,6 +34678,9 @@ window.tjSwitchTo = function(app) {
 window._tjCloudBridge = {
   enter: function() {
     if (window._tjCloudMode) { showTemplate('page'); return; }
+    // A cloud document is never shown over OurJournal: go back to Tony's own
+    // journal first, so every activeId this bridge touches is his.
+    if (_tjIsOJ() && window._tjOJ) window._tjOJ.leave();
     // Flush the entry being left BEFORE the flag goes up — saveCurrentEntry
     // returns early once cloud mode is on, so the last keystrokes would be lost.
     try { saveCurrentEntry(); } catch (e) {}
@@ -34455,7 +34711,8 @@ window._tjCloudBridge = {
   // entries expose their title only — their content is hidden for a reason and
   // must not leak into search results or into an AI prompt.
   localDocs: function() {
-    return state.entries.filter(function(e) { return !e.trashed; }).map(function(e) {
+    var st = (_tjIsOJ() && _tjPersonal) ? _tjPersonal : state;
+    return st.entries.filter(function(e) { return !e.trashed; }).map(function(e) {
       var locked = !!(window._tjGetLock && window._tjGetLock(e.id) && !(window._tjIsUnlocked && window._tjIsUnlocked(e.id)));
       return {
         id: e.id, title: e.title || 'Untitled', template: e.template,
@@ -34465,6 +34722,7 @@ window._tjCloudBridge = {
     });
   },
   openLocal: function(id) {
+    if (_tjIsOJ() && window._tjOJ) window._tjOJ.leave();
     if (window._tjCloudMode) window._tjCloudBridge.leave(id);
     else { saveCurrentEntry(); state.activeId = id; renderSidebar(); loadActiveEntry(); }
   }
