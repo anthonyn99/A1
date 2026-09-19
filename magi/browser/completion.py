@@ -16,10 +16,12 @@ No single signal survives UI churn, so four gates run in layers:
      mid-generation, so a result that rests only on this is marked
      low-confidence rather than passed off as clean.
 
-  4. Idle + hard timeouts, so nothing hangs forever.
+  4. Idle + hard timeouts, so nothing hangs forever. The idle (stall) timer
+     only runs while the site shows NO sign of generating -- a visible stop
+     button or streaming marker is a model thinking, not a dead page.
 
 A challenge/login sentinel runs on every poll: hitting a Cloudflare wall should
-fail in seconds with a clear cause, not burn the full 5-minute timeout.
+fail in seconds with a clear cause, not burn the full hard timeout.
 """
 
 from __future__ import annotations
@@ -199,6 +201,23 @@ async def wait_for_completion(
 
         await _check_sentinels(page, site)
 
+        # Is the site visibly WORKING right now? Read first, every poll, because
+        # it decides whether silence is a stall at all. A thinking model is
+        # silent for minutes: ChatGPT on a 5,600-char trading report sat on
+        # "Refining trade selection" with its stop button up and NO assistant
+        # node yet, and the old gate-1 stall timer -- which only looked for an
+        # answer node -- failed it at 45s as "the send may not have registered"
+        # (artifacts/chatgpt-timeout-20260919-205411). While the stop button or
+        # streaming marker is up, the model is alive: reset the stall clock and
+        # let only hard_timeout_s bound the wait. Stall timeouts now mean what
+        # they say -- no text AND no sign of generation.
+        stop_now = await resolve.present(page, site.stop_button)
+        streaming_now = bool(site.streaming_marker) and await resolve.present(
+            page, site.streaming_marker
+        )
+        if stop_now or streaming_now:
+            last_growth = time.monotonic()
+
         # Gate 1: don't read anything until this is demonstrably a NEW answer.
         #
         # Either a turn was appended (append-style UIs) or the last turn's text
@@ -231,7 +250,6 @@ async def wait_for_completion(
         # threw the actual verdict away. So a done-signal only counts once the
         # text has also held still for `confirm_samples` polls.
         if site.streaming_marker:
-            streaming_now = await resolve.present(page, site.streaming_marker)
             if streaming_now:
                 marker_seen = True
                 idle_polls = 0
@@ -260,7 +278,6 @@ async def wait_for_completion(
         # Same confirmation rule as the streaming marker above: the button can
         # briefly return to its send state between a preamble and the real
         # answer, so require the text to have settled too.
-        stop_now = await resolve.present(page, site.stop_button)
         if stop_now:
             stop_seen = True
             stop_idle_polls = 0

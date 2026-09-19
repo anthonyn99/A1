@@ -21,8 +21,14 @@ defaults:
                             # Models often pause between a short preamble and the
                             # real answer; without this the preamble gets captured
                             # and the actual answer is discarded.
-  stall_timeout_s: 45       # no character growth for this long -> give up
-  hard_timeout_s: 300       # absolute ceiling on one answer
+  stall_timeout_s: 120      # no text growth AND no stop button / streaming marker
+                            # for this long -> give up. A model visibly generating
+                            # (thinking, searching) never stalls; see completion.py.
+                            # Was 45, which failed ChatGPT mid-thought on long
+                            # trading reports before it had written a word.
+  hard_timeout_s: 1200      # absolute ceiling on one answer. 20 min, because a
+                            # thinking + web-search report can run well past the
+                            # old 300 and the stall gate no longer catches it early.
   nav_timeout_s: 45
   ready_timeout_s: 30
 
