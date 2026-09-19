@@ -673,8 +673,8 @@
     // Exit curves that move from the first frame (a plain ease-in barely
     // moves at the start, which reads as a hesitation after the tap).
     '.closing .pop{opacity:0;transform:scale(.97);transition:opacity .14s ease-out,transform .14s ease-out}' +
-    '.m.closing .pop{opacity:1;transform:translateY(100%);transition:transform .22s cubic-bezier(.4,0,.2,1)}' +
-    '.closing .bd{opacity:0;transition:opacity .22s cubic-bezier(.4,0,.2,1)}' +
+    '.m.closing .pop{opacity:1;transform:translateY(100%);transition:transform .18s cubic-bezier(.4,0,.2,1)}' +
+    '.closing .bd{opacity:0;transition:opacity .18s cubic-bezier(.4,0,.2,1)}' +
     '.hd{display:flex;align-items:center;gap:8px;padding:14px 12px 6px 18px;flex:none}' +
     '.ttl{flex:1;min-width:0;font-size:15px;font-weight:600;letter-spacing:.1px;color:var(--tx)}' +
     '.st{font-size:11px;color:var(--dim);white-space:nowrap}.st.bad{color:var(--bad)}' +
