@@ -405,3 +405,80 @@ async def test_stability_gate_cannot_undercut_the_confirm_window():
     )
     r = await completion.wait_for_completion(page, site, turns_before=0)
     assert r.text == "the real answer"
+
+
+class _FakeClock:
+    """time.monotonic stand-in: every read moves time forward `step` seconds,
+    so a minute of silent 'thinking' costs a handful of polls, not a minute."""
+
+    def __init__(self, step: float):
+        self.t = 1000.0
+        self.step = step
+
+    def __call__(self) -> float:
+        self.t += self.step
+        return self.t
+
+
+@pytest.mark.asyncio
+async def test_thinking_with_no_answer_node_is_not_a_stall(monkeypatch):
+    """Regression: ChatGPT failed at 45s while visibly thinking.
+
+    artifacts/chatgpt-timeout-20260919-205411: a 5,600-char trading report,
+    "Refining trade selection" on screen, stop button up, NO assistant node
+    yet. Gate 1 only looked for an answer node, so it called it "the send may
+    not have registered". A visible stop button is a live model: wait.
+    """
+    monkeypatch.setattr(completion.time, "monotonic", _FakeClock(step=1.0))
+    page = FakePage([
+        # ~10 minutes of simulated thinking with nothing written.
+        *[{"turns": [], "stop": True} for _ in range(150)],
+        {"turns": ["the report"], "stop": True},
+        {"turns": ["the report"], "stop": False},
+        {"turns": ["the report"], "stop": False},
+    ])
+    site = make_site(stall_timeout_s=45, hard_timeout_s=10_000)
+    r = await completion.wait_for_completion(page, site, turns_before=0)
+    assert r.text == "the report"
+    assert r.reason == CompletionReason.STOP_BUTTON
+
+
+@pytest.mark.asyncio
+async def test_silent_pause_mid_answer_is_not_a_stall(monkeypatch):
+    """Same rule mid-answer: a model searching between sections writes nothing
+    for minutes, and must not be cut off at the partial text."""
+    monkeypatch.setattr(completion.time, "monotonic", _FakeClock(step=1.0))
+    page = FakePage([
+        {"turns": ["part one"], "streaming": True},
+        *[{"turns": ["part one"], "streaming": True} for _ in range(150)],
+        {"turns": ["part one\npart two"], "streaming": True},
+        *[{"turns": ["part one\npart two"], "streaming": False} for _ in range(6)],
+    ])
+    site = make_site(streaming_marker=["STREAMING"], stop_button=[],
+                     stall_timeout_s=45, hard_timeout_s=10_000)
+    r = await completion.wait_for_completion(page, site, turns_before=0)
+    assert r.text == "part one\npart two"
+    assert r.reason == CompletionReason.STREAM_MARKER
+
+
+@pytest.mark.asyncio
+async def test_no_sign_of_life_still_stalls(monkeypatch):
+    """The stall gate still catches a send that truly never registered."""
+    monkeypatch.setattr(completion.time, "monotonic", _FakeClock(step=1.0))
+    page = FakePage([{"turns": [], "stop": False}])
+    site = make_site(stall_timeout_s=45, hard_timeout_s=10_000)
+    with pytest.raises(ProviderError) as ei:
+        await completion.wait_for_completion(page, site, turns_before=0)
+    assert ei.value.kind == FailureKind.TIMEOUT
+
+
+@pytest.mark.asyncio
+async def test_hard_timeout_still_bounds_a_stuck_stop_button(monkeypatch):
+    """A stop button that never clears cannot hang the run for ever."""
+    monkeypatch.setattr(completion.time, "monotonic", _FakeClock(step=1.0))
+    page = FakePage([{"turns": [], "stop": True}])
+    site = make_site(stall_timeout_s=45, hard_timeout_s=300)
+    with pytest.raises(ProviderError) as ei:
+        await completion.wait_for_completion(page, site, turns_before=0)
+    assert ei.value.kind == FailureKind.TIMEOUT
+    assert "hard timeout" in str(ei.value)

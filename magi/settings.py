@@ -165,8 +165,8 @@ class SiteSelectors:
     # marker cleared / stop button gone) before we believe it. Guards against
     # models that pause between a preamble and the real answer.
     confirm_samples: int = 3
-    stall_timeout_s: int = 45
-    hard_timeout_s: int = 300
+    stall_timeout_s: int = 120
+    hard_timeout_s: int = 1200
     nav_timeout_s: int = 45
     ready_timeout_s: int = 30
 
@@ -206,8 +206,8 @@ class SiteSelectors:
             poll_ms=int(merged.get("poll_ms", 700)),
             stability_samples=int(merged.get("stability_samples", 4)),
             confirm_samples=int(merged.get("confirm_samples", 3)),
-            stall_timeout_s=int(merged.get("stall_timeout_s", 45)),
-            hard_timeout_s=int(merged.get("hard_timeout_s", 300)),
+            stall_timeout_s=int(merged.get("stall_timeout_s", 120)),
+            hard_timeout_s=int(merged.get("hard_timeout_s", 1200)),
             nav_timeout_s=int(merged.get("nav_timeout_s", 45)),
             ready_timeout_s=int(merged.get("ready_timeout_s", 30)),
         )

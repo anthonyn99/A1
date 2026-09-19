@@ -35,7 +35,7 @@ ingress:
   - hostname: magi-api.<your-domain>
     service: http://127.0.0.1:8000
     originRequest:
-      # A council member may stream for the full hard_timeout_s (300s) before
+      # A council member may stream for the full hard_timeout_s (1200s) before
       # the answer stabilises, and a brainstorm round is three such phases.
       connectTimeout: 30s
       tcpKeepAlive: 30s
