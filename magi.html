@@ -1438,7 +1438,6 @@ del.md-html { color: var(--txd); }
 .br-conf.medium .br-conf-v { color: var(--amber); }
 .br-conf.low .br-conf-v { color: var(--red); }
 .br-conf-why { margin-top: 6px; font-size: 12.5px; line-height: 1.6; color: var(--txd); }
-.br-meta { margin-top: 14px; font-family: var(--font-mono); font-size: 10.5px; color: var(--txm); letter-spacing: .3px; }
 
 .br-toc { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
 .br-toc-chip {
@@ -6219,14 +6218,7 @@ function briefBody(text) {
   if (cur.title !== null || cur.blocks.length) sections.push(cur);
   const titled = sections.filter((s) => s.title !== null);
 
-  // meta: how much there is to read
-  const words = String(text || "").split(/\s+/).filter(Boolean).length;
-  const meta = el("div", "br-meta");
-  const bits = [];
-  if (titled.length) bits.push(`${titled.length} section${titled.length === 1 ? "" : "s"}`);
-  bits.push(`${Math.max(1, Math.round(words / 230))} min read`);
-  meta.textContent = bits.join(" · ");
-  if (hero.childNodes.length) { hero.append(meta); root.append(hero); }
+  if (hero.childNodes.length) root.append(hero);
 
   // contents chips when there is enough to navigate
   const secEls = [];
