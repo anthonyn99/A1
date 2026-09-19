@@ -1507,6 +1507,104 @@ del.md-html { color: var(--txd); }
 .br-notes > *:last-child { margin-bottom: 0; }
 .br-notes .br-point { background: transparent; border-left-color: var(--amber); }
 
+/* ── what the blocks inside a card become ── */
+.br-group-title {
+  display: flex; align-items: center; gap: 12px; margin: 22px 4px 12px;
+  font-family: var(--font-display); font-size: 12px; font-weight: 800;
+  letter-spacing: 1.6px; text-transform: uppercase; color: var(--acl);
+}
+.br-group-title::after { content: ""; flex: 1; height: 1px; background: var(--bdl); }
+.br-group-title:first-child { margin-top: 4px; }
+.br-sec-tw { min-width: 0; }
+.br-sec-kicker {
+  font-family: var(--font-display); font-size: 9.5px; font-weight: 700;
+  letter-spacing: 1.4px; text-transform: uppercase; color: var(--txm); margin-bottom: 1px;
+}
+.br-sec.tone-good { border-left: 3px solid var(--grn); }
+.br-sec.tone-bad { border-left: 3px solid var(--red); }
+.br-sec.tone-good .br-sec-n { background: color-mix(in srgb, var(--grn) 18%, transparent); color: var(--grn); }
+.br-sec.tone-bad .br-sec-n { background: color-mix(in srgb, var(--red) 18%, transparent); color: var(--red); }
+.br-sec.hl {
+  border-color: color-mix(in srgb, var(--ac) 40%, var(--bdl));
+  background:
+    radial-gradient(90% 140% at 0% 0%, color-mix(in srgb, var(--ac) 10%, transparent), transparent 65%),
+    color-mix(in srgb, var(--s1) 80%, transparent);
+}
+.br-subhd {
+  margin: 18px 0 8px; font-family: var(--font-display); font-size: 13px; font-weight: 700;
+  color: var(--acl); letter-spacing: .2px;
+}
+.br-subhd:first-child { margin-top: 0; }
+
+.br-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 10px; margin: 4px 0 14px; }
+.br-groups:last-child { margin-bottom: 0; }
+.br-group {
+  min-width: 0; padding: 12px 14px 10px; border-radius: 10px;
+  background: var(--bg); border: 1px solid var(--bd); border-top: 2px solid var(--acd);
+}
+.br-group.wide { grid-column: 1 / -1; }
+.br-group.good { border-top-color: var(--grn); background: color-mix(in srgb, var(--grn) 4%, var(--bg)); }
+.br-group.bad { border-top-color: var(--red); background: color-mix(in srgb, var(--red) 4%, var(--bg)); }
+.br-group-hd {
+  display: flex; align-items: center; gap: 7px; margin-bottom: 8px;
+  font-family: var(--font-display); font-size: 10.5px; font-weight: 800;
+  letter-spacing: 1.2px; text-transform: uppercase; color: var(--txd);
+}
+.br-group-hd strong { font-weight: inherit; color: inherit; }
+.br-group-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--acd); flex: 0 0 auto; }
+.br-group.good .br-group-hd { color: var(--grn); }
+.br-group.good .br-group-dot { background: var(--grn); }
+.br-group.bad .br-group-hd { color: var(--red); }
+.br-group.bad .br-group-dot { background: var(--red); }
+.br-group .v-list { margin: 0; }
+.br-group .v-list li { font-size: 13px; line-height: 1.55; margin-bottom: 6px; color: var(--txd); }
+.br-group.good ul.v-list li::before { color: var(--grn); }
+.br-group.bad ul.v-list li::before { color: var(--red); }
+.br-group p { margin: 0; font-size: 13px; color: var(--txd); }
+.br-group .br-points { margin: 0; }
+
+.br-chipset { margin: 2px 0 12px; }
+.br-chipset:last-child { margin-bottom: 0; }
+.br-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.br-chip {
+  display: inline-flex; align-items: center; height: 26px; padding: 0 10px; border-radius: 7px;
+  background: var(--s2); border: 1px solid var(--bdl); color: var(--tx);
+  font-family: var(--font-mono); font-size: 11.5px; font-weight: 600; letter-spacing: .2px;
+}
+.br-chip strong { font-weight: inherit; }
+.br-chip-note { margin-top: 8px; font-size: 12.5px; line-height: 1.55; color: var(--txm); }
+
+.br-callout {
+  margin: 4px 0 14px; padding: 11px 14px; border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--amber) 30%, transparent);
+  background: color-mix(in srgb, var(--amber) 6%, transparent);
+}
+.br-callout.bad { border-color: color-mix(in srgb, var(--red) 32%, transparent); background: color-mix(in srgb, var(--red) 6%, transparent); }
+.br-callout-hd {
+  font-family: var(--font-display); font-size: 10.5px; font-weight: 800; letter-spacing: 1.2px;
+  text-transform: uppercase; color: var(--amber); margin-bottom: 3px;
+}
+.br-callout.bad .br-callout-hd { color: var(--red); }
+.br-callout-body { font-size: 13.5px; line-height: 1.6; color: var(--tx); }
+
+.br-flow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0 14px; }
+.br-flow-step {
+  padding: 6px 11px; border-radius: 8px; background: var(--s2); border: 1px solid var(--bdl);
+  font-size: 12.5px; font-weight: 600; color: var(--tx); white-space: nowrap;
+}
+.br-flow-step.up { border-color: color-mix(in srgb, var(--grn) 45%, transparent); background: color-mix(in srgb, var(--grn) 8%, var(--s2)); }
+.br-flow-step.down { border-color: color-mix(in srgb, var(--red) 45%, transparent); background: color-mix(in srgb, var(--red) 8%, var(--s2)); }
+.br-flow-arrow { color: var(--txm); font-size: 13px; }
+
+/* Citations ("Reuters+1") as quiet source pills rather than underlined runs. */
+.brief .md-link {
+  display: inline-flex; align-items: center; height: 20px; padding: 0 8px; margin: 0 1px;
+  border-radius: 999px; background: var(--s2); border: 1px solid var(--bd);
+  color: var(--txm); font-size: 11px; font-weight: 500; text-decoration: none;
+  vertical-align: 1px; white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis;
+}
+.brief .md-link:hover { color: var(--tx); border-color: var(--bdl); }
+
 /* ── report mode (Studio Report) ── */
 .st-report { container-type: inline-size; }
 .verdict-body.brief.report { max-width: 1180px; padding: 2px 0 6px; }
@@ -1588,6 +1686,9 @@ del.md-html { color: var(--txd); }
   .br-points.two { grid-template-columns: minmax(0, 1fr); }
   .br-notes { padding: 12px 14px; }
   .br-seg-btn { height: 32px; padding: 0 13px; }
+  .br-groups { grid-template-columns: minmax(0, 1fr); }
+  .br-group-title { margin: 18px 2px 10px; }
+  .br-flow-step { white-space: normal; }
   .verdict-body.brief.report { padding: 0; }
   .report .br-hero { padding: 18px 16px 16px; }
   .br-cover-title { font-size: 21px; margin-bottom: 12px; }
