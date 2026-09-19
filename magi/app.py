@@ -29,6 +29,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
 from . import accounts as accounts_mod
+from . import ident
+from .power import KEEP_AWAKE
 from .db import Database
 from .engine import brainstorm as brainstorm_engine
 from .engine import refine as refine_engine
@@ -81,7 +83,13 @@ async def lifespan(app: FastAPI):
     # database at startup belonged to a previous process and will never finish;
     # left alone, its card spun for ever (one from 2026-09-10 still was).
     await db.fail_orphaned_studio_artifacts()
-    yield
+    # Holds the machine awake while MAGI runs, but only on mains power -- see
+    # power.py. Started here so it covers `magi serve` and `magi cloud` alike.
+    KEEP_AWAKE.start()
+    try:
+        yield
+    finally:
+        KEEP_AWAKE.stop()
 
 
 app = FastAPI(title="MAGI", lifespan=lifespan)
@@ -207,6 +215,11 @@ async def health():
     # can be answered without reading logs or guessing.
     return {
         "ok": True,
+        # Which engine process this is. A tunnel is adopted across restarts
+        # only when this proves the hostname reaches THIS process (tunnel.py).
+        "instance": ident.INSTANCE,
+        "started_at": ident.STARTED_AT,
+        "power": KEEP_AWAKE.state(),
         "providers": settings.enabled_site_ids(),
         "pacing": {
             "mode": settings.pacing.mode,
@@ -245,6 +258,19 @@ async def link_token(request: Request):
     if _arrived_over_the_tunnel(request):
         raise HTTPException(404, "not found")
     return {"token": _required_token()}
+
+
+@app.post("/api/power")
+async def set_power(request: Request, keep_awake: bool = True):
+    """Turn the keep-awake hold on or off, from the machine it applies to.
+
+    Local only, by the same test as /api/restart: whether someone else's PC
+    stays awake is not the internet's business.
+    """
+    if _arrived_over_the_tunnel(request):
+        raise HTTPException(404, "not found")
+    KEEP_AWAKE.set_enabled(keep_awake)
+    return KEEP_AWAKE.state()
 
 
 @app.post("/api/restart")

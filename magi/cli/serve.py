@@ -14,6 +14,7 @@ MAGI-Cloud.ps1). Three things made that possible:
 from __future__ import annotations
 
 import contextlib
+import json
 import os
 import re
 import socket
@@ -27,7 +28,7 @@ import webbrowser
 from datetime import datetime
 from pathlib import Path
 
-from .. import proc
+from .. import ident, proc, tunnel as tunnel_mod
 from ..settings import ROOT
 
 # The account-2 worker that answers "where is MAGI right now?".
@@ -57,7 +58,7 @@ _CURRENT: dict[str, str] = {"url": ""}
 # ── the tunnel watchdog ──────────────────────────────────────────────────────
 # How often the live tunnel is checked, and how many failed checks in a row
 # (with the internet otherwise up) mean it is gone rather than blipping.
-WATCH_EVERY_S = 60
+WATCH_EVERY_S = 120
 DEAD_AFTER = 3
 # magi-link forgets a record after 36h (workers2/magi-link TTL). A tunnel that
 # stays healthy longer than that used to vanish from the phone anyway, because
@@ -188,6 +189,29 @@ def _wait_healthy(port: int, timeout: float = 30) -> bool:
     return False
 
 
+def _mine(port: int) -> bool:
+    """Is the server on this port THIS process?
+
+    _wait_healthy answers "something is listening", which is not the same
+    thing. A second engine that lost the bind race used to take that as its
+    own health, carry on, and open a SECOND tunnel -- which is where the four
+    orphaned cloudflareds found on 2026-09-19 came from. An engine that is not
+    the one serving has nothing useful to do and must not tunnel.
+    """
+    try:
+        with urllib.request.urlopen(
+            f"http://127.0.0.1:{port}/api/health", timeout=3
+        ) as r:
+            body = json.loads(r.read().decode("utf-8", "replace"))
+        return body.get("instance") == ident.INSTANCE
+    except urllib.error.HTTPError:
+        # Token-gated from a different origin should not happen on loopback,
+        # but an answer at all means SOMETHING is serving; treat it as foreign.
+        return False
+    except (OSError, ValueError):
+        return False
+
+
 def run(port: int = 8000, open_browser: bool = True) -> int:
     """Local only. The UI is same-origin at http://127.0.0.1:<port>."""
     _ensure_streams()
@@ -281,8 +305,19 @@ def _internet_up() -> bool:
 
 
 def _log_says_gone(cf_log: Path) -> bool:
+    """Has cloudflared said THIS tunnel is gone?
+
+    Only lines written since this engine took charge count. An adopted log
+    carries previous sessions' lines, and a "Tunnel not found" from a tunnel
+    that died last week would make the watchdog kill a perfectly healthy
+    adopted tunnel on its first pass -- silently undoing adoption.
+    """
     try:
-        return TUNNEL_GONE in cf_log.read_text(encoding="utf-8", errors="replace")
+        start = int(_CURRENT.get("log_from") or 0)
+        with open(cf_log, "rb") as f:
+            f.seek(min(start, cf_log.stat().st_size))
+            text = f.read(2_000_000).decode("utf-8", "replace")
+        return TUNNEL_GONE in text
     except OSError:
         return False
 
@@ -367,6 +402,12 @@ def cloud(port: int = 8000) -> int:
     if not _wait_healthy(port):
         print("  [X] backend never came up on 127.0.0.1:%d" % port)
         return 1
+    if not _mine(port):
+        # Another engine owns the port. Two engines means two tunnels and two
+        # writers to one database; the one that is not serving bows out.
+        print("  [X] another MAGI engine is already serving 127.0.0.1:%d." % port)
+        print("      This one is stopping rather than running as a ghost.")
+        return 1
 
     # No token means no tunnel — publishing an UNGATED backend would expose
     # endpoints that drive live paid accounts to anyone who learns the url.
@@ -379,6 +420,38 @@ def cloud(port: int = 8000) -> int:
         print("  your paid accounts. Set one, then open a NEW terminal:\n")
         print('      setx MAGI_API_TOKEN "<a long random string>"\n')
         return _serve_only(port, "no tunnel opened — the API would be ungated.")
+
+    # ── adopt the tunnel the previous engine left running ────────────────
+    #
+    # A quick tunnel's hostname is random and takes seconds to minutes to
+    # register in DNS, so opening a new one costs every phone a long spell of
+    # "Your PC is offline" -- on every restart, including the ones MAGI does
+    # to itself. The tunnel points at 127.0.0.1:%d, which is not tied to this
+    # process, so a surviving one is adopted instead: same url, same magi-link
+    # record, nothing withdrawn and nothing republished.
+    cf_log = ROOT / "data" / "cloudflared.log"
+    cf_log.parent.mkdir(parents=True, exist_ok=True)
+    adopted = None
+    if os.environ.get("MAGI_ADOPT_TUNNEL", "1") != "0":
+        try:
+            adopted = tunnel_mod.adopt(
+                port, token, cf_log, UA, _link_record(token), internet_up=_internet_up,
+            )
+        except Exception as e:  # noqa: BLE001 — never let this stop the engine
+            print(f"  [!] could not check for a running tunnel: {e}")
+            adopted = None
+
+    if adopted is not None:
+        _CURRENT["url"] = adopted.url
+        _CURRENT["published"] = adopted.url
+        _CURRENT["published_at"] = str(adopted.published_at or time.time())
+        # Only lines written from here on describe THIS tunnel.
+        _CURRENT["log_from"] = str(adopted.log_size)
+        print(f"  adopted the running tunnel — {adopted.url}")
+        print(f"
+  MAGI → http://127.0.0.1:{port}  (and at the same url as before)")
+        print("  This PC must stay awake and logged in — the Chrome profiles are here.")
+        return _keep_tunnel(adopted.proc, cf_log, token, port)
 
     # Clear the old record BEFORE opening a new tunnel.
     #
