@@ -17,6 +17,8 @@ import os
 import re
 import secrets
 import shutil
+import subprocess
+import sys
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -36,6 +38,7 @@ from .engine.orchestrator import Orchestrator, required_members
 from .errors import FailureKind, explain
 from .providers import gemini_api
 from .providers.base import ProviderEvent, RunContext
+from . import proc
 from .providers.registry import build_provider, build_providers
 from .settings import ROOT, load_settings
 
@@ -242,6 +245,60 @@ async def link_token(request: Request):
     if _arrived_over_the_tunnel(request):
         raise HTTPException(404, "not found")
     return {"token": _required_token()}
+
+
+@app.post("/api/restart")
+async def restart_engine(request: Request, force: bool = False):
+    """Restart the engine from the console, on the machine it runs on.
+
+    The engine loads its Python at import, so every fix under magi/ is inert
+    until it restarts -- and the restart was a thing to be done by hand, at the
+    PC, with Task Manager. This is the same act, from the panel that already
+    tells you whether MAGI is running on this device.
+
+    Local only, by the same two-signal test as /api/token, and 404 rather than
+    403 over the tunnel: a button that restarts the machine's engine is not
+    something to expose to the internet, and an endpoint that answers
+    "unauthorised" advertises that it is worth attacking.
+
+    Refuses while work is in flight unless forced -- a restart mid-run loses
+    the run and leaves its browsers orphaned.
+
+    Nothing is killed: a detached restarter waits for this process to exit and
+    for the port to come free, then starts the engine again (see restarter.py).
+    """
+    if _arrived_over_the_tunnel(request):
+        raise HTTPException(404, "not found")
+
+    runs_live = [r for r, st in _runs.items() if not st.get("done")]
+    cards_live = [j for j, st in _studio_jobs.items() if not st.get("done")]
+    if (runs_live or cards_live) and not force:
+        what = []
+        if runs_live:
+            what.append(f"{len(runs_live)} deliberation{'s' if len(runs_live) > 1 else ''}")
+        if cards_live:
+            what.append(f"{len(cards_live)} Studio card{'s' if len(cards_live) > 1 else ''}")
+        raise HTTPException(409, f"{' and '.join(what)} still running.")
+
+    # Detached AND in its own process group, so it is not a child this process
+    # can take down with it, and NO_WINDOW so nothing flashes (see magi.proc).
+    proc.popen(
+        [sys.executable, "-m", "magi.restarter", str(os.getpid()), "8000", str(ROOT.parent)],
+        cwd=str(ROOT.parent),
+        creationflags=getattr(subprocess, "DETACHED_PROCESS", 0)
+        | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+        | proc.NO_WINDOW,
+        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+
+    async def bye() -> None:
+        # Long enough for this response to reach the browser; the console is
+        # already polling for the engine to come back.
+        await asyncio.sleep(0.4)
+        os._exit(0)
+
+    asyncio.create_task(bye())
+    return {"ok": True, "restarting": True, "pid": os.getpid()}
 
 
 @app.get("/api/providers")

@@ -5183,8 +5183,11 @@ function openSetup() {
   const save = el("button", "btn active", "Save & connect");
   const revert = el("button", "btn", "Restore last working");
   const retry = el("button", "btn", "Retry");
+  // Offered only where it can work: the engine refuses a restart that arrived
+  // over the tunnel, so from a phone this button would 404 by design.
+  const restart = el("button", "btn", "Restart engine");
   const close = el("button", "btn", "Close");
-  bar.append(save, revert, retry, el("span", "qbar-spacer"), close);
+  bar.append(save, revert, retry, restart, el("span", "qbar-spacer"), close);
   box.append(bar, msg);
 
   const done = () => sheet.remove();
@@ -5200,6 +5203,68 @@ function openSetup() {
     // restores what is already there teaches you to distrust the button.
     const g = good();
     show(revert, !!g && g !== input.value.trim());
+    show(restart, link.where === "local");
+  };
+
+  /* Restart the engine, from the console.
+   *
+   *  The engine reads its Python once, at import, so a fix under magi/ does
+   *  nothing until it restarts -- which meant going to the PC and hunting a
+   *  windowless pythonw in Task Manager. It is the same machine that is
+   *  serving this page whenever the status says "Running on this PC", so it
+   *  may as well be a button.
+   *
+   *  The engine hands back the response before exiting, and a detached helper
+   *  starts the replacement once the port is free; there is nothing to do here
+   *  but keep asking until it answers. Anything still running is reported, and
+   *  only then can it be forced -- a restart mid-run loses the run.
+   */
+  let forceNext = false;
+  restart.onclick = async () => {
+    restart.disabled = true;
+    msg.className = "sheet-note";
+    msg.textContent = "Restarting the engine…";
+    let r;
+    try {
+      r = await fetch(`${link.api}/api/restart${forceNext ? "?force=true" : ""}`,
+                      authed({ method: "POST" }));
+    } catch {
+      r = null;
+    }
+    if (r && r.status === 409) {
+      const d = await r.json().catch(() => null);
+      forceNext = true;
+      restart.disabled = false;
+      restart.textContent = "Restart anyway";
+      msg.className = "sheet-err";
+      msg.textContent = `${(d && d.detail) || "Something is still running."} Press again to restart and lose it.`;
+      return;
+    }
+    if (!r || !r.ok) {
+      restart.disabled = false;
+      msg.className = "sheet-err";
+      msg.textContent = r ? `The engine refused: ${r.status}.` : "Could not reach the engine.";
+      return;
+    }
+    forceNext = false;
+    restart.textContent = "Restart engine";
+    // It takes a few seconds to come back: the old process has to exit and
+    // release the port before the new one can bind it.
+    for (let i = 0; i < 40; i++) {
+      await new Promise((ok) => setTimeout(ok, 1000));
+      msg.textContent = `Restarting the engine… ${i + 1}s`;
+      await connect();
+      if (online()) {
+        msg.className = "sheet-ok";
+        msg.textContent = "Engine restarted and running the current code.";
+        restart.disabled = false;
+        boot();
+        return;
+      }
+    }
+    restart.disabled = false;
+    msg.className = "sheet-err";
+    msg.textContent = "The engine did not come back within 40s. Check the PC.";
   };
 
   edit.onclick = () => {
