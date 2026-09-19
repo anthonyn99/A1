@@ -74,6 +74,10 @@ def _stage_upload_name(original: str) -> str:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await db.init()
+    # A Studio job lives in this process's memory. One still "pending" in the
+    # database at startup belonged to a previous process and will never finish;
+    # left alone, its card spun for ever (one from 2026-09-10 still was).
+    await db.fail_orphaned_studio_artifacts()
     yield
 
 
@@ -568,6 +572,7 @@ async def create_studio_artifact(run_id: str, kind: str, providers: str = Form("
                 verdict=synthesis.get("verdict_text") or "",
                 ctx=ctx,
                 cancel=state["cancel"],
+                on_event=on_event,
             )
             status = "complete" if ok else "failed"
             await db.finish_studio_artifact(
@@ -615,6 +620,12 @@ async def stream_studio_artifact(run_id: str, job_id: str):
     async def gen():
         if state["result"]:
             yield _sse(state["result"])
+            return
+        # Ended in an exception, and its one error message already went to
+        # whoever was listening then. A stream opened afterwards would wait on
+        # an empty queue for ever; say what happened instead.
+        if state["done"]:
+            yield _sse({"type": "error", "message": "This card failed to generate. Try again."})
             return
         while True:
             item = await state["queue"].get()

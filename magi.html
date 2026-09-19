@@ -9160,11 +9160,88 @@ async function loadStudio() {
           parsed_json: row.parsed_json,
           error_detail: row.error_detail,
         };
+        // Still generating (started before a reload, or on another tab):
+        // follow it to the end. This used to restore it as "pending" and never
+        // look again, so the card spun for ever even after it had finished.
+        if ((row.status === "pending" || row.status === "running") && !S.studio.jobs[row.kind]) {
+          S.studio.jobs[row.kind] = row.id;
+          followStudioJob(row.kind, S.runId, row.id);
+        }
       }
     }
   } catch {}
   renderStudioNav();
   if (S.studio.active) renderStudioView();
+}
+
+/** Follow one Studio job to its end over SSE, and survive losing the stream.
+ *
+ *  Every update is checked against the job it belongs to: a card regenerated
+ *  while this one ran, or a different deliberation opened meanwhile, must not
+ *  have this job's result written over it. If the stream drops, the job's row
+ *  is read back -- a finished card is shown, a live one is followed again, and
+ *  one the engine no longer knows (it restarted) is reported as interrupted
+ *  rather than left spinning. */
+function followStudioJob(kind, runId, jobId, tries = 0) {
+  const mine = () => S.runId === runId && S.studio.jobs[kind] === jobId;
+  const settle = (a) => {
+    if (!mine()) return;
+    S.studio.artifacts[kind] = a;
+    delete S.studio.jobs[kind];
+    renderStudioNav();
+    if (S.studio.active === kind) renderStudioView();
+    // Each card costs a real browser run, so mirroring it means a phone
+    // OPENS one instead of re-earning it. The index write behind this is
+    // debounced, so generating three cards in a row is still one write.
+    if (a.status === "complete") cloudPushRun(runId);
+  };
+  let finished = false;
+  const es = new EventSource(streamUrl(`/api/runs/${runId}/studio/${jobId}/stream`));
+  es.onmessage = (ev) => {
+    if (!mine()) { es.close(); return; }
+    const msg = JSON.parse(ev.data);
+    if (msg.type === "state") {
+      // Progress arrives on every poll; the card only needs to know once
+      // that it has moved from queued to generating.
+      if (S.studio.artifacts[kind].status !== "running") {
+        S.studio.artifacts[kind].status = "running";
+        renderStudioNav();
+        if (S.studio.active === kind) renderStudioView();
+      }
+    } else if (msg.type === "done") {
+      finished = true; es.close();
+      settle({
+        status: msg.status, provider_id: msg.provider_id,
+        raw_text: msg.raw_text, parsed_json: msg.parsed_json,
+        error_detail: msg.error_detail,
+      });
+    } else if (msg.type === "error") {
+      finished = true; es.close();
+      settle({ status: "failed", error_detail: msg.message });
+    }
+  };
+  es.onerror = async () => {
+    es.close();
+    if (finished || !mine()) return;
+    let row = null;
+    try {
+      const r = await fetch(`${link.api}/api/runs/${runId}/studio/${jobId}`, authed());
+      if (r.ok) row = await r.json();
+    } catch {}
+    if (!mine()) return;
+    if (row && (row.status === "complete" || row.status === "failed")) {
+      settle({
+        status: row.status, provider_id: row.provider_id,
+        raw_text: row.raw_text, parsed_json: row.parsed_json,
+        error_detail: row.error_detail,
+      });
+    } else if (tries < 3 && online()) {
+      setTimeout(() => mine() && followStudioJob(kind, runId, jobId, tries + 1), 2500);
+    } else {
+      settle({ status: "failed",
+               error_detail: "Lost track of this card — the engine may have restarted. Generate it again." });
+    }
+  };
 }
 
 function generateStudio(kind) {
@@ -9201,31 +9278,7 @@ function generateStudio(kind) {
       // so a stale id can never be sent for a card that already finished.
       S.studio.jobs[kind] = job_id;
       if (S.studio.active === kind) renderStudioView();
-      const es = new EventSource(streamUrl(`/api/runs/${runId}/studio/${job_id}/stream`));
-      es.onmessage = (ev) => {
-        const msg = JSON.parse(ev.data);
-        if (msg.type === "state") {
-          S.studio.artifacts[kind].status = "running";
-        } else if (msg.type === "done") {
-          S.studio.artifacts[kind] = {
-            status: msg.status, provider_id: msg.provider_id,
-            raw_text: msg.raw_text, parsed_json: msg.parsed_json,
-            error_detail: msg.error_detail,
-          };
-          es.close();
-        } else if (msg.type === "error") {
-          S.studio.artifacts[kind] = { status: "failed", error_detail: msg.message };
-          es.close();
-        }
-        if (msg.type === "done" || msg.type === "error") delete S.studio.jobs[kind];
-        renderStudioNav();
-        if (S.studio.active === kind) renderStudioView();
-        // Each card costs a real browser run, so mirroring it means a phone
-        // OPENS one instead of re-earning it. The index write behind this is
-        // debounced, so generating three cards in a row is still one write.
-        if (msg.type === "done" && msg.status === "complete") cloudPushRun(runId);
-      };
-      es.onerror = () => es.close();
+      followStudioJob(kind, runId, job_id);
     })
     .catch((e) => {
       // What the engine actually said. "Request failed." was true of every

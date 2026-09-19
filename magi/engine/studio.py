@@ -37,9 +37,14 @@ def _source_material(question: str, answers: list[dict], verdict: str) -> str:
     produced them is long finished by the time Studio generation runs)."""
     blocks = []
     for a in answers:
-        if a.get("ok") and (a.get("answer_text") or "").strip():
-            blocks.append(f"--- {a.get('display_name') or a.get('provider_id')} ---\n{a['answer_text'].strip()}")
-    responses = "\n\n".join(blocks) if blocks else "(no member answers retained)"
+        text = (a.get("answer_text") or "").strip()
+        # A one-unit run has no synthesis: its "verdict" IS that unit's answer.
+        # Sending it under both headings doubled the prompt for nothing -- a
+        # 10,800-char ChatGPT answer went in twice, ~25k chars, and a prompt
+        # that size is exactly what makes a chat site slow to start answering.
+        if a.get("ok") and text and text != verdict.strip():
+            blocks.append(f"--- {a.get('display_name') or a.get('provider_id')} ---\n{text}")
+    responses = "\n\n".join(blocks) if blocks else "(the verdict below is the only answer)"
     return (
         f"THE QUESTION\n{question.strip()}\n\n"
         f"COUNCIL RESPONSES\n{responses}\n\n"
@@ -396,6 +401,7 @@ async def generate(
     verdict: str,
     ctx: RunContext,
     cancel=None,
+    on_event=None,
 ) -> tuple[str, dict | None, bool, str | None, int]:
     """Returns (raw_text, parsed_json, ok, error_detail, latency_ms).
 
@@ -406,7 +412,9 @@ async def generate(
     """
     t0 = time.monotonic()
     prompt = build_prompt(kind, question=question, answers=answers, verdict=verdict)
-    result = await provider.ask(prompt, ctx=ctx, cancel=cancel)
+    # on_event is what lets the console say "Generating…" rather than
+    # "Queued…" for the whole minute a card takes.
+    result = await provider.ask(prompt, ctx=ctx, on_event=on_event, cancel=cancel)
     ms = int((time.monotonic() - t0) * 1000)
 
     if not result.ok:

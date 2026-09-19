@@ -171,6 +171,26 @@ def _window_position(site_id: str, cfg: BrowserConfig) -> tuple[int, int]:
     return (col * (w + 12), row * (h + 12))
 
 
+# One lock per profile, held for as long as a browser is open on it.
+#
+# A profile can only ever hold one Chrome, and the reclaim below treats any
+# Chrome it finds on the profile as an orphan and kills it. Without this, two
+# jobs on the SAME unit at once -- a Studio Report and Flashcards both on
+# ChatGPT, or a card started while a brainstorm round is still using that unit
+# -- meant the second launch killed the first job's live browser. The first
+# then waited out its 45s stall on a dead page and reported "No new answer
+# appeared ... the send may not have registered", which looks like a selector
+# problem and is nothing of the kind. Now the second job waits its turn.
+_profile_locks: dict[str, asyncio.Lock] = {}
+
+
+def _profile_lock(site_id: str) -> asyncio.Lock:
+    lock = _profile_locks.get(site_id)
+    if lock is None:
+        lock = _profile_locks[site_id] = asyncio.Lock()
+    return lock
+
+
 @asynccontextmanager
 async def launch(
     site_id: str,
@@ -184,7 +204,26 @@ async def launch(
     `force_visible` overrides off-screen mode. Anything the user has to
     interact with -- signing in, clearing a challenge by hand -- must appear on
     screen, or they are being asked to type into a window they cannot see.
+
+    Jobs on the same profile are serialised (see _profile_locks): holding the
+    lock is what makes it true that any Chrome still on the profile is an
+    orphan, which is the only thing the reclaim below may ever kill.
     """
+    async with _profile_lock(site_id):
+        async with _launch_unlocked(
+            site_id, cfg, headless=headless, force_visible=force_visible
+        ) as context:
+            yield context
+
+
+@asynccontextmanager
+async def _launch_unlocked(
+    site_id: str,
+    cfg: BrowserConfig,
+    *,
+    headless: bool | None = None,
+    force_visible: bool = False,
+):
     profile_dir = cfg.profile_dir(site_id)
 
     # An orphaned MAGI browser -- left behind when a run was interrupted --

@@ -401,6 +401,20 @@ class Database:
             )
             await db.commit()
 
+    async def fail_orphaned_studio_artifacts(self) -> int:
+        """Mark every unfinished Studio job failed. Called once at startup,
+        when no job can be running yet -- they only live in process memory."""
+        async with aiosqlite.connect(self.path) as db:
+            cur = await db.execute(
+                "UPDATE studio_artifacts SET status='failed', ended_at=?, "
+                "error_detail='Interrupted -- the engine restarted while this card was "
+                "generating. Generate it again.' "
+                "WHERE status IN ('pending','running')",
+                (_now(),),
+            )
+            await db.commit()
+            return cur.rowcount or 0
+
     async def get_studio_artifacts(self, run_id: str) -> list[dict]:
         """Latest artifact per kind for this run, newest first within a kind."""
         async with aiosqlite.connect(self.path) as db:
