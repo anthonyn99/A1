@@ -432,6 +432,22 @@ console.log('\nOne MAGI tab, whatever state the browser is in');
     ok('  and our tab takes the prompt, so there is still one', tab.navs[0] === URL_ONE && !tab.closed);
   }
 
+  // 4b — it cannot come forward, but a council is running there. Retiring it
+  //      would throw the run away, so it keeps the tab and queues the prompt.
+  // 4c — it cannot come forward and cannot close (history past one entry), so
+  //      a retire would leave it standing beside ours: two consoles.
+  for (const [what, extra] of [['mid-council', { busy: true, closable: true }], ['unclosable', { busy: false, closable: false }]]) {
+    const tab = fakeTab('about:blank');
+    const o = opener({ tab, opened: [], claim: true });
+    o.run(URL_ONE);
+    const claim = o.posted.find((m) => m.t === 'claim');
+    o.chans.filter((c) => c.onmessage).forEach((c) => c.onmessage({ data: Object.assign({ t: 'claimed', k: 'magi', rid: claim.rid, ok: false }, extra) }));
+    await settle();
+    ok('a ' + what + ' console is never retired', !o.posted.some((m) => m.t === 'retire'), o.posted);
+    ok('  it is handed the prompt', o.posted.some((m) => m.t === 'deliver' && m.url === URL_ONE), o.posted);
+    ok('  and our spare tab closes, so there is one', tab.closed === true && tab.navs.length === 0, tab.navs);
+  }
+
   // 5 — the heartbeat was stale: nobody is really there.
   {
     const tab = fakeTab('about:blank');
@@ -468,6 +484,7 @@ console.log('\nOne MAGI tab, whatever state the browser is in');
       const location = {
         get href() { return url; },
         set href(v) { st.navs.push(v); },
+        replace(v) { st.navs.push(v); st.replaced = (st.replaced || 0) + 1; },
         origin: 'https://anthonyn99.github.io', pathname: '/A1/magi.html', search: '', hash: '',
       };
       const win = {
@@ -495,6 +512,7 @@ console.log('\nOne MAGI tab, whatever state the browser is in');
 
     send({ t: 'deliver', k: 'magi', url: URL_ONE });
     ok('a delivered url navigates it', t.navs[0] === URL_ONE, t.navs);
+    ok('  by replace, so its history stays closable', t.replaced === 1);
     ok('  and it tries to come forward', t.focused >= 1);
 
     send({ t: 'deliver', k: 'vault', url: URL_TWO });

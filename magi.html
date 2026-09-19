@@ -15224,6 +15224,18 @@ async function hardReload() {
   }, { passive: true });
 })();
 </script>
+<script>
+/* A console opened by hand (bookmark, typed url, a restore that lost its
+   sessionStorage) carries no a1tab_ key, so tabsync.js would sit silent and every
+   TradeHub launch would open a second console beside it. There is only ever
+   meant to be one, however it was opened — so claim the key ourselves. A key
+   already in window.name or sessionStorage wins; this only fills the gap. */
+try {
+  if (!/^a1tab_/.test(String(window.name || "")) && !sessionStorage.getItem("a1TabKey")) window.name = "a1tab_magi";
+} catch {}
+/* Answered to a claim so no opener retires this tab mid-council. */
+window.a1TabBusy = () => !!(S.running || S.refining);
+</script>
 <script src="tabsync.js"></script>
 <script src="LifeHub/lifehub.js" data-lock="#lockScreen" data-accent="#c0aeea" defer></script>
 </body>

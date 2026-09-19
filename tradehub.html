@@ -6375,8 +6375,11 @@ function tbTabClaimed(key){
     return !!(r&&r.t&&(Date.now()-r.t)<20000);
   }catch(e){return false;}
 }
+/* replace(), not href: each prompt sent into an open console used to push a
+   history entry, and a tab with more than one can no longer close itself when
+   it is later asked to retire. */
 function tbTabGo(w,url){
-  try{w.location.href=url;}catch(e){try{w.location.replace(url);}catch(e2){}}
+  try{w.location.replace(url);}catch(e){try{w.location.href=url;}catch(e2){}}
   try{w.focus();}catch(e){}
 }
 /* The blank tab in hand belongs to a console some OTHER tab claims — an orphan
@@ -6392,20 +6395,18 @@ function tbHandOverMagi(w,url,key){
   const rid=Math.random().toString(36).slice(2);
   let settled=false,answered=false;
   const timer=setTimeout(()=>finish(false),300);
-  function finish(focused){
+  function finish(keepOld){
     if(settled)return;settled=true;clearTimeout(timer);
-    if(focused){
-      /* The old console came forward with everything it had — except the
-         prompt, which is the entire reason for the click. Hand it over; ours
-         is then redundant. */
+    if(keepOld){
+      /* The existing console stays — it came forward, or it must not be
+         retired — with everything it had except the prompt, which is the
+         entire reason for the click. Hand it over; ours is then redundant. */
       try{bc.postMessage({t:'deliver',k:key,url});}catch(e){}
       try{w.close();}catch(e){}
     }else{
-      /* It exists but cannot bring itself forward, so it would sit there as a
-         duplicate. Retire it and use the tab we already have. Safe even though
-         a council can be long-running: this path is only reached when the NAME
-         lookup missed, which means the claimant is from a previous browser
-         session and cannot have a run in flight. */
+      /* It exists, cannot bring itself forward, and is safe to close. Retire
+         it and use the tab we already have: one console, in front, holding
+         the prompt. */
       if(answered){try{bc.postMessage({t:'retire',k:key});}catch(e){}}
       tbTabGo(w,url);
     }
@@ -6414,7 +6415,17 @@ function tbHandOverMagi(w,url,key){
   bc.onmessage=(ev)=>{
     const d=ev&&ev.data;
     if(!d||d.t!=='claimed'||d.k!==key||d.rid!==rid)return;
-    answered=true;finish(!!d.ok);
+    answered=true;
+    /* Keep the old tab whenever retiring it would go wrong. `busy`: a council
+       is running there (the name lookup misses for any tab outside our
+       browsing-context group, not only restored ones, so a live run is
+       possible here) and retiring it would throw the run away. `closable`
+       false: its history has grown past one entry, window.close() will be
+       refused, and a retire would leave two consoles. In both cases the
+       prompt goes to the old tab, which queues it until any run ends — the
+       browser will not let us switch to a tab outside our group, but there
+       is only ever one. */
+    finish(!!d.ok||!!d.busy||d.closable===false);
   };
   try{bc.postMessage({t:'claim',k:key,rid});}catch(e){finish(false);}
 }

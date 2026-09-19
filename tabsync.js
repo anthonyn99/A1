@@ -74,7 +74,10 @@
  * is allowed to know about another origin's tabs.
  *
  * Include it on every A1 page. A page opened directly — bookmark, typed URL,
- * the very first tab — has no key and this file does nothing at all.
+ * the very first tab — has no key and this file does nothing at all, UNLESS
+ * the page names itself before loading this file (magi.html does: there is
+ * only ever meant to be one console, however it was opened). A page may also
+ * define window.a1TabBusy() so a claim answer can say "do not retire me".
  */
 (function () {
   'use strict';
@@ -185,8 +188,11 @@
     if (d.t === 'deliver') {
       // Come forward if the browser allows it, and take the url either way:
       // being handed the question matters more than winning the focus race.
+      // replace(), not href: every delivered prompt used to push a history
+      // entry, and a tab with more than one entry can no longer close itself —
+      // so the NEXT retire left it standing beside its replacement.
       try { window.focus(); } catch (e) {}
-      if (ownOrigin(d.url)) { try { location.href = d.url; } catch (e) {} }
+      if (ownOrigin(d.url)) { try { location.replace(d.url); } catch (e) { try { location.href = d.url; } catch (e2) {} } }
       return;
     }
     if (d.t !== 'claim') return;
@@ -194,10 +200,18 @@
     // Answer on the next frames, not immediately: the opener has just opened a
     // blank tab, so focus is still settling and an instant reading of
     // hasFocus() reports the state before our own focus() call landed.
+    //
+    // Two more facts ride along so the opener never retires a tab it should
+    // not: `busy` — the page says it is mid-something (MAGI mid-council) and
+    // closing it would throw that away; `closable` — window.close() will only
+    // succeed on a single-entry history, so a retire would leave it standing
+    // and the opener would have made the duplicate it set out to prevent.
     setTimeout(function () {
-      var ok = false;
+      var ok = false, busy = false, closable = true;
       try { ok = document.visibilityState === 'visible' && document.hasFocus(); } catch (e) {}
-      try { bc.postMessage({ t: 'claimed', k: key, rid: d.rid, id: ID, ok: ok }); } catch (e) {}
+      try { busy = typeof window.a1TabBusy === 'function' && !!window.a1TabBusy(); } catch (e) {}
+      try { closable = !(history.length > 1); } catch (e) {}
+      try { bc.postMessage({ t: 'claimed', k: key, rid: d.rid, id: ID, ok: ok, busy: busy, closable: closable }); } catch (e) {}
     }, 90);
   };
 })();

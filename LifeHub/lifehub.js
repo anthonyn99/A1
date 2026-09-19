@@ -202,7 +202,7 @@
     return c === u || c.indexOf(u) === 0;
   }
   function go(w, url) {
-    try { w.location.href = url; } catch (e) { try { w.location.replace(url); } catch (e2) {} }
+    try { w.location.replace(url); } catch (e) { try { w.location.href = url; } catch (e2) {} }
     try { w.focus(); } catch (e) {}
   }
   function claimedElsewhere(key) {
@@ -236,7 +236,8 @@
       var d = ev && ev.data;
       if (!d || d.t !== 'claimed' || d.k !== key || d.rid !== rid) return;
       answered = true;
-      finish(!!d.ok);
+      // busy / not closable: retiring would lose a run or leave two tabs.
+      finish(!!d.ok || !!d.busy || d.closable === false);
     };
     try { bc.postMessage({ t: 'claim', k: key, rid: rid }); } catch (e) { finish(false); }
   }
