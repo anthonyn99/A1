@@ -76,7 +76,7 @@
     profile: null     // optional fn, via LifeHub.configure
   };
 
-  var VERSION = '1.0.0';
+  var VERSION = '1.1.0';
   var DOC = ['dashboards', 'lifehub'];
   var LS_KEY = 'lifehub:v1';
   var FB_VER = '12.12.0';
@@ -775,7 +775,7 @@
             '<button class="done" type="button" hidden>Done</button>' +
           '</div>' +
           '<div class="sc"><div class="grid"></div><div class="ed" hidden></div></div>' +
-          '<div class="ft" hidden><span class="hint">Drag to reorder · tap to edit</span><button class="lnk reset" type="button">Reset</button></div>' +
+          '<div class="ft" hidden><span class="hint">Drag to reorder · tap to edit · v' + VERSION + '</span><button class="lnk reset" type="button">Reset</button></div>' +
         '</div>' +
       '</div>';
     document.body.appendChild(host);
