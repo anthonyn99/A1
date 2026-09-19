@@ -12765,6 +12765,8 @@ attachScrollbar($("sideNav"), 90);
     "input", "textarea", "select",
     "[contenteditable]", "[draggable='true']", "[role='slider']",
     ".qbar-grip", ".qbar", ".qedit-textwrap", ".bs-start",
+    // Unit chips reorder on a hold-and-drag (unitDragStart) -- theirs.
+    "#unitChips [data-unit]",
     ".sheet", ".sheet-box", "audio", "video", "canvas",
   ].join(",");
 
@@ -12783,12 +12785,13 @@ attachScrollbar($("sideNav"), 90);
     return false;
   };
 
-  // A drag that some other control began -- by pointer capture, which is how
-  // the resize handle and the unit reorder work -- also cancels a pull that
-  // was already under way.
-  document.addEventListener("gotpointercapture", () => {
-    if (pulling) { pulling = false; reset(); }
-  }, true);
+  // This used to cancel the pull on ANY gotpointercapture, to stand down when
+  // the resize handle or a unit reorder took the pointer. But a touch pointer
+  // is captured IMPLICITLY by whatever it lands on, so that event fires just
+  // before the first move of every touch -- and every pull on a phone was
+  // cancelled before it began. Pulling here simply never worked. The controls
+  // that capture are excluded by OWNED instead, and a unit reorder that is
+  // somehow live mid-pull is checked for directly in touchmove.
 
   const setPull = (d) => {
     dist = d;
@@ -12821,6 +12824,7 @@ attachScrollbar($("sideNav"), 90);
     if (d <= 0) { pulling = false; reset(); return; }
     // The page scrolled after all (momentum, an inner scroller handing off).
     if (page.scrollTop > 0) { pulling = false; reset(); return; }
+    if (DRAG.active) { pulling = false; reset(); return; }
     // Half-rate resistance, like the browser's own: the indicator trails the
     // finger rather than tracking it 1:1 off the top of the screen.
     setPull(d * RATE);
