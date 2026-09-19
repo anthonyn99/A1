@@ -810,6 +810,11 @@
     function release() { if (ui.holdBd) setTimeout(function () { ui.holdBd = false; settleClose(); }, 80); }
     bd.addEventListener('pointerup', release);
     bd.addEventListener('pointercancel', release);
+    // Belt and braces: an invisible backdrop left catching touches would freeze
+    // the program, so the release is also heard on window (capture phase, ahead
+    // of anything that could stop it) and there is a hard cap.
+    window.addEventListener('pointerup', release, true);
+    window.addEventListener('pointercancel', release, true);
     bd.addEventListener('click', function (e) { e.preventDefault(); close(); });
     bd.addEventListener('wheel', function (e) { e.preventDefault(); }, { passive: false });
     bd.addEventListener('touchmove', function (e) { e.preventDefault(); }, { passive: false });
@@ -927,6 +932,7 @@
     // is pointless work (and on some phones a visible focus flash).
     var hadFocus = !byPointer && ui.root.activeElement != null;
     ui.holdBd = !!byPointer;
+    if (ui.holdBd) setTimeout(function () { ui.holdBd = false; settleClose(); }, 1500);
     if (instant === true || document.visibilityState !== 'visible') {
       ui.holdBd = false;
       ui.host.style.display = 'none';
