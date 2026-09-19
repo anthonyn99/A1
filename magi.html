@@ -1542,7 +1542,21 @@ del.md-html { color: var(--txd); }
   min-width: 0; padding: 12px 14px 10px; border-radius: 10px;
   background: var(--bg); border: 1px solid var(--bd); border-top: 2px solid var(--acd);
 }
-.br-group.wide { grid-column: 1 / -1; }
+.br-group.wide { margin: 4px 0 14px; }
+.br-group.wide:last-child { margin-bottom: 0; }
+.br-point { position: relative; }
+.br-point.numbered { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; align-items: start; }
+.br-point-body.joined { margin-top: 0; color: var(--txd); }
+.br-point-body.joined strong { color: var(--tx); }
+.br-point-n {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; margin-top: -1px; border-radius: 6px;
+  background: var(--s3); color: var(--acl); font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+}
+.br-sec.tone-good .br-point { border-left-color: var(--grn); }
+.br-sec.tone-good .br-point-n { color: var(--grn); background: color-mix(in srgb, var(--grn) 15%, transparent); }
+.br-sec.tone-bad .br-point { border-left-color: var(--red); }
+.br-sec.tone-bad .br-point-n { color: var(--red); background: color-mix(in srgb, var(--red) 15%, transparent); }
 .br-group.good { border-top-color: var(--grn); background: color-mix(in srgb, var(--grn) 4%, var(--bg)); }
 .br-group.bad { border-top-color: var(--red); background: color-mix(in srgb, var(--red) 4%, var(--bg)); }
 .br-group-hd {
@@ -1784,9 +1798,10 @@ table.doctor, table.doctor code, .v-table,
 .verdict-q-text {
   flex: 1 1 auto; min-width: 0; color: var(--txm); font-size: 12.5px;
   line-height: 1.5;
-  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
-  overflow: hidden;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; cursor: pointer; white-space: pre-wrap;
 }
+.verdict-q-text.open { -webkit-line-clamp: unset; display: block; }
 @media (max-width: 720px) {
   .verdict-q { padding: 8px 12px; gap: 8px; }
   .verdict-q-text { font-size: 12px; -webkit-line-clamp: 4; }
@@ -6301,9 +6316,14 @@ const VERDICT_VIEW = {
 
 /** "**Label:** rest" / "**Label** — rest" -> { label, rest }; null otherwise. */
 function boldLead(text) {
-  const m = String(text || "").match(/^\s*(?:\*\*|__)(.{2,90}?)(?:\*\*|__)\s*(?:[:：—–-]\s*)?([\s\S]*)$/);
+  const m = String(text || "").match(/^\s*(?:\*\*|__)(.{2,90}?)(?:\*\*|__)\s*([:：—–-]\s*)?([\s\S]*)$/);
   if (!m) return null;
-  return { label: m[1].replace(/[:：]\s*$/, "").trim(), rest: m[2].trim() };
+  const rest = m[3].trim();
+  // "**Label:** text" is a label over its body. "**Oil climbs above $100**,
+  // particularly if..." is one sentence that happens to open in bold --
+  // splitting it left a card body starting ", particularly".
+  const labelled = !!m[2] || /[:：]\s*$/.test(m[1]) || !rest;
+  return { label: m[1].replace(/[:：]\s*$/, "").trim(), rest, joined: !labelled && /^[,;.)\]a-z]/.test(rest) };
 }
 
 /** A list, as cards when it is a list of labelled points, as numbered steps
@@ -6318,13 +6338,22 @@ function briefList(list) {
     items.forEach((it, k) => {
       const card = el("div", "br-point");
       const lead = leads[k];
-      if (lead) card.append(inline(el("div", "br-point-label"), lead.label));
-      const body = el("div", "br-point-body");
-      const rest = lead ? lead.rest : it.text;
+      // A numbered list is a ranking; turned into cards it keeps its numbers.
+      let host = card;
+      if (list.ordered) {
+        card.classList.add("numbered");
+        card.append(el("span", "br-point-n", String((list.start || 1) + k)));
+        host = el("div", "br-point-main");
+        card.append(host);
+      }
+      const split = lead && !lead.joined;
+      if (split) host.append(inline(el("div", "br-point-label"), lead.label));
+      const body = el("div", `br-point-body ${lead && lead.joined ? "joined" : ""}`);
+      const rest = split ? lead.rest : it.text;
       if (rest) inline(body, rest);
       for (const x of it.extra || []) { body.append(el("br")); inline(body, x); }
-      if (rest || (it.extra || []).length) card.append(body);
-      for (const c of it.children || []) card.append(renderList(c));
+      if (rest || (it.extra || []).length) host.append(body);
+      for (const c of it.children || []) host.append(renderList(c));
       grid.append(card);
     });
     return grid;
@@ -6417,13 +6446,18 @@ function briefBlocks(host, blocks) {
         const hd = el("div", "br-group-hd");
         hd.append(el("span", "br-group-dot"), inline(el("span"), label));
         box.append(hd);
+        let wide = false;
         if (next.kind === "list") box.append(briefList(next.list));
         else if (next.kind === "p") {
           const chips = briefChips(next.text, true);
-          if (chips) box.classList.add("wide");
+          wide = !!chips;
           box.append(chips || inline(el("p"), next.text));
-        } else renderBlocks(box, [next]);
+        } else { wide = true; renderBlocks(box, [next]); }
         i++;
+        // A row of chips or a table spans the card on its own row, outside the
+        // grid -- inside it, it held a third column open that left the
+        // Bullish/Bearish pair beside it at two-thirds width.
+        if (wide) { box.classList.add("wide"); host.append(box); groups = null; continue; }
         if (!groups) { groups = el("div", "br-groups"); host.append(groups); }
         groups.append(box);
         continue;
@@ -7217,8 +7251,18 @@ function renderVerdict() {
    */
   if (S.viewQuestion && (S.fromHistory || S.running)) {
     const q = el("div", "verdict-q");
-    q.append(el("span", "verdict-q-tag", "asked"),
-             el("span", "verdict-q-text", S.viewQuestion));
+    // A prompt pasted as a markdown template read as "# Weekly ... **5 most
+    // important** ... * Keep it concise" -- its symbols shown raw. Plain text
+    // here, clamped, and a click shows all of it.
+    const plainQ = String(S.viewQuestion)
+      .replace(/^\s{0,3}#{1,6}\s*/gm, "")
+      .replace(/^\s*[*+-]\s+/gm, "• ")
+      .replace(/\*\*|__|`/g, "")
+      .replace(/\s*\n+\s*/g, "  ")
+      .trim();
+    const qt = el("span", "verdict-q-text", plainQ);
+    qt.onclick = () => qt.classList.toggle("open");
+    q.append(el("span", "verdict-q-tag", "asked"), qt);
     q.title = S.viewQuestion;
     n.append(q);
   }
