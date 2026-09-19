@@ -149,6 +149,15 @@ async def _read_latest(page: Page, site: SiteSelectors) -> tuple[str, int]:
             return "", r.count
 
 
+# The quiet window that proves a signal-less site has finished: at least this
+# long, and at least this multiple of the longest pause the answer itself took.
+ADAPTIVE_QUIET_FLOOR_S = 2.5
+ADAPTIVE_QUIET_FACTOR = 4.0
+# ...and always at least this many identical samples, so a single lucky poll
+# can never end an answer on its own.
+MIN_QUIET_SAMPLES = 3
+
+
 async def wait_for_completion(
     page: Page,
     site: SiteSelectors,
@@ -178,6 +187,9 @@ async def wait_for_completion(
     stable_count = 0
     last_text = ""
     last_growth = start
+    # The longest pause BETWEEN growths in this answer, which is what makes
+    # the quiet-window gate below adaptive (see it for why).
+    max_gap = 0.0
 
     while True:
         if cancel is not None and cancel.is_set():
@@ -298,7 +310,9 @@ async def wait_for_completion(
             stable_count += 1
         else:
             if len(text) > len(last_text):
-                last_growth = time.monotonic()
+                now = time.monotonic()
+                max_gap = max(max_gap, now - last_growth)
+                last_growth = now
             stable_count = 0
             last_text = text
             if on_progress is not None and text:
@@ -330,9 +344,30 @@ async def wait_for_completion(
         # the preamble anyway -- defeating the point of raising confirm_samples.
         if has_semantic_signal:
             needed = max(needed, confirm_samples + 1)
+
+        # How long that many samples means, and -- for the sites that have no
+        # end-of-generation signal at all -- how long it NEEDS to mean.
+        #
+        # DeepSeek exposes neither a streaming marker nor a stop button, so the
+        # only evidence its answer has finished is the text sitting still. The
+        # window was a fixed 20 samples (14s at 700ms), which is 14 seconds
+        # spent every single time on an answer that was already complete.
+        #
+        # The window is now scaled to how THIS answer streamed: four times the
+        # longest pause between growths seen so far. A smoothly streaming
+        # answer (gaps of a poll or two) is settled after ~2.5s; one that
+        # paused eight seconds to think keeps a window long enough to outlast
+        # another pause like it. It is never longer than the configured window,
+        # so this can only ever return sooner than before, and never on weaker
+        # evidence than the answer's own behaviour supports.
+        quiet_needed = needed * poll_s
+        if not has_semantic_signal:
+            quiet_needed = min(quiet_needed, max(ADAPTIVE_QUIET_FLOOR_S, max_gap * ADAPTIVE_QUIET_FACTOR))
+        quiet_for = time.monotonic() - last_growth
         if (
             text
-            and stable_count >= needed
+            and stable_count >= min(needed, MIN_QUIET_SAMPLES)
+            and quiet_for >= quiet_needed
             and not signal_pending
         ):
             return CompletionResult(
