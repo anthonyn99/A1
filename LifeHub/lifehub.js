@@ -888,6 +888,7 @@
     if (!ui.host) build();
     clearTimeout(ui.closeT);
     ui.wrap.classList.remove('closing');
+    ui.holdBd = false;
     ui.anchor = anchor || ui.anchor;
     ui.lastFocus = document.activeElement;
     ui.host.style.display = '';
@@ -905,8 +906,15 @@
   }
 
   // `instant` skips the exit animation — used when leaving for another tab,
-  // where the page is backgrounded and its timers throttled.
-  function close(instant) {
+  // where the page is backgrounded and its timers throttled. `byPointer`: the
+  // close came from a press on the backdrop, which must keep catching that
+  // press until it is released (see the backdrop listeners in build()).
+  function settleClose() {
+    if (ui.open || ui.holdBd || !ui.animDone) return;
+    ui.host.style.display = 'none';
+    ui.wrap.classList.remove('closing');
+  }
+  function close(instant, byPointer) {
     if (!ui.open) return;
     if (D) endDrag(true);
     if (ui.view === 'ed') closeEditor(true);
