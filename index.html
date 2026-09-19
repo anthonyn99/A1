@@ -10300,7 +10300,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
   import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
   import { initializeAppCheck, ReCaptchaV3Provider, getToken as getAppCheckToken } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app-check.js";
-  import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, persistentSingleTabManager, terminate, clearIndexedDbPersistence, doc, setDoc, updateDoc, onSnapshot, getDoc, getDocFromServer, deleteField, deleteDoc, collection, getDocs, query, orderBy, limit, startAt, startAfter, endBefore, documentId } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
+  import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, persistentSingleTabManager, terminate, clearIndexedDbPersistence, doc, setDoc, updateDoc, onSnapshot, getDoc, getDocFromServer, getDocFromCache, deleteField, deleteDoc, collection, getDocs, query, orderBy, limit, startAt, startAfter, endBefore, documentId } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
   import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-storage.js";
 
   const firebaseConfig = {
@@ -11664,6 +11664,32 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       return v;
     };
 
+    // ── Journal image documents: upload once, read from cache ──────────────
+    // The extractors run on EVERY save of a page, and every image on the page
+    // used to be re-uploaded each time — one Firestore write per image per
+    // autosave, for bytes the cloud already had. An image document never
+    // changes under its key, so a key already confirmed with these exact bytes
+    // is simply pointed at. Reads go to Firestore's own IndexedDB cache first
+    // (free, and always current for a document that never changes) instead of
+    // a billed server read on every open of every page.
+    const _jImgSent = new Map();   // imgKey → signature of the bytes the cloud holds
+    const _jImgSig = (src) => {
+      let h = 0; const step = Math.max(1, Math.floor(src.length / 1024));
+      for (let i = 0; i < src.length; i += step) h = (Math.imul(31, h) + src.charCodeAt(i)) | 0;
+      return src.length + ':' + h;
+    };
+    const _jImgSeen = (key, src) => _jImgSent.get(key) === _jImgSig(src);
+    const _jImgMark = (key, src) => { if (key && src) _jImgSent.set(key, _jImgSig(src)); };
+    const _jImgGet = async (ref) => {
+      try {
+        const c = await getDocFromCache(ref);
+        if (c && c.exists() && c.data().img) { _jImgMark(ref.id, c.data().img); return c; }
+      } catch (e) { /* not cached yet */ }
+      const snap = await getDoc(ref);
+      if (snap && snap.exists() && snap.data().img) _jImgMark(ref.id, snap.data().img);
+      return snap;
+    };
+
     // ── Plans mirror ──────────────────────────────────────────────────────────
     // Shared commitments live in dashboards/plans, one top-level field per plan
     // ("p_{id}") exactly like the journal's e_{id}, so two devices editing two
@@ -11915,8 +11941,15 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
           imgKey = 'journal_img_' + e.id + '_' + Math.abs(h).toString(36);
         }
         const imgRef = doc(db, 'dashboards', imgKey);
+        // Already in the cloud with these exact bytes: point at it, no write.
+        if (typeof _jImgSeen === 'function' && _jImgSeen(imgKey, src)) {
+          img.setAttribute('data-bjkey', imgKey);
+          img.setAttribute(attr, 'bj-fbimg://' + imgKey);
+          return;
+        }
         try {
           await _fbWriteRetry(() => setDoc(imgRef, { img: src, savedAt: Date.now() }), 'BJ img ' + imgKey);
+          if (typeof _jImgMark === 'function') _jImgMark(imgKey, src);
           img.setAttribute('data-bjkey', imgKey);
           img.setAttribute(attr, 'bj-fbimg://' + imgKey);
         } catch(err) {
@@ -12299,7 +12332,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         const imgKey = img.getAttribute(attr).replace('bj-fbimg://', '');
         try {
           const imgRef = doc(db, 'dashboards', imgKey);
-          const snap = await getDoc(imgRef);
+          const snap = await (typeof _jImgGet === 'function' ? _jImgGet(imgRef) : getDoc(imgRef));
           if (snap.exists() && snap.data().img) {
             img.setAttribute(attr, snap.data().img);
           }
@@ -12511,6 +12544,39 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       }
     };
 
+    /* ── OurJournal — thin document access for the OJ engine ──────────────
+     * The engine (window.OJ, next to VizEngine) owns the model: an index of
+     * metadata, one content document per entry, merge + throttle + echo
+     * detection. This only reads, writes and listens, through the same retry
+     * as every other write here. Re-created on every init() because db is;
+     * the listeners die with the old client on _teardown() and the engine
+     * re-attaches them on the fb-ready that follows. */
+    window._fbOJ = {
+      // Only used for image documents, which never change under their key —
+      // so the local cache is always current and saves a billed read.
+      get: async (id) => {
+        const snap = await _jImgGet(doc(db, 'dashboards', id));
+        return snap.exists() ? snap.data() : null;
+      },
+      set: (id, payload) => {
+        const bytes = _fbByteSize(payload);
+        if (bytes > FB_MAX_WRITE_BYTES) return Promise.reject(new Error('oj-too-large'));
+        return _fbWriteRetry(() => setDoc(doc(db, 'dashboards', id), payload), 'OJ ' + id);
+      },
+      // Field-level merge: only the entries (and fields) named are touched, so
+      // two people changing two different entries never overwrite each other.
+      merge: (id, payload) => _fbWriteRetry(() => setDoc(doc(db, 'dashboards', id), payload, { merge: true }), 'OJ index'),
+      remove: (id) => _fbWriteRetry(() => deleteDoc(doc(db, 'dashboards', id)), 'OJ delete'),
+      del: () => deleteField(),
+      watch: (id, cb) => onSnapshot(doc(db, 'dashboards', id), { includeMetadataChanges: true }, (snap) => {
+        const md = snap.metadata || {};
+        const exists = snap.exists();
+        const data = exists ? snap.data() : null;
+        if (exists && !md.fromCache && !md.hasPendingWrites) _a1b('dashboards/' + id, data);
+        cb({ exists, data, fromCache: !!md.fromCache, pending: !!md.hasPendingWrites });
+      }, (e) => console.warn('[OJ] watch failed:', id, e && (e.code || e.message)))
+    };
+
 
     // ── MyJournal load ───────────────────────────────────────────────
     const mjDocRef = doc(db, MJ_DOC_PATH);
@@ -12603,7 +12669,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         const imgKey = img.getAttribute('src').replace('mj-fbimg://', '');
         try {
           const imgRef = doc(db, 'dashboards', imgKey);
-          const snap = await getDoc(imgRef);
+          const snap = await (typeof _jImgGet === 'function' ? _jImgGet(imgRef) : getDoc(imgRef));
           if (snap.exists() && snap.data().img) {
             img.setAttribute('src', snap.data().img);
           }
@@ -12707,8 +12773,15 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
           imgKey = 'tony_journal_img_' + e.id + '_' + suffix + Math.abs(h).toString(36);
         }
         const imgRef = doc(db, 'dashboards', imgKey);
+        // Already in the cloud with these exact bytes: point at it, no write.
+        if (typeof _jImgSeen === 'function' && _jImgSeen(imgKey, src)) {
+          img.setAttribute('data-tjkey', imgKey);
+          img.setAttribute(attr, 'tj-fbimg://' + imgKey);
+          return;
+        }
         try {
           await _fbWriteRetry(() => setDoc(imgRef, { img: src, savedAt: Date.now() }), 'TJ img ' + imgKey);
+          if (typeof _jImgMark === 'function') _jImgMark(imgKey, src);
           img.setAttribute('data-tjkey', imgKey);
           img.setAttribute(attr, 'tj-fbimg://' + imgKey);
         } catch(err) {
@@ -12909,7 +12982,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         const imgKey = img.getAttribute(attr).replace('tj-fbimg://', '');
         try {
           const imgRef = doc(db, 'dashboards', imgKey);
-          const snap = await getDoc(imgRef);
+          const snap = await (typeof _jImgGet === 'function' ? _jImgGet(imgRef) : getDoc(imgRef));
           if (snap.exists() && snap.data().img) img.setAttribute(attr, snap.data().img);
         } catch(err) { console.warn('TJ image rehydrate failed:', imgKey, err.message); }
       }));
@@ -21240,6 +21313,9 @@ var SAVE_IDLE = 1500;      // quiet period before a save
 var SAVE_MAX  = 8000;      // hard ceiling during nonstop drawing
 var RETRY_MS  = [4000, 12000, 30000, 60000, 120000];
 var REMOTE_QUIET = 6000;   // don't take a remote update within this of a local edit
+var LIVE_IDLE = 700;       // shared (OurJournal) boards: quiet period before a save
+var LIVE_MAX  = 2500;      // ...and the ceiling while someone draws nonstop
+var LIVE_CLIENT = Math.random().toString(36).slice(2, 9);
 var OPEN_READ_MS = 7000;   // a cloud read on the open path may not outlast this
 var SLOW_SAVE = 9000;      // a cloud write still in flight after this is not "saving"
 
@@ -21334,8 +21410,17 @@ function createBoard(cfg) {
     lastSerial: null, cloudSerial: null, pendingFiles: null, rev: 0, count: 0, docTitle: '',
     lastLocalEdit: 0, lastCloudAt: 0, retryIx: 0, retryTimer: null,
     idleTimer: null, firstDirtyAt: 0, slowTimer: null,
-    uploaded: {},           // fileId → true, so an unchanged image is never re-sent
-    watchOff: null
+    uploaded: {},           // prefix+fileId → true, so an unchanged image is never re-sent
+    watchOff: null,
+    // Per-ENTRY document prefix and live flag. One board instance serves both
+    // the app's own entries and OurJournal's, so where a board lives is decided
+    // by the entry it was opened for — recorded by id so a save still in flight
+    // for a previous entry can never land under the next one's prefix.
+    pfx: {}, live: {},
+    // Live (shared) boards: the writes this device made (echo detection), the
+    // last cloud state merged into the canvas, and recent states by write id
+    // (the mind-map merge base).
+    myW: {}, known: null, hist: {}, histOrder: [], deferT: null
   };
   BOARDS.push(B);
 
@@ -21443,10 +21528,12 @@ function createBoard(cfg) {
   }
 
   /* ── document identity ──────────────────────────────────────────────── */
-  function baseId(id) { return cfg.prefix + '_viz_' + id; }
-  function fileId(fid) { return cfg.prefix + '_vizf_' + fid; }
+  function pfxOf(id) { return B.pfx[id] || cfg.prefix; }
+  function isLive(id) { return !!(id && B.live[id]); }
+  function baseId(id) { return pfxOf(id) + '_viz_' + id; }
+  function fileId(fid, id) { return pfxOf(id) + '_vizf_' + fid; }
   function cacheKey(id) { return cfg.app + ':' + id; }
-  function legacyCanvasId(id) { return cfg.prefix + '_canvas_' + id; }
+  function legacyCanvasId(id) { return pfxOf(id) + '_canvas_' + id; }
 
   /* ── change detection ───────────────────────────────────────────────── */
   function markDirty() {
@@ -21461,7 +21548,9 @@ function createBoard(cfg) {
     // Idle debounce, with a hard ceiling so an unbroken drawing session still
     // reaches disk. Without the ceiling the timer restarts forever and a crash
     // mid-drawing loses the lot.
-    var wait = (now - B.firstDirtyAt >= SAVE_MAX) ? 0 : SAVE_IDLE;
+    // A shared board saves sooner: the other person is watching it live.
+    var live = isLive(B.entryId);
+    var wait = (now - B.firstDirtyAt >= (live ? LIVE_MAX : SAVE_MAX)) ? 0 : (live ? LIVE_IDLE : SAVE_IDLE);
     B.idleTimer = setTimeout(function () { save(); }, wait);
   }
 
@@ -21469,7 +21558,18 @@ function createBoard(cfg) {
   function serialise() {
     if (cfg.kind === 'wb') {
       if (!B.api) return null;
-      var elements = B.api.getSceneElements() || [];
+      var visible = B.api.getSceneElements() || [];
+      var elements = visible;
+      // A SHARED board also publishes recent deletions (Excalidraw keeps them
+      // as isDeleted tombstones). Without them a merge could not tell "you
+      // deleted it" from "I have not seen it yet", and would resurrect it.
+      // Tombstones older than a week are dropped — everyone has synced by then.
+      if (isLive(B.entryId) && B.api.getSceneElementsIncludingDeleted) {
+        var wk = Date.now() - 7 * 86400000;
+        elements = (B.api.getSceneElementsIncludingDeleted() || []).filter(function (el) {
+          return !el.isDeleted || (el.updated || 0) > wk;
+        });
+      }
       var st = B.api.getAppState() || {};
       var allFiles = B.api.getFiles() || {};
       // Only files the scene still references. Excalidraw's file cache keeps
@@ -21477,7 +21577,7 @@ function createBoard(cfg) {
       // entries and ones the user has since deleted; publishing those would
       // upload another entry's images under this one.
       var need = {};
-      elements.forEach(function (el) { if (el.fileId) need[el.fileId] = true; });
+      visible.forEach(function (el) { if (el.fileId) need[el.fileId] = true; });
       var files = {};
       Object.keys(need).forEach(function (k) { if (allFiles[k]) files[k] = allFiles[k]; });
       var doc = {
@@ -21490,8 +21590,8 @@ function createBoard(cfg) {
         fileIds: Object.keys(files)
       };
       var txt = '';
-      elements.forEach(function (el) { if (el.type === 'text' && el.text) txt += el.text + '\n'; });
-      return { doc: doc, files: files, count: elements.length, title: firstLine(txt) };
+      visible.forEach(function (el) { if (el.type === 'text' && el.text) txt += el.text + '\n'; });
+      return { doc: doc, files: files, count: visible.length, title: firstLine(txt) };
     }
     if (!B.mind) return null;
     var data = B.mind.getData();
@@ -21577,6 +21677,14 @@ function createBoard(cfg) {
   function pushCloud(id) {
     var str = B.lastSerial, rev = B.rev, files = B.pendingFiles || {};
     if (!str) return Promise.resolve();
+    var extra = { k: cfg.kind, rev: rev };
+    if (isLive(id)) {
+      // w names this write, pw the cloud state it was built on — how the
+      // other screen recognises its own echo and finds the merge base.
+      extra.w = LIVE_CLIENT + cfg.app + (++liveSeq).toString(36) + Date.now().toString(36);
+      extra.pw = (B.known && B.known.w) || '';
+      B.myW[extra.w] = 1;
+    }
     // Offline, a Firestore write neither resolves nor rejects — it sits in the
     // local mutation queue until the connection comes back. Saying "Saving…"
     // for that whole flight is the one thing this indicator must never do: it
@@ -21586,13 +21694,14 @@ function createBoard(cfg) {
     armSlow(id);
     B.saving = (function () {
       if (!S.fbReady()) return Promise.reject(new Error('firebase-not-ready'));
-      return uploadFiles(files)
-        .then(function () { return S.writeChunked(baseId(id), str, { k: cfg.kind, rev: rev }); });
+      return uploadFiles(files, id)
+        .then(function () { return S.writeChunked(baseId(id), str, extra); });
     })()
       .then(function () {
         clearTimeout(B.slowTimer);
         B.saving = null; B.retryIx = 0; B.lastCloudAt = Date.now();
         B.cloudSerial = str;
+        if (extra.w && B.entryId === id) { B.known = { w: extra.w, str: str }; remember(extra.w, str); }
         if (B.entryId === id) setStatus('saved');
         window.dispatchEvent(new CustomEvent('fb-' + cfg.app + '-canvas-saved', { detail: id }));
         // Anything serialised while that was in the air goes now.
@@ -21632,9 +21741,10 @@ function createBoard(cfg) {
   /* Images are content-addressed by Excalidraw (fileId is a hash of the bytes),
    * so an image that has not changed is never uploaded twice — not on this
    * save, and not on any later one in this session. */
-  function uploadFiles(files) {
+  function uploadFiles(files, id) {
     var ids = Object.keys(files || {});
-    var todo = ids.filter(function (k) { return !B.uploaded[k]; });
+    var pf = pfxOf(id);
+    var todo = ids.filter(function (k) { return !B.uploaded[pf + k]; });
     if (!todo.length) return Promise.resolve();
     return Promise.all(todo.map(function (k) {
       var f = files[k], data = (f && f.dataURL) || '';
@@ -21649,18 +21759,20 @@ function createBoard(cfg) {
           + Math.round(data.length / 1024 / 1024 * 10) / 10 + ' MB). It is saved on this device, '
           + 'but your other devices will not see it. Try inserting a smaller version.',
           { title: 'Image too large' });
-        B.uploaded[k] = true;   // don't retry it forever
+        B.uploaded[pf + k] = true;   // don't retry it forever
         return Promise.resolve();
       }
-      return S.writeChunked(fileId(k), data, { mime: (f && f.mimeType) || 'image/png' })
-        .then(function () { B.uploaded[k] = true; });
+      return S.writeChunked(fileId(k, id), data, { mime: (f && f.mimeType) || 'image/png' })
+        .then(function () { B.uploaded[pf + k] = true; });
     }));
   }
 
-  function fetchFiles(ids) {
+  function fetchFiles(ids, id) {
     if (!ids || !ids.length || !S.fbReady()) return Promise.resolve({});
+    id = id || B.entryId;
+    var pf = pfxOf(id);
     return Promise.all(ids.map(function (k) {
-      return S.readChunked(fileId(k))
+      return S.readChunked(fileId(k, id))
         .then(function (r) { return r ? { id: k, dataURL: r.str, mime: (r.meta && r.meta.mime) || 'image/png' } : null; })
         .catch(function () { return null; });
     })).then(function (rows) {
@@ -21668,7 +21780,7 @@ function createBoard(cfg) {
       rows.forEach(function (r) {
         if (!r) return;
         out[r.id] = { id: r.id, dataURL: r.dataURL, mimeType: r.mime, created: Date.now() };
-        B.uploaded[r.id] = true;   // it is already in the cloud; never re-upload
+        B.uploaded[pf + r.id] = true;   // it is already in the cloud; never re-upload
       });
       return out;
     });
@@ -21725,7 +21837,7 @@ function createBoard(cfg) {
       var cRev = c ? (c.rev || 0) : -1;
       var rRev = rem && rem.meta ? (rem.meta.rev || 0) : -1;
       if (rem && rRev >= cRev) {
-        return { str: rem.str, rev: rRev, files: null, source: 'cloud' };
+        return { str: rem.str, rev: rRev, files: null, source: 'cloud', w: (rem.meta && rem.meta.w) || '' };
       }
       if (c) return { str: c.str, rev: cRev, files: c.files || null, source: 'local' };
       return null;
@@ -21748,7 +21860,7 @@ function createBoard(cfg) {
           });
           if (inline.length) doc._inlineFiles = inline;
         }
-        return { doc: doc, rev: found.rev, serial: found.str, source: found.source };
+        return { doc: doc, rev: found.rev, serial: found.str, source: found.source, w: found.w || '' };
       }
       return migrate(entry).then(function (m) {
         // rev 0 and NO serial: the converted board is not yet a saved document,
@@ -21763,7 +21875,7 @@ function createBoard(cfg) {
     if (cfg.kind === 'wb') {
       var legacy = (entry.data && entry.data.canvas) || '';
       var pull = legacy ? Promise.resolve(legacy)
-        : (S.fbReady()
+        : (S.fbReady() && !isLive(entry.id)
             ? capped(window._fbViz.get(legacyCanvasId(entry.id))).then(function (d) { return (d && d.canvas) || ''; })
             : Promise.resolve(''));
       return pull.then(function (dataURL) {
@@ -21836,6 +21948,7 @@ function createBoard(cfg) {
   function startWatch(id) {
     stopWatch();
     if (!S.fbReady() || !window._fbViz.watch) return;
+    if (isLive(id)) { liveWatch(id); return; }
     B.watchOff = window._fbViz.watch(cfg.app + ':viz', baseId(id), function (d) {
       if (!d || B.entryId !== id) return;
       var rRev = d.rev || 0;
@@ -21854,6 +21967,199 @@ function createBoard(cfg) {
   }
   function stopWatch() {
     if (B.watchOff) { try { B.watchOff(); } catch (e) {} B.watchOff = null; }
+    clearTimeout(B.deferT);
+  }
+
+  /* ── live (shared) boards ─────────────────────────────────────────────
+   * An OurJournal board can be open on two screens at once. The single-owner
+   * rule above (ignore the cloud while drawing, newest rev wins) would lose
+   * whoever saved first, so a shared board MERGES instead:
+   *   whiteboard — per element, by Excalidraw's own version counter (the rule
+   *                its collaboration mode uses), deletions included as
+   *                tombstones, never touching the element being drawn;
+   *   mind map   — 3-way per node (content, parent, sibling order), with the
+   *                state the remote write was built on as the base.
+   * If the merge result differs from what arrived, this side still has edits
+   * the other has not seen, so it saves — and the two converge. */
+  var liveSeq = 0;
+  function remember(w, str) {
+    if (!w) return;
+    if (!B.hist[w]) B.histOrder.push(w);
+    B.hist[w] = str;
+    while (B.histOrder.length > 20) delete B.hist[B.histOrder.shift()];
+  }
+  function liveWatch(id) {
+    B.watchOff = window._fbViz.watch(cfg.app + ':viz', baseId(id), function (d) {
+      if (!d || B.entryId !== id || !B.ready) return;
+      if (d.w && B.myW[d.w]) return;                             // our own write
+      if (B.known && d.w && B.known.w === d.w) return;           // already merged
+      var get = ((d.n || 1) <= 1 && typeof d.c0 === 'string')
+        ? Promise.resolve({ str: d.c0, meta: d })
+        : S.readChunked(baseId(id));
+      get.then(function (r) {
+        if (!r || B.entryId !== id || !B.ready) return;
+        liveMerge(id, r.str, r.meta || {});
+      }).catch(function (e) { console.warn('[viz] live read failed:', e && (e.code || e.message)); });
+    });
+  }
+  function mmBusy() {
+    // Mind Elixir's inline topic editor is a contenteditable box inside the
+    // map; refreshing under it would throw away the half-typed topic.
+    var a = document.activeElement;
+    return !!(a && cfg.mount.contains(a) && (a.isContentEditable || a.id === 'input-box'));
+  }
+  function liveMerge(id, str, meta) {
+    var rdoc; try { rdoc = JSON.parse(str); } catch (e) { return; }
+    var rec = { w: meta.w || '', pw: meta.pw || '', str: str };
+    remember(rec.w, str);
+    B.rev = Math.max(B.rev, meta.rev || 0);
+    if (cfg.kind === 'wb') {
+      if (!B.api) return;
+      var local = B.api.getSceneElementsIncludingDeleted ? B.api.getSceneElementsIncludingDeleted() : B.api.getSceneElements();
+      var st = B.api.getAppState() || {};
+      var busy = {};
+      [st.editingElement, st.draggingElement, st.resizingElement, st.multiElement]
+        .forEach(function (el) { if (el && el.id) busy[el.id] = 1; });
+      if (st.editingLinearElement && st.editingLinearElement.elementId) busy[st.editingLinearElement.elementId] = 1;
+      if (st.selectedElementsAreBeingDragged) Object.keys(st.selectedElementIds || {}).forEach(function (k) { busy[k] = 1; });
+      var byId = {}; (local || []).forEach(function (el) { byId[el.id] = el; });
+      var out = [], seen = {}, complete = true;
+      (rdoc.elements || []).forEach(function (r) {
+        var l = byId[r.id], pick = r;
+        if (l && (busy[l.id] || l.version > r.version || (l.version === r.version && l.versionNonce < r.versionNonce))) pick = l;
+        if (pick !== r && (pick.version !== r.version || pick.versionNonce !== r.versionNonce)) complete = false;
+        out.push(pick); seen[r.id] = 1;
+      });
+      (local || []).forEach(function (l) { if (!seen[l.id]) { out.push(l); if (!l.isDeleted) complete = false; } });
+      var have = B.api.getFiles() || {};
+      var missing = (rdoc.fileIds || []).filter(function (k) { return !have[k]; });
+      (missing.length ? fetchFiles(missing, id) : Promise.resolve({})).then(function (got) {
+        if (B.entryId !== id || !B.api) return;
+        var add = Object.keys(got).map(function (k) { return got[k]; });
+        if (add.length) { try { B.api.addFiles(add); } catch (e) {} }
+        var app = rdoc.appState || {};
+        var upd = { elements: out, commitToHistory: false };
+        if (app.viewBackgroundColor && app.viewBackgroundColor !== lastBg) upd.appState = { viewBackgroundColor: app.viewBackgroundColor };
+        B.api.updateScene(upd);
+        B.known = rec;
+        if (out.some(function (el) { return !el.isDeleted; })) hint.hidden = true;
+        afterLiveApply(complete);
+      });
+      return;
+    }
+    if (!B.mind) return;
+    if (mmBusy()) {
+      // Try again once the topic being typed is committed.
+      clearTimeout(B.deferT);
+      B.deferT = setTimeout(function () { if (B.entryId === id) liveMerge(id, str, meta); }, 500);
+      return;
+    }
+    var rm = rdoc.mind || null;
+    if (!rm || !rm.nodeData) return;
+    var lm = B.mind.getData();
+    var km = null;
+    if (B.known) { try { km = JSON.parse(B.known.str).mind; } catch (e) {} }
+    var merged;
+    if (km && mindSig(lm) === mindSig(km)) merged = rm;         // nothing changed here since
+    else {
+      var bs = B.hist[rec.pw] || (B.known && B.known.str) || null, bm = null;
+      if (bs) { try { bm = JSON.parse(bs).mind; } catch (e) {} }
+      merged = mergeMind(bm, lm, rm);
+    }
+    B.known = rec;
+    B.mind.refresh(merged);
+    var kids = ((merged.nodeData || {}).children || []).length;
+    hint.hidden = kids > 0 || !B.editable;
+    syncNodeBar();
+    afterLiveApply(mindSig(merged) === mindSig(rm));
+  }
+  function afterLiveApply(sameAsRemote) {
+    if (sameAsRemote) {
+      // The canvas now shows exactly the cloud copy: record it as saved so the
+      // change events this apply causes do not write it straight back.
+      var s = null; try { s = serialise(); } catch (e) {}
+      if (s) {
+        var str = JSON.stringify(s.doc);
+        B.lastSerial = str; B.cloudSerial = str; B.count = s.count; B.docTitle = s.title;
+        B.dirty = false; B.firstDirtyAt = 0; clearTimeout(B.idleTimer);
+        if (cfg.onMeta) { try { cfg.onMeta({ rev: B.rev, count: s.count, title: s.title, kind: cfg.kind }); } catch (e) {} }
+      }
+    } else {
+      markDirty();
+    }
+  }
+  // What a mind map "is" for comparison: its structure and content, not the
+  // theme or anything else the library carries for display.
+  function mindSig(m) {
+    if (!m) return '';
+    function strip(n) {
+      var o = {};
+      Object.keys(n).forEach(function (k) { if (k !== 'parent' && k !== 'children') o[k] = n[k]; });
+      o.c = (n.children || []).map(strip);
+      return o;
+    }
+    try { return JSON.stringify([m.nodeData ? strip(m.nodeData) : null, m.arrows || [], m.summaries || [], m.direction]); } catch (e) { return ''; }
+  }
+  function flatMind(m) {
+    var out = {}, order = {};
+    if (!m || !m.nodeData) return { nodes: out, order: order, root: null };
+    (function walk(n, parent) {
+      var o = {};
+      Object.keys(n).forEach(function (k) { if (k !== 'parent' && k !== 'children') o[k] = n[k]; });
+      out[n.id] = { p: parent, x: JSON.stringify(o) };
+      order[n.id] = (n.children || []).map(function (c) { return c.id; });
+      (n.children || []).forEach(function (c) { walk(c, n.id); });
+    })(m.nodeData, null);
+    return { nodes: out, order: order, root: m.nodeData.id };
+  }
+  function mergeMind(bm, lm, rm) {
+    var B0 = flatMind(bm), L = flatMind(lm), R = flatMind(rm);
+    var root = L.root || R.root;
+    var res = {}, ids = {};
+    Object.keys(L.nodes).forEach(function (k) { ids[k] = 1; });
+    Object.keys(R.nodes).forEach(function (k) { ids[k] = 1; });
+    Object.keys(ids).forEach(function (id) {
+      var b = B0.nodes[id], l = L.nodes[id], r = R.nodes[id];
+      if (l && r) {
+        res[id] = { p: (b && l.p === b.p) ? r.p : l.p, x: (b && l.x === b.x) ? r.x : l.x };
+      } else if (l) {
+        // Removed on the other side: gone, unless this side changed it since.
+        if (b && l.x === b.x && l.p === b.p) return;
+        res[id] = { p: l.p, x: l.x };
+      } else {
+        if (b && r.x === b.x && r.p === b.p) return;
+        res[id] = { p: r.p, x: r.x };
+      }
+    });
+    if (!res[root]) res[root] = { p: null, x: (L.nodes[root] || R.nodes[root]).x };
+    res[root].p = null;
+    Object.keys(res).forEach(function (id) { if (id !== root && (!res[id].p || !res[res[id].p])) res[id].p = root; });
+    // Children order: whichever side reordered this parent's children wins;
+    // anything the chosen order does not list is appended.
+    function kidsOf(pid) {
+      var lo = L.order[pid], ro = R.order[pid], bo = B0.order[pid];
+      var pick = (lo && bo && lo.join() === bo.join()) ? (ro || lo) : (lo || ro || []);
+      var list = pick.filter(function (c) { return res[c] && res[c].p === pid; });
+      Object.keys(res).forEach(function (c) { if (res[c].p === pid && list.indexOf(c) < 0) list.push(c); });
+      return list;
+    }
+    var placed = {};
+    function build(id, depth) {
+      placed[id] = 1;
+      var n = JSON.parse(res[id].x);
+      var kids = depth > 60 ? [] : kidsOf(id).filter(function (c) { return !placed[c]; });
+      n.children = kids.map(function (c) { return build(c, depth + 1); });
+      return n;
+    }
+    var tree = build(root, 0);
+    // A parent cycle (A moved under B here, B under A there) leaves nodes
+    // unreachable — hang them off the root rather than lose them.
+    Object.keys(res).forEach(function (id) { if (!placed[id]) tree.children.push(build(id, 1)); });
+    function pickPart(k) {
+      var b = bm ? JSON.stringify(bm[k]) : undefined, l = JSON.stringify(lm[k]);
+      return (l === b) ? rm[k] : lm[k];
+    }
+    return { nodeData: tree, arrows: pickPart('arrows') || [], summaries: pickPart('summaries') || [], direction: pickPart('direction'), theme: lm.theme };
   }
 
   /* ── mount + apply ──────────────────────────────────────────────────── */
@@ -22140,6 +22446,8 @@ function createBoard(cfg) {
   B.open = function (entry) {
     var id = entry.id;
     var tok = ++B.token;
+    B.pfx[id] = cfg.prefixFor ? (cfg.prefixFor(entry) || cfg.prefix) : cfg.prefix;
+    B.live[id] = !!(cfg.liveFor && cfg.liveFor(entry));
     if (B.entryId === id && B.ready) return Promise.resolve();
     // The previous board is flushed and torn down BEFORE this one claims the
     // controller — close() clears entryId, so setting it first would let the
@@ -22154,6 +22462,7 @@ function createBoard(cfg) {
         B.lastSerial = null; B.cloudSerial = null; B.pendingFiles = null;
         B.rev = 0; B.count = 0; B.docTitle = '';
         B.lastLocalEdit = 0; B.lastCloudAt = 0; B.retryIx = 0;
+        B.known = null; B.hist = {}; B.histOrder = []; clearTimeout(B.deferT);
         clearTimeout(B.retryTimer);
         setStatus('idle');
         return ensureMounted().then(function () {
@@ -22167,6 +22476,7 @@ function createBoard(cfg) {
         // A board that came back FROM the cloud is already there — recording that
         // stops the first open from re-uploading a document nobody changed.
         if (r.source !== 'local') B.cloudSerial = r.serial;
+        if (r.source === 'cloud' && r.serial) { B.known = { w: r.w || '', str: r.serial }; remember(r.w, r.serial); }
         return applyDoc(r.doc, false).then(function () {
           if (B.token !== tok) return;
           B.ready = true;
@@ -22318,6 +22628,894 @@ function createBoard(cfg) {
 }
 
 window.VizEngine = { createBoard: createBoard };
+})();
+</script>
+<script>
+/* ══════════════════════════════════════════════════════════════════════════
+   OurJournal engine (window.OJ) — the journal Tony and Veda share.
+
+   WHAT IT IS
+   A third collection of entries that BOTH journals can display. MyJournal and
+   Brainstorm Journal each keep their own UI, templates, toolbar and theme; when
+   their "OurJournal" tab is on, the app swaps its `state` for the shared
+   collection this engine owns (see _tjOJ / _bjOJ in each app). Nothing is
+   duplicated: a shared Page opens in the app's own #xx-page-editor, a shared
+   board in the app's own VizEngine board.
+
+   FIRESTORE LAYOUT (all under dashboards/, covered by the existing auth rule)
+     ourjournal            index — one field per entry, m_<id> = METADATA ONLY
+                           (title, template, tags, trash state, creator, order)
+     ourjournal_c_<id>     one entry's content: { d, w, pw, by, at }
+     ourjournal_img_<key>  page images, extracted like the journals' own
+     ourjournal_viz_<id>   whiteboard / mind-map boards (VizEngine, live mode)
+   Only the index and the ONE open entry are listened to, so a keystroke costs
+   the other person one read of one small document — never the whole journal,
+   and never a document they are not looking at.
+
+   LIVE CO-EDITING — why every write names its parent
+   Each content write carries w (its own id) and pw (the write it was based
+   on). A client keeps a short history of states by w, so when a write arrives
+   from the other person it can 3-way merge: base = the state that write was
+   built on, local = what is on this screen, remote = what arrived. Two people
+   typing in different places both keep every keystroke; two people typing at
+   the same spot both keep theirs (ordered deterministically, so both screens
+   converge). A client whose write lost a race sees the winner arrive, merges
+   its own edits back in and writes again — the document converges without a
+   transaction (so no extra read per keystroke) and without a rules change.
+
+   COST
+   Writes are throttled per document (1.5s alone, 0.65s while the other person
+   is actively editing the same entry) and skipped entirely when nothing that
+   is persisted changed. Metadata (title/tags/trash/order) is written field by
+   field, only on change. `updated` alone republishes at most every 10 min.
+   ══════════════════════════════════════════════════════════════════════════ */
+(function () {
+'use strict';
+if (window.OJ) return;
+
+// `oj_ns` exists for testing only: it points a device at a scratch namespace so
+// a test never touches the real shared journal.
+var NS = 'ourjournal';
+try { NS = localStorage.getItem('oj_ns') || 'ourjournal'; } catch (e) {}
+
+var PEOPLE = { tj: 'tony', bj: 'veda' };
+var NAMES = { tony: 'Tony', veda: 'Veda' };
+var TEMPLATES = ['page', 'mindmap', 'whiteboard'];   // the templates BOTH journals have
+var META = ['title', 'template', 'created', 'updated', 'tags', 'trashed', 'trashChangedAt', 'creator', 'ord'];
+var CLIENT = Math.random().toString(36).slice(2, 9);
+var TRASH_TTL = 30 * 24 * 3600 * 1000;
+var UPDATED_GRAIN = 10 * 60 * 1000;
+var WRITE_SOLO = 1500, WRITE_COLLAB = 650, COLLAB_WINDOW = 90000;
+var HIST_KEEP = 40;
+var MAX_CONTENT_BYTES = 880000;
+var LOAD_TIMEOUT = 6000;
+
+function cDocId(id) { return NS + '_c_' + id; }
+function fb() { return (window._fbOJ && window._fbReady) ? window._fbOJ : null; }
+
+/* ── small utilities ───────────────────────────────────────────────────── */
+// Key-order-independent JSON: Firestore hands maps back in its own key order,
+// so a plain JSON.stringify would call two identical objects different.
+function stable(v) {
+  if (v === undefined) return 'u';
+  if (v === null || typeof v !== 'object') return JSON.stringify(v);
+  if (Array.isArray(v)) return '[' + v.map(stable).join(',') + ']';
+  var ks = Object.keys(v).filter(function (k) { return v[k] !== undefined; }).sort();
+  return '{' + ks.map(function (k) { return JSON.stringify(k) + ':' + stable(v[k]); }).join(',') + '}';
+}
+function clone(v) { return v === undefined ? undefined : JSON.parse(JSON.stringify(v)); }
+function sanitize(v) {
+  if (Array.isArray(v)) return v.map(sanitize);
+  if (v && typeof v === 'object') {
+    var o = {};
+    Object.keys(v).forEach(function (k) { if (v[k] !== undefined && v[k] !== null) o[k] = sanitize(v[k]); });
+    return o;
+  }
+  return v;
+}
+function byteSize(o) { try { return new Blob([JSON.stringify(o)]).size; } catch (e) { return 0; } }
+
+/* ══════════════ Diff + 3-way merge ══════════════
+ * Myers O(ND) on interned token ids, with the common prefix and suffix trimmed
+ * first — a keystroke-sized change on a long page costs microseconds. A diff
+ * that would need more than DIFF_LIMIT edits falls back to one coarse hunk,
+ * which the merge still handles (it just resolves more as a conflict). */
+var DIFF_LIMIT = 1200;
+function diffHunks(a, b) {
+  var n = a.length, m = b.length, pre = 0, suf = 0;
+  while (pre < n && pre < m && a[pre] === b[pre]) pre++;
+  while (suf < n - pre && suf < m - pre && a[n - 1 - suf] === b[m - 1 - suf]) suf++;
+  var N = n - pre - suf, M = m - pre - suf;
+  if (!N && !M) return [];
+  if (!N || !M) return [{ a: pre, al: N, b: pre, bl: M }];
+  var max = N + M, off = max + 1, v = new Int32Array(2 * max + 3), trace = [], D = -1;
+  outer:
+  for (var d = 0; d <= max; d++) {
+    if (d > DIFF_LIMIT) break;
+    for (var k = -d; k <= d; k += 2) {
+      var x = (k === -d || (k !== d && v[off + k - 1] < v[off + k + 1])) ? v[off + k + 1] : v[off + k - 1] + 1;
+      var y = x - k;
+      while (x < N && y < M && a[pre + x] === b[pre + y]) { x++; y++; }
+      v[off + k] = x;
+      if (x >= N && y >= M) { trace.push(v.slice(off - d, off + d + 1)); D = d; break outer; }
+    }
+    trace.push(v.slice(off - d, off + d + 1));
+  }
+  if (D < 0) return [{ a: pre, al: N, b: pre, bl: M }];
+  // Backtrack into edit ops (in reverse), then fold consecutive edits into hunks.
+  var ops = [];   // {t:'d', ai} deletion of A[ai] | {t:'i', ai} insertion before A[ai]
+  var cx = N, cy = M;
+  for (var dd = D; dd > 0; dd--) {
+    var V = trace[dd - 1], kk = cx - cy;
+    var get = function (kv) { return V[kv + (dd - 1)]; };
+    var down = (kk === -dd || (kk !== dd && get(kk - 1) < get(kk + 1)));
+    var pk = down ? kk + 1 : kk - 1;
+    var px = get(pk), py = px - pk;
+    if (down) ops.push({ t: 'i', ai: px });
+    else ops.push({ t: 'd', ai: px });
+    cx = px; cy = py;
+  }
+  ops.reverse();
+  var hunks = [], cur = null;
+  ops.forEach(function (o) {
+    if (cur && o.ai === cur.a + cur.al) { if (o.t === 'd') cur.al++; else cur.bl++; }
+    else { cur = { a: o.ai, al: o.t === 'd' ? 1 : 0, b: 0, bl: o.t === 'i' ? 1 : 0 }; hunks.push(cur); }
+  });
+  // Between hunks A and B are equal, so each hunk's B start is its A start
+  // plus the net growth of every hunk before it.
+  var shift = 0;
+  hunks.forEach(function (h) {
+    h.b = h.a + shift + pre;
+    h.a += pre;
+    shift += h.bl - h.al;
+  });
+  return hunks;
+}
+
+function tokenize(s) {
+  return s ? (s.match(/<[^>]*>?|&#?\w+;|[A-Za-z0-9À-ɏͰ-ϿЀ-ӿ]+|\s+|[\uD800-\uDBFF][\uDC00-\uDFFF]|[\s\S]/g) || []) : [];
+}
+
+// diff3 over token arrays. Regions that only one side changed take that side;
+// regions both changed identically take it once; a real conflict at a pure
+// insertion point keeps BOTH (ordered by content so both clients agree), and a
+// conflicting modification keeps the local version (the person typing it).
+function merge3Tokens(O, A, B, ia, ib, io) {
+  var hs = [];
+  diffHunks(io, ia).forEach(function (h) { hs.push({ s: 'a', o: h.a, ol: h.al, x: h.b, xl: h.bl }); });
+  diffHunks(io, ib).forEach(function (h) { hs.push({ s: 'b', o: h.a, ol: h.al, x: h.b, xl: h.bl }); });
+  hs.sort(function (p, q) { return p.o - q.o || (p.s < q.s ? -1 : 1); });
+  var out = [], at = 0, i = 0;
+  function sideRange(list, side, rs, re) {
+    var mine = list.filter(function (h) { return h.s === side; });
+    if (!mine.length) return null;
+    var f = mine[0], l = mine[mine.length - 1];
+    return [f.x - (f.o - rs), l.x + l.xl + (re - (l.o + l.ol))];
+  }
+  while (i < hs.length) {
+    var rs = hs[i].o, re = hs[i].o + hs[i].ol, grp = [hs[i]]; i++;
+    while (i < hs.length && hs[i].o <= re) { re = Math.max(re, hs[i].o + hs[i].ol); grp.push(hs[i]); i++; }
+    for (var c = at; c < rs; c++) out.push(O[c]);
+    var ra = sideRange(grp, 'a', rs, re), rb = sideRange(grp, 'b', rs, re);
+    var ta = ra ? A.slice(ra[0], ra[1]) : O.slice(rs, re);
+    var tb = rb ? B.slice(rb[0], rb[1]) : O.slice(rs, re);
+    if (!ra) Array.prototype.push.apply(out, tb);
+    else if (!rb) Array.prototype.push.apply(out, ta);
+    else {
+      var sa = ta.join(''), sb = tb.join('');
+      if (sa === sb) Array.prototype.push.apply(out, ta);
+      else if (re === rs) {
+        // Both inserted at the same point: keep both, in an order both sides pick.
+        if (sa < sb) { Array.prototype.push.apply(out, ta); Array.prototype.push.apply(out, tb); }
+        else { Array.prototype.push.apply(out, tb); Array.prototype.push.apply(out, ta); }
+      }
+      else if (!ta.length) Array.prototype.push.apply(out, tb);    // never let a delete swallow an edit
+      else Array.prototype.push.apply(out, ta);
+    }
+    at = re;
+  }
+  for (var z = at; z < O.length; z++) out.push(O[z]);
+  return out;
+}
+
+function mergeText(base, local, remote) {
+  base = base || ''; local = local || ''; remote = remote || '';
+  if (local === remote) return local;
+  if (base === local) return remote;
+  if (base === remote) return local;
+  var O = tokenize(base), A = tokenize(local), B = tokenize(remote);
+  var ids = new Map(), n = 0;
+  function intern(arr) { var r = new Int32Array(arr.length); for (var i = 0; i < arr.length; i++) { var t = arr[i], v = ids.get(t); if (v === undefined) { v = n++; ids.set(t, v); } r[i] = v; } return r; }
+  return merge3Tokens(O, A, B, intern(A), intern(B), intern(O)).join('');
+}
+
+// Per-field merge of an entry's data object; `html` is merged token by token.
+function mergeD(base, local, remote) {
+  base = base || {}; local = local || {}; remote = remote || {};
+  var out = {}, keys = {};
+  [local, remote].forEach(function (o) { Object.keys(o).forEach(function (k) { keys[k] = 1; }); });
+  Object.keys(keys).forEach(function (k) {
+    if (k === 'html') { out.html = mergeText(base.html, local.html, remote.html); return; }
+    var sb = stable(base[k]), sl = stable(local[k]), sr = stable(remote[k]);
+    var v = (sl === sb) ? remote[k] : local[k];   // only local changed it → local; else remote
+    if (sl !== sb && sr !== sb && sl !== sr && k === 'attachments' && Array.isArray(local[k]) && Array.isArray(remote[k])) {
+      // Two people attached different files at once — keep both lists' files.
+      var seen = {}; v = [];
+      local[k].concat(remote[k]).forEach(function (a) { var id = a && (a.id || a.name); if (!seen[id]) { seen[id] = 1; v.push(a); } });
+    }
+    if (v !== undefined) out[k] = clone(v);
+  });
+  return out;
+}
+
+/* ── caret mapping ──────────────────────────────────────────────────────
+ * A remote patch must not move the local caret. Position is measured in
+ * "units" over the editor (text chars, one per <br>, one per block start) so
+ * the mapping survives nodes being replaced; the old→new linear text diff then
+ * says how far text before the caret moved. */
+var BLOCK = /^(P|DIV|LI|UL|OL|H[1-6]|BLOCKQUOTE|PRE|TABLE|TR|TD|TH|SECTION|ARTICLE|HR|FIGURE|DL|DT|DD|DETAILS|SUMMARY)$/;
+function linear(root) {
+  var s = '';
+  (function walk(n) {
+    for (var c = n.firstChild; c; c = c.nextSibling) {
+      if (c.nodeType === 3) s += c.data;
+      else if (c.nodeType === 1) {
+        if (c.tagName === 'BR') s += '\n';
+        else { if (BLOCK.test(c.tagName)) s += '\n'; walk(c); }
+      }
+    }
+  })(root);
+  return s;
+}
+function unitsBefore(root, node, offset) {
+  var count = 0, done = false;
+  function walk(n) {
+    for (var c = n.firstChild, i = 0; c && !done; c = c.nextSibling, i++) {
+      if (n === node && i === offset) { done = true; return; }
+      if (c === node && c.nodeType === 3) { count += offset; done = true; return; }
+      if (c.nodeType === 3) count += c.data.length;
+      else if (c.nodeType === 1) {
+        if (c.tagName === 'BR') count++;
+        else { if (BLOCK.test(c.tagName)) count++; walk(c); }
+      }
+    }
+    if (n === node && !done) done = true;
+  }
+  walk(root);
+  return count;
+}
+function pointAt(root, target) {
+  var count = 0, res = null;
+  function walk(n) {
+    for (var c = n.firstChild; c && !res; c = c.nextSibling) {
+      if (c.nodeType === 3) {
+        if (target <= count + c.data.length) { res = [c, Math.max(0, target - count)]; return; }
+        count += c.data.length;
+      } else if (c.nodeType === 1) {
+        if (c.tagName === 'BR') {
+          if (target === count) { res = [n, Array.prototype.indexOf.call(n.childNodes, c)]; return; }
+          count++;
+        } else {
+          if (BLOCK.test(c.tagName)) {
+            if (target === count) { res = [c, 0]; return; }
+            count++;
+            if (target === count && !c.firstChild) { res = [c, 0]; return; }
+          }
+          walk(c);
+        }
+      }
+    }
+  }
+  walk(root);
+  return res || [root, root.childNodes.length];
+}
+function mapPos(hunks, pos) {
+  var shift = 0;
+  for (var i = 0; i < hunks.length; i++) {
+    var h = hunks[i];
+    // An insertion exactly AT the caret stays after it: the other person's
+    // text appears where they typed it, and this caret does not jump over it.
+    if (h.al === 0 && h.a === pos) break;
+    if (h.a + h.al <= pos) { shift += h.bl - h.al; continue; }
+    if (h.a < pos) return h.b + h.bl;             // caret was inside text the other person replaced
+    break;
+  }
+  return pos + shift;
+}
+function codes(s) { var r = new Int32Array(s.length); for (var i = 0; i < s.length; i++) r[i] = s.charCodeAt(i); return r; }
+
+// Patch the editor to `html` touching only the top-level nodes that changed, so
+// image handlers, math boxes and the caret's own paragraph survive untouched
+// whenever the other person was editing somewhere else.
+function patchEditor(ed, html) {
+  var sel = window.getSelection(), inside = sel && sel.rangeCount && ed.contains(sel.anchorNode) && ed.contains(sel.focusNode);
+  var before = inside ? linear(ed) : null, aU = 0, fU = 0;
+  if (inside) { aU = unitsBefore(ed, sel.anchorNode, sel.anchorOffset); fU = unitsBefore(ed, sel.focusNode, sel.focusOffset); }
+  var tpl = document.createElement('template');
+  tpl.innerHTML = html;
+  var nw = Array.prototype.slice.call(tpl.content.childNodes), old = Array.prototype.slice.call(ed.childNodes);
+  function key(nd) { return nd.nodeType === 1 ? nd.outerHTML : (nd.nodeType === 3 ? '#' + nd.data : '!'); }
+  var i = 0;
+  while (i < old.length && i < nw.length && key(old[i]) === key(nw[i])) i++;
+  var j = 0;
+  while (j < old.length - i && j < nw.length - i && key(old[old.length - 1 - j]) === key(nw[nw.length - 1 - j])) j++;
+  var anchor = old[old.length - j] || null;
+  for (var r = i; r < old.length - j; r++) ed.removeChild(old[r]);
+  for (var s = i; s < nw.length - j; s++) ed.insertBefore(nw[s], anchor);
+  if (inside) {
+    var after = linear(ed);
+    if (after !== before) {
+      var hk = diffHunks(codes(before), codes(after));
+      var pa = pointAt(ed, mapPos(hk, aU)), pf = pointAt(ed, mapPos(hk, fU));
+      try { sel.setBaseAndExtent(pa[0], pa[1], pf[0], pf[1]); } catch (e) {}
+    }
+  }
+}
+
+/* ══════════════ Images ══════════════
+ * Same model as the journals: an inline image over 2 KB is moved into its own
+ * document and the page keeps an oj-fbimg:// placeholder. Content-addressed,
+ * so an image is uploaded ONCE — not on every save, which is what the old
+ * extractors did — and fetched once per session however often it is shown. */
+var IMG = { data: new Map(), uploaded: new Set(), fetching: new Map() };
+function imgKey(src) {
+  var h = 0, step = Math.max(1, Math.floor(src.length / 1024));
+  for (var i = 0; i < src.length; i += step) h = (Math.imul(31, h) + src.charCodeAt(i)) | 0;
+  h = (Math.imul(31, h) + src.length) | 0;
+  return NS + '_img_' + Math.abs(h).toString(36) + src.length.toString(36);
+}
+function dehydrateHtml(html, collect) {
+  if (!html || html.indexOf('data:') < 0) return html || '';
+  var t = document.createElement('template');
+  t.innerHTML = html;
+  var changed = false;
+  t.content.querySelectorAll('[src^="data:"],[href^="data:"]').forEach(function (el) {
+    var attr = (el.getAttribute('src') || '').indexOf('data:') === 0 ? 'src' : 'href';
+    var src = el.getAttribute(attr) || '';
+    if (src.length < 2048) return;
+    var key = imgKey(src);
+    if (!IMG.data.has(key)) IMG.data.set(key, src);
+    if (IMG.uploaded.has(key)) {
+      el.setAttribute(attr, 'oj-fbimg://' + key);
+      el.setAttribute('data-ojkey', key);
+      changed = true;
+    } else if (collect && collect.indexOf(key) < 0) collect.push(key);
+  });
+  return changed ? t.innerHTML : html;
+}
+function keysIn(html) {
+  var out = [], re = /oj-fbimg:\/\/([A-Za-z0-9_-]+)/g, m;
+  while ((m = re.exec(html || ''))) if (out.indexOf(m[1]) < 0) out.push(m[1]);
+  return out;
+}
+function rehydrateHtml(html) {
+  if (!html || html.indexOf('oj-fbimg://') < 0) return html || '';
+  var t = document.createElement('template');
+  t.innerHTML = html;
+  t.content.querySelectorAll('[src^="oj-fbimg://"],[href^="oj-fbimg://"]').forEach(function (el) {
+    var attr = (el.getAttribute('src') || '').indexOf('oj-fbimg://') === 0 ? 'src' : 'href';
+    var key = (el.getAttribute(attr) || '').slice(11);
+    var data = IMG.data.get(key);
+    if (data) el.setAttribute(attr, data);
+  });
+  return t.innerHTML;
+}
+function ensureImgs(keys) {
+  var f = fb();
+  return Promise.all((keys || []).map(function (k) {
+    if (IMG.data.has(k)) { IMG.uploaded.add(k); return null; }
+    if (!f) return null;
+    if (!IMG.fetching.has(k)) {
+      IMG.fetching.set(k, f.get(k).then(function (d) {
+        if (d && d.img) { IMG.data.set(k, d.img); IMG.uploaded.add(k); }
+      }).catch(function (e) { console.warn('[OJ] image fetch failed', k, e && (e.code || e.message)); })
+        .then(function () { IMG.fetching.delete(k); }));
+    }
+    return IMG.fetching.get(k);
+  }));
+}
+function uploadImgs(keys) {
+  var f = fb();
+  return Promise.all((keys || []).map(function (k) {
+    if (IMG.uploaded.has(k) || !IMG.data.has(k) || !f) return null;
+    return f.set(k, { img: IMG.data.get(k), savedAt: Date.now() }).then(function () { IMG.uploaded.add(k); })
+      .catch(function (e) { console.warn('[OJ] image upload failed, kept inline', k, e && (e.code || e.message)); });
+  }));
+}
+function dehydrateD(d, collect) {
+  var o = Object.assign({}, d || {});
+  delete o.vizRev; delete o.vizCount;          // a board's local fingerprint — never shared
+  if (typeof o.html === 'string') o.html = dehydrateHtml(o.html, collect);
+  return sanitize(o);
+}
+function rehydrateD(d) {
+  var o = clone(d || {});
+  if (typeof o.html === 'string') o.html = rehydrateHtml(o.html);
+  return o;
+}
+function blankData(t) {
+  if (t === 'page') return { html: '', attachments: [] };
+  return { attachments: [] };
+}
+function isBlank(t, d) {
+  if (window.JGuard && window.JGuard.emptyData) { try { return window.JGuard.emptyData(t, d); } catch (e) {} }
+  return !d || (t === 'page' && !String(d.html || '').replace(/<[^>]*>|&nbsp;|\s/g, ''));
+}
+
+/* ══════════════ Per-app bridges ══════════════ */
+var apps = {};
+function metaProj(e) {
+  var p = {};
+  META.forEach(function (f) { if (e[f] !== undefined && e[f] !== null) p[f] = clone(e[f]); });
+  if (!p.title) p.title = '';
+  if (!p.tags) p.tags = [];
+  return p;
+}
+function cacheKey(app) { return 'oj_cache_' + app + (NS === 'ourjournal' ? '' : '_' + NS); }
+function loadCache(app) {
+  var S = { entries: [], activeId: null, deletedIds: [] };
+  try {
+    var r = JSON.parse(localStorage.getItem(cacheKey(app)) || 'null');
+    if (r && Array.isArray(r.entries)) {
+      S.activeId = r.activeId || null;
+      S.deletedIds = Array.isArray(r.deletedIds) ? r.deletedIds : [];
+      r.entries.forEach(function (m) { if (m && m.id && m.template) S.entries.push(Object.assign({}, m, { data: null, _ojLoaded: false, _fbPushed: true })); });
+    }
+  } catch (e) {}
+  return S;
+}
+// META ONLY. Content lives in Firestore's own IndexedDB cache (it persists
+// every document we listen to), so caching it here too would double the
+// storage for nothing and eat into the ~5 MB localStorage every A1 app shares.
+function writeCache(app) {
+  var a = apps[app]; if (!a) return;
+  try {
+    localStorage.setItem(cacheKey(app), JSON.stringify({
+      activeId: a.S.activeId,
+      deletedIds: (a.S.deletedIds || []).slice(-200),
+      entries: a.S.entries.filter(function (e) { return e._fbPushed; }).map(function (e) { return Object.assign({ id: e.id }, metaProj(e)); })
+    }));
+  } catch (e) {}
+}
+
+function register(app, hooks) {
+  if (apps[app]) return apps[app].S;
+  var a = apps[app] = {
+    app: app, person: PEOPLE[app], h: hooks, S: loadCache(app), on: false,
+    idx: { unsub: null, seen: false },
+    docs: {}, kn: {}, sent: {}, dirty: {}, dels: {}, metaTimer: null, metaInflight: null, purged: false, idxFirstServer: false
+  };
+  // Fast path for live typing: schedule a content write straight off the
+  // editor's input, without waiting out the app's own autosave debounce.
+  var ed = hooks.editor && hooks.editor();
+  if (ed) ed.addEventListener('input', function () {
+    if (!a.on || !hooks.shown()) return;
+    var e = active(a);
+    if (e && e.template === 'page' && e._ojLoaded && a.docs[e.id]) schedule(a, a.docs[e.id]);
+  });
+  return a.S;
+}
+function active(a) { var id = a.S.activeId; return id ? a.S.entries.find(function (e) { return e.id === id; }) || null : null; }
+
+/* ── index (metadata) ── */
+function startIndex(a) {
+  var f = fb(); if (!f || a.idx.unsub) return;
+  a.idx.seen = false;
+  a.idx.unsub = f.watch(NS, function (snap) { onIndex(a, snap); });
+}
+function stopIndex(a) {
+  if (a.idx.unsub) { try { a.idx.unsub(); } catch (e) {} a.idx.unsub = null; }
+  a.idx.seen = false;
+}
+function onIndex(a, snap) {
+  if (snap.pending) return;
+  var S = a.S, fromCache = snap.fromCache, data = snap.exists ? (snap.data || {}) : {};
+  var metas = {};
+  Object.keys(data).forEach(function (k) {
+    var v = data[k];
+    if (k.indexOf('m_') === 0 && v && typeof v === 'object' && v.template) metas[k.slice(2)] = v;
+  });
+  var byId = {}, dels = new Set(S.deletedIds || []);
+  S.entries.forEach(function (e) { byId[e.id] = e; });
+  var ae = active(a), aTitle = ae && ae.title, aTags = ae && stable(ae.tags);
+  Object.keys(metas).forEach(function (id) {
+    if (dels.has(id) || a.dels[id]) return;
+    var m = metas[id], e = byId[id];
+    if (!e) { e = { id: id, data: null, _ojLoaded: false }; S.entries.push(e); byId[id] = e; }
+    var dm = a.dirty[id];
+    META.forEach(function (f) {
+      if (dm && (dm.__new || dm[f])) return;          // our own unsent change wins until it lands
+      if (m[f] === undefined) delete e[f]; else e[f] = clone(m[f]);
+    });
+    e._fbPushed = true;
+    delete e._ojNew;
+    var sent = {}; META.forEach(function (f) { if (m[f] !== undefined) sent[f] = clone(m[f]); });
+    a.sent[id] = sent;
+  });
+  if (!fromCache) {
+    // The server's key list is the truth: an entry it no longer has was deleted.
+    var gone = [];
+    S.entries = S.entries.filter(function (e) {
+      if (metas[e.id]) return true;
+      if (e._ojNew && !e._fbPushed) return true;            // created here, not uploaded yet
+      gone.push(e.id); return false;
+    });
+    gone.forEach(function (id) { forget(a, id); });
+  }
+  S.entries.sort(function (x, y) {
+    var ox = typeof x.ord === 'number' ? x.ord : -1e15 - (x.created || 0);
+    var oy = typeof y.ord === 'number' ? y.ord : -1e15 - (y.created || 0);
+    return ox - oy || (y.created || 0) - (x.created || 0);
+  });
+  var shown = a.on && a.h.shown();
+  var now = active(a);
+  if (S.activeId && (!now || now.trashed)) {
+    var nxt = S.entries.find(function (e) { return !e.trashed; });
+    S.activeId = nxt ? nxt.id : null;
+    if (shown) a.h.reload();
+  } else if (shown && now) {
+    // The open entry's title or tags changed on the other side.
+    var ti = a.h.titleInput && a.h.titleInput();
+    if (now.title !== aTitle && ti && document.activeElement !== ti) ti.value = now.title || '';
+    if (stable(now.tags) !== aTags && a.h.renderTags) a.h.renderTags(now.tags || []);
+  }
+  if (shown) a.h.render();
+  writeCache(a.app);
+  if (!fromCache) {
+    a.idx.seen = true;
+    flushMeta(a);
+    purgeOnce(a);
+  }
+}
+function forget(a, id) {
+  var S = a.S;
+  if (!Array.isArray(S.deletedIds)) S.deletedIds = [];
+  if (S.deletedIds.indexOf(id) < 0) S.deletedIds.push(id);
+  if (S.deletedIds.length > 300) S.deletedIds = S.deletedIds.slice(-300);
+  delete a.sent[id]; delete a.dirty[id]; delete a.kn[id];
+  var s = a.docs[id];
+  if (s) { clearTimeout(s.timer); if (s.unsub) try { s.unsub(); } catch (e) {} delete a.docs[id]; }
+}
+function purgeOnce(a) {
+  if (a.purged) return;
+  a.purged = true;
+  var cutoff = Date.now() - TRASH_TTL;
+  a.S.entries.filter(function (e) { return e.trashed && e.trashed < cutoff; }).forEach(function (e) {
+    a.S.entries = a.S.entries.filter(function (x) { return x.id !== e.id; });
+    hardDelete(a.app, e.id);
+  });
+}
+
+// Order is an `ord` number per entry rather than one shared array, so a
+// reorder writes ONE entry's field and two people reordering never collide.
+function normalizeOrd(list) {
+  var prev = -Infinity;
+  for (var i = 0; i < list.length; i++) {
+    var e = list[i];
+    if (typeof e.ord === 'number' && e.ord > prev) { prev = e.ord; continue; }
+    var nxt = null;
+    for (var j = i + 1; j < list.length; j++) if (typeof list[j].ord === 'number' && list[j].ord > prev) { nxt = list[j].ord; break; }
+    var v;
+    if (prev === -Infinity) v = (nxt === null) ? 0 : nxt - 1;
+    else if (nxt === null) v = prev + 1;
+    else v = (prev + nxt) / 2;
+    if (!(v > prev) || (nxt !== null && !(v < nxt))) {    // ran out of float room: renumber all
+      list.forEach(function (x, k) { x.ord = k; });
+      return;
+    }
+    e.ord = v; prev = v;
+  }
+}
+
+function touched(app) {
+  var a = apps[app]; if (!a) return;
+  normalizeOrd(a.S.entries);
+  a.S.entries.forEach(function (e) {
+    var p = metaProj(e), s = a.sent[e.id];
+    if (!s) { a.dirty[e.id] = { __new: true }; return; }
+    META.forEach(function (f) {
+      if (f === 'updated') { if ((p.updated || 0) - (s.updated || 0) >= UPDATED_GRAIN) (a.dirty[e.id] = a.dirty[e.id] || {}).updated = 1; return; }
+      if (stable(p[f]) !== stable(s[f])) (a.dirty[e.id] = a.dirty[e.id] || {})[f] = 1;
+    });
+  });
+  if (Object.keys(a.dirty).length) {
+    a.h.setSync('syncing');
+    clearTimeout(a.metaTimer);
+    a.metaTimer = setTimeout(function () { flushMeta(a); }, 500);
+  }
+  var ae = active(a);
+  if (ae && ae._ojLoaded) schedule(a, session(a, ae));
+  writeCache(app);
+}
+
+function flushMeta(a) {
+  clearTimeout(a.metaTimer); a.metaTimer = null;
+  var f = fb();
+  if (!f || !a.idx.seen || a.metaInflight) return a.metaInflight || Promise.resolve();
+  var ids = Object.keys(a.dirty), delIds = Object.keys(a.dels);
+  if (!ids.length && !delIds.length) return Promise.resolve();
+  var payload = {}, sentNew = [], taken = {};
+  ids.forEach(function (id) {
+    var e = a.S.entries.find(function (x) { return x.id === id; });
+    var dm = a.dirty[id]; taken[id] = dm;
+    if (!e || !e.template) return;
+    var p = metaProj(e), s = a.sent[id], obj = {};
+    if (dm.__new || !s) { obj = Object.assign({ id: id }, p); sentNew.push(e); }
+    else META.forEach(function (fl) { if (dm[fl]) obj[fl] = (p[fl] === undefined) ? f.del() : p[fl]; });
+    if (Object.keys(obj).length) payload['m_' + id] = obj;
+    a.sent[id] = p;
+  });
+  delIds.forEach(function (id) { payload['m_' + id] = f.del(); });
+  a.dirty = {}; var dels = a.dels; a.dels = {};
+  if (!Object.keys(payload).length) return Promise.resolve();
+  payload.savedAt = Date.now();
+  a.metaInflight = f.merge(NS, payload).then(function () {
+    a.metaInflight = null;
+    sentNew.forEach(function (e) { e._fbPushed = true; });
+    Object.keys(dels).forEach(function (id) { f.remove(cDocId(id)).catch(function () {}); });
+    writeCache(a.app);
+    a.h.setSync('synced');
+    if (Object.keys(a.dirty).length || Object.keys(a.dels).length) flushMeta(a);
+  }).catch(function (err) {
+    a.metaInflight = null;
+    console.warn('[OJ] index write failed:', err && (err.code || err.message));
+    Object.keys(taken).forEach(function (id) { a.dirty[id] = Object.assign({}, taken[id], a.dirty[id] || {}); delete a.sent[id]; a.dirty[id].__new = true; });
+    Object.keys(dels).forEach(function (id) { a.dels[id] = 1; });
+    a.h.setSync('error');
+    setTimeout(function () { flushMeta(a); }, 4000);
+  });
+  return a.metaInflight;
+}
+
+function hardDelete(app, id) {
+  var a = apps[app]; if (!a) return;
+  a.S.entries = a.S.entries.filter(function (e) { return e.id !== id; });
+  var wasPushed = !!a.sent[id];
+  forget(a, id);
+  if (wasPushed) { a.dels[id] = 1; flushMeta(a); }
+  writeCache(app);
+}
+
+/* ── content sessions (one live document per OPEN entry) ── */
+function know(a, id) { return a.kn[id] || (a.kn[id] = { known: null, hist: new Map(), mine: new Set() }); }
+function remember(k, w, d) {
+  if (!w) return;
+  k.hist.set(w, d);
+  if (k.hist.size > HIST_KEEP) k.hist.delete(k.hist.keys().next().value);
+}
+function session(a, e) {
+  var s = a.docs[e.id];
+  if (s) { s.entry = e; s.closing = false; if (!s.unsub) watchSession(a, s); return s; }
+  s = a.docs[e.id] = {
+    id: e.id, entry: e, unsub: null, seen: false, want: false, timer: null, inflight: null,
+    lastWrite: 0, lastForeign: 0, chain: Promise.resolve(), closing: false, errN: 0, readyRes: null
+  };
+  s.ready = new Promise(function (r) { s.readyRes = r; });
+  if (e._ojLoaded) s.readyRes();
+  watchSession(a, s);
+  return s;
+}
+function watchSession(a, s) {
+  var f = fb(); if (!f || s.unsub) return;
+  s.seen = false;
+  s.unsub = f.watch(cDocId(s.id), function (snap) {
+    if (snap.pending) return;
+    var rec = snap.exists ? snap.data : null, fromCache = snap.fromCache;
+    s.chain = s.chain.then(function () { return onContent(a, s, rec, fromCache); })
+      .catch(function (err) { console.warn('[OJ] content update failed:', err); });
+  });
+  // Nothing cached and the server is slow: open blank rather than hang. Anything
+  // typed meanwhile is MERGED with the real content when it arrives (see foreign).
+  setTimeout(function () {
+    if (!s.entry._ojLoaded && a.docs[s.id] === s) { s.entry.data = s.entry.data || blankData(s.entry.template); s.entry._ojLoaded = true; s.readyRes(); }
+  }, LOAD_TIMEOUT);
+}
+function onContent(a, s, rec, fromCache) {
+  var e = s.entry, k = know(a, s.id);
+  var p = Promise.resolve();
+  if (!rec || !rec.d) {
+    if (!e._ojLoaded) { e.data = e.data || blankData(e.template); e._ojLoaded = true; s.readyRes(); }
+  } else if (k.mine.has(rec.w)) {
+    // Our own write, confirmed.
+  } else if (!e._ojLoaded) {
+    p = ensureImgs(keysIn(rec.d.html)).then(function () {
+      if (e._ojLoaded) return foreign(a, s, rec);
+      e.data = Object.assign(e.data || {}, rehydrateD(rec.d));
+      k.known = { w: rec.w, pw: rec.pw, d: rec.d }; remember(k, rec.w, rec.d);
+      e._ojLoaded = true; s.readyRes();
+    });
+  } else if (k.known && k.known.w === rec.w) {
+    // Same state re-delivered (cache → server confirmation).
+  } else {
+    p = foreign(a, s, rec);
+  }
+  return p.then(function () {
+    if (!fromCache) s.seen = true;
+    if (s.seen && s.want) schedule(a, s);
+    maybeClose(a, s);
+  });
+}
+function localD(a, s, collect) {
+  var e = s.entry, d = Object.assign({}, e.data || {});
+  if (e.template === 'page' && a.h.pageOwned(e.id)) d.html = a.h.editor().innerHTML;
+  return dehydrateD(d, collect);
+}
+function foreign(a, s, rec) {
+  var k = know(a, s.id);
+  remember(k, rec.w, rec.d);
+  s.lastForeign = Date.now();
+  return ensureImgs(keysIn(rec.d.html)).then(function () {
+    if (a.docs[s.id] !== s) return;
+    var e = s.entry, local = localD(a, s), known = k.known, merged;
+    if (known && stable(local) === stable(known.d)) merged = rec.d;          // nothing typed here since
+    else {
+      var base = known ? (k.hist.get(rec.pw) || known.d) : {};
+      merged = mergeD(base, local, rec.d);
+    }
+    k.known = { w: rec.w, pw: rec.pw, d: rec.d };
+    applyMerged(a, s, merged);
+    if (stable(merged) !== stable(rec.d)) s.want = true;                    // our edits still need to go up
+  });
+}
+function applyMerged(a, s, merged) {
+  var e = s.entry, nd = rehydrateD(merged);
+  if (e.template === 'page' && a.h.pageOwned(e.id)) {
+    var ed = a.h.editor(), cur = ed.innerHTML, target = nd.html || '';
+    if (cur !== target) {
+      var run = function () { patchEditor(ed, target); };
+      if (window._docxRemoteApply) window._docxRemoteApply(ed.id, cur, target, run); else run();
+      if (a.h.rebind) a.h.rebind(ed);
+    }
+    var hadMargins = stable(e.data && e.data.margins);
+    e.data = Object.assign(e.data || {}, nd);
+    e.data.html = ed.innerHTML;
+    if (stable(e.data.margins) !== hadMargins && a.h.pageSetup) a.h.pageSetup();
+  } else {
+    e.data = Object.assign(e.data || {}, nd);
+  }
+  if (a.h.dataChanged) a.h.dataChanged(e);
+}
+function schedule(a, s) {
+  s.want = true;
+  if (s.timer || s.inflight || !s.seen || !fb()) return;
+  var iv = (Date.now() - s.lastForeign < COLLAB_WINDOW) ? WRITE_COLLAB : WRITE_SOLO;
+  var wait = Math.max(0, s.lastWrite + iv - Date.now());
+  s.timer = setTimeout(function () { s.timer = null; writeNow(a, s); }, wait);
+}
+var _wseq = 0, _tooBigSaid = {};
+function writeNow(a, s) {
+  clearTimeout(s.timer); s.timer = null;
+  var f = fb(), e = s.entry;
+  if (!s.want || s.inflight || !s.seen || !f || !e._ojLoaded || a.docs[s.id] !== s) return s.inflight || Promise.resolve();
+  var k = know(a, s.id), pending = [];
+  var d = localD(a, s, pending);
+  if (k.known && stable(d) === stable(k.known.d)) { s.want = false; maybeClose(a, s); return Promise.resolve(); }
+  // Never let a blank become the first published state of an entry: an absent
+  // content document already means "blank", and this is the shape a not-yet-
+  // painted editor has.
+  if (!k.known && isBlank(e.template, d)) { s.want = false; maybeClose(a, s); return Promise.resolve(); }
+  s.want = false;
+  a.h.setSync('syncing');
+  var prevKnown = k.known;
+  s.inflight = uploadImgs(pending).then(function () {
+    if (pending.length) d = localD(a, s);
+    var bytes = byteSize(d);
+    if (bytes > MAX_CONTENT_BYTES) {
+      if (!_tooBigSaid[s.id]) {
+        _tooBigSaid[s.id] = 1;
+        if (window.uiAlert) window.uiAlert('This shared entry is too large to sync (' + Math.round(bytes / 1024) + ' KB of text). It is saved on this device but the other person will not see new changes until it is shorter.', { title: 'OurJournal' });
+      }
+      throw new Error('oj-too-large');
+    }
+    var w = CLIENT + a.app + (++_wseq).toString(36) + Date.now().toString(36);
+    var payload = { d: d, w: w, pw: prevKnown ? prevKnown.w : '', by: a.person, at: Date.now() };
+    k.mine.add(w); remember(k, w, d);
+    k.known = { w: w, pw: payload.pw, d: d };
+    s.lastWrite = Date.now();
+    return f.set(cDocId(s.id), payload);
+  }).then(function () {
+    s.inflight = null; s.errN = 0;
+    a.h.setSync('synced');
+    if (s.want) schedule(a, s); else maybeClose(a, s);
+  }).catch(function (err) {
+    s.inflight = null; s.errN++;
+    if (k.known && !prevKnown || (k.known && prevKnown && k.known.w !== prevKnown.w)) k.known = prevKnown;
+    console.warn('[OJ] content write failed:', err && (err.code || err.message));
+    a.h.setSync('error');
+    if (err && err.message === 'oj-too-large') return;
+    s.want = true;
+    setTimeout(function () { if (a.docs[s.id] === s) schedule(a, s); }, Math.min(30000, 1500 * s.errN));
+  });
+  return s.inflight;
+}
+function maybeClose(a, s) {
+  if (!s.closing || s.want || s.inflight || s.timer) return;
+  if (s.unsub) { try { s.unsub(); } catch (e) {} s.unsub = null; }
+  if (a.docs[s.id] === s) delete a.docs[s.id];
+}
+
+/* ══════════════ Public API ══════════════ */
+window.OJ = {
+  NS: NS,
+  TEMPLATES: TEMPLATES,
+  person: function (app) { return PEOPLE[app]; },
+  name: function (p) { return NAMES[p] || ''; },
+  register: register,
+  state: function (app) { return apps[app] ? apps[app].S : null; },
+  isLoaded: function (e) { return !!(e && e._ojLoaded); },
+  enter: function (app) {
+    var a = apps[app]; if (!a) return;
+    a.on = true;
+    startIndex(a);
+    try { localStorage.setItem('oj_mode_' + app, '1'); } catch (e) {}
+  },
+  leave: function (app) {
+    var a = apps[app]; if (!a) return;
+    a.on = false;
+    try { localStorage.removeItem('oj_mode_' + app); } catch (e) {}
+    flushMeta(a);
+    Object.keys(a.docs).forEach(function (id) { var s = a.docs[id]; s.closing = true; if (s.want) writeNow(a, s); else maybeClose(a, s); });
+    // The index listener stays only while something is still waiting to go up.
+    var stop = function () { if (!a.on) stopIndex(a); };
+    if (a.metaInflight) a.metaInflight.then(stop, stop); else if (!Object.keys(a.dirty).length) stop();
+  },
+  wasOn: function (app) { try { return localStorage.getItem('oj_mode_' + app) === '1'; } catch (e) { return false; } },
+  // An entry needs its content before it can be painted.
+  open: function (app, e) {
+    var a = apps[app]; if (!a || !e) return;
+    var s = session(a, e);
+    s.ready.then(function () {
+      if (a.on && a.h.shown() && a.S.activeId === e.id) a.h.reload();
+    });
+  },
+  // The app painted entry `e`: it is now the one live document; every other
+  // session flushes what it owes and closes (no listener left on a document
+  // nobody is looking at).
+  painted: function (app, e) {
+    var a = apps[app]; if (!a) return;
+    if (e) session(a, e);
+    Object.keys(a.docs).forEach(function (id) {
+      if (e && id === e.id) return;
+      var s = a.docs[id]; s.closing = true;
+      if (s.want) writeNow(a, s); else maybeClose(a, s);
+    });
+  },
+  created: function (app, e) {
+    var a = apps[app]; if (!a) return;
+    e.creator = PEOPLE[app];
+    e._ojLoaded = true; e._ojNew = true;
+    session(a, e);
+  },
+  touched: touched,
+  flush: function (app) {
+    var a = apps[app]; if (!a) return Promise.resolve();
+    var ps = [flushMeta(a)];
+    Object.keys(a.docs).forEach(function (id) { var s = a.docs[id]; if (s.want) ps.push(writeNow(a, s)); });
+    return Promise.all(ps);
+  },
+  hardDelete: hardDelete,
+  writeCache: writeCache,
+  mergeText: mergeText,
+  mergeD: mergeD,
+  _diff: diffHunks,
+  _patchEditor: patchEditor
+};
+
+// Every (re)connection: the previous listeners died with the old client, so
+// re-attach the index and every open document. Writes wait for the new
+// connection to confirm server state before they flush (seen flags reset).
+window.addEventListener('fb-ready', function () {
+  Object.keys(apps).forEach(function (app) {
+    var a = apps[app];
+    if (a.idx.unsub) { try { a.idx.unsub(); } catch (e) {} a.idx.unsub = null; }
+    if (a.on || Object.keys(a.dirty).length || Object.keys(a.dels).length) startIndex(a);
+    Object.keys(a.docs).forEach(function (id) {
+      var s = a.docs[id];
+      if (s.unsub) { try { s.unsub(); } catch (e) {} s.unsub = null; }
+      watchSession(a, s);
+    });
+  });
+});
 })();
 </script>
 
@@ -23981,7 +25179,17 @@ function loadState() {
 // system) and stalled Firebase sync — so swallow any storage error too.
 function _bjOmitCanvas(k, v) {
   if (k === 'canvas' && typeof v === 'string' && v.length > 1024) return '';
+  // Page images the cloud already holds are cached as their bj-fbimg://
+  // placeholder rather than their bytes — loadActiveEntry rehydrates them on
+  // paint, exactly as it does for an entry that arrived from Firebase. This is
+  // most of the blob by size, and it is re-serialised on every autosave.
+  if (k === 'html' && typeof v === 'string' && v.length > 8192 && v.indexOf('data-bjkey="') >= 0) return _bjSlimHtml(v);
   return v;
+}
+function _bjSlimHtml(h) {
+  return h.replace(/<[^>]*\bdata-bjkey="([^"]+)"[^>]*>/g, function (tag, key) {
+    return tag.replace(/\b(src|href)="data:[^"]*"/, '$1="bj-fbimg://' + key + '"');
+  });
 }
 function _bjWriteCache() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state, _bjOmitCanvas)); }
@@ -29538,7 +30746,17 @@ function loadState() {
 // ~5MB quota, and swallow any QuotaExceededError so it can never break open/lock/sync.
 function _tjOmitCanvas(k, v) {
   if (k === 'canvas' && typeof v === 'string' && v.length > 1024) return '';
+  // Page images the cloud already holds are cached as their tj-fbimg://
+  // placeholder rather than their bytes — loadActiveEntry rehydrates them on
+  // paint, exactly as it does for an entry that arrived from Firebase. This is
+  // most of the blob by size, and it is re-serialised on every autosave.
+  if (k === 'html' && typeof v === 'string' && v.length > 8192 && v.indexOf('data-tjkey="') >= 0) return _tjSlimHtml(v);
   return v;
+}
+function _tjSlimHtml(h) {
+  return h.replace(/<[^>]*\bdata-tjkey="([^"]+)"[^>]*>/g, function (tag, key) {
+    return tag.replace(/\b(src|href)="data:[^"]*"/, '$1="tj-fbimg://' + key + '"');
+  });
 }
 function _tjWriteCache() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state, _tjOmitCanvas)); }
@@ -34435,10 +35653,48 @@ function setCaret(ed, offset) {
   r2.selectNodeContents(ed); r2.collapse(false);
   var s2 = window.getSelection(); s2.removeAllRanges(); s2.addRange(r2);
 }
+/* ── Undo-snapshot image interning (memory) ──────────────────────────────
+ * Every undo state is a full copy of the editor's HTML, and a page's images
+ * live INSIDE that HTML as base64. So a page holding 3 MB of pictures cost
+ * 3 MB per snapshot — up to 400 of them — which is how a long editing session
+ * on an illustrated page could climb past a gigabyte and get the tab killed.
+ * Snapshots now keep each distinct image ONCE, in a shared table, and carry a
+ * short private-use token in its place. Exact round trip; text-only pages are
+ * untouched (the fast path returns the string as it came). */
+var _HX = { list: [], byKey: new Map() };
+function _hxKey(m) {
+  var h = 0, step = Math.max(1, Math.floor(m.length / 256));
+  for (var i = 0; i < m.length; i += step) h = (Math.imul(31, h) + m.charCodeAt(i)) | 0;
+  return m.length + ':' + h;
+}
+function hcompact(html) {
+  if (!html || html.length < 16000 || html.indexOf('data:') < 0 || html.indexOf('\uE001') >= 0) return html;
+  return html.replace(/data:[a-z]+\/[a-z0-9.+-]+;base64,[A-Za-z0-9+\/=]{4000,}/gi, function (m) {
+    var k = _hxKey(m), ids = _HX.byKey.get(k), i;
+    if (ids) for (i = 0; i < ids.length; i++) if (_HX.list[ids[i]] === m) return '\uE001' + ids[i] + '\uE002';
+    var n = _HX.list.push(m) - 1;
+    if (ids) ids.push(n); else _HX.byKey.set(k, [n]);
+    return '\uE001' + n + '\uE002';
+  });
+}
+function hexpand(html) {
+  if (!html || html.indexOf('\uE001') < 0) return html;
+  return html.replace(/\uE001(\d+)\uE002/g, function (m, i) { return _HX.list[+i] || ''; });
+}
 function makeHistory(ctx) {
   var stack = [], idx = -1, lastT = 0, obs = null, pending = null, persistT = null;
-  function snap() { return { html: ctx.edEl.innerHTML, caret: caretOffset(ctx.edEl) }; }
-  function seed() { stack = [snap()]; idx = 0; updateBtns(); }
+  // Remote patches (OurJournal): each is fn(state)→state carrying the other
+  // person's change into an older undo state, so Ctrl+Z walks back YOUR steps
+  // and never quietly reverts what the other person just typed. A state holds
+  // `rv`, the patch count when it was taken; materialize() replays the rest.
+  var patches = [], patchBase = 0;
+  function snap() { return { html: hcompact(ctx.edEl.innerHTML), caret: caretOffset(ctx.edEl), rv: patchBase + patches.length }; }
+  function materialize(st) {
+    var h = st.html;
+    for (var i = Math.max(0, (st.rv || 0) - patchBase); i < patches.length; i++) h = patches[i](h);
+    return h;
+  }
+  function seed() { patches = []; patchBase = 0; stack = [snap()]; idx = 0; updateBtns(); }
   // ── Cross-session persistence (item 13): while open we keep the full stack in memory;
   //    we also mirror a small window (current ± 2 states) to localStorage so undo/redo
   //    survives close+reopen. Docs whose snapshots are huge (big embedded images) are skipped.
@@ -34528,7 +35784,7 @@ function makeHistory(ctx) {
     var key = histKey(); if (!key) return;
     try {
       var lo = Math.max(0, idx - 2), hi = Math.min(stack.length, idx + 3);
-      var slice = stack.slice(lo, hi);
+      var slice = stack.slice(lo, hi).map(function (x) { return { html: hexpand(materialize(x)), caret: x.caret }; });
       // `t` (inside the payload) is what pruneHistories() sorts on — without it
       // every key looks equally old and eviction order is arbitrary.
       var payload = JSON.stringify(encodeHist(slice, idx - lo));
@@ -34564,18 +35820,19 @@ function makeHistory(ctx) {
       // previous session and autoSave immediately published it over the current one.
       // A divergent stack is worth nothing next to that risk — start fresh.
       if (saved[savedIdx].html !== ctx.edEl.innerHTML) { try { localStorage.removeItem(key); } catch (e) {} seed(); return; }
-      stack = saved; idx = savedIdx;
+      patches = []; patchBase = 0;
+      stack = saved.map(function (x) { return { html: hcompact(x.html), caret: x.caret, rv: 0 }; }); idx = savedIdx;
       updateBtns();
     } catch (e) {}
   }
   function syncBase() {
-    if (idx < 0 || !stack[idx] || stack[idx].html !== ctx.edEl.innerHTML) seed();
+    if (idx < 0 || !stack[idx] || materialize(stack[idx]) !== hcompact(ctx.edEl.innerHTML)) seed();
   }
   function record(force) {
     if (ctx._histSuppress) return;
     if (idx < 0) { seed(); return; }
-    var html = ctx.edEl.innerHTML;
-    if (stack[idx] && stack[idx].html === html) { stack[idx].caret = caretOffset(ctx.edEl); return; }
+    var html = hcompact(ctx.edEl.innerHTML);
+    if (stack[idx] && materialize(stack[idx]) === html) { stack[idx] = { html: html, caret: caretOffset(ctx.edEl), rv: patchBase + patches.length }; return; }
     var now = Date.now();
     if (!force && now - lastT < 500) { stack[idx] = snap(); lastT = now; updateBtns(); return; }  // coalesce fast typing
     stack = stack.slice(0, idx + 1);
@@ -34588,7 +35845,7 @@ function makeHistory(ctx) {
   }
   function apply(s) {
     ctx._histSuppress = true;
-    ctx.edEl.innerHTML = s.html;
+    ctx.edEl.innerHTML = hexpand(materialize(s));
     // The wrappers this just recreated are inert until rebound — see
     // _docxRebindImages. Without this, one Ctrl+Z kills every image control.
     if (window._docxRebindImages) window._docxRebindImages(ctx.edEl, ctx.app);
@@ -34622,7 +35879,27 @@ function makeHistory(ctx) {
     redo: function () { clearTimeout(pending); if (idx < stack.length - 1) { idx++; apply(stack[idx]); } },
     commit: function () { clearTimeout(pending); record(true); },   // force a discrete step (AI format, etc.)
     refresh: updateBtns,
-    loadPersisted: loadPersisted, persist: persist
+    loadPersisted: loadPersisted, persist: persist,
+    // The editor just changed from `before` to `after` because of someone
+    // else's edit. Older states get that same change applied lazily.
+    remotePatch: function (before, after) {
+      var merge = window.OJ && window.OJ.mergeText;
+      clearTimeout(pending);
+      if (!merge || idx < 0) { seed(); return; }
+      var b = hcompact(before), a = hcompact(after);
+      patches.push(function (h) { return merge(b, h, a); });
+      if (patches.length > 40) {
+        // Too far back to replay cheaply: states that would need the dropped
+        // patch are dropped with it.
+        patches.shift(); patchBase++;
+        var cut = 0;
+        while (cut < stack.length && (stack[cut].rv || 0) < patchBase) cut++;
+        if (cut > idx) { seed(); return; }
+        stack = stack.slice(cut); idx -= cut;
+      }
+      stack[idx] = snap();
+      updateBtns();
+    }
   };
 }
 
@@ -38433,6 +39710,23 @@ function initApp(app) {
   applyViewMode(app);
   applyReflow(app);
 }
+// OurJournal: apply someone else's edit to a page editor without it becoming
+// an undo step of ours. `run` patches the DOM; the history re-bases around it.
+window._docxRemoteApply = function(edId, before, after, run) {
+  var ctx = ALLCTX.find(function(c) { return c.edEl.id === edId; });
+  if (!ctx || !ctx.history) { run(); return; }
+  ctx._histSuppress = true;
+  try { run(); }
+  finally {
+    try { ctx.history.remotePatch(before, after); } catch (e) { try { ctx.history.seed(); } catch (x) {} }
+    setTimeout(function() { ctx._histSuppress = false; }, 0);
+  }
+};
+// Re-apply a page's margins after they changed underneath it (OurJournal).
+window._docxApplyPageSetup = function(app) {
+  try { applyPageSetup(app); } catch (e) {}
+  try { updateRulers(app); } catch (e) {}
+};
 // Called by the apps' loadActiveEntry after they set the page editor's innerHTML,
 // so undo/redo history resets to the freshly-loaded entry (no cross-entry undo).
 window._docxOnLoad = function(edId, docId) {
