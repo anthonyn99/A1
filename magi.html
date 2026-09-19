@@ -6249,13 +6249,115 @@ function briefList(list) {
   return renderList(list);
 }
 
+/* What a model writes, recognised as more than prose. Every unit reaches for
+   the same handful of devices -- a bold label on its own line over a list
+   ("**Bullish if:**"), a bold run of tickers, "**Important:**" asides,
+   "A ↑ → B ↑ → C ↓" chains -- so recognising them is what lets an answer from
+   ANY unit, or any chairman, render as a briefing rather than a wall. */
+const TONE_BAD = /\b(bear(ish)?|downside|cons|disadvantages?|drawbacks?|risks?|weakness(es)?|threats?|headwinds?|negatives?|worst[- ]case|avoid|warnings?|pitfalls?|red flags?|dangers?|concerns?)\b/i;
+const TONE_GOOD = /\b(bull(ish)?|upside|pros|advantages?|benefits?|strengths?|opportunit(y|ies)|tailwinds?|positives?|best[- ]case|catalysts?|wins?)\b/i;
+const toneOf = (label) => (TONE_BAD.test(label) ? "bad" : TONE_GOOD.test(label) ? "good" : "");
+
+const LABEL_ONLY = /^\s*(?:\*\*|__)([^*_\n]{1,48}?)\s*[:：]?\s*(?:\*\*|__)\s*[:：]?\s*$/;
+const PLAIN_LABEL = /^\s*([A-Z][^.!?\n*]{0,32}?)\s*:\s*$/;
+const CALLOUT = /^\s*(?:\*\*|__)\s*((?:important|note|notes|warning|caution|correction|caveat|heads[- ]up|tip|reminder|disclaimer|key (?:point|takeaway|insight))\b[^*_\n]{0,40}?)\s*[:：]?\s*(?:\*\*|__)\s*[:：]?\s*([\s\S]+)$/i;
+
+/** "**A, B, C, D**, plus the rest" -> chips A B C D and a note. Loose mode
+ *  (under a label like "Most affected:") also takes an unbolded list. */
+function briefChips(text, loose) {
+  const t = String(text || "").trim();
+  let cand = null, note = "";
+  const m = t.match(/^\*\*([^*]+)\*\*\s*[,;:.]?\s*([\s\S]*)$/);
+  if (m) { cand = m[1]; note = m[2]; }
+  else if (loose) cand = t.replace(/\*\*/g, "");
+  if (!cand) return null;
+  const items = cand.split(/\s*[,;]\s*/).map((s) => s.trim().replace(/\.$/, "")).filter(Boolean);
+  if (items.length < 3 || !items.every((s) => s.length <= 30)) return null;
+  const wrap = el("div", "br-chipset");
+  const chips = el("div", "br-chips");
+  items.forEach((s) => chips.append(inline(el("span", "br-chip"), s)));
+  wrap.append(chips);
+  note = note.replace(/^(?:and|plus)\s+/i, "").trim();
+  if (note) wrap.append(inline(el("div", "br-chip-note"), note.charAt(0).toUpperCase() + note.slice(1)));
+  return wrap;
+}
+
+/** "Oil ↑ → yields ↑ → Nasdaq ↓" as a row of steps. */
+function briefFlow(text) {
+  const t = String(text || "").trim().replace(/^\*\*|\*\*$/g, "");
+  if ((t.match(/→|->|⟶|⇒/g) || []).length < 2) return null;
+  const steps = t.split(/\s*(?:→|->|⟶|⇒)\s*/);
+  if (steps.some((s) => !s.trim() || s.length > 48)) return null;
+  const row = el("div", "br-flow");
+  steps.forEach((s, k) => {
+    if (k) row.append(el("span", "br-flow-arrow", "→"));
+    const dir = /↑|⬆/.test(s) ? "up" : /↓|⬇/.test(s) ? "down" : "";
+    row.append(inline(el("span", `br-flow-step ${dir}`), s.replace(/\*\*/g, "").trim()));
+  });
+  return row;
+}
+
 function briefBlocks(host, blocks) {
-  for (const b of blocks) {
+  let groups = null;             // the grid a run of labelled groups shares
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i];
+    if (b.kind === "hr") continue;                  // cards already separate
+    if (b.kind === "h") {
+      groups = null;
+      host.append(inline(el("div", "br-subhd"), b.text));
+      continue;
+    }
+    if (b.kind === "p") {
+      const next = blocks[i + 1];
+      const lab = b.text.match(LABEL_ONLY) || (b.text.length <= 36 ? b.text.match(PLAIN_LABEL) : null);
+      if (lab && next && (next.kind === "list" || next.kind === "p" || next.kind === "table")) {
+        const label = lab[1].trim();
+        const box = el("div", `br-group ${toneOf(label)}`);
+        const hd = el("div", "br-group-hd");
+        hd.append(el("span", "br-group-dot"), inline(el("span"), label));
+        box.append(hd);
+        if (next.kind === "list") box.append(briefList(next.list));
+        else if (next.kind === "p") {
+          const chips = briefChips(next.text, true);
+          if (chips) box.classList.add("wide");
+          box.append(chips || inline(el("p"), next.text));
+        } else renderBlocks(box, [next]);
+        i++;
+        if (!groups) { groups = el("div", "br-groups"); host.append(groups); }
+        groups.append(box);
+        continue;
+      }
+      groups = null;
+      const co = b.text.match(CALLOUT);
+      if (co) {
+        const box = el("div", `br-callout ${toneOf(co[1])}`);
+        box.append(inline(el("div", "br-callout-hd"), co[1].trim()), inline(el("div", "br-callout-body"), co[2]));
+        host.append(box);
+        continue;
+      }
+      const flow = briefFlow(b.text);
+      if (flow) { host.append(flow); continue; }
+      const chips = briefChips(b.text, false);
+      if (chips) { host.append(chips); continue; }
+    }
+    groups = null;
     if (b.kind === "list") host.append(briefList(b.list));
     else renderBlocks(host, [b]);
   }
   return host;
 }
+
+/** "Priority #1 — Fed Repricing" -> { n: "1", kicker: "Priority", title }.
+ *  Also "1. X", "#2: X", "Step 3 - X", "Part 4) X". */
+function briefNumbered(title) {
+  const t = String(title || "").trim();
+  let m = t.match(/^(priority|tier|step|part|phase|stage|rank|section|chapter|day|option|reason|tip)\s*#?\s*(\d{1,2})\s*[—–:.)\-]\s*(.+)$/i);
+  if (m) return { n: m[2], kicker: m[1], title: m[3] };
+  m = t.match(/^#?(\d{1,2})\s*(?:[.)]\s+|\s*[—–:\-]\s*)(.+)$/);
+  if (m) return { n: m[1], kicker: "", title: m[2] };
+  return { n: "", kicker: "", title: t };
+}
+const BRIEF_HIGHLIGHT = /^(bottom line|summary|in summary|conclusion|tl;?dr|key takeaways?|the verdict|final (?:take|thoughts|answer|verdict)|recommendation|what to do|action plan)\b/i;
 
 /** Splits a lead paragraph into a headline and the rest, when its first
  *  sentence is short enough to be one. */
@@ -6312,27 +6414,42 @@ function briefBody(text, opts = {}) {
     hero.append(meter);
   }
 
-  /* sections: split on the shallowest heading level present */
-  const levels = blocks.filter((b) => b.kind === "h").map((b) => b.level || 3);
-  const top = levels.length ? Math.min(...levels) : 0;
+  /* sections: every heading opens a card, whatever its level. Models mix #,
+     ## and ### freely (ChatGPT: a ## title, ### priorities, then # parts),
+     and splitting only on the shallowest level left everything under the
+     others as uncarded prose. A heading with nothing under it before the next
+     heading is a GROUP title; a deeper heading inside a card that already has
+     content is that card's sub-heading. */
   const sections = [];
-  let cur = { title: null, blocks: [] };
-  for (const b of blocks) {
-    if (b.kind === "h" && (b.level || 3) === top) {
-      if (cur.title !== null || cur.blocks.length) sections.push(cur);
-      cur = { title: b.text, blocks: [] };
-    } else cur.blocks.push(b);
-  }
-  if (cur.title !== null || cur.blocks.length) sections.push(cur);
-  const titled = sections.filter((s) => s.title !== null);
+  let cur = { title: null, level: 0, blocks: [] };
+  const push = () => { if (cur.title !== null || cur.blocks.length) sections.push(cur); };
+  const nextReal = (i) => { let j = i + 1; while (blocks[j] && blocks[j].kind === "hr") j++; return blocks[j]; };
+  blocks.forEach((b, i) => {
+    if (b.kind !== "h") { cur.blocks.push(b); return; }
+    const lvl = b.level || 3;
+    if (cur.title !== null && lvl > cur.level && cur.blocks.some((x) => x.kind !== "hr")) {
+      cur.blocks.push(b);
+      return;
+    }
+    push();
+    const nx = nextReal(i);
+    if (nx && nx.kind === "h" && (nx.level || 3) >= lvl) {
+      sections.push({ group: b.text });
+      cur = { title: null, level: 0, blocks: [] };
+      return;
+    }
+    cur = { title: b.text, level: lvl, blocks: [] };
+  });
+  push();
+  const titled = sections.filter((s) => typeof s.title === "string");
 
   if (hero.childNodes.length) root.append(hero);
 
   // A report numbers its chapters even when the model did not, so the
   // contents and the cards read as one document.
   const chapter = (s, k) => {
-    const m = s.title.match(/^(\d+)[.)]\s+(.*)$/);
-    return { n: report ? String(k + 1) : m ? m[1] : "", title: m ? m[2] : s.title };
+    const c = briefNumbered(s.title);
+    return { n: report ? String(k + 1) : c.n, kicker: c.kicker, title: c.title };
   };
 
   // contents chips when there is enough to navigate
@@ -6373,15 +6490,23 @@ function briefBody(text, opts = {}) {
 
   let k = 0;
   for (const s of sections) {
+    if (s.group !== undefined) {
+      host.append(inline(el("div", "br-group-title"), s.group));
+      continue;
+    }
     if (s.title === null) {
       if (s.blocks.length) host.append(briefBlocks(el("div", "br-intro"), s.blocks));
       continue;
     }
     const c = chapter(s, k++);
-    const card = el("section", "br-sec");
+    const tone = toneOf(c.title);
+    const card = el("section", `br-sec ${tone ? "tone-" + tone : ""} ${BRIEF_HIGHLIGHT.test(c.title) ? "hl" : ""}`);
     const hd = el("div", "br-sec-hd");
     if (c.n) hd.append(el("span", "br-sec-n", c.n));
-    hd.append(inline(el("h3", "br-sec-title"), c.title));
+    const tw = el("div", "br-sec-tw");
+    if (c.kicker) tw.append(el("div", "br-sec-kicker", c.kicker));
+    tw.append(inline(el("h3", "br-sec-title"), c.title));
+    hd.append(tw);
     card.append(hd);
     if (s.blocks.length) card.append(briefBlocks(el("div", "br-sec-body"), s.blocks));
     secEls.push(card);
