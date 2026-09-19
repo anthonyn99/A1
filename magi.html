@@ -5269,15 +5269,31 @@ function audio() {
     if (!AC) return null;
     actx = new AC();
     master = actx.createGain();
-    master.gain.value = VOLUME;
+    // Muted from the first tone when muted -- this used to start at full
+    // volume regardless, and only listened to the setting once it was toggled.
+    master.gain.value = S.muted ? 0 : VOLUME;
     master.connect(actx.destination);
     // Not fatal if unavailable: the tones simply stay dry.
     try { room = buildRoom(actx); } catch { room = null; }
   }
-  // Autoplay policy can leave a context suspended even after a gesture.
-  if (actx.state === "suspended") actx.resume();
+  // Autoplay policy can leave a context suspended even after a gesture, and a
+  // backgrounded tab (or iOS, as "interrupted") can suspend one later.
+  if (actx.state !== "running" && actx.state !== "closed") actx.resume().catch(() => {});
   return actx;
 }
+
+/* Audio is unlocked by the first click or key anywhere, not by the first
+   tone. A run can start with no gesture at all -- the queue, a retry, a
+   handoff from TradeHub -- and a context first created then is born
+   suspended, so the opening tones had nowhere to go. Creating it silently on
+   the first gesture means it is already running when the council starts. */
+function unlockAudio() {
+  window.removeEventListener("pointerdown", unlockAudio, true);
+  window.removeEventListener("keydown", unlockAudio, true);
+  audio();
+}
+window.addEventListener("pointerdown", unlockAudio, true);
+window.addEventListener("keydown", unlockAudio, true);
 
 /** One struck tone.
  *
@@ -5312,6 +5328,13 @@ function audio() {
 function strike({ freq, at = 0, dur = 0.9, gain = 0.07, bright = 1, pan = 0, wet = 0.3 }) {
   const ac = audio();
   if (!ac) return;
+  // THE LOUD BURST. A suspended context's clock is frozen, so every tone
+  // scheduled while it is suspended lands on the same instant -- silence
+  // first, then, the moment resume() takes effect, every queued strike at
+  // once, stacked into one far-too-loud chord. These are status cues, so a
+  // tone that cannot play now is dropped rather than queued: missing one is
+  // harmless, a pile-up is not. audio() has already asked for a resume.
+  if (ac.state !== "running") return;
   const t = ac.currentTime + at;
 
   // Opens with pitch so low tones stay warm and high ones keep their edge,
