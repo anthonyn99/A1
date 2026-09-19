@@ -12745,10 +12745,19 @@ attachScrollbar($("sideNav"), 90);
    *  mid-resize. The same is true of anything else a finger drags: a unit chip
    *  being reordered, text being selected, a slider, a box that scrolls on its
    *  own. So a touch that lands on any of those is theirs, not the page's. */
+  //  Buttons, links and labels are NOT on the list: the browser's own
+  //  pull-to-refresh (what every other A1 program gets) starts from anywhere,
+  //  and on MAGI's council screen buttons and chips cover most of the top --
+  //  excluding them is what made pulling here feel like it did nothing. A
+  //  drag from a button never clicks it, so nothing fires by accident.
+  //  Prompt boxes are excluded WHOLE (.qbar, .qedit-textwrap, .bs-start), not
+  //  just their grip, so a drag that starts a finger's width off the handle
+  //  resizes the box instead of reloading the page.
   const OWNED = [
-    "input", "textarea", "select", "button", "a[href]", "label",
+    "input", "textarea", "select",
     "[contenteditable]", "[draggable='true']", "[role='slider']",
-    ".qbar-grip", ".sheet", ".sheet-box", "audio", "video", "canvas",
+    ".qbar-grip", ".qbar", ".qedit-textwrap", ".bs-start",
+    ".sheet", ".sheet-box", "audio", "video", "canvas",
   ].join(",");
 
   const ownedBy = (target) => {
