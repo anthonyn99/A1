@@ -923,15 +923,17 @@
     window.removeEventListener('resize', queuePlace);
     window.removeEventListener('scroll', queuePlace, true);
     document.removeEventListener('keydown', onDocKey, true);
-    var hadFocus = ui.root.activeElement != null;
+    // Focus goes back to the launcher only for keyboard users; after a tap it
+    // is pointless work (and on some phones a visible focus flash).
+    var hadFocus = !byPointer && ui.root.activeElement != null;
+    ui.holdBd = !!byPointer;
     if (instant === true || document.visibilityState !== 'visible') {
+      ui.holdBd = false;
       ui.host.style.display = 'none';
     } else {
+      ui.animDone = false;
       ui.wrap.classList.add('closing');
-      ui.closeT = setTimeout(function () {
-        ui.host.style.display = 'none';
-        ui.wrap.classList.remove('closing');
-      }, 240);
+      ui.closeT = setTimeout(function () { ui.animDone = true; settleClose(); }, 190);
     }
     if (hadFocus && ui.anchor && ui.anchor._btn && ui.anchor.isConnected && !ui.anchor.hidden) {
       try { ui.anchor._btn.focus({ preventScroll: true }); } catch (e) {}
