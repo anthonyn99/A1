@@ -2481,13 +2481,15 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 }
 .ptr-spin {
   display: flex; align-items: center; justify-content: center;
-  width: 32px; height: 32px; border-radius: 50%;
+  width: 36px; height: 36px; border-radius: 50%;
   background: var(--s2); border: 1px solid var(--bdl);
   box-shadow: 0 4px 14px var(--shadow);
-  color: var(--txm); font-size: 13px;
+  color: var(--txm);
 }
+.ptr-spin svg { width: 18px; height: 18px; display: block; }
 .ptr.ready .ptr-spin { color: var(--ac); border-color: var(--ac); }
-.ptr.spinning .ptr-spin { animation: spin 1s linear infinite; color: var(--ac); }
+.ptr.spinning .ptr-spin { color: var(--ac); border-color: var(--ac); }
+.ptr.spinning .ptr-spin svg { animation: spin .8s linear infinite; }
 /* The page is the scroller, so the indicator anchors to it. */
 .page { position: relative; }
 
@@ -12729,12 +12731,18 @@ attachScrollbar($("sideNav"), 90);
    never simply ignored. */
 (function () {
   const page = $("page");
-  const THRESHOLD = 72;      // far enough that a normal flick does not trip it
+  // Distance tuned to the browser's own gesture: about 115px of finger travel
+  // at half-rate resistance, the same feel as the other A1 programs.
+  const THRESHOLD = 64;
   const MAX = 110;
+  const RATE = 0.55;
 
   const ind = el("div", "ptr");
-  ind.innerHTML = "<span class='ptr-spin'>◐</span>";
+  // The browser's pull-to-refresh mark: a circular arrow that winds round as
+  // you pull, then spins while the page reloads.
+  ind.innerHTML = "<span class='ptr-spin'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M20 12a8 8 0 1 1-2.34-5.66'/><path d='M20 4v4.5h-4.5'/></svg></span>";
   page.prepend(ind);
+  const arrow = ind.querySelector("svg");
 
   let startY = 0, pulling = false, dist = 0, busy = false;
 
@@ -12787,6 +12795,7 @@ attachScrollbar($("sideNav"), 90);
     ind.style.transform = `translateY(${Math.min(d, MAX)}px)`;
     ind.style.opacity = String(Math.min(1, d / THRESHOLD));
     ind.classList.toggle("ready", d >= THRESHOLD);
+    if (!ind.classList.contains("spinning")) arrow.style.transform = `rotate(${Math.round(d * 4)}deg)`;
   };
   const reset = () => {
     ind.style.transition = "transform .2s ease, opacity .2s ease";
@@ -12812,10 +12821,13 @@ attachScrollbar($("sideNav"), 90);
     if (d <= 0) { pulling = false; reset(); return; }
     // The page scrolled after all (momentum, an inner scroller handing off).
     if (page.scrollTop > 0) { pulling = false; reset(); return; }
-    // Rubber-band: the pull gets heavier the further it goes, so overshooting
-    // is hard and the threshold feels like a detent rather than a cliff.
-    setPull(Math.pow(d, 0.85));
-  }, { passive: true });
+    // Half-rate resistance, like the browser's own: the indicator trails the
+    // finger rather than tracking it 1:1 off the top of the screen.
+    setPull(d * RATE);
+    // Non-passive so a pull is only a pull: without this iOS also rubber-bands
+    // the scroller, and the page and the indicator both move.
+    if (e.cancelable) e.preventDefault();
+  }, { passive: false });
 
   page.addEventListener("touchend", async () => {
     if (!pulling) return;
