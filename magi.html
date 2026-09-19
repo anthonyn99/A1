@@ -1507,6 +1507,63 @@ del.md-html { color: var(--txd); }
 .br-notes > *:last-child { margin-bottom: 0; }
 .br-notes .br-point { background: transparent; border-left-color: var(--amber); }
 
+/* ── report mode (Studio Report) ── */
+.st-report { container-type: inline-size; }
+.verdict-body.brief.report { max-width: 1180px; padding: 2px 0 6px; }
+.report .br-hero {
+  padding: 28px 30px 24px; margin-bottom: 16px;
+  background:
+    radial-gradient(80% 140% at 100% 0%, color-mix(in srgb, var(--gold) 9%, transparent), transparent 60%),
+    radial-gradient(70% 120% at 0% 100%, color-mix(in srgb, var(--ac) 8%, transparent), transparent 60%),
+    linear-gradient(160deg, var(--s2), var(--s1));
+}
+.br-kicker {
+  font-family: var(--font-display); font-size: 10.5px; font-weight: 800;
+  letter-spacing: 2.4px; text-transform: uppercase; color: var(--gold); margin-bottom: 10px;
+}
+.br-cover-title {
+  margin: 0 0 14px; font-family: var(--font-display); font-size: 27px; font-weight: 800;
+  line-height: 1.22; letter-spacing: -.2px; color: var(--tx); text-wrap: balance;
+}
+.br-lede {
+  padding-left: 14px; border-left: 2px solid var(--acd);
+  font-size: 16px; line-height: 1.72; color: var(--txd); text-wrap: pretty; max-width: 80ch;
+}
+.report .br-conf { margin-top: 18px; }
+.br-doc { display: block; }
+.br-rail { display: none; }
+.report .br-sec { padding: 22px 26px 20px; margin-bottom: 14px; }
+.report .br-sec-hd { margin-bottom: 12px; }
+.report .br-sec-n { width: 30px; height: 30px; font-size: 12.5px; border-radius: 9px; }
+.report .br-sec-title { font-size: 18.5px; }
+.report .br-sec-body p, .report .br-intro p { font-size: 14.5px; line-height: 1.78; }
+.report .br-intro { margin: 0 6px 16px; }
+@container (min-width: 900px) {
+  .br-doc { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 26px; align-items: start; }
+  .verdict-body.report > .br-toc { display: none; }
+  .br-rail {
+    display: flex; flex-direction: column; gap: 2px;
+    position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto;
+    padding: 14px 8px 10px; border: 1px solid var(--bd); border-radius: 12px;
+    background: color-mix(in srgb, var(--s1) 70%, transparent);
+  }
+}
+.br-rail-hd {
+  padding: 0 10px 8px; font-family: var(--font-display); font-size: 10px; font-weight: 700;
+  letter-spacing: 1.6px; text-transform: uppercase; color: var(--txm);
+}
+.br-rail-item {
+  display: flex; align-items: baseline; gap: 10px; width: 100%; text-align: left;
+  padding: 8px 10px; border: 0; border-radius: 8px; background: none;
+  color: var(--txd); font-size: 12.5px; line-height: 1.4;
+  transition: background .15s, color .15s;
+}
+.br-rail-item:hover { background: var(--s2); color: var(--tx); }
+.br-rail-item.on { background: color-mix(in srgb, var(--ac) 13%, transparent); color: var(--tx); }
+.br-rail-n { flex: 0 0 auto; font-family: var(--font-mono); font-size: 10.5px; color: var(--txm); }
+.br-rail-item.on .br-rail-n { color: var(--acl); }
+.br-rail-t strong { font-weight: inherit; color: inherit; }
+
 /* Brief / Text switch in the verdict header */
 .br-seg { display: inline-flex; padding: 2px; gap: 2px; border-radius: 999px; background: var(--bg); border: 1px solid var(--bd); }
 .br-seg-btn {
@@ -1531,6 +1588,15 @@ del.md-html { color: var(--txd); }
   .br-points.two { grid-template-columns: minmax(0, 1fr); }
   .br-notes { padding: 12px 14px; }
   .br-seg-btn { height: 32px; padding: 0 13px; }
+  .verdict-body.brief.report { padding: 0; }
+  .report .br-hero { padding: 18px 16px 16px; }
+  .br-cover-title { font-size: 21px; margin-bottom: 12px; }
+  .br-lede { font-size: 15px; }
+  .report .br-sec { padding: 16px 14px 14px; }
+  .report .br-sec-n { width: 26px; height: 26px; font-size: 11.5px; }
+  .report .br-sec-title { font-size: 16.5px; }
+  .report .br-sec-body p, .report .br-intro p { font-size: 14.5px; line-height: 1.7; }
+  .report .br-toc { margin-left: -12px; margin-right: -12px; }
 }
 
 /* ══ TYPE ══════════════════════════════════════════════════════════════════
@@ -1999,7 +2065,10 @@ table.doctor code { color: var(--txd); font-size: 11px; }
   border: 1px solid var(--bd);
   border-radius: var(--r-card);
   margin-bottom: 14px;
+  /* clip, not hidden: hidden makes this a scroll container, and the Report's
+     sticky contents rail would then stick to a box that never scrolls. */
   overflow: hidden;
+  overflow: clip;
   animation: rise .3s ease-out;
 }
 .studio-view-hd {
@@ -5874,7 +5943,15 @@ function parseVerdict(text) {
   let where = "main";
   let fenced = false;
 
-  for (const raw of String(text || "").replace(/\r/g, "").split("\n")) {
+  // A capture that lost the newline after a section label leaves it glued to
+  // the text it heads ("ANSWER AI consumes...", "CONFIDENCE HIGH -- ...").
+  // Only the exact UPPERCASE labels are split off, so prose that merely
+  // starts with "Notes on..." is left alone.
+  const lines = String(text || "").replace(/\r/g, "").split("\n").flatMap((l) => {
+    const m = l.match(/^\s*(?:#{1,4}\s*)?(ANSWER|NOTES|CONFIDENCE|CAVEATS)(?:\s*:\s*|\s+)(?=\S)(.+)$/);
+    return m ? [m[1], m[2]] : [l];
+  });
+  for (const raw of lines) {
     if (MD.fence.test(raw)) fenced = !fenced;
     const sec = !fenced && raw.match(SECTION);
     if (sec) {
@@ -6170,15 +6247,23 @@ function splitHeadline(text) {
   return t.length <= 280 ? { head: t, rest: "", long: true } : { head: "", rest: t };
 }
 
-function briefBody(text) {
+/** opts.report: the Studio Report's document layout -- a cover naming the
+ *  question, numbered chapters, and a sticky contents rail that follows the
+ *  reader on wide screens (chips on narrow ones). */
+function briefBody(text, opts = {}) {
   const g = parseVerdict(text);
-  const root = el("div", "verdict-body brief");
+  const report = !!opts.report;
+  const root = el("div", `verdict-body brief ${report ? "report" : ""}`);
   const blocks = [...g.main];
 
   /* hero */
   const hero = el("div", "br-hero");
   const lead = blocks[0] && blocks[0].kind === "p" ? blocks.shift() : null;
-  if (lead) {
+  if (report) {
+    hero.append(el("div", "br-kicker", "Report"));
+    if (opts.title) hero.append(inline(el("h2", "br-cover-title"), opts.title));
+    if (lead) hero.append(inline(el("div", "br-lede"), lead.text));
+  } else if (lead) {
     const { head, rest, long } = splitHeadline(lead.text);
     if (head) hero.append(inline(el("div", `br-headline ${long ? "long" : ""}`), head));
     // The headline stood alone and the answer goes on with a short framing
@@ -6220,34 +6305,78 @@ function briefBody(text) {
 
   if (hero.childNodes.length) root.append(hero);
 
+  // A report numbers its chapters even when the model did not, so the
+  // contents and the cards read as one document.
+  const chapter = (s, k) => {
+    const m = s.title.match(/^(\d+)[.)]\s+(.*)$/);
+    return { n: report ? String(k + 1) : m ? m[1] : "", title: m ? m[2] : s.title };
+  };
+
   // contents chips when there is enough to navigate
   const secEls = [];
-  if (titled.length >= 3) {
+  const jump = (k) => secEls[k] && secEls[k].scrollIntoView({ behavior: "smooth", block: "start" });
+  if (titled.length >= (report ? 2 : 3)) {
     const toc = el("div", "br-toc");
     titled.forEach((s, k) => {
       const b = el("button", "br-toc-chip");
       b.type = "button";
-      inline(b, s.title.replace(/^\d+[.)]\s+/, ""));
-      b.onclick = () => secEls[k] && secEls[k].scrollIntoView({ behavior: "smooth", block: "start" });
+      inline(b, chapter(s, k).title);
+      b.onclick = () => jump(k);
       toc.append(b);
     });
     root.append(toc);
   }
 
+  // A report's body sits beside a contents rail; a verdict's is the root.
+  let host = root, rail = null;
+  if (report && titled.length >= 2) {
+    const doc = el("div", "br-doc");
+    rail = el("nav", "br-rail");
+    rail.setAttribute("aria-label", "Contents");
+    rail.append(el("div", "br-rail-hd", "Contents"));
+    titled.forEach((s, k) => {
+      const c = chapter(s, k);
+      const b = el("button", "br-rail-item");
+      b.type = "button";
+      if (c.n) b.append(el("span", "br-rail-n", c.n.padStart(2, "0")));
+      b.append(inline(el("span", "br-rail-t"), c.title));
+      b.onclick = () => jump(k);
+      rail.append(b);
+    });
+    host = el("div", "br-doc-main");
+    doc.append(rail, host);
+    root.append(doc);
+  }
+
+  let k = 0;
   for (const s of sections) {
     if (s.title === null) {
-      if (s.blocks.length) root.append(briefBlocks(el("div", "br-intro"), s.blocks));
+      if (s.blocks.length) host.append(briefBlocks(el("div", "br-intro"), s.blocks));
       continue;
     }
+    const c = chapter(s, k++);
     const card = el("section", "br-sec");
     const hd = el("div", "br-sec-hd");
-    const num = s.title.match(/^(\d+)[.)]\s+(.*)$/);
-    if (num) hd.append(el("span", "br-sec-n", num[1]));
-    hd.append(inline(el("h3", "br-sec-title"), num ? num[2] : s.title));
+    if (c.n) hd.append(el("span", "br-sec-n", c.n));
+    hd.append(inline(el("h3", "br-sec-title"), c.title));
     card.append(hd);
     if (s.blocks.length) card.append(briefBlocks(el("div", "br-sec-body"), s.blocks));
     secEls.push(card);
-    root.append(card);
+    host.append(card);
+  }
+
+  // The rail marks the chapter being read.
+  if (rail && "IntersectionObserver" in window) {
+    const items = [...rail.querySelectorAll(".br-rail-item")];
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (!e.isIntersecting) continue;
+        const i = secEls.indexOf(e.target);
+        items.forEach((it, j) => it.classList.toggle("on", j === i));
+      }
+    }, { rootMargin: "-15% 0px -70% 0px" });
+    secEls.forEach((s) => io.observe(s));
+    root.stopSpy = () => io.disconnect();
   }
 
   /* notes + the rest of the confidence section */
@@ -6258,7 +6387,7 @@ function briefBody(text) {
     hd.append(icSpan("br-notes-ic", "help"), el("span", null, "Worth knowing"));
     notes.append(hd);
     briefBlocks(notes, [...g.notes, ...confRest]);
-    root.append(notes);
+    host.append(notes);
   }
   return root;
 }
@@ -9499,7 +9628,8 @@ function renderCard(kind, a) {
 function renderStudioReport(raw) {
   // The one Studio card that is a document rather than a widget, so it is the
   // one worth taking away whole -- as rich text, or as a .md file.
-  const body = verdictBody(raw);
+  const body = briefBody(raw, { report: true, title: S.viewQuestion || "" });
+  S.studio.cleanup = () => body.stopSpy && body.stopSpy();
   const bar = el("div", "st-bar st-bar-end");
   bar.append(
     copyButton(() => ({ node: body, md: raw }), { label: "Copy report" }),
