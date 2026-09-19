@@ -1411,7 +1411,7 @@ del.md-html { color: var(--txd); }
 .node-meta, .core-count, .verdict-quorum, .chip-unit, .node-sub,
 .slide-count, .bs-council-meta, .link-txt, .mtop-where,
 .studio-raw, .verdict-body code, .sheet-note code, .bs-hint code,
-table.doctor, table.doctor code, .v-table, .studio-table,
+table.doctor, table.doctor code, .v-table,
 .quiz-opt-letter, .side-tag, .bs-chip {
   font-family: var(--font-mono);
 }
@@ -1856,27 +1856,50 @@ table.doctor code { color: var(--txd); font-size: 11px; }
    the content area, as one full-width panel. Same hard-edged block language
    as .node and .verdict (2px radius, coloured left accent) so it reads as
    part of this console rather than a pasted-in widget. */
+/* The header is a neutral graphite bar for every card. It was tinted with
+   each card's accent (8% gold for Report, amber for Quiz...), which on this
+   palette read as a muddy yellow rather than as a colour. The accent now lives
+   only in the icon chip, where it identifies the card without staining it. */
 .studio-view {
   background: var(--s1);
   border: 1px solid var(--bd);
-  border-left: 3px solid var(--sa, var(--ac));
-  border-radius: 2px;
+  border-radius: var(--r-card);
   margin-bottom: 14px;
   overflow: hidden;
   animation: rise .3s ease-out;
 }
 .studio-view-hd {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  padding: 9px 12px; border-bottom: 1px solid var(--bd);
-  background: color-mix(in srgb, var(--sa, var(--ac)) 8%, transparent);
+  padding: 10px 12px 10px 14px; border-bottom: 1px solid var(--bd);
+  background: var(--s2);
 }
-.studio-view-ic { font-size: 13px; color: var(--sa, var(--ac)); flex-shrink: 0; }
+.studio-view-ic {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0; font-size: 14px;
+  color: var(--sa, var(--ac));
+  background: color-mix(in srgb, var(--sa, var(--ac)) 13%, transparent);
+}
 .studio-view-title {
   font-size: 11px; font-weight: 700; letter-spacing: 2.2px;
   text-transform: uppercase; color: var(--tx);
 }
-.studio-view-status { color: var(--txm); font-size: 10.5px; letter-spacing: .3px; }
-.studio-view-body { padding: 14px 16px 18px; }
+.studio-view-status { color: var(--txm); font-size: 11px; letter-spacing: .3px; }
+.studio-view-sp { flex: 1 1 auto; }
+/* The shared copy button, restated as a Studio pill when it sits in a card's
+   toolbar, so a row of actions is one family rather than two. */
+.st-bar .copybtn, .au-opts .copybtn {
+  height: 30px; padding: 0 12px; border-radius: 999px; gap: 6px;
+  background: var(--s2); border: 1px solid var(--bd); color: var(--txd);
+  font-family: var(--font); font-size: 11.5px; font-weight: 500;
+  letter-spacing: 0; text-transform: none;
+}
+.st-bar .copybtn:hover, .au-opts .copybtn:hover { background: var(--s3); color: var(--tx); border-color: var(--bd); }
+.st-bar .copybtn.done, .au-opts .copybtn.done { color: var(--grn); }
+/* A forward button reads with its arrow AFTER the label. */
+.st-btn.ic-end { flex-direction: row-reverse; }
+/* The slide stage never outgrows the screen it is on. */
+.sd { max-width: min(1100px, calc((100vh - 290px) * 16 / 9)); min-width: min(100%, 560px); }
+.studio-view-body { padding: 18px 20px 22px; }
 
 .studio-regen {
   margin-top: 10px; background: transparent; color: var(--txm); border: 1px solid var(--bd);
@@ -1890,112 +1913,570 @@ table.doctor code { color: var(--txd); font-size: 11px; }
   color: var(--txd); margin: 8px 0 0; max-height: 300px; overflow-y: auto;
 }
 
+/* ── shared Studio chrome ─────────────────────────────────────────────────
+   Every card opens with the same toolbar (what it is, then its actions) and
+   uses the same pill buttons, so seven formats read as one tool. */
+.st-bar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.st-bar-end { justify-content: flex-end; }
+.st-meta {
+  display: inline-flex; align-items: center; gap: 8px;
+  color: var(--txm); font-size: 11.5px; letter-spacing: .2px; margin-right: auto;
+}
+.st-dot { width: 3px; height: 3px; border-radius: 50%; background: var(--txm); opacity: .6; }
+.st-good { color: var(--grn); }
+.st-grow { flex: 1 1 auto; }
+.st-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.st-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 30px; padding: 0 12px; border-radius: 999px;
+  background: var(--s2); border: 1px solid var(--bd); color: var(--txd);
+  font-size: 11.5px; font-weight: 500; white-space: nowrap;
+  transition: background .15s, color .15s, border-color .15s, transform .1s;
+}
+.st-btn:hover:not(:disabled) { background: var(--s3); color: var(--tx); }
+.st-btn:active:not(:disabled) { transform: scale(.97); }
+.st-btn:disabled { opacity: .35; cursor: not-allowed; }
+.st-btn-ic { display: inline-flex; font-size: 13px; }
+.st-btn.primary { background: var(--ac); border-color: var(--ac); color: #1a1a1d; font-weight: 600; }
+.st-btn.primary:hover:not(:disabled) { background: var(--acl); color: #1a1a1d; }
+.st-btn.round { width: 36px; height: 36px; padding: 0; }
+.st-btn.round .st-btn-ic { font-size: 16px; }
+.st-bar .copybtn { margin: 0; }
+.st-track { height: 3px; border-radius: 3px; background: var(--s2); overflow: hidden; margin-bottom: 16px; }
+.st-track-fill { height: 100%; background: var(--ac); border-radius: 3px; transition: width .35s ease; }
+.st-keys { text-align: center; color: var(--txm); font-size: 10.5px; letter-spacing: .3px; margin-top: 12px; opacity: .8; }
+@media (hover: none) { .st-keys { display: none; } }
+.st-report .st-bar { margin-bottom: 8px; }
+
 /* ── Data Table card ── */
-.studio-tablewrap { overflow-x: auto; margin-top: 8px; }
-.studio-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.studio-table th {
-  text-align: left; color: var(--acl); font-size: 9px; font-weight: 700;
-  letter-spacing: 1.2px; text-transform: uppercase; padding: 6px 9px;
+.st-search {
+  height: 30px; min-width: 0; width: 200px; padding: 0 12px;
+  background: var(--s2); border: 1px solid var(--bd); border-radius: 999px;
+  color: var(--tx); font-size: 12px; outline: none;
+}
+.st-search:focus { border-color: var(--acd); }
+.st-tbl-wrap {
+  border: 1px solid var(--bd); border-radius: var(--r-card);
+  overflow-x: auto; background: var(--bg);
+}
+.st-tbl { width: 100%; border-collapse: collapse; font-size: 13px; line-height: 1.5; }
+.st-tbl thead th {
+  position: sticky; top: 0; z-index: 1;
+  background: var(--s2); text-align: left; padding: 0;
+  border-bottom: 1px solid var(--bdl);
+}
+.st-th {
+  display: flex; align-items: center; gap: 6px; width: 100%;
+  padding: 11px 14px; background: none; border: 0; text-align: left;
+  color: var(--txd); font-family: var(--font-display);
+  font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase;
+}
+.st-th:hover { color: var(--tx); }
+.st-sort { display: inline-flex; font-size: 12px; opacity: 0; transition: opacity .15s, transform .15s; }
+.st-th:hover .st-sort, th.sorted .st-sort { opacity: 1; }
+th.sorted .st-th { color: var(--acl); }
+th.sorted.desc .st-sort { transform: scaleY(-1); }
+.st-tbl td {
+  padding: 11px 14px; vertical-align: top; color: var(--txd);
   border-bottom: 1px solid var(--bd);
 }
-.studio-table td { padding: 6px 9px; border-bottom: 1px solid var(--bd); color: var(--txd); }
-.studio-table tr:last-child td { border-bottom: none; }
+.st-tbl tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--s1) 55%, transparent); }
+.st-tbl tbody tr:hover td { background: var(--s1); }
+.st-tbl tbody tr:last-child td { border-bottom: 0; }
+.st-tbl td:first-child { color: var(--tx); font-weight: 600; }
+.st-tbl td strong { color: var(--tx); font-weight: 600; }
+.st-tbl tr.st-empty td { text-align: center; color: var(--txm); font-weight: 400; padding: 24px; }
+.st-table > .md { margin-top: 12px; color: var(--txm); font-size: 12px; }
 
 /* ── Flashcards card ── */
-.flashcards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
-@media (max-width: 560px) { .flashcards { grid-template-columns: 1fr; } }
-.flashcard {
-  background: transparent; border: none; padding: 0; cursor: pointer;
-  perspective: 800px; height: 92px; font-family: inherit;
+.fc { max-width: 760px; margin: 0 auto; }
+.fc-stage { perspective: 1600px; }
+.fc-card {
+  display: block; width: 100%; padding: 0; border: 0; background: none;
+  text-align: left; color: inherit; perspective: 1600px;
 }
-.flashcard-inner {
-  position: relative; width: 100%; height: 100%;
-  transform-style: preserve-3d; transition: transform .4s;
+.fc-inner {
+  display: grid; position: relative;
+  transform-style: preserve-3d;
+  transition: transform .55s cubic-bezier(.3, .7, .2, 1);
 }
-.flashcard.flipped .flashcard-inner { transform: rotateY(180deg); }
-.flashcard-face {
-  position: absolute; inset: 0; backface-visibility: hidden;
-  border: 1px solid var(--bd); border-radius: 3px; padding: 10px 11px;
-  display: flex; align-items: center; font-size: 12px; line-height: 1.4;
-  text-align: left; overflow-y: auto;
+.fc-card.flipped .fc-inner { transform: rotateY(180deg); }
+.fc-face {
+  grid-area: 1 / 1; display: flex; flex-direction: column;
+  min-height: clamp(240px, 38vh, 340px); padding: 20px 26px 18px;
+  border-radius: 14px; border: 1px solid var(--bdl);
+  backface-visibility: hidden; -webkit-backface-visibility: hidden;
+  box-shadow: 0 10px 30px -12px var(--shadow);
 }
-.flashcard-front { background: var(--s2); color: var(--tx); font-weight: 600; }
-.flashcard-back { background: color-mix(in srgb, var(--grn) 9%, var(--s2)); color: var(--txd); transform: rotateY(180deg); }
+.fc-front { background: linear-gradient(160deg, var(--s2), var(--s1)); }
+.fc-back {
+  background: linear-gradient(160deg, color-mix(in srgb, var(--ac) 12%, var(--s2)), var(--s1));
+  border-color: color-mix(in srgb, var(--ac) 35%, var(--bdl));
+  transform: rotateY(180deg);
+}
+.fc-face-hd { display: flex; justify-content: space-between; align-items: center; }
+.fc-tag {
+  font-family: var(--font-display); font-size: 10px; font-weight: 700;
+  letter-spacing: 1.6px; text-transform: uppercase; color: var(--txm);
+}
+.fc-back .fc-tag { color: var(--acl); }
+.fc-num { font-family: var(--font-mono); font-size: 10.5px; color: var(--txm); }
+.fc-text { margin: auto 0; padding: 14px 0; }
+.fc-text-front {
+  font-family: var(--font-display); font-size: clamp(19px, 2.4vw, 26px);
+  font-weight: 700; line-height: 1.3; color: var(--tx); text-align: center;
+  text-wrap: balance;
+}
+.fc-text-back { font-size: 15.5px; line-height: 1.65; color: var(--tx); text-align: center; text-wrap: pretty; }
+.fc-text-back.long { font-size: 14px; text-align: left; }
+.fc-back-q { font-size: 11.5px; color: var(--txm); margin-top: 6px; text-align: center;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fc-hint { text-align: center; font-size: 10.5px; color: var(--txm); letter-spacing: .4px; }
+.fc-card.known .fc-front { border-color: color-mix(in srgb, var(--grn) 40%, var(--bdl)); }
+.fc-card.in-next { animation: fcInNext .32s ease-out; }
+.fc-card.in-prev { animation: fcInPrev .32s ease-out; }
+@keyframes fcInNext { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
+@keyframes fcInPrev { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: none; } }
+.fc-ctl { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 18px; }
+.fc-ctl .st-btn:not(.round) { height: 38px; padding: 0 18px; font-size: 12.5px; }
+.fc-learn:hover:not(:disabled) { color: var(--red); border-color: color-mix(in srgb, var(--red) 45%, transparent); }
+.fc-know { color: var(--grn); border-color: color-mix(in srgb, var(--grn) 35%, transparent); }
+.fc-know:hover:not(:disabled) { color: var(--grn); background: color-mix(in srgb, var(--grn) 12%, var(--s2)); }
+.fc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+.fc-mini .fc-face { min-height: 190px; padding: 14px 16px; border-radius: 12px; }
+.fc-mini .fc-text-front { font-size: 16px; }
+.fc-mini .fc-text-back, .fc-mini .fc-text-back.long { font-size: 13px; text-align: left; }
+.fc-mini .fc-hint, .fc-mini .fc-back-q { display: none; }
+.fc-done {
+  display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px;
+  padding: 44px 20px; border: 1px solid var(--bdl); border-radius: 14px;
+  background: linear-gradient(160deg, var(--s2), var(--s1));
+}
+.fc-done-ic {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 46px; height: 46px; border-radius: 50%; font-size: 22px; margin-bottom: 6px;
+  color: var(--grn); background: color-mix(in srgb, var(--grn) 14%, transparent);
+}
+.fc-done-title { font-family: var(--font-display); font-size: 20px; font-weight: 700; color: var(--tx); }
+.fc-done-sub { color: var(--txd); font-size: 13px; }
+.fc-done-acts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 14px; }
+.fc-done-acts .st-btn { height: 36px; padding: 0 16px; }
 
 /* ── Quiz card ── */
-.quiz { display: flex; flex-direction: column; gap: 14px; margin-top: 8px; }
-.quiz-q-text { font-size: 12.5px; color: var(--tx); font-weight: 600; margin-bottom: 7px; }
-.quiz-options { display: flex; flex-direction: column; gap: 5px; }
-.quiz-opt {
-  display: flex; align-items: baseline; gap: 8px; text-align: left;
-  background: var(--s2); border: 1px solid var(--bd); border-radius: 3px;
-  padding: 6px 9px; font-family: inherit; font-size: 11.5px; color: var(--txd); cursor: pointer;
-  transition: all .15s;
+.qz { max-width: 760px; margin: 0 auto; }
+.qz-segs { display: flex; gap: 4px; margin-bottom: 16px; }
+.qz-seg {
+  flex: 1; height: 6px; padding: 0; border: 0; border-radius: 3px;
+  background: var(--s3); transition: background .2s, box-shadow .2s;
 }
-.quiz-opt:hover:not(:disabled) { border-color: var(--ac); }
-.quiz-opt:disabled { cursor: default; }
-.quiz-opt.correct { border-color: var(--grn); color: var(--grn); background: rgba(93,175,109,.08); }
-.quiz-opt.incorrect { border-color: var(--red); color: var(--red); background: rgba(248,81,73,.08); }
-.quiz-opt-letter {
-  font-weight: 700; color: var(--acl); flex-shrink: 0; width: 14px;
+.qz-seg.ok { background: var(--grn); }
+.qz-seg.bad { background: var(--red); }
+.qz-seg.cur { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3px var(--ac); }
+.qz-card {
+  padding: 22px 24px; border-radius: 14px; border: 1px solid var(--bdl);
+  background: linear-gradient(160deg, var(--s2), var(--s1));
 }
-.quiz-why { margin-top: 6px; font-size: 11px; color: var(--txm); padding-left: 2px; }
+.qz-kicker {
+  font-family: var(--font-display); font-size: 10px; font-weight: 700;
+  letter-spacing: 1.6px; text-transform: uppercase; color: var(--acl); margin-bottom: 8px;
+}
+.qz-q {
+  font-family: var(--font-display); font-size: 18px; font-weight: 700;
+  line-height: 1.4; color: var(--tx); margin-bottom: 18px; text-wrap: pretty;
+}
+.qz-opts { display: flex; flex-direction: column; gap: 8px; }
+.qz-opt {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  padding: 12px 14px; border-radius: 10px; border: 1px solid var(--bdl);
+  background: var(--bg); color: var(--txd); font-size: 13.5px; line-height: 1.5;
+  transition: border-color .15s, background .15s, color .15s, opacity .2s;
+}
+.qz-opt:hover:not(:disabled) { border-color: var(--acd); color: var(--tx); background: var(--s1); }
+.qz-opt:disabled { cursor: default; }
+.qz-letter {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: 50%;
+  font-family: var(--font-mono); font-size: 11.5px; font-weight: 600;
+  background: var(--s3); color: var(--acl); transition: background .15s, color .15s;
+}
+.qz-opt-txt { flex: 1 1 auto; min-width: 0; }
+.qz-mark { flex: 0 0 auto; display: inline-flex; font-size: 17px; }
+.qz-opt.correct { border-color: color-mix(in srgb, var(--grn) 60%, transparent); background: color-mix(in srgb, var(--grn) 10%, var(--bg)); color: var(--tx); }
+.qz-opt.correct .qz-letter { background: var(--grn); color: #1a1a1d; }
+.qz-opt.correct .qz-mark { color: var(--grn); }
+.qz-opt.wrong { border-color: color-mix(in srgb, var(--red) 60%, transparent); background: color-mix(in srgb, var(--red) 10%, var(--bg)); color: var(--tx); }
+.qz-opt.wrong .qz-letter { background: var(--red); color: #1a1a1d; }
+.qz-opt.wrong .qz-mark { color: var(--red); }
+.qz-opt.dim { opacity: .5; }
+.qz-fb {
+  margin-top: 14px; padding: 12px 14px; border-radius: 10px;
+  border: 1px solid var(--bd); animation: rise .25s ease-out;
+}
+.qz-fb.ok { background: color-mix(in srgb, var(--grn) 8%, transparent); border-color: color-mix(in srgb, var(--grn) 30%, transparent); }
+.qz-fb.bad { background: color-mix(in srgb, var(--red) 8%, transparent); border-color: color-mix(in srgb, var(--red) 30%, transparent); }
+.qz-fb-hd { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; }
+.qz-fb.ok .qz-fb-hd { color: var(--grn); }
+.qz-fb.bad .qz-fb-hd { color: var(--red); }
+.qz-fb-ic { display: inline-flex; font-size: 15px; }
+.qz-why { margin-top: 6px; color: var(--txd); font-size: 13px; line-height: 1.6; }
+.qz-nav { display: flex; justify-content: space-between; gap: 10px; margin-top: 16px; }
+.qz-nav .st-btn { height: 38px; padding: 0 18px; font-size: 12.5px; }
+.qz-results {
+  padding: 24px; border-radius: 14px; border: 1px solid var(--bdl);
+  background: linear-gradient(160deg, var(--s2), var(--s1));
+}
+.qz-res-hd { display: flex; align-items: center; gap: 20px; margin-bottom: 20px; }
+.qz-ring { position: relative; width: 96px; height: 96px; flex: 0 0 auto; }
+.qz-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.qz-ring circle { fill: none; stroke-width: 8; }
+.qz-ring-bg { stroke: var(--s3); }
+.qz-ring-fg { stroke: var(--ac); stroke-linecap: round; transition: stroke-dashoffset .8s ease; }
+.qz-ring-num {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-display); font-size: 21px; font-weight: 800; color: var(--tx);
+}
+.qz-res-title { font-family: var(--font-display); font-size: 20px; font-weight: 700; color: var(--tx); }
+.qz-res-sub { color: var(--txd); font-size: 13px; margin-top: 2px; }
+.qz-review { display: flex; flex-direction: column; gap: 6px; }
+.qz-rv {
+  display: flex; align-items: flex-start; gap: 12px; width: 100%; text-align: left;
+  padding: 10px 12px; border-radius: 10px; border: 1px solid var(--bd);
+  background: var(--bg); color: var(--txd); transition: border-color .15s, background .15s;
+}
+.qz-rv:hover { border-color: var(--bdl); background: var(--s1); }
+.qz-rv-ic {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 50%; font-size: 13px; margin-top: 1px;
+  background: var(--s3); color: var(--txm);
+}
+.qz-rv.ok .qz-rv-ic { background: color-mix(in srgb, var(--grn) 18%, transparent); color: var(--grn); }
+.qz-rv.bad .qz-rv-ic { background: color-mix(in srgb, var(--red) 18%, transparent); color: var(--red); }
+.qz-rv-body { min-width: 0; }
+.qz-rv-q { color: var(--tx); font-size: 13px; line-height: 1.45; }
+.qz-rv-a { color: var(--txm); font-size: 11.5px; margin-top: 2px; font-family: var(--font-mono); }
 
 /* ── Mind Map card ── */
-.mindmap { position: relative; display: flex; align-items: center; gap: 26px; padding: 10px 4px; overflow-x: auto; }
-.mm-links { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
-.mm-link { stroke: var(--bd); stroke-width: 1.3; fill: none; }
+.mindmap { position: relative; display: flex; align-items: center; gap: 34px; padding: 14px 6px; overflow-x: auto; }
+.mm-links { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; overflow: visible; }
+.mm-link { stroke: var(--bdl); stroke-width: 1.4; fill: none; }
 .mm-root {
   position: relative; z-index: 1; flex-shrink: 0;
   background: color-mix(in srgb, var(--ac) 16%, var(--s2)); border: 1px solid var(--ac);
-  border-radius: 3px; padding: 9px 13px; font-size: 12px; font-weight: 700; color: var(--tx);
-  max-width: 160px;
+  border-radius: 10px; padding: 11px 15px; font-family: var(--font-display);
+  font-size: 13px; font-weight: 700; color: var(--tx); max-width: 180px;
 }
-.mm-branches { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 10px; }
-.mm-col { display: flex; align-items: center; gap: 20px; }
+.mm-branches { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 12px; }
+.mm-col { display: flex; align-items: center; gap: 26px; }
 .mm-node {
-  background: var(--s2); border: 1px solid var(--bd); border-radius: 3px;
-  padding: 6px 10px; font-size: 11px; color: var(--txd); max-width: 150px; white-space: normal;
+  background: var(--s2); border: 1px solid var(--bdl); border-radius: 8px;
+  padding: 7px 11px; font-size: 12px; color: var(--txd); max-width: 190px; white-space: normal;
 }
+.mm-branches > .mm-col > .mm-node { color: var(--tx); font-weight: 600; }
 .mm-children { display: flex; flex-direction: column; gap: 8px; }
 
-/* ── Slide Deck card ── */
-.slidedeck { margin-top: 8px; }
-.slide {
-  background: var(--s2); border: 1px solid var(--bd); border-radius: 3px;
-  padding: 18px 20px; min-height: 140px;
+/* ── Slide Deck card ──
+   A slide is laid out in container units (cqw), so the stage, the filmstrip
+   and the presenter overlay all draw the SAME slide at different sizes. */
+.sd { max-width: 1100px; margin: 0 auto; }
+.sd-slide { container-type: inline-size; width: 100%; }
+.sd-inner {
+  position: relative; aspect-ratio: 16 / 9; overflow: hidden;
+  display: flex; flex-direction: column;
+  padding: 4.2cqw 5.2cqw 3.4cqw;
+  border-radius: 1.4cqw; border: 1px solid var(--bdl);
+  background:
+    radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, var(--ac) 14%, transparent), transparent 60%),
+    linear-gradient(160deg, #2a2a30, #1d1d21);
+  color: var(--tx);
 }
-.slide-title { font-size: 14px; font-weight: 700; color: var(--tx); margin-bottom: 10px; }
-.slide-bullets { padding-left: 18px; margin: 0; }
-.slide-bullets li { font-size: 12px; color: var(--txd); margin-bottom: 6px; }
-.slide-nav {
-  display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 10px;
+.sd-inner::before {
+  content: ""; position: absolute; left: 5.2cqw; top: 0; width: 7cqw; height: .5cqw;
+  background: var(--ac); border-radius: 0 0 .4cqw .4cqw;
 }
-.slide-nav button {
-  background: transparent; border: 1px solid var(--bd); color: var(--txd);
-  border-radius: 4px; width: 26px; height: 26px; cursor: pointer; font-family: inherit;
+.sd-top { display: flex; justify-content: space-between; align-items: center; }
+.sd-brand {
+  font-family: var(--font-display); font-weight: 800; letter-spacing: .5cqw;
+  font-size: 1.25cqw; color: var(--acl); opacity: .8;
 }
-.slide-nav button:hover:not(:disabled) { border-color: var(--ac); color: var(--ac); }
-.slide-nav button:disabled { opacity: .35; cursor: not-allowed; }
-.slide-count { font-size: 10.5px; color: var(--txm); letter-spacing: .5px; }
+.sd-no { font-family: var(--font-mono); font-size: 1.3cqw; color: var(--txm); }
+.sd-body { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; min-height: 0; }
+.sd-title {
+  font-family: var(--font-display); font-weight: 800; font-size: 4.1cqw;
+  line-height: 1.15; letter-spacing: -.05cqw; color: var(--tx); text-wrap: balance;
+  margin-bottom: 2.6cqw;
+}
+.sd-bullets { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1.5cqw; }
+.sd-bullets li {
+  position: relative; padding-left: 2.8cqw;
+  font-size: 2.15cqw; line-height: 1.45; color: var(--txd); text-wrap: pretty;
+}
+.sd-bullets li::before {
+  content: ""; position: absolute; left: 0; top: .72em;
+  width: 1.1cqw; height: 1.1cqw; margin-top: -.55cqw; border-radius: 50%;
+  background: var(--ac); opacity: .9;
+}
+.sd-bullets li strong { color: var(--tx); }
+.sd-foot {
+  display: flex; justify-content: space-between; font-size: 1.2cqw;
+  color: var(--txm); letter-spacing: .15cqw; text-transform: uppercase;
+}
+/* title slide: centred, larger */
+.sd-inner.is-title .sd-body { align-items: center; text-align: center; }
+.sd-inner.is-title .sd-title { font-size: 5.2cqw; }
+.sd-inner.is-title .sd-bullets { align-items: center; }
+.sd-inner.is-title .sd-bullets li { padding-left: 0; color: var(--txd); font-size: 2cqw; }
+.sd-inner.is-title .sd-bullets li::before { display: none; }
+.sd-inner.is-title::before { left: 50%; transform: translateX(-50%); }
+/* closing slide: accent wash */
+.sd-inner.is-end {
+  background:
+    radial-gradient(110% 110% at 0% 100%, color-mix(in srgb, var(--ac) 22%, transparent), transparent 65%),
+    linear-gradient(160deg, #2a2a30, #1d1d21);
+}
+/* Narrow screens: a 16:9 slide 340px wide is 8px text. The main slide gives
+   up the aspect ratio and takes readable fixed sizes instead; thumbnails keep
+   theirs, since they are pictures of slides rather than something to read. */
+@container (max-width: 560px) {
+  .sd-slide:not(.sd-mini) > .sd-inner {
+    aspect-ratio: auto; min-height: 72cqw; padding: 22px 20px 16px; border-radius: 12px;
+  }
+  .sd-slide:not(.sd-mini) > .sd-inner::before { left: 20px; width: 36px; height: 3px; }
+  .sd-slide:not(.sd-mini) > .sd-inner.is-title::before { left: 50%; }
+  .sd-slide:not(.sd-mini) .sd-brand { font-size: 9px; letter-spacing: 2px; }
+  .sd-slide:not(.sd-mini) .sd-no, .sd-slide:not(.sd-mini) .sd-foot { font-size: 10px; letter-spacing: .5px; }
+  .sd-slide:not(.sd-mini) .sd-body { padding: 16px 0; }
+  .sd-slide:not(.sd-mini) .sd-title { font-size: 21px; margin-bottom: 14px; }
+  .sd-slide:not(.sd-mini) .is-title .sd-title { font-size: 24px; }
+  .sd-slide:not(.sd-mini) .sd-bullets { gap: 10px; }
+  .sd-slide:not(.sd-mini) .sd-bullets li { font-size: 14.5px; padding-left: 18px; }
+  .sd-slide:not(.sd-mini) .is-title .sd-bullets li { font-size: 13.5px; padding-left: 0; }
+  .sd-slide:not(.sd-mini) .sd-bullets li::before { width: 6px; height: 6px; margin-top: -3px; }
+}
+.sd-stage { position: relative; border-radius: 12px; box-shadow: 0 18px 40px -18px var(--shadow); }
+.sd-stage.in-next { animation: fcInNext .3s ease-out; }
+.sd-stage.in-prev { animation: fcInPrev .3s ease-out; }
+.sd-zone {
+  position: absolute; top: 0; bottom: 0; width: 22%; z-index: 2;
+  display: flex; align-items: center; padding: 0 14px;
+  background: none; border: 0; color: var(--tx); opacity: 0; transition: opacity .2s;
+}
+.sd-zone-l { left: 0; justify-content: flex-start; }
+.sd-zone-r { right: 0; justify-content: flex-end; }
+.sd-zone-ic {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 38px; height: 38px; border-radius: 50%; font-size: 18px;
+  background: rgba(20, 20, 23, .7); border: 1px solid var(--bdl);
+}
+.sd-stage:hover .sd-zone { opacity: 1; }
+@media (hover: none) { .sd-zone { opacity: 0 !important; } }
+.sd-nav { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 14px; }
+.sd-dots { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.sd-dot {
+  width: 7px; height: 7px; padding: 0; border: 0; border-radius: 4px;
+  background: var(--s3); transition: width .25s, background .25s;
+}
+.sd-dot.on { width: 22px; background: var(--ac); }
+.sd-count { font-family: var(--font-mono); font-size: 11px; color: var(--txm); min-width: 42px; text-align: center; }
+.sd-strip {
+  display: flex; gap: 10px; overflow-x: auto; padding: 14px 2px 4px; margin-top: 4px;
+  scroll-snap-type: x proximity;
+}
+.sd-thumb {
+  flex: 0 0 150px; padding: 0; border: 0; background: none; border-radius: 6px;
+  opacity: .55; transition: opacity .2s, transform .2s; scroll-snap-align: center;
+}
+.sd-thumb:hover { opacity: .85; }
+.sd-thumb.active { opacity: 1; }
+.sd-thumb.active .sd-inner { border-color: var(--ac); box-shadow: 0 0 0 1px var(--ac); }
+.sd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+.sd-grid .sd-thumb { flex: none; opacity: 1; }
+.sd-grid .sd-thumb:hover { transform: translateY(-2px); }
+/* presenting: fills the screen (true fullscreen where the platform allows) */
+body.sd-presenting { overflow: hidden; }
+.sd-present {
+  position: fixed; inset: 0; z-index: 10000; background: #0e0e10;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  animation: rise .2s ease-out;
+}
+.sd-present-stage { width: min(100%, calc((100vh - 110px) * 16 / 9)); cursor: pointer; }
+.sd-present-stage .sd-inner { box-shadow: 0 30px 80px -30px #000; }
+.sd-present-hud { display: flex; align-items: center; gap: 12px; margin-top: 18px; }
+.sd-present-count { font-family: var(--font-mono); font-size: 12px; color: var(--txm); min-width: 52px; text-align: center; }
 
 /* ── Audio Overview card ── */
-.audio-overview { margin-top: 8px; }
-.audio-controls { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-.audio-note { color: var(--txm); font-size: 10.5px; }
-.audio-transcript {
-  max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;
+.au { max-width: 860px; margin: 0 auto; }
+.au-player {
+  padding: 20px 22px 16px; border-radius: 16px; border: 1px solid var(--bdl);
+  background:
+    radial-gradient(90% 120% at 50% 0%, color-mix(in srgb, var(--ac) 12%, transparent), transparent 70%),
+    linear-gradient(160deg, var(--s2), var(--s1));
 }
-.audio-line {
-  font-size: 12px; color: var(--txd); line-height: 1.5; padding: 4px 6px; border-radius: 3px;
+.au-hosts { display: flex; justify-content: space-between; gap: 12px; }
+.au-host { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.au-host.host-b { flex-direction: row-reverse; text-align: right; }
+.au-avatar {
+  position: relative; flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-display); font-weight: 800; font-size: 14px; color: #1a1a1d;
+  transition: box-shadow .3s;
 }
-.audio-line.speaking { background: color-mix(in srgb, var(--ac) 10%, transparent); color: var(--tx); }
-.audio-speaker {
-  display: inline-block; font-size: 9px; font-weight: 700; letter-spacing: .8px;
-  text-transform: uppercase; margin-right: 8px; padding: 1px 6px; border-radius: 2px;
+.host-a .au-avatar { background: var(--ac); }
+.host-b .au-avatar { background: var(--blue); }
+.au-host.talking.host-a .au-avatar { box-shadow: 0 0 0 4px color-mix(in srgb, var(--ac) 30%, transparent), 0 0 24px color-mix(in srgb, var(--ac) 45%, transparent); }
+.au-host.talking.host-b .au-avatar { box-shadow: 0 0 0 4px color-mix(in srgb, var(--blue) 30%, transparent), 0 0 24px color-mix(in srgb, var(--blue) 45%, transparent); }
+.au-host-meta { min-width: 0; }
+.au-host-name { font-family: var(--font-display); font-weight: 700; font-size: 13px; color: var(--tx); }
+.au-host-voice { font-size: 11px; color: var(--txm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+.au-eq { display: flex; align-items: flex-end; gap: 2px; height: 16px; opacity: 0; transition: opacity .2s; }
+.au-eq i { display: block; width: 3px; height: 30%; border-radius: 2px; }
+.host-a .au-eq i { background: var(--ac); }
+.host-b .au-eq i { background: var(--blue); }
+.au-host.talking .au-eq { opacity: 1; }
+.au-host.talking .au-eq i { animation: auEq .9s ease-in-out infinite; }
+.au-eq i:nth-child(2) { animation-delay: -.3s !important; }
+.au-eq i:nth-child(3) { animation-delay: -.6s !important; }
+.au-eq i:nth-child(4) { animation-delay: -.15s !important; }
+@keyframes auEq { 0%, 100% { height: 25%; } 50% { height: 100%; } }
+.au-main { display: flex; align-items: center; justify-content: center; gap: 18px; margin: 10px 0 14px; }
+.au-play {
+  width: 60px; height: 60px; border-radius: 50%; border: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--ac); color: #1a1a1d; font-size: 22px;
+  box-shadow: 0 8px 24px -8px color-mix(in srgb, var(--ac) 70%, transparent);
+  transition: transform .12s, background .15s;
 }
-.audio-speaker.host-a { color: var(--ac); background: color-mix(in srgb, var(--ac) 16%, transparent); }
-.audio-speaker.host-b { color: var(--acl); background: color-mix(in srgb, var(--acl) 16%, transparent); }
+.au-play:hover:not(:disabled) { background: var(--acl); }
+.au-play:active:not(:disabled) { transform: scale(.95); }
+.au-play:disabled { opacity: .4; cursor: not-allowed; }
+.au-play-ic { display: inline-flex; }
+.au-play:not(.on) .au-play-ic { margin-left: 3px; }
+.au-play .au-play-ic svg { fill: currentColor; }
+.au-skip .st-btn-ic svg { fill: currentColor; }
+.au-segs { display: flex; gap: 3px; height: 8px; }
+.au-seg {
+  min-width: 4px; padding: 0; border: 0; border-radius: 3px; height: 100%;
+  background: var(--s3); transition: background .2s, transform .15s;
+}
+.au-seg:hover { transform: scaleY(1.5); }
+.au-seg.done.host-a, .au-seg.cur.host-a { background: var(--ac); }
+.au-seg.done.host-b, .au-seg.cur.host-b { background: var(--blue); }
+.au-seg.done { opacity: .55; }
+.au-seg.cur { animation: auPulse 1.4s ease-in-out infinite; }
+@keyframes auPulse { 50% { opacity: .55; } }
+.au-times { display: flex; justify-content: space-between; margin-top: 6px;
+  font-family: var(--font-mono); font-size: 10.5px; color: var(--txm); }
+.au-opts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+.au-speeds { display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px; background: var(--bg); border: 1px solid var(--bd); }
+.au-speed {
+  height: 24px; padding: 0 9px; border: 0; border-radius: 999px; background: none;
+  color: var(--txm); font-family: var(--font-mono); font-size: 11px;
+}
+.au-speed:hover { color: var(--tx); }
+.au-speed.on { background: var(--s3); color: var(--tx); }
+.au-opts .copybtn { margin: 0; }
+.au-vpanel {
+  margin-top: 12px; padding: 12px; border-radius: 10px; background: var(--bg);
+  border: 1px solid var(--bd); display: flex; flex-direction: column; gap: 8px;
+}
+.au-vrow { display: flex; align-items: center; gap: 10px; }
+.au-vtag { flex: 0 0 60px; font-size: 11.5px; font-weight: 600; }
+.au-vtag.host-a { color: var(--ac); }
+.au-vtag.host-b { color: var(--blue); }
+.au-vsel {
+  flex: 1 1 auto; min-width: 0; height: 32px; padding: 0 10px; border-radius: 8px;
+  background: var(--s2); border: 1px solid var(--bdl); color: var(--tx); font-size: 12px;
+}
+.au-vpanel .st-btn { align-self: flex-start; }
+.au-vnote { font-size: 11px; color: var(--txm); line-height: 1.5; }
+.au-note { color: var(--txm); font-size: 11.5px; text-align: center; margin: 10px 0 0; }
+.au-note:empty { display: none; }
+.au-transcript { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+.au-line {
+  display: block; width: fit-content; max-width: min(640px, 86%); text-align: left;
+  padding: 11px 14px; border-radius: 14px; border: 1px solid var(--bd);
+  background: var(--s1); color: var(--txd);
+  transition: background .2s, border-color .2s, color .2s, opacity .2s;
+}
+.au-line.host-a { border-top-left-radius: 4px; }
+.au-line.host-b { align-self: flex-end; border-top-right-radius: 4px; }
+.au-line:hover { border-color: var(--bdl); }
+.au-line-hd { display: flex; align-items: center; gap: 7px; margin-bottom: 3px; }
+.au-line-dot { width: 7px; height: 7px; border-radius: 50%; }
+.host-a .au-line-dot { background: var(--ac); }
+.host-b .au-line-dot { background: var(--blue); }
+.au-line-name { font-family: var(--font-display); font-size: 11px; font-weight: 700; letter-spacing: .4px; color: var(--tx); }
+.au-line-time { font-family: var(--font-mono); font-size: 10px; color: var(--txm); margin-left: auto; padding-left: 12px; }
+.au-line-txt { font-size: 13.5px; line-height: 1.6; }
+.au-line.current { color: var(--tx); }
+.au-line.current.host-a { border-color: color-mix(in srgb, var(--ac) 45%, transparent); background: color-mix(in srgb, var(--ac) 9%, var(--s1)); }
+.au-line.current.host-b { border-color: color-mix(in srgb, var(--blue) 45%, transparent); background: color-mix(in srgb, var(--blue) 9%, var(--s1)); }
+.au.playing .au-line.past { opacity: .6; }
+
+@media (max-width: 760px) {
+  .st-bar { gap: 6px; }
+  .st-meta { flex: 1 1 100%; }
+  .st-search { flex: 1 1 100%; width: auto; order: 5; height: 38px; }
+  .st-btn { height: 36px; }
+  .st-btn.round { width: 44px; height: 44px; }
+  /* Data table: every row becomes a card, each cell labelled with its column,
+     rather than a table the phone has to scroll sideways through. */
+  .st-tbl-wrap { border: 0; background: none; overflow: visible; }
+  .st-tbl, .st-tbl tbody, .st-tbl tr, .st-tbl td { display: block; width: 100%; }
+  .st-tbl thead { display: none; }
+  .st-tbl tbody { display: flex; flex-direction: column; gap: 10px; }
+  .st-tbl tbody tr { border: 1px solid var(--bdl); border-radius: 12px; overflow: hidden; background: var(--s1); }
+  .st-tbl tbody tr td, .st-tbl tbody tr:nth-child(even) td, .st-tbl tbody tr:hover td { background: none; }
+  .st-tbl td { padding: 9px 14px; border-bottom: 1px solid var(--bd); }
+  .st-tbl td::before {
+    content: attr(data-label); display: block; margin-bottom: 2px;
+    font-family: var(--font-display); font-size: 10px; font-weight: 700;
+    letter-spacing: .8px; text-transform: uppercase; color: var(--txm);
+  }
+  .st-tbl td:first-child { background: var(--s2) !important; font-size: 14px; }
+  .st-tbl tr td:last-child { border-bottom: 0; }
+  .st-tbl tr.st-empty { border-style: dashed; }
+  .st-tbl tr.st-empty td::before { display: none; }
+
+  .fc-face { padding: 16px 18px 14px; border-radius: 12px; min-height: 280px; }
+  .fc-text-back, .fc-text-back.long { font-size: 14.5px; }
+  .fc-ctl { gap: 8px; }
+  .fc-ctl .st-btn:not(.round) { flex: 1 1 0; height: 44px; padding: 0 10px; }
+  .fc-hint { font-size: 0; }
+  .fc-hint::after { content: "Tap to flip · swipe to move"; font-size: 10.5px; }
+  .fc-grid { grid-template-columns: 1fr; }
+
+  .qz-card, .qz-results { padding: 16px; border-radius: 12px; }
+  .qz-q { font-size: 16.5px; }
+  .qz-opt { padding: 12px; min-height: 52px; font-size: 14px; }
+  .qz-nav .st-btn { flex: 1 1 0; height: 44px; }
+  .qz-res-hd { gap: 14px; }
+  .qz-ring { width: 78px; height: 78px; }
+
+  .sd-nav { gap: 8px; }
+  .sd-dots { display: none; }
+  .sd-thumb { flex-basis: 112px; }
+  .sd-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .sd-present { padding-left: 8px; padding-right: 8px; }
+  .sd-present-stage { width: 100%; }
+
+  .au-player { padding: 16px 14px 14px; border-radius: 14px; }
+  .au-host-voice { max-width: 110px; }
+  .au-eq { display: none; }
+  .au-play { width: 64px; height: 64px; }
+  .au-segs { height: 10px; }
+  .au-speeds { order: 5; flex: 1 1 100%; justify-content: space-between; }
+  .au-speed { flex: 1; height: 32px; }
+  .au-line { max-width: 94%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fc-inner { transition: none; }
+  .fc-card.in-next, .fc-card.in-prev, .sd-stage.in-next, .sd-stage.in-prev { animation: none; }
+  .au-host.talking .au-eq i, .au-seg.cur { animation: none; }
+}
 
 /* ── brainstorm ───────────────────────────────────────────────────────────
    The planning session. Keyed to --gold rather than the council's --ac so a
@@ -3111,7 +3592,7 @@ html.modal-open .page, html.modal-open .sidebar { overflow: hidden; }
   /* ── touch targets ────────────────────────────────────────────────────── */
   /* 44px is the smallest reliably hittable control; the desktop sizes here are
      28px pills built for a mouse. */
-  .side-item, .navitem, .btn, .chip, .quiz-opt, .bs-opt { min-height: 44px; }
+  .side-item, .navitem, .btn, .chip, .bs-opt { min-height: 44px; }
   .btn { padding: 0 16px; font-size: 12px; }
   /* Both are icon-only at this width -- .qbar-refine-txt is hidden below
      620px -- so they must be CIRCLES. Setting only min-height grew the height
@@ -3186,18 +3667,25 @@ html.modal-open .page, html.modal-open .sidebar { overflow: hidden; }
 
   /* A wide table must scroll INSIDE its own box; the page itself must never
      scroll sideways. */
-  .v-tablewrap, .studio-tablewrap, .bs-split { max-width: 100%; overflow-x: auto; }
-  .v-table, .studio-table { min-width: 460px; }
+  .v-tablewrap, .bs-split { max-width: 100%; overflow-x: auto; }
+  .v-table { min-width: 460px; }
 
   .magi-grid { gap: 10px; }
   .node-body { max-height: 50vh; }
 
   /* ── studio ───────────────────────────────────────────────────────────── */
-  .flashcards { grid-template-columns: 1fr; }
-  .studio-view-body { padding: 12px; }
-  .mindmap { gap: 14px; }
-  .mm-node, .mm-root { font-size: 11px; }
-  .slide-nav button { min-width: 44px; min-height: 44px; }
+  .studio-view-body { padding: 14px 12px 16px; }
+  /* One row on a phone: the header's actions become icon buttons, and the
+     status drops under the title rather than pushing them onto a new line. */
+  .studio-view-hd { flex-wrap: nowrap; gap: 8px; padding: 8px 8px 8px 12px; }
+  .studio-view-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .studio-view-status { display: none; }
+  .studio-view-hd .studio-hd-txt { display: none; }
+  .studio-view-hd .navitem { width: 40px; min-height: 40px; height: 40px; padding: 0; justify-content: center; flex: 0 0 auto; }
+  .studio-view-hd .navitem .navitem-ic { margin: 0; font-size: 16px; }
+  .st-bar .copybtn, .au-opts .copybtn { height: 36px; }
+  .mindmap { gap: 18px; }
+  .mm-node, .mm-root { font-size: 11.5px; }
 
   /* ── brainstorm ───────────────────────────────────────────────────────── */
   .bs-cards { grid-template-columns: 1fr; }
@@ -3244,7 +3732,7 @@ html.modal-open .page, html.modal-open .sidebar { overflow: hidden; }
   .page { padding-left: 10px; padding-right: 10px; }
   .chip-unit { display: none; }
   .verdict-quorum { font-size: 9.5px; }
-  .v-table, .studio-table { min-width: 380px; }
+  .v-table { min-width: 380px; }
 }
 
 /* Landscape phones are SHORT, not narrow: the drawer must still scroll and the
@@ -3688,10 +4176,10 @@ window._mailRelay = window._mailRelay || async function (res) {
         <span class="studio-view-ic" id="studioIc"></span>
         <span class="studio-view-title" id="studioTitle"></span>
         <span class="studio-view-status" id="studioStatus"></span>
-        <span class="qbar-spacer"></span>
-        <button type="button" class="navitem" id="studioRegen" hidden><span class="navitem-ic" data-ic="regen"></span>Regenerate</button>
-        <button type="button" class="navitem danger" id="studioCancel" hidden><span class="navitem-ic" data-ic="halt"></span>Cancel</button>
-        <button type="button" class="navitem" id="studioClose"><span class="navitem-ic" data-ic="close"></span>Close</button>
+        <span class="studio-view-sp"></span>
+        <button type="button" class="navitem" id="studioRegen" title="Regenerate" hidden><span class="navitem-ic" data-ic="regen"></span><span class="studio-hd-txt">Regenerate</span></button>
+        <button type="button" class="navitem danger" id="studioCancel" title="Cancel" hidden><span class="navitem-ic" data-ic="halt"></span><span class="studio-hd-txt">Cancel</span></button>
+        <button type="button" class="navitem" id="studioClose" title="Close"><span class="navitem-ic" data-ic="close"></span><span class="studio-hd-txt">Close</span></button>
       </div>
       <div class="studio-view-body" id="studioBody"></div>
     </div>
@@ -7613,7 +8101,7 @@ function setView(v) {
   // Leaving the council view closes any open Studio card. Otherwise History
   // would render UNDER a slide deck, which is how two panels ended up stacked
   // in the first place.
-  if (v !== "council" && S.studio) S.studio.active = null;
+  if (v !== "council" && S.studio) { releaseStudioCard(); S.studio.active = null; }
   const studioOpen = !!(S.studio && S.studio.active);
   const bsOpen = v === "brainstorm";
 
@@ -8085,7 +8573,7 @@ const KIND_ORDER = ["table", "report", "flashcards", "quiz", "mindmap", "slides"
 const freshArtifacts = () =>
   Object.fromEntries(KIND_ORDER.map((k) => [k, { status: "idle" }]));
 
-S.studio = { artifacts: freshArtifacts(), active: null, ui: {}, jobs: {} };
+S.studio = { artifacts: freshArtifacts(), active: null, ui: {}, jobs: {}, cleanup: null, onKey: null };
 
 /** One-line status per card, shared by the sidebar row and the open viewer so
  *  the two can never describe the same artifact differently. */
@@ -8110,6 +8598,7 @@ const studioEnabled = () => !!(S.runId && S.gridOwner === "council"
   && S.runLocal && S.verdict && S.verdict.synthesis_ok && online());
 
 function resetStudio() {
+  releaseStudioCard();
   S.studio.artifacts = freshArtifacts();
   S.studio.active = null;
   S.studio.ui = {};
@@ -8225,7 +8714,18 @@ function openStudio(kind) {
   renderStudioView();
 }
 
+/** What the open card holds that outlives its DOM: speech in progress, a
+ *  presentation overlay on <body>, a keyboard handler. Dropped on every
+ *  re-render and on close, so none of it outlives the card that made it. */
+function releaseStudioCard() {
+  const fn = S.studio.cleanup;
+  S.studio.cleanup = null;
+  S.studio.onKey = null;
+  if (fn) try { fn(); } catch {}
+}
+
 function closeStudio() {
+  releaseStudioCard();
   S.studio.active = null;
   show($("studioView"), false);
   renderStudioNav();
@@ -8298,6 +8798,7 @@ function renderStudioNav() {
 }
 
 function renderStudioView() {
+  releaseStudioCard();
   const kind = S.studio.active;
   const view = $("studioView");
   show(view, !!kind);
@@ -8346,123 +8847,682 @@ function renderStudioView() {
   body.append(renderCard(kind, a));
 }
 
-/** Raw text fallback: shown whenever the backend parser found nothing usable in
- *  an otherwise-successful generation. Degrade to plain text rather than hide a
+/** Raw text fallback: shown whenever no parser found anything usable in an
+ *  otherwise-successful generation. Degrade to plain text rather than hide a
  *  real response the provider actually gave. */
 const rawFallback = (text) => el("pre", "studio-raw", text || "");
 
+/* ── Studio parsing, in the console ─────────────────────────────────────────
+   Every structured card is parsed HERE from raw_text, not from the engine's
+   parsed_json. The engine's parsers split on markers that sit alone on their
+   own line ("CARD 1" / "HOST A:") -- but a chat page's capture regularly comes
+   back with its newlines gone ("...into the atmosphere.CARD 2 FRONT: ..."), so
+   a whole deck parsed as nothing and a whole podcast as one line. Parsing on
+   the console also means a card generated before this change renders in the
+   new UI straight away, with no engine restart and no regeneration.
+   parsed_json is still the fallback when these find nothing. */
+
+/** "**FRONT:**", "**FRONT**:", "__TITLE__:" -> "FRONT:", so every parser sees
+ *  one label shape whichever way a model decided to bold it. */
+const studioClean = (raw) => String(raw || "")
+  .replace(/\r/g, "")
+  .replace(/(\*\*|__)\s*([A-Z][A-Z ]{0,18}?\s*\d{0,2})\s*(:?)\s*\1\s*(:?)/g,
+           (m, _w, label, c1, c2) => (/^(CARD|FRONT|BACK|SLIDE|TITLE|CORRECT|WHY|HOST|ROOT|Q)\b/i.test(label)
+             ? `${label}${c1 || c2}` : m))
+  .trim();
+
+/** Splits text on a numbered marker ("CARD 3", "Q3.", "SLIDE 3") and returns
+ *  the bodies of the LAST numbered run. A capture sometimes holds the answer
+ *  twice -- a draft and then the final, both numbered from 1 -- and sixteen
+ *  slides that are two copies of eight is worse than eight. */
+function numberedBlocks(text, marker, punct = "[:.)\\-–—]?") {
+  // Uppercase markers match anywhere, even glued to the previous word
+  // ("...recycled waterSLIDE 1") -- that is exactly what a lost newline looks
+  // like. Any other casing ("Slide 1") only counts at the start of a line and
+  // with punctuation after it, so prose that mentions "slide 3" never splits.
+  const tail = String.raw`\s*(\d{1,3})\s*${punct}\s*`;
+  const strict = String.raw`\s*(\d{1,3})\s*(?:[:.)\-–—]|(?=\n)|$)\s*`;
+  const anyCase = marker.replace(/[A-Za-z]/g, (c) => `[${c.toUpperCase()}${c.toLowerCase()}]`);
+  const re = new RegExp(String.raw`(?<![A-Z0-9])${marker}${tail}|(?<=^|\n)[ \t]*${anyCase}${strict}`, "g");
+  const num = (m) => +(m[1] || m[2]);
+  // Only an unbroken 1, 2, 3... sequence counts, so "Q4 earnings" inside
+  // question 2 stays text rather than becoming a fourth question.
+  const hits = [];
+  let start = 0;
+  for (const m of text.matchAll(re)) {
+    const n = num(m);
+    if (n === 1) { start = hits.length; hits.push(m); }
+    else if (hits.length && n === num(hits[hits.length - 1]) + 1) hits.push(m);
+  }
+  const out = [];
+  for (let k = start; k < hits.length; k++) {
+    const e = k + 1 < hits.length ? hits[k + 1].index : text.length;
+    out.push(text.slice(hits[k].index + hits[k][0].length, e).trim());
+  }
+  return out;
+}
+
+function studioParseFlashcards(raw) {
+  const c = studioClean(raw);
+  const blocks = numberedBlocks(c, "CARD");
+  const t = blocks.length ? blocks.join("\n") : c;
+  const cards = [];
+  const re = /FRONT\s*:\s*([\s\S]*?)\s*BACK\s*:\s*([\s\S]*?)\s*(?=FRONT\s*:|$)/gi;
+  let m;
+  while ((m = re.exec(t))) {
+    const front = m[1].trim(), back = m[2].trim();
+    if (front && back) cards.push({ front, back });
+  }
+  return cards;
+}
+
+function studioParseQuiz(raw) {
+  const out = [];
+  for (const block of numberedBlocks(studioClean(raw), "Q(?:uestion)?", "[.):]")) {
+    const cm = block.match(/(?<![A-Z])(?:CORRECT(?:\s+ANSWER)?|ANSWER|[Cc]orrect(?:\s+answer)?|[Aa]nswer)\s*[:\-–]\s*\(?\s*([A-Da-d])\b/);
+    if (!cm) continue;
+    const body = block.slice(0, cm.index);
+    const wm = block.slice(cm.index + cm[0].length)
+      .match(/(?<![A-Z])(?:WHY|EXPLANATION|[Ww]hy|[Ee]xplanation)\s*[:\-–]\s*([\s\S]*)$/);
+    // Walk back from the end: the last D, then the last C before it, then B,
+    // then A. A letter inside the question itself ("Plan B. ...") sits BEFORE
+    // the real option markers, so searching backwards never lands on it.
+    const marks = [];
+    let end = body.length;
+    for (const L of ["D", "C", "B", "A"]) {
+      const re = new RegExp(String.raw`(?:^|\s)\(?${L}[.):]\s+`, "g");
+      const head = body.slice(0, end);
+      let mm, last = null;
+      while ((mm = re.exec(head))) last = mm;
+      if (last) { marks.unshift({ L, at: last.index, len: last[0].length }); end = last.index; }
+    }
+    if (marks.length < 2) continue;
+    const text = body.slice(0, marks[0].at).trim();
+    const options = {};
+    marks.forEach((mk, i) => {
+      const stop = i + 1 < marks.length ? marks[i + 1].at : body.length;
+      options[mk.L] = body.slice(mk.at + mk.len, stop).trim();
+    });
+    const correct = cm[1].toUpperCase();
+    if (!text || !(correct in options)) continue;
+    out.push({ text, options, correct, why: wm ? wm[1].trim() : "" });
+  }
+  return out;
+}
+
+function studioParseSlides(raw) {
+  const slides = [];
+  for (let b of numberedBlocks(studioClean(raw), "SLIDE")) {
+    b = b.replace(/^TITLE\s*:\s*/i, "");
+    let title, rest;
+    const nl = b.indexOf("\n");
+    if (nl >= 0) { title = b.slice(0, nl); rest = b.slice(nl + 1); }
+    else {
+      // All on one line: the title runs up to the first " - " bullet.
+      const k = b.search(/\s[-•*]\s+/);
+      title = k >= 0 ? b.slice(0, k) : b; rest = k >= 0 ? b.slice(k) : "";
+    }
+    const bullets = /\n/.test(rest.trim())
+      ? rest.split("\n").map((l) => l.trim()).filter(Boolean)
+          .map((l) => l.replace(/^(?:[-•*]|\d+[.)])\s+/, ""))
+      : rest.split(/(?:^|\s)[-•*]\s+/).map((s) => s.trim()).filter(Boolean);
+    title = title.replace(/^#+\s*/, "").trim();
+    if (title || bullets.length) slides.push({ title, bullets });
+  }
+  return slides;
+}
+
+function studioParseAudio(raw) {
+  const t = studioClean(raw);
+  // Uppercase HOST matches even glued to the previous word, as the numbered
+  // markers do; "Host A:" only at the start of a line.
+  const hits = [...t.matchAll(/(?<![A-Z])HOST\s*([AB12])\s*:\s*|(?<=^|\n)[ \t]*[Hh]ost\s*([AB12ab])\s*:\s*/g)];
+  return hits.map((m, i) => {
+    const e = i + 1 < hits.length ? hits[i + 1].index : t.length;
+    const sp = (m[1] || m[2]).toUpperCase();
+    return { speaker: sp === "1" ? "A" : sp === "2" ? "B" : sp, text: t.slice(m.index + m[0].length, e).trim() };
+  }).filter((l) => l.text);
+}
+
+/** ROOT: plus a dash outline, two levels deep. Deeper nesting is flattened
+ *  onto the second level -- a badly indented answer still draws. */
+function studioParseMindmap(raw) {
+  let root = "";
+  const branches = [];
+  let stack = [];
+  // A capture that lost its newlines: " - " runs become bullets again.
+  let t = studioClean(raw);
+  if (!/\n\s*[-•*]\s/.test(t)) t = t.replace(/\s[-•*]\s+/g, "\n- ");
+  for (const line of t.split("\n")) {
+    if (!line.trim()) continue;
+    const rm = line.match(/^\s*ROOT\s*:\s*(.+)$/i);
+    if (rm) { root = rm[1].trim(); continue; }
+    const bm = line.match(/^(\s*)[-•*]\s+(.*)$/);
+    if (!bm) { if (!root && !branches.length) root = line.replace(/^#+\s*/, "").trim(); continue; }
+    const indent = bm[1].replace(/\t/g, "  ").length;
+    const node = { text: bm[2].trim(), children: [] };
+    while (stack.length && indent <= stack[stack.length - 1][0]) stack.pop();
+    if (!stack.length) branches.push(node);
+    else stack[0][1].children.push(node);
+    stack.push([indent, node]);
+  }
+  return root || branches.length ? [{ root, branches }] : [];
+}
+
+const STUDIO_PARSE = {
+  mindmap:    [studioParseMindmap, null],
+  flashcards: [studioParseFlashcards, "cards"],
+  quiz:       [studioParseQuiz, "questions"],
+  slides:     [studioParseSlides, "slides"],
+  audio:      [studioParseAudio, "lines"],
+};
+
+/** The card's items: the console's parse of raw_text first, the engine's
+ *  parsed_json only when that finds nothing. */
+function studioItems(kind, a) {
+  const [parse, key] = STUDIO_PARSE[kind];
+  let items = [];
+  try { items = parse(a.raw_text || ""); } catch { items = []; }
+  if (items.length) return items;
+  const d = a.parsed_json;
+  if (!key) return d && (d.root || (d.branches || []).length) ? [d] : [];
+  return (d && Array.isArray(d[key])) ? d[key] : [];
+}
+
+/* ── shared pieces ── */
+
+/** Inline markdown (bold, italics, code, links) as DOM -- the same renderer
+ *  the verdict uses, so a card never shows literal asterisks. */
+const mdSpan = (text, cls, tag = "span") => inline(el(tag, cls), text);
+
+/** Strips inline markdown for sorting, searching and CSV. */
+const mdPlain = (s) => String(s || "")
+  .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+  .replace(/\*\*|__|~~|`/g, "")
+  .replace(/(^|[^\w*])[*_](?=\S)|(?<=\S)[*_](?![\w*])/g, "$1")
+  .replace(/\\([\\`*_{}[\]()#+\-.!|~>])/g, "$1")
+  .trim();
+
+function stBtn(label, icon, onClick, cls = "", title = "") {
+  const b = el("button", `st-btn ${cls}`.trim());
+  b.type = "button";
+  if (icon) b.append(icSpan("st-btn-ic", icon));
+  if (label) b.append(el("span", "st-btn-txt", label));
+  if (title || !label) { b.title = title || label; b.setAttribute("aria-label", title || label); }
+  b.onclick = onClick;
+  return b;
+}
+
+function downloadText(name, text, type = "text/plain") {
+  const url = URL.createObjectURL(new Blob([text], { type: `${type};charset=utf-8` }));
+  const a = el("a");
+  a.href = url; a.download = name;
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
+const studioFileName = (suffix, ext) =>
+  `magi-${suffix}-${new Date().toISOString().slice(0, 10)}.${ext}`;
+
+/** Horizontal swipe on touch screens. A swipe never also counts as a tap. */
+function onSwipe(node, left, right) {
+  let x0 = null, y0 = 0;
+  node.addEventListener("touchstart", (e) => {
+    const t = e.touches[0]; x0 = t.clientX; y0 = t.clientY;
+  }, { passive: true });
+  node.addEventListener("touchend", (e) => {
+    if (x0 == null) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - x0, dy = t.clientY - y0;
+    x0 = null;
+    if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+      node.dataset.swiped = String(Date.now());
+      (dx < 0 ? left : right)();
+    }
+  }, { passive: true });
+}
+const justSwiped = (node) => Date.now() - (+node.dataset.swiped || 0) < 450;
+
+/** Keys go to whichever card is open, unless the person is typing. */
+document.addEventListener("keydown", (e) => {
+  if (!S.studio || !S.studio.onKey || !S.studio.active || $("studioView").hidden) return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const t = e.target;
+  if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+  S.studio.onKey(e);
+});
+
 function renderCard(kind, a) {
-  const d = a.parsed_json, raw = a.raw_text || "";
+  const raw = a.raw_text || "";
   switch (kind) {
-    case "table":      return renderStudioTable(raw);
+    case "table":  return renderStudioTable(raw);
     // Structurally identical to a verdict — headings, lists, tables, prose — so
     // it reuses that renderer wholesale rather than duplicating the parser.
-    case "report":     {
-      // The one Studio card that is a document rather than a widget, so it is
-      // the one worth taking away whole.
-      const body = verdictBody(raw);
-      const wrap = el("div");
-      wrap.append(body, copyButton(() => ({ node: body, md: raw }),
-                                   { label: "Copy report", cls: "under" }));
-      return wrap;
-    }
-    case "flashcards": return renderFlashcards(d, raw);
-    case "quiz":       return renderQuiz(d, raw);
-    case "mindmap":    return renderMindMap(d, raw);
-    case "slides":     return renderSlides(d, raw);
-    case "audio":      return renderAudio(d, raw);
+    case "report": return renderStudioReport(raw);
   }
+  const items = studioItems(kind, a);
+  if (!items.length) return rawFallback(raw);
+  switch (kind) {
+    case "flashcards": return renderFlashcards(items);
+    case "quiz":       return renderQuiz(items);
+    case "slides":     return renderSlides(items);
+    case "audio":      return renderAudio(items);
+    case "mindmap":    return renderMindMap(items[0], raw);
+  }
+}
+
+/* ── Report ─────────────────────────────────────────────────────────────── */
+function renderStudioReport(raw) {
+  // The one Studio card that is a document rather than a widget, so it is the
+  // one worth taking away whole -- as rich text, or as a .md file.
+  const body = verdictBody(raw);
+  const bar = el("div", "st-bar st-bar-end");
+  bar.append(
+    copyButton(() => ({ node: body, md: raw }), { label: "Copy report" }),
+    stBtn("Download .md", "download", () => downloadText(studioFileName("report", "md"), raw, "text/markdown")),
+  );
+  const wrap = el("div", "st-report");
+  wrap.append(bar, body);
+  return wrap;
 }
 
 /* ── Data Table ─────────────────────────────────────────────────────────── */
 function renderStudioTable(text) {
   let head = null;
-  const rows = [];
-  for (const line of text.replace(/\r/g, "").split("\n")) {
-    if (!TABLE_ROW.test(line)) continue;
-    if (TABLE_SEP.test(line) && rows.length === 1 && !head) head = rows.shift();
-    else if (!TABLE_SEP.test(line)) rows.push(cells(line));
+  const rows = [], prose = [], mdLines = [];
+  for (const line of String(text).replace(/\r/g, "").split("\n")) {
+    if (!TABLE_ROW.test(line)) { if (line.trim()) prose.push(line); continue; }
+    mdLines.push(line.trim());
+    if (TABLE_SEP.test(line)) { if (rows.length === 1 && !head) head = rows.shift(); continue; }
+    rows.push(cells(line));
   }
   if (!rows.length && !head) return rawFallback(text);
-  const wrap = el("div", "studio-tablewrap"), t = el("table", "studio-table");
-  if (head) {
-    const tr = el("tr");
-    head.forEach((c) => tr.append(el("th", null, c)));
-    const th = el("thead"); th.append(tr); t.append(th);
-  }
-  const tb = el("tbody");
-  rows.forEach((r) => {
-    const tr = el("tr");
-    r.forEach((c) => tr.append(el("td", null, c)));
-    tb.append(tr);
+  const ncol = Math.max(head ? head.length : 0, ...rows.map((r) => r.length));
+  const pad = (r) => Array.from({ length: ncol }, (_, i) => r[i] ?? "");
+  const cols = pad(head || []).map((h, i) => h || `Column ${i + 1}`);
+  const data = rows.map(pad);
+
+  const st = (S.studio.ui.table ||= { col: -1, dir: 1, q: "" });
+  const wrap = el("div", "st-table");
+
+  // toolbar: size, filter, copy, csv
+  const bar = el("div", "st-bar");
+  bar.append(el("span", "st-meta", `${data.length} row${data.length === 1 ? "" : "s"} · ${ncol} column${ncol === 1 ? "" : "s"}`));
+  const find = el("input", "st-search");
+  find.type = "search"; find.placeholder = "Filter rows…"; find.value = st.q;
+  find.setAttribute("aria-label", "Filter rows");
+  const csv = () => [cols, ...data].map((r) => r.map((c) => {
+    const v = mdPlain(c);
+    return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+  }).join(",")).join("\n");
+  const table = el("table", "st-tbl");
+  const acts = el("div", "st-actions");
+  acts.append(
+    copyButton(() => ({ node: table, md: mdLines.join("\n") }), { label: "Copy" }),
+    stBtn("CSV", "download", () => downloadText(studioFileName("table", "csv"), csv(), "text/csv"), "", "Download as CSV"),
+  );
+  if (data.length > 4) bar.append(find);
+  bar.append(acts);
+
+  const thead = el("thead"), tbody = el("tbody");
+  const htr = el("tr");
+  cols.forEach((c, i) => {
+    const th = el("th");
+    const b = el("button", "st-th");
+    b.type = "button";
+    b.append(mdSpan(c), icSpan("st-sort", "sort"));
+    b.title = "Sort by this column";
+    b.onclick = () => {
+      if (st.col !== i) { st.col = i; st.dir = 1; }
+      else if (st.dir === 1) st.dir = -1;
+      else st.col = -1;
+      paint();
+    };
+    th.append(b);
+    htr.append(th);
   });
-  t.append(tb);
-  wrap.append(t);
+  thead.append(htr);
+  table.append(thead, tbody);
+
+  const num = (s) => {
+    const m = mdPlain(s).replace(/,/g, "").match(/-?\d+(?:\.\d+)?/);
+    return m ? parseFloat(m[0]) : NaN;
+  };
+  const paint = () => {
+    [...htr.children].forEach((th, i) => {
+      th.classList.toggle("sorted", st.col === i);
+      th.classList.toggle("desc", st.col === i && st.dir === -1);
+      th.setAttribute("aria-sort", st.col !== i ? "none" : st.dir === 1 ? "ascending" : "descending");
+    });
+    const q = st.q.trim().toLowerCase();
+    let view = data.filter((r) => !q || r.some((c) => mdPlain(c).toLowerCase().includes(q)));
+    if (st.col >= 0) {
+      const k = st.col;
+      const allNum = view.every((r) => !mdPlain(r[k]) || !isNaN(num(r[k])));
+      view = [...view].sort((a, b) => st.dir * (allNum
+        ? (num(a[k]) || 0) - (num(b[k]) || 0)
+        : mdPlain(a[k]).localeCompare(mdPlain(b[k]), undefined, { numeric: true, sensitivity: "base" })));
+    }
+    tbody.textContent = "";
+    for (const r of view) {
+      const tr = el("tr");
+      r.forEach((c, i) => {
+        const td = el("td");
+        td.dataset.label = mdPlain(cols[i]);
+        td.append(mdSpan(c));
+        tr.append(td);
+      });
+      tbody.append(tr);
+    }
+    if (!view.length) {
+      const tr = el("tr", "st-empty"), td = el("td", null, "No rows match that filter.");
+      td.colSpan = ncol; tr.append(td); tbody.append(tr);
+    }
+  };
+  find.oninput = () => { st.q = find.value; paint(); };
+  paint();
+
+  const scroller = el("div", "st-tbl-wrap");
+  scroller.append(table);
+  wrap.append(bar, scroller);
+  // Anything the model wrote around the table (a caption, a source line) is
+  // kept rather than silently dropped.
+  if (prose.length) wrap.append(mdBody(prose.join("\n")));
   return wrap;
 }
 
 /* ── Flashcards ─────────────────────────────────────────────────────────── */
-function renderFlashcards(d, raw) {
-  const cards = (d && d.cards) || [];
-  if (!cards.length) return rawFallback(raw);
-  const flipped = (S.studio.ui.flashcards ||= new Set());
-  const box = el("div", "flashcards");
-  cards.forEach((c, i) => {
-    const b = el("button", `flashcard ${flipped.has(i) ? "flipped" : ""}`);
-    b.type = "button";
-    const inner = el("div", "flashcard-inner");
-    inner.append(
-      el("div", "flashcard-face flashcard-front", c.front),
-      el("div", "flashcard-face flashcard-back", c.back),
+function renderFlashcards(cards) {
+  const n = cards.length;
+  const fresh = () => ({ order: cards.map((_, i) => i), pos: 0, flipped: false, known: new Set(), grid: false, done: false, gridFlip: new Set() });
+  let st = S.studio.ui.flashcards;
+  if (!st || st.n !== n) st = S.studio.ui.flashcards = Object.assign(fresh(), { n });
+
+  const box = el("div", "fc");
+  let dir = 0;   // -1 / +1: which way the next card slides in
+
+  const faces = (c, idx) => {
+    const inner = el("div", "fc-inner");
+    const front = el("div", "fc-face fc-front");
+    const fhd = el("div", "fc-face-hd");
+    fhd.append(el("span", "fc-tag", "Term"), el("span", "fc-num", `${idx + 1} / ${n}`));
+    front.append(fhd, mdSpan(c.front, "fc-text fc-text-front", "div"),
+                 el("div", "fc-hint", "Click to reveal"));
+    const back = el("div", "fc-face fc-back");
+    const bhd = el("div", "fc-face-hd");
+    bhd.append(el("span", "fc-tag", "Answer"), el("span", "fc-num", `${idx + 1} / ${n}`));
+    back.append(bhd, el("div", "fc-back-q", mdPlain(c.front)),
+                mdSpan(c.back, `fc-text fc-text-back ${c.back.length > 220 ? "long" : ""}`, "div"));
+    inner.append(front, back);
+    return inner;
+  };
+
+  const go = (d) => {
+    dir = d;
+    const next = st.pos + d;
+    if (next < 0) return;
+    if (next >= st.order.length) { st.done = true; paint(); return; }
+    st.pos = next; st.flipped = false; paint();
+  };
+  const flip = () => {
+    st.flipped = !st.flipped;
+    const card = box.querySelector(".fc-card");
+    if (card) { card.classList.toggle("flipped", st.flipped); card.setAttribute("aria-pressed", String(st.flipped)); }
+  };
+  const mark = (knows) => {
+    const idx = st.order[st.pos];
+    knows ? st.known.add(idx) : st.known.delete(idx);
+    go(1);
+  };
+  const shuffle = () => {
+    const o = st.order;
+    for (let i = o.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [o[i], o[j]] = [o[j], o[i]]; }
+    st.pos = 0; st.flipped = false; st.done = false; dir = 0; paint();
+  };
+  const restart = (onlyLearning) => {
+    const learning = cards.map((_, i) => i).filter((i) => !st.known.has(i));
+    st.order = onlyLearning && learning.length ? learning : cards.map((_, i) => i);
+    if (!onlyLearning) st.known.clear();
+    st.pos = 0; st.flipped = false; st.done = false; dir = 0; paint();
+  };
+
+  const paint = () => {
+    box.textContent = "";
+    const bar = el("div", "st-bar");
+    const meta = el("span", "st-meta");
+    meta.append(`${n} cards`);
+    if (st.known.size) meta.append(el("span", "st-dot"), el("span", "st-good", `${st.known.size} known`));
+    bar.append(meta);
+    const acts = el("div", "st-actions");
+    acts.append(
+      stBtn("Shuffle", "shuffle", shuffle),
+      stBtn(st.grid ? "Study" : "All cards", st.grid ? "deck" : "grid", () => { st.grid = !st.grid; paint(); }),
     );
-    b.append(inner);
-    b.onclick = () => {
-      flipped.has(i) ? flipped.delete(i) : flipped.add(i);
-      b.classList.toggle("flipped", flipped.has(i));
+    bar.append(acts);
+    box.append(bar);
+
+    if (st.grid) {
+      const grid = el("div", "fc-grid");
+      cards.forEach((c, idx) => {
+        const card = el("button", `fc-card fc-mini ${st.gridFlip.has(idx) ? "flipped" : ""} ${st.known.has(idx) ? "known" : ""}`);
+        card.type = "button";
+        card.append(faces(c, idx));
+        card.onclick = () => {
+          st.gridFlip.has(idx) ? st.gridFlip.delete(idx) : st.gridFlip.add(idx);
+          card.classList.toggle("flipped", st.gridFlip.has(idx));
+        };
+        grid.append(card);
+      });
+      box.append(grid);
+      S.studio.onKey = null;
+      return;
+    }
+
+    const total = st.order.length;
+    const track = el("div", "st-track");
+    const fill = el("div", "st-track-fill");
+    fill.style.width = `${((st.done ? total : st.pos + 1) / total) * 100}%`;
+    track.append(fill);
+    box.append(track);
+
+    if (st.done) {
+      const learning = cards.length - st.known.size;
+      const end = el("div", "fc-done");
+      end.append(icSpan("fc-done-ic", "tick"), el("div", "fc-done-title", "Deck complete"),
+                 el("div", "fc-done-sub", learning
+                   ? `${st.known.size} known · ${learning} still learning`
+                   : `You know all ${n} cards.`));
+      const acts2 = el("div", "fc-done-acts");
+      if (learning && st.known.size) acts2.append(stBtn(`Review ${learning} still learning`, "flip", () => restart(true), "primary"));
+      acts2.append(stBtn("Start over", "undo", () => restart(false), learning && st.known.size ? "" : "primary"));
+      end.append(acts2);
+      box.append(end);
+      S.studio.onKey = (e) => { if (e.key === "ArrowLeft") { st.done = false; paint(); e.preventDefault(); } };
+      return;
+    }
+
+    const idx = st.order[st.pos];
+    const stage = el("div", "fc-stage");
+    const card = el("button", `fc-card ${st.flipped ? "flipped" : ""} ${st.known.has(idx) ? "known" : ""} ${dir > 0 ? "in-next" : dir < 0 ? "in-prev" : ""}`);
+    card.type = "button";
+    card.setAttribute("aria-pressed", String(st.flipped));
+    card.setAttribute("aria-label", "Flashcard — press to flip");
+    card.append(faces(cards[idx], idx));
+    card.onclick = () => { if (!justSwiped(stage)) flip(); };
+    stage.append(card);
+    onSwipe(stage, () => go(1), () => go(-1));
+    box.append(stage);
+
+    const ctl = el("div", "fc-ctl");
+    const prev = stBtn("", "chevL", () => go(-1), "round", "Previous card (←)");
+    prev.disabled = st.pos === 0;
+    ctl.append(
+      prev,
+      stBtn("Still learning", "x", () => mark(false), "fc-learn"),
+      stBtn("Got it", "tick", () => mark(true), "fc-know"),
+      stBtn("", "chevR", () => go(1), "round", "Next card (→)"),
+    );
+    box.append(ctl);
+    box.append(el("div", "st-keys", "Space flip · ← → move · 1 still learning · 2 got it"));
+
+    S.studio.onKey = (e) => {
+      if (e.key === " " || e.key === "Enter" || e.key === "ArrowUp" || e.key === "ArrowDown") flip();
+      else if (e.key === "ArrowRight") go(1);
+      else if (e.key === "ArrowLeft") go(-1);
+      else if (e.key === "1") mark(false);
+      else if (e.key === "2") mark(true);
+      else return;
+      e.preventDefault();
     };
-    box.append(b);
-  });
+  };
+  paint();
   return box;
 }
 
 /* ── Quiz ───────────────────────────────────────────────────────────────── */
-function renderQuiz(d, raw) {
-  const questions = (d && d.questions) || [];
-  if (!questions.length) return rawFallback(raw);
-  const picked = (S.studio.ui.quiz ||= {});
-  const box = el("div", "quiz");
-  questions.forEach((q, qi) => {
-    const wrap = el("div", "quiz-q");
-    wrap.append(el("div", "quiz-q-text", `${qi + 1}. ${q.text}`));
-    const opts = el("div", "quiz-options");
-    const why = el("div", "quiz-why", q.why || "");
+function renderQuiz(questions) {
+  const n = questions.length;
+  let st = S.studio.ui.quiz;
+  if (!st || st.n !== n) st = S.studio.ui.quiz = { n, i: 0, picked: {}, results: false };
+  const box = el("div", "qz");
 
-    const paint = () => {
-      const chosen = picked[qi];
-      for (const btn of opts.children) {
-        const letter = btn.dataset.letter;
-        btn.disabled = !!chosen;
-        btn.className = "quiz-opt " + (!chosen ? ""
-          : letter === q.correct ? "correct"
-          : letter === chosen ? "incorrect" : "");
-      }
-      // The explanation only appears once an answer is locked in — showing it
-      // beforehand gives the answer away.
-      show(why, !!chosen && !!q.why);
-    };
+  const score = () => questions.filter((q, i) => st.picked[i] === q.correct).length;
+  const answered = () => Object.keys(st.picked).length;
+  const go = (i) => { st.results = false; st.i = Math.max(0, Math.min(n - 1, i)); paint(); };
+  const next = () => (st.i < n - 1 ? go(st.i + 1) : (st.results = true, paint()));
 
-    for (const [letter, text] of Object.entries(q.options)) {
-      const b = el("button", "quiz-opt");
+  const paint = () => {
+    box.textContent = "";
+    const bar = el("div", "st-bar");
+    const meta = el("span", "st-meta");
+    meta.append(`${n} questions`);
+    if (answered()) meta.append(el("span", "st-dot"), el("span", "st-good", `${score()} / ${answered()} correct`));
+    bar.append(meta);
+    const acts = el("div", "st-actions");
+    if (answered()) acts.append(stBtn("Restart", "undo", () => { st.picked = {}; go(0); }));
+    if (!st.results && answered()) acts.append(stBtn("Results", "tick", () => { st.results = true; paint(); }));
+    bar.append(acts);
+    box.append(bar);
+
+    // One segment per question: where you are, and how each answer went.
+    const segs = el("div", "qz-segs");
+    questions.forEach((q, i) => {
+      const s = el("button", "qz-seg");
+      s.type = "button";
+      s.title = `Question ${i + 1}`;
+      s.setAttribute("aria-label", `Go to question ${i + 1}`);
+      if (st.picked[i]) s.classList.add(st.picked[i] === q.correct ? "ok" : "bad");
+      if (!st.results && i === st.i) s.classList.add("cur");
+      s.onclick = () => go(i);
+      segs.append(s);
+    });
+    box.append(segs);
+
+    if (st.results) return paintResults();
+
+    const q = questions[st.i], chosen = st.picked[st.i];
+    const card = el("div", "qz-card");
+    card.append(el("div", "qz-kicker", `Question ${st.i + 1} of ${n}`),
+                mdSpan(q.text, "qz-q", "div"));
+    const opts = el("div", "qz-opts");
+    const letters = Object.keys(q.options);
+    letters.forEach((L, k) => {
+      const b = el("button", "qz-opt");
       b.type = "button";
-      b.dataset.letter = letter;
-      b.append(el("span", "quiz-opt-letter", letter), document.createTextNode(text));
-      b.onclick = () => { if (!picked[qi]) { picked[qi] = letter; paint(); } };
+      const state = !chosen ? "" : L === q.correct ? "correct" : L === chosen ? "wrong" : "dim";
+      if (state) b.classList.add(state);
+      b.disabled = !!chosen;
+      b.append(el("span", "qz-letter", L), mdSpan(q.options[L], "qz-opt-txt"));
+      if (state === "correct") b.append(icSpan("qz-mark", "tick"));
+      if (state === "wrong") b.append(icSpan("qz-mark", "x"));
+      b.title = `Answer ${L} (key ${k + 1})`;
+      b.onclick = () => { if (!st.picked[st.i]) { st.picked[st.i] = L; paint(); } };
       opts.append(b);
+    });
+    card.append(opts);
+
+    // The explanation only appears once an answer is locked in — showing it
+    // beforehand gives the answer away.
+    if (chosen) {
+      const ok = chosen === q.correct;
+      const fb = el("div", `qz-fb ${ok ? "ok" : "bad"}`);
+      const hd = el("div", "qz-fb-hd");
+      hd.append(icSpan("qz-fb-ic", ok ? "tick" : "x"),
+                el("span", null, ok ? "Correct" : `Not quite — the answer is ${q.correct}`));
+      fb.append(hd);
+      if (q.why) fb.append(mdSpan(q.why, "qz-why", "div"));
+      card.append(fb);
     }
-    wrap.append(opts, why);
-    paint();
-    box.append(wrap);
-  });
+    box.append(card);
+
+    const nav = el("div", "qz-nav");
+    const prev = stBtn("Back", "chevL", () => go(st.i - 1));
+    prev.disabled = st.i === 0;
+    const last = st.i === n - 1;
+    const fwd = stBtn(!chosen ? "Skip" : last ? "See results" : "Next question", last && chosen ? "tick" : "chevR",
+                      next, `ic-end ${chosen ? "primary" : ""}`);
+    nav.append(prev, fwd);
+    box.append(nav);
+    box.append(el("div", "st-keys", "1–4 or A–D answer · Enter next · ← back"));
+
+    S.studio.onKey = (e) => {
+      const k = e.key.toUpperCase();
+      const byNum = /^[1-4]$/.test(k) ? letters[+k - 1] : null;
+      const pick = byNum || (letters.includes(k) ? k : null);
+      if (pick && !st.picked[st.i]) { st.picked[st.i] = pick; paint(); }
+      else if (e.key === "Enter" || e.key === "ArrowRight") next();
+      else if (e.key === "ArrowLeft") go(st.i - 1);
+      else return;
+      e.preventDefault();
+    };
+  };
+
+  const paintResults = () => {
+    const s = score(), pct = Math.round((s / n) * 100);
+    const res = el("div", "qz-results");
+    const ring = el("div", "qz-ring");
+    const R = 42, C = 2 * Math.PI * R;
+    ring.innerHTML =
+      `<svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="${R}" class="qz-ring-bg"/>` +
+      `<circle cx="50" cy="50" r="${R}" class="qz-ring-fg" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - s / n)}"/></svg>`;
+    ring.append(el("div", "qz-ring-num", `${pct}%`));
+    const msg = pct === 100 ? "Perfect score." : pct >= 80 ? "Great work." : pct >= 50 ? "Good start — review the ones you missed." : "Worth another pass.";
+    const head = el("div", "qz-res-hd");
+    const txt = el("div");
+    txt.append(el("div", "qz-res-title", `${s} of ${n} correct`), el("div", "qz-res-sub", msg));
+    head.append(ring, txt);
+    res.append(head);
+
+    const list = el("div", "qz-review");
+    questions.forEach((q, i) => {
+      const p = st.picked[i], ok = p === q.correct;
+      const row = el("button", `qz-rv ${!p ? "skip" : ok ? "ok" : "bad"}`);
+      row.type = "button";
+      row.append(icSpan("qz-rv-ic", !p ? "chevR" : ok ? "tick" : "x"));
+      const body = el("div", "qz-rv-body");
+      body.append(mdSpan(q.text, "qz-rv-q", "div"),
+                  el("div", "qz-rv-a", !p ? `Skipped · answer ${q.correct}` : ok ? `Your answer ${p}` : `Your answer ${p} · correct ${q.correct}`));
+      row.append(body);
+      row.onclick = () => go(i);
+      list.append(row);
+    });
+    res.append(list);
+
+    const missed = questions.map((q, i) => i).filter((i) => st.picked[i] !== questions[i].correct);
+    const acts = el("div", "qz-nav");
+    if (missed.length && missed.length < n) {
+      acts.append(stBtn(`Retry ${missed.length} missed`, "undo", () => {
+        missed.forEach((i) => delete st.picked[i]);
+        go(missed[0]);
+      }));
+    }
+    acts.append(stBtn("Retake quiz", "undo", () => { st.picked = {}; go(0); }, "primary"));
+    res.append(acts);
+    box.append(res);
+    S.studio.onKey = null;
+  };
+
+  paint();
   return box;
 }
 
@@ -8475,7 +9535,7 @@ function renderMindMap(d, raw) {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("class", "mm-links");
   svg.setAttribute("aria-hidden", "true");
-  const rootEl = el("div", "mm-root", root);
+  const rootEl = mdSpan(root, "mm-root", "div");
   const branchBox = el("div", "mm-branches");
   const nodeEls = new Map();
 
@@ -8484,7 +9544,7 @@ function renderMindMap(d, raw) {
     nodes.forEach((n, i) => {
       const id = `${parentId}-${i}`;
       const col = el("div", "mm-col");
-      const node = el("div", "mm-node", n.text);
+      const node = mdSpan(n.text, "mm-node", "div");
       nodeEls.set(id, { el: node, node });
       col.append(node);
       if (n.children && n.children.length) {
@@ -8506,165 +9566,556 @@ function renderMindMap(d, raw) {
     if (!host.isConnected) return;
     const H = host.getBoundingClientRect(), R = rootEl.getBoundingClientRect();
     if (!R.width) return;
-    const rx = R.left - H.left + R.width, ry = R.top - H.top + R.height / 2;
+    const rx = R.left - H.left + R.width + host.scrollLeft, ry = R.top - H.top + R.height / 2;
     svg.textContent = "";
+    svg.style.width = `${host.scrollWidth}px`;
     const walk = (nodes, parentId, px, py) => {
       nodes.forEach((n, i) => {
         const id = `${parentId}-${i}`;
         const rec = nodeEls.get(id);
         if (!rec) return;
         const B = rec.el.getBoundingClientRect();
-        const x = B.left - H.left, y = B.top - H.top + B.height / 2;
+        const x = B.left - H.left + host.scrollLeft, y = B.top - H.top + B.height / 2;
         const mid = (px + x) / 2;
         const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-        path.setAttribute("d", `M ${px} ${py} H ${mid} V ${y} H ${x}`);
+        path.setAttribute("d", `M ${px} ${py} C ${mid} ${py}, ${mid} ${y}, ${x} ${y}`);
         path.setAttribute("class", "mm-link");
         svg.append(path);
-        walk(n.children || [], id, B.left - H.left + B.width, y);
+        walk(n.children || [], id, x + B.width, y);
       });
     };
     walk(branches, "b", rx, ry);
   };
   requestAnimationFrame(draw);
   new ResizeObserver(() => requestAnimationFrame(draw)).observe(host);
-  return host;
+
+  const outline = [`# ${mdPlain(root)}`, ...branches.flatMap((b) =>
+    [`- ${b.text}`, ...(b.children || []).map((c) => `  - ${c.text}`)])].join("\n");
+  const wrap = el("div", "st-mindmap");
+  const bar = el("div", "st-bar st-bar-end");
+  bar.append(copyButton(() => ({ md: outline }), { label: "Copy outline" }));
+  wrap.append(bar, host);
+  return wrap;
 }
 
 /* ── Slide Deck ─────────────────────────────────────────────────────────── */
-function renderSlides(d, raw) {
-  const slides = (d && d.slides) || [];
-  if (!slides.length) return rawFallback(raw);
-  const state = (S.studio.ui.slides ||= { i: 0 });
-  const box = el("div", "slidedeck");
-  const slide = el("div", "slide");
-  const title = el("div", "slide-title");
-  const bullets = el("ul", "slide-bullets");
-  slide.append(title, bullets);
+/** One slide, sized entirely in container units so the same element is a
+ *  full slide on the stage, a thumbnail in the strip, and a projector-sized
+ *  slide when presenting -- one layout, scaled, never three. */
+function slideEl(s, idx, n, mini) {
+  const wrap = el("div", `sd-slide ${mini ? "sd-mini" : ""}`);
+  const kind = idx === 0 ? "is-title" : idx === n - 1 && n > 2 ? "is-end" : "";
+  const inner = el("div", `sd-inner ${kind}`);
+  const top = el("div", "sd-top");
+  top.append(el("span", "sd-brand", "MAGI"), el("span", "sd-no", String(idx + 1).padStart(2, "0")));
+  const body = el("div", "sd-body");
+  body.append(mdSpan(s.title || "", "sd-title", "div"));
+  if (s.bullets && s.bullets.length) {
+    const ul = el("ul", "sd-bullets");
+    s.bullets.forEach((b) => ul.append(mdSpan(b, null, "li")));
+    body.append(ul);
+  }
+  const foot = el("div", "sd-foot");
+  foot.append(el("span", null, kind === "is-end" ? "Summary" : kind === "is-title" ? "Overview" : ""),
+              el("span", null, `${idx + 1} / ${n}`));
+  inner.append(top, body, foot);
+  wrap.append(inner);
+  return wrap;
+}
 
-  const nav = el("div", "slide-nav");
-  const prev = el("button", null, "◀"), next = el("button", null, "▶");
-  prev.type = next.type = "button";
-  const count = el("span", "slide-count");
-  nav.append(prev, count, next);
+function renderSlides(slides) {
+  const n = slides.length;
+  let st = S.studio.ui.slides;
+  if (!st || st.n !== n) st = S.studio.ui.slides = { n, i: 0, grid: false };
+  const box = el("div", "sd");
+  let overlay = null, dir = 0;
+
+  const outline = () => slides.map((s, i) =>
+    `## ${i + 1}. ${s.title}\n${(s.bullets || []).map((b) => `- ${b}`).join("\n")}`).join("\n\n");
+
+  const go = (i) => {
+    const t = Math.max(0, Math.min(n - 1, i));
+    if (t === st.i) return;
+    dir = t > st.i ? 1 : -1;
+    st.i = t;
+    paint();
+    if (overlay) paintOverlay();
+  };
+
+  const closePresent = () => {
+    if (!overlay) return;
+    const o = overlay; overlay = null;
+    o.remove();
+    document.removeEventListener("fullscreenchange", onFs);
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    document.body.classList.remove("sd-presenting");
+  };
+  const onFs = () => { if (!document.fullscreenElement) closePresent(); };
+  const paintOverlay = () => {
+    const stage = overlay.querySelector(".sd-present-stage");
+    stage.textContent = "";
+    stage.append(slideEl(slides[st.i], st.i, n));
+    overlay.querySelector(".sd-present-count").textContent = `${st.i + 1} / ${n}`;
+  };
+  const present = () => {
+    if (overlay) return;
+    overlay = el("div", "sd-present");
+    const stage = el("div", "sd-present-stage");
+    stage.onclick = (e) => {
+      if (justSwiped(stage)) return;
+      const r = stage.getBoundingClientRect();
+      go(e.clientX - r.left < r.width * 0.33 ? st.i - 1 : st.i + 1);
+    };
+    onSwipe(stage, () => go(st.i + 1), () => go(st.i - 1));
+    const hud = el("div", "sd-present-hud");
+    hud.append(stBtn("", "chevL", () => go(st.i - 1), "round", "Previous"),
+               el("span", "sd-present-count"),
+               stBtn("", "chevR", () => go(st.i + 1), "round", "Next"),
+               stBtn("", "x", closePresent, "round", "Exit (Esc)"));
+    overlay.append(stage, hud);
+    document.body.append(overlay);
+    document.body.classList.add("sd-presenting");
+    paintOverlay();
+    // Real fullscreen where the platform allows it; the overlay alone is the
+    // presentation on iPhone, which has no element fullscreen.
+    if (overlay.requestFullscreen) {
+      overlay.requestFullscreen().then(() => document.addEventListener("fullscreenchange", onFs)).catch(() => {});
+    }
+  };
+  S.studio.cleanup = closePresent;
 
   const paint = () => {
-    state.i = Math.max(0, Math.min(state.i, slides.length - 1));
-    const s = slides[state.i];
-    title.textContent = s.title;
-    bullets.textContent = "";
-    (s.bullets || []).forEach((b) => bullets.append(el("li", null, b)));
-    count.textContent = `${state.i + 1} / ${slides.length}`;
-    prev.disabled = state.i === 0;
-    next.disabled = state.i === slides.length - 1;
+    box.textContent = "";
+    const bar = el("div", "st-bar");
+    bar.append(el("span", "st-meta", `${n} slides`));
+    const acts = el("div", "st-actions");
+    acts.append(
+      stBtn(st.grid ? "Slide view" : "All slides", st.grid ? "deck" : "grid", () => { st.grid = !st.grid; paint(); }),
+      copyButton(() => ({ md: outline() }), { label: "Copy outline" }),
+      stBtn("Present", "expand", present, "primary"),
+    );
+    bar.append(acts);
+    box.append(bar);
+
+    if (st.grid) {
+      const grid = el("div", "sd-grid");
+      slides.forEach((s, i) => {
+        const b = el("button", `sd-thumb ${i === st.i ? "active" : ""}`);
+        b.type = "button";
+        b.setAttribute("aria-label", `Slide ${i + 1}: ${mdPlain(s.title)}`);
+        b.append(slideEl(s, i, n, true));
+        b.onclick = () => { st.i = i; st.grid = false; dir = 0; paint(); };
+        grid.append(b);
+      });
+      box.append(grid);
+      S.studio.onKey = null;
+      return;
+    }
+
+    const stage = el("div", `sd-stage ${dir > 0 ? "in-next" : dir < 0 ? "in-prev" : ""}`);
+    stage.append(slideEl(slides[st.i], st.i, n));
+    const zl = el("button", "sd-zone sd-zone-l"), zr = el("button", "sd-zone sd-zone-r");
+    zl.type = zr.type = "button";
+    zl.setAttribute("aria-label", "Previous slide"); zr.setAttribute("aria-label", "Next slide");
+    zl.append(icSpan("sd-zone-ic", "chevL")); zr.append(icSpan("sd-zone-ic", "chevR"));
+    zl.onclick = () => { if (!justSwiped(stage)) go(st.i - 1); };
+    zr.onclick = () => { if (!justSwiped(stage)) go(st.i + 1); };
+    zl.hidden = st.i === 0; zr.hidden = st.i === n - 1;
+    stage.append(zl, zr);
+    onSwipe(stage, () => go(st.i + 1), () => go(st.i - 1));
+    box.append(stage);
+
+    const nav = el("div", "sd-nav");
+    const prev = stBtn("", "chevL", () => go(st.i - 1), "round", "Previous slide (←)");
+    const next = stBtn("", "chevR", () => go(st.i + 1), "round", "Next slide (→)");
+    prev.disabled = st.i === 0; next.disabled = st.i === n - 1;
+    const dots = el("div", "sd-dots");
+    slides.forEach((_, i) => {
+      const d = el("button", `sd-dot ${i === st.i ? "on" : ""}`);
+      d.type = "button";
+      d.setAttribute("aria-label", `Slide ${i + 1}`);
+      d.onclick = () => go(i);
+      dots.append(d);
+    });
+    nav.append(prev, dots, el("span", "sd-count", `${st.i + 1} / ${n}`), next);
+    box.append(nav);
+
+    const strip = el("div", "sd-strip");
+    slides.forEach((s, i) => {
+      const b = el("button", `sd-thumb ${i === st.i ? "active" : ""}`);
+      b.type = "button";
+      b.setAttribute("aria-label", `Slide ${i + 1}: ${mdPlain(s.title)}`);
+      b.append(slideEl(s, i, n, true));
+      b.onclick = () => go(i);
+      strip.append(b);
+    });
+    box.append(strip);
+    requestAnimationFrame(() => {
+      const a = strip.querySelector(".active");
+      if (a) strip.scrollTo({ left: a.offsetLeft - strip.clientWidth / 2 + a.clientWidth / 2, behavior: "smooth" });
+    });
+    box.append(el("div", "st-keys", "← → move · F present · Esc exit"));
   };
-  prev.onclick = () => { state.i -= 1; paint(); };
-  next.onclick = () => { state.i += 1; paint(); };
+
+  S.studio.onKey = (e) => {
+    if (st.grid && !overlay) return;
+    if (e.key === "ArrowRight" || e.key === "PageDown" || (e.key === " " && overlay)) go(st.i + 1);
+    else if (e.key === "ArrowLeft" || e.key === "PageUp") go(st.i - 1);
+    else if (e.key === "Home") go(0);
+    else if (e.key === "End") go(n - 1);
+    else if (e.key === "f" || e.key === "F") (overlay ? closePresent() : present());
+    else if (e.key === "Escape" && overlay) closePresent();
+    else return;
+    e.preventDefault();
+  };
   paint();
-  box.append(slide, nav);
   return box;
 }
 
 /* ── Audio Overview ─────────────────────────────────────────────────────────
    No server-side TTS and no audio file: MAGI has no audio generation surface
    of its own, so the two-host script a provider writes is read aloud entirely
-   client-side with the browser's SpeechSynthesis API. HOST A and HOST B get
-   two distinct voices, falling back to one voice at two pitches where the
-   platform exposes only one. */
-let _voicesPromise = null;
+   client-side with the browser's SpeechSynthesis API. Each host gets the best
+   voice the device has -- neural / "Natural" voices first, then the network
+   Google voices, then the rest -- and the two hosts are given contrasting
+   voices where the device has them. Both are overridable and remembered. */
+let _voicesPromise = null, _voicesCache = [];
 function listVoices() {
   if (!window.speechSynthesis) return Promise.resolve([]);
   if (_voicesPromise) return _voicesPromise;
   _voicesPromise = new Promise((resolve) => {
     const synth = window.speechSynthesis;
+    const done = (v) => { _voicesCache = v; resolve(v); };
     const existing = synth.getVoices();
-    if (existing.length) return resolve(existing);
+    if (existing.length) return done(existing);
     // Most browsers report zero voices until `voiceschanged` fires, and some
     // never fire it when the voices were already loaded between these two
     // checks -- so a timeout backs it up rather than hanging forever.
     const onChange = () => {
       synth.removeEventListener("voiceschanged", onChange);
-      resolve(synth.getVoices());
+      done(synth.getVoices());
     };
     synth.addEventListener("voiceschanged", onChange);
-    setTimeout(() => resolve(synth.getVoices()), 1000);
+    setTimeout(() => done(synth.getVoices()), 1200);
   });
   return _voicesPromise;
 }
 
-/** Speaks a two-host script line by line, chaining each utterance's `end` event
- *  rather than relying on the browser's own queue — that is what lets the
- *  transcript highlight the line currently being spoken. */
-function playScript({ lines, voiceA, voiceB, onLine, onEnd }) {
-  const synth = window.speechSynthesis;
-  synth.cancel();
-  let stopped = false, i = 0;
-  const speakNext = () => {
-    if (stopped || i >= lines.length) { if (!stopped) onEnd && onEnd(); return; }
-    const line = lines[i];
-    onLine && onLine(i);
-    const utter = new SpeechSynthesisUtterance(line.text);
-    if (line.speaker === "A") { if (voiceA) utter.voice = voiceA; utter.pitch = 1.0; }
-    else { if (voiceB) utter.voice = voiceB; else utter.pitch = 1.35; }
-    utter.onend = utter.onerror = () => { i += 1; speakNext(); };
-    synth.speak(utter);
-  };
-  speakNext();
-  return { stop: () => { stopped = true; synth.cancel(); } };
+const FEMALE_V = /female|aria|jenny|ava\b|emma|sonia|libby|michelle|samantha|zira|karen|moira|tessa|serena|susan|hazel|natasha|clara|joanna|salli|kimberly|allison|susan|victoria|fiona|google us english|heera|neerja/i;
+const MALE_V = /\bmale|guy|andrew|brian|christopher|eric|ryan|daniel|david|\bmark\b|thomas|george|james|william|alex\b|fred|roger|davis|tony|oliver|arthur|aaron|rishi|google uk english male/i;
+const voiceGender = (v) => (/female/i.test(v.name) ? "f" : MALE_V.test(v.name) ? "m" : FEMALE_V.test(v.name) ? "f" : "");
+
+/** Higher is better: how natural a voice is likely to sound. */
+function voiceScore(v) {
+  const n = v.name, lang = (v.lang || "").toLowerCase();
+  let s = 0;
+  if (/natural|neural/i.test(n)) s += 60;          // Edge / Windows 11 neural
+  if (/online/i.test(n)) s += 10;
+  if (/premium|enhanced|siri/i.test(n)) s += 45;   // Apple's better tiers
+  if (/^google/i.test(n)) s += 35;                  // Chrome's network voices
+  if (/samantha|daniel|karen|moira|serena|ava/i.test(n)) s += 12;
+  if (/desktop|espeak|compact/i.test(n)) s -= 25;   // the robotic ones
+  if (lang.startsWith("en")) s += 30;
+  if (lang === (navigator.language || "en-US").toLowerCase()) s += 8;
+  if (lang === "en-us" || lang === "en-gb") s += 4;
+  return s;
 }
 
-let _speech = null;
-function renderAudio(d, raw) {
-  const lines = (d && d.lines) || [];
-  if (!lines.length) return rawFallback(raw);
-  const box = el("div", "audio-overview");
-  const controls = el("div", "audio-controls");
-  const btn = el("button", "navitem");
-  btn.type = "button";
-  const note = el("span", "audio-note", "");
-  controls.append(btn, note);
+function pickHostVoices(voices, saved) {
+  const byUri = (u) => voices.find((v) => v.voiceURI === u) || null;
+  const ranked = [...voices].sort((a, b) => voiceScore(b) - voiceScore(a));
+  let A = saved.a ? byUri(saved.a) : null;
+  let B = saved.b ? byUri(saved.b) : null;
+  if (!A) A = ranked.find((v) => voiceGender(v) === "f") || ranked[0] || null;
+  if (!B) {
+    const want = A && voiceGender(A) === "m" ? "f" : "m";
+    B = ranked.find((v) => v !== A && voiceGender(v) === want && voiceScore(v) >= voiceScore(A || v) - 40)
+      || ranked.find((v) => v !== A) || A;
+  }
+  return { A, B };
+}
 
-  const transcript = el("div", "audio-transcript");
-  const lineEls = lines.map((l) => {
-    const row = el("div", "audio-line");
-    row.append(
-      el("span", `audio-speaker host-${l.speaker.toLowerCase()}`, l.speaker === "A" ? "Host A" : "Host B"),
-      document.createTextNode(l.text),
-    );
-    transcript.append(row);
+const AUDIO_PREFS_KEY = "magi.studio.audio";
+const audioPrefs = () => { try { return JSON.parse(localStorage.getItem(AUDIO_PREFS_KEY)) || {}; } catch { return {}; } };
+const saveAudioPrefs = (p) => { try { localStorage.setItem(AUDIO_PREFS_KEY, JSON.stringify(p)); } catch {} };
+
+/** Chrome silently stops an utterance after ~15 seconds with network voices,
+ *  so a long line is spoken as sentence-sized pieces. */
+function speechChunks(text) {
+  const plain = mdPlain(text);
+  const parts = plain.match(/[^.!?]+[.!?]+["')\]]*\s*|[^.!?]+$/g) || [plain];
+  const out = [];
+  let cur = "";
+  for (const p of parts) {
+    if ((cur + p).length > 200 && cur) { out.push(cur.trim()); cur = ""; }
+    cur += p;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
+
+const HOSTS = { A: "Host A", B: "Host B" };
+let _speech = null;
+
+function renderAudio(lines) {
+  const n = lines.length;
+  const words = lines.map((l) => mdPlain(l.text).split(/\s+/).filter(Boolean).length);
+  const totalWords = words.reduce((a, b) => a + b, 0);
+  const prefs = audioPrefs();
+  const st = { rate: prefs.rate || 1, cur: -1, playing: false, token: 0, voices: { A: null, B: null } };
+  const fmt = (sec) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, "0")}`;
+  const secsFor = (w) => w / (2.55 * st.rate);
+
+  const box = el("div", "au");
+
+  /* player */
+  const player = el("div", "au-player");
+  const hosts = el("div", "au-hosts");
+  const hostEl = {};
+  for (const h of ["A", "B"]) {
+    const d = el("div", `au-host host-${h.toLowerCase()}`);
+    const av = el("div", "au-avatar");
+    av.append(el("span", null, h));
+    const eq = el("div", "au-eq");
+    for (let i = 0; i < 4; i++) eq.append(el("i"));
+    const meta = el("div", "au-host-meta");
+    const vname = el("div", "au-host-voice", "");
+    meta.append(el("div", "au-host-name", HOSTS[h]), vname);
+    d.append(av, meta, eq);
+    hosts.append(d);
+    hostEl[h] = { d, vname };
+  }
+
+  const main = el("div", "au-main");
+  const back = stBtn("", "skipBack", () => jump(-1), "round au-skip", "Previous line");
+  const play = el("button", "au-play");
+  play.type = "button";
+  const fwd = stBtn("", "skipFwd", () => jump(1), "round au-skip", "Next line");
+  main.append(back, play, fwd);
+
+  const prog = el("div", "au-prog");
+  const segs = el("div", "au-segs");
+  const segEls = lines.map((l, i) => {
+    const s = el("button", `au-seg host-${l.speaker.toLowerCase()}`);
+    s.type = "button";
+    s.style.flexGrow = String(Math.max(1, words[i]));
+    s.setAttribute("aria-label", `Play from line ${i + 1}`);
+    s.onclick = () => start(i);
+    segs.append(s);
+    return s;
+  });
+  const times = el("div", "au-times");
+  const tNow = el("span", null, "0:00"), tAll = el("span");
+  times.append(tNow, tAll);
+  prog.append(segs, times);
+
+  const opts = el("div", "au-opts");
+  const speeds = el("div", "au-speeds");
+  const speedBtns = [0.75, 1, 1.25, 1.5, 2].map((r) => {
+    const b = el("button", "au-speed", `${r}×`);
+    b.type = "button";
+    b.onclick = () => {
+      st.rate = r; prefs.rate = r; saveAudioPrefs(prefs); paintSpeed();
+      if (st.playing) start(st.cur);   // re-speak the current line at the new rate
+    };
+    speeds.append(b);
+    return [r, b];
+  });
+  const paintSpeed = () => {
+    speedBtns.forEach(([r, b]) => b.classList.toggle("on", r === st.rate));
+    tAll.textContent = fmt(secsFor(totalWords));
+    paintTime();
+  };
+  const voiceBtn = stBtn("Voices", "audioOn", () => { vPanel.hidden = !vPanel.hidden; }, "", "Choose a voice for each host");
+  const copyT = copyButton(() => ({ md: lines.map((l) => `**${HOSTS[l.speaker] || l.speaker}:** ${l.text}`).join("\n\n") }),
+                           { label: "Transcript" });
+  opts.append(speeds, el("span", "st-grow"), voiceBtn, copyT);
+
+  const vPanel = el("div", "au-vpanel");
+  vPanel.hidden = true;
+  const selects = {};
+  for (const h of ["A", "B"]) {
+    const lab = el("label", "au-vrow");
+    lab.append(el("span", `au-vtag host-${h.toLowerCase()}`, HOSTS[h]));
+    const sel = el("select", "au-vsel");
+    sel.onchange = () => {
+      const v = _voicesCache.find((x) => x.voiceURI === sel.value) || null;
+      st.voices[h] = v;
+      prefs[h.toLowerCase()] = sel.value; saveAudioPrefs(prefs);
+      paintVoices();
+      preview(h);
+    };
+    lab.append(sel);
+    vPanel.append(lab);
+    selects[h] = sel;
+  }
+  const vReset = stBtn("Best available", "regen", () => {
+    delete prefs.a; delete prefs.b; saveAudioPrefs(prefs);
+    applyVoices(_voicesCache);
+  }, "", "Reset to the best voices this device has");
+  const vNote = el("div", "au-vnote",
+    "Voices come from this device and browser. Edge's “Natural” voices and Chrome's Google voices sound the most human.");
+  vPanel.append(vReset, vNote);
+
+  player.append(hosts, main, prog, opts, vPanel);
+
+  /* transcript */
+  const tr = el("div", "au-transcript");
+  const lineEls = lines.map((l, i) => {
+    const row = el("button", `au-line host-${l.speaker.toLowerCase()}`);
+    row.type = "button";
+    const who = el("div", "au-line-hd");
+    let at = 0;
+    for (let k = 0; k < i; k++) at += words[k];
+    who.append(el("span", "au-line-dot"), el("span", "au-line-name", HOSTS[l.speaker] || l.speaker),
+               el("span", "au-line-time", fmt(secsFor(at))));
+    row.append(who, mdSpan(l.text, "au-line-txt", "div"));
+    row.title = "Play from here";
+    row.onclick = () => start(i);
+    tr.append(row);
     return row;
   });
 
-  let playing = false;
-  const setBtn = () => {
-    btn.textContent = "";
-    btn.append(el("span", "navitem-ic", playing ? "■" : "▶"), document.createTextNode(playing ? "Stop" : "Play"));
-  };
-  const highlight = (idx) => lineEls.forEach((r, i) => r.classList.toggle("speaking", i === idx));
-  const stop = () => {
-    _speech && _speech.stop();
-    _speech = null;
-    playing = false;
-    highlight(-1);
-    setBtn();
-  };
-  btn.onclick = async () => {
-    if (playing) return stop();
-    const voices = await listVoices();
-    const english = voices.filter((v) => v.lang.startsWith("en"));
-    const pool = english.length >= 2 ? english : voices;
-    playing = true;
-    setBtn();
-    _speech = playScript({
-      lines, voiceA: pool[0] || null, voiceB: pool[1] || null,
-      onLine: highlight, onEnd: stop,
-    });
-  };
-  setBtn();
-  listVoices().then((v) => {
-    if (!v.length) note.textContent = "No speech voices available on this device.";
-  });
+  const note = el("div", "au-note");
+  box.append(player, note, tr);
 
-  box.append(controls, transcript);
+  /* playback */
+  const synth = window.speechSynthesis;
+  const paintTime = () => {
+    let w = 0;
+    for (let k = 0; k < Math.max(0, st.cur); k++) w += words[k];
+    tNow.textContent = fmt(secsFor(w));
+  };
+  const paint = () => {
+    play.textContent = "";
+    play.append(icSpan("au-play-ic", st.playing ? "pause" : "play"));
+    play.setAttribute("aria-label", st.playing ? "Pause" : "Play");
+    play.classList.toggle("on", st.playing);
+    box.classList.toggle("playing", st.playing);
+    segEls.forEach((s, i) => {
+      s.classList.toggle("done", i < st.cur);
+      s.classList.toggle("cur", i === st.cur);
+    });
+    lineEls.forEach((r, i) => {
+      r.classList.toggle("speaking", i === st.cur && st.playing);
+      r.classList.toggle("current", i === st.cur);
+      r.classList.toggle("past", st.cur >= 0 && i < st.cur);
+    });
+    const who = st.cur >= 0 ? lines[st.cur].speaker : null;
+    for (const h of ["A", "B"]) hostEl[h].d.classList.toggle("talking", st.playing && who === h);
+    back.disabled = st.cur <= 0;
+    fwd.disabled = st.cur >= n - 1;
+    paintTime();
+  };
+  const paintVoices = () => {
+    for (const h of ["A", "B"]) {
+      const v = st.voices[h];
+      hostEl[h].vname.textContent = v ? v.name.replace(/^Microsoft\s+|\s+Online.*$|\s*\(Natural\)|\s+-\s+.*$/g, "") : "Default voice";
+      if (v) selects[h].value = v.voiceURI;
+    }
+  };
+  const applyVoices = (voices) => {
+    const english = voices.filter((v) => /^en/i.test(v.lang));
+    const pool = english.length ? english : voices;
+    const { A, B } = pickHostVoices(pool, prefs);
+    st.voices.A = A; st.voices.B = B;
+    for (const h of ["A", "B"]) {
+      const sel = selects[h];
+      sel.textContent = "";
+      [...pool].sort((a, b) => voiceScore(b) - voiceScore(a)).forEach((v) => {
+        const o = el("option", null, `${v.name} · ${v.lang}`);
+        o.value = v.voiceURI;
+        sel.append(o);
+      });
+    }
+    paintVoices();
+  };
+
+  const utter = (text, h) => {
+    const u = new SpeechSynthesisUtterance(text);
+    const v = st.voices[h];
+    if (v) { u.voice = v; u.lang = v.lang; }
+    u.rate = st.rate;
+    // Only one voice on the device: pitch is the only way left to tell two
+    // people apart.
+    if (h === "B" && st.voices.A && st.voices.B === st.voices.A) u.pitch = 0.8;
+    return u;
+  };
+
+  const stop = () => {
+    st.token += 1;
+    st.playing = false;
+    if (synth) synth.cancel();
+    if (_speech === ctl) _speech = null;
+    paint();
+  };
+  const start = (from) => {
+    if (!synth) return;
+    if (_speech && _speech !== ctl) _speech.stop();
+    _speech = ctl;
+    synth.cancel();
+    const token = ++st.token;
+    st.playing = true;
+    st.cur = Math.max(0, Math.min(n - 1, from));
+    const speakLine = () => {
+      // A card closed, regenerated or navigated away from must fall silent.
+      if (token !== st.token) return;
+      if (!box.isConnected || $("studioView").hidden) { stop(); return; }
+      if (st.cur >= n) { st.cur = -1; stop(); return; }
+      paint();
+      lineEls[st.cur].scrollIntoView({ block: "nearest", behavior: "smooth" });
+      const chunks = speechChunks(lines[st.cur].text);
+      let c = 0;
+      const speakChunk = () => {
+        if (token !== st.token) return;
+        if (c >= chunks.length) { st.cur += 1; speakLine(); return; }
+        const u = utter(chunks[c], lines[st.cur].speaker);
+        u.onend = () => { c += 1; speakChunk(); };
+        u.onerror = (e) => {
+          if (token !== st.token || e.error === "interrupted" || e.error === "canceled") return;
+          c += 1; speakChunk();
+        };
+        synth.speak(u);
+      };
+      speakChunk();
+    };
+    speakLine();
+  };
+  const jump = (d) => {
+    const t = Math.max(0, Math.min(n - 1, (st.cur < 0 ? 0 : st.cur) + d));
+    if (st.playing) start(t); else { st.cur = t; paint(); lineEls[t].scrollIntoView({ block: "nearest", behavior: "smooth" }); }
+  };
+  const toggle = () => (st.playing ? stop() : start(st.cur < 0 ? 0 : st.cur));
+  const preview = (h) => {
+    if (!synth || st.playing) return;
+    synth.cancel();
+    const first = lines.find((l) => l.speaker === h);
+    synth.speak(utter(speechChunks(first ? first.text : "Hello.")[0], h));
+  };
+  const ctl = { stop };
+  play.onclick = toggle;
+
+  S.studio.cleanup = stop;
+  S.studio.onKey = (e) => {
+    if (e.key === " " || e.key === "k" || e.key === "K") toggle();
+    else if (e.key === "ArrowRight") jump(1);
+    else if (e.key === "ArrowLeft") jump(-1);
+    else return;
+    e.preventDefault();
+  };
+
+  if (!synth) {
+    note.textContent = "This browser has no speech engine, so the overview can be read but not played.";
+    play.disabled = true;
+  } else {
+    listVoices().then((v) => {
+      if (!v.length) note.textContent = "No speech voices are installed on this device — playback will use the browser default.";
+      applyVoices(v);
+    });
+    if (_voicesCache.length) applyVoices(_voicesCache);
+  }
+  paintSpeed();
+  paint();
   return box;
 }
 
