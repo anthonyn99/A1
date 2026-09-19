@@ -22061,7 +22061,7 @@ function createBoard(cfg) {
     var km = null;
     if (B.known) { try { km = JSON.parse(B.known.str).mind; } catch (e) {} }
     var merged;
-    if (km && mindSig(lm) === mindSig(km)) merged = rm;         // nothing changed here since
+    if (km && rec.pw === B.known.w && mindSig(lm) === mindSig(km)) merged = rm;   // built on ours, nothing changed here since
     else {
       var bs = B.hist[rec.pw] || (B.known && B.known.str) || null, bm = null;
       if (bs) { try { bm = JSON.parse(bs).mind; } catch (e) {} }
@@ -22854,12 +22854,9 @@ function merge3Tokens(O, A, B, ia, ib, io) {
     else {
       var sa = ta.join(''), sb = tb.join('');
       if (sa === sb) Array.prototype.push.apply(out, ta);
-      else if (re === rs) {
-        // Both inserted at the same point: keep both, in an order both sides pick.
-        if (sa < sb) { Array.prototype.push.apply(out, ta); Array.prototype.push.apply(out, tb); }
-        else { Array.prototype.push.apply(out, tb); Array.prototype.push.apply(out, ta); }
-      }
+      else if (re === rs) Array.prototype.push.apply(out, union2(ta, tb));   // both inserted here: keep both, shared text once
       else if (!ta.length) Array.prototype.push.apply(out, tb);    // never let a delete swallow an edit
+      else if (isSubseq(ta, tb)) Array.prototype.push.apply(out, tb);   // the other side has all of ours, and more
       else Array.prototype.push.apply(out, ta);
     }
     at = re;
@@ -22868,6 +22865,26 @@ function merge3Tokens(O, A, B, ia, ib, io) {
   return out;
 }
 
+function isSubseq(a, b) {
+  var j = 0;
+  for (var i = 0; i < b.length && j < a.length; i++) if (b[i] === a[j]) j++;
+  return j === a.length;
+}
+// Two insertions at the same point, as one: runs both contain appear once, and
+// each side's own text is kept — ordered by content, so both screens agree.
+function union2(ta, tb) {
+  var ids = new Map(), n = 0;
+  function intern(arr) { var r = new Int32Array(arr.length); for (var i = 0; i < arr.length; i++) { var v = ids.get(arr[i]); if (v === undefined) { v = n++; ids.set(arr[i], v); } r[i] = v; } return r; }
+  var hs = diffHunks(intern(ta), intern(tb)), out = [], at = 0;
+  hs.forEach(function (h) {
+    for (var c = at; c < h.a; c++) out.push(ta[c]);
+    var xa = ta.slice(h.a, h.a + h.al), xb = tb.slice(h.b, h.b + h.bl);
+    if (xa.join('') <= xb.join('')) out.push.apply(out, xa.concat(xb)); else out.push.apply(out, xb.concat(xa));
+    at = h.a + h.al;
+  });
+  for (var z = at; z < ta.length; z++) out.push(ta[z]);
+  return out;
+}
 function mergeText(base, local, remote) {
   base = base || ''; local = local || ''; remote = remote || '';
   if (local === remote) return local;
@@ -23397,7 +23414,10 @@ function foreign(a, s, rec) {
   return ensureImgs(keysIn(rec.d.html)).then(function () {
     if (a.docs[s.id] !== s) return;
     var e = s.entry, local = localD(a, s), known = k.known, merged;
-    if (known && stable(local) === stable(known.d)) merged = rec.d;          // nothing typed here since
+    // Take the remote copy as-is only when it was BUILT ON what this screen
+    // already had and nothing was typed since. A write made from an older state
+    // (it raced ours) must be merged, or it would silently drop our last edit.
+    if (known && rec.pw === known.w && stable(local) === stable(known.d)) merged = rec.d;
     else {
       var base = known ? (k.hist.get(rec.pw) || known.d) : {};
       merged = mergeD(base, local, rec.d);
