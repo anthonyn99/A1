@@ -1409,7 +1409,7 @@ del.md-html { color: var(--txd); }
    Mixing them at random would just look inconsistent, so the rule is that
    mono means "this is a value, not a sentence". */
 .node-meta, .core-count, .verdict-quorum, .chip-unit, .node-sub,
-.slide-count, .bs-council-meta, .link-txt, .mtop-where,
+.slide-count, .bs-council-meta,
 .studio-raw, .verdict-body code, .sheet-note code, .bs-hint code,
 table.doctor, table.doctor code, .v-table,
 .quiz-opt-letter, .side-tag, .bs-chip {
@@ -3191,7 +3191,16 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 .link.remote  .link-dot { background: var(--acl); }
 .link.seeking .link-dot { background: var(--amber); animation: pulse 1.1s ease-in-out infinite; }
 .link.down    .link-dot { background: var(--red); }
-.link-txt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.link { gap: 10px; padding: 10px 12px; }
+.link-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; letter-spacing: 0; }
+.link-main, .link-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.link-main { font-size: 12px; font-weight: 600; color: var(--tx); }
+.link-sub { font-size: 10.5px; color: var(--txm); }
+.link.down .link-main { color: var(--red); }
+.link-dot { width: 8px; height: 8px; }
+.link.local .link-dot { box-shadow: 0 0 0 3px color-mix(in srgb, var(--grn) 18%, transparent); }
+.link.remote .link-dot { box-shadow: 0 0 0 3px color-mix(in srgb, var(--acl) 18%, transparent); }
+.link.down .link-dot { box-shadow: 0 0 0 3px color-mix(in srgb, var(--red) 18%, transparent); }
 .nav-collapsed .link-txt { display: none; }
 .nav-collapsed .link { justify-content: center; }
 
@@ -4068,7 +4077,7 @@ window._mailRelay = window._mailRelay || async function (res) {
     </nav>
 
     <button type="button" class="link seeking" id="linkBtn" title="Where the engine is">
-      <span class="link-dot"></span><span class="link-txt" id="linkTxt">locating engine…</span>
+      <span class="link-dot"></span><span class="link-txt" id="linkTxt"><span class="link-main">Connecting…</span><span class="link-sub">Looking for your PC</span></span>
     </button>
   </aside>
 
@@ -4435,17 +4444,64 @@ async function askLink() {
   }
 }
 
+/** What kind of device this page is open on, for wording the status. */
+const DEVICE_KIND = (() => {
+  const ua = navigator.userAgent || "";
+  if (/iPhone|iPod|Android.+Mobile|Mobile.+Firefox/i.test(ua)) return "phone";
+  if (/iPad|Android|Tablet/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return "tablet";
+  return "computer";
+})();
+
+/** The status as a person reads it: a headline and one quiet line under it.
+ *  `link.detail` stays the terse internal key -- renderOfflineNote looks its
+ *  long explanation up by it -- and this is only how it is shown. */
+function linkLabel(where = link.where, detail = link.detail) {
+  const dev = DEVICE_KIND === "computer" ? "browser" : DEVICE_KIND;
+  if (where === "local") {
+    return {
+      main: "Running on this PC",
+      sub: {
+        "phones ok": "Direct · reachable from your phone",
+        "phones cut off": "Direct · phone access is down",
+      }[detail] || "Direct connection",
+    };
+  }
+  if (where === "remote") {
+    return { main: "Connected to your PC", sub: `Remote · ${detail}` };
+  }
+  if (where === "seeking") {
+    return {
+      main: "Connecting…",
+      sub: detail === "checking your other devices…" ? "Checking your other devices" : "Looking for your PC",
+    };
+  }
+  return {
+    main: DEVICE_KIND === "computer" ? "Engine offline" : "Your PC is offline",
+    sub: {
+      "no API token set": `This ${dev} isn't paired yet`,
+      "token rejected": "Access key was rejected",
+      "engine has not published": "PC is asleep or MAGI isn't running",
+      "tunnel is dead": "Remote link is down",
+      "backend not responding": "Engine isn't responding",
+      "backend wants a token": "Access key needed",
+    }[detail] || "Can't reach the engine",
+  };
+}
+
 function setLink(where, detail) {
   link.where = where;
   link.detail = detail;
   const b = $("linkBtn");
   b.className = `link ${where}`;
-  $("linkTxt").textContent = detail;
-  b.title = {
-    local: "Engine on this device — click to change the token",
-    remote: "Engine reached over the tunnel — click to change the token",
-    seeking: "Looking for the engine…",
-    down: "Engine not reachable — click for help",
+  const lab = linkLabel(where, detail);
+  const t = $("linkTxt");
+  t.textContent = "";
+  t.append(el("span", "link-main", lab.main), el("span", "link-sub", lab.sub));
+  b.title = `${lab.main} — ${lab.sub}. ` + {
+    local: "Click to manage the access key.",
+    remote: "Click to manage the access key.",
+    seeking: "",
+    down: "Click for help.",
   }[where];
   updateEnabled();
   renderOfflineNote();
@@ -4470,7 +4526,7 @@ async function connect() {
       return setLink("down", "backend wants a token");
     }
     if (s === "unauthorized") s = await probe("", 6000);
-    if (s === "ok") return setLink("local", "this device · same origin");
+    if (s === "ok") return setLink("local", "direct");
     if (s === "unauthorized") return setLink("down", "token rejected");
     return setLink("down", "backend not responding");
   }
@@ -4496,15 +4552,16 @@ async function connect() {
       if (fromEngine !== link.token) { link.token = fromEngine; saveToken(fromEngine); }
     }
     if (link.token) cloudPublishToken(link.token, !fromEngine);
-    setLink("local", "this device · 127.0.0.1");
+    setLink("local", "direct");
     // Reachable HERE says nothing about reachable from a phone. A quick tunnel
     // can be dropped by Cloudflare while the engine keeps running, and nothing
     // on this screen would change -- the phone just says offline for days. So
     // the desk checks what a phone would find, once, in the background.
     if (link.token) {
       askLink().then((pub) => {
-        if (pub || link.where !== "local") return;
-        setLink("local", "this device · phones cut off");
+        if (link.where !== "local") return;
+        if (pub) return setLink("local", "phones ok");
+        setLink("local", "phones cut off");
         $("linkBtn").title =
           "Running here, but the tunnel your phone uses is down. Restart MAGI on this PC to give phones a new one.";
       });
@@ -4536,7 +4593,8 @@ async function connect() {
     rememberGoodToken(link.token);
     cloudPublishToken(link.token);
     const mins = Math.round((pub.age_s || 0) / 60);
-    return setLink("remote", `tunnel · ${mins < 60 ? mins + "m" : Math.round(mins / 60) + "h"} ago`);
+    return setLink("remote", mins < 1 ? "linked just now"
+      : `linked ${mins < 60 ? mins + "m" : Math.round(mins / 60) + "h"} ago`);
   }
   link.api = null;
   setLink("down", remote === "unauthorized" ? "token rejected" : "tunnel is dead");
@@ -4851,9 +4909,9 @@ function openSetup() {
       // moment -- a hosted page beside the PC connects over 127.0.0.1, which
       // never exercises the token at all.
       if (link.token) { rememberGoodToken(link.token); cloudPublishToken(link.token); }
-      msg.className = "sheet-ok"; msg.textContent = `Connected — ${link.detail}.`; setTimeout(done, 700); boot();
+      msg.className = "sheet-ok"; msg.textContent = `${linkLabel().main} — ${linkLabel().sub}.`; setTimeout(done, 700); boot();
     } else {
-      msg.className = "sheet-err"; msg.textContent = `Not reachable — ${link.detail}.`;
+      msg.className = "sheet-err"; msg.textContent = `${linkLabel().main} — ${linkLabel().sub}.`;
       paint();
     }
   };
@@ -11437,7 +11495,7 @@ function syncMobileLink() {
   if (!dot) return;
   dot.className = "link-dot";
   $("linkBtn").classList.forEach((c) => { if (c !== "link") dot.classList.add(c); });
-  $("mtopTxt").textContent = link.detail || "";
+  $("mtopTxt").textContent = link.detail ? linkLabel().main : "";
 }
 
 /** Sync state, shown under the wordmark.
