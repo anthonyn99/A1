@@ -381,7 +381,7 @@ sites:
   grok:
     display_name: Grok
     url: https://grok.com/
-    accent: "#e89a86"
+    accent: "#e5a9c6"
     # VERIFIED 2026-09-11 against a SIGNED-IN session, end to end: typed a
     # question, watched it answer, and read the DOM at each stage.
     #
