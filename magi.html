@@ -12845,7 +12845,7 @@ attachScrollbar($("sideNav"), 90);
     if (!engineBusy()) {
       // Leave the spinner up: the reload replaces the page, so there is
       // nothing to tidy afterwards and a reset would only flicker.
-      location.reload();
+      hardReload();
       return;
     }
 
