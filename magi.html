@@ -12729,6 +12729,34 @@ attachScrollbar($("sideNav"), 90);
    SSE stream and leave the council running against your paid accounts with
    nothing watching it. That case still refreshes in place, so the gesture is
    never simply ignored. */
+/* The WHOLE program, fresh from GitHub -- not just this document.
+ *
+ * location.reload() alone does not do that. The browser re-checks the page
+ * itself, but serves everything it loads (LifeHub/lifehub.js, tabsync.js,
+ * hoverfx.js, ...) straight from the HTTP cache for as long as GitHub Pages
+ * says they are fresh (max-age=600). So a pull could bring up the new
+ * magi.html running last deploy's scripts.
+ *
+ * fetch(..., {cache: 'reload'}) goes to the network and REPLACES the cached
+ * copy, so every same-origin file is refetched first and the reload then
+ * finds only fresh copies. Bounded at 4s: a slow or offline network still
+ * gets its reload rather than a spinner that never ends. Cross-origin files
+ * (fonts, the Firebase SDK) are pinned by version and never change in place,
+ * so there is nothing to refresh there. */
+async function hardReload() {
+  const urls = new Set([location.href.split("#")[0]]);
+  document.querySelectorAll("script[src], link[rel='stylesheet'][href], link[rel='modulepreload'][href], link[rel='manifest'][href]")
+    .forEach((n) => {
+      try {
+        const u = new URL(n.src || n.href, location.href);
+        if (u.origin === location.origin) urls.add(u.href.split("#")[0]);
+      } catch {}
+    });
+  const fetches = Promise.allSettled([...urls].map((u) => fetch(u, { cache: "reload", credentials: "same-origin" })));
+  await Promise.race([fetches, new Promise((r) => setTimeout(r, 4000))]);
+  location.reload();
+}
+
 (function () {
   const page = $("page");
   // Distance tuned to the browser's own gesture: about 115px of finger travel
