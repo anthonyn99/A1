@@ -801,15 +801,15 @@
     });
 
     var bd = root.querySelector('.bd');
-    // Dismissed the moment the finger/button LIFTS, not on the synthesized
-    // click — on a phone that click can trail the tap, and waiting for it read
-    // as lag. The backdrop itself stays in place (invisible) until the closing
-    // animation ends, so that trailing click still lands on it and never on
-    // whatever is underneath.
-    var bdDown = false;
-    bd.addEventListener('pointerdown', function (e) { e.preventDefault(); bdDown = true; });
-    bd.addEventListener('pointerup', function () { if (bdDown) { bdDown = false; close(); } });
-    bd.addEventListener('pointercancel', function () { bdDown = false; });
+    // Dismissed the instant the finger (or button) goes DOWN outside — waiting
+    // for the lift, or worse for the synthesized click, is the delay that read
+    // as lag. The backdrop, now invisible, stays hit-testable until that same
+    // pointer is released and its click has fired (see settleClose), so the
+    // tap still can never reach whatever is underneath.
+    bd.addEventListener('pointerdown', function (e) { e.preventDefault(); close(false, true); });
+    function release() { if (ui.holdBd) setTimeout(function () { ui.holdBd = false; settleClose(); }, 80); }
+    bd.addEventListener('pointerup', release);
+    bd.addEventListener('pointercancel', release);
     bd.addEventListener('click', function (e) { e.preventDefault(); close(); });
     bd.addEventListener('wheel', function (e) { e.preventDefault(); }, { passive: false });
     bd.addEventListener('touchmove', function (e) { e.preventDefault(); }, { passive: false });
