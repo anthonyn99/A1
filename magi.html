@@ -5038,6 +5038,12 @@ function linkLabel(where = link.where, detail = link.detail) {
       "tunnel is dead": "Remote link is down",
       "backend not responding": "Engine isn't responding",
       "backend wants a token": "Access key needed",
+      // Reached an engine, but it belongs to the other person. Named rather
+      // than shown as a generic failure, because the fix is switching
+      // profile and nothing about "offline" would ever suggest that.
+      "wrong profile": link.otherProfile
+        ? `That engine is ${(MAGI_PROFILES[link.otherProfile] || {}).label || link.otherProfile}’s`
+        : "That engine belongs to another profile",
     }[detail] || "Can't reach the engine",
   };
 }
