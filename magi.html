@@ -3225,7 +3225,11 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
   display: flex; flex-direction: column; align-items: center;
   background: var(--s1); border: 1px solid var(--bd);
   border-radius: var(--r-card); padding: 26px 16px 18px;
-  box-shadow: 0 24px 60px var(--shadow);
+  /* No drop shadow. Two siblings each casting `0 24px 60px` means the later
+     one paints over the earlier: Veda's shadow darkened Tony's adjacent edge
+     while his was hidden beneath her card, so hers read as floating above
+     his. Their backgrounds were identical the whole time. On a flat backdrop
+     with a visible border the shadow was buying nothing anyway. */
   transition: border-color .15s, transform .15s, width .18s ease;
 }
 .gate-card.open { width: 284px; }
