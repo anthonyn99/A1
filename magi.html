@@ -4567,6 +4567,98 @@ const el = (tag, cls, txt) => {
 };
 const show = (n, on) => { n.hidden = !on; };
 
+/* ══ PROFILES ══════════════════════════════════════════════════════════════
+   Two people, two MAGIs. Tony and Veda each get their own AI accounts, their
+   own history, their own settings and their own password -- the same split
+   index.html has had for its TaskHubs, built the same way and deliberately
+   sharing its colours so the suite reads as one product.
+
+   A profile is a DOCUMENT PATH plus a set of credentials, not an identity.
+   Firebase auth stays a single anonymous session for the whole suite, exactly
+   as index.html does it, so nothing about rules, App Check or sign-in changes.
+   What changes is which document the console reads and which localStorage
+   namespace it writes.
+
+   ── Why a switch reloads the page ────────────────────────────────────────
+   Every key constant below is evaluated once, at load, against PROFILE.id. A
+   switch that merely reassigned PROFILE.id would leave a dozen constants and
+   one live Firestore listener pointing at the person who just left -- and
+   Firestore's persistent cache means a document read once stays on the device.
+   Reloading makes the swap total and unarguable for the cost of one repaint,
+   and this page already treats a reload as the ordinary fix (see PULL TO
+   REFRESH). The profile is read back out of localStorage on the way up.
+
+   ── What is NOT namespaced ───────────────────────────────────────────────
+   Device-shaped facts, not person-shaped ones: which device this is, whether
+   its sound is muted, whether its sidebar is collapsed. Sharing those is the
+   point -- muting MAGI should not un-mute itself because you switched profile. */
+const MAGI_PROFILES = {
+  // `doc` is the Firestore document under /dashboards. Tony keeps "magi" so
+  // every deliberation he has ever run stays exactly where it is -- there is
+  // no history migration in this change, and there must never need to be one.
+  tony: { label: "Tony", emoji: "⚜️", color: "#e0b874", doc: "magi",      lock: "tony_magi" },
+  veda: { label: "Veda", emoji: "✦",       color: "#8D769A", doc: "magi_veda", lock: "veda_magi" },
+};
+const PROFILE_ORDER = ["tony", "veda"];
+const LAST_PROFILE_LS = "magi.lastProfile";
+
+const PROFILE = {
+  // Resolved synchronously, before any key constant below is evaluated. The
+  // gate may change it, and when it does it reloads rather than reassigning.
+  id: (() => {
+    try {
+      const v = localStorage.getItem(LAST_PROFILE_LS);
+      if (v && MAGI_PROFILES[v]) return v;
+    } catch {}
+    return PROFILE_ORDER[0];
+  })(),
+  unlocked: false,   // nothing reaches the network until this is true
+};
+
+const prof = () => MAGI_PROFILES[PROFILE.id];
+
+/** Every per-person localStorage key goes through here. `magi.tony.pins`,
+ *  `magi.veda.pins` -- never a bare `magi.pins`, which is what the other
+ *  profile would then read as its own. */
+const lsKey = (name) => `magi.${PROFILE.id}.${name}`;
+
+/* ── one-time migration of Tony's existing keys ────────────────────────────
+   Before profiles, every key was `magi.<name>` with no owner. Those values are
+   Tony's -- his API token, his pins, his unit order, his queue -- and dropping
+   them would look exactly like MAGI having forgotten him. Copied, not moved:
+   an older build of the page left open in another tab still reads the legacy
+   names, and a migration that deleted them would break it mid-session.
+
+   Runs once and marks itself done, so a key deleted on purpose afterwards
+   does not come back on the next load. */
+(function migrateLegacyKeys() {
+  const DONE = "magi.tony.migrated";
+  try {
+    if (localStorage.getItem(DONE) === "1") return;
+    const pairs = [
+      ["magi.token", "magi.tony.token"],
+      ["magi.token.ok", "magi.tony.token.ok"],
+      ["magi.unitorder", "magi.tony.unitorder"],
+      ["magi.units", "magi.tony.units"],
+      ["magi.studio.audio", "magi.tony.studio.audio"],
+      ["magi.queue", "magi.tony.queue"],
+      ["magi.pins", "magi.tony.pins"],
+      ["magi.unpinned", "magi.tony.unpinned"],
+      ["magi.nicks", "magi.tony.nicks"],
+      ["magi.bspins", "magi.tony.bspins"],
+      ["magi.bsnicks", "magi.tony.bsnicks"],
+      ["magi.bsunpinned", "magi.tony.bsunpinned"],
+      ["magi_lock_session", "magi.tony.lock_session"],
+      ["magi_locked", "magi.tony.locked"],
+    ];
+    for (const [from, to] of pairs) {
+      const v = localStorage.getItem(from);
+      if (v != null && localStorage.getItem(to) == null) localStorage.setItem(to, v);
+    }
+    localStorage.setItem(DONE, "1");
+  } catch {}
+})();
+
 /* ══ ICONS ═════════════════════════════════════════════════════════════════
    Every nav glyph is an SVG from the same Lucide-style family the rest of the
    suite draws from. They were Unicode dingbats -- ✦ ✚ ◈ ☰ ▦ -- which is why
