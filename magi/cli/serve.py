@@ -584,8 +584,7 @@ def cloud(port: int = 8000) -> int:
         # Only lines written from here on describe THIS tunnel.
         _CURRENT["log_from"] = str(adopted.log_size)
         print(f"  adopted the running tunnel — {adopted.url}")
-        print(f"
-  MAGI → http://127.0.0.1:{port}  (and at the same url as before)")
+        print(f"\n  MAGI → http://127.0.0.1:{port}  (and at the same url as before)")
         print("  This PC must stay awake and logged in — the Chrome profiles are here.")
         return _keep_tunnel(adopted.proc, cf_log, token, port)
 
