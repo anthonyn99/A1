@@ -3364,6 +3364,52 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .nav-collapsed .sidebar .prof-btn { display: none; }
+
+/* The engine chip, and the rows inside its picker. A dot carries the state
+   -- connected, seen recently, cold -- because a row that spells it out in
+   words is a row that no longer fits a phone. */
+.eng-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 26px; padding: 0 10px;
+  background: none; border: 1px solid var(--bd); border-radius: 999px;
+  color: var(--txd); font: inherit; font-size: 11px; cursor: pointer;
+  max-width: 100%; min-width: 0;
+}
+.eng-btn:hover { border-color: var(--ac); color: var(--tx); }
+.eng-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.eng-dot {
+  width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%;
+  background: var(--txm); opacity: .5;
+}
+.eng-dot.on { background: var(--grn); opacity: 1; }
+.eng-dot.warm { background: var(--amber); opacity: .9; }
+.nav-collapsed .sidebar .eng-btn { display: none; }
+.eng-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.eng-row {
+  display: flex; align-items: center; gap: 10px;
+  border: 1px solid var(--bd); border-radius: var(--r-btn); padding: 10px 11px;
+}
+.eng-row.on { border-color: var(--ac); }
+.eng-mid { flex: 1 1 auto; min-width: 0; }
+.eng-in {
+  width: 100%; background: none; border: 0; padding: 0;
+  color: var(--tx); font: inherit; font-size: 13px; font-weight: 600; outline: 0;
+}
+.eng-in:focus { color: var(--ac); }
+.eng-sub { font-size: 11px; color: var(--txm); margin-top: 2px; }
+.eng-x {
+  flex: 0 0 auto; width: 26px; height: 26px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: 0; border-radius: 6px; color: var(--txm); cursor: pointer;
+}
+.eng-x:hover { color: var(--red); }
+.eng-x svg { width: 14px; height: 14px; }
+.eng-add { display: flex; gap: 8px; align-items: flex-start; }
+.eng-add .lock-in { margin-bottom: 0; }
+@media (max-width: 430px) {
+  .eng-add { flex-direction: column; }
+  .eng-add .btn { width: 100%; justify-content: center; }
+}
 @media (max-width: 760px) {
   /* The mobile bar is 40px of very contested space: the dot alone still says
      which person, and the gate says the name in full the moment you tap it. */
@@ -4476,6 +4522,9 @@ window._mailRelay = window._mailRelay || async function (res) {
         <!-- Whose MAGI this is. Always visible, because the one thing you must
              never have to guess is which person's history you are looking at. -->
         <button type="button" class="prof-btn" id="profBtn" title="Switch profile"></button>
+        <!-- Which machine MAGI is running on. Hidden until there is more
+             than one, because with one engine there is nothing to pick. -->
+        <button type="button" class="eng-btn" id="engineBtn" hidden></button>
         <button type="button" class="lock-btn" id="helpBtn" title="How MAGI works"></button>
         <button type="button" class="lock-btn" id="lockBtn" title="Lock MAGI"></button>
         <!-- LifeHub app switcher (LifeHub/lifehub.js) — hidden while #lockScreen is up. -->
@@ -13402,6 +13451,59 @@ function cloudSaveUnitOrder() {
   }, 900);
 }
 
+/* ── the engine registry, across your devices ──────────────────────────────
+   One more field on the document that already has a listener attached, so a
+   laptop added at the desk reaches the phone for ZERO extra reads and no
+   second listener. That is the whole reason it lives here rather than in a
+   document of its own: a separate doc would cost a read on every page load,
+   permanently, for a few hundred bytes.
+
+   `lastSeen` is deliberately NOT synced. It is what THIS device last managed
+   to reach, and syncing it would have a phone claim the laptop was up
+   because the desktop could see it a minute ago. */
+let _engCloudT = 0;
+function cloudSaveEngines() {
+  if (!CLOUD.enabled) return;
+  clearTimeout(_engCloudT);
+  setSync("saving");
+  _engCloudT = setTimeout(async () => {
+    if (!(await cloudInit())) { setSync("off"); return; }
+    try {
+      const rows = ENG.list
+        .filter((e) => e.id && e.token)
+        .map((e) => ({ id: e.id, label: e.label || "", token: e.token, port: e.port || 8000 }));
+      await CLOUD.fs.setDoc(_indexDoc(), { engines: rows }, { merge: true });
+      setSync("saved");
+    } catch (e) {
+      setSync("error", _syncFail("saving your engines", e));
+      console.warn("[magi] engines:", e);
+    }
+  }, 900);
+}
+
+/** Fold what the cloud knows into what this device knows. Union, not
+ *  replace: an engine only this device has reached is still an engine. */
+function engMerge(rows) {
+  if (!Array.isArray(rows)) return false;
+  let changed = false;
+  for (const r of rows) {
+    if (!r || !r.id || !r.token) continue;
+    let e = engFind(r.id);
+    if (!e) {
+      // Absorb the unnamed legacy entry rather than sitting beside it.
+      e = ENG.list.find((x) => !x.id && x.token === r.token);
+      if (e) e.id = r.id;
+      else { e = { id: r.id, token: r.token, label: "", port: 8000 }; ENG.list.push(e); }
+      changed = true;
+    }
+    if (r.token && e.token !== r.token) { e.token = r.token; changed = true; }
+    if (r.port && e.port !== r.port) { e.port = r.port; changed = true; }
+    if (r.label && e.label !== r.label) { e.label = r.label; changed = true; }
+  }
+  if (changed) engSave({ sync: false });
+  return changed;
+}
+
 /** Share a token this browser has. Guarded on the last value seen from the
  *  cloud, so a page that opens twice a day does not write twice a day.
  *
@@ -14738,6 +14840,15 @@ async function cloudWatch() {
         if (typeof renderUnitChips === "function" && S.providers.length) renderUnitChips();
       }
 
+      // An engine registered on another device arrives here, on the listener
+      // that was already attached -- no extra read, no second listener.
+      if (d && Array.isArray(d.engines) && engMerge(d.engines)) {
+        syncEngineBtn();
+        // Worth a look right away only if we are currently stranded: the
+        // machine that just appeared may be the one that is actually awake.
+        if (!online() && PROFILE.unlocked) connect(true).then(() => { if (online()) boot(); });
+      }
+
       /* Marks that predate the maps, dealt with once.
        *
        *  Pins and names used to be stored on each run's index row, and a
@@ -15890,6 +16001,7 @@ $("chairBtn").onclick = openChairPicker;
 $("lockBtn").onclick = lockBtnClick;
 $("lockBtnM").onclick = lockBtnClick;
 $("profBtn").onclick = openProfilePicker;
+$("engineBtn").onclick = openEnginePicker;
 $("profBtnM").onclick = openProfilePicker;
 syncProfileBtn();
 // Two buttons, one panel: the sidebar's and the mobile top bar's. On a phone
