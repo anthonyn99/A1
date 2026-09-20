@@ -3171,38 +3171,121 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
   border-top: 1px solid var(--bd);
 }
 
-/* ══ APP LOCK ══════════════════════════════════════════════════════════════
+/* ══ THE GATE — profile picker and app lock, one screen ════════════════════
    The same lock every other A1 program has, on the same backend: the PBKDF2
-   record lives in taskhub-reminders' KV under jlock:applock:tony_magi, set and
-   reset through the endpoints index.html already uses, with hints and reset
-   codes mailed through the same Formspree form.
+   record lives in taskhub-reminders' KV under jlock:applock:<profile>_magi,
+   set and reset through the endpoints index.html already uses, with hints and
+   reset codes mailed through the same Formspree form.
 
-   It matters more here than in most of the suite. A verdict transcript is the
-   full text of everything you have asked four models, and the console can also
-   START runs against paid accounts -- so an unlocked MAGI on a borrowed laptop
-   is both a diary and a spending surface. */
-.lock-screen {
+   It matters more here than in most of the suite, for two reasons. A verdict
+   transcript is the full text of everything you have asked several models, and
+   the console can START runs against paid accounts -- so an unlocked MAGI on a
+   borrowed laptop is both a diary and a spending surface. And since profiles,
+   the person it keeps out might be the other person using this machine.
+
+   The cards are index.html's profile cards in MAGI's clothes: same two people,
+   same colours, same emoji, so the two programs read as one product. What is
+   different is that choosing and unlocking happen in ONE step -- the card you
+   pick expands in place into its password field rather than handing you off to
+   a second screen. */
+.gate {
   position: fixed; inset: 0; z-index: 300;
   display: flex; align-items: center; justify-content: center;
   padding: 20px; background: var(--bg);
+  overflow-y: auto;
 }
-.lock-box {
-  width: 100%; max-width: 380px;
-  background: var(--s1); border: 1px solid var(--bd);
-  border-radius: var(--r-card); padding: 26px 24px;
-  box-shadow: 0 24px 60px var(--shadow);
+.gate-wrap {
+  width: 100%; max-width: 760px;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 24px 0;
 }
-.lock-mark { display: flex; justify-content: center; margin-bottom: 16px; }
-.lock-mark svg { width: 54px; height: 54px; }
-.lock-title {
+.gate-mark { display: flex; justify-content: center; }
+.gate-mark svg { width: 54px; height: 54px; }
+.gate-brand {
   font-family: var(--font-display); font-size: 15px; font-weight: 800;
   letter-spacing: 1.6px; text-transform: uppercase; color: var(--tx);
-  text-align: center;
+  margin-top: 12px;
 }
-.lock-sub {
-  color: var(--txd); font-size: 12px; line-height: 1.55;
-  text-align: center; margin: 8px 0 18px;
+.gate-lede { color: var(--txd); font-size: 12px; margin-top: 8px; }
+
+/* Two cards side by side on a desktop, stacked on a phone. `align-items:
+   flex-start` matters: the expanded card must be free to grow downwards
+   without dragging its sibling's height with it, which is what made the
+   collapsed card look broken at every step of the animation. */
+.gate-cards {
+  display: flex; gap: 14px; align-items: flex-start; justify-content: center;
+  width: 100%; margin-top: 26px; flex-wrap: wrap;
 }
+.gate-card {
+  flex: 1 1 280px; max-width: 360px; min-width: 0;
+  background: var(--s1); border: 1px solid var(--bd);
+  border-radius: var(--r-card); padding: 18px;
+  box-shadow: 0 24px 60px var(--shadow);
+  transition: border-color .15s, transform .15s;
+}
+.gate-card.open { border-color: var(--pc); }
+/* The shut card stays legible rather than being dimmed into a decoration --
+   it is a button, and half of what this screen is for is pressing it. */
+.gate-card.tappable { cursor: pointer; }
+.gate-card.tappable:hover, .gate-card.tappable:focus-visible {
+  border-color: var(--pc); transform: translateY(-2px); outline: 0;
+}
+.gate-head { display: flex; align-items: center; gap: 12px; }
+.gate-av {
+  width: 40px; height: 40px; flex: 0 0 40px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 19px; line-height: 1;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--pc) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pc) 55%, transparent);
+}
+.gate-who { min-width: 0; }
+.gate-name {
+  font-family: var(--font-display); font-size: 15px; font-weight: 700;
+  color: var(--tx); letter-spacing: .3px;
+}
+.gate-state {
+  font-size: 11.5px; color: var(--txm); margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.gate-card.open .gate-state { color: var(--pc); }
+.gate-body { margin-top: 16px; }
+.gate-blurb {
+  color: var(--txd); font-size: 12px; line-height: 1.55; margin-bottom: 14px;
+}
+
+/* The password field. The input keeps .lock-in so it matches every other text
+   box on the screen; the eye sits inside its right edge, and the field's own
+   padding is widened to make room rather than the eye overlapping the text. */
+.gate-pw { position: relative; }
+.gate-pw .lock-in { padding-right: 40px; }
+.gate-eye {
+  position: absolute; top: 0; right: 0; width: 38px; height: 41px;
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: 0; padding: 0; cursor: pointer;
+  color: var(--txm);
+}
+.gate-eye:hover { color: var(--ac); }
+.gate-eye svg { width: 16px; height: 16px; display: block; }
+.gate-caps {
+  font-size: 11px; color: var(--amber);
+  margin: -4px 0 9px 2px;
+}
+
+@media (max-width: 760px) {
+  .gate { padding: 14px; align-items: flex-start; }
+  .gate-wrap { padding: 28px 0 24px; }
+  /* Stacked, full width. The expanded card is what you came for, so it goes
+     first and the other sits under it rather than above the fold it needs. */
+  .gate-cards { flex-direction: column; flex-wrap: nowrap; gap: 10px; margin-top: 20px; }
+  .gate-card { max-width: none; width: 100%; flex: 0 0 auto; }
+  .gate-card.open { order: -1; }
+}
+@media (max-width: 430px) {
+  .gate-card { padding: 15px; }
+  .gate-av { width: 36px; height: 36px; flex-basis: 36px; font-size: 17px; }
+}
+
 .lock-in {
   width: 100%; background: var(--bg); border: 1px solid var(--bd);
   border-radius: var(--r-btn); padding: 11px 12px; color: var(--tx);
@@ -3232,7 +3315,37 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
   20%,60% { transform: translateX(-6px); }
   40%,80% { transform: translateX(6px); }
 }
-.lock-box.shake { animation: lock-shake .32s; }
+.gate-card.shake { animation: lock-shake .32s; }
+
+/* The profile chip. Reads as a person, not as an icon button -- a coloured
+   dot with a name beside it, so "whose MAGI is this?" is answered without
+   hovering anything. Collapses to the avatar alone where the rail is narrow. */
+.prof-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 26px; padding: 0 9px 0 4px;
+  background: color-mix(in srgb, var(--pc) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pc) 45%, transparent);
+  border-radius: 999px; color: var(--tx); font: inherit; cursor: pointer;
+  max-width: 100%; min-width: 0;
+}
+.prof-btn:hover { border-color: var(--pc); }
+.prof-av {
+  width: 18px; height: 18px; flex: 0 0 18px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; line-height: 1; border-radius: 50%;
+  background: color-mix(in srgb, var(--pc) 25%, transparent);
+}
+.prof-name {
+  font-size: 11px; font-weight: 600; letter-spacing: .2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.nav-collapsed .sidebar .prof-btn { display: none; }
+@media (max-width: 760px) {
+  /* The mobile bar is 40px of very contested space: the dot alone still says
+     which person, and the gate says the name in full the moment you tap it. */
+  #profBtnM { padding: 0; width: 26px; justify-content: center; }
+  #profBtnM .prof-name { display: none; }
+}
 
 /* The header control. Sits at the right of the sidebar's top row, where the
    screenshot put it. */
@@ -14874,12 +14987,13 @@ function renderLock() {
   }
   scr.hidden = false;
   scr.textContent = "";
-  if (!GATE.open) GATE.open = PROFILE.id;
+  if (!GATE.open && !GATE.picking) GATE.open = PROFILE.id;
 
   const wrap = el("div", "gate-wrap");
   const mark = el("div", "gate-mark");
   mark.innerHTML = MARK;
   wrap.append(mark, el("div", "gate-brand", "MAGI"));
+  if (GATE.picking) wrap.append(el("div", "gate-lede", "Choose a profile"));
 
   const cards = el("div", "gate-cards");
   for (const id of PROFILE_ORDER) cards.append(gateCard(id));
@@ -14912,7 +15026,9 @@ function gateCard(id) {
     ? ({ unlock: "Locked", setup: "No password yet", reset: "Reset password",
          change: LOCK.removing ? "Remove lock" : "Change password",
          manage: "Unlocked on this device" }[LOCK.mode] || "")
-    : "Open " + p.label + "’s MAGI";
+    : (id === PROFILE.id && PROFILE.unlocked)
+      ? "Continue as " + p.label
+      : "Open " + p.label + "’s MAGI";
   who.append(el("div", "gate-state", sub));
   head.append(who);
   card.append(head);
@@ -15381,6 +15497,9 @@ $("histBack").onclick = () => setView("history");
 $("chairBtn").onclick = openChairPicker;
 $("lockBtn").onclick = lockBtnClick;
 $("lockBtnM").onclick = lockBtnClick;
+$("profBtn").onclick = openProfilePicker;
+$("profBtnM").onclick = openProfilePicker;
+syncProfileBtn();
 // Two buttons, one panel: the sidebar's and the mobile top bar's. On a phone
 // the sidebar is a shut drawer, so a Help only in there would be help you have
 // to already know how to find.
