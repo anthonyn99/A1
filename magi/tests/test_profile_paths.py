@@ -216,6 +216,66 @@ def test_it_survives_a_locked_file(fake_root, monkeypatch):
     assert S.migrate_legacy_layout() == []      # reported, not raised
 
 
+def test_one_locked_file_does_not_abort_the_rest(fake_root, monkeypatch):
+    """The bug this guards cost a real database.
+
+    cloudflared survives a restart on purpose, and keeps its log file open the
+    whole time. With the whole migration wrapped in one try, that single
+    PermissionError ended the loop -- so magi.db never moved, the engine came
+    up pointing at the new path, and created an EMPTY database beside the full
+    one. From the outside that is indistinguishable from MAGI losing every
+    deliberation ever run.
+    """
+    _legacy_tree(fake_root)
+    (fake_root / "data" / "locked.bin").write_text("x", encoding="utf-8")
+
+    real = S.Path.rename
+
+    def maybe(self, target):
+        if self.name == "locked.bin":
+            raise PermissionError("file in use")
+        return real(self, target)
+
+    monkeypatch.setattr("pathlib.Path.rename", maybe)
+    S.migrate_legacy_layout()
+
+    # The locked file stays put, and everything else still moved.
+    assert (fake_root / "data" / "locked.bin").exists()
+    assert (fake_root / "data" / "tony" / "magi.db").read_text(encoding="utf-8") == "RUNS"
+    assert (fake_root / "data" / "tony" / "magi.db-wal").exists()
+    assert (fake_root / "data" / "tony" / "accounts.json").exists()
+
+
+def test_live_logs_are_left_where_they_are(fake_root):
+    """Append-only scratch, recreated anyway, and the likeliest to be locked."""
+    _legacy_tree(fake_root)
+    for name in ("cloudflared.log", "watchdog.log", "autostart.log"):
+        (fake_root / "data" / name).write_text("log", encoding="utf-8")
+
+    S.migrate_legacy_layout()
+
+    for name in ("cloudflared.log", "watchdog.log", "autostart.log"):
+        assert (fake_root / "data" / name).exists(), name
+        assert not (fake_root / "data" / "tony" / name).exists(), name
+
+
+def test_the_database_is_moved_before_anything_that_might_be_locked(fake_root, monkeypatch):
+    """Ordering is the belt to the per-item guard's braces."""
+    _legacy_tree(fake_root)
+    order = []
+    real = S.Path.rename
+
+    def spy(self, target):
+        order.append(self.name)
+        return real(self, target)
+
+    monkeypatch.setattr("pathlib.Path.rename", spy)
+    S.migrate_legacy_layout()
+
+    data_moves = [n for n in order if n.startswith("magi.db") or n == "accounts.json"]
+    assert data_moves[0].startswith("magi.db"), data_moves
+
+
 # ── engine identity ───────────────────────────────────────────────────────
 
 def test_each_profile_gets_its_own_engine_identity(fake_root):

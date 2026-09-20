@@ -139,44 +139,69 @@ def _profile_path(rel: str) -> Path:
     return out
 
 
+# Live logs are deliberately NOT moved. They are append-only scratch, recreated
+# wherever the new engine points, and they are the files most likely to be held
+# open at exactly the moment this runs -- cloudflared survives a restart by
+# design (tunnel.py), and it keeps its log handle the whole time. Trying to move
+# one is a guaranteed PermissionError in exchange for nothing worth having.
+_LEAVE_BEHIND = {"cloudflared.log", "watchdog.log", "autostart.log", "boot.log"}
+
+
+def _move_one(child: Path, target: Path) -> bool:
+    """One move, guarded on its own.
+
+    The guard is per ITEM, not per run, and that distinction cost a real
+    database. Wrapping the whole migration in one try meant the first locked
+    file -- cloudflared.log, held by the process the restart deliberately
+    leaves running -- aborted every move after it. The engine then came up
+    pointing at a path nothing had been moved to and created an empty database
+    beside a full one, which looks exactly like "MAGI lost all my history".
+    """
+    if target.exists():
+        return False
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        child.rename(target)
+        return True
+    except Exception as exc:
+        print(f"[magi] could not move {child.name}: {exc}")
+        return False
+
+
 def migrate_legacy_layout() -> list[str]:
     """Move the pre-profile layout under DEFAULT_PROFILE. Returns what moved."""
     moved: list[str] = []
-    try:
-        # profiles/<site> -> profiles/tony/<site>
-        proot = ROOT / "profiles"
-        if proot.is_dir():
-            dest = proot / DEFAULT_PROFILE
-            for child in list(proot.iterdir()):
-                if child.name in KNOWN_PROFILES or not child.is_dir():
-                    continue
-                if child.name not in _LEGACY_SITE_DIRS:
-                    continue
-                dest.mkdir(parents=True, exist_ok=True)
-                target = dest / child.name
-                if target.exists():
-                    continue
-                child.rename(target)
+
+    # profiles/<site> -> profiles/tony/<site>
+    proot = ROOT / "profiles"
+    if proot.is_dir():
+        for child in sorted(proot.iterdir()):
+            if child.name in KNOWN_PROFILES or not child.is_dir():
+                continue
+            if child.name not in _LEGACY_SITE_DIRS:
+                continue
+            if _move_one(child, proot / DEFAULT_PROFILE / child.name):
                 moved.append(f"profiles/{child.name}")
 
-        # data/<file> -> data/tony/<file>, and the same for artifacts.
-        for root_name, keep in (("data", {"uploads"}), ("artifacts", set())):
-            r = ROOT / root_name
-            if not r.is_dir():
+    # data/<file> -> data/tony/<file>, and the same for artifacts.
+    for root_name in ("data", "artifacts"):
+        r = ROOT / root_name
+        if not r.is_dir():
+            continue
+        # The database first, and its write-ahead log with it. If anything is
+        # going to be locked it is a log file, and the ordering means a lock
+        # can no longer cost the one file that actually matters.
+        def rank(p: Path) -> tuple[int, str]:
+            if p.name.startswith("magi.db"):
+                return (0, p.name)
+            return (1, p.name)
+
+        for child in sorted(r.iterdir(), key=rank):
+            if child.name in KNOWN_PROFILES or child.name in _LEAVE_BEHIND:
                 continue
-            dest = r / DEFAULT_PROFILE
-            for child in list(r.iterdir()):
-                if child.name in KNOWN_PROFILES:
-                    continue
-                dest.mkdir(parents=True, exist_ok=True)
-                target = dest / child.name
-                if target.exists():
-                    continue
-                child.rename(target)
+            if _move_one(child, r / DEFAULT_PROFILE / child.name):
                 moved.append(f"{root_name}/{child.name}")
-                _ = keep
-    except Exception as exc:  # never let a migration stop the engine booting
-        print(f"[magi] profile migration skipped: {exc}")
+
     return moved
 
 
