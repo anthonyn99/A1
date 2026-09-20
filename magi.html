@@ -5669,6 +5669,132 @@ function openHow() {
 
    Both are offered as buttons. Neither exists to be clever -- they exist so
    that "I typed in the wrong box" is a five-second problem. */
+/* ── the engine picker ─────────────────────────────────────────────────────
+   Only appears once there is a choice to make. With one engine -- which is
+   most people, most of the time -- there is nothing to pick and the control
+   stays out of the way; the status row already says where MAGI is running. */
+/** "4m", "3h", "2d" -- short enough for a one-line row. */
+function engAgo(ms) {
+  const m = Math.max(0, Math.round((Date.now() - ms) / 60000));
+  if (m < 1) return "just now";
+  if (m < 60) return m + "m ago";
+  const h = Math.round(m / 60);
+  if (h < 48) return h + "h ago";
+  return Math.round(h / 24) + "d ago";
+}
+
+function syncEngineBtn() {
+  const b = $("engineBtn");
+  if (!b) return;
+  const many = ENG.list.filter((e) => e.id).length > 1;
+  b.hidden = !many;
+  if (!many) return;
+  const e = engActive();
+  b.textContent = "";
+  b.append(el("span", "eng-dot" + (online() ? " on" : "")), el("span", "eng-name", engLabel(e)));
+  b.title = "Running on " + engLabel(e) + " — click to choose another";
+}
+
+function openEnginePicker() {
+  engLoad();
+  const sheet = el("div", "sheet");
+  const box = el("div", "sheet-box");
+  box.append(el("div", "sheet-hd", "Engines"));
+  box.append(el("div", "sheet-sub",
+    "MAGI runs on the machine holding your signed-in browser sessions. "
+    + "A profile can have one on more than one machine."));
+
+  const list = el("div", "eng-list");
+  const rows = ENG.list.filter((e) => e.id || e.token);
+  if (!rows.length) box.append(el("div", "sheet-sub", "None yet."));
+
+  for (const e of rows) {
+    const row = el("div", "eng-row" + (e.id && e.id === ENG.activeId ? " on" : ""));
+    const dot = el("span", "eng-dot");
+    // Reachability is what the last connection attempt found, not a fresh
+    // probe: opening this panel should not wake four machines.
+    const fresh = e.lastSeen && Date.now() - e.lastSeen < 120000;
+    if (e.id === ENG.activeId && online()) dot.classList.add("on");
+    else if (fresh) dot.classList.add("warm");
+    row.append(dot);
+
+    const mid = el("div", "eng-mid");
+    const name = el("input", "eng-in");
+    name.value = engLabel(e);
+    name.placeholder = "Name this machine";
+    name.onchange = () => engRename(e.id, name.value);
+    mid.append(name);
+    const sub = el("div", "eng-sub",
+      e.id === ENG.activeId && online()
+        ? `Connected · ${link.where === "local" ? "on this network" : "over the tunnel"}`
+        : e.lastSeen
+          ? "Last seen " + engAgo(e.lastSeen)
+          : "Never reached");
+    mid.append(sub);
+    row.append(mid);
+
+    const use = el("button", "btn");
+    use.textContent = e.id === ENG.activeId && online() ? "In use" : "Use";
+    use.disabled = e.id === ENG.activeId && online();
+    use.onclick = async () => {
+      ENG.activeId = e.id;
+      engSave();
+      close();
+      setLink("seeking", "locating engine…");
+      await connect();
+      boot();
+    };
+    row.append(use);
+
+    const rm = el("button", "eng-x");
+    rm.innerHTML = IC.x;
+    rm.title = "Forget this engine";
+    rm.onclick = async () => {
+      const yes = await uiConfirmMagi(
+        "Forget " + engLabel(e) + "?",
+        "MAGI stops looking for it on this profile. Nothing on that machine is "
+        + "changed, and adding it back only needs its access key.",
+        "Forget");
+      if (!yes) return;
+      engForget(e.id);
+      close();
+      openEnginePicker();
+    };
+    row.append(rm);
+    list.append(row);
+  }
+  box.append(list);
+
+  // Adding one is adding its token: that is the only thing the console cannot
+  // discover for itself, and everything else about the engine comes from the
+  // engine the first time it answers.
+  const addWrap = el("div", "eng-add");
+  const addIn = el("input", "lock-in");
+  addIn.placeholder = "Access key of another machine";
+  addIn.autocomplete = "off";
+  const addBtn = el("button", "btn active", "Add");
+  addBtn.onclick = async () => {
+    const t = addIn.value.trim();
+    if (!t) return;
+    engAdd(t);
+    close();
+    setLink("seeking", "locating engine…");
+    await connect();
+    boot();
+  };
+  addWrap.append(addIn, addBtn);
+  box.append(addWrap);
+
+  const done = el("button", "lock-link", "Close");
+  done.onclick = () => close();
+  box.append(done);
+
+  sheet.append(box);
+  document.body.append(sheet);
+  function close() { sheet.remove(); }
+  dismissOnBackdrop(sheet, close);
+}
+
 function openSetup() {
   const sheet = el("div", "sheet");
   const box = el("div", "sheet-box");
