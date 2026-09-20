@@ -4807,6 +4807,62 @@ function linkLabel(where = link.where, detail = link.detail) {
   };
 }
 
+/* Come back on our own once the engine returns.
+ *
+ *  connect() used to run on load and on button presses only, so a phone that
+ *  was open while the PC restarted sat on "Your PC is offline" until someone
+ *  reloaded it -- even though the engine was back seconds later. The page now
+ *  retries by itself, and stops the moment it is connected.
+ *
+ *  Hidden tabs clear the timer entirely (a phone in a pocket must not poll),
+ *  and becoming visible retries at once with the backoff reset -- so picking
+ *  the phone up finds it already connected. */
+const RETRY_STEPS = [3000, 5000, 8000, 13000, 21000, 30000];
+const RETRY = { timer: 0, step: 0, busy: false, lastTry: 0 };
+
+function stopRetry() {
+  clearTimeout(RETRY.timer);
+  RETRY.timer = 0;
+  RETRY.step = 0;
+}
+
+function scheduleRetry(delay) {
+  clearTimeout(RETRY.timer);
+  if (document.hidden || online()) return;
+  const wait = delay != null ? delay : RETRY_STEPS[Math.min(RETRY.step, RETRY_STEPS.length - 1)];
+  RETRY.timer = setTimeout(tryReconnect, wait);
+}
+
+async function tryReconnect() {
+  if (RETRY.busy || online() || document.hidden) return;
+  RETRY.busy = true;
+  RETRY.lastTry = Date.now();
+  try {
+    await connect(true);
+  } finally {
+    RETRY.busy = false;
+  }
+  if (online()) { stopRetry(); boot(); }
+  else { RETRY.step += 1; scheduleRetry(); }
+}
+
+/** A gesture that means "I am looking at this now": retry immediately, and
+ *  start the backoff again from the top. */
+function retryNow(minGapMs = 0) {
+  if (online() || document.hidden) return;
+  if (minGapMs && Date.now() - RETRY.lastTry < minGapMs) return;
+  RETRY.step = 0;
+  scheduleRetry(0);
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) clearTimeout(RETRY.timer);
+  else retryNow();
+});
+window.addEventListener("online", () => retryNow());
+window.addEventListener("pageshow", () => retryNow());       // iOS bfcache
+window.addEventListener("focus", () => retryNow(2000));
+
 function setLink(where, detail) {
   link.where = where;
   link.detail = detail;
@@ -4825,12 +4881,18 @@ function setLink(where, detail) {
   updateEnabled();
   renderOfflineNote();
   if (typeof syncMobileLink === "function") syncMobileLink();
+  // Down: keep trying. Up (or still looking): nothing to schedule.
+  if (where === "down") { if (!RETRY.timer && !RETRY.busy) scheduleRetry(); }
+  else stopRetry();
 }
 
 /** Find the engine. Ordered fastest-first, and each step is skipped when it
  *  cannot apply, so the common cases resolve in one request. */
-async function connect() {
-  setLink("seeking", "locating engine…");
+async function connect(quiet = false) {
+  // A silent retry does not flash "Connecting…" over the status: the loop
+  // below runs every few seconds while the engine is down, and strobing the
+  // button between two messages reads as a fault of its own.
+  if (!quiet) setLink("seeking", "locating engine…");
 
   if (sameOrigin) {
     // The backend is serving this file. No CORS, and no token either: the
@@ -4882,7 +4944,7 @@ async function connect() {
         if (pub) return setLink("local", "phones ok");
         setLink("local", "phones cut off");
         $("linkBtn").title =
-          "Running here, but the tunnel your phone uses is down. Restart MAGI on this PC to give phones a new one.";
+          "Running here, but the tunnel your phone uses is down. Restarting MAGI on this PC opens a new one.";
       });
     }
     return;
@@ -5328,8 +5390,8 @@ function renderOfflineNote() {
   const why = {
     "no API token set": "The engine is not answering on this device, and no API token has reached this browser yet — so there is nothing to look up a tunnel with. Open MAGI once on the engine device and it hands the token over automatically.",
     "token rejected": "The engine is there, but it did not accept this token.",
-    "engine has not published": "The engine has not published a tunnel yet. If it was just restarted this takes a few minutes — a fresh tunnel gets a new address and MAGI waits for public DNS to catch up before publishing it, so a half-registered address is never handed to your phone. Otherwise the device is asleep or off -- or MAGI has been running a while and Cloudflare dropped its tunnel, which the engine does not notice on its own. Restarting MAGI on that device makes a new one.",
-    "tunnel is dead": "The published tunnel no longer answers. If the engine device was just restarted this clears itself in a minute or two, once the replacement tunnel registers; otherwise cloudflared has stopped since it was published.",
+    "engine has not published": "The engine has not published a tunnel yet. A restart keeps the address it already had, so this normally means the PC is asleep or off, MAGI is not running on it, or it is starting up and the first tunnel has not registered in DNS yet (a minute or so from cold). This page keeps trying on its own and will connect as soon as it can.",
+    "tunnel is dead": "The published tunnel no longer answers. A restart of the engine keeps the same address, so this usually means the PC slept or lost its network and Cloudflare dropped the tunnel; the engine opens a replacement when it notices. This page keeps trying on its own.",
     "backend not responding": "The backend is not answering on this machine.",
     "backend wants a token": "The engine is running but is asking for the API token, and this page has none saved.",
   }[link.detail] || "The engine is not reachable.";
@@ -10704,26 +10766,78 @@ function renderSlides(slides) {
    voice the device has -- neural / "Natural" voices first, then the network
    Google voices, then the rest -- and the two hosts are given contrasting
    voices where the device has them. Both are overridable and remembered. */
-let _voicesPromise = null, _voicesCache = [];
-function listVoices() {
-  if (!window.speechSynthesis) return Promise.resolve([]);
-  if (_voicesPromise) return _voicesPromise;
-  _voicesPromise = new Promise((resolve) => {
-    const synth = window.speechSynthesis;
-    const done = (v) => { _voicesCache = v; resolve(v); };
-    const existing = synth.getVoices();
-    if (existing.length) return done(existing);
-    // Most browsers report zero voices until `voiceschanged` fires, and some
-    // never fire it when the voices were already loaded between these two
-    // checks -- so a timeout backs it up rather than hanging forever.
-    const onChange = () => {
-      synth.removeEventListener("voiceschanged", onChange);
-      done(synth.getVoices());
-    };
-    synth.addEventListener("voiceschanged", onChange);
-    setTimeout(() => done(synth.getVoices()), 1200);
-  });
-  return _voicesPromise;
+/* Voices arrive LATE on phones, and sometimes only after you speak.
+ *
+ *  The first version asked once, cached the answer and never asked again --
+ *  and on a phone getVoices() is empty for the first second or two, so the
+ *  empty list was cached for the life of the page: no voices, an empty voice
+ *  picker, and no way back. Android fills the list a moment after load;
+ *  iOS Safari often reports nothing at all until speech has run once inside a
+ *  real user gesture.
+ *
+ *  So: an EMPTY list is never cached, `voiceschanged` is watched for the life
+ *  of the page, the list is re-read a few times after load (voiceschanged is
+ *  not reliable on mobile), and anything showing voices subscribes rather than
+ *  asking once. */
+let _voicesCache = [];
+const _voiceSubs = new Set();
+
+const voicesNow = () => {
+  try {
+    return (window.speechSynthesis && window.speechSynthesis.getVoices()) || [];
+  } catch { return []; }
+};
+
+function refreshVoices() {
+  const v = voicesNow();
+  // Never overwrite a good list with an empty one: some browsers momentarily
+  // report zero while the engine reloads.
+  if (!v.length) return _voicesCache;
+  const changed = v.length !== _voicesCache.length ||
+    v.some((x, i) => !_voicesCache[i] || _voicesCache[i].voiceURI !== x.voiceURI);
+  _voicesCache = v;
+  if (changed) for (const fn of [..._voiceSubs]) { try { fn(v); } catch {} }
+  return _voicesCache;
+}
+
+/** Call `fn` with the voice list now (if known) and whenever it changes. */
+function onVoices(fn) {
+  _voiceSubs.add(fn);
+  if (_voicesCache.length) { try { fn(_voicesCache); } catch {} }
+  return () => _voiceSubs.delete(fn);
+}
+
+/** Nudge the browser into populating its voice list. Safe to call often. */
+function primeVoices() {
+  if (!window.speechSynthesis) return;
+  refreshVoices();
+  // voiceschanged is unreliable on mobile, so the list is also re-read a few
+  // times over the first few seconds.
+  for (const ms of [200, 600, 1200, 2500, 5000]) setTimeout(refreshVoices, ms);
+}
+
+if (window.speechSynthesis) {
+  try {
+    window.speechSynthesis.addEventListener("voiceschanged", refreshVoices);
+  } catch {
+    window.speechSynthesis.onvoiceschanged = refreshVoices;
+  }
+  primeVoices();
+  // iOS hands over its voices only after speech has run inside a gesture. One
+  // silent utterance on the first tap costs nothing and unlocks both the list
+  // and playback itself.
+  const unlockSpeech = () => {
+    window.removeEventListener("pointerdown", unlockSpeech, true);
+    window.removeEventListener("keydown", unlockSpeech, true);
+    try {
+      const u = new SpeechSynthesisUtterance(" ");
+      u.volume = 0;
+      window.speechSynthesis.speak(u);
+    } catch {}
+    primeVoices();
+  };
+  window.addEventListener("pointerdown", unlockSpeech, true);
+  window.addEventListener("keydown", unlockSpeech, true);
 }
 
 const FEMALE_V = /female|aria|jenny|ava\b|emma|sonia|libby|michelle|samantha|zira|karen|moira|tessa|serena|susan|hazel|natasha|clara|joanna|salli|kimberly|allison|susan|victoria|fiona|google us english|heera|neerja/i;
@@ -10780,6 +10894,9 @@ function speechChunks(text) {
 }
 
 const HOSTS = { A: "Host A", B: "Host B" };
+const VOICE_NOTE = "This device has not offered its voice list yet — playback " +
+  "uses the system voice. Press play once; on iPhone the list appears after " +
+  "the first line is spoken.";
 let _speech = null;
 
 function renderAudio(lines) {
@@ -10865,8 +10982,15 @@ function renderAudio(lines) {
     const sel = el("select", "au-vsel");
     sel.onchange = () => {
       const v = _voicesCache.find((x) => x.voiceURI === sel.value) || null;
-      st.voices[h] = v;
-      prefs[h.toLowerCase()] = sel.value; saveAudioPrefs(prefs);
+      if (sel.value) {
+        st.voices[h] = v;
+        prefs[h.toLowerCase()] = sel.value;
+      } else {
+        // "Best available": forget the pinned choice and re-pick.
+        delete prefs[h.toLowerCase()];
+        applyVoices(_voicesCache);
+      }
+      saveAudioPrefs(prefs);
       paintVoices();
       preview(h);
     };
@@ -10935,25 +11059,35 @@ function renderAudio(lines) {
   const paintVoices = () => {
     for (const h of ["A", "B"]) {
       const v = st.voices[h];
-      hostEl[h].vname.textContent = v ? v.name.replace(/^Microsoft\s+|\s+Online.*$|\s*\(Natural\)|\s+-\s+.*$/g, "") : "Default voice";
-      if (v) selects[h].value = v.voiceURI;
+      hostEl[h].vname.textContent = v
+        ? v.name.replace(/^Microsoft\s+|\s+Online.*$|\s*\(Natural\)|\s+-\s+.*$/g, "")
+        : (_voicesCache.length ? "Best available" : "System default");
+      selects[h].value = v ? v.voiceURI : "";
     }
   };
   const applyVoices = (voices) => {
-    const english = voices.filter((v) => /^en/i.test(v.lang));
-    const pool = english.length ? english : voices;
-    const { A, B } = pickHostVoices(pool, prefs);
+    const english = (voices || []).filter((v) => /^en/i.test(v.lang));
+    const pool = english.length ? english : (voices || []);
+    const { A, B } = pool.length ? pickHostVoices(pool, prefs) : { A: null, B: null };
     st.voices.A = A; st.voices.B = B;
     for (const h of ["A", "B"]) {
       const sel = selects[h];
       sel.textContent = "";
+      // Always one real choice, even before the device has handed over its
+      // list: an empty <select> cannot be opened, which is what "no voice
+      // options" looked like on a phone.
+      const auto = el("option", null, pool.length ? "Best available" : "System default voice");
+      auto.value = "";
+      sel.append(auto);
       [...pool].sort((a, b) => voiceScore(b) - voiceScore(a)).forEach((v) => {
         const o = el("option", null, `${v.name} · ${v.lang}`);
         o.value = v.voiceURI;
         sel.append(o);
       });
+      sel.disabled = false;
     }
     paintVoices();
+    note.textContent = pool.length ? "" : VOICE_NOTE;
   };
 
   const utter = (text, h) => {
@@ -11033,11 +11167,13 @@ function renderAudio(lines) {
     note.textContent = "This browser has no speech engine, so the overview can be read but not played.";
     play.disabled = true;
   } else {
-    listVoices().then((v) => {
-      if (!v.length) note.textContent = "No speech voices are installed on this device — playback will use the browser default.";
-      applyVoices(v);
-    });
-    if (_voicesCache.length) applyVoices(_voicesCache);
+    // Subscribed, not asked once: on a phone the list usually arrives AFTER
+    // this card is on screen, and the picker has to fill in when it does.
+    const stopWatching = onVoices(applyVoices);
+    applyVoices(_voicesCache);
+    primeVoices();
+    const priorCleanup = S.studio.cleanup;
+    S.studio.cleanup = () => { stopWatching(); if (priorCleanup) priorCleanup(); };
   }
   paintSpeed();
   paint();
