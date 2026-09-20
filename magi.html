@@ -12798,6 +12798,17 @@ const CLOUD_INDEX_MAX = 300;
 function cloudInit() {
   if (CLOUD.ready) return CLOUD.ready;
   if (!CLOUD.enabled) return (CLOUD.ready = Promise.resolve(false));
+  /* Nothing is fetched before the profile is unlocked, and this is the line
+     that makes the lock mean something. It used to be cosmetic by its own
+     admission -- it stopped someone at the laptop READING, while the listener
+     attached at boot regardless. That was fine when there was one person. With
+     two it is not: Firestore's persistentLocalCache writes to IndexedDB, so a
+     document read once stays on the device, and a locked profile whose index
+     had already been fetched would be sitting in the cache of a machine its
+     owner never unlocked. NOT memoised into CLOUD.ready -- returning a settled
+     false here would make the refusal permanent for the session, so the first
+     call after unlock has to be free to do the real thing. */
+  if (!PROFILE.unlocked) return Promise.resolve(false);
 
   CLOUD.ready = (async () => {
     try {
@@ -12859,8 +12870,12 @@ function cloudInit() {
    the initializeFirestore above throw. Called only when the launcher is used. */
 window.LifeHubFirebase = () => cloudInit().then((ok) => (ok ? { db: CLOUD.db, fs: CLOUD.fs } : null));
 
-const _indexDoc = () => CLOUD.fs.doc(CLOUD.db, "dashboards", "magi");
-const _runDoc = (id) => CLOUD.fs.doc(CLOUD.db, "dashboards", "magi", "runs", id);
+/* The whole data split, and it is two functions. Tony reads dashboards/magi,
+   which is where every deliberation he has ever run already lives; Veda reads
+   dashboards/magi_veda, which starts empty. Both sit under the existing
+   /dashboards/{doc=**} rule, so firestore.rules needs no change. */
+const _indexDoc = () => CLOUD.fs.doc(CLOUD.db, "dashboards", prof().doc);
+const _runDoc = (id) => CLOUD.fs.doc(CLOUD.db, "dashboards", prof().doc, "runs", id);
 
 /* ── the API token, carried between your devices ───────────────────────────
    The token was the one thing sync did NOT carry, and it was the thing that
@@ -14749,30 +14764,152 @@ function lockShake() {
   b.classList.add("shake");
 }
 
+/* ── the gate: profile picker and lock, one screen ─────────────────────────
+   These used to be two ideas: a picker that shows you the door, and a lock
+   that guards it. Keeping them apart means two chances to get the ordering
+   wrong, and the ordering IS the security property -- nothing may be fetched
+   for a profile until that profile is unlocked (see cloudInit).
+
+   The profile you last used arrives expanded, because it is the one you
+   almost always want; the other sits collapsed beside it, one tap away.
+   Choosing it reloads the page -- see the PROFILES block for why a switch is
+   a reload -- and it comes back up expanded on the other card. */
+const GATE = { open: null };
+
+const EYE = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z'/><circle cx='12' cy='12' r='3'/></svg>";
+const EYE_OFF = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M9.9 4.2A10.9 10.9 0 0 1 12 4c6.5 0 10 7 10 7a18.5 18.5 0 0 1-3.2 4.2M6.6 6.6A18.5 18.5 0 0 0 2 11s3.5 7 10 7a10.9 10.9 0 0 0 4.2-.8'/><path d='M3 3l18 18'/><path d='M9.9 9.9a3 3 0 0 0 4.2 4.2'/></svg>";
+
+/** A drawn password field: the input, an eye that toggles it, and a caps-lock
+ *  hint. Not a bare <input type=password>, because the browser's own reveal
+ *  control exists on some platforms and not others, sits somewhere different
+ *  in each, and cannot be styled to match anything else on this screen. */
+function pwField(id, placeholder, autocomplete) {
+  const wrap = el("div", "gate-pw");
+  const inp = el("input", "lock-in");
+  inp.id = id;
+  inp.type = "password";
+  inp.placeholder = placeholder;
+  inp.autocomplete = autocomplete;
+  const eye = el("button", "gate-eye");
+  eye.type = "button";
+  // Not in the tab order: it is a convenience, and tabbing out of the password
+  // field should reach the button that submits it.
+  eye.tabIndex = -1;
+  const paint = () => {
+    eye.innerHTML = inp.type === "password" ? EYE : EYE_OFF;
+    eye.title = inp.type === "password" ? "Show password" : "Hide password";
+  };
+  eye.onclick = () => {
+    inp.type = inp.type === "password" ? "text" : "password";
+    paint();
+    inp.focus();
+  };
+  paint();
+  // Caps Lock is the reason a password "does not work" often enough to be
+  // worth saying out loud, and it is invisible on a laptop with no indicator.
+  const caps = el("div", "gate-caps", "Caps Lock is on");
+  caps.hidden = true;
+  const check = (e) => {
+    try { caps.hidden = !(e.getModifierState && e.getModifierState("CapsLock")); } catch {}
+  };
+  inp.addEventListener("keydown", check);
+  inp.addEventListener("keyup", check);
+  wrap.append(inp, eye, caps);
+  return wrap;
+}
+
+/** Choosing a profile. The one already loaded just expands; the other one is
+ *  a reload, which is what makes the swap total. */
+function selectProfile(id) {
+  if (!MAGI_PROFILES[id]) return;
+  if (id === PROFILE.id) { GATE.open = id; renderLock(); return; }
+  try { localStorage.setItem(LAST_PROFILE_LS, id); } catch {}
+  location.reload();
+}
+
 function renderLock() {
   let scr = $("lockScreen");
   if (!scr) {
-    scr = el("div", "lock-screen");
+    scr = el("div", "gate");
     scr.id = "lockScreen";
     document.body.append(scr);
   }
   scr.hidden = false;
   scr.textContent = "";
-  const box = el("div", "lock-box");
-  LOCK.box = box;
-  const mark = el("div", "lock-mark");
-  mark.innerHTML = MARK;
-  box.append(mark);
+  if (!GATE.open) GATE.open = PROFILE.id;
 
+  const wrap = el("div", "gate-wrap");
+  const mark = el("div", "gate-mark");
+  mark.innerHTML = MARK;
+  wrap.append(mark, el("div", "gate-brand", "MAGI"));
+
+  const cards = el("div", "gate-cards");
+  for (const id of PROFILE_ORDER) cards.append(gateCard(id));
+  wrap.append(cards);
+  scr.append(wrap);
+
+  const p1 = $("lockPw1");
+  if (p1) {
+    p1.focus();
+    p1.onkeydown = (e) => { if (e.key === "Enter") lockSubmit(); };
+  }
+  if (LOCK.mode === "unlock") renderBioButton();
+}
+
+function gateCard(id) {
+  const p = MAGI_PROFILES[id];
+  const open = GATE.open === id;
+  const card = el("div", "gate-card" + (open ? " open" : " shut"));
+  card.style.setProperty("--pc", p.color);
+
+  const head = el("div", "gate-head");
+  head.append(el("div", "gate-av", p.emoji));
+  const who = el("div", "gate-who");
+  who.append(el("div", "gate-name", p.label));
+  // What this line says is limited to what the page actually knows. The other
+  // profile's lock state is a record on the worker under a different key, and
+  // probing it at boot would be a network call made to decorate a button --
+  // so that card offers an action rather than claiming a state.
+  const sub = open
+    ? ({ unlock: "Locked", setup: "No password yet", reset: "Reset password",
+         change: LOCK.removing ? "Remove lock" : "Change password",
+         manage: "Unlocked on this device" }[LOCK.mode] || "")
+    : "Open " + p.label + "’s MAGI";
+  who.append(el("div", "gate-state", sub));
+  head.append(who);
+  card.append(head);
+
+  if (!open) {
+    card.classList.add("tappable");
+    card.onclick = () => selectProfile(id);
+    card.tabIndex = 0;
+    card.onkeydown = (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectProfile(id); }
+    };
+    return card;
+  }
+
+  LOCK.box = card;
+  const body = el("div", "gate-body");
+  lockFormInto(body);
+  card.append(body);
+  return card;
+}
+
+/** Everything the old .lock-box held, minus the identity the card already
+ *  shows. Element ids are unchanged, so lockSubmit, lockForgot, bioUnlock and
+ *  the rest of the lock keep working exactly as they did. */
+function lockFormInto(box) {
   const m = LOCK.mode;
-  const titles = {
-    unlock: ["MAGI", "Locked. Enter your password to open the council."],
-    setup: ["Set a password", "MAGI has no lock yet. Everything you have asked the council is readable without one."],
-    reset: ["Reset password", "Enter the code emailed to you, then choose a new password."],
-    change: ["Change password", "Enter your current password, then the new one."],
-    manage: ["MAGI is unlocked", "This device is trusted."],
+
+  const blurb = {
+    unlock: "",
+    setup: "Everything you have asked the council is readable without a password.",
+    reset: "Enter the code emailed to you, then choose a new password.",
+    change: "Enter your current password, then the new one.",
+    manage: "",
   }[m];
-  box.append(el("div", "lock-title", titles[0]), el("div", "lock-sub", titles[1]));
+  if (blurb) box.append(el("div", "gate-blurb", blurb));
 
   if (m === "manage") {
     const row = el("div", "lock-row");
@@ -14808,36 +14945,28 @@ function renderLock() {
     close.onclick = hideLock;
     box.append(close, el("div", "lock-msg", ""));
     box.querySelector(".lock-msg").id = "lockMsg";
-    scr.append(box);
     return;
   }
 
   if (m === "reset") {
     const code = el("input", "lock-in");
-    code.id = "lockCode"; code.placeholder = "6-character code"; code.autocomplete = "one-time-code";
+    code.id = "lockCode";
+    code.placeholder = "6-character code";
+    code.autocomplete = "one-time-code";
     box.append(code);
   }
 
-  const p1 = el("input", "lock-in");
-  p1.id = "lockPw1"; p1.type = "password";
-  p1.placeholder = m === "change" ? "Current password" : m === "unlock" ? "Password" : "New password";
-  p1.autocomplete = m === "unlock" ? "current-password" : "new-password";
-  box.append(p1);
+  box.append(pwField("lockPw1",
+    m === "change" ? "Current password" : m === "unlock" ? "Password" : "New password",
+    m === "unlock" ? "current-password" : "new-password"));
 
   if (m !== "unlock") {
-    const p2 = el("input", "lock-in");
-    p2.id = "lockPw2"; p2.type = "password";
-    p2.placeholder = m === "change" ? "New password" : "Confirm password";
-    p2.autocomplete = "new-password";
-    box.append(p2);
-    if (m === "change") {
-      const p3 = el("input", "lock-in");
-      p3.id = "lockPw3"; p3.type = "password"; p3.placeholder = "Confirm new password";
-      p3.autocomplete = "new-password";
-      box.append(p3);
-    }
+    box.append(pwField("lockPw2",
+      m === "change" ? "New password" : "Confirm password", "new-password"));
+    if (m === "change") box.append(pwField("lockPw3", "Confirm new password", "new-password"));
     const hint = el("input", "lock-in");
-    hint.id = "lockHintIn"; hint.placeholder = "Hint (optional, emailed to you)";
+    hint.id = "lockHintIn";
+    hint.placeholder = "Hint (optional, emailed to you)";
     box.append(hint);
   }
 
@@ -14847,9 +14976,14 @@ function renderLock() {
       : m === "reset" ? "Set new password" : LOCK.removing ? "Remove lock" : "Change password");
   go.onclick = lockSubmit;
   row.append(go);
+
   if (m !== "unlock" && m !== "setup") {
     const cancel = el("button", "btn", "Cancel");
-    cancel.onclick = () => { LOCK.removing = false; LOCK.mode = LOCK.session ? "manage" : "unlock"; renderLock(); };
+    cancel.onclick = () => {
+      LOCK.removing = false;
+      LOCK.mode = LOCK.session ? "manage" : "unlock";
+      renderLock();
+    };
     row.append(cancel);
   }
   box.append(row);
@@ -14868,11 +15002,6 @@ function renderLock() {
   const msg = el("div", "lock-msg");
   msg.id = "lockMsg";
   box.append(msg);
-  scr.append(box);
-
-  p1.focus();
-  p1.onkeydown = (e) => { if (e.key === "Enter") lockSubmit(); };
-  if (m === "unlock") renderBioButton();
 }
 
 function renderBioButton() {
@@ -15046,15 +15175,48 @@ function lockNowAction() {
   setLockedFlag(true);
   LOCK.session = null;
   LOCK.mode = "unlock";
+  // Re-shut the door for the rest of this page's life. openUp() has already
+  // run, so the listener and the engine connection stay -- locking now is
+  // about the screen in front of you, and a full teardown is what the reload
+  // on a profile switch is for.
+  PROFILE.unlocked = false;
+  GATE.open = PROFILE.id;
   renderLock();
 }
 
 function hideLock() {
   const scr = $("lockScreen");
   if (scr) scr.hidden = true;
+  // The profile is open. Everything that touches the network for this person
+  // -- the engine, Firestore, the token -- was held until this line.
+  PROFILE.unlocked = true;
+  GATE.open = null;
   syncLockBtn();
+  syncProfileBtn();
+  openUp();
   // A handoff that arrived while MAGI was locked runs now, not silently never.
   if (typeof handoffTry === "function") handoffTry();
+}
+
+/* Discovery and sync, started once, the first time a profile is unlocked.
+   These used to run beside lockBoot() so an unlock landed on a console that
+   was already ready, and that was the right call when the lock was cosmetic.
+   It is not any more: connect() carries this profile's API token and
+   cloudWatch() attaches a listener to this profile's document, and neither
+   may happen for someone who has not proved who they are. The cost is the
+   second or so it now takes after an unlock -- and on a trusted device, which
+   is the usual case, the unlock itself is instant. */
+let _openedUp = false;
+function openUp() {
+  if (_openedUp) return;
+  _openedUp = true;
+  connect().then(boot);
+  // Starts INDEPENDENTLY of the engine, and that is the whole point of it.
+  // Reading past verdicts needs Firestore and nothing else; only MAKING one
+  // needs the engine -- so a phone away from the desk still shows History.
+  // It also carries the API token, so a phone that has never been told the
+  // secret can be handed it here and reconnect on its own.
+  cloudWatch();
 }
 
 function showLock(mode) {
@@ -15206,10 +15368,10 @@ renderQueue();
 queueResume();
 updateEnabled();
 setView("council");
-// The lock paints first and covers everything; discovery and the engine
-// carry on behind it so an unlock lands on a console that is already ready.
+// The gate paints first and covers everything. Discovery, the engine and the
+// Firestore listener all wait behind it -- see openUp(), which lockBoot()
+// reaches through hideLock() the moment this profile is open.
 lockBoot();
-connect().then(boot);
 
 // The cloud listener starts INDEPENDENTLY of the engine, and that is the whole
 // point of it. It used to live inside boot(), which returns immediately when
