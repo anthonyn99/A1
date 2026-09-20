@@ -110,7 +110,7 @@ def main(port: int = 8000) -> int:
     time.sleep(5)
     if healthy(port):
         return 0
-    _say("engine not answering — starting it")
+    _say("engine not answering -- starting it")
     start()
     for _ in range(40):
         time.sleep(1.5)
