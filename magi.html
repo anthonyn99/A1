@@ -4947,7 +4947,22 @@ async function probe(base, ms = 2500) {
   try {
     const r = await fetch(`${base}/api/health`, authed({ signal: ctl.signal }));
     if (r.status === 401) return "unauthorized";
-    return r.ok ? "ok" : "no";
+    if (!r.ok) return "no";
+    // An engine serves one person. Connecting to the other one's would list
+    // THEIR signed-in accounts in this console and run deliberations against
+    // them -- silently, because everything else about it works. Engines from
+    // before profiles existed report nothing here, and those are Tony's.
+    try {
+      const h = await r.clone().json();
+      const theirs = String(h.profile || "tony");
+      if (theirs !== PROFILE.id) {
+        link.otherProfile = theirs;
+        return "wrongprofile";
+      }
+      link.otherProfile = "";
+      link.engine = h.engine || null;
+    } catch {}
+    return "ok";
   } catch {
     return "no";
   } finally {
@@ -5156,6 +5171,7 @@ async function connect(quiet = false) {
     }
     if (s === "unauthorized") s = await probe("", 6000);
     if (s === "ok") return setLink("local", "direct");
+    if (s === "wrongprofile") return setLink("down", "wrong profile");
     if (s === "unauthorized") return setLink("down", "token rejected");
     return setLink("down", "backend not responding");
   }
@@ -5209,6 +5225,7 @@ async function connect(quiet = false) {
     link.token = await cloudFetchToken();
   }
   if (!link.token) { link.api = null; return setLink("down", "no API token set"); }
+  if (local === "wrongprofile") { link.api = null; return setLink("down", "wrong profile"); }
   if (local === "unauthorized") { link.api = null; return setLink("down", "token rejected"); }
 
   // Away: wherever `magi cloud` last published.
@@ -5226,7 +5243,8 @@ async function connect(quiet = false) {
       : `linked ${mins < 60 ? mins + "m" : Math.round(mins / 60) + "h"} ago`);
   }
   link.api = null;
-  setLink("down", remote === "unauthorized" ? "token rejected" : "tunnel is dead");
+  setLink("down", remote === "wrongprofile" ? "wrong profile"
+    : remote === "unauthorized" ? "token rejected" : "tunnel is dead");
 }
 
 const online = () => link.api !== null && (link.where === "local" || link.where === "remote");
