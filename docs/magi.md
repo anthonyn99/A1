@@ -32,7 +32,8 @@ Every other program in this repo is a page. MAGI is a page **plus an engine on
 this PC**, and the engine cannot move.
 
 It talks to the models through **browser automation of your own logged-in
-subscriptions**, not APIs — four real Chrome profiles holding live sessions.
+subscriptions**, not APIs — one real Chrome profile per unit, each holding a
+live session.
 Those profiles cannot leave the machine, so:
 
 | | |
@@ -774,16 +775,17 @@ silently stops answering. The accounts are separated by their Chrome profile
 directories (`profiles/<profile>/claude/` and `.../claude-pro/`), which is the
 whole mechanism.
 
-### The seven
+### The members
 
 | Unit | Codename | Verified |
 |---|---|---|
 | ChatGPT | MELCHIOR·01 | yes |
-| Claude | BALTHASAR·02 | yes |
+| Claude (free) | BALTHASAR·02 | yes |
 | Gemini | CASPER·03 | yes |
 | DeepSeek | ADAM·04 | yes |
 | Perplexity | LILITH·05 | composer, submit, answer and stop probed live |
 | Grok | TABRIS·06 | composer and submit probed live; answer and stop **not** — logged out, Grok accepts the question and never answers |
+| Claude (Pro) | ARMISAEL·07 | selectors shared with BALTHASAR via a merge key; needs its own sign-in |
 
 Perplexity earns its place by being the one member that is search-grounded by
 default: where the others reason from training data, it reads today's page.
