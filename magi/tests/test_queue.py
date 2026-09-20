@@ -16,6 +16,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import re
+
 import pytest
 
 REPO = Path(__file__).resolve().parents[2]
@@ -359,10 +361,14 @@ def test_typing_is_never_blocked_by_a_run():
         (ln for ln in body.splitlines() if '$("btnQueue").disabled' in ln), ""
     )
     assert qline, "Queue's disabled state is no longer set in updateEnabled"
-    assert "up" not in qline.split("=", 1)[1].split(), (
+    rhs = qline.split("=", 1)[1]
+    # , not a whitespace split: `!up` is one token to str.split() and slid
+    # straight through, so the check passed on exactly the line it exists to
+    # catch. Verified by mutation -- add `!up` here and this must go red.
+    assert not re.search(r"up", rhs), (
         "Queue needs the engine, which is the opposite of the point"
     )
-    assert "online()" not in qline, (
+    assert "online()" not in rhs, (
         "Queue needs the engine, which is the opposite of the point"
     )
     assert "!q" in qline and "S.selected.size === 0" in qline, (
