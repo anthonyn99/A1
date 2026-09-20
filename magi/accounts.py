@@ -35,10 +35,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .browser import launcher, resolve
-from .settings import ROOT, Settings
+from .settings import ROOT, Settings, data_dir, profiles_dir
 
-PROFILES = ROOT / "profiles"
-STATE_FILE = ROOT / "data" / "accounts.json"
+# Functions, not constants: the active profile is chosen by the CLI AFTER
+# this module is imported, so a constant evaluated at import time would pin
+# every engine to whichever profile happened to be the default.
+def _profiles_root() -> Path:
+    return profiles_dir()
+
+
+def _state_file() -> Path:
+    return data_dir() / "accounts.json"
 
 # Long enough for a password manager, a 2FA code and a slow challenge; short
 # enough that a forgotten window does not hold the profile lock all day.
@@ -50,14 +57,15 @@ POLL_S = 1.5
 
 def _load() -> dict:
     try:
-        return json.loads(STATE_FILE.read_text(encoding="utf-8"))
+        return json.loads(_state_file().read_text(encoding="utf-8"))
     except Exception:
         return {}
 
 
 def _save(state: dict) -> None:
-    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    STATE_FILE.write_text(json.dumps(state, indent=1), encoding="utf-8")
+    sf = _state_file()
+    sf.parent.mkdir(parents=True, exist_ok=True)
+    sf.write_text(json.dumps(state, indent=1), encoding="utf-8")
 
 
 def set_label(site_id: str, label: str) -> dict:
@@ -92,7 +100,7 @@ def _dir_bytes(p: Path) -> int:
 
 
 def _profile_dir(site_id: str) -> Path:
-    return PROFILES / site_id
+    return _profiles_root() / site_id
 
 
 def listing(settings: Settings) -> list[dict]:

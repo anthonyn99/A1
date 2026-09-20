@@ -23,9 +23,9 @@ from datetime import datetime
 from pathlib import Path
 
 from . import proc
-from .settings import ROOT
+from .settings import ROOT, data_dir
 
-LOG = ROOT / "data" / "watchdog.log"
+LOG = data_dir() / "watchdog.log"
 # The scheduled task that owns the engine (see cli/serve.py autostart).
 TASK_ENGINE = "MAGI Engine"
 # Detached and in its own group, so the engine does not die with this process.

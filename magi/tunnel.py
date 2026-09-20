@@ -36,9 +36,10 @@ import urllib.request
 from pathlib import Path
 
 from . import ident, proc
-from .settings import ROOT
+from .settings import ROOT, data_dir
 
-STATE = ROOT / "data" / "tunnel.json"
+# Per profile: two engines on one PC each own their own tunnel record.
+STATE = data_dir() / "tunnel.json"
 QUICK_TUNNEL = re.compile(r"https://[a-z0-9-]+\.trycloudflare\.com")
 # Only ever a quick-tunnel hostname, checked before any request is made with a
 # url that came from a file or a remote record.

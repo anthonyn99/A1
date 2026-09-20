@@ -42,7 +42,7 @@ from .providers import gemini_api
 from .providers.base import ProviderEvent, RunContext
 from . import proc
 from .providers.registry import build_provider, build_providers
-from .settings import ROOT, load_settings
+from .settings import ROOT, active_profile, data_dir, load_settings
 
 settings = load_settings()
 db = Database(settings.db_path)
@@ -64,7 +64,7 @@ _brainstorm_jobs: dict[str, dict] = {}
 # file path -- Playwright's set_input_files needs one, and streaming an
 # UploadFile straight into the browser call would mean re-reading it once per
 # provider (the same file goes to every council member).
-UPLOADS_DIR = ROOT / "data" / "uploads"
+UPLOADS_DIR = data_dir() / "uploads"
 
 # Keeps the on-disk name predictable and shell/path safe without touching the
 # user-visible name shown in the composer, which is stored separately.

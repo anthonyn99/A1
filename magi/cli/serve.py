@@ -29,7 +29,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .. import ident, proc, tunnel as tunnel_mod
-from ..settings import ROOT
+from ..settings import ROOT, active_profile, data_dir
 
 # The account-2 worker that answers "where is MAGI right now?".
 # See workers2/magi-link/worker.js.
@@ -125,7 +125,7 @@ def _ensure_streams() -> None:
     """
     if sys.stdout is not None and sys.stderr is not None:
         return
-    log = ROOT / "data" / "autostart.log"
+    log = data_dir() / "autostart.log"
     log.parent.mkdir(parents=True, exist_ok=True)
     # line_buffering so a crash still leaves the lines that led up to it.
     f = open(log, "w", encoding="utf-8", errors="replace", buffering=1)
@@ -565,7 +565,7 @@ def cloud(port: int = 8000) -> int:
     # to itself. The tunnel points at the local port, which is not tied to this
     # process, so a surviving one is adopted instead: same url, same magi-link
     # record, nothing withdrawn and nothing republished.
-    cf_log = ROOT / "data" / "cloudflared.log"
+    cf_log = data_dir() / "cloudflared.log"
     cf_log.parent.mkdir(parents=True, exist_ok=True)
     adopted = None
     if os.environ.get("MAGI_ADOPT_TUNNEL", "1") != "0":

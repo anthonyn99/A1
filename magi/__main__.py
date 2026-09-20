@@ -102,9 +102,9 @@ def _crash_log(exc: BaseException) -> None:
     from datetime import datetime
 
     try:
-        from .settings import ROOT
+        from .settings import data_dir
 
-        log = ROOT / "data" / "boot.log"
+        log = data_dir() / "boot.log"
         log.parent.mkdir(parents=True, exist_ok=True)
         with log.open("a", encoding="utf-8", errors="replace") as f:
             f.write(f"\n=== {datetime.now().isoformat(timespec='seconds')} "
