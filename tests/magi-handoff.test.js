@@ -149,7 +149,11 @@ console.log('\nThe unit ids are the engine’s own');
   for (const line of yaml.split(/\r?\n/)) {
     if (/^sites:\s*$/.test(line)) { inSites = true; continue; }
     if (inSites && /^\S/.test(line)) break;
-    const m = inSites && /^ {2}([a-z0-9_]+):\s*$/.exec(line);
+    // A site key may carry a YAML anchor (`claude: &claude`, which claude-pro
+    // merges from) and may contain a hyphen. Without both allowances Claude
+    // read as UNCONFIGURED here, which would have pointed the blame at
+    // TradeHub offering a unit that does exist.
+    const m = inSites && /^ {2}([a-z0-9_-]+):(?:\s+&\S+)?\s*$/.exec(line);
     if (m) sites.add(m[1]);
   }
   ok('selectors.yaml parsed', sites.size >= 4, [...sites].join(','));

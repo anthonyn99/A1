@@ -79,8 +79,15 @@ def test_every_unit_the_panel_names_still_exists():
         (REPO / "magi" / "config" / "selectors.yaml").read_text(encoding="utf-8")
     )["sites"]
     names = {s.get("display_name", sid) for sid, s in sites.items()}
+    # Substring, not equality: a display name may qualify the account it is
+    # signed in to ("Claude (free)", "Claude (Pro)") and that is still Claude.
+    # Exact matching read those as Claude being unconfigured, which is the
+    # opposite of true and would have had someone deleting it from the panel.
+    def configured(model: str) -> bool:
+        return any(model in n for n in names)
+
     for claimed in ("ChatGPT", "Claude", "Gemini", "DeepSeek"):
-        assert (claimed in names) == (claimed in HOW), (
+        assert configured(claimed) == (claimed in HOW), (
             f"{claimed} is named in the panel but not configured, or vice versa"
         )
 
