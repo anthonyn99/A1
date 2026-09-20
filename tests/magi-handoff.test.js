@@ -157,8 +157,12 @@ console.log('\nThe unit ids are the engine’s own');
     if (m) sites.add(m[1]);
   }
   ok('selectors.yaml parsed', sites.size >= 4, [...sites].join(','));
-  const offered = [...TRADEHUB.matchAll(/\{id:'([a-z]+)',\s*label:'[^']+',\s*code:'/g)].map((m) => m[1]);
-  ok('TradeHub offers the whole council', offered.length === 6, offered.join(','));
+  // [a-z-]+, not [a-z]+: a hyphenated id (claude-pro) simply did not match,
+  // so a newly offered unit was INVISIBLE to the very check that exists to
+  // catch a tick box MAGI cannot drive. It passed by seeing nothing.
+  const offered = [...TRADEHUB.matchAll(/\{id:'([a-z-]+)',\s*label:'[^']+',\s*code:'/g)].map((m) => m[1]);
+  ok('TradeHub offers every configured unit', offered.length === sites.size,
+     `offered ${offered.join(',')} | configured ${[...sites].join(',')}`);
   for (const id of offered) ok(`  ${id} is a configured unit`, sites.has(id));
   // The worker allow-list is a third copy of the same list.
   const wl = (/const ok=new Set\(\[([^\]]+)\]\);/.exec(WORKER) || [])[1] || '';
