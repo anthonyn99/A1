@@ -37,8 +37,15 @@ PAGE = (REPO / "magi.html").read_text(encoding="utf-8")
 # ── it starts by itself, and keeps starting ────────────────────────────────
 
 def test_autostart_installs_both_tasks():
-    assert 'TASK_ENGINE = "MAGI Engine"' in SERVE
-    assert 'TASK_WATCHDOG = "MAGI Watchdog"' in SERVE
+    # Per profile since profiles landed, but Tony's pair keeps the exact
+    # names his already-registered tasks have -- renaming them would leave
+    # an orphan running the old command line beside the new registration.
+    assert 'def task_engine()' in WATCHDOG and '"MAGI Engine"' in WATCHDOG
+    assert 'def task_watchdog()' in WATCHDOG and '"MAGI Watchdog"' in WATCHDOG
+    assert 'task_engine()' in SERVE and 'task_watchdog()' in SERVE
+    # The scheduled command must name the profile, or the task starts the
+    # DEFAULT engine twice instead of one engine each.
+    assert '{_task_args()}' in SERVE
     body = SERVE[SERVE.index("def _task_script"):SERVE.index("def autostart")]
     assert "-AtLogOn" in body, "the engine must start at logon"
     assert "RepetitionInterval" in body, "the watchdog must repeat, not fire once"
@@ -56,7 +63,7 @@ def test_installing_the_tasks_removes_the_old_shortcut():
 
 
 def test_the_watchdog_starts_the_engine_as_a_TASK_not_a_child():
-    assert '"schtasks", "/run", "/tn", TASK_ENGINE' in WATCHDOG, \
+    assert '"schtasks", "/run", "/tn", task_engine()' in WATCHDOG, \
         "a child of the watchdog is killed when the watchdog's task ends"
     order = WATCHDOG.index("schtasks") < WATCHDOG.index("proc.popen")
     assert order, "the task must be tried FIRST; the direct start is the fallback"
@@ -70,7 +77,7 @@ def test_the_watchdog_does_not_start_a_second_engine():
 
 
 def test_the_restarter_uses_the_venv_and_the_task():
-    assert 'schtasks", "/run", "/tn", TASK_ENGINE' in RESTARTER
+    assert 'schtasks", "/run", "/tn", task_engine()' in RESTARTER
     assert '".venv" / "Scripts" / "pythonw.exe"' in RESTARTER.replace('"magi" / ', ''), \
         "sys.executable alone starts the SYSTEM python, which has no deps"
     assert "if not _port_free(port) and not _alive(pid)" in RESTARTER, \
