@@ -391,6 +391,142 @@ def _stop(tunnel) -> None:
             tunnel.kill()
 
 
+def _link_record(token: str) -> dict | None:
+    """What magi-link currently says, so adoption can keep that record rather
+    than replace it (and so `age_s` keeps climbing across a restart)."""
+    try:
+        req = urllib.request.Request(
+            LINK_API, headers={"X-MAGI-Token": token, "User-Agent": UA})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return json.loads(r.read().decode("utf-8", "replace"))
+    except Exception:  # noqa: BLE001 -- no record is a normal answer here
+        return None
+
+
+def _verify_and_publish(token: str, kill) -> None:
+    """Wait for a fresh hostname to register, then publish it.
+
+    Runs on a background thread: the local server is never held up by DNS.
+    Reads the url from _CURRENT rather than closing over one, so a tunnel
+    replaced while this was waiting is never published under the dead name.
+    """
+    url = _CURRENT["url"]
+    deadline = time.time() + 15 * 60
+    delay = 3
+    while time.time() < deadline:
+        try:
+            urllib.request.urlopen(
+                urllib.request.Request(f"{url}/api/health", headers={"User-Agent": UA}),
+                timeout=10)
+            # A 200 means the server started WITHOUT the token and is wide
+            # open. Publishing that hands the url -- and the accounts behind
+            # it -- to anyone who reads the KV record.
+            print("  [!] /api/health answered 200 without a token -- the gate")
+            print("      is OFF, so the tunnel was NOT published. The backend")
+            print("      did not inherit MAGI_API_TOKEN; open a new terminal.")
+            kill()
+            return
+        except urllib.error.HTTPError as e:
+            if e.code != 401:
+                print(f"  [!] tunnel answered {e.code}; not publishing.")
+                kill()
+                return
+            # 401 is the CORRECT answer: it proves the tunnel reaches the
+            # backend AND that the token gate is armed.
+            break
+        except OSError:
+            time.sleep(delay)
+            delay = min(delay * 1.5, 30)
+    else:
+        print("  [!] the tunnel url never resolved in 15 minutes.")
+        print("      Local access is unaffected.")
+        kill()
+        return
+
+    try:
+        _publish(url, token)
+    except Exception as e:  # noqa: BLE001 -- the cause is what matters here
+        print(f"  [!] could not publish to magi-link: {e}")
+        print("      Local access is unaffected.")
+        return
+    # Only for the url this worker verified: a replacement tunnel may have
+    # taken over while it was waiting on DNS.
+    if _CURRENT.get("url") == url:
+        _CURRENT["published"] = url
+        _CURRENT["published_at"] = str(time.time())
+    print("  published -- https://anthonyn99.github.io/A1/magi.html now reaches this PC")
+
+
+def _keep_tunnel(tunnel, cf_log: Path, token: str, port: int) -> int:
+    """Watch the tunnel, and replace it when it dies.
+
+    A quick tunnel is not a durable thing: cloudflared drops out on a network
+    blip, on sleep/wake, or when Cloudflare recycles the hostname. The first
+    version simply stopped tunnelling at that point and served locally for the
+    rest of the session -- fine at the desk, useless from a phone, where the
+    tunnel is the ONLY route in.
+
+    Each replacement gets a NEW hostname, which is what magi-link is for:
+    republish, and the phone follows on its next look. Every replacement also
+    reaps whatever else is on this port, so strays cannot pile up.
+    """
+    print("  Ctrl+C to stop.\n")
+    delay = 5
+    try:
+        while True:
+            why = _watch_tunnel(tunnel, cf_log, token)
+            print(f"  [!] the tunnel ended ({why}); restarting in {delay}s.")
+            _withdraw(token)
+            tunnel_mod.clear()
+            time.sleep(delay)
+            delay = min(delay * 2, 60)
+            tunnel_mod.reap(port, keep=None)
+            try:
+                handle = open(cf_log, "w", encoding="utf-8", errors="replace")
+                tunnel = proc.popen(
+                    _cloudflared_argv(port), stdout=handle, stderr=handle,
+                )
+            except FileNotFoundError:
+                return _serve_only(port, "cloudflared has gone missing.")
+            _CURRENT["log_from"] = "0"
+
+            fresh = None
+            deadline = time.time() + 60
+            while time.time() < deadline and tunnel.poll() is None:
+                time.sleep(1.5)
+                try:
+                    m = QUICK_TUNNEL.search(
+                        cf_log.read_text(encoding="utf-8", errors="replace"))
+                except OSError:
+                    continue
+                if m:
+                    fresh = m.group(0)
+                    break
+            if not fresh:
+                tunnel.terminate()
+                continue
+            print(f"  {fresh}")
+            _CURRENT["url"] = fresh
+            tunnel_mod.record(tunnel.pid, fresh, port)
+            # A replaced-but-not-dead cloudflared would linger otherwise, and
+            # the orphan pile this change exists to end would rebuild itself.
+            tunnel_mod.reap(port, keep=tunnel.pid)
+            threading.Thread(
+                target=_verify_and_publish, args=(token, tunnel.terminate), daemon=True
+            ).start()
+            delay = 5
+    except KeyboardInterrupt:
+        pass
+    finally:
+        # Withdraw on the way out, so the console says "offline" instead of
+        # hanging on a tunnel that closed with the process.
+        _withdraw(token)
+        tunnel_mod.clear()
+        tunnel.terminate()
+
+    return _serve_only(port, "the tunnel was stopped.")
+
+
 def cloud(port: int = 8000) -> int:
     """Local + reachable from anywhere, via a quick tunnel this publishes."""
     _ensure_streams()
@@ -426,7 +562,7 @@ def cloud(port: int = 8000) -> int:
     # A quick tunnel's hostname is random and takes seconds to minutes to
     # register in DNS, so opening a new one costs every phone a long spell of
     # "Your PC is offline" -- on every restart, including the ones MAGI does
-    # to itself. The tunnel points at 127.0.0.1:%d, which is not tied to this
+    # to itself. The tunnel points at the local port, which is not tied to this
     # process, so a surviving one is adopted instead: same url, same magi-link
     # record, nothing withdrawn and nothing republished.
     cf_log = ROOT / "data" / "cloudflared.log"
@@ -469,6 +605,10 @@ def cloud(port: int = 8000) -> int:
     # those are exactly the times MAGI is restarted.
     _withdraw(token)
 
+    # Nothing here is worth keeping: reap every cloudflared on this port so a
+    # stray from an earlier run cannot outlive this one.
+    tunnel_mod.reap(port, keep=None)
+    tunnel_mod.clear()
     print("  opening tunnel…")
     # cloudflared's output goes to a FILE, not a pipe.
     #
@@ -481,8 +621,6 @@ def cloud(port: int = 8000) -> int:
     # Whatever the precise mechanism, a file has no such failure mode, needs no
     # reader, and leaves the one thing that was missing while diagnosing this:
     # cloudflared's own account of what it did.
-    cf_log = ROOT / "data" / "cloudflared.log"
-    cf_log.parent.mkdir(parents=True, exist_ok=True)
     try:
         cf_handle = open(cf_log, "w", encoding="utf-8", errors="replace")
         tunnel = proc.popen(
@@ -510,127 +648,18 @@ def cloud(port: int = 8000) -> int:
         return _serve_only(port, f"cloudflared never printed a tunnel url (see {cf_log}).")
     print(f"  {url}")
 
-    # Verifying and publishing happen on a BACKGROUND thread, and the local
-    # server is never held up waiting for them.
-    #
-    # A quick tunnel's hostname is registered at the edge some seconds after
-    # cloudflared prints it, and public DNS lags further still -- measured
-    # here at longer than the 60s the first version allowed, which made it
-    # give up, kill the tunnel and fall back to local-only on a tunnel that
-    # was simply not ready yet. Under `magi autostart` that runs at logon,
-    # racing a network stack that is itself still coming up, so a fixed
-    # deadline is the wrong shape entirely: keep the tunnel and keep trying.
-    def verify_and_publish() -> None:
-        url = _CURRENT["url"]
-        deadline = time.time() + 15 * 60
-        delay = 3
-        while time.time() < deadline:
-            try:
-                urllib.request.urlopen(
-                    urllib.request.Request(f"{url}/api/health", headers={"User-Agent": UA}),
-                    timeout=10)
-                # A 200 means the server started WITHOUT the token and is wide
-                # open. Publishing that hands the url -- and the accounts
-                # behind it -- to anyone who reads the KV record.
-                print("  [!] /api/health answered 200 without a token — the gate")
-                print("      is OFF, so the tunnel was NOT published. The backend")
-                print("      did not inherit MAGI_API_TOKEN; open a new terminal.")
-                tunnel.terminate()
-                return
-            except urllib.error.HTTPError as e:
-                if e.code != 401:
-                    print(f"  [!] tunnel answered {e.code}; not publishing.")
-                    tunnel.terminate()
-                    return
-                # 401 is the CORRECT answer: it proves the tunnel reaches the
-                # backend AND that the token gate is armed.
-                break
-            except OSError:
-                time.sleep(delay)
-                delay = min(delay * 1.5, 30)
-        else:
-            print("  [!] the tunnel url never resolved in 15 minutes.")
-            print("      Local access is unaffected.")
-            tunnel.terminate()
-            return
-
-        try:
-            _publish(url, token)
-        except Exception as e:  # noqa: BLE001 — the cause is what matters here
-            print(f"  [!] could not publish to magi-link: {e}")
-            print("      Local access is unaffected.")
-            return
-        # Only for the url this worker verified: a replacement tunnel may have
-        # taken over while it was waiting on DNS.
-        if _CURRENT.get("url") == url:
-            _CURRENT["published"] = url
-            _CURRENT["published_at"] = str(time.time())
-        print(f"  published — https://anthonyn99.github.io/A1/magi.html now reaches this PC")
-
+    # Verification and publishing happen on a background thread; the local
+    # server is never held up waiting for DNS. See _verify_and_publish.
     _CURRENT["url"] = url
-    threading.Thread(target=verify_and_publish, daemon=True).start()
+    _CURRENT["log_from"] = "0"
+    tunnel_mod.record(tunnel.pid, url, port)
+    threading.Thread(
+        target=_verify_and_publish, args=(token, tunnel.terminate), daemon=True
+    ).start()
 
-    print(f"\n  MAGI → http://127.0.0.1:{port}  (and over the tunnel once it registers)")
-    print("  This PC must stay awake and logged in — the Chrome profiles are here.")
-    print("  Ctrl+C to stop.\n")
-
-    # ── keep the tunnel alive ─────────────────────────────────────────────
-    # A quick tunnel is not a durable thing: cloudflared drops out on a network
-    # blip, on sleep/wake, or when Cloudflare recycles the hostname. The first
-    # version simply stopped tunnelling at that point and served locally for
-    # the rest of the session -- fine at the desk, useless from a phone, where
-    # the tunnel is the ONLY route in. Since the phone is the case this exists
-    # for, a dead tunnel is replaced rather than mourned.
-    #
-    # Each replacement gets a NEW hostname, which is exactly what magi-link is
-    # for: republish, and the phone follows on its next look. Backoff is capped
-    # so a long outage settles into one attempt a minute instead of a spin.
-    delay = 5
-    try:
-        while True:
-            why = _watch_tunnel(tunnel, cf_log, token)
-            print(f"  [!] the tunnel ended ({why}); restarting in {delay}s.")
-            _withdraw(token)
-            time.sleep(delay)
-            delay = min(delay * 2, 60)
-            try:
-                handle = open(cf_log, "w", encoding="utf-8", errors="replace")
-                tunnel = proc.popen(
-                    _cloudflared_argv(port), stdout=handle, stderr=handle,
-                )
-            except FileNotFoundError:
-                return _serve_only(port, "cloudflared has gone missing.")
-
-            fresh = None
-            deadline = time.time() + 60
-            while time.time() < deadline and tunnel.poll() is None:
-                time.sleep(1.5)
-                try:
-                    m = QUICK_TUNNEL.search(
-                        cf_log.read_text(encoding="utf-8", errors="replace"))
-                except OSError:
-                    continue
-                if m:
-                    fresh = m.group(0)
-                    break
-            if not fresh:
-                tunnel.terminate()
-                continue
-            print(f"  {fresh}")
-            # A fresh hostname needs the same verify-then-publish the first one
-            # got, so the same worker is reused rather than duplicated.
-            _CURRENT["url"] = fresh
-            threading.Thread(target=verify_and_publish, daemon=True).start()
-            delay = 5
-    except KeyboardInterrupt:
-        pass
-    finally:
-        # Withdraw on the way out, so the console says "offline" instead of
-        # hanging on a tunnel that closed with the process.
-        _withdraw(token)
-        tunnel.terminate()
-
-    return _serve_only(port, "the tunnel was stopped.")
+    print(f"\n  MAGI -> http://127.0.0.1:{port}  (and over the tunnel once it registers)")
+    print("  This PC must stay awake and logged in -- the Chrome profiles are here.")
+    return _keep_tunnel(tunnel, cf_log, token, port)
 
 
 # ── autostart ───────────────────────────────────────────────────────────────
