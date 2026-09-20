@@ -717,7 +717,9 @@ def _task_script(pyw: Path, root: Path, port: int) -> str:
     Windows kills the engine after three days, which is a bug that would take
     a week to notice.
     """
-    return f"""
+    # Raw: the script below is PowerShell, where a backslash is just a
+    # character -- "DOMAIN\\user" must survive into it untouched.
+    return rf"""
 $ErrorActionPreference = 'Stop'
 $pyw  = '{pyw}'
 $root = '{root}'
