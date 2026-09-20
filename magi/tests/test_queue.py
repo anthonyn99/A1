@@ -350,11 +350,26 @@ def test_typing_is_never_blocked_by_a_run():
     assert '$("composer").disabled = S.refining;' in body, (
         "the composer is disabled by a run in flight again"
     )
-    assert '$("btnQueue").disabled = !q || S.selected.size === 0;' in body, (
+    # The PROPERTY, not the exact expression: what must never come back is
+    # Queue depending on the engine being reachable. Pinning the literal
+    # string instead broke the moment Code Mode added an unrelated term to
+    # the same line, which reported "Queue needs the engine" about a change
+    # that had nothing to do with the engine.
+    qline = next(
+        (ln for ln in body.splitlines() if '$("btnQueue").disabled' in ln), ""
+    )
+    assert qline, "Queue's disabled state is no longer set in updateEnabled"
+    assert "up" not in qline.split("=", 1)[1].split(), (
         "Queue needs the engine, which is the opposite of the point"
     )
+    assert "online()" not in qline, (
+        "Queue needs the engine, which is the opposite of the point"
+    )
+    assert "!q" in qline and "S.selected.size === 0" in qline, (
+        "Queue should still need a prompt and at least one unit"
+    )
     # Convene still waits its turn: one run at a time.
-    assert '$("btnSend").disabled = busy' in body
+    assert '$("btnSend").disabled = coding || busy' in body
 
 
 # ── knowing what is running, and what you are reading ───────────────────────
