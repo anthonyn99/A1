@@ -5472,10 +5472,12 @@ function setLink(where, detail) {
   }[where];
   updateEnabled();
   renderOfflineNote();
-  // The strip carries the engine, and discovery finishes AFTER the first
-  // paint -- so without this it sat on "offline" while the sidebar three
-  // inches away said the engine was running on this PC.
-  if (typeof renderCodeStrip === "function" && codeMode()) renderCodeStrip();
+  // The strip AND the note under it carry the engine, and discovery finishes
+  // after the first paint -- so without this they sat on "offline" while the
+  // sidebar three inches away said the engine was running on this PC.
+  // renderCodeView, not renderCodeStrip: repainting half of it just moved
+  // the contradiction further down the screen.
+  if (typeof renderCodeView === "function" && codeMode()) renderCodeView();
   if (typeof syncMobileLink === "function") syncMobileLink();
   // Down: keep trying. Up (or still looking): nothing to schedule.
   if (where === "down") { if (!RETRY.timer && !RETRY.busy) scheduleRetry(); }
