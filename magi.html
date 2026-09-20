@@ -15257,7 +15257,10 @@ function lockFormInto(box) {
   box.append(bio);
 
   if (m === "unlock") {
-    const forgot = el("button", "lock-link", "Forgot password — email me a hint or a reset code");
+    // Short, because the card is narrow now and the long form wrapped to two
+    // lines. The title carries what it actually does.
+    const forgot = el("button", "lock-link", "Forgot password?");
+    forgot.title = "Email me a hint, or a reset code";
     forgot.onclick = lockForgot;
     box.append(forgot);
   }
