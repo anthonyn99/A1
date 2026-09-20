@@ -362,10 +362,10 @@ def test_typing_is_never_blocked_by_a_run():
     )
     assert qline, "Queue's disabled state is no longer set in updateEnabled"
     rhs = qline.split("=", 1)[1]
-    # , not a whitespace split: `!up` is one token to str.split() and slid
+    # A word boundary, not a whitespace split: `!up` is one token to str.split() and slid
     # straight through, so the check passed on exactly the line it exists to
     # catch. Verified by mutation -- add `!up` here and this must go red.
-    assert not re.search(r"up", rhs), (
+    assert not re.search(r"\bup\b", rhs), (
         "Queue needs the engine, which is the opposite of the point"
     )
     assert "online()" not in rhs, (
