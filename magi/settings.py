@@ -11,7 +11,9 @@ file to do it.
 
 from __future__ import annotations
 
+import os
 import random
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -25,6 +27,139 @@ import yaml
 # than each module counting `parents[n]` for itself.
 ROOT = Path(__file__).resolve().parent
 CONFIG_DIR = ROOT / "config"
+
+# ── profiles ──────────────────────────────────────────────────────────────
+# An engine serves exactly ONE person. Tony's engine drives Tony's logged-in
+# Chrome sessions and writes Tony's history; Veda's drives hers. That is the
+# whole reason this exists: the credentials ARE the profile, and they live in
+# directories on disk, so separating people means separating directories.
+#
+# One PC can host both at once -- `magi serve --profile veda --port 8001` --
+# because nothing about a profile is global except which one this process was
+# started as. Set once, before load_settings(), and never changed after: every
+# path below is derived from it, and a mid-flight change would strand every
+# handle already opened.
+KNOWN_PROFILES = ("tony", "veda")
+DEFAULT_PROFILE = "tony"
+
+_active_profile = DEFAULT_PROFILE
+
+
+def active_profile() -> str:
+    return _active_profile
+
+
+def set_active_profile(name: str) -> str:
+    """Choose whose engine this process is. Call before anything reads a path."""
+    global _active_profile
+    n = (name or "").strip().lower()
+    if not n:
+        return _active_profile
+    if not re.fullmatch(r"[a-z0-9_-]{1,32}", n):
+        # These become directory names. A profile called "../.." would write
+        # outside MAGI entirely, and one with a space would break every
+        # scheduled-task and shortcut argument that carries it.
+        raise ValueError(
+            f"Invalid profile name {name!r}: use letters, digits, '-' or '_'."
+        )
+    _active_profile = n
+    return _active_profile
+
+
+def resolve_profile(cli_value: str | None, config_dir: Path | None = None) -> str:
+    """Flag, then environment, then config file, then the default.
+
+    The flag wins because two engines on one PC share one checkout and so one
+    `magi.yaml` -- if the file had the last word they could never differ.
+    """
+    if cli_value:
+        return cli_value
+    env = os.environ.get("MAGI_PROFILE", "").strip()
+    if env:
+        return env
+    try:
+        cdir = config_dir or CONFIG_DIR
+        raw = yaml.safe_load((cdir / "magi.yaml").read_text(encoding="utf-8")) or {}
+        if raw.get("profile"):
+            return str(raw["profile"])
+    except Exception:
+        pass
+    return DEFAULT_PROFILE
+
+
+def data_dir() -> Path:
+    d = ROOT / "data" / active_profile()
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def profiles_dir() -> Path:
+    d = ROOT / "profiles" / active_profile()
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def artifacts_dir() -> Path:
+    d = ROOT / "artifacts" / active_profile()
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+# ── one-time migration into the default profile's directories ─────────────
+# Before profiles, everything sat directly under data/, profiles/ and
+# artifacts/. Those are Tony's: his logged-in Chrome sessions, his run history,
+# his failure screenshots.
+#
+# It RENAMES rather than copies. profiles/ is over a gigabyte of Chrome session
+# data, so a copy would double it on disk and take minutes; a directory rename
+# within one volume is atomic and instantly reversible, which is the safer
+# operation here, not the riskier one. Each move is guarded on the destination
+# not existing, so it cannot run twice and cannot overwrite a real profile.
+_LEGACY_SITE_DIRS = (
+    "chatgpt", "claude", "gemini", "deepseek", "perplexity", "grok", "copilot",
+    "claude-free",
+)
+
+
+def migrate_legacy_layout() -> list[str]:
+    """Move the pre-profile layout under DEFAULT_PROFILE. Returns what moved."""
+    moved: list[str] = []
+    try:
+        # profiles/<site> -> profiles/tony/<site>
+        proot = ROOT / "profiles"
+        if proot.is_dir():
+            dest = proot / DEFAULT_PROFILE
+            for child in list(proot.iterdir()):
+                if child.name in KNOWN_PROFILES or not child.is_dir():
+                    continue
+                if child.name not in _LEGACY_SITE_DIRS:
+                    continue
+                dest.mkdir(parents=True, exist_ok=True)
+                target = dest / child.name
+                if target.exists():
+                    continue
+                child.rename(target)
+                moved.append(f"profiles/{child.name}")
+
+        # data/<file> -> data/tony/<file>, and the same for artifacts.
+        for root_name, keep in (("data", {"uploads"}), ("artifacts", set())):
+            r = ROOT / root_name
+            if not r.is_dir():
+                continue
+            dest = r / DEFAULT_PROFILE
+            for child in list(r.iterdir()):
+                if child.name in KNOWN_PROFILES:
+                    continue
+                dest.mkdir(parents=True, exist_ok=True)
+                target = dest / child.name
+                if target.exists():
+                    continue
+                child.rename(target)
+                moved.append(f"{root_name}/{child.name}")
+                _ = keep
+    except Exception as exc:  # never let a migration stop the engine booting
+        print(f"[magi] profile migration skipped: {exc}")
+    return moved
 
 
 def _as_list(value: Any) -> list[str]:
@@ -93,7 +228,9 @@ class BrowserConfig:
     reclaim_orphaned_profiles: bool = True
 
     def profile_dir(self, site_id: str) -> Path:
-        d = ROOT / self.profile_root / site_id
+        # Per profile, then per site. Tony's Claude session and Veda's are two
+        # different Chrome user-data directories that never meet.
+        d = ROOT / self.profile_root / active_profile() / site_id
         d.mkdir(parents=True, exist_ok=True)
         return d
 
@@ -307,7 +444,10 @@ def load_settings(config_dir: Path | None = None) -> Settings:
         sites=sites,
         enabled=enabled,
         artifacts_on_failure=bool(art.get("on_failure", True)),
-        artifacts_dir=ROOT / art.get("dir", "artifacts"),
+        artifacts_dir=ROOT / art.get("dir", "artifacts") / active_profile(),
         artifacts_keep_last=max(0, int(art.get("keep_last", 200))),
-        db_path=ROOT / db.get("path", "data/magi.db"),
+        # data/<profile>/magi.db. The yaml still says "data/magi.db"; the
+        # profile segment is inserted here so an override in the file cannot
+        # accidentally point two engines at one database.
+        db_path=_profile_path(db.get("path", "data/magi.db")),
     )
