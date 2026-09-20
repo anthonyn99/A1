@@ -14956,12 +14956,21 @@ function selectProfile(id) {
   location.reload();
 }
 
-/** The profile chip: show both people, neither expanded. */
+/** The profile chip: show both people, neither expanded. Escape backs out,
+ *  but only when there is something to back out TO -- pressing it on the boot
+ *  gate, before anything has been unlocked, must not dismiss the lock. */
 function openProfilePicker() {
   GATE.picking = true;
   GATE.open = null;
   renderLock();
 }
+
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  const scr = $("lockScreen");
+  if (!scr || scr.hidden) return;
+  if (GATE.picking && PROFILE.unlocked) hideLock();
+});
 
 /** Whose MAGI this is, in the sidebar and the mobile top bar. Two controls,
  *  one state -- on a phone the sidebar is a shut drawer, so a chip only in
@@ -15345,6 +15354,7 @@ function hideLock() {
   // -- the engine, Firestore, the token -- was held until this line.
   PROFILE.unlocked = true;
   GATE.open = null;
+  GATE.picking = false;
   syncLockBtn();
   syncProfileBtn();
   openUp();

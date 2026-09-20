@@ -54,6 +54,17 @@ const DELIBERATE_FULL_BLEED = [
   // screen would clip the gradient, which is the background this cap exists to
   // let through.
   /emg-screen/,
+  // MAGI's Studio slide deck in presentation mode. The black surround is the
+  // point of presenting; the slide itself is `.sd-present-stage`, already held
+  // to a 16:9 box sized from the viewport HEIGHT and centred, so a width cap
+  // on the screen would only shrink the letterboxing around it.
+  /sd-present$/,
+  // MAGI's gate — the profile picker and app lock. Same shape as emg-screen: a
+  // full-bleed background that the card sits on, with `.gate-wrap` capped at
+  // 760px and centred. Capping the backdrop would leave a 2000px-wide panel of
+  // page showing beside it on a very wide screen, which is the opposite of
+  // what a lock screen is for.
+  /^\.gate$/,
 ];
 const failures = [];
 
