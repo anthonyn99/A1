@@ -47,15 +47,36 @@ def _port_free(port: int) -> bool:
             return False
 
 
+def _ours(port: int) -> bool:
+    """Is the thing already on this port THIS profile's engine?
+
+    A busy port is only a conflict if somebody else is on it. Onboarding Tony
+    while Tony's engine is running -- which is the common case, since this is
+    also the repair command -- must not shunt him onto a new port and strand
+    every device paired with the old one. So ask: /api/health names the profile.
+    """
+    import json as _json
+    import urllib.request
+
+    try:
+        with urllib.request.urlopen(
+            f"http://127.0.0.1:{port}/api/health", timeout=1.5
+        ) as r:
+            return _json.loads(r.read()).get("profile") == active_profile()
+    except Exception:
+        return False
+
+
 def _pick_port(requested: int) -> int:
     """The asked-for port, else this profile's usual one, else the next free."""
     if requested:
         return requested
     preferred = PROFILE_PORTS.get(active_profile(), 0)
-    if preferred and (_port_free(preferred) or _owned_port() == preferred):
+    if preferred and (_port_free(preferred) or _ours(preferred)
+                      or _owned_port() == preferred):
         return preferred
     for p in range(BASE_PORT, BASE_PORT + 40):
-        if _port_free(p):
+        if _port_free(p) or _ours(p):
             return p
     return BASE_PORT
 
