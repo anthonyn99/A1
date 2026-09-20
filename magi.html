@@ -3422,6 +3422,68 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 }
 .eng-x:hover { color: var(--red); }
 .eng-x svg { width: 14px; height: 14px; }
+/* ── Code Mode ───────────────────────────────────────────────────────── */
+/* A segmented pair rather than a toggle: a toggle has an implied default
+   and an "off", and these are two equal things you do with the same box. */
+.mode-sw {
+  display: inline-flex; flex: 0 0 auto;
+  border: 1px solid var(--bd); border-radius: 999px; padding: 2px;
+  background: var(--bg);
+}
+.mode-opt {
+  background: none; border: 0; border-radius: 999px;
+  padding: 4px 11px; color: var(--txm);
+  font: inherit; font-size: 11px; font-weight: 600; letter-spacing: .2px;
+  cursor: pointer; white-space: nowrap;
+  transition: background .14s, color .14s;
+}
+.mode-opt:hover { color: var(--tx); }
+.mode-opt.on { background: var(--s3); color: var(--tx); }
+
+.code-view { display: flex; flex-direction: column; gap: 14px; }
+/* One line, and it scrolls sideways rather than wrapping: these are the
+   facts you glance at, and a strip that becomes three rows on a phone stops
+   being glanceable exactly where glanceable matters most. */
+.code-strip {
+  display: flex; gap: 7px; align-items: center;
+  overflow-x: auto; scrollbar-width: none; padding-bottom: 2px;
+}
+.code-strip::-webkit-scrollbar { display: none; }
+.code-pill {
+  display: inline-flex; align-items: baseline; gap: 6px; flex: 0 0 auto;
+  border: 1px solid var(--bd); border-radius: 999px; padding: 5px 11px;
+  font-size: 11px; white-space: nowrap;
+}
+.code-pill-k { color: var(--txm); }
+.code-pill-v { color: var(--tx); font-weight: 600; }
+.code-pill.is-profile { border-color: color-mix(in srgb, var(--pc) 45%, transparent); }
+.code-pill.is-profile .code-pill-v { color: var(--pc); }
+.code-pill.ok .code-pill-v { color: var(--grn); }
+.code-pill.warn { border-color: color-mix(in srgb, var(--amber) 40%, transparent); }
+.code-pill.warn .code-pill-v { color: var(--amber); }
+.code-pill.muted .code-pill-v { color: var(--txm); font-weight: 500; }
+
+.code-empty {
+  border: 1px solid var(--bd); border-radius: var(--r-card);
+  padding: 22px; max-width: 620px;
+}
+.code-empty-hd {
+  font-family: var(--font-display); font-size: 13px; font-weight: 700;
+  letter-spacing: .6px; text-transform: uppercase; color: var(--tx);
+  margin-bottom: 10px;
+}
+.code-empty-p { color: var(--txd); font-size: 12.5px; line-height: 1.65; margin: 0 0 10px; }
+.code-empty-note {
+  margin-top: 4px; padding: 10px 12px;
+  border-left: 2px solid var(--amber); border-radius: 0 var(--r-btn) var(--r-btn) 0;
+  background: color-mix(in srgb, var(--amber) 7%, transparent);
+  color: var(--txd); font-size: 12px; line-height: 1.6;
+}
+@media (max-width: 430px) {
+  .mode-opt { padding: 4px 9px; font-size: 10.5px; }
+  .code-empty { padding: 16px; }
+}
+
 .eng-add { display: flex; gap: 8px; align-items: flex-start; }
 .eng-add .lock-in { margin-bottom: 0; }
 @media (max-width: 430px) {
@@ -4642,6 +4704,17 @@ window._mailRelay = window._mailRelay || async function (res) {
       <div class="qbar-error" id="attachError" hidden></div>
       <div class="qbar-error" id="refineError" hidden></div>
       <div class="qbar-toolbar">
+        <!-- What this box DOES. First in the row and never hidden: the two
+             modes take the same prompt and do very different things with
+             it, so which one is live has to be visible from the box. -->
+        <div class="mode-sw" id="modeSw" role="tablist" aria-label="Mode">
+          <button type="button" class="mode-opt on" data-mode="deliberation"
+                  role="tab" aria-selected="true"
+                  title="Ask the council a question">Deliberate</button>
+          <button type="button" class="mode-opt" data-mode="code"
+                  role="tab" aria-selected="false"
+                  title="Have Claude change something, with the council on call">Code</button>
+        </div>
         <input type="file" id="fileIn" multiple hidden>
         <button type="button" class="qbar-attach" id="btnAttach" title="Attach files" aria-label="Attach files" data-ic="attach"></button>
         <button type="button" class="qbar-refine" id="btnRefine" title="Rewrite this into a sharper prompt">
@@ -4657,6 +4730,13 @@ window._mailRelay = window._mailRelay || async function (res) {
                 title="Drag to resize. Click to expand or compress."
                 aria-label="Resize the prompt box"></button>
       </div>
+    </div>
+
+    <!-- Code Mode's own screen. Sits where the grid and verdict would be,
+         and like Studio it REPLACES them rather than stacking above. -->
+    <div class="code-view" id="codeView" hidden>
+      <div class="code-strip" id="codeStrip"></div>
+      <div class="code-body" id="codeBody"></div>
     </div>
 
     <div class="members" id="unitBar">
@@ -9743,6 +9823,138 @@ function uiConfirmMagi(title, body, okLabel) {
 /* ══ views ═════════════════════════════════════════════════════════════════
    One `view` at a time. History and Doctor were independent booleans that
    could both be open, stacking two panels above the console. */
+/* ══ CODE MODE ═════════════════════════════════════════════════════════════
+   MAGI, with one unit holding the pen instead of all of them answering.
+
+   Deliberation asks several models the same question and synthesises what
+   comes back. Code Mode asks Claude to CHANGE SOMETHING -- read files, edit
+   them, run tests, drive git -- on the machine the engine is running on, with
+   the rest of the council still reachable for the things a council is good at:
+   arguing an approach before the work starts, and reading the diff after.
+
+   Mode is deliberately NOT a view. The views (history, doctor, accounts,
+   brainstorm) are places you go and come back from; mode is what the main
+   screen IS. Making it a view would mean History had two versions and every
+   nav button had to know which mode it was returning to.
+
+   Per device, not per profile and not synced: which mode you left this browser
+   in is a fact about this browser. Coming back to the phone in Code Mode
+   because the desktop was last used for code would be surprising. */
+const MODE_KEY = lsKey("mode");
+const MODES = { deliberation: "Deliberation", code: "Code Mode" };
+
+const MODE = {
+  cur: (() => {
+    try {
+      const v = localStorage.getItem(MODE_KEY);
+      if (v && MODES[v]) return v;
+    } catch {}
+    return "deliberation";
+  })(),
+};
+
+const codeMode = () => MODE.cur === "code";
+
+function setMode(m, { render = true } = {}) {
+  if (!MODES[m] || m === MODE.cur) return;
+  // Halting is not implied. A council running in the engine keeps running when
+  // you look at something else -- that is the whole point of the engine owning
+  // the run -- and switching mode is looking at something else.
+  MODE.cur = m;
+  try { localStorage.setItem(MODE_KEY, m); } catch {}
+  syncModeSwitch();
+  if (render) setView("council");
+}
+
+function syncModeSwitch() {
+  for (const b of document.querySelectorAll(".mode-opt")) {
+    const on = b.dataset.mode === MODE.cur;
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-selected", String(on));
+  }
+  // The header is the one thing on screen that must never be ambiguous about
+  // which mode you are in, because the two do very different things with the
+  // same box.
+  const t = document.querySelector(".council-title");
+  if (t) t.textContent = MODES[MODE.cur];
+  const ta = $("composer");
+  if (ta) {
+    ta.placeholder = codeMode()
+      ? "Describe what to build, fix or look at…   (Ctrl+Enter)"
+      : "Submit a question to the council…   (Ctrl+Enter)";
+  }
+}
+
+/* ── the status strip ──────────────────────────────────────────────────────
+   Five facts you must never have to go and look up, because every one of them
+   changes what a command will DO: whose MAGI this is, which machine will run
+   it, which folder it will touch, which repository that folder answers to, and
+   whether finishing will commit and push.
+
+   A row of pills rather than a panel: it sits above the composer and has to
+   cost one glance, not a read. On a phone it scrolls sideways instead of
+   wrapping, so it stays one line on a 40px-tall surface. */
+function codePill(label, value, cls = "") {
+  const p = el("span", "code-pill " + cls);
+  p.append(el("span", "code-pill-k", label), el("span", "code-pill-v", value));
+  return p;
+}
+
+function renderCodeStrip() {
+  const strip = $("codeStrip");
+  if (!strip) return;
+  strip.textContent = "";
+
+  const p = prof();
+  const who = codePill("Profile", p.label, "is-profile");
+  who.style.setProperty("--pc", p.color);
+  strip.append(who);
+
+  const eng = engActive();
+  strip.append(codePill(
+    "Engine",
+    online() ? engLabel(eng) || "connected" : "offline",
+    online() ? "ok" : "warn"));
+
+  // Everything below arrives in later phases. Named now, and honestly empty,
+  // because a strip that hides the fields it does not have yet teaches you a
+  // shape that is about to change.
+  strip.append(codePill("Workspace", "none", "muted"));
+  strip.append(codePill("Repository", "none", "muted"));
+  strip.append(codePill("Auto commit", "off", "muted"));
+  strip.append(codePill("Auto push", "off", "muted"));
+}
+
+function renderCodeView() {
+  if (!codeMode()) return;
+  renderCodeStrip();
+  const body = $("codeBody");
+  if (!body) return;
+  body.textContent = "";
+
+  const card = el("div", "code-empty");
+  card.append(el("div", "code-empty-hd", "Code Mode is not wired up yet"));
+  const p1 = el("p", "code-empty-p");
+  p1.textContent =
+    "The mode, the header and the strip above are real. What is missing is "
+    + "everything that touches your machine: a workspace to work in, Claude "
+    + "driving the files, git, and GitHub.";
+  const p2 = el("p", "code-empty-p");
+  p2.textContent =
+    "Those land in the next phases, in that order, so that the part which can "
+    + "change files is the last thing switched on and the first thing tested.";
+  card.append(p1, p2);
+
+  if (!online()) {
+    const off = el("div", "code-empty-note");
+    off.textContent =
+      "The engine is offline. Code Mode will need it: the files are on the "
+      + "machine the engine runs on, not in this browser.";
+    card.append(off);
+  }
+  body.append(card);
+}
+
 function setView(v) {
   S.view = v;
   // Leaving the council view closes any open Studio card. Otherwise History
@@ -9772,8 +9984,17 @@ function setView(v) {
   // unit toggles above them are controls for a different job, and they push
   // the thing you came to read below the fold.
   const settingsView = v === "accounts" || v === "doctor" || v === "history";
+  // Code Mode replaces what the council screen shows, without being a view
+  // of its own -- see the CODE MODE block for why mode and view are
+  // different things.
+  const codeOpen = codeMode() && v === "council" && !studioOpen;
+  show($("codeView"), codeOpen);
   show($("qbar"), !bsOpen && !settingsView);
-  show($("unitBar"), (!bsOpen || !S.bs.sessionId) && !settingsView);
+  // The unit chips are the council's controls: which models answer the
+  // question. Code Mode has one implementer and reaches the others through
+  // the work itself, so a row of tick boxes there would promise a choice it
+  // does not offer.
+  show($("unitBar"), (!bsOpen || !S.bs.sessionId) && !settingsView && !codeOpen);
   // Moved, not duplicated: two unit rows that could disagree about what is
   // ticked would be worse than one in the wrong place. In the markup it
   // follows the council composer, which puts it ABOVE the brainstorm panel.
@@ -9802,11 +10023,12 @@ function setView(v) {
   // Owned by this screen, not merely present. See S.gridOwner.
   const gridMine = S.gridOwner === (bsOpen ? "brainstorm" : "council");
   show($("magi"), S.panels.length > 0 && !studioOpen && gridMine
-                  && (v === "council" || bsOpen));
+                  && !codeOpen && (v === "council" || bsOpen));
   show($("emptyState"),
        (S.panels.length === 0 || !gridMine) && v === "council"
-       && !(S.verdict && gridMine) && !studioOpen);
-  renderVerdict();
+       && !(S.verdict && gridMine) && !studioOpen && !codeOpen);
+  if (codeOpen) renderCodeView();
+  if (!codeOpen) renderVerdict(); else show($("verdict"), false);
   renderQueue();
   renderRunNow();
   syncCouncilIdle();
@@ -16082,6 +16304,12 @@ $("profBtn").onclick = openProfilePicker;
 $("engineBtn").onclick = openEnginePicker;
 $("profBtnM").onclick = openProfilePicker;
 syncProfileBtn();
+for (const b of document.querySelectorAll(".mode-opt")) {
+  b.onclick = () => setMode(b.dataset.mode);
+}
+// Paints the header, the switch and the composer placeholder from the mode
+// this browser was left in, before the first setView.
+syncModeSwitch();
 // Two buttons, one panel: the sidebar's and the mobile top bar's. On a phone
 // the sidebar is a shut drawer, so a Help only in there would be help you have
 // to already know how to find.
