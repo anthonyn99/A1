@@ -663,24 +663,35 @@ def cloud(port: int = 8000) -> int:
 
 # ── autostart ───────────────────────────────────────────────────────────────
 # MAGI is the one A1 program that is not just a page: the console cannot work
-# unless the engine is running on this PC, because the four Chrome profiles
-# live here. Having to launch magi.bat first makes it the only program in the
-# suite with a manual step, and a page that is dead until you remember to do
+# unless the engine is running on this PC, because the Chrome profiles live
+# here. Having to launch magi.bat first makes it the only program in the suite
+# with a manual step, and a page that is dead until you remember to do
 # something is a page you stop opening.
 #
-# So the backend becomes a logon item and the .bat becomes optional. After
-# this, opening the console is exactly like opening TaskHub.
+# TWO SCHEDULED TASKS, not a Startup shortcut.
 #
-# A STARTUP SHORTCUT, NOT A SCHEDULED TASK. A task was the first attempt and is
-# the nicer object -- delays, battery policy, inspectable run history -- but
-# Register-ScheduledTask fails with "Access is denied" without elevation, and
-# an autostart that needs an admin prompt to install is not an autostart. The
-# Startup folder is per-user, needs no rights at all, and is somewhere Tony can
-# see and delete by hand.
+# The shortcut was the original choice because an early Register-ScheduledTask
+# attempt failed with "Access is denied", and an autostart that needs an admin
+# prompt is not an autostart. Re-tested 2026-09-19: a task registered for the
+# CURRENT USER with an Interactive principal needs no elevation at all. What
+# the shortcut cannot do is the thing that actually went wrong -- it fires once
+# at logon and never again, so when the engine died (a bad import, a crash, a
+# reboot that raced the network) MAGI stayed down until somebody noticed. That
+# is exactly what happened after a restart on 2026-09-19.
+#
+#   MAGI Engine    — At log on. Starts the engine, restarts it if it fails,
+#                    and is allowed to run on battery and forever.
+#   MAGI Watchdog  — At log on and every 2 minutes after. Starts the engine if
+#                    nothing answers on 127.0.0.1:8000 (magi/watchdog.py).
+#
+# Together: up within seconds of logging in, and never down for more than a
+# couple of minutes while the laptop is on.
 #
 # pythonw.exe, not python.exe: a console window on every logon is precisely the
 # thing this exists to remove.
 SHORTCUT_NAME = "MAGI.lnk"
+TASK_ENGINE = "MAGI Engine"
+TASK_WATCHDOG = "MAGI Watchdog"
 
 
 def _startup_dir() -> Path:
@@ -698,28 +709,87 @@ def _run_ps(script: str) -> tuple[int, str]:
     return r.returncode, (r.stdout or r.stderr).strip()
 
 
+def _task_script(pyw: Path, root: Path, port: int) -> str:
+    """PowerShell that (re)registers both tasks for the current user.
+
+    -Force replaces an existing registration, so this is safe to run again and
+    is how an upgrade lands. ExecutionTimeLimit 0 means "no limit": without it
+    Windows kills the engine after three days, which is a bug that would take
+    a week to notice.
+    """
+    return f"""
+$ErrorActionPreference = 'Stop'
+$pyw  = '{pyw}'
+$root = '{root}'
+$user = "$env:USERDOMAIN\$env:USERNAME"
+
+$principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
+$settings  = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
+             -StartWhenAvailable -ExecutionTimeLimit ([TimeSpan]::Zero) `
+             -MultipleInstances IgnoreNew -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
+$settings.DisallowStartOnRemoteAppSession = $false
+$settings.StopIfGoingOnBatteries = $false
+
+# 1. the engine itself, at logon
+$action  = New-ScheduledTaskAction -Execute $pyw -Argument '-m magi cloud' -WorkingDirectory $root
+$trigger = New-ScheduledTaskTrigger -AtLogOn -User $user
+Register-ScheduledTask -TaskName '{TASK_ENGINE}' -Action $action -Trigger $trigger `
+    -Principal $principal -Settings $settings -Description 'MAGI council engine' -Force | Out-Null
+
+# 2. the watchdog: at logon, then every 2 minutes for as long as the session
+#    lasts. A repeating trigger has to be borrowed from a -Once trigger; there
+#    is no -RepetitionInterval on -AtLogOn.
+$wSettings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
+             -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 5) `
+             -MultipleInstances IgnoreNew
+$wSettings.StopIfGoingOnBatteries = $false
+$wAction = New-ScheduledTaskAction -Execute $pyw -Argument '-m magi.watchdog' -WorkingDirectory $root
+$repeat  = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(2) `
+           -RepetitionInterval (New-TimeSpan -Minutes 2)
+$atLogon = New-ScheduledTaskTrigger -AtLogOn -User $user
+Register-ScheduledTask -TaskName '{TASK_WATCHDOG}' -Action $wAction -Trigger @($atLogon, $repeat) `
+    -Principal $principal -Settings $wSettings -Description 'Starts MAGI if it is not running' -Force | Out-Null
+
+if ((Get-ScheduledTask -TaskName '{TASK_ENGINE}' -ErrorAction SilentlyContinue) -and
+    (Get-ScheduledTask -TaskName '{TASK_WATCHDOG}' -ErrorAction SilentlyContinue)) {{ 'ok' }}
+else {{ throw 'tasks did not register' }}
+"""
+
+
 def autostart(action: str = "on", port: int = 8000) -> int:
     if os.name != "nt":
-        print("  autostart is Windows-only (it writes a Startup-folder shortcut).")
+        print("  autostart is Windows-only (it registers Scheduled Tasks).")
         return 1
 
     lnk = _startup_dir() / SHORTCUT_NAME
 
     if action == "status":
+        code, out = _run_ps(
+            f"@('{TASK_ENGINE}','{TASK_WATCHDOG}') | ForEach-Object {{ "
+            "$t = Get-ScheduledTask -TaskName $_ -ErrorAction SilentlyContinue; "
+            "if ($t) { $i = $t | Get-ScheduledTaskInfo; "
+            "\"$($_): $($t.State), last run $($i.LastRunTime), result $($i.LastTaskResult)\" } "
+            "else { \"$($_): NOT INSTALLED\" } }"
+        )
         print()
-        print(f"  startup shortcut: {'present' if lnk.exists() else 'not installed'}")
-        print(f"  {lnk}")
+        for line in (out or "").splitlines():
+            print(f"  {line}")
+        if lnk.exists():
+            print(f"  (old Startup shortcut still present: {lnk})")
         alive = _wait_healthy(port, timeout=2)
         print(f"  backend on 127.0.0.1:{port}: {'up' if alive else 'not responding'}")
         print()
         return 0
 
     if action == "off":
-        try:
+        _run_ps(
+            f"@('{TASK_ENGINE}','{TASK_WATCHDOG}') | ForEach-Object {{ "
+            "Unregister-ScheduledTask -TaskName $_ -Confirm:$false "
+            "-ErrorAction SilentlyContinue }"
+        )
+        with contextlib.suppress(FileNotFoundError):
             lnk.unlink()
-            print(f"\n  Removed {lnk.name} — MAGI will no longer start at logon.")
-        except FileNotFoundError:
-            print("\n  Nothing to remove; it was not installed.")
+        print("\n  Removed the MAGI tasks — the engine no longer starts by itself.")
         print("  Any engine already running is left alone.\n")
         return 0
 
@@ -729,38 +799,32 @@ def autostart(action: str = "on", port: int = 8000) -> int:
         print(f"\n  [X] {pyw} is missing. Run `magi setup` first.\n")
         return 1
 
-    lnk.parent.mkdir(parents=True, exist_ok=True)
-    code, out = _run_ps(
-        "$w = New-Object -ComObject WScript.Shell; "
-        f"$s = $w.CreateShortcut('{lnk}'); "
-        f"$s.TargetPath = '{pyw}'; "
-        "$s.Arguments = '-m magi cloud'; "
-        f"$s.WorkingDirectory = '{root}'; "
-        "$s.Description = 'MAGI council engine'; "
-        "$s.WindowStyle = 7; "
-        "$s.Save(); "
-        "if (Test-Path $s.FullName) { 'ok' } else { throw 'shortcut not written' }"
-    )
-    # Checked rather than assumed: the scheduled-task attempt reported success
-    # while silently failing, because the script printed its own confirmation
-    # regardless of what the cmdlet did.
-    if code != 0 or "ok" not in out:
-        print(f"\n  [X] could not write the shortcut:\n{out}\n")
+    code, out = _run_ps(_task_script(pyw, root, port))
+    # Checked rather than assumed: an earlier version printed its own success
+    # message regardless of what the cmdlet did.
+    if code != 0 or "ok" not in (out or ""):
+        print(f"\n  [X] could not register the tasks:\n{out}\n")
         return 1
 
-    print(f"\n  Installed {lnk.name} — the engine now starts when you log in.")
+    # The Startup shortcut would now start a SECOND engine at logon, which the
+    # new one would refuse to coexist with. The tasks replace it.
+    if lnk.exists():
+        with contextlib.suppress(OSError):
+            lnk.unlink()
+            print(f"  Removed the old {lnk.name}; the tasks replace it.")
+
+    print(f"\n  Installed '{TASK_ENGINE}' and '{TASK_WATCHDOG}'.")
+    print("  The engine starts when you log in, and is restarted within two")
+    print("  minutes if it ever stops while the laptop is on.")
 
     if _wait_healthy(port, timeout=2):
         print(f"  Already running. Open http://127.0.0.1:{port}\n")
         return 0
 
-    # Start it now rather than making them log out to see it work.
     print("  Starting it now…")
     proc.popen([str(pyw), "-m", "magi", "cloud"], cwd=str(root))
     if _wait_healthy(port, timeout=60):
-        print(f"\n  MAGI is up. Open http://127.0.0.1:{port} — bookmark it and")
-        print("  you never need magi.bat again.\n")
+        print(f"\n  MAGI is up. Open http://127.0.0.1:{port}\n")
         return 0
-    print("\n  [!] Installed, but the backend has not answered yet.")
-    print("      Check `magi autostart status` in a moment.\n")
-    return 0
+    print("\n  [!] it did not answer within 60s; see magi\\data\\autostart.log\n")
+    return 1
