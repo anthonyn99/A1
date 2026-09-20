@@ -5044,6 +5044,14 @@ function scheduleRetry(delay) {
 
 async function tryReconnect() {
   if (RETRY.busy || online() || document.hidden) return;
+  // Not while the gate is up. Every retry path -- the backoff timer, and the
+  // visibilitychange / online / pageshow / focus listeners -- funnels through
+  // here, and `pageshow` fires on EVERY load, so without this line a locked
+  // console probed 127.0.0.1 for the engine before anyone had proved who they
+  // were. Harmless while connect() ran at boot anyway; not harmless once the
+  // lock is the thing deciding whether this profile may touch the network.
+  // Caught by the gate test asserting that a locked page makes no requests.
+  if (!PROFILE.unlocked) return;
   RETRY.busy = true;
   RETRY.lastTry = Date.now();
   try {
