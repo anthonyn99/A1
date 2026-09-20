@@ -15372,17 +15372,6 @@ setView("council");
 // Firestore listener all wait behind it -- see openUp(), which lockBoot()
 // reaches through hideLock() the moment this profile is open.
 lockBoot();
-
-// The cloud listener starts INDEPENDENTLY of the engine, and that is the whole
-// point of it. It used to live inside boot(), which returns immediately when
-// the engine is unreachable -- so a phone away from the desk, or one that had
-// not been given the API token yet, showed an empty History and no explanation
-// while Firestore sat there holding every deliberation. Reading past verdicts
-// needs Firestore and nothing else; only MAKING one needs the engine.
-//
-// It also carries the API token, so a phone that has never been told the
-// secret can be handed it here and reconnect on its own.
-cloudWatch();
 /* ══ OVERLAY SCROLLBARS ════════════════════════════════════════════════════
    See the .sbar rules for why these are fixed overlays rather than children of
    the scrollers they describe. Everything below is about cost: a bar does no
