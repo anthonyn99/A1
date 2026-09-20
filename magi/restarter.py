@@ -22,7 +22,7 @@ import time
 from pathlib import Path
 
 from . import proc
-from .watchdog import TASK_ENGINE
+from .watchdog import task_engine
 
 # Windows: no console, and not part of the caller's process tree.
 _DETACHED = 0x00000008 | 0x00000200      # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
@@ -71,7 +71,7 @@ def main(argv: list[str]) -> int:
     # can be killed with it. Starting the task gives the engine its own life.
     if os.name == "nt":
         try:
-            r = proc.run(["schtasks", "/run", "/tn", TASK_ENGINE],
+            r = proc.run(["schtasks", "/run", "/tn", task_engine()],
                          capture_output=True, text=True, timeout=20)
             if r.returncode == 0:
                 return 0

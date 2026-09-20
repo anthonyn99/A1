@@ -219,6 +219,13 @@ async def health():
         # only when this proves the hostname reaches THIS process (tunnel.py).
         "instance": ident.INSTANCE,
         "started_at": ident.STARTED_AT,
+        # Whose engine this is. The console refuses to talk to an engine
+        # belonging to a profile other than the one it is showing -- without
+        # this it would happily list the other person's signed-in accounts.
+        "profile": active_profile(),
+        # Stable across restarts, unlike `instance`, so a console can name
+        # this engine in a list and mean the same machine tomorrow.
+        "engine": ident.engine_identity(),
         "power": KEEP_AWAKE.state(),
         "providers": settings.enabled_site_ids(),
         "pacing": {

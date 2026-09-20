@@ -20,45 +20,82 @@ import sys
 from .cli import doctor as doctor_cmd
 from .cli import login as login_cmd
 from .cli import serve as serve_cmd
-from .settings import load_settings
+from .settings import (
+    KNOWN_PROFILES,
+    load_settings,
+    migrate_legacy_layout,
+    resolve_profile,
+    set_active_profile,
+)
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="magi", description="MAGI multi-LLM council")
+
+    # --profile on every subcommand rather than before it, so the natural
+    # `magi serve --profile veda` works. An engine serves one person; this is
+    # how you say which, and everything it reads or writes follows from it.
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument(
+        "--profile",
+        default=None,
+        help=f"whose engine this is ({'/'.join(KNOWN_PROFILES)}); "
+             "defaults to MAGI_PROFILE, then config/magi.yaml",
+    )
     sub = ap.add_subparsers(dest="cmd", required=True)
 
-    sv = sub.add_parser("serve", help="run the backend and open the UI")
+    sv = sub.add_parser("serve", parents=[common], help="run the backend and open the UI")
     sv.add_argument("--port", type=int, default=8000)
     sv.add_argument("--no-browser", action="store_true")
 
-    cl = sub.add_parser("cloud", help="serve, tunnel, and publish where to reach it")
+    cl = sub.add_parser("cloud", parents=[common], help="serve, tunnel, and publish where to reach it")
     cl.add_argument("--port", type=int, default=8000)
 
     au = sub.add_parser(
         "autostart",
+        parents=[common],
         help="start the engine automatically at logon, so magi.bat is optional",
     )
     au.add_argument("action", nargs="?", default="on", choices=["on", "off", "status"])
     au.add_argument("--port", type=int, default=8000)
 
-    d = sub.add_parser("doctor", help="check which selectors match each site")
+    d = sub.add_parser("doctor", parents=[common], help="check which selectors match each site")
     d.add_argument("sites", nargs="*", help="sites to check (default: all enabled)")
 
-    lg = sub.add_parser("login", help="open a browser to sign in to a site")
+    lg = sub.add_parser("login", parents=[common], help="open a browser to sign in to a site")
     lg.add_argument("site", help="site id, e.g. chatgpt")
 
     cap = sub.add_parser(
         "capture",
+        parents=[common],
         help="find selectors that only exist while a site is generating",
     )
     cap.add_argument("site", help="site id, e.g. deepseek")
     cap.add_argument("--question", help="what to ask (a short throwaway is best)")
 
-    a = sub.add_parser("ask", help="ask the council a question")
+    a = sub.add_parser("ask", parents=[common], help="ask the council a question")
     a.add_argument("question", nargs="+")
     a.add_argument("--providers", nargs="*", help="limit to these provider ids")
 
+    ob = sub.add_parser(
+        "onboard",
+        parents=[common],
+        help="set this machine up to run an engine for a profile",
+    )
+    ob.add_argument("--port", type=int, default=0, help="0 picks a free one")
+    ob.add_argument("--label", default=None, help="what to call this engine")
+    ob.add_argument("--no-autostart", action="store_true")
+
     args = ap.parse_args(argv)
+
+    # Before ANY path is read. Every directory MAGI touches is derived from
+    # the active profile, so choosing it late would mean half the process
+    # looking at one person's data and half at another's.
+    set_active_profile(resolve_profile(getattr(args, "profile", None)))
+    # Tony's pre-profile directories move under his profile on first run.
+    # Idempotent, and a no-op on a machine that never had the old layout.
+    for moved in migrate_legacy_layout():
+        print(f"[magi] moved {moved} into the {'tony'} profile")
 
     # serve/cloud load settings themselves, per request, so a config edit takes
     # effect without a restart. Loading here would pin the startup copy.
@@ -68,6 +105,12 @@ def main(argv: list[str] | None = None) -> int:
         return serve_cmd.cloud(args.port)
     if args.cmd == "autostart":
         return serve_cmd.autostart(args.action, args.port)
+    if args.cmd == "onboard":
+        from .cli import onboard as onboard_cmd
+
+        return onboard_cmd.run(
+            port=args.port, label=args.label, autostart=not args.no_autostart
+        )
 
     settings = load_settings()
     if args.cmd == "doctor":

@@ -27,7 +27,25 @@ from .settings import ROOT, data_dir
 
 LOG = data_dir() / "watchdog.log"
 # The scheduled task that owns the engine (see cli/serve.py autostart).
-TASK_ENGINE = "MAGI Engine"
+# Per profile, and Tony keeps the original names: he already has these two
+# tasks registered, and renaming them would leave an orphan running the old
+# command line while a new one registered beside it.
+def _suffix() -> str:
+    from .settings import DEFAULT_PROFILE, active_profile
+
+    p = active_profile()
+    return "" if p == DEFAULT_PROFILE else f" ({p})"
+
+
+def task_engine() -> str:
+    return "MAGI Engine" + _suffix()
+
+
+def task_watchdog() -> str:
+    return "MAGI Watchdog" + _suffix()
+
+
+TASK_ENGINE = task_engine()
 # Detached and in its own group, so the engine does not die with this process.
 _DETACHED = 0x00000008 | 0x00000200
 _BREAKAWAY = 0x01000000          # CREATE_BREAKAWAY_FROM_JOB
