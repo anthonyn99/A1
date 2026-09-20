@@ -4336,6 +4336,9 @@ window._mailRelay = window._mailRelay || async function (res) {
       <!-- The header's controls get a row of their own under the brand, so
            "DELIBERATION SYSTEM" keeps the full width of the rail. -->
       <div class="side-actions">
+        <!-- Whose MAGI this is. Always visible, because the one thing you must
+             never have to guess is which person's history you are looking at. -->
+        <button type="button" class="prof-btn" id="profBtn" title="Switch profile"></button>
         <button type="button" class="lock-btn" id="helpBtn" title="How MAGI works"></button>
         <button type="button" class="lock-btn" id="lockBtn" title="Lock MAGI"></button>
         <!-- LifeHub app switcher (LifeHub/lifehub.js) — hidden while #lockScreen is up. -->
@@ -4413,6 +4416,7 @@ window._mailRelay = window._mailRelay || async function (res) {
         <span class="syncline" id="syncLineM"></span>
       </span>
       <span class="mtop-where"><span class="link-dot" id="mtopDot"></span><span id="mtopTxt">…</span></span>
+      <button type="button" class="prof-btn" id="profBtnM" title="Switch profile"></button>
       <button type="button" class="lock-btn" id="helpBtnM" title="How MAGI works"></button>
       <button type="button" class="lock-btn" id="lockBtnM" title="Lock MAGI"></button>
       <a1-lifehub style="--lh-size:30px"></a1-lifehub>
