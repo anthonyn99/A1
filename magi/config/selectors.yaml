@@ -170,7 +170,7 @@ sites:
       - "#cf-challenge-running"
       - "text=/Verify you are human/i"
 
-  claude:
+  claude: &claude
     display_name: Claude
     url: https://claude.ai/new
     accent: "#e0b874"
@@ -246,6 +246,27 @@ sites:
     challenge_selectors:
       - "iframe[src*='challenges.cloudflare.com']"
       - "text=/Verify you are human/i"
+
+  # The same site, signed in as a DIFFERENT account.
+  #
+  # Code Mode drives Claude through the CLI, on the subscription. That is the
+  # same allowance a council run spends, so a long coding session would
+  # starve the council of the one member it most wants on a hard question.
+  # A second unit on the free account decouples them: tick this one for
+  # Deliberation and Brainstorm and the subscription stays for the work that
+  # needs it. Tick both and you get two Claudes answering independently,
+  # which is occasionally interesting in its own right.
+  #
+  # A YAML merge key rather than a copy: these selectors break when Anthropic
+  # ships a redesign, and a duplicated block is one you fix twice -- or,
+  # worse, once, leaving a unit that silently stops answering.
+  #
+  # The account lives in profiles/<profile>/claude-free/, a different Chrome
+  # user-data directory from claude/, which is the whole mechanism.
+  claude-free:
+    <<: *claude
+    display_name: Claude (free)
+    accent: "#d0a88a"
 
   gemini:
     display_name: Gemini

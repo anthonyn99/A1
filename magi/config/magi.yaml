@@ -102,6 +102,12 @@ providers:
     enabled: true
   grok:
     enabled: true
+  # Off until you sign in to it (magi login claude-free). It still shows as
+  # a chip, unticked -- a unit you can see and turn on beats one you have to
+  # know exists. Enabling it before there is a session would put a member in
+  # every run that can only fail.
+  claude-free:
+    enabled: false
   # Copilot was removed on 2026-09-11. It never worked: a sign-in wall with no
   # reachable composer, and the only selector loose enough to match anything
   # matched a hidden decoy on that wall, so it reported itself usable and then
