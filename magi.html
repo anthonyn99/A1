@@ -14778,7 +14778,10 @@ function lockShake() {
    almost always want; the other sits collapsed beside it, one tap away.
    Choosing it reloads the page -- see the PROFILES block for why a switch is
    a reload -- and it comes back up expanded on the other card. */
-const GATE = { open: null };
+const GATE = {
+  open: null,      // which card is expanded
+  picking: false,  // opened from the profile chip: both cards shut, both offered
+};
 
 const EYE = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z'/><circle cx='12' cy='12' r='3'/></svg>";
 const EYE_OFF = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M9.9 4.2A10.9 10.9 0 0 1 12 4c6.5 0 10 7 10 7a18.5 18.5 0 0 1-3.2 4.2M6.6 6.6A18.5 18.5 0 0 0 2 11s3.5 7 10 7a10.9 10.9 0 0 0 4.2-.8'/><path d='M3 3l18 18'/><path d='M9.9 9.9a3 3 0 0 0 4.2 4.2'/></svg>";
@@ -14822,13 +14825,44 @@ function pwField(id, placeholder, autocomplete) {
   return wrap;
 }
 
-/** Choosing a profile. The one already loaded just expands; the other one is
- *  a reload, which is what makes the swap total. */
+/** Choosing a profile. The other one is always a reload, which is what makes
+ *  the swap total. The one already loaded either expands to ask for its
+ *  password, or -- if this session already proved it -- simply closes the
+ *  gate, because making you type it twice to look at the picker would teach
+ *  you to avoid the picker. */
 function selectProfile(id) {
   if (!MAGI_PROFILES[id]) return;
-  if (id === PROFILE.id) { GATE.open = id; renderLock(); return; }
+  if (id === PROFILE.id) {
+    GATE.picking = false;
+    if (PROFILE.unlocked) { hideLock(); return; }
+    GATE.open = id;
+    renderLock();
+    return;
+  }
   try { localStorage.setItem(LAST_PROFILE_LS, id); } catch {}
   location.reload();
+}
+
+/** The profile chip: show both people, neither expanded. */
+function openProfilePicker() {
+  GATE.picking = true;
+  GATE.open = null;
+  renderLock();
+}
+
+/** Whose MAGI this is, in the sidebar and the mobile top bar. Two controls,
+ *  one state -- on a phone the sidebar is a shut drawer, so a chip only in
+ *  there would answer "whose history am I reading?" only after you opened it. */
+function syncProfileBtn() {
+  const p = prof();
+  for (const id of ["profBtn", "profBtnM"]) {
+    const b = $(id);
+    if (!b) continue;
+    b.textContent = "";
+    b.style.setProperty("--pc", p.color);
+    b.append(el("span", "prof-av", p.emoji), el("span", "prof-name", p.label));
+    b.title = "Signed in as " + p.label + " — switch profile";
+  }
 }
 
 function renderLock() {
