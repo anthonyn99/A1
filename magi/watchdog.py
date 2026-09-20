@@ -23,7 +23,19 @@ from datetime import datetime
 from pathlib import Path
 
 from . import proc
-from .settings import ROOT, data_dir
+from .settings import ROOT, data_dir, resolve_profile, set_active_profile
+
+# This module is its own entrypoint (`-m magi.watchdog`), so it never passes
+# through __main__.py and has to choose its profile itself -- BEFORE any path
+# below is derived, or it would watch one profile's engine while logging to
+# another's directory.
+_CLI_PROFILE = None
+for _i, _a in enumerate(sys.argv[1:]):
+    if _a == "--profile" and _i + 2 <= len(sys.argv[1:]):
+        _CLI_PROFILE = sys.argv[_i + 2]
+    elif _a.startswith("--profile="):
+        _CLI_PROFILE = _a.split("=", 1)[1]
+set_active_profile(resolve_profile(_CLI_PROFILE))
 
 LOG = data_dir() / "watchdog.log"
 # The scheduled task that owns the engine (see cli/serve.py autostart).
@@ -45,7 +57,12 @@ def task_watchdog() -> str:
     return "MAGI Watchdog" + _suffix()
 
 
-TASK_ENGINE = task_engine()
+def _configured_port(default: int = 8000) -> int:
+    try:
+        rec = json.loads((data_dir() / "engine.json").read_text(encoding="utf-8"))
+        return int(rec.get("port") or default)
+    except Exception:
+        return default
 # Detached and in its own group, so the engine does not die with this process.
 _DETACHED = 0x00000008 | 0x00000200
 _BREAKAWAY = 0x01000000          # CREATE_BREAKAWAY_FROM_JOB
@@ -103,7 +120,7 @@ def start() -> None:
     """
     if os.name == "nt":
         try:
-            r = proc.run(["schtasks", "/run", "/tn", TASK_ENGINE],
+            r = proc.run(["schtasks", "/run", "/tn", task_engine()],
                          capture_output=True, text=True, timeout=20)
             if r.returncode == 0:
                 return
@@ -119,7 +136,10 @@ def start() -> None:
     )
 
 
-def main(port: int = 8000) -> int:
+def main(port: int | None = None) -> int:
+    # Each profile's engine has its own port, recorded when it was onboarded.
+    if port is None:
+        port = _configured_port()
     if healthy(port):
         return 0
     # Checked twice, a few seconds apart: an engine in the middle of starting
