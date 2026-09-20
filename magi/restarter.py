@@ -56,12 +56,23 @@ def main(argv: list[str]) -> int:
     while time.monotonic() < deadline and (_alive(pid) or not _port_free(port)):
         time.sleep(0.5)
 
-    # pythonw so the engine comes back the way the Startup shortcut runs it:
-    # no console window, nothing on the taskbar.
-    exe = Path(sys.executable)
-    windowless = exe.with_name("pythonw.exe")
-    if windowless.exists():
-        exe = windowless
+    # Still held by something else: starting now would put two engines on one
+    # database, and the loser would sit there as a ghost opening its own
+    # tunnel. Better to leave the one that IS serving alone.
+    if not _port_free(port) and not _alive(pid):
+        return 1
+
+    # The VENV's pythonw, the way the Startup shortcut runs it: no console
+    # window, nothing on the taskbar, and the interpreter that actually has
+    # MAGI's dependencies. sys.executable alone was wrong -- the venv's
+    # pythonw re-execs the base interpreter, so a restart started the SYSTEM
+    # Python and every later restart inherited it.
+    exe = cwd / "magi" / ".venv" / "Scripts" / "pythonw.exe"
+    if not exe.exists():
+        fallback = Path(sys.executable)
+        exe = fallback.with_name("pythonw.exe")
+        if not exe.exists():
+            exe = fallback
     proc.popen(
         [str(exe), "-m", "magi", "cloud"],
         cwd=str(cwd),

@@ -9,13 +9,15 @@
     What it does:
       1. refuses while a deliberation is in flight (a MAGI Chrome is open),
          unless -Force;
-      2. kills the engine process TREE, which takes cloudflared with it;
+      2. kills the engine and its children, but LEAVES cloudflared running so
+         the tunnel url survives and the new engine adopts it;
       3. starts it again exactly as the Startup shortcut does, detached and
          windowless, so it outlives this shell;
       4. waits for the API to answer on 127.0.0.1:8000 and reports.
 
-    A restart gives phones a NEW tunnel address: the engine publishes it to
-    magi-link, and a phone picks it up within a minute or two.
+    Phones keep the SAME address across a restart: the tunnel is left running
+    and the new engine adopts it (magi/tunnel.py), so there is no wait for a
+    fresh hostname to register in DNS.
 
     Usage:  powershell -ExecutionPolicy Bypass -File magi\restart.ps1 [-Force]
 #>
@@ -43,13 +45,37 @@ if ($busy.Count -gt 0 -and -not $Force) {
 #    reaches a child it is usually already gone -- taskkill then writes to
 #    stderr, which under ErrorActionPreference=Stop aborted the script with
 #    the engine down and not restarted. Each kill is therefore best-effort.
-function Stop-Tree([int]$processId) {
+function Kill-Pid([int]$processId) {
     if (-not (Get-Process -Id $processId -ErrorAction SilentlyContinue)) { return }
     Write-Host "stopping PID $processId"
     $old = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
-    try { & taskkill /f /t /pid $processId | Out-Null } catch { }
+    try { & taskkill /f /pid $processId | Out-Null } catch { }
     $ErrorActionPreference = $old
+}
+
+# Walk the tree by parent id and kill everything EXCEPT cloudflared: the
+# tunnel points at 127.0.0.1:8000, not at the engine process, so leaving it
+# alive is what lets the new engine adopt the same url. Plain taskkill without
+# /t is not enough on its own -- Playwright's Chromes are children too, and
+# orphaning them would hold the profiles.
+function Stop-Tree([int]$processId) {
+    $all = Get-CimInstance Win32_Process
+    $doomed = New-Object System.Collections.Generic.List[int]
+    $frontier = @($processId)
+    while ($frontier.Count -gt 0) {
+        $next = @()
+        foreach ($id in $frontier) {
+            foreach ($child in @($all | Where-Object { $_.ParentProcessId -eq $id })) {
+                if ($child.Name -eq "cloudflared.exe") { continue }
+                $doomed.Add([int]$child.ProcessId)
+                $next += [int]$child.ProcessId
+            }
+        }
+        $frontier = $next
+    }
+    foreach ($id in $doomed) { Kill-Pid $id }
+    Kill-Pid $processId
 }
 
 $engines = @(Get-CimInstance Win32_Process -Filter "name='pythonw.exe'" |
@@ -75,7 +101,11 @@ while ((Get-Date) -lt $deadline) {
         if ($r.StatusCode -eq 200) {
             $pid8000 = (Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue).OwningProcess
             Write-Host "MAGI engine is up on 127.0.0.1:8000 (PID $pid8000)." -ForegroundColor Green
-            Write-Host "Phones: the tunnel address changes on every restart; it republishes within a minute or two."
+            $t = Join-Path $root "magi\data\tunnel.json"
+            if (Test-Path $t) {
+                $url = (Get-Content $t -Raw | ConvertFrom-Json).url
+                if ($url) { Write-Host "Phones: same address as before - $url" }
+            }
             exit 0
         }
     } catch { }
