@@ -742,6 +742,38 @@ through `workers2/trade-dashboard`. A unit missing there is simply one you
 cannot tick from TradeHub; a unit *misspelled* there is a tick box that does
 nothing at all. `tests/magi-handoff.test.js` fails on either.
 
+### Two Claudes
+
+The council has two Claude units, on two accounts:
+
+| Unit | Account | Codename |
+|---|---|---|
+| `claude` | free | BALTHASAR·02 |
+| `claude-pro` | subscription | ARMISAEL·07 |
+
+They exist because they draw on **different allowances**. Code Mode drives
+Claude through the CLI, on the subscription, and a long coding session spends
+exactly what a council run would — so pointing every deliberation at the paid
+account means the two compete for the same limit. The free unit carries
+ordinary council work; the paid one is the deliberate choice when the answer
+is worth it. Tick both and two Claudes answer independently.
+
+`claude-pro` ships `enabled: false`, so it appears as an unticked chip until
+you `magi login claude-pro` — a unit you can see and turn on beats one you
+have to know exists, and enabling it before there is a session would put a
+member in every run that can only fail.
+
+The chairman stays on the **free** Claude on purpose: the synthesis is a full
+extra turn on top of every member, and spending the subscription on it
+competes with Code Mode for the same allowance.
+
+In `selectors.yaml` the second unit is a **YAML merge key** (`<<: *claude`),
+not a copy. These selectors break when Anthropic ships a redesign, and a
+duplicated block is one you fix twice — or, worse, once, leaving a unit that
+silently stops answering. The accounts are separated by their Chrome profile
+directories (`profiles/<profile>/claude/` and `.../claude-pro/`), which is the
+whole mechanism.
+
 ### The seven
 
 | Unit | Codename | Verified |
