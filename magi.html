@@ -8568,7 +8568,7 @@ function updateEnabled() {
   $("btnRefine").disabled = coding || busy || !q || !up;
   // Queueing needs a prompt and units, but NOT a reachable engine: building
   // the list up on a phone while the PC is asleep is half the point of it.
-  $("btnQueue").disabled = coding || !q || S.selected.size === 0;
+  $("btnQueue").disabled = coding || !q || !up || S.selected.size === 0;
   $("btnRefine").className = `qbar-refine ${S.refining ? "busy" : ""}`;
   const rico = $("btnRefine").querySelector(".qbar-refine-ico");
   // The same stroked arc the doctor spins. The old glyph was a dotted circle
