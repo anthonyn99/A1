@@ -26,7 +26,11 @@ SITES = yaml.safe_load(
 def _map(name: str) -> dict:
     block = PAGE[PAGE.index(f"const {name} = {{"):]
     block = block[: block.index("};") + 2]
-    return dict(re.findall(r"(\w+):\s*\"([^\"]+)\"", block))
+    # A site id may contain a hyphen (claude-free), which JS requires to be
+    # written as a quoted key. The original pattern only matched bare \w+ keys,
+    # so such a unit read as MISSING from UNIT and PHASE -- which is the exact
+    # failure this file exists to catch, reported against the wrong file.
+    return dict(re.findall(r"\"?([\w-]+)\"?:\s*\"([^\"]+)\"", block))
 
 
 def test_every_unit_has_a_codename_and_a_phase():
