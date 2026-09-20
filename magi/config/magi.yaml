@@ -102,11 +102,11 @@ providers:
     enabled: true
   grok:
     enabled: true
-  # Off until you sign in to it (magi login claude-free). It still shows as
-  # a chip, unticked -- a unit you can see and turn on beats one you have to
+  # Off until you sign in to it (magi login claude-pro). It still shows as a
+  # chip, unticked -- a unit you can see and turn on beats one you have to
   # know exists. Enabling it before there is a session would put a member in
   # every run that can only fail.
-  claude-free:
+  claude-pro:
     enabled: false
   # Copilot was removed on 2026-09-11. It never worked: a sign-in wall with no
   # reachable composer, and the only selector loose enough to match anything
@@ -117,6 +117,9 @@ providers:
 chairman:
   # Which council member writes the final synthesis. If it is unavailable the
   # fallbacks are tried in order.
+  # The FREE Claude, deliberately. The synthesis pass is a full extra turn on
+  # top of every member, and spending the subscription on it competes with
+  # Code Mode for the same allowance.
   provider_id: claude
   fallback_order: [chatgpt, gemini, deepseek, perplexity, grok]
   # Minimum successful members required before synthesis is even attempted.

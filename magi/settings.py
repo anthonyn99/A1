@@ -134,7 +134,7 @@ def artifacts_dir() -> Path:
 # not existing, so it cannot run twice and cannot overwrite a real profile.
 _LEGACY_SITE_DIRS = (
     "chatgpt", "claude", "gemini", "deepseek", "perplexity", "grok", "copilot",
-    "claude-free",
+    "claude-free", "claude-pro",
 )
 
 

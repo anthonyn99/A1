@@ -170,8 +170,10 @@ sites:
       - "#cf-challenge-running"
       - "text=/Verify you are human/i"
 
+  # Signed in to the FREE account. It has been this one all along; the name
+  # just did not say so until there were two.
   claude: &claude
-    display_name: Claude
+    display_name: Claude (free)
     url: https://claude.ai/new
     accent: "#e0b874"
     # VERIFIED 2026-08-12 against a logged-in session.
@@ -247,25 +249,25 @@ sites:
       - "iframe[src*='challenges.cloudflare.com']"
       - "text=/Verify you are human/i"
 
-  # The same site, signed in as a DIFFERENT account.
+  # The same site, signed in to the SUBSCRIPTION account.
   #
-  # Code Mode drives Claude through the CLI, on the subscription. That is the
-  # same allowance a council run spends, so a long coding session would
-  # starve the council of the one member it most wants on a hard question.
-  # A second unit on the free account decouples them: tick this one for
-  # Deliberation and Brainstorm and the subscription stays for the work that
-  # needs it. Tick both and you get two Claudes answering independently,
-  # which is occasionally interesting in its own right.
+  # Two Claudes because they draw on different allowances. Code Mode drives
+  # Claude through the CLI, on the subscription, and a long coding session
+  # spends exactly what a council run would -- so pointing every deliberation
+  # at the paid account means the two compete. The free unit above carries
+  # ordinary council work; this one is the deliberate choice when the answer
+  # is worth the better model. Tick both and you get two Claudes answering
+  # independently, which is occasionally interesting in its own right.
   #
   # A YAML merge key rather than a copy: these selectors break when Anthropic
   # ships a redesign, and a duplicated block is one you fix twice -- or,
   # worse, once, leaving a unit that silently stops answering.
   #
-  # The account lives in profiles/<profile>/claude-free/, a different Chrome
+  # The account lives in profiles/<profile>/claude-pro/, a different Chrome
   # user-data directory from claude/, which is the whole mechanism.
-  claude-free:
+  claude-pro:
     <<: *claude
-    display_name: Claude (free)
+    display_name: Claude (Pro)
     accent: "#d0a88a"
 
   gemini:
