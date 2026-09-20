@@ -46,6 +46,80 @@ access. You are running it on your own accounts at your own risk.
 
 ---
 
+## Profiles — two people, two MAGIs
+
+Tony and Veda each get their own MAGI: their own AI accounts, their own
+history, their own settings, their own password. It is the same split
+`index.html` has had for its TaskHubs, built the same way and sharing its
+colours, so the two programs read as one product.
+
+**A profile is a document path plus a set of credentials, not an identity.**
+Firebase auth stays a single anonymous session for the whole suite — nothing
+about `firestore.rules`, App Check or sign-in changed. What changes is which
+document the console reads and which `localStorage` namespace it writes:
+
+```
+dashboards/magi              Tony        localStorage  magi.tony.*
+dashboards/magi_veda         Veda        localStorage  magi.veda.*
+```
+
+Tony keeps `dashboards/magi`, which is where every deliberation he has ever
+run already lives. **There is no history migration in this change and there
+must never need to be one.** His `localStorage` keys were bare `magi.*` before
+profiles existed, and those are carried into `magi.tony.*` on first load —
+*copied*, not moved, so an older build of the page left open in another tab
+keeps working. The copy marks itself done, so a key you delete on purpose
+afterwards does not come back.
+
+Both documents sit under the existing `/dashboards/{doc=**}` rule.
+
+### The gate
+
+The profile picker and the app lock used to be two separate ideas. They are
+one screen now, because keeping them apart is two chances to get the ordering
+wrong — and the ordering is the security property. The card you pick expands
+in place into its password field rather than handing you to a second screen.
+
+The profile you last used arrives expanded; the other sits collapsed beside
+it, one tap away. Choosing it **reloads the page**. That is deliberate: every
+per-profile key constant is evaluated once, at load, so a switch that merely
+reassigned the current profile would leave a dozen constants and one live
+Firestore listener pointing at the person who just left — and Firestore's
+persistent cache means a document read once stays on the device.
+
+### The lock now actually guards something
+
+It used to say so itself: *"this lock has one job: stop someone at your laptop
+reading the transcripts or spending your model quota"*, while the sync
+listener attached at boot regardless. That was fine when there was one person.
+With two it is not, so three things changed:
+
+- **Nothing is fetched before unlock.** `cloudInit()` refuses while the
+  profile is locked, so a locked profile's document is never read and never
+  lands in the IndexedDB cache.
+- **The engine is not contacted before unlock.** `tryReconnect()` refuses too
+  — `pageshow` fires on every load, so without that guard a locked console
+  probed `127.0.0.1` for the engine before anyone had proved who they were.
+- **Discovery and sync start on the unlock**, in `openUp()`, rather than
+  beside the gate. The cost is the second or so it now takes after unlocking;
+  on a trusted device, which is the usual case, the unlock itself is instant.
+
+Each profile has its own password record (`jlock:applock:tony_magi` /
+`veda_magi` on the same worker) and its own biometric credential. Unlocking
+one never unlocks the other. Tony's entry id is unchanged from before profiles
+existed, which is why his password and his fingerprint both survived this
+change untouched.
+
+**Device-shaped settings stay shared** — mute, sidebar collapsed, device id.
+Muting MAGI should not un-mute itself because you switched profile.
+
+`tests/magi-profiles.test.js` pins the document paths, the namespacing, the
+two network guards and the absence of native dialogs. The end-to-end
+behaviour — the gate painting, unlocking, switching, the migration — is proved
+in a real browser over CDP; see `.claude/skills/verify` for the recipe.
+
+---
+
 ## Opening MAGI
 
 Once set up, **bookmark <http://127.0.0.1:8000>** and open it like any other
