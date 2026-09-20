@@ -230,7 +230,7 @@ function tdAiUrl(u){
    only, as the MAGI engine names them. */
 function tdMagiUnits(v){
   if(!Array.isArray(v)) return [];
-  const ok=new Set(['chatgpt','claude','gemini','deepseek','perplexity','grok']);
+  const ok=new Set(['chatgpt','claude','claude-pro','gemini','deepseek','perplexity','grok']);
   return [...new Set(v.map(x=>String(x||'').trim().toLowerCase()))].filter(x=>ok.has(x)).slice(0,8);
 }
 

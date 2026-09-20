@@ -6303,11 +6303,14 @@ const TB_MAGI_URL='https://anthonyn99.github.io/A1/magi.html';
    pages name the same thing the same way. */
 const TB_MAGI_UNITS=[
   {id:'chatgpt',   label:'ChatGPT',    code:'MELCHIOR·01'},
-  {id:'claude',    label:'Claude',     code:'BALTHASAR·02'},
+  {id:'claude',    label:'Claude (free)', code:'BALTHASAR·02'},
   {id:'gemini',    label:'Gemini',     code:'CASPER·03'},
   {id:'deepseek',  label:'DeepSeek',   code:'ADAM·04'},
   {id:'perplexity',label:'Perplexity', code:'LILITH·05'},
   {id:'grok',      label:'Grok',       code:'TABRIS·06'},
+  // The subscription Claude. Offered but never a default: it shares its
+  // allowance with Code Mode, so it is a choice you make, not one you get.
+  {id:'claude-pro',label:'Claude (Pro)',  code:'ARMISAEL·07'},
 ];
 /* The four verified members. Perplexity and Grok are left to be ticked by
    hand: they are configured but not fully proven in MAGI, and a member that
