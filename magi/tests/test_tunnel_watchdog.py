@@ -101,7 +101,9 @@ def test_a_healthy_tunnel_is_republished_before_the_record_expires(fast, tmp_pat
 
 
 def test_the_restart_loop_uses_the_watchdog_not_process_exit():
-    src = (serve.__file__ and open(serve.__file__, encoding="utf-8").read())
-    loop = src[src.index("# ── keep the tunnel alive"):]
+    # The loop moved out of cloud() into its own function, shared by the
+    # fresh-tunnel and adopted-tunnel paths.
+    import inspect
+    loop = inspect.getsource(serve._keep_tunnel)
     assert "_watch_tunnel(tunnel, cf_log, token)" in loop
     assert "tunnel.wait()" not in loop[: loop.index("except KeyboardInterrupt")]

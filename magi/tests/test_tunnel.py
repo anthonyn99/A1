@@ -46,10 +46,14 @@ def test_the_current_url_is_shared_not_captured():
     assert src
 
     import inspect
-    body = inspect.getsource(serve.cloud)
-    assert 'url = _CURRENT["url"]' in body
-    # Set for the first tunnel and for every replacement.
-    assert body.count('_CURRENT["url"] =') == 2
+    # The worker lives at module level now (it is shared by the fresh-tunnel
+    # and adopted-tunnel paths), but the rule is unchanged: read the slot.
+    assert 'url = _CURRENT["url"]' in inspect.getsource(serve._verify_and_publish)
+    # Set when a tunnel is adopted, when the first one opens, and on every
+    # replacement.
+    written = (inspect.getsource(serve.cloud).count('_CURRENT["url"] =')
+               + inspect.getsource(serve._keep_tunnel).count('_CURRENT["url"] ='))
+    assert written == 3, written
 
 
 def test_the_stale_record_is_cleared_before_a_new_tunnel_opens():
