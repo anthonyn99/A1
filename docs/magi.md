@@ -267,6 +267,76 @@ can change files is the last thing switched on and the first thing tested.
 `tests/magi-codemode.test.js` pins the split; the behaviour is proved in a
 real browser over CDP.
 
+### Workspaces
+
+A **project** is the logical thing: "A1". A **binding** is where that project
+lives on one machine. They are separate records because they have different
+lifetimes: the project follows you between devices, the binding describes one
+engine and never leaves it.
+
+The path is the whole reason for the split. `C:/Users/antho/Desktop/A1` is
+true at the desk and meaningless on a phone, so syncing it would put a value
+in front of you that cannot be acted on and looks like it can. What another
+device gets instead is *"A1 has a binding on Tony PC"* — enough to say where
+the work can run. A project can also exist with **no** binding, which is how
+you set one up for a laptop you are not sitting at.
+
+```
+GET  /api/code/state                      everything the console paints from
+GET  /api/code/browse?path=…              directory NAMES, one level
+POST /api/code/projects                   register, optionally bind
+POST /api/code/projects/{id}/bind         point it at a folder on this machine
+GET  /api/code/projects/{id}/skeleton     its shape, cached
+POST /api/code/resolve                    "work on A1" -> which project
+```
+
+**Nothing in this phase writes into a project or runs a command.**
+
+#### Choosing a folder
+
+`/api/code/browse` lists directory **names**, one level, never contents. A
+browser cannot enumerate a remote filesystem and MAGI does not use the native
+file picker, so this is how a folder gets chosen — and it is the only shape
+that also works from a phone. Repositories are flagged, because "which of
+these is the project?" is nearly always answered by "the one that is a repo".
+
+#### What gets refused, and why
+
+A workspace that was never registered cannot be worked in, so the cheap
+refusal happens here rather than later under load. A drive root (`C:/` — the
+one slip where "delete the build output" could mean the disk), a system
+folder, and **MAGI's own engine directory** (an agent editing the engine it
+is running inside is a class of problem best not opened). Each refusal names
+its cause: "invalid path" sends you to check the spelling of a path that is
+spelled correctly.
+
+This is not the containment. That is the agent's `cwd` plus a `PreToolUse`
+hook that resolves every path argument, and it arrives with the phase that
+can actually write.
+
+#### The fingerprint
+
+A project's shape is cached so no task re-walks a tree to find out what it is
+looking at. The cache key is **two git calls** — `rev-parse HEAD` plus a hash
+of `ls-files -s` — not a filesystem walk, so checking whether the cache is
+still good costs far less than rebuilding it.
+
+It deliberately does **not** move when you edit a file. The skeleton caches
+the project's *shape*, and editing one file does not change the shape; if an
+edit invalidated it, the cache would be rebuilt on every keystroke and buy
+nothing. Adding, staging or committing does move it. A folder that is not a
+repository falls back to a hash of its top level, which is still O(1) in the
+depth of the tree.
+
+The tree itself skips `node_modules`, `.git`, `dist` and friends, and is
+capped at 600 entries — a cap that reports `truncated: true` rather than one
+that is a suggestion. A project with 50,000 files should produce a listing
+nobody has to apologise for.
+
+`magi/tests/test_code_workspace.py` pins all of it, including that every
+refusal carries a sentence and that the fingerprint moves on exactly the
+changes it should.
+
 ---
 
 ## Opening MAGI

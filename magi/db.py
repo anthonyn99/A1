@@ -141,6 +141,77 @@ CREATE INDEX IF NOT EXISTS idx_runs_created ON runs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_studio_run ON studio_artifacts(run_id);
 CREATE INDEX IF NOT EXISTS idx_bs_turns ON brainstorm_turns(session_id, round_no, id);
 CREATE INDEX IF NOT EXISTS idx_bs_created ON brainstorm_sessions(created_at DESC);
+
+-- ── Code Mode ──────────────────────────────────────────────────────────────
+-- A PROJECT is the logical thing: "A1". A BINDING is where that project lives
+-- on THIS machine. They are separate tables because they have different
+-- lifetimes and different owners -- the project syncs between your devices
+-- through Firestore, and the binding never leaves the engine it describes.
+--
+-- The path is the reason. A path like C:/Users/antho/Desktop/A1 is true here
+-- and meaningless on a phone, so syncing it would put a value in front of you
+-- that cannot be acted on and looks like it can. What the phone gets instead
+-- is "A1 has a binding on Tony PC": enough to say where the work can run.
+CREATE TABLE IF NOT EXISTS code_projects(
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  -- JSON array of alternative names, so "work on the trading thing" resolves.
+  aliases TEXT NOT NULL DEFAULT '[]',
+  -- JSON: {permissionMode, autoCommit, autoPush, commitStyle, batchWindowMin}
+  prefs TEXT NOT NULL DEFAULT '{}',
+  -- Curated prose: what this project is, key paths, decisions, known issues.
+  -- Capped in code, not here -- a CHECK on length would fail a write rather
+  -- than truncate it, and losing the note is worse than losing its tail.
+  notes TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS code_bindings(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id TEXT NOT NULL REFERENCES code_projects(id) ON DELETE CASCADE,
+  -- Which engine this path is true on. One row per project per machine.
+  engine_id TEXT NOT NULL,
+  root TEXT NOT NULL,
+  -- Whether this binding may be driven from another device over the tunnel.
+  allow_remote INTEGER NOT NULL DEFAULT 1,
+  -- JSON array of tool patterns the agent may use here without asking.
+  allowed_tools TEXT NOT NULL DEFAULT '[]',
+  last_opened_at TEXT,
+  created_at TEXT NOT NULL,
+  UNIQUE(project_id, engine_id)
+);
+
+-- The cached shape of a project, so a task does not re-walk the filesystem to
+-- find out what it is looking at. Keyed by a fingerprint that is cheap to
+-- recompute (git HEAD + tracked file count + newest mtime), so a stale cache
+-- is detected without reading the tree it describes.
+CREATE TABLE IF NOT EXISTS code_skeletons(
+  project_id TEXT NOT NULL REFERENCES code_projects(id) ON DELETE CASCADE,
+  engine_id TEXT NOT NULL,
+  fingerprint TEXT NOT NULL,
+  -- JSON: {tree, stack, remote, counted_at}
+  payload TEXT NOT NULL,
+  built_at TEXT NOT NULL,
+  PRIMARY KEY(project_id, engine_id)
+);
+
+-- Every tool call Code Mode makes, allowed or denied. Local only, never
+-- synced: it is an audit trail of what happened on THIS machine, and it is
+-- also how auto-commit knows which paths a task actually touched.
+CREATE TABLE IF NOT EXISTS code_events(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id TEXT,
+  project_id TEXT,
+  tool TEXT NOT NULL,
+  target TEXT,
+  outcome TEXT NOT NULL,              -- allowed | denied | error
+  detail TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_code_bindings_proj ON code_bindings(project_id);
+CREATE INDEX IF NOT EXISTS idx_code_events_task ON code_events(task_id, id);
 """
 
 
@@ -152,6 +223,131 @@ class Database:
     def __init__(self, path: Path):
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
+
+
+    # ── Code Mode ─────────────────────────────────────────────────────────
+    # Projects sync between devices; bindings describe one engine and never
+    # leave it. Read paths are always filtered by engine_id for that reason --
+    # a binding belonging to the laptop is not a path this machine can act on,
+    # and returning it would offer a folder that is not here.
+
+    async def code_projects(self, engine_id: str) -> list[dict]:
+        async with aiosqlite.connect(self.path) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(
+                "SELECT * FROM code_projects ORDER BY updated_at DESC")
+            rows = [dict(r) for r in await cur.fetchall()]
+            cur = await db.execute("SELECT * FROM code_bindings")
+            binds = [dict(r) for r in await cur.fetchall()]
+        by_proj: dict[str, list[dict]] = {}
+        for b in binds:
+            b["allow_remote"] = bool(b["allow_remote"])
+            b["allowed_tools"] = json.loads(b["allowed_tools"] or "[]")
+            b["here"] = b["engine_id"] == engine_id
+            by_proj.setdefault(b["project_id"], []).append(b)
+        for r in rows:
+            r["aliases"] = json.loads(r["aliases"] or "[]")
+            r["prefs"] = json.loads(r["prefs"] or "{}")
+            r["bindings"] = by_proj.get(r["id"], [])
+        return rows
+
+    async def code_project(self, project_id: str, engine_id: str) -> dict | None:
+        for p in await self.code_projects(engine_id):
+            if p["id"] == project_id:
+                return p
+        return None
+
+    async def save_code_project(self, row: dict) -> None:
+        now = _now()
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute(
+                """INSERT INTO code_projects(id,name,aliases,prefs,notes,created_at,updated_at)
+                   VALUES(?,?,?,?,?,?,?)
+                   ON CONFLICT(id) DO UPDATE SET
+                     name=excluded.name, aliases=excluded.aliases,
+                     prefs=excluded.prefs, notes=excluded.notes,
+                     updated_at=excluded.updated_at""",
+                (row["id"], row["name"], row["aliases"], row["prefs"],
+                 row["notes"], now, now))
+            await db.commit()
+
+    async def delete_code_project(self, project_id: str) -> None:
+        async with aiosqlite.connect(self.path) as db:
+            # Bindings and the cached skeleton go with it (ON DELETE CASCADE),
+            # but the event log does NOT: what happened on this machine stays
+            # recorded even when the project it happened in is forgotten.
+            await db.execute("PRAGMA foreign_keys=ON")
+            await db.execute("DELETE FROM code_projects WHERE id=?", (project_id,))
+            await db.commit()
+
+    async def save_code_binding(self, project_id: str, engine_id: str, root: str,
+                                allow_remote: bool = True,
+                                allowed_tools: list | None = None) -> None:
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute(
+                """INSERT INTO code_bindings
+                     (project_id,engine_id,root,allow_remote,allowed_tools,created_at)
+                   VALUES(?,?,?,?,?,?)
+                   ON CONFLICT(project_id,engine_id) DO UPDATE SET
+                     root=excluded.root, allow_remote=excluded.allow_remote,
+                     allowed_tools=excluded.allowed_tools""",
+                (project_id, engine_id, root, 1 if allow_remote else 0,
+                 json.dumps(allowed_tools or []), _now()))
+            await db.commit()
+
+    async def delete_code_binding(self, project_id: str, engine_id: str) -> None:
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute(
+                "DELETE FROM code_bindings WHERE project_id=? AND engine_id=?",
+                (project_id, engine_id))
+            await db.commit()
+
+    async def touch_code_binding(self, project_id: str, engine_id: str) -> None:
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute(
+                "UPDATE code_bindings SET last_opened_at=? WHERE project_id=? AND engine_id=?",
+                (_now(), project_id, engine_id))
+            await db.commit()
+
+    async def get_skeleton(self, project_id: str, engine_id: str,
+                           fingerprint: str) -> dict | None:
+        """Only ever returns a skeleton built from the SAME fingerprint.
+
+        A stale one is worse than none: it describes a shape the project no
+        longer has, and nothing downstream would know to doubt it.
+        """
+        async with aiosqlite.connect(self.path) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(
+                "SELECT payload FROM code_skeletons "
+                "WHERE project_id=? AND engine_id=? AND fingerprint=?",
+                (project_id, engine_id, fingerprint))
+            r = await cur.fetchone()
+        return json.loads(r["payload"]) if r else None
+
+    async def put_skeleton(self, project_id: str, engine_id: str,
+                           fingerprint: str, payload: dict) -> None:
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute(
+                """INSERT INTO code_skeletons
+                     (project_id,engine_id,fingerprint,payload,built_at)
+                   VALUES(?,?,?,?,?)
+                   ON CONFLICT(project_id,engine_id) DO UPDATE SET
+                     fingerprint=excluded.fingerprint,
+                     payload=excluded.payload, built_at=excluded.built_at""",
+                (project_id, engine_id, fingerprint, json.dumps(payload), _now()))
+            await db.commit()
+
+    async def log_code_event(self, task_id: str | None, project_id: str | None,
+                             tool: str, target: str | None, outcome: str,
+                             detail: str | None = None) -> None:
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute(
+                """INSERT INTO code_events
+                     (task_id,project_id,tool,target,outcome,detail,created_at)
+                   VALUES(?,?,?,?,?,?,?)""",
+                (task_id, project_id, tool, target, outcome, detail, _now()))
+            await db.commit()
 
     async def init(self) -> None:
         async with aiosqlite.connect(self.path) as db:

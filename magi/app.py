@@ -215,6 +215,17 @@ app.add_middleware(
 )
 
 
+# Code Mode. Mounted after the middleware above, so its routes are gated by
+# the same token and the same CORS allow-list as everything else -- a router
+# added before them would be reachable without either.
+#
+# Imported here rather than at the top of the file: routes.py reads app.py's
+# `db`, so a top-level import would be circular.
+from .code.routes import router as code_router  # noqa: E402
+
+app.include_router(code_router)
+
+
 @app.get("/api/health")
 async def health():
     # Reports the live pacing settings so "is it actually running in parallel?"
