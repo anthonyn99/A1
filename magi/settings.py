@@ -121,6 +121,24 @@ _LEGACY_SITE_DIRS = (
 )
 
 
+def _profile_path(rel: str) -> Path:
+    """Insert the profile segment into a configured relative path.
+
+    "data/magi.db" becomes data/<profile>/magi.db. Done here rather than in
+    the yaml so that two engines sharing one checkout -- which they always
+    do -- cannot be pointed at one database by a stale override.
+    """
+    p = Path(rel)
+    parts = p.parts
+    if not parts:
+        return data_dir() / "magi.db"
+    out = ROOT / parts[0] / active_profile()
+    for seg in parts[1:]:
+        out = out / seg
+    out.parent.mkdir(parents=True, exist_ok=True)
+    return out
+
+
 def migrate_legacy_layout() -> list[str]:
     """Move the pre-profile layout under DEFAULT_PROFILE. Returns what moved."""
     moved: list[str] = []
