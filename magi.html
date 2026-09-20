@@ -4758,7 +4758,7 @@ const SPINNER =
    and is the reason this file never needs rebuilding. */
 const LINK_API = "https://magi-link.av1-2.workers.dev/link";
 const LOCAL_API = "http://127.0.0.1:8000";
-const TOKEN_KEY = "magi.token";
+const TOKEN_KEY = lsKey("token");
 /* The last token that actually reached the engine.
  *
  * The setup sheet is a text box holding a 43-character secret with no
@@ -4766,7 +4766,7 @@ const TOKEN_KEY = "magi.token";
  * console offline with nothing on screen explaining why. This is the way
  * back: written only when a token has been PROVEN -- the engine handed it
  * over, or it opened the tunnel -- never merely when it was typed. */
-const GOOD_TOKEN_KEY = "magi.token.ok";
+const GOOD_TOKEN_KEY = lsKey("token.ok");
 
 const link = {
   api: null,        // origin to call, "" meaning same-origin
@@ -9227,7 +9227,7 @@ function setView(v) {
    Stored per browser AND in the cloud, because the order is a preference, not
    a fact about the engine: it should follow you to your phone, but a phone
    that cannot reach Firestore must still remember what you did last time. */
-const UNIT_ORDER_KEY = "magi.unitorder";
+const UNIT_ORDER_KEY = lsKey("unitorder");
 
 /* Which units are ticked, remembered on this device.
  *
@@ -9236,7 +9236,7 @@ const UNIT_ORDER_KEY = "magi.unitorder";
  *  machine are not the same situation -- whereas the order is just how you
  *  like to read them. `null` means "never chosen here", which is different
  *  from "chose none" and is what lets the default apply exactly once. */
-const UNIT_PICK_KEY = "magi.units";
+const UNIT_PICK_KEY = lsKey("units");
 
 function loadUnitPicks() {
   try {
@@ -10988,7 +10988,7 @@ function pickHostVoices(voices, saved) {
   return { A, B };
 }
 
-const AUDIO_PREFS_KEY = "magi.studio.audio";
+const AUDIO_PREFS_KEY = lsKey("studio.audio");
 const audioPrefs = () => { try { return JSON.parse(localStorage.getItem(AUDIO_PREFS_KEY)) || {}; } catch { return {}; } };
 const saveAudioPrefs = (p) => { try { localStorage.setItem(AUDIO_PREFS_KEY, JSON.stringify(p)); } catch {} };
 
@@ -11991,9 +11991,9 @@ function bsAutosize(ta) {
    deliberation ones are -- two more small fields on a document that is
    already written on a debounce, for the same reason: they have to survive
    sync being unavailable and still follow you to another device. */
-const BS_PIN_KEY = "magi.bspins";
-const BS_NICK_KEY = "magi.bsnicks";
-const BS_UNPIN_KEY = "magi.bsunpinned";
+const BS_PIN_KEY = lsKey("bspins");
+const BS_NICK_KEY = lsKey("bsnicks");
+const BS_UNPIN_KEY = lsKey("bsunpinned");
 
 const BS_PINS = new Set((() => {
   try { return JSON.parse(localStorage.getItem(BS_PIN_KEY) || "[]"); } catch { return []; }
@@ -13463,7 +13463,7 @@ async function queueClearDone() {
  *  refresh. Attachments are still not stored: File objects are not JSON, and
  *  the names in `atts` are what a reload has to work from.
  */
-const QUEUE_KEY = "magi.queue";
+const QUEUE_KEY = lsKey("queue");
 
 function saveQueueLocal() {
   try { localStorage.setItem(QUEUE_KEY, JSON.stringify(queueForCloud())); } catch {}
@@ -13896,7 +13896,7 @@ function backToLive() {
    cost of getting this wrong is a deliberation deleted that you asked to
    keep, so both paths fail towards keeping it. */
 const HISTORY_DAYS = 30;
-const PIN_KEY = "magi.pins";
+const PIN_KEY = lsKey("pins");
 
 const PINS = new Set((() => {
   try { return JSON.parse(localStorage.getItem(PIN_KEY) || "[]"); } catch { return []; }
@@ -13921,7 +13921,7 @@ function savePins() {
  *  Items never pinned have no entry and fall back to created_at, which is the
  *  behaviour everything already had.
  */
-const UNPIN_KEY = "magi.unpinned";
+const UNPIN_KEY = lsKey("unpinned");
 const UNPINNED_AT = (() => {
   try { return JSON.parse(localStorage.getItem(UNPIN_KEY) || "{}") || {}; }
   catch { return {}; }
@@ -13961,7 +13961,7 @@ function expired(r) {
  *  Stored the way pins are -- locally AND on the cloud row, either counting --
  *  for the same reason: it has to survive sync being unavailable and still
  *  reach your other devices when sync works. */
-const NICK_KEY = "magi.nicks";
+const NICK_KEY = lsKey("nicks");
 
 const NICKS = (() => {
   try { return JSON.parse(localStorage.getItem(NICK_KEY) || "{}") || {}; }
@@ -14683,12 +14683,16 @@ async function cloudOpenRun(id) {
    fix is a fingerprint returned by /auth/journal/verify -- it returns only
    {ok} today, which is why this is written down rather than assumed. */
 const AUTH_API = "https://taskhub-reminders.av1.workers.dev";
-const LOCK_ID = { journal: "applock", entryId: "tony_magi" };
+/* Per profile, so Tony's password and Veda's are separate records on the same
+   worker. Tony's entry id is unchanged from before profiles existed, which is
+   why his password and his fingerprint both survive this change untouched --
+   `bio_cred_magi_tony` is exactly what Bio.keyOf("magi","tony") already built. */
+const LOCK_ID = { journal: "applock", entryId: prof().lock };
 const FORM_URL = "https://formspree.io/f/xeedkebo";
 const LOCK_EMAIL = "anthonypn99@gmail.com";
-const LOCK_LS = "magi_lock_session";
-const LOCKED_LS = "magi_locked";
-const BIO_APP = "magi", BIO_ID = "tony";
+const LOCK_LS = lsKey("lock_session");
+const LOCKED_LS = lsKey("locked");
+const BIO_APP = "magi", BIO_ID = PROFILE.id;
 
 const LOCK = {
   mode: "unlock",      // unlock | setup | reset | change | manage
