@@ -1,6 +1,20 @@
 # MAGI runtime configuration.
 # Selectors live in selectors.yaml; this file is about behaviour.
 
+# Whose engine this is. An engine serves exactly one person: it drives THEIR
+# logged-in Chrome sessions and writes THEIR history, and every directory it
+# touches -- profiles/<profile>/, data/<profile>/, artifacts/<profile>/ --
+# hangs off this one word.
+#
+# This is only the default. `--profile veda` on the command line wins, and so
+# does a MAGI_PROFILE environment variable, because two engines on one machine
+# share this file and so could never differ if it had the last word. That is
+# exactly how one PC hosts both:
+#
+#   magi serve                          # tony, port 8000
+#   magi serve --profile veda --port 8001
+profile: tony
+
 pacing:
   # parallel   = all members at once, up to max_concurrency (default).
   # sequential = one member at a time; slower, use if a site complains.
