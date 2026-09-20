@@ -4933,6 +4933,127 @@ const link = {
   detail: "",
 };
 
+/* ══ engines ═══════════════════════════════════════════════════════════════
+   A profile can have an engine on more than one machine.
+
+   MAGI's engine cannot move -- it drives real Chrome profiles holding live
+   logins -- so "where is the engine?" used to have exactly one answer and the
+   console only ever had to find it. That stops being true the moment a second
+   machine runs one: a desktop and a laptop, or Tony's PC and Veda's, each with
+   its own signed-in accounts and its own history.
+
+   An engine is identified by a record it writes itself (magi/data/<profile>/
+   engine.json) and reports on /api/health: a stable id that survives restarts,
+   a label you can read, and the port it listens on. `instance` is NOT that --
+   it is fresh per process, which is exactly right for tunnel adoption and
+   exactly wrong for "is this the same laptop as yesterday?".
+
+   ── Each engine has its OWN token ─────────────────────────────────────────
+   Not a nicety. `magi-link` keys its KV records by the SHA-256 of the token,
+   so two engines sharing one would overwrite each other's "where am I" record
+   and the phone would follow whichever published last. Separate tokens also
+   keep the security boundary honest: Tony's token cannot reach Veda's engine
+   and the logged-in accounts sitting behind it.
+
+   That is why the registry stores a token per engine rather than one for the
+   profile. Discovery then runs the same three steps it always did -- same
+   origin, then loopback, then the tunnel -- once per engine, and the first one
+   that answers wins. */
+const ENGINES_KEY = lsKey("engines");
+
+const ENG = {
+  list: [],        // [{ id, label, token, port, lastSeen, url }]
+  activeId: "",    // the one currently connected, once one answers
+  probing: false,
+};
+
+const engFind = (id) => ENG.list.find((e) => e.id === id) || null;
+const engActive = () => engFind(ENG.activeId) || ENG.list[0] || null;
+
+function engLoad() {
+  let list = [];
+  try {
+    const raw = JSON.parse(localStorage.getItem(ENGINES_KEY) || "[]");
+    if (Array.isArray(raw)) list = raw.filter((e) => e && typeof e === "object");
+  } catch {}
+  // Before this registry existed there was one token in one key, and it is
+  // this profile's engine. Carried in as an unnamed entry rather than being
+  // asked for again; it gets its real id and label the first time it answers.
+  if (!list.length) {
+    const t = loadToken();
+    list = [{ id: "", label: "", token: t, port: 8000 }];
+  }
+  ENG.list = list;
+  return list;
+}
+
+let _engT = 0;
+function engSave({ sync = true } = {}) {
+  try { localStorage.setItem(ENGINES_KEY, JSON.stringify(ENG.list)); } catch {}
+  if (!sync) return;
+  // Debounced, like every other write on this page. Adding an engine is rare;
+  // relabelling one is a burst of keystrokes.
+  clearTimeout(_engT);
+  _engT = setTimeout(() => cloudSaveEngines(), 900);
+}
+
+/** Record what an engine told us about itself when it answered. */
+function engSeen(token, health, url) {
+  if (!health || !health.engine || !health.engine.id) return null;
+  const { id, label, port } = health.engine;
+  let e = engFind(id);
+  if (!e) {
+    // The unnamed legacy entry becomes this engine rather than a duplicate of
+    // it -- otherwise the first connection after an upgrade leaves you with
+    // two rows for one machine, one of which never answers again.
+    e = ENG.list.find((x) => !x.id && x.token === token);
+    if (e) e.id = id;
+    else { e = { id, token, label: "", port: port || 8000 }; ENG.list.push(e); }
+  }
+  e.token = token || e.token;
+  if (port) e.port = port;
+  // A label the user typed wins over the machine's own guess: they wrote it
+  // because the default was not the thing they wanted to read.
+  if (!e.label) e.label = label || "";
+  e.lastSeen = Date.now();
+  if (url != null) e.url = url;
+  ENG.activeId = id;
+  engSave();
+  return e;
+}
+
+function engLabel(e) {
+  if (!e) return "";
+  return e.label || (e.id ? e.id.replace(/^eng_/, "engine ") : "this PC");
+}
+
+function engRename(id, label) {
+  const e = engFind(id);
+  if (!e) return;
+  e.label = (label || "").trim();
+  engSave();
+  syncEngineBtn();
+}
+
+function engForget(id) {
+  ENG.list = ENG.list.filter((e) => e.id !== id);
+  if (ENG.activeId === id) ENG.activeId = "";
+  engSave();
+  syncEngineBtn();
+}
+
+/** Add an engine by its token. The rest it tells us when it first answers. */
+function engAdd(token) {
+  const t = (token || "").trim();
+  if (!t) return null;
+  const dup = ENG.list.find((e) => e.token === t);
+  if (dup) return dup;
+  const e = { id: "", label: "", token: t, port: 8000 };
+  ENG.list.push(e);
+  engSave();
+  return e;
+}
+
 /** True when this page is being served by the backend itself. */
 const sameOrigin = /^(127\.0\.0\.1|localhost)$/.test(location.hostname) && location.protocol !== "file:";
 
@@ -4991,6 +5112,9 @@ async function probe(base, ms = 2500) {
       }
       link.otherProfile = "";
       link.engine = h.engine || null;
+      // The registry learns this engine's id, label and port from the
+      // engine itself, the first time it answers. Nothing to configure.
+      engSeen(link.token, h, base || null);
     } catch {}
     return "ok";
   } catch {
@@ -5185,9 +5309,38 @@ function setLink(where, detail) {
   else stopRetry();
 }
 
-/** Find the engine. Ordered fastest-first, and each step is skipped when it
- *  cannot apply, so the common cases resolve in one request. */
+/** Find AN engine -- the active one first, then every other one this
+ *  profile knows about, stopping at the first that answers.
+ *
+ *  One engine is still the common case and still costs exactly what it did:
+ *  the loop runs once. The second pass only happens when the machine you
+ *  usually use is asleep, which is precisely when you want the laptop tried
+ *  rather than being told MAGI is offline. */
 async function connect(quiet = false) {
+  engLoad();
+  // Active first, then the rest in registry order.
+  const order = [];
+  const act = engActive();
+  if (act) order.push(act);
+  for (const e of ENG.list) if (e !== act) order.push(e);
+  if (!order.length) order.push({ id: "", label: "", token: loadToken(), port: 8000 });
+
+  let last = null;
+  for (const eng of order) {
+    const r = await connectTo(eng, quiet || order.indexOf(eng) > 0);
+    if (online()) { syncEngineBtn(); return r; }
+    last = r;
+  }
+  syncEngineBtn();
+  return last;
+}
+
+/** One engine: same origin, then loopback, then its tunnel. Unchanged in
+ *  substance -- what moved is that the token and the port come from the
+ *  engine being tried rather than from a single global. */
+async function connectTo(eng, quiet = false) {
+  const ENG_PORT = (eng && eng.port) || 8000;
+  const ENG_LOCAL = `http://127.0.0.1:${ENG_PORT}`;
   // A silent retry does not flash "Connecting…" over the status: the loop
   // below runs every few seconds while the engine is down, and strobing the
   // button between two messages reads as a fault of its own.
@@ -5197,7 +5350,7 @@ async function connect(quiet = false) {
     // The backend is serving this file. No CORS, and no token either: the
     // engine exempts requests that did not arrive through the tunnel.
     link.api = "";
-    link.token = loadToken();
+    link.token = (eng && eng.token) || loadToken();
     let s = await probe("", 6000);
     // An older engine, or one reached some other way, may still demand the
     // token. Retrying with a stored one keeps that from being a dead end on
@@ -5212,7 +5365,7 @@ async function connect(quiet = false) {
     return setLink("down", "backend not responding");
   }
 
-  link.token = loadToken();
+  link.token = (eng && eng.token) || loadToken();
 
   // At the desk: straight to the PC, no tunnel hop and NO TOKEN NEEDED. The
   // engine exempts requests that did not arrive through cloudflared, so a
@@ -5220,13 +5373,13 @@ async function connect(quiet = false) {
   // configured at all. Tried BEFORE the token check on purpose: requiring a
   // token first meant the hosted page reported "no API token set" while the
   // engine was running on the same machine, three feet away.
-  link.api = LOCAL_API;
-  const local = await probe(LOCAL_API);
+  link.api = ENG_LOCAL;
+  const local = await probe(ENG_LOCAL);
   if (local === "ok") {
     // The engine's own copy beats whatever is in this browser: a token typed
     // in months ago and rotated since is exactly the stale value that would
     // otherwise be handed to the phone as gospel.
-    const fromEngine = await fetchEngineToken(LOCAL_API);
+    const fromEngine = await fetchEngineToken(ENG_LOCAL);
     if (fromEngine) {
       // Straight from the engine, so this is the definition of "working".
       rememberGoodToken(fromEngine);
