@@ -20,11 +20,10 @@ would silently orphan every device already paired with it.
 
 from __future__ import annotations
 
+import json
 import os
 import secrets
 import socket
-import sys
-from pathlib import Path
 
 from .. import ident, proc
 from ..settings import ROOT, active_profile, data_dir, profiles_dir
@@ -119,9 +118,7 @@ def run(port: int = 0, label: str | None = None, autostart: bool = True) -> int:
     if rec.get("port") != chosen:
         rec["port"] = chosen
         try:
-            (d / "engine.json").write_text(
-                __import__("json").dumps(rec, indent=1), encoding="utf-8"
-            )
+            (d / "engine.json").write_text(json.dumps(rec, indent=1), encoding="utf-8")
         except Exception as exc:
             _say(f"could not record the engine identity: {exc}")
             return 1
