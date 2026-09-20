@@ -29,7 +29,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .. import ident, proc, tunnel as tunnel_mod
-from ..settings import ROOT, active_profile, data_dir
+from ..settings import ROOT, active_profile, api_token, api_token_env, data_dir
 
 # The account-2 worker that answers "where is MAGI right now?".
 # See workers2/magi-link/worker.js.
@@ -423,7 +423,7 @@ def _verify_and_publish(token: str, kill) -> None:
             # it -- to anyone who reads the KV record.
             print("  [!] /api/health answered 200 without a token -- the gate")
             print("      is OFF, so the tunnel was NOT published. The backend")
-            print("      did not inherit MAGI_API_TOKEN; open a new terminal.")
+            print(f"      did not inherit {api_token_env()}; open a new terminal.")
             kill()
             return
         except urllib.error.HTTPError as e:
@@ -530,7 +530,7 @@ def _keep_tunnel(tunnel, cf_log: Path, token: str, port: int) -> int:
 def cloud(port: int = 8000) -> int:
     """Local + reachable from anywhere, via a quick tunnel this publishes."""
     _ensure_streams()
-    token = os.environ.get("MAGI_API_TOKEN", "").strip()
+    token = api_token()
 
     _free_port(port)
     print("  starting backend…")
@@ -550,11 +550,11 @@ def cloud(port: int = 8000) -> int:
     # But the local backend is already up and is not the thing at risk, so it
     # keeps serving rather than the whole command failing.
     if not token:
-        print("\n  MAGI_API_TOKEN is not set.")
+        print(f"\n  {api_token_env()} is not set.")
         print("  A quick tunnel cannot sit behind Cloudflare Access, so this")
         print("  shared secret is the only thing gating endpoints that drive")
         print("  your paid accounts. Set one, then open a NEW terminal:\n")
-        print('      setx MAGI_API_TOKEN "<a long random string>"\n')
+        print(f'      setx {api_token_env()} "<a long random string>"\n')
         return _serve_only(port, "no tunnel opened — the API would be ungated.")
 
     # ── adopt the tunnel the previous engine left running ────────────────

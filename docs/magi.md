@@ -118,6 +118,79 @@ two network guards and the absence of native dialogs. The end-to-end
 behaviour — the gate painting, unlocking, switching, the migration — is proved
 in a real browser over CDP; see `.claude/skills/verify` for the recipe.
 
+### The engine side
+
+An engine serves exactly one person, because the credentials *are* the profile
+and they live in directories on disk:
+
+```
+magi/profiles/<profile>/<site>/   the logged-in Chrome sessions
+magi/data/<profile>/magi.db       that person's run history
+magi/data/<profile>/engine.json   this engine's stable id, label and port
+magi/artifacts/<profile>/         failure screenshots
+```
+
+`--profile` on any command, then `MAGI_PROFILE`, then `profile:` in
+`config/magi.yaml`, then `tony`. The flag has to win: two engines on one
+machine share one checkout and therefore one `magi.yaml`, so if the file had
+the last word they could never differ. **One PC can host both at once**, which
+is how the second profile was built and proven before a second machine existed:
+
+```
+magi serve                              # tony, port 8000
+magi serve --profile veda --port 8001   # veda, port 8001
+```
+
+Each gets its own scheduled tasks (Tony keeps the unsuffixed `MAGI Engine` and
+`MAGI Watchdog` names his are already registered under), its own tunnel record,
+and **its own API token** — `MAGI_API_TOKEN` for Tony, `MAGI_API_TOKEN_VEDA`
+for Veda. They must differ: `magi-link` keys its records by the hash of the
+token, so a shared one would mean two engines fighting over a single record,
+and either person's console reaching the other's engine and its signed-in
+accounts. `/api/health` reports the profile, and **the console refuses to talk
+to an engine belonging to anyone else** — it says whose it is rather than
+failing as "offline", because the fix is switching profile and nothing about
+"offline" would suggest that.
+
+### `magi onboard`
+
+One idempotent command takes a machine from a fresh clone to a working engine:
+directories, a generated API token, a free port, a stable engine identity,
+Playwright's Chromium, and the scheduled tasks. What is left is the part only a
+person can do — signing in to each site, and typing the token into the console
+once.
+
+```
+magi onboard --profile veda
+```
+
+Re-running repairs what is missing and leaves the rest alone. It never
+regenerates a token that already works, because that would silently orphan
+every device already paired with it, and it recognises its own engine on a busy
+port rather than shunting it onto a new one.
+
+### The migration, and what it cost
+
+The pre-profile layout moves under `tony/` on first run. It **renames** rather
+than copies: `profiles/` is over a gigabyte of Chrome session data, so a copy
+would double it on disk, while a directory rename within one volume is atomic
+and instantly reversible.
+
+The first version wrapped the whole migration in one `try`. `cloudflared`
+survives a restart by design and holds its log file open the entire time, so
+the rename of `cloudflared.log` raised `PermissionError` — and that single
+exception ended the loop before `magi.db` had moved. The engine then came up
+pointing at the new path, found nothing, and created an **empty** database
+beside the full one. Fifty-seven deliberations were still on disk, but MAGI
+showed none of them.
+
+So: the guard is **per item**, live logs are **never moved** (they are
+append-only scratch, recreated wherever the new engine points, and the files
+most likely to be locked), and the database moves **first**. Pinned by
+`magi/tests/test_profile_paths.py`, which also covers the case that would have
+been worse — a half-migrated tree whose moved sessions get clobbered by the
+stale copies still sitting at the old level, signing every account out at once.
+
 ---
 
 ## Opening MAGI

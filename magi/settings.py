@@ -87,6 +87,23 @@ def resolve_profile(cli_value: str | None, config_dir: Path | None = None) -> st
     return DEFAULT_PROFILE
 
 
+def api_token_env() -> str:
+    """Which environment variable holds THIS profile's API token.
+
+    Tony keeps MAGI_API_TOKEN, which is what every device already paired
+    with him is using. Another profile gets its own name, and the two MUST
+    differ: magi-link keys its records by the hash of the token, so a shared
+    one would mean two engines fighting over a single record -- and either
+    person's console reaching the other's engine and its signed-in accounts.
+    """
+    p = active_profile()
+    return "MAGI_API_TOKEN" if p == DEFAULT_PROFILE else f"MAGI_API_TOKEN_{p.upper()}"
+
+
+def api_token() -> str:
+    return os.environ.get(api_token_env(), "").strip()
+
+
 def data_dir() -> Path:
     d = ROOT / "data" / active_profile()
     d.mkdir(parents=True, exist_ok=True)

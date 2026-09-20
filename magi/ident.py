@@ -48,7 +48,10 @@ def engine_identity() -> dict:
         "id": "eng_" + uuid.uuid4().hex[:12],
         # A name you can read. Defaults to the machine, because "DESKTOP-4F2"
         # is still a better answer to "which engine is this?" than a uuid.
-        "label": f"{socket.gethostname()} · {active_profile()}",
+        # Plain ASCII. A middot round-trips fine through JSON but turns into
+        # mojibake the moment it is printed to a Windows console, which is
+        # exactly where you read this when something is wrong.
+        "label": f"{socket.gethostname()} - {active_profile()}",
         "profile": active_profile(),
     }
     try:

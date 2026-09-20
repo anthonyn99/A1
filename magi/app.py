@@ -42,7 +42,13 @@ from .providers import gemini_api
 from .providers.base import ProviderEvent, RunContext
 from . import proc
 from .providers.registry import build_provider, build_providers
-from .settings import ROOT, active_profile, data_dir, load_settings
+from .settings import (
+    ROOT,
+    active_profile,
+    api_token,
+    data_dir,
+    load_settings,
+)
 
 settings = load_settings()
 db = Database(settings.db_path)
@@ -129,7 +135,7 @@ def _required_token() -> str:
     Unset (the default) the gate is OFF, so local use over 127.0.0.1 is
     unchanged. Set MAGI_API_TOKEN on any machine exposing a tunnel.
     """
-    return os.environ.get("MAGI_API_TOKEN", "").strip()
+    return api_token()
 
 
 def _arrived_over_the_tunnel(request: Request) -> bool:
