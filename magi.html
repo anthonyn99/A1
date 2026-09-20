@@ -5073,7 +5073,12 @@ function engSeen(token, health, url) {
 
 function engLabel(e) {
   if (!e) return "";
-  return e.label || (e.id ? e.id.replace(/^eng_/, "engine ") : "this PC");
+  if (e.label) return e.label;
+  // An entry with no id has never answered, so we do not know what machine it
+  // is -- it was added by pasting a key. Calling it "this PC" was a guess that
+  // is wrong for exactly the case the registry exists to support.
+  if (!e.id) return "Unnamed engine";
+  return e.id.replace(/^eng_/, "engine ");
 }
 
 function engRename(id, label) {
