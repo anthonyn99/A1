@@ -3271,6 +3271,17 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
   font-size: 11px; color: var(--amber);
   margin: -4px 0 9px 2px;
 }
+/* The primary action wears the profile's colour rather than MAGI's accent.
+   A gold-bordered card with a purple Unlock button in it reads as two
+   unrelated pieces of UI; this way the whole card says "Tony" at a glance,
+   which is the one thing this screen exists to make unambiguous. */
+.gate-card.open .btn.active {
+  background: var(--pc); border-color: var(--pc); color: var(--bg);
+}
+.gate-card.open .btn.active:not(:disabled):hover {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--pc) 22%, transparent);
+}
+.gate-card.open .lock-in:focus { border-color: var(--pc); }
 
 @media (max-width: 760px) {
   .gate { padding: 14px; align-items: flex-start; }
