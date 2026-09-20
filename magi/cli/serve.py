@@ -690,8 +690,21 @@ def cloud(port: int = 8000) -> int:
 # pythonw.exe, not python.exe: a console window on every logon is precisely the
 # thing this exists to remove.
 SHORTCUT_NAME = "MAGI.lnk"
-TASK_ENGINE = "MAGI Engine"
-TASK_WATCHDOG = "MAGI Watchdog"
+# Per profile, so two engines on one PC each get their own pair. Tony keeps
+# the unsuffixed names, which is what his already-registered tasks are called.
+from ..watchdog import task_engine, task_watchdog  # noqa: E402
+
+
+def _task_args() -> str:
+    """What the scheduled command needs in order to start the RIGHT engine.
+
+    Empty for the default profile, so Tony's task keeps the exact command
+    line it already has and re-registering is a no-op rather than a change.
+    """
+    from ..settings import DEFAULT_PROFILE, active_profile
+
+    p = active_profile()
+    return "" if p == DEFAULT_PROFILE else f" --profile {p}"
 
 
 def _startup_dir() -> Path:
@@ -733,9 +746,9 @@ $settings.DisallowStartOnRemoteAppSession = $false
 $settings.StopIfGoingOnBatteries = $false
 
 # 1. the engine itself, at logon
-$action  = New-ScheduledTaskAction -Execute $pyw -Argument '-m magi cloud' -WorkingDirectory $root
+$action  = New-ScheduledTaskAction -Execute $pyw -Argument '-m magi cloud{_task_args()}' -WorkingDirectory $root
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $user
-Register-ScheduledTask -TaskName '{TASK_ENGINE}' -Action $action -Trigger $trigger `
+Register-ScheduledTask -TaskName '{task_engine()}' -Action $action -Trigger $trigger `
     -Principal $principal -Settings $settings -Description 'MAGI council engine' -Force | Out-Null
 
 # 2. the watchdog: at logon, then every 2 minutes for as long as the session
@@ -745,15 +758,15 @@ $wSettings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGo
              -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 5) `
              -MultipleInstances IgnoreNew
 $wSettings.StopIfGoingOnBatteries = $false
-$wAction = New-ScheduledTaskAction -Execute $pyw -Argument '-m magi.watchdog' -WorkingDirectory $root
+$wAction = New-ScheduledTaskAction -Execute $pyw -Argument '-m magi.watchdog{_task_args()}' -WorkingDirectory $root
 $repeat  = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(2) `
            -RepetitionInterval (New-TimeSpan -Minutes 2)
 $atLogon = New-ScheduledTaskTrigger -AtLogOn -User $user
-Register-ScheduledTask -TaskName '{TASK_WATCHDOG}' -Action $wAction -Trigger @($atLogon, $repeat) `
+Register-ScheduledTask -TaskName '{task_watchdog()}' -Action $wAction -Trigger @($atLogon, $repeat) `
     -Principal $principal -Settings $wSettings -Description 'Starts MAGI if it is not running' -Force | Out-Null
 
-if ((Get-ScheduledTask -TaskName '{TASK_ENGINE}' -ErrorAction SilentlyContinue) -and
-    (Get-ScheduledTask -TaskName '{TASK_WATCHDOG}' -ErrorAction SilentlyContinue)) {{ 'ok' }}
+if ((Get-ScheduledTask -TaskName '{task_engine()}' -ErrorAction SilentlyContinue) -and
+    (Get-ScheduledTask -TaskName '{task_watchdog()}' -ErrorAction SilentlyContinue)) {{ 'ok' }}
 else {{ throw 'tasks did not register' }}
 """
 
@@ -767,7 +780,7 @@ def autostart(action: str = "on", port: int = 8000) -> int:
 
     if action == "status":
         code, out = _run_ps(
-            f"@('{TASK_ENGINE}','{TASK_WATCHDOG}') | ForEach-Object {{ "
+            f"@('{task_engine()}','{task_watchdog()}') | ForEach-Object {{ "
             "$t = Get-ScheduledTask -TaskName $_ -ErrorAction SilentlyContinue; "
             "if ($t) { $i = $t | Get-ScheduledTaskInfo; "
             "\"$($_): $($t.State), last run $($i.LastRunTime), result $($i.LastTaskResult)\" } "
@@ -785,7 +798,7 @@ def autostart(action: str = "on", port: int = 8000) -> int:
 
     if action == "off":
         _run_ps(
-            f"@('{TASK_ENGINE}','{TASK_WATCHDOG}') | ForEach-Object {{ "
+            f"@('{task_engine()}','{task_watchdog()}') | ForEach-Object {{ "
             "Unregister-ScheduledTask -TaskName $_ -Confirm:$false "
             "-ErrorAction SilentlyContinue }"
         )
@@ -815,7 +828,7 @@ def autostart(action: str = "on", port: int = 8000) -> int:
             lnk.unlink()
             print(f"  Removed the old {lnk.name}; the tasks replace it.")
 
-    print(f"\n  Installed '{TASK_ENGINE}' and '{TASK_WATCHDOG}'.")
+    print(f"\n  Installed '{task_engine()}' and '{task_watchdog()}'.")
     print("  The engine starts when you log in, and is restarted within two")
     print("  minutes if it ever stops while the laptop is on.")
 
