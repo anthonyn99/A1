@@ -152,6 +152,41 @@ to an engine belonging to anyone else** — it says whose it is rather than
 failing as "offline", because the fix is switching profile and nothing about
 "offline" would suggest that.
 
+### More than one engine
+
+A profile can have an engine on more than one machine — a desktop and a
+laptop, say. The console keeps a small registry and tries each in turn.
+
+An engine identifies itself: `magi/data/<profile>/engine.json` holds a stable
+id, a label you can edit, and the port, and `/api/health` reports all three.
+That id is **not** `instance`, which is fresh per process — exactly right for
+tunnel adoption, and exactly wrong for "is this the same laptop as yesterday?",
+which would grow a new row in the picker on every reboot.
+
+**The console learns an engine by connecting to it.** Nothing is configured:
+the first time one answers, its id, label and port are recorded. The only
+thing you ever type is another machine's access key, because that is the one
+fact the console cannot discover for itself. The registry entry that existed
+before any of this — a single token in a single key — is absorbed rather than
+duplicated, so an upgrade does not leave two rows for one PC.
+
+Discovery runs the same three steps it always did (same origin, loopback, then
+the tunnel) **once per engine**, active one first, stopping at the first that
+answers. One engine costs exactly what it did before: the loop runs once. The
+second pass only happens when the machine you usually use is asleep, which is
+precisely when you want the laptop tried rather than being told MAGI is
+offline.
+
+The picker stays hidden until there is more than one engine, and shows
+reachability from what the last connection attempt found — opening the panel
+does not wake four machines.
+
+The registry rides the **same document that already has a listener**, as one
+`engines` field, so a laptop added at the desk reaches the phone for zero extra
+reads and no second listener. `lastSeen` is deliberately *not* synced: it is
+what **this** device last managed to reach, and syncing it would have a phone
+claim the laptop is up because the desktop could see it a minute ago.
+
 ### `magi onboard`
 
 One idempotent command takes a machine from a fresh clone to a working engine:
