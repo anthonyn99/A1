@@ -13,6 +13,7 @@ and starting is the same detached pythonw the logon task uses.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import time
@@ -25,8 +26,11 @@ from . import proc
 from .settings import ROOT
 
 LOG = ROOT / "data" / "watchdog.log"
+# The scheduled task that owns the engine (see cli/serve.py autostart).
+TASK_ENGINE = "MAGI Engine"
 # Detached and in its own group, so the engine does not die with this process.
 _DETACHED = 0x00000008 | 0x00000200
+_BREAKAWAY = 0x01000000          # CREATE_BREAKAWAY_FROM_JOB
 
 
 def _say(line: str) -> None:
@@ -68,10 +72,31 @@ def engine_exe() -> Path:
 
 
 def start() -> None:
+    """Ask Task Scheduler to run the engine task; spawn it directly only if
+    that is not possible.
+
+    NOT a plain child process. Task Scheduler puts every task in a job object
+    and kills what is left of that job when the task's action exits -- so an
+    engine started as a child of this watchdog was killed the moment the
+    watchdog finished. Observed exactly that: "engine is up", then nothing
+    listening seconds later. Starting the engine's OWN task hands it to the
+    scheduler as a task in its own right, and IgnoreNew means asking twice is
+    harmless.
+    """
+    if os.name == "nt":
+        try:
+            r = proc.run(["schtasks", "/run", "/tn", TASK_ENGINE],
+                         capture_output=True, text=True, timeout=20)
+            if r.returncode == 0:
+                return
+        except Exception:  # noqa: BLE001 — fall through to the direct start
+            pass
     proc.popen(
         [str(engine_exe()), "-m", "magi", "cloud"],
         cwd=str(ROOT.parent),
-        creationflags=_DETACHED | proc.NO_WINDOW,
+        # BREAKAWAY_FROM_JOB so a direct start is not killed with this process
+        # either, where the job allows it.
+        creationflags=_DETACHED | _BREAKAWAY | proc.NO_WINDOW,
         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
 

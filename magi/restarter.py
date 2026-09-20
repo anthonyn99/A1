@@ -14,6 +14,7 @@ Two waits, both necessary:
 
 from __future__ import annotations
 
+import os
 import socket
 import subprocess
 import sys
@@ -21,9 +22,11 @@ import time
 from pathlib import Path
 
 from . import proc
+from .watchdog import TASK_ENGINE
 
 # Windows: no console, and not part of the caller's process tree.
 _DETACHED = 0x00000008 | 0x00000200      # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+_BREAKAWAY = 0x01000000                  # CREATE_BREAKAWAY_FROM_JOB
 
 
 def _alive(pid: int) -> bool:
@@ -62,11 +65,23 @@ def main(argv: list[str]) -> int:
     if not _port_free(port) and not _alive(pid):
         return 1
 
-    # The VENV's pythonw, the way the Startup shortcut runs it: no console
-    # window, nothing on the taskbar, and the interpreter that actually has
-    # MAGI's dependencies. sys.executable alone was wrong -- the venv's
-    # pythonw re-execs the base interpreter, so a restart started the SYSTEM
-    # Python and every later restart inherited it.
+    # Hand it back to Task Scheduler where possible: the engine runs as the
+    # "MAGI Engine" task, and a task's leftover children are killed when the
+    # task ends -- so a replacement started as a plain child of this process
+    # can be killed with it. Starting the task gives the engine its own life.
+    if os.name == "nt":
+        try:
+            r = proc.run(["schtasks", "/run", "/tn", TASK_ENGINE],
+                         capture_output=True, text=True, timeout=20)
+            if r.returncode == 0:
+                return 0
+        except Exception:  # noqa: BLE001 — fall through to the direct start
+            pass
+
+    # The VENV's pythonw: no console window, nothing on the taskbar, and the
+    # interpreter that actually has MAGI's dependencies. sys.executable alone
+    # was wrong -- the venv's pythonw re-execs the base interpreter, so a
+    # restart started the SYSTEM Python and every later restart inherited it.
     exe = cwd / "magi" / ".venv" / "Scripts" / "pythonw.exe"
     if not exe.exists():
         fallback = Path(sys.executable)
@@ -76,7 +91,7 @@ def main(argv: list[str]) -> int:
     proc.popen(
         [str(exe), "-m", "magi", "cloud"],
         cwd=str(cwd),
-        creationflags=_DETACHED | proc.NO_WINDOW,
+        creationflags=_DETACHED | _BREAKAWAY | proc.NO_WINDOW,
         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
     return 0
