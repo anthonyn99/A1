@@ -4846,11 +4846,31 @@ async function tryReconnect() {
   else { RETRY.step += 1; scheduleRetry(); }
 }
 
-/** A gesture that means "I am looking at this now": retry immediately, and
- *  start the backoff again from the top. */
-function retryNow(minGapMs = 0) {
-  if (online() || document.hidden) return;
+/** A gesture that means "I am looking at this now".
+ *
+ *  Down: retry immediately, backoff reset. UP: check that it is STILL up --
+ *  a page sitting idle never notices the engine going away (it only learns
+ *  from a request that fails), so coming back to a tab that was connected an
+ *  hour ago would show "Running on this PC" over a dead engine until you
+ *  clicked something. One health check settles it, and a failure drops into
+ *  the retry loop by the usual route. */
+async function retryNow(minGapMs = 0) {
+  if (document.hidden) return;
   if (minGapMs && Date.now() - RETRY.lastTry < minGapMs) return;
+  RETRY.lastTry = Date.now();
+  if (online()) {
+    if (RETRY.busy) return;
+    RETRY.busy = true;
+    try {
+      const state = await probe(link.api, 4000);
+      if (state !== "ok" && state !== "unauthorized" && online()) {
+        setLink("down", link.where === "local" ? "backend not responding" : "tunnel is dead");
+      }
+    } finally {
+      RETRY.busy = false;
+    }
+    return;
+  }
   RETRY.step = 0;
   scheduleRetry(0);
 }
@@ -5057,7 +5077,9 @@ const HOW = [
     q: "The engine device has to be awake",
     a: [
       "A web page cannot start anything on another machine. If the device running the engine is asleep, off, or logged out, MAGI cannot run &mdash; from anywhere. Opening this page on your phone cannot wake it.",
-      "At that device, this page talks to it directly. Away from it, everything goes through a Cloudflare tunnel the engine publishes; the address changes every time the engine restarts, which is why this page looks it up instead of having it built in.",
+      "<b>It starts itself.</b> The engine runs as a scheduled task at logon, and a second task checks every two minutes that it is still answering &mdash; so a crash, a bad start or a reboot brings it back without anyone going to the PC.",
+      "At that device, this page talks to it directly. Away from it, everything goes through a Cloudflare tunnel the engine publishes, which is why this page looks the address up instead of having it built in. A restart of the engine <i>keeps</i> that address: the tunnel is left running and the new engine adopts it, so phones stay connected. Only a reboot, or a tunnel Cloudflare drops, means a new address.",
+      "<b>This page reconnects on its own.</b> While the engine is unreachable it keeps trying in the background, and stops the moment it is back &mdash; a phone left open reconnects by itself within seconds.",
       "Past deliberations are a different matter. They are read from the cloud and stay readable with the engine off &mdash; you just cannot start a new one.",
     ],
   },
