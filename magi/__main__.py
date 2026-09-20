@@ -88,5 +88,37 @@ def main(argv: list[str] | None = None) -> int:
     return 2
 
 
+def _crash_log(exc: BaseException) -> None:
+    """Leave a trace when the engine dies before it has a log.
+
+    pythonw has no console, and data/autostart.log is only opened once cloud()
+    is running -- so anything that fails EARLIER (a bad import after an edit, a
+    missing dependency, a broken venv) disappeared without a word. That is what
+    a failed logon start looks like from the outside: nothing happened, no
+    reason anywhere. Verified 2026-09-19, when a NameError left the engine dead
+    after a reboot and the log still showed the previous session.
+    """
+    import traceback
+    from datetime import datetime
+
+    try:
+        from .settings import ROOT
+
+        log = ROOT / "data" / "boot.log"
+        log.parent.mkdir(parents=True, exist_ok=True)
+        with log.open("a", encoding="utf-8", errors="replace") as f:
+            f.write(f"\n=== {datetime.now().isoformat(timespec='seconds')} "
+                    f"argv={sys.argv[1:]} ===\n")
+            traceback.print_exception(type(exc), exc, exc.__traceback__, file=f)
+    except Exception:  # noqa: BLE001 — a logger that raises helps nobody
+        pass
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except SystemExit:
+        raise
+    except BaseException as e:  # noqa: BLE001 — logged, then re-raised
+        _crash_log(e)
+        raise
