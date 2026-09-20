@@ -126,7 +126,28 @@ const sel = lift('function selectProfile(id)');
 ok('the other profile reloads', /location\.reload\(\)/.test(sel),
    'key constants are evaluated once at load; reassigning PROFILE.id would strand them');
 ok('the choice is remembered first', /setItem\(LAST_PROFILE_LS, id\)/.test(sel));
-ok('PROFILE.id is resolved from storage at load', /localStorage\.getItem\(LAST_PROFILE_LS\)/.test(MAGI));
+ok('PROFILE.id is resolved from storage at load', /localStorage\.getItem\(key\)/.test(MAGI));
+
+console.log('\nA device can be pinned to one profile');
+const fav = lift('function toggleFav(id)');
+ok('there is a favourite', /FAV_PROFILE_LS = "magi\.favProfile"/.test(MAGI));
+ok('it is per device, not synced', !/favProfile/.test(lift('function cloudSaveCode')) );
+// Starring again must leave the device with NO favourite, not switch it to
+// the other person -- 'unstar' has to be reachable or the pin is one-way.
+ok('starring the favourite again clears it', /removeItem\(FAV_PROFILE_LS\)/.test(fav));
+ok('the star is on every card', /gate-fav/.test(lift('function gateCard(id)')));
+ok('it does not also open the profile', /stopPropagation\(\)/.test(lift('function gateCard(id)')),
+   'favouriting a card you were only bookmarking would open it too');
+// The favourite decides where a FRESH load lands, but a deliberate switch
+// has to win for this tab or picking the other profile bounces straight back.
+ok('an explicit pick beats the favourite', /sessionStorage\.setItem\(PICK_SS, id\)/.test(MAGI));
+ok('and the favourite beats last-used', /for \(const key of \[FAV_PROFILE_LS, LAST_PROFILE_LS\]\)/.test(MAGI));
+
+console.log('\nThe cards say who, and nothing else');
+ok('no subtitle line survives', !/gate-state/.test(MAGI),
+   'it either restated the password field or claimed a lock state this page cannot check');
+ok('the avatar is outlined, not filled',
+   /\.gate-av \{[^}]*background: none;[^}]*border: 1\.5px solid var\(--pc\)/.test(MAGI));
 
 console.log('\nThe console says whose MAGI it is');
 ok('there is a profile chip', /id="profBtn"/.test(MAGI));
