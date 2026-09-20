@@ -15318,6 +15318,11 @@ async function hardReload() {
   //  resizes the box instead of reloading the page.
   const OWNED = [
     "input", "textarea", "select",
+    // A button is something you press, and pressing on a phone always drags a
+    // few pixels. Starting a pull there reloaded the page out from under the
+    // press -- and a Studio card or a running deliberation is exactly what you
+    // lose when that happens.
+    "button",
     "[contenteditable]", "[draggable='true']", "[role='slider']",
     ".qbar-grip", ".qbar", ".qedit-textwrap", ".bs-start",
     // Unit chips reorder on a hold-and-drag (unitDragStart) -- theirs.
