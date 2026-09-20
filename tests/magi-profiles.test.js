@@ -143,6 +143,25 @@ ok('it does not also open the profile', /stopPropagation\(\)/.test(lift('functio
 ok('an explicit pick beats the favourite', /sessionStorage\.setItem\(PICK_SS, id\)/.test(MAGI));
 ok('and the favourite beats last-used', /for \(const key of \[FAV_PROFILE_LS, LAST_PROFILE_LS\]\)/.test(MAGI));
 
+console.log('\nA handed-over prompt lands in the profile it belongs to');
+// TradeHub's Analysis tab and the morning launcher both build this link, and
+// both are Tony's. Without this the prompt would land in whichever profile the
+// console happened to be showing -- so a trading question could convene VEDA's
+// council against her accounts and file the verdict in her history.
+ok('a handoff names its profile', /const HANDOFF_PROFILE = "tony"/.test(MAGI));
+ok('it outranks the favourite and last-used',
+   /if \(hasHandoffHash\(\) \|\| sessionStorage\.getItem\(HANDOFF_SS\)\) return HANDOFF_PROFILE;/.test(MAGI));
+// The fragment is stripped before the payload is read (so a reload cannot fire
+// a second council run), which means a reload to switch profile would lose it.
+ok('one arriving in the wrong profile is carried across the reload',
+   /function adoptHandoffProfile\(h\)/.test(MAGI));
+ok('the payload is stashed before reloading',
+   /sessionStorage\.setItem\(HANDOFF_SS, JSON\.stringify\(h\)\)/.test(lift('function adoptHandoffProfile')));
+ok('and picked up on the way back up', /HANDOFF = takeStashedHandoff\(\) \|\| takeHandoff\(\)/.test(MAGI));
+ok('the stash is consumed once, like the url',
+   /sessionStorage\.removeItem\(HANDOFF_SS\)/.test(lift('function takeStashedHandoff')),
+   'otherwise it re-runs on every load of that tab');
+
 console.log('\nThe cards say who, and nothing else');
 ok('no subtitle line survives', !/gate-state/.test(MAGI),
    'it either restated the password field or claimed a lock state this page cannot check');

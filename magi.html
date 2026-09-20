@@ -3216,41 +3216,52 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
   display: flex; gap: 14px; align-items: flex-start; justify-content: center;
   width: 100%; margin-top: 26px; flex-wrap: wrap;
 }
+/* Portrait tiles: taller than they are wide, so two of them sit as a pair of
+   plates rather than a stack of toolbars. The open one grows sideways to fit
+   a password field and stays taller than it is wide. */
 .gate-card {
-  flex: 0 1 240px; max-width: 280px; min-width: 0;
+  position: relative;
+  flex: 0 0 auto; width: 168px; min-height: 196px;
+  display: flex; flex-direction: column; align-items: center;
   background: var(--s1); border: 1px solid var(--bd);
-  border-radius: var(--r-card); padding: 13px 14px;
+  border-radius: var(--r-card); padding: 26px 16px 18px;
   box-shadow: 0 24px 60px var(--shadow);
-  transition: border-color .15s, transform .15s;
+  transition: border-color .15s, transform .15s, width .18s ease;
 }
+.gate-card.open { width: 272px; }
 .gate-card.open { border-color: var(--pc); }
 /* The shut card stays legible rather than being dimmed into a decoration --
    it is a button, and half of what this screen is for is pressing it. */
-.gate-card.tappable { cursor: pointer; }
+.gate-card.tappable { cursor: pointer; justify-content: center; padding-top: 18px; }
 .gate-card.tappable:hover, .gate-card.tappable:focus-visible {
   border-color: var(--pc); transform: translateY(-2px); outline: 0;
 }
-.gate-head { display: flex; align-items: center; gap: 10px; }
+/* Stacked and centred: the avatar reads as a portrait rather than a bullet. */
+.gate-head {
+  display: flex; flex-direction: column; align-items: center; gap: 11px;
+  width: 100%;
+}
 /* Outline only. A tinted disc reads as a filled state -- "selected", or
    "active" -- which is not what it means; it is just whose card this is. */
 .gate-av {
-  width: 30px; height: 30px; flex: 0 0 30px;
+  width: 54px; height: 54px; flex: 0 0 54px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 14px; line-height: 1;
+  font-size: 24px; line-height: 1;
   border-radius: 50%;
   background: none;
   border: 1.5px solid var(--pc);
 }
 .gate-name {
-  flex: 1 1 auto; min-width: 0;
-  font-family: var(--font-display); font-size: 14px; font-weight: 700;
-  color: var(--tx); letter-spacing: .3px;
+  max-width: 100%;
+  font-family: var(--font-display); font-size: 15px; font-weight: 700;
+  color: var(--tx); letter-spacing: .3px; text-align: center;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 /* The favourite. Outlined until it is set, then filled in that profile's
    colour -- the one place on this screen where a fill means something. */
 .gate-fav {
-  flex: 0 0 auto; width: 26px; height: 26px; padding: 0;
+  position: absolute; top: 7px; right: 7px;
+  width: 26px; height: 26px; padding: 0;
   display: flex; align-items: center; justify-content: center;
   background: none; border: 0; border-radius: 50%;
   color: var(--txm); cursor: pointer; opacity: .55;
@@ -3260,7 +3271,7 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 .gate-fav:hover { opacity: 1; color: var(--pc); }
 .gate-fav.on { opacity: 1; color: var(--pc); }
 .gate-fav.on svg { fill: var(--pc); }
-.gate-body { margin-top: 13px; }
+.gate-body { margin-top: 16px; width: 100%; }
 .gate-blurb {
   color: var(--txd); font-size: 12px; line-height: 1.55; margin-bottom: 14px;
 }
@@ -3299,9 +3310,10 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
   .gate-wrap { padding: 28px 0 24px; }
   /* Stacked, full width. The expanded card is what you came for, so it goes
      first and the other sits under it rather than above the fold it needs. */
-  .gate-cards { flex-direction: column; flex-wrap: nowrap; gap: 10px; margin-top: 20px; }
-  .gate-card { max-width: none; width: 100%; flex: 0 0 auto; }
-  .gate-card.open { order: -1; }
+  /* Two tiles at 168px plus the gap still fit a 390px phone, so the pair
+     stays side by side and only the OPEN one needs the full width. */
+  .gate-cards { gap: 10px; margin-top: 20px; align-items: stretch; }
+  .gate-card.open { width: 100%; flex: 1 1 100%; order: -1; }
 }
 @media (max-width: 430px) {
   .gate-card { padding: 12px 13px; }
@@ -4800,13 +4812,30 @@ const FAV_PROFILE_LS = "magi.favProfile";
 // sessionStorage, so it lasts as long as this tab and no longer: a NEW
 // window is a fresh start and gets the favourite again.
 const PICK_SS = "magi.pick";
+// A prompt handed over by another A1 program belongs to a PERSON, and every
+// program that hands one over -- TradeHub's Analysis tab, and the morning
+// launcher that builds the same link in Python -- is Tony's. Without this a
+// handoff would land in whichever profile the console happened to be showing,
+// so a trading prompt could convene Veda's council against Veda's accounts
+// and file the verdict in her history.
+const HANDOFF_PROFILE = "tony";
+// A handoff that arrives in the WRONG profile has to survive the reload that
+// switches to the right one -- takeHandoff() has already stripped the
+// fragment by then, so there is nothing left in the url to read afterwards.
+const HANDOFF_SS = "magi.handoff";
+const hasHandoffHash = () => { try { return /[#&]tb=/.test(location.hash || ""); } catch { return false; } };
 
 const PROFILE = {
   // Resolved synchronously, before any key constant below is evaluated. The
   // gate may change it, and when it does it reloads rather than reassigning.
   id: (() => {
-    // This tab's explicit pick, then the favourite, then whoever was here
-    // last, then the default.
+    // A handoff outranks everything, including a favourite pointing the
+    // other way: the link names the work, and the work is one person's.
+    try {
+      if (hasHandoffHash() || sessionStorage.getItem(HANDOFF_SS)) return HANDOFF_PROFILE;
+    } catch {}
+    // Then this tab's explicit pick, the favourite, whoever was here last,
+    // and the default.
     try {
       const p = sessionStorage.getItem(PICK_SS);
       if (p && MAGI_PROFILES[p]) return p;
@@ -8803,12 +8832,46 @@ function applyHandoff(h) {
 window.addEventListener("hashchange", () => {
   const h = takeHandoff();
   if (!h) return;
+  if (adoptHandoffProfile(h)) return;   // reloading into the right profile
   HANDOFF = h;
   handoffTry();
 });
 
-// Read at load, before anything else can touch the address bar.
-HANDOFF = takeHandoff();
+/** A handoff that landed in the wrong profile: carry it across the reload.
+ *
+ *  This is the tab-already-open case. TradeHub navigates the existing MAGI
+ *  tab rather than opening a second one, so if that tab was showing Veda the
+ *  prompt arrives in her console. The fragment is already stripped by the
+ *  time we get here -- takeHandoff does that first, deliberately -- so the
+ *  payload goes into sessionStorage and is picked up on the way back up.
+ *
+ *  Returns true when a reload is happening and the caller should stop. */
+function adoptHandoffProfile(h) {
+  if (!h || PROFILE.id === HANDOFF_PROFILE) return false;
+  try {
+    sessionStorage.setItem(HANDOFF_SS, JSON.stringify(h));
+    sessionStorage.setItem(PICK_SS, HANDOFF_PROFILE);
+    localStorage.setItem(LAST_PROFILE_LS, HANDOFF_PROFILE);
+  } catch { return false; }   // no storage: better here than nowhere
+  location.reload();
+  return true;
+}
+
+/** A handoff stashed by the reload above. Consumed once, like the url one. */
+function takeStashedHandoff() {
+  try {
+    const raw = sessionStorage.getItem(HANDOFF_SS);
+    if (!raw) return null;
+    sessionStorage.removeItem(HANDOFF_SS);
+    const h = JSON.parse(raw);
+    return h && h.q ? h : null;
+  } catch { return null; }
+}
+
+// Read at load, before anything else can touch the address bar. The stash
+// is checked first: if one is waiting, this load IS the reload that carried
+// it, and there is no fragment left to read.
+HANDOFF = takeStashedHandoff() || takeHandoff();
 
 /** The deliberation beep: a steady cluster every 1.6s for as long as the
  *  council is working. Fires immediately on start rather than after the first
