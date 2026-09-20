@@ -229,6 +229,46 @@ stale copies still sitting at the old level, signing every account out at once.
 
 ---
 
+## Code Mode
+
+The switch beside the prompt box changes what that box does.
+
+| | |
+|---|---|
+| **Deliberate** | ask the council a question — everything above |
+| **Code Mode** | ask Claude to change something on the engine's machine |
+
+**Mode is not a view.** The views — history, doctor, accounts, brainstorm —
+are places you go and come back from; mode is what the main screen *is*.
+Making it a view would have meant History had two versions and every nav
+button had to know which mode it was returning to. It is per device and not
+synced: which mode you left this browser in is a fact about the browser.
+
+Code Mode hides the council's controls rather than leaving them to promise
+choices it does not offer — the unit chips, the verdict, the empty state and
+the caption all step aside. Convene, Queue and Refine are **held and
+relabelled**, not hidden: a control that vanishes teaches you the mode has
+fewer capabilities, when it simply has not been built yet.
+
+The status strip carries the five facts that change what a command will do —
+whose MAGI this is, which machine will run it, which folder it will touch,
+which repository that folder answers to, and whether finishing will commit
+and push. Fields that do not exist yet are shown **empty rather than
+omitted**, because a strip that hides them teaches a shape that is about to
+change. It repaints when the engine's state changes: discovery finishes
+after the first paint, so without that it sat on "offline" while the sidebar
+three inches away said the engine was running on this PC.
+
+**What exists today is the shell**: the mode, the heading, the strip, and the
+guarantee that Deliberation is untouched. The workspace, Claude driving the
+files, git and GitHub land in later phases, in that order, so the part that
+can change files is the last thing switched on and the first thing tested.
+
+`tests/magi-codemode.test.js` pins the split; the behaviour is proved in a
+real browser over CDP.
+
+---
+
 ## Opening MAGI
 
 Once set up, **bookmark <http://127.0.0.1:8000>** and open it like any other
