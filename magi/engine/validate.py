@@ -201,7 +201,7 @@ MAX_REDIRECT_CHARS = 1500
 def _is_canned_refusal(body: str) -> bool:
     text = body.replace("’", "'").replace("‘", "'")
     if len(text) < MAX_CANNED_CHARS and (
-        _CANNED_REFUSAL.search(text) or _NO_LIVE_ACCESS.search(text)
+        _CANNED_REFUSAL.search(text)
     ):
         return True
     return (
