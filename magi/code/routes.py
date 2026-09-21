@@ -366,10 +366,16 @@ async def clear_limit(agent: str, slot: str) -> dict[str, Any]:
 
 @router.post("/tasks")
 async def start_task(body: dict = Body(...)) -> dict[str, Any]:
-    """Run a task through the chain. READ-ONLY until Phase 8.
+    """Run a task through the chain.
 
     `agents` is the chain order the console sends -- the ticked units, in the
     order they appear. Anything not listed is never asked.
+
+    `mode` is "read" (the default) or "write". Write mode never edits the
+    folder itself: agents work in a sandbox copy and the diff waits for an
+    approval (tasks.py). The repository MAGI lives in (A1) is refused here,
+    whatever the console sends -- the console greys the toggle out, but the
+    rule has to live where the write happens.
     """
     eng = _engine_id()
     p = await _db().code_project(body.get("project_id", ""), eng)
@@ -386,7 +392,13 @@ async def start_task(body: dict = Body(...)) -> dict[str, Any]:
     prompt = str(body.get("prompt") or "").strip()
     if not prompt:
         return {"ok": False, "error": "empty", "message": "Say what to look at."}
-    mode = "read"   # Phase 7: nothing can write. The write path is Phase 8.
+    mode = "write" if body.get("mode") == "write" else "read"
+    if mode == "write":
+        from .sandbox import is_engine_repo
+        if await _asyncio.get_running_loop().run_in_executor(None, is_engine_repo, root):
+            return {"ok": False, "error": "read_only_project", "message": (
+                f"{p['name']} is MAGI's own repository, and stays read-only until "
+                "the hardening phase. Ask in Read mode, or use another project.")}
     order = [str(x) for x in (body.get("agents") or _chain.DEFAULT_ORDER)]
     t = await _tasks.start(project_id=p["id"], root=root, prompt=prompt[:20000],
                            order=order, settings=_settings(), mode=mode)
