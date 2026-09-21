@@ -80,19 +80,25 @@ class ChainResult:
                 "attempts": [a.__dict__ for a in self.attempts]}
 
 
-def handoff_note(task: Task, attempts: list[Attempt], partial: list[str]) -> str:
+def handoff_note(task: Task, attempts: list[Attempt], partial: list[str],
+                 changed: list[str] | None = None) -> str:
     """What the next agent is told about the work so far.
 
-    Deliberately factual and short: which agents tried, why each stopped, and
-    what they had said. Phase 8 adds the files already changed and the current
-    diff, which is the part that turns this from "start again" into
-    "carry on".
+    Deliberately factual and short: which agents tried, why each stopped, what
+    they had said, and -- in write mode -- which files are already changed in
+    the working copy. That last part is what turns this from "start again"
+    into "carry on": the next agent works in the SAME sandbox, so the edits
+    are already there for it to read.
     """
     lines = ["This task was started by another assistant that had to stop. "
              "Continue it rather than beginning again."]
     for a in attempts:
         lines.append(f"- {a.label} stopped: {a.outcome}"
                      + (f" ({a.detail[:160]})" if a.detail else ""))
+    if changed:
+        lines.append("\nFiles it had already changed in this working copy (the "
+                     "changes are on disk; read them, keep what is right, and "
+                     "finish the task):\n" + "\n".join(f"  {c}" for c in changed))
     said = "\n\n".join(p for p in partial if p).strip()
     if said:
         lines.append("\nWhat had been worked out so far:\n" + said[-4000:])
@@ -122,7 +128,11 @@ async def run_chain(task: Task, agents: list[CodingAgent], *, emit: EventFn,
         await emit({"k": "agent", "agent": agent.id, "label": agent.label,
                     "kind": agent.kind, "position": i + 1, "of": len(agents)})
         if attempts:
-            task.handoff_note = handoff_note(task, attempts, partial)
+            changed = None
+            if task.progress is not None:
+                changed = await asyncio.get_running_loop().run_in_executor(
+                    None, task.progress)
+            task.handoff_note = handoff_note(task, attempts, partial, changed)
 
         t0 = time.time()
         try:

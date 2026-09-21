@@ -5,10 +5,11 @@ allowance. The unit cannot open files, so MAGI does: context.gather() reads the
 workspace (contained, secrets refused, byte-bounded) and the unit reasons over
 what it is shown.
 
-In read mode it returns analysis. In write mode (Phase 8) it will return edits
-in a fixed format that MAGI applies itself -- through the same containment hook
-and approval gate a CLI agent's edits go through -- so a browser unit never
-writes to disk directly, and never holds a git or GitHub credential.
+In read mode it returns analysis. In write mode it returns SEARCH/REPLACE
+blocks (edits.py) that MAGI applies itself, into the same sandbox and through
+the same diff check and approval card a CLI agent's edits go through -- so a
+browser unit never writes to disk directly, and never holds a git or GitHub
+credential.
 
 It goes through the council's own Provider.ask(), unchanged: the same Chrome
 profile, the same selectors, the same failure taxonomy. Nothing about how a
@@ -23,7 +24,7 @@ import uuid
 from ...errors import FailureKind
 from ...providers.base import RunContext
 from .base import CodingAgent, EventFn, Mode, Outcome, Result, Task
-from . import context, limits
+from . import context, edits, limits
 
 _READ_FRAME = (
     "You are helping with a software project. You cannot open files yourself; "
@@ -66,6 +67,8 @@ class BrowserUnitAgent(CodingAgent):
 
     def build_prompt(self, task: Task, ctx_block: str) -> str:
         body = _READ_FRAME
+        if task.mode == Mode.WRITE:
+            body += edits.FORMAT_HELP + "\n\n"
         if task.handoff_note:
             body += "EARLIER WORK ON THIS TASK:\n" + task.handoff_note + "\n\n"
         body += "TASK:\n" + task.prompt.strip() + "\n\n"
@@ -73,10 +76,6 @@ class BrowserUnitAgent(CodingAgent):
         return body
 
     async def run(self, task: Task, *, emit: EventFn, cancel: asyncio.Event) -> Result:
-        if task.mode != Mode.READ:
-            # Honest refusal, not a silent read-only answer to a write request.
-            return Result(Outcome.UNAVAILABLE,
-                          detail="Browser units cannot make edits until Phase 8.")
         await emit({"k": "note", "text": f"Gathering context for {self.label}…"})
         loop = asyncio.get_running_loop()
         ctx_block = await loop.run_in_executor(None, context.gather, task.root, task.prompt)
@@ -98,7 +97,30 @@ class BrowserUnitAgent(CodingAgent):
         if ans.ok and ans.text.strip():
             limits.clear("browser", self.unit_id)
             await emit({"k": "text", "text": ans.text})
+            if task.mode == Mode.WRITE:
+                return await self._apply_edits(task, ans.text, emit)
             return Result(Outcome.OK, text=ans.text, tools_used=["Context"])
+        return self._failed(ans)
+
+    async def _apply_edits(self, task: Task, text: str, emit: EventFn) -> Result:
+        blocks = edits.parse(text)
+        if not blocks:
+            # An answer with no edits is still an answer -- the approval step
+            # will simply find nothing to approve.
+            return Result(Outcome.OK, text=text, tools_used=["Context"])
+        loop = asyncio.get_running_loop()
+        changed, problems = await loop.run_in_executor(None, edits.apply, task.root, blocks)
+        if problems:
+            # The unit's reply could not be applied as written. Another agent
+            # may well manage it, so this hands off rather than ending the task.
+            await emit({"k": "note", "text": "Could not apply the edits: " + "; ".join(problems[:4])})
+            return Result(Outcome.UNAVAILABLE, text=text,
+                          detail="Edits did not apply: " + "; ".join(problems[:4]))
+        for path in changed:
+            await emit({"k": "tool", "name": "Edit", "target": path})
+        return Result(Outcome.OK, text=text, tools_used=["Context", "Edit"])
+
+    def _failed(self, ans) -> Result:
         outcome = _map_failure(ans.failure)
         if outcome == Outcome.LIMITED:
             limits.mark("browser", self.unit_id, None, "rate_limited")
