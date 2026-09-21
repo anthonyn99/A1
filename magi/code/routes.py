@@ -55,6 +55,14 @@ async def code_state() -> dict[str, Any]:
     """
     eng = ident.engine_identity()
     projects = await _db().code_projects(eng.get("id", ""))
+    # Whether Write mode can be offered for each project here, and if not, the
+    # sentence that says why -- so the console greys the switch out with a
+    # reason rather than letting a task start and be refused.
+    loop = _asyncio.get_running_loop()
+    for p in projects:
+        here = next((b for b in p.get("bindings") or [] if b.get("here")), None)
+        p["write"] = (await loop.run_in_executor(None, _write_status, here["root"])
+                      if here else {"ok": False, "why": "No folder on this machine."})
     return {
         "ok": True,
         "profile": active_profile(),
@@ -62,6 +70,23 @@ async def code_state() -> dict[str, Any]:
         "projects": projects,
         "defaults": W.DEFAULT_PREFS,
     }
+
+
+def _write_status(root: str) -> dict[str, Any]:
+    from pathlib import Path
+    from . import sandbox as SB
+    r = Path(root)
+    if not r.is_dir():
+        return {"ok": False, "why": "The folder is not there any more."}
+    try:
+        SB.repo_of(r)
+    except SB.SandboxError:
+        return {"ok": False, "why": "Edits need a git repository (run git init there), "
+                "so every change is a diff you can read and undo."}
+    if SB.is_engine_repo(r):
+        return {"ok": False, "why": "MAGI's own repository stays read-only until the "
+                "hardening phase."}
+    return {"ok": True, "why": ""}
 
 
 @router.get("/browse")

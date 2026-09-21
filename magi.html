@@ -3569,6 +3569,82 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 .code-st-bad { color: var(--amber); font-weight: 600; }
 .code-st-detail { color: var(--txm); flex-basis: 100%; }
 
+/* Read / Write: a two-way switch, not a checkbox -- which one is on has to be
+   readable at a glance before you press Run, because it decides whether the
+   agents are allowed to propose edits at all. */
+.code-rw { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.code-rw-sw {
+  display: inline-flex; border: 1px solid var(--bd); border-radius: 999px;
+  background: var(--s1); padding: 2px;
+}
+.code-rw-b {
+  font: inherit; font-size: 11.5px; font-weight: 700; letter-spacing: .3px;
+  background: none; border: 0; border-radius: 999px; padding: 6px 16px; min-height: 32px;
+  color: var(--txm); cursor: pointer;
+}
+.code-rw-b.on { background: var(--s2); color: var(--tx); }
+.code-rw-b.on.is-write { background: color-mix(in srgb, var(--amber) 22%, transparent); color: var(--amber); }
+.code-rw-b:disabled { opacity: .45; cursor: not-allowed; }
+.code-rw-note { color: var(--txm); font-size: 10.5px; text-align: center; max-width: 520px; line-height: 1.5; }
+
+/* The approval card. The diff IS the card: file list with counts, each file
+   opens to its lines, and the two buttons stay reachable under the thumb. */
+.code-appr { border-bottom: 1px solid var(--bd); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.code-appr.is-open { background: color-mix(in srgb, var(--amber) 5%, transparent); }
+.code-appr-hd { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
+.code-appr-t { font-weight: 700; font-size: 12.5px; color: var(--tx); }
+.code-appr-n { font-family: var(--font-mono); font-size: 11px; }
+.code-add { color: var(--grn); }
+.code-del { color: var(--red); }
+.code-appr-cd { margin-left: auto; color: var(--amber); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.code-files { display: flex; flex-direction: column; gap: 4px; }
+.code-file { border: 1px solid var(--bd); border-radius: var(--r-btn); background: var(--bg); min-width: 0; }
+.code-file > summary {
+  list-style: none; cursor: pointer; display: flex; gap: 8px; align-items: center;
+  padding: 8px 10px; min-height: 36px; font-size: 11.5px; min-width: 0;
+}
+.code-file > summary::-webkit-details-marker { display: none; }
+.code-file > summary::before { content: "▸"; color: var(--txm); flex: 0 0 auto; }
+.code-file[open] > summary::before { content: "▾"; }
+.code-file-st {
+  flex: 0 0 auto; font-size: 9px; font-weight: 700; letter-spacing: .7px; text-transform: uppercase;
+  border-radius: 999px; padding: 1px 6px; border: 1px solid currentColor; color: var(--txd);
+}
+.code-file-st.is-added { color: var(--grn); }
+.code-file-st.is-deleted { color: var(--red); }
+.code-file-path {
+  font-family: var(--font-mono); font-size: 11px; color: var(--tx); min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto;
+}
+.code-file-n { flex: 0 0 auto; font-family: var(--font-mono); font-size: 10.5px; }
+.code-diff {
+  margin: 0; border-top: 1px solid var(--bd); max-height: 50vh; overflow: auto;
+  font-family: var(--font-mono); font-size: 11px; line-height: 1.55; padding: 6px 0;
+}
+.code-diff > div { padding: 0 10px; white-space: pre; min-width: max-content; }
+.code-diff .l-add { background: color-mix(in srgb, var(--grn) 13%, transparent); color: var(--tx); }
+.code-diff .l-del { background: color-mix(in srgb, var(--red) 13%, transparent); color: var(--tx); }
+.code-diff .l-hunk { color: var(--acl); padding-top: 4px; }
+.code-diff .l-more { color: var(--txm); font-style: italic; white-space: normal; }
+.code-appr-acts { display: flex; gap: 8px; justify-content: flex-end; }
+.code-appr-acts button { min-height: 40px; padding: 0 18px; }
+.code-approve {
+  font: inherit; font-weight: 700; font-size: 12.5px; border-radius: var(--r-btn); cursor: pointer;
+  background: var(--grn); color: #0b1a10; border: 1px solid var(--grn);
+}
+.code-approve:disabled { opacity: .5; cursor: not-allowed; }
+.code-appr-out { font-size: 11.5px; font-weight: 600; }
+.code-appr-out.is-ok { color: var(--grn); }
+.code-appr-out.is-bad { color: var(--amber); }
+.code-refused { border-bottom: 1px solid var(--bd); padding: 12px 14px; color: var(--red); font-size: 12px; line-height: 1.6; }
+.code-refused ul { margin: 6px 0 0 18px; padding: 0; color: var(--txd); font-size: 11px; }
+.code-refused code { font-family: var(--font-mono); }
+@media (max-width: 760px) {
+  .code-appr, .code-refused { padding-left: 12px; padding-right: 12px; }
+  /* Under the thumb, full width, equal: neither answer is the small one. */
+  .code-appr-acts button { flex: 1 1 0; min-height: 46px; }
+}
+
 .code-proj {
   display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: left;
   background: var(--bg); border: 1px solid var(--bd); border-radius: var(--r-btn);
@@ -8796,7 +8872,8 @@ function updateEnabled() {
       : !codeChain().length ? "Tick at least one agent"
       : codeBusy() ? "A task is already running" : "";
     $("btnSend").disabled = !q || !!why;
-    $("btnSend").textContent = codeBusy() ? "Working…" : "Run";
+    // "Run edits" says, on the button you press, that this one may change files.
+    $("btnSend").textContent = codeBusy() ? "Working…" : CODE.rw === "write" ? "Run edits" : "Run";
     $("btnSend").title = why;
   } else {
     $("btnSend").disabled = busy || !q || S.selected.size === 0 || !up;
@@ -10262,6 +10339,10 @@ const CODE = {
   order: lsRead(CODE_ORDER_KEY, []),
   task: null,                              // {id, prompt, events, done, result, es}
   poll: 0, usageAt: 0,                     // the usage timer, and its last reading
+  // Read or Write, for the NEXT task only. Deliberately not remembered: every
+  // task starts in Read, and Write is a choice made for the one in front of
+  // you -- never a mode left on from yesterday.
+  rw: "read",
 };
 
 // The two CLI agents are not council units, so they have no entry in the
@@ -10548,17 +10629,44 @@ function renderCodeView() {
   bar.append(chips);
   col.append(bar);
 
+  if (proj && !codeBusy()) col.append(renderCodeRw(proj));
+
   if (CODE.task) col.append(renderCodeTask(CODE.task));
   else {
     const hint = el("div", "code-hint");
-    hint.textContent = proj
-      ? "Ask about this workspace. Agents can read and search it but cannot "
-        + "change anything yet — edits arrive with approvals in the next phase. "
-        + "If the first agent runs out of usage, the next ticked one carries on."
-      : "Pick a folder to work in. Nothing leaves this machine except what an "
-        + "agent reads to answer you.";
+    hint.textContent = !proj
+      ? "Pick a folder to work in. Nothing leaves this machine except what an "
+        + "agent reads to answer you."
+      : CODE.rw === "write"
+        ? "Agents edit a private copy of this folder. When they finish you see the "
+          + "diff, file by file, and nothing changes here unless you approve it."
+        : "Ask about this workspace. Agents can read and search it, not change it. "
+          + "If the first agent runs out of usage, the next ticked one carries on.";
     col.append(hint);
   }
+}
+
+/** Read / Write for the next task. Write is greyed out, with the reason,
+ *  where the engine will not allow it (A1, a folder that is not a repo). */
+function renderCodeRw(proj) {
+  const w = proj.write || { ok: true };
+  if (!w.ok && CODE.rw === "write") CODE.rw = "read";
+  const box = el("div", "code-rw");
+  const sw = el("div", "code-rw-sw");
+  sw.setAttribute("role", "radiogroup");
+  sw.setAttribute("aria-label", "What agents may do");
+  for (const [k, label] of [["read", "Read"], ["write", "Write"]]) {
+    const b = el("button", `code-rw-b ${CODE.rw === k ? "on" : ""} ${k === "write" ? "is-write" : ""}`, label);
+    b.type = "button";
+    b.setAttribute("role", "radio");
+    b.setAttribute("aria-checked", CODE.rw === k ? "true" : "false");
+    b.disabled = k === "write" && !w.ok;
+    b.onclick = () => { CODE.rw = k; renderCodeView(); updateEnabled(); };
+    sw.append(b);
+  }
+  box.append(sw);
+  if (!w.ok && w.why) box.append(el("div", "code-rw-note", w.why));
+  return box;
 }
 
 /* ── one task ──────────────────────────────────────────────────────────── */
@@ -10570,7 +10678,7 @@ async function codeRun() {
   if (!agents.length) return;
   let d;
   try {
-    d = await codePost("/tasks", { project_id: proj.id, prompt: q, agents });
+    d = await codePost("/tasks", { project_id: proj.id, prompt: q, agents, mode: CODE.rw });
   } catch (e) {
     CODE.err = `Could not start the task: ${e.message || e}`;
     renderCodeView();
@@ -10578,6 +10686,7 @@ async function codeRun() {
   }
   if (!d.ok) { CODE.err = d.message || "The engine refused the task."; renderCodeView(); return; }
   CODE.err = "";
+  CODE.rw = "read";          // Write was for that task; the next starts in Read
   $("composer").value = "";
   if (typeof autosize === "function") autosize();
   codeAttach(d.task.id, q);
@@ -10699,11 +10808,23 @@ function renderCodeTask(t) {
         `${ev.from_label} ${why}${back}` + (ev.to_label ? ` — handing over to ${ev.to_label}` : "")));
     } else if (ev.k === "error") {
       log.append(el("div", "code-ev is-err", ev.text));
+    } else if (ev.k === "denied") {
+      // The CLI refusing a tool call: containment working, shown so a quiet
+      // stretch in the transcript has its reason next to it.
+      log.append(el("div", "code-ev is-skip", `Refused ${ev.name}: ${ev.text}`));
+    } else if (ev.k === "nochange") {
+      log.append(el("div", "code-ev is-note", ev.text));
     } else if (ev.k === "text") {
       answer += (answer ? "\n\n" : "") + ev.text;
     }
   }
   if (log.childNodes.length) card.append(log);
+
+  // Write mode: what the agents want to change, and what became of it.
+  const refused = t.events.find((e) => e.k === "refused");
+  if (refused) card.append(renderCodeRefused(refused));
+  const appr = t.events.find((e) => e.k === "approval");
+  if (appr) card.append(renderCodeApproval(t, appr));
 
   if (answer) {
     const ans = el("div", "code-answer");
@@ -10715,7 +10836,9 @@ function renderCodeTask(t) {
   }
 
   const st = el("div", "code-task-st");
-  if (!t.done) st.append(spinnerEl(), el("span", null, t.halting ? "Stopping…" : "Working…"));
+  const waiting = !t.done && appr && !t.events.some((e) => e.k === "decision");
+  if (waiting) st.append(el("span", "code-st-bad", "Waiting for your approval — nothing has changed yet"));
+  else if (!t.done) st.append(spinnerEl(), el("span", null, t.halting ? "Stopping…" : "Working…"));
   else if (t.lost) st.append(el("span", "code-st-bad",
     "The connection to the engine dropped. A task does not survive an engine restart."));
   else {
@@ -10729,12 +10852,158 @@ function renderCodeTask(t) {
       unavailable: "No agent could take this",
     }[r.outcome] || String(r.outcome || "Finished");
     const endT = (t.events[t.events.length - 1] || {}).t;
-    st.append(el("span", r.outcome === "ok" ? "code-st-ok" : "code-st-bad",
-      txt + (endT ? ` · ${endT}s` : "")));
-    if (r.detail && r.outcome !== "ok") st.append(el("span", "code-st-detail", r.detail));
+    // In write mode "Done" is only half the story: the agent finished, and
+    // then the change was applied, or not, for one of several reasons.
+    const wr = CODE_WRITE_OUT[r.write];
+    const good = r.outcome === "ok" && (!wr || wr.ok);
+    st.append(el("span", good ? "code-st-ok" : "code-st-bad",
+      txt + (wr ? ` · ${wr.txt}` : "") + (endT ? ` · ${endT}s` : "")));
+    if (r.detail && (r.outcome !== "ok" || (wr && !wr.ok))) st.append(el("span", "code-st-detail", r.detail));
   }
   card.append(st);
   return card;
+}
+
+const CODE_WRITE_OUT = {
+  applied: { ok: true, txt: "applied to your folder" },
+  none: { ok: true, txt: "no changes" },
+  denied: { ok: false, txt: "denied — nothing changed" },
+  timeout: { ok: false, txt: "not approved in time — nothing changed" },
+  halted: { ok: false, txt: "halted — nothing changed" },
+  refused: { ok: false, txt: "refused — nothing changed" },
+  conflict: { ok: false, txt: "not applied (conflict)" },
+  discarded: { ok: false, txt: "edits discarded" },
+};
+
+function renderCodeRefused(ev) {
+  const box = el("div", "code-refused");
+  box.append(el("div", null, ev.text));
+  if ((ev.refused || []).length > 1) {
+    const ul = el("ul");
+    for (const r of ev.refused) {
+      const li = el("li");
+      li.append(el("code", null, r.path), document.createTextNode(` — ${r.why}`));
+      ul.append(li);
+    }
+    box.append(ul);
+  }
+  return box;
+}
+
+/** A unified diff for one file, lines tinted by what they do. The git header
+ *  lines are dropped: the path and the counts are already on the summary. */
+function codeDiffEl(f) {
+  const pre = el("div", "code-diff");
+  if (f.binary) { pre.append(el("div", "l-more", "Binary file — not shown.")); return pre; }
+  let inHunk = false;
+  for (const line of (f.diff || "").split("\n")) {
+    if (line.startsWith("@@")) inHunk = true;
+    if (!inHunk || line === "") continue;
+    const cls = line.startsWith("@@") ? "l-hunk"
+      : line[0] === "+" ? "l-add" : line[0] === "-" ? "l-del" : "";
+    pre.append(el("div", cls, line));
+  }
+  if (f.truncated) pre.append(el("div", "l-more",
+    "The rest of this file's diff is too long to show here — it is still part of what Approve applies."));
+  if (!pre.childNodes.length) pre.append(el("div", "l-more", "Mode change only."));
+  return pre;
+}
+
+function renderCodeApproval(t, ev) {
+  const dec = t.events.find((e) => e.k === "decision");
+  const applied = t.events.find((e) => e.k === "applied");
+  const conflict = t.events.find((e) => e.k === "conflict");
+  const open = !dec && !t.done;
+  const box = el("div", "code-appr" + (open ? " is-open" : ""));
+  const hd = el("div", "code-appr-hd");
+  const n = ev.files.length;
+  hd.append(el("span", "code-appr-t",
+    open ? `Approve ${n === 1 ? "this change" : `these ${n} changes`}?` : `${n} file${n === 1 ? "" : "s"} changed`));
+  const cnt = el("span", "code-appr-n");
+  cnt.append(el("span", "code-add", `+${ev.adds}`), document.createTextNode(" "),
+             el("span", "code-del", `−${ev.dels}`));
+  hd.append(cnt);
+  if (open) {
+    const cd = el("span", "code-appr-cd");
+    cd.dataset.expires = ev.expires_at;
+    cd.textContent = codeCountdown(ev.expires_at);
+    hd.append(cd);
+  }
+  box.append(hd);
+
+  // Which files are open survives a re-render (a usage refresh redraws the
+  // view once a minute, and snapping your diff shut mid-read is not OK).
+  t.openFiles = t.openFiles || new Set(n === 1 ? [ev.files[0].path] : []);
+  const list = el("div", "code-files");
+  for (const f of ev.files) {
+    const d = el("details", "code-file");
+    d.open = t.openFiles.has(f.path);
+    d.ontoggle = () => { d.open ? t.openFiles.add(f.path) : t.openFiles.delete(f.path); };
+    const s = el("summary");
+    s.append(el("span", `code-file-st is-${f.status}`, f.status),
+             el("span", "code-file-path", f.path));
+    const fn = el("span", "code-file-n");
+    fn.append(el("span", "code-add", `+${f.adds}`), document.createTextNode(" "),
+              el("span", "code-del", `−${f.dels}`));
+    s.append(fn);
+    s.title = f.path;
+    d.append(s, codeDiffEl(f));
+    list.append(d);
+  }
+  box.append(list);
+
+  if (open) {
+    const acts = el("div", "code-appr-acts");
+    const deny = el("button", "navitem danger", t.deciding === false ? "Denying…" : "Deny");
+    const ok = el("button", "code-approve", t.deciding === true ? "Applying…" : "Approve");
+    deny.type = ok.type = "button";
+    deny.disabled = ok.disabled = t.deciding != null;
+    deny.onclick = () => codeDecide(t, false);
+    ok.onclick = () => codeDecide(t, true);
+    acts.append(deny, ok);
+    box.append(acts);
+  } else if (applied) {
+    box.append(el("div", "code-appr-out is-ok",
+      `Applied to your folder${applied.how === "merged" ? " (merged with edits you made meanwhile)" : ""}. Nothing is staged or committed.`));
+  } else if (conflict) {
+    box.append(el("div", "code-appr-out is-bad", conflict.text));
+  } else if (dec) {
+    box.append(el("div", "code-appr-out is-bad", {
+      denied: "Denied. Your folder is unchanged.",
+      timeout: "Not approved within 5 minutes, so nothing was applied.",
+      halted: "Halted. Your folder is unchanged.",
+    }[dec.why] || "Not applied."));
+  }
+  return box;
+}
+
+function codeCountdown(expires) {
+  const s = Math.max(0, Math.round(expires - Date.now() / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")} left`;
+}
+
+/* One ticker for every countdown on screen. It rewrites the text of the
+   countdown elements only -- never the view -- so an open diff stays open. */
+setInterval(() => {
+  for (const n of document.querySelectorAll(".code-appr-cd[data-expires]")) {
+    n.textContent = codeCountdown(+n.dataset.expires);
+  }
+}, 1000);
+
+async function codeDecide(t, approve) {
+  if (t.deciding != null) return;
+  t.deciding = approve;
+  renderCodeView();
+  try {
+    const d = await codePost(`/tasks/${t.id}/approve`, { approve });
+    // "Already answered" means another device got there first; the stream
+    // brings the decision either way, so there is nothing to undo here.
+    if (!d.ok && d.error !== "not_waiting") throw new Error(d.message || "refused");
+  } catch (e) {
+    t.deciding = null;
+    CODE.err = `Could not send your answer: ${e.message || e}`;
+    renderCodeView();
+  }
 }
 
 /* ── choosing a workspace ──────────────────────────────────────────────── */
