@@ -418,3 +418,23 @@ def test_pull_uses_the_account_too(http_remote, stored_token):
     assert G.pull(o, None).ok is False                     # no account: refused by the server
     p = G.pull(o, auth)
     assert p.ok and p.commits == 1, p.text
+
+
+def test_can_push_asks_git_and_writes_nothing(http_remote, stored_token):
+    """The dry run: allowed with the right token, refused with a wrong one,
+    and in neither case does anything reach the remote."""
+    import keyring
+    o = http_remote["ours"]
+    before = _git(http_remote["bare"], "for-each-ref")
+    auth = G.Auth(login="octo", service=stored_token, host=http_remote["host"])
+    assert G.can_push(o, auth)["push"] is True
+    keyring.set_password(stored_token, "octo", "github_pat_WRONG0123456789abcdef")
+    r = G.can_push(o, auth)
+    assert r["push"] is False, r
+    assert _git(http_remote["bare"], "for-each-ref") == before
+    assert "magi-write-check" not in before
+
+
+def test_can_push_without_an_account_or_on_another_host_does_not_ask(remote, no_network):
+    assert G.can_push(remote["ours"], None)["push"] is None
+    assert G.can_push(remote["ours"], AUTH)["push"] is None       # a local path remote

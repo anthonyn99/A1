@@ -274,6 +274,12 @@ def test_add_verifies_then_stores_under_the_login_github_names(store):
     assert A.token("octo-cat") == TOKEN
 
 
+def test_adding_shows_the_hourly_limit_straight_away(store):
+    A.add(TOKEN, transport=_user_srv().transport)
+    assert A.list_accounts()[0]["rate"]["remaining"] == 4999
+    assert "verifying" not in C.RATE
+
+
 def test_a_rejected_token_is_never_stored(store):
     with pytest.raises(A.AccountError) as e:
         A.add(TOKEN, transport=_user_srv(status=401).transport)
@@ -339,7 +345,8 @@ def test_repos_lists_what_the_token_can_see_without_the_token(store):
          "permissions": {"push": False}},
     ], headers={"etag": '"r"', **_rate(4990)}))
     d = A.repos("octo-cat", transport=srv.transport)
-    assert [(r["full_name"], r["push"]) for r in d["repos"]] == [("octo/a", True), ("org/b", False)]
+    assert [(r["full_name"], r["role_push"]) for r in d["repos"]] == [("octo/a", True), ("org/b", False)]
+    assert all("push" not in r for r in d["repos"]), "the owner's role must not read as the token's permission"
     assert d["rate"]["remaining"] == 4990
     assert srv.seen[0].url.params["sort"] == "pushed"
     assert TOKEN not in json.dumps(d)
