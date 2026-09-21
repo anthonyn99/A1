@@ -571,8 +571,11 @@ class Auth:
     host: str = "github.com"
 
     def config(self) -> list[str]:
-        return ["-c", "credential.helper=", "-c", "credential.interactive=never",
-                "-c", "core.askPass="]
+        # Not `credential.interactive=never`: that also stops git asking
+        # GIT_ASKPASS, so the token is never requested at all (found in
+        # test_github_push). GIT_TERMINAL_PROMPT=0 already keeps git off
+        # the terminal.
+        return ["-c", "credential.helper=", "-c", "core.askPass="]
 
     def env(self) -> dict[str, str]:
         return {"GIT_ASKPASS": str(_askpass_script()), "MAGI_GH_SERVICE": self.service,
@@ -631,7 +634,7 @@ class Push:
 
 
 _AUTH_FAIL = re.compile(r"Authentication failed|Invalid username or (password|token)|"
-                        r"could not read (Username|Password)|terminal prompts disabled|"
+                        r"could not read (Username|Password)|unable to get password|terminal prompts disabled|"
                         r"Permission to .* denied|Write access to repository not granted|"
                         r"returned error: 40[13]", re.I)
 

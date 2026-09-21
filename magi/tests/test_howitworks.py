@@ -176,6 +176,42 @@ def test_the_code_mode_git_claims_still_hold():
     # The hooks-off override is set only when a caller asks for it (the
     # sandbox); commit() goes through _run, which never sets it.
     assert gsrc.count("core.hooksPath") == 1 and "if hooks_path is not None" in gsrc
-    assert not any("push" in a.lower() for a in dir(G)) and '"push"' not in gsrc
     assert hasattr(tasks, "commit")
+    # "Nothing is pushed until you press Push" -- the only push is git.push,
+    # called from the two push routes and tasks.push, never from a task run.
+    assert "Nothing is pushed until you press Push" in HOW
+    assert "G.push" not in src.split("async def push(")[0]
+
+
+def test_the_code_mode_push_claims_still_hold():
+    """Phase 10's paragraphs: a third press, as the chosen account, never
+    forced, nothing without an account, A1 never, tokens never shown."""
+    from magi.code import git as G
+    from magi.github import accounts as A, askpass
+    assert "Push is a third press" in HOW and "GitHub tokens stay on the engine PC" in HOW
+    gsrc = (REPO / "magi" / "code" / "git.py").read_text(encoding="utf-8")
+    routes = (REPO / "magi" / "code" / "routes.py").read_text(encoding="utf-8")
+    # "never forced": the refspec is spelled out with no '+', and no force flag exists.
+    assert 'f"refs/heads/{st.branch}:refs/heads/{rbranch}"' in gsrc
+    assert "--force" not in gsrc and '"-f"' not in gsrc
+    # "refused ... if GitHub has commits you do not".
+    assert '"behind"' in gsrc
+    # "With no account chosen, an HTTPS remote is not pushed at all".
+    assert '"no_account"' in gsrc
+    # "not as whatever login this PC remembers": helpers cleared first.
+    assert G.Auth("x", "s").config()[:2] == ["-c", "credential.helper="]
+    # "only for github.com": the askpass refuses any other host.
+    env = {"MAGI_GH_SERVICE": "s", "MAGI_GH_LOGIN": "x", "MAGI_GH_HOST": "github.com"}
+    assert askpass.answer("Username for 'https://evil.example': ", env) is None
+    # "A1 is never pushed from here".
+    push_route = routes.split("async def push_project(")[1]
+    assert "is_engine_repo" in push_route and "read_only_project" in push_route
+    # "never shows it again": the public record has no token field.
+    # (behaviourally: test_github_client greps every response for a sentinel)
+    import inspect
+    assert '"token"' not in inspect.getsource(A.list_accounts)
+    assert "token(" not in inspect.getsource(A.list_accounts)
+    # The HOW panel names the places the console actually has.
+    assert "Accounts &rsaquo; GitHub" in HOW and "function renderGhAccounts()" in PAGE
+    assert "Push &uarr;n" in HOW and "`Push ↑${n}`" in PAGE
 

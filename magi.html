@@ -3528,6 +3528,46 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 .code-git-dirty { color: var(--amber); }
 .code-git-bad { color: var(--red); font-weight: 600; }
 .code-git-dim { color: var(--txm); overflow-wrap: anywhere; }
+/* Push lives on the line it acts on: ↑n is what it sends. */
+.code-git-act {
+  font: inherit; font-size: 11px; font-weight: 700; cursor: pointer;
+  padding: 2px 9px; border-radius: 999px; border: 1px solid var(--bd);
+  background: none; color: var(--txd);
+}
+.code-git-act.is-push { color: var(--acl); border-color: color-mix(in srgb, var(--ac) 45%, transparent); }
+.code-git-act:hover:not(:disabled) { border-color: var(--ac); color: var(--tx); }
+.code-git-act:disabled { opacity: .45; cursor: default; }
+.code-pill.is-btn { cursor: pointer; }
+.code-pill.is-btn:hover, .code-pill.is-btn:focus-visible { border-color: var(--ac); outline: none; }
+.code-push { display: flex; flex-direction: column; gap: 8px; }
+.code-push .code-appr-acts .navitem { border: 1px solid var(--bd); justify-content: center; font-weight: 600; }
+.code-gh-sheet { display: flex; flex-direction: column; gap: 8px; }
+.code-gh-sheet > .navitem { align-self: flex-start; border: 1px solid var(--bd); }
+.code-gh-pick { display: flex; flex-direction: column; gap: 6px; }
+.code-gh-opt {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left;
+  font: inherit; padding: 9px 12px; border-radius: var(--r-btn); cursor: pointer;
+  background: var(--bg); border: 1px solid var(--bd); color: var(--tx);
+}
+.code-gh-opt.on { border-color: var(--ac); box-shadow: inset 3px 0 0 var(--ac); }
+.code-gh-opt-l { font-weight: 700; font-size: 12.5px; }
+.code-gh-opt-s { color: var(--txm); font-size: 11px; }
+.code-gh-list { display: flex; flex-direction: column; max-height: 50vh; overflow-y: auto; }
+.code-gh-repo {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: space-between;
+  padding: 7px 0; border-top: 1px solid var(--bd); font-size: 12px;
+}
+.code-gh-repo-n { font-family: var(--font-mono); overflow-wrap: anywhere; min-width: 0; }
+.code-gh-repo-t { display: flex; gap: 5px; }
+.acc-slot-name.is-static { border: 0; padding: 3px 0; margin-left: 0; }
+.code-gh-token { font-family: var(--font-mono); }
+.sheet-sub a { color: var(--acl); }
+@media (max-width: 760px) {
+  .code-git-act { min-height: 32px; padding: 4px 12px; }
+  .code-gh-opt { min-height: 46px; }
+  .code-push .code-appr-acts { flex-wrap: wrap; }
+  .code-push .code-appr-acts > * { flex: 1 1 auto; min-height: 44px; }
+}
 
 /* Label above, chips below: the row is a list, and a label beside it moved
    the start of that list on every screen width. */
@@ -6098,7 +6138,9 @@ const HOW = [
       "<b>Read or Write, per task.</b> Every task starts in <b>Read</b>: agents can read and search the folder and change nothing. Switch to <b>Write</b> (the button then says <b>Run edits</b>) and the agents work on a <i>private copy</i> of the folder instead &mdash; your uncommitted edits included. When they finish you get the <b>diff</b>, file by file, with <b>Approve</b> and <b>Deny</b>. Nothing touches your folder unless you press Approve; no answer within __APPROVE_MIN__ minutes counts as No, and so does Halt. Any screen watching the task can answer.",
       "<b>Some changes are never offered.</b> A diff that reaches into <code>.git</code>, a key or env file, a credentials folder or an agent&rsquo;s own settings folder, or that leaves the folder through <code>..</code> or a link, is refused before you are asked. Write needs a git repository, and <b>A1 itself stays read-only</b> for now &mdash; the switch says so. Approved edits are applied but not committed until you say so.",
       "<b>Every task starts by pulling.</b> Before any agent reads the folder, MAGI brings it up to date with its remote branch and says so as the first line of the transcript &mdash; an answer about stale code is a wrong answer. Your uncommitted edits are kept. If the pull clashes with your own commits it is undone, your folder is left as it was, and the task stops before any agent starts. A1 itself is only fetched, never pulled, because other sessions are working in it. The line under <b>Workspace</b> shows the branch, how far it is ahead of and behind its remote as of the last fetch, and how much is uncommitted.",
-      "<b>Commit is a second press.</b> Once a change is applied, the card offers <b>Commit these files</b>: exactly the files that were applied, nothing else you had changed or staged, with a message drafted from what you asked and what the agent said it did. Edit it, press Commit, and your repository&rsquo;s own hooks run as they would for you. Nothing is pushed from here. MAGI does all of this itself &mdash; agents never get git, a shell or a credential.",
+      "<b>Commit is a second press.</b> Once a change is applied, the card offers <b>Commit these files</b>: exactly the files that were applied, nothing else you had changed or staged, with a message drafted from what you asked and what the agent said it did. Edit it, press Commit, and your repository&rsquo;s own hooks run as they would for you. Nothing is pushed until you press Push. MAGI does all of this itself &mdash; agents never get git, a shell or a credential.",
+      "<b>Push is a third press.</b> After a commit the card offers <b>Push</b>, and whenever the branch is ahead the line under <b>Workspace</b> offers <b>Push &uarr;n</b>. It goes out as the <b>GitHub account</b> you chose for the project (tap the <b>Repository</b> pill), is <b>never forced</b>, and is refused with a reason if GitHub has commits you do not &mdash; the next task&rsquo;s pull brings them in. With no account chosen, an HTTPS remote is not pushed at all rather than going out as whatever login this PC remembers. A1 is never pushed from here.",
+      "<b>GitHub tokens stay on the engine PC.</b> Add one in <b>Accounts &rsaquo; GitHub</b>: MAGI checks it with GitHub, keeps it in the PC&rsquo;s credential store, and never shows it again &mdash; not on any screen, not in Firestore, not to an agent. Git is handed it only at the moment it asks, and only for github.com, so it never lands in the repository&rsquo;s config. A fine-grained token that lists just the repositories you want, with Contents: Read and write, is enough to push.",
       "<b>The percentages on the chips are current.</b> Each account&rsquo;s usage is asked of Claude and OpenAI directly, the same way their own tools do, and a window whose reset time has passed shows 0% rather than the number from before it reset.",
       "Nothing about a task is written to the cloud: it streams to whichever screen is watching, and a reload picks the same task back up while the engine is still running it.",
     ],
@@ -9981,6 +10023,7 @@ function renderAccounts() {
   box.append(topbar);
 
   if (typeof renderCodeAccounts === "function") box.append(renderCodeAccounts());
+  if (typeof renderGhAccounts === "function") box.append(renderGhAccounts());
   box.append(el("div", "acc-sec", "Browser units"));
 
   for (const a of ACC.rows) {
@@ -10347,8 +10390,10 @@ function renderCodeStrip() {
   strip.append(proj
     ? codePill("Workspace", proj.name, codeRoot(proj) ? "ok" : "warn")
     : codePill("Workspace", "none", "muted"));
-  // GitHub arrives in a later phase. Named now, and honestly empty.
-  strip.append(codePill("Repository", "none", "muted"));
+  // Which GitHub repository the folder answers to, parsed from its remote,
+  // and whether an account is chosen to push it as. Tapping it is how you
+  // choose one.
+  strip.append(codeRepoPill(proj));
   // Read-only is a fact about what Run will do, so it is on the strip and
   // not buried in a help text: nothing an agent does here can change a file.
   strip.append(CODE.rw === "write"
@@ -10393,6 +10438,11 @@ const CODE = {
   // The repository line under the workspace: {pid, data, err, code, loading,
   // stale}. Fetched on demand, never on a timer -- see codeGitEnsure.
   git: null,
+  // GitHub accounts MAGI holds a token for: {accounts, err}. Public records
+  // only -- the engine never sends a token back.
+  gh: null,
+  // The last push from the repository line: {pid, busy, ok, text}.
+  push: null,
 };
 
 // The two CLI agents are not council units, so they have no entry in the
@@ -10419,7 +10469,7 @@ async function codeLoad(force) {
   CODE.loading = true;
   CODE.err = "";
   try {
-    const [st, ag] = await Promise.all([codeGet("/state"), codeGet("/agents")]);
+    const [st, ag] = await Promise.all([codeGet("/state"), codeGet("/agents"), codeGhLoad()]);
     CODE.state = st;
     CODE.agents = ag;
     CODE.from = link.api;
@@ -10775,7 +10825,69 @@ function renderCodeGit(proj) {
   if ((d.conflicts || []).length) row.append(el("span", "code-git-bad", `${d.conflicts.length} conflicted`));
   if (d.upstream) row.append(el("span", "code-git-dim",
     d.fetched_at ? `fetched ${engAgo(d.fetched_at * 1000)}` : "never fetched"));
+  codeGitPushBits(proj, d, row);
   return row;
+}
+
+/* ── pushing from the repository line ─────────────────────────────────────
+   ↑n is the push target: when the branch is ahead, the line offers Push.
+   Never for A1 (the engine refuses it too), never forced, and an HTTPS
+   remote goes out as the GitHub account the project names -- with none
+   chosen, the button is "Choose account" instead, because MAGI will not
+   push as whatever login the PC happens to remember. */
+const codeGhRemote = (d) => d && d.github && d.github.owner && (d.github.scheme === "https" || d.github.scheme === "http");
+
+function codeGitPushBits(proj, d, row) {
+  const acct = (proj.prefs || {}).github || "";
+  const canWrite = !!(proj.write && proj.write.ok);
+  const needsAcct = codeGhRemote(d);
+  const p = CODE.push && CODE.push.pid === proj.id ? CODE.push : null;
+  // Ahead of its upstream, or a branch with a remote but no upstream yet
+  // (the first push sets it).
+  const pushable = !d.detached && d.head
+    && (d.upstream ? d.ahead > 0 : (d.remotes || []).length > 0);
+  if (canWrite && pushable) {
+    if (needsAcct && !acct) {
+      const b = el("button", "code-git-act", "Choose account to push");
+      b.type = "button";
+      b.onclick = () => codeRepoSheet(proj);
+      row.append(b);
+    } else {
+      const n = d.ahead || 0;
+      const b = el("button", "code-git-act is-push",
+        p && p.busy ? "Pushing…" : (n ? `Push ↑${n}` : "Push branch"));
+      b.type = "button";
+      b.disabled = !!(p && p.busy) || codeBusy() || (d.behind > 0) || !!d.state;
+      b.title = d.behind > 0 ? "Pull first: the remote has commits you do not"
+        : `Push ${d.branch} to ${d.github && d.github.owner ? d.github.owner + "/" + d.github.repo : "its remote"}`
+          + (acct && needsAcct ? ` as ${acct}` : "");
+      b.onclick = () => codePushProject(proj);
+      row.append(b);
+    }
+  }
+  if (needsAcct && acct) row.append(el("span", "code-git-dim", `as ${acct}`));
+  // A result belongs to the moment after the press: an old "Pushed 1
+  // commit" next to a new ↑1 reads as a contradiction. A refusal stays
+  // longer, since it says what to do.
+  if (p && !p.busy && p.text && Date.now() - p.at < (p.ok ? 60000 : 300000)) {
+    row.append(el("span", p.ok ? "code-git-on" : "code-git-bad", p.text));
+  }
+}
+
+async function codePushProject(proj) {
+  if (CODE.push && CODE.push.busy) return;
+  CODE.push = { pid: proj.id, busy: true, ok: false, text: "" };
+  renderCodeView();
+  let next;
+  try {
+    const d = await codePost(`/projects/${encodeURIComponent(proj.id)}/push`, {});
+    next = { ok: !!d.ok, text: d.ok ? (d.push || {}).text : (d.message || "The push was refused.") };
+  } catch (e) {
+    next = { ok: false, text: `Could not reach the engine: ${e.message || e}` };
+  }
+  CODE.push = { pid: proj.id, busy: false, at: Date.now(), ...next };
+  codeGitLoad(proj.id);
+  renderCodeView();
 }
 
 /** Read / Write for the next task. Write is greyed out, with the reason,
@@ -10836,6 +10948,7 @@ function codeAttach(id, prompt) {
     const ev = JSON.parse(m.data);
     if (ev.k === "start" && ev.prompt) t.prompt = ev.prompt;
     if (ev.k === "committed") t.committed = ev;
+    if (ev.k === "pushed") t.pushed = ev;
     // A usage frame updates the chips as the work happens rather than
     // waiting for the task to finish to admit what it spent.
     if (ev.k === "usage") codeApplyUsageEvent(ev);
@@ -11001,8 +11114,10 @@ function renderCodeTask(t) {
     const wr = CODE_WRITE_OUT[r.write];
     const good = r.outcome === "ok" && (!wr || wr.ok);
     const cm = t.committed || r.commit;
+    const pu = t.pushed || r.push;
     st.append(el("span", good ? "code-st-ok" : "code-st-bad",
       txt + (wr ? ` · ${wr.txt}` : "") + (cm ? ` · committed ${cm.short}` : "")
+      + (pu ? " · pushed" : "")
       + (endT ? ` · ${endT}s` : "")));
     if (r.detail && (r.outcome !== "ok" || (wr && !wr.ok))) st.append(el("span", "code-st-detail", r.detail));
   }
@@ -11135,10 +11250,13 @@ function renderCodeApproval(t, ev) {
 function renderCodeCommit(t, applied, done) {
   const box = el("div", "code-commit");
   if (done) {
+    const pushed = t.pushed || (t.result && t.result.push);
     const line = el("div", "code-appr-out is-ok");
     line.append(document.createTextNode("Committed "), el("code", null, done.short),
-                document.createTextNode(` — ${done.subject}. Not pushed.`));
+                document.createTextNode(` — ${done.subject}${/[.…!?]$/.test(done.subject) ? "" : "."}`
+                                        + (pushed ? "" : " Not pushed.")));
     box.append(line);
+    box.append(renderCodePush(t, pushed));
     return box;
   }
   if (!t.commitOpen) {
@@ -11203,6 +11321,66 @@ async function codeCommit(t) {
     t.commitErr = `Could not reach the engine: ${e.message || e}`;
   }
   t.committing = false;
+  renderCodeView();
+}
+
+/* ── pushing what was committed ─────────────────────────────────────────
+   The third deliberate press: apply, commit, push are three decisions. It
+   goes out as the project's GitHub account, is never forced, and a remote
+   that moved on is a refusal that says to pull -- the next task's pull does
+   exactly that. */
+function renderCodePush(t, pushed) {
+  const box = el("div", "code-push");
+  if (pushed) {
+    box.append(el("div", "code-appr-out is-ok", pushed.text || "Pushed."));
+    return box;
+  }
+  const proj = ((CODE.state && CODE.state.projects) || []).find((p) => p.id === t.projectId);
+  const g = CODE.git && proj && CODE.git.pid === proj.id ? CODE.git.data : null;
+  const acct = proj ? (proj.prefs || {}).github || "" : "";
+  const target = g && g.github && g.github.owner ? `${g.github.owner}/${g.github.repo}`
+    : (g && g.github && g.github.remote) || "its remote";
+  const needsAcct = codeGhRemote(g);
+  if (needsAcct && !acct) {
+    box.append(el("div", "code-commit-note",
+      `Pushing to ${target} needs a GitHub account for this project. MAGI does not push as `
+      + "whatever login this PC happens to remember."));
+  } else {
+    box.append(el("div", "code-commit-note",
+      `Push ${g && g.branch ? g.branch : "this branch"} to ${target}`
+      + (needsAcct ? ` as ${acct}` : "") + ". Never forced."));
+  }
+  if (t.pushErr) box.append(el("div", "code-appr-out is-bad", t.pushErr));
+  const acts = el("div", "code-appr-acts");
+  if (proj && (needsAcct || acct)) {
+    const ch = el("button", "navitem", acct ? "Change account" : "Choose account");
+    ch.type = "button";
+    ch.onclick = () => codeRepoSheet(proj);
+    acts.append(ch);
+  }
+  const go = el("button", "code-approve", t.pushing ? "Pushing…" : "Push");
+  go.type = "button";
+  go.disabled = !!t.pushing || (needsAcct && !acct);
+  go.onclick = () => codePushTask(t);
+  acts.append(go);
+  box.append(acts);
+  return box;
+}
+
+async function codePushTask(t) {
+  if (t.pushing) return;
+  t.pushing = true;
+  t.pushErr = "";
+  renderCodeView();
+  try {
+    const d = await codePost(`/tasks/${t.id}/push`, {});
+    if (d.ok || d.error === "already") t.pushed = d.push;
+    else t.pushErr = d.message || "The push was refused.";
+  } catch (e) {
+    t.pushErr = `Could not reach the engine: ${e.message || e}`;
+  }
+  t.pushing = false;
+  if (t.projectId) codeGitLoad(t.projectId);
   renderCodeView();
 }
 
@@ -11567,6 +11745,292 @@ function renderCodeAccounts() {
     wrap.append(card);
   }
   return wrap;
+}
+
+/* ── GitHub accounts ──────────────────────────────────────────────────────
+   A token goes in once, from any screen, and is never shown again: the
+   engine verifies it with GitHub, keeps it in the PC's credential store
+   (Windows Credential Manager), and every answer after that is the public
+   half -- login, kind, expiry, how much of the hourly limit is left. Git
+   gets it only at the moment it asks, through MAGI's askpass helper. */
+async function codeGhLoad() {
+  try {
+    const d = await codeGet("/github/accounts");
+    CODE.gh = d.ok ? { accounts: d.accounts || [], err: "" }
+                   : { accounts: [], err: d.message || "" };
+  } catch (e) {
+    CODE.gh = { accounts: [], err: `Could not read GitHub accounts: ${e.message || e}` };
+  }
+  return CODE.gh;
+}
+
+function codeRepoPill(proj) {
+  const g = CODE.git && proj && CODE.git.pid === proj.id ? CODE.git.data : null;
+  const gh = g && g.github;
+  const acct = proj ? (proj.prefs || {}).github || "" : "";
+  let pill;
+  if (gh && gh.owner) {
+    pill = codePill("Repository", `${gh.owner}/${gh.repo}`, acct || !codeGhRemote(g) ? "ok" : "warn");
+    pill.title = acct ? `${gh.url} · pushes as ${acct}` : `${gh.url} · no GitHub account chosen yet`;
+  } else {
+    pill = codePill("Repository", !proj ? "none" : !g ? "…" : (g.remotes || []).length ? "not on GitHub" : "no remote", "muted");
+  }
+  if (proj && g) {
+    pill.classList.add("is-btn");
+    pill.setAttribute("role", "button");
+    pill.tabIndex = 0;
+    pill.onclick = () => codeRepoSheet(proj);
+    pill.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pill.click(); } };
+  }
+  return pill;
+}
+
+/** Which GitHub account a project pushes and pulls as -- and whether that
+ *  account can actually see and push the repository its folder points at. */
+async function codeRepoSheet(proj) {
+  const sheet = el("div", "sheet");
+  const box = el("div", "sheet-box");
+  const close = () => sheet.remove();
+  box.append(el("div", "sheet-hd", `GitHub · ${proj.name}`));
+  const body = el("div", "code-gh-sheet");
+  box.append(body);
+  const bar = el("div", "sheet-bar");
+  const save = el("button", "btn active", "Save");
+  const no = el("button", "btn", "Close");
+  bar.append(save, el("span", "qbar-spacer"), no);
+  box.append(bar);
+  no.onclick = close;
+  dismissOnBackdrop(sheet, close);
+  sheet.append(box);
+  document.body.append(sheet);
+
+  let pick = (proj.prefs || {}).github || "";
+  let info = null;
+  const draw = () => {
+    body.textContent = "";
+    const accts = (CODE.gh && CODE.gh.accounts) || [];
+    const r = info && info.remote;
+    body.append(el("div", "sheet-sub", r && r.owner
+      ? `This folder's remote (${r.remote}) is ${r.owner}/${r.repo} on ${r.host}.`
+      : info && !info.ok ? info.message || "Could not read the repository."
+      : info ? "This folder's remote is not a GitHub repository; pushes use this PC's own git access."
+      : "Reading the repository…"));
+    body.append(el("label", "sheet-lbl", "Push and pull as"));
+    const list = el("div", "code-gh-pick");
+    list.setAttribute("role", "radiogroup");
+    const opt = (login, label, sub) => {
+      const b = el("button", `code-gh-opt ${pick === login ? "on" : ""}`);
+      b.type = "button";
+      b.setAttribute("role", "radio");
+      b.setAttribute("aria-checked", String(pick === login));
+      b.append(el("span", "code-gh-opt-l", label));
+      if (sub) b.append(el("span", "code-gh-opt-s", sub));
+      b.onclick = () => { pick = login; draw(); };
+      list.append(b);
+    };
+    for (const a of accts) opt(a.login, a.login, [a.name, a.kind].filter(Boolean).join(" · "));
+    opt("", "No account", "Local git only — nothing is pushed to GitHub");
+    body.append(list);
+    if (!accts.length) {
+      const add = el("button", "navitem", "Add a GitHub account…");
+      add.type = "button";
+      add.onclick = () => codeGhAddSheet(async () => { await codeGhLoad(); draw(); });
+      body.append(add);
+    }
+    const acc = info && info.account === pick ? info.access : null;
+    if (pick && acc) {
+      body.append(acc.error
+        ? el("div", "sheet-err", acc.message)
+        : el("div", acc.push ? "sheet-ok" : "sheet-err", acc.push
+          ? `${pick} can push to ${acc.full_name}${acc.private ? " (private)" : ""}.`
+          : `${pick} can see ${acc.full_name} but not push to it. A fine-grained token needs Contents: Read and write.`));
+    }
+    save.disabled = pick === ((proj.prefs || {}).github || "");
+  };
+  const refresh = async () => {
+    try { info = await codeGet(`/projects/${encodeURIComponent(proj.id)}/github`); }
+    catch (e) { info = { ok: false, message: `Could not reach the engine: ${e.message || e}` }; }
+    if (sheet.isConnected) draw();
+  };
+  save.onclick = async () => {
+    save.disabled = true;
+    try {
+      const d = await codePost(`/projects/${encodeURIComponent(proj.id)}/github`, { account: pick });
+      if (!d.ok) throw new Error(d.message || "the engine refused it");
+      proj.prefs = { ...(proj.prefs || {}), github: pick };
+      await refresh();
+      codeLoad(true);
+    } catch (e) {
+      body.append(el("div", "sheet-err", String(e.message || e)));
+    }
+  };
+  draw();
+  if (!CODE.gh) await codeGhLoad();
+  await refresh();
+}
+
+function renderGhAccounts() {
+  const wrap = el("div", "acc-code");
+  wrap.append(el("div", "acc-sec", "GitHub"));
+  const card = el("div", "acc-card");
+  card.style.setProperty("--pa", "#8b949e");
+  const hd = el("div", "acc-hd");
+  const names = el("div", "acc-names");
+  names.append(el("div", "acc-name", "GitHub accounts"));
+  names.append(el("div", "acc-desc",
+    "Tokens for pushing and reading repositories. Kept in this PC's credential store — "
+    + "never shown again, never synced, never given to an agent."));
+  hd.append(names);
+  const gh = CODE.gh;
+  const flags = el("div", "acc-flags");
+  const n = gh ? gh.accounts.length : 0;
+  flags.append(el("span", `doc-flag ${n ? "ok" : "miss"}`, n ? `${n} connected` : "None"));
+  hd.append(flags);
+  card.append(hd);
+  if (!gh) {
+    const w = el("div", "doctor-running");
+    w.append(spinnerEl(), el("span", null, "Reading GitHub accounts…"));
+    card.append(w);
+  } else if (gh.err) {
+    card.append(el("div", "acc-detail", gh.err));
+  }
+  for (const a of (gh && gh.accounts) || []) {
+    const row = el("div", "acc-slot");
+    const who = el("div", "acc-slot-who");
+    who.append(el("span", "acc-slot-name is-static", a.login));
+    const bits = [a.name, a.kind === "fine-grained" ? "fine-grained token" : a.kind === "classic" ? "classic token" : a.kind];
+    if ((a.scopes || []).length) bits.push(a.scopes.join(", "));
+    who.append(el("span", "acc-slot-acct", bits.filter(Boolean).join(" · ")));
+    const more = [];
+    if (a.expires) more.push(`expires ${String(a.expires).slice(0, 10)}`);
+    if (a.rate && a.rate.limit) more.push(`${a.rate.remaining}/${a.rate.limit} requests left this hour`);
+    if (more.length) who.append(el("span", "acc-slot-use", more.join(" · ")));
+    if (!a.stored) who.append(el("span", "acc-slot-lim", "Token missing from the credential store — add it again"));
+    row.append(who);
+    const acts = el("div", "acc-slot-acts");
+    const rp = el("button", "navitem", "Repositories");
+    rp.onclick = () => codeGhReposSheet(a.login);
+    const rm = el("button", "navitem danger", "Remove");
+    rm.onclick = async () => {
+      const ok = await uiConfirmMagi(`Remove GitHub account ${a.login}?`,
+        "MAGI deletes the token from this PC's credential store. The token itself still "
+        + "works on GitHub until you revoke it there.", "Remove");
+      if (!ok) return;
+      try { await codePost(`/github/accounts/${encodeURIComponent(a.login)}`, undefined, "DELETE"); } catch {}
+      await codeGhLoad();
+      renderAccounts();
+    };
+    acts.append(rp, rm);
+    row.append(acts);
+    card.append(row);
+  }
+  const bar = el("div", "acc-actions");
+  const add = el("button", "navitem", n ? "Add another token" : "Add a token");
+  add.onclick = () => codeGhAddSheet(async () => { await codeGhLoad(); renderAccounts(); });
+  bar.append(add);
+  card.append(bar);
+  wrap.append(card);
+  return wrap;
+}
+
+/** Paste a token. The field is drawn here (no native prompt), masked, and
+ *  emptied the moment it is sent; the reply carries only the login. */
+function codeGhAddSheet(done) {
+  const sheet = el("div", "sheet");
+  const box = el("div", "sheet-box");
+  const close = () => { inp.value = ""; sheet.remove(); };
+  box.append(el("div", "sheet-hd", "Add a GitHub token"));
+  const sub = el("div", "sheet-sub");
+  sub.append("Create a ");
+  const a = el("a", null, "fine-grained token");
+  a.href = "https://github.com/settings/personal-access-tokens/new";
+  a.target = "_blank";
+  a.rel = "noopener";
+  sub.append(a, " on GitHub: pick only the repositories MAGI should reach. Contents: Read-only "
+    + "lets it look; Read and write lets it push. MAGI checks it with GitHub before keeping it.");
+  box.append(sub);
+  box.append(el("label", "sheet-lbl", "Token"));
+  const inp = el("input", "sheet-in code-gh-token");
+  inp.type = "password";
+  inp.autocomplete = "off";
+  inp.spellcheck = false;
+  inp.setAttribute("autocapitalize", "off");
+  inp.setAttribute("aria-label", "GitHub token");
+  inp.placeholder = "github_pat_…";
+  const err = el("div", "sheet-err");
+  err.hidden = true;
+  const go = el("button", "btn active", "Verify and add");
+  const no = el("button", "btn", "Cancel");
+  go.onclick = async () => {
+    const token = inp.value.trim();
+    if (!token) return;
+    go.disabled = true;
+    go.textContent = "Checking with GitHub…";
+    err.hidden = true;
+    let d;
+    try { d = await codePost("/github/accounts", { token }); }
+    catch (e) { d = { ok: false, message: `Could not reach the engine: ${e.message || e}` }; }
+    inp.value = "";
+    if (d.ok) {
+      close();
+      if (done) await done(d.account);
+      return;
+    }
+    err.hidden = false;
+    err.textContent = d.message || "GitHub did not accept that token.";
+    go.disabled = false;
+    go.textContent = "Verify and add";
+    inp.focus();
+  };
+  inp.onkeydown = (e) => { e.stopPropagation(); if (e.key === "Enter") go.click(); };
+  no.onclick = close;
+  const bar = el("div", "sheet-bar");
+  bar.append(go, el("span", "qbar-spacer"), no);
+  box.append(inp, err, bar);
+  dismissOnBackdrop(sheet, close);
+  sheet.append(box);
+  document.body.append(sheet);
+  inp.focus();
+}
+
+async function codeGhReposSheet(login) {
+  const sheet = el("div", "sheet");
+  const box = el("div", "sheet-box");
+  const close = () => sheet.remove();
+  box.append(el("div", "sheet-hd", `Repositories · ${login}`));
+  const body = el("div", "code-gh-repos");
+  const w = el("div", "doctor-running");
+  w.append(spinnerEl(), el("span", null, "Asking GitHub…"));
+  body.append(w);
+  box.append(body);
+  const bar = el("div", "sheet-bar");
+  const no = el("button", "btn", "Close");
+  no.onclick = close;
+  bar.append(el("span", "qbar-spacer"), no);
+  box.append(bar);
+  dismissOnBackdrop(sheet, close);
+  sheet.append(box);
+  document.body.append(sheet);
+  let d;
+  try { d = await codeGet(`/github/accounts/${encodeURIComponent(login)}/repos`); }
+  catch (e) { d = { ok: false, message: `Could not reach the engine: ${e.message || e}` }; }
+  body.textContent = "";
+  if (!d.ok) { body.append(el("div", "sheet-err", d.message || "GitHub refused.")); return; }
+  const rows = d.repos || [];
+  body.append(el("div", "sheet-sub", rows.length
+    ? `${rows.length} this token can see${d.cached ? " — unchanged since the last look, so that cost none of the hourly limit" : ""}.`
+    : "This token cannot see any repositories. A fine-grained token only sees the ones you picked."));
+  const list = el("div", "code-gh-list");
+  for (const r of rows) {
+    const it = el("div", "code-gh-repo");
+    it.append(el("span", "code-gh-repo-n", r.full_name));
+    const tags = el("span", "code-gh-repo-t");
+    if (r.private) tags.append(el("span", "doc-flag", "private"));
+    tags.append(el("span", `doc-flag ${r.push ? "ok" : ""}`, r.push ? "can push" : "read only"));
+    it.append(tags);
+    list.append(it);
+  }
+  body.append(list);
 }
 
 function codeAddSlot(c) {

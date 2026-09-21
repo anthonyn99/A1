@@ -391,3 +391,48 @@ def test_askpass_says_nothing_to_anything_else(kr, prompt):
 def test_askpass_without_its_environment_says_nothing(kr):
     assert askpass.answer("Password for 'https://octo@github.com': ", {}) is None
     assert kr == []
+
+
+# ── the HTTP surface (handlers called directly, as in test_gate) ─────────
+
+def test_routes_take_the_token_in_and_never_give_it_back(store, monkeypatch):
+    import asyncio
+    from magi.code import routes as R
+    real_add = A.add
+    monkeypatch.setattr(A, "add", lambda tok: real_add(tok, transport=_user_srv().transport))
+    outs = [asyncio.run(R.gh_add_account({"token": TOKEN})),
+            asyncio.run(R.gh_accounts())]
+    assert outs[0]["ok"] and outs[0]["account"]["login"] == "octo-cat"
+    assert [a["login"] for a in outs[1]["accounts"]] == ["octo-cat"]
+    assert outs[1]["api_version"] == C.API_VERSION
+    monkeypatch.setattr(A, "repos", lambda login: {"repos": [], "cached": True, "rate": {}})
+    outs.append(asyncio.run(R.gh_repos("octo-cat")))
+    outs.append(asyncio.run(R.gh_remove_account("octo-cat")))
+    assert outs[-1] == {"ok": True, "removed": True}
+    assert TOKEN not in json.dumps(outs)
+    assert store.store == {}
+
+
+def test_a_bad_token_through_the_route_is_a_sentence(store, monkeypatch):
+    import asyncio
+    from magi.code import routes as R
+    real_add = A.add
+    monkeypatch.setattr(A, "add", lambda tok: real_add(tok, transport=_user_srv(status=401).transport))
+    d = asyncio.run(R.gh_add_account({"token": TOKEN}))
+    assert d == {"ok": False, "error": "bad_token", "message": d["message"]}
+    assert "expired" in d["message"] and TOKEN not in json.dumps(d)
+
+
+def test_magis_own_repository_is_never_pushed(monkeypatch, tmp_path):
+    import asyncio
+    from magi.code import routes as R
+    from magi.code import sandbox as SB
+
+    async def here(pid):
+        return {"name": "A1", "prefs": {"github": "octo"}}, tmp_path, None
+    monkeypatch.setattr(R, "_project_here", here)
+    monkeypatch.setattr(SB, "is_engine_repo", lambda root: True)
+    called = []
+    monkeypatch.setattr("magi.code.git.push", lambda *a: called.append(a))
+    d = asyncio.run(R.push_project("p", {}))
+    assert d["error"] == "read_only_project" and called == []

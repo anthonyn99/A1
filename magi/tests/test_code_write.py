@@ -460,3 +460,63 @@ def test_a_denied_change_cannot_be_committed(repo):
     r = asyncio.run(T.commit(t, "Sneak it in"))
     assert r["error"] == "not_applied"
     assert _git(repo, "rev-list", "--count", "HEAD") == "1"
+
+
+# ── Phase 10: push is a third press, as the project's account ─────────────
+
+def test_commit_then_push_sends_exactly_that_commit(cloned):
+    ours = cloned["ours"]
+    t, seen = asyncio.run(_run(ours, [Editor({"app.py": "x = 2\n"})], answer=True))
+    early = asyncio.run(T.push(t))
+    assert early["error"] == "not_committed"
+    assert asyncio.run(T.commit(t, "Two"))["ok"]
+    r = asyncio.run(T.push(t))
+    assert r["ok"], r
+    assert r["push"]["commits"] == 1 and r["push"]["code"] == "pushed"
+    bare = ours.parent / "origin.git"
+    assert _git(bare, "rev-parse", "main") == _git(ours, "rev-parse", "HEAD")
+    assert t.events[-1]["k"] == "pushed"
+    assert asyncio.run(T.push(t))["error"] == "already"
+
+
+def test_a_refused_push_can_be_tried_again(cloned, monkeypatch):
+    ours = cloned["ours"]
+    t, _ = asyncio.run(_run(ours, [Editor({"app.py": "x = 2\n"})], answer=True))
+    assert asyncio.run(T.commit(t, "Two"))["ok"]
+    monkeypatch.setattr(T.G, "push", lambda root, auth: T.G.Push(False, "auth_refused", "no"))
+    r = asyncio.run(T.push(t))
+    assert not r["ok"] and r["error"] == "auth_refused" and not t.result.get("push")
+    monkeypatch.undo()
+    assert asyncio.run(T.push(t))["ok"]
+
+
+def test_the_tasks_pull_and_push_use_the_projects_account(cloned, monkeypatch):
+    auth = T.G.Auth(login="octo", service="magi-github:test:octo")
+    asked, pulled = [], []
+    monkeypatch.setattr(T, "git_auth", lambda login: asked.append(login) or (auth if login else None))
+    real_pull = T.G.pull
+    monkeypatch.setattr(T.G, "pull", lambda root, a=None: pulled.append(a) or real_pull(root, None))
+
+    async def go():
+        chain_expand = chain.expand
+        chain.expand = lambda order, settings: [Reader()]
+        try:
+            t = await T.start(project_id="p", root=cloned["ours"], prompt="look", order=[],
+                              settings=None, mode="read", github="octo")
+            return [ev async for ev in T.stream(t)]
+        finally:
+            chain.expand = chain_expand
+    asyncio.run(go())
+    assert asked == ["octo"] and pulled == [auth]
+
+
+def test_git_auth_is_none_for_an_unknown_or_blank_login(monkeypatch):
+    from magi.github import accounts as A
+    monkeypatch.setattr(A, "get", lambda login: None)
+    assert T.git_auth("") is None
+    assert T.git_auth("nobody") is None
+    assert T.git_auth("not a login!") is None
+    monkeypatch.setattr(A, "get", lambda login: {"login": login})
+    monkeypatch.setattr(A, "_profile", lambda: "tony")
+    a = T.git_auth("Octo")
+    assert (a.login, a.service, a.host) == ("octo", "magi-github:tony:octo", "github.com")

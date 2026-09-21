@@ -151,9 +151,13 @@ ok('and the composer says what it wants', /Describe what to build, fix or look a
 console.log('\nThe strip tells the truth about the engine');
 ok('there is a strip', /function renderCodeStrip\(\)/.test(MAGI));
 const strip = lift('function renderCodeStrip()');
-for (const k of ['Profile', 'Engine', 'Workspace', 'Repository', 'Auto commit', 'Auto push']) {
+for (const k of ['Profile', 'Engine', 'Workspace', 'Auto commit', 'Auto push']) {
   ok(`it carries ${k}`, strip.indexOf(`"${k}"`) >= 0);
 }
+// Repository is its own builder since Phase 10 (it is a button that opens
+// the GitHub sheet), so the strip calls it and the builder names it.
+ok('it carries Repository', /codeRepoPill\(proj\)/.test(strip)
+   && lift('function codeRepoPill(proj)', 1200).indexOf('"Repository"') >= 0);
 // Fields that do not exist yet are shown empty rather than omitted: a strip
 // that hides them teaches a shape that is about to change.
 ok('the fields still to come are shown as empty', /"none", "muted"/.test(strip));
