@@ -32,7 +32,8 @@ Four details that each matter:
   task removes its own in a `finally`, and startup sweeps any left by a crash
   or an engine restart.
 
-Applying never stages or commits (that is Phase 9's job). A clean patch goes
+Applying never stages or commits; committing is a separate step you ask for
+(git.commit, the card's "Commit these files"). A clean patch goes
 on with `git apply`; one whose context moved because you edited the same file
 meanwhile gets a per-file three-way merge; a real conflict applies NOTHING and
 keeps the patch on disk so the work is not lost.
@@ -50,6 +51,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import proc
+from . import git as G
 from .agents import context
 
 BASE = Path(tempfile.gettempdir()) / "magi-sandbox"
@@ -72,19 +74,16 @@ def _nohooks() -> str:
 
 def git(cwd: Path, *args: str, input: bytes | None = None, timeout: int = 120,
         check: bool = True) -> bytes:
-    """git with hooks off, the prefixes pinned, and bytes in and out.
+    """git.run with hooks OFF -- the one thing a sandbox adds to it.
 
     Bytes, because a patch must round-trip exactly: decoding a Latin-1 file's
     diff as UTF-8 and re-encoding it would apply a different change.
     """
-    argv = ["git", "-c", f"core.hooksPath={_nohooks()}", "-c", "core.quotepath=off",
-            "-c", "diff.noprefix=false", "-c", "diff.mnemonicPrefix=false",
-            "-C", str(cwd), *args]
-    r = proc.run(argv, input=input, capture_output=True, timeout=timeout)
-    if check and r.returncode != 0:
-        err = (r.stderr or b"").decode("utf-8", "replace").strip()
-        raise SandboxError("git", f"git {args[0]} failed: {err[-400:]}")
-    return r.stdout or b""
+    try:
+        return G.run(cwd, *args, input=input, timeout=timeout, check=check,
+                     hooks_path=_nohooks())
+    except G.GitError as e:
+        raise SandboxError("git", e.message)
 
 
 def _out(cwd: Path, *args: str) -> str:
