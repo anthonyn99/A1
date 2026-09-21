@@ -1,0 +1,208 @@
+"""Codex, through the Codex CLI, signed in with a ChatGPT account.
+
+    codex exec --json --sandbox read-only --skip-git-repo-check
+               --ignore-user-config --ignore-rules --ephemeral -C <root> -
+
+Runs on whatever ChatGPT account its slot is signed into -- including a Free
+one, which covers local coding tasks on a rolling five-hour window plus weekly
+limits. No API key, and it is deliberately NOT the account the council's
+ChatGPT browser unit uses: its login lives in its own CODEX_HOME (slots.py).
+
+  --sandbox read-only    Codex's own OS-level sandbox, and the default anyway;
+                         stated so a config change can never widen it in read
+                         mode.
+  --ignore-user-config   no $CODEX_HOME/config.toml -- the run is defined by
+  --ignore-rules         this command line, not by files a repo could carry.
+  --ephemeral            no session files left behind for a read-only look.
+  -                      the prompt arrives on stdin (see claude_cli.py for why
+                         prose never goes through a .cmd shim's argv).
+
+The event schema is Codex's own (sdk/typescript/src/events.ts, generated from
+codex-rs/exec/src/exec_events.rs): thread.started, turn.started,
+item.started/updated/completed carrying a typed item, turn.completed with
+usage, turn.failed, and error.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import re
+import time
+from typing import Any
+
+from .base import CodingAgent, EventFn, Mode, Outcome, Result, Task
+from . import limits, slots
+from ._proc import Stream
+
+_UNAUTH = re.compile(r"401 unauthorized|missing bearer|not logged in|"
+                     r"please (log|sign) in|unauthori[sz]ed|token (is )?expired", re.I)
+_LIMIT = re.compile(r"usage limit|hit your (usage )?limit|rate.?limit|429|"
+                    r"quota|too many requests|try again (in|at)", re.I)
+# "try again in 2 hours 13 minutes" / "resets in 45m" -> seconds from now.
+_IN = re.compile(r"(?:try again|resets?)\s+in\s+((?:\d+\s*\w+\s*)+)", re.I)
+
+
+def build_argv(exe: str, task: Task, model: str | None = None) -> list[str]:
+    sandbox = "read-only" if task.mode == Mode.READ else "workspace-write"
+    argv = [exe, "exec", "--json", "--sandbox", sandbox, "--skip-git-repo-check",
+            "--ignore-user-config", "--ignore-rules", "--ephemeral",
+            "-C", str(task.root)]
+    if model:
+        argv += ["-m", model]
+    argv.append("-")
+    return argv
+
+
+def parse_line(line: str) -> dict[str, Any] | None:
+    """One JSONL line -> a normalised event, or None. Pure, for tests."""
+    line = line.strip()
+    if not line.startswith("{"):
+        return None
+    try:
+        d = json.loads(line)
+    except ValueError:
+        return None
+    t = d.get("type")
+    if t == "thread.started":
+        return {"k": "init", "session_id": d.get("thread_id", "")}
+    if t == "error":
+        return {"k": "error", "text": d.get("message", "")}
+    if t == "turn.failed":
+        return {"k": "failed", "text": ((d.get("error") or {}).get("message") or "")}
+    if t == "turn.completed":
+        return {"k": "done", "usage": d.get("usage") or {}}
+    if t in ("item.completed", "item.started"):
+        item = d.get("item") or {}
+        it = item.get("type")
+        # Only COMPLETED items become transcript: a started agent_message has
+        # no text yet, and a started command has no output.
+        done = t == "item.completed"
+        if it == "agent_message" and done:
+            return {"k": "text", "text": item.get("text", "")}
+        if it == "command_execution" and not done:
+            return {"k": "tool", "name": "Bash", "target": item.get("command", "")}
+        if it == "file_change" and done:
+            paths = ", ".join(c.get("path", "") for c in item.get("changes") or [])
+            return {"k": "tool", "name": "Edit", "target": paths}
+        if it == "web_search" and not done:
+            return {"k": "tool", "name": "WebSearch", "target": item.get("query", "")}
+        if it == "mcp_tool_call" and not done:
+            return {"k": "tool", "name": f"{item.get('server')}.{item.get('tool')}", "target": ""}
+        if it == "error" and done:
+            return {"k": "error", "text": item.get("message", "")}
+    return None
+
+
+def classify_failure(text: str) -> Outcome:
+    if _UNAUTH.search(text or ""):
+        return Outcome.UNAUTHED
+    if _LIMIT.search(text or ""):
+        return Outcome.LIMITED
+    return Outcome.TASK_FAILED
+
+
+def parse_reset(text: str) -> float | None:
+    """ "try again in 2 hours 13 minutes" -> an absolute timestamp. """
+    m = _IN.search(text or "")
+    if not m:
+        return None
+    secs = 0
+    for n, unit in re.findall(r"(\d+)\s*([a-z]+)", m.group(1).lower()):
+        n = int(n)
+        if unit.startswith("d"):
+            secs += n * 86400
+        elif unit.startswith("h"):
+            secs += n * 3600
+        elif unit.startswith("m"):
+            secs += n * 60
+        elif unit.startswith("s"):
+            secs += n
+    return time.time() + secs if secs else None
+
+
+class CodexCLIAgent(CodingAgent):
+    kind = "cli"
+
+    def __init__(self, slot: str, model: str | None = None):
+        self.slot = slot
+        self.model = model
+        self.id = f"codex:{slot}"
+        self.label = f"Codex ({slot})"
+
+    async def available(self) -> tuple[bool, str]:
+        if not slots.cli_path("codex"):
+            return False, "Codex CLI is not installed."
+        until = limits.blocked_until("codex", self.slot)
+        if until:
+            return False, "Limited until " + time.strftime("%H:%M", time.localtime(until))
+        st = await asyncio.get_running_loop().run_in_executor(
+            None, slots.status, "codex", self.slot)
+        return (st.signed_in, st.detail or ("" if st.signed_in else "Not signed in."))
+
+    async def run(self, task: Task, *, emit: EventFn, cancel: asyncio.Event) -> Result:
+        exe = slots.cli_path("codex")
+        if not exe:
+            return Result(Outcome.UNAVAILABLE, detail="Codex CLI is not installed.")
+
+        prompt = task.prompt
+        if task.handoff_note:
+            prompt = task.handoff_note + "\n\n---\n\n" + prompt
+        try:
+            s = Stream(build_argv(exe, task, self.model), cwd=task.root,
+                       env=slots.env_for("codex", self.slot), stdin_text=prompt)
+        except OSError as exc:
+            return Result(Outcome.UNAVAILABLE, detail=f"Could not start Codex: {exc}")
+
+        texts: list[str] = []
+        errors: list[str] = []
+        tools: list[str] = []
+        session = ""
+        failed = ""
+        finished = False
+        await emit({"k": "note", "text": f"Codex ({self.slot}) is reading the workspace."})
+
+        async for raw in s.lines(cancel):
+            ev = parse_line(raw)
+            if not ev:
+                continue
+            k = ev["k"]
+            if k == "init":
+                session = ev["session_id"]
+            elif k == "text":
+                texts.append(ev["text"])
+                await emit(ev)
+            elif k == "tool":
+                tools.append(ev["name"])
+                await emit(ev)
+            elif k == "error":
+                errors.append(ev["text"])
+                # A 401 is not going to fix itself on reconnect 3 of 5. Stop
+                # now rather than spend the retries finding that out.
+                if _UNAUTH.search(ev["text"]):
+                    s.kill()
+                    break
+            elif k == "failed":
+                failed = ev["text"]
+            elif k == "done":
+                finished = True
+
+        if cancel.is_set():
+            return Result(Outcome.CANCELLED, session_id=session, tools_used=tools)
+        await s.wait()
+
+        text = "\n\n".join(t for t in texts if t).strip()
+        if finished and not failed:
+            limits.clear("codex", self.slot)
+            return Result(Outcome.OK, text=text, session_id=session, tools_used=tools)
+
+        why = failed or "\n".join(errors[-3:]) or "\n".join(s.stderr_tail)
+        outcome = classify_failure(why)
+        if outcome == Outcome.TASK_FAILED and not texts and not tools:
+            # Nothing happened at all -- the run never got as far as the task.
+            outcome = Outcome.UNAVAILABLE
+        resets = None
+        if outcome == Outcome.LIMITED:
+            resets = limits.mark("codex", self.slot, parse_reset(why), "codex")
+        return Result(outcome, text=text, detail=why[-600:], resets_at=resets,
+                      session_id=session, tools_used=tools)

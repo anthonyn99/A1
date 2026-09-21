@@ -375,7 +375,7 @@ def test_typing_is_never_blocked_by_a_run():
         "Queue should still need a prompt and at least one unit"
     )
     # Convene still waits its turn: one run at a time.
-    assert '$("btnSend").disabled = coding || busy' in body
+    assert '$("btnSend").disabled = busy ||' in body
 
 
 # ── knowing what is running, and what you are reading ───────────────────────

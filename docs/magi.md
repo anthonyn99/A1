@@ -236,7 +236,7 @@ The switch beside the prompt box changes what that box does.
 | | |
 |---|---|
 | **Deliberate** | ask the council a question — everything above |
-| **Code Mode** | ask Claude to change something on the engine's machine |
+| **Code Mode** | hand the words to a coding agent working on a folder on the engine's machine |
 
 **Mode is not a view.** The views — history, doctor, accounts, brainstorm —
 are places you go and come back from; mode is what the main screen *is*.
@@ -244,11 +244,13 @@ Making it a view would have meant History had two versions and every nav
 button had to know which mode it was returning to. It is per device and not
 synced: which mode you left this browser in is a fact about the browser.
 
-Code Mode hides the council's controls rather than leaving them to promise
-choices it does not offer — the unit chips, the verdict, the empty state and
-the caption all step aside. Convene, Queue and Refine are **held and
-relabelled**, not hidden: a control that vanishes teaches you the mode has
-fewer capabilities, when it simply has not been built yet.
+Code Mode replaces the council's controls with its own — the verdict, the
+empty state and the caption step aside, and the council's unit chips are
+swapped for the **agent chain** (below), which is a different choice about
+different things. Convene becomes **Run**; Queue and Refine are **held and
+relabelled**, not hidden, because a control that vanishes teaches you the
+mode has fewer capabilities than it does. Run says why it is held —
+no engine, no workspace, nothing ticked, or a task already running.
 
 The status strip carries the five facts that change what a command will do —
 whose MAGI this is, which machine will run it, which folder it will touch,
@@ -259,10 +261,10 @@ change. It repaints when the engine's state changes: discovery finishes
 after the first paint, so without that it sat on "offline" while the sidebar
 three inches away said the engine was running on this PC.
 
-**What exists today is the shell**: the mode, the heading, the strip, and the
-guarantee that Deliberation is untouched. The workspace, Claude driving the
-files, git and GitHub land in later phases, in that order, so the part that
-can change files is the last thing switched on and the first thing tested.
+**What exists today**: the mode, the workspace registry, the agent chain, and
+tasks that **read**. Writes, git and GitHub land in later phases, in that
+order, so the part that can change files is the last thing switched on and
+the first thing tested.
 
 `tests/magi-codemode.test.js` pins the split; the behaviour is proved in a
 real browser over CDP.
@@ -336,6 +338,99 @@ nobody has to apologise for.
 `magi/tests/test_code_workspace.py` pins all of it, including that every
 refusal carries a sentence and that the fingerprint moves on exactly the
 changes it should.
+
+### Coding agents and the fallback chain
+
+**Any unit can code.** That is the rule, so a task does not stop because one
+provider's allowance ran out. There are two kinds of agent behind one
+interface (`magi/code/agents/base.py`), and no third kind that bills:
+
+| Kind | Who | How it sees the folder | Cost |
+|---|---|---|---|
+| **CLI** | Claude (Claude Code CLI), Codex (Codex CLI) | runs its own tool loop: search, read | the signed-in account's plan |
+| **Browser** | every enabled council unit | MAGI gathers the relevant files (`context.py`) and asks through the unit's session | the same sessions the council uses |
+
+**No API key is used, anywhere.** Both CLIs run with `ANTHROPIC_API_KEY`,
+`OPENAI_API_KEY`, `CODEX_API_KEY` and friends *removed* from their
+environment, so a key that happens to be set on the machine cannot quietly
+turn a free task into a billed one. Claude signs in with `--claudeai` (the
+subscription), never `--console` (API billing). Codex works on a **free**
+ChatGPT account, inside its 5-hour and weekly limits.
+
+**Accounts are slots.** Each CLI agent keeps each login in its own folder —
+`magi/profiles/<profile>/cli/<agent>-<slot>/`, pointed at by
+`CLAUDE_CONFIG_DIR` / `CODEX_HOME` — the way each browser unit has its own
+Chrome profile. So Codex is **not** tied to the ChatGPT unit's account: any
+ChatGPT account can be signed in to a Codex slot. Claude also has a `system`
+slot, which is this PC's own Claude Code login and cannot be removed from
+MAGI. More than one slot per agent is what lets the chain move to a fresh
+*account* before it moves to a weaker *model*.
+
+Signing in is in **Accounts → Coding agents**, hand-drawn like everything
+else. Codex uses its device-code flow: the sheet shows OpenAI's URL and a
+one-time code, which can be entered **from any device, the phone included**,
+with a warning never to enter a code someone sent you. Claude's sign-in page
+opens on the engine machine. Either way MAGI never sees a password; it only
+watches the slot report signed in.
+
+Both CLIs run **locked down**: `--ignore-user-config --ignore-rules` and
+`--sandbox read-only` for Codex; `--restricted --strict-mcp-config`, a fixed
+read-only tool list and `--permission-mode plan` for Claude; and
+`CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, so nothing an agent runs can read the
+credentials it is running on. A hostile `AGENTS.md`, rules file or
+`.claude/` in a target repository does not reconfigure the agent.
+
+#### The chain
+
+The unit chips in Code Mode are the chain. Default order, highest first —
+Claude and Codex lead because they are the strongest coders and the only two
+that drive their own tools:
+
+```
+Claude CLI (each signed-in slot) -> Codex CLI (each slot) -> Claude (Pro)
+  -> ChatGPT -> Claude (free) -> Gemini -> DeepSeek -> Grok -> Perplexity
+```
+
+Tap **Agents** to reorder (arrows, not drag, so it works one-handed). The
+ticks and order are this browser's own (`magi.<profile>.code.units`,
+`code.order`), separate from the council's unit picks — you may well want
+Grok on the council and not on your code.
+
+**What hands a task on:** only a failure another agent could fix — a usage
+limit, a signed-out account, a missing or crashed CLI. **Not** a task
+failure: if the agent read everything and could not answer, another author
+would fail the same way. The next agent is told what the previous one had
+worked out and to continue, not start over.
+
+**Limits are remembered** (`magi/data/<profile>/agent_limits.json`). A limit
+with a reset time — Claude's `rate_limit_event`, Codex's "try again in 2
+hours" — makes the chain skip that slot until then, instead of walking into
+the same wall on every task. **Clear limit** in Accounts overrides it.
+
+#### Running a task
+
+```
+GET    /api/code/agents                        slots, who they are, usage, limits
+POST   /api/code/agents/{agent}/slots/{slot}/login   start a sign-in
+GET    /api/code/login/{job}                   poll it
+POST   /api/code/tasks                         {project_id, prompt, agents:[...]}
+GET    /api/code/tasks/{id}/stream             SSE, replayed from the start
+POST   /api/code/tasks/{id}/cancel             Halt
+```
+
+A task keeps every event and gives **each viewer its own queue**, unlike a
+council run: the desk and the phone can watch the same task, and a reload
+replays the whole transcript (the console remembers the watched task per tab
+in `sessionStorage`). Tasks live in memory; an engine restart ends them and
+the console says so rather than showing one busy forever, and `/api/restart`
+refuses while one is running. **Nothing about a task is written to
+Firestore.**
+
+Phase 7 is **read-only**: `POST /api/code/tasks` forces `mode = "read"`
+whatever it is sent. `magi/tests/test_code_agents.py` pins the parsers
+against recorded event streams, the chain's hand-off rules, the environment
+scrubbing and the slot layout; `tests/magi-codemode.test.js` pins the
+console side.
 
 ---
 

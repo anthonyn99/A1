@@ -3488,9 +3488,149 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
   background: color-mix(in srgb, var(--amber) 7%, transparent);
   color: var(--txd); font-size: 12px; line-height: 1.6;
 }
+/* The phone layout of the switch lives in the MOBILE block with the rest of
+   the composer's toolbar, so there is one place that owns that row. */
 @media (max-width: 430px) {
-  .mode-opt { padding: 4px 9px; font-size: 10.5px; }
   .code-empty { padding: 16px; }
+}
+
+/* One column, the width of the composer's reading measure, so the workspace,
+   the agents and the transcript line up as one screen. */
+.code-col { width: 100%; max-width: 820px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.code-ws {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  background: var(--s1); border: 1px solid var(--bd); border-radius: var(--r-card);
+  padding: 10px 14px; color: var(--tx); font: inherit; cursor: pointer; min-height: 44px;
+}
+.code-ws:hover { border-color: var(--bdh, var(--txm)); }
+.code-ws-txt { display: flex; align-items: baseline; gap: 10px; flex: 1 1 auto; min-width: 0; flex-wrap: wrap; row-gap: 2px; }
+.code-ws-k { color: var(--txm); font-size: 9.5px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; }
+.code-ws-name { font-weight: 700; font-size: 13px; }
+.code-ws-path {
+  color: var(--txm); font-family: var(--font-mono); font-size: 10.5px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; max-width: 100%;
+}
+.code-ws-chev { color: var(--txm); flex: 0 0 auto; }
+
+.code-chain { display: flex; align-items: flex-start; gap: 8px; }
+.code-chips { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.code-chip { position: relative; }
+.code-chip.is-bad:not(.on) { border-style: dashed; }
+.code-chip-n {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 15px; height: 15px; border-radius: 50%; margin-right: 5px;
+  background: rgba(0,0,0,.28); color: #fff; font-size: 9px; font-weight: 800;
+}
+.code-hint { color: var(--txm); font-size: 12px; line-height: 1.65; text-align: center; padding: 6px 12px; }
+
+.code-task { border: 1px solid var(--bd); border-radius: var(--r-card); background: var(--s1); overflow: hidden; }
+.code-task-hd {
+  display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px;
+  border-bottom: 1px solid var(--bd);
+}
+.code-task-q {
+  flex: 1 1 auto; min-width: 0; font-size: 13px; font-weight: 600; line-height: 1.5;
+  white-space: pre-wrap; word-break: break-word; max-height: 7.5em; overflow-y: auto;
+}
+.code-task-acts { flex: 0 0 auto; display: flex; gap: 6px; }
+.code-log { padding: 10px 14px; display: flex; flex-direction: column; gap: 5px; border-bottom: 1px solid var(--bd); }
+.code-ev { font-size: 11.5px; line-height: 1.5; color: var(--txd); display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+.code-ev.is-agent { color: var(--tx); font-weight: 600; }
+.code-ev-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--grn); flex: 0 0 auto; align-self: center; }
+.code-ev-t { margin-left: auto; color: var(--txm); font-weight: 500; font-size: 10.5px; }
+.code-ev.is-tool { font-family: var(--font-mono); font-size: 10.5px; }
+.code-ev-tool { color: var(--acl); flex: 0 0 auto; }
+.code-ev-arg { color: var(--txm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.code-ev.is-note { color: var(--txm); font-style: italic; }
+.code-ev.is-skip { color: var(--txm); }
+.code-ev.is-handoff {
+  color: var(--amber); padding: 6px 9px; border-radius: var(--r-btn);
+  background: color-mix(in srgb, var(--amber) 8%, transparent);
+}
+.code-ev.is-err { color: var(--red); }
+.code-answer { padding: 12px 14px; border-bottom: 1px solid var(--bd); min-width: 0; overflow-x: auto; }
+.code-answer-foot { display: flex; justify-content: flex-end; margin-top: 8px; }
+.code-task-st { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 14px; font-size: 11.5px; color: var(--txm); }
+.code-st-ok { color: var(--grn); font-weight: 600; }
+.code-st-bad { color: var(--amber); font-weight: 600; }
+.code-st-detail { color: var(--txm); flex-basis: 100%; }
+
+.code-proj {
+  display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: left;
+  background: var(--bg); border: 1px solid var(--bd); border-radius: var(--r-btn);
+  padding: 9px 12px; color: var(--tx); font: inherit; cursor: pointer; margin-bottom: 6px;
+}
+.code-proj.on { border-color: var(--ac); }
+.code-proj-name { font-weight: 700; font-size: 12.5px; }
+.code-proj-path { color: var(--txm); font-family: var(--font-mono); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.code-browse { max-width: 520px; }
+.code-crumb { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 6px 0 8px; }
+.code-crumb-b {
+  background: var(--bg); border: 1px solid var(--bd); border-radius: 999px;
+  padding: 3px 9px; color: var(--txd); font: inherit; font-size: 11px; cursor: pointer;
+}
+.code-crumb-path { color: var(--txd); font-family: var(--font-mono); font-size: 10.5px; word-break: break-all; }
+.code-dirs {
+  display: flex; flex-direction: column; max-height: 44vh; overflow-y: auto;
+  border: 1px solid var(--bd); border-radius: var(--r-btn); background: var(--bg);
+}
+.code-dir {
+  display: flex; align-items: center; gap: 8px; text-align: left;
+  background: none; border: 0; border-bottom: 1px solid var(--bd);
+  padding: 10px 12px; color: var(--tx); font: inherit; font-size: 12px; cursor: pointer; min-height: 40px;
+}
+.code-dir:last-child { border-bottom: 0; }
+.code-dir:hover { background: var(--s2, var(--s1)); }
+.code-dir.is-up { color: var(--txm); }
+.code-dir-tag {
+  margin-left: auto; font-size: 9px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase;
+  color: var(--grn); border: 1px solid color-mix(in srgb, var(--grn) 45%, transparent);
+  border-radius: 999px; padding: 1px 7px;
+}
+.code-dirs .doctor-running, .code-dirs .sheet-note { padding: 12px; }
+
+.code-order { display: flex; flex-direction: column; gap: 5px; }
+.code-order-row {
+  display: flex; align-items: center; gap: 9px; padding: 6px 8px;
+  border: 1px solid var(--bd); border-radius: var(--r-btn); background: var(--bg);
+}
+.code-order-row.off { opacity: .5; }
+.code-order-sw { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+.code-order-name { font-size: 12px; font-weight: 600; flex: 1 1 auto; min-width: 0; }
+.code-order-note { font-size: 10.5px; color: var(--txm); }
+.code-order-mv {
+  width: 34px; height: 34px; flex: 0 0 auto; border-radius: var(--r-btn);
+  background: none; border: 1px solid var(--bd); color: var(--txd); cursor: pointer; font-size: 14px;
+}
+.code-order-mv:disabled { opacity: .3; cursor: default; }
+.acc-sec {
+  max-width: 720px; margin: 18px auto 8px; color: var(--txm);
+  font-size: 9.5px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase;
+}
+.acc-code .acc-sec { margin-top: 6px; }
+.acc-code .doctor-running { max-width: 720px; margin: 0 auto 10px; }
+.acc-desc { color: var(--txm); font-size: 11px; line-height: 1.5; margin-top: 2px; }
+.acc-slot { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 10px 0; }
+.acc-slot + .acc-slot { border-top: 1px solid var(--bd); }
+.acc-slot-who { display: flex; flex-direction: column; gap: 2px; flex: 1 1 220px; min-width: 0; }
+.acc-slot-name { font-weight: 700; font-size: 12.5px; }
+.acc-slot-acct { color: var(--txd); font-size: 11.5px; overflow-wrap: anywhere; }
+.acc-slot-use { color: var(--txm); font-size: 10.5px; }
+.acc-slot-lim { color: var(--amber); font-size: 11px; font-weight: 600; }
+.acc-slot-acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.code-login-steps { margin: 4px 0 10px 18px; padding: 0; color: var(--txd); font-size: 12px; line-height: 1.7; }
+.code-login-steps a { color: var(--acl); word-break: break-all; }
+.code-login-code {
+  font-family: var(--font-mono); font-size: 26px; font-weight: 700; letter-spacing: 3px;
+  text-align: center; padding: 12px; margin-bottom: 8px; color: var(--tx);
+  border: 1px dashed var(--bd); border-radius: var(--r-btn); background: var(--bg);
+  user-select: all;
+}
+.code-login .doctor-running { margin-top: 12px; }
+@media (max-width: 760px) {
+  .code-chain { flex-direction: column; gap: 6px; }
+  .code-task-hd, .code-log, .code-answer, .code-task-st { padding-left: 12px; padding-right: 12px; }
 }
 
 .eng-add { display: flex; gap: 8px; align-items: flex-start; }
@@ -4252,7 +4392,18 @@ html.modal-open .page, html.modal-open .sidebar { overflow: hidden; }
      shape Begin session has in brainstorm. Convene used to take a whole row of
      its own below them, which on a phone is a third of the composer spent on
      a button you press once. */
-  .qbar-toolbar { flex-wrap: nowrap; gap: 8px; }
+  /* ...and since the mode switch arrived, the switch gets a line of its own
+     ABOVE that row, as a full-width two-segment tab bar. Kept on one line it
+     made [switch][+][refine][Convene][Queue] ~450px against ~350 and pushed
+     Queue clean off the right edge. The actions still share one row, which is
+     what the rule above was protecting; only the mode control moved, and a
+     control that changes what every button beneath it means belongs on top. */
+  .qbar-toolbar { flex-wrap: wrap; gap: 8px; row-gap: 8px; }
+  /* The toolbar's 30px right padding is the resize grip's corner, which is
+     on the row BELOW. Reclaimed here so the tab bar spans the full box
+     instead of stopping short on the right for a control that is not there. */
+  .qbar-toolbar .mode-sw { order: -1; flex: 1 1 100%; margin-right: -28px; }
+  .qbar-toolbar .mode-opt { flex: 1 1 0; min-height: 36px; font-size: 12px; }
   .qbar-send { flex: 0 0 auto; margin-left: auto; }
   .qbar-spacer { display: none; }
 
@@ -4331,6 +4482,9 @@ html.modal-open .page, html.modal-open .sidebar { overflow: hidden; }
 @media (max-width: 400px) {
   .page { padding-left: 10px; padding-right: 10px; }
   .chip-unit { display: none; }
+  /* Except on Code Mode's chips, where the second line is not a codename but
+     whether the agent can work at all ("sign in", "back 5:00 PM"). */
+  .code-chip .chip-unit:not(:empty) { display: block; }
   .verdict-quorum { font-size: 9.5px; }
   .v-table { min-width: 380px; }
 }
@@ -5390,7 +5544,13 @@ function linkLabel(where = link.where, detail = link.detail) {
  *  Hidden tabs clear the timer entirely (a phone in a pocket must not poll),
  *  and becoming visible retries at once with the backoff reset -- so picking
  *  the phone up finds it already connected. */
-const RETRY_STEPS = [3000, 5000, 8000, 13000, 21000, 30000];
+/* Capped at 12s, not 30s. A replacement tunnel is reachable and published in
+   under ten seconds now (see _tunnel_status in magi/cli/serve.py), so a phone
+   backing off to half a minute spent most of its wait staring at a tunnel that
+   was already up. Each attempt is one magi-link read, and retries pause while
+   the page is hidden, so the tighter cap costs nothing while you are not
+   looking at it. */
+const RETRY_STEPS = [1500, 3000, 5000, 8000, 12000];
 const RETRY = { timer: 0, step: 0, busy: false, lastTry: 0 };
 
 function stopRetry() {
@@ -5761,10 +5921,11 @@ const HOW = [
   {
     q: "Code Mode",
     a: [
-      "The switch beside the prompt box changes what that box <i>does</i>. <b>Deliberate</b> asks the council a question. <b>Code Mode</b> asks Claude to change something &mdash; read files, edit them, run tests, drive git &mdash; on the machine the engine is running on.",
-      "<b>The council does not go quiet.</b> The other units are still there for the things a council is good at: arguing an approach before the work starts, being asked mid-task when something is unclear, and reading the diff afterwards. Claude holds the pen because it is the one unit that can drive a tool loop against a filesystem; that is a difference in what they can reach, not a ranking.",
-      "<b>It is not finished.</b> Today the mode, the heading and the status strip are real and nothing else is &mdash; the strip names the workspace, the repository and the commit settings as empty because they do not exist yet. Convene is held and says so rather than disappearing.",
-      "The part that can change files is deliberately the last thing being switched on, and the first thing tested.",
+      "The switch beside the prompt box changes what that box <i>does</i>. <b>Deliberate</b> asks the council a question. <b>Code Mode</b> hands the words to a coding agent working on a folder on the machine the engine is running on. Pick the folder under <b>Workspace</b>; MAGI draws its own folder browser, and the path never leaves that machine.",
+      "<b>Any unit can code.</b> <b>Claude</b> and <b>Codex</b> run through their own command-line tools and search and read the folder themselves; every other unit works through its browser session, with MAGI handing it the files that matter. Both CLIs use a signed-in account's own plan &mdash; Codex works on a free ChatGPT account &mdash; and no API key is used anywhere. Their accounts are set up in <b>Accounts</b>, separately from the browser units, and each can hold more than one.",
+      "<b>The chips are the fallback chain.</b> The first ticked agent does the work. If it runs out of usage, is signed out or cannot start, the next one carries on, told what the previous one had worked out. A task that simply fails is not handed on &mdash; another author would fail it the same way. A limit is remembered until its reset time, so the chain does not walk into the same wall on every task. Tap <b>Agents</b> to change the order.",
+      "<b>Read-only for now.</b> Agents can read and search the workspace but cannot change a file or run a command that does. Edits arrive next, each shown as a diff for you to approve, and git and GitHub after that &mdash; performed by MAGI itself, so any unit can ask for a commit or a push and none of them ever holds the credentials.",
+      "Nothing about a task is written to the cloud: it streams to whichever screen is watching, and a reload picks the same task back up while the engine is still running it.",
     ],
   },
   {
@@ -8571,9 +8732,19 @@ function updateEnabled() {
   // rather than hidden: a control that vanishes teaches you the mode has
   // fewer capabilities, when it simply has not been built yet.
   const coding = typeof codeMode === "function" && codeMode();
-  $("btnSend").disabled = coding || busy || !q || S.selected.size === 0 || !up;
-  $("btnSend").textContent = coding ? "Run" : S.running ? "Deliberating…" : "Convene";
-  $("btnSend").title = coding ? "Code Mode cannot run anything yet" : "";
+  if (coding) {
+    const why = !up ? "The engine is offline"
+      : !codeProject() ? "Choose a workspace first"
+      : !codeChain().length ? "Tick at least one agent"
+      : codeBusy() ? "A task is already running" : "";
+    $("btnSend").disabled = !q || !!why;
+    $("btnSend").textContent = codeBusy() ? "Working…" : "Run";
+    $("btnSend").title = why;
+  } else {
+    $("btnSend").disabled = busy || !q || S.selected.size === 0 || !up;
+    $("btnSend").textContent = S.running ? "Deliberating…" : "Convene";
+    $("btnSend").title = "";
+  }
   $("btnRefine").disabled = coding || busy || !q || !up;
   // Queueing needs a prompt and units, but NOT a reachable engine: building
   // the list up on a phone while the PC is asleep is half the point of it.
@@ -8615,6 +8786,8 @@ function updateEnabled() {
 /* ══ the run ═══════════════════════════════════════════════════════════════ */
 /** Convene with what is in the composer. */
 async function start() {
+  // One box, two jobs: in Code Mode it hands the words to the agent chain.
+  if (typeof codeMode === "function" && codeMode()) return codeRun();
   const q = $("composer").value.trim();
   if (!q || S.running || S.selected.size === 0 || !online()) return;
   const files = S.attachments.map((a) => a.file);
@@ -9528,6 +9701,9 @@ const ACC = { rows: [], busy: new Set(), busyText: {}, login: null, poll: 0 };
 async function loadAccounts(quiet) {
   if (!online()) { renderAccounts(); return; }
   if (!quiet) ACC.loading = true, renderAccounts();
+  // The coding agents' logins are listed on the same screen; they are
+  // fetched alongside, not instead.
+  if (!quiet && typeof codeLoad === "function") codeLoad(true);
   try {
     const r = await fetch(`${link.api}/api/accounts`, authed());
     ACC.rows = await r.json();
@@ -9594,6 +9770,9 @@ function renderAccounts() {
     topbar.append(w);
   }
   box.append(topbar);
+
+  if (typeof renderCodeAccounts === "function") box.append(renderCodeAccounts());
+  box.append(el("div", "acc-sec", "Browser units"));
 
   for (const a of ACC.rows) {
     const st = accStatus(a);
@@ -9952,43 +10131,855 @@ function renderCodeStrip() {
     online() ? engLabel(eng) || "connected" : "offline",
     online() ? "ok" : "warn"));
 
-  // Everything below arrives in later phases. Named now, and honestly empty,
-  // because a strip that hides the fields it does not have yet teaches you a
-  // shape that is about to change.
-  strip.append(codePill("Workspace", "none", "muted"));
+  const proj = codeProject();
+  strip.append(proj
+    ? codePill("Workspace", proj.name, codeRoot(proj) ? "ok" : "warn")
+    : codePill("Workspace", "none", "muted"));
+  // GitHub arrives in a later phase. Named now, and honestly empty.
   strip.append(codePill("Repository", "none", "muted"));
+  // Read-only is a fact about what Run will do, so it is on the strip and
+  // not buried in a help text: nothing an agent does here can change a file.
+  strip.append(codePill("Access", "read only", "muted"));
+  const lead = codeChain()[0];
+  if (lead) strip.append(codePill("Lead", lead.label + (lead.kind === "cli" ? " CLI" : ""), ""));
   strip.append(codePill("Auto commit", "off", "muted"));
   strip.append(codePill("Auto push", "off", "muted"));
 }
 
+/* ── workspaces, the agent chain, and one task at a time ─────────────────
+   Everything here is fetched from the engine, which is where the folders and
+   the CLI logins are. Nothing is written to Firestore: which project is open
+   and which agents are ticked are facts about this browser (localStorage),
+   and a task's transcript streams over SSE and is never stored -- the same
+   rule the council follows, zero writes while work is in flight. */
+const CODE_PROJ_KEY = lsKey("code.project");
+const CODE_PICK_KEY = lsKey("code.units");
+const CODE_ORDER_KEY = lsKey("code.order");
+// sessionStorage, not local: a reload should find its way back to the task it
+// was watching, but a fresh tab next week should not reopen last week's.
+const CODE_TASK_SS = lsKey("code.task");
+
+const lsRead = (k, dflt) => {
+  try { const v = localStorage.getItem(k); return v == null ? dflt : JSON.parse(v); }
+  catch { return dflt; }
+};
+const lsWrite = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+
+const CODE = {
+  state: null, agents: null, loading: false, err: "", from: null,
+  projectId: lsRead(CODE_PROJ_KEY, null),
+  picks: lsRead(CODE_PICK_KEY, null),      // {on:[], known:[]} like the units
+  order: lsRead(CODE_ORDER_KEY, []),
+  task: null,                              // {id, prompt, events, done, result, es}
+};
+
+// The two CLI agents are not council units, so they have no entry in the
+// engine's site list and no accent there. Chosen apart from every unit's.
+const CODE_CLI_ACCENT = { claude: "#d97757", codex: "#b4bcc8" };
+
+async function codeGet(path) {
+  const r = await fetch(`${link.api}/api/code${path}`, authed());
+  if (!r.ok) throw new Error(`the engine returned ${r.status}`);
+  return r.json();
+}
+async function codePost(path, body, method = "POST") {
+  const r = await fetch(`${link.api}/api/code${path}`, authed({
+    method, headers: { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body) }));
+  if (!r.ok) throw new Error(`the engine returned ${r.status}`);
+  return r.json();
+}
+
+/** Both lists, once per engine. `force` after something changed them. */
+async function codeLoad(force) {
+  if (!online() || CODE.loading) return;
+  if (!force && CODE.from === link.api && CODE.state) return;
+  CODE.loading = true;
+  CODE.err = "";
+  try {
+    const [st, ag] = await Promise.all([codeGet("/state"), codeGet("/agents")]);
+    CODE.state = st;
+    CODE.agents = ag;
+    CODE.from = link.api;
+    // A remembered project that no longer exists is forgotten, and a lone
+    // project is simply the one: there is nothing to choose between.
+    const ids = (st.projects || []).map((p) => p.id);
+    if (!ids.includes(CODE.projectId)) codeSetProject(ids.length === 1 ? ids[0] : null);
+  } catch (e) {
+    CODE.err = `Could not read Code Mode from the engine: ${e.message || e}`;
+  }
+  CODE.loading = false;
+  if (codeMode()) renderCodeView();
+  if (S.view === "accounts") renderAccounts();
+  codeReattach();
+}
+
+function codeSetProject(id) {
+  CODE.projectId = id;
+  lsWrite(CODE_PROJ_KEY, id);
+}
+const codeProject = () =>
+  ((CODE.state && CODE.state.projects) || []).find((p) => p.id === CODE.projectId) || null;
+const codeRoot = (p) => ((p && p.bindings) || []).find((b) => b.here)?.root || "";
+
+/** Every agent that could code here, in chain order, whether ticked or not. */
+function codeMembers() {
+  const a = CODE.agents;
+  if (!a) return [];
+  const now = Date.now() / 1000;
+  const all = [];
+  for (const c of a.cli || []) {
+    const signed = c.slots.filter((s) => s.signed_in);
+    const free = signed.filter((s) => !(s.limited_until > now));
+    all.push({
+      id: `${c.agent}-cli`, agent: c.agent, kind: "cli", label: c.label,
+      accent: CODE_CLI_ACCENT[c.agent] || "var(--ac)", installed: c.installed,
+      slots: c.slots, signed: signed.length, free: free.length,
+      back: signed.length && !free.length
+        ? Math.min(...signed.map((s) => s.limited_until)) : null,
+    });
+  }
+  for (const b of a.browser || []) {
+    if (!b.enabled) continue;
+    all.push({ id: b.id, kind: "browser", label: b.label, accent: b.accent,
+               back: b.limited_until > now ? b.limited_until : null });
+  }
+  const byId = Object.fromEntries(all.map((m) => [m.id, m]));
+  const out = [], seen = new Set();
+  for (const id of [...(CODE.order || []), ...(a.order || []), ...all.map((m) => m.id)]) {
+    if (byId[id] && !seen.has(id)) { out.push(byId[id]); seen.add(id); }
+  }
+  return out;
+}
+
+/** Ticked, by the same rule the unit chips use: a member that did not exist
+ *  when you last chose arrives ticked, one you unticked stays unticked. */
+function codeTicked() {
+  const members = codeMembers();
+  const p = CODE.picks;
+  if (!p) return new Set(members.map((m) => m.id));
+  const known = new Set(p.known || []);
+  return new Set(members.filter((m) => p.on.includes(m.id) || !known.has(m.id)).map((m) => m.id));
+}
+const codeChain = () => { const on = codeTicked(); return codeMembers().filter((m) => on.has(m.id)); };
+
+function codeToggle(id) {
+  const on = codeTicked();
+  on.has(id) ? on.delete(id) : on.add(id);
+  CODE.picks = { on: [...on], known: codeMembers().map((m) => m.id) };
+  lsWrite(CODE_PICK_KEY, CODE.picks);
+  renderCodeView();
+  updateEnabled();
+}
+
+const hhmm = (sec) => new Date(sec * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+/** The second line on a chip: the one thing that says whether it can work. */
+function codeMemberNote(m) {
+  if (m.kind === "cli") {
+    if (!m.installed) return { txt: "not installed", bad: true };
+    if (!m.signed) return { txt: "sign in", bad: true };
+    if (m.back) return { txt: `back ${hhmm(m.back)}`, bad: true };
+    const u = (m.slots.find((s) => s.signed_in) || {}).usage || {};
+    const five = u.five_hour && u.five_hour.utilization;
+    if (typeof five === "number") return { txt: `5h ${Math.round(five * 100)}%` };
+    return { txt: m.signed > 1 ? `${m.signed} accounts` : "CLI" };
+  }
+  if (m.back) return { txt: `back ${hhmm(m.back)}`, bad: true };
+  return { txt: "browser" };
+}
+
 function renderCodeView() {
   if (!codeMode()) return;
+  if (online() && CODE.from !== link.api && !CODE.loading) { codeLoad(); }
   renderCodeStrip();
   const body = $("codeBody");
   if (!body) return;
   body.textContent = "";
-
-  const card = el("div", "code-empty");
-  card.append(el("div", "code-empty-hd", "Code Mode is not wired up yet"));
-  const p1 = el("p", "code-empty-p");
-  p1.textContent =
-    "The mode, the header and the strip above are real. What is missing is "
-    + "everything that touches your machine: a workspace to work in, Claude "
-    + "driving the files, git, and GitHub.";
-  const p2 = el("p", "code-empty-p");
-  p2.textContent =
-    "Those land in the next phases, in that order, so that the part which can "
-    + "change files is the last thing switched on and the first thing tested.";
-  card.append(p1, p2);
+  const col = el("div", "code-col");
+  body.append(col);
 
   if (!online()) {
-    const off = el("div", "code-empty-note");
-    off.textContent =
-      "The engine is offline. Code Mode will need it: the files are on the "
-      + "machine the engine runs on, not in this browser.";
-    card.append(off);
+    const card = el("div", "code-empty");
+    card.append(el("div", "code-empty-hd", "Engine offline"));
+    card.append(el("p", "code-empty-p",
+      "Code Mode works on files on the machine the engine runs on, so it needs "
+      + "the engine. It will light up as soon as the engine is reachable."));
+    col.append(card);
+    return;
   }
-  body.append(card);
+  if (CODE.err) col.append(el("div", "code-empty-note", CODE.err));
+  if (!CODE.state) {
+    const w = el("div", "doctor-running");
+    w.append(spinnerEl(), el("span", null, "Reading workspaces…"));
+    col.append(w);
+    return;
+  }
+
+  // The workspace: the one choice that decides which files every word below
+  // is about, so it is the first row and it is always visible.
+  const proj = codeProject();
+  const ws = el("button", "code-ws");
+  ws.type = "button";
+  const wsTxt = el("span", "code-ws-txt");
+  wsTxt.append(el("span", "code-ws-k", "Workspace"));
+  wsTxt.append(el("span", "code-ws-name", proj ? proj.name : "Choose a folder…"));
+  if (proj) wsTxt.append(el("span", "code-ws-path", codeRoot(proj) || "no folder on this machine"));
+  ws.append(wsTxt, el("span", "code-ws-chev", "▾"));
+  ws.onclick = openCodeProjects;
+  col.append(ws);
+
+  // The chain: which agents may work on this, in the order they are tried.
+  const bar = el("div", "code-chain");
+  const lbl = el("button", "label label-btn", "Agents");
+  lbl.type = "button";
+  lbl.title = "The order agents are tried in when one runs out";
+  lbl.onclick = openCodeOrder;
+  bar.append(lbl);
+  const chips = el("div", "code-chips");
+  const on = codeTicked();
+  let n = 0;
+  for (const m of codeMembers()) {
+    const ticked = on.has(m.id);
+    const note = codeMemberNote(m);
+    const b = el("button", `chip code-chip ${ticked ? "on" : ""} ${note.bad ? "is-bad" : ""}`);
+    b.type = "button";
+    b.dataset.agent = m.id;
+    if (ticked) { b.style.background = m.accent; b.style.borderColor = m.accent; }
+    else { b.style.color = m.accent; b.style.borderColor = m.accent + "66"; }
+    if (ticked) b.append(el("span", "code-chip-n", String(++n)));
+    b.append(el("span", "chip-model", m.label + (m.kind === "cli" ? " CLI" : "")));
+    b.append(el("span", "chip-unit", note.txt));
+    b.title = m.kind === "cli"
+      ? `${m.label} through its own CLI: reads and searches the folder itself.`
+        + (note.bad ? " Set it up in Accounts." : "")
+      : `${m.label} through its browser session: MAGI hands it the relevant files.`;
+    b.onclick = () => codeToggle(m.id);
+    chips.append(b);
+  }
+  bar.append(chips);
+  col.append(bar);
+
+  if (CODE.task) col.append(renderCodeTask(CODE.task));
+  else {
+    const hint = el("div", "code-hint");
+    hint.textContent = proj
+      ? "Ask about this workspace. Agents can read and search it but cannot "
+        + "change anything yet — edits arrive with approvals in the next phase. "
+        + "If the first agent runs out of usage, the next ticked one carries on."
+      : "Pick a folder to work in. Nothing leaves this machine except what an "
+        + "agent reads to answer you.";
+    col.append(hint);
+  }
+}
+
+/* ── one task ──────────────────────────────────────────────────────────── */
+async function codeRun() {
+  const q = $("composer").value.trim();
+  const proj = codeProject();
+  if (!q || !proj || !online() || (CODE.task && !CODE.task.done)) return;
+  const agents = codeChain().map((m) => m.id);
+  if (!agents.length) return;
+  let d;
+  try {
+    d = await codePost("/tasks", { project_id: proj.id, prompt: q, agents });
+  } catch (e) {
+    CODE.err = `Could not start the task: ${e.message || e}`;
+    renderCodeView();
+    return;
+  }
+  if (!d.ok) { CODE.err = d.message || "The engine refused the task."; renderCodeView(); return; }
+  CODE.err = "";
+  $("composer").value = "";
+  if (typeof autosize === "function") autosize();
+  codeAttach(d.task.id, q);
+}
+
+function codeAttach(id, prompt) {
+  if (CODE.task && CODE.task.es) CODE.task.es.close();
+  const t = { id, prompt: prompt || "", events: [], done: false, result: null, es: null };
+  CODE.task = t;
+  try { sessionStorage.setItem(CODE_TASK_SS, id); } catch {}
+  const es = new EventSource(streamUrl(`/api/code/tasks/${id}/stream`));
+  t.es = es;
+  es.onmessage = (m) => {
+    const ev = JSON.parse(m.data);
+    if (ev.k === "start" && ev.prompt) t.prompt = ev.prompt;
+    if (ev.k === "end") { t.done = true; t.result = ev.result; es.close(); codeLoad(true); }
+    t.events.push(ev);
+    if (CODE.task === t && codeMode()) renderCodeView();
+    updateEnabled();
+  };
+  // The stream closes itself after "end". An error before that is the engine
+  // going away mid-task, and the task went with it: tasks live in memory.
+  es.onerror = () => {
+    es.close();
+    if (!t.done) {
+      t.done = true;
+      t.lost = true;
+      if (CODE.task === t && codeMode()) renderCodeView();
+      updateEnabled();
+    }
+  };
+  renderCodeView();
+  updateEnabled();
+}
+
+/** After a reload: pick the watched task back up, if the engine still has it. */
+async function codeReattach() {
+  if (CODE.task) return;
+  let id = null;
+  try { id = sessionStorage.getItem(CODE_TASK_SS); } catch {}
+  if (!id) return;
+  try {
+    const d = await codeGet("/tasks");
+    if ((d.tasks || []).some((x) => x.id === id)) codeAttach(id);
+  } catch {}
+}
+
+async function codeHalt() {
+  const t = CODE.task;
+  if (!t || t.done) return;
+  t.halting = true;
+  renderCodeView();
+  try { await codePost(`/tasks/${t.id}/cancel`, {}); } catch {}
+}
+
+function codeClearTask() {
+  if (CODE.task && CODE.task.es) CODE.task.es.close();
+  CODE.task = null;
+  try { sessionStorage.removeItem(CODE_TASK_SS); } catch {}
+  renderCodeView();
+  updateEnabled();
+}
+
+const codeBusy = () => !!(CODE.task && !CODE.task.done);
+
+function renderCodeTask(t) {
+  const card = el("div", "code-task");
+  const hd = el("div", "code-task-hd");
+  hd.append(el("div", "code-task-q", t.prompt || "Task"));
+  const acts = el("div", "code-task-acts");
+  if (!t.done) {
+    const halt = el("button", "navitem danger", t.halting ? "Halting…" : "Halt");
+    halt.disabled = !!t.halting;
+    halt.onclick = codeHalt;
+    acts.append(halt);
+  } else {
+    const clr = el("button", "navitem", "Clear");
+    clr.onclick = codeClearTask;
+    acts.append(clr);
+  }
+  hd.append(acts);
+  card.append(hd);
+
+  const log = el("div", "code-log");
+  let answer = "";
+  for (const ev of t.events) {
+    if (ev.k === "agent") {
+      answer = "";
+      const r = el("div", "code-ev is-agent");
+      r.append(el("span", "code-ev-dot"), el("span", null,
+        `${ev.label}${ev.kind === "cli" ? " CLI" : ""} is on it`));
+      if (ev.of > 1) r.append(el("span", "code-ev-t", `${ev.position} of ${ev.of}`));
+      log.append(r);
+    } else if (ev.k === "tool") {
+      const r = el("div", "code-ev is-tool");
+      r.append(el("span", "code-ev-tool", ev.name), el("span", "code-ev-arg", ev.target || ""));
+      log.append(r);
+    } else if (ev.k === "note") {
+      log.append(el("div", "code-ev is-note", ev.text));
+    } else if (ev.k === "skip") {
+      log.append(el("div", "code-ev is-skip", `Skipped ${ev.label}: ${ev.why}`));
+    } else if (ev.k === "handoff") {
+      const why = { limited: "ran out of usage", unauthed: "is signed out",
+                    unavailable: "could not run" }[ev.reason] || ev.reason;
+      const back = ev.resets_at ? ` (back ${hhmm(ev.resets_at)})` : "";
+      log.append(el("div", "code-ev is-handoff",
+        `${ev.from_label} ${why}${back}` + (ev.to_label ? ` — handing over to ${ev.to_label}` : "")));
+    } else if (ev.k === "error") {
+      log.append(el("div", "code-ev is-err", ev.text));
+    } else if (ev.k === "text") {
+      answer += (answer ? "\n\n" : "") + ev.text;
+    }
+  }
+  if (log.childNodes.length) card.append(log);
+
+  if (answer) {
+    const ans = el("div", "code-answer");
+    ans.append(mdBody(answer));
+    const foot = el("div", "code-answer-foot");
+    foot.append(copyButton(answer));
+    ans.append(foot);
+    card.append(ans);
+  }
+
+  const st = el("div", "code-task-st");
+  if (!t.done) st.append(spinnerEl(), el("span", null, t.halting ? "Stopping…" : "Working…"));
+  else if (t.lost) st.append(el("span", "code-st-bad",
+    "The connection to the engine dropped. A task does not survive an engine restart."));
+  else {
+    const r = t.result || {};
+    const txt = {
+      ok: `Done by ${r.by_label || "the chain"}`,
+      cancelled: "Halted",
+      task_failed: `${r.by_label || "The agent"} could not finish this`,
+      limited: "Every agent is out of usage",
+      unauthed: "No ticked agent is signed in",
+      unavailable: "No agent could take this",
+    }[r.outcome] || String(r.outcome || "Finished");
+    const endT = (t.events[t.events.length - 1] || {}).t;
+    st.append(el("span", r.outcome === "ok" ? "code-st-ok" : "code-st-bad",
+      txt + (endT ? ` · ${endT}s` : "")));
+    if (r.detail && r.outcome !== "ok") st.append(el("span", "code-st-detail", r.detail));
+  }
+  card.append(st);
+  return card;
+}
+
+/* ── choosing a workspace ──────────────────────────────────────────────── */
+function openCodeProjects() {
+  const sheet = el("div", "sheet");
+  const box = el("div", "sheet-box");
+  const close = () => sheet.remove();
+  box.append(el("div", "sheet-hd", "Workspaces"));
+  box.append(el("div", "sheet-sub",
+    "A workspace is a folder on the engine's machine. Its path never leaves "
+    + "that machine."));
+  const list = el("div", "eng-list");
+  const projects = (CODE.state && CODE.state.projects) || [];
+  if (!projects.length) box.append(el("div", "sheet-sub", "None yet."));
+  for (const p of projects) {
+    const row = el("button", "code-proj" + (p.id === CODE.projectId ? " on" : ""));
+    row.type = "button";
+    row.append(el("span", "code-proj-name", p.name),
+               el("span", "code-proj-path", codeRoot(p) || "no folder on this machine"));
+    row.onclick = () => { codeSetProject(p.id); close(); renderCodeView(); };
+    list.append(row);
+  }
+  box.append(list);
+  const bar = el("div", "sheet-bar");
+  const add = el("button", "btn active", "Add a folder");
+  add.onclick = () => { close(); openCodeBrowse(); };
+  bar.append(add, el("span", "qbar-spacer"));
+  if (codeProject()) {
+    const rm = el("button", "btn", "Remove");
+    rm.title = "Forget this workspace in MAGI. The folder itself is not touched.";
+    rm.onclick = async () => {
+      const p = codeProject();
+      close();
+      const ok = await uiConfirmMagi(`Remove ${p.name}?`,
+        "MAGI forgets this workspace. The folder and everything in it stay exactly as they are.",
+        "Remove");
+      if (!ok) return;
+      try { await codePost(`/projects/${p.id}`, undefined, "DELETE"); } catch {}
+      codeSetProject(null);
+      codeLoad(true);
+    };
+    bar.append(rm);
+  }
+  const done = el("button", "btn", "Close");
+  done.onclick = close;
+  bar.append(done);
+  box.append(bar);
+  dismissOnBackdrop(sheet, close);
+  sheet.append(box);
+  document.body.append(sheet);
+}
+
+/** MAGI's own folder picker: the engine lists folder NAMES, one level at a
+ *  time, and this draws them. The native picker cannot see another machine's
+ *  disk, and it is off the table anyway. */
+function openCodeBrowse(start = "~") {
+  const sheet = el("div", "sheet");
+  const box = el("div", "sheet-box code-browse");
+  const close = () => sheet.remove();
+  box.append(el("div", "sheet-hd", "Choose a folder"));
+  const crumb = el("div", "code-crumb");
+  const list = el("div", "code-dirs");
+  const err = el("div", "sheet-err");
+  err.hidden = true;
+  const nameIn = el("input", "sheet-in");
+  nameIn.placeholder = "Name, e.g. A1";
+  let cur = "";
+
+  async function go(path) {
+    list.textContent = "";
+    const w = el("div", "doctor-running");
+    w.append(spinnerEl(), el("span", null, "Reading…"));
+    list.append(w);
+    let d;
+    try { d = await codeGet(`/browse?path=${encodeURIComponent(path)}`); }
+    catch (e) { d = { ok: false, message: String(e.message || e) }; }
+    list.textContent = "";
+    err.hidden = !!d.ok;
+    if (!d.ok) { err.textContent = d.message || "That folder could not be read."; return; }
+    cur = d.path;
+    crumb.textContent = "";
+    for (const dr of d.drives || []) {
+      const b = el("button", "code-crumb-b", dr.replace(/\\$/, ""));
+      b.onclick = () => go(dr);
+      crumb.append(b);
+    }
+    crumb.append(el("span", "code-crumb-path", cur || "Drives"));
+    if (d.up) {
+      const up = el("button", "code-dir is-up", "← Up");
+      up.onclick = () => go(d.up);
+      list.append(up);
+    }
+    for (const x of d.dirs || []) {
+      const b = el("button", "code-dir" + (x.repo ? " is-repo" : ""));
+      b.append(el("span", null, x.name));
+      if (x.repo) b.append(el("span", "code-dir-tag", "git"));
+      b.onclick = () => go(x.path);
+      list.append(b);
+    }
+    if (!(d.dirs || []).length && cur) list.append(el("div", "sheet-note", "No folders inside."));
+    const base = cur.split(/[\\/]/).filter(Boolean).pop() || "";
+    if (!nameIn.dataset.touched) nameIn.value = base.replace(/:$/, "");
+    use.disabled = !cur;
+  }
+
+  nameIn.oninput = () => { nameIn.dataset.touched = "1"; };
+  const use = el("button", "btn active", "Use this folder");
+  use.onclick = async () => {
+    const name = nameIn.value.trim();
+    if (!cur || !name) return;
+    use.disabled = true;
+    let d;
+    try { d = await codePost("/projects", { name, root: cur }); }
+    catch (e) { d = { ok: false, message: String(e.message || e) }; }
+    use.disabled = false;
+    if (!d.ok) { err.hidden = false; err.textContent = d.message || "Refused."; return; }
+    codeSetProject(d.project.id);
+    close();
+    codeLoad(true);
+  };
+  const cancel = el("button", "btn", "Cancel");
+  cancel.onclick = close;
+  const bar = el("div", "sheet-bar");
+  bar.append(use, el("span", "qbar-spacer"), cancel);
+  box.append(crumb, list, el("label", "sheet-lbl", "Workspace name"), nameIn, err, bar);
+  dismissOnBackdrop(sheet, close);
+  sheet.append(box);
+  document.body.append(sheet);
+  go(start);
+}
+
+/** The chain order: which agent is tried first, and who picks up when it
+ *  runs out. Moved with arrows rather than dragged, so it works one-handed. */
+function openCodeOrder() {
+  const sheet = el("div", "sheet");
+  const box = el("div", "sheet-box");
+  const close = () => sheet.remove();
+  box.append(el("div", "sheet-hd", "Agent order"));
+  box.append(el("div", "sheet-sub",
+    "The first ticked agent does the work. If it runs out of usage or is "
+    + "signed out, the next one continues from where it stopped. Unticked "
+    + "agents are never asked."));
+  const list = el("div", "code-order");
+  const draw = () => {
+    list.textContent = "";
+    const ms = codeMembers();
+    const on = codeTicked();
+    ms.forEach((m, i) => {
+      const row = el("div", "code-order-row" + (on.has(m.id) ? "" : " off"));
+      const sw = el("span", "code-order-sw");
+      sw.style.background = m.accent;
+      row.append(sw, el("span", "code-order-name", m.label + (m.kind === "cli" ? " CLI" : "")),
+                 el("span", "code-order-note", codeMemberNote(m).txt));
+      const mv = (d) => {
+        const ids = ms.map((x) => x.id);
+        const j = i + d;
+        if (j < 0 || j >= ids.length) return;
+        [ids[i], ids[j]] = [ids[j], ids[i]];
+        CODE.order = ids;
+        lsWrite(CODE_ORDER_KEY, ids);
+        draw();
+        renderCodeView();
+      };
+      const up = el("button", "code-order-mv", "↑");
+      up.disabled = i === 0;
+      up.setAttribute("aria-label", `Move ${m.label} earlier`);
+      up.onclick = () => mv(-1);
+      const dn = el("button", "code-order-mv", "↓");
+      dn.disabled = i === ms.length - 1;
+      dn.setAttribute("aria-label", `Move ${m.label} later`);
+      dn.onclick = () => mv(1);
+      row.append(up, dn);
+      list.append(row);
+    });
+  };
+  draw();
+  box.append(list);
+  const bar = el("div", "sheet-bar");
+  const reset = el("button", "btn", "Default order");
+  reset.onclick = () => { CODE.order = []; lsWrite(CODE_ORDER_KEY, []); draw(); renderCodeView(); };
+  const done = el("button", "btn active", "Done");
+  done.onclick = close;
+  bar.append(done, el("span", "qbar-spacer"), reset);
+  box.append(bar);
+  dismissOnBackdrop(sheet, close);
+  sheet.append(box);
+  document.body.append(sheet);
+}
+
+/* ── coding accounts, in Accounts ──────────────────────────────────────────
+   Each CLI agent can hold several accounts ("slots"), each in its own folder
+   on the engine machine -- the way each browser unit has its own Chrome
+   profile. Codex is deliberately not tied to the ChatGPT unit's login: any
+   ChatGPT account can be signed in here. More than one account per agent is
+   what lets the chain move to a fresh account before it moves to a weaker
+   model. */
+function usageLine(u) {
+  const parts = [];
+  const name = { five_hour: "5h", seven_day: "7d", seven_day_opus: "7d Opus" };
+  for (const [k, v] of Object.entries(u || {})) {
+    if (!v || typeof v.utilization !== "number") continue;
+    parts.push(`${name[k] || k} ${Math.round(v.utilization * 100)}%`
+      + (v.resets_at ? ` (resets ${hhmm(v.resets_at)})` : ""));
+  }
+  return parts.join(" · ");
+}
+
+function renderCodeAccounts() {
+  const wrap = el("div", "acc-code");
+  wrap.append(el("div", "acc-sec", "Coding agents"));
+  const a = CODE.agents;
+  if (!a) {
+    const w = el("div", "doctor-running");
+    w.append(spinnerEl(), el("span", null, CODE.err || "Reading coding accounts…"));
+    wrap.append(w);
+    return wrap;
+  }
+  const now = Date.now() / 1000;
+  for (const c of a.cli || []) {
+    const card = el("div", "acc-card");
+    card.style.setProperty("--pa", CODE_CLI_ACCENT[c.agent] || "var(--ac)");
+    const hd = el("div", "acc-hd");
+    const names = el("div", "acc-names");
+    names.append(el("div", "acc-name", `${c.label} CLI`));
+    names.append(el("div", "acc-desc", c.agent === "codex"
+      ? "Any ChatGPT account, Free included — separate from the ChatGPT unit"
+      : "Any Claude account — separate from the browser Claude units"));
+    hd.append(names);
+    const flags = el("div", "acc-flags");
+    if (!c.installed) flags.append(el("span", "doc-flag miss", "Not installed"));
+    else {
+      const n = c.slots.filter((s) => s.signed_in).length;
+      flags.append(el("span", `doc-flag ${n ? "ok" : "miss"}`,
+        n ? `${n} signed in` : "Not signed in"));
+    }
+    hd.append(flags);
+    card.append(hd);
+
+    if (!c.installed) {
+      card.append(el("div", "acc-detail",
+        `Install it on the engine machine: npm i -g ${c.agent === "codex" ? "@openai/codex" : "@anthropic-ai/claude-code"}`));
+    }
+    for (const s of c.slots) {
+      const row = el("div", "acc-slot");
+      const who = el("div", "acc-slot-who");
+      const title = s.slot === "system" ? "This PC's Claude Code login" : s.slot;
+      who.append(el("span", "acc-slot-name", title));
+      who.append(el("span", "acc-slot-acct",
+        s.signed_in ? [s.account, s.plan].filter(Boolean).join(" · ") || "signed in"
+                    : "signed out"));
+      const ul = usageLine(s.usage);
+      if (ul) who.append(el("span", "acc-slot-use", ul));
+      if (s.limited_until > now) {
+        who.append(el("span", "acc-slot-lim", `Out of usage until ${hhmm(s.limited_until)}`));
+      }
+      row.append(who);
+      const acts = el("div", "acc-slot-acts");
+      if (!s.signed_in) {
+        const si = el("button", "navitem active", "Sign in");
+        si.onclick = () => codeLogin(c.agent, s.slot);
+        acts.append(si);
+      }
+      if (s.limited_until > now) {
+        const cl = el("button", "navitem", "Clear limit");
+        cl.title = "Try this account again now rather than waiting for the remembered reset time";
+        cl.onclick = async () => {
+          try { await codePost(`/agents/${c.agent}/slots/${s.slot}/clear-limit`, {}); } catch {}
+          codeLoad(true);
+        };
+        acts.append(cl);
+      }
+      if (s.slot !== "system") {
+        const out = el("button", "navitem danger", "Remove");
+        out.onclick = async () => {
+          const ok = await uiConfirmMagi(`Remove ${c.label} account "${s.slot}"?`,
+            "MAGI deletes its own copy of this login. The account itself is not "
+            + "touched, and you can sign it in again at any time.", "Remove");
+          if (!ok) return;
+          try { await codePost(`/agents/${c.agent}/slots/${s.slot}`, undefined, "DELETE"); } catch {}
+          codeLoad(true);
+        };
+        acts.append(out);
+      }
+      row.append(acts);
+      card.append(row);
+    }
+    if (c.installed) {
+      const bar = el("div", "acc-actions");
+      const add = el("button", "navitem", c.slots.length ? "Add another account" : "Add an account");
+      add.onclick = () => codeAddSlot(c);
+      bar.append(add);
+      card.append(bar);
+    }
+    wrap.append(card);
+  }
+  return wrap;
+}
+
+function codeAddSlot(c) {
+  const taken = new Set(c.slots.map((s) => s.slot));
+  let i = 1;
+  while (taken.has(`${c.agent}${i}`)) i++;
+  const sheet = el("div", "sheet");
+  const box = el("div", "sheet-box");
+  const close = () => sheet.remove();
+  box.append(el("div", "sheet-hd", `Add a ${c.label} account`));
+  box.append(el("div", "sheet-sub", c.agent === "codex"
+    ? "You will get a code to enter at OpenAI's own sign-in page, on any device — "
+      + "this phone included. MAGI never sees the password."
+    : "Claude's sign-in page opens in a browser on the engine machine. MAGI never "
+      + "sees the password."));
+  box.append(el("label", "sheet-lbl", "A short name for this account"));
+  const inp = el("input", "sheet-in");
+  inp.value = `${c.agent}${i}`;
+  inp.maxLength = 24;
+  const err = el("div", "sheet-err");
+  err.hidden = true;
+  const go = el("button", "btn active", "Sign in");
+  go.onclick = () => {
+    const v = inp.value.trim().toLowerCase();
+    if (!/^[a-z0-9][a-z0-9_-]{0,23}$/.test(v)) {
+      err.hidden = false;
+      err.textContent = "Letters, digits, - or _ only.";
+      return;
+    }
+    if (taken.has(v)) { err.hidden = false; err.textContent = "That name is taken."; return; }
+    close();
+    codeLogin(c.agent, v);
+  };
+  inp.onkeydown = (e) => { if (e.key === "Enter") go.click(); };
+  const no = el("button", "btn", "Cancel");
+  no.onclick = close;
+  const bar = el("div", "sheet-bar");
+  bar.append(go, el("span", "qbar-spacer"), no);
+  box.append(inp, err, bar);
+  dismissOnBackdrop(sheet, close);
+  sheet.append(box);
+  document.body.append(sheet);
+  inp.focus();
+  inp.select();
+}
+
+/** Sign a slot in. Codex shows a one-time code to type at OpenAI's page from
+ *  any device; Claude opens its page on the engine machine. Either way this
+ *  sheet only watches for the slot to report signed in. */
+async function codeLogin(agent, slot) {
+  const sheet = el("div", "sheet");
+  const box = el("div", "sheet-box");
+  const label = agent === "codex" ? "Codex" : "Claude";
+  box.append(el("div", "sheet-hd", `Sign in · ${label} · ${slot}`));
+  const body = el("div", "code-login");
+  const w = el("div", "doctor-running");
+  w.append(spinnerEl(), el("span", null, "Starting the sign-in…"));
+  body.append(w);
+  box.append(body);
+  const bar = el("div", "sheet-bar");
+  const stop = el("button", "btn", "Cancel");
+  bar.append(el("span", "qbar-spacer"), stop);
+  box.append(bar);
+  sheet.append(box);
+  document.body.append(sheet);
+
+  let job = null, timer = 0, over = false;
+  const finish = () => {
+    over = true;
+    clearTimeout(timer);
+    sheet.remove();
+    codeLoad(true);
+  };
+  stop.onclick = async () => {
+    if (job && (job.state === "starting" || job.state === "waiting")) {
+      try { await codePost(`/login/${job.id}/cancel`, {}); } catch {}
+    }
+    finish();
+  };
+  dismissOnBackdrop(sheet, () => stop.click());
+
+  const draw = () => {
+    body.textContent = "";
+    if (!job) return;
+    if (job.state === "done") {
+      body.append(el("div", "sheet-ok", `Signed in${job.account ? " as " + job.account : ""}.`));
+      stop.textContent = "Close";
+      return;
+    }
+    if (job.state === "failed" || job.state === "cancelled") {
+      body.append(el("div", "sheet-err", job.detail || "The sign-in did not complete."));
+      stop.textContent = "Close";
+      return;
+    }
+    if (agent === "codex") {
+      if (!job.code) {
+        const s = el("div", "doctor-running");
+        s.append(spinnerEl(), el("span", null, "Waiting for a code from Codex…"));
+        body.append(s);
+        return;
+      }
+      const steps = el("ol", "code-login-steps");
+      const li1 = el("li");
+      li1.append("Open ");
+      const a = el("a", null, job.url || "https://auth.openai.com/codex/device");
+      a.href = job.url || "https://auth.openai.com/codex/device";
+      a.target = "_blank";
+      a.rel = "noopener";
+      li1.append(a, " on any device and sign in to the ChatGPT account you want Codex to use.");
+      const li2 = el("li", null, "Enter this code:");
+      steps.append(li1, li2);
+      body.append(steps);
+      const code = el("div", "code-login-code", job.code);
+      body.append(code, copyButton(job.code, { label: "Copy code" }));
+      body.append(el("div", "sheet-note",
+        "Only enter this code on a page you opened yourself from this sheet. "
+        + "Device codes are a common phishing trick — never enter one someone sent you. "
+        + "It expires in 15 minutes."));
+    } else {
+      body.append(el("div", "sheet-sub",
+        "Claude's sign-in page is opening in a browser on the engine machine. "
+        + "Finish it there; this sheet closes itself when the account reports signed in."));
+    }
+    const s = el("div", "doctor-running");
+    s.append(spinnerEl(), el("span", null, "Waiting for the sign-in to finish…"));
+    body.append(s);
+  };
+
+  try {
+    const d = await codePost(`/agents/${agent}/slots/${slot}/login`, {});
+    if (!d.ok) { job = { state: "failed", detail: d.message }; draw(); return; }
+    job = d.job;
+  } catch (e) {
+    job = { state: "failed", detail: `Could not reach the engine: ${e.message || e}` };
+    draw();
+    return;
+  }
+  draw();
+  const tick = async () => {
+    if (over) return;
+    try {
+      const d = await codeGet(`/login/${job.id}`);
+      if (d.ok) job = d.job;
+    } catch {}
+    draw();
+    if (job.state === "starting" || job.state === "waiting") timer = setTimeout(tick, 2500);
+    else codeLoad(true);
+  };
+  timer = setTimeout(tick, 2500);
 }
 
 function setView(v) {

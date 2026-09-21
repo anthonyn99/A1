@@ -101,10 +101,22 @@ while ((Get-Date) -lt $deadline) {
         if ($r.StatusCode -eq 200) {
             $pid8000 = (Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue).OwningProcess
             Write-Host "MAGI engine is up on 127.0.0.1:8000 (PID $pid8000)." -ForegroundColor Green
-            $t = Join-Path $root "magi\data\tunnel.json"
+            # Per profile since profiles landed. This read the pre-profile
+            # magi\data\tunnel.json, which the migration left behind, so it
+            # reported a stale hostname as "the same address as before" --
+            # including after cloudflared had been killed and a new one opened.
+            $t = Join-Path $root "magi\data\tony\tunnel.json"
             if (Test-Path $t) {
-                $url = (Get-Content $t -Raw | ConvertFrom-Json).url
-                if ($url) { Write-Host "Phones: same address as before - $url" }
+                $rec = Get-Content $t -Raw | ConvertFrom-Json
+                if ($rec.url) {
+                    # Adopted means the phone keeps working without a pause; a
+                    # fresh tunnel needs ~10s to be reachable and then publish.
+                    if ($rec.published_at) {
+                        Write-Host "Phones: $($rec.url) (published)"
+                    } else {
+                        Write-Host "Phones: $($rec.url) (publishing - usually under 10s)"
+                    }
+                }
             }
             exit 0
         }

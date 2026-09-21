@@ -153,6 +153,23 @@ def state() -> dict:
         return {}
 
 
+def mark_published(url: str, at: float) -> None:
+    """Record that `url` was published, without touching anything else.
+
+    Separate from record() because that one stamps a fresh started_at, and
+    "when did this tunnel open" is exactly what the publish latency is
+    measured against. Only applies if the file still names this url -- a
+    replacement tunnel may have been recorded in the meantime.
+    """
+    s = state()
+    if s.get("url") != url:
+        return
+    s["published_at"] = at
+    tmp = STATE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(s), encoding="utf-8")
+    tmp.replace(STATE)
+
+
 def clear() -> None:
     with contextlib.suppress(OSError):
         STATE.unlink()

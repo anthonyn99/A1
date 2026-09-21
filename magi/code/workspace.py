@@ -105,12 +105,18 @@ def resolve_root(raw: str) -> Path:
 
 # ── git ────────────────────────────────────────────────────────────────────
 
+# UTF-8, stated. Without `encoding`, text=True decodes with the Windows
+# ANSI codepage (cp1252), and git speaks UTF-8. The first byte cp1252 has no
+# mapping for -- 0x90, in a 475 KB `git grep` over A1 -- killed subprocess's
+# reader thread. It does not raise in the caller: the output just comes back
+# truncated or empty, so a fingerprint or a context block is silently wrong.
+# errors="replace" means a bad byte costs one character, never the output.
 def _git(root: Path, *args: str, timeout: int = 10) -> str:
     """Read-only git. Returns "" rather than raising: a folder that is not a
     repository is a perfectly normal workspace, not an error."""
     try:
         r = proc.run(["git", "-C", str(root), *args],
-                     capture_output=True, text=True, timeout=timeout)
+                     capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
         return (r.stdout or "").strip() if r.returncode == 0 else ""
     except Exception:
         return ""

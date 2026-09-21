@@ -66,11 +66,55 @@ ok('the verdict is hidden', /if \(!codeOpen\) renderVerdict\(\); else show\(\$\(
 ok('so is the council caption',
    /note\.hidden = !\(idle && S\.view === "council"\) \|\| coding/.test(MAGI));
 
-console.log('\nCouncil actions are held, not hidden');
-const ue = lift('function updateEnabled()', 2200);
-ok('Convene is disabled', /\$\("btnSend"\)\.disabled = coding \|\|/.test(ue));
-ok('and relabelled to what it will do', /coding \? "Run"/.test(ue));
-ok('with a reason on it', /Code Mode cannot run anything yet/.test(ue));
+console.log('\nThe send button becomes Run, gated on what a task needs');
+const ue = lift('function updateEnabled()', 2600);
+ok('it is labelled Run in Code Mode', /textContent = codeBusy\(\) \? "Working…" : "Run"/.test(ue));
+ok('it needs the engine', /!up \? "The engine is offline"/.test(ue));
+ok('it needs a workspace', /!codeProject\(\) \? "Choose a workspace first"/.test(ue));
+ok('it needs at least one agent', /!codeChain\(\)\.length \? "Tick at least one agent"/.test(ue));
+ok('one task at a time', /codeBusy\(\) \? "A task is already running"/.test(ue));
+ok('and says why when it is held', /\$\("btnSend"\)\.title = why/.test(ue));
+ok('Convene is unchanged in Deliberation',
+   /\$\("btnSend"\)\.disabled = busy \|\| !q \|\| S\.selected\.size === 0 \|\| !up/.test(ue));
+ok('the one box routes to the chain in Code Mode',
+   /if \(typeof codeMode === "function" && codeMode\(\)\) return codeRun\(\);/.test(lift('async function start()', 300)));
+
+console.log('\nThe agent chain');
+const cm = lift('function codeMembers()', 1900);
+ok('CLI agents come from the engine, one chip per agent', /id: `\$\{c\.agent\}-cli`/.test(cm));
+ok('only enabled browser units are offered', /if \(!b\.enabled\) continue;/.test(cm));
+ok('saved order first, then the engine default', /\.\.\.\(CODE\.order \|\| \[\]\), \.\.\.\(a\.order \|\| \[\]\)/.test(cm));
+ok('its ticks are Code Mode\'s own, not the council\'s',
+   /const CODE_PICK_KEY = lsKey\("code\.units"\);/.test(MAGI)
+   && !/S\.selected/.test(lift('function codeToggle(id)', 400)));
+ok('a new agent arrives ticked, an unticked one stays off',
+   /p\.on\.includes\(m\.id\) \|\| !known\.has\(m\.id\)/.test(lift('function codeTicked()', 500)));
+ok('the order is set with arrows, one-handed', /function openCodeOrder\(\)/.test(MAGI));
+
+console.log('\nA task streams, and survives a reload');
+const run = lift('async function codeRun()', 1000);
+ok('it posts the ticked chain in order', /agents = codeChain\(\)\.map\(\(m\) => m\.id\)/.test(run));
+ok('the stream carries the token the SSE way',
+   /new EventSource\(streamUrl\(`\/api\/code\/tasks\/\$\{id\}\/stream`\)\)/.test(MAGI));
+ok('the watched task is remembered per tab', /sessionStorage\.setItem\(CODE_TASK_SS, id\)/.test(MAGI));
+ok('a dropped stream says the task was lost, not still running',
+   /t\.lost = true/.test(lift('function codeAttach(id, prompt)', 1600)));
+ok('hand-offs are shown, with who takes over',
+   /handing over to \$\{ev\.to_label\}/.test(lift('function renderCodeTask(t)', 3000)));
+
+console.log('\nNothing in Code Mode writes to Firestore');
+const block = MAGI.slice(MAGI.indexOf('const CODE_PROJ_KEY'), MAGI.indexOf('function setView(v)'));
+ok('the block is found', block.length > 5000, String(block.length));
+ok('no setDoc / updateDoc / onSnapshot in it', !/\b(setDoc|updateDoc|onSnapshot|addDoc)\s*\(/.test(block),
+   'a transcript is SSE and is never stored; ticks and project are this browser\'s');
+ok('no native dialog in it', !/\b(window\.)?(alert|confirm|prompt)\s*\(/.test(block));
+ok('no native file picker', !/showDirectoryPicker|type\s*=\s*["']file/.test(block));
+
+console.log('\nCoding accounts');
+ok('Codex sign-in shows the device code', /code-login-code/.test(block));
+ok('with a phishing warning', /Device codes are a common phishing trick/.test(block));
+ok('Codex is not tied to the ChatGPT unit', /separate from the ChatGPT unit/.test(block));
+ok('this PC\'s Claude login cannot be removed from here', /if \(s\.slot !== "system"\)/.test(block));
 ok('Queue is disabled', /\$\("btnQueue"\)\.disabled = coding \|\|/.test(ue));
 ok('Refine is disabled', /\$\("btnRefine"\)\.disabled = coding \|\|/.test(ue));
 ok('changing mode repaints them', /updateEnabled\(\);/.test(lift('function setMode(m,', 900)),

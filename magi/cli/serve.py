@@ -403,6 +403,68 @@ def _link_record(token: str) -> dict | None:
         return None
 
 
+# ── reaching a brand-new tunnel without asking Windows ──────────────────────
+# cloudflared registers a quick tunnel in about four seconds. Publishing it
+# used to take minutes, and none of that time was Cloudflare's.
+#
+# The verify step probed the new hostname through the OS resolver straight
+# away -- before Cloudflare's DNS had the record -- and got NXDOMAIN. Windows'
+# DNS Client caches a negative answer (MaxNegativeCacheTtl, up to fifteen
+# minutes), so every retry after that was answered from the cache with "does
+# not exist", long after the record did. The tunnel was up and reachable the
+# whole time; MAGI had simply asked too early and been told to stop asking.
+#
+# So the probe no longer touches the OS resolver at all. It asks Cloudflare's
+# own DNS-over-HTTPS resolver -- which learns trycloudflare records within
+# seconds, and caches nothing on this machine -- and then connects straight to
+# the address it returned, with the real hostname in SNI and Host so TLS and
+# routing behave exactly as they will for the phone.
+#
+# The phone never had this problem: it only learns the hostname AFTER it is
+# published, by which point the record exists.
+
+def _doh_resolve(host: str) -> list[str]:
+    """A records for `host` from Cloudflare DoH. [] means "not yet"."""
+    req = urllib.request.Request(
+        f"https://cloudflare-dns.com/dns-query?name={host}&type=A",
+        headers={"accept": "application/dns-json", "User-Agent": UA})
+    with urllib.request.urlopen(req, timeout=5) as r:
+        data = json.loads(r.read())
+    return [a["data"] for a in data.get("Answer") or [] if a.get("type") == 1]
+
+
+def _probe_via_ip(host: str, ip: str, path: str = "/api/health") -> int:
+    """HTTP status from `host` reached at `ip`, bypassing name resolution."""
+    import ssl
+
+    ctx = ssl.create_default_context()
+    with socket.create_connection((ip, 443), timeout=8) as raw:
+        with ctx.wrap_socket(raw, server_hostname=host) as s:
+            s.sendall(
+                (f"GET {path} HTTP/1.1\r\nHost: {host}\r\n"
+                 f"User-Agent: {UA}\r\nConnection: close\r\n\r\n").encode())
+            head = s.recv(256)
+    status_line = head.split(b"\r\n", 1)[0].decode("latin-1")
+    return int(status_line.split()[1])
+
+
+def _tunnel_status(url: str) -> int | None:
+    """The tunnel's answer to /api/health, or None if it is not reachable yet."""
+    from urllib.parse import urlparse
+
+    host = urlparse(url).hostname or ""
+    try:
+        ips = _doh_resolve(host)
+    except Exception:
+        return None
+    for ip in ips:
+        try:
+            return _probe_via_ip(host, ip)
+        except Exception:
+            continue
+    return None
+
+
 def _verify_and_publish(token: str, kill) -> None:
     """Wait for a fresh hostname to register, then publish it.
 
@@ -411,32 +473,38 @@ def _verify_and_publish(token: str, kill) -> None:
     replaced while this was waiting is never published under the dead name.
     """
     url = _CURRENT["url"]
-    deadline = time.time() + 15 * 60
-    delay = 3
+    started = time.time()
+    deadline = started + 15 * 60
     while time.time() < deadline:
-        try:
-            urllib.request.urlopen(
-                urllib.request.Request(f"{url}/api/health", headers={"User-Agent": UA}),
-                timeout=10)
-            # A 200 means the server started WITHOUT the token and is wide
-            # open. Publishing that hands the url -- and the accounts behind
-            # it -- to anyone who reads the KV record.
+        # A replacement tunnel took over while this one waited: stop, so the
+        # dead name is never published over the live one.
+        if _CURRENT.get("url") != url:
+            return
+        code = _tunnel_status(url)
+        if code is None:
+            # Every second, not a growing backoff. The record usually lands
+            # within ten, and a probe that skips no OS cache costs one DoH
+            # request -- backing off to thirty seconds only delayed the
+            # publish by up to thirty seconds past the moment it was live.
+            time.sleep(1)
+            continue
+        if code == 200:
+            # The server started WITHOUT the token and is wide open.
+            # Publishing that hands the url -- and the accounts behind it --
+            # to anyone who reads the KV record.
             print("  [!] /api/health answered 200 without a token -- the gate")
             print("      is OFF, so the tunnel was NOT published. The backend")
             print(f"      did not inherit {api_token_env()}; open a new terminal.")
             kill()
             return
-        except urllib.error.HTTPError as e:
-            if e.code != 401:
-                print(f"  [!] tunnel answered {e.code}; not publishing.")
-                kill()
-                return
-            # 401 is the CORRECT answer: it proves the tunnel reaches the
-            # backend AND that the token gate is armed.
-            break
-        except OSError:
-            time.sleep(delay)
-            delay = min(delay * 1.5, 30)
+        if code != 401:
+            print(f"  [!] tunnel answered {code}; not publishing.")
+            kill()
+            return
+        # 401 is the CORRECT answer: the tunnel reaches this backend AND the
+        # token gate is armed.
+        print(f"  tunnel reachable after {time.time() - started:.1f}s")
+        break
     else:
         print("  [!] the tunnel url never resolved in 15 minutes.")
         print("      Local access is unaffected.")
@@ -454,6 +522,12 @@ def _verify_and_publish(token: str, kill) -> None:
     if _CURRENT.get("url") == url:
         _CURRENT["published"] = url
         _CURRENT["published_at"] = str(time.time())
+        # Written back to disk too. It used to live only in memory, so
+        # tunnel.json said published_at: null for a tunnel that WAS
+        # published -- which is exactly what sent a diagnosis down the
+        # wrong path, looking for a publish failure that never happened.
+        with contextlib.suppress(Exception):
+            tunnel_mod.mark_published(url, time.time())
     print("  published -- https://anthonyn99.github.io/A1/magi.html now reaches this PC")
 
 

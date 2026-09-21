@@ -322,12 +322,18 @@ async def restart_engine(request: Request, force: bool = False):
 
     runs_live = [r for r, st in _runs.items() if not st.get("done")]
     cards_live = [j for j, st in _studio_jobs.items() if not st.get("done")]
-    if (runs_live or cards_live) and not force:
+    # A Code Mode task is a CLI agent mid-run: a restart kills it with no
+    # way to resume, and the task is in memory like a council run is.
+    from .code import tasks as _code_tasks
+    code_live = _code_tasks.running()
+    if (runs_live or cards_live or code_live) and not force:
         what = []
         if runs_live:
             what.append(f"{len(runs_live)} deliberation{'s' if len(runs_live) > 1 else ''}")
         if cards_live:
             what.append(f"{len(cards_live)} Studio card{'s' if len(cards_live) > 1 else ''}")
+        if code_live:
+            what.append(f"{len(code_live)} Code Mode task{'s' if len(code_live) > 1 else ''}")
         raise HTTPException(409, f"{' and '.join(what)} still running.")
 
     # Detached AND in its own process group, so it is not a child this process
