@@ -280,6 +280,36 @@ async def remove_slot(agent: str, slot: str) -> dict[str, Any]:
     return {"ok": True}
 
 
+@router.get("/usage")
+async def agent_usage() -> dict[str, Any]:
+    """What each account has left -- and NOTHING else.
+
+    Separate from /agents deliberately. /agents asks each CLI who it is
+    signed in as, which starts a process per slot; that is the right cost
+    once, and the wrong cost every minute. This reads the remembered usage
+    file and, for Codex, the tail of its newest session log: no processes, no
+    model calls, so the console can keep the percentages live while you work.
+    """
+    snap = _limits.snapshot()
+    usage = {k: dict(v) for k, v in snap["usage"].items()}
+    loop = _asyncio.get_running_loop()
+    from .agents.codex_cli import session_usage
+    for slot in _slots.list_slots("codex"):
+        key = _limits.key("codex", slot)
+        fresh = await loop.run_in_executor(None, session_usage, slot)
+        have = usage.get(key) or {}
+        # Per window, the newer reading wins -- so a remembered figure from a
+        # run is not shadowed by an older log, nor the other way round.
+        merged = dict(have)
+        for win, v in fresh.items():
+            if float(v.get("at") or 0) >= float((have.get(win) or {}).get("at") or 0):
+                merged[win] = v
+        if merged:
+            usage[key] = merged
+    return {"ok": True, "usage": usage,
+            "limits": {k: v.get("until") for k, v in snap["limits"].items()}}
+
+
 @router.post("/agents/{agent}/slots/{slot}/label")
 async def set_slot_label(agent: str, slot: str, body: dict = Body(...)) -> dict[str, Any]:
     """What YOU call this account. The login is not touched."""

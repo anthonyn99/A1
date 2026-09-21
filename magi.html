@@ -3221,10 +3221,13 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
    a password field and stays taller than it is wide. */
 .gate-card {
   position: relative;
-  flex: 0 0 auto; width: 186px; min-height: 218px;
+  /* The tile is sized to the portrait inside it, not the other way round:
+     the avatar, the star and the name keep their sizes and the box lost the
+     empty margin that was making a 68px disc sit in a 218px plate. */
+  flex: 0 0 auto; width: 158px; min-height: 182px;
   display: flex; flex-direction: column; align-items: center;
   background: var(--s1); border: 1px solid var(--bd);
-  border-radius: var(--r-card); padding: 26px 16px 18px;
+  border-radius: var(--r-card); padding: 18px 12px 14px;
   /* No drop shadow. Two siblings each casting `0 24px 60px` means the later
      one paints over the earlier: Veda's shadow darkened Tony's adjacent edge
      while his was hidden beneath her card, so hers read as floating above
@@ -3236,13 +3239,13 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 .gate-card.open { border-color: var(--pc); }
 /* The shut card stays legible rather than being dimmed into a decoration --
    it is a button, and half of what this screen is for is pressing it. */
-.gate-card.tappable { cursor: pointer; justify-content: center; padding-top: 18px; }
+.gate-card.tappable { cursor: pointer; justify-content: center; padding-top: 14px; }
 .gate-card.tappable:hover, .gate-card.tappable:focus-visible {
   border-color: var(--pc); transform: translateY(-2px); outline: 0;
 }
 /* Stacked and centred: the avatar reads as a portrait rather than a bullet. */
 .gate-head {
-  display: flex; flex-direction: column; align-items: center; gap: 11px;
+  display: flex; flex-direction: column; align-items: center; gap: 9px;
   width: 100%;
 }
 /* Outline only. A tinted disc reads as a filled state -- "selected", or
@@ -3320,7 +3323,7 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
   .gate-card.open { width: 100%; flex: 1 1 100%; order: -1; }
 }
 @media (max-width: 430px) {
-  .gate-card { padding: 22px 12px 16px; width: 168px; min-height: 204px; }
+  .gate-card { padding: 16px 10px 12px; width: 150px; min-height: 172px; }
   .gate-card.open { width: 100%; }
   .gate-av { width: 60px; height: 60px; flex-basis: 60px; font-size: 27px; }
 }
@@ -5650,7 +5653,15 @@ async function retryNow(minGapMs = 0) {
 
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) clearTimeout(RETRY.timer);
-  else retryNow();
+  else {
+    retryNow();
+    // Coming back to Code Mode after a while: the percentages on screen are
+    // as old as the time away, so they are re-read now rather than at the
+    // next tick of a timer that was paused for all of it.
+    if (typeof codeMode === "function" && codeMode() && typeof codeUsageRefresh === "function") {
+      codeUsageRefresh();
+    }
+  }
 });
 window.addEventListener("online", () => retryNow());
 window.addEventListener("pageshow", () => retryNow());       // iOS bfcache
@@ -10203,6 +10214,7 @@ const CODE = {
   picks: lsRead(CODE_PICK_KEY, null),      // {on:[], known:[]} like the units
   order: lsRead(CODE_ORDER_KEY, []),
   task: null,                              // {id, prompt, events, done, result, es}
+  poll: 0, usageAt: 0,                     // the usage timer, and its last reading
 };
 
 // The two CLI agents are not council units, so they have no entry in the
@@ -10244,6 +10256,72 @@ async function codeLoad(force) {
   if (codeMode()) renderCodeView();
   if (S.view === "accounts") renderAccounts();
   codeReattach();
+}
+
+/* ── keeping the percentages true while you work ─────────────────────────
+   Three signals, cheapest first, because the expensive one must not be the
+   one that runs on a timer:
+
+   1. The task stream itself. Claude reports its windows on every run, so an
+      agent working IS the freshest possible reading, and it costs nothing.
+   2. `/api/code/usage` on a timer -- a file read on the engine, no CLI
+      processes, no model calls. Codex only updates its log when it runs, so
+      once a minute during a task and once every five otherwise is as often
+      as the numbers can actually change.
+   3. The full `/agents` reload, which starts a process per slot to ask who
+      is signed in. That happens when something CHANGED it: a sign-in, a
+      removal, or a task that ended signed-out or limited.
+
+   The timer stops when Code Mode is not on screen and when the tab is
+   hidden: a phone in a pocket has no percentages to show. */
+const CODE_POLL_MS = 60000;
+const CODE_IDLE_MS = 5 * 60000;
+
+function codeUsagePoll(on) {
+  if (!on) {
+    clearInterval(CODE.poll);
+    CODE.poll = 0;
+    return;
+  }
+  if (CODE.poll) return;
+  CODE.poll = setInterval(() => {
+    if (document.hidden || !online() || !CODE.agents) return;
+    const stale = Date.now() - (CODE.usageAt || 0);
+    if (codeBusy() || stale >= CODE_IDLE_MS) codeUsageRefresh();
+  }, CODE_POLL_MS);
+}
+
+async function codeUsageRefresh() {
+  if (!online() || !CODE.agents) return;
+  try {
+    const d = await codeGet("/usage");
+    if (!d.ok) return;
+    CODE.usageAt = Date.now();
+    for (const c of CODE.agents.cli || []) {
+      for (const s of c.slots) {
+        const u = d.usage[`${c.agent}:${s.slot}`];
+        if (u) s.usage = u;
+        s.limited_until = d.limits[`${c.agent}:${s.slot}`] || null;
+      }
+    }
+    for (const b of CODE.agents.browser || []) {
+      b.limited_until = d.limits[`browser:${b.id}`] || null;
+    }
+    if (codeMode()) renderCodeView();
+    if (S.view === "accounts") renderAccounts();
+  } catch {}
+}
+
+/** A usage frame from the running task: the freshest number there is. */
+function codeApplyUsageEvent(ev) {
+  if (!CODE.agents || !ev.agent || !ev.window) return;
+  const c = (CODE.agents.cli || []).find((x) => x.agent === ev.agent);
+  const s = c && c.slots.find((x) => x.slot === ev.slot);
+  if (!s) return;
+  s.usage = { ...(s.usage || {}),
+              [ev.window]: { utilization: ev.utilization,
+                             resets_at: ev.resets_at, at: Date.now() / 1000 } };
+  CODE.usageAt = Date.now();
 }
 
 function codeSetProject(id) {
@@ -10457,7 +10535,19 @@ function codeAttach(id, prompt) {
   es.onmessage = (m) => {
     const ev = JSON.parse(m.data);
     if (ev.k === "start" && ev.prompt) t.prompt = ev.prompt;
-    if (ev.k === "end") { t.done = true; t.result = ev.result; es.close(); codeLoad(true); }
+    // A usage frame updates the chips as the work happens rather than
+    // waiting for the task to finish to admit what it spent.
+    if (ev.k === "usage") codeApplyUsageEvent(ev);
+    if (ev.k === "end") {
+      t.done = true;
+      t.result = ev.result;
+      es.close();
+      // A full reload only when something a reload would tell us may have
+      // changed: who is signed in, or what is now blocked.
+      const out = (ev.result || {}).outcome;
+      if (out === "unauthed" || out === "limited" || out === "unavailable") codeLoad(true);
+      else codeUsageRefresh();
+    }
     t.events.push(ev);
     if (CODE.task === t && codeMode()) renderCodeView();
     updateEnabled();
@@ -10852,11 +10942,20 @@ function renderCodeAccounts() {
       // request racing the next character.
       title.onblur = async () => {
         if ((s.label || "") === title.value.trim()) return;
+        // Through the same line every other save reports on. It is not a
+        // Firestore write -- the name lives on the engine, beside the login
+        // it names -- but "did that stick?" is the same question, and an
+        // edit that vanished on a failed request is the same annoyance.
+        setSync("saving");
         try {
           const d = await codePost(`/agents/${c.agent}/slots/${s.slot}/label`,
                                    { label: title.value });
-          if (d.ok) s.label = d.label;
-        } catch {}
+          if (!d.ok) throw new Error(d.message || "the engine refused it");
+          s.label = d.label;
+          setSync("saved");
+        } catch (e) {
+          setSync("error", _syncFail("saving an account name", e));
+        }
         renderAccounts();
         if (codeMode()) renderCodeView();
       };
@@ -11136,6 +11235,8 @@ function setView(v) {
        (S.panels.length === 0 || !gridMine) && v === "council"
        && !(S.verdict && gridMine) && !studioOpen && !codeOpen);
   if (codeOpen) renderCodeView();
+  // The usage timer belongs to the screen that shows usage.
+  codeUsagePoll(codeOpen);
   if (!codeOpen) renderVerdict(); else show($("verdict"), false);
   renderQueue();
   renderRunNow();
