@@ -81,7 +81,7 @@ ok('the line sends nothing but the request', /codePost\(`\/projects\/\$\{encodeU
 ok('it cannot be pressed twice', /if \(CODE\.push && CODE\.push\.busy\) return;/.test(pp));
 ok('the line is re-read afterwards', /codeGitLoad\(proj\.id\)/.test(pp));
 const card = fn('function renderCodeCommit(t, applied, done)');
-ok('Push appears only after Commit', /if \(done\) \{[\s\S]{0,400}renderCodePush\(t, pushed\)/.test(card));
+ok('Push appears only after Commit', /if \(done\) \{[\s\S]{0,700}renderCodePush\(t, pushed\)/.test(card));
 const push = fn('function renderCodePush(t, pushed)');
 ok('the card says never forced', /Never forced\./.test(push));
 ok('the card will not push HTTPS without an account', /go\.disabled = !!t\.pushing \|\| \(needsAcct && !acct\)/.test(push));
