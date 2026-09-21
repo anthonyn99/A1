@@ -606,7 +606,7 @@ task starts ─► git pull --rebase --autostash ─► (write) sandbox ─► a
   `user.name`), the index is restored exactly (`read-tree` of the tree saved
   first). A merge or rebase in progress refuses. Once per task
   (`already`), and only for a task whose change was applied (`not_applied`).
-  **Nothing is pushed** — push needs the GitHub credentials of Phase 10.
+  Nothing is pushed until you press **Push** (below).
 - **The draft message**: subject from what you asked (the intent, already a
   short sentence; capitalised, ≤72 chars), body from the agent's summary
   with code blocks removed. Edited in a hand-built field; Ctrl+Enter
@@ -635,6 +635,84 @@ any agent, A1 fetched only, commit after apply, a denied change cannot be
 committed), `tests/magi-code-git.test.js` (console), and
 `tests/live/magi-git.live.js` (bare origin + a second clone in `%TEMP%`: pull,
 real Claude edit, commit from desktop and from 390px, clash, A1 fetch-only).
+
+#### GitHub: accounts, push, and where the token lives
+
+**A token goes in once and never comes out.** Accounts › GitHub › *Add a
+token* takes a GitHub token in a masked field MAGI draws itself. The engine
+checks it with GitHub (`GET /user`), then stores it in the **PC's credential
+store** (Windows Credential Manager, via `keyring`) under
+`magi-github:<profile>:<login>`. What is kept beside it, in
+`magi/data/<profile>/github/accounts.json`, is only the public half: login,
+name, token kind, scopes (classic tokens), expiry, when added. No response,
+log line, error, SQLite row or Firestore field carries the token — the tests
+feed a sentinel token through every path and grep for it. Use a
+**fine-grained token** listing just the repositories MAGI should reach:
+*Contents: Read-only* to look, *Read and write* to push.
+
+```
+Push (card or line) ─► git fetch ─► behind? refuse ─► git push <remote> refs/heads/B:refs/heads/B
+      │  -c credential.helper=   (GCM and every other helper cleared)
+      │  GIT_ASKPASS=data/<p>/github/askpass.sh ─► pythonw magi/github/askpass.py
+      │        answers ONLY for the account's host, reads the token from the
+      │        credential store at that moment, prints it to git's pipe
+      ▼
+  GitHub
+```
+
+- **Which account.** Each project names one GitHub login (`prefs.github`),
+  chosen by tapping the **Repository** pill (`owner/repo`, parsed from the
+  remote URL with any userinfo stripped). The sheet says whether that
+  account can see and push the repository (`GET /repos/{o}/{r}` →
+  `permissions.push`). The same account is used for the task's pull/fetch
+  when the remote is on github.com.
+- **Push is a third press.** After Commit, the card offers **Push**; whenever
+  the branch is ahead, the repository line offers **Push ↑n**. Never forced:
+  the refspec is spelled out with no `+`, a fetch first refuses when the
+  remote has commits you do not ("Pull first"), and git's own
+  non-fast-forward check catches a race. Refused mid-merge/rebase, detached,
+  with no commits, or with a password written into the remote URL.
+- **An HTTPS remote with no account is not pushed at all** (`no_account`) —
+  it never goes out as whatever login Git Credential Manager remembers. A
+  token is only offered to the host that issued it (`wrong_host`, and
+  askpass itself refuses any other host, and plain http except loopback).
+  Local-path and SSH remotes push with the machine's own access.
+- **A1 is never pushed from Code Mode** (`read_only_project`) until Phase 14.
+- Failures are sentences: `behind`, `auth_refused` (needs Contents: Read and
+  write, or expired), `not_found` (a fine-grained token only sees the repos you
+  picked), `protected`, `hook` (your pre-push hook said no).
+- **REST client** (`magi/github/client.py`): `X-GitHub-Api-Version:
+  2026-03-10` on every request, ETags remembered per account and sent back as
+  `If-None-Match` (a 304 costs none of the 5,000/h), `Link: rel="next"`
+  pagination (never followed to another host), `x-ratelimit-*` recorded per
+  account and shown in Accounts, typed errors (`bad_token`, `forbidden`,
+  `not_found`, `rate_limited` with its reset time, `invalid`, `bad_version`,
+  `unavailable`, `network`).
+- Removing an account deletes the credential and its record; the token keeps
+  working on GitHub until you revoke it there.
+
+Routes: `GET/POST /api/code/github/accounts` (`{token}` in, public record
+out), `DELETE /api/code/github/accounts/{login}`,
+`GET /api/code/github/accounts/{login}/repos`,
+`GET/POST /api/code/projects/{id}/github` (`{account}`),
+`POST /api/code/projects/{id}/push`, `POST /api/code/tasks/{id}/push`.
+Event: `pushed {ok, code, text, commits, remote, branch, repo, old, new, by}`.
+The repository line's `git.github = {remote, host, owner, repo, url, scheme}`.
+
+Tests: `magi/tests/test_github_client.py` (mocked transport: version header,
+ETag/304, per-account cache, pagination + max pages + foreign-host refusal,
+rate limits incl. secondary, every status → kind, the sentinel-token grep over
+errors, tracebacks, reprs, logs and caches; the account store with a fake
+keyring; askpass host rules; the routes), `magi/tests/test_github_push.py`
+(remote URL parsing; pushes to a bare remote; behind, forcing config, the
+fetch-then-push race, new branch, detached, mid-merge; HTTPS rules; and a
+**real smart-HTTP server** (`git http-backend` behind Basic auth) with the
+**real credential store**: the token reaches the server and appears in no
+argv, env, `.git` file or result), the Phase 10 section of
+`test_code_write.py`, `tests/magi-code-github.test.js` (console), and
+`tests/live/magi-github.live.js` (add-token sheet against real GitHub, Push ↑n,
+a real Claude edit pushed from the card at 390px, and an injected account
+whose push reaches GitHub through askpass and is refused in words).
 
 ---
 

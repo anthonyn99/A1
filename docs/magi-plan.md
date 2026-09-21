@@ -9,34 +9,40 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-09-21, end of the Phase 9 session.
-**Phases complete:** 1, 2, 3, 4, 5, 6, 7, 8, 9 (plus the follow-ups listed below).
-**Next phase:** **10 — GitHub credentials and REST layer** (design in §8
-below, with the Phase 9 lessons folded into "Phase 10 — first concrete
-steps" here).
+**Last updated:** 2026-09-21, end of the Phase 10 session.
+**Phases complete:** 1–10 (plus the follow-ups listed below).
+**Next phase:** **11 — Repository management surface** (design in §8 below,
+with the Phase 10 lessons folded into "Phase 11 — first concrete steps"
+here).
 
 > **To start the next phase, the whole instruction is "continue" or "next
-> phase".** Do the start-of-session checklist, then build Phase 10 from the
+> phase".** Do the start-of-session checklist, then build Phase 11 from the
 > steps below. Everything needed is in this file.
 
 ### Start-of-session checklist (do these in order)
 
 1. `git pull --rebase --autostash` in A1 — Tony and Veda both push to it.
-2. Read this §0, then the next phase's section in §8. Skim §7A for the agent
-   architecture.
+2. Read this §0, then the next phase's section in §8. Skim §6 (Git/GitHub
+   strategy) and §7A for the agent architecture.
 3. Check the engine is alive: `curl http://127.0.0.1:8000/api/health`. If not,
    `powershell -ExecutionPolicy Bypass -File magi\restart.ps1` (never ask Tony
    to restart it).
-4. Baseline the tests before touching anything:
-   `magi\.venv\Scripts\python -m pytest magi/tests -q` and
-   `node tests/run-all.js`. Both must be green; if not, fix that first.
+4. The venv needs `httpx` and `keyring` (added in Phase 10, in
+   `magi/requirements.txt`): `magi\.venv\Scripts\python -m pip install -r
+   magi\requirements.txt` if an import fails.
+5. Baseline the tests before touching anything:
+   `magi\.venv\Scripts\python -m pytest magi/tests -q` (≈760, ~3 min) and
+   `node tests/run-all.js` (46 suites). Both must be green; if not, fix that
+   first.
 
 ### End-of-phase checklist (the definition of "done")
 
 1. Engine changed? Restart it with `magi\restart.ps1` and re-verify live.
 2. `pytest magi/tests` and `node tests/run-all.js` green. New behaviour has
    new tests, and at least a few were mutation-checked (break the code, watch
-   the test fail, restore).
+   the test fail, restore). **The repo auto-commits mid-session** — a
+   mutation script must restore the file in a `finally`, and check
+   `git diff` afterwards.
 3. Live check in a real browser: `node tests/live/<file>.live.js` (see
    "Test harness" below), desktop and 390px phone widths.
 4. `docs/magi.md` and the console's HOW panel updated in the same commit
@@ -48,7 +54,7 @@ steps" here).
 7. Tell Tony the phase is done, what to test, and that a fresh session can
    pick up from here.
 
-### What exists (as of Phase 9)
+### What exists (as of Phase 10)
 
 * **Profiles** Tony/Veda: gate = lock + picker (`MAGI_PROFILES`, `lsKey()`),
   Firestore `dashboards/magi` vs `dashboards/magi_veda`, favourite star.
@@ -67,156 +73,186 @@ steps" here).
     renameable, device-code sign-in for Codex shown in Accounts.
     Signed in now: Claude `system` (anthonypn99@gmail.com, Pro) and Codex
     `codex1` (free ChatGPT account).
-  - Usage on the chips: Claude 5h + 7d from `rate_limit_event`; Codex read
-    from its session rollout (`codex_cli.session_usage`). Refreshed live from
-    the task stream, and by `GET /api/code/usage` (no CLI processes) every
-    60s during a task / 5 min idle, only while Code Mode is on screen.
-  - Usage is **live from the providers** (`usage_fetch.py`): Claude
-    `api.anthropic.com/api/oauth/usage`, Codex
-    `chatgpt.com/backend-api/wham/usage`, each with the slot's own token,
-    never refreshing it, throttled 1/min; windows past their reset read 0%
-    (`limits.aged`, console `usageLive`).
+  - Usage is **live from the providers** (`usage_fetch.py`), refreshed by
+    the task stream and `GET /api/code/usage` (60s during a task / 5 min idle,
+    only while Code Mode is on screen).
   - Tasks: `POST /api/code/tasks {mode}` → SSE `/tasks/{id}/stream`
-    (replayable, one queue per viewer) → `/approve` → `/cancel`.
+    (replayable, one queue per viewer) → `/approve` → `/commit` → `/push`.
   - **Write mode (Phase 8)** — agents edit a throwaway git worktree
-    (`sandbox.py`, `%TEMP%\magi-sandbox\<profile>\<task>`), MAGI diffs two
-    git trees, `security.py` refuses bad diffs before asking, the console
-    approval card waits 5 min (silence/Halt = No, first device wins), then
-    `sandbox.apply` (git apply, else per-file `merge-file`, all or nothing;
-    conflict keeps the patch in `data/<p>/code-patches/`). Never stages or
-    commits. Startup sweeps leftover sandboxes. Browser units edit through
-    fenced SEARCH/REPLACE blocks (`agents/edits.py`). **A1 is refused**
-    (`is_engine_repo`, error `read_only_project`) until Phase 14; non-git
-    folders are refused with "run git init".
-  - No API keys anywhere: `slots.env_for` strips them; Claude signs in with
-    `--claudeai`, never `--console`.
+    (`sandbox.py`), `security.py` refuses bad diffs, approval card (5 min,
+    silence = No), `sandbox.apply`. **A1 is refused** (`is_engine_repo`,
+    `read_only_project`) until Phase 14.
   - **Local git (Phase 9)** — `magi/code/git.py` is every git operation on a
-    real repo; agents never get git. The bytes-safe `run()` is shared with
-    the sandbox (which alone passes `hooks_path`). Every task starts with
-    `git pull --rebase --autostash` (`tasks._pull_first`, a `pull` event);
-    a clash is undone (`rebase --abort`) and the task ends `pull_failed`
-    before any agent; A1 is `fetch_only`. After an apply the card offers
-    **Commit these files** → `POST /tasks/{id}/commit {message}` →
-    `git.commit` (`add` + `commit --only -- <applied paths>`, repo hooks run,
-    index restored on failure, never pushed). Draft message = subject from
-    the prompt, body from the agent's summary. Repository line under the
-    workspace from `GET /projects/{id}/git` (local only; on entering Code
-    Mode, workspace change, task end, commit — no timer). All git runs with
-    prompts disabled (`GIT_TERMINAL_PROMPT=0`, `GCM_INTERACTIVE=never`).
+    real repo; agents never get git. Pull-before-work
+    (`tasks._pull_first`; A1 fetch-only), **Commit these files**
+    (`git.commit`, `--only`, hooks run), the repository line
+    (`GET /projects/{id}/git`, never on a timer).
+  - **GitHub (Phase 10)** — `magi/github/`:
+    - `accounts.py`: token in the **OS credential store** (`keyring` →
+      Windows Credential Manager) as `magi-github:<profile>:<login>`; public
+      record in `magi/data/<p>/github/accounts.json`. `add` verifies with
+      `GET /user` first; nothing ever returns the token. `repos()`,
+      `repo()` (permissions.push).
+    - `client.py`: `X-GitHub-Api-Version: 2026-03-10`, per-account ETag
+      cache (304 = free), `Link` pagination (never to another host),
+      `RATE[login]` from `x-ratelimit-*`, typed `GitHubError(Kind)`, token
+      scrubbed from every message, `raise … from None` on transport errors.
+    - `askpass.py`: standalone helper git runs via
+      `data/<p>/github/askpass.sh` → `pythonw -I askpass.py`; answers only
+      for `MAGI_GH_HOST` (https, or http on loopback), reads the token from
+      keyring at that moment.
+    - `git.py`: `Auth(login, service, host)` → `-c credential.helper=` +
+      `GIT_ASKPASS`; `push(root, auth)` (fetch, refuse behind/detached/
+      mid-merge/no-commits/password-in-URL, explicit refspec without `+`,
+      `--set-upstream` for a new branch, named failure codes);
+      `remote_info(url)` strips userinfo; `github_of()` feeds
+      `state()["github"]`; `pull`/`fetch_only` take the account when the
+      remote is on its host.
+    - Project ↔ account: `prefs.github = "<login>"` (`POST
+      /projects/{id}/github`). The task gets it (`tasks.start(github=)`), so
+      its pull uses the account too.
+    - Push: `POST /tasks/{id}/push` (after commit; `pushed` event) and
+      `POST /projects/{id}/push` (the line's **Push ↑n**). HTTPS without an
+      account → `no_account`; A1 → `read_only_project`.
+    - Console: Accounts › GitHub (add token in a masked hand-built field,
+      Repositories sheet, Remove); the **Repository** pill shows
+      `owner/repo` and opens the account sheet (with can-push check); the
+      card's third press **Push**; the line's **Push ↑n** / "Choose account
+      to push" / "as <login>".
 
-### Hard-won facts (verified live in Phases 8–9 — do not re-learn them)
+### Hard-won facts (verified live — do not re-learn them)
 
+* (Phase 10) **`credential.interactive=never` also stops git asking
+  `GIT_ASKPASS`** — the token is never requested and git fails with "unable
+  to get password from user". Clear helpers with `-c credential.helper=`
+  and rely on `GIT_TERMINAL_PROMPT=0`; do not add `credential.interactive`.
+* (Phase 10) Git for Windows runs a `#!/bin/sh` script as `GIT_ASKPASS`
+  itself; `pythonw` writes to git's pipe fine (no console window). Prompts
+  are `Username for 'https://github.com': ` then
+  `Password for 'https://<login>@github.com': `.
+* (Phase 10) A local **smart-HTTP server** (`git http-backend` as CGI behind
+  Basic auth, `http.receivepack=true`) is how to test a credentialed push
+  without GitHub — see `test_github_push.py`. The real Windows credential
+  store works from pytest (use a unique service name and delete it).
+* (Phase 10) GitHub answered **200** to `X-GitHub-Api-Version: 2026-03-10`
+  unauthenticated — but also to a bogus `1999-01-01`, so unauthenticated
+  requests do not validate it. Re-check with a real token (a 400 "Unsupported
+  API version" maps to `Kind.BAD_VERSION`).
+* (Phase 10) A fake but well-formed token sent to GitHub over git comes back
+  as `auth_refused` (fetch fails first); via REST as `bad_token` (401).
 * (Phase 9) `git commit --only -- <path>` refuses a path git has never seen,
-  so new files are `git add`-ed first; `--only` still keeps everything else
-  you had staged out of the commit. Save `write-tree` before and `read-tree`
-  it on failure to restore the index exactly.
-* (Phase 9) A fresh clone has no `FETCH_HEAD` — the line says "never
-  fetched". Cloning an empty bare repo: set the branch with
+  so new files are `git add`-ed first; save `write-tree` before and
+  `read-tree` it on failure to restore the index exactly.
+* (Phase 9) A fresh clone has no `FETCH_HEAD`. Cloning an empty bare repo:
   `git symbolic-ref HEAD refs/heads/main`, not `checkout -b`.
-* (Phase 9) **Git Credential Manager is configured machine-wide** and the
-  engine inherits it: pulls on HTTPS remotes silently use Tony's stored
-  GitHub login. Phase 10's per-account token must override it explicitly
-  (`-c credential.helper=` to clear the helper list, then `GIT_ASKPASS`),
-  or pushes will go out as whoever GCM remembers.
-* (Phase 9) git subprocesses cost ~50–100 ms each on Windows; the git tests
-  take ~60 s. Keep status/state to a handful of calls.
-
+* (Phase 9) Git Credential Manager is configured machine-wide — any network
+  git WITHOUT `Auth` still uses it silently (pulls of projects with no
+  account chosen do).
+* (Phase 9) git subprocesses cost ~50–100 ms each on Windows.
 * `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` makes Claude's `acceptEdits` refuse
-  EVERY edit ("…but you haven't granted it yet"). `claude_cli.env_for_task`
-  drops it in write mode (no shell there). Any phase that gives Claude a
-  shell in write mode must solve credential scrubbing another way.
-* Claude `--restricted` confines file tools to cwd (a write outside → a
-  `permission_denied` stream event, parsed as `{"k":"denied"}`).
+  EVERY edit. `claude_cli.env_for_task` drops it in write mode (no shell
+  there). Any phase that gives Claude a shell in write mode must solve
+  credential scrubbing another way.
+* Claude `--restricted` confines file tools to cwd.
 * Codex `workspace-write` is **silently read-only on Windows** without
-  `-c windows.sandbox=unelevated`; and it lets commands write to `%TEMP%`
-  unless `sandbox_workspace_write.exclude_tmpdir_env_var=true` +
-  `exclude_slash_tmp=true`. With those, writes to home and temp are denied.
-  `-c` values are unquoted (TOML falls back to a string; quotes would have
-  to survive `codex.cmd`).
-* Browser replies are read from the RENDERED page: outside a code fence,
-  markdown eats `=======`/`>>>>>>>` and line breaks. Anything a unit must
+  `-c windows.sandbox=unelevated`; plus
+  `sandbox_workspace_write.exclude_tmpdir_env_var=true` +
+  `exclude_slash_tmp=true`. `-c` values unquoted.
+* Browser replies are read from the RENDERED page: anything a unit must
   return verbatim goes inside a fenced code block.
-* `core.autocrlf=true` machine-wide. `git apply` onto a CRLF working copy
-  is fine; compare file contents with line endings normalised in tests.
+* `core.autocrlf=true` machine-wide; compare contents line-ending-normalised.
 * The worktree shares the real repo's hooks → every sandbox git call passes
   an empty `core.hooksPath`.
 * PowerShell 5.1 mangles `git commit -m` here-strings with embedded double
-  quotes — write the message to a file and use `git commit -F`.
+  quotes — write the message to a file and use `git commit -F`. Bash
+  heredocs in this harness also break on some quoting — write files with the
+  Write tool.
 
 ### Non-negotiables (Tony's rules — keep them)
 
-* Nothing paid, no API keys. Free/subscription accounts only.
+* Nothing paid, no API keys. Free/subscription accounts only. (A GitHub PAT
+  is a credential, not a paid API — it stays on the engine PC.)
 * No native browser UI (alert/confirm/prompt/pickers) — everything hand-built.
-* No secrets in code; credentials stay on the engine machine.
+* No secrets in code; credentials stay on the engine machine. Tokens never in
+  a response, a log, Firestore, `.git/config`, argv or an env var.
 * Firestore: one listener, debounced dirty-flag writes, nothing written while
   work is in flight.
 * Clean on desktop AND phone (test at 390px).
 * Pull before working in any repo that pushes to GitHub.
 * Restart the engine yourself after engine changes.
+* Never force-push.
 
 ### Test harness
 
 * `tests/live/cdp.js` — headless Edge/Chrome over CDP (port 9333, its own
   profile). `evalJs(c, expr)`, `shotPath(name)` → `%TEMP%\magi-live-shots`.
-* `tests/live/magi-codemode.live.js` — full Code Mode run against the real
-  engine (workspace, chips, a real Claude task, reload replay, phone, order
-  sheet, folder browser, Accounts, rename).
-* `tests/live/magi-usage-sync.live.js` — gate card sizes, rename → sync
-  line, usage refresh/timer.
-* `tests/live/magi-codex-login.live.js` — Codex device-code sheet (stubbed).
-* `tests/live/magi-write.live.js` — Phase 8 end to end on a scratch repo it
-  creates in `%TEMP%` (never A1): A1 refused, Claude approve (desktop),
-  deny (390px), Codex approve, ChatGPT approve. `LIVE_ONLY=claude,deny,codex,browser`
-  picks sections; `LIVE_TIMEOUT=1` adds the 5-minute silence-is-No run.
-* `tests/live/magi-git.live.js` — Phase 9: a bare `origin` + a second clone
-  in `%TEMP%\magi-git-live`; pull, a real Claude edit, commit (desktop and
-  390px), a clashing pull, A1 fetch-only (a task with `agents: ["none"]`
-  runs the pull and no agent — no usage spent).
-  `LIVE_ONLY=line,commit,phone,clash,a1`.
+* `tests/live/magi-codemode.live.js`, `magi-usage-sync.live.js`,
+  `magi-codex-login.live.js`, `magi-write.live.js` (Phase 8,
+  `LIVE_ONLY=claude,deny,codex,browser`, `LIVE_TIMEOUT=1`),
+  `magi-git.live.js` (Phase 9, `LIVE_ONLY=line,commit,phone,clash,a1`).
+* `tests/live/magi-github.live.js` — Phase 10 on scratch repos in
+  `%TEMP%\magi-github-live`: the add-token sheet against real GitHub (a fake
+  token is refused by GitHub), Push ↑1 from the line, a real Claude edit
+  approved/committed/pushed from the card at 390px, and an **injected
+  throwaway account** (`magi-live-fake`: public record + credential-store
+  entry, never verified) whose push reaches GitHub through askpass and is
+  refused in words; Remove deletes the credential.
+  `LIVE_ONLY=accounts,line,card,https` (only `card` spends Claude usage).
 * The page is opened as `file:///…/magi.html`; Firebase is stubbed off and
   `/auth/journal/status` is stubbed to "no lock" so the profile opens.
 
 ### Waiting on Tony
 
-* Nothing blocking Phase 10's code. For its live step Tony will need to
-  create a GitHub fine-grained PAT (read-only first, then one with
-  contents:write on a throwaway repo) — ask at that point, not before.
+* **A real GitHub token for the one step not done in Phase 10** (plan step 7):
+  a fine-grained PAT — first *Contents: Read-only* on one repo, then one with
+  *Contents: Read and write* on a **throwaway** repo — added in Accounts ›
+  GitHub. Then: list repos, pick the account on the scratch project, push a
+  commit, confirm the version header is accepted, and grep
+  `magi/data`, the repo's `.git`, and API output for the token. Ask him at the
+  start of Phase 11 (Phase 11 is read-only against A1 and needs a token
+  anyway — a read-only one on A1 is enough for it).
 * Worth trying when convenient: a Write task on a small non-A1 repo from the
-  phone — approve, then **Commit these files**.
+  phone — approve, **Commit these files**, **Push**.
 
-### Phase 10 — first concrete steps for the next session
+### Phase 11 — first concrete steps for the next session
 
-Keep from Phase 9: **MAGI performs git itself; agents never get git or a
-token.** Push is one more function in `magi/code/git.py`, called by MAGI
-after you press a button — never by an agent.
+Keep from Phases 9–10: **MAGI performs git and GitHub calls itself; agents
+never get git or a token.** Everything goes through `magi/github/client.py`
+(one `GitHub` per account, ETags, rate accounting) and `accounts.client()`.
 
-1. **Tests first** — `magi/tests/test_github_client.py` with a mocked
-   transport (`httpx.MockTransport`): 304 via ETag, `Link` pagination,
-   rate-limit headers → typed error with reset time, 401/403/404 mapping,
-   and a test that no response, log line or exception message ever contains
-   the token (feed a sentinel token, grep everything).
-2. **Account store** — `magi/github/accounts.py`, `keyring` keyed
-   `magi-github:<profile>:<login>`; add = verify with `GET /user`, store
-   login + scopes; list never returns the token; remove deletes the
-   credential. Start with a fine-grained **read-only** PAT on one repo.
-3. **REST client** — `magi/github/client.py`, `X-GitHub-Api-Version:
-   2026-03-10`, ETag cache, pagination, rate-limit accounting.
-4. **Push** — `git.push(top, account)`: `-c credential.helper=` (clears
-   GCM, see Hard-won facts) + a `GIT_ASKPASS` helper script that reads the
-   token from keyring at call time, so it never enters `.git/config`, argv
-   or the environment of anything else. Refuse when behind (pull first),
-   detached, or mid-rebase. Test against the bare-remote fixture in
-   `test_code_git.py` (a file:// remote needs no token — test the askpass
-   wiring with a fake helper that records it was asked).
-5. **Console** — Accounts gains a GitHub section (add token in a hand-built
-   field, verify, remove); the committed card gains **Push** (after Commit,
-   a third deliberate press); the strip's **Repository** pill shows
-   `owner/repo` parsed from the remote URL; the repository line's `↑n`
-   becomes the push target.
-6. A1 stays excluded from writes/commits/pushes until Phase 14.
-7. Live: add a real read-only token, list repos, then a write-capable one on
-   a throwaway GitHub repo, push a commit, and grep logs/config/API output
-   for the token.
+1. **Ask Tony for a fine-grained read-only token on A1** (see "Waiting on
+   Tony") and add it through Accounts › GitHub; set it as A1's account
+   (`prefs.github`). Everything in this phase is read-only against A1.
+2. **Service modules**, each returning plain dicts or raising `GitHubError`,
+   with mocked-transport tests like `test_github_client.py`:
+   `magi/github/repos.py` (branches, commits for a branch, compare
+   `base...head` for divergence), `pulls.py` (list/open PRs, one PR with
+   checks), `issues.py` (list, one issue with comments — exclude PRs, which
+   `/issues` also returns), `actions.py` (runs for a SHA, jobs for a run,
+   the failing job's log tail — `/actions/jobs/{id}/logs` is a 302 to a
+   signed URL: follow it WITHOUT the Authorization header; `client.get`
+   refuses redirects today, so add a `get_raw(follow_signed=True)`).
+3. **The post-push Actions watch** (§6's "where REST earns its place"):
+   after a successful push, poll `/actions/runs?head_sha=<sha>` with ETags
+   (a 304 costs nothing) at a gentle interval until every run concludes;
+   stream it into the task transcript (`actions` events) and onto the
+   repository line; on failure show the failing job and its log tail, and
+   offer "Ask the chain to diagnose" (a Read task with the tail as context).
+   A1's pushes come from its auto-commit hook, not MAGI — so also offer the
+   watch for "the latest commit on main" from the line.
+4. **Routes** `/api/code/github/…` as thin pass-throughs, per project
+   (owner/repo from `git.github_of`, account from `prefs.github`).
+5. **Console**: a Repository panel (from the pill or the line) with tabs or
+   sections — Branches (with ↑↓ vs remote), Commits, PRs, Issues, Actions —
+   read-only, phone-first, fetched on open, never on a timer except the
+   post-push watch while a run is in progress.
+6. **MCP tools** (§6): expose the same read functions to the Claude CLI
+   agent so a Read task can "look at issue #12" or "why did the deploy
+   fail" — tools call the service layer, never get the token.
+7. Tests: mocked-transport unit tests per module; confirm live that repeat
+   requests return 304; a deliberately failing workflow on a throwaway repo
+   (not A1) surfaces its log tail. Live browser test
+   `tests/live/magi-repo.live.js`.
 
 ---
 
@@ -1334,6 +1370,18 @@ every log, config file and API response for the token.
 *Risk:* Medium-high — first credential with real blast radius. Mitigation: start with a read-only PAT and widen
 once proven. *Firebase:* associations sync in Phase 13; tokens never do.
 *Rollback:* delete the credential; everything degrades to local-Git-only.
+
+*Status:* **complete** (2026-09-21), except the one step that needs Tony's own token (live push to a real GitHub
+repo — listed under §0 "Waiting on Tony"). Built per §0's Phase 10 steps: `magi/github/{accounts,client,askpass}.py`,
+`git.push` + `Auth` + `remote_info`, project↔account in `prefs.github`, push routes for the card and the line,
+Accounts › GitHub and the Repository pill in the console. Decisions: the token lives in the **OS credential store**
+(keyring), never SQLite/Firestore; askpass answers **only for the account's host**; an HTTPS remote with **no
+account is not pushed at all** (never falls through to GCM); a task's pull uses the project's account too; A1 is
+never pushed. Found live: `credential.interactive=never` silently disables GIT_ASKPASS. Tests: 44 client/account/
+askpass/route + 33 push (incl. a real `git http-backend` server with Basic auth and the real credential store) + 4
+task-level + 1 HOW contract + 33 console static; `tests/live/magi-github.live.js` 33/33 + 12/12 (card at 390px with a
+real Claude edit). Mutations caught: helper not cleared, askpass ignores host, token not scrubbed, `+` refspec,
+pagination/ETag/foreign-host, HTTPS without account, unmasked field, token field not emptied, Push without account.
 
 ---
 
