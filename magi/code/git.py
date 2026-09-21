@@ -22,6 +22,12 @@ Four rules this module keeps:
 * **Nothing ever waits for a password.** Network operations run with every
   interactive prompt disabled. The engine has no terminal; a credential
   prompt would hang the task forever instead of failing it with a reason.
+* **A token is handed over, never stored (Phase 10).** A push, and a pull or
+  fetch on a project with a GitHub account, clears git's credential helpers
+  and points GIT_ASKPASS at magi/github/askpass.py, which reads the token
+  from the OS credential store when git asks -- and only for the host the
+  account belongs to. It never enters .git/config, argv, or git's
+  environment. Nothing is ever force-pushed.
 """
 
 from __future__ import annotations
@@ -81,12 +87,18 @@ def run(cwd: Path, *args: str, input: bytes | None = None, timeout: int = 120,
     return r.stdout or b""
 
 
-def _run(cwd: Path, *args: str, **kw):
+def _run(cwd: Path, *args: str, auth: "Auth | None" = None, **kw):
     """Like run() but returns the CompletedProcess, for callers that read
-    stderr or the exit code themselves."""
-    argv = ["git", "-c", "core.quotepath=off", "-c", "color.ui=false", "-C", str(cwd), *args]
+    stderr or the exit code themselves. `auth` is for network commands: see
+    Auth below."""
+    argv = ["git", "-c", "core.quotepath=off", "-c", "color.ui=false"]
+    env = _env()
+    if auth is not None:
+        argv += auth.config()
+        env.update(auth.env())
+    argv += ["-C", str(cwd), *args]
     try:
-        return proc.run(argv, capture_output=True, env=_env(), **kw)
+        return proc.run(argv, capture_output=True, env=env, **kw)
     except FileNotFoundError:
         raise GitError("no_git", "git is not installed on the engine's machine.")
     except Exception as e:
@@ -270,6 +282,7 @@ def state(root: Path) -> dict[str, Any]:
         "conflicts": st.conflicts[:20],
         "state": st.state,
         "fetched_at": fh.stat().st_mtime if fh.exists() else None,
+        "github": github_of(top, st.branch) if remotes else None,
     }
 
 
@@ -403,7 +416,7 @@ def _plural(n: int, one: str) -> str:
     return f"{n} {one}{'' if n == 1 else 's'}"
 
 
-def pull(root: Path) -> Pull:
+def pull(root: Path, auth: "Auth | None" = None) -> Pull:
     """`git pull --rebase --autostash`, before an agent looks at anything.
 
     Answers about stale code are wrong answers, and edits made on stale code
@@ -433,7 +446,8 @@ def pull(root: Path) -> Pull:
             return Pull(True, skipped=True,
                         text=f"{st.branch or 'This branch'} does not track a remote branch — not pulled.")
         before = st.oid
-        r = _run(top, "pull", "--rebase", "--autostash", "--no-edit", timeout=NET_TIMEOUT)
+        r = _run(top, "pull", "--rebase", "--autostash", "--no-edit", timeout=NET_TIMEOUT,
+                 auth=_for_remote(top, auth))
         if r.returncode != 0:
             why = _err(r)
             now = in_progress(top)
@@ -463,7 +477,7 @@ def pull(root: Path) -> Pull:
             f"Pulled {_plural(n, 'commit')} from {up}." if n else f"Up to date with {up}."))
 
 
-def fetch_only(root: Path) -> Pull:
+def fetch_only(root: Path, auth: "Auth | None" = None) -> Pull:
     """For a tree MAGI must not rewrite (its own): learn how far behind it
     is, and say so, without touching a file."""
     top = toplevel(root)
@@ -473,7 +487,7 @@ def fetch_only(root: Path) -> Pull:
     if not up:
         return Pull(True, skipped=True, text="Not tracking a remote branch — not fetched.")
     with lock(top):
-        r = _run(top, "fetch", "--quiet", timeout=NET_TIMEOUT)
+        r = _run(top, "fetch", "--quiet", timeout=NET_TIMEOUT, auth=_for_remote(top, auth))
     if r.returncode != 0:
         return Pull(True, skipped=True, text=f"Could not fetch {up} ({_err(r).splitlines()[-1] if _err(r) else 'error'}); answering from the folder as it is.")
     st = status(top)
@@ -481,3 +495,261 @@ def fetch_only(root: Path) -> Pull:
     return Pull(True, skipped=True, text=(
         f"{_plural(b, 'commit')} behind {up} — not pulled: this is MAGI's own repository, "
         "whose working tree other sessions are using." if b else f"Up to date with {up}."))
+
+
+# ── credentials: one GitHub account, handed to git only when it asks ─────
+
+def remote_info(url: str) -> dict[str, Any]:
+    """Where a remote URL points, with any credentials in it stripped.
+
+    `https://user:tok@github.com/o/r.git` -> host github.com, owner o, repo r,
+    has_password True -- and `safe` is the URL WITHOUT the userinfo, which is
+    the only form that is ever shown or returned.
+    """
+    u = (url or "").strip()
+    info: dict[str, Any] = {"scheme": "", "host": "", "owner": "", "repo": "",
+                            "has_password": False, "safe": ""}
+    m = re.match(r"^(https?|ssh|git)://(?:([^@/]*)@)?([^/]+)/(.*)$", u, re.I)
+    if m:
+        scheme, userinfo, host, path = m.groups()
+        info["scheme"] = scheme.lower()
+        info["has_password"] = bool(userinfo and ":" in userinfo)
+        info["host"] = host.lower()
+        info["safe"] = f"{scheme}://{host}/{path}"
+    else:
+        m = re.match(r"^(?:([^@/:]+)@)?([^/:\\]+):(.+)$", u)        # scp-like git@host:o/r
+        if not m or len(m.group(2)) == 1:                          # C:\... is a path
+            info["safe"] = u
+            return info
+        info["scheme"], info["host"], path = "ssh", m.group(2).lower(), m.group(3)
+        info["safe"] = u
+    parts = [p for p in re.sub(r"\.git/?$", "", path.rstrip("/")).split("/") if p]
+    if len(parts) >= 2:
+        info["owner"], info["repo"] = parts[-2], parts[-1]
+    return info
+
+
+def _askpass_script() -> Path:
+    """The shell script git runs as GIT_ASKPASS: exec the venv's windowless
+    Python on magi/github/askpass.py. Git for Windows runs `#!/bin/sh`
+    scripts itself (verified), and pythonw means no console window flashes
+    on the desktop at every push. Rewritten only when it would change."""
+    import sys
+    from ..settings import data_dir
+    py = Path(sys.executable)
+    pyw = py.with_name("pythonw.exe")
+    exe = (pyw if pyw.exists() else py).as_posix()
+    helper = (Path(__file__).resolve().parent.parent / "github" / "askpass.py").as_posix()
+    body = f'#!/bin/sh\nexec "{exe}" -I "{helper}" "$@"\n'.encode()
+    d = data_dir() / "github"
+    d.mkdir(parents=True, exist_ok=True)
+    f = d / "askpass.sh"
+    try:
+        if f.read_bytes() == body:
+            return f
+    except OSError:
+        pass
+    f.write_bytes(body)
+    return f
+
+
+@dataclass
+class Auth:
+    """Which GitHub account a network git command uses.
+
+    Nothing in here is secret: the account is named by its credential-store
+    service, and the token is read by askpass.py when git asks for it.
+
+    `config()` clears git's credential helper list first. Git Credential
+    Manager is configured machine-wide on the engine PC, and without this a
+    push would silently go out as whoever GCM remembers (docs/magi-plan.md
+    §0, Phase 9 facts) -- and git would hand the token to GCM to keep after
+    a successful push, which is exactly where it must not end up.
+    """
+    login: str
+    service: str
+    host: str = "github.com"
+
+    def config(self) -> list[str]:
+        return ["-c", "credential.helper=", "-c", "credential.interactive=never",
+                "-c", "core.askPass="]
+
+    def env(self) -> dict[str, str]:
+        return {"GIT_ASKPASS": str(_askpass_script()), "MAGI_GH_SERVICE": self.service,
+                "MAGI_GH_LOGIN": self.login, "MAGI_GH_HOST": self.host}
+
+
+def _remote_of(top: Path, branch: str) -> str:
+    r = _run(top, "config", "--get", f"branch.{branch}.remote", timeout=30) if branch else None
+    name = r.stdout.decode("utf-8", "replace").strip() if r is not None and r.returncode == 0 else ""
+    if name:
+        return name
+    remotes = out(top, "remote").split()
+    return "origin" if "origin" in remotes else (remotes[0] if len(remotes) == 1 else "")
+
+
+def _remote_url(top: Path, remote: str) -> str:
+    r = _run(top, "remote", "get-url", "--push", remote, timeout=30) if remote else None
+    return r.stdout.decode("utf-8", "replace").strip() if r is not None and r.returncode == 0 else ""
+
+
+def _for_remote(top: Path, auth: Auth | None) -> Auth | None:
+    """`auth` only if the remote really is on the account's host -- a token
+    is never offered to a server it was not issued by."""
+    if auth is None:
+        return None
+    br = out(top, "branch", "--show-current")
+    info = remote_info(_remote_url(top, _remote_of(top, br)))
+    return auth if info["host"] == auth.host.lower() and info["scheme"] in ("https", "http") else None
+
+
+def github_of(top: Path, branch: str | None = None) -> dict[str, Any]:
+    """owner/repo of the current branch's remote, for the console's
+    Repository pill. Local only; the URL comes back without credentials."""
+    br = out(top, "branch", "--show-current") if branch is None else branch
+    remote = _remote_of(top, br)
+    info = remote_info(_remote_url(top, remote))
+    return {"remote": remote, "host": info["host"], "owner": info["owner"],
+            "repo": info["repo"], "url": info["safe"], "scheme": info["scheme"]}
+
+
+@dataclass
+class Push:
+    ok: bool
+    code: str = ""
+    text: str = ""
+    commits: int = 0
+    remote: str = ""          # "origin"
+    branch: str = ""          # the remote branch pushed to
+    repo: str = ""            # "owner/name", when the remote says
+    old: str = ""
+    new: str = ""
+    by: str = ""              # the GitHub login it went out as
+
+    def to_dict(self) -> dict[str, Any]:
+        return dict(self.__dict__)
+
+
+_AUTH_FAIL = re.compile(r"Authentication failed|Invalid username or (password|token)|"
+                        r"could not read (Username|Password)|terminal prompts disabled|"
+                        r"Permission to .* denied|Write access to repository not granted|"
+                        r"returned error: 40[13]", re.I)
+
+
+def push(root: Path, auth: Auth | None) -> Push:
+    """Push the current branch to its remote branch -- never forced.
+
+    Refused, with a sentence, when the repository is mid-merge/rebase, HEAD
+    is detached, or the remote has commits you do not (pull first: a push
+    here never rewrites anything on GitHub). An HTTPS remote needs an
+    account (`auth`) on that remote's host; with no account nothing is
+    pushed at all, rather than going out as whatever login this machine
+    happens to remember. A local path or SSH remote uses the machine's own
+    access and no token.
+
+    The refspec is spelled out without a `+`, so no config on the remote
+    (`remote.origin.push = +refs/...`) can turn this into a force push.
+    """
+    top = toplevel(root)
+    if top is None:
+        return Push(False, "not_git", "This folder is not a git repository.")
+    with lock(top):
+        busy = in_progress(top)
+        if busy:
+            return Push(False, "in_progress", f"The repository is in the middle of a {busy}. "
+                        "Finish or abort it, then push.")
+        st = status(top)
+        if st.detached:
+            return Push(False, "detached", "HEAD is detached — check out a branch to push.")
+        if not st.oid:
+            return Push(False, "no_commits", "There are no commits to push yet.")
+        remote = _remote_of(top, st.branch)
+        url = _remote_url(top, remote)
+        if not url:
+            return Push(False, "no_remote", "This repository has no remote to push to.")
+        info = remote_info(url)
+        repo = f"{info['owner']}/{info['repo']}" if info["owner"] else ""
+        res = Push(False, remote=remote, repo=repo)
+        if info["has_password"]:
+            res.code, res.text = "password_in_url", (
+                f"The URL of {remote} has a password or token written into it. MAGI will not "
+                "push with a credential it did not give — remove it from the URL first.")
+            return res
+        use: Auth | None = None
+        if info["scheme"] in ("https", "http"):
+            if auth is None:
+                res.code, res.text = "no_account", (
+                    f"Pick the GitHub account to push {repo or remote} as. MAGI does not push "
+                    "with whatever login this machine happens to remember.")
+                return res
+            if info["host"] != auth.host.lower():
+                res.code, res.text = "wrong_host", (
+                    f"{remote} is on {info['host']}, not {auth.host}; {auth.login}'s token is "
+                    "only ever sent to the host that issued it.")
+                return res
+            use = auth
+            res.by = auth.login
+
+        mb = _run(top, "config", "--get", f"branch.{st.branch}.merge", timeout=30)
+        merge = mb.stdout.decode("utf-8", "replace").strip() if mb.returncode == 0 else ""
+        rbranch = merge[len("refs/heads/"):] if merge.startswith("refs/heads/") else st.branch
+        res.branch = rbranch
+
+        f = _run(top, "fetch", "--quiet", remote, timeout=NET_TIMEOUT, auth=use)
+        if f.returncode != 0:
+            return _push_failed(res, _err(f), use, "fetch")
+        tracking = f"refs/remotes/{remote}/{rbranch}"
+        exists = _run(top, "rev-parse", "--verify", "--quiet", tracking, timeout=30).returncode == 0
+        if exists:
+            behind = int(out(top, "rev-list", "--count", f"HEAD..{tracking}") or 0)
+            if behind:
+                res.code, res.text = "behind", (
+                    f"{remote}/{rbranch} has {_plural(behind, 'commit')} you do not. Pull first "
+                    "(the next task's pull does it), then push. MAGI never force-pushes.")
+                return res
+            ahead = int(out(top, "rev-list", "--count", f"{tracking}..HEAD") or 0)
+            res.old = out(top, "rev-parse", tracking)[:7]
+            if not ahead:
+                res.ok, res.code = True, "up_to_date"
+                res.text = f"Nothing to push: {remote}/{rbranch} already has it."
+                return res
+        else:
+            ahead = int(out(top, "rev-list", "--count", "HEAD", "--not",
+                            f"--remotes={remote}") or 0)
+
+        argv = ["push", "--porcelain", remote, f"refs/heads/{st.branch}:refs/heads/{rbranch}"]
+        if not st.upstream:
+            argv.insert(1, "--set-upstream")
+        p = _run(top, *argv, timeout=NET_TIMEOUT * 2, auth=use)
+        if p.returncode != 0:
+            return _push_failed(res, _err(p), use, "push")
+        res.ok, res.code, res.commits = True, "pushed", ahead
+        res.new = out(top, "rev-parse", "HEAD")[:7]
+        res.text = (f"Pushed {_plural(ahead, 'commit')} to {repo or remote} ({rbranch})"
+                    + (f" as {res.by}." if res.by else "."))
+        return res
+
+
+def _push_failed(res: Push, why: str, auth: Auth | None, step: str) -> Push:
+    lines = [ln for ln in why.splitlines() if ln.strip() and not ln.startswith(("To ", "Done"))]
+    tail = lines[-1].strip() if lines else f"git {step} failed"
+    target = res.repo or res.remote
+    if re.search(r"\[rejected\]|non-fast-forward|fetch first|stale info", why):
+        res.code, res.text = "behind", (f"GitHub has commits on {res.branch} you do not. Pull "
+                                        "first, then push. MAGI never force-pushes.")
+    elif re.search(r"protected branch|GH006", why):
+        res.code, res.text = "protected", f"{res.branch} is protected on GitHub: {tail}"
+    elif re.search(r"pre-push hook declined|hook declined", why, re.I):
+        res.code, res.text = "hook", f"The repository's pre-push hook refused the push: {tail}"
+    elif auth and re.search(r"Repository not found", why, re.I):
+        res.code, res.text = "not_found", (
+            f"GitHub says {target} does not exist — or {auth.login}'s token cannot see it. A "
+            "fine-grained token only sees the repositories you picked for it.")
+    elif _AUTH_FAIL.search(why):
+        who = auth.login if auth else "this machine"
+        res.code, res.text = "auth_refused", (
+            f"GitHub refused {who} for {target}. A fine-grained token needs Contents: Read "
+            "and write on this repository; an expired or revoked one needs replacing in Accounts.")
+    else:
+        res.code, res.text = step, f"Could not {step} {target}: {tail}"
+    return res

@@ -451,7 +451,8 @@ async def start_task(body: dict = Body(...)) -> dict[str, Any]:
                 "the hardening phase. Ask in Read mode, or use another project.")}
     order = [str(x) for x in (body.get("agents") or _chain.DEFAULT_ORDER)]
     t = await _tasks.start(project_id=p["id"], root=root, prompt=prompt[:20000],
-                           order=order, settings=_settings(), mode=mode)
+                           order=order, settings=_settings(), mode=mode,
+                           github=str((p.get("prefs") or {}).get("github") or ""))
     await _db().touch_code_binding(p["id"], eng)
     return {"ok": True, "task": t.summary()}
 
@@ -510,3 +511,156 @@ async def cancel_task(task_id: str) -> dict[str, Any]:
         return {"ok": False, "error": "no_task"}
     t.cancel.set()
     return {"ok": True}
+
+
+@router.post("/tasks/{task_id}/push")
+async def push_task(task_id: str, body: dict = Body(default={})) -> dict[str, Any]:
+    """Push what a task committed. `{"account": "<login>"}` optional; the
+    project's account otherwise. Never forced, never without a commit."""
+    t = _tasks.TASKS.get(task_id)
+    if t is None:
+        return {"ok": False, "error": "no_task", "message": "No such task."}
+    return await _tasks.push(t, str((body or {}).get("account") or ""))
+
+
+# ── GitHub: accounts, repositories, and which account a project uses ─────
+#
+# The token goes in once (POST /github/accounts) and never comes out: every
+# response here is built from the account's public record. See
+# magi/github/accounts.py for where it is kept.
+
+from ..github import accounts as _gh
+from ..github import client as _ghc
+
+
+def _gh_fail(e: "_gh.AccountError") -> dict[str, Any]:
+    return {"ok": False, "error": e.code, "message": e.message}
+
+
+@router.get("/github/accounts")
+async def gh_accounts() -> dict[str, Any]:
+    try:
+        rows = await _asyncio.get_running_loop().run_in_executor(None, _gh.list_accounts)
+    except _gh.AccountError as e:
+        return _gh_fail(e)
+    return {"ok": True, "accounts": rows, "api_version": _ghc.API_VERSION}
+
+
+@router.post("/github/accounts")
+async def gh_add_account(body: dict = Body(...)) -> dict[str, Any]:
+    """`{"token": "github_pat_..."}` -> verified with GitHub, stored in the
+    credential store, and the account's public record returned."""
+    tok = str((body or {}).get("token") or "")
+    try:
+        acct = await _asyncio.get_running_loop().run_in_executor(None, _gh.add, tok)
+    except _gh.AccountError as e:
+        return _gh_fail(e)
+    finally:
+        tok = ""
+    return {"ok": True, "account": acct}
+
+
+@router.delete("/github/accounts/{login}")
+async def gh_remove_account(login: str) -> dict[str, Any]:
+    try:
+        had = await _asyncio.get_running_loop().run_in_executor(None, _gh.remove, login)
+    except _gh.AccountError as e:
+        return _gh_fail(e)
+    return {"ok": True, "removed": had}
+
+
+@router.get("/github/accounts/{login}/repos")
+async def gh_repos(login: str) -> dict[str, Any]:
+    try:
+        d = await _asyncio.get_running_loop().run_in_executor(None, _gh.repos, login)
+    except _gh.AccountError as e:
+        return _gh_fail(e)
+    return {"ok": True, **d}
+
+
+async def _project_here(project_id: str):
+    p = await _db().code_project(project_id, _engine_id())
+    if not p:
+        return None, None, {"ok": False, "error": "no_project", "message": "No such project."}
+    here = next((b for b in p["bindings"] if b["here"]), None)
+    if not here:
+        return p, None, {"ok": False, "error": "not_bound",
+                         "message": f"{p['name']} has no folder on this machine yet."}
+    from pathlib import Path
+    return p, Path(here["root"]), None
+
+
+@router.get("/projects/{project_id}/github")
+async def project_github(project_id: str) -> dict[str, Any]:
+    """Which repository this project's folder answers to, which account it
+    uses, and whether that account can see and push it (one REST call,
+    conditional, so asking again is nearly free)."""
+    p, root, err = await _project_here(project_id)
+    if err:
+        return err
+    from . import git as G
+    loop = _asyncio.get_running_loop()
+    top = await loop.run_in_executor(None, G.toplevel, root)
+    if top is None:
+        return {"ok": False, "error": "not_git", "message": "This folder is not a git repository."}
+    remote = await loop.run_in_executor(None, G.github_of, top)
+    login = str((p.get("prefs") or {}).get("github") or "")
+    out: dict[str, Any] = {"ok": True, "remote": remote, "account": login, "access": None}
+    if login and remote.get("host") == "github.com" and remote.get("owner"):
+        try:
+            out["access"] = await loop.run_in_executor(
+                None, lambda: _gh.repo(login, remote["owner"], remote["repo"]))
+        except _gh.AccountError as e:
+            out["access"] = {"error": e.code, "message": e.message}
+    return out
+
+
+@router.post("/projects/{project_id}/github")
+async def set_project_github(project_id: str, body: dict = Body(...)) -> dict[str, Any]:
+    """`{"account": "<login>"}` to connect, `{"account": ""}` to disconnect.
+    Stores the login in the project's prefs; the token never moves."""
+    p, _root, err = await _project_here(project_id)
+    if p is None:
+        return err
+    login = str((body or {}).get("account") or "").strip()
+    if login:
+        try:
+            login = _gh.check_login(login)
+        except _gh.AccountError as e:
+            return _gh_fail(e)
+        if not await _asyncio.get_running_loop().run_in_executor(None, _gh.get, login):
+            return {"ok": False, "error": "no_account",
+                    "message": f"MAGI holds no token for {login}. Add it in Accounts first."}
+    prefs = {**W.DEFAULT_PREFS, **(p.get("prefs") or {}), "github": login}
+    row = W.Project(id=p["id"], name=p["name"], aliases=p.get("aliases") or [],
+                    prefs=prefs, notes=p.get("notes", "")).to_row()
+    await _db().save_code_project(row)
+    return {"ok": True, "project": await _db().code_project(project_id, _engine_id())}
+
+
+@router.post("/projects/{project_id}/push")
+async def push_project(project_id: str, body: dict = Body(default={})) -> dict[str, Any]:
+    """Push the project's current branch -- the repository line's ↑n.
+
+    As the project's GitHub account (or `{"account"}`), never forced, and
+    never for MAGI's own repository: A1 stays read-only until the hardening
+    phase, pushes included.
+    """
+    p, root, err = await _project_here(project_id)
+    if err:
+        return err
+    from . import git as G
+    from .sandbox import is_engine_repo
+    loop = _asyncio.get_running_loop()
+    if await loop.run_in_executor(None, is_engine_repo, root):
+        return {"ok": False, "error": "read_only_project", "message": (
+            f"{p['name']} is MAGI's own repository; it is not pushed from Code Mode until "
+            "the hardening phase.")}
+    login = str((body or {}).get("account") or (p.get("prefs") or {}).get("github") or "")
+    auth = await loop.run_in_executor(None, _tasks.git_auth, login)
+    try:
+        res = await loop.run_in_executor(None, G.push, root, auth)
+    except G.GitError as e:
+        return {"ok": False, "error": e.code, "message": e.message}
+    d = res.to_dict()
+    return {"ok": res.ok, "push": d, **({} if res.ok else {"error": res.code, "message": res.text})}

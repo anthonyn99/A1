@@ -26,7 +26,8 @@ Write mode (Phase 8) wraps the chain in a sandbox (sandbox.py):
 
 A refused diff never reaches the card, and nothing reaches the real folder
 without an explicit Approve. Nothing is committed without a second, separate
-press, and nothing is ever pushed from here.
+press, and nothing is pushed without a third (Phase 10): Push, as the GitHub
+account the project names, never forced.
 """
 
 from __future__ import annotations
@@ -67,6 +68,8 @@ class TaskState:
     approval_deadline: float = 0.0
     repo: str = ""            # the repository top the change was applied to
     committing: bool = False
+    github: str = ""          # the GitHub login this project pushes/pulls as
+    pushing: bool = False
 
     @property
     def awaiting_approval(self) -> bool:
@@ -126,9 +129,9 @@ def _prune() -> None:
 
 
 async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
-                settings, mode: str = "read") -> TaskState:
+                settings, mode: str = "read", github: str = "") -> TaskState:
     t = TaskState(id=uuid.uuid4().hex[:12], project_id=project_id,
-                  prompt=prompt, mode=mode, root=str(root))
+                  prompt=prompt, mode=mode, root=str(root), github=github)
     TASKS[t.id] = t
     _prune()
 
@@ -198,8 +201,9 @@ async def _pull_first(t: TaskState, root: Path) -> G.Pull:
     """The §7A rule: pull before anything reads the folder, and say so."""
     loop = asyncio.get_running_loop()
     own = await loop.run_in_executor(None, sandbox.is_engine_repo, root)
+    auth = await loop.run_in_executor(None, git_auth, t.github)
     try:
-        p = await loop.run_in_executor(None, G.fetch_only if own else G.pull, root)
+        p = await loop.run_in_executor(None, G.fetch_only if own else G.pull, root, auth)
     except G.GitError as e:
         p = G.Pull(False, text=f"Could not pull: {e.message}")
     await publish(t, {"k": "pull", **p.to_dict()})
@@ -306,6 +310,53 @@ async def commit(t: TaskState, message: str) -> dict[str, Any]:
     r["commit"] = c.to_dict()
     await publish(t, {"k": "committed", **c.to_dict()})
     return {"ok": True, "commit": c.to_dict()}
+
+
+def git_auth(login: str) -> G.Auth | None:
+    """The git credential wiring for a GitHub login MAGI holds a token for,
+    or None. Names only -- the token is read by askpass when git asks."""
+    if not login:
+        return None
+    from ..github import accounts as A
+    try:
+        login = A.check_login(login)
+        if not A.get(login):
+            return None
+    except A.AccountError:
+        return None
+    return G.Auth(login=login, service=A.service(login))
+
+
+async def push(t: TaskState, login: str = "") -> dict[str, Any]:
+    """Push the branch this task committed to. A third, separate press.
+
+    As `login` if given (the console sends the project's account), else the
+    project's. Never forced: a remote that moved on is a refusal that says
+    to pull first.
+    """
+    r = t.result or {}
+    if not r.get("commit") or not t.repo:
+        return {"ok": False, "error": "not_committed",
+                "message": "Commit the change first; only a commit can be pushed."}
+    if (r.get("push") or {}).get("ok"):
+        return {"ok": False, "error": "already", "message": "Already pushed.", "push": r["push"]}
+    if t.pushing:
+        return {"ok": False, "error": "busy", "message": "Already pushing."}
+    t.pushing = True
+    loop = asyncio.get_running_loop()
+    try:
+        auth = await loop.run_in_executor(None, git_auth, login or t.github)
+        res = await loop.run_in_executor(None, G.push, Path(t.repo), auth)
+    except G.GitError as e:
+        res = G.Push(False, e.code, e.message)
+    finally:
+        t.pushing = False
+    d = res.to_dict()
+    if res.ok:
+        r["push"] = d
+        await publish(t, {"k": "pushed", **d})
+    return {"ok": res.ok, "push": d,
+            **({} if res.ok else {"error": res.code, "message": res.text})}
 
 
 async def stream(t: TaskState):

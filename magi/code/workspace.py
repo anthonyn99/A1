@@ -337,6 +337,9 @@ DEFAULT_PREFS = {
     "autoPush": False,
     "commitStyle": "summary",
     "batchWindowMin": 3,
+    # The GitHub login this project pushes (and pulls) as -- a name, never a
+    # token (magi/github/accounts.py). "" until you pick one.
+    "github": "",
 }
 
 
