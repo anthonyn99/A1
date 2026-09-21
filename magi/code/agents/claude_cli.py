@@ -64,6 +64,23 @@ def build_argv(exe: str, task: Task, model: str | None = None) -> list[str]:
     return argv
 
 
+def env_for_task(slot: str, task: Task) -> dict[str, str]:
+    """The slot's environment, adjusted for the mode.
+
+    CLAUDE_CODE_SUBPROCESS_ENV_SCRUB keeps credentials out of the agent's
+    SHELL commands -- and, found live, it also stops acceptEdits from
+    auto-approving any edit, even one inside the working directory ("Claude
+    requested permissions to write to ..., but you haven't granted it yet").
+    Write mode offers no shell tool at all, so the scrub has nothing to guard
+    there; it stays on in read mode, and when a later phase gives write mode a
+    shell, that phase has to solve this another way.
+    """
+    env = slots.env_for("claude", slot)
+    if task.mode == Mode.WRITE:
+        env.pop("CLAUDE_CODE_SUBPROCESS_ENV_SCRUB", None)
+    return env
+
+
 def _target(inp: dict[str, Any]) -> str:
     for k in ("file_path", "path", "pattern", "glob", "query"):
         v = inp.get(k)
@@ -162,7 +179,7 @@ class ClaudeCLIAgent(CodingAgent):
         prompt = task.full_prompt()
         try:
             s = Stream(build_argv(exe, task, self.model), cwd=task.root,
-                       env=slots.env_for("claude", self.slot), stdin_text=prompt)
+                       env=env_for_task(self.slot, task), stdin_text=prompt)
         except OSError as exc:
             return Result(Outcome.UNAVAILABLE, detail=f"Could not start Claude Code: {exc}")
 

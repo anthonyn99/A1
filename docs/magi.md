@@ -376,12 +376,29 @@ and it is what the chips and the transcript say once you set one. Renaming
 never touches the login. Labels live in
 `magi/profiles/<profile>/cli/labels.json`.
 
-**Usage is shown before the wall, not after.** Claude reports its windows on
-every run (five-hour and seven-day), and both are on the chip: `5h 88% ·
-7d 77%`. Codex reports *tokens* and never windows, so MAGI reads
-`rate_limits` out of the account's own newest session rollout instead —
-`used_percent`, `window_minutes`, `resets_at` — which is how a free Codex
-account shows `30d 0%` without spending a run to find out.
+**Usage is shown before the wall, not after, and it is current.** Every
+`/api/code/agents` and `/api/code/usage` asks each provider directly
+(`magi/code/agents/usage_fetch.py`) — the same read the CLIs make for their
+own `/usage` and `/status` screens:
+
+| Agent | Read | Windows |
+|---|---|---|
+| Claude | `GET api.anthropic.com/api/oauth/usage` with the slot's own OAuth token | `five_hour`, `seven_day` → `5h 22% · 7d 82%` |
+| Codex | `GET chatgpt.com/backend-api/wham/usage` with the slot's own token | free: one 30-day window; Plus: 5h + weekly |
+
+No model call and nothing billed. The token is read from the slot's login
+file and goes only to the provider that issued it. **MAGI never refreshes a
+token:** both providers rotate refresh tokens, and a second refresher racing
+the CLI can sign the CLI out. An expired token means "skip this read"; the
+CLI renews it on its next run. Reads are throttled to one per slot per
+minute. When the provider says there is room, a remembered limit is cleared.
+
+Before this, the numbers came only from the last task (Claude's
+`rate_limit_event`, Codex's session rollout), so a `5h used 90%` from the
+night before stayed on the card the next morning on an account that had
+reset. Those sources are still used as fallbacks, and **a window whose reset
+time has passed reads 0%**, both on the engine (`limits.aged`) and in the
+console (`usageLive`), so a stale figure can never outlive its window.
 
 Signing in is in **Accounts → Coding agents**, hand-drawn like everything
 else. Codex uses its device-code flow: the sheet shows OpenAI's URL and a
@@ -391,11 +408,14 @@ opens on the engine machine. Either way MAGI never sees a password; it only
 watches the slot report signed in.
 
 Both CLIs run **locked down**: `--ignore-user-config --ignore-rules` and
-`--sandbox read-only` for Codex; `--restricted --strict-mcp-config`, a fixed
-read-only tool list and `--permission-mode plan` for Claude; and
-`CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, so nothing an agent runs can read the
-credentials it is running on. A hostile `AGENTS.md`, rules file or
-`.claude/` in a target repository does not reconfigure the agent.
+`--sandbox read-only` for Codex, with its off-machine features (`browser_use`,
+`computer_use`, `apps`, `plugins`, `multi_agent`, `hooks`, …) disabled in
+every mode; `--restricted --strict-mcp-config`, a fixed read-only tool list
+and `--permission-mode plan` for Claude, plus
+`CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` in read mode, so nothing an agent runs
+can read the credentials it is running on. A hostile `AGENTS.md`, rules file
+or `.claude/` in a target repository does not reconfigure the agent. Write
+mode's flags are below.
 
 #### The chain
 
@@ -438,9 +458,11 @@ the same wall on every task. **Clear limit** in Accounts overrides it.
 GET    /api/code/agents                        slots, who they are, usage, limits
 POST   /api/code/agents/{agent}/slots/{slot}/login   start a sign-in
 GET    /api/code/login/{job}                   poll it
-POST   /api/code/tasks                         {project_id, prompt, agents:[...]}
+POST   /api/code/tasks                         {project_id, prompt, agents:[...], mode:"read"|"write"}
 GET    /api/code/tasks/{id}/stream             SSE, replayed from the start
+POST   /api/code/tasks/{id}/approve            {approve: true|false} -- write mode
 POST   /api/code/tasks/{id}/cancel             Halt
+GET    /api/code/usage                         usage + limits, no CLI processes
 ```
 
 A task keeps every event and gives **each viewer its own queue**, unlike a
@@ -451,11 +473,93 @@ the console says so rather than showing one busy forever, and `/api/restart`
 refuses while one is running. **Nothing about a task is written to
 Firestore.**
 
-Phase 7 is **read-only**: `POST /api/code/tasks` forces `mode = "read"`
-whatever it is sent. `magi/tests/test_code_agents.py` pins the parsers
-against recorded event streams, the chain's hand-off rules, the environment
-scrubbing and the slot layout; `tests/magi-codemode.test.js` pins the
-console side.
+`magi/tests/test_code_agents.py` pins the parsers against recorded event
+streams, the chain's hand-off rules, the environment scrubbing and the slot
+layout; `tests/magi-codemode.test.js` pins the console side.
+
+#### Write mode: edits you approve as a diff
+
+**Agents never write to your folder.** A write task runs in a throwaway copy.
+MAGI diffs the copy, you approve the diff, and only then does MAGI apply it.
+
+```
+your folder ──git stash create──► worktree in %TEMP%\magi-sandbox\<profile>\<task>
+                                     │  agents edit freely here
+                                     ▼
+                              diff (two git trees) ──► security.review ──► approval card
+                                     │                                   (5 min; silence = No)
+                           Approve ──┘   Deny / timeout / Halt → discarded
+                                     ▼
+                     applied onto your folder (never staged, never committed)
+```
+
+- **The copy starts from your disk, not from HEAD.** `git stash create`
+  commits the working tree without touching it or the stash list, so
+  uncommitted edits are included. Untracked, non-ignored files are copied in
+  (secrets among them are not). The baseline is recorded as a git *tree*
+  (`add -A` + `write-tree`), not a commit: no hooks, no author, nothing on any
+  branch, and the copied files never show up as the agent's additions.
+- **Hooks never run.** Every sandbox git call passes an empty
+  `core.hooksPath`; a worktree shares the real repo's hooks.
+- **One gate for every agent.** Claude CLI runs with
+  `--permission-mode acceptEdits --tools Read,Glob,Grep,Edit,Write` (no
+  Bash). `--restricted` confines its file tools to the copy; tested live, a
+  write to the home folder comes back as a `permission_denied` event, which
+  the transcript shows. The env scrub is **dropped in write mode**: found
+  live, it makes acceptEdits refuse every edit as "not granted", and write
+  mode has no shell for it to protect. Codex runs with
+  `--sandbox workspace-write` plus `windows.sandbox=unelevated` (without it,
+  workspace-write is silently read-only on Windows), temp-dir exemptions off
+  and network off. Tested live: a write to `%USERPROFILE%` or `%TEMP%` is
+  denied. Codex keeps its shell, because that is how it reads files, but only
+  inside that OS sandbox. Browser units answer in a fixed format
+  (`magi/code/agents/edits.py`): one fenced code block per change, holding
+  `FILE:` + `<<<<<<< SEARCH` / `=======` / `>>>>>>> REPLACE`. It has to be
+  fenced because MAGI reads the reply from the rendered page, and outside a
+  code block markdown eats the markers and the line breaks. MAGI applies
+  those edits into the copy all-or-nothing, checking every path first.
+- **`security.review` runs before you are asked.** Paths are checked on both
+  sides of every diff header: no `..`, nothing absolute, no `:` streams, no
+  Windows device names. Checked against the *real* folder, no path may pass
+  through a link that points outside. The deny-list is `.git/`, `.ssh/`,
+  `.gnupg/`, `.aws/`, `.azure/`, `.claude/`, `.codex/` (a planted hook there
+  runs next task), and env, key and credential files. Symlinks and
+  submodules are refused. Over 2 MB or 300 files is refused with a
+  sentence, never truncated. **One bad file refuses the whole diff**, and
+  you are not asked.
+- **Approval** is an `approval` event on the stream: per-file diffs, `+/−`
+  counts and a deadline. Any device watching the task can answer, and the
+  first answer wins (`tasks.decide`). Only an explicit `true` approves.
+  No answer within 5 minutes, or Halt, is a No.
+- **Apply** tries `git apply`, all or nothing. If you edited the same file
+  meanwhile, each file is three-way merged (`git merge-file`) against the
+  tree the agent was given. A real conflict applies **nothing** and keeps the
+  patch at `magi/data/<profile>/code-patches/<task>.patch`.
+- **Hand-offs continue in the same copy.** When Claude runs out mid-task,
+  Codex works in the same worktree and is told which files already changed.
+- **Nothing outlives the task.** The copy is removed in a `finally`, and a
+  marker file lets engine startup sweep any copy left by a crash.
+- **Refused for now:** a folder that is not a git repository (with a
+  sentence saying to `git init`), a repository with no commits, and **A1
+  itself**, MAGI's own repository. Both the engine (`read_only_project`) and
+  the console (Write greyed out with the reason) refuse A1 until the
+  hardening phase.
+
+In the console, **Read / Write** sits under the agent chips. Every task
+starts in Read, and the switch falls back to Read once a task starts, so
+Write is never left on from yesterday. The Run button says **Run edits**
+when Write is on. The approval card lists each file with a status and `+/−`
+counts; each file opens to its tinted diff, and open files stay open across
+redraws. The countdown ticks without redrawing the view. On a phone, Deny and
+Approve are full-width 46px buttons.
+
+Tests: `magi/tests/test_code_security.py` (written first),
+`test_code_sandbox.py` (temp repos: uncommitted and untracked files, hooks,
+sweep, clean, merged and conflicting apply, CRLF), `test_code_write.py` (edit
+format, flags, and the task runner with fake agents: approve, deny, timeout,
+Halt, refused, a hand-off in the same copy), `tests/magi-code-approval.test.js`
+(console), and `tests/live/magi-write.live.js` (a real scratch repo with
+Claude, Codex and ChatGPT; `LIVE_ONLY=` and `LIVE_TIMEOUT=1` pick sections).
 
 ---
 

@@ -50,6 +50,21 @@ def test_edit_blocks_parse_through_markdown_decoration():
         ("src/calc.py", ["def total(xs):"]), ("docs/NOTES.md", [])]
 
 
+def test_a_reply_mangled_by_markdown_is_recognised_not_called_no_change():
+    """Captured live from ChatGPT before the format required code fences: the
+    rendered page ate '=======' and '>>>>>>> REPLACE' and every line break."""
+    lossy = ("FILE: calc.py<<<<<<< SEARCHdef total(xs):return sum(xs)"
+             "def total(values):return sum(values)REPLACEChanged only total().")
+    assert edits.parse(lossy) == []
+    assert edits.looks_like_edits(lossy)
+    assert not edits.looks_like_edits("total() adds the numbers up.")
+
+
+def test_the_format_help_demands_code_fences():
+    assert "inside a code block" in edits.FORMAT_HELP
+    assert "```\nFILE:" in edits.FORMAT_HELP
+
+
 def _proj(tmp_path) -> Path:
     root = tmp_path / "p"
     (root / "src").mkdir(parents=True)
@@ -107,6 +122,16 @@ def test_claude_write_mode_can_edit_but_not_run_anything():
     assert tools == ["Read", "Glob", "Grep", "Edit", "Write"]
     assert "Bash" not in tools
     assert "--restricted" in argv and "--strict-mcp-config" in argv
+
+
+def test_claude_write_env_drops_the_scrub_that_blocks_edits():
+    """Found live: with the scrub set, every edit is refused as ungranted.
+    Write mode has no shell for the scrub to protect; read mode keeps it."""
+    w = claude_cli.env_for_task("system", Task("t", "q", Path("."), Mode.WRITE))
+    r = claude_cli.env_for_task("system", Task("t", "q", Path("."), Mode.READ))
+    assert "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB" not in w
+    assert r.get("CLAUDE_CODE_SUBPROCESS_ENV_SCRUB") == "1"
+    assert "ANTHROPIC_API_KEY" not in w, "API keys are still stripped"
 
 
 def test_claude_read_mode_is_unchanged():

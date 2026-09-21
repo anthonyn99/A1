@@ -3628,6 +3628,12 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 .code-diff .l-more { color: var(--txm); font-style: italic; white-space: normal; }
 .code-appr-acts { display: flex; gap: 8px; justify-content: flex-end; }
 .code-appr-acts button { min-height: 40px; padding: 0 18px; }
+/* Deny is an answer, not an afterthought: a bordered button the same size
+   as Approve, so neither reads as the one you are meant to press. */
+.code-appr-acts .navitem.danger {
+  border: 1px solid color-mix(in srgb, var(--red) 50%, transparent);
+  justify-content: center; font-weight: 700; font-size: 12.5px;
+}
 .code-approve {
   font: inherit; font-weight: 700; font-size: 12.5px; border-radius: var(--r-btn); cursor: pointer;
   background: var(--grn); color: #0b1a10; border: 1px solid var(--grn);
@@ -6058,7 +6064,9 @@ const HOW = [
       "The switch beside the prompt box changes what that box <i>does</i>. <b>Deliberate</b> asks the council a question. <b>Code Mode</b> hands the words to a coding agent working on a folder on the machine the engine is running on. Pick the folder under <b>Workspace</b>; MAGI draws its own folder browser, and the path never leaves that machine.",
       "<b>Any unit can code.</b> <b>Claude</b> and <b>Codex</b> run through their own command-line tools and search and read the folder themselves; every other unit works through its browser session, with MAGI handing it the files that matter. Both CLIs use a signed-in account's own plan &mdash; Codex works on a free ChatGPT account &mdash; and no API key is used anywhere. Their accounts are set up in <b>Accounts</b>, separately from the browser units, and each can hold more than one.",
       "<b>The chips are the fallback chain.</b> The first ticked agent does the work. If it runs out of usage, is signed out or cannot start, the next one carries on, told what the previous one had worked out. A task that simply fails is not handed on &mdash; another author would fail it the same way. A limit is remembered until its reset time, so the chain does not walk into the same wall on every task. Tap <b>Agents</b> to change the order.",
-      "<b>Read-only for now.</b> Agents can read and search the workspace but cannot change a file or run a command that does. Edits arrive next, each shown as a diff for you to approve, and git and GitHub after that &mdash; performed by MAGI itself, so any unit can ask for a commit or a push and none of them ever holds the credentials.",
+      "<b>Read or Write, per task.</b> Every task starts in <b>Read</b>: agents can read and search the folder and change nothing. Switch to <b>Write</b> (the button then says <b>Run edits</b>) and the agents work on a <i>private copy</i> of the folder instead &mdash; your uncommitted edits included. When they finish you get the <b>diff</b>, file by file, with <b>Approve</b> and <b>Deny</b>. Nothing touches your folder unless you press Approve; no answer within __APPROVE_MIN__ minutes counts as No, and so does Halt. Any screen watching the task can answer.",
+      "<b>Some changes are never offered.</b> A diff that reaches into <code>.git</code>, a key or env file, a credentials folder or an agent&rsquo;s own settings folder, or that leaves the folder through <code>..</code> or a link, is refused before you are asked. Write needs a git repository, and <b>A1 itself stays read-only</b> for now &mdash; the switch says so. Approved edits are applied but not staged or committed; git and GitHub come later, performed by MAGI itself, so no agent ever holds the credentials.",
+      "<b>The percentages on the chips are current.</b> Each account&rsquo;s usage is asked of Claude and OpenAI directly, the same way their own tools do, and a window whose reset time has passed shows 0% rather than the number from before it reset.",
       "Nothing about a task is written to the cloud: it streams to whichever screen is watching, and a reload picks the same task back up while the engine is still running it.",
     ],
   },
@@ -6109,7 +6117,8 @@ function openHow() {
     for (const para of sec.a) {
       const para_el = el("p", "how-p");
       // Fixed literals in this file, never anything typed by a user.
-      para_el.innerHTML = para.split("__DAYS__").join(String(HISTORY_DAYS));
+      para_el.innerHTML = para.split("__DAYS__").join(String(HISTORY_DAYS))
+        .split("__APPROVE_MIN__").join(String(APPROVE_MIN));
       d.append(para_el);
     }
     scroll.append(d);
@@ -10819,12 +10828,8 @@ function renderCodeTask(t) {
     }
   }
   if (log.childNodes.length) card.append(log);
-
-  // Write mode: what the agents want to change, and what became of it.
   const refused = t.events.find((e) => e.k === "refused");
-  if (refused) card.append(renderCodeRefused(refused));
   const appr = t.events.find((e) => e.k === "approval");
-  if (appr) card.append(renderCodeApproval(t, appr));
 
   if (answer) {
     const ans = el("div", "code-answer");
@@ -10834,6 +10839,12 @@ function renderCodeTask(t) {
     ans.append(foot);
     card.append(ans);
   }
+
+  // Write mode: what the agents want to change, and what became of it --
+  // AFTER the agent's own summary, so it reads "what I did, here is the
+  // diff, yes or no" rather than asking before it explains.
+  if (refused) card.append(renderCodeRefused(refused));
+  if (appr) card.append(renderCodeApproval(t, appr));
 
   const st = el("div", "code-task-st");
   const waiting = !t.done && appr && !t.events.some((e) => e.k === "decision");
@@ -10970,7 +10981,7 @@ function renderCodeApproval(t, ev) {
   } else if (dec) {
     box.append(el("div", "code-appr-out is-bad", {
       denied: "Denied. Your folder is unchanged.",
-      timeout: "Not approved within 5 minutes, so nothing was applied.",
+      timeout: `Not approved within ${APPROVE_MIN} minutes, so nothing was applied.`,
       halted: "Halted. Your folder is unchanged.",
     }[dec.why] || "Not applied."));
   }
@@ -16322,6 +16333,10 @@ function backToLive() {
    cost of getting this wrong is a deliberation deleted that you asked to
    keep, so both paths fail towards keeping it. */
 const HISTORY_DAYS = 30;
+// Minutes a write task waits for Approve before counting silence as No. The
+// engine owns the real deadline (tasks.APPROVAL_TIMEOUT, pinned equal by
+// test_howitworks); this is the number the words use.
+const APPROVE_MIN = 5;
 const PIN_KEY = lsKey("pins");
 
 const PINS = new Set((() => {

@@ -133,3 +133,25 @@ def test_it_promises_nothing_is_written_mid_run():
     assert PAGE.count("cloudPushRun(") <= 4, (
         "cloudPushRun has new callers; check none of them fire during a run"
     )
+
+
+def test_the_code_mode_write_claims_still_hold():
+    """Write mode's paragraph makes promises about safety. Each is checked
+    against the code that keeps it, so the panel cannot drift into claiming a
+    protection that no longer exists."""
+    from magi.code import security, tasks
+    assert "Read or Write, per task" in HOW
+    assert "__APPROVE_MIN__" in HOW, "spell the approval window as __APPROVE_MIN__"
+    m = re.search(r"const APPROVE_MIN = (\d+);", PAGE)
+    assert m and int(m.group(1)) * 60 == tasks.APPROVAL_TIMEOUT
+    # "refused before you are asked" -- the deny-list the sentence names.
+    for d in (".git", ".ssh", ".claude", ".codex"):
+        assert d in security._DENY_DIRS, d
+    assert security.check_path(".env") and security.check_path("../x")
+    # "A1 itself stays read-only" -- enforced by the engine, not only the switch.
+    routes = (REPO / "magi" / "code" / "routes.py").read_text(encoding="utf-8")
+    assert "read_only_project" in routes and "is_engine_repo" in routes
+    # "Every task starts in Read".
+    assert 'rw: "read",' in PAGE
+    # "a window whose reset time has passed shows 0%".
+    assert "function usageLive(u)" in PAGE

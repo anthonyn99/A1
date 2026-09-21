@@ -9,10 +9,14 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-09-21, end of the Phase 7 session.
-**Phases complete:** 1, 2, 3, 4, 5, 6, 7 (plus the follow-ups listed below).
-**Next phase:** **8 — Writes, approvals and diffs** (design in §8 below; it
-was rewritten for the CLI-based agents Phase 7 actually built).
+**Last updated:** 2026-09-21, end of the Phase 8 session.
+**Phases complete:** 1, 2, 3, 4, 5, 6, 7, 8 (plus the follow-ups listed below).
+**Next phase:** **9 — Local Git** (design in §8 below, with the Phase 8
+lessons folded into "Phase 9 — first concrete steps" here).
+
+> **To start the next phase, the whole instruction is "continue" or "next
+> phase".** Do the start-of-session checklist, then build Phase 9 from the
+> steps below. Everything needed is in this file.
 
 ### Start-of-session checklist (do these in order)
 
@@ -43,7 +47,7 @@ was rewritten for the CLI-based agents Phase 7 actually built).
 7. Tell Tony the phase is done, what to test, and that a fresh session can
    pick up from here.
 
-### What exists (as of Phase 7)
+### What exists (as of Phase 8)
 
 * **Profiles** Tony/Veda: gate = lock + picker (`MAGI_PROFILES`, `lsKey()`),
   Firestore `dashboards/magi` vs `dashboards/magi_veda`, favourite star.
@@ -66,10 +70,49 @@ was rewritten for the CLI-based agents Phase 7 actually built).
     from its session rollout (`codex_cli.session_usage`). Refreshed live from
     the task stream, and by `GET /api/code/usage` (no CLI processes) every
     60s during a task / 5 min idle, only while Code Mode is on screen.
-  - Tasks: `POST /api/code/tasks` → SSE `/tasks/{id}/stream` (replayable, one
-    queue per viewer) → `/cancel`. **Forced read-only** in `routes.py`.
+  - Usage is **live from the providers** (`usage_fetch.py`): Claude
+    `api.anthropic.com/api/oauth/usage`, Codex
+    `chatgpt.com/backend-api/wham/usage`, each with the slot's own token,
+    never refreshing it, throttled 1/min; windows past their reset read 0%
+    (`limits.aged`, console `usageLive`).
+  - Tasks: `POST /api/code/tasks {mode}` → SSE `/tasks/{id}/stream`
+    (replayable, one queue per viewer) → `/approve` → `/cancel`.
+  - **Write mode (Phase 8)** — agents edit a throwaway git worktree
+    (`sandbox.py`, `%TEMP%\magi-sandbox\<profile>\<task>`), MAGI diffs two
+    git trees, `security.py` refuses bad diffs before asking, the console
+    approval card waits 5 min (silence/Halt = No, first device wins), then
+    `sandbox.apply` (git apply, else per-file `merge-file`, all or nothing;
+    conflict keeps the patch in `data/<p>/code-patches/`). Never stages or
+    commits. Startup sweeps leftover sandboxes. Browser units edit through
+    fenced SEARCH/REPLACE blocks (`agents/edits.py`). **A1 is refused**
+    (`is_engine_repo`, error `read_only_project`) until Phase 14; non-git
+    folders are refused with "run git init".
   - No API keys anywhere: `slots.env_for` strips them; Claude signs in with
     `--claudeai`, never `--console`.
+
+### Hard-won facts (verified live in Phase 8 — do not re-learn them)
+
+* `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` makes Claude's `acceptEdits` refuse
+  EVERY edit ("…but you haven't granted it yet"). `claude_cli.env_for_task`
+  drops it in write mode (no shell there). Any phase that gives Claude a
+  shell in write mode must solve credential scrubbing another way.
+* Claude `--restricted` confines file tools to cwd (a write outside → a
+  `permission_denied` stream event, parsed as `{"k":"denied"}`).
+* Codex `workspace-write` is **silently read-only on Windows** without
+  `-c windows.sandbox=unelevated`; and it lets commands write to `%TEMP%`
+  unless `sandbox_workspace_write.exclude_tmpdir_env_var=true` +
+  `exclude_slash_tmp=true`. With those, writes to home and temp are denied.
+  `-c` values are unquoted (TOML falls back to a string; quotes would have
+  to survive `codex.cmd`).
+* Browser replies are read from the RENDERED page: outside a code fence,
+  markdown eats `=======`/`>>>>>>>` and line breaks. Anything a unit must
+  return verbatim goes inside a fenced code block.
+* `core.autocrlf=true` machine-wide. `git apply` onto a CRLF working copy
+  is fine; compare file contents with line endings normalised in tests.
+* The worktree shares the real repo's hooks → every sandbox git call passes
+  an empty `core.hooksPath`.
+* PowerShell 5.1 mangles `git commit -m` here-strings with embedded double
+  quotes — write the message to a file and use `git commit -F`.
 
 ### Non-negotiables (Tony's rules — keep them)
 
@@ -92,31 +135,58 @@ was rewritten for the CLI-based agents Phase 7 actually built).
 * `tests/live/magi-usage-sync.live.js` — gate card sizes, rename → sync
   line, usage refresh/timer.
 * `tests/live/magi-codex-login.live.js` — Codex device-code sheet (stubbed).
+* `tests/live/magi-write.live.js` — Phase 8 end to end on a scratch repo it
+  creates in `%TEMP%` (never A1): A1 refused, Claude approve (desktop),
+  deny (390px), Codex approve, ChatGPT approve. `LIVE_ONLY=claude,deny,codex,browser`
+  picks sections; `LIVE_TIMEOUT=1` adds the 5-minute silence-is-No run.
 * The page is opened as `file:///…/magi.html`; Firebase is stubbed off and
   `/auth/journal/status` is stubbed to "no lock" so the profile opens.
 
 ### Waiting on Tony
 
-* Reboot test for engine autostart ("I'll restart later") — not yet done.
+* Nothing blocking. Worth trying when convenient: a Write task on a small
+  non-A1 repo from the phone (approve one, deny one). The engine autostart
+  reboot test is done (2026-09-21: the engine and tunnel were up within
+  seconds of logon).
 
-### Phase 8 — first concrete steps for the next session
+### Phase 9 — first concrete steps for the next session
 
-1. Write `magi/tests/test_code_security.py` **first**: path containment
-   (`../`, absolute outside root, symlink out, deny-list), and that a
-   proposal touching a denied path is refused before any approval is asked.
-2. Build `magi/code/sandbox.py`: create a throwaway `git worktree` of the
-   workspace (from `git stash create` so uncommitted edits are included,
-   plus untracked files copied), and tear it down afterwards.
-3. Add `mode="write"` to the CLI agents, pointed at the worktree:
-   Claude `--permission-mode acceptEdits --tools Read,Glob,Grep,Edit,Write`
-   (no Bash yet), Codex `--sandbox workspace-write`. Browser agents return a
-   fixed edit format that MAGI applies into the worktree.
-4. Diff the worktree (`git diff --binary`), stream an `approval` event with
-   the per-file diff, wait on `POST /api/code/tasks/{id}/approve`
-   (5-minute timeout = deny), then `git apply --3way` onto the real tree.
-5. Console: approval card (diff per file, Approve / Deny), phone-first.
-6. Develop against a scratch repo, never A1. A1 stays read-only until
-   Phase 14.
+Design decision to keep: **MAGI performs git itself; agents never get git.**
+The §8 text below still says "Git exposed to Claude as MCP tools" — that
+predates Phase 7/8. Agents edit a sandbox and produce a diff; MAGI owns
+every git operation on the real tree, so no agent (CLI or browser) needs a
+git binary, a shell, or a credential. Keep it that way.
+
+1. Write `magi/tests/test_code_git.py` **first**, against temp repos (copy
+   the fixtures in `test_code_sandbox.py`): `status --porcelain=v2 -z`
+   parsing (modified, added, deleted, renamed with score, untracked,
+   unmerged/conflict entries, paths with spaces/unicode), ahead/behind from
+   `--branch` headers, a repo with no upstream, a detached HEAD, and that
+   staging takes an explicit path list and **never** `add -A` / `add .`.
+2. Build `magi/code/git.py` on the same bytes-safe runner as `sandbox.git()`
+   (move that helper into `git.py` and import it from `sandbox.py`). Unlike
+   the sandbox, commits on the REAL tree run the repo's own hooks (they are
+   the owner's), so the hooks-off flag stays sandbox-only.
+3. **Pull before work** (§7A): in `tasks.start`, before `sandbox.create`,
+   if the workspace has an upstream: `git pull --rebase --autostash`,
+   narrated in the transcript ("Pulled 3 commits"); a failed pull stops the
+   task with the reason and leaves the tree as git left it. Read tasks pull
+   too (answers about stale code are wrong answers). Skip with a note when
+   there is no remote or no upstream.
+4. **Commit after apply**: the approval card's applied state gains a
+   "Commit these files" action — stage exactly the applied paths, message
+   drafted from the agent's final summary, editable in a hand-built field
+   (no native prompt). No push (Phase 10 has the credentials).
+5. A repo-state strip in `#codeView` (branch, ahead/behind, dirty count),
+   fed by one `GET /api/code/projects/{id}/git` call, refreshed after a task
+   and on entering Code Mode — not on a timer.
+6. A1 still excluded from writes (and so from commits) until Phase 14; the
+   A1 `Stop` hook already commits there. Pull-before-work may run on A1
+   read tasks (it is read-only to files you have not touched; autostash
+   protects local edits) — decide and document.
+7. Tests: the git tests + a live run on the scratch repo from
+   `magi-write.live.js` (add a bare "remote" in `%TEMP%` so pull/ahead/behind
+   are real).
 
 ---
 
@@ -1166,6 +1236,25 @@ check Codex continues in the same worktree.
 without an approved diff, security tests written first, and A1 excluded.
 *Firebase:* none. *Rollback:* force `mode = "read"` in `routes.py` again.
 
+*Status:* **complete** (2026-09-21). Built as designed, with these changes
+from the text above: apply is `git apply`, falling back to a per-file
+`git merge-file` three-way (not `--3way`, which implies `--index` and would
+stage); the diff is between two git *trees* (baseline written after
+untracked files are copied), not `git diff` of the worktree; Codex keeps its
+shell (its only way to read files) inside its OS sandbox; Claude write mode
+drops the env scrub (it blocks acceptEdits). Verified live on a scratch repo:
+Claude approve → file changed, nothing staged, sandbox gone; deny at 390px →
+unchanged; Codex approve; ChatGPT approve via fenced SEARCH/REPLACE; 5-minute
+silence → unchanged; A1 refused by the engine and greyed out in the console.
+Mid-task hand-off in the same sandbox is proven with fake agents
+(`test_a_handoff_continues_in_the_same_copy`), not live (a real limit
+cannot be triggered on demand). Tests: 47 security, 14 sandbox, 28 write,
+8 usage, plus `tests/magi-code-approval.test.js`; mutations (silence→approve,
+agent handed the real folder, `.claude` not denied, symlinks allowed) all
+caught.
+*Also this session:* live provider usage for both CLIs (`usage_fetch.py`),
+because Claude's card still showed the previous night's 90%.
+
 ---
 
 ### Phase 9 — Local Git
@@ -1175,8 +1264,9 @@ without an approved diff, security tests written first, and A1 excluded.
 *First step of every task:* the pull-before-work rule (§7A) — `git pull --rebase --autostash` when the workspace has a remote, reported in the transcript; a tree that cannot pull cleanly stops the task.
 
 *Steps:* `proc.run`-based wrappers — status (porcelain v2), diff, log, branches, ahead/behind, stage specific
-paths, commit, pull, push, conflict enumeration. **Never `git add -A`.** A repo-state panel in `#codeView`; Git
-exposed to Claude as MCP tools with `Bash(git push *)` denied.
+paths, commit, pull, push, conflict enumeration. **Never `git add -A`.** A repo-state panel in `#codeView`.
+*(Superseded 2026-09-21: git is NOT exposed to agents as tools. MAGI performs every git operation itself on
+the approved result — see §0 "Phase 9 — first concrete steps".)*
 
 *Testing:* New `magi/tests/test_code_git.py` against a temp repo — porcelain parsing including renames and
 untracked files, ahead/behind, conflict enumeration. Manually: a Code Mode commit in A1 does not fight the

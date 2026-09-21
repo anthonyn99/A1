@@ -35,15 +35,23 @@ _S = re.compile(r"^\s*<{5,9}\s*SEARCH\s*$")
 _M = re.compile(r"^\s*={5,9}\s*$")
 _R = re.compile(r"^\s*>{5,9}\s*REPLACE\s*$")
 
+# Every block goes INSIDE a fenced code block. Found live: MAGI reads a unit's
+# reply from the rendered page, and rendered markdown eats this format outside
+# a code block -- "=======" under a line becomes a heading rule, ">>>>>>>" a
+# nested quote, and a paragraph's line breaks become spaces. Inside a code
+# block the text survives exactly.
 FORMAT_HELP = (
-    "To change files, reply with one block per change, exactly like this:\n\n"
+    "To change files, reply with one fenced code block (```) per change. The "
+    "block's content must be exactly this shape:\n\n"
+    "```\n"
     "FILE: path/relative/to/project\n"
     "<<<<<<< SEARCH\n"
     "the exact existing lines to replace, copied from the file\n"
     "=======\n"
     "the new lines\n"
-    ">>>>>>> REPLACE\n\n"
-    "Rules: SEARCH must match the file exactly and only once -- include enough "
+    ">>>>>>> REPLACE\n"
+    "```\n\n"
+    "Rules: always inside a code block. SEARCH must match the file exactly and only once -- include enough "
     "surrounding lines to make it unique. Use an empty SEARCH to create a new "
     "file. Paths are relative to the project folder. Only edit files you were "
     "shown, or create new ones. After the blocks, add a short summary of what "
@@ -85,6 +93,12 @@ def parse(text: str) -> list[Edit]:
                 continue
         i += 1
     return out
+
+
+def looks_like_edits(text: str) -> bool:
+    """A reply that attempted the format, whether or not it survived."""
+    t = text or ""
+    return bool(re.search(r"FILE:", t) and re.search(r"<{5,}\s*SEARCH|REPLACE\b", t))
 
 
 def _find(content: str, search: str) -> tuple[int, int] | None:

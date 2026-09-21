@@ -68,7 +68,7 @@ ok('so is the council caption',
 
 console.log('\nThe send button becomes Run, gated on what a task needs');
 const ue = lift('function updateEnabled()', 2600);
-ok('it is labelled Run in Code Mode', /textContent = codeBusy\(\) \? "Working…" : "Run"/.test(ue));
+ok('it is labelled Run in Code Mode', /textContent = codeBusy\(\) \? "Working…" : CODE\.rw === "write" \? "Run edits" : "Run"/.test(ue));
 ok('it needs the engine', /!up \? "The engine is offline"/.test(ue));
 ok('it needs a workspace', /!codeProject\(\) \? "Choose a workspace first"/.test(ue));
 ok('it needs at least one agent', /!codeChain\(\)\.length \? "Tick at least one agent"/.test(ue));

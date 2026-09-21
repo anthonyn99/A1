@@ -79,8 +79,10 @@ class BrowserUnitAgent(CodingAgent):
         await emit({"k": "note", "text": f"Gathering context for {self.label}…"})
         loop = asyncio.get_running_loop()
         ctx_block = await loop.run_in_executor(None, context.gather, task.root, task.prompt)
-        await emit({"k": "tool", "name": "Context",
-                    "target": f"{len(ctx_block) // 1000} KB from {task.root.name}"})
+        # "the workspace", not task.root.name: in write mode the root is the
+        # sandbox, whose folder name is a task id nobody recognises.
+        kb = max(1, round(len(ctx_block) / 1000))
+        await emit({"k": "tool", "name": "Context", "target": f"{kb} KB from the workspace"})
         prompt = self.build_prompt(task, ctx_block)
 
         from ...providers.registry import build_provider
@@ -104,6 +106,13 @@ class BrowserUnitAgent(CodingAgent):
 
     async def _apply_edits(self, task: Task, text: str, emit: EventFn) -> Result:
         blocks = edits.parse(text)
+        if not blocks and edits.looks_like_edits(text):
+            # It tried to edit and the reply came back unreadable. Calling
+            # that "no changes" would report a failed edit as a finished task.
+            await emit({"k": "note", "text": f"{self.label}'s edits did not come back in a "
+                        "readable form."})
+            return Result(Outcome.UNAVAILABLE, text=text,
+                          detail="The reply contained edits MAGI could not read.")
         if not blocks:
             # An answer with no edits is still an answer -- the approval step
             # will simply find nothing to approve.
