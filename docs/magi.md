@@ -1121,6 +1121,14 @@ retried — they would come back the same. The preamble also no longer lists
 "tool" among the things not to create (Gemini read it as "don't use tools"),
 and it now says web search is available.
 
+Gemini then refused again in new words — "I am unable to perform real-time web
+searches or access live market data… please check Bloomberg, Reuters" — and was
+recorded RESOLVED, so the retry never fired. Refusals are now also matched by
+meaning (`_NO_LIVE_ACCESS`: disclaiming search, browsing or live data) under
+600 characters, and up to 1,500 when paired with a redirect to outside sources
+(`_REDIRECT`). Replayed against every stored answer and verdict (225): it flags
+the five known refusals and nothing else.
+
 ## Questions handed over by another A1 program
 
 TradeHub's **Analysis** tab no longer opens a chat site and types a prompt into
