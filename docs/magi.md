@@ -663,8 +663,13 @@ Push (card or line) ─► git fetch ─► behind? refuse ─► git push <remo
 - **Which account.** Each project names one GitHub login (`prefs.github`),
   chosen by tapping the **Repository** pill (`owner/repo`, parsed from the
   remote URL with any userinfo stripped). The sheet says whether that
-  account can see and push the repository (`GET /repos/{o}/{r}` →
-  `permissions.push`). The same account is used for the task's pull/fetch
+  account can see the repository (`GET /repos/{o}/{r}`) and whether it may
+  push — asked of **git**, not REST (`git.can_push`: `git push --dry-run` to a
+  never-created ref, hooks skipped; GitHub serves the receive-pack
+  advertisement only to a credential with write access, and nothing is
+  sent). REST's `permissions.push` is the *owner's* role: a read-only
+  fine-grained token on your own repo reports `push: true` (found live), so
+  it is returned as `role_push` and never shown as the token's permission. The same account is used for the task's pull/fetch
   when the remote is on github.com.
 - **Push is a third press.** After Commit, the card offers **Push**; whenever
   the branch is ahead, the repository line offers **Push ↑n**. Never forced:

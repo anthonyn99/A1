@@ -138,6 +138,13 @@ here).
   unauthenticated — but also to a bogus `1999-01-01`, so unauthenticated
   requests do not validate it. Re-check with a real token (a 400 "Unsupported
   API version" maps to `Kind.BAD_VERSION`).
+* (Phase 10, live) **REST `permissions.push` is the owner's role, not the
+  token's** — a read-only fine-grained token on your own repo reports
+  `push: true`. Ask git: `git.can_push` (`push --dry-run --no-verify` to a
+  never-created ref) → 403 "Write access to repository not granted" for a
+  read-only token, rc 0 for a write token, nothing sent. Stored as
+  `role_push` in REST results. Also: keyring's Windows backend shows each
+  credential as two `cmdkey` targets (`svc` and `user@svc`); delete removes both.
 * (Phase 10) A fake but well-formed token sent to GitHub over git comes back
   as `auth_refused` (fetch fails first); via REST as `bad_token` (401).
 * (Phase 9) `git commit --only -- <path>` refuses a path git has never seen,
@@ -203,6 +210,19 @@ here).
 
 ### Waiting on Tony
 
+* ~~A real GitHub token for Phase 10's live step~~ — **done 2026-09-21** with
+  Tony's fine-grained tokens on the throwaway private repo
+  `anthonyn99/magi-push-test` (cloned at `Desktop\magi-push-test`, project
+  `proj_d8cd09a0b659`): read-only token refused a push (`auth_refused`);
+  write token pushed (`792c08d→6576ee0`); a remote commit made elsewhere
+  → `behind`; a task's pull (with the account) rebased it in; push again →
+  linear history `8a1e98b`. ETag 304 confirmed live (repo list, 0 cost).
+  `2026-03-10` → 200 and a bogus version → 400 with a real token. Token
+  found in none of 15,914 files (`magi/data`, `magi/profiles`, the repo's
+  `.git`, sandboxes, `~/.gitconfig`). The stored account is now token 2
+  (write, magi-push-test only).
+* Tony, after testing: revoke token 2 on GitHub and re-add token 1
+  (read-only; it covers A1) — Phase 11 needs read access to A1. Previously:
 * **A real GitHub token for the one step not done in Phase 10** (plan step 7):
   a fine-grained PAT — first *Contents: Read-only* on one repo, then one with
   *Contents: Read and write* on a **throwaway** repo — added in Accounts ›
