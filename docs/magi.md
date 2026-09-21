@@ -231,6 +231,10 @@ stale copies still sitting at the old level, signing every account out at once.
 
 ## Code Mode
 
+> Code Mode is being built in phases, one session each. The living plan and
+> the hand-off between sessions is **[docs/magi-plan.md](magi-plan.md)** —
+> start at its §0.
+
 The switch beside the prompt box changes what that box does.
 
 | | |

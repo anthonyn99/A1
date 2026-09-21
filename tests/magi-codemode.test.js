@@ -122,7 +122,16 @@ ok('no number badges', !/code-chip-n/.test(MAGI));
 ok('the Agents label is above the row, not beside it',
    /\.code-chain \{ display: flex; flex-direction: column; align-items: center;/.test(MAGI));
 
+console.log('\nUsage stays current, cheaply');
+ok('the timer uses the process-free endpoint', /codeGet\("\/usage"\)/.test(block));
+ok('a live usage frame updates the chips', /if \(ev\.k === "usage"\) codeApplyUsageEvent\(ev\);/.test(block));
+ok('the timer pauses when the tab is hidden', /if \(document\.hidden \|\| !online\(\) \|\| !CODE\.agents\) return;/.test(block));
+ok('it only runs while Code Mode is on screen', /codeUsagePoll\(codeOpen\);/.test(MAGI));
+ok('a full reload only when sign-in state may have changed',
+   /if \(out === "unauthed" \|\| out === "limited" \|\| out === "unavailable"\) codeLoad\(true\);\s*else codeUsageRefresh\(\);/.test(block));
+
 console.log('\nCoding accounts');
+ok('renaming reports on the sync line', /setSync\("error", _syncFail\("saving an account name", e\)\)/.test(block));
 ok('an account can be renamed', /\/label`,\s*\{ label: title\.value \}/.test(block));
 ok('renaming does not touch the login',
    /Renaming it does not touch the login/.test(block));
