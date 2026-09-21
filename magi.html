@@ -5588,6 +5588,20 @@ function linkLabel(where = link.where, detail = link.detail) {
 const RETRY_STEPS = [1500, 3000, 5000, 8000, 12000];
 const RETRY = { timer: 0, step: 0, busy: false, lastTry: 0 };
 
+/* A handed-over prompt waiting on the engine is the one reason to keep trying
+   while the tab is hidden: the morning launcher opens MAGI as a BACKGROUND tab
+   and nobody looks at it until later, so pausing there meant the report sat
+   unrun until someone clicked over. Capped at 30 minutes so an engine that is
+   genuinely off does not have a hidden tab polling it all day. HANDOFF is
+   declared further down, hence the guard. */
+const HANDOFF_WAIT_MS = 30 * 60 * 1000;
+function hiddenPause() {
+  if (!document.hidden) return false;
+  try {
+    return !(HANDOFF && HANDOFF.run && Date.now() - (HANDOFF.at || 0) < HANDOFF_WAIT_MS);
+  } catch { return true; }
+}
+
 function stopRetry() {
   clearTimeout(RETRY.timer);
   RETRY.timer = 0;
@@ -5596,13 +5610,13 @@ function stopRetry() {
 
 function scheduleRetry(delay) {
   clearTimeout(RETRY.timer);
-  if (document.hidden || online()) return;
+  if (hiddenPause() || online()) return;
   const wait = delay != null ? delay : RETRY_STEPS[Math.min(RETRY.step, RETRY_STEPS.length - 1)];
   RETRY.timer = setTimeout(tryReconnect, wait);
 }
 
 async function tryReconnect() {
-  if (RETRY.busy || online() || document.hidden) return;
+  if (RETRY.busy || online() || hiddenPause()) return;
   // Not while the gate is up. Every retry path -- the backoff timer, and the
   // visibilitychange / online / pageshow / focus listeners -- funnels through
   // here, and `pageshow` fires on EVERY load, so without this line a locked
@@ -5652,7 +5666,7 @@ async function retryNow(minGapMs = 0) {
 }
 
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden) clearTimeout(RETRY.timer);
+  if (document.hidden) { if (hiddenPause()) clearTimeout(RETRY.timer); }
   else {
     retryNow();
     // Coming back to Code Mode after a while: the percentages on screen are
@@ -5911,7 +5925,8 @@ const HOW = [
     a: [
       "TradeHub&rsquo;s Analysis tab sends its prompt <i>here</i> rather than opening a chat site and typing into it. The models ticked there are ticked here, and the council convenes on arrival &mdash; the searches it opens alongside are still ordinary browser tabs.",
       "The prompt rides in the link&rsquo;s fragment, which never leaves the browser: nothing is stored in a worker or in the cloud to carry it. It is used <b>once</b> &mdash; reloading this page cannot run the same question a second time.",
-      "If MAGI is locked, or the engine is asleep, the question waits in the box with the reason showing instead of being lost.",
+      "It always runs as a <b>Deliberation</b> in <b>Tony&rsquo;s</b> profile, whichever mode or profile this tab was last left in.",
+      "If MAGI is locked, the question waits until it is unlocked. If the engine has not connected yet, the prompt sits in the box and the council convenes by itself the moment it does &mdash; even in a background tab, for up to 30 minutes.",
     ],
   },
   {
@@ -9113,6 +9128,7 @@ function takeHandoff() {
       units: Array.isArray(h.units) ? h.units.map(String).slice(0, 12) : [],
       run: !!h.run,
       src: String((h && h.src) || "").slice(0, 24),
+      at: Date.now(),
     };
   } catch { return null; }
 }
@@ -9135,11 +9151,39 @@ function handoffTry() {
   // offline, the prompt still belongs in the box.
   if (online() && !S.providers.length) return;
   const h = HANDOFF;
+  // No engine yet: show the prompt and KEEP the handoff. This used to consume
+  // it and print "Engine offline" for good -- and the morning launcher opens
+  // this page as a background tab, where the first probe can fail even though
+  // the engine is running. The reconnect then succeeded and nothing ran, under
+  // a stale "offline" message. Now boot() on the reconnect finds it still here
+  // and convenes, which is what the link asked for.
+  if (!online() && h.run) {
+    if (!h.shown) {
+      h.shown = true;
+      fillHandoff(h);
+      setErr("refineError", "Waiting for the engine — this convenes by itself as soon as it connects.");
+    }
+    return;
+  }
   HANDOFF = null;
   applyHandoff(h);
 }
 
+/** The part of a handoff that needs no engine: the words, Deliberation mode,
+ *  the council view. Deliberation explicitly -- mode is remembered per
+ *  browser, so a console last used for Code Mode would otherwise hand a
+ *  trading report to the coding agents (start() routes to codeRun there). */
+function fillHandoff(h) {
+  if (typeof setMode === "function") setMode("deliberation", { render: false });
+  const box = $("composer");
+  if (box) { box.value = h.q; autosize(); }
+  S.preRefine = null;
+  setView("council");
+  updateEnabled();
+}
+
 function applyHandoff(h) {
+  if (typeof setMode === "function") setMode("deliberation", { render: false });
   const box = $("composer");
   if (box) { box.value = h.q; autosize(); }
   // The text is new, so there is nothing to restore.
@@ -9158,6 +9202,8 @@ function applyHandoff(h) {
   }
   setView("council");
   updateEnabled();
+  // Whatever the wait said, it is over now.
+  setErr("refineError", "");
   if (!h.run) return;
   if (!online()) {
     setErr("refineError", "Engine offline — the prompt is in the box. Press Convene once it is reachable.");
@@ -9203,6 +9249,7 @@ function takeStashedHandoff() {
     if (!raw) return null;
     sessionStorage.removeItem(HANDOFF_SS);
     const h = JSON.parse(raw);
+    if (h) h.shown = false;   // a new page: nothing of it is on screen yet
     return h && h.q ? h : null;
   } catch { return null; }
 }

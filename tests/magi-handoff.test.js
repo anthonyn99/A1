@@ -215,8 +215,8 @@ console.log('\nTradeHub keeps the two kinds of destination apart');
 // these was a way to lose a prompt: a locked page drops it, an offline engine
 // drops it, a run in flight drops it, a reload runs it twice.
 function consoleFor(opts) {
-  const o = Object.assign({ hash: '', locked: false, lockDecided: true, online: true, providers: ['chatgpt', 'claude', 'gemini'], running: false }, opts);
-  const calls = { start: 0, err: null, saved: 0, rendered: 0, views: [] };
+  const o = Object.assign({ hash: '', locked: false, lockDecided: true, online: true, providers: ['chatgpt', 'claude', 'gemini'], running: false, mode: 'deliberation' }, opts);
+  const calls = { start: 0, err: null, saved: 0, rendered: 0, views: [], mode: o.mode, modeAtStart: null };
   const loc = { hash: o.hash, pathname: '/A1/magi.html', search: '' };
   const hist = {
     state: null,
@@ -231,11 +231,12 @@ function consoleFor(opts) {
   const LOCK = { booted: o.lockDecided };
   const env = new Function(
     'location', 'history', 'S', 'LOCK', '$', 'online', 'autosize', 'saveUnitPicks',
-    'renderUnitChips', 'setView', 'updateEnabled', 'setErr', 'start', 'calls',
+    'renderUnitChips', 'setView', 'updateEnabled', 'setErr', 'start', 'calls', 'setMode',
     lift(MAGI, 'b64uDecode') + '\n' +
     'let HANDOFF = null;\n' +
     lift(MAGI, 'takeHandoff') + '\n' +
     lift(MAGI, 'handoffTry') + '\n' +
+    lift(MAGI, 'fillHandoff') + '\n' +
     lift(MAGI, 'applyHandoff') + '\n' +
     'HANDOFF = takeHandoff();\n' +
     'return { handoffTry, pending: () => !!HANDOFF };'
@@ -243,9 +244,10 @@ function consoleFor(opts) {
     loc, hist, S, LOCK, (id) => els[id], () => o.online, () => {},
     () => { calls.saved++; }, () => { calls.rendered++; },
     (v) => calls.views.push(v), () => {}, (id, msg) => { calls.err = msg; },
-    () => { calls.start++; }, calls
+    () => { calls.start++; calls.modeAtStart = calls.mode; }, calls,
+    (m) => { calls.mode = m; }
   );
-  return { env, calls, loc, els, S, LOCK };
+  return { env, calls, loc, els, S, LOCK, o };
 }
 
 const LINK = encode.tbMagiLink('Morning read on SPY', ['claude', 'gemini']);
@@ -301,13 +303,38 @@ console.log('\nA council already in flight');
   ok('and goes as soon as the run ends', c.calls.start === 1);
 }
 
-console.log('\nThe engine is asleep');
+console.log('\nThe engine is not reachable yet');
 {
+  // The morning launcher opens MAGI as a background tab, and its first probe
+  // can fail with the engine running. The handoff used to be consumed there,
+  // leaving "Engine offline" on screen and nothing run after the reconnect.
   const c = consoleFor({ hash: HASH, online: false, providers: [] });
   c.env.handoffTry();
   ok('the prompt is still put in the box', c.els.composer.value === 'Morning read on SPY');
   ok('nothing is run', c.calls.start === 0);
-  ok('and the reason is on screen', /engine offline/i.test(c.calls.err || ''), c.calls.err);
+  ok('the wait is on screen', /waiting for the engine/i.test(c.calls.err || ''), c.calls.err);
+  ok('and the link is KEPT', c.env.pending());
+  c.env.handoffTry();                       // a failed retry
+  ok('a failed retry changes nothing', c.calls.start === 0 && c.env.pending());
+  c.o.online = true;                        // the reconnect succeeds...
+  c.env.handoffTry();
+  ok('it does not run before the units are listed', c.calls.start === 0);
+  c.S.providers = ['claude', 'gemini'].map((id) => ({ id, enabled: true }));
+  c.env.handoffTry();                       // ...and boot() lists the units
+  ok('then it convenes by itself', c.calls.start === 1);
+  ok('with the units the link named', [...c.S.selected].join(',') === 'claude,gemini', [...c.S.selected]);
+  ok('and the stale message is cleared', !c.calls.err, c.calls.err);
+  ok('nothing is left pending', !c.env.pending());
+}
+
+console.log('\nA console last left in Code Mode');
+{
+  const c = consoleFor({ hash: HASH, mode: 'code' });
+  c.env.handoffTry();
+  ok('the handoff is a deliberation, never a coding task', c.calls.modeAtStart === 'deliberation', c.calls.modeAtStart);
+  const d = consoleFor({ hash: HASH, mode: 'code', online: false, providers: [] });
+  d.env.handoffTry();
+  ok('even while it waits for the engine', d.calls.mode === 'deliberation', d.calls.mode);
 }
 
 console.log('\nUnits the engine does not have');

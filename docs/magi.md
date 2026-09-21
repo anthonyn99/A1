@@ -864,7 +864,8 @@ in the way and runs when it clears:
 | MAGI is locked | held; `hideLock()` runs it |
 | The unit list has not arrived | held; `boot()` runs it |
 | A council is already in flight | held; `endRun()` runs it |
-| The engine is asleep | the prompt lands in the box and says so; press Convene when it is up |
+| The engine has not connected yet | the prompt lands in the box and the handoff is KEPT; the reconnect's `boot()` convenes it. Retries keep going in a hidden tab for 30 min while one is waiting (the morning launcher opens MAGI in the background) |
+| This tab was left in Code Mode | switched to Deliberation first; `start()` would otherwise hand it to the coding agents |
 | It names units this engine has none of | the selection already made here is kept, and the run goes ahead with it |
 
 **It always lands in the one MAGI tab.** TradeHub opens the console exactly
