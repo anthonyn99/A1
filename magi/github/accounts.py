@@ -138,9 +138,12 @@ def add(raw_token: str, *, transport=None) -> dict[str, Any]:
     except C.GitHubError as e:
         raise AccountError(str(e.kind), e.message) from None
     finally:
+        rate = C.RATE.get("verifying")
         C.forget("verifying")
     u = r.data if isinstance(r.data, dict) else {}
     login = check_login(str(u.get("login") or ""))
+    if rate:
+        C.RATE[login] = rate          # so Accounts shows the hourly limit straight away
     kr = _keyring()
     try:
         kr.set_password(service(login), login, tok)
@@ -197,7 +200,11 @@ def repos(login: str, *, transport=None) -> dict[str, Any]:
         "full_name": r.get("full_name", ""),
         "private": bool(r.get("private")),
         "default_branch": r.get("default_branch", ""),
-        "push": bool((r.get("permissions") or {}).get("push")),
+        # YOUR role on the repository -- not what this token may do. For a
+        # fine-grained token GitHub reports the owner's role here (a read-only
+        # token on your own repo says push: true, verified live), so the
+        # console must not present it as the token's permission.
+        "role_push": bool((r.get("permissions") or {}).get("push")),
         "pushed_at": r.get("pushed_at") or "",
         "url": r.get("html_url", ""),
     } for r in items if isinstance(r, dict)]
@@ -205,7 +212,9 @@ def repos(login: str, *, transport=None) -> dict[str, Any]:
 
 
 def repo(login: str, owner: str, name: str, *, transport=None) -> dict[str, Any]:
-    """One repository, and what this token may do to it."""
+    """One repository: can this token see it, and is it private. Whether the
+    token may PUSH is not answered here -- `permissions.push` is the owner's
+    role, not the token's (see repos()); git.can_push asks git instead."""
     gh = client(login, transport=transport)
     try:
         r = gh.get(f"/repos/{owner}/{name}")
@@ -215,5 +224,5 @@ def repo(login: str, owner: str, name: str, *, transport=None) -> dict[str, Any]
     return {"full_name": d.get("full_name", f"{owner}/{name}"),
             "private": bool(d.get("private")),
             "default_branch": d.get("default_branch", ""),
-            "push": bool((d.get("permissions") or {}).get("push")),
+            "role_push": bool((d.get("permissions") or {}).get("push")),
             "url": d.get("html_url", "")}

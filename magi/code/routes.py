@@ -612,6 +612,12 @@ async def project_github(project_id: str) -> dict[str, Any]:
                 None, lambda: _gh.repo(login, remote["owner"], remote["repo"]))
         except _gh.AccountError as e:
             out["access"] = {"error": e.code, "message": e.message}
+        else:
+            # Push permission from git itself (a dry run), not REST: see
+            # git.can_push for why REST's answer is wrong here.
+            probe = await loop.run_in_executor(
+                None, G.can_push, top, _tasks.git_auth(login))
+            out["access"].update(probe)
     return out
 
 

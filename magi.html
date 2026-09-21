@@ -11841,6 +11841,8 @@ async function codeRepoSheet(proj) {
     if (pick && acc) {
       body.append(acc.error
         ? el("div", "sheet-err", acc.message)
+        : acc.push == null
+        ? el("div", "sheet-sub", `${pick} can see ${acc.full_name}; whether it may push could not be checked (${acc.why || "no answer"}).`)
         : el("div", acc.push ? "sheet-ok" : "sheet-err", acc.push
           ? `${pick} can push to ${acc.full_name}${acc.private ? " (private)" : ""}.`
           : `${pick} can see ${acc.full_name} but not push to it. A fine-grained token needs Contents: Read and write.`));
@@ -12018,15 +12020,17 @@ async function codeGhReposSheet(login) {
   if (!d.ok) { body.append(el("div", "sheet-err", d.message || "GitHub refused.")); return; }
   const rows = d.repos || [];
   body.append(el("div", "sheet-sub", rows.length
-    ? `${rows.length} this token can see${d.cached ? " — unchanged since the last look, so that cost none of the hourly limit" : ""}.`
+    ? `${rows.length} this token can see${d.cached ? " — unchanged since the last look, so that cost none of the hourly limit" : ""}. `
+      + "Whether it may push to one is checked from that project's Repository pill."
     : "This token cannot see any repositories. A fine-grained token only sees the ones you picked."));
   const list = el("div", "code-gh-list");
   for (const r of rows) {
     const it = el("div", "code-gh-repo");
     it.append(el("span", "code-gh-repo-n", r.full_name));
     const tags = el("span", "code-gh-repo-t");
-    if (r.private) tags.append(el("span", "doc-flag", "private"));
-    tags.append(el("span", `doc-flag ${r.push ? "ok" : ""}`, r.push ? "can push" : "read only"));
+    // No "can push" badge: for a fine-grained token GitHub reports YOUR role
+    // here, not the token's. The Repository pill's sheet asks git instead.
+    tags.append(el("span", "doc-flag", r.private ? "private" : "public"));
     it.append(tags);
     list.append(it);
   }

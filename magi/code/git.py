@@ -733,6 +733,39 @@ def push(root: Path, auth: Auth | None) -> Push:
         return res
 
 
+def can_push(root: Path, auth: Auth | None) -> dict[str, Any]:
+    """May this account push to this folder's remote? Asked of GitHub by git.
+
+    REST cannot answer it for a fine-grained token: `permissions.push` on a
+    repository is the OWNER's role, so a read-only token on your own repo
+    reads as push: true (verified live, Phase 10). `git push --dry-run`
+    fetches the receive-pack advertisement, which GitHub only serves to a
+    credential with write access -- a 403 otherwise -- and sends nothing: no
+    objects, no ref update. The ref named is one that is never created, and
+    hooks are skipped (a dry run has nothing for them to check).
+
+    -> {"push": True|False|None, "why": sentence}; None = could not tell.
+    """
+    top = toplevel(root)
+    if top is None or auth is None:
+        return {"push": None, "why": "No repository or no account."}
+    br = out(top, "branch", "--show-current")
+    remote = _remote_of(top, br)
+    info = remote_info(_remote_url(top, remote))
+    if info["host"] != auth.host.lower() or info["scheme"] not in ("https", "http"):
+        return {"push": None, "why": "The remote is not on this account's host."}
+    if not out(top, "rev-parse", "--verify", "--quiet", "HEAD"):
+        return {"push": None, "why": "No commits yet to test with."}
+    r = _run(top, "push", "--dry-run", "--no-verify", "--porcelain", remote,
+             "HEAD:refs/heads/magi-write-check-never-created", auth=auth, timeout=60)
+    if r.returncode == 0:
+        return {"push": True, "why": ""}
+    why = _err(r)
+    if _AUTH_FAIL.search(why) or re.search(r"Repository not found", why, re.I):
+        return {"push": False, "why": why.splitlines()[0][:200] if why else ""}
+    return {"push": None, "why": (why.splitlines()[-1] if why else "git push --dry-run failed")[:200]}
+
+
 def _push_failed(res: Push, why: str, auth: Auth | None, step: str) -> Push:
     lines = [ln for ln in why.splitlines() if ln.strip() and not ln.startswith(("To ", "Done"))]
     tail = lines[-1].strip() if lines else f"git {step} failed"
