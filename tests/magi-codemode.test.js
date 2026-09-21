@@ -98,7 +98,7 @@ ok('the stream carries the token the SSE way',
    /new EventSource\(streamUrl\(`\/api\/code\/tasks\/\$\{id\}\/stream`\)\)/.test(MAGI));
 ok('the watched task is remembered per tab', /sessionStorage\.setItem\(CODE_TASK_SS, id\)/.test(MAGI));
 ok('a dropped stream says the task was lost, not still running',
-   /t\.lost = true/.test(lift('function codeAttach(id, prompt)', 1600)));
+   /t\.lost = true/.test(lift('function codeAttach(id, prompt)', 2400)));
 ok('hand-offs are shown, with who takes over',
    /handing over to \$\{ev\.to_label\}/.test(lift('function renderCodeTask(t)', 3000)));
 
