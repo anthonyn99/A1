@@ -210,6 +210,7 @@ from .agents import chain as _chain
 from .agents import limits as _limits
 from .agents import login as _login
 from .agents import slots as _slots
+from .agents import usage_fetch as _usage_fetch
 from . import tasks as _tasks
 
 
@@ -228,6 +229,9 @@ async def list_agents() -> dict[str, Any]:
     """
     loop = _asyncio.get_running_loop()
     s = _settings()
+    # Ask each provider what is left BEFORE reading the stored figures, so the
+    # card shows this morning's numbers, not those from the last task run.
+    await loop.run_in_executor(None, _usage_fetch.refresh_all)
     snap = _limits.snapshot()
 
     async def one(agent: str, slot: str) -> dict[str, Any]:
@@ -242,7 +246,7 @@ async def list_agents() -> dict[str, Any]:
             # read from the account's own session log instead of being
             # discovered by walking into the limit.
             from .agents.codex_cli import session_usage
-            d["usage"] = {**(await loop.run_in_executor(None, session_usage, slot)),
+            d["usage"] = {**_limits.aged(await loop.run_in_executor(None, session_usage, slot)),
                           **d["usage"]}
         return d
 
@@ -287,16 +291,19 @@ async def agent_usage() -> dict[str, Any]:
     Separate from /agents deliberately. /agents asks each CLI who it is
     signed in as, which starts a process per slot; that is the right cost
     once, and the wrong cost every minute. This reads the remembered usage
-    file and, for Codex, the tail of its newest session log: no processes, no
-    model calls, so the console can keep the percentages live while you work.
+    file, each provider's own usage endpoint (usage_fetch.py -- one small GET
+    per account, throttled to once a minute) and, for Codex, the tail of its
+    newest session log: no processes, no model calls, so the console can keep
+    the percentages live while you work.
     """
+    loop = _asyncio.get_running_loop()
+    await loop.run_in_executor(None, _usage_fetch.refresh_all)
     snap = _limits.snapshot()
     usage = {k: dict(v) for k, v in snap["usage"].items()}
-    loop = _asyncio.get_running_loop()
     from .agents.codex_cli import session_usage
     for slot in _slots.list_slots("codex"):
         key = _limits.key("codex", slot)
-        fresh = await loop.run_in_executor(None, session_usage, slot)
+        fresh = _limits.aged(await loop.run_in_executor(None, session_usage, slot))
         have = usage.get(key) or {}
         # Per window, the newer reading wins -- so a remembered figure from a
         # run is not shadowed by an older log, nor the other way round.

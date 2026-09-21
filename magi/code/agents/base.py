@@ -54,6 +54,32 @@ class Task:
     # What earlier agents in the chain already did, when this is a hand-off.
     # Empty on the first attempt.
     handoff_note: str = ""
+    # Write mode: a callable naming the files already changed in the sandbox,
+    # so a hand-off says "carry on from these edits", not "start again".
+    progress: Callable[[], list[str]] | None = None
+
+    def full_prompt(self) -> str:
+        """What a CLI agent is sent: framing, any hand-off, then the task."""
+        parts = []
+        if self.mode == Mode.WRITE:
+            parts.append(WRITE_FRAME)
+        if self.handoff_note:
+            parts.append(self.handoff_note)
+        parts.append(self.prompt)
+        return "\n\n---\n\n".join(parts)
+
+
+# Said to every agent in write mode. True, and useful to it: an agent that
+# knows its edits are reviewed as a diff keeps them focused, and one that
+# knows it cannot run anything does not spend turns trying.
+WRITE_FRAME = (
+    "You are working in a private copy of the project. Edit files directly to "
+    "carry out the task. When you finish, your changes are shown to the user as "
+    "a diff, and nothing reaches the real project unless they approve it. Keep "
+    "the change focused on the task. Running the project's commands or tests is "
+    "not part of this mode; do not claim to have run any. Finish with a short "
+    "summary of what "
+    "you changed and why.")
 
 
 @dataclass

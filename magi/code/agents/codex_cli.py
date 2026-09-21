@@ -43,11 +43,39 @@ _LIMIT = re.compile(r"usage limit|hit your (usage )?limit|rate.?limit|429|"
 _IN = re.compile(r"(?:try again|resets?)\s+in\s+((?:\d+\s*\w+\s*)+)", re.I)
 
 
+# Features that reach off this machine or start other agents. Off in every
+# mode: a prompt-injected run with a browser or an app connector could carry
+# project content anywhere. (All present in 0.155; an unknown name would be
+# an error, so this list only ever names features the CLI reports.)
+DISABLED_FEATURES = ("browser_use", "browser_use_external", "computer_use",
+                     "in_app_browser", "apps", "plugins", "image_generation",
+                     "multi_agent", "hooks")
+
+# Write mode on Windows. Without `windows.sandbox`, workspace-write silently
+# degrades to read-only ("writing is blocked by read-only sandbox"). And by
+# default workspace-write also lets commands write to %TEMP% -- verified live:
+# a probe file landed there -- so the temp exemptions are switched off, which
+# leaves the worktree as the only writable place (a write to the home folder
+# came back UnauthorizedAccessException). Values are unquoted on purpose: `-c`
+# parses TOML and falls back to a plain string, and quotes would have to
+# survive codex.cmd's cmd.exe parsing.
+WRITE_CONFIG = ("windows.sandbox=unelevated",
+                "sandbox_workspace_write.exclude_tmpdir_env_var=true",
+                "sandbox_workspace_write.exclude_slash_tmp=true",
+                "sandbox_workspace_write.network_access=false",
+                "web_search=disabled")
+
+
 def build_argv(exe: str, task: Task, model: str | None = None) -> list[str]:
     sandbox = "read-only" if task.mode == Mode.READ else "workspace-write"
     argv = [exe, "exec", "--json", "--sandbox", sandbox, "--skip-git-repo-check",
             "--ignore-user-config", "--ignore-rules", "--ephemeral",
             "-C", str(task.root)]
+    for f in DISABLED_FEATURES:
+        argv += ["--disable", f]
+    if task.mode == Mode.WRITE:
+        for c in WRITE_CONFIG:
+            argv += ["-c", c]
     if model:
         argv += ["-m", model]
     argv.append("-")
@@ -226,9 +254,7 @@ class CodexCLIAgent(CodingAgent):
         if not exe:
             return Result(Outcome.UNAVAILABLE, detail="Codex CLI is not installed.")
 
-        prompt = task.prompt
-        if task.handoff_note:
-            prompt = task.handoff_note + "\n\n---\n\n" + prompt
+        prompt = task.full_prompt()
         try:
             s = Stream(build_argv(exe, task, self.model), cwd=task.root,
                        env=slots.env_for("codex", self.slot), stdin_text=prompt)
@@ -241,7 +267,9 @@ class CodexCLIAgent(CodingAgent):
         session = ""
         failed = ""
         finished = False
-        await emit({"k": "note", "text": f"Codex ({self.slot}) is reading the workspace."})
+        await emit({"k": "note", "text": f"Codex ({self.slot}) is " + (
+            "editing a sandbox copy of the workspace." if task.mode == Mode.WRITE
+            else "reading the workspace.")})
 
         async for raw in s.lines(cancel):
             ev = parse_line(raw)

@@ -88,6 +88,23 @@ def usage(agent: str, slot: str) -> dict:
     return (_load().get("_usage") or {}).get(key(agent, slot), {})
 
 
+def aged(usage_by_window: dict, now: float | None = None) -> dict:
+    """A window whose reset time has passed has reset: 0%, not the figure from
+    before the reset. Without this, "5h used 90%" from last night stayed on
+    screen all morning on an account that was fresh."""
+    now = now or time.time()
+    out = {}
+    for win, w in (usage_by_window or {}).items():
+        r = w.get("resets_at") if isinstance(w, dict) else None
+        try:
+            past = r is not None and float(r) <= now
+        except (TypeError, ValueError):
+            past = False
+        out[win] = ({**w, "utilization": 0.0, "resets_at": None, "reset": True}
+                    if past else w)
+    return out
+
+
 def snapshot() -> dict:
     """Everything, for /api/code/agents."""
     d = _load()
@@ -95,5 +112,5 @@ def snapshot() -> dict:
     return {
         "limits": {k: v for k, v in d.items()
                    if not k.startswith("_") and float(v.get("until") or 0) > now},
-        "usage": d.get("_usage") or {},
+        "usage": {k: aged(v, now) for k, v in (d.get("_usage") or {}).items()},
     }

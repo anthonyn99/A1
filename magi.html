@@ -10441,8 +10441,19 @@ const winMinutes = (k) => {
   const n = /^(\d+)([mhd])$/.exec(k);
   return n ? +n[1] * { m: 1, h: 60, d: 1440 }[n[2]] : 1e9;
 };
+/* A window whose reset time has passed HAS reset -- 0%, not the figure from
+   before it. The engine ages them too; this covers a page left open across a
+   reset, which would otherwise keep last night's 90% on screen. */
+function usageLive(u) {
+  const now = Date.now() / 1000, out = {};
+  for (const [k, v] of Object.entries(u || {})) {
+    out[k] = v && v.resets_at && v.resets_at <= now
+      ? { ...v, utilization: 0, resets_at: null, reset: true } : v;
+  }
+  return out;
+}
 function usageParts(u) {
-  return Object.entries(u || {})
+  return Object.entries(usageLive(u))
     .filter(([, v]) => v && typeof v.utilization === "number")
     .sort((a, b) => winMinutes(a[0]) - winMinutes(b[0]))
     .map(([k, v]) => `${USAGE_WINDOWS[k] || k} ${Math.round(v.utilization * 100)}%`);
@@ -10922,7 +10933,7 @@ function openCodeOrder() {
    model. */
 /** Every window, with when each one resets. Accounts has the room for it. */
 function usageLine(u) {
-  return Object.entries(u || {})
+  return Object.entries(usageLive(u))
     .filter(([, v]) => v && typeof v.utilization === "number")
     .sort((a, b) => winMinutes(a[0]) - winMinutes(b[0]))
     .map(([k, v]) => `${USAGE_WINDOWS[k] || k} used ${Math.round(v.utilization * 100)}%`
