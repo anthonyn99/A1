@@ -171,10 +171,44 @@ _CANNED_REFUSAL = re.compile(
 MAX_CANNED_CHARS = 600
 
 
+# "I can't look it up" in any wording. The list above caught "I cannot fulfill
+# this request", then Gemini said the same thing as "I am unable to perform
+# real-time web searches or access live market data" (2026-09-21) and was
+# recorded RESOLVED. So this matches on meaning rather than on a verb list:
+# the model disclaiming the ability to search, browse or reach live data.
+# "today's" and "current" are deliberately absent -- "I can't give financial
+# advice, but today's move..." is an answer.
+_NO_LIVE_ACCESS = re.compile(
+    r"\bi(?:'m| am)?\b[^.]{0,20}\b(?:unable to|can'?t|cannot|not able to|"
+    r"don'?t have|do not have|have no|lack)\b[^.]{0,40}\b(?:real[- ]?time|live|"
+    r"internet|web|brows(?:e|ing)|search(?:es|ing)?)\b",
+    re.IGNORECASE,
+)
+
+# ...and then pointing the reader somewhere else to find it. A disclaimer plus
+# a redirect is a refusal however much padding surrounds it, so this pair gets
+# a wider length bound than a bare stock line.
+_REDIRECT = re.compile(
+    r"\b(?:check|consult|visit|refer to|look at|try|such as)\b[^.]{0,120}\b(?:bloomberg|"
+    r"reuters|cnbc|yahoo|google finance|marketwatch|wsj|wall street journal|"
+    r"financial (?:news|sources?|websites?|platforms?)|news (?:outlets|sources|sites)|"
+    r"reliable (?:financial )?sources|market data providers?)\b",
+    re.IGNORECASE,
+)
+MAX_REDIRECT_CHARS = 1500
+
+
 def _is_canned_refusal(body: str) -> bool:
-    if len(body) >= MAX_CANNED_CHARS:
-        return False
-    return bool(_CANNED_REFUSAL.search(body.replace("’", "'").replace("‘", "'")))
+    text = body.replace("’", "'").replace("‘", "'")
+    if len(text) < MAX_CANNED_CHARS and (
+        _CANNED_REFUSAL.search(text) or _NO_LIVE_ACCESS.search(text)
+    ):
+        return True
+    return (
+        len(text) < MAX_REDIRECT_CHARS
+        and bool(_NO_LIVE_ACCESS.search(text))
+        and bool(_REDIRECT.search(text))
+    )
 
 
 @dataclass
