@@ -89,6 +89,15 @@ async def lifespan(app: FastAPI):
     # database at startup belonged to a previous process and will never finish;
     # left alone, its card spun for ever (one from 2026-09-10 still was).
     await db.fail_orphaned_studio_artifacts()
+    # Same for Code Mode's write sandboxes: a worktree in %TEMP% left by a
+    # task that died with the previous process. Nothing can be using it --
+    # tasks live in memory -- so it is removed, and its repository forgets it.
+    try:
+        from .code import sandbox as _sandbox
+        await asyncio.get_running_loop().run_in_executor(
+            None, _sandbox.sweep, active_profile())
+    except Exception:
+        pass
     # Holds the machine awake while MAGI runs, but only on mains power -- see
     # power.py. Started here so it covers `magi serve` and `magi cloud` alike.
     KEEP_AWAKE.start()
