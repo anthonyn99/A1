@@ -426,6 +426,19 @@ async def stream_task(task_id: str):
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
+@router.post("/tasks/{task_id}/approve")
+async def approve_task(task_id: str, body: dict = Body(...)) -> dict[str, Any]:
+    """Approve or deny a write task's diff. `{"approve": true|false}`.
+
+    Only an explicit true approves: a missing or malformed body is a No.
+    """
+    t = _tasks.TASKS.get(task_id)
+    if t is None:
+        return {"ok": False, "error": "no_task", "message": "No such task."}
+    ok, why = _tasks.decide(t, body.get("approve") is True)
+    return {"ok": ok, **({} if ok else {"error": "not_waiting", "message": why})}
+
+
 @router.post("/tasks/{task_id}/cancel")
 async def cancel_task(task_id: str) -> dict[str, Any]:
     t = _tasks.TASKS.get(task_id)
