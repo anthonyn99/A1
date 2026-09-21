@@ -110,7 +110,22 @@ ok('no setDoc / updateDoc / onSnapshot in it', !/\b(setDoc|updateDoc|onSnapshot|
 ok('no native dialog in it', !/\b(window\.)?(alert|confirm|prompt)\s*\(/.test(block));
 ok('no native file picker', !/showDirectoryPicker|type\s*=\s*["']file/.test(block));
 
+console.log('\nThe chips are readable, and say what is left');
+ok('every usage window is shown, not just the first',
+   /\.map\(\(\[k, v\]\) => `\$\{USAGE_WINDOWS\[k\] \|\| k\} \$\{Math\.round\(v\.utilization \* 100\)\}%`\)/.test(MAGI),
+   'a 5h window at 40% and a weekly one at 96% are different situations');
+ok('shortest window first', /\.sort\(\(a, b\) => winMinutes\(a\[0\]\) - winMinutes\(b\[0\]\)\)/.test(block));
+ok('Codex\'s minute-named windows are understood', /\^\(\\d\+\)\(\[mhd\]\)\$/.test(block));
+ok('the second line is not 8px uppercase any more',
+   /\.code-chip \.chip-unit \{[^}]*font-size: 10px[^}]*text-transform: none/.test(MAGI));
+ok('no number badges', !/code-chip-n/.test(MAGI));
+ok('the Agents label is above the row, not beside it',
+   /\.code-chain \{ display: flex; flex-direction: column; align-items: center;/.test(MAGI));
+
 console.log('\nCoding accounts');
+ok('an account can be renamed', /\/label`,\s*\{ label: title\.value \}/.test(block));
+ok('renaming does not touch the login',
+   /Renaming it does not touch the login/.test(block));
 ok('Codex sign-in shows the device code', /code-login-code/.test(block));
 ok('with a phishing warning', /Device codes are a common phishing trick/.test(block));
 ok('Codex is not tied to the ChatGPT unit', /separate from the ChatGPT unit/.test(block));

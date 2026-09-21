@@ -423,3 +423,80 @@ def test_a_named_secret_is_not_included_even_when_asked_for(tmp_path):
     root.mkdir()
     (root / ".env").write_text("TOKEN=hunter2", encoding="utf-8")
     assert "hunter2" not in context.gather(root, "show me .env")
+
+
+# ── what you call an account ───────────────────────────────────────────────
+
+def test_a_slot_can_be_renamed_without_touching_its_login(tmp_path, monkeypatch):
+    monkeypatch.setattr(slots, "profiles_dir", lambda: tmp_path)
+    d = slots.create("codex", "codex1")
+    (d / "auth.json").write_text("{}", encoding="utf-8")
+    assert slots.set_label("codex", "codex1", "  Tony  free  ") == "Tony free"
+    assert slots.label_of("codex", "codex1") == "Tony free"
+    # The login is untouched, and the folder is still the folder.
+    assert (d / "auth.json").exists()
+    # Cleared again by saving an empty name.
+    slots.set_label("codex", "codex1", "")
+    assert slots.label_of("codex", "codex1") == ""
+
+
+def test_removing_a_slot_forgets_its_name_too(tmp_path, monkeypatch):
+    monkeypatch.setattr(slots, "profiles_dir", lambda: tmp_path)
+    slots.create("codex", "spare")
+    slots.set_label("codex", "spare", "old account")
+    slots.remove("codex", "spare")
+    assert slots.label_of("codex", "spare") == ""
+
+
+def test_the_name_you_gave_an_account_is_what_the_transcript_says(tmp_path, monkeypatch):
+    monkeypatch.setattr(slots, "profiles_dir", lambda: tmp_path)
+    slots.set_label("codex", "codex1", "Tony free")
+    assert codex_cli.CodexCLIAgent("codex1").label == "Codex (Tony free)"
+    slots.set_label("claude", slots.SYSTEM_SLOT, "this PC")
+    assert claude_cli.ClaudeCLIAgent(slots.SYSTEM_SLOT).label == "Claude (this PC)"
+
+
+# ── Codex's usage, which it does not report while it runs ──────────────────
+
+_ROLLOUT = (
+    '{"timestamp":"2026-09-20T18:20:02","type":"event_msg","payload":{"type":"token_count",'
+    '"rate_limits":{"limit_id":"codex","primary":{"used_percent":37.5,"window_minutes":300,'
+    '"resets_at":1792542002},"secondary":{"used_percent":4.0,"window_minutes":43200,'
+    '"resets_at":1792550000},"plan_type":"free"}}}\n'
+)
+
+
+def _rollout(tmp_path, monkeypatch, body: str):
+    monkeypatch.setattr(slots, "profiles_dir", lambda: tmp_path)
+    d = slots.create("codex", "codex1") / "sessions" / "2026" / "09" / "20"
+    d.mkdir(parents=True)
+    (d / "rollout-2026-09-20T18-20-01-abc.jsonl").write_text(body, encoding="utf-8")
+
+
+def test_codex_usage_is_read_from_its_own_session_log(tmp_path, monkeypatch):
+    """`codex exec --json` reports tokens, never windows. The percentages do
+    exist -- in the rollout file -- so MAGI reads them instead of walking
+    into the limit to find out."""
+    _rollout(tmp_path, monkeypatch, _ROLLOUT)
+    u = codex_cli.session_usage("codex1")
+    assert u["5h"]["utilization"] == 0.375
+    assert u["30d"]["utilization"] == 0.04
+    assert u["5h"]["resets_at"] == 1792542002
+
+
+def test_the_latest_reading_wins(tmp_path, monkeypatch):
+    later = _ROLLOUT.replace('"used_percent":37.5', '"used_percent":91.0')
+    _rollout(tmp_path, monkeypatch, _ROLLOUT + later)
+    assert codex_cli.session_usage("codex1")["5h"]["utilization"] == 0.91
+
+
+def test_codex_usage_survives_a_log_that_never_mentions_limits(tmp_path, monkeypatch):
+    _rollout(tmp_path, monkeypatch, '{"type":"turn.completed","usage":{"input_tokens":9}}\n')
+    assert codex_cli.session_usage("codex1") == {}
+
+
+def test_codex_windows_are_named_the_way_you_would_say_them():
+    assert codex_cli._window_name(300) == "5h"
+    assert codex_cli._window_name(43200) == "30d"
+    assert codex_cli._window_name(10080) == "7d"
+    assert codex_cli._window_name(45) == "45m"

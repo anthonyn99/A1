@@ -366,6 +366,19 @@ slot, which is this PC's own Claude Code login and cannot be removed from
 MAGI. More than one slot per agent is what lets the chain move to a fresh
 *account* before it moves to a weaker *model*.
 
+Each slot can be **renamed** — the slot name is a folder name (lowercase, no
+spaces, fixed once a login is in it); the label is what you actually read,
+and it is what the chips and the transcript say once you set one. Renaming
+never touches the login. Labels live in
+`magi/profiles/<profile>/cli/labels.json`.
+
+**Usage is shown before the wall, not after.** Claude reports its windows on
+every run (five-hour and seven-day), and both are on the chip: `5h 88% ·
+7d 77%`. Codex reports *tokens* and never windows, so MAGI reads
+`rate_limits` out of the account's own newest session rollout instead —
+`used_percent`, `window_minutes`, `resets_at` — which is how a free Codex
+account shows `30d 0%` without spending a run to find out.
+
 Signing in is in **Accounts → Coding agents**, hand-drawn like everything
 else. Codex uses its device-code flow: the sheet shows OpenAI's URL and a
 one-time code, which can be entered **from any device, the phone included**,
@@ -395,6 +408,14 @@ Tap **Agents** to reorder (arrows, not drag, so it works one-handed). The
 ticks and order are this browser's own (`magi.<profile>.code.units`,
 `code.order`), separate from the council's unit picks — you may well want
 Grok on the council and not on your code.
+
+**Pull before you work.** A1 is edited by two people on different machines,
+so work begun against a stale tree is work that gets redone. From the
+local-git phase every task in a repository with a remote starts with
+`git pull --rebase --autostash` and says in the transcript what came down; a
+tree it cannot pull cleanly stops the task rather than starting quietly on
+stale files. Until then the rule is manual, and it applies to anything
+editing the repo, not only Code Mode.
 
 **What hands a task on:** only a failure another agent could fix — a usage
 limit, a signed-out account, a missing or crashed CLI. **Not** a task

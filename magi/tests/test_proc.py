@@ -31,7 +31,14 @@ DIRECT_CALL = re.compile(r"\bsubprocess\.(run|Popen|call|check_output|check_call
 def _sources():
     for path in PKG.rglob("*.py"):
         parts = set(path.parts)
-        if ".venv" in parts or "tests" in parts or path.name == "proc.py":
+        # `profiles/` is account DATA, not MAGI's code: Chrome profiles and,
+        # since Code Mode, the CLI agents' own login directories -- and the
+        # Codex CLI ships Python of its own inside one. Auditing a vendor's
+        # files for MAGI's subprocess rule fails on a file nobody here wrote
+        # and cannot fix.
+        if ".venv" in parts or "tests" in parts or "profiles" in parts:
+            continue
+        if path.name == "proc.py":
             continue
         yield path
 
