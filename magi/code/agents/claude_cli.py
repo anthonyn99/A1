@@ -20,6 +20,13 @@ Every flag is load-bearing:
   --permission-mode plan  belt to the tool list's braces: writes never
                         auto-approve even if a tool slipped through.
 
+Write mode (Phase 8) swaps the last two for `--tools Read,Glob,Grep,Edit,Write`
+and `--permission-mode acceptEdits`, and runs with cwd set to a throwaway
+worktree (sandbox.py), never the real folder. Still no Bash. `--restricted`
+confines the file tools to the working directory -- verified live: a Write to
+C:\\Users\\<you>\\x.txt comes back as a `permission_denied` event -- and even an
+edit that stayed inside only reaches your folder as a diff you approved.
+
 The prompt goes in on stdin, not argv: the CLI is a .cmd shim on Windows, and
 passing arbitrary prose through cmd.exe's quoting is how a prompt containing
 `&` or `%` turns into a different command.
@@ -38,6 +45,7 @@ from . import limits, slots
 from ._proc import Stream
 
 READ_TOOLS = "Read,Glob,Grep"
+WRITE_TOOLS = "Read,Glob,Grep,Edit,Write"
 
 _UNAUTH = re.compile(r"please run /login|not logged in|invalid api key|"
                      r"authentication_error|oauth token (has )?expired|401", re.I)
@@ -46,10 +54,11 @@ _LIMIT = re.compile(r"usage limit|limit reached|hit your limit|rate.?limit|"
 
 
 def build_argv(exe: str, task: Task, model: str | None = None) -> list[str]:
+    write = task.mode == Mode.WRITE
     argv = [exe, "-p", "--output-format", "stream-json", "--verbose",
-            "--restricted", "--strict-mcp-config", "--permission-mode", "plan"]
-    if task.mode == Mode.READ:
-        argv += ["--tools", READ_TOOLS]
+            "--restricted", "--strict-mcp-config",
+            "--permission-mode", "acceptEdits" if write else "plan",
+            "--tools", WRITE_TOOLS if write else READ_TOOLS]
     if model:
         argv += ["--model", model]
     return argv
@@ -79,6 +88,11 @@ def parse_line(line: str) -> dict[str, Any] | None:
     if t == "system" and d.get("subtype") == "init":
         return {"k": "init", "model": d.get("model", ""),
                 "session_id": d.get("session_id", ""), "tools": d.get("tools") or []}
+    if t == "system" and d.get("subtype") == "permission_denied":
+        # The containment working: a tool call the CLI refused. Shown, so a
+        # task that went quiet on a refused write does not look like a bug.
+        return {"k": "denied", "name": d.get("tool_name", ""),
+                "text": d.get("message") or d.get("decision_reason") or ""}
     if t == "rate_limit_event":
         info = d.get("rate_limit_info") or {}
         return {"k": "ratelimit", "status": info.get("status", ""),
@@ -145,9 +159,7 @@ class ClaudeCLIAgent(CodingAgent):
         if not exe:
             return Result(Outcome.UNAVAILABLE, detail="Claude Code CLI is not installed.")
 
-        prompt = task.prompt
-        if task.handoff_note:
-            prompt = task.handoff_note + "\n\n---\n\n" + prompt
+        prompt = task.full_prompt()
         try:
             s = Stream(build_argv(exe, task, self.model), cwd=task.root,
                        env=slots.env_for("claude", self.slot), stdin_text=prompt)
@@ -166,7 +178,11 @@ class ClaudeCLIAgent(CodingAgent):
             k = ev["k"]
             if k == "init":
                 session = ev["session_id"]
-                await emit({"k": "note", "text": f"Claude ({ev['model']}) is reading the workspace."})
+                await emit({"k": "note", "text": f"Claude ({ev['model']}) is "
+                            + ("editing a sandbox copy of the workspace."
+                               if task.mode == Mode.WRITE else "reading the workspace.")})
+            elif k == "denied":
+                await emit(ev)
             elif k == "ratelimit":
                 for win, w in (ev["windows"] or {}).items():
                     limits.note_usage("claude", self.slot, win,
