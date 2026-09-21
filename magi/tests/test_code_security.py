@@ -158,7 +158,13 @@ def test_symlink_in_the_real_tree_pointing_out_is_refused(tmp_path):
     try:
         os.symlink(outside, root / "shared", target_is_directory=True)
     except (OSError, NotImplementedError):
-        pytest.skip("this machine cannot create symlinks")
+        # Symlinks need Developer Mode on Windows; a junction does not, and
+        # is the same hazard -- a folder that is really somewhere else.
+        try:
+            import _winapi
+            _winapi.CreateJunction(str(outside), str(root / "shared"))
+        except Exception:
+            pytest.skip("this machine can create neither symlinks nor junctions")
     r = S.review(_patch("shared/notes.txt"), root=root)
     assert not r.ok
     assert "outside" in r.refused[0][1].lower()
@@ -213,9 +219,9 @@ def test_paths_with_spaces_parse():
 
 
 def test_per_file_diff_is_capped_for_the_card_but_counts_are_exact():
-    body = "".join(f"+line {i}\n" for i in range(5000))
+    body = "".join(f"+line {i}\n" for i in range(12000))
     r = S.review(_patch("long.txt", body=body))
     f = r.files[0]
-    assert f.adds == 5000
+    assert f.adds == 12000
     assert len(f.diff) <= S.CARD_DIFF_BYTES + 200
     assert f.truncated
