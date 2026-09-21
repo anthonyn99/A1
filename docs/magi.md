@@ -1095,6 +1095,21 @@ rhetorical device — but a member can decline at length. An offer to proceed
 ("Should I…?", "Would you like me to…?") under 1,200 characters is now rejected
 the same way: in a one-shot council, asking permission is declining.
 
+**A stock refusal or error line is not an answer either** (`Rejection.REFUSAL`).
+On 2026-09-21 Gemini returned "I'm having a hard time fulfilling your request"
+as a member — recorded RESOLVED in a 5/5 consensus — and "I encountered an
+error doing what you asked. Could you try again?" as chairman, which was
+published as the verdict. Both are complete sentences, so no earlier rule
+caught them. Any capture under 600 characters matching a site's stock
+refusal/error phrasing (all six units' wordings) is now `degraded`.
+
+**A failed chairman hands over** (`Orchestrator.chair_candidates`). The chair's
+capture is validated like a member's, so a refusal or error from the chair is a
+synthesis failure — and the verdict then goes to the next unit that answered:
+the configured chairman, its fallback order, then every other responder. Only
+when every one of them fails is the run reported as a synthesis failure, naming
+each. Brainstorm's round merge and plan writing use the same handover.
+
 ## Questions handed over by another A1 program
 
 TradeHub's **Analysis** tab no longer opens a chat site and types a prompt into

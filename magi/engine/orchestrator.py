@@ -60,16 +60,28 @@ class Orchestrator:
         A member that just failed to respond cannot be trusted to write the
         synthesis, so the fallback order matters.
         """
+        chairs = self.chair_candidates(providers, answers)
+        return chairs[0] if chairs else None
+
+    def chair_candidates(
+        self, providers: list[Provider], answers: list[Answer]
+    ) -> list[Provider]:
+        """Every member that may write the synthesis, in the order to try them.
+
+        The configured chairman and its fallback order first, then any other
+        member that answered. A list rather than one pick because the chair
+        itself can fail AFTER being picked: on 2026-09-21 Gemini chaired a 5/5
+        council and returned "I encountered an error doing what you asked", and
+        with nobody to hand over to, that line was the verdict.
+        """
         ok_ids = {a.provider_id for a in answers if a.ok}
         by_id = {p.id: p for p in providers}
         cfg = self.settings.chairman
-        for cand in [cfg.provider_id, *cfg.fallback_order]:
-            if cand in ok_ids and cand in by_id:
-                return by_id[cand]
-        for a in answers:
-            if a.ok and a.provider_id in by_id:
-                return by_id[a.provider_id]
-        return None
+        out: list[Provider] = []
+        for cand in [cfg.provider_id, *cfg.fallback_order, *(a.provider_id for a in answers)]:
+            if cand in ok_ids and cand in by_id and by_id[cand] not in out:
+                out.append(by_id[cand])
+        return out
 
     async def _await_profile_release(self, chair: Provider, timeout_s: float = 8.0) -> None:
         """Wait for the chairman's browser profile to be free before launching.
@@ -271,10 +283,14 @@ class Orchestrator:
             verdict, syn_ok = sole.text, True
             chair = next((p for p in providers if p.id == sole.provider_id), None)
         else:
-            chair = self._pick_chairman(providers, answers)
-            if chair is None:
+            chairs = self.chair_candidates(providers, answers)
+            if not chairs:
                 syn_err = "No member available to act as chairman."
-            else:
+            failures: list[str] = []
+            for chair in chairs:
+                if cancel and cancel.is_set():
+                    syn_err = "Run cancelled before synthesis."
+                    break
                 # The chairman drives the SAME browser profile as the member of
                 # the same name, so the member's context must be fully released
                 # before the chairman's launch claims it. The `async with` in
@@ -293,12 +309,26 @@ class Orchestrator:
                         ProviderEvent(
                             provider_id=chair.id,
                             state=ProviderState.WAITING,
-                            message=f"{chair.display_name} is synthesising the verdict",
+                            message=(
+                                f"{chair.display_name} is synthesising the verdict"
+                                if not failures else
+                                f"{chair.display_name} is taking over the verdict"
+                            ),
                         )
                     )
-                verdict, syn_ok, syn_err, syn_ms = await chairman_mod.synthesize(
+                verdict, syn_ok, syn_err, ms = await chairman_mod.synthesize(
                     chair, question, answers, ctx, cancel=cancel
                 )
+                syn_ms += ms
+                if syn_ok:
+                    break
+                # The chair's capture goes through the same validation as a
+                # member's, so a refusal or a stock error line lands here as a
+                # failure rather than as the verdict. Hand it to the next unit.
+                failures.append(syn_err or f"Chairman ({chair.display_name}) failed.")
+                verdict = ""
+            if not syn_ok and len(failures) > 1 and not (cancel and cancel.is_set()):
+                syn_err = " | ".join(failures)
 
         total_ms = int((time.monotonic() - t0) * 1000)
         status = "complete" if responded else "failed"

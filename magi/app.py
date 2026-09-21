@@ -1150,32 +1150,42 @@ async def create_brainstorm_round(
             if state["cancel"].is_set():
                 raise RuntimeError("Round cancelled before the merge.")
 
-            chair = orch._pick_chairman(members, answers)
-            if chair is None:
+            chairs = orch.chair_candidates(members, answers)
+            if not chairs:
                 raise RuntimeError("No member available to act as chairman.")
 
-            # The chairman drives the same browser profile as the member of the
-            # same name, and Chrome's profile lock outlives the Playwright
-            # context. A session hits these profiles once per round, so this
-            # race gets many more chances to bite than in a one-shot run.
-            await orch._await_profile_release(chair)
-            await state["queue"].put(
-                {
-                    "type": "state",
-                    "provider_id": chair.id,
-                    "state": "waiting",
-                    "chars": 0,
-                    "text": "",
-                    "message": f"{chair.display_name} is merging the round",
-                }
-            )
+            # A chair that fails or returns a stock refusal hands the merge to
+            # the next member that answered, as the council verdict does.
+            errs: list[str] = []
+            for chair in chairs:
+                if state["cancel"].is_set():
+                    raise RuntimeError("Round cancelled before the merge.")
+                # The chairman drives the same browser profile as the member of
+                # the same name, and Chrome's profile lock outlives the
+                # Playwright context. A session hits these profiles once per
+                # round, so this race gets many more chances to bite than in a
+                # one-shot run.
+                await orch._await_profile_release(chair)
+                await state["queue"].put(
+                    {
+                        "type": "state",
+                        "provider_id": chair.id,
+                        "state": "waiting",
+                        "chars": 0,
+                        "text": "",
+                        "message": f"{chair.display_name} is merging the round",
+                    }
+                )
 
-            raw, parsed, ok, err, ms = await brainstorm_engine.merge_round(
-                chair, topic, turns, answers, ctx,
-                critiques=critiques, cancel=state["cancel"],
-            )
+                raw, parsed, ok, err, ms = await brainstorm_engine.merge_round(
+                    chair, topic, turns, answers, ctx,
+                    critiques=critiques, cancel=state["cancel"],
+                )
+                if ok:
+                    break
+                errs.append(err or f"{chair.display_name} failed to merge the round.")
             if not ok:
-                raise RuntimeError(err or "The chairman failed to merge the round.")
+                raise RuntimeError(" | ".join(errs) or "The chairman failed to merge the round.")
 
             # Enforce the answered-facts ledger on the way out. The chairman is
             # told not to re-ask a settled question and was observed doing it
@@ -1501,39 +1511,47 @@ async def finalize_brainstorm(
                 state["cancel"], session_id, round_no, attempt, "finalize",
             )
 
-            chair = orch._pick_chairman(members, answers)
-            if chair is None:
+            chairs = orch.chair_candidates(members, answers)
+            if not chairs:
                 # The critique round is a bonus, not a requirement -- the plan
                 # can still be written from the transcript alone, and losing a
                 # finished session to a browser hiccup would be the worst
                 # possible moment to fail.
-                chair = build_provider(
+                chairs = [build_provider(
                     settings,
                     # `provider_ids` is this session's selection, and the
                     # fallback has to stay inside it: an emergency is not a
                     # licence to drive a unit that was unticked.
                     studio_engine.pick_generator_id(settings, None, provider_ids),
-                )
-            else:
+                )]
+
+            # A chair that fails or returns a stock refusal hands the plan to
+            # the next member that answered, as the council verdict does.
+            errs: list[str] = []
+            for chair in chairs:
+                if state["cancel"].is_set():
+                    raise RuntimeError("Session cancelled before the plan was written.")
                 await orch._await_profile_release(chair)
+                await state["queue"].put(
+                    {
+                        "type": "state",
+                        "provider_id": chair.id,
+                        "state": "waiting",
+                        "chars": 0,
+                        "text": "",
+                        "message": f"{chair.display_name} is writing the plan",
+                    }
+                )
 
-            await state["queue"].put(
-                {
-                    "type": "state",
-                    "provider_id": chair.id,
-                    "state": "waiting",
-                    "chars": 0,
-                    "text": "",
-                    "message": f"{chair.display_name} is writing the plan",
-                }
-            )
-
-            body, ok, err, ms = await brainstorm_engine.write_plan(
-                chair, topic, turns, answers, ctx,
-                critiques=critiques, cancel=state["cancel"],
-            )
+                body, ok, err, ms = await brainstorm_engine.write_plan(
+                    chair, topic, turns, answers, ctx,
+                    critiques=critiques, cancel=state["cancel"],
+                )
+                if ok:
+                    break
+                errs.append(err or f"{chair.display_name} failed to write the plan.")
             if not ok:
-                raise RuntimeError(err or "The chairman failed to write the plan.")
+                raise RuntimeError(" | ".join(errs) or "The chairman failed to write the plan.")
 
             # The review pass: contradictions, dropped material, unsupported
             # claims and readability, checked over the finished document. It

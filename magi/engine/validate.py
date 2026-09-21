@@ -49,6 +49,8 @@ class Rejection(StrEnum):
     # The capture is the prompt MAGI sent -- the user's own message, scraped
     # because a turn selector matched it.
     ECHO = "echo"
+    # The site's own canned refusal or error line, not the model's answer.
+    REFUSAL = "refusal"
 
 
 #: The opening words of the instruction MAGI puts before every question
@@ -120,6 +122,59 @@ _OFFER_TO_PROCEED = re.compile(
 # Four times the short-answer bar. Above this there is enough text that the
 # member has plainly said something, whatever else it also asked.
 MAX_OFFER_CHARS = MIN_ANSWER_CHARS * 4
+
+
+# A canned refusal or error line: the chat site's stock reply when the model
+# declined, crashed, or was cut off by the backend -- not an answer.
+#
+# Observed 2026-09-21, one run, both from Gemini: as a member, "I'm having a
+# hard time fulfilling your request. Can I help you with something else
+# instead?" was recorded RESOLVED and counted in a "5/5 resolved" consensus;
+# as chairman, "I encountered an error doing what you asked. Could you try
+# again?" was published as the verdict. Both are complete sentences, so the
+# truncation rule waved them through, and neither is a question about the
+# task, so the clarifying rules did too.
+#
+# Every site has its own wording, so this lists the phrasings by meaning and
+# covers all six units. Bounded by length like the offer rule: a stock line is
+# one or two sentences, and a real answer that QUOTES "something went wrong"
+# in passing is far longer than this.
+_CANNED_REFUSAL = re.compile(
+    r"("
+    # "I'm having a hard time fulfilling your request" (Gemini)
+    r"\bhaving (?:a )?(?:hard|difficult) time (?:fulfilling|with|helping|understanding|answering)"
+    # "I encountered an error doing what you asked" (Gemini chairman)
+    r"|\bi (?:encountered|ran into|hit|experienced) (?:an? )?(?:error|problem|issue|glitch)"
+    r"|\b(?:an? )?(?:error|problem) (?:occurred|has occurred|was encountered)"
+    r"|\bsomething went wrong"
+    r"|\bcould you (?:please )?try again\b|\bplease try again\b|\btry again later\b"
+    # "Can I help you with something else instead?"
+    r"|\bhelp you with something else\b|\btalk about something else\b"
+    # "I'm just a language model, so I can't help you with that." (Gemini)
+    r"|\bi'?m (?:just |only )?a language model\b|\bas an? (?:ai|language model)\b[^.]{0,60}\b(?:can'?t|cannot|unable|not able)"
+    # "I can't help with that." / "Sorry, I can't assist with that." (all)
+    r"|\bi (?:can'?t|cannot|am unable to|'m unable to|am not able to|'m not able to|won'?t be able to) "
+    r"(?:help|assist|fulfil+|complete|do|provide|answer|respond|process|comply)\b[^.]{0,60}\b(?:that|this|request|question)\b"
+    # "Sorry, that's beyond my current scope." (DeepSeek)
+    r"|\bbeyond my (?:current )?scope\b"
+    # Backend busy / cut off (DeepSeek, ChatGPT, Grok)
+    r"|\bserver is busy\b|\bnetwork error\b|\bthe (?:response|request) (?:was )?(?:interrupted|failed|timed out)\b"
+    r"|\bhit (?:the|your) (?:usage |message )?limit\b|\breached (?:the|your) (?:usage |message |daily )?limit\b"
+    r"|\bunable to (?:generate|load|complete) (?:a |the )?(?:response|answer)\b"
+    r")",
+    re.IGNORECASE,
+)
+
+# Stock lines measured 60-130 characters. 600 leaves room for a site that
+# pads its refusal with a sentence of boilerplate, and sits far below the
+# shortest real answer to a research question.
+MAX_CANNED_CHARS = 600
+
+
+def _is_canned_refusal(body: str) -> bool:
+    if len(body) >= MAX_CANNED_CHARS:
+        return False
+    return bool(_CANNED_REFUSAL.search(body.replace("’", "'").replace("‘", "'")))
 
 
 @dataclass
@@ -207,6 +262,17 @@ def validate_answer(
             Rejection.ECHO,
             f"{who}: MAGI read back the prompt it sent instead of the reply, "
             f"so this was not counted.",
+        )
+
+    # A stock refusal or error line is a complete, punctuated sentence, so it
+    # must be caught before the length and question rules can accept it.
+    if _is_canned_refusal(body):
+        preview = body if len(body) <= 120 else body[:117] + "..."
+        return Validation(
+            False,
+            Rejection.REFUSAL,
+            f"{who} returned a refusal or error message instead of an answer: "
+            f"“{preview}”",
         )
 
     # A short capture that is itself a question: the signature preamble/
