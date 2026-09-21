@@ -121,6 +121,87 @@ def parse_reset(text: str) -> float | None:
     return time.time() + secs if secs else None
 
 
+def _window_name(minutes: float) -> str:
+    """Codex names its windows in minutes; the UI wants "5h" or "30d"."""
+    mins = int(minutes or 0)
+    if mins <= 0:
+        return "window"
+    if mins < 60:
+        return f"{mins}m"
+    if mins < 1440:
+        return f"{mins // 60}h"
+    return f"{mins // 1440}d"
+
+
+def session_usage(slot: str) -> dict[str, dict]:
+    """How much of its allowance this Codex account has used.
+
+    `codex exec --json` never says -- it reports tokens, not windows. The
+    numbers do exist, in the rollout file Codex writes for the session:
+    `rate_limits.primary/secondary`, each with `used_percent`,
+    `window_minutes` and `resets_at`. So MAGI reads the newest rollout rather
+    than spending a run to be told, and the percentage shown is as fresh as
+    the last time this account was used.
+    """
+    d = slots.slot_dir("codex", slot)
+    root = (d / "sessions") if d else None
+    if not root or not root.is_dir():
+        return {}
+    files = sorted((p for p in root.rglob("rollout-*.jsonl") if p.is_file()),
+                   key=lambda p: p.stat().st_mtime, reverse=True)
+    for p in files[:3]:
+        try:
+            # The last mention wins: a long session updates it as it goes.
+            # Only the tail is read -- a busy session's rollout is megabytes,
+            # and this runs every time Accounts is opened.
+            with p.open("rb") as fh:
+                fh.seek(max(0, p.stat().st_size - 512 * 1024))
+                raw = fh.read().decode("utf-8", "replace")
+        except OSError:
+            continue
+        i = raw.rfind('"rate_limits"')
+        if i < 0:
+            continue
+        chunk = raw[max(0, raw.rfind("\n", 0, i)):]
+        line = chunk.split("\n", 2)[1] if chunk.startswith("\n") else chunk.split("\n", 1)[0]
+        try:
+            rl = _find_rate_limits(json.loads(line))
+        except ValueError:
+            continue
+        if not rl:
+            continue
+        out: dict[str, dict] = {}
+        for which in ("primary", "secondary"):
+            w = rl.get(which)
+            if not isinstance(w, dict) or w.get("used_percent") is None:
+                continue
+            out[_window_name(w.get("window_minutes", 0))] = {
+                "utilization": float(w["used_percent"]) / 100.0,
+                "resets_at": w.get("resets_at"),
+                "at": p.stat().st_mtime,
+            }
+        if out:
+            return out
+    return {}
+
+
+def _find_rate_limits(node) -> dict | None:
+    """`rate_limits` sits at a different depth in different Codex versions."""
+    if isinstance(node, dict):
+        if isinstance(node.get("rate_limits"), dict):
+            return node["rate_limits"]
+        for v in node.values():
+            hit = _find_rate_limits(v)
+            if hit:
+                return hit
+    elif isinstance(node, list):
+        for v in node:
+            hit = _find_rate_limits(v)
+            if hit:
+                return hit
+    return None
+
+
 class CodexCLIAgent(CodingAgent):
     kind = "cli"
 
@@ -128,7 +209,7 @@ class CodexCLIAgent(CodingAgent):
         self.slot = slot
         self.model = model
         self.id = f"codex:{slot}"
-        self.label = f"Codex ({slot})"
+        self.label = f"Codex ({slots.label_of('codex', slot) or slot})"
 
     async def available(self) -> tuple[bool, str]:
         if not slots.cli_path("codex"):

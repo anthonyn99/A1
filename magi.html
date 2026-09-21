@@ -3512,15 +3512,26 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 }
 .code-ws-chev { color: var(--txm); flex: 0 0 auto; }
 
-.code-chain { display: flex; align-items: flex-start; gap: 8px; }
-.code-chips { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+/* Label above, chips below: the row is a list, and a label beside it moved
+   the start of that list on every screen width. */
+.code-chain { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.code-chain-lbl {
+  background: none; border: 0; padding: 2px 6px; cursor: pointer;
+  font-family: var(--font-display); font-size: 9.5px; font-weight: 700;
+  letter-spacing: 1.6px; text-transform: uppercase; color: var(--txm);
+}
+.code-chain-lbl:hover { color: var(--tx); }
+.code-chips { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; justify-content: center; }
 .code-chip { position: relative; }
 .code-chip.is-bad:not(.on) { border-style: dashed; }
-.code-chip-n {
-  display: inline-flex; align-items: center; justify-content: center;
-  min-width: 15px; height: 15px; border-radius: 50%; margin-right: 5px;
-  background: rgba(0,0,0,.28); color: #fff; font-size: 9px; font-weight: 800;
+/* The second line is a number you are meant to READ -- 8px uppercase at .62
+   opacity is a texture, not a percentage. Tabular figures so 81% and 76%
+   line up between chips. */
+.code-chip .chip-unit {
+  font-size: 10px; font-weight: 700; letter-spacing: .2px; text-transform: none;
+  opacity: .8; font-variant-numeric: tabular-nums; margin-top: 1px;
 }
+.code-chip.on .chip-unit { opacity: .78; }
 .code-hint { color: var(--txm); font-size: 12px; line-height: 1.65; text-align: center; padding: 6px 12px; }
 
 .code-task { border: 1px solid var(--bd); border-radius: var(--r-card); background: var(--s1); overflow: hidden; }
@@ -3614,7 +3625,14 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 .acc-slot { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 10px 0; }
 .acc-slot + .acc-slot { border-top: 1px solid var(--bd); }
 .acc-slot-who { display: flex; flex-direction: column; gap: 2px; flex: 1 1 220px; min-width: 0; }
-.acc-slot-name { font-weight: 700; font-size: 12.5px; }
+.acc-slot-name {
+  font: inherit; font-weight: 700; font-size: 12.5px; color: var(--tx);
+  background: none; border: 1px solid transparent; border-radius: var(--r-btn);
+  padding: 3px 6px; margin-left: -6px; width: 100%; max-width: 280px; outline: 0;
+}
+.acc-slot-name::placeholder { color: var(--tx); opacity: .85; }
+.acc-slot-name:hover { border-color: var(--bd); }
+.acc-slot-name:focus { border-color: var(--ac); background: var(--bg); }
 .acc-slot-acct { color: var(--txd); font-size: 11.5px; overflow-wrap: anywhere; }
 .acc-slot-use { color: var(--txm); font-size: 10.5px; }
 .acc-slot-lim { color: var(--amber); font-size: 11px; font-weight: 600; }
@@ -3629,8 +3647,22 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 }
 .code-login .doctor-running { margin-top: 12px; }
 @media (max-width: 760px) {
-  .code-chain { flex-direction: column; gap: 6px; }
   .code-task-hd, .code-log, .code-answer, .code-task-st { padding-left: 12px; padding-right: 12px; }
+  /* The workspace row is two facts and a chevron; on a phone the path goes
+     under the name instead of being squeezed beside it. */
+  .code-ws { padding: 9px 12px; }
+  .code-ws-txt { flex-direction: column; align-items: flex-start; gap: 1px; }
+  .code-ws-path { font-size: 10px; max-width: 100%; }
+  .acc-slot-acts { width: 100%; }
+  .acc-slot-acts .navitem { flex: 1 1 auto; min-height: 40px; }
+}
+@media (max-width: 400px) {
+  /* The chips keep their natural widths (the mobile `.chip` rule owns that);
+     what changes here is only what has to stay readable at this width. */
+  .code-chips { gap: 5px; }
+  .code-chip .chip-model { font-size: 11px; }
+  .code-dirs { max-height: 40vh; }
+  .code-login-code { font-size: 22px; letter-spacing: 2px; }
 }
 
 .eng-add { display: flex; gap: 8px; align-items: flex-start; }
@@ -10274,16 +10306,35 @@ function codeToggle(id) {
 
 const hhmm = (sec) => new Date(sec * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
-/** The second line on a chip: the one thing that says whether it can work. */
+/* The windows an agent reports, shortest first, written the way you would
+   say them: "5h 81% · 7d 76%". Codex names its windows in minutes, so they
+   arrive already short ("30d"); Claude names them five_hour / seven_day. */
+const USAGE_WINDOWS = { five_hour: "5h", seven_day: "7d", seven_day_opus: "7d Opus" };
+const winMinutes = (k) => {
+  const m = { five_hour: 300, seven_day: 10080, seven_day_opus: 10081 }[k];
+  if (m) return m;
+  const n = /^(\d+)([mhd])$/.exec(k);
+  return n ? +n[1] * { m: 1, h: 60, d: 1440 }[n[2]] : 1e9;
+};
+function usageParts(u) {
+  return Object.entries(u || {})
+    .filter(([, v]) => v && typeof v.utilization === "number")
+    .sort((a, b) => winMinutes(a[0]) - winMinutes(b[0]))
+    .map(([k, v]) => `${USAGE_WINDOWS[k] || k} ${Math.round(v.utilization * 100)}%`);
+}
+
+/** The second line on a chip: the one thing that says whether it can work.
+ *  Every usage window it reports, not just the first, because a 5-hour
+ *  window at 40% and a weekly one at 96% are a very different situation. */
 function codeMemberNote(m) {
   if (m.kind === "cli") {
     if (!m.installed) return { txt: "not installed", bad: true };
     if (!m.signed) return { txt: "sign in", bad: true };
     if (m.back) return { txt: `back ${hhmm(m.back)}`, bad: true };
-    const u = (m.slots.find((s) => s.signed_in) || {}).usage || {};
-    const five = u.five_hour && u.five_hour.utilization;
-    if (typeof five === "number") return { txt: `5h ${Math.round(five * 100)}%` };
-    return { txt: m.signed > 1 ? `${m.signed} accounts` : "CLI" };
+    const s = m.slots.find((x) => x.signed_in) || {};
+    const parts = usageParts(s.usage);
+    if (parts.length) return { txt: parts.join(" · ") };
+    return { txt: m.signed > 1 ? `${m.signed} accounts` : (s.label || "signed in") };
   }
   if (m.back) return { txt: `back ${hhmm(m.back)}`, bad: true };
   return { txt: "browser" };
@@ -10330,15 +10381,17 @@ function renderCodeView() {
   col.append(ws);
 
   // The chain: which agents may work on this, in the order they are tried.
+  // The label sits ABOVE the row, not beside it: beside it, the chips start
+  // in a different place on every screen width and the row stops reading as
+  // one list.
   const bar = el("div", "code-chain");
-  const lbl = el("button", "label label-btn", "Agents");
+  const lbl = el("button", "code-chain-lbl", "Agents");
   lbl.type = "button";
   lbl.title = "The order agents are tried in when one runs out";
   lbl.onclick = openCodeOrder;
   bar.append(lbl);
   const chips = el("div", "code-chips");
   const on = codeTicked();
-  let n = 0;
   for (const m of codeMembers()) {
     const ticked = on.has(m.id);
     const note = codeMemberNote(m);
@@ -10347,7 +10400,6 @@ function renderCodeView() {
     b.dataset.agent = m.id;
     if (ticked) { b.style.background = m.accent; b.style.borderColor = m.accent; }
     else { b.style.color = m.accent; b.style.borderColor = m.accent + "66"; }
-    if (ticked) b.append(el("span", "code-chip-n", String(++n)));
     b.append(el("span", "chip-model", m.label + (m.kind === "cli" ? " CLI" : "")));
     b.append(el("span", "chip-unit", note.txt));
     b.title = m.kind === "cli"
@@ -10731,15 +10783,22 @@ function openCodeOrder() {
    ChatGPT account can be signed in here. More than one account per agent is
    what lets the chain move to a fresh account before it moves to a weaker
    model. */
+/** Every window, with when each one resets. Accounts has the room for it. */
 function usageLine(u) {
-  const parts = [];
-  const name = { five_hour: "5h", seven_day: "7d", seven_day_opus: "7d Opus" };
-  for (const [k, v] of Object.entries(u || {})) {
-    if (!v || typeof v.utilization !== "number") continue;
-    parts.push(`${name[k] || k} ${Math.round(v.utilization * 100)}%`
-      + (v.resets_at ? ` (resets ${hhmm(v.resets_at)})` : ""));
-  }
-  return parts.join(" · ");
+  return Object.entries(u || {})
+    .filter(([, v]) => v && typeof v.utilization === "number")
+    .sort((a, b) => winMinutes(a[0]) - winMinutes(b[0]))
+    .map(([k, v]) => `${USAGE_WINDOWS[k] || k} used ${Math.round(v.utilization * 100)}%`
+      + (v.resets_at ? ` (resets ${resetWhen(v.resets_at)})` : ""))
+    .join(" · ");
+}
+
+/** A reset later this week is a time; one a fortnight out needs the day. */
+function resetWhen(sec) {
+  const d = new Date(sec * 1000);
+  const days = Math.floor((d - new Date()) / 86400000);
+  if (days >= 1) return d.toLocaleDateString([], { month: "short", day: "numeric" });
+  return hhmm(sec);
 }
 
 function renderCodeAccounts() {
@@ -10780,11 +10839,33 @@ function renderCodeAccounts() {
     for (const s of c.slots) {
       const row = el("div", "acc-slot");
       const who = el("div", "acc-slot-who");
-      const title = s.slot === "system" ? "This PC's Claude Code login" : s.slot;
-      who.append(el("span", "acc-slot-name", title));
+      // The name you gave it wins over the folder name it is stored under.
+      const dflt = s.slot === "system" ? "This PC's Claude Code login" : s.slot;
+      const title = el("input", "acc-slot-name");
+      title.type = "text";
+      title.value = s.label || "";
+      title.placeholder = dflt;
+      title.maxLength = 40;
+      title.setAttribute("aria-label", `Name for this ${c.label} account`);
+      title.title = "What you call this account. Renaming it does not touch the login.";
+      // On blur, like the browser units' labels: one write per edit, and no
+      // request racing the next character.
+      title.onblur = async () => {
+        if ((s.label || "") === title.value.trim()) return;
+        try {
+          const d = await codePost(`/agents/${c.agent}/slots/${s.slot}/label`,
+                                   { label: title.value });
+          if (d.ok) s.label = d.label;
+        } catch {}
+        renderAccounts();
+        if (codeMode()) renderCodeView();
+      };
+      title.onkeydown = (e) => { if (e.key === "Enter") title.blur(); };
+      who.append(title);
       who.append(el("span", "acc-slot-acct",
-        s.signed_in ? [s.account, s.plan].filter(Boolean).join(" · ") || "signed in"
-                    : "signed out"));
+        (s.signed_in ? [s.account, s.plan].filter(Boolean).join(" · ") || "signed in"
+                     : "signed out")
+        + (s.label && s.slot !== "system" ? ` · ${s.slot}` : "")));
       const ul = usageLine(s.usage);
       if (ul) who.append(el("span", "acc-slot-use", ul));
       if (s.limited_until > now) {

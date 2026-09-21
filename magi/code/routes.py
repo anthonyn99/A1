@@ -237,6 +237,13 @@ async def list_agents() -> dict[str, Any]:
         d["id"] = f"{agent}:{slot}"
         d["limited_until"] = (snap["limits"].get(key) or {}).get("until")
         d["usage"] = snap["usage"].get(key) or {}
+        if agent == "codex" and st.signed_in:
+            # Codex does not report its windows while it runs, so they are
+            # read from the account's own session log instead of being
+            # discovered by walking into the limit.
+            from .agents.codex_cli import session_usage
+            d["usage"] = {**(await loop.run_in_executor(None, session_usage, slot)),
+                          **d["usage"]}
         return d
 
     cli = []
@@ -271,6 +278,16 @@ async def remove_slot(agent: str, slot: str) -> dict[str, Any]:
         return {"ok": False, "error": "bad_slot", "message": str(e)}
     _limits.clear(agent, slot)
     return {"ok": True}
+
+
+@router.post("/agents/{agent}/slots/{slot}/label")
+async def set_slot_label(agent: str, slot: str, body: dict = Body(...)) -> dict[str, Any]:
+    """What YOU call this account. The login is not touched."""
+    try:
+        label = _slots.set_label(agent, slot, str(body.get("label") or ""))
+    except ValueError as e:
+        return {"ok": False, "error": "bad_slot", "message": str(e)}
+    return {"ok": True, "label": label}
 
 
 @router.post("/agents/{agent}/slots/{slot}/login")

@@ -123,7 +123,12 @@ class ClaudeCLIAgent(CodingAgent):
         self.slot = slot
         self.model = model
         self.id = f"claude:{slot}"
-        self.label = "Claude" if slot == slots.SYSTEM_SLOT else f"Claude ({slot})"
+        # Your own name for the account if you gave it one -- the transcript
+        # says who did the work, and "Claude (codex1-spare)" says less than
+        # "Claude (work account)".
+        named = slots.label_of("claude", slot)
+        self.label = ("Claude" if slot == slots.SYSTEM_SLOT and not named
+                      else f"Claude ({named or slot})")
 
     async def available(self) -> tuple[bool, str]:
         if not slots.cli_path("claude"):

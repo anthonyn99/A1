@@ -98,9 +98,49 @@ class SlotStatus:
     account: str = ""     # email where the CLI reports it
     plan: str = ""        # e.g. "pro"
     detail: str = ""
+    label: str = ""       # what YOU call this account
 
     def to_dict(self) -> dict:
         return self.__dict__.copy()
+
+
+# ── what you call an account ───────────────────────────────────────────────
+# The slot name is a folder name: lowercase, no spaces, and fixed once the
+# login is in it. The label is the name you actually read -- "Tony personal",
+# "spare free account" -- and it is editable without touching the login, the
+# same way a browser unit's account label is.
+
+def _labels_path() -> Path:
+    return cli_root() / "labels.json"
+
+
+def labels() -> dict[str, str]:
+    try:
+        d = json.loads(_labels_path().read_text(encoding="utf-8"))
+        return {str(k): str(v) for k, v in d.items()} if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def label_of(agent: str, slot: str) -> str:
+    return labels().get(f"{agent}:{slot}", "")
+
+
+def set_label(agent: str, slot: str, text: str) -> str:
+    if agent not in AGENTS:
+        raise ValueError(f"Unknown agent {agent!r}.")
+    text = " ".join((text or "").split())[:40]
+    d = labels()
+    k = f"{agent}:{check_slot_name(slot)}"
+    if text:
+        d[k] = text
+    else:
+        d.pop(k, None)
+    p = _labels_path()
+    tmp = p.with_suffix(".tmp")
+    tmp.write_text(json.dumps(d, indent=1), encoding="utf-8")
+    tmp.replace(p)
+    return text
 
 
 def list_slots(agent: str) -> list[str]:
@@ -117,6 +157,12 @@ def list_slots(agent: str) -> list[str]:
 def status(agent: str, slot: str, timeout: int = 20) -> SlotStatus:
     """Is this slot signed in, and as whom? No model call -- both CLIs answer
     this from their stored login."""
+    st = _status(agent, slot, timeout)
+    st.label = label_of(agent, slot)
+    return st
+
+
+def _status(agent: str, slot: str, timeout: int) -> SlotStatus:
     exe = cli_path(agent)
     if not exe:
         return SlotStatus(agent, slot, False, False,
@@ -173,6 +219,7 @@ def remove(agent: str, slot: str) -> None:
     d = slot_dir(agent, check_slot_name(slot))
     if d and d.exists() and d.parent == cli_root():
         shutil.rmtree(d, ignore_errors=True)
+    set_label(agent, slot, "")
 
 
 def login_argv(agent: str) -> list[str]:
