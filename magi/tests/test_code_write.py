@@ -334,3 +334,129 @@ def test_a_folder_that_is_not_a_repo_is_refused_cleanly(tmp_path, monkeypatch):
 def test_decide_without_a_pending_approval():
     t = T.TaskState(id="x", project_id="p", prompt="q", mode="write")
     assert T.decide(t, True) == (False, "This task is not waiting for an approval.")
+
+
+# ── Phase 9: pull before work, commit after apply ──────────────────────────
+
+@pytest.fixture
+def cloned(tmp_path, monkeypatch):
+    """Our workspace is a clone of a bare 'origin'; `other` pushes to it."""
+    monkeypatch.setattr(SB, "BASE", tmp_path / "sandboxes")
+    monkeypatch.setattr(SB, "patch_dir", lambda d: tmp_path / "patches")
+    monkeypatch.setattr(T, "_profile", lambda: "test")
+    bare = tmp_path / "origin.git"
+    subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(bare)], check=True)
+    other = tmp_path / "other"
+    subprocess.run(["git", "clone", "-q", str(bare), str(other)], capture_output=True)
+    for k, v in (("user.name", "t"), ("user.email", "t@t"), ("core.autocrlf", "false")):
+        _git(other, "config", k, v)
+    _git(other, "symbolic-ref", "HEAD", "refs/heads/main")
+    (other / "app.py").write_text("x = 1\n")
+    _git(other, "add", "-A")
+    _git(other, "commit", "-qm", "init")
+    _git(other, "push", "-q", "-u", "origin", "main")
+    ours = tmp_path / "ours"
+    subprocess.run(["git", "clone", "-q", str(bare), str(ours)], check=True)
+    for k, v in (("user.name", "t"), ("user.email", "t@t"), ("core.autocrlf", "false")):
+        _git(ours, "config", k, v)
+    (other / "pushed.py").write_text("p = 1\n")
+    _git(other, "add", "-A")
+    _git(other, "commit", "-qm", "pushed from the other machine")
+    _git(other, "push", "-q")
+    return {"ours": ours, "other": other}
+
+
+class Reader(CodingAgent):
+    kind = "cli"
+
+    def __init__(self):
+        self.id = self.label = "reader"
+        self.saw: list[bool] = []
+
+    async def run(self, task, *, emit, cancel):
+        self.saw.append((task.root / "pushed.py").exists())
+        return Result(Outcome.OK, text="read it")
+
+
+async def _run_mode(root, agents, mode):
+    chain_expand = chain.expand
+    chain.expand = lambda order, settings: agents
+    try:
+        t = await T.start(project_id="p", root=root, prompt="look", order=[],
+                          settings=None, mode=mode)
+        seen = [ev async for ev in T.stream(t)]
+        return t, seen
+    finally:
+        chain.expand = chain_expand
+
+
+def test_a_read_task_pulls_before_the_agent_looks(cloned):
+    a = Reader()
+    t, seen = asyncio.run(_run_mode(cloned["ours"], [a], "read"))
+    pull = next(e for e in seen if e["k"] == "pull")
+    assert pull["ok"] and pull["commits"] == 1
+    assert _kinds(seen).index("pull") < _kinds(seen).index("agent")
+    assert a.saw == [True], "the agent must see what the other machine pushed"
+
+
+def test_a_write_task_pulls_then_edits_the_pulled_tree(cloned):
+    a = Editor({"app.py": "x = 2\n"})
+    t, seen = asyncio.run(_run(cloned["ours"], [a], answer=True))
+    assert next(e for e in seen if e["k"] == "pull")["commits"] == 1
+    assert t.result["write"] == "applied"
+    assert (cloned["ours"] / "pushed.py").exists()
+
+
+def test_a_pull_that_clashes_stops_the_task_before_any_agent(cloned):
+    ours, other = cloned["ours"], cloned["other"]
+    (other / "app.py").write_text("x = 'theirs'\n")
+    _git(other, "commit", "-qam", "theirs")
+    _git(other, "push", "-q")
+    (ours / "app.py").write_text("x = 'mine'\n")
+    _git(ours, "commit", "-qam", "mine")
+    a = Editor({"app.py": "x = 2\n"})
+    t, seen = asyncio.run(_run(ours, [a], answer=True))
+    assert a.roots == [], "no agent runs on a tree that could not be pulled"
+    assert t.result["outcome"] == "pull_failed" and t.result["conflicts"] == ["app.py"]
+    assert (ours / "app.py").read_text() == "x = 'mine'\n"
+    assert "agent" not in _kinds(seen)
+
+
+def test_magi_own_repository_is_fetched_never_pulled(cloned, monkeypatch):
+    monkeypatch.setattr(SB, "is_engine_repo", lambda root: True)
+    a = Reader()
+    t, seen = asyncio.run(_run_mode(cloned["ours"], [a], "read"))
+    pull = next(e for e in seen if e["k"] == "pull")
+    assert pull["skipped"] and "1 commit behind" in pull["text"]
+    assert a.saw == [False], "fetched, not pulled: the folder is untouched"
+
+
+def test_no_remote_is_a_note_not_a_failure(repo):
+    t, seen = asyncio.run(_run(repo, [Editor({"app.py": "x = 2\n"})], answer=True))
+    pull = next(e for e in seen if e["k"] == "pull")
+    assert pull["ok"] and pull["skipped"] and "No remote" in pull["text"]
+    assert t.result["write"] == "applied"
+
+
+def test_commit_after_apply_takes_exactly_the_applied_files(repo):
+    (repo / "mine.txt").write_text("my own untracked work\n")
+    a = Editor({"app.py": "x = 2\n", "new.py": "y = 1\n"})
+    t, seen = asyncio.run(_run(repo, [a], answer=True))
+    applied = next(e for e in seen if e["k"] == "applied")
+    assert applied["draft"].startswith("Edit")
+    r = asyncio.run(T.commit(t, "Apply the edit"))
+    assert r["ok"], r
+    assert sorted(_git(repo, "show", "--name-only", "--format=", "HEAD").splitlines()) == \
+        ["app.py", "new.py"]
+    assert "?? mine.txt" in _git(repo, "status", "--porcelain")
+    assert t.events[-1]["k"] == "committed"
+    again = asyncio.run(T.commit(t, "Twice"))
+    assert again["error"] == "already"
+    assert _git(repo, "rev-list", "--count", "HEAD") == "2"
+
+
+def test_a_denied_change_cannot_be_committed(repo):
+    t, _ = asyncio.run(_run(repo, [Editor({"app.py": "x = 2\n"})], answer=False))
+    r = asyncio.run(T.commit(t, "Sneak it in"))
+    assert r["error"] == "not_applied"
+    assert _git(repo, "rev-list", "--count", "HEAD") == "1"

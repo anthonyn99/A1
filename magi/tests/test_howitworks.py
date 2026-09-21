@@ -155,3 +155,27 @@ def test_the_code_mode_write_claims_still_hold():
     assert 'rw: "read",' in PAGE
     # "a window whose reset time has passed shows 0%".
     assert "function usageLive(u)" in PAGE
+
+
+def test_the_code_mode_git_claims_still_hold():
+    """Phase 9's paragraphs: pull first, A1 fetched only, commit exactly the
+    applied files, hooks run, nothing pushed."""
+    from magi.code import git as G, tasks
+    assert "Every task starts by pulling" in HOW
+    src = (REPO / "magi" / "code" / "tasks.py").read_text(encoding="utf-8")
+    # "before any agent reads the folder" -- the pull comes before the chain.
+    assert src.index("await _pull_first(t, root)") < src.index("chain.run_chain(")
+    # "A1 itself is only fetched, never pulled".
+    assert "G.fetch_only if own else G.pull" in src
+    # "If the pull clashes ... it is undone".
+    gsrc = (REPO / "magi" / "code" / "git.py").read_text(encoding="utf-8")
+    assert '"rebase", "--abort"' in gsrc
+    # "exactly the files that were applied" + "your hooks run" + "nothing is pushed".
+    assert "Commit these files" in HOW and "Commit these files" in PAGE
+    assert '"--only"' in gsrc
+    # The hooks-off override is set only when a caller asks for it (the
+    # sandbox); commit() goes through _run, which never sets it.
+    assert gsrc.count("core.hooksPath") == 1 and "if hooks_path is not None" in gsrc
+    assert not any("push" in a.lower() for a in dir(G)) and '"push"' not in gsrc
+    assert hasattr(tasks, "commit")
+

@@ -561,6 +561,81 @@ Halt, refused, a hand-off in the same copy), `tests/magi-code-approval.test.js`
 (console), and `tests/live/magi-write.live.js` (a real scratch repo with
 Claude, Codex and ChatGPT; `LIVE_ONLY=` and `LIVE_TIMEOUT=1` pick sections).
 
+#### Git: pull before work, the repository line, commit
+
+**MAGI performs git itself; agents never get git.** They edit a sandbox and
+hand back a diff. Every operation on the real repository lives in
+`magi/code/git.py`, so no agent (CLI or browser) needs a git binary, a shell
+or a credential, and that file is the complete list of things that can move
+your branch.
+
+```
+task starts ─► git pull --rebase --autostash ─► (write) sandbox ─► agents ─► diff
+                 │ no remote / no upstream / detached: skipped, said
+                 │ clash: rebase --abort, task stops, no agent runs
+                 ▼
+            approve ─► apply ─► [Commit these files] ─► git commit --only -- <applied>
+                                                        (your hooks run; never pushed)
+```
+
+- **Pull first, every task** (read tasks too — an answer about stale code is
+  a wrong answer). It is the transcript's first line: "Pulled 3 commits from
+  origin/main." / "Up to date with origin/main." / "No remote — nothing to
+  pull." Uncommitted edits survive through `--autostash`. A pull that clashes
+  with your local commits is **undone** (`git rebase --abort`, which also
+  restores the autostash), the folder is exactly as it was, and the task ends
+  `pull_failed` naming the files — before any agent starts. A pull that
+  succeeds but whose autostash will not re-apply also stops the task, since
+  your edits are then in `git stash`, not in the folder.
+- **A1 is fetched, never pulled.** Its working tree is shared with running
+  Claude Code sessions and its own auto-commit hook; a rebase under them is
+  worse than a stale answer. The transcript says how far behind it is.
+- **Nothing waits for a password.** Every git call runs with
+  `GIT_TERMINAL_PROMPT=0`, `GCM_INTERACTIVE=never`, `ssh -o BatchMode=yes`
+  and no editor. The engine has no terminal; a prompt would hang the task.
+  Pull/fetch time out after 120 s.
+- **One git writer per repository** (`git.lock`), so a pull and a commit
+  never race for `index.lock`.
+- **Commit is a second press.** After an apply, the card offers **Commit these
+  files**. The engine stages **exactly the applied paths** — `check_paths`
+  refuses `.`, `*`, pathspec magic, `..`, absolute paths and `.git/`, and
+  runs with `--literal-pathspecs`; there is no `add -A` anywhere — then
+  `git commit --only -- <paths>`, so anything else you had staged stays
+  staged and out of the commit. The repository's **own hooks run** (only the
+  sandbox turns hooks off). If the commit fails (a hook says no, no
+  `user.name`), the index is restored exactly (`read-tree` of the tree saved
+  first). A merge or rebase in progress refuses. Once per task
+  (`already`), and only for a task whose change was applied (`not_applied`).
+  **Nothing is pushed** — push needs the GitHub credentials of Phase 10.
+- **The draft message**: subject from what you asked (the intent, already a
+  short sentence; capitalised, ≤72 chars), body from the agent's summary
+  with code blocks removed. Edited in a hand-built field; Ctrl+Enter
+  commits. The view redraws once a minute, and a message being typed keeps
+  its focus and caret across it.
+- **The repository line** under the workspace: branch (or "detached at …"),
+  `↑ahead ↓behind` against the upstream as of the last fetch, "N
+  uncommitted" or "clean", conflicts, a merge/rebase in progress, and "fetched
+  4m ago" / "never fetched". One `GET /api/code/projects/{id}/git`, local git
+  only; read on entering Code Mode, on switching workspace, after a task and
+  after a commit — **never on a timer**.
+
+Routes: `GET /api/code/projects/{id}/git`, `POST /api/code/tasks/{id}/commit
+{message}`. Events: `pull {ok, skipped, commits, text, conflicts}`,
+`applied {…, draft}`, `committed {sha, short, subject, files}`.
+
+Tests: `magi/tests/test_code_git.py` (porcelain v2 parsing of every record
+kind incl. renames with scores, unmerged, spaces and unicode; ahead/behind
+against a real bare remote; no upstream; detached; staging refuses anything
+but plain paths and never uses `add -A`; commit takes exactly the named
+paths, leaves your staged changes out, runs hooks, restores the index when a
+hook refuses; pull brings commits, keeps edits, rebases local commits, undoes
+a clash; unreachable remote fails with a reason), the Phase 9 section of
+`test_code_write.py` (task pulls before the agent looks, a clash stops before
+any agent, A1 fetched only, commit after apply, a denied change cannot be
+committed), `tests/magi-code-git.test.js` (console), and
+`tests/live/magi-git.live.js` (bare origin + a second clone in `%TEMP%`: pull,
+real Claude edit, commit from desktop and from 390px, clash, A1 fetch-only).
+
 ---
 
 ## Opening MAGI

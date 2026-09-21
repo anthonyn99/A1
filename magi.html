@@ -3514,6 +3514,20 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; max-width: 100%;
 }
 .code-ws-chev { color: var(--txm); flex: 0 0 auto; }
+/* The repository line hangs off the workspace button: same left edge as the
+   text inside it, so it reads as a fact about that folder. */
+.code-git {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px;
+  margin-top: -6px; padding: 0 15px; font-size: 11px; color: var(--txd); min-width: 0;
+}
+.code-git-br { font-family: var(--font-mono); font-weight: 700; color: var(--tx); overflow-wrap: anywhere; }
+.code-git-br::before { content: "⎇ "; color: var(--txm); font-weight: 400; }
+.code-git-ab { font-family: var(--font-mono); }
+.code-git-on { color: var(--acl); }
+.code-git-warn { color: var(--amber); font-weight: 700; }
+.code-git-dirty { color: var(--amber); }
+.code-git-bad { color: var(--red); font-weight: 600; }
+.code-git-dim { color: var(--txm); overflow-wrap: anywhere; }
 
 /* Label above, chips below: the row is a list, and a label beside it moved
    the start of that list on every screen width. */
@@ -3642,6 +3656,20 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 .code-appr-out { font-size: 11.5px; font-weight: 600; }
 .code-appr-out.is-ok { color: var(--grn); }
 .code-appr-out.is-bad { color: var(--amber); }
+.code-appr-out code { font-family: var(--font-mono); }
+.code-commit { display: flex; flex-direction: column; gap: 8px; }
+.code-commit-open {
+  align-self: flex-start; border: 1px solid var(--bd); justify-content: center;
+  min-height: 40px; padding: 0 16px; font-weight: 600;
+}
+.code-commit-msg {
+  width: 100%; box-sizing: border-box; resize: vertical; min-height: 84px;
+  background: var(--bg); color: var(--tx); border: 1px solid var(--bd); border-radius: var(--r-btn);
+  padding: 8px 10px; font-family: var(--font-mono); font-size: 12px; line-height: 1.5;
+}
+.code-commit-msg:focus { outline: none; border-color: var(--ac); }
+.code-commit-note { color: var(--txm); font-size: 10.5px; line-height: 1.5; }
+.code-commit .code-appr-acts .navitem { border: 1px solid var(--bd); justify-content: center; font-weight: 600; }
 .code-refused { border-bottom: 1px solid var(--bd); padding: 12px 14px; color: var(--red); font-size: 12px; line-height: 1.6; }
 .code-refused ul { margin: 6px 0 0 18px; padding: 0; color: var(--txd); font-size: 11px; }
 .code-refused code { font-family: var(--font-mono); }
@@ -3649,6 +3677,9 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
   .code-appr, .code-refused { padding-left: 12px; padding-right: 12px; }
   /* Under the thumb, full width, equal: neither answer is the small one. */
   .code-appr-acts button { flex: 1 1 0; min-height: 46px; }
+  .code-commit-open { align-self: stretch; min-height: 46px; }
+  /* 16px so iOS does not zoom the page when the field takes focus. */
+  .code-commit-msg { font-size: 16px; }
 }
 
 .code-proj {
@@ -6065,7 +6096,9 @@ const HOW = [
       "<b>Any unit can code.</b> <b>Claude</b> and <b>Codex</b> run through their own command-line tools and search and read the folder themselves; every other unit works through its browser session, with MAGI handing it the files that matter. Both CLIs use a signed-in account's own plan &mdash; Codex works on a free ChatGPT account &mdash; and no API key is used anywhere. Their accounts are set up in <b>Accounts</b>, separately from the browser units, and each can hold more than one.",
       "<b>The chips are the fallback chain.</b> The first ticked agent does the work. If it runs out of usage, is signed out or cannot start, the next one carries on, told what the previous one had worked out. A task that simply fails is not handed on &mdash; another author would fail it the same way. A limit is remembered until its reset time, so the chain does not walk into the same wall on every task. Tap <b>Agents</b> to change the order.",
       "<b>Read or Write, per task.</b> Every task starts in <b>Read</b>: agents can read and search the folder and change nothing. Switch to <b>Write</b> (the button then says <b>Run edits</b>) and the agents work on a <i>private copy</i> of the folder instead &mdash; your uncommitted edits included. When they finish you get the <b>diff</b>, file by file, with <b>Approve</b> and <b>Deny</b>. Nothing touches your folder unless you press Approve; no answer within __APPROVE_MIN__ minutes counts as No, and so does Halt. Any screen watching the task can answer.",
-      "<b>Some changes are never offered.</b> A diff that reaches into <code>.git</code>, a key or env file, a credentials folder or an agent&rsquo;s own settings folder, or that leaves the folder through <code>..</code> or a link, is refused before you are asked. Write needs a git repository, and <b>A1 itself stays read-only</b> for now &mdash; the switch says so. Approved edits are applied but not staged or committed; git and GitHub come later, performed by MAGI itself, so no agent ever holds the credentials.",
+      "<b>Some changes are never offered.</b> A diff that reaches into <code>.git</code>, a key or env file, a credentials folder or an agent&rsquo;s own settings folder, or that leaves the folder through <code>..</code> or a link, is refused before you are asked. Write needs a git repository, and <b>A1 itself stays read-only</b> for now &mdash; the switch says so. Approved edits are applied but not committed until you say so.",
+      "<b>Every task starts by pulling.</b> Before any agent reads the folder, MAGI brings it up to date with its remote branch and says so as the first line of the transcript &mdash; an answer about stale code is a wrong answer. Your uncommitted edits are kept. If the pull clashes with your own commits it is undone, your folder is left as it was, and the task stops before any agent starts. A1 itself is only fetched, never pulled, because other sessions are working in it. The line under <b>Workspace</b> shows the branch, how far it is ahead of and behind its remote as of the last fetch, and how much is uncommitted.",
+      "<b>Commit is a second press.</b> Once a change is applied, the card offers <b>Commit these files</b>: exactly the files that were applied, nothing else you had changed or staged, with a message drafted from what you asked and what the agent said it did. Edit it, press Commit, and your repository&rsquo;s own hooks run as they would for you. Nothing is pushed from here. MAGI does all of this itself &mdash; agents never get git, a shell or a credential.",
       "<b>The percentages on the chips are current.</b> Each account&rsquo;s usage is asked of Claude and OpenAI directly, the same way their own tools do, and a window whose reset time has passed shows 0% rather than the number from before it reset.",
       "Nothing about a task is written to the cloud: it streams to whichever screen is watching, and a reload picks the same task back up while the engine is still running it.",
     ],
@@ -10250,6 +10283,9 @@ function setMode(m, { render = true } = {}) {
   // the run -- and switching mode is looking at something else.
   MODE.cur = m;
   try { localStorage.setItem(MODE_KEY, m); } catch {}
+  // Coming into Code Mode re-reads the branch: you may have committed or
+  // pulled from a terminal while this screen was showing the council.
+  if (m === "code" && CODE.git) CODE.git.stale = true;
   syncModeSwitch();
   // Convene/Queue/Refine are held in Code Mode, and that is decided in
   // updateEnabled -- which nothing else here would call.
@@ -10315,7 +10351,9 @@ function renderCodeStrip() {
   strip.append(codePill("Repository", "none", "muted"));
   // Read-only is a fact about what Run will do, so it is on the strip and
   // not buried in a help text: nothing an agent does here can change a file.
-  strip.append(codePill("Access", "read only", "muted"));
+  strip.append(CODE.rw === "write"
+    ? codePill("Access", "edits, after approval", "warn")
+    : codePill("Access", "read only", "muted"));
   const lead = codeChain()[0];
   if (lead) strip.append(codePill("Lead", lead.label + (lead.kind === "cli" ? " CLI" : ""), ""));
   strip.append(codePill("Auto commit", "off", "muted"));
@@ -10352,6 +10390,9 @@ const CODE = {
   // task starts in Read, and Write is a choice made for the one in front of
   // you -- never a mode left on from yesterday.
   rw: "read",
+  // The repository line under the workspace: {pid, data, err, code, loading,
+  // stale}. Fetched on demand, never on a timer -- see codeGitEnsure.
+  git: null,
 };
 
 // The two CLI agents are not council units, so they have no entry in the
@@ -10568,6 +10609,19 @@ function codeMemberNote(m) {
 
 function renderCodeView() {
   if (!codeMode()) return;
+  // The view is redrawn from scratch (a usage refresh does it once a
+  // minute). A commit message being typed keeps its focus and caret.
+  const fa = document.activeElement;
+  if (fa && fa.classList && fa.classList.contains("code-commit-msg")) {
+    const keep = [fa.selectionStart, fa.selectionEnd, fa.scrollTop];
+    queueMicrotask(() => {
+      const ta = document.querySelector(".code-commit-msg");
+      if (!ta) return;
+      ta.focus();
+      ta.setSelectionRange(keep[0], keep[1]);
+      ta.scrollTop = keep[2];
+    });
+  }
   if (online() && CODE.from !== link.api && !CODE.loading) { codeLoad(); }
   renderCodeStrip();
   const body = $("codeBody");
@@ -10605,6 +10659,10 @@ function renderCodeView() {
   ws.append(wsTxt, el("span", "code-ws-chev", "▾"));
   ws.onclick = openCodeProjects;
   col.append(ws);
+  if (proj && codeRoot(proj)) {
+    codeGitEnsure(proj);
+    col.append(renderCodeGit(proj));
+  }
 
   // The chain: which agents may work on this, in the order they are tried.
   // The label sits ABOVE the row, not beside it: beside it, the chips start
@@ -10655,6 +10713,71 @@ function renderCodeView() {
   }
 }
 
+/* ── the repository, in one line ─────────────────────────────────────────
+   Branch, how far it is from its upstream, how much is uncommitted: the
+   facts that decide what a task's pull and a Commit will do. Local git only
+   (no fetch), read when Code Mode opens, when the workspace changes, and
+   after a task or a commit -- never on a timer, so a screen left open costs
+   the engine nothing. Ahead/behind are as of the last fetch, and the line
+   says when that was; every task's pull refreshes it. */
+function codeGitEnsure(proj) {
+  const g = CODE.git;
+  if (g && g.pid === proj.id && !g.stale) return;
+  if (g && g.pid === proj.id && g.loading) return;
+  codeGitLoad(proj.id);
+}
+
+async function codeGitLoad(pid) {
+  if (!pid || !online()) return;
+  const keep = CODE.git && CODE.git.pid === pid ? CODE.git.data : null;
+  CODE.git = { pid, data: keep, err: "", code: "", loading: true, stale: false };
+  let next;
+  try {
+    const d = await codeGet(`/projects/${encodeURIComponent(pid)}/git`);
+    next = d.ok ? { pid, data: d.git, err: "", code: "" }
+                : { pid, data: null, err: d.message || "", code: d.error || "" };
+  } catch (e) {
+    next = { pid, data: null, err: `Could not read git: ${e.message || e}`, code: "fetch" };
+  }
+  // A different workspace chosen while this was in flight: drop the answer.
+  if (!CODE.git || CODE.git.pid !== pid) return;
+  CODE.git = { ...next, loading: false, stale: CODE.git.stale };
+  if (codeMode()) renderCodeView();
+}
+
+function renderCodeGit(proj) {
+  const g = CODE.git && CODE.git.pid === proj.id ? CODE.git : null;
+  const row = el("div", "code-git");
+  row.setAttribute("aria-label", "Repository");
+  if (!g || (!g.data && g.loading)) {
+    row.append(el("span", "code-git-dim", "Reading git…"));
+    return row;
+  }
+  if (!g.data) {
+    row.append(el("span", g.code === "not_git" ? "code-git-dim" : "code-git-bad",
+      g.code === "not_git" ? "Not a git repository — nothing to pull or commit" : g.err));
+    return row;
+  }
+  const d = g.data;
+  row.append(el("span", "code-git-br", d.detached ? `detached at ${d.head}` : d.branch || "no branch"));
+  if (d.state) row.append(el("span", "code-git-bad", `${d.state} in progress`));
+  if (d.upstream) {
+    const ab = el("span", "code-git-ab");
+    ab.title = `Compared with ${d.upstream} as of the last fetch`;
+    ab.append(el("span", d.ahead ? "code-git-on" : null, `↑${d.ahead}`), document.createTextNode(" "),
+              el("span", d.behind ? "code-git-warn" : null, `↓${d.behind}`));
+    row.append(ab, el("span", "code-git-dim", d.upstream));
+  } else {
+    row.append(el("span", "code-git-dim", (d.remotes || []).length ? "no upstream" : "no remote"));
+  }
+  row.append(el("span", d.dirty ? "code-git-dirty" : "code-git-dim",
+    d.dirty ? `${d.dirty} uncommitted` : "clean"));
+  if ((d.conflicts || []).length) row.append(el("span", "code-git-bad", `${d.conflicts.length} conflicted`));
+  if (d.upstream) row.append(el("span", "code-git-dim",
+    d.fetched_at ? `fetched ${engAgo(d.fetched_at * 1000)}` : "never fetched"));
+  return row;
+}
+
 /** Read / Write for the next task. Write is greyed out, with the reason,
  *  where the engine will not allow it (A1, a folder that is not a repo). */
 function renderCodeRw(proj) {
@@ -10703,7 +10826,8 @@ async function codeRun() {
 
 function codeAttach(id, prompt) {
   if (CODE.task && CODE.task.es) CODE.task.es.close();
-  const t = { id, prompt: prompt || "", events: [], done: false, result: null, es: null };
+  const t = { id, prompt: prompt || "", events: [], done: false, result: null, es: null,
+              projectId: CODE.projectId };
   CODE.task = t;
   try { sessionStorage.setItem(CODE_TASK_SS, id); } catch {}
   const es = new EventSource(streamUrl(`/api/code/tasks/${id}/stream`));
@@ -10711,6 +10835,7 @@ function codeAttach(id, prompt) {
   es.onmessage = (m) => {
     const ev = JSON.parse(m.data);
     if (ev.k === "start" && ev.prompt) t.prompt = ev.prompt;
+    if (ev.k === "committed") t.committed = ev;
     // A usage frame updates the chips as the work happens rather than
     // waiting for the task to finish to admit what it spent.
     if (ev.k === "usage") codeApplyUsageEvent(ev);
@@ -10723,6 +10848,9 @@ function codeAttach(id, prompt) {
       const out = (ev.result || {}).outcome;
       if (out === "unauthed" || out === "limited" || out === "unavailable") codeLoad(true);
       else codeUsageRefresh();
+      // The task pulled, and may have applied files: the branch line moved.
+      const tp = ((CODE.state && CODE.state.projects) || []).find((p) => p.id === t.projectId);
+      if (tp) codeGitLoad(tp.id);
     }
     t.events.push(ev);
     if (CODE.task === t && codeMode()) renderCodeView();
@@ -10823,6 +10951,10 @@ function renderCodeTask(t) {
       log.append(el("div", "code-ev is-skip", `Refused ${ev.name}: ${ev.text}`));
     } else if (ev.k === "nochange") {
       log.append(el("div", "code-ev is-note", ev.text));
+    } else if (ev.k === "pull") {
+      // First line of every task: what the folder was brought up to date
+      // with before anyone read it (or why it was not).
+      log.append(el("div", `code-ev ${ev.ok ? "is-note" : "is-err"}`, ev.text));
     } else if (ev.k === "text") {
       answer += (answer ? "\n\n" : "") + ev.text;
     }
@@ -10861,14 +10993,17 @@ function renderCodeTask(t) {
       limited: "Every agent is out of usage",
       unauthed: "No ticked agent is signed in",
       unavailable: "No agent could take this",
+      pull_failed: "Stopped before any agent started: the folder could not be pulled",
     }[r.outcome] || String(r.outcome || "Finished");
     const endT = (t.events[t.events.length - 1] || {}).t;
     // In write mode "Done" is only half the story: the agent finished, and
     // then the change was applied, or not, for one of several reasons.
     const wr = CODE_WRITE_OUT[r.write];
     const good = r.outcome === "ok" && (!wr || wr.ok);
+    const cm = t.committed || r.commit;
     st.append(el("span", good ? "code-st-ok" : "code-st-bad",
-      txt + (wr ? ` · ${wr.txt}` : "") + (endT ? ` · ${endT}s` : "")));
+      txt + (wr ? ` · ${wr.txt}` : "") + (cm ? ` · committed ${cm.short}` : "")
+      + (endT ? ` · ${endT}s` : "")));
     if (r.detail && (r.outcome !== "ok" || (wr && !wr.ok))) st.append(el("span", "code-st-detail", r.detail));
   }
   card.append(st);
@@ -10974,8 +11109,11 @@ function renderCodeApproval(t, ev) {
     acts.append(deny, ok);
     box.append(acts);
   } else if (applied) {
+    const done = t.committed || (t.result && t.result.commit);
     box.append(el("div", "code-appr-out is-ok",
-      `Applied to your folder${applied.how === "merged" ? " (merged with edits you made meanwhile)" : ""}. Nothing is staged or committed.`));
+      `Applied to your folder${applied.how === "merged" ? " (merged with edits you made meanwhile)" : ""}.`
+      + (done ? "" : " Nothing is staged or committed.")));
+    box.append(renderCodeCommit(t, applied, done));
   } else if (conflict) {
     box.append(el("div", "code-appr-out is-bad", conflict.text));
   } else if (dec) {
@@ -10986,6 +11124,86 @@ function renderCodeApproval(t, ev) {
     }[dec.why] || "Not applied."));
   }
   return box;
+}
+
+/* ── committing what was applied ─────────────────────────────────────────
+   A second, separate press after Approve: applying a change and recording it
+   in history are two decisions. The engine stages exactly the applied files
+   (never add -A), runs the repository's own hooks, and pushes nothing. The
+   message starts as a draft -- subject from what you asked, body from what
+   the agent said it did -- in a field drawn here, not a native prompt. */
+function renderCodeCommit(t, applied, done) {
+  const box = el("div", "code-commit");
+  if (done) {
+    const line = el("div", "code-appr-out is-ok");
+    line.append(document.createTextNode("Committed "), el("code", null, done.short),
+                document.createTextNode(` — ${done.subject}. Not pushed.`));
+    box.append(line);
+    return box;
+  }
+  if (!t.commitOpen) {
+    const b = el("button", "navitem code-commit-open", "Commit these files");
+    b.type = "button";
+    b.onclick = () => {
+      t.commitOpen = true;
+      if (t.commitMsg == null) t.commitMsg = applied.draft || "";
+      renderCodeView();
+      // Caret at the top: the subject line is the part to check first, and
+      // focusing a long draft otherwise scrolls it to the end.
+      const ta = document.querySelector(".code-commit-msg");
+      if (ta) { ta.focus(); ta.setSelectionRange(0, 0); ta.scrollTop = 0; }
+    };
+    box.append(b);
+    return box;
+  }
+  const ta = el("textarea", "code-commit-msg");
+  ta.rows = 4;
+  ta.value = t.commitMsg || "";
+  ta.setAttribute("aria-label", "Commit message");
+  ta.oninput = () => { t.commitMsg = ta.value; go.disabled = !ta.value.trim() || !!t.committing; };
+  ta.onkeydown = (e) => {
+    e.stopPropagation();       // Ctrl+Enter here commits; it must not also Run
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); codeCommit(t); }
+  };
+  box.append(ta);
+  box.append(el("div", "code-commit-note",
+    `${applied.files.length} file${applied.files.length === 1 ? "" : "s"}, exactly the ones applied. `
+    + "Your repository's own hooks run. Nothing is pushed."));
+  if (t.commitErr) box.append(el("div", "code-appr-out is-bad", t.commitErr));
+  const acts = el("div", "code-appr-acts");
+  const cancel = el("button", "navitem", "Cancel");
+  const go = el("button", "code-approve", t.committing ? "Committing…" : "Commit");
+  cancel.type = go.type = "button";
+  cancel.disabled = !!t.committing;
+  go.disabled = !!t.committing || !(t.commitMsg || "").trim();
+  cancel.onclick = () => { t.commitOpen = false; t.commitErr = ""; renderCodeView(); };
+  go.onclick = () => codeCommit(t);
+  acts.append(cancel, go);
+  box.append(acts);
+  return box;
+}
+
+async function codeCommit(t) {
+  if (t.committing) return;
+  const message = (t.commitMsg || "").trim();
+  if (!message) return;
+  t.committing = true;
+  t.commitErr = "";
+  renderCodeView();
+  try {
+    const d = await codePost(`/tasks/${t.id}/commit`, { message });
+    if (d.ok || d.error === "already") {
+      t.committed = d.commit;
+      t.commitOpen = false;
+      if (t.projectId) codeGitLoad(t.projectId);
+    } else {
+      t.commitErr = d.message || "The commit was refused.";
+    }
+  } catch (e) {
+    t.commitErr = `Could not reach the engine: ${e.message || e}`;
+  }
+  t.committing = false;
+  renderCodeView();
 }
 
 function codeCountdown(expires) {

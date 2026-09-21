@@ -215,6 +215,31 @@ async def project_skeleton(project_id: str, refresh: bool = False) -> dict[str, 
     return {"ok": True, "cached": False, "fingerprint": fp, "skeleton": sk}
 
 
+@router.get("/projects/{project_id}/git")
+async def project_git(project_id: str) -> dict[str, Any]:
+    """Branch, ahead/behind, and how much is uncommitted -- local git only.
+
+    No fetch and no pull: the console asks for this every time Code Mode
+    opens and after every task, and a network round trip there would be a
+    wait on every visit. Ahead/behind are as of the last fetch, which every
+    task's pull refreshes; `fetched_at` says when that was.
+    """
+    p = await _db().code_project(project_id, _engine_id())
+    if not p:
+        return {"ok": False, "error": "no_project", "message": "No such project."}
+    here = next((b for b in p["bindings"] if b["here"]), None)
+    if not here:
+        return {"ok": False, "error": "not_bound",
+                "message": f"{p['name']} has no folder on this machine yet."}
+    from pathlib import Path
+    from . import git as G
+    try:
+        st = await _asyncio.get_running_loop().run_in_executor(None, G.state, Path(here["root"]))
+    except G.GitError as e:
+        return {"ok": False, "error": e.code, "message": e.message}
+    return {"ok": True, "git": st}
+
+
 @router.post("/resolve")
 async def resolve(body: dict = Body(...)) -> dict[str, Any]:
     """"Work on A1." -> which project that is, if it is unambiguous."""
@@ -462,6 +487,20 @@ async def approve_task(task_id: str, body: dict = Body(...)) -> dict[str, Any]:
         return {"ok": False, "error": "no_task", "message": "No such task."}
     ok, why = _tasks.decide(t, body.get("approve") is True)
     return {"ok": ok, **({} if ok else {"error": "not_waiting", "message": why})}
+
+
+@router.post("/tasks/{task_id}/commit")
+async def commit_task(task_id: str, body: dict = Body(...)) -> dict[str, Any]:
+    """Commit the files a write task applied. `{"message": "..."}`.
+
+    Exactly those files, the repository's own hooks run, and nothing is
+    pushed. The engine's own repository never gets here: it cannot be
+    written to, so it never has an applied change.
+    """
+    t = _tasks.TASKS.get(task_id)
+    if t is None:
+        return {"ok": False, "error": "no_task", "message": "No such task."}
+    return await _tasks.commit(t, str(body.get("message") or ""))
 
 
 @router.post("/tasks/{task_id}/cancel")

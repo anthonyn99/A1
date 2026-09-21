@@ -9,13 +9,14 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-09-21, end of the Phase 8 session.
-**Phases complete:** 1, 2, 3, 4, 5, 6, 7, 8 (plus the follow-ups listed below).
-**Next phase:** **9 — Local Git** (design in §8 below, with the Phase 8
-lessons folded into "Phase 9 — first concrete steps" here).
+**Last updated:** 2026-09-21, end of the Phase 9 session.
+**Phases complete:** 1, 2, 3, 4, 5, 6, 7, 8, 9 (plus the follow-ups listed below).
+**Next phase:** **10 — GitHub credentials and REST layer** (design in §8
+below, with the Phase 9 lessons folded into "Phase 10 — first concrete
+steps" here).
 
 > **To start the next phase, the whole instruction is "continue" or "next
-> phase".** Do the start-of-session checklist, then build Phase 9 from the
+> phase".** Do the start-of-session checklist, then build Phase 10 from the
 > steps below. Everything needed is in this file.
 
 ### Start-of-session checklist (do these in order)
@@ -47,7 +48,7 @@ lessons folded into "Phase 9 — first concrete steps" here).
 7. Tell Tony the phase is done, what to test, and that a fresh session can
    pick up from here.
 
-### What exists (as of Phase 8)
+### What exists (as of Phase 9)
 
 * **Profiles** Tony/Veda: gate = lock + picker (`MAGI_PROFILES`, `lsKey()`),
   Firestore `dashboards/magi` vs `dashboards/magi_veda`, favourite star.
@@ -89,8 +90,36 @@ lessons folded into "Phase 9 — first concrete steps" here).
     folders are refused with "run git init".
   - No API keys anywhere: `slots.env_for` strips them; Claude signs in with
     `--claudeai`, never `--console`.
+  - **Local git (Phase 9)** — `magi/code/git.py` is every git operation on a
+    real repo; agents never get git. The bytes-safe `run()` is shared with
+    the sandbox (which alone passes `hooks_path`). Every task starts with
+    `git pull --rebase --autostash` (`tasks._pull_first`, a `pull` event);
+    a clash is undone (`rebase --abort`) and the task ends `pull_failed`
+    before any agent; A1 is `fetch_only`. After an apply the card offers
+    **Commit these files** → `POST /tasks/{id}/commit {message}` →
+    `git.commit` (`add` + `commit --only -- <applied paths>`, repo hooks run,
+    index restored on failure, never pushed). Draft message = subject from
+    the prompt, body from the agent's summary. Repository line under the
+    workspace from `GET /projects/{id}/git` (local only; on entering Code
+    Mode, workspace change, task end, commit — no timer). All git runs with
+    prompts disabled (`GIT_TERMINAL_PROMPT=0`, `GCM_INTERACTIVE=never`).
 
-### Hard-won facts (verified live in Phase 8 — do not re-learn them)
+### Hard-won facts (verified live in Phases 8–9 — do not re-learn them)
+
+* (Phase 9) `git commit --only -- <path>` refuses a path git has never seen,
+  so new files are `git add`-ed first; `--only` still keeps everything else
+  you had staged out of the commit. Save `write-tree` before and `read-tree`
+  it on failure to restore the index exactly.
+* (Phase 9) A fresh clone has no `FETCH_HEAD` — the line says "never
+  fetched". Cloning an empty bare repo: set the branch with
+  `git symbolic-ref HEAD refs/heads/main`, not `checkout -b`.
+* (Phase 9) **Git Credential Manager is configured machine-wide** and the
+  engine inherits it: pulls on HTTPS remotes silently use Tony's stored
+  GitHub login. Phase 10's per-account token must override it explicitly
+  (`-c credential.helper=` to clear the helper list, then `GIT_ASKPASS`),
+  or pushes will go out as whoever GCM remembers.
+* (Phase 9) git subprocesses cost ~50–100 ms each on Windows; the git tests
+  take ~60 s. Keep status/state to a handful of calls.
 
 * `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` makes Claude's `acceptEdits` refuse
   EVERY edit ("…but you haven't granted it yet"). `claude_cli.env_for_task`
@@ -139,54 +168,55 @@ lessons folded into "Phase 9 — first concrete steps" here).
   creates in `%TEMP%` (never A1): A1 refused, Claude approve (desktop),
   deny (390px), Codex approve, ChatGPT approve. `LIVE_ONLY=claude,deny,codex,browser`
   picks sections; `LIVE_TIMEOUT=1` adds the 5-minute silence-is-No run.
+* `tests/live/magi-git.live.js` — Phase 9: a bare `origin` + a second clone
+  in `%TEMP%\magi-git-live`; pull, a real Claude edit, commit (desktop and
+  390px), a clashing pull, A1 fetch-only (a task with `agents: ["none"]`
+  runs the pull and no agent — no usage spent).
+  `LIVE_ONLY=line,commit,phone,clash,a1`.
 * The page is opened as `file:///…/magi.html`; Firebase is stubbed off and
   `/auth/journal/status` is stubbed to "no lock" so the profile opens.
 
 ### Waiting on Tony
 
-* Nothing blocking. Worth trying when convenient: a Write task on a small
-  non-A1 repo from the phone (approve one, deny one). The engine autostart
-  reboot test is done (2026-09-21: the engine and tunnel were up within
-  seconds of logon).
+* Nothing blocking Phase 10's code. For its live step Tony will need to
+  create a GitHub fine-grained PAT (read-only first, then one with
+  contents:write on a throwaway repo) — ask at that point, not before.
+* Worth trying when convenient: a Write task on a small non-A1 repo from the
+  phone — approve, then **Commit these files**.
 
-### Phase 9 — first concrete steps for the next session
+### Phase 10 — first concrete steps for the next session
 
-Design decision to keep: **MAGI performs git itself; agents never get git.**
-The §8 text below still says "Git exposed to Claude as MCP tools" — that
-predates Phase 7/8. Agents edit a sandbox and produce a diff; MAGI owns
-every git operation on the real tree, so no agent (CLI or browser) needs a
-git binary, a shell, or a credential. Keep it that way.
+Keep from Phase 9: **MAGI performs git itself; agents never get git or a
+token.** Push is one more function in `magi/code/git.py`, called by MAGI
+after you press a button — never by an agent.
 
-1. Write `magi/tests/test_code_git.py` **first**, against temp repos (copy
-   the fixtures in `test_code_sandbox.py`): `status --porcelain=v2 -z`
-   parsing (modified, added, deleted, renamed with score, untracked,
-   unmerged/conflict entries, paths with spaces/unicode), ahead/behind from
-   `--branch` headers, a repo with no upstream, a detached HEAD, and that
-   staging takes an explicit path list and **never** `add -A` / `add .`.
-2. Build `magi/code/git.py` on the same bytes-safe runner as `sandbox.git()`
-   (move that helper into `git.py` and import it from `sandbox.py`). Unlike
-   the sandbox, commits on the REAL tree run the repo's own hooks (they are
-   the owner's), so the hooks-off flag stays sandbox-only.
-3. **Pull before work** (§7A): in `tasks.start`, before `sandbox.create`,
-   if the workspace has an upstream: `git pull --rebase --autostash`,
-   narrated in the transcript ("Pulled 3 commits"); a failed pull stops the
-   task with the reason and leaves the tree as git left it. Read tasks pull
-   too (answers about stale code are wrong answers). Skip with a note when
-   there is no remote or no upstream.
-4. **Commit after apply**: the approval card's applied state gains a
-   "Commit these files" action — stage exactly the applied paths, message
-   drafted from the agent's final summary, editable in a hand-built field
-   (no native prompt). No push (Phase 10 has the credentials).
-5. A repo-state strip in `#codeView` (branch, ahead/behind, dirty count),
-   fed by one `GET /api/code/projects/{id}/git` call, refreshed after a task
-   and on entering Code Mode — not on a timer.
-6. A1 still excluded from writes (and so from commits) until Phase 14; the
-   A1 `Stop` hook already commits there. Pull-before-work may run on A1
-   read tasks (it is read-only to files you have not touched; autostash
-   protects local edits) — decide and document.
-7. Tests: the git tests + a live run on the scratch repo from
-   `magi-write.live.js` (add a bare "remote" in `%TEMP%` so pull/ahead/behind
-   are real).
+1. **Tests first** — `magi/tests/test_github_client.py` with a mocked
+   transport (`httpx.MockTransport`): 304 via ETag, `Link` pagination,
+   rate-limit headers → typed error with reset time, 401/403/404 mapping,
+   and a test that no response, log line or exception message ever contains
+   the token (feed a sentinel token, grep everything).
+2. **Account store** — `magi/github/accounts.py`, `keyring` keyed
+   `magi-github:<profile>:<login>`; add = verify with `GET /user`, store
+   login + scopes; list never returns the token; remove deletes the
+   credential. Start with a fine-grained **read-only** PAT on one repo.
+3. **REST client** — `magi/github/client.py`, `X-GitHub-Api-Version:
+   2026-03-10`, ETag cache, pagination, rate-limit accounting.
+4. **Push** — `git.push(top, account)`: `-c credential.helper=` (clears
+   GCM, see Hard-won facts) + a `GIT_ASKPASS` helper script that reads the
+   token from keyring at call time, so it never enters `.git/config`, argv
+   or the environment of anything else. Refuse when behind (pull first),
+   detached, or mid-rebase. Test against the bare-remote fixture in
+   `test_code_git.py` (a file:// remote needs no token — test the askpass
+   wiring with a fake helper that records it was asked).
+5. **Console** — Accounts gains a GitHub section (add token in a hand-built
+   field, verify, remove); the committed card gains **Push** (after Commit,
+   a third deliberate press); the strip's **Repository** pill shows
+   `owner/repo` parsed from the remote URL; the repository line's `↑n`
+   becomes the push target.
+6. A1 stays excluded from writes/commits/pushes until Phase 14.
+7. Live: add a real read-only token, list repos, then a write-capable one on
+   a throwaway GitHub repo, push a commit, and grep logs/config/API output
+   for the token.
 
 ---
 
@@ -1273,6 +1303,16 @@ untracked files, ahead/behind, conflict enumeration. Manually: a Code Mode commi
 `Stop` hook.
 
 *Risk:* Medium. Push waits for Phase 10 (no credentials yet). *Rollback:* one module.
+
+*Status:* **complete** (2026-09-21). Built per §0's Phase 9 steps: `magi/code/git.py` (status porcelain v2,
+state, explicit-path stage, commit `--only`, pull, fetch_only, draft message), pull-before-work in
+`tasks.start`, Commit on the applied card, the repository line. Decisions: a clashing pull is **undone**
+(`rebase --abort`) rather than left mid-rebase; **A1 is fetch-only** (its tree is shared with live Claude Code
+sessions and its auto-commit hook), so "a Code Mode commit in A1" cannot happen until Phase 14; commit
+subjects come from the prompt, bodies from the agent summary. Tests: 37 git + 7 task-level + 26 console
+static + 1 HOW contract; `tests/live/magi-git.live.js` 38/38 (pull, real Claude edit, commit on desktop and
+at 390px, clash, A1 fetch-only). Mutations caught: `--only`→`--include`, no rebase abort, failed pull not
+stopping the task, A1 pulled instead of fetched.
 
 ---
 

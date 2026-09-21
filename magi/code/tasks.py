@@ -11,14 +11,22 @@ an approval can be answered from whichever device you are holding.
 In-memory, like council runs: a task does not survive an engine restart, and
 the runner says so rather than leaving a task looking busy forever.
 
+Every task starts with a pull (Phase 9, git.py): an answer about stale code
+is a wrong answer, and an edit made on stale code is a conflict waiting to
+happen. A pull that cannot finish cleanly is undone and stops the task.
+MAGI's own repository is only fetched, never pulled: its working tree is the
+one other sessions are editing.
+
 Write mode (Phase 8) wraps the chain in a sandbox (sandbox.py):
 
     copy the workspace ─► chain edits the copy ─► diff ─► security.review
         ─► approval card (5 min; silence = deny; first device to answer wins)
         ─► apply onto the real folder ─► remove the copy, always
+        ─► (only if you press it) commit exactly the applied files
 
 A refused diff never reaches the card, and nothing reaches the real folder
-without an explicit Approve.
+without an explicit Approve. Nothing is committed without a second, separate
+press, and nothing is ever pushed from here.
 """
 
 from __future__ import annotations
@@ -30,6 +38,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from . import git as G
 from . import sandbox, security
 from .agents import chain
 from .agents.base import Mode, Outcome, Task
@@ -56,6 +65,8 @@ class TaskState:
     # Write mode: resolved True/False by POST /approve, from any device.
     approval: asyncio.Future | None = None
     approval_deadline: float = 0.0
+    repo: str = ""            # the repository top the change was applied to
+    committing: bool = False
 
     @property
     def awaiting_approval(self) -> bool:
@@ -133,6 +144,11 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
             await publish(t, {"k": "start", "prompt": prompt, "mode": mode,
                               "chain": [{"id": a.id, "label": a.label, "kind": a.kind}
                                         for a in agents]})
+            pulled = await _pull_first(t, root)
+            if not pulled.ok:
+                t.result = {"outcome": "pull_failed", "text": "", "detail": pulled.text,
+                            "conflicts": pulled.conflicts, "attempts": []}
+                return
             if mode == "write":
                 await emit({"k": "note", "text": "Making a private copy of the workspace…"})
                 try:
@@ -176,6 +192,18 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
 
     asyncio.create_task(work())
     return t
+
+
+async def _pull_first(t: TaskState, root: Path) -> G.Pull:
+    """The §7A rule: pull before anything reads the folder, and say so."""
+    loop = asyncio.get_running_loop()
+    own = await loop.run_in_executor(None, sandbox.is_engine_repo, root)
+    try:
+        p = await loop.run_in_executor(None, G.fetch_only if own else G.pull, root)
+    except G.GitError as e:
+        p = G.Pull(False, text=f"Could not pull: {e.message}")
+    await publish(t, {"k": "pull", **p.to_dict()})
+    return p
 
 
 def _profile() -> str:
@@ -231,8 +259,11 @@ async def _review_and_apply(t: TaskState, sb: sandbox.Sandbox) -> dict[str, Any]
     res = await loop.run_in_executor(
         None, sandbox.apply, sb, files, sandbox.patch_dir(data_dir()))
     if res.ok:
-        await publish(t, {"k": "applied", "files": res.files, "how": res.how})
-        return {"write": "applied", "files": res.files}
+        t.repo = str(sb.repo)
+        draft = G.draft_message(t.prompt, (t.result or {}).get("text", ""))
+        await publish(t, {"k": "applied", "files": res.files, "how": res.how,
+                          "draft": draft})
+        return {"write": "applied", "files": res.files, "draft": draft}
     await publish(t, {"k": "conflict", "text": res.message, "files": res.conflicts,
                       "saved": res.saved_patch})
     return {"write": "conflict", "detail": res.message, "saved": res.saved_patch}
@@ -246,6 +277,35 @@ def decide(t: TaskState, approve: bool) -> tuple[bool, str]:
         return False, "Already answered."
     t.approval.set_result(bool(approve))
     return True, ""
+
+
+async def commit(t: TaskState, message: str) -> dict[str, Any]:
+    """Commit exactly the files this task applied. Once; never pushed.
+
+    Only the applied paths are staged (git.commit uses `--only`), so anything
+    else you had staged or changed stays out of it. The repository's own hooks
+    run -- this is your commit, made on your behalf.
+    """
+    r = t.result or {}
+    if not t.done or r.get("write") != "applied" or not t.repo:
+        return {"ok": False, "error": "not_applied",
+                "message": "Only a change that was applied to your folder can be committed."}
+    if r.get("commit"):
+        return {"ok": False, "error": "already", "message": "Already committed.",
+                "commit": r["commit"]}
+    if t.committing:
+        return {"ok": False, "error": "busy", "message": "Already committing."}
+    t.committing = True
+    try:
+        c = await asyncio.get_running_loop().run_in_executor(
+            None, G.commit, Path(t.repo), list(r.get("files") or []), message)
+    except G.GitError as e:
+        return {"ok": False, "error": e.code, "message": e.message}
+    finally:
+        t.committing = False
+    r["commit"] = c.to_dict()
+    await publish(t, {"k": "committed", **c.to_dict()})
+    return {"ok": True, "commit": c.to_dict()}
 
 
 async def stream(t: TaskState):
