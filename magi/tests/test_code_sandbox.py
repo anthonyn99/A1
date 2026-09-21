@@ -199,16 +199,17 @@ def test_apply_clean_changes_the_real_tree_and_stages_nothing(repo, base, tmp_pa
 def test_apply_merges_when_you_edited_elsewhere_in_the_same_file(repo, base, tmp_path):
     sb = SB.create(repo, "a2", "tony")
     try:
-        (sb.cwd / "a.txt").write_text("one\ntwo\nthree\nfour\nfive\nsix\nSEVEN\n")
+        (sb.cwd / "a.txt").write_text("one\ntwo\nthree\nFOUR\nfive\nsix\nseven\n")
         files = _approve(sb, repo)
         # Meanwhile you changed the top of the same file on the real disk,
-        # close enough that the patch's context no longer matches.
+        # inside the patch's context lines, so a plain `git apply` fails.
         (repo / "a.txt").write_text("ONE\ntwo\nthree\nfour\nfive\nsix\nseven\n")
         res = SB.apply(sb, files, tmp_path / "patches")
     finally:
         sb.remove()
     assert res.ok, res.message
-    assert (repo / "a.txt").read_text() == "ONE\ntwo\nthree\nfour\nfive\nsix\nSEVEN\n"
+    assert res.how == "merged"
+    assert (repo / "a.txt").read_text() == "ONE\ntwo\nthree\nFOUR\nfive\nsix\nseven\n"
 
 
 def test_a_real_conflict_applies_nothing_and_keeps_the_patch(repo, base, tmp_path):
