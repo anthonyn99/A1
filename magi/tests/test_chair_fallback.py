@@ -154,3 +154,67 @@ def test_real_answers_are_untouched():
         "with its order routing in the first minutes, but it did not move prices.",
     ]:
         assert validate_answer(text, q).ok, text
+
+
+# -- a member that refuses gets one more try -----------------------------------
+
+class Flaky(Provider):
+    """Returns the scripted captures in order, one per ask."""
+
+    kind = "api"
+
+    def __init__(self, captures):
+        self.id, self.display_name = "gemini", "Gemini"
+        self.captures = list(captures)
+        self.prompts = []
+
+    async def ask(self, question, *, ctx=None, on_event=None, cancel=None):
+        self.prompts.append(question)
+        text = self.captures.pop(0)
+        v = validate_answer(text, "What moved the market the most today?", display_name="Gemini")
+        if v.ok:
+            return Answer(provider_id=self.id, display_name=self.display_name,
+                          text=text, ok=True, state=ProviderState.DONE)
+        a = Answer.degraded_capture(self.id, self.display_name, text, v.summary)
+        a.degraded_kind = str(v.reason)
+        return a
+
+    async def health_check(self, *, deep=False):
+        raise NotImplementedError
+
+
+GEMINI_REFUSAL = (
+    "I cannot fulfill this request. I do not have access to real-time financial "
+    "market data or live web search capabilities to report on today's specific "
+    "market movements."
+)
+
+
+def test_a_refusal_is_retried_once_with_a_search_nudge():
+    from magi.providers.browser_base import REFUSAL_RETRY_NUDGE
+
+    p = Flaky([GEMINI_REFUSAL, GOOD])
+    a = asyncio.run(Orchestrator._ask(p, "What moved the market the most today?", None, None, None))
+    assert a.ok and a.text == GOOD
+    assert len(p.prompts) == 2
+    assert p.prompts[1].startswith(REFUSAL_RETRY_NUDGE)
+
+
+def test_a_second_refusal_is_reported_not_retried_forever():
+    p = Flaky([GEMINI_REFUSAL, GEMINI_REFUSAL, GOOD])
+    a = asyncio.run(Orchestrator._ask(p, "What moved the market the most today?", None, None, None))
+    assert a.degraded and len(p.prompts) == 2
+
+
+def test_other_unusable_captures_are_not_retried():
+    p = Flaky(["Which market do you mean?", GOOD])
+    a = asyncio.run(Orchestrator._ask(p, "What moved the market the most today?", None, None, None))
+    assert a.degraded and len(p.prompts) == 1
+
+
+def test_the_preamble_no_longer_forbids_tools_and_says_search_exists():
+    from magi.providers.browser_base import DIRECT_ANSWER_PREAMBLE
+
+    p = DIRECT_ANSWER_PREAMBLE.lower()
+    assert "tool" not in p
+    assert "web search is available" in p

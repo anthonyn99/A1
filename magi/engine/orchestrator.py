@@ -116,6 +116,41 @@ class Orchestrator:
 
     @staticmethod
     async def _ask(p, question, ctx, emit, cancel):
+        """Ask one member; a stock refusal gets exactly one retry.
+
+        Observed 2026-09-21: Gemini Flash answered "What moved the market the
+        most today?" with "I cannot fulfill this request. I do not have access
+        to real-time financial market data or live web search" -- and the same
+        question typed into gemini.google.com by hand searched and answered.
+        Whether a chat model decides to search is a coin it flips per turn, so
+        a refusal is worth one more throw in a fresh chat, told outright to
+        search. Only refusals: a clarifying question or an echo would come back
+        the same way, and each retry costs a full browser turn.
+        """
+        a = await Orchestrator._ask_once(p, question, ctx, emit, cancel)
+        if not (a.degraded and a.degraded_kind == "refusal"):
+            return a
+        if cancel is not None and cancel.is_set():
+            return a
+        from ..providers.browser_base import REFUSAL_RETRY_NUDGE
+
+        if emit:
+            await emit(
+                ProviderEvent(
+                    provider_id=p.id,
+                    state=ProviderState.WAITING,
+                    message=f"{p.display_name} refused; asking again with web search",
+                )
+            )
+        again = await Orchestrator._ask_once(
+            p, REFUSAL_RETRY_NUDGE + question, ctx, emit, cancel
+        )
+        # A second refusal is reported as the first one was; anything else --
+        # an answer, or a different failure -- is what the retry found.
+        return again
+
+    @staticmethod
+    async def _ask_once(p, question, ctx, emit, cancel):
         """Ask one member, and let a halt actually interrupt it.
 
         A provider checks `cancel` where it can do so safely: before sending,
