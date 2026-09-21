@@ -1110,6 +1110,17 @@ the configured chairman, its fallback order, then every other responder. Only
 when every one of them fails is the run reported as a synthesis failure, naming
 each. Brainstorm's round merge and plan writing use the same handover.
 
+**A refusal gets one retry** (`Orchestrator._ask`). Gemini Flash later
+refused the same market question with "I do not have access to real-time
+financial market data or live web search" while the identical question typed
+into gemini.google.com searched and answered — whether a chat model searches is
+decided per turn. A member whose capture is a `refusal` is asked once more in a
+fresh chat with `REFUSAL_RETRY_NUDGE` ("search the web now…") in front of the
+question; a second refusal stands. Clarifying questions and echoes are not
+retried — they would come back the same. The preamble also no longer lists
+"tool" among the things not to create (Gemini read it as "don't use tools"),
+and it now says web search is available.
+
 ## Questions handed over by another A1 program
 
 TradeHub's **Analysis** tab no longer opens a chat site and types a prompt into
