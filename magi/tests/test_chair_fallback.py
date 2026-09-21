@@ -133,7 +133,28 @@ REFUSALS = [
     # Perplexity
     "An error occurred. Please try again later.",
     "You've reached your daily limit for Pro searches.",
+    # Observed 2026-09-21 -- the same Gemini refusal, reworded, recorded RESOLVED
+    "I am unable to perform real-time web searches or access live market data to "
+    "identify today's specific market movers.For real-time index performance, major "
+    "sector movements, and key economic or earnings news driving today's trading "
+    "session, please check reliable financial sources such as Bloomberg, Reuters, "
+    "CNBC, or Yahoo Finance.",
+    "I don't have access to real-time internet data or live financial market feeds "
+    "in this environment, so I cannot provide today's market drivers.",
+    "I can't browse the internet.",
 ]
+
+
+def test_a_padded_no_access_refusal_is_still_a_refusal():
+    """Disclaimer + "check Bloomberg" is a refusal even when padded past 600."""
+    text = (
+        "I do not have live web search in this chat, so I cannot report today's "
+        "session. " + "Markets respond to oil, yields, earnings and macro data. " * 12
+        + "For the latest, check Reuters or CNBC."
+    )
+    assert 600 < len(text) < 1500
+    v = validate_answer(text, "What moved the market the most today?")
+    assert v.reason == Rejection.REFUSAL
 
 
 def test_stock_refusals_and_errors_are_not_votes():
@@ -149,6 +170,9 @@ def test_real_answers_are_untouched():
         GOOD,
         "Oil. Brent fell 3.4% and pulled yields down with it.",
         "No. Postgres handles this fine at your volume.",
+        "I can't give financial advice, but today's move was driven by oil falling 3%.",
+        # A real answer that cites sources is not a redirect.
+        GOOD + " Sources such as Reuters and CNBC reported the same figures.",
         # A long answer that mentions an error in passing.
         "Markets rallied. " + GOOD + " One broker noted that something went wrong "
         "with its order routing in the first minutes, but it did not move prices.",
