@@ -83,6 +83,9 @@ class Answer:
     # came back and why it was rejected.
     degraded: bool = False
     degraded_reason: str = ""
+    # The validate.Rejection value behind `degraded` ("refusal", "echo", ...),
+    # so the orchestrator can tell a refusal worth retrying from the rest.
+    degraded_kind: str = ""
     started_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     ended_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     latency_ms: int = 0

@@ -58,14 +58,31 @@ from .base import (
 # put and whether there will be one. It is prepended to EVERY browser turn,
 # which includes the chairman's synthesis and Studio's generation, and those
 # are the turns most likely to be mistaken for "build me a document".
+#
+# "Tool" was dropped from the list of things not to create (2026-09-21): Gemini
+# Flash read "do not create ... a tool" as "do not use tools", skipped Google
+# Search, and answered a market question with "I do not have access to
+# real-time financial market data or live web search" -- while the same
+# question typed by hand into gemini.google.com searched and answered. The
+# line about looking things up now says outright that search is available.
 DIRECT_ANSWER_PREAMBLE = (
     "Reply with your full answer in this chat message. Do not create an "
-    "artifact, canvas, document, file, app or tool to hold it, and do not "
+    "artifact, canvas, document, file or app to hold it, and do not "
     "offer to build one.\n"
     "This is a single turn and there is no follow-up: nobody will read a "
     "clarifying question or reply to an offer. Answer with what you have, "
     "state any assumption you had to make, and look things up if you need "
-    "current information.\n\n"
+    "current information: web search is available in this chat, so use it "
+    "rather than saying you lack live data.\n\n"
+)
+
+#: Put in front of the question when a member is asked a second time after
+#: returning a stock refusal (see Orchestrator._ask). Only ever sent on that
+#: retry, so it cannot shape an ordinary answer.
+REFUSAL_RETRY_NUDGE = (
+    "Your previous attempt at this question was a refusal. Search the web now "
+    "for current information and answer from what you find. Do not say you "
+    "lack real-time data or web access: search is available to you here.\n\n"
 )
 
 
@@ -482,6 +499,7 @@ class BrowserProvider(Provider):
                         completion_reason=str(result.reason),
                     )
                     a.artifacts = artifacts
+                    a.degraded_kind = str(verdict.reason or "")
                     return a
 
                 await self._emit(on_event, ProviderState.DONE, text=cleaned, started=t0)
