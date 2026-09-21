@@ -19,6 +19,18 @@ here).
 > phase".** Do the start-of-session checklist, then build Phase 11 from the
 > steps below. Everything needed is in this file.
 
+### The road from here (agreed with Tony 2026-09-21)
+
+One phase per session; ~5–7 sessions in all.
+
+| # | Phase | What it adds | Complexity | Expected |
+|---|---|---|---|---|
+| 11 | Repository surface | Read-only panel: branches, commits, PRs, issues, Actions; post-push Actions watch with failing-job log tail + "diagnose"; same reads as MCP tools for the Claude CLI | Medium-high (widest) | 1 long session, maybe 2 |
+| 12 | Auto Commit / Auto Push | Per-project toggles, off by default, always off for A1; `magi:` commits of touched files after a ~3 min debounce; auto-push only after a clean pull | Medium (must not collide with A1's hook) | 1 |
+| 13 | Firebase sync of Code Mode state | One `code` field on the profile doc, debounced dirty-flag writes, zero writes during a task, no second listener; tokens never sync | Medium (easy to get subtly wrong — measure write counts) | 1 |
+| 14 | Hardening + A1 writable | Regression + security sweep, docs; then open A1 to write/commit/push carefully (shared with live sessions + auto-commit hook) | High | 1–2 (needs Tony's go-ahead for A1) |
+| 15 | Veda's engine | `magi onboard --profile veda`, her logins + GitHub account, isolation check | Low (an install) | < 1 (needs Veda) |
+
 ### Start-of-session checklist (do these in order)
 
 1. `git pull --rebase --autostash` in A1 — Tony and Veda both push to it.
@@ -221,9 +233,15 @@ here).
   found in none of 15,914 files (`magi/data`, `magi/profiles`, the repo's
   `.git`, sandboxes, `~/.gitconfig`). The stored account is now token 2
   (write, magi-push-test only).
-* Tony, after testing: revoke token 2 on GitHub and re-add token 1
-  (read-only; it covers A1) — Phase 11 needs read access to A1. Previously:
-* **A real GitHub token for the one step not done in Phase 10** (plan step 7):
+* **Done 2026-09-21:** token 2 revoked; **token 1 re-added** — fine-grained,
+  **Contents: Read-only on A1 only** (it cannot see magi-push-test), expires
+  2026-10-21. Verified: lists `anthonyn99/A1`; `can_push` → false ("Permission
+  to anthonyn99/A1.git denied"). **Linked to A1** (`prefs.github =
+  "anthonyn99"`), so A1's fetch-before-task now uses it instead of GCM.
+  It expires 2026-10-21 — if Phase 11 runs after that, ask Tony for a new one.
+* Nothing is waiting on Tony for Phase 11. Phase 14 (A1 writable) will need
+  his explicit go-ahead; Phase 15 needs Veda for her sign-ins.
+* Previously: **A real GitHub token for the one step not done in Phase 10** (plan step 7):
   a fine-grained PAT — first *Contents: Read-only* on one repo, then one with
   *Contents: Read and write* on a **throwaway** repo — added in Accounts ›
   GitHub. Then: list repos, pick the account on the scratch project, push a
@@ -240,9 +258,14 @@ Keep from Phases 9–10: **MAGI performs git and GitHub calls itself; agents
 never get git or a token.** Everything goes through `magi/github/client.py`
 (one `GitHub` per account, ETags, rate accounting) and `accounts.client()`.
 
-1. **Ask Tony for a fine-grained read-only token on A1** (see "Waiting on
-   Tony") and add it through Accounts › GitHub; set it as A1's account
-   (`prefs.github`). Everything in this phase is read-only against A1.
+1. ~~Get a read-only token on A1 and link it~~ — **already done** (see
+   "Waiting on Tony"). Check it still works: `GET
+   /api/code/github/accounts/anthonyn99/repos` lists A1. Everything in this
+   phase is read-only against A1. For write-side experiments (a failing
+   workflow, PR creation later) use the throwaway private repo
+   `anthonyn99/magi-push-test` (`Desktop\magi-push-test`, project
+   `proj_d8cd09a0b659`) — the current token cannot see it, so ask Tony for
+   one that covers it if a step needs it.
 2. **Service modules**, each returning plain dicts or raising `GitHubError`,
    with mocked-transport tests like `test_github_client.py`:
    `magi/github/repos.py` (branches, commits for a branch, compare
