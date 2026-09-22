@@ -9110,12 +9110,28 @@ function runOne({ question, units, files = [], attachTo = null }) {
 
   const es = new EventSource(streamUrl(`/api/runs/${runId}/stream`));
   S.es = es;
+  let dropSince = 0;
   es.onmessage = (ev) => {
     const msg = JSON.parse(ev.data);
     if (msg.type === "init") {
-      // Only when attaching: a run started here already has its panels, and
-      // rebuilding them would throw away text already on screen.
-      if (!attachTo || !msg.providers) return;
+      dropSince = 0;
+      if (!msg.providers) return;
+      // A run started here already has its panels, and rebuilding them would
+      // throw away text already on screen. But the same frame arrives when
+      // the stream RECONNECTS, and then it is the only record of what
+      // finished while we were cut off -- so fold it in rather than ignore it.
+      if (!attachTo) {
+        for (const q of msg.providers) {
+          const p = liveById(q.id);
+          if (!p) continue;
+          p.state = q.state;
+          if (q.text) p.text = q.text;
+          if (q.chars) p.chars = q.chars;
+          if (showingLive()) updateNode(p);
+        }
+        if (showingLive()) { updateCore(); drawLinks(); }
+        return;
+      }
       livePanels.length = 0;
       for (const p of msg.providers) {
         livePanels.push({
@@ -9175,6 +9191,19 @@ function runOne({ question, units, files = [], attachTo = null }) {
     ackSettled();
   };
   es.onerror = () => {
+    // A blip is not the end of a run. The deliberation carries on in the
+    // engine, EventSource reconnects by itself, and the engine replays every
+    // unit's state on reconnect (the init frame above). Ending here on the
+    // first error -- a tunnel swap, the PC waking -- left the prompt in the
+    // box behind an idle Convene button while the council was still going,
+    // which is how one morning report became two runs (2026-09-22). Only a
+    // stream the browser has given up on (CLOSED: the engine answered 404,
+    // it no longer knows the run) or one down for two minutes ends it.
+    if (!done && es.readyState !== EventSource.CLOSED) {
+      if (!dropSince) dropSince = Date.now();
+      if (Date.now() - dropSince < 120000) return;
+    }
+    try { es.close(); } catch {}
     endRun();
     // A dropped stream is not a verdict. Settling here rather than hanging is
     // what stops one lost connection from stalling a queue for ever. When
@@ -9419,6 +9448,22 @@ function takeStashedHandoff() {
 // is checked first: if one is waiting, this load IS the reload that carried
 // it, and there is no fragment left to read.
 HANDOFF = takeStashedHandoff() || takeHandoff();
+
+/* A launch that arrived as a NEW tab: the morning launcher opens magi.html
+   with `brave <url>`, which cannot find the console Brave just restored, so
+   every morning left two consoles side by side (2026-09-22). This tab holds
+   the prompt, so it is the one to keep; any other console is told to retire.
+   After load, so this tab's own tabsync.js has its id to exclude itself. */
+if (HANDOFF) {
+  window.addEventListener("load", () => {
+    try {
+      if (!window.a1TabId) return;
+      const bc = new BroadcastChannel("a1tabs");
+      bc.postMessage({ t: "retire", k: "magi", except: window.a1TabId });
+      setTimeout(() => { try { bc.close(); } catch {} }, 1000);
+    } catch {}
+  });
+}
 
 /** The deliberation beep: a steady cluster every 1.6s for as long as the
  *  council is working. Fires immediately on start rather than after the first

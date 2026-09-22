@@ -41,6 +41,7 @@ from .errors import FailureKind, explain
 from .providers import gemini_api
 from .providers.base import ProviderEvent, RunContext
 from . import proc
+from .fanout import Broadcast
 from .providers.registry import build_provider, build_providers
 from .settings import (
     ROOT,
@@ -411,6 +412,17 @@ async def _stage_uploads(files, into: Path) -> list[Path]:
     return out
 
 
+def _live_twin(question: str, provider_ids: list[str]) -> str | None:
+    """A run still going with this exact question and these exact units."""
+    want = set(provider_ids)
+    for rid, st in _runs.items():
+        if st.get("done") or st["cancel"].is_set():
+            continue
+        if st.get("question") == question and set(st["providers"]) == want:
+            return rid
+    return None
+
+
 @app.post("/api/runs")
 async def create_run(
     question: str = Form(...),
@@ -438,8 +450,20 @@ async def create_run(
     except Exception:
         pass  # keep the last good config rather than failing the run
 
-    run_id = uuid.uuid4().hex[:12]
     providers = build_providers(settings, provider_ids)
+
+    # The same question to the same units while that run is still going is a
+    # double-send, never a second council: on 2026-09-22 one morning launch
+    # produced two runs 50s apart. The second queued behind the first on every
+    # profile (ChatGPT took six minutes), spent Grok's free allowance so it
+    # came back rate-limited for 7h30m, and split the console between two
+    # runs. Whatever sent it -- a second tab, a re-press after a dropped
+    # stream -- it is handed the run already in flight instead.
+    same = _live_twin(q, [p.id for p in providers]) if not files else None
+    if same:
+        return {"run_id": same, "joined": True}
+
+    run_id = uuid.uuid4().hex[:12]
 
     # Resolved HERE, once, rather than per provider: every member of one
     # deliberation should be asked under the same conditions, and the console
@@ -451,9 +475,10 @@ async def create_run(
     staged_paths = await _stage_uploads(files, UPLOADS_DIR / run_id)
 
     state = {
-        "queue": asyncio.Queue(),
+        "queue": Broadcast(),
         "cancel": asyncio.Event(),
         "done": False,
+        "question": q,
         "providers": {
             p.id: {
                 "id": p.id,
@@ -554,17 +579,28 @@ async def stream_run(run_id: str):
         raise HTTPException(404, "unknown run")
 
     async def gen():
-        # Replay current provider state so a late or reconnecting client is
-        # not stuck with a blank grid.
-        yield _sse({"type": "init", "providers": list(state["providers"].values())})
-        if state["result"]:
-            yield _sse(state["result"])
-            return
-        while True:
-            item = await state["queue"].get()
-            if item.get("type") == "__eof__":
-                break
-            yield _sse(item)
+        # Subscribed before the snapshot below, with no await between: see
+        # magi/fanout.py for why every stream needs its own copy.
+        sub = state["queue"].subscribe()
+        try:
+            # Replay current provider state so a late or reconnecting client
+            # is not stuck with a blank grid.
+            yield _sse({"type": "init", "providers": list(state["providers"].values())})
+            if state["result"]:
+                yield _sse(state["result"])
+                return
+            # Ended in an exception whose one error frame went to whoever was
+            # listening then; a stream opened afterwards would wait for ever.
+            if state["done"]:
+                yield _sse({"type": "error", "message": "This run ended with an engine error."})
+                return
+            while True:
+                item = await sub.get()
+                if item.get("type") == "__eof__":
+                    break
+                yield _sse(item)
+        finally:
+            state["queue"].unsubscribe(sub)
 
     return StreamingResponse(
         gen(),
@@ -671,7 +707,7 @@ async def create_studio_artifact(run_id: str, kind: str, providers: str = Form("
     await db.create_studio_artifact(job_id, run_id, studio_kind.value, provider_id)
 
     state = {
-        "queue": asyncio.Queue(),
+        "queue": Broadcast(),
         "cancel": asyncio.Event(),
         "done": False,
         "result": None,
@@ -740,20 +776,26 @@ async def stream_studio_artifact(run_id: str, job_id: str):
         raise HTTPException(404, "unknown studio job")
 
     async def gen():
-        if state["result"]:
-            yield _sse(state["result"])
-            return
-        # Ended in an exception, and its one error message already went to
-        # whoever was listening then. A stream opened afterwards would wait on
-        # an empty queue for ever; say what happened instead.
-        if state["done"]:
-            yield _sse({"type": "error", "message": "This card failed to generate. Try again."})
-            return
-        while True:
-            item = await state["queue"].get()
-            if item.get("type") == "__eof__":
-                break
-            yield _sse(item)
+        # Subscribed before the snapshot below, with no await between: see
+        # magi/fanout.py for why every stream needs its own copy.
+        sub = state["queue"].subscribe()
+        try:
+            if state["result"]:
+                yield _sse(state["result"])
+                return
+            # Ended in an exception, and its one error message already went to
+            # whoever was listening then. A stream opened afterwards would wait
+            # on an empty queue for ever; say what happened instead.
+            if state["done"]:
+                yield _sse({"type": "error", "message": "This card failed to generate. Try again."})
+                return
+            while True:
+                item = await sub.get()
+                if item.get("type") == "__eof__":
+                    break
+                yield _sse(item)
+        finally:
+            state["queue"].unsubscribe(sub)
 
     return StreamingResponse(
         gen(),
@@ -1059,7 +1101,7 @@ async def create_brainstorm_round(
 
     job_id = uuid.uuid4().hex[:12]
     state = {
-        "queue": asyncio.Queue(),
+        "queue": Broadcast(),
         "cancel": asyncio.Event(),
         "done": False,
         "result": None,
@@ -1442,7 +1484,7 @@ async def finalize_brainstorm(
 
     job_id = uuid.uuid4().hex[:12]
     state = {
-        "queue": asyncio.Queue(),
+        "queue": Broadcast(),
         "cancel": asyncio.Event(),
         "done": False,
         "result": None,
@@ -1637,15 +1679,25 @@ async def stream_brainstorm_job(session_id: str, job_id: str):
         raise HTTPException(404, "unknown brainstorm job")
 
     async def gen():
-        yield _sse({"type": "init", "providers": list(state["providers"].values())})
-        if state["result"]:
-            yield _sse(state["result"])
-            return
-        while True:
-            item = await state["queue"].get()
-            if item.get("type") == "__eof__":
-                break
-            yield _sse(item)
+        # Subscribed before the snapshot below, with no await between: see
+        # magi/fanout.py for why every stream needs its own copy.
+        sub = state["queue"].subscribe()
+        try:
+            yield _sse({"type": "init", "providers": list(state["providers"].values())})
+            if state["result"]:
+                yield _sse(state["result"])
+                return
+            # Its one error frame went to whoever was listening then.
+            if state["done"]:
+                yield _sse({"type": "error", "message": "This round ended with an engine error."})
+                return
+            while True:
+                item = await sub.get()
+                if item.get("type") == "__eof__":
+                    break
+                yield _sse(item)
+        finally:
+            state["queue"].unsubscribe(sub)
 
     return StreamingResponse(
         gen(),

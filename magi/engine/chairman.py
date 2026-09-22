@@ -94,19 +94,100 @@ alone on its own line. Everything else is plain text with the light markdown \
 above -- no code fences, no block quotes, no horizontal rules."""
 
 
-def build_prompt(question: str, answers: list[Answer]) -> str:
+# How long a synthesis prompt each chat site will accept in one message.
+#
+# Measured, not guessed, for ChatGPT: it chaired a 57k-character synthesis
+# fine and refused a 73k one with "The message you submitted was too long,
+# please edit it and resubmit." (2026-09-22, the morning trading report: five
+# members answering a 5.6k prompt with ~20k characters each). That line was
+# then published as the verdict. The default is held to the same measured
+# figure because no other site has been measured and every one has SOME cap.
+MAX_PROMPT_CHARS = {
+    "chatgpt": 50_000,
+    "claude": 120_000,
+    "claude-pro": 120_000,
+}
+DEFAULT_MAX_PROMPT_CHARS = 50_000
+
+
+def prompt_budget(provider_id: str) -> int:
+    return MAX_PROMPT_CHARS.get(provider_id, DEFAULT_MAX_PROMPT_CHARS)
+
+
+def _fit(texts: list[str], room: int) -> list[str]:
+    """Shorten the longest answers until they fit in `room` characters in total.
+
+    Water-filling: every answer is entitled to an equal share, an answer
+    shorter than its share keeps all of it, and what it leaves unused goes to
+    the rest. So a short answer is never cut to make room, and the long ones
+    are cut to the same length rather than the last one losing everything.
+
+    A cut keeps the head AND the tail. These are structured reports, and the
+    end is where the summary sits (the trading report's tier list and final
+    call) -- cutting only the tail would feed the chairman every member's
+    preamble and none of their conclusions.
+    """
+    total = sum(len(t) for t in texts)
+    if total <= room or not texts:
+        return texts
+    room = max(room, 2000 * len(texts))
+    caps = {}
+    left, pending = room, sorted(range(len(texts)), key=lambda i: len(texts[i]))
+    while pending:
+        share = left // len(pending)
+        i = pending[0]
+        if len(texts[i]) <= share:
+            caps[i] = len(texts[i])
+            left -= caps[i]
+            pending.pop(0)
+        else:
+            for j in pending:
+                caps[j] = share
+            break
+    out = []
+    for i, t in enumerate(texts):
+        cap = caps[i]
+        if len(t) <= cap:
+            out.append(t)
+            continue
+        marker = f"\n\n[... {len(t) - cap:,} characters trimmed for length ...]\n\n"
+        keep = max(0, cap - len(marker))
+        head_n = int(keep * 0.7)
+        head = t[:head_n]
+        cut = head.rfind("\n")
+        if cut > head_n * 0.8:
+            head = head[:cut]
+        tail = t[len(t) - (keep - len(head)):] if keep > len(head) else ""
+        nl = tail.find("\n")
+        if 0 <= nl < len(tail) * 0.2:
+            tail = tail[nl + 1:]
+        out.append(head.rstrip() + marker + tail.lstrip())
+    return out
+
+
+def build_prompt(
+    question: str, answers: list[Answer], max_chars: int | None = None
+) -> str:
     ok = [a for a in answers if a.ok and a.text.strip()]
     degraded = [a for a in answers if a.degraded]
     # Genuine failures only -- a degraded member DID respond, and describing it
     # as "did not respond" would misreport what happened.
     failed = [a for a in answers if not a.ok and not a.degraded]
 
+    texts = [a.text.strip() for a in ok]
+    if max_chars:
+        # Everything that is not an answer: the template, the question, the
+        # headings and notes. Measured from the untrimmed prompt, so a
+        # template edit can never silently break the budget.
+        frame = len(build_prompt(question, answers)) - sum(len(t) for t in texts)
+        texts = _fit(texts, max_chars - frame)
+
     blocks = []
-    for a in ok:
+    for a, text in zip(ok, texts):
         caveat = ""
         if a.low_confidence:
             caveat = "  [note: this response may be truncated]"
-        blocks.append(f"--- {a.display_name}{caveat} ---\n{a.text.strip()}")
+        blocks.append(f"--- {a.display_name}{caveat} ---\n{text}")
 
     note = ""
     if failed:
@@ -177,7 +258,7 @@ async def synthesize(
 ) -> tuple[str, bool, str | None, int]:
     """Returns (verdict_text, ok, error_detail, latency_ms)."""
     t0 = time.monotonic()
-    prompt = build_prompt(question, answers)
+    prompt = build_prompt(question, answers, max_chars=prompt_budget(chairman.id))
     result = await chairman.ask(prompt, ctx=ctx, cancel=cancel)
     ms = int((time.monotonic() - t0) * 1000)
 

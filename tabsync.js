@@ -149,6 +149,7 @@
     } catch (e) {}
   }
 
+  try { window.a1TabId = ID; } catch (e) {}
   beat();
   var hb = setInterval(beat, BEAT_MS);
   // pagehide (not unload) so the entry clears on a bfcache navigation too.
@@ -184,7 +185,8 @@
   bc.onmessage = function (ev) {
     var d = ev && ev.data;
     if (!d || d.k !== key || retired) return;
-    if (d.t === 'retire') { retire(); return; }
+    // `except` lets a tab retire every OTHER claimant without retiring itself.
+    if (d.t === 'retire') { if (!(d.except && d.except === ID)) retire(); return; }
     if (d.t === 'deliver') {
       // Come forward if the browser allows it, and take the url either way:
       // being handed the question matters more than winning the focus race.

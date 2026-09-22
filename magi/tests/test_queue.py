@@ -220,10 +220,24 @@ def test_watching_attaches_rather_than_starting_another_run():
 def test_the_engines_replay_rebuilds_the_grid_only_when_attaching():
     body = _fn("runOne")
     assert 'msg.type === "init"' in body, "the replay frame is ignored"
-    assert "if (!attachTo || !msg.providers) return;" in body, (
+    init = body[body.index('msg.type === "init"'):body.index('msg.type === "state"')]
+    # A run started here folds the replay into its panels (a reconnect after
+    # a dropped stream) and returns before the rebuild below.
+    assert "if (!attachTo) {" in init and "livePanels.length = 0" in init
+    assert init.index("if (!attachTo) {") < init.index("livePanels.length = 0"), (
         "a run started here would have its panels rebuilt from the replay, "
         "throwing away text already on screen"
     )
+    assert "if (q.text) p.text = q.text" in init, "an empty replay wipes text"
+
+
+def test_a_dropped_stream_waits_for_the_reconnect():
+    """2026-09-22: ending the run on the first stream error left the prompt
+    behind an idle Convene while the council was still going -- two runs."""
+    body = _fn("runOne")
+    err = body[body.index("es.onerror"):]
+    assert "EventSource.CLOSED" in err and "120000" in err
+    assert err.index("return;") < err.index("endRun()")
 
 
 def test_a_reload_reconnects_instead_of_requeuing_a_run_that_has_an_id():

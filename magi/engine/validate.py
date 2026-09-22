@@ -145,6 +145,15 @@ _CANNED_REFUSAL = re.compile(
     r"\bhaving (?:a )?(?:hard|difficult) time (?:fulfilling|with|helping|understanding|answering)"
     # "I encountered an error doing what you asked" (Gemini chairman)
     r"|\bi (?:encountered|ran into|hit|experienced) (?:an? )?(?:error|problem|issue|glitch)"
+    # "I seem to be encountering an error. Can I try something else for you?"
+    # (Gemini, 2026-09-22 -- recorded RESOLVED because the line above wants
+    # the past tense)
+    r"|\b(?:encounter|encountering|running into|having) (?:an? )?(?:error|problem|issue|glitch)"
+    r"|\btry something else for you\b"
+    # "The message you submitted was too long, please edit it and resubmit."
+    # (ChatGPT as chairman, 2026-09-22 -- published as the verdict)
+    r"|\bmessage you submitted was too long\b|\b(?:message|prompt|input) (?:is|was) too long\b"
+    r"|\bplease edit it and resubmit\b"
     r"|\b(?:an? )?(?:error|problem) (?:occurred|has occurred|was encountered)"
     r"|\bsomething went wrong"
     r"|\bcould you (?:please )?try again\b|\bplease try again\b|\btry again later\b"
