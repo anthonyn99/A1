@@ -39,12 +39,25 @@ from . import resolve
 from .markdown import DOM_TO_MARKDOWN_JS
 
 
+LIMIT_CHECK_S = 5.0
+CANNED_SETTLE_S = 15.0
+CANNED_MAX_CHARS = 600
+
+
+def _is_canned(text: str) -> bool:
+    # Imported late: engine/ imports providers/, which import this module.
+    from ..engine.validate import _is_canned_refusal
+
+    return bool(text) and _is_canned_refusal(text)
+
+
 class CompletionReason(StrEnum):
     STOP_BUTTON = "stop_button"      # clean: generation visibly ended
     STREAM_MARKER = "stream_marker"  # clean: streaming class cleared
     STABILITY = "stability"          # fallback: text stopped changing
     STALL_TIMEOUT = "stall_timeout"  # degraded: no growth, gave up
     HARD_TIMEOUT = "hard_timeout"    # degraded: absolute ceiling hit
+    CANNED_LINE = "canned_line"      # a stock error/refusal line that settled
 
 
 # Reasons we consider trustworthy enough not to caveat in the UI.
@@ -197,6 +210,9 @@ async def wait_for_completion(
     # have been seen: together they make the quiet-window gate adaptive.
     max_gap = 0.0
     growths = 0
+    # A stock error line that has stopped changing (see Gate 1b).
+    canned_text, canned_since = "", 0.0
+    last_limit_check = start
 
     while True:
         if cancel is not None and cancel.is_set():
@@ -256,6 +272,39 @@ async def wait_for_completion(
                 )
             await asyncio.sleep(poll_s)
             continue
+
+        # A quota notice that lands AFTER the send. Grok's free tier swaps the
+        # answer for "7 hours 30 minutes before limit is gone": no text, no stop
+        # button, and the run used to wait out the full stall timer before
+        # anyone looked (2026-09-22). Checked every few seconds instead; the
+        # caller turns this into "<site> says: ..." with a screenshot.
+        if site.rate_limit_selectors and time.monotonic() - last_limit_check >= LIMIT_CHECK_S:
+            last_limit_check = time.monotonic()
+            limit = await resolve.rate_limited(page, site.rate_limit_selectors)
+            if limit:
+                raise ProviderError(FailureKind.RATE_LIMITED, limit)
+
+        # Gate 1b: a stock error or refusal line that has stopped changing is
+        # the whole reply, whatever the page's other signals say. Gemini left
+        # its Stop button up under "I encountered an error doing what you
+        # asked. Could you try again?" and the run sat on it until the 20-minute
+        # hard timeout (2026-09-22). The validator rejects the line either way;
+        # this only stops the wait. Bounded by length and by CANNED_SETTLE_S so
+        # a real answer that merely OPENS with such a phrase keeps streaming.
+        if len(text) < CANNED_MAX_CHARS and _is_canned(text):
+            if text != canned_text:
+                canned_text, canned_since = text, time.monotonic()
+            elif time.monotonic() - canned_since >= CANNED_SETTLE_S:
+                return CompletionResult(
+                    text=text,
+                    reason=CompletionReason.CANNED_LINE,
+                    elapsed_ms=int((time.monotonic() - start) * 1000),
+                    chars=len(text),
+                    turns_before=turns_before,
+                    turns_after=turns_now,
+                )
+        else:
+            canned_text = ""
 
         # Gate 2: explicit streaming marker. Where a site exposes one (ChatGPT's
         # data-message-streaming), this is the best signal available -- the site

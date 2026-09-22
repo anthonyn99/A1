@@ -278,6 +278,10 @@ sites:
     # Google's bot checks did not trigger here (unlike the Cloudflare-fronted
     # sites). If Gemini ever starts challenging headless, set this to false.
     headless_ok: true
+    # Gemini's slowest real answer to the morning report was 95s. On
+    # 2026-09-22 it sat on "thinking" with its Stop button up and NO answer
+    # for 12 minutes, which the 20-minute default let hold up the council.
+    hard_timeout_s: 360
     input:
       - "rich-textarea div.ql-editor[contenteditable='true']"
       - "div.ql-editor[contenteditable='true']"

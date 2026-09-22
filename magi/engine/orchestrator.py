@@ -46,6 +46,10 @@ def required_members(min_members: int, asked: int) -> int:
 CONTENTION_FROM = 2
 CONTENTION_GAP_S = 0.6
 
+# See Orchestrator._gather_with_grace.
+STRAGGLER_MAX = 1
+STRAGGLER_GRACE_S = 180.0
+
 
 class Orchestrator:
     def __init__(self, settings: Settings, db: Database | None = None):
@@ -114,6 +118,44 @@ class Orchestrator:
                 return
             await asyncio.sleep(0.25)
 
+    async def _gather_with_grace(self, tasks, providers, t0, emit) -> None:
+        """Wait for every member -- but not for ever for the last one.
+
+        One stuck unit used to hold the whole council: on 2026-09-22 Gemini
+        sat "thinking" for twelve minutes with three answers already in hand,
+        and nothing could reach a verdict until it gave up. So once only
+        STRAGGLER_MAX units are left, they get a grace period -- as long again
+        as the run has taken so far, never less than STRAGGLER_GRACE_S -- and
+        are then cut off. A slow unit that is really working still fits: the
+        slowest real answer (ChatGPT, 362s against the others' ~130s) is well
+        inside twice the time the others took.
+        """
+        pending = set(tasks)
+        while pending:
+            done, pending = await asyncio.wait(
+                pending, return_when=asyncio.FIRST_COMPLETED
+            )
+            if pending and len(pending) <= STRAGGLER_MAX and len(pending) < len(tasks):
+                grace = max(STRAGGLER_GRACE_S, time.monotonic() - t0)
+                done, pending = await asyncio.wait(pending, timeout=grace)
+                if pending:
+                    for t in pending:
+                        t.cancel()
+                    with contextlib.suppress(BaseException):
+                        await asyncio.gather(*pending, return_exceptions=True)
+                    if emit:
+                        by_task = dict(zip(tasks, providers))
+                        for t in pending:
+                            p = by_task[t]
+                            with contextlib.suppress(Exception):
+                                await emit(ProviderEvent(
+                                    provider_id=p.id, state=ProviderState.FAILED,
+                                    message=f"Cut off: the other units finished "
+                                            f"and {p.display_name} was still going.",
+                                ))
+                    return
+                pending = set()
+
     @staticmethod
     async def _ask(p, question, ctx, emit, cancel):
         """Ask one member; a stock refusal gets exactly one retry.
@@ -128,7 +170,17 @@ class Orchestrator:
         the same way, and each retry costs a full browser turn.
         """
         a = await Orchestrator._ask_once(p, question, ctx, emit, cancel)
-        if not (a.degraded and a.degraded_kind == "refusal"):
+        # Retry only a model that says it cannot look things up -- that is a
+        # coin it flips per turn. A site's own error line ("I encountered an
+        # error", "I'm having a hard time fulfilling your request") came back
+        # the same way on every retry on 2026-09-22 and cost the whole council
+        # a further wait each time.
+        from .validate import _NO_LIVE_ACCESS
+
+        if not (
+            a.degraded and a.degraded_kind == "refusal"
+            and _NO_LIVE_ACCESS.search(a.text.replace("’", "'"))
+        ):
             return a
         if cancel is not None and cancel.is_set():
             return a
@@ -151,6 +203,22 @@ class Orchestrator:
 
     @staticmethod
     async def _ask_once(p, question, ctx, emit, cancel):
+        a = await Orchestrator._ask_raw(p, question, ctx, emit, cancel)
+        # A provider announces DONE and DEGRADED itself, but a failure only
+        # ever came back as a return value, so the console heard about it when
+        # the WHOLE council finished: Grok sat on "awaiting response" for the
+        # rest of a run after its rate limit had been read off the page. Say
+        # so the moment it is known.
+        if emit and not a.ok and not a.degraded:
+            with contextlib.suppress(Exception):
+                await emit(ProviderEvent(
+                    provider_id=p.id, state=ProviderState.FAILED,
+                    message=a.error_detail or str(a.failure or "failed"),
+                ))
+        return a
+
+    @staticmethod
+    async def _ask_raw(p, question, ctx, emit, cancel):
         """Ask one member, and let a halt actually interrupt it.
 
         A provider checks `cancel` where it can do so safely: before sending,
@@ -265,10 +333,23 @@ class Orchestrator:
                     gap = CONTENTION_GAP_S
                 acc += gap
 
-            gathered = await asyncio.gather(
-                *(one(p, d) for p, d in zip(providers, delays)),
-                return_exceptions=True,
-            )
+            tasks = [
+                asyncio.create_task(one(p, d)) for p, d in zip(providers, delays)
+            ]
+            await self._gather_with_grace(tasks, providers, t0, emit)
+            gathered = []
+            for p, t in zip(providers, tasks):
+                if t.cancelled():
+                    from ..errors import FailureKind
+
+                    gathered.append(Answer.failed(
+                        p.id, p.display_name, FailureKind.TIMEOUT,
+                        f"Cut off: every other unit had finished and "
+                        f"{p.display_name} was still going "
+                        f"{int(time.monotonic() - t0)}s into the run.",
+                    ))
+                else:
+                    gathered.append(t.exception() or t.result())
             for p, g in zip(providers, gathered):
                 if isinstance(g, Exception):
                     from ..errors import FailureKind

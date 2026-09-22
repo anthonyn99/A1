@@ -98,3 +98,134 @@ def test_todays_stock_lines_are_refusals():
     ):
         v = validate.validate_answer(line, "Daily macro report", display_name="X")
         assert not v.ok and v.reason == validate.Rejection.REFUSAL, line
+
+
+# -- nothing waits forever on a limit or a stock error line (2026-09-22) -----
+
+import pytest  # noqa: E402
+
+from magi.browser import completion  # noqa: E402
+from magi.browser.completion import CompletionReason  # noqa: E402
+from magi.errors import FailureKind, ProviderError  # noqa: E402
+from tests.test_completion import FakeLocator, FakePage, make_site  # noqa: E402
+
+
+class LimitPage(FakePage):
+    def locator(self, selector):
+        if selector == "LIMIT":
+            f = self._current()
+            return FakeLocator([f["limit"]] if f.get("limit") else [])
+        return super().locator(selector)
+
+
+@pytest.mark.asyncio
+async def test_a_limit_notice_after_send_ends_the_wait(monkeypatch):
+    """Grok: the answer is replaced by a quota card -- no text, no stop button."""
+    monkeypatch.setattr(completion, "LIMIT_CHECK_S", 0.0)
+    page = LimitPage([{"turns": ["old"]}, {"turns": ["old"], "limit": "7 hours 30 minutes before limit is gone"}])
+    site = make_site(rate_limit_selectors=["LIMIT"], stall_timeout_s=60, hard_timeout_s=60)
+    with pytest.raises(ProviderError) as e:
+        await completion.wait_for_completion(page, site, turns_before=1)
+    assert e.value.kind == FailureKind.RATE_LIMITED
+    assert "limit is gone" in e.value.detail
+
+
+@pytest.mark.asyncio
+async def test_a_settled_error_line_ends_the_wait_despite_a_stop_button(monkeypatch):
+    """Gemini: error line on screen, Stop button never went away."""
+    monkeypatch.setattr(completion, "CANNED_SETTLE_S", 0.05)
+    line = "I encountered an error doing what you asked. Could you try again?"
+    page = FakePage([{"turns": ["old"], "stop": True}] + [{"turns": ["old", line], "stop": True}])
+    site = make_site(stall_timeout_s=60, hard_timeout_s=60)
+    r = await completion.wait_for_completion(page, site, turns_before=1)
+    assert r.text == line and r.reason == CompletionReason.CANNED_LINE
+
+
+@pytest.mark.asyncio
+async def test_a_real_answer_is_not_cut_short_by_the_error_rule(monkeypatch):
+    monkeypatch.setattr(completion, "CANNED_SETTLE_S", 10.0)
+    page = FakePage([
+        {"turns": ["old", "Something went wrong"], "stop": True},
+        {"turns": ["old", "Something went wrong in markets: " + "x" * 700], "stop": True},
+        {"turns": ["old", "Something went wrong in markets: " + "x" * 700], "stop": False},
+    ])
+    r = await completion.wait_for_completion(page, make_site(), turns_before=1)
+    assert r.reason == CompletionReason.STOP_BUTTON and len(r.text) > 700
+
+
+def _run_ask(answers):
+    from magi.engine.orchestrator import Orchestrator
+    from magi.providers.base import ProviderState
+
+    calls, events = [], []
+
+    class P:
+        id, display_name = "gemini", "Gemini"
+
+        async def ask(self, q, ctx=None, on_event=None, cancel=None):
+            calls.append(q)
+            return answers[len(calls) - 1]
+
+    async def emit(ev):
+        events.append(ev)
+
+    a = asyncio.run(Orchestrator._ask(P(), "Q", None, emit, None))
+    return a, calls, [e.state for e in events if e.state == ProviderState.FAILED]
+
+
+def test_an_error_line_is_not_retried():
+    d = Answer.degraded_capture("gemini", "Gemini", "I'm having a hard time fulfilling your request.", "refusal")
+    d.degraded_kind = "refusal"
+    _, calls, _ = _run_ask([d, d])
+    assert len(calls) == 1
+
+
+def test_a_cant_search_refusal_still_gets_its_retry():
+    d = Answer.degraded_capture("gemini", "Gemini", "I do not have access to real-time data or live web search.", "refusal")
+    d.degraded_kind = "refusal"
+    _, calls, _ = _run_ask([d, d])
+    assert len(calls) == 2
+
+
+def test_a_failure_is_announced_when_it_happens():
+    f = Answer.failed("gemini", "Gemini", FailureKind.RATE_LIMITED, "Grok says: limit")
+    a, _, failed_events = _run_ask([f])
+    assert not a.ok and len(failed_events) == 1
+
+
+def test_a_straggler_is_cut_off_once_everyone_else_is_done(monkeypatch):
+    from magi.engine import orchestrator as orch_mod
+    from magi.providers.base import ProviderState
+
+    monkeypatch.setattr(orch_mod, "STRAGGLER_GRACE_S", 0.2)
+
+    async def go():
+        events = []
+
+        async def emit(ev):
+            events.append(ev)
+
+        async def quick():
+            await asyncio.sleep(0.01)
+            return "a"
+
+        async def stuck():
+            await asyncio.sleep(3600)
+
+        class P:
+            def __init__(self, i):
+                self.id = self.display_name = i
+
+        o = orch_mod.Orchestrator.__new__(orch_mod.Orchestrator)
+        tasks = [asyncio.create_task(quick()), asyncio.create_task(quick()),
+                 asyncio.create_task(stuck())]
+        t0 = asyncio.get_running_loop().time()
+        import time as _t
+        await o._gather_with_grace(tasks, [P("a"), P("b"), P("gemini")], _t.monotonic(), emit)
+        took = asyncio.get_running_loop().time() - t0
+        return tasks, events, took
+
+    tasks, events, took = asyncio.run(go())
+    assert took < 2
+    assert tasks[2].cancelled() and tasks[0].result() == "a"
+    assert [e.provider_id for e in events if e.state == ProviderState.FAILED] == ["gemini"]
