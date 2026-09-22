@@ -9004,6 +9004,58 @@ function updateEnabled() {
   syncCouncilIdle();
 }
 
+/* ══ the live pin — what this tab was in the middle of ═════════════════════
+   Everything MAGI runs runs in the ENGINE, not in this page: a council run, a
+   brainstorm round and a Code Mode task all carry on regardless of what the
+   console is doing. The console is only a viewer with a stream open.
+
+   So the console losing the stream must never mean losing the work — and it
+   lost it constantly, because SWITCHING PROFILE IS A RELOAD (selectProfile,
+   deliberately: it is the only way to be sure nothing of the other person is
+   left behind). Click to the other profile mid-deliberation and back, and the
+   run was still going on Tony's PC while this page came up blank and idle,
+   with no id anywhere to find it by. That is the bug this fixes.
+
+   The pin is the id, written the moment the engine hands one back and removed
+   the moment the thing it names is over. It lives in sessionStorage, which is
+   exactly the lifetime asked for:
+     · it SURVIVES a reload, so the profile round trip comes back to the run;
+     · it is per-TAB, so a second tab does not adopt the first one's run;
+     · it DIES with the tab, which is one of the two ways to stop watching.
+   The other is Halt, which ends the run and so clears the pin through the
+   same exit every other ending uses.
+
+   Profile-scoped, like every other key here: Veda's tab must not attach to a
+   run of Tony's, and coming back to Tony's must find his.
+
+   Code Mode already had this (CODE_TASK_SS, codeReattach); the council and
+   brainstorm did not. resumeLive() below is the one place all three are
+   picked back up. */
+const LIVE_RUN_SS = lsKey("live.run");
+const LIVE_BS_SS = lsKey("live.bs");
+// A pin older than this is not a run still going, it is a pin that never got
+// cleared -- a tab killed at exactly the wrong moment. Attaching to it would
+// put a long-dead question back on screen as though it were in flight.
+const LIVE_PIN_MAX_MS = 6 * 60 * 60 * 1000;
+
+function pinLive(key, data) {
+  try {
+    sessionStorage.setItem(key, JSON.stringify({ ...data, at: Date.now() }));
+  } catch {}
+}
+
+function unpinLive(key) {
+  try { sessionStorage.removeItem(key); } catch {}
+}
+
+function readPin(key) {
+  let p = null;
+  try { p = JSON.parse(sessionStorage.getItem(key) || "null"); } catch {}
+  if (!p || typeof p !== "object") return null;
+  if (!p.at || Date.now() - p.at > LIVE_PIN_MAX_MS) { unpinLive(key); return null; }
+  return p;
+}
+
 /* ══ the run ═══════════════════════════════════════════════════════════════ */
 /** Convene with what is in the composer. */
 async function start() {
@@ -9130,6 +9182,11 @@ function runOne({ question, units, files = [], attachTo = null }) {
   }
   S.runId = showingLive() ? runId : S.runId;
   S.live.runId = runId;
+  // Written before a single frame has arrived, because the gap this closes is
+  // at the START of a run: the seconds between the engine accepting it and
+  // anything appearing are exactly when someone wanders off to another
+  // profile. See the live pin above.
+  pinLive(LIVE_RUN_SS, { runId, question: question || "" });
   // The queue row learns the id AS THE RUN STARTS, not when it ends, so a
   // refresh mid-prompt can find its way back to the run still going.
   if (typeof onRunStart === "function") onRunStart(runId);
@@ -9280,6 +9337,11 @@ function renderRunNow() {
 function endRun() {
   S.running = false;
   S.halting = false;
+  // Every ending comes through here -- verdict, error, halt, a stream the
+  // browser gave up on -- so this is the one place the pin has to be dropped.
+  // A reload after this finds nothing to attach to, which is right: there is
+  // nothing still going.
+  unpinLive(LIVE_RUN_SS);
   renderRunNow();
   clearTimeout(haltFallback);
   if (S.es) { S.es.close(); S.es = null; }
@@ -14589,6 +14651,9 @@ async function loadBsSessions() {
 function closeBsStream() {
   if (S.bs.es) { S.bs.es.close(); S.bs.es = null; }
   S.bs.jobId = null;
+  // Every way a round stops -- done, failed, halted, dropped -- closes the
+  // stream, so this is brainstorm's endRun as far as the pin is concerned.
+  unpinLive(LIVE_BS_SS);
 }
 
 /** Re-reads the turn log. The database is the complete record — every member
@@ -14630,6 +14695,10 @@ function listenBs(sid, jobId, kind) {
   const es = new EventSource(streamUrl(`/api/brainstorm/${sid}/job/${jobId}/stream`));
   S.bs.es = es;
   S.bs.jobId = jobId;
+  // A round is minutes of six units thinking, and it belongs to the engine,
+  // not to this tab. Pinned so a reload -- a profile switch, most often --
+  // comes back to it rather than to an idle session. See the live pin.
+  pinLive(LIVE_BS_SS, { sessionId: sid, jobId, kind });
 
   es.onmessage = async (ev) => {
     const msg = JSON.parse(ev.data);
@@ -16704,6 +16773,78 @@ async function queueResume() {
   await queueWatch(live.id);
 }
 
+/* ══ picking the work back up ══════════════════════════════════════════════
+   The one place a reloaded console reattaches to whatever the engine is still
+   doing for it: a council run, a queued prompt, a brainstorm round, a Code
+   Mode task. All four already survived the reload on the engine side; none of
+   them had a way back into the page except the queue's, and that one was
+   wired to fire at a moment when it could not possibly work (see the call
+   site in the boot block).
+
+   It runs from boot(), which is AFTER connect() -- the engine has to be found
+   before anything can be attached to, and at the bottom of the file link.api
+   is still null. That single misplaced call is why a deliberation started
+   from the composer never came back: the pin is new, but even the queue's
+   existing resume had been a no-op on every load.
+
+   Safe to call more than once: each branch refuses if that kind of work is
+   already live in this tab, so a reconnect after a tunnel drop reattaches
+   only what is actually detached. */
+async function resumeLive() {
+  if (!online()) return;
+
+  // Code Mode keeps its own pin and its own reattach; it only ever ran when
+  // the Code view happened to be drawn, so a task started in Code Mode and
+  // left behind by a profile switch went unwatched too.
+  if (typeof codeReattach === "function") codeReattach();
+
+  // Awaited so that by the time boot() reaches handoffTry(), a resumed round
+  // has already marked itself busy -- a handed-over prompt must not convene a
+  // council on top of a brainstorm this tab is in the middle of.
+  await resumeBrainstorm();
+
+  // A queued prompt owns its row, and the row records how the run ends, so
+  // the queue's own resume handles those. Not awaited: it settles when the
+  // RUN does, which is minutes away, and the council pin below has to be
+  // considered now rather than after everything has already finished.
+  queueResume();
+
+  // A deliberation convened straight from the composer has no queue row and
+  // nothing else remembering it. This is the pin doing the whole job.
+  if (S.running) return;
+  const pin = readPin(LIVE_RUN_SS);
+  if (!pin || !pin.runId) return;
+  // Already being watched by the queue's resume, one line above.
+  if (S.queue.some((it) => it.runId === pin.runId)) return;
+  // watchRun ends in endRun whichever way it goes, including "the engine has
+  // never heard of that run", so a pin that outlived its run clears itself
+  // rather than needing a check of its own first.
+  watchRun(pin.runId, pin.question || "");
+}
+
+/** A brainstorm round that was mid-flight. The session is rehydrated from the
+ *  engine's database first -- topic, every earlier round, the questions on the
+ *  table -- and only then is the job's stream picked back up, so the round
+ *  lands in a view that has the rest of the session behind it. */
+async function resumeBrainstorm() {
+  if (typeof listenBs !== "function") return;
+  if (S.bs && (S.bs.es || bsBusy())) return;
+  const pin = readPin(LIVE_BS_SS);
+  if (!pin || !pin.sessionId || !pin.jobId) return;
+  // openBsSession closes any stream, which clears the pin -- so it is read
+  // above, and the round is re-pinned by listenBs below.
+  await openBsSession(pin.sessionId);
+  if (!S.bs.sessionId || S.bs.error) return;
+  Object.assign(S.bs, {
+    busy: true,
+    phase: pin.kind === "finalize" ? "writing" : "council",
+    status: pin.kind === "finalize" ? "finalizing" : S.bs.status,
+  });
+  primeGridForRound();
+  listenBs(pin.sessionId, pin.jobId, pin.kind || "round");
+  renderBsView(); renderBsNav(); updateEnabled();
+}
+
 /** Every local change goes through here: redraw, then save, then sync. */
 function queueChanged() {
   renderQueue();
@@ -18592,6 +18733,11 @@ async function boot() {
   // cloud is missing -- so unlike the listener it belongs here. It is a no-op
   // on every load after the first, because the index already lists everything.
   cloudBackfill().then(syncBlockedNote);
+  // Anything this tab was in the middle of is still going in the engine, and
+  // this is the first moment there is an engine to attach to. Before the unit
+  // list, a resumed run would have no accents to draw with; before
+  // handoffTry, so a handed-over prompt does not land on top of it.
+  await resumeLive();
   // A question handed over by another A1 program needs the unit list, so this
   // is the earliest it can run. Nothing happens if there was no handoff.
   handoffTry();
@@ -18640,9 +18786,10 @@ $("btnQueue").onclick = queueAdd;
 $("backToLive").onclick = backToLive;
 loadQueueLocal();
 renderQueue();
-// A prompt that was mid-run when this page reloaded is still running in the
-// engine; reconnect to it rather than leaving the grid blank.
-queueResume();
+// Reconnecting to work still going in the engine happens in boot(), not here:
+// this runs before the gate has even been painted, let alone before connect()
+// has found the engine, so every attempt made from here found link.api still
+// null and returned immediately. See resumeLive().
 updateEnabled();
 setView("council");
 // The gate paints first and covers everything. Discovery, the engine and the
