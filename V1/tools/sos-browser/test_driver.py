@@ -452,6 +452,54 @@ t("the stall budget is generous enough for a slow export",
 t("restarts cannot spin forever",
   1 <= driver.MAX_RESTARTS <= 5, driver.MAX_RESTARTS)
 
+# -- A download that NEVER STARTS is diagnosable ------------------------------
+# MEASURED (2026-09-23, notebook 1af3bb34-b567-4566-8ab4-bec00a427e94): a fetch
+# of an already-generated deck failed three times in one run, and the message
+# changed between attempts:
+#
+#     attempt 1:  no new bytes for 45s          <- started, then died
+#     attempt 2:  the download never started    <- nothing was ever initiated
+#     attempt 3:  the download never started
+#
+# Those are two DIFFERENT failures needing opposite repairs — a transfer that
+# keeps dying (popup teardown) versus a click that does nothing (menu/overlay).
+# The final error collapsed both into one timeout sentence, and, worst of all,
+# this path saved NO artifacts: the single failure kind whose repair requires
+# reading the live markup was the one path that destroyed the evidence.
+print("\ndownload never started: diagnosis")
+_dd2 = _inspect.getsource(driver._download_deck)
+
+t("the timeout path dumps the page for selector repair",
+  "save_artifacts" in _dd2 and "download-timeout" in _dd2,
+  "nlm_no_download is unrepairable without the markup")
+t("and the dump cannot replace the real error with its own failure",
+  "except Exception" in _dd2.split("download-timeout")[1][:400])
+t("'no bytes ever arrived' is tracked across restarts",
+  "saw_any_bytes" in _dd2,
+  "each restart resets last_size, so a per-attempt flag cannot answer this")
+t("and it names the click/menu as the cause, not a slow transfer",
+  "never actually initiated" in _dd2)
+t("a failed re-click is preserved rather than swallowed",
+  "click_error" in _dd2,
+  "the bare `except DriverError: pass` discarded the most diagnostic fact")
+t("and surfaced in the final message",
+  "The last re-click also failed" in _dd2)
+
+# The retry must not assume a clean page. If the previous attempt left the
+# artifact menu (or its backdrop) open, clicking "More" lands on the scrim,
+# which merely dismisses it — the menu never opens and the attempt is a silent
+# no-op that looks exactly like a dead transfer.
+print("\nretry starts from a clean page")
+_cdi = _inspect.getsource(driver._click_download_item)
+t("anything already open is dismissed before clicking",
+  "Escape" in _cdi,
+  "a retry clicking through a stale overlay is a silent no-op")
+_esc_at = _cdi.index("Escape")
+_trig_at = _cdi.index("download_trigger")
+t("and dismissed BEFORE the trigger is resolved", _esc_at < _trig_at)
+t("the dismiss is best-effort, never the thing that fails the run",
+  "except Exception" in _cdi[:_trig_at])
+
 # -- The recovery URL must actually be reachable ------------------------------
 # MEASURED: the URL recorded for recovery was https://notebook.google.com/...
 # (no 'lm') because page.url was sampled while Google bounced through that

@@ -914,6 +914,26 @@ async def _click_download_item(page, site: DeckSite) -> None:
     clicking it again. The scoping below is the hard-won part and must stay
     identical between the first click and any retry.
     """
+    # DISMISS ANYTHING ALREADY OPEN BEFORE CLICKING.
+    #
+    # This function is called again to restart a stalled transfer, and a retry
+    # does NOT start from a clean page: the previous attempt may have left the
+    # artifact menu open (or a backdrop/scrim over it). Clicking "More" while
+    # that overlay is up lands on the scrim, which merely closes it — the menu
+    # never opens, `download_menu_item` never resolves, and the attempt does
+    # nothing at all. That presents downstream as a download that never starts,
+    # which is indistinguishable from a dead transfer and provokes exactly the
+    # wrong repair.
+    #
+    # Escape is the cheap, idempotent reset: harmless when nothing is open.
+    # Best-effort — a page that cannot take a keypress has bigger problems, and
+    # failing here would mask the real error below.
+    try:
+        await page.keyboard.press("Escape")
+        await asyncio.sleep(0.4)
+    except Exception:                               # noqa: BLE001
+        pass
+
     trigger = await resolve(page, site.download_trigger, timeout_ms=10000)
     if not trigger:
         path = await save_artifacts(page, f"{site.id}-no-download")
@@ -1124,6 +1144,14 @@ async def _download_deck(page, site: DeckSite, dest: Path) -> Path:
     got = None
     # Stall tracking: bytes-on-disk and when they last changed.
     last_size, last_growth, restarts = 0, time.monotonic(), 0
+    # Did ANY attempt ever move a byte? Distinguishes "the transfer keeps dying"
+    # from "the download is never initiated at all" — the two look identical in
+    # the final message otherwise, and they need opposite repairs. Tracked
+    # across restarts, since each restart resets last_size to 0.
+    saw_any_bytes = False
+    # Why the most recent re-click failed, if it did. Preserved rather than
+    # swallowed so the timeout message can name the real cause.
+    click_error = ""
     while time.monotonic() < deadline:
         await asyncio.sleep(1.0)
         if not stage.exists():
@@ -1173,6 +1201,8 @@ async def _download_deck(page, site: DeckSite, dest: Path) -> Path:
             except OSError:
                 pass
         total_now = sum(sizes)
+        if total_now > 0:
+            saw_any_bytes = True
         if total_now != last_size:
             last_size, last_growth = total_now, now
 
@@ -1214,10 +1244,22 @@ async def _download_deck(page, site: DeckSite, dest: Path) -> Path:
             last_size, last_growth = 0, time.monotonic()
             try:
                 await _click_download_item(page, site)
-            except DriverError:
-                # The menu is gone or changed; fall through and let the loop
-                # time out with its own message rather than masking this one.
-                pass
+            except DriverError as e:
+                # The menu is gone or changed. Fall through and let the loop
+                # time out rather than masking this with a different message —
+                # but REMEMBER why, because this is the most diagnostic fact
+                # available and it used to be discarded entirely.
+                #
+                # MEASURED (2026-09-23, notebook 1af3bb34): attempt 1 stalled
+                # after starting, then attempts 2 and 3 reported "the download
+                # never started". If the re-click was in fact raising here, the
+                # artifacts it saved were thrown away with the exception and the
+                # run ended with a bare timeout — the operator was told the
+                # transfer stalled when the truth was that the menu no longer
+                # resolved. Two different repairs, one indistinguishable message.
+                click_error = str(e)
+                print(f"[deck] re-click failed: {click_error}",
+                      file=sys.stderr, flush=True)
 
     if not got:
         partial = _candidates()
@@ -1231,6 +1273,32 @@ async def _download_deck(page, site: DeckSite, dest: Path) -> Path:
         if restarts:
             hint += (f" The transfer was restarted {restarts} time(s) and "
                      f"stalled again each time.")
+        # Whether any bytes EVER arrived separates two failures that read
+        # identically in the old message but need opposite repairs:
+        #   - bytes arrived then stopped  -> a transfer problem (popup teardown)
+        #   - nothing ever arrived        -> the click/menu is not doing anything
+        if not partial and not saw_any_bytes:
+            hint += (" No bytes ever arrived, on any attempt, so the download "
+                     "was never actually initiated — this is a click/menu "
+                     "problem, not a slow transfer. Re-running will fail the "
+                     "same way; the download selectors need repairing.")
+        if click_error:
+            hint += f" The last re-click also failed: {click_error}"
+
+        # DUMP THE PAGE. This is the one failure kind whose repair REQUIRES
+        # reading the live markup (every NotebookLM selector is an unverified
+        # guess), and it was the one path that saved nothing — so the evidence
+        # needed to fix it was destroyed at the exact moment it existed. The
+        # sibling failures inside _click_download_item have dumped artifacts
+        # all along; this one is the gap.
+        #
+        # Guarded: a dump failure must never replace the real error with a
+        # screenshot error.
+        try:
+            path = await save_artifacts(page, f"{site.id}-download-timeout")
+            hint += f" Artifacts: {path}"
+        except Exception:                           # noqa: BLE001
+            pass
         raise DriverError(
             "nlm_no_download",
             f"no complete PDF appeared within {site.download_timeout_s}s.{hint}"
