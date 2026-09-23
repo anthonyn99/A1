@@ -500,6 +500,43 @@ t("and dismissed BEFORE the trigger is resolved", _esc_at < _trig_at)
 t("the dismiss is best-effort, never the thing that fails the run",
   "except Exception" in _cdi[:_trig_at])
 
+# -- A stalled transfer needs a NEW popup, not another click ------------------
+# MEASURED (2026-09-23, notebook 1af3bb34, a no-quota fetch of a finished deck):
+#
+#     first click    -> popup opened, 890,064 bytes transferred
+#     transfer died  -> the documented popup teardown
+#     stall fired    -> dead partial cleared, Download re-clicked (correct)
+#     after re-click -> 0 bytes for 180s+, through to the deadline
+#
+# NotebookLM serves the deck into a ONE-SHOT popup, and _route_popup can only
+# configure a popup that actually opens. Once torn down, clicking the same menu
+# item opens no new popup, so nothing can receive the download. The retry was
+# restarting the CLICK but not the DOWNLOAD — so raising MAX_RESTARTS or the
+# timeout could never have fixed it. Reloading rebuilds the artifact row, which
+# makes the next click a first click again.
+print("\nstalled transfer: the popup must be re-created")
+_dd3 = _inspect.getsource(driver._download_deck)
+
+t("the page is reloaded before re-clicking",
+  "page.reload" in _dd3,
+  "re-clicking a consumed one-shot popup yields zero bytes forever")
+_reload_at = _dd3.index("page.reload")
+_reclick_at = _dd3.index("_click_download_item", _dd3.index("MAX_RESTARTS"))
+t("and reloaded BEFORE the re-click, not after", _reload_at < _reclick_at)
+t("readiness is re-established after the reload",
+  "_wait_for_deck" in _dd3,
+  "clicking into a page that has not finished rendering repeats the bug")
+t("a reload failure still falls through to the click",
+  "reload before re-click failed" in _dd3,
+  "a best-effort reload must never be the thing that fails the run")
+
+# The popup listener must outlive the reload, or the fresh popup is unrouted
+# and its bytes land somewhere the poll loop never looks.
+t("the popup listener is bound to the CONTEXT, not the page",
+  "page.context.on(" in _dd3,
+  "a page-bound listener would not survive page.reload()")
+
+
 # -- The recovery URL must actually be reachable ------------------------------
 # MEASURED: the URL recorded for recovery was https://notebook.google.com/...
 # (no 'lm') because page.url was sampled while Google bounced through that

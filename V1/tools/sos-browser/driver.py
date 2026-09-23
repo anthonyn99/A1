@@ -1242,6 +1242,42 @@ async def _download_deck(page, site: DeckSite, dest: Path) -> Path:
                     pass
             dl_state["state"] = None
             last_size, last_growth = 0, time.monotonic()
+
+            # RELOAD BEFORE RE-CLICKING — the re-click alone cannot work.
+            #
+            # MEASURED (2026-09-23, notebook 1af3bb34, fetch of an already
+            # generated deck):
+            #
+            #     first click   -> popup opened, 890,064 bytes transferred
+            #     transfer died -> the documented popup teardown
+            #     stall fired   -> dead partial cleared, Download re-clicked
+            #     after re-click-> 0 bytes for 180s+, until the deadline
+            #
+            # NotebookLM serves the deck into a POPUP that Chrome tears down as
+            # the transfer starts, and `_route_popup` can only configure a popup
+            # that actually opens. Once that one-shot popup is gone, clicking the
+            # same menu item again opens no new popup, so there is nothing to
+            # receive a download and the staging dir stays empty forever. The
+            # retry was restarting the CLICK but not the DOWNLOAD — which is why
+            # raising MAX_RESTARTS or the timeout could never have helped.
+            #
+            # Reloading rebuilds the artifact row from scratch, so the next click
+            # is a first click again and NotebookLM opens a fresh popup. Costs a
+            # few seconds against a 600s budget, and spends no quota — the deck
+            # is already finished in the notebook.
+            #
+            # Best-effort: if the reload or the readiness wait fails, fall
+            # through and still try the click, which is strictly no worse than
+            # the old behaviour.
+            try:
+                print("[deck] reloading the notebook so a fresh download popup "
+                      "can open", file=sys.stderr, flush=True)
+                await page.reload(wait_until="domcontentloaded")
+                await _wait_for_deck(page, site)
+            except Exception as e:                  # noqa: BLE001
+                print(f"[deck] reload before re-click failed: {e}",
+                      file=sys.stderr, flush=True)
+
             try:
                 await _click_download_item(page, site)
             except DriverError as e:
