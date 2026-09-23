@@ -631,6 +631,48 @@ t("no flow still closes the context unguarded",
   len(_raw) <= 1, f"{len(_raw)} raw ctx.close() calls remain")
 
 
+# -- The profile grooms ITSELF, so nobody has to remember ---------------------
+# MEASURED 2026-09-23: every deck download died early (348KB/819KB/890KB/939KB)
+# and looked like a NotebookLM, selector or popup problem. It was a 296MB
+# profile with 37 crash dumps — Chrome disconnected ~2s into any large
+# download. Isolating proof: identical code and URL, a FRESH profile completed
+# 8MB while this one died at 63KB. After grooming (296MB -> 3.9MB) the next
+# fetch pulled the full 16MB deck.
+#
+# A runbook note would rot, and this failure is indistinguishable from a site
+# problem, so it must not depend on anyone remembering it.
+print("\nprofile hygiene is automatic")
+t("grooming exists", hasattr(driver, "groom_profile"))
+_g = _inspect.getsource(driver.groom_profile)
+_l = _inspect.getsource(driver.launch)
+
+t("it runs on every launch, not on request",
+  "groom_profile(" in _l, "a manual-only groom is a note that will rot")
+t("and only when no live Chrome holds the profile",
+  _l.index("_profile_holder_pids") < _l.index("groom_profile("),
+  "deleting a live browser's cache corrupts the logged-in session")
+t("hygiene never blocks a run",
+  "grooming skipped" in _l)
+
+# Crash dumps are the signal that tracks the failure; size alone would fire on
+# Chrome's legitimate 47MB ML model store every launch.
+t("crash dumps trigger it", "PROFILE_MAX_CRASH_DUMPS" in _g)
+t("a healthy profile has a zero tolerance that is not literally zero",
+  1 <= driver.PROFILE_MAX_CRASH_DUMPS <= 10, driver.PROFILE_MAX_CRASH_DUMPS)
+t("size is the backstop, set above normal regrowth",
+  driver.PROFILE_BLOAT_MB >= 150, driver.PROFILE_BLOAT_MB)
+
+# The line that must never move: the login has to survive grooming, or the
+# whole persistent-profile design is defeated and someone must log in by hand.
+_SESSION = ("Cookies", "Login Data", "Local State", "Local Storage",
+            "Preferences", "IndexedDB", "Session Storage")
+_disposable = " ".join(driver._DISPOSABLE_PROFILE_PATHS)
+for name in _SESSION:
+    t(f"grooming never deletes {name}", name not in _disposable,
+      f"{name} holds the logged-in session")
+t("caches are what it deletes", "Cache" in _disposable and "Crashpad" in _disposable)
+
+
 # -- The recovery URL must actually be reachable ------------------------------
 # MEASURED: the URL recorded for recovery was https://notebook.google.com/...
 # (no 'lm') because page.url was sampled while Google bounced through that

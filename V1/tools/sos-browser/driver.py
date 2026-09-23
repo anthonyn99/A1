@@ -476,6 +476,17 @@ async def launch(pw, site, headless: bool, visible: bool = False,
     """
     profile = PROFILES / site.id
     profile.mkdir(parents=True, exist_ok=True)
+
+    # Keep the profile healthy before Chrome opens it, not after it breaks.
+    # Only safe while nothing holds the profile — deleting a live browser's
+    # cache corrupts the logged-in session this whole design exists to keep.
+    if not _profile_holder_pids(profile):
+        try:
+            groom_profile(profile)
+        except Exception as e:                      # noqa: BLE001
+            # Hygiene must never be the reason a run cannot start.
+            print(f"[driver] profile grooming skipped: {str(e)[:120]}",
+                  file=sys.stderr, flush=True)
     args = [
         "--disable-blink-features=AutomationControlled",
         "--no-first-run",
@@ -647,6 +658,107 @@ def _profile_holder_pids(profile: Path) -> set[int]:
         return {int(x) for x in out.stdout.split() if x.strip().isdigit()}
     except Exception:                               # noqa: BLE001
         return set()
+
+
+# Caches Chrome rebuilds on demand. None of these holds a cookie, a token or
+# any part of the logged-in session — that lives in Default/Cookies,
+# Default/Login Data, Default/Local Storage and Local State, none of which is
+# listed here or ever touched.
+_DISPOSABLE_PROFILE_PATHS = (
+    "BrowserMetrics", "DeferredBrowserMetrics", "Crashpad",
+    "CrashpadMetrics-active.pma", "GrShaderCache", "ShaderCache",
+    "GPUPersistentCache", "optimization_guide_model_store", "Snapshots",
+    "component_crx_cache", "extensions_crx_cache",
+    "Default/Cache", "Default/Code Cache", "Default/GPUCache",
+    "Default/DawnGraphiteCache", "Default/DawnWebGPUCache",
+    "Default/Service Worker/CacheStorage",
+)
+
+# TWO TRIGGERS, because size alone is the weaker signal.
+#
+# Measured an hour after a full groom: the profile was back to 94MB, 47MB of it
+# `optimization_guide_model_store` — Chrome's ML models, large, legitimate, and
+# nothing to do with the failure. A size-only rule set low enough to catch the
+# real problem would therefore fire on every launch and delete useful caches
+# forever.
+#
+# CRASH DUMPS are the signal that actually tracks the failure. The profile that
+# killed every download had 37 of them; a healthy one has none. Chrome only
+# writes a dump when a process died, so any accumulation means this profile is
+# crashing — exactly the state that takes downloads with it.
+PROFILE_BLOAT_MB = 250          # generous: real bloat measured at 296MB
+PROFILE_MAX_CRASH_DUMPS = 5     # a healthy profile has zero
+
+
+def _dir_size_mb(path: Path) -> float:
+    total = 0
+    try:
+        for p in path.rglob("*"):
+            try:
+                if p.is_file():
+                    total += p.stat().st_size
+            except OSError:
+                pass
+    except OSError:
+        return 0.0
+    return total / (1024 * 1024)
+
+
+def groom_profile(profile: Path, *, force: bool = False) -> float:
+    """Drop Chrome's disposable caches when a profile has bloated.
+
+    ── WHY THIS RUNS AUTOMATICALLY ────────────────────────────────────────────
+    MEASURED 2026-09-23, and it cost most of a day: every deck download died
+    early (348KB, 819KB, 890KB, 939KB) and looked like a NotebookLM stall, a
+    selector drift or a popup bug. It was none of those. The profile had grown
+    to 296MB — 41MB of BrowserMetrics, 37 Crashpad dumps — and Chrome
+    disconnected within ~2s of ANY large download starting. The isolating
+    proof: identical code and URL, a FRESH profile completed 8MB while this one
+    died at 63KB. After grooming (296MB -> 3.9MB) the very next fetch pulled
+    the full 16MB deck.
+
+    Left as a note in a runbook this would rot, and the failure it prevents is
+    indistinguishable from a site problem — precisely the kind of thing a human
+    should never be asked to remember. So it runs on every launch, costs a
+    directory walk, and does nothing until the profile is genuinely bloated.
+
+    Returns the MB reclaimed (0.0 when nothing needed doing).
+
+    NEVER removes anything holding the session: cookies, tokens, Local Storage
+    and Local State are untouched, so the login survives. Callers must ensure
+    no Chrome is running on this profile — deleting a live browser's cache
+    corrupts it.
+    """
+    if not profile.exists():
+        return 0.0
+    try:
+        dumps = len(list((profile / "Crashpad" / "reports").glob("*.dmp")))
+    except OSError:
+        dumps = 0
+    before = _dir_size_mb(profile)
+    # Either trigger is enough. Crash dumps are the precise signal; size is the
+    # backstop for a profile that bloats without crashing yet.
+    if not force and before < PROFILE_BLOAT_MB and dumps <= PROFILE_MAX_CRASH_DUMPS:
+        return 0.0
+    if dumps > PROFILE_MAX_CRASH_DUMPS:
+        print(f"[driver] '{profile.name}' profile has {dumps} crash dumps — "
+              f"grooming before Chrome kills another download",
+              file=sys.stderr, flush=True)
+    for rel in _DISPOSABLE_PROFILE_PATHS:
+        target = profile / rel
+        try:
+            if target.is_dir():
+                shutil.rmtree(target, ignore_errors=True)
+            elif target.exists():
+                target.unlink()
+        except OSError:
+            pass
+    freed = before - _dir_size_mb(profile)
+    if freed > 0:
+        print(f"[driver] groomed '{profile.name}' profile: {before:.0f}MB -> "
+              f"{before - freed:.0f}MB (a bloated profile kills large "
+              f"downloads; login preserved)", file=sys.stderr, flush=True)
+    return freed
 
 
 async def close_quietly(ctx) -> None:
