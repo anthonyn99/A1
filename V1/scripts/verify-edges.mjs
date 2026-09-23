@@ -42,6 +42,14 @@ await evalJs(`(function(){
   if (typeof ksuData !== 'undefined' && ksuData.modules) {
     ksuData.modules = ksuData.modules.filter(function(m){ return m.name !== 'Generated'; });
   }
+  // Notes live in the EDITOR's store, not on the module, so dropping the class
+  // does not drop its notes. Those keys survive in this profile's
+  // localStorage, and the next run's assertions then counted entries left by
+  // the previous one — 4 notes where the test had just written 2, with
+  // notes[0] belonging to a run that finished minutes ago.
+  Object.keys(localStorage)
+    .filter(function(k){ return k.indexOf('studyos_notes_') === 0; })
+    .forEach(function(k){ localStorage.removeItem(k); });
   return true;
 })()`);
 
@@ -56,12 +64,21 @@ const regen = await evalJs(`(function(){
   var b = B.addGeneratedNote({ classId:'e1', title:'v2', body:'body v2',
     meta:{ sourceFileId:'same', promptId:'p2', promptVersion:3 } });
   var g = cls.modules.find(m=>m.name==='Generated');
-  return { count: g.notes.length, sameId: a.id === b.id, body: g.notes[0].body,
-           version: g.notes[0]._sos.promptVersion };
+  // A type:'notes' module renders from the EDITOR's own store
+  // (localStorage['studyos_notes_<moduleId>']), not from mod.notes — see the
+  // comment in addGeneratedNote. Asserting on mod.notes read an array the
+  // editor never writes, so notes[0] was undefined and this crashed with
+  // "Cannot read properties of undefined (reading 'body')" — which looked
+  // like a filing bug when the note had in fact been filed correctly.
+  var st = JSON.parse(localStorage.getItem('studyos_notes_' + g.id) || '{}');
+  var es = st.entries || [];
+  return { count: es.length, sameId: a.id === b.id,
+           body: es[0] && es[0].data && es[0].data.html,
+           version: es[0] && es[0]._sos && es[0]._sos.promptVersion };
 })()`);
 t('one note, not two', regen.count === 1, regen);
 t('id is stable', regen.sameId === true, regen);
-t('body is the new one', regen.body === 'body v2', regen);
+t('body is the new one', /body v2/.test(regen.body || ''), regen);
 t('provenance updated to v3', regen.version === 3, regen);
 
 console.log('\nedge: a second source adds, not replaces');
@@ -70,7 +87,8 @@ const two = await evalJs(`(function(){
   B.addGeneratedNote({ classId:'e1', title:'other', body:'other body',
     meta:{ sourceFileId:'different' } });
   var g = classes.find(c=>c.id==='e1').modules.find(m=>m.name==='Generated');
-  return g.notes.length;
+  var st = JSON.parse(localStorage.getItem('studyos_notes_' + g.id) || '{}');
+  return (st.entries || []).length;
 })()`);
 t('two distinct sources -> two notes', two === 2, two);
 

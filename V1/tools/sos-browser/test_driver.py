@@ -563,6 +563,53 @@ t("and every one of these points at the no-quota recovery",
   _dd4.count("spends no quota") + _dd4.count("driver.py fetch") >= 3)
 
 
+# -- A hung browser launch must not block the run forever --------------------
+# MEASURED (2026-09-23): a headless launch produced no browser process and no
+# output; the run sat idle for six minutes until it was killed, while a headful
+# launch moments later started Chrome in under 15 seconds.
+# `launch_persistent_context` has NO default timeout, so a launch that never
+# completes blocks everything and reports nothing.
+print("\nbrowser launch is bounded and recoverable")
+_lsrc = _inspect.getsource(driver.launch)
+
+t("the launch is time-bounded",
+  "LAUNCH_TIMEOUT_S" in _lsrc and "wait_for" in _lsrc,
+  "launch_persistent_context has no default timeout")
+t("the budget is generous enough for a cold profile",
+  driver.LAUNCH_TIMEOUT_S >= 60, driver.LAUNCH_TIMEOUT_S)
+# Counts the awaited CALLS, not the `async def _launch()` that defines it —
+# exactly two, so a hang is retried once and then gives up.
+t("a hang is retried once, not forever",
+  _lsrc.count("wait_for(_launch()") == 2, _lsrc.count("wait_for(_launch()"))
+t("and the second failure is a named error, not a bare timeout",
+  "browser_launch_failed" in _lsrc)
+t("which states no quota was spent",
+  "no quota was spent" in _lsrc,
+  "a launch failure happens before Generate; say so or it reads as a lost deck")
+t("an unrelated launch error is NOT retried",
+  "if not contention:" in _lsrc and "raise" in _lsrc,
+  "a missing Chrome would fail identically twice")
+
+# Profile contention is the usual cause, and clearing it is destructive — the
+# profile holds the logged-in session, so deleting a LIVE browser's lock
+# corrupts it.
+t("contention is recognised by message, including exit code 21",
+  driver._is_profile_busy(Exception("Failed to launch: exit code 21"))
+  and driver._is_profile_busy(Exception("Opening in existing browser session")))
+t("and an unrelated error is not mistaken for it",
+  not driver._is_profile_busy(Exception("no such file or directory")))
+
+_fsrc = _inspect.getsource(driver._free_stale_profile)
+t("locks are only cleared when NO live process holds the profile",
+  "_profile_holder_pids" in _fsrc,
+  "deleting a live browser's lock corrupts the logged-in profile")
+_psrc = _inspect.getsource(driver._profile_holder_pids)
+t("holders are identified by COMMAND LINE, never by image name",
+  "CommandLine" in _psrc,
+  "matching 'chrome' by name would sweep in the user's own browser")
+t("and the profile name is what scopes the match",
+  "profile.name" in _psrc)
+
 # -- The recovery URL must actually be reachable ------------------------------
 # MEASURED: the URL recorded for recovery was https://notebook.google.com/...
 # (no 'lm') because page.url was sampled while Google bounced through that

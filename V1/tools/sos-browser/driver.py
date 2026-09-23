@@ -90,6 +90,13 @@ CONFIG = HERE / "selectors.yaml"
 PROFILES = HERE / "profiles"          # one per site; never your real Chrome profile
 ARTIFACTS = HERE / "artifacts"        # HTML/screenshot dumps when something fails
 
+# How long Chrome gets to start before the launch is treated as hung.
+# `launch_persistent_context` has NO default timeout, so without this a launch
+# that never completes blocks the run forever with no output — measured at six
+# silent minutes on 2026-09-23. Generous: a cold profile on a busy machine can
+# legitimately take ~20s, and a false positive here costs a needless retry.
+LAUNCH_TIMEOUT_S = 90
+
 # Long prompts are pasted rather than typed: typing 2,000+ characters at "human
 # speed" is both implausible and glacially slow.
 PASTE_THRESHOLD = 800
@@ -473,7 +480,54 @@ async def launch(pw, site, headless: bool, visible: bool = False,
         "--disable-blink-features=AutomationControlled",
         "--no-first-run",
         "--no-default-browser-check",
+        # ── STABILITY DURING A LARGE DOWNLOAD ────────────────────────────────
+        # MEASURED (2026-09-23): 37 Crashpad dumps in this profile, several
+        # from the same hour, and every deck download died early — 890KB,
+        # 348KB, 819KB — with the browser gone by the time the poll loop
+        # noticed. The "stall" that looked like a NotebookLM or selector
+        # problem all day was Chrome CRASHING mid-transfer.
+        #
+        # --disable-dev-shm-usage is the standard fix: Chrome puts shared
+        # renderer memory in a small /dev/shm-style region and a large,
+        # image-heavy deck streaming through a popup can exhaust it, taking
+        # the renderer (and the transfer) with it. Writing that to disk
+        # instead trades a little speed for not dying at 800KB.
+        "--disable-dev-shm-usage",
+        # The deck is downloaded, never rendered for its pixels, so GPU
+        # rasterisation buys nothing here and is a common crash source on
+        # headless Windows.
+        "--disable-gpu",
+        # Background throttling can suspend the tab that owns an in-flight
+        # download when the window is parked off-screen or headless.
+        "--disable-background-timer-throttling",
+        "--disable-renderer-backgrounding",
+        "--disable-backgrounding-occluded-windows",
     ]
+    if downloads_dir is not None:
+        # ── THE DOWNLOAD-KILLING CRASH ───────────────────────────────────────
+        # MEASURED (2026-09-23): the crashing process in every failed deck
+        # download is `--type=utility` — Chrome's NETWORK SERVICE, which is
+        # exactly the process that owns an in-flight download. It died at
+        # ~819KB, ~890KB, ~939KB on three consecutive runs; the transfer went
+        # with it every time, and no amount of re-clicking could revive a
+        # download whose owning process no longer existed. This is the real
+        # cause of the "stall" that looked all day like a NotebookLM, selector
+        # or timing problem.
+        #
+        # Running the network service INSIDE the browser process removes the
+        # separate process that was crashing. It is a supported Chrome
+        # configuration and the standard remedy for network-service
+        # instability; the isolation it gives up is a hardening boundary, not
+        # a correctness one, and this browser drives exactly one site we are
+        # already logged into.
+        #
+        # Scoped to the download path ONLY (downloads_dir is passed by the deck
+        # flow and nothing else), so the chat scrapers keep the stock,
+        # out-of-process configuration and stay byte-identical.
+        args.append("--enable-features=NetworkServiceInProcess")
+        # Belt and braces: if the service somehow still runs out of process,
+        # do not let a crash of it silently take down the transfer.
+        args.append("--disable-features=NetworkServiceSandbox")
     if headless:
         args.append(f"--user-agent={headless_user_agent()}")
     elif not visible:
@@ -486,15 +540,113 @@ async def launch(pw, site, headless: bool, visible: bool = False,
         downloads_dir.mkdir(parents=True, exist_ok=True)
         extra = {"accept_downloads": True, "downloads_path": str(downloads_dir)}
 
-    ctx = await pw.chromium.launch_persistent_context(
-        user_data_dir=str(profile),
-        channel="chrome",
-        headless=headless,
-        args=args,
-        viewport={"width": 1280, "height": 900},
-        **extra,
-    )
-    return ctx
+    # BOUNDED, AND RETRIED ONCE AFTER CLEARING A STALE PROFILE LOCK.
+    #
+    # MEASURED (2026-09-23): a headless launch hung with no output and no
+    # browser process — the run sat idle for six minutes before it was killed,
+    # while a headful launch moments later started Chrome in under 15 seconds.
+    # `launch_persistent_context` has no default timeout, so a launch that never
+    # completes blocks the whole run forever and reports nothing.
+    #
+    # The usual cause is profile contention: a Chrome from a previous run has
+    # not fully exited and still holds this user-data dir, which normally
+    # surfaces as "Opening in existing browser session" (exit code 21) but can
+    # also just hang. Chrome marks ownership with SingletonLock/-Cookie/-Socket
+    # in the profile root; when no live process holds the profile, those are
+    # stale and safe to remove.
+    #
+    # Deliberately NOT killing Chrome by image name — that would take down the
+    # user's own browser. Only processes whose command line names THIS profile
+    # count as holders, which is the same discrimination rule the staging-dir
+    # cleanup uses: identify the owner, never guess from a name.
+    async def _launch():
+        return await pw.chromium.launch_persistent_context(
+            user_data_dir=str(profile),
+            channel="chrome",
+            headless=headless,
+            args=args,
+            viewport={"width": 1280, "height": 900},
+            **extra,
+        )
+
+    try:
+        return await asyncio.wait_for(_launch(), timeout=LAUNCH_TIMEOUT_S)
+    except (asyncio.TimeoutError, Exception) as first:
+        # Only a hang or a contention error earns a second attempt. Anything
+        # else (a missing Chrome, a bad flag) would fail identically twice.
+        contention = isinstance(first, asyncio.TimeoutError) or _is_profile_busy(first)
+        if not contention:
+            raise
+        freed = _free_stale_profile(profile)
+        print(f"[driver] browser launch did not complete "
+              f"({type(first).__name__}); cleared {freed} stale profile lock(s) "
+              f"and retrying once", file=sys.stderr, flush=True)
+        try:
+            return await asyncio.wait_for(_launch(), timeout=LAUNCH_TIMEOUT_S)
+        except asyncio.TimeoutError:
+            raise DriverError(
+                "browser_launch_failed",
+                f"Chrome did not start within {LAUNCH_TIMEOUT_S}s, twice, for "
+                f"the '{site.id}' profile. Close any Chrome window still using "
+                f"it ({profile}) and run again. Nothing was generated or "
+                f"downloaded, so no quota was spent.") from first
+
+
+def _is_profile_busy(exc: Exception) -> bool:
+    """True when a launch failure is Chrome refusing to share a profile.
+
+    Matched on the message because Playwright raises a generic Error for it.
+    """
+    m = str(exc).lower()
+    return ("existing browser session" in m
+            or "singletonlock" in m
+            or "profile appears to be in use" in m
+            or "failed to launch" in m and "exit code 21" in m)
+
+
+def _free_stale_profile(profile: Path) -> int:
+    """Remove Chrome's ownership markers IF no live process holds the profile.
+
+    Returns how many were removed. Zero means something is genuinely using it,
+    and the caller should NOT keep trying — deleting a live browser's lock
+    corrupts the profile that holds the logged-in session.
+    """
+    holder = _profile_holder_pids(profile)
+    if holder:
+        print(f"[driver] profile {profile.name} is held by live pid(s) "
+              f"{sorted(holder)}; leaving its locks alone",
+              file=sys.stderr, flush=True)
+        return 0
+    removed = 0
+    for name in ("SingletonLock", "SingletonCookie", "SingletonSocket"):
+        p = profile / name
+        try:
+            if p.exists() or p.is_symlink():
+                p.unlink()
+                removed += 1
+        except OSError:
+            pass
+    return removed
+
+
+def _profile_holder_pids(profile: Path) -> set[int]:
+    """PIDs of live processes whose command line names this profile.
+
+    By COMMAND LINE, never by image name: killing or even counting "chrome"
+    generally would sweep in the user's own browser.
+    """
+    if os.name != "nt":
+        return set()
+    try:
+        out = subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             "Get-CimInstance Win32_Process -Filter \"Name LIKE 'chrome%'\" | "
+             "Where-Object { $_.CommandLine -like '*" + profile.name + "*' } | "
+             "Select-Object -ExpandProperty ProcessId"],
+            capture_output=True, text=True, timeout=15)
+        return {int(x) for x in out.stdout.split() if x.strip().isdigit()}
+    except Exception:                               # noqa: BLE001
+        return set()
 
 
 def looks_like_pdf(head: bytes) -> bool:
