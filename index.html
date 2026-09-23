@@ -8393,25 +8393,24 @@ function OI_couponRow(c,T,edit){
     border:"1px solid "+(primary?T.BDL:T.BD),borderRadius:4,
     fontSize:9.5,fontWeight:700,letterSpacing:0.4,padding:"3px 7px",cursor:"pointer",
     fontFamily:"'Inter',system-ui,-apple-system,sans-serif",whiteSpace:"nowrap"}},label);
-  // Two rows, not three: the buttons sit in a right-hand column UNDER the
-  // discount, beside the meta line, instead of owning a row of their own.
+  // Header row = name, discount, buttons; meta line gets the full width below.
+  // Wraps the buttons onto their own row only when the row genuinely cannot fit.
   return React.createElement("div",{key:c.id,style:{
       border:"1px solid "+T.BD,borderLeft:"3px solid "+col,borderRadius:5,
-      background:OI_CARD_BG,padding:"6px 9px",marginBottom:5,display:"flex",alignItems:"flex-start",gap:6}},
-    React.createElement("div",{style:{flex:1,minWidth:0}},
-      React.createElement("div",{style:{fontSize:11.5,fontWeight:700,color:T.TX,letterSpacing:0.2,marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},c.merchant||"Offer"),
-      React.createElement("div",{style:{fontSize:9.5,color:T.TXM,lineHeight:1.45,wordBreak:"break-word"}},
-        c.code&&React.createElement("span",{style:{fontFamily:"ui-monospace,SFMono-Regular,Menlo,monospace",fontSize:10.5,fontWeight:700,color:T.TXD,letterSpacing:0.8}},c.code),
-        c.code&&" · ",
-        c.expires?("Expires "+OI_pretty(c.expires)):"No expiry listed",
-        c.restrictions?(" · "+c.restrictions):"")),
-    React.createElement("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:3,flexShrink:0,maxWidth:"60%"}},
-      c.discount&&React.createElement("span",{style:{fontSize:11.5,fontWeight:800,color:T.TXD,whiteSpace:"nowrap"}},c.discount),
-      React.createElement("div",{style:{display:"flex",gap:5,flexWrap:"wrap",justifyContent:"flex-end"}},
+      background:OI_CARD_BG,padding:"6px 9px",marginBottom:5}},
+    React.createElement("div",{style:{display:"flex",flexWrap:"wrap",alignItems:"center",columnGap:8,rowGap:4}},
+      React.createElement("div",{style:{flex:"1 1 auto",minWidth:0,fontSize:11.5,fontWeight:700,color:T.TX,letterSpacing:0.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},c.merchant||"Offer"),
+      React.createElement("div",{style:{display:"flex",alignItems:"center",gap:5,marginLeft:"auto",flexWrap:"wrap",justifyContent:"flex-end",maxWidth:"100%"}},
+        c.discount&&React.createElement("span",{style:{fontSize:11.5,fontWeight:800,color:T.TXD,whiteSpace:"nowrap",marginRight:2}},c.discount),
         c.code&&btn("Copy Code",e=>OI_copy(e,c.code),true),
         c.storeUrl&&btn("Open Store",()=>{try{window.open(c.storeUrl,"_blank","noopener");}catch(e){}}),
-        btn("View Email",()=>OI_openEmail(c)))),
-    edit&&OI_delBtn(c,T,"0 2px"));
+        btn("View Email",()=>OI_openEmail(c)),
+        edit&&OI_delBtn(c,T,"0 0 0 2px"))),
+    React.createElement("div",{style:{fontSize:9.5,color:T.TXM,lineHeight:1.45,marginTop:3,wordBreak:"break-word"}},
+      c.code&&React.createElement("span",{style:{fontFamily:"ui-monospace,SFMono-Regular,Menlo,monospace",fontSize:10.5,fontWeight:700,color:T.TXD,letterSpacing:0.8}},c.code),
+      c.code&&" · ",
+      c.expires?("Expires "+OI_pretty(c.expires)):"No expiry listed",
+      c.restrictions?(" · "+c.restrictions):""));
 }
 
 // A package / bill / travel card, drawn inside a weekly day cell.
@@ -8439,24 +8438,25 @@ function OI_weekCard(c,T,dayTX,edit){
   // tighten it further so a day with three deliveries still fits its cell.
   const tight=isPkg&&!line2;
   const amt=c.amount&&!isPkg?c.amount:"";
-  // Two rows, not three: the text stacks on the left, and the amount with the
-  // buttons UNDER it stacks on the right, so the buttons share a row with the
-  // title instead of adding one of their own.
+  // One header row, then full-width text. The label, the amount, the buttons and
+  // the "x" all share the top row, so the title and the tracking number below it
+  // get the WHOLE card width instead of the column left over beside a button
+  // stack. flex-wrap is the safety valve: if the label plus the buttons cannot fit
+  // one line (a long "Carrier · DELIVERED" in a narrow cell) the buttons drop to
+  // their own right-aligned row rather than clipping the label to nothing.
   return React.createElement("div",{key:c.id,style:{
       border:"1px solid "+col+"33",borderLeft:"2px solid "+col,borderRadius:5,
-      background:OI_CARD_BG,padding:tight?"4px 7px":"5px 8px",marginBottom:4,opacity:c.delivered?0.62:1,
-      display:"flex",alignItems:"flex-start",gap:4}},
-    React.createElement("div",{style:{flex:1,minWidth:0}},
-      React.createElement("div",{style:{fontSize:9,fontWeight:800,letterSpacing:0.9,textTransform:"uppercase",color:col,lineHeight:amt?"15px":1.1,marginBottom:tight?2:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},head),
-      line2&&React.createElement("div",{style:{fontSize:12,fontWeight:700,color:dayTX,lineHeight:1.25,wordBreak:"break-word"}},line2),
-      detail&&React.createElement("div",{style:{fontSize:9.5,color:T.TXM,marginTop:1,lineHeight:1.3,fontFamily:isPkg?"ui-monospace,SFMono-Regular,Menlo,monospace":"inherit",wordBreak:"break-all"}},detail)),
-    React.createElement("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:3,flexShrink:0,maxWidth:"55%"}},
-      amt&&React.createElement("span",{style:{fontSize:11,fontWeight:800,color:col,lineHeight:"15px",whiteSpace:"nowrap"}},amt),
-      React.createElement("div",{style:{display:"flex",gap:3,flexWrap:"wrap",justifyContent:"flex-end"}},
+      background:OI_CARD_BG,padding:tight?"4px 7px":"5px 8px",marginBottom:4,opacity:c.delivered?0.62:1}},
+    React.createElement("div",{style:{display:"flex",flexWrap:"wrap",alignItems:"center",columnGap:6,rowGap:3}},
+      React.createElement("div",{style:{flex:"1 1 auto",minWidth:0,fontSize:9,fontWeight:800,letterSpacing:0.9,textTransform:"uppercase",color:col,lineHeight:"16px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},head),
+      React.createElement("div",{style:{display:"flex",alignItems:"center",gap:3,marginLeft:"auto",flexWrap:"wrap",justifyContent:"flex-end",maxWidth:"100%"}},
+        amt&&React.createElement("span",{style:{fontSize:11,fontWeight:800,color:col,lineHeight:"16px",whiteSpace:"nowrap",marginRight:2}},amt),
         isPkg&&c.trackUrl&&btn("Track",()=>{try{window.open(c.trackUrl,"_blank","noopener");}catch(e){}}),
         isPkg&&c.tracking&&btn("Copy #",e=>OI_copy(e,c.tracking)),
-        btn("Email",()=>OI_openEmail(c)))),
-    edit&&OI_delBtn(c,T,"0 2px"));
+        btn("Email",()=>OI_openEmail(c)),
+        edit&&OI_delBtn(c,T,"0 0 0 3px"))),
+    line2&&React.createElement("div",{style:{fontSize:12,fontWeight:700,color:dayTX,lineHeight:1.25,marginTop:2,wordBreak:"break-word"}},line2),
+    detail&&React.createElement("div",{style:{fontSize:9.5,color:T.TXM,marginTop:tight?2:1,lineHeight:1.3,fontFamily:isPkg?"ui-monospace,SFMono-Regular,Menlo,monospace":"inherit",wordBreak:"break-all"}},detail));
 }
 
 // Group the non-coupon cards by the day they belong on, so a weekly cell is one
