@@ -5190,7 +5190,25 @@ window._sosBridge.addGeneratedDoc = (spec) => {
 const _sosAddGeneratedDoc = async (spec) => {
   if (!spec || !spec.classId || !spec.blob) return null;
   const cls = findClassOrKsu(spec.classId);
-  if (!cls) return null;
+  /* A class id that resolves to nothing used to `return null` here, silently.
+   *
+   * That is the worst outcome on this whole path: the deck generated (real
+   * NotebookLM quota), downloaded, and was then dropped on the floor with no
+   * toast, no console line, and no way to get it back short of reading
+   * jobs.json by hand. It looked identical to "the pipeline never ran".
+   *
+   * It happens for ordinary reasons, not exotic ones — the class was deleted
+   * or recreated (ids are timestamps, so a recreated class is a NEW id) while
+   * a job that takes ~11 minutes was in flight, or the job outlived a device
+   * that had not synced the class yet.
+   *
+   * Refuse loudly instead. `unfiled` tells the caller not to mark the job
+   * filed, so the bytes stay claimable on the bridge and a later run — once
+   * the class is back or synced — can still land it. */
+  if (!cls) {
+    console.warn('SOS generated-doc: no such class', spec.classId, '— not filing');
+    return { unfiled: true, reason: 'class-missing', classId: spec.classId };
+  }
 
   // Where the deck lands, in order of preference:
   //
@@ -5207,9 +5225,26 @@ const _sosAddGeneratedDoc = async (spec) => {
   // renders from the editor's own store and would show this file nowhere.
   // spec.moduleId pointing at a notes module is therefore declined rather
   // than honoured — filing there would "succeed" and display nothing.
+  //
+  // Each fallback is RECORDED, not just taken. Every step down this list means
+  // the deck is landing somewhere other than where it was asked to go, and the
+  // old code took them silently — so "I picked GEMINI NOTES and the deck is not
+  // there" had no explanation anywhere in the app. `redirected` rides back to
+  // the caller so the toast can name where it really went and why.
   cls.modules = cls.modules || [];
+  let redirected = '';
   let mod = spec.moduleId
     && (cls.modules || []).find(m => m.id === spec.moduleId && m.type === 'documents');
+  if (!mod && spec.moduleId) {
+    // Distinguish the two ways a chosen destination can miss, because they
+    // mean different things to the user and one of them is a bug in whatever
+    // supplied the id rather than a deleted module.
+    const wrongType = (cls.modules || []).find(m => m.id === spec.moduleId);
+    redirected = wrongType ? 'not-a-documents-module' : 'module-missing';
+    console.warn('SOS generated-doc: destination module', spec.moduleId,
+      wrongType ? `is a '${wrongType.type}' module, which cannot show a PDF`
+                : 'no longer exists on this class', '— falling back');
+  }
   if (!mod) {
     mod = (cls.modules || []).find(m => m.type === 'documents' && m.name === 'Generated');
   }
@@ -5329,7 +5364,11 @@ const _sosAddGeneratedDoc = async (spec) => {
   // landed. The destination is frequently not the module the run was started
   // from — it can be one created by this call — and "Deck ready" naming only
   // the source file left the user hunting for it.
-  return { title: name, meta, moduleId: mod.id, moduleName: mod.name || '', classId: cls.id };
+  // `redirected` is '' on the normal path. When set, the deck is filed and
+  // safe, but NOT where it was asked to go — the toast says so rather than
+  // letting her hunt for it in a module that no longer exists.
+  return { title: name, meta, moduleId: mod.id, moduleName: mod.name || '',
+           classId: cls.id, redirected };
 };
 
 /* Bring a module on screen. Used by the pipeline's "Deck ready" toast so the

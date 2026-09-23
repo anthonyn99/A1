@@ -157,9 +157,19 @@ if (posted.length) {
 
 // The watcher should file the result without anyone opening a panel.
 await new Promise(r => setTimeout(r, 3000));
+// Asserted against the module the job actually NAMED (outputModuleId 'am1'),
+// not against a module called 'Generated'.
+//
+// This used to look for 'Generated' by name, which dated from when every deck
+// was forced into a module with that literal name regardless of the
+// destination the job carried. Honouring outputModuleId is the whole point of
+// the fix for "the deck generated but landed in the wrong module", so a test
+// demanding the old forced name fails precisely BECAUSE the routing is now
+// correct — it asserted the bug. The deck lands in 'Source Material' here,
+// which is what the job asked for.
 const filed = await evalJs(`(function(){
   var cls = classes.find(c=>c.id==='at1');
-  var gen = cls.modules.find(m=>m.name==='Generated');
+  var gen = cls.modules.find(m=>m.id==='am1');
   if (!gen) return { noModule:true, modules: cls.modules.map(m=>m.name) };
   // A DOCUMENT, not a note: the output is a PDF deck, and a notes module would
   // render it nowhere. Provenance lives under gen rather than _sos, because
@@ -172,6 +182,10 @@ const filed = await evalJs(`(function(){
 })()`);
 t('the deck was filed with no user action', !filed.noModule && filed.count === 1, filed);
 t('into a documents module', filed.type === 'documents', filed.type);
+t('into the module the job NAMED, not one invented by name',
+  filed.name === 'Auto — Rewritten.pdf', filed.name);
+t('and no stray "Generated" module was created alongside it',
+  await evalJs(`!classes.find(c=>c.id==='at1').modules.some(m=>m.name==='Generated')`));
 if (!filed.noModule) {
   t('stored as a PDF', filed.mime === 'application/pdf', filed.mime);
   t('provenance recorded', !!(filed.meta && filed.meta.generated), filed.meta);

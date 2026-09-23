@@ -264,5 +264,116 @@ t("the test wrote nothing into the real outputs folder",
   not (_real_outputs / "sb_recover.pdf").exists(),
   "sb_recover.pdf leaked into outputs/")
 
+
+
+# ── A cache hit must honour the destination chosen THIS time ──────────────────
+# The bug this pins: the deck generated perfectly in NotebookLM and landed in
+# the wrong module (or appeared nowhere at all). The fingerprint keys on
+# fileId|promptId|version|mode and deliberately does NOT include the
+# destination — adding it would treat "same deck, different module" as a miss
+# and REGENERATE, burning ~11 min of a hard daily quota to rebuild a file that
+# already exists. But the cached record carries the FIRST run's classId and
+# outputModuleId, and the client files the deck using the job it gets back. So
+# re-running one lecture into a different module silently re-filed it into the
+# old one. Nothing errored; the deck simply went somewhere else.
+print("\ncache hit honours the current destination")
+
+
+class _FakeCreate(server.Handler):
+    """Drives the real Handler._create without a socket.
+
+    Subclassed rather than reimplemented, so the test exercises the SHIPPING
+    branch: a local copy of the cache logic would keep passing after the real
+    one regressed, which is exactly how this bug survived in the first place.
+    """
+
+    def __init__(self):
+        self.sent = None
+
+    def _send(self, obj, status=200):
+        self.sent = (obj, status)
+        return obj
+
+
+def _create(body):
+    h = _FakeCreate()
+    h._create(body)
+    return h.sent[0]
+
+
+_real_jobs = server._jobs
+_real_save = server._save
+_real_queue = server._queue
+_real_worker = server._ensure_worker
+server._save = lambda: None
+server._ensure_worker = lambda: None
+try:
+    cached_job = {
+        "id": "sb_cached", "fileId": "f1", "promptId": "p1", "promptVersion": 1,
+        "mode": "notebooklm", "status": "done", "result": "deck bytes",
+        "fingerprint": "f1|p1|1|notebooklm",
+        "classId": "CLASS_A", "outputModuleId": "MOD_OLD", "filed": True,
+    }
+    server._jobs = {"sb_cached": cached_job}
+    server._queue = []
+
+    out = _create({"prompt": "x", "fileId": "f1", "promptId": "p1",
+                   "promptVersion": 1, "mode": "notebooklm",
+                   "classId": "CLASS_A", "outputModuleId": "MOD_NEW"})
+
+    t("the cache still hits, so no quota is spent", out.get("cached") is True)
+    t("and it is the SAME job, not a regeneration", out["job"]["id"] == "sb_cached")
+    t("the returned job points at the module chosen THIS time",
+      out["job"]["outputModuleId"] == "MOD_NEW", out["job"]["outputModuleId"])
+    t("the stored record agrees, so resumeWatches files it to the same place",
+      server._jobs["sb_cached"]["outputModuleId"] == "MOD_NEW")
+    t("`filed` is cleared, or the re-file would be skipped entirely",
+      "filed" not in server._jobs["sb_cached"])
+    t("the result bytes are reused, not discarded",
+      out["job"].get("result") == "deck bytes")
+
+    # Re-running into the SAME module must not churn the record — in particular
+    # it must not clear `filed` and re-toast "Deck ready" on every boot.
+    server._jobs["sb_cached"]["filed"] = True
+    out2 = _create({"prompt": "x", "fileId": "f1", "promptId": "p1",
+                    "promptVersion": 1, "mode": "notebooklm",
+                    "classId": "CLASS_A", "outputModuleId": "MOD_NEW"})
+    t("an unchanged destination leaves `filed` alone",
+      server._jobs["sb_cached"].get("filed") is True and out2.get("cached") is True)
+
+    # A different CLASS is the multi-class half of the bug: one lecture PDF
+    # filed into two classes must follow the class asked for, not the first.
+    out3 = _create({"prompt": "x", "fileId": "f1", "promptId": "p1",
+                    "promptVersion": 1, "mode": "notebooklm",
+                    "classId": "CLASS_B", "outputModuleId": "MOD_B"})
+    t("a different class is honoured too, not just a different module",
+      out3["job"]["classId"] == "CLASS_B" and out3["job"]["outputModuleId"] == "MOD_B",
+      (out3["job"]["classId"], out3["job"]["outputModuleId"]))
+
+    # A caller that sends no classId (an older client) must not blank a good one.
+    server._jobs["sb_cached"]["classId"] = "CLASS_B"
+    out4 = _create({"prompt": "x", "fileId": "f1", "promptId": "p1",
+                    "promptVersion": 1, "mode": "notebooklm"})
+    t("an omitted classId does not wipe the stored destination",
+      out4["job"]["classId"] == "CLASS_B", out4["job"]["classId"])
+
+    # A job that is NOT done must never satisfy the cache, or a deck still
+    # generating would be handed back as a finished one.
+    server._jobs = {"sb_run": dict(cached_job, id="sb_run", status="running")}
+    server._queue = []
+    out5 = _create({"prompt": "x", "fileId": "f1", "promptId": "p1",
+                    "promptVersion": 1, "mode": "notebooklm",
+                    "classId": "CLASS_A", "outputModuleId": "MOD_NEW"})
+    t("an unfinished job is not served from the cache",
+      not out5.get("cached") and out5["job"]["id"] != "sb_run")
+    t("a fresh job carries the requested destination",
+      out5["job"]["outputModuleId"] == "MOD_NEW"
+      and out5["job"]["classId"] == "CLASS_A")
+finally:
+    server._jobs = _real_jobs
+    server._queue = _real_queue
+    server._save = _real_save
+    server._ensure_worker = _real_worker
+
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

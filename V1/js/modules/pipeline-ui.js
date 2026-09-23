@@ -68,15 +68,48 @@ function toast(icon, title, body) {
  * filed -> on screen, in one go.
  */
 function deckReadyToast(job, doc) {
+  /* NOT FILED AT ALL — the class the job was queued against is gone from this
+   * device (deleted, recreated with a new id, or not yet synced here).
+   *
+   * This must never render as "Deck ready": the deck exists on the bridge but
+   * is in no class, and a green tick would send her looking for a file that is
+   * not there. Say what happened and that nothing was lost — the job is left
+   * unfiled on purpose, so it re-files itself once the class is back. */
+  if (doc && doc.unfiled) {
+    toast('⚠️', 'Deck could not be filed',
+      'Its class is missing on this device. The deck is safe on the bridge and '
+      + 'will file itself once the class is back.');
+    return;
+  }
+
   const where = doc && doc.moduleName ? ` → ${doc.moduleName}` : '';
   const el = toast('✅', 'Deck ready',
     (job && job.sourceName) || (doc && doc.title) || 'Slide deck');
+
+  /* Filed, but NOT where she chose. Landing somewhere unannounced is what made
+   * this whole path feel broken, so name the fallback explicitly. The toast
+   * stays clickable below and opens wherever it actually went. */
+  if (doc && doc.redirected) {
+    try {
+      const bodyEl = el && el.querySelector('.notif-body');
+      if (bodyEl) {
+        bodyEl.textContent = (doc.redirected === 'not-a-documents-module'
+          ? 'The module you chose cannot hold a PDF, so it went to '
+          : 'The module you chose no longer exists, so it went to ')
+          + (doc.moduleName || 'Generated') + '.';
+      }
+    } catch (e) {}
+  }
+
   if (!el || !doc || !doc.moduleId) return;
   try {
     el.style.cursor = 'pointer';
     el.title = 'Open ' + (doc.moduleName || 'the module');
+    // Skipped when redirected: that branch already replaced the body with a
+    // fuller sentence that names the destination, and appending " → X" to it
+    // would say the same thing twice.
     const bodyEl = el.querySelector('.notif-body');
-    if (bodyEl && where) bodyEl.textContent = bodyEl.textContent + where;
+    if (bodyEl && where && !doc.redirected) bodyEl.textContent = bodyEl.textContent + where;
     el.addEventListener('click', (e) => {
       // The × has its own handler that removes the toast; don't also navigate.
       if (e.target && e.target.classList.contains('notif-close')) return;
@@ -343,7 +376,13 @@ export async function resumeWatches() {
         const job = await pipeline.getJob(stub.id);
         if (!job || !job.result) continue;
         const doc = await pipeline.fileResult(job);
-        if (doc) {
+        // `unfiled` means the deck was NOT stored — its class is missing here.
+        // Marking it filed would be a lie that sticks: `filed` is what stops
+        // this sweep reconsidering the job, so the deck would never be filed
+        // again even once the class came back. Toast it and leave it claimable.
+        if (doc && doc.unfiled) {
+          deckReadyToast(job, doc);
+        } else if (doc) {
           await pipeline.markFiled(job.id);
           deckReadyToast(job, doc);
         }

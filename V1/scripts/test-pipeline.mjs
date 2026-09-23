@@ -368,6 +368,46 @@ console.log('\nbridge: addGeneratedDoc');
       t('a different source adds a second deck', classes[0].modules[0].files.length === 2);
     }
 
+    // THE CHOSEN DESTINATION IS HONOURED, AND ANY FALLBACK IS REPORTED.
+    //
+    // This is the "generated perfectly, landed in the wrong module" bug seen
+    // from the app side. Every step away from the module picked in the Run
+    // sheet used to be taken SILENTLY, so a deck in the wrong place looked
+    // identical to one that was never filed. Each fallback now names itself.
+    {
+      const { fn, classes } = mk();
+      classes[0].modules = [
+        { id: 'm_docs', name: 'GEMINI NOTES', type: 'documents', files: [], prompts: [], notes: [] },
+        { id: 'm_notes', name: 'Scratch', type: 'notes', files: [], prompts: [], notes: [] },
+      ];
+
+      // The happy path: the module she picked is the module it lands in.
+      const ok = await fn({ classId: 'c1', moduleId: 'm_docs', name: 'A.pdf',
+                            blob: pdfBlob(10), meta: { sourceFileId: 'd1' } });
+      t('lands in the module actually chosen', ok.moduleId === 'm_docs', ok.moduleId);
+      t('and says so, for the toast', ok.moduleName === 'GEMINI NOTES');
+      t('a clean run reports no redirect', !ok.redirected, ok.redirected);
+      t('no stray Generated module is invented', classes[0].modules.length === 2);
+
+      // A DELETED module: the deck must still be filed, but the fallback is
+      // announced rather than silently swallowed.
+      const gone = await fn({ classId: 'c1', moduleId: 'm_deleted', name: 'B.pdf',
+                              blob: pdfBlob(10), meta: { sourceFileId: 'd2' } });
+      t('a deleted destination still files the deck', !!gone && !gone.unfiled);
+      t('and reports WHY it moved', gone.redirected === 'module-missing', gone.redirected);
+      t('falling back creates Generated', gone.moduleName === 'Generated');
+
+      // A NOTES module cannot render a PDF, so it is declined — but declining
+      // silently is what made a filed deck invisible. Distinguish it from a
+      // deleted module: this one is a bad id from the caller, not user action.
+      const wrong = await fn({ classId: 'c1', moduleId: 'm_notes', name: 'C.pdf',
+                               blob: pdfBlob(10), meta: { sourceFileId: 'd3' } });
+      t('a notes module is declined, not filed into',
+        wrong.moduleId !== 'm_notes' && classes[0].modules[1].files.length === 0);
+      t('and is reported distinctly from a deleted one',
+        wrong.redirected === 'not-a-documents-module', wrong.redirected);
+    }
+
     // CONCURRENCY: trackJob's watcher and resumeWatches' catch-up sweep can
     // file the SAME finished job at once. Both await a blob write before they
     // touch mod.files, so without serialisation both miss the dedup and the
@@ -388,7 +428,22 @@ console.log('\nbridge: addGeneratedDoc');
     // Bad input is a no-op, not a throw.
     {
       const { fn, classes } = mk();
-      t('unknown class is a no-op', (await fn({ classId: 'nope', blob: pdfBlob() })) === null);
+      // An unknown class REPORTS rather than returning null.
+      //
+      // It used to return null silently, which made a finished deck — real
+      // NotebookLM quota already spent — vanish with no toast and no console
+      // line, indistinguishable from "the pipeline never ran". It happens for
+      // ordinary reasons: class deleted or recreated (ids are timestamps, so a
+      // recreated class is a NEW id) during an ~11-minute job, or a device that
+      // has not synced the class yet.
+      //
+      // `unfiled` is what tells resumeWatches NOT to call markFiled, so the
+      // bytes stay claimable and the deck files itself once the class is back.
+      // Returning null here would let the caller mark it filed forever.
+      const gone = await fn({ classId: 'nope', blob: pdfBlob() });
+      t('unknown class reports instead of vanishing', !!gone && gone.unfiled === true, gone);
+      t('and says why, so the toast can explain it', gone && gone.reason === 'class-missing');
+      t('and files nothing', classes[0].modules.length === 0);
       t('missing blob is a no-op', (await fn({ classId: 'c1' })) === null);
       t('missing spec is a no-op', (await fn(null)) === null);
       t('nothing was created', classes[0].modules.length === 0);

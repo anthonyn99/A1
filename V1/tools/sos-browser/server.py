@@ -735,9 +735,44 @@ class Handler(BaseHTTPRequestHandler):
         # breaks the day a third mode appears.
         fp = (f"{body.get('fileId')}|{body.get('promptId')}"
               f"|{body.get('promptVersion', 1)}|{mode}")
+
+        # THE DESTINATION IS NOT PART OF THE KEY, AND MUST NOT BE.
+        #
+        # The cache answers "these bytes were already generated", which depends
+        # on the source, the prompt and the mode — not on where the result gets
+        # filed. Adding classId/outputModuleId to the fingerprint would make
+        # "same deck, different module" a cache MISS and regenerate it, burning
+        # a slice of a hard daily NotebookLM quota (~11 min) to produce a file
+        # that already exists on disk.
+        #
+        # But the cached job carries the destination of the run that CREATED
+        # it, and the client files the deck using the job it gets back. So
+        # returning the old record verbatim filed the deck into whatever module
+        # the FIRST run targeted, silently ignoring the destination just chosen
+        # in the Run sheet. That is the "generated perfectly, landed in the
+        # wrong place / nowhere" bug: nothing failed, the deck simply went
+        # somewhere else.
+        #
+        # Retarget the cached job to THIS request's destination before handing
+        # it back. The result bytes are reused; only where they get filed is
+        # taken from the current request, which is the half the caller actually
+        # chose. Persisted so a later resumeWatches() sweep — which re-files
+        # from the stored record, not from this response — agrees with it.
         with _lock:
             for j in _jobs.values():
                 if j.get("fingerprint") == fp and j.get("status") == "done":
+                    want_cls = body.get("classId") or ""
+                    want_mod = body.get("outputModuleId") or ""
+                    # An empty classId means the caller did not say; keep what
+                    # the job already had rather than blanking a good value.
+                    if want_cls and (j.get("classId") != want_cls
+                                     or j.get("outputModuleId") != want_mod):
+                        j["classId"] = want_cls
+                        j["outputModuleId"] = want_mod
+                        # It has to be filed AGAIN — into the new destination —
+                        # so clear the marker that tells resumeWatches to skip it.
+                        j.pop("filed", None)
+                        _save()
                     return self._send({"ok": True, "cached": True, "job": j})
 
         file_path = None
