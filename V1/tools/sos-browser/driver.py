@@ -649,6 +649,30 @@ def _profile_holder_pids(profile: Path) -> set[int]:
         return set()
 
 
+async def close_quietly(ctx) -> None:
+    """Close a browser context without ever failing the run.
+
+    MEASURED (2026-09-23): a fetch downloaded the deck in full — 16,213,300
+    bytes, valid %PDF- header, %%EOF trailer, 15 pages on disk — and then
+    reported `{"ok": false, "kind": "unexpected"}` because the `finally:
+    await ctx.close()` raised "Target page, context or browser has been
+    closed". The browser had already gone away; closing it again is a no-op
+    that happens to throw.
+
+    That turns a SUCCESS into a FAILURE after the work is done, which is the
+    worst possible direction for this error to point: the bridge would refuse
+    to file a deck it actually has, and a retry would go looking for a deck
+    that is already sitting in outputs/.
+
+    Teardown is not part of the result. Swallow it.
+    """
+    try:
+        await ctx.close()
+    except Exception as e:                          # noqa: BLE001
+        print(f"[driver] ignoring teardown error: {str(e)[:120]}",
+              file=sys.stderr, flush=True)
+
+
 def looks_like_pdf(head: bytes) -> bool:
     """True when these first bytes are a real PDF header.
 
@@ -1806,7 +1830,7 @@ async def cmd_ask(args) -> dict:
             return {"ok": True, "site": site.id, "text": text,
                     "reason": out["reason"], "clean": out["clean"], "chars": len(text)}
         finally:
-            await ctx.close()
+            await close_quietly(ctx)
 
 
 class _RunLock:
@@ -1914,7 +1938,7 @@ async def cmd_deck(args) -> dict:
             raise DriverError(
                 "unexpected", f"{str(e)[:220]} Artifacts: {path}")
         finally:
-            await ctx.close()
+            await close_quietly(ctx)
 
 
 async def cmd_fetch(args) -> dict:
@@ -1977,7 +2001,7 @@ async def cmd_fetch(args) -> dict:
             raise DriverError(
                 "unexpected", f"{str(e)[:220]} Artifacts: {path}")
         finally:
-            await ctx.close()
+            await close_quietly(ctx)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -3046,7 +3070,7 @@ async def _reels_run(site, args, target, collection, headless, user="") -> dict:
                 merged, page, cfg.get("watchShortcode") or "",
                 getattr(args, "videos", 0) or 0)
         finally:
-            await ctx.close()
+            await close_quietly(ctx)
 
     # Thumbnails, after the browser closes: these are plain HTTP image fetches
     # (urllib), not page visits, so they do not need Playwright at all — this
@@ -3094,7 +3118,7 @@ async def cmd_login(args) -> dict:
         print("  Sign in (and clear any challenge) by hand, then press Enter here.\n")
         await asyncio.get_event_loop().run_in_executor(None, input)
         logged_in = not await any_matches(page, site.login_selectors)
-        await ctx.close()
+        await close_quietly(ctx)
         return {"ok": True, "site": site.id, "logged_in": logged_in,
                 "profile": str(PROFILES / site.id)}
 
@@ -3132,7 +3156,7 @@ async def _doctor_deck(args) -> dict:
                          "open — probe them with:  deck --dry-run"),
             }
         finally:
-            await ctx.close()
+            await close_quietly(ctx)
 
 
 async def cmd_doctor(args) -> dict:
@@ -3163,7 +3187,7 @@ async def cmd_doctor(args) -> dict:
                 "missing": [k for k, v in report.items() if v is None and getattr(site, k)],
             }
         finally:
-            await ctx.close()
+            await close_quietly(ctx)
 
 
 def main():

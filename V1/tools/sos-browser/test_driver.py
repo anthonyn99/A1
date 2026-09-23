@@ -610,6 +610,27 @@ t("holders are identified by COMMAND LINE, never by image name",
 t("and the profile name is what scopes the match",
   "profile.name" in _psrc)
 
+# -- Teardown must never turn a success into a failure -----------------------
+# MEASURED (2026-09-23): a fetch downloaded the deck IN FULL — 16,213,300
+# bytes, valid header, %%EOF trailer, 15 pages on disk — and then returned
+# {"ok": false, "kind": "unexpected"} because `finally: await ctx.close()`
+# raised "Target page, context or browser has been closed". The browser was
+# already gone; closing it again throws. The bridge would then refuse to file
+# a deck it actually had, and a retry would go hunting for one already sitting
+# in outputs/.
+print("\nteardown cannot fail a completed run")
+t("a safe-close helper exists", hasattr(driver, "close_quietly"))
+_cq = _inspect.getsource(driver.close_quietly)
+t("and it swallows teardown errors", "except Exception" in _cq)
+t("and says so rather than failing silently", "ignoring teardown error" in _cq)
+# Every flow's teardown must go through it — a single raw close re-opens the bug.
+_all = _inspect.getsource(driver)
+_raw = [l.strip() for l in _all.splitlines()
+        if l.strip() == "await ctx.close()"]
+t("no flow still closes the context unguarded",
+  len(_raw) <= 1, f"{len(_raw)} raw ctx.close() calls remain")
+
+
 # -- The recovery URL must actually be reachable ------------------------------
 # MEASURED: the URL recorded for recovery was https://notebook.google.com/...
 # (no 'lm') because page.url was sampled while Google bounced through that
@@ -1138,9 +1159,12 @@ t("the TTL is set BELOW the measured real-world expiry, with margin",
   f"is worse than falling back to the iframe early")
 
 # ── Wiring into the harvest ──────────────────────────────────────────────────────
+# close_quietly(ctx) is the teardown now (a raw ctx.close() could turn a
+# completed download into a reported failure); the ordering it guards is
+# unchanged.
 t("video extraction happens BEFORE the browser context closes",
-  _cr_all.index("attach_video_urls") < _cr_all.index("await ctx.close()"),
-  "extracting a video url needs an open page — this cannot run after ctx.close()")
+  _cr_all.index("attach_video_urls") < _cr_all.index("await close_quietly(ctx)"),
+  "extracting a video url needs an open page — this cannot run after teardown")
 t("it operates on the MERGED list, not just this run's fresh harvest",
   "attach_video_urls(\n                merged" in _cr_all
   or "attach_video_urls(merged" in _cr_all.replace("\n", " ").replace("  ", " "),
@@ -1152,7 +1176,7 @@ t("a config-read failure degrades gracefully rather than failing the harvest",
   _inspect.getsource(driver.read_reels_cfg).count("except Exception") >= 1,
   "prioritization is a nice-to-have; the harvest itself must not depend on it")
 t("thumbnails (plain HTTP fetches) still run AFTER the context closes",
-  _cr_all.index("attach_thumbs(merged)") > _cr_all.index("await ctx.close()"),
+  _cr_all.index("attach_thumbs(merged)") > _cr_all.index("await close_quietly(ctx)"),
   "thumbnails need no browser at all — running them before ctx.close() would "
   "hold the Instagram session open for no reason")
 
