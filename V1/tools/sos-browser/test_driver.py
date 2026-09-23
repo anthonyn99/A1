@@ -537,6 +537,32 @@ t("the popup listener is bound to the CONTEXT, not the page",
   "a page-bound listener would not survive page.reload()")
 
 
+# -- A dead browser must not be waited out -----------------------------------
+# MEASURED (2026-09-23, headful fetch): Chrome exited during the post-stall
+# reload, and the poll loop kept scanning an empty staging dir for the
+# remaining ~7 minutes before reporting a timeout. Nothing could ever arrive —
+# there was no browser — and a "timeout" sends the reader to NotebookLM, the
+# selectors and the network, none of which is the cause.
+print("\ndead browser is detected, not waited out")
+_dd4 = _inspect.getsource(driver._download_deck)
+
+t("the poll loop checks the browser is still there",
+  "is_closed()" in _dd4 and "is_connected()" in _dd4,
+  "a closed browser can never deliver a byte")
+t("and reports it as its own kind",
+  "nlm_browser_gone" in _dd4)
+t("the check happens before the stall logic, not after",
+  _dd4.index("nlm_browser_gone") < _dd4.index("stalled = now"))
+t("a browser that dies during the reload is caught too",
+  _dd4.count("nlm_browser_gone") >= 2,
+  "the reload's own except must not shrug off a dead browser")
+t("the reload cannot outlive the download budget",
+  "timeout=60000" in _dd4,
+  "an unbounded reload turns a recoverable stall into a timeout")
+t("and every one of these points at the no-quota recovery",
+  _dd4.count("spends no quota") + _dd4.count("driver.py fetch") >= 3)
+
+
 # -- The recovery URL must actually be reachable ------------------------------
 # MEASURED: the URL recorded for recovery was https://notebook.google.com/...
 # (no 'lm') because page.url was sampled while Google bounced through that

@@ -36,6 +36,28 @@ import shutil as _shutil  # noqa: E402
 import tempfile as _tempfile  # noqa: E402
 import server  # noqa: E402
 
+# THE TEST MUST NEVER WRITE THE REAL JOB JOURNAL.
+#
+# MEASURED (2026-09-23): running this file DESTROYED jobs.json — the live
+# history of every deck run, including the notebookUrl that makes a failed
+# download recoverable without spending quota again.
+#
+# The mechanism is quiet and entirely plausible. `import server` does NOT call
+# `_load()` (only main() does), so `server._jobs` is `{}` in a test process.
+# Several functions under test — build_job_pdf among them — journal their work
+# by calling `_save()`, which faithfully writes that empty dict over the real
+# file. Every test passed while doing it.
+#
+# Redirecting the module's JOBS_FILE at a temp path fixes it for the whole
+# file, including tests that do not stub `_save` themselves, and it cannot be
+# forgotten by the next test added below.
+_tmp_jobs = Path(_tempfile.mkdtemp(prefix="sos-test-jobs-"))
+server.JOBS_FILE = _tmp_jobs / "jobs.json"
+import atexit  # noqa: E402
+atexit.register(lambda: _shutil.rmtree(_tmp_jobs, ignore_errors=True))
+
+_HERE = Path(__file__).resolve().parent
+
 PASS = FAIL = 0
 
 
@@ -374,6 +396,26 @@ finally:
     server._queue = _real_queue
     server._save = _real_save
     server._ensure_worker = _real_worker
+
+# ── The test must not destroy the real job journal ────────────────────────────
+# MEASURED (2026-09-23): running this file wiped jobs.json — the live history of
+# every deck run, including the notebookUrl that makes a failed download
+# recoverable for free. `import server` never calls _load(), so server._jobs is
+# {} here, and any function that journals its work (build_job_pdf does) writes
+# that empty dict straight over the real file. Every test passed while doing it.
+print("\ntest isolation")
+t("the journal path is redirected away from the real file",
+  server.JOBS_FILE != _HERE / "jobs.json", server.JOBS_FILE)
+t("and points somewhere temporary", "sos-test-jobs-" in str(server.JOBS_FILE))
+# The real proof: journal now, with the empty _jobs that caused the loss, and
+# confirm the real file is untouched.
+_real_journal = _HERE / "jobs.json"
+_before = _real_journal.read_bytes() if _real_journal.exists() else None
+server._save()
+t("calling _save() leaves the real journal byte-identical",
+  (_real_journal.read_bytes() if _real_journal.exists() else None) == _before,
+  "the test just overwrote the live job history")
+
 
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

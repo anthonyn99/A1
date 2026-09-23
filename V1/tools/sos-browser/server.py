@@ -97,11 +97,16 @@ RETRYABLE_KINDS = {
     # regenerating from scratch.
     "nlm_no_download",          # the menu/trigger missed, or nothing completed
     "nlm_staging_gone",         # the landing folder was deleted mid-transfer
+    "nlm_browser_gone",         # Chrome died mid-download; the deck is fine
 }
 # The subset above that is only SAFE to retry when the notebook is already
 # known. See is_retryable().
 _DOWNLOAD_STAGE_KINDS = {
     "nlm_no_download", "nlm_staging_gone", "nlm_empty_download",
+    # Chrome died mid-transfer. Generation already succeeded, so with a known
+    # notebook this retries as a no-quota cmd_fetch; without one it would
+    # REGENERATE, which is exactly what this set exists to prevent.
+    "nlm_browser_gone",
 }
 
 

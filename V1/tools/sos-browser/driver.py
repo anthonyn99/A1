@@ -1219,6 +1219,26 @@ async def _download_deck(page, site: DeckSite, dest: Path) -> Path:
         # The `sum() == 0` case is safe to treat as a stall because last_growth
         # is initialised at loop start: a legitimately slow FIRST byte still has
         # the whole STALL_S window to arrive.
+        # A CLOSED BROWSER CAN NEVER DELIVER A BYTE.
+        #
+        # MEASURED (2026-09-23, headful fetch): Chrome exited during the
+        # post-stall reload, and this loop kept polling an empty staging dir
+        # for the remaining ~7 minutes before reporting a timeout. A timeout
+        # message for a dead browser sends the reader looking at NotebookLM,
+        # the selectors and the network — none of which is the cause.
+        #
+        # Checked here rather than trusted to the reload's own try/except: the
+        # browser can also die on its own (crash, profile eviction, the user
+        # closing a headful window), and every one of those cases produces the
+        # same silent wait.
+        if page.is_closed() or not page.context.browser or not page.context.browser.is_connected():
+            raise DriverError(
+                "nlm_browser_gone",
+                "the browser closed before the deck finished downloading, so "
+                "no further bytes could arrive. The deck itself is UNHARMED "
+                "and still in its notebook — recover it with "
+                "`driver.py fetch --url <notebook-url>`, which spends no quota.")
+
         stalled = now - last_growth > STALL_S
         canceled = dl_state.get("state") == "canceled"
         if (stalled or canceled) and restarts < MAX_RESTARTS:
@@ -1272,9 +1292,26 @@ async def _download_deck(page, site: DeckSite, dest: Path) -> Path:
             try:
                 print("[deck] reloading the notebook so a fresh download popup "
                       "can open", file=sys.stderr, flush=True)
-                await page.reload(wait_until="domcontentloaded")
+                # Bounded: an unbounded reload can outlive the whole download
+                # budget on a slow notebook, turning a recoverable stall into a
+                # timeout with nothing attempted.
+                await page.reload(wait_until="domcontentloaded", timeout=60000)
                 await _wait_for_deck(page, site)
             except Exception as e:                  # noqa: BLE001
+                # A dead browser is NOT a reload problem to shrug off — nothing
+                # after this point can succeed, and continuing would spend the
+                # rest of the budget polling a staging dir nothing can write to.
+                # Re-raised as its own kind so the message names the real cause
+                # and points at the no-quota recovery.
+                if page.is_closed() or not (page.context.browser
+                                            and page.context.browser.is_connected()):
+                    raise DriverError(
+                        "nlm_browser_gone",
+                        "the browser closed while reloading the notebook to "
+                        "restart a stalled download. The deck is UNHARMED and "
+                        "still in its notebook — recover it with "
+                        "`driver.py fetch --url <notebook-url>`, which spends "
+                        "no quota.") from e
                 print(f"[deck] reload before re-click failed: {e}",
                       file=sys.stderr, flush=True)
 
