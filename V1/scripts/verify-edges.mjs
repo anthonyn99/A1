@@ -98,7 +98,11 @@ const nometa = await evalJs(`(function(){
   B.addGeneratedNote({ classId:'e1', title:'nometa1', body:'x' });
   B.addGeneratedNote({ classId:'e1', title:'nometa2', body:'y' });
   var g = classes.find(c=>c.id==='e1').modules.find(m=>m.name==='Generated');
-  return g.notes.length;
+  // The editor's store, not mod.notes — same reason as the regenerate check
+  // above: a type:'notes' module renders from localStorage, so mod.notes is
+  // legitimately empty and reading it reported 0 for a correct write.
+  var st = JSON.parse(localStorage.getItem('studyos_notes_' + g.id) || '{}');
+  return (st.entries || []).length;
 })()`);
 t('both appended (2 + 2 = 4)', nometa === 4, nometa);
 

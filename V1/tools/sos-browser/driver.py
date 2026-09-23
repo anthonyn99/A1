@@ -491,54 +491,32 @@ async def launch(pw, site, headless: bool, visible: bool = False,
         "--disable-blink-features=AutomationControlled",
         "--no-first-run",
         "--no-default-browser-check",
-        # ── STABILITY DURING A LARGE DOWNLOAD ────────────────────────────────
-        # MEASURED (2026-09-23): 37 Crashpad dumps in this profile, several
-        # from the same hour, and every deck download died early — 890KB,
-        # 348KB, 819KB — with the browser gone by the time the poll loop
-        # noticed. The "stall" that looked like a NotebookLM or selector
-        # problem all day was Chrome CRASHING mid-transfer.
-        #
-        # --disable-dev-shm-usage is the standard fix: Chrome puts shared
-        # renderer memory in a small /dev/shm-style region and a large,
-        # image-heavy deck streaming through a popup can exhaust it, taking
-        # the renderer (and the transfer) with it. Writing that to disk
-        # instead trades a little speed for not dying at 800KB.
-        "--disable-dev-shm-usage",
-        # The deck is downloaded, never rendered for its pixels, so GPU
-        # rasterisation buys nothing here and is a common crash source on
-        # headless Windows.
-        "--disable-gpu",
-        # Background throttling can suspend the tab that owns an in-flight
-        # download when the window is parked off-screen or headless.
-        "--disable-background-timer-throttling",
-        "--disable-renderer-backgrounding",
-        "--disable-backgrounding-occluded-windows",
     ]
     if downloads_dir is not None:
-        # ── THE DOWNLOAD-KILLING CRASH ───────────────────────────────────────
-        # MEASURED (2026-09-23): the crashing process in every failed deck
-        # download is `--type=utility` — Chrome's NETWORK SERVICE, which is
-        # exactly the process that owns an in-flight download. It died at
-        # ~819KB, ~890KB, ~939KB on three consecutive runs; the transfer went
-        # with it every time, and no amount of re-clicking could revive a
-        # download whose owning process no longer existed. This is the real
-        # cause of the "stall" that looked all day like a NotebookLM, selector
-        # or timing problem.
+        # ── STABILITY DURING A LARGE DOWNLOAD ────────────────────────────────
+        # Scoped to the DOWNLOAD path only (downloads_dir is passed by the deck
+        # flow and nothing else), so the chat scrapers keep the stock
+        # configuration and stay byte-identical — the same rule the
+        # accept_downloads block below follows, and for the same reason.
         #
-        # Running the network service INSIDE the browser process removes the
-        # separate process that was crashing. It is a supported Chrome
-        # configuration and the standard remedy for network-service
-        # instability; the isolation it gives up is a hardening boundary, not
-        # a correctness one, and this browser drives exactly one site we are
-        # already logged into.
-        #
-        # Scoped to the download path ONLY (downloads_dir is passed by the deck
-        # flow and nothing else), so the chat scrapers keep the stock,
-        # out-of-process configuration and stay byte-identical.
-        args.append("--enable-features=NetworkServiceInProcess")
-        # Belt and braces: if the service somehow still runs out of process,
-        # do not let a crash of it silently take down the transfer.
-        args.append("--disable-features=NetworkServiceSandbox")
+        # HONEST PROVENANCE: the crash that killed every deck download on
+        # 2026-09-23 was a BLOATED PROFILE, proven by a control download
+        # (fresh profile 8MB OK, real profile dead at 63KB) and fixed by
+        # groom_profile() above. These flags did NOT fix it — the deck still
+        # died with them applied. They are kept only because they are cheap,
+        # conventional for an automated browser that never shows its pixels to
+        # anyone, and reduce the surface that was crashing: no GPU raster, no
+        # small shared-memory region for a multi-megabyte transfer, and no
+        # background throttling of a tab that owns an in-flight download.
+        # If they are ever suspected of causing trouble, delete them — nothing
+        # measured depends on them.
+        args += [
+            "--disable-dev-shm-usage",
+            "--disable-gpu",
+            "--disable-background-timer-throttling",
+            "--disable-renderer-backgrounding",
+            "--disable-backgrounding-occluded-windows",
+        ]
     if headless:
         args.append(f"--user-agent={headless_user_agent()}")
     elif not visible:
