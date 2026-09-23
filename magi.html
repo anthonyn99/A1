@@ -6631,7 +6631,7 @@ let actx = null, master = null, room = null;
    laptop fan without any risk of clipping. The warmer voice needed it twice
    over, because the ear is least sensitive exactly where that voice gave up
    energy -- the old bright one measured the same peak and sounded louder. */
-const VOLUME = 1.5;
+const VOLUME = 2.5;
 
 /** A small dark room, generated rather than downloaded.
  *
@@ -6993,10 +6993,10 @@ const INLINE_RE = new RegExp([
   // other than a digit or a space, and the closing one must not touch a word.
   "(?<![\\\\$\\w])\\$(?=[^\\s$\\d])(?<math>[^$\\n]*?[^\\s$\\\\])\\$(?![\\w$])",
   "\\[\\^(?<fn>[^\\]\\s]+)\\]",                                     // [^1]
-  "\\*\\*\\*(?=\\S)(?<bi>[\\s\\S]+?\\S)\\*\\*\\*",                   // bold italic
-  "\\*\\*(?=\\S)(?<b>[\\s\\S]+?\\S)\\*\\*",                         // bold
-  "(?<![\\w_])__(?=\\S)(?<b2>[\\s\\S]+?\\S)__(?![\\w_])",           // bold
-  "~~(?=\\S)(?<s>[\\s\\S]+?\\S)~~",                                 // strike
+  "\\*\\*\\*(?=\\S)(?<bi>[\\s\\S]*?\\S)\\*\\*\\*",                   // bold italic
+  "\\*\\*(?=\\S)(?<b>[\\s\\S]*?\\S)\\*\\*",                         // bold
+  "(?<![\\w_])__(?=\\S)(?<b2>[\\s\\S]*?\\S)__(?![\\w_])",           // bold
+  "~~(?=\\S)(?<s>[\\s\\S]*?\\S)~~",                                 // strike
   "(?<![*\\w\\\\])\\*(?=[^\\s*])(?<i>[^*\\n]+?[^\\s*\\\\]|[^\\s*])\\*(?![*\\w])", // italic
   "(?<![\\w_\\\\])_(?=[^\\s_])(?<i2>[^_\\n]+?[^\\s_\\\\]|[^\\s_])_(?![\\w_])",     // italic
   "\\[(?<lt>[^\\]\\n]+)\\]\\(\\s*(?<href>[^)\\s]+)(?:\\s+\"[^\"]*\")?\\s*\\)",    // link
