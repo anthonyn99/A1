@@ -756,14 +756,26 @@
   function show(b, axes) {
     (axes || ['v', 'h']).forEach(function (a) { if (canScroll(b.el, a)) ensureRail(b, a); });
     layout(b);
-    ['v', 'h'].forEach(function (a) { if (b[a] && b[a].rail.style.display !== 'none') b[a].rail.classList.add('on'); });
+    ['v', 'h'].forEach(function (a) {
+      var r = b[a];
+      if (!r || r.rail.style.display === 'none' || r.rail.classList.contains('on')) return;
+      // Coming back from display:none — give it one frame so the fade runs.
+      void r.rail.offsetWidth;
+      r.rail.classList.add('on');
+    });
     schedule(b);
   }
   function schedule(b) {
     clearTimeout(b.timer);
     b.timer = setTimeout(function () {
       if (b.hover || b.drag) return schedule(b);
-      ['v', 'h'].forEach(function (a) { if (b[a]) b[a].rail.classList.remove('on'); });
+      ['v', 'h'].forEach(function (a) {
+        var r = b[a]; if (!r) return;
+        r.rail.classList.remove('on');
+        // Out of layout entirely once faded, so an idle rail can never pin a
+        // size (the Launcher popup sizes itself from its content).
+        setTimeout(function () { if (!r.rail.classList.contains('on')) r.rail.style.display = 'none'; }, 400);
+      });
       // Detached scroller (modal closed): drop its rails entirely.
       if (!b.el.isConnected) { ['v', 'h'].forEach(function (a) { if (b[a] && b[a].rail.parentNode) b[a].rail.parentNode.removeChild(b[a].rail); }); bars.delete(b.el); }
     }, HIDE_MS);

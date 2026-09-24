@@ -530,7 +530,7 @@ function persistOrder(result) {
   VaultDB.save({ connections, colmap })
     .then(() => {
       lastOwnSaveAt = Date.now();
-      VaultDB.writeCache({ connections, colmap, savedAt: Date.now() });
+      VaultDB.writeCache({ connections, colmap, savedAt: Date.now(), tabOrder });
       setSync("ok", "✓ Synced");
       setTimeout(() => { if (syncEl.textContent === "✓ Synced") setSync("", "Synced with Keychain"); }, 2200);
     })
@@ -588,7 +588,27 @@ gearEl.addEventListener("click", () => {
 function apply(doc) {
   connections = Array.isArray(doc.connections) ? doc.connections : [];
   colmap = Array.isArray(doc.colmap) ? doc.colmap : null;
+  applyTabOrder(doc.tabOrder);
   render();
+}
+
+// ── Tab order, mirrored from the Vault app ──
+// vault.html saves its tab-bar order as `tabOrder` on dashboards/keychain — the
+// doc this popup already reads (cache on open, then every refresh/poll) — so
+// the popup's tabs follow the app's order with no extra request. The app has
+// tabs the popup doesn't (Sensitive Info, Cloud); those are simply skipped, and
+// a popup tab the order doesn't mention keeps its place after the ones it does.
+let tabOrder = null;
+function applyTabOrder(order) {
+  if (!Array.isArray(order) || !order.length) return;
+  tabOrder = order;
+  const bar = document.querySelector(".tabs");
+  if (!bar) return;
+  const tabs = Array.from(bar.querySelectorAll(".tab"));
+  const rank = (t) => { const i = order.indexOf(t.dataset.panel); return i < 0 ? order.length + tabs.indexOf(t) : i; };
+  const sorted = tabs.slice().sort((a, b) => rank(a) - rank(b));
+  if (sorted.every((t, i) => t === tabs[i])) return;
+  sorted.forEach((t) => bar.appendChild(t));
 }
 
 // Don't let a server read stomp a reorder that hasn't round-tripped yet — the
@@ -615,6 +635,9 @@ function interacting() {
 }
 
 function applyRemote(doc) {
+  // Tab order first: it changes independently of the cards, and must land even
+  // when the connections are identical or a card drag is in progress.
+  applyTabOrder(doc.tabOrder);
   if (Date.now() - lastOwnSaveAt < ECHO_MS) return;
   if (interacting()) return;
   if (stableJson({ c: connections, m: colmap }) ===
@@ -627,6 +650,7 @@ function applyRemote(doc) {
   // reconcile against the worker.
   try {
     const cached = await VaultDB.readCache();
+    if (cached) applyTabOrder(cached.tabOrder);      // tabs in the app's order from the first paint
     if (cached && cached.connections.length) { apply(cached); setSync("", "Synced with Keychain"); }
   } catch (_) {}
 

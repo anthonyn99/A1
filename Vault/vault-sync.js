@@ -37,7 +37,9 @@ const VaultDB = (() => {
     return {
       connections: Array.isArray(d && d.connections) ? d.connections : [],
       colmap: Array.isArray(d && d.colmap) ? d.colmap : null,
-      savedAt: (d && d.savedAt) || 0
+      savedAt: (d && d.savedAt) || 0,
+      // The Vault app's tab-bar order (see enableTabReorder in vault-ui.js).
+      tabOrder: Array.isArray(d && d.tabOrder) ? d.tabOrder : null
     };
   }
 
