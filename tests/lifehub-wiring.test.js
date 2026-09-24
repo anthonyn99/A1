@@ -9,8 +9,9 @@
 //  2. A host's data-lock selector stops matching its lock screen (renamed id)
 //     — the launcher then shows over a locked program. The selector is checked
 //     against the file it lives in.
-//  3. It creeps into a place it was never meant to be: Index, or a Veda
-//     program. Profile programs must pass data-profile-attr or Veda sees it.
+//  3. It creeps into a place it was never meant to be: Index, or Wellness.
+//     Profile programs must pass data-profile-attr, or Veda would be shown
+//     Tony's list instead of her own.
 //  4. The tab keys drift from index.html's. LifeHub and TaskHub then open
 //     the same program in two different tabs.
 //  5. The Spark budget erodes: a second listener, or a write outside the one
@@ -75,7 +76,7 @@ for (const [file, want] of Object.entries(HOSTS)) {
       new RegExp('\\.id\\s*=\\s*["\']' + id + '["\']').test(html);
     ok(file + ' actually has an element ' + lock, present);
   }
-  ok(file + (want.profile ? ' shows it only for Tony (data-profile-attr)' : ' is Tony-only, no profile attr needed'),
+  ok(file + (want.profile ? ' follows the Tony/Veda profile (data-profile-attr)' : ' is Tony-only, no profile attr needed'),
     want.profile ? /data-profile-attr=["']data-profile["']/.test(tag) : !/data-profile-attr/.test(tag), tag);
 }
 
@@ -104,27 +105,71 @@ ok("Shield (HTML) opens under TaskHub's Tony key 'shield_tony'",
   tabOf('shield_html') === 'shield_tony' && /var tab = 'shield_' \+ profile;/.test(index), tabOf('shield_html'));
 
 console.log('\nThe initial configuration');
-const ids = [...src.matchAll(/\{ id: '([a-z_]+)', name: '([^']+)'/g)].map((m) => m[2]);
-ok('seeds exactly the ten programs, in order', ids.join() === 'OneInbox,TradeHub,MyList,Insight,Vault,Solace,Shield,Shield (HTML),RiftIQ,MAGI', ids);
-ok('the desktop Shield tile raises the agent via shieldopen:show', /url: 'shieldopen:show'/.test(src));
+// The body of `var NAME = [ … ];` in lifehub.js.
+const block = (name) => (new RegExp('var ' + name + ' = \\[([\\s\\S]*?)\\n  \\];').exec(src) || [])[1] || '';
+const names = (b) => [...b.matchAll(/\{ id: '([a-z_]+)', name: '([^']+)'/g)].map((m) => m[2]);
+const tony = block('DEFAULT_APPS'), veda = block('VEDA_APPS');
+ok("seeds exactly Tony's ten programs, in order", names(tony).join() === 'OneInbox,TradeHub,MyList,Insight,Vault,Solace,Shield,Shield (HTML),RiftIQ,MAGI', names(tony));
+ok("seeds Veda's own list: the programs with a Veda profile", names(veda).join() === 'MyList,Shield,Shield (HTML)', names(veda));
+ok("each profile has its own document and mirror (Tony's unchanged)",
+  /tony: \{ doc: 'lifehub', ls: 'lifehub:v1'/.test(src) && /veda: \{ doc: 'lifehub_veda', ls: 'lifehub:v1:veda'/.test(src));
+ok("Veda's Shield (HTML) opens under TaskHub's Veda key 'shield_veda'", /\{ id: 'shield_html'[^}]*tab: 'shield_veda'/.test(veda));
+ok("the desktop Shield tile is the agent's installed path, per profile",
+  /url: SHIELD_EXE\.tony/.test(tony) && /url: SHIELD_EXE\.veda/.test(veda) &&
+  src.includes("tony: 'C:\\\\Users\\\\antho\\\\AppData\\\\Local\\\\Shield\\\\shield-agent.exe'"));
+ok('lists still on shieldopen:show are moved to the path, once', /LEGACY_SHIELD_LINK = 'shieldopen:show'/.test(src) && /function migrate\(/.test(src));
+
+console.log('\nLocal programs');
+const shieldHtml = read('shield.html');
+const localRe = (code) => (/function _?isLocalPath\(u\)\s*\{\s*return ([^\r\n]+)/.exec(code) || [])[1];
+ok('the local-path test is identical in lifehub.js, index.html and shield.html',
+  !!localRe(src) && localRe(src) === localRe(index) && localRe(src) === localRe(shieldHtml),
+  [localRe(src), localRe(index), localRe(shieldHtml)].join(' | '));
+ok('LifeHub sends shieldopen:lh:<profile>:<id>',
+  /'shieldopen:' \+ localKey\(/.test(src) && /return 'lh:' \+ profile \+ ':' \+ id;/.test(src));
+ok('shield.html pushes those same keys into the agent map, merged with the others',
+  /_lastLhLinks = out;/.test(shieldHtml) && /Object\.keys\(_lastLhLinks\)/.test(shieldHtml) && shieldHtml.includes('/^lh:(tony|veda):[A-Za-z0-9_-]+$/'));
+ok('shield.html starts it only where there is an agent (inside attachNavorder)', /_classAppsListen\(\);\s*_whenLifeHub\(\);/.test(shieldHtml));
 const rs = fs.readFileSync(path.join(ROOT, 'desktop', 'shield', 'src-tauri', 'src', 'lib.rs'), 'utf8');
-ok('...and the agent understands that verb', /fn is_show_link\(/.test(rs) && /is_show_link\(&url\)/.test(rs));
+ok('the agent pins the lh: link grammar in a test', /fn lifehub_link_path_is_its_map_key\(/.test(rs));
+ok('the agent still understands shieldopen:show (old links in the wild)', /fn is_show_link\(/.test(rs) && /is_show_link\(&url\)/.test(rs));
+
+// The pure helpers, run for real — lifted out of the IIFE by name.
+const fnSrc = (name) => (new RegExp('\\n  function ' + name + '\\([^)]*\\) \\{[\\s\\S]*?\\n  \\}').exec(src) || [''])[0];
+const box = {};
+vm.runInNewContext([
+  (/var BAD_SCHEME = [^\n]+/.exec(src) || [''])[0], fnSrc('isLocalPath'), fnSrc('normUrl'),
+  'this.normUrl = normUrl;'].join('\n'), box);
+const N = box.normUrl || (() => 'missing');
+ok('a plain path is kept', N('C:\\Apps\\x.exe') === 'C:\\Apps\\x.exe', N('C:\\Apps\\x.exe'));
+ok("Explorer's quoted \"Copy as path\" is unwrapped", N('"C:\\Program Files\\x.exe"') === 'C:\\Program Files\\x.exe', N('"C:\\Program Files\\x.exe"'));
+ok('file:/// becomes a path', N('file:///C:/Program%20Files/x.exe') === 'C:\\Program Files\\x.exe', N('file:///C:/Program%20Files/x.exe'));
+ok('UNC paths are kept', N('\\\\nas\\share\\a.exe') === '\\\\nas\\share\\a.exe');
+ok('paths with forbidden characters are refused',
+  N('C:\\a.exe"&calc') === '' && N('C:\\a\nb.exe') === '' && N('C:\\a|b') === '' && N('C:\\a:b') === '');
+ok('web links behave as before',
+  N('example.com') === 'https://example.com' && N('https://x.y/a') === 'https://x.y/a' && N('javascript:alert(1)') === '' && N('file:///etc/passwd') === '');
 
 console.log('\nSpark budget');
 ok('exactly one onSnapshot', (src.match(/\.onSnapshot\(/g) || []).length === 1);
 ok('exactly one write site, inside the batched transaction',
   (src.match(/\btx\.set\(/g) || []).length === 1 && !/\b(setDoc|updateDoc|addDoc)\(/.test(src));
-ok('writes are debounced', /S\.wt = setTimeout\(flush, \d+\)/.test(src));
+ok('writes are debounced', /st\.wt = setTimeout\(function \(\) \{ flush\(st\); \}, \d+\)/.test(src));
 // connect() is the only road to Firestore; it is reached from ensureSync (the
-// listener) and flush (a save) and nowhere else, and ensureSync itself is only
-// wired to the launcher being approached or the panel opening.
+// listener) and flush (a save) and nowhere else.
 ok('Firestore is reached only through ensureSync and flush', (src.match(/\bconnect\(\)/g) || []).length === 3,   // its definition + those two calls
   (src.match(/\bconnect\(\)/g) || []).length);
+// ensureSync's callers: warm() (launcher hover/focus/touch), open(), a finished
+// save, retry(), and localLinks (inside the Shield agent only).
 const ensureCalls = [...src.matchAll(/^.*\bensureSync\b.*$/gm)].map((m) => m[0].trim())
   .filter((l) => !/^function ensureSync/.test(l) && !/^\/\//.test(l));
-ok('the listener starts only on launcher hover/focus/touch, open, or after a save',
-  ensureCalls.length === 5 && ensureCalls.filter((l) => /addEventListener\('(pointerenter|focus|touchstart)', ensureSync/.test(l)).length === 3,
+ok('the listener starts only on launcher approach, open, a save, a retry, or the agent',
+  ensureCalls.length === 5 &&
+  [...src.matchAll(/addEventListener\('(pointerenter|focus|touchstart)', warm/g)].length === 3 &&
+  /function warm\(\) \{[\s\S]*?ensureSync\(S\);/.test(src),
   ensureCalls.join(' | '));
+ok('failed attempts retry on a backoff, never a hot loop', /var RETRY_MS = \[\d{4,}/.test(src));
+ok('a retry can never stack a second listener (generation guard)', /if \(gen !== st\.gen\) return;/.test(src) && /st\.gen\+\+;/.test(src));
 ok('MAGI hands over its own lazily-started Firebase', /window\.LifeHubFirebase\s*=/.test(read('magi.html')));
 
 console.log('\n' + pass + ' passed' + (fail ? ', ' + fail + ' FAILED' : ''));

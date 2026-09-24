@@ -8,10 +8,14 @@ file. Don't copy its code into a program, and don't fork it.
   opening a duplicate. It uses the same named-tab scheme and `tabsync.js` handshake
   as TaskHub's header buttons, with the same tab keys, so both open the same tab.
 - Names, links, icons, order and visibility are data. You edit them in the popup
-  (pencil, then tap an app; drag to reorder). They live in one Firestore document,
-  `dashboards/lifehub`, and sync live to every program and device.
-- It shows only while the host program is **unlocked**, and only in **Tony's**
-  profile.
+  (pencil, then tap an app; drag to reorder). Each profile has its own list in one
+  Firestore document: `dashboards/lifehub` for Tony and `dashboards/lifehub_veda` for Veda.
+  Lists sync live to every program and device.
+- A link can be a web URL **or a program on the PC** (`C:\Apps\app.exe`, a
+  `\\server\share` path). See [Local programs](#local-programs).
+- It shows only while the host program is **unlocked**. In programs with both
+  profiles (MyList, Shield) it follows the active profile and shows that person's
+  list in their accent colour.
 
 ## Add LifeHub to a program
 
@@ -28,8 +32,9 @@ Two lines. Nothing else in the program changes.
 | Script attribute | Needed when | Value |
 |---|---|---|
 | `data-lock` | always | CSS selector for the program's **existing** lock screen. While it is on screen the launcher is not rendered at all, so there is no empty slot. |
-| `data-profile-attr` | the program has Tony *and* Veda profiles | the `<body>` attribute holding the active profile, e.g. `data-profile`. The launcher exists only while it reads `tony`. Leave it out for Tony-only programs. |
+| `data-profile-attr` | the program has Tony *and* Veda profiles | the `<body>` attribute holding the active profile, e.g. `data-profile`. `tony` shows Tony's list and `veda` shows Veda's. Any other value hides the launcher. Leave it out for Tony-only programs. |
 | `data-accent` | the program's accent isn't A1 gold | e.g. `#c0aeea` (RiftIQ, MAGI) |
+| `data-accent-veda` | Veda's accent differs from the default | default `#A892B0` |
 
 Optional, on the element: `style="--lh-size:30px"` to match the header's other
 icon buttons (default 34px). A program can place several `<a1-lifehub>` elements,
@@ -52,9 +57,34 @@ install, add it to `DEFAULT_APPS` in `lifehub.js` with its favicon in `ICONS`.
   `LifeHub.configure({ locked: () => bool })`, or `profile: () => 'tony' | 'veda'`.
   `LifeHub.refresh()` re-checks immediately. Otherwise it checks every 500ms,
   locally, with no DOM writes unless the answer changes.
-- **Programs outside a browser tab** use a link: `shieldopen:show` raises the
-  Shield desktop agent's window. That's the "Shield" tile; "Shield (HTML)" is the
-  page.
+
+## Local programs
+
+A browser can't start a program. So a tile whose link is a local path does what
+TaskHub's local External Links do (`index.html` `_doOpen`): it hands off to the
+**Shield desktop agent**.
+
+1. The tile sends `shieldopen:lh:<profile>:<id>`, which is an opaque id, not the path.
+2. In the agent, `shield.html` calls `LifeHub.localLinks(cb)`. That reports
+   `{ 'lh:<profile>:<id>': path }` for both profiles, from the lists LifeHub already
+   listens to. `shield.html` pushes the map into the agent with `sh_set_links`,
+   merged with the navorder and StudyOS entries.
+3. The agent looks the id up and opens the path. A page that only knows the
+   scheme can't make it launch anything that isn't already in a list.
+
+Inside the agent's own window, `shield.html` sets `LifeHub.configure({ openLocal })`.
+Executables start directly through `sh_launch`, and the Shield tile is that window
+itself. The **Shield** tile is the agent's installed exe
+(`%LOCALAPPDATA%\Shield\shield-agent.exe`). Starting it again brings the running
+agent's window forward. Lists saved with the old `shieldopen:show` link are moved
+to the path automatically, in one write.
+
+The path check is identical in `lifehub.js`, `index.html` and `shield.html`, and
+the test enforces it. Pasted paths are cleaned up: quotes from Explorer's "Copy as
+path" are removed, `file:///C:/…` is converted, and control or forbidden characters
+are refused. On phones and Macs, local tiles are hidden outside edit mode because
+they can't work there. If Shield isn't installed or running, a click does nothing,
+the same as any unhandled protocol.
 
 ## Firebase cost (Spark plan)
 
@@ -63,6 +93,8 @@ install, add it to `DEFAULT_APPS` in `lifehub.js` with its favicon in `ICONS`.
 | Loading a program | 0 | 0 |
 | First hover, focus or tap of the launcher | 1 (attach the one listener) | 0 |
 | Another device changes the list | 1 | 0 |
+| A failed connection attempt (and each automatic retry) | 0 | 0 |
+| The Shield agent (only on PCs that have one) | 1 per profile list at startup, then 1 per change | 0 |
 | A save (drag drop, edit, add, delete, reset) | 1 (transaction) | 1 |
 | Dragging, typing, toggling before save | 0 | 0 |
 
@@ -74,6 +106,12 @@ install, add it to `DEFAULT_APPS` in `lifehub.js` with its favicon in `ICONS`.
   then merged under your change.
 - LifeHub reuses the host's Firebase app and Firestore instance: same module URLs,
   no second connection.
+- **Offline.** A failed connection shows *Offline* with a refresh button. It also
+  retries on its own after 2s, 5s, 15s, 30s and then every 60s, and immediately
+  when the browser comes back online or the tab returns to the front. It only
+  retries while someone can use the result: the panel is open, there are unsaved
+  changes, or the Shield agent is watching. An idle program never polls. A
+  generation counter makes sure a retry can't leave a second listener attached.
 
 ## Data
 

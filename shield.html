@@ -981,8 +981,8 @@ window._mailRelay = window._mailRelay || async function (res) {
     <div class="spacer"></div>
     <span class="sync" id="sync">·</span>
     <button class="iconbtn" id="lock-btn" title="Manage lock"></button>
-    <!-- LifeHub app switcher (LifeHub/lifehub.js) — Tony's profile only
-         (body[data-profile]), hidden while #applock-overlay is up. -->
+    <!-- LifeHub app switcher (LifeHub/lifehub.js) — follows body[data-profile]:
+         Tony's list or Veda's; hidden while #applock-overlay is up. -->
     <a1-lifehub></a1-lifehub>
     <button class="pf-badge" id="pf-badge" title="Switch profile">T</button>
   </header>
@@ -1442,12 +1442,14 @@ async function _pushShieldApps(){
    other. */
 var _lastNavLinks = {};
 var _lastClsLinks = {};
+var _lastLhLinks = {};
 
 function _pushLinks(){
   if (!window.SH || !window.SH.Agent) return;
   var links = {};
   Object.keys(_lastNavLinks).forEach(function(k){ links[k] = _lastNavLinks[k]; });
   Object.keys(_lastClsLinks).forEach(function(k){ links[k] = _lastClsLinks[k]; });
+  Object.keys(_lastLhLinks).forEach(function(k){ links[k] = _lastLhLinks[k]; });
   window.SH.Agent.invoke('sh_set_links', { args: { links: links } }).catch(function(){});
 }
 
@@ -1503,6 +1505,48 @@ function _navorderListen(){ return onSnapshot(doc(db, 'dashboards/navorder'), sn
   _pushLinks();
 }, err => console.warn('[Shield] navorder snapshot err', err)); }
 
+/* LifeHub apps whose link is a local path (LifeHub/lifehub.js "LOCAL
+   PROGRAMS"). A LifeHub tile in a browser tab sends shieldopen:lh:<profile>:<id>,
+   and this is what teaches the agent which path that id means — the same
+   opaque-id contract as the navorder buttons above. LifeHub reports the map
+   from its own listeners (one per profile list, the same ones its launcher
+   uses — never a second subscription to either doc), already filtered through
+   the same local-path test; it is re-checked here anyway, as defence in depth.
+
+   Inside this window the launcher starts local programs itself instead of
+   sending a link to its own agent: an executable goes straight to sh_launch,
+   and the Shield tile is this very window. Anything else (a document, a
+   shortcut, a folder) still takes the shieldopen: route, which the agent
+   opens with the shell. */
+function _lifehubListen(){
+  var LH = window.LifeHub;
+  if (!LH || !LH.localLinks) return false;
+  LH.configure({ openLocal: function(path, app){
+    if (/[\\/]shield-agent\.exe$/i.test(path)) return true;
+    if (!/\.(exe|com|bat|cmd)$/i.test(path)) return false;
+    window.SH.Agent.invoke('sh_launch', { args: { items: [
+      { label: (app && app.name) || 'App', launch: [{ path: path, hadWindow: true }] }
+    ] } }).catch(function(e){ console.warn('[Shield] LifeHub launch failed', e); });
+    return true;
+  } });
+  LH.localLinks(function(map){
+    var out = {};
+    Object.keys(map || {}).forEach(function(k){
+      if (/^lh:(tony|veda):[A-Za-z0-9_-]+$/.test(k) && isLocalPath(map[k])) out[k] = map[k];
+    });
+    _lastLhLinks = out;
+    _pushLinks();
+  });
+  return true;
+}
+// lifehub.js is a deferred classic script placed after this module, so it may
+// not exist yet when the agent check first passes. It will by `load`.
+function _whenLifeHub(){
+  if (_lifehubListen()) return;
+  if (document.readyState === 'complete') setTimeout(_lifehubListen, 0);
+  else window.addEventListener('load', function(){ setTimeout(_lifehubListen, 0); }, { once: true });
+}
+
 // Attach only where there is an agent to hand the paths to.
 //
 // Deferred rather than decided inline: this is a module script, and whether
@@ -1516,6 +1560,7 @@ function _navorderListen(){ return onSnapshot(doc(db, 'dashboards/navorder'), sn
     done = true;
     _navorderListen();
     _classAppsListen();
+    _whenLifeHub();
     // Publish this machine's program inventory for StudyOS's Browse picker.
     // No delay here: _pushShieldApps waits for the agent bridge and the adopted
     // device id itself, which a fixed timer could only guess at.

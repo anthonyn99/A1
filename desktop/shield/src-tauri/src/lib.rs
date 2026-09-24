@@ -667,6 +667,20 @@ mod link_tests {
         assert_eq!(u2.path().trim_start_matches('/'), "1712345678901");
     }
 
+    /// LifeHub's local-program tiles send `shieldopen:lh:<profile>:<id>` and
+    /// shield.html stores the path under that same `lh:<profile>:<id>` key
+    /// (LifeHub/lifehub.js localKey). The colons must survive parsing, or
+    /// the lookup in open_from_link misses and the tile silently does nothing.
+    #[test]
+    fn lifehub_link_path_is_its_map_key() {
+        let u = url::Url::parse("shieldopen:lh:tony:shield").unwrap();
+        assert_eq!(u.path().trim_start_matches('/'), "lh:tony:shield");
+        assert!(!is_show_link(&u));
+        assert_eq!(class_id_of(u.path()), None);
+        let v = url::Url::parse("shieldopen:lh:veda:my-app_2").unwrap();
+        assert_eq!(v.path(), "lh:veda:my-app_2");
+    }
+
     #[test]
     fn accepts_a_studyos_class_id() {
         assert_eq!(class_id_of("class/1712345678901"), Some("1712345678901"));

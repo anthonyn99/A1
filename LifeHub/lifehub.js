@@ -19,14 +19,27 @@
  *                      While that element is on screen the launcher is not
  *                      rendered at all (display:none — no empty slot).
  *   data-profile-attr  For programs with Tony AND Veda profiles: the <body>
- *                      attribute that holds the active profile. The launcher
- *                      only exists while it reads "tony". Omit it for
- *                      Tony-only programs.
+ *                      attribute that holds the active profile ("tony" or
+ *                      "veda"). Each profile has its OWN list (its own doc),
+ *                      and the launcher follows the attribute live. Omit it
+ *                      for Tony-only programs.
  *   data-accent        The program's accent colour (default A1 gold).
+ *   data-accent-veda   Veda's accent in a profile program (default #A892B0).
  *
  * A program whose Firebase starts lazily (MAGI) sets window.LifeHubFirebase to
  * an async function returning { db, fs } so LifeHub borrows that instance
  * instead of racing it to initializeFirestore.
+ *
+ * LOCAL PROGRAMS
+ * An app's link can be a Windows path (C:\…\app.exe, \\server\share\…)
+ * instead of a URL. A browser cannot start a program, so — exactly like
+ * TaskHub's External Links (index.html _doOpen) — the click hands off to the
+ * Shield desktop agent as `shieldopen:lh:<profile>:<id>`. The path itself
+ * never travels in the link: the agent resolves the opaque id against the
+ * map shield.html pushes it from this list (LifeHub.localLinks). Inside the
+ * agent's own window the host launches it directly (configure({ openLocal })).
+ * Devices that cannot launch local programs (phones, Macs) don't show those
+ * tiles outside edit mode.
  *
  * WHY A CUSTOM ELEMENT
  * Half the hosts render their header with React, which rebuilds nodes as it
@@ -72,13 +85,14 @@
     lock: sattr('data-lock'),
     profileAttr: sattr('data-profile-attr'),
     accent: sattr('data-accent'),
+    accentVeda: sattr('data-accent-veda') || '#A892B0',
     locked: null,     // optional fn, via LifeHub.configure
-    profile: null     // optional fn, via LifeHub.configure
+    profile: null,    // optional fn, via LifeHub.configure
+    openLocal: null   // optional fn(path, app) → true if the host launched it
   };
 
-  var VERSION = '1.1.0';
-  var DOC = ['dashboards', 'lifehub'];
-  var LS_KEY = 'lifehub:v1';
+  var VERSION = '1.2.0';
+  var DOC_COLL = 'dashboards';
   var FB_VER = '12.12.0';
   var FB_CONFIG = {
     apiKey: 'AIzaSyC2aKunOKj5WS8NpgZhpyMzOYecBr5t2_4',
@@ -122,6 +136,13 @@
      identical (tradehub, warroom, vault, solace, magi, shield_tony) so both
      launchers land on one tab per program. */
   var BASE = 'https://anthonyn99.github.io/A1/';
+  var SHIELD_EXE = {
+    tony: 'C:\\Users\\antho\\AppData\\Local\\Shield\\shield-agent.exe',
+    veda: 'C:\\Users\\vedap\\AppData\\Local\\Shield\\shield-agent.exe'
+  };
+  // The link the Shield tile carried before local paths existed. Lists that
+  // still hold it are moved to the real path once, on first sync.
+  var LEGACY_SHIELD_LINK = 'shieldopen:show';
   var DEFAULT_APPS = [
     { id: 'oneinbox', name: 'OneInbox', url: BASE + 'oneinbox.html', icon: 'a1:oneinbox', tab: 'oneinbox' },
     { id: 'tradehub', name: 'TradeHub', url: BASE + 'tradehub.html', icon: 'a1:tradehub', tab: 'tradehub' },
@@ -129,13 +150,30 @@
     { id: 'insight', name: 'Insight', url: BASE + 'insight.html', icon: 'a1:insight', tab: 'insight' },
     { id: 'vault', name: 'Vault', url: BASE + 'vault.html', icon: 'a1:vault', tab: 'vault' },
     { id: 'solace', name: 'Solace', url: BASE + 'solace.html', icon: 'a1:solace', tab: 'solace' },
-    // The desktop agent has no page of its own to open — its window IS
-    // shield.html — so this hands off to the agent, which raises its window.
-    { id: 'shield', name: 'Shield', url: 'shieldopen:show', icon: 'a1:shield-desktop', tab: 'shield_app' },
+    // The desktop agent, by its installed path (per-user NSIS install). It is
+    // a local program like any other: the click goes through shieldopen:lh:…,
+    // and the agent starting its own exe is a second launch, which surfaces
+    // the running agent's window (lib.rs single-instance handler).
+    { id: 'shield', name: 'Shield', url: SHIELD_EXE.tony, icon: 'a1:shield-desktop', tab: 'shield_app' },
     { id: 'shield_html', name: 'Shield (HTML)', url: BASE + 'shield.html', icon: 'a1:shield', tab: 'shield_tony' },
     { id: 'riftiq', name: 'RiftIQ', url: BASE + 'riftiq.html', icon: 'a1:riftiq', tab: 'warroom' },
     { id: 'magi', name: 'MAGI', url: BASE + 'magi.html', icon: 'a1:magi', tab: 'magi' }
   ];
+  // Veda's own list: the programs that carry a Veda profile. Tab keys follow
+  // TaskHub's per-profile ones (shield_veda), so both open the same tab.
+  var VEDA_APPS = [
+    { id: 'mylist', name: 'MyList', url: BASE + 'mylist.html', icon: 'a1:mylist', tab: 'mylist' },
+    { id: 'shield', name: 'Shield', url: SHIELD_EXE.veda, icon: 'a1:shield-desktop', tab: 'shield_app' },
+    { id: 'shield_html', name: 'Shield (HTML)', url: BASE + 'shield.html', icon: 'a1:shield', tab: 'shield_veda' }
+  ];
+
+  // One list per profile, each its own document and its own local mirror.
+  // Tony's keeps the original names so nothing existing moves.
+  var PROFILES = {
+    tony: { doc: 'lifehub', ls: 'lifehub:v1', defaults: DEFAULT_APPS },
+    veda: { doc: 'lifehub_veda', ls: 'lifehub:v1:veda', defaults: VEDA_APPS }
+  };
+  function isProfile(p) { return p === 'tony' || p === 'veda'; }
 
   /* ── Small helpers ────────────────────────────────────────────────────── */
   function clone(x) { return JSON.parse(JSON.stringify(x)); }
@@ -173,9 +211,27 @@
 
   // Anything a page must never navigate to on the strength of synced data.
   var BAD_SCHEME = /^(javascript|data|vbscript|blob|file|about):/i;
+  // A local Windows path (C:\…, C:/… or a \\server\share UNC path). MUST match
+  // index.html's _isLocalPath and shield.html's isLocalPath exactly — the
+  // agent only ever accepts what that same test accepts.
+  function isLocalPath(u) {
+    return typeof u === 'string' && !/^https?:\/\//i.test(u) && (/^[A-Za-z]:[\\/]/.test(u) || /^\\\\/.test(u));
+  }
+  // Only Windows can launch one (through the Shield agent). Elsewhere those
+  // tiles would be dead buttons, so they are left out of the grid.
+  var CAN_LOCAL = /Windows NT/i.test(navigator.userAgent || '') && !/Windows Phone/i.test(navigator.userAgent || '');
+  function localKey(profile, id) { return 'lh:' + profile + ':' + id; }
   function normUrl(u) {
     u = String(u || '').trim();
+    // Explorer's "Copy as path" wraps the path in quotes.
+    if (/^"[^"]*"$/.test(u)) u = u.slice(1, -1).trim();
     if (!u) return '';
+    // file:///C:/x.exe → C:\x.exe, the only form of file: worth keeping.
+    var fm = /^file:\/\/\/([A-Za-z]:\/.*)$/i.exec(u);
+    if (fm) { try { u = decodeURIComponent(fm[1]).replace(/\//g, '\\'); } catch (e) { return ''; } }
+    // No control characters or characters Windows forbids in a path — they
+    // could only be a mistake or an attempt to split the agent's command line.
+    if (isLocalPath(u)) return /[\x00-\x1f"<>|?*]/.test(u) || /:/.test(u.slice(2)) ? '' : u;
     if (/^[a-z][a-z0-9+.-]*:/i.test(u) && !/^[a-z]:[\\/]/i.test(u)) return BAD_SCHEME.test(u) ? '' : u;
     if (/^\/\//.test(u)) return 'https:' + u;
     if (/^[\w-]+(\.[\w-]+)+(:\d+)?([\/?#]|$)/.test(u)) return 'https://' + u;
@@ -264,67 +320,82 @@
   }
 
   /* ══ Store ═════════════════════════════════════════════════════════════════
+     One per profile (see PROFILES), made on first use. Each holds:
      base  — the last list the server was known to hold
      ops   — local changes not yet committed, as functions over a list
      apps  — what is shown: ops replayed on top of base
 
      A remote snapshot replaces base and re-derives apps, so a local change
-     that has not reached the server yet is never lost under it. */
-  var S = {
-    base: null, apps: null, ops: [],
-    busy: 0, stale: false, needSeed: false,
-    inflight: false, again: false, wt: 0,
-    unsub: null, subscribing: false, status: ''
-  };
+     that has not reached the server yet is never lost under it.
 
-  (function loadCache() {
+     `S` is the store of the profile on screen; the UI only ever reads S.
+     Everything that crosses an await takes its store explicitly, so a profile
+     switch mid-save can never land one profile's list in the other's doc. */
+  var stores = {};
+  var S = null;
+  function storeFor(p) {
+    if (!stores[p]) stores[p] = makeStore(p);
+    return stores[p];
+  }
+  function makeStore(p) {
+    var P = PROFILES[p];
+    var st = {
+      profile: p, doc: P.doc, lsKey: P.ls, defaults: P.defaults,
+      base: null, apps: null, ops: [],
+      busy: 0, stale: false, needSeed: false,
+      inflight: false, again: false, wt: 0,
+      unsub: null, subscribing: false, gen: 0, status: '',
+      retryT: 0, retryN: 0, watched: false
+    };
     var c = null;
-    try { c = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); } catch (e) { c = null; }
+    try { c = JSON.parse(localStorage.getItem(st.lsKey) || 'null'); } catch (e) { c = null; }
     var base = c && cleanList(c.base);
     var apps = c && cleanList(c.apps);
-    S.base = base || clone(DEFAULT_APPS);
-    S.apps = apps || clone(S.base);
+    st.base = base || clone(st.defaults);
+    st.apps = apps || clone(st.base);
     // Edits made while offline that never reached the server survive a reload
     // as one "make it look like this" operation.
-    if (c && c.pending && apps && !same(apps, S.base)) S.ops = [replaceOp(apps)];
-  })();
+    if (c && c.pending && apps && !same(apps, st.base)) st.ops = [replaceOp(apps)];
+    return st;
+  }
 
-  function saveCache() {
+  function saveCache(st) {
     try {
-      localStorage.setItem(LS_KEY, JSON.stringify({ base: S.base, apps: S.apps, pending: S.ops.length > 0 }));
+      localStorage.setItem(st.lsKey, JSON.stringify({ base: st.base, apps: st.apps, pending: st.ops.length > 0 }));
     } catch (e) {}
   }
 
   function replay(ops, list) {
     return ops.reduce(function (acc, op) { return cleanList(op(clone(acc))) || acc; }, list);
   }
-  function setApps(next) {
-    if (same(next, S.apps)) return;
-    S.apps = next;
-    saveCache();
-    render();
+  function setApps(st, next) {
+    if (same(next, st.apps)) return;
+    st.apps = next;
+    saveCache(st);
+    if (st === S) render();
   }
-  function refreshFromBase() {
-    S.stale = false;
-    setApps(replay(S.ops, S.base));
-    saveCache();
+  function refreshFromBase(st) {
+    st.stale = false;
+    setApps(st, replay(st.ops, st.base));
+    saveCache(st);
   }
-  function receiveBase(list) {
-    S.base = list;
-    if (S.busy) { S.stale = true; saveCache(); return; }
-    refreshFromBase();
+  function receiveBase(st, list) {
+    st.base = list;
+    notifyLocal();
+    if (st.busy) { st.stale = true; saveCache(st); return; }
+    refreshFromBase(st);
   }
   function beginBusy() { S.busy++; }
   function endBusy() {
     S.busy = Math.max(0, S.busy - 1);
-    if (!S.busy && S.stale) refreshFromBase();
+    if (!S.busy && S.stale) refreshFromBase(S);
   }
-  function commit(op) {
-    if (S.stale) refreshFromBase();
-    S.ops.push(op);
-    setApps(replay([op], S.apps));
-    saveCache();
-    scheduleWrite();
+  function commit(st, op) {
+    if (st.stale) refreshFromBase(st);
+    st.ops.push(op);
+    setApps(st, replay([op], st.apps));
+    saveCache(st);
+    scheduleWrite(st);
   }
 
   /* Operations. Each is applied to whatever list is current when it lands,
@@ -354,6 +425,16 @@
       var k = 0;
       return list.map(function (a) { return set[a.id] ? map[ids[k++]] : a; });
     };
+  }
+  // The Shield tile used to hand off with shieldopen:show. Move a list that
+  // still carries it to the agent's real path — once, as an ordinary patch,
+  // so it merges and is never written twice (an identical result is skipped).
+  function migrate(st, list) {
+    var a = byId(list, 'shield'), d = byId(st.defaults, 'shield');
+    if (a && d && a.url === LEGACY_SHIELD_LINK && !st.migrated) {
+      st.migrated = true;
+      commit(st, patchOp('shield', { url: d.url }));
+    }
   }
 
   /* ── Firebase ───────────────────────────────────────────────────────────── */
@@ -387,16 +468,20 @@
   var conn = null;
   function connect() {
     if (!conn) {
-      conn = openFirestore().then(function (c) {
-        return { db: c.db, fs: c.fs, ref: c.fs.doc(c.db, DOC[0], DOC[1]) };
-      });
+      conn = openFirestore();
       conn.catch(function () { conn = null; });
     }
     return conn;
   }
-  function dropConnection() {
-    if (S.unsub) { try { S.unsub(); } catch (e) {} }
-    S.unsub = null;
+  function docRef(c, st) { return c.fs.doc(c.db, DOC_COLL, st.doc); }
+  // Forget this store's listener and the cached connection. Bumping `gen`
+  // orphans any attach still in flight, so a retry can never leave two
+  // listeners on one document (two reads per change, forever).
+  function dropConnection(st) {
+    st.gen++;
+    if (st.unsub) { try { st.unsub(); } catch (e) {} }
+    st.unsub = null;
+    st.subscribing = false;
     conn = null;
   }
 
@@ -460,94 +545,192 @@
     return { db: db, fs: fs };
   }
 
-  // Idempotent: the one listener, attached on first use and kept.
-  function ensureSync() {
-    if (S.unsub || S.subscribing) return;
-    S.subscribing = true;
+  // Idempotent: the one listener per profile, attached on first use and kept.
+  function ensureSync(st) {
+    if (st.unsub || st.subscribing) return;
+    st.subscribing = true;
+    var gen = st.gen;
     connect().then(function (c) {
-      S.unsub = c.fs.onSnapshot(c.ref, onSnap, function () {
-        dropConnection();
-        setStatus('offline');
+      if (gen !== st.gen) return;
+      st.unsub = c.fs.onSnapshot(docRef(c, st), function (snap) { onSnap(st, snap); }, function () {
+        if (gen !== st.gen) return;
+        dropConnection(st);
+        goOffline(st);
       });
     }).catch(function () {
-      setStatus('offline');
-    }).then(function () { S.subscribing = false; });
+      if (gen === st.gen) goOffline(st);
+    }).then(function () { if (gen === st.gen) st.subscribing = false; });
   }
 
-  function onSnap(snap) {
+  function onSnap(st, snap) {
     if (snap.metadata.hasPendingWrites) return;
-    if (S.status === 'offline') setStatus('');
+    if (st.status === 'offline' || st.status === 'retry') setStatus(st, '');
+    clearTimeout(st.retryT); st.retryT = 0; st.retryN = 0;
     if (!snap.exists()) {
       // Only trust "missing" from the server, never from an empty cache.
-      if (!snap.metadata.fromCache) { S.needSeed = true; scheduleWrite(); }
+      if (!snap.metadata.fromCache) { st.needSeed = true; scheduleWrite(st); }
       return;
     }
     var list = cleanList((snap.data() || {}).apps);
     if (!list) return;
-    if (!same(list, S.base)) receiveBase(list);
-    if (S.ops.length) scheduleWrite();
+    if (!same(list, st.base)) receiveBase(st, list);
+    migrate(st, list);
+    if (st.ops.length) scheduleWrite(st);
   }
 
-  function scheduleWrite() {
-    clearTimeout(S.wt);
-    S.wt = setTimeout(flush, 350);
+  /* ── Offline, and getting back ─────────────────────────────────────────────
+     "Offline" used to be sticky: one failed attach (a cold host still signing
+     in, a blip while the tab opened in the background) and nothing ever tried
+     again until the panel was reopened. Now a failure retries on its own with
+     a backoff, the moment the browser reports it is online or the tab comes
+     back to the front, and on demand from the refresh button beside the label.
+     Failed attempts cost nothing; a successful one is the single read the
+     listener needed anyway. Retries only run while someone can use the result
+     — the panel is open on this profile, there are unsaved changes, or a host
+     is watching the list (the Shield agent) — so an idle program never polls. */
+  var RETRY_MS = [2000, 5000, 15000, 30000, 60000];
+  function wanted(st) { return (ui.open && st === S) || st.ops.length > 0 || st.needSeed || st.watched; }
+  function goOffline(st) {
+    setStatus(st, 'offline');
+    clearTimeout(st.retryT);
+    st.retryT = 0;
+    if (!wanted(st)) return;
+    var ms = RETRY_MS[Math.min(st.retryN, RETRY_MS.length - 1)];
+    st.retryN++;
+    st.retryT = setTimeout(function () {
+      st.retryT = 0;
+      // Re-checked at fire time: the panel may have closed since.
+      if (wanted(st) && (document.visibilityState === 'visible' || st.watched)) retry(st);
+    }, ms);
+  }
+  function retry(st, manual) {
+    clearTimeout(st.retryT);
+    st.retryT = 0;
+    if (manual) st.retryN = 0;
+    if (st.inflight) { st.again = true; return; }
+    dropConnection(st);
+    setStatus(st, 'retry');
+    ensureSync(st);
+    if (st.ops.length || st.needSeed) scheduleWrite(st);
+  }
+  function retryAllOffline() {
+    Object.keys(stores).forEach(function (p) {
+      var st = stores[p];
+      if (st.status === 'offline' && wanted(st)) retry(st);
+      else if (st.ops.length || st.needSeed) scheduleWrite(st);
+    });
   }
 
-  async function flush() {
-    S.wt = 0;
-    if (!S.ops.length && !S.needSeed) return;
-    if (S.inflight) { S.again = true; return; }
-    S.inflight = true;
-    setStatus('saving');
-    var n = S.ops.length, ops = S.ops.slice(0, n), fallback = clone(S.base);
+  function scheduleWrite(st) {
+    clearTimeout(st.wt);
+    st.wt = setTimeout(function () { flush(st); }, 350);
+  }
+
+  async function flush(st) {
+    st.wt = 0;
+    if (!st.ops.length && !st.needSeed) return;
+    if (st.inflight) { st.again = true; return; }
+    st.inflight = true;
+    setStatus(st, 'saving');
+    var n = st.ops.length, ops = st.ops.slice(0, n), fallback = clone(st.base), failed = false;
     try {
       var c = await connect();
+      var ref = docRef(c, st);
       var result = null;
       await c.fs.runTransaction(c.db, async function (tx) {
-        var snap = await tx.get(c.ref);
+        var snap = await tx.get(ref);
         var exists = snap.exists();
         var server = (exists && cleanList((snap.data() || {}).apps)) || fallback;
         var next = replay(ops, server);
         result = next;
         if (exists && same(next, server)) return;   // nothing to write
-        tx.set(c.ref, { v: 1, apps: next, rev: Date.now(), by: CLIENT });
+        tx.set(ref, { v: 1, apps: next, rev: Date.now(), by: CLIENT });
       });
-      S.ops.splice(0, n);
-      S.needSeed = false;
-      setStatus('');
-      if (result) receiveBase(result);
-      saveCache();
-      ensureSync();
+      st.ops.splice(0, n);
+      st.needSeed = false;
+      st.retryN = 0;
+      setStatus(st, '');
+      if (result) receiveBase(st, result);
+      saveCache(st);
+      ensureSync(st);
     } catch (e) {
       // Kept, not dropped: the ops stay queued and go out on the next attempt.
-      dropConnection();
-      setStatus('offline');
+      failed = true;
+      dropConnection(st);
     }
-    S.inflight = false;
-    if (S.again || (S.ops.length && S.status !== 'offline')) { S.again = false; scheduleWrite(); }
+    st.inflight = false;
+    if (failed) { st.again = false; goOffline(st); return; }
+    if (st.again || st.ops.length) { st.again = false; scheduleWrite(st); }
   }
 
-  window.addEventListener('online', function () { if (S.ops.length || S.needSeed) scheduleWrite(); });
+  window.addEventListener('online', retryAllOffline);
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') retryAllOffline();
+  });
   // Another A1 tab in this browser saved — adopt it without touching Firebase.
   window.addEventListener('storage', function (e) {
-    if (e.key !== LS_KEY || !e.newValue) return;
-    try {
-      var c = JSON.parse(e.newValue);
-      var list = cleanList(c && c.base);
-      if (list && !same(list, S.base)) receiveBase(list);
-    } catch (err) {}
+    if (!e.newValue) return;
+    Object.keys(stores).forEach(function (p) {
+      var st = stores[p];
+      if (e.key !== st.lsKey) return;
+      try {
+        var c = JSON.parse(e.newValue);
+        var list = cleanList(c && c.base);
+        if (list && !same(list, st.base)) receiveBase(st, list);
+      } catch (err) {}
+    });
   });
+
+  /* ── Local programs for the Shield agent ───────────────────────────────────
+     LifeHub.localLinks(cb) — used by shield.html inside the desktop agent, and
+     only there. Watches BOTH profiles' lists (the agent serves whichever
+     profile's browser clicks) and reports { 'lh:<profile>:<id>': path } for
+     every app whose link is a local path, from the server-confirmed list —
+     at once from the local mirror, then on every real change. */
+  var localWatchers = [];
+  function localMap() {
+    var out = {};
+    Object.keys(stores).forEach(function (p) {
+      stores[p].base.forEach(function (a) {
+        var u = normUrl(a.url);
+        if (isLocalPath(u)) out[localKey(p, a.id)] = u;
+      });
+    });
+    return out;
+  }
+  var lastLocalSig = '';
+  function notifyLocal() {
+    if (!localWatchers.length) return;
+    var m = localMap(), sig = JSON.stringify(m);
+    if (sig === lastLocalSig) return;
+    lastLocalSig = sig;
+    localWatchers.forEach(function (cb) { try { cb(clone(m)); } catch (e) {} });
+  }
+  function watchLocal(cb) {
+    if (typeof cb !== 'function') return;
+    localWatchers.push(cb);
+    ['tony', 'veda'].forEach(function (p) {
+      var st = storeFor(p);
+      st.watched = true;
+      ensureSync(st);
+    });
+    lastLocalSig = '';
+    notifyLocal();
+  }
 
   /* ══ Visibility: locked / profile ═════════════════════════════════════════ */
   var launchers = new Set();
   var lastVis = null, watchT = 0, watching = false;
 
-  function profileOk() {
+  // The profile on screen: 'tony', 'veda', or null (unknown — no launcher).
+  function readProfile() {
     try {
-      if (typeof CFG.profile === 'function') return CFG.profile() === 'tony';
-      if (!CFG.profileAttr) return true;
-      return !!document.body && document.body.getAttribute(CFG.profileAttr) === 'tony';
-    } catch (e) { return false; }
+      var p;
+      if (typeof CFG.profile === 'function') p = CFG.profile();
+      else if (!CFG.profileAttr) p = 'tony';
+      else p = document.body && document.body.getAttribute(CFG.profileAttr);
+      return isProfile(p) ? p : null;
+    } catch (e) { return null; }
   }
   function lockedNow() {
     try {
@@ -558,9 +741,35 @@
       return false;
     } catch (e) { return false; }
   }
-  function computeVisible() { return profileOk() && !lockedNow(); }
+  function computeVisible() { return !!readProfile() && !lockedNow(); }
+
+  // Follow the host's profile: its own list, its own accent. A switch closes
+  // the panel (it was showing the other person's apps) and drops the tiles,
+  // since both lists use some of the same ids.
+  var AP = null;
+  function accentFor(p, l) { return p === 'veda' ? CFG.accentVeda : (CFG.accent || (l && l._hostAc) || ''); }
+  function paintAccent(l) {
+    var ac = accentFor(AP, l);
+    if (ac) l.style.setProperty('--lh-ac', ac); else l.style.removeProperty('--lh-ac');
+  }
+  function useProfile(p) {
+    if (p === AP && S) return;
+    var had = !!S;
+    AP = p;
+    S = storeFor(p);
+    launchers.forEach(paintAccent);
+    if (!had || !ui.host) return;
+    if (ui.open) close(true);
+    var ac = accentFor(p, null);
+    if (ac) ui.host.style.setProperty('--lh-ac', ac); else ui.host.style.removeProperty('--lh-ac');
+    Object.keys(ui.tiles).forEach(function (id) { var t = ui.tiles[id]; if (t.parentNode) t.parentNode.removeChild(t); });
+    ui.tiles = {};
+    setStatus(S, S.status);
+  }
   function applyVisible(force) {
-    var v = computeVisible();
+    var p = readProfile();
+    if (p && p !== AP) useProfile(p);
+    var v = !!p && !lockedNow();
     if (v === lastVis && !force) return;
     lastVis = v;
     launchers.forEach(function (l) { if (l.hidden === v) l.hidden = !v; });
@@ -624,21 +833,32 @@
       var b = root.querySelector('button');
       self._btn = b;
       // Warm the one listener while the pointer is still on its way.
-      b.addEventListener('pointerenter', ensureSync);
-      b.addEventListener('focus', ensureSync);
-      b.addEventListener('touchstart', ensureSync, { passive: true });
+      b.addEventListener('pointerenter', warm);
+      b.addEventListener('focus', warm);
+      b.addEventListener('touchstart', warm, { passive: true });
       b.addEventListener('click', function () {
         if (!computeVisible()) { applyVisible(true); return; }
         if (ui.open && ui.anchor === self) close(); else open(self);
       });
     }
     self.setAttribute('data-no-hoverfx', '');
-    if (CFG.accent && !self.style.getPropertyValue('--lh-ac')) self.style.setProperty('--lh-ac', CFG.accent);
+    // An accent the host wrote on the element itself is Tony's accent.
+    if (self._hostAc === undefined) self._hostAc = self.style.getPropertyValue('--lh-ac');
+    var p = readProfile();
+    if (p) useProfile(p);
+    paintAccent(self);
     launchers.add(self);
-    var v = computeVisible();
+    var v = !!p && !lockedNow();
     if (self.hidden === v) self.hidden = !v;
     lastVis = v;
     startWatch();
+  }
+  // The listener of the profile on screen, and only that one.
+  function warm() {
+    var p = readProfile();
+    if (!p) return;
+    useProfile(p);
+    ensureSync(S);
   }
   function launcherDisconnected(self) {
     launchers.delete(self);
@@ -679,6 +899,8 @@
     '.hd{display:flex;align-items:center;gap:8px;padding:14px 12px 6px 18px;flex:none}' +
     '.ttl{flex:1;min-width:0;font-size:15px;font-weight:600;letter-spacing:.1px;color:var(--tx)}' +
     '.st{font-size:11px;color:var(--dim);white-space:nowrap}.st.bad{color:var(--bad)}' +
+    '.rf{width:28px;height:28px;margin:0 -2px 0 -4px}.rf svg{width:15px;height:15px}.rf:disabled{cursor:default;opacity:.8}' +
+    '.rf.spin svg{animation:lh-spin .8s linear infinite}@keyframes lh-spin{to{transform:rotate(360deg)}}' +
     '.ib{all:unset;box-sizing:border-box;width:34px;height:34px;display:grid;place-items:center;border-radius:50%;cursor:pointer;' +
     'color:var(--dim);transition:background-color .15s,color .15s;-webkit-tap-highlight-color:transparent}' +
     '.ib svg{width:17px;height:17px}.ib:hover{background:var(--hov);color:var(--tx)}.ib:active{background:var(--act)}' +
@@ -726,6 +948,7 @@
     'padding:10px 12px;font-size:14px;line-height:1.3;transition:border-color .15s;cursor:text;user-select:text;-webkit-user-select:text}' +
     '.in:focus{border-color:var(--ac)}.in.err{border-color:var(--bad)}' +
     '.msg{font-size:11.5px;color:var(--bad);min-height:0}' +
+    '.note{font-size:11.5px;color:var(--dim);line-height:1.35}' +
     '.chips{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}' +
     '.chip{all:unset;box-sizing:border-box;aspect-ratio:1;border-radius:11px;padding:3px;cursor:pointer;border:1.5px solid transparent;' +
     'display:grid;place-items:center;font-size:10px;font-weight:600;color:var(--dim);-webkit-tap-highlight-color:transparent}' +
@@ -748,11 +971,12 @@
 
   var SVG_PENCIL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
   var SVG_BACK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>';
+  var SVG_REFRESH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11.5A8 8 0 1 0 17.7 17.2"/><path d="M20 4.5v7h-7"/></svg>';
   var SVG_PLUS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
 
   var ui = {
     host: null, root: null, wrap: null, pop: null, sc: null, grid: null, ed: null, ft: null,
-    ttl: null, st: null, btnEdit: null, btnDone: null, btnBack: null,
+    ttl: null, st: null, btnEdit: null, btnDone: null, btnBack: null, btnRetry: null,
     open: false, edit: false, view: 'grid', anchor: null, tiles: {}, addTile: null,
     closeT: 0, noClickUntil: 0, lastFocus: null, placeRaf: 0
   };
@@ -762,7 +986,8 @@
     host.id = 'a1-lifehub-panel';
     host.setAttribute('data-no-hoverfx', '');
     host.style.cssText = 'position:fixed;inset:0;z-index:2147482600;display:none;pointer-events:none;';
-    if (CFG.accent) host.style.setProperty('--lh-ac', CFG.accent);
+    var ac0 = accentFor(AP, null);
+    if (ac0) host.style.setProperty('--lh-ac', ac0);
     var root = host.attachShadow({ mode: 'open' });
     root.innerHTML = '<style>' + PANEL_CSS + '</style>' +
       '<div class="wrap">' +
@@ -772,6 +997,7 @@
           '<div class="hd">' +
             '<button class="ib back" type="button" aria-label="Back" hidden>' + SVG_BACK + '</button>' +
             '<div class="ttl">LifeHub</div><span class="st" aria-live="polite"></span>' +
+            '<button class="ib rf" type="button" aria-label="Retry connection" title="Retry now" hidden>' + SVG_REFRESH + '</button>' +
             '<button class="ib edit-btn" type="button" aria-label="Edit apps" title="Edit apps">' + SVG_PENCIL + '</button>' +
             '<button class="done" type="button" hidden>Done</button>' +
           '</div>' +
@@ -790,6 +1016,8 @@
     ui.ft = root.querySelector('.ft');
     ui.ttl = root.querySelector('.ttl');
     ui.st = root.querySelector('.st');
+    ui.btnRetry = root.querySelector('.rf');
+    ui.btnRetry.addEventListener('click', function () { retry(S, true); });
     ui.btnEdit = root.querySelector('.edit-btn');
     ui.btnDone = root.querySelector('.done');
     ui.btnBack = root.querySelector('.back');
@@ -831,19 +1059,25 @@
         return;
       }
       reset.classList.remove('warn'); reset.textContent = 'Reset';
-      commit(replaceOp(DEFAULT_APPS));
+      commit(S, replaceOp(S.defaults));
     });
 
     ui.pop.addEventListener('keydown', onKey);
     armSheetSwipe();
   }
 
-  function setStatus(s) {
-    S.status = s;
-    if (!ui.st) return;
-    ui.st.textContent = s === 'saving' ? 'Saving…' : s === 'offline' ? 'Offline' : '';
+  function setStatus(st, s) {
+    st.status = s;
+    if (st !== S || !ui.st) return;
+    ui.st.textContent = s === 'saving' ? 'Saving…' : s === 'offline' ? 'Offline' : s === 'retry' ? 'Connecting…' : '';
     ui.st.classList.toggle('bad', s === 'offline');
     ui.st.title = s === 'offline' ? 'Changes are kept here and sync when the connection is back.' : '';
+    // The refresh button sits beside the label for as long as there is
+    // something to retry, and spins while an attempt is running.
+    var show = s === 'offline' || s === 'retry';
+    ui.btnRetry.hidden = !show || ui.view === 'ed';
+    ui.btnRetry.classList.toggle('spin', s === 'retry');
+    ui.btnRetry.disabled = s === 'retry';
   }
 
   function isSheet() { return window.innerWidth < 600; }
@@ -903,8 +1137,9 @@
     setEdit(false, true);
     place();
     render();
-    setStatus(S.status);
-    ensureSync();
+    setStatus(S, S.status);
+    // Reopening while offline is itself a reason to try again right away.
+    if (S.status === 'offline') retry(S); else ensureSync(S);
     window.addEventListener('resize', queuePlace);
     window.addEventListener('scroll', queuePlace, true);
     document.addEventListener('keydown', onDocKey, true);
@@ -1012,7 +1247,7 @@
 
   function render() {
     if (!ui.open || D || ui.view !== 'grid') return;
-    var list = S.apps.filter(function (a) { return ui.edit || !a.hidden; });
+    var list = S.apps.filter(function (a) { return ui.edit || (!a.hidden && (CAN_LOCAL || !isLocalPath(normUrl(a.url)))); });
     var grid = ui.grid, keep = {}, i = 0;
     list.forEach(function (a) {
       var t = ui.tiles[a.id];
@@ -1057,6 +1292,7 @@
     var url = normUrl(a.url);
     if (!url) { openEditor(a.id); return; }
     if (isHere(url)) { close(); return; }
+    if (isLocalPath(url)) { close(true); openLocal(a, url); return; }
     if (!isWeb(url)) {
       // Another program's protocol (shieldopen:, …): hand it to the OS, the
       // same way TaskHub hands local paths to Shield.
@@ -1077,6 +1313,17 @@
       } catch (e) {}
     }
     close(true);
+  }
+
+  // A program on this PC. Inside the Shield agent the host starts it itself;
+  // anywhere else it goes to the agent as an opaque id, exactly as TaskHub's
+  // local-path buttons do (index.html _doOpen). If Shield isn't installed or
+  // running, nothing visible happens — the same as any unhandled protocol.
+  function openLocal(a, path) {
+    if (typeof CFG.openLocal === 'function') {
+      try { if (CFG.openLocal(path, clone(a))) return; } catch (e) {}
+    }
+    try { location.href = 'shieldopen:' + localKey(S.profile, a.id); } catch (e) {}
   }
 
   /* ── Drag to reorder ──────────────────────────────────────────────────────
@@ -1244,7 +1491,7 @@
       if (d.g.parentNode) d.g.parentNode.removeChild(d.g);
       d.t.classList.remove('ph');
     }, 170);
-    if (!cancelled && order.join('\n') !== d.start.join('\n')) commit(reorderOp(order));
+    if (!cancelled && order.join('\n') !== d.start.join('\n')) commit(S, reorderOp(order));
     endBusy();
     render();
   }
@@ -1296,15 +1543,22 @@
     }
     var nameIn = el('input', 'in'); nameIn.type = 'text'; nameIn.maxLength = 40; nameIn.value = cur.name;
     nameIn.placeholder = 'Name'; nameIn.autocomplete = 'off'; nameIn.spellcheck = false;
-    var urlIn = el('input', 'in'); urlIn.type = 'text'; urlIn.value = cur.url; urlIn.placeholder = 'https://…';
-    urlIn.autocomplete = 'off'; urlIn.spellcheck = false; urlIn.setAttribute('inputmode', 'url'); urlIn.setAttribute('autocapitalize', 'off');
+    var urlIn = el('input', 'in'); urlIn.type = 'text'; urlIn.value = cur.url; urlIn.placeholder = 'https://…  or  C:\\…\\app.exe';
+    // No inputmode=url: phone URL keyboards have no backslash for a path.
+    urlIn.autocomplete = 'off'; urlIn.spellcheck = false; urlIn.setAttribute('autocapitalize', 'off');
+    var urlNote = el('div', 'note', 'A program on a Windows PC — opens through the Shield desktop app.');
+    function syncNote() { urlNote.hidden = !isLocalPath(normUrl(urlIn.value)); }
+    urlIn.addEventListener('input', syncNote);
+    syncNote();
     var imgIn = el('input', 'in'); imgIn.type = 'text'; imgIn.placeholder = 'Image link (https://… or data:image/…)';
     imgIn.value = iconSel === 'custom' ? cur.icon : ''; imgIn.autocomplete = 'off'; imgIn.spellcheck = false;
     imgIn.setAttribute('autocapitalize', 'off');
     var msg = el('div', 'msg');
 
     ed.appendChild(field('Name', nameIn));
-    ed.appendChild(field('Link', urlIn));
+    var linkF = field('Link', urlIn);
+    linkF.appendChild(urlNote);
+    ed.appendChild(linkF);
 
     var iconF = el('div', 'fld');
     iconF.appendChild(el('span', 'lbl', 'Icon'));
@@ -1357,7 +1611,7 @@
           setTimeout(function () { del.classList.remove('sure'); del.textContent = 'Delete'; }, 3500);
           return;
         }
-        commit(removeOp(a.id));
+        commit(S, removeOp(a.id));
         closeEditor();
       });
       btns.appendChild(del);
@@ -1375,7 +1629,7 @@
       var name = nameIn.value.trim();
       var url = normUrl(urlIn.value);
       if (!name) { nameIn.classList.add('err'); msg.textContent = 'Give it a name.'; nameIn.focus(); return; }
-      if (!url) { urlIn.classList.add('err'); msg.textContent = 'Enter a link such as https://example.com.'; urlIn.focus(); return; }
+      if (!url) { urlIn.classList.add('err'); msg.textContent = 'Enter a link such as https://example.com, or a program path such as C:\\Apps\\app.exe.'; urlIn.focus(); return; }
       var icon = iconSel === 'auto' ? '' : iconSel;
       if (iconSel === 'custom') {
         icon = imgIn.value.trim();
@@ -1390,11 +1644,11 @@
         if (url !== a.url) { patch.url = url; n++; }
         if (icon !== a.icon) { patch.icon = icon; n++; }
         if (hidden !== a.hidden) { patch.hidden = hidden; n++; }
-        if (n) commit(patchOp(a.id, patch));
+        if (n) commit(S, patchOp(a.id, patch));
       } else {
         var base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24) || 'app';
         var nid = base + '-' + Math.random().toString(36).slice(2, 6);
-        commit(addOp({ id: nid, name: name, url: url, icon: icon, tab: 'lh_' + nid.replace(/-/g, '_'), hidden: hidden }));
+        commit(S, addOp({ id: nid, name: name, url: url, icon: icon, tab: 'lh_' + nid.replace(/-/g, '_'), hidden: hidden }));
       }
       closeEditor();
     }
@@ -1407,6 +1661,7 @@
     ui.ed.hidden = false;
     ui.ft.hidden = true;
     ui.btnBack.hidden = false;
+    ui.btnRetry.hidden = true;
     ui.btnEdit.hidden = true;
     ui.btnDone.hidden = true;
     ui.ttl.textContent = a ? 'Edit app' : 'Add app';
@@ -1421,6 +1676,7 @@
     ui.ed.hidden = true;
     ui.grid.hidden = false;
     ui.btnBack.hidden = true;
+    setStatus(S, S.status);
     endBusy();
     if (!silent) { setEdit(ui.edit, true); try { ui.pop.focus({ preventScroll: true }); } catch (e) {} }
   }
@@ -1436,10 +1692,13 @@
       if ('profile' in o) CFG.profile = o.profile;
       if ('lock' in o) CFG.lock = o.lock;
       if ('profileAttr' in o) CFG.profileAttr = o.profileAttr;
-      if (o.accent) {
-        CFG.accent = o.accent;
-        launchers.forEach(function (l) { l.style.setProperty('--lh-ac', o.accent); });
-        if (ui.host) ui.host.style.setProperty('--lh-ac', o.accent);
+      if ('openLocal' in o) CFG.openLocal = o.openLocal;
+      if (o.accentVeda) CFG.accentVeda = o.accentVeda;
+      if (o.accent || o.accentVeda) {
+        if (o.accent) CFG.accent = o.accent;
+        launchers.forEach(paintAccent);
+        var ac = accentFor(AP, null);
+        if (ui.host && ac) ui.host.style.setProperty('--lh-ac', ac);
       }
       applyVisible(true);
     },
@@ -1452,8 +1711,17 @@
       open(a || null);
     },
     close: close,
-    apps: function () { return clone(S.apps); }
+    apps: function () { return clone(S.apps); },
+    // Which profile's list is on screen ('tony' | 'veda').
+    profile: function () { return AP; },
+    // Retry the connection now (what the refresh button does).
+    retry: function () { retry(S, true); },
+    // For the Shield desktop agent: cb({ 'lh:<profile>:<id>': path }) now and
+    // on every change. See "Local programs for the Shield agent" above.
+    localLinks: watchLocal
   };
+
+  useProfile(readProfile() || 'tony');
 
   if (!customElements.get('a1-lifehub')) customElements.define('a1-lifehub', LauncherEl);
 })();
