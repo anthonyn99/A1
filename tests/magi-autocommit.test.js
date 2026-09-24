@@ -82,6 +82,12 @@ ok('once per SHA', /!AUTO_SEEN\.has\(push\.sha\)/.test(follow) && /AUTO_SEEN\.ad
 ok('only a recent push', /AUTO_WATCH_FRESH_MS/.test(follow));
 ok('the line feeds it on every read', /codeAutoFollow\(pid, next\.auto\)/.test(fn('async function codeGitLoad(pid)')));
 
+const wt = fn('async function codeWatchTick()');
+ok('a refusal another try will not change stops the watch at once', /WATCH_FINAL\.has\(d\.error\)/.test(wt)
+   && /w\.state = "noaccess"/.test(wt) && /if \(w\.state === "noaccess"\) \{[^}]*return; \}/.test(wt));
+ok('and says which permission a private repo needs', /Actions: Read-only/.test(wt));
+ok('forbidden / bad token / not found are final', /const WATCH_FINAL = new Set\(\["forbidden", "bad_token", "not_found"/.test(MAGI));
+
 console.log('\nThe task card');
 const card = fn('function renderCodeApproval(t, ev)');
 ok('auto commit takes it: no second, manual commit', /const auto = t\.events\.find\(\(e\) => e\.k === "autocommit"\)/.test(card)

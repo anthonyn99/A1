@@ -14,6 +14,9 @@
 //   2. now: another edit, Commit now -> committed and pushed at once.
 //   3. cancel: another edit, Cancel -> nothing committed, file left edited.
 //   4. A1 is still refused.
+//   0. The Actions watch stops at once, saying what the token needs, when
+//      the token cannot read Actions on this private repo.
+// LIVE_ONLY=noaccess,run picks sections (run = 1-4, spends three small tasks).
 // Every switch is turned back off in `finally`; the edits stay in the
 // throwaway repo's history, which is what it is for.
 const { connect, evalJs, sleep, shotPath } = require('./cdp.js');
@@ -61,6 +64,7 @@ const git = (cwd, ...a) => execFileSync('git', ['-C', cwd, ...a],
 const remoteMain = () => git(OURS, 'ls-remote', REMOTE, 'refs/heads/main').split(/\s/)[0];
 const gitLine = (c) => evalJs(c, '(document.querySelector(".code-git")||{}).textContent || ""');
 const autoBtns = (c) => evalJs(c, 'return [...document.querySelectorAll(".code-auto .code-git-act")].map(b=>b.textContent).join("|");');
+const want = (k) => !process.env.LIVE_ONLY || process.env.LIVE_ONLY.split(',').includes(k);
 const stamp = new Date().toISOString().replace(/[:.]/g, '-');
 
 async function runTask(c, prompt) {
@@ -106,6 +110,21 @@ const noteLine = (n) => `Add one line to the end of NOTES.md, exactly: "- auto c
   ok('Repository pill names the GitHub repo', /Repositoryanthonyn99\/magi-push-test/.test(await evalJs(c, 'document.getElementById("codeStrip").textContent')));
 
   try {
+    // ── 0. a token without Actions: Read on a private repo ───────────────
+    if (want('noaccess')) {
+      console.log('\n0. The watch on a repo the token cannot read Actions for');
+      const sha = git(OURS, 'rev-parse', 'HEAD');
+      const t0 = Date.now();
+      await evalJs(c, `codeWatchStart(codeProject(), ${JSON.stringify(sha)}, { branch: "main" }); return 1;`);
+      const stopped = await waitFor(c, 'CODE.watch && CODE.watch.state !== "none" && CODE.watch.state !== "pending"', 30000);
+      const w = JSON.parse(await evalJs(c, 'return JSON.stringify({state: CODE.watch.state, err: CODE.watch.err, timer: CODE.watch.timer});'));
+      ok('it stops at once, not after four minutes', stopped && w.state === 'noaccess' && !w.timer && Date.now() - t0 < 30000, JSON.stringify(w));
+      ok('and says what the token needs', /Actions: Read-only/.test(w.err) && /anthonyn99\/magi-push-test/.test(w.err), w.err);
+      await shot(c, 'gh-watch-noaccess');
+      await evalJs(c, 'codeWatchStop(); CODE.watch = null; renderCodeView(); return 1;');
+    }
+    if (!want('run')) { ok('no uncaught exceptions', errs.length === 0, errs.join(' | ')); return; }
+
     // ── switches, from the sheet ─────────────────────────────────────────
     console.log('\nSwitches');
     await evalJs(c, '[...document.querySelectorAll("#codeStrip .code-pill")].find(p=>p.textContent.startsWith("Auto commit")).click(); return 1;');
@@ -166,7 +185,7 @@ const noteLine = (n) => `Add one line to the end of NOTES.md, exactly: "- auto c
     if (await runTask(c, noteLine(3))) {
       ok('Cancel is offered', await waitFor(c, '/Cancel/.test((document.querySelector(".code-auto")||{}).textContent||"")', 15000), await autoBtns(c));
       await evalJs(c, '[...document.querySelectorAll(".code-auto .code-git-act")].find(b=>b.textContent==="Cancel").click(); return 1;');
-      ok('it says cancelled, left uncommitted', await waitFor(c, '/Auto commit cancelled; 1 file left uncommitted\\./.test((document.querySelector(".code-git")||{}).textContent||"")', 15000), await gitLine(c));
+      ok('it says cancelled, left uncommitted', await waitFor(c, '/Auto commit cancelled\\x3b 1 file left uncommitted\\./.test((document.querySelector(".code-git")||{}).textContent||"")', 15000), await gitLine(c));
       await sleep(70000);   // past the window it would have had
       ok('still nothing committed or pushed after the window', remoteMain() === before
          && /^ ?M NOTES\.md$/.test(git(OURS, 'status', '--porcelain')), git(OURS, 'status', '--porcelain'));

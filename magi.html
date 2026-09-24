@@ -13186,11 +13186,15 @@ async function codeDiagnose(proj, run, fj) {
 const WATCH_EVERY_MS = 20000;
 const WATCH_NONE_MS = 4 * 60000;      // no run has appeared: nothing is configured
 const WATCH_MAX_MS = 60 * 60000;
+// GitHub refusals that another try will not change: stop the watch at once.
+const WATCH_FINAL = new Set(["forbidden", "bad_token", "not_found", "no_account"]);
 
 function codeWatchStart(proj, sha, { taskId = null, branch = "" } = {}) {
   if (!sha || sha.length < 40) return;
   codeWatchStop();
+  const gh = CODE.git && CODE.git.pid === proj.id && CODE.git.data && CODE.git.data.github;
   CODE.watch = { pid: proj.id, sha, short: sha.slice(0, 7), branch, taskId,
+                 repo: gh && gh.owner ? `${gh.owner}/${gh.repo}` : "",
                  state: "none", summary: null, runs: [], started: Date.now(),
                  fail: null, timer: 0, err: "" };
   if (codeMode()) renderCodeView();
@@ -13221,12 +13225,23 @@ async function codeWatchTick() {
         w.state = (d.summary || {}).state || "none";
       } else {
         w.err = d.message || "GitHub refused.";
+        // A refusal that asking again will not change (the token lacks
+        // Actions: Read on a private repo, or is gone) ends the watch now,
+        // with the fix -- not four minutes of the same 403.
+        if (WATCH_FINAL.has(d.error)) {
+          w.state = "noaccess";
+          if (d.error === "forbidden") {
+            w.err = `This token cannot read Actions on ${w.repo || "this repository"}. `
+              + "A private repository needs Actions: Read-only on the token to watch runs.";
+          }
+        }
       }
     } catch (e) {
       w.err = `Could not reach the engine: ${e.message || e}`;
     }
   }
   if (CODE.watch !== w) return;
+  if (w.state === "noaccess") { if (codeMode()) renderCodeView(); return; }
   if (w.state === "failure" && !w.fail) {
     const bad = w.runs.find((r) => RUN_BAD.has(r.conclusion));
     if (bad) {
