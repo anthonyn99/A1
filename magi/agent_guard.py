@@ -64,6 +64,7 @@ if WIN:
 _QUERY_LIMITED = 0x1000
 _ACCOUNTING = 1                 # JobObjectBasicAccountingInformation
 _TCP_OWNER_PID_ALL = 5
+_ESTABLISHED = 5                # MIB_TCP_STATE_ESTAB
 _AF = {"v4": 2, "v6": 23}
 
 
@@ -136,6 +137,9 @@ def client_pid(client_port: int, server_port: int) -> int | None:
         return None
     for af, row in ((_AF["v4"], _Row4), (_AF["v6"], _Row6)):
         for r in _rows(af, row):
+            # TIME_WAIT rows belong to PID 0 and can share an old port pair.
+            if r.state != _ESTABLISHED or not r.pid:
+                continue
             if (socket.ntohs(r.lport & 0xFFFF) == client_port
                     and socket.ntohs(r.rport & 0xFFFF) == server_port):
                 return int(r.pid)
@@ -159,20 +163,28 @@ def in_job(pid: int) -> bool | None:
         _k32.CloseHandle(h)
 
 
-def refuse(method: str, path: str, client_port: int | None, server_port: int | None) -> bool:
-    """Should this loopback request be refused as coming from a coding agent?
+def decide(method: str, path: str, client_port: int | None,
+           server_port: int | None) -> tuple[bool, str]:
+    """(refuse?, why) for one loopback request.
 
     Cheap when no agent runs (one job query). While one does, a process that
     cannot be asked counts as an agent -- the console's own browser can always
     be asked, so failing closed costs nothing real.
     """
     if not agents_running():
-        return False
+        return False, ""
     if method in ("GET", "HEAD") and _READ_OK.match(path):
-        return False
+        return False, ""
     if not client_port or not server_port:
-        return True
+        return True, "no client port"
     pid = client_pid(client_port, server_port)
     if pid is None:
-        return False    # no such connection any more: nobody to answer
-    return in_job(pid) is not False
+        return False, ""    # no such connection any more: nobody to answer
+    member = in_job(pid)
+    if member is False:
+        return False, ""
+    return True, f"pid {pid} " + ("is in the agents' job" if member else "cannot be asked")
+
+
+def refuse(method: str, path: str, client_port: int | None, server_port: int | None) -> bool:
+    return decide(method, path, client_port, server_port)[0]

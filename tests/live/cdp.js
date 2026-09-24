@@ -55,7 +55,7 @@ async function launch() {
 
 async function connect() {
   await launch();
-  // Close every stray page first. file:// is ONE origin, so a page left over
+  // Close every stray page first. The console is ONE origin, so a page left over
   // from an earlier run shares this one's localStorage -- and MAGI reconnects
   // on a backoff timer, so that stale page keeps writing tokens underneath the
   // test. Cost an hour to find; never share the browser with a previous run.
@@ -88,7 +88,63 @@ async function connect() {
   };
   const send = (method, params = {}) =>
     new Promise((res) => { const i = ++id; pending.set(i, res); ws.send(JSON.stringify({ id: i, method, params })); });
+  await servePagesFromWorkingCopy(ws, send);
   return { ws, send };
+}
+
+// The console the way it really runs -- on https://anthonyn99.github.io,
+// talking to the engine on 127.0.0.1 -- but with THIS working copy's files.
+// Every request under PAGES is answered from the repository on disk (when the
+// file exists there), so the page is the one being tested, and its origin is
+// the one the engine allows. Until Phase 14 the tests opened magi.html as
+// file://; its Origin is "null", which the engine now refuses because any
+// website can produce it too (see "Who may drive the engine" in docs/magi.md).
+const PAGES = 'https://anthonyn99.github.io/A1/';
+const PAGES_URL = PAGES + 'magi.html';
+const A1 = path.resolve(__dirname, '..', '..');
+const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
+  '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon' };
+
+// On the real origin, App Check could succeed where file:// never could, and a
+// test must NEVER reach the real Firestore. So the Firebase SDK, every Google
+// API and reCAPTCHA are refused at the network: the page sees a failed load,
+// exactly as it did from file://. (magi-sync.live.js puts a fake Firestore
+// behind the real listener itself.)
+const BLOCK = ['https://www.gstatic.com/firebasejs/*', 'https://*.googleapis.com/*',
+  'https://www.google.com/recaptcha/*', 'https://www.recaptcha.net/*'];
+
+async function servePagesFromWorkingCopy(ws, send) {
+  ws.addEventListener('message', (ev) => {
+    const m = JSON.parse(ev.data);
+    if (m.method !== 'Fetch.requestPaused') return;
+    const { requestId, request } = m.params;
+    if (!request.url.startsWith(PAGES)) {
+      send('Fetch.failRequest', { requestId, errorReason: 'BlockedByClient' });
+      return;
+    }
+    const rel = decodeURIComponent(new global.URL(request.url).pathname.slice('/A1/'.length)) || 'index.html';
+    const file = path.resolve(A1, rel);
+    if (!file.startsWith(A1 + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
+      send('Fetch.continueRequest', { requestId });
+      return;
+    }
+    send('Fetch.fulfillRequest', {
+      requestId, responseCode: 200,
+      responseHeaders: [
+        { name: 'Content-Type', value: (TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream') + '; charset=utf-8' },
+        { name: 'Cache-Control', value: 'no-store' },
+      ],
+      body: fs.readFileSync(file).toString('base64'),
+    });
+  });
+  await send('Fetch.enable', { patterns: [PAGES + '*', ...BLOCK]
+    .map((urlPattern) => ({ urlPattern, requestStage: 'Request' })) });
+  // A public page reaching 127.0.0.1 needs Local Network Access -- a prompt
+  // in a real browser (Tony allowed it once), refused outright when headless.
+  // The permission's name has moved between versions; grant each one known.
+  for (const p of ['localNetworkAccess', 'localNetwork', 'loopbackNetwork']) {
+    await send('Browser.grantPermissions', { origin: 'https://anthonyn99.github.io', permissions: [p] });
+  }
 }
 
 async function evalJs(c, expr) {
@@ -115,4 +171,4 @@ const SHOTS = path.join(os.tmpdir(), 'magi-live-shots');
 fs.mkdirSync(SHOTS, { recursive: true });
 const shotPath = (name) => path.join(SHOTS, name + '.png');
 
-module.exports = { connect, evalJs, sleep, PORT, shotPath, SHOTS };
+module.exports = { connect, evalJs, sleep, PORT, shotPath, SHOTS, PAGES_URL };

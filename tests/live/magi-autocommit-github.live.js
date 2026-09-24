@@ -25,8 +25,9 @@ const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
-// Served by the engine: since Phase 14 a file:// page (Origin "null") is refused.
-const URL = 'http://127.0.0.1:8000/';
+// The Pages console, served from this working copy (cdp.js): since Phase 14 a
+// file:// page (Origin "null") is refused by the engine.
+const URL = require('./cdp.js').PAGES_URL;
 const API = 'http://127.0.0.1:8000/api/code';
 const PID = 'proj_d8cd09a0b659';
 const OURS = 'C:\\Users\\antho\\Desktop\\magi-push-test';

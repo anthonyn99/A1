@@ -9,15 +9,15 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-09-24, end of the Phase 13 session.
-**Phases complete:** 1–13, plus **11B** (model selection, usage credits, caps).
-**Next phase:** **14 — Hardening + A1 writable** (design in §8; first
-concrete steps at the end of this §0). **Its second half needs Tony's
-explicit go-ahead** — the hardening sweep does not.
+**Last updated:** 2026-09-24, end of the Phase 14 (first half) session.
+**Phases complete:** 1–13, **11B**, and **14a** (the hardening sweep).
+**Next phase:** **14b — A1 writable**. It is **blocked on Tony's decisions**
+(see "Waiting on Tony"); do not start it without them. After it, 15.
 
 > **To start the next phase, the whole instruction is "continue" or "next
-> phase".** Do the start-of-session checklist, then build Phase 14 from the
-> steps below. Everything needed is in this file.
+> phase".** Do the start-of-session checklist, then check "Waiting on Tony"
+> for his A1 answers. With them, build 14b from the steps at the end of this
+> §0; without them, ask. Everything needed is in this file.
 
 ### The road from here (agreed with Tony 2026-09-21; 11B added 2026-09-24)
 
@@ -29,7 +29,8 @@ One phase per session.
 | ~~11B~~ | ~~Models, credits, Auto, caps~~ | **done 2026-09-24** | | |
 | ~~12~~ | ~~Auto Commit / Auto Push~~ | **done 2026-09-24** | | |
 | ~~13~~ | ~~Firebase sync of Code Mode state~~ | **done 2026-09-24** | | |
-| 14 | Hardening + A1 writable | Regression + security sweep, docs; then open A1 to write/commit/push carefully (shared with live sessions + auto-commit hook) | High | 1–2 (needs Tony's go-ahead for A1) |
+| ~~14a~~ | ~~Hardening sweep~~ | **done 2026-09-24** | | |
+| 14b | A1 writable | Open A1 to write/commit/push carefully (shared with live sessions + auto-commit hook) | Medium | 1 (needs Tony's answers) |
 | 15 | Veda's engine | `magi onboard --profile veda` on her PC, her logins + GitHub account, isolation check. Nothing new to build: 11B is per-profile already (see "Ready for Veda's PC") | Low (an install) | < 1 (needs Veda) |
 
 ### Start-of-session checklist (do these in order)
@@ -45,7 +46,7 @@ One phase per session.
    import fails.
 5. Baseline the tests before touching anything. **Run pytest from `magi/`
    over the whole folder** — `cd magi; .venv\Scripts\python -m pytest tests -q`
-   (≈960). From the A1 root, `test_morning_run.py` fails to collect (it
+   (≈1120). From the A1 root, `test_morning_run.py` fails to collect (it
    imports `tests.test_completion`); a single file runs fine from the root
    (`python -m pytest magi/tests/test_x.py`). Node: `node tests/run-all.js`
    (49 suites). Both must be green; if not, fix that first.
@@ -70,7 +71,7 @@ One phase per session.
 7. Tell Tony the phase is done, what to test, and that a fresh session can
    pick up from here.
 
-### What exists (as of Phase 13)
+### What exists (as of Phase 14a)
 
 * **Profiles** Tony/Veda: gate = lock + picker (`MAGI_PROFILES`, `lsKey()`),
   Firestore `dashboards/magi` vs `dashboards/magi_veda`, favourite star.
@@ -171,6 +172,25 @@ One phase per session.
     (`codeChainTouched`, `lsKey("code.chainAt")`). `cloudCountWrites` logs
     every write to `CLOUD.writeLog`. **Decided: 11B's model choices/caps do
     NOT sync** (per engine, per PC's CLIs).
+  - **Hardening (Phase 14a)** — `docs/magi.md` "Who may drive the engine".
+    `magi/agent_guard.py`: every agent CLI is put in ONE Windows job at
+    launch (`_proc.Stream` → `adopt`); while the job has processes, each
+    loopback `/api/` request is traced (TCP table, ESTABLISHED rows only →
+    owning PID → `IsProcessInJob`) and refused 403 if it came from the job,
+    except GETs matching `_READ_OK` (the MCP server's `/projects/<id>/repo…`);
+    refusals print `[agent_guard] 403 …` to the engine log. `app.py`:
+    `_foreign_origin` refuses any `Origin` not allow-listed and not the
+    request's own host (CSRF + sandboxed-iframe "null"); `"null"` dropped
+    from `_allowed_origins` (`MAGI_ALLOWED_ORIGINS=null` restores it);
+    `/docs` `/redoc` `/openapi.json` off. `security.check_path` re-asks the
+    deny-list about the RESOLVED path (8.3 names); `sandbox.apply` re-runs
+    `security.review` at approval (`how: "refused"` → a `refused` event).
+    `sync.incoming`: `_ID`, `MAX_PROJECTS/MAX_DELETED` (500), `ts()` takes
+    OSError/OverflowError and refuses > 1 day ahead (mirrored in
+    `codeSyncMerge`). `git.Auth.config` pins `http.sslVerify=true`.
+    `__main__._safe_stdio` (serve crashed on a cp1252 stdout). Tests:
+    `test_route_gate.py` (walks every route), `test_agent_guard.py`,
+    `test_cli_stdio.py`, `tests/live/magi-guard.live.js`.
 
 ### Ready for Veda's PC (the 11B completion requirement)
 
@@ -186,6 +206,43 @@ in the slots from Accounts, add her GitHub token, then open Code Mode — the
 model row fills itself.
 
 ### Hard-won facts (verified live — do not re-learn them)
+
+* (14) **Codex's Windows sandbox does NOT keep a shell off 127.0.0.1** —
+  read-only or workspace-write, `network_access=false` or `true`
+  (`codex sandbox -c sandbox_mode=… -- powershell Invoke-WebRequest
+  127.0.0.1:8000` → 200). `windows.sandbox=elevated` needs an admin setup
+  helper (failed here). Disabling `shell_tool`/`unified_exec` stops it but
+  leaves Codex BLIND (it reads files through the shell: a real task came back
+  "no changes") — so the fix lives in the engine (agent_guard), not in Codex.
+  In read mode Codex's own command policy happened to refuse `curl`; not a
+  boundary.
+* (14) A Windows **job** follows every descendant, even orphans (a parent-PID
+  walk loses those), and Codex's sandboxed children stay in it. The venv's
+  `python.exe` is a LAUNCHER that runs the real interpreter as a child — so
+  "the PID I started" is not the PID holding the socket; ask the job.
+* (14) `GetExtendedTcpTable` has many **PID 0** rows (TIME_WAIT); match
+  ESTABLISHED rows with a real PID only.
+* (14) Python's `tempfile.mkdtemp` sets an **owner-only ACL** on Windows:
+  Codex's restricted sandbox user gets "Access is denied" reading it. Test
+  folders for real agents: `mkdir` under `%TEMP%\magi-sandbox`.
+* (14) **Live tests open the console as the Pages URL served from the working
+  copy** (`cdp.js`: `Fetch` interception of `https://anthonyn99.github.io/A1/*`
+  → files on disk; Firebase SDK, `*.googleapis.com` and reCAPTCHA refused so a
+  test can never reach real Firestore). Headless Chromium refuses a public
+  page's request to 127.0.0.1 (**Local Network Access**) until
+  `Browser.grantPermissions {permissions:["localNetworkAccess"]}`. The page
+  the engine serves itself (`http://127.0.0.1:8000/`) is NOT a substitute:
+  `sameOrigin` → no cloud sync at all (App Check), different connect path.
+* (14) Claude `--restricted` ignores a workspace's `.claude/settings*.json`
+  (hooks, permissions), project skills and `.mcp.json` (verified with a
+  hostile workspace) — but the USER's skills still appear in `init.skills`;
+  harmless with no Skill tool in `--tools`.
+* (14) `magi serve` died at start with stdout not a UTF-8 console (`→` in a
+  print; the veda engine in `magi-models.live.js` never came up). Fixed in
+  `__main__._safe_stdio`.
+* (14) The first sweep's `magi-autocommit-github` failures ("No agent could
+  take this" in 3 s, twice) did not recur in two later runs; unexplained, a
+  CLI auto-update in progress is the best guess. Watch for it.
 
 * (13) **The console has NO other writer of project prefs than the engine
   routes** — `/prefs` is not called by the console at all; the Auto sheet
@@ -293,6 +350,9 @@ model row fills itself.
 * No secrets in code; credentials stay on the engine machine. Tokens never in
   a response, a log, Firestore, `.git/config`, argv or an env var — and never
   in an agent's reach (the MCP tools ask the engine).
+* **Agents never drive the engine.** Every agent CLI starts through
+  `_proc.Stream` (so `agent_guard.adopt` puts it in the job). A new way of
+  starting an agent process that skips `Stream` is a hole.
 * Firestore: one listener, debounced dirty-flag writes, nothing written while
   work is in flight.
 * Clean on desktop AND phone (test at 390px).
@@ -325,13 +385,31 @@ model row fills itself.
   `run` (a real task with Fable chosen and credits off → Auto's pick),
   `veda` (a second engine on :8001). Restores every setting in `finally`.
   `LIVE_ONLY=row,auto,sheet,caps,toast,phone,run,veda`.
-* The page is opened as `file:///…/magi.html`; Firebase is stubbed off and
-  `/auth/journal/status` is stubbed to "no lock" so the profile opens.
+* `tests/live/magi-guard.live.js` — Phase 14: a real Codex write task told to
+  curl the engine gets 403 (in the diff, then denied), Codex still edits in
+  the job, a non-agent request passes mid-task; a Codex read task; Origin
+  refusals. Two small Codex requests. `LIVE_ONLY=write,read,origin`.
+* The page is opened as **`PAGES_URL`** (`cdp.js`), served from the working
+  copy (see the (14) facts); `/auth/journal/status` is stubbed to "no lock"
+  so the profile opens. Not `file://` any more: the engine refuses Origin
+  `null`.
+* The whole sweep: every `tests/live/*.live.js`, then `LIVE_ONLY=diagnose`
+  on magi-repo and `LIVE_ONLY=run,veda` on magi-models. All green
+  2026-09-24.
 
 ### Waiting on Tony
 
-* **Nothing blocks the hardening half of Phase 14.** Opening A1 to writes
-  (its second half) needs Tony's explicit go-ahead — ask before step 4 below.
+* **Phase 14b is blocked on Tony's answers** (asked 2026-09-24, end of 14a):
+  1. Open A1 to Code Mode **writes** (sandbox → diff → approve → apply) at
+     all?
+  2. Commits from Code Mode in A1: allowed as a manual **Commit these files**
+     next to the Stop hook's `auto:` commits, or leave committing to the hook?
+  3. Pull-before-work in A1: stay **fetch-only**, or a real
+     `pull --rebase --autostash`?
+  4. Push from Code Mode in A1: allowed, or left to the hook?
+  Auto commit stays off for A1 whatever the answers (locked in `guard_prefs`).
+* **Local `file://` copies of magi.html no longer reach the engine** (Phase
+  14a). Use `http://127.0.0.1:8000/` or the Pages URL. Tony was told.
 * Try when convenient (Phase 13): open Code Mode on the Pages URL on two
   devices, switch Auto commit on for a non-A1 project on one — the other's
   pill follows within a second or two; finish a task on the PC — it appears
@@ -345,29 +423,32 @@ model row fills itself.
 * Phase 15 needs Veda for her sign-ins (see "Ready for Veda's PC"); her
   profile's `code` field lives on `dashboards/magi_veda` and needs nothing.
 
-### Phase 14 — first concrete steps for the next session
+### Phase 14b — first concrete steps for the next session
 
-Design: Phase 14 in §8, and §3 (security) / §10 (risks). Two halves; do the
-first completely before asking about the second.
+Only with Tony's answers to the four questions in "Waiting on Tony".
 
-1. **Regression sweep.** Run every `tests/live/*.live.js` (not only this
-   phase's) against the live engine and fix what rotted; list any that need
-   a real task (`LIVE_ONLY` opt-ins) and run those once.
-2. **Security sweep** of the Code Mode surface: every `/api/code/*` route
-   behind the token (a test that walks `router.routes`), `PUT /sync` input
-   fuzzing (sizes, types, 10k projects), the MCP server's reach, askpass
-   host pinning, no token in any log/response (grep the engine logs), the
-   `security.py` path rules against symlinks/junctions on Windows.
-3. **Docs**: `docs/magi.md` read end to end against the code; the HOW panel
-   contract (`test_howitworks.py`) extended to anything still untested.
-4. **Ask Tony** before opening A1: the plan is to lift `is_engine_repo` /
-   `read_only_project` for writes ONLY (auto commit stays off for A1 — its
-   Stop hook commits), with commits made by MAGI coexisting with the hook's
-   `auto:` commits, pull-before-work switched from fetch-only to a real pull
-   only if Tony agrees. Live sessions edit A1 concurrently: the sandbox
-   apply's merge path (`applied.how === "merged"`) is what protects them —
-   test it against a file edited mid-task.
-5. End-of-phase checklist as always.
+1. **Where A1 is refused** today: `sandbox.is_engine_repo` (write tasks,
+   `routes.start_task`), `read_only_project` in the commit / push routes,
+   the console's greyed Write (`.code-rw-note`), `tasks._pull_first` (A1
+   fetch-only), `autocommit.guard_prefs` + `/auto` + `on_applied` (auto
+   commit — stays locked regardless). Lift ONLY what Tony said yes to, and
+   keep one named predicate per permission rather than one flag.
+2. **The Stop hook**: A1's `.claude/settings.json` Stop hook runs `git add -A
+   && commit && push` at the end of every interactive Claude session. A
+   Code Mode apply leaves files uncommitted in A1 → the next hook run sweeps
+   them into an `auto:` commit. If Tony wants Code Mode commits, the apply
+   → commit gap is the window where that happens; decide whether MAGI
+   commits immediately after apply for A1.
+3. **Concurrent edits**: live sessions edit A1 while a task runs; the
+   sandbox apply's merge path (`applied.how === "merged"`) must hold — test
+   it against a file edited mid-task, and a file the hook committed mid-task.
+4. **The engine edits its own code**: an approved change under `magi/` is
+   inert until a restart, and a bad one can stop the engine from starting.
+   Say so on the approval card when a diff touches `magi/`; never restart
+   automatically.
+5. Live: a real write task in A1 on a harmless file (e.g. a `docs/` note),
+   approved, coexisting with a running Claude session; the HOW panel and
+   docs updated; end-of-phase checklist.
 
 ---
 
@@ -1613,6 +1694,10 @@ program. Mitigated by one field, one existing listener, the dirty-flag guard, an
 ## Track C — Hardening and rollout
 
 ### Phase 14 — Hardening, documentation, regression sweep
+
+*Status:* **14a (hardening) done 2026-09-24** — see §0 "What exists" and
+docs/magi.md "Who may drive the engine". **14b (A1 off `plan`) waits on
+Tony** (§0 "Waiting on Tony").
 
 *Files:* `docs/magi.md`, the `HOW` array ([magi.html:5006](magi.html#L5006)), `magi/tests/*`, `tests/*`.
 

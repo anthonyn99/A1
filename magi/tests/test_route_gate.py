@@ -152,8 +152,8 @@ def test_the_middleware_asks_the_agent_guard_on_loopback(client, monkeypatch):
     that its answer is acted on, with the request's own ports."""
     from magi import agent_guard
     seen = []
-    monkeypatch.setattr(agent_guard, "refuse",
-                        lambda m, p, c, s: seen.append((m, p, c, s)) or True)
+    monkeypatch.setattr(agent_guard, "decide",
+                        lambda m, p, c, s: seen.append((m, p, c, s)) or (True, "test"))
     r = client.post("/api/code/tasks/x/approve", headers=LOCAL, json={})
     assert r.status_code == 403 and "coding agent" in r.text
     assert seen and seen[0][:2] == ("POST", "/api/code/tasks/x/approve") and seen[0][2]

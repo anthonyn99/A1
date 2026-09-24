@@ -265,10 +265,13 @@ change. It repaints when the engine's state changes: discovery finishes
 after the first paint, so without that it sat on "offline" while the sidebar
 three inches away said the engine was running on this PC.
 
-**What exists today**: the mode, the workspace registry, the agent chain, and
-tasks that **read**. Writes, git and GitHub land in later phases, in that
-order, so the part that can change files is the last thing switched on and
-the first thing tested.
+**What exists today** (Phase 14): the mode, the workspace registry, the
+agent chain, read tasks, write tasks you approve as a diff, local git, GitHub
+(push, the Repository panel, the Actions watch), model choice and caps, auto
+commit/push, and sync across devices. **A1 itself is still read-only** to
+Code Mode: opening it to writes is the second half of Phase 14 and waits on
+Tony. Who may drive the engine at all is at the end of this chapter
+(*Who may drive the engine*).
 
 `tests/magi-codemode.test.js` pins the split; the behaviour is proved in a
 real browser over CDP.
@@ -296,7 +299,8 @@ GET  /api/code/projects/{id}/skeleton     its shape, cached
 POST /api/code/resolve                    "work on A1" -> which project
 ```
 
-**Nothing in this phase writes into a project or runs a command.**
+Registering, binding and browsing never write into a project or run a
+command.
 
 #### Choosing a folder
 
@@ -316,9 +320,8 @@ is running inside is a class of problem best not opened). Each refusal names
 its cause: "invalid path" sends you to check the spelling of a path that is
 spelled correctly.
 
-This is not the containment. That is the agent's `cwd` plus a `PreToolUse`
-hook that resolves every path argument, and it arrives with the phase that
-can actually write.
+This is not the containment. That is the sandbox copy every write task runs
+in and `security.review` of its diff (*Write mode*, below).
 
 #### The fingerprint
 
@@ -359,7 +362,7 @@ interface (`magi/code/agents/base.py`), and no third kind that bills:
 environment, so a key that happens to be set on the machine cannot quietly
 turn a free task into a billed one. Claude signs in with `--claudeai` (the
 subscription), never `--console` (API billing). Codex works on a **free**
-ChatGPT account, inside its 5-hour and weekly limits.
+ChatGPT account, inside its one 30-day window (Plus has 5 h + weekly).
 
 **Accounts are slots.** Each CLI agent keeps each login in its own folder —
 `magi/profiles/<profile>/cli/<agent>-<slot>/`, pointed at by
@@ -434,12 +437,11 @@ ticks and order are this browser's own (`magi.<profile>.code.units`,
 Grok on the council and not on your code.
 
 **Pull before you work.** A1 is edited by two people on different machines,
-so work begun against a stale tree is work that gets redone. From the
-local-git phase every task in a repository with a remote starts with
-`git pull --rebase --autostash` and says in the transcript what came down; a
-tree it cannot pull cleanly stops the task rather than starting quietly on
-stale files. Until then the rule is manual, and it applies to anything
-editing the repo, not only Code Mode.
+so work begun against a stale tree is work that gets redone. Every task in a
+repository with a remote starts with `git pull --rebase --autostash` and says
+in the transcript what came down; a tree it cannot pull cleanly stops the
+task rather than starting quietly on stale files. A1 is only fetched (*Git*,
+below).
 
 **What hands a task on:** only a failure another agent could fix — a usage
 limit, a signed-out account, a missing or crashed CLI. **Not** a task
@@ -470,8 +472,9 @@ council run: the desk and the phone can watch the same task, and a reload
 replays the whole transcript (the console remembers the watched task per tab
 in `sessionStorage`). Tasks live in memory; an engine restart ends them and
 the console says so rather than showing one busy forever, and `/api/restart`
-refuses while one is running. **Nothing about a task is written to
-Firestore.**
+refuses while one is running. **Nothing about a running task is written to
+Firestore**; when it ends, one row and one body document are (*Code Mode
+across your devices*, below).
 
 `magi/tests/test_code_agents.py` pins the parsers against recorded event
 streams, the chain's hand-off rules, the environment scrubbing and the slot
@@ -512,7 +515,10 @@ your folder ──git stash create──► worktree in %TEMP%\magi-sandbox\<pro
   workspace-write is silently read-only on Windows), temp-dir exemptions off
   and network off. Tested live: a write to `%USERPROFILE%` or `%TEMP%` is
   denied. Codex keeps its shell, because that is how it reads files, but only
-  inside that OS sandbox. Browser units answer in a fixed format
+  inside that OS sandbox -- and **that sandbox does not keep it off
+  127.0.0.1** (found in Phase 14: `network_access=false` is not enforced on
+  loopback, in read or write mode). The engine refuses it instead; see *Who
+  may drive the engine*. Browser units answer in a fixed format
   (`magi/code/agents/edits.py`): one fenced code block per change, holding
   `FILE:` + `<<<<<<< SEARCH` / `=======` / `>>>>>>> REPLACE`. It has to be
   fenced because MAGI reads the reply from the rendered page, and outside a
@@ -523,10 +529,16 @@ your folder ──git stash create──► worktree in %TEMP%\magi-sandbox\<pro
   Windows device names. Checked against the *real* folder, no path may pass
   through a link that points outside. The deny-list is `.git/`, `.ssh/`,
   `.gnupg/`, `.aws/`, `.azure/`, `.claude/`, `.codex/` (a planted hook there
-  runs next task), and env, key and credential files. Symlinks and
-  submodules are refused. Over 2 MB or 300 files is refused with a
+  runs next task), and env, key and credential files. The deny-list is also
+  asked about the name Windows actually opens: an **8.3 short name** is the
+  same folder (`CLAUDE~1` is `.claude`, `GIT~1` is `.git`), and
+  `CLAUDE~1/settings.json` passed every by-name rule until Phase 14. Symlinks
+  and submodules are refused. Over 2 MB or 300 files is refused with a
   sentence, never truncated. **One bad file refuses the whole diff**, and
-  you are not asked.
+  you are not asked. The review runs **again at approval**, against the
+  folder as it is then: the card can wait five minutes, and a junction made
+  meanwhile must not carry an approved path elsewhere (a `refused` event,
+  nothing written).
 - **Approval** is an `approval` event on the stream: per-file diffs, `+/−`
   counts and a deadline. Any device watching the task can answer, and the
   first answer wins (`tasks.decide`). Only an explicit `true` approves.
@@ -542,8 +554,8 @@ your folder ──git stash create──► worktree in %TEMP%\magi-sandbox\<pro
 - **Refused for now:** a folder that is not a git repository (with a
   sentence saying to `git init`), a repository with no commits, and **A1
   itself**, MAGI's own repository. Both the engine (`read_only_project`) and
-  the console (Write greyed out with the reason) refuse A1 until the
-  hardening phase.
+  the console (Write greyed out with the reason) refuse A1 until Tony opens
+  it (the second half of Phase 14).
 
 In the console, **Read / Write** sits under the agent chips. Every task
 starts in Read, and the switch falls back to Read once a task starts, so
@@ -653,6 +665,7 @@ feed a sentinel token through every path and grep for it. Use a
 ```
 Push (card or line) ─► git fetch ─► behind? refuse ─► git push <remote> refs/heads/B:refs/heads/B
       │  -c credential.helper=   (GCM and every other helper cleared)
+      │  -c http.sslVerify=true  (a repo's own sslVerify=false cannot expose the token)
       │  GIT_ASKPASS=data/<p>/github/askpass.sh ─► pythonw magi/github/askpass.py
       │        answers ONLY for the account's host, reads the token from the
       │        credential store at that moment, prints it to git's pipe
@@ -661,7 +674,10 @@ Push (card or line) ─► git fetch ─► behind? refuse ─► git push <remo
 ```
 
 - **Which account.** Each project names one GitHub login (`prefs.github`),
-  chosen by tapping the **Repository** pill (`owner/repo`, parsed from the
+  chosen in the GitHub sheet: from the Repository panel's header on a
+  github.com remote (the pill opens the panel since Phase 11), from
+  **Choose account to push** on the repository line when none is set, or
+  from the pill itself on any other host (`owner/repo`, parsed from the
   remote URL with any userinfo stripped). The sheet says whether that
   account can see the repository (`GET /repos/{o}/{r}`) and whether it may
   push — asked of **git**, not REST (`git.can_push`: `git push --dry-run` to a
@@ -682,7 +698,8 @@ Push (card or line) ─► git fetch ─► behind? refuse ─► git push <remo
   token is only offered to the host that issued it (`wrong_host`, and
   askpass itself refuses any other host, and plain http except loopback).
   Local-path and SSH remotes push with the machine's own access.
-- **A1 is never pushed from Code Mode** (`read_only_project`) until Phase 14.
+- **A1 is never pushed from Code Mode** (`read_only_project`) until Tony opens
+  it (the second half of Phase 14).
 - Failures are sentences: `behind`, `auth_refused` (needs Contents: Read and
   write, or expired), `not_found` (a fine-grained token only sees the repos you
   picked), `protected`, `hook` (your pre-push hook said no).
@@ -1040,6 +1057,13 @@ is the only source of projects the console writes, and it has no path in it.
   **A1's auto commit stays off whatever a synced document says**. Binding a
   project that arrived from the cloud re-guards its prefs against the real
   folder.
+* The document is written by browsers, so its shape is input (Phase 14):
+  ids must look like the engine's (`proj_…`), one body is read up to 500
+  projects and 500 tombstones, any unreadable time loses (Windows raised
+  `OSError` on a naive year-1 or year-9999 time: a 500 that stopped every
+  later reconcile), and a time **more than a day ahead** of the engine's
+  clock counts as unreadable -- otherwise one bad copy would win every
+  reconcile forever. The console's `codeSyncMerge` applies the same rule.
 
 **Console** (`magi.html`, "CODE MODE, ACROSS YOUR DEVICES"):
 
@@ -1068,8 +1092,77 @@ in-page fake Firestore behind the real listener): seeding an empty cloud = 1
 write; one Auto switch = 1; ten rapid chain toggles = 1; a rename from
 another device = 0 writes back (the engine takes it); a 400-event task = **0**
 until it ends, then 1 index write + 1 body; one listener throughout. Tests:
-`magi/tests/test_code_sync.py` (22), `tests/magi-code-sync.test.js` (41, the
-real functions in a VM with fake timers; 7 mutants checked across both).
+`magi/tests/test_code_sync.py` (49), `tests/magi-code-sync.test.js` (43, the
+real functions in a VM with fake timers; 13 mutants checked across both).
+
+#### Who may drive the engine (Phase 14)
+
+The engine drives logged-in accounts and can write, commit and push. Who may
+send it a request:
+
+| Caller | Allowed? | Enforced by |
+|---|---|---|
+| Anything over the tunnel | only with the token | `_require_token` (every `/api/` route; `test_route_gate.py` walks them all) |
+| A process on this PC, on 127.0.0.1 | yes, no token | `_arrived_over_the_tunnel`: anything here could read the token anyway |
+| ...that is a **coding agent**, or anything it started | **no** (403), except the GitHub MCP server's GETs under `/projects/<id>/repo` | `magi/agent_guard.py` |
+| A browser page from **another origin** | **no** (403), before anything runs | `_foreign_origin` |
+| The Pages console, or the page the engine serves | yes | the allow-list / same origin |
+
+**Why agents are refused.** Codex keeps a shell, and its Windows sandbox
+reaches 127.0.0.1 whatever its network setting (verified live, read and write
+mode). With loopback trusted, a prompt-injected task could have read the
+state, approved its own diff or pushed. Every agent CLI now starts inside a
+**Windows job object**; the job follows every process it starts, however
+deep, even after the parent exits. While one is running, each loopback
+`/api/` request is traced to the process that opened the connection (the TCP
+table's owning PID) and refused if that process is in the job. When no agent
+runs this costs one job query. Verified live (`tests/live/magi-guard.live.js`):
+a Codex write task told to curl `/api/code/state` got `403 not from a coding
+agent's process`, Codex still made its edit inside the job, and a request
+from outside the job went through mid-task.
+
+**Why a foreign Origin is refused outright.** CORS decides who may *read* an
+answer; a "simple" POST is **sent** either way, so any site you visit could
+have fired one at 127.0.0.1. Browsers always attach `Origin` to cross-origin
+requests and a page cannot forge it, so the engine refuses any origin that is
+neither allow-listed (`https://anthonyn99.github.io`, plus
+`MAGI_ALLOWED_ORIGINS`) nor the request's own host. DNS rebinding does not
+get past that: a rebound host is not loopback, so the token gate applies.
+**`null` is no longer allowed.** It let `file://` pages in, but any website
+can produce Origin `null` from a sandboxed iframe. To try a local change,
+open **<http://127.0.0.1:8000/>**: the engine serves the working copy of
+`magi.html` there.
+
+**What each agent can touch**:
+
+| Agent | Tools | Files | The engine |
+|---|---|---|---|
+| Claude CLI | Read/Glob/Grep (+ Edit/Write in write mode), no shell, no web; `--restricted` | the sandbox copy only | its MCP server's repo GETs, nothing else |
+| Codex CLI | its shell, inside its OS sandbox; off-machine features disabled | the sandbox copy (writes elsewhere denied) | refused |
+| Browser units | none: MAGI applies their SEARCH/REPLACE edits | the sandbox copy, every path checked | never touches it |
+
+Every change then goes through `security.review` twice and your approval.
+**A hostile repository does not reconfigure an agent**. Verified live with a
+workspace carrying `.claude/settings.json` (hooks on every event,
+`bypassPermissions`, Bash allowed), `.claude/settings.local.json`, a project
+skill, a `.mcp.json` server and a `CLAUDE.md` telling it to curl the engine:
+no hook fired, no server started, the skill never loaded, and the tools were
+exactly the fixed list.
+
+**Still open, knowingly**: a process started *outside* the job on an agent's
+behalf (a scheduled task, WMI) is not traced. That takes a shell, so only
+Codex has one, and its sandbox cannot create either. Secrets were searched
+for on this PC (the API token and the GitHub token, across `magi/data`,
+`magi/profiles`, the sandbox and screenshot folders, and A1's last 400
+commits): not found anywhere. `/docs`, `/redoc` and `/openapi.json`, which
+sat outside `/api/` and so outside the gate, are switched off.
+
+Tests: `magi/tests/test_route_gate.py` (every route through the real
+middleware: token, Origin, the guard's wiring), `test_agent_guard.py` (real
+processes and sockets: an adopted process, the MCP door, a non-agent let
+through, an orphaned grandchild), `test_code_security.py` (8.3 names),
+`test_code_sandbox.py` (the approval-time review), `test_code_sync.py`
+(hostile copies), `tests/live/magi-guard.live.js`.
 
 ---
 
@@ -1290,6 +1383,11 @@ this order:
 Cases 2 and 3 need the API token (below). The console's bottom-left status
 shows which one it landed on, and says plainly when it found nothing.
 
+`magi.html` opened **from disk** (`file://`) no longer reaches the engine
+(Phase 14: its Origin is `null`, which any website can also produce). Open
+<http://127.0.0.1:8000/> instead, which serves the same working copy. If you
+really want `file://`, set `MAGI_ALLOWED_ORIGINS=null`.
+
 **The PC must be awake and logged in.** A webpage cannot start anything on this
 machine — opening the console while the PC is asleep cannot wake it, and every
 run will fail.
@@ -1330,7 +1428,9 @@ engine's own copy to a loopback caller and 404s over the tunnel, so the console
 learns it from the engine and publishes it. That endpoint adds no exposure —
 anything that can reach it can already `POST /api/runs` and drive four
 logged-in paid accounts, which is strictly worse than reading the string that
-authorises exactly that.
+authorises exactly that. Two local callers are refused all the same, this
+endpoint included: a page from another origin, and a coding agent's process
+(*Who may drive the engine*).
 
 **The field in the setup sheet is read-only until you unlock it.** It holds 43
 opaque characters and one stray keystroke takes the console offline with no
@@ -1385,6 +1485,24 @@ it is about cloudflared **binding a socket that is not loopback**:
 | `--no-autoupdate` | cloudflared replacing its own binary underneath the firewall rules is one of the few ways a settled prompt comes back. |
 
 ---
+
+## After changing the engine: restart it
+
+The engine is a logon process (`MAGI.lnk` → `pythonw -m magi cloud`) that
+loads its Python **once**, at start. Any change under `magi/` does nothing
+until it restarts, and a browser refresh does not restart it. Two ways:
+
+- `powershell -ExecutionPolicy Bypass -File magi\restart.ps1` (`-Force` to
+  interrupt a deliberation). It keeps cloudflared running, so phones keep the
+  same address, and it waits until 127.0.0.1:8000 answers.
+- **Restart engine** in the console's engine sheet (tap the status row at the
+  bottom of the sidebar; `POST /api/restart`): local only
+  (404 over the tunnel), and refused while a run, a Studio card or a Code
+  Mode task is in flight unless forced.
+
+Whoever changes the engine restarts it and re-checks it live. Handing the
+restart back to someone else is how a fix sits on disk while the old code
+keeps running.
 
 ## "How it works", inside the app
 
@@ -1871,6 +1989,7 @@ back to the slow browser path.
 | `magi/config/magi.yaml` | pacing, which members are enabled, who chairs, artifact settings |
 | `magi/.env` | `GEMINI_API_KEY` for Refine (gitignored) |
 | `MAGI_API_TOKEN` | env var; gates `/api/*` (see above) |
+| `MAGI_ALLOWED_ORIGINS` | env var; extra origins the engine answers, comma separated (`null` lets a `file://` page in; see *Who may drive the engine*) |
 
 The two YAML files are deliberately **not** merged. Selectors are what break
 when a site ships a redesign, and the person fixing them at 1am should not have

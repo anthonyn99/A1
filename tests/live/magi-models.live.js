@@ -30,8 +30,9 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 
-// Served by the engine: since Phase 14 a file:// page (Origin "null") is refused.
-const URL = 'http://127.0.0.1:8000/';
+// The Pages console, served from this working copy (cdp.js): since Phase 14 a
+// file:// page (Origin "null") is refused by the engine.
+const URL = require('./cdp.js').PAGES_URL;
 const API = 'http://127.0.0.1:8000/api/code';
 const A1 = path.resolve(__dirname, '..', '..');
 const A1_PID = 'proj_60d8f14fbc1c';

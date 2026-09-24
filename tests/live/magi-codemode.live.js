@@ -4,8 +4,9 @@
 // the transcript, Accounts' coding section. Screenshots at desktop and phone.
 const { connect, evalJs, sleep, shotPath } = require('./cdp.js');
 const fs = require('fs');
-// Served by the engine: since Phase 14 a file:// page (Origin "null") is refused.
-const URL = 'http://127.0.0.1:8000/';
+// The Pages console, served from this working copy (cdp.js): since Phase 14 a
+// file:// page (Origin "null") is refused by the engine.
+const URL = require('./cdp.js').PAGES_URL;
 const STUB = `(()=>{const real=window.fetch;window.fetch=(u,o)=>{const s=String(u&&u.url?u.url:u);
  if(s.indexOf('/auth/journal/status')>=0)return Promise.resolve(new Response(JSON.stringify({ok:true,hasLock:false}),{status:200,headers:{'Content-Type':'application/json'}}));
  if(s.indexOf('firebase')>=0||s.indexOf('googleapis')>=0||s.indexOf('gstatic')>=0)return Promise.reject(new TypeError('x'));
@@ -139,11 +140,11 @@ const waitFor = async (c, expr, ms = 20000) => {
   ok('Claude weekly is shown too', /7d used \d+%/.test(acc), (acc.match(/7d used[^·]*/) || [''])[0]);
   // Renaming a slot round-trips to the engine and back into the chips.
   await evalJs(c, 'const i=[...document.querySelectorAll(".acc-slot-name")].find(x=>x.placeholder==="codex1"); i.value="Tony free"; i.onblur(); return 1;');
-  await sleep(2000);
-  ok('the new name sticks', await evalJs(c, 'return CODE.agents.cli.find(x=>x.agent==="codex").slots[0].label === "Tony free";'));
+  // Waited for, not slept: the round trip re-reads /agents, which asks both
+  // providers for usage and takes as long as they do.
+  ok('the new name sticks', await waitFor(c, 'return CODE.agents.cli.find(x=>x.agent==="codex").slots[0].label === "Tony free";', 15000));
   await evalJs(c, 'const i=[...document.querySelectorAll(".acc-slot-name")].find(x=>x.placeholder==="codex1"); i.value=""; i.onblur(); return 1;');
-  await sleep(1500);
-  ok('and can be cleared again', await evalJs(c, 'return !CODE.agents.cli.find(x=>x.agent==="codex").slots[0].label;'));
+  ok('and can be cleared again', await waitFor(c, 'return !CODE.agents.cli.find(x=>x.agent==="codex").slots[0].label;', 15000));
   await shot(c, 'coderun-phone-accounts');
   await c.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
   await sleep(400);

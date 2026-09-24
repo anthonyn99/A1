@@ -19,8 +19,9 @@
 const { connect, evalJs, sleep, shotPath } = require('./cdp.js');
 const fs = require('fs');
 
-// Served by the engine: since Phase 14 a file:// page (Origin "null") is refused.
-const URL = 'http://127.0.0.1:8000/';
+// The Pages console, served from this working copy (cdp.js): since Phase 14 a
+// file:// page (Origin "null") is refused by the engine.
+const URL = require('./cdp.js').PAGES_URL;
 const API = 'http://127.0.0.1:8000/api/code';
 const A1_PID = 'proj_60d8f14fbc1c';
 // A real Pages deploy that failed on 2026-09-21 ("in progress deployment").

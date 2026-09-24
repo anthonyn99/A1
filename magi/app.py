@@ -233,8 +233,12 @@ async def _require_token(request: Request, call_next):
         if not _arrived_over_the_tunnel(request):
             client = request.client
             server = request.scope.get("server") or (None, None)
-            if agent_guard.refuse(request.method, request.url.path,
-                                  client.port if client else None, server[1]):
+            refused, why = agent_guard.decide(request.method, request.url.path,
+                                              client.port if client else None, server[1])
+            if refused:
+                # A refusal is a security event: on record, never silent.
+                print(f"[agent_guard] 403 {request.method} {request.url.path}: {why}",
+                      file=sys.stderr, flush=True)
                 return JSONResponse({"detail": "not from a coding agent's process"},
                                     status_code=403)
     token = _required_token()

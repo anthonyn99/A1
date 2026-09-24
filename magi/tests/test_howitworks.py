@@ -303,6 +303,29 @@ def test_the_auto_commit_claims_still_hold():
     routes = (REPO / "magi" / "code" / "routes.py").read_text(encoding="utf-8")
     assert "is_engine_repo" in routes.split("async def set_auto(")[1].split("@router")[0]
 
+def test_the_engine_guard_claims_still_hold():
+    """Phase 14: agents are refused, except the GitHub tools; foreign pages
+    are refused before anything runs; a file:// copy is not let in."""
+    import inspect
+    from magi import agent_guard as G, app as A
+    from magi.code.agents import _proc
+    assert "Coding agents cannot drive MAGI" in HOW
+    # "every agent runs in a Windows job".
+    assert "agent_guard.adopt(self.p)" in inspect.getsource(_proc.Stream.__init__)
+    # "any request from a process in that job is turned away, except
+    # Claude's read-only GitHub tools".
+    mw = inspect.getsource(A._require_token)
+    assert "agent_guard.decide(" in mw
+    assert G._READ_OK.match("/api/code/projects/p1/repo/issues/3")
+    assert not G._READ_OK.match("/api/code/tasks/t1/approve")
+    # "A web page from anywhere but MAGI's own is turned away ... before
+    # anything runs": checked first in the middleware.
+    assert mw.index("_foreign_origin(request)") < mw.index("await call_next(request)")
+    # "a copy opened straight from disk is no longer let in".
+    assert "null" not in A._allowed_origins()
+    assert "http://127.0.0.1:8000/" in HOW
+
+
 def test_the_sync_claims_still_hold():
     """Phase 13: what travels, what never does, one write per change, no
     listener of its own, nothing while a task runs, A1 still off."""
