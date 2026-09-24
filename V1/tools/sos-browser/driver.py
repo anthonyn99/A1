@@ -789,6 +789,23 @@ def groom_profile(profile: Path, *, force: bool = False) -> float:
         print(f"[driver] '{profile.name}' profile has {dumps} crash dumps — "
               f"grooming before Chrome kills another download",
               file=sys.stderr, flush=True)
+    # KEEP THE NEWEST DUMP BEFORE DELETING THE REST.
+    #
+    # Grooming runs at launch, so it deletes the dump written by the PREVIOUS
+    # run — the one piece of evidence explaining why that run died. Measured
+    # 2026-09-23: nine consecutive failures, each reporting "has 1 crash
+    # dumps", and every attempt to read one found zero, because this function
+    # had just removed it. Diagnosis was impossible by construction.
+    try:
+        reports = profile / "Crashpad" / "reports"
+        dumps = sorted(reports.glob("*.dmp"), key=lambda f: f.stat().st_mtime)
+        if dumps:
+            keep = ARTIFACTS / "last-browser-crash.dmp"
+            keep.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(dumps[-1], keep)
+    except Exception:                               # noqa: BLE001
+        pass
+
     for rel in _DISPOSABLE_PROFILE_PATHS:
         target = profile / rel
         try:
