@@ -1287,6 +1287,86 @@ async def _click_download_item(page, site: DeckSite) -> None:
     await menu["locator"].first.click()
 
 
+async def _fetch_url_to_file(jar: dict, url: str, dest: Path,
+                             *, timeout_ms: int = 300000) -> int:
+    """Download `url` straight to `dest` over HTTP, bypassing the browser UI.
+
+    ── WHY THIS EXISTS ────────────────────────────────────────────────────────
+    MEASURED 2026-09-23: deck downloads were repeatedly KILLED, not crashed —
+    no Crashpad dump, ~2.4GB free of 15.5GB (VS Code 3.4GB/22 procs, Brave
+    2.1GB/19). A deck is 12-16MB streamed through a popup and a renderer, and
+    that renderer is the first thing Windows reclaims under memory pressure.
+
+    But the browser is only needed to FIND the file. Chrome hands us the exact
+    URL in `Browser.downloadWillBegin` before a byte moves, so the transfer
+    itself can be a plain HTTP GET with no popup, no renderer and no 16MB held
+    in browser memory. That makes the download insensitive to what else is
+    open, which is the actual fix rather than asking the user to close apps.
+
+    Uses the CONTEXT's own request API, not `requests`/`aiohttp`: it shares the
+    browser's cookie jar and proxy settings, so a signed, cookie-authenticated
+    URL just works and no credential is ever copied out of the profile.
+
+    Streams to disk rather than buffering: `body()` would hold the whole deck in
+    this process, reintroducing on a smaller scale the memory problem being
+    solved.
+
+    Returns bytes written. Raises DriverError on a non-200 or a body that is not
+    a PDF, so a expired/one-shot URL fails honestly instead of saving an error
+    page as a deck.
+    """
+    # COOKIES OUT, THEN A STANDALONE CLIENT.
+    #
+    # MEASURED 2026-09-23: using `ctx.request` (the browser's own API context)
+    # failed with "Request context disposed" — the browser died mid-request and
+    # took the request context with it, which is precisely the dependency this
+    # function exists to remove. Copying the cookies into an independent HTTP
+    # client means the transfer survives the browser dying, and nothing about
+    # it competes for the renderer's memory.
+    #
+    # The cookies are read from the profile we are already driving and used for
+    # exactly one GET to the URL that profile just produced. They are never
+    # written anywhere.
+    def _blocking_get() -> tuple[int, bytes]:
+        import requests                             # local: only this path needs it
+        r = requests.get(url, cookies=jar, timeout=(30, timeout_ms / 1000),
+                         stream=True,
+                         headers={"User-Agent": headless_user_agent()})
+        chunks = []
+        # Streamed, so the deck is never held twice in memory at once.
+        for chunk in r.iter_content(chunk_size=256 * 1024):
+            if chunk:
+                chunks.append(chunk)
+        return r.status_code, b"".join(chunks)
+
+    status, body = await asyncio.get_running_loop().run_in_executor(
+        None, _blocking_get)
+    if status != 200:
+        raise DriverError(
+            "nlm_direct_http",
+            f"the deck URL answered HTTP {status}. It may be single-use or "
+            f"expired; the browser download path is still available as a "
+            f"fallback.")
+
+    if not looks_like_pdf(body[:5]):
+        # Keep the body for inspection. A wrong-content failure is a content
+        # question ("what DID it send?"), and discarding the evidence forces a
+        # whole extra run to answer it.
+        try:
+            ARTIFACTS.mkdir(parents=True, exist_ok=True)
+            probe = ARTIFACTS / f"direct-download-{time.strftime('%Y%m%d-%H%M%S')}.bin"
+            probe.write_bytes(body[:200000])
+        except Exception:                           # noqa: BLE001
+            probe = None
+        raise DriverError(
+            "nlm_direct_not_pdf",
+            f"the deck URL returned {len(body)} bytes starting {body[:16]!r} "
+            f"— not a PDF." + (f" Saved: {probe}" if probe else ""))
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_bytes(body)
+    return len(body)
+
+
 async def _download_deck(page, site: DeckSite, dest: Path) -> Path:
     """Click through to the PDF and save it where the caller asked.
 
@@ -1382,6 +1462,13 @@ async def _download_deck(page, site: DeckSite, dest: Path) -> Path:
     def _on_begin(evt):
         dl_state["guid"] = evt.get("guid")
         dl_state["state"] = "inProgress"
+        # CAPTURE THE URL. Chrome tells us exactly where the deck lives before
+        # a single byte moves, and this was being thrown away. It is what makes
+        # the browser-free download below possible: the browser's job is to
+        # FIND the file, not to carry 16MB of it through a renderer that
+        # Windows kills first when memory is short.
+        dl_state["url"] = evt.get("url") or dl_state.get("url")
+        dl_state["suggested"] = evt.get("suggestedFilename") or ""
 
     def _on_progress(evt):
         # states: inProgress | completed | canceled
@@ -1391,6 +1478,34 @@ async def _download_deck(page, site: DeckSite, dest: Path) -> Path:
 
     cdp.on("Browser.downloadWillBegin", _on_begin)
     cdp.on("Browser.downloadProgress", _on_progress)
+
+    # ALSO capture the URL from the NETWORK layer, not only from Chrome's
+    # download machinery.
+    #
+    # MEASURED 2026-09-23: with the machine low on memory the browser died
+    # roughly ONE SECOND after the download click — before
+    # `Browser.downloadWillBegin` ever fired — so a hook that waits for that
+    # event has nothing to capture and the direct path can never engage. The
+    # page issues a plain GET to the file first (measured:
+    # `contribution.usercontent.google.com/download?c=...`), and a `request`
+    # listener sees it at that moment, ahead of the transfer that does the
+    # killing.
+    #
+    # Registered on the context as well as the page, because the deck is served
+    # into a popup and the request belongs to that new target.
+    def _note_request(req):
+        try:
+            u = req.url or ""
+        except Exception:                           # noqa: BLE001
+            return
+        if "usercontent.google.com/download" in u or "/download?c=" in u:
+            dl_state.setdefault("url", u)
+
+    try:
+        page.on("request", _note_request)
+        page.context.on("page", lambda np: np.on("request", _note_request))
+    except Exception:                               # noqa: BLE001
+        pass
 
     # Also catch the popup as it is created and point IT at the same directory,
     # for builds where the browser-wide call does not reach an already-opening
@@ -1420,7 +1535,80 @@ async def _download_deck(page, site: DeckSite, dest: Path) -> Path:
             pass
     page.context.on("page", lambda np: asyncio.create_task(_route_popup(np)))
 
+    # Snapshot the cookies BEFORE the click. The browser has been measured to
+    # die within a second of the download starting, and a dead context cannot
+    # be asked for its cookies — which is what made the first version of the
+    # direct path fail with "Request context disposed".
+    cookie_jar: dict[str, str] = {}
+    try:
+        for c in await page.context.cookies():
+            if c.get("name"):
+                cookie_jar[c["name"]] = c.get("value", "")
+    except Exception:                               # noqa: BLE001
+        pass
+
     await _click_download_item(page, site)
+
+    # ── TAKE THE URL AND FETCH IT DIRECTLY ────────────────────────────────────
+    #
+    # The idea: the browser only needs to FIND the deck, not carry 16MB of it
+    # through a renderer that Windows kills first under memory pressure.
+    #
+    # ── MEASURED OUTCOME, 2026-09-23: THIS DOES NOT WORK FOR NOTEBOOKLM ───────
+    # It is kept because it is correct, cheap, and the only thing that has to
+    # change for it to start working is Google's side — but do not expect it to
+    # fire, and do not "fix" it by loosening the PDF check.
+    #
+    #   * `Browser.downloadWillBegin` never arrives: the browser dies ~1s after
+    #     the click, before Chrome announces anything. The URL is therefore
+    #     captured from the network layer instead (the page's own GET to
+    #     contribution.usercontent.google.com/download?c=...), which DOES work.
+    #   * `ctx.request.get` fails with "Request context disposed" — it dies
+    #     with the browser. Hence the standalone client and the cookie
+    #     snapshot taken before the click.
+    #   * With 37 cookies AND the browser's exact request headers replayed
+    #     (referer, sec-ch-ua, user-agent, upgrade-insecure-requests), the URL
+    #     answers 200 with 1,590,138 bytes of `text/html` — a Google
+    #     "data-page-type=ANSWER" page, not the deck. The link is bound to the
+    #     browser session and cannot be replayed out of process.
+    #
+    # So the fallback below is the real path today. If this ever starts
+    # returning a PDF, it becomes the fast, memory-proof route for free.
+    for _ in range(30):                             # ~6s, event is usually instant
+        if dl_state.get("url"):
+            break
+        await asyncio.sleep(0.2)
+
+    direct_url = dl_state.get("url")
+    if not direct_url:
+        # Say so. A silent fall-through here is indistinguishable from the
+        # direct path having been tried and failed, and the two need different
+        # fixes: no event at all means the browser died during the click (or
+        # Chrome never announced it), while a failed fetch means the URL itself
+        # is the problem.
+        print(f"[deck] no download URL was announced "
+              f"(browser alive: {not page.is_closed()}); using the browser "
+              f"transfer", file=sys.stderr, flush=True)
+    if direct_url:
+        try:
+            print("[deck] fetching the deck directly over HTTP (no browser "
+                  "transfer)", file=sys.stderr, flush=True)
+            n = await _fetch_url_to_file(cookie_jar, str(direct_url), dest)
+            print(f"[deck] direct download complete: {n} bytes",
+                  file=sys.stderr, flush=True)
+            # Stop Chrome's own copy so it cannot race us or spend memory.
+            if dl_state.get("guid"):
+                try:
+                    await cdp.send("Browser.cancelDownload",
+                                   {"guid": dl_state["guid"]})
+                except Exception:                   # noqa: BLE001
+                    pass
+            shutil.rmtree(stage, ignore_errors=True)
+            return dest
+        except Exception as e:                      # noqa: BLE001
+            print(f"[deck] direct download did not work ({str(e)[:140]}); "
+                  f"falling back to the browser transfer",
+                  file=sys.stderr, flush=True)
 
     # Wait for a COMPLETE PDF, judged by its own trailer.
     #
