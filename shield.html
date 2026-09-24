@@ -1521,7 +1521,10 @@ function _navorderListen(){ return onSnapshot(doc(db, 'dashboards/navorder'), sn
 function _lifehubListen(){
   var LH = window.LifeHub;
   if (!LH || !LH.localLinks) return false;
-  LH.configure({ openLocal: function(path, app){
+  LH.configure({ here: function(app){
+    // The desktop tile is this very window, as much as the page is.
+    return !!(app && isLocalPath(app.url) && /[\\/]shield-agent\.exe$/i.test(app.url));
+  }, openLocal: function(path, app){
     if (/[\\/]shield-agent\.exe$/i.test(path)) return true;
     if (!/\.(exe|com|bat|cmd)$/i.test(path)) return false;
     window.SH.Agent.invoke('sh_launch', { args: { items: [

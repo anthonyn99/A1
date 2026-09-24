@@ -124,7 +124,8 @@
     accentVeda: sattr('data-accent-veda') || '#A892B0',
     locked: null,     // optional fn, via LifeHub.configure
     profile: null,    // optional fn, via LifeHub.configure
-    openLocal: null   // optional fn(path, app) → true if the host launched it
+    openLocal: null,  // optional fn(path, app) → true if the host launched it
+    here: null        // optional fn(app) → true if that app IS this window
   };
 
   var VERSION = '1.3.0';
@@ -1287,6 +1288,7 @@
     t.appendChild(el('span', 'nm', a.name));
     var eb = el('span', 'eb'); eb.innerHTML = SVG_PENCIL; t.appendChild(eb);
     var here = isHere(normUrl(a.url));
+    if (!here && typeof CFG.here === 'function') { try { here = !!CFG.here(clone(a)); } catch (e) {} }
     t.classList.toggle('here', here);
     t.classList.toggle('off', !!a.hidden);
     t.title = ui.edit ? 'Edit ' + a.name : here ? a.name + ' — you are here' : a.name;
@@ -1741,6 +1743,7 @@
       if ('lock' in o) CFG.lock = o.lock;
       if ('profileAttr' in o) CFG.profileAttr = o.profileAttr;
       if ('openLocal' in o) CFG.openLocal = o.openLocal;
+      if ('here' in o) { CFG.here = o.here; Object.keys(ui.tiles).forEach(function (id) { ui.tiles[id]._sig = ''; }); render(); }
       if (o.accentVeda) CFG.accentVeda = o.accentVeda;
       if (o.accent || o.accentVeda) {
         if (o.accent) CFG.accent = o.accent;
