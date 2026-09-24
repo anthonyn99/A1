@@ -98,6 +98,7 @@ RETRYABLE_KINDS = {
     "nlm_no_download",          # the menu/trigger missed, or nothing completed
     "nlm_staging_gone",         # the landing folder was deleted mid-transfer
     "nlm_browser_gone",         # Chrome died mid-download; the deck is fine
+    "browser_oom",              # the MACHINE ran out of RAM, not a browser fault
 }
 # The subset above that is only SAFE to retry when the notebook is already
 # known. See is_retryable().
@@ -107,6 +108,10 @@ _DOWNLOAD_STAGE_KINDS = {
     # notebook this retries as a no-quota cmd_fetch; without one it would
     # REGENERATE, which is exactly what this set exists to prevent.
     "nlm_browser_gone",
+    # Same reasoning, and MORE important here: an out-of-memory kill will
+    # repeat until the machine has headroom, so a retry that regenerates would
+    # spend quota to fail identically.
+    "browser_oom",
 }
 
 

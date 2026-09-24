@@ -480,6 +480,17 @@ async def launch(pw, site, headless: bool, visible: bool = False,
     # Keep the profile healthy before Chrome opens it, not after it breaks.
     # Only safe while nothing holds the profile — deleting a live browser's
     # cache corrupts the logged-in session this whole design exists to keep.
+    # Warn BEFORE the run, not after ten minutes of it. A deck download needs
+    # headroom, and an out-of-memory kill mid-transfer is indistinguishable
+    # from a browser fault unless someone says so up front.
+    if downloads_dir is not None:
+        _ram = free_ram_mb()
+        if _ram and _ram < LOW_RAM_MB:
+            print(f"[driver] WARNING: only {_ram:.0f}MB RAM free. A deck "
+                  f"download streams 12-16MB through the browser and is "
+                  f"likely to be killed. Close some heavy apps first.",
+                  file=sys.stderr, flush=True)
+
     if not _profile_holder_pids(profile):
         try:
             groom_profile(profile)
@@ -664,8 +675,47 @@ _DISPOSABLE_PROFILE_PATHS = (
 # killed every download had 37 of them; a healthy one has none. Chrome only
 # writes a dump when a process died, so any accumulation means this profile is
 # crashing — exactly the state that takes downloads with it.
-PROFILE_BLOAT_MB = 250          # generous: real bloat measured at 296MB
-PROFILE_MAX_CRASH_DUMPS = 5     # a healthy profile has zero
+# TUNED DOWN 2026-09-23 (second incident). The first thresholds were set from a
+# single observation — 37 dumps, 296MB — and were far too loose: the next crash
+# happened at **2 dumps and 99MB**, under both, so grooming never ran and the
+# download died exactly as before.
+#
+# The lesson is that these are not "how bad is it" gauges. A profile that has
+# crashed AT ALL is already in the state that kills downloads; waiting for a
+# fifth dump just means four more dead decks. One dump is the signal.
+PROFILE_BLOAT_MB = 150          # real bloat measured at 296MB; crashed again at 99MB
+PROFILE_MAX_CRASH_DUMPS = 0     # ANY dump means this profile has already crashed
+
+
+def free_ram_mb() -> float:
+    """Free physical memory, or 0.0 when it cannot be determined.
+
+    Windows-only in practice; returns 0.0 elsewhere, which every caller treats
+    as "unknown, do not block".
+    """
+    if os.name != "nt":
+        return 0.0
+    try:
+        out = subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             "(Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory"],
+            capture_output=True, text=True, timeout=15)
+        kb = float(out.stdout.strip() or 0)
+        return kb / 1024.0
+    except Exception:                               # noqa: BLE001
+        return 0.0
+
+
+# A deck download streams 12-16MB through a browser that also holds the page.
+# MEASURED 2026-09-23 (third incident): with 2.8GB free of 15.5GB — VS Code at
+# 3.9GB across 22 processes, Brave at 2.1GB across 20 — Chrome was killed
+# mid-download three times in a row, at ~911KB, ~1.27MB and ~1.2MB, and wrote
+# NO crash dump. That absence is the tell: Windows terminating a process under
+# memory pressure leaves no dump, whereas a real Chrome crash always does.
+#
+# So a clean profile is necessary but not sufficient, and "the browser closed"
+# was blaming the browser for the machine being out of RAM.
+LOW_RAM_MB = 1800
 
 
 def _dir_size_mb(path: Path) -> float:
@@ -1498,12 +1548,47 @@ async def _download_deck(page, site: DeckSite, dest: Path) -> Path:
         # closing a headful window), and every one of those cases produces the
         # same silent wait.
         if page.is_closed() or not page.context.browser or not page.context.browser.is_connected():
+            # GROOM ON THE WAY OUT, not only on the way in.
+            #
+            # MEASURED (2026-09-23, second incident): a crash here leaves the
+            # dump it just wrote sitting in the profile, and the NEXT run then
+            # starts from an already-poisoned profile and dies the same way.
+            # Grooming at launch alone cannot break that cycle, because the
+            # damage is done between launches. Cleaning up right after the
+            # crash means the retry — and `fetch` recovery — starts clean.
+            #
+            # Safe here: this browser is already gone, so nothing holds the
+            # profile. Best-effort, because the real error below matters more.
+            try:
+                groom_profile(PROFILES / site.id, force=True)
+            except Exception:                       # noqa: BLE001
+                pass
+            # NAME THE REAL CAUSE when the machine is out of memory.
+            #
+            # A browser KILLED by Windows under memory pressure writes no crash
+            # dump, so "the browser closed" reads as a browser or site fault
+            # and sends the reader to selectors, profiles and NotebookLM — none
+            # of which can fix it. Measured with 2.8GB free of 15.5GB: three
+            # consecutive deaths, zero dumps.
+            ram = free_ram_mb()
+            if ram and ram < LOW_RAM_MB:
+                raise DriverError(
+                    "browser_oom",
+                    f"the browser was killed while downloading the deck and "
+                    f"only {ram:.0f}MB of RAM was free — the machine ran out "
+                    f"of memory, which is why no crash dump was written. A "
+                    f"deck streams 12-16MB through the browser and needs "
+                    f"headroom. Close some heavy apps (VS Code and Chrome/Brave "
+                    f"windows are usually the biggest) and retry: the deck is "
+                    f"UNHARMED in its notebook and "
+                    f"`driver.py fetch --url <notebook-url>` spends no quota.")
             raise DriverError(
                 "nlm_browser_gone",
                 "the browser closed before the deck finished downloading, so "
                 "no further bytes could arrive. The deck itself is UNHARMED "
                 "and still in its notebook — recover it with "
-                "`driver.py fetch --url <notebook-url>`, which spends no quota.")
+                "`driver.py fetch --url <notebook-url>`, which spends no quota. "
+                "The browser profile has been cleaned, so a retry starts fresh.")
 
         stalled = now - last_growth > STALL_S
         canceled = dl_state.get("state") == "canceled"

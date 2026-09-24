@@ -657,10 +657,30 @@ t("hygiene never blocks a run",
 # Crash dumps are the signal that tracks the failure; size alone would fire on
 # Chrome's legitimate 47MB ML model store every launch.
 t("crash dumps trigger it", "PROFILE_MAX_CRASH_DUMPS" in _g)
-t("a healthy profile has a zero tolerance that is not literally zero",
-  1 <= driver.PROFILE_MAX_CRASH_DUMPS <= 10, driver.PROFILE_MAX_CRASH_DUMPS)
-t("size is the backstop, set above normal regrowth",
-  driver.PROFILE_BLOAT_MB >= 150, driver.PROFILE_BLOAT_MB)
+# TUNED DOWN after a SECOND incident (2026-09-23): the first thresholds were
+# set from one observation (37 dumps, 296MB) and the next crash happened at
+# 2 dumps / 99MB — under both, so grooming never ran and the deck died anyway.
+# These are not severity gauges: a profile that has crashed AT ALL is already
+# in the state that kills downloads, so waiting for a fifth dump just costs
+# four more dead decks.
+t("ANY crash dump triggers grooming, not just a pile of them",
+  driver.PROFILE_MAX_CRASH_DUMPS == 0, driver.PROFILE_MAX_CRASH_DUMPS)
+t("the size backstop is below the 99MB that still crashed",
+  driver.PROFILE_BLOAT_MB < 99 or driver.PROFILE_MAX_CRASH_DUMPS == 0,
+  "with dumps at 0 the size rule is a backstop only, but it must not be the "
+  "sole guard at a level already measured to fail")
+
+# The cycle that thresholds alone cannot break: a crash writes its dump BETWEEN
+# launches, so grooming only at launch means the next run starts from an
+# already-poisoned profile and dies identically.
+_ddc = _inspect.getsource(driver._download_deck)
+t("a browser crash grooms the profile on the way OUT too",
+  "groom_profile(" in _ddc,
+  "grooming only at launch cannot break the crash-poisons-next-run cycle")
+t("and forces it, since the thresholds have already been passed",
+  "force=True" in _ddc)
+t("and says so, so a retry is known to start clean",
+  "profile has been cleaned" in _ddc)
 
 # The line that must never move: the login has to survive grooming, or the
 # whole persistent-profile design is defeated and someone must log in by hand.
@@ -671,6 +691,34 @@ for name in _SESSION:
     t(f"grooming never deletes {name}", name not in _disposable,
       f"{name} holds the logged-in session")
 t("caches are what it deletes", "Cache" in _disposable and "Crashpad" in _disposable)
+
+
+# -- An out-of-memory kill must not be blamed on the browser -----------------
+# MEASURED 2026-09-23 (third incident, after the profile was already clean):
+# three consecutive deck downloads died at ~911KB, ~1.27MB and ~1.2MB with
+# 2.8GB free of 15.5GB (VS Code 3.9GB/22 procs, Brave 2.1GB/20 procs) and
+# wrote ZERO crash dumps. That absence is the tell — Windows killing a process
+# under memory pressure leaves no dump, while a real Chrome crash always does.
+# "The browser closed" sent the reader to selectors, profiles and NotebookLM,
+# none of which can fix a machine that is out of RAM.
+print("\nout-of-memory is named, not blamed on the browser")
+t("free memory can be measured", hasattr(driver, "free_ram_mb"))
+t("and a threshold is set for a 12-16MB transfer",
+  1000 <= driver.LOW_RAM_MB <= 4000, driver.LOW_RAM_MB)
+_dd5 = _inspect.getsource(driver._download_deck)
+t("a death under low memory is reported as browser_oom",
+  "browser_oom" in _dd5)
+t("and it is checked BEFORE falling back to nlm_browser_gone",
+  _dd5.index("browser_oom") < _dd5.index("the browser closed before the deck"))
+t("the message names what to actually do",
+  "Close some heavy apps" in _dd5)
+t("and says the deck survives, with the no-quota recovery",
+  "UNHARMED in its notebook" in _dd5 and "spends no quota" in _dd5)
+_ls = _inspect.getsource(driver.launch)
+t("low memory is warned about BEFORE the run, not only after it fails",
+  "LOW_RAM_MB" in _ls and "WARNING" in _ls)
+t("and only on the download path, which is what needs the headroom",
+  _ls.index("downloads_dir is not None") < _ls.index("LOW_RAM_MB"))
 
 
 # -- The recovery URL must actually be reachable ------------------------------
