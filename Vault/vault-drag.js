@@ -177,9 +177,21 @@
   function applyOrder(nav, itemSel, keyAttr, saved) {
     if (!nav || !Array.isArray(saved) || !saved.length) return;
     var have = {};
-    Array.prototype.forEach.call(nav.querySelectorAll(itemSel), function (n) { have[n.getAttribute(keyAttr)] = n; });
+    var nodes = Array.prototype.slice.call(nav.querySelectorAll(itemSel));
+    nodes.forEach(function (n) { have[n.getAttribute(keyAttr)] = n; });
+    // Items a saved order predates (a tab added since it was saved) keep their
+    // default neighbour instead of piling up at the end: each goes right after
+    // the item that precedes it in the default markup.
+    var fresh = nodes.filter(function (n) { return saved.indexOf(n.getAttribute(keyAttr)) < 0; });
+    var prevOf = {};
+    fresh.forEach(function (n) { var i = nodes.indexOf(n); prevOf[n.getAttribute(keyAttr)] = i > 0 ? nodes[i - 1] : null; });
     saved.forEach(function (k) { if (have[k]) { nav.appendChild(have[k]); delete have[k]; } });
-    Object.keys(have).forEach(function (k) { nav.appendChild(have[k]); });
+    fresh.forEach(function (n) {
+      var p = prevOf[n.getAttribute(keyAttr)];
+      if (p && p.parentNode === nav && p !== n) nav.insertBefore(n, p.nextSibling);
+      else if (!p && nodes[0] && nodes[0] !== n) nav.insertBefore(n, nav.querySelector(itemSel));
+      else nav.appendChild(n);
+    });
   }
 
   window.VaultDrag = { enable: enable, applyOrder: applyOrder };

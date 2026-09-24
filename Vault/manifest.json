@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Vault Launcher",
-  "version": "1.4.0",
-  "description": "Your links, logins, cards & ID documents - synced with Vault. Autofill, attach a document scan to an upload field, launch a whole tab group in one click, and rearrange your connection cards from the toolbar.",
+  "version": "1.5.0",
+  "description": "Your links, logins, cards, ID documents & API keys - synced with Vault. Autofill, attach a document scan to an upload field, launch a whole tab group in one click, and rearrange your connection cards from the toolbar.",
   "permissions": [
     "tabs",
     "tabGroups",

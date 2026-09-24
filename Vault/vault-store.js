@@ -15,7 +15,8 @@
  *     { id, kind, enc:{iv,ct}, updatedAt, deleted }
  *
  *   • id        — random, stable across edits
- *   • kind      — 'login' | 'sensitive'  (plaintext: needed to route/filter; not
+ *   • kind      — 'login' | 'sensitive' | 'payment' | 'iddoc' | 'apikey'
+ *                 (plaintext: needed to route/filter; not
  *                 secret). Everything else lives ENCRYPTED inside `enc`.
  *   • enc       — AES-GCM ciphertext of the whole item body (title, url, user,
  *                 email, password, notes, tags, category, custom fields, totp…).
@@ -77,8 +78,12 @@
       if (this.backend.subscribe && !this._unsub) {
         this._unsub = this.backend.subscribe(
           async (docs) => {
-            for (const doc of docs) await this._ingest(doc);
-            this._emit();
+            // Only repaint when a snapshot actually carried something newer. A
+            // listener fires for echoes and unrelated field changes too, and
+            // every emit rebuilds the open tab (dropping search focus/scroll).
+            let changed = false;
+            for (const doc of docs) { if (await this._ingest(doc)) changed = true; }
+            if (changed) this._emit();
           },
           null
         );
@@ -94,17 +99,20 @@
     // Merge a stored doc into memory using last-write-wins (skip if we already
     // hold a newer version — this is what makes concurrent multi-device edits
     // converge deterministically).
+    // Returns true when the doc changed what this store holds.
     async _ingest(doc) {
-      if (!doc || !doc.id) return;
+      if (!doc || !doc.id) return false;
       const prev = this._raw.get(doc.id);
-      if (prev && prev.updatedAt >= doc.updatedAt) return;
+      if (prev && prev.updatedAt >= doc.updatedAt) return false;
       this._raw.set(doc.id, doc);
-      if (doc.deleted) { this._items.delete(doc.id); return; }
+      if (doc.deleted) { return this._items.delete(doc.id); }
       try {
         const body = await VC.decrypt(this.dek, doc.enc);
         this._items.set(doc.id, { ...body, id: doc.id, kind: doc.kind, updatedAt: doc.updatedAt, deleted: false });
+        return true;
       } catch (_) {
         // Undecryptable (corrupt or wrong key) — skip rather than crash the app.
+        return false;
       }
     }
 
@@ -229,7 +237,9 @@
     const fields = [
       [it.title, 20], [it.username, 9], [it.email, 9], [it.url, 7],
       [it.category, 4], [Array.isArray(it.tags) ? it.tags.join(' ') : '', 4],
-      [Array.isArray(it.customFields) ? it.customFields.map((f) => (f && f.label) + ' ' + (f && f.value)).join(' ') : '', 3],
+      // A `hidden` custom field is masked on screen, so its VALUE must not be
+      // confirmable by typing it into search either — only its label counts.
+      [Array.isArray(it.customFields) ? it.customFields.map((f) => (f && f.label) + ' ' + (f && !f.hidden ? f.value : '')).join(' ') : '', 3],
       [it.notes, 2],
     ];
     if (it.kind === 'payment') {
@@ -248,6 +258,15 @@
         [it.description, 5], [it.group, 3]
       );
       if (q.length >= 3) fields.push([it.number, 10]);
+    }
+    // API keys (kind:'apikey') are found by what you'd remember — provider,
+    // account, env var name, environment, key ID. Never by the key or secret:
+    // typing characters must not let anyone confirm a key a guess at a time.
+    if (it.kind === 'apikey') {
+      fields.push(
+        [it.provider, 14], [it.envVar, 10], [it.account, 8], [it.keyId, 6],
+        [it.environment, 5], [it.endpoint, 5], [it.consoleUrl, 4], [it.scopes, 3]
+      );
     }
     let best = 0;
     for (const [val, weight] of fields) {

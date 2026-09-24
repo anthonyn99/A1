@@ -1433,11 +1433,24 @@ window.vdkcSyncFilesClick = () => _kcRunSyncButton('vd-kc-syncfiles-btn', () => 
   // ── Vault: dashboards/vault_pw ────────────────────────────────────────────
   // Ciphertext only — { config, items:{id->encDoc}, savedAt }. This is the exact
   // contract Vault/vault-ui.js's makeFirebaseBackend() expects.
+  //
+  // Echoes are recognised exactly, not by a time window. The old "ignore every
+  // snapshot for 6s after my own save" also swallowed a DIFFERENT device's
+  // save landing in those 6s, and since this doc is written whole, our next
+  // save then erased that device's item from the cloud. Now: a snapshot still
+  // carrying our pending write, or the server copy of the savedAt we wrote, is
+  // ours; anything else is delivered. vault-ui.js merges it per item, so even a
+  // stray echo is a no-op there. Cache-sourced snapshots are skipped too: the
+  // page already loaded the server copy (_fbLoadVault), and an older cached
+  // one would make vault-ui "heal" the cloud with a write on every page load.
   const vaultDocRef = doc(db, "dashboards/vault_pw");
-  let _vaultLastOwnSaveAt = 0, _vaultSaveTimer = null;
+  let _vaultSaveTimer = null, _vaultLastSavedAt = 0;
   authedSnapshot(vaultDocRef, (snap) => {
-    if (Date.now() - _vaultLastOwnSaveAt < 6000) return;
-    if (snap.exists()) window.dispatchEvent(new CustomEvent("fb-vault-remote-update", { detail: snap.data() }));
+    if (snap.metadata && (snap.metadata.hasPendingWrites || snap.metadata.fromCache)) return;
+    if (!snap.exists()) return;
+    const d = snap.data();
+    if (d && d.savedAt && d.savedAt === _vaultLastSavedAt) return;
+    window.dispatchEvent(new CustomEvent("fb-vault-remote-update", { detail: d }));
   }, (err) => console.warn("Vault listener error:", err && err.code));
 
   window._fbLoadVault = async () => {
@@ -1445,13 +1458,12 @@ window.vdkcSyncFilesClick = () => _kcRunSyncButton('vd-kc-syncfiles-btn', () => 
     catch(e) { console.warn("Vault load failed:", e); return null; }
   };
   window._fbSaveVault = (getState) => {
-    _vaultLastOwnSaveAt = Date.now();
     if (_vaultSaveTimer) clearTimeout(_vaultSaveTimer);
     _vaultSaveTimer = setTimeout(async () => {
       try {
-        _vaultLastOwnSaveAt = Date.now();
-        await setDoc(vaultDocRef, clean(getState()));
-        _vaultLastOwnSaveAt = Date.now();
+        const state = clean(getState());
+        _vaultLastSavedAt = state.savedAt || 0;
+        await setDoc(vaultDocRef, state);
         window.dispatchEvent(new CustomEvent("fb-vault-saved"));
       } catch(e) {
         console.error("Vault save failed:", e.code, e.message, e);
@@ -3247,7 +3259,7 @@ setTimeout(function(){ alUpdateLockBtns(); }, 2000);
 </script>
 
 <!-- ── Vault ── zero-knowledge (E2E) credential + payment + identity vault.
-     vault-ui.js injects the Keychain / Passwords / Payments / ID Docs /
+     vault-ui.js injects the Keychain / Passwords / Payments / ID Docs / API Keys /
      Sensitive Info tabs into #kc-root above and drives everything through
      _fbLoadVault / _fbSaveVault + the fb-vault-* events defined in the module
      script. Order matters: cores first (crypto → pay → id → id-files → store →
@@ -3262,6 +3274,7 @@ setTimeout(function(){ alUpdateLockBtns(); }, 2000);
 <script src="Vault/vault-pay.js"></script>
 <script src="Vault/vault-id.js"></script>
 <script src="Vault/vault-id-files.js"></script>
+<script src="Vault/vault-apikey.js"></script>
 <script src="Vault/vault-store.js"></script>
 <script src="Vault/vault-session.js"></script>
 <!-- Loads before vault-cloud.js and vault-ui.js: both the header block below and
@@ -3344,6 +3357,7 @@ setTimeout(function(){ alUpdateLockBtns(); }, 2000);
 <script src="Vault/vault-ui.js"></script>
 <script src="Vault/vault-pay-ui.js"></script>
 <script src="Vault/vault-id-ui.js"></script>
+<script src="Vault/vault-apikey-ui.js"></script>
 
 <script src="tabsync.js"></script>
 <script src="hoverfx.js"></script>

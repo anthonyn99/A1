@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Vault Launcher harness</title>
+<!-- Test-only page for tests/live/vault-apikey.live.js. Runs the Launcher's
+     REAL API Keys panel (vault-pw-core.js + vault-apikey-panel.js) with the
+     chrome.* APIs stubbed: the Worker fetch returns the vault document the
+     web-app harness wrote (handed over in localStorage), and
+     chrome.scripting.executeScript runs the injected fill function against
+     the fake form below — standing in for "the page you're on". -->
+<style>
+  :root{--bg:#1a1a1d;--s1:#232327;--s2:#2c2c31;--s3:#2c2c31;--bd:#34343a;--bdl:#45454c;--tx:#f4f3f0;--txd:#adadb2;--txm:#8d8d94;--ac:#e0b874;--shadow:rgba(0,0,0,.55)}
+  body{margin:0;background:var(--bg);color:var(--tx);font-family:system-ui,sans-serif;display:flex;gap:20px}
+  #popup{width:344px;border:1px solid var(--bd)}
+</style>
+<script>
+  window.__fetches = 0;
+  window.__clip = '';
+  window.__created = [];
+  var doc = JSON.parse(localStorage.getItem('__vaultDoc') || 'null');
+  window.fetch = function (url) {
+    window.__fetches++;
+    return Promise.resolve({ ok: true, status: 200, json: function () { return Promise.resolve(doc); } });
+  };
+  var ses = {};
+  window.chrome = {
+    runtime: { lastError: null, sendMessage: function () {} },
+    storage: {
+      session: { get: function (k, cb) { var o = {}; o[k] = ses[k]; cb(o); }, set: function (o, cb) { Object.assign(ses, o); cb && cb(); }, remove: function (k, cb) { delete ses[k]; cb && cb(); } },
+      local: { get: function (k, cb) { cb({}); }, set: function (o, cb) { cb && cb(); } },
+    },
+    tabs: {
+      query: function (q, cb) { cb([{ id: 7, url: 'https://console.anthropic.com/settings/keys', windowId: 1 }]); },
+      sendMessage: function () {},
+      create: function (o) { window.__created.push(o.url); },
+    },
+    scripting: {
+      executeScript: function (o, cb) {
+        var r; try { r = o.func.apply(null, o.args || []); } catch (e) { r = { error: String(e) }; }
+        setTimeout(function () { cb([{ result: r }]); }, 0);
+      },
+    },
+  };
+  try {
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
+      writeText: function (v) { window.__clip = v; return Promise.resolve(); },
+      readText: function () { return Promise.resolve(window.__clip); },
+    } });
+  } catch (e) {}
+</script>
+</head>
+<body>
+  <div id="popup">
+    <div id="scroll"><div class="panel" id="panel-apikeys"></div></div>
+    <div id="toast"></div>
+  </div>
+  <form id="page" autocomplete="off">
+    <label for="f-id">Client ID</label><input id="f-id" name="client_id">
+    <label for="f-secret">Client secret</label><input id="f-secret" name="client_secret">
+    <label for="f-key">API key</label><input id="f-key" name="apiKey">
+    <label for="f-note">Description</label><input id="f-note" name="description">
+  </form>
+<script src="../../Vault/vault-icons.js"></script>
+<script src="../../Vault/vault-crypto.js"></script>
+<script src="../../Vault/vault-pay.js"></script>
+<script src="../../Vault/vault-id.js"></script>
+<script src="../../Vault/vault-apikey.js"></script>
+<script src="../../Vault/vault-pw-core.js"></script>
+<script src="../../Vault/vault-apikey-panel.js"></script>
+</body>
+</html>

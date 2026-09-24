@@ -341,10 +341,37 @@
       background:var(--s3); margin-top:2px; position:relative; }
     .idp-thumb img { width:100%; height:100%; object-fit:cover; filter:blur(4px); transform:scale(1.25); }
     .idp-thumb::after { content:''; position:absolute; inset:0; background:rgba(26,26,29,.35); }
-    /* Five tabs no longer fit at the default 344px popup width, so they wrap
-       into a tidy grid rather than crushing every label to an ellipsis. */
+    /* Five tabs don't fit on one row at the default 344px popup width, so they
+       wrap: at 92px minimum that's a balanced 3 + 2 (the second row's tabs
+       grow to fill it) rather than a lopsided 4 + 1. A wider popup puts them
+       all on one row. */
     .tabs { flex-wrap:wrap; }
-    .tab { flex:1 1 auto; min-width:74px; padding:9px 6px; }
+    .tab { flex:1 1 auto; min-width:92px; padding:9px 6px; letter-spacing:.9px; white-space:nowrap; }
+
+    /* ── API Keys panel ── */
+    /* The row is a column: a clickable head (reusing the Passwords row's
+       pieces) and a details block that only exists once it's expanded. */
+    .ak-row { flex-direction:column; align-items:stretch; gap:0; padding:0; }
+    .ak-row.expired .pw-title { opacity:.7; }
+    .ak-head { display:flex; align-items:flex-start; gap:9px; padding:9px 10px; cursor:pointer; border-radius:10px; outline:none; }
+    .ak-head:focus-visible { box-shadow:inset 0 0 0 1px var(--ac); }
+    .ak-head .pw-actions { align-self:center; }
+    .ak-mark { flex-shrink:0; width:24px; height:24px; border-radius:6px; overflow:hidden; display:flex; margin-top:2px; }
+    .ak-mark svg { width:100%; height:100%; display:block; }
+    .ak-details { border-top:1px solid var(--bd); padding:8px 10px 10px; display:flex; flex-direction:column; gap:7px; }
+    .ak-details[hidden] { display:none; }
+    .ak-line { display:flex; align-items:center; gap:8px; min-width:0; }
+    .ak-line-main { flex:1; min-width:0; }
+    .ak-label { font-size:9.5px; font-weight:600; color:var(--txm); text-transform:uppercase; letter-spacing:1.1px; }
+    .ak-val { display:block; font-size:12px; color:var(--tx); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .ak-val.mono { font-family:ui-monospace,monospace; font-size:11.5px; color:var(--txd); }
+    .ak-val.wrap { white-space:pre-wrap; word-break:break-word; max-height:120px; overflow-y:auto; }
+    /* Revealed: every character on screen, selectable in one click. */
+    .ak-val.shown { color:var(--ac); white-space:normal; word-break:break-all; user-select:all; }
+    .ak-line .pw-icon { width:26px; height:26px; }
+    .ak-line .pw-icon svg { width:13px; height:13px; }
+    .ak-console { margin-top:2px; padding:8px; font-size:12px; }
+    .ak-console svg { width:13px; height:13px; }
   </style>
 </head>
 <body>
@@ -364,6 +391,7 @@
     <button class="tab" id="tab-pw" data-panel="passwords">Passwords</button>
     <button class="tab" id="tab-pay" data-panel="payments">Payments</button>
     <button class="tab" id="tab-id" data-panel="iddocs">ID Docs</button>
+    <button class="tab" id="tab-api" data-panel="apikeys">API Keys</button>
   </div>
 
   <div id="scroll">
@@ -390,6 +418,10 @@
     <div class="panel hidden" id="panel-iddocs">
       <div class="loading">Loading…</div>
     </div>
+
+    <div class="panel hidden" id="panel-apikeys">
+      <div class="loading">Loading…</div>
+    </div>
   </div>
 
   <div id="toast" style="position:absolute;bottom:14px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--s3);border:1px solid var(--bdl);color:var(--tx);font-size:12px;font-weight:600;padding:7px 14px;border-radius:8px;opacity:0;transition:all .2s;pointer-events:none;z-index:10;">Copied!</div>
@@ -407,10 +439,12 @@
   <script src="vault-crypto.js"></script>
   <script src="vault-pay.js"></script>
   <script src="vault-id.js"></script>
+  <script src="vault-apikey.js"></script>
   <script src="vault-pw-core.js"></script>
   <script src="vault-pw.js"></script>
   <script src="vault-pay-panel.js"></script>
   <script src="vault-id-panel.js"></script>
+  <script src="vault-apikey-panel.js"></script>
   <script src="popup.js"></script>
 <script src="hoverfx.js"></script></body>
 </html>

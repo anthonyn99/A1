@@ -2,20 +2,22 @@
  * vault-ui.js — Vault Password Manager · UI + Firebase adapter (PWA)
  *
  * Self-contained and self-injecting: it hooks into the existing Keychain view
- * (#kc-root) and turns it into "Vault" with five tabs — Passwords · Payments ·
- * ID Docs · Sensitive Info · Links — WITHOUT requiring edits to the 38k-line
+ * (#kc-root) and turns it into "Vault" with its tabs — Passwords · Payments ·
+ * ID Docs · API Keys · Sensitive Info · Links — WITHOUT requiring edits to the 38k-line
  * index.html beyond a single <script src> include. It reuses the app's
  * already-initialised Firebase instance (App Check + anon auth + offline cache)
  * via getApps(), and the existing window.Bio biometric helper.
  *
- * The Payments and ID Docs tabs' rendering/editors live in vault-pay-ui.js and
- * vault-id-ui.js, driven through the `hostCtx()` contract at the bottom of this
+ * The Payments, ID Docs and API Keys tabs' rendering/editors live in
+ * vault-pay-ui.js, vault-id-ui.js and vault-apikey-ui.js, driven through the
+ * `hostCtx()` contract at the bottom of this
  * file — one vault, one session, one DEK, one sync path, but each section's UI
  * stays its own module.
  *
  * Depends on (loaded before it): vault-crypto.js, vault-store.js, vault-session.js
  * Optional: vault-pay.js + vault-pay-ui.js (Payments tab; degrades gracefully)
  * Optional: vault-id.js + vault-id-files.js + vault-id-ui.js (ID Docs tab; ditto)
+ * Optional: vault-apikey.js + vault-apikey-ui.js (API Keys tab; ditto)
  *
  * Data lives E2E-encrypted in a single Firestore doc `dashboards/vault_pw`:
  *     { config:<wrapped-keys/salts/verifier>, items:{ id -> encDoc }, savedAt }
@@ -147,10 +149,32 @@
     }
 
     // Remote updates from the shared Firestore listener → merge + notify store.
+    //
+    // MERGED per item (last-write-wins on updatedAt), never replaced. The doc
+    // is written whole, so replacing the mirror with a snapshot threw away any
+    // local write still inside the save debounce — and a snapshot from another
+    // device that raced our save dropped THAT device's item the moment we saved
+    // next. Tombstones are never pruned, so an item missing from a snapshot is
+    // always one of ours that hasn't landed yet: keep it, and write the merged
+    // union back so the cloud copy heals. Converges in one round — the other
+    // device finds nothing missing and doesn't write again.
+    var _localConfigAt = 0, CONFIG_GUARD_MS = 15000;
     window.addEventListener('fb-vault-remote-update', function (e) {
       var d = e.detail; if (!d) return;
-      mirror.config = d.config || mirror.config;
-      mirror.items = d.items || {};
+      // A config we changed moments ago (new master password, recovery key,
+      // biometric slot) wins over a snapshot that may predate our write.
+      if (d.config && Date.now() - _localConfigAt > CONFIG_GUARD_MS) mirror.config = d.config;
+      var remote = d.items || {}, needWriteBack = false;
+      Object.keys(remote).forEach(function (id) {
+        var r = remote[id], l = mirror.items[id];
+        if (!r) return;
+        if (!l || (r.updatedAt || 0) >= (l.updatedAt || 0)) mirror.items[id] = r;
+      });
+      Object.keys(mirror.items).forEach(function (id) {
+        var r = remote[id], l = mirror.items[id];
+        if (!r || (l.updatedAt || 0) > (r.updatedAt || 0)) needWriteBack = true;
+      });
+      if (needWriteBack && loaded) scheduleWrite();
       // Master password changed elsewhere → re-lock this device immediately.
       try { if (session && mirror.config && session.enforceStamp(mirror.config)) { renderLock(true); return; } } catch (err) {}
       var list = Object.keys(mirror.items).map(function (k) { return mirror.items[k]; });
@@ -176,7 +200,7 @@
 
     return {
       async loadConfig() { await ensureLoaded(); return mirror.config ? JSON.parse(JSON.stringify(mirror.config)) : null; },
-      async saveConfig(c) { await ensureLoaded(); mirror.config = JSON.parse(JSON.stringify(c)); scheduleWrite(); },
+      async saveConfig(c) { await ensureLoaded(); mirror.config = JSON.parse(JSON.stringify(c)); _localConfigAt = Date.now(); scheduleWrite(); },
       async listItems() { await ensureLoaded(); return Object.keys(mirror.items).map(function (k) { return JSON.parse(JSON.stringify(mirror.items[k])); }); },
       async putItem(doc) { await ensureLoaded(); mirror.items[doc.id] = JSON.parse(JSON.stringify(doc)); scheduleWrite(); },
       subscribe: function (onItems) { itemSubs.push(onItems); ensureLoaded(); return function () { itemSubs = itemSubs.filter(function (f) { return f !== onItems; }); }; },
@@ -349,6 +373,7 @@
     var tabs = el('div', { id: 'vault-tabs', class: 'vault-tabs' }, [
       tabBtn('links', 'Keychain', VI.link), tabBtn('passwords', 'Passwords', VI.key),
       tabBtn('payments', 'Payments', VI.card), tabBtn('iddocs', 'ID Docs', idCardIcon()),
+      tabBtn('apikeys', 'API Keys', apiIcon()),
       tabBtn('sensitive', 'Sensitive Info', VI.archive), tabBtn('cloud', 'Cloud', cloudIcon()),
     ]);
     if (hbar && hbar.nextSibling) root.insertBefore(tabs, hbar.nextSibling); else root.appendChild(tabs);
@@ -356,12 +381,13 @@
     var pwPanel = el('div', { id: 'vault-pw-panel', class: 'vault-panel' });
     var payPanel = el('div', { id: 'vault-payments-panel', class: 'vault-panel', style: 'display:none' });
     var idPanel = el('div', { id: 'vault-iddocs-panel', class: 'vault-panel', style: 'display:none' });
+    var apiPanel = el('div', { id: 'vault-apikeys-panel', class: 'vault-panel', style: 'display:none' });
     var senPanel = el('div', { id: 'vault-sensitive-panel', class: 'vault-panel', style: 'display:none' });
     // Cloud is a secret panel too. It holds no decrypted vault material, but it
     // is a live window onto every connected drive, so it gates on the same
     // master password as Passwords, Payments, ID Docs and Sensitive Info.
     var cloudPanel = el('div', { id: 'vault-cloud-panel', class: 'vault-panel', style: 'display:none' });
-    root.appendChild(pwPanel); root.appendChild(payPanel); root.appendChild(idPanel); root.appendChild(senPanel);
+    root.appendChild(pwPanel); root.appendChild(payPanel); root.appendChild(idPanel); root.appendChild(apiPanel); root.appendChild(senPanel);
     root.appendChild(cloudPanel);
     if (kcWrap) { kcWrap.parentNode.removeChild(kcWrap); linksWrap.appendChild(kcWrap); }
     linksWrap.style.display = 'none'; root.appendChild(linksWrap);
@@ -422,15 +448,17 @@
   // The tabs that hold protected material — each one gates on the SAME session.
   var SECRET_TABS = {
     passwords: renderPasswords, payments: renderPayments, iddocs: renderIdDocs,
-    sensitive: renderSensitive, cloud: renderCloud,
+    apikeys: renderApiKeys, sensitive: renderSensitive, cloud: renderCloud,
   };
   // Every secret tab's panel, so lock/blank logic never has to enumerate them
   // twice (and can't drift when a seventh tab arrives).
   var SECRET_PANELS = {
     passwords: 'vault-pw-panel', payments: 'vault-payments-panel',
-    iddocs: 'vault-iddocs-panel', sensitive: 'vault-sensitive-panel',
+    iddocs: 'vault-iddocs-panel', apikeys: 'vault-apikeys-panel', sensitive: 'vault-sensitive-panel',
     cloud: 'vault-cloud-panel',
   };
+  // Which item kind each item-backed tab lists (Cloud has none).
+  var TAB_KIND = { passwords: 'login', payments: 'payment', iddocs: 'iddoc', apikeys: 'apikey', sensitive: 'sensitive' };
 
   function showTab(id) {
     activeTab = id;
@@ -613,6 +641,8 @@
     // …and tears down ID Docs, which is the one section holding decrypted BYTES
     // (object URLs for scans). Those must not outlive the session.
     try { if (window.VaultIdUI) window.VaultIdUI.reset(); } catch (e) {}
+    // API Keys holds reveal timers and expanded-row state — both go with the lock.
+    try { if (window.VaultApiKeyUI) window.VaultApiKeyUI.reset(); } catch (e) {}
     // Cloud's panel is blanked below like any other secret tab, but half its
     // chrome — upload dock, selection bar, preview, menus — lives on <body> and
     // would otherwise float above the lock card.
@@ -673,8 +703,12 @@
     // was opened from another tab, the new key would render into a hidden panel.
     activeTab = 'passwords';
     document.querySelectorAll('.vault-tab').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-tab') === 'passwords'); });
-    var sen = $('vault-sensitive-panel'), links = $('vault-links-panel');
-    if (sen) sen.style.display = 'none'; if (links) links.style.display = 'none';
+    // Hide EVERY other panel — setting up from Payments / ID Docs / API Keys /
+    // Cloud used to leave that tab's setup card on screen above the key.
+    Object.keys(SECRET_PANELS).forEach(function (t) {
+      var p = $(SECRET_PANELS[t]); if (p && t !== 'passwords') p.style.display = 'none';
+    });
+    var links = $('vault-links-panel'); if (links) links.style.display = 'none';
     pw.style.display = '';
     var codeBox = el('div', { class: 'vault-recovery-code' }, [code]);
     var copied = el('button', { class: 'vault-btn' }, ['Copy recovery key']);
@@ -823,7 +857,14 @@
     // fight whatever is on screen (a search being typed, a folder mid-load).
     store.startLive(function () {
       setVaultSync('synced');
-      if (activeTab !== 'cloud' && SECRET_TABS[activeTab]) SECRET_TABS[activeTab]();
+      if (activeTab === 'cloud' || !SECRET_TABS[activeTab]) return;
+      // Refill only the list when the panel is already built, so a sync that
+      // lands while you're typing in the search box doesn't rebuild the
+      // toolbar out from under the caret.
+      var kind = TAB_KIND[activeTab];
+      var panel = kind && $(KIND_PANELS[kind]);
+      if (panel && panel.querySelector('.vault-list')) refreshList(kind);
+      else SECRET_TABS[activeTab]();
     });
     bindActivity();
     // Suppressed on the recovery path so the enrol prompt doesn't collide with
@@ -929,10 +970,14 @@
     if (!window.VaultIdUI) { list.innerHTML = ''; list.appendChild(emptyState('ID Docs module not loaded.')); return; }
     window.VaultIdUI.fillList(list, hostCtx());
   }
+  function fillApiKeyList(list) {
+    if (!window.VaultApiKeyUI) { list.innerHTML = ''; list.appendChild(emptyState('API Keys module not loaded.')); return; }
+    window.VaultApiKeyUI.fillList(list, hostCtx());
+  }
   // Re-fill just the list for the active kind (used on every keystroke).
-  var KIND_PANELS = { login: 'vault-pw-panel', payment: 'vault-payments-panel', iddoc: 'vault-iddocs-panel', sensitive: 'vault-sensitive-panel' };
-  var KIND_RENDER = { login: renderPasswords, payment: renderPayments, iddoc: renderIdDocs, sensitive: renderSensitive };
-  var KIND_FILL = { login: fillLoginList, payment: fillPaymentList, iddoc: fillIdList, sensitive: fillSensitiveList };
+  var KIND_PANELS = { login: 'vault-pw-panel', payment: 'vault-payments-panel', iddoc: 'vault-iddocs-panel', apikey: 'vault-apikeys-panel', sensitive: 'vault-sensitive-panel' };
+  var KIND_RENDER = { login: renderPasswords, payment: renderPayments, iddoc: renderIdDocs, apikey: renderApiKeys, sensitive: renderSensitive };
+  var KIND_FILL = { login: fillLoginList, payment: fillPaymentList, iddoc: fillIdList, apikey: fillApiKeyList, sensitive: fillSensitiveList };
   function refreshList(kind) {
     var panel = $(KIND_PANELS[kind] || KIND_PANELS.login); if (!panel) return;
     var list = panel.querySelector('.vault-list');
@@ -1304,10 +1349,24 @@
     panel.appendChild(list);
   }
 
+  // ── API keys panel (rendering delegated to vault-apikey-ui.js) ─────────────
+  function renderApiKeys() {
+    var panel = $('vault-apikeys-panel'); if (!panel) return;
+    if (!session || !session.isUnlocked()) { renderLock(); return; }
+    if (!store) { afterUnlock(); return; } // store not ready yet — bootstrap then re-render
+    panel.innerHTML = '';
+    if (!window.VaultApiKeyUI) { panel.appendChild(emptyState('API Keys module not loaded — check the vault-apikey.js / vault-apikey-ui.js includes.')); return; }
+    panel.appendChild(toolbar('Search API keys…', 'apikey'));
+    var list = el('div', { class: 'vault-list' });
+    fillApiKeyList(list);
+    panel.appendChild(list);
+  }
+
   // ── editor modal ───────────────────────────────────────────────────────────
   // The "+ Add" button routes here so each kind can own its own editor.
   function openAdd(kind) {
     if (kind === 'payment') { if (window.VaultPayUI) window.VaultPayUI.openEditor(null, hostCtx()); return; }
+    if (kind === 'apikey') { if (window.VaultApiKeyUI) window.VaultApiKeyUI.openEditor(null, hostCtx()); return; }
     if (kind === 'iddoc') { if (window.VaultIdUI) window.VaultIdUI.openTypePicker(hostCtx()); return; }
     openEditor(kind);
   }
@@ -1525,6 +1584,18 @@
       for (var i = 0; i < items.length; i++) await store.remove(items[i].id);
       if (window.VaultIdFiles) window.VaultIdFiles.removeMany(atts);
       overlay.remove(); toast('All ID documents deleted'); refreshList('iddoc');
+    }));
+    rows.appendChild(settingRow('Delete all API Keys', async function () {
+      var items = store.byKind('apikey');
+      if (!items.length) { toast('No API keys to delete'); return; }
+      var n = items.length;
+      var ok = await confirmUI('Permanently delete all ' + n + ' saved API key' + (n === 1 ? '' : 's') + ' and credential' + (n === 1 ? '' : 's') + '? This cannot be undone.',
+        { title: 'Delete all API Keys', okLabel: 'Delete all', danger: true });
+      if (!ok) return;
+      // Bulk-destroying credentials is as sensitive as exporting them.
+      if (!(await verifyIdentity('delete every saved API key'))) return;
+      for (var i = 0; i < items.length; i++) await store.remove(items[i].id);
+      overlay.remove(); toast('All API keys deleted'); refreshList('apikey');
     }));
     rows.appendChild(settingRow('Delete all Sensitive Info', async function () {
       var items = store.byKind('sensitive');
@@ -1827,6 +1898,28 @@
       } catch (e) { status.style.color = '#d68a7c'; status.textContent = 'Import failed: ' + e.message; }
     });
 
+    // API keys from a .env file. Only credential-looking entries are taken
+    // (by variable name or a recognised key format) — see VaultApiKey.fromDotEnv.
+    // A key already in the vault (same value) is skipped, so re-importing the
+    // same file is harmless.
+    var envInput = el('input', { type: 'file', accept: '.env,.txt,text/plain', style: 'display:none' });
+    envInput.addEventListener('change', async function () {
+      var f = envInput.files[0]; envInput.value = ''; if (!f) return;
+      if (!window.VaultApiKey) { status.style.color = '#d68a7c'; status.textContent = 'API Keys module not loaded.'; return; }
+      status.style.color = 'var(--txd)'; status.textContent = 'Importing…';
+      try {
+        var found = window.VaultApiKey.fromDotEnv(await f.text());
+        var have = {};
+        store.byKind('apikey').forEach(function (k) { if (k.key) have[k.key] = true; });
+        var fresh = found.filter(function (k) { return !have[k.key]; });
+        if (fresh.length) await store.saveMany(fresh);
+        var skipped = found.length - fresh.length;
+        status.textContent = 'Imported ' + fresh.length + ' API key' + (fresh.length === 1 ? '' : 's') + (skipped ? ' (' + skipped + ' already saved)' : '') + '.';
+        toast('Imported ' + fresh.length);
+        refreshList('apikey');
+      } catch (e) { status.style.color = '#d68a7c'; status.textContent = 'Import failed: ' + e.message; }
+    });
+
     var backupInput = el('input', { type: 'file', accept: '.json,application/json', style: 'display:none' });
     backupInput.addEventListener('change', async function () {
       var f = backupInput.files[0]; backupInput.value = ''; if (!f) return;
@@ -1852,14 +1945,16 @@
       el('div', { class: 'vault-modal-title' }, ['Import / Export & Backup']),
       row('Import passwords from CSV', 'Chrome, Edge, Firefox, or Bitwarden password export.', 'Import CSV', false, function () { csvInput.click(); }),
       row('Import payment methods', 'Chromium payment export, 1Password card CSV, Bitwarden .json, or any CSV with a card-number column. (Google Wallet cannot export card numbers — no service can read them back out.)', 'Import cards', false, function () { payInput.click(); }),
-      row('Encrypted backup', 'Download an encrypted, zero-knowledge backup file — passwords, payments and notes together. Safe to store anywhere; needs your master password to open.', 'Export backup', false, exportBackup),
+      row('Import API keys from .env', 'Reads a .env file and saves each API key, token or secret it finds (ports, hosts and flags are ignored). Keys already in the vault are skipped.', 'Import .env', false, function () { envInput.click(); }),
+      row('Encrypted backup', 'Download an encrypted, zero-knowledge backup file — passwords, payments, ID docs, API keys and notes together. Safe to store anywhere; needs your master password to open.', 'Export backup', false, exportBackup),
       row('Restore backup', 'Load a previously exported encrypted backup file.', 'Restore', false, function () { backupInput.click(); }),
       row('Plain CSV export', 'UNENCRYPTED — anyone who opens the file can read every password. Use only for migrating, then delete it.', 'Export CSV', true, exportCSVUnencrypted),
       row('Plain payments export', 'UNENCRYPTED — full card numbers and security codes in a readable file. Use only to migrate, then delete it.', 'Export cards', true, exportPaymentsUnencrypted),
+      row('Plain .env export', 'UNENCRYPTED — every API key and secret as a readable .env file. Use only to set up a machine, then delete it.', 'Export .env', true, exportEnvUnencrypted),
       status,
       el('div', { class: 'vault-modal-actions' }, [el('button', { class: 'vault-btn', onclick: function () { overlay.remove(); } }, ['Close'])]),
     ]);
-    box.appendChild(csvInput); box.appendChild(payInput); box.appendChild(backupInput);
+    box.appendChild(csvInput); box.appendChild(payInput); box.appendChild(envInput); box.appendChild(backupInput);
     overlay.appendChild(box); document.body.appendChild(overlay);
 
     async function exportBackup() {
@@ -1892,6 +1987,19 @@
       });
       download('vault-payments-UNENCRYPTED-' + dateStamp() + '.csv', toCSV(rows), 'text/csv');
       status.style.color = '#e0b874'; status.textContent = 'Exported ' + cards.length + ' card(s) as PLAIN TEXT — delete the file when done.';
+    }
+    async function exportEnvUnencrypted() {
+      var AK = window.VaultApiKey;
+      var keys = AK ? AK.sortKeys(store.byKind('apikey')) : [];
+      if (!keys.length) { toast('No API keys to export'); return; }
+      if (!(await confirmUI('This writes every API key and secret to a plain .env file that anyone can read. Continue?', { title: 'Unencrypted .env export', okLabel: 'Export anyway', danger: true }))) return;
+      if (!(await verifyIdentity('export your API keys unencrypted'))) return;
+      var blocks = keys.map(function (k) {
+        var b = AK.envBlock(k);
+        return b ? '# ' + String(k.title || 'API key').replace(/[\r\n]+/g, ' ') + '\n' + b : '';
+      }).filter(Boolean);
+      download('vault-apikeys-UNENCRYPTED-' + dateStamp() + '.env', blocks.join('\n\n') + '\n', 'text/plain');
+      status.style.color = '#e0b874'; status.textContent = 'Exported ' + blocks.length + ' API key(s) as PLAIN TEXT — delete the file when done.';
     }
   }
 
@@ -1943,6 +2051,9 @@
   // Kept local rather than added to vault-icons.js: that file is also loaded by
   // the browser extension, and ID Docs is a PWA-only section.
   function cloudIcon() { return '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.5 19a4.5 4.5 0 0 0 .5-8.97A6 6 0 0 0 6.3 9.4 4.2 4.2 0 0 0 7 19z"/><path d="M12 12v6"/><path d="m9.5 14.5 2.5-2.5 2.5 2.5"/></svg>'; }
+  // Code brackets — reads as "developer credential" and stays distinct from
+  // the Passwords tab's key.
+  function apiIcon() { return '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 8-4 4 4 4"/><path d="m16 8 4 4-4 4"/><path d="m13.5 5-3 14"/></svg>'; }
   function idCardIcon() { return '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="8" cy="11" r="2"/><path d="M5 16c.6-1.3 1.8-2 3-2s2.4.7 3 2"/><path d="M14 10h5"/><path d="M14 13.5h5"/></svg>'; }
 
   // ── styles ─────────────────────────────────────────────────────────────────

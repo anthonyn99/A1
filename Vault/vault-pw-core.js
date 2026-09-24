@@ -31,6 +31,7 @@
   const VC = root.VaultCrypto || (typeof require !== "undefined" ? require("./vault-crypto.js") : null);
   const VPay = root.VaultPay || (typeof require !== "undefined" ? require("./vault-pay.js") : null);
   const VId  = root.VaultId  || (typeof require !== "undefined" ? require("./vault-id.js")  : null);
+  const VAK  = root.VaultApiKey || (typeof require !== "undefined" ? require("./vault-apikey.js") : null);
 
   // Where ID-document scans live. The same Worker + KV namespace the web app
   // uploads to; what it holds is AES-GCM ciphertext under a random key, so the
@@ -222,6 +223,15 @@
     });
   }
 
+  // ── API keys ───────────────────────────────────────────────────────────────
+  // Same one decrypt path — `kind:'apikey'` is the only plaintext on the doc.
+  // Read from the vault already fetched for this popup, so the API Keys tab
+  // costs no extra Worker call or Firestore read.
+  async function apiKeys() {
+    const out = await decryptKind("apikey");
+    return VAK ? VAK.sortKeys(out) : out;
+  }
+
   // ── attachment bytes ───────────────────────────────────────────────────────
   // Decrypt raw bytes under the session DEK. Mirrors VaultSession.decryptBytes
   // in the web app — same key, same algorithm, so a scan uploaded from a phone
@@ -307,6 +317,8 @@
     biometricAvailable, biometricLabel, unlockWithBiometric, getBioLink,
     // payments
     payments, paymentById, paymentSummaries, decryptKind,
+    // API keys
+    apiKeys,
     // ID documents
     idDocs, idDocById, idDocSummaries, attachmentBytes, attachmentBlob, decryptBytes, FILES_URL,
     // auth freshness (gates CVV release)

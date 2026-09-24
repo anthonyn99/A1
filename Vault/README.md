@@ -61,6 +61,42 @@ Rebuilt from the old *D2L Tabs Automate* class project (used only as a template)
   expiry / CVV / billing address. Create and edit cards in TaskHub → **Vault →
   Payments**; the extension is a read + autofill client, exactly like Passwords.
 
+- **API Keys & Credentials** — API keys, tokens, client secrets and webhook
+  secrets with the details that travel with them: provider, key / client ID,
+  account, endpoint, console link, environment, scopes, expiry, the `.env`
+  variable name, custom fields (each can be *hidden*, i.e. masked like the key)
+  and free-form notes. Same vault, same master password, same encrypted
+  document — an API key is an item with `kind:'apikey'`. Create and edit them in
+  the Vault app → **API Keys**; the Launcher's **API Keys** tab copies any value
+  (or a ready `.env` line) and **fills** the key into the field you last clicked
+  on the page — or, with nothing focused, into fields matched by label ("client
+  secret" gets the secret, "client ID" the key ID, "API key" / "token" the key).
+  Keys for the site you're on (its console, endpoint or the provider's domain)
+  list first.
+
+### API Keys — what's specific to them
+
+- **Provider detection.** Pasting a key names its provider from the published
+  prefix (`sk-ant-` Anthropic, `sk-` OpenAI, `AIza` Google, `ghp_` GitHub,
+  `AKIA` AWS, `xkeysib-` Brevo, `RGAPI-` Riot, … see `PROVIDERS` in
+  `vault-apikey.js` — one object per provider) and suggests the conventional env
+  var (`ANTHROPIC_API_KEY`).
+- **Masking** shows only a recognisable prefix and the last four
+  (`sk-ant-••••••••a1B2`), never more than a third of the key.
+- **Search never matches a key, a secret or a hidden custom value** — neither
+  the app's ranked search nor the Launcher's filter — so typing can't confirm a
+  key a character at a time.
+- **Rotation history.** Changing a key keeps the previous one (last 5) under
+  "Previous keys", so deployments still on the old key aren't stranded.
+- **`.env`.** "Copy .env" gives `NAME=value` lines (key, secret, key ID);
+  Settings → Import / Export imports a `.env` file (only credential-looking
+  entries; values already saved are skipped) and can export one (unencrypted,
+  behind the identity check).
+- Reveal is per field and re-masks after 45 s (30 s in the Launcher); copies
+  clear the clipboard after 30 s. Like Passwords, an unlocked vault is the gate
+  for copy/fill; bulk delete and plain `.env` export require a fresh identity
+  check.
+
 ### How Payments is stricter than Passwords
 
 Passwords hands the content script the actual username/password for the current
@@ -157,6 +193,8 @@ Files:
 | `vault-pw-core.js` | Vault data layer: fetch (via `vault-pw-sync` Worker), unlock, decrypt logins **and payments**, domain match, 30-min idle session, biometric unlock, CVV auth-freshness |
 | `vault-pw.js` | Passwords popup UI (unlock, list, copy/reveal, autofill, biometric button) |
 | `vault-pay-panel.js` | Payments popup UI (unlock, card list, masked numbers, step-up reveal/copy, Fill) |
+| `vault-apikey.js` | API-keys core — provider registry/detection, masking, expiry, `.env` build/parse, rotation history, sort/filter/site-match. Pure logic, no DOM; shared with the PWA |
+| `vault-apikey-panel.js` | API Keys popup UI (unlock, site-matched list, masked keys, reveal/copy, `.env` copy, focused-field + label-matched Fill) |
 | `vault-cardfill.js` | Checkout field detection + filling. Content script in **all frames** (hosted Stripe/Braintree card fields live in iframes) |
 | `vault-bio-sync.js` | Content script on the Index origin only — relays this device's biometric link (deviceId/deviceKey/credential id) into `chrome.storage.local` |
 | `content.js` | Inline "Vault Autofill" (logins, **top frame only**) and "Vault Payments" (cards, any frame) dropdowns |
@@ -183,7 +221,25 @@ extension share a single `vault-crypto.js` (identical crypto core):
 | `vault-session.js` | PWA: session & auth orchestration (Index app only) |
 | `vault-ui.js` | PWA: Passwords / Payments / Sensitive Info / Links tabs injected into Keychain (Index app only) |
 | `vault-pay-ui.js` | PWA: the Payments tab itself — card faces, editor, gated reveal (Index app only) |
+| `vault-apikey-ui.js` | PWA: the API Keys tab — list, details, editor with live provider detection, rotation history |
 | `vault-*.test.js` | Node verification for the modules above (`node vault-crypto.test.js`, …) |
+
+End-to-end (headless browser, both the app tab and the Launcher panel, plus the
+sync merge): `node tests/live/vault-apikey.live.js`.
+
+### Sync: `dashboards/vault_pw` merges per item
+
+The document is written whole, so the page must never write a copy that's
+missing someone else's item. `makeFirebaseBackend()` in `vault-ui.js` therefore
+MERGES each snapshot into its mirror item by item (last-write-wins on
+`updatedAt`; tombstones are never pruned, so a missing item is always one of
+ours that hasn't landed) and writes the union back when the snapshot lacked
+something — one heal write, then both devices agree. The listener in
+`vault.html` recognises its own echo exactly (pending write, or the `savedAt`
+it just wrote) and skips cache-sourced snapshots; it used to ignore *every*
+snapshot for 6 s after a save, which let a second device's save in that window
+be erased by our next one. The store only repaints when a snapshot actually
+carried something newer.
 
 ### Why Payments needed almost no new architecture
 

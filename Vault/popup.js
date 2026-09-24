@@ -30,6 +30,7 @@ const TASKHUB_KEYCHAIN_URL = VAULT_APP_URL;
 const TASKHUB_VAULT_PW_URL = VAULT_APP_URL + "?vaulttab=passwords";
 const TASKHUB_VAULT_PAY_URL = VAULT_APP_URL + "?vaulttab=payments";
 const TASKHUB_VAULT_ID_URL = VAULT_APP_URL + "?vaulttab=iddocs";
+const TASKHUB_VAULT_API_URL = VAULT_APP_URL + "?vaulttab=apikeys";
 
 // ── Opening the Vault app — one tab, brought forward, never a second copy ──
 // The same rule index.html applies to every button that leaves it (_tnOpenTab
@@ -546,12 +547,14 @@ const TAB_TITLES = {
   passwords: "Manage passwords in the Vault app",
   payments: "Manage payment methods in the Vault app",
   iddocs: "Manage ID documents in the Vault app",
+  apikeys: "Manage API keys in the Vault app",
   links: "Open the Vault app",
 };
 const TAB_GEAR_URLS = {
   passwords: TASKHUB_VAULT_PW_URL,
   payments: TASKHUB_VAULT_PAY_URL,
   iddocs: TASKHUB_VAULT_ID_URL,
+  apikeys: TASKHUB_VAULT_API_URL,
   links: TASKHUB_KEYCHAIN_URL,
 };
 
@@ -559,7 +562,7 @@ function setActiveTab(name) {
   activeTab = name;
   document.querySelectorAll(".tab").forEach(t =>
     t.classList.toggle("active", t.dataset.panel === name));
-  ["links", "passwords", "payments", "iddocs"].forEach(p =>
+  ["links", "passwords", "payments", "iddocs", "apikeys"].forEach(p =>
     document.getElementById("panel-" + p).classList.toggle("hidden", name !== p));
   gearEl.title = TAB_TITLES[name] || TAB_TITLES.links;
   // Render each vault panel (unlock / list / autofill) on first open. Both share
@@ -567,6 +570,7 @@ function setActiveTab(name) {
   if (name === "passwords" && window.VaultPWPanel) window.VaultPWPanel.render();
   if (name === "payments" && window.VaultPayPanel) window.VaultPayPanel.render();
   if (name === "iddocs" && window.VaultIdPanel) window.VaultIdPanel.render();
+  if (name === "apikeys" && window.VaultApiKeyPanel) window.VaultApiKeyPanel.render();
 }
 
 document.querySelectorAll(".tab").forEach(tab =>

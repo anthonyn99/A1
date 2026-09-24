@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vault harness</title>
+<!-- Test-only page for tests/live/vault-apikey.live.js. Loads the REAL Vault
+     modules exactly as vault.html orders them, but replaces the Firestore
+     bridge (_fbLoadVault / _fbSaveVault / fb-vault-* events) with an in-memory
+     "cloud" so the test can count writes and play a second device. -->
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:#1a1a1d;color:#f4f3f0;font-family:system-ui,sans-serif}
+  #kc-root{--bg:#1a1a1d;--s1:#232327;--s2:#2c2c31;--s3:#37373d;--bd:#34343a;--bdl:#45454c;--tx:#f4f3f0;--txd:#adadb2;--txm:#8d8d94;
+    --ac:#e0b874;--acs:#e0b874;--acl:rgba(224,184,116,.36);--shadow:rgba(0,0,0,.42);--radius:9px;--radius-sm:6px;background:var(--bg)}
+  .app-hbar{padding:10px 16px;border-bottom:1px solid var(--bd);background:var(--bg)}
+</style>
+<script>
+  window.__cloud = null;          // the one shared "Firestore" document
+  window.__writes = 0;            // how many times the page wrote it
+  window.__clip = '';
+  window.__opened = [];
+  window._fbLoadVault = async function () { return window.__cloud ? JSON.parse(JSON.stringify(window.__cloud)) : null; };
+  window._fbSaveVault = function (getState) {
+    clearTimeout(window.__saveT);
+    window.__saveT = setTimeout(function () {
+      window.__cloud = JSON.parse(JSON.stringify(getState()));
+      window.__writes++;
+      window.dispatchEvent(new CustomEvent('fb-vault-saved'));
+    }, 40);
+  };
+  window.uiConfirm = function () { return Promise.resolve(true); };
+  window.open = function (u) { window.__opened.push(u); return null; };
+  try {
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
+      writeText: function (v) { window.__clip = v; return Promise.resolve(); },
+      readText: function () { return Promise.resolve(window.__clip); },
+    } });
+  } catch (e) {}
+</script>
+</head>
+<body>
+<div id="kc-root">
+  <div class="app-hbar"><div class="kc-logo">Keychain</div><div id="kc-sync-status"></div></div>
+  <div class="kc-wrap"><p>Links (Keychain) content</p></div>
+</div>
+<script src="../../Vault/vault-icons.js"></script>
+<script src="../../Vault/vault-crypto.js"></script>
+<script src="../../Vault/vault-pay.js"></script>
+<script src="../../Vault/vault-id.js"></script>
+<script src="../../Vault/vault-id-files.js"></script>
+<script src="../../Vault/vault-apikey.js"></script>
+<script src="../../Vault/vault-store.js"></script>
+<script src="../../Vault/vault-session.js"></script>
+<script src="../../Vault/vault-drag.js"></script>
+<script src="../../Vault/vault-ui.js"></script>
+<script src="../../Vault/vault-pay-ui.js"></script>
+<script src="../../Vault/vault-id-ui.js"></script>
+<script src="../../Vault/vault-apikey-ui.js"></script>
+</body>
+</html>
