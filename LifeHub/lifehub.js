@@ -600,7 +600,7 @@
 
   function onSnap(st, snap) {
     if (snap.metadata.hasPendingWrites) return;
-    if (st.status === 'offline' || st.status === 'retry') setStatus(st, '');
+    if (st.status === 'offline' || st.status === 'retry' || st.status === 'refresh') setStatus(st, '');
     clearTimeout(st.retryT); st.retryT = 0; st.retryN = 0;
     if (!snap.exists()) {
       // Only trust "missing" from the server, never from an empty cache.
@@ -645,7 +645,9 @@
     if (manual) st.retryN = 0;
     if (st.inflight) { st.again = true; return; }
     dropConnection(st);
-    setStatus(st, 'retry');
+    // 'retry' says "Connecting…" (we were offline); 'refresh' is a manual
+    // re-sync while online: the button spins, no label.
+    setStatus(st, st.status === 'offline' || st.status === 'retry' ? 'retry' : 'refresh');
     ensureSync(st);
     if (st.ops.length || st.needSeed) scheduleWrite(st);
   }
@@ -935,7 +937,7 @@
     '.hd{display:flex;align-items:center;gap:8px;padding:14px 12px 6px 18px;flex:none}' +
     '.ttl{flex:1;min-width:0;font-size:15px;font-weight:600;letter-spacing:.1px;color:var(--tx)}' +
     '.st{font-size:11px;color:var(--dim);white-space:nowrap}.st.bad{color:var(--bad)}' +
-    '.rf{width:28px;height:28px;margin:0 -2px 0 -4px}.rf svg{width:15px;height:15px}.rf:disabled{cursor:default;opacity:.8}' +
+    '.ib.rf{margin-right:-6px}.ib.rf svg{width:16px;height:16px}.ib.rf:disabled{cursor:default}' +
     '.rf.spin svg{animation:lh-spin .8s linear infinite}@keyframes lh-spin{to{transform:rotate(360deg)}}' +
     '.ib{all:unset;box-sizing:border-box;width:34px;height:34px;display:grid;place-items:center;border-radius:50%;cursor:pointer;' +
     'color:var(--dim);transition:background-color .15s,color .15s;-webkit-tap-highlight-color:transparent}' +
@@ -1033,7 +1035,7 @@
           '<div class="hd">' +
             '<button class="ib back" type="button" aria-label="Back" hidden>' + SVG_BACK + '</button>' +
             '<div class="ttl">LifeHub</div><span class="st" aria-live="polite"></span>' +
-            '<button class="ib rf" type="button" aria-label="Retry connection" title="Retry now" hidden>' + SVG_REFRESH + '</button>' +
+            '<button class="ib rf" type="button" aria-label="Refresh apps" title="Refresh">' + SVG_REFRESH + '</button>' +
             '<button class="ib edit-btn" type="button" aria-label="Edit apps" title="Edit apps">' + SVG_PENCIL + '</button>' +
             '<button class="done" type="button" hidden>Done</button>' +
           '</div>' +
@@ -1108,12 +1110,22 @@
     ui.st.textContent = s === 'saving' ? 'Saving…' : s === 'offline' ? 'Offline' : s === 'retry' ? 'Connecting…' : '';
     ui.st.classList.toggle('bad', s === 'offline');
     ui.st.title = s === 'offline' ? 'Changes are kept here and sync when the connection is back.' : '';
-    // The refresh button sits beside the label for as long as there is
-    // something to retry, and spins while an attempt is running.
-    var show = s === 'offline' || s === 'retry';
-    ui.btnRetry.hidden = !show || ui.view === 'ed';
-    ui.btnRetry.classList.toggle('spin', s === 'retry');
-    ui.btnRetry.disabled = s === 'retry';
+    // The refresh button always sits next to the pencil (not in the app
+    // editor) and spins while an attempt runs — for at least one full turn, so
+    // a fast re-sync still reads as "done" instead of a flicker.
+    var busy = s === 'retry' || s === 'refresh';
+    var b = ui.btnRetry;
+    b.hidden = ui.view === 'ed';
+    b.title = s === 'offline' ? 'Retry now' : 'Refresh';
+    b.setAttribute('aria-label', s === 'offline' ? 'Retry connection' : 'Refresh apps');
+    b.disabled = busy;
+    clearTimeout(ui.spinT);
+    if (busy) {
+      if (!b.classList.contains('spin')) ui.spinAt = Date.now();
+      b.classList.add('spin');
+    } else {
+      ui.spinT = setTimeout(function () { b.classList.remove('spin'); }, Math.max(0, 800 - (Date.now() - (ui.spinAt || 0))));
+    }
   }
 
   function isSheet() { return window.innerWidth < 600; }
