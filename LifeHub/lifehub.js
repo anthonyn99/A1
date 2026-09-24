@@ -76,9 +76,45 @@
  */
 (function () {
   'use strict';
-  if (window.LifeHub) return;
+  var BOOT = document.currentScript;
+  var FRESH = /[?&]lhfresh=/.test((BOOT && BOOT.src) || '');
+  if (window.LifeHub || (window.__lifehubBoot && !FRESH)) return;
+  window.__lifehubBoot = true;
 
-  var SCRIPT = document.currentScript;
+  /* ── Always the deployed version ─────────────────────────────────────────
+     GitHub Pages serves this file with max-age=600, so a plain refresh of a
+     program reloads the PAGE but may run LifeHub from the HTTP cache for up to
+     ten minutes after a deploy. So before running, ask the server whether this
+     copy is still current: a conditional request (If-None-Match), which is a
+     bodiless 304 when nothing changed — and which, when something did,
+     replaces the cached copy as a side effect. If the server's text no longer
+     contains this very code (main.toString()), the new version is loaded under
+     a one-off URL with the same data-* attributes and this copy never runs.
+     Bounded: offline, blocked or slow (> 1.5 s), the cached copy runs as
+     before. Hosts that need LifeHub after load listen for `lifehub:ready`. */
+  if (FRESH || !BOOT || !BOOT.src || typeof fetch !== 'function') { main(BOOT); return; }
+  var started = false;
+  function runCached() { if (!started) { started = true; main(BOOT); } }
+  var guard = setTimeout(runCached, 1500);
+  fetch(BOOT.src, { cache: 'no-cache', credentials: 'same-origin' }).then(function (r) {
+    return r.ok ? r.text() : null;
+  }).then(function (txt) {
+    if (started) return;
+    if (!txt || txt.indexOf(String(main)) !== -1) { clearTimeout(guard); runCached(); return; }
+    clearTimeout(guard);
+    started = true;
+    var s = document.createElement('script');
+    for (var i = 0; i < BOOT.attributes.length; i++) {
+      var at = BOOT.attributes[i];
+      if (at.name !== 'src' && at.name !== 'defer' && at.name !== 'async') s.setAttribute(at.name, at.value);
+    }
+    s.onerror = function () { main(BOOT); };
+    s.src = BOOT.src.split('#')[0] + (BOOT.src.indexOf('?') < 0 ? '?' : '&') + 'lhfresh=' + Date.now();
+    (document.body || document.head || document.documentElement).appendChild(s);
+  }).catch(runCached);
+
+  function main(SCRIPT) {
+  if (window.LifeHub) return;
   function sattr(n) { return (SCRIPT && SCRIPT.getAttribute(n)) || ''; }
 
   var CFG = {
@@ -91,7 +127,7 @@
     openLocal: null   // optional fn(path, app) → true if the host launched it
   };
 
-  var VERSION = '1.2.0';
+  var VERSION = '1.3.0';
   var DOC_COLL = 'dashboards';
   var FB_VER = '12.12.0';
   var FB_CONFIG = {
@@ -1724,4 +1760,6 @@
   useProfile(readProfile() || 'tony');
 
   if (!customElements.get('a1-lifehub')) customElements.define('a1-lifehub', LauncherEl);
+  try { window.dispatchEvent(new Event('lifehub:ready')); } catch (e) {}
+  }
 })();

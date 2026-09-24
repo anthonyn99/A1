@@ -170,6 +170,12 @@ ok('the listener starts only on launcher approach, open, a save, a retry, or the
   ensureCalls.join(' | '));
 ok('failed attempts retry on a backoff, never a hot loop', /var RETRY_MS = \[\d{4,}/.test(src));
 ok('a retry can never stack a second listener (generation guard)', /if \(gen !== st\.gen\) return;/.test(src) && /st\.gen\+\+;/.test(src));
+// GitHub Pages caches this file for 10 minutes; a plain refresh must still run
+// the deployed version (a conditional revalidation, then a one-off url).
+ok('it revalidates itself on load and swaps in a newer deploy',
+  /fetch\(BOOT\.src, \{ cache: 'no-cache'/.test(src) && /txt\.indexOf\(String\(main\)\)/.test(src) && /'lhfresh='/.test(src));
+ok('hosts that need it after load wait for lifehub:ready',
+  /dispatchEvent\(new Event\('lifehub:ready'\)\)/.test(src) && /addEventListener\('lifehub:ready'/.test(read('shield.html')));
 ok('MAGI hands over its own lazily-started Firebase', /window\.LifeHubFirebase\s*=/.test(read('magi.html')));
 
 console.log('\n' + pass + ' passed' + (fail ? ', ' + fail + ' FAILED' : ''));

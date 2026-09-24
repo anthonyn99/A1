@@ -42,6 +42,14 @@ for example one in a desktop header and one in a mobile header. They share one p
 
 Then add the program to `HOSTS` in `tests/lifehub-wiring.test.js`.
 
+**Updates arrive on a plain refresh.** GitHub Pages lets browsers cache this file
+for 10 minutes, so on load LifeHub checks with the server whether it is current.
+That's a conditional request, normally a bodiless `304`. If a newer version is
+deployed, it runs that one instead, under a one-off URL with the same `data-*`
+attributes. If the check is offline or slower than 1.5s, the cached copy runs.
+Code that needs `window.LifeHub` after page load should wait for the
+`lifehub:ready` event on `window`.
+
 **A new program doesn't need a code change to appear in the grid.** Add it from the
 popup (pencil, then **Add**). If you want it in the initial list for a brand-new
 install, add it to `DEFAULT_APPS` in `lifehub.js` with its favicon in `ICONS`.

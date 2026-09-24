@@ -1539,12 +1539,12 @@ function _lifehubListen(){
   });
   return true;
 }
-// lifehub.js is a deferred classic script placed after this module, so it may
-// not exist yet when the agent check first passes. It will by `load`.
+// lifehub.js is a deferred script placed after this module, and it first
+// checks GitHub for a newer copy of itself, so it can appear after `load`.
+// It announces itself with `lifehub:ready`.
 function _whenLifeHub(){
   if (_lifehubListen()) return;
-  if (document.readyState === 'complete') setTimeout(_lifehubListen, 0);
-  else window.addEventListener('load', function(){ setTimeout(_lifehubListen, 0); }, { once: true });
+  window.addEventListener('lifehub:ready', function(){ _lifehubListen(); }, { once: true });
 }
 
 // Attach only where there is an agent to hand the paths to.
