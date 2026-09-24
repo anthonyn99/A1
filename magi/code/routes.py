@@ -670,3 +670,150 @@ async def push_project(project_id: str, body: dict = Body(default={})) -> dict[s
         return {"ok": False, "error": e.code, "message": e.message}
     d = res.to_dict()
     return {"ok": res.ok, "push": d, **({} if res.ok else {"error": res.code, "message": res.text})}
+
+
+# ── the Repository panel (Phase 11): read-only GitHub, per project ───────
+#
+# Each route is a thin pass-through to magi/github/{repos,pulls,issues,
+# actions}.py, for the repository the project's folder points at, as the
+# account the project names. Nothing here writes -- to GitHub or to the
+# folder -- and nothing returns a token. Every GitHub read is conditional,
+# so the console asking again (the post-push watch does, every 20s while a
+# run is going) costs nothing until something changes.
+
+from ..github import actions as _gha
+from ..github import issues as _ghi
+from ..github import pulls as _ghp
+from ..github import repos as _ghr
+
+
+async def _repo_ctx(project_id: str):
+    """(ctx, None) or (None, refusal). ctx = gh, owner, repo, top, login."""
+    p, root, err = await _project_here(project_id)
+    if err:
+        return None, err
+    from . import git as G
+    loop = _asyncio.get_running_loop()
+    top = await loop.run_in_executor(None, G.toplevel, root)
+    if top is None:
+        return None, {"ok": False, "error": "not_git",
+                      "message": "This folder is not a git repository."}
+    remote = await loop.run_in_executor(None, G.github_of, top)
+    if remote.get("host") != "github.com" or not remote.get("owner"):
+        return None, {"ok": False, "error": "not_github",
+                      "message": "This folder's remote is not a GitHub repository."}
+    login = str((p.get("prefs") or {}).get("github") or "")
+    if not login:
+        return None, {"ok": False, "error": "no_account", "remote": remote,
+                      "message": f"Choose which GitHub account reads {remote['owner']}/"
+                                 f"{remote['repo']} (the Repository pill), then this fills in."}
+    try:
+        gh = await loop.run_in_executor(None, _gh.client, login)
+    except _gh.AccountError as e:
+        return None, _gh_fail(e)
+    return {"gh": gh, "owner": remote["owner"], "repo": remote["repo"], "top": top,
+            "login": login, "remote": remote}, None
+
+
+async def _repo_call(project_id: str, fn) -> dict[str, Any]:
+    """Run `fn(ctx)` off the event loop; GitHub's refusals come back in words."""
+    ctx, err = await _repo_ctx(project_id)
+    if err:
+        return err
+    try:
+        out = await _asyncio.get_running_loop().run_in_executor(None, fn, ctx)
+    except _ghc.GitHubError as e:
+        return e.to_dict()
+    except _gh.AccountError as e:
+        return _gh_fail(e)
+    return {"ok": True, "repo": f"{ctx['owner']}/{ctx['repo']}", "account": ctx["login"],
+            "rate": ctx["gh"].rate(), **out}
+
+
+@router.get("/projects/{project_id}/repo")
+async def repo_overview(project_id: str) -> dict[str, Any]:
+    """What the panel opens on: the repository, and how the current
+    branch's latest workflow runs went."""
+    from . import git as G
+
+    def go(c):
+        info = _ghr.repo_info(c["gh"], c["owner"], c["repo"])
+        br = G.github_of(c["top"])
+        st = G.state(c["top"])
+        branch = st.get("branch") or info["default_branch"]
+        r = _gha.runs(c["gh"], c["owner"], c["repo"], branch=branch, n=5)
+        tip = _ghr.commits(c["gh"], c["owner"], c["repo"], ref=branch, n=1)
+        return {"info": info, "branch": branch, "tip": tip[0] if tip else None, "local": {k: st.get(k) for k in (
+                    "branch", "head", "subject", "upstream", "ahead", "behind", "dirty",
+                    "fetched_at")},
+                "remote_name": br.get("remote", ""), "runs": r["runs"]}
+    return await _repo_call(project_id, go)
+
+
+@router.get("/projects/{project_id}/repo/branches")
+async def repo_branches(project_id: str) -> dict[str, Any]:
+    from . import git as G
+
+    def go(c):
+        local = G.branches(c["top"])
+        remote = _ghr.branches(c["gh"], c["owner"], c["repo"])
+        on_remote = {b["name"] for b in remote}
+        for b in local:
+            b["on_remote"] = b["name"] in on_remote
+        mine = {b["name"] for b in local}
+        return {"local": local, "remote": remote,
+                "remote_only": [b for b in remote if b["name"] not in mine]}
+    return await _repo_call(project_id, go)
+
+
+@router.get("/projects/{project_id}/repo/commits")
+async def repo_commits(project_id: str, ref: str = "") -> dict[str, Any]:
+    return await _repo_call(project_id, lambda c: {
+        "ref": ref, "commits": _ghr.commits(c["gh"], c["owner"], c["repo"], ref=ref[:200])})
+
+
+@router.get("/projects/{project_id}/repo/pulls")
+async def repo_pulls(project_id: str, state: str = "open") -> dict[str, Any]:
+    return await _repo_call(project_id, lambda c: {
+        "state": state, "pulls": _ghp.list_pulls(c["gh"], c["owner"], c["repo"], state)})
+
+
+@router.get("/projects/{project_id}/repo/pulls/{number}")
+async def repo_pull(project_id: str, number: int) -> dict[str, Any]:
+    return await _repo_call(project_id, lambda c: {
+        "pull": _ghp.pull(c["gh"], c["owner"], c["repo"], number)})
+
+
+@router.get("/projects/{project_id}/repo/issues")
+async def repo_issues(project_id: str, state: str = "open") -> dict[str, Any]:
+    return await _repo_call(project_id, lambda c: {
+        "state": state, "issues": _ghi.list_issues(c["gh"], c["owner"], c["repo"], state)})
+
+
+@router.get("/projects/{project_id}/repo/issues/{number}")
+async def repo_issue(project_id: str, number: int) -> dict[str, Any]:
+    return await _repo_call(project_id, lambda c: {
+        "issue": _ghi.issue(c["gh"], c["owner"], c["repo"], number)})
+
+
+@router.get("/projects/{project_id}/repo/actions")
+async def repo_actions(project_id: str, sha: str = "", branch: str = "") -> dict[str, Any]:
+    """Workflow runs -- for one commit (the post-push watch) or a branch.
+    With `sha`, the answer carries `summary`: the watch's verdict."""
+    def go(c):
+        r = _gha.runs(c["gh"], c["owner"], c["repo"], sha=sha[:40], branch=branch[:200])
+        return {**r, "summary": _gha.summary(r["runs"]) if sha else None}
+    return await _repo_call(project_id, go)
+
+
+@router.get("/projects/{project_id}/repo/actions/{run_id}")
+async def repo_run(project_id: str, run_id: int) -> dict[str, Any]:
+    """One run's jobs, and the failing job's step and log tail."""
+    return await _repo_call(project_id, lambda c: _gha.failure(
+        c["gh"], c["owner"], c["repo"], run_id))
+
+
+@router.get("/projects/{project_id}/repo/releases")
+async def repo_releases(project_id: str) -> dict[str, Any]:
+    return await _repo_call(project_id, lambda c: {
+        "releases": _ghr.releases(c["gh"], c["owner"], c["repo"])})

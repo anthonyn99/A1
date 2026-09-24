@@ -167,9 +167,11 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
                 await emit({"k": "note", "text": "Agents edit the copy; your folder is not "
                             f"touched unless you approve the diff (copy includes your "
                             f"uncommitted edits{extra})."})
+            mcp = await loop.run_in_executor(None, write_mcp_config, t.id, project_id,
+                                             root, github)
             task = Task(id=t.id, prompt=prompt, root=sb.cwd if sb else root,
                         mode=Mode.WRITE if sb else Mode.READ,
-                        progress=sb.changed_files if sb else None)
+                        progress=sb.changed_files if sb else None, mcp_config=mcp)
             res = await chain.run_chain(task, agents, emit=emit, cancel=t.cancel)
             t.result = res.to_dict()
             if sb is not None:
@@ -188,6 +190,7 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
                 t.approval.cancel()
             if sb is not None:
                 await loop.run_in_executor(None, sb.remove)
+            _mcp_path(t.id).unlink(missing_ok=True)
             t.done = True
             await publish(t, {"k": "end", "result": t.result})
             for q in list(t.viewers):
@@ -208,6 +211,45 @@ async def _pull_first(t: TaskState, root: Path) -> G.Pull:
         p = G.Pull(False, text=f"Could not pull: {e.message}")
     await publish(t, {"k": "pull", **p.to_dict()})
     return p
+
+
+def _mcp_path(task_id: str) -> Path:
+    from ..settings import data_dir
+    return data_dir() / "code" / "mcp" / f"{task_id}.json"
+
+
+def write_mcp_config(task_id: str, project_id: str, root: Path, login: str) -> Path | None:
+    """The --mcp-config that gives the Claude CLI read-only GitHub tools for
+    this project -- only when the folder's remote is on GitHub and the
+    project names an account to read it as. The file names a script, a port
+    and a project id; nothing in it is a secret. Removed when the task ends.
+    """
+    if not login:
+        return None
+    try:
+        top = G.toplevel(root)
+        remote = G.github_of(top) if top else {}
+    except G.GitError:
+        return None
+    if remote.get("host") != "github.com" or not remote.get("owner"):
+        return None
+    import json
+    import sys
+    from .. import ident
+    from .agents.claude_cli import MCP_SERVER
+    exe = Path(sys.executable)
+    # pythonw where there is one: no console window flashes up when the CLI
+    # starts the server, and stdio pipes work the same.
+    quiet = exe.with_name("pythonw.exe")
+    script = Path(__file__).resolve().parents[1] / "github" / "mcp_server.py"
+    port = int(ident.engine_identity().get("port") or 8000)
+    cfg = {"mcpServers": {MCP_SERVER: {
+        "type": "stdio", "command": str(quiet if quiet.exists() else exe),
+        "args": ["-I", str(script), "--port", str(port), "--project", project_id]}}}
+    f = _mcp_path(task_id)
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(json.dumps(cfg, indent=1), encoding="utf-8")
+    return f
 
 
 def _profile() -> str:

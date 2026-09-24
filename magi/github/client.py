@@ -36,6 +36,7 @@ API_VERSION = "2026-03-10"
 TIMEOUT = 15.0
 MAX_PAGES = 10
 _CACHE_MAX = 400
+MAX_RAW = 256 * 1024       # of a job log: its tail is what explains a failure
 
 
 class Kind(StrEnum):
@@ -250,6 +251,43 @@ class GitHub:
                                  "x-oauth-scopes": r.headers.get("x-oauth-scopes", ""),
                                  "token-expires": r.headers.get(
                                      "github-authentication-token-expiration", "")})
+
+    def get_raw(self, path: str, *, follow_signed: bool = True,
+                max_bytes: int = MAX_RAW) -> str:
+        """A non-JSON body -- a job's log -- as text, at most `max_bytes` of
+        its END (the part that says why it failed).
+
+        GitHub answers `/actions/jobs/{id}/logs` with a 302 to a short-lived
+        signed URL on another host. That URL is its own credential, so it is
+        followed WITHOUT the Authorization header: sending the token to
+        wherever a redirect points is exactly what `_url` refuses for JSON.
+        Only https, only one hop, and never back to a host that would want
+        the token (the API itself).
+        """
+        url = self._url(path)
+        try:
+            with httpx.Client(transport=self._transport, timeout=self.timeout,
+                              follow_redirects=False) as c:
+                r = c.get(url, headers={k: v for k, v in self._headers().items()
+                                        if k != "Accept"})
+                self._record_rate(r)
+                if r.status_code in (301, 302, 303, 307, 308) and follow_signed:
+                    loc = r.headers.get("location", "")
+                    if not loc.startswith("https://") or loc.startswith(self.base + "/"):
+                        raise GitHubError(Kind.UNKNOWN, "GitHub redirected the log somewhere "
+                                          "MAGI will not follow.")
+                    r = c.get(loc, headers={"User-Agent": "MAGI-Code-Mode"})
+                    if r.status_code >= 300:
+                        raise GitHubError(Kind.UNAVAILABLE if r.status_code >= 500 else Kind.NOT_FOUND,
+                                          f"The log link GitHub gave did not answer ({r.status_code}); "
+                                          "logs expire after a while.", status=r.status_code)
+                elif r.status_code >= 300:
+                    raise self._fail(r)
+        except httpx.HTTPError as e:
+            raise GitHubError(Kind.NETWORK, "Could not reach GitHub: "
+                              + self._scrub(type(e).__name__)) from None
+        body = r.content[-max_bytes:]
+        return self._scrub(body.decode("utf-8", "replace"))
 
     def paginate(self, path: str, params: dict[str, Any] | None = None,
                  max_pages: int = MAX_PAGES) -> tuple[list[Any], bool]:

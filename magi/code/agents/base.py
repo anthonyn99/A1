@@ -57,6 +57,9 @@ class Task:
     # Write mode: a callable naming the files already changed in the sandbox,
     # so a hand-off says "carry on from these edits", not "start again".
     progress: Callable[[], list[str]] | None = None
+    # Phase 11: an --mcp-config file giving the Claude CLI read-only GitHub
+    # tools for this project (magi/github/mcp_server.py). None = no tools.
+    mcp_config: Path | None = None
 
     def full_prompt(self) -> str:
         """What a CLI agent is sent: framing, any hand-off, then the task."""

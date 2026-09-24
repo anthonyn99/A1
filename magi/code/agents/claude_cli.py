@@ -46,6 +46,8 @@ from ._proc import Stream
 
 READ_TOOLS = "Read,Glob,Grep"
 WRITE_TOOLS = "Read,Glob,Grep,Edit,Write"
+MCP_SERVER = "magi_github"
+MCP_ALLOW = f"mcp__{MCP_SERVER}"
 
 _UNAUTH = re.compile(r"please run /login|not logged in|invalid api key|"
                      r"authentication_error|oauth token (has )?expired|401", re.I)
@@ -59,6 +61,11 @@ def build_argv(exe: str, task: Task, model: str | None = None) -> list[str]:
             "--restricted", "--strict-mcp-config",
             "--permission-mode", "acceptEdits" if write else "plan",
             "--tools", WRITE_TOOLS if write else READ_TOOLS]
+    if task.mcp_config is not None:
+        # Read-only GitHub tools for this project, from a config file MAGI
+        # wrote (never JSON through a .cmd shim's argv). Allowed by server
+        # name: every tool on it only reads, through the engine.
+        argv += ["--mcp-config", str(task.mcp_config), "--allowedTools", MCP_ALLOW]
     if model:
         argv += ["--model", model]
     return argv

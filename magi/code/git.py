@@ -286,6 +286,36 @@ def state(root: Path) -> dict[str, Any]:
     }
 
 
+_TRACK = re.compile(r"(ahead|behind) (\d+)")
+
+
+def branches(root: Path) -> list[dict[str, Any]]:
+    """Every local branch with its upstream and how far it is from it, as of
+    the last fetch -- one `for-each-ref`, no network. `gone` is an upstream
+    that was deleted on the remote."""
+    top = toplevel(root)
+    if top is None:
+        raise GitError("not_git", "This folder is not a git repository.")
+    # run(), not out(): out() strips, and str.strip() counts  as
+    # whitespace -- it ate the first row's separator when that branch was
+    # not the current one (a blank %(HEAD)).
+    raw = run(top, "for-each-ref", "--sort=-committerdate",
+              "--format=%(HEAD)\x1f%(refname:short)\x1f%(upstream:short)\x1f%(upstream:track)"
+              "\x1f%(objectname:short)\x1f%(committerdate:unix)\x1f%(contents:subject)",
+              "refs/heads").decode("utf-8", "replace")
+    rows = []
+    for line in raw.splitlines():
+        f = line.split("\x1f")
+        if len(f) < 7:
+            continue
+        track = dict((k, int(v)) for k, v in _TRACK.findall(f[3]))
+        rows.append({"current": f[0] == "*", "name": f[1], "upstream": f[2],
+                     "ahead": track.get("ahead", 0), "behind": track.get("behind", 0),
+                     "gone": "gone" in f[3], "head": f[4],
+                     "date": int(f[5]) if f[5].isdigit() else None, "subject": f[6][:200]})
+    return rows
+
+
 # ── staging and committing ────────────────────────────────────────────────
 
 def check_paths(paths: list[str]) -> list[str]:
@@ -628,6 +658,7 @@ class Push:
     old: str = ""
     new: str = ""
     by: str = ""              # the GitHub login it went out as
+    sha: str = ""             # the full commit pushed: what the Actions watch follows
 
     def to_dict(self) -> dict[str, Any]:
         return dict(self.__dict__)
@@ -727,7 +758,8 @@ def push(root: Path, auth: Auth | None) -> Push:
         if p.returncode != 0:
             return _push_failed(res, _err(p), use, "push")
         res.ok, res.code, res.commits = True, "pushed", ahead
-        res.new = out(top, "rev-parse", "HEAD")[:7]
+        res.sha = out(top, "rev-parse", "HEAD")
+        res.new = res.sha[:7]
         res.text = (f"Pushed {_plural(ahead, 'commit')} to {repo or remote} ({rbranch})"
                     + (f" as {res.by}." if res.by else "."))
         return res

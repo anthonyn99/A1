@@ -3558,6 +3558,134 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
   padding: 7px 0; border-top: 1px solid var(--bd); font-size: 12px;
 }
 .code-gh-repo-n { font-family: var(--font-mono); overflow-wrap: anywhere; min-width: 0; }
+/* ── the Repository panel (Phase 11) ──────────────────────────────────────
+   A wider sheet with its own header and a scrolling body, so the tabs stay
+   put while a long list or log scrolls. On a phone it becomes a bottom sheet
+   that fills the screen, and every row is a 44px target. */
+.repo-box {
+  max-width: 760px; padding: 0; display: flex; flex-direction: column;
+  max-height: 88vh; overflow: hidden;
+}
+.repo-box > .sheet-hd { padding: 16px 18px 0; }
+.repo-box > .sheet-bar { padding: 0 18px 16px; }
+.repo-box > .repo-fail { margin: 10px 18px; }
+.repo-hd { display: flex; align-items: center; gap: 10px; padding: 16px 16px 8px 18px; }
+.repo-ttl { flex: 1 1 auto; min-width: 0; }
+.repo-ttl .sheet-hd { margin-bottom: 2px; }
+.repo-name { font-family: var(--font-mono); font-weight: 700; font-size: 14px; color: var(--tx); overflow-wrap: anywhere; }
+.repo-acct {
+  flex: 0 0 auto; font: inherit; font-size: 11px; font-weight: 600; cursor: pointer;
+  padding: 5px 11px; border-radius: 999px; border: 1px solid var(--bd);
+  background: none; color: var(--txd); max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.repo-acct:hover { border-color: var(--ac); color: var(--tx); }
+.repo-x {
+  flex: 0 0 auto; width: 36px; height: 36px; border-radius: 50%; cursor: pointer;
+  border: 1px solid var(--bd); background: none; color: var(--txm); font-size: 13px;
+}
+.repo-x:hover { color: var(--tx); border-color: var(--txm); }
+.repo-tabs {
+  display: flex; gap: 2px; overflow-x: auto; padding: 0 12px;
+  border-bottom: 1px solid var(--bd); scrollbar-width: none; flex: 0 0 auto;
+}
+.repo-tabs::-webkit-scrollbar { display: none; }
+.repo-tab {
+  font: inherit; font-size: 12px; padding: 10px 10px 9px; border: 0; background: none;
+  color: var(--txm); border-bottom: 2px solid transparent; white-space: nowrap; cursor: pointer;
+  min-height: 40px; flex: 0 0 auto;
+}
+.repo-tab:hover { color: var(--tx); }
+.repo-tab.on { color: var(--tx); border-bottom-color: var(--ac); font-weight: 700; }
+.repo-body {
+  overflow-y: auto; padding: 12px 18px 18px; display: flex; flex-direction: column; gap: 10px;
+  flex: 1 1 auto; min-height: 220px;
+}
+.repo-card {
+  border: 1px solid var(--bd); border-radius: var(--r-card); padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 6px; background: var(--bg); min-width: 0;
+}
+.repo-lbl {
+  color: var(--txm); font-size: 9.5px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase;
+}
+.repo-lbl-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.repo-list { display: flex; flex-direction: column; min-width: 0; }
+.repo-row {
+  display: flex; flex-direction: column; gap: 3px; text-align: left; font: inherit; color: var(--tx);
+  background: none; border: 0; border-top: 1px solid var(--bd); padding: 9px 4px; cursor: pointer;
+  text-decoration: none; width: 100%; min-height: 44px; justify-content: center; min-width: 0;
+}
+.repo-list > .repo-row:first-child { border-top: 0; }
+.repo-row:hover, .repo-row:focus-visible { background: color-mix(in srgb, var(--ac) 6%, transparent); outline: none; }
+.repo-row-top { display: flex; align-items: baseline; gap: 8px; min-width: 0; flex-wrap: wrap; }
+.repo-row-t { font-size: 12.5px; font-weight: 600; overflow-wrap: anywhere; min-width: 0; flex: 1 1 auto; }
+.repo-row-t.mono { font-family: var(--font-mono); flex: 0 1 auto; }
+.repo-sha, .repo-num { font-family: var(--font-mono); color: var(--acl); font-size: 11.5px; flex: 0 0 auto; }
+.repo-meta { color: var(--txm); font-size: 11px; overflow-wrap: anywhere; }
+.repo-sub { color: var(--txd); font-size: 11.5px; overflow-wrap: anywhere; }
+.repo-desc { font-size: 12.5px; color: var(--tx); line-height: 1.5; }
+.repo-note { color: var(--txm); font-size: 11.5px; }
+.repo-empty { color: var(--txm); font-size: 12px; padding: 12px 4px; }
+.repo-line { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11.5px; align-items: baseline; }
+.repo-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; flex: 0 0 auto; color: var(--txm); }
+.repo-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--txm); display: inline-block; flex: 0 0 auto; }
+.repo-badge.is-ok { color: var(--grn); }
+.repo-badge.is-ok .repo-dot { background: var(--grn); }
+.repo-badge.is-bad { color: var(--red); }
+.repo-badge.is-bad .repo-dot { background: var(--red); }
+.repo-badge.is-pending { color: var(--amber); }
+.repo-badge.is-pending .repo-dot { background: var(--amber); animation: pulse 1.2s ease-in-out infinite; }
+.repo-state { display: inline-flex; border: 1px solid var(--bd); border-radius: 999px; padding: 2px; align-self: flex-start; }
+.repo-state-b {
+  font: inherit; font-size: 11px; text-transform: capitalize; padding: 5px 12px; border-radius: 999px;
+  border: 0; background: none; color: var(--txm); cursor: pointer; min-height: 30px;
+}
+.repo-state-b.on { background: var(--s1); color: var(--tx); font-weight: 700; box-shadow: 0 0 0 1px var(--bd); }
+.repo-dt { font-weight: 700; font-size: 14px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; overflow-wrap: anywhere; }
+.repo-text { white-space: pre-wrap; font-size: 12.5px; line-height: 1.6; overflow-wrap: anywhere; color: var(--txd); }
+.repo-comment { border-left: 2px solid var(--bd); padding-left: 10px; display: flex; flex-direction: column; gap: 4px; }
+.repo-check { display: flex; gap: 8px; align-items: center; font-size: 12px; overflow-wrap: anywhere; }
+.repo-step { color: var(--red); font-size: 12px; overflow-wrap: anywhere; }
+.repo-fail {
+  border: 1px solid color-mix(in srgb, var(--red) 40%, transparent); border-radius: var(--r-card);
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0;
+}
+.repo-fail .repo-lbl { color: var(--red); }
+.repo-log {
+  font-family: var(--font-mono); font-size: 10.5px; line-height: 1.5; max-height: 40vh; overflow: auto;
+  background: var(--bg); border: 1px solid var(--bd); border-radius: var(--r-btn); padding: 8px 10px;
+  margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--txd);
+}
+.repo-fail-acts { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.repo-fail-acts .code-approve { min-height: 40px; padding: 0 18px; }
+.repo-ext { color: var(--acl); font-size: 12px; align-self: flex-start; }
+.repo-back {
+  align-self: flex-start; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+  background: none; border: 0; color: var(--acl); padding: 4px 0; min-height: 32px;
+}
+.repo-btn { align-self: flex-start; border: 1px solid var(--bd); }
+/* The watch line hangs under the repository line, same left edge. */
+.code-watch {
+  display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; font-size: 11.5px;
+  padding: 0 15px; margin-top: -6px; color: var(--amber); min-width: 0;
+}
+.code-watch .spin { color: var(--amber); }
+.code-watch-t {
+  font: inherit; background: none; border: 0; color: inherit; padding: 0; cursor: pointer;
+  text-align: left; overflow-wrap: anywhere; min-width: 0;
+}
+.code-watch-t:hover { text-decoration: underline; }
+.code-watch .repo-dot { background: currentColor; }
+.code-watch.is-success { color: var(--grn); }
+.code-watch.is-failure { color: var(--red); font-weight: 600; }
+.code-watch.is-gone { color: var(--txm); }
+.code-push .code-watch { padding: 0; margin: 0; }
+@media (max-width: 720px) {
+  .sheet.repo-sheet { padding: 5vh 0 0; align-items: flex-end; }
+  .repo-box { max-height: 95vh; height: 95vh; max-width: 100%; border-radius: 14px 14px 0 0; border-bottom: 0; }
+  .repo-body { padding: 10px 14px max(18px, env(safe-area-inset-bottom)); }
+  .repo-hd { padding: 14px 12px 6px 14px; }
+  .repo-tabs { padding: 0 6px; }
+}
 .code-gh-repo-t { display: flex; gap: 5px; }
 .acc-slot-name.is-static { border: 0; padding: 3px 0; margin-left: 0; }
 .code-gh-token { font-family: var(--font-mono); }
@@ -10578,6 +10706,8 @@ const CODE = {
   gh: null,
   // The last push from the repository line: {pid, busy, ok, text}.
   push: null,
+  // The Actions watch after a push (Phase 11): {pid, sha, state, runs, …}.
+  watch: null,
 };
 
 // The two CLI agents are not council units, so they have no entry in the
@@ -10847,6 +10977,8 @@ function renderCodeView() {
   if (proj && codeRoot(proj)) {
     codeGitEnsure(proj);
     col.append(renderCodeGit(proj));
+    const wl = renderCodeWatch(proj);
+    if (wl) col.append(wl);
   }
 
   // The chain: which agents may work on this, in the order they are tried.
@@ -11017,6 +11149,7 @@ async function codePushProject(proj) {
   try {
     const d = await codePost(`/projects/${encodeURIComponent(proj.id)}/push`, {});
     next = { ok: !!d.ok, text: d.ok ? (d.push || {}).text : (d.message || "The push was refused.") };
+    if (d.ok && d.push && d.push.sha) codeWatchStart(proj, d.push.sha, { branch: d.push.branch });
   } catch (e) {
     next = { ok: false, text: `Could not reach the engine: ${e.message || e}` };
   }
@@ -11057,7 +11190,8 @@ async function codeRun() {
   if (!agents.length) return;
   let d;
   try {
-    d = await codePost("/tasks", { project_id: proj.id, prompt: q, agents, mode: CODE.rw });
+    d = await codePost("/tasks", { project_id: proj.id, prompt: q, agents, mode: CODE.rw,
+                                   ...codeModelBody(q) });
   } catch (e) {
     CODE.err = `Could not start the task: ${e.message || e}`;
     renderCodeView();
@@ -11468,6 +11602,10 @@ function renderCodePush(t, pushed) {
   const box = el("div", "code-push");
   if (pushed) {
     box.append(el("div", "code-appr-out is-ok", pushed.text || "Pushed."));
+    // The Actions watch that push started, in the transcript it belongs to.
+    const proj = ((CODE.state && CODE.state.projects) || []).find((p) => p.id === t.projectId);
+    const w = CODE.watch && CODE.watch.taskId === t.id ? renderCodeWatch(proj) : null;
+    if (w) box.append(w);
     return box;
   }
   const proj = ((CODE.state && CODE.state.projects) || []).find((p) => p.id === t.projectId);
@@ -11511,6 +11649,10 @@ async function codePushTask(t) {
     const d = await codePost(`/tasks/${t.id}/push`, {});
     if (d.ok || d.error === "already") t.pushed = d.push;
     else t.pushErr = d.message || "The push was refused.";
+    const proj = ((CODE.state && CODE.state.projects) || []).find((p) => p.id === t.projectId);
+    if (d.ok && proj && d.push && d.push.sha) {
+      codeWatchStart(proj, d.push.sha, { taskId: t.id, branch: d.push.branch });
+    }
   } catch (e) {
     t.pushErr = `Could not reach the engine: ${e.message || e}`;
   }
@@ -11914,7 +12056,10 @@ function codeRepoPill(proj) {
     pill.classList.add("is-btn");
     pill.setAttribute("role", "button");
     pill.tabIndex = 0;
-    pill.onclick = () => codeRepoSheet(proj);
+    // On GitHub, the pill opens the repository itself (the account is one
+    // tap further, in its header); anywhere else there is only the account.
+    pill.onclick = () => (gh && gh.owner && gh.host === "github.com"
+      ? codeRepoPanel(proj) : codeRepoSheet(proj));
     pill.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pill.click(); } };
   }
   return pill;
@@ -12171,6 +12316,562 @@ async function codeGhReposSheet(login) {
   }
   body.append(list);
 }
+
+/* ── the Repository panel (Phase 11) ─────────────────────────────────────
+   The repository on GitHub, read-only: overview, branches, commits, pull
+   requests, issues, Actions and releases, for the folder's remote and as
+   the project's GitHub account. Fetched when a tab is opened -- never on a
+   timer -- and every read is conditional on the engine, so opening a tab
+   again costs none of the hourly limit until something changed.
+
+   The one thing that does repeat is the Actions WATCH, and only while a run
+   is going: after a push (or on request for the latest commit, which is how
+   A1's hook-made pushes get watched) it asks every 20s until every run has
+   concluded, then stops. On a failure it fetches the failing job's log tail
+   once, and offers it to the chain to diagnose. */
+const REPO_TABS = [["overview", "Overview"], ["branches", "Branches"], ["commits", "Commits"],
+  ["pulls", "Pull requests"], ["issues", "Issues"], ["actions", "Actions"], ["releases", "Releases"]];
+const RUN_BAD = new Set(["failure", "timed_out", "cancelled", "action_required", "startup_failure", "stale"]);
+
+const repoPath = (proj, rest = "") => `/projects/${encodeURIComponent(proj.id)}/repo${rest}`;
+const whenAgo = (iso) => (iso ? engAgo(Date.parse(iso)) : "");
+
+/** A status dot + word for a run, job, step or check. */
+function runBadge(status, conclusion) {
+  const k = status && status !== "completed" ? "pending"
+    : RUN_BAD.has(conclusion) ? "bad" : conclusion === "success" ? "ok" : "dim";
+  const word = status && status !== "completed" ? (status === "queued" ? "queued" : "running")
+    : conclusion || status || "—";
+  const b = el("span", `repo-badge is-${k}`);
+  b.append(el("span", "repo-dot"), el("span", null, word.replace(/_/g, " ")));
+  return b;
+}
+
+function repoLink(url, label = "Open on GitHub") {
+  const a = el("a", "repo-ext", label);
+  a.href = url;
+  a.target = "_blank";
+  a.rel = "noopener";
+  return a;
+}
+
+async function codeRepoPanel(proj, tab = "overview") {
+  const sheet = el("div", "sheet repo-sheet");
+  const box = el("div", "sheet-box repo-box");
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  const close = () => { sheet.remove(); document.removeEventListener("keydown", onKey); };
+  document.addEventListener("keydown", onKey);
+  const g = CODE.git && CODE.git.pid === proj.id ? CODE.git.data : null;
+  const name = g && g.github && g.github.owner ? `${g.github.owner}/${g.github.repo}` : proj.name;
+  const hd = el("div", "repo-hd");
+  const ttl = el("div", "repo-ttl");
+  ttl.append(el("div", "sheet-hd", "Repository"), el("div", "repo-name", name));
+  hd.append(ttl);
+  const acct = el("button", "repo-acct");
+  acct.type = "button";
+  const login = (proj.prefs || {}).github || "";
+  acct.textContent = login ? `as ${login}` : "Choose account";
+  acct.title = "Which GitHub account reads and pushes this repository";
+  acct.onclick = () => { close(); codeRepoSheet(proj); };
+  const x = el("button", "repo-x", "✕");
+  x.type = "button";
+  x.setAttribute("aria-label", "Close");
+  x.onclick = close;
+  hd.append(acct, x);
+  box.append(hd);
+  const tabs = el("div", "repo-tabs");
+  tabs.setAttribute("role", "tablist");
+  box.append(tabs);
+  const body = el("div", "repo-body");
+  box.append(body);
+  dismissOnBackdrop(sheet, close);
+  sheet.append(box);
+  document.body.append(sheet);
+
+  const cache = {};
+  const P = { tab, detail: null, ref: "", prState: "open", isState: "open" };
+  let seq = 0;
+  const loading = (txt = "Asking GitHub…") => {
+    body.textContent = "";
+    const w = el("div", "doctor-running");
+    w.append(spinnerEl(), el("span", null, txt));
+    body.append(w);
+  };
+  const failed = (d) => {
+    body.textContent = "";
+    body.append(el("div", "sheet-err", d.message || "GitHub refused."));
+    if (d.error === "no_account") {
+      const b = el("button", "navitem repo-btn", "Choose a GitHub account…");
+      b.type = "button";
+      b.onclick = () => { close(); codeRepoSheet(proj); };
+      body.append(b);
+    }
+  };
+  // A tap on another tab while this one is loading wins: an answer for a
+  // view you already left is dropped (STALE), never drawn over the new one.
+  const STALE = {};
+  const get = async (path, key) => {
+    const mine = seq;
+    let d = key && cache[key];
+    if (!d) {
+      try { d = await codeGet(repoPath(proj, path)); }
+      catch (e) { d = { ok: false, message: `Could not reach the engine: ${e.message || e}` }; }
+      if (key && d.ok) cache[key] = d;
+    }
+    if (mine !== seq || !sheet.isConnected) throw STALE;
+    return d;
+  };
+  const drawTabs = () => {
+    tabs.textContent = "";
+    for (const [k, label] of REPO_TABS) {
+      const on = P.tab === k;
+      const b = el("button", `repo-tab ${on ? "on" : ""}`, label);
+      b.type = "button";
+      b.dataset.tab = k;
+      b.setAttribute("role", "tab");
+      b.setAttribute("aria-selected", String(on));
+      b.onclick = () => { P.tab = k; P.detail = null; if (k !== "commits") P.ref = ""; show(); };
+      tabs.append(b);
+      if (on) queueMicrotask(() => b.scrollIntoView({ block: "nearest", inline: "nearest" }));
+    }
+  };
+  const back = () => {
+    const b = el("button", "repo-back", "‹ Back");
+    b.type = "button";
+    b.onclick = () => { P.detail = null; show(); };
+    return b;
+  };
+  const row = (onclick) => {
+    const r = el(onclick ? "button" : "div", "repo-row");
+    if (onclick) { r.type = "button"; r.onclick = onclick; }
+    return r;
+  };
+  const meta = (...bits) => el("span", "repo-meta", bits.filter(Boolean).join(" · "));
+  const empty = (txt) => el("div", "repo-empty", txt);
+  const stateSwitch = (cur, onPick) => {
+    const s = el("div", "repo-state");
+    for (const v of ["open", "closed", "all"]) {
+      const b = el("button", `repo-state-b ${cur === v ? "on" : ""}`, v);
+      b.type = "button";
+      b.onclick = () => onPick(v);
+      s.append(b);
+    }
+    return s;
+  };
+  const extRow = (url) => {
+    const it = el("a", "repo-row");
+    it.href = url;
+    it.target = "_blank";
+    it.rel = "noopener";
+    return it;
+  };
+
+  const runRows = (runs, list) => {
+    for (const r of runs) {
+      const it = row(() => { P.detail = { kind: "run", run: r }; show(); });
+      const top = el("span", "repo-row-top");
+      top.append(runBadge(r.status, r.conclusion), el("span", "repo-row-t", r.name || r.title));
+      it.append(top, meta(r.sha ? r.sha.slice(0, 7) : "", r.branch, r.event, whenAgo(r.created)));
+      if (r.title && r.title !== r.name) it.append(el("span", "repo-sub", r.title));
+      list.append(it);
+    }
+  };
+
+  const views = {
+    async overview() {
+      const d = await get("", "overview");
+      if (!d.ok) return failed(d);
+      body.textContent = "";
+      const i = d.info;
+      const card = el("div", "repo-card");
+      if (i.description) card.append(el("div", "repo-desc", i.description));
+      card.append(meta(i.private ? "private" : "public", `default ${i.default_branch}`,
+        i.pushed_at ? `pushed ${whenAgo(i.pushed_at)}` : ""));
+      card.append(repoLink(i.url));
+      body.append(card);
+      const l = d.local || {};
+      const loc = el("div", "repo-card");
+      loc.append(el("div", "repo-lbl", "This folder"));
+      const line = el("div", "repo-line");
+      line.append(el("span", "code-git-br", l.branch || "detached"));
+      if (l.upstream) line.append(el("span", "code-git-ab", `↑${l.ahead || 0} ↓${l.behind || 0}`),
+        el("span", "code-git-dim", l.upstream));
+      line.append(el("span", l.dirty ? "code-git-dirty" : "code-git-dim",
+        l.dirty ? `${l.dirty} uncommitted` : "clean"));
+      loc.append(line);
+      if (l.subject) loc.append(el("div", "repo-sub", `${l.head} ${l.subject}`));
+      body.append(loc);
+      const rc = el("div", "repo-card");
+      const rh = el("div", "repo-lbl-row");
+      rh.append(el("div", "repo-lbl", `Latest runs on ${d.branch}`));
+      if (d.tip && d.tip.sha) {
+        const w = CODE.watch && CODE.watch.pid === proj.id && CODE.watch.sha === d.tip.sha;
+        const wb = el("button", "code-git-act repo-watch", w ? "Watching" : `Watch ${d.tip.short}`);
+        wb.type = "button";
+        wb.disabled = !!w;
+        wb.title = `Follow the Actions runs for ${d.tip.short} — ${d.tip.title}`;
+        wb.onclick = () => { codeWatchStart(proj, d.tip.sha, { branch: d.branch }); close(); };
+        rh.append(wb);
+      }
+      rc.append(rh);
+      const list = el("div", "repo-list");
+      if (!(d.runs || []).length) list.append(empty("No workflow runs on this branch."));
+      runRows(d.runs || [], list);
+      rc.append(list);
+      body.append(rc);
+    },
+    async branches() {
+      const d = await get("/branches", "branches");
+      if (!d.ok) return failed(d);
+      body.textContent = "";
+      const list = el("div", "repo-list");
+      for (const b of d.local || []) {
+        const it = row(() => { P.tab = "commits"; P.ref = b.name; show(); });
+        const top = el("span", "repo-row-top");
+        top.append(el("span", "repo-row-t mono", (b.current ? "● " : "") + b.name));
+        if (b.upstream) {
+          top.append(el("span", `code-git-ab ${b.behind ? "code-git-warn" : ""}`,
+            b.gone ? "upstream gone" : `↑${b.ahead} ↓${b.behind}`));
+        } else {
+          top.append(el("span", "code-git-dim", b.on_remote ? "not tracking" : "local only"));
+        }
+        it.append(top, meta(b.head, b.subject, b.date ? engAgo(b.date * 1000) : ""));
+        list.append(it);
+      }
+      for (const b of d.remote_only || []) {
+        const it = row(() => { P.tab = "commits"; P.ref = b.name; show(); });
+        const top = el("span", "repo-row-top");
+        top.append(el("span", "repo-row-t mono", b.name), el("span", "code-git-dim", "on GitHub only"));
+        it.append(top, meta(b.sha.slice(0, 7), b.protected ? "protected" : ""));
+        list.append(it);
+      }
+      body.append(el("div", "repo-note", "Ahead/behind are as of this folder's last fetch."), list);
+    },
+    async commits() {
+      const ref = P.ref || "";
+      const d = await get(`/commits${ref ? `?ref=${encodeURIComponent(ref)}` : ""}`, `commits:${ref}`);
+      if (!d.ok) return failed(d);
+      body.textContent = "";
+      if (ref) body.append(el("div", "repo-note", `On ${ref}`));
+      const list = el("div", "repo-list");
+      if (!(d.commits || []).length) list.append(empty("No commits."));
+      for (const c of d.commits || []) {
+        const it = extRow(c.url);
+        const top = el("span", "repo-row-top");
+        top.append(el("span", "repo-sha", c.short), el("span", "repo-row-t", c.title));
+        it.append(top, meta(c.author, whenAgo(c.date)));
+        list.append(it);
+      }
+      body.append(list);
+    },
+    async pulls() {
+      const st = P.prState;
+      const d = await get(`/pulls?state=${st}`, `pulls:${st}`);
+      if (!d.ok) return failed(d);
+      body.textContent = "";
+      body.append(stateSwitch(st, (v) => { P.prState = v; show(); }));
+      const list = el("div", "repo-list");
+      if (!(d.pulls || []).length) list.append(empty(`No ${st === "all" ? "" : st + " "}pull requests.`));
+      for (const p of d.pulls || []) {
+        const it = row(() => { P.detail = { kind: "pull", number: p.number }; show(); });
+        const top = el("span", "repo-row-top");
+        top.append(el("span", "repo-num", `#${p.number}`), el("span", "repo-row-t", p.title));
+        it.append(top, meta(p.draft ? "draft" : p.state, `${p.head} → ${p.base}`, p.user, whenAgo(p.updated)));
+        list.append(it);
+      }
+      body.append(list);
+    },
+    async issues() {
+      const st = P.isState;
+      const d = await get(`/issues?state=${st}`, `issues:${st}`);
+      if (!d.ok) return failed(d);
+      body.textContent = "";
+      body.append(stateSwitch(st, (v) => { P.isState = v; show(); }));
+      const list = el("div", "repo-list");
+      if (!(d.issues || []).length) list.append(empty(`No ${st === "all" ? "" : st + " "}issues.`));
+      for (const i of d.issues || []) {
+        const it = row(() => { P.detail = { kind: "issue", number: i.number }; show(); });
+        const top = el("span", "repo-row-top");
+        top.append(el("span", "repo-num", `#${i.number}`), el("span", "repo-row-t", i.title));
+        it.append(top, meta(i.state, (i.labels || []).join(", "), i.comments ? `${i.comments} comments` : "",
+          i.user, whenAgo(i.updated)));
+        list.append(it);
+      }
+      body.append(list);
+    },
+    async actions() {
+      const d = await get("/actions", "actions");
+      if (!d.ok) return failed(d);
+      body.textContent = "";
+      const list = el("div", "repo-list");
+      if (!(d.runs || []).length) list.append(empty("No workflow runs."));
+      runRows(d.runs || [], list);
+      body.append(list);
+    },
+    async releases() {
+      const d = await get("/releases", "releases");
+      if (!d.ok) return failed(d);
+      body.textContent = "";
+      const list = el("div", "repo-list");
+      if (!(d.releases || []).length) list.append(empty("No releases."));
+      for (const r of d.releases || []) {
+        const it = extRow(r.url);
+        const top = el("span", "repo-row-top");
+        top.append(el("span", "repo-row-t mono", r.tag), el("span", "repo-row-t", r.name));
+        it.append(top, meta(r.draft ? "draft" : r.prerelease ? "pre-release" : "", whenAgo(r.date)));
+        list.append(it);
+      }
+      body.append(list);
+    },
+  };
+
+  const details = {
+    async pull({ number }) {
+      const d = await get(`/pulls/${number}`, `pull:${number}`);
+      if (!d.ok) return failed(d);
+      const p = d.pull;
+      body.textContent = "";
+      body.append(back());
+      body.append(el("div", "repo-dt", `#${p.number} ${p.title}`));
+      body.append(meta(p.draft ? "draft" : p.state, `${p.head} → ${p.base}`, p.user,
+        `${p.commits} commits`, `+${p.additions} −${p.deletions}`, `${p.changed_files} files`));
+      const ck = el("div", "repo-card");
+      const v = (p.checks || {}).verdict || "none";
+      ck.append(el("div", "repo-lbl", `Checks · ${{ none: "none reported", pending: "running",
+        success: "all passed", failure: "failing" }[v] || v}`));
+      for (const c of (p.checks || {}).runs || []) {
+        const r = el("div", "repo-check");
+        r.append(runBadge(c.status, c.conclusion), el("span", null, c.name));
+        ck.append(r);
+      }
+      body.append(ck);
+      if (p.body) body.append(el("div", "repo-text", p.body));
+      body.append(repoLink(p.url));
+    },
+    async issue({ number }) {
+      const d = await get(`/issues/${number}`, `issue:${number}`);
+      if (!d.ok) return failed(d);
+      const i = d.issue;
+      body.textContent = "";
+      body.append(back());
+      body.append(el("div", "repo-dt", `#${i.number} ${i.title}`));
+      body.append(meta(i.is_pull ? "pull request" : i.state, (i.labels || []).join(", "), i.user,
+        whenAgo(i.updated)));
+      body.append(el("div", "repo-text", i.body || "No description."));
+      for (const c of i.thread || []) {
+        const cm = el("div", "repo-comment");
+        cm.append(meta(c.user, whenAgo(c.date)), el("div", "repo-text", c.body));
+        body.append(cm);
+      }
+      body.append(repoLink(i.url));
+    },
+    async run({ run }) {
+      const d = await get(`/actions/${run.id}`, `run:${run.id}:${run.status}`);
+      if (!d.ok) return failed(d);
+      body.textContent = "";
+      body.append(back());
+      const t = el("div", "repo-dt");
+      t.append(runBadge(run.status, run.conclusion), el("span", null, ` ${run.name}`));
+      body.append(t, meta((run.sha || "").slice(0, 7), run.branch, run.event,
+        run.number ? `run ${run.number}` : "", whenAgo(run.created)));
+      for (const j of d.jobs || []) {
+        const card = el("div", "repo-card");
+        const top = el("div", "repo-row-top");
+        top.append(runBadge(j.status, j.conclusion), el("span", "repo-row-t", j.name));
+        card.append(top);
+        const bad = (j.steps || []).filter((s) => RUN_BAD.has(s.conclusion));
+        for (const s of bad) card.append(el("div", "repo-step", `✕ ${s.name}`));
+        if (!bad.length && j.steps && j.steps.length) {
+          card.append(el("div", "repo-sub", `${j.steps.length} steps`));
+        }
+        body.append(card);
+      }
+      const fj = d.failed_job;
+      if (fj) body.append(repoFailure(proj, run, fj, close));
+      body.append(repoLink(run.url));
+    },
+  };
+
+  const show = async () => {
+    seq++;
+    drawTabs();
+    loading();
+    body.scrollTop = 0;
+    try {
+      await (P.detail ? details[P.detail.kind](P.detail) : views[P.tab]());
+    } catch (e) {
+      if (e !== STALE) failed({ message: String((e && e.message) || e) });
+    }
+  };
+  if (!CODE.gh) codeGhLoad();
+  await show();
+}
+
+/** The failing job's step and log tail, with the one action it invites. */
+function repoFailure(proj, run, fj, done) {
+  const box = el("div", "repo-fail");
+  box.append(el("div", "repo-lbl", `Failed: ${fj.name}${fj.step ? " › " + fj.step : ""}`));
+  if (fj.log) {
+    const pre = el("pre", "repo-log", fj.log);
+    box.append(pre);
+    // The end is the part that says why; start there.
+    requestAnimationFrame(() => { pre.scrollTop = pre.scrollHeight; });
+  } else if (fj.log_error) {
+    box.append(el("div", "sheet-err", fj.log_error));
+  }
+  const acts = el("div", "repo-fail-acts");
+  const dx = el("button", "code-approve", "Ask the chain to diagnose");
+  dx.type = "button";
+  dx.disabled = codeBusy() || !codeChain().length;
+  dx.title = codeBusy() ? "A task is already running" : "A Read task with this log as its context";
+  dx.onclick = () => { if (done) done(); codeDiagnose(proj, run, fj); };
+  acts.append(dx, repoLink(fj.url, "Job on GitHub"));
+  box.append(acts);
+  return box;
+}
+
+/** A Read task: the failing log is the context, the workspace is the code. */
+async function codeDiagnose(proj, run, fj) {
+  if (codeBusy()) return;
+  const agents = codeChain().map((m) => m.id);
+  if (!agents.length) return;
+  if (CODE.projectId !== proj.id) codeSetProject(proj.id);
+  const prompt = [
+    `A GitHub Actions run failed: workflow "${run.name}" on ${run.branch || "?"}`
+      + ` (commit ${String(run.sha || "").slice(0, 7)}), job "${fj.name}"`
+      + (fj.step ? `, step "${fj.step}"` : "") + ".",
+    "The end of the job's log:",
+    "```\n" + String(fj.log || fj.log_error || "(no log)").slice(-12000) + "\n```",
+    "Find the cause, using this workspace (and the github_* tools if you have them), "
+      + "and explain what to change to fix it. Say plainly if the cause is outside the code "
+      + "(for example a deployment that was still in progress).",
+  ].join("\n\n");
+  let d;
+  try { d = await codePost("/tasks", { project_id: proj.id, prompt, agents, mode: "read",
+                                       ...codeModelBody() }); }
+  catch (e) { CODE.err = `Could not start the diagnosis: ${e.message || e}`; renderCodeView(); return; }
+  if (!d.ok) { CODE.err = d.message || "The engine refused the task."; renderCodeView(); return; }
+  if (!codeMode()) setMode("code");
+  codeAttach(d.task.id, `Diagnose: ${run.name} › ${fj.name}`);
+}
+
+/* ── the Actions watch ─────────────────────────────────────────────────── */
+const WATCH_EVERY_MS = 20000;
+const WATCH_NONE_MS = 4 * 60000;      // no run has appeared: nothing is configured
+const WATCH_MAX_MS = 60 * 60000;
+
+function codeWatchStart(proj, sha, { taskId = null, branch = "" } = {}) {
+  if (!sha || sha.length < 40) return;
+  codeWatchStop();
+  CODE.watch = { pid: proj.id, sha, short: sha.slice(0, 7), branch, taskId,
+                 state: "none", summary: null, runs: [], started: Date.now(),
+                 fail: null, timer: 0, err: "" };
+  if (codeMode()) renderCodeView();
+  codeWatchTick();
+}
+
+function codeWatchStop() {
+  if (CODE.watch && CODE.watch.timer) clearTimeout(CODE.watch.timer);
+  if (CODE.watch) CODE.watch.timer = 0;
+}
+
+async function codeWatchTick() {
+  const w = CODE.watch;
+  if (!w) return;
+  w.timer = 0;
+  const proj = ((CODE.state && CODE.state.projects) || []).find((p) => p.id === w.pid);
+  if (!proj) return;
+  // A hidden tab skips the read but keeps the timer, so the watch picks up
+  // where it was when the phone comes out of the pocket.
+  if (!document.hidden && online()) {
+    try {
+      const d = await codeGet(repoPath(proj, `/actions?sha=${w.sha}`));
+      if (CODE.watch !== w) return;
+      if (d.ok) {
+        w.err = "";
+        w.runs = d.runs || [];
+        w.summary = d.summary;
+        w.state = (d.summary || {}).state || "none";
+      } else {
+        w.err = d.message || "GitHub refused.";
+      }
+    } catch (e) {
+      w.err = `Could not reach the engine: ${e.message || e}`;
+    }
+  }
+  if (CODE.watch !== w) return;
+  if (w.state === "failure" && !w.fail) {
+    const bad = w.runs.find((r) => RUN_BAD.has(r.conclusion));
+    if (bad) {
+      try {
+        const d = await codeGet(repoPath(proj, `/actions/${bad.id}`));
+        if (d.ok && d.failed_job) w.fail = { run: bad, job: d.failed_job };
+      } catch {}
+    }
+  }
+  const age = Date.now() - w.started;
+  const going = w.state === "pending" || (w.state === "none" && age < WATCH_NONE_MS);
+  if (going && age < WATCH_MAX_MS) w.timer = setTimeout(codeWatchTick, WATCH_EVERY_MS);
+  else if (w.state === "none") w.state = "gone";
+  if (codeMode()) renderCodeView();
+}
+
+/** One line: what the watch knows, and what to do about a failure. */
+function renderCodeWatch(proj) {
+  const w = CODE.watch;
+  if (!w || !proj || w.pid !== proj.id) return null;
+  const box = el("div", `code-watch is-${w.state}`);
+  box.setAttribute("role", "status");
+  const s = w.summary || {};
+  const txt = {
+    none: `Actions: waiting for runs on ${w.short}…`,
+    pending: `Actions: ${s.done || 0} of ${s.total || 0} done on ${w.short}`,
+    success: `Actions passed on ${w.short} (${s.total} run${s.total === 1 ? "" : "s"})`,
+    failure: `Actions failed on ${w.short}`
+      + (w.fail ? `: ${w.fail.job.name}${w.fail.job.step ? " › " + w.fail.job.step : ""}` : ""),
+    gone: `No workflow ran for ${w.short}`,
+  }[w.state] || "";
+  if (w.state === "pending" || w.state === "none") box.append(spinnerEl());
+  else box.append(el("span", "repo-dot"));
+  const t = el("button", "code-watch-t", w.err || txt);
+  t.type = "button";
+  t.title = "Open the Actions runs";
+  t.onclick = () => codeRepoPanel(proj, "actions");
+  box.append(t);
+  if (w.state === "failure" && w.fail) {
+    const lg = el("button", "code-git-act", "Log");
+    lg.type = "button";
+    lg.onclick = () => {
+      const sheet = el("div", "sheet repo-sheet");
+      const b = el("div", "sheet-box repo-box");
+      const close = () => sheet.remove();
+      b.append(el("div", "sheet-hd", "Failed run"), repoFailure(proj, w.fail.run, w.fail.job, close));
+      const bar = el("div", "sheet-bar");
+      const no = el("button", "btn", "Close");
+      no.onclick = close;
+      bar.append(el("span", "qbar-spacer"), no);
+      b.append(bar);
+      dismissOnBackdrop(sheet, close);
+      sheet.append(b);
+      document.body.append(sheet);
+    };
+    const dx = el("button", "code-git-act is-push", "Diagnose");
+    dx.type = "button";
+    dx.disabled = codeBusy() || !codeChain().length;
+    dx.onclick = () => codeDiagnose(proj, w.fail.run, w.fail.job);
+    box.append(lg, dx);
+  }
+  if (w.state !== "pending" && w.state !== "none") {
+    const x = el("button", "code-git-act", "Dismiss");
+    x.type = "button";
+    x.onclick = () => { codeWatchStop(); CODE.watch = null; renderCodeView(); };
+    box.append(x);
+  }
+  return box;
+}
+
+/** What the task is told about models (Phase 11B fills this in). */
+function codeModelBody() { return {}; }
 
 function codeAddSlot(c) {
   const taken = new Set(c.slots.map((s) => s.slot));
