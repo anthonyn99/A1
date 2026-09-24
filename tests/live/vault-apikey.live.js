@@ -79,7 +79,7 @@ const panelHtml = `document.getElementById('vault-apikeys-panel').innerHTML`;
   await evalJs(c, `[...document.querySelectorAll('#vault-apikeys-panel button')].find(b => /Add API key/.test(b.textContent)).click(); true`);
   ok(await waitFor(c, `!!document.querySelector('.vak-modal')`), 'editor opens');
   await evalJs(c, typeJs(`document.querySelector('.vak-modal input[placeholder^="Paste the API key"]')`, '  ' + KEY + '\n'));
-  ok(await evalJs(c, `document.querySelector('.vak-modal input[list]').value`) === 'Anthropic', 'provider auto-detected from the key');
+  ok(await evalJs(c, `document.querySelector('.vak-modal input[data-vc-list]').value`) === 'Anthropic', 'provider auto-detected from the key');
   ok(await evalJs(c, `document.querySelector('.vak-modal input[placeholder="ANTHROPIC_API_KEY"]') != null`), 'env variable suggested (ANTHROPIC_API_KEY)');
   ok(await evalJs(c, `document.querySelector('.vak-modal input[placeholder^="Paste the API key"]').getAttribute('autocapitalize')`) === 'off', 'key input disables autocapitalize (phones)');
   await evalJs(c, typeJs(`document.querySelector('.vak-modal input[placeholder^="Client secret"]')`, SECRET));
@@ -91,6 +91,55 @@ const panelHtml = `document.getElementById('vault-apikeys-panel').innerHTML`;
   await evalJs(c, typeJs(`document.querySelector('.vak-modal .vault-cf-row input[placeholder=Label]')`, 'Org PIN'));
   await evalJs(c, typeJs(`document.querySelector('.vak-modal .vault-cf-row input[placeholder=Value]')`, 'PIN-998877'));
   await evalJs(c, `document.querySelector('.vak-modal .vault-cf-row .vault-icon').click(); true`); // mark hidden
+  console.log('\nThemed controls (no browser UI)');
+  const ctl = await evalJs(c, `const m = document.querySelector('.vak-modal');
+    const inp = m.querySelector('input[placeholder^="Account"]');
+    return { selects: m.querySelectorAll('select.vc-native').length, buttons: m.querySelectorAll('.vc-select').length,
+      date: !!m.querySelector('.vc-date') && m.querySelector('input[type=date]').classList.contains('vc-native'),
+      list: m.querySelector('input[list]') === null, cb: getComputedStyle(m.querySelector('input[type=checkbox]')).appearance,
+      sb: getComputedStyle(m).scrollbarWidth, fieldBg: getComputedStyle(inp).backgroundColor, modalBg: getComputedStyle(m).backgroundColor,
+      envLabel: [...m.querySelectorAll('.vc-select')][1].textContent.trim() }`);
+  ok(ctl.selects === 3 && ctl.buttons === 3, 'every <select> is a themed dropdown', ctl);
+  ok(ctl.date, 'date input is a themed date field', ctl);
+  ok(ctl.list, 'datalist input has no native list', ctl);
+  ok(ctl.cb === 'none', 'checkbox is themed', ctl);
+  ok(ctl.sb === 'none', 'native scrollbar hidden in the modal', ctl);
+  ok(ctl.fieldBg !== ctl.modalBg, 'fields contrast with the modal', ctl);
+  ok(ctl.envLabel === 'Production', 'setting select.value repaints the themed button', ctl);
+  await evalJs(c, `[...document.querySelectorAll('.vak-modal .vc-select')][1].click(); true`);
+  ok(await waitFor(c, `!!document.querySelector('.vc-pop.on [role=option]')`), 'dropdown opens a themed listbox');
+  await evalJs(c, `[...document.querySelectorAll('.vc-pop .vc-opt')].find(o => o.textContent.trim() === 'Staging').click(); true`);
+  ok(await waitFor(c, `!document.querySelector('.vc-pop') && [...document.querySelectorAll('.vak-modal select')][1].value === 'staging'`), 'choosing an option sets the real select');
+  await evalJs(c, `const s = [...document.querySelectorAll('.vak-modal select')][1]; s.value = 'production'; s.dispatchEvent(new Event('change')); return true`);
+  await evalJs(c, `document.querySelector('.vak-modal .vc-date').click(); true`);
+  ok(await waitFor(c, `!!document.querySelector('.vc-pop.vc-cal .vc-cal-cell')`), 'date field opens a themed calendar');
+  await evalJs(c, `[...document.querySelectorAll('.vc-cal .vc-cal-link')].find(b => b.textContent === 'Today').click(); true`);
+  const todayIso = await evalJs(c, `const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')`);
+  ok(await waitFor(c, `document.querySelector('.vak-modal input[type=date]').value === '${todayIso}'`), 'Today sets the date');
+  ok(/\d/.test(await evalJs(c, `document.querySelector('.vak-modal .vc-date').textContent`)), 'date field shows the formatted date');
+  await shot(c, 'vault-controls-date');
+  await evalJs(c, `const d = document.querySelector('.vak-modal input[type=date]'); d.value = ''; d.dispatchEvent(new Event('change')); return true`);
+  const prov = await evalJs(c, `document.querySelector('.vak-modal input[data-vc-list]').value`);
+  await evalJs(c, typeJs(`document.querySelector('.vak-modal input[data-vc-list]')`, 'Anth'));
+  ok(await waitFor(c, `[...document.querySelectorAll('.vc-pop .vc-opt')].some(o => o.textContent === 'Anthropic')`), 'provider suggestions are a themed menu');
+  await evalJs(c, `const i = document.querySelector('.vak-modal input[data-vc-list]'); i.value = ${JSON.stringify(prov)}; i.dispatchEvent(new Event('input', { bubbles: true })); window.VaultControls.close(); return true`);
+  await viewport(c, 1280, 620, false);
+  await evalJs(c, `document.querySelector('.vak-modal').scrollTop = 200; true`);
+  ok(await waitFor(c, `!!document.querySelector('.vc-rail.v.on')`), 'scrolling shows the themed scrollbar');
+  await shot(c, 'vault-controls-scrollbar');
+  const rail = await evalJs(c, `const r = document.querySelector('.vc-rail.v.on'); const t = r.querySelector('.vc-thumb').getBoundingClientRect(); const m = document.querySelector('.vak-modal').getBoundingClientRect();
+    return { x: t.left + t.width / 2, y: t.top + t.height / 2, inside: t.right <= m.right + 1 && t.left >= m.left, st: document.querySelector('.vak-modal').scrollTop }`);
+  ok(rail.inside, 'thumb sits inside the modal edge', rail);
+  await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: rail.x, y: rail.y });
+  await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: rail.x, y: rail.y, button: 'left', clickCount: 1 });
+  for (let k = 1; k <= 6; k++) { await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: rail.x, y: rail.y + k * 15, button: 'left', buttons: 1 }); await sleep(16); }
+  await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: rail.x, y: rail.y + 90, button: 'left', clickCount: 1 });
+  const st2 = await evalJs(c, `document.querySelector('.vak-modal').scrollTop`);
+  ok(st2 > rail.st + 40, 'dragging the thumb scrolls', { before: rail.st, after: st2 });
+  await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 10, y: 10 });
+  ok(await waitFor(c, `!document.querySelector('.vc-rail.on')`, 3000), 'thumb fades out when idle');
+  await viewport(c, 1280, 900, false);
+
   const writesBefore = await evalJs(c, `window.__writes`);
   await evalJs(c, `[...document.querySelectorAll('.vak-modal button')].find(b => b.textContent === 'Add API key').click(); true`);
   ok(await waitFor(c, `!document.querySelector('.vak-modal') && document.querySelectorAll('#vault-apikeys-panel .vak-site').length === 1`), 'saved and listed');
@@ -226,6 +275,32 @@ const panelHtml = `document.getElementById('vault-apikeys-panel').innerHTML`;
   await evalJs(c, `[...document.querySelectorAll('.vak-modal button')].find(b => b.textContent === 'Cancel').click(); true`);
   await viewport(c, 1280, 900, false);
 
+  console.log('\nTabs · smooth drag + synced order');
+  await evalJs(c, `window.__tabOrderSaved = null; true`);
+  const tabsPos = await evalJs(c, `const t = [...document.querySelectorAll('.vault-tab')]; return t.map(e => { const r = e.getBoundingClientRect(); return { k: e.dataset.tab, x: r.left + r.width / 2, y: r.top + r.height / 2 }; })`);
+  const src = tabsPos.find((t) => t.k === 'apikeys'), dst = tabsPos.find((t) => t.k === 'passwords');
+  await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: src.x, y: src.y });
+  await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: src.x, y: src.y, button: 'left', clickCount: 1 });
+  const drift = [];
+  for (let k = 1; k <= 24; k++) {
+    const x = src.x + (dst.x - 30 - src.x) * k / 24;
+    await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y: src.y, button: 'left', buttons: 1 });
+    await sleep(20);
+    const r = await evalJs(c, `const e = document.querySelector('.vault-tab.vdrag'); if (!e) return null; const r = e.getBoundingClientRect(); return r.left + r.width / 2`);
+    if (r != null) drift.push(Math.abs(r - x));
+  }
+  await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: dst.x - 30, y: src.y, button: 'left', clickCount: 1 });
+  await sleep(400);
+  const maxOff = Math.max.apply(null, drift.slice(2));
+  ok(drift.length > 10 && maxOff < 12, 'dragged tab tracks the pointer (max drift ' + Math.round(maxOff) + 'px)', drift.map(Math.round));
+  const newOrder = await evalJs(c, `[...document.querySelectorAll('.vault-tab')].map(t => t.dataset.tab).join(',')`);
+  ok(newOrder.indexOf('links,apikeys,passwords') === 0, 'drop reorders the tabs', newOrder);
+  ok((await evalJs(c, `(window.__tabOrderSaved || []).join(',')`)) === newOrder, 'order saved to the keychain doc for the Launcher');
+  ok(await evalJs(c, `document.querySelector('.vault-tab.active').dataset.tab`) === 'apikeys', 'drop did not also switch tabs');
+  await evalJs(c, `window.dispatchEvent(new CustomEvent('fb-kc-taborder', { detail: ['links','cloud','sensitive','apikeys','iddocs','payments','passwords'] })); true`);
+  ok(await evalJs(c, `[...document.querySelectorAll('.vault-tab')].map(t => t.dataset.tab).join(',')`) === 'links,cloud,sensitive,apikeys,iddocs,payments,passwords', 'an order from another device applies live');
+  await evalJs(c, `window.dispatchEvent(new CustomEvent('fb-kc-taborder', { detail: ['links','passwords','payments','iddocs','apikeys','sensitive','cloud'] })); true`);
+
   console.log('\nWeb app · lock');
   await evalJs(c, `document.querySelector('#vault-apikeys-panel .vault-toolbar button[title="Lock now"]').click(); true`);
   ok(await waitFor(c, `!!document.querySelector('#vault-apikeys-panel input[placeholder="Master password"]')`), 'lock screen drawn in the API Keys panel');
@@ -293,7 +368,7 @@ const panelHtml = `document.getElementById('vault-apikeys-panel').innerHTML`;
   await c.send('Page.addScriptToEvaluateOnNewDocument', { source: `
     (function(){
       var doc = JSON.parse(localStorage.getItem('__vaultDoc') || 'null');
-      window.fetch = function (url) { var body = /keychain/.test(String(url)) ? { connections: [], colmap: null, savedAt: 1 } : doc;
+      window.fetch = function (url) { var body = /keychain/.test(String(url)) ? { connections: [], colmap: null, savedAt: 1, tabOrder: ['links','cloud','apikeys','sensitive','iddocs','passwords','payments'] } : doc;
         return Promise.resolve({ ok: true, status: 200, json: function () { return Promise.resolve(body); } }); };
       var st = {};
       function area(){ return { get: function (k, cb) { var o = {}; (Array.isArray(k) ? k : [k]).forEach(function(x){ o[x] = st[x]; }); cb && cb(o); }, set: function (o, cb) { Object.assign(st, o); cb && cb(); }, remove: function (k, cb) { delete st[k]; cb && cb(); } }; }
@@ -305,6 +380,8 @@ const panelHtml = `document.getElementById('vault-apikeys-panel').innerHTML`;
   await nav(c, BASE + '../../Vault/popup.html');
   await sleep(600);
   ok(await evalJs(c, `!!document.getElementById('tab-api')`), 'popup has an API Keys tab');
+  ok(await waitFor(c, `[...document.querySelectorAll('.tab')].map(t => t.dataset.panel).join(',') === 'links,apikeys,iddocs,passwords,payments'`), "popup tabs follow the app's tab order", await evalJs(c, `[...document.querySelectorAll('.tab')].map(t => t.dataset.panel).join(',')`));
+  ok(await evalJs(c, `getComputedStyle(document.getElementById('scroll')).scrollbarWidth`) === 'none', 'popup uses the themed scrollbar');
   await evalJs(c, `document.getElementById('tab-api').click(); true`);
   ok(await waitFor(c, `!document.getElementById('panel-apikeys').classList.contains('hidden') && !!document.querySelector('#panel-apikeys .pw-input')`), 'API Keys tab shows the unlock form');
   const tabs = await evalJs(c, `const t = [...document.querySelectorAll('.tab')].map(e => { const r = e.getBoundingClientRect(); return { top: Math.round(r.top), clipped: e.scrollWidth > e.clientWidth }; }); return { rows: new Set(t.map(x => x.top)).size, clipped: t.some(x => x.clipped) }`);
@@ -320,6 +397,37 @@ const panelHtml = `document.getElementById('vault-apikeys-panel').innerHTML`;
   ok(await waitFor(c, `document.querySelectorAll('#panel-passwords .pw-row').length === 1`), 'Passwords tab still lists logins (shared unlock)');
   await evalJs(c, `document.getElementById('tab-pay').click(); true`);
   ok(await waitFor(c, `/No payment methods yet/.test(document.getElementById('panel-payments').innerText)`), 'Payments tab still works');
+
+  console.log('\nTabs · touch (phone)');
+  await c.send('Page.addScriptToEvaluateOnNewDocument', { source: '' });
+  await viewport(c, 390, 844, true);
+  await c.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
+  await nav(c, BASE + 'vault-harness.html');
+  await sleep(600);
+  const touch = (type, x, y) => c.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] });
+  const tp = await evalJs(c, `const t = [...document.querySelectorAll('.vault-tab')]; return t.map(e => { const r = e.getBoundingClientRect(); return { k: e.dataset.tab, x: r.left + r.width / 2, y: r.top + r.height / 2 }; })`);
+  const t0 = await evalJs(c, `[...document.querySelectorAll('.vault-tab')].map(t => t.dataset.tab).join(',')`);
+  await touch('touchStart', tp[2].x, tp[2].y);
+  for (let k = 1; k <= 8; k++) { await touch('touchMove', tp[2].x - k * 20, tp[2].y); await sleep(16); }
+  await touch('touchEnd'); await sleep(300);
+  ok((await evalJs(c, `[...document.querySelectorAll('.vault-tab')].map(t => t.dataset.tab).join(',')`)) === t0 && (await evalJs(c, `document.getElementById('vault-tabs').scrollLeft`)) > 0, 'a swipe scrolls the tab strip, never drags');
+  ok(await evalJs(c, `!document.querySelector('.vc-rail.h.on')`), 'no scrollbar rail over the tab strip');
+  await evalJs(c, `document.getElementById('vault-tabs').scrollLeft = 0; window.__tabOrderSaved = null; true`);
+  await sleep(150);
+  const lp = await evalJs(c, `const r = document.querySelector('.vault-tab').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }`);
+  await touch('touchStart', lp.x, lp.y); await sleep(350);
+  ok(await evalJs(c, `!!document.querySelector('.vault-tab.vdrag')`), 'long-press arms the drag');
+  const tdrift = [];
+  for (let k = 1; k <= 20; k++) {
+    const x = lp.x + k * 9;
+    await touch('touchMove', x, lp.y); await sleep(20);
+    const r = await evalJs(c, `const e = document.querySelector('.vault-tab.vdrag'); if (!e) return null; const r = e.getBoundingClientRect(); return r.left + r.width / 2`);
+    tdrift.push(r == null ? 999 : Math.abs(r - x));
+  }
+  await touch('touchEnd'); await sleep(400);
+  ok(Math.max.apply(null, tdrift) < 6, 'tab stays under the finger', tdrift.map(Math.round));
+  ok((await evalJs(c, `(window.__tabOrderSaved || []).slice(0, 2).join(',')`)) === 'passwords,links', 'touch drop reorders + saves');
+  await c.send('Emulation.setTouchEmulationEnabled', { enabled: false });
 
   ok(!errors.length, 'no uncaught page errors', errors);
   console.log('\n  ' + passed + ' passed, ' + failed + ' failed');

@@ -126,8 +126,8 @@
         var inside = cx >= ob.x && cx <= ob.x + ob.w && cy >= ob.y - 4 && cy <= ob.y + ob.h + 4;
         if (!inside) continue;
         var omx = ob.x + ob.w / 2, omy = ob.y + ob.h / 2;
-        if (i < from && (sameRow ? cx < omx : cy < omy)) { moveWithFlip(function () { nav.insertBefore(d.node, o); }); }
-        else if (i > from && (sameRow ? cx > omx : cy > omy)) { moveWithFlip(function () { nav.insertBefore(d.node, o.nextSibling); }); }
+        if (i < from && (sameRow ? cx < omx : cy < omy)) { moveWithFlip(function () { nav.insertBefore(d.node, o); }); recapture(); }
+        else if (i > from && (sameRow ? cx > omx : cy > omy)) { moveWithFlip(function () { nav.insertBefore(d.node, o.nextSibling); }); recapture(); }
         break;
       }
       // Re-read layout AFTER any move: the item's slot may have changed, the
@@ -136,6 +136,9 @@
       d.node.style.transform = 'translate(' + (wantX - nb.x) + 'px,' + (wantY - nb.y) + 'px) scale(1.04)';
     }
     function schedule() { if (!frame) frame = requestAnimationFrame(place); }
+    // Moving a node in the DOM silently releases its pointer capture — take it
+    // back, or the rest of the drag is lost the moment the pointer leaves it.
+    function recapture() { d.moving = true; try { d.node.setPointerCapture(d.id); } catch (e) {} d.moving = false; }
 
     // Overflowing strip: scroll while the pointer sits near an edge.
     function autoScroll() {
@@ -155,8 +158,11 @@
       if (!d || d.dragging) return;
       d.dragging = true;
       d.startOrder = order();
+      // Grab point = where the press happened on the item, so once armed the
+      // item snaps to follow the pointer exactly (not trailing by the arming
+      // distance).
       var b = box(d.node);
-      var p = toLocal(d.lastX, d.lastY);
+      var p = toLocal(d.startX, d.startY);
       d.gx = p.x - b.x; d.gy = p.y - b.y;
       d.node.classList.add('vdrag');
       nav.classList.add('vdrag-live');
@@ -201,7 +207,14 @@
     }
 
     nav.addEventListener('pointerdown', function (e) {
-      if (d || e.button > 0) return;
+      if (e.button > 0) return;
+      if (d) {
+        // A live drag keeps its pointer. An un-armed leftover (a swipe the
+        // browser turned into a scroll sends no move/cancel to clear it) must
+        // not block the next press.
+        if (d.dragging && d.id !== e.pointerId) return;
+        finish(false);
+      }
       var node = e.target.closest && e.target.closest(ITEM);
       if (!node || !nav.contains(node)) return;
       d = {
@@ -233,7 +246,16 @@
     function up(e) { if (d && e.pointerId === d.id) finish(true); }
     nav.addEventListener('pointerup', up);
     nav.addEventListener('pointercancel', function (e) { if (d && e.pointerId === d.id) finish(true); });
-    nav.addEventListener('lostpointercapture', function (e) { if (d && d.dragging && e.pointerId === d.id) finish(true); });
+    // Capture lost for a reason other than our own reorder (the node left the
+    // DOM, the browser took the gesture): end cleanly rather than stay stuck.
+    nav.addEventListener('lostpointercapture', function (e) {
+      if (!d || !d.dragging || e.pointerId !== d.id) return;
+      setTimeout(function () {
+        if (!d || !d.dragging) return;
+        var still = false; try { still = d.node.hasPointerCapture(d.id); } catch (er) {}
+        if (!still && !d.node.isConnected) finish(true);
+      }, 0);
+    });
     window.addEventListener('blur', function () { if (d) finish(true); });
     document.addEventListener('keydown', function (e) {
       if (e.key !== 'Escape' || !d || !d.dragging) return;

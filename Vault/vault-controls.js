@@ -108,6 +108,9 @@
     '  .vc-rail.v{width:28px}.vc-rail.h{height:28px}',
     '  .vc-rail.v .vc-thumb{width:5px;right:3px}.vc-rail.h .vc-thumb{height:5px;bottom:3px}',
     '  .vc-thumb::before{inset:-10px -12px -10px -20px}',
+    // On touch only the thumb takes the finger: the rest of the rail must never
+    // eat a tap meant for a row button at the edge of the list.
+    '  .vc-rail.on{pointer-events:none}.vc-rail.on .vc-thumb{pointer-events:auto}',
     '  .vc-rail.v.drag .vc-thumb{width:8px}.vc-rail.h.drag .vc-thumb{height:8px}',
     '}',
     'html.vc-dragging,html.vc-dragging *{cursor:grabbing!important;user-select:none!important;-webkit-user-select:none!important}',
@@ -678,6 +681,9 @@
     }
     if (el.scrollWidth - el.clientWidth < 2) return false;
     if (isDoc) return true;
+    // A short horizontally-swiped strip (tab bar, chip row) hid its bar on
+    // purpose — a rail along its bottom would sit on top of its buttons.
+    if (el.clientHeight < 120) return false;
     var ox = getComputedStyle(el).overflowX; return ox === 'auto' || ox === 'scroll';
   }
   function makeRail(el, axis) {

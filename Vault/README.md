@@ -227,6 +227,46 @@ extension share a single `vault-crypto.js` (identical crypto core):
 End-to-end (headless browser, both the app tab and the Launcher panel, plus the
 sync merge): `node tests/live/vault-apikey.live.js`.
 
+### No browser UI — `vault-controls.js`
+
+Vault draws all of its own chrome. `vault-controls.js` (loaded first by
+`vault.html` and `popup.html`) replaces every native control, for every
+section, including markup it has never seen (a MutationObserver enhances
+controls as they're added):
+
+- **Scrollbars** — native bars hidden; a themed overlay thumb fades in while a
+  box scrolls (or the pointer nears its edge), fades out when idle, and drags
+  with mouse, pen or finger (wider touch hit area; on touch only the thumb takes
+  the finger, so a visible rail never eats a tap). Short swipe strips (tab bars,
+  chip rows) get no rail.
+- **`<select>`** → themed button + listbox (keyboard, type-ahead). The real
+  select stays hidden as the source of truth, so `.value`, `change` and labels
+  keep working; assigning `.value` repaints the button.
+- **Date inputs** → themed field + calendar (day/month/year views, Today, Clear,
+  min/max, keyboard). **`<input list>`** → themed suggestions.
+- Checkbox / radio / range / number / search / autofill tint / selection /
+  focus ring restyled; textarea resize grip and `title` tooltips replaced.
+- Opt out with `data-native` (per element) or `data-native-scroll`.
+
+Text fields use one token, `--field` (a darker well + `--bdl` border), so they
+read as fields on every modal (`--s2`) and card (`--s1`).
+
+### Tab order — shared with the Launcher
+
+Dragging a tab in the app saves the order as `tabOrder` on
+**`dashboards/keychain`** — the doc the Launcher already reads on open and polls
+every 5 s — so the popup's tabs follow it at no extra read. vault.html writes
+it with a merged single-field `setDoc`; its Keychain save is now a merge too,
+and the keychain-sync Worker's PUT is a masked patch of
+connections/colmap/savedAt, so neither writer can wipe it. (It used to live in
+`dashboards/vault_cloud`, which the extension can't reach; an existing order is
+carried over once.) Tabs the popup doesn't have are skipped.
+
+`vault-drag.js` (tab bar + header buttons) works in layout coordinates: the
+dragged item tracks the pointer exactly, neighbours glide from where they are,
+swaps use midpoint hysteresis, touch arms on a 260 ms long press with a haptic
+tick (a swipe still scrolls), Escape cancels, and the drop settles smoothly.
+
 ### Sync: `dashboards/vault_pw` merges per item
 
 The document is written whole, so the page must never write a copy that's

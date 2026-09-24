@@ -11,6 +11,7 @@
 <style>
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;background:#1a1a1d;color:#f4f3f0;font-family:system-ui,sans-serif}
+  :root{--bg:#1a1a1d;--s1:#232327;--s2:#2c2c31;--s3:#37373d;--bd:#34343a;--bdl:#45454c;--tx:#f4f3f0;--txd:#adadb2;--txm:#8d8d94;--ac:#e0b874;--acs:#e0b874;--radius:9px;--radius-sm:6px;--field:#19191c}
   #kc-root{--bg:#1a1a1d;--s1:#232327;--s2:#2c2c31;--s3:#37373d;--bd:#34343a;--bdl:#45454c;--tx:#f4f3f0;--txd:#adadb2;--txm:#8d8d94;
     --ac:#e0b874;--acs:#e0b874;--acl:rgba(224,184,116,.36);--shadow:rgba(0,0,0,.42);--radius:9px;--radius-sm:6px;background:var(--bg)}
   .app-hbar{padding:10px 16px;border-bottom:1px solid var(--bd);background:var(--bg)}
@@ -30,6 +31,8 @@
     }, 40);
   };
   window.uiConfirm = function () { return Promise.resolve(true); };
+  window.__tabOrderSaved = null;
+  window._fbSaveTabOrder = function (o) { window.__tabOrderSaved = o; return Promise.resolve(true); };
   window.open = function (u) { window.__opened.push(u); return null; };
   try {
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
@@ -44,6 +47,7 @@
   <div class="app-hbar"><div class="kc-logo">Keychain</div><div id="kc-sync-status"></div></div>
   <div class="kc-wrap"><p>Links (Keychain) content</p></div>
 </div>
+<script src="../../Vault/vault-controls.js"></script>
 <script src="../../Vault/vault-icons.js"></script>
 <script src="../../Vault/vault-crypto.js"></script>
 <script src="../../Vault/vault-pay.js"></script>
