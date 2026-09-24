@@ -9,14 +9,13 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-09-24, end of the Phase 11 + 11B session.
-**Phases complete:** 1–11, plus **11B** (model selection, usage credits, caps —
-added at Tony's request this session; see its section in §8).
-**Next phase:** **12 — Auto Commit / Auto Push** (design in §8; first concrete
-steps at the end of this §0).
+**Last updated:** 2026-09-24, end of the Phase 12 session.
+**Phases complete:** 1–12, plus **11B** (model selection, usage credits, caps).
+**Next phase:** **13 — Firebase sync of Code Mode state** (design in §8 and
+§5; first concrete steps at the end of this §0).
 
 > **To start the next phase, the whole instruction is "continue" or "next
-> phase".** Do the start-of-session checklist, then build Phase 12 from the
+> phase".** Do the start-of-session checklist, then build Phase 13 from the
 > steps below. Everything needed is in this file.
 
 ### The road from here (agreed with Tony 2026-09-21; 11B added 2026-09-24)
@@ -27,7 +26,7 @@ One phase per session.
 |---|---|---|---|---|
 | ~~11~~ | ~~Repository surface~~ | **done 2026-09-24** | | |
 | ~~11B~~ | ~~Models, credits, Auto, caps~~ | **done 2026-09-24** | | |
-| 12 | Auto Commit / Auto Push | Per-project toggles, off by default, always off for A1; `magi:` commits of touched files after a ~3 min debounce; auto-push only after a clean pull; the Phase 11 Actions watch then follows the auto-push | Medium (must not collide with A1's hook) | 1 |
+| ~~12~~ | ~~Auto Commit / Auto Push~~ | **done 2026-09-24** | | |
 | 13 | Firebase sync of Code Mode state | One `code` field on the profile doc, debounced dirty-flag writes, zero writes during a task, no second listener; tokens never sync. **Decide then** whether model choice/caps (engine-side today, per profile) join it | Medium (measure write counts) | 1 |
 | 14 | Hardening + A1 writable | Regression + security sweep, docs; then open A1 to write/commit/push carefully (shared with live sessions + auto-commit hook) | High | 1–2 (needs Tony's go-ahead for A1) |
 | 15 | Veda's engine | `magi onboard --profile veda` on her PC, her logins + GitHub account, isolation check. Nothing new to build: 11B is per-profile already (see "Ready for Veda's PC") | Low (an install) | < 1 (needs Veda) |
@@ -45,10 +44,10 @@ One phase per session.
    import fails.
 5. Baseline the tests before touching anything. **Run pytest from `magi/`
    over the whole folder** — `cd magi; .venv\Scripts\python -m pytest tests -q`
-   (≈890). From the A1 root, `test_morning_run.py` fails to collect (it
+   (≈940). From the A1 root, `test_morning_run.py` fails to collect (it
    imports `tests.test_completion`); a single file runs fine from the root
    (`python -m pytest magi/tests/test_x.py`). Node: `node tests/run-all.js`
-   (47 suites). Both must be green; if not, fix that first.
+   (48 suites). Both must be green; if not, fix that first.
 
 ### End-of-phase checklist (the definition of "done")
 
@@ -70,7 +69,7 @@ One phase per session.
 7. Tell Tony the phase is done, what to test, and that a fresh session can
    pick up from here.
 
-### What exists (as of Phase 11B)
+### What exists (as of Phase 12)
 
 * **Profiles** Tony/Veda: gate = lock + picker (`MAGI_PROFILES`, `lsKey()`),
   Firestore `dashboards/magi` vs `dashboards/magi_veda`, favourite star.
@@ -139,6 +138,22 @@ One phase per session.
     Warn me at, credits), the corner **popup** (`codeUsageAlerts` /
     `usageToast`, once per key in `lsKey("usage.seen")`), Accounts ›
     *Models & limits*.
+  - **Auto commit / auto push (Phase 12)** — `magi/code/autocommit.py`
+    (in memory): `on_applied` (called from `tasks._review_and_apply`; prefs
+    read NOW via `prefs_source`, which routes.py points at the DB) →
+    `Pending` per project (files fold in, window restarts; one applied while
+    a commit runs waits under `<pid>#next`) → `fire` → `check` (staged
+    elsewhere / merge / rebase / detached / conflicted → refused, kept
+    pending as `blocked` for Try again) → `git.commit` with `magi: …` →
+    if auto push: `git.pull` must be ok, then `git.push` → `LAST[pid]`.
+    `guard_prefs` (push needs commit; window 1–30; **A1 always off**) runs
+    in `create_project`, `/prefs`, `/auto`. `forget_task` on a hand commit.
+    Routes `POST /projects/{id}/auto|auto/now|auto/cancel`; `/git` adds
+    `auto`. Console: strip pills (`codeAuto`, tap → `codeAutoSheet`), the
+    line (`codeAutoBits`: countdown, Commit now/Try again, Cancel, outcome),
+    `codeAutoFollow` (re-read every 3 s only while committing/pushing; the
+    Actions watch once per pushed SHA, GitHub remotes only), the countdown
+    on the shared 1 s ticker (`CODE.autoReadFor`: one re-read at zero).
 
 ### Ready for Veda's PC (the 11B completion requirement)
 
@@ -154,6 +169,16 @@ in the slots from Accounts, add her GitHub token, then open Code Mode — the
 model row fills itself.
 
 ### Hard-won facts (verified live — do not re-learn them)
+
+* (12) `tests/live/cdp.js` `evalJs` has TWO traps, both hit this session:
+  an expression with `;` needs an explicit `return`, and a `return …`
+  WITHOUT a trailing `;` fails silently (the waitFor just times out).
+  Write `'return X;'` or a bare `'X'` — nothing in between.
+* (12) The live tests' `git()` helper `.trim()`s, so the leading space of
+  the first porcelain ` M file` line is gone.
+* (12) A1's Stop hook kept committing `auto:` snapshots of this session's
+  work while Phase 12 ran — the two systems coexist because MAGI never
+  auto-commits A1 (locked in `guard_prefs`, the `/auto` route, `on_applied`).
 
 * (11B) **Claude's OAuth token lists models**: `GET /v1/models` with
   `Authorization: Bearer <oauth>` + `anthropic-beta: oauth-2025-04-20` +
@@ -265,11 +290,13 @@ model row fills itself.
 
 ### Waiting on Tony
 
-* **Nothing blocks Phase 12.** Try when convenient: open Code Mode, tap the
-  **Claude** line under the agents (model, effort, usage, *Stop at*), and
-  the **Repository** pill on A1 (tabs; *Watch* on Overview).
+* **Nothing blocks Phase 13.** Try when convenient: in Code Mode on any
+  project other than A1, tap the **Auto commit** pill, switch it on (and
+  Auto push if you like), run a small Write task and approve it — the line
+  under Workspace counts down, then commits (`magi: …`) and pushes. On A1
+  both pills read `off · A1` and the switches are locked, by design.
 * The A1 GitHub token (fine-grained, Contents: Read-only on A1) **expires
-  2026-10-21** — Phase 12+ sessions after that need a new one.
+  2026-10-21** — sessions after that need a new one.
 * ~~Run `claude update`~~ — **done 2026-09-24**: Claude Code 2.1.278 → 2.1.281,
   Codex 0.155.1 → 0.156.1, and MAGI now keeps both current itself
   (`updates.py`, Auto-update on by default, never mid-task; Update now in each
@@ -280,37 +307,37 @@ model row fills itself.
 * Phase 14 (A1 writable) needs Tony's explicit go-ahead; Phase 15 needs Veda
   for her sign-ins (see "Ready for Veda's PC").
 
-### Phase 12 — first concrete steps for the next session
+### Phase 13 — first concrete steps for the next session
 
-Keep from Phases 9–11: **MAGI performs git and GitHub calls itself; agents
-never get git or a token.** Auto commit is `git.commit` (explicit paths,
-`--only`, hooks run) called by MAGI, and auto push is `git.push` with the
-project's `Auth` — no new git code paths.
+Design: §5 (Firebase strategy) and Phase 13 in §8. The rule that matters
+most: **one listener, debounced dirty-flag writes, zero writes while a task
+runs** — every A1 program pays for a listener leak forever.
 
-1. `prefs.autoCommit` / `prefs.autoPush` per project (`W.DEFAULT_PREFS`,
-   both false), **forced false for A1** in the route and in the runner
-   (`is_engine_repo`), whatever the console sends.
-2. New `magi/code/autocommit.py`: after a write task is *applied*
-   (`t.result.write == "applied"`), schedule a commit of exactly
-   `t.result.files` after a debounce (3 min default; a later applied task on
-   the same project folds its files in and restarts the timer). Message
-   `magi: <draft_message>` (distinct from `auto:` / `auto: claude code`).
-   Refuse (and say so on the line) when unrelated files are staged
-   (`git.status`), mid-merge/rebase (`in_progress`), or detached.
-3. Auto push: only after that commit, only with an account for HTTPS
-   remotes, only after `git.pull` came back clean (never force); then start
-   the Phase 11 **Actions watch** for the pushed SHA (the console already
-   does this for manual pushes — expose the auto-push SHA via a `pushed`
-   event on the task stream or a field on `/projects/{id}/git`).
-4. Console: two toggles in the Repository panel's header or the workspace
-   sheet (off by default; greyed with the reason on A1), and the strip pills
-   "Auto commit"/"Auto push" (today hard-coded "off") show the real state and
-   a countdown while a commit is pending ("commits in 2:40 — Cancel").
-5. Tests: `magi/tests/test_code_autocommit.py` (debounce collapses N applies
-   into one commit; unrelated staged changes block; mid-rebase blocks; A1
-   never; push only after a clean pull; `magi:` prefix), a scratch-repo
-   live test (`tests/live/magi-autocommit.live.js`) with it on, then A1 with
-   it off confirming the Stop hook still behaves.
+1. **Instrument first.** Before any sync code, count Firestore writes in the
+   console (wrap the write helper `cloudSaveUnitOrder()` uses — it is the
+   model to clone). Record a baseline: open Code Mode, run a task, toggle a
+   pref.
+2. What syncs (one `code` field on `dashboards/magi` / `dashboards/
+   magi_veda`): projects (id, name, aliases, prefs — **including Phase 12's
+   `autoCommit`/`autoPush`/`batchWindowMin`**), the chain order/picks, and a
+   finished task's one-line summary. What never syncs: bindings' paths (a
+   machine fact), tokens, CLI logins, pending auto commits (in memory,
+   engine-local by design), a running task's events.
+3. `GET/PUT /api/code/state` + `codeRev` on the engine; the console's
+   `cloudSaveCode()` (900 ms debounce, `_codeDirty` guard, merge-write of
+   the one field, 64 KB guard) and ONE new branch in the existing
+   `cloudWatch` — no second `onSnapshot`.
+4. Reconcile on connect keyed on `codeRev` (newer wins; the engine's SQLite
+   stays authoritative for anything a binding needs). A pref arriving from
+   Firestore goes through `routes._guarded`, so A1 stays off even if a
+   synced doc says otherwise.
+5. **Decide then** whether 11B's model choice/caps (`data/<p>/
+   code_models.json`, per engine, per profile) join it. This session's
+   recommendation: no — they are per engine on purpose (each PC's CLIs).
+6. Tests: write counts (one pref → one write; a 400-event task → zero; ten
+   rapid toggles → one), no second listener in either profile, the
+   reconcile between 127.0.0.1 and the Pages console, and a
+   `tests/live/magi-sync.live.js`.
 
 ---
 
@@ -1494,6 +1521,15 @@ why; a second engine for Veda on :8001 kept its own settings). Mutations caught:
 ---
 
 ### Phase 12 — Auto Commit / Auto Push
+
+*Status:* **done 2026-09-24.** Built as designed, with three choices worth
+knowing: the switches live on the strip pills (tap either) rather than the
+Repository panel header, so they work for non-GitHub remotes too; a fixable
+refusal (something else staged, mid-merge/rebase, detached, conflicted)
+keeps the commit pending for **Try again** rather than dropping it; and the
+pull before an auto push is `git.pull` (rebase + autostash, a clash undone)
+— the commit stays local when it is not clean. See `docs/magi.md` ›
+*Auto commit and auto push*.
 
 *Files:* new `magi/code/autocommit.py`; `magi/code/agent.py`; `magi.html`.
 

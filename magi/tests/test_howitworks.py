@@ -277,3 +277,28 @@ def test_the_cli_update_claims_still_hold():
     assert U.LATEST_TTL <= 6 * 3600 and "waiting or now" in inspect.getsource(U.auto_tick)
     # "Update now" is really on the sheet.
     assert '"Update now"' in PAGE and "function renderCliCard(" in PAGE
+
+
+def test_the_auto_commit_claims_still_hold():
+    """Phase 12: off by default, magi: prefix, window, refusals, clean pull,
+    never A1."""
+    import inspect
+    from magi.code import autocommit as AC, workspace as W
+    assert "Auto commit and Auto push are off until you switch them on" in HOW
+    # "off until you switch them on".
+    assert W.DEFAULT_PREFS["autoCommit"] is False and W.DEFAULT_PREFS["autoPush"] is False
+    # "a “magi:” message" and "3 minutes unless you pick another".
+    assert AC.PREFIX == "magi: " and AC.DEFAULT_WINDOW_MIN == 3
+    assert W.DEFAULT_PREFS["batchWindowMin"] == 3
+    # "Commit now and Cancel" on the line.
+    assert '"Commit now"' in PAGE and "/auto/${what}" in PAGE
+    # "refused ... other files staged, a merge or rebase, HEAD detached".
+    src = inspect.getsource(AC.check)
+    assert '"staged"' in src and '"in_progress"' in src and '"detached"' in src
+    # "pushes only if the pull came back clean; never forced".
+    push = inspect.getsource(AC._push)
+    assert push.index("G.pull(") < push.index("G.push(") and "if not pl.ok" in push
+    # "Both stay off for A1": the guard and the route both check.
+    assert "_engine_repo(root)" in inspect.getsource(AC.guard_prefs)
+    routes = (REPO / "magi" / "code" / "routes.py").read_text(encoding="utf-8")
+    assert "is_engine_repo" in routes.split("async def set_auto(")[1].split("@router")[0]

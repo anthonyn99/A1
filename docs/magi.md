@@ -924,6 +924,73 @@ the sheet, a real cap enforced on a real task, the popup, 390 px;
 `LIVE_ONLY=run` a real task with Fable chosen and credits off,
 `LIVE_ONLY=veda` a second engine on :8001 keeping its own settings).
 
+#### Auto commit and auto push (Phase 12)
+
+Two switches per project — **Auto commit** and **Auto push** — both **off by
+default** and **always off for A1** (its Stop hook already commits `auto:`
+and pushes; two systems staging one tree is how one silently absorbs the
+other). Tap either strip pill to open them: auto push needs auto commit, and
+the window is 1, 3 (default), 5 or 10 minutes (`prefs.batchWindowMin`,
+clamped 1–30).
+
+`magi/code/autocommit.py`, in memory like tasks:
+
+1. A write task's diff is **applied** → `on_applied` reads the project's
+   prefs *now* (a switch turned off mid-task is off) and schedules a pending
+   commit of exactly `t.result.files`. The task stream carries an
+   `autocommit {files, tasks, due, message}` event and the card hands the
+   commit to the repository line instead of offering *Commit these files*.
+2. Another applied task on the same project **folds in** (its files join,
+   its ask joins the message) and **restarts** the window. One applied while
+   a commit is in flight waits in the next pending commit. A write task still
+   running on the project at the deadline postpones it 30 s — the follow-up
+   will fold in.
+3. At the deadline, `check` refuses — and the line says why — when the
+   repository is mid-merge/rebase, HEAD is detached, one of the files is
+   conflicted, or **something else is staged** (`--only` would keep it out,
+   but staged work you did not mention means someone is in the middle of
+   something). Those refusals keep the commit pending, untimed, for
+   **Try again** / **Cancel**.
+4. `git.commit` (explicit paths, `--only`, your hooks run) with
+   `magi: <what you asked>` + what the agent said it did; several asks →
+   `magi: <first> (+n more)` and each listed. Distinct from `auto:` and
+   `auto: claude code`.
+5. Auto push: `git.pull` (rebase + autostash) must come back clean, then
+   `git.push` as the project's GitHub account — never forced; no account
+   for an HTTPS remote → not pushed. A clashing pull is undone and the commit
+   stays local, said on the line.
+6. The outcome lands in `LAST` and `/projects/{id}/git` returns it as
+   `auto.last`; the console starts the **Actions watch** on
+   `auto.last.push.sha` — once per SHA, GitHub remotes only.
+
+A manual *Commit these files* takes its task out of the pending commit
+(`forget_task`). An engine restart drops a pending commit: the files stay
+applied and uncommitted, as they were before the timer. MAGI makes every git
+call itself; agents never get git or a token.
+
+**Console**: the pills show on / off / `off · A1` / `in 2:40` / `blocked`;
+the line shows `magi: commit of n files + push in 0:59 · Commit now ·
+Cancel`, then the outcome (5 min if it went well, 30 min if not). Nothing
+polls: the countdown rides the existing 1 s ticker, the line is re-read once
+at zero, then every 3 s only while the engine says committing/pushing.
+
+Routes: `POST /api/code/projects/{id}/auto {commit?, push?, window?}`
+(refused for A1 with `read_only_project`), `POST …/auto/now` (also retries a
+blocked one), `POST …/auto/cancel`; `GET …/git` adds `auto {commit, push,
+window, locked, pending, last}`. `create_project` and `/prefs` pass through
+`guard_prefs` too, so no stored pref turns it on for A1.
+
+Tests: `magi/tests/test_code_autocommit.py` (real git + a bare remote:
+defaults, clamp, A1 in the guard, on_applied and the route; the message; N
+applies → one commit with the timer restarted; the real timer; only touched
+files; hooks run; a running write task postpones; switched off before it
+fires; cancel; hand commit; staged / merge / rebase / detached / nothing; push after a clean pull with the other machine's commit, a clash →
+no push, push off, HTTPS with no account; wired into a real write task —
+6 mutants checked), `tests/magi-autocommit.test.js`,
+`tests/live/magi-autocommit.live.js` (a real Claude edit in a scratch repo:
+switches from the sheet, countdown, a hand-staged file blocks it, Try again
+commits + pulls + pushes, the watch once per SHA, 390 px, A1 locked).
+
 ---
 
 ## Opening MAGI

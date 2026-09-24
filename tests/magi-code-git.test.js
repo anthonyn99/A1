@@ -62,7 +62,7 @@ ok('a failed pull says no agent started', /pull_failed: "Stopped before any agen
 
 console.log('\nCommit');
 const card = fn('function renderCodeApproval(t, ev)');
-ok('only an applied change offers it', /\} else if \(applied\) \{[\s\S]{0,500}renderCodeCommit\(t, applied, done\)/.test(card));
+ok('only an applied change offers it', /\} else if \(applied\) \{[\s\S]{0,1200}renderCodeCommit\(t, applied, done\)/.test(card));
 const commit = fn('function renderCodeCommit(t, applied, done)');
 ok('it is its own button, not part of Approve', /"Commit these files"/.test(commit));
 ok('the message starts as the engine\'s draft', /t\.commitMsg = applied\.draft/.test(commit));

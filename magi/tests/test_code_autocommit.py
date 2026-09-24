@@ -332,6 +332,10 @@ def test_mid_rebase_blocks(repo):
             (gd / "rebase-merge").rmdir()
     last = asyncio.run(go())
     assert last["code"] == "in_progress" and "rebase" in last["text"]
+    # Refused by the check, before git.commit is even asked (which would
+    # also refuse): the sentence says the files stay applied.
+    assert "the files stay applied" in last["text"]
+    assert AC.PENDING["p"].blocked == last["text"]
     assert _log(repo) == "init"
 
 
