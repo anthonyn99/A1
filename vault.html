@@ -91,6 +91,9 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
   --display:'Manrope',system-ui,-apple-system,sans-serif;
   --sans:'Inter',system-ui,-apple-system,sans-serif;
   --radius:9px;--radius-sm:6px;
+  /* Text fields sit in a darker well than the surface they're on, so they read
+     as fields on every modal (--s2) and card (--s1). */
+  --field:#19191c;
 }
 
 /* ── Shared sticky app header bar ── */
@@ -286,10 +289,10 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
 .kc-modal-title span{display:block;width:9px;height:9px;border-radius:50%;flex-shrink:0;}
 .kc-field{margin-bottom:13px;}
 .kc-field label{display:block;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:1.5px;color:var(--txd);margin-bottom:6px;}
-.kc-input{width:100%;background:var(--s2);border:1px solid var(--bdl);border-radius:var(--radius-sm);color:var(--tx);font-size:13px;font-weight:500;padding:9px 12px;outline:none;transition:border-color .15s;font-family:var(--sans);}
+.kc-input{width:100%;background:var(--field,#19191c);border:1px solid var(--bdl);border-radius:var(--radius-sm);color:var(--tx);font-size:13px;font-weight:500;padding:9px 12px;outline:none;transition:border-color .15s;font-family:var(--sans);}
 .kc-input:focus{border-color:var(--ac);}
 .kc-input::placeholder{color:var(--txm);}
-.kc-textarea{width:100%;background:var(--s2);border:1px solid var(--bdl);border-radius:var(--radius-sm);color:var(--tx);font-size:13px;font-weight:500;padding:9px 12px;outline:none;transition:border-color .15s;font-family:var(--sans);min-height:90px;resize:vertical;line-height:1.6;}
+.kc-textarea{width:100%;background:var(--field,#19191c);border:1px solid var(--bdl);border-radius:var(--radius-sm);color:var(--tx);font-size:13px;font-weight:500;padding:9px 12px;outline:none;transition:border-color .15s;font-family:var(--sans);min-height:90px;resize:vertical;line-height:1.6;}
 .kc-textarea:focus{border-color:var(--ac);}
 .kc-textarea::placeholder{color:var(--txm);}
 .kc-palette{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px;}
@@ -1399,10 +1402,31 @@ window.vdkcSyncFilesClick = () => _kcRunSyncButton('vd-kc-syncfiles-btn', () => 
   // ── Keychain: dashboards/keychain ─────────────────────────────────────────
   const kcDocRef = doc(db, "dashboards/keychain");
   let _kcLastOwnSaveAt = 0, _kcSaveTimer = null;
+  // The same doc carries `tabOrder` — the Vault tab-bar order, shared with the
+  // Launcher extension (which already polls this doc through keychain-sync, so
+  // mirroring it costs no extra read). It is announced on EVERY snapshot, own
+  // echoes included, and the Keychain itself is only repainted when its own
+  // fields changed — a tab drag must not re-render the connection cards.
+  let _kcLastSig = null;
   authedSnapshot(kcDocRef, (snap) => {
+    if (!snap.exists()) return;
+    const d = snap.data();
+    if (Array.isArray(d.tabOrder)) window.dispatchEvent(new CustomEvent("fb-kc-taborder", { detail: d.tabOrder }));
     if (Date.now() - _kcLastOwnSaveAt < 6000) return;   // skip our own echo
-    if (snap.exists()) window.dispatchEvent(new CustomEvent("fb-kc-remote-update", { detail: snap.data() }));
+    const sig = JSON.stringify([d.connections || null, d.colmap || null]);
+    if (sig === _kcLastSig) return;
+    _kcLastSig = sig;
+    window.dispatchEvent(new CustomEvent("fb-kc-remote-update", { detail: d }));
   }, (err) => console.warn("Keychain listener error:", err && err.code));
+
+  // Tab order: one merged field write, nothing else in the doc is touched.
+  window._fbSaveTabOrder = async (order) => {
+    try {
+      await _whenAuthed();
+      await setDoc(kcDocRef, { tabOrder: clean(order) }, { merge: true });
+      return true;
+    } catch (e) { console.warn("Tab order save failed:", e && (e.code || e.message)); return false; }
+  };
 
   window._fbLoadKeychain = async () => {
     try { await _whenAuthed(); const snap = await freshGet(kcDocRef); return (snap && snap.exists()) ? snap.data() : null; }
@@ -1420,7 +1444,8 @@ window.vdkcSyncFilesClick = () => _kcRunSyncButton('vd-kc-syncfiles-btn', () => 
           savedAt: Date.now()
         });
         _kcLastOwnSaveAt = Date.now();
-        await setDoc(kcDocRef, payload);
+        // merge: keep fields this writer doesn't own (tabOrder).
+        await setDoc(kcDocRef, payload, { merge: true });
         _kcLastOwnSaveAt = Date.now();
         window.dispatchEvent(new CustomEvent("fb-kc-saved"));
       } catch(e) {
@@ -2690,7 +2715,7 @@ window._pastelize=function(hex){
   + '#uim-msg{font-size:13.5px;color:#adadb2;line-height:1.55;white-space:pre-wrap;margin-bottom:16px;}'
   + '.uim-field{display:block;margin-bottom:14px;}'
   + '.uim-label{display:block;font-size:10px;font-weight:500;letter-spacing:1.4px;text-transform:uppercase;color:#8d8d94;margin:0 0 7px;}'
-  + '.uim-input{width:100%;box-sizing:border-box;background:#232327;border:1px solid #45454c;border-radius:6px;color:#f4f3f0;font-size:13.5px;font-weight:500;padding:10px 13px;outline:none;font-family:inherit;transition:border-color .18s;}'
+  + '.uim-input{width:100%;box-sizing:border-box;background:#19191c;border:1px solid #45454c;border-radius:6px;color:#f4f3f0;font-size:13.5px;font-weight:500;padding:10px 13px;outline:none;font-family:inherit;transition:border-color .18s;}'
   + '.uim-input:focus{border-color:#e0b874;}'
   + '#uim-err{font-size:12.5px;color:#d68a7c;font-weight:500;min-height:15px;margin-bottom:4px;}'
   + '#uim-btns{display:flex;gap:10px;margin-top:20px;justify-content:flex-end;}'
@@ -3269,6 +3294,9 @@ setTimeout(function(){ alUpdateLockBtns(); }, 2000);
      deliberately untouched, so vault-id*.js is never loaded there. Scans are
      AES-256-GCM encrypted with the SAME vault DEK before upload; only their
      ciphertext leaves the device (see Vault/vault-id-files.js). -->
+<!-- Themed replacements for every native control (scrollbars, dropdowns, date
+     pickers, checkboxes, tooltips…) — for all sections, incl. the header. -->
+<script src="Vault/vault-controls.js"></script>
 <script src="Vault/vault-icons.js"></script>
 <script src="Vault/vault-crypto.js"></script>
 <script src="Vault/vault-pay.js"></script>

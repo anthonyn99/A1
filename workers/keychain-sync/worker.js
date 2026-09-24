@@ -23,8 +23,14 @@
 // savedAt } — so the two routes differ only in DOC_PATHS below.
 //
 // ENDPOINTS  (all require header  X-Vault-Key: <shared key, see AUTH>)
-//   GET  /keychain   → { connections, colmap, savedAt }     dashboards/keychain
+//   GET  /keychain   → { connections, colmap, savedAt, tabOrder }   dashboards/keychain
 //   PUT  /keychain   ← { connections, colmap }              (savedAt server-side)
+//
+//   `tabOrder` is the Vault app's tab-bar order (written by vault.html), so the
+//   Launcher can mirror it at no extra read — it rides on the doc it already
+//   polls. PUT is a MASKED patch of connections/colmap/savedAt only, so a card
+//   reorder from the Launcher can never wipe the tab order (or any other field
+//   the app adds later).
 //   GET  /links      → { connections, colmap, savedAt }     dashboards/veda_links
 //   PUT  /links      ← { connections, colmap }              (savedAt server-side)
 //
@@ -94,7 +100,8 @@ export default {
         return json({
           connections: f.connections ? decode(f.connections) : [],
           colmap: f.colmap ? decode(f.colmap) : null,
-          savedAt: f.savedAt ? decode(f.savedAt) : 0
+          savedAt: f.savedAt ? decode(f.savedAt) : 0,
+          tabOrder: f.tabOrder ? decode(f.tabOrder) : null
         });
       }
 
@@ -110,7 +117,8 @@ export default {
             savedAt: encode(Date.now())
           }
         };
-        const r = await fetch(docUrl, {
+        const mask = ["connections", "colmap", "savedAt"].map((f) => "updateMask.fieldPaths=" + f).join("&");
+        const r = await fetch(docUrl + "?" + mask, {
           method: "PATCH",
           headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
           body: JSON.stringify(payload)

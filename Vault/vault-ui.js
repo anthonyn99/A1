@@ -395,37 +395,47 @@
     var lock = el('div', { id: 'vault-lock', class: 'vault-lock', style: 'display:none' });
     pwPanel.appendChild(lock);
   }
-  // Tab bar drag-to-reorder. The order is Vault-wide UI state, so it rides in
-  // the same synced settings object as everything else in Cloud and lands on the
-  // other devices through its onSnapshot listener — no separate plumbing.
+  // Tab bar drag-to-reorder. The order lives on dashboards/keychain as
+  // `tabOrder` — the one doc the Launcher extension already polls (through the
+  // keychain-sync Worker), so the extension mirrors the order with no extra
+  // read, and every other Vault tab gets it through the listener vault.html
+  // already has on that doc. One merged-field write per drop.
+  //
+  // It used to live in dashboards/vault_cloud (VaultCloud settings), which the
+  // extension can't reach; an order saved there is carried over once.
+  var TAB_ORDER_LS = 'vault.tabOrder';
   function enableTabReorder(tabs) {
     if (!window.VaultDrag) return;
-    function VC() { return window.VaultCloud; }
+    var seenCloud = false;
 
-    window.VaultDrag.enable(tabs, {
-      item: '.vault-tab',
-      key: 'data-tab',
-      onDrop: function (order) {
-        if (!VC()) return;
-        VC().settings().tabOrder = order;
-        VC().save();
-      }
-    });
-
-    // VaultCloud hydrates from localStorage synchronously at load, so the saved
-    // order is already there on the first paint; the subscription then catches
-    // a reorder made on another device.
-    function apply(s) {
-      if (!s || !s.tabOrder) return;
+    function apply(order) {
+      if (!Array.isArray(order) || !order.length) return;
       if (tabs.querySelector('.vdrag')) return;      // don't yank a tab mid-drag
-      window.VaultDrag.applyOrder(tabs, '.vault-tab', 'data-tab', s.tabOrder);
+      window.VaultDrag.applyOrder(tabs, '.vault-tab', 'data-tab', order);
+      try { localStorage.setItem(TAB_ORDER_LS, JSON.stringify(order)); } catch (e) {}
     }
-    function bind() {
-      if (!VC()) { setTimeout(bind, 150); return; }
-      apply(VC().settings());
-      VC().onChange(apply);
+    function save(order) {
+      try { localStorage.setItem(TAB_ORDER_LS, JSON.stringify(order)); } catch (e) {}
+      if (typeof window._fbSaveTabOrder === 'function') window._fbSaveTabOrder(order);
     }
-    bind();
+
+    window.VaultDrag.enable(tabs, { item: '.vault-tab', key: 'data-tab', onDrop: save });
+
+    // First paint from this device's last known order, then the live doc.
+    try { apply(JSON.parse(localStorage.getItem(TAB_ORDER_LS) || 'null')); } catch (e) {}
+    window.addEventListener('fb-kc-taborder', function (e) { seenCloud = true; apply(e.detail); });
+
+    // One-time carry-over from the old home (vault_cloud) when the keychain doc
+    // has no order yet. Waits for the listener's first snapshot to say so.
+    setTimeout(function migrate() {
+      if (seenCloud) return;
+      var VCl = window.VaultCloud, old = VCl && VCl.settings && VCl.settings().tabOrder;
+      var mine = null; try { mine = JSON.parse(localStorage.getItem(TAB_ORDER_LS) || 'null'); } catch (e) {}
+      var order = Array.isArray(old) && old.length ? old : mine;
+      if (!Array.isArray(order) || !order.length) return;
+      apply(order);
+      if (typeof window._fbSaveTabOrder === 'function') window._fbSaveTabOrder(order);
+    }, 6000);
   }
 
   function tabBtn(id, label, icon) {
@@ -2081,11 +2091,9 @@
       // Pointer-fine devices never see it; this is a touch gesture only.
       '@media (pointer:fine){.vault-ptr{display:none}}',
       '@media (prefers-reduced-motion:reduce){.vault-ptr.spinning .vault-ptr-spinner{animation:none}}',
-      '#kc-root{height:100dvh;overflow-y:auto;overflow-x:clip;scrollbar-width:auto;scrollbar-color:#45454c var(--s1)}',
-      '#kc-root::-webkit-scrollbar{width:15px}',
-      '#kc-root::-webkit-scrollbar-track{background:var(--s1)}',
-      '#kc-root::-webkit-scrollbar-thumb{background:#45454c;border-radius:var(--radius-sm);border:3px solid var(--bg);min-height:50px}',
-      '#kc-root::-webkit-scrollbar-thumb:hover,#kc-root::-webkit-scrollbar-thumb:active{background:var(--ac)}',
+      // Scrollbar: drawn by vault-controls.js (themed overlay thumb that fades
+      // in while scrolling and can be dragged) — no native bar.
+      '#kc-root{height:100dvh;overflow-y:auto;overflow-x:clip}',
       // The app-hbar (branding) is already sticky top:0; the tabs stick BELOW it,
       // and the toolbar below the tabs — offsets measured live in updateStickyOffset.
       '#kc-root .app-hbar{position:sticky;top:0;z-index:7}',
@@ -2170,8 +2178,9 @@
       '.vault-lock-icon{line-height:0;margin-bottom:10px;color:var(--ac)}.vault-lock-icon svg{width:32px;height:32px;display:inline-block}',
       '.vault-h2{font-family:var(--display,inherit);font-size:22px;font-weight:600;letter-spacing:-.2px;color:var(--tx);margin:6px 0}',
       '.vault-sub{font-size:12.5px;color:var(--txd);line-height:1.6;margin-bottom:18px}',
-      '.vault-input{width:100%;background:var(--s2);border:1px solid var(--bd);color:var(--tx);border-radius:var(--radius);padding:11px 13px;font-size:14px;outline:none;margin-bottom:10px;font-family:inherit}',
-      '.vault-input:focus{border-color:var(--ac)}textarea.vault-input{resize:vertical;min-height:52px}',
+      '.vault-input{width:100%;background:var(--field,#19191c);border:1px solid var(--bdl,#45454c);transition:border-color .15s,box-shadow .15s;color:var(--tx);border-radius:var(--radius);padding:11px 13px;font-size:14px;outline:none;margin-bottom:10px;font-family:inherit}',
+      '.vault-input:hover{border-color:#57575f}',
+      '.vault-input:focus{border-color:var(--ac);box-shadow:0 0 0 3px rgba(224,184,116,.12)}textarea.vault-input{resize:vertical;min-height:52px}',
       '.vault-btn{width:100%;background:transparent;border:1px solid var(--bd);color:var(--tx);border-radius:var(--radius-sm);padding:12px;font-size:13.5px;font-weight:500;letter-spacing:.2px;cursor:pointer;margin-bottom:8px;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:border-color .18s,color .18s}',
       '.vault-btn svg{display:block;width:15px;height:15px;flex-shrink:0}',
       '.vault-btn:hover{border-color:var(--txd)}.vault-btn.primary{background:transparent;color:var(--acs,#e0b874);border-color:var(--acl,rgba(224,184,116,.36))}.vault-btn.primary:hover{border-color:var(--ac)}',
