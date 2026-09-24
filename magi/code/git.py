@@ -296,7 +296,7 @@ def branches(root: Path) -> list[dict[str, Any]]:
     top = toplevel(root)
     if top is None:
         raise GitError("not_git", "This folder is not a git repository.")
-    # run(), not out(): out() strips, and str.strip() counts  as
+    # run(), not out(): out() strips, and str.strip() counts \x1f as
     # whitespace -- it ate the first row's separator when that branch was
     # not the current one (a blank %(HEAD)).
     raw = run(top, "for-each-ref", "--sort=-committerdate",

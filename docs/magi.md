@@ -719,6 +719,191 @@ argv, env, `.git` file or result), the Phase 10 section of
 a real Claude edit pushed from the card at 390px, and an injected account
 whose push reaches GitHub through askpass and is refused in words).
 
+#### The Repository panel, the Actions watch, and GitHub tools for Claude (Phase 11)
+
+**Read-only, per project, as the project's GitHub account.** On a folder whose
+remote is on github.com, the **Repository** pill opens a tabbed panel —
+Overview, Branches, Commits, Pull requests, Issues, Actions, Releases — a
+bottom sheet on a phone. Each tab is fetched when opened and never on a timer;
+every read is a conditional request (`client.py` ETags), so asking again
+costs none of the 5,000/h until something changed (verified live: repeat
+reads leave `x-ratelimit-used` where it was). The account is one tap further,
+in the panel's header. Nothing in it writes — to GitHub or to the folder.
+
+- `magi/github/repos.py` — repository info, branches, commits for a ref,
+  `compare base...head`, releases. `pulls.py` — PRs (merged shown as merged)
+  and one PR with the **checks** on its head commit: check runs and the older
+  commit statuses folded into one verdict (`failure` / `pending` / `success`
+  / `none`); a token without Checks access still gets the statuses.
+  `issues.py` — issues **without** PRs (GitHub's `/issues` returns both), one
+  issue with its latest 30 comments. `actions.py` — runs (for a SHA or a
+  branch), jobs, and the failing job's step and **log tail**.
+- **Logs** are a 302 to a short-lived signed URL on another host.
+  `client.get_raw` follows it **without** the Authorization header (the URL is
+  its own credential), only to https, one hop, never back to the API; the
+  last 256 KB are read, timestamps and colour codes stripped, `##[group]`
+  made readable, and any early `##[error]` line kept ahead of the last 80.
+- **Found live:** `actions/runs?branch=main` on A1 (4,000+ runs) answered with
+  runs from four weeks earlier — a different slice per page size — while the
+  same query plus `exclude_pull_requests=true` came back newest first. Branch
+  queries always send it.
+- Local branches come from one `git for-each-ref` (`git.branches`: upstream,
+  ↑↓ as of the last fetch, `gone`), merged with GitHub's list.
+
+**The Actions watch.** After a successful push (the card or the line) the
+console follows the pushed commit (`Push.sha`, the full SHA) with
+`GET /projects/{id}/repo/actions?sha=` every 20 s — only while a run is
+queued or running, or for up to 4 min while none has appeared, never past an
+hour, skipping reads while the tab is hidden. The line under the repository
+(and the task card, for a card push) says `n of m done`, then passed or
+failed; a failure fetches `/repo/actions/{run}` once and names the **job ›
+step**, with **Log** (the tail) and **Diagnose** — a *Read* task whose prompt
+carries the tail. A1's pushes come from its own hook, so for A1 the panel's
+Overview offers **Watch ‹sha›** for the branch tip.
+
+**GitHub tools for the Claude CLI.** When a project names an account and its
+remote is on github.com, each task writes `data/<p>/code/mcp/<task>.json` and
+Claude gets `--mcp-config <file> --allowedTools mcp__magi_github`:
+`github_overview`, `_branches`, `_commits`, `_issues`, `_issue`, `_pulls`,
+`_pull`, `_actions_runs`, `_run_failure`. The server (`magi/github/mcp_server.py`,
+stdlib only, run `pythonw -I`) answers each by a GET to the engine on
+127.0.0.1 — the same routes the panel uses — so the agent can only ever read
+what the panel shows, the project is fixed by MAGI's command line (no tool
+argument names a repository), and **no token reaches the agent**. Verified
+live: in `--permission-mode plan` with `--tools Read,Glob,Grep` the tools
+connect and are callable; Claude read A1's failed Pages deploy and named the
+cause. The file is deleted when the task ends. `--tools` still lists exactly
+the built-in read tools.
+
+Routes (all GET): `/api/code/projects/{id}/repo` (overview: info, local line,
+tip commit, latest runs on the branch), `/repo/branches`, `/repo/commits?ref=`,
+`/repo/pulls?state=`, `/repo/pulls/{n}`, `/repo/issues?state=`,
+`/repo/issues/{n}`, `/repo/actions?sha=&branch=` (with `sha`, a `summary`
+verdict), `/repo/actions/{run}` (jobs + `failed_job {name, step, log,
+log_error}`), `/repo/releases`. Refusals: `no_account`, `not_github`,
+`not_git`, and GitHub's kinds (`bad_token`, `forbidden`, …) in words.
+
+Tests: `magi/tests/test_github_repo.py` (mocked GitHub: PRs excluded from
+issues, merged PRs, checks folded and tolerant of 403, branch/compare/release
+shapes, runs by SHA and 304 on repeat, `exclude_pull_requests` on branch
+queries, the watch verdict, the failing job/step/log tail with the signed
+URL fetched **without** the token, redirect refusals, 403 → "needs Actions:
+Read-only", local branches against a real bare remote, the MCP server's
+tools/refusals/stdio, the per-task config, Claude's argv, and the routes'
+refusals with a sentinel token), `tests/magi-code-models.test.js` (console),
+`tests/live/magi-repo.live.js` (every tab against the real A1, 304 on
+repeat, the watch to a verdict, A1's real failed deploy named by job and
+step with its log, 390 px bottom sheet; `LIVE_ONLY=diagnose` runs a real
+diagnosis).
+
+#### Models, usage credits, Auto, and your caps (Phase 11B)
+
+**Which models an account can run is asked of the provider**, with the slot's
+own sign-in — the reads the CLIs make for their own pickers
+(`magi/code/agents/models.py`):
+
+```
+Claude  GET api.anthropic.com/v1/models       (OAuth bearer; lists the account's models)
+        GET api.anthropic.com/api/oauth/profile  → plan: pro / max / team / free
+Codex   GET chatgpt.com/backend-api/codex/models?client_version=<installed CLI>
+        (only visibility "list"; falls back to $CODEX_HOME/models_cache.json)
+```
+
+Cached in `data/<p>/agent_models.json` for 6 h (a failed read is not retried
+for 10 min, and the old list is kept). No model call, nothing billed. The
+**Re-check** button re-reads now.
+
+**Usage credits** come from the usage read that already runs every minute or
+five (`usage_fetch.py`): Claude's `extra_usage {is_enabled,
+spend_limit_reached}`, Codex's `credits {has_credits, unlimited,
+overage_limit_reached}` and `plan_type`, stored per account
+(`limits.note_account`, written only when it changed). So **turning credits
+on is noticed within minutes, no restart**.
+
+- **Verified live (2026-09-24):** Fable 5.1 on this Pro account with credits
+  off → `rate_limit_event {status: rejected, errorCode: credits_required}`
+  and "Fable 5.1 requires usage credits", nothing billed. Before this phase
+  that event would have marked the whole account **limited until next
+  week**; now `credits_required` (or those words) means *this model*, never
+  the account.
+- A model needs credits when its family is Fable/Mythos on a Pro/Free plan
+  (seeded from the CLI's own wording), or when the provider refused it for
+  credits on this account before (remembered in `gated`, cleared when it
+  later runs with credits off). With credits off it is listed, disabled,
+  with the reason; on → available ("on usage credits"); spent → disabled.
+- A plan whose window is at 100% runs only on credits: with credits off the
+  agent is skipped **before** a CLI starts ("Plan limit reached until …;
+  usage credits are off"); with them on, the remembered limit is lifted
+  (`usage_fetch.refresh` treats "limit reached + credits on" as allowed).
+- If a task's model is refused for credits anyway (a plan MAGI has not seen),
+  it is remembered — for the whole family, since credits are a family rule —
+  and the task goes **once more on the same account** with the best model it
+  can run, not handed to the next agent.
+- **A model the account lists can still be too new for the installed Claude
+  Code.** Found live: Opus 5.5 on 2.1.278 → "API Error: 400 … does not
+  support this model; version 2.1.280 or newer is required" — which the chain
+  used to treat as the task failing, stopping it. Now it is remembered
+  (`cli_min`), the task retries once on the next-newest model of that family
+  (Opus 5), and the sheet says "needs Claude Code 2.1.280 or newer — run
+  `claude update`". The installed version is re-read every 10 minutes, so
+  after an update the model is offered again with no restart. Auto takes the
+  newest *available* model of the family it wants before dropping a family.
+
+**Choice per agent** (`data/<p>/code_models.json`, per profile, on the engine
+— the phone and the desk agree, and Veda's engine keeps hers): a model or
+**Auto**, and an effort (Auto, low … max; Claude `--effort`, Codex
+`-c model_reasoning_effort=…`, clamped to what the model supports). A chosen
+model that cannot run now is replaced by Auto's pick with a note in the
+transcript; every run's transcript names the model, effort and — for Auto —
+why.
+
+**Auto** (`classify` + `choose`): local rules, no network, milliseconds
+(the preview endpoint answers in ~40 ms). Weight 1–4 from what the prompt
+asks for (design/refactor/debugging/implement words, "think hard", a
+question or small edit), its length, code or a stack trace, Write mode.
+Claude: 1–2 → newest Sonnet, 3 → newest Opus, 4 → Fable when it can run,
+else Opus; effort low/medium/high/xhigh. Codex: 3–4 → the highest-ranked
+model (version, "balanced/frontier" vs "fast/affordable", "legacy"),
+everyday work → the provider's own recommended model (head of its picker),
+1 → its newest light model. When any window is over the warning line, weight
+2–3 steps one lighter. The console shows Auto's pick for the composer's
+text as you pause typing (`POST /models/preview`, debounced 350 ms).
+
+**Caps** — "stop at 80% of the weekly limit": per agent, per window the
+account reports (Claude: session `five_hour`, weekly `seven_day`; Codex: its
+plan's windows — a free account has one `30d`, Plus `5h` and weekly). A
+capped account (`cap_block`) is skipped by the chain with the reason until
+that window resets or you change the cap; mid-task, Claude's own usage
+events trip it at once and a 60 s re-read (`cap_watch`, only when a cap is
+set) covers Codex — the CLI is stopped and the task handed on as `limited`,
+**without** being remembered as a provider limit.
+
+**Warnings**: `/usage` carries `alerts` (`warn` ≥ your line, default 80 %;
+`near_cap` within 5 of a cap; `capped`; `limit`), each keyed by
+agent/slot/window/**reset time**/level, so the console's corner popup shows
+each once per window per reset (seen keys in localStorage, last 60). Warnings
+fade after 12 s; stops stay until dismissed; **Limits** opens the sheet.
+
+Routes: `GET /api/code/models[?refresh=1]`, `POST /models/choice {agent,
+model, effort}`, `POST /models/cap {agent, window, percent|null}`,
+`POST /models/warn {percent}`, `POST /models/preview {prompt, mode}`;
+`/usage` adds `alerts, capped, credits, caps, warn_at`; `/agents` slots add
+`capped`. Event: `model {agent, slot, model, label, effort, auto, why}`.
+
+Tests: `magi/tests/test_code_models.py` (the real provider shapes: sort and
+latest incl. Opus 5 vs 5.5, plans, Codex filtering; catalog cache and
+failure back-off and the CLI-cache fallback; credits parsing; credits turned
+on after a limit lifting it; Fable gated on Pro, open on Max or with credits,
+exhausted credits, learned gating; Auto tiers, step-down, effort clamping,
+choice fallback with its note; caps per window, reset, validation, the chain
+skip; alerts; a scripted CLI proving the credits retry is not a limit, either
+signal alone is enough, a mid-run cap stops the stream, Codex's `-m`/effort;
+per-profile files), `tests/magi-code-models.test.js`,
+`tests/live/magi-models.live.js` (real accounts: the row, Auto as you type,
+the sheet, a real cap enforced on a real task, the popup, 390 px;
+`LIVE_ONLY=run` a real task with Fable chosen and credits off,
+`LIVE_ONLY=veda` a second engine on :8001 keeping its own settings).
+
 ---
 
 ## Opening MAGI

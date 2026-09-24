@@ -9,7 +9,8 @@
 //      no files and no refspec; the engine decides what goes.
 //   3. An HTTPS remote with no account chosen offers "Choose account", not
 //      Push: MAGI never pushes as whatever login the PC remembers.
-//   4. The Repository pill is a button onto the account choice.
+//   4. The Repository pill is a button onto the repository (Phase 11) and
+//      from there the account choice.
 //   5. No native dialog anywhere on the path.
 //
 // Behaviour is proved against real repositories and a real credential store
@@ -60,7 +61,12 @@ ok('the hourly limit is shown', /a\.rate\.remaining/.test(accts));
 console.log('\nThe repository and its account');
 const pill = fn('function codeRepoPill(proj)');
 ok('the pill shows owner/repo from the remote', /\$\{gh\.owner\}\/\$\{gh\.repo\}/.test(pill));
-ok('the pill opens the account sheet', /pill\.onclick = \(\) => codeRepoSheet\(proj\)/.test(pill));
+// Phase 11: on GitHub the pill opens the Repository panel (whose header
+// holds the account); anywhere else it is still the account sheet.
+ok('the pill opens the panel on GitHub, the account sheet elsewhere',
+   /pill\.onclick = \(\) => \(gh && gh\.owner && gh\.host === "github\.com"\s*\? codeRepoPanel\(proj\) : codeRepoSheet\(proj\)\)/.test(pill));
+ok('the panel header opens the account sheet',
+   /acct\.onclick = \(\) => \{ close\(\); codeRepoSheet\(proj\); \}/.test(fn('async function codeRepoPanel(proj')));
 ok('the pill works from the keyboard', /pill\.tabIndex = 0/.test(pill) && /e\.key === "Enter"/.test(pill));
 const sheet = fn('async function codeRepoSheet(proj)');
 ok('the choice is saved by login, never a token',

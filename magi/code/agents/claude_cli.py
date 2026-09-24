@@ -55,6 +55,11 @@ _UNAUTH = re.compile(r"please run /login|not logged in|invalid api key|"
 # being out of usage: "Fable 5.1 requires usage credits. Switch to another
 # model, or manage usage credits at ..." (verified live, credits off).
 _CREDITS = re.compile(r"requires usage credits|usage credits (are )?(required|off)", re.I)
+# A model the ACCOUNT lists but this Claude Code build cannot run yet (found
+# live, 2026-09-24: Opus 5.5 on 2.1.278 -> "API Error: 400 Claude Code
+# 2.1.278 does not support this model; version 2.1.280 or newer is
+# required"). Not the task's failure and not the account's: the model's.
+_TOO_OLD = re.compile(r"does not support this model; version (\d+(?:\.\d+)+) or newer", re.I)
 _LIMIT = re.compile(r"usage limit|limit reached|hit your limit|rate.?limit|"
                     r"limits? will reset|out of (extra )?usage|429", re.I)
 
@@ -208,44 +213,56 @@ class ClaudeCLIAgent(CodingAgent):
         exe = slots.cli_path("claude")
         if not exe:
             return Result(Outcome.UNAVAILABLE, detail="Claude Code CLI is not installed.")
-        # At most two tries on this account: a model can turn out to need
-        # usage credits only when the provider says so (a plan MAGI has not
-        # seen before). That is remembered, and the task goes again once on
-        # the best model the account CAN run -- not handed to the next agent,
-        # and not counted as the account being out of usage.
+        # At most two tries on this account. A model can turn out to be
+        # unusable only when it is tried: it needs usage credits (a plan MAGI
+        # has not seen before), or this Claude Code build is too old for it.
+        # Either is remembered, and the task goes again once on the best model
+        # the account CAN run -- not handed to the next agent, and not counted
+        # as the account being out of usage.
         res = Result(Outcome.UNAVAILABLE)
+        refused = ""
         for attempt in range(2):
             pick = self._pick(task)
             if pick.get("note"):
                 await emit({"k": "note", "text": pick["note"]})
             await emit({"k": "model", "agent": "claude", "slot": self.slot,
                         **{k: pick.get(k) for k in ("model", "label", "effort", "auto", "why")}})
-            res, needs_credits = await self._run_once(exe, task, pick, emit=emit, cancel=cancel)
-            if not needs_credits:
+            res, refused = await self._run_once(exe, task, pick, emit=emit, cancel=cancel)
+            if not refused:
                 return res
-            if pick.get("model"):
-                models.note_gated("claude", self.slot, pick["model"], True)
+            label = pick.get("label") or "That model"
+            if refused == "credits":
+                if pick.get("model"):
+                    models.note_credit_refusal("claude", self.slot, pick["model"])
+                why = (f"{label} runs on usage credits for this account, and they are off.")
+            else:
+                need = refused.split(":", 1)[1]
+                if pick.get("model"):
+                    models.note_cli_min(pick["model"], need)
+                why = (f"{label} needs Claude Code {need} or newer; this PC has "
+                       f"{models.claude_cli_version() or 'an older one'} (run `claude update` there).")
             if self.model or attempt:
                 break
-            await emit({"k": "note", "text": f"{pick.get('label') or 'That model'} runs on usage "
-                        "credits for this account, and they are off. Trying again with the best "
-                        "model it can run."})
-        return Result(Outcome.UNAVAILABLE, text=res.text,
-                      detail="The model needs usage credits, and they are off for this account.",
+            await emit({"k": "note", "text": why + " Trying again with the best model it can run."})
+        return Result(Outcome.UNAVAILABLE, text=res.text, detail=why,
                       session_id=res.session_id, tools_used=res.tools_used)
 
     async def _run_once(self, exe: str, task: Task, pick: dict, *, emit: EventFn,
-                        cancel: asyncio.Event) -> tuple[Result, bool]:
+                        cancel: asyncio.Event) -> tuple[Result, str]:
+        """One CLI run. The second value is "" normally, "credits" when the
+        model needs usage credits, "cli:<version>" when this Claude Code is
+        too old for it -- the two refusals run() retries once."""
         prompt = task.full_prompt()
         try:
             s = Stream(build_argv(exe, task, pick.get("model"), pick.get("effort")), cwd=task.root,
                        env=env_for_task(self.slot, task), stdin_text=prompt)
         except OSError as exc:
-            return Result(Outcome.UNAVAILABLE, detail=f"Could not start Claude Code: {exc}"), False
+            return Result(Outcome.UNAVAILABLE, detail=f"Could not start Claude Code: {exc}"), ""
 
         result: dict[str, Any] | None = None
         session = ""
         tools: list[str] = []
+        texts: list[str] = []
         limited_at: float | None = None
         credits_required = False
         capped: list[str] = []          # the sentence, once a cap trips
@@ -292,6 +309,8 @@ class ClaudeCLIAgent(CodingAgent):
                     for e in ev["events"]:
                         if e["k"] == "tool":
                             tools.append(e["name"])
+                        elif e["k"] == "text":
+                            texts.append(e["text"])
                         await emit(e)
                 elif k == "result":
                     result = ev
@@ -299,7 +318,7 @@ class ClaudeCLIAgent(CodingAgent):
             watch.cancel()
 
         if cancel.is_set():
-            return Result(Outcome.CANCELLED, session_id=session, tools_used=tools), False
+            return Result(Outcome.CANCELLED, session_id=session, tools_used=tools), ""
 
         code = await s.wait()
         tail = "\n".join(s.stderr_tail)
@@ -308,14 +327,19 @@ class ClaudeCLIAgent(CodingAgent):
             # Handed on like a limit, but nothing is remembered as one: the
             # cap is yours, and changing it takes effect on the next task.
             return Result(Outcome.LIMITED, detail=capped[0], session_id=session,
-                          tools_used=tools, text=(result or {}).get("text", "")), False
+                          tools_used=tools, text=(result or {}).get("text", "")), ""
+        said = (result or {}).get("text", "") + "\n" + "\n".join(texts) + "\n" + tail
+        old = _TOO_OLD.search(said)
+        if old:
+            return Result(Outcome.UNAVAILABLE, text=(result or {}).get("text", ""),
+                          session_id=session, tools_used=tools), "cli:" + old.group(1)
         if credits_required or _CREDITS.search((result or {}).get("text", "")):
             return Result(Outcome.UNAVAILABLE, text=(result or {}).get("text", ""),
-                          session_id=session, tools_used=tools), True
+                          session_id=session, tools_used=tools), "credits"
         if limited_at is not None:
             until = limits.mark("claude", self.slot, limited_at, "rate_limit_event")
             return Result(Outcome.LIMITED, detail="Claude's usage limit was reached.",
-                          resets_at=until, session_id=session, tools_used=tools), False
+                          resets_at=until, session_id=session, tools_used=tools), ""
         if result is None:
             outcome = classify_failure(tail, None)
             if outcome == Outcome.TASK_FAILED:
@@ -323,7 +347,7 @@ class ClaudeCLIAgent(CodingAgent):
             if outcome == Outcome.LIMITED:
                 limits.mark("claude", self.slot, None, "stderr")
             return Result(outcome, detail=(tail[-600:] or f"exited {code} with no result"),
-                          session_id=session, tools_used=tools), False
+                          session_id=session, tools_used=tools), ""
         if result["ok"]:
             limits.clear("claude", self.slot)
             cr = models.credits("claude", self.slot)
@@ -331,12 +355,12 @@ class ClaudeCLIAgent(CodingAgent):
                 # It ran with credits off, so it does not need them here.
                 models.note_gated("claude", self.slot, pick["model"], False)
             return Result(Outcome.OK, text=result["text"], session_id=session,
-                          turns=result["turns"], tools_used=tools), False
+                          turns=result["turns"], tools_used=tools), ""
         outcome = classify_failure(result["text"] + "\n" + tail, result.get("api_status"))
         if outcome == Outcome.LIMITED:
             limits.mark("claude", self.slot, None, "result")
         return Result(outcome, text=result["text"], detail=result["text"][:600],
-                      session_id=session, turns=result["turns"], tools_used=tools), False
+                      session_id=session, turns=result["turns"], tools_used=tools), ""
 
 
 def models_when(ts: float) -> str:

@@ -6389,6 +6389,11 @@ const HOW = [
       "<b>Commit is a second press.</b> Once a change is applied, the card offers <b>Commit these files</b>: exactly the files that were applied, nothing else you had changed or staged, with a message drafted from what you asked and what the agent said it did. Edit it, press Commit, and your repository&rsquo;s own hooks run as they would for you. Nothing is pushed until you press Push. MAGI does all of this itself &mdash; agents never get git, a shell or a credential.",
       "<b>Push is a third press.</b> After a commit the card offers <b>Push</b>, and whenever the branch is ahead the line under <b>Workspace</b> offers <b>Push &uarr;n</b>. It goes out as the <b>GitHub account</b> you chose for the project (tap the <b>Repository</b> pill), is <b>never forced</b>, and is refused with a reason if GitHub has commits you do not &mdash; the next task&rsquo;s pull brings them in. With no account chosen, an HTTPS remote is not pushed at all rather than going out as whatever login this PC remembers. A1 is never pushed from here.",
       "<b>GitHub tokens stay on the engine PC.</b> Add one in <b>Accounts &rsaquo; GitHub</b>: MAGI checks it with GitHub, keeps it in the PC&rsquo;s credential store, and never shows it again &mdash; not on any screen, not in Firestore, not to an agent. Git is handed it only at the moment it asks, and only for github.com, so it never lands in the repository&rsquo;s config. A fine-grained token that lists just the repositories you want, with Contents: Read and write, is enough to push.",
+      "<b>The Repository pill opens the repository itself.</b> For a folder whose remote is on GitHub, the pill shows its branches (with how far each is ahead or behind), commits, pull requests with their checks, issues, Actions runs and releases &mdash; read as the project&rsquo;s GitHub account, fetched when you open a tab, and never on a timer. GitHub answers an unchanged question with &ldquo;nothing new&rdquo;, which costs none of the hourly limit. Nothing in it can change the repository.",
+      "<b>After a push, MAGI watches the Actions runs.</b> A line under the repository says how many runs have finished; it checks every 20 seconds only while one is still going, then stops. If one fails, it names the job and the step, shows the end of that job&rsquo;s log, and offers <b>Diagnose</b>: a Read task with the log as its context. A1&rsquo;s pushes come from its own hook, so for A1 use <b>Watch</b> on the panel&rsquo;s Overview. Claude can read the same things during a task &mdash; an issue, a pull request, why a run failed &mdash; through tools that ask the engine, so it never holds a token.",
+      "<b>Each agent has a model, or Auto.</b> The line under the agents says which model the next task gets and how full the tightest usage window is; tap it for the list. The list is what the account can actually run, asked of Anthropic and OpenAI with the account&rsquo;s own sign-in. <b>Auto</b> reads the task &mdash; what it asks for, how long it is, whether it edits &mdash; and picks the strongest model it needs from those, with a matching effort; it steps one lighter when the allowance is running low. It decides locally, in milliseconds, without asking a model which model to ask.",
+      "<b>Some models need usage credits.</b> On a Pro plan, Fable runs only on usage credits; with them off it is listed but cannot be chosen, and a task set to it runs on Auto&rsquo;s choice and says why. Turn credits on in the account&rsquo;s usage settings and MAGI notices within a few minutes, no restart &mdash; the same when an account has used its plan&rsquo;s limit and credits then carry it on. A model the provider turns down for credits is remembered for that account, and the task goes again once on the best model the account can run.",
+      "<b>Your caps stop MAGI before the provider does.</b> In the same sheet, <b>Stop at</b> caps each window &mdash; for Claude the session and the week, for Codex whatever its plan has (a free account: one 30-day window). Once a capped window reaches its cap, MAGI sends that agent nothing more, even mid-task: the chain hands the task on, until the window resets or you change the cap. A small popup warns you as a window nears your warning line or your cap, once per window per reset.",
       "<b>The percentages on the chips are current.</b> Each account&rsquo;s usage is asked of Claude and OpenAI directly, the same way their own tools do, and a window whose reset time has passed shows 0% rather than the number from before it reset.",
       "Nothing about a task is written to the cloud: it streams to whichever screen is watching, and a reload picks the same task back up while the engine is still running it.",
     ],
@@ -11445,7 +11450,10 @@ function renderCodeTask(t) {
       log.append(r);
     } else if (ev.k === "tool") {
       const r = el("div", "code-ev is-tool");
-      r.append(el("span", "code-ev-tool", ev.name), el("span", "code-ev-arg", ev.target || ""));
+      // MAGI's own GitHub tools, said the way you would: "GitHub · run failure".
+      const gh = /^mcp__magi_github__github_(.+)$/.exec(ev.name || "");
+      r.append(el("span", "code-ev-tool", gh ? "GitHub" : ev.name),
+               el("span", "code-ev-arg", gh ? gh[1].replace(/_/g, " ") : ev.target || ""));
       log.append(r);
     } else if (ev.k === "note") {
       log.append(el("div", "code-ev is-note", ev.text));
@@ -13031,7 +13039,7 @@ function renderCodeWatch(proj) {
    the engine as you pause typing: local rules over cached lists, no model
    call, a few milliseconds. */
 const EFFORT_LABEL = { low: "Low", medium: "Medium", high: "High", xhigh: "Extra high", max: "Max" };
-const CAP_PRESETS = [50, 60, 70, 80, 90, 95];
+const CAP_PRESETS = [50, 70, 80, 90, 95];     // + Off: one row on a phone
 const AGENT_NAME = { claude: "Claude", codex: "Codex" };
 const USAGE_SEEN_KEY = lsKey("usage.seen");
 
@@ -13217,6 +13225,10 @@ async function codeModelSheet(agent) {
       cr.enabled === true ? (cr.exhausted ? "usage credits used up" : "usage credits on")
         : cr.enabled === false ? "usage credits off" : ""].filter(Boolean).join(" · ");
     if (err) body.append(el("div", "sheet-err", err));
+    // Stopped by your cap is the one thing that changes what happens next,
+    // so it leads -- not three cards down under the model list.
+    if (slot.capped) body.append(el("div", "sheet-err model-capped", `${slot.capped.why}. MAGI will not `
+      + `send ${AGENT_NAME[agent]} requests until ${resetWhen(slot.capped.until)} — or raise the cap below.`));
 
     // ── model ────────────────────────────────────────────────────────────
     const mc = el("div", "repo-card");
@@ -13353,8 +13365,6 @@ async function codeModelSheet(agent) {
       wr.append(chips);
       uc.append(wr);
     }
-    if (slot.capped) uc.append(el("div", "sheet-err", `${slot.capped.why}. MAGI will not send `
-      + `${AGENT_NAME[agent]} requests until ${resetWhen(slot.capped.until)} — or raise the cap.`));
     uc.append(el("div", "repo-note", "A cap stops MAGI sending requests to this agent once that much "
       + "of the window is used; the chain hands the task to the next agent. It holds until the window "
       + "resets or you change it."));

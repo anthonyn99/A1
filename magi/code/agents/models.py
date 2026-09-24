@@ -409,6 +409,75 @@ def note_gated(agent: str, slot: str, model: str, is_gated: bool) -> None:
             _write(_catalog_path(), cat)
 
 
+def note_credit_refusal(agent: str, slot: str, model: str) -> list[str]:
+    """The provider refused `model` for credits: gate it AND the rest of its
+    family on this account. Credits are a family rule ("Fable 5 requires
+    usage credits"), so trying Fable 5 after Fable 5.1 was refused would only
+    spend a second launch being told the same thing."""
+    fam = next((m.get("family") for m in catalog_cached(agent, slot).get("models") or []
+                if m.get("id") == model), None)
+    ids = [m["id"] for m in catalog_cached(agent, slot).get("models") or []
+           if fam and m.get("family") == fam] or [model]
+    for mid in ids:
+        note_gated(agent, slot, mid, True)
+    return ids
+
+
+# ── models this Claude Code build is too old for ─────────────────────────
+
+def note_cli_min(model: str, version: str) -> None:
+    """Remember that `model` needs Claude Code >= `version`. About the CLI on
+    this machine, not an account, so it is not per slot."""
+    if not model or not re.fullmatch(r"\d+(?:\.\d+)+", version or ""):
+        return
+    with _LOCK:
+        cat = _read(_catalog_path())
+        if (cat.get("cli_min") or {}).get(model) != version:
+            cat.setdefault("cli_min", {})[model] = version
+            _write(_catalog_path(), cat)
+
+
+def _ver(v: str) -> tuple[int, ...]:
+    return tuple(int(x) for x in re.findall(r"\d+", v or ""))
+
+
+_cli_ver: dict[str, tuple[float, str]] = {}
+
+
+def claude_cli_version() -> str:
+    """The installed Claude Code's version, re-read every 10 minutes: an
+    update (`claude update`) should make a model available without an
+    engine restart."""
+    hit = _cli_ver.get("claude")
+    if hit and time.time() - hit[0] < 600:
+        return hit[1]
+    v = ""
+    exe = slots.cli_path("claude")
+    if exe:
+        try:
+            from ... import proc
+            import subprocess
+            r = proc.run([exe, "--version"], capture_output=True, text=True, timeout=20,
+                         stdin=subprocess.DEVNULL, encoding="utf-8", errors="replace")
+            m = re.search(r"(\d+\.\d+\.\d+)", r.stdout or "")
+            v = m.group(1) if m else ""
+        except Exception:  # noqa: BLE001 -- a version is a nicety, not a need
+            v = ""
+    _cli_ver["claude"] = (time.time(), v)
+    return v
+
+
+def cli_too_old(agent: str, model: str) -> str:
+    """The version `model` needs when the installed CLI is older, else ""."""
+    if agent != "claude":
+        return ""
+    need = (_read(_catalog_path()).get("cli_min") or {}).get(model)
+    if not need:
+        return ""
+    have = claude_cli_version()
+    return need if not have or _ver(have) < _ver(need) else ""
+
+
 # ── may this account run this model now? ─────────────────────────────────
 
 def credits(agent: str, slot: str) -> dict:
@@ -452,6 +521,11 @@ def availability(agent: str, slot: str, model: dict) -> tuple[bool, str]:
     cr = credits(agent, slot)
     on = cr.get("enabled") is True and not cr.get("exhausted")
     label = model.get("label") or model.get("id") or "This model"
+    need = cli_too_old(agent, model.get("id") or "")
+    if need:
+        return False, (f"{label} needs Claude Code {need} or newer; this PC has "
+                       f"{claude_cli_version() or 'an older one'}. Run `claude update` on the engine "
+                       "PC — MAGI picks it up within minutes.")
     if needs_credits(agent, slot, model):
         if cr.get("exhausted"):
             return False, f"{label} runs on usage credits, and this month's are used up."
@@ -588,16 +662,16 @@ def _pick_claude(models: list[dict], tier: int) -> dict | None:
     ok = [m for m in models if m.get("available")]
     if not ok:
         return None
-    latest = [m for m in ok if m.get("latest")] or ok
-    # The newest model of the family the tier wants; if that family is not
-    # available (Fable without credits), the next family down; never a
-    # stronger one than asked for unless nothing weaker exists.
+    # The newest AVAILABLE model of the family the tier wants -- Opus 5 when
+    # Opus 5.5 cannot run here, before dropping to Sonnet -- then the next
+    # family down (Fable without credits -> Opus); never a stronger one than
+    # asked for unless nothing weaker exists. `models` is newest-first.
     want = {1: 2, 2: 2, 3: 3, 4: 4}[tier]     # a lookup still gets Sonnet: Haiku reads code poorly
     for t in range(want, 0, -1):
-        hit = [m for m in latest if m.get("tier") == t]
+        hit = [m for m in ok if m.get("tier") == t]
         if hit:
             return hit[0]
-    return sorted(latest, key=lambda m: m.get("tier", 2))[0]
+    return sorted(ok, key=lambda m: m.get("tier", 2))[0]
 
 
 def _pick_codex(models: list[dict], tier: int) -> dict | None:
@@ -653,7 +727,8 @@ def choose(agent: str, slot: str, prompt: str, mode: str = "read",
         if pick is None and models:
             note = f"{ch['model']} is not offered to this account; Auto chose instead."
         elif pick is not None and not pick["available"]:
-            note = f"{pick['label']}: {pick['why']} Auto chose instead."
+            why = pick["why"]
+            note = (why if why.startswith(pick["label"]) else f"{pick['label']}: {why}") + " Auto chose instead."
             pick = None
         if pick is None and not models:
             # The list could not be read: pass your choice through and let

@@ -169,8 +169,11 @@ const loaded = '!document.querySelector(".repo-body .doctor-running")';
       await evalJs(c, '[...document.querySelectorAll(".code-watch .code-git-act")].find(b=>b.textContent==="Diagnose").click(); return 1;');
       ok('a Read task starts', await waitFor(c, '!!(CODE.task && CODE.task.id)', 10000));
       ok('it finishes', await waitFor(c, '!!(CODE.task && CODE.task.done)', 240000));
-      const said = await evalJs(c, '(document.querySelector(".code-task")||document.getElementById("codeBody")).textContent');
-      ok('the answer is about the deployment in progress', /in.progress|already|concurren|another deploy/i.test(said), said.slice(-240));
+      // The ANSWER, not the page: the prompt itself quotes the log.
+      const out = await evalJs(c, 'CODE.task.result ? CODE.task.result.outcome : ""');
+      const said = await evalJs(c, '(CODE.task.result && CODE.task.result.text) || ""');
+      ok('it succeeded', out === 'ok', out + ' ' + said.slice(0, 200));
+      ok('the answer is about the deployment in progress', /in.progress|already|concurren|another deploy/i.test(said), said.slice(0, 240));
       await shot(c, 'repo-diagnosed');
     }
 

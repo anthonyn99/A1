@@ -215,3 +215,45 @@ def test_the_code_mode_push_claims_still_hold():
     assert "Accounts &rsaquo; GitHub" in HOW and "function renderGhAccounts()" in PAGE
     assert "Push &uarr;n" in HOW and "`Push ↑${n}`" in PAGE
 
+
+
+def test_the_repository_panel_claims_still_hold():
+    """Phase 11: read-only, fetched on open, the watch stops, no token for Claude."""
+    assert "The Repository pill opens the repository itself" in HOW
+    routes = (REPO / "magi" / "code" / "routes.py").read_text(encoding="utf-8")
+    repo_routes = routes.split("# ── the Repository panel (Phase 11)")[1].split("# ── models, credits, caps")[0]
+    # "Nothing in it can change the repository": the panel's routes are all GETs.
+    assert "@router.get(" in repo_routes and "@router.post(" not in repo_routes
+    assert "@router.delete(" not in repo_routes
+    # "every 20 seconds only while one is still going, then stops".
+    assert "const WATCH_EVERY_MS = 20000;" in PAGE and "every 20 seconds" in HOW
+    assert 'w.state === "pending" || (w.state === "none"' in PAGE
+    # "never holds a token": the MCP server is stdlib, talks to loopback only.
+    mcp = (REPO / "magi" / "github" / "mcp_server.py").read_text(encoding="utf-8")
+    assert "http://127.0.0.1:" in mcp and "keyring" not in mcp and "accounts" not in mcp
+    assert "Diagnose" in HOW and "Watch" in HOW
+
+
+def test_the_model_claims_still_hold():
+    """Phase 11B: Auto is local, credits gate models, caps stop mid-task."""
+    from magi.code.agents import models as M
+    assert "Each agent has a model, or Auto" in HOW
+    # "without asking a model which model to ask": classify is pure.
+    assert M.classify("what does x do?")["tier"] == 1
+    import inspect
+    src = inspect.getsource(M.classify) + inspect.getsource(M.choose)
+    assert "urlopen" not in src and "_http_json" not in src and "Stream" not in src
+    # "Fable runs only on usage credits" on Pro, seeded and live-verified.
+    assert "fable" in M.CREDIT_FAMILIES and "pro" in M.CREDIT_PLANS
+    # "notices within a few minutes": credits come from the usage read.
+    fetch = (REPO / "magi" / "code" / "agents" / "usage_fetch.py").read_text(encoding="utf-8")
+    assert "limits.note_account(agent, slot, acct)" in fetch
+    # "even mid-task": both agents run the cap watch and trip on it.
+    for f in ("claude_cli.py", "codex_cli.py"):
+        src = (REPO / "magi" / "code" / "agents" / f).read_text(encoding="utf-8")
+        assert "models.cap_watch(" in src and "trip(" in src
+    # "a free account: one 30-day window" -- named as the UI names it.
+    assert M.window_label("30d") == "30-day"
+    # "once per window per reset": the alert key carries the reset time.
+    assert "resets_at') or ''}:{level}" in inspect.getsource(M.alerts)
+    assert "Stop at" in HOW and '"Stop at"' in PAGE
