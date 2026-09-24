@@ -24,7 +24,8 @@ const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
-const URL = 'file:///c:/Users/antho/Desktop/A1/magi.html';
+// Served by the engine: since Phase 14 a file:// page (Origin "null") is refused.
+const URL = 'http://127.0.0.1:8000/';
 const API = 'http://127.0.0.1:8000/api/code';
 const A1 = path.resolve(__dirname, '..', '..');
 const PY = path.join(A1, 'magi', '.venv', 'Scripts', 'python.exe');
@@ -224,8 +225,10 @@ async function runTask(c, prompt, agents) {
       injectAccount();
       await evalJs(c, 'codeGhLoad().then(()=>renderCodeView()); return 1;');
       await sleep(600);
-      await evalJs(c, '[...document.querySelectorAll(".code-pill.is-btn")].find(p=>/Repository/.test(p.textContent)).click(); return 1;');
-      ok('the pill opens the GitHub sheet', await waitFor(c, '!!document.querySelector(".code-gh-sheet")', 3000));
+      // Since Phase 11 the pill on a github.com remote opens the Repository
+      // panel; with no account chosen, the line's button is the way in.
+      await evalJs(c, '[...document.querySelectorAll(".code-git-act")].find(b=>b.textContent==="Choose account to push").click(); return 1;');
+      ok('"Choose account to push" opens the GitHub sheet', await waitFor(c, '!!document.querySelector(".code-gh-sheet")', 3000));
       ok('it names the repository', await waitFor(c, '/magi-live-nobody-zz\\/nothing on github\\.com/.test(document.querySelector(".code-gh-sheet").textContent)', 10000));
       await evalJs(c, `[...document.querySelectorAll(".code-gh-opt")].find(b=>b.textContent.startsWith(${JSON.stringify(FAKE_LOGIN)})).click(); return 1;`);
       await evalJs(c, '[...document.querySelectorAll(".sheet .btn.active")].pop().click(); return 1;');

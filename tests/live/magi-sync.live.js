@@ -26,7 +26,8 @@ const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
-const URL = 'file:///c:/Users/antho/Desktop/A1/magi.html';
+// Served by the engine: since Phase 14 a file:// page (Origin "null") is refused.
+const URL = 'http://127.0.0.1:8000/';
 const API = 'http://127.0.0.1:8000/api/code';
 const STUB = `(()=>{const real=window.fetch;window.fetch=(u,o)=>{const s=String(u&&u.url?u.url:u);
  if(s.indexOf('/auth/journal/status')>=0)return Promise.resolve(new Response(JSON.stringify({ok:true,hasLock:false}),{status:200,headers:{'Content-Type':'application/json'}}));

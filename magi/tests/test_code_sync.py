@@ -8,6 +8,7 @@ write counts) is tests/magi-code-sync.test.js and tests/live/magi-sync.live.js.
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -100,7 +101,9 @@ def test_state_carries_rev_too(db):
 
 # ── what comes in ─────────────────────────────────────────────────────────
 
-LATER = "2099-01-01T00:00:00+00:00"
+# An hour ahead: newer than anything the test just made, yet inside the
+# slack a real clock skew gets (a far-future time is refused -- Phase 14).
+LATER = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
 EARLIER = "2000-01-01T00:00:00+00:00"
 
 
@@ -247,3 +250,57 @@ def test_applying_the_engines_own_view_changes_nothing(db, tmp_path):
     d = run(RT.sync_apply({"projects": v["projects"], "deleted": v["deleted"]}))
     assert d["applied"] == {"save": 0, "delete": 0, "tomb": 0}
     assert d["rev"] == v["rev"]
+
+
+# ── Phase 14: hostile copies ──────────────────────────────────────────────
+# The cloud document is written by browsers. PUT /sync must survive whatever
+# is in it: a 500 there stops every later reconcile on that device.
+
+NOW = "2026-01-01T00:00:00+00:00"
+
+
+@pytest.mark.parametrize("body", [
+    {}, {"projects": None}, {"projects": []}, {"projects": "x"}, {"deleted": []},
+    {"deleted": {"proj_a": None, "proj_b": 5, "proj_c": [1], "proj_d": {"a": 1}}},
+    {"projects": {"proj_a": None, "proj_b": [], "proj_c": "x", "proj_d": 7}},
+    {"projects": {"proj_a": {"name": ["x"], "updatedAt": NOW}}},
+    {"projects": {"proj_a": {"name": "A", "updatedAt": NOW, "aliases": "abc",
+                             "prefs": [1], "notes": {"x": 1}}}},
+    {"projects": {"proj_a": {"name": "A" * 100000, "updatedAt": NOW}}},
+])
+def test_malformed_copies_are_survived(db, body):
+    d = run(RT.sync_apply(body))
+    assert d["ok"]
+
+
+@pytest.mark.parametrize("at", ["0001-01-01", "0001-01-01T00:00:00", "9999-12-31T23:59:59",
+                                "9999-12-31T23:59:59-12:00", "2026-09-24T10:00:00+99:00",
+                                "1e308", 10 ** 400, float("nan"), True])
+def test_extreme_times_neither_crash_nor_win(db, at):
+    """Windows raises OSError placing a naive year-1/9999 time; that was a
+    500. A far-future time would have won every reconcile forever."""
+    mk(db, "Keep", pid="proj_k")
+    d = run(RT.sync_apply({"projects": {"proj_k": {"name": "Stolen", "updatedAt": at}},
+                           "deleted": {"proj_k": at}}))
+    assert d["ok"] and d["applied"] == {"save": 0, "delete": 0, "tomb": 0}
+    assert d["projects"]["proj_k"]["name"] == "Keep"
+
+
+@pytest.mark.parametrize("pid", ["", "x", "proj_", "../proj_a", "proj_a/b", "proj_" + "a" * 33,
+                                 "proj_a\x00", "PROJ_a", " proj_a"])
+def test_only_engine_shaped_ids_are_taken(db, pid):
+    d = run(RT.sync_apply({"projects": {pid: {"name": "N", "updatedAt": NOW}},
+                           "deleted": {pid: NOW}}))
+    assert d["applied"] == {"save": 0, "delete": 0, "tomb": 0}
+    assert d["projects"] == {} and d["deleted"] == {}
+
+
+def test_ten_thousand_projects_are_capped(db):
+    body = {"projects": {f"proj_{i:05d}": {"name": f"P{i}", "updatedAt": NOW}
+                         for i in range(10000)},
+            "deleted": {f"proj_x{i:05d}": NOW for i in range(10000)}}
+    d = run(RT.sync_apply(body))
+    assert d["applied"]["save"] == S.MAX_PROJECTS
+    assert d["applied"]["tomb"] == S.MAX_DELETED
+    # The database keeps its own bound on tombstones.
+    assert len(d["deleted"]) <= 200

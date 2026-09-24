@@ -19,7 +19,8 @@
 const { connect, evalJs, sleep, shotPath } = require('./cdp.js');
 const fs = require('fs');
 
-const URL = 'file:///c:/Users/antho/Desktop/A1/magi.html';
+// Served by the engine: since Phase 14 a file:// page (Origin "null") is refused.
+const URL = 'http://127.0.0.1:8000/';
 const API = 'http://127.0.0.1:8000/api/code';
 const A1_PID = 'proj_60d8f14fbc1c';
 // A real Pages deploy that failed on 2026-09-21 ("in progress deployment").

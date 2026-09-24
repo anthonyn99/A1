@@ -387,6 +387,10 @@ def test_askpass_answers_username_and_password_for_its_host(kr):
     "Password for 'https://octo@evil.example': ",
     "Password for 'https://octo@github.com.evil.example': ",
     "Password for 'http://octo@github.com': ",            # plain http to a real host
+    "Password for 'https://github.com@evil.example': ",   # the host hidden as a user
+    "Password for 'https://github.com:8443': ",           # another port is another server
+    "Password for 'https://evil.example/github.com': ",
+    "Password for 'https://localhost': ",                 # loopback is not the account's host
     "Enter passphrase for key '/c/Users/x/.ssh/id_ed25519': ",
     "",
 ])

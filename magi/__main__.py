@@ -29,7 +29,22 @@ from .settings import (
 )
 
 
+def _safe_stdio() -> None:
+    """Never die on a character the console cannot show.
+
+    With stdout piped or sent to NUL (a launcher, a test's `stdio: 'ignore'`)
+    Python on Windows writes cp1252, and serve's "MAGI → http://…" line
+    raised UnicodeEncodeError before the engine started (Phase 14 sweep).
+    """
+    for s in (sys.stdout, sys.stderr):
+        try:
+            s.reconfigure(errors="replace")
+        except (AttributeError, ValueError):
+            pass
+
+
 def main(argv: list[str] | None = None) -> int:
+    _safe_stdio()
     ap = argparse.ArgumentParser(prog="magi", description="MAGI multi-LLM council")
 
     # --profile on every subcommand rather than before it, so the natural

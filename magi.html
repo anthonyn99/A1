@@ -18016,7 +18016,11 @@ function codeStable(v) {
  *  binding; the others' are carried through untouched. A deletion beats
  *  every copy older than it, on both sides. */
 function codeSyncMerge(eng, cloud) {
-  const t = (s) => { const n = Date.parse(s || ""); return isNaN(n) ? 0 : n; };
+  // A time more than a day ahead is not clock skew: it would win every merge
+  // forever and strand the engine's own edits. The engine refuses it the same
+  // way (magi/code/sync.py `ts`), so it counts as unreadable and loses here.
+  const far = Date.now() + 864e5;
+  const t = (s) => { const n = Date.parse(s || ""); return isNaN(n) || n > far ? 0 : n; };
   const eid = (eng.engine && eng.engine.id) || "";
   const E = eng.projects || {};
   const C = (cloud && cloud.projects) || {};

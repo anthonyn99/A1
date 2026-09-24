@@ -36,6 +36,7 @@ from .engine import brainstorm as brainstorm_engine
 from .engine import refine as refine_engine
 from .engine import studio as studio_engine
 from .engine import usage
+from . import agent_guard
 from .engine.orchestrator import Orchestrator, required_members
 from .errors import FailureKind, explain
 from .providers import gemini_api
@@ -116,14 +117,23 @@ async def lifespan(app: FastAPI):
         KEEP_AWAKE.stop()
 
 
-app = FastAPI(title="MAGI", lifespan=lifespan)
+# No /docs, /redoc or /openapi.json. They live outside /api/, so the token
+# gate never covered them: over the tunnel they handed anyone a map of every
+# endpoint that drives the signed-in accounts (found in the Phase 14 sweep).
+app = FastAPI(title="MAGI", lifespan=lifespan,
+              docs_url=None, redoc_url=None, openapi_url=None)
 
 
 # Where magi.html is served from. A1 is a GitHub Pages repo, so this is the
 # one hosted origin that exists -- unlike the Firebase project this replaced,
 # it never changes, which is why it can be a constant instead of a build-time
-# variable. "null" is the origin of a file:// page, so magi.html opened straight
-# off disk works too (the usual way a change gets checked before it is pushed).
+# variable.
+#
+# "null" (a file:// page) used to be allowed too. It is NOT a file-only origin:
+# any website can make one with a sandboxed iframe, and with loopback needing
+# no token that page could drive the whole engine from Tony's browser (Phase 14
+# sweep). Open http://127.0.0.1:8000/ instead -- the engine serves the working
+# copy of magi.html there -- or set MAGI_ALLOWED_ORIGINS=null on purpose.
 PAGES_ORIGIN = "https://anthonyn99.github.io"
 
 
@@ -135,7 +145,7 @@ def _allowed_origins() -> list[str]:
     origins can be added through MAGI_ALLOWED_ORIGINS (comma separated) without
     editing code.
     """
-    origins = [PAGES_ORIGIN, "null"]
+    origins = [PAGES_ORIGIN]
     extra = os.environ.get("MAGI_ALLOWED_ORIGINS", "")
     origins += [o.strip().rstrip("/") for o in extra.split(",") if o.strip()]
     return origins
@@ -196,8 +206,37 @@ def _arrived_over_the_tunnel(request: Request) -> bool:
     return host not in ("127.0.0.1", "localhost", "::1")
 
 
+_ORIGINS = set(_allowed_origins())
+
+
+def _foreign_origin(request: Request) -> bool:
+    """A browser page from somewhere else is asking. Browsers always attach
+    Origin to a cross-origin fetch and to any POST, and a page cannot forge it,
+    so this stops cross-site requests the CORS headers alone never did: a
+    "simple" POST is SENT before CORS has a say -- only its answer is hidden.
+
+    Same-origin is fine (the console the engine serves itself, locally or
+    over the tunnel). DNS rebinding does not slip through that: the rebound
+    Host is not loopback, so the token gate below still applies."""
+    origin = (request.headers.get("origin") or "").rstrip("/")
+    if not origin or origin in _ORIGINS:
+        return False
+    host = (request.headers.get("host") or "").lower()
+    return origin.lower() not in (f"http://{host}", f"https://{host}")
+
+
 @app.middleware("http")
 async def _require_token(request: Request, call_next):
+    if request.url.path.startswith("/api/") and request.method != "OPTIONS":
+        if _foreign_origin(request):
+            return JSONResponse({"detail": "origin not allowed"}, status_code=403)
+        if not _arrived_over_the_tunnel(request):
+            client = request.client
+            server = request.scope.get("server") or (None, None)
+            if agent_guard.refuse(request.method, request.url.path,
+                                  client.port if client else None, server[1]):
+                return JSONResponse({"detail": "not from a coding agent's process"},
+                                    status_code=403)
     token = _required_token()
     if token and _arrived_over_the_tunnel(request):
         # CORS preflight carries no custom headers by design -- rejecting it

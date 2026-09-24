@@ -48,8 +48,8 @@ function world() {
     writes, docs, timers,
     console: { warn(...m) { if (process.env.DEBUG) console.log('   warn', ...m); }, log() {} },
     Date: class extends Date {
-      constructor(...x) { super(...(x.length ? x : [1790000000000 + now])); }
-      static now() { return 1790000000000 + now; }
+      constructor(...x) { super(...(x.length ? x : [1790400000000 + now])); }
+      static now() { return 1790400000000 + now; }
       static parse(s) { return Date.parse(s); }
     },
     JSON, Math, Map, Set, Object, Array, String, Number, isNaN, Promise, Error,
@@ -151,6 +151,10 @@ const T2 = '2026-09-24T11:00:00+00:00';
     ok('a deletion on the engine removes the cloud copy', !m.projects.a && !m.engineBehind);
     m = M({ ...eng, projects: {} }, { projects: { n: P('New', T1, { laptop: {} }) } });
     ok('a project only the cloud knows goes to the engine', m.toEngine.n && m.projects.n.bindings.laptop);
+    m = M({ ...eng, projects: { a: P('Mine', T1) } }, { projects: { a: P('Stuck', '2099-01-01T00:00:00Z') } });
+    ok('a far-future cloud copy loses (the engine refuses it too)', m.projects.a.name === 'Mine' && !m.engineBehind);
+    m = M({ ...eng, projects: { a: P('Mine', T1) } }, { projects: { a: P('Skewed', '2026-09-26T10:00:00Z') } });
+    ok('...but a few hours of clock skew is still newer', m.projects.a.name === 'Skewed' && m.engineBehind);
     const many = {}; for (let i = 0; i < 260; i++) many['p' + i] = new Date(1.7e12 + i * 1000).toISOString();
     ok('tombstones are bounded to 200', Object.keys(M({ ...eng, projects: {} }, { deleted: many }).deleted).length === 200);
     const W = world();

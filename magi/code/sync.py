@@ -19,6 +19,8 @@ and nothing ping-pongs. A tie is a no-op both ways.
 
 from __future__ import annotations
 
+import re
+import time
 from datetime import datetime
 from typing import Any
 
@@ -32,14 +34,34 @@ _PREF_TYPES: dict[str, type] = {
     "commitStyle": str, "batchWindowMin": int, "github": str,
 }
 
+# What one cloud copy may carry (Phase 14 sweep). The document is written by
+# browsers, so its shape is input, not trust: an id is the shape the engine
+# mints (`proj_` + hex; tests use short ones), and a body holding thousands of
+# projects or tombstones is refused past these counts rather than costing a
+# database round trip each.
+_ID = re.compile(r"proj_[A-Za-z0-9_-]{1,32}")
+MAX_PROJECTS = 500
+MAX_DELETED = 500
+# A time this far ahead of this engine's clock is not clock skew. Accepting it
+# would let one bad copy win every reconcile forever (nothing local is ever
+# newer), so it counts as unreadable and loses instead.
+_FUTURE_SLACK_S = 24 * 3600
+
 
 def ts(s: Any) -> float:
     """An ISO time as epoch seconds; 0 for anything unreadable, so a garbled
     time always loses rather than winning forever."""
     try:
-        return datetime.fromisoformat(str(s).replace("Z", "+00:00")).timestamp()
-    except (TypeError, ValueError):
+        t = datetime.fromisoformat(str(s).replace("Z", "+00:00")).timestamp()
+    # OSError/OverflowError: Windows cannot place a NAIVE year-1 or year-9999
+    # time in local time, and raised -- a 500 from PUT /sync on one bad copy.
+    except (TypeError, ValueError, OSError, OverflowError):
         return 0.0
+    return 0.0 if t > time.time() + _FUTURE_SLACK_S else t
+
+
+def _ok_id(pid: Any) -> bool:
+    return isinstance(pid, str) and _ID.fullmatch(pid) is not None
 
 
 def view(projects: list[dict[str, Any]], meta: dict[str, Any],
@@ -90,8 +112,8 @@ def incoming(local: list[dict[str, Any]], meta: dict[str, Any],
     plan: dict[str, list] = {"save": [], "delete": [], "tomb": []}
 
     deleted = body.get("deleted") if isinstance(body.get("deleted"), dict) else {}
-    for pid, at in deleted.items():
-        if not isinstance(pid, str) or not ts(at):
+    for pid, at in list(deleted.items())[:MAX_DELETED]:
+        if not _ok_id(pid) or not ts(at):
             continue
         p = by_id.get(pid)
         if p is not None:
@@ -104,8 +126,8 @@ def incoming(local: list[dict[str, Any]], meta: dict[str, Any],
 
     projects = body.get("projects") if isinstance(body.get("projects"), dict) else {}
     gone = {pid for pid, _ in plan["delete"]}
-    for pid, c in projects.items():
-        if not isinstance(pid, str) or not isinstance(c, dict) or pid in gone:
+    for pid, c in list(projects.items())[:MAX_PROJECTS]:
+        if not _ok_id(pid) or not isinstance(c, dict) or pid in gone:
             continue
         at = c.get("updatedAt")
         if not ts(at):

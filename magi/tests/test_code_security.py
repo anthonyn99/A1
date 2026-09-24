@@ -225,3 +225,30 @@ def test_per_file_diff_is_capped_for_the_card_but_counts_are_exact():
     assert f.adds == 12000
     assert len(f.diff) <= S.CARD_DIFF_BYTES + 200
     assert f.truncated
+
+
+def _short_name(p: Path) -> str | None:
+    """Windows' 8.3 alias for p's last component, or None where there is none."""
+    import ctypes
+    import sys
+    if sys.platform != "win32":
+        return None
+    buf = ctypes.create_unicode_buffer(520)
+    n = ctypes.windll.kernel32.GetShortPathNameW(str(p), buf, 520)
+    short = Path(buf.value).name if n else ""
+    return short if short and short.lower() != p.name.lower() else None
+
+
+@pytest.mark.parametrize("folder,inner", [(".claude", "settings.json"), (".git", "config"),
+                                          (".ssh", "authorized_keys")])
+def test_an_8_3_short_name_is_the_folder_it_names(tmp_path, folder, inner):
+    """Phase 14: 'CLAUDE~1/settings.json' passed every by-name rule, and on
+    apply Windows opens .claude/settings.json -- a hook there runs in the
+    next interactive Claude session. The rule asks about the real name."""
+    (tmp_path / folder).mkdir()
+    short = _short_name(tmp_path / folder)
+    if not short:
+        pytest.skip("8.3 names are off on this volume")
+    why = S.check_path(f"{short}/{inner}", root=tmp_path)
+    assert why and folder in why, why
+    assert not S.review(_patch(f"{short}/{inner}"), root=tmp_path).ok

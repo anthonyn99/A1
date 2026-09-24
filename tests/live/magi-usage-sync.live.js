@@ -4,7 +4,8 @@
 // runs; the gate cards got smaller without shrinking what is in them.
 const { connect, evalJs, sleep, shotPath } = require('./cdp.js');
 const fs = require('fs');
-const URL = 'file:///c:/Users/antho/Desktop/A1/magi.html';
+// Served by the engine: since Phase 14 a file:// page (Origin "null") is refused.
+const URL = 'http://127.0.0.1:8000/';
 const STUB = `(()=>{const real=window.fetch;window.fetch=(u,o)=>{const s=String(u&&u.url?u.url:u);
  if(s.indexOf('/auth/journal/status')>=0)return Promise.resolve(new Response(JSON.stringify({ok:true,hasLock:false}),{status:200,headers:{'Content-Type':'application/json'}}));
  if(s.indexOf('firebase')>=0||s.indexOf('googleapis')>=0||s.indexOf('gstatic')>=0)return Promise.reject(new TypeError('x'));

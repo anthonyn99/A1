@@ -242,6 +242,8 @@ def test_auth_clears_every_credential_helper_first():
     cfg = AUTH.config()
     assert cfg[:2] == ["-c", "credential.helper="]
     assert TOKEN not in " ".join(cfg)
+    # A repository's own http.sslVerify=false must not let a proxy read it.
+    assert "http.sslVerify=true" in cfg
 
 
 def test_pull_uses_the_account_only_for_its_host(remote):

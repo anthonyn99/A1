@@ -139,15 +139,36 @@ def check_path(rel: str, *, root: Path | None = None, prefix: str = "") -> str |
     if prefix and not (p + "/").startswith(prefix):
         return f"outside this workspace's folder ({prefix.rstrip('/')})"
     for part in parts:
+        if _RESERVED.match(part) or part.endswith((" ", ".")):
+            return f"'{part}' is not a usable file name on Windows"
+    why = _denied(parts)
+    if why:
+        return why
+    if root is not None:
+        real = context.contained(root, Path(p))
+        if real is None:
+            return "outside the workspace once links in the real folder are followed"
+        # Ask again about the name Windows actually opens. An 8.3 short name
+        # is another spelling of the same folder -- GIT~1 is .git, CLAUDE~1
+        # is .claude -- and passes every by-name rule above (found in the
+        # Phase 14 sweep: 'CLAUDE~1/settings.json' was allowed).
+        try:
+            real_parts = real.relative_to(root.resolve()).parts
+        except (ValueError, OSError):
+            return "outside the workspace once links in the real folder are followed"
+        why = _denied(list(real_parts))
+        if why:
+            return why + f" (written as {p})"
+    return None
+
+
+def _denied(parts: list[str]) -> str | None:
+    for part in parts:
         why = _DENY_DIRS.get(part.lower())
         if why:
             return f"inside {part}/ -- {why}"
-        if _RESERVED.match(part) or part.endswith((" ", ".")):
-            return f"'{part}' is not a usable file name on Windows"
     if parts and context.is_secret(Path(parts[-1])):
         return "a secret or key file"
-    if root is not None and context.contained(root, Path(p)) is None:
-        return "outside the workspace once links in the real folder are followed"
     return None
 
 

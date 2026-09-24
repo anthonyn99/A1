@@ -270,7 +270,7 @@ def sweep(profile: str | None = None) -> int:
 @dataclass
 class ApplyResult:
     ok: bool
-    how: str = ""                  # "clean" | "merged" | ""
+    how: str = ""                  # "clean" | "merged" | "refused" | ""
     files: list[str] = field(default_factory=list)
     conflicts: list[str] = field(default_factory=list)
     saved_patch: str = ""
@@ -318,6 +318,14 @@ def apply(sb: Sandbox, files: list[dict[str, Any]], save_dir: Path) -> ApplyResu
     """Put the approved patch on the real tree -- all of it, or none of it."""
     if not sb.patch:
         return ApplyResult(True, "clean", message="Nothing to apply.")
+    # Reviewed again NOW, against the real tree as it is at approval: the card
+    # can wait five minutes, and a link or folder made in the real tree
+    # meanwhile would change where an already-approved path lands.
+    from . import security
+    rv = security.review(sb.patch.decode("utf-8", "replace"), root=sb.repo, prefix=sb.prefix)
+    if not rv.ok:
+        return ApplyResult(False, "refused", conflicts=[p for p, _ in rv.refused],
+                           message=rv.message)
     names = [f["path"] for f in files]
     chk = proc.run(["git", "-c", f"core.hooksPath={_nohooks()}", "-C", str(sb.repo),
                     "apply", "--check", "--whitespace=nowarn", "-"],

@@ -318,6 +318,11 @@ async def _review_and_apply(t: TaskState, sb: sandbox.Sandbox) -> dict[str, Any]
             out["auto"] = pend
             await publish(t, {"k": "autocommit", **pend})
         return out
+    if res.how == "refused":
+        # Refused at approval time (sandbox.apply re-reviews): nothing written.
+        await publish(t, {"k": "refused", "text": res.message,
+                          "refused": [{"path": p, "why": ""} for p in res.conflicts]})
+        return {"write": "refused", "detail": res.message}
     await publish(t, {"k": "conflict", "text": res.message, "files": res.conflicts,
                       "saved": res.saved_patch})
     return {"write": "conflict", "detail": res.message, "saved": res.saved_patch}

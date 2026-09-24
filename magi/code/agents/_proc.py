@@ -16,7 +16,7 @@ import subprocess
 import threading
 from pathlib import Path
 
-from ... import proc
+from ... import agent_guard, proc
 
 _EOF = object()
 
@@ -35,6 +35,9 @@ class Stream:
             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             text=True, encoding="utf-8", errors="replace", bufsize=1,
         )
+        # Into the agents' job at once, before the shim has started anything:
+        # nothing it or its children start may drive the engine (agent_guard).
+        agent_guard.adopt(self.p)
         if stdin_text is not None:
             # Written from a thread so a large prompt cannot block the event
             # loop on a full pipe while the child is not yet reading.

@@ -257,3 +257,31 @@ def test_the_engine_repo_is_recognised(tmp_path):
     from magi.settings import ROOT
     assert SB.is_engine_repo(ROOT.parent)
     assert not SB.is_engine_repo(tmp_path)
+
+
+def test_apply_reviews_again_against_the_tree_at_approval_time(repo, base, tmp_path):
+    """The card can wait five minutes. A folder made in the real tree in the
+    meantime -- here a junction to somewhere else -- must not carry an
+    already-reviewed path out of the workspace."""
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+    sb = SB.create(repo, "rr", "tony")
+    try:
+        (sb.cwd / "shared").mkdir()
+        (sb.cwd / "shared" / "notes.txt").write_text("hello\n")
+        files = _approve(sb, repo)                 # fine when reviewed
+        try:
+            import os
+            os.symlink(outside, repo / "shared", target_is_directory=True)
+        except (OSError, NotImplementedError):
+            try:
+                import _winapi
+                _winapi.CreateJunction(str(outside), str(repo / "shared"))
+            except Exception:
+                pytest.skip("this machine can create neither symlinks nor junctions")
+        res = SB.apply(sb, files, tmp_path / "patches")
+    finally:
+        sb.remove()
+    assert not res.ok and res.how == "refused", res
+    assert "outside" in res.message
+    assert list(outside.iterdir()) == [], "nothing was written through the link"

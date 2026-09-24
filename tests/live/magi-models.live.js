@@ -30,7 +30,8 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 
-const URL = 'file:///c:/Users/antho/Desktop/A1/magi.html';
+// Served by the engine: since Phase 14 a file:// page (Origin "null") is refused.
+const URL = 'http://127.0.0.1:8000/';
 const API = 'http://127.0.0.1:8000/api/code';
 const A1 = path.resolve(__dirname, '..', '..');
 const A1_PID = 'proj_60d8f14fbc1c';

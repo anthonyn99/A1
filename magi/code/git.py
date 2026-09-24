@@ -604,8 +604,11 @@ class Auth:
         # Not `credential.interactive=never`: that also stops git asking
         # GIT_ASKPASS, so the token is never requested at all (found in
         # test_github_push). GIT_TERMINAL_PROMPT=0 already keeps git off
-        # the terminal.
-        return ["-c", "credential.helper=", "-c", "core.askPass="]
+        # the terminal. sslVerify (Phase 14): a repository's own config
+        # saying `http.sslVerify=false` would let a proxy in the middle read
+        # the token as it goes out; the command line outranks it.
+        return ["-c", "credential.helper=", "-c", "core.askPass=",
+                "-c", "http.sslVerify=true"]
 
     def env(self) -> dict[str, str]:
         return {"GIT_ASKPASS": str(_askpass_script()), "MAGI_GH_SERVICE": self.service,

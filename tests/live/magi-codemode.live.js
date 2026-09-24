@@ -4,7 +4,8 @@
 // the transcript, Accounts' coding section. Screenshots at desktop and phone.
 const { connect, evalJs, sleep, shotPath } = require('./cdp.js');
 const fs = require('fs');
-const URL = 'file:///c:/Users/antho/Desktop/A1/magi.html';
+// Served by the engine: since Phase 14 a file:// page (Origin "null") is refused.
+const URL = 'http://127.0.0.1:8000/';
 const STUB = `(()=>{const real=window.fetch;window.fetch=(u,o)=>{const s=String(u&&u.url?u.url:u);
  if(s.indexOf('/auth/journal/status')>=0)return Promise.resolve(new Response(JSON.stringify({ok:true,hasLock:false}),{status:200,headers:{'Content-Type':'application/json'}}));
  if(s.indexOf('firebase')>=0||s.indexOf('googleapis')>=0||s.indexOf('gstatic')>=0)return Promise.reject(new TypeError('x'));
@@ -39,13 +40,14 @@ const waitFor = async (c, expr, ms = 20000) => {
   await c.send('Page.addScriptToEvaluateOnNewDocument', { source: STUB });
   await c.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
   await c.send('Page.navigate', { url: URL }); await sleep(3000);
-  await evalJs(c, 'localStorage.clear(); sessionStorage.clear(); localStorage.setItem(lsKey("mode"), "code"); return 1;');
+  await evalJs(c, 'localStorage.clear(); sessionStorage.clear(); localStorage.setItem(lsKey("mode"), "code"); localStorage.setItem(lsKey("code.project"), JSON.stringify("proj_60d8f14fbc1c")); return 1;');
   await c.send('Page.navigate', { url: URL });
 
   console.log('\nConnects and paints Code Mode from the engine');
   ok('engine online', await waitFor(c, 'online()', 25000));
   ok('state + agents loaded', await waitFor(c, '!!(CODE.state && CODE.agents)'));
-  ok('the lone project was picked', await evalJs(c, 'codeProject() && codeProject().name') === 'A1');
+  // A1 by id: since Phase 12 there is more than one project (magi-push-test).
+  ok('A1 is the project', await evalJs(c, 'codeProject() && codeProject().name') === 'A1');
   ok('workspace row shows the path',
      (await evalJs(c, 'document.querySelector(".code-ws-path").textContent')).indexOf('A1') >= 0);
   const chips = JSON.parse(await evalJs(c, 'return JSON.stringify([...document.querySelectorAll(".code-chip")].map(b=>b.dataset.agent));'));
@@ -126,10 +128,11 @@ const waitFor = async (c, expr, ms = 20000) => {
 
   console.log('\nAccounts: coding agents');
   await evalJs(c, 'setView("accounts"); loadAccounts(); return 1;');
-  ok('coding section drawn', await waitFor(c, 'document.querySelectorAll(".acc-code .acc-card").length === 2', 20000));
+  // The CLI cards only: since Phase 10 the section also holds a GitHub card.
+  ok('coding section drawn', await waitFor(c, '[...document.querySelectorAll(".acc-code .acc-card .acc-name")].filter(n=>/ CLI$/.test(n.textContent)).length === 2', 20000));
   const acc = await evalJs(c, 'document.querySelector(".acc-code").textContent');
   ok('Claude system slot shows the account', /anthonypn99@gmail\.com/.test(acc));
-  const names = JSON.parse(await evalJs(c, 'return JSON.stringify([...document.querySelectorAll(".acc-slot-name")].map(i=>i.placeholder));'));
+  const names = JSON.parse(await evalJs(c, 'return JSON.stringify([...document.querySelectorAll("input.acc-slot-name")].map(i=>i.placeholder));'));
   ok('Codex account is listed', names.includes('codex1'), names.join(','));
   ok('both slots can be renamed in place', names.length === 2);
   ok('Codex usage is shown with its reset', /30d used \d+%/.test(acc), (acc.match(/30d used[^·]*/) || [''])[0]);

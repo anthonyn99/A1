@@ -25,7 +25,8 @@ const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
-const URL = 'file:///c:/Users/antho/Desktop/A1/magi.html';
+// Served by the engine: since Phase 14 a file:// page (Origin "null") is refused.
+const URL = 'http://127.0.0.1:8000/';
 const API = 'http://127.0.0.1:8000/api/code';
 const PID = 'proj_d8cd09a0b659';
 const OURS = 'C:\\Users\\antho\\Desktop\\magi-push-test';
@@ -201,6 +202,10 @@ const noteLine = (n) => `Add one line to the end of NOTES.md, exactly: "- auto c
   } finally {
     const off = await api(`/projects/${PID}/auto`, { commit: false, push: false, window: 3 }).catch(() => ({}));
     console.log(`\nswitches restored off: ${!!(off.auto && !off.auto.commit && !off.auto.push)}`);
+    // An edit applied by a step that then failed is still in the folder, and
+    // the next run's pull would refuse it. The switches are off by now, so
+    // nothing is about to commit it.
+    try { git(OURS, 'checkout', '--', 'NOTES.md'); } catch {}
     try { fs.rmSync(OTHER, { recursive: true, force: true }); } catch {}
     console.log(`${pass} passed, ${fail} failed`);
     c.ws.close();

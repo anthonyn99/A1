@@ -166,6 +166,20 @@ def test_codex_network_features_are_off_in_every_mode():
     assert "-c" not in read
 
 
+def test_every_disabled_codex_feature_exists_in_the_installed_cli():
+    """MAGI updates the CLI by itself; a renamed feature must be noticed here
+    rather than silently leaving the shell on (or failing every task)."""
+    import shutil
+    import subprocess
+    exe = shutil.which("codex") or shutil.which("codex.cmd")
+    if not exe:
+        pytest.skip("Codex CLI not installed")
+    out = subprocess.run([exe, "features", "list"], capture_output=True, text=True,
+                         timeout=60, encoding="utf-8", errors="replace").stdout
+    known = {ln.split()[0] for ln in out.splitlines() if ln.strip()}
+    assert set(codex_cli.DISABLED_FEATURES) <= known, set(codex_cli.DISABLED_FEATURES) - known
+
+
 def test_write_prompt_tells_the_agent_it_is_reviewed():
     t = Task("t", "Rename foo to bar.", Path("."), Mode.WRITE, handoff_note="Earlier: X")
     p = t.full_prompt()
