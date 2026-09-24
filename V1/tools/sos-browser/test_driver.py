@@ -721,6 +721,53 @@ t("and only on the download path, which is what needs the headroom",
   _ls.index("downloads_dir is not None") < _ls.index("LOW_RAM_MB"))
 
 
+# -- The download must NOT be performed by the browser -----------------------
+# THE ROOT CAUSE, found 2026-09-23 after a day of wrong theories.
+#
+# NotebookLM serves the deck into a popup, and when Chrome tears that popup
+# down mid-transfer it takes the WHOLE BROWSER CONTEXT with it. The
+# instrumented run emits a `close` event on the context — not a page crash,
+# not a browser crash — about one second after the click. Every deck download
+# died this way (348KB…1.87MB, no pattern), which is why it successively
+# looked like memory pressure, profile corruption and selector drift.
+#
+# Disproved, each by measurement:
+#   * free RAM  — died at 2.8GB free, survived at 2.5GB
+#   * profile   — a groomed 4MB profile died identically
+#   * flags     — --enable-features=NetworkServiceInProcess is silently
+#                 IGNORED (NetworkService still runs out-of-process with it)
+#
+# The fix: abort the download request, keep its URL, and fetch the bytes
+# through the context's own request API while the browser is STILL ALIVE.
+# Measured: HTTP 200, 13,955,039 bytes, valid %PDF-1.4, 15 pages.
+print("\nthe browser must not perform the transfer")
+_dl = _inspect.getsource(driver._download_deck)
+
+t("the download request is intercepted",
+  "context.route(" in _dl, "letting Chrome transfer it kills the context")
+t("and ABORTED rather than allowed",
+  "route.abort()" in _dl,
+  "aborting is what keeps the context alive — no transfer, no popup teardown")
+t("the URL is kept from the aborted request", 'dl_state["url"] = u' in _dl)
+t("non-download requests still continue normally",
+  "route.continue_()" in _dl,
+  "a blanket abort would break the page itself")
+
+_fe = _inspect.getsource(driver._fetch_url_to_file)
+t("the fetch goes through the LIVE browser context",
+  "ctx.request.get" in _fe,
+  "a standalone client with copied cookies returns sign-in HTML")
+t("and the reason is recorded, so it is not 'simplified' back",
+  "bound to the live session" in _fe)
+t("the result is still verified to be a PDF",
+  "looks_like_pdf" in _fe,
+  "an expired URL must fail, never file a sign-in page as a deck")
+
+# Ordering is the whole fix: fetching AFTER the browser dies returns HTML.
+t("interception is set up before the download click",
+  _dl.index("context.route(") < _dl.index("_click_download_item(page, site)"))
+
+
 # -- The recovery URL must actually be reachable ------------------------------
 # MEASURED: the URL recorded for recovery was https://notebook.google.com/...
 # (no 'lm') because page.url was sampled while Google bounced through that
