@@ -176,6 +176,13 @@ model row fills itself.
   Write `'return X;'` or a bare `'X'` — nothing in between.
 * (12) The live tests' `git()` helper `.trim()`s, so the leading space of
   the first porcelain ` M file` line is gone.
+* (12) **Verified against real GitHub** (`magi-push-test`, 2026-09-24,
+  `tests/live/magi-autocommit-github.live.js`): window → commit → pull of
+  another clone's push → push on top as `anthonyn99`; Commit now; Cancel.
+  A private repo's Actions need **Actions: Read-only** on the token — without
+  it GitHub answers 403 "Resource not accessible by personal access token";
+  the watch now stops at once and says so (`WATCH_FINAL`). A1 is public, so
+  its Actions read without that permission.
 * (12) A1's Stop hook kept committing `auto:` snapshots of this session's
   work while Phase 12 ran — the two systems coexist because MAGI never
   auto-commits A1 (locked in `guard_prefs`, the `/auto` route, `on_applied`).
@@ -295,8 +302,13 @@ model row fills itself.
   Auto push if you like), run a small Write task and approve it — the line
   under Workspace counts down, then commits (`magi: …`) and pushes. On A1
   both pills read `off · A1` and the switches are locked, by design.
-* The A1 GitHub token (fine-grained, Contents: Read-only on A1) **expires
-  2026-10-21** — sessions after that need a new one.
+* **GitHub token replaced 2026-09-24** (Tony): fine-grained, **A1 +
+  magi-push-test, Contents: Read and write**, **expires 2026-10-24**. MAGI's
+  code still refuses every write to A1 (`is_engine_repo`). It has no Actions
+  permission, so the watch on the private magi-push-test says so; add
+  Actions: Read-only next time a token is made if that matters.
+* `Desktop\magi-push-test` was re-cloned and re-bound (project
+  `proj_d8cd09a0b659`); its switches are back off after the test.
 * ~~Run `claude update`~~ — **done 2026-09-24**: Claude Code 2.1.278 → 2.1.281,
   Codex 0.155.1 → 0.156.1, and MAGI now keeps both current itself
   (`updates.py`, Auto-update on by default, never mid-task; Update now in each

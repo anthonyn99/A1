@@ -989,7 +989,18 @@ no push, push off, HTTPS with no account; wired into a real write task —
 6 mutants checked), `tests/magi-autocommit.test.js`,
 `tests/live/magi-autocommit.live.js` (a real Claude edit in a scratch repo:
 switches from the sheet, countdown, a hand-staged file blocks it, Try again
-commits + pulls + pushes, the watch once per SHA, 390 px, A1 locked).
+commits + pulls + pushes, the watch once per SHA, 390 px, A1 locked), and
+`tests/live/magi-autocommit-github.live.js` against **real GitHub** — the
+throwaway private repo `anthonyn99/magi-push-test`: the window runs out while
+another clone pushes, MAGI pulls that in and pushes on top as the account;
+Commit now; Cancel; A1 refused (`LIVE_ONLY=noaccess,run`; `run` spends three
+small tasks). Passed 2026-09-24.
+
+The Actions watch stops at once — no four minutes of the same 403 — when
+GitHub refuses in a way another try will not change (`WATCH_FINAL`:
+forbidden, bad token, not found, no account), and says the fix: a
+**private** repository needs **Actions: Read-only** on the token to watch
+runs (a public one like A1 needs nothing).
 
 ---
 
