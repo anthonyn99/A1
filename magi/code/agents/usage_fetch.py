@@ -74,11 +74,43 @@ def parse_claude(body: dict) -> dict[str, dict]:
     noise, and inventing names for them would be guessing.
     """
     out: dict[str, dict] = {}
-    for win in ("five_hour", "seven_day", "seven_day_opus"):
+    for win in ("five_hour", "seven_day", "seven_day_opus", "seven_day_sonnet"):
         w = body.get(win)
         if isinstance(w, dict) and isinstance(w.get("utilization"), (int, float)):
             out[win] = {"utilization": float(w["utilization"]) / 100.0,
                         "resets_at": _iso(w.get("resets_at"))}
+    return out
+
+
+def claude_account(body: dict) -> dict:
+    """Usage credits ("extra usage") as the usage answer states them.
+    `enabled` is the account's switch; `exhausted` means the monthly spend
+    limit is reached. Verified live on a Pro account: is_enabled false,
+    user_disabled true -- and Fable refused with credits_required."""
+    ex = body.get("extra_usage")
+    if not isinstance(ex, dict):
+        return {}
+    return {"credits": {"enabled": bool(ex.get("is_enabled")),
+                        "exhausted": bool(ex.get("spend_limit_reached")),
+                        "user_disabled": bool(ex.get("user_disabled")),
+                        "reason": str(ex.get("disabled_reason") or "")[:60],
+                        "used": ex.get("used_credits"), "limit": ex.get("monthly_limit"),
+                        "currency": ex.get("currency") or ""}}
+
+
+def codex_account(body: dict) -> dict:
+    """The plan, and whether ChatGPT credits can carry on past the plan's
+    limit (`credits.has_credits` / `unlimited`, not `overage_limit_reached`)."""
+    cr = body.get("credits") if isinstance(body.get("credits"), dict) else {}
+    rl = body.get("rate_limit") or {}
+    out: dict = {"plan": str(body.get("plan_type") or "")[:30]}
+    if cr:
+        out["credits"] = {"enabled": bool(cr.get("has_credits") or cr.get("unlimited")),
+                          "exhausted": bool(cr.get("overage_limit_reached")),
+                          "unlimited": bool(cr.get("unlimited")),
+                          "balance": cr.get("balance")}
+    if "allowed" in rl or "limit_reached" in rl:
+        out["allowed"] = bool(rl.get("allowed", True)) and not rl.get("limit_reached")
     return out
 
 
@@ -120,38 +152,51 @@ def _get(url: str, headers: dict[str, str]) -> dict | None:
 
 
 def fetch_claude(slot: str) -> dict[str, dict]:
+    return fetch_claude_full(slot)[0]
+
+
+def fetch_claude_full(slot: str) -> tuple[dict[str, dict], dict]:
     try:
         cred = json.loads(_claude_creds(slot).read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return {}
+        return {}, {}
     oauth = cred.get("claudeAiOauth") or {}
     tok = oauth.get("accessToken")
     exp = float(oauth.get("expiresAt") or 0) / 1000.0
     if not tok or (exp and exp < time.time() + 30):
-        return {}      # expired: the CLI renews it on its next run, not us
+        return {}, {}      # expired: the CLI renews it on its next run, not us
     body = _get(CLAUDE_URL, {
         "Authorization": f"Bearer {tok}",
         "anthropic-beta": "oauth-2025-04-20",
         "Content-Type": "application/json",
         "User-Agent": "magi-usage/1"})
-    return parse_claude(body) if isinstance(body, dict) else {}
+    if not isinstance(body, dict):
+        return {}, {}
+    return parse_claude(body), claude_account(body)
 
 
 def fetch_codex(slot: str) -> tuple[dict[str, dict], bool | None]:
+    w, acct = fetch_codex_full(slot)
+    return w, acct.get("allowed")
+
+
+def fetch_codex_full(slot: str) -> tuple[dict[str, dict], dict]:
     d = slots.slot_dir("codex", slot)
     try:
         auth = json.loads((d / "auth.json").read_text(encoding="utf-8")) if d else {}
     except (OSError, ValueError):
-        return {}, None
+        return {}, {}
     tok = (auth.get("tokens") or {})
     if not tok.get("access_token"):
-        return {}, None
+        return {}, {}
     body = _get(CODEX_URL, {
         "Authorization": f"Bearer {tok['access_token']}",
         "chatgpt-account-id": tok.get("account_id") or "",
         "originator": "codex_cli_rs",
         "User-Agent": "magi-usage/1"})
-    return parse_codex(body) if isinstance(body, dict) else ({}, None)
+    if not isinstance(body, dict):
+        return {}, {}
+    return parse_codex(body)[0], codex_account(body)
 
 
 def refresh(agent: str, slot: str, *, force: bool = False) -> dict[str, dict]:
@@ -164,16 +209,25 @@ def refresh(agent: str, slot: str, *, force: bool = False) -> dict[str, dict]:
     if hit and not force and now - hit[0] < MIN_INTERVAL:
         return hit[1]
     windows: dict[str, dict] = {}
+    acct: dict = {}
     allowed: bool | None = None
     if agent == "claude":
-        windows = fetch_claude(slot)
+        windows, acct = fetch_claude_full(slot)
         if windows:
             allowed = all(w["utilization"] < 1.0 for w in windows.values())
     elif agent == "codex":
-        windows, allowed = fetch_codex(slot)
+        windows, acct = fetch_codex_full(slot)
+        allowed = acct.get("allowed")
+    cr = acct.get("credits") or {}
+    if allowed is False and cr.get("enabled") and not cr.get("exhausted"):
+        # The plan is used up but usage credits carry on: the account can
+        # still work. Turning credits on after hitting a limit lands here.
+        allowed = True
     _last[k] = (now, windows)
     for win, w in windows.items():
         limits.note_usage(agent, slot, win, w["utilization"], w["resets_at"])
+    if acct:
+        limits.note_account(agent, slot, acct)
     # The provider says there is room: a remembered limit is out of date.
     if windows and allowed and limits.blocked_until(agent, slot):
         limits.clear(agent, slot)

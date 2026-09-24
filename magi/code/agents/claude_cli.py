@@ -41,7 +41,7 @@ import time
 from typing import Any
 
 from .base import CodingAgent, EventFn, Mode, Outcome, Result, Task
-from . import limits, slots
+from . import limits, models, slots
 from ._proc import Stream
 
 READ_TOOLS = "Read,Glob,Grep"
@@ -51,11 +51,16 @@ MCP_ALLOW = f"mcp__{MCP_SERVER}"
 
 _UNAUTH = re.compile(r"please run /login|not logged in|invalid api key|"
                      r"authentication_error|oauth token (has )?expired|401", re.I)
+# The provider's refusal of a MODEL for credits, as opposed to the account
+# being out of usage: "Fable 5.1 requires usage credits. Switch to another
+# model, or manage usage credits at ..." (verified live, credits off).
+_CREDITS = re.compile(r"requires usage credits|usage credits (are )?(required|off)", re.I)
 _LIMIT = re.compile(r"usage limit|limit reached|hit your limit|rate.?limit|"
                     r"limits? will reset|out of (extra )?usage|429", re.I)
 
 
-def build_argv(exe: str, task: Task, model: str | None = None) -> list[str]:
+def build_argv(exe: str, task: Task, model: str | None = None,
+               effort: str | None = None) -> list[str]:
     write = task.mode == Mode.WRITE
     argv = [exe, "-p", "--output-format", "stream-json", "--verbose",
             "--restricted", "--strict-mcp-config",
@@ -68,6 +73,8 @@ def build_argv(exe: str, task: Task, model: str | None = None) -> list[str]:
         argv += ["--mcp-config", str(task.mcp_config), "--allowedTools", MCP_ALLOW]
     if model:
         argv += ["--model", model]
+    if effort:
+        argv += ["--effort", effort]
     return argv
 
 
@@ -121,6 +128,8 @@ def parse_line(line: str) -> dict[str, Any] | None:
         info = d.get("rate_limit_info") or {}
         return {"k": "ratelimit", "status": info.get("status", ""),
                 "resets_at": info.get("resetsAt"),
+                "error_code": info.get("errorCode") or "",
+                "overage": bool(info.get("isUsingOverage")),
                 "type": info.get("rateLimitType", ""),
                 "windows": info.get("unifiedWindows") or {}}
     if t == "assistant":
@@ -159,6 +168,7 @@ class ClaudeCLIAgent(CodingAgent):
 
     def __init__(self, slot: str = slots.SYSTEM_SLOT, model: str | None = None):
         self.slot = slot
+        # A fixed model (tests, or a caller that knows): skips the choice.
         self.model = model
         self.id = f"claude:{slot}"
         # Your own name for the account if you gave it one -- the transcript
@@ -171,71 +181,141 @@ class ClaudeCLIAgent(CodingAgent):
     async def available(self) -> tuple[bool, str]:
         if not slots.cli_path("claude"):
             return False, "Claude Code CLI is not installed."
+        # Your cap first: it is the one reason that is yours, and the
+        # sentence says which cap and until when.
+        until, why = models.cap_block("claude", self.slot)
+        if until:
+            return False, f"{why} — until {models_when(until)}"
         until = limits.blocked_until("claude", self.slot)
         if until:
             return False, "Limited until " + time.strftime("%H:%M", time.localtime(until))
+        used_up = models.plan_used_up("claude", self.slot)
+        cr = models.credits("claude", self.slot)
+        if used_up and not (cr.get("enabled") and not cr.get("exhausted")):
+            return False, (f"Plan limit reached until {models_when(used_up)}; "
+                           "usage credits are off")
         st = await asyncio.get_running_loop().run_in_executor(
             None, slots.status, "claude", self.slot)
         return (st.signed_in, st.detail or ("" if st.signed_in else "Not signed in."))
+
+    def _pick(self, task: Task) -> dict:
+        if self.model:
+            return {"model": self.model, "effort": None, "auto": False, "label": self.model,
+                    "why": "fixed", "note": ""}
+        return models.choose("claude", self.slot, task.prompt, str(task.mode))
 
     async def run(self, task: Task, *, emit: EventFn, cancel: asyncio.Event) -> Result:
         exe = slots.cli_path("claude")
         if not exe:
             return Result(Outcome.UNAVAILABLE, detail="Claude Code CLI is not installed.")
+        # At most two tries on this account: a model can turn out to need
+        # usage credits only when the provider says so (a plan MAGI has not
+        # seen before). That is remembered, and the task goes again once on
+        # the best model the account CAN run -- not handed to the next agent,
+        # and not counted as the account being out of usage.
+        res = Result(Outcome.UNAVAILABLE)
+        for attempt in range(2):
+            pick = self._pick(task)
+            if pick.get("note"):
+                await emit({"k": "note", "text": pick["note"]})
+            await emit({"k": "model", "agent": "claude", "slot": self.slot,
+                        **{k: pick.get(k) for k in ("model", "label", "effort", "auto", "why")}})
+            res, needs_credits = await self._run_once(exe, task, pick, emit=emit, cancel=cancel)
+            if not needs_credits:
+                return res
+            if pick.get("model"):
+                models.note_gated("claude", self.slot, pick["model"], True)
+            if self.model or attempt:
+                break
+            await emit({"k": "note", "text": f"{pick.get('label') or 'That model'} runs on usage "
+                        "credits for this account, and they are off. Trying again with the best "
+                        "model it can run."})
+        return Result(Outcome.UNAVAILABLE, text=res.text,
+                      detail="The model needs usage credits, and they are off for this account.",
+                      session_id=res.session_id, tools_used=res.tools_used)
 
+    async def _run_once(self, exe: str, task: Task, pick: dict, *, emit: EventFn,
+                        cancel: asyncio.Event) -> tuple[Result, bool]:
         prompt = task.full_prompt()
         try:
-            s = Stream(build_argv(exe, task, self.model), cwd=task.root,
+            s = Stream(build_argv(exe, task, pick.get("model"), pick.get("effort")), cwd=task.root,
                        env=env_for_task(self.slot, task), stdin_text=prompt)
         except OSError as exc:
-            return Result(Outcome.UNAVAILABLE, detail=f"Could not start Claude Code: {exc}")
+            return Result(Outcome.UNAVAILABLE, detail=f"Could not start Claude Code: {exc}"), False
 
         result: dict[str, Any] | None = None
         session = ""
         tools: list[str] = []
         limited_at: float | None = None
+        credits_required = False
+        capped: list[str] = []          # the sentence, once a cap trips
+        p = models.prefs()
 
-        async for raw in s.lines(cancel):
-            ev = parse_line(raw)
-            if not ev:
-                continue
-            k = ev["k"]
-            if k == "init":
-                session = ev["session_id"]
-                await emit({"k": "note", "text": f"Claude ({ev['model']}) is "
-                            + ("editing a sandbox copy of the workspace."
-                               if task.mode == Mode.WRITE else "reading the workspace.")})
-            elif k == "denied":
-                await emit(ev)
-            elif k == "ratelimit":
-                for win, w in (ev["windows"] or {}).items():
-                    limits.note_usage("claude", self.slot, win,
-                                      float(w.get("utilization") or 0), w.get("resetsAt"))
-                    await emit({"k": "usage", "agent": "claude", "slot": self.slot,
-                                "window": win, "utilization": w.get("utilization"),
-                                "resets_at": w.get("resetsAt")})
-                # "allowed" and "allowed_warning" keep going; anything else is
-                # the wall. Remembered with the reset time the CLI gave.
-                if ev["status"] and not str(ev["status"]).startswith("allowed"):
-                    limited_at = ev["resets_at"]
-            elif k == "batch":
-                for e in ev["events"]:
-                    if e["k"] == "tool":
-                        tools.append(e["name"])
-                    await emit(e)
-            elif k == "result":
-                result = ev
+        def trip(why: str) -> None:
+            if not capped:
+                capped.append(why)
+                s.kill()
+        watch = asyncio.ensure_future(models.cap_watch("claude", self.slot, trip))
+
+        try:
+            async for raw in s.lines(cancel):
+                ev = parse_line(raw)
+                if not ev:
+                    continue
+                k = ev["k"]
+                if k == "init":
+                    session = ev["session_id"]
+                    await emit({"k": "note", "text": f"Claude ({ev['model']}) is "
+                                + ("editing a sandbox copy of the workspace."
+                                   if task.mode == Mode.WRITE else "reading the workspace.")})
+                elif k == "denied":
+                    await emit(ev)
+                elif k == "ratelimit":
+                    for win, w in (ev["windows"] or {}).items():
+                        util = float(w.get("utilization") or 0)
+                        limits.note_usage("claude", self.slot, win, util, w.get("resetsAt"))
+                        await emit({"k": "usage", "agent": "claude", "slot": self.slot,
+                                    "window": win, "utilization": w.get("utilization"),
+                                    "resets_at": w.get("resetsAt")})
+                        cap = models.cap_crossed("claude", win, util, p)
+                        if cap:
+                            trip(f"Stopped at your {cap}% cap on the "
+                                 f"{models.window_label(win)} limit ({round(util * 100)}% used)")
+                    if ev.get("error_code") == "credits_required":
+                        # THIS model needs credits -- the account is fine.
+                        credits_required = True
+                    elif ev["status"] and not str(ev["status"]).startswith("allowed"):
+                        # "allowed" and "allowed_warning" keep going; anything
+                        # else is the wall, remembered with the CLI's reset time.
+                        limited_at = ev["resets_at"]
+                elif k == "batch":
+                    for e in ev["events"]:
+                        if e["k"] == "tool":
+                            tools.append(e["name"])
+                        await emit(e)
+                elif k == "result":
+                    result = ev
+        finally:
+            watch.cancel()
 
         if cancel.is_set():
-            return Result(Outcome.CANCELLED, session_id=session, tools_used=tools)
+            return Result(Outcome.CANCELLED, session_id=session, tools_used=tools), False
 
         code = await s.wait()
         tail = "\n".join(s.stderr_tail)
 
+        if capped:
+            # Handed on like a limit, but nothing is remembered as one: the
+            # cap is yours, and changing it takes effect on the next task.
+            return Result(Outcome.LIMITED, detail=capped[0], session_id=session,
+                          tools_used=tools, text=(result or {}).get("text", "")), False
+        if credits_required or _CREDITS.search((result or {}).get("text", "")):
+            return Result(Outcome.UNAVAILABLE, text=(result or {}).get("text", ""),
+                          session_id=session, tools_used=tools), True
         if limited_at is not None:
             until = limits.mark("claude", self.slot, limited_at, "rate_limit_event")
             return Result(Outcome.LIMITED, detail="Claude's usage limit was reached.",
-                          resets_at=until, session_id=session, tools_used=tools)
+                          resets_at=until, session_id=session, tools_used=tools), False
         if result is None:
             outcome = classify_failure(tail, None)
             if outcome == Outcome.TASK_FAILED:
@@ -243,13 +323,24 @@ class ClaudeCLIAgent(CodingAgent):
             if outcome == Outcome.LIMITED:
                 limits.mark("claude", self.slot, None, "stderr")
             return Result(outcome, detail=(tail[-600:] or f"exited {code} with no result"),
-                          session_id=session, tools_used=tools)
+                          session_id=session, tools_used=tools), False
         if result["ok"]:
             limits.clear("claude", self.slot)
+            cr = models.credits("claude", self.slot)
+            if pick.get("model") and not cr.get("enabled"):
+                # It ran with credits off, so it does not need them here.
+                models.note_gated("claude", self.slot, pick["model"], False)
             return Result(Outcome.OK, text=result["text"], session_id=session,
-                          turns=result["turns"], tools_used=tools)
+                          turns=result["turns"], tools_used=tools), False
         outcome = classify_failure(result["text"] + "\n" + tail, result.get("api_status"))
         if outcome == Outcome.LIMITED:
             limits.mark("claude", self.slot, None, "result")
         return Result(outcome, text=result["text"], detail=result["text"][:600],
-                      session_id=session, turns=result["turns"], tools_used=tools)
+                      session_id=session, turns=result["turns"], tools_used=tools), False
+
+
+def models_when(ts: float) -> str:
+    """"15:40" today, "Oct 1" further out."""
+    if ts - time.time() > 20 * 3600:
+        return time.strftime("%b %d", time.localtime(ts)).replace(" 0", " ")
+    return time.strftime("%H:%M", time.localtime(ts))

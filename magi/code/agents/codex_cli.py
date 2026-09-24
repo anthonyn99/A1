@@ -32,7 +32,7 @@ import time
 from typing import Any
 
 from .base import CodingAgent, EventFn, Mode, Outcome, Result, Task
-from . import limits, slots
+from . import limits, models, slots
 from ._proc import Stream
 
 _UNAUTH = re.compile(r"401 unauthorized|missing bearer|not logged in|"
@@ -66,7 +66,8 @@ WRITE_CONFIG = ("windows.sandbox=unelevated",
                 "web_search=disabled")
 
 
-def build_argv(exe: str, task: Task, model: str | None = None) -> list[str]:
+def build_argv(exe: str, task: Task, model: str | None = None,
+               effort: str | None = None) -> list[str]:
     sandbox = "read-only" if task.mode == Mode.READ else "workspace-write"
     argv = [exe, "exec", "--json", "--sandbox", sandbox, "--skip-git-repo-check",
             "--ignore-user-config", "--ignore-rules", "--ephemeral",
@@ -78,6 +79,9 @@ def build_argv(exe: str, task: Task, model: str | None = None) -> list[str]:
             argv += ["-c", c]
     if model:
         argv += ["-m", model]
+    if effort:
+        # Unquoted, like WRITE_CONFIG: TOML falls back to a plain string.
+        argv += ["-c", f"model_reasoning_effort={effort}"]
     argv.append("-")
     return argv
 
@@ -242,21 +246,39 @@ class CodexCLIAgent(CodingAgent):
     async def available(self) -> tuple[bool, str]:
         if not slots.cli_path("codex"):
             return False, "Codex CLI is not installed."
+        until, why = models.cap_block("codex", self.slot)
+        if until:
+            return False, f"{why} — until {_when(until)}"
         until = limits.blocked_until("codex", self.slot)
         if until:
             return False, "Limited until " + time.strftime("%H:%M", time.localtime(until))
+        used_up = models.plan_used_up("codex", self.slot)
+        cr = models.credits("codex", self.slot)
+        if used_up and not (cr.get("enabled") and not cr.get("exhausted")):
+            return False, f"Plan limit reached until {_when(used_up)}; no ChatGPT credits to carry on"
         st = await asyncio.get_running_loop().run_in_executor(
             None, slots.status, "codex", self.slot)
         return (st.signed_in, st.detail or ("" if st.signed_in else "Not signed in."))
+
+    def _pick(self, task: Task) -> dict:
+        if self.model:
+            return {"model": self.model, "effort": None, "auto": False, "label": self.model,
+                    "why": "fixed", "note": ""}
+        return models.choose("codex", self.slot, task.prompt, str(task.mode))
 
     async def run(self, task: Task, *, emit: EventFn, cancel: asyncio.Event) -> Result:
         exe = slots.cli_path("codex")
         if not exe:
             return Result(Outcome.UNAVAILABLE, detail="Codex CLI is not installed.")
 
+        pick = self._pick(task)
+        if pick.get("note"):
+            await emit({"k": "note", "text": pick["note"]})
+        await emit({"k": "model", "agent": "codex", "slot": self.slot,
+                    **{k: pick.get(k) for k in ("model", "label", "effort", "auto", "why")}})
         prompt = task.full_prompt()
         try:
-            s = Stream(build_argv(exe, task, self.model), cwd=task.root,
+            s = Stream(build_argv(exe, task, pick.get("model"), pick.get("effort")), cwd=task.root,
                        env=slots.env_for("codex", self.slot), stdin_text=prompt)
         except OSError as exc:
             return Result(Outcome.UNAVAILABLE, detail=f"Could not start Codex: {exc}")
@@ -267,40 +289,53 @@ class CodexCLIAgent(CodingAgent):
         session = ""
         failed = ""
         finished = False
+        capped: list[str] = []
+
+        def trip(why: str) -> None:
+            if not capped:
+                capped.append(why)
+                s.kill()
+        watch = asyncio.ensure_future(models.cap_watch("codex", self.slot, trip))
         await emit({"k": "note", "text": f"Codex ({self.slot}) is " + (
             "editing a sandbox copy of the workspace." if task.mode == Mode.WRITE
             else "reading the workspace.")})
 
-        async for raw in s.lines(cancel):
-            ev = parse_line(raw)
-            if not ev:
-                continue
-            k = ev["k"]
-            if k == "init":
-                session = ev["session_id"]
-            elif k == "text":
-                texts.append(ev["text"])
-                await emit(ev)
-            elif k == "tool":
-                tools.append(ev["name"])
-                await emit(ev)
-            elif k == "error":
-                errors.append(ev["text"])
-                # A 401 is not going to fix itself on reconnect 3 of 5. Stop
-                # now rather than spend the retries finding that out.
-                if _UNAUTH.search(ev["text"]):
-                    s.kill()
-                    break
-            elif k == "failed":
-                failed = ev["text"]
-            elif k == "done":
-                finished = True
+        try:
+            async for raw in s.lines(cancel):
+                ev = parse_line(raw)
+                if not ev:
+                    continue
+                k = ev["k"]
+                if k == "init":
+                    session = ev["session_id"]
+                elif k == "text":
+                    texts.append(ev["text"])
+                    await emit(ev)
+                elif k == "tool":
+                    tools.append(ev["name"])
+                    await emit(ev)
+                elif k == "error":
+                    errors.append(ev["text"])
+                    # A 401 is not going to fix itself on reconnect 3 of 5. Stop
+                    # now rather than spend the retries finding that out.
+                    if _UNAUTH.search(ev["text"]):
+                        s.kill()
+                        break
+                elif k == "failed":
+                    failed = ev["text"]
+                elif k == "done":
+                    finished = True
+        finally:
+            watch.cancel()
 
         if cancel.is_set():
             return Result(Outcome.CANCELLED, session_id=session, tools_used=tools)
         await s.wait()
 
         text = "\n\n".join(t for t in texts if t).strip()
+        if capped:
+            return Result(Outcome.LIMITED, text=text, detail=capped[0], session_id=session,
+                          tools_used=tools)
         if finished and not failed:
             limits.clear("codex", self.slot)
             return Result(Outcome.OK, text=text, session_id=session, tools_used=tools)
@@ -315,3 +350,9 @@ class CodexCLIAgent(CodingAgent):
             resets = limits.mark("codex", self.slot, parse_reset(why), "codex")
         return Result(outcome, text=text, detail=why[-600:], resets_at=resets,
                       session_id=session, tools_used=tools)
+
+
+def _when(ts: float) -> str:
+    if ts - time.time() > 20 * 3600:
+        return time.strftime("%b %d", time.localtime(ts)).replace(" 0", " ")
+    return time.strftime("%H:%M", time.localtime(ts))

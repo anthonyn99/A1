@@ -84,6 +84,26 @@ def note_usage(agent: str, slot: str, window: str, utilization: float,
     _save(d)
 
 
+def note_account(agent: str, slot: str, info: dict) -> None:
+    """What the provider says about the ACCOUNT, beside its windows: whether
+    usage credits are on and not spent, the plan, whether it may send now.
+    Written only when it changed, so the minute-by-minute usage read does
+    not rewrite the file for nothing."""
+    d = _load()
+    acc = d.setdefault("_account", {})
+    k = key(agent, slot)
+    new = {**info, "at": time.time()}
+    old = acc.get(k) or {}
+    if {x: y for x, y in old.items() if x != "at"} == {x: y for x, y in new.items() if x != "at"}:
+        return
+    acc[k] = new
+    _save(d)
+
+
+def account(agent: str, slot: str) -> dict:
+    return (_load().get("_account") or {}).get(key(agent, slot), {})
+
+
 def usage(agent: str, slot: str) -> dict:
     return (_load().get("_usage") or {}).get(key(agent, slot), {})
 

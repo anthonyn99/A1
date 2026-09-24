@@ -3558,6 +3558,124 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
   padding: 7px 0; border-top: 1px solid var(--bd); font-size: 12px;
 }
 .code-gh-repo-n { font-family: var(--font-mono); overflow-wrap: anywhere; min-width: 0; }
+/* ── models, usage and caps (Phase 11B) ───────────────────────────────────
+   The model row: one quiet button per CLI agent, the same height as the
+   chips above it, saying which model the next task gets and how full the
+   tightest window is. Everything else is one tap away in the sheet. */
+.code-models { display: flex; flex-wrap: wrap; gap: 8px; margin-top: -4px; min-width: 0; }
+.code-models:empty { display: none; }
+.code-model {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 36px; max-width: 100%;
+  font: inherit; font-size: 11.5px; color: var(--txd); cursor: pointer; text-align: left;
+  background: var(--s1); border: 1px solid var(--bd); border-radius: 999px; padding: 4px 12px 4px 10px;
+}
+.code-model:hover, .code-model:focus-visible { border-color: var(--pa, var(--ac)); outline: none; }
+.code-model-n { font-weight: 700; color: var(--pa, var(--tx)); flex: 0 0 auto; }
+.code-model-v { color: var(--tx); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.code-model-auto {
+  font-size: 9.5px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase;
+  color: var(--acl); border: 1px solid color-mix(in srgb, var(--ac) 40%, transparent);
+  border-radius: 4px; padding: 0 4px; margin-right: 1px;
+}
+.code-model-e { color: var(--txm); }
+.code-model-m { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; color: var(--txm); }
+.code-model-bar { width: 34px; height: 4px; border-radius: 2px; background: var(--bd); overflow: hidden; }
+.code-model-fill { display: block; height: 100%; background: var(--grn); }
+.code-model-m.is-warn .code-model-fill { background: var(--amber); }
+.code-model-m.is-bad .code-model-fill { background: var(--red); }
+.code-model-m.is-warn .code-model-pct { color: var(--amber); }
+.code-model-m.is-bad .code-model-pct { color: var(--red); font-weight: 700; }
+.code-model-pct { font-family: var(--font-mono); font-size: 10.5px; }
+.code-model.is-capped { border-color: color-mix(in srgb, var(--red) 45%, transparent); }
+.code-model-cap { color: var(--red); font-weight: 700; flex: 0 0 auto; }
+.code-model .code-ws-chev { font-size: 10px; }
+
+.model-box { max-width: 560px; }
+.model-acct { color: var(--txm); font-size: 11.5px; margin-top: 2px; overflow-wrap: anywhere; }
+.model-list { display: flex; flex-direction: column; gap: 6px; }
+.model-opt {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 3px; text-align: left; width: 100%;
+  font: inherit; padding: 9px 12px; border-radius: var(--r-btn); cursor: pointer; min-height: 44px;
+  background: var(--s1); border: 1px solid var(--bd); color: var(--tx); justify-content: center;
+}
+.model-opt:hover:not(:disabled) { border-color: var(--txm); }
+.model-opt.on { border-color: var(--ac); box-shadow: inset 3px 0 0 var(--ac); }
+.model-opt.is-off { cursor: not-allowed; opacity: .62; }
+.model-opt-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.model-opt-l { font-weight: 700; font-size: 12.5px; }
+.model-opt-s { color: var(--txd); font-size: 11.5px; line-height: 1.45; overflow-wrap: anywhere; }
+.model-opt-why { color: var(--amber); font-size: 11px; line-height: 1.45; overflow-wrap: anywhere; }
+.model-badge {
+  font-size: 9.5px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--txm);
+  border: 1px solid var(--bd); border-radius: 4px; padding: 0 5px;
+}
+.model-opt.on .model-badge { color: var(--acl); border-color: color-mix(in srgb, var(--ac) 40%, transparent); }
+.model-older > summary {
+  cursor: pointer; color: var(--txm); font-size: 11.5px; padding: 8px 2px; list-style-position: inside;
+}
+.model-older[open] > summary { margin-bottom: 4px; }
+.model-seg { display: flex; flex-wrap: wrap; gap: 4px; }
+.model-seg-b {
+  font: inherit; font-size: 11.5px; padding: 6px 12px; border-radius: 999px; cursor: pointer; min-height: 34px;
+  border: 1px solid var(--bd); background: none; color: var(--txd);
+}
+.model-seg-b.on { border-color: var(--ac); color: var(--tx); font-weight: 700; background: color-mix(in srgb, var(--ac) 10%, transparent); }
+.model-seg-b:disabled { opacity: .4; cursor: not-allowed; }
+.use-row { display: flex; flex-direction: column; gap: 6px; padding: 8px 0; border-top: 1px solid var(--bd); }
+.repo-lbl-row + .use-row { border-top: 0; padding-top: 2px; }
+.use-top { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+.use-name { font-weight: 700; color: var(--tx); }
+.use-pct { color: var(--txd); font-family: var(--font-mono); font-size: 11px; }
+.use-pct.is-warn { color: var(--amber); }
+.use-pct.is-bad { color: var(--red); font-weight: 700; }
+.use-bar { position: relative; height: 6px; border-radius: 3px; background: var(--bd); overflow: visible; }
+.use-fill { height: 100%; border-radius: 3px; background: var(--grn); max-width: 100%; }
+.use-fill.is-warn { background: var(--amber); }
+.use-fill.is-bad { background: var(--red); }
+.use-cap {
+  position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--tx);
+  border-radius: 1px; box-shadow: 0 0 0 2px var(--bg);
+}
+.use-caps { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.use-caps-l { color: var(--txm); font-size: 11px; margin-right: 4px; }
+.use-cap-b {
+  font: inherit; font-size: 11px; font-family: var(--font-mono); padding: 4px 9px; border-radius: 999px;
+  cursor: pointer; min-height: 30px; min-width: 40px; border: 1px solid var(--bd); background: none; color: var(--txd);
+}
+.use-cap-b.on { border-color: var(--ac); color: var(--tx); font-weight: 700; background: color-mix(in srgb, var(--ac) 10%, transparent); }
+.code-ev.is-model .code-ev-tool { color: var(--acl); }
+
+/* The usage popup: a corner card, never a modal. */
+.usage-toasts {
+  position: fixed; right: 18px; bottom: 18px; z-index: 250; display: flex; flex-direction: column;
+  gap: 8px; width: min(360px, calc(100vw - 32px)); pointer-events: none;
+}
+.usage-toast {
+  pointer-events: auto; display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 12px;
+  background: var(--s1); border: 1px solid var(--bd); border-left: 3px solid var(--amber);
+  border-radius: var(--r-card); box-shadow: 0 10px 30px var(--shadow); font-size: 12px;
+  animation: usageIn .18s ease-out;
+}
+.usage-toast.is-capped, .usage-toast.is-limit { border-left-color: var(--red); }
+@keyframes usageIn { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+.usage-toast-t { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-width: 0; }
+.usage-toast-m { color: var(--tx); line-height: 1.45; overflow-wrap: anywhere; }
+.usage-toast-s { color: var(--txm); font-size: 11px; line-height: 1.4; }
+.usage-toast-b {
+  flex: 0 0 auto; font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; padding: 6px 10px;
+  border-radius: 999px; border: 1px solid var(--bd); background: none; color: var(--acl); min-height: 32px;
+}
+.usage-toast-x {
+  flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%; border: 0; background: none;
+  color: var(--txm); cursor: pointer; font-size: 12px;
+}
+.usage-toast-x:hover { color: var(--tx); }
+@media (max-width: 720px) {
+  /* Above the composer and clear of the home indicator. */
+  .usage-toasts { right: 12px; left: 12px; width: auto; bottom: max(12px, env(safe-area-inset-bottom)); }
+  .code-model { flex: 1 1 100%; }
+  .code-model-v { flex: 1 1 auto; }
+}
 /* ── the Repository panel (Phase 11) ──────────────────────────────────────
    A wider sheet with its own header and a scrolling body, so the tabs stay
    put while a long list or log scrolls. On a phone it becomes a bottom sheet
@@ -10708,6 +10826,10 @@ const CODE = {
   push: null,
   // The Actions watch after a push (Phase 11): {pid, sha, state, runs, …}.
   watch: null,
+  // Phase 11B: each agent's models, choice and caps (GET /models); what Auto
+  // would pick for the composer's text; and the extras /usage carries --
+  // {capped, credits, caps, warn_at, alerts}.
+  models: null, preview: null, usageX: null,
 };
 
 // The two CLI agents are not council units, so they have no entry in the
@@ -10734,7 +10856,8 @@ async function codeLoad(force) {
   CODE.loading = true;
   CODE.err = "";
   try {
-    const [st, ag] = await Promise.all([codeGet("/state"), codeGet("/agents"), codeGhLoad()]);
+    const [st, ag] = await Promise.all([codeGet("/state"), codeGet("/agents"), codeGhLoad(),
+                                        codeModelsLoad()]);
     CODE.state = st;
     CODE.agents = ag;
     CODE.from = link.api;
@@ -10800,6 +10923,12 @@ async function codeUsageRefresh() {
     for (const b of CODE.agents.browser || []) {
       b.limited_until = d.limits[`browser:${b.id}`] || null;
     }
+    CODE.usageX = { capped: d.capped || {}, credits: d.credits || {}, caps: d.caps || {},
+                    warn_at: d.warn_at || 80 };
+    for (const c of CODE.agents.cli || []) {
+      for (const s of c.slots) s.capped = (d.capped || {})[`${c.agent}:${s.slot}`] || null;
+    }
+    codeUsageAlerts(d.alerts);
     if (codeMode()) renderCodeView();
     if (S.view === "accounts") renderAccounts();
   } catch {}
@@ -10833,13 +10962,16 @@ function codeMembers() {
   const all = [];
   for (const c of a.cli || []) {
     const signed = c.slots.filter((s) => s.signed_in);
-    const free = signed.filter((s) => !(s.limited_until > now));
+    // Out of usage, or stopped at your cap: either way not free right now.
+    const heldUntil = (s) => Math.max(s.limited_until || 0, (s.capped && s.capped.until) || 0);
+    const free = signed.filter((s) => !(heldUntil(s) > now));
     all.push({
       id: `${c.agent}-cli`, agent: c.agent, kind: "cli", label: c.label,
       accent: CODE_CLI_ACCENT[c.agent] || "var(--ac)", installed: c.installed,
       slots: c.slots, signed: signed.length, free: free.length,
       back: signed.length && !free.length
-        ? Math.min(...signed.map((s) => s.limited_until)) : null,
+        ? Math.min(...signed.map(heldUntil)) : null,
+      capped: signed.length && !free.length && signed.every((s) => s.capped && s.capped.until > now),
     });
   }
   for (const b of a.browser || []) {
@@ -10912,7 +11044,7 @@ function codeMemberNote(m) {
   if (m.kind === "cli") {
     if (!m.installed) return { txt: "not installed", bad: true };
     if (!m.signed) return { txt: "sign in", bad: true };
-    if (m.back) return { txt: `back ${hhmm(m.back)}`, bad: true };
+    if (m.back) return { txt: `${m.capped ? "capped · " : ""}back ${resetWhen(m.back)}`, bad: true };
     const s = m.slots.find((x) => x.signed_in) || {};
     const parts = usageParts(s.usage);
     if (parts.length) return { txt: parts.join(" · ") };
@@ -11012,6 +11144,7 @@ function renderCodeView() {
   }
   bar.append(chips);
   col.append(bar);
+  col.append(renderCodeModels());
 
   if (proj && !codeBusy()) col.append(renderCodeRw(proj));
 
@@ -11173,7 +11306,7 @@ function renderCodeRw(proj) {
     b.setAttribute("role", "radio");
     b.setAttribute("aria-checked", CODE.rw === k ? "true" : "false");
     b.disabled = k === "write" && !w.ok;
-    b.onclick = () => { CODE.rw = k; renderCodeView(); updateEnabled(); };
+    b.onclick = () => { CODE.rw = k; renderCodeView(); updateEnabled(); codePreviewSoon(); };
     sw.append(b);
   }
   box.append(sw);
@@ -11190,8 +11323,7 @@ async function codeRun() {
   if (!agents.length) return;
   let d;
   try {
-    d = await codePost("/tasks", { project_id: proj.id, prompt: q, agents, mode: CODE.rw,
-                                   ...codeModelBody(q) });
+    d = await codePost("/tasks", { project_id: proj.id, prompt: q, agents, mode: CODE.rw });
   } catch (e) {
     CODE.err = `Could not start the task: ${e.message || e}`;
     renderCodeView();
@@ -11317,11 +11449,21 @@ function renderCodeTask(t) {
       log.append(r);
     } else if (ev.k === "note") {
       log.append(el("div", "code-ev is-note", ev.text));
+    } else if (ev.k === "model") {
+      // Which model this agent is running, and -- for Auto -- why.
+      const r = el("div", "code-ev is-model");
+      r.append(el("span", "code-ev-tool", ev.label || ev.model || "default model"));
+      r.append(el("span", "code-ev-arg", [ev.effort && `${(EFFORT_LABEL[ev.effort] || ev.effort).toLowerCase()} effort`,
+        ev.auto ? `Auto: ${ev.why}` : ev.why === "your choice" ? "your choice" : ""].filter(Boolean).join(" · ")));
+      log.append(r);
     } else if (ev.k === "skip") {
       log.append(el("div", "code-ev is-skip", `Skipped ${ev.label}: ${ev.why}`));
     } else if (ev.k === "handoff") {
-      const why = { limited: "ran out of usage", unauthed: "is signed out",
-                    unavailable: "could not run" }[ev.reason] || ev.reason;
+      // A cap is yours, and says so; so does a model needing credits.
+      const why = /^Stopped at your/.test(ev.detail || "") ? ev.detail.replace(/^Stopped/, "stopped")
+        : /usage credits/.test(ev.detail || "") ? "needs usage credits, which are off"
+        : { limited: "ran out of usage", unauthed: "is signed out",
+            unavailable: "could not run" }[ev.reason] || ev.reason;
       const back = ev.resets_at ? ` (back ${hhmm(ev.resets_at)})` : "";
       log.append(el("div", "code-ev is-handoff",
         `${ev.from_label} ${why}${back}` + (ev.to_label ? ` — handing over to ${ev.to_label}` : "")));
@@ -12017,6 +12159,12 @@ function renderCodeAccounts() {
       const add = el("button", "navitem", c.slots.length ? "Add another account" : "Add an account");
       add.onclick = () => codeAddSlot(c);
       bar.append(add);
+      if (c.slots.some((s) => s.signed_in)) {
+        const ml = el("button", "navitem", "Models & limits");
+        ml.title = "Which model it uses, usage, your caps, usage credits";
+        ml.onclick = () => codeModelSheet(c.agent);
+        bar.append(ml);
+      }
       card.append(bar);
     }
     wrap.append(card);
@@ -12747,8 +12895,7 @@ async function codeDiagnose(proj, run, fj) {
       + "(for example a deployment that was still in progress).",
   ].join("\n\n");
   let d;
-  try { d = await codePost("/tasks", { project_id: proj.id, prompt, agents, mode: "read",
-                                       ...codeModelBody() }); }
+  try { d = await codePost("/tasks", { project_id: proj.id, prompt, agents, mode: "read" }); }
   catch (e) { CODE.err = `Could not start the diagnosis: ${e.message || e}`; renderCodeView(); return; }
   if (!d.ok) { CODE.err = d.message || "The engine refused the task."; renderCodeView(); return; }
   if (!codeMode()) setMode("code");
@@ -12870,8 +13017,455 @@ function renderCodeWatch(proj) {
   return box;
 }
 
-/** What the task is told about models (Phase 11B fills this in). */
-function codeModelBody() { return {}; }
+/* ── models, credits, caps (Phase 11B) ────────────────────────────────────
+   One line under the agents says, per CLI, which model the next task gets
+   and how much of the allowance is used; tapping it opens that agent's sheet:
+   the models this account can run (read from the provider), Auto, effort,
+   the usage windows with your caps on them, and whether usage credits are on.
+
+   Everything is stored on the engine, per profile, beside the logins it is
+   about -- so the phone and the desk agree, and Veda's engine keeps hers.
+   Nothing here writes to Firestore.
+
+   Auto is shown as what it WOULD pick for the text in the composer, asked of
+   the engine as you pause typing: local rules over cached lists, no model
+   call, a few milliseconds. */
+const EFFORT_LABEL = { low: "Low", medium: "Medium", high: "High", xhigh: "Extra high", max: "Max" };
+const CAP_PRESETS = [50, 60, 70, 80, 90, 95];
+const AGENT_NAME = { claude: "Claude", codex: "Codex" };
+const USAGE_SEEN_KEY = lsKey("usage.seen");
+
+async function codeModelsLoad(refresh = false) {
+  try {
+    const d = await codeGet(`/models${refresh ? "?refresh=1" : ""}`);
+    if (d.ok) CODE.models = d;
+  } catch {}
+  return CODE.models;
+}
+
+/** The label of a model id in an agent's lists, or the id itself. */
+function modelLabel(a, id) {
+  for (const s of (a && a.slots) || []) {
+    const m = (s.models || []).find((x) => x.id === id);
+    if (m) return m.label;
+  }
+  return id;
+}
+
+/** The fullest window on the agent's first signed-in account: the number
+ *  that decides whether it can take the next task. */
+function agentPressure(agent) {
+  const c = ((CODE.agents && CODE.agents.cli) || []).find((x) => x.agent === agent);
+  const s = c && (c.slots.find((x) => x.signed_in) || c.slots[0]);
+  if (!s) return null;
+  let top = null;
+  for (const [k, v] of Object.entries(usageLive(s.usage))) {
+    if (!v || typeof v.utilization !== "number") continue;
+    if (!top || v.utilization > top.u) top = { win: k, u: v.utilization, resets: v.resets_at };
+  }
+  const key = `${agent}:${s.slot}`;
+  const X = CODE.usageX || {};
+  const capped = (X.capped || {})[key] || (s.capped && s.capped.until ? s.capped : null);
+  return { top, capped, slot: s.slot, cap: top ? ((X.caps || {})[agent] || {})[top.win] : null };
+}
+
+function useLevel(pct, cap, warnAt) {
+  if (pct >= 100 || (cap && pct >= cap)) return "bad";
+  if (pct >= (warnAt || 80) || (cap && pct >= cap - 5)) return "warn";
+  return "ok";
+}
+
+function renderCodeModels() {
+  const row = el("div", "code-models");
+  row.id = "codeModels";
+  const m = CODE.models;
+  if (!m) return row;
+  const X = CODE.usageX || {};
+  for (const agent of ["claude", "codex"]) {
+    const a = m.agents && m.agents[agent];
+    const mem = codeMembers().find((x) => x.agent === agent);
+    if (!a || !mem || !mem.installed || !mem.signed) continue;
+    const auto = a.choice.model === "auto";
+    const pv = CODE.preview && CODE.preview.pick ? CODE.preview.pick[agent] : null;
+    const b = el("button", "code-model");
+    b.type = "button";
+    b.dataset.agent = agent;
+    b.style.setProperty("--pa", CODE_CLI_ACCENT[agent]);
+    b.title = `${AGENT_NAME[agent]}: model, effort, usage and caps`;
+    b.append(el("span", "code-model-n", AGENT_NAME[agent]));
+    const pick = el("span", "code-model-v");
+    if (auto) {
+      pick.append(el("span", "code-model-auto", "Auto"));
+      if (pv && pv.model) pick.append(document.createTextNode(` ${pv.label}`));
+    } else {
+      pick.append(document.createTextNode(modelLabel(a, a.choice.model)));
+    }
+    const eff = auto ? (pv && pv.effort) : (a.choice.effort !== "auto" ? a.choice.effort : "");
+    if (eff) pick.append(el("span", "code-model-e", ` · ${(EFFORT_LABEL[eff] || eff).toLowerCase()}`));
+    b.append(pick);
+    const pr = agentPressure(agent);
+    if (pr && pr.capped) {
+      b.classList.add("is-capped");
+      b.append(el("span", "code-model-cap", `capped · ${resetWhen(pr.capped.until)}`));
+    } else if (pr && pr.top) {
+      const pct = Math.round(pr.top.u * 100);
+      const meter = el("span", `code-model-m is-${useLevel(pct, pr.cap, X.warn_at)}`);
+      meter.title = `${USAGE_WINDOWS[pr.top.win] || pr.top.win} window ${pct}% used`
+        + (pr.cap ? ` · your cap ${pr.cap}%` : "");
+      const bar = el("span", "code-model-bar");
+      const fill = el("span", "code-model-fill");
+      fill.style.width = `${Math.min(100, pct)}%`;
+      bar.append(fill);
+      meter.append(bar, el("span", "code-model-pct", `${pct}%`));
+      b.append(meter);
+    }
+    b.append(el("span", "code-ws-chev", "▾"));
+    b.onclick = () => codeModelSheet(agent);
+    row.append(b);
+  }
+  return row;
+}
+
+function codeModelsRedraw() {
+  const cur = document.getElementById("codeModels");
+  if (cur) cur.replaceWith(renderCodeModels());
+}
+
+/* The Auto preview: asked as you pause typing, never per keystroke. */
+let _previewTimer = 0, _previewSeq = 0;
+function codePreviewSoon() {
+  if (!codeMode() || !CODE.models) return;
+  clearTimeout(_previewTimer);
+  _previewTimer = setTimeout(codePreview, 350);
+}
+async function codePreview() {
+  const q = ($("composer") || {}).value || "";
+  const mine = ++_previewSeq;
+  if (!q.trim()) { CODE.preview = null; codeModelsRedraw(); return; }
+  try {
+    const d = await codePost("/models/preview", { prompt: q, mode: CODE.rw });
+    if (mine !== _previewSeq || !d.ok) return;
+    CODE.preview = d;
+    codeModelsRedraw();
+  } catch {}
+}
+
+/** One agent's sheet: models, effort, usage + caps, credits. */
+async function codeModelSheet(agent) {
+  const sheet = el("div", "sheet repo-sheet");
+  const box = el("div", "sheet-box repo-box model-box");
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  const close = () => { sheet.remove(); document.removeEventListener("keydown", onKey); };
+  document.addEventListener("keydown", onKey);
+  const hd = el("div", "repo-hd");
+  const ttl = el("div", "repo-ttl");
+  ttl.append(el("div", "sheet-hd", `${AGENT_NAME[agent]} · model & limits`));
+  const sub = el("div", "model-acct");
+  ttl.append(sub);
+  hd.append(ttl);
+  const re = el("button", "repo-acct", "Re-check");
+  re.type = "button";
+  re.title = "Ask the provider again which models this account can use";
+  const x = el("button", "repo-x", "✕");
+  x.type = "button";
+  x.setAttribute("aria-label", "Close");
+  x.onclick = close;
+  hd.append(re, x);
+  box.append(hd);
+  const body = el("div", "repo-body");
+  box.append(body);
+  dismissOnBackdrop(sheet, close);
+  sheet.append(box);
+  document.body.append(sheet);
+  let busy = false, err = "";
+
+  const save = async (path, payload) => {
+    if (busy) return;
+    busy = true;
+    err = "";
+    setSync("saving");
+    try {
+      const d = await codePost(path, payload);
+      if (!d.ok) throw new Error(d.message || "the engine refused it");
+      CODE.models = d;
+      setSync("saved");
+    } catch (e) {
+      err = String(e.message || e);
+      setSync("error", _syncFail("saving a model setting", e));
+    }
+    busy = false;
+    draw();
+    codeModelsRedraw();
+    codeUsageRefresh();
+    codePreviewSoon();
+  };
+
+  const draw = () => {
+    body.textContent = "";
+    const m = CODE.models;
+    const a = m && m.agents && m.agents[agent];
+    if (!a) {
+      const w = el("div", "doctor-running");
+      w.append(spinnerEl(), el("span", null, "Asking the provider which models this account can use…"));
+      body.append(w);
+      return;
+    }
+    const slot = a.slots.find((s) => (s.models || []).length) || a.slots[0] || {};
+    const cr = slot.credits || {};
+    const plan = slot.plan ? slot.plan[0].toUpperCase() + slot.plan.slice(1) : "";
+    sub.textContent = [slot.label, plan && `${plan} plan`,
+      cr.enabled === true ? (cr.exhausted ? "usage credits used up" : "usage credits on")
+        : cr.enabled === false ? "usage credits off" : ""].filter(Boolean).join(" · ");
+    if (err) body.append(el("div", "sheet-err", err));
+
+    // ── model ────────────────────────────────────────────────────────────
+    const mc = el("div", "repo-card");
+    mc.append(el("div", "repo-lbl", "Model"));
+    const list = el("div", "model-list");
+    list.setAttribute("role", "radiogroup");
+    const pv = CODE.preview && CODE.preview.pick ? CODE.preview.pick[agent] : null;
+    const opt = (id, label, desc, { ok = true, why = "", badge = "" } = {}) => {
+      const on = a.choice.model === id;
+      const b = el("button", `model-opt ${on ? "on" : ""} ${ok ? "" : "is-off"}`);
+      b.type = "button";
+      b.dataset.model = id;
+      b.setAttribute("role", "radio");
+      b.setAttribute("aria-checked", String(on));
+      b.disabled = !ok;
+      const top = el("span", "model-opt-top");
+      top.append(el("span", "model-opt-l", label));
+      if (badge) top.append(el("span", "model-badge", badge));
+      b.append(top);
+      if (desc) b.append(el("span", "model-opt-s", desc));
+      if (!ok && why) b.append(el("span", "model-opt-why", why));
+      b.onclick = () => save("/models/choice", { agent, model: id,
+        effort: id === "auto" ? "auto" : a.choice.effort });
+      list.append(b);
+    };
+    opt("auto", "Auto", pv && pv.model
+      ? `For what is in the box now: ${pv.label}${pv.effort ? ` · ${EFFORT_LABEL[pv.effort] || pv.effort}` : ""} — ${pv.why}`
+      : "Reads each task and picks the strongest model it needs from the ones this account can run now.",
+      { badge: "recommended" });
+    const models = slot.models || [];
+    const latest = models.filter((x) => x.latest || agent === "codex");
+    const older = models.filter((x) => !(x.latest || agent === "codex"));
+    for (const x of latest) {
+      opt(x.id, x.label, x.description || (x.why && x.available ? x.why : ""),
+        { ok: x.available, why: x.why, badge: x.credits ? "usage credits" : "" });
+    }
+    mc.append(list);
+    if (older.length) {
+      const det = el("details", "model-older");
+      det.append(el("summary", null, `Older models (${older.length})`));
+      const ol = el("div", "model-list");
+      for (const x of older) {
+        const b = el("button", `model-opt ${a.choice.model === x.id ? "on" : ""} ${x.available ? "" : "is-off"}`);
+        b.type = "button";
+        b.dataset.model = x.id;
+        b.disabled = !x.available;
+        const top = el("span", "model-opt-top");
+        top.append(el("span", "model-opt-l", x.label));
+        if (x.credits) top.append(el("span", "model-badge", "usage credits"));
+        b.append(top);
+        if (!x.available && x.why) b.append(el("span", "model-opt-why", x.why));
+        b.onclick = () => save("/models/choice", { agent, model: x.id, effort: a.choice.effort });
+        ol.append(b);
+      }
+      det.append(ol);
+      if (older.some((x) => x.id === a.choice.model)) det.open = true;
+      mc.append(det);
+    }
+    if (!models.length) {
+      mc.append(el("div", "repo-note", slot.fetched_at
+        ? "No models listed for this account."
+        : "The model list could not be read yet (the account's sign-in may need a first run). "
+          + "Auto uses the CLI's default until it can."));
+    }
+    body.append(mc);
+
+    // ── effort ───────────────────────────────────────────────────────────
+    const ec = el("div", "repo-card");
+    ec.append(el("div", "repo-lbl", "Effort"));
+    const sel = models.find((x) => x.id === a.choice.model);
+    const allowed = new Set(sel && sel.efforts && sel.efforts.length ? sel.efforts : m.efforts);
+    const seg = el("div", "model-seg");
+    seg.setAttribute("role", "radiogroup");
+    for (const e of ["auto", ...m.efforts]) {
+      const on = a.choice.effort === e;
+      const b = el("button", `model-seg-b ${on ? "on" : ""}`, e === "auto" ? "Auto" : EFFORT_LABEL[e] || e);
+      b.type = "button";
+      b.dataset.effort = e;
+      b.setAttribute("role", "radio");
+      b.setAttribute("aria-checked", String(on));
+      b.disabled = e !== "auto" && !allowed.has(e);
+      b.onclick = () => save("/models/choice", { agent, model: a.choice.model, effort: e });
+      seg.append(b);
+    }
+    ec.append(seg);
+    ec.append(el("div", "repo-note", "How hard the model thinks before it answers. Auto matches it to the task; "
+      + "higher effort is slower and uses more of the allowance."));
+    body.append(ec);
+
+    // ── usage and caps ───────────────────────────────────────────────────
+    const uc = el("div", "repo-card");
+    const uh = el("div", "repo-lbl-row");
+    uh.append(el("div", "repo-lbl", "Usage and your caps"));
+    uc.append(uh);
+    const live = (((CODE.agents && CODE.agents.cli) || []).find((c) => c.agent === agent) || { slots: [] })
+      .slots.find((s) => s.slot === slot.slot);
+    const usage = usageLive((live && live.usage) || slot.usage || {});
+    const warnAt = m.warn_at;
+    for (const w of a.windows) {
+      const v = usage[w.id];
+      const pct = v && typeof v.utilization === "number" ? Math.round(v.utilization * 100) : null;
+      const cap = a.caps[w.id] || null;
+      const wr = el("div", "use-row");
+      wr.dataset.window = w.id;
+      const top = el("div", "use-top");
+      top.append(el("span", "use-name", w.label[0].toUpperCase() + w.label.slice(1)));
+      top.append(el("span", `use-pct is-${pct == null ? "ok" : useLevel(pct, cap, warnAt)}`,
+        pct == null ? "no reading yet" : `${pct}% used`
+          + (v && v.resets_at ? ` · resets ${resetWhen(v.resets_at)}` : "")));
+      wr.append(top);
+      const bar = el("div", "use-bar");
+      const fill = el("div", `use-fill is-${pct == null ? "ok" : useLevel(pct, cap, warnAt)}`);
+      fill.style.width = `${Math.min(100, pct || 0)}%`;
+      bar.append(fill);
+      if (cap) {
+        const mk = el("div", "use-cap");
+        mk.style.left = `${cap}%`;
+        mk.title = `Your cap: ${cap}%`;
+        bar.append(mk);
+      }
+      wr.append(bar);
+      const chips = el("div", "use-caps");
+      chips.append(el("span", "use-caps-l", "Stop at"));
+      const presets = [...new Set([...CAP_PRESETS, ...(cap ? [cap] : [])])].sort((p, q) => p - q);
+      for (const pc of [null, ...presets]) {
+        const on = (cap || null) === pc;
+        const b = el("button", `use-cap-b ${on ? "on" : ""}`, pc == null ? "Off" : `${pc}%`);
+        b.type = "button";
+        b.dataset.cap = pc == null ? "off" : String(pc);
+        b.setAttribute("aria-pressed", String(on));
+        b.onclick = () => save("/models/cap", { agent, window: w.id, percent: pc });
+        chips.append(b);
+      }
+      wr.append(chips);
+      uc.append(wr);
+    }
+    if (slot.capped) uc.append(el("div", "sheet-err", `${slot.capped.why}. MAGI will not send `
+      + `${AGENT_NAME[agent]} requests until ${resetWhen(slot.capped.until)} — or raise the cap.`));
+    uc.append(el("div", "repo-note", "A cap stops MAGI sending requests to this agent once that much "
+      + "of the window is used; the chain hands the task to the next agent. It holds until the window "
+      + "resets or you change it."));
+    const warn = el("div", "use-caps");
+    warn.append(el("span", "use-caps-l", "Warn me at"));
+    for (const pc of [60, 70, 80, 90]) {
+      const b = el("button", `use-cap-b ${warnAt === pc ? "on" : ""}`, `${pc}%`);
+      b.type = "button";
+      b.dataset.warn = String(pc);
+      b.onclick = () => save("/models/warn", { percent: pc });
+      warn.append(b);
+    }
+    uc.append(warn);
+    body.append(uc);
+
+    // ── credits ──────────────────────────────────────────────────────────
+    const cc = el("div", "repo-card");
+    cc.append(el("div", "repo-lbl", agent === "claude" ? "Usage credits" : "ChatGPT credits"));
+    const creditModels = models.filter((x) => x.credits).map((x) => x.label);
+    let line;
+    if (cr.enabled === true && !cr.exhausted) {
+      line = "On. Models that need credits can run, and work continues on credits if the plan's limit is reached.";
+    } else if (cr.exhausted) {
+      line = "Used up for this month: models that need credits are unavailable until they reset or the limit is raised.";
+    } else if (cr.enabled === false) {
+      line = "Off. " + (creditModels.length ? `${creditModels.join(", ")} need them and cannot be chosen. ` : "")
+        + "When the plan's limit is reached, this agent waits for the reset.";
+    } else {
+      line = "Not known yet — MAGI reads it with the usage figures.";
+    }
+    cc.append(el("div", "repo-sub", line));
+    if (agent === "claude" && cr.enabled !== true) {
+      cc.append(repoLink("https://claude.ai/settings/usage", "Turn usage credits on at claude.ai"));
+    }
+    cc.append(el("div", "repo-note", "MAGI notices a change within a few minutes, without a restart."));
+    body.append(cc);
+  };
+
+  re.onclick = async () => {
+    re.disabled = true;
+    re.textContent = "Checking…";
+    await codeModelsLoad(true);
+    re.disabled = false;
+    re.textContent = "Re-check";
+    draw();
+    codeModelsRedraw();
+  };
+  draw();
+  await codeModelsLoad(false);
+  if (sheet.isConnected) draw();
+}
+
+/* ── the usage popup ──────────────────────────────────────────────────────
+   Small, in a corner, and once per window per reset: 84% of the weekly
+   limit is announced once, not every minute until Tuesday. A cap reached,
+   or the plan's limit, always says what happens next. */
+function usageSeen() {
+  try { return JSON.parse(localStorage.getItem(USAGE_SEEN_KEY) || "[]"); } catch { return []; }
+}
+function usageMarkSeen(key) {
+  const seen = usageSeen().filter((k) => k !== key);
+  seen.push(key);
+  try { localStorage.setItem(USAGE_SEEN_KEY, JSON.stringify(seen.slice(-60))); } catch {}
+}
+
+function codeUsageAlerts(alerts) {
+  const seen = new Set(usageSeen());
+  const fresh = (alerts || []).filter((a) => !seen.has(a.key));
+  if (!fresh.length) return;
+  // The most serious first; one popup at a time, the rest when it closes.
+  const rank = { capped: 0, limit: 1, near_cap: 2, warn: 3 };
+  fresh.sort((p, q) => rank[p.level] - rank[q.level]);
+  usageToast(fresh[0]);
+}
+
+function usageToast(a) {
+  let host = document.getElementById("usageToasts");
+  if (!host) {
+    host = el("div", "usage-toasts");
+    host.id = "usageToasts";
+    host.setAttribute("aria-live", "polite");
+    document.body.append(host);
+  }
+  if (host.querySelector(`[data-key="${CSS.escape(a.key)}"]`)) return;
+  usageMarkSeen(a.key);
+  const who = `${AGENT_NAME[a.agent] || a.agent}${a.label && a.label !== "system" ? ` (${a.label})` : ""}`;
+  const t = el("div", `usage-toast is-${a.level}`);
+  t.dataset.key = a.key;
+  t.setAttribute("role", "status");
+  const msg = {
+    capped: `${who} stopped at your ${a.cap}% cap on the ${a.window_label} limit.`,
+    limit: `${who} has used its ${a.window_label} limit.`,
+    near_cap: `${who} is at ${a.used}% of the ${a.window_label} limit — your cap is ${a.cap}%.`,
+    warn: `${who} is at ${a.used}% of the ${a.window_label} limit.`,
+  }[a.level];
+  const txt = el("div", "usage-toast-t");
+  txt.append(el("span", "usage-toast-m", msg));
+  if (a.resets_at) txt.append(el("span", "usage-toast-s", `Resets ${resetWhen(a.resets_at)}`
+    + (a.level === "capped" ? " — the chain uses other agents until then." : "")));
+  const open = el("button", "usage-toast-b", "Limits");
+  open.type = "button";
+  open.onclick = () => { t.remove(); codeModelSheet(a.agent); };
+  const x = el("button", "usage-toast-x", "✕");
+  x.type = "button";
+  x.setAttribute("aria-label", "Dismiss");
+  x.onclick = () => t.remove();
+  t.append(txt, open, x);
+  host.append(t);
+  // A warning fades on its own; a stop stays until you have seen it.
+  if (a.level === "warn" || a.level === "near_cap") setTimeout(() => t.remove(), 12000);
+}
 
 function codeAddSlot(c) {
   const taken = new Set(c.slots.map((s) => s.slot));
@@ -13463,6 +14057,7 @@ composer.addEventListener("input", () => {
   setErr("refineError", null);
   autosize();
   updateEnabled();
+  if (typeof codePreviewSoon === "function") codePreviewSoon();
 });
 composer.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); start(); }

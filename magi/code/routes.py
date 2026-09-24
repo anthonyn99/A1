@@ -290,6 +290,9 @@ async def list_agents() -> dict[str, Any]:
         d = st.to_dict()
         d["id"] = f"{agent}:{slot}"
         d["limited_until"] = (snap["limits"].get(key) or {}).get("until")
+        from .agents import models as _m
+        until, why = _m.cap_block(agent, slot)
+        d["capped"] = {"until": until, "why": why} if until else None
         d["usage"] = snap["usage"].get(key) or {}
         if agent == "codex" and st.signed_in:
             # Codex does not report its windows while it runs, so they are
@@ -363,8 +366,25 @@ async def agent_usage() -> dict[str, Any]:
                 merged[win] = v
         if merged:
             usage[key] = merged
+    from .agents import models as _m
+
+    def extra():
+        p = _m.prefs()
+        capped, credits = {}, {}
+        for agent in _slots.AGENTS:
+            for slot in _slots.list_slots(agent):
+                k = _limits.key(agent, slot)
+                until, why = _m.cap_block(agent, slot, p)
+                if until:
+                    capped[k] = {"until": until, "why": why}
+                cr = _m.credits(agent, slot)
+                if cr:
+                    credits[k] = cr
+        return {"alerts": _m.alerts(p), "capped": capped, "credits": credits,
+                "caps": p["caps"], "warn_at": p["warn_at"]}
     return {"ok": True, "usage": usage,
-            "limits": {k: v.get("until") for k, v in snap["limits"].items()}}
+            "limits": {k: v.get("until") for k, v in snap["limits"].items()},
+            **await loop.run_in_executor(None, extra)}
 
 
 @router.post("/agents/{agent}/slots/{slot}/label")
@@ -817,3 +837,112 @@ async def repo_run(project_id: str, run_id: int) -> dict[str, Any]:
 async def repo_releases(project_id: str) -> dict[str, Any]:
     return await _repo_call(project_id, lambda c: {
         "releases": _ghr.releases(c["gh"], c["owner"], c["repo"])})
+
+
+# ── models, credits, caps (Phase 11B) ────────────────────────────────────
+#
+# Which models each coding account can run (asked of the provider, cached for
+# hours), which one each agent uses -- a model you pick, or Auto -- and your
+# caps on how much of an allowance MAGI may spend. Everything lives on the
+# engine, per profile, beside the logins it is about; nothing is synced.
+
+from .agents import models as _models
+
+
+def _model_slots(agent: str) -> list[dict[str, Any]]:
+    rows = []
+    for slot in _slots.list_slots(agent):
+        cat = _models.catalog(agent, slot)
+        until, why = _models.cap_block(agent, slot)
+        rows.append({"slot": slot, "label": _slots.label_of(agent, slot) or slot,
+                     "plan": _models.plan_of(agent, slot),
+                     "credits": _models.credits(agent, slot),
+                     "models": _models.models_for(agent, slot),
+                     "fetched_at": cat.get("fetched_at"),
+                     "plan_used_up": _models.plan_used_up(agent, slot),
+                     "capped": {"until": until, "why": why} if until else None,
+                     "usage": _limits.aged(_limits.usage(agent, slot))})
+    return rows
+
+
+def _models_state() -> dict[str, Any]:
+    p = _models.prefs()
+    agents = {}
+    for agent in _slots.AGENTS:
+        rows = _model_slots(agent)
+        # The windows each agent reports, for the caps: Claude always has a
+        # session and a weekly one; Codex has whatever its plan has (a free
+        # account: one 30-day window; Plus: 5-hour and weekly).
+        wins = ["five_hour", "seven_day"] if agent == "claude" else []
+        for r in rows:
+            for w in r["usage"]:
+                if w not in wins:
+                    wins.append(w)
+        wins += [w for w in p["caps"].get(agent, {}) if w not in wins]
+        agents[agent] = {"slots": rows, "choice": p["choice"][agent], "caps": p["caps"][agent],
+                         "windows": [{"id": w, "label": _models.window_label(w)} for w in wins]}
+    return {"ok": True, "agents": agents, "warn_at": p["warn_at"], "efforts": list(_models.EFFORTS)}
+
+
+@router.get("/models")
+async def models_state(refresh: bool = False) -> dict[str, Any]:
+    """Everything the model sheet shows. `refresh=1` re-reads every
+    account's model list from the provider now instead of from the cache."""
+    loop = _asyncio.get_running_loop()
+    await loop.run_in_executor(None, _usage_fetch.refresh_all)
+    if refresh:
+        for agent in _slots.AGENTS:
+            for slot in _slots.list_slots(agent):
+                await loop.run_in_executor(None, lambda a=agent, s=slot: _models.catalog(a, s, force=True))
+    return await loop.run_in_executor(None, _models_state)
+
+
+@router.post("/models/choice")
+async def models_choice(body: dict = Body(...)) -> dict[str, Any]:
+    """`{"agent": "claude", "model": "auto"|"<id>", "effort": "auto"|"high"}`"""
+    try:
+        _models.set_choice(str(body.get("agent") or ""), str(body.get("model") or "auto"),
+                           str(body.get("effort") or "auto"))
+    except ValueError as e:
+        return {"ok": False, "error": "bad_choice", "message": str(e)}
+    return await _asyncio.get_running_loop().run_in_executor(None, _models_state)
+
+
+@router.post("/models/cap")
+async def models_cap(body: dict = Body(...)) -> dict[str, Any]:
+    """`{"agent": "claude", "window": "seven_day", "percent": 80}`; percent
+    null removes the cap."""
+    pct = body.get("percent")
+    try:
+        _models.set_cap(str(body.get("agent") or ""), str(body.get("window") or ""),
+                        None if pct is None else pct)
+    except ValueError as e:
+        return {"ok": False, "error": "bad_cap", "message": str(e)}
+    return await _asyncio.get_running_loop().run_in_executor(None, _models_state)
+
+
+@router.post("/models/warn")
+async def models_warn(body: dict = Body(...)) -> dict[str, Any]:
+    try:
+        _models.set_warn(body.get("percent"))
+    except ValueError as e:
+        return {"ok": False, "error": "bad_warn", "message": str(e)}
+    return await _asyncio.get_running_loop().run_in_executor(None, _models_state)
+
+
+@router.post("/models/preview")
+async def models_preview(body: dict = Body(...)) -> dict[str, Any]:
+    """What each agent would run THIS prompt on, as the console types --
+    local rules over the cached lists, no network, no model call."""
+    prompt = str(body.get("prompt") or "")[:20000]
+    mode = "write" if body.get("mode") == "write" else "read"
+
+    def go():
+        p = _models.prefs()
+        out = {}
+        for agent in _slots.AGENTS:
+            slot = next((s for s in _slots.list_slots(agent)
+                         if _models.catalog_cached(agent, s).get("models")), None)
+            out[agent] = _models.choose(agent, slot, prompt, mode, p) if slot else None
+        return {"ok": True, "tier": _models.classify(prompt, mode), "pick": out}
+    return await _asyncio.get_running_loop().run_in_executor(None, go)
