@@ -5,7 +5,7 @@
 // Phase 8 end to end, against a SCRATCH repository it creates in %TEMP% --
 // never A1. Real agents edit a sandbox copy; the card shows the diff; the
 // real file changes only after Approve, and not at all after Deny.
-//   1. A1 offers Write, with the Stop-hook note; its push is still refused.
+//   1. A1 offers Write, with the note that it ships; its push is still refused.
 //   2. Claude CLI: approve on desktop  -> the file on disk changes.
 //   3. Claude CLI: deny at 390px       -> the file on disk does not.
 //   4. Codex CLI:  approve              -> Codex's own write sandbox works.
@@ -111,7 +111,7 @@ async function runTask(c, prompt, agents) {
     ok('Write is offered for A1', await evalJs(c,
       '[...document.querySelectorAll(".code-rw-b")].find(b=>b.textContent==="Write").disabled') === false);
     const why = await evalJs(c, '(document.querySelector(".code-rw-note")||{}).textContent || ""');
-    ok('with the Stop-hook note', /Stop hook commits and pushes/.test(why), why);
+    ok('with the note that A1 ships what you approve', /A1 ships what you approve/.test(why), why);
     const pushed = await api(`/projects/${a1}/push`, {});
     ok('and the engine still refuses to push it', pushed.ok === false && pushed.error === 'read_only_project', pushed.message);
     await shot(c, 'write-a1-writable');

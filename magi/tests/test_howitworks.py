@@ -157,8 +157,12 @@ def test_the_code_mode_write_claims_still_hold():
                               "pull": False, "auto": False}
     src = inspect.getsource(tasks)
     assert src.count("engine_repo_allows") >= 4       # pull, apply, commit, push
-    # "A change to the engine's own code under magi/ says so on the card".
+    # "A change to the engine's own code under magi/ says so on the card",
+    # "approving a change in A1 ships it -- the card says so, and names
+    # anything that deploys", "refuses edits under .github/".
     assert '"engine_files"' in src and "ev.engine_files" in PAGE
+    assert '"deploy_files"' in src and "ev.ships && open" in PAGE
+    assert ".github/" in SB.ENGINE_REPO_DENY and "deny=sandbox.review_deny(sb.repo)" in src
     # "Every task starts in Read".
     assert 'rw: "read",' in PAGE
     # "a window whose reset time has passed shows 0%".

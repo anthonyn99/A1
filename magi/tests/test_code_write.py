@@ -556,7 +556,7 @@ def test_a1_takes_a_write_task_and_leaves_it_for_the_hook(repo, monkeypatch):
     assert applied["by_hook"] is True
     assert (repo / "app.py").read_text() == "x = 2\n", "applied like any project"
     r = asyncio.run(T.commit(t, "Commit it anyway"))
-    assert r["error"] == "read_only_project" and "Stop hook" in r["message"]
+    assert r["error"] == "read_only_project" and "auto-commit" in r["message"]
     assert _git(repo, "rev-list", "--count", "HEAD") == "1", "nothing committed"
     t.result["commit"] = {"short": "x"}          # even with a commit on record
     r = asyncio.run(T.push(t))
@@ -574,7 +574,32 @@ def test_the_write_route_and_view_let_a1_in(repo, monkeypatch):
     from magi.code import routes as R
     monkeypatch.setattr(SB, "is_engine_repo", lambda root: True)
     w = R._write_status(str(repo))
-    assert w["ok"] and w["commit"] is False and w["push"] is False and "Stop hook" in w["note"]
+    assert w["ok"] and w["commit"] is False and w["push"] is False and "ships" in w["note"]
     monkeypatch.setitem(SB.ENGINE_REPO, "write", False)
     w = R._write_status(str(repo))
     assert not w["ok"] and "read-only" in w["why"]
+
+
+def test_a1_refuses_github_and_names_what_deploys(repo, monkeypatch):
+    """A1 pushes itself within minutes: approving there is shipping. A
+    workflow edit (it runs with the repo's secrets) is refused outright; a
+    deploying path is named on the card."""
+    monkeypatch.setattr(SB, "is_engine_repo", lambda root: True)
+    (repo / ".github" / "workflows").mkdir(parents=True)
+    t, seen = asyncio.run(_run(repo, [Editor({".github/workflows/x.yml": "on: push\n"})], answer=True))
+    ref = next(e for e in seen if e["k"] == "refused")
+    assert ref["refused"][0]["path"] == ".github/workflows/x.yml"
+    assert "secrets" in ref["refused"][0]["why"]
+    assert not (repo / ".github" / "workflows" / "x.yml").exists()
+
+    (repo / "workers" / "api").mkdir(parents=True)
+    t, seen = asyncio.run(_run(repo, [Editor({"workers/api/worker.js": "x\n", "app.py": "x = 2\n"})],
+                               answer=False))
+    appr = next(e for e in seen if e["k"] == "approval")
+    assert appr["ships"] is True and appr["deploy_files"] == ["workers/api/worker.js"]
+
+
+def test_github_is_only_refused_in_a1(repo):
+    (repo / ".github").mkdir()
+    t, seen = asyncio.run(_run(repo, [Editor({".github/ci.yml": "on: push\n"})], answer=True))
+    assert t.result["write"] == "applied"

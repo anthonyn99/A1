@@ -322,7 +322,8 @@ def apply(sb: Sandbox, files: list[dict[str, Any]], save_dir: Path) -> ApplyResu
     # can wait five minutes, and a link or folder made in the real tree
     # meanwhile would change where an already-approved path lands.
     from . import security
-    rv = security.review(sb.patch.decode("utf-8", "replace"), root=sb.repo, prefix=sb.prefix)
+    rv = security.review(sb.patch.decode("utf-8", "replace"), root=sb.repo, prefix=sb.prefix,
+                         deny=review_deny(sb.repo))
     if not rv.ok:
         return ApplyResult(False, "refused", conflicts=[p for p, _ in rv.refused],
                            message=rv.message)
@@ -392,11 +393,27 @@ def patch_dir(profile_data: Path) -> Path:
 ENGINE_REPO = {"write": True, "commit": False, "push": False, "pull": False, "auto": False}
 
 ENGINE_REPO_WHY = {
-    "commit": "A1's Stop hook commits this at the end of the next Claude session; "
-              "Code Mode does not commit here.",
-    "push": "A1's Stop hook pushes; Code Mode does not push A1.",
+    "commit": "A1 commits itself: its auto-commit records every change and pushes it "
+              "within minutes. Code Mode does not commit here.",
+    "push": "A1 pushes itself (its auto-commit, and the Stop hook); Code Mode does not "
+            "push A1.",
     "write": "MAGI's own repository is read-only to Code Mode.",
 }
+
+# A1 SHIPS what is applied: its always-on auto-commit pushes every change to
+# main within a minute or two, GitHub Pages serves the pages, and these paths
+# deploy on push (.github/workflows). Said on the approval card, per file.
+ENGINE_REPO_DEPLOYS = ("workers/", "workers2/", "V1/workers/", "desktop/shield/")
+# Refused in A1 outright: a workflow runs with the repository's secrets, and
+# with the push automatic, approving the diff would be the only gate.
+ENGINE_REPO_DENY = {".github/": "A1 pushes itself within minutes and a workflow runs "
+                                "with the repository's secrets; change workflows in a "
+                                "normal session, not through Code Mode"}
+
+
+def review_deny(root: Path) -> dict[str, str]:
+    """The extra deny-list for this repository (A1's; nothing elsewhere)."""
+    return dict(ENGINE_REPO_DENY) if is_engine_repo(root) else {}
 
 
 def engine_repo_allows(root: Path, action: str) -> bool:

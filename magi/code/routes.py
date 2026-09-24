@@ -90,11 +90,12 @@ def _write_status(root: str) -> dict[str, Any]:
     if not SB.engine_repo_allows(r, "write"):
         return {"ok": False, "why": SB.ENGINE_REPO_WHY["write"]}
     if SB.is_engine_repo(r):
-        # Writable (Phase 14b), but committing and pushing stay the hook's.
+        # Writable (Phase 14b); committing and pushing stay A1's own.
         return {"ok": True, "why": "", "commit": SB.ENGINE_REPO["commit"],
                 "push": SB.ENGINE_REPO["push"],
-                "note": "A1: approved edits are applied to the folder; its Stop hook "
-                        "commits and pushes them. Changes under magi/ need an engine restart."}
+                "note": "A1 ships what you approve: its auto-commit pushes it to main within "
+                        "minutes, and workers/ changes deploy. Code Mode never commits or "
+                        "pushes here, and .github/ is refused."}
     return {"ok": True, "why": ""}
 
 

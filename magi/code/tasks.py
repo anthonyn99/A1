@@ -269,7 +269,8 @@ async def _review_and_apply(t: TaskState, sb: sandbox.Sandbox) -> dict[str, Any]
     # copy may point out of the folder the change is about to be applied to.
     rv = await loop.run_in_executor(
         None, lambda: security.review(patch.decode("utf-8", "replace"),
-                                      root=sb.repo, prefix=sb.prefix))
+                                      root=sb.repo, prefix=sb.prefix,
+                                      deny=sandbox.review_deny(sb.repo)))
     if not rv.ok:
         await publish(t, {"k": "refused", "text": rv.message,
                           "refused": [{"path": p, "why": w} for p, w in rv.refused]})
@@ -279,10 +280,15 @@ async def _review_and_apply(t: TaskState, sb: sandbox.Sandbox) -> dict[str, Any]
     t.approval_deadline = time.time() + APPROVAL_TIMEOUT
     # A change to the engine's own code does nothing until it restarts -- and
     # a bad one can stop it starting. Said on the card; never restarted here.
-    engine = ([f.path for f in rv.files if f.path.replace("\\", "/").startswith("magi/")]
-              if await loop.run_in_executor(None, sandbox.is_engine_repo, sb.repo) else [])
-    await publish(t, {"k": "approval", "files": [f.to_dict() for f in rv.files],
-                      **({"engine_files": engine} if engine else {}),
+    # And in A1 everything approved SHIPS within minutes (its auto-commit
+    # pushes), some of it as a deploy: the card says which.
+    own = await loop.run_in_executor(None, sandbox.is_engine_repo, sb.repo)
+    paths = [f.path.replace("\\", "/") for f in rv.files]
+    a1 = {"ships": True,
+          "engine_files": [p for p in paths if p.startswith("magi/")],
+          "deploy_files": [p for p in paths if p.startswith(sandbox.ENGINE_REPO_DEPLOYS)]} \
+        if own else {}
+    await publish(t, {"k": "approval", "files": [f.to_dict() for f in rv.files], **a1,
                       "adds": sum(f.adds for f in rv.files),
                       "dels": sum(f.dels for f in rv.files),
                       "expires_at": t.approval_deadline,

@@ -7,8 +7,8 @@
 //      gets to edit a folder you only meant to ask about. So the choice is
 //      never written to storage.
 //   2. The engine hears the choice. The mode travels in the POST body; the
-//      console's switch is a request, the engine decides (A1 is refused
-//      there, whatever the page sends).
+//      console's switch is a request, the engine decides (the folder may be
+//      refused there, whatever the page sends).
 //   3. Only a button approves. The answer is posted from the two buttons and
 //      nowhere else, with no native dialog in the path.
 //   4. The countdown never redraws the view -- it rewrites its own text. A
@@ -80,14 +80,17 @@ ok('a refusal lists every refused path', /for \(const r of ev\.refused\)/.test(l
 ok('while waiting, the status says nothing has changed yet',
    /Waiting for your approval — nothing has changed yet/.test(MAGI));
 
-console.log('\nA1 (Phase 14b): writable, committed and pushed by its Stop hook');
+console.log('
+A1 (Phase 14b): writable; it commits and pushes itself');
 {
   const whole = lift('function renderCodeApproval(t, ev)', 7000);
   const hookAt = whole.indexOf('if (applied.by_hook)');
-  ok('an A1 change says the Stop hook commits it', hookAt > 0 && /Stop hook commits and pushes it/.test(whole));
+  ok('an A1 change says A1 commits and pushes it itself', hookAt > 0 && /auto-commit records it and "\s*\+ "pushes it to main/.test(whole));
   ok('...and returns before the Commit button is drawn',
      hookAt > 0 && hookAt < whole.indexOf('renderCodeCommit(t, applied, done)')
      && /Code Mode does not commit here\."\)\);\s*return box;/.test(whole));
+  ok('approving in A1 says it ships, and names what deploys',
+     /if \(ev\.ships && open\)/.test(whole) && /Approving ships this/.test(whole) && /ev\.deploy_files/.test(whole));
   ok('a change under magi/ warns that the engine must restart',
      /ev\.engine_files && ev\.engine_files\.length/.test(whole) && /MAGI never "\s*\+ "restarts itself/.test(whole));
   ok('the repository line offers no Push where the engine will not push',

@@ -266,8 +266,12 @@ def _card_diff(f: FileChange, budget: int) -> tuple[str, bool]:
     return f.diff[: cut + 1 if cut > 0 else cap], True
 
 
-def review(patch: str, *, root: Path | None = None, prefix: str = "") -> Review:
-    """Decide whether this diff may be put in front of a person at all."""
+def review(patch: str, *, root: Path | None = None, prefix: str = "",
+           deny: dict[str, str] | None = None) -> Review:
+    """Decide whether this diff may be put in front of a person at all.
+
+    `deny` adds folders refused in THIS repository only ({"prefix/": why}) --
+    A1's `.github/` (sandbox.ENGINE_REPO_DENY)."""
     size = len(patch.encode("utf-8", "replace"))
     if size > MAX_PATCH_BYTES:
         return Review(False, message=(
@@ -295,6 +299,9 @@ def review(patch: str, *, root: Path | None = None, prefix: str = "") -> Review:
                 continue
             seen.add(norm)
             why = check_path(norm, root=root, prefix=prefix)
+            if not why:
+                why = next((f"under {d.rstrip('/')}/ -- {w}" for d, w in (deny or {}).items()
+                            if norm.lower().startswith(d.lower())), None)
             if why:
                 refused.append((norm, why))
                 break
