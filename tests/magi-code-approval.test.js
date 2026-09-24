@@ -80,8 +80,7 @@ ok('a refusal lists every refused path', /for \(const r of ev\.refused\)/.test(l
 ok('while waiting, the status says nothing has changed yet',
    /Waiting for your approval — nothing has changed yet/.test(MAGI));
 
-console.log('
-A1 (Phase 14b): writable; it commits and pushes itself');
+console.log('\nA1 (Phase 14b): writable; it commits and pushes itself');
 {
   const whole = lift('function renderCodeApproval(t, ev)', 7000);
   const hookAt = whole.indexOf('if (applied.by_hook)');

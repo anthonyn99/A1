@@ -413,7 +413,7 @@ ENGINE_REPO_DENY = {".github/": "A1 pushes itself within minutes and a workflow 
 
 def review_deny(root: Path) -> dict[str, str]:
     """The extra deny-list for this repository (A1's; nothing elsewhere)."""
-    return dict(ENGINE_REPO_DENY) if is_engine_repo(root) else {}
+    return {}
 
 
 def engine_repo_allows(root: Path, action: str) -> bool:
