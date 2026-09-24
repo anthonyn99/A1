@@ -302,3 +302,26 @@ def test_the_auto_commit_claims_still_hold():
     assert "_engine_repo(root)" in inspect.getsource(AC.guard_prefs)
     routes = (REPO / "magi" / "code" / "routes.py").read_text(encoding="utf-8")
     assert "is_engine_repo" in routes.split("async def set_auto(")[1].split("@router")[0]
+
+def test_the_sync_claims_still_hold():
+    """Phase 13: what travels, what never does, one write per change, no
+    listener of its own, nothing while a task runs, A1 still off."""
+    import inspect
+    from magi.code import routes as RT, sync as S
+    assert "Your projects follow you between devices" in HOW
+    # "Folder paths, tokens and logins never leave the PC": the view has none.
+    view = inspect.getsource(S.view)
+    assert "root" not in view and "token" not in view
+    # "no extra listener": one onSnapshot in the whole page.
+    assert PAGE.count(".onSnapshot(") == 1
+    # "nothing is written while a task runs".
+    assert "if (codeBusy()) { CODE_SYNC.held = true; return; }" in PAGE
+    # "one write per change however fast you tap": the debounce.
+    assert "_codeT = setTimeout(codeFlush, 900);" in PAGE
+    # "A1's switches stay off whatever a synced copy says".
+    assert "await _guarded(here, row[\"prefs\"])" in inspect.getsource(RT.sync_apply)
+    # "Model choices and caps stay on each engine": not in the field.
+    blk = PAGE[PAGE.index("/* ══ CODE MODE, ACROSS YOUR DEVICES"):PAGE.index("/** Share a token this browser has.")]
+    assert "code_models" not in blk and "/models/" not in blk
+    # "Tap a task under Recent".
+    assert '"Recent"' in PAGE and "codeOpenRecent(r)" in PAGE

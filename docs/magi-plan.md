@@ -9,13 +9,14 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-09-24, end of the Phase 12 session.
-**Phases complete:** 1–12, plus **11B** (model selection, usage credits, caps).
-**Next phase:** **13 — Firebase sync of Code Mode state** (design in §8 and
-§5; first concrete steps at the end of this §0).
+**Last updated:** 2026-09-24, end of the Phase 13 session.
+**Phases complete:** 1–13, plus **11B** (model selection, usage credits, caps).
+**Next phase:** **14 — Hardening + A1 writable** (design in §8; first
+concrete steps at the end of this §0). **Its second half needs Tony's
+explicit go-ahead** — the hardening sweep does not.
 
 > **To start the next phase, the whole instruction is "continue" or "next
-> phase".** Do the start-of-session checklist, then build Phase 13 from the
+> phase".** Do the start-of-session checklist, then build Phase 14 from the
 > steps below. Everything needed is in this file.
 
 ### The road from here (agreed with Tony 2026-09-21; 11B added 2026-09-24)
@@ -27,7 +28,7 @@ One phase per session.
 | ~~11~~ | ~~Repository surface~~ | **done 2026-09-24** | | |
 | ~~11B~~ | ~~Models, credits, Auto, caps~~ | **done 2026-09-24** | | |
 | ~~12~~ | ~~Auto Commit / Auto Push~~ | **done 2026-09-24** | | |
-| 13 | Firebase sync of Code Mode state | One `code` field on the profile doc, debounced dirty-flag writes, zero writes during a task, no second listener; tokens never sync. **Decide then** whether model choice/caps (engine-side today, per profile) join it | Medium (measure write counts) | 1 |
+| ~~13~~ | ~~Firebase sync of Code Mode state~~ | **done 2026-09-24** | | |
 | 14 | Hardening + A1 writable | Regression + security sweep, docs; then open A1 to write/commit/push carefully (shared with live sessions + auto-commit hook) | High | 1–2 (needs Tony's go-ahead for A1) |
 | 15 | Veda's engine | `magi onboard --profile veda` on her PC, her logins + GitHub account, isolation check. Nothing new to build: 11B is per-profile already (see "Ready for Veda's PC") | Low (an install) | < 1 (needs Veda) |
 
@@ -44,10 +45,10 @@ One phase per session.
    import fails.
 5. Baseline the tests before touching anything. **Run pytest from `magi/`
    over the whole folder** — `cd magi; .venv\Scripts\python -m pytest tests -q`
-   (≈940). From the A1 root, `test_morning_run.py` fails to collect (it
+   (≈960). From the A1 root, `test_morning_run.py` fails to collect (it
    imports `tests.test_completion`); a single file runs fine from the root
    (`python -m pytest magi/tests/test_x.py`). Node: `node tests/run-all.js`
-   (48 suites). Both must be green; if not, fix that first.
+   (49 suites). Both must be green; if not, fix that first.
 
 ### End-of-phase checklist (the definition of "done")
 
@@ -69,7 +70,7 @@ One phase per session.
 7. Tell Tony the phase is done, what to test, and that a fresh session can
    pick up from here.
 
-### What exists (as of Phase 12)
+### What exists (as of Phase 13)
 
 * **Profiles** Tony/Veda: gate = lock + picker (`MAGI_PROFILES`, `lsKey()`),
   Firestore `dashboards/magi` vs `dashboards/magi_veda`, favourite star.
@@ -154,6 +155,22 @@ One phase per session.
     `codeAutoFollow` (re-read every 3 s only while committing/pushing; the
     Actions watch once per pushed SHA, GitHub remotes only), the countdown
     on the shared 1 s ticker (`CODE.autoReadFor`: one re-read at zero).
+  - **Firebase sync (Phase 13)** — engine `magi/code/sync.py` (`view`: no
+    path ever; `incoming`: a pure plan) + `code_meta` table (`rev`,
+    `deleted` tombstones) in `db.py`; `GET/PUT /api/code/sync`, `/state`
+    carries `rev`; `bind_project` re-guards prefs that arrived unbound.
+    Console block "CODE MODE, ACROSS YOUR DEVICES": `codeSyncFromCloud` (the
+    one `cloudWatch` branch), `codeSyncCheck` (after `/state`: rev + cloud
+    sig, no request when neither moved), `codeSyncReconcile`,
+    `codeSyncMerge` (pure; newest `updatedAt` wins, tie = cloud's copy, each
+    engine owns its own binding), `cloudSaveCode`/`codeFlush` (900 ms,
+    `_codeDirty` + `_codeGen`, `mergeFields:["code"]`, skip-if-same, 64 KB
+    guard, **held while `codeBusy()`**), `codeSyncTaskEnd` (row + body doc
+    `dashboards/<doc>/code/<id>`, once per task), **Recent** list
+    (`renderCodeRecent`, `codeOpenRecent` → `t.archived`), the chain
+    (`codeChainTouched`, `lsKey("code.chainAt")`). `cloudCountWrites` logs
+    every write to `CLOUD.writeLog`. **Decided: 11B's model choices/caps do
+    NOT sync** (per engine, per PC's CLIs).
 
 ### Ready for Veda's PC (the 11B completion requirement)
 
@@ -170,6 +187,16 @@ model row fills itself.
 
 ### Hard-won facts (verified live — do not re-learn them)
 
+* (13) **The console has NO other writer of project prefs than the engine
+  routes** — `/prefs` is not called by the console at all; the Auto sheet
+  (`/auto`), the GitHub sheet (`/github`), create/delete are the mutations.
+  Anything that changes a project must bump `rev` (it does, inside
+  `db.save_code_project` / bindings) or the reconcile never sees it.
+* (13) A live test can put a fake Firestore behind the REAL listener: set
+  `CLOUD.enabled/ready/db`, `CLOUD.fs = cloudCountWrites(FAKE)`,
+  `CLOUD.unsub = null`, then `cloudWatch()` — see `magi-sync.live.js`.
+* (13) Firestore refuses arrays inside arrays; a task transcript is stored
+  as a JSON **string** for that reason.
 * (12) `tests/live/cdp.js` `evalJs` has TWO traps, both hit this session:
   an expression with `;` needs an explicit `return`, and a `return …`
   WITHOUT a trailing `;` fails silently (the waitFor just times out).
@@ -286,6 +313,12 @@ model row fills itself.
   deploy (`ead3625…`) named by job › step with its log, 390px bottom sheet.
   `LIVE_ONLY=panel,watch,phone,diagnose` (diagnose is opt-in: a real Read
   task).
+* `tests/live/magi-sync.live.js` — Phase 13: the real page + engine with
+  an in-page fake Firestore behind the real listener; counts every write
+  (seed 1, a switch 1, ten toggles 1, a phone rename 0 back, a task 0 then
+  1+1 body, one listener), A1 stays off against a synced "on", Recent at
+  390px. Creates and deletes its own scratch project in %TEMP%.
+  `LIVE_ONLY=seed,pref,burst,phone,a1,local,task,narrow`.
 * `tests/live/magi-models.live.js` — Phase 11B on the real accounts: the
   model row, Auto as you type, the sheet, a **real cap enforced on a real
   task** (spends nothing: Claude is skipped), the popup, 390px. Opt-in:
@@ -297,59 +330,44 @@ model row fills itself.
 
 ### Waiting on Tony
 
-* **Nothing blocks Phase 13.** Try when convenient: in Code Mode on any
-  project other than A1, tap the **Auto commit** pill, switch it on (and
-  Auto push if you like), run a small Write task and approve it — the line
-  under Workspace counts down, then commits (`magi: …`) and pushes. On A1
-  both pills read `off · A1` and the switches are locked, by design.
-* **GitHub token replaced 2026-09-24** (Tony): fine-grained, **A1 +
-  magi-push-test, Contents: Read and write**, **expires 2026-10-24**. MAGI's
-  code still refuses every write to A1 (`is_engine_repo`). It has no Actions
-  permission, so the watch on the private magi-push-test says so; add
-  Actions: Read-only next time a token is made if that matters.
-* `Desktop\magi-push-test` was re-cloned and re-bound (project
-  `proj_d8cd09a0b659`); its switches are back off after the test.
-* ~~Run `claude update`~~ — **done 2026-09-24**: Claude Code 2.1.278 → 2.1.281,
-  Codex 0.155.1 → 0.156.1, and MAGI now keeps both current itself
-  (`updates.py`, Auto-update on by default, never mid-task; Update now in each
-  agent's sheet).
+* **Nothing blocks the hardening half of Phase 14.** Opening A1 to writes
+  (its second half) needs Tony's explicit go-ahead — ask before step 4 below.
+* Try when convenient (Phase 13): open Code Mode on the Pages URL on two
+  devices, switch Auto commit on for a non-A1 project on one — the other's
+  pill follows within a second or two; finish a task on the PC — it appears
+  under **Recent** on the phone and opens there. In DevTools,
+  `CLOUD.writeLog` lists every write the page made.
+* **GitHub token** (fine-grained, A1 + magi-push-test, Contents: Read and
+  write) **expires 2026-10-24**. Add Actions: Read-only on the next one if
+  the private repo's watch matters.
 * To see Fable become choosable: turn usage credits on at
-  claude.ai/settings/usage; within a few minutes the sheet shows Fable
-  available ("on usage credits") with no restart. (Not done — it would bill.)
-* Phase 14 (A1 writable) needs Tony's explicit go-ahead; Phase 15 needs Veda
-  for her sign-ins (see "Ready for Veda's PC").
+  claude.ai/settings/usage (not done — it would bill).
+* Phase 15 needs Veda for her sign-ins (see "Ready for Veda's PC"); her
+  profile's `code` field lives on `dashboards/magi_veda` and needs nothing.
 
-### Phase 13 — first concrete steps for the next session
+### Phase 14 — first concrete steps for the next session
 
-Design: §5 (Firebase strategy) and Phase 13 in §8. The rule that matters
-most: **one listener, debounced dirty-flag writes, zero writes while a task
-runs** — every A1 program pays for a listener leak forever.
+Design: Phase 14 in §8, and §3 (security) / §10 (risks). Two halves; do the
+first completely before asking about the second.
 
-1. **Instrument first.** Before any sync code, count Firestore writes in the
-   console (wrap the write helper `cloudSaveUnitOrder()` uses — it is the
-   model to clone). Record a baseline: open Code Mode, run a task, toggle a
-   pref.
-2. What syncs (one `code` field on `dashboards/magi` / `dashboards/
-   magi_veda`): projects (id, name, aliases, prefs — **including Phase 12's
-   `autoCommit`/`autoPush`/`batchWindowMin`**), the chain order/picks, and a
-   finished task's one-line summary. What never syncs: bindings' paths (a
-   machine fact), tokens, CLI logins, pending auto commits (in memory,
-   engine-local by design), a running task's events.
-3. `GET/PUT /api/code/state` + `codeRev` on the engine; the console's
-   `cloudSaveCode()` (900 ms debounce, `_codeDirty` guard, merge-write of
-   the one field, 64 KB guard) and ONE new branch in the existing
-   `cloudWatch` — no second `onSnapshot`.
-4. Reconcile on connect keyed on `codeRev` (newer wins; the engine's SQLite
-   stays authoritative for anything a binding needs). A pref arriving from
-   Firestore goes through `routes._guarded`, so A1 stays off even if a
-   synced doc says otherwise.
-5. **Decide then** whether 11B's model choice/caps (`data/<p>/
-   code_models.json`, per engine, per profile) join it. This session's
-   recommendation: no — they are per engine on purpose (each PC's CLIs).
-6. Tests: write counts (one pref → one write; a 400-event task → zero; ten
-   rapid toggles → one), no second listener in either profile, the
-   reconcile between 127.0.0.1 and the Pages console, and a
-   `tests/live/magi-sync.live.js`.
+1. **Regression sweep.** Run every `tests/live/*.live.js` (not only this
+   phase's) against the live engine and fix what rotted; list any that need
+   a real task (`LIVE_ONLY` opt-ins) and run those once.
+2. **Security sweep** of the Code Mode surface: every `/api/code/*` route
+   behind the token (a test that walks `router.routes`), `PUT /sync` input
+   fuzzing (sizes, types, 10k projects), the MCP server's reach, askpass
+   host pinning, no token in any log/response (grep the engine logs), the
+   `security.py` path rules against symlinks/junctions on Windows.
+3. **Docs**: `docs/magi.md` read end to end against the code; the HOW panel
+   contract (`test_howitworks.py`) extended to anything still untested.
+4. **Ask Tony** before opening A1: the plan is to lift `is_engine_repo` /
+   `read_only_project` for writes ONLY (auto commit stays off for A1 — its
+   Stop hook commits), with commits made by MAGI coexisting with the hook's
+   `auto:` commits, pull-before-work switched from fetch-only to a real pull
+   only if Tony agrees. Live sessions edit A1 concurrently: the sandbox
+   apply's merge path (`applied.how === "merged"`) is what protects them —
+   test it against a file edited mid-task.
+5. End-of-phase checklist as always.
 
 ---
 
@@ -1562,6 +1580,16 @@ prefix, off-for-A1, and the blocking conditions. *Rollback:* a per-project toggl
 ---
 
 ### Phase 13 — Firebase synchronisation of Code Mode state
+
+*Status:* **done 2026-09-24.** Built as designed, with these choices: the
+routes are `GET/PUT /api/code/sync` (a cheap view with no git or folder
+checks) and `/state` only gained `rev`; the reconcile is per project by
+`updatedAt` (engine clocks only; a tie keeps the cloud copy so an engine
+that guarded a pref never pushes it back), `rev` is used to skip the
+reconcile when nothing moved; deletions are tombstones on both sides; the
+agent chain (order + ticks) syncs too; which project is OPEN stays per
+browser; **model choices and caps stay per engine** (decided). Measured
+write counts are in `docs/magi.md` › *Code Mode across your devices*.
 
 *Files:* `magi.html` (`cloudSaveCode()`, one `cloudWatch` branch, the reconcile); `magi/code/routes.py`
 (`GET/PUT /api/code/state` + `codeRev`).

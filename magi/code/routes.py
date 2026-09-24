@@ -26,6 +26,7 @@ from fastapi import APIRouter, Body
 from .. import ident
 from ..settings import active_profile
 from . import autocommit as _AC
+from . import sync as _S
 from . import workspace as W
 
 router = APIRouter(prefix="/api/code", tags=["code"])
@@ -70,6 +71,8 @@ async def code_state() -> dict[str, Any]:
         "engine": eng,
         "projects": projects,
         "defaults": W.DEFAULT_PREFS,
+        # Phase 13: lets the console skip a reconcile when nothing moved.
+        "rev": (await _db().code_sync_meta())["rev"],
     }
 
 
@@ -151,7 +154,18 @@ async def bind_project(project_id: str, body: dict = Body(...)) -> dict[str, Any
     await _db().save_code_binding(
         project_id, _engine_id(), str(root),
         allow_remote=bool(body.get("allowRemote", True)))
-    return {"ok": True, "project": await _db().code_project(project_id, _engine_id())}
+    # Prefs that arrived from another device were guarded against NO folder.
+    # Now there is one, guard again: a synced project that turns out to be A1
+    # on this machine loses its auto commit here, before anything can fire.
+    p = await _db().code_project(project_id, _engine_id())
+    prefs = await _guarded(p, p.get("prefs") or {})
+    if prefs != (p.get("prefs") or {}):
+        await _db().save_code_project(W.Project(
+            id=p["id"], name=p["name"], aliases=p.get("aliases") or [],
+            prefs=prefs, notes=p.get("notes", "")).to_row())
+        _AC.cancel(project_id)
+        p = await _db().code_project(project_id, _engine_id())
+    return {"ok": True, "project": p}
 
 
 @router.delete("/projects/{project_id}/bind")
@@ -182,6 +196,47 @@ async def set_prefs(project_id: str, body: dict = Body(...)) -> dict[str, Any]:
     if not prefs["autoCommit"]:
         _AC.cancel(project_id)
     return {"ok": True, "project": await _db().code_project(project_id, _engine_id())}
+
+
+@router.get("/sync")
+async def sync_state() -> dict[str, Any]:
+    """Phase 13: this engine's Code Mode state as the cloud may hold it.
+
+    One SQLite read, no git, no folder checks -- cheap enough for the console
+    to ask on every reconcile. `rev` moves on every change that syncs."""
+    eng = ident.engine_identity()
+    projects = await _db().code_projects(eng.get("id", ""))
+    return {"ok": True, **_S.view(projects, await _db().code_sync_meta(), eng)}
+
+
+@router.put("/sync")
+async def sync_apply(body: dict = Body(...)) -> dict[str, Any]:
+    """Take in the cloud's copy: newer projects, deletions. Returns the view
+    afterwards, which is what the console writes back if anything differs.
+
+    Every pref goes through `_guarded` exactly as a tap in the console does,
+    so a synced document that says "auto commit A1" still leaves A1 off."""
+    eng = ident.engine_identity()
+    eid = eng.get("id", "")
+    local = await _db().code_projects(eid)
+    plan = _S.incoming(local, await _db().code_sync_meta(), body or {})
+    by_id = {p["id"]: p for p in local}
+    for pid, at in plan["delete"]:
+        _AC.cancel(pid)
+        await _db().delete_code_project(pid, deleted_at=at)
+    for pid, at in plan["tomb"]:
+        await _db().note_code_deleted(pid, at)
+    for row, at in plan["save"]:
+        here = by_id.get(row["id"]) or {"bindings": []}
+        prefs = await _guarded(here, row["prefs"])
+        await _db().save_code_project(W.Project(
+            id=row["id"], name=row["name"], aliases=row["aliases"],
+            prefs=prefs, notes=row["notes"]).to_row(), updated_at=at)
+        if not prefs["autoCommit"]:
+            _AC.cancel(row["id"])
+    projects = await _db().code_projects(eid)
+    return {"ok": True, "applied": {k: len(v) for k, v in plan.items()},
+            **_S.view(projects, await _db().code_sync_meta(), eng)}
 
 
 async def _project_prefs(project_id: str) -> dict[str, Any] | None:

@@ -210,6 +210,17 @@ CREATE TABLE IF NOT EXISTS code_events(
   created_at TEXT NOT NULL
 );
 
+-- Phase 13: what the console needs to reconcile this engine with Firestore.
+--   rev      a counter bumped by every change that syncs (a project, its
+--            prefs, a binding appearing or going), so a console can tell
+--            "nothing moved here" from one integer.
+--   deleted  JSON {project_id: deleted_at}: a project forgotten here must
+--            not come back from the cloud copy another device still holds.
+CREATE TABLE IF NOT EXISTS code_meta(
+  k TEXT PRIMARY KEY,
+  v TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_code_bindings_proj ON code_bindings(project_id);
 CREATE INDEX IF NOT EXISTS idx_code_events_task ON code_events(task_id, id);
 """
@@ -257,7 +268,10 @@ class Database:
                 return p
         return None
 
-    async def save_code_project(self, row: dict) -> None:
+    async def save_code_project(self, row: dict, updated_at: str | None = None) -> None:
+        """`updated_at` is given only by the Firestore reconcile, which stores
+        the winning copy with ITS time -- so the next comparison sees the two
+        as equal instead of this engine claiming a change it did not make."""
         now = _now()
         async with aiosqlite.connect(self.path) as db:
             await db.execute(
@@ -268,16 +282,70 @@ class Database:
                      prefs=excluded.prefs, notes=excluded.notes,
                      updated_at=excluded.updated_at""",
                 (row["id"], row["name"], row["aliases"], row["prefs"],
-                 row["notes"], now, now))
+                 row["notes"], now, updated_at or now))
+            # Re-created on purpose: an old tombstone must not delete it again.
+            await self._forget_deleted(db, row["id"])
+            await self._bump_rev(db)
             await db.commit()
 
-    async def delete_code_project(self, project_id: str) -> None:
+    async def delete_code_project(self, project_id: str, deleted_at: str | None = None) -> None:
         async with aiosqlite.connect(self.path) as db:
             # Bindings and the cached skeleton go with it (ON DELETE CASCADE),
             # but the event log does NOT: what happened on this machine stays
             # recorded even when the project it happened in is forgotten.
             await db.execute("PRAGMA foreign_keys=ON")
             await db.execute("DELETE FROM code_projects WHERE id=?", (project_id,))
+            dead = await self._meta(db, "deleted", {})
+            dead[project_id] = deleted_at or _now()
+            # Bounded: the newest 200 are plenty -- a tombstone only has to
+            # outlive the cloud copy it guards against, and every reconcile
+            # carries it there.
+            keep = sorted(dead.items(), key=lambda kv: kv[1], reverse=True)[:200]
+            await self._set_meta(db, "deleted", dict(keep))
+            await self._bump_rev(db)
+            await db.commit()
+
+    # ── Phase 13: the counter and the tombstones ──────────────────────────
+    @staticmethod
+    async def _meta(db, k: str, dflt):
+        cur = await db.execute("SELECT v FROM code_meta WHERE k=?", (k,))
+        row = await cur.fetchone()
+        try:
+            return json.loads(row[0]) if row else dflt
+        except (TypeError, ValueError):
+            return dflt
+
+    @staticmethod
+    async def _set_meta(db, k: str, v) -> None:
+        await db.execute(
+            "INSERT INTO code_meta(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v",
+            (k, json.dumps(v)))
+
+    async def _bump_rev(self, db) -> None:
+        await self._set_meta(db, "rev", int(await self._meta(db, "rev", 0)) + 1)
+
+    async def _forget_deleted(self, db, project_id: str) -> None:
+        dead = await self._meta(db, "deleted", {})
+        if project_id in dead:
+            del dead[project_id]
+            await self._set_meta(db, "deleted", dead)
+
+    async def code_sync_meta(self) -> dict:
+        """{rev, deleted}: the two things beside the projects that a
+        reconcile needs."""
+        async with aiosqlite.connect(self.path) as db:
+            return {"rev": int(await self._meta(db, "rev", 0)),
+                    "deleted": await self._meta(db, "deleted", {})}
+
+    async def note_code_deleted(self, project_id: str, deleted_at: str) -> None:
+        """A tombstone learned from the cloud for a project never held here."""
+        async with aiosqlite.connect(self.path) as db:
+            dead = await self._meta(db, "deleted", {})
+            if dead.get(project_id, "") >= deleted_at:
+                return
+            dead[project_id] = deleted_at
+            keep = sorted(dead.items(), key=lambda kv: kv[1], reverse=True)[:200]
+            await self._set_meta(db, "deleted", dict(keep))
             await db.commit()
 
     async def save_code_binding(self, project_id: str, engine_id: str, root: str,
@@ -293,6 +361,8 @@ class Database:
                      allowed_tools=excluded.allowed_tools""",
                 (project_id, engine_id, root, 1 if allow_remote else 0,
                  json.dumps(allowed_tools or []), _now()))
+            # The path never syncs, but THAT this engine holds the project does.
+            await self._bump_rev(db)
             await db.commit()
 
     async def delete_code_binding(self, project_id: str, engine_id: str) -> None:
@@ -300,6 +370,7 @@ class Database:
             await db.execute(
                 "DELETE FROM code_bindings WHERE project_id=? AND engine_id=?",
                 (project_id, engine_id))
+            await self._bump_rev(db)
             await db.commit()
 
     async def touch_code_binding(self, project_id: str, engine_id: str) -> None:

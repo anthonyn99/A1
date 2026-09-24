@@ -1002,6 +1002,75 @@ forbidden, bad token, not found, no account), and says the fix: a
 **private** repository needs **Actions: Read-only** on the token to watch
 runs (a public one like A1 needs nothing).
 
+#### Code Mode across your devices (Phase 13)
+
+Projects, their switches, the agent chain and a one-line record of each
+finished task follow you, in ONE `code` field on the profile's document
+(`dashboards/magi` / `dashboards/magi_veda`) — the document the console
+already listens to. **No second listener, no extra read on page load.**
+
+```
+code: { v, rev, updatedAt,
+        projects: {id: {name, aliases, prefs, notes, updatedAt,
+                        bindings: {engineId: {label}}}},   presence only
+        deleted:  {id: deletedAt},                           tombstones, ≤ 200
+        chain:    {order, picks, updatedAt},                 agent order + ticks
+        tasks:    [{id, pid, project, prompt, outcome, by, write, at, device}] }  ≤ 25
+dashboards/<doc>/code/{taskId}   one finished task's transcript, read only when opened
+```
+
+**What never syncs**: folder paths, GitHub tokens, CLI logins, a pending auto
+commit, a running task's events — and 11B's model choices and caps, which
+describe each PC's own CLIs (`magi/data/<p>/code_models.json` stays per
+engine). The engine's `GET /api/code/sync` view (`magi/code/sync.py:view`)
+is the only source of projects the console writes, and it has no path in it.
+
+**Engine** (`magi/code/sync.py`, routes in `routes.py`):
+
+* `code_meta` table: `rev` (bumped by every project/pref/binding change —
+  not by opening a project) and `deleted` tombstones.
+* `GET /api/code/sync` → `{rev, engine, projects, deleted}`; `/state` carries
+  `rev` too.
+* `PUT /api/code/sync {projects, deleted}` → per project, **newest
+  `updatedAt` wins**; the winner is stored **with its own time**, so the next
+  comparison is equal and nothing ping-pongs. A tie changes nothing. A
+  deletion beats every copy older than it; a tombstone for a project never
+  held here is kept so a stale copy cannot create it. Stray or mistyped prefs
+  are dropped (`_PREF_TYPES`), and every pref passes through `_guarded` —
+  **A1's auto commit stays off whatever a synced document says**. Binding a
+  project that arrived from the cloud re-guards its prefs against the real
+  folder.
+
+**Console** (`magi.html`, "CODE MODE, ACROSS YOUR DEVICES"):
+
+* `codeSyncFromCloud` — one branch in `cloudWatch`; returns at once on an
+  identical snapshot (stable JSON) and while `_codeDirty`.
+* `codeSyncReconcile` — `GET /sync`, `codeSyncMerge` (pure), `PUT /sync` if
+  the engine is behind, then `cloudSaveCode()` if the cloud is. Run when the
+  listener brings a change, when `/state` shows a new `rev` (`codeSyncCheck`:
+  one integer, no request otherwise), and after an Auto switch. That is how
+  a change made on `127.0.0.1` (no Firebase there) reaches the cloud: the
+  next synced console that connects sees the rev moved.
+* `cloudSaveCode()` → `codeFlush` — 900 ms debounce, dirty flag, the whole
+  field replaced (`mergeFields: ["code"]`), skipped when nothing differs, a
+  **64 KB guard** (old task rows go first, then nothing is written), and
+  **held while a task runs**: the task's end flushes it.
+* `codeSyncTaskEnd` — once per task (sessionStorage), from the tab that ran
+  it: a row into `tasks` plus the body doc (events and result as JSON
+  strings — Firestore refuses nested arrays — bounded to 400 KB, the middle
+  dropped first). **Recent** under the composer lists them; tapping one reads
+  its body and shows it as "a saved copy" (no commit/push buttons).
+* `cloudCountWrites` wraps the SDK so every write is logged with its fields:
+  `CLOUD.writeLog` in DevTools.
+
+**Measured** (`tests/live/magi-sync.live.js`, real page + real engine + an
+in-page fake Firestore behind the real listener): seeding an empty cloud = 1
+write; one Auto switch = 1; ten rapid chain toggles = 1; a rename from
+another device = 0 writes back (the engine takes it); a 400-event task = **0**
+until it ends, then 1 index write + 1 body; one listener throughout. Tests:
+`magi/tests/test_code_sync.py` (22), `tests/magi-code-sync.test.js` (41, the
+real functions in a VM with fake timers; 7 mutants checked across both).
+
 ---
 
 ## Opening MAGI

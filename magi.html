@@ -3877,6 +3877,17 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 }
 .code-chip.on .chip-unit { opacity: .78; }
 .code-hint { color: var(--txm); font-size: 12px; line-height: 1.65; text-align: center; padding: 6px 12px; }
+.code-recent { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.code-recent-hd { font-size: 10.5px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--txm); padding: 0 2px 2px; }
+.code-recent-row {
+  display: flex; flex-direction: column; gap: 2px; text-align: left; min-width: 0;
+  padding: 9px 12px; border: 1px solid var(--bd); border-radius: 10px; background: var(--s1);
+  color: var(--tx); font: inherit; cursor: pointer;
+}
+.code-recent-row:hover:not(:disabled) { border-color: var(--acl); }
+.code-recent-row:disabled { opacity: .6; cursor: default; }
+.code-recent-q { font-size: 12.5px; font-weight: 600; line-height: 1.45; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.code-recent-m { font-size: 10.5px; color: var(--txm); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .code-task { border: 1px solid var(--bd); border-radius: var(--r-card); background: var(--s1); overflow: hidden; }
 .code-task-hd {
@@ -6430,6 +6441,7 @@ const HOW = [
       "<b>Commit is a second press.</b> Once a change is applied, the card offers <b>Commit these files</b>: exactly the files that were applied, nothing else you had changed or staged, with a message drafted from what you asked and what the agent said it did. Edit it, press Commit, and your repository&rsquo;s own hooks run as they would for you. Nothing is pushed until you press Push (or switch on Auto push, below). MAGI does all of this itself &mdash; agents never get git, a shell or a credential.",
       "<b>Push is a third press.</b> After a commit the card offers <b>Push</b>, and whenever the branch is ahead the line under <b>Workspace</b> offers <b>Push &uarr;n</b>. It goes out as the <b>GitHub account</b> you chose for the project (tap the <b>Repository</b> pill), is <b>never forced</b>, and is refused with a reason if GitHub has commits you do not &mdash; the next task&rsquo;s pull brings them in. With no account chosen, an HTTPS remote is not pushed at all rather than going out as whatever login this PC remembers. A1 is never pushed from here.",
       "<b>Auto commit and Auto push are off until you switch them on</b>, per project &mdash; tap either pill. With Auto commit on, a write task you approved is committed by MAGI with a &ldquo;magi:&rdquo; message once the project has been quiet for its window (3 minutes unless you pick another); a follow-up task folds into the same commit, and the line under <b>Workspace</b> counts it down with <b>Commit now</b> and <b>Cancel</b>. Only the applied files are committed, and it is refused &mdash; said on that line &mdash; when you have other files staged, a merge or rebase is in progress, or HEAD is detached. Auto push then pulls, and pushes only if the pull came back clean; never forced, and the Actions watch follows it. Both stay off for A1, whose own hook already commits and pushes.",
+      "<b>Your projects follow you between devices.</b> Their names, aliases, notes and switches (Auto commit, Auto push, the GitHub account), which engines hold a folder for them, your agent order and ticks, and a one-line record of each finished task travel in the same synced document as your deliberations &mdash; no extra listener, and one write per change however fast you tap. <b>Folder paths, tokens and logins never leave the PC</b>, and nothing is written while a task runs. Model choices and caps stay on each engine: they describe that PC&rsquo;s own CLIs. A change made on the engine&rsquo;s own page (127.0.0.1, which has no sync) reaches your other devices the next time a synced page connects to it; A1&rsquo;s switches stay off whatever a synced copy says. Tap a task under <b>Recent</b> to read its transcript on any device.",
       "<b>GitHub tokens stay on the engine PC.</b> Add one in <b>Accounts &rsaquo; GitHub</b>: MAGI checks it with GitHub, keeps it in the PC&rsquo;s credential store, and never shows it again &mdash; not on any screen, not in Firestore, not to an agent. Git is handed it only at the moment it asks, and only for github.com, so it never lands in the repository&rsquo;s config. A fine-grained token that lists just the repositories you want, with Contents: Read and write, is enough to push.",
       "<b>The Repository pill opens the repository itself.</b> For a folder whose remote is on GitHub, the pill shows its branches (with how far each is ahead or behind), commits, pull requests with their checks, issues, Actions runs and releases &mdash; read as the project&rsquo;s GitHub account, fetched when you open a tab, and never on a timer. GitHub answers an unchanged question with &ldquo;nothing new&rdquo;, which costs none of the hourly limit. Nothing in it can change the repository.",
       "<b>After a push, MAGI watches the Actions runs.</b> A line under the repository says how many runs have finished; it checks every 20 seconds only while one is still going, then stops. If one fails, it names the job and the step, shows the end of that job&rsquo;s log, and offers <b>Diagnose</b>: a Read task with the log as its context. A1&rsquo;s pushes come from its own hook, so for A1 use <b>Watch</b> on the panel&rsquo;s Overview. Claude can read the same things during a task &mdash; an issue, a pull request, why a run failed &mdash; through tools that ask the engine, so it never holds a token.",
@@ -10861,10 +10873,13 @@ function renderCodeStrip() {
 
 /* ── workspaces, the agent chain, and one task at a time ─────────────────
    Everything here is fetched from the engine, which is where the folders and
-   the CLI logins are. Nothing is written to Firestore: which project is open
-   and which agents are ticked are facts about this browser (localStorage),
-   and a task's transcript streams over SSE and is never stored -- the same
-   rule the council follows, zero writes while work is in flight. */
+   the CLI logins are. Which project is open is a fact about this browser
+   (localStorage). The projects themselves, which agents are ticked and in
+   what order, and a FINISHED task's summary reach your other devices through
+   the one `code` field (Phase 13, "CODE MODE, ACROSS YOUR DEVICES") -- and a
+   running task's transcript streams over SSE and is never written while it
+   runs: the same rule the council follows, zero writes while work is in
+   flight. */
 const CODE_PROJ_KEY = lsKey("code.project");
 const CODE_PICK_KEY = lsKey("code.units");
 const CODE_ORDER_KEY = lsKey("code.order");
@@ -10941,6 +10956,7 @@ async function codeLoad(force) {
     // project is simply the one: there is nothing to choose between.
     const ids = (st.projects || []).map((p) => p.id);
     if (!ids.includes(CODE.projectId)) codeSetProject(ids.length === 1 ? ids[0] : null);
+    codeSyncCheck(st);
   } catch (e) {
     CODE.err = `Could not read Code Mode from the engine: ${e.message || e}`;
   }
@@ -11079,6 +11095,7 @@ function codeToggle(id) {
   on.has(id) ? on.delete(id) : on.add(id);
   CODE.picks = { on: [...on], known: codeMembers().map((m) => m.id) };
   lsWrite(CODE_PICK_KEY, CODE.picks);
+  codeChainTouched();
   renderCodeView();
   updateEnabled();
 }
@@ -11236,6 +11253,8 @@ function renderCodeView() {
         : "Ask about this workspace. Agents can read and search it, not change it. "
           + "If the first agent runs out of usage, the next ticked one carries on.";
     col.append(hint);
+    const recent = renderCodeRecent(proj);
+    if (recent) col.append(recent);
   }
 }
 
@@ -11443,6 +11462,7 @@ function codeAutoSheet(proj) {
       if (!d.ok) throw new Error(d.message || "the engine refused it");
       if (d.project) proj.prefs = d.project.prefs;
       if (CODE.git && CODE.git.pid === proj.id) CODE.git.auto = d.auto;
+      codeSyncReconcile();
     } catch (e) {
       err = String(e.message || e);
     }
@@ -11616,6 +11636,7 @@ function codeAttach(id, prompt) {
       t.done = true;
       t.result = ev.result;
       es.close();
+      codeSyncTaskEnd(t);
       // A full reload only when something a reload would tell us may have
       // changed: who is signed in, or what is now blocked.
       const out = (ev.result || {}).outcome;
@@ -11636,6 +11657,7 @@ function codeAttach(id, prompt) {
     if (!t.done) {
       t.done = true;
       t.lost = true;
+      codeSyncTaskEnd(t);
       if (CODE.task === t && codeMode()) renderCodeView();
       updateEnabled();
     }
@@ -11678,6 +11700,8 @@ function renderCodeTask(t) {
   const card = el("div", "code-task");
   const hd = el("div", "code-task-hd");
   hd.append(el("div", "code-task-q", t.prompt || "Task"));
+  if (t.archived) hd.firstChild.append(el("div", "code-recent-m",
+    `From ${t.archived.device || "another device"} · a saved copy`));
   const acts = el("div", "code-task-acts");
   if (!t.done) {
     const halt = el("button", "navitem danger", t.halting ? "Halting…" : "Halt");
@@ -11900,6 +11924,10 @@ function renderCodeApproval(t, ev) {
     const done = t.committed || (t.result && t.result.commit);
     const auto = t.events.find((e) => e.k === "autocommit");
     const how = `Applied to your folder${applied.how === "merged" ? " (merged with edits you made meanwhile)" : ""}.`;
+    if (t.archived) {
+      box.append(el("div", "code-appr-out is-ok", how + (done ? ` Committed ${done.short}.` : "")));
+      return box;
+    }
     if (auto && !done) {
       // Auto commit is on here: the commit is the engine's to make, and the
       // repository line counts it down (Commit now / Cancel live there).
@@ -12270,6 +12298,7 @@ function openCodeOrder() {
         [ids[i], ids[j]] = [ids[j], ids[i]];
         CODE.order = ids;
         lsWrite(CODE_ORDER_KEY, ids);
+        codeChainTouched();
         draw();
         renderCodeView();
       };
@@ -12289,7 +12318,7 @@ function openCodeOrder() {
   box.append(list);
   const bar = el("div", "sheet-bar");
   const reset = el("button", "btn", "Default order");
-  reset.onclick = () => { CODE.order = []; lsWrite(CODE_ORDER_KEY, []); draw(); renderCodeView(); };
+  reset.onclick = () => { CODE.order = []; lsWrite(CODE_ORDER_KEY, []); codeChainTouched(); draw(); renderCodeView(); };
   const done = el("button", "btn active", "Done");
   done.onclick = close;
   bar.append(done, el("span", "qbar-spacer"), reset);
@@ -17709,7 +17738,26 @@ const CLOUD = {
   pruned: false,    // retention sweep already run this load -- see cloudPrune()
   folded: false,    // pre-maps pins/names carried over -- see cloudWatch()
   lease: null,      // who is draining the queue right now, if anyone
+  writeLog: [],     // every Firestore write this page made -- see cloudCountWrites
 };
+
+/** Phase 13's rules are numbers ("one preference, one write"; "a task, zero
+ *  writes until it ends"), so they are measured, not assumed: every write is
+ *  logged with the fields it touched. Read CLOUD.writeLog in DevTools, or let
+ *  tests/live/magi-sync.live.js count them. Bounded to the last 200. */
+function cloudCountWrites(fs) {
+  const note = (kind, ref, data) => {
+    CLOUD.writeLog.push({ at: Date.now(), kind, path: (ref && ref.path) || "",
+                          fields: data ? Object.keys(data) : [] });
+    if (CLOUD.writeLog.length > 200) CLOUD.writeLog.shift();
+  };
+  return {
+    ...fs,
+    setDoc: (ref, data, opts) => { note("set", ref, data); return fs.setDoc(ref, data, opts); },
+    updateDoc: (ref, data) => { note("update", ref, data); return fs.updateDoc(ref, data); },
+    deleteDoc: (ref) => { note("delete", ref, null); return fs.deleteDoc(ref); },
+  };
+}
 
 // Keep the index doc small and bounded. A row is ~120 bytes, so 300 rows is
 // ~36KB against Firestore's 1 MiB document ceiling -- room to spare, and the
@@ -17743,7 +17791,7 @@ function cloudInit() {
         import(`${V}/firebase-app-check.js`),
         import(`${V}/firebase-firestore.js`),
       ]);
-      CLOUD.fs = fs;
+      CLOUD.fs = cloudCountWrites(fs);
 
       const app = getApps().find((a) => a.name === "[DEFAULT]") || initializeApp({
         apiKey: "AIzaSyC2aKunOKj5WS8NpgZhpyMzOYecBr5t2_4",
@@ -17903,6 +17951,354 @@ function engMerge(rows) {
   }
   if (changed) engSave({ sync: false });
   return changed;
+}
+
+/* ══ CODE MODE, ACROSS YOUR DEVICES (Phase 13) ═════════════════════════════
+   One `code` field on the profile's document -- the document this page is
+   already listening to -- so it costs no extra read and no second listener:
+
+     code: { v, rev, updatedAt,
+             projects: {id: {name, aliases, prefs, notes, updatedAt,
+                             bindings: {engineId: {label}}}},
+             deleted:  {id: deletedAt},
+             chain:    {order, picks, updatedAt},        which agents, in what order
+             tasks:    [{id, pid, project, prompt, outcome, by, write, at, device}] }
+
+   The engine's SQLite stays the truth for anything a folder needs; this is
+   the copy that lets another engine -- or the next console on the Pages URL
+   after you worked on 127.0.0.1 -- learn about it. Projects only ever come
+   from the engine's /api/code/sync view, which has no path in it, so paths,
+   tokens, CLI logins, pending auto commits and a running task's events can't
+   reach here by construction. 11B's model choices and caps stay on each
+   engine too: they describe that PC's CLIs.
+
+   Writes: 900 ms debounce behind a dirty flag, the whole field replaced
+   (mergeFields, so a deleted project is really gone), skipped outright when
+   nothing differs from the copy last seen, and HELD while a task runs -- a
+   task of any length is zero writes until it ends. A finished task is then
+   one index write plus its transcript in dashboards/<doc>/code/<id>, which
+   is read only when you open it. */
+const CODE_SYNC_MAX = 64 * 1024;
+const CODE_TASKS_MAX = 25;
+const CODE_BODY_MAX = 400 * 1024;
+const CODE_CHAIN_AT_KEY = lsKey("code.chainAt");
+const CODE_SYNCED_SS = lsKey("code.syncedTasks");
+const CODE_SYNC = {
+  cloud: null,     // the `code` field as last seen; {} once seen without one
+  sig: "",         // its stable JSON, so an identical snapshot costs nothing
+  want: null,      // {projects, deleted} the last reconcile wants written
+  tasks: [],       // finished-task rows waiting for the next write
+  engRev: {},      // engine id -> its rev at the last reconcile
+  engSig: {},      // engine id -> the cloud sig at the last reconcile
+  running: false, again: false, held: false, err: "",
+};
+let _codeDirty = false;
+let _codeGen = 0;
+let _codeT = 0;
+const _codeTaskDoc = (id) => CLOUD.fs.doc(CLOUD.db, "dashboards", prof().doc, "code", id);
+
+/** JSON with sorted keys: Firestore hands maps back in its own order. */
+function codeStable(v) {
+  if (Array.isArray(v)) return "[" + v.map(codeStable).join(",") + "]";
+  if (v && typeof v === "object") {
+    return "{" + Object.keys(v).sort()
+      .map((k) => JSON.stringify(k) + ":" + codeStable(v[k])).join(",") + "}";
+  }
+  return JSON.stringify(v === undefined ? null : v);
+}
+
+/** Pure. The engine's view + the cloud's copy -> what both should hold.
+ *
+ *  Newest `updatedAt` wins, per project. Every such time comes from an
+ *  engine's clock (this page only copies them), and a tie keeps the cloud's
+ *  copy -- so an exchange settles: after one PUT the two compare equal and
+ *  neither side writes again. Each engine is the only authority on its OWN
+ *  binding; the others' are carried through untouched. A deletion beats
+ *  every copy older than it, on both sides. */
+function codeSyncMerge(eng, cloud) {
+  const t = (s) => { const n = Date.parse(s || ""); return isNaN(n) ? 0 : n; };
+  const eid = (eng.engine && eng.engine.id) || "";
+  const E = eng.projects || {};
+  const C = (cloud && cloud.projects) || {};
+  const deleted = { ...((cloud && cloud.deleted) || {}) };
+  for (const [id, at] of Object.entries(eng.deleted || {})) {
+    if (t(at) > t(deleted[id])) deleted[id] = at;
+  }
+  const projects = {};
+  const toEngine = {};
+  for (const id of new Set([...Object.keys(E), ...Object.keys(C)])) {
+    const e = E[id], c = C[id];
+    const newest = Math.max(t(e && e.updatedAt), t(c && c.updatedAt));
+    if (deleted[id] && t(deleted[id]) >= newest) continue;
+    const win = !c || (e && t(e.updatedAt) > t(c.updatedAt)) ? e : c;
+    const bindings = { ...((c && c.bindings) || {}) };
+    delete bindings[eid];
+    if (e && e.bindings && e.bindings[eid]) bindings[eid] = e.bindings[eid];
+    projects[id] = {
+      name: win.name, aliases: win.aliases || [], prefs: win.prefs || {},
+      notes: win.notes || "", updatedAt: win.updatedAt || "", bindings,
+    };
+    if (c && (!e || t(c.updatedAt) > t(e.updatedAt))) toEngine[id] = c;
+  }
+  // A tombstone only has to outlive the copies it guards against: 200 of
+  // them, newest first, is months of deleting projects.
+  const keep = Object.entries(deleted).sort((a, b) => t(b[1]) - t(a[1])).slice(0, 200);
+  const dead = Object.fromEntries(keep);
+  const engineDeletes = Object.keys(E).some((id) => !projects[id]);
+  return { projects, deleted: dead, toEngine,
+           engineBehind: engineDeletes || Object.keys(toEngine).length > 0 };
+}
+
+/** The listener's branch. Runs on every snapshot and does nothing unless the
+ *  `code` field actually changed. */
+function codeSyncFromCloud(c) {
+  c = c && typeof c === "object" ? c : {};
+  const sig = codeStable(c);
+  if (CODE_SYNC.cloud && sig === CODE_SYNC.sig) return;
+  // Our own newer copy is on its way up -- the document arriving now is the
+  // one it is replacing (the reason _marksDirty exists, all over again).
+  if (_codeDirty) return;
+  CODE_SYNC.cloud = c;
+  CODE_SYNC.sig = sig;
+  const ch = c.chain;
+  if (ch && ch.updatedAt && ch.updatedAt > lsRead(CODE_CHAIN_AT_KEY, "")) {
+    CODE.order = Array.isArray(ch.order) ? ch.order : [];
+    CODE.picks = ch.picks && Array.isArray(ch.picks.on) ? ch.picks : null;
+    lsWrite(CODE_ORDER_KEY, CODE.order);
+    lsWrite(CODE_PICK_KEY, CODE.picks);
+    lsWrite(CODE_CHAIN_AT_KEY, ch.updatedAt);
+    if (codeMode()) updateEnabled();
+  }
+  if (codeMode()) renderCodeView();
+  if (CODE.state && online()) codeSyncReconcile();
+}
+
+/** After /state: reconcile only when the engine or the cloud moved since the
+ *  last time -- one integer and one string, no request. */
+function codeSyncCheck(st) {
+  const eid = st && st.engine && st.engine.id;
+  if (!eid || CODE_SYNC.cloud == null) return;
+  if (CODE_SYNC.engRev[eid] === st.rev && CODE_SYNC.engSig[eid] === CODE_SYNC.sig) return;
+  codeSyncReconcile();
+}
+
+/** Both ways: the engine takes what is newer in the cloud (through the same
+ *  guards as a tap here -- A1 stays off), and the cloud takes the result. */
+async function codeSyncReconcile() {
+  if (!CLOUD.enabled || CODE_SYNC.cloud == null || !online()) return;
+  if (codeBusy()) { CODE_SYNC.held = true; return; }
+  if (CODE_SYNC.running) { CODE_SYNC.again = true; return; }
+  CODE_SYNC.running = true;
+  try {
+    let eng = await codeGet("/sync");
+    if (!eng.ok) throw new Error(eng.message || "the engine refused");
+    let m = codeSyncMerge(eng, CODE_SYNC.cloud);
+    if (m.engineBehind) {
+      eng = await codePost("/sync", { projects: m.toEngine, deleted: m.deleted }, "PUT");
+      if (!eng.ok) throw new Error(eng.message || "the engine refused");
+      const a = eng.applied || {};
+      if (a.save || a.delete) codeStateRefresh();
+      m = codeSyncMerge(eng, CODE_SYNC.cloud);
+    }
+    CODE_SYNC.engRev[eng.engine.id] = eng.rev;
+    CODE_SYNC.engSig[eng.engine.id] = CODE_SYNC.sig;
+    const c = CODE_SYNC.cloud;
+    if (codeStable({ p: m.projects, d: m.deleted })
+        !== codeStable({ p: c.projects || {}, d: c.deleted || {} })) {
+      CODE_SYNC.want = { projects: m.projects, deleted: m.deleted };
+      cloudSaveCode();
+    }
+    CODE_SYNC.err = "";
+  } catch (e) {
+    CODE_SYNC.err = `Code Mode sync: ${e.message || e}`;
+    console.warn("[magi] code sync:", e);
+  } finally {
+    CODE_SYNC.running = false;
+    if (CODE_SYNC.again) { CODE_SYNC.again = false; codeSyncReconcile(); }
+  }
+}
+
+/** Projects changed on the engine because of the cloud: redraw from /state
+ *  only -- not codeLoad, which also asks every CLI who is signed in. */
+async function codeStateRefresh() {
+  try {
+    const st = await codeGet("/state");
+    CODE.state = st;
+    const ids = (st.projects || []).map((p) => p.id);
+    if (!ids.includes(CODE.projectId)) codeSetProject(ids.length === 1 ? ids[0] : null);
+    if (codeMode()) renderCodeView();
+  } catch {}
+}
+
+/** The chain was reordered or re-ticked here. */
+function codeChainTouched() {
+  lsWrite(CODE_CHAIN_AT_KEY, new Date().toISOString());
+  cloudSaveCode();
+}
+
+function cloudSaveCode() {
+  if (!CLOUD.enabled) return;
+  _codeDirty = true;
+  _codeGen++;
+  clearTimeout(_codeT);
+  _codeT = setTimeout(codeFlush, 900);
+}
+
+async function codeFlush() {
+  // Nothing is written while work is in flight. The task's end flushes.
+  if (codeBusy()) { CODE_SYNC.held = true; return; }
+  if (!(await cloudInit())) { _codeDirty = false; setSync("off"); return; }
+  const gen = _codeGen;
+  const base = CODE_SYNC.cloud || {};
+  const want = CODE_SYNC.want || { projects: base.projects || {}, deleted: base.deleted || {} };
+  const mine = { order: CODE.order || [], picks: CODE.picks || null,
+                 updatedAt: lsRead(CODE_CHAIN_AT_KEY, "") };
+  const chain = mine.updatedAt && mine.updatedAt > ((base.chain && base.chain.updatedAt) || "")
+    ? mine : (base.chain || null);
+  const sent = CODE_SYNC.tasks.slice();
+  const byId = new Map();
+  for (const r of [...sent, ...(Array.isArray(base.tasks) ? base.tasks : [])]) {
+    if (r && r.id && !byId.has(r.id)) byId.set(r.id, r);
+  }
+  const tasks = [...byId.values()]
+    .sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, CODE_TASKS_MAX);
+  const body = { projects: want.projects, deleted: want.deleted, chain, tasks };
+  const had = { projects: base.projects || {}, deleted: base.deleted || {},
+                chain: base.chain || null, tasks: Array.isArray(base.tasks) ? base.tasks : [] };
+  const done = () => {
+    if (gen === _codeGen) _codeDirty = false;
+    CODE_SYNC.want = null;
+    CODE_SYNC.tasks = CODE_SYNC.tasks.filter((r) => !sent.includes(r));
+  };
+  if (codeStable(body) === codeStable(had)) { done(); return; }
+  const next = { v: 1, rev: (+base.rev || 0) + 1, updatedAt: new Date().toISOString(), ...body };
+  // The guard: this field shares a 1 MiB document with the whole council
+  // history. Old task rows go first; past that, nothing is written at all.
+  while (JSON.stringify(next).length > CODE_SYNC_MAX && next.tasks.length) next.tasks.pop();
+  if (JSON.stringify(next).length > CODE_SYNC_MAX) {
+    done();
+    setSync("error", _syncFail("saving Code Mode's projects",
+      new Error(`they came to over ${CODE_SYNC_MAX / 1024} KB, so nothing was written`)));
+    return;
+  }
+  setSync("saving");
+  try {
+    await CLOUD.fs.setDoc(_indexDoc(), { code: next }, { mergeFields: ["code"] });
+    CODE_SYNC.cloud = next;
+    CODE_SYNC.sig = codeStable(next);
+    done();
+    setSync("saved");
+  } catch (e) {
+    setSync("error", _syncFail("saving Code Mode's projects", e));
+    console.warn("[magi] code save:", e);
+  }
+}
+
+/** A task this tab started has ended: one row for the index, one body doc.
+ *  Once per task, even when a reload replays the stream to its end. */
+function codeSyncTaskEnd(t) {
+  const flush = CODE_SYNC.held;
+  CODE_SYNC.held = false;
+  if (CLOUD.enabled && !t.archived) {
+    let done = [];
+    try { done = JSON.parse(sessionStorage.getItem(CODE_SYNCED_SS) || "[]"); } catch {}
+    if (!done.includes(t.id)) {
+      try { sessionStorage.setItem(CODE_SYNCED_SS, JSON.stringify([...done, t.id].slice(-50))); } catch {}
+      const proj = ((CODE.state && CODE.state.projects) || []).find((p) => p.id === t.projectId);
+      const r = t.result || {};
+      const row = {
+        id: t.id, pid: t.projectId || "", project: proj ? proj.name : "",
+        prompt: String(t.prompt || "").slice(0, 140),
+        outcome: String(r.outcome || (t.lost ? "lost" : "")), by: String(r.by_label || ""),
+        write: !!r.write, at: new Date().toISOString(),
+        device: (CODE.state && CODE.state.engine && CODE.state.engine.label) || "",
+      };
+      CODE_SYNC.tasks.push(row);
+      cloudSaveTaskBody(t, row);
+      cloudSaveCode();
+    }
+  }
+  // Anything held back while the task ran goes now.
+  if (flush) { codeSyncReconcile(); if (_codeDirty) cloudSaveCode(); }
+}
+
+async function cloudSaveTaskBody(t, row) {
+  if (!(await cloudInit())) return;
+  // Strings, not arrays: Firestore refuses an array inside an array, and a
+  // transcript is whatever the agents emitted. Bounded to fit a document --
+  // the middle goes first, the start and the end are what you read.
+  let events = t.events.filter((e) => e.k !== "usage");
+  let json = JSON.stringify(events);
+  if (json.length > CODE_BODY_MAX) {
+    const head = events.slice(0, 40);
+    let tail = events.slice(40);
+    while (tail.length && JSON.stringify([...head, ...tail]).length > CODE_BODY_MAX - 200) {
+      tail = tail.slice(Math.ceil(tail.length / 10));
+    }
+    const cut = events.length - head.length - tail.length;
+    events = [...head, { k: "note", text: `… ${cut} events left out to fit the cloud copy …` }, ...tail];
+    json = JSON.stringify(events);
+  }
+  let result = JSON.stringify(t.result || null);
+  if (result.length > 100 * 1024) {
+    const r = t.result || {};
+    result = JSON.stringify({ outcome: r.outcome, by_label: r.by_label, write: r.write });
+  }
+  try {
+    await CLOUD.fs.setDoc(_codeTaskDoc(t.id), {
+      ...row, events: json, result, at: CLOUD.fs.serverTimestamp(),
+    });
+  } catch (e) { console.warn("[magi] code task body:", e); }
+}
+
+/** Open a finished task from any device: the one read of its body. */
+async function codeOpenRecent(row) {
+  if (codeBusy() || CODE.recentBusy) return;
+  CODE.recentBusy = row.id;
+  renderCodeView();
+  try {
+    if (!(await cloudInit())) throw new Error("sync is off on this device");
+    const snap = await CLOUD.fs.getDoc(_codeTaskDoc(row.id));
+    if (!snap.exists()) throw new Error("its transcript is not in the cloud");
+    const b = snap.data();
+    CODE.task = { id: row.id, prompt: b.prompt || row.prompt, done: true, es: null,
+                  events: JSON.parse(b.events || "[]"), result: JSON.parse(b.result || "null"),
+                  projectId: row.pid, archived: row };
+    CODE.err = "";
+  } catch (e) {
+    CODE.err = `Could not open that task: ${e.message || e}`;
+  }
+  CODE.recentBusy = null;
+  renderCodeView();
+  updateEnabled();
+}
+
+/** Recent tasks, from any of your devices, under the composer's hint. */
+function renderCodeRecent(proj) {
+  const rows = ((CODE_SYNC.cloud && CODE_SYNC.cloud.tasks) || [])
+    .filter((r) => !proj || r.pid === proj.id).slice(0, 8);
+  if (!rows.length) return null;
+  const box = el("div", "code-recent");
+  box.append(el("div", "code-recent-hd", "Recent"));
+  const OUT = { ok: "done", task_failed: "failed", limited: "out of usage",
+                unauthed: "signed out", unavailable: "no agent", cancelled: "halted",
+                lost: "engine lost" };
+  for (const r of rows) {
+    const b = el("button", "code-recent-row");
+    b.type = "button";
+    b.disabled = !!CODE.recentBusy;
+    b.append(el("span", "code-recent-q", r.prompt || "Task"));
+    const when = r.at ? new Date(r.at) : null;
+    const meta = [r.write ? "Write" : "Read", OUT[r.outcome] || r.outcome || "",
+                  r.by || "", r.device || "",
+                  when ? when.toLocaleDateString([], { month: "short", day: "numeric" })
+                         + " " + when.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : ""]
+      .filter(Boolean).join(" · ");
+    b.append(el("span", "code-recent-m", CODE.recentBusy === r.id ? "Opening…" : meta));
+    b.onclick = () => codeOpenRecent(r);
+    box.append(b);
+  }
+  return box;
 }
 
 /** Share a token this browser has. Guarded on the last value seen from the
@@ -19319,6 +19715,11 @@ async function cloudWatch() {
 
       // An engine registered on another device arrives here, on the listener
       // that was already attached -- no extra read, no second listener.
+      // Code Mode's projects, chain and recent tasks (Phase 13): one more
+      // branch on this same listener. It returns at once unless the field
+      // really changed, and never while a change made here is on its way up.
+      codeSyncFromCloud(d && d.code);
+
       if (d && Array.isArray(d.engines) && engMerge(d.engines)) {
         syncEngineBtn();
         // Worth a look right away only if we are currently stranded: the
