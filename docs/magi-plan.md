@@ -9,15 +9,14 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-09-24, end of the Phase 14 (first half) session.
-**Phases complete:** 1–13, **11B**, and **14a** (the hardening sweep).
-**Next phase:** **14b — A1 writable**. It is **blocked on Tony's decisions**
-(see "Waiting on Tony"); do not start it without them. After it, 15.
+**Last updated:** 2026-09-24, end of the Phase 14 session.
+**Phases complete:** 1–14 (14a hardening, 14b A1 writable), plus **11B**.
+**Next phase:** **15 — Veda's engine**, an install on her PC that **needs
+Veda** (see "Ready for Veda's PC"). Nothing is left to build before it.
 
 > **To start the next phase, the whole instruction is "continue" or "next
-> phase".** Do the start-of-session checklist, then check "Waiting on Tony"
-> for his A1 answers. With them, build 14b from the steps at the end of this
-> §0; without them, ask. Everything needed is in this file.
+> phase".** Do the start-of-session checklist, then Phase 15 from the steps
+> at the end of this §0. Everything needed is in this file.
 
 ### The road from here (agreed with Tony 2026-09-21; 11B added 2026-09-24)
 
@@ -30,7 +29,7 @@ One phase per session.
 | ~~12~~ | ~~Auto Commit / Auto Push~~ | **done 2026-09-24** | | |
 | ~~13~~ | ~~Firebase sync of Code Mode state~~ | **done 2026-09-24** | | |
 | ~~14a~~ | ~~Hardening sweep~~ | **done 2026-09-24** | | |
-| 14b | A1 writable | Open A1 to write/commit/push carefully (shared with live sessions + auto-commit hook) | Medium | 1 (needs Tony's answers) |
+| ~~14b~~ | ~~A1 writable~~ | **done 2026-09-24** (writes only; Tony's answers) | | |
 | 15 | Veda's engine | `magi onboard --profile veda` on her PC, her logins + GitHub account, isolation check. Nothing new to build: 11B is per-profile already (see "Ready for Veda's PC") | Low (an install) | < 1 (needs Veda) |
 
 ### Start-of-session checklist (do these in order)
@@ -71,7 +70,7 @@ One phase per session.
 7. Tell Tony the phase is done, what to test, and that a fresh session can
    pick up from here.
 
-### What exists (as of Phase 14a)
+### What exists (as of Phase 14)
 
 * **Profiles** Tony/Veda: gate = lock + picker (`MAGI_PROFILES`, `lsKey()`),
   Firestore `dashboards/magi` vs `dashboards/magi_veda`, favourite star.
@@ -191,6 +190,17 @@ One phase per session.
     `__main__._safe_stdio` (serve crashed on a cp1252 stdout). Tests:
     `test_route_gate.py` (walks every route), `test_agent_guard.py`,
     `test_cli_stdio.py`, `tests/live/magi-guard.live.js`.
+  - **A1 writable (Phase 14b)** — `sandbox.ENGINE_REPO` = write only (commit,
+    push, pull, auto all False; Tony 2026-09-24), `engine_repo_allows(root,
+    action)` asked at every site (`routes._write_status` / `start_task` /
+    `push_project`, `tasks._pull_first` / `commit` / `push` / apply's
+    `by_hook`). `ENGINE_REPO_DENY` (`.github/`) goes into `security.review`
+    via `review_deny` at diff time AND in `sandbox.apply`. The approval event
+    carries `ships`, `engine_files` (magi/), `deploy_files`
+    (`ENGINE_REPO_DEPLOYS`); the applied event `by_hook`. Console: the A1
+    note under Read/Write (`w.note`), the ships/engine banners
+    (`.code-appr-out.is-warn`), no Commit (`applied.by_hook`), no Push ↑n
+    (`proj.write.push !== false`). `docs/magi.md` "A1 itself".
 
 ### Ready for Veda's PC (the 11B completion requirement)
 
@@ -206,6 +216,15 @@ in the slots from Accounts, add her GitHub token, then open Code Mode — the
 model row fills itself.
 
 ### Hard-won facts (verified live — do not re-learn them)
+
+* (14b) **A1 has an always-on auto-commit** (`auto: <time>`, commits AND
+  pushes every working-tree change within ~1–2 min) besides the Stop hook
+  (`auto: claude code`). It committed a live test's probe file mid-test. So
+  anything applied to A1 ships within minutes; `workers/**` etc. deploy.
+  Never assert "HEAD did not move" in A1 — assert "no `magi:` commit".
+* (14b) An edit appended below a hunk's context applies CLEANLY (`git apply`
+  needs only the context lines); to exercise the three-way merge, edit a line
+  INSIDE the hunk's context.
 
 * (14) **Codex's Windows sandbox does NOT keep a shell off 127.0.0.1** —
   read-only or workspace-write, `network_access=false` or `true`
@@ -389,6 +408,11 @@ model row fills itself.
   curl the engine gets 403 (in the diff, then denied), Codex still edits in
   the job, a non-agent request passes mid-task; a Codex read task; Origin
   refusals. Two small Codex requests. `LIVE_ONLY=write,read,origin`.
+* `tests/live/magi-a1.live.js` — Phase 14b IN A1: a real Claude edit to a
+  probe file with a mid-task edit inside the hunk (merged; "ships" banner; no
+  Commit; no `magi:` commit; fetched not pulled; 390px), then a `magi/` change
+  flagged and denied. Two small Claude tasks. The probe passes through A1's
+  history via its auto-commit (add + delete). `LIVE_ONLY=merge,engine`.
 * The page is opened as **`PAGES_URL`** (`cdp.js`), served from the working
   copy (see the (14) facts); `/auth/journal/status` is stubbed to "no lock"
   so the profile opens. Not `file://` any more: the engine refuses Origin
@@ -399,15 +423,10 @@ model row fills itself.
 
 ### Waiting on Tony
 
-* **Phase 14b is blocked on Tony's answers** (asked 2026-09-24, end of 14a):
-  1. Open A1 to Code Mode **writes** (sandbox → diff → approve → apply) at
-     all?
-  2. Commits from Code Mode in A1: allowed as a manual **Commit these files**
-     next to the Stop hook's `auto:` commits, or leave committing to the hook?
-  3. Pull-before-work in A1: stay **fetch-only**, or a real
-     `pull --rebase --autostash`?
-  4. Push from Code Mode in A1: allowed, or left to the hook?
-  Auto commit stays off for A1 whatever the answers (locked in `guard_prefs`).
+* **Tony's A1 answers (2026-09-24), built in 14b:** writes yes; commit no
+  (A1 commits itself); pull stays fetch-only; push no. Also decided in 14b:
+  `.github/` refused in A1 (workflows run with secrets and A1 pushes itself).
+  Changing any of these is one line in `sandbox.ENGINE_REPO` plus its tests.
 * **Local `file://` copies of magi.html no longer reach the engine** (Phase
   14a). Use `http://127.0.0.1:8000/` or the Pages URL. Tony was told.
 * Try when convenient (Phase 13): open Code Mode on the Pages URL on two
@@ -423,9 +442,17 @@ model row fills itself.
 * Phase 15 needs Veda for her sign-ins (see "Ready for Veda's PC"); her
   profile's `code` field lives on `dashboards/magi_veda` and needs nothing.
 
-### Phase 14b — first concrete steps for the next session
+### Phase 15 — first concrete steps for the next session
 
-Only with Tony's answers to the four questions in "Waiting on Tony".
+Veda's PC, with Veda. Nothing to build: follow "Ready for Veda's PC" above
+and §8 Phase 15 (`git clone`, `magi onboard --profile veda`, her sign-ins
+from Accounts, her GitHub token), then verify the isolation checks listed in
+§8 and that `tests/live/magi-guard.live.js` passes against HER engine (the
+job guard is per engine process). If Veda is not available, there is no
+phase to build — say so and stop.
+
+### (Done) Phase 14b — what it was
+
 
 1. **Where A1 is refused** today: `sandbox.is_engine_repo` (write tasks,
    `routes.start_task`), `read_only_project` in the commit / push routes,
@@ -1695,9 +1722,9 @@ program. Mitigated by one field, one existing listener, the dirty-flag guard, an
 
 ### Phase 14 — Hardening, documentation, regression sweep
 
-*Status:* **14a (hardening) done 2026-09-24** — see §0 "What exists" and
-docs/magi.md "Who may drive the engine". **14b (A1 off `plan`) waits on
-Tony** (§0 "Waiting on Tony").
+*Status:* **done 2026-09-24.** 14a (hardening) — docs/magi.md "Who may
+drive the engine"; 14b (A1 writable, writes only, per Tony) — docs/magi.md
+"A1 itself". Both in §0 "What exists".
 
 *Files:* `docs/magi.md`, the `HOW` array ([magi.html:5006](magi.html#L5006)), `magi/tests/*`, `tests/*`.
 

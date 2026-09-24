@@ -268,10 +268,9 @@ three inches away said the engine was running on this PC.
 **What exists today** (Phase 14): the mode, the workspace registry, the
 agent chain, read tasks, write tasks you approve as a diff, local git, GitHub
 (push, the Repository panel, the Actions watch), model choice and caps, auto
-commit/push, and sync across devices. **A1 itself is still read-only** to
-Code Mode: opening it to writes is the second half of Phase 14 and waits on
-Tony. Who may drive the engine at all is at the end of this chapter
-(*Who may drive the engine*).
+commit/push, and sync across devices. **A1 itself takes writes but is never
+committed, pushed or pulled by Code Mode** (*A1 itself*, at the end of this
+chapter, with *Who may drive the engine*).
 
 `tests/magi-codemode.test.js` pins the split; the behaviour is proved in a
 real browser over CDP.
@@ -551,11 +550,9 @@ your folder ──git stash create──► worktree in %TEMP%\magi-sandbox\<pro
   Codex works in the same worktree and is told which files already changed.
 - **Nothing outlives the task.** The copy is removed in a `finally`, and a
   marker file lets engine startup sweep any copy left by a crash.
-- **Refused for now:** a folder that is not a git repository (with a
-  sentence saying to `git init`), a repository with no commits, and **A1
-  itself**, MAGI's own repository. Both the engine (`read_only_project`) and
-  the console (Write greyed out with the reason) refuse A1 until Tony opens
-  it (the second half of Phase 14).
+- **Refused:** a folder that is not a git repository (with a sentence
+  saying to `git init`) and a repository with no commits. **A1 takes writes**
+  on its own terms (*A1 itself*, below).
 
 In the console, **Read / Write** sits under the agent chips. Every task
 starts in Read, and the switch falls back to Read once a task starts, so
@@ -698,8 +695,8 @@ Push (card or line) ─► git fetch ─► behind? refuse ─► git push <remo
   token is only offered to the host that issued it (`wrong_host`, and
   askpass itself refuses any other host, and plain http except loopback).
   Local-path and SSH remotes push with the machine's own access.
-- **A1 is never pushed from Code Mode** (`read_only_project`) until Tony opens
-  it (the second half of Phase 14).
+- **A1 is never pushed from Code Mode** (`read_only_project`): A1 pushes
+  itself (*A1 itself*, below).
 - Failures are sentences: `behind`, `auth_refused` (needs Contents: Read and
   write, or expired), `not_found` (a fine-grained token only sees the repos you
   picked), `protected`, `hook` (your pre-push hook said no).
@@ -1156,6 +1153,52 @@ for on this PC (the API token and the GitHub token, across `magi/data`,
 `magi/profiles`, the sandbox and screenshot folders, and A1's last 400
 commits): not found anywhere. `/docs`, `/redoc` and `/openapi.json`, which
 sat outside `/api/` and so outside the gate, are switched off.
+
+#### A1 itself (Phase 14b)
+
+A1 is MAGI's own repository, and it is not like the others: an **always-on
+auto-commit** records every change in its working tree and **pushes it to
+main within a minute or two** (`auto: <time>`), its Stop hook does the same at
+the end of every Claude session (`auto: claude code`), GitHub Pages serves its
+pages, and pushes under `workers/`, `workers2/`, `V1/workers/` and
+`desktop/shield/` deploy. So Tony decided (2026-09-24), one answer per action
+-- `sandbox.ENGINE_REPO`, which every call site asks about its own action:
+
+| Action | In A1 | Why |
+|---|---|---|
+| **write** | yes -- sandbox, diff, your approval, applied | like any project |
+| commit | no (no *Commit these files*) | A1's auto-commit records it within minutes |
+| push | no (no *Push*, no *Push ↑n*) | A1 has its pushers already |
+| pull | no -- fetched only | a rebase under live sessions is worse than a stale answer |
+| auto commit / push | no (locked) | as commit and push |
+
+**Approving in A1 is shipping**, and the card says so before you press
+Approve: "A1's auto-commit pushes it to main within minutes, and GitHub Pages
+serves it", naming any file that deploys (`deploy_files`). A change under
+`magi/` adds that it does nothing until the engine restarts, and a broken one
+can stop it starting; MAGI never restarts itself (`engine_files`). After
+Approve the card says A1's auto-commit records it -- there is no Commit
+button.
+
+**`.github/` is refused in A1** (`ENGINE_REPO_DENY`, passed to
+`security.review` at diff time and again at approval): a workflow runs with the
+repository's secrets, and with the push automatic your approval would be the
+only gate on a prompt-injected YAML edit. Change workflows in a normal session.
+
+Live sessions edit A1 while a task runs. The apply's three-way merge is what
+protects them. **Verified live** (`tests/live/magi-a1.live.js`): a real Claude
+edit to a probe file while the test edited a line inside the same hunk in the
+real folder -- the card said it ships, Approve merged both ("merged with edits
+you made meanwhile"), no Commit was offered, no `magi:` commit exists, and A1
+was fetched, not pulled; then a change to `magi/requirements.txt` carried the
+restart warning and was denied, leaving the file untouched. Found on the way:
+A1's auto-commit really does commit mid-task (it recorded the first run's
+probe file within the test) -- the reason A1's cards say "ships".
+
+Tests: `test_code_write.py` (the policy; a write task in a stand-in A1:
+engine files named, left for the hook, commit and push refused; `.github/`
+refused only there; deploy files named), `tests/magi-code-approval.test.js`,
+`test_howitworks.py`.
 
 Tests: `magi/tests/test_route_gate.py` (every route through the real
 middleware: token, Origin, the guard's wiring), `test_agent_guard.py` (real
