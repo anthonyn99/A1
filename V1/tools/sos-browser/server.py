@@ -43,6 +43,7 @@ import base64
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -687,6 +688,9 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/ai/jobs":
             return self._create(body)
 
+        if p == "/api/ai/jobs/adopt":
+            return self._adopt(body)
+
         m = re.match(r"^/api/ai/jobs/([\w.-]+)/filed$", p)
         if m:
             # The app has written this result into a class. Recorded so a later
@@ -720,6 +724,72 @@ class Handler(BaseHTTPRequestHandler):
             _jobs.pop(m.group(1), None)
             _save()
         return self._send({"ok": True, "deleted": m.group(1)})
+
+    def _adopt(self, body):
+        """File a deck that was downloaded BY HAND into a class.
+
+        ── WHY THIS EXISTS ────────────────────────────────────────────────────
+        The browser download is the one step that cannot be made reliable from
+        here: it depends on a Chrome that has been observed dying mid-transfer
+        for reasons outside this tool. When it fails the deck is NOT lost — it
+        is finished in its notebook and can be saved from any normal browser in
+        two clicks.
+
+        This turns that saved file into an ordinary finished job, so everything
+        downstream — the dedup, the destination module, the "Deck ready" toast,
+        the cloud upload — works exactly as it does for an automated run. It is
+        the difference between "the pipeline failed" and "one step was done by
+        hand", and it costs no quota.
+
+        Body: { pdfPath, classId, outputModuleId?, sourceName?, notebookUrl? }
+        """
+        src = Path(str(body.get("pdfPath") or "")).expanduser()
+        if not src.is_file():
+            return self._send({"ok": False,
+                               "error": f"no file at {src}"}, 400)
+        try:
+            head = src.open("rb").read(5)
+        except OSError as e:
+            return self._send({"ok": False, "error": f"unreadable: {e}"}, 400)
+        if head != b"%PDF-":
+            return self._send({"ok": False,
+                               "error": "that file is not a PDF"}, 400)
+        if not body.get("classId"):
+            return self._send({"ok": False, "error": "classId required"}, 400)
+
+        job_id = "sb_" + uuid.uuid4().hex[:10]
+        OUTPUTS.mkdir(parents=True, exist_ok=True)
+        dest = OUTPUTS / f"{job_id}.pdf"
+        # Copied, not moved: the user's own download stays where they put it.
+        shutil.copy2(src, dest)
+
+        job = {
+            "id": job_id,
+            "fileId": body.get("fileId") or "",
+            "sourceName": body.get("sourceName") or src.name,
+            "promptId": body.get("promptId") or "manual",
+            "promptVersion": 1,
+            "prompt": "(downloaded by hand)",
+            "classId": body.get("classId"),
+            "outputModuleId": body.get("outputModuleId") or "",
+            "mode": "notebooklm",
+            "site": "notebooklm",
+            "status": "done",
+            "progress": 100,
+            "attempts": 0,
+            "costUsd": 0,
+            "result": f"NotebookLM slide deck ({dest.stat().st_size} bytes)",
+            "pdfPath": str(dest),
+            "hasPdf": True,
+            "notebookUrl": body.get("notebookUrl") or "",
+            "adopted": True,
+            "createdAt": int(time.time() * 1000),
+            "finishedAt": int(time.time() * 1000),
+        }
+        with _lock:
+            _jobs[job_id] = job
+            _save()
+        return self._send({"ok": True, "job": job})
 
     def _create(self, body):
         prompt = (body.get("prompt") or "").strip()

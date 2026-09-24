@@ -527,23 +527,6 @@ async def launch(pw, site, headless: bool, visible: bool = False,
             "--disable-background-timer-throttling",
             "--disable-renderer-backgrounding",
             "--disable-backgrounding-occluded-windows",
-            # ── RESTORED after I removed it on a wrong conclusion ─────────────
-            # I added these on the theory that Chrome's out-of-process network
-            # service was crashing, saw the deck die anyway, decided the
-            # inference was wrong and deleted them during cleanup.
-            #
-            # The bisect says otherwise. The ONE deck that downloaded cleanly
-            # today (16,213,300 bytes at 18:37, commit 3d6408d) ran WITH these
-            # flags. Every failure after 18:45 ran without them, including a
-            # control fetch of that very same notebook, on the same machine,
-            # which had succeeded hours earlier. Removing them is the only
-            # relevant thing that changed between the success and the failures.
-            #
-            # They did not prevent every failure — the profile was also bloated
-            # at the time — which is what misled me: a fix that is necessary
-            # but not sufficient looks exactly like a fix that does nothing.
-            "--enable-features=NetworkServiceInProcess",
-            "--disable-features=NetworkServiceSandbox",
         ]
     if headless:
         args.append(f"--user-agent={headless_user_agent()}")
