@@ -1,14 +1,17 @@
 // LIVE test -- Phase 14b: a real write task IN A1 (not run by run-all.js).
 // Run: node tests/live/magi-a1.live.js        Screenshots: %TEMP%/magi-live-shots
 //
-// Tony's answers (2026-09-24): A1 takes writes; its Stop hook commits and
-// pushes; MAGI only fetches it. On a throwaway probe file that exists only
-// for the length of this test (untracked; removed in `finally`):
-//   1. merge   a real Claude edit, while THIS test edits the same file in the
-//              real folder mid-task (a live session would). Approve: the
-//              change is merged, not refused; the card says the Stop hook
-//              commits it and offers no Commit; HEAD has not moved; the
-//              transcript says A1 was fetched, not pulled. Also at 390px.
+// Tony's answers (2026-09-24): A1 takes writes; A1 commits and pushes itself
+// (its always-on auto-commit pushes every change within minutes, so approving
+// ships); MAGI only fetches it. On a throwaway probe file removed in
+// `finally` -- A1's auto-commit may record it and its removal meanwhile, two
+// small `auto:` commits, which is exactly the coexistence under test:
+//   1. merge   a real Claude edit, while THIS test edits a line of the same
+//              file inside the hunk's context in the real folder (a live
+//              session would). The card says approving ships it. Approve:
+//              merged, not refused; the card says A1's auto-commit records it
+//              and offers no Commit; no `magi:` commit exists; A1 was fetched,
+//              not pulled. Also at 390px.
 //   2. engine  a change under magi/ carries the restart warning on the card,
 //              and is DENIED, so nothing under magi/ changes.
 // Spends two small Claude tasks. LIVE_ONLY=merge,engine picks sections.
@@ -85,23 +88,26 @@ async function runTask(c, prompt) {
       // file now, the way a live session would.
       const working = await waitFor(c, 'CODE.task && CODE.task.events.some(e => e.k === "tool" || e.k === "text" || e.k === "model")', 120000);
       ok('the agent is working in the copy', working);
-      fs.appendFileSync(PROBE, 'omega (edited in the folder mid-task)\n');
+      // Inside the hunk's context (two lines below "alpha"), so `git apply`
+      // cannot take it as is and the three-way merge has to.
+      fs.writeFileSync(PROBE, probe().replace('\ngamma\n', '\ngamma (edited in the folder mid-task)\n'));
       ok('an approval card appears', await waitFor(c, '!!document.querySelector(".code-appr.is-open")', 300000),
          await evalJs(c, '(document.querySelector(".code-task-st")||{}).textContent || ""'));
       const pull = await evalJs(c, 'return JSON.stringify(CODE.task.events.find(e => e.k === "pull") || {});');
       ok('A1 was fetched, not pulled', /"skipped":true/.test(pull), pull);
       ok('no engine warning for a docs file', !/MAGI’s own engine/.test(await cardText(c)));
-      ok('the folder still has only the mid-task edit', /\nalpha\n/.test(probe()) && /omega/.test(probe()));
+      ok('the card says approving ships it', /Approving ships this/.test(await cardText(c)), await cardText(c));
+      ok('the folder still has only the mid-task edit', /\nalpha\n/.test(probe()) && /mid-task/.test(probe()));
       await evalJs(c, 'document.querySelector(".code-approve").click(); return 1;');
       ok('applied, merged with the mid-task edit', await waitFor(c,
         '/merged with edits you made meanwhile/.test((document.querySelector(".code-appr")||{}).textContent||"")', 60000),
         await cardText(c));
       const text = await cardText(c);
-      ok('the card says the Stop hook commits it', /Stop hook commits and pushes it/.test(text), text);
+      ok('the card says A1 records and pushes it itself', /auto-commit records it/.test(text), text);
       ok('...and offers no Commit', await evalJs(c, '!document.querySelector(".code-commit-open")'));
-      ok('both edits are in the file', /\nALPHA\n/.test(probe()) && /omega/.test(probe()), probe());
-      ok('MAGI committed nothing', git('rev-parse', 'HEAD') === head0);
-      ok('the probe is simply untracked', git('status', '--porcelain', '--', PROBE_REL) === `?? ${PROBE_REL}`);
+      ok('both edits are in the file', /\nALPHA\n/.test(probe()) && /gamma \(edited in the folder mid-task\)/.test(probe()), probe());
+      const since = git('log', '--format=%s', `${head0}..HEAD`);
+      ok('MAGI committed nothing (A1\'s own auto: commits may have)', !/^magi:/m.test(since), since);
       await shot(c, 'a1-applied-desktop');
       await c.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
       await sleep(600);
