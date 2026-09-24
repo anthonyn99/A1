@@ -246,6 +246,9 @@ class CodexCLIAgent(CodingAgent):
     async def available(self) -> tuple[bool, str]:
         if not slots.cli_path("codex"):
             return False, "Codex CLI is not installed."
+        from . import updates
+        if updates.updating("codex"):
+            return False, "Codex is being updated — back in a minute"
         until, why = models.cap_block("codex", self.slot)
         if until:
             return False, f"{why} — until {_when(until)}"

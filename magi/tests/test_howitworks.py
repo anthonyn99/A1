@@ -257,3 +257,23 @@ def test_the_model_claims_still_hold():
     # "once per window per reset": the alert key carries the reset time.
     assert "resets_at') or ''}:{level}" in inspect.getsource(M.alerts)
     assert "Stop at" in HOW and '"Stop at"' in PAGE
+
+
+def test_the_cli_update_claims_still_hold():
+    """Claude Code and Codex keep themselves current -- never mid-task."""
+    import inspect
+    from magi.code.agents import models as M, updates as U
+    assert "keep themselves current" in HOW and "Update now" in HOW
+    # "Auto-update on (the default)".
+    assert M.default_prefs()["auto_update"] is True
+    # "never while a task or a sign-in is running".
+    src = inspect.getsource(U.busy)
+    assert "tasks.running()" in src and "login.JOBS" in src
+    assert "busy()" in inspect.getsource(U.start) and "busy()" in inspect.getsource(U.auto_tick)
+    # "the agent sits out new tasks for the minute it takes".
+    for f in ("claude_cli.py", "codex_cli.py"):
+        assert "updates.updating(" in (REPO / "magi" / "code" / "agents" / f).read_text(encoding="utf-8")
+    # "every few hours -- at once when a model is waiting".
+    assert U.LATEST_TTL <= 6 * 3600 and "waiting or now" in inspect.getsource(U.auto_tick)
+    # "Update now" is really on the sheet.
+    assert '"Update now"' in PAGE and "function renderCliCard(" in PAGE

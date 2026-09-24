@@ -20,6 +20,10 @@
 //                on Auto's pick instead and says why in the transcript.
 //   8. veda      (opt-in) a second engine for Veda on :8001 keeps its own
 //                choices and caps; Tony's are untouched.
+//   9. update    the CLI card shows each version; Auto-update toggles on the
+//                engine; (opt-in) a REAL Codex update through the engine --
+//                npm reinstalls the latest, Codex sits out meanwhile, and
+//                stays signed in afterwards.
 // LIVE_ONLY=row,auto,sheet,caps,toast,phone,run,veda  (run and veda are opt-in)
 const { connect, evalJs, sleep, shotPath } = require('./cdp.js');
 const fs = require('fs');
@@ -57,7 +61,7 @@ const api = async (p, body, base = API) => {
                                            body: JSON.stringify(body) } : undefined);
   return r.json();
 };
-const OPT_IN = new Set(['run', 'veda']);
+const OPT_IN = new Set(['run', 'veda', 'update']);
 const want = (k) => (process.env.LIVE_ONLY ? process.env.LIVE_ONLY.split(',').includes(k) : !OPT_IN.has(k));
 const rowText = (c, a) => evalJs(c, `(document.querySelector('.code-model[data-agent="${a}"]')||{}).textContent || ""`);
 const type = (c, text) => evalJs(c, `const t=document.getElementById("composer"); t.value=${JSON.stringify(text)}; t.dispatchEvent(new Event("input")); return 1;`);
@@ -77,6 +81,7 @@ async function restore() {
     }
   }
   await api('/models/warn', { percent: 80 }).catch(() => {});
+  await api('/updates/auto', { on: true }).catch(() => {});
 }
 
 (async () => {
@@ -275,6 +280,43 @@ async function restore() {
       await shot(c, 'models-run-fallback');
       await api('/models/choice', { agent: 'claude', model: 'auto', effort: 'auto' });
       await evalJs(c, 'CODE.task = null; CODE.picks = null; renderCodeView(); return 1;');
+    }
+
+    if (want('card') || want('update')) {
+      console.log('\nThe CLI card');
+      await click(c, '.code-model[data-agent="codex"]');
+      await waitFor(c, sheetOpen, 15000);
+      ok('the Codex sheet ends with its CLI card', await waitFor(c, '!!document.querySelector(\'.cli-card[data-cli="codex"] .cli-ver\')', 15000));
+      const ver = await evalJs(c, 'document.querySelector(\'.cli-card[data-cli="codex"]\').textContent');
+      const st = (await api('/updates')).cli.codex;
+      ok('it shows the installed version and whether it is current', ver.includes(st.installed) && /up to date|available/.test(ver), ver.slice(0, 90));
+      const was = (await api('/updates')).auto_update;
+      await click(c, '.cli-card [data-act="auto"]');
+      ok('Auto-update flips', await waitFor(c, `CODE.models.auto_update === ${!was}`, 8000));
+      ok('the engine agrees', (await api('/updates')).auto_update === !was);
+      ok('and the button says so', await waitFor(c, `/Auto-update: ${was ? 'off' : 'on'}/.test(document.querySelector('.cli-card [data-act="auto"]').textContent)`, 4000));
+      await click(c, '.cli-card [data-act="auto"]');
+      ok('and flips back', await waitFor(c, `CODE.models.auto_update === ${was}`, 8000) && (await api('/updates')).auto_update === was);
+      await shot(c, 'models-cli-card');
+      await closeSheet(c);
+    }
+
+    if (want('update')) {
+      console.log('\nA real Codex update through the engine');
+      const before = (await api('/updates')).cli.codex.installed;
+      const r = await api('/updates/codex', {});
+      ok('the engine starts it', r.ok && r.job.state === 'running', JSON.stringify(r).slice(0, 160));
+      let job = null;
+      for (let i = 0; i < 120; i++) {
+        job = (await api('/updates')).cli.codex.job;
+        if (job && job.state !== 'running') break;
+        await sleep(2000);
+      }
+      ok('it finishes', job && job.state === 'done', job && job.text);
+      ok('Codex is current afterwards', (await api('/updates?check=1')).cli.codex.outdated === false);
+      const after = await api('/agents');
+      ok('and still signed in', after.cli.find((x) => x.agent === 'codex').slots.every((s) => s.signed_in),
+        `${before} → ${job && job.after}`);
     }
 
     if (want('veda')) {

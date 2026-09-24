@@ -105,9 +105,25 @@ ok('a capped account is not free', /const heldUntil = \(s\) => Math\.max\(s\.lim
 ok('the transcript names the model and why', /ev\.k === "model"/.test(MAGI) && /Auto: \$\{ev\.why\}/.test(MAGI));
 ok('a cap hand-off says it was your cap', /\/\^Stopped at your\/\.test\(ev\.detail/.test(MAGI));
 
+console.log('\nKeeping the CLIs current');
+const card = fn('function renderCliCard(');
+const upd = fn('async function codeCliUpdate(');
+ok('each sheet ends with the CLI card', /renderCliCard\(agent, m, a,/.test(sheetM));
+ok('Update now posts to the engine, nothing else', /codePost\(`\/updates\/\$\{agent\}`, \{\}\)/.test(upd));
+ok('it polls until the job ends, bounded', /for \(let i = 0; i < 300; i\+\+\)/.test(upd) && /st\.job\.state !== "running"/.test(upd));
+ok('afterwards the model lists and chips are re-read', /codeModelsLoad\(false\)/.test(upd) && /codeLoad\(true\)/.test(upd));
+ok('the button is off while an update runs', /up\.disabled = running \|\| state\.busy;/.test(card));
+ok('models waiting on a newer CLI are named', /needs \$\{w\.needs\} or newer/.test(card));
+ok('the auto-update switch goes to the engine', /codePost\("\/updates\/auto", \{ on: !m\.auto_update \}\)/.test(card));
+ok('a waiting model puts an Update now banner at the top', /cli-banner/.test(sheetM));
+ok('a stale /models answer never undoes a change you just made',
+   /if \(d\.ok && \(CODE\.modelsRev \|\| 0\) === rev\) CODE\.models = d;/.test(fn('async function codeModelsLoad('))
+   && /CODE\.modelsRev = \(CODE\.modelsRev \|\| 0\) \+ 1;/.test(card));
+
 console.log('\nNo native dialogs');
 ok('none in the panel, the watch, the sheet or the popup',
-   !NATIVE.test(panel + tick + start + dx + sheetM + alerts + toast + fn('function renderCodeWatch(proj)')));
+   !NATIVE.test(panel + tick + start + dx + sheetM + alerts + toast + fn('function renderCodeWatch(proj)')
+                + card + upd));
 
 console.log('\nPhone');
 ok('the panel is a bottom sheet on a phone', /\.sheet\.repo-sheet \{ padding: 5vh 0 0; align-items: flex-end; \}/.test(MAGI));

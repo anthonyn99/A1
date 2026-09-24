@@ -849,6 +849,26 @@ on is noticed within minutes, no restart**.
   after an update the model is offered again with no restart. Auto takes the
   newest *available* model of the family it wants before dropping a family.
 
+**Keeping the CLIs current** (`magi/code/agents/updates.py`). The install
+MAGI runs is the one on PATH (`slots.cli_path`: the npm copies in
+`%APPDATA%\npm`) — the Claude desktop app and the VS Code extension carry
+their own, so updating those changes nothing here. Each agent's sheet ends
+with a card: installed version (`--version`, re-read every 10 min or at once
+after an update), latest (`npm view <pkg> version`, cached 6 h), the models
+waiting on a newer one (`cli_min`), **Update now** and **Auto-update**
+(`prefs.auto_update`, default on). Claude updates with its own `claude
+update`; Codex with `npm install -g @openai/codex@latest`. Both run with the
+engine's environment minus `DISABLE_AUTOUPDATER` (which MAGI's task runs
+set). Refused while a Code Mode task or a sign-in is running; while a CLI is
+being replaced its agent reports "being updated" and the chain uses the next.
+The automatic updater (`auto_loop`, started in `app.lifespan`, never under
+pytest or with `MAGI_NO_AUTO_UPDATE`) looks every 10 min, asks npm at most
+every 6 h — at once when a model is waiting — and updates only when idle.
+Logins live in the slot folders, so an update keeps every account signed in.
+Routes: `GET /api/code/updates[?check=1]`, `POST /updates/{agent}`,
+`POST /updates/auto {on}`; `/models` carries `agents[a].cli` and
+`auto_update`. Tests: `magi/tests/test_code_updates.py`.
+
 **Choice per agent** (`data/<p>/code_models.json`, per profile, on the engine
 — the phone and the desk agree, and Veda's engine keeps hers): a model or
 **Auto**, and an effort (Auto, low … max; Claude `--effort`, Codex

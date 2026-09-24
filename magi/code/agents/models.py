@@ -110,7 +110,10 @@ def _write(p: Path, d: dict) -> None:
 
 def default_prefs() -> dict:
     return {"choice": {a: {"model": "auto", "effort": "auto"} for a in slots.AGENTS},
-            "caps": {a: {} for a in slots.AGENTS}, "warn_at": WARN_DEFAULT}
+            "caps": {a: {} for a in slots.AGENTS}, "warn_at": WARN_DEFAULT,
+            # Keep Claude Code and Codex current by themselves, only while
+            # nothing is running (updates.py). On unless you turn it off.
+            "auto_update": True}
 
 
 def prefs() -> dict:
@@ -125,7 +128,19 @@ def prefs() -> dict:
     w = got.get("warn_at")
     if isinstance(w, (int, float)) and 50 <= w <= 99:
         d["warn_at"] = int(w)
+    if isinstance(got.get("auto_update"), bool):
+        d["auto_update"] = got["auto_update"]
     return d
+
+
+def set_auto_update(on: bool) -> dict:
+    if not isinstance(on, bool):
+        raise ValueError("On or off.")
+    with _LOCK:
+        d = _read(_prefs_path())
+        d["auto_update"] = on
+        _write(_prefs_path(), d)
+    return prefs()
 
 
 _MODEL_OK = re.compile(r"^[a-z0-9][a-z0-9._\-\[\]]{1,80}$")
@@ -316,16 +331,19 @@ def fetch_claude(slot: str) -> dict | None:
             "plan": claude_plan(prof) if isinstance(prof, dict) else ""}
 
 
-_codex_version: list[str] = []
+_cli_ver: dict[str, tuple[float, str]] = {}
+CLI_VERSION_TTL = 600
 
 
-def codex_cli_version() -> str:
-    """The installed CLI's version: the models endpoint answers for a client
-    version, and asking for the wrong one lists models the CLI cannot run."""
-    if _codex_version:
-        return _codex_version[0]
+def cli_version(agent: str, *, fresh: bool = False) -> str:
+    """The installed CLI's version ("2.1.281"), re-read every 10 minutes --
+    or at once with `fresh` (right after an update) -- so an update makes a
+    model available without an engine restart. "" when not installed."""
+    hit = _cli_ver.get(agent)
+    if hit and not fresh and time.time() - hit[0] < CLI_VERSION_TTL:
+        return hit[1]
     v = ""
-    exe = slots.cli_path("codex")
+    exe = slots.cli_path(agent)
     if exe:
         try:
             from ... import proc
@@ -336,8 +354,14 @@ def codex_cli_version() -> str:
             v = m.group(1) if m else ""
         except Exception:  # noqa: BLE001 -- a version is a nicety, not a need
             v = ""
-    _codex_version.append(v)
+    _cli_ver[agent] = (time.time(), v)
     return v
+
+
+def codex_cli_version() -> str:
+    """The models endpoint answers for a client version, and asking for the
+    wrong one lists models the CLI cannot run."""
+    return cli_version("codex")
 
 
 def fetch_codex(slot: str) -> dict | None:
@@ -441,30 +465,22 @@ def _ver(v: str) -> tuple[int, ...]:
     return tuple(int(x) for x in re.findall(r"\d+", v or ""))
 
 
-_cli_ver: dict[str, tuple[float, str]] = {}
-
-
 def claude_cli_version() -> str:
-    """The installed Claude Code's version, re-read every 10 minutes: an
-    update (`claude update`) should make a model available without an
-    engine restart."""
-    hit = _cli_ver.get("claude")
-    if hit and time.time() - hit[0] < 600:
-        return hit[1]
-    v = ""
-    exe = slots.cli_path("claude")
-    if exe:
-        try:
-            from ... import proc
-            import subprocess
-            r = proc.run([exe, "--version"], capture_output=True, text=True, timeout=20,
-                         stdin=subprocess.DEVNULL, encoding="utf-8", errors="replace")
-            m = re.search(r"(\d+\.\d+\.\d+)", r.stdout or "")
-            v = m.group(1) if m else ""
-        except Exception:  # noqa: BLE001 -- a version is a nicety, not a need
-            v = ""
-    _cli_ver["claude"] = (time.time(), v)
-    return v
+    return cli_version("claude")
+
+
+def waiting_on_cli(agent: str) -> list[dict]:
+    """Models this account lists that the installed CLI is too old for:
+    [{id, label, needs}]. What an update would unlock."""
+    if agent != "claude":
+        return []
+    need = _read(_catalog_path()).get("cli_min") or {}
+    have = claude_cli_version()
+    labels = {m["id"]: m.get("label", m["id"])
+              for s in slots.list_slots(agent)
+              for m in catalog_cached(agent, s).get("models") or []}
+    return [{"id": mid, "label": labels.get(mid, mid), "needs": v}
+            for mid, v in sorted(need.items()) if not have or _ver(have) < _ver(v)]
 
 
 def cli_too_old(agent: str, model: str) -> str:
@@ -524,8 +540,8 @@ def availability(agent: str, slot: str, model: dict) -> tuple[bool, str]:
     need = cli_too_old(agent, model.get("id") or "")
     if need:
         return False, (f"{label} needs Claude Code {need} or newer; this PC has "
-                       f"{claude_cli_version() or 'an older one'}. Run `claude update` on the engine "
-                       "PC — MAGI picks it up within minutes.")
+                       f"{claude_cli_version() or 'an older one'}. Update it below (Claude Code "
+                       "card) — the model is offered again as soon as it finishes.")
     if needs_credits(agent, slot, model):
         if cr.get("exhausted"):
             return False, f"{label} runs on usage credits, and this month's are used up."

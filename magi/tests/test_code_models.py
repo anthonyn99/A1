@@ -597,7 +597,7 @@ def test_a_model_too_new_for_the_cli_is_learned_and_retried(fake_cli, pro, monke
     assert res.outcome == Outcome.OK and res.text == "found it"
     ran = [a[a.index("--model") + 1] for a in fake_cli.argvs]
     assert ran == ["claude-opus-5-5", "claude-opus-5"], "the next-best Opus, same account"
-    assert any("needs Claude Code 2.1.280 or newer" in e.get("text", "") and "claude update" in e["text"]
+    assert any("needs Claude Code 2.1.280 or newer" in e.get("text", "") and "Claude sheet" in e["text"]
                for e in ev if e["k"] == "note")
     assert limits.blocked_until("claude", "system") is None
     op = _m("claude", "system", "claude-opus-5-5")
@@ -623,4 +623,4 @@ def test_two_too_old_refusals_hand_off_rather_than_stop_the_chain(fake_cli, pro,
     fake_cli.scripts = [list(TOO_OLD), list(TOO_OLD)]
     res, _ = _go(CC.ClaudeCLIAgent("system"), "Refactor the scheduler")
     assert res.outcome.hands_off, "the next agent gets it; the task did not fail on its merits"
-    assert "claude update" in res.detail
+    assert "Update it from the Claude sheet" in res.detail

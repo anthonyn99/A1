@@ -178,7 +178,8 @@ model row fills itself.
   (result `is_error`, `api_error_status` 400). It used to classify as
   TASK_FAILED and stop the chain; now `cli_min` remembers it and the task
   retries on Opus 5 (verified live via Diagnose). MAGI does NOT run `claude
-  update` itself — that is Tony's machine-wide tool.
+  update` mid-task; since 2026-09-24 it updates the CLIs itself when idle
+  (Tony asked for it) — `magi/code/agents/updates.py`.
 * (11) **GitHub `actions/runs?branch=X` without `exclude_pull_requests=true`
   returned a weeks-old slice** on A1 (4,000+ runs); with it, newest first.
 * (11) Job logs: `/actions/jobs/{id}/logs` → 302 to a signed blob URL; follow
@@ -269,9 +270,10 @@ model row fills itself.
   the **Repository** pill on A1 (tabs; *Watch* on Overview).
 * The A1 GitHub token (fine-grained, Contents: Read-only on A1) **expires
   2026-10-21** — Phase 12+ sessions after that need a new one.
-* **Run `claude update` on the engine PC** (installed 2.1.278): Opus 5.5 needs
-  2.1.280+. Until then Auto uses Opus 5 for heavy tasks and the sheet says why;
-  within 10 minutes of the update Opus 5.5 is offered again, no restart.
+* ~~Run `claude update`~~ — **done 2026-09-24**: Claude Code 2.1.278 → 2.1.281,
+  Codex 0.155.1 → 0.156.1, and MAGI now keeps both current itself
+  (`updates.py`, Auto-update on by default, never mid-task; Update now in each
+  agent's sheet).
 * To see Fable become choosable: turn usage credits on at
   claude.ai/settings/usage; within a few minutes the sheet shows Fable
   available ("on usage credits") with no restart. (Not done — it would bill.)

@@ -186,6 +186,9 @@ class ClaudeCLIAgent(CodingAgent):
     async def available(self) -> tuple[bool, str]:
         if not slots.cli_path("claude"):
             return False, "Claude Code CLI is not installed."
+        from . import updates
+        if updates.updating("claude"):
+            return False, "Claude Code is being updated — back in a minute"
         # Your cap first: it is the one reason that is yours, and the
         # sentence says which cap and until when.
         until, why = models.cap_block("claude", self.slot)
@@ -240,7 +243,8 @@ class ClaudeCLIAgent(CodingAgent):
                 if pick.get("model"):
                     models.note_cli_min(pick["model"], need)
                 why = (f"{label} needs Claude Code {need} or newer; this PC has "
-                       f"{models.claude_cli_version() or 'an older one'} (run `claude update` there).")
+                       f"{models.claude_cli_version() or 'an older one'}. Update it from the "
+                       "Claude sheet (MAGI also does it by itself when idle).")
             if self.model or attempt:
                 break
             await emit({"k": "note", "text": why + " Trying again with the best model it can run."})

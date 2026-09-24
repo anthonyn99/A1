@@ -102,9 +102,17 @@ async def lifespan(app: FastAPI):
     # Holds the machine awake while MAGI runs, but only on mains power -- see
     # power.py. Started here so it covers `magi serve` and `magi cloud` alike.
     KEEP_AWAKE.start()
+    # Keeps Claude Code and Codex current, only while nothing is running
+    # (magi/code/agents/updates.py; on unless turned off in the model sheet).
+    auto_update = None
+    if not os.environ.get("PYTEST_CURRENT_TEST") and not os.environ.get("MAGI_NO_AUTO_UPDATE"):
+        from .code.agents import updates as _updates
+        auto_update = asyncio.create_task(_updates.auto_loop())
     try:
         yield
     finally:
+        if auto_update:
+            auto_update.cancel()
         KEEP_AWAKE.stop()
 
 

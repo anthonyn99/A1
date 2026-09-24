@@ -3644,6 +3644,19 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 }
 .use-cap-b.on { border-color: var(--ac); color: var(--tx); font-weight: 700; background: color-mix(in srgb, var(--ac) 10%, transparent); }
 .code-ev.is-model .code-ev-tool { color: var(--acl); }
+.cli-line { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.cli-ver { font-family: var(--font-mono); font-weight: 700; color: var(--tx); font-size: 13px; }
+.cli-state { font-size: 11.5px; color: var(--txm); }
+.cli-state.is-ok { color: var(--grn); }
+.cli-state.is-old { color: var(--amber); font-weight: 700; }
+.cli-acts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cli-acts .btn { min-height: 36px; }
+.cli-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  padding: 9px 12px; border-radius: var(--r-card); font-size: 12px; color: var(--tx);
+  border: 1px solid color-mix(in srgb, var(--amber) 45%, transparent);
+  background: color-mix(in srgb, var(--amber) 8%, transparent);
+}
 
 /* The usage popup: a corner card, never a modal. */
 .usage-toasts {
@@ -6394,6 +6407,7 @@ const HOW = [
       "<b>Each agent has a model, or Auto.</b> The line under the agents says which model the next task gets and how full the tightest usage window is; tap it for the list. The list is what the account can actually run, asked of Anthropic and OpenAI with the account&rsquo;s own sign-in. <b>Auto</b> reads the task &mdash; what it asks for, how long it is, whether it edits &mdash; and picks the strongest model it needs from those, with a matching effort; it steps one lighter when the allowance is running low. It decides locally, in milliseconds, without asking a model which model to ask.",
       "<b>Some models need usage credits.</b> On a Pro plan, Fable runs only on usage credits; with them off it is listed but cannot be chosen, and a task set to it runs on Auto&rsquo;s choice and says why. Turn credits on in the account&rsquo;s usage settings and MAGI notices within a few minutes, no restart &mdash; the same when an account has used its plan&rsquo;s limit and credits then carry it on. A model the provider turns down for credits is remembered for that account, and the task goes again once on the best model the account can run.",
       "<b>Your caps stop MAGI before the provider does.</b> In the same sheet, <b>Stop at</b> caps each window &mdash; for Claude the session and the week, for Codex whatever its plan has (a free account: one 30-day window). Once a capped window reaches its cap, MAGI sends that agent nothing more, even mid-task: the chain hands the task on, until the window resets or you change the cap. A small popup warns you as a window nears your warning line or your cap, once per window per reset.",
+      "<b>Claude Code and Codex keep themselves current.</b> A model your account offers can still need a newer Claude Code than the one on the engine PC; MAGI then uses the best model that runs and says so. The card at the foot of each agent&rsquo;s sheet shows the version, whether a newer one is out, and <b>Update now</b>. With <b>Auto-update</b> on (the default) MAGI updates both by itself every few hours &mdash; at once when a model is waiting &mdash; but never while a task or a sign-in is running, and the agent sits out new tasks for the minute it takes. It is the copy MAGI runs, separate from the Claude app and VS Code, and every account stays signed in.",
       "<b>The percentages on the chips are current.</b> Each account&rsquo;s usage is asked of Claude and OpenAI directly, the same way their own tools do, and a window whose reset time has passed shows 0% rather than the number from before it reset.",
       "Nothing about a task is written to the cloud: it streams to whichever screen is watching, and a reload picks the same task back up while the engine is still running it.",
     ],
@@ -13044,9 +13058,13 @@ const AGENT_NAME = { claude: "Claude", codex: "Codex" };
 const USAGE_SEEN_KEY = lsKey("usage.seen");
 
 async function codeModelsLoad(refresh = false) {
+  // A read that began before a change you made would put the old value back
+  // when it lands (found live: Auto-update flipped back a second after a
+  // tap). Every change bumps modelsRev; an answer from before it is dropped.
+  const rev = CODE.modelsRev || 0;
   try {
     const d = await codeGet(`/models${refresh ? "?refresh=1" : ""}`);
-    if (d.ok) CODE.models = d;
+    if (d.ok && (CODE.modelsRev || 0) === rev) CODE.models = d;
   } catch {}
   return CODE.models;
 }
@@ -13196,6 +13214,7 @@ async function codeModelSheet(agent) {
       const d = await codePost(path, payload);
       if (!d.ok) throw new Error(d.message || "the engine refused it");
       CODE.models = d;
+      CODE.modelsRev = (CODE.modelsRev || 0) + 1;
       setSync("saved");
     } catch (e) {
       err = String(e.message || e);
@@ -13229,6 +13248,17 @@ async function codeModelSheet(agent) {
     // so it leads -- not three cards down under the model list.
     if (slot.capped) body.append(el("div", "sheet-err model-capped", `${slot.capped.why}. MAGI will not `
       + `send ${AGENT_NAME[agent]} requests until ${resetWhen(slot.capped.until)} — or raise the cap below.`));
+    const waiting = ((a.cli || {}).waiting || []);
+    if (waiting.length && !(a.cli && a.cli.job && a.cli.job.state === "running")) {
+      const wb = el("div", "cli-banner");
+      wb.append(el("span", null, `${waiting.map((w) => w.label).join(", ")} ${waiting.length > 1 ? "need" : "needs"} a newer `
+        + `${(a.cli || {}).name || "CLI"} (${waiting[0].needs}+).`));
+      const go = el("button", "usage-toast-b", "Update now");
+      go.type = "button";
+      go.onclick = () => { const b = body.querySelector('.cli-card [data-act="update"]'); if (b) b.click(); };
+      wb.append(go);
+      body.append(wb);
+    }
 
     // ── model ────────────────────────────────────────────────────────────
     const mc = el("div", "repo-card");
@@ -13401,7 +13431,11 @@ async function codeModelSheet(agent) {
     }
     cc.append(el("div", "repo-note", "MAGI notices a change within a few minutes, without a restart."));
     body.append(cc);
+
+    // ── the CLI itself ───────────────────────────────────────────────────
+    body.append(renderCliCard(agent, m, a, () => { if (sheet.isConnected) draw(); codeModelsRedraw(); }, cliState));
   };
+  const cliState = { busy: false, err: "" };
 
   re.onclick = async () => {
     re.disabled = true;
@@ -13415,6 +13449,119 @@ async function codeModelSheet(agent) {
   draw();
   await codeModelsLoad(false);
   if (sheet.isConnected) draw();
+}
+
+/* ── keeping the CLIs current ─────────────────────────────────────────────
+   The card at the foot of each agent's sheet: which version of Claude Code /
+   the Codex CLI MAGI runs, whether a newer one is out, which models are
+   waiting on it, and Update now. The engine refuses while a task or a
+   sign-in is running and marks the agent unavailable for the minute it
+   takes, so the chain just uses the next one. "Keep updated" (on by
+   default) does the same by itself while nothing is running. */
+async function codeCliUpdate(agent, onChange) {
+  let d;
+  try { d = await codePost(`/updates/${agent}`, {}); }
+  catch (e) { d = { ok: false, message: `Could not reach the engine: ${e.message || e}` }; }
+  if (!d.ok) return d.message || "The engine refused.";
+  const a = CODE.models && CODE.models.agents[agent];
+  if (a) a.cli = { ...(a.cli || {}), job: d.job };
+  onChange();
+  // Poll until the job ends: the update itself takes a minute at most.
+  for (let i = 0; i < 300; i++) {
+    await new Promise((r) => setTimeout(r, 2000));
+    let u;
+    try { u = await codeGet("/updates"); } catch { continue; }
+    const st = u.ok && u.cli[agent];
+    if (!st) continue;
+    if (a) a.cli = st;
+    onChange();
+    if (!st.job || st.job.state !== "running") break;
+  }
+  // A newer CLI can unlock models: read the lists and the chips again.
+  await codeModelsLoad(false);
+  codeLoad(true);
+  onChange();
+  return "";
+}
+
+function renderCliCard(agent, m, a, onChange, state) {
+  const cc = el("div", "repo-card cli-card");
+  cc.dataset.cli = agent;
+  const c = a.cli || {};
+  cc.append(el("div", "repo-lbl", c.name || (agent === "claude" ? "Claude Code" : "Codex CLI")));
+  const job = c.job;
+  const running = job && job.state === "running";
+  const line = el("div", "cli-line");
+  if (!c.installed) {
+    line.append(el("span", "repo-sub", "Not installed on the engine PC."));
+  } else {
+    line.append(el("span", "cli-ver", c.installed));
+    line.append(el("span", `cli-state ${c.outdated ? "is-old" : "is-ok"}`,
+      running ? "updating…" : c.outdated ? `${c.latest} available` : c.latest ? "up to date" : "latest unknown"));
+  }
+  cc.append(line);
+  for (const w of c.waiting || []) {
+    cc.append(el("div", "model-opt-why", `${w.label} needs ${w.needs} or newer.`));
+  }
+  if (running) {
+    const r = el("div", "doctor-running");
+    r.append(spinnerEl(), el("span", null, `Updating from ${job.before}… ${AGENT_NAME[agent]} sits out new tasks for this minute.`));
+    cc.append(r);
+  } else if (job && job.text && Date.now() / 1000 - (job.ended || 0) < 600) {
+    cc.append(el("div", job.state === "done" ? "sheet-ok" : "sheet-err", job.text));
+  }
+  if (state.err) cc.append(el("div", "sheet-err", state.err));
+  const acts = el("div", "cli-acts");
+  if (c.installed) {
+    const up = el("button", `btn ${c.outdated || (c.waiting || []).length ? "active" : ""}`,
+      c.outdated || (c.waiting || []).length ? "Update now" : "Check for update");
+    up.type = "button";
+    up.dataset.act = "update";
+    up.disabled = running || state.busy;
+    up.onclick = async () => {
+      state.busy = true;
+      state.err = "";
+      onChange();
+      if (c.outdated || (c.waiting || []).length) {
+        state.err = await codeCliUpdate(agent, onChange);
+      } else {
+        try {
+          const u = await codeGet("/updates?check=1");
+          if (u.ok) for (const k of Object.keys(u.cli)) {
+            if (m.agents[k]) m.agents[k].cli = u.cli[k];
+          }
+        } catch (e) { state.err = String(e.message || e); }
+      }
+      state.busy = false;
+      onChange();
+    };
+    acts.append(up);
+  }
+  const au = el("button", `use-cap-b cli-auto ${m.auto_update ? "on" : ""}`,
+    m.auto_update ? "Auto-update: on" : "Auto-update: off");
+  au.type = "button";
+  au.dataset.act = "auto";
+  au.setAttribute("aria-pressed", String(!!m.auto_update));
+  au.title = "Keep Claude Code and Codex current by themselves, only while nothing is running";
+  au.onclick = async () => {
+    try {
+      const u = await codePost("/updates/auto", { on: !m.auto_update });
+      // The live state, not the copy this card was drawn from: the sheet may
+      // have re-read /models since.
+      if (u.ok) {
+        m.auto_update = u.auto_update;
+        if (CODE.models) CODE.models.auto_update = u.auto_update;
+        CODE.modelsRev = (CODE.modelsRev || 0) + 1;
+      }
+    } catch (e) { state.err = String(e.message || e); }
+    onChange();
+  };
+  acts.append(au);
+  cc.append(acts);
+  cc.append(el("div", "repo-note", "The copy MAGI runs on the engine PC — separate from the Claude app "
+    + "and VS Code. Updating keeps every account signed in. Auto-update checks every few hours and "
+    + "never while a task is running."));
+  return cc;
 }
 
 /* ── the usage popup ──────────────────────────────────────────────────────

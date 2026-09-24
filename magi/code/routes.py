@@ -847,6 +847,7 @@ async def repo_releases(project_id: str) -> dict[str, Any]:
 # engine, per profile, beside the logins it is about; nothing is synced.
 
 from .agents import models as _models
+from .agents import updates as _updates
 
 
 def _model_slots(agent: str) -> list[dict[str, Any]]:
@@ -880,8 +881,10 @@ def _models_state() -> dict[str, Any]:
                     wins.append(w)
         wins += [w for w in p["caps"].get(agent, {}) if w not in wins]
         agents[agent] = {"slots": rows, "choice": p["choice"][agent], "caps": p["caps"][agent],
-                         "windows": [{"id": w, "label": _models.window_label(w)} for w in wins]}
-    return {"ok": True, "agents": agents, "warn_at": p["warn_at"], "efforts": list(_models.EFFORTS)}
+                         "windows": [{"id": w, "label": _models.window_label(w)} for w in wins],
+                         "cli": _updates.status(agent)}
+    return {"ok": True, "agents": agents, "warn_at": p["warn_at"], "efforts": list(_models.EFFORTS),
+            "auto_update": p["auto_update"]}
 
 
 @router.get("/models")
@@ -946,3 +949,38 @@ async def models_preview(body: dict = Body(...)) -> dict[str, Any]:
             out[agent] = _models.choose(agent, slot, prompt, mode, p) if slot else None
         return {"ok": True, "tier": _models.classify(prompt, mode), "pick": out}
     return await _asyncio.get_running_loop().run_in_executor(None, go)
+
+# ── keeping the CLIs current ─────────────────────────────────────────────
+#
+# Update now (per agent), and the automatic updater's switch. Refused while a
+# task or a sign-in is running; see magi/code/agents/updates.py.
+
+@router.get("/updates")
+async def updates_state(check: bool = False) -> dict[str, Any]:
+    """Each CLI's installed and latest version, what is waiting on it, and
+    the last update job. `check=1` asks npm now instead of the 6 h cache."""
+    loop = _asyncio.get_running_loop()
+    rows = {a: await loop.run_in_executor(None, lambda a=a: _updates.status(a, check=check))
+            for a in _slots.AGENTS}
+    return {"ok": True, "cli": rows, "auto_update": _models.prefs()["auto_update"],
+            "busy": _updates.busy()}
+
+
+@router.post("/updates/auto")
+async def updates_auto(body: dict = Body(...)) -> dict[str, Any]:
+    """`{"on": true|false}` -- keep the CLIs updated by themselves."""
+    try:
+        _models.set_auto_update(body.get("on"))
+    except ValueError as e:
+        return {"ok": False, "error": "bad_value", "message": str(e)}
+    return await updates_state()
+
+
+@router.post("/updates/{agent}")
+async def updates_start(agent: str) -> dict[str, Any]:
+    """Update one CLI now. Answers at once; poll GET /updates for the end."""
+    try:
+        job = await _asyncio.get_running_loop().run_in_executor(None, _updates.start, agent)
+    except ValueError as e:
+        return {"ok": False, "error": "cannot_update", "message": str(e)}
+    return {"ok": True, "job": job.to_dict()}
