@@ -1035,7 +1035,7 @@
           '<div class="hd">' +
             '<button class="ib back" type="button" aria-label="Back" hidden>' + SVG_BACK + '</button>' +
             '<div class="ttl">LifeHub</div><span class="st" aria-live="polite"></span>' +
-            '<button class="ib rf" type="button" aria-label="Refresh apps" title="Refresh">' + SVG_REFRESH + '</button>' +
+            '<button class="ib rf" type="button" aria-label="Retry connection" title="Retry now" hidden>' + SVG_REFRESH + '</button>' +
             '<button class="ib edit-btn" type="button" aria-label="Edit apps" title="Edit apps">' + SVG_PENCIL + '</button>' +
             '<button class="done" type="button" hidden>Done</button>' +
           '</div>' +
@@ -1110,12 +1110,12 @@
     ui.st.textContent = s === 'saving' ? 'Saving…' : s === 'offline' ? 'Offline' : s === 'retry' ? 'Connecting…' : '';
     ui.st.classList.toggle('bad', s === 'offline');
     ui.st.title = s === 'offline' ? 'Changes are kept here and sync when the connection is back.' : '';
-    // The refresh button always sits next to the pencil (not in the app
-    // editor) and spins while an attempt runs — for at least one full turn, so
-    // a fast re-sync still reads as "done" instead of a flicker.
+    // The refresh button appears next to the pencil only while offline (and
+    // while the retry it started is running), and spins during an attempt —
+    // for at least one full turn, so a fast reconnect doesn't flicker.
     var busy = s === 'retry' || s === 'refresh';
     var b = ui.btnRetry;
-    b.hidden = ui.view === 'ed';
+    b.hidden = !(s === 'offline' || s === 'retry') || ui.view === 'ed';
     b.title = s === 'offline' ? 'Retry now' : 'Refresh';
     b.setAttribute('aria-label', s === 'offline' ? 'Retry connection' : 'Refresh apps');
     b.disabled = busy;
