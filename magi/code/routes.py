@@ -25,6 +25,7 @@ from fastapi import APIRouter, Body
 
 from .. import ident
 from ..settings import active_profile
+from . import autocommit as _AC
 from . import workspace as W
 
 router = APIRouter(prefix="/api/code", tags=["code"])
@@ -125,7 +126,7 @@ async def create_project(body: dict = Body(...)) -> dict[str, Any]:
             return _fail(e)
 
     pid = (body.get("id") or "").strip() or W.new_project_id()
-    prefs = {**W.DEFAULT_PREFS, **(body.get("prefs") or {})}
+    prefs = _AC.guard_prefs({**W.DEFAULT_PREFS, **(body.get("prefs") or {})}, root)
     proj = W.Project(
         id=pid, name=name,
         aliases=[str(a)[:60] for a in (body.get("aliases") or [])][:8],
@@ -172,12 +173,32 @@ async def set_prefs(project_id: str, body: dict = Body(...)) -> dict[str, Any]:
     if not p:
         return {"ok": False, "error": "no_project", "message": "No such project."}
     prefs = {**W.DEFAULT_PREFS, **(p.get("prefs") or {}), **(body.get("prefs") or {})}
+    prefs = await _guarded(p, prefs)
     row = W.Project(
         id=p["id"], name=body.get("name") or p["name"],
         aliases=p.get("aliases") or [], prefs=prefs,
         notes=body.get("notes", p.get("notes", ""))).to_row()
     await _db().save_code_project(row)
+    if not prefs["autoCommit"]:
+        _AC.cancel(project_id)
     return {"ok": True, "project": await _db().code_project(project_id, _engine_id())}
+
+
+async def _project_prefs(project_id: str) -> dict[str, Any] | None:
+    p = await _db().code_project(project_id, _engine_id())
+    return (p.get("prefs") or {}) if p else None
+
+
+_AC.prefs_source = _project_prefs
+
+
+async def _guarded(p: dict[str, Any], prefs: dict[str, Any]) -> dict[str, Any]:
+    """Prefs about to be stored, with the auto-commit rules applied against
+    the folder on THIS machine (autocommit.guard_prefs): never on for A1."""
+    from pathlib import Path
+    here = next((b for b in p.get("bindings") or [] if b.get("here")), None)
+    root = Path(here["root"]) if here else None
+    return await _asyncio.get_running_loop().run_in_executor(None, _AC.guard_prefs, prefs, root)
 
 
 @router.get("/projects/{project_id}/skeleton")
@@ -233,11 +254,77 @@ async def project_git(project_id: str) -> dict[str, Any]:
                 "message": f"{p['name']} has no folder on this machine yet."}
     from pathlib import Path
     from . import git as G
+    loop = _asyncio.get_running_loop()
     try:
-        st = await _asyncio.get_running_loop().run_in_executor(None, G.state, Path(here["root"]))
+        st = await loop.run_in_executor(None, G.state, Path(here["root"]))
     except G.GitError as e:
         return {"ok": False, "error": e.code, "message": e.message}
-    return {"ok": True, "git": st}
+    return {"ok": True, "git": st, "auto": await _auto_view(p, Path(here["root"]))}
+
+
+async def _auto_view(p: dict[str, Any], root) -> dict[str, Any]:
+    """Phase 12: the project's auto commit/push switches, the pending commit
+    (files, when it fires) and the last outcome -- which carries the pushed
+    SHA the console starts the Actions watch on."""
+    from .sandbox import is_engine_repo
+    own = await _asyncio.get_running_loop().run_in_executor(None, is_engine_repo, root)
+    return _AC.view(p["id"], p.get("prefs") or {}, locked=(
+        "MAGI's own repository: its Stop hook already commits and pushes, so MAGI "
+        "never auto-commits here." if own else ""))
+
+
+@router.post("/projects/{project_id}/auto")
+async def set_auto(project_id: str, body: dict = Body(...)) -> dict[str, Any]:
+    """`{"commit": bool, "push": bool, "window": minutes}` -- any subset.
+    Refused for A1 in words, not silently stored as off."""
+    p, root, err = await _project_here(project_id)
+    if err:
+        return err
+    from .sandbox import is_engine_repo
+    if await _asyncio.get_running_loop().run_in_executor(None, is_engine_repo, root):
+        return {"ok": False, "error": "read_only_project", "message": (
+            f"{p['name']} is MAGI's own repository. Its Stop hook already commits and pushes, "
+            "so auto commit stays off here.")}
+    prefs = {**W.DEFAULT_PREFS, **(p.get("prefs") or {})}
+    for k, key in (("commit", "autoCommit"), ("push", "autoPush"), ("window", "batchWindowMin")):
+        if k in (body or {}):
+            prefs[key] = body[k]
+    if (body or {}).get("push") and "commit" not in body:
+        prefs["autoCommit"] = True      # auto push means auto-committed changes, so both
+    prefs = await _guarded(p, prefs)
+    await _db().save_code_project(W.Project(
+        id=p["id"], name=p["name"], aliases=p.get("aliases") or [], prefs=prefs,
+        notes=p.get("notes", "")).to_row())
+    if not prefs["autoCommit"]:
+        _AC.cancel(project_id)
+    p = await _db().code_project(project_id, _engine_id())
+    return {"ok": True, "project": p, "auto": await _auto_view(p, root)}
+
+
+@router.post("/projects/{project_id}/auto/cancel")
+async def cancel_auto(project_id: str) -> dict[str, Any]:
+    """Drop the pending auto commit; the files stay applied, uncommitted."""
+    p, root, err = await _project_here(project_id)
+    if err:
+        return err
+    had = _AC.cancel(project_id)
+    return {"ok": had, **({} if had else {"error": "none", "message": "No auto commit is waiting."}),
+            "auto": await _auto_view(p, root)}
+
+
+@router.post("/projects/{project_id}/auto/now")
+async def auto_now(project_id: str) -> dict[str, Any]:
+    """Commit (and push, if that is on) the pending change now instead of
+    at the end of its window -- also how a blocked one is retried."""
+    p, root, err = await _project_here(project_id)
+    if err:
+        return err
+    if project_id not in _AC.PENDING:
+        return {"ok": False, "error": "none", "message": "No auto commit is waiting.",
+                "auto": await _auto_view(p, root)}
+    last = await _AC.fire(project_id, now=True)
+    p = await _db().code_project(project_id, _engine_id())
+    return {"ok": bool(last and last.get("ok")), "last": last, "auto": await _auto_view(p, root)}
 
 
 @router.post("/resolve")

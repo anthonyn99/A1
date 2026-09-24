@@ -3552,6 +3552,33 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 .code-gh-opt.on { border-color: var(--ac); box-shadow: inset 3px 0 0 var(--ac); }
 .code-gh-opt-l { font-weight: 700; font-size: 12.5px; }
 .code-gh-opt-s { color: var(--txm); font-size: 11px; }
+/* Auto commit / auto push (Phase 12). A switch drawn here -- a button with
+   role=switch -- not a native checkbox. */
+.ac-sheet { display: flex; flex-direction: column; gap: 10px; }
+.ac-row {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  font: inherit; color: var(--tx); background: var(--bg); cursor: pointer;
+  border: 1px solid var(--bd); border-radius: var(--r-btn); padding: 10px 12px; min-height: 52px;
+}
+.ac-row:hover:not(:disabled) { border-color: var(--ac); }
+.ac-row:disabled { opacity: .5; cursor: default; }
+.ac-row-txt { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-width: 0; }
+.ac-row-l { font-weight: 700; font-size: 12.5px; }
+.ac-row-s { color: var(--txm); font-size: 11px; }
+.ac-sw {
+  flex: 0 0 auto; width: 38px; height: 22px; border-radius: 999px; position: relative;
+  background: var(--s2, var(--bd)); border: 1px solid var(--bd); transition: background .15s;
+}
+.ac-sw::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+  border-radius: 50%; background: var(--txm); transition: transform .15s, background .15s;
+}
+.ac-row[aria-checked="true"] .ac-sw { background: color-mix(in srgb, var(--ac) 55%, transparent); border-color: var(--ac); }
+.ac-row[aria-checked="true"] .ac-sw::after { transform: translateX(16px); background: var(--tx); }
+.ac-win { display: flex; gap: 6px; flex-wrap: wrap; }
+.ac-win .code-git-act.on { border-color: var(--ac); color: var(--tx); }
+.code-auto { display: contents; }
+.code-auto-cd { font-family: var(--font-mono); }
 .code-gh-list { display: flex; flex-direction: column; max-height: 50vh; overflow-y: auto; }
 .code-gh-repo {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: space-between;
@@ -3824,6 +3851,7 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 @media (max-width: 760px) {
   .code-git-act { min-height: 32px; padding: 4px 12px; }
   .code-gh-opt { min-height: 46px; }
+  .ac-win .code-git-act { min-height: 36px; flex: 1 1 0; }
   .code-push .code-appr-acts { flex-wrap: wrap; }
   .code-push .code-appr-acts > * { flex: 1 1 auto; min-height: 44px; }
 }
@@ -10801,8 +10829,33 @@ function renderCodeStrip() {
     : codePill("Access", "read only", "muted"));
   const lead = codeChain()[0];
   if (lead) strip.append(codePill("Lead", lead.label + (lead.kind === "cli" ? " CLI" : ""), ""));
-  strip.append(codePill("Auto commit", "off", "muted"));
-  strip.append(codePill("Auto push", "off", "muted"));
+  // The real switches (Phase 12), and a countdown while a commit waits.
+  // Tapping either opens the switches.
+  const a = codeAuto(proj);
+  const pend = a && a.pending;
+  const ac = !a ? codePill("Auto commit", proj ? "…" : "off", "muted")
+    : a.locked ? codePill("Auto commit", "off · A1", "muted")
+    : pend && pend.blocked ? codePill("Auto commit", "blocked", "warn")
+    : pend && pend.due ? codePill("Auto commit", "", "warn")
+    : codePill("Auto commit", a.commit ? "on" : "off", a.commit ? "ok" : "muted");
+  if (pend && pend.due && !pend.blocked && a && !a.locked) {
+    const v = ac.querySelector(".code-pill-v");
+    const cd = el("span", "code-auto-cd", codeAutoLeft(pend.due));
+    cd.dataset.due = pend.due;
+    v.append(document.createTextNode("in "), cd);
+  }
+  const ap = codePill("Auto push", a && a.push && !a.locked ? "on" : a && a.locked ? "off · A1" : "off",
+    a && a.push && !a.locked ? "ok" : "muted");
+  for (const pill of [ac, ap]) {
+    if (!proj || !a) continue;
+    pill.classList.add("is-btn");
+    pill.setAttribute("role", "button");
+    pill.tabIndex = 0;
+    pill.title = a.locked || "Auto commit and auto push for this project";
+    pill.onclick = () => codeAutoSheet(proj);
+    pill.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pill.click(); } };
+  }
+  strip.append(ac, ap);
 }
 
 /* ── workspaces, the agent chain, and one task at a time ─────────────────
@@ -10849,6 +10902,9 @@ const CODE = {
   // would pick for the composer's text; and the extras /usage carries --
   // {capped, credits, caps, warn_at, alerts}.
   models: null, preview: null, usageX: null,
+  // Phase 12: a pressed Commit now / Cancel in flight, the re-read timer
+  // while the engine commits, and which countdown has already been read.
+  autoBusy: false, autoTimer: 0, autoReadFor: 0,
 };
 
 // The two CLI agents are not council units, so they have no entry in the
@@ -11203,15 +11259,193 @@ async function codeGitLoad(pid) {
   let next;
   try {
     const d = await codeGet(`/projects/${encodeURIComponent(pid)}/git`);
-    next = d.ok ? { pid, data: d.git, err: "", code: "" }
-                : { pid, data: null, err: d.message || "", code: d.error || "" };
+    next = d.ok ? { pid, data: d.git, auto: d.auto || null, err: "", code: "" }
+                : { pid, data: null, auto: null, err: d.message || "", code: d.error || "" };
   } catch (e) {
-    next = { pid, data: null, err: `Could not read git: ${e.message || e}`, code: "fetch" };
+    next = { pid, data: null, auto: null, err: `Could not read git: ${e.message || e}`, code: "fetch" };
   }
   // A different workspace chosen while this was in flight: drop the answer.
   if (!CODE.git || CODE.git.pid !== pid) return;
   CODE.git = { ...next, loading: false, stale: CODE.git.stale };
+  codeAutoFollow(pid, next.auto);
   if (codeMode()) renderCodeView();
+}
+
+/* ── auto commit / auto push (Phase 12) ──────────────────────────────────
+   The engine makes the commit (and the push) itself, after the project's
+   window, from exactly the files the task applied -- this console only
+   shows it and holds the switches. What it knows comes with the repository
+   line (`auto` on /git): the switches, the pending commit and when it
+   fires, and the last outcome. Nothing polls: the line is re-read when the
+   countdown reaches zero, then every few seconds only while the engine says
+   it is committing or pushing. An auto push's SHA starts the same Actions
+   watch a pressed Push does -- once per SHA. */
+const AUTO_SEEN = new Set();
+const AUTO_WATCH_FRESH_MS = 10 * 60000;
+
+function codeAutoFollow(pid, a) {
+  clearTimeout(CODE.autoTimer);
+  if (!a) return;
+  const p = a.pending;
+  if (p && (p.state === "committing" || p.state === "pushing")) {
+    CODE.autoTimer = setTimeout(() => codeGitLoad(pid), 3000);
+  }
+  const push = a.last && a.last.push;
+  if (push && push.ok && push.sha && push.sha.length >= 40 && !AUTO_SEEN.has(push.sha)
+      && Date.now() - a.last.at * 1000 < AUTO_WATCH_FRESH_MS) {
+    AUTO_SEEN.add(push.sha);
+    const proj = ((CODE.state && CODE.state.projects) || []).find((x) => x.id === pid);
+    const w = CODE.watch;
+    if (proj && !(w && w.sha === push.sha)) codeWatchStart(proj, push.sha, { branch: push.branch });
+  }
+}
+
+const codeAuto = (proj) => (CODE.git && proj && CODE.git.pid === proj.id ? CODE.git.auto : null);
+
+function codeAutoLeft(due) {
+  const s = Math.max(0, Math.round(due - Date.now() / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+/** The pending commit and the last outcome, on the repository line. */
+function codeAutoBits(proj, row) {
+  const a = codeAuto(proj);
+  if (!a) return;
+  const p = a.pending;
+  const box = el("span", "code-auto");
+  if (p) {
+    const n = p.files.length;
+    const what = `magi: commit of ${n} file${n === 1 ? "" : "s"}`;
+    if (p.state === "committing" || p.state === "pushing") {
+      box.append(el("span", "code-git-on", p.state === "committing" ? `${what} — committing…` : "Pushing…"));
+    } else if (p.blocked) {
+      box.append(el("span", "code-git-bad", p.blocked));
+    } else if (p.due) {
+      const s = el("span", "code-git-on");
+      s.title = p.message;
+      const cd = el("span", "code-auto-cd", codeAutoLeft(p.due));
+      cd.dataset.due = p.due;
+      s.append(document.createTextNode(`${what}${a.push ? " + push" : ""} in `), cd);
+      box.append(s);
+    }
+    if (p.state === "waiting") {
+      const go = el("button", "code-git-act is-push", p.blocked ? "Try again" : "Commit now");
+      go.type = "button";
+      go.disabled = !!CODE.autoBusy;
+      go.onclick = () => codeAutoAct(proj, "now");
+      const x = el("button", "code-git-act", "Cancel");
+      x.type = "button";
+      x.disabled = !!CODE.autoBusy;
+      x.title = "The files stay applied, uncommitted";
+      x.onclick = () => codeAutoAct(proj, "cancel");
+      box.append(go, x);
+    }
+  } else if (a.last && Date.now() - a.last.at * 1000 < (a.last.ok ? 5 * 60000 : 30 * 60000)) {
+    const ok = a.last.ok && !(a.last.push && !a.last.push.ok);
+    box.append(el("span", ok ? "code-git-on" : "code-git-bad", a.last.text));
+  }
+  if (box.childNodes.length) row.append(box);
+}
+
+async function codeAutoAct(proj, what) {
+  if (CODE.autoBusy) return;
+  CODE.autoBusy = true;
+  renderCodeView();
+  try {
+    const d = await codePost(`/projects/${encodeURIComponent(proj.id)}/auto/${what}`, {});
+    if (d.auto && CODE.git && CODE.git.pid === proj.id) {
+      CODE.git.auto = d.auto;
+      codeAutoFollow(proj.id, d.auto);
+    }
+  } catch (e) {
+    CODE.err = `Could not reach the engine: ${e.message || e}`;
+  }
+  CODE.autoBusy = false;
+  codeGitLoad(proj.id);
+}
+
+/** The two switches and the window, per project. Off by default; greyed,
+ *  with the reason, for MAGI's own repository. */
+function codeAutoSheet(proj) {
+  const sheet = el("div", "sheet");
+  const box = el("div", "sheet-box");
+  const close = () => sheet.remove();
+  box.append(el("div", "sheet-hd", `Auto commit · ${proj.name}`));
+  const body = el("div", "ac-sheet");
+  box.append(body);
+  const bar = el("div", "sheet-bar");
+  const no = el("button", "btn", "Close");
+  no.onclick = close;
+  bar.append(el("span", "qbar-spacer"), no);
+  box.append(bar);
+  dismissOnBackdrop(sheet, close);
+  sheet.append(box);
+  document.body.append(sheet);
+  let err = "";
+  let busy = false;
+  const draw = () => {
+    body.textContent = "";
+    const a = codeAuto(proj) || { commit: false, push: false, window: 3, locked: "" };
+    const g = CODE.git && CODE.git.pid === proj.id ? CODE.git.data : null;
+    const acct = (proj.prefs || {}).github || "";
+    body.append(el("div", "sheet-sub",
+      "After a write task you approved, MAGI commits exactly the files it applied, with a "
+      + "“magi:” message, once the project has been quiet for the window below — a follow-up "
+      + "task folds into the same commit. Nothing else you changed is included."));
+    if (a.locked) body.append(el("div", "sheet-err", a.locked));
+    const sw = (key, label, sub, on, disabled) => {
+      const b = el("button", "ac-row");
+      b.type = "button";
+      b.dataset.auto = key;
+      b.setAttribute("role", "switch");
+      b.setAttribute("aria-checked", String(!!on));
+      b.disabled = disabled || busy;
+      const t = el("span", "ac-row-txt");
+      t.append(el("span", "ac-row-l", label), el("span", "ac-row-s", sub));
+      b.append(t, el("span", "ac-sw"));
+      b.onclick = () => save({ [key]: !on });
+      body.append(b);
+    };
+    sw("commit", "Auto commit", "Commit applied changes by themselves. Refused, and said so on the "
+      + "repository line, when you have other files staged or a merge or rebase is in progress.",
+      a.commit, !!a.locked);
+    const target = g && g.github && g.github.owner ? `${g.github.owner}/${g.github.repo}` : "its remote";
+    sw("push", "Auto push", `Then pull, and only if that comes back clean, push to ${target}`
+      + (codeGhRemote(g) ? (acct ? ` as ${acct}` : " (choose a GitHub account first)") : "")
+      + ". Never forced. The Actions watch follows it.",
+      a.push, !!a.locked || !a.commit);
+    body.append(el("label", "sheet-lbl", "Wait after the last applied change"));
+    const win = el("div", "ac-win");
+    win.setAttribute("role", "radiogroup");
+    for (const m of [1, 3, 5, 10]) {
+      const b = el("button", `code-git-act ${a.window === m ? "on" : ""}`, `${m} min`);
+      b.type = "button";
+      b.setAttribute("role", "radio");
+      b.setAttribute("aria-checked", String(a.window === m));
+      b.disabled = !!a.locked || busy;
+      b.onclick = () => save({ window: m });
+      win.append(b);
+    }
+    body.append(win);
+    if (err) body.append(el("div", "sheet-err", err));
+  };
+  const save = async (change) => {
+    busy = true;
+    err = "";
+    draw();
+    try {
+      const d = await codePost(`/projects/${encodeURIComponent(proj.id)}/auto`, change);
+      if (!d.ok) throw new Error(d.message || "the engine refused it");
+      if (d.project) proj.prefs = d.project.prefs;
+      if (CODE.git && CODE.git.pid === proj.id) CODE.git.auto = d.auto;
+    } catch (e) {
+      err = String(e.message || e);
+    }
+    busy = false;
+    if (sheet.isConnected) draw();
+    renderCodeView();
+  };
+  draw();
 }
 
 function renderCodeGit(proj) {
@@ -11245,6 +11479,7 @@ function renderCodeGit(proj) {
   if (d.upstream) row.append(el("span", "code-git-dim",
     d.fetched_at ? `fetched ${engAgo(d.fetched_at * 1000)}` : "never fetched"));
   codeGitPushBits(proj, d, row);
+  codeAutoBits(proj, row);
   return row;
 }
 
@@ -11658,9 +11893,16 @@ function renderCodeApproval(t, ev) {
     box.append(acts);
   } else if (applied) {
     const done = t.committed || (t.result && t.result.commit);
-    box.append(el("div", "code-appr-out is-ok",
-      `Applied to your folder${applied.how === "merged" ? " (merged with edits you made meanwhile)" : ""}.`
-      + (done ? "" : " Nothing is staged or committed.")));
+    const auto = t.events.find((e) => e.k === "autocommit");
+    const how = `Applied to your folder${applied.how === "merged" ? " (merged with edits you made meanwhile)" : ""}.`;
+    if (auto && !done) {
+      // Auto commit is on here: the commit is the engine's to make, and the
+      // repository line counts it down (Commit now / Cancel live there).
+      box.append(el("div", "code-appr-out is-ok", how + " Auto commit records it with the next "
+        + "“magi:” commit — see the repository line above."));
+      return box;
+    }
+    box.append(el("div", "code-appr-out is-ok", how + (done ? "" : " Nothing is staged or committed.")));
     box.append(renderCodeCommit(t, applied, done));
   } else if (conflict) {
     box.append(el("div", "code-appr-out is-bad", conflict.text));
@@ -11835,6 +12077,17 @@ function codeCountdown(expires) {
 setInterval(() => {
   for (const n of document.querySelectorAll(".code-appr-cd[data-expires]")) {
     n.textContent = codeCountdown(+n.dataset.expires);
+  }
+  // An auto commit's countdown; at zero, the line is read once (a few
+  // seconds late, so the engine has made the commit) to show what happened.
+  let due = 0;
+  for (const n of document.querySelectorAll(".code-auto-cd[data-due]")) {
+    n.textContent = codeAutoLeft(+n.dataset.due);
+    due = +n.dataset.due;
+  }
+  if (due && Date.now() / 1000 > due + 2 && CODE.autoReadFor !== due && CODE.git) {
+    CODE.autoReadFor = due;
+    codeGitLoad(CODE.git.pid);
   }
 }, 1000);
 

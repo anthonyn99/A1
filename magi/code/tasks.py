@@ -40,7 +40,7 @@ from pathlib import Path
 from typing import Any
 
 from . import git as G
-from . import sandbox, security
+from . import autocommit, sandbox, security
 from .agents import chain
 from .agents.base import Mode, Outcome, Task
 
@@ -309,7 +309,15 @@ async def _review_and_apply(t: TaskState, sb: sandbox.Sandbox) -> dict[str, Any]
         draft = G.draft_message(t.prompt, (t.result or {}).get("text", ""))
         await publish(t, {"k": "applied", "files": res.files, "how": res.how,
                           "draft": draft})
-        return {"write": "applied", "files": res.files, "draft": draft}
+        out = {"write": "applied", "files": res.files, "draft": draft}
+        # Phase 12: where auto commit is on, the commit is MAGI's to make
+        # after the project's window -- the stream says when.
+        pend = await autocommit.on_applied(project_id=t.project_id, repo=t.repo,
+                                           files=res.files, draft=draft, task_id=t.id)
+        if pend is not None:
+            out["auto"] = pend
+            await publish(t, {"k": "autocommit", **pend})
+        return out
     await publish(t, {"k": "conflict", "text": res.message, "files": res.conflicts,
                       "saved": res.saved_patch})
     return {"write": "conflict", "detail": res.message, "saved": res.saved_patch}
@@ -350,6 +358,8 @@ async def commit(t: TaskState, message: str) -> dict[str, Any]:
     finally:
         t.committing = False
     r["commit"] = c.to_dict()
+    # Committed by hand: this task is no longer the pending auto commit's.
+    autocommit.forget_task(t.project_id, t.id, c.files)
     await publish(t, {"k": "committed", **c.to_dict()})
     return {"ok": True, "commit": c.to_dict()}
 
