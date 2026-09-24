@@ -95,3 +95,16 @@ def test_no_bare_engine_start_is_left():
     for f in ("watchdog.py", "cli/serve.py", "restarter.py"):
         src = (root / f).read_text(encoding="utf-8")
         assert '"-m", "magi", "cloud"]' not in src, f
+
+
+def test_per_profile_files_follow_the_profile_set_after_import():
+    """tunnel.json, watchdog.log and uploads were fixed at IMPORT time --
+    Tony's -- so a veda engine wrote its tunnel record over his."""
+    from magi import app as A, tunnel as T, watchdog as W
+    before = settings.active_profile()
+    try:
+        settings.set_active_profile("veda")
+        for p in (T._state(), W._log(), A._uploads()):
+            assert p.parent.name == "veda" or p.parent.parent.name == "veda", p
+    finally:
+        settings.set_active_profile(before)
