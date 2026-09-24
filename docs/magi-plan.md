@@ -222,7 +222,16 @@ and `restarter.py` always brought back TONY's engine (now profile + port);
 `restart.ps1` had no profile, guessed 8000 for a profile not set up here and
 killed whatever held the port -- it took Tony's engine down once in the
 first dry run (now: refuses both); `setup.ps1` must `Set-Location` A1
-because `python -m magi` imports from the current directory.
+because `python -m magi` imports from the current directory. Then, checking
+her autostart for real (tasks registered for veda on Tony's PC, then
+removed): autostart's "start it now" and the watchdog's fallback started a
+bare `magi cloud` (Tony, 8000) -- now `watchdog.engine_args()` everywhere,
+and `--port` defaults to the profile's own; and `tunnel.json`,
+`watchdog.log` and uploads were paths fixed at IMPORT time (Tony's), so the
+veda engine wrote its tunnel record over his -- now looked up when used.
+Measured after the fix: her task starts `magi cloud --port 8001 --profile
+veda`, her tunnel is published 12 s after a restart (same address kept),
+reachable from the internet.
 
 ### Hard-won facts (verified live — do not re-learn them)
 
