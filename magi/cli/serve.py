@@ -781,6 +781,12 @@ def _task_args() -> str:
     return "" if p == DEFAULT_PROFILE else f" --profile {p}"
 
 
+def _engine_task_args(port: int) -> str:
+    """The engine task's arguments: the profile, and the port unless it is
+    8000 (so Tony's registered command line stays exactly as it is)."""
+    return ("" if port == 8000 else f" --port {port}") + _task_args()
+
+
 def _startup_dir() -> Path:
     return (
         Path(os.environ["APPDATA"])
@@ -820,7 +826,7 @@ $settings.DisallowStartOnRemoteAppSession = $false
 $settings.StopIfGoingOnBatteries = $false
 
 # 1. the engine itself, at logon
-$action  = New-ScheduledTaskAction -Execute $pyw -Argument '-m magi cloud{_task_args()}' -WorkingDirectory $root
+$action  = New-ScheduledTaskAction -Execute $pyw -Argument '-m magi cloud{_engine_task_args(port)}' -WorkingDirectory $root
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $user
 Register-ScheduledTask -TaskName '{task_engine()}' -Action $action -Trigger $trigger `
     -Principal $principal -Settings $settings -Description 'MAGI council engine' -Force | Out-Null
@@ -911,7 +917,8 @@ def autostart(action: str = "on", port: int = 8000) -> int:
         return 0
 
     print("  Starting it now…")
-    proc.popen([str(pyw), "-m", "magi", "cloud"], cwd=str(root))
+    from ..watchdog import engine_args
+    proc.popen([str(pyw), *engine_args(port)], cwd=str(root))
     if _wait_healthy(port, timeout=60):
         print(f"\n  MAGI is up. Open http://127.0.0.1:{port}\n")
         return 0

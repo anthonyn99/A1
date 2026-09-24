@@ -60,11 +60,11 @@ def main(argv: list[str] | None = None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     sv = sub.add_parser("serve", parents=[common], help="run the backend and open the UI")
-    sv.add_argument("--port", type=int, default=8000)
+    sv.add_argument("--port", type=int, default=0, help="default: this profile's port")
     sv.add_argument("--no-browser", action="store_true")
 
     cl = sub.add_parser("cloud", parents=[common], help="serve, tunnel, and publish where to reach it")
-    cl.add_argument("--port", type=int, default=8000)
+    cl.add_argument("--port", type=int, default=0, help="default: this profile's port")
 
     au = sub.add_parser(
         "autostart",
@@ -72,7 +72,7 @@ def main(argv: list[str] | None = None) -> int:
         help="start the engine automatically at logon, so magi.bat is optional",
     )
     au.add_argument("action", nargs="?", default="on", choices=["on", "off", "status"])
-    au.add_argument("--port", type=int, default=8000)
+    au.add_argument("--port", type=int, default=0, help="default: this profile's port")
 
     d = sub.add_parser("doctor", parents=[common], help="check which selectors match each site")
     d.add_argument("sites", nargs="*", help="sites to check (default: all enabled)")
@@ -114,6 +114,11 @@ def main(argv: list[str] | None = None) -> int:
 
     # serve/cloud load settings themselves, per request, so a config edit takes
     # effect without a restart. Loading here would pin the startup copy.
+    # No --port: the port this profile was onboarded on (8000 unless it shares
+    # a PC with another engine) -- never a guessed 8000 for someone else.
+    if getattr(args, "port", None) == 0 and args.cmd in ("serve", "cloud", "autostart"):
+        from .watchdog import _configured_port
+        args.port = _configured_port()
     if args.cmd == "serve":
         return serve_cmd.run(args.port, not args.no_browser)
     if args.cmd == "cloud":

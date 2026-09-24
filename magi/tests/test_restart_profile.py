@@ -52,3 +52,46 @@ def test_the_endpoint_passes_the_profile_and_port():
     body = src[src.index('@app.post("/api/restart")'):]
     body = body[:body.index("\n@app.")]
     assert 'ident.engine_identity().get("port")' in body and "active_profile()]" in body
+
+
+# ── every other way an engine gets started ──────────────────────────────────
+# autostart's "start it now", the watchdog's fallback and the logon task used
+# a bare `magi cloud` -- Tony on 8000, on any PC. Found checking Veda's
+# autostart (her setup runs autostart before anything else starts her engine).
+
+def test_engine_args_carry_the_profile_and_its_port(monkeypatch):
+    from magi import watchdog as W
+    before = settings.active_profile()
+    try:
+        monkeypatch.setattr(W, "_configured_port", lambda default=8000: 8001)
+        settings.set_active_profile("veda")
+        assert W.engine_args() == ["-m", "magi", "cloud", "--port", "8001", "--profile", "veda"]
+        settings.set_active_profile("tony")
+        assert W.engine_args(8000) == ["-m", "magi", "cloud", "--port", "8000"]
+    finally:
+        settings.set_active_profile(before)
+
+
+def test_her_logon_task_starts_her_engine():
+    from magi.cli import serve as S
+    before = settings.active_profile()
+    try:
+        settings.set_active_profile("veda")
+        script = S._task_script(S.ROOT / ".venv" / "Scripts" / "pythonw.exe", S.ROOT.parent, 8000)
+        assert "'-m magi cloud --profile veda'" in script
+        assert "'MAGI Engine (veda)'" in script and "'-m magi.watchdog --profile veda'" in script
+        assert "'-m magi cloud --port 8001 --profile veda'" in \
+            S._task_script(S.ROOT / "x", S.ROOT.parent, 8001)
+        settings.set_active_profile("tony")
+        assert "'-m magi cloud'" in S._task_script(S.ROOT / "x", S.ROOT.parent, 8000), \
+            "Tony's registered command line is unchanged"
+    finally:
+        settings.set_active_profile(before)
+
+
+def test_no_bare_engine_start_is_left():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    for f in ("watchdog.py", "cli/serve.py", "restarter.py"):
+        src = (root / f).read_text(encoding="utf-8")
+        assert '"-m", "magi", "cloud"]' not in src, f

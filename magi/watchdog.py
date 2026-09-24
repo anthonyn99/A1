@@ -37,7 +37,11 @@ for _i, _a in enumerate(sys.argv[1:]):
         _CLI_PROFILE = _a.split("=", 1)[1]
 set_active_profile(resolve_profile(_CLI_PROFILE))
 
-LOG = data_dir() / "watchdog.log"
+# Looked up when used, never at import: the module is imported before
+# --profile is applied, so an import-time path was TONY's for every engine
+# -- a veda engine wrote its tunnel record over his (found 2026-09-24).
+def _log() -> Path:
+    return data_dir() / "watchdog.log"
 # The scheduled task that owns the engine (see cli/serve.py autostart).
 # Per profile, and Tony keeps the original names: he already has these two
 # tasks registered, and renaming them would leave an orphan running the old
@@ -69,15 +73,15 @@ _BREAKAWAY = 0x01000000          # CREATE_BREAKAWAY_FROM_JOB
 
 
 def _say(line: str) -> None:
-    LOG.parent.mkdir(parents=True, exist_ok=True)
+    _log().parent.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().isoformat(timespec="seconds")
     # Kept small: this runs forever, and a log nobody trims is a log nobody
     # reads. Only the last ~200 lines are of any use.
     try:
-        old = LOG.read_text(encoding="utf-8", errors="replace").splitlines()[-200:]
+        old = _log().read_text(encoding="utf-8", errors="replace").splitlines()[-200:]
     except OSError:
         old = []
-    LOG.write_text("\n".join(old + [f"{stamp}  {line}"]) + "\n", encoding="utf-8")
+    _log().write_text("\n".join(old + [f"{stamp}  {line}"]) + "\n", encoding="utf-8")
 
 
 def healthy(port: int = 8000, timeout: float = 4) -> bool:
@@ -106,6 +110,21 @@ def engine_exe() -> Path:
     return Path(sys.executable)
 
 
+def engine_args(port: int | None = None) -> list[str]:
+    """The ONE command line that starts this profile's engine.
+
+    Every place that starts an engine without Task Scheduler uses this: a
+    bare `magi cloud` is Tony's profile on port 8000 on ANY machine, which on
+    Veda's PC would have started his engine instead of hers (found checking
+    her autostart, 2026-09-24).
+    """
+    from .settings import DEFAULT_PROFILE, active_profile
+
+    p = active_profile()
+    args = ["-m", "magi", "cloud", "--port", str(port or _configured_port())]
+    return args if p == DEFAULT_PROFILE else [*args, "--profile", p]
+
+
 def start() -> None:
     """Ask Task Scheduler to run the engine task; spawn it directly only if
     that is not possible.
@@ -127,7 +146,7 @@ def start() -> None:
         except Exception:  # noqa: BLE001 — fall through to the direct start
             pass
     proc.popen(
-        [str(engine_exe()), "-m", "magi", "cloud"],
+        [str(engine_exe()), *engine_args()],
         cwd=str(ROOT.parent),
         # BREAKAWAY_FROM_JOB so a direct start is not killed with this process
         # either, where the job allows it.

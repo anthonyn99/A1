@@ -39,7 +39,11 @@ from . import ident, proc
 from .settings import ROOT, data_dir
 
 # Per profile: two engines on one PC each own their own tunnel record.
-STATE = data_dir() / "tunnel.json"
+# Looked up when used, never at import: the module is imported before
+# --profile is applied, so an import-time path was TONY's for every engine
+# -- a veda engine wrote its tunnel record over his (found 2026-09-24).
+def _state() -> Path:
+    return data_dir() / "tunnel.json"
 QUICK_TUNNEL = re.compile(r"https://[a-z0-9-]+\.trycloudflare\.com")
 # Only ever a quick-tunnel hostname, checked before any request is made with a
 # url that came from a file or a remote record.
@@ -136,19 +140,19 @@ def reap(port: int, keep: int | None = None) -> int:
 # ── what we know about the tunnel between runs ──────────────────────────────
 
 def record(pid: int, url: str, port: int, published_at: float | None = None) -> None:
-    STATE.parent.mkdir(parents=True, exist_ok=True)
-    tmp = STATE.with_suffix(".tmp")
+    _state().parent.mkdir(parents=True, exist_ok=True)
+    tmp = _state().with_suffix(".tmp")
     tmp.write_text(json.dumps({
         "pid": pid, "url": url, "port": port,
         "started_at": time.time(),
         "published_at": published_at,
     }), encoding="utf-8")
-    tmp.replace(STATE)
+    tmp.replace(_state())
 
 
 def state() -> dict:
     try:
-        return json.loads(STATE.read_text(encoding="utf-8"))
+        return json.loads(_state().read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
 
@@ -165,14 +169,14 @@ def mark_published(url: str, at: float) -> None:
     if s.get("url") != url:
         return
     s["published_at"] = at
-    tmp = STATE.with_suffix(".tmp")
+    tmp = _state().with_suffix(".tmp")
     tmp.write_text(json.dumps(s), encoding="utf-8")
-    tmp.replace(STATE)
+    tmp.replace(_state())
 
 
 def clear() -> None:
     with contextlib.suppress(OSError):
-        STATE.unlink()
+        _state().unlink()
 
 
 # ── verification ────────────────────────────────────────────────────────────

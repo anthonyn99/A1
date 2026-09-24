@@ -72,7 +72,11 @@ _brainstorm_jobs: dict[str, dict] = {}
 # file path -- Playwright's set_input_files needs one, and streaming an
 # UploadFile straight into the browser call would mean re-reading it once per
 # provider (the same file goes to every council member).
-UPLOADS_DIR = data_dir() / "uploads"
+# Looked up when used, never at import: the module is imported before
+# --profile is applied, so an import-time path was TONY's for every engine
+# -- a veda engine wrote its tunnel record over his (found 2026-09-24).
+def _uploads() -> Path:
+    return data_dir() / "uploads"
 
 # Keeps the on-disk name predictable and shell/path safe without touching the
 # user-visible name shown in the composer, which is stored separately.
@@ -524,7 +528,7 @@ async def create_run(
     # Stage attachments under this run's own directory so concurrent runs
     # never share a name, and so the whole set can be discarded together once
     # every provider has read them.
-    staged_paths = await _stage_uploads(files, UPLOADS_DIR / run_id)
+    staged_paths = await _stage_uploads(files, _uploads() / run_id)
 
     state = {
         "queue": Broadcast(),
@@ -615,7 +619,7 @@ async def create_run(
             # Every provider has either read these or failed trying; nothing
             # downstream needs the staged copies past this point.
             if staged_paths:
-                shutil.rmtree(UPLOADS_DIR / run_id, ignore_errors=True)
+                shutil.rmtree(_uploads() / run_id, ignore_errors=True)
 
     asyncio.create_task(work())
     # The pick travels with the run id so the console can name the model
@@ -717,7 +721,7 @@ async def delete_run(run_id: str):
     removed = await db.delete_run(run_id)
     _runs.pop(run_id, None)
     # Attachments were staged per run, so they go with it.
-    shutil.rmtree(UPLOADS_DIR / run_id, ignore_errors=True)
+    shutil.rmtree(_uploads() / run_id, ignore_errors=True)
     return {"id": run_id, "removed": removed}
 
 
@@ -1055,7 +1059,7 @@ async def create_brainstorm(
     # over a long time, possibly across an engine restart, and a list of paths
     # in a row would then point at files a cleanup had every right to remove.
     # The directory is the record.
-    await _stage_uploads(files, UPLOADS_DIR / session_id)
+    await _stage_uploads(files, _uploads() / session_id)
     return {"session_id": session_id, "attachments": len(files)}
 
 
@@ -1066,7 +1070,7 @@ def _session_attachments(session_id: str) -> list[Path]:
     -- an unordered directory listing would silently reorder attachments
     between rounds.
     """
-    d = UPLOADS_DIR / session_id
+    d = _uploads() / session_id
     if not d.is_dir():
         return []
     return sorted((f for f in d.iterdir() if f.is_file()), key=lambda f: f.name)
@@ -1099,7 +1103,7 @@ async def delete_brainstorm(session_id: str):
     removed = await db.delete_session(session_id)
     _brainstorm_jobs.pop(session_id, None)
     # Attachments were staged under the session's own directory.
-    shutil.rmtree(UPLOADS_DIR / session_id, ignore_errors=True)
+    shutil.rmtree(_uploads() / session_id, ignore_errors=True)
     return {"id": session_id, "removed": removed}
 
 
