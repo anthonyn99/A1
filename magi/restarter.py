@@ -7,7 +7,7 @@ kills, and `taskkill /t` on the engine would take it down mid-restart.
 
 Two waits, both necessary:
   * the old PID has to be gone, or two engines briefly share one database;
-  * port 8000 has to be free, because Windows holds a listening socket for a
+  * the engine's port has to be free, because Windows holds a listening socket for a
     moment after the process owning it exits, and uvicorn cannot bind it until
     then -- the replacement would die on startup with "address in use".
 """
@@ -54,6 +54,10 @@ def main(argv: list[str]) -> int:
     pid = int(argv[0])
     port = int(argv[1]) if len(argv) > 1 else 8000
     cwd = Path(argv[2]) if len(argv) > 2 else Path(__file__).resolve().parents[1]
+    # Whose engine. Without it this restarted Tony's -- his task name, and a
+    # bare `magi cloud` -- on any machine, Veda's included.
+    from .settings import DEFAULT_PROFILE, set_active_profile
+    profile = set_active_profile(argv[3] if len(argv) > 3 else DEFAULT_PROFILE)
 
     deadline = time.monotonic() + 45
     while time.monotonic() < deadline and (_alive(pid) or not _port_free(port)):
@@ -88,8 +92,9 @@ def main(argv: list[str]) -> int:
         exe = fallback.with_name("pythonw.exe")
         if not exe.exists():
             exe = fallback
+    extra = [] if profile == DEFAULT_PROFILE else ["--profile", profile]
     proc.popen(
-        [str(exe), "-m", "magi", "cloud"],
+        [str(exe), "-m", "magi", "cloud", "--port", str(port), *extra],
         cwd=str(cwd),
         creationflags=_DETACHED | _BREAKAWAY | proc.NO_WINDOW,
         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,

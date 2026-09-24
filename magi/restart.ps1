@@ -13,26 +13,73 @@
          the tunnel url survives and the new engine adopts it;
       3. starts it again exactly as the Startup shortcut does, detached and
          windowless, so it outlives this shell;
-      4. waits for the API to answer on 127.0.0.1:8000 and reports.
+      4. waits for the API to answer on the engine's port and reports.
+
+    Per profile: -Profile veda restarts Veda's engine (her port from
+    magi\data\veda\engine.json, `--profile veda`, her token). Without it,
+    the profile is the one onboarded on this PC -- Tony's where his engine
+    lives, Veda's on a PC that only has hers -- so the same command works on
+    both machines. The token is read from the USER environment (where
+    `magi onboard` put it with setx), so a terminal opened before onboarding
+    still starts an engine that has it.
 
     Phones keep the SAME address across a restart: the tunnel is left running
     and the new engine adopts it (magi/tunnel.py), so there is no wait for a
     fresh hostname to register in DNS.
 
-    Usage:  powershell -ExecutionPolicy Bypass -File magi\restart.ps1 [-Force]
+    Usage:  powershell -ExecutionPolicy Bypass -File magi\restart.ps1 [-Force] [-Profile veda]
 #>
 [CmdletBinding()]
-param([switch]$Force)
+param([switch]$Force, [Alias("Profile")][string]$Who = "")
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)   # ...\A1
 $py = Join-Path $root "magi\.venv\Scripts\pythonw.exe"
 if (-not (Test-Path $py)) { throw "No engine interpreter at $py" }
 
+# Whose engine. Tony's if his is onboarded here; otherwise the one profile
+# that is (Veda's own PC).
+if (-not $Who) {
+    $Who = "tony"
+    if (-not (Test-Path (Join-Path $root "magi\data\tony\engine.json"))) {
+        $only = @(Get-ChildItem (Join-Path $root "magi\data") -Directory -ErrorAction SilentlyContinue |
+                  Where-Object { Test-Path (Join-Path $_.FullName "engine.json") })
+        if ($only.Count -eq 1) { $Who = $only[0].Name }
+    }
+}
+$Who = $Who.ToLower()
+$port = 8000
+$engineJson = Join-Path $root "magi\data\$Who\engine.json"
+if (Test-Path $engineJson) {
+    $rec = Get-Content $engineJson -Raw | ConvertFrom-Json
+    if ($rec.port) { $port = [int]$rec.port }
+} elseif ($Who -ne "tony") {
+    # Never guess a port for someone else's engine: guessing 8000 once killed
+    # Tony's engine while setting Veda's up in a test clone.
+    Write-Host "No '$Who' engine is set up in $root. Run magi\setup.ps1 -Profile $Who first." -ForegroundColor Red
+    exit 1
+}
+
+# Whatever answers on the port must be THIS profile's engine (or nothing).
+# Another person's engine is never stopped to make room.
+try {
+    $h = Invoke-RestMethod "http://127.0.0.1:$port/api/health" -TimeoutSec 3
+    if ($h.profile -and $h.profile -ne $Who) {
+        Write-Host "Port $port is $($h.profile)'s engine, not $Who's. Not touching it." -ForegroundColor Red
+        exit 1
+    }
+} catch { }
+$profileArgs = @()
+if ($Who -ne "tony") { $profileArgs = @("--profile", $Who) }
+$tokenName = if ($Who -eq "tony") { "MAGI_API_TOKEN" } else { "MAGI_API_TOKEN_$($Who.ToUpper())" }
+$tok = [Environment]::GetEnvironmentVariable($tokenName, "User")
+if ($tok) { Set-Item -Path "env:$tokenName" -Value $tok }
+Write-Host "profile $Who, port $port"
+
 # 1. Is a run in flight? A MAGI Chrome open means a member or a Studio card is
 #    mid-answer, and killing the engine would lose it.
 $busy = @(Get-CimInstance Win32_Process -Filter "name='chrome.exe'" |
-          Where-Object { $_.CommandLine -match [regex]::Escape("$root\magi\profiles") })
+          Where-Object { $_.CommandLine -match [regex]::Escape("$root\magi\profiles\$Who") })
 if ($busy.Count -gt 0 -and -not $Force) {
     Write-Host "MAGI is mid-run ($($busy.Count) browser(s) open). Re-run with -Force to restart anyway." -ForegroundColor Yellow
     exit 1
@@ -78,18 +125,23 @@ function Stop-Tree([int]$processId) {
     Kill-Pid $processId
 }
 
+# THIS profile's engine only: Tony's has no --profile, anyone else's does.
 $engines = @(Get-CimInstance Win32_Process -Filter "name='pythonw.exe'" |
-             Where-Object { $_.CommandLine -match "-m magi cloud" })
+             Where-Object { $_.CommandLine -match "-m magi cloud" -and
+                            $_.CommandLine -like "*$root\magi\.venv*" -and
+                            (($Who -eq "tony" -and $_.CommandLine -notmatch "--profile") -or
+                             ($Who -ne "tony" -and $_.CommandLine -match "--profile $Who\b")) })
 foreach ($e in $engines) { Stop-Tree $e.ProcessId }
 # Anything still holding the port (a stray cloudflared or a previous engine).
-foreach ($c in @(Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue)) {
+# Checked above that it is not another profile's engine.
+foreach ($c in @(Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue)) {
     Stop-Tree $c.OwningProcess
 }
 Start-Sleep -Seconds 1
 
 # 3. Start, the way the Startup shortcut does: pythonw (no console window),
 #    working directory A1, detached from this shell.
-Start-Process -FilePath $py -ArgumentList "-m", "magi", "cloud" -WorkingDirectory $root -WindowStyle Hidden
+Start-Process -FilePath $py -ArgumentList (@("-m", "magi", "cloud", "--port", "$port") + $profileArgs) -WorkingDirectory $root -WindowStyle Hidden
 Write-Host "engine starting..."
 
 # 4. Wait for it to answer.
@@ -97,15 +149,15 @@ $deadline = (Get-Date).AddSeconds(60)
 while ((Get-Date) -lt $deadline) {
     Start-Sleep -Milliseconds 800
     try {
-        $r = Invoke-WebRequest -Uri "http://127.0.0.1:8000/api/providers" -TimeoutSec 4 -UseBasicParsing
+        $r = Invoke-WebRequest -Uri "http://127.0.0.1:$port/api/providers" -TimeoutSec 4 -UseBasicParsing
         if ($r.StatusCode -eq 200) {
-            $pid8000 = (Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue).OwningProcess
-            Write-Host "MAGI engine is up on 127.0.0.1:8000 (PID $pid8000)." -ForegroundColor Green
+            $pidUp = (Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue).OwningProcess
+            Write-Host "MAGI engine ($Who) is up on 127.0.0.1:$port (PID $pidUp)." -ForegroundColor Green
             # Per profile since profiles landed. This read the pre-profile
             # magi\data\tunnel.json, which the migration left behind, so it
             # reported a stale hostname as "the same address as before" --
             # including after cloudflared had been killed and a new one opened.
-            $t = Join-Path $root "magi\data\tony\tunnel.json"
+            $t = Join-Path $root "magi\data\$Who\tunnel.json"
             if (Test-Path $t) {
                 $rec = Get-Content $t -Raw | ConvertFrom-Json
                 if ($rec.url) {
@@ -122,5 +174,5 @@ while ((Get-Date) -lt $deadline) {
         }
     } catch { }
 }
-Write-Host "Engine did not answer on 127.0.0.1:8000 within 60s. Check magi\data\ logs." -ForegroundColor Red
+Write-Host "Engine did not answer on 127.0.0.1:$port within 60s. Check magi\data\$Who\autostart.log." -ForegroundColor Red
 exit 1

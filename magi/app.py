@@ -400,7 +400,8 @@ async def restart_engine(request: Request, force: bool = False):
     # Detached AND in its own process group, so it is not a child this process
     # can take down with it, and NO_WINDOW so nothing flashes (see magi.proc).
     proc.popen(
-        [sys.executable, "-m", "magi.restarter", str(os.getpid()), "8000", str(ROOT.parent)],
+        [sys.executable, "-m", "magi.restarter", str(os.getpid()),
+         str(ident.engine_identity().get("port") or 8000), str(ROOT.parent), active_profile()],
         cwd=str(ROOT.parent),
         creationflags=getattr(subprocess, "DETACHED_PROCESS", 0)
         | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)

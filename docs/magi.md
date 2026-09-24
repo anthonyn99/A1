@@ -2212,7 +2212,25 @@ and the console degrades to local-only rather than erroring.
 
 ## Installing it
 
-`magi.html` carries an inline `data:` manifest, the same pattern every other A1
+**The engine, on a new PC** (Veda's, or a rebuild of Tony's), is one command
+from a clone of A1:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File magi\setup.ps1 -Profile veda
+```
+
+`magi/setup.ps1` installs what is missing (Python, Node.js, Chrome, git, via
+winget), the venv, the Claude Code and Codex CLIs, onboards the profile, starts
+the engine, registers A1 in Code Mode and checks it; what is left is signing
+in, from the console's Accounts view. [docs/magi-setup.md](magi-setup.md) is
+the same thing written for the Claude session that runs it, and `CLAUDE.md`
+points there. On a PC of its own an engine takes port 8000 like Tony's; the
+spare port (veda: 8001) is only for a second engine beside another.
+`magi\restart.ps1` finds the profile onboarded on the PC by itself, never
+guesses a port for someone else's, and never stops another profile's engine
+(verified 2026-09-24: a first dry run in a test clone had killed Tony's).
+
+**The console** -- `magi.html` carries an inline `data:` manifest, the same pattern every other A1
 program uses, so there is no extra file to deploy. Open it and use the
 browser's **Install** option to get it as a standalone app with its own icon.
 Install from the GitHub Pages URL rather than `127.0.0.1`, so the installed app

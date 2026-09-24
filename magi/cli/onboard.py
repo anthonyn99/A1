@@ -71,9 +71,19 @@ def _pick_port(requested: int) -> int:
     """The asked-for port, else this profile's usual one, else the next free."""
     if requested:
         return requested
+    usable = lambda p: _port_free(p) or _ours(p)  # noqa: E731
+    # The port this profile already owns (re-running onboard must not move a
+    # paired engine), then 8000 -- the port every console, script and doc
+    # assumes, so the engine on a PC of its own (Veda's) is set up exactly
+    # like Tony's -- and only on a PC already running another engine, the
+    # profile's own spare (veda: 8001).
+    owned = _owned_port()
+    if owned and usable(owned):
+        return owned
+    if usable(BASE_PORT):
+        return BASE_PORT
     preferred = PROFILE_PORTS.get(active_profile(), 0)
-    if preferred and (_port_free(preferred) or _ours(preferred)
-                      or _owned_port() == preferred):
+    if preferred and (usable(preferred) or owned == preferred):
         return preferred
     for p in range(BASE_PORT, BASE_PORT + 40):
         if _port_free(p) or _ours(p):
@@ -183,22 +193,16 @@ def run(port: int = 0, label: str | None = None, autostart: bool = True) -> int:
     # ── 6. what a human still has to do ───────────────────────────────────
     sites = sorted(x.name for x in p.iterdir() if x.is_dir()) if p.is_dir() else []
     _say()
-    _say("Done. Two things only you can do:")
+    # What is left is signing in, and all of it happens in the console
+    # (Accounts starts every sign-in on this PC). The token needs no typing:
+    # the console at this PC reads it from /api/token and shares it with the
+    # profile's other devices.
+    _say("Done. What only a person can do, in the console:")
     _say()
-    flag = "" if profile == "tony" else f" --profile {profile}"
+    _say(f"  Open https://anthonyn99.github.io/A1/magi.html here, pick {profile}, unlock,")
+    _say("  then Accounts: sign in to each council unit, Coding agents (Codex shows")
+    _say("  a device code), and GitHub (add a token).")
     if sites:
-        _say(f"  1. Sessions already saved here: {', '.join(sites)}")
-        _say(f"     Add or refresh one:  magi login <site>{flag}")
-    else:
-        _say("  1. Sign in to each site you want on the council:")
-        _say(f"       magi login chatgpt{flag}")
-        _say(f"       magi login claude{flag}")
-        _say(f"       magi login gemini{flag}")
-        _say(f"       magi login deepseek{flag}")
-        _say("     A real window opens; you log in by hand. MAGI never sees")
-        _say("     your credentials, and your own Chrome is never touched.")
-    _say()
-    _say(f"  2. Open http://127.0.0.1:{chosen} and enter the token once,")
-    _say(f"     as the {profile} profile. Every other device picks it up.")
+        _say(f"  Sessions already saved here: {', '.join(sites)}")
     _say()
     return 0

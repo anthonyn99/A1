@@ -210,10 +210,19 @@ accounts, choices/caps live in `magi/data/veda/code_models.json` (default:
 Auto, no caps, warn at 80%), credits come from her own usage reads, and the
 Repository panel/MCP tools use HER GitHub account (`prefs.github` on her
 projects). Verified this session with a real veda engine on :8001 (own
-defaults; a cap and a choice set there did not touch Tony's). On her PC:
-install both CLIs (`npm i -g @anthropic-ai/claude-code @openai/codex`), sign
-in the slots from Accounts, add her GitHub token, then open Code Mode — the
-model row fills itself.
+defaults; a cap and a choice set there did not touch Tony's).
+
+**On her PC it is one command** (built 2026-09-24, after Phase 14): she asks
+Claude to "set up MAGI"; `CLAUDE.md` points it at `docs/magi-setup.md`, which
+runs `magi\setup.ps1 -Profile veda` (prerequisites via winget, venv, both
+CLIs, onboard on port 8000, start, A1 registered, checked) and then walks her
+through the sign-ins in the console. Proven on a fresh clone here (as veda,
+beside Tony's engine, so on 8001). Fixed on the way: the console's Restart
+and `restarter.py` always brought back TONY's engine (now profile + port);
+`restart.ps1` had no profile, guessed 8000 for a profile not set up here and
+killed whatever held the port -- it took Tony's engine down once in the
+first dry run (now: refuses both); `setup.ps1` must `Set-Location` A1
+because `python -m magi` imports from the current directory.
 
 ### Hard-won facts (verified live — do not re-learn them)
 
@@ -444,12 +453,12 @@ model row fills itself.
 
 ### Phase 15 — first concrete steps for the next session
 
-Veda's PC, with Veda. Nothing to build: follow "Ready for Veda's PC" above
-and §8 Phase 15 (`git clone`, `magi onboard --profile veda`, her sign-ins
-from Accounts, her GitHub token), then verify the isolation checks listed in
-§8 and that `tests/live/magi-guard.live.js` passes against HER engine (the
-job guard is per engine process). If Veda is not available, there is no
-phase to build — say so and stop.
+Veda's PC, with Veda. Nothing to build. On her PC (a clone of A1), the
+session follows `docs/magi-setup.md`: `magi\setup.ps1 -Profile veda`, then
+her sign-ins from Accounts. Then verify the isolation checks in §8 Phase 15
+and run `tests/live/magi-guard.live.js` against HER engine (the job guard is
+per engine process). If this session is not on Veda's PC, there is nothing
+to build — say so and stop.
 
 ### (Done) Phase 14b — what it was
 
