@@ -139,6 +139,7 @@ def test_the_code_mode_write_claims_still_hold():
     """Write mode's paragraph makes promises about safety. Each is checked
     against the code that keeps it, so the panel cannot drift into claiming a
     protection that no longer exists."""
+    import inspect
     from magi.code import security, tasks
     assert "Read or Write, per task" in HOW
     assert "__APPROVE_MIN__" in HOW, "spell the approval window as __APPROVE_MIN__"
@@ -148,9 +149,16 @@ def test_the_code_mode_write_claims_still_hold():
     for d in (".git", ".ssh", ".claude", ".codex"):
         assert d in security._DENY_DIRS, d
     assert security.check_path(".env") and security.check_path("../x")
-    # "A1 itself stays read-only" -- enforced by the engine, not only the switch.
-    routes = (REPO / "magi" / "code" / "routes.py").read_text(encoding="utf-8")
-    assert "read_only_project" in routes and "is_engine_repo" in routes
+    # "A1 is writable too, but never committed or pushed from here ... MAGI
+    # only fetches it" (Phase 14b) -- one policy, asked by the engine.
+    from magi.code import sandbox as SB
+    assert "A1 is writable too, but never committed or pushed from here" in HOW
+    assert SB.ENGINE_REPO == {"write": True, "commit": False, "push": False,
+                              "pull": False, "auto": False}
+    src = inspect.getsource(tasks)
+    assert src.count("engine_repo_allows") >= 4       # pull, apply, commit, push
+    # "A change to the engine's own code under magi/ says so on the card".
+    assert '"engine_files"' in src and "ev.engine_files" in PAGE
     # "Every task starts in Read".
     assert 'rw: "read",' in PAGE
     # "a window whose reset time has passed shows 0%".
@@ -166,7 +174,9 @@ def test_the_code_mode_git_claims_still_hold():
     # "before any agent reads the folder" -- the pull comes before the chain.
     assert src.index("await _pull_first(t, root)") < src.index("chain.run_chain(")
     # "A1 itself is only fetched, never pulled".
-    assert "G.fetch_only if own else G.pull" in src
+    assert "G.pull if pull else G.fetch_only" in src and G.fetch_only
+    from magi.code import sandbox as _SB
+    assert _SB.ENGINE_REPO["pull"] is False, "A1 is fetched, never pulled"
     # "If the pull clashes ... it is undone".
     gsrc = (REPO / "magi" / "code" / "git.py").read_text(encoding="utf-8")
     assert '"rebase", "--abort"' in gsrc
@@ -205,7 +215,7 @@ def test_the_code_mode_push_claims_still_hold():
     assert askpass.answer("Username for 'https://evil.example': ", env) is None
     # "A1 is never pushed from here".
     push_route = routes.split("async def push_project(")[1]
-    assert "is_engine_repo" in push_route and "read_only_project" in push_route
+    assert 'engine_repo_allows, root, "push"' in push_route and "read_only_project" in push_route
     # "never shows it again": the public record has no token field.
     # (behaviourally: test_github_client greps every response for a sentinel)
     import inspect

@@ -379,13 +379,34 @@ def patch_dir(profile_data: Path) -> Path:
     return profile_data / "code-patches"
 
 
-def is_engine_repo(root: Path) -> bool:
-    """True for the repository MAGI itself lives in (A1).
+# What Code Mode may do in MAGI's own repository (A1). Decided by Tony,
+# 2026-09-24 (Phase 14b), one answer per action -- each call site asks about
+# its own action, never "is this A1?", so opening one cannot open another:
+#   write   yes: sandbox -> diff -> your approval -> applied, like any project.
+#   commit  no:  A1's Stop hook commits (`auto:`) at the end of every Claude
+#                session, applied Code Mode changes included.
+#   push    no:  the Stop hook pushes; A1 keeps exactly one pusher.
+#   pull    no:  fetch only -- a rebase under live sessions and the hook is
+#                worse than a stale answer.
+#   auto    no:  auto commit/push, for the same reason as commit.
+ENGINE_REPO = {"write": True, "commit": False, "push": False, "pull": False, "auto": False}
 
-    A1 stays read-only until Phase 14: its own Stop hook commits and pushes
-    every change, and an agent editing the engine it is running inside is a
-    class of problem best left closed until the rest is proven.
-    """
+ENGINE_REPO_WHY = {
+    "commit": "A1's Stop hook commits this at the end of the next Claude session; "
+              "Code Mode does not commit here.",
+    "push": "A1's Stop hook pushes; Code Mode does not push A1.",
+    "write": "MAGI's own repository is read-only to Code Mode.",
+}
+
+
+def engine_repo_allows(root: Path, action: str) -> bool:
+    """May Code Mode do `action` here? Anything but A1: yes."""
+    return ENGINE_REPO[action] or not is_engine_repo(root)
+
+
+def is_engine_repo(root: Path) -> bool:
+    """True for the repository MAGI itself lives in (A1). What Code Mode may
+    do there is ENGINE_REPO, above."""
     from ..settings import ROOT
     try:
         top, _ = repo_of(root)

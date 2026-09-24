@@ -87,9 +87,14 @@ def _write_status(root: str) -> dict[str, Any]:
     except SB.SandboxError:
         return {"ok": False, "why": "Edits need a git repository (run git init there), "
                 "so every change is a diff you can read and undo."}
+    if not SB.engine_repo_allows(r, "write"):
+        return {"ok": False, "why": SB.ENGINE_REPO_WHY["write"]}
     if SB.is_engine_repo(r):
-        return {"ok": False, "why": "MAGI's own repository stays read-only until the "
-                "hardening phase."}
+        # Writable (Phase 14b), but committing and pushing stay the hook's.
+        return {"ok": True, "why": "", "commit": SB.ENGINE_REPO["commit"],
+                "push": SB.ENGINE_REPO["push"],
+                "note": "A1: approved edits are applied to the folder; its Stop hook "
+                        "commits and pushes them. Changes under magi/ need an engine restart."}
     return {"ok": True, "why": ""}
 
 
@@ -606,11 +611,12 @@ async def start_task(body: dict = Body(...)) -> dict[str, Any]:
         return {"ok": False, "error": "empty", "message": "Say what to look at."}
     mode = "write" if body.get("mode") == "write" else "read"
     if mode == "write":
-        from .sandbox import is_engine_repo
-        if await _asyncio.get_running_loop().run_in_executor(None, is_engine_repo, root):
+        from .sandbox import engine_repo_allows
+        if not await _asyncio.get_running_loop().run_in_executor(
+                None, engine_repo_allows, root, "write"):
             return {"ok": False, "error": "read_only_project", "message": (
-                f"{p['name']} is MAGI's own repository, and stays read-only until "
-                "the hardening phase. Ask in Read mode, or use another project.")}
+                f"{p['name']} is MAGI's own repository, which is read-only to Code "
+                "Mode. Ask in Read mode, or use another project.")}
     order = [str(x) for x in (body.get("agents") or _chain.DEFAULT_ORDER)]
     t = await _tasks.start(project_id=p["id"], root=root, prompt=prompt[:20000],
                            order=order, settings=_settings(), mode=mode,
@@ -811,19 +817,17 @@ async def push_project(project_id: str, body: dict = Body(default={})) -> dict[s
     """Push the project's current branch -- the repository line's ↑n.
 
     As the project's GitHub account (or `{"account"}`), never forced, and
-    never for MAGI's own repository: A1 stays read-only until the hardening
-    phase, pushes included.
+    never for MAGI's own repository: A1's Stop hook is its one pusher
+    (sandbox.ENGINE_REPO).
     """
     p, root, err = await _project_here(project_id)
     if err:
         return err
     from . import git as G
-    from .sandbox import is_engine_repo
+    from .sandbox import ENGINE_REPO_WHY, engine_repo_allows
     loop = _asyncio.get_running_loop()
-    if await loop.run_in_executor(None, is_engine_repo, root):
-        return {"ok": False, "error": "read_only_project", "message": (
-            f"{p['name']} is MAGI's own repository; it is not pushed from Code Mode until "
-            "the hardening phase.")}
+    if not await loop.run_in_executor(None, engine_repo_allows, root, "push"):
+        return {"ok": False, "error": "read_only_project", "message": ENGINE_REPO_WHY["push"]}
     login = str((body or {}).get("account") or (p.get("prefs") or {}).get("github") or "")
     auth = await loop.run_in_executor(None, _tasks.git_auth, login)
     try:

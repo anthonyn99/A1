@@ -534,3 +534,47 @@ def test_git_auth_is_none_for_an_unknown_or_blank_login(monkeypatch):
     monkeypatch.setattr(A, "_profile", lambda: "tony")
     a = T.git_auth("Octo")
     assert (a.login, a.service, a.host) == ("octo", "magi-github:tony:octo", "github.com")
+
+
+# ── Phase 14b: A1 is writable, and nothing more ───────────────────────────
+# Tony's answers (2026-09-24): write yes; commit, push, pull, auto no -- A1's
+# Stop hook commits and pushes. Here `repo` stands in for A1.
+
+def test_the_engine_repo_policy_is_write_only():
+    assert SB.ENGINE_REPO == {"write": True, "commit": False, "push": False,
+                              "pull": False, "auto": False}
+
+
+def test_a1_takes_a_write_task_and_leaves_it_for_the_hook(repo, monkeypatch):
+    monkeypatch.setattr(SB, "is_engine_repo", lambda root: True)
+    (repo / "magi").mkdir()
+    a = Editor({"app.py": "x = 2\n", "magi/engine.py": "print(1)\n"})
+    t, seen = asyncio.run(_run(repo, [a], answer=True))
+    appr = next(e for e in seen if e["k"] == "approval")
+    assert appr["engine_files"] == ["magi/engine.py"], "the card says the engine changed"
+    applied = next(e for e in seen if e["k"] == "applied")
+    assert applied["by_hook"] is True
+    assert (repo / "app.py").read_text() == "x = 2\n", "applied like any project"
+    r = asyncio.run(T.commit(t, "Commit it anyway"))
+    assert r["error"] == "read_only_project" and "Stop hook" in r["message"]
+    assert _git(repo, "rev-list", "--count", "HEAD") == "1", "nothing committed"
+    t.result["commit"] = {"short": "x"}          # even with a commit on record
+    r = asyncio.run(T.push(t))
+    assert r["error"] == "read_only_project"
+
+
+def test_other_projects_are_unchanged(repo):
+    t, seen = asyncio.run(_run(repo, [Editor({"app.py": "x = 2\n"})], answer=True))
+    assert "by_hook" not in next(e for e in seen if e["k"] == "applied")
+    assert "engine_files" not in next(e for e in seen if e["k"] == "approval")
+    assert asyncio.run(T.commit(t, "Mine"))["ok"]
+
+
+def test_the_write_route_and_view_let_a1_in(repo, monkeypatch):
+    from magi.code import routes as R
+    monkeypatch.setattr(SB, "is_engine_repo", lambda root: True)
+    w = R._write_status(str(repo))
+    assert w["ok"] and w["commit"] is False and w["push"] is False and "Stop hook" in w["note"]
+    monkeypatch.setitem(SB.ENGINE_REPO, "write", False)
+    w = R._write_status(str(repo))
+    assert not w["ok"] and "read-only" in w["why"]

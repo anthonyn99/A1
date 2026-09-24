@@ -5,7 +5,7 @@
 // Phase 8 end to end, against a SCRATCH repository it creates in %TEMP% --
 // never A1. Real agents edit a sandbox copy; the card shows the diff; the
 // real file changes only after Approve, and not at all after Deny.
-//   1. A1 offers Write greyed out, with the reason.
+//   1. A1 offers Write, with the Stop-hook note; its push is still refused.
 //   2. Claude CLI: approve on desktop  -> the file on disk changes.
 //   3. Claude CLI: deny at 390px       -> the file on disk does not.
 //   4. Codex CLI:  approve              -> Codex's own write sandbox works.
@@ -103,16 +103,18 @@ async function runTask(c, prompt, agents) {
   ok('state + agents loaded', await waitFor(c, '!!(CODE.state && CODE.agents)'));
 
   try {
-    console.log('\nA1 cannot be written');
+    // Phase 14b: A1 takes writes; committing and pushing stay its Stop
+    // hook's (a real A1 write is tests/live/magi-a1.live.js).
+    console.log('\nA1 is writable, and nothing more');
     const a1 = await evalJs(c, 'return (CODE.state.projects.find(p=>p.name==="A1")||{}).id;');
     await evalJs(c, `codeSetProject(${JSON.stringify(a1)}); renderCodeView(); return 1;`);
-    ok('Write is greyed out for A1', await evalJs(c,
-      '[...document.querySelectorAll(".code-rw-b")].find(b=>b.textContent==="Write").disabled') === true);
+    ok('Write is offered for A1', await evalJs(c,
+      '[...document.querySelectorAll(".code-rw-b")].find(b=>b.textContent==="Write").disabled') === false);
     const why = await evalJs(c, '(document.querySelector(".code-rw-note")||{}).textContent || ""');
-    ok('with the reason', /read-only/.test(why), why);
-    const forced = await api('/tasks', { project_id: a1, prompt: 'x', mode: 'write', agents: ['claude-cli'] });
-    ok('and the engine refuses it even if asked directly', forced.ok === false && forced.error === 'read_only_project');
-    await shot(c, 'write-a1-readonly');
+    ok('with the Stop-hook note', /Stop hook commits and pushes/.test(why), why);
+    const pushed = await api(`/projects/${a1}/push`, {});
+    ok('and the engine still refuses to push it', pushed.ok === false && pushed.error === 'read_only_project', pushed.message);
+    await shot(c, 'write-a1-writable');
 
     await evalJs(c, `codeSetProject(${JSON.stringify(PID)}); renderCodeView(); return 1;`);
     ok('Write is offered for a scratch repo', await evalJs(c,

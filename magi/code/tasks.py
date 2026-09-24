@@ -203,10 +203,10 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
 async def _pull_first(t: TaskState, root: Path) -> G.Pull:
     """The §7A rule: pull before anything reads the folder, and say so."""
     loop = asyncio.get_running_loop()
-    own = await loop.run_in_executor(None, sandbox.is_engine_repo, root)
+    pull = await loop.run_in_executor(None, sandbox.engine_repo_allows, root, "pull")
     auth = await loop.run_in_executor(None, git_auth, t.github)
     try:
-        p = await loop.run_in_executor(None, G.fetch_only if own else G.pull, root, auth)
+        p = await loop.run_in_executor(None, G.pull if pull else G.fetch_only, root, auth)
     except G.GitError as e:
         p = G.Pull(False, text=f"Could not pull: {e.message}")
     await publish(t, {"k": "pull", **p.to_dict()})
@@ -277,7 +277,12 @@ async def _review_and_apply(t: TaskState, sb: sandbox.Sandbox) -> dict[str, Any]
 
     t.approval = loop.create_future()
     t.approval_deadline = time.time() + APPROVAL_TIMEOUT
+    # A change to the engine's own code does nothing until it restarts -- and
+    # a bad one can stop it starting. Said on the card; never restarted here.
+    engine = ([f.path for f in rv.files if f.path.replace("\\", "/").startswith("magi/")]
+              if await loop.run_in_executor(None, sandbox.is_engine_repo, sb.repo) else [])
     await publish(t, {"k": "approval", "files": [f.to_dict() for f in rv.files],
+                      **({"engine_files": engine} if engine else {}),
                       "adds": sum(f.adds for f in rv.files),
                       "dels": sum(f.dels for f in rv.files),
                       "expires_at": t.approval_deadline,
@@ -307,8 +312,10 @@ async def _review_and_apply(t: TaskState, sb: sandbox.Sandbox) -> dict[str, Any]
     if res.ok:
         t.repo = str(sb.repo)
         draft = G.draft_message(t.prompt, (t.result or {}).get("text", ""))
+        # A1 (Phase 14b): applied, and left for its Stop hook to commit.
+        hook = not await loop.run_in_executor(None, sandbox.engine_repo_allows, sb.repo, "commit")
         await publish(t, {"k": "applied", "files": res.files, "how": res.how,
-                          "draft": draft})
+                          "draft": draft, **({"by_hook": True} if hook else {})})
         out = {"write": "applied", "files": res.files, "draft": draft}
         # Phase 12: where auto commit is on, the commit is MAGI's to make
         # after the project's window -- the stream says when.
@@ -349,6 +356,10 @@ async def commit(t: TaskState, message: str) -> dict[str, Any]:
     if not t.done or r.get("write") != "applied" or not t.repo:
         return {"ok": False, "error": "not_applied",
                 "message": "Only a change that was applied to your folder can be committed."}
+    if not await asyncio.get_running_loop().run_in_executor(
+            None, sandbox.engine_repo_allows, Path(t.repo), "commit"):
+        return {"ok": False, "error": "read_only_project",
+                "message": sandbox.ENGINE_REPO_WHY["commit"]}
     if r.get("commit"):
         return {"ok": False, "error": "already", "message": "Already committed.",
                 "commit": r["commit"]}
@@ -397,6 +408,10 @@ async def push(t: TaskState, login: str = "") -> dict[str, Any]:
                 "message": "Commit the change first; only a commit can be pushed."}
     if (r.get("push") or {}).get("ok"):
         return {"ok": False, "error": "already", "message": "Already pushed.", "push": r["push"]}
+    if not await asyncio.get_running_loop().run_in_executor(
+            None, sandbox.engine_repo_allows, Path(t.repo), "push"):
+        return {"ok": False, "error": "read_only_project",
+                "message": sandbox.ENGINE_REPO_WHY["push"]}
     if t.pushing:
         return {"ok": False, "error": "busy", "message": "Already pushing."}
     t.pushing = True

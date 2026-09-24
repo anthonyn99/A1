@@ -80,6 +80,22 @@ ok('a refusal lists every refused path', /for \(const r of ev\.refused\)/.test(l
 ok('while waiting, the status says nothing has changed yet',
    /Waiting for your approval — nothing has changed yet/.test(MAGI));
 
+console.log('\nA1 (Phase 14b): writable, committed and pushed by its Stop hook');
+{
+  const whole = lift('function renderCodeApproval(t, ev)', 7000);
+  const hookAt = whole.indexOf('if (applied.by_hook)');
+  ok('an A1 change says the Stop hook commits it', hookAt > 0 && /Stop hook commits and pushes it/.test(whole));
+  ok('...and returns before the Commit button is drawn',
+     hookAt > 0 && hookAt < whole.indexOf('renderCodeCommit(t, applied, done)')
+     && /Code Mode does not commit here\."\)\);\s*return box;/.test(whole));
+  ok('a change under magi/ warns that the engine must restart',
+     /ev\.engine_files && ev\.engine_files\.length/.test(whole) && /MAGI never "\s*\+ "restarts itself/.test(whole));
+  ok('the repository line offers no Push where the engine will not push',
+     /proj\.write\.push !== false/.test(lift('function codeGitPushBits(proj, d, row)', 900)));
+  ok('the Write switch shows the A1 note',
+     /else if \(w\.ok && w\.note\) box\.append\(el\("div", "code-rw-note", w\.note\)\)/.test(MAGI));
+}
+
 console.log('\nPhone');
 ok('the buttons go full width under the thumb',
    /@media \(max-width: 760px\)[\s\S]{0,300}\.code-appr-acts button \{ flex: 1 1 0; min-height: 46px; \}/.test(MAGI));

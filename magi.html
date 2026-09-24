@@ -3994,6 +3994,7 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 .code-appr-out { font-size: 11.5px; font-weight: 600; }
 .code-appr-out.is-ok { color: var(--grn); }
 .code-appr-out.is-bad { color: var(--amber); }
+.code-appr-out.is-warn { color: var(--amber); }
 .code-appr-out code { font-family: var(--font-mono); }
 .code-commit { display: flex; flex-direction: column; gap: 8px; }
 .code-commit-open {
@@ -6436,7 +6437,7 @@ const HOW = [
       "<b>Any unit can code.</b> <b>Claude</b> and <b>Codex</b> run through their own command-line tools and search and read the folder themselves; every other unit works through its browser session, with MAGI handing it the files that matter. Both CLIs use a signed-in account's own plan &mdash; Codex works on a free ChatGPT account &mdash; and no API key is used anywhere. Their accounts are set up in <b>Accounts</b>, separately from the browser units, and each can hold more than one.",
       "<b>The chips are the fallback chain.</b> The first ticked agent does the work. If it runs out of usage, is signed out or cannot start, the next one carries on, told what the previous one had worked out. A task that simply fails is not handed on &mdash; another author would fail it the same way. A limit is remembered until its reset time, so the chain does not walk into the same wall on every task. Tap <b>Agents</b> to change the order.",
       "<b>Read or Write, per task.</b> Every task starts in <b>Read</b>: agents can read and search the folder and change nothing. Switch to <b>Write</b> (the button then says <b>Run edits</b>) and the agents work on a <i>private copy</i> of the folder instead &mdash; your uncommitted edits included. When they finish you get the <b>diff</b>, file by file, with <b>Approve</b> and <b>Deny</b>. Nothing touches your folder unless you press Approve; no answer within __APPROVE_MIN__ minutes counts as No, and so does Halt. Any screen watching the task can answer.",
-      "<b>Some changes are never offered.</b> A diff that reaches into <code>.git</code>, a key or env file, a credentials folder or an agent&rsquo;s own settings folder, or that leaves the folder through <code>..</code> or a link, is refused before you are asked. Write needs a git repository, and <b>A1 itself stays read-only</b> for now &mdash; the switch says so. Approved edits are applied but not committed until you say so.",
+      "<b>Some changes are never offered.</b> A diff that reaches into <code>.git</code>, a key or env file, a credentials folder or an agent&rsquo;s own settings folder, or that leaves the folder through <code>..</code> or a link, is refused before you are asked. Write needs a git repository. Approved edits are applied but not committed until you say so. <b>A1 is writable too, but never committed or pushed from here</b>: its own Stop hook does both at the end of each Claude session, and MAGI only fetches it, never pulls. A change to the engine&rsquo;s own code under <code>magi/</code> says so on the card: it does nothing until the engine restarts.",
       "<b>Every task starts by pulling.</b> Before any agent reads the folder, MAGI brings it up to date with its remote branch and says so as the first line of the transcript &mdash; an answer about stale code is a wrong answer. Your uncommitted edits are kept. If the pull clashes with your own commits it is undone, your folder is left as it was, and the task stops before any agent starts. A1 itself is only fetched, never pulled, because other sessions are working in it. The line under <b>Workspace</b> shows the branch, how far it is ahead of and behind its remote as of the last fetch, and how much is uncommitted.",
       "<b>Commit is a second press.</b> Once a change is applied, the card offers <b>Commit these files</b>: exactly the files that were applied, nothing else you had changed or staged, with a message drafted from what you asked and what the agent said it did. Edit it, press Commit, and your repository&rsquo;s own hooks run as they would for you. Nothing is pushed until you press Push (or switch on Auto push, below). MAGI does all of this itself &mdash; agents never get git, a shell or a credential.",
       "<b>Push is a third press.</b> After a commit the card offers <b>Push</b>, and whenever the branch is ahead the line under <b>Workspace</b> offers <b>Push &uarr;n</b>. It goes out as the <b>GitHub account</b> you chose for the project (tap the <b>Repository</b> pill), is <b>never forced</b>, and is refused with a reason if GitHub has commits you do not &mdash; the next task&rsquo;s pull brings them in. With no account chosen, an HTTPS remote is not pushed at all rather than going out as whatever login this PC remembers. A1 is never pushed from here.",
@@ -11519,7 +11520,8 @@ const codeGhRemote = (d) => d && d.github && d.github.owner && (d.github.scheme 
 
 function codeGitPushBits(proj, d, row) {
   const acct = (proj.prefs || {}).github || "";
-  const canWrite = !!(proj.write && proj.write.ok);
+  // `push: false` is A1 (Phase 14b): writable, but its Stop hook pushes.
+  const canWrite = !!(proj.write && proj.write.ok && proj.write.push !== false);
   const needsAcct = codeGhRemote(d);
   const p = CODE.push && CODE.push.pid === proj.id ? CODE.push : null;
   // Ahead of its upstream, or a branch with a remote but no upstream yet
@@ -11591,6 +11593,8 @@ function renderCodeRw(proj) {
   }
   box.append(sw);
   if (!w.ok && w.why) box.append(el("div", "code-rw-note", w.why));
+  // A1 (Phase 14b): writable, but its Stop hook commits and pushes.
+  else if (w.ok && w.note) box.append(el("div", "code-rw-note", w.note));
   return box;
 }
 
@@ -11910,6 +11914,14 @@ function renderCodeApproval(t, ev) {
     list.append(d);
   }
   box.append(list);
+  if (ev.engine_files && ev.engine_files.length) {
+    // A1 (Phase 14b): the engine runs the code it started with.
+    box.append(el("div", "code-appr-out is-warn",
+      `This changes MAGI’s own engine (${ev.engine_files.length === 1 ? ev.engine_files[0]
+        : ev.engine_files.length + " files under magi/"}). It does nothing until the engine `
+      + "restarts (magi\\restart.ps1), and a broken change can stop it starting. MAGI never "
+      + "restarts itself."));
+  }
 
   if (open) {
     const acts = el("div", "code-appr-acts");
@@ -11927,6 +11939,12 @@ function renderCodeApproval(t, ev) {
     const how = `Applied to your folder${applied.how === "merged" ? " (merged with edits you made meanwhile)" : ""}.`;
     if (t.archived) {
       box.append(el("div", "code-appr-out is-ok", how + (done ? ` Committed ${done.short}.` : "")));
+      return box;
+    }
+    if (applied.by_hook) {
+      // A1 (Phase 14b): no Commit button -- its Stop hook commits and pushes.
+      box.append(el("div", "code-appr-out is-ok", how + " A1’s Stop hook commits and pushes it "
+        + "at the end of the next Claude session; Code Mode does not commit here."));
       return box;
     }
     if (auto && !done) {
