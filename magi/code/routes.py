@@ -747,6 +747,88 @@ async def gh_repos(login: str) -> dict[str, Any]:
     return {"ok": True, **d}
 
 
+# ── Sign in with GitHub (device flow) and clone ──────────────────────────
+# See magi/github/device.py. The console gets a short code to show; the
+# device code and the token stay here.
+
+from ..github import device as _ghd
+
+
+@router.get("/github/oauth")
+async def gh_oauth() -> dict[str, Any]:
+    return {"ok": True, "configured": bool(_ghd.client_id()), "scopes": _ghd.SCOPES}
+
+
+@router.post("/github/oauth/client")
+async def gh_oauth_client(body: dict = Body(...)) -> dict[str, Any]:
+    """The one-time setup: the MAGI OAuth App's (public) client ID."""
+    try:
+        _ghd.set_client_id(str((body or {}).get("client_id") or ""))
+    except _gh.AccountError as e:
+        return _gh_fail(e)
+    return {"ok": True, "configured": True}
+
+
+@router.post("/github/device/start")
+async def gh_device_start() -> dict[str, Any]:
+    try:
+        f = await _asyncio.get_running_loop().run_in_executor(None, _ghd.start)
+    except _gh.AccountError as e:
+        return _gh_fail(e)
+    return {"ok": True, "flow": f}
+
+
+@router.get("/github/device/{fid}")
+async def gh_device_status(fid: str) -> dict[str, Any]:
+    f = _ghd.status(fid)
+    if not f:
+        return {"ok": False, "error": "no_flow", "message": "That sign-in is over. Start again."}
+    return {"ok": True, "flow": f}
+
+
+@router.delete("/github/device/{fid}")
+async def gh_device_cancel(fid: str) -> dict[str, Any]:
+    return {"ok": True, "cancelled": _ghd.cancel(fid)}
+
+
+@router.post("/github/clone")
+async def gh_clone(body: dict = Body(...)) -> dict[str, Any]:
+    """`{"account": "<login>", "full_name": "owner/repo", "parent": "<folder>"}`
+    -> cloned into parent/repo as that account, registered as a workspace
+    that pushes as it. `name` optionally names the workspace."""
+    from . import git as G
+    b = body or {}
+    try:
+        login = _gh.check_login(str(b.get("account") or ""))
+    except _gh.AccountError as e:
+        return _gh_fail(e)
+    auth = _tasks.git_auth(login)
+    if auth is None:
+        return {"ok": False, "error": "no_account",
+                "message": f"MAGI holds no GitHub sign-in for {login}. Add it in Accounts first."}
+    owner, _, repo = str(b.get("full_name") or "").partition("/")
+    try:
+        parent = W.resolve_root(str(b.get("parent") or ""))
+        name = W.check_name(str(b.get("name") or repo))
+    except W.WorkspaceError as e:
+        return _fail(e)
+    loop = _asyncio.get_running_loop()
+    try:
+        dest = await loop.run_in_executor(None, G.clone, parent, owner, repo, auth)
+    except G.GitError as e:
+        return {"ok": False, "error": e.code, "message": e.message}
+    try:
+        root = W.resolve_root(str(dest))
+    except W.WorkspaceError as e:
+        return _fail(e)
+    pid = W.new_project_id()
+    prefs = _AC.guard_prefs({**W.DEFAULT_PREFS, "github": login}, root)
+    await _db().save_code_project(W.Project(id=pid, name=name, aliases=[], prefs=prefs,
+                                            notes="").to_row())
+    await _db().save_code_binding(pid, _engine_id(), str(root), allow_remote=True)
+    return {"ok": True, "project": await _db().code_project(pid, _engine_id())}
+
+
 async def _project_here(project_id: str):
     p = await _db().code_project(project_id, _engine_id())
     if not p:

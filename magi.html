@@ -3587,6 +3587,46 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 .code-auto { display: contents; }
 .code-auto-cd { font-family: var(--font-mono); }
 .code-gh-list { display: flex; flex-direction: column; max-height: 50vh; overflow-y: auto; }
+/* Sign in with GitHub: the code is the whole screen's point, so it is big,
+   mono (the grid IS the point -- it is typed character by character), and
+   one tap copies it. */
+.gh-in { max-width: 440px; }
+.gh-in-body { display: flex; flex-direction: column; gap: 10px; }
+.gh-steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 12px; color: var(--txd); line-height: 1.55; }
+.gh-steps b { color: var(--tx); }
+.gh-steps a { color: var(--acl); }
+.gh-copy {
+  font-family: var(--font-mono); font-size: 11px; color: var(--tx); cursor: pointer; overflow-wrap: anywhere;
+  background: color-mix(in srgb, var(--tx) 6%, transparent); border-radius: 4px; padding: 1px 5px;
+}
+.gh-copy.is-copied { color: var(--grn); }
+.gh-code {
+  align-self: center; font-family: var(--font-mono); font-size: 30px; font-weight: 700; letter-spacing: 5px;
+  color: var(--tx); background: color-mix(in srgb, var(--ac) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ac) 40%, transparent); border-radius: var(--r-card);
+  padding: 12px 22px; cursor: pointer; margin-top: 4px;
+}
+.gh-code-hint { align-self: center; color: var(--txm); font-size: 11px; margin-top: -4px; }
+.gh-open { align-self: center; text-decoration: none; text-align: center; }
+.gh-in .doctor-running { justify-content: center; }
+/* Clone from GitHub. */
+.gh-clone { max-width: 520px; }
+.gh-clone-body { display: flex; flex-direction: column; gap: 10px; }
+.gh-clone-list { display: flex; flex-direction: column; gap: 2px; max-height: 42vh; overflow-y: auto; min-height: 60px; }
+.gh-clone-row {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; font: inherit; font-size: 12.5px;
+  padding: 8px 10px; border-radius: var(--r-btn); border: 1px solid transparent; background: none;
+  color: var(--tx); cursor: pointer; min-height: 38px;
+}
+.gh-clone-row:hover { background: color-mix(in srgb, var(--tx) 4%, transparent); }
+.gh-clone-row.on { background: color-mix(in srgb, var(--ac) 10%, transparent); border-color: color-mix(in srgb, var(--ac) 45%, transparent); }
+.gh-clone-n { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+.gh-clone-dest { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 11.5px; }
+.gh-clone-path { font-family: var(--font-mono); font-size: 11px; color: var(--txd); overflow-wrap: anywhere; flex: 1 1 auto; min-width: 0; }
+@media (max-width: 720px) {
+  .gh-clone-row { min-height: 44px; }
+  .gh-code { font-size: 26px; letter-spacing: 4px; }
+}
 .code-gh-repo {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: space-between;
   padding: 7px 0; border-top: 1px solid var(--bd); font-size: 12px;
@@ -6722,7 +6762,7 @@ const HOW = [
       "<b>Auto commit and Auto push are off until you switch them on</b>, per project &mdash; tap either pill. With Auto commit on, a write task you approved is committed by MAGI with a &ldquo;magi:&rdquo; message once the project has been quiet for its window (3 minutes unless you pick another); a follow-up task folds into the same commit, and the line under <b>Workspace</b> counts it down with <b>Commit now</b> and <b>Cancel</b>. Only the applied files are committed, and it is refused &mdash; said on that line &mdash; when you have other files staged, a merge or rebase is in progress, or HEAD is detached. Auto push then pulls, and pushes only if the pull came back clean; never forced, and the Actions watch follows it. Both stay off for A1, whose own hook already commits and pushes.",
       "<b>Your projects follow you between devices.</b> Their names, aliases, notes and switches (Auto commit, Auto push, the GitHub account), which engines hold a folder for them, your agent order and ticks, and a one-line record of each finished task travel in the same synced document as your deliberations &mdash; no extra listener, and one write per change however fast you tap. <b>Folder paths, tokens and logins never leave the PC</b>, and nothing is written while a task runs. Model choices and caps stay on each engine: they describe that PC&rsquo;s own CLIs. A change made on the engine&rsquo;s own page (127.0.0.1, which has no sync) reaches your other devices the next time a synced page connects to it; A1&rsquo;s switches stay off whatever a synced copy says. Tap a task under <b>Recent</b> to read its transcript on any device.",
       "<b>Coding agents cannot drive MAGI.</b> Codex needs a shell to read your files, and its sandbox cannot keep that shell away from the engine on this PC &mdash; so the engine refuses it instead: every agent runs in a Windows job, and any request from a process in that job is turned away, except Claude&rsquo;s read-only GitHub tools. An agent cannot approve its own change, push, or read your token. A web page from anywhere but MAGI&rsquo;s own is turned away too, before anything runs. To try a change to this page locally, open <b>http://127.0.0.1:8000/</b> &mdash; a copy opened straight from disk is no longer let in, because any website can pose as one.",
-      "<b>GitHub tokens stay on the engine PC.</b> Add one in <b>Accounts &rsaquo; GitHub</b>: MAGI checks it with GitHub, keeps it in the PC&rsquo;s credential store, and never shows it again &mdash; not on any screen, not in Firestore, not to an agent. Git is handed it only at the moment it asks, and only for github.com, so it never lands in the repository&rsquo;s config. A fine-grained token that lists just the repositories you want, with Contents: Read and write, is enough to push.",
+      "<b>GitHub tokens stay on the engine PC.</b> In <b>Accounts &rsaquo; GitHub</b>, <b>Sign in with GitHub</b> shows a short code: enter it at github.com/login/device on any device and approve, and MAGI can reach every repository the account can &mdash; new ones too, so <b>Workspaces &rsaquo; Clone from GitHub</b> opens any of them with no new token. A pasted token works the same way: MAGI checks it with GitHub, keeps it in the PC&rsquo;s credential store, and never shows it again &mdash; not on any screen, not in Firestore, not to an agent. Git is handed it only at the moment it asks, and only for github.com, so it never lands in the repository&rsquo;s config. A fine-grained token reaches only the repositories it lists.",
       "<b>The Repository pill opens the repository itself.</b> For a folder whose remote is on GitHub, the pill shows its branches (with how far each is ahead or behind), commits, pull requests with their checks, issues, Actions runs and releases &mdash; read as the project&rsquo;s GitHub account, fetched when you open a tab, and never on a timer. GitHub answers an unchanged question with &ldquo;nothing new&rdquo;, which costs none of the hourly limit. Nothing in it can change the repository.",
       "<b>After a push, MAGI watches the Actions runs.</b> A line under the repository says how many runs have finished; it checks every 20 seconds only while one is still going, then stops. If one fails, it names the job and the step, shows the end of that job&rsquo;s log, and offers <b>Diagnose</b>: a Read task with the log as its context. A1&rsquo;s pushes come from its own hook, so for A1 use <b>Watch</b> on the panel&rsquo;s Overview. Claude can read the same things during a task &mdash; an issue, a pull request, why a run failed &mdash; through tools that ask the engine, so it never holds a token.",
       "<b>Each agent has a model, or Auto.</b> The line under the agents says which model the next task gets and how full the tightest usage window is; tap it for the list. The list is what the account can actually run, asked of Anthropic and OpenAI with the account&rsquo;s own sign-in. <b>Auto</b> reads the task &mdash; what it asks for, how long it is, whether it edits &mdash; and picks the strongest model it needs from those, with a matching effort; it steps one lighter when the allowance is running low. It decides locally, in milliseconds, without asking a model which model to ask.",
@@ -12474,7 +12514,10 @@ function openCodeProjects() {
   const bar = el("div", "sheet-bar");
   const add = el("button", "btn active", "Add a folder");
   add.onclick = () => { close(); openCodeBrowse(); };
-  bar.append(add, el("span", "qbar-spacer"));
+  const clone = el("button", "btn", "Clone from GitHub");
+  clone.title = "Any repository your GitHub account can reach, cloned onto the engine PC";
+  clone.onclick = () => { close(); codeCloneSheet(); };
+  bar.append(add, clone, el("span", "qbar-spacer"));
   if (codeProject()) {
     const rm = el("button", "btn", "Remove");
     rm.title = "Forget this workspace in MAGI. The folder itself is not touched.";
@@ -12503,11 +12546,11 @@ function openCodeProjects() {
 /** MAGI's own folder picker: the engine lists folder NAMES, one level at a
  *  time, and this draws them. The native picker cannot see another machine's
  *  disk, and it is off the table anyway. */
-function openCodeBrowse(start = "~") {
+function openCodeBrowse(start = "~", onPick = null) {
   const sheet = el("div", "sheet");
   const box = el("div", "sheet-box code-browse");
   const close = () => sheet.remove();
-  box.append(el("div", "sheet-hd", "Choose a folder"));
+  box.append(el("div", "sheet-hd", onPick ? "Clone into…" : "Choose a folder"));
   const crumb = el("div", "code-crumb");
   const list = el("div", "code-dirs");
   const err = el("div", "sheet-err");
@@ -12554,8 +12597,9 @@ function openCodeBrowse(start = "~") {
   }
 
   nameIn.oninput = () => { nameIn.dataset.touched = "1"; };
-  const use = el("button", "btn active", "Use this folder");
+  const use = el("button", "btn active", onPick ? "Choose this folder" : "Use this folder");
   use.onclick = async () => {
+    if (onPick) { if (cur) { close(); onPick(cur); } return; }
     const name = nameIn.value.trim();
     if (!cur || !name) return;
     use.disabled = true;
@@ -12572,7 +12616,8 @@ function openCodeBrowse(start = "~") {
   cancel.onclick = close;
   const bar = el("div", "sheet-bar");
   bar.append(use, el("span", "qbar-spacer"), cancel);
-  box.append(crumb, list, el("label", "sheet-lbl", "Workspace name"), nameIn, err, bar);
+  if (onPick) box.append(crumb, list, err, bar);
+  else box.append(crumb, list, el("label", "sheet-lbl", "Workspace name"), nameIn, err, bar);
   dismissOnBackdrop(sheet, close);
   sheet.append(box);
   document.body.append(sheet);
@@ -12879,9 +12924,9 @@ async function codeRepoSheet(proj) {
     opt("", "No account", "Local git only — nothing is pushed to GitHub");
     body.append(list);
     if (!accts.length) {
-      const add = el("button", "navitem", "Add a GitHub account…");
+      const add = el("button", "navitem", "Sign in with GitHub…");
       add.type = "button";
-      add.onclick = () => codeGhAddSheet(async () => { await codeGhLoad(); draw(); });
+      add.onclick = () => codeGhSignIn(async () => { await codeGhLoad(); draw(); });
       body.append(add);
     }
     const acc = info && info.account === pick ? info.access : null;
@@ -12892,7 +12937,7 @@ async function codeRepoSheet(proj) {
         ? el("div", "sheet-sub", `${pick} can see ${acc.full_name}; whether it may push could not be checked (${acc.why || "no answer"}).`)
         : el("div", acc.push ? "sheet-ok" : "sheet-err", acc.push
           ? `${pick} can push to ${acc.full_name}${acc.private ? " (private)" : ""}.`
-          : `${pick} can see ${acc.full_name} but not push to it. A fine-grained token needs Contents: Read and write.`));
+          : `${pick} can see ${acc.full_name} but not push to it.`));
     }
     save.disabled = pick === ((proj.prefs || {}).github || "");
   };
@@ -12927,8 +12972,8 @@ function renderGhAccounts() {
   const names = el("div", "acc-names");
   names.append(el("div", "acc-name", "GitHub accounts"));
   names.append(el("div", "acc-desc",
-    "Tokens for pushing and reading repositories. Kept in this PC's credential store — "
-    + "never shown again, never synced, never given to an agent."));
+    "Sign in once and every repository the account can reach works in MAGI, new ones too. "
+    + "Kept in this PC's credential store; never synced or given to an agent."));
   hd.append(names);
   const gh = CODE.gh;
   const flags = el("div", "acc-flags");
@@ -12947,7 +12992,9 @@ function renderGhAccounts() {
     const row = el("div", "acc-slot");
     const who = el("div", "acc-slot-who");
     who.append(el("span", "acc-slot-name is-static", a.login));
-    const bits = [a.name, a.kind === "fine-grained" ? "fine-grained token" : a.kind === "classic" ? "classic token" : a.kind];
+    const bits = [a.name, a.kind === "oauth" ? "signed in with GitHub"
+      : a.kind === "fine-grained" ? "fine-grained token (only the repositories it lists)"
+      : a.kind === "classic" ? "classic token" : a.kind];
     if ((a.scopes || []).length) bits.push(a.scopes.join(", "));
     who.append(el("span", "acc-slot-acct", bits.filter(Boolean).join(" · ")));
     const more = [];
@@ -12969,14 +13016,22 @@ function renderGhAccounts() {
       await codeGhLoad();
       renderAccounts();
     };
+    if (a.kind === "fine-grained" || !a.stored) {
+      const up = el("button", "navitem", "Sign in instead");
+      up.title = "Replace this token with a GitHub sign-in that reaches every repository, new ones included";
+      up.onclick = () => codeGhSignIn(async () => { await codeGhLoad(); renderAccounts(); });
+      acts.append(up);
+    }
     acts.append(rp, rm);
     row.append(acts);
     card.append(row);
   }
   const bar = el("div", "acc-actions");
-  const add = el("button", "navitem", n ? "Add another token" : "Add a token");
+  const signin = el("button", "navitem", n ? "Sign in another account" : "Sign in with GitHub");
+  signin.onclick = () => codeGhSignIn(async () => { await codeGhLoad(); renderAccounts(); });
+  const add = el("button", "navitem", "Paste a token instead");
   add.onclick = () => codeGhAddSheet(async () => { await codeGhLoad(); renderAccounts(); });
-  bar.append(add);
+  bar.append(signin, add);
   card.append(bar);
   wrap.append(card);
   return wrap;
@@ -13042,6 +13097,270 @@ function codeGhAddSheet(done) {
   inp.focus();
 }
 
+/* ── Sign in with GitHub (device flow) ────────────────────────────────────
+   No token to mint: the engine asks GitHub for a short code, you enter it at
+   github.com/login/device on any device -- this phone included -- and
+   approve. The token GitHub then hands the engine reaches every repository
+   the account can, including ones made later, so adding a repository to
+   MAGI never means a new token. The device code and the token stay on the
+   engine; this page sees the short code and, at the end, the login.
+
+   GitHub gives device-flow tokens to a registered OAuth App. The first
+   sign-in on an engine PC without one walks through registering MAGI (a
+   minute, once, shared by both profiles); after that it is one tap. */
+const GH_APP_URL = "https://anthonyn99.github.io/A1/magi.html";
+
+function codeGhSignIn(done) {
+  const sheet = el("div", "sheet");
+  const box = el("div", "sheet-box gh-in");
+  let flow = null, timer = 0, closed = false;
+  const close = () => {
+    closed = true;
+    clearTimeout(timer);
+    if (flow && flow.state === "pending") codePost(`/github/device/${flow.id}`, undefined, "DELETE").catch(() => {});
+    sheet.remove();
+  };
+  box.append(el("div", "sheet-hd", "Sign in with GitHub"));
+  const body = el("div", "gh-in-body");
+  box.append(body);
+  const bar = el("div", "sheet-bar");
+  const no = el("button", "btn", "Cancel");
+  no.onclick = close;
+  bar.append(el("span", "qbar-spacer"), no);
+  box.append(bar);
+  dismissOnBackdrop(sheet, close);
+  sheet.append(box);
+  document.body.append(sheet);
+
+  const fail = (msg) => {
+    body.textContent = "";
+    body.append(el("div", "sheet-err", msg));
+    const again = el("button", "btn active", "Try again");
+    again.onclick = begin;
+    body.append(again);
+  };
+
+  const setup = () => {
+    body.textContent = "";
+    body.append(el("div", "sheet-sub", "One-time setup for this PC: register MAGI with GitHub. "
+      + "Both profiles use it."));
+    const ol = el("ol", "gh-steps");
+    const li1 = el("li");
+    li1.append("Open ", repoLink("https://github.com/settings/applications/new", "New OAuth App"),
+      " on GitHub.");
+    const li2 = el("li");
+    li2.append("Name it ", el("b", null, "MAGI"), ". Homepage and callback URL: ");
+    const url = el("code", "gh-copy", GH_APP_URL);
+    url.title = "Tap to copy";
+    url.onclick = () => { try { navigator.clipboard.writeText(GH_APP_URL); url.classList.add("is-copied"); } catch {} };
+    li2.append(url);
+    const li3 = el("li");
+    li3.append("Tick ", el("b", null, "Enable Device Flow"), ", register, and paste the ",
+      el("b", null, "Client ID"), " here.");
+    ol.append(li1, li2, li3);
+    body.append(ol);
+    const inp = el("input", "sheet-in");
+    inp.placeholder = "Client ID, e.g. Ov23li…";
+    inp.autocomplete = "off";
+    inp.spellcheck = false;
+    inp.setAttribute("autocapitalize", "off");
+    inp.setAttribute("aria-label", "OAuth App client ID");
+    const err = el("div", "sheet-err");
+    err.hidden = true;
+    const save = el("button", "btn active", "Save and sign in");
+    save.onclick = async () => {
+      const cid = inp.value.trim();
+      if (!cid) return;
+      save.disabled = true;
+      let d;
+      try { d = await codePost("/github/oauth/client", { client_id: cid }); }
+      catch (e) { d = { ok: false, message: `Could not reach the engine: ${e.message || e}` }; }
+      save.disabled = false;
+      if (!d.ok) { err.hidden = false; err.textContent = d.message || "Refused."; return; }
+      begin();
+    };
+    inp.onkeydown = (e) => { e.stopPropagation(); if (e.key === "Enter") save.click(); };
+    body.append(inp, err, save);
+    inp.focus();
+  };
+
+  const waiting = () => {
+    body.textContent = "";
+    body.append(el("div", "sheet-sub", "Enter this code on GitHub and approve MAGI:"));
+    const code = el("button", "gh-code", flow.user_code);
+    code.type = "button";
+    code.title = "Copy";
+    const hint = el("div", "gh-code-hint", "Tap to copy");
+    code.onclick = () => {
+      try { navigator.clipboard.writeText(flow.user_code); hint.textContent = "Copied"; } catch {}
+    };
+    const open = el("a", "btn active gh-open", "Open github.com/login/device");
+    open.href = flow.verification_uri;
+    open.target = "_blank";
+    open.rel = "noopener";
+    open.onclick = () => { try { navigator.clipboard.writeText(flow.user_code); hint.textContent = "Copied"; } catch {} };
+    const w = el("div", "doctor-running");
+    w.append(spinnerEl(), el("span", null, "Waiting for you to approve…"));
+    body.append(code, hint, open, w);
+  };
+
+  const poll = async () => {
+    if (closed || !flow) return;
+    let d;
+    try { d = await codeGet(`/github/device/${flow.id}`); } catch { d = null; }
+    if (closed) return;
+    if (d && d.ok) {
+      flow = d.flow;
+      if (flow.state === "done") {
+        body.textContent = "";
+        body.append(el("div", "sheet-ok", `Signed in as ${flow.account}. Every repository it can reach is available now.`));
+        no.textContent = "Done";
+        await codeGhLoad();
+        if (done) await done(flow.account);
+        return;
+      }
+      if (flow.state !== "pending") return fail(flow.message || "The sign-in stopped.");
+    } else if (d && !d.ok) {
+      return fail(d.message || "The sign-in stopped.");
+    }
+    timer = setTimeout(poll, 2000);
+  };
+
+  async function begin() {
+    body.textContent = "";
+    const w = el("div", "doctor-running");
+    w.append(spinnerEl(), el("span", null, "Asking GitHub for a code…"));
+    body.append(w);
+    let d;
+    try { d = await codePost("/github/device/start", {}); }
+    catch (e) { d = { ok: false, message: `Could not reach the engine: ${e.message || e}` }; }
+    if (closed) return;
+    if (!d.ok && d.error === "no_client_id") return setup();
+    if (!d.ok) return fail(d.message || "GitHub did not hand out a code.");
+    flow = d.flow;
+    waiting();
+    timer = setTimeout(poll, 2000);
+  }
+  begin();
+}
+
+/* ── Clone from GitHub ────────────────────────────────────────────────────
+   Any repository a signed-in account can reach, cloned onto the engine PC
+   and opened as a workspace that already pushes as that account. */
+async function codeCloneSheet() {
+  if (!CODE.gh) await codeGhLoad();
+  const accts = ((CODE.gh && CODE.gh.accounts) || []).filter((a) => a.stored);
+  if (!accts.length) {
+    codeGhSignIn(() => codeCloneSheet());
+    return;
+  }
+  const sheet = el("div", "sheet");
+  const box = el("div", "sheet-box gh-clone");
+  const close = () => sheet.remove();
+  box.append(el("div", "sheet-hd", "Clone from GitHub"));
+  const body = el("div", "gh-clone-body");
+  box.append(body);
+  const err = el("div", "sheet-err");
+  err.hidden = true;
+  const bar = el("div", "sheet-bar");
+  const go = el("button", "btn active", "Clone");
+  const no = el("button", "btn", "Cancel");
+  no.onclick = close;
+  bar.append(go, el("span", "qbar-spacer"), no);
+  box.append(err, bar);
+  dismissOnBackdrop(sheet, close);
+  sheet.append(box);
+  document.body.append(sheet);
+
+  const here = codeRoot(codeProject() || {}) || "";
+  let parent = here ? here.replace(/[\\/][^\\/]+[\\/]?$/, "") : "~";
+  let login = accts[0].login, repos = null, pick = "", q = "";
+  const sync = () => { go.disabled = !pick; };
+
+  const load = async () => {
+    repos = null;
+    draw();
+    let d;
+    try { d = await codeGet(`/github/accounts/${encodeURIComponent(login)}/repos`); }
+    catch (e) { d = { ok: false, message: `Could not reach the engine: ${e.message || e}` }; }
+    repos = d.ok ? d.repos || [] : [];
+    err.hidden = !!d.ok;
+    if (!d.ok) err.textContent = d.message || "GitHub refused.";
+    if (sheet.isConnected) draw();
+  };
+
+  const draw = () => {
+    body.textContent = "";
+    if (accts.length > 1) {
+      const seg = el("div", "model-seg");
+      for (const a of accts) {
+        const b = el("button", `model-seg-b ${a.login === login ? "on" : ""}`, a.login);
+        b.type = "button";
+        b.onclick = () => { login = a.login; pick = ""; load(); };
+        seg.append(b);
+      }
+      body.append(seg);
+    } else {
+      body.append(el("div", "sheet-sub", `As ${login}.`));
+    }
+    const find = el("input", "sheet-in");
+    find.placeholder = "Search repositories";
+    find.value = q;
+    find.setAttribute("aria-label", "Search repositories");
+    find.oninput = () => { q = find.value; drawList(); };
+    find.onkeydown = (e) => e.stopPropagation();
+    body.append(find);
+    const list = el("div", "gh-clone-list");
+    body.append(list);
+    const drawList = () => {
+      list.textContent = "";
+      if (!repos) {
+        const w = el("div", "doctor-running");
+        w.append(spinnerEl(), el("span", null, "Asking GitHub…"));
+        list.append(w);
+        return;
+      }
+      const shown = repos.filter((r) => !q || r.full_name.toLowerCase().includes(q.toLowerCase()));
+      if (!shown.length) list.append(el("div", "sheet-note", repos.length ? "No match." : "No repositories."));
+      for (const r of shown.slice(0, 200)) {
+        const b = el("button", `gh-clone-row ${pick === r.full_name ? "on" : ""}`);
+        b.type = "button";
+        b.append(el("span", "gh-clone-n", r.full_name));
+        if (r.private) b.append(el("span", "model-badge", "private"));
+        b.onclick = () => { pick = r.full_name; draw(); };
+        list.append(b);
+      }
+    };
+    drawList();
+    const dest = el("div", "gh-clone-dest");
+    dest.append(el("span", "use-caps-l", "Into"), el("span", "gh-clone-path",
+      pick ? `${parent}${parent.endsWith("\\") || parent.endsWith("/") ? "" : "\\"}${pick.split("/")[1]}` : parent));
+    const ch = el("button", "code-git-act", "Change");
+    ch.type = "button";
+    ch.onclick = () => openCodeBrowse(parent, (p) => { parent = p; if (sheet.isConnected) draw(); });
+    dest.append(ch);
+    body.append(dest);
+    sync();
+  };
+
+  go.onclick = async () => {
+    if (!pick) return;
+    go.disabled = true;
+    go.textContent = "Cloning…";
+    err.hidden = true;
+    let d;
+    try { d = await codePost("/github/clone", { account: login, full_name: pick, parent }); }
+    catch (e) { d = { ok: false, message: `Could not reach the engine: ${e.message || e}` }; }
+    go.textContent = "Clone";
+    if (!d.ok) { err.hidden = false; err.textContent = d.message || "The clone was refused."; go.disabled = false; return; }
+    codeSetProject(d.project.id);
+    close();
+    codeLoad(true);
+  };
+  go.disabled = true;
+  load();
+}
+
 async function codeGhReposSheet(login) {
   const sheet = el("div", "sheet");
   const box = el("div", "sheet-box");
@@ -13069,7 +13388,7 @@ async function codeGhReposSheet(login) {
   body.append(el("div", "sheet-sub", rows.length
     ? `${rows.length} this token can see${d.cached ? " — unchanged since the last look, so that cost none of the hourly limit" : ""}. `
       + "Whether it may push to one is checked from that project's Repository pill."
-    : "This token cannot see any repositories. A fine-grained token only sees the ones you picked."));
+    : "No repositories. A fine-grained token only sees the ones it lists; Sign in with GitHub sees them all."));
   const list = el("div", "code-gh-list");
   for (const r of rows) {
     const it = el("div", "code-gh-repo");

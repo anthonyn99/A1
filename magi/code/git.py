@@ -615,6 +615,26 @@ class Auth:
                 "MAGI_GH_LOGIN": self.login, "MAGI_GH_HOST": self.host}
 
 
+_REPO_PART = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$")
+
+
+def clone(parent: Path, owner: str, repo: str, auth: Auth | None) -> Path:
+    """Clone github.com/<owner>/<repo> into parent/<repo> as `auth`'s
+    account. The remote is the plain https URL -- the token is never written
+    into it -- so every later pull and push goes through askpass too."""
+    for part in (owner, repo):
+        if not _REPO_PART.match(part or "") or part in (".", ".."):
+            raise GitError("bad_repo", "That is not a GitHub repository name.")
+    dest = parent / repo
+    if dest.exists():
+        raise GitError("exists", f"{dest} already exists. Use “Add a folder” to open it.")
+    r = _run(parent, "clone", "--", f"https://github.com/{owner}/{repo}.git", str(dest),
+             auth=auth, timeout=900)
+    if r.returncode != 0:
+        raise GitError("clone", f"git clone failed: {_err(r)}")
+    return dest
+
+
 def _remote_of(top: Path, branch: str) -> str:
     r = _run(top, "config", "--get", f"branch.{branch}.remote", timeout=30) if branch else None
     name = r.stdout.decode("utf-8", "replace").strip() if r is not None and r.returncode == 0 else ""
