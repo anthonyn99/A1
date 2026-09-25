@@ -17266,33 +17266,43 @@ const VIDEO_PAINT = {
       const num = dp ? cur.toFixed(dp) : Math.round(cur).toLocaleString("en-US");
       shown = `${m[1]}${num}${m[3]}`;
     }
-    const cx = W / 2, cy = 600;
+    // Ring on the left, what it measures on the right: stacked, the label
+    // ran into the caption band.
+    const cx = 560, cy = 590, R = 215;
     const pct = m && /%/.test(m[3]) ? vClamp(parseFloat(m[2]) / 100) : 1;
-    ctx.lineWidth = 22; ctx.lineCap = "round";
+    ctx.lineWidth = 20; ctx.lineCap = "round";
     ctx.strokeStyle = "rgba(255,255,255,.07)";
-    ctx.beginPath(); ctx.arc(cx, cy, 250, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
     ctx.strokeStyle = acc;
     ctx.globalAlpha = vIn(t, 0.4, 0.5);
-    ctx.beginPath(); ctx.arc(cx, cy, 250, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * pct * p); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, R, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * pct * p); ctx.stroke();
     ctx.globalAlpha = vIn(t, 0.4, 0.6);
-    const f = vFit(ctx, shown, vDisplay, 150, 420, 1, 60);
+    const f = vFit(ctx, shown, vDisplay, 140, 360, 1, 50);
     ctx.font = vDisplay(f.size);
     ctx.fillStyle = VID.tx;
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText(shown, cx, cy + 4);
     ctx.globalAlpha = 1;
-    if (label) {
-      ctx.globalAlpha = vIn(t, 1.4, 0.7);
-      const lf = vFit(ctx, label, vBody(600), 46, 1400, 2, 30);
-      ctx.fillStyle = VID.tx; ctx.font = vBody(600)(lf.size);
-      vText(ctx, lf.lines, cx, cy + 300, lf.size, 1.2, "center");
-    }
+    const lx = 900, lw = 860;
+    const lf = label ? vFit(ctx, label, vDisplay, 64, lw, 3, 36) : { size: 0, lines: [] };
     const ctxLine = sc.visual[1];
+    const cf = ctxLine ? vFit(ctx, ctxLine, vBody(400), 36, lw, 2, 24) : { size: 0, lines: [] };
+    const lh = lf.lines.length * lf.size * 1.15, ch = cf.lines.length * cf.size * 1.35;
+    let y = cy - (lh + (ch ? ch + 28 : 0)) / 2;
+    if (label) {
+      const a = vIn(t, 1.2, 0.7);
+      ctx.globalAlpha = a;
+      ctx.fillStyle = VID.tx; ctx.font = vDisplay(lf.size);
+      vText(ctx, lf.lines, lx + (1 - a) * 40, y, lf.size, 1.15);
+      y += lh + 28;
+    }
     if (ctxLine) {
-      ctx.globalAlpha = vIn(t, 2.0, 0.7);
-      const cf = vFit(ctx, ctxLine, vBody(400), 34, 1400, 1, 24);
+      const a = vIn(t, 1.9, 0.7);
+      ctx.globalAlpha = a;
+      ctx.fillStyle = acc;
+      ctx.fillRect(lx, y + 4, 4, ch - 8);
       ctx.fillStyle = VID.txm; ctx.font = vBody(400)(cf.size);
-      vText(ctx, cf.lines, cx, cy + 300 + 110, cf.size, 1.2, "center");
+      vText(ctx, cf.lines, lx + 26 + (1 - a) * 40, y, cf.size, 1.35);
     }
     ctx.globalAlpha = 1;
   },
@@ -17344,7 +17354,8 @@ const VIDEO_PAINT = {
     const head = rows.length > 1 ? rows[0] : ["", ""];
     const body = (rows.length > 1 ? rows.slice(1) : rows).slice(0, 4);
     const colW = 700, gap = 120, x0 = (VID.W - colW * 2 - gap) / 2;
-    const H = VID.H - top - 130;
+    // Ends above the caption band.
+    const H = Math.max(360, VID.H - top - 250);
     [0, 1].forEach((c) => {
       const p = vIn(t, 0.4 + c * 0.25, 0.8);
       const x = x0 + c * (colW + gap) + (1 - p) * (c ? 80 : -80);
