@@ -4223,6 +4223,25 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 .acc-slot-use { color: var(--txm); font-size: 10.5px; }
 .acc-slot-lim { color: var(--amber); font-size: 11px; font-weight: 600; }
 .acc-slot-acts { display: flex; gap: 6px; flex-wrap: wrap; }
+/* Coding agents and GitHub: condensed. They are lists of logins, read at a
+   glance -- tighter padding, the login and its account on one line, the
+   usage line under it, and smaller action buttons. The browser units'
+   cards above keep their roomier layout. */
+.acc-code .acc-card { padding: 10px 14px; margin-bottom: 10px; }
+.acc-code .acc-card .acc-hd { padding-bottom: 7px; }
+.acc-code .acc-desc { margin-top: 1px; line-height: 1.4; }
+.acc-code .acc-slot { padding: 7px 0; gap: 8px; }
+.acc-code .acc-slot-who { flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: 8px; row-gap: 1px; }
+.acc-code .acc-slot-name { width: auto; max-width: 100%; flex: 0 1 auto; padding: 1px 6px; }
+.acc-code .acc-slot-use, .acc-code .acc-slot-lim { flex-basis: 100%; }
+.acc-code .acc-card .acc-actions { margin-top: 4px; padding-top: 8px; gap: 6px; }
+.acc-code .acc-actions .navitem, .acc-code .acc-slot-acts .navitem {
+  padding: 4px 10px; font-size: 11.5px; min-height: 28px;
+}
+.acc-code .acc-flags .doc-flag { padding-top: 1px; padding-bottom: 1px; }
+@media (max-width: 720px) {
+  .acc-code .acc-actions .navitem, .acc-code .acc-slot-acts .navitem { min-height: 36px; }
+}
 .code-login-steps { margin: 4px 0 10px 18px; padding: 0; color: var(--txd); font-size: 12px; line-height: 1.7; }
 .code-login-steps a { color: var(--acl); word-break: break-all; }
 .code-login-code {
