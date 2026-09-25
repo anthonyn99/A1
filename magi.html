@@ -2626,6 +2626,72 @@ body.sd-presenting { overflow: hidden; }
 .sd-present-hud { display: flex; align-items: center; gap: 12px; margin-top: 18px; }
 .sd-present-count { font-family: var(--font-mono); font-size: 12px; color: var(--txm); min-width: 52px; text-align: center; }
 
+/* ── Video card ──
+   The frame itself is a canvas (so what plays is exactly what exports); the
+   chrome around it borrows the Audio Overview's player parts. */
+.vd { max-width: 1100px; margin: 0 auto; }
+.vd-stage {
+  position: relative; aspect-ratio: 16 / 9; border-radius: 14px; overflow: hidden;
+  border: 1px solid var(--bdl); background: #07080f;
+  box-shadow: 0 18px 50px -24px rgba(0,0,0,.8);
+}
+.vd-stage.fs { border-radius: 0; border: 0; display: flex; align-items: center; justify-content: center; }
+.vd-canvas { display: block; width: 100%; height: 100%; object-fit: contain; cursor: pointer; }
+.vd-cover {
+  position: absolute; inset: 0; border: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 14px;
+  background: rgba(7,8,15,.28); color: #fff; cursor: pointer; transition: background .2s;
+}
+.vd-cover:hover { background: rgba(7,8,15,.12); }
+.vd-cover[hidden] { display: none; }
+.vd-cover-ic {
+  width: 84px; height: 84px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  background: var(--ac); color: #1a1a1d; box-shadow: 0 10px 40px -8px color-mix(in srgb, var(--ac) 70%, transparent);
+}
+.vd-cover-ic svg { width: 34px; height: 34px; fill: currentColor; margin-left: 4px; }
+.vd-cover-ic[hidden] { display: none; }
+.vd-cover.loading { cursor: progress; background: rgba(7,8,15,.55); }
+.vd-cover-txt { font-family: var(--font-mono); font-size: 12px; letter-spacing: .4px; color: #d8dbef; }
+.vd-cover-txt:empty { display: none; }
+.vd-rec {
+  position: absolute; top: 12px; left: 12px; padding: 4px 10px; border-radius: 999px;
+  background: rgba(214,70,70,.9); color: #fff; font: 700 11px var(--font-mono); letter-spacing: .6px;
+  animation: auPulse 1.2s ease-in-out infinite;
+}
+.vd-rec[hidden] { display: none; }
+.vd-bar { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+.vd-play { width: 48px; height: 48px; font-size: 18px; flex: 0 0 auto; }
+.vd-prog { flex: 1 1 auto; min-width: 0; }
+.vd-seg.done, .vd-seg.cur { background: var(--va); }
+.vd-opts .st-btn.on { border-color: var(--ac); color: var(--ac); }
+.vd-vsel { max-width: 190px; }
+.vd-note:empty { display: none; }
+.vd-board {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin-top: 16px;
+}
+.vd-scene {
+  text-align: left; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--bd);
+  background: var(--s1); color: var(--tx); display: flex; flex-direction: column; gap: 6px;
+  border-top: 3px solid color-mix(in srgb, var(--va) 55%, transparent);
+  transition: border-color .2s, background .2s;
+}
+.vd-scene:hover { background: var(--s2); }
+.vd-scene.current { border-color: var(--va); background: var(--s2); }
+.vd-scene-hd { display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 10.5px; color: var(--txm); }
+.vd-scene-no { color: var(--va); font-weight: 700; }
+.vd-scene-lay { text-transform: uppercase; letter-spacing: .6px; }
+.vd-scene-time { margin-left: auto; }
+.vd-scene-title { font-family: var(--font-display); font-weight: 700; font-size: 13.5px; line-height: 1.3; }
+.vd-scene-nar { font-size: 12px; line-height: 1.45; color: var(--txd);
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+@media (max-width: 640px) {
+  .vd-stage { border-radius: 10px; }
+  .vd-cover-ic { width: 60px; height: 60px; }
+  .vd-cover-ic svg { width: 24px; height: 24px; }
+  .vd-board { grid-template-columns: 1fr; }
+  .vd-vsel { max-width: 140px; }
+}
+
 /* ── Audio Overview card ── */
 .au { max-width: 860px; margin: 0 auto; }
 .au-player {
@@ -5563,9 +5629,6 @@ window._mailRelay = window._mailRelay || async function (res) {
         <div class="side-sec-hd">Studio</div>
         <div class="side-sec-note" id="studioNote">Available once a verdict is reached.</div>
         <!-- rows injected by renderStudioNav() -->
-        <div class="side-item disabled" title="No video generation surface exists through browser-automated chat UIs.">
-          <span class="side-ic studio-ic" data-ic="video"></span><span class="side-label">Video</span><span class="side-tag">—</span>
-        </div>
       </div>
 
       <div class="side-sec">
@@ -6743,7 +6806,8 @@ const HOW = [
   {
     q: "Studio",
     a: [
-      "Once a verdict exists, Studio turns it into something else: a report, a data table, flashcards, a quiz, a mind map, a slide deck, or a spoken audio overview.",
+      "Once a verdict exists, Studio turns it into something else: a report, a data table, flashcards, a quiz, a mind map, a slide deck, a spoken audio overview, or a narrated video.",
+      "<b>Video</b> is written by the best unit you have ticked (Claude Pro, then Claude, ChatGPT, Gemini, Grok, DeepSeek, Perplexity) and falls to the next ticked one if it fails. The engine voices it with a neural narrator; <b>Export video</b> records it to a file.",
       "Each card is a fresh generation by one of your selected units, so it costs a real browser run. That is why cards are stored with the deliberation and travel to your other devices, rather than being re-earned there.",
     ],
   },
@@ -15252,7 +15316,8 @@ qbar.addEventListener("drop", (e) => {
 
 /* ══ STUDIO ════════════════════════════════════════════════════════════════
    Turns a finished verdict into another format: a table, a longer report,
-   flashcards, a quiz, a mind map, a slide deck, or a two-host audio script.
+   flashcards, a quiz, a mind map, a slide deck, a two-host audio script, or
+   a narrated, animated video.
 
    Every card is derived from ONE run, so the whole section is disabled until
    that run has a verdict. Generation is a POST that returns a job id plus an
@@ -15272,8 +15337,9 @@ const CARD_META = {
   mindmap:    { label: "Mind Map",       ic: "mindmap",   accent: "var(--acl)" },
   slides:     { label: "Slide Deck",     ic: "slides",    accent: "var(--blue)" },
   audio:      { label: "Audio Overview", ic: "audioCard", accent: "var(--ac)" },
+  video:      { label: "Video",          ic: "video",     accent: "var(--red)" },
 };
-const KIND_ORDER = ["table", "report", "flashcards", "quiz", "mindmap", "slides", "audio"];
+const KIND_ORDER = ["table", "report", "flashcards", "quiz", "mindmap", "slides", "audio", "video"];
 
 const freshArtifacts = () =>
   Object.fromEntries(KIND_ORDER.map((k) => [k, { status: "idle" }]));
@@ -15532,7 +15598,6 @@ function renderStudioNav() {
   }
   for (const el of sec.querySelectorAll(".studio-row")) el.remove();
 
-  const before = sec.querySelector(".side-item.disabled"); // the Video tile
   for (const kind of KIND_ORDER) {
     const meta = CARD_META[kind];
     const a = S.studio.artifacts[kind];
@@ -15551,7 +15616,7 @@ function renderStudioNav() {
     else tag.textContent = a.status === "complete" ? "✓" : a.status === "failed" ? "!" : "";
     b.append(tag);
     b.onclick = () => openStudio(kind);
-    sec.insertBefore(b, before);
+    sec.append(b);
   }
 }
 
@@ -15857,6 +15922,10 @@ function renderCard(kind, a) {
     // Structurally identical to a verdict — headings, lists, tables, prose — so
     // it reuses that renderer wholesale rather than duplicating the parser.
     case "report": return renderStudioReport(raw);
+    case "video": {
+      const v = videoScript(a);
+      return v.scenes.length >= 2 ? renderVideo(v) : rawFallback(raw);
+    }
   }
   const items = studioItems(kind, a);
   if (!items.length) return rawFallback(raw);
@@ -16949,6 +17018,959 @@ function renderAudio(lines) {
   }
   paintSpeed();
   paint();
+  return box;
+}
+
+/* ── Video card ──
+   The unit writes a directed script (scenes: a layout, on-screen text and
+   narration); everything visual is drawn HERE, on a 1920x1080 canvas, and the
+   narration is spoken by the engine's neural voices (/api/tts) as real audio.
+   Real audio is the point: it plays the same on every device, and unlike
+   speechSynthesis it can be mixed into a recorded file, so Export produces a
+   proper narrated video. Where the engine cannot be reached (a card opened
+   from the cloud on a phone with the PC asleep) the device's own speech
+   engine narrates instead, and an export from there is silent. */
+
+const VIDEO_LAYOUTS = ["title", "points", "stat", "quote", "compare", "steps", "closing"];
+
+function studioParseVideo(raw) {
+  const t = String(raw || "").replace(/\r/g, "").replace(/\*\*/g, "");
+  const tm = t.match(/VIDEO\s*TITLE\s*:\s*(.+?)(?=\n|SCENE\s*1\b|$)/i);
+  const scenes = [];
+  for (const block of numberedBlocks(t, "SCENE")) {
+    const f = {};
+    const marks = [...block.matchAll(/(?<![A-Z])(LAYOUT|HEADLINE|VISUAL|NARRATION)\s*:\s*/gi)];
+    marks.forEach((m, k) => {
+      const end = k + 1 < marks.length ? marks[k + 1].index : block.length;
+      const key = m[1].toLowerCase();
+      if (!(key in f)) f[key] = block.slice(m.index + m[0].length, end).trim();
+    });
+    let layout = ((f.layout || "").split(/\s+/)[0] || "").toLowerCase().replace(/[.,]/g, "");
+    if (!VIDEO_LAYOUTS.includes(layout)) layout = "points";
+    const vis = f.visual || "";
+    const visual = (/\n/.test(vis.trim())
+      ? vis.split("\n").map((l) => l.trim().replace(/^(?:[-•*]|\d+[.)])\s*/, ""))
+      : vis.split(/(?:^|\s)[-•*]\s+/).map((s) => s.trim())).filter(Boolean).map(mdPlain);
+    const narration = mdPlain((f.narration || "").replace(/\s+/g, " "));
+    const headline = mdPlain((f.headline || "").replace(/\s+/g, " "));
+    if (headline || visual.length || narration) scenes.push({ layout, headline, visual, narration });
+  }
+  return scenes;
+}
+
+/** { title, scenes } -- the console's parse first, the engine's second. */
+function videoScript(a) {
+  let scenes = [];
+  try { scenes = studioParseVideo(a.raw_text || ""); } catch { scenes = []; }
+  const d = a.parsed_json || {};
+  if (scenes.length < 2 && Array.isArray(d.scenes)) scenes = d.scenes;
+  const tm = String(a.raw_text || "").match(/VIDEO\s*TITLE\s*:\s*(.+?)(?=\n|SCENE\s*1\b|$)/i);
+  const title = mdPlain((tm && tm[1]) || d.title || (scenes[0] && scenes[0].headline) || "MAGI video");
+  return { title, scenes };
+}
+
+const VIDEO_PREFS_KEY = lsKey("studio.video");
+const videoPrefs = () => { try { return JSON.parse(localStorage.getItem(VIDEO_PREFS_KEY)) || {}; } catch { return {}; } };
+const saveVideoPrefs = (p) => { try { localStorage.setItem(VIDEO_PREFS_KEY, JSON.stringify(p)); } catch {} };
+
+/* The engine's whitelist (app.py TTS_VOICES). */
+const VIDEO_VOICES = [
+  ["andrew", "Andrew · warm, US"], ["ava", "Ava · bright, US"],
+  ["brian", "Brian · relaxed, US"], ["emma", "Emma · clear, US"],
+  ["sonia", "Sonia · British"], ["ryan", "Ryan · British"],
+];
+
+/* One AudioContext for every video card, made on first open. Decoded clips
+   are cached per (voice, text) so reopening or re-rendering a card does not
+   fetch its narration again. */
+let _vidCtx = null;
+const _vidClips = new Map();
+const vidCtx = () => {
+  if (!_vidCtx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    _vidCtx = AC ? new AC() : null;
+  }
+  return _vidCtx;
+};
+
+function narrationClip(text, voice) {
+  const key = `${voice}\n${text}`;
+  if (_vidClips.has(key)) return _vidClips.get(key);
+  const p = (async () => {
+    const ctx = vidCtx();
+    if (!ctx) throw new Error("no audio engine");
+    const form = new FormData();
+    form.append("text", text);
+    form.append("voice", voice);
+    const r = await fetch(`${link.api}/api/tts`, authed({ method: "POST", body: form }));
+    if (!r.ok) {
+      const d = await r.json().catch(() => null);
+      throw new Error((d && d.detail) || `narration returned ${r.status}`);
+    }
+    const buf = await r.arrayBuffer();
+    return await new Promise((ok, no) => ctx.decodeAudioData(buf, ok, no));
+  })();
+  _vidClips.set(key, p);
+  p.catch(() => _vidClips.delete(key));
+  return p;
+}
+
+/* Fixed cinematic palette: the video is a thing people take away, so it does
+   not follow the console's theme. */
+const VID = {
+  W: 1920, H: 1080,
+  bg0: "#07080f", bg1: "#12142a", tx: "#f4f5fb", txm: "#a4a9c6", txd: "#6f7493",
+  accents: ["#a78bfa", "#38bdf8", "#f5b453", "#34d399", "#f472b6", "#818cf8"],
+  display: "Manrope, system-ui, sans-serif", body: "Inter, system-ui, sans-serif",
+  mono: "'IBM Plex Mono', ui-monospace, monospace",
+};
+const vClamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const vEase = (x) => 1 - Math.pow(1 - vClamp(x), 3);
+const vBack = (x) => { x = vClamp(x); const c = 1.4; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+/** 0..1 progress of an animation that starts at `delay` and lasts `dur`. */
+const vIn = (t, delay, dur = 0.7) => vEase((t - delay) / dur);
+
+function vWrap(ctx, text, maxW) {
+  const words = String(text || "").split(/\s+/).filter(Boolean);
+  const lines = [];
+  let cur = "";
+  for (const w of words) {
+    const next = cur ? `${cur} ${w}` : w;
+    if (ctx.measureText(next).width > maxW && cur) { lines.push(cur); cur = w; }
+    else cur = next;
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+
+/** Largest font (from `px` down) at which `text` fits in maxLines. */
+function vFit(ctx, text, font, px, maxW, maxLines, min = 28) {
+  for (let s = px; s >= min; s -= 4) {
+    ctx.font = font(s);
+    const lines = vWrap(ctx, text, maxW);
+    if (lines.length <= maxLines) return { size: s, lines };
+  }
+  ctx.font = font(min);
+  const lines = vWrap(ctx, text, maxW);
+  return { size: min, lines: lines.slice(0, maxLines) };
+}
+
+function vRound(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function vText(ctx, lines, x, y, size, lh = 1.18, align = "left") {
+  ctx.textAlign = align;
+  ctx.textBaseline = "top";
+  lines.forEach((l, i) => ctx.fillText(l, x, y + i * size * lh));
+  return lines.length * size * lh;
+}
+
+const vDisplay = (s) => `800 ${s}px ${VID.display}`;
+const vBody = (w) => (s) => `${w} ${s}px ${VID.body}`;
+
+/* ── scene painters. Each draws one scene at local time t (seconds), over a
+   span of `dur`, and is pure: the same (scene, t) always draws the same frame,
+   which is what lets scrubbing and export land on exactly what played. */
+
+function vHeadline(ctx, sc, t, acc, idx, y = 150) {
+  const a = vIn(t, 0.1, 0.8);
+  ctx.globalAlpha = a;
+  ctx.fillStyle = acc;
+  ctx.font = `600 30px ${VID.mono}`;
+  ctx.textAlign = "left"; ctx.textBaseline = "top";
+  ctx.fillText(String(idx + 1).padStart(2, "0"), 160, y + (1 - a) * 20);
+  ctx.fillRect(220, y + 16 + (1 - a) * 20, 70 * a, 3);
+  const { size, lines } = vFit(ctx, sc.headline, vDisplay, 84, 1560, 2, 48);
+  ctx.fillStyle = VID.tx;
+  ctx.font = vDisplay(size);
+  const h = vText(ctx, lines, 160, y + 56 + (1 - a) * 30, size, 1.12);
+  ctx.globalAlpha = 1;
+  return y + 56 + h;
+}
+
+/** When item i appears: spread across the narration so each lands roughly as
+ *  the narrator reaches it, never all at once and never after the scene. */
+const vStagger = (i, n, dur, first = 0.7) =>
+  first + i * Math.min(1.6, Math.max(0.35, (dur - first - 1.8) / Math.max(1, n)));
+
+const VIDEO_PAINT = {
+  title(ctx, sc, t, acc, idx, dur, v) {
+    const W = VID.W, H = VID.H;
+    const a = vIn(t, 0.15, 1.0);
+    ctx.globalAlpha = vIn(t, 0, 0.6) * 0.9;
+    ctx.fillStyle = acc;
+    ctx.font = `600 28px ${VID.mono}`;
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    ctx.fillText("M A G I   ·   S T U D I O", W / 2, 300);
+    const { size, lines } = vFit(ctx, sc.headline || v.title, vDisplay, 132, 1500, 3, 64);
+    ctx.font = vDisplay(size);
+    const blockH = lines.length * size * 1.08;
+    const y0 = H / 2 - blockH / 2 - 20 + (1 - a) * 40;
+    ctx.globalAlpha = a;
+    const g = ctx.createLinearGradient(W / 2 - 700, 0, W / 2 + 700, 0);
+    g.addColorStop(0, VID.tx); g.addColorStop(0.5, "#ffffff"); g.addColorStop(1, acc);
+    ctx.fillStyle = g;
+    vText(ctx, lines, W / 2, y0, size, 1.08, "center");
+    const bw = 260 * vIn(t, 0.7, 0.9);
+    ctx.fillStyle = acc;
+    vRound(ctx, W / 2 - bw / 2, y0 + blockH + 36, bw, 6, 3); ctx.fill();
+    const sub = sc.visual[0] || "";
+    if (sub) {
+      ctx.globalAlpha = vIn(t, 1.1, 0.8);
+      const f = vFit(ctx, sub, vBody(500), 44, 1300, 2, 30);
+      ctx.fillStyle = VID.txm; ctx.font = vBody(500)(f.size);
+      vText(ctx, f.lines, W / 2, y0 + blockH + 80 + (1 - ctx.globalAlpha) * 16, f.size, 1.3, "center");
+    }
+    ctx.globalAlpha = 1;
+  },
+
+  points(ctx, sc, t, acc, idx, dur) {
+    let y = vHeadline(ctx, sc, t, acc, idx) + 70;
+    const items = sc.visual.slice(0, 5);
+    const size = items.length > 4 ? 44 : 50;
+    items.forEach((it, i) => {
+      const p = vIn(t, vStagger(i, items.length, dur), 0.65);
+      if (p <= 0) return;
+      ctx.globalAlpha = p;
+      const x = 160 + (1 - p) * -60;
+      ctx.font = vBody(500)(size);
+      const lines = vWrap(ctx, it, 1440).slice(0, 2);
+      const h = lines.length * size * 1.25;
+      ctx.fillStyle = acc;
+      vRound(ctx, x, y + 6, 14, h - 12, 7); ctx.fill();
+      ctx.fillStyle = VID.tx;
+      vText(ctx, lines, x + 52, y, size, 1.25);
+      y += h + 44;
+    });
+    ctx.globalAlpha = 1;
+  },
+
+  stat(ctx, sc, t, acc, idx, dur) {
+    const W = VID.W;
+    vHeadline(ctx, sc, t, acc, idx);
+    const [valRaw, label = ""] = String(sc.visual[0] || "").split("|").map((s) => s.trim());
+    const m = valRaw.match(/^(.*?)(-?\d[\d,]*(?:\.\d+)?)(.*)$/);
+    const p = vIn(t, 0.6, 1.8);
+    let shown = valRaw;
+    if (m) {
+      const target = parseFloat(m[2].replace(/,/g, ""));
+      const dp = (m[2].split(".")[1] || "").length;
+      const cur = target * p;
+      const num = dp ? cur.toFixed(dp) : Math.round(cur).toLocaleString("en-US");
+      shown = `${m[1]}${num}${m[3]}`;
+    }
+    const cx = W / 2, cy = 600;
+    const pct = m && /%/.test(m[3]) ? vClamp(parseFloat(m[2]) / 100) : 1;
+    ctx.lineWidth = 22; ctx.lineCap = "round";
+    ctx.strokeStyle = "rgba(255,255,255,.07)";
+    ctx.beginPath(); ctx.arc(cx, cy, 250, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = acc;
+    ctx.globalAlpha = vIn(t, 0.4, 0.5);
+    ctx.beginPath(); ctx.arc(cx, cy, 250, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * pct * p); ctx.stroke();
+    ctx.globalAlpha = vIn(t, 0.4, 0.6);
+    const f = vFit(ctx, shown, vDisplay, 150, 420, 1, 60);
+    ctx.font = vDisplay(f.size);
+    ctx.fillStyle = VID.tx;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(shown, cx, cy + 4);
+    ctx.globalAlpha = 1;
+    if (label) {
+      ctx.globalAlpha = vIn(t, 1.4, 0.7);
+      const lf = vFit(ctx, label, vBody(600), 46, 1400, 2, 30);
+      ctx.fillStyle = VID.tx; ctx.font = vBody(600)(lf.size);
+      vText(ctx, lf.lines, cx, cy + 300, lf.size, 1.2, "center");
+    }
+    const ctxLine = sc.visual[1];
+    if (ctxLine) {
+      ctx.globalAlpha = vIn(t, 2.0, 0.7);
+      const cf = vFit(ctx, ctxLine, vBody(400), 34, 1400, 1, 24);
+      ctx.fillStyle = VID.txm; ctx.font = vBody(400)(cf.size);
+      vText(ctx, cf.lines, cx, cy + 300 + 110, cf.size, 1.2, "center");
+    }
+    ctx.globalAlpha = 1;
+  },
+
+  quote(ctx, sc, t, acc, idx, dur) {
+    const W = VID.W;
+    const text = sc.visual[0] || sc.headline;
+    ctx.globalAlpha = vIn(t, 0, 0.8) * 0.9;
+    ctx.fillStyle = acc;
+    ctx.font = `800 300px ${VID.display}`;
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    ctx.fillText("“", W / 2, 90);
+    const f = vFit(ctx, text, (s) => `italic 600 ${s}px ${VID.display}`, 76, 1440, 4, 40);
+    ctx.font = `italic 600 ${f.size}px ${VID.display}`;
+    const lh = f.size * 1.25;
+    const y0 = 560 - (f.lines.length * lh) / 2;
+    // Word-by-word, paced to fill most of the scene.
+    const words = f.lines.map((l) => l.split(" "));
+    const total = words.reduce((a, w) => a + w.length, 0);
+    const per = Math.min(0.28, Math.max(0.08, (dur * 0.55) / total));
+    let k = 0;
+    ctx.textBaseline = "top";
+    f.lines.forEach((line, li) => {
+      const lw = ctx.measureText(line).width;
+      let x = W / 2 - lw / 2;
+      for (const w of words[li]) {
+        const p = vIn(t, 0.5 + k * per, 0.45);
+        ctx.globalAlpha = 0.12 + 0.88 * p;
+        ctx.fillStyle = VID.tx;
+        ctx.textAlign = "left";
+        ctx.fillText(w, x, y0 + li * lh + (1 - p) * 10);
+        x += ctx.measureText(`${w} `).width;
+        k++;
+      }
+    });
+    if (sc.headline && sc.visual[0]) {
+      ctx.globalAlpha = vIn(t, 0.8 + total * per, 0.7);
+      ctx.fillStyle = acc;
+      ctx.font = vBody(600)(34);
+      ctx.textAlign = "center";
+      ctx.fillText(`—  ${sc.headline}`, W / 2, y0 + f.lines.length * lh + 50);
+    }
+    ctx.globalAlpha = 1;
+  },
+
+  compare(ctx, sc, t, acc, idx, dur, v, acc2) {
+    const top = vHeadline(ctx, sc, t, acc, idx) + 60;
+    const rows = sc.visual.map((l) => l.split("|").map((s) => s.trim()));
+    const head = rows.length > 1 ? rows[0] : ["", ""];
+    const body = (rows.length > 1 ? rows.slice(1) : rows).slice(0, 4);
+    const colW = 700, gap = 120, x0 = (VID.W - colW * 2 - gap) / 2;
+    const H = VID.H - top - 130;
+    [0, 1].forEach((c) => {
+      const p = vIn(t, 0.4 + c * 0.25, 0.8);
+      const x = x0 + c * (colW + gap) + (1 - p) * (c ? 80 : -80);
+      const col = c ? acc2 : acc;
+      ctx.globalAlpha = p;
+      ctx.fillStyle = "rgba(255,255,255,.045)";
+      vRound(ctx, x, top, colW, H, 28); ctx.fill();
+      ctx.fillStyle = col;
+      vRound(ctx, x, top, colW, 10, 5); ctx.fill();
+      const hf = vFit(ctx, head[c] || "", vDisplay, 48, colW - 80, 1, 30);
+      ctx.fillStyle = col; ctx.font = vDisplay(hf.size);
+      vText(ctx, hf.lines, x + 44, top + 44, hf.size);
+      let y = top + 140;
+      body.forEach((r, i) => {
+        const q = vIn(t, vStagger(i, body.length, dur, 1.1) + c * 0.15, 0.6);
+        if (q <= 0) return;
+        ctx.globalAlpha = p * q;
+        ctx.font = vBody(500)(36);
+        const lines = vWrap(ctx, r[c] || "", colW - 120).slice(0, 2);
+        ctx.fillStyle = col;
+        ctx.beginPath(); ctx.arc(x + 54, y + 20, 7, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = VID.tx;
+        y += vText(ctx, lines, x + 80, y, 36, 1.25) + 30;
+      });
+    });
+    const vp = vBack(vIn(t, 0.9, 0.6));
+    ctx.globalAlpha = vClamp(vp);
+    const cx = VID.W / 2, cy = top + H / 2;
+    ctx.fillStyle = VID.bg1;
+    ctx.beginPath(); ctx.arc(cx, cy, 58 * vp, 0, Math.PI * 2); ctx.fill();
+    ctx.lineWidth = 3; ctx.strokeStyle = "rgba(255,255,255,.18)"; ctx.stroke();
+    ctx.fillStyle = VID.tx; ctx.font = vDisplay(38);
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("VS", cx, cy + 2);
+    ctx.globalAlpha = 1;
+  },
+
+  steps(ctx, sc, t, acc, idx, dur) {
+    const top = vHeadline(ctx, sc, t, acc, idx) + 40;
+    const steps = sc.visual.slice(0, 5);
+    const n = steps.length || 1;
+    const x0 = 260, x1 = VID.W - 260;
+    const cy = Math.max(top + 150, 560);
+    const xs = steps.map((_, i) => (n === 1 ? (x0 + x1) / 2 : x0 + ((x1 - x0) * i) / (n - 1)));
+    const when = steps.map((_, i) => vStagger(i, n, dur, 0.6));
+    ctx.lineWidth = 6; ctx.lineCap = "round";
+    ctx.strokeStyle = "rgba(255,255,255,.08)";
+    ctx.beginPath(); ctx.moveTo(xs[0], cy); ctx.lineTo(xs[n - 1], cy); ctx.stroke();
+    // The connector draws itself toward each step as that step arrives.
+    let reach = xs[0];
+    for (let i = 1; i < n; i++) {
+      const p = vIn(t, when[i] - 0.5, 0.5);
+      if (p <= 0) break;
+      reach = xs[i - 1] + (xs[i] - xs[i - 1]) * p;
+    }
+    ctx.strokeStyle = acc;
+    ctx.beginPath(); ctx.moveTo(xs[0], cy); ctx.lineTo(reach, cy); ctx.stroke();
+    steps.forEach((s, i) => {
+      const p = vBack(vIn(t, when[i], 0.55));
+      if (p <= 0) return;
+      ctx.globalAlpha = vClamp(p);
+      ctx.fillStyle = VID.bg1;
+      ctx.beginPath(); ctx.arc(xs[i], cy, 48 * p, 0, Math.PI * 2); ctx.fill();
+      ctx.lineWidth = 5; ctx.strokeStyle = acc; ctx.stroke();
+      ctx.fillStyle = VID.tx; ctx.font = vDisplay(40);
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(String(i + 1), xs[i], cy + 2);
+      const w = n === 1 ? 900 : Math.min(420, ((x1 - x0) / (n - 1)) - 30);
+      const f = vFit(ctx, s, vBody(600), 38, w, 3, 26);
+      ctx.fillStyle = VID.tx; ctx.font = vBody(600)(f.size);
+      vText(ctx, f.lines, xs[i], cy + 90 + (1 - vClamp(p)) * 20, f.size, 1.25, "center");
+    });
+    ctx.globalAlpha = 1;
+  },
+
+  closing(ctx, sc, t, acc, idx, dur, v) {
+    const W = VID.W;
+    const a = vIn(t, 0.1, 0.9);
+    ctx.globalAlpha = a;
+    ctx.fillStyle = acc;
+    ctx.font = `600 28px ${VID.mono}`;
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    ctx.fillText("T H E   A N S W E R", W / 2, 190);
+    const f = vFit(ctx, sc.headline, vDisplay, 104, 1500, 2, 56);
+    ctx.fillStyle = VID.tx; ctx.font = vDisplay(f.size);
+    const h = vText(ctx, f.lines, W / 2, 250 + (1 - a) * 30, f.size, 1.1, "center");
+    let y = 250 + h + 70;
+    const items = sc.visual.slice(0, 3);
+    items.forEach((it, i) => {
+      const p = vIn(t, vStagger(i, items.length, dur, 0.9), 0.6);
+      if (p <= 0) return;
+      ctx.globalAlpha = p;
+      ctx.font = vBody(500)(44);
+      const lines = vWrap(ctx, it, 1200).slice(0, 2);
+      const bh = lines.length * 44 * 1.25 + 44;
+      const bw = Math.min(1400, Math.max(...lines.map((l) => ctx.measureText(l).width)) + 160);
+      const x = W / 2 - bw / 2;
+      ctx.fillStyle = "rgba(255,255,255,.05)";
+      vRound(ctx, x, y + (1 - p) * 20, bw, bh, 22); ctx.fill();
+      ctx.strokeStyle = acc; ctx.lineWidth = 5; ctx.lineCap = "round"; ctx.lineJoin = "round";
+      const cx = x + 56, cy = y + bh / 2 + (1 - p) * 20;
+      ctx.beginPath(); ctx.moveTo(cx - 14, cy); ctx.lineTo(cx - 3, cy + 11); ctx.lineTo(cx + 16, cy - 12); ctx.stroke();
+      ctx.fillStyle = VID.tx;
+      vText(ctx, lines, x + 100, y + 22 + (1 - p) * 20, 44, 1.25);
+      y += bh + 26;
+    });
+    ctx.globalAlpha = 1;
+  },
+};
+
+/** Background: deep gradient, three slow orbs that drift toward the current
+ *  scene's colour, and a faint dot grid -- motion even while the text holds. */
+function vBackground(ctx, T, acc, accPrev, mix) {
+  const W = VID.W, H = VID.H;
+  const g = ctx.createLinearGradient(0, 0, W, H);
+  g.addColorStop(0, VID.bg1); g.addColorStop(1, VID.bg0);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  const orbs = [
+    [0.18, 0.22, 620, 0.11, 0], [0.84, 0.3, 560, 0.08, 2.1], [0.6, 0.92, 700, 0.07, 4.2],
+  ];
+  orbs.forEach(([ox, oy, r, sp, ph], i) => {
+    const x = W * ox + Math.sin(T * sp + ph) * 120;
+    const y = H * oy + Math.cos(T * sp * 1.3 + ph) * 80;
+    const col = i === 1 ? accPrev : acc;
+    const rg = ctx.createRadialGradient(x, y, 0, x, y, r);
+    ctx.globalAlpha = i === 1 ? 0.28 * (1 - mix) + 0.18 : 0.34 * mix + 0.1;
+    rg.addColorStop(0, col); rg.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = rg; ctx.fillRect(x - r, y - r, r * 2, r * 2);
+  });
+  ctx.globalAlpha = 0.07;
+  ctx.fillStyle = "#ffffff";
+  const off = (T * 6) % 60;
+  for (let x = -60 + off; x < W; x += 60) for (let y = 0; y < H; y += 60) ctx.fillRect(x, y, 2, 2);
+  ctx.globalAlpha = 1;
+}
+
+function renderVideo(script) {
+  const { title } = script;
+  const scenes = script.scenes.map((s) => ({
+    layout: s.layout || "points", headline: s.headline || "", visual: s.visual || [],
+    narration: s.narration || "",
+  }));
+  const n = scenes.length;
+  const prefs = videoPrefs();
+  const st = {
+    voice: VIDEO_VOICES.some(([k]) => k === prefs.voice) ? prefs.voice : "andrew",
+    cc: prefs.cc !== false, music: prefs.music !== false,
+    mode: "loading",           // loading | audio | speech
+    clips: [], loaded: 0, err: "",
+    T: 0, playing: false, t0: 0, raf: 0, sources: [], token: 0,
+    rec: null, recDest: null, musicNodes: null,
+  };
+  const LEAD = 0.45, TAIL = 0.9;
+  const words = (s) => s.split(/\s+/).filter(Boolean).length;
+  let timeline = [], total = 0;
+  const layoutTimes = () => {
+    timeline = []; total = 0;
+    scenes.forEach((sc, i) => {
+      const clip = st.mode === "audio" ? st.clips[i] : null;
+      const speech = clip ? clip.duration : words(sc.narration) / 2.6;
+      const dur = Math.max(sc.layout === "title" ? 4.2 : 4.8, LEAD + speech + TAIL);
+      timeline.push({ start: total, dur, speech });
+      total += dur;
+    });
+  };
+  const sceneAt = (T) => {
+    for (let i = n - 1; i >= 0; i--) if (T >= timeline[i].start) return i;
+    return 0;
+  };
+  const fmt = (sec) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, "0")}`;
+
+  const box = el("div", "vd");
+  const stage = el("div", "vd-stage");
+  const canvas = el("canvas", "vd-canvas");
+  canvas.width = VID.W; canvas.height = VID.H;
+  const ctx = canvas.getContext("2d");
+  const cover = el("button", "vd-cover");
+  cover.type = "button";
+  const coverIc = icSpan("vd-cover-ic", "play");
+  const coverTxt = el("div", "vd-cover-txt", "");
+  cover.append(coverIc, coverTxt);
+  const recBadge = el("div", "vd-rec", "● REC");
+  recBadge.hidden = true;
+  stage.append(canvas, cover, recBadge);
+
+  const bar = el("div", "vd-bar");
+  const play = el("button", "au-play vd-play");
+  play.type = "button";
+  const back = stBtn("", "skipBack", () => jumpScene(-1), "round au-skip", "Previous scene");
+  const fwd = stBtn("", "skipFwd", () => jumpScene(1), "round au-skip", "Next scene");
+  const segs = el("div", "au-segs vd-segs");
+  const times = el("div", "au-times");
+  const tNow = el("span", null, "0:00"), tAll = el("span", null, "");
+  times.append(tNow, tAll);
+  const prog = el("div", "vd-prog");
+  prog.append(segs, times);
+  bar.append(back, play, fwd, prog);
+
+  const opts = el("div", "au-opts vd-opts");
+  const ccBtn = stBtn("Captions", "report", () => { st.cc = !st.cc; prefs.cc = st.cc; saveVideoPrefs(prefs); paintOpts(); draw(); }, "", "Show the narration on screen");
+  const musicBtn = stBtn("Music", "audioOn", () => { st.music = !st.music; prefs.music = st.music; saveVideoPrefs(prefs); paintOpts(); if (st.playing) { stopMusic(); if (st.music) startMusic(); } }, "", "A quiet music bed under the narration");
+  const vSel = el("select", "au-vsel vd-vsel");
+  vSel.title = "Narrator";
+  for (const [k, label] of VIDEO_VOICES) { const o = el("option", null, label); o.value = k; vSel.append(o); }
+  vSel.value = st.voice;
+  vSel.onchange = () => { st.voice = vSel.value; prefs.voice = st.voice; saveVideoPrefs(prefs); pause(); loadNarration(); };
+  const fsBtn = stBtn("", "expand", () => toggleFs(), "round", "Full screen");
+  const exportBtn = stBtn("Export video", "download", () => (st.rec ? stopExport(true) : startExport()), "", "Record the whole video to a file");
+  const copyS = copyButton(() => ({ md: `# ${title}\n\n` + scenes.map((s, i) =>
+    `## Scene ${i + 1} · ${s.headline}\n\n${s.visual.map((v) => `- ${v}`).join("\n")}\n\n> ${s.narration}`).join("\n\n") }),
+    { label: "Script" });
+  opts.append(ccBtn, musicBtn, vSel, el("span", "st-grow"), copyS, exportBtn, fsBtn);
+  const note = el("div", "au-note vd-note");
+
+  const board = el("div", "vd-board");
+  const boardEls = scenes.map((sc, i) => {
+    const b = el("button", "vd-scene");
+    b.type = "button";
+    b.style.setProperty("--va", VID.accents[i % VID.accents.length]);
+    const hd = el("div", "vd-scene-hd");
+    hd.append(el("span", "vd-scene-no", String(i + 1).padStart(2, "0")), el("span", "vd-scene-lay", sc.layout),
+              el("span", "vd-scene-time", ""));
+    b.append(hd, el("div", "vd-scene-title", sc.headline || "—"), el("div", "vd-scene-nar", sc.narration));
+    b.onclick = () => seek(timeline[i].start, st.playing);
+    board.append(b);
+    return b;
+  });
+  box.append(stage, bar, opts, note, board);
+
+  /* drawing */
+  const accOf = (i) => VID.accents[i % VID.accents.length];
+  function draw() {
+    if (!timeline.length) return;
+    const T = vClamp(st.T, 0, total);
+    const i = sceneAt(T);
+    const tl = timeline[i];
+    const t = T - tl.start;
+    vBackground(ctx, T, accOf(i), accOf(Math.max(0, i - 1)), vIn(t, 0, 1.2));
+    // Crossfade: the scene fades up on entry and out in its last moments.
+    const fade = Math.min(vIn(t, 0, 0.45), 1 - vEase((t - (tl.dur - 0.4)) / 0.4));
+    paintScene(i, t, fade);
+    chrome(i, t, T);
+  }
+  // Painters draw into an offscreen layer so the scene fade can wrap every
+  // alpha a painter sets on its own.
+  const layerCv = document.createElement("canvas");
+  layerCv.width = VID.W; layerCv.height = VID.H;
+  const lctx = layerCv.getContext("2d");
+  function paintScene(i, t, fade) {
+    lctx.clearRect(0, 0, VID.W, VID.H);
+    const sc = scenes[i];
+    const painter = VIDEO_PAINT[sc.layout] || VIDEO_PAINT.points;
+    lctx.save();
+    try { painter(lctx, sc, t, accOf(i), i, timeline[i].dur, { title }, accOf(i + 1)); } catch {}
+    lctx.restore();
+    ctx.globalAlpha = vClamp(fade);
+    ctx.drawImage(layerCv, 0, 0);
+    ctx.globalAlpha = 1;
+  }
+  function chrome(i, t, T) {
+    const W = VID.W, H = VID.H;
+    ctx.fillStyle = VID.txd;
+    ctx.font = `600 22px ${VID.mono}`;
+    ctx.textAlign = "right"; ctx.textBaseline = "top";
+    ctx.fillText(`${String(i + 1).padStart(2, "0")} / ${String(n).padStart(2, "0")}`, W - 80, 60);
+    ctx.textAlign = "left";
+    ctx.fillStyle = VID.txd;
+    ctx.fillText(title.toUpperCase().slice(0, 60), 80, 60);
+    // progress
+    ctx.fillStyle = "rgba(255,255,255,.08)";
+    ctx.fillRect(0, H - 8, W, 8);
+    ctx.fillStyle = accOf(i);
+    ctx.fillRect(0, H - 8, W * (total ? T / total : 0), 8);
+    if (st.cc) caption(i, t);
+  }
+  function caption(i, t) {
+    const sc = scenes[i], tl = timeline[i];
+    if (!sc.narration) return;
+    const chunks = speechChunks(sc.narration);
+    const into = t - LEAD;
+    if (into < 0 || into > tl.speech + 0.4) return;
+    // Which sentence is being spoken: by share of characters, the one clock
+    // both narration paths agree on.
+    const lens = chunks.map((c) => c.length), all = lens.reduce((a, b) => a + b, 0) || 1;
+    let acc = 0, k = 0;
+    const at = (into / Math.max(0.1, tl.speech)) * all;
+    for (; k < chunks.length - 1; k++) { acc += lens[k]; if (at < acc) break; }
+    const text = chunks[k];
+    ctx.font = vBody(500)(38);
+    const lines = vWrap(ctx, text, 1500).slice(-2);
+    const lh = 50, padX = 36, padY = 18;
+    const w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + padX * 2;
+    const h = lines.length * lh + padY * 2;
+    const x = VID.W / 2 - w / 2, y = VID.H - 60 - h;
+    ctx.fillStyle = "rgba(4,5,12,.72)";
+    vRound(ctx, x, y, w, h, 16); ctx.fill();
+    ctx.fillStyle = "#ffffff";
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    lines.forEach((l, j) => ctx.fillText(l, VID.W / 2, y + padY + j * lh + 4));
+  }
+
+  /* paint the DOM around the canvas */
+  function buildSegs() {
+    segs.textContent = "";
+    timeline.forEach((tl, i) => {
+      const s = el("button", "au-seg vd-seg");
+      s.type = "button";
+      s.style.flexGrow = String(Math.max(1, Math.round(tl.dur * 10)));
+      s.style.setProperty("--va", accOf(i));
+      s.setAttribute("aria-label", `Scene ${i + 1}`);
+      s.onclick = () => seek(tl.start, st.playing);
+      segs.append(s);
+    });
+    boardEls.forEach((b, i) => { b.querySelector(".vd-scene-time").textContent = fmt(timeline[i].start); });
+    tAll.textContent = fmt(total);
+  }
+  function paintUi() {
+    const i = timeline.length ? sceneAt(st.T) : -1;
+    play.textContent = "";
+    play.append(icSpan("au-play-ic", st.playing ? "pause" : "play"));
+    play.setAttribute("aria-label", st.playing ? "Pause" : "Play");
+    play.classList.toggle("on", st.playing);
+    play.disabled = st.mode === "loading" || !!st.rec;
+    back.disabled = i <= 0 || !!st.rec;
+    fwd.disabled = i >= n - 1 || !!st.rec;
+    [...segs.children].forEach((s, k) => { s.classList.toggle("done", k < i); s.classList.toggle("cur", k === i); });
+    boardEls.forEach((b, k) => b.classList.toggle("current", k === i));
+    tNow.textContent = fmt(st.T);
+    cover.hidden = st.playing;
+    coverIc.hidden = st.mode === "loading";
+    coverTxt.textContent = st.mode === "loading" ? `Preparing narration… ${st.loaded}/${n}` : "";
+    cover.classList.toggle("loading", st.mode === "loading");
+    recBadge.hidden = !st.rec;
+    exportBtn.querySelector(".st-btn-txt").textContent = st.rec ? "Stop export" : "Export video";
+    exportBtn.disabled = st.mode === "loading";
+  }
+  function paintOpts() {
+    ccBtn.classList.toggle("on", st.cc);
+    musicBtn.classList.toggle("on", st.music);
+    musicBtn.disabled = !vidCtx();
+  }
+
+  /* narration */
+  async function loadNarration() {
+    const token = ++st.token;
+    st.mode = "loading"; st.loaded = 0; st.err = "";
+    paintUi();
+    const ctxA = online() ? vidCtx() : null;
+    if (!ctxA) { useSpeech(online() ? "This browser has no audio engine" : "The engine is not reachable"); return; }
+    try {
+      let k = 0;
+      const clips = new Array(n);
+      // Three at a time: the engine synthesises each one, and a burst of
+      // nine requests is slower in total than a steady three.
+      const worker = async () => {
+        while (k < n) {
+          const i = k++;
+          clips[i] = scenes[i].narration ? await narrationClip(scenes[i].narration, st.voice) : null;
+          if (token !== st.token) return;
+          st.loaded += 1; paintUi();
+        }
+      };
+      await Promise.all([worker(), worker(), worker()]);
+      if (token !== st.token) return;
+      st.clips = clips.map((c) => c || null);
+      st.mode = "audio";
+      note.textContent = "";
+    } catch (e) {
+      if (token !== st.token) return;
+      useSpeech(`Neural narration failed (${(e && e.message) || e})`);
+      return;
+    }
+    layoutTimes(); buildSegs(); st.T = Math.min(st.T, total); draw(); paintUi();
+  }
+  function useSpeech(why) {
+    st.mode = "speech"; st.clips = [];
+    note.textContent = `${why} — narrating with this device's own voice instead. ` +
+      "An export from here has captions but no sound.";
+    layoutTimes(); buildSegs(); draw(); paintUi();
+  }
+
+  /* music: a soft pad that changes chord with the scene */
+  const CHORDS = [[220, 277.18, 329.63], [196, 246.94, 293.66], [174.61, 220, 261.63], [196, 246.94, 329.63]];
+  function startMusic() {
+    const ac = vidCtx();
+    if (!ac || !st.music || st.musicNodes) return;
+    const out = ac.createGain();
+    out.gain.value = 0;
+    out.gain.setTargetAtTime(0.045, ac.currentTime, 0.8);
+    const lp = ac.createBiquadFilter();
+    lp.type = "lowpass"; lp.frequency.value = 900; lp.Q.value = 0.3;
+    lp.connect(out);
+    out.connect(ac.destination);
+    if (st.recDest) out.connect(st.recDest);
+    const oscs = [0, 1, 2].map((v) => {
+      const o = ac.createOscillator();
+      o.type = v === 0 ? "sine" : "triangle";
+      const g = ac.createGain(); g.gain.value = v === 0 ? 0.6 : 0.25;
+      o.connect(g); g.connect(lp); o.start();
+      return o;
+    });
+    const lfo = ac.createOscillator(), lfoG = ac.createGain();
+    lfo.frequency.value = 0.07; lfoG.gain.value = 350;
+    lfo.connect(lfoG); lfoG.connect(lp.frequency); lfo.start();
+    st.musicNodes = { out, oscs, lfo };
+    setChord(sceneAt(st.T), true);
+  }
+  function setChord(i, now) {
+    const m = st.musicNodes, ac = vidCtx();
+    if (!m || !ac) return;
+    const ch = CHORDS[i % CHORDS.length];
+    m.oscs.forEach((o, v) => o.frequency.setTargetAtTime(ch[v] / (v === 0 ? 2 : 1), ac.currentTime, now ? 0.01 : 0.6));
+  }
+  function stopMusic() {
+    const m = st.musicNodes, ac = vidCtx();
+    st.musicNodes = null;
+    if (!m || !ac) return;
+    m.out.gain.setTargetAtTime(0, ac.currentTime, 0.15);
+    setTimeout(() => { try { m.oscs.forEach((o) => o.stop()); m.lfo.stop(); m.out.disconnect(); } catch {} }, 600);
+  }
+
+  /* transport */
+  const clock = () => (st.mode === "audio" ? vidCtx().currentTime : performance.now() / 1000);
+  function scheduleAudio() {
+    const ac = vidCtx();
+    const now = ac.currentTime;
+    st.sources = [];
+    timeline.forEach((tl, i) => {
+      const clip = st.clips[i];
+      if (!clip) return;
+      const at = tl.start + LEAD;
+      if (at + clip.duration <= st.T) return;
+      const src = ac.createBufferSource();
+      src.buffer = clip;
+      src.connect(ac.destination);
+      if (st.recDest) src.connect(st.recDest);
+      const offset = Math.max(0, st.T - at);
+      src.start(now + Math.max(0, at - st.T), offset);
+      st.sources.push(src);
+    });
+  }
+  function stopAudio() {
+    for (const s of st.sources) { try { s.stop(); } catch {} }
+    st.sources = [];
+    if (window.speechSynthesis) try { window.speechSynthesis.cancel(); } catch {}
+  }
+  let lastScene = -1;
+  function tick() {
+    if (!st.playing) return;
+    if (!box.isConnected || $("studioView").hidden) { pause(); return; }
+    st.T = clock() - st.t0;
+    if (st.T >= total) {
+      st.T = total; draw();
+      pause();
+      st.T = 0;
+      if (st.rec) stopExport(false);
+      paintUi();
+      return;
+    }
+    const i = sceneAt(st.T);
+    if (i !== lastScene) {
+      lastScene = i;
+      setChord(i);
+      if (st.mode === "speech") speakScene(i);
+      paintUi();
+      const b = boardEls[i];
+      if (b && !document.fullscreenElement) b.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+    draw();
+    tNow.textContent = fmt(st.T);
+    st.raf = requestAnimationFrame(tick);
+  }
+  function speakScene(i) {
+    const synth = window.speechSynthesis;
+    if (!synth || !scenes[i].narration || st.rec) return;
+    synth.cancel();
+    const v = pickHostVoices((_voicesCache || []).filter((x) => /^en/i.test(x.lang)), {}).A;
+    const into = st.T - timeline[i].start;
+    setTimeout(() => {
+      if (!st.playing || sceneAt(st.T) !== i) return;
+      for (const c of speechChunks(scenes[i].narration)) {
+        const u = new SpeechSynthesisUtterance(c);
+        if (v) { u.voice = v; u.lang = v.lang; }
+        synth.speak(u);
+      }
+    }, Math.max(0, (LEAD - into) * 1000));
+  }
+  async function playFrom(T) {
+    if (st.mode === "loading") return;
+    const ac = vidCtx();
+    if (ac && ac.state === "suspended") { try { await ac.resume(); } catch {} }
+    if (_speech) try { _speech.stop(); } catch {}
+    stopAudio();
+    st.T = vClamp(T, 0, Math.max(0, total - 0.05));
+    st.t0 = clock() - st.T;
+    st.playing = true;
+    lastScene = -1;
+    if (st.mode === "audio") scheduleAudio();
+    if (st.music) startMusic();
+    cancelAnimationFrame(st.raf);
+    st.raf = requestAnimationFrame(tick);
+    paintUi();
+  }
+  function pause() {
+    if (st.playing) st.T = clock() - st.t0;
+    st.playing = false;
+    cancelAnimationFrame(st.raf);
+    stopAudio();
+    stopMusic();
+    draw();
+    paintUi();
+  }
+  const toggle = () => (st.playing ? pause() : playFrom(st.T >= total ? 0 : st.T));
+  function seek(T, keepPlaying) {
+    if (st.rec) return;
+    if (keepPlaying) playFrom(T);
+    else { st.T = vClamp(T, 0, total); draw(); paintUi(); }
+  }
+  function jumpScene(d) {
+    const i = sceneAt(st.T);
+    // "Previous" from a few seconds in restarts the scene, like any player.
+    const target = d < 0 && st.T - timeline[i].start > 2 ? i : vClamp(i + d, 0, n - 1);
+    seek(timeline[target].start, st.playing);
+  }
+  function toggleFs() {
+    if (document.fullscreenElement) { document.exitFullscreen().catch(() => {}); return; }
+    (stage.requestFullscreen || stage.webkitRequestFullscreen || (() => {})).call(stage);
+  }
+
+  /* export: the canvas and the narration, recorded in real time */
+  function pickMime() {
+    const MR = window.MediaRecorder;
+    if (!MR) return "";
+    for (const m of ["video/mp4;codecs=avc1,mp4a.40.2", "video/mp4",
+      "video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"]) {
+      try { if (MR.isTypeSupported(m)) return m; } catch {}
+    }
+    return "";
+  }
+  async function startExport() {
+    const mime = pickMime();
+    if (!mime || !canvas.captureStream) {
+      note.textContent = "This browser cannot record video. Chrome, Edge or Brave on a computer can.";
+      return;
+    }
+    pause();
+    const ac = vidCtx();
+    const stream = canvas.captureStream(30);
+    if (ac && st.mode === "audio") {
+      st.recDest = ac.createMediaStreamDestination();
+      for (const tr of st.recDest.stream.getAudioTracks()) stream.addTrack(tr);
+    }
+    const chunks = [];
+    const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 8_000_000 });
+    rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+    rec.onstop = () => {
+      stream.getTracks().forEach((t) => t.stop());
+      const keep = rec._keep;
+      st.rec = null; st.recDest = null;
+      paintUi();
+      if (!keep || !chunks.length) return;
+      const ext = mime.startsWith("video/mp4") ? "mp4" : "webm";
+      const url = URL.createObjectURL(new Blob(chunks, { type: mime.split(";")[0] }));
+      const a = el("a");
+      a.href = url; a.download = studioFileName("video", ext);
+      document.body.append(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      note.textContent = `Exported ${fmt(total)} of video as .${ext}.`;
+    };
+    st.rec = rec;
+    const prevCc = st.cc;
+    if (st.mode !== "audio") st.cc = true;   // a silent file needs its words on screen
+    rec._restoreCc = () => { st.cc = prevCc; };
+    rec._keep = true;
+    note.textContent = `Recording in real time (${fmt(total)}). Keep this tab visible until it finishes.`;
+    rec.start(1000);
+    await playFrom(0);
+  }
+  function stopExport(cancelled) {
+    const rec = st.rec;
+    if (!rec) return;
+    rec._keep = !cancelled;
+    if (rec._restoreCc) rec._restoreCc();
+    pause();
+    try { rec.stop(); } catch {}
+    if (cancelled) note.textContent = "Export cancelled.";
+  }
+
+  play.onclick = toggle;
+  cover.onclick = () => { if (st.mode !== "loading") toggle(); };
+  canvas.onclick = toggle;
+  const onFs = () => {
+    const on = document.fullscreenElement === stage;
+    fsBtn.querySelector(".st-btn-ic").innerHTML = IC[on ? "shrink" : "expand"];
+    stage.classList.toggle("fs", on);
+  };
+  document.addEventListener("fullscreenchange", onFs);
+
+  S.studio.onKey = (e) => {
+    if (e.key === " " || e.key === "k" || e.key === "K") toggle();
+    else if (e.key === "ArrowRight") jumpScene(1);
+    else if (e.key === "ArrowLeft") jumpScene(-1);
+    else if (e.key === "f" || e.key === "F") toggleFs();
+    else if (e.key === "c" || e.key === "C") ccBtn.click();
+    else return;
+    e.preventDefault();
+  };
+  S.studio.cleanup = () => {
+    st.token += 1;
+    if (st.rec) stopExport(true);
+    pause();
+    document.removeEventListener("fullscreenchange", onFs);
+    if (document.fullscreenElement === stage) document.exitFullscreen().catch(() => {});
+  };
+
+  // The first frame goes up before narration has loaded, timed as speech so
+  // the storyboard and scrubber are usable at once; loading re-times it.
+  st.mode = "loading";
+  layoutTimes(); buildSegs();
+  paintOpts();
+  (document.fonts && document.fonts.load ? Promise.all([
+    document.fonts.load(vDisplay(80)), document.fonts.load(vBody(500)(40)),
+  ]).catch(() => {}) : Promise.resolve()).then(() => draw());
+  draw();
+  paintUi();
+  loadNarration();
   return box;
 }
 
