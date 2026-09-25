@@ -72,8 +72,8 @@ const sheet = fn('async function codeRepoSheet(proj)');
 ok('the choice is saved by login, never a token',
    /codePost\(`\/projects\/\$\{encodeURIComponent\(proj\.id\)\}\/github`, \{ account: pick \}\)/.test(sheet));
 ok('"No account" is an explicit choice', /opt\("", "No account"/.test(sheet));
-ok('it says whether the account can push', /acc.push/.test(sheet) && /but not push to it/.test(sheet));
-ok('with no account, it offers Sign in with GitHub', /codeGhSignIn(/.test(sheet));
+ok('it says whether the account can push', /acc\.push/.test(sheet) && /but not push to it/.test(sheet));
+ok('with no account, it offers Sign in with GitHub', /codeGhSignIn\(/.test(sheet));
 
 console.log('\nPush');
 const bits = fn('function codeGitPushBits(proj, d, row)');
