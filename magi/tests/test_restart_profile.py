@@ -24,6 +24,9 @@ def captured(monkeypatch):
 
     monkeypatch.setattr(R, "_alive", lambda pid: False)
     monkeypatch.setattr(R, "_port_free", lambda port: True)
+    # The restarter pulls first (selfupdate); a test must never touch the repo.
+    from magi import selfupdate
+    monkeypatch.setattr(selfupdate, "update_checkout", lambda: "stubbed")
     monkeypatch.setattr(R.proc, "run", lambda argv, **kw: runs.append(argv) or _Fail())
     monkeypatch.setattr(R.proc, "popen", lambda argv, **kw: starts.append(argv))
     before = settings.active_profile()
