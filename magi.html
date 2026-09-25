@@ -17581,7 +17581,10 @@ function renderVideo(script) {
     const T = vClamp(st.T, 0, total);
     const i = sceneAt(T);
     const tl = timeline[i];
-    const t = T - tl.start;
+    // Paused on a scene's first instant (a storyboard click, Previous) the
+    // frame would be empty -- everything is still to animate in. A still
+    // shows the scene fully built instead, the way a poster frame would.
+    const t = !st.playing && T - tl.start < 0.3 ? tl.dur - 0.45 : T - tl.start;
     vBackground(ctx, T, accOf(i), accOf(Math.max(0, i - 1)), vIn(t, 0, 1.2));
     // Crossfade: the scene fades up on entry and out in its last moments.
     const fade = Math.min(vIn(t, 0, 0.45), 1 - vEase((t - (tl.dur - 0.4)) / 0.4));
@@ -17673,7 +17676,9 @@ function renderVideo(script) {
     [...segs.children].forEach((s, k) => { s.classList.toggle("done", k < i); s.classList.toggle("cur", k === i); });
     boardEls.forEach((b, k) => b.classList.toggle("current", k === i));
     tNow.textContent = fmt(st.T);
-    cover.hidden = st.playing;
+    // The big play button only before the start; paused mid-video the frame
+    // itself is what matters, and a click on it still toggles.
+    cover.hidden = st.playing || (st.mode !== "loading" && st.T > 0.05);
     coverIc.hidden = st.mode === "loading";
     coverTxt.textContent = st.mode === "loading" ? `Preparing narration… ${st.loaded}/${n}` : "";
     cover.classList.toggle("loading", st.mode === "loading");
