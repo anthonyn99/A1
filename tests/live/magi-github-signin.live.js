@@ -62,6 +62,7 @@ const fits = (c, sel) => evalJs(c, `return (()=>{const b=document.querySelector(
     await waitFor(c, '!!CODE.state', 20000);
 
     // 1. setup (only when this engine has no client ID yet)
+    ok('MAGI's client ID is built in', oauth.configured === true);
     if (!oauth.configured) {
       await evalJs(c, 'codeGhSignIn(); return 1;');
       ok('no client ID: the one-time setup is shown', await waitFor(c, '!!document.querySelector(".gh-steps")', 10000));
@@ -79,6 +80,8 @@ const fits = (c, sel) => evalJs(c, `return (()=>{const b=document.querySelector(
       codeGhSignIn(); return 1;`);
     ok('the code is shown big', await waitFor(c, '(document.querySelector(".gh-code")||{}).textContent === "WDJB-MJHT"', 8000));
     ok('with the github.com/login/device link', await evalJs(c, 'document.querySelector(".gh-open").href === "https://github.com/login/device"'));
+    ok('with every step written out', await evalJs(c, 'document.querySelectorAll(".gh-in .gh-steps li").length === 5'));
+    ok('including: use your own account', await evalJs(c, '/your own account/.test(document.querySelector(".gh-in .gh-steps").textContent)'));
     ok('and fits', await fits(c, '.gh-in'));
     await shot(c, `gh-signin-code-${tag}`);
     ok('approval ends on "Signed in as"', await waitFor(c, '/Signed in as veda-test/.test((document.querySelector(".gh-in .sheet-ok")||{}).textContent||"")', 12000));

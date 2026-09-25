@@ -13106,9 +13106,10 @@ function codeGhAddSheet(done) {
    MAGI never means a new token. The device code and the token stay on the
    engine; this page sees the short code and, at the end, the login.
 
-   GitHub gives device-flow tokens to a registered OAuth App. The first
-   sign-in on an engine PC without one walks through registering MAGI (a
-   minute, once, shared by both profiles); after that it is one tap. */
+   GitHub gives device-flow tokens to a registered OAuth App. MAGI's is built
+   into the engine (magi/github/device.py DEFAULT_CLIENT_ID), so every engine
+   -- Tony's and Veda's -- goes straight to the code; the registration steps
+   only show on an engine that somehow has none. */
 const GH_APP_URL = "https://anthonyn99.github.io/A1/magi.html";
 
 function codeGhSignIn(done) {
@@ -13141,25 +13142,40 @@ function codeGhSignIn(done) {
     body.append(again);
   };
 
+  // A step list: each item is an array of strings and nodes.
+  const steps = (items) => {
+    const ol = el("ol", "gh-steps");
+    for (const parts of items) {
+      const li = el("li");
+      li.append(...parts);
+      ol.append(li);
+    }
+    return ol;
+  };
+  const copyable = (text) => {
+    const c = el("code", "gh-copy", text);
+    c.title = "Tap to copy";
+    c.onclick = () => { try { navigator.clipboard.writeText(text); c.classList.add("is-copied"); } catch {} };
+    return c;
+  };
+  const b = (t) => el("b", null, t);
+
+  // Only reached if an engine has no client ID at all (one is built in).
   const setup = () => {
     body.textContent = "";
     body.append(el("div", "sheet-sub", "One-time setup for this PC: register MAGI with GitHub. "
-      + "Both profiles use it."));
-    const ol = el("ol", "gh-steps");
-    const li1 = el("li");
-    li1.append("Open ", repoLink("https://github.com/settings/applications/new", "New OAuth App"),
-      " on GitHub.");
-    const li2 = el("li");
-    li2.append("Name it ", el("b", null, "MAGI"), ". Homepage URL and Redirect URI: ");
-    const url = el("code", "gh-copy", GH_APP_URL);
-    url.title = "Tap to copy";
-    url.onclick = () => { try { navigator.clipboard.writeText(GH_APP_URL); url.classList.add("is-copied"); } catch {} };
-    li2.append(url);
-    const li3 = el("li");
-    li3.append("Tick ", el("b", null, "Enable Device Flow"), " (leave token expiry off), register, and paste the ",
-      el("b", null, "Client ID"), " here.");
-    ol.append(li1, li2, li3);
-    body.append(ol);
+      + "Both profiles use it; each person still signs in with their own account."));
+    body.append(steps([
+      ["Open ", repoLink("https://github.com/settings/applications/new", "New OAuth App"),
+        " on GitHub (signed in as whoever should own MAGI's registration)."],
+      ["Application name: ", b("MAGI"), "."],
+      ["Homepage URL: ", copyable(GH_APP_URL)],
+      ["Redirect URI: the same URL, ", copyable(GH_APP_URL), ". Leave ", b("Allow wildcard matching"), " off."],
+      ["Tick ", b("Enable Device Flow"), ". Leave ", b("Expire user access tokens"),
+        " off: MAGI does not renew a sign-in that expires."],
+      ["Click ", b("Register application"), ". Skip “Generate a new client secret” — it is not needed."],
+      ["Copy the ", b("Client ID"), " (it starts with Ov23li) and paste it below."],
+    ]));
     const inp = el("input", "sheet-in");
     inp.placeholder = "Client ID, e.g. Ov23li…";
     inp.autocomplete = "off";
@@ -13187,22 +13203,34 @@ function codeGhSignIn(done) {
 
   const waiting = () => {
     body.textContent = "";
-    body.append(el("div", "sheet-sub", "Enter this code on GitHub and approve MAGI:"));
+    body.append(el("div", "sheet-sub", "Your code:"));
     const code = el("button", "gh-code", flow.user_code);
     code.type = "button";
     code.title = "Copy";
     const hint = el("div", "gh-code-hint", "Tap to copy");
-    code.onclick = () => {
-      try { navigator.clipboard.writeText(flow.user_code); hint.textContent = "Copied"; } catch {}
-    };
-    const open = el("a", "btn active gh-open", "Open github.com/login/device");
+    const copy = () => { try { navigator.clipboard.writeText(flow.user_code); hint.textContent = "Copied"; } catch {} };
+    code.onclick = copy;
+    const open = el("a", "btn active gh-open", "Open GitHub");
     open.href = flow.verification_uri;
     open.target = "_blank";
     open.rel = "noopener";
-    open.onclick = () => { try { navigator.clipboard.writeText(flow.user_code); hint.textContent = "Copied"; } catch {} };
+    open.onclick = copy;
+    const mins = flow.expires_at ? Math.max(1, Math.round((flow.expires_at * 1000 - Date.now()) / 60000)) : 15;
+    body.append(code, hint, open, steps([
+      ["Tap ", b("Open GitHub"), " — it opens github.com/login/device and copies the code for you."],
+      ["Sign in to GitHub if it asks. Use ", b("your own account"), ": if the page shows someone else's "
+        + "picture in the top-right (a shared computer), sign out or switch accounts first. MAGI links "
+        + "whichever account approves."],
+      ["Paste or type the code, then ", b("Continue"), "."],
+      ["GitHub shows ", b("Authorize MAGI"), ", asking for access to your repositories and workflows — that "
+        + "is what lets MAGI clone, pull and push them, including repositories you create later. Check the "
+        + "account shown is yours, then ", b("Authorize"), "."],
+      ["Come back here. This finishes by itself within a few seconds of approving."],
+    ]));
+    body.append(el("div", "gh-code-hint", `The code works for ${mins} minutes. If it runs out, just start again.`));
     const w = el("div", "doctor-running");
     w.append(spinnerEl(), el("span", null, "Waiting for you to approve…"));
-    body.append(code, hint, open, w);
+    body.append(w);
   };
 
   const poll = async () => {

@@ -15,7 +15,8 @@ never leaves the engine -- the console sees only the short user code.
 GitHub issues device-flow tokens to a registered OAuth App. The app's client
 ID is public (it is not a secret; the device flow uses no client secret),
 and is read from, in order: the machine-wide file data/github_oauth.json
-(written from the console's one-time setup), then DEFAULT_CLIENT_ID. One app
+(written from the console's setup screen, for an override), then
+DEFAULT_CLIENT_ID -- MAGI's own app, built in. One app
 serves every profile: Tony and Veda each approve it for their own account.
 """
 
@@ -34,9 +35,10 @@ import httpx
 
 from . import accounts as A
 
-# Filled in once the MAGI OAuth App exists, so every engine has it without
-# the one-time setup. Empty means "ask in the console".
-DEFAULT_CLIENT_ID = ""
+# The MAGI OAuth App (registered by anthonyn99, Device Flow on, tokens do not
+# expire). Public by design: the device flow has no client secret. Built in
+# so every engine -- either profile, any PC -- signs in with no setup step.
+DEFAULT_CLIENT_ID = "Ov23liVKFZMeim6yDJm5"
 
 SCOPES = "repo workflow"
 DEVICE_URL = "https://github.com/login/device/code"
