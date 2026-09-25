@@ -56,7 +56,10 @@ the token, which would unpair her devices.
    page reach devices on the local network, she clicks **Allow** (that's the
    engine). The status at the bottom of the sidebar says it's running on this
    PC. The token is shared with her other devices automatically; nothing to
-   type.
+   type. **In Brave** (or anything that blocks site storage), the gate shows
+   an amber "blocking site storage" note: everything still works, but the
+   star, settings and staying unlocked are forgotten when the tab closes. Fix
+   it with the lion icon → allow cookies for `anthonyn99.github.io`.
 2. **Accounts → each council unit → Sign in**: a Chrome window opens, she
    signs in by hand, and closes it when the unit shows signed in. She can
    skip any service she doesn't use; untick it on the council instead.
