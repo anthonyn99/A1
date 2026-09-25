@@ -89,6 +89,18 @@ ok('first contact also tries the profile\'s spare port',
    /const spare = PROFILE_SPARE_PORTS\[PROFILE\.id\]/.test(to) &&
    /!\(eng && eng\.id\)/.test(to) && /await probe\(alt\) === "ok"/.test(to),
    'a new browser on Veda\'s PC hit whatever held 8000 and stopped there');
+// The engine on this machine wins over the registry: an entry from another
+// machine (or one at 8000, where Veda's PC runs an unrelated server) fell
+// through to its tunnel and showed "Remote" beside a running local engine.
+ok('connect looks on this machine before walking the registry',
+   /const here = await findHere\(\);[\s\S]*for \(const eng of order\)/.test(conn));
+const here = lift('async function findHere()', 1500);
+ok('the local look carries no key', /link\.token = "";/.test(here),
+   'another engine\'s key must not be recorded against this one');
+ok('it tries 8000 and the profile\'s spare port', /PROFILE_SPARE_PORTS\[PROFILE\.id\]/.test(here));
+ok('the key the engine hands over is stored on ITS entry',
+   /const me = engFind\(ENG\.activeId\);\s*if \(me && me\.token !== fromEngine\)/.test(to),
+   'the synced entry is what a phone uses to find the tunnel');
 const ONBOARD = fs.readFileSync(path.join(ROOT, 'magi', 'cli', 'onboard.py'), 'utf8');
 const pyPorts = (ONBOARD.match(/PROFILE_PORTS = \{([^}]*)\}/) || [])[1] || '';
 const jsPorts = (MAGI.match(/const PROFILE_SPARE_PORTS = \{([^}]*)\}/) || [])[1] || '';

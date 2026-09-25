@@ -6225,6 +6225,16 @@ function setLink(where, detail) {
  *  rather than being told MAGI is offline. */
 async function connect(quiet = false) {
   engLoad();
+  // The engine on THIS machine wins, whatever the registry says. Walking the
+  // registry first let an entry from another machine (or one left at 8000,
+  // which on Veda's PC is her older, unrelated MAGI) fall through to its
+  // tunnel -- "Connected to your PC · Remote" while her own engine sat on
+  // loopback unused.
+  const here = await findHere();
+  if (here) {
+    const r = await connectTo(here, quiet);
+    if (online()) { syncEngineBtn(); return r; }
+  }
   // Active first, then the rest in registry order.
   const order = [];
   const act = engActive();
@@ -6240,6 +6250,31 @@ async function connect(quiet = false) {
   }
   syncEngineBtn();
   return last;
+}
+
+/** This profile's engine on this machine, if one answers on loopback: the
+ *  registry entry for it (recorded by probe/engSeen), or null. Loopback needs
+ *  no token, so the probe goes without one -- a key belonging to another
+ *  machine's engine must not be attached to this one. Ports: 8000, the
+ *  profile's spare, and any port the registry has seen. */
+async function findHere() {
+  if (sameOrigin) return null;
+  const ports = [8000];
+  const sp = PROFILE_SPARE_PORTS[PROFILE.id];
+  if (sp) ports.push(sp);
+  for (const e of ENG.list) if (e.port && !ports.includes(e.port)) ports.push(e.port);
+  const keep = link.token;
+  for (const p of ports) {
+    link.token = "";
+    link.engine = null;
+    const s = await probe(`http://127.0.0.1:${p}`);
+    if (s === "ok" && link.engine && link.engine.id) {
+      link.token = keep;
+      return engFind(link.engine.id);
+    }
+  }
+  link.token = keep;
+  return null;
 }
 
 /** One engine: same origin, then loopback, then its tunnel. Unchanged in
@@ -6303,6 +6338,12 @@ async function connectTo(eng, quiet = false) {
       // Straight from the engine, so this is the definition of "working".
       rememberGoodToken(fromEngine);
       if (fromEngine !== link.token) { link.token = fromEngine; saveToken(fromEngine); }
+      // And into THIS engine's registry entry, which is what syncs to the
+      // phone. engSeen recorded whatever key the probe carried -- possibly
+      // another engine's -- and a phone given that key follows the other
+      // engine's tunnel instead of this one.
+      const me = engFind(ENG.activeId);
+      if (me && me.token !== fromEngine) { me.token = fromEngine; engSave(); }
     }
     if (link.token) cloudPublishToken(link.token, !fromEngine);
     setLink("local", "direct");
