@@ -26,7 +26,7 @@ powershell -ExecutionPolicy Bypass -File magi\setup.ps1 -Profile veda
 ```
 
 It prints `[1/8]` to `[8/8]` and takes 2 to 10 minutes on a fresh PC. It:
-pulls A1; installs Python 3.12, Node.js, Chrome and git with winget if any
+pulls A1; installs Python 3.12 (exactly; a newer Python is not used), Node.js, Chrome and git with winget if any
 are missing; creates `magi\.venv` and installs MAGI's packages; installs the
 Claude Code and Codex CLIs (npm, global); runs `magi onboard --profile veda`
 (her data folders, engine identity, **port 8000**, her API token in
@@ -45,6 +45,8 @@ the token, which would unpair her devices.
 | `claude` / `codex` not on PATH after install | open a new terminal, re-run |
 | pip errors | re-run once (network); then read the error |
 | "Port 8000 is tony's engine" | this PC is running Tony's engine; stop and ask |
+| onboard says **port 8001** | something else already holds 8000 (on Veda's PC: her own older MAGI from `Downloads\MAGI`, tasks "MAGI Cloud"/"MAGI Watchdog"). Leave it alone; 8001 is fine: the console tries her spare port on first contact and then remembers it. Use 8001 in the checks below |
+| "magi\.venv is Python 3.x, not 3.12" | a venv from an earlier run on another Python. End the tasks "MAGI Engine (veda)" and "MAGI Watchdog (veda)" in Task Scheduler, re-run |
 | the engine did not start | read `magi\data\veda\autostart.log` |
 
 ## 2. What only she can do (guide her, in this order)
@@ -73,7 +75,7 @@ the token, which would unpair her devices.
 ## 3. Check it (you can do all of this)
 
 ```powershell
-curl.exe -s http://127.0.0.1:8000/api/health        # "profile":"veda"
+curl.exe -s http://127.0.0.1:8000/api/health        # "profile":"veda" (8001 if onboard chose it)
 schtasks /query /tn "MAGI Engine (veda)"             # the logon task exists
 ```
 

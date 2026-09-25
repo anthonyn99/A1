@@ -82,6 +82,20 @@ ok('each engine brings its own port', /const ENG_PORT = \(eng && eng\.port\) \|\
 ok('and its own token', /link\.token = \(eng && eng\.token\) \|\| loadToken\(\)/.test(to));
 ok('loopback uses that port', /probe\(ENG_LOCAL\)/.test(to),
    'a second engine on 8001 is unreachable if discovery only ever tries 8000');
+// First contact on a PC where 8000 is held by something else (Tony's engine,
+// or an unrelated server): the fresh browser only knows 8000, so it must also
+// try the port onboard gave this profile, or it never finds the engine.
+ok('first contact also tries the profile\'s spare port',
+   /const spare = PROFILE_SPARE_PORTS\[PROFILE\.id\]/.test(to) &&
+   /!\(eng && eng\.id\)/.test(to) && /await probe\(alt\) === "ok"/.test(to),
+   'a new browser on Veda\'s PC hit whatever held 8000 and stopped there');
+const ONBOARD = fs.readFileSync(path.join(ROOT, 'magi', 'cli', 'onboard.py'), 'utf8');
+const pyPorts = (ONBOARD.match(/PROFILE_PORTS = \{([^}]*)\}/) || [])[1] || '';
+const jsPorts = (MAGI.match(/const PROFILE_SPARE_PORTS = \{([^}]*)\}/) || [])[1] || '';
+const pairs = (s) => [...s.matchAll(/"?(\w+)"?\s*:\s*(\d+)/g)].map((m) => m[1] + ':' + m[2]);
+ok('the console\'s spare ports match onboard\'s',
+   pairs(pyPorts).filter((p) => !/:8000$/.test(p)).sort().join() === pairs(jsPorts).sort().join(),
+   pyPorts + ' vs ' + jsPorts);
 
 console.log('\nAn engine belonging to someone else is refused');
 const probe = lift('async function probe(base');

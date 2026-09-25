@@ -5730,6 +5730,9 @@ const SPINNER =
    and is the reason this file never needs rebuilding. */
 const LINK_API = "https://magi-link.av1-2.workers.dev/link";
 const LOCAL_API = "http://127.0.0.1:8000";
+/* The port `magi onboard` gives a profile when 8000 is already taken --
+ * magi/cli/onboard.py PROFILE_PORTS, kept in step by magi-engines.test.js. */
+const PROFILE_SPARE_PORTS = { veda: 8001 };
 const TOKEN_KEY = lsKey("token");
 /* The last token that actually reached the engine.
  *
@@ -6193,7 +6196,7 @@ async function connect(quiet = false) {
  *  engine being tried rather than from a single global. */
 async function connectTo(eng, quiet = false) {
   const ENG_PORT = (eng && eng.port) || 8000;
-  const ENG_LOCAL = `http://127.0.0.1:${ENG_PORT}`;
+  let ENG_LOCAL = `http://127.0.0.1:${ENG_PORT}`;
   // A silent retry does not flash "Connecting…" over the status: the loop
   // below runs every few seconds while the engine is down, and strobing the
   // button between two messages reads as a fault of its own.
@@ -6227,7 +6230,19 @@ async function connectTo(eng, quiet = false) {
   // token first meant the hosted page reported "no API token set" while the
   // engine was running on the same machine, three feet away.
   link.api = ENG_LOCAL;
-  const local = await probe(ENG_LOCAL);
+  let local = await probe(ENG_LOCAL);
+  // First contact: an entry that has never answered only knows the default
+  // port, but `magi onboard` puts an engine on the profile's spare port when
+  // 8000 is taken (Tony's engine, or another server). Without this a fresh
+  // browser found whatever held 8000 -- "token rejected" -- and never tried
+  // the engine that was actually hers. probe() refuses another profile's
+  // engine, so looking is safe; once it answers, its real port is recorded.
+  const spare = PROFILE_SPARE_PORTS[PROFILE.id];
+  if (local !== "ok" && !(eng && eng.id) && spare && spare !== ENG_PORT) {
+    const alt = `http://127.0.0.1:${spare}`;
+    if (await probe(alt) === "ok") { ENG_LOCAL = alt; link.api = alt; local = "ok"; }
+    else link.api = ENG_LOCAL;
+  }
   if (local === "ok") {
     // The engine's own copy beats whatever is in this browser: a token typed
     // in months ago and rotated since is exactly the stale value that would

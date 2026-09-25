@@ -31,7 +31,9 @@ const { spawnSync } = require('child_process');
 const ROOT = path.join(__dirname, '..');
 const TRADEHUB = fs.readFileSync(path.join(ROOT, 'tradehub.html'), 'utf8');
 const MAGI = fs.readFileSync(path.join(ROOT, 'magi.html'), 'utf8');
-const LAUNCH = fs.readFileSync(path.join(ROOT, 'trading-auto-launch', 'launch.py'), 'utf8');
+// CRLF-normalised: with core.autocrlf the checkout is CRLF, and the patterns
+// below span lines with \n.
+const LAUNCH = fs.readFileSync(path.join(ROOT, 'trading-auto-launch', 'launch.py'), 'utf8').replace(/\r\n/g, '\n');
 const WORKER = fs.readFileSync(path.join(ROOT, 'workers2', 'trade-dashboard', 'worker.js'), 'utf8');
 
 let pass = 0, fail = 0;

@@ -15,7 +15,7 @@
 
     Steps:
       1. pull A1 (Tony and Veda both push to it);
-      2. prerequisites -- Python 3.11+, Node.js, Google Chrome, git --
+      2. prerequisites -- Python 3.12, Node.js, Google Chrome, git --
          installed with winget when missing;
       3. the venv and MAGI's Python packages;
       4. the Claude Code and Codex CLIs (npm, global);
@@ -73,27 +73,31 @@ if (Have "git") {
 # ── 2. prerequisites ─────────────────────────────────────────────────────────
 Step 2 "Prerequisites"
 function Find-Python {
-    # The full path of a Python 3.11+, or $null. `py` first: python.exe on a
-    # fresh Windows is often the Microsoft Store stub.
+    # The full path of a Python 3.12, or $null. `py` first: python.exe on a
+    # fresh Windows is often the Microsoft Store stub. Exactly 3.12, the
+    # version MAGI runs and is tested on: this used to accept "3.11+" and fall
+    # back to `py -3`, which is the NEWEST Python -- on Veda's PC that was
+    # 3.14, where magi/code shadows the stdlib `code` module and pytest cannot
+    # even start. A PC without 3.12 gets it from winget instead.
     $probe = "import sys; print('%d.%d' % sys.version_info[:2]); print(sys.executable)"
-    foreach ($pre in @("-3.12", "-3", "")) {
+    foreach ($pre in @("-3.12", "")) {
         $old = $ErrorActionPreference; $ErrorActionPreference = "Continue"
         try {
             if ($pre) { if (-not (Have "py")) { continue }; $v = & py $pre -c $probe 2>$null }
             else { if (-not (Have "python")) { continue }; $v = & python -c $probe 2>$null }
         } catch { $v = $null } finally { $ErrorActionPreference = $old }
-        if ($LASTEXITCODE -eq 0 -and $v -and $v.Count -ge 2) {
-            $parts = $v[0].Split(".")
-            if ([int]$parts[0] -eq 3 -and [int]$parts[1] -ge 11) { return $v[1] }
-        }
+        if ($LASTEXITCODE -eq 0 -and $v -and $v.Count -ge 2 -and $v[0] -eq "3.12") { return $v[1] }
     }
+    # winget's install lands here; a terminal opened before it has no `py` for it yet.
+    $std = Join-Path $env:LOCALAPPDATA "Programs\Python\Python312\python.exe"
+    if (Test-Path $std) { return $std }
     return $null
 }
 if (-not $SkipPrereqs) {
     if (-not (Have "git")) { Winget-Install "Git.Git" "git" }
     $pyExe = Find-Python
     if (-not $pyExe) { Winget-Install "Python.Python.3.12" "Python 3.12"; $pyExe = Find-Python }
-    if (-not $pyExe) { Fail "Python 3.11+ still not found. Install it from python.org, then re-run." }
+    if (-not $pyExe) { Fail "Python 3.12 still not found. Install it from python.org, then re-run." }
     Ok "python  $pyExe"
     if (-not (Have "npm")) { Winget-Install "OpenJS.NodeJS.LTS" "Node.js" }
     if (-not (Have "npm")) { Fail "Node.js (npm) still not found. Install it from nodejs.org, then re-run." }
@@ -110,6 +114,21 @@ if (-not $SkipPrereqs) {
 
 # ── 3. venv + packages ───────────────────────────────────────────────────────
 Step 3 "Python environment"
+# A venv built by an earlier run on another Python (see Find-Python) is rebuilt
+# on 3.12. Never while an engine is running from it: that may be someone
+# else's engine on this PC, and stopping it is not this script's call.
+if ((Test-Path $venvPy) -and $pyExe) {
+    $venvVer = & $venvPy -c "import sys; print('%d.%d' % sys.version_info[:2])" 2>$null
+    if ($venvVer -and $venvVer -ne "3.12") {
+        $venvDir = Join-Path $root "magi\.venv"
+        $using = @(Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -like "$venvDir\*" })
+        if ($using.Count) {
+            Fail "magi\.venv is Python $venvVer, not 3.12, and $($using.Count) process(es) run from it. Stop the engine (Task Scheduler: MAGI Engine / MAGI Watchdog, then End), then re-run."
+        }
+        Note "magi\.venv is Python $venvVer; rebuilding it on 3.12"
+        Remove-Item -Recurse -Force $venvDir
+    }
+}
 if (-not (Test-Path $venvPy)) {
     if (-not $pyExe) { Fail "no Python to create the venv with" }
     & $pyExe -m venv (Join-Path $root "magi\.venv")
