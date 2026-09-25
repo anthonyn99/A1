@@ -3521,10 +3521,10 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; max-width: 100%;
 }
 .code-ws-chev { color: var(--txm); flex: 0 0 auto; }
-/* The repository line sits right under the workspace button, centred like
-   the agents and the model row below it: one axis down the column. */
+/* The repository line hangs off the workspace button: same left edge as the
+   text inside it, so it reads as a fact about that folder. */
 .code-git {
-  display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: 4px 12px;
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px;
   margin-top: -6px; padding: 0 15px; font-size: 11px; color: var(--txd); min-width: 0;
 }
 .code-git-br { font-family: var(--font-mono); font-weight: 700; color: var(--tx); overflow-wrap: anywhere; }
