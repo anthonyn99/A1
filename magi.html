@@ -13150,13 +13150,13 @@ function codeGhSignIn(done) {
     li1.append("Open ", repoLink("https://github.com/settings/applications/new", "New OAuth App"),
       " on GitHub.");
     const li2 = el("li");
-    li2.append("Name it ", el("b", null, "MAGI"), ". Homepage and callback URL: ");
+    li2.append("Name it ", el("b", null, "MAGI"), ". Homepage URL and Redirect URI: ");
     const url = el("code", "gh-copy", GH_APP_URL);
     url.title = "Tap to copy";
     url.onclick = () => { try { navigator.clipboard.writeText(GH_APP_URL); url.classList.add("is-copied"); } catch {} };
     li2.append(url);
     const li3 = el("li");
-    li3.append("Tick ", el("b", null, "Enable Device Flow"), ", register, and paste the ",
+    li3.append("Tick ", el("b", null, "Enable Device Flow"), " (leave token expiry off), register, and paste the ",
       el("b", null, "Client ID"), " here.");
     ol.append(li1, li2, li3);
     body.append(ol);
