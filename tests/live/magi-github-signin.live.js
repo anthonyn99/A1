@@ -40,7 +40,7 @@ const waitFor = async (c, expr, ms = 20000) => {
   return false;
 };
 const closeAll = (c) => evalJs(c, 'document.querySelectorAll(".sheet").forEach(s=>s.remove()); return 1;');
-const fits = (c, sel) => evalJs(c, `(()=>{const b=document.querySelector(${JSON.stringify(sel)});if(!b)return false;const r=b.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth+1&&document.documentElement.scrollWidth<=innerWidth+1;})()`);
+const fits = (c, sel) => evalJs(c, `return (()=>{const b=document.querySelector(${JSON.stringify(sel)});if(!b)return false;const r=b.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth+1&&b.scrollWidth<=b.clientWidth+1;})()`);
 
 (async () => {
   const oauth = await (await fetch(API + '/github/oauth')).json();
