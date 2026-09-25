@@ -5046,6 +5046,93 @@ body { max-width: 2000px; margin-inline: auto; }
       try { Object.defineProperty(window, name, { value: memStore(), configurable: true, writable: true }); } catch (e2) {}
     }
   });
+
+  /* A FULL store is the other way saving fails silently, and the likelier one:
+     every A1 page shares this origin's ~5 MB, and TaskHub's data, journal
+     canvases and StudyOS can fill it (Veda's Brave: 5,242,876 of 5,242,880
+     chars). Reads still work, so the check above passes -- but every write
+     throws QuotaExceededError: the star did nothing, picking Veda reloaded
+     into Tony, and as Tony the console refused her engine and went remote.
+
+     So a write that does not fit is kept in memory for this tab, and MAGI's
+     own settings -- which profile, the favourite, the ticked units, Brief/
+     Text, staying unlocked -- also go in a cookie, which has its own quota,
+     so they survive a reload and a fresh open. Scoped to this page's path:
+     no other A1 page, and no other request, carries them. Never a secret:
+     access keys and the engine registry (which holds keys) stay in memory
+     only and are handed over again by the engine on loopback. MAGI never
+     deletes another page's data to make room. */
+  window.MAGI_STORAGE_FULL = false;
+  if (window.MAGI_STORAGE_BLOCKED) return;
+  var real;
+  try { real = window.localStorage; } catch (e) { return; }
+  var CK_PATH = location.pathname;
+  var SECRET = /token|engines|secret|passw|apikey/i;
+  var spillable = function (k) { return /^magi[._]/.test(k) && !SECRET.test(k); };
+  var cname = function (k) { return "magi_ls_" + k.replace(/[^\w]/g, "_"); };
+  function cookieGet(k) {
+    var m = document.cookie.match(new RegExp("(?:^|; )" + cname(k) + "=([^;]*)"));
+    return m ? decodeURIComponent(m[1]) : null;
+  }
+  function cookieDel(k) {
+    if (cookieGet(k) != null) document.cookie = cname(k) + "=; path=" + CK_PATH + "; max-age=0; SameSite=Lax; Secure";
+  }
+  function cookieSet(k, v) {
+    var enc = encodeURIComponent(v);
+    // A cookie is ~4 KB and the lot rides every load of this page, so a
+    // setting that is too big stays in memory for the tab instead.
+    var others = document.cookie.replace(new RegExp("(?:^|; )" + cname(k) + "=[^;]*"), "").length;
+    if (enc.length > 1500 || others + enc.length > 3500) { cookieDel(k); return; }
+    document.cookie = cname(k) + "=" + enc + "; path=" + CK_PATH + "; max-age=31536000; SameSite=Lax; Secure";
+  }
+  var COOKIE_KEY = { test: spillable };
+  function isQuota(e) {
+    return !!e && (e.name === "QuotaExceededError" || e.name === "NS_ERROR_DOM_QUOTA_REACHED" || e.code === 22 || e.code === 1014);
+  }
+  var over = new Map();
+  var wrapped = {
+    getItem: function (k) {
+      k = String(k);
+      if (over.has(k)) return over.get(k);
+      // A cookie is only written when the store refused the value, so it is
+      // newer than whatever the store still holds under that key.
+      if (COOKIE_KEY.test(k)) { var c = cookieGet(k); if (c != null) return c; }
+      return real.getItem(k);
+    },
+    setItem: function (k, v) {
+      k = String(k); v = String(v);
+      try {
+        real.setItem(k, v);
+        over.delete(k);
+        if (COOKIE_KEY.test(k)) cookieDel(k);
+      } catch (e) {
+        if (!isQuota(e)) throw e;
+        window.MAGI_STORAGE_FULL = true;
+        over.set(k, v);
+        if (COOKIE_KEY.test(k)) cookieSet(k, v);
+      }
+    },
+    removeItem: function (k) {
+      k = String(k);
+      over.delete(k);
+      if (COOKIE_KEY.test(k)) cookieDel(k);
+      real.removeItem(k);
+    },
+    clear: function () { over.clear(); real.clear(); },
+    key: function (i) {
+      var ks = []; for (var j = 0; j < real.length; j++) ks.push(real.key(j));
+      over.forEach(function (_, k) { if (ks.indexOf(k) < 0) ks.push(k); });
+      return ks[i] ?? null;
+    },
+    get length() {
+      var n = real.length; over.forEach(function (_, k) { if (real.getItem(k) == null) n++; }); return n;
+    },
+  };
+  // Known up front, so the gate can say so before anything is lost: a
+  // one-character key either fits or the store is full.
+  try { real.setItem("magi.spaceprobe", "1"); real.removeItem("magi.spaceprobe"); }
+  catch (e) { if (isQuota(e)) window.MAGI_STORAGE_FULL = true; }
+  try { Object.defineProperty(window, "localStorage", { value: wrapped, configurable: true, writable: true }); } catch (e) {}
 })();
 </script>
 <script id="mail-relay">
@@ -5605,7 +5692,7 @@ const urlProfile = () => {
 };
 function reloadAsProfile(id) {
   const u = new URL(location.href);
-  if (window.MAGI_STORAGE_BLOCKED) u.searchParams.set(PROFILE_QS, id);
+  if (window.MAGI_STORAGE_BLOCKED || window.MAGI_STORAGE_FULL) u.searchParams.set(PROFILE_QS, id);
   else u.searchParams.delete(PROFILE_QS);
   if (u.href === location.href) location.reload();
   else location.replace(u.href);
@@ -20455,11 +20542,11 @@ function selectProfile(id) {
     renderLock();
     return;
   }
-  try {
-    localStorage.setItem(LAST_PROFILE_LS, id);
-    // Beats the favourite for this tab, so switching actually switches.
-    sessionStorage.setItem(PICK_SS, id);
-  } catch {}
+  // Beats the favourite for this tab, so switching actually switches. Its
+  // own try, and first: with both in one block a store that refused the
+  // other write skipped this one, and the reload landed back on Tony.
+  try { sessionStorage.setItem(PICK_SS, id); } catch {}
+  try { localStorage.setItem(LAST_PROFILE_LS, id); } catch {}
   reloadAsProfile(id);
 }
 
@@ -20520,6 +20607,12 @@ function renderLock() {
       " Everything works, but nothing is remembered once this tab closes: the star, "
       + "your settings, staying unlocked. In Brave, click the lion icon in the address bar "
       + "and allow cookies for this site.");
+    wrap.append(n);
+  } else if (window.MAGI_STORAGE_FULL) {
+    const n = el("div", "gate-storage");
+    n.append(el("strong", null, "This browser's storage for the A1 apps is full."),
+      " MAGI still works and keeps your profile, star and units. The space is shared with "
+      + "TaskHub, the journals and StudyOS on this browser; freeing some there lets every app save normally again.");
     wrap.append(n);
   }
   scr.append(wrap);

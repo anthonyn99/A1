@@ -132,7 +132,17 @@ ok('storage is guarded before any other script runs',
    MAGI.indexOf('id="storage-guard"') >= 0 && MAGI.indexOf('id="storage-guard"') < MAGI.indexOf('<script', MAGI.indexOf('id="storage-guard"') + 1));
 ok('the guard probes with a read, never a write', /window\[name\]\.getItem\("magi\.probe"\)/.test(MAGI) && !/setItem\("magi\.probe"/.test(MAGI),
    'a FULL store throws on setItem; treating it as blocked would hide saved data');
-ok('a blocked pick rides in the url across the reload', /MAGI_STORAGE_BLOCKED\) u\.searchParams\.set\(PROFILE_QS, id\)/.test(rel));
+ok('a blocked or full store\'s pick rides in the url across the reload',
+   /MAGI_STORAGE_BLOCKED \|\| window\.MAGI_STORAGE_FULL\) u\.searchParams\.set\(PROFILE_QS, id\)/.test(rel));
+// A FULL store (the shared origin's ~5 MB, filled by other A1 pages) was the
+// real cause on Veda's PC: reads work, every write throws QuotaExceededError.
+const guard = MAGI.slice(MAGI.indexOf('id="storage-guard"'), MAGI.indexOf('</script>', MAGI.indexOf('id="storage-guard"')));
+ok('a full store is detected without being called blocked',
+   /catch \(e\) \{ if \(isQuota\(e\)\) window\.MAGI_STORAGE_FULL = true; \}/.test(guard) &&
+   !/MAGI_STORAGE_BLOCKED = true;[^\n]*isQuota/.test(guard));
+ok('the pick is stashed in its own try, before the store that may refuse',
+   /try \{ sessionStorage\.setItem\(PICK_SS, id\); \} catch \{\}\s*try \{ localStorage\.setItem\(LAST_PROFILE_LS, id\); \} catch \{\}/.test(sel));
+ok('the gate says the store is full', /MAGI_STORAGE_FULL\) \{[\s\S]{0,200}gate-storage/.test(MAGI));
 ok('a working browser strips it again', /else u\.searchParams\.delete\(PROFILE_QS\)/.test(rel));
 ok('the url pick is read at load', /if \(urlProfile\(\)\) return urlProfile\(\)/.test(MAGI));
 ok('a handoff is not stashed into memory that a reload would lose',
