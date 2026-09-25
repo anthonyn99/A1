@@ -4235,6 +4235,8 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 .acc-code .acc-slot { padding: 7px 0; gap: 8px; }
 .acc-code .acc-slot-who { flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: 8px; row-gap: 1px; }
 .acc-code .acc-slot-name { width: auto; max-width: 100%; flex: 0 1 auto; padding: 1px 6px; }
+/* The editable name hugs its text, so what follows sits beside it. */
+.acc-code input.acc-slot-name { field-sizing: content; min-width: 6ch; }
 .acc-code .acc-slot-use, .acc-code .acc-slot-lim { flex-basis: 100%; }
 .acc-code .acc-card .acc-actions { margin-top: 4px; padding-top: 8px; gap: 6px; }
 .acc-code .acc-actions .navitem, .acc-code .acc-slot-acts .navitem {
