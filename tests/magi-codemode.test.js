@@ -117,7 +117,7 @@ ok('every usage window is shown, not just the first',
 ok('shortest window first', /\.sort\(\(a, b\) => winMinutes\(a\[0\]\) - winMinutes\(b\[0\]\)\)/.test(block));
 ok('Codex\'s minute-named windows are understood', /\^\(\\d\+\)\(\[mhd\]\)\$/.test(block));
 ok('the second line is not 8px uppercase any more',
-   /\.code-chip \.chip-unit \{[^}]*font-size: 10px[^}]*text-transform: none/.test(MAGI));
+   /\.code-chip \.chip-unit \{[^}]*font-size: 10.5px[^}]*text-transform: none/.test(MAGI));
 ok('no number badges', !/code-chip-n/.test(MAGI));
 ok('the Agents label is above the row, not beside it',
    /\.code-chain \{ display: flex; flex-direction: column; align-items: center;/.test(MAGI));

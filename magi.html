@@ -668,8 +668,8 @@ body {
    rather than a fixed grey, so it stays legible both on the transparent
    "off" chip and on the accent-filled "on" one. */
 .chip-unit {
-  font-size: 8px; font-weight: 600; letter-spacing: 1.1px; text-transform: uppercase;
-  opacity: .62;
+  font-family: var(--font); font-size: 9.5px; font-weight: 600; letter-spacing: .9px;
+  text-transform: uppercase; opacity: .85; margin-top: 1px;
 }
 .chip-unit:empty { display: none; }
 .chip.on { color: var(--bg); }
@@ -1723,7 +1723,7 @@ del.md-html { color: var(--txd); }
    the point: latencies, char counts, CSS selectors, codenames, table data.
    Mixing them at random would just look inconsistent, so the rule is that
    mono means "this is a value, not a sentence". */
-.node-meta, .core-count, .verdict-quorum, .chip-unit, .node-sub,
+.node-meta, .core-count, .verdict-quorum, .node-sub,
 .slide-count, .bs-council-meta,
 .studio-raw, .verdict-body code, .sheet-note code, .bs-hint code,
 table.doctor, table.doctor code, .v-table,
@@ -3620,7 +3620,7 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 .code-model-m.is-bad .code-model-fill { background: var(--red); }
 .code-model-m.is-warn .code-model-pct { color: var(--amber); }
 .code-model-m.is-bad .code-model-pct { color: var(--red); font-weight: 700; }
-.code-model-pct { font-family: var(--font-mono); font-size: 10.5px; }
+.code-model-pct { font-family: var(--font); font-variant-numeric: tabular-nums; font-size: 11px; font-weight: 600; color: var(--txd); }
 .code-model.is-capped { border-color: color-mix(in srgb, var(--red) 45%, transparent); }
 .code-model-cap { color: var(--red); font-weight: 700; flex: 0 0 auto; }
 .code-model .code-ws-chev { font-size: 10px; }
@@ -3679,7 +3679,7 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 .use-row { display: flex; flex-direction: column; gap: 4px; padding: 4px 0 8px; }
 .use-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 12px; }
 .use-name { font-weight: 650; color: var(--tx); }
-.use-pct { color: var(--txm); font-family: var(--font-mono); font-size: 10.5px; }
+.use-pct { color: var(--txd); font-family: var(--font); font-variant-numeric: tabular-nums; font-size: 11.5px; font-weight: 500; }
 .use-pct.is-warn { color: var(--amber); }
 .use-pct.is-bad { color: var(--red); font-weight: 700; }
 .use-track { position: relative; height: 24px; --capf: 1; }
@@ -3729,7 +3729,7 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 .use-slider.is-plain::-moz-range-thumb { border-color: var(--amber); }
 .use-foot { display: flex; align-items: baseline; gap: 6px; font-size: 11px; }
 .use-caps-l { color: var(--txm); font-size: 11px; white-space: nowrap; }
-.use-val { font-family: var(--font-mono); font-size: 11px; font-weight: 700; color: var(--tx); min-width: 3.5ch; }
+.use-val { font-family: var(--font); font-variant-numeric: tabular-nums; font-size: 11.5px; font-weight: 700; color: var(--tx); min-width: 3.5ch; }
 .use-val.is-off { color: var(--txm); font-weight: 500; }
 .use-warn {
   display: flex; align-items: center; gap: 12px; padding-top: 10px; margin-top: 2px;
@@ -3750,7 +3750,7 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 .cli-auto[aria-checked="true"] .ac-sw::after { transform: translateX(16px); background: var(--tx); }
 .code-ev.is-model .code-ev-tool { color: var(--acl); }
 .cli-line { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-.cli-ver { font-family: var(--font-mono); font-weight: 700; color: var(--tx); font-size: 13px; }
+.cli-ver { font-family: var(--font); font-variant-numeric: tabular-nums; font-weight: 700; color: var(--tx); font-size: 13px; }
 .cli-state { font-size: 11.5px; color: var(--txm); }
 .cli-state.is-ok { color: var(--grn); }
 .cli-state.is-old { color: var(--amber); font-weight: 700; }
@@ -3962,10 +3962,10 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
    opacity is a texture, not a percentage. Tabular figures so 81% and 76%
    line up between chips. */
 .code-chip .chip-unit {
-  font-size: 10px; font-weight: 700; letter-spacing: .2px; text-transform: none;
-  opacity: .8; font-variant-numeric: tabular-nums; margin-top: 1px;
+  font-size: 10.5px; font-weight: 600; letter-spacing: .1px; text-transform: none;
+  opacity: .9; font-variant-numeric: tabular-nums; margin-top: 1px;
 }
-.code-chip.on .chip-unit { opacity: .78; }
+.code-chip.on .chip-unit { opacity: .88; }
 .code-hint { color: var(--txm); font-size: 11.5px; line-height: 1.6; text-align: center; padding: 4px 12px; }
 .code-recent { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
 .code-recent-hd { font-size: 10.5px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--txm); padding: 0 2px 2px; }
@@ -11207,7 +11207,7 @@ const CODE = {
 
 // The two CLI agents are not council units, so they have no entry in the
 // engine's site list and no accent there. Chosen apart from every unit's.
-const CODE_CLI_ACCENT = { claude: "#d97757", codex: "#b4bcc8" };
+const CODE_CLI_ACCENT = { claude: "#ff8a5c", codex: "#b4bcc8" };
 
 async function codeGet(path) {
   const r = await fetch(`${link.api}/api/code${path}`, authed());
@@ -14003,7 +14003,7 @@ async function codeModelSheet(agent) {
       rng.className = "use-slider";
       rng.min = String(CAP_MIN);
       rng.max = "100";
-      rng.step = "1";
+      rng.step = "5";
       rng.value = String(cap || 100);
       rng.dataset.cap = cap ? String(cap) : "off";
       rng.setAttribute("aria-label", `Stop at, ${w.label} window`);
@@ -14013,8 +14013,11 @@ async function codeModelSheet(agent) {
       const val = el("span", "use-val");
       foot.append(el("span", "use-caps-l", "Stop at"), val);
       wr.append(foot);
+      // A cap set off the 5% grid (by the API, or before the slider) keeps
+      // its real number until the thumb is moved.
+      let moved = false;
       const show = () => {
-        const n = Number(rng.value);
+        const n = moved || !cap ? Number(rng.value) : cap;
         const off = n >= 100;
         val.textContent = off ? "Off" : `${n}%`;
         val.classList.toggle("is-off", off);
@@ -14023,7 +14026,7 @@ async function codeModelSheet(agent) {
         rng.setAttribute("aria-valuetext", off ? "Off" : `${n}%`);
       };
       show();
-      rng.oninput = show;
+      rng.oninput = () => { moved = true; show(); };
       rng.onchange = () => {
         const n = Number(rng.value);
         save("/models/cap", { agent, window: w.id, percent: n >= 100 ? null : n });
