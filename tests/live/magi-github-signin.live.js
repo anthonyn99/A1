@@ -62,7 +62,7 @@ const fits = (c, sel) => evalJs(c, `return (()=>{const b=document.querySelector(
     await waitFor(c, '!!CODE.state', 20000);
 
     // 1. setup (only when this engine has no client ID yet)
-    ok('MAGI's client ID is built in', oauth.configured === true);
+    ok('the MAGI client ID is built in', oauth.configured === true);
     if (!oauth.configured) {
       await evalJs(c, 'codeGhSignIn(); return 1;');
       ok('no client ID: the one-time setup is shown', await waitFor(c, '!!document.querySelector(".gh-steps")', 10000));
