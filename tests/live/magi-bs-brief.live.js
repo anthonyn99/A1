@@ -51,6 +51,9 @@ const waitFor = async (c, expr, ms = 20000) => {
     await c.send('Page.navigate', { url: URL });
     ok('engine online', await waitFor(c, 'online()', 25000));
     await evalJs(c, 'setView("brainstorm"); return 1;');
+    // No session open in this browser: open the newest past one (read-only).
+    await sleep(2500);
+    await evalJs(c, 'if (!document.querySelector(".bs-plan-view")) { const r = [...document.querySelectorAll(".history-list .row, .row")].find(x => x.onclick); if (r) r.click(); } return 1;');
     const has = await waitFor(c, '!!document.querySelector(".bs-plan-view")', 25000);
     ok('a plan is on screen', has);
     if (!has) { await shot(c, `bs-brief-none-${tag}`); continue; }
