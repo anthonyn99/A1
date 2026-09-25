@@ -3521,10 +3521,10 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; max-width: 100%;
 }
 .code-ws-chev { color: var(--txm); flex: 0 0 auto; }
-/* The repository line hangs off the workspace button: same left edge as the
-   text inside it, so it reads as a fact about that folder. */
+/* The repository line sits right under the workspace button, centred like
+   the agents and the model row below it: one axis down the column. */
 .code-git {
-  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px;
+  display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: 4px 12px;
   margin-top: -6px; padding: 0 15px; font-size: 11px; color: var(--txd); min-width: 0;
 }
 .code-git-br { font-family: var(--font-mono); font-weight: 700; color: var(--tx); overflow-wrap: anywhere; }
@@ -3596,7 +3596,7 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
    The model row: one quiet button per CLI agent, the same height as the
    chips above it, saying which model the next task gets and how full the
    tightest window is. Everything else is one tap away in the sheet. */
-.code-models { display: flex; flex-wrap: wrap; gap: 8px; margin-top: -4px; min-width: 0; }
+.code-models { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: -4px; min-width: 0; }
 .code-models:empty { display: none; }
 .code-model {
   display: inline-flex; align-items: center; gap: 8px; min-height: 32px; max-width: 100%;
