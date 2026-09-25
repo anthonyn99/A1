@@ -4,9 +4,15 @@ browser-automation mechanism every member and the chairman already use.
 
 One (prompt-builder, parser) pair per StudioKind, plus a tiny dispatch table --
 same shape as chairman.py's build_prompt/synthesize, fanned out over several
-formats instead of one. Video has no entry: there is no generation path for it
-(no image/video surface exists on any of the automated chat sites), so the
-frontend renders it as a permanently disabled card with no backend round-trip.
+formats instead of one.
+
+Video is the one kind a chat site cannot hand back finished -- none of the
+automated sites has a video surface -- so the unit writes a DIRECTED SCRIPT
+(scenes, each with a layout, on-screen text and narration) and the rest is
+built from it: the engine voices the narration (/api/tts) and the console
+animates the scenes and can record the result to a file. The script is the
+part that needs the best writer, so it alone walks a quality-ranked chain of
+the SELECTED units rather than taking the chairman.
 """
 
 from __future__ import annotations
@@ -28,6 +34,7 @@ class StudioKind(StrEnum):
     MINDMAP = "mindmap"
     SLIDES = "slides"
     AUDIO = "audio"
+    VIDEO = "video"
 
 
 def _source_material(question: str, answers: list[dict], verdict: str) -> str:
@@ -177,6 +184,37 @@ Write plain spoken sentences only -- this text will be read aloud by a \
 speech synthesiser, so avoid anything that only makes sense written down \
 (no bullet points, no bold, no parentheticals)."""
 
+_VIDEO_PROMPT = """{source}
+
+You are the writer-director of a short explainer video (about 60 to 120 seconds) that presents the question above and the answer the material settles on, to a viewer who has seen none of it. A narrator speaks over animated scenes. Write 6 to 9 scenes that tell ONE clear story: hook, the key ideas in a logical order, and a closing scene that lands the answer. Use exactly this format, nothing else in the response:
+
+VIDEO TITLE: a short, punchy title
+
+SCENE 1
+LAYOUT: title
+HEADLINE: the video's title or hook, under 8 words
+VISUAL:
+- a one-line subtitle
+NARRATION: what the narrator says during this scene.
+
+SCENE 2
+LAYOUT: points
+HEADLINE: ...
+VISUAL:
+- ...
+NARRATION: ...
+
+LAYOUT must be one of these, and a good video mixes them:
+- title    -- opening card. VISUAL: one subtitle line.
+- points   -- 2 to 4 short bullet points.
+- stat     -- one striking number. VISUAL: first line "value | what it measures", e.g. "73% | of storage was orphaned"; optional second line of context.
+- quote    -- one memorable sentence or key insight. VISUAL: that sentence.
+- compare  -- two sides. VISUAL: first line "Left heading | Right heading", then 2 to 4 lines "left point | right point".
+- steps    -- a sequence or process. VISUAL: 3 to 5 steps in order.
+- closing  -- the final answer. VISUAL: 1 to 3 takeaway lines.
+
+Rules: the first scene is "title" and the last is "closing". HEADLINE under 8 words. Every VISUAL line under 10 words -- they are shown on screen, so they must be glanceable. NARRATION is 1 to 3 plain spoken sentences (15 to 45 words) that EXPLAIN what is on screen rather than read it out; it will be spoken by a speech synthesiser, so no markdown, no symbols it cannot say, no stage directions, no URLs. Use only numbers the material supports. Never mention the council, the members, or that you are synthesising anything."""
+
 _PROMPTS: dict[StudioKind, str] = {
     StudioKind.TABLE: _TABLE_PROMPT,
     StudioKind.REPORT: _REPORT_PROMPT,
@@ -185,6 +223,7 @@ _PROMPTS: dict[StudioKind, str] = {
     StudioKind.MINDMAP: _MINDMAP_PROMPT,
     StudioKind.SLIDES: _SLIDES_PROMPT,
     StudioKind.AUDIO: _AUDIO_PROMPT,
+    StudioKind.VIDEO: _VIDEO_PROMPT,
 }
 
 
@@ -330,12 +369,65 @@ def _parse_audio(text: str) -> dict | None:
     return {"lines": lines}
 
 
+VIDEO_LAYOUTS = ("title", "points", "stat", "quote", "compare", "steps", "closing")
+_VIDEO_SCENE_RE = re.compile(r"(?<![A-Z0-9])SCENE\s*(\d{1,2})\s*[:.)\-]?\s*", re.IGNORECASE)
+_VIDEO_TITLE_RE = re.compile(r"VIDEO\s*TITLE\s*:\s*(.+?)(?=\n|SCENE\s*1\b|$)", re.IGNORECASE)
+_VIDEO_FIELD_RE = re.compile(r"(?<![A-Z])(LAYOUT|HEADLINE|VISUAL|NARRATION)\s*:\s*", re.IGNORECASE)
+
+
+def _parse_video(text: str) -> dict | None:
+    """Scenes in order. Tolerant of a capture that lost its newlines: fields
+    are found by their labels, not by line position, and visual items split
+    on " - " when there is no line break between them."""
+    t = (text or "").replace("\r", "").replace("**", "")
+    tm = _VIDEO_TITLE_RE.search(t)
+    title = tm.group(1).strip() if tm else ""
+    hits = [m for m in _VIDEO_SCENE_RE.finditer(t)]
+    # Keep only the LAST unbroken 1, 2, 3... run: a capture that holds a
+    # draft and then the final would otherwise play every scene twice.
+    run: list[re.Match] = []
+    for m in hits:
+        n = int(m.group(1))
+        if n == 1:
+            run = [m]
+        elif run and n == int(run[-1].group(1)) + 1:
+            run.append(m)
+    scenes = []
+    for i, m in enumerate(run):
+        end = run[i + 1].start() if i + 1 < len(run) else len(t)
+        block = t[m.end():end]
+        fields: dict[str, str] = {}
+        marks = list(_VIDEO_FIELD_RE.finditer(block))
+        for k, fm in enumerate(marks):
+            fend = marks[k + 1].start() if k + 1 < len(marks) else len(block)
+            fields.setdefault(fm.group(1).lower(), block[fm.end():fend].strip())
+        layout = (fields.get("layout") or "").split()[0:1]
+        layout = layout[0].lower().strip(".,") if layout else "points"
+        if layout not in VIDEO_LAYOUTS:
+            layout = "points"
+        vis = fields.get("visual", "")
+        if "\n" in vis.strip():
+            items = [re.sub(r"^\s*(?:[-•*]|\d+[.)])\s*", "", ln).strip() for ln in vis.split("\n")]
+        else:
+            items = [x.strip() for x in re.split(r"(?:^|\s)[-•*]\s+", vis)]
+        items = [x for x in items if x]
+        narration = re.sub(r"\s+", " ", fields.get("narration", "")).strip()
+        headline = re.sub(r"\s+", " ", fields.get("headline", "")).strip()
+        if headline or items or narration:
+            scenes.append({"layout": layout, "headline": headline,
+                           "visual": items, "narration": narration})
+    if len(scenes) < 2:
+        return None
+    return {"title": title or scenes[0]["headline"], "scenes": scenes}
+
+
 _PARSERS = {
     StudioKind.FLASHCARDS: _parse_flashcards,
     StudioKind.QUIZ: _parse_quiz,
     StudioKind.MINDMAP: _parse_mindmap,
     StudioKind.SLIDES: _parse_slides,
     StudioKind.AUDIO: _parse_audio,
+    StudioKind.VIDEO: _parse_video,
     # TABLE and REPORT are parsed client-side (Table reuses the existing
     # markdown-table regex already in App.tsx; Report reuses VerdictBody
     # wholesale) -- no backend parser needed, parsed_json stays null.
@@ -388,6 +480,28 @@ def pick_generator_id(
     if pool:
         return pool[0]
     raise ValueError("No provider available to generate a Studio artifact.")
+
+
+# Best first. Video is judged on the writing -- structure, pacing, what goes
+# on screen versus what is said -- so it goes to the strongest writer the
+# person has SELECTED, not to the chairman. The subscription Claude leads:
+# a video is one deliberate click, not a turn spent on every run.
+VIDEO_RANK = ("claude-pro", "claude", "chatgpt", "gemini", "grok", "deepseek", "perplexity")
+
+
+def video_writer_chain(settings: Settings, allowed: list[str] | None) -> list[str]:
+    """The selected units, best writer first -- and ONLY selected units.
+
+    Unlike pick_generator_id there is no fall back to "whatever is enabled":
+    an unticked unit is never driven, so an empty selection is an error the
+    person can see rather than a quiet use of an account they switched off.
+    """
+    pool = [p for p in (allowed or []) if p in settings.sites
+            and p in settings.enabled_site_ids()]
+    if not pool:
+        raise ValueError("Tick at least one unit to build a video.")
+    rank = {p: i for i, p in enumerate(VIDEO_RANK)}
+    return sorted(pool, key=lambda p: rank.get(p, len(rank)))
 
 
 # ── generation ───────────────────────────────────────────────────────────

@@ -754,10 +754,18 @@ async def create_studio_artifact(run_id: str, kind: str, providers: str = Form("
     # The units the person has selected RIGHT NOW, not the ones that ran the
     # original council. Unticking a member has to stop it being driven at all.
     allowed = [p for p in providers.split(",") if p] or None
-    provider_id = studio_engine.pick_generator_id(
-        settings, run["run"].get("chairman_provider"), allowed
-    )
-    provider = build_provider(settings, provider_id)
+    if studio_kind is studio_engine.StudioKind.VIDEO:
+        # The best SELECTED writer first, the next one if it fails. Strictly
+        # the selection: no "whatever is enabled" fallback for this kind.
+        try:
+            chain = studio_engine.video_writer_chain(settings, allowed)[:3]
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+    else:
+        chain = [studio_engine.pick_generator_id(
+            settings, run["run"].get("chairman_provider"), allowed
+        )]
+    provider_id = chain[0]
 
     job_id = uuid.uuid4().hex[:12]
     await db.create_studio_artifact(job_id, run_id, studio_kind.value, provider_id)
@@ -778,16 +786,28 @@ async def create_studio_artifact(run_id: str, kind: str, providers: str = Form("
     async def work() -> None:
         try:
             ctx = RunContext(run_id=run_id, question=run["run"]["question"])
-            raw_text, parsed, ok, error_detail, latency_ms = await studio_engine.generate(
-                provider,
-                studio_kind,
-                question=run["run"]["question"],
-                answers=run["answers"],
-                verdict=synthesis.get("verdict_text") or "",
-                ctx=ctx,
-                cancel=state["cancel"],
-                on_event=on_event,
-            )
+            used = chain[0]
+            failures: list[str] = []
+            for used in chain:
+                raw_text, parsed, ok, error_detail, latency_ms = await studio_engine.generate(
+                    build_provider(settings, used),
+                    studio_kind,
+                    question=run["run"]["question"],
+                    answers=run["answers"],
+                    verdict=synthesis.get("verdict_text") or "",
+                    ctx=ctx,
+                    cancel=state["cancel"],
+                    on_event=on_event,
+                )
+                # A video with no parseable scenes cannot be played, so it
+                # counts as a miss and the next writer gets the turn.
+                if ok and studio_kind is studio_engine.StudioKind.VIDEO and not parsed:
+                    ok, error_detail = False, f"{used} returned no usable scenes"
+                if ok or state["cancel"].is_set():
+                    break
+                failures.append(error_detail or used)
+            if not ok and len(failures) > 1:
+                error_detail = " / ".join(failures)
             status = "complete" if ok else "failed"
             await db.finish_studio_artifact(
                 job_id,
@@ -796,13 +816,14 @@ async def create_studio_artifact(run_id: str, kind: str, providers: str = Form("
                 parsed_json=json.dumps(parsed) if parsed is not None else None,
                 error_detail=error_detail,
                 latency_ms=latency_ms,
+                provider_id=used,
             )
             payload = {
                 "type": "done",
                 "job_id": job_id,
                 "kind": studio_kind.value,
                 "status": status,
-                "provider_id": provider_id,
+                "provider_id": used,
                 "raw_text": raw_text,
                 "parsed_json": parsed,
                 "error_detail": error_detail,
@@ -876,6 +897,53 @@ async def cancel_studio_artifact(run_id: str, job_id: str):
         raise HTTPException(404, "unknown studio job")
     state["cancel"].set()
     return {"ok": True}
+
+
+# Neural narration for Studio's Video. Microsoft's Edge read-aloud voices:
+# free, no key, and far more human than anything a phone's speech engine
+# offers -- and, unlike speechSynthesis, real audio the console can mix into
+# a recorded video file. The whitelist keeps the voice a closed choice.
+TTS_VOICES = {
+    "andrew": "en-US-AndrewMultilingualNeural",
+    "ava": "en-US-AvaMultilingualNeural",
+    "brian": "en-US-BrianMultilingualNeural",
+    "emma": "en-US-EmmaMultilingualNeural",
+    "sonia": "en-GB-SoniaNeural",
+    "ryan": "en-GB-RyanNeural",
+}
+
+
+@app.post("/api/tts")
+async def tts(text: str = Form(...), voice: str = Form("andrew")):
+    """One narration clip as MP3, cached on disk by (voice, text) so a video
+    replayed or exported again costs nothing."""
+    import hashlib
+
+    text = re.sub(r"\s+", " ", text or "").strip()
+    if not text or len(text) > 2000:
+        raise HTTPException(400, "Narration must be 1 to 2000 characters.")
+    vid = TTS_VOICES.get(voice, TTS_VOICES["andrew"])
+    cache = data_dir() / "tts"
+    cache.mkdir(parents=True, exist_ok=True)
+    path = cache / (hashlib.sha1(f"{vid}\n{text}".encode()).hexdigest() + ".mp3")
+    if not path.exists() or path.stat().st_size == 0:
+        try:
+            import edge_tts
+        except ImportError:
+            raise HTTPException(503, "edge-tts is not installed on the engine.")
+        audio = bytearray()
+        try:
+            async for chunk in edge_tts.Communicate(text, vid).stream():
+                if chunk.get("type") == "audio":
+                    audio.extend(chunk["data"])
+        except Exception as e:  # noqa: BLE001
+            raise HTTPException(502, f"Narration service failed: {type(e).__name__}: {e}")
+        if not audio:
+            raise HTTPException(502, "Narration service returned no audio.")
+        tmp = path.with_suffix(".part")
+        tmp.write_bytes(bytes(audio))
+        tmp.replace(path)
+    return FileResponse(path, media_type="audio/mpeg")
 
 
 @app.get("/api/runs/{run_id}/studio")

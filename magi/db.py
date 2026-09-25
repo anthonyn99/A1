@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS studio_artifacts(
   id TEXT PRIMARY KEY,                 -- job_id
   run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
   kind TEXT NOT NULL CHECK(kind IN
-    ('audio','slides','mindmap','report','flashcards','quiz','table')),
+    ('audio','slides','mindmap','report','flashcards','quiz','table','video')),
   status TEXT NOT NULL CHECK(status IN
     ('pending','running','complete','failed')),
   provider_id TEXT,
@@ -518,6 +518,51 @@ class Database:
                 finally:
                     await db.execute("PRAGMA foreign_keys=ON")
 
+            # Studio's `video` kind, same story: the CHECK list is baked into
+            # the table, so an existing database refuses every video row until
+            # the table is rebuilt with the wider list.
+            cur = await db.execute(
+                "SELECT sql FROM sqlite_master "
+                "WHERE type='table' AND name='studio_artifacts'"
+            )
+            row = await cur.fetchone()
+            ddl_text = (row[0] if row else "") or ""
+            if "'video'" not in ddl_text and "CHECK(kind IN" in ddl_text:
+                await db.execute("PRAGMA foreign_keys=OFF")
+                await db.execute("BEGIN")
+                try:
+                    await db.execute(
+                        "CREATE TABLE studio_artifacts_new("
+                        "  id TEXT PRIMARY KEY,"
+                        "  run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,"
+                        "  kind TEXT NOT NULL CHECK(kind IN"
+                        "    ('audio','slides','mindmap','report','flashcards','quiz','table','video')),"
+                        "  status TEXT NOT NULL CHECK(status IN"
+                        "    ('pending','running','complete','failed')),"
+                        "  provider_id TEXT, raw_text TEXT, parsed_json TEXT,"
+                        "  error_detail TEXT, latency_ms INTEGER,"
+                        "  created_at TEXT NOT NULL, ended_at TEXT)"
+                    )
+                    cols = ("id,run_id,kind,status,provider_id,raw_text,parsed_json,"
+                            "error_detail,latency_ms,created_at,ended_at")
+                    await db.execute(
+                        f"INSERT INTO studio_artifacts_new({cols}) "
+                        f"SELECT {cols} FROM studio_artifacts"
+                    )
+                    await db.execute("DROP TABLE studio_artifacts")
+                    await db.execute(
+                        "ALTER TABLE studio_artifacts_new RENAME TO studio_artifacts"
+                    )
+                    await db.execute(
+                        "CREATE INDEX IF NOT EXISTS idx_studio_run ON studio_artifacts(run_id)"
+                    )
+                    await db.execute("COMMIT")
+                except Exception:
+                    await db.execute("ROLLBACK")
+                    raise
+                finally:
+                    await db.execute("PRAGMA foreign_keys=ON")
+
             await db.commit()
 
     async def create_run(self, run_id: str, question: str, chairman: str | None) -> None:
@@ -659,12 +704,15 @@ class Database:
         parsed_json: str | None = None,
         error_detail: str | None = None,
         latency_ms: int | None = None,
+        provider_id: str | None = None,
     ) -> None:
         async with aiosqlite.connect(self.path) as db:
             await db.execute(
                 "UPDATE studio_artifacts SET status=?,raw_text=?,parsed_json=?,"
-                "error_detail=?,latency_ms=?,ended_at=? WHERE id=?",
-                (status, raw_text, parsed_json, error_detail, latency_ms, _now(), job_id),
+                "error_detail=?,latency_ms=?,ended_at=?,"
+                "provider_id=COALESCE(?,provider_id) WHERE id=?",
+                (status, raw_text, parsed_json, error_detail, latency_ms, _now(),
+                 provider_id, job_id),
             )
             await db.commit()
 
