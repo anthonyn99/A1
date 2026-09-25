@@ -4228,7 +4228,9 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
    usage line under it, and smaller action buttons. The browser units'
    cards above keep their roomier layout. */
 .acc-code .acc-card { padding: 10px 14px; margin-bottom: 10px; }
-.acc-code .acc-card .acc-hd { padding-bottom: 7px; }
+.acc-code .acc-card .acc-hd { padding-bottom: 7px; flex-wrap: nowrap; align-items: flex-start; }
+.acc-code .acc-names { flex: 1 1 auto; }
+.acc-code .acc-flags { flex: 0 0 auto; }
 .acc-code .acc-desc { margin-top: 1px; line-height: 1.4; }
 .acc-code .acc-slot { padding: 7px 0; gap: 8px; }
 .acc-code .acc-slot-who { flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: 8px; row-gap: 1px; }
