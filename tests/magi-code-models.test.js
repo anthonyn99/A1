@@ -70,13 +70,14 @@ ok('and not while another task runs', /if \(codeBusy\(\)\) return;/.test(dx));
 console.log('\nModels, effort, caps: stored on the engine');
 const sheetM = fn('async function codeModelSheet(agent)');
 ok('choices go to the engine', /save\("\/models\/choice"/.test(sheetM));
-ok('caps go to the engine', /save\("\/models\/cap", \{ agent, window: w\.id, percent: pc \}\)/.test(sheetM));
+ok('caps go to the engine', /save\("\/models\/cap", \{ agent, window: w\.id, percent: n >= 100 \? null : n \}\)/.test(sheetM));
+ok('a cap is a slider, saved on release', /rng\.type = "range"/.test(sheetM) && /rng\.onchange = /.test(sheetM) && !/rng\.oninput = \(\) => \{?\s*save/.test(sheetM));
 ok('the warning line goes to the engine', /save\("\/models\/warn"/.test(sheetM));
 ok('none of it touches localStorage', !/localStorage/.test(sheetM));
 ok('none of it touches Firestore', !/cloudSave|setDoc|updateDoc|firestore/i.test(sheetM + fn('function renderCodeModels()')));
 ok('a model that cannot run is disabled, with its reason', /b\.disabled = !ok;/.test(sheetM) && /model-opt-why/.test(sheetM));
 ok('efforts the model does not support are disabled', /b\.disabled = e !== "auto" && !allowed\.has\(e\);/.test(sheetM));
-ok('Off is a cap choice', /for \(const pc of \[null, \.\.\.presets\]\)/.test(sheetM));
+ok('Off is a cap choice (the slider\'s far right)', /rng\.max = "100"/.test(sheetM) && /off \? "Off"/.test(sheetM));
 ok('a capped agent is said first', /if \(slot\.capped\) body\.append\(el\("div", "sheet-err model-capped"/.test(sheetM));
 ok('Re-check asks the provider again', /codeModelsLoad\(true\)/.test(sheetM));
 ok('Accounts links to the same sheet', /codeModelSheet\(c\.agent\)/.test(fn('function renderCodeAccounts()')));
@@ -128,7 +129,7 @@ ok('none in the panel, the watch, the sheet or the popup',
 console.log('\nPhone');
 ok('the panel is a bottom sheet on a phone', /\.sheet\.repo-sheet \{ padding: 5vh 0 0; align-items: flex-end; \}/.test(MAGI));
 ok('rows and model options are 44px targets', /\.repo-row \{[^}]*min-height: 44px/.test(MAGI) && /\.model-opt \{[^}]*min-height: 44px/.test(MAGI));
-ok('the model row goes full width', /\.code-model \{ flex: 1 1 100%; \}/.test(MAGI));
+ok('the model row goes full width', /\.code-model \{ flex: 1 1 100%;/.test(MAGI));
 ok('the popup spans the phone above the home indicator', /\.usage-toasts \{ right: 12px; left: 12px; width: auto; bottom: max\(12px, env\(safe-area-inset-bottom\)\); \}/.test(MAGI));
 
 console.log('\n  ' + pass + ' passed, ' + fail + ' failed');

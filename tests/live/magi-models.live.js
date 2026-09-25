@@ -175,7 +175,7 @@ async function restore() {
       await closeSheet(c);
       await click(c, '.code-model[data-agent="claude"]');
       ok('the sheet says Claude is stopped and until when', await waitFor(c, `/Stopped at your ${low}% cap/.test((document.querySelector(".model-box .model-capped")||{}).textContent||"")`, 15000));
-      ok('the bar carries a cap marker', await waitFor(c, '!!document.querySelector(\'.use-row[data-window="five_hour"] .use-cap\')', 8000));
+      ok('the bar carries a cap marker', await waitFor(c, '!!document.querySelector(\'.use-row[data-window="five_hour"] .use-track.is-capped\')', 8000));
       await shot(c, 'models-capped-sheet');
       await closeSheet(c);
       ok('the row says capped', await waitFor(c, `/capped/.test(document.querySelector('.code-model[data-agent="claude"]').textContent)`, 15000), await rowText(c, 'claude'));
@@ -197,7 +197,7 @@ async function restore() {
       await shot(c, 'models-capped-task');
       await click(c, '.code-model[data-agent="claude"]');
       await waitFor(c, sheetOpen, 15000);
-      await click(c, '.use-row[data-window="five_hour"] .use-cap-b[data-cap="off"]');
+      await evalJs(c, `const r = document.querySelector('.use-row[data-window="five_hour"] .use-slider'); r.value = "100"; r.dispatchEvent(new Event("change")); return 1;`);
       ok('Off releases it', await waitFor(c, '!CODE.models.agents.claude.caps.five_hour', 8000));
       await closeSheet(c);
       await evalJs(c, 'codeUsageRefresh(); return 1;');
@@ -209,7 +209,7 @@ async function restore() {
       const win = Object.keys(cx)[0];
       const used = Math.round(((cx[win] || {}).utilization || 0) * 100);
       await click(c, '.code-model[data-agent="codex"]');
-      ok('the Codex sheet offers a cap on the window its plan has', await waitFor(c, `!!document.querySelector('.use-row[data-window="${win}"] .use-cap-b')`, 15000), win);
+      ok('the Codex sheet offers a cap on the window its plan has', await waitFor(c, `!!document.querySelector('.use-row[data-window="${win}"] .use-slider')`, 15000), win);
       await api('/models/cap', { agent: 'codex', window: win, percent: Math.max(1, used - 1) });
       const a2 = await api('/agents');
       ok('a Codex cap below its usage stops Codex', !!a2.cli.find((x) => x.agent === 'codex').slots[0].capped, `${used}% used`);
@@ -296,7 +296,7 @@ async function restore() {
       await click(c, '.cli-card [data-act="auto"]');
       ok('Auto-update flips', await waitFor(c, `CODE.models.auto_update === ${!was}`, 8000));
       ok('the engine agrees', (await api('/updates')).auto_update === !was);
-      ok('and the button says so', await waitFor(c, `/Auto-update: ${was ? 'off' : 'on'}/.test(document.querySelector('.cli-card [data-act="auto"]').textContent)`, 4000));
+      ok('and the button says so', await waitFor(c, `document.querySelector('.cli-card [data-act="auto"]').getAttribute('aria-checked') === '${!was}'`, 4000));
       await click(c, '.cli-card [data-act="auto"]');
       ok('and flips back', await waitFor(c, `CODE.models.auto_update === ${was}`, 8000) && (await api('/updates')).auto_update === was);
       await shot(c, 'models-cli-card');

@@ -3468,18 +3468,19 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 }
 .code-strip::-webkit-scrollbar { display: none; }
 .code-pill {
-  display: inline-flex; align-items: baseline; gap: 6px; flex: 0 0 auto;
-  border: 1px solid var(--bd); border-radius: 999px; padding: 5px 11px;
-  font-size: 11px; white-space: nowrap;
+  display: inline-flex; align-items: baseline; gap: 5px; flex: 0 0 auto;
+  border: 1px solid transparent; border-radius: 999px; padding: 4px 10px;
+  background: color-mix(in srgb, var(--tx) 4.5%, transparent);
+  font-size: 10.5px; white-space: nowrap; transition: border-color .15s, background .15s;
 }
 .code-pill-k { color: var(--txm); }
 .code-pill-v { color: var(--tx); font-weight: 600; }
-.code-pill.is-profile { border-color: color-mix(in srgb, var(--pc) 45%, transparent); }
+.code-pill.is-profile { background: color-mix(in srgb, var(--pc) 12%, transparent); }
 .code-pill.is-profile .code-pill-v { color: var(--pc); }
 .code-pill.ok .code-pill-v { color: var(--grn); }
-.code-pill.warn { border-color: color-mix(in srgb, var(--amber) 40%, transparent); }
+.code-pill.warn { background: color-mix(in srgb, var(--amber) 10%, transparent); }
 .code-pill.warn .code-pill-v { color: var(--amber); }
-.code-pill.muted .code-pill-v { color: var(--txm); font-weight: 500; }
+.code-pill.muted .code-pill-v { color: var(--txd); font-weight: 500; }
 
 .code-empty {
   border: 1px solid var(--bd); border-radius: var(--r-card);
@@ -3598,21 +3599,22 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 .code-models { display: flex; flex-wrap: wrap; gap: 8px; margin-top: -4px; min-width: 0; }
 .code-models:empty { display: none; }
 .code-model {
-  display: inline-flex; align-items: center; gap: 8px; min-height: 36px; max-width: 100%;
+  display: inline-flex; align-items: center; gap: 8px; min-height: 32px; max-width: 100%;
   font: inherit; font-size: 11.5px; color: var(--txd); cursor: pointer; text-align: left;
-  background: var(--s1); border: 1px solid var(--bd); border-radius: 999px; padding: 4px 12px 4px 10px;
+  background: color-mix(in srgb, var(--tx) 4.5%, transparent); border: 1px solid transparent;
+  border-radius: 999px; padding: 4px 12px; transition: border-color .15s;
 }
 .code-model:hover, .code-model:focus-visible { border-color: var(--pa, var(--ac)); outline: none; }
 .code-model-n { font-weight: 700; color: var(--pa, var(--tx)); flex: 0 0 auto; }
 .code-model-v { color: var(--tx); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .code-model-auto {
-  font-size: 9.5px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase;
-  color: var(--acl); border: 1px solid color-mix(in srgb, var(--ac) 40%, transparent);
-  border-radius: 4px; padding: 0 4px; margin-right: 1px;
+  font-size: 9px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase;
+  color: var(--acl); background: color-mix(in srgb, var(--ac) 16%, transparent);
+  border-radius: 4px; padding: 1px 5px; margin-right: 1px;
 }
 .code-model-e { color: var(--txm); }
 .code-model-m { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; color: var(--txm); }
-.code-model-bar { width: 34px; height: 4px; border-radius: 2px; background: var(--bd); overflow: hidden; }
+.code-model-bar { width: 32px; height: 3px; border-radius: 2px; background: var(--bd); overflow: hidden; }
 .code-model-fill { display: block; height: 100%; background: var(--grn); }
 .code-model-m.is-warn .code-model-fill { background: var(--amber); }
 .code-model-m.is-bad .code-model-fill { background: var(--red); }
@@ -3623,67 +3625,137 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 .code-model-cap { color: var(--red); font-weight: 700; flex: 0 0 auto; }
 .code-model .code-ws-chev { font-size: 10px; }
 
-.model-box { max-width: 560px; }
-.model-acct { color: var(--txm); font-size: 11.5px; margin-top: 2px; overflow-wrap: anywhere; }
-.model-list { display: flex; flex-direction: column; gap: 6px; }
+.model-box { max-width: 520px; }
+/* Sections divided by hairlines, not boxed: one sheet, not six cards. */
+.model-box .repo-body { gap: 0; padding-top: 4px; }
+.model-box .repo-card {
+  border: 0; border-top: 1px solid var(--bd); border-radius: 0; background: none;
+  padding: 16px 0; gap: 10px;
+}
+.model-box .repo-body > .repo-card:first-child { border-top: 0; padding-top: 6px; }
+.model-box .repo-card:last-child { padding-bottom: 4px; }
+.model-box .cli-banner, .model-box .model-capped { margin: 0 0 10px; }
+.model-acct { color: var(--txm); font-size: 11px; margin-top: 2px; overflow-wrap: anywhere; }
+.repo-hint { color: var(--txm); font-size: 11px; }
+.model-list { display: flex; flex-direction: column; gap: 2px; }
 .model-opt {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 3px; text-align: left; width: 100%;
-  font: inherit; padding: 9px 12px; border-radius: var(--r-btn); cursor: pointer; min-height: 44px;
-  background: var(--s1); border: 1px solid var(--bd); color: var(--tx); justify-content: center;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; width: 100%;
+  font: inherit; padding: 8px 12px; border-radius: var(--r-btn); cursor: pointer; min-height: 40px;
+  background: none; border: 1px solid transparent; color: var(--tx); justify-content: center;
+  transition: background .12s, border-color .12s;
 }
-.model-opt:hover:not(:disabled) { border-color: var(--txm); }
-.model-opt.on { border-color: var(--ac); box-shadow: inset 3px 0 0 var(--ac); }
-.model-opt.is-off { cursor: not-allowed; opacity: .62; }
+.model-opt:hover:not(:disabled) { background: color-mix(in srgb, var(--tx) 4%, transparent); }
+.model-opt.on { background: color-mix(in srgb, var(--ac) 10%, transparent); border-color: color-mix(in srgb, var(--ac) 45%, transparent); }
+.model-opt.is-off { cursor: not-allowed; }
+.model-opt.is-off .model-opt-l { color: var(--txm); }
 .model-opt-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.model-opt-l { font-weight: 700; font-size: 12.5px; }
-.model-opt-s { color: var(--txd); font-size: 11.5px; line-height: 1.45; overflow-wrap: anywhere; }
-.model-opt-why { color: var(--amber); font-size: 11px; line-height: 1.45; overflow-wrap: anywhere; }
+.model-opt-l { font-weight: 650; font-size: 12.5px; }
+.model-opt-s { color: var(--txm); font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
+.model-opt-why { color: var(--amber); font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; opacity: .85; }
 .model-badge {
-  font-size: 9.5px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--txm);
-  border: 1px solid var(--bd); border-radius: 4px; padding: 0 5px;
+  font-size: 9px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--txm);
+  background: color-mix(in srgb, var(--tx) 6%, transparent); border-radius: 4px; padding: 1px 5px;
 }
-.model-opt.on .model-badge { color: var(--acl); border-color: color-mix(in srgb, var(--ac) 40%, transparent); }
+.model-opt.on .model-badge { color: var(--acl); background: color-mix(in srgb, var(--ac) 16%, transparent); }
 .model-older > summary {
-  cursor: pointer; color: var(--txm); font-size: 11.5px; padding: 8px 2px; list-style-position: inside;
+  cursor: pointer; color: var(--txm); font-size: 11px; padding: 8px 12px 2px; list-style-position: inside;
 }
 .model-older[open] > summary { margin-bottom: 4px; }
-.model-seg { display: flex; flex-wrap: wrap; gap: 4px; }
-.model-seg-b {
-  font: inherit; font-size: 11.5px; padding: 6px 12px; border-radius: 999px; cursor: pointer; min-height: 34px;
-  border: 1px solid var(--bd); background: none; color: var(--txd);
+/* Effort: one segmented control. */
+.model-seg {
+  display: flex; gap: 2px; padding: 3px; border-radius: 999px;
+  background: color-mix(in srgb, var(--tx) 4.5%, transparent);
 }
-.model-seg-b.on { border-color: var(--ac); color: var(--tx); font-weight: 700; background: color-mix(in srgb, var(--ac) 10%, transparent); }
-.model-seg-b:disabled { opacity: .4; cursor: not-allowed; }
-.use-row { display: flex; flex-direction: column; gap: 6px; padding: 8px 0; border-top: 1px solid var(--bd); }
-.repo-lbl-row + .use-row { border-top: 0; padding-top: 2px; }
-.use-top { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 12px; }
-.use-name { font-weight: 700; color: var(--tx); }
-.use-pct { color: var(--txd); font-family: var(--font-mono); font-size: 11px; }
+.model-seg-b {
+  flex: 1 1 auto; font: inherit; font-size: 11px; padding: 6px 8px; border-radius: 999px; cursor: pointer;
+  min-height: 30px; border: 0; background: none; color: var(--txd); white-space: nowrap;
+  transition: background .12s, color .12s;
+}
+.model-seg-b:hover:not(:disabled):not(.on) { color: var(--tx); }
+.model-seg-b.on { color: var(--tx); font-weight: 700; background: var(--s2); box-shadow: 0 1px 3px var(--shadow); }
+.model-seg-b:disabled { opacity: .35; cursor: not-allowed; }
+/* Usage: the bar is the slider's track, the thumb is your cap, and the
+   stretch past the cap is hatched -- the part MAGI will not spend. */
+.use-row { display: flex; flex-direction: column; gap: 4px; padding: 4px 0 8px; }
+.use-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+.use-name { font-weight: 650; color: var(--tx); }
+.use-pct { color: var(--txm); font-family: var(--font-mono); font-size: 10.5px; }
 .use-pct.is-warn { color: var(--amber); }
 .use-pct.is-bad { color: var(--red); font-weight: 700; }
-.use-bar { position: relative; height: 6px; border-radius: 3px; background: var(--bd); overflow: visible; }
-.use-fill { height: 100%; border-radius: 3px; background: var(--grn); max-width: 100%; }
+.use-track { position: relative; height: 24px; --capf: 1; }
+.use-bar {
+  position: absolute; left: 0; right: 0; top: 50%; height: 6px; margin-top: -3px;
+  border-radius: 3px; background: var(--bd); overflow: hidden; pointer-events: none;
+}
+.use-fill { height: 100%; border-radius: 3px; background: var(--grn); max-width: 100%; transition: width .3s; }
 .use-fill.is-warn { background: var(--amber); }
 .use-fill.is-bad { background: var(--red); }
-.use-cap {
-  position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--tx);
-  border-radius: 1px; box-shadow: 0 0 0 2px var(--bg);
+.use-track.is-capped .use-bar::after {
+  content: ""; position: absolute; top: 0; bottom: 0; right: 0;
+  left: calc(8px + (100% - 16px) * var(--capf));
+  background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--red) 45%, transparent) 0 2px, transparent 2px 5px);
 }
-.use-caps { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
-.use-caps-l { color: var(--txm); font-size: 11px; margin-right: 4px; }
-.use-cap-b {
-  font: inherit; font-size: 11px; font-family: var(--font-mono); padding: 4px 9px; border-radius: 999px;
-  cursor: pointer; min-height: 30px; min-width: 40px; border: 1px solid var(--bd); background: none; color: var(--txd);
+.use-slider {
+  -webkit-appearance: none; appearance: none; position: relative; display: block;
+  width: 100%; height: 24px; margin: 0; background: transparent; cursor: pointer;
 }
-.use-cap-b.on { border-color: var(--ac); color: var(--tx); font-weight: 700; background: color-mix(in srgb, var(--ac) 10%, transparent); }
+.use-slider:focus { outline: none; }
+.use-slider::-webkit-slider-runnable-track { height: 24px; background: transparent; }
+.use-slider::-moz-range-track { height: 24px; background: transparent; }
+.use-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 16px; height: 16px; margin-top: 4px; border-radius: 50%;
+  background: var(--tx); border: 3px solid var(--ac); box-shadow: 0 1px 4px var(--shadow);
+  transition: transform .12s;
+}
+.use-slider::-moz-range-thumb {
+  box-sizing: border-box; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--tx); border: 3px solid var(--ac); box-shadow: 0 1px 4px var(--shadow);
+}
+.use-slider:hover::-webkit-slider-thumb, .use-slider:active::-webkit-slider-thumb { transform: scale(1.12); }
+.use-slider:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px color-mix(in srgb, var(--ac) 35%, transparent); }
+.use-slider:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px color-mix(in srgb, var(--ac) 35%, transparent); }
+.use-track:not(.is-capped) .use-slider::-webkit-slider-thumb { background: var(--s2); border-color: var(--txm); }
+.use-track:not(.is-capped) .use-slider::-moz-range-thumb { background: var(--s2); border-color: var(--txm); }
+/* The warning line: a plain slider with its own filled track. */
+.use-slider.is-plain::-webkit-slider-runnable-track {
+  height: 4px; border-radius: 2px; margin-top: 10px;
+  background: linear-gradient(to right, var(--amber) var(--v, 0%), var(--bd) var(--v, 0%));
+}
+.use-slider.is-plain::-moz-range-track {
+  height: 4px; border-radius: 2px;
+  background: linear-gradient(to right, var(--amber) var(--v, 0%), var(--bd) var(--v, 0%));
+}
+.use-slider.is-plain::-webkit-slider-thumb { margin-top: -6px; border-color: var(--amber); }
+.use-slider.is-plain::-moz-range-thumb { border-color: var(--amber); }
+.use-foot { display: flex; align-items: baseline; gap: 6px; font-size: 11px; }
+.use-caps-l { color: var(--txm); font-size: 11px; white-space: nowrap; }
+.use-val { font-family: var(--font-mono); font-size: 11px; font-weight: 700; color: var(--tx); min-width: 3.5ch; }
+.use-val.is-off { color: var(--txm); font-weight: 500; }
+.use-warn {
+  display: flex; align-items: center; gap: 12px; padding-top: 10px; margin-top: 2px;
+  border-top: 1px dashed var(--bd);
+}
+.use-warn .use-slider { flex: 1 1 auto; min-width: 0; }
+.use-warn .use-val { text-align: right; }
+.credit-st { font-size: 11px; font-weight: 700; color: var(--txm); }
+.credit-st.is-on { color: var(--grn); }
+.credit-st.is-bad { color: var(--red); }
+.cli-auto {
+  display: inline-flex; align-items: center; gap: 10px; font: inherit; font-size: 12px; color: var(--txd);
+  background: none; border: 0; padding: 4px 2px; cursor: pointer; min-height: 36px;
+}
+.cli-auto:hover { color: var(--tx); }
+.cli-auto[aria-checked="true"] { color: var(--tx); }
+.cli-auto[aria-checked="true"] .ac-sw { background: color-mix(in srgb, var(--ac) 55%, transparent); border-color: var(--ac); }
+.cli-auto[aria-checked="true"] .ac-sw::after { transform: translateX(16px); background: var(--tx); }
 .code-ev.is-model .code-ev-tool { color: var(--acl); }
 .cli-line { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .cli-ver { font-family: var(--font-mono); font-weight: 700; color: var(--tx); font-size: 13px; }
 .cli-state { font-size: 11.5px; color: var(--txm); }
 .cli-state.is-ok { color: var(--grn); }
 .cli-state.is-old { color: var(--amber); font-weight: 700; }
-.cli-acts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.cli-acts .btn { min-height: 36px; }
+.cli-acts { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.cli-acts .btn { min-height: 34px; font-size: 10.5px; }
 .cli-banner {
   display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
   padding: 9px 12px; border-radius: var(--r-card); font-size: 12px; color: var(--tx);
@@ -3719,9 +3791,21 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 @media (max-width: 720px) {
   /* Above the composer and clear of the home indicator. */
   .usage-toasts { right: 12px; left: 12px; width: auto; bottom: max(12px, env(safe-area-inset-bottom)); }
-  .code-model { flex: 1 1 100%; }
+  .code-model { flex: 1 1 100%; min-height: 40px; }
   .code-model-v { flex: 1 1 auto; }
+  /* Thumbs, not cursors: a taller track and a bigger thumb to catch. */
+  .use-track, .use-slider, .use-slider::-webkit-slider-runnable-track { height: 32px; }
+  .use-slider::-moz-range-track { height: 32px; }
+  .use-slider::-webkit-slider-thumb { width: 22px; height: 22px; margin-top: 5px; }
+  .use-slider::-moz-range-thumb { width: 22px; height: 22px; }
+  .use-track.is-capped .use-bar::after { left: calc(11px + (100% - 22px) * var(--capf)); }
+  .use-slider.is-plain::-webkit-slider-runnable-track { height: 4px; margin-top: 14px; }
+  .use-slider.is-plain::-webkit-slider-thumb { margin-top: -9px; }
+  .model-opt { min-height: 44px; }
+  .model-seg-b { min-height: 36px; padding: 6px 4px; font-size: 10.5px; }
+  .code-pill { padding: 5px 10px; }
 }
+
 /* ── the Repository panel (Phase 11) ──────────────────────────────────────
    A wider sheet with its own header and a scrolling body, so the tabs stay
    put while a long list or log scrolls. On a phone it becomes a bottom sheet
@@ -3882,7 +3966,7 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
   opacity: .8; font-variant-numeric: tabular-nums; margin-top: 1px;
 }
 .code-chip.on .chip-unit { opacity: .78; }
-.code-hint { color: var(--txm); font-size: 12px; line-height: 1.65; text-align: center; padding: 6px 12px; }
+.code-hint { color: var(--txm); font-size: 11.5px; line-height: 1.6; text-align: center; padding: 4px 12px; }
 .code-recent { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
 .code-recent-hd { font-size: 10.5px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--txm); padding: 0 2px 2px; }
 .code-recent-row {
@@ -11443,13 +11527,10 @@ function renderCodeView() {
   else {
     const hint = el("div", "code-hint");
     hint.textContent = !proj
-      ? "Pick a folder to work in. Nothing leaves this machine except what an "
-        + "agent reads to answer you."
+      ? "Pick a folder to work in."
       : CODE.rw === "write"
-        ? "Agents edit a private copy of this folder. When they finish you see the "
-          + "diff, file by file, and nothing changes here unless you approve it."
-        : "Ask about this workspace. Agents can read and search it, not change it. "
-          + "If the first agent runs out of usage, the next ticked one carries on.";
+        ? "Agents edit a private copy. Nothing changes here until you approve the diff."
+        : "Agents can read and search this folder, not change it.";
     col.append(hint);
     const recent = renderCodeRecent(proj);
     if (recent) col.append(recent);
@@ -11790,7 +11871,12 @@ function renderCodeRw(proj) {
   box.append(sw);
   if (!w.ok && w.why) box.append(el("div", "code-rw-note", w.why));
   // A1 (Phase 14b): writable, but its Stop hook commits and pushes.
-  else if (w.ok && w.note) box.append(el("div", "code-rw-note", w.note));
+  // The engine's sentence is long; the switch says the part that matters.
+  else if (w.ok && w.note) {
+    const n = el("div", "code-rw-note", "A1 ships on approval: its hook commits and pushes to main.");
+    n.title = w.note;
+    box.append(n);
+  }
   return box;
 }
 
@@ -13579,7 +13665,7 @@ function renderCodeWatch(proj) {
    the engine as you pause typing: local rules over cached lists, no model
    call, a few milliseconds. */
 const EFFORT_LABEL = { low: "Low", medium: "Medium", high: "High", xhigh: "Extra high", max: "Max" };
-const CAP_PRESETS = [50, 70, 80, 90, 95];     // + Off: one row on a phone
+const CAP_MIN = 5;                            // the slider's floor; its far right is Off
 const AGENT_NAME = { claude: "Claude", codex: "Codex" };
 const USAGE_SEEN_KEY = lsKey("usage.seen");
 
@@ -13602,6 +13688,14 @@ function modelLabel(a, id) {
     if (m) return m.label;
   }
   return id;
+}
+
+/** Why a model cannot be chosen, in a few words. The engine's full sentence
+ *  stays on the row's tooltip. */
+function modelWhy(x) {
+  if (!x || !x.why) return "";
+  if (x.credits) return /used up|exhaust/i.test(x.why) ? "Usage credits used up" : "Needs usage credits";
+  return x.why.split(/(?<=\.)\s/)[0];
 }
 
 /** The fullest window on the agent's first signed-in account: the number
@@ -13772,8 +13866,8 @@ async function codeModelSheet(agent) {
     if (err) body.append(el("div", "sheet-err", err));
     // Stopped by your cap is the one thing that changes what happens next,
     // so it leads -- not three cards down under the model list.
-    if (slot.capped) body.append(el("div", "sheet-err model-capped", `${slot.capped.why}. MAGI will not `
-      + `send ${AGENT_NAME[agent]} requests until ${resetWhen(slot.capped.until)} — or raise the cap below.`));
+    if (slot.capped) body.append(el("div", "sheet-err model-capped",
+      `${slot.capped.why}. Paused until ${resetWhen(slot.capped.until)}.`));
     const waiting = ((a.cli || {}).waiting || []);
     if (waiting.length && !(a.cli && a.cli.job && a.cli.job.state === "running")) {
       const wb = el("div", "cli-banner");
@@ -13806,20 +13900,22 @@ async function codeModelSheet(agent) {
       b.append(top);
       if (desc) b.append(el("span", "model-opt-s", desc));
       if (!ok && why) b.append(el("span", "model-opt-why", why));
+      const full = (slot.models || []).find((x) => x.id === id);
+      if (full && full.why) b.title = full.why;
       b.onclick = () => save("/models/choice", { agent, model: id,
         effort: id === "auto" ? "auto" : a.choice.effort });
       list.append(b);
     };
     opt("auto", "Auto", pv && pv.model
-      ? `For what is in the box now: ${pv.label}${pv.effort ? ` · ${EFFORT_LABEL[pv.effort] || pv.effort}` : ""} — ${pv.why}`
-      : "Reads each task and picks the strongest model it needs from the ones this account can run now.",
+      ? `Now: ${pv.label}${pv.effort ? ` · ${(EFFORT_LABEL[pv.effort] || pv.effort).toLowerCase()}` : ""}`
+      : "Picks the right model for each task.",
       { badge: "recommended" });
     const models = slot.models || [];
     const latest = models.filter((x) => x.latest || agent === "codex");
     const older = models.filter((x) => !(x.latest || agent === "codex"));
     for (const x of latest) {
       opt(x.id, x.label, x.description || (x.why && x.available ? x.why : ""),
-        { ok: x.available, why: x.why, badge: x.credits ? "usage credits" : "" });
+        { ok: x.available, why: modelWhy(x), badge: x.credits ? "credits" : "" });
     }
     mc.append(list);
     if (older.length) {
@@ -13833,9 +13929,10 @@ async function codeModelSheet(agent) {
         b.disabled = !x.available;
         const top = el("span", "model-opt-top");
         top.append(el("span", "model-opt-l", x.label));
-        if (x.credits) top.append(el("span", "model-badge", "usage credits"));
+        if (x.credits) top.append(el("span", "model-badge", "credits"));
         b.append(top);
-        if (!x.available && x.why) b.append(el("span", "model-opt-why", x.why));
+        if (!x.available && x.why) b.append(el("span", "model-opt-why", modelWhy(x)));
+        if (x.why) b.title = x.why;
         b.onclick = () => save("/models/choice", { agent, model: x.id, effort: a.choice.effort });
         ol.append(b);
       }
@@ -13853,7 +13950,9 @@ async function codeModelSheet(agent) {
 
     // ── effort ───────────────────────────────────────────────────────────
     const ec = el("div", "repo-card");
-    ec.append(el("div", "repo-lbl", "Effort"));
+    const eh = el("div", "repo-lbl-row");
+    eh.append(el("div", "repo-lbl", "Effort"), el("span", "repo-hint", "Higher is slower and uses more"));
+    ec.append(eh);
     const sel = models.find((x) => x.id === a.choice.model);
     const allowed = new Set(sel && sel.efforts && sel.efforts.length ? sel.efforts : m.efforts);
     const seg = el("div", "model-seg");
@@ -13870,15 +13969,14 @@ async function codeModelSheet(agent) {
       seg.append(b);
     }
     ec.append(seg);
-    ec.append(el("div", "repo-note", "How hard the model thinks before it answers. Auto matches it to the task; "
-      + "higher effort is slower and uses more of the allowance."));
     body.append(ec);
 
     // ── usage and caps ───────────────────────────────────────────────────
+    // The cap is a thumb on the usage bar itself: where the allowance is and
+    // where MAGI stops read as one line. All the way right is Off. Saved on
+    // release, not per pixel of the drag.
     const uc = el("div", "repo-card");
-    const uh = el("div", "repo-lbl-row");
-    uh.append(el("div", "repo-lbl", "Usage and your caps"));
-    uc.append(uh);
+    uc.append(el("div", "repo-lbl", "Usage & caps"));
     const live = (((CODE.agents && CODE.agents.cli) || []).find((c) => c.agent === agent) || { slots: [] })
       .slots.find((s) => s.slot === slot.slot);
     const usage = usageLive((live && live.usage) || slot.usage || {});
@@ -13887,75 +13985,93 @@ async function codeModelSheet(agent) {
       const v = usage[w.id];
       const pct = v && typeof v.utilization === "number" ? Math.round(v.utilization * 100) : null;
       const cap = a.caps[w.id] || null;
+      const lvl = pct == null ? "ok" : useLevel(pct, cap, warnAt);
       const wr = el("div", "use-row");
       wr.dataset.window = w.id;
       const top = el("div", "use-top");
       top.append(el("span", "use-name", w.label[0].toUpperCase() + w.label.slice(1)));
-      top.append(el("span", `use-pct is-${pct == null ? "ok" : useLevel(pct, cap, warnAt)}`,
-        pct == null ? "no reading yet" : `${pct}% used`
-          + (v && v.resets_at ? ` · resets ${resetWhen(v.resets_at)}` : "")));
+      top.append(el("span", `use-pct is-${lvl}`, pct == null ? "no reading yet" : `${pct}%`
+        + (v && v.resets_at ? ` · resets ${resetWhen(v.resets_at)}` : "")));
       wr.append(top);
+      const track = el("div", `use-track ${cap ? "is-capped" : ""}`);
       const bar = el("div", "use-bar");
-      const fill = el("div", `use-fill is-${pct == null ? "ok" : useLevel(pct, cap, warnAt)}`);
+      const fill = el("div", `use-fill is-${lvl}`);
       fill.style.width = `${Math.min(100, pct || 0)}%`;
       bar.append(fill);
-      if (cap) {
-        const mk = el("div", "use-cap");
-        mk.style.left = `${cap}%`;
-        mk.title = `Your cap: ${cap}%`;
-        bar.append(mk);
-      }
-      wr.append(bar);
-      const chips = el("div", "use-caps");
-      chips.append(el("span", "use-caps-l", "Stop at"));
-      const presets = [...new Set([...CAP_PRESETS, ...(cap ? [cap] : [])])].sort((p, q) => p - q);
-      for (const pc of [null, ...presets]) {
-        const on = (cap || null) === pc;
-        const b = el("button", `use-cap-b ${on ? "on" : ""}`, pc == null ? "Off" : `${pc}%`);
-        b.type = "button";
-        b.dataset.cap = pc == null ? "off" : String(pc);
-        b.setAttribute("aria-pressed", String(on));
-        b.onclick = () => save("/models/cap", { agent, window: w.id, percent: pc });
-        chips.append(b);
-      }
-      wr.append(chips);
+      const rng = document.createElement("input");
+      rng.type = "range";
+      rng.className = "use-slider";
+      rng.min = String(CAP_MIN);
+      rng.max = "100";
+      rng.step = "1";
+      rng.value = String(cap || 100);
+      rng.dataset.cap = cap ? String(cap) : "off";
+      rng.setAttribute("aria-label", `Stop at, ${w.label} window`);
+      track.append(bar, rng);
+      wr.append(track);
+      const foot = el("div", "use-foot");
+      const val = el("span", "use-val");
+      foot.append(el("span", "use-caps-l", "Stop at"), val);
+      wr.append(foot);
+      const show = () => {
+        const n = Number(rng.value);
+        const off = n >= 100;
+        val.textContent = off ? "Off" : `${n}%`;
+        val.classList.toggle("is-off", off);
+        track.classList.toggle("is-capped", !off);
+        track.style.setProperty("--capf", String(n / 100));
+        rng.setAttribute("aria-valuetext", off ? "Off" : `${n}%`);
+      };
+      show();
+      rng.oninput = show;
+      rng.onchange = () => {
+        const n = Number(rng.value);
+        save("/models/cap", { agent, window: w.id, percent: n >= 100 ? null : n });
+      };
       uc.append(wr);
     }
-    uc.append(el("div", "repo-note", "A cap stops MAGI sending requests to this agent once that much "
-      + "of the window is used; the chain hands the task to the next agent. It holds until the window "
-      + "resets or you change it."));
-    const warn = el("div", "use-caps");
+    const warn = el("div", "use-warn");
     warn.append(el("span", "use-caps-l", "Warn me at"));
-    for (const pc of [60, 70, 80, 90]) {
-      const b = el("button", `use-cap-b ${warnAt === pc ? "on" : ""}`, `${pc}%`);
-      b.type = "button";
-      b.dataset.warn = String(pc);
-      b.onclick = () => save("/models/warn", { percent: pc });
-      warn.append(b);
-    }
+    const wrng = document.createElement("input");
+    wrng.type = "range";
+    wrng.className = "use-slider is-plain";
+    wrng.min = "50";
+    wrng.max = "95";
+    wrng.step = "5";
+    wrng.value = String(warnAt || 80);
+    wrng.dataset.warn = String(warnAt || 80);
+    wrng.setAttribute("aria-label", "Warn me at");
+    const wval = el("span", "use-val");
+    const wshow = () => {
+      wval.textContent = `${wrng.value}%`;
+      wrng.style.setProperty("--v", `${(Number(wrng.value) - 50) / 45 * 100}%`);
+    };
+    wshow();
+    wrng.oninput = wshow;
+    wrng.onchange = () => save("/models/warn", { percent: Number(wrng.value) });
+    warn.append(wrng, wval);
     uc.append(warn);
+    uc.append(el("div", "repo-note", "At a cap, the next agent takes over until the window resets."));
     body.append(uc);
 
     // ── credits ──────────────────────────────────────────────────────────
     const cc = el("div", "repo-card");
-    cc.append(el("div", "repo-lbl", agent === "claude" ? "Usage credits" : "ChatGPT credits"));
+    const ch = el("div", "repo-lbl-row");
+    const on = cr.enabled === true && !cr.exhausted;
+    ch.append(el("div", "repo-lbl", agent === "claude" ? "Usage credits" : "ChatGPT credits"),
+      el("span", `credit-st ${on ? "is-on" : cr.exhausted ? "is-bad" : ""}`,
+        on ? "On" : cr.exhausted ? "Used up" : cr.enabled === false ? "Off" : "Checking…"));
+    cc.append(ch);
     const creditModels = models.filter((x) => x.credits).map((x) => x.label);
-    let line;
-    if (cr.enabled === true && !cr.exhausted) {
-      line = "On. Models that need credits can run, and work continues on credits if the plan's limit is reached.";
-    } else if (cr.exhausted) {
-      line = "Used up for this month: models that need credits are unavailable until they reset or the limit is raised.";
-    } else if (cr.enabled === false) {
-      line = "Off. " + (creditModels.length ? `${creditModels.join(", ")} need them and cannot be chosen. ` : "")
-        + "When the plan's limit is reached, this agent waits for the reset.";
-    } else {
-      line = "Not known yet — MAGI reads it with the usage figures.";
-    }
-    cc.append(el("div", "repo-sub", line));
+    const line = on ? "Work continues past the plan's limit."
+      : cr.exhausted ? "Credit models are unavailable until they reset."
+      : cr.enabled === false ? (creditModels.length ? `${creditModels.join(", ")} unavailable. ` : "")
+        + "At the plan's limit, this agent waits."
+      : "";
+    if (line) cc.append(el("div", "repo-sub", line));
     if (agent === "claude" && cr.enabled !== true) {
-      cc.append(repoLink("https://claude.ai/settings/usage", "Turn usage credits on at claude.ai"));
+      cc.append(repoLink("https://claude.ai/settings/usage", "Turn on at claude.ai"));
     }
-    cc.append(el("div", "repo-note", "MAGI notices a change within a few minutes, without a restart."));
     body.append(cc);
 
     // ── the CLI itself ───────────────────────────────────────────────────
@@ -14040,7 +14156,7 @@ function renderCliCard(agent, m, a, onChange, state) {
   const acts = el("div", "cli-acts");
   if (c.installed) {
     const up = el("button", `btn ${c.outdated || (c.waiting || []).length ? "active" : ""}`,
-      c.outdated || (c.waiting || []).length ? "Update now" : "Check for update");
+      c.outdated || (c.waiting || []).length ? "Update now" : "Check for updates");
     up.type = "button";
     up.dataset.act = "update";
     up.disabled = running || state.busy;
@@ -14063,11 +14179,12 @@ function renderCliCard(agent, m, a, onChange, state) {
     };
     acts.append(up);
   }
-  const au = el("button", `use-cap-b cli-auto ${m.auto_update ? "on" : ""}`,
-    m.auto_update ? "Auto-update: on" : "Auto-update: off");
+  const au = el("button", "cli-auto");
+  au.append(el("span", null, "Auto-update"), el("span", "ac-sw"));
   au.type = "button";
   au.dataset.act = "auto";
-  au.setAttribute("aria-pressed", String(!!m.auto_update));
+  au.setAttribute("role", "switch");
+  au.setAttribute("aria-checked", String(!!m.auto_update));
   au.title = "Keep Claude Code and Codex current by themselves, only while nothing is running";
   au.onclick = async () => {
     try {
@@ -14084,9 +14201,7 @@ function renderCliCard(agent, m, a, onChange, state) {
   };
   acts.append(au);
   cc.append(acts);
-  cc.append(el("div", "repo-note", "The copy MAGI runs on the engine PC — separate from the Claude app "
-    + "and VS Code. Updating keeps every account signed in. Auto-update checks every few hours and "
-    + "never while a task is running."));
+  cc.append(el("div", "repo-note", "MAGI's own copy on the engine PC. Never updates mid-task."));
   return cc;
 }
 

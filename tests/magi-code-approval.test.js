@@ -95,7 +95,7 @@ console.log('\nA1 (Phase 14b): writable; it commits and pushes itself');
   ok('the repository line offers no Push where the engine will not push',
      /proj\.write\.push !== false/.test(lift('function codeGitPushBits(proj, d, row)', 900)));
   ok('the Write switch shows the A1 note',
-     /else if \(w\.ok && w\.note\) box\.append\(el\("div", "code-rw-note", w\.note\)\)/.test(MAGI));
+     /else if \(w\.ok && w\.note\) \{/.test(MAGI) && /n\.title = w\.note;/.test(MAGI));
 }
 
 console.log('\nPhone');
