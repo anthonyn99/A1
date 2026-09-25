@@ -142,6 +142,12 @@ ok('a full store is detected without being called blocked',
    !/MAGI_STORAGE_BLOCKED = true;[^\n]*isQuota/.test(guard));
 ok('the pick is stashed in its own try, before the store that may refuse',
    /try \{ sessionStorage\.setItem\(PICK_SS, id\); \} catch \{\}\s*try \{ localStorage\.setItem\(LAST_PROFILE_LS, id\); \} catch \{\}/.test(sel));
+// Setting a password was a dead end: the form had one button.
+const form = MAGI.slice(MAGI.indexOf('function lockFormInto(box)'), MAGI.indexOf('function renderBioButton()'));
+ok('password setup has a way back',
+   /if \(m === "setup"\) \{[\s\S]{0,600}el\("button", "btn", "Back"\)[\s\S]{0,120}hideLock\(\)/.test(form));
+ok('Escape backs out of setup, but only on a profile that is already open',
+   /if \(PROFILE\.unlocked && \(GATE\.picking \|\| LOCK\.mode === "setup"/.test(MAGI));
 ok('the gate says the store is full', /MAGI_STORAGE_FULL\) \{[\s\S]{0,200}gate-storage/.test(MAGI));
 ok('a working browser strips it again', /else u\.searchParams\.delete\(PROFILE_QS\)/.test(rel));
 ok('the url pick is read at load', /if \(urlProfile\(\)\) return urlProfile\(\)/.test(MAGI));

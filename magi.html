@@ -20563,7 +20563,9 @@ document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
   const scr = $("lockScreen");
   if (!scr || scr.hidden) return;
-  if (GATE.picking && PROFILE.unlocked) hideLock();
+  // Only ever for a profile that is already open: on a locked one there is
+  // nothing behind the gate to go back to.
+  if (PROFILE.unlocked && (GATE.picking || LOCK.mode === "setup" || LOCK.mode === "manage")) hideLock();
 });
 
 /** Whose MAGI this is, in the sidebar and the mobile top bar. Two controls,
@@ -20751,7 +20753,15 @@ function lockFormInto(box) {
   go.onclick = lockSubmit;
   row.append(go);
 
-  if (m !== "unlock" && m !== "setup") {
+  if (m === "setup") {
+    // Setup is only ever reached from the padlock, on a profile that is
+    // already open (no password yet), so backing out skips nothing: it goes
+    // back to the council. Without this the card had one button and the form
+    // was a dead end -- no way out but setting a password.
+    const back = el("button", "btn", "Back");
+    back.onclick = () => { LOCK.removing = false; hideLock(); };
+    row.append(back);
+  } else if (m !== "unlock") {
     const cancel = el("button", "btn", "Cancel");
     cancel.onclick = () => {
       LOCK.removing = false;
