@@ -17554,7 +17554,7 @@ function roundHistory(rounds) {
       const pd = el("details", "bs-council");
       pd.append(el("summary", null, "Plan draft at this round"));
       const inner = el("div", "bs-council-answer");
-      const draft = verdictBody(r.plan_so_far);
+      const draft = bsPlanBody(r.plan_so_far);
       inner.append(draft, copyButton(() => ({ node: draft, md: r.plan_so_far }),
                                      { label: "Copy draft", cls: "under" }));
       pd.append(inner);
@@ -17565,6 +17565,55 @@ function roundHistory(rounds) {
     d.append(box);
   }
   return d;
+}
+
+/* ── Brief / Text for Brainstorm ─────────────────────────────────────────
+   The plan drawn as a briefing (briefBody, the same renderer the verdict
+   uses) or as plain text, remembered per device under its own key. A switch
+   re-renders only the plan bodies, in place: a whole-view redraw would throw
+   away answers half-typed into the question cards below. */
+let _bsViewMem = "";
+const BS_VIEW = {
+  get: () => {
+    try { const v = localStorage.getItem("magi.bs.view"); if (v) return v === "text" ? "text" : "brief"; } catch {}
+    return _bsViewMem || "brief";
+  },
+  set: (v) => { _bsViewMem = v; try { localStorage.setItem("magi.bs.view", v); } catch {} },
+};
+
+/** A plan body that follows the Brief/Text switch. The wrapper is stable, so
+ *  a copy button pointed at it keeps working across a switch. */
+function bsPlanBody(text) {
+  const wrap = el("div", "bs-plan-view");
+  wrap._md = String(text || "");
+  wrap.append(BS_VIEW.get() === "brief" ? briefBody(wrap._md) : verdictBody(wrap._md));
+  return wrap;
+}
+
+function bsViewSeg() {
+  const seg = el("span", "br-seg bs-view-seg");
+  const view = BS_VIEW.get();
+  for (const [k, label] of [["brief", "Brief"], ["text", "Text"]]) {
+    const b = el("button", `br-seg-btn ${view === k ? "on" : ""}`, label);
+    b.type = "button";
+    b.dataset.view = k;
+    b.setAttribute("aria-pressed", String(view === k));
+    b.onclick = () => {
+      if (BS_VIEW.get() === k) return;
+      BS_VIEW.set(k);
+      for (const w of document.querySelectorAll(".bs-plan-view")) {
+        w.textContent = "";
+        w.append(k === "brief" ? briefBody(w._md || "") : verdictBody(w._md || ""));
+      }
+      for (const sg of document.querySelectorAll(".bs-view-seg .br-seg-btn")) {
+        const on = sg.dataset.view === k;
+        sg.classList.toggle("on", on);
+        sg.setAttribute("aria-pressed", String(on));
+      }
+    };
+    seg.append(b);
+  }
+  return seg;
 }
 
 function bsDetails(summaryText, bodyText) {
@@ -18006,8 +18055,8 @@ function renderBsView() {
     // Built here so the bar's copy button can point at the rendered plan; it
     // is appended further down, where it belongs on screen.
     const planBody = el("div", "verdict");
-    planBody.append(verdictBody(bs.planMd));
-    bar.append(save, copyButton(() => ({ node: planBody, md: bs.planMd || "" }),
+    planBody.append(bsPlanBody(bs.planMd));
+    bar.append(bsViewSeg(), save, copyButton(() => ({ node: planBody, md: bs.planMd || "" }),
                                 { label: "Copy plan" }));
     root.append(bar);
 
@@ -18049,8 +18098,8 @@ function renderBsView() {
       vh.append(el("span", "verdict-title", "Plan so far"),
                 el("span", "verdict-quorum",
                    `round ${latest.round_no}` + (latest.chairman ? ` · merged by ${latest.chairman}` : "")));
-      const planNow = verdictBody(latest.plan_so_far);
-      vh.append(copyButton(() => ({ node: planNow, md: latest.plan_so_far })));
+      const planNow = bsPlanBody(latest.plan_so_far);
+      vh.append(bsViewSeg(), copyButton(() => ({ node: planNow, md: latest.plan_so_far })));
       v.append(vh, planNow);
       root.append(v);
 
@@ -18069,8 +18118,8 @@ function renderBsView() {
       const vh = el("div", "verdict-hd");
       vh.append(el("span", "verdict-title", `Round ${latest.round_no}`),
                 el("span", "verdict-quorum", "unstructured response"));
-      const rawNow = verdictBody(latest.raw_text);
-      vh.append(copyButton(() => ({ node: rawNow, md: latest.raw_text })));
+      const rawNow = bsPlanBody(latest.raw_text);
+      vh.append(bsViewSeg(), copyButton(() => ({ node: rawNow, md: latest.raw_text })));
       v.append(vh, rawNow);
       root.append(v);
     }
