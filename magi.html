@@ -18099,7 +18099,9 @@ function renderBsView() {
                 el("span", "verdict-quorum",
                    `round ${latest.round_no}` + (latest.chairman ? ` · merged by ${latest.chairman}` : "")));
       const planNow = bsPlanBody(latest.plan_so_far);
-      vh.append(bsViewSeg(), copyButton(() => ({ node: planNow, md: latest.plan_so_far })));
+      const acts = el("span", "verdict-acts");
+      acts.append(bsViewSeg(), copyButton(() => ({ node: planNow, md: latest.plan_so_far })));
+      vh.append(acts);
       v.append(vh, planNow);
       root.append(v);
 
@@ -18119,7 +18121,9 @@ function renderBsView() {
       vh.append(el("span", "verdict-title", `Round ${latest.round_no}`),
                 el("span", "verdict-quorum", "unstructured response"));
       const rawNow = bsPlanBody(latest.raw_text);
-      vh.append(bsViewSeg(), copyButton(() => ({ node: rawNow, md: latest.raw_text })));
+      const acts = el("span", "verdict-acts");
+      acts.append(bsViewSeg(), copyButton(() => ({ node: rawNow, md: latest.raw_text })));
+      vh.append(acts);
       v.append(vh, rawNow);
       root.append(v);
     }
