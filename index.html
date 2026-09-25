@@ -8234,10 +8234,11 @@ function HabitModal({open,onClose,onSave,initial,T,titleFont}){
 // three warm categories stay apart. DELIBERATELY out of step with
 // oneinbox.html's --c-package, which tints filter chips in a list where it has
 // to stay distinguishable from the other categories.
-// package is a true coral (hue ~13deg). Kept clear of bill's dusty rose #d68a7c
-// (a muted, pinker tone), appointment's tan #d9b38f and the danger red #f85149,
-// so no two card kinds in a weekly cell share a colour.
-const OI_COLOR={coupon:"#8d8d94",package:"#ef7a5a",bill:"#d68a7c",subscription:"#b8a6d0",travel:"#7fc4b8",appointment:"#d9b38f"};
+// package is a light, luminous coral (hue ~16deg, L~77%). Kept clear of bill's
+// dusty rose #d68a7c (darker, pinker), appointment's tan #d9b38f (duller, more
+// yellow) and the danger red #f85149, so no two card kinds in a weekly cell
+// share a colour.
+const OI_COLOR={coupon:"#8d8d94",package:"#f7a48b",bill:"#d68a7c",subscription:"#b8a6d0",travel:"#7fc4b8",appointment:"#d9b38f"};
 // Every OneInbox card fills with the SAME soft grey gradient the macro-catalyst
 // cards use (wkCatalystCard below reads this constant too). The kind's colour
 // still carries the left bar, the outline, the header, the amount and the
