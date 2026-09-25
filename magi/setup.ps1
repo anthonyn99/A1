@@ -200,5 +200,5 @@ Write-Host "     (If Chrome asks to let the page reach devices on this network, 
 Write-Host "  2. Accounts > each council unit > Sign in: a Chrome window opens; sign in by hand."
 Write-Host "  3. Accounts > Coding agents: Claude uses this PC's Claude Code login (already signed in if"
 Write-Host "     Claude Code runs here); Codex > Sign in shows a code to enter at OpenAI."
-Write-Host "  4. Accounts > GitHub > Add a token (fine-grained; Contents: Read and write on A1)."
+Write-Host "  4. Accounts > GitHub > Sign in with GitHub (enter the code it shows at github.com/login/device)."
 Write-Host "  Phones and other PCs pick the engine up by themselves once step 1 has connected."

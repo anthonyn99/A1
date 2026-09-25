@@ -42,6 +42,7 @@ from .errors import FailureKind, explain
 from .providers import gemini_api
 from .providers.base import ProviderEvent, RunContext
 from . import proc
+from . import selfupdate
 from .fanout import Broadcast
 from .providers.registry import build_provider, build_providers
 from .settings import (
@@ -62,6 +63,9 @@ _runs: dict[str, dict] = {}
 # _runs (by job_id, not run_id) because one run can have several Studio
 # artifacts generating at once.
 _studio_jobs: dict[str, dict] = {}
+# The engine code this process was started from (selfupdate.code_rev). The
+# watchdog compares it with the checkout and restarts a stale engine.
+CODE_REV = selfupdate.code_rev()
 
 # job_id -> live state for one brainstorm round or finalise. Keyed by job
 # rather than session for the same reason as Studio: the stream belongs to the
@@ -308,6 +312,7 @@ async def health():
         # Stable across restarts, unlike `instance`, so a console can name
         # this engine in a list and mean the same machine tomorrow.
         "engine": ident.engine_identity(),
+        "code_rev": CODE_REV,
         "power": KEEP_AWAKE.state(),
         "providers": settings.enabled_site_ids(),
         "pacing": {
@@ -391,7 +396,11 @@ async def restart_engine(request: Request, force: bool = False):
     # way to resume, and the task is in memory like a council run is.
     from .code import tasks as _code_tasks
     code_live = _code_tasks.running()
-    if (runs_live or cards_live or code_live) and not force:
+    # A brainstorm round and a sign-in are just as live, and the automatic
+    # updater asks here too -- it must never cut one off.
+    bs_live = [j for j, st in _brainstorm_jobs.items() if not st.get("done")]
+    login_live = [s for s, j in _logins.items() if j.state in ("opening", "waiting")]
+    if (runs_live or cards_live or code_live or bs_live or login_live) and not force:
         what = []
         if runs_live:
             what.append(f"{len(runs_live)} deliberation{'s' if len(runs_live) > 1 else ''}")
@@ -399,6 +408,10 @@ async def restart_engine(request: Request, force: bool = False):
             what.append(f"{len(cards_live)} Studio card{'s' if len(cards_live) > 1 else ''}")
         if code_live:
             what.append(f"{len(code_live)} Code Mode task{'s' if len(code_live) > 1 else ''}")
+        if bs_live:
+            what.append("a brainstorm round")
+        if login_live:
+            what.append("a sign-in")
         raise HTTPException(409, f"{' and '.join(what)} still running.")
 
     # Detached AND in its own process group, so it is not a child this process

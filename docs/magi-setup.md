@@ -91,8 +91,16 @@ schtasks /query /tn "MAGI Engine (veda)"             # the logon task exists
 
 ## After any change to `magi\`
 
-The engine runs the code it started with. Restart it yourself (it finds
-`veda` on its own on her PC) and check it answers:
+Nothing to do. Every engine updates itself (`magi\selfupdate.py`): the
+watchdog task fetches A1 every few minutes, pulls anything pushed, installs
+any new package, and restarts the engine once its code is stale -- only while
+it is idle (no deliberation, Studio card, brainstorm, Code Mode task or
+sign-in). The console's **Restart engine** button also pulls and installs
+before restarting. Log: `magi\data\<profile>\update.log`.
+
+An engine set up before 2026-09-25 has no updater yet: run
+`magi\setup.ps1 -Profile veda` on it once. To update and restart by hand at
+any time:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File magi\restart.ps1

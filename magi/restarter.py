@@ -69,6 +69,15 @@ def main(argv: list[str]) -> int:
     if not _port_free(port) and not _alive(pid):
         return 1
 
+    # The console's "Restart engine" picks up everything, not just the code
+    # already on disk: pull what has been pushed and install any new package
+    # first. Best effort -- a failed pull still restarts on the code we have.
+    try:
+        from . import selfupdate
+        selfupdate.update_checkout()
+    except Exception:  # noqa: BLE001
+        pass
+
     # Hand it back to Task Scheduler where possible: the engine runs as the
     # "MAGI Engine" task, and a task's leftover children are killed when the
     # task ends -- so a replacement started as a plain child of this process

@@ -160,6 +160,15 @@ def main(port: int | None = None) -> int:
     if port is None:
         port = _configured_port()
     if healthy(port):
+        # Up. Keep it current: pull what has been pushed and restart it when
+        # its code is stale -- only ever while it is idle (selfupdate.tick).
+        try:
+            from . import selfupdate
+            note = selfupdate.tick(port)
+            if note not in ("current", "settling"):
+                _say(f"update: {note}")
+        except Exception as e:  # noqa: BLE001 — the watchdog must never die of this
+            _say(f"update check failed: {e}")
         return 0
     # Checked twice, a few seconds apart: an engine in the middle of starting
     # (or restarting itself) is not a dead one, and starting a second engine
@@ -168,6 +177,12 @@ def main(port: int | None = None) -> int:
     if healthy(port):
         return 0
     _say("engine not answering -- starting it")
+    # A crashed engine may be one a pushed fix would cure.
+    try:
+        from . import selfupdate
+        selfupdate.update_checkout()
+    except Exception:  # noqa: BLE001
+        pass
     start()
     for _ in range(40):
         time.sleep(1.5)

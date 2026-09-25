@@ -139,6 +139,15 @@ foreach ($c in @(Get-NetTCPConnection -LocalPort $port -State Listen -ErrorActio
 }
 Start-Sleep -Seconds 1
 
+# Pick up everything pushed, and any new package, before starting -- the same
+# step the console's Restart button and the watchdog take (magi/selfupdate.py).
+$pyc = Join-Path $root "magi\.venv\Scripts\python.exe"
+try {
+    Push-Location $root
+    $upd = & $pyc -m magi.selfupdate 2>&1 | Out-String
+    Write-Host ("update: " + $upd.Trim())
+} catch { Write-Host "update skipped: $_" } finally { Pop-Location }
+
 # 3. Start, the way the Startup shortcut does: pythonw (no console window),
 #    working directory A1, detached from this shell.
 Start-Process -FilePath $py -ArgumentList (@("-m", "magi", "cloud", "--port", "$port") + $profileArgs) -WorkingDirectory $root -WindowStyle Hidden

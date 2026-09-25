@@ -7124,6 +7124,7 @@ function openSetup() {
   // Offered only where it can work: the engine refuses a restart that arrived
   // over the tunnel, so from a phone this button would 404 by design.
   const restart = el("button", "btn", "Restart engine");
+  restart.title = "Pulls everything pushed to A1, installs any new package, then restarts";
   const close = el("button", "btn", "Close");
   bar.append(save, revert, retry, restart, el("span", "qbar-spacer"), close);
   box.append(bar, msg);
@@ -7144,6 +7145,24 @@ function openSetup() {
     show(restart, link.where === "local");
   };
 
+  // Engines from before automatic updates report no code_rev, and their
+  // restart only reloads the code already on disk. Say so, once, with the one
+  // command that brings them onto the self-updating version.
+  const legacy = el("div", "sheet-err");
+  legacy.hidden = true;
+  box.insertBefore(legacy, bar);
+  if (online()) {
+    fetch(`${link.api}/api/health`, authed()).then((r) => r.json()).then((h) => {
+      if (h && !("code_rev" in h)) {
+        const who = h.profile && h.profile !== "tony" ? ` -Profile ${h.profile}` : "";
+        legacy.innerHTML = "This engine predates automatic updates, so Restart only reloads the code it " +
+          "already has. Run this once on that PC (in the A1 folder) — from then on it updates itself:<br>" +
+          `<code>powershell -ExecutionPolicy Bypass -File magi\\setup.ps1${who}</code>`;
+        legacy.hidden = false;
+      }
+    }).catch(() => {});
+  }
+
   /* Restart the engine, from the console.
    *
    *  The engine reads its Python once, at import, so a fix under magi/ does
@@ -7161,7 +7180,7 @@ function openSetup() {
   restart.onclick = async () => {
     restart.disabled = true;
     msg.className = "sheet-note";
-    msg.textContent = "Restarting the engine…";
+    msg.textContent = "Updating and restarting the engine…";
     let r;
     try {
       r = await fetch(`${link.api}/api/restart${forceNext ? "?force=true" : ""}`,
@@ -7187,14 +7206,15 @@ function openSetup() {
     forceNext = false;
     restart.textContent = "Restart engine";
     // It takes a few seconds to come back: the old process has to exit and
-    // release the port before the new one can bind it.
-    for (let i = 0; i < 40; i++) {
+    // release the port, and the restarter pulls (and installs any new
+    // package, which can take a minute or two) before starting the new one.
+    for (let i = 0; i < 240; i++) {
       await new Promise((ok) => setTimeout(ok, 1000));
-      msg.textContent = `Restarting the engine… ${i + 1}s`;
+      msg.textContent = `Updating and restarting the engine… ${i + 1}s`;
       await connect();
       if (online()) {
         msg.className = "sheet-ok";
-        msg.textContent = "Engine restarted and running the current code.";
+        msg.textContent = "Engine restarted on the latest code.";
         restart.disabled = false;
         boot();
         return;
