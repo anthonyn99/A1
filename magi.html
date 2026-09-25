@@ -7910,8 +7910,19 @@ function verdictBody(text) {
    as a hero plus prose, never worse than the text view. */
 
 const VERDICT_VIEW = {
-  get: () => { try { return localStorage.getItem("magi.verdict.view") === "text" ? "text" : "brief"; } catch { return "brief"; } },
-  set: (v) => { try { localStorage.setItem("magi.verdict.view", v); } catch {} },
+  // localStorage is the source of truth when it works, but a write that
+  // throws (storage blocked/disabled) must not silently undo the click --
+  // without this, the toggle would visibly snap back to Brief on every
+  // render because get() re-reads storage right after a failed set().
+  _mem: "brief",
+  get: () => {
+    try { const v = localStorage.getItem("magi.verdict.view"); if (v) return v === "text" ? "text" : "brief"; } catch {}
+    return VERDICT_VIEW._mem;
+  },
+  set: (v) => {
+    VERDICT_VIEW._mem = v;
+    try { localStorage.setItem("magi.verdict.view", v); } catch {}
+  },
 };
 
 /** "**Label:** rest" / "**Label** — rest" -> { label, rest }; null otherwise. */
