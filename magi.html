@@ -3207,6 +3207,12 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
   margin-top: 12px;
 }
 .gate-lede { color: var(--txd); font-size: 12px; margin-top: 8px; }
+.gate-storage {
+  max-width: 420px; margin-top: 18px; padding: 10px 14px; border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--amber) 45%, transparent);
+  color: var(--txd); font-size: 12px; line-height: 1.55; text-align: center;
+}
+.gate-storage strong { color: var(--amber); font-weight: 600; }
 
 /* Two cards side by side on a desktop, stacked on a phone. `align-items:
    flex-start` matters: the expanded card must be free to grow downwards
@@ -5011,6 +5017,37 @@ html.modal-open .page, html.modal-open .sidebar { overflow: hidden; }
    tests/ui-width-cap.test.js fails the build if this goes missing. */
 body { max-width: 2000px; margin-inline: auto; }
 </style>
+<script id="storage-guard">
+/* A browser that blocks site storage (Brave Shields "block all cookies",
+   Chrome's "block all cookies", some privacy extensions) makes every touch of
+   localStorage/sessionStorage THROW. The page wraps each one in a silent
+   try/catch, so every button that saves a choice -- the profile star, Brief/
+   Text, picking the other profile -- quietly did nothing on such a device.
+   Swap in in-memory stores so everything works for the session; the page
+   says out loud that nothing will be remembered (MAGI_STORAGE_BLOCKED). */
+(function () {
+  function memStore() {
+    var m = new Map();
+    return {
+      getItem: function (k) { k = String(k); return m.has(k) ? m.get(k) : null; },
+      setItem: function (k, v) { m.set(String(k), String(v)); },
+      removeItem: function (k) { m.delete(String(k)); },
+      clear: function () { m.clear(); },
+      key: function (i) { return Array.from(m.keys())[i] ?? null; },
+      get length() { return m.size; },
+    };
+  }
+  window.MAGI_STORAGE_BLOCKED = false;
+  ["localStorage", "sessionStorage"].forEach(function (name) {
+    // A read, never a write: a FULL store throws on setItem too, and treating
+    // that as blocked would hide everything this device has already saved.
+    try { window[name].getItem("magi.probe"); } catch (e) {
+      window.MAGI_STORAGE_BLOCKED = true;
+      try { Object.defineProperty(window, name, { value: memStore(), configurable: true, writable: true }); } catch (e2) {}
+    }
+  });
+})();
+</script>
 <script id="mail-relay">
 /* == Recovery-mail relay ===================================================
    The worker mints the reset code and the hint text, but it cannot always
@@ -5560,6 +5597,19 @@ const HANDOFF_PROFILE = "tony";
 // fragment by then, so there is nothing left in the url to read afterwards.
 const HANDOFF_SS = "magi.handoff";
 const hasHandoffHash = () => { try { return /[#&]tb=/.test(location.hash || ""); } catch { return false; } };
+// Where storage is blocked, a pick cannot survive the reload that performs it
+// in sessionStorage -- so it rides in the url, the one thing a reload keeps.
+const PROFILE_QS = "profile";
+const urlProfile = () => {
+  try { const p = new URL(location.href).searchParams.get(PROFILE_QS); return MAGI_PROFILES[p] ? p : ""; } catch { return ""; }
+};
+function reloadAsProfile(id) {
+  const u = new URL(location.href);
+  if (window.MAGI_STORAGE_BLOCKED) u.searchParams.set(PROFILE_QS, id);
+  else u.searchParams.delete(PROFILE_QS);
+  if (u.href === location.href) location.reload();
+  else location.replace(u.href);
+}
 
 const PROFILE = {
   // Resolved synchronously, before any key constant below is evaluated. The
@@ -5576,6 +5626,7 @@ const PROFILE = {
       const p = sessionStorage.getItem(PICK_SS);
       if (p && MAGI_PROFILES[p]) return p;
     } catch {}
+    if (urlProfile()) return urlProfile();
     for (const key of [FAV_PROFILE_LS, LAST_PROFILE_LS]) {
       try {
         const v = localStorage.getItem(key);
@@ -7925,19 +7976,8 @@ function verdictBody(text) {
    as a hero plus prose, never worse than the text view. */
 
 const VERDICT_VIEW = {
-  // localStorage is the source of truth when it works, but a write that
-  // throws (storage blocked/disabled) must not silently undo the click --
-  // without this, the toggle would visibly snap back to Brief on every
-  // render because get() re-reads storage right after a failed set().
-  _mem: "brief",
-  get: () => {
-    try { const v = localStorage.getItem("magi.verdict.view"); if (v) return v === "text" ? "text" : "brief"; } catch {}
-    return VERDICT_VIEW._mem;
-  },
-  set: (v) => {
-    VERDICT_VIEW._mem = v;
-    try { localStorage.setItem("magi.verdict.view", v); } catch {}
-  },
+  get: () => { try { return localStorage.getItem("magi.verdict.view") === "text" ? "text" : "brief"; } catch { return "brief"; } },
+  set: (v) => { try { localStorage.setItem("magi.verdict.view", v); } catch {} },
 };
 
 /** "**Label:** rest" / "**Label** — rest" -> { label, rest }; null otherwise. */
@@ -9847,6 +9887,8 @@ window.addEventListener("hashchange", () => {
  *  Returns true when a reload is happening and the caller should stop. */
 function adoptHandoffProfile(h) {
   if (!h || PROFILE.id === HANDOFF_PROFILE) return false;
+  // Blocked storage is an in-memory stand-in: the stash would not survive.
+  if (window.MAGI_STORAGE_BLOCKED) return false;
   try {
     sessionStorage.setItem(HANDOFF_SS, JSON.stringify(h));
     sessionStorage.setItem(PICK_SS, HANDOFF_PROFILE);
@@ -20377,7 +20419,7 @@ function selectProfile(id) {
     // Beats the favourite for this tab, so switching actually switches.
     sessionStorage.setItem(PICK_SS, id);
   } catch {}
-  location.reload();
+  reloadAsProfile(id);
 }
 
 /** The profile chip: show both people, neither expanded. Escape backs out,
@@ -20431,6 +20473,14 @@ function renderLock() {
   const cards = el("div", "gate-cards");
   for (const id of PROFILE_ORDER) cards.append(gateCard(id));
   wrap.append(cards);
+  if (window.MAGI_STORAGE_BLOCKED) {
+    const n = el("div", "gate-storage");
+    n.append(el("strong", null, "This browser is blocking site storage."),
+      " Everything works, but nothing is remembered once this tab closes: the star, "
+      + "your settings, staying unlocked. In Brave, click the lion icon in the address bar "
+      + "and allow cookies for this site.");
+    wrap.append(n);
+  }
   scr.append(wrap);
 
   const p1 = $("lockPw1");
@@ -20463,7 +20513,8 @@ function gateCard(id) {
   fav.innerHTML = STAR;
   fav.title = favProfile() === id
     ? "This device opens as " + p.label + " — click to stop"
-    : "Always open this device as " + p.label;
+    : "Always open this device as " + p.label
+      + (window.MAGI_STORAGE_BLOCKED ? " (only until this tab closes: this browser blocks site storage)" : "");
   fav.onclick = (e) => { e.stopPropagation(); toggleFav(id); };
   head.append(fav);
   card.append(head);

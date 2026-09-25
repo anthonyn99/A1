@@ -123,8 +123,21 @@ ok('both cards are rendered', /for \(const id of PROFILE_ORDER\) cards\.append\(
 
 console.log('\nSwitching profile is a reload, not a reassignment');
 const sel = lift('function selectProfile(id)');
-ok('the other profile reloads', /location\.reload\(\)/.test(sel),
+const rel = lift('function reloadAsProfile(id)');
+ok('the other profile reloads', /reloadAsProfile\(id\)/.test(sel) && /location\.(reload|replace)\(/.test(rel),
    'key constants are evaluated once at load; reassigning PROFILE.id would strand them');
+
+console.log('\nA browser that blocks site storage still works');
+ok('storage is guarded before any other script runs',
+   MAGI.indexOf('id="storage-guard"') >= 0 && MAGI.indexOf('id="storage-guard"') < MAGI.indexOf('<script', MAGI.indexOf('id="storage-guard"') + 1));
+ok('the guard probes with a read, never a write', /window\[name\]\.getItem\("magi\.probe"\)/.test(MAGI) && !/setItem\("magi\.probe"/.test(MAGI),
+   'a FULL store throws on setItem; treating it as blocked would hide saved data');
+ok('a blocked pick rides in the url across the reload', /MAGI_STORAGE_BLOCKED\) u\.searchParams\.set\(PROFILE_QS, id\)/.test(rel));
+ok('a working browser strips it again', /else u\.searchParams\.delete\(PROFILE_QS\)/.test(rel));
+ok('the url pick is read at load', /if \(urlProfile\(\)\) return urlProfile\(\)/.test(MAGI));
+ok('a handoff is not stashed into memory that a reload would lose',
+   /MAGI_STORAGE_BLOCKED\) return false/.test(lift('function adoptHandoffProfile(h)')));
+ok('the gate says storage is blocked', /gate-storage/.test(MAGI));
 ok('the choice is remembered first', /setItem\(LAST_PROFILE_LS, id\)/.test(sel));
 ok('PROFILE.id is resolved from storage at load', /localStorage\.getItem\(key\)/.test(MAGI));
 
