@@ -22,15 +22,10 @@ const toggleEl  = document.getElementById("reorder-toggle");
 // index.html keeps a redirect from the old ?goto=keychain link to this URL, so
 // an extension build older than this one still lands in the right place.
 const VAULT_APP_URL = "https://anthonyn99.github.io/A1/vault.html";
-// The Links tab's gear — link groups are managed on Vault's Keychain tab, which
-// is the tab vault.html opens on by default.
-const TASKHUB_KEYCHAIN_URL = VAULT_APP_URL;
-// Straight to Passwords / Payments, where those items are created and edited.
-// ?vaulttab is read by vault-ui.js on boot.
-const TASKHUB_VAULT_PW_URL = VAULT_APP_URL + "?vaulttab=passwords";
-const TASKHUB_VAULT_PAY_URL = VAULT_APP_URL + "?vaulttab=payments";
-const TASKHUB_VAULT_ID_URL = VAULT_APP_URL + "?vaulttab=iddocs";
-const TASKHUB_VAULT_API_URL = VAULT_APP_URL + "?vaulttab=apikeys";
+// Every gear opens the Vault app on the tab matching the popup's (Links ->
+// Keychain, Passwords -> Passwords, ...). A fresh tab gets ?vaulttab=<tab>,
+// which vault-ui.js reads on boot; see openVaultApp for an already-open one.
+function vaultTabUrl(tab) { return VAULT_APP_URL + "?vaulttab=" + tab; }
 
 // ── Opening the Vault app — one tab, brought forward, never a second copy ──
 // The same rule index.html applies to every button that leaves it (_tnOpenTab
@@ -40,13 +35,12 @@ const TASKHUB_VAULT_API_URL = VAULT_APP_URL + "?vaulttab=apikeys";
 // them; the extension has chrome.tabs, so it finds an open Vault however it got
 // there — typed, bookmarked, restored by the browser, or launched from Index.
 //
-// "Already there" is judged the way index.html's atDest() judges it: compare
-// without the hash, and count a url that merely STARTS with the one we want as
-// the same place. So the Links gear focuses whatever Vault is open rather than
-// yanking it off Payments, while the Payments gear on a Vault sitting at
-// Keychain still navigates it — you asked for Payments, you should land on
-// Payments. A tab already at the destination is ONLY focused, never reloaded,
-// so an unlocked session and half-typed edits survive the click.
+// An already-open Vault is never reloaded: only its HASH changes, to
+// #vaulttab=<tab>.<nonce>, which vault-ui.js hears (hashchange) and switches
+// tabs in place — an unlocked session and half-typed edits survive the click.
+// The nonce makes a repeat click fire hashchange even when the hash would
+// otherwise be identical. Focusing the tab alone was the old bug: a Vault
+// sitting on Payments stayed on Payments when you asked for Keychain.
 const VAULT_TAB_KEY = "vault";
 
 // ?a1tab=vault is the key index.html uses for this destination. A toolbar popup
@@ -59,18 +53,13 @@ function withTabKey(url) {
   return url + (url.indexOf("?") === -1 ? "?" : "&") + "a1tab=" + VAULT_TAB_KEY;
 }
 
-function atDest(cur, url) {
-  const c = String(cur || "").split("#")[0], u = String(url || "").split("#")[0];
-  return !!c && (c === u || c.indexOf(u) === 0);
-}
-
 // `done` fires once the tab is open and focused. The caller must not close the
 // popup before then: closing it tears this context down along with every
 // pending chrome.* callback, and the tab we found would never come forward.
-function openVaultApp(url, done) {
+function openVaultApp(tab, done) {
   let settled = false;
   const finish = () => { if (settled) return; settled = true; try { done && done(); } catch (_) {} };
-  const create = () => { try { chrome.tabs.create({ url: withTabKey(url) }); } catch (_) {} finish(); };
+  const create = () => { try { chrome.tabs.create({ url: withTabKey(vaultTabUrl(tab)) }); } catch (_) {} finish(); };
 
   // Match on the app url with a trailing wildcard so every ?vaulttab of it
   // counts as the same app. Allowed by the anthonyn99.github.io host permission
@@ -79,9 +68,13 @@ function openVaultApp(url, done) {
   try {
     chrome.tabs.query({ url: VAULT_APP_URL + "*" }, (tabs) => {
       if (chrome.runtime.lastError || !Array.isArray(tabs) || !tabs.length) { create(); return; }
-      const hit = tabs.find((t) => t && atDest(t.url, url)) || tabs[0];
+      const hit = tabs.find((t) => t && t.active) || tabs[0];
       if (!hit || hit.id == null) { create(); return; }
-      const props = atDest(hit.url, url) ? { active: true } : { active: true, url: withTabKey(url) };
+      // No url (tab still loading, or no host permission): reload it onto the
+      // tab rather than lose the ask.
+      const props = hit.url
+        ? { active: true, url: String(hit.url).split("#")[0] + "#vaulttab=" + tab + "." + Date.now() }
+        : { active: true, url: withTabKey(vaultTabUrl(tab)) };
       try {
         chrome.tabs.update(hit.id, props, () => {
           // Focusing the tab is not enough when it lives in another window —
@@ -550,13 +543,6 @@ const TAB_TITLES = {
   apikeys: "Manage API keys in the Vault app",
   links: "Open the Vault app",
 };
-const TAB_GEAR_URLS = {
-  passwords: TASKHUB_VAULT_PW_URL,
-  payments: TASKHUB_VAULT_PAY_URL,
-  iddocs: TASKHUB_VAULT_ID_URL,
-  apikeys: TASKHUB_VAULT_API_URL,
-  links: TASKHUB_KEYCHAIN_URL,
-};
 
 function setActiveTab(name) {
   activeTab = name;
@@ -577,10 +563,10 @@ document.querySelectorAll(".tab").forEach(tab =>
   tab.addEventListener("click", () => setActiveTab(tab.dataset.panel)));
 
 gearEl.addEventListener("click", () => {
-  // Each vault tab's gear deep-links to the matching tab of the Vault app (where
-  // items are created/edited); Links opens Keychain. openVaultApp reuses the
-  // Vault tab that is already open, so the popup closes only once it has.
-  openVaultApp(TAB_GEAR_URLS[activeTab] || TASKHUB_KEYCHAIN_URL, () => window.close());
+  // Each gear deep-links to the matching tab of the Vault app (where items are
+  // created/edited); Links opens Keychain. openVaultApp reuses the Vault tab
+  // that is already open, so the popup closes only once it has.
+  openVaultApp(TAB_TITLES[activeTab] ? activeTab : "links", () => window.close());
 });
 
 // ── Load from the shared Keychain doc + live refresh ──

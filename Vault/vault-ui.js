@@ -2319,12 +2319,29 @@
     document.body.classList.toggle('vault-active', !!vis); // scopes the wide page scrollbar to Vault
     if (vis && !$('vault-tabs')) activate();
   }
+  function consumeTabHash() {
+    try {
+      var m = /^#vaulttab=([a-z]+)/.exec(location.hash || '');
+      if (!m || !(SECRET_TABS[m[1]] || m[1] === 'links')) return;
+      // Drop the hash and record the tab in ?vaulttab, so a reload lands where
+      // the user is instead of on whatever tab the url first opened with.
+      var p = new URLSearchParams(location.search); p.set('vaulttab', m[1]);
+      history.replaceState(history.state, '', location.pathname + '?' + p.toString());
+      if ($('vault-tabs')) showTab(m[1]); else activeTab = m[1];
+    } catch (e) {}
+  }
   function boot() {
     if (!window.VaultCrypto || !window.VaultStore || !window.VaultSession) { return setTimeout(boot, 200); }
     VC = window.VaultCrypto; VaultStore = window.VaultStore; VaultSession = window.VaultSession;
     // Deep link: ?vaulttab=passwords|payments|sensitive (e.g. from the Vault
     // extension's gear) opens Vault directly on that tab.
     try { var vt = new URLSearchParams(location.search).get('vaulttab'); if (SECRET_TABS[vt] || vt === 'links') activeTab = vt; } catch (e) {}
+    // An ALREADY-open Vault gets the same ask as #vaulttab=<tab>.<nonce>: the
+    // extension's gear only changes the hash, so the page switches tabs without
+    // reloading (an unlocked session and half-typed edits survive). The nonce
+    // makes a repeat click on the same tab still fire hashchange.
+    consumeTabHash();
+    window.addEventListener('hashchange', consumeTabHash);
     // Poll for visibility (the nav toggles #kc-root display); cheap + robust
     // against the many code paths that can switch programs.
     setInterval(tick, 500);
