@@ -533,11 +533,80 @@ REELS_WATCH_VIDEO_BATCH = 120
 _reels_watch_started = False
 _reels_last_seen_refresh = 0
 
+# ── Auto-refresh of expiring video urls ──
+# IG's signed mp4 urls die within ~a day (each url's oe=), and a reel with a
+# dead one falls back to the IG embed: a play button, "Watch on Instagram", the
+# likes row — the noise the widget exists to avoid, and no autoplay. So the
+# bridge re-harvests on its own when the FIRST url is about to die, re-extracting
+# every url due within driver.REELS_VIDEO_REEXTRACT_AHEAD_MS in the same run.
+# Chosen 2026-09-26 over storing the mp4s (it costs IG visits, not shared KV
+# space). It only runs while this PC is on: a reel whose url expired while the
+# PC was off is refreshed on the first check after the bridge starts.
+REELS_AUTO_CHECK_S = 10 * 60          # reads the whole doc, so not every 12s tick
+REELS_AUTO_AHEAD_MS = 60 * 60 * 1000  # trigger when the earliest url is this close
+# Floor between AUTOMATIC harvests. A reel whose extraction keeps failing keeps
+# its dead url, so without this it would re-trigger a full harvest every check.
+REELS_AUTO_MIN_GAP_S = 6 * 60 * 60
+_reels_last_auto = 0.0
+_reels_last_auto_check = 0.0
+
+
+def _reels_harvest(why: str) -> bool:
+    """One Boosts harvest in-process. False only when another run holds the
+    lock, so the caller can try again next tick instead of dropping it."""
+    args = argparse.Namespace(
+        site="instagram", user="", collection=REELS_WATCH_COLLECTION,
+        headful=False, dry_run=False, collections=False, probe=False,
+        # Cover the whole collection, so no reel is left on the iframe
+        # fallback (which cannot autoplay and shows Instagram's own
+        # "Watch on Instagram" overlay). Boosts is small enough that this
+        # is a few minutes; the CLI default stays tuned for big ones.
+        videos=REELS_WATCH_VIDEO_BATCH,
+    )
+    try:
+        out = asyncio.run(driver.cmd_reels(args))
+        print(f"[reels-watch] {why}: harvested {REELS_WATCH_COLLECTION}: {out}")
+    except driver.DriverError as e:
+        if e.kind == "already_running":
+            # A manual `driver.py reels` is already mid-run on this PC.
+            return False
+        print(f"[reels-watch] {why}: harvest failed: {e.kind}: {e.message}")
+    except Exception as e:
+        print(f"[reels-watch] {why}: harvest crashed: {e}")
+    return True
+
+
+def _reels_videos_due(doc: dict, now_ms: int) -> bool:
+    """True when some stored video url dies within REELS_AUTO_AHEAD_MS."""
+    deadlines = [d for d in (driver.reel_video_deadline(r, now_ms)
+                             for r in doc.get("reels") or []) if d]
+    return bool(deadlines) and min(deadlines) < now_ms + REELS_AUTO_AHEAD_MS
+
+
+def _reels_auto_tick():
+    global _reels_last_auto, _reels_last_auto_check
+    now = time.time()
+    if now - _reels_last_auto_check < REELS_AUTO_CHECK_S:
+        return
+    _reels_last_auto_check = now
+    if now - _reels_last_auto < REELS_AUTO_MIN_GAP_S:
+        return
+    doc = driver.read_reels_cloud()        # {} when unreachable: nothing due
+    if not _reels_videos_due(doc, int(now * 1000)):
+        return
+    _reels_last_auto = now
+    if not _reels_harvest("video urls expiring"):
+        _reels_last_auto = 0.0             # locked out: retry at the next check
+
 
 def _reels_watch_loop():
     global _reels_last_seen_refresh
     while True:
         time.sleep(REELS_WATCH_POLL_S)
+        try:
+            _reels_auto_tick()
+        except Exception as e:
+            print(f"[reels-watch] auto-refresh check failed: {e}")
         try:
             cfg = driver.read_reels_cfg()
         except Exception as e:
@@ -558,28 +627,10 @@ def _reels_watch_loop():
         # read ({}) falls through to harvesting, the safe direction.
         if requested <= (driver.read_reels_cloud().get("savedAt") or 0):
             continue
-        args = argparse.Namespace(
-            site="instagram", user="", collection=REELS_WATCH_COLLECTION,
-            headful=False, dry_run=False, collections=False, probe=False,
-            # Cover the whole collection, so no reel is left on the iframe
-            # fallback (which cannot autoplay and shows Instagram's own
-            # "Watch on Instagram" overlay). Boosts is small enough that this
-            # is a few minutes; the CLI default stays tuned for big ones.
-            videos=REELS_WATCH_VIDEO_BATCH,
-        )
-        try:
-            out = asyncio.run(driver.cmd_reels(args))
-            print(f"[reels-watch] harvested {REELS_WATCH_COLLECTION}: {out}")
-        except driver.DriverError as e:
-            if e.kind == "already_running":
-                # A manual `driver.py reels` is already mid-run on this PC.
-                # Un-mark it seen so the NEXT tick tries again once that run
-                # releases the lock, instead of dropping this request.
-                _reels_last_seen_refresh = 0
-            else:
-                print(f"[reels-watch] harvest failed: {e.kind}: {e.message}")
-        except Exception as e:
-            print(f"[reels-watch] harvest crashed: {e}")
+        if not _reels_harvest("refresh requested"):
+            # Un-mark it seen so the NEXT tick tries again once that run
+            # releases the lock, instead of dropping this request.
+            _reels_last_seen_refresh = 0
 
 
 def _ensure_reels_watcher():

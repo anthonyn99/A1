@@ -1278,16 +1278,35 @@ t("the batch starts from the WATCHED reel, not always the top of the list",
   "otherwise a video url only ever lands near the front of a large collection, "
   "never on what is actually being watched")
 t("a reel already fresh is skipped rather than re-visited",
-  'r.get("videoUrl")' in _avu and "videoUrlExpiresAt" in _avu,
+  "if reel_video_deadline(r, now) > now + REELS_VIDEO_REEXTRACT_AHEAD_MS" in _avu,
   "re-fetching a URL that has not expired wastes a page visit for nothing")
 t("a per-reel extraction failure never aborts the whole batch",
   "except Exception" in _avu,
   "one removed post or transient miss must not lose every other reel's video")
 
 t("videoUrl has an absolute expiry timestamp, not a relative TTL alone",
-  "videoUrlExpiresAt" in _avu and "now + REELS_VIDEO_URL_TTL_MS" in _avu,
+  "videoUrlExpiresAt" in _avu and "video_url_deadline(url, now)" in _avu,
   "the widget must be able to check freshness without knowing when the "
   "harvest ran")
+_now = 1_790_000_000_000
+t("the stored deadline is the url's own oe=, when that comes first",
+  driver.video_url_deadline("https://c/v.mp4?x=1&oe=6AB00000&y=2", _now)
+  == 0x6AB00000 * 1000,
+  "IG's oe= is often hours before extracted+TTL; 21/69 urls 403'd while the "
+  "TTL said fresh (2026-09-26)")
+t("the TTL stays a ceiling, and covers a url with no oe=",
+  driver.video_url_deadline("https://c/v.mp4?oe=FFFFFFFF", _now)
+  == _now + driver.REELS_VIDEO_URL_TTL_MS
+  and driver.video_url_deadline("https://c/v.mp4", _now)
+  == _now + driver.REELS_VIDEO_URL_TTL_MS)
+t("a stored url is re-extracted once its oe= is near, even if the stored "
+  "deadline says fresh",
+  "reel_video_deadline(r, now)" in _avu
+  and driver.reel_video_deadline(
+      {"videoUrl": "https://c/v.mp4?oe=6AB00000",
+       "videoUrlExpiresAt": 0x6AB00000 * 1000 + 86_400_000}, _now)
+  == 0x6AB00000 * 1000,
+  "docs from before this fix carry a guessed deadline up to a day late")
 t("the TTL is set BELOW the measured real-world expiry, with margin",
   driver.REELS_VIDEO_URL_TTL_MS < 36 * 60 * 60 * 1000 + 1
   and driver.REELS_VIDEO_URL_TTL_MS > 24 * 60 * 60 * 1000,

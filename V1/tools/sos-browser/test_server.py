@@ -417,5 +417,43 @@ t("calling _save() leaves the real journal byte-identical",
   "the test just overwrote the live job history")
 
 
+# ── reels: auto-refresh of expiring video urls ────────────────────────────────
+print("\nreels auto-refresh")
+_now = 1_790_000_000_000
+def _reel(deadline_ms):
+    return {"videoUrl": "https://c/v.mp4?oe=%X" % (deadline_ms // 1000),
+            "videoUrlExpiresAt": deadline_ms + 86_400_000}   # stored guess: a day late
+t("a url whose oe= is within the hour is due, even if the stored deadline says fresh",
+  server._reels_videos_due({"reels": [_reel(_now + 30 * 60_000)]}, _now))
+t("urls all hours away are not due",
+  not server._reels_videos_due({"reels": [_reel(_now + 5 * 3_600_000)]}, _now))
+t("reels without a videoUrl, or an unreadable doc, never trigger",
+  not server._reels_videos_due({"reels": [{"shortcode": "x"}]}, _now)
+  and not server._reels_videos_due({}, _now))
+
+_calls = []
+_orig = (server.driver.read_reels_cloud, server._reels_harvest)
+server.driver.read_reels_cloud = lambda: {"reels": [_reel(int(server.time.time() * 1000))]}
+server._reels_harvest = lambda why: _calls.append(why) or True
+try:
+    server._reels_last_auto = server._reels_last_auto_check = 0.0
+    server._reels_auto_tick()
+    server._reels_last_auto_check = 0.0          # skip the 10-min check spacing
+    server._reels_auto_tick()
+    t("a due url triggers ONE harvest, and the 6h floor blocks a repeat",
+      len(_calls) == 1,
+      f"{len(_calls)} harvests — a reel whose extraction keeps failing would "
+      "otherwise re-harvest the whole collection at every check")
+    server._reels_harvest = lambda why: _calls.append(why) and False  # lock held
+    _calls.clear()
+    server._reels_last_auto = server._reels_last_auto_check = 0.0
+    server._reels_auto_tick()
+    t("a harvest locked out by a manual run is retried, not dropped",
+      len(_calls) == 1 and server._reels_last_auto == 0.0)
+finally:
+    server.driver.read_reels_cloud, server._reels_harvest = _orig
+    server._reels_last_auto = server._reels_last_auto_check = 0.0
+
+
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

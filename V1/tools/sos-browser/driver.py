@@ -3007,6 +3007,36 @@ def upload_thumb(key: str, src: str) -> bool:
 # guessing from "how long ago was this harvest".
 REELS_VIDEO_URL_TTL_MS = 36 * 60 * 60 * 1000  # 36h — under the measured ~1.5 days, on purpose
 
+def video_url_deadline(url: str, now_ms: int) -> int:
+    """When a signed IG mp4 url stops serving, in epoch ms.
+
+    The url carries its own deadline as `oe=<hex epoch seconds>`, and it is
+    NOT a fixed distance from extraction: measured 2026-09-26, 21 of 69 urls
+    403'd while `now + REELS_VIDEO_URL_TTL_MS` still called them fresh — some
+    by more than a day. The TTL stays as a ceiling for a url without `oe=`.
+    """
+    ttl = now_ms + REELS_VIDEO_URL_TTL_MS
+    m = re.search(r"[?&]oe=([0-9A-Fa-f]+)", url or "")
+    return min(ttl, int(m.group(1), 16) * 1000) if m else ttl
+
+
+def reel_video_deadline(r: dict, now_ms: int) -> int:
+    """A stored reel's real deadline. min() with the url's own oe=, because
+    docs harvested before video_url_deadline existed carry a guessed deadline
+    that can be a day late. 0 for a reel with no videoUrl."""
+    if not r.get("videoUrl"):
+        return 0
+    return min(r.get("videoUrlExpiresAt", 0),
+               video_url_deadline(r["videoUrl"], now_ms))
+
+
+# A url expiring within this window is re-extracted rather than kept. Wide on
+# purpose: the oe= deadlines are scattered across the day, and the bridge's
+# auto-refresh (server.py) runs a whole harvest when the FIRST one nears, so a
+# narrow window would mean one full harvest per reel instead of one per batch.
+REELS_VIDEO_REEXTRACT_AHEAD_MS = 12 * 60 * 60 * 1000
+
+
 # Per-run cap on video-URL extractions. Each one is a REAL page visit (~9-10s,
 # Instagram will not serve this instagram.com surface headless) to a specific
 # reel, unlike a thumbnail (a plain image fetch). Bounded so "start playing
@@ -3201,7 +3231,7 @@ async def attach_video_urls(reels: list, page, watch_shortcode: str,
         if not code:
             continue
         # Already fresh from an earlier run — no need to spend a visit on it.
-        if r.get("videoUrl") and r.get("videoUrlExpiresAt", 0) > now + (60 * 60 * 1000):
+        if reel_video_deadline(r, now) > now + REELS_VIDEO_REEXTRACT_AHEAD_MS:
             continue
         try:
             await page.goto(f"https://www.instagram.com/reel/{code}/embed/",
@@ -3229,7 +3259,7 @@ async def attach_video_urls(reels: list, page, watch_shortcode: str,
                 pass
         if url:
             r["videoUrl"] = url
-            r["videoUrlExpiresAt"] = now + REELS_VIDEO_URL_TTL_MS
+            r["videoUrlExpiresAt"] = video_url_deadline(url, now)
             extracted += 1
         else:
             skipped += 1

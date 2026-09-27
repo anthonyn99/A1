@@ -3383,6 +3383,19 @@ function syncCfgFromCloud(remote){
   return true;
 }
 
+// Is this reel's signed mp4 url still servable? The stored videoUrlExpiresAt
+// was "extracted + 36h", but IG's own deadline is the url's `oe=` parameter
+// (hex epoch seconds), and it is often HOURS earlier — measured 2026-09-26:
+// 21 of 69 urls already 403 while the stored deadline said fresh. A dead url
+// only fails at play time, after the slide has mounted, so read the real one.
+function videoLive(r){
+  if(!r||!r.videoUrl||!r.videoUrlExpiresAt)return false;
+  var now=Date.now(), exp=r.videoUrlExpiresAt;
+  var m=/[?&]oe=([0-9A-Fa-f]+)/.exec(r.videoUrl);
+  if(m)exp=Math.min(exp,parseInt(m[1],16)*1000);
+  return exp>now+60000;                 // a minute of slack for the load itself
+}
+
 function thumbUrl(reel){
   if(!reel||!reel.thumbKey||!S.filesBase)return '';
   return S.filesBase+'/f/'+encodeURIComponent(reel.thumbKey);
@@ -3730,8 +3743,7 @@ function Widget(props){
           // needs an actual page visit it cannot do for every reel every run.
           // A missing or expired one falls back to the iframe rather than a
           // broken player — this is a strict upgrade, never a regression.
-          var hasVideo = r.videoUrl && r.videoUrlExpiresAt
-            && r.videoUrlExpiresAt > Date.now() && !videoErr[r.shortcode];
+          var hasVideo = videoLive(r) && !videoErr[r.shortcode];
           return h('div',{key:r.shortcode,
               className:'thrl-slide'+(hasVideo?' thrl-slide-video':''),'data-i':i},
             !near ? null
@@ -3813,8 +3825,7 @@ function Widget(props){
   // and no button here could touch it \u2014 showing a dead control on those
   // slides would be worse than showing none.
   var curReel = s.reels[cur] || {};
-  var curHasVideo = !!(curReel.videoUrl && curReel.videoUrlExpiresAt
-    && curReel.videoUrlExpiresAt > Date.now() && !videoErr[curReel.shortcode]);
+  var curHasVideo = videoLive(curReel) && !videoErr[curReel.shortcode];
 
   // Floating controls over the feed, rather than a bar above the video.
   var feedBar = s.playing
