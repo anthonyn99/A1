@@ -3185,6 +3185,58 @@ def extract_video_versions_url(html: str):
     return None
 
 
+# A post's own key in a page's JSON, in either escaping a capture has shown.
+def _code_key(code: str) -> str:
+    return r'"code\\?"\s*:\s*\\?"' + re.escape(code) + r'\\?"'
+
+_ANY_CODE = re.compile(r'"code\\?"\s*:\s*\\?"([A-Za-z0-9_-]{9,})\\?"')
+
+
+def post_scope(html: str, code: str):
+    """The slice of a /reel/<code>/ page that describes THAT post, or None.
+
+    The real page is not one post: it is Instagram's clips feed, and the
+    target is only its first node, followed by suggested reels, each with its
+    own `video_versions`. Reading the whole page took the first mp4 on it,
+    whoever's it was. MEASURED 2026-09-26: DdkxntMJR30 is a PHOTO (its
+    video_versions is null) and had been stored with a neighbour's video. The
+    slice runs from the post's own "code" to the next post's. None when the
+    code is absent, which means no video rather than a guess.
+    """
+    m = re.search(_code_key(code), html)
+    if not m:
+        return None
+    for n in _ANY_CODE.finditer(html, m.end()):
+        if n.group(1) != code:
+            return html[m.start():n.start()]
+    return html[m.start():]
+
+
+REELS_REMOVED_TEXT = "Sorry, this page isn't available"
+
+
+def reel_page_kind(html: str, code: str):
+    """"removed" | "image" when the real page proves the post has no video to
+    extract, else None. Only a positive answer: an unrecognised page is None
+    and gets retried, since a transient failure must not strand a real video.
+
+    removed: the author deleted it (DVpfUIngmp6, 2026-09-26) — IG's own
+             not-found page.
+    image:   the post is a photo (media_type 1) with no video anywhere in its
+             own scope. A carousel's children are photos too, so any
+             media_type 2/8 or an mp4 in scope rules this out.
+    """
+    if REELS_REMOVED_TEXT in html:
+        return "removed"
+    scope = post_scope(html, code)
+    if not scope:
+        return None
+    mt = set(re.findall(r'media_type\\?"\s*:\s*(\d+)', scope))
+    if mt == {"1"} and ".mp4" not in scope:
+        return "image"
+    return None
+
+
 async def attach_video_urls(reels: list, page, watch_shortcode: str,
                             batch: int = 0) -> dict:
     """Give a BATCH of reels a real, autoplay-and-loop-capable video URL,
@@ -3230,6 +3282,9 @@ async def attach_video_urls(reels: list, page, watch_shortcode: str,
         code = r.get("shortcode")
         if not code:
             continue
+        # Proven to have no video (see reel_page_kind): a visit finds nothing.
+        if r.get("kind") in ("image", "removed"):
+            continue
         # Already fresh from an earlier run — no need to spend a visit on it.
         if reel_video_deadline(r, now) > now + REELS_VIDEO_REEXTRACT_AHEAD_MS:
             continue
@@ -3254,7 +3309,19 @@ async def attach_video_urls(reels: list, page, watch_shortcode: str,
                                 wait_until="domcontentloaded", timeout=25000)
                 await asyncio.sleep(_pace([2.0, 3.5]))
                 html = await page.content()
-                url = extract_video_url(html) or extract_video_versions_url(html)
+                scope = post_scope(html, code) or ""
+                url = extract_video_url(scope) or extract_video_versions_url(scope)
+                if not url:
+                    kind = reel_page_kind(html, code)
+                    if kind:
+                        # Drop the stored url too: for DdkxntMJR30 it was a
+                        # neighbour's video, and a dead one only feeds the
+                        # auto-refresh a reel it can never fix.
+                        r.pop("videoUrl", None)
+                        r.pop("videoUrlExpiresAt", None)
+                        r["kind"] = kind
+                        skipped += 1
+                        continue
             except Exception:
                 pass
         if url:

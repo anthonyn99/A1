@@ -608,8 +608,13 @@ async function handleReels(request, env, origin) {
     // files are large (a 13s reel was already 693 KB) and this doc has a
     // 700 KB TOTAL budget, so only a handful can ever be kept here at once.
     // The harvester refreshes a small batch per run (see cmd_reels_video); an
-    // expired or absent videoUrl means the widget falls back to the iframe
-    // embed for that reel, never a broken player.
+    // expired or absent videoUrl means the widget shows the post's own still
+    // (it never mounts Instagram's embed), never a broken player.
+    //
+    // kind: 'image' (a photo post) | 'removed' (deleted by its author) | ''.
+    // Set by the harvester when a reel's page PROVES it has no video, so later
+    // runs stop spending an Instagram page visit on it every time. Dropping it
+    // here would undo that on the very next harvest.
     const slim = incoming
       .filter((x) => x && typeof x.shortcode === 'string' && x.shortcode)
       .map((x) => ({
@@ -621,6 +626,7 @@ async function handleReels(request, env, origin) {
         caption:  typeof x.caption  === 'string' ? x.caption.slice(0, 300) : '',
         videoUrl: typeof x.videoUrl === 'string' ? x.videoUrl.slice(0, 2000) : '',
         videoUrlExpiresAt: Number.isFinite(x.videoUrlExpiresAt) ? x.videoUrlExpiresAt : 0,
+        kind: (x.kind === 'image' || x.kind === 'removed') ? x.kind : '',
       }));
 
     const size = (a) => new TextEncoder().encode(JSON.stringify(a)).length;

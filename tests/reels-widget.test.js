@@ -70,19 +70,16 @@ t('the band card opens the player directly',
   blk.includes('S.playing=reelForOpen.shortcode'),
   'refactored into openReelsGated() so the lock gate wraps it — the shortcode '
   + 'is now set via the captured reelForOpen, not the raw reel var');
-t("it frames Instagram's own embed page", blk.includes("/embed/"),
-  'reels are DASH-segmented (79 paths for one 13s reel), so <video> is not an '
-  + 'option and the embed is the only way to play one');
-t('the iframe src line itself carries no autoplay query params',
-  !/src:'https:\/\/www\.instagram\.com\/reel\/[^']*\?[^']*'/.test(blk),
-  'VERIFIED 2026-09-16: IG\'s embed silently ignores these; leaving them in '
-  + 'the actual src (as opposed to a comment describing the finding) would '
-  + 'be shipping a lie as code');
-t('autoplay and fullscreen are permitted on the frame',
-  /allow:'autoplay;[^']*fullscreen'/.test(blk),
-  'this only grants PERMISSION to autoplay if IG\'s own script ever calls '
-  + 'play() on its own — it does not, so this alone starts nothing, but a '
-  + 'real click-through still needs the permission granted');
+// INVERTED 2026-09-26 (Veda: "I hate the Instagram noise"). These used to pin
+// the /embed/ iframe fallback; they now pin its absence, so it cannot quietly
+// return as a "helpful" fallback for a reel without a live mp4.
+t('no Instagram embed is ever mounted',
+  !blk.includes('/embed/') && !blk.includes("h('iframe'"),
+  'the embed shows a play button, "Watch on Instagram" and the likes row — '
+  + 'cross-origin chrome nothing here can remove — and it cannot autoplay');
+t('a reel with no live video shows its OWN picture instead',
+  blk.includes("className:'thrl-slide-still'") && html.includes('.thrl-slide-still img{'),
+  'photo posts, deleted posts and expired urls all land here');
 t('the isTrusted limitation is documented at the point it matters',
   blk.includes('isTrusted'),
   'without this note, a future edit could "helpfully" add a script-fired '
@@ -104,15 +101,9 @@ t('slides snap one reel at a time',
   html.includes('scroll-snap-type:y mandatory') &&
   html.includes('scroll-snap-stop:always'),
   'without scroll-snap-stop a flick skips several reels');
-t("the embed's chrome is cropped by the slide, not styled away",
-  html.includes('--thrl-crop-top') && html.includes('overflow:hidden'),
-  'the header is inside a cross-origin document; only geometry can hide it');
-t('the crop values are measured, not guessed',
-  html.includes('--thrl-crop-top:54px') && html.includes('--thrl-video-ratio:1.2025'),
-  'MEASURED at 300/340/400px: header is 54px always, video is width x 1.2');
-t('the crop is width-relative, not a fixed footer offset',
-  html.includes('var(--thrl-video-ratio)'),
-  'a fixed offset was wrong at every width but the one it was guessed at');
+t('the embed crop CSS is gone with the embed',
+  !html.includes('--thrl-crop-top') && !html.includes('.thrl-slide-frame'),
+  'dead geometry for a player that no longer exists');
 t('only a window of slides mounts an iframe',
   blk.includes('MOUNT_RADIUS') && blk.includes('Math.abs(i - cur) <= MOUNT_RADIUS'),
   'mounting ~1239 iframes would be thousands of requests to Instagram on open');

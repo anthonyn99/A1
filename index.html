@@ -2988,23 +2988,11 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
   background:var(--rl-acg);border-radius:4px;padding:5px 7px;margin-bottom:7px;}
 /* ── The feed ──────────────────────────────────────────────
    A vertical, one-reel-per-screen feed: scroll and the next reel snaps into
-   place, exactly like Instagram's own. Built from framed /embed/ pages.
-
-   WHY AN IFRAME AND NOT <video>
-   MEASURED 2026-09-16: Instagram serves reels as DASH segments (79 distinct
-   media paths for ONE 13-second reel, 818 bytes each) and the <video> element's
-   src is a `blob:` URL from MSE. There is no single mp4 to point a plain player
-   at, so the embed is the only way to play a reel at all. That decides the rest
-   of this design.
-
-   HOW THE CHROME IS REMOVED
-   The embed's white header ("View profile", username, "Original audio") lives
-   INSIDE a cross-origin document, so no CSS or JS of ours can touch it. What we
-   do control is the iframe's geometry: each slide is a clipping box, and the
-   iframe is oversized and offset so the header and footer fall outside it.
-   Verified visually — the bar is gone and only the video remains. The offsets
-   are deliberately in one place (--thrl-crop-top / --thrl-crop-extra) because
-   they are the one thing an Instagram redesign will move. */
+   place, exactly like Instagram's own. Each slide is a real <video> of the
+   reel's own mp4, or — when there is none (a photo post, a deleted post, an
+   expired url) — that post's own picture. Instagram's /embed/ player is never
+   mounted: its chrome lives in a cross-origin document no CSS can clean up
+   (see "NO INSTAGRAM EMBED, EVER" in the widget). */
 .thrl-feed{
   /* Full-bleed inside the panel: the panel's own padding is cancelled so a
      slide is edge to edge, like a phone screen. */
@@ -3028,116 +3016,21 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
   height:min(70vh,500px);        /* must match .thrl-feed's height exactly */
   scroll-snap-align:start;
   scroll-snap-stop:always;       /* one reel per flick, never two */
-  overflow:hidden;               /* THE clip that removes the embed's chrome */
+  overflow:hidden;
   background:#000;
 }
-/* The crop. MEASURED against the live embed at 300/340/400px (2026-09-16):
-     header  = 54px ALWAYS, independent of width
-     video   = width x 1.2025
-     footer  = whatever is left over
-   So the iframe is sized to exactly header+video and shifted up by the header:
-   the footer is then below the iframe's own height and never renders at all,
-   and the video fills the slide. These two numbers are the only thing an IG
-   redesign moves.
-
-   WIDTH MUST COME FROM THE SLIDE'S HEIGHT, NOT ITS WIDTH. IG's relationship,
-   given an iframe of width W, is: it renders header(54) + video(W x 1.2025)
-   tall — controlled by W alone. To fill a slide of height H with video, solve
-   for W: W x 1.2025 = H, i.e. W = H / 1.2025. The previous version instead
-   derived W from `100%` inside a `width:` declaration, which ALWAYS resolves
-   against the containing block's WIDTH, never its height — so it was really
-   computing W from the slide's width, not H. That only looked right by
-   coincidence when the panel was squarish (~420x560, width and height close
-   enough that the wrong basis barely showed). Once the panel became a true
-   phone shape (~340x680, see the THSHEET.bind feed-mode box below), width and
-   height diverged sharply, the iframe came out far too narrow for how tall
-   the slide had become, and the video rendered narrower than the frame with
-   both edges clipped.
-   Fix: a CSS custom property does not remember "I was assigned inside a
-   height declaration" — var() substitution is a raw token swap, so a percent
-   stashed from `height:100%` still resolves against WIDTH the moment it lands
-   inside a `width:` calc(). The one construct that actually converts a
-   resolved HEIGHT into a WIDTH is `aspect-ratio`, applied to a box whose own
-   height is set in percent (which resolves correctly, since it's still a
-   `height:` declaration on that box) — the browser computes that height first
-   in pixels, then derives width from the ratio, not from any container width.
-   So the video-sized region (excluding the header) gets its own wrapper,
-   sized to exactly the slide's height via `height:100%` + `aspect-ratio`; the
-   iframe itself is then absolutely positioned to overhang that wrapper by
-   exactly the header height, matching the old top:-54px / oversized-frame
-   trick but anchored to a correctly-computed width. */
-.thrl-slide{--thrl-crop-top:54px;--thrl-video-ratio:1.2025;}
-/* CONTAIN, NOT COVER — the picture-in-picture model.
-   Every previous version sized this frame so it was LARGER than the slide and
-   relied on overflow:hidden to trim the excess. That is `cover`, and cover's
-   whole job is to cut the edges off: captions burned into the video ran off
-   both sides, which is exactly what kept being reported as "still clipped".
-   The frame is now sized from the slide's WIDTH, so it can never be wider than
-   the slide, and its height simply follows the ratio. Whatever height is left
-   over stays black, top and bottom — letterboxing, like a PiP window. Nothing
-   is ever cut off; the video is just as large as it can be while whole. */
-.thrl-slide-frame{
-  position:absolute;left:0;
-  width:100%;                                /* never wider than the slide */
-  aspect-ratio:1 / var(--thrl-video-ratio);  /* height = W x R, from the width */
-  max-height:100%;                           /* ...but never taller than it */
-  top:50%;transform:translateY(-50%);        /* centred, black bars either side */
-  overflow:hidden;                           /* clips the embed's own chrome */
-}
-.thrl-slide iframe{
-  position:absolute;
-  top:calc(var(--thrl-crop-top) * -1);
-  left:0;
-  width:100%;                    /* = the frame's width = the slide's width */
-  /* header + exactly one media box. 100% here resolves against the frame's
-     HEIGHT (this is a `height:` declaration), and the frame's height is
-     already the video's height, so the ratio must NOT be applied a second
-     time. Shifted up by the header so the video's top edge sits at the
-     frame's top; the footer falls past the frame's bottom and is clipped. */
-  height:calc(var(--thrl-crop-top) + 100%);
-  border:0;display:block;background:#000;
-}
-/* A real <video> tag needs none of the iframe's crop hack — there is no
-   cross-origin chrome to hide, so it simply fills the slide. object-fit:cover
-   matches how the embed itself scales a reel edge-to-edge. */
+/* A real <video> fills the slide. `contain`, not cover: cover crops a
+   portrait reel's left and right edges, taking burned-in caption text too. */
 .thrl-slide video{
   position:absolute;inset:0;width:100%;height:100%;
-  /* `contain`, for the same reason the iframe frame above letterboxes: cover
-     crops a portrait reel's left and right edges, taking burned-in caption
-     text with them. */
   object-fit:contain;border:0;background:#000;
 }
-/* ── The footer mask ──────────────────────────────────────────────────────
-   Three separate geometry attempts failed to crop IG's footer ("View more on
-   Instagram", the like/comment/share row) reliably, because the embed's
-   internal layout is not constant: a 9:16 reel and a 1:1 reel put the media
-   box — and therefore the footer — at different offsets in the same frame. Any
-   single ratio is wrong for some reels.
-   So the footer is COVERED instead of cropped. The host page cannot restyle a
-   cross-origin document, but it can absolutely paint over it, and a mask is
-   exact where a computed offset is a guess. It sits above the video and takes
-   no pointer events, so a tap still reaches the player. */
-/* Only slides using the IFRAME fallback need this — a real <video> has no
-   cross-origin footer to hide, and masking the bottom of one would cover
-   actual video content for no reason.
-   ANCHORED TO THE FRAME, NOT THE SLIDE. While the frame filled the slide edge
-   to edge these were the same box, so `bottom:0` on the slide was the bottom
-   of the video. Now that the frame letterboxes (see .thrl-slide-frame above)
-   the slide's bottom is black bar, and a mask pinned there would sit BELOW the
-   video covering nothing.
-   PROPORTIONAL, NOT A PIXEL COUNT. The old value was 210px, measured against a
-   756px-tall iframe — about 28% of it. The frame is now sized to the panel and
-   is often only ~457px tall, where a literal 210px would black out nearly HALF
-   the picture. Expressed as a share of the frame it keeps the same coverage the
-   measurement intended at any size. The frame's own overflow:hidden already
-   clips the footer in the common case; this stays only as cover for reels whose
-   aspect puts the footer higher than --thrl-video-ratio predicts. */
-.thrl-slide:not(.thrl-slide-video) .thrl-slide-frame::after{
-  content:'';position:absolute;left:0;right:0;bottom:0;
-  height:6%;
-  background:#000;z-index:1;pointer-events:none;
-}
-/* Placeholder until a slide is near the viewport: mounting 1239 iframes at once
+/* No playable video: the post's own picture, whole, on black — the same
+   letterbox as a video, so a photo post reads as part of the feed. */
+.thrl-slide-still{position:absolute;inset:0;background:#000;
+  display:flex;align-items:center;justify-content:center;color:var(--rl-txm);}
+.thrl-slide-still img{width:100%;height:100%;object-fit:contain;display:block;}
+/* Placeholder until a slide is near the viewport: mounting 1239 videos at once
    would be thousands of requests, so only a window of slides is real. */
 .thrl-slide-idle{
   position:absolute;inset:0;
@@ -3518,7 +3411,7 @@ function Widget(props){
           {width:420,cap:560,align:'right'});
   },[open,s.playing]);
 
-  // Stop playback when the panel closes, or the iframe can keep its audio
+  // Stop playback when the panel closes, or a video can keep its audio
   // going in a closed tree — a bug only ever found by ear.
   useEffect(function(){
     if(!open&&S.playing){S.playing='';emit();}
@@ -3559,7 +3452,7 @@ function Widget(props){
   // on every render. These used to sit next to the feed markup further down,
   // which meant the empty-reels render ran fewer hooks than a populated one
   // and React threw, removing the entire card from the DOM.
-  var MOUNT_RADIUS = 1;   // current, one above, one below (3 iframes at most)
+  var MOUNT_RADIUS = 1;   // current, one above, one below (3 videos at most)
 
   var startIdx = 0;
   if (s.playing) {
@@ -3693,44 +3586,20 @@ function Widget(props){
   // One reel per screen, scroll for the next, snapping as it goes. State and
   // effects for this live above the early return (see "Feed state").
   //
-  // WHY AN IFRAME AND NOT <video>: measured 2026-09-16, Instagram serves reels
-  // as DASH segments — 79 distinct media paths for one 13-second reel, 818
-  // bytes each — and the <video> src is a blob: from MSE. There is no single
-  // mp4 to play, so the embed is the only option; cropping its chrome is
-  // therefore the only way to get a clean frame.
-  //
-  // AUTOPLAY/LOOP ARE A HARD WALL — VERIFIED, not assumed, on 2026-09-16:
-  //   - ?autoplay=1&muted=1 does nothing; IG's embed script ignores it.
-  //   - A script-fired .click() on the play button does nothing: IG's handler
-  //     checks Event.isTrusted, and NO JavaScript API — same-origin or
-  //     cross-origin — can ever produce a trusted event. That is a browser
-  //     spec guarantee (the same one that stops any site auto-clicking ads for
-  //     you), not an Instagram quirk, so there is no parameter or permission
-  //     that gets around it.
-  //   - Even a genuine click does not make it loop: it plays once, rewinds to
-  //     0, and re-pauses.
-  // So "tap once per reel, plays through, no loop" is the true ceiling here.
-  //
-  // What IS real and used below: a genuine user click that LANDS ON the
-  // iframe passes straight through to Instagram's own player, exactly as if
-  // the user had clicked instagram.com directly — ordinary browser
-  // click-through, not a workaround. Making the ENTIRE slide the click target
-  // (not just the small play icon) means the same tap that brings a reel into
-  // view is enough to start it, so no separate "now press play" step exists.
+  // NO INSTAGRAM EMBED, EVER (2026-09-26, Veda: "I hate the Instagram
+  // noise"). The embed — play button, "Watch on Instagram", the likes row —
+  // was the fallback for any reel without a live mp4, and it could never be
+  // cleaned up: its chrome is inside a cross-origin document, it cannot
+  // autoplay (IG checks Event.isTrusted) and it does not loop. So a reel
+  // either plays as a real <video>, or shows its OWN picture, still:
+  //   - photo posts (kind:'image') are pictures, so that is exactly right;
+  //   - deleted posts (kind:'removed') have nothing else left to show;
+  //   - an expired url is refreshed by the bridge's auto-harvest.
   var feed = s.playing
     ? h('div',{key:'feed',className:'thrl-feed',ref:feedRef},
         s.reels.map(function(r,i){
           var near = Math.abs(i - cur) <= MOUNT_RADIUS;
           var u = thumbUrl(r);
-          // An IFRAME's audio cannot be reached from here — it is a
-          // cross-origin document, so there is no pause() to call on it and
-          // unmounting is the only way to silence one. A neighbouring embed
-          // that the reader had started would otherwise keep playing
-          // underneath the reel actually on screen. So the iframe fallback
-          // mounts for the CENTRED slide only; the <video> path keeps the
-          // wider window, because those can simply be paused (see the ref
-          // below). Costs one embed load when scrolling onto an iframe reel,
-          // which is the cheaper half of the trade.
           var isCur = (i === cur);
           // A reel with a fresh, unexpired videoUrl gets a REAL <video> tag:
           // genuine autoplay and loop, no tap, exactly what the iframe embed
@@ -3741,8 +3610,7 @@ function Widget(props){
           // no session needed — confirmed distinct from the DASH fragments
           // the live page streams), extracted by the harvester because that
           // needs an actual page visit it cannot do for every reel every run.
-          // A missing or expired one falls back to the iframe rather than a
-          // broken player — this is a strict upgrade, never a regression.
+          // A missing or expired one shows the post's still (see above).
           var hasVideo = videoLive(r) && !videoErr[r.shortcode];
           return h('div',{key:r.shortcode,
               className:'thrl-slide'+(hasVideo?' thrl-slide-video':''),'data-i':i},
@@ -3786,27 +3654,23 @@ function Widget(props){
                   },
                   // A signed url occasionally 404s early (edge propagation,
                   // or it expired between harvest and now despite the stored
-                  // timestamp saying otherwise) — degrade to the iframe for
+                  // timestamp saying otherwise) — degrade to the still for
                   // THIS slide rather than showing a broken video box.
                   onError:function(){
                     var n={};n[r.shortcode]=true;
                     setVideoErr(Object.assign({},videoErr,n));
                   }})
-              : isCur
-                ? h('div',{key:'f',className:'thrl-slide-frame'},
-                    h('iframe',{
-                      src:'https://www.instagram.com/reel/'+r.shortcode+'/embed/',
-                      scrolling:'no',frameBorder:'0',loading:'lazy',
-                      allow:'autoplay; encrypted-media; picture-in-picture; fullscreen',
-                      title:r.caption||('Reel '+r.shortcode)}))
-                : null,
-            // Nothing playable mounted here: show the cached thumbnail so
-            // scrolling ahead looks like content rather than black gaps. That
-            // covers slides outside the mount window AND in-window iframe
-            // reels that are not the centred one, since those deliberately do
-            // not mount an embed (see isCur above) and would otherwise be a
-            // plain black rectangle.
-            (!near || (!hasVideo && !isCur))
+              : h('div',{key:'st',className:'thrl-slide-still'},
+                  (u&&!imgErr[r.shortcode])
+                    ? h('img',{key:'t',src:u,alt:r.caption||'',decoding:'async',
+                        onError:function(){
+                          var n={};n[r.shortcode]=true;
+                          setImgErr(Object.assign({},imgErr,n));
+                        }})
+                    : PLACEHOLDER),
+            // Outside the mount window: the cached thumbnail, dimmed, so
+            // scrolling ahead looks like content rather than black gaps.
+            (!near && hasVideo)
               ? h('div',{key:'i',className:'thrl-slide-idle'},
                   (u&&!imgErr[r.shortcode])
                     ? h('img',{key:'t',src:u,alt:'',loading:'lazy',decoding:'async',
@@ -3820,10 +3684,8 @@ function Widget(props){
         }))
     : null;
 
-  // Only a real <video> has audio this page can reach. The iframe embed is a
-  // cross-origin document, so its sound is Instagram's own player's business
-  // and no button here could touch it \u2014 showing a dead control on those
-  // slides would be worse than showing none.
+  // Only a real <video> has audio. A still has none, and a sound control on
+  // a picture would be a dead button.
   var curReel = s.reels[cur] || {};
   var curHasVideo = videoLive(curReel) && !videoErr[curReel.shortcode];
 

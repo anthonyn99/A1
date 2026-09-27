@@ -1245,6 +1245,43 @@ t("returns None when video_versions holds no usable mp4 url",
   driver.extract_video_versions_url('"video_versions":[{"type":101}]') is None,
   "an entry without a url must not fall through to some unrelated later key")
 
+# ── The real page is a FEED: only the target post's own video counts ──────────
+# Shaped on a live capture (2026-09-26): /reel/DdkxntMJR30/ is a photo whose own
+# video_versions is null, followed by suggested reels that DO carry an mp4. The
+# old whole-page read stored the neighbour's video for the photo.
+_FEED = ('{"node":{"media":{"code":"PHOTOPOST1","video_versions":null,'
+         '"image_versions2":{"candidates":[{"url":"https://c/p.jpg"}]},'
+         '"media_type":1}}},{"node":{"media":{"code":"NEIGHBOUR1",'
+         '"video_versions":[{"url":"https://c/neighbour.mp4?oe=1"}],'
+         '"media_type":2}}}')
+t("post_scope stops at the next post",
+  "neighbour" not in (driver.post_scope(_FEED, "PHOTOPOST1") or "x.mp4"))
+t("a photo post yields NO video, not the neighbour's",
+  driver.extract_video_versions_url(driver.post_scope(_FEED, "PHOTOPOST1")) is None)
+t("...and is classified as an image",
+  driver.reel_page_kind(_FEED, "PHOTOPOST1") == "image")
+t("the neighbour's own video is still found in ITS scope",
+  "neighbour.mp4" in (driver.extract_video_versions_url(
+      driver.post_scope(_FEED, "NEIGHBOUR1")) or ""))
+t("a video post is never classified as an image",
+  driver.reel_page_kind(_FEED, "NEIGHBOUR1") is None)
+t("the escaped JSON form scopes the same way",
+  driver.reel_page_kind(
+      '\\"code\\":\\"PHOTOPOST1\\",\\"media_type\\":1,'
+      '\\"code\\":\\"NEIGHBOUR1\\",\\"x\\":\\"a.mp4\\"',
+      "PHOTOPOST1") == "image")
+t("IG's not-found page marks the post removed",
+  driver.reel_page_kind("<span>Sorry, this page isn't available.</span>", "X") == "removed")
+t("an unrecognised page is NOT classified (it gets retried)",
+  driver.reel_page_kind("<html>login wall</html>", "PHOTOPOST1") is None,
+  "a transient page must never strand a real video as image/removed")
+_avu2 = _inspect.getsource(driver.attach_video_urls)
+t("the real-page extraction reads only the post's scope",
+  "post_scope(html, code)" in _avu2
+  and "extract_video_versions_url(html)" not in _avu2)
+t("image/removed reels are never revisited",
+  'r.get("kind") in ("image", "removed")' in _avu2)
+
 # ── Batching, pacing, prioritization ────────────────────────────────────────────
 _avu = _inspect.getsource(driver.attach_video_urls)
 t("each extraction is a real page visit (page.goto), not a fetch",
