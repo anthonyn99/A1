@@ -3230,6 +3230,8 @@ var LS_CACHE='thrl_cache_v1';              // the reel list — per device
 // to refill it, which is the phone path this whole design exists to serve.
 // Freshness is communicated in the panel instead of by withholding the data.
 var HYDRATE_MAX=Infinity;
+// How long a refresh may run before the note escalates. See refreshBtn.
+var REFRESH_SLOW_MS=2*60*1000, REFRESH_GIVEUP_MS=20*60*1000;
 
 // ── Config ────────────────────────────────────────────────────────────────
 // Which collection to show, and whose account. Synced, because linking once on
@@ -3259,8 +3261,12 @@ var S={reels:[],at:0,collection:'',filesBase:'',idx:0,err:null,
        // The shortcode playing in the panel, or '' for the grid view.
        playing:'',
        // Timestamp of an in-flight refresh request this device is waiting
-       // on, or 0. Cleared once applyRemote sees a savedAt newer than it.
-       pendingRefreshAt:0};
+       // on, or 0. Cleared once applyRemote sees a savedAt newer than it —
+       // and ONLY then, even after the wait gives up (see refreshStale).
+       pendingRefreshAt:0,
+       // The wait for pendingRefreshAt ran past REFRESH_GIVEUP_MS: the button
+       // re-enables, but a late harvest still clears the note when it lands.
+       refreshStale:false};
 var subs=[];
 function emit(){
   // A NEW object literal every time. Mutating S in place and handing the same
@@ -3270,7 +3276,7 @@ function emit(){
   S={reels:S.reels,at:S.at,collection:S.collection,filesBase:S.filesBase,
      idx:S.idx,err:S.err,syncing:S.syncing,syncMsg:S.syncMsg,
      omitted:S.omitted,collections:S.collections,playing:S.playing,
-     pendingRefreshAt:S.pendingRefreshAt};
+     pendingRefreshAt:S.pendingRefreshAt,refreshStale:S.refreshStale};
   for(var i=0;i<subs.length;i++)subs[i](S);
 }
 function subscribe(fn){subs.push(fn);return function(){var i=subs.indexOf(fn);if(i>=0)subs.splice(i,1);};}
@@ -3347,7 +3353,7 @@ function applyRemote(remote){
   // whether the reel list actually changed (re-harvesting Boosts with no
   // new saves is still a completed refresh, not a stuck one).
   if(S.pendingRefreshAt&&remote.savedAt>S.pendingRefreshAt){
-    S.pendingRefreshAt=0;S.syncMsg='';
+    S.pendingRefreshAt=0;S.refreshStale=false;S.syncMsg='';
   }
   var next=JSON.stringify((remote.reels||[]).map(function(r){return r.shortcode;}));
   var cur=JSON.stringify(S.reels.map(function(r){return r.shortcode;}));
@@ -3885,7 +3891,15 @@ function Widget(props){
   // watcher (server.py) polls that doc and runs a real Boosts harvest, and
   // the result arrives back through the existing onSnapshot listener — this
   // button never talks to Instagram or Firestore reels data directly.
-  var refreshing = !!S.pendingRefreshAt;
+  //
+  // A refresh is NOT quick. The bridge polls every 12s, launches a browser,
+  // scrolls the collection, and re-extracts every video url that has expired
+  // (~9s per reel, so ~10 min for Boosts after a few days away). The old 90s
+  // wait therefore declared "bridge may be offline" on nearly every healthy
+  // run, zeroed pendingRefreshAt, and the harvest that then landed could no
+  // longer clear the note — it stuck until reload. Now the wait escalates its
+  // wording, and only the ARRIVAL of a newer savedAt ends it.
+  var refreshing = !!S.pendingRefreshAt && !S.refreshStale;
   var refreshBtn = h('button',{key:'rf',type:'button',className:'thrl-x',
     'data-noglow':true,
     disabled:refreshing,
@@ -3896,17 +3910,25 @@ function Widget(props){
       e.stopPropagation();
       if(refreshing)return;
       var now=Date.now();
-      S.pendingRefreshAt=now;
+      S.pendingRefreshAt=now;S.refreshStale=false;
       S.syncMsg='Refresh requested — harvesting…';
       emit();
       if(window.THRL&&window.THRL.configure)window.THRL.configure({refreshRequestedAt:now});
       setTimeout(function(){
-        if(S.pendingRefreshAt===now){
-          S.pendingRefreshAt=0;
-          S.syncMsg='Still working — check your PC (bridge may be offline)';
+        if(S.pendingRefreshAt===now&&!S.refreshStale){
+          S.syncMsg='Still harvesting — can take ~10 min when videos need refreshing';
           emit();
         }
-      },90000);
+      },REFRESH_SLOW_MS);
+      setTimeout(function(){
+        if(S.pendingRefreshAt===now){
+          // pendingRefreshAt stays set: the request is still in the cfg doc,
+          // so a bridge started later picks it up and its result clears this.
+          S.refreshStale=true;
+          S.syncMsg='No harvest yet — is the StudyOS Bridge running on your PC? It will pick this request up once started.';
+          emit();
+        }
+      },REFRESH_GIVEUP_MS);
     }},
     h('svg',{key:'i',width:13,height:13,viewBox:'0 0 24 24',fill:'none',
         stroke:'currentColor',strokeWidth:2,strokeLinecap:'round',strokeLinejoin:'round'},

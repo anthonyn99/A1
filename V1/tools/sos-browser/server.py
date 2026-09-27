@@ -550,6 +550,14 @@ def _reels_watch_loop():
         # second poll tick landing mid-run must not queue a repeat of the
         # same request once the lock below clears.
         _reels_last_seen_refresh = requested
+        # _reels_last_seen_refresh lives in memory, so after every bridge
+        # restart the LAST request ever made looks new — and re-harvested an
+        # already-answered one: extra automated visits to a personal IG
+        # account for nothing. Every harvest publishes a fresh savedAt, so a
+        # request older than the published doc has been answered. A failed
+        # read ({}) falls through to harvesting, the safe direction.
+        if requested <= (driver.read_reels_cloud().get("savedAt") or 0):
+            continue
         args = argparse.Namespace(
             site="instagram", user="", collection=REELS_WATCH_COLLECTION,
             headful=False, dry_run=False, collections=False, probe=False,

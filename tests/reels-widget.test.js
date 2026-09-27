@@ -269,5 +269,17 @@ t('the padlock icon reflects lock state, not just presence of the button',
   'the closed-shackle and open-shackle paths must both be present and switched '
   + 'on state, matching every other app-lock button in the suite');
 
+console.log('\nreels widget — refresh wait');
+t('no timeout ever zeroes pendingRefreshAt',
+  !/setTimeout\([\s\S]{0,200}S\.pendingRefreshAt=0/.test(blk),
+  'a harvest takes minutes; if a timer clears pendingRefreshAt, the result '
+  + 'that lands afterwards can no longer clear the note, and "bridge may be '
+  + 'offline" sticks on a healthy run until reload (2026-09-26)');
+t('only a newer savedAt ends the wait',
+  /remote\.savedAt>S\.pendingRefreshAt\)\{\s*S\.pendingRefreshAt=0;S\.refreshStale=false;S\.syncMsg=''/.test(blk));
+t('the give-up wait is long enough for a real harvest (>= 10 min)',
+  (() => { const m = blk.match(/REFRESH_GIVEUP_MS=(\d+)\*60\*1000/); return m && +m[1] >= 10; })(),
+  'expired video urls are re-extracted at ~9s per reel — ~10 min for Boosts');
+
 console.log(`\n${PASS} passed, ${FAIL} failed`);
 process.exit(FAIL ? 1 : 0);
