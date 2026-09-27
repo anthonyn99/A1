@@ -549,6 +549,12 @@ REELS_AUTO_AHEAD_MS = 60 * 60 * 1000  # trigger when the earliest url is this cl
 REELS_AUTO_MIN_GAP_S = 6 * 60 * 60
 _reels_last_auto = 0.0
 _reels_last_auto_check = 0.0
+# Shortcodes an auto harvest ran for and could NOT fix. Measured 2026-09-26:
+# two Boosts reels have come back with no url on every run for days, so their
+# dead deadline would make every check "due" — a full harvest every 6h,
+# forever, for nothing. They stop counting until the bridge restarts (one
+# retry per restart). A manual refresh still covers them.
+_reels_unfixable: set = set()
 
 
 def _reels_harvest(why: str) -> bool:
@@ -576,11 +582,21 @@ def _reels_harvest(why: str) -> bool:
     return True
 
 
+def _reels_due_codes(doc: dict, now_ms: int, horizon_ms: int) -> set:
+    """Shortcodes whose stored video url dies before now + horizon."""
+    out = set()
+    for r in doc.get("reels") or []:
+        d = driver.reel_video_deadline(r, now_ms)
+        if d and d < now_ms + horizon_ms:
+            out.add(r.get("shortcode"))
+    return out
+
+
 def _reels_videos_due(doc: dict, now_ms: int) -> bool:
-    """True when some stored video url dies within REELS_AUTO_AHEAD_MS."""
-    deadlines = [d for d in (driver.reel_video_deadline(r, now_ms)
-                             for r in doc.get("reels") or []) if d]
-    return bool(deadlines) and min(deadlines) < now_ms + REELS_AUTO_AHEAD_MS
+    """True when some stored video url, not already known to be unfixable,
+    dies within REELS_AUTO_AHEAD_MS."""
+    return bool(_reels_due_codes(doc, now_ms, REELS_AUTO_AHEAD_MS)
+                - _reels_unfixable)
 
 
 def _reels_auto_tick():
@@ -597,6 +613,11 @@ def _reels_auto_tick():
     _reels_last_auto = now
     if not _reels_harvest("video urls expiring"):
         _reels_last_auto = 0.0             # locked out: retry at the next check
+        return
+    # Whatever is STILL dead after a harvest aimed at it was not fixable.
+    now_ms = int(time.time() * 1000)
+    _reels_unfixable.update(
+        _reels_due_codes(driver.read_reels_cloud(), now_ms, 0))
 
 
 def _reels_watch_loop():

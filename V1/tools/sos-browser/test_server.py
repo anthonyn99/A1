@@ -445,14 +445,30 @@ try:
       f"{len(_calls)} harvests — a reel whose extraction keeps failing would "
       "otherwise re-harvest the whole collection at every check")
     server._reels_harvest = lambda why: _calls.append(why) and False  # lock held
-    _calls.clear()
+    _calls.clear(); server._reels_unfixable.clear()
     server._reels_last_auto = server._reels_last_auto_check = 0.0
     server._reels_auto_tick()
     t("a harvest locked out by a manual run is retried, not dropped",
       len(_calls) == 1 and server._reels_last_auto == 0.0)
+    # A reel whose url is still dead after the harvest aimed at it must not
+    # keep triggering harvests (two Boosts reels did exactly that, 2026-09-26).
+    _dead = {"reels": [dict(_reel(_now - 86_400_000), shortcode="dead")]}
+    server.driver.read_reels_cloud = lambda: _dead
+    server._reels_harvest = lambda why: _calls.append(why) or True
+    _calls.clear(); server._reels_unfixable.clear()
+    server._reels_last_auto = server._reels_last_auto_check = 0.0
+    server._reels_auto_tick()
+    t("a url still dead after its harvest is marked unfixable",
+      len(_calls) == 1 and "dead" in server._reels_unfixable)
+    t("...and no longer makes a check due",
+      not server._reels_videos_due(_dead, _now))
+    t("a fixable reel expiring alongside it still does",
+      server._reels_videos_due({"reels": _dead["reels"] + [
+          dict(_reel(_now + 60_000), shortcode="ok")]}, _now))
 finally:
     server.driver.read_reels_cloud, server._reels_harvest = _orig
     server._reels_last_auto = server._reels_last_auto_check = 0.0
+    server._reels_unfixable.clear()
 
 
 print(f"\n{PASS} passed, {FAIL} failed")
