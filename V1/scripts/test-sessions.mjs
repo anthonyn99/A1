@@ -45,7 +45,9 @@ const S = await import(new URL('../js/modules/sessions.js', import.meta.url).hre
 
 const MIN = 60000;
 const DAY = 86400000;
-const NOW = Date.now();
+// Local noon today: fixtures placed a few minutes either side of NOW must
+// not straddle midnight.
+const NOW = new Date().setHours(12, 0, 0, 0);
 
 // ── Writing ───────────────────────────────────────────────────────────────
 console.log('\nlogging');
@@ -63,7 +65,9 @@ console.log('\nlogging');
   t('a zero-length session is rejected', S.log('focus', { durationMs: 0 }) === null);
   t('a missing duration is rejected', S.log('focus', {}) === null);
 
-  const r = S.log('review', { classId: 'c1', durationMs: 6 * MIN, cards: 23, accuracy: 78 });
+  // Ended before the focus block began, so the two do not overlap.
+  const r = S.log('review', { classId: 'c1', durationMs: 6 * MIN, cards: 23, accuracy: 78,
+                              startedAt: s.startedAt - 7 * MIN });
   t('a review session records cards', r.cards === 23 && r.accuracy === 78);
   t('kind is preserved', r.kind === 'review');
 }
@@ -76,6 +80,26 @@ console.log('\ndaily totals');
   t('sessions are counted', d.sessions === 2, d);
   t('cards are summed', d.cards === 23, d);
   t('an empty day is zeroes, not NaN', S.dayTotals('1999-01-01').minutes === 0);
+}
+
+// ── Overlap (engagement upgrade) ──────────────────────────────────────────
+// "Start now" runs a pomodoro AND a review at once. Summing their durations
+// would count the same ten minutes twice; totals are the UNION of intervals.
+console.log('\noverlapping sessions');
+{
+  const at = 1_000_000_000_000;
+  t('nested intervals count once', S.coveredMs([
+    { startedAt: at, durationMs: 10 * MIN }, { startedAt: at + 2 * MIN, durationMs: 5 * MIN }]) === 10 * MIN);
+  t('partial overlap counts the union', S.coveredMs([
+    { startedAt: at, durationMs: 10 * MIN }, { startedAt: at + 8 * MIN, durationMs: 10 * MIN }]) === 18 * MIN);
+  t('disjoint intervals add up', S.coveredMs([
+    { startedAt: at, durationMs: 5 * MIN }, { startedAt: at + 20 * MIN, durationMs: 5 * MIN }]) === 10 * MIN);
+  t('order does not matter', S.coveredMs([
+    { startedAt: at + 20 * MIN, durationMs: 5 * MIN }, { startedAt: at, durationMs: 5 * MIN }]) === 10 * MIN);
+  t('an empty list is 0', S.coveredMs([]) === 0);
+  const x = S.log('quiz', { durationMs: 2 * MIN, xp: 12.4, items: 5, correct: 4, topic: 'Joins' });
+  t('activity sessions keep xp, items and topic', x.xp === 12 && x.items === 5 && x.correct === 4 && x.topic === 'Joins', x);
+  t('a plain session has xp 0', S.log('focus', { durationMs: 2 * MIN }).xp === 0);
 }
 
 // ── Streaks: the one that is easy to get subtly wrong ─────────────────────
@@ -123,7 +147,8 @@ console.log('\nrollups');
   const m = await import(new URL('../js/modules/sessions.js?s5', import.meta.url).href);
   m.log('focus', { classId: 'c1', durationMs: 60 * MIN, startedAt: NOW });
   m.log('focus', { classId: 'c2', durationMs: 30 * MIN, startedAt: NOW - DAY });
-  m.log('focus', { classId: '', durationMs: 15 * MIN, startedAt: NOW });
+  // Before the c1 hour, not overlapping it (totals are interval unions).
+  m.log('focus', { classId: '', durationMs: 15 * MIN, startedAt: NOW - 20 * MIN });
 
   const by = m.byClass(7, NOW);
   t('classes are rolled up', by.length === 3, by);
@@ -143,6 +168,8 @@ console.log('\nrollups');
   t('heatmap has one cell per day', h.length === 7);
   t('oldest first', h[0].day < h[6].day, [h[0].day, h[6].day]);
   t('today carries minutes', h[6].minutes === 75, h[6]);
+  m.log('review', { classId: 'c1', durationMs: 10 * MIN, startedAt: NOW + 5 * MIN });
+  t('a review inside the focus hour adds nothing', m.heatmap(7, NOW)[6].minutes === 75, m.heatmap(7, NOW)[6]);
   t('an empty day is 0, not missing', h.every(d => typeof d.minutes === 'number'));
 
   const w = m.weekProgress(600, NOW);

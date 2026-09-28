@@ -24,8 +24,8 @@
     "verify:pipeline": "node scripts/verify-pipeline.mjs",
     "verify:autorun": "node scripts/verify-autorun.mjs",
     "verify:edges": "node scripts/verify-edges.mjs",
-    "verify": "npm run build && node scripts/verify-boot.mjs && node scripts/verify-pipeline.mjs && node scripts/verify-autorun.mjs && node scripts/verify-cards.mjs && node scripts/verify-review.mjs && node scripts/verify-session.mjs && node scripts/verify-priority.mjs && node scripts/verify-edges.mjs",
-    "test:studyos": "node scripts/test-store.mjs && node scripts/test-pipeline.mjs && node scripts/test-prompts.mjs && node scripts/test-fsrs.mjs && node scripts/test-cards.mjs && node scripts/test-deck.mjs && node scripts/test-sessions.mjs && node scripts/test-d2l-ics.mjs && node scripts/test-d2l-client.mjs",
+    "verify": "npm run build && node scripts/verify-boot.mjs && node scripts/verify-pipeline.mjs && node scripts/verify-autorun.mjs && node scripts/verify-cards.mjs && node scripts/verify-review.mjs && node scripts/verify-session.mjs && node scripts/verify-priority.mjs && node scripts/verify-edges.mjs && node scripts/verify-kit.mjs && node scripts/verify-startnow.mjs && node scripts/verify-drills.mjs && node scripts/verify-study.mjs",
+    "test:studyos": "node scripts/test-store.mjs && node scripts/test-pipeline.mjs && node scripts/test-prompts.mjs && node scripts/test-fsrs.mjs && node scripts/test-cards.mjs && node scripts/test-deck.mjs && node scripts/test-sessions.mjs && node scripts/test-kit.mjs && node scripts/test-startnow.mjs && node scripts/test-viz.mjs && node scripts/test-progress.mjs && node scripts/test-fd.mjs && node scripts/test-sqlgrade.mjs && node scripts/test-d2l-ics.mjs && node scripts/test-d2l-client.mjs",
     "test:d2l:client": "node scripts/test-d2l-client.mjs",
     "desktop:dev": "cd TradeBoard/desktop/src-tauri && cargo run",
     "desktop:build": "cd TradeBoard/desktop/src-tauri && cargo build --release",
@@ -33,7 +33,17 @@
     "studyos:dev": "cd StudyOS/desktop && cargo run",
     "studyos:build": "cd StudyOS/desktop && cargo build --release",
     "studyos:bundle": "cd StudyOS/desktop/src-tauri && cargo tauri build",
-    "studyos:test": "cd StudyOS/desktop && cargo test"
+    "studyos:test": "cd StudyOS/desktop && cargo test",
+    "test:kit": "node scripts/test-kit.mjs",
+    "verify:kit": "node scripts/verify-kit.mjs",
+    "test:startnow": "node scripts/test-startnow.mjs",
+    "verify:startnow": "node scripts/verify-startnow.mjs",
+    "test:sqlgrade": "node scripts/test-sqlgrade.mjs",
+    "test:fd": "node scripts/test-fd.mjs",
+    "test:viz": "node scripts/test-viz.mjs",
+    "verify:drills": "node scripts/verify-drills.mjs",
+    "test:progress": "node scripts/test-progress.mjs",
+    "verify:study": "node scripts/verify-study.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.114.0"

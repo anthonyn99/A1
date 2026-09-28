@@ -546,6 +546,74 @@ if (!window.STUDYOS_CONFIG_READY || !window.STUDYOS_CONFIG_READY('firebase')) {
     }
   };
 
+  /* ══ Generic synced documents ════════════════════════════════════════════
+   * Quizzes (studyos_quiz/{classId}) and progress (dashboards/studyos_progress)
+   * need exactly what cards and sessions already have — their own document, a
+   * debounced whole-doc write, and the never-write-before-server-seen guard —
+   * so they share ONE implementation keyed by path instead of a third and
+   * fourth bespoke copy of the block above. Merging is the caller's job (each
+   * store unions by id on the client), which is what makes a whole-doc write
+   * safe here: every write already contains everything this device has seen.
+   *
+   * `path` is a document path: 'collection/id' or 'dashboards/name'. */
+  const _gdSeen = {};
+  const _gdPendingPayload = {};
+  const _gdTimers = {};
+  const _gdUnsub = {};
+  const _gdRef = (path) => doc(db, ...String(path).split('/'));
+
+  function _gdMarkSeen(path) {
+    if (_gdSeen[path]) return;
+    _gdSeen[path] = true;
+    // A write that arrived before the server was confirmed was HELD, not
+    // dropped — flush it now.
+    if (_gdPendingPayload[path]) _gdDoSave(path);
+  }
+
+  async function _gdDoSave(path) {
+    const payload = _gdPendingPayload[path];
+    if (!payload || !_gdSeen[path]) return;
+    delete _gdPendingPayload[path];
+    try { await setDoc(_gdRef(path), payload, { merge: false }); }
+    catch (e) { console.warn('[StudyOS Doc] save failed:', path, e && e.code); }
+  }
+
+  function _gdWatch(path) {
+    if (_gdUnsub[path]) return;
+    _gdUnsub[path] = onSnapshot(_gdRef(path), { includeMetadataChanges: false }, (snap) => {
+      if (snap.metadata && snap.metadata.fromCache === false) _gdMarkSeen(path);
+      if (!snap.exists() || (snap.metadata && snap.metadata.hasPendingWrites)) return;
+      window.dispatchEvent(new CustomEvent('fb-doc-remote', { detail: { path, data: snap.data() || {} } }));
+    }, (err) => console.warn('[StudyOS Doc] onSnapshot error:', path, err && err.code));
+  }
+
+  window._fbSaveDoc = (path, payload) => {
+    if (!path) return;
+    _gdPendingPayload[path] = { ...(payload || {}), savedAt: Date.now() };
+    if (_gdTimers[path]) clearTimeout(_gdTimers[path]);
+    _gdTimers[path] = setTimeout(() => _gdDoSave(path), NOTES_SAVE_DEBOUNCE_MS);
+  };
+
+  /** Resolves to the document's data, {} when it does not exist yet, or null
+   *  when the read failed (offline) — callers must not treat null as empty. */
+  window._fbLoadDoc = async (path) => {
+    if (!path) return null;
+    _gdWatch(path);
+    try {
+      const snap = await _freshGet(_gdRef(path));
+      if (snap && snap.metadata && snap.metadata.fromCache === false) _gdMarkSeen(path);
+      if (snap && snap.exists()) return snap.data() || {};
+      // Absent is only a legitimate empty state when the SERVER said so (marked
+      // above). _freshGet can fall back to the cache, and a cache miss proves
+      // nothing — unblocking writes on it would let a cold offline start push
+      // an empty store over another device's data.
+      return snap ? {} : null;
+    } catch (e) {
+      console.warn('[StudyOS Doc] load failed:', path, e && e.code);
+      return null;
+    }
+  };
+
   /* ══ App Lock state ══════════════════════════════════════════════════════
    * WHICH lock is on, and at what version — shared across all devices. The
    * password itself never touches Firestore; only its salted hash lives in the

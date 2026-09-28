@@ -71,7 +71,7 @@ async function request(path, init = {}) {
  * Returns `{ job, cached }`. `cached: true` means the identical file+prompt
  * already produced a result and nothing was spent.
  */
-export async function runPrompt({ file, prompt, promptId, promptVersion, classId, outputModuleId, slideCount, mode }) {
+export async function runPrompt({ file, prompt, promptId, promptVersion, classId, outputModuleId, slideCount, mode, kitRewrite }) {
   if (!enabled()) throw new Error('pipeline disabled');
   if (!file || !file.id) throw new Error('file required');
   if (!prompt || !String(prompt).trim()) throw new Error('prompt required');
@@ -110,6 +110,9 @@ export async function runPrompt({ file, prompt, promptId, promptVersion, classId
       // the dormant Worker never receives a field it does not know, and the
       // existing tests keep passing unchanged.
       ...(mode && mode !== 'rewrite' ? { mode } : {}),
+      // Kits only: whether to also produce the rewritten deck. The bridge
+      // drops it (with a warning) when the source is not a PDF.
+      ...(mode === 'kit' ? { kitRewrite: !!kitRewrite } : {}),
       // Which site the local bridge should drive. Ignored by the Worker, which
       // has exactly one provider.
       //
@@ -172,6 +175,35 @@ export async function runBatch(files, opts) {
     }
   }
   return results;
+}
+
+/**
+ * Grade a typed answer through the bridge (Java translation, explain-it-back).
+ *
+ * `prompt` carries the rubric/key points AND the answer; the JSON shape is
+ * appended bridge-side (kit.py GRADE_SCHEMAS) so no client text can break it.
+ * Resolves to the `graded` object once the job finishes. Polls fast — someone
+ * is watching a spinner — and gives up after `timeoutMs`.
+ */
+export async function grade({ kind, prompt, classId }, { timeoutMs = 240000, onStatus } = {}) {
+  if (!enabled() || !isLocalBridge()) throw new Error('needs the desktop bridge');
+  const out = await request('/api/ai/jobs', {
+    method: 'POST',
+    body: JSON.stringify({ mode: 'grade', gradeKind: kind, prompt: String(prompt),
+                           classId: classId || '', ...(CFG().site ? { site: CFG().site } : {}) }),
+  });
+  const id = out.job.id;
+  const t0 = Date.now();
+  let delay = 1500;
+  for (;;) {
+    await new Promise((r) => setTimeout(r, delay));
+    const job = await getJob(id);
+    if (onStatus) { try { onStatus(job); } catch (e) {} }
+    if (job.status === 'done') return job.graded;
+    if (job.status === 'error') throw new Error(job.error || 'grading failed');
+    if (Date.now() - t0 > timeoutMs) throw new Error('grading timed out — the bridge may be busy with a deck');
+    delay = Math.min(delay + 500, 4000);
+  }
 }
 
 export const getJob = (id) => request('/api/ai/jobs/' + encodeURIComponent(id)).then(r => r.job);
@@ -285,6 +317,20 @@ async function fetchResultPdf(jobId) {
  */
 export async function fileResult(job) {
   if (!job || job.status !== 'done' || !job.result) return null;
+  // A grade has nothing to file; the bridge marks it filed at completion.
+  if (job.mode === 'grade') return null;
+  // A study kit files several things (cards, quiz, cheat sheet, and the
+  // rewritten deck when there is one). kit.js owns that; the deck half comes
+  // back through filePdf below so it keeps every guarantee of this path.
+  if (job.mode === 'kit') {
+    const { fileKit } = await import('./kit.js');
+    return fileKit(job, { filePdf });
+  }
+  return filePdf(job, job.mode || 'rewrite');
+}
+
+/** File a finished job's PDF, recorded under `mode` for the dedup key. */
+async function filePdf(job, mode) {
   const B = window._sosBridge;
   if (!B || typeof B.addGeneratedDoc !== 'function') {
     console.warn('[pipeline] bridge cannot file generated documents yet');
@@ -311,8 +357,9 @@ export async function fileResult(job) {
   // Named for what produced it. The two paths make genuinely different things —
   // a rewrite carries YOUR slide images with new text, a NotebookLM deck is a
   // new deck built from the source — and a shared name would make them
-  // indistinguishable in the Generated module.
-  const mode = job.mode || 'rewrite';
+  // indistinguishable in the Generated module. A kit's deck IS a rewrite and
+  // is filed as one (mode 'rewrite'), so it replaces an older rewrite of the
+  // same lecture rather than sitting beside it.
   const suffix = mode === 'notebooklm' ? ' — Slides.pdf' : ' — Rewritten.pdf';
   return B.addGeneratedDoc({
     classId: job.classId,
@@ -335,4 +382,4 @@ export async function fileResult(job) {
   });
 }
 
-export default { enabled, runPrompt, runBatch, getJob, listJobs, retryJob, deleteJob, budget, watchJob, fileResult };
+export default { enabled, runPrompt, runBatch, getJob, listJobs, retryJob, deleteJob, budget, watchJob, fileResult, grade };

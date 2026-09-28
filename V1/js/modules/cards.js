@@ -345,7 +345,31 @@ export function mergeCards(existing, fresh) {
   return { merged: [...kept, ...added, ...orphaned], added, kept, orphaned };
 }
 
+/**
+ * Cards from already-structured items — a study kit's flashcards and key terms.
+ *
+ * No extraction heuristics: the model already wrote a question and an answer.
+ * The length gate is looser than `acceptable()` (fronts up to 400 chars)
+ * because a generated front is a real question, not a heading guessed from
+ * formatting, and a long code-reading question is legitimate.
+ *
+ * @param {Array<{front:string, back:string, topic?:string, slide?:number}>} items
+ */
+export function fromItems(items, src = {}) {
+  const out = [];
+  for (const it of items || []) {
+    const q = tidy(it && it.front), a = String((it && it.back) || '').trim();
+    if (q.length < 4 || q.length > 400 || !a || a.length > 800) continue;
+    if (a.toLowerCase() === q.toLowerCase()) continue;
+    out.push(mkCard(KIND.QA, q, a, src, {
+      topic: tidy(it.topic) || src.title || '',
+      slide: Number.isInteger(it.slide) ? it.slide : null,
+    }));
+  }
+  return dedupe(out);
+}
+
 export default {
-  KIND, fromPlainText, fromHtml, fromSelection,
+  KIND, fromPlainText, fromHtml, fromSelection, fromItems,
   dedupe, mergeCards, fingerprint,
 };

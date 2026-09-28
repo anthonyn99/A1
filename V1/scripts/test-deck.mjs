@@ -203,5 +203,56 @@ console.log('\nrobustness');
   t('generating for an unknown class is safe', deck.generateFromNote(null, null, NOTE).added.length === 0);
 }
 
+// ── Daily cap (engagement 2.2) ─────────────────────────────────────────────
+// "A queue of 140 due cards is one she never opens." The daily queue must stop
+// at the cap, and the cap must count what was ALREADY reviewed today — a cap
+// that resets every time the review screen opens is not a cap.
+console.log('\ndaily cap');
+{
+  classes.push({ id: 'dc', name: 'Cap', modules: [] });
+  const items = Array.from({ length: 50 }, (_, i) => ({ front: `Daily cap card ${i}?`, back: `a${i}`, topic: 'T' }));
+  deck.addExternal('dc', 'm1', items, { noteId: 'dcn' });
+  const now = Date.now();
+  // Make 40 of them due: reviewed 30 days ago with a short interval.
+  const list = deck.forClass('dc');
+  for (const c of list.slice(0, 40)) {
+    c.sched = { ...fsrs.newCard(now - 40 * 86400000), state: fsrs.STATE.REVIEW, stability: 1,
+                difficulty: 5, lastReview: now - 30 * 86400000, due: now - 29 * 86400000, reps: 1 };
+  }
+  t('default cap is 30', deck.dailyCap() === 30);
+  // The cap is GLOBAL across classes: earlier tests in this file already
+  // graded cards today, and those count too.
+  const base = deck.reviewedToday(now);
+  const q = deck.buildQueue({ classId: 'dc' }, { daily: true, now });
+  t('the daily queue stops at the cap (minus earlier reviews today)', q.length === 30 - base, [q.length, base]);
+  t('...weakest due cards first, no new cards when due fills it',
+    q.every((c) => c.sched && c.sched.state !== fsrs.STATE.NEW));
+  // Review 25 today.
+  for (const c of list.slice(0, 25)) deck.gradeCard(c.id, 3, now);
+  t('reviews today are counted', deck.reviewedToday(now) === base + 25, deck.reviewedToday(now));
+  t('the cap counts what was already done today',
+    deck.buildQueue({ classId: 'dc' }, { daily: true, now }).length === 5 - base);
+  deck.setPref('dailyCap', 25 + base);
+  t('a lower cap means nothing left today', deck.buildQueue({}, { daily: true, now }).length === 0);
+  t('the tile agrees', deck.dueToday(now).count === 0 && deck.dueToday(now).reviewed === 25 + base);
+  t('a non-daily queue ignores the cap', deck.buildQueue({ classId: 'dc' }, { now }).length > 0);
+  deck.setPref('dailyCap', 'nonsense');
+  t('a bad cap falls back to the default', deck.dailyCap() === 30);
+}
+
+// ── Exam scope ───────────────────────────────────────────────────────────
+console.log('\nexam scope');
+{
+  classes.push({ id: 'ex', name: 'Exam', modules: [] });
+  deck.addExternal('ex', 'mA', [{ front: 'Module A card one?', back: 'a' }, { front: 'Module A card two?', back: 'b' }], { noteId: 'nA' });
+  deck.addExternal('ex', 'mB', [{ front: 'Module B card one?', back: 'c' }], { noteId: 'nB' });
+  events.push({ id: 'e1', classId: 'ex', type: 'exam', date: '2099-01-01', plan: { moduleIds: ['mA'] } });
+  events.push({ id: 'e2', classId: 'ex', type: 'exam', date: '2099-01-02' });
+  t('an exam with covered modules scopes to them', deck.buildQueue({ examId: 'e1' }).length === 2);
+  t('an exam without a plan covers the whole class', deck.buildQueue({ examId: 'e2' }).length === 3);
+  t('an unknown exam is an empty queue, not everything', deck.buildQueue({ examId: 'nope' }).length === 0);
+  t('moduleIds scope works directly', deck.poolFor({ classId: 'ex', moduleIds: ['mB'] }).length === 1);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

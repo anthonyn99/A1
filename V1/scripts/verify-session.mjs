@@ -101,7 +101,9 @@ t('the tile explains itself on hover', (await evalJs(
 // ── S-1: Start Session ────────────────────────────────────────────────────
 console.log('\nS-1: Start Session');
 t('the button exists', await evalJs('!!document.getElementById("sos-start-btn")'));
-t('"Just 10 min" exists', await evalJs('!!document.getElementById("sos-start-10")'));
+// The primary button is now "Start now" (engagement 5.3, verify-startnow.mjs);
+// the original top-of-the-queue behaviour moved to "Focus on top task".
+t('"Focus on top task" exists', await evalJs('!!document.getElementById("sos-start-10")'));
 t('it is a large target', (await evalJs(
   'Math.round(document.getElementById("sos-start-btn").getBoundingClientRect().height)')) >= 44,
   await evalJs('Math.round(document.getElementById("sos-start-btn").getBoundingClientRect().height)'));
@@ -113,7 +115,7 @@ const started = await evalJs(`(() => {
   const d = new Date(Date.now() + 3*86400000).toISOString().slice(0,10);
   events.push({ id:'ex1', classId:'sx1', type:'hw', name:'HW3', date:d, weight:15 });
   updateStats();
-  document.getElementById('sos-start-btn').click();
+  document.getElementById('sos-start-10').click();
   return { view: activeView, running: pomoRunning, cls: currentClassId, mode: pomoMode };
 })()`);
 t('it switches to the timer', started.view === 'pomodoro', started);

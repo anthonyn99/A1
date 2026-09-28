@@ -57,7 +57,8 @@ window.SOS.store = store;
   // Called from inline onclick= in markup studyos.js renders; that file is a
   // classic script and cannot import these.
   window.sosStudy = (classId, extra) => reviewUi.startReview({ classId, ...(extra || {}) });
-  window.sosStudyAll = () => reviewUi.startReview({});
+  // The home tile's queue is the capped DAILY one (engagement 2.2).
+  window.sosStudyAll = () => reviewUi.startReview({}, { daily: true });
   window.sosMakeCards = (classId, moduleId, noteId, isHtml) => {
     const cls = store.getClass(classId);
     const mod = cls && (cls.modules || []).find(m => m.id === moduleId);
@@ -90,6 +91,53 @@ window.SOS.store = store;
     const d = (e && e.detail) || {};
     if (d.classId && Array.isArray(d.cards)) deck.applyRemote(d.classId, d.cards);
   });
+
+  // Quiz banks (study kits fill them) — one synced document per class, same
+  // arrangement as the decks above.
+  const quiz = await import('./quiz.js');
+  window.SOS.quiz = quiz;
+  store.onReady(() => quiz.connect(store.getClasses().map((c) => c && c.id)));
+  // Quiz / mock exam / boss engine (one overlay, three styles).
+  window.SOS.quizUi = await import('./quiz-ui.js');
+  // Exam back-planner (the countdown panel's "Plan" button).
+  const planner = await import('./planner.js');
+  window.SOS.planner = planner;
+  window.sosOpenPlanner = (eventId) => planner.openPlanner(eventId);
+  // Phase 4–5: explain-it-back, mock exams, boss fights + mastery, XP.
+  const [explain, mock, boss, xpMod] = await Promise.all([
+    import('./explain.js'), import('./mock.js'), import('./boss.js'), import('./xp.js'),
+  ]);
+  Object.assign(window.SOS, { explain, mock, boss, xp: xpMod });
+  try { window.renderExamCountdown && window.renderExamCountdown(); } catch (e) {}
+
+  // Weak spots, streak freezes, bosses — one synced document.
+  const progress = await import('./progress.js');
+  window.SOS.progress = progress;
+  store.onReady(() => progress.connect());
+
+  // The Practice view (drills hub). Loaded now so switchView can render it;
+  // each drill's own code is imported only when opened.
+  const practice = await import('./practice.js');
+  window.SOS.practice = practice;
+  if (document.getElementById('view-practice') && document.getElementById('view-practice').classList.contains('active')) practice.render();
+
+  // "Start now" (engagement 5.3). The caption under the button previews the
+  // choice and is refreshed whenever study data changes.
+  const startnow = await import('./startnow.js');
+  window.SOS.startnow = startnow;
+  window.sosStartNow = () => startnow.start();
+  const paintWhy = () => {
+    const el = document.getElementById('sos-start-why');
+    if (!el) return;
+    try {
+      const c = startnow.pick();
+      el.textContent = c ? 'Next up: ' + c.reason : 'All caught up — nothing due right now.';
+    } catch (e) { el.textContent = ''; }
+  };
+  let whyTimer = null;
+  window.addEventListener('sos-changed', () => { clearTimeout(whyTimer); whyTimer = setTimeout(paintWhy, 250); });
+  store.onReady(paintWhy);
+  setTimeout(paintWhy, 1500);
 
   console.info('[StudyOS] active recall ready.');
 })().catch(e => console.warn('[StudyOS] recall failed to start:', e));
