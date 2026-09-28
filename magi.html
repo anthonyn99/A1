@@ -17093,11 +17093,14 @@ const VIDEO_PREFS_KEY = lsKey("studio.video");
 const videoPrefs = () => { try { return JSON.parse(localStorage.getItem(VIDEO_PREFS_KEY)) || {}; } catch { return {}; } };
 const saveVideoPrefs = (p) => { try { localStorage.setItem(VIDEO_PREFS_KEY, JSON.stringify(p)); } catch {} };
 
-/* The engine's whitelist (app.py TTS_VOICES). */
+/* The engine's whitelist (app.py TTS_VOICES) -- single-language neural
+   voices only. The "Multilingual" ones re-detected the language per sentence,
+   so a line with a Chinese name came out in a different accent. */
 const VIDEO_VOICES = [
-  ["andrew", "Andrew · warm, US"], ["ava", "Ava · bright, US"],
-  ["brian", "Brian · relaxed, US"], ["emma", "Emma · clear, US"],
-  ["sonia", "Sonia · British"], ["ryan", "Ryan · British"],
+  ["ava", "Ava · warm, expressive"], ["andrew", "Andrew · warm, confident"],
+  ["sonia", "Sonia · British, elegant"], ["aria", "Aria · polished"],
+  ["christopher", "Christopher · documentary"], ["emma", "Emma · clear"],
+  ["brian", "Brian · relaxed"], ["ryan", "Ryan · British"],
 ];
 
 /* One AudioContext for every video card, made on first open. Decoded clips
@@ -17116,23 +17119,97 @@ const vidCtx = () => {
 function narrationClip(text, voice) {
   const key = `${voice}\n${text}`;
   if (_vidClips.has(key)) return _vidClips.get(key);
-  const p = (async () => {
+  const once = async () => {
     const ctx = vidCtx();
     if (!ctx) throw new Error("no audio engine");
     const form = new FormData();
     form.append("text", text);
     form.append("voice", voice);
+    form.append("cues", "1");
     const r = await fetch(`${link.api}/api/tts`, authed({ method: "POST", body: form }));
     if (!r.ok) {
       const d = await r.json().catch(() => null);
       throw new Error((d && d.detail) || `narration returned ${r.status}`);
     }
-    const buf = await r.arrayBuffer();
-    return await new Promise((ok, no) => ctx.decodeAudioData(buf, ok, no));
-  })();
+    // An engine from before word timings ignores cues=1 and sends plain MP3;
+    // captions then fall back to pacing by characters.
+    let bytes, words = null;
+    if (/json/.test(r.headers.get("content-type") || "")) {
+      const d = await r.json();
+      bytes = Uint8Array.from(atob(d.audio), (c) => c.charCodeAt(0)).buffer;
+      words = Array.isArray(d.words) ? d.words : null;
+    } else {
+      bytes = await r.arrayBuffer();
+    }
+    const buf = await new Promise((ok, no) => ctx.decodeAudioData(bytes, ok, no));
+    return { buf, words };
+  };
+  // One retry here on top of the engine's own: a single dropped clip used to
+  // put the whole video on the device's robotic voice.
+  const p = once().catch(() => new Promise((ok) => setTimeout(ok, 800)).then(once));
   _vidClips.set(key, p);
   p.catch(() => _vidClips.delete(key));
   return p;
+}
+
+/** Caption cues for one scene: every word of the narration, in pieces short
+ *  enough for two lines, each timed to when the voice actually says it.
+ *
+ *  The first version showed one sentence-sized chunk and kept only its last
+ *  two wrapped lines, so a long sentence lost its opening words on screen,
+ *  and it guessed the timing from character counts. `words` are the engine's
+ *  word timings ([start_s, dur_s, text]); without them (the device voice, an
+ *  older engine) the pieces are paced by length instead. */
+const CUE_MAX = 84;
+function captionCues(text, words, speech) {
+  const full = String(text || "").trim();
+  if (!full) return [];
+  const pieces = [];
+  let from = 0;
+  const sentences = full.match(/[^.!?]+[.!?]+["')\]]*\s*|[^.!?]+$/g) || [full];
+  const push = (txt) => {
+    const at = full.indexOf(txt.split(" ")[0], from);
+    const start = at >= 0 ? at : from;
+    pieces.push({ text: txt, at: start });
+    from = start + txt.length;
+  };
+  for (const sent of sentences) {
+    // Break at the speaker's own pauses first (commas, semicolons, dashes),
+    // then join clauses back up to two lines' worth. A clause too long on
+    // its own is cut into equal halves, not "a full line + one word".
+    const parts = [];
+    for (const cl of sent.trim().split(/(?<=[,;:\u2014])\s+/)) {
+      const toks = cl.split(/\s+/).filter(Boolean);
+      const k = Math.ceil(cl.length / CUE_MAX);
+      if (k <= 1) { parts.push(cl); continue; }
+      const per = Math.ceil(toks.length / k);
+      for (let i = 0; i < toks.length; i += per) parts.push(toks.slice(i, i + per).join(" "));
+    }
+    let cur = "";
+    for (const pt of parts) {
+      if (cur && (cur + " " + pt).length > CUE_MAX) { push(cur); cur = ""; }
+      cur = cur ? `${cur} ${pt}` : pt;
+    }
+    if (cur) push(cur);
+  }
+  // Word timings -> the moment each piece begins.
+  const times = [];
+  if (Array.isArray(words) && words.length) {
+    const low = full.toLowerCase();
+    let cursor = 0;
+    for (const [t, , wt] of words) {
+      const k = low.indexOf(String(wt || "").toLowerCase(), cursor);
+      if (k >= 0) { times.push([k, t]); cursor = k + String(wt).length; }
+    }
+  }
+  const total = Math.max(0.5, speech);
+  const cues = pieces.map((pc) => {
+    const hit = times.find(([k]) => k >= pc.at);
+    const t0 = hit && hit[0] < pc.at + pc.text.length ? hit[1] : (pc.at / full.length) * total;
+    return { text: pc.text, t0 };
+  });
+  cues.forEach((c, i) => { c.t1 = i + 1 < cues.length ? cues[i + 1].t0 : total + 0.4; });
+  return cues;
 }
 
 /* Fixed cinematic palette: the video is a thing people take away, so it does
@@ -17521,10 +17598,10 @@ function renderVideo(script) {
   const n = scenes.length;
   const prefs = videoPrefs();
   const st = {
-    voice: VIDEO_VOICES.some(([k]) => k === prefs.voice) ? prefs.voice : "andrew",
+    voice: VIDEO_VOICES.some(([k]) => k === prefs.voice) ? prefs.voice : "ava",
     cc: prefs.cc !== false, music: prefs.music !== false,
     mode: "loading",           // loading | audio | speech
-    clips: [], loaded: 0, err: "",
+    clips: [], words: [], cues: [], loaded: 0, err: "",
     T: 0, playing: false, t0: 0, raf: 0, sources: [], token: 0,
     rec: null, recDest: null, musicNodes: null,
   };
@@ -17532,12 +17609,13 @@ function renderVideo(script) {
   const words = (s) => s.split(/\s+/).filter(Boolean).length;
   let timeline = [], total = 0;
   const layoutTimes = () => {
-    timeline = []; total = 0;
+    timeline = []; total = 0; st.cues = [];
     scenes.forEach((sc, i) => {
       const clip = st.mode === "audio" ? st.clips[i] : null;
       const speech = clip ? clip.duration : words(sc.narration) / 2.6;
       const dur = Math.max(sc.layout === "title" ? 4.2 : 4.8, LEAD + speech + TAIL);
       timeline.push({ start: total, dur, speech });
+      st.cues.push(captionCues(sc.narration, st.mode === "audio" ? st.words[i] : null, speech));
       total += dur;
     });
   };
@@ -17657,23 +17735,19 @@ function renderVideo(script) {
   function caption(i, t) {
     const sc = scenes[i], tl = timeline[i];
     if (!sc.narration) return;
-    const chunks = speechChunks(sc.narration);
     const into = t - LEAD;
-    if (into < 0 || into > tl.speech + 0.4) return;
-    // Which sentence is being spoken: by share of characters, the one clock
-    // both narration paths agree on.
-    const lens = chunks.map((c) => c.length), all = lens.reduce((a, b) => a + b, 0) || 1;
-    let acc = 0, k = 0;
-    const at = (into / Math.max(0.1, tl.speech)) * all;
-    for (; k < chunks.length - 1; k++) { acc += lens[k]; if (at < acc) break; }
-    const text = chunks[k];
-    ctx.font = vBody(500)(38);
-    const lines = vWrap(ctx, text, 1500).slice(-2);
-    const lh = 50, padX = 36, padY = 18;
+    const cues = st.cues[i] || [];
+    if (into < 0 || !cues.length || into > cues[cues.length - 1].t1) return;
+    let cue = cues[0];
+    for (const c of cues) if (c.t0 <= into) cue = c;
+    ctx.font = vBody(500)(40);
+    // Every line of the piece -- never a slice of it.
+    const lines = vWrap(ctx, cue.text, 1560);
+    const lh = 54, padX = 38, padY = 18;
     const w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + padX * 2;
     const h = lines.length * lh + padY * 2;
-    const x = VID.W / 2 - w / 2, y = VID.H - 60 - h;
-    ctx.fillStyle = "rgba(4,5,12,.72)";
+    const x = VID.W / 2 - w / 2, y = VID.H - 56 - h;
+    ctx.fillStyle = "rgba(4,5,12,.74)";
     vRound(ctx, x, y, w, h, 16); ctx.fill();
     ctx.fillStyle = "#ffffff";
     ctx.textAlign = "center"; ctx.textBaseline = "top";
@@ -17745,7 +17819,8 @@ function renderVideo(script) {
       };
       await Promise.all([worker(), worker(), worker()]);
       if (token !== st.token) return;
-      st.clips = clips.map((c) => c || null);
+      st.clips = clips.map((c) => (c ? c.buf : null));
+      st.words = clips.map((c) => (c ? c.words : null));
       st.mode = "audio";
       note.textContent = "";
     } catch (e) {
@@ -17756,50 +17831,159 @@ function renderVideo(script) {
     layoutTimes(); buildSegs(); st.T = Math.min(st.T, total); draw(); paintUi();
   }
   function useSpeech(why) {
-    st.mode = "speech"; st.clips = [];
+    st.mode = "speech"; st.clips = []; st.words = [];
     note.textContent = `${why} — narrating with this device's own voice instead. ` +
       "An export from here has captions but no sound.";
     layoutTimes(); buildSegs(); draw(); paintUi();
   }
 
-  /* music: a soft pad that changes chord with the scene */
-  const CHORDS = [[220, 277.18, 329.63], [196, 246.94, 293.66], [174.61, 220, 261.63], [196, 246.94, 329.63]];
+  /* music: a quiet, warm bed -- felt-piano arpeggio, soft pad and bass over
+     a major-key progression, through a small room reverb, and ducked under
+     the narrator.
+
+     The first version slid its oscillators from chord to chord, and a pitch
+     glide under a pad is exactly how a horror score sounds. Here nothing ever
+     bends: every note is its own voice that starts, decays and ends, and a
+     chord change is one chord fading out as the next fades in. Everything is
+     scheduled against the VIDEO's clock, so it lines up the same on replay,
+     after a seek, and in an export. */
+  const MIDI = (m) => 440 * Math.pow(2, (m - 69) / 12);
+  // Two progressions, both major-key and bright: I-vi-IV-V in D, and the
+  // "cinematic" vi-IV-I-V in C. Which one is picked from the title, so a
+  // video always gets the same music.
+  const PROGS = [
+    [{ root: 38, pad: [62, 66, 69, 73] }, { root: 35, pad: [59, 62, 66, 69] },
+     { root: 43, pad: [59, 62, 66, 67] }, { root: 45, pad: [57, 61, 64, 69] }],
+    [{ root: 45, pad: [57, 60, 64, 67] }, { root: 41, pad: [57, 60, 64, 65] },
+     { root: 48, pad: [55, 60, 64, 67] }, { root: 43, pad: [55, 59, 62, 69] }],
+  ];
+  const PROG = PROGS[[...title].reduce((a, c) => (a + c.charCodeAt(0)) % 997, 0) % PROGS.length];
+  const BEAT = 60 / 74, BARS_PER_CHORD = 2;
+  const ARP = [0, 2, 1, 3, 2, 1, 3, 2];
+  const MUSIC_LEVEL = 0.34;
+
+  function roomImpulse(ac, secs = 2.6) {
+    const len = Math.floor(ac.sampleRate * secs);
+    const ir = ac.createBuffer(2, len, ac.sampleRate);
+    for (let c = 0; c < 2; c++) {
+      const d = ir.getChannelData(c);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2);
+    }
+    return ir;
+  }
   function startMusic() {
     const ac = vidCtx();
     if (!ac || !st.music || st.musicNodes) return;
-    const out = ac.createGain();
-    out.gain.value = 0;
-    out.gain.setTargetAtTime(0.045, ac.currentTime, 0.8);
-    const lp = ac.createBiquadFilter();
-    lp.type = "lowpass"; lp.frequency.value = 900; lp.Q.value = 0.3;
-    lp.connect(out);
-    out.connect(ac.destination);
-    if (st.recDest) out.connect(st.recDest);
-    const oscs = [0, 1, 2].map((v) => {
-      const o = ac.createOscillator();
-      o.type = v === 0 ? "sine" : "triangle";
-      const g = ac.createGain(); g.gain.value = v === 0 ? 0.6 : 0.25;
-      o.connect(g); g.connect(lp); o.start();
-      return o;
+    const master = ac.createGain();
+    master.gain.value = 0;
+    master.gain.setTargetAtTime(MUSIC_LEVEL, ac.currentTime, 0.6);
+    const duck = ac.createGain();                  // lowered under the voice
+    const comp = ac.createDynamicsCompressor();
+    comp.threshold.value = -24; comp.ratio.value = 3; comp.attack.value = 0.02; comp.release.value = 0.4;
+    const tone = ac.createBiquadFilter();          // take the edge off
+    tone.type = "lowpass"; tone.frequency.value = 3200; tone.Q.value = 0.2;
+    const verb = ac.createConvolver();
+    verb.buffer = roomImpulse(ac);
+    const wet = ac.createGain(); wet.gain.value = 0.32;
+    const dry = ac.createGain(); dry.gain.value = 0.8;
+    const bus = ac.createGain();
+    bus.connect(tone);
+    tone.connect(dry); tone.connect(verb); verb.connect(wet);
+    dry.connect(comp); wet.connect(comp);
+    comp.connect(duck); duck.connect(master);
+    master.connect(ac.destination);
+    if (st.recDest) master.connect(st.recDest);
+    // The video's time T happens at ac time base + T.
+    const base = ac.currentTime - st.T;
+    const m = { master, duck, bus, base, nextBeat: Math.max(0, Math.ceil(st.T / BEAT)), timer: 0, live: [] };
+    st.musicNodes = m;
+    // Ducking: down while each scene's narration plays, back up between.
+    timeline.forEach((tl, i) => {
+      if (!st.cues[i] || !st.cues[i].length) return;
+      const a = base + tl.start + LEAD, b = a + tl.speech;
+      if (b < ac.currentTime) return;
+      duck.gain.setTargetAtTime(0.55, Math.max(ac.currentTime, a - 0.3), 0.25);
+      duck.gain.setTargetAtTime(1, Math.max(ac.currentTime, b), 0.6);
     });
-    const lfo = ac.createOscillator(), lfoG = ac.createGain();
-    lfo.frequency.value = 0.07; lfoG.gain.value = 350;
-    lfo.connect(lfoG); lfoG.connect(lp.frequency); lfo.start();
-    st.musicNodes = { out, oscs, lfo };
-    setChord(sceneAt(st.T), true);
+    // Out gently over the last few seconds.
+    const endAt = base + total;
+    if (endAt > ac.currentTime + 1) master.gain.setTargetAtTime(0, endAt - 3.2, 0.9);
+    // A chord that started before a seek point is re-struck so the pad is
+    // never missing after a jump.
+    const beat0 = m.nextBeat;
+    const chordStart = beat0 - (beat0 % (4 * BARS_PER_CHORD));
+    if (chordStart !== beat0) padChord(m, chordStart, Math.max(ac.currentTime, base + beat0 * BEAT));
+    pump();
+    m.timer = setInterval(pump, 200);
   }
-  function setChord(i, now) {
+  const chordAt = (beat) => PROG[Math.floor(beat / (4 * BARS_PER_CHORD)) % PROG.length];
+  function mnote(m, freq, when, { type = "sine", gain = 0.1, attack = 0.01, decay = 1.4, len = 2, harm = 0 } = {}) {
+    const ac = vidCtx();
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(0, when);
+    g.gain.linearRampToValueAtTime(gain, when + attack);
+    g.gain.setTargetAtTime(0, when + attack, decay / 3);
+    o.connect(g); g.connect(m.bus);
+    o.start(when); o.stop(when + len);
+    if (harm) {   // a soft octave overtone makes a sine sound like felt piano
+      const o2 = ac.createOscillator(), g2 = ac.createGain();
+      o2.frequency.value = freq * 2;
+      g2.gain.setValueAtTime(0, when);
+      g2.gain.linearRampToValueAtTime(gain * harm, when + attack);
+      g2.gain.setTargetAtTime(0, when + attack, decay / 6);
+      o2.connect(g2); g2.connect(m.bus);
+      o2.start(when); o2.stop(when + len);
+      m.live.push(o2);
+    }
+    m.live.push(o);
+  }
+  function padChord(m, beat, when) {
+    const ch = chordAt(beat);
+    const span = 4 * BARS_PER_CHORD * BEAT;
+    for (const n of ch.pad) {
+      // Two sines a hair apart per note: warmth, without audible beating.
+      for (const cents of [-3, 3]) {
+        mnote(m, MIDI(n) * Math.pow(2, cents / 1200), when,
+             { gain: 0.022, attack: 1.4, decay: span * 1.2, len: span + 2.5 });
+      }
+    }
+    mnote(m, MIDI(ch.root), when, { gain: 0.09, attack: 0.03, decay: 3.2, len: 4, harm: 0.25 });
+  }
+  function pump() {
     const m = st.musicNodes, ac = vidCtx();
     if (!m || !ac) return;
-    const ch = CHORDS[i % CHORDS.length];
-    m.oscs.forEach((o, v) => o.frequency.setTargetAtTime(ch[v] / (v === 0 ? 2 : 1), ac.currentTime, now ? 0.01 : 0.6));
+    const horizon = ac.currentTime + 2.5;
+    while (m.base + m.nextBeat * BEAT < horizon) {
+      const beat = m.nextBeat++;
+      const when = m.base + beat * BEAT;
+      if (beat * BEAT > total) break;
+      if (when < ac.currentTime - 0.05) continue;
+      if (beat % (4 * BARS_PER_CHORD) === 0) padChord(m, beat, when);
+      else if (beat % 4 === 0) mnote(m, MIDI(chordAt(beat).root), when, { gain: 0.07, attack: 0.03, decay: 2.6, len: 3.5, harm: 0.2 });
+      // The arpeggio waits a bar at the very start, then plays softly.
+      if (beat >= 4) {
+        const ch = chordAt(beat);
+        const tone = ch.pad[ARP[beat % ARP.length]] + 12;
+        mnote(m, MIDI(tone), when + 0.012, { gain: 0.05, attack: 0.008, decay: 1.6, len: 2.2, harm: 0.35 });
+      }
+    }
+    // Only the most recent voices can still be sounding; older ones have
+    // stopped by themselves.
+    if (m.live.length > 600) m.live = m.live.slice(-300);
   }
+  function setChord() { /* chords follow the music's own clock now */ }
   function stopMusic() {
     const m = st.musicNodes, ac = vidCtx();
     st.musicNodes = null;
     if (!m || !ac) return;
-    m.out.gain.setTargetAtTime(0, ac.currentTime, 0.15);
-    setTimeout(() => { try { m.oscs.forEach((o) => o.stop()); m.lfo.stop(); m.out.disconnect(); } catch {} }, 600);
+    clearInterval(m.timer);
+    m.master.gain.cancelScheduledValues(ac.currentTime);
+    m.master.gain.setTargetAtTime(0, ac.currentTime, 0.12);
+    setTimeout(() => {
+      for (const o of m.live) { try { o.stop(); } catch {} }
+      try { m.master.disconnect(); } catch {}
+    }, 700);
   }
 
   /* transport */
@@ -17857,7 +18041,8 @@ function renderVideo(script) {
     const synth = window.speechSynthesis;
     if (!synth || !scenes[i].narration || st.rec) return;
     synth.cancel();
-    const v = pickHostVoices((_voicesCache || []).filter((x) => /^en/i.test(x.lang)), {}).A;
+    const v = [...(_voicesCache || [])].filter((x) => /^en/i.test(x.lang))
+      .sort((a, b) => voiceScore(b) - voiceScore(a))[0] || null;
     const into = st.T - timeline[i].start;
     setTimeout(() => {
       if (!st.playing || sceneAt(st.T) !== i) return;

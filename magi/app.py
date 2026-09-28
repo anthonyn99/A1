@@ -916,46 +916,89 @@ async def cancel_studio_artifact(run_id: str, job_id: str):
 # free, no key, and far more human than anything a phone's speech engine
 # offers -- and, unlike speechSynthesis, real audio the console can mix into
 # a recorded video file. The whitelist keeps the voice a closed choice.
+#
+# Never the "Multilingual" voices: they re-detect the language sentence by
+# sentence, so "Meet Gala, born Chen Wei" came out in a different accent from
+# the line before it. The single-language voices read everything in one
+# voice, and a touch slower than default reads as narration, not a notice.
 TTS_VOICES = {
-    "andrew": "en-US-AndrewMultilingualNeural",
-    "ava": "en-US-AvaMultilingualNeural",
-    "brian": "en-US-BrianMultilingualNeural",
-    "emma": "en-US-EmmaMultilingualNeural",
+    "ava": "en-US-AvaNeural",
+    "andrew": "en-US-AndrewNeural",
+    "emma": "en-US-EmmaNeural",
+    "brian": "en-US-BrianNeural",
     "sonia": "en-GB-SoniaNeural",
     "ryan": "en-GB-RyanNeural",
+    "aria": "en-US-AriaNeural",
+    "christopher": "en-US-ChristopherNeural",
 }
+TTS_RATE = "-6%"
+
+
+async def _synthesize(text: str, vid: str) -> tuple[bytes, list]:
+    """(mp3, words) -- words are [start_s, dur_s, text] as spoken, which is
+    what lets captions follow the voice exactly. Retried: the service drops
+    the odd connection, and one dropped clip used to push a whole video onto
+    the device's robotic fallback voice."""
+    import edge_tts
+
+    last: Exception | None = None
+    for attempt in range(3):
+        audio = bytearray()
+        words: list = []
+        try:
+            comm = edge_tts.Communicate(text, vid, rate=TTS_RATE, boundary="WordBoundary")
+            async for chunk in comm.stream():
+                if chunk.get("type") == "audio":
+                    audio.extend(chunk["data"])
+                elif chunk.get("type") == "WordBoundary":
+                    words.append([round(chunk["offset"] / 1e7, 3),
+                                  round(chunk["duration"] / 1e7, 3), chunk["text"]])
+            if audio:
+                return bytes(audio), words
+            last = RuntimeError("no audio returned")
+        except Exception as e:  # noqa: BLE001
+            last = e
+        await asyncio.sleep(0.6 * (attempt + 1))
+    raise last or RuntimeError("narration failed")
 
 
 @app.post("/api/tts")
-async def tts(text: str = Form(...), voice: str = Form("andrew")):
-    """One narration clip as MP3, cached on disk by (voice, text) so a video
-    replayed or exported again costs nothing."""
+async def tts(text: str = Form(...), voice: str = Form("ava"), cues: str = Form("")):
+    """One narration clip, cached on disk by (voice, rate, text) so a video
+    replayed or exported again costs nothing.
+
+    Plain MP3 by default. With cues=1, JSON: the MP3 as base64 plus the word
+    timings, so the console can caption exactly what is being said."""
+    import base64
     import hashlib
 
     text = re.sub(r"\s+", " ", text or "").strip()
     if not text or len(text) > 2000:
         raise HTTPException(400, "Narration must be 1 to 2000 characters.")
-    vid = TTS_VOICES.get(voice, TTS_VOICES["andrew"])
+    vid = TTS_VOICES.get(voice, TTS_VOICES["ava"])
     cache = data_dir() / "tts"
     cache.mkdir(parents=True, exist_ok=True)
-    path = cache / (hashlib.sha1(f"{vid}\n{text}".encode()).hexdigest() + ".mp3")
-    if not path.exists() or path.stat().st_size == 0:
+    stem = hashlib.sha1(f"{vid}\n{TTS_RATE}\n{text}".encode()).hexdigest()
+    path, wpath = cache / f"{stem}.mp3", cache / f"{stem}.words.json"
+    if not path.exists() or path.stat().st_size == 0 or not wpath.exists():
         try:
-            import edge_tts
+            import edge_tts  # noqa: F401
         except ImportError:
             raise HTTPException(503, "edge-tts is not installed on the engine.")
-        audio = bytearray()
         try:
-            async for chunk in edge_tts.Communicate(text, vid).stream():
-                if chunk.get("type") == "audio":
-                    audio.extend(chunk["data"])
+            audio, words = await _synthesize(text, vid)
         except Exception as e:  # noqa: BLE001
             raise HTTPException(502, f"Narration service failed: {type(e).__name__}: {e}")
-        if not audio:
-            raise HTTPException(502, "Narration service returned no audio.")
-        tmp = path.with_suffix(".part")
-        tmp.write_bytes(bytes(audio))
-        tmp.replace(path)
+        for p, data in ((path, audio), (wpath, json.dumps(words).encode())):
+            tmp = p.with_suffix(".part")
+            tmp.write_bytes(data)
+            tmp.replace(p)
+    if cues:
+        return {
+            "audio": base64.b64encode(path.read_bytes()).decode(),
+            "words": json.loads(wpath.read_text(encoding="utf-8")),
+            "voice": vid,
+        }
     return FileResponse(path, media_type="audio/mpeg")
 
 

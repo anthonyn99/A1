@@ -73,3 +73,22 @@ def test_console_offers_video_as_a_real_card():
     assert '"video"]' in PAGE and "video:      { label: \"Video\"" in PAGE
     # The old permanently-disabled tile is gone.
     assert "No video generation surface exists" not in PAGE
+
+
+def test_narration_voices_are_single_language_and_match_the_console():
+    """Multilingual voices switched accent mid-video on foreign names."""
+    import re as _re
+
+    from magi.app import TTS_VOICES
+
+    assert not [v for v in TTS_VOICES.values() if "Multilingual" in v]
+    block = PAGE[PAGE.index("const VIDEO_VOICES = ["):]
+    block = block[:block.index("];")]
+    assert set(_re.findall(r'\["(\w+)", "', block)) == set(TTS_VOICES)
+
+
+def test_captions_are_never_sliced():
+    """A caption used to keep only the last two wrapped lines of a chunk."""
+    fn = PAGE[PAGE.index("  function caption(i, t) {"):]
+    fn = fn[:fn.index("\n  }\n")]
+    assert ".slice(" not in fn
