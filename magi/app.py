@@ -1336,8 +1336,8 @@ async def create_brainstorm_round(
                 attachments=_session_attachments(session_id),
             )
 
-            answers = await _fan_out_each(
-                orch, members, member_prompts, ctx, on_event, state["cancel"]
+            answers = await orch.gather(
+                members, member_prompts, ctx, on_event, state["cancel"]
             )
             await _save_council_answers(
                 session_id, round_no, attempt, answers, "round"
@@ -1462,94 +1462,6 @@ async def create_brainstorm_round(
     return {"job_id": job_id, "round_no": round_no}
 
 
-async def _fan_out(orch, members, prompt, ctx, on_event, cancel) -> list:
-    """Ask every member the same prompt, honouring the configured pacing.
-
-    Mirrors Orchestrator.run's gather, but returns the raw answers instead of
-    proceeding to a verdict -- a brainstorm round's synthesis step is a
-    different prompt with a different output contract.
-    """
-    from .providers.base import Answer
-
-    pacing = orch.settings.pacing
-    answers: list = []
-
-    if pacing.mode == "sequential" or pacing.max_concurrency <= 1:
-        for i, p in enumerate(members):
-            if cancel.is_set():
-                break
-            if i > 0:
-                await asyncio.sleep(pacing.sample_inter_provider())
-            answers.append(await p.ask(prompt, ctx=ctx, on_event=on_event, cancel=cancel))
-        return answers
-
-    sem = asyncio.Semaphore(pacing.max_concurrency)
-
-    async def one(p, delay: float):
-        await asyncio.sleep(delay)
-        async with sem:
-            return await p.ask(prompt, ctx=ctx, on_event=on_event, cancel=cancel)
-
-    delays, acc = [], 0.0
-    for _ in members:
-        delays.append(acc)
-        acc += pacing.sample_inter_provider()
-
-    gathered = await asyncio.gather(
-        *(one(p, d) for p, d in zip(members, delays)), return_exceptions=True
-    )
-    for p, g in zip(members, gathered):
-        if isinstance(g, Exception):
-            g = Answer.failed(p.id, p.display_name, FailureKind.UNKNOWN, str(g)[:300])
-        answers.append(g)
-    return answers
-
-
-async def _fan_out_each(orch, members, prompts, ctx, on_event, cancel) -> list:
-    """Like `_fan_out`, but each member gets its OWN prompt.
-
-    The critique step needs this: every member is shown the same proposals but
-    has to be told which one is its own, so the prompts differ per member.
-    Pacing, stagger and failure handling are otherwise identical.
-    """
-    from .providers.base import Answer
-
-    pacing = orch.settings.pacing
-    answers: list = []
-
-    if pacing.mode == "sequential" or pacing.max_concurrency <= 1:
-        for i, p in enumerate(members):
-            if cancel.is_set():
-                break
-            if i > 0:
-                await asyncio.sleep(pacing.sample_inter_provider())
-            answers.append(
-                await p.ask(prompts[p.id], ctx=ctx, on_event=on_event, cancel=cancel)
-            )
-        return answers
-
-    sem = asyncio.Semaphore(pacing.max_concurrency)
-
-    async def one(p, delay: float):
-        await asyncio.sleep(delay)
-        async with sem:
-            return await p.ask(prompts[p.id], ctx=ctx, on_event=on_event, cancel=cancel)
-
-    delays, acc = [], 0.0
-    for _ in members:
-        delays.append(acc)
-        acc += pacing.sample_inter_provider()
-
-    gathered = await asyncio.gather(
-        *(one(p, d) for p, d in zip(members, delays)), return_exceptions=True
-    )
-    for p, g in zip(members, gathered):
-        if isinstance(g, Exception):
-            g = Answer.failed(p.id, p.display_name, FailureKind.UNKNOWN, str(g)[:300])
-        answers.append(g)
-    return answers
-
-
 async def _run_critique(
     orch, members, answers, topic, turns, ctx, on_event, cancel, session_id,
     round_no, attempt, phase,
@@ -1580,8 +1492,8 @@ async def _run_critique(
     }
 
     try:
-        results = await _fan_out_each(
-            orch, critics, prompts, ctx, on_event, cancel
+        results = await orch.gather(
+            critics, prompts, ctx, on_event, cancel
         )
     except Exception:
         return []
@@ -1714,8 +1626,8 @@ async def finalize_brainstorm(
                 question=next(iter(member_prompts.values()), topic),
                 attachments=_session_attachments(session_id),
             )
-            answers = await _fan_out_each(
-                orch, members, member_prompts, ctx, on_event, state["cancel"]
+            answers = await orch.gather(
+                members, member_prompts, ctx, on_event, state["cancel"]
             )
             await _save_council_answers(
                 session_id, round_no, attempt, answers, "finalize"

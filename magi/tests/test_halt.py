@@ -129,9 +129,17 @@ async def test_the_waiter_never_outlives_the_ask():
 
 
 def test_both_fan_out_paths_go_through_it():
-    """Sequential and concurrent -- a fix in one path only is half a fix."""
+    """Sequential and concurrent -- a fix in one path only is half a fix.
+
+    Both live in Orchestrator.gather, the one fan-out the council AND
+    Brainstorm use; app.py must not grow a second one.
+    """
     src = (REPO / "magi" / "engine" / "orchestrator.py").read_text(encoding="utf-8")
-    assert src.count("self._ask(p, question, ctx, emit, cancel)") == 2
+    assert src.count("self._ask(p, prompt_for(p), ctx, emit, cancel)") == 2
+    app = (REPO / "magi" / "app.py").read_text(encoding="utf-8")
+    assert "await p.ask(" not in app and "_fan_out" not in app, (
+        "Brainstorm fans out through orch.gather, not a copy of it"
+    )
     assert "await p.ask(question, ctx=ctx, on_event=emit, cancel=cancel)" in src, (
         "the uncancellable call should survive exactly once, inside _ask's "
         "no-cancel-event shortcut"

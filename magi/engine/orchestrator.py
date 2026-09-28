@@ -264,6 +264,105 @@ class Orchestrator:
             "Halted before this unit finished.",
         )
 
+    async def gather(
+        self,
+        providers: list[Provider],
+        prompts: str | dict[str, str],
+        ctx: RunContext | None,
+        emit,
+        cancel: asyncio.Event | None,
+        on_answer=None,
+    ) -> list[Answer]:
+        """Ask every member, honouring the pacing -- one fan-out for everyone.
+
+        `prompts` is one question for all, or a dict keyed by unit id when each
+        member gets its own (Brainstorm's rounds and critiques). The council
+        and Brainstorm used to fan out separately, and Brainstorm's copy had
+        none of this one's protections: no halt race, no instant FAILED card,
+        no refusal retry, no contention stagger, and no straggler cut -- a
+        stuck unit could hold a round until its 20-minute hard timeout.
+
+        `on_answer` is awaited with each Answer, in member order (the council
+        saves them to the run as they come).
+        """
+        def prompt_for(p: Provider) -> str:
+            return prompts[p.id] if isinstance(prompts, dict) else prompts
+
+        t0 = time.monotonic()
+        answers: list[Answer] = []
+        pacing = self.settings.pacing
+
+        if pacing.mode == "sequential" or pacing.max_concurrency <= 1:
+            for i, p in enumerate(providers):
+                if cancel and cancel.is_set():
+                    break
+                if i > 0:
+                    await asyncio.sleep(pacing.sample_inter_provider())
+                a = await self._ask(p, prompt_for(p), ctx, emit, cancel)
+                answers.append(a)
+                if on_answer:
+                    await on_answer(a)
+            return answers
+
+        # Members run concurrently. Each drives its OWN browser profile and
+        # its own site, so there is no shared rate limit to trip -- the
+        # concern that motivated sequential-only was four requests to one
+        # service, which is not what happens here.
+        #
+        # Starts are still staggered by a short random gap so four browser
+        # launches don't land on the same instant (which is both a
+        # recognisable pattern and a CPU spike that slows every member).
+        sem = asyncio.Semaphore(pacing.max_concurrency)
+
+        async def one(p: Provider, delay: float) -> Answer:
+            await asyncio.sleep(delay)
+            async with sem:
+                return await self._ask(p, prompt_for(p), ctx, emit, cancel)
+
+        # Cumulative stagger, sampled per provider -- provider N waits for
+        # the sum of N gaps, not N x one fixed gap.
+        #
+        # With the gap configured to zero (start everyone together) the
+        # first two still start together, but a THIRD onwards is held back
+        # a beat. Chrome startup is CPU-bound: measured here, four members
+        # launched at the same instant took 15.6s to all be page-ready,
+        # against 9.7s when spread out, because they slowed each other
+        # down. Two browsers do not contend, so a two-unit council pays
+        # nothing for this.
+        delays, acc = [], 0.0
+        for i, _ in enumerate(providers):
+            delays.append(acc)
+            gap = pacing.sample_inter_provider()
+            if gap <= 0 and i + 1 >= CONTENTION_FROM:
+                gap = CONTENTION_GAP_S
+            acc += gap
+
+        tasks = [
+            asyncio.create_task(one(p, d)) for p, d in zip(providers, delays)
+        ]
+        await self._gather_with_grace(tasks, providers, t0, emit)
+        from ..errors import FailureKind
+
+        for p, t in zip(providers, tasks):
+            if t.cancelled():
+                a = Answer.failed(
+                    p.id, p.display_name, FailureKind.TIMEOUT,
+                    f"Cut off: every other unit had finished and "
+                    f"{p.display_name} was still going "
+                    f"{int(time.monotonic() - t0)}s into the run.",
+                )
+            elif t.exception() is not None:
+                a = Answer.failed(
+                    p.id, p.display_name, FailureKind.UNKNOWN,
+                    str(t.exception())[:300],
+                )
+            else:
+                a = t.result()
+            answers.append(a)
+            if on_answer:
+                await on_answer(a)
+        return answers
+
     async def run(
         self,
         question: str,
@@ -285,81 +384,14 @@ class Orchestrator:
             if on_event:
                 await on_event(ev)
 
+        async def save(a: Answer) -> None:
+            if self.db:
+                await self.db.save_answer(run_id, a)
+
         # -- gather ---------------------------------------------------------
-        answers: list[Answer] = []
-        pacing = self.settings.pacing
-
-        if pacing.mode == "sequential" or pacing.max_concurrency <= 1:
-            for i, p in enumerate(providers):
-                if cancel and cancel.is_set():
-                    break
-                if i > 0:
-                    await asyncio.sleep(pacing.sample_inter_provider())
-                a = await self._ask(p, question, ctx, emit, cancel)
-                answers.append(a)
-                if self.db:
-                    await self.db.save_answer(run_id, a)
-        else:
-            # Members run concurrently. Each drives its OWN browser profile and
-            # its own site, so there is no shared rate limit to trip -- the
-            # concern that motivated sequential-only was four requests to one
-            # service, which is not what happens here.
-            #
-            # Starts are still staggered by a short random gap so four browser
-            # launches don't land on the same instant (which is both a
-            # recognisable pattern and a CPU spike that slows every member).
-            sem = asyncio.Semaphore(pacing.max_concurrency)
-
-            async def one(p: Provider, delay: float) -> Answer:
-                await asyncio.sleep(delay)
-                async with sem:
-                    return await self._ask(p, question, ctx, emit, cancel)
-
-            # Cumulative stagger, sampled per provider -- provider N waits for
-            # the sum of N gaps, not N x one fixed gap.
-            #
-            # With the gap configured to zero (start everyone together) the
-            # first two still start together, but a THIRD onwards is held back
-            # a beat. Chrome startup is CPU-bound: measured here, four members
-            # launched at the same instant took 15.6s to all be page-ready,
-            # against 9.7s when spread out, because they slowed each other
-            # down. Two browsers do not contend, so a two-unit council pays
-            # nothing for this.
-            delays, acc = [], 0.0
-            for i, _ in enumerate(providers):
-                delays.append(acc)
-                gap = pacing.sample_inter_provider()
-                if gap <= 0 and i + 1 >= CONTENTION_FROM:
-                    gap = CONTENTION_GAP_S
-                acc += gap
-
-            tasks = [
-                asyncio.create_task(one(p, d)) for p, d in zip(providers, delays)
-            ]
-            await self._gather_with_grace(tasks, providers, t0, emit)
-            gathered = []
-            for p, t in zip(providers, tasks):
-                if t.cancelled():
-                    from ..errors import FailureKind
-
-                    gathered.append(Answer.failed(
-                        p.id, p.display_name, FailureKind.TIMEOUT,
-                        f"Cut off: every other unit had finished and "
-                        f"{p.display_name} was still going "
-                        f"{int(time.monotonic() - t0)}s into the run.",
-                    ))
-                else:
-                    gathered.append(t.exception() or t.result())
-            for p, g in zip(providers, gathered):
-                if isinstance(g, Exception):
-                    from ..errors import FailureKind
-
-                    g = Answer.failed(
-                        p.id, p.display_name, FailureKind.UNKNOWN, str(g)[:300]
-                    )
-                answers.append(g)
-                if self.db:
-                    await self.db.save_answer(run_id, g)
+        answers = await self.gather(
+            providers, question, ctx, emit, cancel, on_answer=save
+        )
 
         responded = [a for a in answers if a.ok and a.text.strip()]
         # Members that answered but whose text failed validation. Tracked
