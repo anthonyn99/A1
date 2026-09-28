@@ -38,7 +38,7 @@ from .engine import studio as studio_engine
 from .engine import usage
 from . import agent_guard
 from .engine.orchestrator import Orchestrator, required_members
-from .errors import FailureKind, explain
+from .errors import explain
 from .providers import gemini_api
 from .providers.base import ProviderEvent, RunContext
 from . import proc

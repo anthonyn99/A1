@@ -49,6 +49,13 @@ CONTENTION_GAP_S = 0.6
 # See Orchestrator._gather_with_grace.
 STRAGGLER_MAX = 1
 STRAGGLER_GRACE_S = 180.0
+# A one-line question does not need three minutes of grace: replaying every
+# stored council run and brainstorm phase (2026-09-28), a 90s floor for
+# prompts under 600 chars would have cut no real answer.
+STRAGGLER_GRACE_SHORT_S = 90.0
+SHORT_PROMPT_CHARS = 600
+# A straggler whose text grew this recently is still writing: extend, don't cut.
+STILL_WRITING_S = 20.0
 
 
 class Orchestrator:
@@ -118,33 +125,56 @@ class Orchestrator:
                 return
             await asyncio.sleep(0.25)
 
-    async def _gather_with_grace(self, tasks, providers, t0, emit) -> None:
+    async def _gather_with_grace(
+        self, tasks, providers, t0, emit, *, floor=None, grew=None
+    ) -> None:
         """Wait for every member -- but not for ever for the last one.
 
         One stuck unit used to hold the whole council: on 2026-09-22 Gemini
         sat "thinking" for twelve minutes with three answers already in hand,
         and nothing could reach a verdict until it gave up. So once only
         STRAGGLER_MAX units are left, they get a grace period -- as long again
-        as the run has taken so far, never less than STRAGGLER_GRACE_S -- and
-        are then cut off. A slow unit that is really working still fits: the
-        slowest real answer (ChatGPT, 362s against the others' ~130s) is well
-        inside twice the time the others took.
+        as the run has taken so far, never less than `floor` (STRAGGLER_GRACE_S,
+        or STRAGGLER_GRACE_SHORT_S for a short prompt) -- and are then cut off.
+        A slow unit that is really working still fits: the slowest real answer
+        (ChatGPT, 362s against the others' ~130s) is well inside twice the time
+        the others took.
+
+        And a unit is never cut mid-sentence: `grew` maps unit id -> when its
+        text last grew, and while that is under STILL_WRITING_S ago the grace
+        is extended, STILL_WRITING_S at a time. The site's own hard timeout
+        (completion.py) stays the ceiling.
         """
+        if floor is None:
+            floor = STRAGGLER_GRACE_S
+        grew = grew if grew is not None else {}
+        by_task = dict(zip(tasks, providers))
         pending = set(tasks)
         while pending:
             done, pending = await asyncio.wait(
                 pending, return_when=asyncio.FIRST_COMPLETED
             )
             if pending and len(pending) <= STRAGGLER_MAX and len(pending) < len(tasks):
-                grace = max(STRAGGLER_GRACE_S, time.monotonic() - t0)
-                done, pending = await asyncio.wait(pending, timeout=grace)
+                deadline = time.monotonic() + max(floor, time.monotonic() - t0)
+                while pending:
+                    left = deadline - time.monotonic()
+                    if left > 0:
+                        done, pending = await asyncio.wait(pending, timeout=left)
+                        continue
+                    now = time.monotonic()
+                    writing = [
+                        grew[by_task[t].id] for t in pending
+                        if now - grew.get(by_task[t].id, float("-inf")) < STILL_WRITING_S
+                    ]
+                    if not writing:
+                        break
+                    deadline = max(writing) + STILL_WRITING_S
                 if pending:
                     for t in pending:
                         t.cancel()
                     with contextlib.suppress(BaseException):
                         await asyncio.gather(*pending, return_exceptions=True)
                     if emit:
-                        by_task = dict(zip(tasks, providers))
                         for t in pending:
                             p = by_task[t]
                             with contextlib.suppress(Exception):
@@ -314,10 +344,26 @@ class Orchestrator:
         # recognisable pattern and a CPU spike that slows every member).
         sem = asyncio.Semaphore(pacing.max_concurrency)
 
+        # When each unit's text last grew, for the straggler rule. STREAMING
+        # events fire only when the captured text grew (completion.py).
+        grew: dict[str, float] = {}
+
+        async def tracked(ev: ProviderEvent) -> None:
+            if ev.state == ProviderState.STREAMING and ev.partial_text:
+                grew[ev.provider_id] = time.monotonic()
+            if emit:
+                await emit(ev)
+
+        longest = max((len(prompt_for(p)) for p in providers), default=0)
+        floor = (
+            STRAGGLER_GRACE_SHORT_S if longest < SHORT_PROMPT_CHARS
+            else STRAGGLER_GRACE_S
+        )
+
         async def one(p: Provider, delay: float) -> Answer:
             await asyncio.sleep(delay)
             async with sem:
-                return await self._ask(p, prompt_for(p), ctx, emit, cancel)
+                return await self._ask(p, prompt_for(p), ctx, tracked, cancel)
 
         # Cumulative stagger, sampled per provider -- provider N waits for
         # the sum of N gaps, not N x one fixed gap.
@@ -340,7 +386,9 @@ class Orchestrator:
         tasks = [
             asyncio.create_task(one(p, d)) for p, d in zip(providers, delays)
         ]
-        await self._gather_with_grace(tasks, providers, t0, emit)
+        await self._gather_with_grace(
+            tasks, providers, t0, emit, floor=floor, grew=grew
+        )
         from ..errors import FailureKind
 
         for p, t in zip(providers, tasks):

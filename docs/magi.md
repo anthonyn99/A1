@@ -1642,6 +1642,22 @@ meaning (`_NO_LIVE_ACCESS`: disclaiming search, browsing or live data) under
 (`_REDIRECT`). Replayed against every stored answer and verdict (225): it flags
 the five known refusals and nothing else.
 
+**One fan-out, and a straggler rule that reads the page** (`Orchestrator.gather`,
+`_gather_with_grace`; Phase S2, 2026-09-28). The council and Brainstorm used to
+fan out separately, and Brainstorm's copy (`app._fan_out_each`, now deleted) had
+none of the council's protections: no halt race, no instant FAILED card, no
+refusal retry, no launch stagger, no straggler cut — a stuck unit could hold a
+round up to its 20-minute hard timeout. Now every round, critique and final
+pass goes through `gather` (`prompts` is one string, or a dict per unit id).
+Once only the last unit is left it gets a grace period of `max(floor, time so
+far)`, where the floor is 90 s when every prompt is under 600 characters
+(`STRAGGLER_GRACE_SHORT_S`, `SHORT_PROMPT_CHARS`) and 180 s otherwise.
+Replaying every stored run, the 90 s floor would have cut no real answer. And a
+unit is never cut while its text is growing: `gather` records each `STREAMING`
+event (they fire only on growth) and extends the grace `STILL_WRITING_S` (20 s)
+at a time; the site's own `hard_timeout_s` stays the ceiling. Tests:
+`magi/tests/test_straggler.py`.
+
 ## Questions handed over by another A1 program
 
 TradeHub's **Analysis** tab no longer opens a chat site and types a prompt into
