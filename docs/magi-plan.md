@@ -9,10 +9,10 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-09-28, end of the Phase S1 session.
+**Last updated:** 2026-09-28, end of the Phase S2 session.
 **Phases complete:** 1–14 (14a hardening, 14b A1 writable), plus **11B**,
-and Track S's **S1**.
-**Next phase:** **S2 — straggler rule + one shared fan-out**, in Track S
+and Track S's **S1** and **S2**.
+**Next phase:** **S3 — bug fixes + Brainstorm phase display**, in Track S
 (§8 "Track S": S1 → S2 → S3 → U1 → U2 → U3 → U4). Phase 15 (Veda's
 engine install) is independent and still **needs Veda**; do it whenever
 she is at her PC.
@@ -34,8 +34,8 @@ One phase per session.
 | ~~14a~~ | ~~Hardening sweep~~ | **done 2026-09-24** | | |
 | ~~14b~~ | ~~A1 writable~~ | **done 2026-09-24** (writes only; Tony's answers) | | |
 | ~~S1~~ | ~~Speed: zero-risk~~ | **done 2026-09-28** | | |
-| **S2** | Speed: stragglers | One shared fan-out (Brainstorm gets the council's protections); 90s floor for short prompts; never cut a unit still writing | Medium | 1 |
-| S3 | Speed: fixes | One-word answers kept; Brainstorm phase line (critique/merging/review) correct and reload-proof | Small | 1 |
+| ~~S2~~ | ~~Speed: stragglers~~ | **done 2026-09-28** | | |
+| **S3** | Speed: fixes | One-word answers kept; Brainstorm phase line (critique/merging/review) correct and reload-proof | Small | 1 |
 | U1 | Units: recon | Read-only map of each site's model picker, model label, limit/downgrade wording, counts | Small | 1 |
 | U2 | Units: model shown | Model chip on every card; fallbacks flagged | Medium | 1 |
 | U3 | Units: limits | Limits panel + reset countdowns; Claude Pro reuses Code Mode numbers | Medium | 1 |
@@ -211,6 +211,19 @@ One phase per session.
     note under Read/Write (`w.note`), the ships/engine banners
     (`.code-appr-out.is-warn`), no Commit (`applied.by_hook`), no Push ↑n
     (`proj.write.push !== false`). `docs/magi.md` "A1 itself".
+
+* **Speed (Track S, S1–S2)** — `max_concurrency: 8`, rate-limit check
+  above Gate 1, launcher scans off the event loop (S1). **One fan-out**
+  (S2): `Orchestrator.gather(providers, prompts, ctx, emit, cancel,
+  on_answer)` — `prompts` is a str or a dict per unit id — used by
+  `run()` AND Brainstorm's round, critique and finalise (`app._fan_out` /
+  `_fan_out_each` deleted; `test_halt` forbids a second copy in app.py).
+  `_gather_with_grace(…, floor=, grew=)`: floor `STRAGGLER_GRACE_SHORT_S`
+  90 when every prompt < `SHORT_PROMPT_CHARS` 600, else 180; `gather`
+  wraps `emit` to stamp each STREAMING event per unit, and a straggler
+  that grew within `STILL_WRITING_S` (20) is extended 20 s at a time.
+  Tests `magi/tests/test_straggler.py` (incl. the whole round route with a
+  stuck fake member).
 
 ### Ready for Veda's PC (the 11B completion requirement)
 
@@ -470,22 +483,23 @@ reachable from the internet.
 * Phase 15 needs Veda for her sign-ins (see "Ready for Veda's PC"); her
   profile's `code` field lives on `dashboards/magi_veda` and needs nothing.
 
-### Track S — first concrete steps for the next session (Phase S2)
+### Track S — first concrete steps for the next session (Phase S3)
 
 1. Start-of-session checklist above (pull, engine alive, pytest baseline
-   ≈1180 + node run-all 50 suites).
-2. Read §8 "Track S": the findings, S1's status line, then Phase S2.
-3. Extract `Orchestrator.gather()` first and switch `run()` to it in the
-   same edit (full suite green, council unchanged); only then add the
-   straggler floor + "still writing" extension; only then switch
-   `app.py`'s brainstorm to `orch.gather` and delete `_fan_out_each` /
-   `_fan_out`. Every edit auto-pushes, so each must stand on its own.
-4. Tests named in S2, then the straggler replay against `magi.db`, then
-   one live brainstorm round (the S1 script pattern: POST, then read the
-   SSE stream from 127.0.0.1, where no token is needed).
-5. Watch for a repeat of S1's one cold-start navigation timeout (below).
-   If it recurs, the fix is a slightly wider launch stagger for the
-   first run after a restart, not a lower cap.
+   ≈1188 + node run-all 50 suites).
+2. Read §8 "Track S", then Phase S3.
+3. **Already there:** `app.py` emits `{"type":"phase","phase":"critique"}`
+   before `_run_critique` in both the round (~L1362) and finalise
+   (~L1638). S3 adds `merging` / `writing` / `reviewing`, keeps
+   `state["phase"]`, and puts `phase` in the stream `init` so a reload
+   replays it. Ship the console half first (`listenBs` ~L18405,
+   `phaseNote` ~L18683, `resumeBrainstorm` ~L20964 in magi.html).
+4. Validator: `magi/engine/validate.py` `Rejection.TRUNCATED` (~L344) —
+   the brevity exemption keyed on the QUESTION; replay every stored
+   capture, only "Four" may change.
+5. Bug (c) from the findings: `test_morning_run.py::test_a_limit_notice_
+   after_send_ends_the_wait` passes by accident (baseline `last_text=""`);
+   S1 added a realistic sibling — fix or retire the old one.
 
 ### Phase 15 — first concrete steps (whenever Veda is at her PC)
 
@@ -1888,6 +1902,21 @@ free RAM never went below 2.9 GB of 23.
    total with the ~100s baseline.
 
 ### Phase S2 — Straggler rule + one shared fan-out (medium)
+
+*Status:* **done 2026-09-28.** Built as listed (see "What exists" › Speed).
+pytest 1188 (11 new in `test_straggler.py`), node 50 suites; three
+mutants killed (no still-writing extension, no short floor, no cut at all
+→ the Brainstorm round test). **Replay** (78 council runs + brainstorm
+phases, conservative — ignores the still-writing extension): the 90 s floor
+cuts sooner only two answers that had FAILED anyway (Gemini 219 s, Grok
+140 s) and no real answer; the one real answer the old 180 s rule
+would have cut, ChatGPT's 362 s on the 5,768-char morning report, is a long
+prompt and streams, so it now gets the still-writing protection. **Live**,
+one 7-unit Brainstorm round after the restart: launches staggered 0.6 s
+(new for Brainstorm), members 47 s, critique 37 s (Grok's rate limit shown
+FAILED the instant it was read — also new), merge 37 s, **121 s total,
+7/7**. No cold-start navigation timeout this time. The HOW sentence was
+rewritten; no other console change, so no CDP pass was run.
 
 1. `magi/engine/orchestrator.py`: extract the concurrent/sequential gather
    out of `run()` into `Orchestrator.gather(providers, prompts, ctx, emit,
