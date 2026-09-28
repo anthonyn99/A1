@@ -50,6 +50,8 @@ on:
       - "V1/js/**"
       - "V1/config/**"
       - "V1/assets/**"
+      # Versioned third-party runtime files (sql.js WASM for the SQL drills).
+      - "V1/vendor/**"
       - "V1/firebase/firebase-messaging-sw.js"
       - "V1/scripts/build.mjs"
   workflow_dispatch:
