@@ -9,9 +9,10 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-09-28, Track S planned (no code changed yet).
-**Phases complete:** 1–14 (14a hardening, 14b A1 writable), plus **11B**.
-**Next phase:** **S1 — zero-risk speed-ups**, the first of Track S
+**Last updated:** 2026-09-28, end of the Phase S1 session.
+**Phases complete:** 1–14 (14a hardening, 14b A1 writable), plus **11B**,
+and Track S's **S1**.
+**Next phase:** **S2 — straggler rule + one shared fan-out**, in Track S
 (§8 "Track S": S1 → S2 → S3 → U1 → U2 → U3 → U4). Phase 15 (Veda's
 engine install) is independent and still **needs Veda**; do it whenever
 she is at her PC.
@@ -32,8 +33,8 @@ One phase per session.
 | ~~13~~ | ~~Firebase sync of Code Mode state~~ | **done 2026-09-24** | | |
 | ~~14a~~ | ~~Hardening sweep~~ | **done 2026-09-24** | | |
 | ~~14b~~ | ~~A1 writable~~ | **done 2026-09-24** (writes only; Tony's answers) | | |
-| **S1** | Speed: zero-risk | All units at once (both engines), limit cards seen in seconds, no launch stalls | Small | 1 |
-| S2 | Speed: stragglers | One shared fan-out (Brainstorm gets the council's protections); 90s floor for short prompts; never cut a unit still writing | Medium | 1 |
+| ~~S1~~ | ~~Speed: zero-risk~~ | **done 2026-09-28** | | |
+| **S2** | Speed: stragglers | One shared fan-out (Brainstorm gets the council's protections); 90s floor for short prompts; never cut a unit still writing | Medium | 1 |
 | S3 | Speed: fixes | One-word answers kept; Brainstorm phase line (critique/merging/review) correct and reload-proof | Small | 1 |
 | U1 | Units: recon | Read-only map of each site's model picker, model label, limit/downgrade wording, counts | Small | 1 |
 | U2 | Units: model shown | Model chip on every card; fallbacks flagged | Medium | 1 |
@@ -54,7 +55,7 @@ One phase per session.
    import fails.
 5. Baseline the tests before touching anything. **Run pytest from `magi/`
    over the whole folder** — `cd magi; .venv\Scripts\python -m pytest tests -q`
-   (≈1120). From the A1 root, `test_morning_run.py` fails to collect (it
+   (≈1180). From the A1 root, `test_morning_run.py` fails to collect (it
    imports `tests.test_completion`); a single file runs fine from the root
    (`python -m pytest magi/tests/test_x.py`). Node: `node tests/run-all.js`
    (49 suites). Both must be green; if not, fix that first.
@@ -469,14 +470,22 @@ reachable from the internet.
 * Phase 15 needs Veda for her sign-ins (see "Ready for Veda's PC"); her
   profile's `code` field lives on `dashboards/magi_veda` and needs nothing.
 
-### Track S — first concrete steps for the next session (Phase S1)
+### Track S — first concrete steps for the next session (Phase S2)
 
-1. Start-of-session checklist above (pull, engine alive, pytest baseline).
-2. Read §8 "Track S": the measured findings, then Phase S1's six steps.
-3. Write the realistic Grok limit test FIRST and watch it fail on the
-   current `completion.py`; then make the four S1 changes.
-4. End-of-phase checklist; restart the engine (`magi\restart.ps1`) and do
-   the live 7-unit check. Rewrite this §0 so the next step is S2.
+1. Start-of-session checklist above (pull, engine alive, pytest baseline
+   ≈1180 + node run-all 50 suites).
+2. Read §8 "Track S": the findings, S1's status line, then Phase S2.
+3. Extract `Orchestrator.gather()` first and switch `run()` to it in the
+   same edit (full suite green, council unchanged); only then add the
+   straggler floor + "still writing" extension; only then switch
+   `app.py`'s brainstorm to `orch.gather` and delete `_fan_out_each` /
+   `_fan_out`. Every edit auto-pushes, so each must stand on its own.
+4. Tests named in S2, then the straggler replay against `magi.db`, then
+   one live brainstorm round (the S1 script pattern: POST, then read the
+   SSE stream from 127.0.0.1, where no token is needed).
+5. Watch for a repeat of S1's one cold-start navigation timeout (below).
+   If it recurs, the fix is a slightly wider launch stagger for the
+   first run after a restart, not a lower cap.
 
 ### Phase 15 — first concrete steps (whenever Veda is at her PC)
 
@@ -1842,6 +1851,20 @@ answer vs the one before it): a 90s floor for short prompts would have cut
 "still writing" protection below).
 
 ### Phase S1 — Zero-risk speed-ups (small)
+
+*Status:* **done 2026-09-28.** Built as listed. `max_concurrency: 8`
+(both engines, pinned by `test_pacing::test_every_unit_runs_at_once_on_both_engines`);
+the rate-limit check sits above Gate 1 (`test_morning_run::test_a_limit_card_is_seen_before_any_answer_text`,
+failed on the old code for both a fresh chat and an old turn on screen);
+launcher's process scan, kill and lock re-check run in `asyncio.to_thread`.
+The HOW panel's "they go at once" and "limit spotted within seconds" were
+already written that way and are now true, so no text changed. pytest 1177,
+node 50 suites. **Live, three short questions to all 7 units:** launches
+spread 3.0s every time; 76s (first run after the restart: Claude (Pro)
+hit a 45s `page.goto` timeout on claude.ai and three units ran ~60s,
+consistent with seven cold profiles loading at once), then 51s and 61s,
+7/7, against 104–105s for comparable questions before. CPU peaked at 57%;
+free RAM never went below 2.9 GB of 23.
 
 1. `magi/config/magi.yaml`: `max_concurrency: 4` → `8`, rewrite its comment
    (7 units now; the 0.6s stagger from the 3rd launch on stays —
