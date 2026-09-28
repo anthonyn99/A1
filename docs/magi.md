@@ -1743,6 +1743,9 @@ surface is still wired up.
 **System → Accounts.** One card per unit: whether a session is saved, whether
 it still works, how big the profile is, and a label you write yourself.
 
+The whole mechanism, back to front, for units, coding agents and GitHub, with
+the files to read: [magi-accounts.md](magi-accounts.md).
+
 Three deliberate omissions, all in `magi/accounts.py`:
 
 - **It does not scrape the account's email.** Seven more selectors, all behind
