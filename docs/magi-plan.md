@@ -9,14 +9,16 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-09-24, end of the Phase 14 session.
+**Last updated:** 2026-09-28, Track S planned (no code changed yet).
 **Phases complete:** 1–14 (14a hardening, 14b A1 writable), plus **11B**.
-**Next phase:** **15 — Veda's engine**, an install on her PC that **needs
-Veda** (see "Ready for Veda's PC"). Nothing is left to build before it.
+**Next phase:** **S1 — zero-risk speed-ups**, the first of Track S
+(§8 "Track S": S1 → S2 → S3 → U1 → U2 → U3 → U4). Phase 15 (Veda's
+engine install) is independent and still **needs Veda**; do it whenever
+she is at her PC.
 
 > **To start the next phase, the whole instruction is "continue" or "next
-> phase".** Do the start-of-session checklist, then Phase 15 from the steps
-> at the end of this §0. Everything needed is in this file.
+> phase".** Do the start-of-session checklist, then the next Track S phase
+> from its section in §8 ("Track S"), then the steps at the end of this §0. Everything needed is in this file.
 
 ### The road from here (agreed with Tony 2026-09-21; 11B added 2026-09-24)
 
@@ -30,6 +32,13 @@ One phase per session.
 | ~~13~~ | ~~Firebase sync of Code Mode state~~ | **done 2026-09-24** | | |
 | ~~14a~~ | ~~Hardening sweep~~ | **done 2026-09-24** | | |
 | ~~14b~~ | ~~A1 writable~~ | **done 2026-09-24** (writes only; Tony's answers) | | |
+| **S1** | Speed: zero-risk | All units at once (both engines), limit cards seen in seconds, no launch stalls | Small | 1 |
+| S2 | Speed: stragglers | One shared fan-out (Brainstorm gets the council's protections); 90s floor for short prompts; never cut a unit still writing | Medium | 1 |
+| S3 | Speed: fixes | One-word answers kept; Brainstorm phase line (critique/merging/review) correct and reload-proof | Small | 1 |
+| U1 | Units: recon | Read-only map of each site's model picker, model label, limit/downgrade wording, counts | Small | 1 |
+| U2 | Units: model shown | Model chip on every card; fallbacks flagged | Medium | 1 |
+| U3 | Units: limits | Limits panel + reset countdowns; Claude Pro reuses Code Mode numbers | Medium | 1 |
+| U4 | Units: choose model | Per-unit model picker, per person; a bad pick never fails a run | Medium-large | 1 |
 | 15 | Veda's engine | `magi onboard --profile veda` on her PC, her logins + GitHub account, isolation check. Nothing new to build: 11B is per-profile already (see "Ready for Veda's PC") | Low (an install) | < 1 (needs Veda) |
 
 ### Start-of-session checklist (do these in order)
@@ -460,7 +469,16 @@ reachable from the internet.
 * Phase 15 needs Veda for her sign-ins (see "Ready for Veda's PC"); her
   profile's `code` field lives on `dashboards/magi_veda` and needs nothing.
 
-### Phase 15 — first concrete steps for the next session
+### Track S — first concrete steps for the next session (Phase S1)
+
+1. Start-of-session checklist above (pull, engine alive, pytest baseline).
+2. Read §8 "Track S": the measured findings, then Phase S1's six steps.
+3. Write the realistic Grok limit test FIRST and watch it fail on the
+   current `completion.py`; then make the four S1 changes.
+4. End-of-phase checklist; restart the engine (`magi\restart.ps1`) and do
+   the live 7-unit check. Rewrite this §0 so the next step is S2.
+
+### Phase 15 — first concrete steps (whenever Veda is at her PC)
 
 Veda's PC, with Veda. Nothing to build. On her PC (a clone of A1), the
 session follows `docs/magi-setup.md`: `magi\setup.ps1 -Profile veda`, then
@@ -1774,6 +1792,166 @@ never appears in Tony's; her locked profile fetches nothing on his devices.
 *Note:* Code Mode there uses **her** Windows user's Claude CLI auth, which is correct — but it also means a
 `veda` engine hosted on *Tony's* PC would use Tony's CLI credentials. Documented, and Code Mode is gated to the
 profile that owns the machine.
+
+---
+
+## Track S — Speed, then units' limits, models and model choice
+
+*Agreed with Tony 2026-09-28.* Two goals, in this order:
+**(1)** make Deliberation and Brainstorm faster **without changing answer
+quality**, fixing bugs found on the way; **(2)** for every browser unit that
+has limits and fallbacks, show its limits and which model actually answered,
+and let Tony/Veda **choose the model**. One phase per session: S1 → S2 → S3
+→ U1 → U2 → U3 → U4. Each phase ends with the End-of-phase checklist in §0.
+
+**Deliberately unchanged in every phase** (these protect quality): the
+completion windows (Claude's 25-poll/10s confirm, DeepSeek's stability
+window, the preamble guards), all prompts, the critique round, the finalise
+review pass, chairman choice.
+
+### What the run history showed (measured 2026-09-28, `magi/data/tony/magi.db`)
+
+Read-only analysis of 90 runs + brainstorm turns. Scripts are trivial
+`sqlite3 file:...?mode=ro` queries; re-run them for before/after numbers.
+
+| Cause | Evidence | Cost |
+|---|---|---|
+| 7 units but `pacing.max_concurrency: 4` — units 5–7 queue on the semaphore in `Orchestrator.run` | "Explain Clear+ at DIA": slowest unit 53s, members phase ~76s (`total_ms − synthesis latency`) | ~20–35s per 7-unit run, and per Brainstorm fan-out phase |
+| Straggler grace is `max(180s, elapsed)` even on one-line questions (`orchestrator.STRAGGLER_GRACE_S`) | "rank the top 5 mid laners": 5 units done at 73s, Gemini cut at 260s, total 274s, chairman only 13s | up to ~100s |
+| The 5s rate-limit check in `completion.wait_for_completion` sits AFTER Gate 1's `continue`, so a limit card that is not answer text is only seen after the 120s stall timer | Grok `rate_limited` at 131s and 140s | ~120s whenever Grok (or any site) is out of quota |
+| `launcher._chrome_pids_using` spawns PowerShell+CIM synchronously on the event loop at every launch | measured 0.47–0.50s per call on this PC | engine-wide stall per unit launch |
+| Brainstorm fans out through its own `app._fan_out_each`: no straggler cut, no contention stagger, no halt race (`Orchestrator._ask_raw`), no instant FAILED card, no refusal retry | code | a stuck unit can hold a round up to the 20-min hard timeout |
+
+Gemini's stock error lines ("I'm having a hard time fulfilling your
+request…") took 130–218s: `_is_canned_refusal` matches them all (checked), so
+the time is Gemini thinking before it errors — the straggler rule is the fix.
+
+**Bugs found:** (a) "What is 2+2? One word." → DeepSeek's correct "Four" was
+rejected as TRUNCATED; (b) Brainstorm's status line flips to "Merging…" on ANY
+state event carrying a message (`listenBs` in magi.html: `if (msg.message)`),
+never shows the critique phase, and resets to "council" on reload; (c)
+`test_morning_run.py::test_a_limit_notice_after_send_ends_the_wait` passes by
+accident — its baseline has `last_text=""` so Gate 1 opens on the old turn;
+(d) the HOW panel's "They go at once; nobody waits for anybody" and "A
+usage-limit notice is spotted within seconds" are false today.
+
+**Straggler replay** (every stored council run and brainstorm phase; last ok
+answer vs the one before it): a 90s floor for short prompts would have cut
+**0** real answers. The only ones any floor touches are ChatGPT on the
+5,768-char morning report (long prompt → keeps 180s, and gains the
+"still writing" protection below).
+
+### Phase S1 — Zero-risk speed-ups (small)
+
+1. `magi/config/magi.yaml`: `max_concurrency: 4` → `8`, rewrite its comment
+   (7 units now; the 0.6s stagger from the 3rd launch on stays —
+   `orchestrator.CONTENTION_GAP_S`). **Tony asked for Veda's engine too:**
+   both engines read this one shared file and `settings.py` has no
+   per-profile pacing override — add a test loading settings for `tony` and
+   `veda` that asserts 8 for both. PC: 23 GB RAM / 10 cores, ~3 GB for 7
+   headless Chromes.
+2. `magi/browser/completion.py`: move the `LIMIT_CHECK_S` rate-limit block
+   above Gate 1 so it runs while no answer text exists. Same selectors, same
+   page as today → no new false-positive risk.
+3. `magi/browser/launcher.py` `_launch_unlocked`: `_chrome_pids_using` and
+   `_kill_pids` via `await asyncio.to_thread(...)` (as
+   `Orchestrator._await_profile_release` already does).
+4. Tests: a realistic Grok test (baseline = on-screen text, same turn count,
+   limit card appears, no text) — show it FAILS on the old code first, then
+   passes; the two-profile concurrency test.
+5. HOW panel (magi.html ~L6735): check the two sentences in bug (d) now
+   hold; reword if needed.
+6. Live: one short 7-unit question; all 7 cards start within ~4s; compare
+   total with the ~100s baseline.
+
+### Phase S2 — Straggler rule + one shared fan-out (medium)
+
+1. `magi/engine/orchestrator.py`: extract the concurrent/sequential gather
+   out of `run()` into `Orchestrator.gather(providers, prompts, ctx, emit,
+   cancel, on_answer=None) -> list[Answer]` (`prompts`: one str, or a dict
+   keyed by unit id). `run()` calls it and saves via `on_answer`. Update
+   `test_halt.py::test_both_fan_out_paths_go_through_it`.
+2. `_gather_with_grace`: floor 90s when the prompt is < 600 chars
+   (`STRAGGLER_GRACE_SHORT_S`, `SHORT_PROMPT_CHARS`), else 180s as today;
+   the proportional part (grace ≥ elapsed) unchanged. **Never cut a unit
+   whose text grew in the last 20s** — wrap `emit` in `gather` to record the
+   time of each STREAMING event with text (they fire only on growth), extend
+   20s at a time; the site's `hard_timeout_s` stays the ceiling.
+3. `magi/app.py`: brainstorm round, `_run_critique` and finalise call
+   `orch.gather(...)`; delete `_fan_out_each` and the unused `_fan_out`.
+4. Tests: a streaming straggler is not cut; short floor 90 / long 180
+   (patched small); a stuck brainstorm member is cut and the round merges.
+5. HOW panel: rewrite the grace-period sentence; say Brainstorm gets it.
+6. Re-run the straggler replay; one live brainstorm round.
+
+### Phase S3 — Bug fixes + Brainstorm phase display (small)
+
+1. `magi/engine/validate.py`: TRUNCATED exemption only when the QUESTION
+   asks for brevity ("one word", "single word", "one number", "yes or no",
+   "just the number/name") AND the answer is ≤ 2 words AND not a loading
+   label. "OK"/"Print" (normal question) and "Searching the web" stay
+   rejected (existing tests).
+2. `magi/app.py`: emit `{"type":"phase","phase": critique|merging|writing|
+   reviewing}`; keep `state["phase"]`; include `phase` in the stream `init`.
+3. `magi.html` (ship BEFORE step 2): `listenBs` sets phase from `phase`
+   events and `init`; `phaseNote` gains critique ("Units are reviewing each
+   other's proposals…") and reviewing ("Checking the finished document…");
+   `resumeBrainstorm` uses the replayed phase; keep a narrow fallback
+   matching only the chairman's "is merging / is writing / is checking".
+4. Validator replay over every stored capture: only "Four" changes. Headless
+   CDP check of the phase line (council → critique → merging, survives
+   reload); `test_console_intact`. Before/after timing report from the DB.
+
+### Phase U1 — Recon, read-only (small, no UI)
+
+Rule for U1–U4: **show only what the site shows; never guess a number.**
+For each unit (chatgpt, claude, claude-pro, gemini, grok, perplexity,
+deepseek) open its signed-in page through `launcher.launch` as the doctor
+does — no question sent — and capture: the model picker (button, how the
+menu opens, options, how the selected one is marked); the idle model label;
+whether a finished answer names its model; limit/downgrade wording (live,
+and from saved failure snapshots in `magi/artifacts/`); any remaining-count
+readout. Output: selector keys per site in `magi/config/selectors.yaml`
+(`model_button`, `model_option`, `model_selected`, `model_label`,
+`downgrade_notice`, `usage_readout`, each VERIFIED/UNVERIFIED in the file's
+style); DOM fixtures under `magi/tests/fixtures/`; a findings table here in
+§S saying per unit what can and cannot be shown or selected. No behaviour
+change — this decides what U2–U4 promise per unit.
+
+### Phase U2 — Show the model that answered (medium)
+
+`BrowserProvider.ask` (`magi/providers/browser_base.py`) reads the model
+label after page load and after the answer (page already open — free).
+Additive `answers.model` column (`magi/db.py`); in `state`/`done` events and
+history. Console: a model chip on every unit card, history and brainstorm
+card; amber "fell back to X" when the label changed mid-answer or a
+downgrade notice showed. Tests from U1 fixtures; headless chip check.
+
+### Phase U3 — Limits and fallbacks panel (medium)
+
+`GET /api/units/usage`: per unit, merge live notices/counts seen during runs
+(per-profile state, updated after every run — no extra launches),
+`engine/usage.recent()` history (limit, reset, cleared), last model seen;
+Claude (Pro) reuses Code Mode's existing usage numbers for that account.
+Per-unit "Check now" (launches a browser; nothing on a timer). Console: in
+the unit-selection sheet + a badge on each chip — model, limit state (OK /
+near limit when a count exists / limited until T with countdown / falling
+back to X), last checked. The doctor's limit section reads the same source.
+Tests: merge logic, Tony/Veda separation, headless render.
+
+### Phase U4 — Choose the model (medium-large)
+
+`GET /api/units/{id}/models` (options from U1, cached per profile, "Refresh
+models" opens the picker once); `POST /api/units/{id}/model` saves per person
+in `accounts.json` (`magi/accounts.py`, beside `chairman_override`). Default
+**Site default** = today's behaviour. Before typing, the provider selects
+the model and reads the label back; if unavailable (limit, option gone) the
+unit STILL answers on what the site gives and the card says "asked for X,
+got Y" — never a failed run. Applies to members, chairman, brainstorm and
+Studio. Console: per-unit dropdown in the unit sheet, "Site default" first.
+Tests: picker driving on fixtures, read-back, unavailable → labelled not
+failed, per-profile storage, HOW section. Live: non-default models on 2–3
+units, one short question.
 
 ---
 
