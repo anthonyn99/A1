@@ -130,6 +130,30 @@ async def test_a_limit_notice_after_send_ends_the_wait(monkeypatch):
     assert "limit is gone" in e.value.detail
 
 
+@pytest.mark.parametrize("before", [[], ["old"]], ids=["fresh-chat", "old-turn-on-screen"])
+@pytest.mark.asyncio
+async def test_a_limit_card_is_seen_before_any_answer_text(monkeypatch, before):
+    """The case above, as the page really is (2026-09-28).
+
+    That test builds its baseline from a turn count alone, so the old turn
+    reads as "changed" and Gate 1 opens -- which is the only reason it passed.
+    On the real page the baseline IS what is on screen, no new text ever
+    appears, and the limit check sat behind Gate 1: Grok's quota card was seen
+    only after the stall timer, 131s and 140s into two real runs.
+    """
+    monkeypatch.setattr(completion, "LIMIT_CHECK_S", 0.0)
+    card = "7 hours 30 minutes before limit is gone"
+    page = LimitPage([{"turns": before}, {"turns": before, "limit": card}])
+    site = make_site(rate_limit_selectors=["LIMIT"], stall_timeout_s=3, hard_timeout_s=5)
+    baseline = completion.Baseline(turns=len(before), last_text=(before or [""])[-1])
+    import time as _t
+    t0 = _t.monotonic()
+    with pytest.raises(ProviderError) as e:
+        await completion.wait_for_completion(page, site, baseline=baseline)
+    assert e.value.kind == FailureKind.RATE_LIMITED, e.value.detail
+    assert _t.monotonic() - t0 < 1.5, "seen within a poll or two, not after the stall timer"
+
+
 @pytest.mark.asyncio
 async def test_a_settled_error_line_ends_the_wait_despite_a_stop_button(monkeypatch):
     """Gemini: error line on screen, Stop button never went away."""

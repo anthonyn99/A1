@@ -23,7 +23,14 @@ pacing:
   # browser profile against a DIFFERENT service. The pattern worth avoiding is
   # hammering ONE service, which never happens: each site sees a single request.
   mode: parallel
-  max_concurrency: 4
+  # Every unit at once. This was 4 from when the council had four members;
+  # with seven, units 5-7 waited for one of the first four to FINISH before
+  # they even launched -- ~20-35s on every 7-unit question and on every
+  # Brainstorm fan-out (measured from run history, 2026-09-28). 8 leaves room
+  # for one more unit. It is the same file for both engines, Tony's and
+  # Veda's, and both were asked for. Seven headless Chromes are ~3 GB; if a
+  # PC struggles, lower this -- the stagger below still spreads the launches.
+  max_concurrency: 8
 
   # Start gap between members. [0, 0] fires all of them at the same instant.
   #

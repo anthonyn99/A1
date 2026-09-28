@@ -253,6 +253,23 @@ async def wait_for_completion(
         if stop_now or streaming_now:
             last_growth = time.monotonic()
 
+        # A quota notice that lands AFTER the send. Grok's free tier swaps the
+        # answer for "7 hours 30 minutes before limit is gone": no text, no stop
+        # button, and the run used to wait out the full stall timer before
+        # anyone looked (2026-09-22). Checked every few seconds instead; the
+        # caller turns this into "<site> says: ..." with a screenshot.
+        #
+        # BEFORE Gate 1, not after it. The card is not answer text, so Gate 1
+        # never opens on it -- and with this check behind Gate 1's `continue`
+        # it only ran once the stall timer had fired: Grok's limit was seen
+        # 131s and 140s into two real runs (2026-09-28). Same selectors, same
+        # page as before; only the moment it is looked for moved.
+        if site.rate_limit_selectors and time.monotonic() - last_limit_check >= LIMIT_CHECK_S:
+            last_limit_check = time.monotonic()
+            limit = await resolve.rate_limited(page, site.rate_limit_selectors)
+            if limit:
+                raise ProviderError(FailureKind.RATE_LIMITED, limit)
+
         # Gate 1: don't read anything until this is demonstrably a NEW answer.
         #
         # Either a turn was appended (append-style UIs) or the last turn's text
@@ -272,17 +289,6 @@ async def wait_for_completion(
                 )
             await asyncio.sleep(poll_s)
             continue
-
-        # A quota notice that lands AFTER the send. Grok's free tier swaps the
-        # answer for "7 hours 30 minutes before limit is gone": no text, no stop
-        # button, and the run used to wait out the full stall timer before
-        # anyone looked (2026-09-22). Checked every few seconds instead; the
-        # caller turns this into "<site> says: ..." with a screenshot.
-        if site.rate_limit_selectors and time.monotonic() - last_limit_check >= LIMIT_CHECK_S:
-            last_limit_check = time.monotonic()
-            limit = await resolve.rate_limited(page, site.rate_limit_selectors)
-            if limit:
-                raise ProviderError(FailureKind.RATE_LIMITED, limit)
 
         # Gate 1b: a stock error or refusal line that has stopped changing is
         # the whole reply, whatever the page's other signals say. Gemini left

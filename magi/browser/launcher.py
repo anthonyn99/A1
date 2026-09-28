@@ -231,11 +231,16 @@ async def _launch_unlocked(
     # These windows belong solely to MAGI (never the user's own Chrome, which
     # uses a different profile directory), so closing them is safe and saves
     # the user from hunting down a stray window.
-    pids = _chrome_pids_using(profile_dir)
+    #
+    # Both calls spawn a process (PowerShell + CIM, taskkill) and block until
+    # it exits -- ~0.5s measured. Off the event loop, because every launch
+    # runs this and a council launches seven: on the loop, each one froze
+    # every other unit's launch and polling while it ran.
+    pids = await asyncio.to_thread(_chrome_pids_using, profile_dir)
     if pids and cfg.reclaim_orphaned_profiles:
-        _kill_pids(pids)
+        await asyncio.to_thread(_kill_pids, pids)
         await asyncio.sleep(1.0)
-        pids = _chrome_pids_using(profile_dir)
+        pids = await asyncio.to_thread(_chrome_pids_using, profile_dir)
 
     if pids:
         raise ProviderError(
@@ -313,7 +318,7 @@ async def _launch_unlocked(
                 # live process owns the profile, clear the lock and retry once.
                 if "existing browser session" not in str(first).lower():
                     raise
-                if _profile_in_use(profile_dir):
+                if await asyncio.to_thread(_profile_in_use, profile_dir):
                     raise ProviderError(
                         FailureKind.PROFILE_LOCKED,
                         f"A Chrome window is already using the {site_id} profile. "

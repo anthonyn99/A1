@@ -138,6 +138,26 @@ def test_defaults_are_parallel_and_fast():
     assert s.pacing.inter_provider_delay_s[1] <= 2.0
 
 
+@pytest.mark.parametrize("profile", ["tony", "veda"])
+def test_every_unit_runs_at_once_on_both_engines(monkeypatch, profile):
+    """No unit waits for another to finish before it may even launch.
+
+    With 7 units and a cap of 4, units 5-7 queued behind the first four --
+    ~20-35s per question (2026-09-28). Tony asked for this on Veda's engine
+    too; both read the same magi.yaml, so this pins that neither profile gets
+    a different cap.
+    """
+    from magi import settings as settings_mod
+
+    monkeypatch.setenv("MAGI_PROFILE", profile)
+    assert settings_mod.resolve_profile(None) == profile
+    s = load_settings()
+    enabled = [sid for sid, on in s.enabled.items() if on]
+    assert s.pacing.max_concurrency >= len(enabled) >= 7, (
+        f"{profile}: cap {s.pacing.max_concurrency} for {len(enabled)} units"
+    )
+
+
 def test_zero_stagger_fires_everyone_at_once():
     """[0, 0] must produce no artificial delay for any member."""
     p = Pacing(inter_provider_delay_s=(0, 0))
