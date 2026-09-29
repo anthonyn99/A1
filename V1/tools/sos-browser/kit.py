@@ -86,8 +86,10 @@ Rules:
 - At least {MIN_QUIZ + 2} questions. "type" is one of: mcq, short, trace, sql.
   - mcq: 4 choices; "answer" must equal one of the choices exactly.
   - short: a 1-3 sentence answer in "answer"; no "choices".
-  - trace: "prompt" contains a short code snippet and asks what it prints or
-    returns; "answer" is the exact output.
+  - trace: "prompt" contains a short code snippet or query and asks what it
+    prints or returns; "answer" is ONLY the literal output, exactly as it
+    would appear (e.g. "2", "[5, 9, 6]", "1 3 6") — never a description or
+    sentence. If the output is a table, prefer an mcq instead.
   - sql: only if the lecture covers SQL; "prompt" asks for a query, "answer"
     is a correct query.
 - Mix the types and difficulty the way a real midterm would.

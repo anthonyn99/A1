@@ -41,7 +41,7 @@ const seeded = await evalJs(`(async function(){
   classes.push({ id:'vs1', name:'Calm Class', color:'#8fd6ad', modules:[] });
   classes.push({ id:'vs2', name:'Exam Class', color:'#ef9f9f', modules:[] });
   var d = new Date(); d.setDate(d.getDate() + 4);
-  events.push({ id:'vse1', name:'Midterm', classId:'vs2', type:'exam', date: d.toISOString().slice(0,10), weight:'25' });
+  events.push({ id:'vse1', name:'Midterm', classId:'vs2', type:'exam', date: d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'), weight:'25' });
   localStorage.setItem('studyos_cards_vs1', '[]'); localStorage.setItem('studyos_cards_vs2', '[]');
   var deck = window.SOS.deck;
   deck.addExternal('vs1', 'm', [{front:'Calm card one?', back:'a'}, {front:'Calm card two?', back:'b'}], { noteId:'n1' });

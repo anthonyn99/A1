@@ -64,6 +64,10 @@ export async function connect() {
       const { res, rej } = pending.get(msg.id);
       pending.delete(msg.id);
       msg.error ? rej(new Error(JSON.stringify(msg.error))) : res(msg.result);
+    } else if (msg.method === 'Fetch.requestPaused') {
+      // See BRIDGE GUARD below: refuse, never forward.
+      send('Fetch.failRequest', { requestId: msg.params.requestId, errorReason: 'ConnectionRefused' }).catch(() => {});
+      events.push(msg);
     } else if (msg.method) {
       events.push(msg);
     }
@@ -84,6 +88,17 @@ export async function connect() {
     }
     return r.result.value;
   };
+
+  // BRIDGE GUARD. The StudyOS pipeline talks to the local browser bridge on
+  // 127.0.0.1:8781, and every request that reaches it drives the REAL Claude /
+  // NotebookLM accounts and spends Veda's quota. MEASURED 2026-09-28: with the
+  // bridge running, verify-study's explain-it-back check sent a real grading
+  // job — a paid Claude message spent by a test. So no test browser may reach
+  // that port, ever: requests to it fail at the network layer. Suites that
+  // exercise the pipeline stub window.fetch in-page, which never gets here.
+  await send('Fetch.enable', { patterns: [
+    { urlPattern: '*://127.0.0.1:8781/*' }, { urlPattern: '*://localhost:8781/*' },
+  ] });
 
   return { send, evalJs, events, close: () => ws.close() };
 }

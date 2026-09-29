@@ -72,6 +72,9 @@ export function rank(classes) {
 }
 
 // ── Gathering inputs from the app ───────────────────────────────────────────
+// Event dates are LOCAL calendar days ('2026-10-14'). toISOString() is UTC, so
+// after 8pm Eastern it already reads tomorrow and shifts every window by a day.
+const localDay = (ts) => { const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 function daysUntil(dateStr, now) {
   const d = new Date(dateStr + 'T12:00:00').getTime();
   return Math.max(0, Math.ceil((d - now) / 86400000));
@@ -82,8 +85,8 @@ export function gather(now = Date.now()) {
   const store = S.store;
   if (!store || !S.deck) return [];
   const items = typeof window._sosScheduleItemsPublic === 'function' ? window._sosScheduleItemsPublic() : [];
-  const today = new Date(now).toISOString().slice(0, 10);
-  const in30 = new Date(now + 30 * 86400000).toISOString().slice(0, 10);
+  const today = localDay(now);
+  const in30 = localDay(now + 30 * 86400000);
   const daily = S.deck.dueToday(now);
   const launchers = {
     review: !!S.review,

@@ -138,6 +138,14 @@ export function normalizeOutput(s) {
     .replace(/^["'`]+|["'`]+$/g, '');
 }
 
+/** Short and output-like (a number, a list, a line or two of printed text). */
+export function isLiteralOutput(answer) {
+  const a = normalizeOutput(answer);
+  if (!a || a.length > 60) return false;
+  // Prose markers: parentheses with words, "returns", "rows", sentences.
+  return !/\b(returns?|rows?|all|the|which|because)\b/i.test(a) && !/[a-z]{3,}\s[a-z]{3,}\s[a-z]{3,}/i.test(a);
+}
+
 /**
  * Grade a response synchronously where that is possible.
  * Returns { correct: boolean|null, expected } — null means "needs a human"
@@ -147,7 +155,12 @@ export function gradeSync(q, response) {
   if (!q) return { correct: null, expected: '' };
   if (q.type === 'mcq') return { correct: String(response) === q.answer, expected: q.answer };
   if (q.type === 'trace') {
-    return { correct: normalizeOutput(response) === normalizeOutput(q.answer), expected: q.answer };
+    if (normalizeOutput(response) === normalizeOutput(q.answer)) return { correct: true, expected: q.answer };
+    // A long or prose answer ("SKUs 100100, 100200 … (all bought by Pete
+    // Hansen)") is a DESCRIPTION of the output, not the output — seen in the
+    // first real study kit. Exact matching would mark almost any correct
+    // answer wrong, so it goes to self-grading instead of an automatic miss.
+    return { correct: isLiteralOutput(q.answer) ? false : null, expected: q.answer };
   }
   return { correct: null, expected: q.answer };
 }
@@ -195,5 +208,5 @@ export function buildQuiz(scope = {}, n = 10, rand = Math.random) {
 
 export default {
   TYPES, connect, forClass, get, countsFor, addFromKit, recordAnswer, remove,
-  normalizeOutput, gradeSync, buildQuiz,
+  normalizeOutput, isLiteralOutput, gradeSync, buildQuiz,
 };

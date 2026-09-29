@@ -236,7 +236,11 @@ export function startQuiz(scope = {}, opts = {}) {
       const go = async () => {
         a.querySelector('[data-go]').disabled = true;
         const resp = inp.value;
-        if (q.type === 'trace') { const { correct } = quiz.gradeSync(q, resp); record(q, correct, resp); return feedback(q, correct); }
+        if (q.type === 'trace') {
+          const { correct } = quiz.gradeSync(q, resp);
+          if (correct === null) return selfGrade(q, resp);      // a described answer, not literal output
+          record(q, correct, resp); return feedback(q, correct);
+        }
         // SQL: grade by result set when the model answer runs on Cape Codd;
         // a kit's SQL may reference its own lecture's tables, so fall back to
         // self-grading rather than marking a right answer wrong.

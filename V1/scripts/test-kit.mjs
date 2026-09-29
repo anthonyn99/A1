@@ -137,6 +137,13 @@ console.log('\nquiz bank');
   t('trace is still exact on content', quiz.gradeSync(tr, '1 2 3').correct === false);
   t('trace forgives surrounding quotes', quiz.gradeSync({ type: 'trace', answer: 'hello' }, '"hello"').correct === true);
   t('short answers need a human', quiz.gradeSync({ type: 'short', answer: 'x' }, 'x').correct === null);
+  // From the first REAL kit (2026-09-28): trace answers written as prose.
+  const prose = { type: 'trace', answer: 'SKUs 100100, 100200, 100300 (all bought by Pete Hansen).' };
+  t('a prose trace answer that does not match goes to self-grading, not ✗', quiz.gradeSync(prose, '100100 100200').correct === null);
+  t('...but an exact match is still auto-correct', quiz.gradeSync(prose, prose.answer).correct === true);
+  t('a literal output miss is still ✗', quiz.gradeSync({ type: 'trace', answer: '[5, 9, 6]' }, '[5, 6, 9]').correct === false);
+  t('literal outputs are recognised', quiz.isLiteralOutput('1 3 6 8 10') && quiz.isLiteralOutput('4 3') && quiz.isLiteralOutput('b3'));
+  t('described outputs are not', !quiz.isLiteralOutput('One row: Water Sports, 4') && !quiz.isLiteralOutput('OrderItemSum = 1180.00, OrderItemAvg = 168.571428, OrderItemMin = 50.00, OrderItemMax = 300.00'));
 
   const stored = mem.get('studyos_quiz_c1');
   t('no underscore-prefixed keys in the stored bank', !/"_[a-zA-Z]/.test(stored), stored.match(/"_[a-zA-Z]\w*/g));

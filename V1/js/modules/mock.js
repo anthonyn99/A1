@@ -21,6 +21,9 @@ import { ensureStyles } from './quiz-ui.js';
 const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const shuffle = (a) => { const b = a.slice(); for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; } return b; };
 
+// Local calendar day — event dates are local, toISOString() is UTC.
+const localDay = (ts) => { const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+
 export function courseOf(cls) {
   const s = `${(cls && cls.name) || ''} ${(cls && cls.code) || ''}`;
   if (COURSES.db.match.test(s)) return 'db';
@@ -77,7 +80,7 @@ export function openSetup(classId) {
   const cls = store.getClass(classId);
   const course = courseOf(cls);
   const mods = (cls && cls.modules || []).filter((m) => m.type === 'documents');
-  const exam = store.getEvents().filter((e) => e && e.classId === classId && e.type === 'exam' && e.date >= new Date().toISOString().slice(0, 10))
+  const exam = store.getEvents().filter((e) => e && e.classId === classId && e.type === 'exam' && e.date >= localDay(Date.now()))
     .sort((a, b) => a.date.localeCompare(b.date))[0];
   const planned = new Set((exam && exam.plan && exam.plan.moduleIds) || []);
   const bankSize = quiz.forClass(classId).length;

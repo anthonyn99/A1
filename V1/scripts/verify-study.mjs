@@ -28,6 +28,9 @@ await new Promise((r) => setTimeout(r, 3500));
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const seeded = await evalJs(`(async function(){
+  // Self-check paths only: this suite must never grade through the bridge
+  // (cdp.mjs also blocks the bridge port outright).
+  window.STUDYOS_CONFIG.cloudflare.ai.enabled = false;
   window._fbSaveStudyOs = function(){}; window._fbSaveCards = function(){}; window._fbSaveDoc = function(){};
   window._fbSaveSessions = function(){};
   for (var i = classes.length - 1; i >= 0; i--) if (classes[i].id === 'vq1') classes.splice(i, 1);
@@ -38,7 +41,7 @@ const seeded = await evalJs(`(async function(){
     { id:'vqm1', name:'Module 1', type:'documents', files:[], prompts:[], notes:[] },
     { id:'vqm2', name:'Module 2', type:'documents', files:[], prompts:[], notes:[] } ]});
   var d = new Date(); d.setDate(d.getDate() + 10);
-  events.push({ id:'vqe', name:'DB Midterm', classId:'vq1', type:'exam', date: d.toISOString().slice(0,10), weight:'25' });
+  events.push({ id:'vqe', name:'DB Midterm', classId:'vq1', type:'exam', date: d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'), weight:'25' });
   var cards = [];
   for (var c = 0; c < 12; c++) cards.push({ front: 'Module 2 card ' + c + '?', back: 'answer ' + c, topic: c < 6 ? 'Joins' : 'Subqueries' });
   window.SOS.deck.addExternal('vq1', 'vqm2', cards, { noteId: 'kit_f', title: 'L2' });
