@@ -100,7 +100,7 @@ export function active() {
   if (id === 'bridge') {
     if (!pipeline.enabled() || !pipeline.isLocalBridge()) problem = 'The Claude Pro provider needs the local bridge switched on in config.';
   } else if (!s.keys[id]) problem = `Add your ${PROVIDERS[id].label} key in AI settings.`;
-  else if (!model) problem = `Name a model for ${PROVIDERS[id].label} in AI settings.`;
+  else if (!model && id !== 'orca') problem = `Name a model for ${PROVIDERS[id].label} in AI settings.`;
   return { id, label: PROVIDERS[id].label, model, key: s.keys[id] || '',
            baseUrl: (s.baseUrl[id] || PROVIDERS[id].defaultBase || '').replace(/\/+$/, ''),
            problem };
@@ -235,7 +235,7 @@ export async function testConnection() {
   const text = await ADAPTERS[a.id](a, {
     system: '', prompt: 'Reply with the single word OK.', maxTokens: 256, attachPdf: false, test: true,
   });
-  return `Connected — ${a.model} replied “${String(text).trim().slice(0, 40)}”.`;
+  return `Connected — ${a.model || a.label} replied “${String(text).trim().slice(0, 40)}”.`;
 }
 
 // ── Adapters: (active, spec) → answer text ────────────────────────────────
@@ -389,7 +389,7 @@ async function viaOpenAI(a, spec) {
   const post = (response_format) => fetch(a.baseUrl + '/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + a.key },
-    body: JSON.stringify({ model: a.model, messages, ...(response_format ? { response_format } : {}) }),
+    body: JSON.stringify({ ...(a.model && !/^(any|auto)$/i.test(a.model) ? { model: a.model } : {}), messages, ...(response_format ? { response_format } : {}) }),
   });
 
   let res;

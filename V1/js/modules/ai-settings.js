@@ -29,7 +29,7 @@ const MODEL_HINT = {
   anthropic: 'claude-opus-5-5',
   openai: 'the model id your provider lists, e.g. for OpenRouter "provider/model"',
   gemini: 'a Gemini model id from Google AI Studio',
-  orca: 'an ORCA backend id, e.g. groq/gpt-oss-120b',
+  orca: 'leave blank — ORCA chooses a backend itself',
 };
 
 let draft = null;
@@ -66,7 +66,7 @@ export function render() {
           <input id="ais-key" type="password" value="${esc(draft.keys[p] || '')}" placeholder="${esc(KEY_HINT[p] || '')}" spellcheck="false" autocomplete="off">
           <button class="btn" data-show type="button">Show</button>
         </div></div>
-      <div class="ais-field"><label for="ais-model">Model</label>
+      <div class="ais-field"><label for="ais-model">Model${p === 'orca' ? ' (optional)' : ''}</label>
         <input id="ais-model" value="${esc(draft.models[p] || def.defaultModel || '')}" placeholder="${esc(MODEL_HINT[p] || '')}" spellcheck="false" autocomplete="off"></div>
       <div class="ais-note">Your key is stored <b>in this browser only</b> — it is never synced to your other
         devices or saved to the cloud, so add it on each device you break documents down from.
