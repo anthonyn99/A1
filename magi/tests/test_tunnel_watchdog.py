@@ -176,3 +176,53 @@ def test_a_churning_tunnel_is_braked(monkeypatch, tmp_path):
     serve._keep_tunnel(FakeTunnel(), tmp_path / "cf.log", "tok", 8000)
     assert max(sleeps) >= serve.CHURN_COOLDOWN_S
     assert sleeps.count(max(sleeps)) == 1, "only the replacement past CHURN_MAX waits"
+
+
+def test_a_refused_publish_is_retried_while_the_tunnel_is_healthy(fast, tmp_path, monkeypatch):
+    """magi-link's hourly cap answers 429. A tunnel that then STAYS healthy
+    must still get published, or the phone says offline indefinitely."""
+    log = tmp_path / "cf.log"
+    log.write_text("INF Registered tunnel connection")
+    serve._CURRENT.update(verified="https://a.trycloudflare.com", publish_tried=str(fast["t"]))
+    monkeypatch.setattr(serve, "_public_state", lambda url: "ok")
+    monkeypatch.setattr(serve.tunnel_mod, "mark_published", lambda *a: None)
+    calls = []
+
+    def publish(url, token):
+        calls.append(fast["t"])
+        if len(calls) == 1:
+            raise OSError("HTTP Error 429: Too Many Requests")
+        raise KeyboardInterrupt   # second attempt proves the retry
+
+    monkeypatch.setattr(serve, "_publish", publish)
+
+    def sleep(s):   # bounded, so a missing retry fails instead of hanging
+        fast["t"] += s
+        if fast["t"] - 1_000_000.0 > 3 * serve.PUBLISH_RETRY_S + 600:
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(serve.time, "sleep", sleep)
+    with pytest.raises(KeyboardInterrupt):
+        serve._watch_tunnel(FakeTunnel(), log, "tok")
+    assert len(calls) == 2
+    assert calls[0] - 1_000_000.0 >= serve.PUBLISH_RETRY_S, "retried before the retry interval"
+    assert calls[1] - calls[0] >= serve.PUBLISH_RETRY_S
+
+
+def test_an_unverified_tunnel_is_never_published_by_the_retry(fast, tmp_path, monkeypatch):
+    log = tmp_path / "cf.log"
+    log.write_text("INF Registered tunnel connection")
+    monkeypatch.setattr(serve, "_public_state", lambda url: "ok")
+    monkeypatch.setattr(serve, "_publish", lambda *a: pytest.fail("published an unverified url"))
+    ticks = {"n": 0}
+    real_sleep = serve.time.sleep
+
+    def sleep(s):
+        ticks["n"] += 1
+        if ticks["n"] > 400:
+            raise KeyboardInterrupt
+        real_sleep(s)
+
+    monkeypatch.setattr(serve.time, "sleep", sleep)
+    with pytest.raises(KeyboardInterrupt):
+        serve._watch_tunnel(FakeTunnel(), log, "tok")

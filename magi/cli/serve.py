@@ -65,6 +65,11 @@ DEAD_AFTER = 3
 # it was only ever published once. Refreshed well inside that window: four KV
 # writes a day.
 REPUBLISH_EVERY_S = 6 * 3600
+# A verified tunnel whose publish failed (magi-link's hourly cap answers 429)
+# is retried this often. Without it a tunnel that then stayed healthy was
+# never published at all, and the phone said "offline" until the next
+# replacement -- which, once nothing was killing tunnels, never came.
+PUBLISH_RETRY_S = 10 * 60
 # Every replacement costs a magi-link delete + write (1,000/day each, shared by
 # all of account 2). Past CHURN_MAX replacements in an hour, replacing is not
 # fixing anything -- so the next ones wait CHURN_COOLDOWN_S instead of 5s.
@@ -358,6 +363,19 @@ def _watch_tunnel(tunnel, cf_log: Path, token: str) -> str:
 
         url = _CURRENT.get("url", "")
         published = _CURRENT.get("published") == url
+        if (not published and _CURRENT.get("verified") == url
+                and time.time() - float(_CURRENT.get("publish_tried") or 0) >= PUBLISH_RETRY_S):
+            _CURRENT["publish_tried"] = str(time.time())
+            try:
+                _publish(url, token)
+                _CURRENT["published"] = url
+                _CURRENT["published_at"] = str(time.time())
+                published = True
+                with contextlib.suppress(Exception):
+                    tunnel_mod.mark_published(url, time.time())
+                print("  published (retry) -- magi.html reaches this PC again")
+            except Exception as e:  # noqa: BLE001
+                print(f"  [!] publish retry failed: {e}")
 
         why = ""
         if _log_says_gone(cf_log):
@@ -476,6 +494,8 @@ def _verify_and_publish(token: str, kill) -> None:
         # 401 is the CORRECT answer: the tunnel reaches this backend AND the
         # token gate is armed.
         print(f"  tunnel reachable after {time.time() - started:.1f}s")
+        _CURRENT["verified"] = url
+        _CURRENT["publish_tried"] = str(time.time())
         break
     else:
         print("  [!] the tunnel url never resolved in 15 minutes.")
@@ -619,10 +639,12 @@ def cloud(port: int = 8000) -> int:
     cf_log = data_dir() / "cloudflared.log"
     cf_log.parent.mkdir(parents=True, exist_ok=True)
     adopted = None
+    link = None
     if os.environ.get("MAGI_ADOPT_TUNNEL", "1") != "0":
         try:
+            link = _link_record(token)
             adopted = tunnel_mod.adopt(
-                port, token, cf_log, UA, _link_record(token), internet_up=_internet_up,
+                port, token, cf_log, UA, link, internet_up=_internet_up,
             )
         except Exception as e:  # noqa: BLE001 — never let this stop the engine
             print(f"  [!] could not check for a running tunnel: {e}")
@@ -630,7 +652,11 @@ def cloud(port: int = 8000) -> int:
 
     if adopted is not None:
         _CURRENT["url"] = adopted.url
-        _CURRENT["published"] = adopted.url
+        _CURRENT["verified"] = adopted.url
+        # Adopted but not what magi-link holds (a refused or withdrawn publish):
+        # leave it unpublished so the watchdog's retry publishes it now.
+        if (link or {}).get("url") == adopted.url:
+            _CURRENT["published"] = adopted.url
         _CURRENT["published_at"] = str(adopted.published_at or time.time())
         # Only lines written from here on describe THIS tunnel.
         _CURRENT["log_from"] = str(adopted.log_size)
