@@ -109,6 +109,14 @@ section('Static: exactly ONE page may force-own the shared Firestore cache');
     forcing.length === 1 && forcing[0] === 'index.html',
     'Pages forcing ownership: ' + (forcing.join(', ') || '(none)')
     + '\n      Exactly one owner is required; satellites must acquire only when free.');
+
+  // MAGI stays open for hours beside TaskHub. When it held the lease, TaskHub's
+  // forced re-take on every wake left MAGI's client without primary, and every
+  // write after that failed ("Sync failed" with nothing done). It uses memory.
+  const magi = fs.readFileSync(path.join(dir, 'magi.html'), 'utf8');
+  t('magi.html does not use the shared persistent cache',
+    !/persistentLocalCache\s*\(/.test(magi) && /memoryLocalCache\s*\(/.test(magi),
+    'magi.html must initialise Firestore with memoryLocalCache().');
 }
 
 section('Static: every gated listener opens its gate reliably');

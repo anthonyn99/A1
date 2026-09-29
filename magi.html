@@ -20483,7 +20483,7 @@ const SYNC_CAUSE = {
   "deadline-exceeded":
     "The write took too long and was abandoned. Usually a slow connection.",
   "failed-precondition":
-    "Firestore needs something that is missing — often an index, occasionally a second tab holding the local cache.",
+    "Firestore needs something that is missing — usually an index. (Another A1 tab taking the shared local cache used to cause this; MAGI no longer uses that cache.)",
 };
 
 function showSyncError() {
@@ -20652,11 +20652,17 @@ function cloudInit() {
         });
       } catch (e) { console.warn("[magi] App Check:", e); }
 
-      // The local cache is what makes an offline phone still show yesterday's
-      // verdicts, and it serves repeat reads without touching the quota.
-      CLOUD.db = fs.initializeFirestore(app, {
-        localCache: fs.persistentLocalCache({ tabManager: fs.persistentSingleTabManager({}) }),
-      });
+      // MEMORY cache, not persistent -- and this is what "Sync failed out of
+      // nowhere" was. Every page in the suite shares one origin and one
+      // projectId, so they share ONE Firestore IndexedDB cache, and TaskHub
+      // (index.html) is its single forced owner: each time a TaskHub tab comes
+      // back from its hide-teardown it re-inits with forceOwnership and takes
+      // the lease. When MAGI had been holding it, this tab's client lost primary
+      // and every later write -- the queue lease refresh, a backfill on
+      // reconnect, a pin -- failed with failed-precondition until a reload,
+      // without anything being done here. A cache MAGI can have yanked away at
+      // any moment is not worth that; the index is one read per load anyway.
+      CLOUD.db = fs.initializeFirestore(app, { localCache: fs.memoryLocalCache() });
 
       const auth = getAuth(app);
       const signedIn = await new Promise((res) => {
@@ -20680,8 +20686,8 @@ function cloudInit() {
 }
 
 /* LifeHub (LifeHub/lifehub.js) borrows this Firebase instead of starting its
-   own. It has to: this page's Firestore is created on demand, with a
-   persistent cache, and a default one made first by anyone else would make
+   own. It has to: this page's Firestore is created on demand, with its own
+   cache settings, and a default one made first by anyone else would make
    the initializeFirestore above throw. Called only when the launcher is used. */
 window.LifeHubFirebase = () => cloudInit().then((ok) => (ok ? { db: CLOUD.db, fs: CLOUD.fs } : null));
 
@@ -22899,6 +22905,14 @@ async function cloudWatch() {
     CLOUD.unsub = CLOUD.fs.onSnapshot(_indexDoc(), (snap) => {
       const d = snap.data();
       const before = CLOUD.index.length;
+      // Back after a dropped listen: take down the red line if it was ours.
+      if (CLOUD.listenFails) {
+        CLOUD.listenFails = 0;
+        if (SYNC_ERR.last && SYNC_ERR.last.where === "listening for other devices' runs") {
+          SYNC_ERR.last = null;
+          setSync("idle");
+        }
+      }
       CLOUD.index = (d && Array.isArray(d.runs)) ? d.runs : [];
       mergeHistory();
       // The first snapshot is the first moment there is anything to prune, and
@@ -23053,8 +23067,20 @@ async function cloudWatch() {
       // flashing "Synced" on every page load would make the indicator noise.
       if (before && CLOUD.index.length !== before) setSync("saved");
     }, (e) => {
-      setSync("error", _syncFail("listening for other devices' runs", e));
+      // An errored listener is finished -- the SDK never re-attaches it -- and
+      // leaving CLOUD.unsub set meant History stopped following other devices
+      // for the rest of the session. A dropped listen after sleep or a token
+      // refresh is routine, so it is re-attached with backoff, and only one
+      // that keeps failing earns the red line.
       console.warn("[magi] index listen:", e);
+      CLOUD.unsub = null;
+      CLOUD.listenFails = (CLOUD.listenFails || 0) + 1;
+      if (CLOUD.listenFails >= 3) {
+        setSync("error", _syncFail("listening for other devices' runs", e));
+      }
+      clearTimeout(CLOUD.listenRetry);
+      CLOUD.listenRetry = setTimeout(cloudWatch,
+        Math.min(300000, 2000 * 2 ** CLOUD.listenFails));
     });
   } catch (e) { console.warn("[magi] cloudWatch:", e); }
 }
