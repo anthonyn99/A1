@@ -132,10 +132,7 @@ export function forClass(classId) {
 }
 
 function firstLine(text) {
-  // "# Exam-focused" -> "Exam-focused": the study-kit presets name themselves
-  // with a markdown heading on their first line.
-  const l = (String(text || '').trim().split('\n')[0] || '').replace(/^#+\s*/, '')
-    || 'Untitled prompt';
+  const l = String(text || '').trim().split('\n')[0] || 'Untitled prompt';
   return l.length > 60 ? l.slice(0, 57) + '…' : l;
 }
 

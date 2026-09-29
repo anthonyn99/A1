@@ -47,10 +47,7 @@ const APPS = [
     name: "StudyOS",
     src: "studyos.html",
     out: "studyos",
-    // vendor/ holds third-party runtime files under VERSIONED folder names
-    // (e.g. vendor/sqljs-1.14.2/) — studyos-sw.js caches that folder
-    // cache-first, which is only safe because a new version is a new path.
-    assets: ["css", "js", "config", "assets", "vendor", "manifest.webmanifest", "studyos-sw.js"],
+    assets: ["css", "js", "config", "assets", "manifest.webmanifest", "studyos-sw.js"],
     rootFiles: [["firebase/firebase-messaging-sw.js", "firebase-messaging-sw.js"]],
   },
 ];

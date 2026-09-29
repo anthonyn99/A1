@@ -74,21 +74,6 @@ def render_pages(pdf_path, dpi: int = RENDER_DPI) -> dict[int, bytes]:
     return out
 
 
-def page_count(pdf_path) -> int | None:
-    """Pages in a PDF, or None when it cannot be read (not a PDF, no PyMuPDF).
-
-    The rewrite chunker needs the real count: an under-estimate silently
-    truncates the deck, and the client has no PDF library to count with.
-    """
-    if pymupdf is None:
-        return None
-    try:
-        with pymupdf.open(Path(pdf_path)) as doc:
-            return doc.page_count if doc.is_pdf else None
-    except Exception:
-        return None
-
-
 # ── 2. Splitting the generated text back into slides ──────────────────────────
 def split_slides(text: str) -> list[tuple[int, str]]:
     """["## Slide 3", body…] -> [(3, "body…"), …] in document order.

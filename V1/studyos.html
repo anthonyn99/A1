@@ -73,10 +73,6 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         Timer
       </div>
-      <div class="nav-item" onclick="switchView('practice')" id="nav-practice">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.9 6.3 6.9.7-5.2 4.6 1.5 6.8L12 17l-6.1 3.4 1.5-6.8L2.2 9l6.9-.7z"/></svg>
-        Practice
-      </div>
       <div class="nav-section-label">KSU</div>
       <div class="nav-item" onclick="switchView('ksu')" id="nav-ksu">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
@@ -151,25 +147,18 @@
            clock. "Just 10 minutes" lowers the bar to something that cannot
            reasonably be refused — a ten-minute session that happens beats a
            fifty-minute one that does not. -->
-      <!-- START NOW (engagement 5.3) picks the best ten minutes — due cards,
-           then weak spots, then new material, weighted by the nearest exam —
-           and starts it with a timer running behind. The line under it says
-           what it will pick, so pressing it is never a gamble. "Focus on top
-           task" keeps the original behaviour: a timer on the top of the
-           priority queue. -->
-      <div id="sos-start-row" style="display:flex;gap:10px;align-items:stretch;margin-bottom:4px">
+      <div id="sos-start-row" style="display:flex;gap:10px;align-items:stretch;margin-bottom:14px">
         <button class="btn primary" id="sos-start-btn"
-                onclick="window.sosStartNow ? window.sosStartNow() : (window.sosStartSession && window.sosStartSession(10))"
+                onclick="window.sosStartSession && window.sosStartSession()"
                 style="flex:1;min-height:52px;font-size:15px;font-weight:700;font-family:'Lora',serif">
-          ▶ Start now · 10 min
+          Start Session
         </button>
         <button class="btn" id="sos-start-10"
-                onclick="window.sosStartSession && window.sosStartSession()"
+                onclick="window.sosStartSession && window.sosStartSession(10)"
                 style="min-height:52px;padding:0 16px;font-size:12px;white-space:nowrap">
-          Focus on top task
+          Just 10 min
         </button>
       </div>
-      <div id="sos-start-why" style="font-size:11px;color:var(--text3);font-family:var(--mono);margin:0 2px 14px;min-height:14px"></div>
 
       <div class="stats-bar" id="stats-bar">
         <div class="stat-card">
@@ -183,7 +172,7 @@
              still one row down in the countdown panel, where it belongs. -->
         <div class="stat-card" id="stat-card-cards" onclick="window.sosStudyAll && window.sosStudyAll()"
              style="cursor:pointer" title="Start a review">
-          <div class="stat-label">Due Today</div>
+          <div class="stat-label">Cards Due</div>
           <div class="stat-value" id="stat-cards">0</div>
         </div>
         <div class="stat-card">
@@ -348,12 +337,6 @@
       </div>
     </div>
 
-    <!-- PRACTICE VIEW (engagement upgrade) — rendered by js/modules/practice.js:
-         quizzes, weak spots, SQL / normalization / data-structure drills. -->
-    <div class="view" id="view-practice">
-      <div id="sos-practice-root"><div class="sp-muted" style="font-size:13px">Loading practice…</div></div>
-    </div>
-
     <!-- KSU VIEW -->
     <div class="view" id="view-ksu">
       <div class="detail-header" style="margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid var(--border)">
@@ -436,10 +419,6 @@
   <button class="sos-bn-item" id="sos-bn-ksu" onclick="switchView('ksu')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
     KSU
-  </button>
-  <button class="sos-bn-item" id="sos-bn-practice" onclick="switchView('practice')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.9 6.3 6.9.7-5.2 4.6 1.5 6.8L12 17l-6.1 3.4 1.5-6.8L2.2 9l6.9-.7z"/></svg>
-    Practice
   </button>
   <button class="sos-bn-item" id="sos-bn-pomodoro" onclick="switchView('pomodoro')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>

@@ -195,11 +195,7 @@ t('it lists the prompt', (sheet.options||[]).length > 0, sheet.options);
 t('it names the file', (sheet.bodyHtml||'').includes('Lecture 3.pdf'));
 t('the ampersand in the class name is escaped, not doubled',
   !/&\s*amp;\s*amp/i.test(sheet.bodyHtml || ''));
-t('has Generate and Cancel', (sheet.buttons||[]).join(',').includes('Generate'), sheet.buttons);
-// The kit is the default; this suite drives the DECK path (verify-kit.mjs
-// drives the kit), so pick it explicitly.
-t('offers both engines', /value="kit"/.test(sheet.bodyHtml||'') && /value="notebooklm"/.test(sheet.bodyHtml||''));
-await evalJs(`(function(){ var r=document.querySelector('.sos-ai-sheet input[value="notebooklm"]'); r.checked=true; r.dispatchEvent(new Event('change')); return true; })()`);
+t('has Run and Cancel', (sheet.buttons||[]).join(',').includes('Run'), sheet.buttons);
 // The deck must be filable into a module the user already has, not forced into
 // a new one. The fixture class carries "Source Material" (documents).
 t('offers a destination picker', (sheet.bodyHtml||'').includes('sos-ai-dest'));
@@ -217,7 +213,7 @@ t('shows month-to-date spend before running', await evalJs(
 console.log('\nreal UI: running it');
 await evalJs(`(function(){
   var btns = Array.from(document.querySelectorAll('.sos-ai-sheet .modal-footer button'));
-  var run = btns.find(b=>/Generate/.test(b.textContent));
+  var run = btns.find(b=>/Run/.test(b.textContent));
   if (run) run.click();
   return !!run;
 })()`);
@@ -330,7 +326,7 @@ else {
   // One per file row. The module now holds the source AND the generated deck,
   // so two rows each carry their own button.
   t('⚡ rendered on the file row', btn.count >= 1, btn);
-  t('it explains itself', /study kit|deck/i.test(btn.title || ''), btn.title);
+  t('it explains itself', /prompt/i.test(btn.title || ''), btn.title);
 }
 
 console.log('\nreal UI: the Jobs panel');

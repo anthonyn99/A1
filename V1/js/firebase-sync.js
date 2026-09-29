@@ -547,13 +547,13 @@ if (!window.STUDYOS_CONFIG_READY || !window.STUDYOS_CONFIG_READY('firebase')) {
   };
 
   /* ══ Generic synced documents ════════════════════════════════════════════
-   * Quizzes (studyos_quiz/{classId}) and progress (dashboards/studyos_progress)
-   * need exactly what cards and sessions already have — their own document, a
-   * debounced whole-doc write, and the never-write-before-server-seen guard —
-   * so they share ONE implementation keyed by path instead of a third and
-   * fourth bespoke copy of the block above. Merging is the caller's job (each
-   * store unions by id on the client), which is what makes a whole-doc write
-   * safe here: every write already contains everything this device has seen.
+   * Topic breakdowns (studyos_topics/{fileId}) need exactly what cards and
+   * sessions already have — their own document, a debounced whole-doc write,
+   * and the never-write-before-server-seen guard — so they share ONE
+   * implementation keyed by path instead of another bespoke copy of the block
+   * above. Merging is the caller's job (the store keeps each topic's newest
+   * updatedAt), which is what makes a whole-doc write safe here: every write
+   * already contains everything this device has seen.
    *
    * `path` is a document path: 'collection/id' or 'dashboards/name'. */
   const _gdSeen = {};

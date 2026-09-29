@@ -196,7 +196,7 @@ t('the queue grows so the card returns', againTest.after === againTest.before + 
 console.log('\nrecap');
 const recap = await evalJs(`(async () => {
   for (let i = 0; i < 40; i++) {
-    if (document.querySelector('.sos-review .sos-sum')) break;
+    if (document.querySelector('.sos-review-recap')) break;
     const face = document.querySelector('.sos-review-face');
     if (face) face.click();
     await new Promise(r => setTimeout(r, 90));
@@ -204,16 +204,14 @@ const recap = await evalJs(`(async () => {
     if (g) g.click();
     await new Promise(r => setTimeout(r, 120));
   }
-  const el = document.querySelector('.sos-review .sos-sum');
+  const el = document.querySelector('.sos-review-recap');
   return el ? { shown: true, text: el.textContent.replace(/\\s+/g, ' ').trim() } : { shown: false };
 })()`);
 t('a recap is shown at the end', recap.shown === true, recap);
 t('it reports cards and time', recap.shown && /card/.test(recap.text) && /min/.test(recap.text), recap.text);
 t('it reports mastery', recap.shown && /mastered/.test(recap.text), recap.text);
-// The shared end screen (engagement 5.4): XP, level, and what to do next.
-t('it reports XP and level', recap.shown && /\+\d+ XP/.test(recap.text) && /Level \d+/.test(recap.text), recap.text);
 
-await evalJs(`(document.querySelector('.sos-review [data-sum-close]')||{click(){}}).click(); true;`);
+await evalJs(`(document.querySelector('.sos-review-recap button')||{click(){}}).click(); true;`);
 await new Promise(r => setTimeout(r, 300));
 t('closing removes the overlay', (await evalJs('document.querySelectorAll(".sos-review").length')) === 0);
 

@@ -94,7 +94,7 @@ hang, no spend.
 
 ```bash
 curl http://127.0.0.1:8781/health
-# {"ok": true, ..., "modes": ["rewrite", "notebooklm", "kit", "grade"]}
+# {"ok": true, ..., "modes": ["rewrite", "notebooklm"]}
 
 python driver.py doctor --site claude
 python driver.py doctor --site notebooklm
@@ -111,43 +111,9 @@ are probed by the dry run below instead.
 
 ## Using it
 
-### Study kit (Claude) — the default
-
-1. Open a class → a Documents module → upload a lecture (PDF or PPTX).
-2. Click **⚡** on the file row → **Study kit** (the default) → pick a style.
-   The first time, the class gets a **Study Kit Presets** prompts module with
-   five editable styles (Standard, Explain like I know Python, Analogy-heavy,
-   Exam-focused, Worked-examples-first). Your own prompts are listed too.
-3. **Generate.** The bridge makes fresh-chat asks, attaching the lecture to each:
-   - the rewrite, 15 slides per ask (only if "Also rewrite the deck" is on — PDFs only)
-   - flashcards + key terms as JSON (at least 15 cards)
-   - quiz questions + a cheat sheet as JSON (at least 8 questions)
-
-   Cost: about 2–3 Claude messages, plus 1 per 15 slides for the rewrite.
-   Bad JSON gets ONE repair ask; a short answer gets ONE "add more" ask and is
-   then accepted with a warning. Each stage is saved as it finishes, so a Retry
-   resumes where it failed instead of paying again.
-4. Filed automatically: cards into the class deck (tagged with the lecture's
-   module), questions into the class quiz bank, the cheat sheet as a page in a
-   **Study Kit** notes module, and the rewritten deck as `<name> — Rewritten.pdf`.
-   Re-running the same lecture keeps anything you already reviewed/answered and
-   drops untouched leftovers.
-
-The JSON format lives in `tools/sos-browser/kit.py` (not in the editable
-preset), so editing a preset can never break parsing.
-
-### Grading (Java translations, explain-it-back)
-
-`mode: 'grade'` — one short ask, no attachment, rubric + answer in, JSON out
-(`kit.GRADE_SCHEMAS`). It jumps the queue ahead of kits and decks, and is
-hidden from the Jobs panel. Without the bridge (phone), both drills fall back
-to self-check.
-
-### Slide deck (NotebookLM)
-
 1. Open a class → a Documents module → upload a deck (PDF).
-2. Click **⚡** on the file row → **Slide deck**.
-3. Pick a prompt, hit **Generate**. (No slide count — NotebookLM generates the whole
+2. Click **⚡** on the file row.
+3. Pick a prompt, hit **Run**. (No slide count — NotebookLM generates the whole
    deck in one pass and never reads it.)
 4. NotebookLM creates a notebook, uploads your source, runs Slide Deck with your
    prompt, and the finished PDF is downloaded and filed as

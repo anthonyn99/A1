@@ -21,7 +21,6 @@
 import * as pipeline from './pipeline.js';
 import * as prompts from './prompts.js';
 import { store } from './store.js';
-import { MODULE_NAME as PRESET_MODULE, PRESETS } from './presets.js';
 
 const esc = (s) => String(s == null ? '' : s)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -124,49 +123,6 @@ function deckReadyToast(job, doc) {
 }
 
 /**
- * "Study kit ready" — says what landed (cards, questions) and opens the
- * Study Kit module when clicked. Warnings (a short count, a missing rewrite)
- * are shown rather than swallowed: a kit that quietly has 9 cards instead of
- * 20 should say so.
- */
-function kitReadyToast(job, res) {
-  if (res && res.unfiled) {
-    toast('⚠️', 'Study kit could not be filed',
-      'Its class is missing on this device. The kit is safe on the bridge and '
-      + 'will file itself once the class is back.');
-    return;
-  }
-  if (!res) return;
-  const bits = [`${res.cards} cards`, `${res.questions} quiz questions`];
-  if (res.note) bits.push('cheat sheet');
-  if (res.deck && !res.deck.unfiled) bits.push('rewritten deck');
-  // Escaped: showNotif writes its body with innerHTML, and a lecture file
-  // name is user text ("A&B <v2>.pdf").
-  const el = toast('🧠', 'Study kit ready', esc(`${(job && job.sourceName) || 'Lecture'}: ${bits.join(' · ')}`
-    + (res.warnings && res.warnings.length ? ` — note: ${res.warnings.join('; ')}` : '')));
-  if (!el || !res.moduleId) return;
-  try {
-    el.style.cursor = 'pointer';
-    el.title = 'Open ' + (res.moduleName || 'the Study Kit');
-    el.addEventListener('click', (e) => {
-      if (e.target && e.target.classList.contains('notif-close')) return;
-      const B = window._sosBridge;
-      if (B && typeof B.revealModule === 'function') B.revealModule(res.classId, res.moduleId);
-      el.remove();
-    });
-  } catch (e) {}
-}
-
-/** The right "ready" toast for whatever kind of job just finished. */
-function readyToast(job, res) {
-  if (job && job.mode === 'kit') kitReadyToast(job, res);
-  else deckReadyToast(job, res);
-}
-
-/** Last prompt used in a class, so the sheet opens on her choice. */
-const LAST_PROMPT_KEY = (classId) => 'studyos_kit_prompt_' + classId;
-
-/**
  * Where a prompt comes from, as a short suffix for its <option>.
  *
  * A prompt pinned to several classes is ONE entry (see prompts.all()), so
@@ -184,95 +140,70 @@ function promptOrigin(p, classId) {
 
 // ── P-3: run a prompt on one or more files ────────────────────────────────
 /**
- * Generate from one or more source files: a STUDY KIT (Claude — flashcards,
- * quiz, cheat sheet, optionally a rewritten deck) or a SLIDE DECK (NotebookLM).
+ * Generate a slide deck from one or more source files.
  *
- * Both run on the local bridge. The kit is the default because it is what
- * turns a lecture into something to practise with; the deck stays one click
- * away for when a new set of slides is the goal.
+ * ── WHY THERE IS NO ENGINE PICKER ─────────────────────────────────────────
+ * Decks come from NotebookLM, full stop. Claude remains the engine for prompts
+ * and notes, but it is no longer offered as a way to make a deck: the two
+ * produce genuinely different artifacts from one source file, and asking on
+ * every run is a question with the same answer every time.
  *
  * @param {object} cls      the class the files belong to
  * @param {Array}  files    one or more file entries
- * @param {string} destModuleId  where a generated deck should land
+ * @param {string} destModuleId  where the generated deck should land
  */
 export function openRunSheet(cls, files, destModuleId) {
   if (!pipeline.enabled()) {
-    toast('⚠️', 'Pipeline is off', 'Set up the local bridge first, then enable it in config.');
+    toast('⚠️', 'Pipeline is off', 'Set up the studyos-ai Worker first, then enable it in config.');
     return;
   }
-  // Both engines drive a browser on this machine, which is what the local
-  // bridge is. The Cloudflare Worker cannot, so against a Worker baseUrl this
-  // says so rather than silently producing something else.
+  // NotebookLM needs a browser on this machine, which is what the local bridge
+  // is. The Cloudflare Worker cannot drive one and never will, so against a
+  // Worker baseUrl this says so rather than silently producing a rewrite.
   if (!pipeline.isLocalBridge()) {
     toast('⚠️', 'Needs the local bridge',
-      'Study kits and decks drive a browser on this PC. Point config.cloudflare.ai.baseUrl at http://127.0.0.1:8781.');
+      'Deck generation drives NotebookLM in a browser on this PC. Point config.cloudflare.ai.baseUrl at http://127.0.0.1:8781.');
     return;
   }
   const list = (Array.isArray(files) ? files : [files]).filter(Boolean);
   if (!list.length) return;
 
-  // Give the class its style presets the first time a kit is possible. They
-  // are ordinary prompts in a "Study Kit Presets" module from then on.
-  try {
-    const B = window._sosBridge;
-    if (B && typeof B.ensurePromptModule === 'function') B.ensurePromptModule(cls.id, PRESET_MODULE, PRESETS);
-  } catch (e) { console.warn('[pipeline] could not seed presets:', e); }
-
   const choices = prompts.forClass(cls.id);
   if (!choices.length) {
+    // Genuinely empty now: forClass() falls back to every prompt that exists,
+    // so reaching here means the whole library and every prompts module are
+    // empty — not merely that this class has not pinned one.
     toast('⚠️', 'No prompts yet',
       'Add a prompt to a prompts module in any class first.');
     return;
   }
-  let lastPrompt = '';
-  try { lastPrompt = localStorage.getItem(LAST_PROMPT_KEY(cls.id)) || ''; } catch (e) {}
-  const presetMod = (cls.modules || []).find(m => m.type === 'prompts' && m.name === PRESET_MODULE);
-  const firstPreset = presetMod && choices.find(p => p._from && p._from.moduleId === presetMod.id);
-  const initial = choices.find(p => p.id === lastPrompt) || firstPreset || choices[0];
-  const anyPdf = list.some(f => /\.pdf$/i.test(f.name || ''));
 
   const s = sheet(
-    list.length === 1 ? 'Generate' : `Generate from ${list.length} files`,
+    list.length === 1 ? 'Run a prompt' : `Run on ${list.length} files`,
     `
     <div style="font-size:12px;color:var(--text3);font-family:var(--mono);margin-bottom:10px">
       ${list.length === 1 ? esc(list[0].name || 'file') : esc(list.map(f => f.name).filter(Boolean).slice(0, 3).join(', ')) + (list.length > 3 ? ` +${list.length - 3} more` : '')}
     </div>
     <div class="field">
-      <label>Make</label>
-      <div style="display:flex;gap:14px;flex-wrap:wrap">
-        <label style="display:flex;gap:6px;align-items:center;font-size:13px;cursor:pointer;text-transform:none">
-          <input type="radio" name="sos-ai-mode" value="kit" checked> Study kit
-          <span style="color:var(--text3);font-size:11px">cards · quiz · cheat sheet</span></label>
-        <label style="display:flex;gap:6px;align-items:center;font-size:13px;cursor:pointer;text-transform:none">
-          <input type="radio" name="sos-ai-mode" value="notebooklm"> Slide deck
-          <span style="color:var(--text3);font-size:11px">NotebookLM</span></label>
-      </div>
-    </div>
-    <div class="field">
-      <label>Style</label>
+      <label>Prompt</label>
       <select id="sos-ai-prompt">
-        ${choices.map(p => `<option value="${esc(p.id)}"${p === initial ? ' selected' : ''}>${esc(p.name || 'Untitled')}${esc(promptOrigin(p, cls.id))}</option>`).join('')}
+        ${choices.map(p => `<option value="${esc(p.id)}">${esc(p.name || 'Untitled')}${esc(promptOrigin(p, cls.id))}</option>`).join('')}
       </select>
     </div>
-    <div class="field" id="sos-ai-kitopts">
-      <label style="display:flex;gap:8px;align-items:center;cursor:pointer;text-transform:none">
-        <input type="checkbox" id="sos-ai-rewrite" ${anyPdf ? 'checked' : 'disabled'}>
-        Also rewrite the deck${anyPdf ? '' : ' (PDFs only)'}
-      </label>
-    </div>
-    <div class="field" id="sos-ai-destfield">
+    <div class="field">
       <label>File the deck into</label>
       <select id="sos-ai-dest"></select>
     </div>
     <div id="sos-ai-vars"></div>
-    <div id="sos-ai-cost" style="font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:10px;line-height:1.5"></div>
+    <div style="font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:10px;line-height:1.5">
+      NotebookLM builds the deck from this source under your prompt. It takes a
+      while — you can close the tab.
+    </div>
     <div id="sos-ai-budget" style="font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:8px"></div>
     `, { wide: true });
 
   const sel = s.overlay.querySelector('#sos-ai-prompt');
   const varsEl = s.overlay.querySelector('#sos-ai-vars');
-  const rewriteBox = s.overlay.querySelector('#sos-ai-rewrite');
-  const modeOf = () => (s.overlay.querySelector('input[name="sos-ai-mode"]:checked') || {}).value || 'kit';
 
   // Destination: documents modules only. A notes module renders from the
   // editor's own store, so a PDF filed there would display nowhere.
@@ -291,23 +222,6 @@ export function openRunSheet(cls, files, destModuleId) {
   destSel.innerHTML = docMods
     .map(m => `<option value="${esc(m.id)}"${m === preferred ? ' selected' : ''}>${esc(m.name || 'Untitled')}</option>`)
     .join('') + '<option value="">New "Generated" module</option>';
-
-  // Say what a run costs BEFORE it is spent: both engines draw on her own
-  // account limits, not on a budget this app controls.
-  const costEl = s.overlay.querySelector('#sos-ai-cost');
-  const paintMode = () => {
-    const kitOn = modeOf() === 'kit';
-    s.overlay.querySelector('#sos-ai-kitopts').style.display = kitOn ? '' : 'none';
-    const wantsDeck = !kitOn || (rewriteBox && rewriteBox.checked);
-    s.overlay.querySelector('#sos-ai-destfield').style.display = wantsDeck ? '' : 'none';
-    const n = list.length;
-    costEl.textContent = kitOn
-      ? `Uses about ${2 * n}–${3 * n} Claude messages${rewriteBox && rewriteBox.checked ? ', plus 1 per 15 slides for the rewrite' : ''}. Cards and questions land in this class; the cheat sheet goes to a "Study Kit" notes module. You can close the tab.`
-      : `Uses ${n} NotebookLM slide-deck generation${n === 1 ? '' : 's'} from your daily quota. It takes a while — you can close the tab.`;
-  };
-  s.overlay.querySelectorAll('input[name="sos-ai-mode"]').forEach(r => r.addEventListener('change', paintMode));
-  if (rewriteBox) rewriteBox.addEventListener('change', paintMode);
-  paintMode();
 
   // Show which {{variables}} will be filled, and which will not. An unfilled
   // one stays literal at run time on purpose, so surface it before spending.
@@ -336,7 +250,7 @@ export function openRunSheet(cls, files, destModuleId) {
 
   const run = document.createElement('button');
   run.className = 'btn primary';
-  run.textContent = list.length === 1 ? 'Generate' : `Generate all ${list.length}`;
+  run.textContent = list.length === 1 ? 'Run' : `Run on all ${list.length}`;
   const cancel = document.createElement('button');
   cancel.className = 'btn';
   cancel.textContent = 'Cancel';
@@ -346,8 +260,6 @@ export function openRunSheet(cls, files, destModuleId) {
     run.disabled = true;
     run.textContent = 'Queueing…';
     const p = choices.find(x => x.id === sel.value);
-    const mode = modeOf();
-    try { localStorage.setItem(LAST_PROMPT_KEY(cls.id), p.id); } catch (e) {}
     try {
       const results = await pipeline.runBatch(list, {
         prompt: prompts.interpolate(p.text, { cls }),
@@ -355,10 +267,10 @@ export function openRunSheet(cls, files, destModuleId) {
         promptVersion: p.version || 1,
         classId: cls.id,
         outputModuleId: destSel.value || '',
-        // No slideCount: NotebookLM generates the whole deck in one pass, and
-        // for a kit's rewrite the bridge counts the PDF's pages itself.
-        mode,
-        kitRewrite: mode === 'kit' && !!(rewriteBox && rewriteBox.checked),
+        // No slideCount: NotebookLM generates the whole deck in one pass and
+        // never reads it. The input that used to collect it is gone with it —
+        // a field for a value nothing reads is a lie the UI tells.
+        mode: 'notebooklm',
       });
       const ok = results.filter(r => r.ok).length;
       const cached = results.filter(r => r.cached).length;
@@ -368,10 +280,9 @@ export function openRunSheet(cls, files, destModuleId) {
       if (failed.length) {
         toast('⚠️', `${ok} queued, ${failed.length} failed`, failed[0].error);
       } else if (cached === results.length) {
-        toast('✅', 'Already done', 'Re-filing what was generated before — nothing was spent.');
+        toast('✅', 'Already done', 'Re-filing the deck that was generated before — nothing was spent.');
       } else {
-        toast('⚡', `${ok} queued`, (mode === 'kit' ? 'Claude is building the study kit' : 'NotebookLM is building them')
-          + '. They keep running if you close the tab.');
+        toast('⚡', `${ok} queued`, 'NotebookLM is building them. They keep running if you close the tab.');
       }
       results.filter(r => r.ok && r.job && !r.cached).forEach(r => trackJob(r.job.id));
 
@@ -386,15 +297,15 @@ export function openRunSheet(cls, files, destModuleId) {
       // this restores a deleted deck and is a no-op when one is already there.
       for (const r of results.filter(r => r.ok && r.job && r.cached)) {
         try {
-          const job = (r.job.result && (r.job.mode !== 'kit' || r.job.kit)) ? r.job : await pipeline.getJob(r.job.id);
-          if (job) readyToast(job, await pipeline.fileResult(job));
+          const job = r.job.result ? r.job : await pipeline.getJob(r.job.id);
+          if (job) await pipeline.fileResult(job);
         } catch (e) {
           console.warn('[pipeline] could not re-file a cached job:', e);
         }
       }
     } catch (e) {
       run.disabled = false;
-      run.textContent = 'Generate';
+      run.textContent = 'Run';
       // A dead local bridge surfaces as a bare "Failed to fetch", which says
       // nothing about what to do. Name the actual cause and the one-time fix.
       const dead = pipeline.isLocalBridge()
@@ -428,7 +339,7 @@ export function trackJob(id) {
       // Async now: the deck's bytes are fetched from the bridge and filed as a
       // real document before this resolves.
       const doc = await pipeline.fileResult(job);
-      if (doc) readyToast(job, doc);
+      if (doc) deckReadyToast(job, doc);
       else if (job.pdfError) toast('⚠️', 'Deck not built', job.pdfError);
     } else if (job.status === 'error') {
       watching.delete(id);
@@ -470,10 +381,10 @@ export async function resumeWatches() {
         // this sweep reconsidering the job, so the deck would never be filed
         // again even once the class came back. Toast it and leave it claimable.
         if (doc && doc.unfiled) {
-          readyToast(job, doc);
+          deckReadyToast(job, doc);
         } else if (doc) {
           await pipeline.markFiled(job.id);
-          readyToast(job, doc);
+          deckReadyToast(job, doc);
         }
       } catch (e) {
         console.warn('[pipeline] could not file a finished job:', stub.id, e);
@@ -518,8 +429,7 @@ export async function openJobsPanel() {
         <div style="flex:1;min-width:0">
           <div style="color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(j.sourceName || j.fileId)}</div>
           <div style="color:var(--text3);font-size:10px">
-            ${esc(j.mode === 'kit' ? 'study kit' : j.mode === 'notebooklm' ? 'deck' : (j.mode || 'rewrite'))}
-            · ${esc(j.status)}${j.mode === 'kit' && j.status === 'running' && j.kitStage ? ' (' + esc(j.kitStage) + ')' : ''}${j.progress ? ' · ' + j.progress + '%' : ''}${elapsed ? ' · ' + elapsed : ''}${j.costUsd ? ' · $' + j.costUsd.toFixed(3) : ''}
+            ${esc(j.status)}${j.progress ? ' · ' + j.progress + '%' : ''}${elapsed ? ' · ' + elapsed : ''}${j.costUsd ? ' · $' + j.costUsd.toFixed(3) : ''}
             ${j.error ? '<br>' + esc(j.error) : ''}
           </div>
         </div>

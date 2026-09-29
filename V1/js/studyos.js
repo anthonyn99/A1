@@ -818,19 +818,13 @@ function switchView(view, classId) {
     if (navEl) navEl.classList.add('active');
   }
   activeView = view;
-  const titles = { home:'Dashboard', calendar:'Calendar', notes:'Quick Notes', class:'Class Detail', pomodoro:'Timer', ksu:'KSU', practice:'Practice' };
-  // Leaving Practice ends the drill sitting (logged as one session); opening
-  // it renders the hub. Both via window.SOS: practice.js is an ES module.
-  try {
-    if (view === 'practice') { if (window.SOS && window.SOS.practice) window.SOS.practice.render(); }
-    else if (window.SOS && window.SOS.practice) window.SOS.practice.endSitting();
-  } catch (e) { console.warn('practice view failed:', e); }
+  const titles = { home:'Dashboard', calendar:'Calendar', notes:'Quick Notes', class:'Class Detail', pomodoro:'Timer', ksu:'KSU' };
   if (view === 'ksu') renderKsuModules();
   _sosEl('topbar-title').textContent = titles[view] || 'StudyOS';
   if (view === 'class' && classId) openClassDetail(classId);
   if (view === 'calendar') renderCalendar();
   // Sync bottom nav active state
-  var bnViews = ['home','calendar','notes','ksu','practice','pomodoro'];
+  var bnViews = ['home','calendar','notes','ksu','pomodoro'];
   bnViews.forEach(function(v) {
     var btn = document.getElementById('sos-bn-' + v);
     if (btn) btn.classList.toggle('active', v === view);
@@ -2241,7 +2235,7 @@ function refreshDocList(listEl, cls, mod) {
     let runBtn = null;
     if (window.sosRunPrompt && (f.storageUrl || f.storagePath)) {
       runBtn = document.createElement('button');
-      runBtn.title = 'Generate a study kit (cards, quiz, cheat sheet) or a slide deck';
+      runBtn.title = 'Run a saved prompt on this file';
       runBtn.textContent = '⚡';
       runBtn.style.cssText = 'background:none;cursor:pointer;color:var(--text3);font-size:13px;padding:4px 8px;border-radius:4px;transition:0.15s;border:1px solid var(--border)';
       runBtn.addEventListener('mouseover', () => { runBtn.style.color='var(--accent)'; runBtn.style.borderColor='var(--accent)'; });
@@ -2949,10 +2943,11 @@ function addPrompt(classId, modId) {
   if (listEl) refreshPromptList(listEl, cls, mod);
 }
 
-/* Edit a saved prompt in place (engagement upgrade 1.2 — the study-kit style
- * presets live here and are meant to be tuned). Swaps the row's text for a
- * textarea; Save writes it back, Cancel repaints. The prompt keeps its id, so
- * anything pointing at it (a module's defaultPromptId) still resolves. */
+/* Edit a saved prompt in place. Deck prompts are meant to be tuned, and
+ * deleting + re-adding would lose their place in the list. Swaps the row's
+ * text for a textarea; Save writes it back, Cancel repaints. The prompt keeps
+ * its id, so a module's defaultPromptId still resolves — the deck sheet hashes
+ * the TEXT into promptVersion, so an edited prompt never hits the old cache. */
 function editPrompt(classId, modId, promptId) {
   const cls = findClassOrKsu(classId);
   const mod = cls && cls.modules.find(m => m.id === modId);
@@ -3829,17 +3824,11 @@ function updateStats() {
   const cardsEl = _sosEl('stat-cards');
   if (cardsEl && window.SOS && window.SOS.deck) {
     try {
-      // The DAILY queue (engagement 2.2): never more than what is left of
-      // today's cap, so the number is one she can actually finish.
-      const d = window.SOS.deck.dueToday();
-      const n = d.count;
-      cardsEl.textContent = n === 0 && d.reviewed >= d.cap ? '✓' : n;
+      const n = window.SOS.deck.countsFor(null).dueNow;
+      cardsEl.textContent = n;
       cardsEl.style.color = n > 0 ? 'var(--accent2)' : 'var(--text3)';
       const tile = _sosEl('stat-card-cards');
-      if (tile) {
-        tile.style.opacity = n > 0 ? '1' : '0.6';
-        tile.title = `${d.reviewed} of ${d.cap} reviewed today — tap to review`;
-      }
+      if (tile) tile.style.opacity = n > 0 ? '1' : '0.6';
     } catch (e) {}
   }
 
@@ -3847,12 +3836,9 @@ function updateStats() {
   const streakEl = _sosEl('stat-streak');
   if (streakEl && window.SOS && window.SOS.sessions) {
     try {
-      // With the one-day freeze (engagement 5.1) when xp.js has loaded.
-      const info = window.SOS.xp ? window.SOS.xp.streakInfo() : { streak: window.SOS.sessions.streak() };
-      const n = info.streak;
+      const n = window.SOS.sessions.streak();
       const today = window.SOS.sessions.dayTotals();
-      streakEl.textContent = n === 0 ? '—' : n + (n === 1 ? ' day' : ' days') + (info.froze ? ' ❄' : '');
-      if (info.froze) { try { showNotif('❄️', 'Streak saved', 'You missed yesterday, so a streak freeze kept your streak alive. Next one in 7 days.'); } catch (e) {} }
+      streakEl.textContent = n === 0 ? '—' : n + (n === 1 ? ' day' : ' days');
       streakEl.style.color = n > 0 ? 'var(--accent2)' : 'var(--text3)';
       const tile = _sosEl('stat-card-streak');
       if (tile) {
@@ -3997,10 +3983,7 @@ function renderExamCountdown() {
         <div class="sos-exam-meta">${formatDate(ev.date)}${ev.time ? ' · ' + escHtml(ev.time) : ''}${cls ? ' · ' + escHtml(cls.name) : ''} · ${escHtml(ev.type)}</div>
       </div>
       ${weight > 0 ? `<div class="sos-exam-score-pill" style="background:${badgeBg};color:${badgeText}">${weight}%</div>` : ''}
-      ${ev.src === 'event' && ev.classId && window.sosOpenPlanner ? `<button class="btn" data-plan style="padding:3px 8px;font-size:10px;margin-left:6px" title="Back-plan daily study targets">${ev.ref && ev.ref.plan ? 'Planned ✓' : 'Plan'}</button>` : ''}
     `;
-    const planBtn = item.querySelector('[data-plan]');
-    if (planBtn) planBtn.onclick = (e) => { e.stopPropagation(); window.sosOpenPlanner(ev.id); };
     el.appendChild(item);
   });
 }
@@ -4086,36 +4069,23 @@ function renderPriorityQueue() {
  */
 function startFocusOn(ev, minutes) {
   try {
+    if (ev && ev.classId) {
+      currentClassId = ev.classId;
+      _sosPomoClassId = ev.classId;
+    }
     switchView('pomodoro');
-    startPomoFor(ev && ev.classId, minutes);
+    if (minutes) {
+      const inp = _sosEl('pomo-inp-work');
+      if (inp) { inp.value = String(minutes); onPomoSettingChange(); }
+    }
+    if (!pomoRunning) {
+      if (pomoMode !== 'work') setPomoMode('work');
+      togglePomo();
+    }
     const what = ev && ev.name ? ev.name : 'Focus';
     showNotif(SOI.check, 'Started', what + (minutes ? ` · ${minutes} min` : ''));
   } catch (e) { console.warn('startFocusOn failed:', e); }
 }
-
-/* Start a focus block WITHOUT leaving the current view (engagement 5.3).
- * "Start now" opens a review or quiz over the page and runs the timer behind
- * it; switching to the pomodoro view first would put the timer where she
- * isn't looking and the study session under it. Returns whether it started. */
-function startPomoFor(classId, minutes) {
-  if (classId) {
-    currentClassId = classId;
-    _sosPomoClassId = classId;
-  }
-  if (minutes) {
-    const inp = _sosEl('pomo-inp-work');
-    if (inp) { inp.value = String(minutes); onPomoSettingChange(); }
-  }
-  if (pomoRunning) return false;
-  if (pomoMode !== 'work') setPomoMode('work');
-  togglePomo();
-  return true;
-}
-window.sosStartPomoFor = startPomoFor;
-// Exposed for startnow.js: the same urgency curve the priority queue uses,
-// so "Start now" and the queue never disagree about what is pressing.
-window._sosUrgencyOf = (e) => { try { return _sosPriorityScore(e); } catch (err) { return 0; } };
-window._sosScheduleItemsPublic = () => { try { return _sosScheduleItems(); } catch (err) { return []; } };
 
 /**
  * The dashboard's one button. Takes the top of the priority queue and starts.
@@ -4135,7 +4105,7 @@ window.sosStartSession = function (minutes) {
 
   if (!top) {
     // Nothing due is not nothing to do: due cards are still worth the minutes.
-    if (window.SOS && window.SOS.deck && window.SOS.deck.dueToday().count > 0) {
+    if (window.SOS && window.SOS.deck && window.SOS.deck.countsFor(null).dueNow > 0) {
       return window.sosStudyAll && window.sosStudyAll();
     }
     showNotif(SOI.check, 'Nothing queued', 'No work due in the next 30 days.');
@@ -5135,18 +5105,15 @@ window._sosBridge.addGeneratedNote = (spec) => {
   // stored, invisible and unreachable. P-4's auto-run passes the module the
   // FILE was dropped into, which is a documents module by definition, so
   // without this guard every auto-run result would vanish.
-  // `moduleName` picks the fallback home: study kits file into "Study Kit",
-  // everything else into "Generated".
-  const homeName = spec.moduleName || 'Generated';
   let mod = spec.moduleId
     && (cls.modules || []).find(m => m.id === spec.moduleId && m.type === 'notes');
   if (!mod) {
-    mod = (cls.modules || []).find(m => m.type === 'notes' && m.name === homeName);
+    mod = (cls.modules || []).find(m => m.type === 'notes' && m.name === 'Generated');
   }
   if (!mod) {
     mod = {
       id: Date.now().toString(),
-      name: homeName,
+      name: 'Generated',
       type: 'notes',
       icon: (typeof ICONS !== 'undefined' && ICONS.notes) || '📝',
       files: [], prompts: [], notes: [],
@@ -5478,60 +5445,6 @@ window._sosBridge.setModuleDefaultPrompt = (classId, moduleId, promptId) => {
   else delete mod.defaultPromptId;
   persistForCls(cls);
   return true;
-};
-
-/* Find or create a prompts-type module holding `seeds` (engagement upgrade
- * 1.2). Used to give every class the study-kit style presets, as ordinary
- * prompts she can edit. Seeds are written only when NO module of that name
- * exists, so her edits and deletions inside it are never overwritten; deleting
- * the whole module brings the defaults back. Returns the module or null. */
-window._sosBridge.ensurePromptModule = (classId, name, seeds) => {
-  const cls = findClassOrKsu(classId);
-  if (!cls) return null;
-  cls.modules = cls.modules || [];
-  let mod = cls.modules.find(m => m.type === 'prompts' && m.name === name);
-  if (mod) return mod;
-  mod = {
-    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    name, type: 'prompts', icon: '✨',
-    files: [], prompts: [], notes: [],
-  };
-  (seeds || []).forEach((text, i) => {
-    mod.prompts.push({ id: mod.id + '_' + i, text: String(text) });
-  });
-  cls.modules.push(mod);
-  persistForCls(cls);
-  try { if (currentClassId === cls.id) renderModules(cls); } catch (e) {}
-  return mod;
-};
-
-/* Exam back-planning (engagement 2.5). planner.js computes the plan; these two
- * write it through the app's own persistence so it syncs like any edit.
- * A plan's tasks carry `planId`; re-planning replaces only the plan's UNDONE
- * tasks, so work she already ticked off stays ticked off. */
-window._sosBridge.setEventPlan = (eventId, plan) => {
-  const ev = events.find(e => e && e.id === eventId);
-  if (!ev) return false;
-  if (plan) ev.plan = plan; else delete ev.plan;
-  persistEvents();
-  try { renderExamCountdown(); } catch (e) {}
-  return true;
-};
-window._sosBridge.replacePlanTasks = (planId, list) => {
-  if (!planId) return 0;
-  for (let i = tasks.length - 1; i >= 0; i--) {
-    if (tasks[i] && tasks[i].planId === planId && !tasks[i].done) tasks.splice(i, 1);
-  }
-  const doneDays = new Set(tasks.filter(t => t && t.planId === planId && t.done).map(t => t.dueDate));
-  let n = 0;
-  for (const t of list || []) {
-    if (doneDays.has(t.dueDate)) continue;           // already did that day's work
-    tasks.push({ done: false, createdAt: Date.now(), repeat: 'none', repeatDays: [], repeatEndDate: '', ...t, planId });
-    n++;
-  }
-  persistTasks();
-  try { updateStats(); } catch (e) {}
-  return n;
 };
 
 /* Fired by the upload path when a file lands in a module, so P-4's auto-run

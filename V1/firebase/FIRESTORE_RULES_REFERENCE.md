@@ -32,10 +32,6 @@ Every path StudyOS touches is already covered by it:
 | `dashboards/studyos_mirror_ack` | TaskHub → StudyOS done-state flips |
 | `studyos_reminders` | scheduled push reminders (studyos-api cron) |
 | `studyos_fcm_tokens` | StudyOS device push tokens |
-| `studyos_cards/{classId}` | flashcards + FSRS review state, one doc per class |
-| `dashboards/studyos_sessions` | study sessions (focus, review, quiz, drill…) incl. XP |
-| `studyos_quiz/{classId}` | quiz bank (study kits), one doc per class |
-| `dashboards/studyos_progress` | weak-spot counters, streak freezes, bosses |
 
 StudyOS signs in anonymously, so `request.auth != null` is satisfied and all of
 these read and write normally with no rules change at all.

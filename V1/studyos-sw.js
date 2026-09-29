@@ -15,25 +15,10 @@
  * from /studyos/js/ could only control /studyos/js/*, which does not cover the
  * app itself. build.mjs copies it beside studyos.html via the `assets` list.
  *
- * OFFLINE FALLBACK, NEVER STALE (engagement upgrade). The suite serves
- * everything `no-cache` (see _headers in build.mjs) so updates reach devices
- * immediately, and the original rule here was "no caching" for that reason.
- * The drills (SQL sandbox, visualizers) are meant to work offline, so this
- * worker now keeps a copy of what it fetches — but it is NETWORK-FIRST: the
- * cache is read ONLY when the network fails. Online, every request still goes
- * to the server and the fresh response replaces the copy, so an update lands
- * exactly as before.
- *
- * The one cache-first path is vendor/<name>-<version>/ (sql.js WASM, ~700KB):
- * a new version is a new path, so a cached copy can never be stale, and
- * re-downloading it on every open would waste her data.
- *
- * Only same-origin GETs under this worker's scope are touched. Firebase,
- * Firestore, the bridge on 127.0.0.1, and the share POST are left alone.
+ * NO CACHING. This worker deliberately has no cache logic: the suite serves
+ * HTML with `no-cache` headers (see the _headers block in build.mjs) so app
+ * updates reach devices immediately, and a caching SW here would defeat that.
  * ------------------------------------------------------------------------- */
-
-const CACHE = 'studyos-offline-v1';
-const VENDOR_RE = /\/vendor\/[\w.-]+-\d+(\.\d+)*\//;
 
 const STAGE_DB = 'sos_share_stage';
 const STAGE_VER = 1;
@@ -41,18 +26,15 @@ const STAGE_ST = 'pending';
 
 // Take over promptly so a freshly installed worker handles the very next share
 // rather than waiting for every StudyOS tab to close.
-// Precache the shell and the SQL engine so the very first offline open works;
-// everything else is cached the first time it is used online. Each file is
-// fetched on its own so one renamed path cannot fail the whole install.
-const PRECACHE = ['./', 'css/studyos.css', 'js/studyos.js', 'config/config.js', 'js/modules/boot.js',
-  'vendor/sqljs-1.14.2/sql-wasm.js', 'vendor/sqljs-1.14.2/sql-wasm.wasm'];
-self.addEventListener('install', (e) => {
-  self.skipWaiting();
-  e.waitUntil(caches.open(CACHE).then((c) => Promise.all(PRECACHE.map((u) => c.add(u).catch(() => {})))));
-});
+self.addEventListener('install', () => self.skipWaiting());
+// The Sept 28 engagement upgrade (since reverted) made this worker cache the app
+// under `studyos-offline-*`. This worker never reads a cache, so those entries
+// would sit on every device forever — delete them on activation.
 self.addEventListener('activate', e => e.waitUntil((async () => {
-  // Drop caches from older versions of this worker.
-  for (const k of await caches.keys()) if (k.startsWith('studyos-offline-') && k !== CACHE) await caches.delete(k);
+  try {
+    const names = await caches.keys();
+    await Promise.all(names.filter(n => n.startsWith('studyos-offline-')).map(n => caches.delete(n)));
+  } catch (_) { /* Cache Storage unavailable: nothing to clean */ }
   await self.clients.claim();
 })()));
 
@@ -61,11 +43,7 @@ self.addEventListener('fetch', event => {
   try { url = new URL(event.request.url); } catch (_) { return; }
   if (event.request.method === 'POST' && /\/studyos\/share\/?$/.test(url.pathname)) {
     event.respondWith(handleShare(event.request));
-    return;
   }
-  if (event.request.method !== 'GET' || url.origin !== self.location.origin) return;
-  if (!url.pathname.startsWith(new URL(self.registration.scope).pathname)) return;
-  event.respondWith(VENDOR_RE.test(url.pathname) ? cacheFirst(event.request) : networkFirst(event.request));
   // Anything else: return WITHOUT calling respondWith, so the browser handles
   // the request exactly as it would if this worker did not exist.
 });
@@ -128,27 +106,4 @@ async function stashFiles(files) {
   } finally {
     try { db.close(); } catch (_) {}
   }
-}
-
-async function networkFirst(request) {
-  const cache = await caches.open(CACHE);
-  try {
-    const res = await fetch(request);
-    if (res && res.ok && res.type === 'basic') cache.put(request, res.clone()).catch(() => {});
-    return res;
-  } catch (err) {
-    // ignoreSearch: module imports carry cache-busting queries in tests.
-    const hit = await cache.match(request, { ignoreSearch: true });
-    if (hit) return hit;
-    throw err;
-  }
-}
-
-async function cacheFirst(request) {
-  const cache = await caches.open(CACHE);
-  const hit = await cache.match(request);
-  if (hit) return hit;
-  const res = await fetch(request);
-  if (res && res.ok) cache.put(request, res.clone()).catch(() => {});
-  return res;
 }

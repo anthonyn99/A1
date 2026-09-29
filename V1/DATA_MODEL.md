@@ -185,8 +185,7 @@ stays falsy either way.
 > **Superseded for decks.** Deck and rewrite jobs are now filed as a PDF
 > `FileEntry` with provenance under `gen` (`{generated, sourceFileId, mode,
 > promptId, …}`), deduped on `(gen.sourceFileId, gen.mode)` — see
-> `_sosAddGeneratedDoc`. Generated NOTES are still written this way by study
-> kits (the cheat sheet, §3c), into the notes-sync editor store.
+> `_sosAddGeneratedDoc`.
 
 A pipeline result is written as a normal note in a `type: 'notes'` module (so it
 opens in the docx editor and is immediately editable), with one extra key:
@@ -323,74 +322,6 @@ weekly review.
 
 ---
 
-## 3c. Shapes added by the engagement upgrade
-
-Every new synced store goes through `js/modules/synced.js`: localStorage + its
-OWN Firestore document, merged by id on the client, whole-document writes of
-the union, never before the server copy has been seen (`_fbSaveDoc` /
-`_fbLoadDoc` in firebase-sync.js). Deletions are tombstones
-(`{id, deleted: true, updatedAt}`, kept 120 days). Every document carries `v`
-and is upgraded on read by `js/modules/migrate.js` (§6).
-
-### `Question` — `localStorage['studyos_quiz_<classId>']`, `studyos_quiz/{classId}`
-
-```js
-{ v: 1, items: [{
-  id: 'qz_' + fp, fp,              // content fingerprint: re-runs keep stats
-  classId, moduleId,               // the SOURCE lecture's module
-  topic, type: 'mcq'|'short'|'trace'|'sql',
-  prompt, choices?, answer, explanation, dataset?,
-  source: { kind: 'kit', jobId, sourceFileId, sourceTitle },
-  stats: { attempts, correct, lastAt, lastCorrect },
-  updatedAt,
-}] }
-```
-
-### Kit cards — ordinary `Card`s
-
-Study-kit flashcards and key terms (`Define: <term>`) are `Card`s (§3b) with
-`kind: 'qa'`, `sourceNoteId: 'kit_<sourceFileId>'`, `moduleId` = the lecture's
-module. A kit re-run reconciles against that source's cards and drops only
-leftovers that were NEVER reviewed. Explain-it-back gap cards use
-`sourceNoteId: 'explain_<topic>'`.
-
-### Progress — `localStorage['studyos_progress']`, `dashboards/studyos_progress`
-
-```js
-{ v: 1, items: [
-  { id: 'tp|<classId>|<topic>', type: 'topic', classId, topic,
-    dev: { <deviceId>: { a: attempts, m: misses (Hard = 0.5), t: lastMissAt } } },
-  { id: 'fz|<YYYY-MM-DD>', type: 'freeze', day },           // streak freeze
-  { id: 'bs|<classId>|<moduleId>', type: 'boss', classId, moduleId, defeatedAt, wins, best, name },
-] }
-```
-
-Topic counters are grow-only PER DEVICE (merge keeps each device's larger
-count), so two devices' misses on one afternoon both count.
-`localStorage['studyos_device_id']` names this device.
-
-### `Session` additions (§3b)
-
-`kind` gains `'quiz' | 'drill' | 'explain' | 'mock' | 'boss'`; new optional
-fields `xp`, `items`, `correct`, `topic`. **XP is stored only here** — totals
-and levels are sums over sessions (`js/modules/xp.js`). Day/week minute totals
-are now the UNION of session intervals (`sessions.coveredMs`), because "Start
-now" runs a focus timer and a review at the same time.
-
-### `Event.plan` — exam back-planning
-
-`{ moduleIds: [..], generatedAt }` on an exam event. Scopes
-`deck.buildQueue({examId})`. Plan tasks are ordinary `Task`s with
-`type: 'other'` and `planId: 'pl_<eventId>'`; re-planning replaces only the
-plan's undone tasks.
-
-### Per-device preferences (localStorage only)
-
-`studyos_prefs` (`{dailyCap}`, default 30), `studyos_kit_prompt_<classId>`,
-`studyos_drill_class_<db|ds>`, `studyos_sql_solved`, `studyos_bigo_best`.
-
----
-
 ## 4. Persistence entry points
 
 | Function | Writes | Line |
@@ -465,11 +396,7 @@ must define this behavior explicitly rather than inherit it by accident.
 
 ## 6. Schema versioning plan
 
-**Status:** `js/modules/migrate.js` now exists and versions every store added
-by the engagement upgrade (§3c: `quiz`, `progress`) per DOCUMENT — each carries
-`v`, and `upgrade(kind, doc)` walks version steps on read, never dropping a
-record it does not understand. The pre-existing stores below still have no
-version; the original plan for them stands:
+No `schemaVersion` field exists in any store today. The plan:
 
 1. Introduce `studyos_schema_version` in localStorage; absent ⇒ treat as `1`.
 2. `js/modules/migrate.js` holds an ordered array of

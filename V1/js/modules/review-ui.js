@@ -29,9 +29,6 @@
  * ------------------------------------------------------------------------- */
 
 import * as deck from './deck.js';
-import * as progress from './progress.js';
-import * as xp from './xp.js';
-import * as summary from './summary.js';
 import { store } from './store.js';
 
 const esc = (s) => String(s == null ? '' : s)
@@ -113,7 +110,6 @@ function styleOnce() {
   .sos-review-grades { max-width:720px; margin:0 auto; width:100%; }
   .sos-review-grade { min-height:48px; }
 }`;
-  el.textContent += summary.CSS;
   document.head.appendChild(el);
 }
 
@@ -125,9 +121,7 @@ export function startReview(scope = {}, opts = {}) {
   if (_open) return _open;                 // never stack two sessions
   styleOnce();
 
-  // `opts.cards` hands over an explicit list (weak-spot sessions review cards
-  // on a weak topic whether or not FSRS says they are due).
-  const queue = Array.isArray(opts.cards) ? opts.cards.slice(0, opts.limit || 60) : deck.buildQueue(scope, opts);
+  const queue = deck.buildQueue(scope, opts);
   if (!queue.length) {
     try { window.showNotif && window.showNotif('✅', 'Nothing due', 'No cards are waiting for this selection.'); }
     catch (e) {}
@@ -139,20 +133,6 @@ export function startReview(scope = {}, opts = {}) {
   const stats = { done: 0, again: 0, good: 0, total: queue.length };
   let i = 0, revealed = false;
   let lastAction = null;                    // { cardId, prevSched } for undo
-  // Weak-spot log (engagement 2.3): every grade per card, flushed as ONE
-  // attempt carrying the WORST grade when the session ends. A card failed and
-  // then recovered in the same sitting was still a miss. Buffered rather than
-  // written per grade because the counter only grows — an undo could not take
-  // a recorded miss back, but it can pop an entry from this list.
-  const graded = new Map();                 // cardId -> [{ classId, topic, miss }]
-  const flushProgress = () => {
-    for (const list of graded.values()) {
-      if (!list.length) continue;
-      const worst = Math.max(...list.map((g) => g.miss));
-      try { progress.recordAttempt(list[0].classId, list[0].topic, worst); } catch (e) {}
-    }
-    graded.clear();
-  };
 
   const el = document.createElement('div');
   el.className = 'sos-review';
@@ -171,7 +151,6 @@ export function startReview(scope = {}, opts = {}) {
   const countEl = el.querySelector('[data-count]');
 
   function close() {
-    flushProgress();
     document.removeEventListener('keydown', onKey, true);
     el.remove();
     _open = null;
@@ -179,15 +158,11 @@ export function startReview(scope = {}, opts = {}) {
   }
 
   function finish() {
-    // Read the misses BEFORE the flush empties the buffer.
-    const missed = [...new Set([...graded.values()].flat().filter((g) => g.miss >= 1).map((g) => g.topic))];
-    flushProgress();
     const mins = Math.max(1, Math.round((Date.now() - started) / 60000));
 
     // Card review is studying and must count toward streaks and hours exactly
     // as a focus block does (S-3). Logged here rather than per card so twenty
     // minutes of review is one session, not forty.
-    const gained = xp.forReview({ cards: stats.done, again: stats.again });
     try {
       if (window.SOS && window.SOS.sessions && stats.done > 0) {
         window.SOS.sessions.log('review', {
@@ -197,27 +172,22 @@ export function startReview(scope = {}, opts = {}) {
           completed: true,
           cards: stats.done,
           accuracy: stats.done ? Math.round(((stats.done - stats.again) / stats.done) * 100) : null,
-          xp: gained,
         });
       }
     } catch (e) { console.warn('[review] session log failed:', e); }
 
     const m = cls ? deck.mastery(cls.id) : deck.mastery(null);
     const acc = stats.done ? Math.round(((stats.done - stats.again) / stats.done) * 100) : 0;
-    // The shared end screen (engagement 5.4): XP, level, streak, what next.
-    const o = {
-      title: 'Done',
-      lines: [`${stats.done} card${stats.done === 1 ? '' : 's'} · ${mins} min · ${acc}% recalled`,
-              ...(cls ? [`${cls.name} — ${m.pct}% mastered`] : []),
-              ...(m.weakest && m.weakest.topic ? [`weakest: ${m.weakest.topic}`] : [])],
-      xpGained: stats.done ? gained : 0,
-      missedTopics: missed,
-      onClose: close,
-      onPractice: (topics) => window.SOS.practice && window.SOS.practice.startWeakSpots(scope.classId || '', { topic: topics[0] }),
-    };
-    body.innerHTML = summary.html(o);
+    body.innerHTML = `
+      <div class="sos-review-recap">
+        <h2>Done</h2>
+        <div class="sos-review-stat">${stats.done} card${stats.done === 1 ? '' : 's'} · ${mins} min · ${acc}% recalled</div>
+        ${cls ? `<div class="sos-review-stat">${esc(cls.name)} — ${m.pct}% mastered</div>` : ''}
+        ${m.weakest && m.weakest.topic ? `<div class="sos-review-stat" style="color:var(--text3)">weakest: ${esc(m.weakest.topic)}</div>` : ''}
+        <button class="sos-review-x" style="padding:10px 20px;min-width:120px;margin-top:8px">Close</button>
+      </div>`;
     bar.style.width = '100%';
-    summary.wire(body, o);
+    body.querySelector('button').onclick = close;
   }
 
   function render() {
@@ -283,11 +253,6 @@ export function startReview(scope = {}, opts = {}) {
       wasAgain: g === 1,
     };
     deck.gradeCard(card.id, g);
-    if (card.topic) {
-      // Again is a miss, Hard half of one, Good/Easy an attempt with no miss.
-      if (!graded.has(card.id)) graded.set(card.id, []);
-      graded.get(card.id).push({ classId: card.classId, topic: card.topic, miss: g === 1 ? 1 : g === 2 ? 0.5 : 0 });
-    }
     stats.done++;
     if (g === 1) {
       stats.again++;
@@ -306,8 +271,6 @@ export function startReview(scope = {}, opts = {}) {
     if (!lastAction) return;
     const { cardId, prevSched, index, wasAgain } = lastAction;
     deck.restoreSched(cardId, prevSched);
-    const hist = graded.get(cardId);
-    if (hist) hist.pop();
     stats.done = Math.max(0, stats.done - 1);
     if (wasAgain) {
       stats.again = Math.max(0, stats.again - 1);

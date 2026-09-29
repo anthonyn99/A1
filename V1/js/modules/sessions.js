@@ -78,9 +78,7 @@ export function dayKey(ts = Date.now()) {
  * Log a finished session.
  *
  * @param kind    'focus' (timer) | 'review' (cards) | 'task'
- *                | 'quiz' | 'drill' | 'explain' | 'mock' | 'boss'  (engagement upgrade)
- * @param fields  { classId, taskId, durationMs, completed, cards, accuracy, note,
- *                  xp, items, correct, topic }
+ * @param fields  { classId, taskId, durationMs, completed, cards, accuracy, note }
  * @returns the stored session, or null when it was too short to be real.
  */
 export function log(kind, fields = {}) {
@@ -102,12 +100,6 @@ export function log(kind, fields = {}) {
     cards: fields.cards || 0,
     accuracy: fields.accuracy == null ? null : fields.accuracy,
     note: String(fields.note || '').slice(0, 500),
-    // Engagement upgrade. XP rides on the session because sessions are
-    // already append-only and synced: XP and level then survive every device
-    // for free, and can never disagree with the history that earned them.
-    xp: Math.max(0, Math.round(fields.xp || 0)),
-    ...(fields.items ? { items: fields.items | 0, correct: fields.correct | 0 } : {}),
-    ...(fields.topic ? { topic: String(fields.topic).slice(0, 80) } : {}),
   };
   _list.push(s);
   prune();
@@ -158,36 +150,12 @@ export function since(ts) {
   return load().filter((s) => (s.startedAt || 0) >= ts);
 }
 
-/**
- * Wall-clock time covered by a set of sessions — the UNION of their intervals,
- * not the sum of their durations.
- *
- * Sessions overlap by design: "Start now" runs a pomodoro AND a review at
- * once, and she can review cards while any focus timer runs. Summing would
- * count those minutes twice and inflate every total built on top.
- */
-export function coveredMs(list) {
-  const iv = (list || [])
-    .map((s) => [s.startedAt || 0, (s.startedAt || 0) + (s.durationMs || 0)])
-    .filter(([a, b]) => b > a)
-    .sort((x, y) => x[0] - y[0]);
-  let total = 0, curA = null, curB = null;
-  for (const [a, b] of iv) {
-    if (curB === null || a > curB) {
-      if (curB !== null) total += curB - curA;
-      curA = a; curB = b;
-    } else if (b > curB) curB = b;
-  }
-  if (curB !== null) total += curB - curA;
-  return total;
-}
-
 /** Totals for a day: minutes, sessions, cards. */
 export function dayTotals(day = dayKey()) {
   const list = forDay(day);
   return {
     day,
-    minutes: Math.round(coveredMs(list) / 60000),
+    minutes: Math.round(list.reduce((n, s) => n + s.durationMs, 0) / 60000),
     sessions: list.length,
     cards: list.reduce((n, s) => n + (s.cards || 0), 0),
   };
@@ -200,10 +168,8 @@ export function dayTotals(day = dayKey()) {
  * streak that reads 0 every morning until the first session punishes her for
  * not having studied yet at 9am, which is the opposite of motivating.
  */
-export function streak(now = Date.now(), extraDays = []) {
-  // `extraDays` are days that count as studied without a session — the
-  // streak freezes (engagement 5.1, see xp.streakInfo).
-  const days = new Set([...load().map((s) => s.day), ...extraDays]);
+export function streak(now = Date.now()) {
+  const days = new Set(load().map((s) => s.day));
   if (!days.size) return 0;
 
   const today = dayKey(now);
@@ -222,7 +188,7 @@ export function streak(now = Date.now(), extraDays = []) {
 /** Minutes per class over the last `days`, biggest first (M-3). */
 export function byClass(days = 7, now = Date.now()) {
   const cutoff = now - days * 86400000;
-  const groups = new Map();
+  const totals = new Map();
   for (const s of load()) {
     // A WINDOW, not just a lower bound. Filtering only on `>= cutoff` meant a
     // session after `now` still counted, so "the last 7 days" ending three
@@ -232,10 +198,8 @@ export function byClass(days = 7, now = Date.now()) {
     const at = s.startedAt || 0;
     if (at < cutoff || at > now) continue;
     const key = s.classId || '';
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(s);
+    totals.set(key, (totals.get(key) || 0) + s.durationMs);
   }
-  const totals = new Map([...groups].map(([k, list]) => [k, coveredMs(list)]));
   const classes = new Map(store.getClasses().map((c) => [c.id, c]));
   return [...totals.entries()]
     .map(([classId, ms]) => ({
@@ -266,7 +230,7 @@ export function weekProgress(goalMinutes = 600, now = Date.now()) {
   monday.setHours(0, 0, 0, 0);
 
   const list = since(monday.getTime());
-  const minutes = Math.round(coveredMs(list) / 60000);
+  const minutes = Math.round(list.reduce((n, s) => n + s.durationMs, 0) / 60000);
   return {
     minutes,
     goalMinutes,
@@ -277,6 +241,6 @@ export function weekProgress(goalMinutes = 600, now = Date.now()) {
 }
 
 export default {
-  log, annotate, applyRemote, all, forDay, since, coveredMs,
+  log, annotate, applyRemote, all, forDay, since,
   dayTotals, dayKey, streak, byClass, heatmap, weekProgress,
 };

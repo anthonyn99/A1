@@ -54,7 +54,6 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import driver
-import kit
 import pdfrender
 
 HERE = Path(__file__).resolve().parent
@@ -72,16 +71,9 @@ MAX_ATTEMPTS = 2          # a browser run is slow; don't grind on a broken one
 #   notebooklm  NotebookLM generates a NEW deck from the source and we catch
 #               the download. No chunking, no coverage check, no layout stage.
 #
-#   kit         a STUDY KIT: optionally the rewrite above, then two short asks
-#               that return flashcards/key terms and a quiz/cheat sheet as
-#               JSON (see kit.py). The client files each part separately.
-#   grade       one short ask that grades a typed answer (a Java translation,
-#               an explain-it-back) against a rubric and returns JSON. No file,
-#               nothing to file; jumps the queue because someone is waiting.
-#
 # Absent `mode` means 'rewrite', so every job already in jobs.json keeps working
 # with no migration.
-MODES = ("rewrite", "notebooklm", "kit", "grade")
+MODES = ("rewrite", "notebooklm")
 
 # Retryable = "the identical run again might just work".
 #
@@ -166,10 +158,6 @@ def is_retryable(kind: str, job: dict) -> bool:
 #       as rate_limited, and treated the same way.
 #   bad_input
 #       The source file is gone. Running again will not bring it back.
-#   kit_bad_json
-#       The answer was not JSON even after a repair ask. Two paid asks already
-#       failed the same way; a third is not the fix. Stages that DID succeed
-#       are kept on the job, so a manual Retry resumes rather than restarts.
 
 _jobs: dict[str, dict] = {}
 _lock = threading.Lock()
@@ -201,12 +189,6 @@ def _load():
         if j.get("status") in ("running", "queued"):
             j["status"] = "interrupted"
             j["error"] = "the bridge restarted while this job was in flight"
-    # A grade is read once, seconds after it is made. Keeping a day of them is
-    # generous; keeping them forever would grow jobs.json by one answer per drill.
-    cutoff = int(time.time() * 1000) - 24 * 3600 * 1000
-    for jid in [k for k, j in _jobs.items()
-                if j.get("mode") == "grade" and j.get("createdAt", 0) < cutoff]:
-        _jobs.pop(jid, None)
     _save()
 
 
@@ -297,13 +279,6 @@ def build_job_pdf(job: dict, *, force: bool = False) -> bool:
                 _save()
         return have
 
-    # A kit without the rewrite stage, and every grade job, carry a MARKER in
-    # `result`, not slide text. Laying that out would pair one line of marker
-    # against every slide image — the same confident-and-wrong PDF the
-    # notebooklm guard above exists to prevent.
-    if job.get("mode") == "grade" or (job.get("mode") == "kit" and not job.get("kitRewrite")):
-        return False
-
     if not force and job.get("pdfPath") and Path(job["pdfPath"]).exists():
         return True
     if not job.get("result"):
@@ -353,14 +328,17 @@ def _run_job(job_id: str):
         job["attempts"] = job.get("attempts", 0) + 1
         _save()
 
+    # A job from a mode this bridge no longer serves (the reverted study-kit
+    # `kit` / `grade` jobs still sit in jobs.json) must NOT fall through to the
+    # rewrite branch: Retry would silently run a paid rewrite nobody asked for.
+    mode = job.get("mode") or "rewrite"
+    if mode not in MODES:
+        _fail(job, f"mode {mode!r} is no longer supported", retryable=False)
+        return
+
     try:
-        mode = job.get("mode")
         if mode == "notebooklm":
             _run_notebooklm_job(job)
-        elif mode == "kit":
-            _run_kit_job(job)
-        elif mode == "grade":
-            _run_grade_job(job)
         else:
             _run_rewrite_job(job)
     except driver.DriverError as e:
@@ -442,36 +420,10 @@ def _run_notebooklm_job(job: dict):
 
 
 def _run_rewrite_job(job: dict):
-    """The original Claude path. Its loop now lives in _rewrite_chunks, which
-    it calls with attach_each_chunk=False so its behaviour is unchanged."""
-    _rewrite_chunks(job, attach_each_chunk=False, progress_span=(0, 100))
-    result_text = "\n\n".join(s["text"] for s in job.get("sections") or [])
+    """The original Claude path, moved here VERBATIM from _run_job.
 
-    with _lock:
-        job["status"] = "done"
-        job["progress"] = 100
-        job["finishedAt"] = int(time.time() * 1000)
-        job["result"] = result_text
-        _save()
-
-    # Lay the text out against the real slide images. Deliberately AFTER the
-    # text is journaled above, and build_job_pdf swallows its own errors: a
-    # layout failure must not throw away a generation that cost many minutes
-    # of browser time. The job keeps its text; pdfError says what went wrong.
-    build_job_pdf(job)
-
-
-def _rewrite_chunks(job: dict, *, attach_each_chunk: bool, progress_span=(0, 100)):
-    """Rewrite the deck 15 slides at a time into job["sections"].
-
-    Resumable: `nextSlide` is journaled after every chunk, so a retry picks up
-    where the last attempt stopped instead of paying for finished chunks again.
-
-    attach_each_chunk — cmd_ask opens claude.ai/new on EVERY call, so a chunk
-    after the first starts in a fresh chat that has never seen the deck. The
-    rewrite path attaches on the first chunk only (its historical behaviour,
-    which only works for decks of <= 15 slides); the kit path attaches on every
-    chunk, which is what a fresh chat actually needs.
+    Unchanged on purpose: a regression in the working path should be impossible
+    to introduce by inspection of this diff.
     """
     total = int(job.get("slideCount") or SLIDES_PER_CHUNK)
     sections = job.get("sections") or []
@@ -494,8 +446,10 @@ def _rewrite_chunks(job: dict, *, attach_each_chunk: bool, progress_span=(0, 100
             site=job.get("site") or "claude",
             prompt=job["prompt"] + guard,
             prompt_file=None,
-            attach=([str(p) for p in attach]
-                    if (attach_each_chunk or lo == start) else None),
+            # Attach the deck on the FIRST chunk only: the conversation keeps
+            # it, and re-uploading per chunk wastes minutes and can trip an
+            # attachment limit.
+            attach=[str(p) for p in attach] if lo == start else None,
             headful=False,
         )
         out = asyncio.run(driver.cmd_ask(args))
@@ -515,133 +469,26 @@ def _rewrite_chunks(job: dict, *, attach_each_chunk: bool, progress_span=(0, 100
             job["sections"] = sections
             job["outline"] = outline
             job["nextSlide"] = hi + 1
-            lo_p, hi_p = progress_span
-            job["progress"] = round(lo_p + (hi_p - lo_p) * hi / total)
+            job["progress"] = round(hi / total * 100)
             # A chunk that finished on the weakest gate is worth surfacing:
             # the text is probably fine, but it was never confirmed.
             job["lowConfidence"] = any(not s.get("clean") for s in sections)
             _save()
 
+    result_text = "\n\n".join(s["text"] for s in sections)
 
-# ── Study kits and grading ────────────────────────────────────────────────────
-def _ask(job: dict, prompt: str, attach) -> dict:
-    args = argparse.Namespace(site=job.get("site") or "claude", prompt=prompt,
-                              prompt_file=None, attach=attach, headful=False)
-    return asyncio.run(driver.cmd_ask(args))
-
-
-def _ask_json(job: dict, prompt: str, attach) -> dict:
-    """One ask whose answer must be JSON, with ONE repair ask if it is not.
-
-    The repair is a fresh chat carrying the broken text — cheaper and far more
-    reliable than regenerating from the PDF, since the content is already there
-    and only the syntax is wrong.
-    """
-    out = _ask(job, prompt, attach)
-    text = out.get("text") or ""
-    try:
-        return kit.extract_json(text)
-    except kit.KitError as e:
-        first_err = str(e)
-    fixed = _ask(job, kit.repair_prompt(first_err, text), None)
-    try:
-        return kit.extract_json(fixed.get("text") or "")
-    except kit.KitError as e:
-        raise driver.DriverError(
-            "kit_bad_json", f"the answer was not valid JSON even after a repair ask ({e})")
-
-
-def _kit_part(job: dict, schema_prompt: str, cleaner, kind: str, need: int, attach):
-    """Ask for one half of the kit; if it comes back short, ask ONCE for more.
-
-    A short answer after the extra ask is accepted with a warning rather than
-    failed: throwing away 13 good cards because 15 were asked for would waste
-    every message already spent on them.
-    """
-    field = "flashcards" if kind == "cards" else "quiz"
-    base = job["prompt"] + schema_prompt
-    clean, problems = cleaner(_ask_json(job, base, attach))
-    have = len(clean[field])
-    if have < need:
-        more, more_problems = cleaner(_ask_json(job, kit.more_prompt(base, kind, have, need), attach))
-        if len(more[field]) > have:
-            clean, problems = more, more_problems
-    return clean, problems
-
-
-def _run_kit_job(job: dict):
-    """rewrite (optional) -> cards -> quiz, each stage journaled on completion.
-
-    A retry resumes at `kitStage`, so a failure in the quiz ask never pays for
-    the rewrite or the cards a second time.
-    """
-    if not job.get("filePath") or not Path(job["filePath"]).exists():
-        raise driver.DriverError("bad_input", "the source PDF is no longer on disk")
-    attach = [job["filePath"]]
-    stage = job.get("kitStage") or ("rewrite" if job.get("kitRewrite") else "cards")
-    kit_data = dict(job.get("kit") or {})
-    warnings = list(job.get("kitWarnings") or [])
-    rewrite_end = 60 if job.get("kitRewrite") else 0
-
-    def advance(next_stage: str, progress: int):
-        with _lock:
-            job["kitStage"] = next_stage
-            job["kit"] = kit_data
-            job["kitWarnings"] = warnings
-            job["progress"] = progress
-            _save()
-
-    if stage == "rewrite":
-        _rewrite_chunks(job, attach_each_chunk=True, progress_span=(0, rewrite_end))
-        advance("cards", rewrite_end)
-        stage = "cards"
-
-    if stage == "cards":
-        clean, problems = _kit_part(job, kit.CARDS_SCHEMA_PROMPT, kit.clean_cards,
-                                    "cards", kit.MIN_CARDS, attach)
-        kit_data.update(clean)
-        warnings += problems
-        advance("quiz", rewrite_end + (100 - rewrite_end) // 2)
-        stage = "quiz"
-
-    if stage == "quiz":
-        clean, problems = _kit_part(job, kit.QUIZ_SCHEMA_PROMPT, kit.clean_quiz,
-                                    "quiz", kit.MIN_QUIZ, attach)
-        kit_data.update(clean)
-        warnings += problems
-        advance("done", 99)
-
-    rewrite_text = "\n\n".join(s["text"] for s in job.get("sections") or [])
     with _lock:
         job["status"] = "done"
         job["progress"] = 100
         job["finishedAt"] = int(time.time() * 1000)
-        # Never empty — three consumers gate on its truthiness (see the note in
-        # _run_notebooklm_job). The rewrite text when there is one, because
-        # build_job_pdf lays `result` out against the slides.
-        job["result"] = rewrite_text or (
-            f"Study kit ({len(kit_data.get('flashcards') or [])} cards, "
-            f"{len(kit_data.get('quiz') or [])} questions)")
+        job["result"] = result_text
         _save()
 
-    if job.get("kitRewrite"):
-        build_job_pdf(job)
-
-
-def _run_grade_job(job: dict):
-    spec = kit.GRADE_SCHEMAS[job["gradeKind"]]
-    obj = _ask_json(job, job["prompt"] + spec["prompt"], None)
-    graded, problems = kit.clean_grade(job["gradeKind"], obj)
-    with _lock:
-        job["graded"] = graded
-        job["gradeWarnings"] = problems
-        job["status"] = "done"
-        job["progress"] = 100
-        job["finishedAt"] = int(time.time() * 1000)
-        job["result"] = "graded"
-        # Nothing to file. Marked now so resumeWatches never tries.
-        job["filed"] = True
-        _save()
+    # Lay the text out against the real slide images. Deliberately AFTER the
+    # text is journaled above, and build_job_pdf swallows its own errors: a
+    # layout failure must not throw away a generation that cost many minutes
+    # of browser time. The job keeps its text; pdfError says what went wrong.
+    build_job_pdf(job)
 
 
 def _fail(job: dict, message: str, *, retryable: bool):
@@ -875,13 +722,9 @@ class Handler(BaseHTTPRequestHandler):
                                "provider": "browser", "note": "subscription, not metered"})
         if p == "/api/ai/jobs":
             with _lock:
-                # Grade jobs are an answer being marked, not a deck: they have
-                # nothing to file and would bury the real jobs in the panel.
-                jobs = sorted((j for j in _jobs.values() if j.get("mode") != "grade"),
-                              key=lambda j: j.get("createdAt", 0), reverse=True)[:50]
+                jobs = sorted(_jobs.values(), key=lambda j: j.get("createdAt", 0), reverse=True)[:50]
                 slim = [{k: v for k, v in j.items()
-                         if k not in ("result", "sections", "prompt", "filePath", "pdfPath",
-                                      "kit")} for j in jobs]
+                         if k not in ("result", "sections", "prompt", "filePath", "pdfPath")} for j in jobs]
                 for s, j in zip(slim, jobs):
                     s["hasResult"] = bool(j.get("result"))
             return self._send({"ok": True, "jobs": slim})
@@ -1049,25 +892,6 @@ class Handler(BaseHTTPRequestHandler):
                                "error": f"unknown mode {mode!r}; "
                                         f"expected one of {', '.join(MODES)}"}, 400)
 
-        if mode == "grade":
-            grade_kind = body.get("gradeKind") or ""
-            if grade_kind not in kit.GRADE_SCHEMAS:
-                return self._send({"ok": False,
-                                   "error": f"gradeKind must be one of "
-                                            f"{', '.join(kit.GRADE_SCHEMAS)}"}, 400)
-            # Never cached: every answer being graded is different, and these
-            # jobs carry no fileId, so a fingerprint would collide across all
-            # of them and hand back someone else's grade.
-            return self._enqueue({
-                "id": "sg_" + uuid.uuid4().hex[:10],
-                "mode": "grade", "gradeKind": grade_kind,
-                "site": body.get("site") or "claude",
-                "prompt": prompt, "classId": body.get("classId") or "",
-                "sourceName": f"grade: {grade_kind}",
-                "status": "queued", "progress": 0, "attempts": 0, "costUsd": 0,
-                "createdAt": int(time.time() * 1000),
-            }, front=True)
-
         # Idempotency, matching the Worker: same file + prompt + version returns
         # the existing result instead of re-running a slow browser job.
         #
@@ -1077,14 +901,8 @@ class Handler(BaseHTTPRequestHandler):
         # fingerprint written before this change, so the first re-run of an old
         # job regenerates once. That one-off cost beats a conditional key that
         # breaks the day a third mode appears.
-        kit_rewrite = mode == "kit" and bool(body.get("kitRewrite"))
         fp = (f"{body.get('fileId')}|{body.get('promptId')}"
               f"|{body.get('promptVersion', 1)}|{mode}")
-        # A kit with and without the rewrite are different outputs; without
-        # this the cache would answer "include the rewrite" with a kit that
-        # has none.
-        if kit_rewrite:
-            fp += "|rewrite"
 
         # THE DESTINATION IS NOT PART OF THE KEY, AND MUST NOT BE.
         #
@@ -1157,33 +975,9 @@ class Handler(BaseHTTPRequestHandler):
             "status": "queued", "progress": 0, "attempts": 0, "costUsd": 0,
             "createdAt": int(time.time() * 1000),
         }
-        if mode == "kit":
-            if not file_path:
-                return self._send({"ok": False,
-                                   "error": "a study kit needs the file attached"}, 400)
-            if kit_rewrite:
-                # The rewrite lays text over the source's page images, so it
-                # needs a real PDF, and its chunker needs the true page count.
-                # A .pptx still gets the cards and quiz — just not the rewrite.
-                pages = pdfrender.page_count(file_path)
-                if pages:
-                    job["slideCount"] = pages
-                else:
-                    kit_rewrite = False
-                    job["fingerprint"] = fp.removesuffix("|rewrite")
-                    job["kitWarnings"] = ["the source is not a PDF, so no rewritten deck was made"]
-            job["kitRewrite"] = kit_rewrite
-        return self._enqueue(job)
-
-    def _enqueue(self, job: dict, *, front: bool = False):
         with _lock:
             _jobs[job["id"]] = job
-            # A grade has someone watching a spinner; a deck has someone who
-            # walked away. The grade goes first.
-            if front:
-                _queue.insert(0, job["id"])
-            else:
-                _queue.append(job["id"])
+            _queue.append(job["id"])
             _save()
         _ensure_worker()
         return self._send({"ok": True, "job": job})

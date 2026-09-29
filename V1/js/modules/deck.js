@@ -204,15 +204,16 @@ export function generateFromSelection(classId, moduleId, fragment, title = '') {
 }
 
 /**
- * Merge structured cards (a study kit, explain-it-back gaps) into a class.
+ * Merge structured cards (a topic's flashcards) into a class.
  *
- * `src.noteId` groups them: a kit uses 'kit_<sourceFileId>', so re-running
- * the kit for one lecture reconciles against THAT lecture's kit cards only.
+ * `src.noteId` groups them: a topic uses 'topic_<fileId>_<topicId>', so
+ * regenerating one topic reconciles against THAT topic's cards only.
  *
  * Unlike note extraction, orphans that were NEVER REVIEWED are dropped. A
- * regenerated kit words its cards differently, so every re-run would otherwise
- * stack a second full set beside the first. An orphan with review history is
- * still kept — weeks of scheduling are never thrown away without asking.
+ * regenerated topic words its cards differently, so every re-run would
+ * otherwise stack a second full set beside the first. An orphan with review
+ * history is still kept — weeks of scheduling are never thrown away without
+ * asking.
  */
 export function addExternal(classId, moduleId, items, src = {}) {
   if (!classId) return { added: [], kept: [], dropped: [] };
@@ -230,6 +231,13 @@ export function addExternal(classId, moduleId, items, src = {}) {
   _mem.set(classId, [...others, ...kept, ...added, ...keepOrphans]);
   persist(classId);
   return { added, kept, dropped };
+}
+
+/** Cards whose sourceNoteId starts with `prefix` — e.g. every topic of one
+ *  document ('topic_<fileId>_'). */
+export function byNotePrefix(classId, prefix) {
+  load();
+  return (_mem.get(classId) || []).filter((c) => String(c.sourceNoteId || '').startsWith(prefix));
 }
 
 /** Remove cards, by id. Used by the review surface's "delete this card". */
@@ -326,115 +334,30 @@ export function previewCard(cardId, now = Date.now()) {
 /**
  * Build a study queue.
  *
- * `scope` is { classId } | { examId } | { topic } | {} for everything.
+ * `scope` is { classId } | { examId } | { topic } | { noteId } | { notePrefix }
+ * | {} for everything.
  * Due cards first (weakest first), then a bounded number of unseen ones — a
  * session that opens with fifty brand-new cards is one she closes.
  */
 export function buildQueue(scope = {}, opts = {}) {
   load();
   const now = opts.now ?? Date.now();
-  let maxNew = opts.maxNew ?? 20;
-  let limit = opts.limit ?? 60;
+  const maxNew = opts.maxNew ?? 20;
+  const limit = opts.limit ?? 60;
 
-  // Daily mode: the "Due today" queue. Never more than the daily cap in one
-  // day, counting what she has ALREADY reviewed today — a cap that resets
-  // every time the review screen opens is not a cap.
-  if (opts.daily) {
-    const cap = dailyCap();
-    const left = Math.max(0, cap - reviewedToday(now));
-    limit = Math.min(limit, left);
-    maxNew = Math.min(maxNew, NEW_PER_DAY);
-    if (!limit) return [];
+  let pool = scope.classId ? forClass(scope.classId) : all();
+  if (scope.topic) {
+    const t = String(scope.topic).toLowerCase();
+    pool = pool.filter((c) => (c.topic || '').toLowerCase().includes(t));
   }
+  if (scope.noteId) pool = pool.filter((c) => c.sourceNoteId === scope.noteId);
+  if (scope.notePrefix) pool = pool.filter((c) => String(c.sourceNoteId || '').startsWith(scope.notePrefix));
 
-  const pool = poolFor(scope);
   const unseen = pool.filter((c) => !c.sched || c.sched.state === fsrs.STATE.NEW);
   const due = pool.filter((c) => c.sched && c.sched.state !== fsrs.STATE.NEW
                                  && fsrs.isDue(c.sched, now));
 
   return [...fsrs.sortForStudy(due, now), ...unseen.slice(0, maxNew)].slice(0, limit);
-}
-
-/**
- * The cards a scope covers.
- *   { classId } | { topic } | { noteId } | { moduleIds } | { examId } | {}
- * An exam scope is its class, narrowed to the exam's covered modules when the
- * planner recorded them (event.plan.moduleIds), else the whole class.
- */
-export function poolFor(scope = {}) {
-  let classId = scope.classId;
-  let moduleIds = scope.moduleIds;
-  if (scope.examId) {
-    const ev = store.getEvents().find((e) => e && e.id === scope.examId);
-    if (!ev) return [];
-    classId = ev.classId;
-    if (ev.plan && Array.isArray(ev.plan.moduleIds) && ev.plan.moduleIds.length) moduleIds = ev.plan.moduleIds;
-  }
-  let pool = classId ? forClass(classId) : all();
-  if (moduleIds && moduleIds.length) {
-    const m = new Set(moduleIds);
-    pool = pool.filter((c) => m.has(c.moduleId));
-  }
-  if (scope.topic) {
-    const t = String(scope.topic).toLowerCase();
-    pool = pool.filter((c) => (c.topic || '').toLowerCase().includes(t));
-  }
-  if (scope.topics && scope.topics.length) {
-    const ts = scope.topics.map((x) => String(x).toLowerCase());
-    pool = pool.filter((c) => ts.some((t) => (c.topic || '').toLowerCase().includes(t)));
-  }
-  if (scope.noteId) pool = pool.filter((c) => c.sourceNoteId === scope.noteId);
-  return pool;
-}
-
-// ── Daily cap (engagement 2.2) ──────────────────────────────────────────────
-/* A queue of 140 due cards is one she never opens. The cap bounds a day to a
- * number that can be finished; FSRS absorbs the overflow by showing the
- * weakest first (sortForStudy) and the rest tomorrow. Per device, in
- * localStorage: it is a preference about this screen, not study data. */
-const PREFS_KEY = 'studyos_prefs';
-const DEFAULT_CAP = 30;
-const NEW_PER_DAY = 10;
-
-export function prefs() {
-  try { return JSON.parse(localStorage.getItem(PREFS_KEY) || '{}') || {}; }
-  catch (e) { return {}; }
-}
-
-export function setPref(key, value) {
-  const p = prefs();
-  p[key] = value;
-  try { localStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch (e) {}
-  emit('prefs');
-  return p;
-}
-
-export function dailyCap() {
-  const n = Number(prefs().dailyCap);
-  return Number.isFinite(n) && n > 0 ? Math.min(500, Math.round(n)) : DEFAULT_CAP;
-}
-
-function startOfDay(now) {
-  const d = new Date(now);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
-}
-
-/** Distinct cards graded since local midnight. */
-export function reviewedToday(now = Date.now()) {
-  const since = startOfDay(now);
-  return all().filter((c) => c.sched && (c.sched.lastReview || 0) >= since).length;
-}
-
-/**
- * What the home "Due today" tile shows: how many cards the daily queue would
- * hand her right now (never more than what is left of the cap).
- */
-export function dueToday(now = Date.now()) {
-  const reviewed = reviewedToday(now);
-  const left = Math.max(0, dailyCap() - reviewed);
-  const { due, unseen } = countsFor(null);
-  return { count: Math.min(left, due + Math.min(unseen, NEW_PER_DAY)), left, cap: dailyCap(), reviewed };
 }
 
 // ── Mastery (R-5) ───────────────────────────────────────────────────────────
@@ -496,8 +419,7 @@ export function topicBreakdown(classId, now = Date.now()) {
 
 export default {
   load, applyRemote, forClass, all, get, countsFor,
-  generateFromNote, generateFromSelection, addExternal, remove,
-  gradeCard, previewCard, restoreSched, buildQueue, poolFor,
-  prefs, setPref, dailyCap, reviewedToday, dueToday,
+  generateFromNote, generateFromSelection, addExternal, byNotePrefix, remove,
+  gradeCard, previewCard, restoreSched, buildQueue,
   mastery, topicBreakdown, nextExamFor,
 };
