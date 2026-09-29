@@ -47,7 +47,9 @@ const APPS = [
     name: "StudyOS",
     src: "studyos.html",
     out: "studyos",
-    assets: ["css", "js", "config", "assets", "manifest.webmanifest", "studyos-sw.js"],
+    // vendor/ holds third-party runtime files under VERSIONED folder names
+    // (e.g. vendor/anthropic-sdk-0.129.0/), so a new version is a new path.
+    assets: ["css", "js", "config", "assets", "vendor", "manifest.webmanifest", "studyos-sw.js"],
     rootFiles: [["firebase/firebase-messaging-sw.js", "firebase-messaging-sw.js"]],
   },
 ];

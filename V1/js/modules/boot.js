@@ -94,6 +94,32 @@ window.SOS.store = store;
   console.info('[StudyOS] active recall ready.');
 })().catch(e => console.warn('[StudyOS] recall failed to start:', e));
 
+/* ── Topic breakdown (topics → lessons → flashcards) ───────────────────────
+ * NOT behind the pipeline flag: with an API key in AI settings it needs no
+ * bridge at all. Only the "Claude Pro" provider does, and ai.js says so when
+ * it is picked without one. */
+(async function study() {
+  if (window.SOS.__studyBooted) return;       // see the duplicate-boot note below
+  window.SOS.__studyBooted = true;
+  const [ai, aiSettings, breakdown, breakdownUi, lessonUi] = await Promise.all([
+    import('./ai.js'),
+    import('./ai-settings.js'),
+    import('./breakdown.js'),
+    import('./breakdown-ui.js'),
+    import('./lesson-ui.js'),
+  ]);
+  window.SOS.ai = ai;
+  window.SOS.aiSettings = aiSettings;
+  window.SOS.breakdown = breakdown;
+  window.SOS.lessonUi = lessonUi;
+  // Called by studyos.js's refreshDocList for every file row.
+  window.sosDecorateDocRow = (item, cls, mod, f) => breakdownUi.decorate(item, cls, mod, f);
+  // A breakdown this device left running when the tab closed picks up where
+  // it stopped — once the classes (and their file summaries) are loaded.
+  store.onReady(() => { breakdown.resume().catch(() => {}); });
+  console.info('[StudyOS] topic breakdown ready.');
+})().catch(e => console.warn('[StudyOS] topic breakdown failed to start:', e));
+
 (async function boot() {
   const cfg = aiCfg();
   if (!cfg.enabled || !cfg.baseUrl) {

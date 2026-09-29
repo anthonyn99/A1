@@ -143,6 +143,34 @@ be running.
 
 ---
 
+## Topic breakdown (lessons + flashcards)
+
+A PDF's row has a **Break down** button. It lists the document's topics (one
+request), then writes each topic a lesson and its flashcards (one request per
+topic), in the background. The topics appear under the document; click one to
+read it. Its cards join your reviews.
+
+**Which model writes them** is set in **AI** (sidebar):
+
+| Provider | Needs | Notes |
+|---|---|---|
+| Claude Pro (local bridge) | the bridge running | Mode `ask`: one fresh claude.ai chat per request, PDF attached each time. Spends Pro messages. |
+| Anthropic API | an API key | Official SDK, vendored at `vendor/anthropic-sdk-0.129.0/` (StudyOS has no bundler). Default model `claude-opus-5-5`. |
+| OpenAI-compatible | key + model (+ base URL) | OpenAI, OpenRouter, Groq… The model must read PDFs. |
+| Google Gemini | key + model | The model must read PDFs. |
+
+Keys are stored **in that browser only** (`studyos_ai_v1`) — add them on each
+device. **Test connection** sends one tiny request.
+
+**The bridge's `ask` mode** (`server.py _run_ask_job`) is deliberately dumb: it
+sends the prompt, attaches the source when the job has one, and returns the raw
+answer text. Parsing, validation and the single repair ask happen in the
+browser (`ai.js`), the same code for every provider. `ask` jobs never build a
+PDF, and the deck sweep (`resumeWatches`) skips them. Uploads are stored by
+content hash, so a 15-topic breakdown keeps one copy of its PDF. **Restart the
+bridge after updating** — an old bridge answers `unknown mode 'ask'`, and the
+AI view's Test button says so.
+
 ## When something breaks
 
 | Symptom | Cause | Fix |

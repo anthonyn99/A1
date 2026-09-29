@@ -40,6 +40,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import base64
+import hashlib
 import json
 import os
 import re
@@ -70,10 +71,15 @@ MAX_ATTEMPTS = 2          # a browser run is slow; don't grind on a broken one
 #               pdfrender pairs each answer with the real slide image.
 #   notebooklm  NotebookLM generates a NEW deck from the source and we catch
 #               the download. No chunking, no coverage check, no layout stage.
+#   ask         ONE Claude ask: the prompt, the source attached, the raw answer
+#               text back. The topic breakdown drives it (js/modules/ai.js),
+#               and parses/validates/repairs the answer ITSELF — the same code
+#               path as every API provider — so this mode knows nothing about
+#               lessons. No PDF is ever built from it.
 #
 # Absent `mode` means 'rewrite', so every job already in jobs.json keeps working
 # with no migration.
-MODES = ("rewrite", "notebooklm")
+MODES = ("rewrite", "notebooklm", "ask")
 
 # Retryable = "the identical run again might just work".
 #
@@ -270,6 +276,12 @@ def build_job_pdf(job: dict, *, force: bool = False) -> bool:
     #
     # Returning False makes /pdf answer 404, which is the truth: a deleted
     # NotebookLM output can only be recovered by running the job again.
+    # An `ask` answer is JSON for the client, never a deck — laying it out
+    # against the attached source's pages would be the same confident, wrong
+    # PDF as the notebooklm case below.
+    if job.get("mode") == "ask":
+        return False
+
     if job.get("mode") == "notebooklm":
         have = bool(job.get("pdfPath") and Path(job["pdfPath"]).exists())
         if not have:
@@ -339,12 +351,48 @@ def _run_job(job_id: str):
     try:
         if mode == "notebooklm":
             _run_notebooklm_job(job)
+        elif mode == "ask":
+            _run_ask_job(job)
         else:
             _run_rewrite_job(job)
     except driver.DriverError as e:
         _fail(job, e.message, retryable=is_retryable(e.kind, job))
     except Exception as e:
         _fail(job, str(e)[:400], retryable=True)
+
+
+def _run_ask_job(job: dict):
+    """One fresh-chat ask; the answer text is the result.
+
+    EVERY ask is a new chat (driver.cmd_ask opens claude.ai/new each time), so
+    the source is attached to this one ask whenever the job carries it. A
+    repair ask arrives with no file on purpose: it carries the broken text in
+    its prompt instead.
+    """
+    attach = ([job["filePath"]]
+              if job.get("filePath") and Path(job["filePath"]).exists() else None)
+    if job.get("filePath") and not attach:
+        raise driver.DriverError("bad_input", "the source PDF is no longer on disk")
+
+    args = argparse.Namespace(
+        site=job.get("site") or "claude",
+        prompt=job["prompt"],
+        prompt_file=None,
+        attach=attach,
+        headful=False,
+    )
+    out = asyncio.run(driver.cmd_ask(args))
+    text = out.get("text") or ""
+    if not text.strip():
+        raise driver.DriverError("empty_answer", "Claude returned an empty answer")
+
+    with _lock:
+        job["status"] = "done"
+        job["progress"] = 100
+        job["finishedAt"] = int(time.time() * 1000)
+        job["result"] = text
+        job["lowConfidence"] = not out.get("clean")
+        _save()
 
 
 def _run_notebooklm_job(job: dict):
@@ -722,7 +770,14 @@ class Handler(BaseHTTPRequestHandler):
                                "provider": "browser", "note": "subscription, not metered"})
         if p == "/api/ai/jobs":
             with _lock:
-                jobs = sorted(_jobs.values(), key=lambda j: j.get("createdAt", 0), reverse=True)[:50]
+                ordered = sorted(_jobs.values(), key=lambda j: j.get("createdAt", 0), reverse=True)
+                # Capped PER KIND. One topic breakdown is 1 + N `ask` jobs, and
+                # a single shared cap of 50 let two of them push an unfiled
+                # deck out of the list — and resumeWatches only files what the
+                # list shows.
+                decks = [j for j in ordered if j.get("mode") != "ask"][:50]
+                asks = [j for j in ordered if j.get("mode") == "ask"][:40]
+                jobs = sorted(decks + asks, key=lambda j: j.get("createdAt", 0), reverse=True)
                 slim = [{k: v for k, v in j.items()
                          if k not in ("result", "sections", "prompt", "filePath", "pdfPath")} for j in jobs]
                 for s, j in zip(slim, jobs):
@@ -947,9 +1002,18 @@ class Handler(BaseHTTPRequestHandler):
         if body.get("fileB64"):
             UPLOADS.mkdir(parents=True, exist_ok=True)
             name = re.sub(r"[^\w.\-]", "_", body.get("sourceName") or "deck.pdf")
-            file_path = UPLOADS / f"{uuid.uuid4().hex[:8]}-{name}"
             try:
-                file_path.write_bytes(base64.b64decode(body["fileB64"]))
+                raw = base64.b64decode(body["fileB64"])
+            except Exception as e:
+                return self._send({"ok": False, "error": f"bad attachment: {e}"}, 400)
+            # Named by CONTENT, not a random id. A topic breakdown sends the same
+            # PDF with every ask (each is a fresh chat), and nothing ever deletes
+            # uploads — random names stored a 15-topic document sixteen times.
+            digest = hashlib.sha256(raw).hexdigest()[:16]
+            file_path = UPLOADS / f"{digest}-{name}"
+            try:
+                if not file_path.exists() or file_path.stat().st_size != len(raw):
+                    file_path.write_bytes(raw)
             except Exception as e:
                 return self._send({"ok": False, "error": f"bad attachment: {e}"}, 400)
 

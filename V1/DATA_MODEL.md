@@ -322,6 +322,70 @@ weekly review.
 
 ---
 
+## 3c. Topic breakdown (topics → lessons → flashcards)
+
+Built 2026-09-29 (replacing the reverted Sept 28 study kits). One click on a
+PDF lists its topics, then writes each topic a lesson and a flashcard set.
+Code: `js/modules/breakdown.js` (engine), `ai.js` (providers),
+`breakdown-ui.js` (the row + topic list), `lesson-ui.js` (reader), `md.js`.
+
+### `TopicDoc` — Firestore `studyos_topics/{fileId}`, IndexedDB `sos_topics`
+
+One document per SOURCE FILE, NOT inside `dashboards/studyos`: a lesson is
+~20 KB and the main doc is one whole-document write capped at 1 MB. Written
+through the generic `_fbSaveDoc` / `_fbLoadDoc`; `save()` refuses to sync a doc
+over ~900 KB and says so (`syncError`) instead of letting Firestore reject it.
+The local copy is IndexedDB, never localStorage (that quota is full on Veda's
+Brave).
+
+```
+{ fileId, classId, moduleId, sourceName,
+  status: 'running'|'ready'|'partial'|'failed'|'removed', error,
+  provider, model, rev, listedAt, updatedAt, runningOn?, topicsJobId?, syncError?,
+  topics: [{ id, title, summary, style: 'concept'|'procedure'|'applied'|'definitions',
+             key_points: [], pages, status: 'pending'|'writing'|'ready'|'failed', error,
+             rev, updatedAt, jobId?, cardCount,
+             lesson: { blocks: [{ kind: 'read'|'example'|'steps'|'check'|'recap', title,
+                                  markdown?, steps?: [{title, body}],
+                                  questions?: [{q, choices, answer, explanation}], points? }] },
+             progress?: { block, done } }] }
+```
+
+- **Merge is newest-wins PER TOPIC** (`mergeDocs`), so two devices can each
+  finish a different topic. A re-listed breakdown (`listedAt` newer) drops the
+  old run's topics rather than resurrecting them.
+- **`check.answer` is always one of `choices`, verbatim** — `validateQuestions`
+  matches the model's answer loosely and stores the choice's exact text, so
+  grading is `===`.
+- **`runningOn`** is this device's `studyos_device_id`. `resume()` only
+  continues breakdowns this device started: two runners on one document would
+  pay for every lesson twice.
+- **Bridge jobs resume by id** (`topicsJobId`, `topic.jobId`), never by
+  resubmitting: the bridge cache only answers FINISHED jobs.
+
+### `FileEntry.study` — `{ status, done, total, updatedAt }`
+
+The row's summary ("Topics · 12"), so a file list never loads lessons. Plain
+key — `_study` would be stripped on save. Written only when it changes; every
+write is a save of the main doc. `null` (removed) deletes it.
+
+### Flashcards
+
+Ordinary `Card`s (§3b) via `deck.addExternal`, `sourceNoteId =
+'topic_<fileId>_<topicId>'`, `moduleId` = the source file's module. Review a
+topic with `{classId, noteId}`, a whole document with `{classId, notePrefix:
+'topic_<fileId>_'}`. Regenerating a topic keeps cards with review history and
+drops unreviewed ones it no longer produces. Removing a breakdown removes only
+never-reviewed cards.
+
+### AI settings — `localStorage['studyos_ai_v1']` (this device only)
+
+`{ provider: 'bridge'|'anthropic'|'openai'|'gemini', keys, models, baseUrl }`.
+**Never synced** — not in `dashboards/studyos`, not in Firestore, not sent to
+the bridge. Keys are per device on purpose.
+
+---
+
 ## 4. Persistence entry points
 
 | Function | Writes | Line |

@@ -73,7 +73,7 @@ def t(name, cond, extra=""):
 
 # ── Modes ─────────────────────────────────────────────────────────────────────
 print("\nmodes")
-t("both pipelines are declared", set(server.MODES) == {"rewrite", "notebooklm"},
+t("all three modes are declared", set(server.MODES) == {"rewrite", "notebooklm", "ask"},
   server.MODES)
 t("rewrite is first, so it reads as the default", server.MODES[0] == "rewrite")
 
@@ -403,6 +403,62 @@ finally:
 # recoverable for free. `import server` never calls _load(), so server._jobs is
 # {} here, and any function that journals its work (build_job_pdf does) writes
 # that empty dict straight over the real file. Every test passed while doing it.
+
+print("\nask mode — one fresh-chat ask, the text is the result")
+_orig_ask, _orig_save = server.driver.cmd_ask, server._save
+try:
+    server._save = lambda: None
+    _asked = []
+    async def _fake_ask(args):
+        _asked.append(args)
+        return {"text": "```json\n{\"ok\": true}\n```", "clean": True, "site": "claude"}
+    server.driver.cmd_ask = _fake_ask
+    _src = _tmp_jobs / "ask-src.pdf"
+    _src.write_bytes(b"%PDF-1.4 test")
+    _job = {"id": "ask1", "mode": "ask", "prompt": "list the topics",
+            "filePath": str(_src), "site": "claude", "status": "queued", "attempts": 0}
+    server._jobs["ask1"] = _job
+    server._run_job("ask1")
+    t("the job is done", _job["status"] == "done", _job)
+    t("the raw answer is the result", _job.get("result", "").startswith("```json"))
+    t("the source was attached to the ask", _asked and _asked[0].attach == [str(_src)])
+    t("the prompt went through unchanged", _asked and _asked[0].prompt == "list the topics")
+    t("no PDF is ever built from an ask", server.build_job_pdf(_job, force=True) is False)
+
+    # A repair ask carries the broken text instead of the file.
+    _asked.clear()
+    _job2 = {"id": "ask2", "mode": "ask", "prompt": "fix this JSON", "filePath": "",
+             "site": "claude", "status": "queued", "attempts": 0}
+    server._jobs["ask2"] = _job2
+    server._run_job("ask2")
+    t("a file-less ask attaches nothing", _asked and _asked[0].attach is None)
+
+    # An empty answer is a failure, not a done job with nothing in it.
+    async def _empty(args): return {"text": "  ", "clean": True}
+    server.driver.cmd_ask = _empty
+    _job3 = {"id": "ask3", "mode": "ask", "prompt": "x", "filePath": "",
+             "site": "claude", "status": "queued", "attempts": 0}
+    server._jobs["ask3"] = _job3
+    server._queue.clear()
+    server._run_job("ask3")
+    t("an empty answer is not 'done'", _job3["status"] != "done", _job3)
+    server._queue.clear()
+
+    print("\nreverted modes — never run as a paid rewrite")
+    _ran = []
+    server.driver.cmd_ask = lambda args: _ran.append(args)
+    _old = {"id": "kit1", "mode": "kit", "prompt": "old kit", "filePath": "",
+            "status": "queued", "attempts": 0}
+    server._jobs["kit1"] = _old
+    server._run_job("kit1")
+    t("a kit job fails instead of running", _old["status"] == "error" and not _ran, _old)
+    t("...and says why", "no longer supported" in (_old.get("error") or ""))
+finally:
+    server.driver.cmd_ask, server._save = _orig_ask, _orig_save
+    for k in ("ask1", "ask2", "ask3", "kit1"):
+        server._jobs.pop(k, None)
+    server._queue.clear()
+
 print("\ntest isolation")
 t("the journal path is redirected away from the real file",
   server.JOBS_FILE != _HERE / "jobs.json", server.JOBS_FILE)

@@ -27,7 +27,7 @@ const esc = (s) => String(s == null ? '' : s)
   .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
 // ── A self-contained sheet ────────────────────────────────────────────────
-function sheet(title, bodyHtml, { wide } = {}) {
+export function sheet(title, bodyHtml, { wide } = {}) {
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay sos-modal sos-ai-sheet';
   overlay.innerHTML = `
@@ -52,7 +52,7 @@ function sheet(title, bodyHtml, { wide } = {}) {
   return { overlay, close, body: overlay.querySelector('[data-body]'), footer: overlay.querySelector('[data-footer]') };
 }
 
-function toast(icon, title, body) {
+export function toast(icon, title, body) {
   try { if (window.showNotif) return window.showNotif(icon, title, body); } catch (e) {}
   console.log(`[pipeline] ${title}: ${body || ''}`);
   return null;
@@ -434,7 +434,10 @@ export function trackJob(id) {
 export async function resumeWatches() {
   if (!pipeline.enabled()) return;
   try {
-    const jobs = await pipeline.listJobs();
+    // `ask` jobs are the topic breakdown's, and their answer is JSON, not a
+    // deck. breakdown.js follows its own; filing one here would fetch a /pdf
+    // that does not exist and toast a failure for a job that worked.
+    const jobs = (await pipeline.listJobs()).filter(j => j.mode !== 'ask');
 
     // Still moving — follow them to completion.
     jobs.filter(j => j.status === 'queued' || j.status === 'running')

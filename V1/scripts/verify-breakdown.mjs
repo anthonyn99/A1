@@ -1,0 +1,323 @@
+// Drives the topic breakdown in a real browser: the document row, the start
+// sheet, the topics under the document, the lesson reader, its flashcards,
+// and the AI settings view.
+//
+// The cases that earn their place:
+//
+//   "a lesson can never run script"
+//       Lessons are model output. The unit test proves md.js escapes; this
+//       proves the READER never bypasses it — an onerror payload in a lesson
+//       must not fire in the real DOM.
+//
+//   "the flashcards reach the review"
+//       The whole point of the last screen. "Review these now" must open a
+//       review of THIS topic's cards, not every card in the class.
+//
+//   "nothing leaves the test"
+//       The AI provider is stubbed in-page, the bridge is blocked by cdp.mjs,
+//       and every Firestore save is stubbed before the fixture exists — an
+//       earlier suite wrote its fixture to the live database, where it piled
+//       up across runs (see verify-pipeline.mjs).
+//
+// Run:  node scripts/verify-breakdown.mjs      (after npm run build)
+import { launch, connect } from './cdp.mjs';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+import { existsSync } from 'node:fs';
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const dist = resolve(root, 'dist/studyos/index.html');
+if (!existsSync(dist)) { console.error('Build first:  npm run build'); process.exit(2); }
+const PAGE = 'file:///' + dist.split(String.fromCharCode(92)).join('/');
+
+let pass = 0, fail = 0;
+const t = (name, cond, extra) => {
+  if (cond) { pass++; console.log('  ok   ' + name); }
+  else { fail++; console.log('  FAIL ' + name + (extra == null ? '' : '\n       ' + JSON.stringify(extra).slice(0, 400))); }
+};
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+try {
+  await launch();
+} catch (e) {
+  if (e.code === 'NO_BROWSER') { console.log('SKIP: ' + e.message); process.exit(0); }
+  throw e;
+}
+const { send, evalJs, events } = await connect();
+await send('Runtime.enable');
+await send('Page.enable');
+
+// The provider, stubbed before any app script runs. Answers by what the
+// prompt asks for; records every request.
+await send('Page.addScriptToEvaluateOnNewDocument', {
+  source: `
+    try {
+      Object.keys(localStorage).filter(k => k.indexOf('studyos_cards_') === 0 || k === 'studyos_ai_v1')
+        .forEach(k => localStorage.removeItem(k));
+      localStorage.setItem('studyos_ai_v1', JSON.stringify({
+        provider: 'openai', keys: { openai: 'sk-test' }, models: { openai: 'test-model' },
+        baseUrl: { openai: 'https://ai.test/v1' } }));
+    } catch (e) {}
+    window.__aiCalls = [];
+    const TOPICS = { topics: [
+      { title: 'Candidate keys', summary: 'What makes a key minimal.', style: 'definitions', key_points: ['superkey', 'candidate key'], pages: '1-3' },
+      { title: 'Inner joins', summary: 'Matching rows across tables.', style: 'procedure', key_points: ['join condition'], pages: '4-6' },
+    ] };
+    const LESSON1 = {
+      blocks: [
+        { kind: 'read', title: 'Keys', markdown: 'A **superkey** identifies a row. <img src=x onerror="window.__pwned=1"> <script>window.__pwned=2</script>', steps: [], questions: [], points: [] },
+        { kind: 'steps', title: 'Finding a candidate key', markdown: '', questions: [], points: [],
+          steps: [{ title: 'List the attributes', body: 'Write every column.' }, { title: 'Remove extras', body: 'Drop any attribute not needed.' }] },
+        { kind: 'check', title: 'Check yourself', markdown: '', steps: [], points: [], questions: [
+          { q: 'A minimal superkey is a…', choices: ['Foreign key', 'Candidate key', 'Composite key'], answer: 'Candidate key', explanation: 'Minimal by definition.' },
+          { q: 'Can a superkey have extra attributes?', choices: ['Yes', 'No'], answer: 'Yes', explanation: 'Only candidate keys are minimal.' } ] },
+        { kind: 'recap', title: 'Recap', markdown: '', steps: [], questions: [], points: ['Candidate keys are minimal superkeys.'] },
+      ],
+      flashcards: [
+        { front: 'What is a superkey?', back: 'Any set of attributes that identifies a row.' },
+        { front: 'What is a candidate key?', back: 'A minimal superkey.' },
+        { front: 'Is every candidate key a superkey?', back: 'Yes.' },
+      ] };
+    const LESSON2 = {
+      blocks: [{ kind: 'read', title: 'Joins', markdown: 'An inner join keeps matching rows.', steps: [], questions: [], points: [] }],
+      flashcards: [{ front: 'What does an inner join keep?', back: 'Only rows that match.' }] };
+    const realFetch = window.fetch;
+    window.fetch = async (url, init) => {
+      const u = String(url);
+      if (u.indexOf('https://ai.test/') === 0) {
+        const body = JSON.parse((init && init.body) || '{}');
+        window.__aiCalls.push(body);
+        const text = body.messages.find(m => m.role === 'user').content.map(p => p.text || '').join('');
+        const out = /Break it into the TOPICS/.test(text) ? TOPICS : /title: Candidate keys/.test(text) ? LESSON1 : LESSON2;
+        await new Promise(r => setTimeout(r, 150));
+        return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(out) }, finish_reason: 'stop' }] }), { status: 200 });
+      }
+      return realFetch(url, init);
+    };
+  `,
+});
+
+await send('Page.navigate', { url: PAGE });
+await wait(5000);
+
+console.log('\nmodules loaded');
+t('breakdown module', await evalJs('typeof (window.SOS && window.SOS.breakdown) === "object"'));
+t('lesson reader', await evalJs('typeof (window.SOS && window.SOS.lessonUi) === "object"'));
+t('row hook', await evalJs('typeof window.sosDecorateDocRow === "function"'));
+t('AI nav entry', await evalJs('!!document.getElementById("nav-ai") && !!document.getElementById("sos-bn-ai")'));
+t('the engagement upgrade is gone', await evalJs('!document.getElementById("nav-practice") && !document.getElementById("view-practice") && !window.sosStartNow'));
+
+// ── Isolate, then seed ─────────────────────────────────────────────────────
+const FID = 'bdf' + Date.now();
+const seeded = await evalJs(`(function(){
+  window._fbSaveStudyOs = function(){};
+  window._fbSaveDoc = function(path, payload){ (window.__docSaves = window.__docSaves || []).push({ path: path, json: JSON.stringify(payload) }); };
+  window._fbLoadDoc = async function(){ return {}; };
+  window._fbSaveCards = function(){};
+  window._sosBridge.resolveBlob = async function(){ return new Blob(['%PDF-1.4 test'], { type: 'application/pdf' }); };
+  for (var i = classes.length - 1; i >= 0; i--) if (classes[i].id === 'bd1') classes.splice(i, 1);
+  var cls = { id:'bd1', name:'Database Processing', code:'CS 3410', color:'#9dc0ee', modules:[] };
+  cls.modules.push({ id:'bdm1', name:'Lectures', type:'documents', prompts:[], notes:[], files:[
+    { id:'${FID}', name:'Ch 2 Keys.pdf', size: 12, mime:'application/pdf', fileId:'${FID}' },
+    { id:'${FID}x', name:'Ch 2.pptx', size: 12, mime:'application/vnd.openxmlformats-officedocument.presentationml.presentation', fileId:'${FID}x' },
+  ]});
+  classes.push(cls);
+  return window._sosBridge.revealModule('bd1', 'bdm1');
+})()`);
+t('seeded a class and opened its module', seeded === true, seeded);
+await wait(700);
+
+console.log('\nthe document row');
+const rows = await evalJs(`(function(){
+  var btns = Array.from(document.querySelectorAll('[data-act="breakdown"]'));
+  return { n: btns.length, label: btns[0] && btns[0].textContent, file: btns[0] && btns[0].dataset.bdFile,
+           slides: document.querySelectorAll('[data-act="slides"]').length };
+})()`);
+t('a Break down button on the PDF', rows.n === 1 && rows.label === 'Break down' && rows.file === FID, rows);
+t('none on the .pptx (PDFs only)', rows.n === 1, rows);
+
+await evalJs(`document.querySelector('[data-act="breakdown"]').click(); true;`);
+await wait(500);
+const sheet = await evalJs(`(function(){
+  var el = document.querySelector('.sos-ai-sheet.open');
+  return el ? { text: el.textContent, go: !!el.querySelector('#sos-bd-go') } : null;
+})()`);
+t('the start sheet names the provider and model', sheet && /OpenAI-compatible/.test(sheet.text) && /test-model/.test(sheet.text), sheet && sheet.text.slice(0, 300));
+t('...and what it will cost', sheet && /1 \+ one per topic/.test(sheet.text));
+await evalJs(`document.querySelector('#sos-bd-go').click(); true;`);
+await wait(3000);
+
+console.log('\nthe breakdown');
+const calls = await evalJs('window.__aiCalls.map(b => ({ file: b.messages.find(m=>m.role==="user").content.some(p=>p.type==="file"), fmt: b.response_format && b.response_format.type }))');
+t('1 topics call + 1 lesson per topic', calls.length === 3, calls);
+t('every call carries the PDF', calls.every((c) => c.file), calls);
+t('every call asks for the JSON schema', calls.every((c) => c.fmt === 'json_schema'), calls);
+const panel = await evalJs(`(function(){
+  var p = document.querySelector('[data-bd-panel="${FID}"]');
+  var b = document.querySelector('[data-act="breakdown"]');
+  return { hidden: p && p.hidden, rows: p ? p.querySelectorAll('.bd-row').length : 0,
+           titles: p ? Array.from(p.querySelectorAll('.bd-title')).map(e => e.textContent) : [],
+           badges: p ? Array.from(p.querySelectorAll('.bd-badge')).map(e => e.textContent) : [],
+           label: b && b.textContent, status: p && (p.querySelector('.bd-status')||{}).textContent };
+})()`);
+t('the topics appear under the document', panel.hidden === false && panel.rows === 2, panel);
+t('in the document\'s order', panel.titles.join('|') === 'Candidate keys|Inner joins', panel.titles);
+t('each shows its card count', panel.badges.join('|') === '3 cards|1 cards', panel.badges);
+t('the row button now reads Topics · 2', panel.label === 'Topics · 2', panel.label);
+t('the cards joined the review deck', (await evalJs(`window.SOS.deck.byNotePrefix('bd1','topic_${FID}_').length`)) === 4);
+t('the breakdown synced to its own doc', await evalJs(`(window.__docSaves||[]).some(s => s.path === 'studyos_topics/${FID}')`));
+t('the file carries its summary', await evalJs(`(function(){
+  var f = classes.find(c=>c.id==='bd1').modules[0].files.find(x=>x.id==='${FID}');
+  return !!(f.study && f.study.total === 2 && f.study.done === 2 && f.study.status === 'ready');
+})()`));
+
+console.log('\nthe lesson reader');
+await evalJs(`document.querySelector('[data-bd-panel="${FID}"] .bd-row').click(); true;`);
+await wait(600);
+const l1 = await evalJs(`(function(){
+  var v = document.getElementById('view-lesson');
+  var r = document.getElementById('sos-lesson-root');
+  return { active: v.classList.contains('active'), title: (r.querySelector('.sl-title')||{}).textContent,
+           count: (r.querySelector('.sl-count span')||{}).textContent, strong: !!r.querySelector('.sl-prose strong'),
+           img: r.querySelectorAll('.sl-prose img').length, script: r.querySelectorAll('.sl-prose script').length,
+           crumb: (r.querySelector('.sl-crumb')||{}).textContent };
+})()`);
+t('opens in the full-page reader', l1.active && l1.title === 'Candidate keys', l1);
+t('one screen of five (4 blocks + flashcards)', l1.count === '1 of 5', l1.count);
+t('says where it is: class and topic N of M', /CS 3410/.test(l1.crumb) && /Topic 1 of 2/.test(l1.crumb), l1.crumb);
+t('markdown renders', l1.strong, l1);
+await wait(300);
+t('an onerror payload in a lesson never runs', (await evalJs('window.__pwned === undefined')) && l1.img === 0 && l1.script === 0, l1);
+
+await evalJs(`document.querySelector('#sos-lesson-root [data-next]').click(); true;`);
+await wait(200);
+let steps = await evalJs(`document.querySelectorAll('#sos-lesson-root .sl-step').length`);
+t('a step-through shows one step at a time', steps === 1, steps);
+await evalJs(`document.querySelector('#sos-lesson-root [data-step]').click(); true;`);
+await wait(150);
+steps = await evalJs(`document.querySelectorAll('#sos-lesson-root .sl-step').length`);
+t('...and reveals the next on request', steps === 2, steps);
+
+// Keyboard: → moves on.
+await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39 });
+await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39 });
+await wait(200);
+const onCheck = await evalJs(`(function(){
+  var b = document.querySelector('#sos-lesson-root [data-check]');
+  return { count: document.querySelector('#sos-lesson-root .sl-count span').textContent, disabled: b && b.disabled,
+           choices: document.querySelectorAll('#sos-lesson-root .sl-choice').length };
+})()`);
+t('the arrow key moved to the check', onCheck.count === '3 of 5', onCheck);
+t('Check waits until every question is answered', onCheck.disabled === true, onCheck);
+await evalJs(`(function(){
+  var cs = Array.from(document.querySelectorAll('#sos-lesson-root .sl-choice'));
+  cs.find(b => b.dataset.q === '0' && b.dataset.choice === 'Foreign key').click();
+})(); true;`);
+await wait(100);
+await evalJs(`(function(){
+  var cs = Array.from(document.querySelectorAll('#sos-lesson-root .sl-choice'));
+  cs.find(b => b.dataset.q === '1' && b.dataset.choice === 'Yes').click();
+  document.querySelector('#sos-lesson-root [data-check]').click();
+})(); true;`);
+await wait(150);
+const checked = await evalJs(`(function(){
+  var r = document.getElementById('sos-lesson-root');
+  return { wrong: r.querySelectorAll('.sl-choice.wrong').length, right: r.querySelectorAll('.sl-choice.right').length,
+           expl: r.querySelectorAll('.sl-expl').length, verdict: (r.querySelector('.sl-verdict')||{}).textContent || '',
+           nextOk: !r.querySelector('[data-next]').disabled };
+})()`);
+t('a wrong pick is marked, the right answer shown', checked.wrong === 1 && checked.right === 2, checked);
+t('every question explains itself', checked.expl === 2, checked);
+t('the score is shown', /1 of 2 right/.test(checked.verdict), checked.verdict);
+t('a check never blocks moving on', checked.nextOk, checked);
+
+await evalJs(`document.querySelector('#sos-lesson-root [data-next]').click(); true;`);
+await wait(100);
+await evalJs(`document.querySelector('#sos-lesson-root [data-next]').click(); true;`);
+await wait(200);
+const cards = await evalJs(`(function(){
+  var r = document.getElementById('sos-lesson-root');
+  var f = r.querySelector('.sl-flip');
+  return { count: r.querySelector('.sl-count span').textContent, flip: f && f.textContent, h: (r.querySelector('.sl-card h2')||{}).textContent,
+           nextTopic: !!r.querySelector('.sl-nav [data-topic]') };
+})()`);
+t('the last screen is the flashcards', cards.count === '5 of 5' && /Flashcards · 3/.test(cards.h), cards);
+t('it shows a question first', /Question/.test(cards.flip), cards.flip);
+t('and offers the next topic', cards.nextTopic);
+await evalJs(`document.querySelector('#sos-lesson-root .sl-flip').click(); true;`);
+await wait(100);
+t('tap flips to the answer', /Answer/.test(await evalJs(`document.querySelector('#sos-lesson-root .sl-flip').textContent`)));
+
+await evalJs(`document.querySelector('#sos-lesson-root [data-review]').click(); true;`);
+await wait(500);
+const rv = await evalJs(`(function(){
+  var o = document.querySelector('.sos-review');
+  return o ? { count: (o.querySelector('[data-count]')||{}).textContent } : null;
+})()`);
+t('"Review these now" opens a review', !!rv, rv);
+t('...of this topic\'s 3 cards only', rv && /\/3\b/.test(rv.count), rv);
+await evalJs(`window.SOS.review.closeReview && window.SOS.review.closeReview(); true;`);
+await wait(2200);
+
+t('finishing the lesson is remembered', await evalJs(`(function(){
+  var d = window.SOS.breakdown.peek('${FID}');
+  return !!(d && d.topics[0].progress && d.topics[0].progress.done);
+})()`));
+
+console.log('\nback to the document');
+await evalJs(`document.querySelector('#sos-lesson-root .sl-back').click(); true;`);
+await wait(700);
+const back = await evalJs(`(function(){
+  var p = document.querySelector('[data-bd-panel="${FID}"]');
+  return { modal: !!document.querySelector('#modal-module-detail.open'),
+           done: p ? p.querySelectorAll('.bd-num.done').length : -1 };
+})()`);
+t('lands back on the module', back.modal, back);
+t('the finished topic is ticked', back.done === 1, back);
+
+console.log('\nAI settings');
+await evalJs(`document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open')); switchView('ai'); true;`);
+await wait(300);
+const set1 = await evalJs(`(function(){
+  var r = document.getElementById('sos-ai-root');
+  return { provs: r.querySelectorAll('[data-prov]').length, on: (r.querySelector('[data-prov].on')||{}).dataset.prov,
+           note: r.textContent };
+})()`);
+t('four providers offered', set1.provs === 4, set1);
+t('the stored choice is selected', set1.on === 'openai', set1.on);
+t('says keys stay in this browser', /in this browser only/.test(set1.note));
+await evalJs(`document.querySelector('#sos-ai-root [data-prov="anthropic"]').click(); true;`);
+await wait(150);
+const set2 = await evalJs(`(function(){
+  var k = document.getElementById('ais-key'), m = document.getElementById('ais-model');
+  return { type: k && k.type, model: m && m.value };
+})()`);
+t('the key field is masked', set2.type === 'password', set2);
+t('Anthropic defaults to the current Opus', set2.model === 'claude-opus-5-5', set2);
+await evalJs(`document.getElementById('ais-key').value = 'sk-ant-verify'; document.querySelector('#sos-ai-root [data-save]').click(); true;`);
+await wait(200);
+const saved = await evalJs(`(function(){
+  var s = JSON.parse(localStorage.getItem('studyos_ai_v1'));
+  var synced = JSON.stringify(classes) + (window.__docSaves||[]).map(x => x.json).join('');
+  return { provider: s.provider, key: s.keys.anthropic, kept: s.keys.openai,
+           msg: document.getElementById('ais-msg').textContent, leaked: synced.indexOf('sk-ant-verify') >= 0 };
+})()`);
+t('saved on this device', saved.provider === 'anthropic' && saved.key === 'sk-ant-verify', saved);
+t('the other provider\'s key is kept', saved.kept === 'sk-test', saved);
+t('the save is confirmed on screen', /Saved/.test(saved.msg), saved.msg);
+t('the key is in no synced data', saved.leaked === false);
+
+const errs = events
+  .filter(e => e.method === 'Runtime.exceptionThrown')
+  .map(e => e.params.exceptionDetails?.exception?.description || e.params.exceptionDetails?.text || '?')
+  .filter(e => !/firebase|firestore|net::|Failed to load resource|recaptcha|appCheck|installations|FirebaseError|gstatic|ERR_/i.test(e));
+t('no uncaught exceptions', errs.length === 0, errs.slice(0, 4));
+
+// Leave nothing behind for the next run.
+await evalJs(`(function(){
+  for (var i = classes.length - 1; i >= 0; i--) if (classes[i].id === 'bd1') classes.splice(i, 1);
+  localStorage.removeItem('studyos_cards_bd1'); localStorage.removeItem('studyos_ai_v1');
+})(); true;`);
+
+console.log(`\n${pass} passed, ${fail} failed`);
+process.exit(fail ? 1 : 0);

@@ -818,13 +818,18 @@ function switchView(view, classId) {
     if (navEl) navEl.classList.add('active');
   }
   activeView = view;
-  const titles = { home:'Dashboard', calendar:'Calendar', notes:'Quick Notes', class:'Class Detail', pomodoro:'Timer', ksu:'KSU' };
+  const titles = { home:'Dashboard', calendar:'Calendar', notes:'Quick Notes', class:'Class Detail', pomodoro:'Timer', ksu:'KSU', ai:'AI Settings', lesson:'Lesson' };
   if (view === 'ksu') renderKsuModules();
+  // ES-module views, reached through window.SOS (this is a classic script).
+  try {
+    if (view === 'ai' && window.SOS && window.SOS.aiSettings) window.SOS.aiSettings.render();
+    if (view !== 'lesson' && window.SOS && window.SOS.lessonUi) window.SOS.lessonUi.leave();
+  } catch (e) { console.warn('view hook failed:', e); }
   _sosEl('topbar-title').textContent = titles[view] || 'StudyOS';
   if (view === 'class' && classId) openClassDetail(classId);
   if (view === 'calendar') renderCalendar();
   // Sync bottom nav active state
-  var bnViews = ['home','calendar','notes','ksu','pomodoro'];
+  var bnViews = ['home','calendar','notes','ksu','pomodoro','ai'];
   bnViews.forEach(function(v) {
     var btn = document.getElementById('sos-bn-' + v);
     if (btn) btn.classList.toggle('active', v === view);
@@ -5474,6 +5479,24 @@ window._sosBridge.addModule = (classId, name, type = 'documents') => {
   persistForCls(cls);
   try { _sosRefreshModuleGrid(cls); } catch (e) {}
   return mod.id;
+};
+
+/* The topic breakdown's one-line summary on a file ({status, done, total}),
+ * so a module's file list can show "12 topics" without loading any lessons.
+ * `study`, never `_study`: _sosSerializeClasses strips underscore keys, and
+ * the summary would vanish on the first save. null removes it. */
+window._sosBridge.setFileStudy = (classId, moduleId, fileId, summary) => {
+  const cls = findClassOrKsu(classId);
+  if (!cls) return false;
+  const mods = cls.modules || [];
+  const mod = mods.find(m => m.id === moduleId && (m.files || []).some(f => f && f.id === fileId))
+    || mods.find(m => (m.files || []).some(f => f && f.id === fileId));
+  const f = mod && mod.files.find(x => x && x.id === fileId);
+  if (!f) return false;
+  if (summary) f.study = { ...summary, updatedAt: Date.now() };
+  else delete f.study;
+  persistForCls(cls);
+  return true;
 };
 
 /* Add a prompt to a prompts module (the deck sheet's quick-add). */

@@ -160,6 +160,43 @@ async function readFileB64(file) {
   });
 }
 
+/** A file's bytes as base64 — shared with ai.js, which sends them to every
+ *  provider, not just the bridge. */
+export const fileB64Of = (file) => readFileB64(file);
+
+/**
+ * One bridge `ask`: the prompt (and the source, when given) to a FRESH Claude
+ * chat, the raw answer text back as the job's result. The topic breakdown's
+ * bridge provider — see ai.js. Returns `{ job, cached }` like runPrompt.
+ *
+ * promptVersion must identify the prompt TEXT: the bridge's cache answers a
+ * repeat of fileId|promptId|promptVersion|mode with the old job, which is what
+ * makes re-running a finished breakdown step free.
+ */
+export async function ask({ fileId, sourceName, promptId, promptVersion, prompt, fileB64, classId }) {
+  if (!enabled()) throw new Error('pipeline disabled');
+  if (!isLocalBridge()) throw new Error('the Claude Pro provider needs the local bridge');
+  const out = await request('/api/ai/jobs', {
+    method: 'POST',
+    body: JSON.stringify({
+      mode: 'ask', site: 'claude',
+      fileId: fileId || '', sourceName: sourceName || '',
+      promptId: promptId || 'inline', promptVersion: promptVersion || 1,
+      prompt: String(prompt), classId: classId || '',
+      ...(fileB64 ? { fileB64 } : {}),
+    }),
+  });
+  return { job: out.job, cached: !!out.cached };
+}
+
+/** Bridge liveness, for the AI settings' Test button. */
+export const health = async () => {
+  const c = CFG();
+  if (!c.baseUrl) throw new Error('pipeline not configured');
+  const res = await fetch(c.baseUrl.replace(/\/$/, '') + '/health');
+  return res.json();
+};
+
 /** Queue several files through one prompt. Failures are reported per file. */
 export async function runBatch(files, opts) {
   const results = [];
@@ -335,4 +372,4 @@ export async function fileResult(job) {
   });
 }
 
-export default { enabled, runPrompt, runBatch, getJob, listJobs, retryJob, deleteJob, budget, watchJob, fileResult };
+export default { enabled, runPrompt, runBatch, getJob, listJobs, retryJob, deleteJob, budget, watchJob, fileResult, ask, health, fileB64Of };
