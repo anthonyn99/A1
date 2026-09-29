@@ -654,16 +654,16 @@ body {
 }
 .label-btn:hover { border-color: var(--ac); color: var(--ac); border-style: solid; }
 
-.chair-list { display: flex; flex-direction: column; gap: 7px; margin: 4px 0 12px; }
+.chair-list { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 12px; }
 .chair-row {
   display: flex; align-items: center; gap: 10px; text-align: left;
   background: var(--s2); border: 1px solid var(--bd);
-  border-left: 3px solid var(--pa, var(--ac));
-  border-radius: 9px; padding: 9px 11px; cursor: pointer;
+  border-left: 2px solid var(--pa, var(--ac));
+  border-radius: 10px; padding: 9px 11px; cursor: pointer;
   font-family: inherit; color: var(--tx); transition: all .15s;
 }
 .chair-row:hover { border-color: var(--ac); }
-.chair-row.on { background: color-mix(in srgb, var(--ac) 10%, var(--s2)); border-color: var(--ac); }
+.chair-row.on { background: color-mix(in srgb, var(--ac) 8%, var(--s2)); border-color: var(--ac); }
 .chair-names { flex: 1; min-width: 0; }
 .chair-name { font-family: var(--font-display); font-size: 12.5px; font-weight: 700; }
 .chair-sub { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .55px; color: var(--txm); margin-top: 2px; }
@@ -673,26 +673,29 @@ body {
 /* Phase U3: each unit's limits and model, in the Units sheet. The row holds
    TWO controls -- pick it as chairman, check it now -- so it is a box with a
    button in it rather than one big button (a button inside a button is
-   neither valid nor clickable). */
+   neither valid nor clickable). Each stacked section (name, limits, model)
+   gets a hairline divider instead of its own outline, so the card reads as
+   one quiet object instead of boxes-in-a-box. */
 .chair-row.unit-row { flex-wrap: wrap; gap: 0; padding: 0; cursor: default; }
 .unit-row .chair-pick {
   flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 10px;
-  background: transparent; border: 0; padding: 9px 11px; text-align: left;
+  background: transparent; border: 0; padding: 10px 12px; text-align: left;
   font: inherit; color: inherit; cursor: pointer; border-radius: 9px;
 }
 .unit-lim {
   flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center;
-  gap: 5px 8px; padding: 0 11px 9px; font-size: 11px; color: var(--txd);
+  gap: 6px 8px; padding: 8px 12px; font-size: 11px; color: var(--txd);
+  border-top: 1px solid var(--bd);
 }
 .unit-lim .model-chip { margin-left: 0; }
-.unit-lim-state { font-weight: 700; }
+.unit-lim-state { font-weight: 700; letter-spacing: .2px; }
 .unit-lim-state.limited, .unit-lim-state.signed_out { color: var(--red); }
 .unit-lim-state.near, .unit-lim-state.fallback { color: var(--amber); }
 .unit-lim-state.ok { color: var(--grn); }
 .unit-lim-state.unknown { color: var(--txm); font-weight: 600; }
 .unit-lim-sub { flex: 1 1 100%; color: var(--txm); font-size: 10.5px; line-height: 1.5; overflow-wrap: anywhere; }
 .unit-lim-sub.warn { color: var(--amber); }
-.unit-lim-bars { flex: 1 1 100%; display: flex; flex-direction: column; gap: 3px; }
+.unit-lim-bars { flex: 1 1 100%; display: flex; flex-direction: column; gap: 4px; margin-top: 1px; }
 .unit-lim-bar { display: grid; grid-template-columns: 58px 1fr 34px; gap: 6px; align-items: center; font-size: 10px; color: var(--txm); }
 .unit-lim-bar i { display: block; height: 4px; border-radius: 2px; background: var(--bd); overflow: hidden; }
 .unit-lim-bar i b { display: block; height: 100%; background: var(--grn); }
@@ -711,7 +714,8 @@ body {
    dropdown under your finger. */
 .unit-pick {
   flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center;
-  gap: 5px 8px; padding: 0 11px 9px; font-size: 11px; color: var(--txd);
+  gap: 6px 8px; padding: 8px 12px; font-size: 11px; color: var(--txd);
+  border-top: 1px solid var(--bd);
 }
 .unit-pick:empty { display: none; }
 .unit-pick-lbl { font-weight: 700; color: var(--txm); }
@@ -15293,13 +15297,6 @@ function openChairPicker() {
   const sheet = el("div", "sheet");
   const box = el("div", "sheet-box");
   box.append(el("div", "sheet-hd", "Units"));
-  box.append(el("div", "sheet-sub",
-    "Each unit's model and limits, from what its site showed in your runs " +
-    "(Check now opens it to look). Tap a unit to make it the chairman: the " +
-    "member that reads every other answer and writes the verdict. It does " +
-    "not get a vote and it is not a tie-breaker \u2014 it decides what the " +
-    "council's answer actually says, so pick the member you would trust to " +
-    "weigh the others, not the one you rate highest on its own."));
 
   const list = el("div", "chair-list");
   for (const p of orderedProviders()) {
@@ -15307,7 +15304,8 @@ function openChairPicker() {
     row.style.setProperty("--pa", p.accent);
     const pick = el("button", "chair-pick");
     pick.type = "button";
-    pick.title = `Make ${p.display_name} the chairman`;
+    pick.title = `Make ${p.display_name} the chairman — it reads every other ` +
+      "answer and writes the verdict, with no vote of its own.";
     const names = el("div", "chair-names");
     names.append(el("div", "chair-name", p.display_name));
     names.append(el("div", "chair-sub", UNIT[p.id] || p.id));
@@ -15329,15 +15327,13 @@ function openChairPicker() {
     refreshUnitSheet();
   }, 30000);
 
-  const note = el("div", "sheet-note");
   const chairSelected = CHAIR.id && S.selected.has(CHAIR.id);
-  note.innerHTML = chairSelected
-    ? "A single-unit run has no chairman at all: with one member there is " +
-      "nothing to synthesise, so its answer <i>is</i> the verdict."
-    : "<b>The chairman is not ticked.</b> It cannot chair a run it is not part " +
-      "of, so the verdict will be written by the first ticked member in the " +
-      "fallback order instead. Tick it, or choose a chairman you are using.";
-  box.append(note);
+  if (!chairSelected) {
+    const note = el("div", "sheet-note",
+      "Chairman not ticked — the first ticked unit in the fallback order " +
+      "will write the verdict instead.");
+    box.append(note);
+  }
 
   const bar = el("div", "sheet-bar");
   const close = el("button", "btn", "Close");
@@ -15410,7 +15406,12 @@ function unitLimBox(id) {
   if (!u) {
     box.append(el("span", "unit-lim-state unknown", online() ? "Reading…" : "Engine offline"));
   } else {
-    box.append(el("span", `unit-lim-state ${u.state}`, unitLimLine(u)));
+    const state = el("span", `unit-lim-state ${u.state}`, unitLimLine(u));
+    const seen = [];
+    if (u.last_seen_at) seen.push(`last in a run ${docAgo(u.last_seen_at)}`);
+    seen.push(u.checked_at ? `checked ${docAgo(u.checked_at)}` : "never checked");
+    state.title = seen.join(" · ").replace(/^./, (c) => c.toUpperCase());
+    box.append(state);
     if (u.model) box.append(modelChip(u.model, u.state === "fallback" ? u.model_fallback : ""));
   }
   const chk = el("button", "unit-lim-check");
@@ -15426,22 +15427,21 @@ function unitLimBox(id) {
   const lim = u.limit;
   if (lim && lim.detail) {
     const said = lim.detail.replace(/^The site said:\s*/, "");
-    const how = lim.source === "account" ? "From the account's usage numbers"
-      : lim.source === "check" ? `Showing at the check ${docAgo(lim.at)}`
-      : `Hit in a run ${docAgo(lim.at)}`;
-    box.append(el("div", "unit-lim-sub", `${how}: “${said}”`));
+    box.append(el("div", "unit-lim-sub", `“${said}”`));
   }
   if (u.state === "fallback" && u.model_fallback) {
     box.append(el("div", "unit-lim-sub warn", u.model_fallback));
   }
   if (u.too_long) {
     box.append(el("div", "unit-lim-sub warn",
-      `Its last prompt was too long for it (${docAgo(u.too_long.at)}). Waiting will not help; a shorter prompt will.`));
+      "Last prompt was too long — waiting won't help; a shorter prompt will."));
   }
   const wins = (u.account && u.account.windows) || {};
   const names = Object.keys(wins);
   if (names.length) {
     const bars = el("div", "unit-lim-bars");
+    bars.title = `Numbers from Code Mode's Claude account “${u.account.label}”: ` +
+      "claude.ai and Claude Code share one allowance.";
     const warn = ((u.account && u.account.warn_at) || 80) / 100;
     for (const w of names) {
       const v = wins[w];
@@ -15456,13 +15456,7 @@ function unitLimBox(id) {
       bars.append(row);
     }
     box.append(bars);
-    box.append(el("div", "unit-lim-sub",
-      `Numbers from Code Mode's Claude account “${u.account.label}”: claude.ai and Claude Code share one allowance.`));
   }
-  const seen = [];
-  if (u.last_seen_at) seen.push(`last in a run ${docAgo(u.last_seen_at)}`);
-  seen.push(u.checked_at ? `checked ${docAgo(u.checked_at)}` : "never checked");
-  box.append(el("div", "unit-lim-sub", seen.join(" · ").replace(/^./, (c) => c.toUpperCase())));
   if (UNITS_USE.err[id]) box.append(el("div", "unit-lim-sub warn", UNITS_USE.err[id]));
   return box;
 }
@@ -15517,8 +15511,7 @@ function unitPickBox(id) {
   const u = UNITS_USE.byId[id];
   if (!u || u.pickable === undefined) return box;       // not read yet, or an older engine
   if (!u.pickable) {
-    box.append(el("span", "unit-lim-sub",
-      "Model: this site has no picker MAGI can use on your account, so it answers on its default."));
+    box.append(el("span", "unit-lim-sub", "No model picker on this account."));
     return box;
   }
   const busy = UNITS_PICK.busy.has(id);
@@ -15527,6 +15520,10 @@ function unitPickBox(id) {
   box.append(el("span", "unit-pick-lbl", "Model"));
   const sel = el("select", "unit-pick-sel");
   sel.setAttribute("aria-label", `Model for ${u.display_name || id}`);
+  sel.title = pickKey(pick)
+    ? `Asked for ${pname} on every turn. If the site won't give it, the unit ` +
+      `still answers on what it gets, and its card says “Asked for ${pname}, got …”.`
+    : "Site default: MAGI leaves the site's picker alone and uses whatever it is on.";
   const def = el("option", null, "Site default");
   def.value = "";
   sel.append(def);
@@ -15553,17 +15550,14 @@ function unitPickBox(id) {
   ref.type = "button";
   ref.disabled = busy || !online();
   if (busy) ref.append(spinnerEl());
-  ref.append(document.createTextNode(busy ? "Reading\u2026" : "Refresh models"));
-  ref.title = "Open this unit's site now (signed in as you, nothing sent) and read the models your account is offered";
+  ref.append(document.createTextNode(busy ? "Reading\u2026" : "Refresh"));
+  ref.title = (u.models_at
+    ? `List read from your account ${docAgo(u.models_at)}. `
+    : "List as MAGI last saw this site. ") +
+    "Click to open this unit's site now (signed in as you, nothing sent) and read the models your account is offered.";
   ref.onclick = () => unitRefreshModels(id);
   box.append(ref);
 
-  box.append(el("div", "unit-lim-sub", pickKey(pick)
-    ? `Asked for ${pname} on every turn. If the site will not give it, the unit still answers on what it gets, and its card says \u201cAsked for ${pname}, got \u2026\u201d.`
-    : "Site default: MAGI leaves the site's picker alone and uses whatever it is on."));
-  box.append(el("div", "unit-lim-sub", u.models_at
-    ? `List read from your account ${docAgo(u.models_at)}.`
-    : "List as MAGI last saw this site. Refresh models reads your account's own."));
   if (UNITS_PICK.err[id]) box.append(el("div", "unit-lim-sub warn", UNITS_PICK.err[id]));
   return box;
 }
