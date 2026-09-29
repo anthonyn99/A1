@@ -169,6 +169,33 @@ sites:
       - "script[src*='challenges.cloudflare.com']"
       - "#cf-challenge-running"
       - "text=/Verify you are human/i"
+    # ── Models and limits (Phase U1 recon, 2026-09-28, read-only) ─────────
+    # Nothing below is read by the engine yet; U2-U4 wire it in. Fixtures:
+    # tests/fixtures/units/chatgpt-*.html, pinned by test_unit_selectors.py.
+    #
+    # VERIFIED (free account): there is NO model picker. The per-answer
+    # "Switch model" menu lists Try again / Think longer / Search the web --
+    # no models. The only choice a run can make is the Think toggle.
+    model_button: []
+    model_option: []
+    model_selected: []
+    think_toggle:
+      - "button[aria-pressed]:has-text('Think')"   # VERIFIED, aria-pressed=true|false
+    # VERIFIED: every finished answer names the model that wrote it, in an
+    # attribute on the turn. Sampled 5 chats: some "gpt-5-6", some
+    # "gpt-5-6-mini" -- so the slug DOES show a free-tier fallback. Read the
+    # LAST match after the answer completes.
+    model_label:
+      - "[data-message-author-role='assistant'][data-message-model-slug]"
+    model_label_from: "attr:data-message-model-slug"
+    # UNVERIFIED: no fallback wording was ever captured on the page (the
+    # slug is the evidence). This is ChatGPT's known free-tier phrasing.
+    downgrade_notice:
+      - "text=/Responses will use another model/i"
+    # VERIFIED from a saved snapshot: the upload cap (not a message cap):
+    # "You've reached your upload limit. Remove all files to continue."
+    # No remaining-count readout exists on the free account.
+    usage_readout: []
 
   # Signed in to the FREE account. It has been this one all along; the name
   # just did not say so until there were two.
@@ -248,6 +275,45 @@ sites:
     challenge_selectors:
       - "iframe[src*='challenges.cloudflare.com']"
       - "text=/Verify you are human/i"
+    # ── Models and limits (Phase U1 recon, 2026-09-28, read-only) ─────────
+    # VERIFIED on BOTH accounts (free and Pro share this block): a real
+    # picker. The button's aria-label is "Model: Sonnet 5.5 Medium" -- the
+    # model AND the effort level. It is also on an open conversation, so it
+    # can be read after an answer; the answer itself never names a model.
+    model_button:
+      - "button[data-testid='model-selector-dropdown']"
+      - "button[aria-label^='Model:']"
+    # Choosable models are menuitemRADIOs with a data-model-id (the API id,
+    # e.g. claude-sonnet-5-5). Free: Sonnet 5.5, Haiku 4.5. Pro adds Opus 5.5
+    # and, under "More models", Opus 5 / 4.8 / 4.7 / 4.6 / 3, Sonnet 5 / 4.6.
+    model_option:
+      - "[role='menu'] [role='menuitemradio'][data-model-id]"
+    model_selected:
+      - "[role='menu'] [role='menuitemradio'][data-model-id][aria-checked='true']"
+    # Shown but NOT choosable: plain menuitems carrying "Upgrade" (free: Opus,
+    # Fable) or "Buy credits" (Pro: Fable 5.1 / Fable 5, usage credits off).
+    model_locked:
+      - "[role='menu'] [role='menuitem'][data-model-id]"
+    # Submenus, opened by hover. "More models" holds older models (same
+    # option/selected selectors); "Effort" is Low / Medium / High / Extra /
+    # Max, menuitemradios WITHOUT data-model-id, aria-checked on the current.
+    model_more:
+      - "[role='menu'] [role='menuitem'][aria-haspopup='menu']:has-text('More models')"
+    effort_open:
+      - "[role='menu'] [role='menuitem'][aria-haspopup='menu']:has-text('Effort')"
+    effort_option:
+      - "[role='menu'] [role='menuitemradio']:not([data-model-id])"
+    model_label:
+      - "button[data-testid='model-selector-dropdown']"
+    model_label_from: "attr:aria-label"
+    model_label_pattern: '^Model:\s*(.+)$'
+    # UNVERIFIED: no downgrade was ever seen; the known limit wall is in
+    # rate_limit_selectors above ("Limits will reset at 5:00 PM").
+    downgrade_notice: []
+    # VERIFIED: the FREE account has no usage page (/settings/usage shows
+    # the plans page). The Pro account's usage is already read live by Code
+    # Mode (magi/code/usage_fetch.py) -- U3 reuses that, no scraping.
+    usage_readout: []
 
   # The same site, signed in to the SUBSCRIPTION account.
   #
@@ -335,6 +401,34 @@ sites:
     challenge_selectors:
       - "text=/unusual traffic/i"
       - "form#captcha-form"
+    # ── Models and limits (Phase U1 recon, 2026-09-28, read-only) ─────────
+    # VERIFIED: a real picker ("mode picker"). Its aria-label names the
+    # current mode: "Open mode picker, currently Gemini Flash". 42 of 43
+    # saved snapshots say "Gemini Flash", one "Flash Extended". NOTE the
+    # label ("Gemini Flash") and the option ("3.6 Flash") use different
+    # names for the same thing -- U4 must match on data-mode-id, not text.
+    model_button:
+      - "button[aria-label^='Open mode picker']"
+    # Options: 3.5 Flash-Lite, 3.6 Flash, 3.1 Pro (all choosable on this
+    # account, none disabled), each with a stable data-mode-id.
+    model_option:
+      - "[data-test-id='gem-mode-menu'] [role='menuitem'][data-mode-id]"
+    # The selected one carries a check icon with aria-label "Selected" (and
+    # class "selected"). NOT data-active -- that is keyboard focus, and sat
+    # on Flash-Lite while Flash was the selected mode.
+    model_selected:
+      - "[data-test-id='gem-mode-menu'] [role='menuitem']:has([aria-label='Selected'])"
+    # "Extended thinking" is the fourth item, with no data-mode-id.
+    think_toggle:
+      - "[data-test-id='gem-mode-menu'] [role='menuitem']:not([data-mode-id])"
+    model_label:
+      - "button[aria-label^='Open mode picker']"
+    model_label_from: "attr:aria-label"
+    model_label_pattern: 'currently\s+(.+)$'
+    # UNVERIFIED: no limit or downgrade notice has ever been captured (70
+    # "degraded" snapshots are all answer-quality failures, not limits).
+    downgrade_notice: []
+    usage_readout: []
 
   perplexity:
     display_name: Perplexity
@@ -418,6 +512,31 @@ sites:
       # Cloudflare-fronted, like ChatGPT and Claude.
       - "iframe[src*='challenges.cloudflare.com']"
       - "text=/Verify you are human/i"
+    # ── Models and limits (Phase U1 recon, 2026-09-28, read-only) ─────────
+    # VERIFIED (free plan): a "Model" button exists, but every model in it
+    # (GPT-6 Sol, Gemini 3.8 Flash, Claude Sonnet/Opus 5.5, Kimi K3, GLM 5.3,
+    # Grok 4.7, Nemotron 3 Ultra) opens a submenu that only says "Upgrade to
+    # access the latest AI models". Nothing is choosable, the button text is
+    # just "Model", and a finished answer names no model anywhere (action
+    # bar: Copy, Share, Helpful, Fork, sources, More actions = Download,
+    # Rewrite). So on this plan: no model can be shown or selected.
+    model_button:
+      - "button[aria-label='Model']"
+    model_option: []
+    model_selected: []
+    model_locked:
+      - "[role='menu'] [role='menuitem'][aria-haspopup='menu']"
+    model_label: []
+    # No think toggle. (Search is an aria-pressed toggle, on by default.)
+    think_toggle: []
+    downgrade_notice: []
+    usage_readout: []
+    # VERIFIED from 3 saved snapshots: a PROMPT-LENGTH cap, not a quota --
+    # "Your query is 7,579 characters over the limit. Shorten it to submit."
+    # MAGI recorded all three as a TIMEOUT. Not a limit to wait out; the
+    # prompt must be shorter.
+    prompt_too_long:
+      - "text=/characters over the limit/i"
 
   grok:
     display_name: Grok
@@ -477,6 +596,32 @@ sites:
     challenge_selectors:
       - "iframe[src*='challenges.cloudflare.com']"
       - "text=/Verify you are human/i"
+    # ── Models and limits (Phase U1 recon, 2026-09-28, read-only) ─────────
+    # VERIFIED: a real picker. Options are menuitemradios with aria-checked:
+    # Fast (checked; every one of 19 saved snapshots says Fast), Build,
+    # Auto, Expert, Heavy. None is marked disabled, so WHICH of them the
+    # free account can actually use is UNVERIFIED -- finding out means
+    # picking one, which U1 does not do. Options have no ids: match text.
+    model_button:
+      - "#model-select-trigger"
+      - "button[aria-label='Model select']"
+    model_option:
+      - "[role='menu'] [role='menuitemradio']"
+    model_selected:
+      - "[role='menu'] [role='menuitemradio'][aria-checked='true']"
+    # The trigger's text is the current mode. Answers do not name a model.
+    model_label:
+      - "#model-select-trigger"
+    model_label_from: "text"
+    downgrade_notice: []
+    # VERIFIED (10 saved snapshots): the limit card that REPLACES an answer
+    # is a role=alert box -- "3 hours before limit is gone" / "Wait or
+    # upgrade to SuperGrok for much higher limits and premium features."
+    # The countdown is the reset time. Scoped to role=alert, unlike the
+    # page-wide text= rules above, so a prompt quoting it cannot match.
+    limit_notice:
+      - "[role='alert']:has-text('before limit is gone')"
+    usage_readout: []
 
   deepseek:
     display_name: DeepSeek
@@ -545,6 +690,19 @@ sites:
       - "text=/rate limit/i"
     challenge_selectors:
       - "text=/Verify you are human/i"
+    # ── Models and limits (Phase U1 recon, 2026-09-28, read-only) ─────────
+    # VERIFIED from 14 saved snapshots (2026-09-16 to 09-25): there is NO
+    # model picker and answers name no model. The composer has two
+    # aria-pressed toggles: DeepThink (off) and Search (on). The live check
+    # on 2026-09-28 found this profile SIGNED OUT, so it was not re-read live.
+    model_button: []
+    model_option: []
+    model_selected: []
+    model_label: []
+    think_toggle:
+      - "div.ds-toggle-button:has-text('DeepThink')"
+    downgrade_notice: []
+    usage_readout: []
     # With no streaming marker and no stop button, completion here rests on
     # text stability alone, so the quiet window has to be generous.
     #

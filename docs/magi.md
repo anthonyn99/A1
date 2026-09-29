@@ -2005,6 +2005,29 @@ does.
 It costs a real question against your account, which is why it is a command you
 run deliberately rather than something `doctor` does on every pass.
 
+### Model pickers and limit wording (Phase U1)
+
+Each site block also records, for every unit, **what the site itself shows**
+about models and limits: `model_button`, `model_option`, `model_selected`,
+`model_label` (+ `model_label_from` / `model_label_pattern`, which say how to
+read it), `think_toggle`, `downgrade_notice`, `usage_readout`, and per site
+`model_locked`, `limit_notice`, `prompt_too_long`. `[]` means *looked, there
+is none*, never *not checked*. They were read from the live signed-in pages
+on 2026-09-28 without sending anything. The engine does not read them yet
+(the model chip, limits panel and model choice of Track S's U2–U4 will), so
+editing them changes nothing today. `magi/tests/test_unit_selectors.py` pins
+each VERIFIED one against the sanitized DOM in
+`magi/tests/fixtures/units/`. When a site redesigns its picker, re-cut the
+fixture and update both.
+
+In short: **Claude** (both accounts), **Gemini** and **Grok** have real
+pickers. **ChatGPT**'s free account has none, but every answer names the model
+that wrote it (both `gpt-5-6` and `gpt-5-6-mini` were seen, so a fallback is
+visible).
+**Perplexity**'s free plan lists models that all lead to "Upgrade".
+**DeepSeek** has only DeepThink/Search toggles. The per-unit table is in
+`docs/magi-plan.md`, Track S, "Phase U1".
+
 ---
 
 ## Troubleshooting

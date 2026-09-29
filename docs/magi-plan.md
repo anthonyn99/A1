@@ -9,10 +9,10 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-09-28, end of the Phase S3 session.
+**Last updated:** 2026-09-28, end of the Phase U1 session.
 **Phases complete:** 1–14 (14a hardening, 14b A1 writable), plus **11B**,
-and Track S's **S1**, **S2** and **S3** (Track S's speed half is done).
-**Next phase:** **U1 — units recon, read-only**, in Track S
+and Track S's **S1**, **S2**, **S3** and **U1**.
+**Next phase:** **U2 — show the model that answered**, in Track S
 (§8 "Track S": S1 → S2 → S3 → U1 → U2 → U3 → U4). Phase 15 (Veda's
 engine install) is independent and still **needs Veda**; do it whenever
 she is at her PC.
@@ -36,8 +36,8 @@ One phase per session.
 | ~~S1~~ | ~~Speed: zero-risk~~ | **done 2026-09-28** | | |
 | ~~S2~~ | ~~Speed: stragglers~~ | **done 2026-09-28** | | |
 | ~~S3~~ | ~~Speed: fixes~~ | **done 2026-09-28** | | |
-| **U1** | Units: recon | Read-only map of each site's model picker, model label, limit/downgrade wording, counts | Small | 1 |
-| U2 | Units: model shown | Model chip on every card; fallbacks flagged | Medium | 1 |
+| ~~U1~~ | ~~Units: recon~~ | **done 2026-09-28** | | |
+| **U2** | Units: model shown | Model chip on every card; fallbacks flagged | Medium | 1 |
 | U3 | Units: limits | Limits panel + reset countdowns; Claude Pro reuses Code Mode numbers | Medium | 1 |
 | U4 | Units: choose model | Per-unit model picker, per person; a bad pick never fails a run | Medium-large | 1 |
 | 15 | Veda's engine | `magi onboard --profile veda` on her PC, her logins + GitHub account, isolation check. Nothing new to build: 11B is per-profile already (see "Ready for Veda's PC") | Low (an install) | < 1 (needs Veda) |
@@ -242,6 +242,17 @@ One phase per session.
   S1 sibling covers it). Tests: `test_bs_phase.py`, `test_validate.py`,
   `test_howitworks.py` (2 new), `tests/magi-bs-phase.test.js`,
   `tests/live/magi-bs-phase.live.js`.
+* **Units recon (Track S, U1)**: read-only, no engine change. Each site
+  block in `selectors.yaml` ends with a "Models and limits" section:
+  `model_button/option/selected/label` (+ `model_label_from`
+  `text|attr:<name>`, `model_label_pattern` with one group),
+  `think_toggle`, `downgrade_notice`, `usage_readout`, and per site
+  `model_locked` (Claude, Perplexity), `model_more`/`effort_open`/
+  `effort_option` (Claude), `limit_notice` (Grok), `prompt_too_long`
+  (Perplexity). `SiteSelectors.from_yaml` ignores them until U2 adds the
+  fields. Fixtures `magi/tests/fixtures/units/*.html` (18, sanitized),
+  `magi/tests/test_unit_selectors.py`. Findings table + two bugs: §8
+  "Phase U1".
 
 ### Ready for Veda's PC (the 11B completion requirement)
 
@@ -504,6 +515,13 @@ reachable from the internet.
 
 ### Waiting on Tony
 
+* **DeepSeek is signed out on Tony's engine** (found by U1, 2026-09-28
+  ~00:50 UTC; it had answered at 00:14 UTC). Every check redirected to
+  `chat.deepseek.com/sign_in`. Sign it back in from Accounts. Cause not
+  known (expiry vs anything else). If it keeps happening, look at it.
+* **Two U1 bugs to fix in U3**, or sooner if Tony prefers (§8 "Phase U1"):
+  prompt text tripping `rate_limit_selectors` (cost DeepSeek 3/3 critique
+  rounds once), and Perplexity's prompt-length cap logged as a timeout.
 * **Tony's A1 answers (2026-09-24), built in 14b:** writes yes; commit no
   (A1 commits itself); pull stays fetch-only; push no. Also decided in 14b:
   `.github/` refused in A1 (workflows run with secrets and A1 pushes itself).
@@ -523,27 +541,32 @@ reachable from the internet.
 * Phase 15 needs Veda for her sign-ins (see "Ready for Veda's PC"); her
   profile's `code` field lives on `dashboards/magi_veda` and needs nothing.
 
-### Track S — first concrete steps for the next session (Phase U1)
+### Track S — first concrete steps for the next session (Phase U2)
 
 1. Start-of-session checklist above (pull, engine alive, pytest baseline
-   ≈1193 — the full run took 6–25 min, start it in the background first
-   — + node run-all 51 suites).
-2. Read §8 "Track S", then Phase U1. U1 is **read-only, no UI, no
-   behaviour change**: it decides what U2–U4 may promise per unit.
-3. Recon through `launcher.launch` as the doctor does (`magi/cli/doctor.py`
-   shows how it opens a signed-in page without sending anything). One unit
-   at a time, headless; never send a question. Capture DOM snapshots into
-   `magi/tests/fixtures/` (strip anything personal: chat titles, account
-   names/emails).
-4. Also mine the failure snapshots for limit/downgrade wording — they live
-   in `settings.artifacts_dir()` (`artifacts/<profile>`), and
-   `engine/usage._snapshot_limit` already reads them (Grok's "hours …
-   before limit is gone" is one; see `selectors.yaml`
-   `rate_limit_selectors`).
-5. Output = new selector keys in `magi/config/selectors.yaml` in its
-   VERIFIED/UNVERIFIED style + a findings table added under §8 "Phase U1".
-   Claude (Pro): Code Mode already reads that account's usage
-   (`usage_fetch.py`) — note it for U3 rather than scraping.
+   ≈1205 — start it in the background first — + node run-all 51 suites).
+   Check DeepSeek is signed back in (Accounts); if not, U2 still builds,
+   and DeepSeek simply has no label to show anyway.
+2. Read §8 "Phase U1" (the findings table decides what each card can
+   show) and "Phase U2".
+3. `settings.SiteSelectors`: add the U1 keys as fields (lists, plus
+   `model_label_from: str = "text"`, `model_label_pattern: str = ""`), and
+   one reader, e.g. `resolve.model_label(page, site) -> str`, which
+   implements exactly the rule `test_unit_selectors._label` uses (first
+   candidate with a match, `.last`, attr or text, pattern group 1). Move
+   that test helper onto the real function.
+4. `BrowserProvider.ask`: read the label after page load AND after the
+   answer (page already open, so no extra launch). ChatGPT only has it after
+   the answer (the slug on the turn); Claude/Gemini/Grok have it both
+   times. Perplexity and DeepSeek have none, so the card shows no chip.
+   Never fail a run over a missing label.
+5. "Fell back" = the after-label differs from the before-label, or
+   ChatGPT's slug ends `-mini` when the chat started on the full model,
+   or a `downgrade_notice` matched. Do not invent a fallback from the name alone.
+6. Additive `answers.model` (+ `brainstorm_turns.model`) in `magi/db.py`;
+   into `state`/`done` events and history; console chip on unit cards,
+   history, brainstorm cards; amber "fell back to X". Tests from the U1
+   fixtures + a headless chip check; HOW panel + docs/magi.md.
 
 ### Phase 15 — first concrete steps (whenever Veda is at her PC)
 
@@ -2014,6 +2037,43 @@ live round at 121 s.
    reload); `test_console_intact`. Before/after timing report from the DB.
 
 ### Phase U1 — Recon, read-only (small, no UI)
+
+*Status:* **done 2026-09-28.** Every unit was opened headless through
+`launcher.launch` on Tony's profiles, never sending anything: idle page,
+picker opened (then Escape), submenus by hover, a past conversation opened
+to see whether an answer names its model. Plus all 200 saved failure
+snapshots were mined for limit wording. Output: the new keys in
+`selectors.yaml` (each site's "Models and limits" block), 18 sanitized
+fixtures in `magi/tests/fixtures/units/`, `test_unit_selectors.py` (12 +
+1 strict xfail; 4 mutants killed). The engine reads none of it, so there's no
+behaviour change.
+
+**Findings: what U2–U4 may promise per unit**
+
+| Unit | Picker (U4) | Model shown (U2) | Limits / fallback (U3) |
+|---|---|---|---|
+| ChatGPT (free) | **None.** Only the Think toggle (`aria-pressed`). "Switch model" on an answer = Try again / Think longer / Search the web | **Yes, per answer**: `data-message-model-slug` on the turn. 5 chats sampled: `gpt-5-6` ×1 chat, `gpt-5-6-mini` ×4 → the fallback is visible | Upload cap wording (snapshot). No count. Fallback wording never captured (UNVERIFIED selector) |
+| Claude (free) | **Yes**: Sonnet 5.5, Haiku 4.5 choosable; Opus 5.5, Fable 5.1 locked ("Upgrade"). Effort submenu Low→Max | **Yes**: button `aria-label="Model: Sonnet 5.5 Medium"` (model + effort), also on an open chat. Answer names nothing | 5-hour wall toast (already VERIFIED). No usage page on free. No downgrade seen |
+| Claude (Pro) | **Yes**: + Opus 5.5 and "More models" (Opus 5/4.8/4.7/4.6/3, Sonnet 5/4.6). Fable locked ("Buy credits", credits off) | Same as free | **Use Code Mode's `usage_fetch.py`** for this account, no scraping |
+| Gemini | **Yes**: 3.5 Flash-Lite / 3.6 Flash / 3.1 Pro by `data-mode-id`, + Extended thinking. Selected = `[aria-label=Selected]` icon (**not** `data-active`, which is focus) | **Yes**: button `aria-label="Open mode picker, currently Gemini Flash"`; 42/43 snapshots Flash, 1 "Flash Extended". Label name ≠ option name → match by id | Nothing ever captured (UNVERIFIED) |
+| Perplexity (free) | **None usable**: 8 models listed, each submenu = "Upgrade to access…" | **No**: button says "Model"; answer names nothing | **Prompt-length cap**, VERIFIED ×3: "Your query is N characters over the limit" — MAGI logged these as TIMEOUT |
+| Grok (free) | **Yes**: Fast (current) / Build / Auto / Expert / Heavy, `menuitemradio` + `aria-checked`. Which are usable on free is UNVERIFIED (none disabled; finding out means picking) | **Yes**: `#model-select-trigger` text ("Fast" in all 19 snapshots). Answer names nothing | **Countdown**: `role=alert` card "N hours M minutes before limit is gone" (10 snapshots, 7 in the DB) → a reset time for U3 |
+| DeepSeek | **None**: DeepThink / Search toggles only (14 snapshots) | **No** | "Server is busy" UNVERIFIED. **Profile found signed out 2026-09-28** (see §0) |
+
+**Bugs found (not fixed: U1 is read-only):**
+
+1. **Prompt text trips `rate_limit_selectors`.** They are page-wide `text=`
+   rules, and the page includes your own prompt. Brainstorm `797a9ae3cc13`
+   (2026-09-25) lost DeepSeek's critique in **3 of 3 rounds**, each failed
+   `rate_limited` ~12 s in, because the other members' proposals said "rate
+   limits". S1 moved this check above Gate 1, so it now runs while the fresh
+   prompt is on screen, which widens the exposure for every site. Pinned by
+   `test_a_prompt_quoting_limit_words_is_not_a_limit` (strict xfail). Fix in
+   U3: scope each rule to the site's notice container (Grok's `role=alert`
+   is the model, `limit_notice`), or exclude matches inside the user's turn.
+2. **Perplexity's prompt-length cap reads as a timeout** (3 snapshots,
+   2026-09-25). U3: map `prompt_too_long` to its own failure, with the
+   remedy "shorten the prompt", not "wait".
 
 Rule for U1–U4: **show only what the site shows; never guess a number.**
 For each unit (chatgpt, claude, claude-pro, gemini, grok, perplexity,
