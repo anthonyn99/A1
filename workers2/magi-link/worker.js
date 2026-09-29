@@ -53,6 +53,29 @@ const json = (body, status = 200) =>
     headers: { "content-type": "application/json", "cache-control": "no-store", ...CORS },
   });
 
+// Publishes allowed per token per clock hour. An engine restart that adopts its
+// tunnel publishes nothing; a genuine replacement publishes once.
+export const MAX_PUTS_PER_HOUR = 4;
+
+/** Count this PUT; true when the key is over its hourly budget. Per-colo, which
+ *  is fine: one PC always lands on the same one. Never throws -- a cache
+ *  failure must not stop a legitimate publish. */
+export async function overBudget(key, now = Date.now(), cache = globalThis.caches?.default) {
+  if (!cache) return false;
+  try {
+    const hour = Math.floor(now / 3600000);
+    const url = `https://magi-link.internal/budget/${key}/${hour}`;
+    const hit = await cache.match(url);
+    const n = (hit ? Number(await hit.text()) : 0) + 1;
+    await cache.put(url, new Response(String(n), {
+      headers: { "cache-control": "max-age=3600" },
+    }));
+    return n > MAX_PUTS_PER_HOUR;
+  } catch {
+    return false;
+  }
+}
+
 /** KV key for a token. Never stores or logs the token itself. */
 async function keyFor(token) {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
@@ -87,6 +110,14 @@ export default {
     }
 
     if (request.method === "PUT") {
+      // A healthy engine publishes a handful of times a day. On 2026-09-28 one
+      // replaced its tunnel every 5 minutes -- 275 writes + 275 deletes, half of
+      // account 2's daily KV cap -- and nothing here noticed. Past the cap the
+      // PUT is refused BEFORE touching KV; the count lives in the Cache API,
+      // which costs no quota at all.
+      if (await overBudget(key)) {
+        return json({ error: "too many publishes this hour" }, 429);
+      }
       let body;
       try {
         body = await request.json();
@@ -109,7 +140,9 @@ export default {
     }
 
     if (request.method === "DELETE") {
-      await env.MAGI_LINK.delete(key);
+      // Engines withdraw blindly (on startup, before every replacement). A read
+      // is 1/100th as scarce as a delete, so only delete what is there.
+      if ((await env.MAGI_LINK.get(key)) !== null) await env.MAGI_LINK.delete(key);
       return json({ ok: true });
     }
 
