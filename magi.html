@@ -1843,7 +1843,7 @@ table.doctor, table.doctor code, .v-table,
    history spanning 1,400px puts the date a hand's width from the question it
    belongs to. 900px rather than the accounts' 720 so each aligns with the
    composer directly above it and the pair reads as one column. */
-#historyDrawer, .bs .drawer {
+#historyDrawer, #codeHistoryDrawer, .bs .drawer {
   width: 100%; max-width: 900px; margin-left: auto; margin-right: auto;
 }
 .drawer { background: var(--s1); border: 1px solid var(--bd); border-radius: 2px; margin-bottom: 16px; }
@@ -5707,11 +5707,26 @@ window._mailRelay = window._mailRelay || async function (res) {
              which is what you want from a button called New. Two rows where
              one was lit and the other was the one you pressed. -->
         <button type="button" class="side-item active" id="navNew" title="New deliberation">
-          <span class="side-ic" data-ic="council"></span><span class="side-label">New deliberation</span>
+          <span class="side-ic" data-ic="council"></span><span class="side-label" id="navNewLbl">New deliberation</span>
         </button>
         <button type="button" class="side-item" id="navHistory" title="History">
           <span class="side-ic" data-ic="history"></span><span class="side-label">History</span>
           <span class="side-tag" id="navHistoryTag" hidden></span>
+        </button>
+      </div>
+
+      <!-- Code Mode is its own section, not a switch on the composer: the two
+           do very different things with the same box, and each keeps its own
+           list of what it did. Same two rows as Deliberations, same meaning. -->
+      <div class="side-sec side-primary" id="codeSec">
+        <div class="side-sec-hd">Code Mode</div>
+        <button type="button" class="side-item" id="navCodeNew" title="New code session">
+          <span class="side-ic" data-ic="code"></span><span class="side-label" id="navCodeNewLbl">New session</span>
+          <span class="side-tag" id="navCodeNewTag" hidden></span>
+        </button>
+        <button type="button" class="side-item" id="navCodeHistory" title="Code history">
+          <span class="side-ic" data-ic="history"></span><span class="side-label">History</span>
+          <span class="side-tag" id="navCodeHistoryTag" hidden></span>
         </button>
       </div>
 
@@ -5784,17 +5799,6 @@ window._mailRelay = window._mailRelay || async function (res) {
       <div class="qbar-error" id="attachError" hidden></div>
       <div class="qbar-error" id="refineError" hidden></div>
       <div class="qbar-toolbar">
-        <!-- What this box DOES. First in the row and never hidden: the two
-             modes take the same prompt and do very different things with
-             it, so which one is live has to be visible from the box. -->
-        <div class="mode-sw" id="modeSw" role="tablist" aria-label="Mode">
-          <button type="button" class="mode-opt on" data-mode="deliberation"
-                  role="tab" aria-selected="true"
-                  title="Ask the council a question">Deliberate</button>
-          <button type="button" class="mode-opt" data-mode="code"
-                  role="tab" aria-selected="false"
-                  title="Have Claude change something, with the council on call">Code</button>
-        </div>
         <input type="file" id="fileIn" multiple hidden>
         <button type="button" class="qbar-attach" id="btnAttach" title="Attach files" aria-label="Attach files" data-ic="attach"></button>
         <button type="button" class="qbar-refine" id="btnRefine" title="Rewrite this into a sharper prompt">
@@ -5853,6 +5857,12 @@ window._mailRelay = window._mailRelay || async function (res) {
     <div class="drawer" id="historyDrawer" hidden>
       <div class="drawer-hd">Past deliberations</div>
       <div id="historyRows"></div>
+    </div>
+
+    <div class="drawer" id="codeHistoryDrawer" hidden>
+      <div class="drawer-hd">Past code sessions</div>
+      <div class="code-hist-filter" id="codeHistFilter" hidden></div>
+      <div id="codeHistoryRows"></div>
     </div>
 
     <div class="drawer" id="doctorDrawer" hidden>
@@ -6090,6 +6100,7 @@ const ICON = (body, extra) =>
 const IC = {
   new:        ICON('<path d="M12 5v14"/><path d="M5 12h14"/>'),
   council:    ICON('<circle cx="12" cy="12" r="3"/><path d="M12 2v4"/><path d="M12 18v4"/><path d="m4.9 4.9 2.9 2.9"/><path d="m16.2 16.2 2.9 2.9"/><path d="m19.1 4.9-2.9 2.9"/><path d="m7.8 16.2-2.9 2.9"/>'),
+  code:       ICON('<path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/>'),
   history:    ICON('<path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/>'),
   doctor:     ICON('<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>'),
   audioOn:    ICON('<path d="M11 5 6 9H2v6h4l5 4z"/><path d="M19.1 4.9a10 10 0 0 1 0 14.2"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/>'),
