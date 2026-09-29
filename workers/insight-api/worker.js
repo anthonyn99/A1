@@ -176,8 +176,8 @@ async function tokenValid(env, token) {
 // no TTL on purpose). One that shows up with an old lock version is dead, so it
 // is removed right here: no list and no extra request, and at most one delete
 // per stale token, ever. cleanup-rules.json item insight-stale-locktok; false
-// is its dry run.
-const SWEEP_STALE_TOKENS = false;
+// turns it into a dry run.
+const SWEEP_STALE_TOKENS = true;
 async function dropStaleToken(env, token) {
   if (!SWEEP_STALE_TOKENS) { console.log('[sweep] would delete a stale locktok'); return; }
   await env.INSIGHT_KV.delete('locktok:' + token).catch(() => {});

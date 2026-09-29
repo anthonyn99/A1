@@ -1,7 +1,6 @@
 {
   "version": 1,
-  "about": "The self-cleanup registry: the one list of what counts as trash, who sweeps it, and when. sweep.js (browser), magi/sweep.py (MAGI engine) and tests/cleanup-rules.test.js all read this file. An item deletes only when its 'delete' is true; false means dry run (listed in the sweep report, nothing removed). Add an item whenever a feature is removed. When in doubt, keep: an item needs an owner, a reason and a cap.",
-
+  "about": "The self-cleanup registry: the one list of what counts as trash, who sweeps it, and when. sweep.js (browser), magi/sweep.py (MAGI engine) and tests/cleanup-rules.test.js all read this file. An item deletes only when its 'delete' is true; false means dry run (listed in the sweep report, nothing removed). A new item ships false until Tony has seen its report. Add an item whenever a feature is removed. When in doubt, keep: an item needs an owner, a reason and a cap.",
   "limits": {
     "sweepsPerProgramPerDay": 1,
     "firestoreDeletesPerSweep": 25,
@@ -9,7 +8,6 @@
     "kvDeletesPerDayPerAccount": 20,
     "firstRunDelayMs": 60000
   },
-
   "ageDays": {
     "screenshot": 7,
     "debugDump": 7,
@@ -17,7 +15,6 @@
     "failedJob": 30,
     "deadQueue": 30
   },
-
   "items": [
     {
       "id": "mjd-rail-leftovers",
@@ -25,8 +22,16 @@
       "program": "index",
       "category": "unused",
       "capDays": 0,
-      "exact": ["mjd_cache", "mjd_queue", "mjd_settings"],
-      "prefix": ["mjd_tok_", "docx_hist_tj_mjd_", "docx_scroll_tj_mjd_"],
+      "exact": [
+        "mjd_cache",
+        "mjd_queue",
+        "mjd_settings"
+      ],
+      "prefix": [
+        "mjd_tok_",
+        "docx_hist_tj_mjd_",
+        "docx_scroll_tj_mjd_"
+      ],
       "owner": "index.html MyJournal rail (MJDocs)",
       "reason": "Google Docs/OneNote tokens, the listing cache, the offline queue, cloud-document undo/scroll history and the Starred/Recent settings. Those features were removed 2026-09-29 (MyJournal strip Phases 1-2).",
       "delete": true,
@@ -38,11 +43,15 @@
       "program": "index",
       "category": "unused",
       "capDays": 0,
-      "exact": ["warden_kc_colmap", "warden_kc_connections"],
+      "exact": [
+        "warden_kc_colmap",
+        "warden_kc_connections"
+      ],
       "prefix": [],
       "owner": "warden.html (moved to VedaCPatel/warden, a different origin)",
       "reason": "Warden left A1 on 2026-08-25. Its copy now runs on another origin, so these two keys on this origin are never read again.",
-      "delete": false
+      "delete": true,
+      "approved": "2026-09-29: Tony reviewed the full list and turned deletion on for every item"
     },
     {
       "id": "proview-index-leftovers",
@@ -50,11 +59,14 @@
       "program": "index",
       "category": "unused",
       "capDays": 0,
-      "exact": ["fcm_pv_purge_v1"],
+      "exact": [
+        "fcm_pv_purge_v1"
+      ],
       "prefix": [],
       "owner": "index.html ProView (removed 2026-08-20)",
       "reason": "The one-shot flag of ProView's old reminder purge. ProView lives in RiftIQ now, which never reads this. pv_cfg_v1 and pv_sched_v1 look similar but RiftIQ still uses them.",
-      "delete": false
+      "delete": true,
+      "approved": "2026-09-29: Tony reviewed the full list and turned deletion on for every item"
     },
     {
       "id": "myjournal-docs-doc",
@@ -65,7 +77,8 @@
       "doc": "dashboards/myjournal_docs",
       "owner": "index.html MyJournal rail (MJDocs)",
       "reason": "Starred/Recent/section settings of the removed rail. Its listener, writer and backup entry went in Phase 2 (2026-09-29), so nothing reads or writes it.",
-      "delete": false
+      "delete": true,
+      "approved": "2026-09-29: Tony reviewed the full list and turned deletion on for every item"
     },
     {
       "id": "oneinbox-stale-locktok",
@@ -73,11 +86,14 @@
       "program": "workers/oneinbox-api",
       "category": "outdated",
       "capDays": 0,
-      "prefix": ["oi:locktok:"],
+      "prefix": [
+        "oi:locktok:"
+      ],
       "when": "the token's lock version no longer matches the current password",
       "owner": "workers/oneinbox-api tokenValid()",
       "reason": "Changing the OneInbox password invalidates every session token but leaves each one in KV for good (they have no TTL on purpose). Removed when a request presents one, so there is no list and no new request.",
-      "delete": false
+      "delete": true,
+      "approved": "2026-09-29: Tony reviewed the full list and turned deletion on for every item"
     },
     {
       "id": "insight-stale-locktok",
@@ -85,11 +101,14 @@
       "program": "workers/insight-api",
       "category": "outdated",
       "capDays": 0,
-      "prefix": ["locktok:"],
+      "prefix": [
+        "locktok:"
+      ],
       "when": "the token's lock version no longer matches the current password",
       "owner": "workers/insight-api tokenValid()",
       "reason": "Same as oneinbox-stale-locktok, for Insight's lock.",
-      "delete": false
+      "delete": true,
+      "approved": "2026-09-29: Tony reviewed the full list and turned deletion on for every item"
     },
     {
       "id": "magi-screenshots",
@@ -101,7 +120,8 @@
       "glob": "artifacts/{profile}/*.png",
       "owner": "magi/providers/browser_base.py _save_artifacts",
       "reason": "Failure screenshots. The usage check reads them for 48 hours, and nothing reads them after that. The count cap (keep_last 200) never removed old ones on an engine that stopped failing.",
-      "delete": false
+      "delete": true,
+      "approved": "2026-09-29: Tony reviewed the full list and turned deletion on for every item"
     },
     {
       "id": "magi-dom-dumps",
@@ -113,19 +133,20 @@
       "glob": "artifacts/{profile}/*.html",
       "owner": "magi/providers/browser_base.py _save_artifacts",
       "reason": "The DOM dump saved with each failure screenshot. Same lifetime as the screenshot.",
-      "delete": false
+      "delete": true,
+      "approved": "2026-09-29: Tony reviewed the full list and turned deletion on for every item"
     },
     {
       "id": "magi-stale-logs",
       "store": "disk",
       "program": "magi",
       "category": "outdated",
-      "kind": "errorLog",
-      "capDays": 14,
+      "capDays": 30,
       "glob": "data/**/*.log",
       "owner": "magi watchdog/selfupdate/tunnel/boot logs",
-      "reason": "Every live log is rewritten at least daily and trims itself. One that has not been written for 14 days belongs to nothing that runs, such as data/watchdog.log from before the per-profile layout.",
-      "delete": false
+      "reason": "Every live log is rewritten at least daily and trims itself. One that has not been written for 30 days belongs to nothing that runs, such as data/watchdog.log from before the per-profile layout. 30 days rather than the usual 14 for error logs (Tony, 2026-09-29), so an engine that was down for two weeks still has the log of why it died when it comes back.",
+      "delete": true,
+      "approved": "2026-09-29: Tony reviewed the full list and turned deletion on for every item"
     },
     {
       "id": "magi-tts-orphans",
@@ -138,7 +159,8 @@
       "test": "no-sibling:.words.json",
       "owner": "magi/app.py /api/tts",
       "reason": "Narration cached before word timings existed. /api/tts re-synthesizes any mp3 that lacks its .words.json and writes over it, so these are never served as they are.",
-      "delete": false
+      "delete": true,
+      "approved": "2026-09-29: Tony reviewed the full list and turned deletion on for every item"
     },
     {
       "id": "magi-partial-files",
@@ -149,7 +171,8 @@
       "glob": "data/{profile}/tts/*.part",
       "owner": "magi/app.py /api/tts",
       "reason": "A half-written temp file from a synthesis that died mid-write. The good copy is rebuilt on the next request.",
-      "delete": false
+      "delete": true,
+      "approved": "2026-09-29: Tony reviewed the full list and turned deletion on for every item"
     },
     {
       "id": "magi-empty-artifacts",
@@ -162,10 +185,10 @@
       "test": "zero-bytes",
       "owner": "magi/providers/browser_base.py _save_artifacts",
       "reason": "A screenshot or dump that failed mid-write. It shows nothing.",
-      "delete": false
+      "delete": true,
+      "approved": "2026-09-29: Tony reviewed the full list and turned deletion on for every item"
     }
   ],
-
   "handledElsewhere": [
     "KV caches, tokens and locks that expire on their own (expirationTtl): newshub-api (meta, quota_block, stage:*, cal, summary, quotes, locks), WX_CACHE, PV_CACHE, oi:state, oi:toks, oi:sched, gat/pw_gat/oi:gat/kroger_tok, reset:, fail:, wb_account, tesla labels",
     "workers2/taskhub-weather-api and workers2/proview-api: one-time sweeps of legacy TTL-less keys, already run",
@@ -175,7 +198,6 @@
     "MAGI upload folders: removed with their run or brainstorm session",
     "index.html _freeWebStorage and riftiq WR_EVICTABLE: quota relief for regenerable caches when localStorage is full"
   ],
-
   "never": [
     "anything tracked in git (plans, handoff docs, notes)",
     "A1Backup and its objects (Index Backups/, A1_BACKUPS)",
