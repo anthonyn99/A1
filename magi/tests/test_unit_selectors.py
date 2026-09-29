@@ -89,10 +89,15 @@ def test_every_browser_unit_answers_every_u1_question():
             assert isinstance(sites[sid][key], list), f"{sid}.{key} must be a list"
 
 
-def test_the_new_keys_change_nothing_the_engine_loads():
-    """U1 is no-behaviour-change: the loader ignores the new keys."""
-    s = load_settings()
-    assert not hasattr(s.site("claude"), "model_button")
+def test_the_engine_loads_every_u1_key():
+    """U2 wired them in: what the file says is what the engine reads."""
+    s, sites = load_settings(), _sites()
+    for sid in BROWSER_UNITS:
+        for key in U1_KEYS:
+            assert getattr(s.site(sid), key) == sites[sid][key], f"{sid}.{key}"
+    assert s.site("claude").model_label_from == "attr:aria-label"
+    assert s.site("grok").model_label_from == "text"
+    assert s.site("perplexity").prompt_too_long
     assert s.site("claude-pro").input == s.site("claude").input
 
 
@@ -209,19 +214,7 @@ def test_fixtures_carry_nothing_personal():
         assert not re.search(r"[\w.+-]+@[\w-]+\.\w+|Anthony|Nguyen", body), f.name
 
 
-# ── found by U1, fixed later (U3) ────────────────────────────────────────
-
-@pytest.mark.xfail(strict=True, reason=(
-    "U1 finding: rate_limit_selectors are page-wide text= rules, so a PROMPT "
-    "that quotes the words fails the unit as rate_limited. Real case: brainstorm "
-    "797a9ae3cc13 (2026-09-25) lost DeepSeek's critique 3 rounds of 3 to "
-    "'rate limits' in the other members' proposals. U3 scopes them; this then "
-    "passes and strict=True makes it fail until the marker is removed."))
-def test_a_prompt_quoting_limit_words_is_not_a_limit(page):
-    s = load_settings()
-    page.set_content(
-        "<div class='user-bubble'>Keep in mind retailer terms, rate limits, and bot "
-        "defenses.</div><textarea placeholder='Message DeepSeek'></textarea>")
-    for sel in s.site("deepseek").rate_limit_selectors:
-        loc = page.locator(sel).first
-        assert not (loc.count() and loc.is_visible()), f"{sel!r} matched the prompt"
+# ── found by U1 ──────────────────────────────────────────────────────────
+# Both bugs were fixed in U2, with their tests in test_model_shown.py:
+# a prompt quoting limit words (test_a_prompt_quoting_limit_words_is_not_a_limit)
+# and Perplexity's length cap (test_perplexity_length_cap_is_read).
