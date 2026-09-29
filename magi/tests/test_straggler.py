@@ -164,8 +164,8 @@ def test_the_real_floors():
     assert orch_mod.STRAGGLER_GRACE_S == 180.0
     assert orch_mod.SHORT_PROMPT_CHARS == 600
     assert orch_mod.STILL_WRITING_S == 20.0
-    assert orch_mod.SILENT_GRACE_S == 45.0
-    assert orch_mod.SILENT_GRACE_LONG_S == 90.0
+    assert orch_mod.SILENT_GRACE_S == 30.0
+    assert orch_mod.SILENT_GRACE_LONG_S == 60.0
 
 
 def test_a_silent_straggler_gets_the_short_silent_grace(monkeypatch, fast):
