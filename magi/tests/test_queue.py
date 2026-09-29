@@ -64,11 +64,10 @@ def test_an_edit_in_flight_is_not_overwritten():
 
 def test_attachment_bytes_never_reach_firestore():
     """Names, sizes and types travel; the files stay on the device."""
-    # An arrow const returning an object literal, so it ends on "}));" --
-    # stopping at the first "});" ran off the end into unrelated code and made
-    # this test pass or fail on whatever happened to be below it.
-    body = PAGE[PAGE.index("const queueForCloud ="):]
-    body = body[: body.index("}));") + 4]
+    # One normaliser serves both directions (queueNorm), so it is the body
+    # that decides what reaches Firestore -- and queueForCloud must use it.
+    assert "const queueForCloud = () => queueSorted().map(queueNorm);" in PAGE
+    body = _fn("queueNorm")
     assert "atts" in body and "a.n" in body and "a.s" in body
     for forbidden in ("file", "File", "blob", "base64", "dataURL"):
         assert forbidden not in body, f"{forbidden} is being serialised"
@@ -140,8 +139,11 @@ def test_a_rate_limit_stops_the_queue_but_a_failure_does_not():
 # ── per-item settings ───────────────────────────────────────────────────────
 def test_each_item_carries_its_own_units():
     body = _fn("queueAdd")
-    assert "units: [...S.selected]" in body
+    assert "units: coding ? [] : [...S.selected]" in body
     assert "units: it.units" in _fn("queueDrain")
+    # A Code row carries its own agents, workspace and Read/Write instead.
+    assert 'agents: codeChain().map((m) => m.id), pid: proj.id' in body
+    assert "agents: it.agents || []" in _fn("codeQueueRun")
 
 
 def test_queueing_does_not_rewrite_the_ticked_set():
@@ -385,8 +387,20 @@ def test_typing_is_never_blocked_by_a_run():
     assert "online()" not in rhs, (
         "Queue needs the engine, which is the opposite of the point"
     )
-    assert "!q" in qline and "S.selected.size === 0" in qline, (
+    # Why Queue is held is one expression (qWhy) shared by the title, so the
+    # rule is read from there: a unit on the council, a workspace and an
+    # agent in Code Mode -- and never the engine, in either.
+    i = body.index("const qWhy =")
+    qwhy = body[i: body.index(";", i)]
+    assert not re.search(r"\bup\b", qwhy) and "online()" not in qwhy, (
+        "Queue needs the engine, which is the opposite of the point"
+    )
+    assert "!q" in qline and "qWhy" in qline, (
         "Queue should still need a prompt and at least one unit"
+    )
+    assert "S.selected.size === 0" in qwhy, "a council prompt needs a unit"
+    assert "!codeProject()" in qwhy and "!codeChain().length" in qwhy, (
+        "a coding task needs a workspace and an agent"
     )
     # Convene still waits its turn: one run at a time.
     assert '$("btnSend").disabled = busy ||' in body
@@ -438,4 +452,6 @@ def test_a_failed_row_offers_retry_and_many_offer_retry_all():
 def test_unit_colours_do_not_wait_for_the_engine():
     page = (Path(__file__).resolve().parents[2] / "magi.html").read_text(encoding="utf-8")
     assert "const UNIT_FALLBACK" in page
-    assert "dot.style.background = unitAccent(id);" in page
+    # A council row's dot comes from unitAccent (which has the fallback); a
+    # Code row's from the agent it names.
+    assert "dot.style.background = info ? info.accent : unitAccent(id);" in page

@@ -59,8 +59,8 @@ const vis = (sel) => `((e) => !!e && e.getBoundingClientRect().width > 0 && e.ge
   ok('code view shown', await evalJs(c, vis('#codeView')));
   ok('Code New session lit, New deliberation not',
      await evalJs(c, '$("navCodeNew").classList.contains("active") && !$("navNew").classList.contains("active")'));
-  ok('Queue/Refine/Attach hidden in Code Mode',
-     await evalJs(c, `!${vis('#btnQueue')} && !${vis('#btnRefine')} && !${vis('#btnAttach')}`));
+  ok('Queue/Refine/Attach offered in Code Mode too',
+     await evalJs(c, `${vis('#btnQueue')} && ${vis('#btnRefine')} && ${vis('#btnAttach')}`));
   ok('council draft not carried into code', await evalJs(c, '$("composer").value') === '');
   ok('header says Code Mode', await evalJs(c, 'document.querySelector(".council-title").textContent') === 'Code Mode');
   await evalJs(c, '$("composer").value = "a code task"; return 1;');

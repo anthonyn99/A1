@@ -42,7 +42,9 @@ console.log('Write is chosen per task');
 ok('the switch starts in Read', /rw: "read",/.test(MAGI));
 ok('the choice is never stored', !/lsWrite\([^)]*rw/.test(MAGI) && !/CODE_RW_KEY/.test(MAGI));
 const run = lift('async function codeRun()', 1400);
-ok('the mode goes to the engine', /codePost\("\/tasks", \{[^}]*mode: CODE\.rw/.test(run));
+// Built by codeTaskBody (which adds the attached files), then posted.
+ok('the mode goes to the engine',
+   /codeTaskBody\(\{[^}]*mode: CODE\.rw[\s\S]{0,200}codePost\("\/tasks", body\)/.test(run));
 ok('and falls back to Read once the task starts', /CODE\.rw = "read";/.test(run));
 const rw = lift('function renderCodeRw(proj)', 1400);
 ok('Write is disabled where the engine says no', /b\.disabled = k === "write" && !w\.ok/.test(rw));

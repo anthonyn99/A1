@@ -14,9 +14,9 @@
 //   2. Code Mode hides the council's controls — the unit chips, the verdict,
 //      the empty state, the caption — rather than leaving them to promise
 //      choices it does not offer.
-//   3. Convene, Queue and Refine are HELD in Code Mode, not hidden. A control
-//      that vanishes teaches you the mode has fewer capabilities, when it
-//      simply has not been built yet.
+//   3. Convene becomes Run. Attach, Refine and Queue work in Code Mode too:
+//      files are text pasted into the prompt, Refine rewrites for a coding
+//      agent, and a queued task carries its workspace, agents and mode.
 //   4. The strip repaints when the engine's state changes. Discovery finishes
 //      after the first paint, so without that it sat on "offline" while the
 //      sidebar said the engine was running on this PC.
@@ -98,9 +98,9 @@ ok('the stream carries the token the SSE way',
    /new EventSource\(streamUrl\(`\/api\/code\/tasks\/\$\{id\}\/stream`\)\)/.test(MAGI));
 ok('the watched task is remembered per tab', /sessionStorage\.setItem\(CODE_TASK_SS, id\)/.test(MAGI));
 ok('a dropped stream says the task was lost, not still running',
-   /t\.lost = true/.test(lift('function codeAttach(id, prompt)', 2400)));
+   /t\.lost = true/.test(lift('function codeAttach(id, prompt', 3200)));
 ok('hand-offs are shown, with who takes over',
-   /handing over to \$\{ev\.to_label\}/.test(lift('function renderCodeTask(t)', 3000)));
+   /handing over to \$\{ev\.to_label\}/.test(lift('function renderCodeTask(t)', 12000)));
 
 console.log('\nNothing in Code Mode writes to Firestore');
 const block = MAGI.slice(MAGI.indexOf('const CODE_PROJ_KEY'), MAGI.indexOf('function setView(v)'));
@@ -139,9 +139,14 @@ ok('Codex sign-in shows the device code', /code-login-code/.test(block));
 ok('with a phishing warning', /Device codes are a common phishing trick/.test(block));
 ok('Codex is not tied to the ChatGPT unit', /separate from the ChatGPT unit/.test(block));
 ok('this PC\'s Claude login cannot be removed from here', /if \(s\.slot !== "system"\)/.test(block));
-ok('Queue is disabled', /\$\("btnQueue"\)\.disabled = coding \|\|/.test(ue));
-ok('Refine is disabled', /\$\("btnRefine"\)\.disabled = coding \|\|/.test(ue));
-ok('changing mode repaints them', /updateEnabled\(\);/.test(lift('function setMode(m,', 900)),
+ok('Queue works in Code Mode, needing a workspace and an agent',
+   /!coding \? \(S\.selected\.size === 0[\s\S]{0,120}!codeProject\(\)[\s\S]{0,120}!codeChain\(\)\.length/.test(ue));
+ok('Refine works in Code Mode, held while a browser agent works',
+   /\$\("btnRefine"\)\.disabled = busy \|\| !q \|\| !up \|\| \(coding && codeTaskUsesBrowser\(\)\)/.test(ue));
+ok('Code Mode\'s files are its own', /const list = coding \? CODE\.attachments : S\.attachments;/.test(MAGI));
+ok('and only text', /function codeReadText\(file\)/.test(MAGI) && /includes\("\\u0000"\)/.test(MAGI));
+ok('Refine asks for a coding rewrite', /if \(coding\) form\.append\("kind", "code"\);/.test(MAGI));
+ok('changing mode repaints them', /updateEnabled\(\);/.test(lift('function setMode(m,', 2400)),
    'nothing else would call it, so the buttons kept the other mode\'s state');
 
 console.log('\nThe header can never be ambiguous');
@@ -169,8 +174,8 @@ ok('and repaints the whole view, not just the pills',
    'repainting half of it moved the contradiction further down the screen');
 
 console.log('\nThe switch is ours, and reachable');
-ok('two options, in the composer toolbar', /class="mode-sw" id="modeSw"/.test(MAGI));
-ok('it is inside the toolbar', /qbar-toolbar[\s\S]{0,400}mode-sw/.test(MAGI));
+ok('each mode is its own sidebar section', /id="codeSec"/.test(MAGI) && /id="navCodeNew"/.test(MAGI) && /id="navNew"/.test(MAGI));
+ok('the old composer switch is gone', !/id="modeSw"/.test(MAGI));
 ok('no native dialog anywhere in Code Mode',
    !/\b(window\.)?(alert|confirm|prompt)\s*\(/.test(
      lift('function setMode(m,') + lift('function renderCodeView()') + lift('function renderCodeStrip()')));

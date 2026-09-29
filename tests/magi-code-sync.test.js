@@ -72,6 +72,10 @@ function world() {
     _indexDoc: () => ({ path: 'magi' }),
     setSync() {}, _syncFail: (w, e) => w + ': ' + e.message,
     codeMode: () => false, renderCodeView() {}, updateEnabled() {},
+    // No DOM here: renderCodeHistory (which codeSyncFromCloud now calls)
+    // returns when its list is missing.
+    $: () => null,
+    HISTORY_DAYS: 30,
     online: () => true, codeSetProject() {},
     CODE: { state: null, order: [], picks: null, task: null },
     engine: null, puts: [],
@@ -274,7 +278,8 @@ const T2 = '2026-09-24T11:00:00+00:00';
     const W = world(); const x = W.__x;
     x.codeSyncFromCloud({});
     const huge = {};
-    for (let i = 0; i < 40; i++) huge['p' + i] = { ...P('P' + i, T1), notes: 'n'.repeat(2000) };
+    // Comfortably past CODE_SYNC_MAX (128 KB since the cap was raised from 64).
+    for (let i = 0; i < 90; i++) huge['p' + i] = { ...P('P' + i, T1), notes: 'n'.repeat(2000) };
     x.CODE_SYNC.want = { projects: huge, deleted: {} };
     x.cloudSaveCode();
     await settle(W);
@@ -284,7 +289,7 @@ const T2 = '2026-09-24T11:00:00+00:00';
 
   console.log('\nOne listener');
   ok('onSnapshot appears exactly once in the page', (MAGI.match(/\.onSnapshot\(/g) || []).length === 1);
-  ok('the code branch rides it', /CLOUD\.unsub = CLOUD\.fs\.onSnapshot[\s\S]{0,1500}codeSyncFromCloud\(d && d\.code\)/.test(MAGI));
+  ok('the code branch rides it', /CLOUD\.unsub = CLOUD\.fs\.onSnapshot[\s\S]{0,2600}codeSyncFromCloud\(d && d\.code\)/.test(MAGI));
   ok('every write is counted', /CLOUD\.fs = cloudCountWrites\(fs\)/.test(MAGI));
   ok('codeLoad checks after /state', /codeSyncCheck\(st\);/.test(MAGI));
   ok('a task end hands over', (MAGI.match(/codeSyncTaskEnd\(t\);/g) || []).length === 2);
