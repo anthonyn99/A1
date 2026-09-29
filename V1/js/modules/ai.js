@@ -31,6 +31,10 @@ export const PROVIDERS = {
   openai:    { label: 'OpenAI-compatible', needsKey: true, defaultModel: '',
                defaultBase: 'https://api.openai.com/v1' },
   gemini:    { label: 'Google Gemini', needsKey: true, defaultModel: '' },
+  // Her own router (Downloads/ORCA). OpenAI-shaped, but its models take text
+  // only, so the PDF goes as extracted text.
+  orca:      { label: 'ORCA', needsKey: true, defaultModel: '',
+               defaultBase: 'https://orca.vedapatel05.workers.dev/v1' },
 };
 
 // Base64 inflates by a third, and the Claude API caps a request at 32 MB.
@@ -48,9 +52,9 @@ export class AIError extends Error {
 function defaults() {
   return {
     provider: pipeline.enabled() && pipeline.isLocalBridge() ? 'bridge' : 'anthropic',
-    keys: { anthropic: '', openai: '', gemini: '' },
-    models: { anthropic: PROVIDERS.anthropic.defaultModel, openai: '', gemini: '' },
-    baseUrl: { openai: PROVIDERS.openai.defaultBase },
+    keys: { anthropic: '', openai: '', gemini: '', orca: '' },
+    models: { anthropic: PROVIDERS.anthropic.defaultModel, openai: '', gemini: '', orca: '' },
+    baseUrl: { openai: PROVIDERS.openai.defaultBase, orca: PROVIDERS.orca.defaultBase },
   };
 }
 
@@ -235,7 +239,7 @@ export async function testConnection() {
 }
 
 // ── Adapters: (active, spec) → answer text ────────────────────────────────
-const ADAPTERS = { bridge: viaBridge, anthropic: viaAnthropic, openai: viaOpenAI, gemini: viaGemini };
+const ADAPTERS = { bridge: viaBridge, anthropic: viaAnthropic, openai: viaOpenAI, gemini: viaGemini, orca: viaOpenAI };
 
 async function viaBridge(a, spec) {
   const prompt = (spec.system ? spec.system + '\n\n' : '') + spec.prompt + '\n\n' + INLINE_RULE;
@@ -333,11 +337,49 @@ async function viaAnthropic(a, spec) {
   return text;
 }
 
+let _pdfjs = null;
+async function pdfjs() {
+  if (!_pdfjs) {
+    _pdfjs = import('../../vendor/pdfjs-6.3.289/pdf.min.mjs').then((m) => {
+      m.GlobalWorkerOptions.workerSrc = new URL('../../vendor/pdfjs-6.3.289/pdf.worker.min.mjs', import.meta.url).href;
+      return m;
+    });
+  }
+  return _pdfjs;
+}
+
+/** The text of a base64 PDF, page by page, for models that cannot read the file. */
+export async function pdfText(b64) {
+  const lib = await pdfjs();
+  const bin = atob(b64), data = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) data[i] = bin.charCodeAt(i);
+  const task = lib.getDocument({ data });
+  try {
+    const doc = await task.promise;
+    const pages = [];
+    for (let n = 1; n <= doc.numPages; n++) {
+      const tc = await (await doc.getPage(n)).getTextContent();
+      pages.push(`--- page ${n} ---\n` + tc.items.map((it) => it.str + (it.hasEOL ? '\n' : '')).join(''));
+    }
+    return pages.join('\n\n');
+  } finally {
+    await task.destroy();
+  }
+}
+
 async function viaOpenAI(a, spec) {
   const content = [];
   if (spec.attachPdf && spec.pdf) {
-    content.push({ type: 'file', file: { filename: spec.pdf.name || 'source.pdf',
-      file_data: 'data:application/pdf;base64,' + spec.pdf.b64 } });
+    if (a.id === 'orca') {
+      let text = '';
+      try { text = (await pdfText(spec.pdf.b64)).trim(); }
+      catch (e) { throw new AIError('Could not read the text of this PDF: ' + ((e && e.message) || e), { kind: 'bad_input' }); }
+      if (!text) throw new AIError('This PDF has no selectable text (a scan?) — ORCA models cannot read it.', { kind: 'bad_input' });
+      content.push({ type: 'text', text: `The source document (${spec.pdf.name || 'source.pdf'}), as extracted text:\n\n${text}` });
+    } else {
+      content.push({ type: 'file', file: { filename: spec.pdf.name || 'source.pdf',
+        file_data: 'data:application/pdf;base64,' + spec.pdf.b64 } });
+    }
   }
   content.push({ type: 'text', text: spec.prompt });
   const messages = [
@@ -419,4 +461,4 @@ export function hash(text) {
   return 'h' + h.toString(36);
 }
 
-export default { PROVIDERS, settings, saveSettings, active, generateJSON, testConnection, extractJSON, repairPrompt, hash, AIError };
+export default { pdfText, PROVIDERS, settings, saveSettings, active, generateJSON, testConnection, extractJSON, repairPrompt, hash, AIError };

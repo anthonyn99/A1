@@ -15,18 +15,21 @@ const BLURB = {
   anthropic: 'Claude with your own API key. Billed per use.',
   openai: 'OpenAI, OpenRouter, Groq or any compatible API.',
   gemini: 'Google Gemini with your API key.',
+  orca: 'Your own ORCA router, with an orca_sk_ key. Documents go as text.',
 };
 
 const KEY_HINT = {
   anthropic: 'sk-ant-…  (console.anthropic.com → API keys)',
   openai: 'sk-…  (your provider’s API keys page)',
   gemini: 'AIza…  (aistudio.google.com → Get API key)',
+  orca: 'orca_sk_…  (ORCA → Keys, in your profile)',
 };
 
 const MODEL_HINT = {
   anthropic: 'claude-opus-5-5',
   openai: 'the model id your provider lists, e.g. for OpenRouter "provider/model"',
   gemini: 'a Gemini model id from Google AI Studio',
+  orca: 'an ORCA backend id, e.g. groq/gpt-oss-120b',
 };
 
 let draft = null;
@@ -55,9 +58,9 @@ export function render() {
       <div class="ais-note">Uses the Claude Pro account signed in on the bridge's browser. Each topic is one
         Claude message (plus one to list the topics), and the bridge must be running on this PC:
         <code>python server.py autostart</code> once, in <code>V1/tools/sos-browser</code>.</div>` : `
-      ${p === 'openai' ? `
+      ${p === 'openai' || p === 'orca' ? `
         <div class="ais-field"><label for="ais-base">API base URL</label>
-          <input id="ais-base" value="${esc(draft.baseUrl.openai || def.defaultBase)}" spellcheck="false" autocomplete="off"></div>` : ''}
+          <input id="ais-base" value="${esc(draft.baseUrl[p] || def.defaultBase)}" spellcheck="false" autocomplete="off"></div>` : ''}
       <div class="ais-field"><label for="ais-key">${esc(def.label)} key</label>
         <div class="ais-keyrow">
           <input id="ais-key" type="password" value="${esc(draft.keys[p] || '')}" placeholder="${esc(KEY_HINT[p] || '')}" spellcheck="false" autocomplete="off">
@@ -67,7 +70,7 @@ export function render() {
         <input id="ais-model" value="${esc(draft.models[p] || def.defaultModel || '')}" placeholder="${esc(MODEL_HINT[p] || '')}" spellcheck="false" autocomplete="off"></div>
       <div class="ais-note">Your key is stored <b>in this browser only</b> — it is never synced to your other
         devices or saved to the cloud, so add it on each device you break documents down from.
-        The model has to read PDFs.</div>`}
+        ${p === 'orca' ? 'ORCA models read the document as extracted text, so scanned PDFs will not work.' : 'The model has to read PDFs.'}</div>`}
 
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn primary" data-save>Save</button>
@@ -84,7 +87,7 @@ export function render() {
     const k = root.querySelector('#ais-key'), m = root.querySelector('#ais-model'), b = root.querySelector('#ais-base');
     if (k) draft.keys = { ...draft.keys, [p]: k.value.trim() };
     if (m) draft.models = { ...draft.models, [p]: m.value.trim() };
-    if (b) draft.baseUrl = { ...draft.baseUrl, openai: b.value.trim() };
+    if (b) draft.baseUrl = { ...draft.baseUrl, [p]: b.value.trim() };
   };
   const save = () => {
     collect();
