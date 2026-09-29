@@ -13,9 +13,11 @@
 **Phases complete:** 1–14 (14a hardening, 14b A1 writable), plus **11B**,
 and Track S's **S1**, **S2**, **S3**, **U1** and **U2**.
 **Next phase:** **U3 — limits and fallbacks panel**, in Track S
-(§8 "Track S": S1 → S2 → S3 → U1 → U2 → U3 → U4). Phase 15 (Veda's
-engine install) is independent and still **needs Veda**; do it whenever
-she is at her PC.
+(§8 "Track S": S1 → S2 → S3 → U1 → U2 → U3 → U4). **Phase 15 (Veda's
+engine) is INSTALLED**: she ran `magi\setup.ps1 -Profile veda`, signed in
+to Accounts, the coding agents and GitHub (Tony confirmed 2026-09-28), and
+her engine self-updates. Do NOT send her setup commands again. The only
+Phase 15 leftover is an optional isolation check from her PC (below).
 
 > **To start the next phase, the whole instruction is "continue" or "next
 > phase".** Do the start-of-session checklist, then the next Track S phase
@@ -40,7 +42,7 @@ One phase per session.
 | ~~U2~~ | ~~Units: model shown~~ | **done 2026-09-28** (+ both U1 bugs fixed) | | |
 | **U3** | Units: limits | Limits panel + reset countdowns; Claude Pro reuses Code Mode numbers | Medium | 1 |
 | U4 | Units: choose model | Per-unit model picker, per person; a bad pick never fails a run | Medium-large | 1 |
-| 15 | Veda's engine | `magi onboard --profile veda` on her PC, her logins + GitHub account, isolation check. Nothing new to build: 11B is per-profile already (see "Ready for Veda's PC") | Low (an install) | < 1 (needs Veda) |
+| ~~15~~ | ~~Veda's engine~~ | **installed** (setup.ps1 + all sign-ins, confirmed 2026-09-28; self-updating). Optional: isolation check from her PC | | |
 
 ### Start-of-session checklist (do these in order)
 
@@ -563,8 +565,9 @@ reachable from the internet.
   the private repo's watch matters.
 * To see Fable become choosable: turn usage credits on at
   claude.ai/settings/usage (not done — it would bill).
-* Phase 15 needs Veda for her sign-ins (see "Ready for Veda's PC"); her
-  profile's `code` field lives on `dashboards/magi_veda` and needs nothing.
+* Veda's engine is installed and signed in (2026-09-28); nothing for her to
+  run. Her engine pulls each engine change by itself when idle; she only
+  hard-refreshes the console (Ctrl+Shift+R) to get console changes.
 
 ### Track S — first concrete steps for the next session (Phase U3)
 
@@ -590,14 +593,12 @@ reachable from the internet.
    the same source. Tests: merge logic, Tony/Veda separation, headless
    render at 390px; HOW panel + docs/magi.md.
 
-### Phase 15 — first concrete steps (whenever Veda is at her PC)
+### Phase 15 — what is left (optional, only from Veda's PC)
 
-Veda's PC, with Veda. Nothing to build. On her PC (a clone of A1), the
-session follows `docs/magi-setup.md`: `magi\setup.ps1 -Profile veda`, then
-her sign-ins from Accounts. Then verify the isolation checks in §8 Phase 15
-and run `tests/live/magi-guard.live.js` against HER engine (the job guard is
-per engine process). If this session is not on Veda's PC, there is nothing
-to build — say so and stop.
+The install and sign-ins are DONE (2026-09-28). Nothing for Veda to run. If
+a session ever runs ON her PC, it may verify the isolation checks in §8
+Phase 15 and run `tests/live/magi-guard.live.js` against HER engine (the job
+guard is per engine process). From any other PC there is nothing to do.
 
 ### (Done) Phase 14b — what it was
 
@@ -1889,6 +1890,10 @@ Brainstorm, Studio, History, Accounts, Doctor, handoff and lock **in both profil
 ---
 
 ### Phase 15 — Veda's engine (an install, not a build)
+
+*Status:* **installed 2026-09-28** (setup.ps1 -Profile veda, Accounts,
+coding agents, GitHub device sign-in; self-updating via the watchdog). Only
+the optional isolation verification below remains, from her PC.
 
 *Purpose:* Move the already-working `veda` engine onto her machine.
 
