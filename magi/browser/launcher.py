@@ -191,6 +191,12 @@ def _profile_lock(site_id: str) -> asyncio.Lock:
     return lock
 
 
+def in_use(site_id: str) -> bool:
+    """A job holds this unit's profile right now (a run, a check, a sign-in)."""
+    lock = _profile_locks.get(site_id)
+    return bool(lock and lock.locked())
+
+
 @asynccontextmanager
 async def launch(
     site_id: str,

@@ -272,11 +272,11 @@ async def wait_for_completion(
         # U1 found it losing DeepSeek 3 critique rounds of 3). The length cap
         # rides along: Perplexity refuses an over-long prompt with a line
         # under the composer and a disabled send, and nothing ever streams.
-        if ((site.rate_limit_selectors or site.prompt_too_long)
+        if ((site.limit_rules or site.prompt_too_long)
                 and time.monotonic() - last_limit_check >= LIMIT_CHECK_S):
             last_limit_check = time.monotonic()
             limit = await resolve.rate_limited(
-                page, site.rate_limit_selectors,
+                page, site.limit_rules,
                 prompt=prompt, answer=site.assistant_turn,
             )
             if limit:

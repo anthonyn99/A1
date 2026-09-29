@@ -208,6 +208,8 @@ class HealthReport:
     error: str | None = None
     # The site's own usage-limit notice, if one is on the page right now.
     limit: str = ""
+    # The model the site says the chat is on (U2's label), "" if it shows none.
+    model: str = ""
 
     @property
     def usable(self) -> bool:

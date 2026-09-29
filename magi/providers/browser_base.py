@@ -278,7 +278,7 @@ class BrowserProvider(Provider):
                 # exact shape that got reported as a timeout with "the send may
                 # not have registered, or the assistant_turn selector is wrong".
                 limit = await resolve.rate_limited(
-                    page, site.rate_limit_selectors,
+                    page, site.limit_rules,
                     prompt=sent, answer=site.assistant_turn,
                 )
                 if limit:
@@ -439,7 +439,7 @@ class BrowserProvider(Provider):
                             await btn.hover(force=True, timeout=2000)
                             await asyncio.sleep(1.0)
                             limit = await resolve.rate_limited(
-                                page, site.rate_limit_selectors,
+                                page, site.limit_rules,
                                 prompt=sent, answer=site.assistant_turn,
                             )
                             if limit:
@@ -493,7 +493,7 @@ class BrowserProvider(Provider):
                         artifacts = await self._save_artifacts(page, "prompt-too-long")
                         return fail(e.kind, f"{self.display_name} says: {e.detail}")
                     limit = await resolve.rate_limited(
-                        page, site.rate_limit_selectors,
+                        page, site.limit_rules,
                         prompt=sent, answer=site.assistant_turn,
                     )
                     if limit:
@@ -641,7 +641,7 @@ class BrowserProvider(Provider):
                 # show once you send or attach -- those come from run history,
                 # see engine/usage.py -- but some sites say it up front.
                 report.limit = await resolve.rate_limited(
-                    page, site.rate_limit_selectors, answer=site.assistant_turn
+                    page, site.limit_rules, answer=site.assistant_turn
                 )
 
                 # What a run would hit before it could type. Checked BEFORE
@@ -663,6 +663,8 @@ class BrowserProvider(Provider):
                 )
                 if box is not None:
                     blocked = await overlay.blocker(box.locator.first)
+                # Free: the page is open anyway. Phase U3's "Check now" shows it.
+                report.model = await resolve.model_label(page, site)
                 closed = await overlay.dismiss(page, site.dismiss_selectors)
                 if blocked:
                     still = ""

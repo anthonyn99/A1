@@ -402,6 +402,16 @@ class SiteSelectors:
     nav_timeout_s: int = 45
     ready_timeout_s: int = 30
 
+    @property
+    def limit_rules(self) -> list[str]:
+        """Every "you are out of quota" rule, the scoped ones first (Phase U3).
+
+        `limit_notice` is scoped to the site's own notice container (Grok's
+        role=alert card), so a prompt quoting it cannot match, and its whole
+        text carries the countdown -- it is tried before the page-wide text=
+        rules, which stay as the net for everything else."""
+        return _dedup(list(self.limit_notice) + list(self.rate_limit_selectors))
+
     @classmethod
     def from_yaml(cls, site_id: str, raw: dict, defaults: dict) -> "SiteSelectors":
         merged = {**defaults, **raw}

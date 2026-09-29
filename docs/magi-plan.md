@@ -9,10 +9,10 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-09-28, end of the Phase U2 session.
+**Last updated:** 2026-09-28, end of the Phase U3 session.
 **Phases complete:** 1–14 (14a hardening, 14b A1 writable), plus **11B**,
-and Track S's **S1**, **S2**, **S3**, **U1** and **U2**.
-**Next phase:** **U3 — limits and fallbacks panel**, in Track S
+and Track S's **S1**, **S2**, **S3**, **U1**, **U2** and **U3**.
+**Next phase:** **U4 — choose the model**, the LAST phase of Track S
 (§8 "Track S": S1 → S2 → S3 → U1 → U2 → U3 → U4). **Phase 15 (Veda's
 engine) is INSTALLED**: she ran `magi\setup.ps1 -Profile veda`, signed in
 to Accounts, the coding agents and GitHub (Tony confirmed 2026-09-28), and
@@ -40,8 +40,8 @@ One phase per session.
 | ~~S3~~ | ~~Speed: fixes~~ | **done 2026-09-28** | | |
 | ~~U1~~ | ~~Units: recon~~ | **done 2026-09-28** | | |
 | ~~U2~~ | ~~Units: model shown~~ | **done 2026-09-28** (+ both U1 bugs fixed) | | |
-| **U3** | Units: limits | Limits panel + reset countdowns; Claude Pro reuses Code Mode numbers | Medium | 1 |
-| U4 | Units: choose model | Per-unit model picker, per person; a bad pick never fails a run | Medium-large | 1 |
+| ~~U3~~ | ~~Units: limits~~ | **done 2026-09-28** | | |
+| **U4** | Units: choose model | Per-unit model picker, per person; a bad pick never fails a run | Medium-large | 1 |
 | ~~15~~ | ~~Veda's engine~~ | **installed** (setup.ps1 + all sign-ins, confirmed 2026-09-28; self-updating). Optional: isolation check from her PC | | |
 
 ### Start-of-session checklist (do these in order)
@@ -110,9 +110,32 @@ One phase per session.
   question`) and `completion.wait_for_completion(prompt=)`. New
   `FailureKind.PROMPT_TOO_LONG` (Perplexity's cap): checked on a disabled
   send, in the completion poll (with the limit check) and after a timeout.
-  Console label "Prompt too long". NOT changed: `engine/usage._snapshot_limit`
-  still mines saved snapshots by line, with no prompt to exclude (U3 reads
-  that source; see below).
+  Console label "Prompt too long". (U3 fixed the last prompt-as-limit path,
+  in `engine/usage._snapshot_limit`.)
+* **Units' limits (U3)**: `engine/units.py` — `summarize` (PURE: account
+  at 100% / notice at the last check / a run's limit → limited; ≥ Code
+  Mode's `warn_at` → near; last check signed out; newest model a fallback;
+  ok; unknown), `facts` (newest model + last run time over `answers` AND
+  `brainstorm_turns`), `load_checks`/`save_check`
+  (`data/<p>/unit_checks.json`, beside `magi.db`; unreachable checks are
+  not kept), `pro_account` (the Claude slot whose `models.plan_of` is
+  "pro"; `limits.aged` windows as ISO; one throttled `usage_fetch.refresh`).
+  Routes `GET /api/units/usage`, `POST /api/units/{id}/check` (the
+  doctor's `health_check` on one unit; refused `busy` while
+  `launcher.in_use`). `HealthReport.model` (the health check reads the
+  label); the doctor saves a check per unit and returns `unit` + `model`.
+  `usage.recent` now reads Brainstorm failures, and `_snapshot_limit` skips
+  lines inside the run's question or saved answer (joined from `runs`).
+  `SiteSelectors.limit_rules` = `limit_notice` (scoped) + the text= rules,
+  used at every rate-limit check. Console: `UNITS_USE`, `loadUnitsUsage`
+  (boot, council `done`, Brainstorm `done`, sheet open — never a timer),
+  `unitLimLine`, `unitLimBox`, `unitCheckNow`, `refreshUnitSheet` (30 s
+  while the sheet is open), `unitsTakeDoctor`; the Units sheet
+  (`openChairPicker`, header "Units") rows are `div.unit-row` holding
+  `button.chair-pick` + `.unit-lim`; `.chip-lim` dot on chips;
+  `docActiveLimits` uses `d.unit`. Tests `test_units_usage.py` (27; 8
+  mutants killed), `test_howitworks.py::test_the_units_limits_claims_still_hold`,
+  live `tests/live/magi-units.live.js` (20/20).
 * **Code Mode** (`magi.html` CODE MODE block, `magi/code/`):
   - Workspace registry + MAGI's own folder browser (`/api/code/browse`).
     A1 is registered (`proj_60d8f14fbc1c`).
@@ -533,6 +556,12 @@ reachable from the internet.
   event), ChatGPT's slug after; the run reopened from history has the same
   chips; amber "fell back to X" (set in-page); chips inside their cards at
   390px. 13/13 on 2026-09-28.
+* `tests/live/magi-units.live.js` — U3, sends NO question: dots on the
+  right chips, the Units sheet (state line, Check now, "checked"; a limited
+  unit's "Limited until T (in …)"; Claude (Pro)'s bars), ONE real Check now
+  (`CHECK=deepseek` default, ~10 s; `CHECK=` skips it), choosing a chairman
+  from the sheet (put back), 390px. 20/20 on 2026-09-28 (Grok really
+  limited, Pro 68% / 53%).
 * The page is opened as **`PAGES_URL`** (`cdp.js`), served from the working
   copy (see the (14) facts); `/auth/journal/status` is stubbed to "no lock"
   so the profile opens. Not `file://` any more: the engine refuses Origin
@@ -543,12 +572,9 @@ reachable from the internet.
 
 ### Waiting on Tony
 
-* **DeepSeek is signed out on Tony's engine** (found by U1, 2026-09-28
-  ~00:50 UTC; it had answered at 00:14 UTC). Every check redirected to
-  `chat.deepseek.com/sign_in`. Sign it back in from Accounts. Cause not
-  known (expiry vs anything else). If it keeps happening, look at it.
-* DeepSeek's sign-in was NOT rechecked in U2 (it has no model label, so U2
-  did not need it). Tony signed Perplexity back in before U2.
+* DeepSeek (signed out during U1) **checked signed in** by U3's Check now,
+  2026-09-29 02:38 UTC. Nothing to do. If it drops again, the Units sheet
+  shows "Signed out" after a Check now.
 * **Tony's A1 answers (2026-09-24), built in 14b:** writes yes; commit no
   (A1 commits itself); pull stays fetch-only; push no. Also decided in 14b:
   `.github/` refused in A1 (workflows run with secrets and A1 pushes itself).
@@ -569,29 +595,30 @@ reachable from the internet.
   run. Her engine pulls each engine change by itself when idle; she only
   hard-refreshes the console (Ctrl+Shift+R) to get console changes.
 
-### Track S — first concrete steps for the next session (Phase U3)
+### Track S — first concrete steps for the next session (Phase U4)
 
 1. Start-of-session checklist above (pull, engine alive, pytest baseline
-   ≈1225 — start it in the background first — + node run-all 52 suites).
-   Check DeepSeek is signed in (Accounts).
-2. Read §8 "Phase U1" (findings table: which units have a limit notice or
-   count) and "Phase U3".
-3. Per-profile unit state, updated after every run from what the run
-   already saw (no extra launches): last model + fallback (U2's
-   `Answer.model/model_fallback`), last limit notice + parsed reset
-   (`usage.parse_reset`), `prompt_too_long` seen. Grok's `limit_notice`
-   (role=alert card, scoped) is the one with a countdown.
-4. `GET /api/units/usage` merges that with `engine/usage.recent()`; Claude
-   (Pro) reuses Code Mode's `usage_fetch` numbers for that account. **Fix
-   first:** `usage._snapshot_limit` still reads a saved snapshot line by line
-   with no prompt to exclude, so an old timeout whose page showed a prompt
-   saying "rate limits" is reported as a limit — store the prompt (or a hash
-   of its lines) with the answer, or drop lines that sit in the user turn.
-5. Console: badge per chip in the unit sheet (model, OK / limited until T
-   with countdown / fell back to X, last checked); per-unit "Check now"
-   (launches a browser, nothing on a timer). Doctor's limit section reads
-   the same source. Tests: merge logic, Tony/Veda separation, headless
-   render at 390px; HOW panel + docs/magi.md.
+   ≈1256 — start it in the background first — + node run-all 52 suites).
+2. Read §8 "Phase U1" (findings table: which units have a real picker) and
+   "Phase U4". Pickers exist on **Claude** (free: Sonnet 5.5 / Haiku 4.5;
+   Pro: + Opus 5.5 and "More models"; effort submenu), **Gemini** (by
+   `data-mode-id`; selected = `[aria-label=Selected]`, NOT `data-active`)
+   and **Grok** (`menuitemradio` + `aria-checked`; which options work on
+   free is UNVERIFIED). ChatGPT (only a Think toggle), Perplexity (all
+   locked) and DeepSeek have none: their choice is just "Site default".
+3. Per person in `accounts.json` beside `chairman_override`
+   (`magi/accounts.py`); default "Site default" = today's behaviour. Before
+   typing, select → read back with `resolve.model_label` (U2); anything
+   unavailable → answer on what the site gives and set
+   `Answer.model_fallback` "asked for X, got Y" — never a failed run.
+   Members, chairman, Brainstorm, Studio.
+4. Console: the per-unit choice goes in the Units sheet (U3's `.unit-lim`
+   line, `unitLimBox`), "Site default" first. The chip and the sheet
+   already show what actually answered, so a bad pick is visible.
+5. Tests from U1 fixtures (picker driving, read-back, unavailable →
+   labelled not failed, per-profile storage), HOW panel; live: non-default
+   models on 2–3 units, one short question. U4 is the last Track S phase:
+   rewrite this §0 with what comes after (ask Tony).
 
 ### Phase 15 — what is left (optional, only from Veda's PC)
 
@@ -2138,6 +2165,19 @@ card; amber "fell back to X" when the label changed mid-answer or a
 downgrade notice showed. Tests from U1 fixtures; headless chip check.
 
 ### Phase U3 — Limits and fallbacks panel (medium)
+
+*Status:* **done 2026-09-28.** Built as below, with the verdict in ONE pure
+function (`engine/units.summarize`) that the Units sheet, the chip dots and
+the doctor's limit section all read. Fix first, done: `_snapshot_limit`
+skips lines of the run's question / saved answer; replayed over Tony's DB,
+exactly one verdict changed (Perplexity's 2026-09-25 timeout, no longer a
+"limit"). Brainstorm failures now count (DeepSeek's old U1-bug false limit
+shows up, cleared, outside the 48 h window). The "unit-selection sheet" is
+the Units (chair) sheet: each row became a box holding the chair button and
+a limits line. pytest 1256 (27 in `test_units_usage.py`, 8 mutants killed),
+node 52. Live (`magi-units.live.js`, 20/20): Grok really limited ("Limited
+until 9:15 PM (in 38m)", red dot), Claude (Pro) 68% / 53% from Code Mode,
+Check now on DeepSeek, Grok and Perplexity (~10 s each), 390px clean.
 
 `GET /api/units/usage`: per unit, merge live notices/counts seen during runs
 (per-profile state, updated after every run — no extra launches),

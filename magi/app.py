@@ -35,6 +35,7 @@ from .db import Database
 from .engine import brainstorm as brainstorm_engine
 from .engine import refine as refine_engine
 from .engine import studio as studio_engine
+from .engine import units
 from .engine import usage
 from . import agent_guard
 from .engine.orchestrator import Orchestrator, required_members
@@ -2157,12 +2158,18 @@ async def doctor(
         # What runs have hit lately -- usage limits above all, which an idle
         # page almost never shows.
         recent = await usage.recent(settings.db_path, p.id, p.site.rate_limit_selectors)
+        # A doctor pass IS a check: the units panel shows what it saw, and the
+        # card's limit section reads the same verdict the panel does (U3).
+        if not isinstance(res, BaseException):
+            units.save_check(settings.db_path, p.id, res[0])
+        unit = await units.unit(settings.db_path, p)
         if isinstance(res, BaseException):
             out.append({
                 "provider_id": p.id, "display_name": p.display_name,
                 "reachable": False, "logged_in": False, "challenged": False,
                 "usable": False, "error": str(res)[:300], "notes": [],
                 "selectors": [], "duration_ms": 0, "limit": "", "recent": recent,
+                "unit": unit,
             })
             continue
         r, ms = res
@@ -2181,7 +2188,9 @@ async def doctor(
                 # run, and nothing else in the console would tell you.
                 "duration_ms": ms,
                 "limit": r.limit,
+                "model": r.model,
                 "recent": recent,
+                "unit": unit,
                 "selectors": [
                     {
                         "field": s.field,
@@ -2205,6 +2214,43 @@ async def doctor(
             }
         )
     return out
+
+
+# ── units: limits and model (Phase U3) ──────────────────────────────────────
+@app.get("/api/units/usage")
+async def units_usage():
+    """Every unit's limit state and model, from what this engine has already
+    seen -- runs, Brainstorm turns, the last check, and for Claude (Pro) Code
+    Mode's usage numbers for the same account. Opens no browser; see
+    engine/units.py. Per profile: the database and the checks file live in
+    the profile's own data folder."""
+    providers = build_providers(settings)
+    return {"ok": True, "units": await units.all_units(settings.db_path, providers)}
+
+
+@app.post("/api/units/{provider_id}/check")
+async def units_check(provider_id: str):
+    """Look at ONE unit now: opens its site in a browser (the doctor's probe,
+    signed in as you, nothing sent) and keeps what it saw. Only ever on a
+    tap -- nothing runs this on a timer."""
+    from .browser import launcher
+
+    if provider_id not in settings.sites:
+        raise HTTPException(404, f"Unknown unit {provider_id!r}.")
+    if launcher.in_use(provider_id):
+        # Waiting for the lock would hang the tap until the run ends, and the
+        # run is about to report on this unit anyway.
+        return {"ok": False, "error": "busy",
+                "message": "This unit is busy in a run. Its result will show here when it finishes."}
+    p = build_providers(settings, [provider_id])[0]
+    try:
+        r = await p.health_check()
+    except Exception as e:  # noqa: BLE001 -- say what happened, keep the old reading
+        return {"ok": False, "error": "check_failed", "message": str(e)[:300],
+                "unit": await units.unit(settings.db_path, p)}
+    rec = units.save_check(settings.db_path, provider_id, r)
+    return {"ok": rec["reachable"], "error": "" if rec["reachable"] else "unreachable",
+            "message": rec["error"], "unit": await units.unit(settings.db_path, p)}
 
 
 # ── the UI ───────────────────────────────────────────────────────────────────

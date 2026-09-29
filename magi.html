@@ -656,6 +656,54 @@ body {
 .chair-tags { display: flex; gap: 6px; flex-wrap: wrap; }
 @media (max-width: 760px) { .chair-row { min-height: 52px; } }
 
+/* Phase U3: each unit's limits and model, in the Units sheet. The row holds
+   TWO controls -- pick it as chairman, check it now -- so it is a box with a
+   button in it rather than one big button (a button inside a button is
+   neither valid nor clickable). */
+.chair-row.unit-row { flex-wrap: wrap; gap: 0; padding: 0; cursor: default; }
+.unit-row .chair-pick {
+  flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 10px;
+  background: transparent; border: 0; padding: 9px 11px; text-align: left;
+  font: inherit; color: inherit; cursor: pointer; border-radius: 9px;
+}
+.unit-lim {
+  flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center;
+  gap: 5px 8px; padding: 0 11px 9px; font-size: 11px; color: var(--txd);
+}
+.unit-lim .model-chip { margin-left: 0; }
+.unit-lim-state { font-weight: 700; }
+.unit-lim-state.limited, .unit-lim-state.signed_out { color: var(--red); }
+.unit-lim-state.near, .unit-lim-state.fallback { color: var(--amber); }
+.unit-lim-state.ok { color: var(--grn); }
+.unit-lim-state.unknown { color: var(--txm); font-weight: 600; }
+.unit-lim-sub { flex: 1 1 100%; color: var(--txm); font-size: 10.5px; line-height: 1.5; overflow-wrap: anywhere; }
+.unit-lim-sub.warn { color: var(--amber); }
+.unit-lim-bars { flex: 1 1 100%; display: flex; flex-direction: column; gap: 3px; }
+.unit-lim-bar { display: grid; grid-template-columns: 58px 1fr 34px; gap: 6px; align-items: center; font-size: 10px; color: var(--txm); }
+.unit-lim-bar i { display: block; height: 4px; border-radius: 2px; background: var(--bd); overflow: hidden; }
+.unit-lim-bar i b { display: block; height: 100%; background: var(--grn); }
+.unit-lim-bar.near i b { background: var(--amber); }
+.unit-lim-bar.full i b { background: var(--red); }
+.unit-lim-check {
+  margin-left: auto; background: transparent; border: 1px solid var(--bd);
+  border-radius: 6px; padding: 3px 9px; font: inherit; font-size: 10.5px;
+  color: var(--txd); cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+}
+.unit-lim-check:hover:not(:disabled) { border-color: var(--ac); color: var(--ac); }
+.unit-lim-check:disabled { opacity: .6; cursor: default; }
+@media (max-width: 760px) { .unit-lim-check { min-height: 36px; padding: 5px 12px; } }
+
+/* The same verdict as a dot on the chip, so a limited unit is visible before
+   you tick it. Top-left: the chair's star owns top-right. */
+.chip-lim {
+  position: absolute; top: 4px; left: 4px; width: 6px; height: 6px;
+  border-radius: 50%; pointer-events: none;
+}
+.chip.has-lim { padding-left: 14px; }
+.chip-lim.limited, .chip-lim.signed_out { background: var(--red); }
+.chip-lim.near, .chip-lim.fallback { background: var(--amber); }
+.chip.on .chip-lim { box-shadow: 0 0 0 1.5px var(--bg); }
+
 .chip-model {
   /* No uppercase. The display names are already written correctly in
      selectors.yaml -- ChatGPT, DeepSeek -- and forcing capitals flattened
@@ -6772,6 +6820,7 @@ const HOW = [
       "<b>The handle in the corner of the prompt box</b> resizes it: drag it for an exact height, or click it to expand and click again to compress. A height you set by hand is remembered and stops the box resizing itself as you type. Every prompt box here has one — the council&rsquo;s, Brainstorm&rsquo;s, and the reply box inside a round.",
       "<b>Each card names the model that answered</b>, as the site itself shows it &mdash; Claude&rsquo;s, Gemini&rsquo;s and Grok&rsquo;s picker, ChatGPT&rsquo;s tag on the answer. Perplexity&rsquo;s free plan and DeepSeek name no model anywhere, so their cards have no chip rather than a guess. The chip turns amber, <b>fell back to &hellip;</b>, only on the site&rsquo;s own evidence: its label changed between the page loading and the answer finishing, or it said it was switching models. It is kept in history and on Brainstorm&rsquo;s member answers.",
       "<b>Your own words are never read as a limit.</b> A prompt that talks about &ldquo;rate limits&rdquo; used to fail a unit as rate-limited, because the page shows the prompt and the check read the whole page. The check now skips the prompt you sent, the composer, and a line inside a longer answer. And a prompt too long for a site (Perplexity: &ldquo;characters over the limit&rdquo;) is reported as <b>Prompt too long</b> at once, not as a timeout two minutes later &mdash; the fix is a shorter prompt, not waiting.",
+      "<b>Each unit&rsquo;s limits are in the Units sheet</b> (tap <b>Units</b> above the chips): its model, and <b>OK</b>, <b>Limited until</b> a time with a countdown, <b>Near limit</b>, <b>Fell back</b> or <b>Signed out</b>, with when it was last in a run and last checked. A chip with a red or amber dot is one of those. It is all from what the site showed during your runs and Brainstorm rounds &mdash; no browser is opened for it, and nothing checks on a timer. <b>Check now</b> opens that one unit&rsquo;s site (signed in as you, nothing sent) to look. Only <b>Claude (Pro)</b> has real numbers: it shares its allowance with Code Mode&rsquo;s Claude account, so it shows the same 5-hour and weekly bars. The other sites show no count, so none is invented. The Doctor&rsquo;s limit section reads the same verdict, and each person&rsquo;s engine keeps its own.",
     ],
   },
   {
@@ -10031,6 +10080,7 @@ function runOne({ question, units, files = [], attachTo = null }) {
       // while you were reading something else.
       if (showingLive()) { updateNode(p); updateCore(); drawLinks(); }
     } else if (msg.type === "done") {
+      loadUnitsUsage();   // what this run saw: limits, models (U3)
       for (const a of msg.answers) {
         const p = liveById(a.provider_id);
         if (!p) continue;
@@ -10591,7 +10641,12 @@ async function runDoctor() {
       authed({ method: "POST", body: form, signal: ctl.signal }));
     const data = await r.json();
     // A late response from an aborted pass must not overwrite the screen.
-    if (!ctl.signal.aborted) { S.doctorBusy = false; renderDoctor(data); }
+    if (!ctl.signal.aborted) {
+      S.doctorBusy = false;
+      // A doctor pass is a check: the Units sheet and chips show what it saw.
+      if (Array.isArray(data)) unitsTakeDoctor(data);
+      renderDoctor(data);
+    }
   } catch {
     // Abort lands here too; either way there is nothing to show.
   } finally {
@@ -10666,6 +10721,12 @@ function docUntil(iso) {
 /** A limit that still stands: live on the page, or seen in a run, not
  *  answered past since, and not past the reset time the site gave. */
 function docActiveLimits(d) {
+  // The engine's own verdict when it sends one (Phase U3) -- the SAME one the
+  // Units sheet shows, so the two can never disagree about a limit.
+  if (d.unit) {
+    const l = d.unit.limit;
+    return l ? [{ ...l, live: l.source === "check" && !!d.limit }] : [];
+  }
   const out = [];
   if (d.limit) out.push({ live: true, detail: d.limit });
   for (const i of (d.recent && d.recent.issues) || []) {
@@ -15118,6 +15179,12 @@ function renderUnitChips() {
     // codename is flavour, so it reads as the smaller, secondary label.
     b.append(el("span", "chip-model", p.display_name));
     b.append(el("span", "chip-unit", (UNIT[p.id] || "").split("\u00b7")[0]));
+    const use = UNITS_USE.byId[p.id];
+    if (use && CHIP_LIM[use.state]) {
+      b.append(el("span", `chip-lim ${use.state}`));
+      b.classList.add("has-lim");
+      b.title = `${p.display_name}: ${unitLimLine(use)}`;
+    }
     if (CHAIR.id === p.id) {
       // A star, not a colour or a border: the chip already uses both for the
       // unit's identity and for whether it is ticked.
@@ -15194,31 +15261,42 @@ async function setChair(id) {
 function openChairPicker() {
   const sheet = el("div", "sheet");
   const box = el("div", "sheet-box");
-  box.append(el("div", "sheet-hd", "Chairman"));
+  box.append(el("div", "sheet-hd", "Units"));
   box.append(el("div", "sheet-sub",
-    "The chairman is the member that reads every other answer and writes the " +
-    "verdict. It does not get a vote and it is not a tie-breaker \u2014 it decides " +
-    "what the council's answer actually says, so the choice changes the " +
-    "verdict. Pick the member you would trust to weigh the others, not the " +
-    "one you rate highest on its own."));
+    "Each unit's model and limits, from what its site showed in your runs " +
+    "(Check now opens it to look). Tap a unit to make it the chairman: the " +
+    "member that reads every other answer and writes the verdict. It does " +
+    "not get a vote and it is not a tie-breaker \u2014 it decides what the " +
+    "council's answer actually says, so pick the member you would trust to " +
+    "weigh the others, not the one you rate highest on its own."));
 
   const list = el("div", "chair-list");
   for (const p of orderedProviders()) {
-    const row = el("button", "chair-row" + (CHAIR.id === p.id ? " on" : ""));
-    row.type = "button";
+    const row = el("div", "chair-row unit-row" + (CHAIR.id === p.id ? " on" : ""));
     row.style.setProperty("--pa", p.accent);
+    const pick = el("button", "chair-pick");
+    pick.type = "button";
+    pick.title = `Make ${p.display_name} the chairman`;
     const names = el("div", "chair-names");
     names.append(el("div", "chair-name", p.display_name));
     names.append(el("div", "chair-sub", UNIT[p.id] || p.id));
-    row.append(names);
+    pick.append(names);
     const tags = el("div", "chair-tags");
     if (CHAIR.id === p.id) tags.append(el("span", "doc-flag ok", "Chairman"));
     if (!S.selected.has(p.id)) tags.append(el("span", "doc-flag na", "Unticked"));
-    row.append(tags);
-    row.onclick = () => { setChair(p.id); sheet.remove(); };
+    pick.append(tags);
+    pick.onclick = () => { setChair(p.id); sheet.remove(); };
+    row.append(pick, unitLimBox(p.id));
     list.append(row);
   }
   box.append(list);
+  // Fresh on every open (one cheap read, no browser), and the countdowns
+  // tick while it is on screen -- a minute is their resolution.
+  loadUnitsUsage();
+  const tick = setInterval(() => {
+    if (!sheet.isConnected) { clearInterval(tick); return; }
+    refreshUnitSheet();
+  }, 30000);
 
   const note = el("div", "sheet-note");
   const chairSelected = CHAIR.id && S.selected.has(CHAIR.id);
@@ -15238,6 +15316,152 @@ function openChairPicker() {
   dismissOnBackdrop(sheet, () => sheet.remove());
   sheet.append(box);
   document.body.append(sheet);
+}
+
+/* ══ UNITS: LIMITS AND MODEL (Phase U3) ════════════════════════════════════
+   GET /api/units/usage is the engine's verdict per unit, built from what it
+   already saw -- runs, Brainstorm turns, the last check -- plus, for Claude
+   (Pro), Code Mode's usage numbers for the same account. Nothing here opens a
+   browser except "Check now", and nothing runs on a timer: the list is read
+   at boot, when a run or round lands, and when the Units sheet opens.
+   Rule from U1: show only what a site or account said, never a guessed
+   count. Only Claude (Pro) has numbers, so only it can be "near" a limit. */
+const UNITS_USE = { byId: {}, checking: new Set(), err: {} };
+const CHIP_LIM = { limited: 1, near: 1, signed_out: 1, fallback: 1 };
+const UNIT_WIN = {
+  five_hour: "5-hour", seven_day: "Week",
+  seven_day_opus: "Week (Opus)", seven_day_sonnet: "Week (Sonnet)",
+};
+
+async function loadUnitsUsage() {
+  if (!online()) return;
+  try {
+    const r = await fetch(`${link.api}/api/units/usage`, authed());
+    if (!r.ok) return;                     // an older engine: no panel, no dots
+    const d = await r.json();
+    for (const u of d.units || []) UNITS_USE.byId[u.id] = u;
+  } catch { return; }
+  if (S.providers.length) renderUnitChips();
+  refreshUnitSheet();
+}
+
+function unitsTakeDoctor(data) {
+  let any = false;
+  for (const d of data) if (d && d.unit) { UNITS_USE.byId[d.provider_id] = d.unit; any = true; }
+  if (any && S.providers.length) renderUnitChips();
+}
+
+/** Where the unit stands, in one line. Also the chip's tooltip. */
+function unitLimLine(u) {
+  if (u.state === "limited") {
+    const r = u.limit && u.limit.resets_at;
+    if (!r) return "Limited — the site gave no reset time";
+    const until = docUntil(r);
+    return until ? `Limited until ${until}` : "Limited — should have lifted by now";
+  }
+  if (u.state === "near") {
+    const n = u.near || {};
+    return `Near its limit: ${Math.round((n.utilization || 0) * 100)}% of the ` +
+           `${(UNIT_WIN[n.window] || n.window || "").toLowerCase()} allowance used`;
+  }
+  if (u.state === "signed_out") return "Signed out at the last check — sign in from Accounts";
+  if (u.state === "fallback") return `Fell back to ${u.model || "another model"}`;
+  if (u.state === "ok") return "OK";
+  return "Not used yet on this engine";
+}
+
+function unitLimBox(id) {
+  const box = el("div", "unit-lim");
+  box.dataset.unit = id;
+  const u = UNITS_USE.byId[id];
+  const busy = UNITS_USE.checking.has(id);
+  if (!u) {
+    box.append(el("span", "unit-lim-state unknown", online() ? "Reading…" : "Engine offline"));
+  } else {
+    box.append(el("span", `unit-lim-state ${u.state}`, unitLimLine(u)));
+    if (u.model) box.append(modelChip(u.model, u.state === "fallback" ? u.model_fallback : ""));
+  }
+  const chk = el("button", "unit-lim-check");
+  chk.type = "button";
+  chk.disabled = busy || !online();
+  if (busy) chk.append(spinnerEl());
+  chk.append(document.createTextNode(busy ? "Checking…" : "Check now"));
+  chk.title = "Open this unit's site now (signed in as you, nothing sent) and read what it shows";
+  chk.onclick = () => unitCheckNow(id);
+  box.append(chk);
+  if (!u) return box;
+
+  const lim = u.limit;
+  if (lim && lim.detail) {
+    const said = lim.detail.replace(/^The site said:\s*/, "");
+    const how = lim.source === "account" ? "From the account's usage numbers"
+      : lim.source === "check" ? `Showing at the check ${docAgo(lim.at)}`
+      : `Hit in a run ${docAgo(lim.at)}`;
+    box.append(el("div", "unit-lim-sub", `${how}: “${said}”`));
+  }
+  if (u.state === "fallback" && u.model_fallback) {
+    box.append(el("div", "unit-lim-sub warn", u.model_fallback));
+  }
+  if (u.too_long) {
+    box.append(el("div", "unit-lim-sub warn",
+      `Its last prompt was too long for it (${docAgo(u.too_long.at)}). Waiting will not help; a shorter prompt will.`));
+  }
+  const wins = (u.account && u.account.windows) || {};
+  const names = Object.keys(wins);
+  if (names.length) {
+    const bars = el("div", "unit-lim-bars");
+    const warn = ((u.account && u.account.warn_at) || 80) / 100;
+    for (const w of names) {
+      const v = wins[w];
+      const pct = Math.round((v.utilization || 0) * 100);
+      const row = el("div", "unit-lim-bar" + (v.utilization >= 1 ? " full" : v.utilization >= warn ? " near" : ""));
+      const bar = el("i");
+      const fill = el("b");
+      fill.style.width = `${Math.min(100, pct)}%`;
+      bar.append(fill);
+      row.append(el("span", null, UNIT_WIN[w] || w), bar, el("span", null, `${pct}%`));
+      row.title = v.resets_at ? `Resets ${docUntil(v.resets_at) || "now"}` : "";
+      bars.append(row);
+    }
+    box.append(bars);
+    box.append(el("div", "unit-lim-sub",
+      `Numbers from Code Mode's Claude account “${u.account.label}”: claude.ai and Claude Code share one allowance.`));
+  }
+  const seen = [];
+  if (u.last_seen_at) seen.push(`last in a run ${docAgo(u.last_seen_at)}`);
+  seen.push(u.checked_at ? `checked ${docAgo(u.checked_at)}` : "never checked");
+  box.append(el("div", "unit-lim-sub", seen.join(" · ").replace(/^./, (c) => c.toUpperCase())));
+  if (UNITS_USE.err[id]) box.append(el("div", "unit-lim-sub warn", UNITS_USE.err[id]));
+  return box;
+}
+
+/** Redraw each unit's limits line in place (the sheet stays open). */
+function refreshUnitSheet() {
+  for (const old of document.querySelectorAll(".unit-lim[data-unit]")) {
+    old.replaceWith(unitLimBox(old.dataset.unit));
+  }
+}
+
+async function unitCheckNow(id) {
+  if (UNITS_USE.checking.has(id) || !online()) return;
+  UNITS_USE.checking.add(id);
+  delete UNITS_USE.err[id];
+  refreshUnitSheet();
+  try {
+    const r = await fetch(`${link.api}/api/units/${encodeURIComponent(id)}/check`,
+                          authed({ method: "POST" }));
+    const d = await r.json().catch(() => ({}));
+    if (d.unit) UNITS_USE.byId[id] = d.unit;
+    if (!r.ok || !d.ok) {
+      UNITS_USE.err[id] = d.message || d.detail
+        || (r.ok ? "The check could not reach the site." : `Check failed (${r.status}).`);
+    }
+  } catch (e) {
+    UNITS_USE.err[id] = e?.message || "Check failed.";
+  }
+  UNITS_USE.checking.delete(id);
+  if (S.providers.length) renderUnitChips();
+  refreshUnitSheet();
 }
 
 const DRAG = {
@@ -18491,6 +18715,7 @@ function listenBs(sid, jobId, kind) {
         renderBsView();
       }
     } else if (msg.type === "done") {
+      loadUnitsUsage();   // what the round saw: limits, models (U3)
       if (kind === "finalize") {
         S.bs.status = "complete";
         S.bs.planFilename = msg.plan_filename || null;
@@ -23030,6 +23255,7 @@ async function boot() {
   loadHistory();
   loadAccounts(true);
   loadChair();
+  loadUnitsUsage();
   renderStudioNav();
   loadBsSessions();
   paintIcons();

@@ -18,17 +18,27 @@ Two things this has to get right:
 * A limit is not permanent. Sites say how long ("6 hours 50 minutes before
   limit is gone", "resets at 5:00 PM"), so the reset time is worked out from
   the moment it was seen, and a later successful answer marks it cleared.
+
+* The snapshot is the whole page, and the page includes the user's own
+  question. A prompt that said "rate limits" used to be read back as the site
+  saying so (Phase U3): a line that is part of the question or of the answer
+  that was saved is our words, not the site's, and is skipped.
+
+Brainstorm turns count too (Phase U3): a member that hit its limit in a
+round is just as limited for the next council run.
 """
 
 from __future__ import annotations
 
 import asyncio
+import html as html_lib
 import json
 import re
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from ..browser.resolve import _norm
 from ..errors import FailureKind
 
 WINDOW_HOURS = 48
@@ -75,10 +85,19 @@ def _limit_patterns(selectors: list[str]) -> list[re.Pattern]:
     return out
 
 
-def _snapshot_limit(artifacts_json: str | None, patterns: list[re.Pattern]) -> str:
-    """The limit wording in a failure's saved page, or ""."""
+def _snapshot_limit(artifacts_json: str | None, patterns: list[re.Pattern],
+                    ours: str = "") -> str:
+    """The limit wording in a failure's saved page, or "".
+
+    `ours` is the text WE put on that page -- the question that was sent and
+    whatever answer was saved. A line inside it is skipped: it is the user's
+    prompt (or the unit quoting it), not the site's notice. Skipping is the
+    safe direction, as in resolve.notice: a real notice quoted word for word
+    in the prompt stays a timeout, and a prompt can no longer invent a limit.
+    """
     if not patterns or not artifacts_json:
         return ""
+    said = _norm(ours)
     try:
         paths = json.loads(artifacts_json) or []
     except ValueError:
@@ -101,6 +120,9 @@ def _snapshot_limit(artifacts_json: str | None, patterns: list[re.Pattern]) -> s
         for ln in filter(None, lines):
             if len(ln) > 400:
                 continue
+            n = _norm(html_lib.unescape(ln))
+            if said and n and n in said:
+                continue
             for pat in patterns:
                 if pat.search(ln):
                     return ln
@@ -117,26 +139,76 @@ def _parse_at(s: str | None) -> datetime | None:
     return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
 
 
+_EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+
+def _sort_at(s: str | None) -> datetime:
+    return _parse_at(s) or _EPOCH
+
+
+def _has_table(con: sqlite3.Connection, name: str) -> bool:
+    return bool(con.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,)
+    ).fetchone())
+
+
+def _brainstorm_last_ok(con: sqlite3.Connection, provider_id: str) -> str | None:
+    if not _has_table(con, "brainstorm_turns"):
+        return None
+    return con.execute(
+        "SELECT MAX(created_at) FROM brainstorm_turns WHERE provider_id=? AND ok=1",
+        (provider_id,),
+    ).fetchone()[0]
+
+
+def _brainstorm_failures(con: sqlite3.Connection, provider_id: str, since: str) -> list[dict]:
+    """A member's failed Brainstorm turns, in the answers' row shape. No
+    snapshot is kept for these (artifacts None), so only the recorded kind
+    counts -- nothing is mined out of a page."""
+    if not _has_table(con, "brainstorm_turns"):
+        return []
+    return [
+        {"failure_kind": r[0], "error_detail": r[1], "degraded_reason": r[2],
+         "ended_at": r[3], "artifacts": None, "answer_text": None, "question": None}
+        for r in con.execute(
+            """SELECT failure_kind, error_detail, degraded_reason, created_at
+               FROM brainstorm_turns
+               WHERE provider_id=? AND ok=0 AND created_at>=?
+                 AND COALESCE(failure_kind,'') != ?
+               ORDER BY created_at DESC LIMIT 25""",
+            (provider_id, since, str(FailureKind.CANCELLED)),
+        ).fetchall()
+    ]
+
+
 def _recent_sync(db_path: str, provider_id: str, rate_limit_selectors: list[str]) -> dict:
     now = datetime.now(timezone.utc)
     since = (now - timedelta(hours=WINDOW_HOURS)).isoformat()
     con = sqlite3.connect(db_path)
     con.row_factory = sqlite3.Row
     try:
-        last_ok = con.execute(
-            "SELECT MAX(ended_at) FROM answers WHERE provider_id=? AND ok=1",
-            (provider_id,),
-        ).fetchone()[0]
-        rows = con.execute(
-            """SELECT failure_kind, error_detail, degraded_reason, ended_at, artifacts
-               FROM answers
-               WHERE provider_id=? AND ok=0 AND ended_at>=?
-                 AND COALESCE(failure_kind,'') != ?
-               ORDER BY ended_at DESC LIMIT 25""",
+        last_ok = max(filter(None, (
+            con.execute(
+                "SELECT MAX(ended_at) FROM answers WHERE provider_id=? AND ok=1",
+                (provider_id,),
+            ).fetchone()[0],
+            _brainstorm_last_ok(con, provider_id),
+        )), default=None, key=_sort_at)
+        rows = [dict(r) for r in con.execute(
+            """SELECT a.failure_kind, a.error_detail, a.degraded_reason, a.ended_at,
+                      a.artifacts, a.answer_text, r.question
+               FROM answers a LEFT JOIN runs r ON r.id = a.run_id
+               WHERE a.provider_id=? AND a.ok=0 AND a.ended_at>=?
+                 AND COALESCE(a.failure_kind,'') != ?
+               ORDER BY a.ended_at DESC LIMIT 25""",
             (provider_id, since, str(FailureKind.CANCELLED)),
-        ).fetchall()
+        ).fetchall()]
+        rows += _brainstorm_failures(con, provider_id, since)
     finally:
         con.close()
+    # Newest first across both tables. Compared as datetimes: answers store
+    # isoformat with an offset, brainstorm turns the same, but never trust it.
+    rows.sort(key=lambda r: _sort_at(r["ended_at"]), reverse=True)
 
     last_ok_at = _parse_at(last_ok)
     patterns = _limit_patterns(rate_limit_selectors)
@@ -153,7 +225,8 @@ def _recent_sync(db_path: str, provider_id: str, rate_limit_selectors: list[str]
         if "has been closed" in detail:
             continue
         if kind != str(FailureKind.RATE_LIMITED):
-            said = _snapshot_limit(r["artifacts"], patterns)
+            ours = "\n".join(x for x in (r.get("question"), r.get("answer_text")) if x)
+            said = _snapshot_limit(r.get("artifacts"), patterns, ours)
             if said:
                 kind, detail = str(FailureKind.RATE_LIMITED), f"The site said: {said}"
         # The newest of each kind is the one worth reading.

@@ -205,9 +205,11 @@ def test_an_old_timeout_whose_snapshot_shows_a_limit_is_reported_as_one(tmp_path
                     "<div class='x'>6 hours 50 minutes before limit is gone</div>", encoding="utf-8")
     db = tmp_path / "m.db"
     con = sqlite3.connect(db)
-    con.execute("CREATE TABLE answers(provider_id, ok, failure_kind, error_detail, degraded_reason, ended_at, artifacts)")
+    con.execute("CREATE TABLE runs(id, question)")
+    con.execute("CREATE TABLE answers(run_id, provider_id, ok, failure_kind, error_detail,"
+                " degraded_reason, ended_at, artifacts, answer_text)")
     now = datetime.now(timezone.utc).isoformat()
-    con.execute("INSERT INTO answers VALUES('grok',0,'empty_response','stayed empty',NULL,?,?)",
+    con.execute("INSERT INTO answers VALUES('r1','grok',0,'empty_response','stayed empty',NULL,?,?,NULL)",
                 (now, json.dumps([str(snap)])))
     con.commit(); con.close()
     r = usage._recent_sync(str(db), "grok", ["text=/before limit is gone/i"])

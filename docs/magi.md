@@ -2066,6 +2066,50 @@ its own failure, **`prompt_too_long`**, caught when the send button is
 disabled or within a poll of the wait, instead of a 120s TIMEOUT whose remedy
 was "raise hard_timeout_s". The remedy is a shorter prompt.
 
+### Each unit's limits (Phase U3)
+
+Tap **Units** above the chips. The sheet shows, per unit: its model, one of
+**OK / Limited until T (countdown) / Near limit / Fell back / Signed out /
+Not used yet**, when it was last in a run and last checked, and a **Check
+now** button. A chip whose unit is limited or signed out gets a red dot;
+near a limit or fell back, amber. Tapping the unit's name still makes it the
+chairman.
+
+Where it comes from — `GET /api/units/usage` → `engine/units.py`, **no
+browser opened**:
+
+* **Runs and Brainstorm turns** in the profile's `magi.db`: the newest model
+  label (U2), the last good answer, and `engine/usage.recent` — the limits
+  runs hit, with the reset time the site gave (`usage.parse_reset`), cleared
+  by a later good answer or by the reset time passing. Brainstorm failures
+  count now (a member limited in a round is limited for the next run).
+* **The last check** per unit, in `data/<profile>/unit_checks.json`: written
+  by **Check now** (`POST /api/units/{id}/check`, the doctor's probe on one
+  unit: signed in, a notice on the page, the model label; nothing is sent)
+  and by every doctor pass. A check that did not reach the site is not kept.
+  Check now is refused while a run holds that unit's browser.
+* **Claude (Pro)**: Code Mode's usage numbers for the Claude account whose
+  plan is Pro (`code/agents/limits`, refreshed at most once a minute) — the
+  5-hour and weekly bars. claude.ai and Claude Code share one allowance, so
+  they are this unit's numbers. "Near limit" uses Code Mode's *Warn me at*.
+  A free Claude slot is never shown as Pro. No other unit has a count, and
+  none is invented.
+
+The order of the verdict: account at 100% / a notice at the last check (not
+answered past since) / a limit a run hit → **Limited**; past *Warn me at* →
+**Near**; the last check reached the site signed out → **Signed out**; the
+newest answer's model was a fallback → **Fell back**; any good answer or a
+usable check → **OK**. The doctor's limit section reads the same verdict (the
+doctor response carries `unit` per unit). Everything is per profile: Tony's
+and Veda's engines keep their own database, checks file and Code Mode
+numbers.
+
+Also in U3: `usage._snapshot_limit` (reading an old failure's saved page for
+limit wording) skips lines that are the question sent or the saved answer —
+an old timeout whose snapshot showed a prompt about "rate limits" was
+reported as a limit. And Grok's scoped `limit_notice` (its role=alert card)
+is tried before the page-wide `rate_limit_selectors` (`SiteSelectors.limit_rules`).
+
 ---
 
 ## Troubleshooting

@@ -397,3 +397,20 @@ def test_the_model_chip_claims_still_hold():
     # "reported as Prompt too long".
     assert 'prompt_too_long: "Prompt too long"' in PAGE
     assert "Your own words are never read as a limit" in HOW
+
+
+def test_the_units_limits_claims_still_hold():
+    """Phase U3: the Units sheet's limits, and what it promises not to do."""
+    assert "limits are in the Units sheet" in HOW
+    from magi.engine import units
+    # The five words it names are the engine's own headlines.
+    for word in ("OK", "Limited", "Near limit", "Fell back", "Signed out"):
+        assert word in units.HEADLINE.values(), word
+    # "no browser is opened for it, and nothing checks on a timer": the one
+    # route that launches is a POST the console sends only from a tap.
+    assert PAGE.count("/api/units/${encodeURIComponent(id)}/check") == 1
+    assert "chk.onclick = () => unitCheckNow(id)" in PAGE
+    # "Only Claude (Pro) has real numbers".
+    assert units.PRO_UNIT == "claude-pro"
+    # "The Doctor's limit section reads the same verdict".
+    assert "if (d.unit) {" in PAGE[PAGE.index("function docActiveLimits"):][:600]
