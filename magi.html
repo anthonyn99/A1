@@ -726,6 +726,57 @@ body {
 }
 .unit-pick-sel:disabled { opacity: .6; }
 @media (max-width: 760px) { .unit-pick-sel { height: 36px; } }
+/* The daily kickstart (Claude Pro, Tony's engine only). Same hairline
+   section as the model picker; the options fold away while it is off. */
+.unit-kick {
+  flex: 1 1 100%; display: flex; flex-direction: column; gap: 8px;
+  padding: 8px 12px 10px; font-size: 11px; color: var(--txd);
+  border-top: 1px solid var(--bd); min-width: 0;
+}
+.unit-kick:empty { display: none; }
+.kick-hd { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.kick-sw { position: relative; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.kick-sw input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
+.kick-sw i {
+  position: relative; width: 28px; height: 16px; border-radius: 8px; flex: none;
+  background: var(--bd); transition: background .15s;
+}
+.kick-sw i::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px;
+  border-radius: 50%; background: var(--txd); transition: transform .15s, background .15s;
+}
+.kick-sw input:checked + i { background: color-mix(in srgb, var(--grn) 55%, var(--bd)); }
+.kick-sw input:checked + i::after { transform: translateX(12px); background: var(--tx); }
+.kick-sw input:focus-visible + i { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ac) 35%, transparent); }
+.kick-sw input:disabled + i { opacity: .5; }
+.kick-title { font-weight: 700; color: var(--tx); }
+.kick-st { order: 3; flex: 1 1 100%; font-size: 10.5px; line-height: 1.5; overflow-wrap: anywhere; }
+.kick-st.ok { color: var(--grn); }
+.kick-st.muted { color: var(--txm); }
+.kick-st.warn { color: var(--amber); }
+.kick-st.bad { color: var(--red); }
+.kick-opts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.kick-f { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.kick-f > .unit-pick-lbl { white-space: nowrap; }
+.kick-cap { flex: 1 1 200px; }
+.kick-cap .use-slider { flex: 1 1 auto; min-width: 60px; }
+.kick-cap .use-val { text-align: right; }
+.kick-msg { flex: 1 1 100%; }
+.kick-in {
+  height: 30px; padding: 0 8px; border-radius: 7px; min-width: 0;
+  background: var(--s2); border: 1px solid var(--bdl); color: var(--tx);
+  font: inherit; font-size: 11.5px;
+}
+.kick-msg .kick-in { flex: 1 1 auto; }
+.kick-in:focus { outline: none; border-color: var(--ac); }
+.kick-in:disabled { opacity: .6; }
+@media (max-width: 760px) {
+  .kick-in { height: 36px; font-size: 16px; }   /* 16px: iOS zooms into smaller fields */
+  .kick-f { flex: 1 1 100%; }
+  .kick-f > .unit-pick-lbl { min-width: 92px; }
+  .kick-time { flex: 1 1 auto; }
+  .kick-sw { min-height: 36px; }
+}
 
 /* The same verdict as a dot on the chip, so a limited unit is visible before
    you tick it. Top-left: the chair's star owns top-right. */
@@ -6870,7 +6921,7 @@ const HOW = [
   {
     q: "Units \u2014 what ticking one does",
     a: [
-      "The tick boxes under the question decide exactly which models are used, and <b>nothing anywhere drives an unticked one</b>. Not the council, not the chairman, not Studio, not Brainstorm, not Refine, not the Doctor.",
+      "The tick boxes under the question decide exactly which models are used, and <b>nothing anywhere drives an unticked one</b>. Not the council, not the chairman, not Studio, not Brainstorm, not Refine, not the Doctor. (One exception, on Tony&rsquo;s engine: the <b>Daily kickstart</b> below reaches the Claude Pro account through Claude Code, not the unit&rsquo;s browser, whether Claude (Pro) is ticked or not.)",
       "That includes reaching the same model another way: unticking Gemini also stops Refine using the Gemini API key, because the boxes name models, not connections.",
       "Selecting a single unit is a completely normal way to use MAGI. There is no minimum.",
       "<b>The council has seven members, and two of them are Claude.</b> One is signed in to the free account and one to the subscription, because they draw on different allowances &mdash; Code Mode spends the subscription, so pointing every deliberation at it means the two compete. Tick the free one for ordinary questions, the paid one when the answer is worth it, or both to get two independent answers.",
@@ -6881,6 +6932,7 @@ const HOW = [
       "<b>Your own words are never read as a limit.</b> A prompt that talks about &ldquo;rate limits&rdquo; used to fail a unit as rate-limited, because the page shows the prompt and the check read the whole page. The check now skips the prompt you sent, the composer, and a line inside a longer answer. And a prompt too long for a site (Perplexity: &ldquo;characters over the limit&rdquo;) is reported as <b>Prompt too long</b> at once, not as a timeout two minutes later &mdash; the fix is a shorter prompt, not waiting.",
       "<b>Each unit&rsquo;s limits are in the Units sheet</b> (tap <b>Units</b> above the chips): its model, and <b>OK</b>, <b>Limited until</b> a time with a countdown, <b>Near limit</b>, <b>Fell back</b> or <b>Signed out</b>, with when it was last in a run and last checked. A chip with a red or amber dot is one of those. It is all from what the site showed during your runs and Brainstorm rounds &mdash; no browser is opened for it, and nothing checks on a timer. <b>Check now</b> opens that one unit&rsquo;s site (signed in as you, nothing sent) to look. Only <b>Claude (Pro)</b> has real numbers: it shares its allowance with Code Mode&rsquo;s Claude account, so it shows the same 5-hour and weekly bars. The other sites show no count, so none is invented. The Doctor&rsquo;s limit section reads the same verdict, and each person&rsquo;s engine keeps its own.",
       "<b>Choose each unit&rsquo;s model in the Units sheet</b>: a <b>Model</b> dropdown under Claude, Claude (Pro), Gemini and Grok, the only sites with a picker your accounts can use (ChatGPT, Perplexity and DeepSeek answer on their default). <b>Site default</b> is first and means MAGI leaves the site&rsquo;s picker alone. A choice is per person, kept on your own engine, and used by every turn that unit takes &mdash; council, chairman, Brainstorm and Studio. Before typing, the unit opens the site&rsquo;s menu, picks the model and checks the menu&rsquo;s own tick (sites remember a pick, so after the first time nothing is clicked). If the model is locked, gone, or the site will not switch, the run is <b>never failed</b>: the unit answers on what the site gives and its card says <b>Asked for X, got Y</b>. <b>Refresh models</b> opens that site once (nothing sent) to read what your account is offered, locked ones marked.",
+      "<b>Daily kickstart</b> (Claude (Pro) in the Units sheet, Tony&rsquo;s engine only): Claude&rsquo;s 5-hour window starts at your first message, so once a day, at the first check after <b>Not before</b> (or when the engine comes online, if that is later), MAGI sends the smallest message it can on the Pro account &mdash; through Claude Code on Haiku, with no tools and a one-line prompt, about 670 tokens in and 4 out. It is silent: no browser, nothing in your claude.ai chats. It is <b>skipped</b> when the weekly usage is at or above <b>Skip at week &ge;</b> (80% by default). If a window is already open, it waits for that window to reset, and a window you opened yourself after Not before counts as done. <b>Send now</b> sends at once (the weekly cap still applies).",
     ],
   },
   {
@@ -15408,7 +15460,7 @@ function openChairPicker() {
     if (!S.selected.has(p.id)) tags.append(el("span", "doc-flag na", "Unticked"));
     pick.append(tags);
     pick.onclick = () => { setChair(p.id); sheet.remove(); };
-    row.append(pick, unitLimBox(p.id), unitPickBox(p.id));
+    row.append(pick, unitLimBox(p.id), unitPickBox(p.id), unitKickBox(p.id));
     list.append(row);
   }
   box.append(list);
@@ -15559,6 +15611,7 @@ function refreshUnitSheet() {
   for (const old of document.querySelectorAll(".unit-lim[data-unit]")) {
     old.replaceWith(unitLimBox(old.dataset.unit));
   }
+  refreshUnitKicks();
 }
 
 async function unitCheckNow(id) {
@@ -15711,6 +15764,180 @@ async function unitRefreshModels(id) {
   }
   UNITS_PICK.busy.delete(id);
   refreshUnitPicks();
+}
+
+/* ══ UNITS: DAILY KICKSTART (Claude Pro, Tony's engine) ═══════════════════
+   Once a day, after "Not before", the engine sends the smallest possible
+   message on the Pro account through Claude Code (Haiku, no tools, a
+   one-line system prompt: ~670 tokens in, 4 out) so the five-hour window
+   starts when you want it, not at the day's first real question. Engine
+   side: magi/engine/kickstart.py. It comes in the /api/units/usage entry as
+   `kickstart`, only on Tony's engine with a Pro account in Code Mode, so
+   Veda's sheet has no such section. Silent: no browser, nothing in the
+   claude.ai chat list, and ticking or unticking the unit has no effect. */
+const UNITS_KICK = { busy: false, err: "" };
+
+const kickClock = (sec) => sec
+  ? new Date(sec * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
+const kickUntil = (sec) => (sec ? docUntil(new Date(sec * 1000).toISOString()) : "");
+const kickHHMM = (hhmm) => {
+  const [h, m] = String(hhmm || "06:00").split(":").map(Number);
+  const d = new Date(); d.setHours(h, m, 0, 0);
+  return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+};
+
+/** Where today's kickstart stands, as [text, tone]. */
+function kickLine(k) {
+  if (UNITS_KICK.busy || k.busy) return ["Sending…", "muted"];
+  if (!k.enabled) return ["Off", "muted"];
+  const s = k.state || {};
+  const resets = kickUntil(s.window_resets_at);
+  const until = kickUntil(s.until);
+  switch (s.status) {
+    case "sent": return [`Sent ${kickClock(s.sent_at)}` + (resets ? ` · resets ${resets}` : ""), "ok"];
+    case "already": return ["You opened today's window" + (resets ? ` · resets ${resets}` : ""), "ok"];
+    case "early": return [`Sends at ${kickHHMM(k.not_before)}`, "muted"];
+    case "open": return ["Window already open — sends when it resets" + (until ? `, ${until}` : ""), "muted"];
+    case "capped": return [`Skipped — ${s.detail}`, "warn"];
+    case "limited": return ["Skipped — limited" + (until ? ` until ${until}` : ""), "bad"];
+    case "no_reading": return ["Waiting for a usage reading", "warn"];
+    case "updating": return ["Waiting — Claude Code is updating", "muted"];
+    case "failed": return [`Failed (try ${s.tries || 1}/3) — ${s.detail || "no answer"}`, "bad"];
+    case "gave_up": return [`Gave up today — ${s.detail || "3 tries failed"}`, "bad"];
+  }
+  return [`Sends at ${kickHHMM(k.not_before)}, or when the engine comes online`, "muted"];
+}
+
+function unitKickBox(id) {
+  const box = el("div", "unit-kick");
+  box.dataset.unit = id;
+  const k = UNITS_USE.byId[id] && UNITS_USE.byId[id].kickstart;
+  if (!k) return box;                       // not Tony's engine, or an older one
+  const busy = UNITS_KICK.busy || !!k.busy;
+  const off = !online();
+
+  const hd = el("div", "kick-hd");
+  const sw = el("label", "kick-sw");
+  sw.title = "Once a day, send the smallest possible message on this account so the " +
+    "five-hour window starts early. Runs silently through Claude Code, ticked or not.";
+  const cb = document.createElement("input");
+  cb.type = "checkbox";
+  cb.checked = !!k.enabled;
+  cb.disabled = off;
+  cb.onchange = () => unitKickSave(id, { enabled: cb.checked });
+  sw.append(cb, el("i"), el("span", "kick-title", "Daily kickstart"));
+  const [txt, tone] = kickLine(k);
+  const st = el("span", `kick-st ${tone}`, txt);
+  if (k.last && k.last.at) st.title = `Last checked ${docAgo(new Date(k.last.at * 1000).toISOString())}`;
+  const now = el("button", "unit-lim-check");
+  now.type = "button";
+  now.disabled = busy || off;
+  if (busy) now.append(spinnerEl());
+  now.append(document.createTextNode(busy ? "Sending…" : "Send now"));
+  now.title = "Send it now (still skipped at the weekly cap or a limit)";
+  now.onclick = () => unitKickRun(id);
+  hd.append(sw, now, st);
+  box.append(hd);
+
+  if (k.enabled) {
+    const opts = el("div", "kick-opts");
+    const nb = el("label", "kick-f");
+    nb.append(el("span", "unit-pick-lbl", "Not before"));
+    const tm = document.createElement("input");
+    tm.type = "time";
+    tm.className = "kick-in kick-time";
+    tm.value = k.not_before || "06:00";
+    tm.disabled = off;
+    tm.onchange = () => { if (tm.value) unitKickSave(id, { not_before: tm.value }); };
+    nb.append(tm);
+
+    const cap = el("label", "kick-f kick-cap");
+    cap.append(el("span", "unit-pick-lbl", "Skip at week ≥"));
+    const rng = document.createElement("input");
+    rng.type = "range";
+    rng.className = "use-slider is-plain";
+    rng.min = "50"; rng.max = "100"; rng.step = "5";
+    rng.value = String(k.week_cap || 80);
+    rng.disabled = off;
+    rng.setAttribute("aria-label", "Skip when the weekly usage is at or above");
+    const val = el("span", "use-val");
+    const show = () => {
+      val.textContent = `${rng.value}%`;
+      rng.style.setProperty("--v", `${(Number(rng.value) - 50) / 50 * 100}%`);
+    };
+    show();
+    rng.oninput = show;
+    rng.onchange = () => unitKickSave(id, { week_cap: Number(rng.value) });
+    cap.append(rng, val);
+
+    const msg = el("label", "kick-f kick-msg");
+    msg.append(el("span", "unit-pick-lbl", "Message"));
+    const mi = document.createElement("input");
+    mi.type = "text";
+    mi.className = "kick-in";
+    mi.maxLength = 200;
+    mi.value = k.message || "k";
+    mi.disabled = off;
+    mi.spellcheck = false;
+    mi.title = "One short word is cheapest. The reply is pinned to one letter, so a " +
+      "longer message only adds its own tokens.";
+    mi.onkeydown = (e) => { if (e.key === "Enter") mi.blur(); };
+    mi.onchange = () => {
+      const v = mi.value.trim();
+      if (!v) { mi.value = k.message || "k"; return; }
+      unitKickSave(id, { message: v });
+    };
+    msg.append(mi);
+    opts.append(nb, cap, msg);
+    box.append(opts);
+  }
+  if (UNITS_KICK.err) box.append(el("div", "unit-lim-sub warn", UNITS_KICK.err));
+  return box;
+}
+
+/** Redraw in place, but never under a field you are editing. */
+function refreshUnitKicks(force) {
+  for (const old of document.querySelectorAll(".unit-kick[data-unit]")) {
+    const a = document.activeElement;
+    if (!force && a && old.contains(a) && a.tagName === "INPUT") continue;
+    old.replaceWith(unitKickBox(old.dataset.unit));
+  }
+}
+
+function unitKickTake(id, d) {
+  const u = UNITS_USE.byId[id];
+  if (u && d && d.kickstart) u.kickstart = d.kickstart;
+}
+
+async function unitKickPost(id, path, body) {
+  UNITS_KICK.err = "";
+  try {
+    const r = await fetch(`${link.api}/api/units/claude-pro/kickstart${path}`,
+      authed({ method: "POST", headers: { "Content-Type": "application/json" },
+               body: JSON.stringify(body || {}) }));
+    const d = await r.json().catch(() => ({}));
+    if (r.ok) unitKickTake(id, d);
+    else UNITS_KICK.err = d.detail || `Could not save (${r.status}).`;
+  } catch (e) {
+    UNITS_KICK.err = e?.message || "Could not reach the engine.";
+  }
+}
+
+async function unitKickSave(id, change) {
+  if (!online()) return;
+  await unitKickPost(id, "", change);
+  refreshUnitKicks(true);
+}
+
+async function unitKickRun(id) {
+  if (UNITS_KICK.busy || !online()) return;
+  UNITS_KICK.busy = true;
+  refreshUnitKicks(true);
+  await unitKickPost(id, "/run");
+  UNITS_KICK.busy = false;
+  refreshUnitKicks(true);
+  // The send moved the five-hour bar: re-read the numbers.
+  loadUnitsUsage();
 }
 
 const DRAG = {

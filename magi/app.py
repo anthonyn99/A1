@@ -118,11 +118,19 @@ async def lifespan(app: FastAPI):
     if not os.environ.get("PYTEST_CURRENT_TEST") and not os.environ.get("MAGI_NO_AUTO_UPDATE"):
         from .code.agents import updates as _updates
         auto_update = asyncio.create_task(_updates.auto_loop())
+    # The daily Claude (Pro) kickstart (engine/kickstart.py): Tony's engine
+    # only; on any other profile the loop never sends anything.
+    kick = None
+    if not os.environ.get("PYTEST_CURRENT_TEST") and not os.environ.get("MAGI_NO_KICKSTART"):
+        from .engine import kickstart as _kickstart
+        kick = asyncio.create_task(_kickstart.auto_loop())
     try:
         yield
     finally:
         if auto_update:
             auto_update.cancel()
+        if kick:
+            kick.cancel()
         KEEP_AWAKE.stop()
 
 
@@ -2251,6 +2259,41 @@ async def units_check(provider_id: str):
     rec = units.save_check(settings.db_path, provider_id, r)
     return {"ok": rec["reachable"], "error": "" if rec["reachable"] else "unreachable",
             "message": rec["error"], "unit": await units.unit(settings.db_path, p)}
+
+
+# ── units: the daily Claude (Pro) kickstart ─────────────────────────────────
+def _kickstart_or_404():
+    from .engine import kickstart
+    if not kickstart.available():
+        raise HTTPException(404, "The daily kickstart needs Tony's engine and a "
+                                 "Claude Pro account signed in to Code Mode.")
+    return kickstart
+
+
+@app.post("/api/units/claude-pro/kickstart")
+async def units_kickstart_save(request: Request):
+    """Save the kickstart's settings (any of enabled, message, not_before,
+    week_cap). Nothing is sent now; the next tick uses them."""
+    ks = _kickstart_or_404()
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    body = body if isinstance(body, dict) else {}
+    try:
+        ks.save_config({k: body[k] for k in ("enabled", "message", "not_before", "week_cap")
+                        if k in body})
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from None
+    # Re-decide at once, so the status line matches the new settings.
+    return {"ok": True, "kickstart": await ks.tick()}
+
+
+@app.post("/api/units/claude-pro/kickstart/run")
+async def units_kickstart_run():
+    """Send the kickstart now. Still held by the weekly cap and by a limit."""
+    ks = _kickstart_or_404()
+    return {"ok": True, "kickstart": await ks.tick(force=True)}
 
 
 # ── units: choose the model (Phase U4) ──────────────────────────────────────

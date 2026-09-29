@@ -291,6 +291,15 @@ async def unit(db_path: str | Path, provider, *, checks: dict | None = None,
                     recent=recent, facts=f, check=checks.get(provider.id),
                     account=account if provider.id == PRO_UNIT else None)
     out.update(menu(provider))
+    if provider.id == PRO_UNIT:
+        # The daily kickstart's panel (Tony's engine only; absent elsewhere).
+        from . import kickstart
+        try:
+            ks = kickstart.panel()
+        except Exception:  # noqa: BLE001 -- the Units sheet must still render
+            ks = None
+        if ks:
+            out["kickstart"] = ks
     return out
 
 
