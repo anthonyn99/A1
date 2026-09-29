@@ -445,8 +445,58 @@ def test_a_verdict_says_which_question_it_answers():
 def test_a_failed_row_offers_retry_and_many_offer_retry_all():
     page = (Path(__file__).resolve().parents[2] / "magi.html").read_text(encoding="utf-8")
     assert "function queueRetry(ids)" in page
-    assert 'el("button", "q-act retry"' in page
+    assert '`q-act${it.status === "failed" ? " retry" : ""}`' in page
     assert 'id="queueRetryBtn"' in page and "failed.length > 1" in page
+
+
+def test_a_finished_row_can_run_again():
+    """Claude Queue's Requeue: a done row goes back with its units and files."""
+    body = _fn("queueRetry")
+    assert 'it.status === "failed" || it.status === "done"' in body
+    assert 'if (it.status === "failed" || it.status === "done")' in _fn("renderQueue")
+
+
+# ── a usage limit holds the queue (from Claude Queue) ───────────────────────
+def test_a_limit_requeues_the_row_and_holds_instead_of_failing():
+    body = _fn("queueDrain")
+    hit = body[body.index("if (queueHitLimit(outcome))"):]
+    # Back to waiting, not failed -- and the loop sleeps then carries on.
+    assert hit.index('it.status = "queued"') < hit.index("queueHoldFor(")
+    assert "queueHoldWait(gen)" in hit and "continue;" in hit
+    # Guessing forever is not allowed.
+    assert "guessed > QUEUE_HOLD_GUESSES" in hit
+
+
+def test_the_hold_is_bounded_and_pausable():
+    assert "const QUEUE_HOLD_MIN_MS = 60 * 1000;" in PAGE
+    assert "const QUEUE_HOLD_MAX_MS = 6 * 60 * 60 * 1000;" in PAGE
+    hold = _fn("queueHoldFor")
+    assert "Math.max(now + QUEUE_HOLD_MIN_MS, Math.min(want, now + QUEUE_HOLD_MAX_MS))" in hold
+    wait = _fn("queueHoldWait")
+    assert "gen !== _queueGen" in wait, "Pause must end a hold"
+    assert "S.queueHold = null" in _fn("queueStop"), "a paused queue must not promise to resume"
+
+
+def test_the_hold_uses_the_reset_times_the_engine_already_has():
+    # Code: the chain's handoff events. Council: the Units sheet's limits.
+    assert 'e.k === "handoff" && e.reason === "limited" && e.resets_at' in _fn("codeQueueOutcome")
+    assert "u.limit.resets_at" in _fn("queueCouncilReset")
+
+
+# ── it rings when it needs you ──────────────────────────────────────────────
+def test_an_approval_card_rings_and_is_silenced_by_its_decision():
+    att = _fn("codeAttach")
+    assert 'if (ev.k === "approval") codeApprovalAlarm(t, ev);' in att
+    assert 'if (ev.k === "decision" || ev.k === "end") codeApprovalQuiet(t);' in att
+    alarm = _fn("codeApprovalAlarm")
+    # A replayed, already-answered card must stay silent.
+    assert 't.events.some((e) => e.k === "decision")' in alarm
+    assert "expires - 60000" in alarm, "one reminder with a minute left"
+
+
+def test_a_queue_that_stops_by_itself_rings():
+    assert 'attnSet("queue:stopped"' in _fn("queueDrain")
+    assert "if (!S.muted) beepAttention();" in _fn("attnSet")
 
 
 def test_unit_colours_do_not_wait_for_the_engine():

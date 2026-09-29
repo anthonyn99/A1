@@ -1344,7 +1344,7 @@ order.
 
 Technically this is a port of the ideas in Veda's Claude Queue, not of its
 code — that drives `claude.exe` through a PTY, this drives browser sessions —
-but three of its decisions carried over directly:
+but these of its decisions carried over directly:
 
 - **Fractional ordering.** Rows sit on multiples of 1000, so moving one is one
   number changing rather than a renumbering of its siblings. In a field that
@@ -1354,11 +1354,32 @@ but three of its decisions carried over directly:
   one engine. Every loop iteration rechecks the generation after each `await`
   and a superseded loop exits silently.
 
+- **A usage limit is a hold, not a failure** (added 2026-09-29). The prompt
+  that hit it goes back in the queue and the queue sleeps until the limit
+  lifts, then carries on by itself. The wake time is the soonest reset the
+  engine knows — a Code task's `handoff` events (`resets_at`), or for the
+  council the Units sheet's `/api/units/usage` limits — plus a minute, clamped
+  to 1 min … 6 h. With no reset time it retries every 15 minutes and stops
+  after 12 such guesses in a row. **Try now** ends the wait, Pause cancels it.
+  The hold lives in the page (`S.queueHold`), like the drain loop itself.
+- **It rings when it needs you** (added 2026-09-29). Claude Queue's attention
+  chime, keyed so each situation rings once: a Write task's approval card
+  (again with a minute left — silence is a No after `APPROVE_MIN`), and a
+  queue that stopped on its own. The tab title carries a ● mark while one
+  stands. `attnSet`/`attnClear` in magi.html; muted with the rest.
+- **Finished rows can run again** — ↻ on a done row puts it back at the front
+  with its units and files, like Retry on a failed one.
+
 Where it deliberately differs: Claude Queue **stops the queue on any failure**,
 because its tasks are steps that build on each other and a failed step poisons
 the rest. MAGI's queued prompts are independent questions, so a failed one is
-marked failed and the queue carries on. The exception is a rate limit — the
-next prompt would only hit the same wall, so that stops the queue and says so.
+marked failed and the queue carries on.
+
+Not carried over, on purpose: per-task model pickers (Code Mode's per-agent
+Auto/model/effort choice already covers it, from each account's live model
+list), drag-to-reorder (the arrows work on a phone), a preview pane and a
+post-task deploy command (A1 deploys itself), and image attachments for tasks
+(Code Mode's attachments are text pasted into the prompt).
 
 ### What syncs, and what it costs
 

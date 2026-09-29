@@ -6,8 +6,10 @@
 // 1. Brainstorm: a centred button hides / shows Past sessions, remembered.
 // 2. Code Mode: attach (text only), Refine (kind=code), Undo, per-mode files.
 // 3. Code Mode: Run sends the files; an old engine gets them folded in.
-// 4. The queue takes Code tasks: add, render, edit, drain in order, stop on a
-//    limit, write-mode outcomes, pause while a hand-started task runs, reload.
+// 4. The queue takes Code tasks: add, render, edit, drain in order, HOLD on a
+//    limit (reported reset / 15-min guess, Try now, Cancel wait), write-mode
+//    outcomes, run a finished row again, the approval chime + tab mark, pause
+//    while a hand-started task runs, reload.
 const { connect, evalJs, sleep, shotPath } = require('./cdp.js');
 const fs = require('fs');
 const URL = require('./cdp.js').PAGES_URL;
@@ -290,45 +292,95 @@ const vis = (sel) => `((e) => !!e && e.getBoundingClientRect().width > 0 && e.ge
   await evalJs(c, 'window.__end("fake3", { outcome: "ok" }); return 1;');
   ok('row done', await waitFor(c, 'S.queue[0].status === "done"'));
   ok('second task posted after the first ended', await waitFor(c, 'window.__cap.tasks.length === 4 && window.__cap.tasks[3].prompt === "task two, edited"'));
-  await evalJs(c, 'window.__end("fake4", { outcome: "limited" }); return 1;');
-  ok('a limited task fails its row', await waitFor(c, 'S.queue[1].status === "failed"'));
-  ok('and stops the queue', await waitFor(c, '!S.queueRunning'));
-  ok('saying why', /out of usage/.test(await evalJs(c, '$("refineError").textContent')));
-  ok('the third waits', await evalJs(c, 'S.queue[2].status') === 'queued');
-  ok('only four tasks were ever started', await evalJs(c, 'window.__cap.tasks.length') === 4);
+  // A usage limit HOLDS the queue (from Claude Queue): the row goes back to
+  // waiting and the queue sleeps until the reset the chain reported.
+  const back = await evalJs(c, 'Math.floor(Date.now() / 1000) + 120');
+  await evalJs(c, `window.__es.fake4._emit({ k: "handoff", from: "claude-cli", from_label: "Claude",
+    reason: "limited", detail: "out", resets_at: ${back}, to_label: null });
+    window.__end("fake4", { outcome: "limited" }); return 1;`);
+  ok('a limited task goes back to waiting, not failed', await waitFor(c, 'S.queue[1].status === "queued"'));
+  ok('the row says why', /usage limit/.test(await evalJs(c, 'S.queue[1].err || ""')), await evalJs(c, 'S.queue[1].err'));
+  ok('the queue is still running, held', await evalJs(c, 'S.queueRunning && !!S.queueHold'));
+  const hold = await evalJs(c, 'S.queueHold');
+  ok('held until the reported reset plus a minute', hold && hold.known
+     && Math.abs(hold.until - (back * 1000 + 60000)) < 2000, JSON.stringify(hold));
+  ok('the hold is on screen', await evalJs(c, vis('#queueHold')));
+  ok('and says when', /runs again when the limit lifts/.test(await evalJs(c, '$("queueHoldTxt").textContent')));
+  ok('Pause reads Cancel wait', await evalJs(c, '$("queueRunBtn").textContent') === 'Cancel wait');
+  ok('nothing else started meanwhile', await evalJs(c, 'window.__cap.tasks.length') === 4);
+  await shot(c, 'cq-7b-hold');
+  await evalJs(c, '$("queueHoldNow").click(); return 1;');
+  ok('Try now runs the held row again', await waitFor(c,
+    'window.__cap.tasks.length === 5 && window.__cap.tasks[4].prompt === "task two, edited"'));
+  ok('the hold is gone', await evalJs(c, '!S.queueHold && $("queueHold").hidden'));
+  await evalJs(c, 'window.__end("fake5", { outcome: "ok" }); return 1;');
+  ok('then it finishes', await waitFor(c, 'S.queue[1].status === "done"'));
+
+  // No reset time: a fifteen-minute guess, and Cancel wait leaves it queued.
+  ok('third posted', await waitFor(c, 'window.__cap.tasks.length === 6'));
+  const t0 = await evalJs(c, 'Date.now()');
+  await evalJs(c, 'window.__end("fake6", { outcome: "limited" }); return 1;');
+  ok('held on a guess', await waitFor(c, '!!S.queueHold && S.queueHold.known === false'));
+  const g = await evalJs(c, 'S.queueHold.until');
+  ok('fifteen minutes out', Math.abs(g - t0 - 15 * 60000) < 5000, g - t0);
+  ok('and says no reset time was given', /no reset time was given/.test(await evalJs(c, '$("queueHoldTxt").textContent')));
+  await evalJs(c, '$("queueRunBtn").click(); return 1;');
+  ok('Cancel wait stops the queue', await waitFor(c, '!S.queueRunning && !S.queueHold && $("queueHold").hidden'));
+  ok('the row is still waiting', await evalJs(c, 'S.queue[2].status') === 'queued');
 
   console.log('\nWrite-mode outcomes');
   await evalJs(c, 'queueStart(); return 1;');
-  ok('third posted', await waitFor(c, 'window.__cap.tasks.length === 5'));
-  await evalJs(c, 'window.__end("fake5", { outcome: "ok", write: "timeout" }); return 1;');
+  ok('third posted again', await waitFor(c, 'window.__cap.tasks.length === 7'));
+  await evalJs(c, 'window.__end("fake7", { outcome: "ok", write: "timeout" }); return 1;');
   ok('an unapproved diff is a failed row', await waitFor(c, 'S.queue[2].status === "failed"'));
   ok('that says so', /not approved in time/.test(await evalJs(c, 'S.queue[2].err')), await evalJs(c, 'S.queue[2].err'));
   ok('queue idle when empty', await waitFor(c, '!S.queueRunning'));
 
+  console.log('\nRun again, and the approval chime');
+  ok('a finished row offers run-again', await evalJs(c,
+    '!!document.querySelectorAll("#queueRows .q-row")[0].querySelector(".q-act[title^=\\"Run this again\\"]")'));
+  await evalJs(c, 'document.querySelectorAll("#queueRows .q-row")[0].querySelector(".q-act[title^=\\"Run this again\\"]").click(); return 1;');
+  ok('it runs again, from the front', await waitFor(c,
+    'window.__cap.tasks.length === 8 && window.__cap.tasks[7].prompt === "task one"'));
+  await waitFor(c, 'CODE.task && CODE.task.id === "fake8"');
+  await evalJs(c, `window.__es.fake8._emit({ k: "approval", files: [], adds: 1, dels: 0,
+    expires_at: Date.now() / 1000 + 300, timeout: 300 }); return 1;`);
+  ok('an approval card marks the tab', await waitFor(c, 'ATTN.keys.has("approval:fake8") && /^\\u25CF Approve\\?/.test(document.title)', 4000),
+     await evalJs(c, 'document.title'));
+  await evalJs(c, 'window.__es.fake8._emit({ k: "decision", approved: false, why: "denied" }); return 1;');
+  ok('its decision clears it', await waitFor(c, '!ATTN.keys.size && !/\\u25CF/.test(document.title)', 4000));
+  // A replayed card that was already answered stays silent.
+  await evalJs(c, `window.__es.fake8._emit({ k: "approval", files: [], expires_at: Date.now() / 1000 + 300 });
+    window.__es.fake8._emit({ k: "decision", approved: true, why: "approved" }); return 1;`);
+  await sleep(1200);
+  ok('an answered card never rings', await evalJs(c, '!ATTN.keys.size'));
+  await evalJs(c, 'window.__end("fake8", { outcome: "ok" }); return 1;');
+  ok('and it finishes', await waitFor(c, 'S.queue[0].status === "done" && !S.queueRunning'));
+
   console.log('\nA hand-started task goes first; Pause leaves the row waiting');
   await evalJs(c, 'codeClearTask(); setQuestion("manual"); $("btnSend").click(); return 1;');
-  ok('manual task running', await waitFor(c, 'codeBusy() && CODE.task.id === "fake6"'));
+  ok('manual task running', await waitFor(c, 'codeBusy() && CODE.task.id === "fake9"'));
   await evalJs(c, 'setQuestion("queued behind it"); $("btnQueue").click(); queueStart(); return 1;');
   await sleep(2500);
-  ok('queued task not started while one runs', await evalJs(c, 'window.__cap.tasks.length') === 6);
+  ok('queued task not started while one runs', await evalJs(c, 'window.__cap.tasks.length') === 9);
   await evalJs(c, 'queueStop(); return 1;');
   await sleep(2500);
   ok('paused before it started: back to waiting', await evalJs(c, 'S.queue[S.queue.length - 1].status') === 'queued');
   await evalJs(c, 'queueStart(); return 1;');
   await sleep(500);
-  await evalJs(c, 'window.__end("fake6", { outcome: "ok" }); return 1;');
-  ok('then it starts once the manual task ends', await waitFor(c, 'window.__cap.tasks.length === 7', 8000));
+  await evalJs(c, 'window.__end("fake9", { outcome: "ok" }); return 1;');
+  ok('then it starts once the manual task ends', await waitFor(c, 'window.__cap.tasks.length === 10', 8000));
 
   console.log('\nA reload picks the running task back up');
   await sleep(300);
-  // fake7 is still running on the (fake) engine across the reload.
-  await evalJs(c, 'sessionStorage.setItem("__fakeSeed", JSON.stringify({ fake7: { done: false, body: { prompt: "queued behind it" } } })); return 1;');
+  // fake10 is still running on the (fake) engine across the reload.
+  await evalJs(c, 'sessionStorage.setItem("__fakeSeed", JSON.stringify({ fake10: { done: false, body: { prompt: "queued behind it" } } })); return 1;');
   await c.send('Page.navigate', { url: URL });
   await waitFor(c, 'online()', 25000);
   ok('queue kept locally, as code rows', await evalJs(c, 'S.queue.filter((it) => it.kind === "code").length') === 4);
-  ok('the running row is resumed', await waitFor(c, 'S.queue.some((it) => it.runId === "fake7" && it.status === "running")', 15000));
-  await evalJs(c, 'window.__end("fake7", { outcome: "ok" }); sessionStorage.removeItem("__fakeSeed"); return 1;');
-  ok('and finishes when the task does', await waitFor(c, 'S.queue.some((it) => it.runId === "fake7" && it.status === "done")', 15000));
+  ok('the running row is resumed', await waitFor(c, 'S.queue.some((it) => it.runId === "fake10" && it.status === "running")', 15000));
+  await evalJs(c, 'window.__end("fake10", { outcome: "ok" }); sessionStorage.removeItem("__fakeSeed"); return 1;');
+  ok('and finishes when the task does', await waitFor(c, 'S.queue.some((it) => it.runId === "fake10" && it.status === "done")', 15000));
 
   console.log('\nPhone');
   await evalJs(c, '$("navCodeNew").click(); addFiles([new File(["a"], "a-very-long-file-name-for-a-phone-screen.ts", { type: "text/plain" })]); setQuestion("phone task"); return 1;');

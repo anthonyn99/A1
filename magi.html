@@ -2070,6 +2070,16 @@ table.doctor, table.doctor code, .v-table,
 .q-state.running { color: var(--ac); }
 .q-state.done { color: var(--grn); }
 .q-state.failed { color: var(--red); }
+/* Sleeping off a usage limit. Amber, not red: nothing is broken, nothing was
+   lost, and the queue starts itself again. */
+.queue-hold {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px;
+  padding: 8px 12px; font-size: 11px; line-height: 1.45; color: var(--tx);
+  background: color-mix(in srgb, var(--amber) 10%, transparent);
+  border-bottom: 1px solid var(--bdl);
+}
+.queue-hold b { color: var(--amber); }
+.queue-hold-txt { flex: 1 1 260px; min-width: 0; }
 @media (max-width: 720px) {
   .queue { max-width: none; }
   .q-row { padding: 10px; gap: 6px; }
@@ -5948,6 +5958,11 @@ window._mailRelay = window._mailRelay || async function (res) {
           <button type="button" class="navitem queue-act" id="queueClearBtn">Clear finished</button>
         </span>
       </div>
+      <div class="queue-hold" id="queueHold" hidden>
+        <span class="queue-hold-txt" id="queueHoldTxt"></span>
+        <button type="button" class="navitem queue-act" id="queueHoldNow"
+                title="Stop waiting and run the held prompt now">Try now</button>
+      </div>
       <div id="queueRows"></div>
     </div>
 
@@ -6976,7 +6991,9 @@ const HOW = [
       "<b>It follows you between devices.</b> The queue rides the same document as your history, so a prompt added on your phone is on the PC without a single extra read. Attachment <i>names</i> travel; the files themselves stay on the device that picked them, and a row says so rather than quietly running a prompt without the file it refers to.",
       "<b>Only one device runs it.</b> Whichever device presses Run takes a lease and refreshes it as it works; the others see that it is running elsewhere. A lease nobody refreshes for 90 seconds is treated as abandoned, so a closed laptop cannot freeze the queue.",
       "<b>Watch one as it happens.</b> A running row has a ◉ that puts its units back on screen. The deliberation runs in the engine, not in this page, so it survives a refresh &mdash; MAGI reconnects to it on load and picks up the grid mid-flight rather than leaving it blank, and it never re-asks a question the engine is already answering.",
-      "<b>Pause stops after the prompt in flight</b> &mdash; never mid-deliberation. A failed prompt does not stop the rest, because queued prompts are separate questions rather than steps; the one exception is a rate limit, which stops the queue, since the next prompt would only hit the same wall.",
+      "<b>Pause stops after the prompt in flight</b> &mdash; never mid-deliberation. A failed prompt does not stop the rest, because queued prompts are separate questions rather than steps. A finished or failed row has a ↻ that puts it back at the front, with its units and files.",
+      "<b>A usage limit holds the queue instead of ending it.</b> The prompt that hit it goes back in the queue &mdash; not down as failed &mdash; and the queue sleeps until the limit lifts: the reset time the agents or sites gave, or a fresh try every 15 minutes when none was given (12 of those in a row and it stops). Never less than a minute, never more than six hours at a stretch. <b>Try now</b> ends the wait; Pause cancels it. This page has to stay open for it &mdash; the queue runs here, not in the engine.",
+      "<b>It calls you when it needs you.</b> A Write task's diff waits __APPROVE_MIN__ minutes and then counts silence as No, so a queued one would quietly throw its work away while you were out of the room. When an approval card appears MAGI chimes and marks the tab title, and chimes again with a minute left; a queue that stops on its own does the same. The speaker button mutes it with everything else.",
     ],
   },
   {
@@ -7781,10 +7798,63 @@ const beepBlocked = () => {
   strike({ freq: N.D3, at: 0.30, dur: 2.60, gain: 0.041, bright: 0.3, wet: 0.40 });
 };
 
+/** Something is waiting on YOU -- a diff to approve, a queue that stopped.
+ *  From Claude Queue, which rings for exactly these: a queue is only worth
+ *  walking away from if it can get you back, and a card in a background tab
+ *  cannot. Two rising fourths, twice: a repeated figure reads as "come here",
+ *  where one tone reads as the machine making a noise. Higher and brighter
+ *  than the verdict so it is never mistaken for one. */
+const beepAttention = () => {
+  for (const at of [0, 0.9]) {
+    strike({ freq: N.A4, at,          dur: 0.70, gain: 0.060, bright: 1.0, pan: -0.15, wet: 0.26 });
+    strike({ freq: N.D5, at: at + 0.16, dur: 0.90, gain: 0.058, bright: 1.0, pan: 0.15, wet: 0.30 });
+  }
+};
+
 function applyMute() {
   if (master && actx) master.gain.setTargetAtTime(S.muted ? 0 : VOLUME, actx.currentTime, 0.01);
   try { localStorage.setItem("magi.muted", S.muted ? "1" : "0"); } catch {}
 }
+
+/* ══ needing you ═══════════════════════════════════════════════════════════
+   What is waiting on a person, by key -- "approval:<task>", "queue:stopped".
+   Claude Queue's rule: ring when a NEW key appears, never again for the same
+   one, so a stream that replays an event or a re-render stays silent while a
+   second, different question rings again. The tab title carries a mark for as
+   long as any key stands, because the sound is two seconds and the tab is
+   what you look at when you come back. */
+const ATTN = { keys: new Map(), base: document.title };
+
+function attnSet(key, label) {
+  if (ATTN.keys.has(key)) return;
+  ATTN.keys.set(key, label);
+  if (!S.muted) beepAttention();
+  attnTitle();
+}
+
+/** Ring again for a key that is still standing (the last minute of an
+ *  approval) -- once per call, and only if it is still there. */
+function attnRemind(key) {
+  if (ATTN.keys.has(key) && !S.muted) beepAttention();
+}
+
+function attnClear(key) {
+  if (ATTN.keys.delete(key)) attnTitle();
+}
+
+function attnTitle() {
+  const first = [...ATTN.keys.values()][0];
+  document.title = first ? `● ${first} — ${ATTN.base}` : ATTN.base;
+}
+
+// Looking at the page is answering "where are you": a standing queue stop is
+// seen once the tab is in front again. An approval is not -- it still needs
+// the button pressed, so it keeps its mark until it is decided.
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") attnClear("queue:stopped");
+});
+// ...and a tab that was already in front is seen at the next touch.
+window.addEventListener("pointerdown", () => attnClear("queue:stopped"), true);
 
 /* ══ vocabulary ════════════════════════════════════════════════════════════ */
 const WORKING = new Set(["queued", "launching", "navigating", "typing", "waiting", "streaming"]);
@@ -9154,6 +9224,9 @@ const S = {
   // each carrying its own units -- see the QUEUE section.
   queue: [],
   queueRunning: false,
+  // Set while the queue sleeps off a usage limit: { until (ms), known
+  // (the limit said when it lifts), why }. Memory only -- see queueHoldFor.
+  queueHold: null,
   /* The run that is actually in flight, held apart from whatever is on
    * screen.
    *
@@ -12530,6 +12603,8 @@ async function codeRun() {
 
 function codeAttach(id, prompt, { projectId = null, at = null, fromHistory = false } = {}) {
   if (CODE.task && CODE.task.es) CODE.task.es.close();
+  // A closed stream never hears the decision, so its alarm goes with it.
+  if (CODE.task) codeApprovalQuiet(CODE.task);
   const t = { id, prompt: prompt || "", events: [], done: false, result: null, es: null,
               projectId: projectId || CODE.projectId, at, fromHistory };
   CODE.task = t;
@@ -12559,8 +12634,10 @@ function codeAttach(id, prompt, { projectId = null, at = null, fromHistory = fal
       const tp = ((CODE.state && CODE.state.projects) || []).find((p) => p.id === t.projectId);
       if (tp) codeGitLoad(tp.id);
       codeHistEngineLoad(true);
-      codeTaskEnded(t.id, codeQueueOutcome(ev.result));
+      codeTaskEnded(t.id, codeQueueOutcome(ev.result, false, t.events));
     }
+    if (ev.k === "approval") codeApprovalAlarm(t, ev);
+    if (ev.k === "decision" || ev.k === "end") codeApprovalQuiet(t);
     t.events.push(ev);
     if (CODE.task === t && codeMode()) renderCodeView();
     updateEnabled();
@@ -12569,6 +12646,7 @@ function codeAttach(id, prompt, { projectId = null, at = null, fromHistory = fal
   // going away mid-task, and the task went with it: tasks live in memory.
   es.onerror = () => {
     es.close();
+    codeApprovalQuiet(t);
     if (!t.done) {
       t.done = true;
       t.lost = true;
@@ -12581,6 +12659,40 @@ function codeAttach(id, prompt, { projectId = null, at = null, fromHistory = fal
   };
   renderCodeView();
   updateEnabled();
+}
+
+/* A diff waiting for Approve.
+ *
+ *  The card waits APPROVE_MIN minutes and then counts silence as No -- right
+ *  for a person at the desk, and a quiet way to throw work away for one who
+ *  queued three Write tasks and went to make coffee. So it rings when the
+ *  card appears, and once more with a minute left.
+ *
+ *  Held back a moment first: attaching to a task replays its whole stream,
+ *  and a card that was already answered arrives with its decision right
+ *  behind it. That one must stay silent. */
+const APPROVAL_ALARM = new Map();   // task id -> timers
+
+function codeApprovalAlarm(t, ev) {
+  codeApprovalQuiet(t);
+  const key = `approval:${t.id}`;
+  const expires = Number(ev.expires_at) * 1000;
+  if (Number.isFinite(expires) && expires <= Date.now()) return;
+  const timers = [setTimeout(() => {
+    if (t.done || t.events.some((e) => e.k === "decision")) return;
+    attnSet(key, "Approve?");
+  }, 600)];
+  const remind = expires - 60000 - Date.now();
+  if (Number.isFinite(remind) && remind > 1000) {
+    timers.push(setTimeout(() => attnRemind(key), remind));
+  }
+  APPROVAL_ALARM.set(t.id, timers);
+}
+
+function codeApprovalQuiet(t) {
+  for (const x of APPROVAL_ALARM.get(t.id) || []) clearTimeout(x);
+  APPROVAL_ALARM.delete(t.id);
+  attnClear(`approval:${t.id}`);
 }
 
 /** After a reload: pick the watched task back up, if the engine still has it. */
@@ -12605,6 +12717,7 @@ async function codeHalt() {
 
 function codeClearTask() {
   if (CODE.task && CODE.task.es) CODE.task.es.close();
+  if (CODE.task) codeApprovalQuiet(CODE.task);
   CODE.task = null;
   try { sessionStorage.removeItem(CODE_TASK_SS); } catch {}
   renderCodeView();
@@ -22049,7 +22162,11 @@ async function queueWatch(id, reveal = false) {
  */
 function queueRetry(ids) {
   const want = new Set(ids);
-  const rows = S.queue.filter((it) => want.has(it.id) && it.status === "failed");
+  // Finished rows too (Claude Queue's Requeue): asking the same thing again
+  // later -- a fresh morning report, a check after a fix -- is the same row
+  // with the same units and files, and retyping it loses both.
+  const rows = S.queue.filter((it) => want.has(it.id)
+    && (it.status === "failed" || it.status === "done"));
   if (!rows.length) return;
   const front = Math.min(0, ...queuePending().map((it) => it.order || 0));
   rows
@@ -22539,6 +22656,7 @@ async function queueStart() {
     if (it.status === "running") { it.status = "queued"; orphans++; }
   }
   if (orphans) queueChanged();
+  attnClear("queue:stopped");
   S.queueRunning = true;
   const gen = ++_queueGen;
   renderQueue();
@@ -22548,6 +22666,7 @@ async function queueStart() {
   } finally {
     if (gen === _queueGen) {
       S.queueRunning = false;
+      S.queueHold = null;
       clearInterval(_leaseTimer);
       await leaseRelease();
       renderQueue();
@@ -22561,6 +22680,9 @@ function queueStop() {
   // after every await and a superseded loop exits without touching anything.
   _queueGen++;
   S.queueRunning = false;
+  // A hold only means anything while a loop is there to end it; left up, a
+  // paused queue would go on promising to resume by itself.
+  S.queueHold = null;
   clearInterval(_leaseTimer);
   leaseRelease();
   renderQueue();
@@ -22568,12 +22690,15 @@ function queueStop() {
 }
 
 async function queueDrain(gen) {
+  // Holds in a row that had to guess when the limit lifts. See QUEUE_HOLD_*.
+  let guessed = 0;
   for (;;) {
     if (gen !== _queueGen) return;              // paused, or superseded
     const it = queuePending()[0];
     if (!it) return;
     if (!online()) {
       setErr("refineError", "Lost the engine; the queue is holding.");
+      attnSet("queue:stopped", "Queue stopped");
       return;
     }
 
@@ -22638,13 +22763,121 @@ async function queueDrain(gen) {
     // would hit the same wall, and a queue that empties itself into a wall
     // has thrown away the whole list. Everything else is per-prompt, so the
     // queue carries on -- these are independent questions, not steps.
+    //
+    // Stopping used to mean stopped: the row went down as failed and the
+    // queue waited for someone to come back after the reset and press Run.
+    // From Claude Queue instead: running out of usage is not a broken prompt.
+    // The row goes back to waiting, at the front where it already was, and
+    // the queue sleeps until the limit lifts and then carries on by itself.
     if (queueHitLimit(outcome)) {
-      setErr("refineError", outcome.limited
-        ? "Stopped: every agent for that task is out of usage. Resume when it resets."
-        : "Stopped: the council is rate limited. Resume when it resets.");
-      return;
+      it.status = "queued";
+      it.runId = null;
+      it.resumable = false;
+      it.err = "hit a usage limit — runs again when it lifts";
+      queueChanged();
+      const hold = await queueHoldFor(outcome, it);
+      guessed = hold.known ? 0 : guessed + 1;
+      if (guessed > QUEUE_HOLD_GUESSES) {
+        // Retrying on a guess for hours means the guess is wrong, not that
+        // the next try will work. Stop, and say so where it can be heard.
+        S.queueHold = null;
+        it.status = "failed";
+        it.err = "still limited after every retry";
+        queueChanged();
+        setErr("refineError", outcome.limited
+          ? "Stopped: every agent for that task is still out of usage. Run the queue again once it resets."
+          : "Stopped: the council is still rate limited. Run the queue again once it resets.");
+        attnSet("queue:stopped", "Queue stopped");
+        return;
+      }
+      if (!(await queueHoldWait(gen))) return;  // paused while it waited
+      continue;
     }
+    guessed = 0;
   }
+}
+
+/* ── holding for a usage limit ────────────────────────────────────────────
+   How long to sleep, and the sleep itself. The bounds are Claude Queue's:
+   never under a minute (a reset already in the past must not spin), never
+   over six hours (a weekly limit can be days out, and a misread time further
+   still -- waking to check costs one try, being wrong the other way costs
+   the whole list). With no reset time to go on it comes back every fifteen
+   minutes, and gives up after QUEUE_HOLD_GUESSES of those in a row. */
+const QUEUE_HOLD_MIN_MS = 60 * 1000;
+const QUEUE_HOLD_MAX_MS = 6 * 60 * 60 * 1000;
+const QUEUE_HOLD_UNKNOWN_MS = 15 * 60 * 1000;
+// A reset time is when the site says it lifts; give it a minute to mean it.
+const QUEUE_HOLD_GRACE_MS = 60 * 1000;
+const QUEUE_HOLD_GUESSES = 12;
+// Wake this often while holding, so Pause and Try now take effect at once
+// and a PC that slept through the reset notices on waking.
+const QUEUE_HOLD_POLL_MS = 15 * 1000;
+
+/** When a limited council's units are back: the soonest reset the engine
+ *  knows of among the row's units (Units sheet data), or null. */
+async function queueCouncilReset(units) {
+  await loadUnitsUsage();
+  const at = (units || [])
+    .map((id) => UNITS_USE.byId[id])
+    .filter((u) => u && u.state === "limited" && u.limit && u.limit.resets_at)
+    .map((u) => Date.parse(u.limit.resets_at))
+    .filter((t) => Number.isFinite(t) && t > Date.now());
+  return at.length ? Math.min(...at) : null;
+}
+
+/** Decide the hold and put it on screen. */
+async function queueHoldFor(outcome, it) {
+  let at = outcome && outcome.resetsAt;
+  if (!at && it.kind !== "code") {
+    try { at = await queueCouncilReset(it.units); } catch { at = null; }
+  }
+  const now = Date.now();
+  const known = !!(at && Number.isFinite(at));
+  const want = known ? at + QUEUE_HOLD_GRACE_MS : now + QUEUE_HOLD_UNKNOWN_MS;
+  S.queueHold = {
+    until: Math.max(now + QUEUE_HOLD_MIN_MS, Math.min(want, now + QUEUE_HOLD_MAX_MS)),
+    known,
+    why: it.kind === "code" ? "Every agent for that task is out of usage."
+                            : "The council is rate limited.",
+  };
+  renderQueue();
+  return S.queueHold;
+}
+
+/** Sleep until the hold ends. False when the queue was paused meanwhile;
+ *  Try now ends the hold early by clearing it. */
+async function queueHoldWait(gen) {
+  const tick = setInterval(renderQueueHold, 30000);
+  try {
+    while (S.queueHold && Date.now() < S.queueHold.until) {
+      if (gen !== _queueGen) return false;
+      await _sleep(Math.max(250, Math.min(QUEUE_HOLD_POLL_MS, S.queueHold.until - Date.now())));
+    }
+  } finally {
+    clearInterval(tick);
+  }
+  if (gen !== _queueGen) return false;
+  S.queueHold = null;
+  renderQueue();
+  return true;
+}
+
+function renderQueueHold() {
+  const box = $("queueHold");
+  if (!box) return;
+  const h = S.queueHold;
+  show(box, !!h);
+  if (!h) return;
+  const iso = new Date(h.until).toISOString();
+  const when = docUntil(iso) || "any moment now";
+  $("queueHoldTxt").innerHTML = "";
+  $("queueHoldTxt").append(
+    el("b", null, "Holding for a usage limit. "),
+    document.createTextNode(`${h.why} The prompt went back in the queue, not down as failed; `
+      + (h.known ? `it runs again when the limit lifts, at ${when}.`
+                 : `no reset time was given, so it tries again at ${when}.`)));
+  $("queueHoldNow").onclick = () => { S.queueHold = null; renderQueue(); };
 }
 
 /** Did every unit that spoke say "rate limited"? */
@@ -22811,12 +23044,14 @@ function renderQueue() {
     ? `${pending} waiting${rows.length - pending ? ` \u00b7 ${rows.length - pending} finished` : ""}`
     : "";
 
+  renderQueueHold();
   const runBtn = $("queueRunBtn");
-  runBtn.textContent = S.queueRunning ? "Pause" : "Run queue";
+  runBtn.textContent = S.queueRunning ? (S.queueHold ? "Cancel wait" : "Pause") : "Run queue";
   runBtn.disabled = !S.queueRunning
     && ((!pending && !queueStuck()) || !online());
   runBtn.title = S.queueRunning
-    ? "Stop after the prompt that is running"
+    ? (S.queueHold ? "Stop waiting for the limit; the prompt stays queued"
+                   : "Stop after the prompt that is running")
     : !online() ? "The engine device has to be awake"
     : (!pending && !queueStuck()) ? "Nothing is waiting — add a prompt to the queue"
     : "Run each prompt in turn: questions to the council, tasks to Code Mode";
@@ -22922,12 +23157,15 @@ function renderQueue() {
     // Only on a failed row, and before Open: it is the thing you came to the
     // row to do.
     let retry = null;
-    if (it.status === "failed") {
-      retry = el("button", "q-act retry", "\u21BB");
+    if (it.status === "failed" || it.status === "done") {
+      // Amber on a failed row, where it is the fix; plain on a finished one,
+      // where it is just "again".
+      retry = el("button", `q-act${it.status === "failed" ? " retry" : ""}`, "\u21BB");
       retry.type = "button";
       // Never disabled: putting it back in the queue syncs from any device,
       // and whichever device runs the queue picks it up.
-      retry.title = "Run this prompt again";
+      retry.title = it.status === "failed" ? "Run this prompt again"
+        : "Run this again \u2014 it goes to the front of the queue";
       retry.onclick = () => queueRetry([it.id]);
     }
     const del = el("button", "q-act danger", "\u2715");
@@ -22961,7 +23199,7 @@ function codeTaskEnded(id, outcome) {
 }
 
 /** How a finished task reads on its queue row. */
-function codeQueueOutcome(r, lost = false) {
+function codeQueueOutcome(r, lost = false, events = []) {
   if (lost) return { ok: false, error: "the connection to the engine dropped mid-task" };
   r = r || {};
   const wr = CODE_WRITE_OUT[r.write];
@@ -22970,7 +23208,13 @@ function codeQueueOutcome(r, lost = false) {
   const why = r.outcome === "pull_failed" ? "the folder could not be pulled"
     : CODE_OUTCOME[r.outcome] || String(r.outcome || "did not finish");
   const detail = String(r.detail || "").trim();
+  // When the soonest agent is back, from the chain's own handoffs (engine
+  // seconds). The queue holds until then instead of guessing.
+  const backs = (events || [])
+    .filter((e) => e.k === "handoff" && e.reason === "limited" && e.resets_at)
+    .map((e) => Number(e.resets_at) * 1000).filter(Number.isFinite);
   return { ok: false, limited: r.outcome === "limited",
+           resetsAt: backs.length ? Math.min(...backs) : null,
            error: detail && r.outcome !== "limited"
              ? `${why}: ${detail.length > 160 ? detail.slice(0, 160) + "\u2026" : detail}` : why };
 }
@@ -22990,13 +23234,13 @@ function codeWaitTask(id) {
     CODE_WAIT.set(id, finish);
     const t = CODE.task;
     if (t && t.id === id && t.done) {
-      finish(codeQueueOutcome(t.result, t.lost));
+      finish(codeQueueOutcome(t.result, t.lost, t.events));
       return;
     }
     timer = setInterval(async () => {
       const cur = CODE.task;
       if (cur && cur.id === id && cur.es && !cur.done) return;   // the stream will say
-      if (cur && cur.id === id && cur.done) { finish(codeQueueOutcome(cur.result, cur.lost)); return; }
+      if (cur && cur.id === id && cur.done) { finish(codeQueueOutcome(cur.result, cur.lost, cur.events)); return; }
       if (!online()) return;                                      // hold until it is back
       try {
         const d = await codeGet("/tasks");

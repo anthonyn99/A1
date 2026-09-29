@@ -642,6 +642,27 @@ offer them, do not start them unasked:
   is safe either way (an ignored click reads back as "Asked for Expert, got
   Fast"), but nobody has seen Expert/Heavy answer on the free account.
 * **Phase 15's optional isolation check** from Veda's PC (below).
+* **From Claude Queue (compared 2026-09-29; the console half is built — see
+  docs/magi.md "The prompt queue").** Two engine-side ideas left, both
+  offers:
+  1. **A check command per project** — Claude Queue's core rule ("Claude never
+     decides whether it succeeded"). Optional `prefs.checkCommand` on a
+     project (suggested from `workspace.detect_stack`: `pytest -q`,
+     `npm test`...). For a WRITE task, `tasks.py` runs it in the sandbox
+     worktree after the agent finishes and BEFORE the approval card, through
+     `_proc.Stream` (so the agent job guard applies), process-tree kill on a
+     timeout (Claude Queue: `taskkill /T /F`, or `close` never fires). The
+     card shows pass/fail + the output tail; it informs, it does not gate —
+     MAGI tasks are not steps in a pipeline. A "Try it now" button in the
+     project sheet runs it once on the real folder, read-only. Never in A1
+     without asking: A1's own suite is ~7 minutes.
+  2. **A stall watchdog for coding agents.** Nothing ends a CLI that goes
+     silent (council units have hard timeouts; Code agents do not), and a
+     hung task holds the whole queue. Claude Queue: fail after 30 min of NO
+     output (reset on every byte, not total time, which killed healthy long
+     tasks) with a 4 h absolute backstop. Home: `agents/_proc.Stream`'s read
+     loop -> `Outcome.UNAVAILABLE` ("stalled: no output for 30 minutes") so
+     the chain hands off to the next agent.
 
 ### (Done) Phase U4 — what it was
 
