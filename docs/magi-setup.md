@@ -45,7 +45,7 @@ the token, which would unpair her devices.
 | `claude` / `codex` not on PATH after install | open a new terminal, re-run |
 | pip errors | re-run once (network); then read the error |
 | "Port 8000 is tony's engine" | this PC is running Tony's engine; stop and ask |
-| onboard says **port 8001** | something else already holds 8000 (on Veda's PC: her own older MAGI from `Downloads\MAGI`, tasks "MAGI Cloud"/"MAGI Watchdog"). Leave it alone; 8001 is fine: the console tries her spare port on first contact and then remembers it. Use 8001 in the checks below |
+| onboard says **port 8001** | something else already holds 8000 (on Veda's PC: her own older MAGI from `Downloads\MAGI`, tasks "MAGI Cloud"/"MAGI Watchdog"). **Disable its tasks** (`Disable-ScheduledTask -TaskName 'MAGI Cloud'`, same for `'MAGI Watchdog'`): its tunnel restarts kill EVERY cloudflared.exe on the PC, A1's included -- on 2026-09-28 that replaced Veda's A1 tunnel every 5 min and spent half of account 2's KV write cap. 8001 is fine: the console tries her spare port on first contact and then remembers it. Use 8001 in the checks below |
 | "magi\.venv is Python 3.x, not 3.12" | a venv from an earlier run on another Python. End the tasks "MAGI Engine (veda)" and "MAGI Watchdog (veda)" in Task Scheduler, re-run |
 | the engine did not start | read `magi\data\veda\autostart.log` |
 
