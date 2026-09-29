@@ -1680,6 +1680,24 @@ flipped the line to "Merging…", the critique step never showed, and a reload
 reset it to "council" (or guessed "writing" for a finalise). Tests:
 `magi/tests/test_bs_phase.py`, `tests/magi-bs-phase.test.js`.
 
+**A reload mid-round comes back to the round** (S3; found by
+`tests/live/magi-bs-phase.live.js`). It never did, for three stacked reasons:
+(1) a reload closes the stream with `readyState` CLOSED and fires its
+`onerror` — BEFORE `pagehide`, while the old page can live over a second into
+the navigation — and that handler's clean-up dropped the live pin. Now
+`unpinLive` does nothing once `beforeunload` has fired (`PAGE_LEAVING`, cleared
+after 10 s or on `pageshow`), and Brainstorm's `onerror` rides out a blip as the
+council's does (ends only on CLOSED or two minutes down). (2) The resuming page
+called `openBsSession` → `closeBsStream` → unpin before attaching, so one failed
+fetch lost the round for good; `closeBsStream` now unpins only when this page
+had a stream or job. (3) The first engine request after a reload intermittently
+fails outright in the headless browser (`net::ERR_FAILED`, no CORS reason;
+recovers within ~3 s) — `resumeBrainstorm` retries three times, and forgets
+the pin only on "Session not found." Also: the stream's `init` now rebuilds
+the grid from the job's own units and states (it was primed from the tick
+boxes: every unit, all STANDBY), and the pin carries the current phase so the
+reloaded page opens on the right step before `init` lands.
+
 ## Questions handed over by another A1 program
 
 TradeHub's **Analysis** tab no longer opens a chat site and types a prompt into

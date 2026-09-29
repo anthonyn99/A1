@@ -48,6 +48,15 @@ const size = (c, w, h, phone) => c.send('Emulation.setDeviceMetricsOverride',
     const m = JSON.parse(ev.data);
     if (m.method === 'Runtime.exceptionThrown') errs.push(m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text);
   });
+  // Any engine request that fails is printed with the browser's reason.
+  await c.send('Network.enable');
+  const reqs = {};
+  c.ws.addEventListener('message', (ev) => {
+    const m = JSON.parse(ev.data);
+    if (m.method === 'Network.requestWillBeSent' && m.params.request.url.includes('127.0.0.1')) reqs[m.params.requestId] = m.params.request.method + ' ' + m.params.request.url;
+    if (m.method === 'Network.loadingFailed' && reqs[m.params.requestId] && !/stream/.test(reqs[m.params.requestId]))
+      console.log('  net   ' + reqs[m.params.requestId] + ' -> ' + m.params.errorText + ' ' + JSON.stringify(m.params.corsErrorStatus || m.params.blockedReason || ''));
+  });
   await c.send('Page.addScriptToEvaluateOnNewDocument', { source: STUB });
   await size(c, 1440, 900, false);
   await c.send('Page.navigate', { url: URL });
@@ -62,6 +71,7 @@ const size = (c, w, h, phone) => c.send('Emulation.setDeviceMetricsOverride',
 
   const critique = await waitFor(c, 'S.bs.phase === "critique"', 6 * 60000);
   ok('critique is shown', critique, `${Math.round((Date.now() - started) / 1000)}s`);
+  await sleep(300); // let the 100 ms sampler record it
   const before = await evalJs(c, 'JSON.stringify(window.__ph)');
   ok('council came before critique, nothing in between', before === '["council","critique"]' || before === '["idle","council","critique"]', before);
   ok('the line reads "reviewing each other"', await evalJs(c, '/reviewing each other/.test((document.querySelector(".bs-phase")||{}).textContent||"")'));
@@ -80,6 +90,10 @@ const size = (c, w, h, phone) => c.send('Emulation.setDeviceMetricsOverride',
   const replayed = await waitFor(c, '["critique","merging"].includes(S.bs.phase)', 5000);
   const now = await evalJs(c, 'S.bs.phase');
   ok('after reload it shows the real step, not "council"', replayed, `was ${phaseAtReload}, now ${now}`);
+  const grid = await evalJs(c, 'JSON.stringify(S.panels.map(p => p.id).sort())');
+  ok('the grid shows the round\'s own units, not every ticked one', grid === JSON.stringify([...UNITS].sort()), grid);
+  ok('and their real state, not all STANDBY', await evalJs(c, 'S.panels.some(p => p.state !== "queued")'),
+    await evalJs(c, 'S.panels.map(p => p.id + ":" + p.state).join(" ")'));
   await shot(c, 'bs-phase-reloaded-phone');
   ok('the line fits the phone width', await evalJs(c, 'return (()=>{const b=document.querySelector(".bs-phase");if(!b)return false;const r=b.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth+1;})();'));
 

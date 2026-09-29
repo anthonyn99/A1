@@ -9,10 +9,10 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-09-28, end of the Phase S2 session.
+**Last updated:** 2026-09-28, end of the Phase S3 session.
 **Phases complete:** 1–14 (14a hardening, 14b A1 writable), plus **11B**,
-and Track S's **S1** and **S2**.
-**Next phase:** **S3 — bug fixes + Brainstorm phase display**, in Track S
+and Track S's **S1**, **S2** and **S3** (Track S's speed half is done).
+**Next phase:** **U1 — units recon, read-only**, in Track S
 (§8 "Track S": S1 → S2 → S3 → U1 → U2 → U3 → U4). Phase 15 (Veda's
 engine install) is independent and still **needs Veda**; do it whenever
 she is at her PC.
@@ -35,8 +35,8 @@ One phase per session.
 | ~~14b~~ | ~~A1 writable~~ | **done 2026-09-24** (writes only; Tony's answers) | | |
 | ~~S1~~ | ~~Speed: zero-risk~~ | **done 2026-09-28** | | |
 | ~~S2~~ | ~~Speed: stragglers~~ | **done 2026-09-28** | | |
-| **S3** | Speed: fixes | One-word answers kept; Brainstorm phase line (critique/merging/review) correct and reload-proof | Small | 1 |
-| U1 | Units: recon | Read-only map of each site's model picker, model label, limit/downgrade wording, counts | Small | 1 |
+| ~~S3~~ | ~~Speed: fixes~~ | **done 2026-09-28** | | |
+| **U1** | Units: recon | Read-only map of each site's model picker, model label, limit/downgrade wording, counts | Small | 1 |
 | U2 | Units: model shown | Model chip on every card; fallbacks flagged | Medium | 1 |
 | U3 | Units: limits | Limits panel + reset countdowns; Claude Pro reuses Code Mode numbers | Medium | 1 |
 | U4 | Units: choose model | Per-unit model picker, per person; a bad pick never fails a run | Medium-large | 1 |
@@ -224,6 +224,24 @@ One phase per session.
   that grew within `STILL_WRITING_S` (20) is extended 20 s at a time.
   Tests `magi/tests/test_straggler.py` (incl. the whole round route with a
   stuck fake member).
+* **Fixes (Track S, S3)** — `validate.py`: `_ASKS_FOR_BREVITY` (question
+  asks for one word/number/digit/letter, yes or no, just the name/number) lets
+  a ≤ 2-word unpunctuated reply through TRUNCATED unless `_LOADING_LABEL`
+  matches. Brainstorm steps: `app._bs_phase(state, phase, msg)` keeps
+  `state["phase"]` (starts `council`) and emits `{"type":"phase"}` — round:
+  critique → merging; finalise: critique → writing → reviewing; the job
+  stream's `init` carries `phase`. Console: `BS_PHASES`, `bsPhaseFrom(msg,
+  current)` (phase/init; else only the chairman's "is merging|writing|
+  checking"), `phaseNote` has all five. **Reload-proof** (three bugs the live
+  test found): `unpinLive` is a no-op after `beforeunload` (`PAGE_LEAVING`);
+  `closeBsStream` unpins only if this page had a stream/job; Brainstorm's
+  `onerror` rides out blips like the council's; `resumeBrainstorm` retries
+  `openBsSession` 3× and opens on `pin.phase`; `onBrainstormEvent` handles
+  `init` (grid = the job's units + states). The old accidental
+  `test_a_limit_notice_after_send_ends_the_wait` is retired (its realistic
+  S1 sibling covers it). Tests: `test_bs_phase.py`, `test_validate.py`,
+  `test_howitworks.py` (2 new), `tests/magi-bs-phase.test.js`,
+  `tests/live/magi-bs-phase.live.js`.
 
 ### Ready for Veda's PC (the 11B completion requirement)
 

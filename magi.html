@@ -18377,11 +18377,15 @@ async function loadBsSessions() {
 }
 
 function closeBsStream() {
+  const had = !!(S.bs.es || S.bs.jobId);
   if (S.bs.es) { S.bs.es.close(); S.bs.es = null; }
   S.bs.jobId = null;
   // Every way a round stops -- done, failed, halted, dropped -- closes the
   // stream, so this is brainstorm's endRun as far as the pin is concerned.
-  unpinLive(LIVE_BS_SS);
+  // Only when there WAS a round here: a fresh page resuming one calls this
+  // (via openBsSession) before it has attached, and dropping the pin then
+  // meant one failed fetch lost the round for good (S3).
+  if (had) unpinLive(LIVE_BS_SS);
 }
 
 /** Re-reads the turn log. The database is the complete record — every member
@@ -18426,7 +18430,7 @@ function listenBs(sid, jobId, kind) {
   // A round is minutes of six units thinking, and it belongs to the engine,
   // not to this tab. Pinned so a reload -- a profile switch, most often --
   // comes back to it rather than to an idle session. See the live pin.
-  pinLive(LIVE_BS_SS, { sessionId: sid, jobId, kind });
+  pinLive(LIVE_BS_SS, { sessionId: sid, jobId, kind, phase: S.bs.phase });
 
   es.onmessage = async (ev) => {
     const msg = JSON.parse(ev.data);
@@ -18434,7 +18438,12 @@ function listenBs(sid, jobId, kind) {
 
     if (msg.type === "init" || msg.type === "phase" || msg.type === "state") {
       const next = bsPhaseFrom(msg, S.bs.phase);
-      if (next !== S.bs.phase) { S.bs.phase = next; renderBsView(); }
+      if (next !== S.bs.phase) {
+        S.bs.phase = next;
+        // In the pin too, so a reload opens on this step before `init` lands.
+        pinLive(LIVE_BS_SS, { sessionId: sid, jobId, kind, phase: next });
+        renderBsView();
+      }
     } else if (msg.type === "done") {
       if (kind === "finalize") {
         S.bs.status = "complete";
@@ -18491,7 +18500,29 @@ function listenBs(sid, jobId, kind) {
  *  feeding them through one handler is what lets the existing console render a
  *  round with no changes to it. */
 function onBrainstormEvent(msg) {
-  if (msg.type === "state") {
+  if (msg.type === "init" && Array.isArray(msg.providers)) {
+    // The job's own units and where each one is. After a reload the grid was
+    // primed from the tick boxes (every unit, all STANDBY); on a reconnect it
+    // is the record of what happened while cut off. Rebuilt only when the
+    // units differ, so text already on screen is kept.
+    const same = msg.providers.length === S.panels.length && msg.providers.every((q) => byId(q.id));
+    if (!same) {
+      S.panels = msg.providers.map((q) => ({
+        id: q.id, display_name: q.display_name, accent: q.accent,
+        state: q.state, text: q.text || "", chars: q.chars || 0,
+      }));
+      renderGrid();
+    } else {
+      for (const q of msg.providers) {
+        const p = byId(q.id);
+        p.state = q.state;
+        if (q.text) p.text = q.text;
+        if (q.chars) p.chars = q.chars;
+        updateNode(p);
+      }
+    }
+    updateCore(); drawLinks();
+  } else if (msg.type === "state") {
     const p = byId(msg.provider_id);
     if (!p) return;
     p.state = msg.state;
@@ -21017,13 +21048,22 @@ async function resumeBrainstorm() {
   if (!pin || !pin.sessionId || !pin.jobId) return;
   // openBsSession closes any stream, which clears the pin -- so it is read
   // above, and the round is re-pinned by listenBs below.
-  await openBsSession(pin.sessionId);
-  if (!S.bs.sessionId || S.bs.error) return;
-  // "council" until the stream's `init` says where the job really is -- a
-  // finalise starts with the members too, so guessing "writing" was wrong.
+  // Retried: the first request after a reload was seen failing outright
+  // (net::ERR_FAILED, S3 live test) while the engine was fine a moment later.
+  for (let i = 0; ; i++) {
+    await openBsSession(pin.sessionId);
+    if (S.bs.sessionId === pin.sessionId && !S.bs.error) break;
+    // The engine answered and does not know it: nothing to come back to.
+    if (S.bs.error === "Session not found.") { unpinLive(LIVE_BS_SS); return; }
+    if (i >= 2) return;   // pin kept: the next reconnect tries again
+    await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
+  }
+  // The step the pin last saw, until the stream's `init` says where the job
+  // really is -- a finalise starts with the members too, so guessing
+  // "writing" from the kind of job was wrong.
   Object.assign(S.bs, {
     busy: true,
-    phase: "council",
+    phase: BS_PHASES.includes(pin.phase) ? pin.phase : "council",
     status: pin.kind === "finalize" ? "finalizing" : S.bs.status,
   });
   primeGridForRound();
