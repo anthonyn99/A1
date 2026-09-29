@@ -61,6 +61,10 @@ class ProviderEvent:
     chars: int = 0
     elapsed_ms: int = 0
     message: str = ""
+    # The model the site says is answering (Phase U2), "" where it shows none,
+    # and why it counts as a fallback, "" when it does not.
+    model: str = ""
+    model_fallback: str = ""
 
 
 @dataclass
@@ -92,6 +96,13 @@ class Answer:
     chars: int = 0
     artifacts: list[str] = field(default_factory=list)
     provider_kind: str = "browser"
+    # The model the site showed for this answer (Phase U2): ChatGPT's slug on
+    # the turn, Claude/Gemini/Grok's picker label. "" where the site names
+    # none (Perplexity free, DeepSeek) -- the card then shows no chip rather
+    # than a guess. `model_fallback` is the site's evidence that this is not
+    # the model the chat started on ("" = no fallback seen).
+    model: str = ""
+    model_fallback: str = ""
 
     @classmethod
     def failed(

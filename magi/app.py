@@ -570,6 +570,10 @@ async def create_run(
             if ev.partial_text:
                 prov["text"] = ev.partial_text
                 prov["chars"] = ev.chars
+            # Phase U2: kept on the provider so a reload's `init` replays it.
+            if ev.model:
+                prov["model"] = ev.model
+                prov["model_fallback"] = ev.model_fallback
         await state["queue"].put(
             {
                 "type": "state",
@@ -578,6 +582,8 @@ async def create_run(
                 "chars": ev.chars,
                 "text": ev.partial_text,
                 "message": ev.message,
+                "model": ev.model,
+                "model_fallback": ev.model_fallback,
             }
         )
 
@@ -616,6 +622,8 @@ async def create_run(
                         "latency_ms": a.latency_ms,
                         "chars": a.chars,
                         "completion_reason": a.completion_reason,
+                        "model": a.model,
+                        "model_fallback": a.model_fallback,
                     }
                     for a in result["answers"]
                 ],
@@ -1133,6 +1141,8 @@ async def _save_council_answers(
             latency_ms=a.latency_ms,
             char_count=a.chars,
             phase=phase,
+            model=a.model,
+            model_fallback=a.model_fallback,
         )
 
 
@@ -1320,6 +1330,10 @@ async def create_brainstorm_round(
             if ev.partial_text:
                 prov["text"] = ev.partial_text
                 prov["chars"] = ev.chars
+            # Phase U2: kept on the provider so a reload's `init` replays it.
+            if ev.model:
+                prov["model"] = ev.model
+                prov["model_fallback"] = ev.model_fallback
         await state["queue"].put(
             {
                 "type": "state",
@@ -1328,6 +1342,8 @@ async def create_brainstorm_round(
                 "chars": ev.chars,
                 "text": ev.partial_text,
                 "message": ev.message,
+                "model": ev.model,
+                "model_fallback": ev.model_fallback,
             }
         )
 
@@ -1539,6 +1555,8 @@ async def _run_critique(
             latency_ms=a.latency_ms,
             char_count=a.chars,
             phase=phase,
+            model=a.model,
+            model_fallback=a.model_fallback,
         )
 
     return critiques
@@ -1616,6 +1634,10 @@ async def finalize_brainstorm(
             if ev.partial_text:
                 prov["text"] = ev.partial_text
                 prov["chars"] = ev.chars
+            # Phase U2: kept on the provider so a reload's `init` replays it.
+            if ev.model:
+                prov["model"] = ev.model
+                prov["model_fallback"] = ev.model_fallback
         await state["queue"].put(
             {
                 "type": "state",
@@ -1624,6 +1646,8 @@ async def finalize_brainstorm(
                 "chars": ev.chars,
                 "text": ev.partial_text,
                 "message": ev.message,
+                "model": ev.model,
+                "model_fallback": ev.model_fallback,
             }
         )
 

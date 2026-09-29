@@ -185,6 +185,7 @@ async def wait_for_completion(
     baseline: Baseline | None = None,
     on_progress=None,
     cancel: asyncio.Event | None = None,
+    prompt: str = "",
 ) -> CompletionResult:
     """Block until the answer is complete. Raises ProviderError on failure.
 
@@ -264,11 +265,25 @@ async def wait_for_completion(
         # it only ran once the stall timer had fired: Grok's limit was seen
         # 131s and 140s into two real runs (2026-09-28). Same selectors, same
         # page as before; only the moment it is looked for moved.
-        if site.rate_limit_selectors and time.monotonic() - last_limit_check >= LIMIT_CHECK_S:
+        #
+        # `prompt` is what was sent: the rules are page-wide text matches and
+        # the page now shows that prompt, so a prompt that QUOTES "rate
+        # limits" must not read as the site saying so (resolve.notice; Phase
+        # U1 found it losing DeepSeek 3 critique rounds of 3). The length cap
+        # rides along: Perplexity refuses an over-long prompt with a line
+        # under the composer and a disabled send, and nothing ever streams.
+        if ((site.rate_limit_selectors or site.prompt_too_long)
+                and time.monotonic() - last_limit_check >= LIMIT_CHECK_S):
             last_limit_check = time.monotonic()
-            limit = await resolve.rate_limited(page, site.rate_limit_selectors)
+            limit = await resolve.rate_limited(
+                page, site.rate_limit_selectors,
+                prompt=prompt, answer=site.assistant_turn,
+            )
             if limit:
                 raise ProviderError(FailureKind.RATE_LIMITED, limit)
+            too_long = await resolve.notice(page, site.prompt_too_long, prompt=prompt)
+            if too_long:
+                raise ProviderError(FailureKind.PROMPT_TOO_LONG, too_long)
 
         # Gate 1: don't read anything until this is demonstrably a NEW answer.
         #

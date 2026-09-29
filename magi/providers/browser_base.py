@@ -86,6 +86,24 @@ REFUSAL_RETRY_NUDGE = (
 )
 
 
+def fallback_note(before: str, after: str, notice: str = "") -> str:
+    """Why this answer counts as a fallback, or "" when it does not.
+
+    Only from what the site SHOWED (Phase U2): its own "responses will use
+    another model" notice, or the model label changing between the page
+    loading and the answer finishing -- ChatGPT's per-answer slug turning
+    `-mini`, Claude's picker moving from Sonnet to Haiku. Never from a model
+    NAME alone: a free account answering on its default is not a fallback,
+    and a label the site does not show (Perplexity, DeepSeek) is no evidence
+    either way.
+    """
+    if notice:
+        return f"The site said: {notice}"
+    if before and after and before != after:
+        return f"Started on {before}"
+    return ""
+
+
 class BrowserProvider(Provider):
     kind = "browser"
 
@@ -106,6 +124,8 @@ class BrowserProvider(Provider):
         text: str = "",
         started: float | None = None,
         message: str = "",
+        model: str = "",
+        model_fallback: str = "",
     ) -> None:
         if on_event is None:
             return
@@ -117,6 +137,8 @@ class BrowserProvider(Provider):
                 chars=len(text),
                 elapsed_ms=int((time.monotonic() - started) * 1000) if started else 0,
                 message=message,
+                model=model,
+                model_fallback=model_fallback,
             )
         )
 
@@ -180,9 +202,14 @@ class BrowserProvider(Provider):
         started_at = datetime.now(timezone.utc)
         t0 = time.monotonic()
         artifacts: list[str] = []
+        # What was typed, so a limit rule can tell the site's words from ours.
+        sent = DIRECT_ANSWER_PREAMBLE + question
+        # The model the site said the chat was on when it loaded (Phase U2).
+        # Kept on a failure too: "limited on Sonnet 5.5" is worth knowing.
+        model_before = ""
 
         def fail(kind: FailureKind, detail: str) -> Answer:
-            return Answer.failed(
+            a = Answer.failed(
                 self.id,
                 self.display_name,
                 kind,
@@ -191,6 +218,8 @@ class BrowserProvider(Provider):
                 latency_ms=int((time.monotonic() - t0) * 1000),
                 artifacts=artifacts,
             )
+            a.model = model_before
+            return a
 
         try:
             await self._emit(on_event, ProviderState.LAUNCHING, started=t0)
@@ -248,7 +277,10 @@ class BrowserProvider(Provider):
                 # in, the send appears to land, and nothing ever streams -- the
                 # exact shape that got reported as a timeout with "the send may
                 # not have registered, or the assistant_turn selector is wrong".
-                limit = await resolve.rate_limited(page, site.rate_limit_selectors)
+                limit = await resolve.rate_limited(
+                    page, site.rate_limit_selectors,
+                    prompt=sent, answer=site.assistant_turn,
+                )
                 if limit:
                     artifacts = await self._save_artifacts(page, "rate-limited")
                     return fail(
@@ -335,8 +367,15 @@ class BrowserProvider(Provider):
                 # -- baseline BEFORE sending ----------------------------------
                 baseline = await completion.capture_baseline(page, site)
 
+                # The model the chat starts on, where the site shows one
+                # (Claude, Gemini, Grok; ChatGPT only names it on an answer).
+                # The page is open already, so this costs one DOM read.
+                model_before = await resolve.model_label(page, site)
+
                 # -- type + send ----------------------------------------------
-                await self._emit(on_event, ProviderState.TYPING, started=t0)
+                await self._emit(
+                    on_event, ProviderState.TYPING, started=t0, model=model_before
+                )
                 # Get the caret in FIRST, and separately from typing, so the two
                 # failures stay distinguishable: something covering the composer
                 # is not a broken selector and must not be reported as one.
@@ -366,7 +405,7 @@ class BrowserProvider(Provider):
                     # speed without dominating the run time.
                     await humanize.insert_text(
                         page, box.locator.first,
-                        DIRECT_ANSWER_PREAMBLE + question,
+                        sent,
                         self.settings.pacing,
                     )
                 except Exception as e:
@@ -385,9 +424,24 @@ class BrowserProvider(Provider):
                         btn = submit.locator.first
                         refused = (await btn.get_attribute("aria-disabled")) == "true"                             or await btn.is_disabled()
                         if refused:
+                            # Perplexity says why under the composer, no hover
+                            # needed: "Your query is N characters over the
+                            # limit". A length cap, not a quota (Phase U1).
+                            too_long = await resolve.notice(
+                                page, site.prompt_too_long, prompt=sent
+                            )
+                            if too_long:
+                                artifacts = await self._save_artifacts(page, "prompt-too-long")
+                                return fail(
+                                    FailureKind.PROMPT_TOO_LONG,
+                                    f"{self.display_name} says: {too_long}",
+                                )
                             await btn.hover(force=True, timeout=2000)
                             await asyncio.sleep(1.0)
-                            limit = await resolve.rate_limited(page, site.rate_limit_selectors)
+                            limit = await resolve.rate_limited(
+                                page, site.rate_limit_selectors,
+                                prompt=sent, answer=site.assistant_turn,
+                            )
                             if limit:
                                 artifacts = await self._save_artifacts(page, "rate-limited")
                                 return fail(
@@ -426,7 +480,7 @@ class BrowserProvider(Provider):
                 try:
                     result = await completion.wait_for_completion(
                         page, site, baseline=baseline,
-                        on_progress=on_progress, cancel=cancel,
+                        on_progress=on_progress, cancel=cancel, prompt=sent,
                     )
                 except ProviderError as e:
                     # A quota notice can appear DURING a run -- the limit is
@@ -435,12 +489,25 @@ class BrowserProvider(Provider):
                     # edit your selectors" into "you are out of quota until
                     # 5pm", which is the difference between a wasted afternoon
                     # and waiting.
-                    limit = await resolve.rate_limited(page, site.rate_limit_selectors)
+                    if e.kind == FailureKind.PROMPT_TOO_LONG:
+                        artifacts = await self._save_artifacts(page, "prompt-too-long")
+                        return fail(e.kind, f"{self.display_name} says: {e.detail}")
+                    limit = await resolve.rate_limited(
+                        page, site.rate_limit_selectors,
+                        prompt=sent, answer=site.assistant_turn,
+                    )
                     if limit:
                         artifacts = await self._save_artifacts(page, "rate-limited")
                         return fail(
                             FailureKind.RATE_LIMITED,
                             f"{self.display_name} says: {limit}",
+                        )
+                    too_long = await resolve.notice(page, site.prompt_too_long, prompt=sent)
+                    if too_long:
+                        artifacts = await self._save_artifacts(page, "prompt-too-long")
+                        return fail(
+                            FailureKind.PROMPT_TOO_LONG,
+                            f"{self.display_name} says: {too_long}",
                         )
                     artifacts = await self._save_artifacts(page, str(e.kind))
                     raise
@@ -448,6 +515,17 @@ class BrowserProvider(Provider):
                 # Strip UI chrome (citation pills, injected ads) before this text
                 # can reach the synthesis prompt.
                 cleaned = extract.clean(result.text, site.strip_patterns)
+
+                # The model that answered, read again now it has: ChatGPT's
+                # slug only exists on a finished turn, and a site that moved
+                # the chat to another model mid-answer shows it here.
+                model_after = await resolve.model_label(page, site)
+                downgrade = await resolve.notice(
+                    page, site.downgrade_notice,
+                    prompt=sent, answer=site.assistant_turn,
+                )
+                model = model_after or model_before
+                model_fb = fallback_note(model_before, model_after, downgrade)
 
                 if not cleaned.strip():
                     artifacts = await self._save_artifacts(page, "empty")
@@ -500,9 +578,13 @@ class BrowserProvider(Provider):
                     )
                     a.artifacts = artifacts
                     a.degraded_kind = str(verdict.reason or "")
+                    a.model, a.model_fallback = model, model_fb
                     return a
 
-                await self._emit(on_event, ProviderState.DONE, text=cleaned, started=t0)
+                await self._emit(
+                    on_event, ProviderState.DONE, text=cleaned, started=t0,
+                    model=model, model_fallback=model_fb,
+                )
                 return Answer(
                     provider_id=self.id,
                     display_name=self.display_name,
@@ -516,6 +598,8 @@ class BrowserProvider(Provider):
                     latency_ms=int((time.monotonic() - t0) * 1000),
                     chars=len(cleaned),
                     provider_kind=self.kind,
+                    model=model,
+                    model_fallback=model_fb,
                 )
 
         except ProviderError as e:
@@ -556,7 +640,9 @@ class BrowserProvider(Provider):
                 # A limit notice that is already on the page. Most limits only
                 # show once you send or attach -- those come from run history,
                 # see engine/usage.py -- but some sites say it up front.
-                report.limit = await resolve.rate_limited(page, site.rate_limit_selectors)
+                report.limit = await resolve.rate_limited(
+                    page, site.rate_limit_selectors, answer=site.assistant_turn
+                )
 
                 # What a run would hit before it could type. Checked BEFORE
                 # the dialogs are cleared, because "a cookie banner is over

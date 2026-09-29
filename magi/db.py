@@ -432,6 +432,10 @@ class Database:
             for col, ddl in (
                 ("degraded", "INTEGER DEFAULT 0"),
                 ("degraded_reason", "TEXT"),
+                # Phase U2: the model the site showed, and why it was a
+                # fallback. Additive; old rows read "" (no chip).
+                ("model", "TEXT"),
+                ("model_fallback", "TEXT"),
             ):
                 if col not in have:
                     await db.execute(f"ALTER TABLE answers ADD COLUMN {col} {ddl}")
@@ -452,6 +456,8 @@ class Database:
                 ("latency_ms", "INTEGER"),
                 ("char_count", "INTEGER"),
                 ("phase", "TEXT DEFAULT 'round'"),
+                ("model", "TEXT"),
+                ("model_fallback", "TEXT"),
             ):
                 if col not in have:
                     await db.execute(
@@ -497,7 +503,9 @@ class Database:
                         "  latency_ms INTEGER,"
                         "  char_count INTEGER,"
                         "  phase TEXT DEFAULT 'round',"
-                        "  created_at TEXT NOT NULL)"
+                        "  created_at TEXT NOT NULL,"
+                        "  model TEXT,"
+                        "  model_fallback TEXT)"
                     )
                     await db.execute(
                         f"INSERT INTO brainstorm_turns_new({col_list}) "
@@ -581,8 +589,9 @@ class Database:
                      run_id,provider_id,display_name,provider_kind,state,ok,answer_text,
                      failure_kind,error_detail,completion_reason,low_confidence,
                      degraded,degraded_reason,
-                     started_at,ended_at,latency_ms,char_count,artifacts)
-                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                     started_at,ended_at,latency_ms,char_count,artifacts,
+                     model,model_fallback)
+                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     run_id, a.provider_id, a.display_name, a.provider_kind,
                     str(a.state), 1 if a.ok else 0, a.text,
@@ -591,6 +600,7 @@ class Database:
                     1 if a.degraded else 0, a.degraded_reason or None,
                     a.started_at.isoformat(), a.ended_at.isoformat(),
                     a.latency_ms, a.chars, json.dumps(a.artifacts),
+                    a.model or None, a.model_fallback or None,
                 ),
             )
             await db.commit()
@@ -788,14 +798,16 @@ class Database:
         latency_ms: int | None = None,
         char_count: int | None = None,
         phase: str = "round",
+        model: str | None = None,
+        model_fallback: str | None = None,
     ) -> None:
         async with aiosqlite.connect(self.path) as db:
             await db.execute(
                 "INSERT INTO brainstorm_turns("
                 "  session_id,round_no,attempt,role,provider_id,content,parsed_json,"
                 "  ok,failure_kind,error_detail,degraded,degraded_reason,"
-                "  latency_ms,char_count,phase,created_at) "
-                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "  latency_ms,char_count,phase,created_at,model,model_fallback) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     session_id, round_no, attempt, role, provider_id, content,
                     parsed_json,
@@ -803,6 +815,7 @@ class Database:
                     failure_kind, error_detail,
                     1 if degraded else 0, degraded_reason,
                     latency_ms, char_count, phase, _now(),
+                    model or None, model_fallback or None,
                 ),
             )
             await db.commit()

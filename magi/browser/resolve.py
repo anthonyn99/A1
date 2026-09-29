@@ -11,6 +11,7 @@ the wrong text and presenting it as a model's answer.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -154,7 +155,118 @@ async def present(page: Page, candidates: list[str]) -> bool:
     return await resolve(page, candidates, timeout_ms=0) is not None
 
 
-async def rate_limited(page: Page, candidates: list[str]) -> str:
+def _norm(s: str) -> str:
+    """Text as compared for "is this our own words": case, spacing and the
+    markdown a chat renders away (bullets, emphasis, headings) all dropped."""
+    s = re.sub(r"[*_`#>|~\-•]+", " ", (s or "").lower())
+    s = s.replace("’", "'").replace("‘", "'")
+    return " ".join(s.split())
+
+
+# Where a match is OUR words, not the site speaking: the composer (the prompt
+# before it is sent), or a paragraph of an answer. `answer` is the site's
+# assistant_turn list; a CSS one that is not valid for closest() is skipped.
+# A match inside an answer counts as prose only when the answer holds much
+# more than the match -- a limit card that REPLACES an answer is the whole of
+# its turn, and must still read as the limit it is.
+_OURS_JS = """(el, answer) => {
+  if (el.closest("textarea, input, [contenteditable='true'], [contenteditable='']")) return "composer";
+  const own = (el.innerText || "").trim().length;
+  for (const css of answer) {
+    let turn = null;
+    try { turn = el.closest(css); } catch (e) { continue; }
+    if (turn && (turn.innerText || "").trim().length > own * 2 + 80) return "answer";
+  }
+  return "";
+}"""
+
+# How many matches of one rule to look through. The first can be the prompt
+# echoed in the conversation while the real notice is the second.
+NOTICE_SCAN = 10
+
+
+async def notice(
+    page: Page, candidates: list[str], *, prompt: str = "",
+    answer: list[str] | tuple = (),
+) -> str:
+    """The first visible match of `candidates` that is the SITE talking, or "".
+
+    Phase U1 found why this cannot just take `.first`: most of these rules are
+    page-wide `text=` matches, and the page includes the user's own prompt.
+    Brainstorm 797a9ae3cc13 (2026-09-25) lost DeepSeek's critique in 3 of 3
+    rounds, each "rate_limited" ~12s in, because the other members' proposals
+    it was asked to review said "rate limits" -- and `text=/rate limit/i`
+    matched them in the user bubble. So a match is skipped when its text is
+    part of the prompt that was sent, when it sits in the composer, or when it
+    is a line inside a longer answer. What is left is a notice.
+
+    Skipping is the SAFE direction: a real notice that is also quoted word for
+    word in the prompt is missed, and the run falls back to its old timeout --
+    it can no longer invent a limit out of the user's own words.
+    """
+    said = _norm(prompt)
+    answer = [a for a in (answer or []) if a and not a.startswith(("text=", "xpath="))]
+    for sel in candidates:
+        try:
+            loc = page.locator(sel)
+            n = min(await loc.count(), NOTICE_SCAN)
+        except Exception:
+            continue
+        for i in range(n):
+            try:
+                el = loc.nth(i)
+                if not await el.is_visible():
+                    continue
+                txt = " ".join((await el.inner_text() or "").split())
+                if said and _norm(txt) and _norm(txt) in said:
+                    continue
+                try:
+                    if await el.evaluate(_OURS_JS, answer):
+                        continue
+                except Exception:
+                    pass
+                return txt[:200] or "(no text)"
+            except Exception:
+                continue
+    return ""
+
+
+async def model_label(page: Page, site) -> str:
+    """The model the site says this chat is on, or "" when it shows none.
+
+    The rule Phase U1 pinned in test_unit_selectors: the first `model_label`
+    candidate with a match wins, its LAST match is read (ChatGPT names the
+    model on every answer turn, and the newest is the one that just answered),
+    from an attribute (`model_label_from: "attr:<name>"`) or its text, then cut
+    to `model_label_pattern`'s group 1 when there is one. Never raises: a
+    missing label is a card without a chip, not a failed run.
+    """
+    for sel in getattr(site, "model_label", None) or []:
+        try:
+            loc = page.locator(sel)
+            if not await loc.count():
+                continue
+            el = loc.last
+            how = getattr(site, "model_label_from", "") or "text"
+            raw = (await el.get_attribute(how[5:]) if how.startswith("attr:")
+                   else await el.inner_text())
+            raw = " ".join((raw or "").split())
+            pat = getattr(site, "model_label_pattern", "")
+            if pat:
+                m = re.search(pat, raw)
+                if not m:
+                    return ""
+                raw = m.group(1).strip()
+            return raw[:80]
+        except Exception:
+            continue
+    return ""
+
+
+async def rate_limited(
+    page: Page, candidates: list[str], *, prompt: str = "",
+    answer: list[str] | tuple = (),
+) -> str:
     """The site's own "you have used your quota" notice, or "".
 
     A DIFFERENT failure from a timeout, and the distinction is the whole point
@@ -166,17 +278,12 @@ async def rate_limited(page: Page, candidates: list[str]) -> str:
     remedy was to wait until 5pm.
 
     Returns the notice TEXT, not just a boolean, because it usually carries the
-    reset time and that is the one thing the user actually needs.
+    reset time and that is the one thing the user actually needs. Pass the
+    `prompt` that was sent and the site's `answer` (assistant_turn) selectors
+    so the user's own words are never read as the site's -- see `notice`.
     """
-    for sel in candidates:
-        try:
-            loc = page.locator(sel).first
-            if await loc.count() and await loc.is_visible():
-                txt = (await loc.inner_text() or "").strip()
-                return " ".join(txt.split())[:200] or "usage limit reached"
-        except Exception:
-            continue
-    return ""
+    said = await notice(page, candidates, prompt=prompt, answer=answer)
+    return "usage limit reached" if said == "(no text)" else said
 
 
 async def signed_out(page: Page, login_candidates: list[str]) -> bool:

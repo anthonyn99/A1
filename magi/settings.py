@@ -305,6 +305,15 @@ def _dedup(items: list[str]) -> list[str]:
     return out
 
 
+# The Phase U1 keys that are plain selector lists.
+U1_LIST_KEYS = (
+    "model_button", "model_option", "model_selected", "model_locked",
+    "model_more", "effort_open", "effort_option", "think_toggle",
+    "model_label", "downgrade_notice", "limit_notice", "usage_readout",
+    "prompt_too_long",
+)
+
+
 @dataclass
 class SiteSelectors:
     """Selectors for one site. Every field is a list, tried in order."""
@@ -356,6 +365,32 @@ class SiteSelectors:
     # different answer per site and has to be asked per site.
     login_is_proof: bool = False
 
+    # -- models and limits (Phase U1 recon; read from U2 on) -----------------
+    # Every one a list, [] meaning "looked, this site has none". What each
+    # site offers is in its "Models and limits" block in selectors.yaml and
+    # the findings table in docs/magi-plan.md (Track S, "Phase U1").
+    model_button: list[str] = field(default_factory=list)
+    model_option: list[str] = field(default_factory=list)
+    model_selected: list[str] = field(default_factory=list)
+    model_locked: list[str] = field(default_factory=list)
+    model_more: list[str] = field(default_factory=list)
+    effort_open: list[str] = field(default_factory=list)
+    effort_option: list[str] = field(default_factory=list)
+    think_toggle: list[str] = field(default_factory=list)
+    # The model the chat is on (U2 reads it before and after each answer):
+    # where, "text" or "attr:<name>", and a regex whose group 1 is the name.
+    model_label: list[str] = field(default_factory=list)
+    model_label_from: str = "text"
+    model_label_pattern: str = ""
+    # The site saying it moved you to another model.
+    downgrade_notice: list[str] = field(default_factory=list)
+    # A notice scoped to its own container (Grok's role=alert limit card).
+    limit_notice: list[str] = field(default_factory=list)
+    usage_readout: list[str] = field(default_factory=list)
+    # The site refusing a prompt for its LENGTH (Perplexity). Not a quota:
+    # waiting does nothing, a shorter prompt does.
+    prompt_too_long: list[str] = field(default_factory=list)
+
     poll_ms: int = 400
     stability_samples: int = 7
     # How many quiet polls must follow a semantic "finished" signal (streaming
@@ -400,6 +435,9 @@ class SiteSelectors:
             dismiss_selectors=dismiss,
             strip_patterns=_as_list(merged.get("strip_patterns")),
             headless_ok=bool(merged.get("headless_ok", False)),
+            **{k: _as_list(merged.get(k)) for k in U1_LIST_KEYS},
+            model_label_from=str(merged.get("model_label_from") or "text"),
+            model_label_pattern=str(merged.get("model_label_pattern") or ""),
             poll_ms=int(merged.get("poll_ms", 400)),
             stability_samples=int(merged.get("stability_samples", 7)),
             confirm_samples=int(merged.get("confirm_samples", 5)),

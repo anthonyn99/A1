@@ -26,6 +26,11 @@ class FailureKind(StrEnum):
     TIMEOUT = "timeout"
     BOT_CHALLENGE = "bot_challenge"
     RATE_LIMITED = "rate_limited"
+    # The site refused the prompt for its LENGTH (Perplexity: "Your query is
+    # 7,579 characters over the limit"). Split from RATE_LIMITED (waiting does
+    # nothing) and from TIMEOUT, which is what three of these were logged as
+    # on 2026-09-25 -- with the remedy "raise hard_timeout_s".
+    PROMPT_TOO_LONG = "prompt_too_long"
     NAVIGATION = "navigation"
     EMPTY_RESPONSE = "empty_response"
     BROWSER_CRASH = "browser_crash"
@@ -64,6 +69,11 @@ EXPLANATIONS: dict[FailureKind, tuple[str, str]] = {
     FailureKind.RATE_LIMITED: (
         "The site says you have hit a usage limit.",
         "Wait for the quota to reset, or disable this provider in config/magi.yaml.",
+    ),
+    FailureKind.PROMPT_TOO_LONG: (
+        "The site refused the prompt because it is too long for this unit.",
+        "Shorten the prompt (or its attachments' text), or leave this unit out "
+        "of long runs. Waiting will not help: this is a length cap, not a quota.",
     ),
     FailureKind.NAVIGATION: (
         "The page failed to load.",
