@@ -91,14 +91,19 @@ ok('the composer drives it', /if \(typeof codePreviewSoon === "function"\) codeP
 ok('it redraws the row only, not the whole view', /codeModelsRedraw\(\);/.test(pv) && !/renderCodeView\(\)/.test(pv));
 
 console.log('\nThe popup');
-const alerts = fn('function codeUsageAlerts(alerts)');
-const toast = fn('function usageToast(a)');
+const alerts = fn('function usageShowNext()');
+const toast = fn('function usageToast(a, host)');
+const render = fn('function usageRender()');
 ok('once per alert key', /!seen\.has\(a\.key\)/.test(alerts) && /usageMarkSeen\(a\.key\);/.test(toast));
-ok('the seen list is bounded', /seen\.slice\(-60\)/.test(fn('function usageMarkSeen(key)')));
-ok('the most serious first, one at a time', /fresh\.sort/.test(alerts) && /usageToast\(fresh\[0\]\);/.test(alerts));
-ok('it is a status, not a dialog', /setAttribute\("role", "status"\)/.test(toast) && /aria-live/.test(toast));
-ok('warnings fade; stops stay', /if \(a\.level === "warn" \|\| a\.level === "near_cap"\) setTimeout/.test(toast));
-ok('it links to the sheet', /codeModelSheet\(a\.agent\)/.test(toast));
+ok('the seen list is bounded', /USAGE_SEEN_MAX = 60/.test(MAGI) && /slice\(-USAGE_SEEN_MAX\)/.test(fn('function usageStore(')));
+ok('the most serious first, one at a time', /if \(USAGE\.open\.length\) return;/.test(alerts) && /fresh\.sort/.test(alerts) && /USAGE\.open\.push\(usageClean\(fresh\[0\]\)\)/.test(alerts));
+ok('it is a status, not a dialog', /setAttribute\("role", "status"\)/.test(toast) && /aria-live/.test(render));
+ok('nothing but X closes it: no timer', !/setTimeout\([^)]*remove/.test(toast) && !/t\.remove\(\)/.test(toast)
+   && !/USAGE\.open = /.test(toast.slice(0, toast.indexOf('x.onclick'))));
+ok('it links to the sheet, and stays', /open\.onclick = \(\) => codeModelSheet\(a\.agent\);/.test(toast));
+ok('what is open survives a refresh', /const USAGE_OPEN_KEY = lsKey\("usage\.open"\)/.test(MAGI) && /setTimeout\(usageRender, 0\)/.test(MAGI));
+ok('and a browser that blocks storage: it rides the profile doc',
+   /\{ usageAlerts: body \}, \{ mergeFields: \["usageAlerts"\] \}/.test(MAGI) && /if \(d\) usageFromCloud\(d\.usageAlerts\);/.test(MAGI));
 ok('the usage poll feeds it', /codeUsageAlerts\(d\.alerts\);/.test(fn('async function codeUsageRefresh()')));
 
 console.log('\nThe chips and the transcript');

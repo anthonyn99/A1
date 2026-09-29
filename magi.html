@@ -14616,6 +14616,7 @@ const EFFORT_LABEL = { low: "Low", medium: "Medium", high: "High", xhigh: "Extra
 const CAP_MIN = 5;                            // the slider's floor; its far right is Off
 const AGENT_NAME = { claude: "Claude", codex: "Codex" };
 const USAGE_SEEN_KEY = lsKey("usage.seen");
+const USAGE_OPEN_KEY = lsKey("usage.open");
 
 async function codeModelsLoad(refresh = false) {
   // A read that began before a change you made would put the old value back
@@ -15159,36 +15160,91 @@ function renderCliCard(agent, m, a, onChange, state) {
 /* ── the usage popup ──────────────────────────────────────────────────────
    Small, in a corner, and once per window per reset: 84% of the weekly
    limit is announced once, not every minute until Tuesday. A cap reached,
-   or the plan's limit, always says what happens next. */
-function usageSeen() {
-  try { return JSON.parse(localStorage.getItem(USAGE_SEEN_KEY) || "[]"); } catch { return []; }
+   or the plan's limit, always says what happens next.
+
+   It stays until you press its X -- nothing else closes it: not a timer,
+   not Limits, not a refresh. Two lists, per profile:
+     · open -- the alerts on screen, whole, so a reload can redraw them
+       even after the engine has stopped reporting them (a window reset);
+     · seen -- the keys you closed, so the same alert never comes back.
+   Both are kept on this device AND in the profile's cloud document
+   (`usageAlerts`), merged as unions: localStorage alone forgets everything
+   on a browser that blocks site storage (Veda's Brave), and the cloud copy
+   means an alert closed on the PC is closed on the phone too. One write
+   per alert shown or closed -- a few a week. */
+const USAGE = {
+  seen: (() => { try { return JSON.parse(localStorage.getItem(USAGE_SEEN_KEY) || "[]"); } catch { return []; } })(),
+  open: (() => { try { return JSON.parse(localStorage.getItem(USAGE_OPEN_KEY) || "[]"); } catch { return []; } })(),
+  last: [],            // the engine's latest alert list, for "the next one"
+  cloudSig: null,      // what the cloud last held, so an echo is not a write
+};
+const USAGE_SEEN_MAX = 60;
+
+function usageSeen() { return USAGE.seen; }
+
+/** Only what the card needs, and nothing Firestore would refuse. */
+function usageClean(a) {
+  const o = {};
+  for (const k of ["key", "level", "agent", "label", "cap", "window_label", "used", "resets_at"]) {
+    if (a[k] !== undefined && a[k] !== null) o[k] = a[k];
+  }
+  return o;
 }
+
+function usageStore(sync = true) {
+  USAGE.seen = USAGE.seen.slice(-USAGE_SEEN_MAX);
+  const seen = new Set(USAGE.seen);
+  USAGE.open = USAGE.open.filter((a) => a && a.key && !seen.has(a.key));
+  try {
+    localStorage.setItem(USAGE_SEEN_KEY, JSON.stringify(USAGE.seen));
+    localStorage.setItem(USAGE_OPEN_KEY, JSON.stringify(USAGE.open));
+  } catch {}
+  if (sync) usageCloudSave();
+}
+
 function usageMarkSeen(key) {
-  const seen = usageSeen().filter((k) => k !== key);
-  seen.push(key);
-  try { localStorage.setItem(USAGE_SEEN_KEY, JSON.stringify(seen.slice(-60))); } catch {}
+  USAGE.seen = USAGE.seen.filter((k) => k !== key);
+  USAGE.seen.push(key);
+  usageStore();
 }
 
 function codeUsageAlerts(alerts) {
-  const seen = new Set(usageSeen());
-  const fresh = (alerts || []).filter((a) => !seen.has(a.key));
-  if (!fresh.length) return;
-  // The most serious first; one popup at a time, the rest when it closes.
-  const rank = { capped: 0, limit: 1, near_cap: 2, warn: 3 };
-  fresh.sort((p, q) => rank[p.level] - rank[q.level]);
-  usageToast(fresh[0]);
+  USAGE.last = Array.isArray(alerts) ? alerts : [];
+  usageShowNext();
 }
 
-function usageToast(a) {
+/** One alert at a time: the most serious unseen one, once the one on screen
+ *  has been closed. */
+function usageShowNext() {
+  if (USAGE.open.length) return;
+  const seen = new Set(USAGE.seen);
+  const fresh = USAGE.last.filter((a) => a && a.key && !seen.has(a.key));
+  if (!fresh.length) return;
+  const rank = { capped: 0, limit: 1, near_cap: 2, warn: 3 };
+  fresh.sort((p, q) => (rank[p.level] ?? 9) - (rank[q.level] ?? 9));
+  USAGE.open.push(usageClean(fresh[0]));
+  usageStore();
+  usageRender();
+}
+
+/** The cards on screen follow USAGE.open exactly. */
+function usageRender() {
   let host = document.getElementById("usageToasts");
   if (!host) {
+    if (!USAGE.open.length) return;
     host = el("div", "usage-toasts");
     host.id = "usageToasts";
     host.setAttribute("aria-live", "polite");
     document.body.append(host);
   }
-  if (host.querySelector(`[data-key="${CSS.escape(a.key)}"]`)) return;
-  usageMarkSeen(a.key);
+  const want = new Set(USAGE.open.map((a) => a.key));
+  for (const t of [...host.children]) if (!want.has(t.dataset.key)) t.remove();
+  for (const a of USAGE.open) {
+    if (!host.querySelector(`[data-key="${CSS.escape(a.key)}"]`)) usageToast(a, host);
+  }
+}
+
+function usageToast(a, host) {
   const who = `${AGENT_NAME[a.agent] || a.agent}${a.label && a.label !== "system" ? ` (${a.label})` : ""}`;
   const t = el("div", `usage-toast is-${a.level}`);
   t.dataset.key = a.key;
@@ -15198,23 +15254,35 @@ function usageToast(a) {
     limit: `${who} has used its ${a.window_label} limit.`,
     near_cap: `${who} is at ${a.used}% of the ${a.window_label} limit — your cap is ${a.cap}%.`,
     warn: `${who} is at ${a.used}% of the ${a.window_label} limit.`,
-  }[a.level];
+  }[a.level] || `${who}: usage alert.`;
   const txt = el("div", "usage-toast-t");
   txt.append(el("span", "usage-toast-m", msg));
-  if (a.resets_at) txt.append(el("span", "usage-toast-s", `Resets ${resetWhen(a.resets_at)}`
-    + (a.level === "capped" ? " — the chain uses other agents until then." : "")));
+  if (a.resets_at) {
+    const past = a.resets_at * 1000 < Date.now();   // engine seconds
+    txt.append(el("span", "usage-toast-s", past ? "That window has reset since."
+      : `Resets ${resetWhen(a.resets_at)}`
+        + (a.level === "capped" ? " — the chain uses other agents until then." : "")));
+  }
+  // Limits opens the sheet and leaves the card where it is: only X closes it.
   const open = el("button", "usage-toast-b", "Limits");
   open.type = "button";
-  open.onclick = () => { t.remove(); codeModelSheet(a.agent); };
+  open.onclick = () => codeModelSheet(a.agent);
   const x = el("button", "usage-toast-x", "✕");
   x.type = "button";
   x.setAttribute("aria-label", "Dismiss");
-  x.onclick = () => t.remove();
+  x.title = "Dismiss";
+  x.onclick = () => {
+    USAGE.open = USAGE.open.filter((o) => o.key !== a.key);
+    usageMarkSeen(a.key);
+    usageRender();
+    usageShowNext();
+  };
   t.append(txt, open, x);
   host.append(t);
-  // A warning fades on its own; a stop stays until you have seen it.
-  if (a.level === "warn" || a.level === "near_cap") setTimeout(() => t.remove(), 12000);
 }
+
+// A refresh redraws what was open -- as soon as the page has a body.
+setTimeout(usageRender, 0);
 
 function codeAddSlot(c) {
   const taken = new Set(c.slots.map((s) => s.slot));
@@ -22644,6 +22712,49 @@ function cloudSaveQueue() {
   }, 700);
 }
 
+/* ── the usage popups' cloud copy (see "the usage popup") ───────────────────────────────────────────────────── */
+const usageSig = (u) => JSON.stringify({ o: (u.open || []).map((a) => a.key).sort(),
+                                         s: [...(u.seen || [])].sort() });
+
+let _usageT = 0;
+function usageCloudSave() {
+  if (typeof CLOUD === "undefined" || !CLOUD.enabled) return;
+  const body = { open: USAGE.open.map(usageClean), seen: USAGE.seen.slice(-USAGE_SEEN_MAX) };
+  if (usageSig(body) === USAGE.cloudSig) return;
+  clearTimeout(_usageT);
+  _usageT = setTimeout(async () => {
+    if (!(await cloudInit())) return;
+    try {
+      await CLOUD.fs.setDoc(_indexDoc(), { usageAlerts: body }, { mergeFields: ["usageAlerts"] });
+      USAGE.cloudSig = usageSig(body);
+    } catch (e) { console.warn("[magi] usage alerts:", e); }
+  }, 800);
+}
+
+/** Another device's copy (or this one's, after a reload with no storage).
+ *  Unions both ways: a card closed anywhere is closed, and a card opened
+ *  anywhere is shown until it is. */
+function usageFromCloud(u) {
+  if (!u || typeof u !== "object") {
+    // Nothing up there yet: this device's cards are the first copy.
+    if (USAGE.open.length || USAGE.seen.length) usageCloudSave();
+    return;
+  }
+  USAGE.cloudSig = usageSig({ open: u.open || [], seen: u.seen || [] });
+  const seen = [...USAGE.seen];
+  for (const k of Array.isArray(u.seen) ? u.seen : []) if (!seen.includes(k)) seen.push(k);
+  const open = [...USAGE.open];
+  for (const a of Array.isArray(u.open) ? u.open : []) {
+    if (a && a.key && !open.some((o) => o.key === a.key)) open.push(usageClean(a));
+  }
+  USAGE.seen = seen;
+  USAGE.open = open;
+  usageStore(false);
+  // Push back only if this device knew something the cloud did not.
+  usageCloudSave();
+  usageRender();
+}
+
 /** Only the fields worth carrying. Firestore rejects undefined outright, and
  *  the local-only suggestion fields would be stale everywhere else anyway.
  *  One function for both directions, so what is saved and what an incoming
@@ -23435,6 +23546,8 @@ async function cloudWatch() {
       // that. Skipped while a mark made here is on its way up.
       if (d && !_codeMarksDirty) codeMarksFromCloud(d);
       codeSyncFromCloud(d && d.code);
+      // The usage popups: open and closed, whichever device it happened on.
+      if (d) usageFromCloud(d.usageAlerts);
 
       if (d && Array.isArray(d.engines) && engMerge(d.engines)) {
         syncEngineBtn();

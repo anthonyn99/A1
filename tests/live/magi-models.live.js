@@ -229,6 +229,10 @@ async function restore() {
       await evalJs(c, 'document.querySelector(".usage-toast .usage-toast-b").click(); return 1;');
       ok('"Limits" opens the Claude sheet', await waitFor(c, sheetOpen, 15000));
       await closeSheet(c);
+      // Only X closes a card: Limits left it where it was.
+      ok('the card survives Limits', await evalJs(c, '!!document.querySelector(".usage-toast")'));
+      await evalJs(c, 'document.querySelector(".usage-toast .usage-toast-x").click(); return 1;');
+      await waitFor(c, '!document.querySelector(".usage-toast")', 3000);
       await evalJs(c, `codeUsageAlerts([{key: "live-test-x-" + Date.now(), agent: "codex", slot: "codex1", label: "codex1", window: "30d", window_label: "30-day", used: 91, cap: 95, resets_at: null, level: "near_cap"}]); return 1;`);
       await waitFor(c, '!!document.querySelector(".usage-toast")', 3000);
       await evalJs(c, 'document.querySelector(".usage-toast .usage-toast-x").click(); return 1;');
