@@ -3667,24 +3667,24 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 
 /* Brainstorm: the one control that hides or shows Past sessions, centred
    above the list it governs. */
-.bs-past-bar { display: flex; justify-content: center; margin: 22px 0 10px; }
+.bs-past-bar { display: flex; justify-content: center; margin: 18px 0 8px; }
 .bs-past-toggle {
-  display: inline-flex; align-items: center; gap: 7px;
-  min-height: 30px; padding: 0 14px;
+  display: inline-flex; align-items: center; gap: 5px;
+  min-height: 22px; padding: 0 9px;
   background: none; border: 1px solid var(--bd); border-radius: 999px;
-  color: var(--txd); font: inherit; font-size: 11.5px; font-weight: 600;
+  color: var(--txd); font: inherit; font-size: 10.5px; font-weight: 500;
   letter-spacing: .2px; cursor: pointer;
 }
 .bs-past-toggle:hover { border-color: var(--ac); color: var(--tx); }
 .bs-past-toggle:focus-visible { outline: 2px solid var(--ac); outline-offset: 2px; }
-.bs-past-chev { display: inline-block; font-size: 10px; transition: transform .15s ease; }
+.bs-past-chev { display: inline-block; font-size: 8px; transition: transform .15s ease; }
 .bs-past-toggle[aria-expanded="false"] .bs-past-chev { transform: rotate(-90deg); }
 .bs-past-n {
-  min-width: 18px; padding: 0 5px; border-radius: 999px;
+  min-width: 14px; padding: 0 4px; border-radius: 999px;
   background: var(--s2, rgba(255,255,255,.06)); color: var(--txm);
-  font-size: 10px; line-height: 16px; text-align: center;
+  font-size: 9px; line-height: 13px; text-align: center;
 }
-@media (max-width: 720px) { .bs-past-toggle { min-height: 36px; } }
+@media (max-width: 720px) { .bs-past-toggle { min-height: 28px; padding: 0 11px; } }
 
 /* Code Mode's History: one chip per project, only when there are several. */
 .code-hist-filter {

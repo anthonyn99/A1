@@ -143,7 +143,7 @@ const vis = (sel) => `((e) => !!e && e.getBoundingClientRect().width > 0 && e.ge
   ok('the rows still open / act', await evalJs(c, 'document.querySelectorAll("#bsPast .row").length') === 2);
   await c.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
   await sleep(300);
-  ok('phone: toggle is a comfortable tap target', (await evalJs(c, '$("bsPastToggle").getBoundingClientRect().height')) >= 34);
+  ok('phone: toggle is still tappable', (await evalJs(c, '$("bsPastToggle").getBoundingClientRect().height')) >= 28);
   ok('phone: no horizontal overflow', await evalJs(c, 'document.documentElement.scrollWidth <= innerWidth + 1'));
   await evalJs(c, '$("bsPastToggle").scrollIntoView({block:"center"}); return 1;');
   await shot(c, 'cq-3-bs-phone');
