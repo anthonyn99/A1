@@ -692,6 +692,22 @@ body {
 .unit-lim-check:hover:not(:disabled) { border-color: var(--ac); color: var(--ac); }
 .unit-lim-check:disabled { opacity: .6; cursor: default; }
 @media (max-width: 760px) { .unit-lim-check { min-height: 36px; padding: 5px 12px; } }
+/* Phase U4: the model this unit is asked for. Its own box, NOT inside
+   .unit-lim -- that one is rebuilt every 30 s, which would shut an open
+   dropdown under your finger. */
+.unit-pick {
+  flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center;
+  gap: 5px 8px; padding: 0 11px 9px; font-size: 11px; color: var(--txd);
+}
+.unit-pick:empty { display: none; }
+.unit-pick-lbl { font-weight: 700; color: var(--txm); }
+.unit-pick-sel {
+  flex: 1 1 150px; min-width: 0; max-width: 100%; height: 30px; padding: 0 8px;
+  border-radius: 7px; background: var(--s2); border: 1px solid var(--bdl);
+  color: var(--tx); font: inherit; font-size: 11.5px;
+}
+.unit-pick-sel:disabled { opacity: .6; }
+@media (max-width: 760px) { .unit-pick-sel { height: 36px; } }
 
 /* The same verdict as a dot on the chip, so a limited unit is visible before
    you tick it. Top-left: the chair's star owns top-right. */
@@ -6821,6 +6837,7 @@ const HOW = [
       "<b>Each card names the model that answered</b>, as the site itself shows it &mdash; Claude&rsquo;s, Gemini&rsquo;s and Grok&rsquo;s picker, ChatGPT&rsquo;s tag on the answer. Perplexity&rsquo;s free plan and DeepSeek name no model anywhere, so their cards have no chip rather than a guess. The chip turns amber, <b>fell back to &hellip;</b>, only on the site&rsquo;s own evidence: its label changed between the page loading and the answer finishing, or it said it was switching models. It is kept in history and on Brainstorm&rsquo;s member answers.",
       "<b>Your own words are never read as a limit.</b> A prompt that talks about &ldquo;rate limits&rdquo; used to fail a unit as rate-limited, because the page shows the prompt and the check read the whole page. The check now skips the prompt you sent, the composer, and a line inside a longer answer. And a prompt too long for a site (Perplexity: &ldquo;characters over the limit&rdquo;) is reported as <b>Prompt too long</b> at once, not as a timeout two minutes later &mdash; the fix is a shorter prompt, not waiting.",
       "<b>Each unit&rsquo;s limits are in the Units sheet</b> (tap <b>Units</b> above the chips): its model, and <b>OK</b>, <b>Limited until</b> a time with a countdown, <b>Near limit</b>, <b>Fell back</b> or <b>Signed out</b>, with when it was last in a run and last checked. A chip with a red or amber dot is one of those. It is all from what the site showed during your runs and Brainstorm rounds &mdash; no browser is opened for it, and nothing checks on a timer. <b>Check now</b> opens that one unit&rsquo;s site (signed in as you, nothing sent) to look. Only <b>Claude (Pro)</b> has real numbers: it shares its allowance with Code Mode&rsquo;s Claude account, so it shows the same 5-hour and weekly bars. The other sites show no count, so none is invented. The Doctor&rsquo;s limit section reads the same verdict, and each person&rsquo;s engine keeps its own.",
+      "<b>Choose each unit&rsquo;s model in the Units sheet</b>: a <b>Model</b> dropdown under Claude, Claude (Pro), Gemini and Grok, the only sites with a picker your accounts can use (ChatGPT, Perplexity and DeepSeek answer on their default). <b>Site default</b> is first and means MAGI leaves the site&rsquo;s picker alone. A choice is per person, kept on your own engine, and used by every turn that unit takes &mdash; council, chairman, Brainstorm and Studio. Before typing, the unit opens the site&rsquo;s menu, picks the model and checks the menu&rsquo;s own tick (sites remember a pick, so after the first time nothing is clicked). If the model is locked, gone, or the site will not switch, the run is <b>never failed</b>: the unit answers on what the site gives and its card says <b>Asked for X, got Y</b>. <b>Refresh models</b> opens that site once (nothing sent) to read what your account is offered, locked ones marked.",
     ],
   },
   {
@@ -15286,7 +15303,7 @@ function openChairPicker() {
     if (!S.selected.has(p.id)) tags.append(el("span", "doc-flag na", "Unticked"));
     pick.append(tags);
     pick.onclick = () => { setChair(p.id); sheet.remove(); };
-    row.append(pick, unitLimBox(p.id));
+    row.append(pick, unitLimBox(p.id), unitPickBox(p.id));
     list.append(row);
   }
   box.append(list);
@@ -15343,6 +15360,7 @@ async function loadUnitsUsage() {
   } catch { return; }
   if (S.providers.length) renderUnitChips();
   refreshUnitSheet();
+  refreshUnitPicks();
 }
 
 function unitsTakeDoctor(data) {
@@ -15462,6 +15480,136 @@ async function unitCheckNow(id) {
   UNITS_USE.checking.delete(id);
   if (S.providers.length) renderUnitChips();
   refreshUnitSheet();
+}
+
+/* ══ UNITS: CHOOSE THE MODEL (Phase U4) ═══════════════════════════════════
+   Per unit, per person: the engine keeps the pick in the profile's own
+   accounts.json, beside the chairman. "Site default" (first, and what
+   nothing-chosen means) leaves the site's picker alone -- exactly the
+   behaviour before U4. A pick is made on the unit's next turn, before it
+   types; one the site will not give is never a failed run: the unit answers
+   on what it gets and its card says "Asked for X, got Y". Only Claude, Gemini
+   and Grok have a picker an account can drive. The list is what MAGI saw on
+   the site until "Refresh models" reads this account's own (one browser
+   launch, on a tap only). Everything comes in the /api/units/usage entries
+   (`pickable`, `pick`, `models`, `models_at`), so opening the sheet costs
+   no extra request. */
+const UNITS_PICK = { busy: new Set(), err: {} };
+const pickKey = (m) => (m && (m.id || m.name)) || "";
+
+function unitPickBox(id) {
+  const box = el("div", "unit-pick");
+  box.dataset.unit = id;
+  const u = UNITS_USE.byId[id];
+  if (!u || u.pickable === undefined) return box;       // not read yet, or an older engine
+  if (!u.pickable) {
+    box.append(el("span", "unit-lim-sub",
+      "Model: this site has no picker MAGI can use on your account, so it answers on its default."));
+    return box;
+  }
+  const busy = UNITS_PICK.busy.has(id);
+  const pick = u.pick || {};
+  const pname = pick.name || pickKey(pick);
+  box.append(el("span", "unit-pick-lbl", "Model"));
+  const sel = el("select", "unit-pick-sel");
+  sel.setAttribute("aria-label", `Model for ${u.display_name || id}`);
+  const def = el("option", null, "Site default");
+  def.value = "";
+  sel.append(def);
+  let listed = !pickKey(pick);
+  for (const m of u.models || []) {
+    const mine = pickKey(m) === pickKey(pick);
+    const o = el("option", null, m.locked ? `${m.name} \u2014 locked on this account` : m.name);
+    o.value = pickKey(m);
+    o.disabled = !!m.locked && !mine;
+    if (mine) { o.selected = true; listed = true; }
+    sel.append(o);
+  }
+  if (!listed) {                                          // chosen, then gone from the list
+    const o = el("option", null, `${pname} (no longer listed)`);
+    o.value = pickKey(pick);
+    o.selected = true;
+    sel.append(o);
+  }
+  sel.disabled = busy || !online();
+  sel.onchange = () => unitSetModel(id, sel.value);
+  box.append(sel);
+
+  const ref = el("button", "unit-lim-check");
+  ref.type = "button";
+  ref.disabled = busy || !online();
+  if (busy) ref.append(spinnerEl());
+  ref.append(document.createTextNode(busy ? "Reading\u2026" : "Refresh models"));
+  ref.title = "Open this unit's site now (signed in as you, nothing sent) and read the models your account is offered";
+  ref.onclick = () => unitRefreshModels(id);
+  box.append(ref);
+
+  box.append(el("div", "unit-lim-sub", pickKey(pick)
+    ? `Asked for ${pname} on every turn. If the site will not give it, the unit still answers on what it gets, and its card says \u201cAsked for ${pname}, got \u2026\u201d.`
+    : "Site default: MAGI leaves the site's picker alone and uses whatever it is on."));
+  box.append(el("div", "unit-lim-sub", u.models_at
+    ? `List read from your account ${docAgo(u.models_at)}.`
+    : "List as MAGI last saw this site. Refresh models reads your account's own."));
+  if (UNITS_PICK.err[id]) box.append(el("div", "unit-lim-sub warn", UNITS_PICK.err[id]));
+  return box;
+}
+
+/** Redraw the pickers in place, but never the one you are using. */
+function refreshUnitPicks() {
+  for (const old of document.querySelectorAll(".unit-pick[data-unit]")) {
+    const a = document.activeElement;
+    if (a && a.tagName === "SELECT" && old.contains(a) && !UNITS_PICK.busy.has(old.dataset.unit)) continue;
+    old.replaceWith(unitPickBox(old.dataset.unit));
+  }
+}
+
+function unitTakeMenu(id, d) {
+  const u = UNITS_USE.byId[id];
+  if (!u || !d) return;
+  for (const k of ["pickable", "pick", "models", "models_at"]) if (k in d) u[k] = d[k];
+}
+
+async function unitSetModel(id, value) {
+  const u = UNITS_USE.byId[id];
+  if (!u || UNITS_PICK.busy.has(id) || !online()) return;
+  const m = (u.models || []).find((x) => pickKey(x) === value)
+    || (pickKey(u.pick) === value ? u.pick : null);
+  const body = value && m ? { id: m.id || "", name: m.name || "" } : {};
+  UNITS_PICK.busy.add(id);
+  delete UNITS_PICK.err[id];
+  refreshUnitPicks();
+  try {
+    const r = await fetch(`${link.api}/api/units/${encodeURIComponent(id)}/model`,
+      authed({ method: "POST", headers: { "Content-Type": "application/json" },
+               body: JSON.stringify(body) }));
+    const d = await r.json().catch(() => ({}));
+    if (r.ok) unitTakeMenu(id, d);
+    else UNITS_PICK.err[id] = d.detail || `Could not save (${r.status}).`;
+  } catch (e) {
+    UNITS_PICK.err[id] = e?.message || "Could not save.";
+  }
+  UNITS_PICK.busy.delete(id);
+  refreshUnitPicks();
+}
+
+async function unitRefreshModels(id) {
+  if (UNITS_PICK.busy.has(id) || !online()) return;
+  UNITS_PICK.busy.add(id);
+  delete UNITS_PICK.err[id];
+  refreshUnitPicks();
+  try {
+    const r = await fetch(`${link.api}/api/units/${encodeURIComponent(id)}/models/refresh`,
+                          authed({ method: "POST" }));
+    const d = await r.json().catch(() => ({}));
+    unitTakeMenu(id, d);
+    if (!r.ok || !d.ok) {
+      UNITS_PICK.err[id] = d.message || d.detail || `Refresh failed (${r.status}).`;
+    }
+  } catch (e) {
+    UNITS_PICK.err[id] = e?.message || "Refresh failed.";
+  }
+  UNITS_PICK.busy.delete(id);
+  refreshUnitPicks();
 }
 
 const DRAG = {

@@ -414,3 +414,24 @@ def test_the_units_limits_claims_still_hold():
     assert units.PRO_UNIT == "claude-pro"
     # "The Doctor's limit section reads the same verdict".
     assert "if (d.unit) {" in PAGE[PAGE.index("function docActiveLimits"):][:600]
+
+
+def test_the_model_choice_claims_still_hold():
+    """Phase U4: the Units sheet's Model dropdown, and what it promises."""
+    assert "Choose each unit&rsquo;s model in the Units sheet" in HOW
+    from magi.browser import picker
+    from magi.settings import load_settings
+    s = load_settings()
+    # "under Claude, Claude (Pro), Gemini and Grok, the only sites with a
+    # picker ... (ChatGPT, Perplexity and DeepSeek answer on their default)".
+    have = {u for u in s.sites if picker.has_picker(s.site(u))}
+    assert have == {"claude", "claude-pro", "gemini", "grok"}
+    # "Site default is first".
+    box = PAGE[PAGE.index("function unitPickBox"):][:2000]
+    assert box.index('"Site default"') < box.index("for (const m of u.models")
+    # "Asked for X, got Y" is the engine's own wording.
+    assert picker.asked_note({"name": "X"}, "Y") == "Asked for X, got Y"
+    # "Refresh models opens that site once": the one launching route is a
+    # POST sent only from its button.
+    assert PAGE.count("/models/refresh`") == 1
+    assert "ref.onclick = () => unitRefreshModels(id)" in PAGE

@@ -310,7 +310,7 @@ U1_LIST_KEYS = (
     "model_button", "model_option", "model_selected", "model_locked",
     "model_more", "effort_open", "effort_option", "think_toggle",
     "model_label", "downgrade_notice", "limit_notice", "usage_readout",
-    "prompt_too_long",
+    "prompt_too_long", "model_known",
 )
 
 
@@ -390,6 +390,9 @@ class SiteSelectors:
     # The site refusing a prompt for its LENGTH (Perplexity). Not a quota:
     # waiting does nothing, a shorter prompt does.
     prompt_too_long: list[str] = field(default_factory=list)
+    # The models U1 saw in the picker, "id | name" (Phase U4). What the
+    # Units sheet offers until "Refresh models" reads the account's own list.
+    model_known: list[str] = field(default_factory=list)
 
     poll_ms: int = 400
     stability_samples: int = 7

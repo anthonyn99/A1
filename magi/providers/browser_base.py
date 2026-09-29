@@ -14,7 +14,8 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from ..browser import completion, extract, humanize, launcher, overlay, resolve
+from .. import accounts
+from ..browser import completion, extract, humanize, launcher, overlay, picker, resolve
 from ..engine import validate
 from ..errors import FailureKind, ProviderError
 from ..settings import Settings, SiteSelectors
@@ -207,6 +208,8 @@ class BrowserProvider(Provider):
         # The model the site said the chat was on when it loaded (Phase U2).
         # Kept on a failure too: "limited on Sonnet 5.5" is worth knowing.
         model_before = ""
+        # The model chosen for this unit in the Units sheet (Phase U4).
+        picked: picker.Picked | None = None
 
         def fail(kind: FailureKind, detail: str) -> Answer:
             a = Answer.failed(
@@ -304,6 +307,14 @@ class BrowserProvider(Provider):
                         f"anonymous visitors, so this would have answered on the free "
                         f"tier. Run `python -m magi login {self.id}`.",
                     )
+
+                # -- the model you chose (Phase U4) --------------------------
+                # Before attaching and typing, like a person would. Never a
+                # failure: a pick the site will not take leaves the chat on
+                # what it gives, and the note says so on the card.
+                want = accounts.model_choice(self.id)
+                if want:
+                    picked = await picker.choose(page, site, want)
 
                 # -- attachments, before typing (matches how a person uses the
                 # composer: attach first, then write the message about them) --
@@ -526,6 +537,10 @@ class BrowserProvider(Provider):
                 )
                 model = model_after or model_before
                 model_fb = fallback_note(model_before, model_after, downgrade)
+                if picked is not None and not picked.ok:
+                    # "Asked for X, got Y": said before any other reason,
+                    # since it is the one you can act on.
+                    model_fb = picked.note
 
                 if not cleaned.strip():
                     artifacts = await self._save_artifacts(page, "empty")
@@ -608,6 +623,28 @@ class BrowserProvider(Provider):
             raise
         except Exception as e:
             return fail(FailureKind.UNKNOWN, f"{type(e).__name__}: {str(e)[:400]}")
+
+    # ----------------------------------------------------------------- models
+
+    async def read_models(self) -> list[dict]:
+        """Open the site and read its model picker (Phase U4 "Refresh
+        models"): every option this account is shown, locked ones marked.
+        Nothing is typed or sent, and the menu is closed again. [] when the
+        site has no picker, is signed out, or the menu would not open."""
+        site = self.site
+        if not picker.has_picker(site):
+            return []
+        async with launcher.launch(
+            self.id, self.settings.browser,
+            headless=True if site.headless_ok else None,
+        ) as browser_ctx:
+            page = browser_ctx.pages[0] if browser_ctx.pages else await browser_ctx.new_page()
+            await page.goto(site.url, timeout=site.nav_timeout_s * 1000)
+            await asyncio.sleep(self.settings.pacing.sample_post_nav())
+            if await resolve.resolve(page, site.input, timeout_ms=site.ready_timeout_s * 1000) is None:
+                return []
+            await overlay.dismiss(page, site.dismiss_selectors)
+            return await picker.list_options(page, site)
 
     # ----------------------------------------------------------------- health
 

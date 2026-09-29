@@ -317,3 +317,53 @@ def set_chairman(site_id: str) -> dict:
         state.pop("_chairman", None)
     _save(state)
     return {"chairman": chairman_override()}
+
+
+# ── which model each unit is asked to use (Phase U4) ───────────────────────
+# Beside the chairman, for the same reason: it changes how a run is
+# conducted, on the engine that conducts it. accounts.json lives in the
+# profile's own data folder, so Tony's picks and Veda's never meet. Absent
+# means "Site default" -- whatever the site is on, exactly as before U4.
+
+def model_choice(site_id: str) -> dict:
+    """{"id", "name"} of the model this unit is asked for, or {}."""
+    m = (_load().get(site_id) or {}).get("model") or {}
+    if not isinstance(m, dict) or not (m.get("id") or m.get("name")):
+        return {}
+    return {"id": str(m.get("id") or ""), "name": str(m.get("name") or "")}
+
+
+def set_model(site_id: str, opt: dict | None) -> dict:
+    """Save a pick, or go back to Site default with None / an empty one."""
+    state = _load()
+    entry = state.setdefault(site_id, {})
+    oid = str((opt or {}).get("id") or "").strip()[:80]
+    name = str((opt or {}).get("name") or "").strip()[:60]
+    if oid or name:
+        entry["model"] = {"id": oid, "name": name or oid}
+    else:
+        entry.pop("model", None)
+    _save(state)
+    return model_choice(site_id)
+
+
+def models_seen(site_id: str) -> dict:
+    """The options a Refresh last read from this account: {"options", "at"}."""
+    m = (_load().get(site_id) or {}).get("models") or {}
+    return m if isinstance(m, dict) and m.get("options") else {}
+
+
+def save_models(site_id: str, options: list[dict]) -> dict:
+    """Keep what a Refresh read. An empty read is not kept: a menu that did
+    not open says nothing about what the account offers."""
+    if not options:
+        return models_seen(site_id)
+    state = _load()
+    entry = state.setdefault(site_id, {})
+    entry["models"] = {
+        "options": [{"id": str(o.get("id") or ""), "name": str(o.get("name") or ""),
+                     "locked": bool(o.get("locked"))} for o in options][:40],
+        "at": datetime.now(timezone.utc).isoformat(),
+    }
+    _save(state)
+    return entry["models"]

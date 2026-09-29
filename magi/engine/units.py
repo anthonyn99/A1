@@ -29,6 +29,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .. import accounts
+from ..browser import picker
 from . import usage
 
 CHECKS_FILE = "unit_checks.json"
@@ -285,9 +287,26 @@ async def unit(db_path: str | Path, provider, *, checks: dict | None = None,
     if account is False:
         account = (await asyncio.to_thread(pro_account, True)
                    if provider.id == PRO_UNIT else None)
-    return summarize(provider_id=provider.id, display_name=provider.display_name,
-                     recent=recent, facts=f, check=checks.get(provider.id),
-                     account=account if provider.id == PRO_UNIT else None)
+    out = summarize(provider_id=provider.id, display_name=provider.display_name,
+                    recent=recent, facts=f, check=checks.get(provider.id),
+                    account=account if provider.id == PRO_UNIT else None)
+    out.update(menu(provider))
+    return out
+
+
+def menu(provider) -> dict:
+    """The model picker's side of a unit (Phase U4): whether its site has
+    one, what it offers (the account's own list once refreshed, U1's until
+    then) and what this person chose ({} = Site default)."""
+    site = getattr(provider, "site", None)
+    pickable = bool(site is not None and picker.has_picker(site))
+    seen = accounts.models_seen(provider.id) if pickable else {}
+    return {
+        "pickable": pickable,
+        "pick": accounts.model_choice(provider.id) if pickable else {},
+        "models": (seen.get("options") if seen else picker.known(site)) if pickable else [],
+        "models_at": seen.get("at") if seen else None,
+    }
 
 
 async def all_units(db_path: str | Path, providers: list) -> list[dict]:

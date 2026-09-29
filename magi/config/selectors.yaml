@@ -307,6 +307,10 @@ sites:
       - "button[data-testid='model-selector-dropdown']"
     model_label_from: "attr:aria-label"
     model_label_pattern: '^Model:\s*(.+)$'
+    # What U4's Units sheet offers before "Refresh models" (id | name).
+    model_known:
+      - "claude-sonnet-5-5 | Sonnet 5.5"
+      - "claude-haiku-4-5-20251001 | Haiku 4.5"
     # UNVERIFIED: no downgrade was ever seen; the known limit wall is in
     # rate_limit_selectors above ("Limits will reset at 5:00 PM").
     downgrade_notice: []
@@ -335,6 +339,14 @@ sites:
     <<: *claude
     display_name: Claude (Pro)
     accent: "#d0a88a"
+    # The Pro account's picker (U1 2026-09-28): + Opus 5.5 and "More models".
+    model_known:
+      - "claude-opus-5-5 | Opus 5.5"
+      - "claude-sonnet-5-5 | Sonnet 5.5"
+      - "claude-haiku-4-5-20251001 | Haiku 4.5"
+      - "claude-opus-5 | Opus 5"
+      - "claude-opus-4-8 | Opus 4.8"
+      - "claude-sonnet-5 | Sonnet 5"
 
   gemini:
     display_name: Gemini
@@ -425,6 +437,10 @@ sites:
       - "button[aria-label^='Open mode picker']"
     model_label_from: "attr:aria-label"
     model_label_pattern: 'currently\s+(.+)$'
+    model_known:
+      - "cf41b0e0dd7d53e5 | 3.5 Flash-Lite"
+      - "fbb127bbb056c959 | 3.6 Flash"
+      - "9d8ca3786ebdfbea | 3.1 Pro"
     # UNVERIFIED: no limit or downgrade notice has ever been captured (70
     # "degraded" snapshots are all answer-quality failures, not limits).
     downgrade_notice: []
@@ -613,6 +629,8 @@ sites:
     model_label:
       - "#model-select-trigger"
     model_label_from: "text"
+    # No ids: Grok's options are matched by name.
+    model_known: [Fast, Build, Auto, Expert, Heavy]
     downgrade_notice: []
     # VERIFIED (10 saved snapshots): the limit card that REPLACES an answer
     # is a role=alert box -- "3 hours before limit is gone" / "Wait or

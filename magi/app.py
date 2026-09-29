@@ -2253,6 +2253,69 @@ async def units_check(provider_id: str):
             "message": rec["error"], "unit": await units.unit(settings.db_path, p)}
 
 
+# ── units: choose the model (Phase U4) ──────────────────────────────────────
+def _unit_menu(provider_id: str) -> dict:
+    p = build_providers(settings, [provider_id])[0]
+    return {"ok": True, "id": provider_id, **units.menu(p)}
+
+
+@app.get("/api/units/{provider_id}/models")
+async def units_models(provider_id: str):
+    """What this unit's picker offers and what you chose. No browser."""
+    if provider_id not in settings.sites:
+        raise HTTPException(404, f"Unknown unit {provider_id!r}.")
+    return _unit_menu(provider_id)
+
+
+@app.post("/api/units/{provider_id}/model")
+async def units_set_model(provider_id: str, request: Request):
+    """Choose the model this unit is asked for, per person (accounts.json is
+    in the profile's data folder). An empty pick is "Site default". Takes
+    effect on the unit's next turn; nothing opens now."""
+    from . import accounts
+    from .browser import picker
+
+    if provider_id not in settings.sites:
+        raise HTTPException(404, f"Unknown unit {provider_id!r}.")
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    body = body if isinstance(body, dict) else {}
+    want = {"id": str(body.get("id") or ""), "name": str(body.get("name") or "")}
+    if (want["id"] or want["name"]) and not picker.has_picker(settings.sites[provider_id]):
+        raise HTTPException(400, "This site has no model picker; it answers on its default.")
+    accounts.set_model(provider_id, want)
+    picker.forget(provider_id)
+    return _unit_menu(provider_id)
+
+
+@app.post("/api/units/{provider_id}/models/refresh")
+async def units_refresh_models(provider_id: str):
+    """Open the site once and read its picker, so the list is what THIS
+    account offers (locked ones marked). Only ever on a tap."""
+    from . import accounts
+    from .browser import launcher
+
+    if provider_id not in settings.sites:
+        raise HTTPException(404, f"Unknown unit {provider_id!r}.")
+    if launcher.in_use(provider_id):
+        return {**_unit_menu(provider_id), "ok": False, "error": "busy",
+                "message": "This unit is busy in a run. Refresh when it finishes."}
+    p = build_providers(settings, [provider_id])[0]
+    try:
+        opts = await p.read_models()
+    except Exception as e:  # noqa: BLE001 -- keep the old list, say why
+        return {**_unit_menu(provider_id), "ok": False, "error": "refresh_failed",
+                "message": str(e)[:300]}
+    accounts.save_models(provider_id, opts)
+    out = _unit_menu(provider_id)
+    if not opts:
+        out.update(ok=False, error="no_menu",
+                   message="Its model menu did not open (signed out, or the site changed). The old list is kept.")
+    return out
+
+
 # ── the UI ───────────────────────────────────────────────────────────────────
 # magi.html is a single self-contained file at the A1 repo root, exactly like
 # every other program in the suite -- there is no build step and no bundle, so
