@@ -122,44 +122,68 @@ function deckReadyToast(job, doc) {
   } catch (e) {}
 }
 
-/**
- * Where a prompt comes from, as a short suffix for its <option>.
- *
- * A prompt pinned to several classes is ONE entry (see prompts.all()), so
- * "(this class)" can no longer be inferred from `source` alone — it has to be
- * checked against classIds, or a prompt borrowed from another class would
- * claim to be local.
- */
-function promptOrigin(p, classId) {
-  const ids = p.classIds || [];
-  if (ids.includes(classId)) return p.source === 'class' ? ' (this class)' : '';
-  if (!ids.length) return '';
-  const from = p._from && p._from.className;
-  return from ? ` (from ${from})` : ' (another class)';
+// ── Deck sheet memory ─────────────────────────────────────────────────────
+/* The last prompt module / prompt / destination used, per class, so the second
+ * deck of the week is three clicks, not six. Per device and best-effort: the
+ * A1 origin's localStorage is known to fill up, and a failed write here must
+ * cost nothing but the convenience. */
+const DECK_PREFS_KEY = 'studyos_deck_prefs_v1';
+function deckPrefs(classId) {
+  try { return (JSON.parse(localStorage.getItem(DECK_PREFS_KEY) || '{}') || {})[classId] || {}; }
+  catch (e) { return {}; }
+}
+function saveDeckPrefs(classId, prefs) {
+  try {
+    const all = JSON.parse(localStorage.getItem(DECK_PREFS_KEY) || '{}') || {};
+    all[classId] = prefs;
+    localStorage.setItem(DECK_PREFS_KEY, JSON.stringify(all));
+  } catch (e) { /* quota full: remembered for nothing, spent nothing */ }
 }
 
-// ── P-3: run a prompt on one or more files ────────────────────────────────
 /**
- * Generate a slide deck from one or more source files.
+ * The prompt's CONTENT as its version.
+ *
+ * The bridge caches on fileId|promptId|promptVersion|mode. Class prompts carry
+ * no version of their own, so editing one in place (editPrompt) kept the same
+ * key and the next run answered "Already done" with the deck from the OLD
+ * text. Hashing the text makes an edit a new version by construction.
+ */
+export function promptVersionOf(text) {
+  const str = String(text || '');
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return 'h' + h.toString(36);
+}
+
+const NEW_MODULE = '__new__';
+const firstLineOf = (t) => String(t || '').split('\n').map(x => x.replace(/^#+\s*/, '').trim()).find(Boolean) || 'Untitled';
+
+// ── P-3: make slides from one or more files ───────────────────────────────
+/**
+ * Generate a NotebookLM slide deck from one or more source files.
+ *
+ * Three choices, in the order she thinks about them: which prompt MODULE
+ * (a class keeps its deck prompts together), which prompt in it, and which
+ * documents module the deck lands in (or a new one, named here).
  *
  * ── WHY THERE IS NO ENGINE PICKER ─────────────────────────────────────────
- * Decks come from NotebookLM, full stop. Claude remains the engine for prompts
- * and notes, but it is no longer offered as a way to make a deck: the two
- * produce genuinely different artifacts from one source file, and asking on
- * every run is a question with the same answer every time.
+ * Decks come from NotebookLM, full stop — it has no API, so this always runs
+ * through the local bridge, whatever the AI settings say.
  *
  * @param {object} cls      the class the files belong to
  * @param {Array}  files    one or more file entries
- * @param {string} destModuleId  where the generated deck should land
+ * @param {string} sourceModuleId  the module the files live in
  */
-export function openRunSheet(cls, files, destModuleId) {
+export function openRunSheet(cls, files, sourceModuleId) {
   if (!pipeline.enabled()) {
-    toast('⚠️', 'Pipeline is off', 'Set up the studyos-ai Worker first, then enable it in config.');
+    toast('⚠️', 'Pipeline is off', 'Turn on cloudflare.ai in config and start the bridge first.');
     return;
   }
   // NotebookLM needs a browser on this machine, which is what the local bridge
-  // is. The Cloudflare Worker cannot drive one and never will, so against a
-  // Worker baseUrl this says so rather than silently producing a rewrite.
+  // is. The Cloudflare Worker cannot drive one and never will.
   if (!pipeline.isLocalBridge()) {
     toast('⚠️', 'Needs the local bridge',
       'Deck generation drives NotebookLM in a browser on this PC. Point config.cloudflare.ai.baseUrl at http://127.0.0.1:8781.');
@@ -168,69 +192,95 @@ export function openRunSheet(cls, files, destModuleId) {
   const list = (Array.isArray(files) ? files : [files]).filter(Boolean);
   if (!list.length) return;
 
-  const choices = prompts.forClass(cls.id);
-  if (!choices.length) {
-    // Genuinely empty now: forClass() falls back to every prompt that exists,
-    // so reaching here means the whole library and every prompts module are
-    // empty — not merely that this class has not pinned one.
-    toast('⚠️', 'No prompts yet',
-      'Add a prompt to a prompts module in any class first.');
+  const B = window._sosBridge;
+  const promptMods = (cls.modules || []).filter(m => m.type === 'prompts');
+  const reopen = () => openRunSheet(store.getClass(cls.id) || cls, list, sourceModuleId);
+
+  // ── Empty state: this class has no prompt module yet ─────────────────────
+  if (!promptMods.length) {
+    const s = sheet('Make slides', `
+      <div style="font-size:13px;color:var(--text2);line-height:1.5;margin-bottom:12px">
+        Deck prompts live in a prompts module in this class. Create one with your
+        first prompt — you can add and edit more in the module later.
+      </div>
+      <div class="field"><label>Module name</label>
+        <input id="sos-deck-newpm" value="Deck prompts"></div>
+      <div class="field"><label>First prompt</label>
+        <textarea id="sos-deck-firstprompt" rows="5" placeholder="e.g. Make a deck that explains every concept in plain language, one idea per slide, with a worked example for each formula."></textarea></div>`,
+      { wide: true });
+    const cancel = document.createElement('button');
+    cancel.className = 'btn'; cancel.textContent = 'Cancel'; cancel.onclick = s.close;
+    const create = document.createElement('button');
+    create.className = 'btn primary'; create.textContent = 'Create';
+    create.onclick = () => {
+      const name = s.overlay.querySelector('#sos-deck-newpm').value.trim() || 'Deck prompts';
+      const ta = s.overlay.querySelector('#sos-deck-firstprompt');
+      const text = ta.value.trim();
+      if (!text) { ta.focus(); return; }
+      const modId = B && B.addModule && B.addModule(cls.id, name, 'prompts');
+      if (!modId) { toast('⚠️', 'Could not create the module', name); return; }
+      const promptId = B.addPromptTo(cls.id, modId, text);
+      saveDeckPrefs(cls.id, { ...deckPrefs(cls.id), promptModuleId: modId, promptId });
+      s.close();
+      setTimeout(reopen, 220);
+    };
+    s.footer.append(cancel, create);
     return;
   }
 
+  const remembered = deckPrefs(cls.id);
+  const docMods = (cls.modules || []).filter(m => m.type === 'documents');
+  const pmOf = (id) => promptMods.find(m => m.id === id);
+
   const s = sheet(
-    list.length === 1 ? 'Run a prompt' : `Run on ${list.length} files`,
+    list.length === 1 ? 'Make slides' : `Make slides from ${list.length} files`,
     `
     <div style="font-size:12px;color:var(--text3);font-family:var(--mono);margin-bottom:10px">
       ${list.length === 1 ? esc(list[0].name || 'file') : esc(list.map(f => f.name).filter(Boolean).slice(0, 3).join(', ')) + (list.length > 3 ? ` +${list.length - 3} more` : '')}
     </div>
     <div class="field">
-      <label>Prompt</label>
-      <select id="sos-ai-prompt">
-        ${choices.map(p => `<option value="${esc(p.id)}">${esc(p.name || 'Untitled')}${esc(promptOrigin(p, cls.id))}</option>`).join('')}
+      <label>1 · Prompt module</label>
+      <select id="sos-deck-pmod">
+        ${promptMods.map(m => `<option value="${esc(m.id)}">${esc(m.name || 'Untitled')} (${(m.prompts || []).length})</option>`).join('')}
       </select>
     </div>
     <div class="field">
-      <label>File the deck into</label>
-      <select id="sos-ai-dest"></select>
+      <label>2 · Prompt</label>
+      <select id="sos-deck-prompt"></select>
+      <div id="sos-deck-preview" style="margin-top:6px;max-height:150px;overflow:auto;white-space:pre-wrap;font-size:12px;line-height:1.5;color:var(--text2);background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px"></div>
+      <div id="sos-ai-vars"></div>
     </div>
-    <div id="sos-ai-vars"></div>
+    <div class="field">
+      <label>3 · File the deck into</label>
+      <select id="sos-deck-dest"></select>
+      <input id="sos-deck-newdest" placeholder="New module name" value="Slides" style="display:none;margin-top:6px">
+    </div>
     <div style="font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:10px;line-height:1.5">
       NotebookLM builds the deck from this source under your prompt. It takes a
-      while — you can close the tab.
+      while — you can close the tab; it files itself when done.
     </div>
-    <div id="sos-ai-budget" style="font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:8px"></div>
     `, { wide: true });
 
-  const sel = s.overlay.querySelector('#sos-ai-prompt');
+  const pmodSel = s.overlay.querySelector('#sos-deck-pmod');
+  const promptSel = s.overlay.querySelector('#sos-deck-prompt');
+  const preview = s.overlay.querySelector('#sos-deck-preview');
   const varsEl = s.overlay.querySelector('#sos-ai-vars');
+  const destSel = s.overlay.querySelector('#sos-deck-dest');
+  const newDest = s.overlay.querySelector('#sos-deck-newdest');
 
-  // Destination: documents modules only. A notes module renders from the
-  // editor's own store, so a PDF filed there would display nowhere.
-  //
-  // The default is deliberately NOT destModuleId — that is the module the
-  // SOURCE file lives in, so accepting it would file a generated deck back
-  // into "Lecture Notes" alongside the lecture it was made from. Prefer a
-  // module that already looks like a home for generated output, then the
-  // caller's hint, then anything.
-  const destSel = s.overlay.querySelector('#sos-ai-dest');
-  const docMods = (cls.modules || []).filter(m => m.type === 'documents');
-  const looksGenerated = (m) => /generated|gemini|ai\b/i.test(m.name || '');
-  const preferred = docMods.find(looksGenerated)
-    || docMods.find(m => m.id === destModuleId)
-    || docMods[0];
-  destSel.innerHTML = docMods
-    .map(m => `<option value="${esc(m.id)}"${m === preferred ? ' selected' : ''}>${esc(m.name || 'Untitled')}</option>`)
-    .join('') + '<option value="">New "Generated" module</option>';
+  const currentPrompt = () => {
+    const m = pmOf(pmodSel.value);
+    return m && (m.prompts || []).find(p => p.id === promptSel.value);
+  };
 
   // Show which {{variables}} will be filled, and which will not. An unfilled
   // one stays literal at run time on purpose, so surface it before spending.
-  const showVars = () => {
-    const p = choices.find(x => x.id === sel.value);
+  const showPrompt = () => {
+    const p = currentPrompt();
+    preview.textContent = p ? p.text : 'This module has no prompts yet — add one in the module first.';
     const used = p ? prompts.variablesIn(p.text) : [];
     if (!used.length) { varsEl.innerHTML = ''; return; }
-    const resolved = prompts.interpolate(p.text, { cls });
-    const unresolved = prompts.variablesIn(resolved);
+    const unresolved = prompts.variablesIn(prompts.interpolate(p.text, { cls }));
     varsEl.innerHTML = `
       <div style="font-size:11px;font-family:var(--mono);color:var(--text3);margin-top:4px">
         Variables: ${used.map(v => {
@@ -239,37 +289,69 @@ export function openRunSheet(cls, files, destModuleId) {
         }).join(' · ')}
       </div>`;
   };
-  sel.addEventListener('change', showVars);
-  showVars();
 
-  // P-7: show month-to-date spend before a batch, not after.
-  pipeline.budget().then(b => {
-    const el = s.overlay.querySelector('#sos-ai-budget');
-    if (el) el.textContent = `This month: $${(b.spend || 0).toFixed(2)} of $${(b.cap || 0).toFixed(2)}`;
-  }).catch(() => {});
+  const fillPrompts = (preferId) => {
+    const m = pmOf(pmodSel.value);
+    const ps = (m && m.prompts) || [];
+    promptSel.innerHTML = ps.map(p =>
+      `<option value="${esc(p.id)}">${esc(firstLineOf(p.text).slice(0, 90))}</option>`).join('');
+    promptSel.disabled = !ps.length;
+    if (preferId && ps.some(p => p.id === preferId)) promptSel.value = preferId;
+    showPrompt();
+  };
+
+  if (pmOf(remembered.promptModuleId)) pmodSel.value = remembered.promptModuleId;
+  fillPrompts(remembered.promptId);
+  pmodSel.addEventListener('change', () => fillPrompts());
+  promptSel.addEventListener('change', showPrompt);
+
+  // Destination: documents modules only. A notes module renders from the
+  // editor's own store, so a PDF filed there would display nowhere. The
+  // default is NOT the source module — that would file a deck back beside the
+  // lecture it was made from — unless she chose it last time.
+  const preferred = docMods.find(m => m.id === remembered.destModuleId)
+    || docMods.find(m => /slides|generated|deck/i.test(m.name || ''))
+    || docMods.find(m => m.id !== sourceModuleId)
+    || null;
+  destSel.innerHTML = docMods
+    .map(m => `<option value="${esc(m.id)}"${m === preferred ? ' selected' : ''}>${esc(m.name || 'Untitled')}</option>`)
+    .join('') + `<option value="${NEW_MODULE}"${preferred ? '' : ' selected'}>New module…</option>`;
+  const syncNewDest = () => {
+    newDest.style.display = destSel.value === NEW_MODULE ? '' : 'none';
+  };
+  destSel.addEventListener('change', () => { syncNewDest(); if (destSel.value === NEW_MODULE) newDest.focus(); });
+  syncNewDest();
 
   const run = document.createElement('button');
   run.className = 'btn primary';
-  run.textContent = list.length === 1 ? 'Run' : `Run on all ${list.length}`;
+  run.id = 'sos-deck-run';
+  run.textContent = list.length === 1 ? 'Make slides' : `Make ${list.length} decks`;
   const cancel = document.createElement('button');
   cancel.className = 'btn';
   cancel.textContent = 'Cancel';
   cancel.onclick = s.close;
 
   run.onclick = async () => {
+    const p = currentPrompt();
+    if (!p) { toast('⚠️', 'Pick a prompt', 'This prompt module is empty — add a prompt to it first.'); return; }
+    let destId = destSel.value;
+    if (destId === NEW_MODULE) {
+      const name = newDest.value.trim();
+      if (!name) { newDest.focus(); return; }
+      destId = B && B.addModule ? B.addModule(cls.id, name, 'documents') : '';
+      if (!destId) { toast('⚠️', 'Could not create the module', name); return; }
+    }
+    saveDeckPrefs(cls.id, { promptModuleId: pmodSel.value, promptId: p.id, destModuleId: destId });
+
     run.disabled = true;
     run.textContent = 'Queueing…';
-    const p = choices.find(x => x.id === sel.value);
     try {
       const results = await pipeline.runBatch(list, {
         prompt: prompts.interpolate(p.text, { cls }),
         promptId: p.id,
-        promptVersion: p.version || 1,
+        promptVersion: promptVersionOf(p.text),
         classId: cls.id,
-        outputModuleId: destSel.value || '',
-        // No slideCount: NotebookLM generates the whole deck in one pass and
-        // never reads it. The input that used to collect it is gone with it —
-        // a field for a value nothing reads is a lie the UI tells.
+        outputModuleId: destId,
         mode: 'notebooklm',
       });
       const ok = results.filter(r => r.ok).length;
@@ -286,15 +368,10 @@ export function openRunSheet(cls, files, destModuleId) {
       }
       results.filter(r => r.ok && r.job && !r.cached).forEach(r => trackJob(r.job.id));
 
-      // A CACHED hit still has to be filed.
-      //
-      // The cache answers "this was generated before", which is not the same as
-      // "the deck is still in the app". Deleting the Generated module (or the
-      // file inside it) leaves the result sitting on the bridge with no way to
-      // ask for it again: re-running reported "Already done" and produced
-      // nothing, with the source file's only copy of its output unreachable.
-      // Re-filing is idempotent — addGeneratedDoc replaces by sourceFileId — so
-      // this restores a deleted deck and is a no-op when one is already there.
+      // A CACHED hit still has to be filed: the cache answers "this was
+      // generated before", not "the deck is still in the app" (a deleted
+      // module leaves the result stranded on the bridge). Re-filing is
+      // idempotent — addGeneratedDoc replaces by (sourceFileId, mode).
       for (const r of results.filter(r => r.ok && r.job && r.cached)) {
         try {
           const job = r.job.result ? r.job : await pipeline.getJob(r.job.id);
@@ -305,11 +382,10 @@ export function openRunSheet(cls, files, destModuleId) {
       }
     } catch (e) {
       run.disabled = false;
-      run.textContent = 'Run';
+      run.textContent = 'Make slides';
       // A dead local bridge surfaces as a bare "Failed to fetch", which says
       // nothing about what to do. Name the actual cause and the one-time fix.
-      const dead = pipeline.isLocalBridge()
-        && /failed to fetch|networkerror|load failed/i.test(String(e.message || e));
+      const dead = /failed to fetch|networkerror|load failed/i.test(String(e.message || e));
       if (dead) {
         toast('🔌', 'Bridge not running',
           'Start it once with:  python server.py autostart');
@@ -339,6 +415,11 @@ export function trackJob(id) {
       // Async now: the deck's bytes are fetched from the bridge and filed as a
       // real document before this resolves.
       const doc = await pipeline.fileResult(job);
+      // Mark it filed, or the next boot's resumeWatches sweep files it AGAIN:
+      // a second blob, a second cloud upload, the first copy's bytes deleted,
+      // and a second "Deck ready" toast. `unfiled` (class missing here) stays
+      // claimable on purpose — see resumeWatches.
+      if (doc && !doc.unfiled) pipeline.markFiled(job.id).catch(() => {});
       if (doc) deckReadyToast(job, doc);
       else if (job.pdfError) toast('⚠️', 'Deck not built', job.pdfError);
     } else if (job.status === 'error') {
@@ -503,4 +584,4 @@ export function openAutoRunSheet(cls, mod) {
   s.footer.append(cancel, save);
 }
 
-export default { openRunSheet, openJobsPanel, openAutoRunSheet, trackJob, resumeWatches };
+export default { openRunSheet, openJobsPanel, openAutoRunSheet, trackJob, resumeWatches, promptVersionOf };

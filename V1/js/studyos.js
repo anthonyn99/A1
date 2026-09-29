@@ -2081,6 +2081,20 @@ function _sosRefreshModFiles(cls, mod, modId) {
   if (liveCls && liveMod) refreshDocList(listEl, liveCls, liveMod);
 }
 
+/* A labelled row action (Slides, Break down): text, not a lone glyph, so what
+ * it does is obvious without hovering. Shared with breakdown-ui via window. */
+function _sosRowActionBtn(label, title) {
+  const b = document.createElement('button');
+  b.className = 'doc-item-act';
+  b.title = title || label;
+  b.textContent = label;
+  b.style.cssText = 'background:none;cursor:pointer;color:var(--text3);font-size:11px;font-family:var(--mono);padding:4px 8px;border-radius:4px;transition:0.15s;border:1px solid var(--border);white-space:nowrap';
+  b.addEventListener('mouseover', () => { b.style.color='var(--accent)'; b.style.borderColor='var(--accent)'; });
+  b.addEventListener('mouseout',  () => { b.style.color='var(--text3)';  b.style.borderColor='var(--border)'; });
+  return b;
+}
+window._sosRowActionBtn = _sosRowActionBtn;
+
 function refreshDocList(listEl, cls, mod) {
   const editOn = !!moduleEditMode[mod.id];
   listEl.innerHTML = '';
@@ -2208,6 +2222,7 @@ function refreshDocList(listEl, cls, mod) {
     // drag from this page). Falls back to a download when the OS clipboard
     // refuses the type, since a real on-disk file can be dragged from Explorer.
     const cpBtn = document.createElement('button');
+    cpBtn.dataset.act = 'copy';
     cpBtn.title = 'Send to another app — copies images to the clipboard, downloads everything else';
     cpBtn.innerHTML = SOI.clip;
     cpBtn.style.cssText = 'background:none;cursor:pointer;color:var(--text3);text-decoration:none;font-size:14px;padding:4px 8px;border-radius:4px;transition:0.15s;border:1px solid var(--border)';
@@ -2227,19 +2242,18 @@ function refreshDocList(listEl, cls, mod) {
       }
     });
 
-    // ⚡ Run — the pipeline (spec P-3). This is the button the two above exist
-    // to work around: copy/download are the manual route into another app's
-    // upload box, and this one does the same job without leaving StudyOS.
-    // Rendered only when the pipeline is configured AND on; otherwise the row
-    // looks exactly as it always has.
+    // Slides — the NotebookLM deck pipeline (spec P-3). This is the button the
+    // two above exist to work around: copy/download are the manual route into
+    // another app's upload box, and this one does the job without leaving
+    // StudyOS. Rendered only when the pipeline is configured AND on.
+    //
+    // A LOCAL blob is enough: the bridge runs on this PC and sosResolveBlob
+    // reads IndexedDB first, so waiting for the cloud copy only hid the button
+    // on a freshly added file for no reason.
     let runBtn = null;
-    if (window.sosRunPrompt && (f.storageUrl || f.storagePath)) {
-      runBtn = document.createElement('button');
-      runBtn.title = 'Run a saved prompt on this file';
-      runBtn.textContent = '⚡';
-      runBtn.style.cssText = 'background:none;cursor:pointer;color:var(--text3);font-size:13px;padding:4px 8px;border-radius:4px;transition:0.15s;border:1px solid var(--border)';
-      runBtn.addEventListener('mouseover', () => { runBtn.style.color='var(--accent)'; runBtn.style.borderColor='var(--accent)'; });
-      runBtn.addEventListener('mouseout',  () => { runBtn.style.color='var(--text3)';  runBtn.style.borderColor='var(--border)'; });
+    if (window.sosRunPrompt && (f.fileId || f.storageUrl || f.storagePath)) {
+      runBtn = _sosRowActionBtn('Slides', 'Make a slide deck from this file with NotebookLM');
+      runBtn.dataset.act = 'slides';
       runBtn.addEventListener('click', e => {
         e.stopPropagation();
         try { window.sosRunPrompt(cls.id, f.id, mod.id); }
@@ -2287,6 +2301,13 @@ function refreshDocList(listEl, cls, mod) {
     item.onclick = () => sosOpenFile(f);
 
     listEl.appendChild(item);
+    // Study tools (js/modules/breakdown-ui.js) add their button to the row and
+    // the document's topics beneath it. A hook, not an import: this is a
+    // classic script, and with the module absent the row is unchanged.
+    if (window.sosDecorateDocRow) {
+      try { window.sosDecorateDocRow(item, cls, mod, f); }
+      catch (err) { console.warn('doc row decorate failed:', err); }
+    }
   });
 
   if (editOn) {
@@ -5431,6 +5452,41 @@ window._sosBridge.revealModule = (classId, moduleId) => {
     }
   } catch (e) {}
   try { openModuleDetail(cls, mod); return true; } catch (e) { return false; }
+};
+
+/* Create a module from outside this file (the deck sheet's "New module…").
+ * Same shape saveModule() builds — all three arrays, whatever the type (see
+ * DATA_MODEL "every module has all 3 arrays"). Returns the new module's id. */
+window._sosBridge.addModule = (classId, name, type = 'documents') => {
+  const cls = findClassOrKsu(classId);
+  const clean = String(name || '').trim();
+  if (!cls || !clean) return null;
+  const ICON = { documents: 'doc', prompts: 'ai', notes: 'txt' };
+  const mod = {
+    id: Date.now().toString() + Math.random().toString(36).slice(2, 5),
+    name: clean,
+    type,
+    icon: ICON[type] || '📄',
+    files: [], prompts: [], notes: [],
+  };
+  cls.modules = cls.modules || [];
+  cls.modules.push(mod);
+  persistForCls(cls);
+  try { _sosRefreshModuleGrid(cls); } catch (e) {}
+  return mod.id;
+};
+
+/* Add a prompt to a prompts module (the deck sheet's quick-add). */
+window._sosBridge.addPromptTo = (classId, moduleId, text) => {
+  const cls = findClassOrKsu(classId);
+  const mod = cls && (cls.modules || []).find(m => m.id === moduleId && m.type === 'prompts');
+  const clean = String(text || '').trim();
+  if (!mod || !clean) return null;
+  mod.prompts = mod.prompts || [];
+  const p = { id: Date.now().toString(), text: clean };
+  mod.prompts.push(p);
+  persistForCls(cls);
+  return p.id;
 };
 
 /* Per-module default prompt (spec P-4). Stored on the module so it rides the

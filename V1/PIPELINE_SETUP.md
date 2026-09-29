@@ -10,7 +10,7 @@ in that class.
 | **Slide decks** | NotebookLM | A **new** deck generated from your source under your prompt, downloaded as a PDF |
 | Prompts & notes | Claude | Rewritten text, filed as a note |
 
-Deck generation goes to NotebookLM only — the ⚡ button on a file does not ask.
+Deck generation goes to NotebookLM only — the **Slides** button on a file does not ask.
 Claude is still the engine everywhere else, and the older Claude *rewrite* path
 (your original slide images paired with rewritten text) is still in the code and
 still reachable by posting `mode: 'rewrite'` to the bridge directly.
@@ -61,7 +61,7 @@ python server.py autostart
 ```
 
 Installs a per-user Startup shortcut and starts the bridge immediately, so you
-never type a command again — open StudyOS and press ⚡.
+never type a command again — open StudyOS and press **Slides**.
 
 It runs under `pythonw.exe`, so there is no console window. A second copy cannot
 start: the bridge checks `/health` first and exits if one is already up (two
@@ -111,15 +111,20 @@ are probed by the dry run below instead.
 
 ## Using it
 
-1. Open a class → a Documents module → upload a deck (PDF).
-2. Click **⚡** on the file row.
-3. Pick a prompt, hit **Run**. (No slide count — NotebookLM generates the whole
-   deck in one pass and never reads it.)
-4. NotebookLM creates a notebook, uploads your source, runs Slide Deck with your
-   prompt, and the finished PDF is downloaded and filed as
-   `<name> — Slides.pdf` in a `Generated` documents module in that class,
-   created on demand. It opens, downloads and syncs like any file you uploaded
-   yourself.
+1. Open a class → a Documents module → upload a source (PDF).
+2. Click **Slides** on the file row.
+3. The sheet asks three things, remembering your last answers per class:
+   1. **Prompt module**: one of this class's prompts modules. A class with none
+      gets a one-step "create a Deck prompts module with your first prompt".
+   2. **Prompt**: the prompts in that module, with the full text previewed.
+      Edit prompts in the module itself (Edit mode → **Edit**); an edited prompt
+      is a new version, so it never re-files the deck made from its old text.
+   3. **File the deck into**: a documents module, or **New module…** with a
+      name. The default is never the source module itself.
+4. **Make slides**. NotebookLM creates a notebook, uploads your source, runs
+   Slide Deck with your prompt, and the finished PDF is downloaded and filed as
+   `<name> — Slides.pdf` in the module you chose. It opens, downloads and syncs
+   like any file you uploaded yourself.
 
 **It takes a while** — often 10–30 minutes. The job survives closing the tab, and
 the Jobs panel shows `running` the whole time rather than a fake progress bar.

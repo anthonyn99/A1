@@ -181,39 +181,46 @@ await new Promise(r => setTimeout(r, 600));
 const sheet = await evalJs(`(function(){
   var el = document.querySelector('.sos-ai-sheet');
   if (!el) return { missing:true };
-  var sel = el.querySelector('#sos-ai-prompt');
+  var sel = el.querySelector('#sos-deck-prompt');
+  var pm = el.querySelector('#sos-deck-pmod');
+  var dest = el.querySelector('#sos-deck-dest');
   return {
     open: el.classList.contains('open'),
     title: (el.querySelector('.modal-title')||{}).textContent,
     options: sel ? Array.from(sel.options).map(o=>o.textContent) : [],
+    promptModules: pm ? Array.from(pm.options).map(o=>o.textContent) : [],
+    destValue: dest ? dest.value : null,
+    newDestShown: !!el.querySelector('#sos-deck-newdest') && el.querySelector('#sos-deck-newdest').style.display !== 'none',
+    preview: (el.querySelector('#sos-deck-preview')||{}).textContent || '',
     bodyHtml: (el.querySelector('[data-body]')||{}).innerHTML || '',
     buttons: Array.from(el.querySelectorAll('.modal-footer button')).map(b=>b.textContent),
   };
 })()`);
 t('Run sheet opened', !sheet.missing && sheet.open, sheet);
-t('it lists the prompt', (sheet.options||[]).length > 0, sheet.options);
+t('step 1 lists the class prompt modules', (sheet.promptModules||[]).some(o=>/PROMPTS/.test(o)), sheet.promptModules);
+t('step 2 lists the prompts in that module', (sheet.options||[]).length === 1, sheet.options);
+t('the prompt text is previewed', /slide by slide/.test(sheet.preview), sheet.preview);
 t('it names the file', (sheet.bodyHtml||'').includes('Lecture 3.pdf'));
 t('the ampersand in the class name is escaped, not doubled',
   !/&\s*amp;\s*amp/i.test(sheet.bodyHtml || ''));
-t('has Run and Cancel', (sheet.buttons||[]).join(',').includes('Run'), sheet.buttons);
-// The deck must be filable into a module the user already has, not forced into
-// a new one. The fixture class carries "Source Material" (documents).
-t('offers a destination picker', (sheet.bodyHtml||'').includes('sos-ai-dest'));
+t('has Make slides and Cancel', (sheet.buttons||[]).join(',').includes('Make slides'), sheet.buttons);
+t('offers a destination picker', (sheet.bodyHtml||'').includes('sos-deck-dest'));
+// The fixture's only documents module is the SOURCE one. Filing the deck back
+// beside the lecture it came from is the wrong default, so a new module —
+// named in the sheet, visibly — is offered instead.
+t('defaults to a new module, not back into the source module',
+  sheet.destValue === '__new__' && sheet.newDestShown, sheet);
 // NotebookLM generates the whole deck in one pass and never reads a slide
 // count, so the field that used to collect one is gone. A visible input for a
 // value nothing reads is a lie the UI tells.
 t('no slide-count field (NotebookLM ignores it)',
   !(sheet.bodyHtml || '').includes('sos-ai-slides'));
 
-// Budget must be fetched and shown before spending.
-await new Promise(r => setTimeout(r, 400));
-t('shows month-to-date spend before running', await evalJs(
-  `(document.querySelector('#sos-ai-budget')||{}).textContent.includes('1.25')`));
 
 console.log('\nreal UI: running it');
 await evalJs(`(function(){
   var btns = Array.from(document.querySelectorAll('.sos-ai-sheet .modal-footer button'));
-  var run = btns.find(b=>/Run/.test(b.textContent));
+  var run = btns.find(b=>/Make slides/.test(b.textContent));
   if (run) run.click();
   return !!run;
 })()`);
@@ -237,6 +244,11 @@ if (posted.length) {
   t('attached the source bytes for the local bridge',
     typeof body.fileB64 === 'string' && body.fileB64.length > 0);
   t('did not send a slide count', !('slideCount' in body));
+  // The prompt TEXT is the version: an edited prompt must never hit the cache
+  // and re-file the deck made from its old wording.
+  t('promptVersion is a hash of the prompt text',
+    body.promptVersion === await evalJs(`window.SOS.ui.promptVersionOf('Rewrite {{class}} for {{instructor}}, slide by slide.')`),
+    body.promptVersion);
   t('attached the App Check token',
     posted[posted.length - 1].headers['X-Firebase-AppCheck'] === 'tok-live',
     posted[posted.length - 1].headers);
@@ -296,17 +308,28 @@ if (!filed.noModule) {
   // class with its own documents module got a second, near-duplicate one.
   const dest = await evalJs(`(function(){
     var cls = classes.find(c=>c.id==='vt1');
+    var slides = cls.modules.find(m=>m.name==='Slides');
     var src = cls.modules.find(m=>m.id==='vm1');
-    return { inChosen: (src.files||[]).some(f=>f.gen && f.gen.generated),
+    return { inChosen: !!slides && (slides.files||[]).some(f=>f.gen && f.gen.generated),
+             slidesType: slides && slides.type,
+             inSource: (src.files||[]).some(f=>f.gen && f.gen.generated),
              generatedModules: cls.modules.filter(m=>m.name==='Generated').length,
              names: cls.modules.map(m=>m.name) };
   })()`);
-  t('filed into the module that was chosen', dest.inChosen, dest);
-  t('did not invent a second module', dest.generatedModules === 0, dest.names);
+  t('filed into the new module named in the sheet', dest.inChosen && dest.slidesType === 'documents', dest);
+  t('not back into the source module', !dest.inSource, dest);
+  t('did not invent a "Generated" module', dest.generatedModules === 0, dest.names);
+  // Live filing must mark the job filed, or the next boot files it AGAIN.
+  t('marked the job filed on the bridge', await evalJs(
+    `window.__posted.some(p=>p.url.endsWith('/api/ai/jobs/jx1/filed'))`));
+  t('remembered the choices for this class', await evalJs(`(function(){
+    var p = JSON.parse(localStorage.getItem('studyos_deck_prefs_v1')||'{}').vt1 || {};
+    return p.promptModuleId === 'vm2' && p.promptId === 'p1' && !!p.destModuleId;
+  })()`));
   t('the stored blob is not empty', bytes && bytes.size > 0, bytes);
 }
 
-console.log('\nreal UI: the ⚡ button appears on a cloud file');
+console.log('\nreal UI: the Slides button appears on a file row');
 const btn = await evalJs(`(function(){
   try {
     var cls = classes.find(c=>c.id==='vt1');
@@ -315,7 +338,7 @@ const btn = await evalJs(`(function(){
     host.id='vt-doclist'; document.body.appendChild(host);
     if (typeof refreshDocList !== 'function') return { skipped:'refreshDocList not in scope' };
     refreshDocList(host, cls, mod);
-    var found = Array.from(host.querySelectorAll('button')).filter(b=>b.textContent==='⚡');
+    var found = Array.from(host.querySelectorAll('button')).filter(b=>b.textContent==='Slides');
     var r = { count: found.length, title: found[0] && found[0].title };
     host.remove();
     return r;
@@ -325,8 +348,8 @@ if (btn.skipped) console.log('  --   ' + btn.skipped);
 else {
   // One per file row. The module now holds the source AND the generated deck,
   // so two rows each carry their own button.
-  t('⚡ rendered on the file row', btn.count >= 1, btn);
-  t('it explains itself', /prompt/i.test(btn.title || ''), btn.title);
+  t('Slides rendered on the file row', btn.count >= 1, btn);
+  t('it explains itself', /slide deck/i.test(btn.title || ''), btn.title);
 }
 
 console.log('\nreal UI: the Jobs panel');
