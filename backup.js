@@ -133,13 +133,13 @@
     // production they cost zero extra reads. Measured here only to size the
     // snapshot.
     'main', 'vedasdash', 'journal', 'tony_journal', 'plans', 'navorder',
-    'applock', 'tesla_cfg', 'pv_cards', 'studyos_mirror', 'myjournal_docs',
+    'applock', 'tesla_cfg', 'pv_cards', 'studyos_mirror',
     // Group 2 — no listener; these are what the daily pass actually reads.
     'main_snapshots', 'vedasdash_snapshots', 'market_calendar',
     'studyos_mirror_ack', 'journal_aiprompt', 'journal_aitools',
     'myjournal_aiprompt', 'myjournal_aitools', 'myjournal'
   ];
-  var GROUP1_COUNT = 11;   // how many of the above are listener-backed
+  var GROUP1_COUNT = 10;   // how many of the above are listener-backed
 
   // Journal doc -> the placeholder scheme its entry HTML uses for images, and
   // the prefixes of the per-image and per-canvas documents. Whiteboard canvases

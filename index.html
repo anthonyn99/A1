@@ -109,7 +109,7 @@
    set border-color/color, never box-shadow, so this never fights them.
    The roots are wrapped in :where() to keep the whole selector at class-level
    specificity: this is a DEFAULT, and the handful of controls that want another
-   colour (.mjd-btn.danger) or another effect entirely (.pt-hl-swatch, which
+   colour (a red danger button) or another effect entirely (.pt-hl-swatch, which
    lifts instead of glowing) must be able to win with a plain class rule.
    Nothing glows at rest; a button that wants no hover glow opts out with
    data-noglow. */
@@ -13025,71 +13025,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       });
     } catch(e) {}
 
-
-    // ── MyJournal cloud documents — PREFERENCES ONLY ──────────────────────────
-    // dashboards/myjournal_docs carries provider client ids, favorites, recents
-    // and view preferences. It deliberately does NOT carry document content:
-    // Google Docs and OneNote are the stores for their own documents, and a
-    // library of thousands would blow the 1 MiB doc limit on its own. Nor does
-    // it carry OAuth tokens — those are bearer credentials for a whole Drive /
-    // OneDrive and stay in localStorage on the device that authorised them.
-    //
-    // WRITE BARRIER (same rule as MyList / Recents / Events): this is a whole-doc
-    // setDoc, so a save that runs before a successful load would serialise empty
-    // defaults straight over real data. _mjdLoadOk gates every write and is set
-    // only by a load that actually completed.
-    let _mjdSaveTimer = null, _mjdLastOwnSaveAt = 0;
-    window._mjdLoadOk = false;
-    const mjdDocRef = doc(db, 'dashboards', 'myjournal_docs');
-
-    window._fbLoadMJDocs = async () => {
-      try {
-        const snap = await _freshGet(mjdDocRef);
-        window._mjdLoadOk = true;                       // a real read happened — writes may proceed
-        return snap && snap.exists() ? snap.data() : {};
-      } catch (e) {
-        console.warn('Firebase MyJournal docs load failed:', e);
-        return null;                                    // barrier stays closed
-      }
-    };
-
-    window._fbSaveMJDocs = (getState) => {
-      if (!window._mjdLoadOk) return;                   // never clobber unread remote state
-      if (_mjdSaveTimer) clearTimeout(_mjdSaveTimer);
-      _mjdSaveTimer = setTimeout(async () => {
-        try {
-          const payload = getState() || {};
-          const savedAt = Date.now();
-          _mjdLastOwnSaveAt = savedAt;
-          await setDoc(mjdDocRef, Object.assign({}, payload, { savedAt }));
-          window.dispatchEvent(new CustomEvent('fb-mjdocs-saved'));
-        } catch (e) {
-          // Deliberately NOT fb-tj-error. That event drives the journal's sync
-          // pill, which reports on the DOCUMENT you are editing — and a failed
-          // preferences write (a starred favourite, a remembered folder) says
-          // nothing about whether your document saved. Reporting it there made
-          // a perfectly-saved cloud document read "Sync Failed".
-          console.error('Firebase MyJournal docs save failed:', e.code, e.message);
-          window.dispatchEvent(new CustomEvent('fb-mjdocs-error', { detail: e && e.message }));
-        }
-      }, 900);
-    };
-
-    // Live cross-device updates. Skip our own echo — the snapshot for a write we
-    // just made would otherwise re-enter the UI mid-edit and fight the user.
-    try {
-      onSnapshot(mjdDocRef, (snap) => {
-        if (!snap.exists()) return;
-        const d = snap.data();
-        // Observed BEFORE the echo-suppression return: the app can ignore its
-        // own write, but the vault still wants the newest server state.
-        _a1b('dashboards/myjournal_docs', d);
-        if (d.savedAt && Math.abs(d.savedAt - _mjdLastOwnSaveAt) < 1500) return;
-        window._mjdLoadOk = true;
-        window.dispatchEvent(new CustomEvent('fb-mjdocs-remote-update', { detail: d }));
-      });
-    } catch (e) {}
-
     // ── File upload helper ────────────────────────────────────────────────────
     window._fbUploadFile = async (storagePath, file) => {
       const r = storageRef(storage, storagePath);
@@ -13203,7 +13138,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // Every savedAt this session has written, so the listener recognises any of
     // our own echoes rather than blanket-ignoring a time window.
     const _noOwnWrites = new Set();
-    // Takes a GETTER, not a payload — same contract as _fbSaveJournal/_fbSaveMJDocs,
+    // Takes a GETTER, not a payload — same contract as _fbSaveJournal,
     // and it is load-bearing here. A write held by the gate is released straight
     // after the snapshot handler merges the server's order into the in-memory
     // arrays; a payload captured at call time would be the PRE-merge order, so
@@ -20403,10 +20338,9 @@ window._attachJournalTouchDrag = function(handle, div, entry, list, state, dragO
    every one of them ends the same way: a blank or foreign editor is written over
    real content, and the whole-entry cloud write spreads the wipe to every device.
 
-     1. SHARED DOM. ONE #tj-page-editor serves every page entry and every Google
-        Docs / OneNote document MJDocs opens. A save that runs while the editor
-        still holds the entry we just left (or a released cloud document) files
-        that content under the wrong id.
+     1. SHARED DOM. ONE #tj-page-editor serves every page entry. A save that
+        runs while the editor still holds the entry we just left files that
+        content under the wrong id.
      2. UNPAINTED DOM. loadActiveEntry() returns early for a locked entry and when
         there is no entry at all, leaving the editor blank. A save in that window
         reads "" as the entry's new content.
@@ -20422,7 +20356,7 @@ window._attachJournalTouchDrag = function(handle, div, entry, list, state, dragO
         and auto-saved it over the current one.
 
    This module supplies the primitives; the rules using them live at the call
-   sites, where lock state, cloud mode, focus and edit mode are known:
+   sites, where lock state, focus and edit mode are known:
 
      emptyHtml / emptyData  "is there materially anything here", tags ignored.
      wouldLose              would committing this DOM turn a non-empty field empty?
@@ -22551,12 +22485,8 @@ window.VizEngine = { createBoard: createBoard };
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--purple) 22%, transparent), 0 0 10px color-mix(in srgb, var(--purple) 12%, transparent);
 }
 #tj-root .oj-tab.on { border-color: var(--gold-line, var(--purple)); }
-/* MyJournal's rail gains a fourth source: two rows of two, OurJournal top-left. */
-#tj-root .mjd-rail.oj-has-tab { flex-wrap: wrap; }
-#tj-root .mjd-rail.oj-has-tab .mjd-rail-btn { flex: 1 1 calc(50% - 3px); }
+/* MyJournal's rail (OurJournal · Journal) is a single row; .mjd-rail lays it out. */
 @media (max-width: 600px) {
-  #tj-root .mjd-rail.oj-has-tab { flex-wrap: nowrap; }
-  #tj-root .mjd-rail.oj-has-tab .mjd-rail-btn { flex: 1 1 0; }
   #bj-root .oj-tab .oj-lbl, #tj-root .oj-rail .oj-tab .oj-lbl { font-size: 10px; }
 }
 /* Who created a shared entry. */
@@ -29389,7 +29319,7 @@ window.hideBrainstormJournal = function() {
     color: var(--text);
     /* Two lines, not one hard truncation. A journal entry's title is the only
        thing distinguishing it in the list, and "Trading Catalysts Week o…" is
-       not a title. Matches the cloud tabs so all three read alike. */
+       not a title. */
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
@@ -30815,8 +30745,8 @@ function _tjIsOJ() { return !!_tjOJState && state === _tjOJState; }
 let saveTimer = null;
 // ── Anti-regression state (see the JGuard block above) ────────────────────────
 // _tjDomOwner: the entry id the editor DOM was last PAINTED for. The templates
-//   share one set of nodes — a single #tj-page-editor serves every page entry and
-//   every cloud document — so this is the only way saveCurrentEntry can tell "the
+//   share one set of nodes — a single #tj-page-editor serves every page entry —
+//   so this is the only way saveCurrentEntry can tell "the
 //   content on screen is this entry's" from "the content on screen belongs to
 //   something else, or has not been painted yet".
 // _tjUserEdited: set by autoSave(), which only ever runs off a real edit (input,
@@ -31648,12 +31578,6 @@ function showTemplate(name) {
 function loadActiveEntry() {
   if (_tjHidden) return;
   const entry = getActive();
-  // A Journal entry is claiming the editor while a cloud document still holds it
-  // (clicked in the sidebar, created, restored from Trash, opened from a search
-  // hit). Cloud mode always leaves activeId null, so an entry here means MyJournal
-  // won — release the document, or its toolbar chip, buttons and sync line stay
-  // over an entry that isn't it and the next keystroke saves into it.
-  if (entry && window._tjCloudMode && window.MJDocsUI && window.MJDocsUI.release) window.MJDocsUI.release();
   // Nothing painted for any entry yet — see _tjDomOwner. Cleared BEFORE the early
   // returns below, so the blank editor they leave behind can never be read back as
   // an entry's new content.
@@ -31723,7 +31647,6 @@ function loadActiveEntry() {
 }
 
 function saveCurrentEntry() {
-  if (window._tjCloudMode) return;   // the editor belongs to a cloud document — see autoSave
   const entry = getActive(); if (!entry) return;
   clearTimeout(autoTimer); _tjAutoFirstAt = 0;   // this IS the save the pending timer was for
   const _userEdit = _tjUserEdited; _tjUserEdited = false;
@@ -31770,8 +31693,8 @@ function saveCurrentEntry() {
 
   // GUARD (blank overwrite): never let an empty field replace stored content unless
   // this save came from a real edit. A blank editor here is almost never something
-  // the user did — it is a load that has not painted, a lock screen, a released
-  // cloud document, or a hidden template area. A genuine select-all-and-delete goes
+  // the user did — it is a load that has not painted, a lock screen, or a hidden
+  // template area. A genuine select-all-and-delete goes
   // through autoSave (_userEdit === true) and is allowed straight through; its
   // previous version is kept locally first so even that is reversible.
   if (window.JGuard && window.JGuard.wouldLose(entry.template, entry.data, _next)) {
@@ -33288,13 +33211,8 @@ document.getElementById('tj-page-editor').addEventListener('keydown', e => {
 
 /* AUTO-SAVE */
 let autoTimer=null;
-// CLOUD MODE: when a Google Docs / OneNote document is open it borrows this exact
-// editor, so every keystroke still lands here. Hand the edit to MJDocs instead of
-// writing it into a journal entry — otherwise typing in a cloud document would
-// silently overwrite whichever local entry happened to be active.
 let _tjAutoFirstAt = 0;   // when the current unsaved burst of edits began
 function autoSave() {
-  if (window._tjCloudMode) { if (window.MJDocs) window.MJDocs.onEditorInput(); return; }
   // Only real editing reaches here (input, paste, toolbar command, undo), which is
   // what makes this the signal that a blank editor is a deliberate clear rather
   // than an unpainted one — see the blank-overwrite guard in saveCurrentEntry.
@@ -33370,13 +33288,8 @@ function setEditMode(enabled) {
   if (pgEd) pgEd.contentEditable = enabled ? 'true' : 'false';
   const pgTb = document.getElementById('tj-page-toolbar');
   if (pgTb) {
-    // A cloud document has NO entry in state.entries — that is the whole point
-    // of cloud mode — so getActive() is null and this test used to fall through
-    // to remove(), stripping the formatting toolbar the instant you switched a
-    // Google Doc or OneNote page into Edit. Cloud documents always render
-    // through the Page template, so treat cloud mode as exactly that.
     const activeEntry = getActive();
-    const isPage = window._tjCloudMode || (activeEntry && activeEntry.template === 'page');
+    const isPage = activeEntry && activeEntry.template === 'page';
     if (enabled && isPage) pgTb.classList.add('edit-mode');
     else pgTb.classList.remove('edit-mode');
   }
@@ -33528,11 +33441,10 @@ document.getElementById('tj-search-box').addEventListener('input', renderSidebar
 loadState(); purgeExpiredTrash(); renderSidebar(); loadActiveEntry(); setEditMode(false);
 
 /* ── OurJournal tab ──────────────────────────────────────────────────────────
- * Sits first in the sidebar's source rail (OurJournal · Journal · Docs ·
- * OneNote). MJDocs builds that rail after Firebase is up, so the tab is added
- * when the rail appears; until then a stand-in rail carries it. Choosing any
- * other rail button, a cloud document, or a Journal page from search always
- * returns to Tony's own journal first. */
+ * Sits first in the sidebar's rail (OurJournal · Journal). The rail module
+ * (MJDocsUI) builds that rail, so the tab is added when the rail appears; until
+ * then a stand-in rail carries it. Choosing the Journal button always returns
+ * to Tony's own journal first. */
 function _tjModeUI() {
   var on = _tjIsOJ();
   var root = document.getElementById('tj-root');
@@ -33540,7 +33452,7 @@ function _tjModeUI() {
   var nav = document.getElementById('mjd-nav');
   if (nav) {
     if (on) {
-      // OurJournal lists natively, like the Journal tab — never under a cloud panel.
+      // OurJournal lists natively, like the Journal tab — never under #mjd-panel.
       var panel = document.getElementById('mjd-panel');
       var pages = nav.querySelector('[data-sec="pages"]');
       if (panel && panel.classList.contains('on') && pages) { _tjRailBusy = true; try { pages.click(); } finally { _tjRailBusy = false; } }
@@ -33606,7 +33518,7 @@ window._tjOJ = { enter: _tjOJEnter, leave: _tjOJLeave, active: _tjIsOJ };
   function onTab(ev) {
     var b = ev.target.closest('.oj-tab'); if (!b) return;
     if (b.getAttribute('data-oj') === '1') {
-      // From a cloud tab, come back to the native list first, then go shared.
+      // If #mjd-panel is showing, come back to the native list first, then go shared.
       var pages = document.querySelector('#mjd-nav [data-sec="pages"]');
       var panel = document.getElementById('mjd-panel');
       if (pages && panel && panel.classList.contains('on')) { _tjRailBusy = true; try { pages.click(); } finally { _tjRailBusy = false; } }
@@ -33636,8 +33548,8 @@ window._tjOJ = { enter: _tjOJEnter, leave: _tjOJLeave, active: _tjIsOJ };
     rail.insertBefore(b, rail.firstChild);
     rail.classList.add('oj-has-tab');
     b.addEventListener('click', onTab);
-    // Any other source (Journal, Docs, OneNote, Starred, Recent) is Tony's own:
-    // leave OurJournal before MJDocs acts on the click (capture phase).
+    // The Journal button is Tony's own: leave OurJournal before the rail
+    // acts on the click (capture phase).
     nav.addEventListener('click', function(ev) {
       if (_tjRailBusy || ev.target.closest('.oj-tab')) return;
       if (ev.target.closest('[data-sec]') && _tjIsOJ()) _tjOJLeave();
@@ -34575,81 +34487,8 @@ window.tjSwitchTo = function(app) {
   document.addEventListener('DOMContentLoaded', tjApplyTheme);
 })();
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   Cloud-document bridge — the ONLY seam MJDocs needs into this closure.
-
-   A Google Doc or a OneNote page is not a journal entry: it has no place in
-   `state.entries` and must never be written to Firebase. But it IS edited in
-   this app's Page editor, unchanged — same contenteditable, same ribbon, same
-   shortcuts. So MJDocs borrows the editor rather than building its own, and
-   these four functions are what let it do that safely:
-
-     enter()  — take the editor over: clear the local selection so no entry can
-                receive the cloud document's keystrokes, then show the Page view.
-     leave()  — hand the editor back and repaint whatever entry was active.
-     editor() — the element itself, for reading/writing content.
-     setEdit()— drive the existing Edit/View toggle, so a cloud document gets
-                the same read-only-until-you-ask behaviour as everything else.
-
-   Everything else about the editor — formatting, undo, images, find/replace,
-   AI tools — already works on this element and needs no cloud-specific code.
-   ═══════════════════════════════════════════════════════════════════════════ */
-window._tjCloudBridge = {
-  enter: function() {
-    if (window._tjCloudMode) { showTemplate('page'); return; }
-    // A cloud document is never shown over OurJournal: go back to Tony's own
-    // journal first, so every activeId this bridge touches is his.
-    if (_tjIsOJ() && window._tjOJ) window._tjOJ.leave();
-    // Flush the entry being left BEFORE the flag goes up — saveCurrentEntry
-    // returns early once cloud mode is on, so the last keystrokes would be lost.
-    try { saveCurrentEntry(); } catch (e) {}
-    try { if (window._fbFlushTonyJournal) window._fbFlushTonyJournal(); } catch (e) {}
-    window._tjCloudMode = true;
-    // The editor is about to hold a Google Doc / OneNote page. Disown it, so that
-    // if cloud mode is ever dropped while that HTML is still on screen (a failed
-    // open, a release racing a repaint) no journal entry can be saved from it.
-    _tjDomOwner = null;
-    state.activeId = null;
-    renderSidebar();
-    showTemplate('page');
-  },
-  leave: function(restoreId) {
-    if (!window._tjCloudMode) return;
-    window._tjCloudMode = false;
-    if (restoreId && state.entries.some(function(e) { return e.id === restoreId; })) state.activeId = restoreId;
-    renderSidebar();
-    loadActiveEntry();
-  },
-  active: function() { return !!window._tjCloudMode; },
-  editor: function() { return document.getElementById('tj-page-editor'); },
-  titleInput: function() { return document.getElementById('tj-entry-title-input'); },
-  setEdit: function(on) { try { setEditMode(!!on); } catch (e) {} },
-  isEdit: function() { return !!isEditMode; },
-  setSync: function(s) { try { _tjSetSync(s); } catch (e) {} },
-  // Local pages, in the one shape the universal index understands. Locked
-  // entries expose their title only — their content is hidden for a reason and
-  // must not leak into search results or into an AI prompt.
-  localDocs: function() {
-    var st = (_tjIsOJ() && _tjPersonal) ? _tjPersonal : state;
-    return st.entries.filter(function(e) { return !e.trashed; }).map(function(e) {
-      var locked = !!(window._tjGetLock && window._tjGetLock(e.id) && !(window._tjIsUnlocked && window._tjIsUnlocked(e.id)));
-      return {
-        id: e.id, title: e.title || 'Untitled', template: e.template,
-        modified: e.updated || 0, tags: e.tags || [], locked: locked,
-        text: locked ? '' : _tjEntryText(e)
-      };
-    });
-  },
-  openLocal: function(id) {
-    if (_tjIsOJ() && window._tjOJ) window._tjOJ.leave();
-    if (window._tjCloudMode) window._tjCloudBridge.leave(id);
-    else { saveCurrentEntry(); state.activeId = id; renderSidebar(); loadActiveEntry(); }
-  }
-};
-
 })();
 </script>
-
 
 
 
@@ -40974,532 +40813,14 @@ window._THV={
 
 
 <!-- ══════════════════════════════════════════════════════════════════════════
-     MyJournal sidebar rail — ENGINE  (Tony's MyJournal only)
+     MyJournal sidebar rail  (Tony's MyJournal only)
      Brainstorm Journal (#bj-root, Veda's profile) is not touched by any of this.
 
-     The rail at the top of MyJournal's sidebar, plus Starred, Recent and Find
-     over MyJournal's own pages. OurJournal hangs its tab off this rail, so the
-     rail itself must stay.
-
-     Google Docs and OneNote used to live here too; they were removed on
-     2026-09-29. A one-time purge below clears the OAuth tokens and caches they
-     left on each device.
-
-     WHAT FIREBASE HOLDS
-     dashboards/myjournal_docs: favourites, recents and view state. Never
-     document content.
-     ══════════════════════════════════════════════════════════════════════════ -->
-<script>
-(function () {
-  'use strict';
-  if (window.MJDocs) return;
-
-  // ── PROVIDER_CONTRACT ─────────────────────────────────────────────────────
-  //   id, label, accent, icon, caps
-  //   configured()                     → bool    — has a client id
-  //   accounts()                       → Account[]
-  //   connect(opts)                    → Promise<Account>
-  //   disconnect(accountId)            → void
-  //   children(ref)                    → Promise<Node[]>   — one level, lazily
-  //   read(ref)                        → Promise<{html,title,modified,rev}>
-  //   write(ref, html, opts)           → Promise<{modified,rev}>
-  //   remoteStamp(ref)                 → Promise<{modified,rev}>  — conflict probe
-  //   createDoc(parentRef, title)      → Promise<Node>
-  //   createContainer(parentRef,name,kind) → Promise<Node>
-  //   rename(ref, name)                → Promise<void>
-  //   remove(ref)                      → Promise<void>
-  //   duplicate(ref, name)             → Promise<Node>
-  //   move(ref, toParentRef)           → Promise<void>
-  //   search(accountId, query)         → Promise<Node[]>
-  //   exportFormats()                  → [{id,label,ext}]
-  //   exportDoc(ref, formatId)         → Promise<Blob>
-  //   externalUrl(ref)                 → string
-  //
-  // Node — the one shape the UI understands, whatever cloud produced it:
-  //   { key, id, name, kind, provider, account, parent, hasChildren,
-  //     modified, rev, webUrl, path }
-  // kind ∈ 'folder' | 'notebook' | 'sectiongroup' | 'section' | 'doc'
-  var CONTRACT = ['configured','accounts','connect','disconnect','children','read','write',
-    'remoteStamp','createDoc','createContainer','rename','remove','duplicate','move','search',
-    'exportFormats','exportDoc','externalUrl'];
-
-  var providers = Object.create(null);
-  var order = [];
-
-  function errText(e) { return (e && (e.message || e.error_description || e.error)) || 'Something went wrong'; }
-
-  /* ══════════════════════════════════════════════════════════════════════════
-   * Settings — Firebase-synced preferences (NEVER content, NEVER tokens)
-   * ══════════════════════════════════════════════════════════════════════════ */
-  var DEFAULTS = {
-    favorites: [],         // [{provider,account,id,kind,name,path}]
-    recents: [],            // [{provider,account,id,kind,name,path,at,how}]
-    expanded: {},           // { nodeKey: true } — tree disclosure state
-    lastOpen: null,         // ref of the document open when you last left
-    view: { section: 'pages', sort: 'modified', dir: 'desc' }
-  };
-  var S = JSON.parse(JSON.stringify(DEFAULTS));
-  var listeners = [];
-  function emit() { listeners.forEach(function (f) { try { f(S); } catch (e) {} }); }
-  function onChange(f) { listeners.push(f); return function () { listeners = listeners.filter(function (g) { return g !== f; }); }; }
-
-  // Local mirror so the nav paints instantly on a cold load and still works with
-  // no network. Read synchronously at load time — not on first render — because
-  // a favourite toggled before the panel has ever opened would otherwise
-  // serialise un-hydrated DEFAULTS over the real list.
-  var LS_KEY = 'mjd_settings';
-  function cacheLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify(S)); } catch (e) {} }
-  (function readLocal() {
-    try {
-      var r = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
-      if (r) S = Object.assign(JSON.parse(JSON.stringify(DEFAULTS)), r);
-    } catch (e) {}
-    // Object.assign above copies every saved key, so the removed Google Docs /
-    // OneNote settings have to be dropped by name.
-    delete S.providerCfg; delete S.accountMeta;
-  })();
-
-  // One-time purge of what Google Docs / OneNote left on this device: live
-  // OAuth tokens, the folder-listing cache, the offline write queue, and the
-  // editor's undo/scroll history for cloud documents. Every storage call is
-  // guarded, because Veda's Brave throws on any storage access.
-  (function purgeCloudLeftovers() {
-    try {
-      var drop = [];
-      for (var i = 0; i < localStorage.length; i++) {
-        var k = localStorage.key(i);
-        if (!k) continue;
-        if (k === 'mjd_cache' || k === 'mjd_queue' || k.indexOf('mjd_tok_') === 0 ||
-            k.indexOf('docx_hist_tj_mjd_') === 0 || k.indexOf('docx_scroll_tj_mjd_') === 0) drop.push(k);
-      }
-      drop.forEach(function (k) { try { localStorage.removeItem(k); } catch (e) {} });
-    } catch (e) {}
-  })();
-
-  // Hard caps. This whole object rides inside ONE Firestore document and the
-  // ceiling is the 1 MiB document limit, not storage cost. Recents and
-  // favourites are the two fields that would otherwise grow forever.
-  var FAV_MAX = 300, RECENT_MAX = 80, EXPANDED_MAX = 400;
-  function trim() {
-    if (S.favorites.length > FAV_MAX) S.favorites = S.favorites.slice(0, FAV_MAX);
-    if (S.recents.length > RECENT_MAX) S.recents.length = RECENT_MAX;
-    var ek = Object.keys(S.expanded);
-    if (ek.length > EXPANDED_MAX) { var keep = {}; ek.slice(-EXPANDED_MAX).forEach(function (k) { keep[k] = true; }); S.expanded = keep; }
-  }
-  // TWO WRITE TIERS, because the two kinds of change here have wildly different
-  // value per write — and this all lands in ONE Firestore document.
-  //
-  // Starring a document is durable intent: it should
-  // reach your other devices promptly. Expanding a folder, switching tabs or
-  // opening a document is UI fidget — worth remembering, worthless to sync
-  // within the second. Treating them the same meant a minute of browsing a
-  // notebook tree produced a Firestore write per click and, because our own
-  // write echoes back through onSnapshot, a read for each one too. That is how
-  // a free-tier daily quota disappears into nothing but scrolling.
-  //
-  // Durable changes go now. Ephemeral ones hit localStorage immediately — so
-  // they survive a reload regardless — and coalesce into at most ONE Firestore
-  // write per minute, plus a flush when the tab goes away.
-  var DEFER_MS = 60000;
-  var lastPushed = '';
-  var deferTimer = null;
-
-  function pushNow() {
-    if (deferTimer) { clearTimeout(deferTimer); deferTimer = null; }
-    if (!window._fbSaveMJDocs) return;
-    var body = JSON.stringify(S);
-    // Nothing actually changed — re-expanding the folder you just collapsed
-    // lands back on identical state, and that must not cost a write.
-    if (body === lastPushed) return;
-    lastPushed = body;
-    window._fbSaveMJDocs(function () { return S; });
-  }
-
-  function save() {          // durable: favourites
-    trim(); cacheLocal(); emit();
-    pushNow();
-  }
-
-  function saveLocal() {     // ephemeral: tree expansion, active section, last opened
-    trim(); cacheLocal(); emit();
-    if (deferTimer) return;  // one timer, not one per click of browsing
-    deferTimer = setTimeout(function () { deferTimer = null; pushNow(); }, DEFER_MS);
-  }
-
-  // Deferred state must not be lost just because it was cheap: flush on the way
-  // out. pagehide covers close/navigate; visibilitychange covers a phone being
-  // backgrounded, which often never fires pagehide at all.
-  window.addEventListener('pagehide', pushNow);
-  document.addEventListener('visibilitychange', function () { if (document.hidden) pushNow(); });
-  // Merge, never replace: a doc written by an older build must not delete keys
-  // it simply doesn't know about.
-  function applyRemote(d) {
-    if (!d || typeof d !== 'object') return;
-    Object.keys(DEFAULTS).forEach(function (k) { if (d[k] !== undefined && d[k] !== null) S[k] = d[k]; });
-    prune();
-    // Re-baseline the no-op guard against what the server now holds, so the next
-    // local edit compares against remote truth rather than our own last write.
-    try { lastPushed = JSON.stringify(S); } catch (e) {}
-    cacheLocal(); emit();
-  }
-  window.addEventListener('fb-mjdocs-remote-update', function (e) { applyRemote(e.detail); });
-  async function loadSettings() {
-    if (!window._fbLoadMJDocs) return;
-    var d = await window._fbLoadMJDocs();
-    if (d) applyRemote(d);
-  }
-
-  /* ══════════════════════════════════════════════════════════════════════════
-   * Provider: MyJournal Pages
-   *
-   * The local journal, wearing the provider contract so the
-   * universal search, favourites, recents and AI tools need no "is it local?"
-   * branch anywhere. It delegates to the existing journal engine through
-   * _tjCloudBridge rather than reimplementing any of it — MyJournal's own
-   * entries keep saving exactly the way they always have.
-   * ══════════════════════════════════════════════════════════════════════════ */
-  var mjpages = {
-    id: 'mjpages',
-    label: 'MyJournal Pages',
-    accent: '#e0b874',
-    rootId: '',
-    rootLabel: 'MyJournal',
-    containerKinds: [],
-    caps: { folders: false, createDoc: true, renameDoc: true, deleteDoc: true, duplicateDoc: false,
-            moveDoc: false, exportDoc: false, search: true, multiAccount: false, local: true },
-    icon: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M8 7h7"/><path d="M8 11h7"/><path d="M8 15h4"/></svg>',
-    configured: function () { return true; },
-    accounts: function () { return [{ id: 'local', label: 'This journal', email: '' }]; },
-    connect: function () { return Promise.resolve({ id: 'local', label: 'This journal' }); },
-    disconnect: function () {},
-    children: function () {
-      var b = window._tjCloudBridge;
-      if (!b) return Promise.resolve([]);
-      return Promise.resolve(b.localDocs().map(function (d) {
-        return {
-          key: 'mjpages:local:' + d.id, id: d.id, name: d.title, kind: 'doc',
-          provider: 'mjpages', account: 'local', parent: '', hasChildren: false,
-          modified: d.modified, rev: String(d.modified), webUrl: '', path: 'MyJournal',
-          locked: d.locked, template: d.template
-        };
-      }));
-    },
-    // Local pages open through MyJournal's own entry loader, which knows about
-    // locks, templates, attachments and whiteboards. Routing them through the
-    // cloud read/write path would bypass all of that.
-    read: function () { return Promise.reject(new Error('local')); },
-    write: function () { return Promise.reject(new Error('local')); },
-    remoteStamp: function (ref) { return Promise.resolve({ modified: ref.modified || 0, rev: ref.rev || '' }); },
-    createDoc: function () { return Promise.reject(new Error('local')); },
-    createContainer: function () { return Promise.reject(new Error('MyJournal pages are a flat list.')); },
-    rename: function () { return Promise.reject(new Error('local')); },
-    remove: function () { return Promise.reject(new Error('local')); },
-    duplicate: function () { return Promise.reject(new Error('local')); },
-    move: function () { return Promise.reject(new Error('local')); },
-    search: function (accountId, query) {
-      var q = String(query).toLowerCase();
-      return this.children({ account: 'local' }).then(function (docs) {
-        return docs.filter(function (d) { return d.name.toLowerCase().indexOf(q) >= 0; });
-      });
-    },
-    exportFormats: function () { return []; },
-    exportDoc: function () { return Promise.reject(new Error('Use Export PDF in the toolbar.')); },
-    externalUrl: function () { return ''; }
-  };
-
-  /* ══════════════════════════════════════════════════════════════════════════
-   * Registry
-   * ══════════════════════════════════════════════════════════════════════════ */
-  function register(p) {
-    var missing = CONTRACT.filter(function (m) { return typeof p[m] !== 'function'; });
-    if (missing.length) { console.warn('[MJDocs] provider "' + p.id + '" is missing: ' + missing.join(', ')); return; }
-    providers[p.id] = p;
-    if (order.indexOf(p.id) < 0) order.push(p.id);
-  }
-  function get(id) { return providers[id] || null; }
-  function all() { return order.map(function (id) { return providers[id]; }); }
-
-  register(mjpages);
-
-  // Favourites, recents and the last-open document can name a provider this
-  // build no longer has (an old Google Docs or OneNote star). Opening one would
-  // dereference a null provider, so they are dropped here.
-  function known(n) { return !!(n && providers[n.provider]); }
-  function prune() {
-    S.favorites = (S.favorites || []).filter(known);
-    S.recents = (S.recents || []).filter(known);
-    if (S.lastOpen && !known(S.lastOpen)) S.lastOpen = null;
-  }
-  prune();
-
-  /* ══════════════════════════════════════════════════════════════════════════
-   * Listing cache — paint instantly, then reconcile
-   *
-   * A tree node's children are cached in localStorage so reopening a notebook is
-   * instant and the tree still renders with no network. A cached listing is
-   * ALWAYS replaced by the live one the moment it lands, so it can never mask a
-   * real change — it only removes the wait before the first paint.
-   * ══════════════════════════════════════════════════════════════════════════ */
-  // BUDGETED IN BYTES, NOT ENTRIES. A listing is an array of full node objects
-  // — roughly 360 bytes each, so a 100-item notebook section is ~35 KB and an
-  // entry cap of 200 would have permitted nearly 7 MB. localStorage is ~5 MB
-  // TOTAL and is shared with tony_journal_v3, which is MyJournal's own cache:
-  // filling it would not fail loudly, it would quietly stop the journal
-  // caching its entries. This cache is a speed optimisation and must never be
-  // the reason something else runs out of room, so it gets a hard 1 MB ceiling
-  // and evicts oldest-first to stay under it.
-  var CACHE_KEY = 'mjd_cache', CACHE_TTL = 1000 * 60 * 60 * 24 * 7;
-  var CACHE_MAX = 200, CACHE_BYTES = 1024 * 1024;
-  function cacheGet(k) {
-    try {
-      var all = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}');
-      var hit = all[k];
-      if (hit && Date.now() - hit.at < CACHE_TTL) return hit.v;
-    } catch (e) {}
-    return null;
-  }
-  function cacheSet(k, v) {
-    try {
-      var all = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}');
-      all[k] = { at: Date.now(), v: v };
-      var keys = Object.keys(all);
-      keys.sort(function (a, b) { return all[a].at - all[b].at; });   // oldest first
-      if (keys.length > CACHE_MAX) {
-        keys.splice(0, keys.length - CACHE_MAX).forEach(function (x) { delete all[x]; });
-      }
-      // Then trim by size. Serialising once per eviction is fine: this loop
-      // only runs when the cache is genuinely full, and it drops the oldest
-      // listing each pass rather than throwing the whole cache away.
-      var body = JSON.stringify(all);
-      while (body.length > CACHE_BYTES && keys.length > 1) {
-        delete all[keys.shift()];
-        body = JSON.stringify(all);
-      }
-      // The freshest listing on its own exceeding the budget means an enormous
-      // folder; store nothing rather than evict everything for one entry.
-      if (body.length > CACHE_BYTES) return;
-      localStorage.setItem(CACHE_KEY, body);
-    } catch (e) { /* quota — the cache is optional by design */ }
-  }
-  function cacheDrop(prefix) {
-    try {
-      var all = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}');
-      Object.keys(all).forEach(function (k) { if (!prefix || k.indexOf(prefix) === 0) delete all[k]; });
-      localStorage.setItem(CACHE_KEY, JSON.stringify(all));
-    } catch (e) {}
-  }
-
-  function refKey(ref) { return ref.provider + ':' + ref.account + ':' + (ref.id || 'ROOT'); }
-
-  // Children, cache-first. onCached fires synchronously with whatever was
-  // stored; the promise resolves with the authoritative listing.
-  async function children(ref, onCached) {
-    var k = 'ch|' + refKey(ref);
-    var hit = cacheGet(k);
-    if (hit && onCached) { try { onCached(hit); } catch (e) {} }
-    var p = providers[ref.provider];
-    if (!p) throw new Error('Unknown provider');
-    var live = await p.children(ref);
-    cacheSet(k, live);
-    return live;
-  }
-
-  /* ══════════════════════════════════════════════════════════════════════════
-   * Favourites / recents
-   * ══════════════════════════════════════════════════════════════════════════ */
-  function favKey(n) { return n.provider + ':' + n.account + ':' + n.id; }
-  function isFav(n) { return S.favorites.some(function (f) { return favKey(f) === favKey(n); }); }
-  function toggleFav(n) {
-    if (isFav(n)) S.favorites = S.favorites.filter(function (f) { return favKey(f) !== favKey(n); });
-    else S.favorites.unshift({ provider: n.provider, account: n.account, id: n.id, kind: n.kind, name: n.name, path: n.path || '' });
-    save();
-    return isFav(n);
-  }
-  function touchRecent(n, how) {
-    var k = favKey(n);
-    S.recents = S.recents.filter(function (r) { return favKey(r) !== k; });
-    S.recents.unshift({ provider: n.provider, account: n.account, id: n.id, kind: n.kind, name: n.name, path: n.path || '', at: Date.now(), how: how || 'opened' });
-    saveLocal();   // worth keeping, not worth a write per document opened
-  }
-
-  /* ══════════════════════════════════════════════════════════════════════════
-   * Universal index — one flat list across every provider, for search and AI
-   *
-   * Built from what is ALREADY cached plus the local journal, so opening search
-   * costs no API calls. `refresh` re-reads the local journal.
-   * ══════════════════════════════════════════════════════════════════════════ */
-  var index = [];
-  var indexAt = 0;
-  function indexAdd(nodes, path) {
-    nodes.forEach(function (n) {
-      if (index.some(function (x) { return x.key === n.key; })) return;
-      index.push(Object.assign({}, n, { path: path || n.path || '' }));
-    });
-  }
-  function rebuildIndexFromCache() {
-    index = [];
-    try {
-      var all = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}');
-      Object.keys(all).forEach(function (k) {
-        if (k.indexOf('ch|') !== 0) return;
-        var v = all[k] && all[k].v;
-        if (Array.isArray(v)) indexAdd(v);
-      });
-    } catch (e) {}
-    return index;
-  }
-  var crawling = false;
-  async function refreshIndex() {
-    if (crawling) return index;
-    crawling = true;
-    try {
-      var local = await mjpages.children({ account: 'local' });
-      indexAdd(local, 'MyJournal');
-      indexAt = Date.now();
-      fire('index', { size: index.length });
-    } finally { crawling = false; }
-    return index;
-  }
-
-  /* ══════════════════════════════════════════════════════════════════════════
-   * AI — every call goes through the personal-ai Worker, which holds the Gemini
-   * key as a server-side secret. A key in this file would be published with the
-   * page (GitHub Pages serves the repo verbatim), so there is deliberately no
-   * key here and no way to set one from the UI.
-   * ══════════════════════════════════════════════════════════════════════════ */
-  var AI_ENDPOINT = 'https://personal-ai.av1.workers.dev/docs/ai';
-
-  // Response cache. Every call here costs a Gemini free-tier request AND a
-  // Cloudflare Worker invocation, and the same call repeats more than you would
-  // think: summarising a document you did not edit, re-running Find Related,
-  // reopening search and asking the same thing. Keyed on the op plus a hash of
-  // the exact payload, so ANY edit to the document is automatically a cache
-  // miss and you never get a stale answer for changed content.
-  // In memory only — these responses are large and localStorage is shared with
-  // the rest of the app.
-  var AI_TTL = 30 * 60 * 1000, AI_CACHE_MAX = 40;
-  var aiCache = new Map();
-  function aiKey(op, payload) {
-    var str = op + '|' + JSON.stringify(payload);
-    var h = 5381;
-    for (var i = 0; i < str.length; i++) h = ((h * 33) ^ str.charCodeAt(i)) >>> 0;
-    return op + ':' + str.length + ':' + h.toString(36);
-  }
-
-  async function ai(op, payload) {
-    var key = aiKey(op, payload || {});
-    var hit = aiCache.get(key);
-    if (hit && Date.now() - hit.at < AI_TTL) return hit.v;
-
-    var r = await fetch(AI_ENDPOINT, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(Object.assign({ op: op, profile: 'tony' }, payload || {}))
-    });
-    var j = null;
-    try { j = await r.json(); } catch (e) {}
-    if (!r.ok || !j || !j.ok) {
-      throw new Error((j && j.error === 'ai unavailable')
-        ? 'The AI is busy or out of quota right now. Try again in a minute.'
-        : ((j && j.error) || 'The AI could not be reached.'));
-    }
-    // Only successful answers are cached — a quota failure must be retryable
-    // the moment quota returns, not remembered for half an hour.
-    aiCache.set(key, { at: Date.now(), v: j });
-    if (aiCache.size > AI_CACHE_MAX) aiCache.delete(aiCache.keys().next().value);
-    return j;
-  }
-  // Index ops send titles and folder paths only — never document bodies.
-  function aiIndexPayload(docs) {
-    return docs.slice(0, 400).map(function (d) {
-      return { title: d.name, provider: d.provider, path: d.path || '', modified: d.modified || 0, snippet: d.snippet || '' };
-    });
-  }
-
-  /* ── Events ───────────────────────────────────────────────────────────────*/
-  var bus = {};
-  function on(evt, fn) { (bus[evt] = bus[evt] || []).push(fn); return function () { bus[evt] = bus[evt].filter(function (f) { return f !== fn; }); }; }
-  function fire(evt, detail) { (bus[evt] || []).forEach(function (f) { try { f(detail); } catch (e) {} }); }
-
-  window.MJDocs = {
-    // registry
-    register: register, get: get, all: all,
-    // settings
-    settings: function () { return S; }, save: save, saveLocal: saveLocal, flush: pushNow, load: loadSettings, onChange: onChange,
-    // tree
-    children: children, refKey: refKey, cacheDrop: cacheDrop,
-    // favourites / recents
-    isFav: isFav, toggleFav: toggleFav, touchRecent: touchRecent,
-    // index / search
-    index: function () { return index; }, indexAt: function () { return indexAt; },
-    rebuildIndexFromCache: rebuildIndexFromCache, refreshIndex: refreshIndex,
-    // ai
-    ai: ai, aiIndexPayload: aiIndexPayload,
-    // misc
-    errText: errText,
-    on: on, fire: fire,
-    // set by the UI layer (below) — declared here so the editor bridge can call
-    // it before that layer has finished wiring itself up.
-    onEditorInput: function () {}
-  };
-
-  // Hydrate settings as soon as Firebase is up. The index is built from cache
-  // immediately — it costs nothing and means search works on the very first
-  // keystroke.
-  rebuildIndexFromCache();
-  function boot() { loadSettings(); }
-  if (window._fbLoadMJDocs) boot();
-  else window.addEventListener('fb-ready', boot, { once: true });
-})();
-</script>
-
-
-<!-- ══════════════════════════════════════════════════════════════════════════
-     MyJournal sidebar rail — UI
-     Everything here is scoped to #tj-root (Tony's MyJournal). Nothing in this
-     file can reach #bj-root.
-
-     The design language is MyJournal's, unchanged: the same gold on the same
-     three greys, the same 6px radius, the same uppercase micro-labels.
+     The rail at the top of MyJournal's sidebar. It holds one Journal button;
+     OurJournal adds its own tab to it (see _tjModeUI / intoMjd), so the rail,
+     #mjd-panel, the [data-sec="pages"] button and MJDocsUI.release must stay.
      ══════════════════════════════════════════════════════════════════════════ -->
 <style id="mjd-css">
-/* ══════════════════════════════════════════════════════════════════════════
-   MyJournal sidebar rail — styles
-
-   SCOPING RULE, and it matters: #mjd-modal and #mjd-omni are appended to
-   document.body, NOT inside #tj-root. Anything they use must therefore be
-   declared UNSCOPED, against the raw palette values. Scoping those rules to
-   #tj-root is what made every dialog button fall back to the browser default
-   (white box, black label) while the same class looked right in the sidebar.
-   Sidebar-only rules stay scoped; shared ones live in the unscoped block and
-   the sidebar simply inherits them.
-
-   NO FILLED CHIPS. Selection and hover are expressed with the border and the
-   text colour only — the ring glows, the box never fills. That is the house
-   style everywhere else in the suite and this UI matches it.
-   ══════════════════════════════════════════════════════════════════════════ */
-
-/* ── Shared palette for the body-level surfaces ──────────────────────────── */
-:root {
-  --mjd-bg:      #1a1a1d;
-  --mjd-card:    #232327;
-  --mjd-card2:   #2c2c31;
-  --mjd-line:    #34343a;
-  --mjd-line2:   #45454c;
-  --mjd-text:    #f4f3f0;
-  --mjd-text2:   #adadb2;
-  --mjd-text3:   #8d8d94;
-  --mjd-gold:    #e0b874;
-  --mjd-gold-dim:rgba(224,184,116,.34);
-  --mjd-red:     #d68a7c;
-  --mjd-green:   #a4b986;
-  --mjd-orange:  #e0b57c;
-  --mjd-r:       7px;
-  --mjd-font:    'DM Sans', system-ui, sans-serif;
-}
-
-/* ══════════════ Sidebar: source rail ══════════════
-   Outline-only. More room between controls — the old version packed four
-   micro-buttons into one strip and read as a single grey mass. */
 #tj-root #mjd-nav { padding: 12px 12px 2px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
 
 #tj-root .mjd-rail { display: flex; gap: 6px; }
@@ -41508,7 +40829,7 @@ window._THV={
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   background: transparent;
   border: 1px solid var(--border);
-  border-radius: var(--mjd-r);
+  border-radius: 7px;
   color: var(--text3);
   font-family: var(--font); font-size: 10.5px; font-weight: 600;
   letter-spacing: .07em; text-transform: uppercase;
@@ -41523,329 +40844,8 @@ window._THV={
   border-color: var(--gold-line);
   box-shadow: 0 0 0 1px rgba(224,184,116,.18), 0 0 10px rgba(224,184,116,.10);
 }
-#tj-root .mjd-quick { display: flex; gap: 6px; }
-#tj-root .mjd-quick button {
-  flex: 1 1 0; min-width: 0;
-  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  background: transparent; border: 1px solid var(--border); border-radius: var(--mjd-r);
-  color: var(--text3); font-family: var(--font); font-size: 9.5px; font-weight: 600;
-  letter-spacing: .08em; text-transform: uppercase; padding: 8px 4px; cursor: pointer;
-  transition: border-color .16s, color .16s, box-shadow .16s;
-}
-#tj-root .mjd-quick button svg { width: 12px; height: 12px; flex-shrink: 0; opacity: .9; }
-#tj-root .mjd-quick button:hover { border-color: var(--border2); color: var(--text2); }
-#tj-root .mjd-quick button.on {
-  color: var(--purple); border-color: var(--gold-line);
-  box-shadow: 0 0 0 1px rgba(224,184,116,.18), 0 0 10px rgba(224,184,116,.10);
-}
-
-/* ══════════════ Sidebar: Starred / Recent panel ══════════════ */
-#tj-root #mjd-panel { flex: 1 1 0%; min-height: 0; display: none; flex-direction: column; overflow: hidden; }
-#tj-root #mjd-panel.on { display: flex; }
-#tj-root #mjd-panel-head {
-  display: flex; align-items: center; gap: 4px; padding: 12px 14px 8px; flex-shrink: 0;
-}
-#tj-root #mjd-panel-title {
-  font-size: 9.5px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase;
-  color: var(--text3); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-#tj-root .mjd-icon-btn {
-  background: transparent; border: 1px solid transparent; border-radius: 5px; color: var(--text3);
-  padding: 5px; cursor: pointer; display: inline-flex; line-height: 0;
-  transition: color .16s, border-color .16s;
-}
-#tj-root .mjd-icon-btn svg { width: 13px; height: 13px; }
-#tj-root .mjd-icon-btn:hover { color: var(--purple); border-color: var(--gold-line); }
-#tj-root .mjd-icon-btn:disabled { opacity: .35; cursor: not-allowed; }
-
-#tj-root #mjd-tree { flex: 1 1 0%; min-height: 0; overflow-y: auto; padding: 0 8px 14px; }
-
-/* ── Tree row: TWO LINES.
-   The old single-line row spent its width on a twisty, an icon, a date, a star
-   and a menu, leaving a sliver for the title — which is the one thing you
-   actually read. Title now owns the full row and may wrap to two lines; the
-   metadata drops to a second, quieter line. Same shape as MyJournal's own
-   entry cards, so all three tabs read alike. ── */
-/* UNSCOPED on purpose. The destination picker inside "Move to..." renders these
-   same rows, and that dialog lives on document.body — scoping them to #tj-root
-   left the picker entirely unstyled, which is why it came up as a blank sheet
-   with one enormous chevron (an <svg> at its natural size). Everything here uses
-   the --mjd-* palette, defined on :root, so it resolves in both places. */
-.mjd-row {
-  display: grid;
-  grid-template-columns: 15px 16px 1fr auto;
-  grid-template-areas: "tw ico name actions" ".  .   meta meta";
-  align-items: center; column-gap: 7px; row-gap: 1px;
-  padding: 8px 8px 8px 6px; border-radius: var(--mjd-r);
-  border: 1px solid transparent; border-left: 2px solid transparent;
-  cursor: pointer; transition: background .12s, border-color .12s; position: relative;
-  font-family: var(--mjd-font);
-}
-.mjd-row:hover { background: var(--mjd-card); border-color: var(--mjd-line); }
-/* The document you are currently editing. This has to be unmistakable at a
-   glance — the previous rule used --purple-dim, which in Tony's palette
-   resolves to #2c2c31, the SAME colour as the row's own hover background. The
-   outline was technically applied and effectively invisible. */
-#tj-root .mjd-row.active {
-  background: var(--card2);
-  border-color: var(--gold-line);
-  border-left-color: var(--purple);
-  box-shadow: 0 0 0 1px rgba(224,184,116,.22), 0 0 12px rgba(224,184,116,.10);
-}
-.mjd-tw {
-  grid-area: tw; width: 15px; height: 15px; display: inline-flex; align-items: center; justify-content: center;
-  color: var(--mjd-text3); transition: transform .16s; align-self: start; margin-top: 1px; flex-shrink: 0;
-}
-.mjd-tw svg { width: 9px; height: 9px; display: block; }
-.mjd-tw.open { transform: rotate(90deg); }
-.mjd-tw.leaf { visibility: hidden; }
-.mjd-ico { grid-area: ico; line-height: 0; color: var(--mjd-text3); align-self: start; margin-top: 1px; }
-.mjd-ico svg { width: 15px; height: 15px; display: block; }
-.mjd-row.kind-doc .mjd-ico { color: var(--mjd-gold); opacity: .75; }
-.mjd-name {
-  grid-area: name; min-width: 0; font-size: 12.5px; font-weight: 500; color: var(--mjd-text);
-  line-height: 1.35; overflow: hidden;
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
-  overflow-wrap: anywhere;
-}
-#tj-root .mjd-row.active .mjd-name { color: var(--purple); }
-.mjd-meta {
-  grid-area: meta; font-size: 10px; color: var(--mjd-text3); font-family: 'DM Mono', monospace;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: .02em;
-}
-.mjd-actions { grid-area: actions; display: flex; gap: 1px; align-self: start; }
-#tj-root .mjd-star { opacity: 0; transition: opacity .14s; }
-#tj-root .mjd-row:hover .mjd-star,
-#tj-root .mjd-star.on { opacity: 1; }
-#tj-root .mjd-star.on { color: var(--purple); }
-@media (hover: none) { #tj-root .mjd-star { opacity: .6; } }
-
-#tj-root .mjd-empty, #tj-root .mjd-note {
-  padding: 24px 16px; text-align: center; color: var(--text3); font-size: 12px; line-height: 1.7;
-}
-#tj-root .mjd-note { padding: 12px 14px; text-align: left; }
-#tj-root .mjd-note b { color: var(--text2); font-weight: 600; }
-.mjd-skel {
-  height: 34px; margin: 4px 8px; border-radius: var(--mjd-r); background: var(--mjd-card);
-  animation: mjdpulse 1.2s ease-in-out infinite;
-}
-@keyframes mjdpulse { 0%,100% { opacity: .4; } 50% { opacity: .8; } }
-
-/* ── The one button, everywhere. Declared UNSCOPED so it works identically in
-      the sidebar and inside body-level dialogs. ── */
-.mjd-btn {
-  background: transparent; color: var(--mjd-gold);
-  border: 1px solid var(--mjd-gold-dim); border-radius: var(--mjd-r);
-  font-family: var(--mjd-font); font-size: 11px; font-weight: 600;
-  letter-spacing: .07em; text-transform: uppercase; padding: 9px 16px; cursor: pointer;
-  transition: border-color .16s, color .16s, box-shadow .16s;
-  display: inline-flex; align-items: center; justify-content: center; gap: 8px; line-height: 1;
-}
-.mjd-btn:hover { border-color: var(--mjd-gold); box-shadow: var(--suite-glow); }
-.mjd-btn:disabled { opacity: .35; cursor: not-allowed; box-shadow: none; border-color: var(--mjd-line2); color: var(--mjd-text3); }
-.mjd-btn svg { width: 13px; height: 13px; flex-shrink: 0; }
-.mjd-btn.ghost { color: var(--mjd-text2); border-color: var(--mjd-line2); }
-.mjd-btn.ghost:hover { color: var(--mjd-text); border-color: var(--mjd-text3); box-shadow: var(--glow-neutral); }
-.mjd-btn.danger { color: var(--mjd-red); border-color: rgba(214,138,124,.36); }
-.mjd-btn.danger:hover { border-color: var(--mjd-red); box-shadow: var(--glow-red); }
-
-/* ══════════════ Dialog shell — UNSCOPED (lives on document.body) ══════════════ */
-#mjd-modal {
-  position: fixed; inset: 0; z-index: 2147482000; display: none;
-  align-items: center; justify-content: center; padding: 24px;
-  background: rgba(12,12,14,.72); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-  font-family: var(--mjd-font);
-}
-#mjd-modal.on { display: flex; }
-#mjd-modal-box {
-  width: 100%; max-width: 540px; max-height: min(86vh, 760px); display: flex; flex-direction: column;
-  background: var(--mjd-card2); border: 1px solid var(--mjd-line2); border-radius: 12px;
-  box-shadow: 0 32px 80px rgba(0,0,0,.55), 0 0 0 1px rgba(224,184,116,.06);
-  animation: mjdin .17s cubic-bezier(.2,.8,.3,1); overflow: hidden; color: var(--mjd-text2);
-}
-#mjd-modal-box.wide { max-width: 880px; }
-@keyframes mjdin { from { transform: translateY(12px) scale(.985); opacity: 0; } to { transform: none; opacity: 1; } }
-#mjd-modal-head { display: flex; align-items: flex-start; gap: 14px; padding: 24px 26px 14px; flex-shrink: 0; }
-#mjd-modal-title {
-  font-family: 'Manrope', system-ui, sans-serif; font-size: 19px; font-weight: 650;
-  letter-spacing: -.2px; color: var(--mjd-text); line-height: 1.3; flex: 1; min-width: 0;
-  overflow-wrap: anywhere;
-}
-#mjd-modal-sub { font-size: 12.5px; color: var(--mjd-text3); line-height: 1.55; margin-top: 6px; overflow-wrap: anywhere; }
-/* padding-top gives focus rings and hover outlines somewhere to live; without
-   it a first child's border sits exactly on the scroll clip edge. */
-#mjd-modal-body { padding: 3px 34px 6px 26px; overflow-y: auto; flex: 1 1 auto; min-height: 0; font-size: 13.5px; line-height: 1.6; position: relative; }
-#mjd-modal-foot {
-  display: flex; gap: 10px; justify-content: flex-end; padding: 18px 26px 24px; flex-shrink: 0; flex-wrap: wrap;
-  border-top: 1px solid var(--mjd-line); margin-top: 16px;
-}
-/* UNSCOPED — #mjd-modal and #mjd-omni are two separate top-level surfaces, and
-   both use this class on their close button. Scoping it to #mjd-modal left the
-   search overlay's X with no styling at all: no size on the SVG, no colour, no
-   hit padding — which is what showed up as an undecorated white glyph. */
-.mjd-x {
-  background: transparent; border: 1px solid transparent; border-radius: 6px; color: var(--mjd-text3);
-  cursor: pointer; padding: 5px; line-height: 0; transition: color .16s, border-color .16s; flex-shrink: 0;
-  display: inline-flex; align-items: center; justify-content: center;
-}
-.mjd-x:hover { color: var(--mjd-text); border-color: var(--mjd-line2); }
-.mjd-x svg { width: 16px; height: 16px; display: block; }
-
-.mjd-hint { font-size: 11.5px; color: #75757c; line-height: 1.65; margin-top: 8px; }
-.mjd-hint code {
-  font-family: 'DM Mono', monospace; background: var(--mjd-bg); border: 1px solid var(--mjd-line);
-  border-radius: 4px; padding: 2px 6px; font-size: 10.5px; color: var(--mjd-text2); overflow-wrap: anywhere;
-}
-.mjd-hint b { color: var(--mjd-text2); font-weight: 600; }
-
-.mjd-tiny {
-  background: transparent; border: 1px solid var(--mjd-line2); border-radius: 6px; color: var(--mjd-text2);
-  font-family: var(--mjd-font); font-size: 9.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
-  padding: 6px 11px; cursor: pointer; transition: border-color .16s, color .16s; flex-shrink: 0;
-}
-.mjd-tiny:hover { border-color: var(--mjd-gold); color: var(--mjd-gold); }
-.mjd-tiny.danger:hover { border-color: rgba(214,138,124,.6); color: var(--mjd-red); }
-
-/* ══════════════ Universal search — UNSCOPED ══════════════ */
-#mjd-omni {
-  position: fixed; inset: 0; z-index: 2147482100; display: none; padding: 7vh 24px 24px;
-  background: rgba(12,12,14,.74); backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px);
-  font-family: var(--mjd-font);
-}
-#mjd-omni.on { display: block; }
-#mjd-omni-box {
-  max-width: 760px; margin: 0 auto; background: var(--mjd-card2);
-  border: 1px solid var(--mjd-line2); border-radius: 12px;
-  box-shadow: 0 32px 80px rgba(0,0,0,.55), 0 0 0 1px rgba(224,184,116,.06);
-  overflow: hidden; display: flex; flex-direction: column; max-height: 80vh;
-  animation: mjdin .17s cubic-bezier(.2,.8,.3,1); color: var(--mjd-text2);
-}
-#mjd-omni-top { display: flex; align-items: center; gap: 12px; padding: 17px 20px; border-bottom: 1px solid var(--mjd-line); }
-#mjd-omni-top > svg { width: 17px; height: 17px; color: var(--mjd-text3); flex-shrink: 0; }
-#mjd-omni-input {
-  flex: 1; background: transparent; border: none; outline: none; color: var(--mjd-text);
-  font-family: inherit; font-size: 15.5px; min-width: 0; padding: 2px 0;
-}
-#mjd-omni-input::placeholder { color: #6a6a72; }
-
-/* Filters: three labelled groups instead of one undifferentiated row of chips. */
-#mjd-omni-filters {
-  display: flex; gap: 18px; padding: 13px 20px; border-bottom: 1px solid var(--mjd-line);
-  flex-wrap: wrap; align-items: center;
-}
-.mjd-fgroup { display: flex; align-items: center; gap: 7px; min-width: 0; }
-.mjd-fgroup > span {
-  font-size: 9px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
-  color: #6a6a72; flex-shrink: 0;
-}
-.mjd-fchips { display: flex; gap: 5px; flex-wrap: wrap; }
-.mjd-fchip {
-  background: transparent; border: 1px solid var(--mjd-line); border-radius: 20px; color: var(--mjd-text3);
-  font-family: var(--mjd-font); font-size: 10.5px; font-weight: 600; letter-spacing: .03em;
-  padding: 5px 12px; cursor: pointer; transition: border-color .16s, color .16s, box-shadow .16s; white-space: nowrap;
-}
-.mjd-fchip:hover { color: var(--mjd-text2); border-color: var(--mjd-line2); }
-.mjd-fchip.on {
-  border-color: var(--mjd-gold-dim); color: var(--mjd-gold);
-  box-shadow: 0 0 0 1px rgba(224,184,116,.14);
-}
-
-#mjd-omni-answer { padding: 14px 20px; border-bottom: 1px solid var(--mjd-line); font-size: 12.5px; color: var(--mjd-text2); line-height: 1.65; display: none; }
-#mjd-omni-answer.on { display: block; }
-#mjd-omni-answer b { color: var(--mjd-gold); font-weight: 600; }
-
-#mjd-omni-list { overflow-y: auto; flex: 1 1 auto; min-height: 0; padding: 8px 14px 8px 8px; position: relative; }
-.mjd-hit {
-  display: grid; grid-template-columns: 18px 1fr auto; column-gap: 11px; row-gap: 2px;
-  grid-template-areas: "ico name when" ".   sub  sub";
-  padding: 10px 13px; border-radius: var(--mjd-r); cursor: pointer;
-  border: 1px solid transparent; align-items: center;
-}
-.mjd-hit:hover, .mjd-hit.sel { background: #26262b; border-color: var(--mjd-line); }
-.mjd-hit.sel { border-color: var(--mjd-gold-dim); }
-.mjd-hit .mjd-ico { grid-area: ico; line-height: 0; color: var(--mjd-text3); align-self: start; margin-top: 2px; }
-.mjd-hit .mjd-ico svg { width: 15px; height: 15px; }
-.mjd-hit-name {
-  grid-area: name; font-size: 13.5px; color: var(--mjd-text); font-weight: 550; min-width: 0;
-  overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere;
-}
-.mjd-hit-sub { grid-area: sub; font-size: 11px; color: #75757c; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mjd-hit-when { grid-area: when; font-size: 10px; color: var(--mjd-text3); font-family: 'DM Mono', monospace; white-space: nowrap; align-self: start; margin-top: 2px; }
-.mjd-hit mark { background: transparent; color: var(--mjd-gold); font-weight: 700; border-radius: 0; }
-
-#mjd-omni-foot {
-  padding: 12px 20px; border-top: 1px solid var(--mjd-line); display: flex; align-items: center;
-  gap: 9px; font-size: 11px; color: #75757c; flex-wrap: wrap;
-}
-#mjd-omni-count { white-space: nowrap; }
-
-/* AI results */
-.mjd-ai-group { border: 1px solid var(--mjd-line); border-radius: 9px; margin-bottom: 11px; overflow: hidden; }
-.mjd-ai-group > h5 {
-  font-size: 12.5px; font-weight: 650; color: var(--mjd-text); padding: 12px 15px; margin: 0;
-  background: #26262b; border-bottom: 1px solid var(--mjd-line); font-family: 'Manrope', sans-serif;
-}
-.mjd-ai-group > h5 em { font-style: normal; font-size: 11px; color: #75757c; font-weight: 400; margin-left: 9px; }
-.mjd-ai-group ul { list-style: none; padding: 6px 0; margin: 0; }
-.mjd-ai-group li {
-  padding: 8px 15px; font-size: 12.5px; color: var(--mjd-text2);
-  display: flex; gap: 9px; align-items: center; cursor: pointer; transition: background .12s, color .12s;
-}
-.mjd-ai-group li:hover { background: #26262b; color: var(--mjd-text); }
-.mjd-ai-group li svg { width: 14px; height: 14px; flex-shrink: 0; opacity: .7; }
-.mjd-pill-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 12px; }
-.mjd-pill {
-  background: transparent; border: 1px solid var(--mjd-line2); border-radius: 20px; color: var(--mjd-text2);
-  font-family: var(--mjd-font); font-size: 12px; padding: 7px 14px; cursor: pointer;
-  transition: border-color .16s, color .16s;
-}
-.mjd-pill:hover { border-color: var(--mjd-gold); color: var(--mjd-gold); }
-.mjd-pill.on { border-color: var(--mjd-gold-dim); color: var(--mjd-gold); }
-.mjd-out {
-  background: var(--mjd-bg); border: 1px solid var(--mjd-line); border-radius: 9px; padding: 15px 17px;
-  font-size: 13px; line-height: 1.7; color: #d6d6da; white-space: pre-wrap; max-height: 320px; overflow: auto;
-}
-.mjd-spinner {
-  display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(224,184,116,.22);
-  border-top-color: var(--mjd-gold); border-radius: 50%; animation: mjdspin .7s linear infinite;
-}
-.mjd-busy { display: flex; align-items: center; gap: 11px; padding: 30px 0; color: var(--mjd-text3); font-size: 13px; justify-content: center; }
-.mjd-empty, .mjd-note { padding: 26px 16px; text-align: center; color: var(--mjd-text3); font-size: 12.5px; line-height: 1.7; }
-.mjd-note { padding: 13px 15px; text-align: left; }
-.mjd-note b { color: var(--mjd-text2); font-weight: 600; }
-
-/* Grabbable, draggable scroll thumb — the same pattern the DOCX page editor
-   already uses (addFadingScrollbar). A native OS scrollbar in an overlay this
-   size is easy to miss and, on touch, is not draggable at all; this thumb
-   fades in on scroll/drag, works with mouse AND touch, and disappears when
-   the content already fits. */
-.mjd-scrollbar {
-  position: absolute; right: 4px; width: 8px; border-radius: 5px;
-  background: rgba(224,184,116,.30); opacity: 0; transition: opacity .4s ease;
-  pointer-events: auto; cursor: grab; z-index: 5; touch-action: none;
-}
-.mjd-scrollbar.on { opacity: 1; }
-.mjd-scrollbar:hover { background: rgba(224,184,116,.5); }
-.mjd-scrollbar:active { cursor: grabbing; background: rgba(224,184,116,.6); }
-
-/* Transient message surface — always visible, never covers the editor. */
-#mjd-toast {
-  position: fixed; left: 50%; bottom: 26px; transform: translate(-50%, 14px);
-  z-index: 2147482500; max-width: min(520px, calc(100vw - 32px));
-  background: var(--mjd-card2); border: 1px solid var(--mjd-line2); border-radius: 9px;
-  color: var(--mjd-text2); font-family: var(--mjd-font); font-size: 13px; line-height: 1.5;
-  padding: 12px 18px; box-shadow: 0 16px 44px rgba(0,0,0,.5);
-  opacity: 0; pointer-events: none; transition: opacity .18s, transform .18s;
-}
-#mjd-toast.on { opacity: 1; transform: translate(-50%, 0); }
-#mjd-toast.ok { border-color: rgba(164,185,134,.42); color: #cfe0bd; }
-#mjd-toast.error { border-color: rgba(214,138,124,.46); color: #eec4bb; }
-@media (max-width: 600px) {
-  #mjd-toast { left: 12px; right: 12px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); max-width: none; transform: translateY(14px); }
-  #mjd-toast.on { transform: translateY(0); }
-}
-
-/* ══════════════════════════ RESPONSIVE ══════════════════════════ */
+/* Never shown. It stays because OurJournal's tab code checks it. */
+#tj-root #mjd-panel { display: none; }
 
 /* Wider sidebar on roomy screens: the title is the point, give it room. */
 @media (min-width: 1100px) { #tj-root { --sidebar-w: 300px; } }
@@ -41853,56 +40853,14 @@ window._THV={
 /* Tablet: touch sizing. */
 @media (max-width: 900px) {
   #tj-root .mjd-rail-btn { padding: 11px 7px; font-size: 11px; }
-  #tj-root .mjd-quick button { padding: 10px 5px; font-size: 10px; }
-  #tj-root .mjd-row { padding: 10px 8px; }
-  #tj-root .mjd-name { font-size: 13px; }
-  #mjd-modal-box { max-height: 90vh; }
-  #mjd-omni { padding: 4vh 14px 14px; }
-  #mjd-omni-box { max-height: 88vh; }
-  #mjd-omni-filters { gap: 12px; }
 }
 
-/* Phone: rail becomes icons, dialogs become sheets. */
+/* Phone: the rail becomes icons. */
 @media (max-width: 600px) {
   #tj-root #mjd-nav { padding: 10px 10px 2px; gap: 7px; }
   #tj-root .mjd-rail-btn span.mjd-lbl { display: none; }
   #tj-root .mjd-rail-btn { padding: 12px 6px; }
   #tj-root .mjd-rail-btn svg { width: 16px; height: 16px; }
-  #tj-root .mjd-quick button span { display: none; }
-  #tj-root .mjd-quick button { padding: 11px 4px; }
-  #tj-root .mjd-quick button svg { width: 15px; height: 15px; }
-
-  #mjd-modal { padding: 0; align-items: flex-end; }
-  #mjd-modal-box { max-width: none; border-radius: 14px 14px 0 0; max-height: 93vh; }
-  #mjd-modal-head { padding: 20px 18px 12px; }
-  #mjd-modal-body { padding: 0 18px 6px; }
-  #mjd-modal-foot { padding: 15px 18px calc(18px + env(safe-area-inset-bottom, 0px)); }
-  #mjd-modal-foot .mjd-btn { flex: 1 1 46%; }
-
-  #mjd-omni { padding: 0; }
-  #mjd-omni-box { max-width: none; max-height: 100vh; height: 100dvh; border-radius: 0; border: none; }
-  #mjd-omni-top { padding: calc(env(safe-area-inset-top, 0px) + 14px) 16px 14px; }
-  #mjd-omni-filters { padding: 11px 16px; gap: 10px; overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
-  #mjd-omni-filters::-webkit-scrollbar { display: none; }
-  .mjd-fgroup { flex-shrink: 0; }
-  #mjd-omni-foot { padding: 11px 16px calc(11px + env(safe-area-inset-bottom, 0px)); }
-  #mjd-omni-foot .mjd-tiny { flex: 1 1 auto; text-align: center; }
-  #mjd-omni-count { width: 100%; }
-}
-
-/* Narrow foldables / cover screens. */
-@media (max-width: 360px) {
-  #tj-root .mjd-meta { font-size: 9px; }
-  #mjd-modal-foot .mjd-btn { flex: 1 1 100%; }
-}
-
-/* Short viewports (phone landscape, split screen). */
-@media (max-height: 520px) {
-  #mjd-modal-box { max-height: 97vh; }
-  #mjd-modal-head { padding: 14px 20px 8px; }
-  #mjd-modal-foot { padding: 11px 20px 13px; margin-top: 10px; }
-  #mjd-omni { padding: 1vh 12px 12px; }
-  #mjd-omni-box { max-height: 96vh; }
 }
 </style>
 
@@ -41910,524 +40868,68 @@ window._THV={
 <script>
 (function () {
   'use strict';
-  var D = window.MJDocs;
-  if (!D) return;
+  if (window.MJDocsUI) return;
 
-  /* ── Icons (same stroke set MyJournal uses; emoji render as flat black glyphs
-        on Windows and would break the palette). ─────────────────────────────*/
-  function svg(p, w) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="' + (w || 1.6) + '" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + p + '</svg>'; }
-  var I = {
-    chevron:  svg('<path d="m9 6 6 6-6 6"/>', 2.2),
-    folder:   svg('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>'),
-    doc:      svg('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h5"/>'),
-    star:     svg('<path d="m12 3 2.6 5.6 6 .8-4.4 4.2 1.1 6L12 16.8 6.7 19.6l1.1-6L3.4 9.4l6-.8Z"/>'),
-    clock:    svg('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
-    search:   svg('<circle cx="11" cy="11" r="7.5"/><path d="m21 21-4.3-4.3"/>'),
-    x:        svg('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>', 2),
-  };
-  function kindIcon(k) { return k === 'doc' ? I.doc : I.folder; }
-  function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  // MyJournal and OurJournal still read this flag. Nothing sets it any more.
+  window._tjCloudMode = false;
+
+  // One-time purge of what the removed rail features left on this device:
+  // Google Docs / OneNote OAuth tokens, the folder-listing cache, the offline
+  // write queue, the editor's undo/scroll history for cloud documents, and the
+  // Starred/Recent settings mirror. Every storage call is guarded, because
+  // Veda's Brave throws on any storage access.
+  (function purgeLeftovers() {
+    try {
+      var drop = [];
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (!k) continue;
+        if (k === 'mjd_cache' || k === 'mjd_queue' || k === 'mjd_settings' || k.indexOf('mjd_tok_') === 0 ||
+            k.indexOf('docx_hist_tj_mjd_') === 0 || k.indexOf('docx_scroll_tj_mjd_') === 0) drop.push(k);
+      }
+      drop.forEach(function (k) { try { localStorage.removeItem(k); } catch (e) {} });
+    } catch (e) {}
+  })();
+
+  var ICON_J = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M8 7h7"/><path d="M8 11h7"/><path d="M8 15h4"/></svg>';
   function el(id) { return document.getElementById(id); }
-  function fmtWhen(ms) {
-    if (!ms) return '';
-    var d = Date.now() - ms;
-    if (d < 45000) return 'just now';
-    if (d < 3600000) return Math.floor(d / 60000) + 'm ago';
-    if (d < 86400000) return Math.floor(d / 3600000) + 'h ago';
-    if (d < 604800000) return Math.floor(d / 86400000) + 'd ago';
-    return new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  }
 
-  /* ══════════════════════════════════════════════════════════════════════════
-   * Modal shell — every dialog in this feature. Nothing here uses alert(),
-   * confirm() or prompt(): a browser dialog would sit outside MyJournal, lose
-   * the app's styling and (on desktop) vanish the moment the window blurs.
-   * ══════════════════════════════════════════════════════════════════════════ */
-  var modalStack = [];
-  function ensureModal() {
-    if (el('mjd-modal')) return;
-    var m = document.createElement('div');
-    m.id = 'mjd-modal';
-    m.innerHTML =
-      '<div id="mjd-modal-box" role="dialog" aria-modal="true" aria-labelledby="mjd-modal-title">' +
-        '<div id="mjd-modal-head"><div style="flex:1;min-width:0"><div id="mjd-modal-title"></div><div id="mjd-modal-sub"></div></div>' +
-        '<button class="mjd-x" id="mjd-modal-x" aria-label="Close">' + I.x + '</button></div>' +
-        '<div id="mjd-modal-body"></div><div id="mjd-modal-foot"></div></div>';
-    document.body.appendChild(m);
-    el('mjd-modal-x').addEventListener('click', function () { closeModal(); });
-    m.addEventListener('click', function (e) { if (e.target === m) closeModal(); });
-    document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && m.classList.contains('on')) { e.stopPropagation(); closeModal(); }
-    }, true);
-  }
-  // cfg: {title, sub, body(HTMLElement|string), actions:[{label,cls,fn,keep}], wide}
-  function openModal(cfg) {
-    ensureModal();
-    modalStack.push(cfg);
-    el('mjd-modal-box').classList.toggle('wide', !!cfg.wide);
-    el('mjd-modal-title').textContent = cfg.title || '';
-    var sub = el('mjd-modal-sub');
-    sub.innerHTML = cfg.sub || ''; sub.style.display = cfg.sub ? '' : 'none';
-    var body = el('mjd-modal-body');
-    body.innerHTML = '';
-    if (cfg.body instanceof Node) body.appendChild(cfg.body);
-    else body.innerHTML = cfg.body || '';
-    var foot = el('mjd-modal-foot');
-    foot.innerHTML = '';
-    (cfg.actions || []).forEach(function (a) {
-      var b = document.createElement('button');
-      b.className = 'mjd-btn ' + (a.cls || '');
-      b.innerHTML = a.label;
-      b.addEventListener('click', function () { if (!a.keep) closeModal(); if (a.fn) a.fn(); });
-      foot.appendChild(b);
-    });
-    foot.style.display = (cfg.actions && cfg.actions.length) ? '' : 'none';
-    el('mjd-modal').classList.add('on');
-    setTimeout(function () {
-      var f = body.querySelector('input,select,textarea,button');
-      if (f) try { f.focus(); if (f.select) f.select(); } catch (e) {}
-    }, 50);
-    return body;
-  }
-  function closeModal() {
-    modalStack.pop();
-    var cur = modalStack[modalStack.length - 1];
-    if (cur) { modalStack.pop(); openModal(cur); }        // restore the dialog underneath
-    else { var m = el('mjd-modal'); if (m) m.classList.remove('on'); }
-  }
-  /* Transient messages need a surface that is ALWAYS visible. A failure you
-   * cannot see is indistinguishable from a button that does nothing. */
-  function toast(msg, kind) {
-    var t = el('mjd-toast');
-    if (!t) {
-      t = document.createElement('div');
-      t.id = 'mjd-toast';
-      t.setAttribute('role', 'status');
-      t.setAttribute('aria-live', 'polite');
-      document.body.appendChild(t);
-    }
-    t.className = kind || '';
-    t.textContent = msg;
-    // Restart the animation even if a toast is already showing.
-    t.classList.remove('on'); void t.offsetWidth; t.classList.add('on');
-    clearTimeout(t._t);
-    t._t = setTimeout(function () { t.classList.remove('on'); }, kind === 'error' ? 6000 : 3600);
-  }
-  async function ask(msg, opts) { return window.uiConfirm ? window.uiConfirm(msg, opts) : Promise.resolve(true); }
-  async function askText(msg, opts) { return window.uiPrompt ? window.uiPrompt(msg, opts) : Promise.resolve(null); }
-
-  /* ══════════════════════════════════════════════════════════════════════════
-   * State
-   * ══════════════════════════════════════════════════════════════════════════ */
-  var section = 'pages';         // pages | favorites | recents
-
-  function S() { return D.settings(); }
-
-  /* ══════════════════════════════════════════════════════════════════════════
-   * Sidebar
-   * ══════════════════════════════════════════════════════════════════════════ */
   function buildNav() {
     var sidebar = el('tj-sidebar');
     if (!sidebar || el('mjd-nav')) return;
 
     var nav = document.createElement('div');
     nav.id = 'mjd-nav';
-    // MyJournal's own tab selects 'pages', not the provider id. The mjpages
-    // ADAPTER exists so local pages appear in search and favourites, but the
-    // Journal TAB must render MyJournal's native entry list, which owns the
-    // trash button, drag-reordering, tag filters, the entry search box and the
-    // active-entry outline.
-    var rail = D.all().map(function (p) {
-      return '<button class="mjd-rail-btn" data-sec="pages" title="' + esc(p.label) + '">' +
-        p.icon + '<span class="mjd-lbl">Journal</span></button>';
-    }).join('');
     nav.innerHTML =
-      '<div class="mjd-rail" role="tablist">' + rail + '</div>' +
-      '<div class="mjd-quick">' +
-        '<button data-sec="favorites" title="Favourites">' + I.star + '<span>Starred</span></button>' +
-        '<button data-sec="recents" title="Recent documents">' + I.clock + '<span>Recent</span></button>' +
-        '<button id="mjd-omni-btn" title="Search all documents (Ctrl+Shift+F)">' + I.search + '<span>Find</span></button>' +
+      '<div class="mjd-rail" role="tablist">' +
+        '<button class="mjd-rail-btn" data-sec="pages" title="MyJournal">' + ICON_J + '<span class="mjd-lbl">Journal</span></button>' +
       '</div>';
     sidebar.insertBefore(nav, el('tj-new-entry-btn'));
 
     var panel = document.createElement('div');
     panel.id = 'mjd-panel';
-    panel.innerHTML =
-      '<div id="mjd-panel-head"><span id="mjd-panel-title"></span></div>' +
-      '<div id="mjd-tree"></div>';
     var list = el('tj-entries-list');
     list.parentNode.insertBefore(panel, list.nextSibling);
 
     nav.addEventListener('click', function (e) {
-      var b = e.target.closest('[data-sec]');
-      if (b) { setSection(b.getAttribute('data-sec')); return; }
-      if (e.target.closest('#mjd-omni-btn')) { openOmni(); return; }
+      if (e.target.closest('[data-sec]')) setSection('pages');
     });
-
-    setSection(validSection((S().view && S().view.section) || 'pages'));
-  }
-
-  // The active section is RESTORED FROM SYNCED SETTINGS, so it can name a
-  // section this build does not have: 'gdocs' or 'onenote' from before they
-  // were removed, or one a newer build on another device knew about. Anything
-  // unrecognised falls back to the one section that always exists.
-  function validSection(sec) {
-    if (sec === 'favorites' || sec === 'recents' || sec === 'pages') return sec;
-    return 'pages';
-  }
-
-  function setSection(sec) {
-    section = validSection(sec);
-    sec = section;
-    S().view = Object.assign({}, S().view, { section: sec });
-    D.saveLocal();   // switching tabs is not worth a round trip
-    document.querySelectorAll('#mjd-nav [data-sec]').forEach(function (b) {
-      b.classList.toggle('on', b.getAttribute('data-sec') === sec);
-    });
-    var local = sec === 'pages';
-    // The native entries list and its tag filter belong to the Journal tab;
-    // Starred and Recent replace them wholesale rather than trying to interleave.
-    el('tj-entries-list').style.display = local ? '' : 'none';
-    var tagRow = el('tj-tagfilter-row'); if (tagRow) tagRow.style.display = local ? '' : 'none';
-    var stats = el('tj-sidebar-stats'); if (stats) stats.style.display = local ? '' : 'none';
-    var trash = document.querySelector('#tj-sidebar .docx-trash-btn'); if (trash) trash.style.display = local ? '' : 'none';
-    el('tj-new-entry-btn').style.display = local ? '' : 'none';
-    el('mjd-panel').classList.toggle('on', !local);
-    var sw = document.querySelector('#tj-sidebar .search-wrap'); if (sw) sw.style.display = local ? '' : 'none';
-    if (!local) renderPanel();
-  }
-
-  function renderPanel() {
-    var titleEl = el('mjd-panel-title');
-    if (section === 'favorites') { titleEl.textContent = 'Favourites'; renderFlat(S().favorites, 'Nothing starred yet.<br>Star a page to pin it here.'); return; }
-    if (section === 'recents')   { titleEl.textContent = 'Recent';     renderFlat(S().recents, 'Nothing opened yet.'); return; }
-  }
-
-  function renderFlat(items, emptyMsg) {
-    var tree = el('mjd-tree');
-    tree.innerHTML = '';
-    if (!items || !items.length) { tree.innerHTML = '<div class="mjd-empty">' + emptyMsg + '</div>'; return; }
-    items.forEach(function (n) {
-      var node = Object.assign({ hasChildren: n.kind !== 'doc', key: n.provider + ':' + n.account + ':' + n.id }, n);
-      tree.appendChild(rowFor(node, 0, { showPath: true }));
-    });
-  }
-
-  // One row. Rows are built rather than templated because each carries its own
-  // handlers for open and star.
-  function rowFor(node, depth, opts) {
-    opts = opts || {};
-    var row = document.createElement('div');
-    row.className = 'mjd-row kind-' + node.kind;
-    row.style.paddingLeft = (8 + depth * 13) + 'px';
-    row.dataset.key = node.key;
-    var starred = D.isFav(node);
-    // The metadata line carries whatever is genuinely useful for this row and
-    // simply collapses when there is nothing to say, so the title keeps the
-    // full width either way.
-    var meta = [];
-    if (opts.showPath && node.path) meta.push(String(node.path).split(' / ').pop());
-    if (node.kind === 'doc' && node.modified) meta.push(fmtWhen(node.modified));
-    row.innerHTML =
-      '<span class="mjd-tw leaf">' + I.chevron + '</span>' +
-      '<span class="mjd-ico">' + kindIcon(node.kind) + '</span>' +
-      '<span class="mjd-name" title="' + esc(node.name) + '">' + esc(node.name) + '</span>' +
-      (meta.length ? '<span class="mjd-meta">' + esc(meta.join(' · ')) + '</span>' : '') +
-      '<span class="mjd-actions">' +
-        '<button class="mjd-icon-btn mjd-star' + (starred ? ' on' : '') + '" title="' + (starred ? 'Unstar' : 'Star') + '" aria-label="' + (starred ? 'Unstar' : 'Star') + '">' + I.star + '</button>' +
-      '</span>';
-
-    row.querySelector('.mjd-star').addEventListener('click', function (e) {
-      e.stopPropagation();
-      var on = D.toggleFav(node);
-      this.classList.toggle('on', on);
-      this.title = on ? 'Unstar' : 'Star';
-      if (section === 'favorites') renderPanel();
-    });
-    row.addEventListener('click', function () {
-      if (node.kind === 'doc') openDocument(node);
-      else jumpTo(node);
-    });
-    return row;
-  }
-
-  // Jump from a favourite / search hit that is not a page back to the journal.
-  function jumpTo(node) {
-    if (node.kind === 'doc') { openDocument(node); return; }
     setSection('pages');
   }
 
-  /* ══════════════════════════════════════════════════════════════════════════
-   * Opening a page — handed back to MyJournal's own entry loader, which knows
-   * about locks, templates, attachments and whiteboards.
-   * ══════════════════════════════════════════════════════════════════════════ */
-  function openDocument(node) {
-    var B = window._tjCloudBridge;
-    if (!B || !node || !D.get(node.provider)) return;
-    D.touchRecent(node, 'opened');
-    B.openLocal(node.id);
+  // Journal is the only section left.
+  function setSection() {
+    document.querySelectorAll('#mjd-nav [data-sec]').forEach(function (b) {
+      b.classList.toggle('on', b.getAttribute('data-sec') === 'pages');
+    });
   }
 
-  // Kept for MyJournal and OurJournal, which call it when they take the editor
-  // back. Nothing can put the editor into cloud mode any more, so all that is
-  // left to undo is the flag itself.
+  // MyJournal and OurJournal call this when they take the editor back. There
+  // is nothing left to release, so it only clears the flag.
   function releaseEditor() {
     window._tjCloudMode = false;
   }
 
-  /* ══════════════════════════════════════════════════════════════════════════
-   * Universal search
-   *
-   * Runs over the in-memory index (every provider, one flat list), so typing is
-   * instant and costs no API calls. Filters narrow it; the AI button answers the
-   * questions a substring match cannot ("everything I wrote last week").
-   * ══════════════════════════════════════════════════════════════════════════ */
-  var omniFilters = { provider: null, kind: null, since: null };
-  var omniSel = 0, omniHits = [];
-
-  function ensureOmni() {
-    if (el('mjd-omni')) return;
-    var o = document.createElement('div');
-    o.id = 'mjd-omni';
-    o.innerHTML =
-      '<div id="mjd-omni-box" role="dialog" aria-modal="true" aria-label="Search all documents">' +
-        '<div id="mjd-omni-top">' + I.search +
-          '<input id="mjd-omni-input" placeholder="Search every document — or ask a question" autocomplete="off" spellcheck="false" />' +
-          '<button class="mjd-tiny" id="mjd-omni-ai">Ask AI</button>' +
-          '<button class="mjd-x" id="mjd-omni-x" aria-label="Close">' + I.x + '</button>' +
-        '</div>' +
-        '<div id="mjd-omni-filters"></div>' +
-        '<div id="mjd-omni-answer"></div>' +
-        '<div id="mjd-omni-list"></div>' +
-        '<div id="mjd-omni-foot"><span id="mjd-omni-count"></span><span style="flex:1"></span>' +
-          '<button class="mjd-tiny" id="mjd-omni-dupes">Find duplicates</button>' +
-          '<button class="mjd-tiny" id="mjd-omni-org">Suggest organisation</button>' +
-          '<button class="mjd-tiny" id="mjd-omni-reindex">Refresh index</button>' +
-        '</div>' +
-      '</div>';
-    document.body.appendChild(o);
-    o.addEventListener('click', function (e) { if (e.target === o) closeOmni(); });
-    el('mjd-omni-x').addEventListener('click', closeOmni);
-    el('mjd-omni-input').addEventListener('input', function () { omniSel = 0; runOmni(); });
-    el('mjd-omni-input').addEventListener('keydown', onOmniKey);
-    el('mjd-omni-ai').addEventListener('click', runOmniAi);
-    el('mjd-omni-dupes').addEventListener('click', function () { closeOmni(); runGroupOp('duplicates'); });
-    el('mjd-omni-org').addEventListener('click', function () { closeOmni(); runGroupOp('organize'); });
-    el('mjd-omni-reindex').addEventListener('click', async function () {
-      var b = this; b.textContent = 'Indexing…'; b.disabled = true;
-      await D.refreshIndex({ ms: 25000, nodes: 250 });
-      b.textContent = 'Refresh index'; b.disabled = false;
-      runOmni();
-    });
-    buildOmniFilters();
-  }
-
-  function buildOmniFilters() {
-    var f = el('mjd-omni-filters');
-    var chips = [{ k: 'provider', v: null, label: 'All sources' }];
-    D.all().forEach(function (p) { chips.push({ k: 'provider', v: p.id, label: p.label.replace('MyJournal Pages', 'MyJournal') }); });
-    chips.push({ sep: true });
-    chips.push({ k: 'kind', v: null, label: 'Anything' });
-    chips.push({ k: 'kind', v: 'doc', label: 'Documents' });
-    chips.push({ k: 'kind', v: 'container', label: 'Folders' });
-    chips.push({ sep: true });
-    chips.push({ k: 'since', v: null, label: 'Any time' });
-    chips.push({ k: 'since', v: 7, label: 'Past week' });
-    chips.push({ k: 'since', v: 30, label: 'Past month' });
-    chips.push({ k: 'since', v: 365, label: 'Past year' });
-    // Grouped and labelled. Eleven bare chips in a row gave no clue which were
-    // mutually exclusive or what they filtered on.
-    var groups = [{ k: 'provider', label: 'Source' }, { k: 'kind', label: 'Type' }, { k: 'since', label: 'Modified' }];
-    f.innerHTML = groups.map(function (g) {
-      var mine = chips.filter(function (c) { return !c.sep && c.k === g.k; });
-      return '<span class="mjd-fgroup"><span>' + esc(g.label) + '</span><span class="mjd-fchips">' +
-        mine.map(function (c) {
-          var on = omniFilters[c.k] === c.v;
-          return '<button class="mjd-fchip' + (on ? ' on' : '') + '" data-k="' + c.k + '" data-v="' +
-            (c.v === null ? '' : c.v) + '"' + (on ? ' aria-pressed="true"' : '') + '>' + esc(c.label) + '</button>';
-        }).join('') + '</span></span>';
-    }).join('');
-    f.onclick = function (e) {
-      var b = e.target.closest('.mjd-fchip');
-      if (!b) return;
-      var k = b.getAttribute('data-k'), v = b.getAttribute('data-v');
-      omniFilters[k] = v === '' ? null : (k === 'since' ? +v : v);
-      buildOmniFilters(); runOmni();
-    };
-  }
-
-  function omniPool() {
-    var pool = D.index().slice();
-    // The local journal is always live — its titles change without any crawl.
-    var B = window._tjCloudBridge;
-    if (B) {
-      var localKeys = {};
-      pool = pool.filter(function (n) { return n.provider !== 'mjpages'; });
-      B.localDocs().forEach(function (d) {
-        if (localKeys[d.id]) return; localKeys[d.id] = 1;
-        pool.push({ key: 'mjpages:local:' + d.id, id: d.id, name: d.title, kind: 'doc', provider: 'mjpages',
-          account: 'local', path: 'MyJournal', modified: d.modified, snippet: (d.text || '').slice(0, 200), locked: d.locked });
-      });
-    }
-    return pool.filter(function (n) {
-      if (omniFilters.provider && n.provider !== omniFilters.provider) return false;
-      if (omniFilters.kind === 'doc' && n.kind !== 'doc') return false;
-      if (omniFilters.kind === 'container' && n.kind === 'doc') return false;
-      if (omniFilters.since && (!n.modified || Date.now() - n.modified > omniFilters.since * 864e5)) return false;
-      return true;
-    });
-  }
-
-  var omniTimer = null;
-  function runOmni() {
-    clearTimeout(omniTimer);
-    omniTimer = setTimeout(paintOmni, 110);      // debounced: a long index should not re-rank per keystroke
-  }
-  function paintOmni(forced) {
-    var q = (el('mjd-omni-input').value || '').trim().toLowerCase();
-    var pool = omniPool();
-    var hits;
-    if (forced) hits = forced;
-    else if (!q) {
-      hits = pool.slice().sort(function (a, b) { return (b.modified || 0) - (a.modified || 0); }).slice(0, 60);
-    } else {
-      hits = pool.map(function (n) {
-        var name = (n.name || '').toLowerCase(), path = (n.path || '').toLowerCase(), text = (n.snippet || '').toLowerCase();
-        var s = 0;
-        if (name === q) s = 100;
-        else if (name.indexOf(q) === 0) s = 80;
-        else if (name.indexOf(q) >= 0) s = 60;
-        else if (path.indexOf(q) >= 0) s = 30;
-        else if (text.indexOf(q) >= 0) s = 20;
-        return s ? Object.assign({ _s: s }, n) : null;
-      }).filter(Boolean).sort(function (a, b) { return b._s - a._s || (b.modified || 0) - (a.modified || 0); }).slice(0, 80);
-    }
-    omniHits = hits;
-    var list = el('mjd-omni-list');
-    if (!hits.length) {
-      list.innerHTML = '<div class="mjd-empty">' + (q ? 'Nothing matched. Try <b>Ask AI</b> for a meaning-based search.' : 'No documents indexed yet.') + '</div>';
-      el('mjd-omni-count').textContent = '';
-      return;
-    }
-    list.innerHTML = hits.map(function (n, i) {
-      var p = D.get(n.provider);
-      var sub = [p ? p.label : n.provider];
-      if (n.path) sub.push(n.path);
-      if (n._why) sub.push(n._why);
-      return '<div class="mjd-hit' + (i === omniSel ? ' sel' : '') + '" data-i="' + i + '" role="option">' +
-        '<span class="mjd-ico">' + kindIcon(n.kind) + '</span>' +
-        '<span class="mjd-hit-name">' + hl(n.name, q) + '</span>' +
-        '<span class="mjd-hit-sub">' + esc(sub.join(' · ')) + '</span>' +
-        '<span class="mjd-hit-when">' + esc(fmtWhen(n.modified)) + '</span></div>';
-    }).join('');
-    el('mjd-omni-count').textContent = hits.length + ' result' + (hits.length > 1 ? 's' : '') + ' · ' + D.index().length + ' indexed';
-    list.onclick = function (e) {
-      var r = e.target.closest('[data-i]');
-      if (!r) return;
-      pickOmni(hits[+r.getAttribute('data-i')]);
-    };
-  }
-  function hl(text, q) {
-    if (!q) return esc(text);
-    var i = String(text).toLowerCase().indexOf(q);
-    if (i < 0) return esc(text);
-    return esc(text.slice(0, i)) + '<mark>' + esc(text.slice(i, i + q.length)) + '</mark>' + esc(text.slice(i + q.length));
-  }
-  function pickOmni(n) {
-    if (!n) return;
-    closeOmni();
-    if (n.kind === 'doc') openDocument(n); else jumpTo(n);
-  }
-  function onOmniKey(e) {
-    if (e.key === 'Escape') { e.preventDefault(); closeOmni(); return; }
-    if (e.key === 'ArrowDown') { e.preventDefault(); omniSel = Math.min(omniSel + 1, omniHits.length - 1); paintOmni(omniHits); scrollSel(); }
-    if (e.key === 'ArrowUp')   { e.preventDefault(); omniSel = Math.max(omniSel - 1, 0); paintOmni(omniHits); scrollSel(); }
-    if (e.key === 'Enter')     { e.preventDefault(); pickOmni(omniHits[omniSel]); }
-  }
-  function scrollSel() {
-    var s = document.querySelector('#mjd-omni-list .mjd-hit.sel');
-    if (s) s.scrollIntoView({ block: 'nearest' });
-  }
-  function openOmni() {
-    ensureOmni();
-    el('mjd-omni').classList.add('on');
-    el('mjd-omni-answer').classList.remove('on');
-    var inp = el('mjd-omni-input');
-    inp.value = ''; omniSel = 0;
-    paintOmni();
-    setTimeout(function () { inp.focus(); }, 40);
-    // Deepen the index in the background — the panel is already usable from
-    // cache, so this only ever adds results, never blocks the first paint.
-    // The crawl walks Drive/Graph, so it spends provider rate limit, not ours.
-    // Search is already usable from cache the instant it opens, so this only
-    // ever deepens results — 20 minutes is plenty, 5 was needlessly eager.
-    if (Date.now() - D.indexAt() > 1200000) D.refreshIndex({ ms: 15000 }).then(function () { if (el('mjd-omni').classList.contains('on')) paintOmni(); });
-  }
-  function closeOmni() { var o = el('mjd-omni'); if (o) o.classList.remove('on'); }
-
-  async function runOmniAi() {
-    var q = (el('mjd-omni-input').value || '').trim();
-    if (!q) { el('mjd-omni-input').focus(); return; }
-    var btn = el('mjd-omni-ai');
-    btn.disabled = true; btn.textContent = 'Thinking…';
-    var ans = el('mjd-omni-answer');
-    try {
-      var pool = omniPool();
-      var r = await D.ai('search', { query: q, docs: D.aiIndexPayload(pool) });
-      var hits = (r.matches || []).map(function (m) { return Object.assign({ _why: m.why || '' }, pool[m.i]); }).filter(function (x) { return x && x.key; });
-      ans.innerHTML = '<b>AI</b> · ' + esc(r.answer || (hits.length + ' documents matched.'));
-      ans.classList.add('on');
-      omniSel = 0;
-      paintOmni(hits);
-    } catch (e) {
-      ans.innerHTML = '<b>AI</b> · ' + esc(D.errText(e));
-      ans.classList.add('on');
-    } finally { btn.disabled = false; btn.textContent = 'Ask AI'; }
-  }
-
-  /* ── Library-wide AI: duplicates and organisation ─────────────────────────*/
-  async function runGroupOp(op) {
-    var pool = omniPool().filter(function (n) { return n.kind === 'doc'; });
-    if (!pool.length) { toast('Nothing indexed yet — open a few folders first.', 'error'); return; }
-    var body = document.createElement('div');
-    body.innerHTML = '<div class="mjd-busy"><span class="mjd-spinner"></span>Looking through ' + pool.length + ' documents…</div>';
-    openModal({
-      title: op === 'duplicates' ? 'Duplicate & similar documents' : 'Suggested organisation',
-      sub: op === 'duplicates' ? 'Documents that look like copies of each other.' : 'A folder structure based on what your documents are about.',
-      body: body, wide: true, actions: [{ label: 'Close', cls: 'ghost' }]
-    });
-    try {
-      var r = await D.ai(op, { docs: D.aiIndexPayload(pool), query: '' });
-      var groups = r.groups || [];
-      if (!groups.length) {
-        body.innerHTML = '<div class="mjd-empty">' + (op === 'duplicates' ? 'No duplicates found.' : 'Nothing worth regrouping — your library already reads as organised.') + '</div>';
-        return;
-      }
-      body.innerHTML = groups.map(function (g, gi) {
-        return '<div class="mjd-ai-group"><h5>' + esc(g.name || ('Group ' + (gi + 1))) +
-          (g.why ? '<em>' + esc(g.why) + '</em>' : '') + '</h5><ul>' +
-          g.indices.map(function (i) {
-            var n = pool[i]; if (!n) return '';
-            return '<li data-i="' + i + '">' + kindIcon(n.kind) + esc(n.name) +
-              '<span style="margin-left:auto;font-size:11px;color:#75757c">' + esc(n.path || '') + '</span></li>';
-          }).join('') + '</ul></div>';
-      }).join('') +
-      '<div class="mjd-hint">These are suggestions only — nothing has been moved. Click a document to open it, then use <b>Move to…</b> if you want to act on a group.</div>';
-      body.onclick = function (e) {
-        var li = e.target.closest('[data-i]');
-        if (!li) return;
-        closeModal();
-        var n = pool[+li.getAttribute('data-i')];
-        if (n) openDocument(n);
-      };
-    } catch (e) {
-      body.innerHTML = '<div class="mjd-note"><b>The AI could not finish.</b><br>' + esc(D.errText(e)) + '</div>';
-    }
-  }
-
-  /* ══════════════════════════════════════════════════════════════════════════
-   * Wiring
-   * ══════════════════════════════════════════════════════════════════════════ */
   function boot() {
     if (!el('tj-sidebar')) return;
     buildNav();
@@ -42445,112 +40947,7 @@ window._THV={
     };
   }
 
-  // Ctrl/Cmd+Shift+F is the universal search. It only fires while MyJournal is
-  // the visible app.
-  document.addEventListener('keydown', function (e) {
-    // showTonyJournal sets display directly — it does NOT add a class — so
-    // visibility has to be read off the element, not off .visible. offsetParent
-    // is no good either: #tj-root is position:fixed, and a fixed element always
-    // reports a null offsetParent whether it is on screen or not.
-    var root = el('tj-root');
-    if (!root || getComputedStyle(root).display === 'none') return;
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'F' || e.key === 'f')) {
-      e.preventDefault(); e.stopPropagation();
-      openOmni();
-    }
-  }, true);
-
-  /* Grabbable, draggable scroll thumb for a scroll container — mirrors
-   * addFadingScrollbar's behaviour for the DOCX editor: shows on scroll or
-   * drag, hides when idle or when content already fits, works with mouse and
-   * touch via Pointer Events.
-   *
-   * SELF-HEALING BY DESIGN. Both hosts re-render with a plain innerHTML
-   * assignment on every repaint — paintOmni on each keystroke, openModal on
-   * every open — which destroys the thumb the instant it is a child of that
-   * same element. Rather than thread a re-wire call through every render site
-   * (fragile: the next new render path would silently regress), a
-   * MutationObserver on the container's OWN childList notices the wipe and
-   * re-creates the thumb node itself. State (scroll position, listeners on
-   * the container) lives outside the thumb node, so nothing is lost when it
-   * is recreated — only the DOM node is disposable. */
-  function wireScrollbar(container) {
-    if (!container || container._mjdSb) { if (container && container._mjdSb) container._mjdSb.place(); return; }
-    if (getComputedStyle(container).position === 'static') container.style.position = 'relative';
-    var st = container._mjdSb = { hideT: null, dragging: false, raf: null, bar: null };
-
-    function ensureBar() {
-      if (st.bar && st.bar.isConnected) return st.bar;
-      var bar = document.createElement('div');
-      bar.className = 'mjd-scrollbar';
-      bar.addEventListener('pointerdown', onDown);
-      container.appendChild(bar);
-      st.bar = bar;
-      return bar;
-    }
-    function geom() {
-      var sh = container.scrollHeight, ch = container.clientHeight;
-      if (sh <= ch + 4) return null;
-      var thumbH = Math.max(28, ch * ch / sh);
-      var maxTop = ch - thumbH;
-      var top = (sh - ch) ? (container.scrollTop / (sh - ch)) * maxTop : 0;
-      return { thumbH: thumbH, top: top, sh: sh, ch: ch, maxTop: maxTop };
-    }
-    function place() {
-      var bar = ensureBar();
-      var g = geom();
-      bar.style.display = g ? '' : 'none';
-      if (!g) return;
-      bar.style.height = g.thumbH + 'px';
-      bar.style.top = (container.scrollTop + g.top) + 'px';
-    }
-    function flash() {
-      place(); st.bar.classList.add('on');
-      if (!st.dragging) { clearTimeout(st.hideT); st.hideT = setTimeout(function () { if (st.bar) st.bar.classList.remove('on'); }, 1100); }
-    }
-    function onDown(e) {
-      var g = geom(); if (!g) return;
-      e.preventDefault(); e.stopPropagation(); st.dragging = true; st.bar.classList.add('on');
-      try { st.bar.setPointerCapture(e.pointerId); } catch (x) {}
-      var startY = e.clientY, startScroll = container.scrollTop;
-      function onMove(ev) {
-        var g2 = geom(); if (!g2 || !g2.maxTop) return;
-        container.scrollTop = startScroll + (ev.clientY - startY) * ((g2.sh - g2.ch) / g2.maxTop);
-        place();
-      }
-      function onUp() {
-        st.dragging = false;
-        document.removeEventListener('pointermove', onMove);
-        document.removeEventListener('pointerup', onUp);
-        clearTimeout(st.hideT); st.hideT = setTimeout(function () { if (st.bar) st.bar.classList.remove('on'); }, 1100);
-      }
-      document.addEventListener('pointermove', onMove);
-      document.addEventListener('pointerup', onUp);
-    }
-    st.place = place;
-
-    container.addEventListener('scroll', function () {
-      if (st.raf) return; st.raf = requestAnimationFrame(function () { st.raf = null; flash(); });
-    }, { passive: true });
-    // Direct children only — this is exactly the shape of an innerHTML wipe on
-    // the container itself, and stays cheap even while typing fast in search.
-    new MutationObserver(place).observe(container, { childList: true });
-    window.addEventListener('resize', place);
-    place();
-  }
-  // Wire the two body-level scroll surfaces the moment their content exists —
-  // safe to call on every open since wireScrollbar no-ops the second time.
-  var _origOpenOmni = openOmni;
-  openOmni = function () { _origOpenOmni.apply(this, arguments); wireScrollbar(el('mjd-omni-list')); };
-  D.on('index', function () { var l = el('mjd-omni-list'); if (l) wireScrollbar(l); });
-  var _origOpenModal = openModal;
-  openModal = function () {
-    var body = _origOpenModal.apply(this, arguments);
-    wireScrollbar(el('mjd-modal-body'));
-    return body;
-  };
-
-  window.MJDocsUI = { open: openDocument, omni: openOmni, section: setSection, release: releaseEditor };
+  window.MJDocsUI = { section: setSection, release: releaseEditor };
 })();
 </script>
 

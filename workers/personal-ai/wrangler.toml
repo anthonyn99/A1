@@ -54,14 +54,6 @@ id = "b51e916cf3bf4f37ad146af5ca031575"
 #
 # This worker REPLACES the old mylist-api / taskhub-voice / journal-ai workers.
 #
-# ── MyJournal documents (POST /docs/ai) ──────────────────────────────────────
-# Ten ops behind one route, on two fallback chains: DOC_WRITE_MODELS for work over
-# document CONTENT (summarise / rewrite / improve / expand — leads with the
-# flagship, because lite models distil long input) and DOC_INDEX_MODELS for work
-# over the library INDEX (search / related / duplicates / organise — leads with
-# 3.1-flash-lite, fastest at compact structured output). Needs no new secret: it
-# reuses the same per-person key above.
-#
 # ── Price Watch secrets (feature 5) ──────────────────────────────────────────
 # Firebase service account — SAME account taskhub-reminders uses; re-put here so
 # this worker can read/write Firestore and send FCM for the price-drop cron:

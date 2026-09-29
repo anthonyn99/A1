@@ -304,7 +304,7 @@ section('The listener taps are wired and cannot alter app behaviour');
 // those cost zero extra Firestore reads.
 const TAPPED = ['main', 'vedasdash', 'journal', 'tony_journal', 'plans', 'navorder',
                 'applock', 'tesla_cfg', 'pv_cards', 'studyos_mirror',
-                'studyos_mirror_ack', 'myjournal_docs', 'market_calendar',
+                'studyos_mirror_ack', 'market_calendar',
                 'oneinbox/cards'];
 TAPPED.forEach((d) => {
   t("dashboards/" + d + ' is tapped', HTML.includes("_a1b('dashboards/" + d + "'"),
