@@ -2013,9 +2013,10 @@ about models and limits: `model_button`, `model_option`, `model_selected`,
 read it), `think_toggle`, `downgrade_notice`, `usage_readout`, and per site
 `model_locked`, `limit_notice`, `prompt_too_long`. `[]` means *looked, there
 is none*, never *not checked*. They were read from the live signed-in pages
-on 2026-09-28 without sending anything. The engine does not read them yet
-(the model chip, limits panel and model choice of Track S's U2–U4 will), so
-editing them changes nothing today. `magi/tests/test_unit_selectors.py` pins
+on 2026-09-28 without sending anything. Since U2 the engine loads them all
+(`SiteSelectors`) and reads `model_label`, `downgrade_notice` and
+`prompt_too_long` on every run (below); U3–U4 use the rest.
+`magi/tests/test_unit_selectors.py` pins
 each VERIFIED one against the sanitized DOM in
 `magi/tests/fixtures/units/`. When a site redesigns its picker, re-cut the
 fixture and update both.
@@ -2027,6 +2028,43 @@ visible).
 **Perplexity**'s free plan lists models that all lead to "Upgrade".
 **DeepSeek** has only DeepThink/Search toggles. The per-unit table is in
 `docs/magi-plan.md`, Track S, "Phase U1".
+
+### The model chip (Phase U2)
+
+Every unit card shows **the model the site says answered**, read by
+`resolve.model_label` twice per answer, with the page already open (no extra
+launch): once after the page loads, once after the answer finishes. ChatGPT
+only has it after (the `data-message-model-slug` on the turn, e.g.
+`gpt-5-6-mini`); Claude (`Sonnet 5.5 Medium`: model + effort), Gemini
+(`Gemini Flash`) and Grok (`Fast`) have it both times. Perplexity (free) and
+DeepSeek show none, so their cards have no chip.
+
+It is **amber, "fell back to X"**, only on the site's own evidence
+(`browser_base.fallback_note`): the label changed between the two reads, or a
+`downgrade_notice` showed. A model name alone never counts (a free ChatGPT
+answering on `-mini` from the start is its default, not a fallback).
+
+Stored additively as `answers.model` / `model_fallback` and on
+`brainstorm_turns` (council and critique turns), carried on `state` and
+`done` events and the stream's `init`, and shown on unit cards, history and
+Brainstorm's "What each unit said". A missing label never fails a run.
+
+### Limit notices vs your own words (U1 bugs, fixed in U2)
+
+`rate_limit_selectors` are mostly page-wide `text=` rules, and the page shows
+your prompt, so a prompt that said "rate limits" failed DeepSeek as
+rate-limited (3 of 3 critique rounds in brainstorm `797a9ae3cc13`).
+`resolve.notice` now looks through up to 10 matches per rule and skips any
+that is **part of the prompt sent**, sits **in the composer**, or is **a line
+inside a longer answer** (an `assistant_turn` holding much more than the
+match). A card that *replaces* an answer (Grok's) is the whole turn, so it
+still counts. Skipping is the safe direction: at worst a real notice quoted
+word for word in the prompt is missed and the run times out as before.
+
+Perplexity's length cap ("Your query is N characters over the limit") is now
+its own failure, **`prompt_too_long`**, caught when the send button is
+disabled or within a poll of the wait, instead of a 120s TIMEOUT whose remedy
+was "raise hard_timeout_s". The remedy is a shorter prompt.
 
 ---
 
@@ -2044,6 +2082,7 @@ cause and remedy inline on the failing unit.
 | `bot_challenge` | Human-verification challenge served | `magi login <site>` and clear it by hand; consider slowing `pacing` |
 | `timeout` | Model didn't finish in time | raise `hard_timeout_s` for that site, or retry |
 | `rate_limited` | Usage limit hit | wait, or disable that provider |
+| `prompt_too_long` | The site refused the prompt for its length (Perplexity) | shorten the prompt, or leave that unit out of long runs; waiting does nothing |
 | `profile_locked` | That profile is already open elsewhere | close other MAGI browser windows; your personal Chrome is unaffected |
 | `browser_crash` | Browser closed unexpectedly | retry; if persistent, delete that site's folder under `profiles/` and log in again |
 

@@ -380,3 +380,20 @@ def test_the_brainstorm_step_line_is_what_the_panel_says():
     for phase in ("critique", "merging", "writing", "reviewing"):
         assert f'_bs_phase(state, "{phase}"' in app or f'state, "{phase}",' in app, phase
     assert '"phase": state.get("phase", "council")' in app
+
+
+def test_the_model_chip_claims_still_hold():
+    """Phase U2: which units have a chip, and what makes it amber."""
+    assert "Each card names the model that answered" in HOW
+    sites = yaml.safe_load((REPO / "magi" / "config" / "selectors.yaml").read_text(encoding="utf-8"))["sites"]
+    # "Perplexity's free plan and DeepSeek name no model anywhere".
+    assert sites["perplexity"]["model_label"] == [] and sites["deepseek"]["model_label"] == []
+    for sid in ("claude", "gemini", "grok", "chatgpt"):
+        assert sites[sid]["model_label"], sid
+    # "only on the site's own evidence".
+    from magi.providers.browser_base import fallback_note
+    assert fallback_note("", "gpt-5-6-mini") == ""
+    assert fallback_note("Sonnet 5.5 Medium", "Haiku 4.5")
+    # "reported as Prompt too long".
+    assert 'prompt_too_long: "Prompt too long"' in PAGE
+    assert "Your own words are never read as a limit" in HOW
