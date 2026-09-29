@@ -16,8 +16,22 @@
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%231a1a1d%27%2F%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%23c0aeea%27%20stroke-width%3D%274.2%27%3E%3Ccircle%20cx%3D%2748%27%20cy%3D%2735.3%27%20r%3D%2714.5%27%2F%3E%3Ccircle%20cx%3D%2736.4%27%20cy%3D%2754.4%27%20r%3D%2714.5%27%2F%3E%3Ccircle%20cx%3D%2759.6%27%20cy%3D%2754.4%27%20r%3D%2714.5%27%2F%3E%3C%2Fg%3E%3Ccircle%20cx%3D%2748%27%20cy%3D%2747.7%27%20r%3D%275.4%27%20fill%3D%27%23dbd0f5%27%2F%3E%3C%2Fsvg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..900&family=Manrope:wght@400..800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..900&family=Manrope:wght@400..800&family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+Math&display=swap" rel="stylesheet">
 <style>
+/* Symbols the text fonts get wrong or do not have. Manrope's own ÷ is two
+   pinprick dots and a hairline that do not thicken with the weight, so a bold
+   "5 × 8 ÷ 10" headline looked broken; and Google serves Manrope and Inter
+   without arrows or math operators (≤ ≥ ≠ ≈ → √ ∞ ∑), so those fell back to a
+   thin serif. The full Inter file has all of them at every weight. The
+   unicode-range means it is only downloaded when one of these characters is
+   on screen, and anything it lacks (∈ ∩ ∀ ...) falls on to Noto Sans Math. */
+@font-face {
+  font-family: 'MAGI Symbols';
+  src: url(https://cdn.jsdelivr.net/npm/inter-ui@4.1.1/variable/InterVariable.woff2) format('woff2');
+  font-weight: 100 900; font-style: normal; font-display: swap;
+  unicode-range: U+00D7, U+00F7, U+2010-2012, U+2015, U+2030, U+2190-21FF,
+                 U+2200-22FF, U+2300-23FF, U+2605-2606, U+2713, U+2717;
+}
 /* ══════════════════════════════════════════════════════════════════════════
    MAGI — multi-model council. Evangelion MAGI console, in the TaskHub palette.
    --------------------------------------------------------------------------
@@ -61,9 +75,9 @@
      file -- prose in a fixed pitch is slower to scan and the console character
      it bought is better served by keeping mono where it means something:
      latencies, char counts, selectors, data tables. */
-  --font:'Inter',system-ui,-apple-system,sans-serif;
-  --font-display:'Manrope',system-ui,-apple-system,sans-serif;
-  --font-mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --font:'MAGI Symbols','Inter','Noto Sans Math',system-ui,-apple-system,sans-serif;
+  --font-display:'MAGI Symbols','Manrope','Noto Sans Math',system-ui,-apple-system,sans-serif;
+  --font-mono:'IBM Plex Mono','MAGI Symbols','Noto Sans Math',ui-monospace,SFMono-Regular,Menlo,monospace;
   --r-sm:4px; --r-btn:6px; --r-card:8px;
 }
 
@@ -17652,8 +17666,9 @@ const VID = {
   W: 1920, H: 1080,
   bg0: "#07080f", bg1: "#12142a", tx: "#f4f5fb", txm: "#a4a9c6", txd: "#6f7493",
   accents: ["#a78bfa", "#38bdf8", "#f5b453", "#34d399", "#f472b6", "#818cf8"],
-  display: "Manrope, system-ui, sans-serif", body: "Inter, system-ui, sans-serif",
-  mono: "'IBM Plex Mono', ui-monospace, monospace",
+  display: "'MAGI Symbols', Manrope, 'Noto Sans Math', system-ui, sans-serif",
+  body: "'MAGI Symbols', Inter, 'Noto Sans Math', system-ui, sans-serif",
+  mono: "'IBM Plex Mono', 'MAGI Symbols', 'Noto Sans Math', ui-monospace, monospace",
 };
 const vClamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
 const vEase = (x) => 1 - Math.pow(1 - vClamp(x), 3);
@@ -18622,6 +18637,9 @@ function renderVideo(script) {
   paintOpts();
   (document.fonts && document.fonts.load ? Promise.all([
     document.fonts.load(vDisplay(80)), document.fonts.load(vBody(500)(40)),
+    // The symbols face is unicode-range limited, so a load with no text never
+    // fetches it and the first frames would draw ÷ or → in a fallback font.
+    document.fonts.load(vDisplay(80), "\u00f7\u2192"),
   ]).catch(() => {}) : Promise.resolve()).then(() => draw());
   draw();
   paintUi();
