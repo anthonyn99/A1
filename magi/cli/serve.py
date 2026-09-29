@@ -65,6 +65,11 @@ DEAD_AFTER = 3
 # it was only ever published once. Refreshed well inside that window: four KV
 # writes a day.
 REPUBLISH_EVERY_S = 6 * 3600
+# Every replacement costs a magi-link delete + write (1,000/day each, shared by
+# all of account 2). Past CHURN_MAX replacements in an hour, replacing is not
+# fixing anything -- so the next ones wait CHURN_COOLDOWN_S instead of 5s.
+CHURN_MAX = 4
+CHURN_COOLDOWN_S = 15 * 60
 # A gap this much longer than one watch interval means the PC was asleep.
 SLEEP_GAP_S = 120
 # cloudflared's words for "Cloudflare deleted this quick tunnel". It does not
@@ -276,16 +281,15 @@ def _public_state(url: str) -> str:
     A 401 is the healthy answer: the request crossed the tunnel and the token
     gate turned it away. Anything else from Cloudflare (530, 404, 502) or no
     answer at all means the hostname no longer leads here.
+
+    Probed via DoH + a direct connection, NOT this PC's resolver: a resolver
+    that negative-cached the hostname made healthy tunnels look dead and the
+    watchdog replaced them every few minutes (see tunnel.health).
     """
-    try:
-        urllib.request.urlopen(
-            urllib.request.Request(f"{url}/api/health", headers={"User-Agent": UA}),
-            timeout=15)
-        return "ok"   # ungated, but reachable; the publish step refuses those
-    except urllib.error.HTTPError as e:
-        return "ok" if e.code == 401 else "dead"
-    except OSError:
+    hit = tunnel_mod.health(url, UA, timeout=15)
+    if hit is None:
         return "dead"
+    return "ok" if hit[0] in (200, 401) else "dead"   # 200: ungated, but reachable
 
 
 def _internet_up() -> bool:
@@ -423,46 +427,14 @@ def _link_record(token: str) -> dict | None:
 # The phone never had this problem: it only learns the hostname AFTER it is
 # published, by which point the record exists.
 
-def _doh_resolve(host: str) -> list[str]:
-    """A records for `host` from Cloudflare DoH. [] means "not yet"."""
-    req = urllib.request.Request(
-        f"https://cloudflare-dns.com/dns-query?name={host}&type=A",
-        headers={"accept": "application/dns-json", "User-Agent": UA})
-    with urllib.request.urlopen(req, timeout=5) as r:
-        data = json.loads(r.read())
-    return [a["data"] for a in data.get("Answer") or [] if a.get("type") == 1]
-
-
-def _probe_via_ip(host: str, ip: str, path: str = "/api/health") -> int:
-    """HTTP status from `host` reached at `ip`, bypassing name resolution."""
-    import ssl
-
-    ctx = ssl.create_default_context()
-    with socket.create_connection((ip, 443), timeout=8) as raw:
-        with ctx.wrap_socket(raw, server_hostname=host) as s:
-            s.sendall(
-                (f"GET {path} HTTP/1.1\r\nHost: {host}\r\n"
-                 f"User-Agent: {UA}\r\nConnection: close\r\n\r\n").encode())
-            head = s.recv(256)
-    status_line = head.split(b"\r\n", 1)[0].decode("latin-1")
-    return int(status_line.split()[1])
-
-
 def _tunnel_status(url: str) -> int | None:
-    """The tunnel's answer to /api/health, or None if it is not reachable yet."""
-    from urllib.parse import urlparse
+    """The tunnel's answer to /api/health, or None if it is not reachable yet.
 
-    host = urlparse(url).hostname or ""
-    try:
-        ips = _doh_resolve(host)
-    except Exception:
-        return None
-    for ip in ips:
-        try:
-            return _probe_via_ip(host, ip)
-        except Exception:
-            continue
-    return None
+    Never falls back to the OS resolver: asking it before the record exists is
+    exactly what plants the negative-cache entry described above.
+    """
+    hit = tunnel_mod.health(url, UA, timeout=8, os_fallback=False)
+    return hit[0] if hit else None
 
 
 def _verify_and_publish(token: str, kill) -> None:
@@ -546,9 +518,14 @@ def _keep_tunnel(tunnel, cf_log: Path, token: str, port: int) -> int:
     """
     print("  Ctrl+C to stop.\n")
     delay = 5
+    recent: list[float] = []
     try:
         while True:
             why = _watch_tunnel(tunnel, cf_log, token)
+            now = time.time()
+            recent = [t for t in recent if now - t < 3600] + [now]
+            if len(recent) > CHURN_MAX:
+                delay = max(delay, CHURN_COOLDOWN_S)
             print(f"  [!] the tunnel ended ({why}); restarting in {delay}s.")
             _withdraw(token)
             tunnel_mod.clear()

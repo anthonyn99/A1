@@ -27,13 +27,17 @@ from __future__ import annotations
 
 import contextlib
 import ctypes
+import http.client
 import json
 import os
 import re
+import socket
+import ssl
 import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+from urllib.parse import urlparse
 
 from . import ident, proc
 from .settings import ROOT, data_dir
@@ -189,6 +193,74 @@ def _get(url: str, token: str | None, ua: str, timeout: int = 12):
         urllib.request.Request(f"{url}/api/health", headers=headers), timeout=timeout)
 
 
+# ── probing a tunnel without trusting this PC's resolver ────────────────────
+# Windows (and many home routers) cache a NEGATIVE answer for a quick-tunnel
+# hostname looked up before Cloudflare's DNS had it -- up to fifteen minutes,
+# and some resolvers far longer. Publishing learned that first (serve.py,
+# _verify_and_publish), but the watchdog and adoption kept asking the OS. On
+# Veda's PC that made every healthy tunnel look dead: three failed checks, a
+# replacement, a new hostname the resolver had never heard of, and round again
+# -- a magi-link delete + write every ~5 minutes, 275 of each on 2026-09-28,
+# half of account 2's daily KV write cap on its own.
+#
+# So every probe resolves through Cloudflare DoH and connects to the address
+# directly (real hostname in SNI and Host), and only falls back to the OS
+# resolver when DoH itself gives nothing.
+
+def doh_resolve(host: str, ua: str) -> list[str]:
+    """A records for `host` from Cloudflare DoH. [] means "not yet"."""
+    req = urllib.request.Request(
+        f"https://cloudflare-dns.com/dns-query?name={host}&type=A",
+        headers={"accept": "application/dns-json", "User-Agent": ua})
+    with urllib.request.urlopen(req, timeout=5) as r:
+        data = json.loads(r.read())
+    return [a["data"] for a in data.get("Answer") or [] if a.get("type") == 1]
+
+
+class _PinnedHTTPS(http.client.HTTPSConnection):
+    """HTTPS to `host`, but connected to `ip` -- no name resolution at all."""
+
+    def __init__(self, host: str, ip: str, timeout: float) -> None:
+        super().__init__(host, 443, timeout=timeout, context=ssl.create_default_context())
+        self._ip = ip
+
+    def connect(self) -> None:
+        raw = socket.create_connection((self._ip, 443), self.timeout)
+        self.sock = self._context.wrap_socket(raw, server_hostname=self.host)
+
+
+def health(url: str, ua: str, token: str | None = None, timeout: float = 12,
+           os_fallback: bool = True) -> tuple[int, bytes] | None:
+    """(status, body) of `url`/api/health, or None if it could not be reached."""
+    host = urlparse(url).hostname or ""
+    headers = {"User-Agent": ua, "Connection": "close"}
+    if token:
+        headers["X-MAGI-Token"] = token
+    try:
+        ips = doh_resolve(host, ua)
+    except Exception:  # noqa: BLE001 -- DoH down is a reason to fall back
+        ips = []
+    for ip in ips:
+        conn = _PinnedHTTPS(host, ip, timeout)
+        try:
+            conn.request("GET", "/api/health", headers=headers)
+            r = conn.getresponse()
+            return r.status, r.read()
+        except Exception:  # noqa: BLE001 -- try the next address
+            continue
+        finally:
+            conn.close()
+    if not os_fallback:
+        return None
+    try:
+        with _get(url, token, ua, timeout=int(timeout)) as r:
+            return r.status, r.read()
+    except urllib.error.HTTPError as e:
+        return e.code, b""
+    except OSError:
+        return None
+
+
 def reaches_me(url: str, token: str, ua: str, trusted: bool) -> bool:
     """Does this hostname reach THIS engine?
 
@@ -199,18 +271,15 @@ def reaches_me(url: str, token: str, ua: str, trusted: bool) -> bool:
     if not SAFE_URL.match(url or ""):
         return False
     if not trusted:
-        try:
-            _get(url, None, ua)
-            return False                      # 200 unauthenticated = not our gated engine
-        except urllib.error.HTTPError as e:
-            if e.code != 401:
-                return False
-        except OSError:
+        hit = health(url, ua)
+        if hit is None or hit[0] != 401:      # 200 unauthenticated = not our gated engine
             return False
+    hit = health(url, ua, token)
+    if hit is None or hit[0] != 200:
+        return False
     try:
-        with _get(url, token, ua) as r:
-            body = json.loads(r.read().decode("utf-8", "replace"))
-    except (urllib.error.HTTPError, OSError, ValueError):
+        body = json.loads(hit[1].decode("utf-8", "replace"))
+    except ValueError:
         return False
     return body.get("instance") == ident.INSTANCE
 

@@ -107,3 +107,72 @@ def test_the_restart_loop_uses_the_watchdog_not_process_exit():
     loop = inspect.getsource(serve._keep_tunnel)
     assert "_watch_tunnel(tunnel, cf_log, token)" in loop
     assert "tunnel.wait()" not in loop[: loop.index("except KeyboardInterrupt")]
+
+
+def test_a_resolver_that_cannot_see_the_tunnel_does_not_make_it_dead(monkeypatch):
+    """2026-09-28: Veda's PC negative-cached every fresh hostname, so the
+    watchdog judged healthy tunnels dead and replaced one every ~5 minutes --
+    275 magi-link writes that day. The probe must not ask the OS resolver
+    first when Cloudflare DoH knows the address."""
+    from magi import tunnel
+
+    monkeypatch.setattr(tunnel, "doh_resolve", lambda host, ua: ["104.16.0.1"])
+
+    class Resp:
+        status = 401
+
+        def read(self):
+            return b""
+
+    monkeypatch.setattr(tunnel._PinnedHTTPS, "request", lambda self, *a, **k: None)
+    monkeypatch.setattr(tunnel._PinnedHTTPS, "getresponse", lambda self: Resp())
+
+    def os_resolver(*a, **k):
+        raise OSError("getaddrinfo failed (negative-cached)")
+
+    monkeypatch.setattr(tunnel.urllib.request, "urlopen", os_resolver)
+    assert serve._public_state("https://a.trycloudflare.com") == "ok"
+
+
+def test_the_os_resolver_is_only_a_fallback_for_the_watchdog(monkeypatch):
+    from magi import tunnel
+
+    monkeypatch.setattr(tunnel, "doh_resolve", lambda host, ua: [])
+    asked = []
+
+    def os_resolver(*a, **k):
+        asked.append(1)
+        raise OSError("down")
+
+    monkeypatch.setattr(tunnel.urllib.request, "urlopen", os_resolver)
+    assert serve._public_state("https://a.trycloudflare.com") == "dead"
+    assert asked, "with DoH empty the OS resolver is the fallback"
+    asked.clear()
+    # ...but verify-before-publish never touches it (that plants the cache entry)
+    assert serve._tunnel_status("https://a.trycloudflare.com") is None
+    assert not asked
+
+
+def test_a_churning_tunnel_is_braked(monkeypatch, tmp_path):
+    """However the churn starts, it must not spend the KV budget unchecked."""
+    sleeps: list[float] = []
+    monkeypatch.setattr(serve.time, "sleep", lambda s: sleeps.append(s))
+    monkeypatch.setattr(serve, "_watch_tunnel", lambda *a: "dead")
+    monkeypatch.setattr(serve, "_withdraw", lambda token: None)
+    monkeypatch.setattr(serve.tunnel_mod, "clear", lambda: None)
+    monkeypatch.setattr(serve.tunnel_mod, "reap", lambda *a, **k: 0)
+    opened = {"n": 0}
+
+    def popen(*a, **k):
+        opened["n"] += 1
+        if opened["n"] > serve.CHURN_MAX:
+            raise KeyboardInterrupt
+        t = FakeTunnel()
+        t.terminated = True   # never prints a url -> loop straight round
+        return t
+
+    monkeypatch.setattr(serve.proc, "popen", popen)
+    monkeypatch.setattr(serve, "_serve_only", lambda port, why: 0)
+    serve._keep_tunnel(FakeTunnel(), tmp_path / "cf.log", "tok", 8000)
+    assert max(sleeps) >= serve.CHURN_COOLDOWN_S
+    assert sleeps.count(max(sleeps)) == 1, "only the replacement past CHURN_MAX waits"
