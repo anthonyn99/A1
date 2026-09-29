@@ -56,6 +56,12 @@ STRAGGLER_GRACE_SHORT_S = 90.0
 SHORT_PROMPT_CHARS = 600
 # A straggler whose text grew this recently is still writing: extend, don't cut.
 STILL_WRITING_S = 20.0
+# A straggler that has not produced ONE word of answer yet. Grok sat on
+# "Working for 8m" with five answers in hand (2026-09-29) and the old grace --
+# as long again as the run had taken -- let it: nothing showed it was going to
+# answer. Silence after everyone else is done gets this long, flat, and is cut.
+SILENT_GRACE_S = 45.0
+SILENT_GRACE_LONG_S = 90.0
 
 
 class Orchestrator:
