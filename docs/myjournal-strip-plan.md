@@ -4,31 +4,21 @@ Temporary. Phase 4 deletes this file.
 
 ## §0 Status (rewrite at the end of every phase)
 
-- **Next phase: 3** (Remove Whiteboard and Mind Map from personal MyJournal)
-- Done: Phase 0 (this doc + memory pointer), Phase 1 (Google Docs + OneNote removed), Phase 2 (Starred, Recent, Find, the gear, the Firestore doc and `/docs/ai` removed). All on 2026-09-29.
-- Notes for the next session:
-  - **Line numbers in the Phase 3 section below are stale.** Phase 2 removed ~1,650 lines. Grep the identifier. As of the end of Phase 2:
-    - `_fbSaveMyJournal` ~12495, `_fbUnwatchMJCanvas` ~12623, and its unwatch call ~13341
-    - the `oj-on .template-card` rules ~22505 (put the new hide rule next to them)
-    - `TJ_CANVAS_KEY` ~30735
-    - the `#tj-template-modal` click handler ~33420
-    - `tjCheckMobile` / `#tj-wb-size` ~33575
-  - What is left of the rail module (~40810–40955, `<style id="mjd-css">` + one script):
-    - `#mjd-nav > .mjd-rail` with one `[data-sec="pages"]` Journal button. OurJournal inserts its tab in front of it, so the rail is one row of two.
-    - `#mjd-panel`: always `display:none`. It stays because `_tjModeUI`/`onTab` check it.
-    - `window.MJDocsUI = { section, release }`. `release()` only sets `_tjCloudMode = false`.
-    - `window._tjCloudMode = false` as a constant. OurJournal glue still reads it (`_tjOJEnter`, `pageOwned` ~33475/~33510). Both are left alone on purpose.
-    - The boot purge `purgeLeftovers`, which now also drops `mjd_settings`.
-    - `window.MJDocs`, `_tjCloudBridge`, `prune()`, `CONTRACT`, the `mjpages` provider, the index and the listing cache are all gone.
-  - Firestore doc `dashboards/myjournal_docs` is no longer read or written, but it still exists in Firestore. Tony can delete it in the console. Nothing depends on it.
-  - personal-ai worker: `/docs/ai`, `handleDocsAi`, `DOC_*` and the two `DOC_*_MODELS` chains are deleted; `/health` is now `version: 17`. `/cloud-search` is Vault's and stays.
-  - `backup.js` group 1 is now 10 docs (`GROUP1_COUNT = 10`); `tests/backup-measure.test.js` no longer expects a `myjournal_docs` tap.
-  - `npm test`: 50/52 pass. `magi-code-sync` and `magi-codemode` fail on the untouched tree too (magi.html), so they are unrelated.
-  - Headless verify notes:
-    - Running from `file://`, the page logs 14 Firestore `permission-denied` snapshot errors. The unmodified HEAD build logs the same 14, so ignore them.
-    - Seed storage with `Page.addScriptToEvaluateOnNewDocument`.
-    - Journal entries only reach the local cache (`tony_journal_v3`) under `file://`. Still purge the test entry afterwards: row `.entry-delete` → `_docxOpenTrash('tj')` → `button.del`, with `uiConfirm` stubbed to true.
-    - On a 390px width the sidebar is an off-canvas drawer, so the rail buttons report negative `left`. That is expected.
+- **Next phase: 4** (Cleanup)
+- Done: Phase 0 (this doc + memory pointer), Phase 1 (Google Docs + OneNote removed), Phase 2 (Starred, Recent, Find, the gear, the Firestore doc and `/docs/ai` removed), Phase 3 (Whiteboard and Mind Map are OurJournal-only in MyJournal). All on 2026-09-29.
+- Phase 4 grew on 2026-09-29: Tony asked for failure data to expire on its own (MAGI screenshots and every other program). See the Phase 4 section.
+- What Phase 3 did:
+  - CSS `#tj-root:not(.oj-on) .template-card[data-template="whiteboard"|"mindmap"]` hides the cards, next to the other `oj-on .template-card` rules. The `#tj-template-modal` click handler returns early for those two templates unless `_tjIsOJ()`.
+  - Deleted `_fbLoadMyJournal`/`_fbSaveMyJournal`, `_fbSave/Load/Watch/UnwatchMJCanvas`, their teardown calls, and `MJ_DOC_PATH`, `_mjSaveTimer`, `_mjUnsubscribe`, `_mjLastOwnSaveAt`, `_mjLastWrittenSavedAt`. None had callers.
+  - Kept `_fbRehydrateMyJournalImages` (`tests/journal-images.test.js` pins it) and `backup.js`'s `myjournal` entry: the old `dashboards/myjournal` doc and its images still exist and are still backed up. `tests/backup-measure.test.js` now checks that `mj-fbimg://` is still rehydrated instead of checking for a writer.
+  - Deleted the dead `#tj-wb-size` slider code from `tjCheckMobile`, and two stale legacy-canvas comments after the bottom-bar code.
+  - **Kept the legacy PNG canvas** (`TJ_CANVAS_KEY`, `tj_canvas_*`, `tony_journal_canvas_*`) and the whiteboard branch of `_tjStripEntry`. The live data could not be checked (the browsers' localStorage is compressed LevelDB, and a real-origin headless boot risks writing). Also, `migrate()` never stamps `vizRev` on a board that is only viewed, so old personal boards can stay unmigrated for good. Removing it would blank them.
+- Verified headless (1440px, `file://`): the personal modal shows Page and Journal Entries; clicking the hidden Whiteboard card creates nothing; the OurJournal modal shows Whiteboard, Page and Mind Map, and a whiteboard is created and mounts; seeded old personal Whiteboard (legacy PNG, no `vizRev`) and Mind Map (old nodes/edges) both open; leaving OurJournal restores the personal list; Brainstorm's modal still shows all six cards; no console errors apart from the usual `file://` permission-denied ones.
+- `npm test`: 50/52 pass. `magi-code-sync` and `magi-codemode` still fail on the untouched tree (magi.html), so they are unrelated.
+- Headless verify notes (still true):
+  - Seed storage with `Page.addScriptToEvaluateOnNewDocument`, guarded by a sessionStorage flag so a reload doesn't reseed.
+  - TJ sidebar rows (`.entry-item`) have no `data-id`; find a row by its `.entry-item-title` text.
+  - Run the test browser on its own port and `--user-data-dir`, and kill it by that dir, never by image name.
 
 ### Rules for every phase
 - `git pull` first. Tony and Veda both push.
@@ -193,6 +183,12 @@ Shrink MJDocs down to a minimal rail module.
   - `README_FOR_CLAUDE.md`
 - Delete the root `debug.log` and the root `.pytest_cache/`, and add `.pytest_cache/` to the root `.gitignore`.
 - Delete `magi/artifacts/tony/` screenshots older than 7 days.
+- **Make failure data expire on its own** (Tony's request, 2026-09-29). Nothing that is essentially trash should stay stored locally or in Firebase.
+  - MAGI: the engine deletes its failure screenshots (`magi/artifacts/<profile>/`) older than 7 days by itself, e.g. on startup and once a day from the watchdog. Engine changes reach PCs via the self-update (memory `magi-self-update`).
+  - Every other program: inventory what each one stores on failure (error logs, debug dumps, failed-job records, retry queues, dead-letter docs, crash screenshots) in localStorage/IndexedDB, Firestore, KV and on disk. Give each one an age cap that fits it (for example 7 days for screenshots and debug dumps, 30 days for failed-job records), and prune it where it is written or on boot.
+  - Mind the budgets: a Firestore prune must not add a listener or a read per boot, and KV deletes count against the 1000 writes/day cap (memory `kv-write-budget`). Prefer KV `expirationTtl` on write over deleting later.
+  - Do not touch real backups (A1Backup, the TradeHub journal snapshots) or the TaskHub archive. Those are data, not failures.
+  - List what was found and the cap chosen for each in the Phase 4 commit message.
 - Run `npm test`, then commit and push.
 - Mention two optional items:
   - the `trading-auto-launch` logs

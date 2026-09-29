@@ -91,7 +91,6 @@ section("The placeholder format matches what index.html actually writes");
 
 const writers = [
   { prefix: 'journal_img_',      scheme: 'bj-fbimg://' },
-  { prefix: 'myjournal_img_',    scheme: 'mj-fbimg://' },
   { prefix: 'tony_journal_img_', scheme: 'tj-fbimg://' }
 ];
 writers.forEach((w) => {
@@ -100,6 +99,10 @@ writers.forEach((w) => {
   t("index.html stores the placeholder as '" + w.scheme + "' + imgKey",
     HTML.includes("'" + w.scheme + "' + imgKey"));
 });
+// dashboards/myjournal has no writer any more (its saver was dead code and went
+// in the MyJournal strip), but its images are still backed up and rehydrated.
+t("index.html still rehydrates legacy 'mj-fbimg://' placeholders",
+  HTML.includes("img[src^=\"mj-fbimg://\"]") && HTML.includes("replace('mj-fbimg://', '')"));
 t('the rehydrator reads the placeholder value as the document id, unprefixed',
   (HTML.match(/const imgRef = doc\(db, 'dashboards', imgKey\);/g) || []).length >= 2,
   'If this ever gains a prefix, backup.js must change with it.');

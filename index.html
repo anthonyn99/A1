@@ -10543,7 +10543,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   const VD_DOC_PATH = "dashboards/vedasdash";
   const KC_DOC_PATH = "dashboards/keychain";
   const BJ_DOC_PATH   = "dashboards/journal";
-  const MJ_DOC_PATH   = "dashboards/myjournal";
   const TJ_DOC_PATH   = "dashboards/tony_journal";
   const EC_DOC_PATH      = "dashboards/pv_cards";
   const MC_CAL_PATH      = "dashboards/market_calendar";
@@ -10566,13 +10565,11 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   let _kcSaveTimer = null;
   let _bjSaveTimer   = null;
   let _tjSaveTimer   = null;
-  let _mjSaveTimer   = null;
   let _unsubscribe    = null;
   let _mcCalUnsub     = null;
   let _vdUnsubscribe  = null;
   let _kcUnsubscribe  = null;
   let _bjUnsubscribe  = null;
-  let _mjUnsubscribe  = null;
   let _tjUnsubscribe  = null;
   let _sosMirrorUnsub = null;   // StudyOS → TaskHub task mirror (read-only)
   let _sosAckUnsub    = null;   // our own done-flips, read back (see _sosMergeAck)
@@ -10587,8 +10584,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   let _kcLastOwnSaveAt   = 0;
   let _bjLastOwnSaveAt   = 0;
   let _bjLastWrittenSavedAt = 0;   // exact savedAt value we wrote — used to skip own-echo in onSnapshot
-  let _mjLastOwnSaveAt   = 0;
-  let _mjLastWrittenSavedAt = 0;   // same pattern for MyJournal
   let _tjLastOwnSaveAt   = 0;
   let _tjLastWrittenSavedAt = 0;   // same pattern for TonyJournal
 
@@ -12477,85 +12472,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     };
 
 
-    // ── MyJournal load ───────────────────────────────────────────────
-    const mjDocRef = doc(db, MJ_DOC_PATH);
-
-    window._fbLoadMyJournal = async () => {
-      try {
-        const snap = await getDoc(mjDocRef);
-        if (snap.exists()) return snap.data();
-        return null;
-      } catch(e) {
-        console.warn("Firebase MyJournal load failed:", e);
-        return null;
-      }
-    };
-
-    // ── MyJournal save (800ms debounce) ──
-    window._fbSaveMyJournal = (getState) => {
-      _mjLastOwnSaveAt = Date.now();
-      if (_mjSaveTimer) clearTimeout(_mjSaveTimer);
-      _mjSaveTimer = setTimeout(async () => {
-        try {
-          const { entries, activeId } = getState();
-          const imageUploadPromises = [];
-          const stripped = entries.map(e => {
-            if (e.template === 'whiteboard') {
-              const { canvas, history, ...rest } = (e.data || {});
-              return { ...e, data: rest };
-            }
-            if (e.template === 'page' && e.data && e.data.html) {
-              let html = e.data.html;
-              const div = document.createElement('div');
-              div.innerHTML = html;
-              div.querySelectorAll('img').forEach(img => {
-                const src = img.getAttribute('src') || '';
-                if (!src.startsWith('data:')) return;
-                let imgKey = img.getAttribute('data-mjkey') || '';
-                if (!imgKey) {
-                  let h = 0;
-                  const step = Math.max(1, Math.floor(src.length / 512));
-                  for (let i = 0; i < src.length; i += step) { h = (Math.imul(31, h) + src.charCodeAt(i)) | 0; }
-                  h = (Math.imul(31, h) + src.length) | 0;
-                  imgKey = 'myjournal_img_' + e.id + '_' + Math.abs(h).toString(36);
-                }
-                const imgRef = doc(db, 'dashboards', imgKey);
-                imageUploadPromises.push(
-                  setDoc(imgRef, { img: src, savedAt: Date.now() })
-                    .catch(err => console.warn('MJ image upload failed:', imgKey, err.message))
-                );
-                img.setAttribute('src', 'mj-fbimg://' + imgKey);
-              });
-              return { ...e, data: { ...e.data, html: div.innerHTML } };
-            }
-            return e;
-          });
-          const sanitize = (v) => {
-            if (Array.isArray(v)) return v.map(sanitize);
-            if (v && typeof v === 'object') {
-              const o = {};
-              Object.entries(v).forEach(([k,val]) => {
-                if (val !== undefined && val !== null) o[k] = sanitize(val);
-              });
-              return o;
-            }
-            return v;
-          };
-          const _mjSavedAt = Date.now();
-          const payload = sanitize({ entries: stripped, activeId, savedAt: _mjSavedAt });
-          _mjLastOwnSaveAt = _mjSavedAt;
-          _mjLastWrittenSavedAt = _mjSavedAt;
-          await Promise.all(imageUploadPromises);
-          await _fbWriteRetry(() => setDoc(mjDocRef, payload), 'MJ save');
-          _mjLastOwnSaveAt = Date.now();
-          window.dispatchEvent(new CustomEvent("fb-mj-saved"));
-        } catch(e) {
-          console.error("Firebase MyJournal save failed:", e.code, e.message, e);
-          window.dispatchEvent(new CustomEvent("fb-mj-error"));
-        }
-      }, 800);
-    };
-
     window._fbRehydrateMyJournalImages = async (html) => {
       if (!html || !html.includes('mj-fbimg://')) return html;
       // A <template> is inert: unlike a detached <div>, assigning innerHTML
@@ -12578,52 +12494,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       }));
       return div.innerHTML;
     };
-
-    // ── MyJournal real-time listener ──────────────────────────────────────────
-    // _fbSaveMyJournal / _fbLoadMyJournal / mjDocRef are legacy dead-code stubs.
-    // The actual Tony journal lives at TJ_DOC_PATH (dashboards/tony_journal) and is
-    // managed entirely by _fbSaveTonyJournal / _fbLoadTonyJournal / the TJ onSnapshot below.
-    // No onSnapshot listener needed here — avoids a wasted Firestore read slot.
-    if (_mjUnsubscribe) { _mjUnsubscribe(); _mjUnsubscribe = null; }
-
-    let _mjCanvasSaveTimers = {};
-    let _mjCanvasLastSaveAt = {};
-    let _mjCanvasUnsub = null;
-
-    window._fbSaveMJCanvas = (entryId, dataURL) => {
-      const key = entryId;
-      _mjCanvasLastSaveAt[key] = Date.now();
-      if (_mjCanvasSaveTimers[key]) clearTimeout(_mjCanvasSaveTimers[key]);
-      _mjCanvasSaveTimers[key] = setTimeout(async () => {
-        try {
-          const ref = doc(db, 'dashboards', 'myjournal_canvas_' + entryId);
-          await setDoc(ref, { canvas: dataURL, savedAt: Date.now() });
-        } catch(e) { console.warn('MJ canvas save failed:', e.message); }
-      }, 600);
-    };
-
-    window._fbLoadMJCanvas = async (entryId) => {
-      try {
-        const ref = doc(db, 'dashboards', 'myjournal_canvas_' + entryId);
-        const snap = await getDoc(ref);
-        return snap.exists() ? snap.data().canvas : null;
-      } catch(e) { return null; }
-    };
-
-    window._fbWatchMJCanvas = (entryId, cb) => {
-      if (_mjCanvasUnsub) { _mjCanvasUnsub(); _mjCanvasUnsub = null; }
-      _mjCanvasLastSaveAt[entryId] = _mjCanvasLastSaveAt[entryId] || 0;
-      const ref = doc(db, 'dashboards', 'myjournal_canvas_' + entryId);
-      _mjCanvasUnsub = onSnapshot(ref, (snap) => {
-        if (Date.now() - (_mjCanvasLastSaveAt[entryId] || 0) < 5000) return;
-        if (snap.exists() && snap.data().canvas) cb(snap.data().canvas);
-      });
-    };
-
-    window._fbUnwatchMJCanvas = () => {
-      if (_mjCanvasUnsub) { _mjCanvasUnsub(); _mjCanvasUnsub = null; }
-    };
-
 
     // ── Tony's Brainstorm Journal Firebase ───────────────────────────────────────
     const tjDocRef = doc(db, TJ_DOC_PATH);
@@ -13328,7 +13198,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     if (_vdUnsubscribe)  { _vdUnsubscribe();  _vdUnsubscribe  = null; }
     if (_kcUnsubscribe)  { _kcUnsubscribe();  _kcUnsubscribe  = null; }
     if (_bjUnsubscribe)  { _bjUnsubscribe();  _bjUnsubscribe  = null; }
-    if (_mjUnsubscribe)  { _mjUnsubscribe();  _mjUnsubscribe  = null; }
     if (_tjUnsubscribe)  { _tjUnsubscribe();  _tjUnsubscribe  = null; }
     if (_sosMirrorUnsub) { _sosMirrorUnsub(); _sosMirrorUnsub = null; }
     if (_sosAckUnsub)    { _sosAckUnsub();    _sosAckUnsub    = null; }
@@ -13338,7 +13207,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     if (window._tsUnsubscribe) { window._tsUnsubscribe(); window._tsUnsubscribe = null; }
     if (window._rlUnsubscribe) { window._rlUnsubscribe(); window._rlUnsubscribe = null; }
     if (window._rlCfgUnsubscribe) { window._rlCfgUnsubscribe(); window._rlCfgUnsubscribe = null; }
-    if (window._fbUnwatchMJCanvas) window._fbUnwatchMJCanvas();
     // Kill the WebSocket entirely so no reconnect reads can fire.
     // FCM module uses a separate Firestore instance — unaffected.
     try { await terminate(db); } catch(e) {}
@@ -22500,8 +22368,11 @@ window.VizEngine = { createBoard: createBoard };
 }
 #bj-root .entry-item-meta .oj-by-tony::before, #tj-root .entry-item-meta .oj-by-tony::before { background: #e0b874; }
 #bj-root .entry-item-meta .oj-by-veda::before, #tj-root .entry-item-meta .oj-by-veda::before { background: #a98bbb; }
-/* Shared entries use only the templates BOTH journals have (Page, Mind Map,
-   Whiteboard), and have no per-person password lock. */
+/* Shared entries use only the templates both journals offer there (Page, Mind
+   Map, Whiteboard), and have no per-person password lock. MyJournal's own
+   collection has no boards: Whiteboard and Mind Map are OurJournal-only there. */
+#tj-root:not(.oj-on) .template-card[data-template="whiteboard"],
+#tj-root:not(.oj-on) .template-card[data-template="mindmap"],
 #bj-root.oj-on .template-card[data-template="notes"],
 #bj-root.oj-on .template-card[data-template="cornell"],
 #bj-root.oj-on .template-card[data-template="mindmap-legacy"],
@@ -31791,7 +31662,9 @@ document.getElementById('tj-add-tag-input').addEventListener('keydown', e => {
 /* ── WHITEBOARD + MIND MAP ─────────────────────────────────────────────────
  * VizEngine boards, identical to Veda's except for the document prefix and the
  * tokens they inherit from #tj-root — which is the whole reason the engine is
- * parameterised rather than copied. See the VizEngine block for how a board is
+ * parameterised rather than copied. New boards are OurJournal-only here: the
+ * template modal hides and refuses them in MyJournal's own collection, and
+ * Tony's older personal boards still open through this same code. See the VizEngine block for how a board is
  * stored and why it never touches the journal document.
  * ======================================================================== */
 var _tjBoards = {};
@@ -33425,6 +33298,9 @@ document.getElementById('tj-template-modal').addEventListener('click', e => {
   }
   const card=e.target.closest('.template-card'); if (!card) return;
   const tmpl=card.dataset.template;
+  // Boards are OurJournal-only in MyJournal. The CSS hides their cards; this
+  // stops a stray click (or a stale DOM) from creating one anyway.
+  if ((tmpl === 'whiteboard' || tmpl === 'mindmap') && !_tjIsOJ()) return;
   document.getElementById('tj-template-modal').classList.remove('open');
   document.getElementById('tj-new-entry-btn')._creating=false;
   // Always create a new entry — never mutate/wipe the current one. Flush the entry
@@ -33574,21 +33450,6 @@ var tjIsMobile = false;
 
 function tjCheckMobile() {
   tjIsMobile = window.innerWidth <= 768;
-  // Fix wb size slider: vertical on desktop, horizontal on mobile
-  var slider = document.getElementById('tj-wb-size');
-  if (slider) {
-    if (tjIsMobile) {
-      slider.style.writingMode = 'horizontal-tb';
-      slider.style.direction = 'ltr';
-      slider.style.width = '72px';
-      slider.style.height = '18px';
-    } else {
-      slider.style.writingMode = 'vertical-lr';
-      slider.style.direction = 'rtl';
-      slider.style.width = '18px';
-      slider.style.height = '70px';
-    }
-  }
 }
 tjCheckMobile();
 window.addEventListener('resize', tjCheckMobile);
@@ -33662,9 +33523,6 @@ saveState = function() {
   }
 };
 
-/* Whiteboard: Apple Pencil — use pointer type to distinguish */
-/* Palm rejection handled in main pointerdown handler above */
-
 /* iOS: prevent bounce scroll inside content area */
 var tjContent = document.getElementById('tj-content-area');
 if (tjContent) {
@@ -33672,8 +33530,6 @@ if (tjContent) {
     e.stopPropagation();
   }, { passive: true });
 }
-
-/* Visual viewport resize — canvas has fixed logical size (1400×900) so no resize needed */
 
 /* ── PDF EXPORT ── */
 /* tj-btn-export-pdf handled by fastTouch above */
