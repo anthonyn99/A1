@@ -5,7 +5,7 @@ Temporary. Phase 4 deletes this file.
 ## §0 Status (rewrite at the end of every phase)
 
 - **Next phase: 4** (Cleanup)
-- Done: Phase 0 (this doc + memory pointer), Phase 1 (Google Docs + OneNote removed), Phase 2 (Starred, Recent, Find, the gear, the Firestore doc and `/docs/ai` removed), Phase 3 (Whiteboard and Mind Map are OurJournal-only in MyJournal). All on 2026-09-29.
+- Done: Phase 0 (this doc + memory pointer), Phase 1 (Google Docs + OneNote removed), Phase 2 (Starred, Recent, Find, the gear, the Firestore doc and `/docs/ai` removed), Phase 3 (Whiteboard and Mind Map are OurJournal-only in MyJournal). All on 2026-09-29. After Phase 3 the MyJournal "Templates" toolbar button and its mobile twin were removed too (Tony, 2026-09-29): New Entry opens the same modal.
 - Phase 4 grew on 2026-09-29: Tony asked for a self-cleanup system that removes failed, unused, outdated and corrupt data in every program without spiking Firebase or Cloudflare usage. See the Phase 4 section. It is the biggest part of that phase.
 - What Phase 3 did:
   - CSS `#tj-root:not(.oj-on) .template-card[data-template="whiteboard"|"mindmap"]` hides the cards, next to the other `oj-on .template-card` rules. The `#tj-template-modal` click handler returns early for those two templates unless `_tjIsOJ()`.
@@ -213,6 +213,4 @@ Shrink MJDocs down to a minimal rail module.
   - **Inventory first.** Before writing any cleanup, go through each program (index, tradehub, vault, mylist, magi, studyos, riftiq, wellness, workers, workers2) and list what it stores in localStorage/IndexedDB, Firestore, KV and on disk. Classify each item with the rules above.
   - List what was found, the category and the cap for each item in the Phase 4 commit message.
 - Run `npm test`, then commit and push.
-- Mention two optional items:
-  - the `trading-auto-launch` logs
-  - the "Change template" button, which always creates a new entry
+- Mention one optional item: the `trading-auto-launch` logs.

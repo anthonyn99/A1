@@ -30189,7 +30189,7 @@ window.hideBrainstormJournal = function() {
     padding-bottom: max(8px, env(safe-area-inset-bottom, 8px));
     gap: 6px; z-index: 50; align-items: center;
   }
-  #tj-root #tj-bb-edit, #tj-root #tj-bb-template {
+  #tj-root #tj-bb-edit {
     flex: 1; padding: 10px 4px !important;
     font-size: 11px !important; min-height: 40px; border-radius: 6px !important;
   }
@@ -30302,11 +30302,6 @@ window.hideBrainstormJournal = function() {
         <div class="toggle-knob"></div>
       </label>
     </div>
-    <div class="toolbar-sep"></div>
-    <button class="tb-btn" id="tj-btn-template" data-tip="Change template">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-      Templates
-    </button>
     <div class="toolbar-sep"></div>
     <button class="tb-btn" id="tj-btn-export-pdf" data-tip="Export as PDF" style="color:var(--purple);border-color:rgba(141,118,154,0.3);">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
@@ -30593,7 +30588,6 @@ window.hideBrainstormJournal = function() {
 </div><!-- end tj-body -->
 <div id="tj-bottom-bar" style="display:none;">
   <button id="tj-bb-edit" style="flex:1;background:transparent;color:var(--text2);border:1px solid var(--border2);border-radius:5px;padding:7px 0;font-size:11px;font-weight:500;font-family:'DM Sans',sans-serif;text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;touch-action:manipulation;">✏ Edit</button>
-  <button id="tj-bb-template" style="flex:1;background:transparent;color:var(--text2);border:1px solid var(--border2);border-radius:5px;padding:7px 0;font-size:11px;font-weight:500;font-family:'DM Sans',sans-serif;text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;touch-action:manipulation;">⊞ Template</button>
   <button id="tj-bb-new" style="flex:2;background:var(--purple);color:#fff;border:none;border-radius:5px;padding:7px 0;font-size:11px;font-weight:600;font-family:'DM Sans',sans-serif;text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;touch-action:manipulation;">+ New</button>
   <span id="tj-bb-saved" style="font-size:11px;color:var(--green);font-family:'DM Sans',sans-serif;font-weight:500;opacity:0;transition:opacity 0.4s;white-space:nowrap;display:inline-flex;align-items:center;"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>
 </div>
@@ -33223,14 +33217,6 @@ function setEditMode(enabled) {
     });
   }
 
-  /* tj-btn-template */
-  fastTouch(document.getElementById('tj-btn-template'), function() {
-    var entry = getActive();
-    if (!entry) { alert('Create a new entry first.'); return; }
-    document.getElementById('tj-new-entry-btn')._creating = false;
-    document.getElementById('tj-template-modal').classList.add('open');
-  });
-
   /* tj-btn-export-pdf */
   (function() {
     var tjExportBtn = document.getElementById('tj-btn-export-pdf');
@@ -33270,13 +33256,6 @@ function setEditMode(enabled) {
     }
   });
 
-  fastTouch(document.getElementById('tj-bb-template'), function() {
-    var entry = getActive();
-    if (!entry) { alert('Create a new entry first.'); return; }
-    document.getElementById('tj-new-entry-btn')._creating = false;
-    document.getElementById('tj-template-modal').classList.add('open');
-  });
-
   fastTouch(document.getElementById('tj-bb-new'), function() {
     document.getElementById('tj-new-entry-btn')._creating = true;
     document.getElementById('tj-template-modal').classList.add('open');
@@ -33285,7 +33264,6 @@ function setEditMode(enabled) {
 
 /* TOOLBAR — mouse/keyboard change handler (touchstart path handled above) */
 document.getElementById('tj-btn-edit').addEventListener('change', function() { setEditMode(this.checked); });
-/* tj-btn-template click handled by fastTouch above */
 document.getElementById('tj-close-modal').addEventListener('click', () => {
   document.getElementById('tj-new-entry-btn')._creating=false;
   document.getElementById('tj-template-modal').classList.remove('open');
@@ -35073,7 +35051,7 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
     border-radius: 999px; padding: 2px 10px; font-size: 10px !important;
     pointer-events: none;
   }
-  #tj-root #tj-bb-edit, #tj-root #tj-bb-template, #tj-root #tj-bb-new,
+  #tj-root #tj-bb-edit, #tj-root #tj-bb-new,
   #bj-root #bj-bb-edit, #bj-root #bj-bb-template, #bj-root #bj-bb-new {
     min-height: 44px !important; font-size: 11.5px !important; letter-spacing: 0.4px;
   }
@@ -35114,7 +35092,7 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
 /* ════════ PHONE (≤600px) ════════ */
 @media (max-width: 600px) {
   #tj-root #tj-bb-edit, #bj-root #bj-bb-edit,
-  #tj-root #tj-bb-template, #bj-root #bj-bb-template { font-size: 10.5px !important; }
+  #bj-root #bj-bb-template { font-size: 10.5px !important; }
   #tj-root .template-grid, #bj-root .template-grid { gap: 7px; }
   #tj-root .list-empty, #bj-root .list-empty { padding: 22px 14px; }
 }
@@ -35124,7 +35102,7 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
   #tj-root #tj-sidebar, #bj-root #bj-sidebar { width: min(90vw, 300px) !important; }
   #tj-root #tj-bottom-bar, #bj-root #bj-bottom-bar { padding: 7px 8px; gap: 5px; }
   #tj-root #tj-bb-edit, #bj-root #bj-bb-edit,
-  #tj-root #tj-bb-template, #bj-root #bj-bb-template { font-size: 10px !important; padding: 8px 2px !important; }
+  #bj-root #bj-bb-template { font-size: 10px !important; padding: 8px 2px !important; }
   #tj-root .template-grid, #bj-root .template-grid { grid-template-columns: 1fr !important; }
   #tj-root .template-card, #bj-root .template-card { min-height: 0; padding: 11px 12px; text-align: left; }
   #tj-root #tj-mobile-header, #bj-root #bj-mobile-header { padding-left: 0; gap: 2px; }
@@ -35134,7 +35112,7 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
 @media (max-height: 540px) and (max-width: 1024px) {
   #tj-root #tj-mobile-header, #bj-root #bj-mobile-header { height: 40px; min-height: 40px; }
   #tj-root #tj-bottom-bar, #bj-root #bj-bottom-bar { padding: 4px 10px; }
-  #tj-root #tj-bb-edit, #tj-root #tj-bb-template, #tj-root #tj-bb-new,
+  #tj-root #tj-bb-edit, #tj-root #tj-bb-new,
   #bj-root #bj-bb-edit, #bj-root #bj-bb-template, #bj-root #bj-bb-new {
     min-height: 34px !important; padding: 5px 4px !important;
   }
