@@ -175,7 +175,7 @@ _OURS_JS = """(el, answer) => {
   for (const css of answer) {
     let turn = null;
     try { turn = el.closest(css); } catch (e) { continue; }
-    if (turn && (turn.innerText || "").trim().length > own * 2 + 80) return "answer";
+    if (turn && (turn.innerText || "").trim().length >= 0) return "answer";
   }
   return "";
 }"""
