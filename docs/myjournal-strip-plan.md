@@ -6,7 +6,7 @@ Temporary. Phase 4 deletes this file.
 
 - **Next phase: 4** (Cleanup)
 - Done: Phase 0 (this doc + memory pointer), Phase 1 (Google Docs + OneNote removed), Phase 2 (Starred, Recent, Find, the gear, the Firestore doc and `/docs/ai` removed), Phase 3 (Whiteboard and Mind Map are OurJournal-only in MyJournal). All on 2026-09-29.
-- Phase 4 grew on 2026-09-29: Tony asked for failure data to expire on its own (MAGI screenshots and every other program). See the Phase 4 section.
+- Phase 4 grew on 2026-09-29: Tony asked for a self-cleanup system that removes failed, unused, outdated and corrupt data in every program without spiking Firebase or Cloudflare usage. See the Phase 4 section. It is the biggest part of that phase.
 - What Phase 3 did:
   - CSS `#tj-root:not(.oj-on) .template-card[data-template="whiteboard"|"mindmap"]` hides the cards, next to the other `oj-on .template-card` rules. The `#tj-template-modal` click handler returns early for those two templates unless `_tjIsOJ()`.
   - Deleted `_fbLoadMyJournal`/`_fbSaveMyJournal`, `_fbSave/Load/Watch/UnwatchMJCanvas`, their teardown calls, and `MJ_DOC_PATH`, `_mjSaveTimer`, `_mjUnsubscribe`, `_mjLastOwnSaveAt`, `_mjLastWrittenSavedAt`. None had callers.
@@ -183,12 +183,35 @@ Shrink MJDocs down to a minimal rail module.
   - `README_FOR_CLAUDE.md`
 - Delete the root `debug.log` and the root `.pytest_cache/`, and add `.pytest_cache/` to the root `.gitignore`.
 - Delete `magi/artifacts/tony/` screenshots older than 7 days.
-- **Make failure data expire on its own** (Tony's request, 2026-09-29). Nothing that is essentially trash should stay stored locally or in Firebase.
-  - MAGI: the engine deletes its failure screenshots (`magi/artifacts/<profile>/`) older than 7 days by itself, e.g. on startup and once a day from the watchdog. Engine changes reach PCs via the self-update (memory `magi-self-update`).
-  - Every other program: inventory what each one stores on failure (error logs, debug dumps, failed-job records, retry queues, dead-letter docs, crash screenshots) in localStorage/IndexedDB, Firestore, KV and on disk. Give each one an age cap that fits it (for example 7 days for screenshots and debug dumps, 30 days for failed-job records), and prune it where it is written or on boot.
-  - Mind the budgets: a Firestore prune must not add a listener or a read per boot, and KV deletes count against the 1000 writes/day cap (memory `kv-write-budget`). Prefer KV `expirationTtl` on write over deleting later.
-  - Do not touch real backups (A1Backup, the TradeHub journal snapshots) or the TaskHub archive. Those are data, not failures.
-  - List what was found and the cap chosen for each in the Phase 4 commit message.
+- **Self-cleanup system** (Tony's request, 2026-09-29): every program deletes its own trash, with no spike in Firebase or Cloudflare usage. Build it as one shared set of rules. Don't write a separate script per program.
+  - **What counts as trash.** Each item needs a named owner and a reason. When in doubt, keep it.
+    - *Failed:* error logs, debug dumps, crash and failure screenshots, failed-job records, dead retry queues, dead-letter docs.
+    - *Unused:* storage keys, docs, KV keys and files left behind by removed features. Examples are the `mjd_*` keys and `dashboards/myjournal_docs`. Keep a `DEAD_KEYS` registry of those prefixes and add to it whenever a feature is removed.
+    - *Outdated:* caches, tokens and temp data past their useful life, such as expired OAuth tokens and stale listing caches. Also old screenshots under `magi/artifacts/<profile>/` and old logs.
+    - *Corrupt:* a cache entry that won't parse, or a temp or artifact file that is half-written or zero bytes. Delete it only when a good copy exists elsewhere (Firestore, git, or a rebuild). **Never delete corrupt user data** (journal entries, TaskHub, vault items). Log it and show it to Tony instead.
+    - *Never trash:* A1Backup and its objects (that GC already exists and must keep failing closed, see memory `index-backups-object-gc`), TradeHub journal snapshots, the TaskHub archive, trashed-but-restorable items inside their own 30-day TTL, and anything in V1/.
+  - **Age caps:** screenshots and debug dumps 7 days, error logs 14 days, failed-job records and dead queues 30 days. Dead-feature keys go on the first sweep. Record the cap for each item in the registry.
+  - **Usage guarantees.** These are hard rules. A test must enforce them where the code allows.
+    - *Firestore:*
+      - Zero extra reads on boot.
+      - A sweep only deletes docs whose ids are already known from reads the page makes anyway, or from a fixed id list. It never runs a query or a listener to discover trash.
+      - At most one sweep per device per day, stamped in localStorage, which is try/caught for Veda's Brave.
+      - At most 25 deletes per sweep.
+      - It never runs during the boot write-guard window.
+    - *Cloudflare KV:*
+      - Write-once trash gets `expirationTtl` when it is written, so Cloudflare expires it for free.
+      - Explicit deletes count as writes, so cap them at 20/day/account, which is 2% of the 1000/day cap. Use `list` with a prefix and one page only.
+      - Check both accounts with `kv-usage.mjs` before and after (memory `kv-write-budget`).
+    - *Workers:* no new cron triggers and no extra requests per page load. Piggy-back on an existing cron or request, or don't clean that store.
+    - *Local disk and localStorage:* free, so no cap. Still sweep at most once a day, off the hot path (idle callback, or the MAGI watchdog when idle).
+  - **Safety.**
+    - Every sweep has a dry-run mode that only lists what it would delete.
+    - Ship dry-run first. Show Tony the list, then turn deletion on.
+    - Fail closed: on any error or an unexpected shape, delete nothing that run.
+    - A test pins the caps: max deletes per sweep, once a day, no reads on boot.
+  - **MAGI:** the engine does its own disk sweep on startup and once a day from the watchdog. It reaches PCs through the self-update (memory `magi-self-update`).
+  - **Inventory first.** Before writing any cleanup, go through each program (index, tradehub, vault, mylist, magi, studyos, riftiq, wellness, workers, workers2) and list what it stores in localStorage/IndexedDB, Firestore, KV and on disk. Classify each item with the rules above.
+  - List what was found, the category and the cap for each item in the Phase 4 commit message.
 - Run `npm test`, then commit and push.
 - Mention two optional items:
   - the `trading-auto-launch` logs
