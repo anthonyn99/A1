@@ -137,17 +137,31 @@ const clone = () => JSON.parse(JSON.stringify(RULES));
 (async () => {
   console.log('\nBehaviour');
 
-  // Dry-run items stay, approved items go.
+  // The shipped rules: every listed key goes, nothing else does.
   {
-    const w = boot({ seed: { mjd_cache: '1', mjd_tok_x: '1', warden_kc_colmap: '1', keep_me: '1' } });
+    const w = boot({ seed: { mjd_cache: '1', mjd_tok_x: '1', warden_kc_colmap: '1', fcm_pv_purge_v1: '1',
+      pv_cfg_v1: '1', pv_sched_v1: '1', keep_me: '1' } });
     const rep = await w.A1Sweep.run();
-    ok('an approved item is deleted', w.localStorage.getItem('mjd_cache') === null && w.localStorage.getItem('mjd_tok_x') === null);
-    ok('a dry-run item is only listed', w.localStorage.getItem('warden_kc_colmap') === '1' &&
-      rep.wouldDelete.some((x) => x.includes('warden_kc_colmap')));
+    ok('every listed key is deleted', ['mjd_cache', 'mjd_tok_x', 'warden_kc_colmap', 'fcm_pv_purge_v1']
+      .every((k) => w.localStorage.getItem(k) === null), rep.deleted);
     ok('an unlisted key is untouched', w.localStorage.getItem('keep_me') === '1');
-    ok('the Firestore dry-run item is listed, not run', rep.wouldDelete.some((x) => x.includes('myjournal_docs')));
+    ok("RiftIQ's live ProView keys are untouched", w.localStorage.getItem('pv_cfg_v1') === '1' && w.localStorage.getItem('pv_sched_v1') === '1');
     const again = await w.A1Sweep.run();
     ok('once a day: a second run the same day does nothing', again.skipped.includes('already swept today'));
+  }
+
+  // "delete": false is a dry run: listed, left alone, and no Firestore call.
+  {
+    const r = clone();
+    r.items.forEach((i) => { if (i.id === 'warden-leftovers' || i.store === 'firestore') i.delete = false; });
+    const calls = [];
+    const w = boot({ rules: r, seed: { mjd_cache: '1', warden_kc_colmap: '1' },
+      adapter: { ready: () => true, del: async (p) => { calls.push(p); } } });
+    const rep = await w.A1Sweep.run();
+    ok('an approved item is deleted', w.localStorage.getItem('mjd_cache') === null);
+    ok('a dry-run item is only listed', w.localStorage.getItem('warden_kc_colmap') === '1' &&
+      rep.wouldDelete.some((x) => x.includes('warden_kc_colmap')));
+    ok('a dry-run Firestore item is listed, not run', calls.length === 0 && rep.wouldDelete.some((x) => x.includes('myjournal_docs')));
   }
 
   // Storage that throws (Veda's Brave): nothing happens, no crash.

@@ -5,9 +5,9 @@ Kept as a record once the strip is done (Tony, 2026-09-29: old plans cost nothin
 ## §0 Status (rewrite at the end of every phase)
 
 - **Done.** Phases 0-4 all finished on 2026-09-29. Nothing is left to build. The strip itself was Phases 1-3; Phase 4 was cleanup plus the self-cleanup system.
-- **The self-cleanup system is running in dry-run.** The only item that deletes is `mjd-rail-leftovers`, which the Phase 1 boot purge already deleted on every load. Every other item has `"delete": false`.
-  - To turn an item on: set `"delete": true` in `cleanup-rules.json` and add an `"approved"` note (`tests/cleanup-rules.test.js` requires one). For the two KV items, also flip `SWEEP_STALE_TOKENS` in the worker (the test checks that the two match).
-  - What would go: in a browser, `A1Sweep.report()` (or `A1Sweep.run({force:true, dryRun:true})`). On a MAGI PC, `data/<profile>/sweep.json`, or `magi.venvScriptspython.exe -m magi.sweep`.
+- **The self-cleanup system deletes for real** (Tony, 2026-09-29). It shipped as a dry run; Tony reviewed the full list and turned deletion on for every item. `magi-stale-logs` was raised to 30 days, so an engine that was down for two weeks still has the log of why it died.
+  - A NEW item ships with `"delete": false` until Tony has seen its report. Turning it on means `"delete": true` plus an `"approved"` note (`tests/cleanup-rules.test.js` requires one). For the KV items, `SWEEP_STALE_TOKENS` in the worker must match.
+  - What a sweep did or would do: in a browser, `A1Sweep.report()` (or `A1Sweep.run({force:true, dryRun:true})`). On a MAGI PC, `data/<profile>/sweep.json`, or `magi.venvScriptspython.exe -m magi.sweep` (always a dry run).
 - **How it is built:**
   - `cleanup-rules.json` at the repo root is the one registry. Every item has an owner, a reason, a category, a cap and a delete flag. It also has the limits, a `handledElsewhere` list and a `never` list.
   - `sweep.js` is the browser half, loaded as `<script src="sweep.js" data-program="<page>" defer>`. Only index.html loads it today, because only index owns browser items. A page that gets items must load it (the test checks).
