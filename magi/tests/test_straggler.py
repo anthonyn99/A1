@@ -95,6 +95,8 @@ def fast(monkeypatch):
     monkeypatch.setattr(orch_mod, "STRAGGLER_GRACE_S", 0.3)
     monkeypatch.setattr(orch_mod, "STRAGGLER_GRACE_SHORT_S", 0.3)
     monkeypatch.setattr(orch_mod, "STILL_WRITING_S", 0.25)
+    monkeypatch.setattr(orch_mod, "SILENT_GRACE_S", 0.3)
+    monkeypatch.setattr(orch_mod, "SILENT_GRACE_LONG_S", 0.3)
 
 
 def _gather(providers, prompts, events=None):
@@ -150,6 +152,8 @@ def test_a_short_prompt_gets_the_short_floor(monkeypatch, fast):
 def test_a_long_prompt_keeps_the_long_floor(monkeypatch, fast):
     monkeypatch.setattr(orch_mod, "STRAGGLER_GRACE_S", 0.8)
     monkeypatch.setattr(orch_mod, "STRAGGLER_GRACE_SHORT_S", 0.1)
+    monkeypatch.setattr(orch_mod, "SILENT_GRACE_S", 0.1)
+    monkeypatch.setattr(orch_mod, "SILENT_GRACE_LONG_S", 0.8)
     long_prompt = "x" * orch_mod.SHORT_PROMPT_CHARS
     out, took = _gather([Quick("a"), Silent("gemini")], long_prompt)
     assert took >= 0.8 and not out[1].ok
@@ -160,6 +164,45 @@ def test_the_real_floors():
     assert orch_mod.STRAGGLER_GRACE_S == 180.0
     assert orch_mod.SHORT_PROMPT_CHARS == 600
     assert orch_mod.STILL_WRITING_S == 20.0
+    assert orch_mod.SILENT_GRACE_S == 45.0
+    assert orch_mod.SILENT_GRACE_LONG_S == 90.0
+
+
+def test_a_silent_straggler_gets_the_short_silent_grace(monkeypatch, fast):
+    """Grok on "Working for 8m" (2026-09-29): no words means the silent grace,
+    not the writer's one -- and not scaled by how long the run took."""
+    monkeypatch.setattr(orch_mod, "STRAGGLER_GRACE_SHORT_S", 30.0)
+    monkeypatch.setattr(orch_mod, "SILENT_GRACE_S", 0.3)
+    out, took = _gather([Quick("a", 0.8), Silent("grok")], "what moved the market")
+    assert not out[1].ok and "Cut off" in out[1].error_detail
+    assert took < 0.8 + 1.0, "grace was scaled by the run's length"
+
+
+def test_a_writer_straggler_keeps_the_full_grace(monkeypatch, fast):
+    """A unit that has written something is not held to the silent grace."""
+    monkeypatch.setattr(orch_mod, "STRAGGLER_GRACE_SHORT_S", 0.8)
+    monkeypatch.setattr(orch_mod, "SILENT_GRACE_S", 0.1)
+    monkeypatch.setattr(orch_mod, "STILL_WRITING_S", 0.05)
+
+    class WroteThenThinks(Writing):
+        async def ask(self, question, *, ctx=None, on_event=None, cancel=None):
+            await super().ask(question, ctx=ctx, on_event=on_event, cancel=cancel)
+            await asyncio.sleep(3600)
+
+    out, took = _gather([Quick("a"), WroteThenThinks("gpt", 0.1)], "q")
+    assert not out[1].ok
+    assert took >= 0.75, "a unit that had written was cut on the silent grace"
+
+
+def test_a_status_line_is_not_answer_text():
+    from magi.browser.completion import _is_status_only
+
+    for s in ["Working for 4m 30s", "Thinking...", "Thinking", "Searching the web…",
+              "Thought for 12s", "Working for 1h 2m 3s"]:
+        assert _is_status_only(s), s
+    for s in ["Thought for 12s\n\nThe market moved on CPI.", "Working capital rose 4%",
+              "Thinking about rates, the Fed held.", "", "Stocks fell"]:
+        assert not _is_status_only(s), s
 
 
 def test_each_member_gets_its_own_prompt(fast):
@@ -173,6 +216,8 @@ def test_per_member_prompts_use_the_longest_for_the_floor(monkeypatch, fast):
     """One long per-member prompt is enough to earn the long floor."""
     monkeypatch.setattr(orch_mod, "STRAGGLER_GRACE_S", 0.8)
     monkeypatch.setattr(orch_mod, "STRAGGLER_GRACE_SHORT_S", 0.1)
+    monkeypatch.setattr(orch_mod, "SILENT_GRACE_S", 0.1)
+    monkeypatch.setattr(orch_mod, "SILENT_GRACE_LONG_S", 0.8)
     prompts = {"a": "short", "gemini": "x" * 700}
     out, took = _gather([Quick("a"), Silent("gemini")], prompts)
     assert took >= 0.8

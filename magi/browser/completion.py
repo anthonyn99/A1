@@ -27,6 +27,7 @@ fail in seconds with a clear cause, not burn the full hard timeout.
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 from dataclasses import dataclass
 from enum import StrEnum
@@ -42,6 +43,26 @@ from .markdown import DOM_TO_MARKDOWN_JS
 LIMIT_CHECK_S = 5.0
 CANNED_SETTLE_S = 15.0
 CANNED_MAX_CHARS = 600
+
+
+# A site's own progress line sitting where the answer will go: Grok's
+# "Working for 4m 30s", "Thinking...", "Searching the web". It changes, so it
+# read as an answer being written and kept the straggler rule from cutting a
+# unit that had not produced a word in eight minutes (2026-09-29). Only a
+# WHOLE reply of exactly this shape counts -- a real answer that opens with
+# "Thought for 12s" has more lines after it.
+_STATUS_LINE = re.compile(
+    r"^(?:working|thinking|thought|reasoning|searching(?: the web)?|researching"
+    r"|analy[sz]ing|looking(?: it)? up)"
+    r"(?:\s+for\s+(?:\d+\s*(?:h|m|min|s|sec)\s*)+)?"
+    r"\s*(?:\.\.\.|…)?$",
+    re.I,
+)
+
+
+def _is_status_only(text: str) -> bool:
+    t = text.strip()
+    return bool(t) and len(t) < 60 and "\n" not in t and bool(_STATUS_LINE.match(t))
 
 
 def _is_canned(text: str) -> bool:
@@ -292,6 +313,8 @@ async def wait_for_completion(
         # answer streams into a pre-rendered empty node). Without this, the
         # previous answer gets returned and looks entirely valid.
         text, turns_now = await _read_latest(page, site)
+        if _is_status_only(text):
+            text = ""
         is_new_turn = turns_now > turns_before
         is_changed = bool(text) and text != baseline.last_text
         if not (is_new_turn or is_changed):

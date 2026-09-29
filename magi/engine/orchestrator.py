@@ -150,9 +150,15 @@ class Orchestrator:
         text last grew, and while that is under STILL_WRITING_S ago the grace
         is extended, STILL_WRITING_S at a time. The site's own hard timeout
         (completion.py) stays the ceiling.
+
+        Tightened 2026-09-29: the grace is now `floor` flat, no longer scaled
+        by the run's length (a real writer is protected by the extensions
+        above, not by the scaling), and a straggler that has shown NO answer
+        text at all gets only SILENT_GRACE_S -- a spinner is not an answer.
         """
         if floor is None:
             floor = STRAGGLER_GRACE_S
+        silent = SILENT_GRACE_LONG_S if floor >= STRAGGLER_GRACE_S else SILENT_GRACE_S
         grew = grew if grew is not None else {}
         by_task = dict(zip(tasks, providers))
         pending = set(tasks)
@@ -161,11 +167,24 @@ class Orchestrator:
                 pending, return_when=asyncio.FIRST_COMPLETED
             )
             if pending and len(pending) <= STRAGGLER_MAX and len(pending) < len(tasks):
-                deadline = time.monotonic() + max(floor, time.monotonic() - t0)
+                others_done = time.monotonic()
+
+                def base_deadline():
+                    # Re-read each time: a silent unit that starts writing
+                    # during its short grace earns the full one.
+                    wrote = any(by_task[t].id in grew for t in pending)
+                    return others_done + (floor if wrote else min(silent, floor))
+
+                deadline = base_deadline()
                 while pending:
+                    deadline = max(deadline, base_deadline())
                     left = deadline - time.monotonic()
                     if left > 0:
-                        done, pending = await asyncio.wait(pending, timeout=left)
+                        # Wake at least every few seconds so a unit that starts
+                        # writing moves to the full grace promptly.
+                        done, pending = await asyncio.wait(
+                            pending, timeout=min(left, 5.0)
+                        )
                         continue
                     now = time.monotonic()
                     writing = [
