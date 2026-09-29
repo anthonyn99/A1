@@ -4,9 +4,23 @@ Temporary. Phase 4 deletes this file.
 
 ## §0 Status (rewrite at the end of every phase)
 
-- **Next phase: 1** (Remove Google Docs + OneNote)
-- Done: Phase 0 (this doc + memory pointer)
-- Notes for the next session: none yet.
+- **Next phase: 2** (Remove Starred, Recent, Find and the gear)
+- Done: Phase 0 (this doc + memory pointer), Phase 1 (Google Docs + OneNote removed, 2026-09-29)
+- Notes for the next session:
+  - Phase 1 pulled some Phase 2 items forward. These are **already gone**:
+    - `openSettings` and the gear button `#mjd-settings-btn` (its dialog was only Docs/OneNote client-ID setup)
+    - the AI panel (`openAiPanel`, `runAiTool`, `showRelated`, `applyTitle`, `AI_TOOLS`)
+    - the offline queue (`mjd_queue`, `enqueue`/`flushQueue`)
+    - the provider tree browser (`renderChildren`, `toggleNode`, `rootRef`, `accountFor`, `hardRefresh`, `markActive`)
+    - the cloud crawl in `refreshIndex` and `cloudProviders()`
+    - `MJDocsUI.settings` and `MJDocsUI.refresh`. `MJDocsUI` is now `{ open, omni, section, release }`.
+  - `releaseEditor` (`MJDocsUI.release`) now only sets `window._tjCloudMode = false`. Nothing enters cloud mode any more, but `_tjCloudBridge.enter`/`leave` and the `_tjCloudMode` hooks in MyJournal are still there for Phase 2.
+  - Still there for Phase 2: `.mjd-quick` (Starred/Recent/Find), `renderFlat`/`rowFor`, favourites/recents, the Find overlay + `runGroupOp`, the `mjpages` provider, `CONTRACT`, the index, the listing cache (`cacheGet`/`cacheSet`/`children`), `mjd_settings`, the modal + toast, and `D.ai` → `/docs/ai`.
+  - `prune()` in the engine drops favourites/recents/lastOpen whose provider is unregistered. It runs after `register(mjpages)` and in `applyRemote`.
+  - The boot purge (`purgeCloudLeftovers`) removes `mjd_tok_*`, `mjd_cache`, `mjd_queue`, `docx_hist_tj_mjd_*` and `docx_scroll_tj_mjd_*`. Phase 2 deletes the listing cache, so keep the `mjd_cache` purge.
+  - The OurJournal comments at ~33600 still say "Docs, OneNote". They were left alone on purpose (OurJournal is out of scope). The Firestore listener comment at ~13029 also still mentions them; Phase 2 deletes that listener.
+  - `npm test`: 50/52 pass. `magi-code-sync` and `magi-codemode` fail on the untouched tree too, so the failures are unrelated (magi.html).
+  - The verify recipe that worked: seed storage with `Page.addScriptToEvaluateOnNewDocument`. The save check creates a REAL entry in Tony's journal, so purge it afterwards (row `.entry-delete` → `_docxOpenTrash('tj')` → `button.del`, with `uiConfirm` stubbed to true).
 
 ### Rules for every phase
 - `git pull` first. Tony and Veda both push.

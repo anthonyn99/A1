@@ -54,7 +54,7 @@ id = "b51e916cf3bf4f37ad146af5ca031575"
 #
 # This worker REPLACES the old mylist-api / taskhub-voice / journal-ai workers.
 #
-# ── MyJournal cloud documents (POST /docs/ai) ────────────────────────────────
+# ── MyJournal documents (POST /docs/ai) ──────────────────────────────────────
 # Ten ops behind one route, on two fallback chains: DOC_WRITE_MODELS for work over
 # document CONTENT (summarise / rewrite / improve / expand — leads with the
 # flagship, because lite models distil long input) and DOC_INDEX_MODELS for work

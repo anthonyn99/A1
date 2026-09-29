@@ -97,7 +97,7 @@ const RECIPE_VOICE_MODELS = [
   'gemini-2.0-flash',
 ];
 
-// ── MyJournal cloud documents (Google Docs / OneNote / MyJournal Pages) ──────
+// ── MyJournal documents: Find and AI tools (MyJournal pages) ────────────────
 // Two chains, because the two jobs here fail in opposite directions — the same
 // split that already proved itself on recipes and TaskHub above:
 //
@@ -2691,7 +2691,7 @@ const DOC_OPS = {
   search: {
     kind: 'index', schema: DOC_PICK_SCHEMA, maxOutputTokens: 2048,
     prompt: (b, listing, today) => [
-      'You search a personal document library spanning MyJournal pages, Google Docs and OneNote.',
+      'You search a personal document library of MyJournal pages.',
       'Below is a TSV of every document:', DOC_LISTING_HEADER, '', listing, '',
       `User request: ${b.query}`, '',
       'Return the indices of every document that genuinely matches, most relevant first.',

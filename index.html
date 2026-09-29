@@ -40974,38 +40974,20 @@ window._THV={
 
 
 <!-- ══════════════════════════════════════════════════════════════════════════
-     MyJournal Cloud Documents — ENGINE  (Tony's MyJournal only)
+     MyJournal sidebar rail — ENGINE  (Tony's MyJournal only)
      Brainstorm Journal (#bj-root, Veda's profile) is not touched by any of this.
 
-     WHAT THIS IS
-     MyJournal keeps its own pages in Firebase. This layer adds two more places a
-     document can LIVE — Google Docs and Microsoft OneNote — without adding a
-     second editor, a second toolbar or a second set of keyboard shortcuts. A
-     cloud document opens in the same #tj-page-editor as a native Page; the only
-     things that differ are where its bytes come from and where they go back to.
+     The rail at the top of MyJournal's sidebar, plus Starred, Recent and Find
+     over MyJournal's own pages. OurJournal hangs its tab off this rail, so the
+     rail itself must stay.
 
-     PROVIDER ARCHITECTURE
-     Nothing above this file branches on which cloud it is talking to. Each
-     provider is an object satisfying PROVIDER_CONTRACT below, registered with
-     MJDocs.register(). Adding Notion, a Markdown folder or a PDF library later
-     means writing one more adapter — no UI change, no new branches. Where a
-     cloud genuinely cannot do something (OneNote cannot rename a notebook — see
-     the adapter), that is declared in `caps` so the UI greys the action out with
-     a reason, rather than offering it and failing.
-
-     WHERE CREDENTIALS LIVE, AND WHY THEY ARE SPLIT
-     OAuth *client ids* are public identifiers — they ship in every browser app,
-     so they sync through Firebase and you paste them once. Access and refresh
-     *tokens* are bearer credentials for your entire Drive / OneDrive: they stay
-     in localStorage on the device that authorised them and are NEVER written to
-     Firebase. A synced token would hand live access to every signed-in device.
-     Each device therefore connects once; the connection itself does not sync.
+     Google Docs and OneNote used to live here too; they were removed on
+     2026-09-29. A one-time purge below clears the OAuth tokens and caches they
+     left on each device.
 
      WHAT FIREBASE HOLDS
-     Preferences only — client ids, favourites, recents, view state, the account
-     labels needed to show "signed in as". Never document content: Google and
-     Microsoft are the stores for their own documents, and a real library would
-     blow the 1 MiB Firestore document limit on its own.
+     dashboards/myjournal_docs: favourites, recents and view state. Never
+     document content.
      ══════════════════════════════════════════════════════════════════════════ -->
 <script>
 (function () {
@@ -41044,16 +41026,13 @@ window._THV={
   var providers = Object.create(null);
   var order = [];
 
-  function nowIso() { return new Date().toISOString(); }
   function errText(e) { return (e && (e.message || e.error_description || e.error)) || 'Something went wrong'; }
 
   /* ══════════════════════════════════════════════════════════════════════════
    * Settings — Firebase-synced preferences (NEVER content, NEVER tokens)
    * ══════════════════════════════════════════════════════════════════════════ */
   var DEFAULTS = {
-    providerCfg: {},        // { gdocs:{clientId}, onenote:{clientId,tenant} }
-    accountMeta: {},        // { "gdocs:uid": {label,email} } — labels only, no tokens
-    favorites: [],          // [{provider,account,id,kind,name,path}]
+    favorites: [],         // [{provider,account,id,kind,name,path}]
     recents: [],            // [{provider,account,id,kind,name,path,at,how}]
     expanded: {},           // { nodeKey: true } — tree disclosure state
     lastOpen: null,         // ref of the document open when you last left
@@ -41075,6 +41054,26 @@ window._THV={
       var r = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
       if (r) S = Object.assign(JSON.parse(JSON.stringify(DEFAULTS)), r);
     } catch (e) {}
+    // Object.assign above copies every saved key, so the removed Google Docs /
+    // OneNote settings have to be dropped by name.
+    delete S.providerCfg; delete S.accountMeta;
+  })();
+
+  // One-time purge of what Google Docs / OneNote left on this device: live
+  // OAuth tokens, the folder-listing cache, the offline write queue, and the
+  // editor's undo/scroll history for cloud documents. Every storage call is
+  // guarded, because Veda's Brave throws on any storage access.
+  (function purgeCloudLeftovers() {
+    try {
+      var drop = [];
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (!k) continue;
+        if (k === 'mjd_cache' || k === 'mjd_queue' || k.indexOf('mjd_tok_') === 0 ||
+            k.indexOf('docx_hist_tj_mjd_') === 0 || k.indexOf('docx_scroll_tj_mjd_') === 0) drop.push(k);
+      }
+      drop.forEach(function (k) { try { localStorage.removeItem(k); } catch (e) {} });
+    } catch (e) {}
   })();
 
   // Hard caps. This whole object rides inside ONE Firestore document and the
@@ -41090,7 +41089,7 @@ window._THV={
   // TWO WRITE TIERS, because the two kinds of change here have wildly different
   // value per write — and this all lands in ONE Firestore document.
   //
-  // Starring a document or connecting an account is durable intent: it should
+  // Starring a document is durable intent: it should
   // reach your other devices promptly. Expanding a folder, switching tabs or
   // opening a document is UI fidget — worth remembering, worthless to sync
   // within the second. Treating them the same meant a minute of browsing a
@@ -41116,7 +41115,7 @@ window._THV={
     window._fbSaveMJDocs(function () { return S; });
   }
 
-  function save() {          // durable: favourites, client ids, accounts
+  function save() {          // durable: favourites
     trim(); cacheLocal(); emit();
     pushNow();
   }
@@ -41137,6 +41136,7 @@ window._THV={
   function applyRemote(d) {
     if (!d || typeof d !== 'object') return;
     Object.keys(DEFAULTS).forEach(function (k) { if (d[k] !== undefined && d[k] !== null) S[k] = d[k]; });
+    prune();
     // Re-baseline the no-op guard against what the server now holds, so the next
     // local edit compares against remote truth rather than our own last write.
     try { lastPushed = JSON.stringify(S); } catch (e) {}
@@ -41149,1107 +41149,10 @@ window._THV={
     if (d) applyRemote(d);
   }
 
-  /* ── Tokens — device-local, never synced (see header) ─────────────────────*/
-  // A usable bearer token is a non-empty string. Storing anything else — most
-  // easily `undefined`, from a 200 response that carried no access_token —
-  // poisons the record permanently: every later call then sends the literal
-  // string "Bearer undefined", which Microsoft rejects with IDX14100 ("JWT is
-  // not well formed, there are no dots"). Nothing recovers from that except
-  // signing out by hand, so the guard belongs at the point of STORAGE.
-  function usableToken(v) { return typeof v === 'string' && v.length > 20; }
-
-  var TOK = 'mjd_tok_';
-  var Tokens = {
-    key: function (pid, acc) { return TOK + pid + '_' + acc; },
-    get: function (pid, acc) { try { return JSON.parse(localStorage.getItem(Tokens.key(pid, acc)) || 'null'); } catch (e) { return null; } },
-    set: function (pid, acc, t) { try { localStorage.setItem(Tokens.key(pid, acc), JSON.stringify(t)); } catch (e) {} },
-    clear: function (pid, acc) { try { localStorage.removeItem(Tokens.key(pid, acc)); } catch (e) {} },
-    // "fresh" means the ACCESS TOKEN is still good. An expired record is not a
-    // disconnected account — Google re-mints silently and Microsoft has a
-    // refresh token — so expiry must never delete the record itself.
-    fresh: function (pid, acc) {
-      var t = Tokens.get(pid, acc);
-      return !!(t && usableToken(t.access) && (!t.expires || Date.now() < t.expires - 120000));
-    },
-    // Every account this device has authorised, for one provider.
-    list: function (pid) {
-      var out = [], pre = TOK + pid + '_';
-      try {
-        for (var i = 0; i < localStorage.length; i++) {
-          var k = localStorage.key(i);
-          if (k && k.indexOf(pre) === 0) {
-            var t = null; try { t = JSON.parse(localStorage.getItem(k)); } catch (e) {}
-            if (t) out.push({ id: k.slice(pre.length), label: t.label || '', email: t.email || '' });
-          }
-        }
-      } catch (e) {}
-      return out;
-    }
-  };
-
-  // Proactive renewal: re-mint a couple of minutes before expiry so a long-lived
-  // tab never hits a 401 mid-save, and re-check on wake — timers do not fire
-  // while a laptop is asleep.
-  var renewers = Object.create(null);
-  async function keepAlive() {
-    for (var pid in renewers) {
-      var accs = Tokens.list(pid);
-      for (var i = 0; i < accs.length; i++) {
-        if (Tokens.fresh(pid, accs[i].id)) continue;
-        try { await renewers[pid](accs[i].id); } catch (e) { /* stays stale; next real call retries */ }
-      }
-    }
-  }
-  // Only renew for a tab that is actually in front. A backgrounded tab waking
-  // every four minutes to refresh tokens it is not using burns provider rate
-  // limit for nothing; the visibilitychange handler below re-mints the moment
-  // you come back, which is the only point at which a fresh token matters.
-  setInterval(function () { if (!document.hidden) keepAlive(); }, 4 * 60 * 1000);
-  document.addEventListener('visibilitychange', function () { if (!document.hidden) keepAlive(); });
-  window.addEventListener('online', function () { keepAlive(); flushQueue(); });
-
-  /* ── OAuth plumbing ───────────────────────────────────────────────────────*/
-  // ONE canonical redirect URI, whatever URL you happened to arrive on.
-  //
-  // GitHub Pages serves this app at BOTH /A1/ and /A1/index.html, so a raw
-  // origin+pathname produced two different redirect URIs depending on how you
-  // navigated. Microsoft requires the redirect_uri to match a registered value
-  // EXACTLY — so half the time sign-in would die on AADSTS50011, which reads as
-  // a broken integration rather than a URL mismatch. Folding index.html back to
-  // its directory means there is exactly one value to register.
-  function redirectUri() {
-    return location.origin + location.pathname.replace(/\/index\.html?$/i, '/');
-  }
-  function b64url(buf) {
-    return btoa(String.fromCharCode.apply(null, new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  }
-  async function pkcePair() {
-    var bytes = new Uint8Array(48); crypto.getRandomValues(bytes);
-    var verifier = b64url(bytes.buffer);
-    var digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
-    return { verifier: verifier, challenge: b64url(digest) };
-  }
-  // A popup, not a redirect: MyJournal must never navigate away mid-edit. Polling
-  // for `closed` is what turns a dismissed popup into a clean rejection instead
-  // of a promise that never settles.
-  function oauthPopup(url, expect) {
-    return new Promise(function (resolve, reject) {
-      var w = 520, h = 660;
-      var x = window.screenX + (window.outerWidth - w) / 2;
-      var y = window.screenY + (window.outerHeight - h) / 2;
-      var pop = window.open(url, 'mjd_oauth', 'width=' + w + ',height=' + h + ',left=' + x + ',top=' + y);
-      if (!pop) { reject(new Error('Your browser blocked the sign-in window. Allow pop-ups for this site and try again.')); return; }
-      var done = false;
-      var timer = setInterval(function () {
-        try {
-          if (pop.closed) { if (!done) { clearInterval(timer); reject(new Error('Sign-in cancelled.')); } return; }
-          // Same-origin reads throw while the popup sits on the provider's
-          // domain — that is expected and simply means "not back yet".
-          if (!pop.location.href || pop.location.origin !== location.origin) return;
-          var out = {};
-          new URLSearchParams(pop.location.search.slice(1)).forEach(function (v, k) { out[k] = v; });
-          new URLSearchParams(pop.location.hash.slice(1)).forEach(function (v, k) { out[k] = v; });
-          if (out.error) { done = true; clearInterval(timer); pop.close(); reject(new Error(out.error_description || out.error)); return; }
-          if (out[expect]) { done = true; clearInterval(timer); pop.close(); resolve(out); }
-        } catch (e) { /* cross-origin — still on the provider */ }
-      }, 250);
-    });
-  }
-
-  /* ══════════════════════════════════════════════════════════════════════════
-   * HTML normalisation — the one place formats meet
-   *
-   * Both clouds speak HTML, which is why one editor can serve all three
-   * providers. But neither speaks the SAME HTML: Google exports a full document
-   * with a <style> block and class-driven formatting, OneNote returns absolutely
-   * positioned <div>s on a fixed canvas. Both are folded here into the flowing
-   * fragment #tj-page-editor expects, and folded back on the way out.
-   * ══════════════════════════════════════════════════════════════════════════ */
-  var ALLOWED = 'P,H1,H2,H3,H4,H5,H6,UL,OL,LI,BLOCKQUOTE,PRE,CODE,B,STRONG,I,EM,U,S,STRIKE,A,BR,HR,TABLE,THEAD,TBODY,TFOOT,TR,TH,TD,IMG,SPAN,DIV,FONT,SUP,SUB,MARK,OBJECT'.split(',');
-
-  function stripDoc(html) {
-    var doc = new DOMParser().parseFromString(String(html || ''), 'text/html');
-    doc.querySelectorAll('script,style,meta,link,title,head').forEach(function (n) { n.remove(); });
-    return doc.body || doc.createElement('body');
-  }
-
-  // Google's export leans on a <style> block plus generated class names. The
-  // classes are gone by the time we get here, but the INLINE styles Google also
-  // emits carry the formatting that matters (bold, italic, colour, alignment),
-  // so those are kept and the layout-only ones dropped.
-  var KEEP_STYLE = /^(font-weight|font-style|font-size|font-family|color|background-color|text-align|text-decoration|vertical-align|margin-left|padding-left|list-style-type|width|height)$/;
-
-  /* ── Colour normalisation for a dark page ──────────────────────────────────
-   * Google exports a document written on white paper, so its HTML is littered
-   * with an explicit black `color:#000000` and white backgrounds. Dropped onto
-   * MyJournal's dark sheet that is black-on-charcoal — unreadable, which is
-   * exactly what you saw.
-   *
-   * The fix is to REMOVE those declarations rather than rewrite them to white.
-   * Removing means "inherit", and inheritance resolves correctly in both
-   * directions: white here, and — because black is already the default text
-   * colour in Google Docs and OneNote — black again the moment it goes back.
-   * Rewriting to #f4f3f0 instead would look right here and then push literal
-   * white text into your Google Doc, invisible on its white page. Deletion is
-   * the only edit that round-trips without damaging the source document.
-   *
-   * Colours the author actually chose (a red heading, a blue link) are far from
-   * black and are kept untouched.
-   */
-  function parseColor(v) {
-    v = String(v || '').trim().toLowerCase();
-    if (v === 'black') return [0, 0, 0];
-    if (v === 'white') return [255, 255, 255];
-    var m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/.exec(v);
-    if (m) {
-      var h = m[1];
-      if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
-      return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
-    }
-    m = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/.exec(v);
-    if (m) return [+m[1], +m[2], +m[3]];
-    return null;
-  }
-  function luma(c) { return (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255; }
-  // Chroma matters as much as brightness here. Judging on brightness ALONE
-  // throws away real colour: link blue (#0000ee) is dark enough to read as
-  // "black", and a yellow highlight (#FFE066) is bright enough to read as
-  // "white paper" — so both would have been silently stripped. A page default
-  // is not merely dark or light, it is NEUTRAL. Requiring low chroma keeps
-  // every colour the author actually picked and drops only the greys.
-  function chroma(c) { return (Math.max(c[0], c[1], c[2]) - Math.min(c[0], c[1], c[2])) / 255; }
-  var NEUTRAL = 0.12;
-  function isDefaultText(v) { var c = parseColor(v); return !!c && luma(c) < 0.22 && chroma(c) < NEUTRAL; }
-  function isPaperBg(v) {
-    v = String(v || '').trim().toLowerCase();
-    if (v === 'transparent' || v === 'none') return true;
-    var c = parseColor(v); return !!c && luma(c) > 0.86 && chroma(c) < NEUTRAL;
-  }
-
-  function cleanStyles(root) {
-    root.querySelectorAll('[style]').forEach(function (el) {
-      var keep = [];
-      var st = el.getAttribute('style') || '';
-      st.split(';').forEach(function (decl) {
-        var i = decl.indexOf(':');
-        if (i < 0) return;
-        var prop = decl.slice(0, i).trim().toLowerCase();
-        var val = decl.slice(i + 1).trim();
-        if (!KEEP_STYLE.test(prop)) return;
-        // A hard pixel width on a block would fight the page sheet's own width.
-        if ((prop === 'width' || prop === 'height') && el.tagName !== 'IMG' && el.tagName !== 'TD' && el.tagName !== 'TH') return;
-        // Drop page-default colours so they inherit — see the note above.
-        if (prop === 'color' && isDefaultText(val)) return;
-        if (prop === 'background-color' && isPaperBg(val)) return;
-        keep.push(prop + ':' + val);
-      });
-      if (keep.length) el.setAttribute('style', keep.join(';'));
-      else el.removeAttribute('style');
-    });
-    root.querySelectorAll('[class]').forEach(function (el) {
-      // Keep only the editor's own classes; every other class came from the
-      // provider's stylesheet, which we deliberately did not import.
-      var cls = (el.getAttribute('class') || '').split(/\s+/).filter(function (c) { return /^(pg-|docx-|mjd-)/.test(c); });
-      if (cls.length) el.setAttribute('class', cls.join(' ')); else el.removeAttribute('class');
-    });
-    root.querySelectorAll('*').forEach(function (el) {
-      if (ALLOWED.indexOf(el.tagName) < 0) {
-        // Unwrap rather than delete — the tag is unknown, its text is not.
-        var p = el.parentNode; if (!p) return;
-        while (el.firstChild) p.insertBefore(el.firstChild, el);
-        p.removeChild(el);
-      }
-    });
-    // Google wraps every link in a redirector; unwrap to the real destination so
-    // a link still works after the document leaves Google.
-    // Legacy presentational attributes carry the same problem and are not
-    // covered by the style sweep above.
-    root.querySelectorAll('[color]').forEach(function (el) {
-      if (isDefaultText(el.getAttribute('color'))) el.removeAttribute('color');
-    });
-    root.querySelectorAll('[bgcolor]').forEach(function (el) {
-      if (isPaperBg(el.getAttribute('bgcolor'))) el.removeAttribute('bgcolor');
-    });
-    root.querySelectorAll('a[href]').forEach(function (a) {
-      var m = /^https?:\/\/www\.google\.com\/url\?q=([^&]+)/.exec(a.getAttribute('href') || '');
-      if (m) { try { a.setAttribute('href', decodeURIComponent(m[1])); } catch (e) {} }
-      a.setAttribute('target', '_blank'); a.setAttribute('rel', 'noopener');
-    });
-    return root;
-  }
-
-  // OneNote lays a page out as absolutely positioned divs on a canvas. Reading
-  // them in DOM order and dropping the positioning turns that back into the
-  // flowing document the editor edits — and the same content, re-sent as a plain
-  // body, is what OneNote itself renders when you create a page by hand.
-  function flattenOneNote(body) {
-    body.querySelectorAll('div[style]').forEach(function (d) {
-      var st = d.getAttribute('style') || '';
-      if (/position\s*:\s*absolute/i.test(st)) d.removeAttribute('style');
-    });
-    body.removeAttribute('data-absolute-enabled');
-    // OneNote nests a wrapper div per "outline"; a single wrapper around the
-    // whole page is noise, so unwrap it.
-    while (body.children.length === 1 && body.firstElementChild.tagName === 'DIV' && !body.firstElementChild.getAttribute('style')) {
-      var only = body.firstElementChild;
-      while (only.firstChild) body.insertBefore(only.firstChild, only);
-      body.removeChild(only);
-    }
-    return body;
-  }
-
-  /* ══════════════════════════════════════════════════════════════════════════
-   * Provider: Google Docs
-   * ────────────────────────────────────────────────────────────────────────
-   * Auth is Google Identity Services' token client — Google does not allow the
-   * PKCE code flow for browser clients without a secret, so GIS (implicit, ~1h
-   * tokens) is the supported public-client path. This is the same flow Vault's
-   * Drive integration already uses.
-   *
-   * CONTENT round-trips through Drive's HTML export/import, not the Docs API's
-   * structural model. batchUpdate speaks in indexed insert/delete operations
-   * against a live document; reproducing an arbitrary edited document through it
-   * means diffing two structural trees, and any bug there silently mangles the
-   * user's document. Drive's export/import converts whole documents in one call,
-   * both directions, and is what Google itself uses for uploads. The Docs API is
-   * still used for document CREATION, which is the one thing it does better than
-   * Drive (a real, empty, correctly-initialised Doc).
-   *
-   * FIDELITY: the round-trip preserves text, structure, headings, lists, tables,
-   * links, inline formatting and images. It does not preserve comments,
-   * suggestions, or revision history — those live only in Google's own model and
-   * have no HTML representation. Editing in MyJournal therefore does not disturb
-   * them, but it does not carry them either.
-   * ══════════════════════════════════════════════════════════════════════════ */
-  var GIS_SRC = 'https://accounts.google.com/gsi/client';
-  var gisPromise = null;
-  function loadGis() {
-    if (gisPromise) return gisPromise;
-    gisPromise = new Promise(function (res, rej) {
-      if (window.google && window.google.accounts && window.google.accounts.oauth2) return res();
-      var s = document.createElement('script');
-      s.src = GIS_SRC; s.async = true; s.defer = true;
-      s.onload = res;
-      s.onerror = function () { rej(new Error('Could not reach Google sign-in. Check your connection.')); };
-      document.head.appendChild(s);
-    });
-    return gisPromise;
-  }
-
-  /* ── Renewal that never draws a window ──────────────────────────────────────
-   * GIS renews through a popup — always, even when it has nothing to ask. With a
-   * live session it opens accounts.google.com, gets an instant approval and
-   * closes itself in a few hundred milliseconds: a correct renewal, and a window
-   * flashing on screen every hour. No option on that API turns it off.
-   *
-   * So renewals don't use it. The client-side flow's own silent path — prompt=none
-   * against the auth endpoint — answers with a redirect either way and renders
-   * nothing, so the whole exchange fits in a hidden iframe. GIS remains how a
-   * *click* connects or adds an account; it is no longer how anything renews.
-   *
-   * The callback page is shared with Vault (same origin, same tiny page, so one
-   * file and one registered URI does both apps). It must be listed under
-   * Authorized redirect URIs on whichever OAuth client this module uses — if that
-   * is the same client ID as Vault's, it is already registered.
-   * ────────────────────────────────────────────────────────────────────────── */
-  var GDOCS_SILENT_PAGE = 'Vault/oauth-silent.html';
-  function gdocsRedirectUri() {
-    return location.origin + location.pathname.replace(/[^/]*$/, '') + GDOCS_SILENT_PAGE;
-  }
-  function gdocsSilentToken(clientId, hint, timeoutMs) {
-    return new Promise(function (resolve, reject) {
-      var state = 'g' + Math.random().toString(36).slice(2) + Date.now().toString(36);
-      var url = 'https://accounts.google.com/o/oauth2/v2/auth' +
-        '?client_id=' + encodeURIComponent(clientId) +
-        '&redirect_uri=' + encodeURIComponent(gdocsRedirectUri()) +
-        '&response_type=token' +
-        '&scope=' + encodeURIComponent(G_SCOPE) +
-        '&include_granted_scopes=true' +
-        '&prompt=none' +
-        '&state=' + encodeURIComponent(state) +
-        (hint ? '&login_hint=' + encodeURIComponent(hint) : '');
-
-      var frame = document.createElement('iframe');
-      frame.setAttribute('aria-hidden', 'true');
-      frame.setAttribute('tabindex', '-1');
-      frame.style.cssText = 'position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;border:0;visibility:hidden';
-
-      var done = false, timer = null;
-      function finish(err, tok) {
-        if (done) return; done = true;
-        window.removeEventListener('message', onMsg);
-        if (timer) clearTimeout(timer);
-        if (frame.parentNode) frame.parentNode.removeChild(frame);
-        if (err) reject(err); else resolve(tok);
-      }
-      function onMsg(e) {
-        // Three gates: our origin, our frame, our nonce.
-        if (e.origin !== location.origin) return;
-        if (frame.contentWindow && e.source !== frame.contentWindow) return;
-        var d = e.data;
-        if (!d || d.type !== 'vault-oauth-silent' || d.state !== state) return;
-        if (d.access_token) finish(null, { access: d.access_token, expires: Date.now() + (parseInt(d.expires_in, 10) || 3600) * 1000 });
-        else finish(new Error(d.error || 'login_required'));
-      }
-      window.addEventListener('message', onMsg);
-      // An unregistered redirect URI is the one case where Google renders a page
-      // instead of redirecting — and that page can neither frame us nor talk to
-      // us, so silence is the only symptom. Time out rather than hang.
-      timer = setTimeout(function () { finish(new Error('silent_timeout')); }, timeoutMs || 8000);
-      frame.src = url;
-      (document.body || document.documentElement).appendChild(frame);
-    });
-  }
-
-  var GDOC_MIME = 'application/vnd.google-apps.document';
-  var GFOLDER_MIME = 'application/vnd.google-apps.folder';
-  // drive: browse, create, move, delete and export documents anywhere in the
-  // user's Drive (drive.file only ever sees files this app itself created, which
-  // cannot show an existing library). documents: create a real Google Doc.
-  var G_SCOPE = 'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents';
-  var G_FIELDS = 'id,name,mimeType,modifiedTime,createdTime,parents,webViewLink,trashed';
-
-  function gNode(f, account) {
-    var folder = f.mimeType === GFOLDER_MIME;
-    return {
-      key: 'gdocs:' + account + ':' + f.id,
-      id: f.id, name: f.name || 'Untitled', kind: folder ? 'folder' : 'doc',
-      provider: 'gdocs', account: account,
-      parent: (f.parents && f.parents[0]) || 'root',
-      hasChildren: folder,
-      modified: f.modifiedTime ? Date.parse(f.modifiedTime) : 0,
-      rev: f.modifiedTime || '',
-      webUrl: f.webViewLink || ('https://docs.google.com/document/d/' + f.id + '/edit'),
-      path: ''
-    };
-  }
-
-  var gdocs = {
-    id: 'gdocs',
-    label: 'Google Docs',
-    accent: '#6aa2e0',
-    rootId: 'root',
-    rootLabel: 'My Drive',
-    containerKinds: ['folder'],
-    caps: {
-      folders: true, createFolder: true, renameFolder: true, deleteFolder: true,
-      createDoc: true, renameDoc: true, deleteDoc: true, duplicateDoc: true,
-      moveDoc: true, moveFolder: true, exportDoc: true, search: true, multiAccount: true
-    },
-    icon: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h5"/></svg>',
-    setup: {
-      field: 'clientId',
-      label: 'OAuth client ID',
-      placeholder: '…apps.googleusercontent.com',
-      hint: function (origin) {
-        return 'Google Cloud Console → APIs &amp; Services → Credentials → OAuth client ID (Web application). ' +
-          'Add <code>' + origin + '</code> as an authorised JavaScript origin, and enable the <b>Google Drive API</b> and <b>Google Docs API</b>.' +
-          '<br><br>Then add <code>' + gdocsRedirectUri() + '</code> under <b>Authorized redirect URIs</b> — separate from the origin above, and not the same URI OneNote uses. ' +
-          'That is what lets MyJournal renew its hour-long token in a hidden frame with no sign-in window on screen; without it you stay connected, ' +
-          'but you have to press Connect again roughly once an hour. Vault uses the same callback page, so a client already set up for Vault has it.';
-      }
-    },
-
-    cfg: function () { return (S.providerCfg && S.providerCfg.gdocs) || {}; },
-    configured: function () { return !!this.cfg().clientId; },
-    accounts: function () {
-      return Tokens.list('gdocs').map(function (a) {
-        var meta = (S.accountMeta && S.accountMeta['gdocs:' + a.id]) || {};
-        return { id: a.id, label: a.label || meta.label || a.email || meta.email || a.id, email: a.email || meta.email || '' };
-      });
-    },
-
-    // The invisible path. Every renewal goes through here, and it fails rather
-    // than asking — see the block comment above gdocsSilentToken.
-    _silent: function (hint, timeoutMs) {
-      var clientId = this.cfg().clientId;
-      if (!clientId) return Promise.reject(new Error('Add your Google OAuth client ID in Document Settings first.'));
-      return gdocsSilentToken(clientId, hint, timeoutMs);
-    },
-
-    // The window path. Never call this without a click behind it. `interactive`
-    // separates a user pressing Connect ('consent') from Add account
-    // ('select_account', the only way to reach a SECOND Google account — without
-    // it Google silently reuses the one already signed in).
-    _token: function (interactive, hint) {
-      var clientId = this.cfg().clientId;
-      if (!clientId) return Promise.reject(new Error('Add your Google OAuth client ID in Document Settings first.'));
-      return loadGis().then(function () {
-        return new Promise(function (resolve, reject) {
-          var settled = false;
-          var client = window.google.accounts.oauth2.initTokenClient({
-            client_id: clientId,
-            scope: G_SCOPE,
-            hint: hint || undefined,
-            callback: function (resp) {
-              if (settled) return; settled = true;
-              if (resp.error) { reject(new Error(resp.error_description || resp.error)); return; }
-              resolve({ access: resp.access_token, expires: Date.now() + (resp.expires_in || 3600) * 1000 });
-            },
-            error_callback: function (err) { if (!settled) { settled = true; reject(new Error(errText(err))); } }
-          });
-          // 'select_account' is what makes a SECOND Google account possible —
-          // without it Google silently reuses the one already signed in.
-          client.requestAccessToken({ prompt: interactive === 'add' ? 'select_account' : (interactive ? 'consent' : '') });
-        });
-      });
-    },
-
-    // Identify the account from Drive itself. /about?fields=user needs no extra
-    // scope, so this costs nothing beyond what browsing already requires — and
-    // avoids asking for a profile scope purely to show an email address.
-    _whoami: async function (access) {
-      var r = await fetch('https://www.googleapis.com/drive/v3/about?fields=user', { headers: { Authorization: 'Bearer ' + access } });
-      if (!r.ok) throw new Error('Google rejected the connection (' + r.status + ')');
-      var j = await r.json();
-      return { id: (j.user && j.user.permissionId) || (j.user && j.user.emailAddress) || 'default',
-               email: (j.user && j.user.emailAddress) || '', label: (j.user && j.user.displayName) || (j.user && j.user.emailAddress) || 'Google account' };
-    },
-
-    connect: async function (opts) {
-      var mode = (opts && opts.add) ? 'add' : true;
-      var t;
-      // Try silent first on a plain Connect — if the Google session is still good
-      // this completes with no popup at all. "Add account" always prompts.
-      if (mode === 'add') t = await this._token('add');
-      else {
-        // A device that already has an account gets one quick invisible attempt
-        // first — reconnecting a still-good session then costs no window at all.
-        // Kept short because the click that got us here is what lets the real
-        // sign-in window open, and browsers stop honouring a gesture that's
-        // seconds old. With nothing connected there is nothing to renew, so a
-        // first connect goes straight to the window it just asked for.
-        var known = Tokens.list('gdocs');
-        try {
-          if (!known.length) throw new Error('nothing to renew');
-          t = await this._silent(known[0].email || '', 2500);
-        } catch (e) { t = await this._token(true); }
-      }
-      var who = await this._whoami(t.access);
-      Tokens.set('gdocs', who.id, { access: t.access, expires: t.expires, label: who.label, email: who.email });
-      S.accountMeta['gdocs:' + who.id] = { label: who.label, email: who.email };
-      save();
-      return { id: who.id, label: who.label, email: who.email };
-    },
-    // Background renewal: invisible or nothing. A failure here leaves the record
-    // alone and the account merely stale — the next thing that actually needs the
-    // account retries, and a session that has genuinely lapsed waits for a click
-    // rather than interrupting whatever is on screen.
-    renew: async function (accountId) {
-      var rec = Tokens.get('gdocs', accountId) || {};
-      var t = await this._silent(rec.email);
-      // Same rule as OneNote: never overwrite a working record with a token we
-      // cannot use. A silent renew that comes back empty must fail and leave
-      // the old token alone, not poison the record.
-      if (!usableToken(t && t.access)) throw new Error('Google returned no usable token.');
-      Tokens.set('gdocs', accountId, Object.assign({}, rec, { access: t.access, expires: t.expires }));
-    },
-    disconnect: function (accountId) {
-      Tokens.clear('gdocs', accountId);
-      delete S.accountMeta['gdocs:' + accountId];
-      save();
-    },
-
-    ready: async function (accountId) {
-      if (!Tokens.get('gdocs', accountId)) throw new Error('That Google account is not connected on this device.');
-      if (!Tokens.fresh('gdocs', accountId)) await this.renew(accountId);
-      var t = Tokens.get('gdocs', accountId);
-      if (!t || !usableToken(t.access)) {
-        throw new Error('Your Google sign-in expired and could not be renewed. Open Document settings, then Google Docs, Sign out, and Connect again.');
-      }
-      return t;
-    },
-
-    // Every Drive call funnels through here, so a 401 is renewed and retried once
-    // rather than surfacing as a random failure an hour into a session. Renewing
-    // BEFORE the call when the token is already stale saves a wasted round trip
-    // and — more importantly — stops a mid-save expiry becoming a lost edit.
-    api: async function (accountId, path, opts, _retried) {
-      var t = await this.ready(accountId);
-      opts = opts || {};
-      var url = path.indexOf('http') === 0 ? path : 'https://www.googleapis.com/drive/v3' + path;
-      var r = await fetch(url, Object.assign({}, opts, {
-        headers: Object.assign({ Authorization: 'Bearer ' + t.access }, opts.headers || {})
-      }));
-      if (r.status === 401 && !_retried) { await this.renew(accountId); return this.api(accountId, path, opts, true); }
-      if (!r.ok) {
-        var msg = '';
-        try { var j = await r.json(); msg = j.error && j.error.message; } catch (e) {}
-        throw new Error(msg || ('Google error ' + r.status));
-      }
-      if (r.status === 204) return null;
-      if (opts.raw) return r;
-      return r.json();
-    },
-
-    children: async function (ref) {
-      var parent = ref.id || 'root';
-      var q = "'" + String(parent).replace(/'/g, "\'") + "' in parents and trashed=false and (mimeType='" + GFOLDER_MIME + "' or mimeType='" + GDOC_MIME + "')";
-      var out = [], token = null;
-      do {
-        var j = await this.api(ref.account, '/files?q=' + encodeURIComponent(q) +
-          '&fields=' + encodeURIComponent('files(' + G_FIELDS + '),nextPageToken') +
-          '&pageSize=200&orderBy=folder,name&supportsAllDrives=true&includeItemsFromAllDrives=true' +
-          (token ? '&pageToken=' + token : ''));
-        (j.files || []).forEach(function (f) { out.push(gNode(f, ref.account)); });
-        token = j.nextPageToken;
-      } while (token);
-
-      // EVERY folder is listed, including empty ones.
-      //
-      // This used to hide folders with no Google Doc beneath them, reasoning
-      // that a folder of spreadsheets and photos is noise in a document tree.
-      // That ignored the obvious case: a folder you have just created is empty,
-      // so it vanished the instant you made it — which made "New folder" look
-      // broken and left nowhere visible to move a document INTO. Not being able
-      // to see a folder you just created is far worse than seeing an empty one.
-      return out;
-    },
-
-    search: async function (accountId, query) {
-      var q = "name contains '" + String(query).replace(/'/g, "\\'") + "' and trashed=false and (mimeType='" + GFOLDER_MIME + "' or mimeType='" + GDOC_MIME + "')";
-      var j = await this.api(accountId, '/files?q=' + encodeURIComponent(q) +
-        '&fields=' + encodeURIComponent('files(' + G_FIELDS + ')') + '&pageSize=100');
-      return (j.files || []).map(function (f) { return gNode(f, accountId); });
-    },
-
-    read: async function (ref) {
-      var meta = await this.api(ref.account, '/files/' + ref.id + '?fields=' + encodeURIComponent(G_FIELDS) + '&supportsAllDrives=true');
-      var r = await this.api(ref.account, 'https://www.googleapis.com/drive/v3/files/' + ref.id + '/export?mimeType=text%2Fhtml', { raw: true });
-      var raw = await r.text();
-      var body = cleanStyles(stripDoc(raw));
-      return { html: body.innerHTML, title: meta.name, modified: Date.parse(meta.modifiedTime || 0) || 0, rev: meta.modifiedTime || '' };
-    },
-
-    // Drive converts an HTML upload back into Doc structure on the way in — the
-    // exact inverse of the export above, and the same path Drive's own "upload
-    // and convert" uses.
-    write: async function (ref, html) {
-      var doc = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' +
-        String(ref.name || 'Document').replace(/[<>&]/g, '') + '</title></head><body>' + html + '</body></html>';
-      var meta = await this.api(ref.account,
-        'https://www.googleapis.com/upload/drive/v3/files/' + ref.id + '?uploadType=media&fields=' + encodeURIComponent(G_FIELDS) + '&supportsAllDrives=true',
-        { method: 'PATCH', headers: { 'Content-Type': 'text/html; charset=UTF-8' }, body: doc });
-      return { modified: Date.parse(meta.modifiedTime || 0) || Date.now(), rev: meta.modifiedTime || '' };
-    },
-
-    remoteStamp: async function (ref) {
-      var m = await this.api(ref.account, '/files/' + ref.id + '?fields=modifiedTime,name&supportsAllDrives=true');
-      return { modified: Date.parse(m.modifiedTime || 0) || 0, rev: m.modifiedTime || '', name: m.name };
-    },
-
-    createDoc: async function (parentRef, title) {
-      // The Docs API makes a correctly-initialised Google Doc in one call; Drive
-      // then files it where the user asked.
-      var t = await this.ready(parentRef.account);
-      var r = await fetch('https://docs.googleapis.com/v1/documents', {
-        method: 'POST',
-        headers: { Authorization: 'Bearer ' + t.access, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: title || 'Untitled document' })
-      });
-      if (!r.ok) {
-        var msg = ''; try { var j = await r.json(); msg = j.error && j.error.message; } catch (e) {}
-        throw new Error(msg || ('Google Docs error ' + r.status));
-      }
-      var created = await r.json();
-      var parent = parentRef.id || 'root';
-      var f;
-      if (parent && parent !== 'root') {
-        f = await this.api(parentRef.account, '/files/' + created.documentId + '?addParents=' + encodeURIComponent(parent) +
-          '&removeParents=root&fields=' + encodeURIComponent(G_FIELDS) + '&supportsAllDrives=true', { method: 'PATCH' });
-      } else {
-        f = await this.api(parentRef.account, '/files/' + created.documentId + '?fields=' + encodeURIComponent(G_FIELDS));
-      }
-      return gNode(f, parentRef.account);
-    },
-
-    createContainer: async function (parentRef, name) {
-      var f = await this.api(parentRef.account, '/files?fields=' + encodeURIComponent(G_FIELDS) + '&supportsAllDrives=true', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name, mimeType: GFOLDER_MIME, parents: [parentRef.id || 'root'] })
-      });
-      return gNode(f, parentRef.account);
-    },
-
-    rename: function (ref, name) {
-      return this.api(ref.account, '/files/' + ref.id + '?supportsAllDrives=true', {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name })
-      });
-    },
-
-    // Soft delete. Drive's HTTP DELETE is PERMANENT and skips the trash entirely —
-    // no undo, not even from drive.google.com. The confirm dialog promises the
-    // document is recoverable, so this must set `trashed` instead.
-    remove: function (ref) {
-      return this.api(ref.account, '/files/' + ref.id + '?supportsAllDrives=true', {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trashed: true })
-      });
-    },
-
-    duplicate: async function (ref, name) {
-      var f = await this.api(ref.account, '/files/' + ref.id + '/copy?fields=' + encodeURIComponent(G_FIELDS) + '&supportsAllDrives=true', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name || (ref.name + ' (copy)') })
-      });
-      return gNode(f, ref.account);
-    },
-
-    move: function (ref, toParentRef) {
-      return this.api(ref.account, '/files/' + ref.id + '?addParents=' + encodeURIComponent(toParentRef.id || 'root') +
-        '&removeParents=' + encodeURIComponent(ref.parent || 'root') + '&supportsAllDrives=true', { method: 'PATCH' });
-    },
-
-    exportFormats: function () {
-      return [
-        { id: 'application/pdf', label: 'PDF', ext: 'pdf' },
-        { id: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', label: 'Word (.docx)', ext: 'docx' },
-        { id: 'application/vnd.oasis.opendocument.text', label: 'OpenDocument (.odt)', ext: 'odt' },
-        { id: 'application/rtf', label: 'Rich Text (.rtf)', ext: 'rtf' },
-        { id: 'text/plain', label: 'Plain text (.txt)', ext: 'txt' },
-        { id: 'text/html', label: 'Web page (.html)', ext: 'html' },
-        { id: 'application/epub+zip', label: 'EPUB', ext: 'epub' }
-      ];
-    },
-    exportDoc: async function (ref, formatId) {
-      var r = await this.api(ref.account, 'https://www.googleapis.com/drive/v3/files/' + ref.id + '/export?mimeType=' + encodeURIComponent(formatId), { raw: true });
-      return r.blob();
-    },
-    externalUrl: function (ref) {
-      return ref.kind === 'folder'
-        ? 'https://drive.google.com/drive/folders/' + ref.id
-        : 'https://docs.google.com/document/d/' + ref.id + '/edit';
-    }
-  };
-
-  /* ══════════════════════════════════════════════════════════════════════════
-   * Provider: Microsoft OneNote (Microsoft Graph)
-   * ────────────────────────────────────────────────────────────────────────
-   * Auth is the full PKCE (S256) authorisation-code flow against the v2.0
-   * endpoint, registered as a Single-page application. That platform type is
-   * what lets a browser exchange the code with no client secret, and
-   * offline_access gets a refresh token — so unlike Google, a OneNote connection
-   * survives without any silent re-mint.
-   *
-   * CONTENT is native: a OneNote page IS HTML. Reading gives HTML, writing takes
-   * HTML. This is the closest fit of any provider here.
-   *
-   * WHAT GRAPH CANNOT DO, AND WHY THE UI SAYS SO. The OneNote API supports
-   * creating notebooks, section groups, sections and pages, and updating,
-   * copying, moving and deleting PAGES. It has no rename or delete operation for
-   * notebooks, section groups or sections — those are not gaps in this
-   * integration, they do not exist in the API. `caps` declares them false so the
-   * UI greys those actions out with the reason attached, rather than offering an
-   * action that would fail. Everything else in the spec is implemented.
-   * ══════════════════════════════════════════════════════════════════════════ */
-  var GRAPH = 'https://graph.microsoft.com/v1.0';
-  // Notes.ReadWrite, NOT Notes.ReadWrite.All.
-  //
-  // The .All variants of the OneNote scopes are work/school-only — Microsoft
-  // Graph does not support them for personal Microsoft accounts. Requesting
-  // .All against a personal account still completes sign-in and still issues a
-  // token, so the connection LOOKS fine; the first Graph call then fails with
-  // OneNote's "The request does not contain a valid authentication token",
-  // which reads like a broken token rather than a scope that was never granted.
-  // Notes.ReadWrite is supported on both account types and covers every notebook
-  // the signed-in user owns, which is what this integration touches.
-  var MS_SCOPE = 'offline_access openid profile User.Read Notes.ReadWrite';
-
-  function onNode(o, account, kind, parentId) {
-    return {
-      key: 'onenote:' + account + ':' + o.id,
-      id: o.id,
-      name: o.displayName || o.title || 'Untitled',
-      kind: kind,
-      provider: 'onenote', account: account,
-      parent: parentId || '',
-      hasChildren: kind !== 'doc',
-      modified: o.lastModifiedDateTime ? Date.parse(o.lastModifiedDateTime) : 0,
-      rev: o.lastModifiedDateTime || '',
-      webUrl: (o.links && ((o.links.oneNoteWebUrl && o.links.oneNoteWebUrl.href) || (o.links.oneNoteClientUrl && o.links.oneNoteClientUrl.href))) || '',
-      path: ''
-    };
-  }
-
-  var onenote = {
-    id: 'onenote',
-    label: 'OneNote',
-    accent: '#a892d4',
-    rootId: '',
-    rootLabel: 'Notebooks',
-    containerKinds: ['notebook', 'sectiongroup', 'section'],
-    caps: {
-      folders: true, createFolder: true,
-      // Not a shortfall here — Microsoft Graph exposes no rename or delete for
-      // notebooks / section groups / sections. Use OneNote itself for those.
-      renameFolder: false, deleteFolder: false,
-      renameFolderReason: 'Microsoft Graph cannot rename notebooks, section groups or sections. Open in OneNote to rename.',
-      deleteFolderReason: 'Microsoft Graph cannot delete notebooks, section groups or sections. Open in OneNote to delete.',
-      createDoc: true, renameDoc: true, deleteDoc: true, duplicateDoc: true,
-      moveDoc: true, moveFolder: false, exportDoc: true, search: true, multiAccount: true
-    },
-    icon: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4a2 2 0 0 1 2-2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M15 2v5h5"/><path d="M9 2v20"/><path d="M4 8h5"/><path d="M4 13h5"/><path d="M4 18h5"/></svg>',
-    setup: {
-      field: 'clientId',
-      label: 'Application (client) ID',
-      placeholder: '00000000-0000-0000-0000-000000000000',
-      hint: function (origin, redirect) {
-        return 'Entra ID (Azure) → App registrations → New registration. Under <b>Authentication</b>, add a ' +
-          '<b>Single-page application</b> platform with redirect URI <code>' + redirect + '</code>. ' +
-          'Under <b>API permissions</b>, add delegated Microsoft Graph <code>Notes.ReadWrite</code>, <code>User.Read</code>, <code>offline_access</code>. ' +
-          'Use <code>Notes.ReadWrite</code>, not <code>Notes.ReadWrite.All</code> — the <code>.All</code> scopes are work/school only and a personal account cannot be granted them.';
-      }
-    },
-
-    cfg: function () { return (S.providerCfg && S.providerCfg.onenote) || {}; },
-    configured: function () { return !!this.cfg().clientId; },
-    // 'common' accepts both personal Microsoft accounts and work/school ones.
-    authority: function () { return 'https://login.microsoftonline.com/' + (this.cfg().tenant || 'common') + '/oauth2/v2.0'; },
-    accounts: function () {
-      return Tokens.list('onenote').map(function (a) {
-        var meta = (S.accountMeta && S.accountMeta['onenote:' + a.id]) || {};
-        return { id: a.id, label: a.label || meta.label || a.email || a.id, email: a.email || meta.email || '' };
-      });
-    },
-
-    connect: async function (opts) {
-      var clientId = this.cfg().clientId;
-      if (!clientId) throw new Error('Add your Microsoft application (client) ID in Document Settings first.');
-      var pk = await pkcePair();
-      var state = b64url(crypto.getRandomValues(new Uint8Array(16)).buffer);
-      var url = this.authority() + '/authorize?client_id=' + encodeURIComponent(clientId) +
-        '&response_type=code&redirect_uri=' + encodeURIComponent(redirectUri()) +
-        '&response_mode=query&scope=' + encodeURIComponent(MS_SCOPE) +
-        '&code_challenge=' + pk.challenge + '&code_challenge_method=S256' +
-        '&state=' + state +
-        // Always let the user pick — without this, adding a SECOND Microsoft
-        // account silently returns the one already signed in.
-        '&prompt=select_account';
-      var res = await oauthPopup(url, 'code');
-      if (res.state && res.state !== state) throw new Error('Sign-in could not be verified. Please try again.');
-      var body = new URLSearchParams({
-        client_id: clientId, grant_type: 'authorization_code', code: res.code,
-        redirect_uri: redirectUri(), code_verifier: pk.verifier, scope: MS_SCOPE
-      });
-      var r = await fetch(this.authority() + '/token', {
-        method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body
-      });
-      if (!r.ok) {
-        var em = ''; try { var ej = await r.json(); em = ej.error_description || ej.error; } catch (e) {}
-        throw new Error(em || ('Microsoft rejected the connection (' + r.status + ')'));
-      }
-      var j = await r.json();
-      var tok = { access: j.access_token, refresh: j.refresh_token || '', expires: Date.now() + (j.expires_in || 3600) * 1000 };
-      var who = await this._whoami(tok.access);
-      tok.label = who.label; tok.email = who.email;
-      Tokens.set('onenote', who.id, tok);
-      S.accountMeta['onenote:' + who.id] = { label: who.label, email: who.email };
-      save();
-      return { id: who.id, label: who.label, email: who.email };
-    },
-
-    _whoami: async function (access) {
-      var r = await fetch(GRAPH + '/me?$select=id,displayName,mail,userPrincipalName', { headers: { Authorization: 'Bearer ' + access } });
-      if (!r.ok) throw new Error('Microsoft rejected the connection (' + r.status + ')');
-      var j = await r.json();
-      return { id: j.id || 'default', email: j.mail || j.userPrincipalName || '', label: j.displayName || j.userPrincipalName || 'Microsoft account' };
-    },
-
-    refresh: async function (accountId) {
-      var t = Tokens.get('onenote', accountId);
-      var clientId = this.cfg().clientId;
-      if (!t || !t.refresh || !clientId) return false;
-      var r = await fetch(this.authority() + '/token', {
-        method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ client_id: clientId, grant_type: 'refresh_token', refresh_token: t.refresh, scope: MS_SCOPE })
-      });
-      if (!r.ok) return false;
-      var j = null;
-      try { j = await r.json(); } catch (e) { return false; }
-      // Refuse to write a token we cannot use. Overwriting a good record with an
-      // absent access_token is what turned a recoverable refresh failure into a
-      // permanently broken connection that only Sign out could clear.
-      if (!j || !usableToken(j.access_token)) return false;
-      // Microsoft rotates refresh tokens — keep the NEW one or the connection
-      // dies at the next renewal.
-      Tokens.set('onenote', accountId, Object.assign({}, t, {
-        access: j.access_token,
-        refresh: usableToken(j.refresh_token) ? j.refresh_token : t.refresh,
-        expires: Date.now() + (j.expires_in || 3600) * 1000
-      }));
-      return true;
-    },
-    disconnect: function (accountId) {
-      Tokens.clear('onenote', accountId);
-      delete S.accountMeta['onenote:' + accountId];
-      save();
-    },
-    ready: async function (accountId) {
-      if (!Tokens.get('onenote', accountId)) throw new Error('That Microsoft account is not connected on this device.');
-      if (!Tokens.fresh('onenote', accountId)) await this.refresh(accountId);
-      var t = Tokens.get('onenote', accountId);
-      // Self-heal a record already corrupted by the old refresh path: report it
-      // as an expired sign-in rather than firing an unusable token at Graph and
-      // surfacing an opaque Microsoft error code.
-      if (!t || !usableToken(t.access)) {
-        throw new Error('Your OneNote sign-in expired and could not be renewed. Open Document settings, then OneNote, Sign out, and Connect again.');
-      }
-      return t;
-    },
-
-    api: async function (accountId, path, opts, _retried) {
-      var t = await this.ready(accountId);
-      opts = opts || {};
-      var r = await fetch(path.indexOf('http') === 0 ? path : GRAPH + path, Object.assign({}, opts, {
-        headers: Object.assign({ Authorization: 'Bearer ' + t.access }, opts.headers || {})
-      }));
-      if (r.status === 401 && !_retried && await this.refresh(accountId)) return this.api(accountId, path, opts, true);
-      if (!r.ok) {
-        var msg = '';
-        try { var j = await r.json(); msg = j.error && (j.error.message || j.error.code); } catch (e) {}
-        // OneNote reports a scope it never granted as a malformed token, which
-        // sends you looking at the wrong thing entirely. Say what it actually is.
-        // IDX14100 / InvalidAuthenticationToken mean the bearer we sent was not
-        // a token at all. Naming the code helps nobody; naming the fix does.
-        if (/IDX14100|not well formed|InvalidAuthenticationToken/i.test(msg || '')) {
-          throw new Error('OneNote rejected the saved sign-in. Open Document settings, then OneNote, Sign out, and Connect again.');
-        }
-        if (/does not contain a valid authentication token/i.test(msg || '')) {
-          throw new Error('OneNote rejected the sign-in. Sign out of this Microsoft account in MyJournal and connect again — ' +
-            'and in Azure make sure the permission is Notes.ReadWrite, not Notes.ReadWrite.All (the .All scopes are work/school only).');
-        }
-        // OneNote's own documented handling for a transient error is to back off
-        // and retry — it is what the service returns while it is still spinning
-        // up a notebook store, which is most of the first minute on an account
-        // that has not used OneNote here before. Surfacing it immediately turns
-        // a wait into what looks like a hard failure. ("occured" is Microsoft's
-        // spelling in the payload, so match both.)
-        var attempts = (opts._tries || 0);
-        if (/transient error occur+ed/i.test(msg || '') && attempts < 3) {
-          await new Promise(function (res) { setTimeout(res, 900 * Math.pow(2, attempts)); });
-          return this.api(accountId, path, Object.assign({}, opts, { _tries: attempts + 1 }), _retried);
-        }
-        if (/transient error occur+ed/i.test(msg || '')) {
-          throw new Error('OneNote is still waking up this account and kept returning a transient error. ' +
-            'Open onenote.com once with this Microsoft account so a notebook exists, then hit refresh here.');
-        }
-        throw new Error(msg || ('OneNote error ' + r.status));
-      }
-      if (r.status === 204) return null;
-      if (opts.raw) return r;
-      var txt = await r.text();
-      return txt ? JSON.parse(txt) : null;
-    },
-    // Graph pages results with @odata.nextLink; a real notebook easily exceeds
-    // one page of sections or pages.
-    all: async function (accountId, path) {
-      var out = [], next = path, guard = 0;
-      while (next && guard++ < 40) {
-        var j = await this.api(accountId, next);
-        (j && j.value ? j.value : []).forEach(function (v) { out.push(v); });
-        next = j && j['@odata.nextLink'] ? j['@odata.nextLink'] : null;
-      }
-      return out;
-    },
-
-    children: async function (ref) {
-      var self = this, acc = ref.account, out = [];
-      if (!ref.id) {
-        var nbs = await this.all(acc, '/me/onenote/notebooks?$select=id,displayName,lastModifiedDateTime,links&$orderby=displayName');
-        return nbs.map(function (n) { return onNode(n, acc, 'notebook', ''); });
-      }
-      if (ref.kind === 'notebook' || ref.kind === 'sectiongroup') {
-        var base = ref.kind === 'notebook' ? '/me/onenote/notebooks/' : '/me/onenote/sectionGroups/';
-        var groups = await this.all(acc, base + ref.id + '/sectionGroups?$select=id,displayName,lastModifiedDateTime&$orderby=displayName');
-        var sections = await this.all(acc, base + ref.id + '/sections?$select=id,displayName,lastModifiedDateTime,links&$orderby=displayName');
-        groups.forEach(function (g) { out.push(onNode(g, acc, 'sectiongroup', ref.id)); });
-        sections.forEach(function (s) { out.push(onNode(s, acc, 'section', ref.id)); });
-        return out;
-      }
-      if (ref.kind === 'section') {
-        var pages = await this.all(acc, '/me/onenote/sections/' + ref.id + '/pages?$select=id,title,lastModifiedDateTime,links&$top=100&$orderby=lastModifiedDateTime%20desc');
-        return pages.map(function (p) { return onNode(p, acc, 'doc', ref.id); });
-      }
-      return out;
-    },
-
-    search: async function (accountId, query) {
-      // OneNote's own $search is the fast path but is not available on every
-      // tenant; fall back to fetching page titles and filtering here, so search
-      // degrades in speed rather than disappearing.
-      try {
-        var j = await this.api(accountId, '/me/onenote/pages?$search=' + encodeURIComponent(query) + '&$select=id,title,lastModifiedDateTime,links&$top=60');
-        if (j && j.value) return j.value.map(function (p) { return onNode(p, accountId, 'doc', ''); });
-      } catch (e) { /* fall through */ }
-      var q = String(query).toLowerCase();
-      var pages = await this.all(accountId, '/me/onenote/pages?$select=id,title,lastModifiedDateTime,links&$top=100&$orderby=lastModifiedDateTime%20desc');
-      return pages.filter(function (p) { return String(p.title || '').toLowerCase().indexOf(q) >= 0; })
-                  .map(function (p) { return onNode(p, accountId, 'doc', ''); });
-    },
-
-    // OneNote images and attachments sit behind authenticated Graph resource
-    // URLs — an <img src> pointing at one renders as a broken image, because the
-    // browser sends no bearer token. Each is fetched with the token and swapped
-    // for an object URL, with the ORIGINAL url kept on the element so write()
-    // can put it back. That means editing a page does not re-upload, duplicate
-    // or lose its images.
-    _hydrateResources: async function (accountId, root) {
-      var self = this;
-      var t = await this.ready(accountId);
-      var els = Array.prototype.slice.call(root.querySelectorAll('img[src], object[data]'));
-      await Promise.all(els.map(async function (el) {
-        var attr = el.tagName === 'IMG' ? 'src' : 'data';
-        var url = el.getAttribute(attr) || '';
-        if (url.indexOf('graph.microsoft.com') < 0) return;
-        el.setAttribute('data-mjd-src', url);
-        var full = el.getAttribute('data-fullres-src');
-        if (full) el.setAttribute('data-mjd-fullres', full);
-        try {
-          var r = await fetch(url, { headers: { Authorization: 'Bearer ' + t.access } });
-          if (!r.ok) throw new Error(String(r.status));
-          var blob = await r.blob();
-          el.setAttribute(attr, URL.createObjectURL(blob));
-        } catch (e) {
-          // Leave the placeholder in place rather than deleting the element —
-          // write() restores the real URL either way, so a failed preview never
-          // costs the user the image.
-          if (el.tagName === 'IMG') el.setAttribute('alt', (el.getAttribute('alt') || 'OneNote image') + ' (preview unavailable)');
-        }
-      }));
-      return root;
-    },
-    _dehydrateResources: function (root) {
-      root.querySelectorAll('[data-mjd-src]').forEach(function (el) {
-        var attr = el.tagName === 'IMG' ? 'src' : 'data';
-        el.setAttribute(attr, el.getAttribute('data-mjd-src'));
-        var fr = el.getAttribute('data-mjd-fullres');
-        if (fr) el.setAttribute('data-fullres-src', fr);
-        el.removeAttribute('data-mjd-src'); el.removeAttribute('data-mjd-fullres');
-      });
-      return root;
-    },
-
-    read: async function (ref) {
-      var meta = await this.api(ref.account, '/me/onenote/pages/' + ref.id + '?$select=id,title,lastModifiedDateTime,links');
-      var r = await this.api(ref.account, '/me/onenote/pages/' + ref.id + '/content?includeIDs=true', { raw: true });
-      var raw = await r.text();
-      var body = flattenOneNote(stripDoc(raw));
-      cleanStyles(body);
-      await this._hydrateResources(ref.account, body);
-      return { html: body.innerHTML, title: meta.title || ref.name, modified: Date.parse(meta.lastModifiedDateTime || 0) || 0, rev: meta.lastModifiedDateTime || '' };
-    },
-
-    write: async function (ref, html) {
-      var holder = document.createElement('div');
-      holder.innerHTML = html;
-      this._dehydrateResources(holder);
-      await this.api(ref.account, '/me/onenote/pages/' + ref.id + '/content', {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify([{ target: 'body', action: 'replace', content: holder.innerHTML }])
-      });
-      // Graph's PATCH returns 204 with no body, so re-read the stamp — the
-      // conflict detector needs an authoritative modified time, not a guess.
-      var m = await this.api(ref.account, '/me/onenote/pages/' + ref.id + '?$select=lastModifiedDateTime');
-      return { modified: Date.parse((m && m.lastModifiedDateTime) || 0) || Date.now(), rev: (m && m.lastModifiedDateTime) || '' };
-    },
-
-    remoteStamp: async function (ref) {
-      var m = await this.api(ref.account, '/me/onenote/pages/' + ref.id + '?$select=lastModifiedDateTime,title');
-      return { modified: Date.parse(m.lastModifiedDateTime || 0) || 0, rev: m.lastModifiedDateTime || '', name: m.title };
-    },
-
-    createDoc: async function (parentRef, title) {
-      if (parentRef.kind !== 'section') throw new Error('OneNote pages live inside a section. Pick a section first.');
-      var docHtml = '<!DOCTYPE html><html><head><title>' + String(title || 'Untitled page').replace(/[<>&]/g, '') +
-        '</title><meta name="created" content="' + nowIso() + '" /></head><body><p></p></body></html>';
-      var p = await this.api(parentRef.account, '/me/onenote/sections/' + parentRef.id + '/pages', {
-        method: 'POST', headers: { 'Content-Type': 'text/html' }, body: docHtml
-      });
-      return onNode(p, parentRef.account, 'doc', parentRef.id);
-    },
-
-    createContainer: async function (parentRef, name, kind) {
-      var acc = parentRef.account, path;
-      if (!parentRef.id) path = '/me/onenote/notebooks';
-      else if (kind === 'sectiongroup') path = (parentRef.kind === 'notebook' ? '/me/onenote/notebooks/' : '/me/onenote/sectionGroups/') + parentRef.id + '/sectionGroups';
-      else path = (parentRef.kind === 'notebook' ? '/me/onenote/notebooks/' : '/me/onenote/sectionGroups/') + parentRef.id + '/sections';
-      var o = await this.api(acc, path, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ displayName: name })
-      });
-      var newKind = !parentRef.id ? 'notebook' : (kind === 'sectiongroup' ? 'sectiongroup' : 'section');
-      return onNode(o, acc, newKind, parentRef.id || '');
-    },
-
-    // Only pages can be renamed, and the title is part of the page document —
-    // Graph exposes it as its own PATCH target.
-    rename: function (ref, name) {
-      if (ref.kind !== 'doc') return Promise.reject(new Error(this.caps.renameFolderReason));
-      return this.api(ref.account, '/me/onenote/pages/' + ref.id + '/content', {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify([{ target: 'title', action: 'replace', content: String(name) }])
-      });
-    },
-    remove: function (ref) {
-      if (ref.kind !== 'doc') return Promise.reject(new Error(this.caps.deleteFolderReason));
-      return this.api(ref.account, '/me/onenote/pages/' + ref.id, { method: 'DELETE' });
-    },
-
-    // copyToSection is asynchronous — Graph returns an operation to poll. Waiting
-    // for it is what lets the caller refresh the tree and actually see the copy.
-    _copy: async function (ref, toSectionId) {
-      var op = await this.api(ref.account, '/me/onenote/pages/' + ref.id + '/copyToSection', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: toSectionId })
-      });
-      var opUrl = op && (op['@odata.context'] || op.id) ? ('/me/onenote/operations/' + op.id) : null;
-      if (!opUrl) return null;
-      for (var i = 0; i < 20; i++) {
-        await new Promise(function (r) { setTimeout(r, 700); });
-        var st = await this.api(ref.account, opUrl);
-        if (st && st.status === 'completed') return st.resourceId || null;
-        if (st && st.status === 'failed') throw new Error((st.error && st.error.message) || 'OneNote could not copy that page.');
-      }
-      return null;   // still running — the tree refresh will pick it up
-    },
-    duplicate: async function (ref) {
-      if (ref.kind !== 'doc') throw new Error('Only pages can be duplicated in OneNote.');
-      var newId = await this._copy(ref, ref.parent);
-      if (!newId) return null;
-      var p = await this.api(ref.account, '/me/onenote/pages/' + newId + '?$select=id,title,lastModifiedDateTime,links');
-      return onNode(p, ref.account, 'doc', ref.parent);
-    },
-    // Graph has no move: a move is a copy followed by deleting the original, and
-    // the delete only runs once the copy has actually completed.
-    move: async function (ref, toParentRef) {
-      if (ref.kind !== 'doc') throw new Error('Only pages can be moved in OneNote.');
-      if (toParentRef.kind !== 'section') throw new Error('A OneNote page can only move into a section.');
-      var newId = await this._copy(ref, toParentRef.id);
-      if (!newId) throw new Error('OneNote is still copying the page. It will appear shortly; the original was left in place.');
-      await this.api(ref.account, '/me/onenote/pages/' + ref.id, { method: 'DELETE' });
-    },
-
-    // OneNote has no server-side export. The page is already HTML, so the
-    // conversions we can honestly offer are the ones done locally.
-    exportFormats: function () {
-      return [
-        { id: 'text/html', label: 'Web page (.html)', ext: 'html' },
-        { id: 'text/plain', label: 'Plain text (.txt)', ext: 'txt' }
-      ];
-    },
-    exportDoc: async function (ref, formatId) {
-      var d = await this.read(ref);
-      if (formatId === 'text/plain') {
-        var t = document.createElement('div'); t.innerHTML = d.html;
-        return new Blob([t.textContent || ''], { type: 'text/plain' });
-      }
-      return new Blob(['<!DOCTYPE html><html><head><meta charset="utf-8"><title>' +
-        String(d.title || 'Page').replace(/[<>&]/g, '') + '</title></head><body>' + d.html + '</body></html>'], { type: 'text/html' });
-    },
-    externalUrl: function (ref) { return ref.webUrl || 'https://www.onenote.com/notebooks'; }
-  };
-
   /* ══════════════════════════════════════════════════════════════════════════
    * Provider: MyJournal Pages
    *
-   * The local journal, wearing the same contract as the two clouds so the
+   * The local journal, wearing the provider contract so the
    * universal search, favourites, recents and AI tools need no "is it local?"
    * branch anywhere. It delegates to the existing journal engine through
    * _tjCloudBridge rather than reimplementing any of it — MyJournal's own
@@ -42315,14 +41218,19 @@ window._THV={
   }
   function get(id) { return providers[id] || null; }
   function all() { return order.map(function (id) { return providers[id]; }); }
-  function cloudProviders() { return all().filter(function (p) { return !p.caps.local; }); }
 
   register(mjpages);
-  register(gdocs);
-  register(onenote);
 
-  renewers.gdocs = function (acc) { return gdocs.renew(acc); };
-  renewers.onenote = function (acc) { return onenote.refresh(acc); };
+  // Favourites, recents and the last-open document can name a provider this
+  // build no longer has (an old Google Docs or OneNote star). Opening one would
+  // dereference a null provider, so they are dropped here.
+  function known(n) { return !!(n && providers[n.provider]); }
+  function prune() {
+    S.favorites = (S.favorites || []).filter(known);
+    S.recents = (S.recents || []).filter(known);
+    if (S.lastOpen && !known(S.lastOpen)) S.lastOpen = null;
+  }
+  prune();
 
   /* ══════════════════════════════════════════════════════════════════════════
    * Listing cache — paint instantly, then reconcile
@@ -42385,82 +41293,15 @@ window._THV={
 
   // Children, cache-first. onCached fires synchronously with whatever was
   // stored; the promise resolves with the authoritative listing.
-  // A permanent, provider-declared refusal — "this section is password
-  // protected" being the only one so far. Unlike a network error it cannot
-  // resolve by retrying, so it is cached exactly like a successful listing:
-  // fetched once, shown instantly thereafter, and cleared only by an explicit
-  // refresh (which is what you would do after removing the password).
-  function isPermanentRefusal(e) {
-    return /encrypted sections? (are|is) not accessible/i.test(errText(e));
-  }
-
   async function children(ref, onCached) {
     var k = 'ch|' + refKey(ref);
     var hit = cacheGet(k);
-    if (hit) {
-      // A cached refusal is re-thrown rather than painted as an empty folder,
-      // so the UI still renders its explanatory locked state — without the
-      // round trip and without the loading flicker on every tab switch.
-      if (hit && hit.__refused) throw Object.assign(new Error(hit.__refused), { cached: true });
-      if (onCached) { try { onCached(hit); } catch (e) {} }
-    }
+    if (hit && onCached) { try { onCached(hit); } catch (e) {} }
     var p = providers[ref.provider];
     if (!p) throw new Error('Unknown provider');
-    var live;
-    try {
-      live = await p.children(ref);
-    } catch (e) {
-      if (isPermanentRefusal(e)) cacheSet(k, { __refused: errText(e) });
-      throw e;
-    }
+    var live = await p.children(ref);
     cacheSet(k, live);
     return live;
-  }
-
-  /* ══════════════════════════════════════════════════════════════════════════
-   * Offline queue
-   *
-   * An edit made with no connection is queued rather than lost, and replayed the
-   * moment the network returns. Keyed by document, so a document edited ten
-   * times offline replays ONCE with its final content — a replay of every
-   * intermediate state would be slower and no more correct.
-   * ══════════════════════════════════════════════════════════════════════════ */
-  var Q_KEY = 'mjd_queue';
-  function queueRead() { try { return JSON.parse(localStorage.getItem(Q_KEY) || '[]'); } catch (e) { return []; } }
-  function queueWrite(q) { try { localStorage.setItem(Q_KEY, JSON.stringify(q)); } catch (e) {} }
-  function queueSize() { return queueRead().length; }
-  function enqueue(ref, html) {
-    var q = queueRead().filter(function (i) { return i.key !== refKey(ref); });
-    q.push({ key: refKey(ref), ref: { provider: ref.provider, account: ref.account, id: ref.id, name: ref.name, kind: ref.kind, parent: ref.parent }, html: html, at: Date.now() });
-    queueWrite(q);
-    fire('queue', { size: q.length });
-  }
-  function dequeue(key) { queueWrite(queueRead().filter(function (i) { return i.key !== key; })); fire('queue', { size: queueSize() }); }
-
-  var flushing = false;
-  async function flushQueue() {
-    if (flushing || !navigator.onLine) return;
-    var q = queueRead();
-    if (!q.length) return;
-    flushing = true;
-    try {
-      for (var i = 0; i < q.length; i++) {
-        var item = q[i];
-        var p = providers[item.ref.provider];
-        if (!p) { dequeue(item.key); continue; }
-        try {
-          await p.write(item.ref, item.html);
-          dequeue(item.key);
-          fire('flushed', { ref: item.ref });
-        } catch (e) {
-          // Still unreachable, or the document is gone. Leave it queued unless
-          // the provider says it no longer exists — retrying a 404 forever would
-          // wedge the queue behind a document that can never accept the write.
-          if (/404|not ?found|deleted/i.test(errText(e))) { dequeue(item.key); fire('dropped', { ref: item.ref, error: errText(e) }); }
-          break;
-        }
-      }
-    } finally { flushing = false; }
   }
 
   /* ══════════════════════════════════════════════════════════════════════════
@@ -42485,9 +41326,7 @@ window._THV={
    * Universal index — one flat list across every provider, for search and AI
    *
    * Built from what is ALREADY cached plus the local journal, so opening search
-   * costs no API calls. `refresh` walks the connected trees to deepen it, in the
-   * background, bounded — a library of thousands must not turn a search box into
-   * a thousand requests.
+   * costs no API calls. `refresh` re-reads the local journal.
    * ══════════════════════════════════════════════════════════════════════════ */
   var index = [];
   var indexAt = 0;
@@ -42509,34 +41348,13 @@ window._THV={
     } catch (e) {}
     return index;
   }
-  // Bounded background crawl: breadth-first, capped in both nodes visited and
-  // wall-clock time, so a huge OneDrive can never lock the UI or hammer the API.
-  var CRAWL_NODES = 120, CRAWL_MS = 20000;
   var crawling = false;
-  async function refreshIndex(opts) {
+  async function refreshIndex() {
     if (crawling) return index;
     crawling = true;
-    var deadline = Date.now() + ((opts && opts.ms) || CRAWL_MS);
-    var budget = (opts && opts.nodes) || CRAWL_NODES;
     try {
-      var frontier = [];
-      // Local pages first — they are free and always present.
       var local = await mjpages.children({ account: 'local' });
       indexAdd(local, 'MyJournal');
-      cloudProviders().forEach(function (p) {
-        p.accounts().forEach(function (a) {
-          frontier.push({ ref: { provider: p.id, account: a.id, id: p.rootId, kind: 'root' }, path: p.rootLabel });
-        });
-      });
-      while (frontier.length && budget-- > 0 && Date.now() < deadline) {
-        var job = frontier.shift();
-        var kids;
-        try { kids = await children(job.ref); } catch (e) { continue; }
-        indexAdd(kids, job.path);
-        kids.forEach(function (k) {
-          if (k.hasChildren) frontier.push({ ref: k, path: (job.path ? job.path + ' / ' : '') + k.name });
-        });
-      }
       indexAt = Date.now();
       fire('index', { size: index.length });
     } finally { crawling = false; }
@@ -42604,14 +41422,9 @@ window._THV={
 
   window.MJDocs = {
     // registry
-    register: register, get: get, all: all, cloudProviders: cloudProviders,
+    register: register, get: get, all: all,
     // settings
     settings: function () { return S; }, save: save, saveLocal: saveLocal, flush: pushNow, load: loadSettings, onChange: onChange,
-    setCfg: function (pid, patch) {
-      S.providerCfg = S.providerCfg || {};
-      S.providerCfg[pid] = Object.assign({}, S.providerCfg[pid] || {}, patch);
-      save();
-    },
     // tree
     children: children, refKey: refKey, cacheDrop: cacheDrop,
     // favourites / recents
@@ -42619,23 +41432,21 @@ window._THV={
     // index / search
     index: function () { return index; }, indexAt: function () { return indexAt; },
     rebuildIndexFromCache: rebuildIndexFromCache, refreshIndex: refreshIndex,
-    // offline queue
-    enqueue: enqueue, flushQueue: flushQueue, queueSize: queueSize, queueRead: queueRead,
     // ai
     ai: ai, aiIndexPayload: aiIndexPayload,
     // misc
-    Tokens: Tokens, errText: errText, redirectUri: redirectUri,
+    errText: errText,
     on: on, fire: fire,
     // set by the UI layer (below) — declared here so the editor bridge can call
     // it before that layer has finished wiring itself up.
     onEditorInput: function () {}
   };
 
-  // Hydrate settings and replay anything stranded offline, as soon as Firebase
-  // is up. The index is built from cache immediately — it costs nothing and
-  // means search works on the very first keystroke.
+  // Hydrate settings as soon as Firebase is up. The index is built from cache
+  // immediately — it costs nothing and means search works on the very first
+  // keystroke.
   rebuildIndexFromCache();
-  function boot() { loadSettings().then(function () { flushQueue(); }); }
+  function boot() { loadSettings(); }
   if (window._fbLoadMJDocs) boot();
   else window.addEventListener('fb-ready', boot, { once: true });
 })();
@@ -42643,19 +41454,16 @@ window._THV={
 
 
 <!-- ══════════════════════════════════════════════════════════════════════════
-     MyJournal Cloud Documents — UI
+     MyJournal sidebar rail — UI
      Everything here is scoped to #tj-root (Tony's MyJournal). Nothing in this
      file can reach #bj-root.
 
      The design language is MyJournal's, unchanged: the same gold on the same
-     three greys, the same 6px radius, the same uppercase micro-labels. A Google
-     Doc and a OneNote page are meant to look like parts of MyJournal, not like
-     visitors from another product — the only place a provider's own identity
-     shows is a small icon and the "Open in…" action.
+     three greys, the same 6px radius, the same uppercase micro-labels.
      ══════════════════════════════════════════════════════════════════════════ -->
 <style id="mjd-css">
 /* ══════════════════════════════════════════════════════════════════════════
-   MyJournal Cloud Documents — styles
+   MyJournal sidebar rail — styles
 
    SCOPING RULE, and it matters: #mjd-modal and #mjd-omni are appended to
    document.body, NOT inside #tj-root. Anything they use must therefore be
@@ -42667,7 +41475,7 @@ window._THV={
 
    NO FILLED CHIPS. Selection and hover are expressed with the border and the
    text colour only — the ring glows, the box never fills. That is the house
-   style everywhere else in the suite and the cloud UI now matches it.
+   style everywhere else in the suite and this UI matches it.
    ══════════════════════════════════════════════════════════════════════════ */
 
 /* ── Shared palette for the body-level surfaces ──────────────────────────── */
@@ -42715,13 +41523,6 @@ window._THV={
   border-color: var(--gold-line);
   box-shadow: 0 0 0 1px rgba(224,184,116,.18), 0 0 10px rgba(224,184,116,.10);
 }
-/* Connection state: a hairline dot, not a badge. */
-#tj-root .mjd-rail-btn .mjd-dot {
-  width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0;
-  background: var(--green); box-shadow: 0 0 5px rgba(164,185,134,.55);
-}
-#tj-root .mjd-rail-btn .mjd-dot.off { background: transparent; box-shadow: none; border: 1px solid var(--text3); opacity: .55; }
-
 #tj-root .mjd-quick { display: flex; gap: 6px; }
 #tj-root .mjd-quick button {
   flex: 1 1 0; min-width: 0;
@@ -42732,14 +41533,13 @@ window._THV={
   transition: border-color .16s, color .16s, box-shadow .16s;
 }
 #tj-root .mjd-quick button svg { width: 12px; height: 12px; flex-shrink: 0; opacity: .9; }
-#tj-root .mjd-quick button#mjd-settings-btn { flex: 0 0 40px; }
 #tj-root .mjd-quick button:hover { border-color: var(--border2); color: var(--text2); }
 #tj-root .mjd-quick button.on {
   color: var(--purple); border-color: var(--gold-line);
   box-shadow: 0 0 0 1px rgba(224,184,116,.18), 0 0 10px rgba(224,184,116,.10);
 }
 
-/* ══════════════ Sidebar: cloud panel ══════════════ */
+/* ══════════════ Sidebar: Starred / Recent panel ══════════════ */
 #tj-root #mjd-panel { flex: 1 1 0%; min-height: 0; display: none; flex-direction: column; overflow: hidden; }
 #tj-root #mjd-panel.on { display: flex; }
 #tj-root #mjd-panel-head {
@@ -42757,8 +41557,6 @@ window._THV={
 #tj-root .mjd-icon-btn svg { width: 13px; height: 13px; }
 #tj-root .mjd-icon-btn:hover { color: var(--purple); border-color: var(--gold-line); }
 #tj-root .mjd-icon-btn:disabled { opacity: .35; cursor: not-allowed; }
-#tj-root .mjd-icon-btn.spin svg { animation: mjdspin .9s linear infinite; }
-@keyframes mjdspin { to { transform: rotate(360deg); } }
 
 #tj-root #mjd-tree { flex: 1 1 0%; min-height: 0; overflow-y: auto; padding: 0 8px 14px; }
 
@@ -42816,29 +41614,22 @@ window._THV={
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: .02em;
 }
 .mjd-actions { grid-area: actions; display: flex; gap: 1px; align-self: start; }
-#tj-root .mjd-star, #tj-root .mjd-menu { opacity: 0; transition: opacity .14s; }
-#tj-root .mjd-row:hover .mjd-star, #tj-root .mjd-row:hover .mjd-menu,
+#tj-root .mjd-star { opacity: 0; transition: opacity .14s; }
+#tj-root .mjd-row:hover .mjd-star,
 #tj-root .mjd-star.on { opacity: 1; }
 #tj-root .mjd-star.on { color: var(--purple); }
-@media (hover: none) { #tj-root .mjd-star, #tj-root .mjd-menu { opacity: .6; } }
+@media (hover: none) { #tj-root .mjd-star { opacity: .6; } }
 
 #tj-root .mjd-empty, #tj-root .mjd-note {
   padding: 24px 16px; text-align: center; color: var(--text3); font-size: 12px; line-height: 1.7;
 }
 #tj-root .mjd-note { padding: 12px 14px; text-align: left; }
 #tj-root .mjd-note b { color: var(--text2); font-weight: 600; }
-#tj-root .mjd-note.mjd-locked {
-  border-left: 2px solid var(--orange); background: rgba(224,181,124,.05);
-  border-radius: 0 var(--mjd-r) var(--mjd-r) 0; padding: 12px 14px;
-}
-#tj-root .mjd-note.mjd-locked svg { width: 15px; height: 15px; color: var(--orange); display: block; margin-bottom: 7px; }
 .mjd-skel {
   height: 34px; margin: 4px 8px; border-radius: var(--mjd-r); background: var(--mjd-card);
   animation: mjdpulse 1.2s ease-in-out infinite;
 }
 @keyframes mjdpulse { 0%,100% { opacity: .4; } 50% { opacity: .8; } }
-#tj-root .mjd-connect-cta { padding: 20px 14px; text-align: center; }
-#tj-root .mjd-connect-cta p { font-size: 12px; color: var(--text3); line-height: 1.65; margin-bottom: 14px; }
 
 /* ── The one button, everywhere. Declared UNSCOPED so it works identically in
       the sidebar and inside body-level dialogs. ── */
@@ -42857,26 +41648,6 @@ window._THV={
 .mjd-btn.ghost:hover { color: var(--mjd-text); border-color: var(--mjd-text3); box-shadow: var(--glow-neutral); }
 .mjd-btn.danger { color: var(--mjd-red); border-color: rgba(214,138,124,.36); }
 .mjd-btn.danger:hover { border-color: var(--mjd-red); box-shadow: var(--glow-red); }
-
-/* ══════════════ Toolbar chip for the open cloud document ══════════════ */
-#tj-root #mjd-docbar { display: none; align-items: center; gap: 7px; min-width: 0; flex-wrap: wrap; }
-#tj-root #mjd-docbar.on { display: flex; }
-#tj-root .mjd-chip {
-  display: inline-flex; align-items: center; gap: 7px; max-width: 280px;
-  background: transparent; border: 1px solid var(--border); border-radius: 20px;
-  padding: 5px 12px; font-size: 11px; color: var(--text2); min-width: 0;
-}
-#tj-root .mjd-chip .mjd-chip-ico { line-height: 0; flex-shrink: 0; color: var(--purple); opacity: .85; }
-#tj-root .mjd-chip .mjd-chip-ico svg { width: 12px; height: 12px; }
-#tj-root .mjd-chip .mjd-chip-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#tj-root #mjd-lastsync { font-size: 10px; color: var(--text3); font-family: var(--font-mono); white-space: nowrap; }
-#tj-root #mjd-offline {
-  display: none; align-items: center; gap: 6px; font-size: 9.5px; font-weight: 600;
-  letter-spacing: .07em; text-transform: uppercase; color: var(--orange);
-  border: 1px solid rgba(224,181,124,.36); border-radius: 20px; padding: 4px 10px;
-}
-#tj-root #mjd-offline.on { display: inline-flex; }
-#tj-root #mjd-offline svg { width: 11px; height: 11px; }
 
 /* ══════════════ Dialog shell — UNSCOPED (lives on document.body) ══════════════ */
 #mjd-modal {
@@ -42920,40 +41691,6 @@ window._THV={
 .mjd-x:hover { color: var(--mjd-text); border-color: var(--mjd-line2); }
 .mjd-x svg { width: 16px; height: 16px; display: block; }
 
-/* Menu-style action list (the ⋯ menu on a document) */
-/* No negative top margin. #mjd-modal-body is a scroll container, so pulling the
-   list up by 2px put the first item's border under the clip edge — the top
-   outline of "Open" was sliced off by the header. */
-.mjd-menu-list { display: flex; flex-direction: column; gap: 6px; margin: 2px 0; }
-.mjd-menu-item {
-  width: 100%; text-align: left; justify-content: flex-start;
-  text-transform: none; letter-spacing: 0; font-size: 13.5px; font-weight: 500;
-  padding: 11px 15px; color: var(--mjd-text2); border-color: var(--mjd-line);
-  background: transparent; border-width: 1px; border-style: solid; border-radius: var(--mjd-r);
-  font-family: var(--mjd-font); cursor: pointer; transition: border-color .16s, color .16s;
-  display: flex; align-items: center; gap: 10px;
-}
-.mjd-menu-item:hover { color: var(--mjd-gold); border-color: var(--mjd-gold-dim); }
-.mjd-menu-item:disabled { opacity: .38; cursor: not-allowed; color: var(--mjd-text3); border-color: var(--mjd-line); }
-.mjd-menu-item:disabled:hover { color: var(--mjd-text3); border-color: var(--mjd-line); }
-.mjd-menu-item.danger { color: var(--mjd-red); }
-.mjd-menu-item.danger:hover { border-color: rgba(214,138,124,.4); }
-.mjd-menu-why { font-size: 11.5px; color: var(--mjd-text3); line-height: 1.55; margin: -2px 2px 4px 15px; }
-
-/* Form pieces */
-.mjd-field { display: block; margin-bottom: 14px; }
-.mjd-field > span {
-  display: block; font-size: 9.5px; font-weight: 700; letter-spacing: .15em;
-  text-transform: uppercase; color: var(--mjd-text3); margin: 0 0 8px;
-}
-.mjd-input, .mjd-select {
-  width: 100%; box-sizing: border-box; background: var(--mjd-bg);
-  border: 1px solid var(--mjd-line2); border-radius: var(--mjd-r);
-  color: var(--mjd-text); font-size: 13px; padding: 10px 13px; outline: none;
-  font-family: var(--mjd-font); transition: border-color .16s, box-shadow .16s;
-}
-.mjd-input::placeholder { color: #6a6a72; }
-.mjd-input:focus, .mjd-select:focus { border-color: var(--mjd-gold); box-shadow: 0 0 0 1px rgba(224,184,116,.16); }
 .mjd-hint { font-size: 11.5px; color: #75757c; line-height: 1.65; margin-top: 8px; }
 .mjd-hint code {
   font-family: 'DM Mono', monospace; background: var(--mjd-bg); border: 1px solid var(--mjd-line);
@@ -42961,43 +41698,6 @@ window._THV={
 }
 .mjd-hint b { color: var(--mjd-text2); font-weight: 600; }
 
-/* Provider card in settings / accounts */
-.mjd-card { border: 1px solid var(--mjd-line); border-radius: 10px; padding: 16px 17px; margin-bottom: 13px; background: #26262b; }
-.mjd-card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 2px; }
-.mjd-card-head .mjd-pico { line-height: 0; flex-shrink: 0; }
-.mjd-card-head .mjd-pico svg { width: 17px; height: 17px; }
-.mjd-card-head h4 { font-size: 14.5px; font-weight: 650; color: var(--mjd-text); font-family: 'Manrope', sans-serif; flex: 1; margin: 0; }
-
-/* Disclosure for setup instructions — collapsed by default so the dialog reads
-   as two fields rather than two essays. */
-.mjd-disclose {
-  margin-top: 10px; background: transparent; border: 1px solid var(--mjd-line);
-  border-radius: 6px; color: var(--mjd-text3); font-family: var(--mjd-font);
-  font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
-  padding: 7px 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 7px;
-  transition: color .16s, border-color .16s;
-}
-.mjd-disclose:hover { color: var(--mjd-gold); border-color: var(--mjd-gold-dim); }
-.mjd-disclose svg { width: 10px; height: 10px; transition: transform .18s; }
-.mjd-disclose.open svg { transform: rotate(90deg); }
-.mjd-instructions { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--mjd-line); }
-.mjd-instructions.on { display: block; animation: mjdfade .18s ease; }
-@keyframes mjdfade { from { opacity: 0; } to { opacity: 1; } }
-
-/* Account rows */
-.mjd-acct { display: flex; align-items: center; gap: 11px; padding: 11px 0; border-top: 1px solid var(--mjd-line); }
-.mjd-acct-av {
-  width: 30px; height: 30px; border-radius: 50%; background: transparent;
-  border: 1px solid var(--mjd-gold-dim); color: var(--mjd-gold);
-  display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0;
-}
-.mjd-acct-txt { flex: 1; min-width: 0; }
-.mjd-acct-txt b { display: block; font-size: 13px; color: var(--mjd-text); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mjd-acct-txt span { font-size: 11px; color: #75757c; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
-.mjd-badge {
-  font-size: 9px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
-  color: var(--mjd-green); border: 1px solid rgba(164,185,134,.34); border-radius: 20px; padding: 3px 9px; flex-shrink: 0;
-}
 .mjd-tiny {
   background: transparent; border: 1px solid var(--mjd-line2); border-radius: 6px; color: var(--mjd-text2);
   font-family: var(--mjd-font); font-size: 9.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
@@ -43005,20 +41705,6 @@ window._THV={
 }
 .mjd-tiny:hover { border-color: var(--mjd-gold); color: var(--mjd-gold); }
 .mjd-tiny.danger:hover { border-color: rgba(214,138,124,.6); color: var(--mjd-red); }
-
-/* Conflict panes */
-.mjd-conflict { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; margin: 4px 0 6px; }
-.mjd-conflict > div { border: 1px solid var(--mjd-line); border-radius: 9px; overflow: hidden; background: var(--mjd-bg); }
-.mjd-conflict h5 {
-  font-size: 9.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
-  padding: 10px 13px; border-bottom: 1px solid var(--mjd-line); color: var(--mjd-text3); margin: 0;
-}
-.mjd-conflict > div.mine h5 { color: var(--mjd-gold); }
-.mjd-conflict > div.theirs h5 { color: #6da8f5; }
-.mjd-conflict-body { max-height: 270px; overflow: auto; padding: 13px 15px; font-size: 12px; line-height: 1.65; color: var(--mjd-text2); }
-.mjd-conflict-body ins { background: rgba(164,185,134,.2); color: #cfe6c9; text-decoration: none; }
-.mjd-conflict-body del { background: rgba(214,138,124,.18); color: #e8bdb4; }
-@media (max-width: 640px) { .mjd-conflict { grid-template-columns: 1fr; } }
 
 /* ══════════════ Universal search — UNSCOPED ══════════════ */
 #mjd-omni {
@@ -43142,16 +41828,6 @@ window._THV={
 .mjd-scrollbar:hover { background: rgba(224,184,116,.5); }
 .mjd-scrollbar:active { cursor: grabbing; background: rgba(224,184,116,.6); }
 
-/* Destination picker inside "Move to...". */
-#mjd-pick {
-  border: 1px solid var(--mjd-line); border-radius: 9px; background: var(--mjd-bg);
-  padding: 6px; max-height: 320px; overflow-y: auto; min-height: 110px;
-}
-#mjd-pick .mjd-row.active {
-  background: var(--mjd-card2); border-color: var(--mjd-gold-dim); border-left-color: var(--mjd-gold);
-  box-shadow: 0 0 0 1px rgba(224,184,116,.2);
-}
-
 /* Transient message surface — always visible, never covers the editor. */
 #mjd-toast {
   position: fixed; left: 50%; bottom: 26px; transform: translate(-50%, 14px);
@@ -43195,9 +41871,6 @@ window._THV={
   #tj-root .mjd-quick button span { display: none; }
   #tj-root .mjd-quick button { padding: 11px 4px; }
   #tj-root .mjd-quick button svg { width: 15px; height: 15px; }
-  #tj-root .mjd-quick button#mjd-settings-btn { flex: 1 1 0; }
-  #tj-root .mjd-chip { max-width: 170px; }
-  #tj-root #mjd-lastsync { display: none; }
 
   #mjd-modal { padding: 0; align-items: flex-end; }
   #mjd-modal-box { max-width: none; border-radius: 14px 14px 0 0; max-height: 93vh; }
@@ -43215,7 +41888,6 @@ window._THV={
   #mjd-omni-foot { padding: 11px 16px calc(11px + env(safe-area-inset-bottom, 0px)); }
   #mjd-omni-foot .mjd-tiny { flex: 1 1 auto; text-align: center; }
   #mjd-omni-count { width: 100%; }
-  .mjd-conflict-body { max-height: 180px; }
 }
 
 /* Narrow foldables / cover screens. */
@@ -43231,7 +41903,6 @@ window._THV={
   #mjd-modal-foot { padding: 11px 20px 13px; margin-top: 10px; }
   #mjd-omni { padding: 1vh 12px 12px; }
   #mjd-omni-box { max-height: 96vh; }
-  .mjd-conflict-body { max-height: 150px; }
 }
 </style>
 
@@ -43248,28 +41919,13 @@ window._THV={
   var I = {
     chevron:  svg('<path d="m9 6 6 6-6 6"/>', 2.2),
     folder:   svg('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>'),
-    notebook: svg('<path d="M4 4a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M8 2v20"/>'),
-    group:    svg('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M7 12h10"/>'),
-    section:  svg('<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M4 9h16"/>'),
     doc:      svg('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h5"/>'),
     star:     svg('<path d="m12 3 2.6 5.6 6 .8-4.4 4.2 1.1 6L12 16.8 6.7 19.6l1.1-6L3.4 9.4l6-.8Z"/>'),
     clock:    svg('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
     search:   svg('<circle cx="11" cy="11" r="7.5"/><path d="m21 21-4.3-4.3"/>'),
-    plus:     svg('<path d="M12 5v14"/><path d="M5 12h14"/>', 2.1),
-    refresh:  svg('<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/>'),
-    more:     svg('<circle cx="5" cy="12" r="1.4" fill="currentColor"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/><circle cx="19" cy="12" r="1.4" fill="currentColor"/>'),
     x:        svg('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>', 2),
-    gear:     svg('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z"/>', 1.4),
-    external: svg('<path d="M14 3h7v7"/><path d="M10 14 21 3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/>'),
-    sparkle:  svg('<path d="M12 3v4"/><path d="M12 17v4"/><path d="M3 12h4"/><path d="M17 12h4"/><path d="m6 6 2.5 2.5"/><path d="m15.5 15.5 2.5 2.5"/><path d="m18 6-2.5 2.5"/><path d="m8.5 15.5-2.5 2.5"/>'),
-    cloud:    svg('<path d="M17.5 19a4.5 4.5 0 0 0 .3-9A6 6 0 0 0 6.3 11 3.5 3.5 0 0 0 7 19Z"/>'),
-    lock:     svg('<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>'),
-    download: svg('<path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 21h16"/>')
   };
-  function kindIcon(k) {
-    return k === 'folder' ? I.folder : k === 'notebook' ? I.notebook :
-           k === 'sectiongroup' ? I.group : k === 'section' ? I.section : I.doc;
-  }
+  function kindIcon(k) { return k === 'doc' ? I.doc : I.folder; }
   function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
   function el(id) { return document.getElementById(id); }
   function fmtWhen(ms) {
@@ -43339,17 +41995,8 @@ window._THV={
     if (cur) { modalStack.pop(); openModal(cur); }        // restore the dialog underneath
     else { var m = el('mjd-modal'); if (m) m.classList.remove('on'); }
   }
-  /* Transient messages need a surface that is ALWAYS visible.
-   *
-   * These used to be written into #mjd-lastsync, which lives inside #mjd-docbar
-   * — and that bar is hidden unless a cloud document is open. So every message
-   * raised while merely browsing (including the error from a failed "New
-   * document") was written into a hidden element and silently discarded. A
-   * failure you cannot see is indistinguishable from a button that does
-   * nothing, which is exactly how it was reported.
-   *
-   * The status line keeps doing what it is good at — the persistent "Synced
-   * 2m ago" readout — and one-off outcomes now get their own toast. */
+  /* Transient messages need a surface that is ALWAYS visible. A failure you
+   * cannot see is indistinguishable from a button that does nothing. */
   function toast(msg, kind) {
     var t = el('mjd-toast');
     if (!t) {
@@ -43372,26 +42019,9 @@ window._THV={
   /* ══════════════════════════════════════════════════════════════════════════
    * State
    * ══════════════════════════════════════════════════════════════════════════ */
-  var section = 'pages';         // pages | gdocs | onenote | favorites | recents
-  var activeAccount = {};        // { providerId: accountId }
-  var openDocState = null;       // the cloud document currently in the editor
-  var expanded = {};             // nodeKey → true (mirrored into settings)
-  var loadedKids = {};           // nodeKey → Node[]
-  var lastLocalId = null;        // entry to restore when leaving cloud mode
+  var section = 'pages';         // pages | favorites | recents
 
   function S() { return D.settings(); }
-  function accountFor(pid) {
-    var p = D.get(pid); if (!p) return null;
-    var accs = p.accounts();
-    if (!accs.length) return null;
-    var want = activeAccount[pid];
-    return (want && accs.filter(function (a) { return a.id === want; })[0]) || accs[0];
-  }
-  function rootRef(pid) {
-    var p = D.get(pid), a = accountFor(pid);
-    if (!p || !a) return null;
-    return { provider: pid, account: a.id, id: p.rootId, kind: 'root', name: p.rootLabel, hasChildren: true, path: p.rootLabel };
-  }
 
   /* ══════════════════════════════════════════════════════════════════════════
    * Sidebar
@@ -43402,20 +42032,14 @@ window._THV={
 
     var nav = document.createElement('div');
     nav.id = 'mjd-nav';
+    // MyJournal's own tab selects 'pages', not the provider id. The mjpages
+    // ADAPTER exists so local pages appear in search and favourites, but the
+    // Journal TAB must render MyJournal's native entry list, which owns the
+    // trash button, drag-reordering, tag filters, the entry search box and the
+    // active-entry outline.
     var rail = D.all().map(function (p) {
-      var connected = p.caps.local || p.accounts().length > 0;
-      // MyJournal's own tab selects 'pages', not the provider id. The mjpages
-      // ADAPTER exists so local pages appear in universal search and favourites
-      // alongside cloud ones — but the Journal TAB must render MyJournal's
-      // native entry list, which owns the trash button, drag-reordering, tag
-      // filters, the entry search box and the active-entry outline. Emitting
-      // p.id sent 'mjpages' into setSection, which is not 'pages', so the tab
-      // quietly rendered the cloud panel and took all of that with it.
-      var railSec = p.caps.local ? 'pages' : p.id;
-      return '<button class="mjd-rail-btn" data-sec="' + railSec + '" title="' + esc(p.label) + '">' +
-        p.icon + '<span class="mjd-lbl">' + esc(p.id === 'mjpages' ? 'Journal' : p.label.replace('Google ', '').replace('Microsoft ', '')) + '</span>' +
-        (p.caps.local ? '' : '<span class="mjd-dot' + (connected ? '' : ' off') + '"></span>') +
-        '</button>';
+      return '<button class="mjd-rail-btn" data-sec="pages" title="' + esc(p.label) + '">' +
+        p.icon + '<span class="mjd-lbl">Journal</span></button>';
     }).join('');
     nav.innerHTML =
       '<div class="mjd-rail" role="tablist">' + rail + '</div>' +
@@ -43423,19 +42047,13 @@ window._THV={
         '<button data-sec="favorites" title="Favourites">' + I.star + '<span>Starred</span></button>' +
         '<button data-sec="recents" title="Recent documents">' + I.clock + '<span>Recent</span></button>' +
         '<button id="mjd-omni-btn" title="Search all documents (Ctrl+Shift+F)">' + I.search + '<span>Find</span></button>' +
-        '<button id="mjd-settings-btn" title="Document settings">' + I.gear + '</button>' +
       '</div>';
     sidebar.insertBefore(nav, el('tj-new-entry-btn'));
 
     var panel = document.createElement('div');
     panel.id = 'mjd-panel';
     panel.innerHTML =
-      '<div id="mjd-panel-head">' +
-        '<span id="mjd-panel-title"></span>' +
-        '<button class="mjd-icon-btn" id="mjd-new-btn" title="New">' + I.plus + '</button>' +
-        '<button class="mjd-icon-btn" id="mjd-refresh-btn" title="Refresh">' + I.refresh + '</button>' +
-        '<button class="mjd-icon-btn" id="mjd-acct-btn" title="Accounts">' + I.more + '</button>' +
-      '</div>' +
+      '<div id="mjd-panel-head"><span id="mjd-panel-title"></span></div>' +
       '<div id="mjd-tree"></div>';
     var list = el('tj-entries-list');
     list.parentNode.insertBefore(panel, list.nextSibling);
@@ -43444,43 +42062,21 @@ window._THV={
       var b = e.target.closest('[data-sec]');
       if (b) { setSection(b.getAttribute('data-sec')); return; }
       if (e.target.closest('#mjd-omni-btn')) { openOmni(); return; }
-      if (e.target.closest('#mjd-settings-btn')) { openSettings(); return; }
     });
-    // Deliberately NOT `addEventListener('click', onNew)`. onNew's first
-    // parameter is the destination folder, and a listener is called with the
-    // MouseEvent — which is truthy, so it was being used AS the folder. The
-    // create then ran against an object with no account or id and failed, and
-    // (see toast below) failed invisibly. Hence "nothing happens".
-    el('mjd-new-btn').addEventListener('click', function () { onNew(); });
-    el('mjd-refresh-btn').addEventListener('click', function () { hardRefresh(); });
-    el('mjd-acct-btn').addEventListener('click', function () { openAccounts(sectionProvider()); });
 
-    buildDocBar();
     setSection(validSection((S().view && S().view.section) || 'pages'));
   }
 
-  function sectionProvider() {
-    return (section === 'favorites' || section === 'recents') ? null : (section === 'pages' ? 'mjpages' : section);
-  }
-
   // The active section is RESTORED FROM SYNCED SETTINGS, so it can name a
-  // provider this build does not have — a provider that was renamed or removed,
-  // or one a newer build on another device knew about. renderPanel then
-  // dereferenced null and took buildNav down with it, leaving no sidebar at all.
-  // Anything unrecognised falls back to the one section that always exists.
+  // section this build does not have: 'gdocs' or 'onenote' from before they
+  // were removed, or one a newer build on another device knew about. Anything
+  // unrecognised falls back to the one section that always exists.
   function validSection(sec) {
-    // 'mjpages' is the PROVIDER id; 'pages' is the native Journal tab. Settings
-    // saved before the rail was corrected carry 'mjpages', which would keep
-    // routing the Journal tab through the cloud panel — and with it lose the
-    // trash button, drag-reordering, tag filters and the active-entry outline,
-    // all of which belong to MyJournal's own list. Normalise it.
-    if (sec === 'mjpages') return 'pages';
     if (sec === 'favorites' || sec === 'recents' || sec === 'pages') return sec;
-    return D.get(sec) ? sec : 'pages';
+    return 'pages';
   }
 
   function setSection(sec) {
-    bumpGen();                 // abandon any listing still in flight for the old tab
     section = validSection(sec);
     sec = section;
     S().view = Object.assign({}, S().view, { section: sec });
@@ -43489,8 +42085,8 @@ window._THV={
       b.classList.toggle('on', b.getAttribute('data-sec') === sec);
     });
     var local = sec === 'pages';
-    // The native entries list and its tag filter belong to MyJournal Pages; the
-    // cloud panel replaces them wholesale rather than trying to interleave.
+    // The native entries list and its tag filter belong to the Journal tab;
+    // Starred and Recent replace them wholesale rather than trying to interleave.
     el('tj-entries-list').style.display = local ? '' : 'none';
     var tagRow = el('tj-tagfilter-row'); if (tagRow) tagRow.style.display = local ? '' : 'none';
     var stats = el('tj-sidebar-stats'); if (stats) stats.style.display = local ? '' : 'none';
@@ -43502,43 +42098,9 @@ window._THV={
   }
 
   function renderPanel() {
-    bumpGen();
-    var titleEl = el('mjd-panel-title'), tree = el('mjd-tree');
-    var pid = sectionProvider();
-    var isList = !pid;
-    el('mjd-new-btn').style.display = isList ? 'none' : '';
-    el('mjd-acct-btn').style.display = (isList || (D.get(pid) && D.get(pid).caps.local)) ? 'none' : '';
-    el('mjd-refresh-btn').style.display = isList ? 'none' : '';
-
-    if (section === 'favorites') { titleEl.textContent = 'Favourites'; renderFlat(S().favorites, 'Nothing starred yet.<br>Star a document, folder or notebook to pin it here.'); return; }
+    var titleEl = el('mjd-panel-title');
+    if (section === 'favorites') { titleEl.textContent = 'Favourites'; renderFlat(S().favorites, 'Nothing starred yet.<br>Star a page to pin it here.'); return; }
     if (section === 'recents')   { titleEl.textContent = 'Recent';     renderFlat(S().recents, 'Nothing opened yet.'); return; }
-
-    var p = D.get(pid);
-    if (!p) { setSection('pages'); return; }   // belt and braces — see validSection
-    titleEl.textContent = p.label;
-    if (!p.caps.local) {
-      if (!p.configured()) {
-        tree.innerHTML = '<div class="mjd-connect-cta"><p>' + esc(p.label) + ' is not set up yet. Add your ' +
-          esc(p.setup.label) + ' to connect.</p></div>';
-        var b0 = document.createElement('button'); b0.className = 'mjd-btn'; b0.innerHTML = I.gear + 'Set up ' + esc(p.label);
-        b0.addEventListener('click', openSettings);
-        tree.querySelector('.mjd-connect-cta').appendChild(b0);
-        return;
-      }
-      if (!p.accounts().length) {
-        tree.innerHTML = '<div class="mjd-connect-cta"><p>Connect your ' + esc(p.label) + ' account to browse and edit your documents inside MyJournal.</p></div>';
-        var b1 = document.createElement('button'); b1.className = 'mjd-btn'; b1.innerHTML = I.cloud + 'Connect ' + esc(p.label);
-        b1.addEventListener('click', function () { doConnect(pid, false); });
-        tree.querySelector('.mjd-connect-cta').appendChild(b1);
-        return;
-      }
-      var acc = accountFor(pid);
-      titleEl.textContent = p.label + (p.accounts().length > 1 ? ' · ' + (acc.email || acc.label).split('@')[0] : '');
-    }
-    tree.innerHTML = '';
-    var root = rootRef(pid);
-    if (!root) { tree.innerHTML = '<div class="mjd-empty">Not connected.</div>'; return; }
-    renderChildren(root, tree, 0);
   }
 
   function renderFlat(items, emptyMsg) {
@@ -43547,12 +42109,12 @@ window._THV={
     if (!items || !items.length) { tree.innerHTML = '<div class="mjd-empty">' + emptyMsg + '</div>'; return; }
     items.forEach(function (n) {
       var node = Object.assign({ hasChildren: n.kind !== 'doc', key: n.provider + ':' + n.account + ':' + n.id }, n);
-      tree.appendChild(rowFor(node, 0, { noTwisty: true, showPath: true }));
+      tree.appendChild(rowFor(node, 0, { showPath: true }));
     });
   }
 
-  // One tree row. Rows are built rather than templated because each carries its
-  // own handlers for open, expand, star and the action menu.
+  // One row. Rows are built rather than templated because each carries its own
+  // handlers for open and star.
   function rowFor(node, depth, opts) {
     opts = opts || {};
     var row = document.createElement('div');
@@ -43560,21 +42122,19 @@ window._THV={
     row.style.paddingLeft = (8 + depth * 13) + 'px';
     row.dataset.key = node.key;
     var starred = D.isFav(node);
-    // The metadata line carries whatever is genuinely useful for this row —
-    // folder path for a search/favourite hit, modified time for a document —
-    // and simply collapses when there is nothing to say, so the title keeps the
+    // The metadata line carries whatever is genuinely useful for this row and
+    // simply collapses when there is nothing to say, so the title keeps the
     // full width either way.
     var meta = [];
     if (opts.showPath && node.path) meta.push(String(node.path).split(' / ').pop());
     if (node.kind === 'doc' && node.modified) meta.push(fmtWhen(node.modified));
     row.innerHTML =
-      '<span class="mjd-tw' + ((node.hasChildren && !opts.noTwisty) ? '' : ' leaf') + (expanded[node.key] ? ' open' : '') + '">' + I.chevron + '</span>' +
+      '<span class="mjd-tw leaf">' + I.chevron + '</span>' +
       '<span class="mjd-ico">' + kindIcon(node.kind) + '</span>' +
       '<span class="mjd-name" title="' + esc(node.name) + '">' + esc(node.name) + '</span>' +
       (meta.length ? '<span class="mjd-meta">' + esc(meta.join(' · ')) + '</span>' : '') +
       '<span class="mjd-actions">' +
         '<button class="mjd-icon-btn mjd-star' + (starred ? ' on' : '') + '" title="' + (starred ? 'Unstar' : 'Star') + '" aria-label="' + (starred ? 'Unstar' : 'Star') + '">' + I.star + '</button>' +
-        '<button class="mjd-icon-btn mjd-menu" title="Actions" aria-label="Actions">' + I.more + '</button>' +
       '</span>';
 
     row.querySelector('.mjd-star').addEventListener('click', function (e) {
@@ -43584,871 +42144,35 @@ window._THV={
       this.title = on ? 'Unstar' : 'Star';
       if (section === 'favorites') renderPanel();
     });
-    row.querySelector('.mjd-menu').addEventListener('click', function (e) { e.stopPropagation(); openActions(node); });
     row.addEventListener('click', function () {
       if (node.kind === 'doc') openDocument(node);
-      else if (!opts.noTwisty) toggleNode(node, row, depth);
       else jumpTo(node);
     });
     return row;
   }
 
-  function toggleNode(node, row, depth) {
-    var tw = row.querySelector('.mjd-tw');
-    var next = row.nextElementSibling;
-    if (expanded[node.key]) {
-      expanded[node.key] = false; delete S().expanded[node.key]; D.saveLocal();
-      tw.classList.remove('open');
-      if (next && next.classList.contains('mjd-kids')) next.remove();
-      return;
-    }
-    expanded[node.key] = true; S().expanded[node.key] = true; D.saveLocal();
-    tw.classList.add('open');
-    var kids = document.createElement('div');
-    kids.className = 'mjd-kids';
-    row.parentNode.insertBefore(kids, row.nextSibling);
-    renderChildren(node, kids, depth + 1);
-  }
-
-  // Cache-first paint, then reconcile with the live listing. The cached rows are
-  // real and clickable immediately; they are replaced wholesale when the
-  // authoritative answer lands, so a stale cache can never hide a change.
-  // Every paint carries the generation it was requested in. Switching tabs (or
-  // collapsing a branch) bumps the counter, so a listing that arrives late —
-  // OneNote is routinely slower than Drive — is dropped instead of painting
-  // OneNote's notebooks into the Journal tab you already moved to.
-  var renderGen = 0;
-  function bumpGen() { renderGen++; }
-
-  function renderChildren(ref, container, depth) {
-    var gen = renderGen;
-    container.innerHTML = '<div class="mjd-skel"></div><div class="mjd-skel" style="width:70%"></div>';
-    var painted = false;
-    function stale() { return gen !== renderGen || !container.isConnected; }
-    function paint(nodes) {
-      if (stale()) return;
-      container.innerHTML = '';
-      if (!nodes.length) {
-        container.innerHTML = '<div class="mjd-empty" style="padding:14px 12px;font-size:11.5px">' +
-          (ref.kind === 'root' ? 'Nothing here yet.' : 'Empty.') + '</div>';
-        return;
-      }
-      nodes.forEach(function (n) {
-        container.appendChild(rowFor(n, depth));
-        if (expanded[n.key] && n.hasChildren) {
-          var kids = document.createElement('div');
-          kids.className = 'mjd-kids';
-          container.appendChild(kids);
-          renderChildren(n, kids, depth + 1);
-        }
-      });
-      markActive();
-    }
-    D.children(ref, function (cached) { if (stale() || !Array.isArray(cached)) return; painted = true; loadedKids[ref.key || 'root'] = cached; paint(cached); })
-      .then(function (live) { if (stale()) return; loadedKids[ref.key || 'root'] = live; paint(live); })
-      .catch(function (e) {
-        if (stale()) return;
-        if (painted) return;         // a cached listing is better than an error
-        // A password-protected OneNote section is not a load failure — it is a
-        // wall, and a permanent one. Microsoft Graph cannot decrypt those
-        // sections and exposes no way to supply the password, so retrying or
-        // reconnecting will never help. Say that plainly, with the one action
-        // that does work, instead of dressing it up as an error.
-        var em = D.errText(e);
-        if (/encrypted sections? (are|is) not accessible/i.test(em)) {
-          container.innerHTML = '<div class="mjd-note mjd-locked">' + I.lock +
-            '<b>Password-protected section.</b><br>' +
-            'Microsoft Graph cannot read password-protected sections — there is no way to unlock this from MyJournal, ' +
-            'and unlocking it in OneNote on your device does not help either.<br><br>' +
-            'To sync it: OneNote desktop → right-click the section tab → <b>Password Protection → Remove Password</b>, then refresh here. ' +
-            'Otherwise leave it protected; nothing else in this notebook is affected.</div>';
-          return;
-        }
-        container.innerHTML = '<div class="mjd-note"><b>Could not load.</b><br>' + esc(em) + '</div>';
-      });
-  }
-
-  // Mark the open document wherever it appears in the panel — the provider
-  // tree, Starred and Recent all render the same rows, so all three light up.
-  function markActive(scroll) {
-    var key = openDocState ? openDocState.node.key : null;
-    var hit = null;
-    document.querySelectorAll('#mjd-tree .mjd-row').forEach(function (r) {
-      var on = !!key && r.dataset.key === key;
-      r.classList.toggle('active', on);
-      if (on) hit = r;
-    });
-    // A document opened from search or Recent is usually somewhere off-screen
-    // in its own tree; highlighting it is no use if you cannot see it.
-    if (hit && scroll) { try { hit.scrollIntoView({ block: 'nearest' }); } catch (e) {} }
-  }
-
-  function hardRefresh() {
-    var btn = el('mjd-refresh-btn');
-    btn.classList.add('spin');
-    var pid = sectionProvider();
-    D.cacheDrop(pid ? 'ch|' + pid : '');
-    loadedKids = {};
-    renderPanel();
-    setTimeout(function () { btn.classList.remove('spin'); }, 700);
-    D.refreshIndex({ ms: 12000 });
-  }
-
-  // Jump from a favourite / search hit to the item in its own provider tree.
+  // Jump from a favourite / search hit that is not a page back to the journal.
   function jumpTo(node) {
     if (node.kind === 'doc') { openDocument(node); return; }
-    activeAccount[node.provider] = node.account;
-    setSection(node.provider === 'mjpages' ? 'pages' : node.provider);
+    setSection('pages');
   }
 
   /* ══════════════════════════════════════════════════════════════════════════
-   * Opening a document — the shared editor
-   *
-   * A cloud document and a MyJournal page go into the SAME contenteditable, so
-   * every editor feature (ribbon, undo, find & replace, images, AI tools, the
-   * page sheet, zoom, margins) works on all three providers with no per-provider
-   * code. What differs is only where the HTML came from and where it goes back.
+   * Opening a page — handed back to MyJournal's own entry loader, which knows
+   * about locks, templates, attachments and whiteboards.
    * ══════════════════════════════════════════════════════════════════════════ */
-  var SAVE_DEBOUNCE = 1400;
-  var saveTimer = null;
-
-  async function openDocument(node) {
+  function openDocument(node) {
     var B = window._tjCloudBridge;
-    if (!B) return;
-
-    if (node.provider === 'mjpages') {           // a native page: hand it back to MyJournal
-      D.touchRecent(node, 'opened');
-      B.openLocal(node.id);
-      openDocState = null;
-      paintDocBar();
-      markActive();          // clear any leftover cloud highlight
-      return;
-    }
-    if (openDocState) await flushSave(true);
-    else lastLocalId = null;
-
-    var p = D.get(node.provider);
-    B.enter();
-    B.setSync('syncing');
-    var ed = B.editor(), title = B.titleInput();
-    ed.innerHTML = '<p style="color:var(--text3)">Loading…</p>';
-    title.value = node.name;
-    openDocState = { node: node, base: null, dirty: false, loading: true, lastSync: 0 };
-    paintDocBar();
-    markActive(true);
-
-    try {
-      var got = await p.read(node);
-      // A second document opened while this one was still loading wins — dropping
-      // the stale response is what stops the slower request overwriting it.
-      if (!openDocState || openDocState.node.key !== node.key) return;
-      ed.innerHTML = got.html || '<p></p>';
-      title.value = got.title || node.name;
-      openDocState.base = { html: got.html || '', modified: got.modified || 0, rev: got.rev || '' };
-      openDocState.loading = false;
-      openDocState.lastSync = Date.now();
-      // Give the editor layer the same load hook a native page gets, so undo
-      // history, saved scroll position and image bindings all behave identically.
-      if (window._docxOnLoad) window._docxOnLoad('tj-page-editor', 'mjd_' + node.key);
-      if (window._docxRebindImages) window._docxRebindImages(ed, 'tj');
-      B.setSync('synced');
-      markActive();          // the tree may have finished rendering during the read
-      D.touchRecent(node, 'opened');
-      S().lastOpen = { provider: node.provider, account: node.account, id: node.id, kind: node.kind, name: node.name, path: node.path || '' };
-      D.saveLocal();
-      paintDocBar();
-    } catch (e) {
-      if (!openDocState || openDocState.node.key !== node.key) return;
-      openDocState.loading = false;
-      openDocState.failed = true;
-      ed.innerHTML = '<p style="color:var(--red)">Could not open this document.</p><p style="color:var(--text3);font-size:13px">' + esc(D.errText(e)) + '</p>';
-      B.setSync('error');
-      paintDocBar();
-    }
+    if (!B || !node || !D.get(node.provider)) return;
+    D.touchRecent(node, 'opened');
+    B.openLocal(node.id);
   }
 
-  function closeDocument() {
-    var B = window._tjCloudBridge;
-    openDocState = null;
-    paintDocBar();
-    markActive();
-    if (B) B.leave(lastLocalId);
-  }
-
-  // MyJournal is taking its own editor back — a Journal-tab entry was clicked,
-  // created or restored while a cloud document was open. Unlike closeDocument
-  // this must NOT call B.leave(): MyJournal is already loading the entry it
-  // chose, and leave() would pull the editor back to the previously restored
-  // one. Everything else has to be undone here, or the toolbar keeps showing
-  // the Google Doc / OneNote chip and its buttons over an entry that isn't it,
-  // and the next keystroke is saved into that document.
+  // Kept for MyJournal and OurJournal, which call it when they take the editor
+  // back. Nothing can put the editor into cloud mode any more, so all that is
+  // left to undo is the flag itself.
   function releaseEditor() {
-    if (!openDocState) return;
-    if (openDocState.dirty) flushSave(true);   // async on purpose; it captures the doc + HTML now
-    clearTimeout(saveTimer);
-    openDocState = null;
     window._tjCloudMode = false;
-    paintDocBar();
-    markActive();
-  }
-
-  // Called from MyJournal's autoSave the moment the editor changes in cloud mode.
-  D.onEditorInput = function () {
-    if (!openDocState || openDocState.loading || openDocState.failed) return;
-    openDocState.dirty = true;
-    var B = window._tjCloudBridge;
-    if (B) B.setSync('syncing');
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(function () { flushSave(false); }, SAVE_DEBOUNCE);
-  };
-  window.MJDocs.onEditorInput = D.onEditorInput;
-
-  /* ── Saving, with conflict detection ──────────────────────────────────────
-   * Before every write the remote stamp is re-read. If it moved since this
-   * document was loaded, someone (or another device) changed it and a blind
-   * write would destroy their work — so the write stops and the conflict dialog
-   * decides. Nothing is ever overwritten silently, in either direction. */
-  var saving = false;
-  async function flushSave(force) {
-    clearTimeout(saveTimer);
-    if (!openDocState || openDocState.loading || openDocState.failed) return;
-    if (!openDocState.dirty && !force) return;
-    if (saving) return;
-    var st = openDocState, B = window._tjCloudBridge;
-    if (!B) return;
-    var html = B.editor().innerHTML;
-    var titleNow = (B.titleInput().value || '').trim();
-
-    if (!navigator.onLine) {
-      D.enqueue(st.node, html);
-      st.dirty = false;
-      B.setSync('idle');
-      paintStatus();
-      return;
-    }
-
-    saving = true;
-    B.setSync('syncing');
-    try {
-      var p = D.get(st.node.provider);
-      var stamp = await p.remoteStamp(st.node);
-      var moved = st.base && stamp.modified && stamp.modified > (st.base.modified || 0) + 1500;
-      if (moved) {
-        saving = false;
-        var remote = await p.read(st.node);
-        showConflict(st, html, remote);
-        return;
-      }
-      if (titleNow && titleNow !== st.node.name && p.caps.renameDoc) {
-        try { await p.rename(st.node, titleNow); st.node.name = titleNow; } catch (e) { /* content still saves */ }
-      }
-      var res = await p.write(st.node, html);
-      st.base = { html: html, modified: res.modified, rev: res.rev };
-      st.dirty = false;
-      st.lastSync = Date.now();
-      st.node.modified = res.modified;
-      B.setSync('synced');
-      paintStatus();
-      D.touchRecent(st.node, 'edited');
-    } catch (e) {
-      // Anything that looks like a lost connection is queued rather than
-      // reported as a failure — the edit is safe and will replay.
-      if (/network|failed to fetch|offline/i.test(D.errText(e))) {
-        D.enqueue(st.node, html); st.dirty = false; B.setSync('idle');
-      } else {
-        B.setSync('error');
-        toast(D.errText(e), 'error');
-      }
-    } finally { saving = false; paintDocBar(); }
-  }
-
-  /* ── Conflict dialog ──────────────────────────────────────────────────────*/
-  function plain(html) {
-    var d = document.createElement('div'); d.innerHTML = html || '';
-    return (d.textContent || '').replace(/\s+/g, ' ').trim();
-  }
-  // Word-level LCS. Small on purpose: this compares two versions of one
-  // document a person just wrote, not arbitrary files.
-  function wordDiff(a, b) {
-    var A = a.split(/(\s+)/), B = b.split(/(\s+)/);
-    var n = A.length, m = B.length;
-    if (n * m > 900000) return null;                 // too big to diff meaningfully
-    var L = [];
-    for (var i = 0; i <= n; i++) L.push(new Uint32Array(m + 1));
-    for (i = n - 1; i >= 0; i--)
-      for (var j = m - 1; j >= 0; j--)
-        L[i][j] = A[i] === B[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
-    var out = [], x = 0, y = 0;
-    while (x < n && y < m) {
-      if (A[x] === B[y]) { out.push(['=', A[x]]); x++; y++; }
-      else if (L[x + 1][y] >= L[x][y + 1]) { out.push(['-', A[x]]); x++; }
-      else { out.push(['+', B[y]]); y++; }
-    }
-    while (x < n) out.push(['-', A[x++]]);
-    while (y < m) out.push(['+', B[y++]]);
-    return out;
-  }
-  function renderDiff(mineText, theirsText) {
-    var d = wordDiff(theirsText, mineText);
-    if (!d) return null;
-    var mine = '', theirs = '';
-    d.forEach(function (p) {
-      var t = esc(p[1]);
-      if (p[0] === '=') { mine += t; theirs += t; }
-      else if (p[0] === '+') { mine += '<ins>' + t + '</ins>'; }
-      else { theirs += '<del>' + t + '</del>'; }
-    });
-    return { mine: mine, theirs: theirs };
-  }
-
-  function showConflict(st, myHtml, remote) {
-    var B = window._tjCloudBridge;
-    B.setSync('error');
-    var p = D.get(st.node.provider);
-    var body = document.createElement('div');
-    body.innerHTML =
-      '<div class="mjd-conflict">' +
-        '<div class="mine"><h5>Your version — in MyJournal</h5><div class="mjd-conflict-body" id="mjd-cf-mine"></div></div>' +
-        '<div class="theirs"><h5>Cloud version — in ' + esc(p.label) + '</h5><div class="mjd-conflict-body" id="mjd-cf-theirs"></div></div>' +
-      '</div>' +
-      '<p class="mjd-hint">The cloud copy changed at ' + esc(new Date(remote.modified || Date.now()).toLocaleString()) +
-      ', after you opened it. Nothing has been overwritten — pick which version to keep.</p>';
-
-    var mineText = plain(myHtml), theirsText = plain(remote.html);
-    var diff = renderDiff(mineText, theirsText);
-    body.querySelector('#mjd-cf-mine').innerHTML = diff ? diff.mine : esc(mineText).slice(0, 6000);
-    body.querySelector('#mjd-cf-theirs').innerHTML = diff ? diff.theirs : esc(theirsText).slice(0, 6000);
-
-    openModal({
-      title: 'This document changed in two places',
-      sub: esc(st.node.name),
-      wide: true,
-      body: body,
-      actions: [
-        { label: 'Keep cloud version', cls: 'ghost', fn: function () {
-            B.editor().innerHTML = remote.html;
-            st.base = { html: remote.html, modified: remote.modified, rev: remote.rev };
-            st.dirty = false; st.lastSync = Date.now();
-            B.setSync('synced'); paintStatus();
-          } },
-        { label: 'Keep both (save mine as a copy)', cls: 'ghost', fn: function () { keepBoth(st, myHtml, remote); } },
-        { label: 'Keep my version', fn: async function () {
-            // Re-base onto the remote stamp first, so this write is an
-            // intentional overwrite rather than another conflict.
-            st.base = { html: remote.html, modified: remote.modified, rev: remote.rev };
-            st.dirty = true;
-            B.editor().innerHTML = myHtml;
-            await flushSave(true);
-          } }
-      ]
-    });
-  }
-
-  // "Keep both" is the answer when neither version is disposable: the cloud copy
-  // stays untouched and the local edit becomes a new sibling document.
-  async function keepBoth(st, myHtml, remote) {
-    var B = window._tjCloudBridge, p = D.get(st.node.provider);
-    try {
-      B.setSync('syncing');
-      var parentRef = { provider: st.node.provider, account: st.node.account, id: st.node.parent, kind: p.id === 'onenote' ? 'section' : 'folder' };
-      var copy = await p.createDoc(parentRef, st.node.name + ' (my version)');
-      await p.write(copy, myHtml);
-      B.editor().innerHTML = remote.html;
-      st.base = { html: remote.html, modified: remote.modified, rev: remote.rev };
-      st.dirty = false; st.lastSync = Date.now();
-      B.setSync('synced');
-      toast('Saved your version as "' + copy.name + '".', 'ok');
-      hardRefresh();
-    } catch (e) {
-      B.setSync('error');
-      toast(D.errText(e), 'error');
-    }
-  }
-
-  /* ══════════════════════════════════════════════════════════════════════════
-   * Toolbar chip for the open cloud document
-   * ══════════════════════════════════════════════════════════════════════════ */
-  function buildDocBar() {
-    var tb = el('tj-toolbar'), pill = el('tj-sync-pill');
-    if (!tb || el('mjd-docbar')) return;
-    var bar = document.createElement('div');
-    bar.id = 'mjd-docbar';
-    bar.innerHTML =
-      '<span class="mjd-chip"><span class="mjd-chip-ico" id="mjd-chip-ico"></span><span class="mjd-chip-path" id="mjd-chip-path"></span></span>' +
-      '<button class="mjd-icon-btn" id="mjd-save-now" title="Save now (Ctrl+S)">' + I.cloud + '</button>' +
-      '<button class="mjd-icon-btn" id="mjd-ai-btn" title="AI tools">' + I.sparkle + '</button>' +
-      '<button class="mjd-icon-btn" id="mjd-export-btn" title="Export">' + I.download + '</button>' +
-      '<button class="mjd-icon-btn" id="mjd-open-ext" title="Open in provider">' + I.external + '</button>' +
-      '<button class="mjd-icon-btn" id="mjd-close-doc" title="Close document">' + I.x + '</button>' +
-      '<span id="mjd-offline">' + I.cloud + 'Offline</span>' +
-      '<span id="mjd-lastsync"></span>';
-    tb.insertBefore(bar, pill || null);
-    el('mjd-save-now').addEventListener('click', function () { flushSave(true); });
-    el('mjd-ai-btn').addEventListener('click', openAiPanel);
-    el('mjd-export-btn').addEventListener('click', function () { if (openDocState) openExport(openDocState.node); });
-    el('mjd-open-ext').addEventListener('click', function () {
-      if (!openDocState) return;
-      var url = D.get(openDocState.node.provider).externalUrl(openDocState.node);
-      if (url) window.open(url, '_blank', 'noopener');
-    });
-    el('mjd-close-doc').addEventListener('click', async function () {
-      if (openDocState && openDocState.dirty) await flushSave(true);
-      closeDocument();
-    });
-  }
-
-  function paintDocBar() {
-    var bar = el('mjd-docbar');
-    if (!bar) return;
-    bar.classList.toggle('on', !!openDocState);
-    if (!openDocState) return;
-    var p = D.get(openDocState.node.provider);
-    el('mjd-chip-ico').innerHTML = p.icon;
-    el('mjd-chip-path').textContent = (openDocState.node.path ? openDocState.node.path + ' / ' : '') + openDocState.node.name;
-    el('mjd-chip-path').title = p.label + ' — ' + (openDocState.node.path || '');
-    var ext = el('mjd-open-ext');
-    ext.style.display = p.externalUrl(openDocState.node) ? '' : 'none';
-    ext.title = 'Open in ' + p.label;
-    el('mjd-export-btn').style.display = p.caps.exportDoc ? '' : 'none';
-    paintStatus();
-  }
-
-  function paintStatus() {
-    var ls = el('mjd-lastsync'), off = el('mjd-offline');
-    if (off) off.classList.toggle('on', !navigator.onLine || D.queueSize() > 0);
-    if (!ls) return;
-    var q = D.queueSize();
-    if (q > 0) { ls.textContent = q + ' change' + (q > 1 ? 's' : '') + ' waiting to sync'; return; }
-    if (!navigator.onLine) { ls.textContent = 'Offline — edits are saved on this device'; return; }
-    ls.textContent = openDocState && openDocState.lastSync ? 'Synced ' + fmtWhen(openDocState.lastSync) : '';
-  }
-  // Nothing to repaint unless a document is open or the offline queue has work.
-  setInterval(function () { if (openDocState || D.queueSize()) paintStatus(); }, 30000);
-  window.addEventListener('online', function () { paintStatus(); });
-  window.addEventListener('offline', function () { paintStatus(); });
-  D.on('queue', paintStatus);
-  D.on('flushed', function () { paintStatus(); toast('Offline changes synced.', 'ok'); });
-  D.on('dropped', function (d) { toast('Could not sync "' + (d.ref.name || 'a document') + '" — it no longer exists.', 'error'); });
-
-  /* ══════════════════════════════════════════════════════════════════════════
-   * Document actions
-   * ══════════════════════════════════════════════════════════════════════════ */
-  function capFor(p, node, action) {
-    var container = node.kind !== 'doc';
-    if (action === 'rename') return container ? { ok: p.caps.renameFolder, why: p.caps.renameFolderReason } : { ok: p.caps.renameDoc };
-    if (action === 'delete') return container ? { ok: p.caps.deleteFolder, why: p.caps.deleteFolderReason } : { ok: p.caps.deleteDoc };
-    if (action === 'move')   return container ? { ok: p.caps.moveFolder, why: p.caps.moveFolderReason } : { ok: p.caps.moveDoc };
-    if (action === 'duplicate') return { ok: !container && p.caps.duplicateDoc };
-    if (action === 'export') return { ok: !container && p.caps.exportDoc };
-    return { ok: true };
-  }
-
-  function openActions(node) {
-    var p = D.get(node.provider);
-    var body = document.createElement('div');
-    var rows = [];
-    function add(label, action, fn, always) {
-      var c = always ? { ok: true } : capFor(p, node, action);
-      // Two very different kinds of "no".
-      //
-      // OneNote genuinely CANNOT rename a notebook — that is a platform limit
-      // worth naming, so it stays visible, greyed, with the reason attached.
-      //
-      // A MyJournal page simply has no concept of Duplicate, Move to or Export
-      // (it is a flat list, and export is the toolbar's Export PDF). Listing
-      // three dead rows each captioned "Not supported by this provider" is
-      // noise that makes the menu look broken. No reason declared means the
-      // action does not APPLY here, so it is omitted entirely.
-      if (!c.ok && !c.why) return;
-      rows.push({ label: label, ok: c.ok, why: c.why, fn: fn });
-    }
-    if (node.kind === 'doc') add('Open', null, function () { openDocument(node); }, true);
-    add('Rename…', 'rename', function () { doRename(node); });
-    add('Duplicate', 'duplicate', function () { doDuplicate(node); });
-    add('Move to…', 'move', function () { doMove(node); });
-    add('Export…', 'export', function () { openExport(node); });
-    if (node.kind !== 'doc' && p.caps.createDoc) add(p.id === 'onenote' && node.kind !== 'section' ? 'New section…' : 'New document…', null, function () { onNew(node); }, true);
-    add(D.isFav(node) ? 'Remove from favourites' : 'Add to favourites', null, function () { D.toggleFav(node); renderPanel(); }, true);
-    if (p.externalUrl(node)) add('Open in ' + p.label, null, function () { window.open(p.externalUrl(node), '_blank', 'noopener'); }, true);
-    add('Delete…', 'delete', function () { doDelete(node); });
-
-    var html = '<div class="mjd-menu-list">';
-    rows.forEach(function (r, i) {
-      html += '<button class="mjd-menu-item' + (/delete/i.test(r.label) ? ' danger' : '') + '" data-i="' + i + '"' +
-        (r.ok ? '' : ' disabled') + '>' + esc(r.label) + '</button>';
-      // An action that a provider genuinely cannot do says why, right where it
-      // is greyed out — rather than leaving you to guess whether it is broken.
-      if (!r.ok) html += '<div class="mjd-menu-why">' + esc(r.why || 'Not supported by this provider.') + '</div>';
-    });
-    html += '</div>';
-    body.innerHTML = html;
-    body.addEventListener('click', function (e) {
-      var b = e.target.closest('[data-i]');
-      if (!b || b.disabled) return;
-      closeModal();
-      rows[+b.getAttribute('data-i')].fn();
-    });
-    openModal({ title: node.name, sub: p.label + (node.path ? ' · ' + esc(node.path) : ''), body: body });
-  }
-
-  async function doRename(node) {
-    var p = D.get(node.provider);
-    var name = await askText('New name', { title: 'Rename', default: node.name, okLabel: 'Rename' });
-    if (name === null) return;
-    name = String(name).trim();
-    if (!name || name === node.name) return;
-    try {
-      await p.rename(node, name);
-      node.name = name;
-      if (openDocState && openDocState.node.key === node.key) {
-        window._tjCloudBridge.titleInput().value = name;
-        paintDocBar();
-      }
-      D.cacheDrop('ch|' + node.provider);
-      renderPanel();
-      toast('Renamed.', 'ok');
-    } catch (e) { toast(D.errText(e), 'error'); }
-  }
-
-  async function doDuplicate(node) {
-    var p = D.get(node.provider);
-    try {
-      var copy = await p.duplicate(node, node.name + ' (copy)');
-      D.cacheDrop('ch|' + node.provider);
-      renderPanel();
-      toast(copy ? 'Duplicated as "' + copy.name + '".' : 'Copy started — it will appear shortly.', 'ok');
-    } catch (e) { toast(D.errText(e), 'error'); }
-  }
-
-  async function doDelete(node) {
-    var p = D.get(node.provider);
-    var where = p.id === 'gdocs' ? 'It moves to Google Drive’s trash and can be restored from there.'
-                                 : 'This cannot be undone from MyJournal.';
-    var ok = await ask('Delete "' + node.name + '"?\n\n' + where, { title: 'Delete', danger: true, okLabel: 'Delete' });
-    if (!ok) return;
-    try {
-      await p.remove(node);
-      if (openDocState && openDocState.node.key === node.key) closeDocument();
-      D.cacheDrop('ch|' + node.provider);
-      renderPanel();
-      toast('Deleted.', 'ok');
-    } catch (e) { toast(D.errText(e), 'error'); }
-  }
-
-  // Move needs a destination, and the destination has to be a real container in
-  // the same account — so the picker walks the live tree rather than asking the
-  // user to type a path.
-  async function doMove(node) {
-    var p = D.get(node.provider);
-    var body = document.createElement('div');
-    body.innerHTML = '<div class="mjd-hint" style="margin:0 0 12px">Choose where "' + esc(node.name) + '" should go.</div><div id="mjd-pick"></div>';
-    var chosen = null;
-    openModal({
-      title: 'Move to…', sub: p.label, body: body,
-      actions: [
-        { label: 'Cancel', cls: 'ghost' },
-        { label: 'Move here', keep: true, fn: async function () {
-            if (!chosen) { toast('Pick a destination first.', 'error'); return; }
-            closeModal();
-            try {
-              await p.move(node, chosen);
-              D.cacheDrop('ch|' + node.provider);
-              renderPanel();
-              toast('Moved to "' + chosen.name + '".', 'ok');
-            } catch (e) { toast(D.errText(e), 'error'); }
-          } }
-      ]
-    });
-    var host = el('mjd-pick');
-    // OneNote pages can only live in a section; Drive documents in a folder.
-    var wantKind = p.id === 'onenote' ? 'section' : 'folder';
-    buildPicker(host, rootRef(node.provider), 0, wantKind, function (n, rowEl) {
-      chosen = n;
-      host.querySelectorAll('.mjd-row').forEach(function (r) { r.classList.remove('active'); });
-      rowEl.classList.add('active');
-    }, node.key);
-  }
-
-  function buildPicker(host, ref, depth, wantKind, onPick, excludeKey) {
-    var wrap = document.createElement('div');
-    host.appendChild(wrap);
-    wrap.innerHTML = '<div class="mjd-skel"></div>';
-    D.children(ref).then(function (nodes) {
-      wrap.innerHTML = '';
-      var containers = nodes.filter(function (n) { return n.kind !== 'doc' && n.key !== excludeKey; });
-      if (!containers.length && depth === 0) { wrap.innerHTML = '<div class="mjd-empty" style="font-size:12px">No folders here.</div>'; return; }
-      containers.forEach(function (n) {
-        var row = document.createElement('div');
-        row.className = 'mjd-row';
-        row.style.paddingLeft = (8 + depth * 14) + 'px';
-        var selectable = n.kind === wantKind;
-        row.innerHTML = '<span class="mjd-tw' + (n.hasChildren ? '' : ' leaf') + '">' + I.chevron + '</span>' +
-          '<span class="mjd-ico">' + kindIcon(n.kind) + '</span>' +
-          '<span class="mjd-name"' + (selectable ? '' : ' style="opacity:.55"') + '>' + esc(n.name) + '</span>';
-        row.addEventListener('click', function (e) {
-          e.stopPropagation();
-          if (e.target.closest('.mjd-tw') || !selectable) {
-            var tw = row.querySelector('.mjd-tw');
-            var nx = row.nextElementSibling;
-            if (nx && nx.classList.contains('mjd-kids')) { nx.remove(); tw.classList.remove('open'); return; }
-            if (!n.hasChildren) return;
-            tw.classList.add('open');
-            var kids = document.createElement('div'); kids.className = 'mjd-kids';
-            row.parentNode.insertBefore(kids, row.nextSibling);
-            buildPicker(kids, n, depth + 1, wantKind, onPick, excludeKey);
-            return;
-          }
-          onPick(n, row);
-        });
-        wrap.appendChild(row);
-      });
-    }).catch(function (e) { wrap.innerHTML = '<div class="mjd-note">' + esc(D.errText(e)) + '</div>'; });
-  }
-
-  async function onNew(parentNode) {
-    // Guard the same mistake at the other end: a DOM event is never a folder.
-    if (parentNode && (typeof Event !== 'undefined') && parentNode instanceof Event) parentNode = null;
-    if (parentNode && !parentNode.provider) parentNode = null;
-    var pid = sectionProvider();
-    if (!pid) return;
-    var p = D.get(pid);
-    if (p.caps.local) { el('tj-new-entry-btn').click(); return; }
-    var acc = accountFor(pid);
-    if (!acc) { doConnect(pid, false); return; }
-
-    var parent = parentNode || (openDocState && openDocState.node.provider === pid
-      ? { provider: pid, account: openDocState.node.account, id: openDocState.node.parent, kind: p.id === 'onenote' ? 'section' : 'folder', name: 'current folder' }
-      : rootRef(pid));
-
-    // OneNote's hierarchy is the constraint that shapes this dialog: a page can
-    // only be created inside a section, so anywhere else the offer is a section
-    // (or a notebook at the top) rather than a page that could not be made.
-    var choices = [];
-    if (p.id === 'onenote') {
-      if (!parent.id) choices = [{ k: 'notebook', label: 'New notebook' }];
-      else if (parent.kind === 'section') choices = [{ k: 'doc', label: 'New page' }];
-      else choices = [{ k: 'section', label: 'New section' }, { k: 'sectiongroup', label: 'New section group' }];
-    } else {
-      choices = [{ k: 'doc', label: 'New document' }, { k: 'folder', label: 'New folder' }];
-    }
-
-    var body = document.createElement('div');
-    body.innerHTML =
-      '<label class="mjd-field"><span>Name</span><input class="mjd-input" id="mjd-new-name" placeholder="Untitled" /></label>' +
-      '<div class="mjd-pill-row" id="mjd-new-kind"></div>' +
-      '<div class="mjd-hint">In ' + esc(parent.name || p.rootLabel) + '</div>';
-    var kindWrap = body.querySelector('#mjd-new-kind');
-    var kind = choices[0].k;
-    choices.forEach(function (c, i) {
-      var b = document.createElement('button');
-      b.className = 'mjd-pill' + (i === 0 ? ' on' : '');
-      b.textContent = c.label;
-      b.style.borderColor = i === 0 ? '#e0b874' : '';
-      b.style.color = i === 0 ? '#e0b874' : '';
-      b.addEventListener('click', function () {
-        kind = c.k;
-        kindWrap.querySelectorAll('.mjd-pill').forEach(function (x) { x.style.borderColor = ''; x.style.color = ''; });
-        b.style.borderColor = '#e0b874'; b.style.color = '#e0b874';
-      });
-      kindWrap.appendChild(b);
-    });
-    if (choices.length < 2) kindWrap.style.display = 'none';
-
-    openModal({
-      title: 'New in ' + p.label, body: body,
-      actions: [
-        { label: 'Cancel', cls: 'ghost' },
-        { label: 'Create', fn: async function () {
-            var name = (el('mjd-new-name') ? el('mjd-new-name').value : '').trim();
-            try {
-              var made;
-              if (kind === 'doc') {
-                made = await p.createDoc(parent, name || 'Untitled document');
-                D.cacheDrop('ch|' + pid);
-                renderPanel();
-                openDocument(made);
-              } else {
-                made = await p.createContainer(parent, name || 'Untitled', kind);
-                // Clear the cached listing AND the in-memory children before
-                // repainting, or the tree paints the pre-create contents back
-                // from cache and the new folder looks like it was never made.
-                D.cacheDrop('ch|' + pid);
-                loadedKids = {};
-                renderPanel();
-              }
-              toast('Created "' + made.name + '".', 'ok');
-            } catch (e) { toast(D.errText(e), 'error'); }
-          } }
-      ]
-    });
-    // The name field is the only thing anyone types here — focus it, and let
-    // Enter submit so creating a document is two keystrokes.
-    setTimeout(function () {
-      var inp = el('mjd-new-name');
-      if (!inp) return;
-      inp.focus();
-      inp.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') { e.preventDefault(); var btns = el('mjd-modal-foot').querySelectorAll('button'); btns[btns.length - 1].click(); }
-      });
-    }, 60);
-  }
-
-  function openExport(node) {
-    var p = D.get(node.provider);
-    var formats = p.exportFormats();
-    if (!formats.length) { toast(p.label + ' has no export formats.', 'error'); return; }
-    var body = document.createElement('div');
-    body.innerHTML = '<div class="mjd-pill-row" id="mjd-exp"></div><div class="mjd-hint">The file downloads to this device. The document in ' + esc(p.label) + ' is not changed.</div>';
-    var wrap = body.querySelector('#mjd-exp');
-    formats.forEach(function (f) {
-      var b = document.createElement('button');
-      b.className = 'mjd-pill'; b.textContent = f.label;
-      b.addEventListener('click', async function () {
-        b.disabled = true; b.textContent = 'Preparing…';
-        try {
-          var blob = await p.exportDoc(node, f.id);
-          var url = URL.createObjectURL(blob);
-          var a = document.createElement('a');
-          a.href = url;
-          a.download = String(node.name || 'document').replace(/[\\/:*?"<>|]/g, '-') + '.' + f.ext;
-          document.body.appendChild(a); a.click(); a.remove();
-          setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
-          closeModal();
-          toast('Exported.', 'ok');
-        } catch (e) { b.disabled = false; b.textContent = f.label; toast(D.errText(e), 'error'); }
-      });
-      wrap.appendChild(b);
-    });
-    openModal({ title: 'Export', sub: esc(node.name), body: body, actions: [{ label: 'Close', cls: 'ghost' }] });
-  }
-
-  /* ══════════════════════════════════════════════════════════════════════════
-   * Accounts & settings
-   * ══════════════════════════════════════════════════════════════════════════ */
-  async function doConnect(pid, add) {
-    var p = D.get(pid);
-    if (!p.configured()) { openSettings(); return; }
-    try {
-      toast('Opening ' + p.label + ' sign-in…');
-      var acc = await p.connect({ add: !!add });
-      activeAccount[pid] = acc.id;
-      D.cacheDrop('ch|' + pid);
-      buildRailDots();
-      renderPanel();
-      toast('Connected as ' + (acc.email || acc.label) + '.', 'ok');
-      D.refreshIndex({ ms: 15000 });
-    } catch (e) { toast(D.errText(e), 'error'); }
-  }
-
-  function buildRailDots() {
-    document.querySelectorAll('#mjd-nav .mjd-rail-btn').forEach(function (b) {
-      var p = D.get(b.getAttribute('data-sec'));
-      var dot = b.querySelector('.mjd-dot');
-      if (p && dot) dot.classList.toggle('off', p.accounts().length === 0);
-    });
-  }
-
-  function openAccounts(pid) {
-    var p = D.get(pid);
-    if (!p || p.caps.local) return;
-    var body = document.createElement('div');
-    function paint() {
-      var accs = p.accounts();
-      var h = '<div class="mjd-card"><div class="mjd-card-head"><span class="mjd-pico" style="color:' + p.accent + '">' + p.icon + '</span><h4>' + esc(p.label) + '</h4></div>';
-      if (!accs.length) h += '<div class="mjd-hint" style="margin:8px 0 0">No accounts connected on this device.</div>';
-      accs.forEach(function (a) {
-        var isActive = (accountFor(pid) || {}).id === a.id;
-        h += '<div class="mjd-acct">' +
-          '<div class="mjd-acct-av">' + esc((a.label || a.email || '?').charAt(0).toUpperCase()) + '</div>' +
-          '<div class="mjd-acct-txt"><b>' + esc(a.label || a.email) + '</b><span>' + esc(a.email || '') + '</span></div>' +
-          (isActive ? '<span class="mjd-badge">Active</span>'
-                    : '<button class="mjd-tiny" data-use="' + esc(a.id) + '">Use</button>') +
-          '<button class="mjd-tiny danger" data-out="' + esc(a.id) + '">Sign out</button>' +
-        '</div>';
-      });
-      h += '</div>' +
-        '<div class="mjd-hint">Sign-in is stored on this device only — never in the cloud — so each device connects once. ' +
-        'Signing out here removes that access from this device; it does not change anything in your ' + esc(p.label) + ' account.</div>';
-      body.innerHTML = h;
-    }
-    paint();
-    body.addEventListener('click', function (e) {
-      var use = e.target.closest('[data-use]'), out = e.target.closest('[data-out]');
-      if (use) { activeAccount[pid] = use.getAttribute('data-use'); paint(); renderPanel(); }
-      if (out) {
-        var id = out.getAttribute('data-out');
-        ask('Sign out of this ' + p.label + ' account on this device?', { title: 'Sign out', danger: true, okLabel: 'Sign out' }).then(function (ok) {
-          if (!ok) return;
-          p.disconnect(id);
-          if (activeAccount[pid] === id) delete activeAccount[pid];
-          if (openDocState && openDocState.node.provider === pid && openDocState.node.account === id) closeDocument();
-          D.cacheDrop('ch|' + pid);
-          paint(); buildRailDots(); renderPanel();
-        });
-      }
-    });
-    openModal({
-      title: p.label + ' accounts', body: body,
-      actions: [
-        { label: 'Close', cls: 'ghost' },
-        { label: I.plus + 'Add account', keep: true, fn: function () { closeModal(); doConnect(pid, true); } }
-      ]
-    });
-  }
-
-  function openSettings() {
-    var body = document.createElement('div');
-    var origin = location.origin, redirect = D.redirectUri();
-    var h = '';
-    D.cloudProviders().forEach(function (p) {
-      var cfg = (S().providerCfg && S().providerCfg[p.id]) || {};
-      // Setup instructions are a wall of text you need exactly once. Collapsed
-      // by default, the dialog reads as what it actually is day to day: two
-      // fields and a connection status.
-      h += '<div class="mjd-card">' +
-        '<div class="mjd-card-head"><span class="mjd-pico" style="color:' + p.accent + '">' + p.icon + '</span><h4>' + esc(p.label) + '</h4>' +
-        '<button class="mjd-tiny" data-accts="' + p.id + '">' + (p.accounts().length ? p.accounts().length + ' account' + (p.accounts().length > 1 ? 's' : '') : 'Connect') + '</button></div>' +
-        '<label class="mjd-field" style="margin:14px 0 0"><span>' + esc(p.setup.label) + '</span>' +
-        '<input class="mjd-input" data-cfg="' + p.id + '" value="' + esc(cfg[p.setup.field] || '') + '" placeholder="' + esc(p.setup.placeholder) + '" spellcheck="false" autocapitalize="off" /></label>' +
-        '<button class="mjd-disclose" data-disclose="' + p.id + '">' + I.chevron + 'Setup instructions</button>' +
-        '<div class="mjd-instructions" data-inst="' + p.id + '"><div class="mjd-hint">' + p.setup.hint(origin, redirect) + '</div></div>' +
-        '</div>';
-    });
-    // The two providers no longer share one redirect URI: OneNote comes back to
-    // the app itself, Google to the hidden callback page it renews through. Each
-    // provider's own hint carries its own URI — a single line here claiming to
-    // cover both would send half of any future setup to the wrong place.
-    h += '<div class="mjd-hint" style="margin-top:14px">Client IDs are public identifiers — they sync across your devices, so you only paste them once. ' +
-      'Access tokens never sync: each device signs in for itself.<br><br>Each provider needs its own redirect URI — see its setup note above.</div>';
-    body.innerHTML = h;
-    body.addEventListener('click', function (e) {
-      var a = e.target.closest('[data-accts]');
-      if (a) { closeModal(); openAccounts(a.getAttribute('data-accts')); return; }
-      var d = e.target.closest('[data-disclose]');
-      if (d) {
-        var panel = body.querySelector('[data-inst="' + d.getAttribute('data-disclose') + '"]');
-        var open = panel.classList.toggle('on');
-        d.classList.toggle('open', open);
-        d.lastChild.textContent = open ? 'Hide instructions' : 'Setup instructions';
-      }
-    });
-    openModal({
-      title: 'Document settings',
-      sub: 'Connect Google Docs and OneNote to MyJournal.',
-      body: body,
-      actions: [
-        { label: 'Cancel', cls: 'ghost' },
-        { label: 'Save', fn: function () {
-            document.querySelectorAll('#mjd-modal [data-cfg]').forEach(function (inp) {
-              var pid = inp.getAttribute('data-cfg'), p = D.get(pid);
-              var patch = {}; patch[p.setup.field] = inp.value.trim();
-              D.setCfg(pid, patch);
-            });
-            buildRailDots(); renderPanel();
-            toast('Settings saved.', 'ok');
-          } }
-      ]
-    });
   }
 
   /* ══════════════════════════════════════════════════════════════════════════
@@ -44702,168 +42426,11 @@ window._THV={
   }
 
   /* ══════════════════════════════════════════════════════════════════════════
-   * AI panel for the open document
-   *
-   * Works identically on a MyJournal page, a Google Doc and a OneNote page —
-   * the editor is the same element, so "the document" is the same thing.
-   * ══════════════════════════════════════════════════════════════════════════ */
-  var AI_TOOLS = [
-    { op: 'summarize', label: 'Summarise',        kind: 'text' },
-    { op: 'summarize', label: 'Quick summary',    kind: 'text', extra: { scope: 'brief' } },
-    { op: 'improve',   label: 'Improve writing',  kind: 'html' },
-    { op: 'rewrite',   label: 'Rewrite — professional', kind: 'html', extra: { tone: 'professional' } },
-    { op: 'rewrite',   label: 'Rewrite — plain',  kind: 'html', extra: { tone: 'plain and direct' } },
-    { op: 'expand',    label: 'Expand',           kind: 'html' },
-    { op: 'title',     label: 'Suggest titles',   kind: 'list' },
-    { op: 'tags',      label: 'Suggest tags',     kind: 'list' },
-    { op: 'related',   label: 'Find related',     kind: 'related' }
-  ];
-
-  function openAiPanel() {
-    var B = window._tjCloudBridge;
-    var ed = B && B.editor();
-    if (!ed) return;
-    var body = document.createElement('div');
-    body.innerHTML = '<div class="mjd-pill-row" id="mjd-ai-tools"></div><div id="mjd-ai-out"></div>';
-    var wrap = body.querySelector('#mjd-ai-tools');
-    AI_TOOLS.forEach(function (t) {
-      var b = document.createElement('button');
-      b.className = 'mjd-pill'; b.textContent = t.label;
-      b.addEventListener('click', function () { runAiTool(t, ed); });
-      wrap.appendChild(b);
-    });
-    openModal({
-      title: 'AI', sub: 'Works the same on MyJournal pages, Google Docs and OneNote.',
-      body: body, wide: true, actions: [{ label: 'Close', cls: 'ghost' }]
-    });
-  }
-
-  async function runAiTool(t, ed) {
-    var out = el('mjd-ai-out');
-    out.innerHTML = '<div class="mjd-busy"><span class="mjd-spinner"></span>Working…</div>';
-    // A selection means "this part"; no selection means the whole document.
-    var sel = window.getSelection();
-    var scopedHtml = null;
-    if (t.kind === 'html' && sel && sel.rangeCount && !sel.isCollapsed && ed.contains(sel.anchorNode)) {
-      var frag = sel.getRangeAt(0).cloneContents();
-      var h = document.createElement('div'); h.appendChild(frag);
-      if ((h.textContent || '').trim().length > 40) scopedHtml = h.innerHTML;
-    }
-    var payload = Object.assign({ html: scopedHtml || ed.innerHTML }, t.extra || {});
-    try {
-      var r = await D.ai(t.op, payload);
-      if (t.kind === 'text') {
-        out.innerHTML = '<div class="mjd-out">' + esc(r.text || '') + '</div>';
-        addOutActions(out, function () { return r.text || ''; }, true);
-      } else if (t.kind === 'list') {
-        var items = r.titles || r.tags || [];
-        if (!items.length) { out.innerHTML = '<div class="mjd-empty">Nothing suggested.</div>'; return; }
-        out.innerHTML = '<div class="mjd-pill-row" id="mjd-ai-list"></div>' +
-          '<div class="mjd-hint">' + (r.titles ? 'Click a title to rename the document.' : 'Click a tag to copy it.') + '</div>';
-        var lw = out.querySelector('#mjd-ai-list');
-        items.forEach(function (v) {
-          var b = document.createElement('button'); b.className = 'mjd-pill'; b.textContent = v;
-          b.addEventListener('click', function () {
-            if (r.titles) { applyTitle(v); closeModal(); }
-            else { try { navigator.clipboard.writeText(v); toast('Copied "' + v + '".', 'ok'); } catch (e) {} }
-          });
-          lw.appendChild(b);
-        });
-      } else if (t.kind === 'related') {
-        await showRelated(out);
-      } else {
-        // A rewrite REPLACES the user's writing, so it is previewed and applied
-        // on purpose — never written straight into the document.
-        var prev = document.createElement('div');
-        prev.className = 'mjd-out'; prev.style.whiteSpace = 'normal';
-        prev.innerHTML = r.html;
-        out.innerHTML = '';
-        out.appendChild(prev);
-        addApply(out, r.html, !!scopedHtml, ed);
-      }
-    } catch (e) {
-      out.innerHTML = '<div class="mjd-note"><b>The AI could not finish.</b><br>' + esc(D.errText(e)) + '</div>';
-    }
-  }
-
-  function addOutActions(out, getText) {
-    var row = document.createElement('div');
-    row.className = 'mjd-pill-row'; row.style.marginTop = '12px';
-    var copy = document.createElement('button'); copy.className = 'mjd-pill'; copy.textContent = 'Copy';
-    copy.addEventListener('click', function () { try { navigator.clipboard.writeText(getText()); toast('Copied.', 'ok'); } catch (e) {} });
-    row.appendChild(copy);
-    out.appendChild(row);
-  }
-
-  function addApply(out, html, scoped, ed) {
-    var row = document.createElement('div');
-    row.className = 'mjd-pill-row'; row.style.marginTop = '12px';
-    var apply = document.createElement('button');
-    apply.className = 'mjd-pill';
-    apply.style.borderColor = '#e0b874'; apply.style.color = '#e0b874';
-    apply.textContent = scoped ? 'Replace the selected text' : 'Replace the whole document';
-    apply.addEventListener('click', function () {
-      if (scoped) {
-        var sel = window.getSelection();
-        if (sel && sel.rangeCount) {
-          var r = sel.getRangeAt(0);
-          r.deleteContents();
-          var tmp = document.createElement('div'); tmp.innerHTML = html;
-          var f = document.createDocumentFragment();
-          while (tmp.firstChild) f.appendChild(tmp.firstChild);
-          r.insertNode(f);
-        }
-      } else ed.innerHTML = html;
-      if (window._docxRebindImages) window._docxRebindImages(ed, 'tj');
-      try { ed.dispatchEvent(new Event('input', { bubbles: true })); } catch (e) {}
-      closeModal();
-      toast('Applied. Undo with Ctrl+Z if it is not right.', 'ok');
-    });
-    row.appendChild(apply);
-    out.appendChild(row);
-  }
-
-  async function showRelated(out) {
-    var pool = omniPool().filter(function (n) { return n.kind === 'doc'; });
-    var cur = openDocState ? openDocState.node : null;
-    var B = window._tjCloudBridge;
-    var snippet = B ? (B.editor().textContent || '').replace(/\s+/g, ' ').slice(0, 600) : '';
-    var title = B ? B.titleInput().value : '';
-    var others = pool.filter(function (n) { return !cur || n.key !== cur.key; });
-    var r = await D.ai('related', { title: title, snippet: snippet, docs: D.aiIndexPayload(others) });
-    var hits = (r.matches || []).map(function (m) { return Object.assign({ _why: m.why }, others[m.i]); }).filter(function (x) { return x && x.key; });
-    if (!hits.length) { out.innerHTML = '<div class="mjd-empty">Nothing else in your library is closely related.</div>'; return; }
-    out.innerHTML = '<div class="mjd-ai-group"><h5>Related documents</h5><ul>' +
-      hits.map(function (n, i) {
-        return '<li data-i="' + i + '">' + kindIcon(n.kind) + esc(n.name) +
-          '<span style="margin-left:auto;font-size:11px;color:#75757c">' + esc(n._why || n.path || '') + '</span></li>';
-      }).join('') + '</ul></div>';
-    out.onclick = function (e) {
-      var li = e.target.closest('[data-i]');
-      if (!li) return;
-      closeModal();
-      openDocument(hits[+li.getAttribute('data-i')]);
-    };
-  }
-
-  function applyTitle(v) {
-    var B = window._tjCloudBridge;
-    if (!B) return;
-    B.titleInput().value = v;
-    try { B.titleInput().dispatchEvent(new Event('input', { bubbles: true })); } catch (e) {}
-    if (openDocState) { openDocState.dirty = true; flushSave(true); }
-  }
-
-  /* ══════════════════════════════════════════════════════════════════════════
    * Wiring
    * ══════════════════════════════════════════════════════════════════════════ */
   function boot() {
     if (!el('tj-sidebar')) return;
-    Object.assign(expanded, S().expanded || {});
     buildNav();
-    buildRailDots();
-    paintStatus();
-    D.onChange(function () { buildRailDots(); });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
@@ -44878,8 +42445,8 @@ window._THV={
     };
   }
 
-  // Ctrl/Cmd+S saves the cloud document immediately; Ctrl/Cmd+Shift+F is the
-  // universal search. Both only fire while MyJournal is the visible app.
+  // Ctrl/Cmd+Shift+F is the universal search. It only fires while MyJournal is
+  // the visible app.
   document.addEventListener('keydown', function (e) {
     // showTonyJournal sets display directly — it does NOT add a class — so
     // visibility has to be read off the element, not off .visible. offsetParent
@@ -44890,23 +42457,8 @@ window._THV={
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'F' || e.key === 'f')) {
       e.preventDefault(); e.stopPropagation();
       openOmni();
-      return;
-    }
-    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 's' || e.key === 'S') && openDocState) {
-      e.preventDefault(); e.stopPropagation();
-      flushSave(true);
     }
   }, true);
-
-  // Never leave the tab with an unsaved cloud edit: a debounced save that has
-  // not fired yet is flushed synchronously into the offline queue, which replays
-  // on the next visit even if the network was the reason it did not go.
-  window.addEventListener('pagehide', function () {
-    if (openDocState && openDocState.dirty) {
-      var B = window._tjCloudBridge;
-      if (B) D.enqueue(openDocState.node, B.editor().innerHTML);
-    }
-  });
 
   /* Grabbable, draggable scroll thumb for a scroll container — mirrors
    * addFadingScrollbar's behaviour for the DOCX editor: shows on scroll or
@@ -44998,7 +42550,7 @@ window._THV={
     return body;
   };
 
-  window.MJDocsUI = { open: openDocument, omni: openOmni, settings: openSettings, section: setSection, refresh: hardRefresh, release: releaseEditor };
+  window.MJDocsUI = { open: openDocument, omni: openOmni, section: setSection, release: releaseEditor };
 })();
 </script>
 
