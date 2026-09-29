@@ -2110,6 +2110,49 @@ an old timeout whose snapshot showed a prompt about "rate limits" was
 reported as a limit. And Grok's scoped `limit_notice` (its role=alert card)
 is tried before the page-wide `rate_limit_selectors` (`SiteSelectors.limit_rules`).
 
+### Choosing each unit's model (Phase U4)
+
+In the Units sheet, under each unit's limits line: a **Model** dropdown
+with **Site default** first, and **Refresh models**. Only Claude, Claude
+(Pro), Gemini and Grok get one (`picker.has_picker`: the site has
+`model_button` and `model_option`); ChatGPT, Perplexity (every model locked
+on free) and DeepSeek say they answer on their default.
+
+* **Stored per person** in `data/<profile>/accounts.json`, beside the
+  chairman override: `"<unit>": {"model": {"id", "name"}}`. Absent = Site
+  default = MAGI never touches the site's picker (exactly the pre-U4
+  behaviour). Routes: `GET /api/units/{id}/models`, `POST
+  /api/units/{id}/model` (`{}` clears; a pick on a unit with no picker is a
+  400), and the same fields (`pickable`, `pick`, `models`, `models_at`) on
+  every `/api/units/usage` entry, so the sheet needs no extra request.
+* **The list** is `model_known` in `selectors.yaml` ("id | name", what U1
+  saw) until **Refresh models** (`POST /api/units/{id}/models/refresh`, a
+  tap only; refused while a run holds the unit) opens the site once,
+  headless, nothing typed, reads the menu (and Claude's "More models"
+  submenu) and keeps it, locked rows marked (`accounts.save_models`; an
+  empty read keeps the old list). Live 2026-09-28: free Claude offers Sonnet
+  5.5, Haiku 4.5, Sonnet 5 and Sonnet 4.6 (Opus/Fable locked).
+* **In a run** (`BrowserProvider.ask`, so council members, chairman,
+  Brainstorm, Studio and the refiner alike): after the sign-in check and
+  before attaching or typing, `browser/picker.choose` opens the menu, clicks
+  the option (matched by `data-model-id` / `data-mode-id`, by name on Grok)
+  and **confirms on the menu's own selected mark** by reopening it, never on
+  the label's wording (Gemini's label says "Gemini Flash" for "3.6 Flash";
+  "Flash" must never pass for "Flash-Lite"). Sites remember a pick, and
+  `picker._CONFIRMED` remembers the label a confirmed pick produced, so the
+  steady state reads one label and clicks nothing.
+* **A bad pick never fails a run.** Locked, gone, a menu that will not
+  open, or a click the site ignores: the unit answers on what the site
+  gives, and `Answer.model_fallback` = "Asked for X, got Y (reason)" —
+  amber on the card's model chip, and the unit shows **Fell back** in the
+  sheet. `choose` never raises.
+* **Site default does not undo a pick on the site.** Choosing Haiku, then
+  Site default, leaves claude.ai on Haiku (the site remembers). Pick the
+  model you want back instead.
+
+Not done: Claude's effort level (Low…Max) and Gemini's Extended thinking
+are left as the site has them.
+
 ---
 
 ## Troubleshooting

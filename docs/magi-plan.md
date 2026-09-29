@@ -9,12 +9,14 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-09-28, end of the Phase U3 session.
+**Last updated:** 2026-09-28, end of the Phase U4 session.
 **Phases complete:** 1–14 (14a hardening, 14b A1 writable), plus **11B**,
-and Track S's **S1**, **S2**, **S3**, **U1**, **U2** and **U3**.
-**Next phase:** **U4 — choose the model**, the LAST phase of Track S
-(§8 "Track S": S1 → S2 → S3 → U1 → U2 → U3 → U4). **Phase 15 (Veda's
-engine) is INSTALLED**: she ran `magi\setup.ps1 -Profile veda`, signed in
+and ALL of Track S: **S1**, **S2**, **S3**, **U1**, **U2**, **U3**, **U4**.
+**Next phase:** **none agreed yet — ask Tony.** Track S is finished and
+the road table below has nothing left in it. A new session told
+"continue" should say so and ask what comes next (candidates Tony may
+pick from are under "After Track S" below); do not invent a phase.
+**Phase 15 (Veda's engine) is INSTALLED**: she ran `magi\setup.ps1 -Profile veda`, signed in
 to Accounts, the coding agents and GitHub (Tony confirmed 2026-09-28), and
 her engine self-updates. Do NOT send her setup commands again. The only
 Phase 15 leftover is an optional isolation check from her PC (below).
@@ -41,7 +43,7 @@ One phase per session.
 | ~~U1~~ | ~~Units: recon~~ | **done 2026-09-28** | | |
 | ~~U2~~ | ~~Units: model shown~~ | **done 2026-09-28** (+ both U1 bugs fixed) | | |
 | ~~U3~~ | ~~Units: limits~~ | **done 2026-09-28** | | |
-| **U4** | Units: choose model | Per-unit model picker, per person; a bad pick never fails a run | Medium-large | 1 |
+| ~~U4~~ | ~~Units: choose model~~ | **done 2026-09-28** | | |
 | ~~15~~ | ~~Veda's engine~~ | **installed** (setup.ps1 + all sign-ins, confirmed 2026-09-28; self-updating). Optional: isolation check from her PC | | |
 
 ### Start-of-session checklist (do these in order)
@@ -136,6 +138,27 @@ One phase per session.
   `docActiveLimits` uses `d.unit`. Tests `test_units_usage.py` (27; 8
   mutants killed), `test_howitworks.py::test_the_units_limits_claims_still_hold`,
   live `tests/live/magi-units.live.js` (20/20).
+* **Units' model choice (U4)**: `browser/picker.py` — `has_picker`,
+  `known` (`model_known` in selectors.yaml, "id | name"), `list_options`
+  (opens the menu + Claude's "More models", locked rows marked, closes it),
+  `choose(page, site, want) -> Picked(ok, note, changed, label)` (NEVER
+  raises; confirms on the menu's `model_selected` mark by reopening, never
+  on label wording; `_CONFIRMED` per process makes the steady state zero
+  clicks), `asked_note` ("Asked for X, got Y"). `accounts.model_choice /
+  set_model / models_seen / save_models` (per profile, `accounts.json`,
+  beside `_chairman`). `BrowserProvider.ask` picks after the sign-in check,
+  before attaching/typing, and a failed pick sets `model_fallback` to the
+  note (the answer is kept); `BrowserProvider.read_models`. `units.menu` adds
+  `pickable/pick/models/models_at` to every `/api/units/usage` entry. Routes
+  `GET /api/units/{id}/models`, `POST /api/units/{id}/model` (`{}` = Site
+  default; 400 on a unit with no picker), `POST
+  /api/units/{id}/models/refresh` (busy-refused like Check now). Console:
+  `unitPickBox` (its own `.unit-pick` box, NOT inside `.unit-lim`, which
+  redraws every 30 s), `refreshUnitPicks` (skips a focused select),
+  `unitSetModel`, `unitRefreshModels`, `UNITS_PICK`, `pickKey`. Tests
+  `test_model_pick.py` (27, clickable copies of the U1 fixtures; 7 mutants
+  killed), `test_howitworks.py::test_the_model_choice_claims_still_hold`,
+  live `tests/live/magi-model-pick.live.js` (23/23).
 * **Code Mode** (`magi.html` CODE MODE block, `magi/code/`):
   - Workspace registry + MAGI's own folder browser (`/api/code/browse`).
     A1 is registered (`proj_60d8f14fbc1c`).
@@ -556,6 +579,13 @@ reachable from the internet.
   event), ChatGPT's slug after; the run reopened from history has the same
   chips; amber "fell back to X" (set in-page); chips inside their cards at
   390px. 13/13 on 2026-09-28.
+* `tests/live/magi-model-pick.live.js` — U4, sends NO question: a Model
+  dropdown on exactly Claude / Claude (Pro) / Gemini / Grok, Site default
+  first, locked models disabled, a pick saved and read back from the engine
+  then cleared (`PICK=claude`), the 30-s limits redraw leaves the dropdown
+  alone, ONE real Refresh models (`REFRESH=gemini`, ~5 s; `REFRESH=` skips),
+  390px. 23/23 on 2026-09-28. The live run with non-default models is by
+  hand (see §8 "Phase U4" status).
 * `tests/live/magi-units.live.js` — U3, sends NO question: dots on the
   right chips, the Units sheet (state line, Check now, "checked"; a limited
   unit's "Limited until T (in …)"; Claude (Pro)'s bars), ONE real Check now
@@ -595,30 +625,36 @@ reachable from the internet.
   run. Her engine pulls each engine change by itself when idle; she only
   hard-refreshes the console (Ctrl+Shift+R) to get console changes.
 
-### Track S — first concrete steps for the next session (Phase U4)
+### After Track S — waiting on Tony (nothing agreed yet)
 
-1. Start-of-session checklist above (pull, engine alive, pytest baseline
-   ≈1256 — start it in the background first — + node run-all 52 suites).
-2. Read §8 "Phase U1" (findings table: which units have a real picker) and
-   "Phase U4". Pickers exist on **Claude** (free: Sonnet 5.5 / Haiku 4.5;
-   Pro: + Opus 5.5 and "More models"; effort submenu), **Gemini** (by
-   `data-mode-id`; selected = `[aria-label=Selected]`, NOT `data-active`)
-   and **Grok** (`menuitemradio` + `aria-checked`; which options work on
-   free is UNVERIFIED). ChatGPT (only a Think toggle), Perplexity (all
-   locked) and DeepSeek have none: their choice is just "Site default".
-3. Per person in `accounts.json` beside `chairman_override`
-   (`magi/accounts.py`); default "Site default" = today's behaviour. Before
-   typing, select → read back with `resolve.model_label` (U2); anything
-   unavailable → answer on what the site gives and set
-   `Answer.model_fallback` "asked for X, got Y" — never a failed run.
-   Members, chairman, Brainstorm, Studio.
-4. Console: the per-unit choice goes in the Units sheet (U3's `.unit-lim`
-   line, `unitLimBox`), "Site default" first. The chip and the sheet
-   already show what actually answered, so a bad pick is visible.
-5. Tests from U1 fixtures (picker driving, read-back, unavailable →
-   labelled not failed, per-profile storage), HOW panel; live: non-default
-   models on 2–3 units, one short question. U4 is the last Track S phase:
-   rewrite this §0 with what comes after (ask Tony).
+Track S (speed, then the units' models and limits) is done. The next
+phase is Tony's call. Things this session noticed that could become one —
+offer them, do not start them unasked:
+
+* **Effort / thinking as part of the pick.** U4 picks the model only.
+  Claude's Effort submenu (Low → Max, `effort_open`/`effort_option`) and
+  Gemini's Extended thinking (`think_toggle`) are left as the site has them.
+  Live, free Claude on Haiku showed "Haiku 4.5 Extended".
+* **The chairman's own model.** Merge/plan turns in `engine/brainstorm.py`
+  come back as tuples, not `Answer`s, so they carry no model chip (U2 note).
+* **Grok's options on free** are still UNVERIFIED past "Fast": every U4
+  live try found Grok limited ("9 minutes before limit is gone"). The pick
+  is safe either way (an ignored click reads back as "Asked for Expert, got
+  Fast"), but nobody has seen Expert/Heavy answer on the free account.
+* **Phase 15's optional isolation check** from Veda's PC (below).
+
+### (Done) Phase U4 — what it was
+
+Per-unit, per-person model choice with "Site default" first; the pick is
+made before typing and confirmed on the menu's own mark; anything
+unavailable answers anyway with "Asked for X, got Y". Live 2026-09-28 (run
+`1d6d4fe9a746`): Claude (free) on **Haiku 4.5**, Gemini on **3.1 Pro**
+(label "Gemini Pro"), Grok limited before its pick. Run `9900fbd9b7ff`:
+free Claude asked for locked Opus 5.5 → answered, "Asked for Opus 5.5, got
+Haiku 4.5 Extended (locked on this account)". Tony's sites were then put
+back (Claude Sonnet 5.5, Gemini Flash) and every pick cleared to Site
+default. Refresh models live: free Claude also offers Sonnet 5 and Sonnet
+4.6 under More models.
 
 ### Phase 15 — what is left (optional, only from Veda's PC)
 
@@ -2190,6 +2226,15 @@ back to X), last checked. The doctor's limit section reads the same source.
 Tests: merge logic, Tony/Veda separation, headless render.
 
 ### Phase U4 — Choose the model (medium-large)
+
+*Status:* **done 2026-09-28.** Built as below; see §0 "What exists" (U4)
+and "(Done) Phase U4". pytest 1287 (27 in `test_model_pick.py`, 7 mutants
+killed), node 52, live `magi-model-pick.live.js` 23/23 plus two real runs
+(non-default models on Claude and Gemini; a locked pick answered and
+labelled). Differences from the sketch: the options come in the
+`/api/units/usage` entries too (no request per unit), the dropdown sits in
+its own box under the limits line, and "Site default" leaves the site as it
+is rather than resetting it.
 
 `GET /api/units/{id}/models` (options from U1, cached per profile, "Refresh
 models" opens the picker once); `POST /api/units/{id}/model` saves per person
