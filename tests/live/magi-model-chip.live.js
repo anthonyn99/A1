@@ -38,8 +38,9 @@ const waitFor = async (c, expr, ms = 20000) => {
 };
 const size = (c, w, h, phone) => c.send('Emulation.setDeviceMetricsOverride',
   { width: w, height: h, deviceScaleFactor: phone ? 2 : 1, mobile: phone });
-const CHIP = (id) => `(() => { const p = S.panels.find(x => x.id === ${JSON.stringify(id)});
-  const c = p && p.dom && p.dom.chip; return c && !c.hidden ? c.textContent : ""; })()`;
+// One line on purpose: evalJs only returns the value of a multi-line
+// expression that says `return`.
+const CHIP = (id) => `((p) => p && p.dom && p.dom.chip && !p.dom.chip.hidden ? p.dom.chip.textContent : "")(S.panels.find(x => x.id === ${JSON.stringify(id)}))`;
 
 (async () => {
   const c = await connect();
@@ -75,19 +76,20 @@ const CHIP = (id) => `(() => { const p = S.panels.find(x => x.id === ${JSON.stri
   await evalJs(c, `openRun(${JSON.stringify(runId)}); return 1;`);
   ok('history loads', await waitFor(c, `S.fromHistory && S.panels.length === ${UNITS.length} && S.panels.every(p => p.dom)`, 15000));
   for (const u of UNITS) {
-    ok(`history chip for ${u} matches the live one`, (await evalJs(c, CHIP(u))) === live[u], await evalJs(c, CHIP(u)));
+    const h = await evalJs(c, CHIP(u));
+    ok(`history chip for ${u} matches the live one`, !!h && h === live[u], h);
   }
 
   // -- 4. amber -------------------------------------------------------------
   await evalJs(c, `const p = S.panels[0]; p.model_fallback = "Started on Sonnet 5.5 Medium"; updateNode(p); return 1;`);
-  const amber = await evalJs(c, `(() => { const ch = S.panels[0].dom.chip; return ch.classList.contains("fell-back") + "|" + ch.textContent + "|" + getComputedStyle(ch).color; })()`);
+  const amber = await evalJs(c, `return (() => { const ch = S.panels[0].dom.chip; return ch.classList.contains("fell-back") + "|" + ch.textContent + "|" + getComputedStyle(ch).color; })()`);
   ok('a fallback renders amber, "fell back to X"', /^true\|fell back to /.test(amber), amber);
   await shot(c, 'model-chip-amber');
 
   // -- 3. phone ------------------------------------------------------------
   await size(c, 390, 844, true);
   await sleep(400);
-  const fits = await evalJs(c, `S.panels.every(p => { const ch = p.dom.chip; if (ch.hidden) return true;
+  const fits = await evalJs(c, `return S.panels.every(p => { const ch = p.dom.chip; if (ch.hidden) return true;
     const r = ch.getBoundingClientRect(), n = p.dom.node.getBoundingClientRect();
     return r.width > 0 && r.left >= n.left - 1 && r.right <= n.right + 1; })`);
   ok('at 390px every chip stays inside its card', fits);
