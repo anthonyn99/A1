@@ -169,11 +169,11 @@ class BrowserProvider(Provider):
     def _prune_artifacts(self, base: Path) -> None:
         """Keep only the newest `keep_last` files.
 
-        Done here, after each write, because this is the only thing that ever
-        creates them -- a sweep anywhere else would be a second place to
-        remember. Failures are swallowed for the same reason the writes above
-        are: an artifact is a diagnostic nicety, and nothing about saving one
-        may take down the run it is diagnosing.
+        Done here, after each write, so a burst of failures can't fill the disk
+        between sweeps. The age limit (7 days) is magi/sweep.py's, from
+        cleanup-rules.json. Failures are swallowed for the same reason the
+        writes above are: an artifact is a diagnostic nicety, and nothing about
+        saving one may take down the run it is diagnosing.
         """
         keep = getattr(self.settings, "artifacts_keep_last", 200)
         if keep <= 0:

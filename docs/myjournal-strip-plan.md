@@ -4,21 +4,24 @@ Kept as a record once the strip is done (Tony, 2026-09-29: old plans cost nothin
 
 ## §0 Status (rewrite at the end of every phase)
 
-- **Next phase: 4** (Cleanup)
-- Done: Phase 0 (this doc + memory pointer), Phase 1 (Google Docs + OneNote removed), Phase 2 (Starred, Recent, Find, the gear, the Firestore doc and `/docs/ai` removed), Phase 3 (Whiteboard and Mind Map are OurJournal-only in MyJournal). All on 2026-09-29. After Phase 3 the MyJournal "Templates" toolbar button and its mobile twin were removed too (Tony, 2026-09-29): New Entry opens the same modal.
-- Phase 4 grew on 2026-09-29: Tony asked for a self-cleanup system that removes failed, unused, outdated and corrupt data in every program without spiking Firebase or Cloudflare usage. See the Phase 4 section. It is the biggest part of that phase.
-- What Phase 3 did:
-  - CSS `#tj-root:not(.oj-on) .template-card[data-template="whiteboard"|"mindmap"]` hides the cards, next to the other `oj-on .template-card` rules. The `#tj-template-modal` click handler returns early for those two templates unless `_tjIsOJ()`.
-  - Deleted `_fbLoadMyJournal`/`_fbSaveMyJournal`, `_fbSave/Load/Watch/UnwatchMJCanvas`, their teardown calls, and `MJ_DOC_PATH`, `_mjSaveTimer`, `_mjUnsubscribe`, `_mjLastOwnSaveAt`, `_mjLastWrittenSavedAt`. None had callers.
-  - Kept `_fbRehydrateMyJournalImages` (`tests/journal-images.test.js` pins it) and `backup.js`'s `myjournal` entry: the old `dashboards/myjournal` doc and its images still exist and are still backed up. `tests/backup-measure.test.js` now checks that `mj-fbimg://` is still rehydrated instead of checking for a writer.
-  - Deleted the dead `#tj-wb-size` slider code from `tjCheckMobile`, and two stale legacy-canvas comments after the bottom-bar code.
-  - **Kept the legacy PNG canvas** (`TJ_CANVAS_KEY`, `tj_canvas_*`, `tony_journal_canvas_*`) and the whiteboard branch of `_tjStripEntry`. The live data could not be checked (the browsers' localStorage is compressed LevelDB, and a real-origin headless boot risks writing). Also, `migrate()` never stamps `vizRev` on a board that is only viewed, so old personal boards can stay unmigrated for good. Removing it would blank them.
-- Verified headless (1440px, `file://`): the personal modal shows Page and Journal Entries; clicking the hidden Whiteboard card creates nothing; the OurJournal modal shows Whiteboard, Page and Mind Map, and a whiteboard is created and mounts; seeded old personal Whiteboard (legacy PNG, no `vizRev`) and Mind Map (old nodes/edges) both open; leaving OurJournal restores the personal list; Brainstorm's modal still shows all six cards; no console errors apart from the usual `file://` permission-denied ones.
-- `npm test`: 50/52 pass. `magi-code-sync` and `magi-codemode` still fail on the untouched tree (magi.html), so they are unrelated.
+- **Done.** Phases 0-4 all finished on 2026-09-29. Nothing is left to build. The strip itself was Phases 1-3; Phase 4 was cleanup plus the self-cleanup system.
+- **The self-cleanup system is running in dry-run.** The only item that deletes is `mjd-rail-leftovers`, which the Phase 1 boot purge already deleted on every load. Every other item has `"delete": false`.
+  - To turn an item on: set `"delete": true` in `cleanup-rules.json` and add an `"approved"` note (`tests/cleanup-rules.test.js` requires one). For the two KV items, also flip `SWEEP_STALE_TOKENS` in the worker (the test checks that the two match).
+  - What would go: in a browser, `A1Sweep.report()` (or `A1Sweep.run({force:true, dryRun:true})`). On a MAGI PC, `data/<profile>/sweep.json`, or `magi.venvScriptspython.exe -m magi.sweep`.
+- **How it is built:**
+  - `cleanup-rules.json` at the repo root is the one registry. Every item has an owner, a reason, a category, a cap and a delete flag. It also has the limits, a `handledElsewhere` list and a `never` list.
+  - `sweep.js` is the browser half, loaded as `<script src="sweep.js" data-program="<page>" defer>`. Only index.html loads it today, because only index owns browser items. A page that gets items must load it (the test checks).
+    - Firestore goes only through the page adapter `window._a1SweepFirestore` (index: `ready: () => _tjServerSeen`).
+  - `magi/sweep.py` is the disk half. It runs on engine startup and once a day from the watchdog, and reaches PCs through the self-update.
+  - The workers delete a stale `locktok` inside `tokenValid()`, on a request that already happens.
+- Tests: `tests/cleanup-rules.test.js` (caps, dead keys unused, wiring, and the shipped sweep.js in jsdom) and `magi/tests/test_sweep.py`. Both were mutation-checked.
+- Also in Phase 4: deleted the root `debug.log`, the root `.pytest_cache/` (now gitignored) and 116 MAGI artifacts older than 7 days (69 MB). Removed the per-load mjd purge in index.html, because the registry owns it now.
+- Verified headless (`file://`, rules handed to `fetch`): `A1Sweep` loads as `index`. A forced run deleted only `mjd_*`, listed warden/fcm_pv/myjournal_docs, made 0 Firestore deletes and left `keep_me`. A MyJournal entry saves, OurJournal enters and leaves, and Brainstorm opens. `npm test` 53/53. MAGI pytest: 1316 passed. `test_model_shown`/`test_morning_run` fail to collect from the repo root (`tests.test_completion` import path), which is unrelated.
 - Headless verify notes (still true):
   - Seed storage with `Page.addScriptToEvaluateOnNewDocument`, guarded by a sessionStorage flag so a reload doesn't reseed.
   - TJ sidebar rows (`.entry-item`) have no `data-id`; find a row by its `.entry-item-title` text.
   - Run the test browser on its own port and `--user-data-dir`, and kill it by that dir, never by image name.
+  - Pick the CDP target whose url contains index.html: Edge can open an `edge://sync-confirmation-dialog` page first.
 
 ### Rules for every phase
 - `git pull` first. Tony and Veda both push.

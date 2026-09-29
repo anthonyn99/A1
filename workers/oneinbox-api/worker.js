@@ -169,7 +169,19 @@ async function tokenValid(env, token) {
   const rec = await env.OI_KV.get('oi:locktok:' + token, 'json');
   if (!rec || !rec.v) return false;
   const cur = await lockVersion(env);
+  if (cur && rec.v !== cur) await dropStaleToken(env, token);
   return !!cur && rec.v === cur;
+}
+
+// A password change leaves every older session token in KV for good (they have
+// no TTL on purpose). One that shows up with an old lock version is dead, so it
+// is removed right here: no list and no extra request, and at most one delete
+// per stale token, ever. cleanup-rules.json item oneinbox-stale-locktok; false
+// is its dry run.
+const SWEEP_STALE_TOKENS = false;
+async function dropStaleToken(env, token) {
+  if (!SWEEP_STALE_TOKENS) { console.log('[sweep] would delete a stale oi:locktok'); return; }
+  await env.OI_KV.delete('oi:locktok:' + token).catch(() => {});
 }
 
 // Every mailbox route funnels through this. A request without a live session

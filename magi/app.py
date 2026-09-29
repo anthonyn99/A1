@@ -109,6 +109,14 @@ async def lifespan(app: FastAPI):
             None, _sandbox.sweep, active_profile())
     except Exception:
         pass
+    # The A1 self-cleanup's disk items (cleanup-rules.json): old failure
+    # screenshots, dead logs, half-written files. The watchdog repeats it daily.
+    if not os.environ.get("PYTEST_CURRENT_TEST"):
+        try:
+            from . import sweep as _sweep
+            await asyncio.get_running_loop().run_in_executor(None, lambda: _sweep.run(force=True))
+        except Exception:
+            pass
     # Holds the machine awake while MAGI runs, but only on mains power -- see
     # power.py. Started here so it covers `magi serve` and `magi cloud` alike.
     KEEP_AWAKE.start()

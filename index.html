@@ -13353,6 +13353,15 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     _fbResyncVisibleJournals();
   });
 
+  // sweep.js deletes the dead-feature docs listed in cleanup-rules.json by
+  // their fixed ids: no read, no query. It waits until MyJournal has confirmed
+  // the server, so a sweep never runs inside the boot write guard. `db` is read
+  // at call time because recovery replaces it.
+  window._a1SweepFirestore = {
+    ready: () => _tjServerSeen,
+    del: (path) => deleteDoc(doc(db, path)),
+  };
+
   // Wait for anon auth before wiring up listeners/loads so the very first
   // reads carry a valid token and hit the server (fresh) instead of only the
   // local cache (stale). Never block forever — if auth is slow/offline, proceed
@@ -40706,24 +40715,8 @@ window._THV={
 
   // MyJournal and OurJournal still read this flag. Nothing sets it any more.
   window._tjCloudMode = false;
-
-  // One-time purge of what the removed rail features left on this device:
-  // Google Docs / OneNote OAuth tokens, the folder-listing cache, the offline
-  // write queue, the editor's undo/scroll history for cloud documents, and the
-  // Starred/Recent settings mirror. Every storage call is guarded, because
-  // Veda's Brave throws on any storage access.
-  (function purgeLeftovers() {
-    try {
-      var drop = [];
-      for (var i = 0; i < localStorage.length; i++) {
-        var k = localStorage.key(i);
-        if (!k) continue;
-        if (k === 'mjd_cache' || k === 'mjd_queue' || k === 'mjd_settings' || k.indexOf('mjd_tok_') === 0 ||
-            k.indexOf('docx_hist_tj_mjd_') === 0 || k.indexOf('docx_scroll_tj_mjd_') === 0) drop.push(k);
-      }
-      drop.forEach(function (k) { try { localStorage.removeItem(k); } catch (e) {} });
-    } catch (e) {}
-  })();
+  // What the removed rail features left in localStorage is swept by sweep.js
+  // (cleanup-rules.json, item mjd-rail-leftovers).
 
   var ICON_J = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M8 7h7"/><path d="M8 11h7"/><path d="M8 15h4"/></svg>';
   function el(id) { return document.getElementById(id); }
@@ -44651,4 +44644,5 @@ document.addEventListener('visibilitychange',function(){ if(!document.hidden) sw
      gold outline and glow, and stacking a second signal on a designed one is
      how a hover language stops reading as one language. -->
 <script src="tabsync.js"></script>
+<script src="sweep.js" data-program="index" defer></script>
 <script src="hoverfx.js" data-roots="#root,#veda-root,#tj-root,#bj-root,#wr-root,#thset-overlay,#uim-overlay,#applock-overlay,#profile-overlay,#thv-txt-overlay,#thv-dev-overlay"></script>

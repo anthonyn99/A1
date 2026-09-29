@@ -169,6 +169,15 @@ def main(port: int | None = None) -> int:
                 _say(f"update: {note}")
         except Exception as e:  # noqa: BLE001 — the watchdog must never die of this
             _say(f"update check failed: {e}")
+        # The daily disk sweep (sweep.py), here in the watchdog's own process so
+        # it never runs on the engine's. At most once a day; a no-op otherwise.
+        try:
+            from . import sweep
+            note = sweep.summary(sweep.run())
+            if note:
+                _say(note)
+        except Exception as e:  # noqa: BLE001
+            _say(f"sweep failed: {e}")
         return 0
     # Checked twice, a few seconds apart: an engine in the middle of starting
     # (or restarting itself) is not a dead one, and starting a second engine

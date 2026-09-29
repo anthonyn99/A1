@@ -135,6 +135,7 @@
       "capDays": 1,
       "glob": "data/{profile}/tts/*.mp3",
       "when": "no matching .words.json beside it",
+      "test": "no-sibling:.words.json",
       "owner": "magi/app.py /api/tts",
       "reason": "Narration cached before word timings existed. /api/tts re-synthesizes any mp3 that lacks its .words.json and writes over it, so these are never served as they are.",
       "delete": false
@@ -158,6 +159,7 @@
       "capDays": 1,
       "glob": "artifacts/{profile}/*",
       "when": "zero bytes",
+      "test": "zero-bytes",
       "owner": "magi/providers/browser_base.py _save_artifacts",
       "reason": "A screenshot or dump that failed mid-write. It shows nothing.",
       "delete": false
