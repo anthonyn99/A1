@@ -984,14 +984,21 @@ body {
    codename it sits beside: model names are proper nouns ("Sonnet 5.5",
    "gpt-5-6-mini"). Amber when the site showed a fallback. */
 .model-chip {
-  display: inline-block; margin-left: 7px; padding: 0 5px;
-  border: 1px solid var(--bd); border-radius: 3px;
-  font-size: 9px; letter-spacing: .3px; text-transform: none; line-height: 14px;
-  color: var(--txd); vertical-align: 1px; max-width: 150px;
+  display: inline-block; margin-left: 8px; padding: 1px 8px;
+  border: 1px solid color-mix(in srgb, var(--pa, var(--tx)) 35%, transparent);
+  background: color-mix(in srgb, var(--pa, var(--tx)) 12%, transparent);
+  border-radius: 999px;
+  font-family: 'Inter', var(--font); font-size: 11px; font-weight: 600;
+  letter-spacing: .1px; text-transform: none; line-height: 16px;
+  color: var(--tx); vertical-align: 1px; max-width: 180px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-feature-settings: "tnum" 1, "cv11" 1;
 }
 .model-chip[hidden] { display: none; }
-.model-chip.fell-back { color: var(--amber); border-color: var(--amber); }
+.model-chip.fell-back {
+  color: var(--amber); border-color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 12%, transparent);
+}
 .bs-council-hd .model-chip { margin-left: 0; }
 .node-meta { color: var(--txm); font-size: 9.5px; letter-spacing: .5px; }
 
