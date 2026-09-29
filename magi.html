@@ -4362,7 +4362,20 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
   border: 1px solid var(--bd); border-radius: var(--r-btn); background: var(--bg);
 }
 .code-order-row.off { opacity: .5; }
-.code-order-sw { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+/* The number is the chain's real subject -- the swatch only echoes the same
+   colour the chip already carries. A pill rather than a bare digit, so nine
+   rows of "1" through "9" still read as a column of controls and not as a
+   list index bleeding off the edge of the design. */
+.code-order-num {
+  width: 22px; height: 22px; flex: 0 0 auto; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums;
+  color: var(--na); background: color-mix(in srgb, var(--na) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--na) 40%, transparent);
+}
+.code-order-row.off .code-order-num {
+  color: var(--txm); background: var(--s2); border-color: var(--bd);
+}
 .code-order-name { font-size: 12px; font-weight: 600; flex: 1 1 auto; min-width: 0; }
 .code-order-note { font-size: 10.5px; color: var(--txm); }
 .code-order-mv {
@@ -12977,9 +12990,13 @@ function openCodeOrder() {
     const on = codeTicked();
     ms.forEach((m, i) => {
       const row = el("div", "code-order-row" + (on.has(m.id) ? "" : " off"));
-      const sw = el("span", "code-order-sw");
-      sw.style.background = m.accent;
-      row.append(sw, el("span", "code-order-name", m.label + (m.kind === "cli" ? " CLI" : "")),
+      // The position itself, not just an up/down affordance -- with nine
+      // agents "move this one up" answers a different question than "where
+      // does it sit right now", and the number is the one you actually want
+      // when you are trying to build a specific chain.
+      const num = el("span", "code-order-num", String(i + 1));
+      num.style.setProperty("--na", m.accent);
+      row.append(num, el("span", "code-order-name", m.label + (m.kind === "cli" ? " CLI" : "")),
                  el("span", "code-order-note", codeMemberNote(m).txt));
       const mv = (d) => {
         const ids = ms.map((x) => x.id);
