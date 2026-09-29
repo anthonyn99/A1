@@ -526,7 +526,7 @@ reachable from the internet.
 ### Track S — first concrete steps for the next session (Phase U1)
 
 1. Start-of-session checklist above (pull, engine alive, pytest baseline
-   ≈1191 — **the full run takes ~25 min**, start it in the background first
+   ≈1193 — the full run took 6–25 min, start it in the background first
    — + node run-all 51 suites).
 2. Read §8 "Track S", then Phase U1. U1 is **read-only, no UI, no
    behaviour change**: it decides what U2–U4 may promise per unit.
@@ -1989,7 +1989,7 @@ stream error; a failed first fetch lost it for good; the grid came back as
 every ticked unit on STANDBY) — see docs/magi.md "A reload mid-round comes
 back to the round". **Validator replay:** 332 stored captures (runs +
 brainstorm turns), exactly one verdict changed — DeepSeek's "Four".
-pytest 1191, node 51 suites; 10 mutants killed. **Live**
+pytest 1193, node 51 suites; 10 mutants killed. **Live**
 (`magi-bs-phase.live.js`, 3 units, 5 runs): council → critique (33–42 s)
 → merging, reload at 390px lands on critique, 16/16 on the final code.
 **Timing (from the DB, UTC):** 7-unit councils median 106 s (n=9, before
