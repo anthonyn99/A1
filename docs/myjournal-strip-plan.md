@@ -29,6 +29,9 @@ Temporary. Phase 4 deletes this file.
   - Do NOT change Veda's Brainstorm Journal (`#bj-root`, `_bj*`), and not TaskHub.
 - index.html is ~46k lines. Line numbers below are approximate as of 2026-09-29, so grep the identifier before you edit.
 - Worker edits auto-deploy (see memory `worker-deploy-silent-failures`). Run `node --check` on a worker before pushing it.
+- **Delete comments that describe removed features.** When code goes, the comments that explain it go too, wherever they are. If a surviving comment mentions a removed feature in passing, reword it. Comment-only edits in OurJournal code are allowed; its behaviour still must not change.
+  - Keep comments that explain code which is still live, such as the boot purge and `prune()`.
+  - Leave unrelated uses alone: "cloud doc" meaning a Firestore document (TaskHub and so on), and "paste from Word / Google Docs".
 - At the end of each phase:
   1. Run `npm test`.
   2. Run the `/verify` headless check: MyJournal, OurJournal inside MyJournal, and Veda's Brainstorm Journal.
@@ -131,6 +134,15 @@ Shrink MJDocs down to a minimal rail module.
   - Remove `'myjournal_docs'` from `backup.js`, then check what `GROUP1_COUNT` counts before changing it to 10.
   - Update `tests/backup-measure.test.js`.
 - **Worker:** delete the `/docs/ai` route and `handleDocsAi` after grepping the whole repo for callers.
+- **Stale comments left over from Phase 1.** Grep `google doc|onenote|gdocs|cloud doc|cloud mode|cloud tab|cloud panel` and fix each hit. As of 2026-09-29 they are:
+  - ~13029–13071: the `myjournal_docs` Firestore block. It is deleted in this phase anyway.
+  - ~20407–20425: the JGuard comment ("Docs / OneNote document MJDocs opens", "cloud mode").
+  - ~29392: "Matches the cloud tabs".
+  - ~30819, ~31651–31653, ~31726, ~31774: the `saveCurrentEntry`/`loadActiveEntry` cloud-mode notes. They go with the `_tjCloudMode` hooks.
+  - ~33291–33293 and ~33373–33377: the autoSave/setEditMode "CLOUD MODE" blocks.
+  - ~33532–33534, ~33543, ~33609, ~33639: the OurJournal rail comments (comment-only edits).
+  - ~34581–34609: the `_tjCloudBridge` header and `enter()` notes. They go with the bridge, or get reworded if `openLocal`/`localDocs` survive.
+  - The MJDocs block's own mentions of the provider contract, folders and notebooks. They go with `CONTRACT`, the listing cache and the index.
 - **CSS ~22554–22559:** the comment says the rail is "two rows of two", but it now has two buttons. Lay it out as one row.
 
 **Verify:**
@@ -138,6 +150,7 @@ Shrink MJDocs down to a minimal rail module.
 - OurJournal tab switching works both ways, and `OJ.wasOn('tj')` restores on reload.
 - No console errors.
 - Brainstorm is unchanged.
+- The stale-comment grep above only finds the unrelated uses and the comments on the boot purge and `prune()`.
 
 ## Phase 3: Remove Whiteboard and Mind Map from personal MyJournal
 - **Hide the two cards outside OurJournal only.** Add CSS next to the rules at ~22575:
@@ -152,6 +165,7 @@ Shrink MJDocs down to a minimal rail module.
   - Otherwise keep it, because `migrate()` still needs the PNG.
 - **Keep everything shared:** VizEngine, the JGuard cases, `_fbViz`, `_tjBoard`, the board containers, and the board branches.
 - Reword the OurJournal comment at ~22573.
+- Delete or reword every comment about the personal Whiteboard/Mind Map, the legacy PNG canvas or `_fbSaveMyJournal` that no longer matches the code (see the rule in §0).
 
 **Verify:**
 - The personal modal shows Page and Journal Entries.
