@@ -6734,7 +6734,7 @@ const HOW = [
     a: [
       "<b>1 &middot; Fan out.</b> Every selected unit opens its own invisible Chrome, signed in as you, and is given the same question. They go at once; nobody waits for anybody. Long prompts are pasted rather than typed character by character &mdash; typing a 2,000-character prompt was costing more than a minute per run.",
       "<b>2 &middot; Wait for each one to finish.</b> Harder than it sounds, and four checks rather than one. It counts the assistant&rsquo;s messages <i>before</i> sending and requires that count to grow &mdash; without that it cheerfully returns the <i>previous</i> answer, which is the worst possible failure because it looks perfectly valid. Then it watches Send turn into Stop and back, the most meaningful &ldquo;finished&rdquo; signal these pages give. Failing that it watches the text stop changing, and marks the answer low-confidence, because that can fire early during a pause mid-sentence.",
-      "<b>3 &middot; Check that what came back is an answer.</b> A model that replies &ldquo;could you clarify?&rdquo;, or with a stock refusal or error line like &ldquo;I&rsquo;m having a hard time fulfilling your request&rdquo;, has not answered. A refusal gets one more try in a fresh chat, told outright to search the web; if it refuses again, or the reply was anything else unusable, it is marked unusable and left out of the verdict &mdash; but the text is kept, so you can see what actually happened instead of just being told it failed.",
+      "<b>3 &middot; Check that what came back is an answer.</b> A model that replies &ldquo;could you clarify?&rdquo;, or with a stock refusal or error line like &ldquo;I&rsquo;m having a hard time fulfilling your request&rdquo;, has not answered. A refusal gets one more try in a fresh chat, told outright to search the web; if it refuses again, or the reply was anything else unusable, it is marked unusable and left out of the verdict &mdash; but the text is kept, so you can see what actually happened instead of just being told it failed. A reply of a few bare words with no full stop is almost always an answer cut off mid-stream (or a site&rsquo;s own &ldquo;Searching&rdquo; label), so it is not counted &mdash; <i>unless</i> you asked for one word, one number, just the name or yes or no, when &ldquo;Four&rdquo; is exactly the answer.",
       "<b>4 &middot; One member writes the verdict.</b> Whichever unit chairs reads every answer and produces ANSWER, NOTES and CONFIDENCE. It is told exactly how many members responded and which failed, so a verdict built from two of four can never read as though it were built from four. If the chair fails or returns a refusal or error instead of a verdict, the next unit that answered takes over &mdash; a stock error line is never published as the verdict. Long answers are trimmed to fit what the chair&rsquo;s site accepts in one message (ChatGPT refuses a synthesis much over 50,000 characters): each long answer keeps its opening and its conclusion, and a short one is never cut to make room.",
       "<b>Nothing holds the council up.</b> A usage-limit notice is spotted within seconds of appearing, and a stock error line that stops changing ends that unit&rsquo;s wait even if the site still shows its Stop button. Each card shows its own outcome the moment it is known. And once every other unit has answered, the last one gets a grace period &mdash; as long again as the run has taken, at least a minute and a half for a short question (three minutes for a long one) &mdash; and is then cut off so the verdict can be written. A unit whose answer is still appearing is never cut mid-sentence: it gets twenty more seconds each time its text grows. Brainstorm&rsquo;s rounds, critiques and final pass get exactly the same protections.",
       "<b>Sent twice, run once.</b> The same question to the same units while that run is still going joins the run already in flight instead of starting a second council &mdash; a second tab or a second press costs nothing. A dropped connection does not end the run on screen either: the page reconnects and the engine replays what finished meanwhile. Every open tab sees every update.",
@@ -6793,6 +6793,7 @@ const HOW = [
     a: [
       "The council, but round by round. Instead of one question and one verdict, the members propose, critique each other, and a merge step turns the round into a plan plus the questions it still needs answered.",
       "You answer those, it runs another round, and when the plan is ready it is written out as a markdown file.",
+      "The line under a running round says which step it is on, as the engine reports it: the units thinking, the units reviewing each other&rsquo;s proposals, the merge &mdash; or, on the final pass, writing the plan and checking the finished document. Reloading the page mid-round shows the same step, not a fresh start.",
     ],
   },
   {
@@ -9778,7 +9779,23 @@ function pinLive(key, data) {
   } catch {}
 }
 
+// A reload closes every EventSource and fires its onerror with readyState
+// CLOSED -- indistinguishable from "the engine forgot the run" -- and that
+// handler's clean-up dropped the pin, so a reload never came back to a
+// Brainstorm round (found in S3). It fires BEFORE pagehide, and the old page
+// can live well over a second into the navigation, so neither pagehide nor a
+// short timer catches it; beforeunload, at the very start, does. Cleared again
+// after 10 s in case the navigation never happened. Nothing is ended by a page
+// that is leaving.
+let PAGE_LEAVING = false;
+addEventListener("beforeunload", () => {
+  PAGE_LEAVING = true;
+  setTimeout(() => { PAGE_LEAVING = false; }, 10000);
+});
+addEventListener("pageshow", () => { PAGE_LEAVING = false; });
+
 function unpinLive(key) {
+  if (PAGE_LEAVING) return;
   try { sessionStorage.removeItem(key); } catch {}
 }
 
@@ -18221,7 +18238,7 @@ $("studioCancel").onclick = () => S.studio.active && cancelStudio(S.studio.activ
 S.bs = {
   sessionId: null, topic: "", status: "active", rounds: [], busy: false,
   attachments: [],
-  phase: "idle",   // idle | council | merging | writing
+  phase: "idle",   // idle | council | critique | merging | writing | reviewing
   error: null, planFilename: null, planMd: null, savedTo: null,
   sessions: [], reply: "", answers: {},   // answers keyed by question index
   es: null, jobId: null,
@@ -18415,10 +18432,9 @@ function listenBs(sid, jobId, kind) {
     const msg = JSON.parse(ev.data);
     onBrainstormEvent(msg);
 
-    if (msg.type === "state") {
-      // The chairman's own turn arrives as a waiting state carrying a message;
-      // that is the transition out of the fan-out phase.
-      if (msg.message) { S.bs.phase = kind === "finalize" ? "writing" : "merging"; renderBsView(); }
+    if (msg.type === "init" || msg.type === "phase" || msg.type === "state") {
+      const next = bsPhaseFrom(msg, S.bs.phase);
+      if (next !== S.bs.phase) { S.bs.phase = next; renderBsView(); }
     } else if (msg.type === "done") {
       if (kind === "finalize") {
         S.bs.status = "complete";
@@ -18452,7 +18468,19 @@ function listenBs(sid, jobId, kind) {
       renderBsNav(); renderBsView(); updateEnabled();
     }
   };
+  // As the council's stream (see its onerror): a blip is not the end of a
+  // round. EventSource reconnects by itself and `init` replays where the job
+  // is. Ending on the first error also fired on every RELOAD -- the unload
+  // errors the stream -- and cleared the pin, so the round never came back
+  // (found in S3). Only a stream the browser gave up on (CLOSED: the engine
+  // no longer knows the job) or one down for two minutes ends it.
+  let dropSince = 0;
+  es.onopen = () => { dropSince = 0; };
   es.onerror = () => {
+    if (es.readyState !== EventSource.CLOSED) {
+      if (!dropSince) dropSince = Date.now();
+      if (Date.now() - dropSince < 120000) return;
+    }
     Object.assign(S.bs, { busy: false, phase: "idle" });
     closeBsStream();
     renderBsNav(); renderBsView(); updateEnabled();
@@ -18680,13 +18708,34 @@ function renderBsNav() {
   }
 }
 
+const BS_PHASES = ["council", "critique", "merging", "writing", "reviewing"];
+
+/** Which phase a round or finalise job is in, from one stream message.
+ *  The engine says so itself: a `phase` event at each step, and the current
+ *  one in `init`, so a reload picks up where the job really is. The chairman's
+ *  own "… is merging / is writing / is checking" line is the only other thing
+ *  trusted -- an engine from before the phase events sends just that. Any
+ *  other message (a member's "Opening browser", a critique unit's progress)
+ *  used to flip the line to "Merging"; it no longer moves it. */
+function bsPhaseFrom(msg, current) {
+  if (!msg) return current;
+  if ((msg.type === "phase" || msg.type === "init") && BS_PHASES.includes(msg.phase)) return msg.phase;
+  if (msg.type === "state" && msg.state === "waiting" && typeof msg.message === "string") {
+    const m = / is (merging|writing|checking)\b/.exec(msg.message);
+    if (m) return m[1] === "checking" ? "reviewing" : m[1];
+  }
+  return current;
+}
+
 function phaseNote(phase) {
   if (phase === "idle") return null;
-  const text = phase === "council"
-    ? "Each unit is thinking about the plan independently…"
-    : phase === "merging"
-      ? "Merging the round into one plan and one set of questions…"
-      : "Writing the plan file…";
+  const text = {
+    council: "Each unit is thinking about the plan independently…",
+    critique: "Units are reviewing each other's proposals…",
+    merging: "Merging the round into one plan and one set of questions…",
+    writing: "Writing the plan file…",
+    reviewing: "Checking the finished document…",
+  }[phase] || "Working…";
   const n = el("div", "bs-phase");
   n.append(spinnerEl(), document.createTextNode(" " + text));
   return n;
@@ -20970,9 +21019,11 @@ async function resumeBrainstorm() {
   // above, and the round is re-pinned by listenBs below.
   await openBsSession(pin.sessionId);
   if (!S.bs.sessionId || S.bs.error) return;
+  // "council" until the stream's `init` says where the job really is -- a
+  // finalise starts with the members too, so guessing "writing" was wrong.
   Object.assign(S.bs, {
     busy: true,
-    phase: pin.kind === "finalize" ? "writing" : "council",
+    phase: "council",
     status: pin.kind === "finalize" ? "finalizing" : S.bs.status,
   });
   primeGridForRound();

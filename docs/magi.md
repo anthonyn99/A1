@@ -1658,6 +1658,28 @@ event (they fire only on growth) and extends the grace `STILL_WRITING_S` (20 s)
 at a time; the site's own `hard_timeout_s` stays the ceiling. Tests:
 `magi/tests/test_straggler.py`.
 
+**A one-word answer to a one-word question counts** (`validate.py`,
+`_ASKS_FOR_BREVITY`; Phase S3, 2026-09-28). The truncation rule rejects up to
+four bare words with no closing punctuation — DeepSeek's first-word stubs
+("OK", "Print") and Gemini's "Searching the web" spinner. It also rejected
+DeepSeek's correct "Four" to "What is 2+2? One word." The exemption is keyed on
+the QUESTION: only when it asks for one/a single word, number, digit or letter,
+yes or no, or just the name/number, and only for a reply of at most two words
+that is not a loading label (`_LOADING_LABEL`: Thinking, Searching, Reasoning…).
+Replayed over all 332 stored captures (runs and brainstorm turns): "Four" is the
+only verdict that changed.
+
+**Brainstorm's step line comes from the engine** (`app._bs_phase`; S3). Each
+round/finalise job keeps `state["phase"]` — `council` → `critique` → `merging`,
+or on finalise `council` → `critique` → `writing` → `reviewing` — sends a
+`{"type":"phase"}` event when it moves, and puts the current one in the
+stream's `init`. The console (`bsPhaseFrom` in `listenBs`) follows those; the
+only other message it trusts is the chairman's own "… is merging / is writing /
+is checking" (for an older engine). Before, ANY state event with a message
+flipped the line to "Merging…", the critique step never showed, and a reload
+reset it to "council" (or guessed "writing" for a finalise). Tests:
+`magi/tests/test_bs_phase.py`, `tests/magi-bs-phase.test.js`.
+
 ## Questions handed over by another A1 program
 
 TradeHub's **Analysis** tab no longer opens a chat site and types a prompt into

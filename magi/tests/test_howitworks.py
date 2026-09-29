@@ -362,3 +362,21 @@ def test_the_sync_claims_still_hold():
     assert "code_models" not in blk and "/models/" not in blk
     # "Tap a task under Recent".
     assert '"Recent"' in PAGE and "codeOpenRecent(r)" in PAGE
+
+
+def test_the_one_word_exemption_is_what_the_panel_says():
+    """Step 3: bare words are not counted -- unless you asked for one word."""
+    from magi.engine.validate import Rejection, validate_answer
+    assert "when &ldquo;Four&rdquo; is exactly the answer" in HOW
+    assert validate_answer("Four", "What is 2+2? One word.").ok
+    assert validate_answer("Four", "Explain TCP.").reason is Rejection.TRUNCATED
+    assert validate_answer("Searching", "What is 2+2? One word.").reason is Rejection.TRUNCATED
+
+
+def test_the_brainstorm_step_line_is_what_the_panel_says():
+    """Every step it names is one the engine announces, and init replays it."""
+    assert "Reloading the page mid-round shows the same step" in HOW
+    app = (REPO / "magi" / "app.py").read_text(encoding="utf-8")
+    for phase in ("critique", "merging", "writing", "reviewing"):
+        assert f'_bs_phase(state, "{phase}"' in app or f'state, "{phase}",' in app, phase
+    assert '"phase": state.get("phase", "council")' in app

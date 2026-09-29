@@ -1096,6 +1096,18 @@ def _last_questions(turns: list[dict]) -> list:
     return []
 
 
+async def _bs_phase(state: dict, phase: str, message: str) -> None:
+    """Move a brainstorm job to its next step: council → critique → merging
+    (a round) or → writing → reviewing (finalise).
+
+    Kept on the job as well as sent, because the stream's `init` replays it:
+    a console that reloads mid-job shows the step the job is really on rather
+    than guessing from the kind of job.
+    """
+    state["phase"] = phase
+    await state["queue"].put({"type": "phase", "phase": phase, "message": message})
+
+
 async def _save_council_answers(
     session_id: str, round_no: int, attempt: int, answers: list, phase: str
 ) -> None:
@@ -1285,6 +1297,8 @@ async def create_brainstorm_round(
         "cancel": asyncio.Event(),
         "done": False,
         "result": None,
+        # The members go first in a round AND in finalise; _bs_phase moves it.
+        "phase": "council",
         "providers": {
             p.id: {
                 "id": p.id,
@@ -1357,12 +1371,8 @@ async def create_brainstorm_round(
             if state["cancel"].is_set():
                 raise RuntimeError("Round cancelled before the merge.")
 
-            await state["queue"].put(
-                {
-                    "type": "phase",
-                    "phase": "critique",
-                    "message": "The members are reviewing each other's proposals",
-                }
+            await _bs_phase(
+                state, "critique", "The members are reviewing each other's proposals"
             )
             critiques = await _run_critique(
                 orch, members, answers, topic, turns, ctx, on_event,
@@ -1375,6 +1385,9 @@ async def create_brainstorm_round(
             chairs = orch.chair_candidates(members, answers)
             if not chairs:
                 raise RuntimeError("No member available to act as chairman.")
+            await _bs_phase(
+                state, "merging", "Merging the round into one plan and one set of questions"
+            )
 
             # A chair that fails or returns a stock refusal hands the merge to
             # the next member that answered, as the council verdict does.
@@ -1580,6 +1593,8 @@ async def finalize_brainstorm(
         "cancel": asyncio.Event(),
         "done": False,
         "result": None,
+        # The members go first in a round AND in finalise; _bs_phase moves it.
+        "phase": "council",
         "providers": {
             p.id: {
                 "id": p.id,
@@ -1633,12 +1648,8 @@ async def finalize_brainstorm(
                 session_id, round_no, attempt, answers, "finalize"
             )
 
-            await state["queue"].put(
-                {
-                    "type": "phase",
-                    "phase": "critique",
-                    "message": "The members are reviewing each other's proposals",
-                }
+            await _bs_phase(
+                state, "critique", "The members are reviewing each other's proposals"
             )
             critiques = await _run_critique(
                 orch, members, answers, topic, turns, ctx, on_event,
@@ -1661,6 +1672,7 @@ async def finalize_brainstorm(
 
             # A chair that fails or returns a stock refusal hands the plan to
             # the next member that answered, as the council verdict does.
+            await _bs_phase(state, "writing", "Writing the plan")
             errs: list[str] = []
             for chair in chairs:
                 if state["cancel"].is_set():
@@ -1692,6 +1704,7 @@ async def finalize_brainstorm(
             # runs last because every one of those checks needs the whole thing
             # to exist first, and it can only ever improve or no-op -- a failed
             # review returns the document unchanged rather than losing it.
+            await _bs_phase(state, "reviewing", "Checking the finished document")
             await state["queue"].put(
                 {
                     "type": "state",
@@ -1775,7 +1788,11 @@ async def stream_brainstorm_job(session_id: str, job_id: str):
         # magi/fanout.py for why every stream needs its own copy.
         sub = state["queue"].subscribe()
         try:
-            yield _sse({"type": "init", "providers": list(state["providers"].values())})
+            yield _sse({
+                "type": "init",
+                "providers": list(state["providers"].values()),
+                "phase": state.get("phase", "council"),
+            })
             if state["result"]:
                 yield _sse(state["result"])
                 return

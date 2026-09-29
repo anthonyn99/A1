@@ -247,6 +247,26 @@ _STOP = {
 }
 
 
+# A question that asks for a bare word, number or yes/no. Narrow on purpose:
+# only these phrasings lift the truncation rule (see validate_answer).
+_ASKS_FOR_BREVITY = re.compile(
+    r"\b(?:(?:in\s+)?(?:one|a\s+single|single)[\s-]+(?:word|number|digit|letter)"
+    r"|yes\s+or\s+no"
+    r"|just\s+(?:the|a)\s+(?:number|name|word|answer)"
+    r"|only\s+the\s+(?:number|name|word))\b",
+    re.IGNORECASE,
+)
+
+# The sites' own "still working" labels. A capture that is one of these is a
+# spinner, never an answer, whatever the question asked for.
+_LOADING_LABEL = re.compile(
+    r"^\W*(?:thinking|reasoning|searching|loading|analy[sz]ing|generating"
+    r"|writing|working|processing|fetching|browsing|reading|typing"
+    r"|researching|responding|answering)\b",
+    re.IGNORECASE,
+)
+
+
 def _words(question: str) -> set[str]:
     return {w for w in re.findall(r"[a-z0-9]+", question.lower()) if w not in _STOP and len(w) > 2}
 
@@ -338,7 +358,21 @@ def validate_answer(
     # Postgres handles this fine at your volume."), while a truncated stream and
     # a spinner label both stop mid-air. So the bar counts words rather than
     # characters and never fires on anything punctuated as finished.
-    if len(body.split()) <= 4 and not body.rstrip().endswith((".", "!", "?")):
+    #
+    # One more exemption, keyed on the QUESTION: "What is 2+2? One word." was
+    # answered "Four" by DeepSeek and rejected here. When the user asked for a
+    # bare word or number, an unpunctuated one- or two-word reply is exactly
+    # what they wanted -- unless it is a spinner label, which no question asks
+    # for.
+    if (
+        len(body.split()) <= 4
+        and not body.rstrip().endswith((".", "!", "?"))
+        and not (
+            _ASKS_FOR_BREVITY.search(question or "")
+            and len(body.split()) <= 2
+            and not _LOADING_LABEL.match(body)
+        )
+    ):
         return Validation(
             False,
             Rejection.TRUNCATED,

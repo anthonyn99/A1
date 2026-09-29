@@ -120,6 +120,32 @@ def test_observed_truncated_deepseek_captures():
         assert v.reason is Rejection.TRUNCATED
 
 
+def test_a_one_word_answer_to_a_one_word_question_is_kept():
+    """Observed live (Track S bug a): DeepSeek's correct "Four" was TRUNCATED."""
+    v = validate_answer("Four", "What is 2+2? One word.")
+    assert v.ok, v.detail
+    for q, a in (
+        ("Is Rust memory safe? Yes or no.", "Yes"),
+        ("Capital of France? Just the name.", "Paris"),
+        ("How many legs does a spider have? Answer in a single word.", "Eight"),
+        ("Pick one-word: best editor?", "Neovim"),
+    ):
+        assert validate_answer(a, q).ok, (q, a)
+
+
+def test_brevity_exemption_stays_narrow():
+    # A normal question: the observed DeepSeek first-word stubs still fail.
+    for word in ("OK", "Print", "Four"):
+        assert validate_answer(word, "Explain how TCP congestion control works.").reason \
+            is Rejection.TRUNCATED, word
+    q = "What is 2+2? One word."
+    # A spinner label is never an answer, even to a one-word question.
+    for label in ("Thinking", "Searching", "Searching the web", "Reasoning…"):
+        assert validate_answer(label, q).reason is Rejection.TRUNCATED, label
+    # Three bare words is not "one word".
+    assert validate_answer("Four I think", q).reason is Rejection.TRUNCATED
+
+
 # -- calibration against the real corpus --------------------------------------
 #
 # Replaying all 86 successful captures in data/magi.db rejected 17, every one a
