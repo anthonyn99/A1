@@ -13,8 +13,12 @@
 //   PowerShell:  $env:CF_ANALYTICS_TOKEN="xxxx"; node workers/kv-usage.mjs 7
 //
 // Needs an API token with:  Account -> Account Analytics -> Read
+//
+// Account 2 (workers2/):  CF_ACCOUNT=2 node workers/kv-usage.mjs 7
+// (or CF_ACCOUNT=<32-hex account id> for any other account)
 
-const ACCOUNT = 'b9a33dd573c14d5f446516ea8b46285f';
+const ACCOUNTS = { 1: 'b9a33dd573c14d5f446516ea8b46285f', 2: 'dbde452fc0d60264a7e9339460b7188c' };
+const ACCOUNT = ACCOUNTS[process.env.CF_ACCOUNT || 1] || process.env.CF_ACCOUNT;
 const TOKEN = process.env.CF_ANALYTICS_TOKEN;
 const DAYS = Number(process.argv[2] || 7);
 
@@ -79,6 +83,14 @@ const NS = {
   b51e916cf3bf4f37ad146af5ca031575: 'TOKEN_CACHE',
   b70722a46ddb40d49906e2e4aedc7b4a: 'WX_CACHE',
 };
+
+// namespaces on any other account (or new ones) are named from the API
+try {
+  const r = await fetch('https://api.cloudflare.com/client/v4/accounts/' + ACCOUNT +
+    '/storage/kv/namespaces?per_page=100', { headers: { 'Authorization': 'Bearer ' + TOKEN } });
+  const j = await r.json();
+  for (const ns of (j.result || [])) NS[ns.id] ||= ns.title;
+} catch (_) { /* ids stay unnamed; the analytics are still right */ }
 
 // ── per day, per action ────────────────────────────────────────────────────
 const byDay = {};
