@@ -426,6 +426,62 @@ def mark_ran():
 _ECHO = False   # when True, log() also prints to the console (set by --test-chatgpt)
 
 
+# Both logs here only ever grow: launch.log is ours, debug.log is the browser's
+# error output (certificate noise) landing in this folder. Lines older than
+# LOG_KEEP_DAYS are dropped on each run. cleanup-rules.json items
+# trading-launch-log and trading-debug-log.
+LOG_KEEP_DAYS = 30
+_LOG_DATE = (
+    (re.compile(r"^\[(\d{4})-(\d{2})-(\d{2}) "), True),   # launch.log: [2026-09-29 13:59:45 MT]
+    (re.compile(r"^\[(\d{2})(\d{2})/\d{6}"), False),      # debug.log:  [0929/093114.446:ERROR...
+)
+
+
+def _line_date(line: str, today: date):
+    for rx, has_year in _LOG_DATE:
+        m = rx.match(line)
+        if not m:
+            continue
+        try:
+            if has_year:
+                return date(int(m[1]), int(m[2]), int(m[3]))
+            d = date(today.year, int(m[1]), int(m[2]))
+            return d if d <= today else date(today.year - 1, d.month, d.day)
+        except ValueError:
+            return None
+    return None
+
+
+def trim_logs(today=None) -> None:
+    """Drop log lines older than LOG_KEEP_DAYS. Never raises: a log is not worth
+    a failed launch, and a file the browser holds open is simply tried again
+    on the next run."""
+    today = today or date.today()
+    cutoff = today - timedelta(days=LOG_KEEP_DAYS)
+    for p in (LOG_FILE, SCRIPT_PATH.parent / "debug.log"):
+        try:
+            if not p.exists():
+                continue
+            lines = p.read_text(encoding="utf-8", errors="replace").splitlines(keepends=True)
+            keep, out = True, []
+            for ln in lines:
+                d = _line_date(ln, today)
+                if d is not None:
+                    keep = d >= cutoff
+                if keep:                 # an undated line goes with the line above it
+                    out.append(ln)
+            if len(out) == len(lines):
+                continue
+            tmp = p.with_suffix(p.suffix + ".tmp")
+            tmp.write_text("".join(out), encoding="utf-8")
+            tmp.replace(p)
+        except Exception:
+            try:
+                p.with_suffix(p.suffix + ".tmp").unlink(missing_ok=True)
+            except Exception:
+                pass
+
+
 def log(msg: str):
     try:
         ts = mountain_now().strftime("%Y-%m-%d %H:%M:%S MT")
@@ -2143,6 +2199,7 @@ if __name__ == "__main__":
     # so accept (and ignore) a trailing URL argument rather than erroring on it.
     parser.add_argument("protocol_url", nargs="?", help=argparse.SUPPRESS)
     args = parser.parse_args()
+    trim_logs()
 
     if args.setup:
         setup()

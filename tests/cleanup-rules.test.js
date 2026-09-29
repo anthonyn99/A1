@@ -113,6 +113,12 @@ for (const it of RULES.items.filter((i) => i.store === 'kv')) {
   ok(`${it.id}: no KV list (no discovery pass)`, !/\.list\(/.test(src.slice(src.indexOf('async function dropStaleToken'), src.indexOf('async function dropStaleToken') + 400)));
 }
 
+const launch = read('trading-auto-launch/launch.py');
+for (const it of RULES.items.filter((i) => i.program === 'trading-auto-launch')) {
+  ok(`${it.id}: launch.py keeps the same ${it.capDays} days`, new RegExp(`^LOG_KEEP_DAYS = ${it.capDays}$`, 'm').test(launch));
+  ok(`${it.id}: launch.py trims on every run`, /args = parser\.parse_args\(\)\n\s+trim_logs\(\)/.test(launch));
+}
+
 // ── Behaviour: the shipped sweep.js ───────────────────────────────────────
 function boot({ rules = RULES, storage = true, adapter, seed = {} } = {}) {
   const dom = new JSDOM('<!doctype html><html><body></body></html>', {

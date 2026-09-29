@@ -187,6 +187,32 @@
       "reason": "A screenshot or dump that failed mid-write. It shows nothing.",
       "delete": true,
       "approved": "2026-09-29: Tony reviewed the full list and turned deletion on for every item"
+    },
+    {
+      "id": "trading-launch-log",
+      "store": "disk",
+      "program": "trading-auto-launch",
+      "category": "outdated",
+      "capDays": 30,
+      "test": "trim-lines",
+      "owner": "trading-auto-launch/launch.py trim_logs()",
+      "delete": true,
+      "approved": "2026-09-29: Tony asked for a 30-day limit on the trading launcher logs",
+      "glob": "trading-auto-launch/launch.log",
+      "reason": "The launcher appends a few lines every run and never trimmed them. Lines older than 30 days are dropped each run; the file itself stays."
+    },
+    {
+      "id": "trading-debug-log",
+      "store": "disk",
+      "program": "trading-auto-launch",
+      "category": "outdated",
+      "capDays": 30,
+      "test": "trim-lines",
+      "owner": "trading-auto-launch/launch.py trim_logs()",
+      "delete": true,
+      "approved": "2026-09-29: Tony asked for a 30-day limit on the trading launcher logs",
+      "glob": "trading-auto-launch/debug.log",
+      "reason": "The browser's error output (certificate noise) lands in this folder and only grows. Lines older than 30 days are dropped each run."
     }
   ],
   "handledElsewhere": [
