@@ -3593,22 +3593,32 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 .eng-x:hover { color: var(--red); }
 .eng-x svg { width: 14px; height: 14px; }
 /* ── Code Mode ───────────────────────────────────────────────────────── */
-/* A segmented pair rather than a toggle: a toggle has an implied default
-   and an "off", and these are two equal things you do with the same box. */
-.mode-sw {
-  display: inline-flex; flex: 0 0 auto;
-  border: 1px solid var(--bd); border-radius: 999px; padding: 2px;
-  background: var(--bg);
+/* Code Mode takes none of the council's extras -- no attachments, no
+   Refine, no Queue -- so they are not shown there rather than shown dead. */
+.qbar.is-code .qbar-attach,
+.qbar.is-code .qbar-refine,
+.qbar.is-code .qbar-undo,
+.qbar.is-code .qbar-queue,
+.qbar.is-code .qbar-chips { display: none !important; }
+
+/* Code Mode's History: one chip per project, only when there are several. */
+.code-hist-filter {
+  display: flex; gap: 6px; padding: 8px 12px; overflow-x: auto;
+  border-bottom: 1px solid var(--bd); scrollbar-width: none;
 }
-.mode-opt {
-  background: none; border: 0; border-radius: 999px;
-  padding: 4px 11px; color: var(--txm);
-  font: inherit; font-size: 11px; font-weight: 600; letter-spacing: .2px;
-  cursor: pointer; white-space: nowrap;
-  transition: background .14s, color .14s;
+.code-hist-filter::-webkit-scrollbar { display: none; }
+.code-hist-chip {
+  flex: 0 0 auto; background: none; border: 1px solid var(--bd);
+  border-radius: 999px; padding: 4px 11px; color: var(--txm);
+  font: inherit; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap;
 }
-.mode-opt:hover { color: var(--tx); }
-.mode-opt.on { background: var(--s3); color: var(--tx); }
+.code-hist-chip:hover { color: var(--tx); border-color: var(--bdl); }
+.code-hist-chip.on { background: var(--s3); color: var(--tx); border-color: var(--bdl); }
+.code-hist-err { margin: 10px 12px 0; }
+.code-hist-busy { border-bottom: 1px solid var(--bd); }
+.row.is-held { cursor: default; }
+.row.is-held:hover { background: none; }
+.row.is-held.pinned:hover { background: color-mix(in srgb, var(--ac) 8%, transparent); }
 
 /* Centred under the composer, like the unit chips are in Deliberation.
    Left-aligned, a 620px card under a full-width box read as two unrelated
@@ -5204,8 +5214,7 @@ html.modal-open .page, html.modal-open .sidebar { overflow: hidden; }
   /* The toolbar's 30px right padding is the resize grip's corner, which is
      on the row BELOW. Reclaimed here so the tab bar spans the full box
      instead of stopping short on the right for a control that is not there. */
-  .qbar-toolbar .mode-sw { order: -1; flex: 1 1 100%; margin-right: -28px; }
-  .qbar-toolbar .mode-opt { flex: 1 1 0; min-height: 36px; font-size: 12px; }
+  .code-hist-chip { padding: 7px 13px; font-size: 12px; }
   .qbar-send { flex: 0 0 auto; margin-left: auto; }
   .qbar-spacer { display: none; }
 
@@ -6943,14 +6952,14 @@ const HOW = [
     q: "History, pinning and sync",
     a: [
       "Every finished deliberation is stored on the engine device and mirrored to the cloud, so a verdict produced at your desk opens on your phone.",
-      "History keeps __DAYS__ days. Anything older is dropped &mdash; unless you <b>pin</b> it, which keeps it forever. Unpinning does not hand something straight to the sweeper: the __DAYS__ days restart from the moment you unpin, so a year-old deliberation you unpin today has another __DAYS__ days. Pins, names and those clocks follow you between devices.",
+      "History keeps __DAYS__ days. Anything older is dropped &mdash; unless you <b>pin</b> it, which keeps it forever. Unpinning does not hand something straight to the sweeper: the __DAYS__ days restart from the moment you unpin, so a year-old deliberation you unpin today has another __DAYS__ days. Pins, names and those clocks follow you between devices. Code Mode&rsquo;s <b>History</b> works exactly the same way: pin, rename, delete, and the same __DAYS__ days.",
       "Nothing is written to the cloud while a run is in flight: one finished deliberation is one write. That is deliberate, so MAGI cannot eat the quota the rest of the suite shares.",
     ],
   },
   {
     q: "Code Mode",
     a: [
-      "The switch beside the prompt box changes what that box <i>does</i>. <b>Deliberate</b> asks the council a question. <b>Code Mode</b> hands the words to a coding agent working on a folder on the machine the engine is running on. Pick the folder under <b>Workspace</b>; MAGI draws its own folder browser, and the path never leaves that machine.",
+      "Code Mode is its own section in the sidebar, under Deliberations, with its own <b>New session</b> and <b>History</b>. The same prompt box changes what it <i>does</i>: under Deliberations it asks the council a question; under Code Mode it hands the words to a coding agent working on a folder on the machine the engine is running on. Pick the folder under <b>Workspace</b>; MAGI draws its own folder browser, and the path never leaves that machine.",
       "<b>Any unit can code.</b> <b>Claude</b> and <b>Codex</b> run through their own command-line tools and search and read the folder themselves; every other unit works through its browser session, with MAGI handing it the files that matter. Both CLIs use a signed-in account's own plan &mdash; Codex works on a free ChatGPT account &mdash; and no API key is used anywhere. Their accounts are set up in <b>Accounts</b>, separately from the browser units, and each can hold more than one.",
       "<b>The chips are the fallback chain.</b> The first ticked agent does the work. If it runs out of usage, is signed out or cannot start, the next one carries on, told what the previous one had worked out. A task that simply fails is not handed on &mdash; another author would fail it the same way. A limit is remembered until its reset time, so the chain does not walk into the same wall on every task. Tap <b>Agents</b> to change the order.",
       "<b>Read or Write, per task.</b> Every task starts in <b>Read</b>: agents can read and search the folder and change nothing. Switch to <b>Write</b> (the button then says <b>Run edits</b>) and the agents work on a <i>private copy</i> of the folder instead &mdash; your uncommitted edits included. When they finish you get the <b>diff</b>, file by file, with <b>Approve</b> and <b>Deny</b>. Nothing touches your folder unless you press Approve; no answer within __APPROVE_MIN__ minutes counts as No, and so does Halt. Any screen watching the task can answer.",
@@ -6959,7 +6968,7 @@ const HOW = [
       "<b>Commit is a second press.</b> Once a change is applied, the card offers <b>Commit these files</b>: exactly the files that were applied, nothing else you had changed or staged, with a message drafted from what you asked and what the agent said it did. Edit it, press Commit, and your repository&rsquo;s own hooks run as they would for you. Nothing is pushed until you press Push (or switch on Auto push, below). MAGI does all of this itself &mdash; agents never get git, a shell or a credential.",
       "<b>Push is a third press.</b> After a commit the card offers <b>Push</b>, and whenever the branch is ahead the line under <b>Workspace</b> offers <b>Push &uarr;n</b>. It goes out as the <b>GitHub account</b> you chose for the project (tap the <b>Repository</b> pill), is <b>never forced</b>, and is refused with a reason if GitHub has commits you do not &mdash; the next task&rsquo;s pull brings them in. With no account chosen, an HTTPS remote is not pushed at all rather than going out as whatever login this PC remembers. A1 is never pushed from here.",
       "<b>Auto commit and Auto push are off until you switch them on</b>, per project &mdash; tap either pill. With Auto commit on, a write task you approved is committed by MAGI with a &ldquo;magi:&rdquo; message once the project has been quiet for its window (3 minutes unless you pick another); a follow-up task folds into the same commit, and the line under <b>Workspace</b> counts it down with <b>Commit now</b> and <b>Cancel</b>. Only the applied files are committed, and it is refused &mdash; said on that line &mdash; when you have other files staged, a merge or rebase is in progress, or HEAD is detached. Auto push then pulls, and pushes only if the pull came back clean; never forced, and the Actions watch follows it. Both stay off for A1, whose own hook already commits and pushes.",
-      "<b>Your projects follow you between devices.</b> Their names, aliases, notes and switches (Auto commit, Auto push, the GitHub account), which engines hold a folder for them, your agent order and ticks, and a one-line record of each finished task travel in the same synced document as your deliberations &mdash; no extra listener, and one write per change however fast you tap. <b>Folder paths, tokens and logins never leave the PC</b>, and nothing is written while a task runs. Model choices and caps stay on each engine: they describe that PC&rsquo;s own CLIs. A change made on the engine&rsquo;s own page (127.0.0.1, which has no sync) reaches your other devices the next time a synced page connects to it; A1&rsquo;s switches stay off whatever a synced copy says. Tap a task under <b>Recent</b> to read its transcript on any device.",
+      "<b>Your projects follow you between devices.</b> Their names, aliases, notes and switches (Auto commit, Auto push, the GitHub account), which engines hold a folder for them, your agent order and ticks, and a one-line record of each finished task travel in the same synced document as your deliberations &mdash; no extra listener, and one write per change however fast you tap. <b>Folder paths, tokens and logins never leave the PC</b>, and nothing is written while a task runs. Model choices and caps stay on each engine: they describe that PC&rsquo;s own CLIs. A change made on the engine&rsquo;s own page (127.0.0.1, which has no sync) reaches your other devices the next time a synced page connects to it; A1&rsquo;s switches stay off whatever a synced copy says. Open a task from Code Mode&rsquo;s <b>History</b> to read its transcript on any device.",
       "<b>Coding agents cannot drive MAGI.</b> Codex needs a shell to read your files, and its sandbox cannot keep that shell away from the engine on this PC &mdash; so the engine refuses it instead: every agent runs in a Windows job, and any request from a process in that job is turned away, except Claude&rsquo;s read-only GitHub tools. An agent cannot approve its own change, push, or read your token. A web page from anywhere but MAGI&rsquo;s own is turned away too, before anything runs. To try a change to this page locally, open <b>http://127.0.0.1:8000/</b> &mdash; a copy opened straight from disk is no longer let in, because any website can pose as one.",
       "<b>GitHub tokens stay on the engine PC.</b> In <b>Accounts &rsaquo; GitHub</b>, <b>Sign in with GitHub</b> shows a short code: enter it at github.com/login/device on any device and approve, and MAGI can reach every repository the account can &mdash; new ones too, so <b>Workspaces &rsaquo; Clone from GitHub</b> opens any of them with no new token. A pasted token works the same way: MAGI checks it with GitHub, keeps it in the PC&rsquo;s credential store, and never shows it again &mdash; not on any screen, not in Firestore, not to an agent. Git is handed it only at the moment it asks, and only for github.com, so it never lands in the repository&rsquo;s config. A fine-grained token reaches only the repositories it lists.",
       "<b>The Repository pill opens the repository itself.</b> For a folder whose remote is on GitHub, the pill shows its branches (with how far each is ahead or behind), commits, pull requests with their checks, issues, Actions runs and releases &mdash; read as the project&rsquo;s GitHub account, fetched when you open a tab, and never on a timer. GitHub answers an unchanged question with &ldquo;nothing new&rdquo;, which costs none of the hourly limit. Nothing in it can change the repository.",
@@ -9857,7 +9866,10 @@ function updateEnabled() {
   // input handler.
   show($("btnUndo"), S.preRefine !== null && !S.refining);
   $("btnUndo").disabled = S.refining;
-  $("navNew").disabled = busy;
+  // Attach, Refine and Queue are the council's: a coding task takes none of
+  // them, so in Code Mode they are not shown rather than shown dead.
+  $("qbar").classList.toggle("is-code", coding);
+  syncModeNav();
   show($("navHalt"), S.running);
   // It stays VISIBLE while halting, and says so. Hiding it would answer "did
   // that work?" with the control disappearing, which is the same silence in a
@@ -10536,6 +10548,44 @@ function newRun() {
   setView("council");
 }
 
+/** Deliberations → New deliberation. While a run is going this is the way
+ *  back to it (it used to be disabled, which left Code Mode with no route
+ *  to a council that was still answering); otherwise it clears the screen. */
+function navNewDeliberation() {
+  setMode("deliberation", { render: false });
+  if (S.running) {
+    if (S.fromHistory && S.live) backToLive(); else setView("council");
+    return;
+  }
+  if (S.refining || (S.bs && S.bs.busy)) { setView("council"); return; }
+  newRun();
+}
+
+/** Code Mode → New session. A task still running is where it takes you --
+ *  there is one at a time -- and a finished or reopened one is put away. */
+function navNewCode() {
+  setMode("code", { render: false });
+  if (CODE.task && !codeBusy()) codeClearTask();
+  setView("council");
+  if (!codeBusy()) setTimeout(() => $("composer").focus(), 0);
+}
+
+/** The two "New" rows say what they will do: while something is running,
+ *  they are the way back to it. */
+function syncModeNav() {
+  const lbl = $("navNewLbl");
+  if (lbl) lbl.textContent = S.running ? "Current deliberation" : "New deliberation";
+  const busy = typeof codeBusy === "function" && codeBusy();
+  const cl = $("navCodeNewLbl");
+  if (cl) cl.textContent = busy ? "Current task" : "New session";
+  const tag = $("navCodeNewTag");
+  if (tag) {
+    tag.textContent = "";
+    if (busy) tag.append(spinnerEl());
+    show(tag, busy);
+  }
+}
+
 /* ══ history ═══════════════════════════════════════════════════════════════ */
 async function loadHistory() {
   if (!online()) return;
@@ -10623,6 +10673,7 @@ function renderHistory() {
 async function openRun(id) {
   const r = await fetch(`${link.api}/api/runs/${id}`, authed());
   const data = await r.json();
+  setMode("deliberation", { render: false });
   S.runId = id;
   S.gridOwner = "council";
   S.runLocal = true;          // read from the engine, so the engine has it
@@ -11355,6 +11406,10 @@ const MODE = {
     } catch {}
     return "deliberation";
   })(),
+  // What was in the box when you left each mode. They are two sections now,
+  // and a half-written question to the council turning up as a coding task
+  // (or the other way round) is exactly the mix-up separating them prevents.
+  drafts: {},
 };
 
 const codeMode = () => MODE.cur === "code";
@@ -11364,6 +11419,12 @@ function setMode(m, { render = true } = {}) {
   // Halting is not implied. A council running in the engine keeps running when
   // you look at something else -- that is the whole point of the engine owning
   // the run -- and switching mode is looking at something else.
+  const ta = $("composer");
+  if (ta) {
+    MODE.drafts[MODE.cur] = ta.value;
+    ta.value = MODE.drafts[m] || "";
+    if (typeof autosize === "function") autosize();
+  }
   MODE.cur = m;
   try { localStorage.setItem(MODE_KEY, m); } catch {}
   // Coming into Code Mode re-reads the branch: you may have committed or
@@ -11849,8 +11910,6 @@ function renderCodeView() {
         ? "Agents edit a private copy. Nothing changes here until you approve the diff."
         : "Agents can read and search this folder, not change it.";
     col.append(hint);
-    const recent = renderCodeRecent(proj);
-    if (recent) col.append(recent);
   }
 }
 
@@ -12220,10 +12279,10 @@ async function codeRun() {
   codeAttach(d.task.id, q);
 }
 
-function codeAttach(id, prompt) {
+function codeAttach(id, prompt, { projectId = null, at = null, fromHistory = false } = {}) {
   if (CODE.task && CODE.task.es) CODE.task.es.close();
   const t = { id, prompt: prompt || "", events: [], done: false, result: null, es: null,
-              projectId: CODE.projectId };
+              projectId: projectId || CODE.projectId, at, fromHistory };
   CODE.task = t;
   try { sessionStorage.setItem(CODE_TASK_SS, id); } catch {}
   const es = new EventSource(streamUrl(`/api/code/tasks/${id}/stream`));
@@ -12249,6 +12308,7 @@ function codeAttach(id, prompt) {
       // The task pulled, and may have applied files: the branch line moved.
       const tp = ((CODE.state && CODE.state.projects) || []).find((p) => p.id === t.projectId);
       if (tp) codeGitLoad(tp.id);
+      codeHistEngineLoad(true);
     }
     t.events.push(ev);
     if (CODE.task === t && codeMode()) renderCodeView();
@@ -12264,6 +12324,7 @@ function codeAttach(id, prompt) {
       codeSyncTaskEnd(t);
       if (CODE.task === t && codeMode()) renderCodeView();
       updateEnabled();
+      renderCodeHistory();
     }
   };
   renderCodeView();
@@ -12307,6 +12368,11 @@ function renderCodeTask(t) {
   if (t.archived) hd.firstChild.append(el("div", "code-recent-m",
     `From ${t.archived.device || "another device"} · a saved copy`));
   const acts = el("div", "code-task-acts");
+  if (t.fromHistory && t.done) {
+    const back = el("button", "navitem", "← All code sessions");
+    back.onclick = () => setView("codeHistory");
+    acts.append(back);
+  }
   if (!t.done) {
     const halt = el("button", "navitem danger", t.halting ? "Halting…" : "Halt");
     halt.disabled = !!t.halting;
@@ -15052,6 +15118,8 @@ function setView(v) {
 
   show($("studioView"), studioOpen);
   show($("historyDrawer"), v === "history");
+  show($("codeHistoryDrawer"), v === "codeHistory");
+  if (v === "codeHistory") { renderCodeHistory(); codeHistEngineLoad(); }
   // The bar itself, and its second button: a way back to the run still in
   // flight, which only exists while one is.
   const pastWhileRunning = v === "council" && S.fromHistory && S.live
@@ -15069,7 +15137,8 @@ function setView(v) {
   // Accounts and the Doctor are settings screens: a question box and a row of
   // unit toggles above them are controls for a different job, and they push
   // the thing you came to read below the fold.
-  const settingsView = v === "accounts" || v === "doctor" || v === "history";
+  const settingsView = v === "accounts" || v === "doctor" || v === "history"
+    || v === "codeHistory";
   // Code Mode replaces what the council screen shows, without being a view
   // of its own -- see the CODE MODE block for why mode and view are
   // different things.
@@ -15099,9 +15168,13 @@ function setView(v) {
   // A run opened from History keeps History lit -- you drilled into that
   // list, you did not leave it -- and New deliberation is only lit for a
   // screen you would actually be starting one on.
-  const viewingPast = v === "council" && S.fromHistory;
-  $("navNew").classList.toggle("active", v === "council" && !studioOpen && !viewingPast);
+  const viewingPast = v === "council" && S.fromHistory && !codeOpen;
+  const codePast = codeOpen && !!(CODE.task && CODE.task.fromHistory);
+  $("navNew").classList.toggle("active",
+    v === "council" && !studioOpen && !viewingPast && !codeMode());
   $("navHistory").classList.toggle("active", v === "history" || viewingPast);
+  $("navCodeNew").classList.toggle("active", codeOpen && !codePast);
+  $("navCodeHistory").classList.toggle("active", v === "codeHistory" || codePast);
   $("navDoctor").classList.toggle("active", v === "doctor");
   $("navAccounts").classList.toggle("active", v === "accounts");
   // An open card replaces the grid and the verdict rather than sitting above
@@ -15745,7 +15818,10 @@ function applyAudioNav() {
 }
 
 $("navToggle").onclick = () => { S.navCollapsed = !S.navCollapsed; applyNav(); };
-$("navNew").onclick = newRun;
+$("navNew").onclick = navNewDeliberation;
+$("navCodeNew").onclick = navNewCode;
+$("navCodeHistory").onclick = () =>
+  setView(S.view === "codeHistory" ? "council" : "codeHistory");
 $("navHistory").onclick = () => setView(S.view === "history" ? "council" : "history");
 $("navDoctor").onclick = runDoctor;
 $("navAudio").onclick = () => { S.muted = !S.muted; applyMute(); applyAudioNav(); if (!S.muted) beepUnit(); };
@@ -20510,8 +20586,10 @@ function engMerge(rows) {
    task of any length is zero writes until it ends. A finished task is then
    one index write plus its transcript in dashboards/<doc>/code/<id>, which
    is read only when you open it. */
-const CODE_SYNC_MAX = 64 * 1024;
-const CODE_TASKS_MAX = 25;
+// Rows are about 350 bytes. 150 of them is a month of steady use, and the
+// guard below still drops the oldest unpinned first if the field grows.
+const CODE_SYNC_MAX = 128 * 1024;
+const CODE_TASKS_MAX = 150;
 const CODE_BODY_MAX = 400 * 1024;
 const CODE_CHAIN_AT_KEY = lsKey("code.chainAt");
 const CODE_SYNCED_SS = lsKey("code.syncedTasks");
@@ -20606,6 +20684,12 @@ function codeSyncFromCloud(c) {
     if (codeMode()) updateEnabled();
   }
   if (codeMode()) renderCodeView();
+  renderCodeHistory();
+  // Something expired or was deleted and is still in the cloud copy: one
+  // write takes it out (codeFlush filters it) and removes its transcript.
+  if (CLOUD.enabled && (c.tasks || []).some((r) => r && (CODE_GONE.has(r.id) || codeExpired(r)))) {
+    cloudSaveCode();
+  }
   if (CODE.state && online()) codeSyncReconcile();
 }
 
@@ -20696,8 +20780,14 @@ async function codeFlush() {
   for (const r of [...sent, ...(Array.isArray(base.tasks) ? base.tasks : [])]) {
     if (r && r.id && !byId.has(r.id)) byId.set(r.id, r);
   }
+  // Deleted and expired rows leave here, and pinned ones sort first so the
+  // cap -- and the size guard below, which pops from the end -- takes the
+  // oldest unpinned rows, never one you asked to keep.
   const tasks = [...byId.values()]
-    .sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, CODE_TASKS_MAX);
+    .filter((r) => !CODE_GONE.has(r.id) && !codeExpired(r))
+    .sort((a, b) => (codePinned(b) - codePinned(a))
+      || String(b.at).localeCompare(String(a.at)))
+    .slice(0, CODE_TASKS_MAX);
   const body = { projects: want.projects, deleted: want.deleted, chain, tasks };
   const had = { projects: base.projects || {}, deleted: base.deleted || {},
                 chain: base.chain || null, tasks: Array.isArray(base.tasks) ? base.tasks : [] };
@@ -20724,6 +20814,17 @@ async function codeFlush() {
     CODE_SYNC.sig = codeStable(next);
     done();
     setSync("saved");
+    // A row that left the index (deleted, expired, or past the cap) takes
+    // its transcript with it: nothing can open that document any more, and
+    // each one is up to 400 KB. Rows first, bodies after -- the harmless
+    // order if this is interrupted.
+    const kept = new Set(next.tasks.map((r) => r.id));
+    for (const r of had.tasks) {
+      if (r && r.id && !kept.has(r.id)) {
+        CLOUD.fs.deleteDoc(_codeTaskDoc(r.id)).catch((e) => console.warn("[magi] code body:", e));
+      }
+    }
+    renderCodeHistory();
   } catch (e) {
     setSync("error", _syncFail("saving Code Mode's projects", e));
     console.warn("[magi] code save:", e);
@@ -20746,7 +20847,7 @@ function codeSyncTaskEnd(t) {
         id: t.id, pid: t.projectId || "", project: proj ? proj.name : "",
         prompt: String(t.prompt || "").slice(0, 140),
         outcome: String(r.outcome || (t.lost ? "lost" : "")), by: String(r.by_label || ""),
-        write: !!r.write, at: new Date().toISOString(),
+        write: !!r.write, at: t.at || new Date().toISOString(),
         device: (CODE.state && CODE.state.engine && CODE.state.engine.label) || "",
       };
       CODE_SYNC.tasks.push(row);
@@ -20787,54 +20888,371 @@ async function cloudSaveTaskBody(t, row) {
   } catch (e) { console.warn("[magi] code task body:", e); }
 }
 
-/** Open a finished task from any device: the one read of its body. */
-async function codeOpenRecent(row) {
-  if (codeBusy() || CODE.recentBusy) return;
-  CODE.recentBusy = row.id;
-  renderCodeView();
-  try {
-    if (!(await cloudInit())) throw new Error("sync is off on this device");
-    const snap = await CLOUD.fs.getDoc(_codeTaskDoc(row.id));
-    if (!snap.exists()) throw new Error("its transcript is not in the cloud");
-    const b = snap.data();
-    CODE.task = { id: row.id, prompt: b.prompt || row.prompt, done: true, es: null,
-                  events: JSON.parse(b.events || "[]"), result: JSON.parse(b.result || "null"),
-                  projectId: row.pid, archived: row };
-    CODE.err = "";
-  } catch (e) {
-    CODE.err = `Could not open that task: ${e.message || e}`;
-  }
-  CODE.recentBusy = null;
-  renderCodeView();
-  updateEnabled();
+/* ── Code Mode's History ───────────────────────────────────────────────────
+   The same list Deliberations has, and the same rules: newest first, pinned
+   above everything, a name you give it shown instead of the prompt, a delete
+   that asks first, and anything unpinned gone 30 days after it ran (or after
+   you unpinned it -- see UNPINNED_AT).
+
+   The rows are the one-line records already synced in the `code` field, so
+   the list costs no extra read; a transcript is read only when you open it.
+   Tasks the engine still holds in memory are listed too, which is the whole
+   history on a page with no sync (127.0.0.1) and fills the gap for a task
+   that never reached the cloud.
+
+   Marks ride the index document as four small fields of their own, written
+   with mergeFields like the deliberation and session marks, and guarded the
+   same way (_codeMarksDirty). `codeGone` is the deletions: an engine that
+   still holds a deleted task in memory must not put it back on the list. */
+const CODE_PIN_KEY = lsKey("codepins");
+const CODE_NICK_KEY = lsKey("codenicks");
+const CODE_UNPIN_KEY = lsKey("codeunpinned");
+const CODE_GONE_KEY = lsKey("codegone");
+const CODE_GONE_MAX = 300;
+
+const CODE_PINS = new Set(lsRead(CODE_PIN_KEY, []) || []);
+const CODE_NICKS = lsRead(CODE_NICK_KEY, {}) || {};
+const CODE_UNPINNED_AT = lsRead(CODE_UNPIN_KEY, {}) || {};
+const CODE_GONE = new Set(lsRead(CODE_GONE_KEY, []) || []);
+
+const CODE_HIST = {
+  engine: [], engineFrom: null, engineAt: 0, engineBusy: false,
+  opening: null, err: "", filter: "",
+};
+
+const codePinned = (r) => CODE_PINS.has(r.id);
+const codeNickOf = (r) => (CODE_NICKS[r.id] || "").trim();
+const codeTitleOf = (r) => codeNickOf(r) || r.prompt || "Task";
+/** Unpinned and past the window. An unreadable date is never expired. */
+function codeExpired(r) {
+  if (!r || codePinned(r)) return false;
+  const age = (Date.now() - clockStartOf(CODE_UNPINNED_AT, r.id, r.at)) / 86400000;
+  return Number.isFinite(age) && age > HISTORY_DAYS;
+}
+function clockStartOf(map, id, at) {
+  const t = map[id] ? new Date(map[id]).getTime() : NaN;
+  return Number.isFinite(t) ? t : new Date(at).getTime();
 }
 
-/** Recent tasks, from any of your devices, under the composer's hint. */
-function renderCodeRecent(proj) {
-  const rows = ((CODE_SYNC.cloud && CODE_SYNC.cloud.tasks) || [])
-    .filter((r) => !proj || r.pid === proj.id).slice(0, 8);
-  if (!rows.length) return null;
-  const box = el("div", "code-recent");
-  box.append(el("div", "code-recent-hd", "Recent"));
-  const OUT = { ok: "done", task_failed: "failed", limited: "out of usage",
-                unauthed: "signed out", unavailable: "no agent", cancelled: "halted",
-                lost: "engine lost" };
-  for (const r of rows) {
-    const b = el("button", "code-recent-row");
-    b.type = "button";
-    b.disabled = !!CODE.recentBusy;
-    b.append(el("span", "code-recent-q", r.prompt || "Task"));
-    const when = r.at ? new Date(r.at) : null;
-    const meta = [r.write ? "Write" : "Read", OUT[r.outcome] || r.outcome || "",
-                  r.by || "", r.device || "",
-                  when ? when.toLocaleDateString([], { month: "short", day: "numeric" })
-                         + " " + when.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : ""]
-      .filter(Boolean).join(" · ");
-    b.append(el("span", "code-recent-m", CODE.recentBusy === r.id ? "Opening…" : meta));
-    b.onclick = () => codeOpenRecent(r);
-    box.append(b);
+let _codeMarkT = 0;
+let _codeMarksDirty = false;
+function saveCodeMarks() {
+  lsWrite(CODE_PIN_KEY, [...CODE_PINS]);
+  lsWrite(CODE_NICK_KEY, CODE_NICKS);
+  lsWrite(CODE_UNPIN_KEY, CODE_UNPINNED_AT);
+  lsWrite(CODE_GONE_KEY, [...CODE_GONE].slice(-CODE_GONE_MAX));
+  if (!CLOUD.enabled) return;
+  _codeMarksDirty = true;
+  clearTimeout(_codeMarkT);
+  setSync("saving");
+  _codeMarkT = setTimeout(async () => {
+    if (!(await cloudInit())) { setSync("off"); return; }
+    try {
+      await CLOUD.fs.setDoc(_indexDoc(), {
+        codePins: [...CODE_PINS], codeNicks: CODE_NICKS,
+        codeUnpinnedAt: CODE_UNPINNED_AT, codeGone: [...CODE_GONE].slice(-CODE_GONE_MAX),
+      }, { mergeFields: ["codePins", "codeNicks", "codeUnpinnedAt", "codeGone"] });
+      _codeMarksDirty = false;
+      setSync("saved");
+    } catch (e) {
+      setSync("error", _syncFail("saving your code session pins and names", e));
+    }
+  }, 400);
+}
+
+/** The listener's branch for the marks. Deletions only ever add: a delete on
+ *  any device is final everywhere. */
+function codeMarksFromCloud(d) {
+  let changed = false;
+  if (Array.isArray(d.codePins)
+      && [...CODE_PINS].sort().join("|") !== d.codePins.slice().sort().join("|")) {
+    CODE_PINS.clear();
+    for (const id of d.codePins) CODE_PINS.add(id);
+    changed = true;
   }
-  return box;
+  for (const [map, src] of [[CODE_NICKS, d.codeNicks], [CODE_UNPINNED_AT, d.codeUnpinnedAt]]) {
+    if (src && typeof src === "object" && JSON.stringify(src) !== JSON.stringify(map)) {
+      for (const k of Object.keys(map)) delete map[k];
+      Object.assign(map, src);
+      changed = true;
+    }
+  }
+  if (Array.isArray(d.codeGone)) {
+    for (const id of d.codeGone) {
+      if (!CODE_GONE.has(id)) { CODE_GONE.add(id); changed = true; }
+    }
+  }
+  if (!changed) return;
+  lsWrite(CODE_PIN_KEY, [...CODE_PINS]);
+  lsWrite(CODE_NICK_KEY, CODE_NICKS);
+  lsWrite(CODE_UNPIN_KEY, CODE_UNPINNED_AT);
+  lsWrite(CODE_GONE_KEY, [...CODE_GONE].slice(-CODE_GONE_MAX));
+  renderCodeHistory();
+}
+
+/** Finished tasks the engine still holds (it keeps its last 40 in memory).
+ *  Read when the list opens and after a task ends -- never on a timer. */
+async function codeHistEngineLoad(force = false) {
+  if (!online() || CODE_HIST.engineBusy) return;
+  if (!force && CODE_HIST.engineFrom === link.api && Date.now() - CODE_HIST.engineAt < 30000) return;
+  CODE_HIST.engineBusy = true;
+  try {
+    const d = await codeGet("/tasks");
+    const projs = (CODE.state && CODE.state.projects) || [];
+    const label = (CODE.state && CODE.state.engine && CODE.state.engine.label) || "";
+    CODE_HIST.engine = (d.tasks || []).filter((t) => t.done).map((t) => {
+      const ms = t.started > 1e12 ? t.started : t.started * 1000;
+      const p = projs.find((x) => x.id === t.project_id);
+      return {
+        id: t.id, pid: t.project_id || "", project: p ? p.name : "",
+        prompt: String(t.prompt || "").slice(0, 140), outcome: t.outcome || "",
+        by: t.by || "", write: !!t.write, device: label, engineOnly: true,
+        at: Number.isFinite(ms) ? new Date(ms).toISOString() : "",
+      };
+    });
+    CODE_HIST.engineFrom = link.api;
+    CODE_HIST.engineAt = Date.now();
+  } catch {}
+  CODE_HIST.engineBusy = false;
+  renderCodeHistory();
+}
+
+/** Every row the list shows: the cloud's, this tab's not yet written, and
+ *  the engine's -- deduped by id, deletions and expired rows out. */
+function codeHistRows() {
+  const byId = new Map();
+  const cloud = (CODE_SYNC.cloud && Array.isArray(CODE_SYNC.cloud.tasks)) ? CODE_SYNC.cloud.tasks : [];
+  const live = codeBusy() ? CODE.task.id : null;
+  for (const r of [...CODE_SYNC.tasks, ...cloud, ...CODE_HIST.engine]) {
+    if (r && r.id && !byId.has(r.id) && r.id !== live) byId.set(r.id, r);
+  }
+  return [...byId.values()]
+    .filter((r) => !CODE_GONE.has(r.id) && !codeExpired(r))
+    .sort((a, b) => (codePinned(b) - codePinned(a))
+      || String(b.at).localeCompare(String(a.at)));
+}
+
+const CODE_OUTCOME = { ok: "done", task_failed: "failed", limited: "out of usage",
+                       unauthed: "signed out", unavailable: "no agent", cancelled: "halted",
+                       lost: "engine lost" };
+
+function renderCodeHistory() {
+  const box = $("codeHistoryRows");
+  if (!box) return;
+  const all = codeHistRows();
+  const tag = $("navCodeHistoryTag");
+  if (tag) { tag.textContent = all.length ? String(all.length) : ""; show(tag, all.length > 0); }
+  if (S.view !== "codeHistory") return;
+  box.textContent = "";
+
+  // One chip per project, only when there is more than one to choose from.
+  const fbox = $("codeHistFilter");
+  const projects = new Map();
+  for (const r of all) projects.set(r.pid || "", r.project || "No workspace");
+  if (CODE_HIST.filter && !projects.has(CODE_HIST.filter)) CODE_HIST.filter = "";
+  fbox.textContent = "";
+  show(fbox, projects.size > 1);
+  if (projects.size > 1) {
+    const chip = (id, label) => {
+      const b = el("button", "code-hist-chip" + (CODE_HIST.filter === id ? " on" : ""), label);
+      b.type = "button";
+      b.setAttribute("aria-pressed", String(CODE_HIST.filter === id));
+      b.onclick = () => { CODE_HIST.filter = id; renderCodeHistory(); };
+      fbox.append(b);
+    };
+    chip("", "All projects");
+    for (const [id, name] of projects) chip(id, name);
+  }
+  const rows = CODE_HIST.filter ? all.filter((r) => (r.pid || "") === CODE_HIST.filter) : all;
+
+  if (CODE_HIST.err) box.append(el("div", "code-empty-note code-hist-err", CODE_HIST.err));
+  if (codeBusy()) {
+    box.append(el("div", "history-note code-hist-busy",
+      "A task is running. Past sessions open once it finishes or is halted."));
+  }
+  if (!rows.length) {
+    box.append(el("div", "empty-state", "No code sessions yet."));
+    if (!CLOUD.enabled) {
+      box.append(el("div", "history-note",
+        "Sync is off on this page, so only tasks this engine still holds are listed."));
+    }
+    return;
+  }
+  for (const r of rows) {
+    const pinned = codePinned(r);
+    const nick = codeNickOf(r);
+    const row = el("div", "row" + (pinned ? " pinned" : "") + (codeBusy() ? " is-held" : ""));
+    const q = el("span", "q" + (nick ? " named" : ""), codeTitleOf(r));
+    if (nick) q.title = r.prompt || "";
+    row.append(q);
+    const when = r.at ? new Date(r.at) : null;
+    const bits = [
+      r.project || "",
+      r.write ? "Write" : "Read",
+      CODE_OUTCOME[r.outcome] || r.outcome || "",
+      r.by || "",
+      when && Number.isFinite(when.getTime())
+        ? when.toLocaleString([], { year: "numeric", month: "numeric", day: "numeric",
+                                    hour: "numeric", minute: "2-digit" }) : "",
+    ].filter(Boolean);
+    const meta = el("span", "meta", CODE_HIST.opening === r.id ? "Opening…" : bits.join(" · "));
+    if (CODE_HIST.opening !== r.id && r.device) meta.append(el("span", "row-cloud", " · " + r.device));
+    row.append(meta);
+
+    const acts = el("span", "row-acts");
+    const pin = el("button", "row-act" + (pinned ? " on" : ""));
+    pin.type = "button";
+    pin.innerHTML = IC.pin;
+    pin.title = pinned
+      ? "Pinned — kept forever. Click to unpin."
+      : `Pin this, to keep it past ${HISTORY_DAYS} days`;
+    pin.setAttribute("aria-pressed", String(pinned));
+    pin.onclick = (e) => { e.stopPropagation(); codeTogglePin(r); };
+    const ren = el("button", "row-act" + (nick ? " on" : ""));
+    ren.type = "button";
+    ren.innerHTML = IC.rename;
+    ren.title = nick ? "Rename, or remove the name" : "Give this a name";
+    ren.onclick = (e) => { e.stopPropagation(); codeNickSheet(r); };
+    const del = el("button", "row-act danger");
+    del.type = "button";
+    del.innerHTML = IC.trash;
+    del.title = "Delete this code session";
+    del.onclick = (e) => { e.stopPropagation(); codeDeleteTask(r); };
+    acts.append(pin, ren, del);
+    row.append(acts);
+
+    row.onclick = () => codeOpenHistory(r);
+    box.append(row);
+  }
+  box.append(el("div", "history-note",
+    `Code sessions are kept for ${HISTORY_DAYS} days. Pin one to keep it forever.`));
+}
+
+/** One map each, like the deliberation marks -- see togglePin. */
+function codeTogglePin(r) {
+  const on = !CODE_PINS.has(r.id);
+  if (on) { CODE_PINS.add(r.id); delete CODE_UNPINNED_AT[r.id]; }
+  else { CODE_PINS.delete(r.id); CODE_UNPINNED_AT[r.id] = new Date().toISOString(); }
+  saveCodeMarks();
+  renderCodeHistory();
+}
+
+function codeNickSheet(r) {
+  const sheet = el("div", "sheet");
+  const box = el("div", "sheet-box");
+  box.append(el("div", "sheet-hd", codeNickOf(r) ? "Rename" : "Give it a name"));
+  box.append(el("div", "sheet-sub",
+    "Shown in Code Mode's History instead of the prompt. The prompt itself is " +
+    "unchanged — it is what the agents were asked to do."));
+  box.append(el("div", "sheet-lbl", "Name"));
+  const input = el("input", "sheet-in");
+  input.type = "text";
+  input.value = codeNickOf(r);
+  input.placeholder = String(r.prompt || "").slice(0, 60);
+  input.maxLength = 120;
+  box.append(input);
+  box.append(el("div", "sheet-note", "Follows you to your other devices."));
+  const bar = el("div", "sheet-bar");
+  const save = el("button", "btn active", "Save");
+  const clear = el("button", "btn", "Remove name");
+  const close = el("button", "btn", "Cancel");
+  bar.append(save);
+  if (codeNickOf(r)) bar.append(clear);
+  bar.append(el("span", "qbar-spacer"), close);
+  box.append(bar);
+  const done = () => sheet.remove();
+  const set = (name) => {
+    const clean = (name || "").trim().slice(0, 120);
+    if (clean) CODE_NICKS[r.id] = clean; else delete CODE_NICKS[r.id];
+    saveCodeMarks();
+    renderCodeHistory();
+    done();
+  };
+  close.onclick = done;
+  dismissOnBackdrop(sheet, done);
+  save.onclick = () => set(input.value);
+  clear.onclick = () => set("");
+  input.onkeydown = (e) => { if (e.key === "Enter") save.click(); };
+  sheet.append(box);
+  document.body.append(sheet);
+  input.focus();
+  input.select();
+}
+
+/** Gone from the list on every device, its row out of the index and its
+ *  transcript deleted. The engine's in-memory copy cannot be deleted from
+ *  here (it goes on the next restart); `codeGone` keeps it off the list. */
+async function codeDeleteTask(r) {
+  const name = String(codeTitleOf(r) || "");
+  const shown = name.length > 90 ? name.slice(0, 90) + "…" : name;
+  const ok = await uiConfirmMagi(
+    "Delete this code session?",
+    "“" + shown + "”\n\n" +
+    "Its transcript goes with it, on this device and on your others. Changes " +
+    "it made to your files are not touched. This cannot be undone.",
+    "Delete");
+  if (!ok) return;
+  CODE_GONE.add(r.id);
+  CODE_PINS.delete(r.id);
+  delete CODE_NICKS[r.id];
+  delete CODE_UNPINNED_AT[r.id];
+  CODE_SYNC.tasks = CODE_SYNC.tasks.filter((x) => x.id !== r.id);
+  CODE_HIST.engine = CODE_HIST.engine.filter((x) => x.id !== r.id);
+  saveCodeMarks();
+  cloudSaveCode();
+  // The body directly too: a row still waiting to be written was never in
+  // the copy codeFlush compares against, so it would not find it.
+  if (CLOUD.enabled && (await cloudInit())) {
+    CLOUD.fs.deleteDoc(_codeTaskDoc(r.id)).catch((e) => console.warn("[magi] code delete:", e));
+  }
+  // It was open: put it away, but stay in the list you were tidying.
+  if (CODE.task && CODE.task.id === r.id && !codeBusy()) {
+    CODE.task = null;
+    try { sessionStorage.removeItem(CODE_TASK_SS); } catch {}
+    updateEnabled();
+  }
+  renderCodeHistory();
+}
+
+/** Open a finished task: a replay from the engine if it still has it (the
+ *  full live card, nothing read from the cloud), otherwise the one read of
+ *  its saved copy. */
+async function codeOpenHistory(r) {
+  if (codeBusy() || CODE_HIST.opening) return;
+  CODE_HIST.err = "";
+  // The workspace line should be about the task on screen.
+  const projs = (CODE.state && CODE.state.projects) || [];
+  if (r.pid && r.pid !== CODE.projectId && projs.some((p) => p.id === r.pid)) codeSetProject(r.pid);
+  const onEngine = CODE_HIST.engineFrom === link.api && online()
+    && CODE_HIST.engine.some((x) => x.id === r.id);
+  if (onEngine) {
+    setMode("code", { render: false });
+    codeAttach(r.id, r.prompt, { projectId: r.pid || null, at: r.at || null, fromHistory: true });
+    setView("council");
+    return;
+  }
+  CODE_HIST.opening = r.id;
+  renderCodeHistory();
+  try {
+    if (!(await cloudInit())) throw new Error("sync is off on this device");
+    const snap = await CLOUD.fs.getDoc(_codeTaskDoc(r.id));
+    if (!snap.exists()) throw new Error("its transcript is not in the cloud");
+    const b = snap.data();
+    if (CODE.task && CODE.task.es) CODE.task.es.close();
+    CODE.task = { id: r.id, prompt: b.prompt || r.prompt, done: true, es: null,
+                  events: JSON.parse(b.events || "[]"), result: JSON.parse(b.result || "null"),
+                  projectId: r.pid, archived: r, fromHistory: true };
+    CODE.err = "";
+    CODE_HIST.opening = null;
+    setMode("code", { render: false });
+    setView("council");
+    updateEnabled();
+    return;
+  } catch (e) {
+    CODE_HIST.err = `Could not open that session: ${e.message || e}`;
+  }
+  CODE_HIST.opening = null;
+  renderCodeHistory();
 }
 
 /** Share a token this browser has. Guarded on the last value seen from the
@@ -22265,6 +22683,10 @@ async function cloudWatch() {
       // Code Mode's projects, chain and recent tasks (Phase 13): one more
       // branch on this same listener. It returns at once unless the field
       // really changed, and never while a change made here is on its way up.
+      // Its pins, names, retention clocks and deletions first: the branch
+      // below prunes what has expired, and must know what is pinned to do
+      // that. Skipped while a mark made here is on its way up.
+      if (d && !_codeMarksDirty) codeMarksFromCloud(d);
       codeSyncFromCloud(d && d.code);
 
       if (d && Array.isArray(d.engines) && engMerge(d.engines)) {
@@ -22638,6 +23060,7 @@ async function cloudOpenRun(id) {
     const snap = await CLOUD.fs.getDoc(_runDoc(id));
     if (!snap.exists()) return false;
     const data = snap.data();
+    setMode("deliberation", { render: false });
     S.runId = id;
     S.gridOwner = "council";
     S.runLocal = false;       // read from the cloud; this engine never ran it
@@ -23461,11 +23884,8 @@ $("profBtn").onclick = openProfilePicker;
 $("engineBtn").onclick = openEnginePicker;
 $("profBtnM").onclick = openProfilePicker;
 syncProfileBtn();
-for (const b of document.querySelectorAll(".mode-opt")) {
-  b.onclick = () => setMode(b.dataset.mode);
-}
-// Paints the header, the switch and the composer placeholder from the mode
-// this browser was left in, before the first setView.
+// Paints the header and the composer placeholder from the mode this browser
+// was left in, before the first setView.
 syncModeSwitch();
 // Two buttons, one panel: the sidebar's and the mobile top bar's. On a phone
 // the sidebar is a shut drawer, so a Help only in there would be help you have
