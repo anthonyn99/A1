@@ -1923,6 +1923,7 @@ async def refine_prompt(
     question: str = Form(...),
     provider_id: str = Form(""),
     providers: str = Form(""),
+    kind: str = Form(""),
 ):
     """Rewrite the composer's text into a sharper prompt, via one model.
 
@@ -1960,7 +1961,9 @@ async def refine_prompt(
         )
 
     ctx = RunContext(run_id=f"refine-{uuid.uuid4().hex[:8]}", question=q)
-    text, ok, error, ms = await refine_engine.refine(provider, q, ctx)
+    # kind="code": Code Mode's composer -- the rewrite is for a coding agent.
+    text, ok, error, ms = await refine_engine.refine(
+        provider, q, ctx, kind="code" if kind == "code" else "")
 
     if not ok:
         raise HTTPException(502, error or "The refiner did not return a rewrite.")

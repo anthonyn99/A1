@@ -73,6 +73,10 @@ async def code_state() -> dict[str, Any]:
         "defaults": W.DEFAULT_PREFS,
         # Phase 13: lets the console skip a reconcile when nothing moved.
         "rev": (await _db().code_sync_meta())["rev"],
+        # What this engine's POST /tasks understands beyond a prompt, so a
+        # console newer than the engine can fall back instead of having its
+        # files silently dropped by an engine that ignores the field.
+        "features": ["attachments"],
     }
 
 
@@ -582,6 +586,45 @@ async def clear_limit(agent: str, slot: str) -> dict[str, Any]:
     return {"ok": True}
 
 
+# Attached files ride in the prompt, so they are bounded like it: a few, and
+# small enough that a browser agent's chat box still takes the whole thing.
+MAX_TASK_ATTACHMENTS = 8
+MAX_ATTACHMENT_CHARS = 100_000
+MAX_ATTACHMENTS_TOTAL = 200_000
+
+
+def _task_attachments(raw: Any) -> tuple[list[tuple[str, str]], str]:
+    """[{name, text}] from the console -> ([(name, text)], refusal or "").
+
+    Refused rather than trimmed: a file cut short in the middle is a file the
+    agent will reason about as though it were whole.
+    """
+    if not raw:
+        return [], ""
+    if not isinstance(raw, list):
+        return [], "Attachments must be a list."
+    if len(raw) > MAX_TASK_ATTACHMENTS:
+        return [], f"At most {MAX_TASK_ATTACHMENTS} files per task."
+    out: list[tuple[str, str]] = []
+    total = 0
+    for a in raw:
+        if not isinstance(a, dict):
+            return [], "An attachment is not a file."
+        name = " ".join(str(a.get("name") or "").split())[:200] or "file"
+        text = a.get("text")
+        if not isinstance(text, str):
+            return [], f"{name} has no text."
+        if len(text) > MAX_ATTACHMENT_CHARS:
+            return [], (f"{name} is too long to hand an agent ({len(text):,} "
+                        f"characters; the limit is {MAX_ATTACHMENT_CHARS:,}).")
+        total += len(text)
+        out.append((name, text))
+    if total > MAX_ATTACHMENTS_TOTAL:
+        return [], (f"The attached files add up to {total:,} characters; "
+                    f"the limit is {MAX_ATTACHMENTS_TOTAL:,}.")
+    return out, ""
+
+
 @router.post("/tasks")
 async def start_task(body: dict = Body(...)) -> dict[str, Any]:
     """Run a task through the chain.
@@ -618,10 +661,14 @@ async def start_task(body: dict = Body(...)) -> dict[str, Any]:
             return {"ok": False, "error": "read_only_project", "message": (
                 f"{p['name']} is MAGI's own repository, which is read-only to Code "
                 "Mode. Ask in Read mode, or use another project.")}
+    atts, why = _task_attachments(body.get("attachments"))
+    if why:
+        return {"ok": False, "error": "attachments", "message": why}
     order = [str(x) for x in (body.get("agents") or _chain.DEFAULT_ORDER)]
     t = await _tasks.start(project_id=p["id"], root=root, prompt=prompt[:20000],
                            order=order, settings=_settings(), mode=mode,
-                           github=str((p.get("prefs") or {}).get("github") or ""))
+                           github=str((p.get("prefs") or {}).get("github") or ""),
+                           attachments=atts)
     await _db().touch_code_binding(p["id"], eng)
     return {"ok": True, "task": t.summary()}
 

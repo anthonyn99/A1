@@ -54,6 +54,16 @@ Output ONLY the rewritten request. No preamble, no "Here is the rewritten \
 prompt", no quotation marks around it, no explanation of what you changed, no \
 headings, no code fences."""
 
+# Added when the request is a Code Mode task rather than a question for the
+# council: a coding agent acts on names literally, so the rewrite must too.
+CODE_NOTE = """
+
+This request is a task for an AI coding agent working inside a software \
+repository, not a question for a chat model. Keep every file name, path, \
+identifier, command, error message and code snippet exactly as written. Say \
+plainly what should change or be investigated, and how to tell it worked if \
+the person implied that. Do not invent files, functions or requirements."""
+
 # Openers a model reaches for when it narrates the rewrite instead of just
 # emitting it. Stripped rather than rejected: the rewrite itself is usually
 # fine, and throwing away a good rewrite over a preamble would be its own bug.
@@ -106,6 +116,7 @@ async def refine(
     ctx: RunContext,
     *,
     cancel=None,
+    kind: str = "",
 ) -> tuple[str, bool, str | None, int]:
     """Returns (refined_text, ok, error_detail, latency_ms).
 
@@ -114,9 +125,10 @@ async def refine(
     person typed rather than have it replaced by nothing.
     """
     t0 = time.monotonic()
-    result = await provider.ask(
-        REFINE_PROMPT.format(question=question.strip()), ctx=ctx, cancel=cancel
-    )
+    prompt = REFINE_PROMPT.format(question=question.strip())
+    if kind == "code":
+        prompt += CODE_NOTE
+    result = await provider.ask(prompt, ctx=ctx, cancel=cancel)
     ms = int((time.monotonic() - t0) * 1000)
 
     if not result.ok:

@@ -70,6 +70,7 @@ class TaskState:
     committing: bool = False
     github: str = ""          # the GitHub login this project pushes/pulls as
     pushing: bool = False
+    attachments: list[tuple[str, str]] = field(default_factory=list)
 
     @property
     def awaiting_approval(self) -> bool:
@@ -82,7 +83,8 @@ class TaskState:
                 "awaiting_approval": self.awaiting_approval,
                 "outcome": (self.result or {}).get("outcome"),
                 "write": (self.result or {}).get("write"),
-                "by": (self.result or {}).get("by_label")}
+                "by": (self.result or {}).get("by_label"),
+                "attachments": [n for n, _ in self.attachments]}
 
 
 TASKS: dict[str, TaskState] = {}
@@ -129,9 +131,11 @@ def _prune() -> None:
 
 
 async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
-                settings, mode: str = "read", github: str = "") -> TaskState:
+                settings, mode: str = "read", github: str = "",
+                attachments: list[tuple[str, str]] | None = None) -> TaskState:
     t = TaskState(id=uuid.uuid4().hex[:12], project_id=project_id,
-                  prompt=prompt, mode=mode, root=str(root), github=github)
+                  prompt=prompt, mode=mode, root=str(root), github=github,
+                  attachments=list(attachments or []))
     TASKS[t.id] = t
     _prune()
 
@@ -145,6 +149,7 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
         sb: sandbox.Sandbox | None = None
         try:
             await publish(t, {"k": "start", "prompt": prompt, "mode": mode,
+                              "attachments": [n for n, _ in t.attachments],
                               "chain": [{"id": a.id, "label": a.label, "kind": a.kind}
                                         for a in agents]})
             pulled = await _pull_first(t, root)
@@ -171,7 +176,8 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
                                              root, github)
             task = Task(id=t.id, prompt=prompt, root=sb.cwd if sb else root,
                         mode=Mode.WRITE if sb else Mode.READ,
-                        progress=sb.changed_files if sb else None, mcp_config=mcp)
+                        progress=sb.changed_files if sb else None, mcp_config=mcp,
+                        attachments=t.attachments)
             res = await chain.run_chain(task, agents, emit=emit, cancel=t.cancel)
             t.result = res.to_dict()
             if sb is not None:
