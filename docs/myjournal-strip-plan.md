@@ -1,6 +1,6 @@
 # MyJournal strip — phased handoff
 
-Temporary. Phase 4 deletes this file.
+Kept as a record once the strip is done (Tony, 2026-09-29: old plans cost nothing to keep).
 
 ## §0 Status (rewrite at the end of every phase)
 
@@ -173,10 +173,8 @@ Shrink MJDocs down to a minimal rail module.
 - `viz-board.test.js` passes.
 
 ## Phase 4: Cleanup
-- Delete this file, the memory `myjournal-strip-phases.md`, and its line in MEMORY.md.
-- Delete `docs/plans-section-design.md`.
-- Delete `docs/warden-handoff.md`, and trim its citation at `docs/magi-plan.md` ~814.
-- Keep `magi*.md`, `taskhub-archive-handoff.md`, `tradehub-journal-handoff.md`, `STORE_NOTES.md` and `README.md`. Code, tests or memory depend on them.
+- **Keep old plan and handoff docs** (Tony, 2026-09-29: they are a few KB each and cost nothing). That includes this file, `docs/plans-section-design.md` and `docs/warden-handoff.md`. At the end, mark §0 "Done" instead of deleting this file, and change the memory `myjournal-strip-phases.md` and its MEMORY.md line from IN PROGRESS to done.
+- Also keep `magi*.md`, `taskhub-archive-handoff.md`, `tradehub-journal-handoff.md`, `STORE_NOTES.md` and `README.md`. Code, tests or memory depend on them.
 - Leave V1/ alone (Veda's folder). Tell Tony which of its files are candidates:
   - `2026-08-07-wellness-tracker-design.md`
   - `browser-automation-mechanism.md`
@@ -189,7 +187,7 @@ Shrink MJDocs down to a minimal rail module.
     - *Unused:* storage keys, docs, KV keys and files left behind by removed features. Examples are the `mjd_*` keys and `dashboards/myjournal_docs`. Keep a `DEAD_KEYS` registry of those prefixes and add to it whenever a feature is removed.
     - *Outdated:* caches, tokens and temp data past their useful life, such as expired OAuth tokens and stale listing caches. Also old screenshots under `magi/artifacts/<profile>/` and old logs.
     - *Corrupt:* a cache entry that won't parse, or a temp or artifact file that is half-written or zero bytes. Delete it only when a good copy exists elsewhere (Firestore, git, or a rebuild). **Never delete corrupt user data** (journal entries, TaskHub, vault items). Log it and show it to Tony instead.
-    - *Never trash:* A1Backup and its objects (that GC already exists and must keep failing closed, see memory `index-backups-object-gc`), TradeHub journal snapshots, the TaskHub archive, trashed-but-restorable items inside their own 30-day TTL, and anything in V1/.
+    - *Never trash:* anything tracked in git (plans, handoff docs, notes: git already versions them, and they cost nothing), A1Backup and its objects (that GC already exists and must keep failing closed, see memory `index-backups-object-gc`), TradeHub journal snapshots, the TaskHub archive, trashed-but-restorable items inside their own 30-day TTL, and anything in V1/.
   - **Age caps:** screenshots and debug dumps 7 days, error logs 14 days, failed-job records and dead queues 30 days. Dead-feature keys go on the first sweep. Record the cap for each item in the registry.
   - **Usage guarantees.** These are hard rules. A test must enforce them where the code allows.
     - *Firestore:*
