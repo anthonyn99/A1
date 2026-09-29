@@ -3669,8 +3669,6 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
   background: color-mix(in srgb, var(--amber) 7%, transparent);
   color: var(--txd); font-size: 12px; line-height: 1.6;
 }
-/* The phone layout of the switch lives in the MOBILE block with the rest of
-   the composer's toolbar, so there is one place that owns that row. */
 @media (max-width: 430px) {
   .code-empty { padding: 16px; }
 }
@@ -5204,16 +5202,10 @@ html.modal-open .page, html.modal-open .sidebar { overflow: hidden; }
      shape Begin session has in brainstorm. Convene used to take a whole row of
      its own below them, which on a phone is a third of the composer spent on
      a button you press once. */
-  /* ...and since the mode switch arrived, the switch gets a line of its own
-     ABOVE that row, as a full-width two-segment tab bar. Kept on one line it
-     made [switch][+][refine][Convene][Queue] ~450px against ~350 and pushed
-     Queue clean off the right edge. The actions still share one row, which is
-     what the rule above was protecting; only the mode control moved, and a
-     control that changes what every button beneath it means belongs on top. */
+  /* The mode switch that used to sit on its own line above this row is now
+     the sidebar's Code Mode section, so the row is one line again. Wrapping
+     stays allowed as a guard for the narrowest phones. */
   .qbar-toolbar { flex-wrap: wrap; gap: 8px; row-gap: 8px; }
-  /* The toolbar's 30px right padding is the resize grip's corner, which is
-     on the row BELOW. Reclaimed here so the tab bar spans the full box
-     instead of stopping short on the right for a control that is not there. */
   .code-hist-chip { padding: 7px 13px; font-size: 12px; }
   .qbar-send { flex: 0 0 auto; margin-left: auto; }
   .qbar-spacer { display: none; }

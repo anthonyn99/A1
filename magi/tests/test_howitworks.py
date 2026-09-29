@@ -360,8 +360,8 @@ def test_the_sync_claims_still_hold():
     # "Model choices and caps stay on each engine": not in the field.
     blk = PAGE[PAGE.index("/* ══ CODE MODE, ACROSS YOUR DEVICES"):PAGE.index("/** Share a token this browser has.")]
     assert "code_models" not in blk and "/models/" not in blk
-    # "Tap a task under Recent".
-    assert '"Recent"' in PAGE and "codeOpenRecent(r)" in PAGE
+    # "Open a task from Code Mode's History".
+    assert "codeOpenHistory(r)" in PAGE and 'id="navCodeHistory"' in PAGE
 
 
 def test_the_one_word_exemption_is_what_the_panel_says():
