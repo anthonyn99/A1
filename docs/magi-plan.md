@@ -276,6 +276,23 @@ reachable from the internet.
 
 ### Hard-won facts (verified live — do not re-learn them)
 
+* (S3) **A reload fires every EventSource's `onerror` with readyState
+  CLOSED, BEFORE `pagehide`**, and the old page can keep running well over a
+  second into the navigation (a 1 s deferred unpin still fired in it). Only
+  `beforeunload` is early enough to tell "page leaving" from "engine forgot
+  the job". Any stream clean-up that ends work on CLOSED must check it.
+* (S3) **The first loopback request after a navigation intermittently fails
+  in the headless test browser** — `net::ERR_FAILED`, no `corsErrorStatus`,
+  no `blockedReason`; the next try 1–3 s later succeeds (seen in ~1 of 3
+  reloads; also on a fresh page's first DELETE). Engine is fine. Retry
+  first requests at boot rather than trusting one.
+* (S3) The PC **sleeps mid-session** (11:49 → 16:52 once): a live test then
+  dies with "Failed to fetch" and the engine log says "woke from sleep".
+  Check `autostart.log` before debugging a sudden fetch failure.
+* (S3) `magi.db` timestamps are **UTC** (`…+00:00`); compare cut-offs in UTC.
+* (S3) A test file importing `tests.<other_test>` fails to collect when run
+  as a single file from the A1 root — define fakes locally instead.
+
 * (14b) **A1 has an always-on auto-commit** (`auto: <time>`, commits AND
   pushes every working-tree change within ~1–2 min) besides the Stop hook
   (`auto: claude code`). It committed a live test's probe file mid-test. So
@@ -472,6 +489,11 @@ reachable from the internet.
   Commit; no `magi:` commit; fetched not pulled; 390px), then a `magi/` change
   flagged and denied. Two small Claude tasks. The probe passes through A1's
   history via its auto-commit (add + delete). `LIVE_ONLY=merge,engine`.
+* `tests/live/magi-bs-phase.live.js` — S3: ONE real Brainstorm round on 3
+  units (`UNITS=` to change; ~1.5 min): the step line council → critique →
+  merging in order, a reload at 390px during critique comes back on that step
+  with the round's own units in the grid, the round lands, the session is
+  deleted. Prints any failed engine request (`net …`).
 * The page is opened as **`PAGES_URL`** (`cdp.js`), served from the working
   copy (see the (14) facts); `/auth/journal/status` is stubbed to "no lock"
   so the profile opens. Not `file://` any more: the engine refuses Origin
@@ -501,23 +523,27 @@ reachable from the internet.
 * Phase 15 needs Veda for her sign-ins (see "Ready for Veda's PC"); her
   profile's `code` field lives on `dashboards/magi_veda` and needs nothing.
 
-### Track S — first concrete steps for the next session (Phase S3)
+### Track S — first concrete steps for the next session (Phase U1)
 
 1. Start-of-session checklist above (pull, engine alive, pytest baseline
-   ≈1188 + node run-all 50 suites).
-2. Read §8 "Track S", then Phase S3.
-3. **Already there:** `app.py` emits `{"type":"phase","phase":"critique"}`
-   before `_run_critique` in both the round (~L1362) and finalise
-   (~L1638). S3 adds `merging` / `writing` / `reviewing`, keeps
-   `state["phase"]`, and puts `phase` in the stream `init` so a reload
-   replays it. Ship the console half first (`listenBs` ~L18405,
-   `phaseNote` ~L18683, `resumeBrainstorm` ~L20964 in magi.html).
-4. Validator: `magi/engine/validate.py` `Rejection.TRUNCATED` (~L344) —
-   the brevity exemption keyed on the QUESTION; replay every stored
-   capture, only "Four" may change.
-5. Bug (c) from the findings: `test_morning_run.py::test_a_limit_notice_
-   after_send_ends_the_wait` passes by accident (baseline `last_text=""`);
-   S1 added a realistic sibling — fix or retire the old one.
+   ≈1191 — **the full run takes ~25 min**, start it in the background first
+   — + node run-all 51 suites).
+2. Read §8 "Track S", then Phase U1. U1 is **read-only, no UI, no
+   behaviour change**: it decides what U2–U4 may promise per unit.
+3. Recon through `launcher.launch` as the doctor does (`magi/cli/doctor.py`
+   shows how it opens a signed-in page without sending anything). One unit
+   at a time, headless; never send a question. Capture DOM snapshots into
+   `magi/tests/fixtures/` (strip anything personal: chat titles, account
+   names/emails).
+4. Also mine the failure snapshots for limit/downgrade wording — they live
+   in `settings.artifacts_dir()` (`artifacts/<profile>`), and
+   `engine/usage._snapshot_limit` already reads them (Grok's "hours …
+   before limit is gone" is one; see `selectors.yaml`
+   `rate_limit_selectors`).
+5. Output = new selector keys in `magi/config/selectors.yaml` in its
+   VERIFIED/UNVERIFIED style + a findings table added under §8 "Phase U1".
+   Claude (Pro): Code Mode already reads that account's usage
+   (`usage_fetch.py`) — note it for U3 rather than scraping.
 
 ### Phase 15 — first concrete steps (whenever Veda is at her PC)
 
@@ -1955,6 +1981,21 @@ rewritten; no other console change, so no CDP pass was run.
 6. Re-run the straggler replay; one live brainstorm round.
 
 ### Phase S3 — Bug fixes + Brainstorm phase display (small)
+
+*Status:* **done 2026-09-28.** Built as listed (see "What exists" ›
+Fixes), plus three reload bugs the live test found that made "survives
+reload" false before any phase work (the pin was dropped by the unload's
+stream error; a failed first fetch lost it for good; the grid came back as
+every ticked unit on STANDBY) — see docs/magi.md "A reload mid-round comes
+back to the round". **Validator replay:** 332 stored captures (runs +
+brainstorm turns), exactly one verdict changed — DeepSeek's "Four".
+pytest 1191, node 51 suites; 10 mutants killed. **Live**
+(`magi-bs-phase.live.js`, 3 units, 5 runs): council → critique (33–42 s)
+→ merging, reload at 390px lands on critique, 16/16 on the final code.
+**Timing (from the DB, UTC):** 7-unit councils median 106 s (n=9, before
+S1) → 76 s (n=5, max 89 s; before max 274 s). Brainstorm has too few
+comparable rounds: 4 before (median 324 s, long topics) vs S2's one 7-unit
+live round at 121 s.
 
 1. `magi/engine/validate.py`: TRUNCATED exemption only when the QUESTION
    asks for brevity ("one word", "single word", "one number", "yes or no",
