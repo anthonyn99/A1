@@ -202,9 +202,15 @@ if (TM.enabled === false) {
           '\n→ enable Anonymous sign-in on the mirror Firebase project too.'));
       db = getFirestore(app);
     } else {
-      const app = getApps()[0];
-      if (!app) throw new Error('no Firebase app');
-      db = getFirestore(app);
+      /* Take the instance firebase-sync.js configured, never create one. That
+       * module awaits a cache check before initializeFirestore(); calling
+       * getFirestore() meanwhile initialized Firestore with DEFAULT settings,
+       * so firebase-sync's own call threw ("already been called with different
+       * options") and StudyOS ran on a memory cache (2026-09-30). */
+      db = window._fbStudyDb || await new Promise((res) => {
+        window.addEventListener('fb-studydb', () => res(window._fbStudyDb), { once: true });
+      });
+      if (!db) throw new Error('no Firestore instance');
     }
   } catch (e) {
     console.warn('[StudyOS] Task mirror could not connect:', e && e.message);

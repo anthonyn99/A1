@@ -41,7 +41,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.12.0/fireba
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js';
 import { initializeAppCheck, ReCaptchaV3Provider } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-app-check.js';
 import {
-  initializeFirestore, persistentLocalCache, persistentSingleTabManager,
+  initializeFirestore, getFirestore, persistentLocalCache, persistentSingleTabManager,
   doc, setDoc, deleteDoc, onSnapshot, getDoc, getDocFromServer,
 } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js';
 
@@ -196,8 +196,12 @@ if (!window.STUDYOS_CONFIG_READY || !window.STUDYOS_CONFIG_READY('firebase')) {
     });
   } catch (e) {
     console.warn('[StudyOS] Persistent cache unavailable, falling back to memory:', e);
-    db = initializeFirestore(app, {});
+    try { db = initializeFirestore(app, {}); } catch (e2) { db = getFirestore(app); }
   }
+  // taskmirror.js waits for THIS instance rather than calling getFirestore()
+  // itself; see the note there.
+  window._fbStudyDb = db;
+  window.dispatchEvent(new CustomEvent('fb-studydb'));
 
   const FB_MAX_WRITE_BYTES = FB.maxDocBytes || 900 * 1024;
   function _fbByteSize(obj) {
