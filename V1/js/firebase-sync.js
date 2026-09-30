@@ -135,6 +135,60 @@ if (!window.STUDYOS_CONFIG_READY || !window.STUDYOS_CONFIG_READY('firebase')) {
    *   • Never forceOwnership. A second StudyOS tab that finds the lease taken
    *     falls back to a memory cache and still syncs; forcing would make tabs
    *     steal the cache from each other, the failure described above. */
+  /* ── One-time recovery from the reminder write flood ──────────────────────
+   * Until 2026-09-30, every render queued a Firestore delete for every event
+   * and task without a reminder (push.js). Veda's queue in this cache reached
+   * ~2,800 unsent writes, and Firestore sends writes strictly in order, so her
+   * real saves waited behind them for ages. Before Firestore opens the cache,
+   * this reads its queue; if it is large AND holds nothing but regenerable
+   * writes (reminder deletes, the TaskHub mirror, the class-apps list, all
+   * rebuilt from current data on every load), the cache is dropped and starts
+   * clean. Any other pending write (the StudyOS document, notes, cards,
+   * topics, sessions) means real data is waiting, and nothing is touched.
+   * Only this app's OWN cache ('studyos') is ever considered; TaskHub's is not. */
+  const _FS_DB = 'firestore/studyos/' + FB.projectId + '/main';
+  const _REGEN = /^(studyos_reminders\/|dashboards\/studyos_mirror$|dashboards\/studyos_class_apps$)/;
+  await (async () => {
+    try {
+      if (!indexedDB || !indexedDB.databases) return;
+      const names = (await indexedDB.databases()).map(d => d.name);
+      if (names.indexOf(_FS_DB) < 0) return;
+      const verdict = await new Promise((res) => {
+        const rq = indexedDB.open(_FS_DB);
+        rq.onerror = () => res(null);
+        rq.onblocked = () => res(null);
+        rq.onsuccess = () => {
+          const d = rq.result;
+          try {
+            if (!d.objectStoreNames.contains('mutations')) { d.close(); return res(null); }
+            const all = d.transaction('mutations').objectStore('mutations').getAll();
+            all.onsuccess = () => {
+              const batches = all.result || [];
+              let regenOnly = true;
+              for (const b of batches) {
+                for (const w of (b.mutations || [])) {
+                  const name = String((w.update && w.update.name) || w.delete || (w.transform && w.transform.document) || '');
+                  const path = name.split('/documents/')[1] || '';
+                  if (!_REGEN.test(path)) { regenOnly = false; break; }
+                }
+                if (!regenOnly) break;
+              }
+              d.close();
+              res({ count: batches.length, regenOnly });
+            };
+            all.onerror = () => { d.close(); res(null); };
+          } catch (e) { try { d.close(); } catch (_) {} res(null); }
+        };
+      });
+      if (!verdict || verdict.count < 200 || !verdict.regenOnly) return;
+      await new Promise((res) => {
+        const del = indexedDB.deleteDatabase(_FS_DB);
+        del.onsuccess = del.onerror = del.onblocked = () => res();
+      });
+      console.info('[StudyOS] Cleared ' + verdict.count + ' stale queued writes (reminder flood); the cache starts clean.');
+    } catch (e) { /* recovery is best-effort; Firestore opens either way */ }
+  })();
+
   let db;
   try {
     db = initializeFirestore(app, {

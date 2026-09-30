@@ -37,7 +37,13 @@ t('every write is rebuilt from current state', /window\._sosBuildPayload\(\)/.te
 console.log('\ntaskmirror.js');
 t('takes the app firebase-sync.js created (getApps()[0])', /getApps\(\)\[0\]/.test(tmCode));
 t('waits for applied server state before publishing', /_fbSosServerSeen && !window\._fbSosServerSeen\(\)\) \{ schedule\(/.test(tmCode));
-t('bounds every mirror write with a timeout', (tmCode.match(/await bounded\(setDoc\(/g) || []).length === 2);
+t('never stacks a second mirror write while one is in flight', /if \(inflight\[slot\]\) return;/.test(tmCode) && (tmCode.match(/send\('(mirror|apps)'/g) || []).length === 2);
+t('flood recovery drops only an all-regenerable queue of 200+', /verdict\.count < 200 \|\| !verdict\.regenOnly\) return;/.test(fbsCode)
+  && /studyos_reminders\\\/\|dashboards\\\/studyos_mirror\$\|dashboards\\\/studyos_class_apps\$/.test(fbsCode));
+t("flood recovery only ever touches StudyOS's own cache", /const _FS_DB = 'firestore\/studyos\/'/.test(fbsCode));
+const push = code(read('js/push.js'));
+t('render sweep deletes only reminders this device made', /thCancelNotifIfKnown = function/.test(push) && /if \(!reg\[id\]\) return;/.test(push));
+t('an unchanged reminder is not rewritten', /if \(same && prev\.saved\) return;/.test(push));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

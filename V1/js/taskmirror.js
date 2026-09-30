@@ -224,16 +224,18 @@ if (TM.enabled === false) {
     let lastAppsSerialized = null;
     let timer = null;
 
-    /* A write that never settles must not wedge the mirror: `await setDoc`
-     * with no bound left flush() hanging, so every later change queued behind
-     * it and TaskHub stopped getting StudyOS work. On timeout the state stays
-     * unsent (lastSerialized untouched) and a retry is scheduled. */
-    const WRITE_TIMEOUT_MS = 15000;
-    function bounded(p) {
-      p.catch(() => {});
-      let to;
-      return Promise.race([p, new Promise((_, rej) => { to = setTimeout(() => rej({ code: 'timeout' }), WRITE_TIMEOUT_MS); })])
-        .finally(() => clearTimeout(to));
+    /* ONE write in flight per document. A slow queue used to get a fresh
+     * 98 KB mirror setDoc every 30 s on top of the one still waiting, which
+     * only made the queue longer. Now, while a write is pending, nothing new
+     * is queued; when it lands, `last` records what it carried and the next
+     * flush writes again only if the data has moved on since. */
+    const inflight = { mirror: null, apps: null };
+    function send(slot, ref, payload, serialized, onLanded) {
+      if (inflight[slot]) return;              // still waiting; don't stack another copy
+      const p = setDoc(ref, payload);
+      inflight[slot] = p;
+      p.then(() => { onLanded(serialized); inflight[slot] = null; schedule(400); },
+             (err) => { inflight[slot] = null; console.warn('[StudyOS] ' + slot + ' write failed:', err && err.code); schedule(30000); });
     }
 
     async function flush() {
@@ -252,14 +254,8 @@ if (TM.enabled === false) {
       // be written at all.
       const serialized = JSON.stringify([items, cls]);
       if (serialized !== lastSerialized) {
-        try {
-          await bounded(setDoc(mirrorRef, { items, classes: cls, savedAt: Date.now(), app: 'studyos' }));
-          lastSerialized = serialized;
-        } catch (err) {
-          // Leave lastSerialized alone so the next trigger retries this state.
-          console.warn('[StudyOS] Task mirror write failed:', err && err.code);
-          if (!timer) schedule(30000);
-        }
+        send('mirror', mirrorRef, { items, classes: cls, savedAt: Date.now(), app: 'studyos' }, serialized,
+          (s) => { lastSerialized = s; });
       }
 
       /* Native-app paths for Shield, in their own document and on their own
@@ -268,12 +264,8 @@ if (TM.enabled === false) {
       const apps = buildClassApps() || {};
       const appsSerialized = JSON.stringify(apps);
       if (appsSerialized !== lastAppsSerialized) {
-        try {
-          await bounded(setDoc(appsRef, { apps, savedAt: Date.now(), app: 'studyos' }));
-          lastAppsSerialized = appsSerialized;
-        } catch (err) {
-          console.warn('[StudyOS] Class-apps write failed:', err && err.code);
-        }
+        send('apps', appsRef, { apps, savedAt: Date.now(), app: 'studyos' }, appsSerialized,
+          (s) => { lastAppsSerialized = s; });
       }
     }
 
