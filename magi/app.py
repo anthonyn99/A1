@@ -34,6 +34,7 @@ from .power import KEEP_AWAKE
 from .db import Database
 from .engine import brainstorm as brainstorm_engine
 from .engine import refine as refine_engine
+from .engine import session as session_mod
 from .engine import studio as studio_engine
 from .engine import units
 from .engine import usage
@@ -330,6 +331,10 @@ async def health():
         # this engine in a list and mean the same machine tomorrow.
         "engine": ident.engine_identity(),
         "code_rev": CODE_REV,
+        # What this engine can do that an older one cannot, so the console
+        # can offer it or say "update the engine". Track F: follow-ups carry
+        # the conversation; notes can be added to a run in flight.
+        "features": ["followup", "steer"],
         "power": KEEP_AWAKE.state(),
         "providers": settings.enabled_site_ids(),
         "pacing": {
@@ -498,13 +503,24 @@ async def _stage_uploads(files, into: Path) -> list[Path]:
     return out
 
 
-def _live_twin(question: str, provider_ids: list[str]) -> str | None:
-    """A run still going with this exact question and these exact units."""
+def _live_twin(
+    question: str, provider_ids: list[str], session: str = ""
+) -> str | None:
+    """A run still going with this exact question, units and session.
+
+    The session is part of the key (Track F): "why?" asked as a follow-up in
+    two different conversations is two runs, not a double-send. A first turn
+    carries no session, so a doubled first turn still matches.
+    """
     want = set(provider_ids)
     for rid, st in _runs.items():
         if st.get("done") or st["cancel"].is_set():
             continue
-        if st.get("question") == question and set(st["providers"]) == want:
+        if (
+            st.get("question") == question
+            and set(st["providers"]) == want
+            and st.get("session_in", "") == session
+        ):
             return rid
     return None
 
@@ -514,11 +530,24 @@ async def create_run(
     question: str = Form(...),
     providers: str = Form(""),
     files: list[UploadFile] = File(default=[]),
+    session: str = Form(""),
+    turn: int = Form(0),
+    context: str = Form(""),
 ):
     q = question.strip()
     if not q:
         raise HTTPException(400, "question is required")
     provider_ids = [p for p in providers.split(",") if p] or None
+
+    # Track F: a follow-up names its session and carries the turns before it
+    # (the console holds the thread; engine/session.py builds the block).
+    session = session.strip()
+    if session and not session_mod.valid_session_id(session):
+        raise HTTPException(400, "session must be 1-64 letters, digits, _ or -")
+    try:
+        context_turns = session_mod.parse_context(context)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from None
 
     if len(files) > MAX_ATTACHMENTS:
         raise HTTPException(400, f"at most {MAX_ATTACHMENTS} attachments per question")
@@ -545,11 +574,15 @@ async def create_run(
     # came back rate-limited for 7h30m, and split the console between two
     # runs. Whatever sent it -- a second tab, a re-press after a dropped
     # stream -- it is handed the run already in flight instead.
-    same = _live_twin(q, [p.id for p in providers]) if not files else None
+    same = _live_twin(q, [p.id for p in providers], session) if not files else None
     if same:
-        return {"run_id": same, "joined": True}
+        return {"run_id": same, "joined": True, **_session_of(_runs[same])}
 
     run_id = uuid.uuid4().hex[:12]
+    # Turn 1 of a session is its first run: the session id IS that run id,
+    # so every existing mark keyed by run id keeps meaning the same thing.
+    session_id = session or run_id
+    turn_no = turn if turn > 0 else len(context_turns) + 1
 
     # Resolved HERE, once, rather than per provider: every member of one
     # deliberation should be asked under the same conditions, and the console
@@ -565,6 +598,12 @@ async def create_run(
         "cancel": asyncio.Event(),
         "done": False,
         "question": q,
+        "session_in": session,
+        "session": session_id,
+        "turn": turn_no,
+        "steer": session_mod.Steer(),
+        # Every note in arrival order, for a stream that attaches late.
+        "notes": [],
         "providers": {
             p.id: {
                 "id": p.id,
@@ -610,6 +649,8 @@ async def create_run(
                 q, providers, run_id=run_id,
                 on_event=on_event, cancel=state["cancel"],
                 attachments=staged_paths,
+                context=context_turns, session_id=session_id, turn=turn_no,
+                steer=state["steer"],
             )
             payload = {
                 "type": "done",
@@ -623,6 +664,11 @@ async def create_run(
                 "status": result["status"],
                 "total_ms": result["total_ms"],
                 "degraded": result["degraded"],
+                "session_id": result["session_id"],
+                "turn": result["turn"],
+                "notes": result["notes"],
+                "followup_notes": result["followup_notes"],
+                "unapplied_notes": result["unapplied_notes"],
                 "answers": [
                     {
                         "provider_id": a.provider_id,
@@ -652,6 +698,7 @@ async def create_run(
                 {"type": "error", "message": f"{type(e).__name__}: {e}"}
             )
         finally:
+            state["steer"].finish()
             state["done"] = True
             await state["queue"].put({"type": "__eof__"})
             # Every provider has either read these or failed trying; nothing
@@ -663,7 +710,45 @@ async def create_run(
     # The pick travels with the run id so the console can name the model
     # before the first answer lands -- and can show WHY, which is the only
     # thing that makes an automatic choice arguable rather than mysterious.
-    return {"run_id": run_id}
+    return {"run_id": run_id, **_session_of(state)}
+
+
+def _session_of(state: dict) -> dict:
+    return {"session_id": state.get("session"), "turn": state.get("turn")}
+
+
+@app.post("/api/runs/{run_id}/note")
+async def add_run_note(run_id: str, request: Request):
+    """A message typed while the run is going (Track F).
+
+    Before synthesis starts it goes to the chairman, who applies it to the
+    verdict; after, it is held and comes back in `done.followup_notes` for
+    the console to send as the next follow-up. A note to a run that has
+    already ended answers "followup" too -- the sending console keeps it.
+    Every viewer hears about it over the stream.
+    """
+    state = _runs.get(run_id)
+    if state is None:
+        raise HTTPException(404, "unknown run")
+    try:
+        body = await request.json()
+    except ValueError:
+        raise HTTPException(400, "body must be JSON {text}") from None
+    text = body.get("text") if isinstance(body, dict) else None
+    if not isinstance(text, str):
+        raise HTTPException(400, "text is required")
+    if state.get("done") or state["cancel"].is_set():
+        return {"applied": "followup", "text": text.strip()}
+    try:
+        applied = state["steer"].add(text)
+    except OverflowError as e:
+        raise HTTPException(429, str(e)) from None
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from None
+    note = {"text": text.strip(), "applied": applied}
+    state["notes"].append(note)
+    await state["queue"].put({"type": "note", **note})
+    return note
 
 
 @app.get("/api/runs/{run_id}/stream")
@@ -679,7 +764,12 @@ async def stream_run(run_id: str):
         try:
             # Replay current provider state so a late or reconnecting client
             # is not stuck with a blank grid.
-            yield _sse({"type": "init", "providers": list(state["providers"].values())})
+            yield _sse({
+                "type": "init",
+                "providers": list(state["providers"].values()),
+                **_session_of(state),
+                "notes": list(state.get("notes", [])),
+            })
             if state["result"]:
                 yield _sse(state["result"])
                 return

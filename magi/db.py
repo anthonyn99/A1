@@ -28,7 +28,10 @@ CREATE TABLE IF NOT EXISTS runs(
   chairman_provider TEXT,
   responded_count INTEGER DEFAULT 0,
   attempted_count INTEGER DEFAULT 0,
-  config_snapshot TEXT
+  config_snapshot TEXT,
+  session_id TEXT,
+  turn INTEGER,
+  notes_json TEXT
 );
 
 CREATE TABLE IF NOT EXISTS answers(
@@ -440,6 +443,18 @@ class Database:
                 if col not in have:
                     await db.execute(f"ALTER TABLE answers ADD COLUMN {col} {ddl}")
 
+            # Track F: a run is one turn of a session (a follow-up chain).
+            # Old rows read NULL -- each is its own one-turn session.
+            cur = await db.execute("PRAGMA table_info(runs)")
+            have = {r[1] for r in await cur.fetchall()}
+            for col, ddl in (
+                ("session_id", "TEXT"),
+                ("turn", "INTEGER"),
+                ("notes_json", "TEXT"),
+            ):
+                if col not in have:
+                    await db.execute(f"ALTER TABLE runs ADD COLUMN {col} {ddl}")
+
             # Same for brainstorm_turns, whose retention columns were added
             # after the first sessions had already been recorded. Existing
             # rows keep their content and simply gain empty metadata -- a
@@ -573,12 +588,16 @@ class Database:
 
             await db.commit()
 
-    async def create_run(self, run_id: str, question: str, chairman: str | None) -> None:
+    async def create_run(
+        self, run_id: str, question: str, chairman: str | None,
+        *, session_id: str | None = None, turn: int | None = None,
+    ) -> None:
         async with aiosqlite.connect(self.path) as db:
             await db.execute(
-                "INSERT INTO runs(id,question,status,created_at,started_at,chairman_provider) "
-                "VALUES(?,?,'running',?,?,?)",
-                (run_id, question, _now(), _now(), chairman),
+                "INSERT INTO runs(id,question,status,created_at,started_at,"
+                "chairman_provider,session_id,turn) VALUES(?,?,'running',?,?,?,?,?)",
+                (run_id, question, _now(), _now(), chairman,
+                 session_id or run_id, turn or 1),
             )
             await db.commit()
 
@@ -621,13 +640,15 @@ class Database:
             await db.commit()
 
     async def finish_run(
-        self, run_id: str, status: str, responded: int, attempted: int, total_ms: int
+        self, run_id: str, status: str, responded: int, attempted: int, total_ms: int,
+        *, notes: dict | None = None,
     ) -> None:
         async with aiosqlite.connect(self.path) as db:
             await db.execute(
                 "UPDATE runs SET status=?,ended_at=?,total_ms=?,responded_count=?,"
-                "attempted_count=? WHERE id=?",
-                (status, _now(), total_ms, responded, attempted, run_id),
+                "attempted_count=?,notes_json=? WHERE id=?",
+                (status, _now(), total_ms, responded, attempted,
+                 json.dumps(notes) if notes else None, run_id),
             )
             await db.commit()
 
@@ -654,8 +675,13 @@ class Database:
             answers = [dict(r) for r in await cur.fetchall()]
             cur = await db.execute("SELECT * FROM syntheses WHERE run_id=?", (run_id,))
             syn = await cur.fetchone()
+            run = dict(run)
+            try:
+                run["notes"] = json.loads(run.get("notes_json") or "null")
+            except ValueError:
+                run["notes"] = None
             return {
-                "run": dict(run),
+                "run": run,
                 "answers": answers,
                 "synthesis": dict(syn) if syn else None,
             }
@@ -689,7 +715,8 @@ class Database:
             db.row_factory = aiosqlite.Row
             cur = await db.execute(
                 "SELECT id,question,status,created_at,total_ms,responded_count,"
-                "attempted_count FROM runs ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                "attempted_count,session_id,turn FROM runs "
+                "ORDER BY created_at DESC LIMIT ? OFFSET ?",
                 (limit, offset),
             )
             return [dict(r) for r in await cur.fetchall()]

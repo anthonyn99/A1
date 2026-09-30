@@ -568,8 +568,12 @@ class BrowserProvider(Provider):
                 #   It hit every SHORT verdict, which means it hit simple
                 #   factual questions and left long analytical ones alone --
                 #   the opposite of a failure you would notice in testing.
+                #
+                #   A follow-up (Track F) is checked against its reference --
+                #   the question plus the conversation it follows -- since
+                #   "and the second one?" shares no words with a good answer.
                 verdict = validate.validate_answer(
-                    cleaned, ctx.question or question,
+                    cleaned, ctx.reference or ctx.question or question,
                     display_name=self.display_name,
                     has_attachments=bool(ctx.attachments),
                 )

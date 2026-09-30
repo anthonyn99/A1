@@ -102,7 +102,8 @@ def test_it_does_not_promise_a_chairman_pass_for_a_single_unit():
     assert "SOLE UNIT" in HOW
     assert "SOLE UNIT" in PAGE, "updateCore no longer renders SOLE UNIT"
     orch = (REPO / "magi" / "engine" / "orchestrator.py").read_text(encoding="utf-8")
-    assert "elif len(responded) == 1:" in orch, (
+    # Track F: notes added mid-run send even a sole answer through synthesis.
+    assert "elif len(responded) == 1 and not additions:" in orch, (
         "the single-unit short circuit is gone; the panel still promises it"
     )
 

@@ -20,10 +20,10 @@ from ..providers.base import Answer, Provider, RunContext
 SYNTHESIS_PROMPT = """You are the chairman of a council of AI models. Each member \
 was asked the SAME question independently, with no knowledge of the others.
 
-THE QUESTION
+{context_block}THE QUESTION
 {question}
 
-COUNCIL RESPONSES ({responded} of {total} members responded{failure_note})
+{additions_block}COUNCIL RESPONSES ({responded} of {total} members responded{failure_note})
 {responses}
 
 Your job is to produce THE ANSWER to the question -- the one the person who \
@@ -165,22 +165,66 @@ def _fit(texts: list[str], room: int) -> list[str]:
     return out
 
 
+# Track F. A follow-up's chairman sees the conversation so far, and notes the
+# person typed while the units were answering -- which no unit saw, so the
+# chairman is the only one who can apply them.
+CONTEXT_BLOCK = """EARLIER IN THIS CONVERSATION
+The question below is a follow-up in an ongoing conversation. This is what \
+came before it -- background for reading the question, not something to \
+answer again.
+
+{context}
+
+"""
+
+ADDITIONS_BLOCK = """ADDED BY THE PERSON WHILE THE COUNCIL WAS ANSWERING (apply \
+these; they override the question where they conflict)
+The members did not see these, so apply them yourself in the answer.
+{additions}
+
+"""
+
+# Below this, a trimmed context is more noise than memory and is dropped.
+MIN_CONTEXT_CHARS = 1_000
+
+
 def build_prompt(
-    question: str, answers: list[Answer], max_chars: int | None = None
+    question: str,
+    answers: list[Answer],
+    max_chars: int | None = None,
+    *,
+    context: str = "",
+    additions: list[str] | None = None,
 ) -> str:
     ok = [a for a in answers if a.ok and a.text.strip()]
     degraded = [a for a in answers if a.degraded]
     # Genuine failures only -- a degraded member DID respond, and describing it
     # as "did not respond" would misreport what happened.
     failed = [a for a in answers if not a.ok and not a.degraded]
+    context = (context or "").strip()
+    additions = [n.strip() for n in (additions or []) if n and n.strip()]
 
     texts = [a.text.strip() for a in ok]
     if max_chars:
         # Everything that is not an answer: the template, the question, the
         # headings and notes. Measured from the untrimmed prompt, so a
         # template edit can never silently break the budget.
-        frame = len(build_prompt(question, answers)) - sum(len(t) for t in texts)
-        texts = _fit(texts, max_chars - frame)
+        def frame_with(ctx: str) -> int:
+            return len(build_prompt(
+                question, answers, context=ctx, additions=additions
+            )) - sum(len(t) for t in texts)
+
+        # The context counts in the frame and gives way first: the answers
+        # are what this turn is about.
+        over = frame_with(context) + sum(len(t) for t in texts) - max_chars
+        if context and over > 0:
+            room = len(context) - over
+            # _fit never goes below 2,000; past that keep the END, which is
+            # the newest turn.
+            context = (
+                _fit([context], room)[0][-room:] if room >= MIN_CONTEXT_CHARS else ""
+            )
+        texts = _fit(texts, max_chars - frame_with(context))
 
     blocks = []
     for a, text in zip(ok, texts):
@@ -215,6 +259,11 @@ def build_prompt(
         )
 
     return SYNTHESIS_PROMPT.format(
+        context_block=CONTEXT_BLOCK.format(context=context) if context else "",
+        additions_block=(
+            ADDITIONS_BLOCK.format(additions="\n".join(f"- {n}" for n in additions))
+            if additions else ""
+        ),
         question=question.strip(),
         responded=len(ok),
         total=len(answers),
@@ -255,10 +304,15 @@ async def synthesize(
     ctx: RunContext,
     *,
     cancel: asyncio.Event | None = None,
+    context: str = "",
+    additions: list[str] | None = None,
 ) -> tuple[str, bool, str | None, int]:
     """Returns (verdict_text, ok, error_detail, latency_ms)."""
     t0 = time.monotonic()
-    prompt = build_prompt(question, answers, max_chars=prompt_budget(chairman.id))
+    prompt = build_prompt(
+        question, answers, max_chars=prompt_budget(chairman.id),
+        context=context, additions=additions,
+    )
     result = await chairman.ask(prompt, ctx=ctx, cancel=cancel)
     ms = int((time.monotonic() - t0) * 1000)
 

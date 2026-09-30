@@ -239,6 +239,10 @@ class RunContext:
     # Files staged to disk for this run, shared read-only across every member
     # -- each provider attaches the same set to its own composer.
     attachments: list[Path] = field(default_factory=list)
+    # What an answer is checked against for OFF_TOPIC when it is not simply
+    # `question`: a follow-up's reference also carries the conversation it
+    # follows (engine/session.py `reference`). Empty = use the question.
+    reference: str = ""
 
 
 ProgressFn = Callable[[ProviderEvent], Awaitable[None]]

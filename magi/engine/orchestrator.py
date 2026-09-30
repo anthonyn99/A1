@@ -23,6 +23,8 @@ from ..db import Database
 from ..providers.base import Answer, Provider, ProviderEvent, ProviderState, RunContext
 from ..settings import Settings
 from . import chairman as chairman_mod
+from . import session as session_mod
+from .session import Steer
 
 
 
@@ -327,6 +329,7 @@ class Orchestrator:
         emit,
         cancel: asyncio.Event | None,
         on_answer=None,
+        floor_chars: int | None = None,
     ) -> list[Answer]:
         """Ask every member, honouring the pacing -- one fan-out for everyone.
 
@@ -339,6 +342,11 @@ class Orchestrator:
 
         `on_answer` is awaited with each Answer, in member order (the council
         saves them to the run as they come).
+
+        `floor_chars` is the length the straggler floor is judged on when the
+        prompts are longer than what was asked: a follow-up's prompt carries
+        the conversation so far, and a one-line follow-up must keep the short
+        floor rather than inherit a long one from its padding.
         """
         def prompt_for(p: Provider) -> str:
             return prompts[p.id] if isinstance(prompts, dict) else prompts
@@ -379,7 +387,10 @@ class Orchestrator:
             if emit:
                 await emit(ev)
 
-        longest = max((len(prompt_for(p)) for p in providers), default=0)
+        longest = (
+            floor_chars if floor_chars is not None
+            else max((len(prompt_for(p)) for p in providers), default=0)
+        )
         floor = (
             STRAGGLER_GRACE_SHORT_S if longest < SHORT_PROMPT_CHARS
             else STRAGGLER_GRACE_S
@@ -445,13 +456,32 @@ class Orchestrator:
         on_event=None,
         cancel: asyncio.Event | None = None,
         attachments: list[Path] | None = None,
+        context: list[dict] | None = None,
+        session_id: str | None = None,
+        turn: int | None = None,
+        steer: Steer | None = None,
     ) -> dict:
+        """One council turn.
+
+        Track F: `context` is the conversation so far (`[{q, answer}]`, from
+        the console) -- each unit is asked with it replayed in front of the
+        new message, and the chairman sees it too. `steer` holds notes typed
+        while the run is going; those in before synthesis starts go to the
+        chairman, later ones come back as `followup_notes`.
+        """
         run_id = run_id or uuid.uuid4().hex[:12]
-        ctx = RunContext(run_id=run_id, question=question, attachments=attachments or [])
+        context = context or []
+        ctx = RunContext(
+            run_id=run_id, question=question, attachments=attachments or [],
+            reference=session_mod.reference(question, context) if context else "",
+        )
         t0 = time.monotonic()
 
         if self.db:
-            await self.db.create_run(run_id, question, self.settings.chairman.provider_id)
+            await self.db.create_run(
+                run_id, question, self.settings.chairman.provider_id,
+                session_id=session_id or run_id, turn=turn or 1,
+            )
 
         async def emit(ev: ProviderEvent) -> None:
             if on_event:
@@ -462,9 +492,21 @@ class Orchestrator:
                 await self.db.save_answer(run_id, a)
 
         # -- gather ---------------------------------------------------------
+        prompts: str | dict[str, str] = question
+        if context:
+            prompts = {
+                p.id: session_mod.prompt_with_context(
+                    question, context, session_mod.budget_for(p.id, question)
+                )
+                for p in providers
+            }
         answers = await self.gather(
-            providers, question, ctx, emit, cancel, on_answer=save
+            providers, prompts, ctx, emit, cancel, on_answer=save,
+            floor_chars=len(question),
         )
+        # No await between this snapshot and the decision below: a note is
+        # in the verdict or held for the follow-up, never both or neither.
+        additions = steer.close_gather() if steer else []
 
         responded = [a for a in answers if a.ok and a.text.strip()]
         # Members that answered but whose text failed validation. Tracked
@@ -494,12 +536,16 @@ class Orchestrator:
             )
         elif cancel and cancel.is_set():
             syn_err = "Run cancelled before synthesis."
-        elif len(responded) == 1:
+        elif len(responded) == 1 and not additions:
             # Nothing to synthesise. Handing a single answer to a chairman to
             # "compare" costs a second browser run against a paid account and
             # returns a worse-written version of what is already on screen --
             # so the sole member's answer IS the verdict, and the console says
             # so rather than dressing it up as a consensus.
+            #
+            # Unless the person added notes while it was answering: the unit
+            # never saw them, so it goes through synthesis to revise its own
+            # answer with them.
             sole = responded[0]
             verdict, syn_ok = sole.text, True
             chair = next((p for p in providers if p.id == sole.provider_id), None)
@@ -538,7 +584,11 @@ class Orchestrator:
                         )
                     )
                 verdict, syn_ok, syn_err, ms = await chairman_mod.synthesize(
-                    chair, question, answers, ctx, cancel=cancel
+                    chair, question, answers, ctx, cancel=cancel,
+                    context=session_mod.build_context(
+                        context, session_mod.budget_for(chair.id, question)
+                    ),
+                    additions=additions,
                 )
                 syn_ms += ms
                 if syn_ok:
@@ -556,13 +606,25 @@ class Orchestrator:
         if cancel and cancel.is_set():
             status = "cancelled"
 
+        # Notes the verdict used, and ones it could not (no quorum, halted,
+        # every chair failed) -- those go back to the person, not to waste.
+        applied = additions if syn_ok else []
+        unapplied = [] if syn_ok else additions
+        if steer:
+            steer.finish()
+        followup = list(steer.followup) if steer else []
+
         if self.db:
             await self.db.save_synthesis(
                 run_id, chair.id if chair else "", verdict,
                 len(responded), len(answers), syn_ok, syn_err, syn_ms,
             )
             await self.db.finish_run(
-                run_id, status, len(responded), len(answers), total_ms
+                run_id, status, len(responded), len(answers), total_ms,
+                notes=(
+                    {"applied": applied, "followup": followup, "unapplied": unapplied}
+                    if (applied or followup or unapplied) else None
+                ),
             )
 
         return {
@@ -586,4 +648,9 @@ class Orchestrator:
             ],
             "total_ms": total_ms,
             "status": status,
+            "session_id": session_id or run_id,
+            "turn": turn or 1,
+            "notes": applied,
+            "followup_notes": followup,
+            "unapplied_notes": unapplied,
         }
