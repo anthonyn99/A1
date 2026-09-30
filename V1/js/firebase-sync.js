@@ -226,6 +226,9 @@ if (!window.STUDYOS_CONFIG_READY || !window.STUDYOS_CONFIG_READY('firebase')) {
     const q = _sosPendingWrites; _sosPendingWrites = [];
     q.forEach((fn) => { try { fn(); } catch (e) { console.warn('[StudyOS] deferred write failed:', e && e.message); } });
   }
+  // For the self-cleanup adapter in studyos.js: true once server state has been
+  // applied (the listener marks this only after emitting it).
+  window._fbSosServerSeen = () => _sosServerSeen;
   function _sosWhenServerSeen(fn) {
     if (_sosServerSeen) return fn();
     // Dedupe by reference so a long offline session can't grow this unbounded.
@@ -261,15 +264,18 @@ if (!window.STUDYOS_CONFIG_READY || !window.STUDYOS_CONFIG_READY('firebase')) {
   };
 
   _sosUnsubscribe = onSnapshot(sosDocRef, { includeMetadataChanges: false }, (snap) => {
-    // A snapshot straight off the wire proves we've seen real server state.
+    // Our own not-yet-acknowledged write echoing back is skipped: the local UI
+    // is already showing this exact state, so re-emitting it would churn the DOM.
+    if (snap.exists() && !(snap.metadata && snap.metadata.hasPendingWrites)) _sosEmitRemote(snap.data());
+
+    // A snapshot straight off the wire proves we've seen real server state, so
+    // queued writes may go. This comes AFTER the emit on purpose: the
+    // fb-sos-remote handler applies the data synchronously, and the flush then
+    // saves the MERGED state (see _sosDoSave). Unlocking first sent whatever was
+    // queued before the server data arrived, which on a device with a stale
+    // local cache (Veda's Brave held a one-class copy, 2026-09-30) meant a boot
+    // write, such as a file-upload persist, could overwrite the real class list.
     if (snap.metadata && snap.metadata.fromCache === false) _sosMarkServerSeen();
-    if (!snap.exists()) return;
-
-    // Our own not-yet-acknowledged write echoing back. The local UI is already
-    // showing this exact state, so re-emitting it would just churn the DOM.
-    if (snap.metadata && snap.metadata.hasPendingWrites) return;
-
-    _sosEmitRemote(snap.data());
   }, (err) => {
     console.warn('[StudyOS] onSnapshot error:', err && err.code);
     window.dispatchEvent(new CustomEvent('fb-sos-error'));
@@ -278,10 +284,10 @@ if (!window.STUDYOS_CONFIG_READY || !window.STUDYOS_CONFIG_READY('firebase')) {
   window._fbLoadStudyOs = async () => {
     try {
       const snap = await _freshGet(sosDocRef);
-      // Only a genuinely-fresh read unlocks writing. A cache hit leaves us
-      // locked, so the stale copy we're about to render can never be written
-      // back over newer server data.
-      if (snap && snap.metadata && snap.metadata.fromCache === false) _sosMarkServerSeen();
+      // This read does NOT unlock writing: the caller applies the data only
+      // after this resolves, so unlocking here would flush queued writes built
+      // from the stale local copy first. The live listener unlocks once it has
+      // applied server state.
       if (snap && snap.exists()) return snap.data();
       return null;
     } catch (e) {
@@ -296,8 +302,14 @@ if (!window.STUDYOS_CONFIG_READY || !window.STUDYOS_CONFIG_READY('firebase')) {
    * backlog of stale ones. */
   let _sosPendingPayload = null;
   const _sosDoSave = async () => {
-    const payload = _sosPendingPayload;
-    if (!payload) return;
+    if (!_sosPendingPayload) return;
+    // Rebuild from the app's CURRENT state rather than the object captured when
+    // the save was requested: a write queued before server state arrived was
+    // built from the stale local cache, and the merge has replaced it since.
+    let payload = _sosPendingPayload;
+    if (typeof window._sosBuildPayload === 'function') {
+      try { payload = window._sosBuildPayload() || payload; } catch (e) { console.warn('[StudyOS] payload rebuild failed:', e); }
+    }
     _sosPendingPayload = null;
     try {
       _sosLastOwnSaveAt = Date.now();

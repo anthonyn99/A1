@@ -45,6 +45,7 @@ Three layers hold state. They are not interchangeable.
 | `studyos_notes_v2` | `Note[]` | `studyos.js:121` |
 | `studyos_d2l` | `D2LMap` (object or `null`) | `studyos.js:125` |
 | `studyos_ksu` | `{ modules: Module[] }` | `studyos.js:256` |
+| `studyos_orphan_since` | `{ fileId: firstSeenOrphanMs }`, the self-cleanup's 30-day wait (sweep.js item `studyos-orphan-files`) | adapter in `studyos.js` |
 
 All six are read synchronously at module top level with
 `JSON.parse(localStorage.getItem(k) || '<default>')`. A corrupt value throws

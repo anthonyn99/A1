@@ -367,6 +367,7 @@ async function deleteKsuModule(modId) {
   ksuData.modules = ksuData.modules.filter(m => m.id !== modId);
   persistKsu();
   renderKsuModules();
+  _sosDropFilesOf(mod ? [mod] : []);
 }
 
 function openKsuAddModule() {
@@ -1256,6 +1257,7 @@ async function deleteCurrentClass() {
   if (!(await window.uiConfirm('Remove "' + (cls ? cls.name : '') + '" and all its modules?', {danger:true, okLabel:'Remove'}))) return;
   classes = classes.filter(c => c.id !== currentClassId);
   persist();
+  _sosDropFilesOf(cls ? cls.modules : []);
   renderClasses();
   renderSidebarClasses();
   updateStats();
@@ -1298,6 +1300,7 @@ async function removeClass(id) {
   if (!(await window.uiConfirm('Remove "' + (cls ? cls.name : '') + '"?', {danger:true, okLabel:'Remove'}))) return;
   classes = classes.filter(c => c.id !== id);
   persist();
+  _sosDropFilesOf(cls ? cls.modules : []);
   renderClasses();
   renderSidebarClasses();
   updateStats();
@@ -1538,6 +1541,7 @@ async function deleteModule(classId, modId) {
   persist();
   renderModules(cls);
   updateStats();
+  _sosDropFilesOf(mod ? [mod] : []);
 }
 
 const moduleEditMode = {};
@@ -1782,6 +1786,16 @@ const SosFileStore = (function() {
     delete: async function(id) {
       if (!id) return;
       await withDb(db => writeTx(db, st => st.delete(id)));
+    },
+    // Every stored id, without reading any file's bytes (for the self-cleanup).
+    keys: async function() {
+      return withDb(db => new Promise((res, rej) => {
+        let tx;
+        try { tx = db.transaction(ST, 'readonly'); } catch (e) { rej(e); return; }
+        const req = tx.objectStore(ST).getAllKeys();
+        req.onsuccess = e => res(e.target.result || []);
+        req.onerror = e => rej((e.target && e.target.error) || new Error('read failed'));
+      }));
     },
     openTab: async function(fileId, name) {
       const blob = await SosFileStore.get(fileId);
@@ -2929,6 +2943,68 @@ function _sosInstallLaunchQueue() {
   });
 }
 
+
+// Removing a whole class or module used to drop its file list and leave every
+// file's bytes behind: in IndexedDB here and in the studyos-files Worker. On
+// Veda's Brave that was 50 of 52 stored files (94 MB, 2026-09-30), from classes
+// long gone. removeFile() always cleaned up one file; this does the same for
+// every file of the modules being removed. Runs after persist(), so the bytes
+// go only once nothing points at them.
+function _sosDropFilesOf(mods) {
+  for (const mod of (mods || [])) {
+    for (const f of ((mod && mod.files) || [])) {
+      if (!f) continue;
+      if (f.fileId) { SosFileStore.delete(f.fileId).catch(() => {}); _sosCloudUrls.delete(f.fileId); }
+      if (f.storagePath || f.fileId) { try { SosCloud.remove(f.storagePath || f.fileId); } catch (e) {} }
+    }
+  }
+}
+
+/* ── Self-cleanup adapter (sweep.js, item "studyos-orphan-files") ───────────
+ * Deletes local file bytes that no class or KSU module points at any more:
+ * the ones deletes left behind before _sosDropFilesOf existed, and ones whose
+ * file was removed on another device. Local IndexedDB only; the Worker copy is
+ * not touched, because the sweep's KV budget is for requests that happen anyway.
+ * Safeguards, all required:
+ *   - ready only once the server's copy has been APPLIED, so a stale local
+ *     class list cannot make live files look orphaned;
+ *   - an id stamped less than a day ago is never listed (an upload in flight
+ *     saves the bytes before it files the entry);
+ *   - an id must stay orphaned for capDays sweeps apart before it is listed,
+ *     tracked in studyos_orphan_since (if that key cannot be written, nothing
+ *     ages and nothing is deleted);
+ *   - del() re-checks the reference right before deleting. */
+const SOS_ORPHAN_KEY = 'studyos_orphan_since';
+function _sosReferencedFileIds() {
+  const refs = new Set();
+  _sosEachFile(f => { if (f && f.fileId) refs.add(f.fileId); if (f && f.id) refs.add(f.id); });
+  return refs;
+}
+window._a1SweepIdb = window._a1SweepIdb || {};
+window._a1SweepIdb['studyos-orphan-files'] = {
+  ready: () => !!(window._fbSosServerSeen && window._fbSosServerSeen()),
+  list: async (capDays) => {
+    const refs = _sosReferencedFileIds();
+    const keys = await SosFileStore.keys();
+    let since = {};
+    try { since = JSON.parse(localStorage.getItem(SOS_ORPHAN_KEY) || '{}') || {}; } catch (e) { since = {}; }
+    const now = Date.now(), next = {}, out = [];
+    for (const id of keys) {
+      if (refs.has(id)) continue;
+      const m = /^sf_(\d{12,})_/.exec(String(id));
+      if (m && now - Number(m[1]) < 864e5) continue;
+      const first = typeof since[id] === 'number' ? since[id] : now;
+      next[id] = first;
+      if (now - first >= capDays * 864e5) out.push({ key: id, label: String(id) });
+    }
+    if (!_sosLsSet(SOS_ORPHAN_KEY, JSON.stringify(next))) return [];
+    return out;
+  },
+  del: async (id) => {
+    if (_sosReferencedFileIds().has(id)) throw new Error('referenced again');
+    await SosFileStore.delete(id);
+  },
+};
 
 function removeFile(classId, modId, idx) {
   const cls = findClassOrKsu(classId);
@@ -4829,17 +4905,24 @@ function _sosSerializeClasses() {
   }));
 }
 
-function _sosFirebaseSave() {
-  if (!window._fbSaveStudyOs) return;
-  _sosSetSync('saving');
-  window._fbSaveStudyOs({
+function _sosBuildPayload() {
+  return {
     classes:   _sosSerializeClasses(),
     events:    events,
     tasks:     tasks,
     notes:     notesList,
     ksu:       _sosSerializeKsu(),
     d2l:       d2lMap
-  });
+  };
+}
+// firebase-sync.js rebuilds every write from this at send time, so a write
+// queued before the server's copy was applied cannot carry the stale cache.
+window._sosBuildPayload = _sosBuildPayload;
+
+function _sosFirebaseSave() {
+  if (!window._fbSaveStudyOs) return;
+  _sosSetSync('saving');
+  window._fbSaveStudyOs(_sosBuildPayload());
 }
 
 function persist() {

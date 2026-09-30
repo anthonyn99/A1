@@ -1015,5 +1015,8 @@
 <script type="module" src="js/modules/boot.js"></script>
 <!-- Last: binds the pull gesture to the renderers studyos.js defines above. -->
 <script src="js/pulltorefresh.js"></script>
+<!-- A1 self-cleanup (cleanup-rules.json at the repo root). On a build without
+     it, the 404 is harmless: the sweep simply does not run. -->
+<script src="../sweep.js" data-program="studyos" defer></script>
 </body>
 </html>

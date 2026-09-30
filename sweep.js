@@ -3,7 +3,8 @@
  *
  * What counts as trash is not decided here. It is listed in cleanup-rules.json,
  * which magi/sweep.py and tests/cleanup-rules.test.js read too. This file only
- * runs the "localStorage" and "firestore" items of the program that loads it:
+ * runs the "localStorage", "firestore" and "indexeddb" items of the program
+ * that loads it:
  *
  *   <script src="sweep.js" data-program="index" defer></script>
  *
@@ -17,6 +18,12 @@
  *     most firestoreDeletesPerSweep, and only through the page's own adapter
  *     (window._a1SweepFirestore), which says when the boot write guard has
  *     cleared. A delete that succeeded is remembered, so it is never repeated.
+ *   - IndexedDB: the page publishes window._a1SweepIdb[itemId] = { ready, list,
+ *     del }. ready() gates on its data being authoritative, list(capDays)
+ *     returns what has been orphaned at least that long, and at most
+ *     idbDeletesPerSweep go per sweep.
+ *   - A full localStorage still sweeps its localStorage items (that frees
+ *     room), then stamps; if the stamp still fails, nothing else runs.
  *   - Fail closed: rules that won't load or have an unexpected shape mean
  *     nothing is deleted that run.
  *   - An item with "delete": false is a dry run. It is listed in the report and
@@ -32,13 +39,21 @@
   var STAMP = 'a1_sweep_day:' + PROGRAM;
   var REPORT = 'a1_sweep_report:' + PROGRAM;
   var DONE = 'a1_sweep_done';
-  var STORES = { localStorage: 1, firestore: 1, kv: 1, disk: 1 };
+  var STORES = { localStorage: 1, firestore: 1, kv: 1, disk: 1, indexeddb: 1 };
   var CATEGORIES = { failed: 1, unused: 1, outdated: 1, corrupt: 1 };
   var DOC_RE = /^dashboards\/[A-Za-z0-9_-]+$/;
 
   function store() { try { return window.localStorage || null; } catch (e) { return null; } }
   function get(k) { var s = store(); try { return s ? s.getItem(k) : null; } catch (e) { return null; } }
   function set(k, v) { var s = store(); try { if (!s) return false; s.setItem(k, v); return true; } catch (e) { return false; } }
+  // True when storage works but is out of room: the case this sweep exists
+  // for, and one that "unusable storage" must not swallow.
+  function isFull() {
+    var s = store();
+    if (!s) return false;
+    try { s.setItem('a1_sweep_probe', '1'); s.removeItem('a1_sweep_probe'); return false; }
+    catch (e) { return !!e && (e.name === 'QuotaExceededError' || e.code === 22 || e.code === 1014); }
+  }
   function today() {
     var d = new Date();
     return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
@@ -49,6 +64,8 @@
     if (!rules || rules.version !== 1 || !Array.isArray(rules.items) || !rules.limits) throw new Error('rules: bad shape');
     var max = rules.limits.firestoreDeletesPerSweep;
     if (typeof max !== 'number' || max < 0 || max > 25) throw new Error('rules: firestoreDeletesPerSweep out of range');
+    var imax = rules.limits.idbDeletesPerSweep;
+    if (typeof imax !== 'number' || imax < 0 || imax > 25) throw new Error('rules: idbDeletesPerSweep out of range');
     var ids = {};
     rules.items.forEach(function (it) {
       if (!it || typeof it.id !== 'string' || ids[it.id]) throw new Error('rules: bad or duplicate id');
@@ -59,6 +76,9 @@
       if (it.store === 'firestore' && !DOC_RE.test(it.doc || '')) throw new Error('rules: ' + it.id + ' is not a fixed doc id');
       // A key in localStorage has no timestamp, so only "gone on the first sweep" works there.
       if (it.store === 'localStorage' && it.capDays !== 0) throw new Error('rules: ' + it.id + ' localStorage items cannot age');
+      // What is orphaned is app knowledge, so an IndexedDB item is run by a
+      // page adapter (window._a1SweepIdb[id]) and must wait at least a day.
+      if (it.store === 'indexeddb' && !(it.capDays >= 1)) throw new Error('rules: ' + it.id + ' indexeddb items need capDays >= 1');
     });
     return rules;
   }
@@ -73,7 +93,7 @@
   // Works out the run without touching anything.
   function plan(rules) {
     var mine = rules.items.filter(function (it) { return it.program === PROGRAM; });
-    var out = { ls: [], fs: [] };
+    var out = { ls: [], fs: [], idb: [] };
     var s = store();
     var keys = [];
     if (s) { for (var i = 0; i < s.length; i++) { var k = s.key(i); if (k) keys.push(k); } }
@@ -82,6 +102,8 @@
         keys.forEach(function (k) { if (matches(it, k)) out.ls.push({ id: it.id, key: k, del: it.delete }); });
       } else if (it.store === 'firestore') {
         if (doneList().indexOf(it.id) === -1) out.fs.push({ id: it.id, doc: it.doc, del: it.delete });
+      } else if (it.store === 'indexeddb') {
+        out.idb.push({ id: it.id, capDays: it.capDays, del: it.delete });
       }
     });
     return out;
@@ -97,7 +119,16 @@
         if (!PROGRAM) throw new Error('no data-program on the script tag');
         if (!opts.force && get(STAMP) === today()) { rep.skipped.push('already swept today'); return rep; }
         // Stamp first: a crash half-way must not turn into a sweep on every load.
-        if (!set(STAMP, today())) throw new Error('localStorage unavailable; not sweeping');
+        // A FULL store cannot take the stamp either, and refusing there meant
+        // the sweep never ran on the one browser that needed it (Veda's Brave,
+        // 2026-09-30: 5,242,879 of 5,242,880). So a full store runs the
+        // localStorage removals, which free room, and stamps after them; if it
+        // still cannot stamp, it stops before any Firestore or IndexedDB work.
+        var full = false;
+        if (!set(STAMP, today())) {
+          if (!isFull()) throw new Error('localStorage unavailable; not sweeping');
+          full = true;
+        }
         var res = await fetch(RULES_URL, { cache: 'no-cache' });
         if (!res.ok) throw new Error('rules: HTTP ' + res.status);
         var rules = check(await res.json());
@@ -109,6 +140,8 @@
           try { localStorage.removeItem(x.key); rep.deleted.push(x.id + ': localStorage ' + x.key); }
           catch (e) { rep.skipped.push(x.id + ': ' + x.key + ' (' + e.message + ')'); }
         });
+
+        if (full && !set(STAMP, today())) throw new Error('localStorage still full after the localStorage removals; stopping before Firestore/IndexedDB');
 
         var fsa = window._a1SweepFirestore;
         var budget = rules.limits.firestoreDeletesPerSweep;
@@ -123,6 +156,28 @@
             var d = doneList(); d.push(x.id); set(DONE, JSON.stringify(d));
             rep.deleted.push(x.id + ': Firestore ' + x.doc);
           } catch (e) { rep.skipped.push(x.id + ': ' + (e && e.message)); }
+        }
+
+        // IndexedDB: the page's adapter says what is orphaned (list) and when
+        // its data is authoritative (ready); this only enforces the caps.
+        var ia = window._a1SweepIdb || {};
+        var ibudget = rules.limits.idbDeletesPerSweep;
+        for (var j = 0; j < p.idb.length; j++) {
+          var y = p.idb[j], ad = ia[y.id];
+          if (!ad || typeof ad.list !== 'function' || typeof ad.del !== 'function' || !ad.ready || !ad.ready()) {
+            rep.skipped.push(y.id + ': IndexedDB adapter not ready'); continue;
+          }
+          var found = [];
+          try { found = (await ad.list(y.capDays)) || []; }
+          catch (e) { rep.skipped.push(y.id + ': list failed (' + (e && e.message) + ')'); continue; }
+          for (var q = 0; q < found.length; q++) {
+            var f = found[q], label = y.id + ': IndexedDB ' + (f.label || f.key);
+            if (!y.del || dry) { rep.wouldDelete.push(label); continue; }
+            if (ibudget <= 0) { rep.skipped.push(y.id + ': over the per-sweep delete cap'); break; }
+            ibudget--;
+            try { await ad.del(f.key); rep.deleted.push(label); }
+            catch (e) { rep.skipped.push(label + ' (' + (e && e.message) + ')'); }
+          }
         }
       } catch (e) {
         rep.error = String(e && e.message || e);

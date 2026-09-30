@@ -5,6 +5,7 @@
     "sweepsPerProgramPerDay": 1,
     "firestoreDeletesPerSweep": 25,
     "firestoreReadsPerSweep": 0,
+    "idbDeletesPerSweep": 25,
     "kvDeletesPerDayPerAccount": 20,
     "firstRunDelayMs": 60000
   },
@@ -224,6 +225,46 @@
       "approved": "2026-09-29: Tony asked for a 30-day limit on the trading launcher logs",
       "glob": "trading-auto-launch/debug.log",
       "reason": "The browser's error output (certificate noise) lands in this folder and only grows. Lines older than 30 days are dropped each run."
+    },
+    {
+      "id": "studyos-orphan-files",
+      "store": "indexeddb",
+      "program": "studyos",
+      "category": "unused",
+      "capDays": 30,
+      "adapter": "window._a1SweepIdb['studyos-orphan-files'] in V1/js/studyos.js",
+      "owner": "V1/js/studyos.js SosFileStore (IndexedDB sos_file_store)",
+      "reason": "Local file bytes no class or KSU module points at. Removing a class or module never deleted its files' bytes until 2026-09-30 (_sosDropFilesOf), so they piled up: 50 of 52 stored files, 94 MB, on Veda's Brave, all from classes long gone. Listed only after the server copy is applied, never within a day of upload, and only after staying orphaned for capDays; deletion re-checks the reference. Local only: the studyos-files Worker copy is left alone.",
+      "delete": true,
+      "approved": "2026-09-30: Tony asked for StudyOS to auto-clean its files; shipped on with the 30-day orphan wait as the safety margin"
+    },
+    {
+      "id": "origin-dead-keys-2026-09",
+      "store": "localStorage",
+      "program": "index",
+      "category": "unused",
+      "capDays": 0,
+      "exact": [
+        "mealplan_weekplan",
+        "mealplan_settings",
+        "mealplan_grocerylist",
+        "mealplan_inventory",
+        "mealplan_recipes",
+        "ms_grocery",
+        "ms_recipes",
+        "el_expenses",
+        "el_cash",
+        "el_seeded",
+        "shopifySelectors",
+        "ml_seen_help",
+        "vd_lastApp",
+        "kc_theme",
+        "bj_lock_migrated_v2"
+      ],
+      "prefix": [],
+      "owner": "no live code (found on Veda's Brave, 2026-09-30)",
+      "reason": "Keys on the shared origin that nothing in the repo reads or writes any more; the meal planner, expense and grocery pages were deleted with the old index.html, the others were one-off flags. About 6 KB in total.",
+      "delete": false
     }
   ],
   "handledElsewhere": [

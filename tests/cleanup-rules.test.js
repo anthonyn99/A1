@@ -85,13 +85,25 @@ for (const it of RULES.items.filter((i) => i.store === 'firestore')) {
 
 // ── Wiring ────────────────────────────────────────────────────────────────
 console.log('\nWiring');
-const browserPrograms = new Set(RULES.items.filter((i) => ['localStorage', 'firestore'].includes(i.store)).map((i) => i.program));
+const browserPrograms = new Set(RULES.items.filter((i) => ['localStorage', 'firestore', 'indexeddb'].includes(i.store)).map((i) => i.program));
 for (const prog of browserPrograms) {
-  const page = prog + '.html';
+  // Root pages load sweep.js beside them; V1 pages (StudyOS) load ../sweep.js.
+  const page = fs.existsSync(path.join(ROOT, prog + '.html')) ? prog + '.html' : 'V1/' + prog + '.html';
   const html = fs.existsSync(path.join(ROOT, page)) ? read(page) : '';
   ok(`${page} loads sweep.js as data-program="${prog}"`,
-    new RegExp(`<script src="sweep\\.js" data-program="${prog}" defer></script>`).test(html));
+    new RegExp(`<script src="(\\.\\./)?sweep\\.js" data-program="${prog}" defer></script>`).test(html));
 }
+const sos = read('V1/js/studyos.js');
+ok('studyos.js: the orphan-file adapter waits for applied server state',
+  /ready: \(\) => !!\(window\._fbSosServerSeen && window\._fbSosServerSeen\(\)\)/.test(sos));
+ok('studyos.js: the adapter never lists a file stamped within a day', /now - Number\(m\[1\]\) < 864e5\) continue;/.test(sos));
+ok('studyos.js: the adapter re-checks the reference before deleting', /if \(_sosReferencedFileIds\(\)\.has\(id\)\) throw/.test(sos));
+ok('studyos.js: removing a class or module drops its files', (sos.match(/_sosDropFilesOf\(/g) || []).length >= 5);
+const fbs = read('V1/js/firebase-sync.js');
+const snapAt = fbs.indexOf('_sosUnsubscribe = onSnapshot(');
+const snapSrc = fbs.slice(snapAt, fbs.indexOf('}, (err) =>', snapAt));
+ok('firebase-sync.js: StudyOS unlocks writes only AFTER emitting the server data',
+  snapSrc.indexOf('_sosEmitRemote(') > 0 && snapSrc.indexOf('_sosEmitRemote(') < snapSrc.indexOf('_sosMarkServerSeen()'));
 const index = read('index.html');
 ok('index.html: the Firestore adapter waits for the MyJournal write guard',
   /window\._a1SweepFirestore = \{\s*ready: \(\) => _tjServerSeen,\s*del: \(path\) => deleteDoc\(doc\(db, path\)\),\s*\};/.test(index));
@@ -120,20 +132,28 @@ for (const it of RULES.items.filter((i) => i.program === 'trading-auto-launch'))
 }
 
 // ── Behaviour: the shipped sweep.js ───────────────────────────────────────
-function boot({ rules = RULES, storage = true, adapter, seed = {} } = {}) {
+function boot({ rules = RULES, storage = true, adapter, seed = {}, program = 'index', idb, full = false } = {}) {
   const dom = new JSDOM('<!doctype html><html><body></body></html>', {
     url: 'https://example.test/A1/index.html',
     runScripts: 'outside-only',
     beforeParse(w) {
       if (!storage) Object.defineProperty(w, 'localStorage', { get() { throw new Error('SecurityError'); } });
       else for (const [k, v] of Object.entries(seed)) w.localStorage.setItem(k, v);
+      if (full) {
+        // A full store: every write throws QuotaExceededError until something is removed.
+        const P = w.Storage.prototype, set0 = P.setItem, rm0 = P.removeItem;
+        let isFull = true;
+        P.setItem = function (k, v) { if (isFull) throw new w.DOMException('quota', 'QuotaExceededError'); return set0.call(this, k, v); };
+        P.removeItem = function (k) { const had = this.getItem(k) !== null; rm0.call(this, k); if (had) isFull = false; };
+      }
+      if (idb) w._a1SweepIdb = idb;
       w.fetch = async () => ({ ok: true, json: async () => JSON.parse(JSON.stringify(rules)) });
       if (adapter) w._a1SweepFirestore = adapter;
     },
   });
   const w = dom.window;
   const s = w.document.createElement('script');
-  s.setAttribute('data-program', 'index');
+  s.setAttribute('data-program', program);
   Object.defineProperty(w.document, 'currentScript', { configurable: true, get: () => s });
   w.eval(SWEEP);
   return w;
@@ -216,6 +236,63 @@ const clone = () => JSON.parse(JSON.stringify(RULES));
     const w2 = boot({ rules: r, adapter: { ready: () => false, del: async (p) => { blocked.push(p); } } });
     const rep = await w2.A1Sweep.run();
     ok('nothing is deleted while the write guard is up', blocked.length === 0 && rep.skipped.some((x) => /write guard/.test(x)));
+  }
+
+  // A FULL store (Veda's Brave): the localStorage items still go, which frees
+  // room, and the day is stamped after them.
+  {
+    const w = boot({ full: true, seed: { mjd_cache: '1', keep_me: '1' } });
+    const rep = await w.A1Sweep.run();
+    ok('a full store still sweeps its localStorage items', w.localStorage.getItem('mjd_cache') === null && !rep.error, rep.error);
+    ok('a full store is stamped once the sweep freed room', w.localStorage.getItem('a1_sweep_day:index') !== null);
+    ok('a full store leaves unlisted keys alone', w.localStorage.getItem('keep_me') === '1');
+  }
+  {
+    const w = boot({ full: true, seed: { keep_me: '1' } });
+    const calls = [];
+    const r = clone();
+    r.items = r.items.filter((i) => i.store !== 'localStorage');
+    const w2 = boot({ full: true, rules: r, seed: { keep_me: '1' }, adapter: { ready: () => true, del: async (p) => { calls.push(p); } } });
+    const rep = await w2.A1Sweep.run();
+    ok('a store still full after the removals stops before Firestore', rep.error && /still full/.test(rep.error) && calls.length === 0, rep.error);
+    void w;
+  }
+
+  // IndexedDB: the page adapter lists, the sweep enforces ready, dry run and the cap.
+  {
+    const mk = (ready) => {
+      const gone = [];
+      const keys = Array.from({ length: 30 }, (_, i) => ({ key: 'sf_' + i, label: 'file ' + i }));
+      return { gone, a: { 'studyos-orphan-files': { ready: () => ready, list: async () => keys.filter((k) => !gone.includes(k.key)), del: async (k) => { gone.push(k); } } } };
+    };
+    const t1 = mk(true);
+    const w = boot({ program: 'studyos', idb: t1.a });
+    const rep = await w.A1Sweep.run();
+    ok('studyos: at most 25 IndexedDB deletes in one sweep', t1.gone.length === 25, t1.gone.length);
+    ok('studyos: deletions are reported', rep.deleted.filter((x) => /IndexedDB/.test(x)).length === 25);
+
+    const t2 = mk(false);
+    const w2 = boot({ program: 'studyos', idb: t2.a });
+    const rep2 = await w2.A1Sweep.run();
+    ok('studyos: nothing goes before the adapter is ready', t2.gone.length === 0 && rep2.skipped.some((x) => /not ready/.test(x)));
+
+    const r = clone(); r.items.find((i) => i.id === 'studyos-orphan-files').delete = false;
+    const t3 = mk(true);
+    const w3 = boot({ program: 'studyos', rules: r, idb: t3.a });
+    const rep3 = await w3.A1Sweep.run();
+    ok('studyos: "delete": false only lists', t3.gone.length === 0 && rep3.wouldDelete.length === 30);
+
+    const r4 = clone(); r4.items.find((i) => i.id === 'studyos-orphan-files').capDays = 0;
+    const w4 = boot({ program: 'studyos', rules: r4, idb: mk(true).a });
+    ok('an IndexedDB item with capDays < 1 fails closed', (await w4.A1Sweep.run()).error);
+
+    const r5 = clone(); r5.limits.idbDeletesPerSweep = 100;
+    const w5 = boot({ program: 'studyos', rules: r5, idb: mk(true).a });
+    ok('an IndexedDB delete cap over 25 fails closed', (await w5.A1Sweep.run()).error);
+
+    const w6 = boot({ program: 'index', idb: mk(true).a });
+    const rep6 = await w6.A1Sweep.run();
+    ok("another program's page never runs StudyOS's item", !rep6.deleted.some((x) => /IndexedDB/.test(x)));
   }
 
   console.log(`\n  ${pass} passed, ${fail} failed`);

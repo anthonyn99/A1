@@ -18902,12 +18902,15 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   }
   function getFired(){try{return JSON.parse(localStorage.getItem(FIRE_KEY)||'[]');}catch(e){return[];}}
   function hasFired(id){var f=getFired();for(var i=0;i<f.length;i++){if(f[i]===id)return true;}return false;}
-  function markFired(id){var f=getFired();if(hasFired(id))return;f.push(id);if(f.length>2000)f=f.slice(-2000);localStorage.setItem(FIRE_KEY,JSON.stringify(f));}
+  // Every write below is guarded: the origin's localStorage fills up (Veda's
+  // Brave, 2026-09-30) and an unguarded throw here aborted poll() half-way.
+  function lsSet(k,v){try{localStorage.setItem(k,v);return true;}catch(e){return false;}}
+  function markFired(id){var f=getFired();if(hasFired(id))return;f.push(id);if(f.length>2000)f=f.slice(-2000);lsSet(FIRE_KEY,JSON.stringify(f));}
   function getCancelled(){try{return JSON.parse(localStorage.getItem(CANCEL_KEY)||'{}')||{};}catch(e){return{};}}
-  function markCancelled(id,repeatId){var c=getCancelled();c[id]=1;if(repeatId)c['_rid_'+repeatId]=1;localStorage.setItem(CANCEL_KEY,JSON.stringify(c));}
+  function markCancelled(id,repeatId){var c=getCancelled();c[id]=1;if(repeatId)c['_rid_'+repeatId]=1;lsSet(CANCEL_KEY,JSON.stringify(c));}
   function isCancelled(id,repeatId){var c=getCancelled();if(c[id])return true;if(repeatId&&c['_rid_'+repeatId])return true;return false;}
   function getReg(){try{return JSON.parse(localStorage.getItem(REG_KEY)||'[]');}catch(e){return[];}}
-  function saveReg(arr){localStorage.setItem(REG_KEY,JSON.stringify(arr));}
+  function saveReg(arr){lsSet(REG_KEY,JSON.stringify(arr));}
   function regUpsert(e){if(isCancelled(e.id,e.repeatId))return;var arr=getReg().filter(function(r){return r.id!==e.id;});arr.push(e);saveReg(arr);}
   function regRemove(id,repeatId){markCancelled(id,repeatId);saveReg(getReg().filter(function(r){if(r.id===id)return false;if(repeatId&&r.repeatId===repeatId)return false;return true;}));}
 
@@ -19048,7 +19051,44 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
     }
   }
 
+  /* Keep the registry to what can still fire. poll() only re-arms a repeating
+   * entry when the tab is open inside its ±35 s window; a MISSED occurrence was
+   * kept as-is forever while each scan added a fresh 'scan_' entry for the next
+   * one. Veda's registry reached 2,850 entries / 635 KB (2026-09-30), 2,707 of
+   * them past-due repeats and 2,736 duplicate occurrences, the second-largest
+   * key filling the shared 5 MB store. This advances a repeat that is more than
+   * 2 min past due to its next occurrence (it still never fires late: that
+   * matches poll's own one-shot grace) and keeps ONE entry per repeating
+   * occurrence, the newest. One-shots are left to poll(). Runs before the permission check,
+   * because pruning must not depend on notifications being allowed. */
+  function compactReg(){
+    var now=Date.now(),reg=getReg(),out=[],seen={},changed=false;
+    for(var i=0;i<reg.length;i++){
+      var e=reg[i];
+      if(!e||!e.notifyAt){changed=true;continue;}
+      var due=new Date(e.notifyAt).getTime();
+      if(isNaN(due)){changed=true;continue;}
+      var rep=e.repeat&&e.repeat!=='none';
+      if(!rep){out.push(e);continue;}
+      if(due<now-120000){
+        var nxt=nextOcc(e,now);
+        if(!nxt){changed=true;continue;}
+        e=Object.assign({},e,{notifyAt:nxt,anchorAt:e.anchorAt||e.notifyAt});
+        changed=true;
+      }
+      // Later entries are newer (regUpsert appends), so a duplicate REPLACES the
+      // one kept: an edited title or day list must win over the stale copy.
+      var k=occKey(e);
+      if(seen.hasOwnProperty(k)){out[seen[k]]=e;changed=true;continue;}
+      seen[k]=out.length;out.push(e);
+    }
+    if(changed)saveReg(out);
+    return out;
+  }
+  window._thCompactNotifReg=compactReg;
+
   function poll(){
+    compactReg();
     if(!('Notification' in window))return;
     if(Notification.permission==='default')askPerm();
     if(Notification.permission!=='granted')return;
@@ -19146,7 +19186,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
       var _c=getCancelled(),_ch=false;
       if(_c[item.id]){delete _c[item.id];_ch=true;}
       if(item.notifyRepeatId&&_c['_rid_'+item.notifyRepeatId]){delete _c['_rid_'+item.notifyRepeatId];_ch=true;}
-      if(_ch)localStorage.setItem(CANCEL_KEY,JSON.stringify(_c));
+      if(_ch)lsSet(CANCEL_KEY,JSON.stringify(_c));
     }catch(e){}
     // Local poll registration (shows banner when tab is open)
     regUpsert({id:item.id,baseId:item.id,title:item.title||'TaskHub Reminder',notifyAt:item.notifyAt,anchorAt:item.notifyAt,repeat:item.notifyRepeat||'none',repeatDays:item.notifyRepeatDays||[],repeatId:item.notifyRepeatId||null,dash:item.dashboard||'all'});
