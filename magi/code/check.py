@@ -160,7 +160,14 @@ def suggest(root: Path) -> list[dict[str, str]]:
             add(f"npm run {name}" if name != "test" else "npm test",
                 f"package.json “{name}”: {s[:80]}")
     py = [n for n in ("pyproject.toml", "pytest.ini", "setup.cfg", "tox.ini") if (root / n).exists()]
-    if py or (root / "tests").is_dir() or (root / "test").is_dir():
+    # A tests folder counts only if it holds Python tests: A1's tests/ is all
+    # JavaScript, and offering pytest there suggested a command that fails.
+    def has_py_tests(d: Path) -> bool:
+        try:
+            return d.is_dir() and (any(d.glob("test_*.py")) or any(d.glob("*_test.py")))
+        except OSError:
+            return False
+    if py or has_py_tests(root / "tests") or has_py_tests(root / "test"):
         venv = next((v for v in (".venv", "venv", "env")
                      if (root / v / ("Scripts" if os.name == "nt" else "bin")).is_dir()), "")
         exe = (f"{venv}\\Scripts\\python.exe" if os.name == "nt" else f"{venv}/bin/python") if venv \

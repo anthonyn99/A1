@@ -90,6 +90,15 @@ def test_suggestions_come_from_the_folder(tmp_path):
     assert C.suggest(tmp_path / "missing") == []
 
 
+def test_a_javascript_tests_folder_is_not_offered_pytest(tmp_path):
+    # A1's tests/ is JavaScript: pytest there is a command that fails.
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "run-all.js").write_text("", encoding="utf-8")
+    assert not any("pytest" in s["command"] for s in C.suggest(tmp_path))
+    (tmp_path / "tests" / "test_x.py").write_text("", encoding="utf-8")
+    assert any("pytest" in s["command"] for s in C.suggest(tmp_path))
+
+
 # ── running it ──────────────────────────────────────────────────────────────
 
 def _run(cmd, cwd, timeout_s=60, stop=None):
