@@ -336,6 +336,77 @@ body {
   .page .qbar { transition: none; }
 }
 
+/* ── the thread (Track F) ─────────────────────────────────────────────────
+   A deliberation is a conversation now: the earlier turns read top-down as
+   compact cards, the current one keeps the full grid and verdict, and the
+   composer DOCKS under all of it (placeComposer moves it there). Sticky, not
+   fixed: it stays inside .page, so the 2000px cap holds and the bar is in the
+   flow -- the thread never slides underneath its last line. An empty session
+   keeps the centred composer above. */
+.thread { max-width: 900px; margin: 0 auto 14px; width: 100%;
+          display: flex; flex-direction: column; gap: 14px; }
+.turn { display: flex; flex-direction: column; gap: 8px; min-width: 0;
+        padding-bottom: 14px; border-bottom: 1px solid var(--bdl); }
+.turn-now { border-bottom: 0; padding-bottom: 0; }
+.turn-q {
+  align-self: flex-end; max-width: min(640px, 88%); min-width: 0;
+  background: color-mix(in srgb, var(--ac) 12%, var(--s2));
+  border: 1px solid color-mix(in srgb, var(--ac) 30%, transparent);
+  border-radius: 14px 14px 4px 14px; padding: 8px 12px;
+  font-size: 13.5px; line-height: 1.5; color: var(--tx);
+  white-space: pre-wrap; overflow-wrap: anywhere; cursor: pointer;
+}
+.turn-q.clamped { display: -webkit-box; -webkit-line-clamp: 4;
+                  -webkit-box-orient: vertical; overflow: hidden; }
+.turn-tag { display: flex; align-items: center; gap: 6px; align-self: flex-end;
+            font-size: 10px; font-weight: 700; letter-spacing: 1px;
+            text-transform: uppercase; color: var(--txm); }
+.turn-tag .run-now-dot { margin: 0; }
+.turn-note {
+  align-self: flex-end; max-width: min(560px, 84%); min-width: 0;
+  border: 1px dashed var(--bdl); border-radius: 12px; padding: 6px 10px;
+  font-size: 12.5px; line-height: 1.45; color: var(--txd);
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.turn-note-tag { display: block; font-size: 10px; font-weight: 700;
+                 letter-spacing: .8px; text-transform: uppercase; color: var(--acd); }
+.turn-note.held { border-color: color-mix(in srgb, var(--amber) 55%, transparent); }
+.turn-note.held .turn-note-tag { color: var(--amber); }
+.turn-note.lost .turn-note-tag { color: var(--red); }
+.turn-note-acts { display: flex; gap: 6px; margin-top: 4px; justify-content: flex-end; }
+.turn-note-acts button { background: transparent; border: 1px solid var(--bdl);
+  color: var(--txd); border-radius: 8px; font: inherit; font-size: 11px;
+  padding: 2px 8px; cursor: pointer; }
+.turn-note-acts button:hover { border-color: var(--ac); color: var(--tx); }
+.turn-note textarea { width: 100%; box-sizing: border-box; min-height: 60px;
+  background: var(--s1); color: var(--tx); border: 1px solid var(--bdl);
+  border-radius: 8px; font: inherit; font-size: 12.5px; padding: 6px; resize: vertical; }
+.turn-verdict { background: var(--s1); border: 1px solid var(--bd);
+                border-radius: 12px; padding: 10px 14px; min-width: 0; }
+.turn-verdict-hd { font-size: 10px; font-weight: 700; letter-spacing: 1px;
+                   text-transform: uppercase; color: var(--txm); margin-bottom: 4px; }
+.turn-verdict .verdict-body { font-size: 13.5px; }
+.turn-gone { font-size: 12.5px; color: var(--txm); font-style: italic; }
+.turn-units { font-size: 12.5px; }
+.turn-units > summary { cursor: pointer; color: var(--txd); font-weight: 600;
+                        list-style: none; user-select: none; }
+.turn-units > summary::-webkit-details-marker { display: none; }
+.turn-units > summary::after { content: " \25B8"; }
+.turn-units[open] > summary::after { content: " \25BE"; }
+.turn-unit { border-left: 2px solid var(--bdl); padding: 4px 0 4px 10px; margin-top: 8px; min-width: 0; }
+.turn-unit-hd { font-weight: 700; color: var(--tx); font-size: 12px; }
+.turn-unit-hd span { font-weight: 400; color: var(--txm); margin-left: 6px; }
+.turn-unit .md { font-size: 13px; overflow-wrap: anywhere; }
+.qbar.docked {
+  position: sticky; bottom: 0; z-index: 6; margin-top: 14px;
+  margin-bottom: max(8px, env(safe-area-inset-bottom));
+  box-shadow: 0 -14px 22px -10px var(--bg), 0 8px 22px -6px var(--shadow);
+}
+@media (max-width: 760px) {
+  .turn-q, .turn-note { max-width: 94%; }
+  .turn-verdict { padding: 8px 10px; }
+}
+
 /* ── composer ─────────────────────────────────────────────────────────── */
 /* Modelled on Claude's own input box: one rounded card holding the text, an
    attachment strip, and a toolbar row -- rather than a bare textarea beside a
@@ -6111,6 +6182,10 @@ window._mailRelay = window._mailRelay || async function (res) {
          the box in front of you is no longer the question on the wire. -->
     <div class="run-now" id="runNow" hidden></div>
 
+    <!-- The session's earlier turns (Track F). The current turn is the grid
+         and the verdict below; see renderThread. -->
+    <div class="thread" id="thread" hidden></div>
+
     <div class="magi" id="magi" hidden>
       <svg class="magi-links" id="magiLinks" aria-hidden="true"></svg>
       <div class="magi-grid" id="magiGrid"></div>
@@ -6589,6 +6664,9 @@ async function probe(base, ms = 2500) {
       }
       link.otherProfile = "";
       link.engine = h.engine || null;
+      // What this engine can do beyond the basics: "followup" and "steer"
+      // (Track F). An engine from before reports none.
+      link.features = Array.isArray(h.features) ? h.features.map(String) : [];
       // The registry learns this engine's id, label and port from the
       // engine itself, the first time it answers. Nothing to configure.
       engSeen(link.token, h, base || null);
@@ -9351,6 +9429,9 @@ const S = {
    *  and the stream writes to them whether or not they are the ones showing.
    */
   live: null,
+  /* The deliberation on screen as a SESSION (Track F): its finished turns and
+   * the notes held for its next one. See newSession. */
+  session: { id: null, turns: [], pending: [] },
   /* The question the verdict on screen answers.
    *
    *  The composer used to be that label. It no longer is: it is typable
@@ -9695,7 +9776,8 @@ function renderVerdict() {
    * with no question attached is a paragraph of answer to something you have
    * to remember.
    */
-  if (S.viewQuestion && (S.fromHistory || S.running)) {
+  // In a thread the question is the bubble above the grid already.
+  if (S.viewQuestion && (S.fromHistory || S.running) && !threadOn()) {
     const q = el("div", "verdict-q");
     // A prompt pasted as a markdown template read as "# Weekly ... **5 most
     // important** ... * Keep it concise" -- its symbols shown raw. Plain text
@@ -10098,7 +10180,8 @@ function syncCouncilIdle() {
   // Another screen's grid does not make this one busy: a brainstorm round
   // left on screen used to un-centre the council's composer even though the
   // council had nothing to show.
-  const ownGrid = S.gridOwner === "council" && (S.panels.length > 0 || !!S.verdict);
+  const ownGrid = S.gridOwner === "council"
+    && (S.panels.length > 0 || !!S.verdict || S.session.turns.length > 0);
   const idle = bsIdle || (
     S.view === "council" &&
     !S.running &&
@@ -10115,6 +10198,7 @@ function syncCouncilIdle() {
   const note = document.getElementById("councilNote");
   const coding = typeof codeMode === "function" && codeMode();
   if (note) note.hidden = !(idle && S.view === "council") || coding;
+  placeComposer();
 }
 
 function updateEnabled() {
@@ -10136,9 +10220,15 @@ function updateEnabled() {
     $("btnSend").textContent = codeBusy() ? "Working…" : CODE.rw === "write" ? "Run edits" : "Run";
     $("btnSend").title = why;
   } else {
-    $("btnSend").disabled = busy || !q || S.selected.size === 0 || !up;
-    $("btnSend").textContent = S.running ? "Deliberating…" : "Convene";
-    $("btnSend").title = "";
+    // Convene / Follow up / Add to run -- see councilSend.
+    const s = councilSendNow();
+    $("btnSend").disabled = !q || !!s.why;
+    $("btnSend").textContent = s.label;
+    $("btnSend").title = s.why;
+    $("composer").placeholder = s.act === "note"
+      ? "Add to this run — the verdict will take it into account…   (Ctrl+Enter)"
+      : s.act === "followup" ? "Follow up…   (Ctrl+Enter)"
+      : "Submit a question to the council…   (Ctrl+Enter)";
   }
   // A browser agent working a Code Mode task holds its profile, and Refine
   // may want the same one; a CLI-only task holds none.
@@ -10260,17 +10350,437 @@ function readPin(key) {
   return p;
 }
 
-/* ══ the run ═══════════════════════════════════════════════════════════════ */
-/** Convene with what is in the composer. */
-async function start() {
+/* ══ follow-ups (Track F) ══════════════════════════════════════════════════
+   A deliberation is a SESSION: the prompt box continues it, and each new
+   prompt carries what was said before. The console holds the thread -- every
+   turn is on screen or in History already -- and sends the earlier turns with
+   each follow-up as `context`; the engine turns them into a trimmed
+   "conversation so far" block (magi/engine/session.py). That is what lets a
+   session made on the phone, or by the other engine, be continued here: the
+   memory is the thread's own turns, not anything an engine kept.
+
+   S.session = { id, turns, pending }
+     id       the FIRST run's id, so a run from before follow-ups is a one-turn
+              session as it stands, and every pin and name keyed by run id
+              keeps meaning the same thing. null until that run has an id.
+     turns    every FINISHED turn: { runId, q, verdict, panels, notes, turn,
+              local, gone, studio }. The one whose runId is S.runId is the grid
+              and verdict; the rest are #thread's compact cards.
+     pending  notes typed during a run that reached the engine after the
+              chairman had started: they go out as the next follow-up.
+
+   While a run is going, the box ADDS TO IT (POST /api/runs/{id}/note): before
+   the chairman starts, the verdict applies the note; after, it is held. */
+const MAX_RUN_NOTES = 10;        // engine: session.MAX_NOTES
+const MAX_NOTE_CHARS = 4000;     // engine: session.MAX_NOTE_CHARS
+// The engine refuses a context over 200,000 characters; this leaves room.
+const CONTEXT_MAX_CHARS = 190000;
+
+function newSession() { return { id: null, turns: [], pending: [] }; }
+
+const engineHas = (f) => Array.isArray(link.features) && link.features.includes(f);
+
+/** A History row's session: its own id for a run from before follow-ups. */
+const sessionKey = (r) => String((r && (r.session_id || r.sid || r.id)) || "");
+
+/** What pressing the send button does now, and why it cannot. Pure -- the
+ *  node test walks the whole matrix.
+ *    act   convene | followup | note
+ *    why   "" when it can, else the reason (the button's title) */
+function councilSend(o) {
+  const act = o.running && o.liveShown ? "note" : o.turns > 0 ? "followup" : "convene";
+  const label = act === "note" ? "Add to run" : act === "followup" ? "Follow up" : "Convene";
+  let why = "";
+  if (!o.up) why = "The engine is offline";
+  else if (o.busy) why = "Busy — wait for it to finish";
+  else if (act === "note") {
+    if (!o.steer) why = "Update the engine to add to a running deliberation";
+    else if (o.halting) why = "Halting";
+    else if (o.notes >= MAX_RUN_NOTES) why = `At most ${MAX_RUN_NOTES} additions per run`;
+  } else if (o.running) why = "Another deliberation is running — queue this one";
+  else if (!o.units) why = "Tick at least one unit";
+  return { act, label, why };
+}
+
+/** The run on screen is the one in flight. */
+function liveOnScreen() {
+  return !!(S.running && S.live && S.panels === S.live.panels && S.view === "council");
+}
+
+function councilSendNow() {
+  return councilSend({
+    running: S.running, liveShown: liveOnScreen(),
+    turns: S.session.turns.length, up: online(),
+    busy: S.refining || !!(S.bs && S.bs.busy),
+    steer: engineHas("steer"), halting: S.halting,
+    notes: S.live && S.live.notes ? S.live.notes.length : 0,
+    units: S.selected.size,
+  });
+}
+
+/** What a turn said, for the next turn's memory: the verdict, or -- when the
+ *  merge failed -- the first unit that answered. Nothing for a lost body. */
+function turnAnswer(t) {
+  if (!t || t.gone) return "";
+  const v = t.verdict;
+  if (v && v.synthesis_ok && v.verdict) return String(v.verdict);
+  const p = (t.panels || []).find((x) => x.ok && x.text);
+  return p ? String(p.text) : "";
+}
+
+/** The `context` field: JSON [{q, answer}], oldest first. The engine strips
+ *  NOTES/CONFIDENCE and trims to each unit's budget itself; this only keeps
+ *  the field under the engine's cap, shortening the OLDEST first, as the
+ *  engine does. Pure. */
+function sessionContext(turns, max = CONTEXT_MAX_CHARS) {
+  const list = (turns || [])
+    .filter((t) => t && String(t.q || "").trim())
+    .slice(-200)
+    .map((t) => ({ q: String(t.q), answer: turnAnswer(t) }));
+  let s = JSON.stringify(list);
+  for (let i = 0; s.length > max && i < list.length - 1; i++) {
+    list[i].answer = list[i].answer.slice(0, 2000);
+    s = JSON.stringify(list);
+  }
+  for (let i = 0; s.length > max && i < list.length - 1; i++) {
+    list[i].answer = "";
+    list[i].q = list[i].q.slice(0, 1500);
+    s = JSON.stringify(list);
+  }
+  while (s.length > max && list.length > 1) { list.shift(); s = JSON.stringify(list); }
+  if (s.length > max && list.length) {
+    const t = list[0];
+    t.answer = t.answer.slice(0, Math.floor(max / 3));
+    t.q = t.q.slice(0, Math.floor(max / 3));
+    s = JSON.stringify(list);
+  }
+  return s;
+}
+
+/** An engine from before follow-ups takes no `context`, so the earlier turns
+ *  travel inside the question -- the same fallback attachments had. */
+function foldedQuestion(q, turns) {
+  const recent = (turns || []).slice(-6);
+  const parts = recent.map((t, i) =>
+    `Q${i + 1}: ${String(t.q || "").slice(0, 1500)}\nA${i + 1}: ${turnAnswer(t).slice(0, 2500)}`);
+  return "CONVERSATION SO FAR (earlier turns of this conversation; the new message follows)\n\n"
+    + parts.join("\n\n") + "\n\nNEW MESSAGE:\n" + q;
+}
+
+/** History rows (engine and cloud, one per run) -> one entry per session.
+ *  Title = the first question, time = the latest turn, counts = the latest
+ *  turn's. Pure. */
+function groupRuns(rows) {
+  const by = new Map();
+  for (const r of rows || []) {
+    const k = sessionKey(r);
+    if (!k) continue;
+    if (!by.has(k)) by.set(k, []);
+    by.get(k).push(r);
+  }
+  const out = [];
+  for (const [k, list] of by) {
+    list.sort((a, b) => ((a.turn || 1) - (b.turn || 1))
+      || String(a.created_at).localeCompare(String(b.created_at)));
+    const first = list[0], last = list[list.length - 1];
+    out.push({
+      id: k, session_id: k, turns: list, n: list.length,
+      question: first.question, created_at: last.created_at,
+      total_ms: last.total_ms, status: last.status,
+      responded_count: last.responded_count, attempted_count: last.attempted_count,
+      cloudOnly: list.every((r) => r.cloudOnly),
+    });
+  }
+  return out;
+}
+
+/** Send what is in the composer: Convene, Follow up, or Add to run. */
+async function start(opts = {}) {
   // One box, two jobs: in Code Mode it hands the words to the agent chain.
   if (typeof codeMode === "function" && codeMode()) return codeRun();
   const q = $("composer").value.trim();
-  if (!q || S.running || S.selected.size === 0 || !online()) return;
+  if (!q) return;
+  const s = councilSendNow();
+  if (s.why) return;
+  if (s.act === "note") return addNote(q);
   const files = S.attachments.map((a) => a.file);
   S.attachments = [];
   renderChips();
-  await runOne({ question: q, units: [...S.selected], files });
+  // The box is the NEXT turn now, so what was sent leaves it. (Convene used
+  // to leave the question sitting there, which would read as a follow-up.)
+  S.preRefine = null;
+  setQuestion("");
+  // A hand-off (TradeHub, the morning launcher) is always a new session.
+  const sess = s.act === "followup" && !opts.fresh ? S.session : newSession();
+  await runOne({ question: q, units: [...S.selected], files, session: sess });
+}
+
+/** A message typed while the run is going. Text only: attachments stay in
+ *  the composer for the next follow-up. */
+async function addNote(text) {
+  const live = S.live;
+  if (!live || !live.runId) return;
+  const t = String(text).trim().slice(0, MAX_NOTE_CHARS);
+  if (!t) return;
+  setQuestion("");
+  setErr("refineError", null);
+  const entry = { text: t, applied: "sending", mine: true };
+  live.notes.push(entry);
+  renderThread();
+  updateEnabled();
+  try {
+    const res = await fetch(`${link.api}/api/runs/${live.runId}/note`, authed({
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: t }),
+    }));
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((d && d.detail) || `HTTP ${res.status}`);
+    noteLanded(live, entry, d.applied);
+  } catch (e) {
+    live.notes = live.notes.filter((x) => x !== entry);
+    if (!$("composer").value.trim()) setQuestion(t);
+    setErr("refineError", `Could not add that to the run: ${e.message || e}`);
+  }
+  renderThread();
+  updateEnabled();
+}
+
+/** A note's bucket is known -- from the POST's answer or its own echo on the
+ *  stream, whichever lands first. A held one joins the session's pending. */
+function noteLanded(live, entry, applied) {
+  if (entry.applied === "sending") entry.applied = applied;
+  if (entry.applied === "followup" && !entry.held) {
+    entry.held = true;
+    live.sess.pending.push({ text: entry.text, mine: !!entry.mine });
+  }
+}
+
+/** What a finished run hands to the next turn. The tab that WATCHED it sends
+ *  its own held notes (as edited, minus any removed) and its own notes the
+ *  verdict could not apply; a tab that attached later gets everything as a
+ *  draft instead -- two tabs must not both send it. */
+function carriedNotes(live, msg, attached) {
+  if (attached) return [...(msg.followup_notes || []), ...(msg.unapplied_notes || [])];
+  const mine = new Set(live.notes.filter((x) => x.mine).map((x) => x.text));
+  return [
+    ...live.sess.pending.filter((p) => p.mine).map((p) => p.text),
+    ...(msg.unapplied_notes || []).filter((t) => mine.has(t)),
+  ];
+}
+
+/** Held notes go out as the next follow-up by themselves -- but only from the
+ *  tab that watched, only while that session is still on screen, and never
+ *  after a Halt or while the queue is running. Otherwise they are a draft. */
+function sendCarried(sess, texts, ids, auto) {
+  const text = texts.join("\n\n");
+  const here = () => S.session === sess && S.view === "council"
+    && !(typeof codeMode === "function" && codeMode());
+  const draft = () => {
+    if (S.session === sess) {
+      const cur = $("composer").value.trim();
+      setQuestion(cur ? `${cur}\n\n${text}` : text);
+    } else {
+      sess.pending = texts.map((t) => ({ text: t, mine: true }));
+    }
+  };
+  if (!auto || !here() || S.queueRunning || !online()) { draft(); return; }
+  setTimeout(() => {
+    if (S.running || !here()) { draft(); return; }
+    runOne({ question: text, units: ids, session: sess });
+  }, 0);
+}
+
+/** Where a turn's notes are shown: the ones the verdict used, and the ones
+ *  that arrived too late (held for the next turn) or were never applied. */
+function noteBubble(n, sess) {
+  const held = n.applied === "followup";
+  const lost = n.applied === "unapplied";
+  const b = el("div", "turn-note" + (held ? " held" : lost ? " lost" : ""));
+  const tag = n.applied === "sending" ? "adding…"
+    : held ? (sess ? "held · sent as the next follow-up" : "arrived after the verdict started")
+    : lost ? "not applied — the verdict did not land"
+    : "added · the verdict uses this";
+  b.append(el("span", "turn-note-tag", tag), document.createTextNode(n.text));
+  return b;
+}
+
+/** A held note, editable until it goes. */
+function pendingBubble(p, sess) {
+  const b = el("div", "turn-note held");
+  b.append(el("span", "turn-note-tag", "held · sent as the next follow-up"));
+  const body = el("div", null, p.text);
+  b.append(body);
+  const acts = el("div", "turn-note-acts");
+  const edit = el("button", null, "Edit");
+  edit.type = "button";
+  const drop = el("button", null, "✕");
+  drop.type = "button";
+  drop.title = "Do not send this";
+  drop.setAttribute("aria-label", "Do not send this");
+  drop.onclick = () => {
+    sess.pending = sess.pending.filter((x) => x !== p);
+    renderThread();
+  };
+  edit.onclick = () => {
+    const ta = el("textarea");
+    ta.value = p.text;
+    ta.maxLength = MAX_NOTE_CHARS;
+    const save = el("button", null, "Save");
+    save.type = "button";
+    save.onclick = () => {
+      const v = ta.value.trim();
+      if (v) p.text = v; else sess.pending = sess.pending.filter((x) => x !== p);
+      renderThread();
+    };
+    body.replaceWith(ta);
+    acts.textContent = "";
+    acts.append(save, drop);
+    ta.focus();
+  };
+  acts.append(edit, drop);
+  b.append(acts);
+  return b;
+}
+
+/** The question, as a bubble: plain text, clamped, a click shows it all. */
+function qBubble(q) {
+  const b = el("div", "turn-q clamped", String(q || ""));
+  b.title = "Click to show all of it";
+  b.onclick = () => b.classList.toggle("clamped");
+  return b;
+}
+
+/** An earlier turn, compact: question, notes, verdict, and its units folded. */
+function turnCard(t) {
+  const c = el("div", "turn");
+  c.dataset.run = t.runId || "";
+  c.append(qBubble(t.q));
+  for (const n of t.notes || []) c.append(noteBubble(n, null));
+  if (t.gone) {
+    c.append(el("div", "turn-gone",
+      "Earlier answer no longer stored — its question still carries into the next turn."));
+    return c;
+  }
+  const v = t.verdict;
+  const box = el("div", "turn-verdict");
+  const solo = v && v.total === 1;
+  box.append(el("div", "turn-verdict-hd", solo ? "Answer" : "Verdict"));
+  if (v && v.synthesis_ok && v.verdict) box.append(verdictBody(v.verdict));
+  else box.append(el("div", "turn-gone",
+    v ? `No verdict — ${cleanSynthError(v.synthesis_error)}` : "No verdict."));
+  c.append(box);
+  const panels = t.panels || [];
+  if (panels.length) {
+    const d = el("details", "turn-units");
+    d.append(el("summary", null,
+      `Units ${panels.filter((p) => p.ok).length}/${panels.length}`));
+    // Built on first open: a long session would otherwise render every
+    // unit's full answer for every turn up front.
+    d.addEventListener("toggle", () => {
+      if (!d.open || d.dataset.built) return;
+      d.dataset.built = "1";
+      for (const p of panels) {
+        const u = el("div", "turn-unit");
+        const hd = el("div", "turn-unit-hd", p.display_name || p.id);
+        if (p.model) hd.append(el("span", null, p.model));
+        u.append(hd);
+        if (p.ok || p.degraded) u.append(mdBody(p.text || ""));
+        else u.append(el("div", "turn-gone", p.error_detail || p.failure || "No answer."));
+        d.append(u);
+      }
+    });
+    c.append(d);
+  }
+  return c;
+}
+
+/** The thread is on screen whenever the council's own deliberation is. */
+function threadOn() {
+  return S.view === "council"
+    && !(typeof codeMode === "function" && codeMode())
+    && !(S.studio && S.studio.active)
+    && S.gridOwner === "council"
+    && (S.session.turns.length > 0 || S.panels.length > 0);
+}
+
+/** Earlier turns above the grid, then the current turn's question, its notes
+ *  and anything held for the next one. Auto-scrolls to the newest turn only
+ *  if you were already near the bottom. */
+function renderThread() {
+  const n = $("thread");
+  if (!n) return;
+  const on = threadOn();
+  show(n, on);
+  if (!on) return;
+  const page = $("page");
+  const nearEnd = page.scrollHeight - page.scrollTop - page.clientHeight < 160;
+  n.textContent = "";
+  const sess = S.session;
+  for (const t of sess.turns) {
+    if (t.runId && t.runId === S.runId) continue;     // on the grid
+    n.append(turnCard(t));
+  }
+  const liveHere = liveOnScreen();
+  const cur = liveHere ? null : sess.turns.find((t) => t.runId && t.runId === S.runId);
+  const q = liveHere ? S.live.question : S.viewQuestion;
+  if (q && (S.panels.length || S.verdict)) {
+    const box = el("div", "turn turn-now");
+    if (liveHere) {
+      const tag = el("span", "turn-tag");
+      tag.append(el("span", "run-now-dot"), document.createTextNode(
+        sess.turns.length ? `turn ${sess.turns.length + 1} · running` : "running"));
+      box.append(tag);
+    }
+    box.append(qBubble(q));
+    const notes = liveHere ? S.live.notes.filter((x) => x.applied !== "followup")
+      : (cur && cur.notes) || [];
+    for (const x of notes) box.append(noteBubble(x, null));
+    for (const p of sess.pending) box.append(pendingBubble(p, sess));
+    n.append(box);
+  }
+  if (nearEnd) requestAnimationFrame(() => { page.scrollTop = page.scrollHeight; });
+}
+
+/** Composer at the top while a session is empty; docked at the bottom, under
+ *  the thread, once it has turns. Moved rather than restyled, because sticky
+ *  needs it AFTER the content. Only touched when it has to move: moving the
+ *  focused box would drop the caret. */
+function placeComposer() {
+  const bar = $("qbar");
+  if (!bar) return;
+  const dock = threadOn();
+  bar.classList.toggle("docked", dock);
+  $("shell").classList.toggle("council-thread", dock);
+  const after = dock ? $("verdict") : $("councilHd");
+  if (!after || bar.previousElementSibling === after) return;
+  const had = document.activeElement === $("composer");
+  after.after(bar);
+  // The chips travel with it on the council; Brainstorm parks them itself.
+  const ub = $("unitBar");
+  if (ub && S.view === "council" && ub.parentElement === $("page")) bar.after(ub);
+  if (had) $("composer").focus({ preventScroll: true });
+}
+
+/** The earlier turns of a session this tab attached to mid-run (a reload, the
+ *  queue's watch): read from the engine's list and the cloud index. */
+async function sessionBackfill(sess, exceptId) {
+  let rows = [];
+  try {
+    const r = await fetch(`${link.api}/api/runs?limit=200`, authed());
+    if (r.ok) rows = await r.json();
+  } catch {}
+  const all = [...(Array.isArray(rows) ? rows : []),
+               ...CLOUD.index.map((r) => ({ ...r, cloudOnly: true }))];
+  const seen = new Set();
+  const mine = [];
+  for (const r of all) {
+    if (sessionKey(r) !== sess.id || r.id === exceptId || seen.has(r.id)) continue;
+    seen.add(r.id);
+    mine.push(r);
+  }
+  mine.sort((a, b) => (a.turn || 1) - (b.turn || 1));
+  const turns = await Promise.all(mine.map(loadTurn));
+  sess.turns = [...turns, ...sess.turns.filter((t) => !turns.some((u) => u.runId === t.runId))];
 }
 
 /* One deliberation, start to finish.
@@ -10293,9 +10803,9 @@ async function start() {
  *  the deliberation carries on in the engine either way, and without this the
  *  console simply stopped showing it.
  */
-function watchRun(runId, question) {
+function watchRun(runId, question, session = null) {
   if (!runId || !online()) return Promise.resolve(null);
-  return runOne({ question, units: [], files: [], attachTo: runId });
+  return runOne({ question, units: [], files: [], attachTo: runId, session });
 }
 
 /* A unit's outcome as soon as its own state says so, not when the whole
@@ -10323,7 +10833,7 @@ function settleFromState(p, message) {
   }
 }
 
-function runOne({ question, units, files = [], attachTo = null }) {
+function runOne({ question, units, files = [], attachTo = null, session = null }) {
   const ids = (units && units.length ? units : [...S.selected]).filter(
     (id) => S.providers.some((p) => p.id === id));
   // Attaching brings its own units with it, in the stream's first frame.
@@ -10331,6 +10841,13 @@ function runOne({ question, units, files = [], attachTo = null }) {
     return Promise.resolve(null);
   }
 
+  // The session this run is a turn of. Anything that does not name one -- a
+  // queue item, an attach from a reload -- is a new session (an attach learns
+  // its real one from the stream's first frame).
+  const sess = session || newSession();
+  const follow = !attachTo && sess.turns.length > 0;
+  S.session = sess;
+  S.runId = null;
   S.verdict = null;
   S.running = true;
   S.fromHistory = false;
@@ -10353,11 +10870,14 @@ function runOne({ question, units, files = [], attachTo = null }) {
   // rather than through S.panels, which the user may replace at any moment by
   // opening something from History or from the queue.
   const livePanels = S.panels;
-  S.live = { panels: livePanels, runId: null, verdict: null, question };
+  S.live = { panels: livePanels, runId: null, verdict: null, question,
+             sess, turn: sess.turns.length + 1, notes: [] };
+  const live = S.live;
   const showingLive = () => S.panels === livePanels;
   const liveById = (id) => livePanels.find((p) => p.id === id);
   renderGrid();
   renderVerdict();
+  renderThread();
   renderRunNow();
   updateEnabled();
   startProcessingTone();
@@ -10370,14 +10890,30 @@ function runOne({ question, units, files = [], attachTo = null }) {
   let runId = attachTo;
   if (!runId) {
     const form = new FormData();
-    form.append("question", question);
+    // A follow-up names its session and carries the turns before it. An
+    // engine from before follow-ups gets them folded into the question.
+    const withContext = follow && engineHas("followup");
+    form.append("question", follow && !withContext ? foldedQuestion(question, sess.turns) : question);
     form.append("providers", ids.join(","));
+    if (withContext) {
+      if (sess.id) form.append("session", sess.id);
+      form.append("turn", String(sess.turns.length + 1));
+      form.append("context", sessionContext(sess.turns));
+    }
     for (const f of files) form.append("files", f, f.name);
     try {
       const res = await fetch(`${link.api}/api/runs`,
                               authed({ method: "POST", body: form }));
       const d = await res.json();
+      if (!res.ok || !d.run_id) {
+        endRun();
+        setErr("refineError", `The engine refused the run: ${(d && d.detail) || res.status}`);
+        finish({ ok: false, error: "refused" });
+        return;
+      }
       runId = d.run_id;
+      if (!sess.id) sess.id = d.session_id || runId;
+      if (d.turn) live.turn = d.turn;
     } catch {
       endRun();
       setErr("refineError", "Could not reach the engine to start the run.");
@@ -10403,6 +10939,22 @@ function runOne({ question, units, files = [], attachTo = null }) {
     const msg = JSON.parse(ev.data);
     if (msg.type === "init") {
       dropSince = 0;
+      // Which session this is, for a tab that attached rather than started
+      // it -- and the turns before it, which that tab has never seen.
+      if (msg.session_id && !sess.id) sess.id = msg.session_id;
+      if (msg.turn) live.turn = msg.turn;
+      if (attachTo && msg.turn > 1 && !sess.turns.length && !sess.filling) {
+        sess.filling = true;
+        sessionBackfill(sess, runId).then(() => { if (S.session === sess) renderThread(); });
+      }
+      if (attachTo && Array.isArray(msg.notes) && !live.notes.length) {
+        for (const x of msg.notes) {
+          const entry = { text: x.text, applied: x.applied };
+          live.notes.push(entry);
+          noteLanded(live, entry, x.applied);
+        }
+        if (S.session === sess) renderThread();
+      }
       if (!msg.providers) return;
       // A run started here already has its panels, and rebuilding them would
       // throw away text already on screen. But the same frame arrives when
@@ -10445,6 +10997,17 @@ function runOne({ question, units, files = [], attachTo = null }) {
       // either way, so coming back to it shows everything that happened
       // while you were reading something else.
       if (showingLive()) { updateNode(p); updateCore(); drawLinks(); }
+    } else if (msg.type === "note") {
+      // Every viewer hears every note. Ours is already on screen; this is its
+      // echo, and may be the first word of which bucket it went to.
+      const mine = live.notes.find((x) => x.mine && !x.echoed && x.text === msg.text);
+      if (mine) { mine.echoed = true; noteLanded(live, mine, msg.applied); }
+      else {
+        const entry = { text: msg.text, applied: msg.applied, echoed: true };
+        live.notes.push(entry);
+        noteLanded(live, entry, msg.applied);
+      }
+      if (S.session === sess) { renderThread(); updateEnabled(); }
     } else if (msg.type === "done") {
       loadUnitsUsage();   // what this run saw: limits, models (U3)
       for (const a of msg.answers) {
@@ -10464,10 +11027,25 @@ function runOne({ question, units, files = [], attachTo = null }) {
         });
         if (showingLive()) updateNode(p);
       }
-      S.live.verdict = msg;
+      live.verdict = msg;
       if (showingLive()) S.verdict = msg;
+      // The turn joins its session's thread.
+      if (msg.session_id && !sess.id) sess.id = msg.session_id;
+      const noteList = [
+        ...(msg.notes || []).map((text) => ({ text, applied: "verdict" })),
+        ...(msg.followup_notes || []).map((text) => ({ text, applied: "followup" })),
+        ...(msg.unapplied_notes || []).map((text) => ({ text, applied: "unapplied" })),
+      ];
+      sess.turns = sess.turns.filter((t) => t.runId !== runId);
+      sess.turns.push({
+        runId, q: question || "", verdict: msg, panels: livePanels,
+        notes: noteList, turn: msg.turn || live.turn, local: true,
+      });
+      const carry = carriedNotes(live, msg, !!attachTo);
+      sess.pending = [];
       endRun();
       renderVerdict();
+      renderThread();
       loadHistory();
       // A verdict is what Studio derives from, so its rows unlock here.
       renderStudioNav();
@@ -10475,6 +11053,8 @@ function runOne({ question, units, files = [], attachTo = null }) {
       cloudPushRun(runId);
       // Slightly after the processing loop stops, so the two don't overlap.
       if (!S.muted) setTimeout(msg.synthesis_ok ? beepResolved : beepBlocked, 180);
+      if (carry.length) sendCarried(sess, carry, livePanels.map((p) => p.id),
+                                    !attachTo && msg.status !== "cancelled");
       finish({
         ok: !!msg.synthesis_ok, runId, responded: msg.responded,
         total: msg.total, answers: msg.answers || [],
@@ -10520,12 +11100,14 @@ function renderRunNow() {
   const n = $("runNow");
   if (!n) return;
   const live = S.live;
-  const on = !!(S.running && live && live.question);
+  const showing = !!(live && S.panels === live.panels);
+  // While the run is the one on screen, the thread's own bubble names it;
+  // this banner is for reading something else meanwhile.
+  const on = !!(S.running && live && live.question) && !(showing && threadOn());
   show(n, on);
   if (!on) return;
 
   n.textContent = "";
-  const showing = S.panels === live.panels;
   n.classList.toggle("elsewhere", !showing);
 
   const tag = el("span", "run-now-tag");
@@ -10699,7 +11281,8 @@ function applyHandoff(h) {
     setErr("refineError", "Engine offline — the prompt is in the box. Press Convene once it is reachable.");
     return;
   }
-  start();
+  // Never a follow-up to whatever happens to be on screen.
+  start({ fresh: true });
 }
 
 // The tab is already open and TradeHub sent another one. A hash-only change
@@ -10837,6 +11420,7 @@ function cancelRun() {
 function newRun() {
   if (S.running) return;
   S.fromHistory = false;
+  S.session = newSession();
   setQuestion("");
   S.attachments = [];
   S.preRefine = null;
@@ -10898,7 +11482,8 @@ function syncModeNav() {
 async function loadHistory() {
   if (!online()) return;
   try {
-    const r = await fetch(`${link.api}/api/runs?limit=30`, authed());
+    // Runs, not sessions: a few follow-ups deep, 30 would cut sessions short.
+    const r = await fetch(`${link.api}/api/runs?limit=60`, authed());
     S.history = await r.json();
   } catch { return; }
   if (typeof mergeHistory === "function") { mergeHistory(); return; }
@@ -10925,6 +11510,7 @@ function renderHistory() {
     // Seconds are noise in a history list: never what you are looking for, and
     // they push the part you are looking for off a phone screen.
     const meta = el("span", "meta",
+      (r.n > 1 ? `${r.n} turns · ` : "") +
       `${r.responded_count}/${r.attempted_count} · ` +
       `${r.total_ms ? (r.total_ms / 1000).toFixed(0) + "s" : "—"} · ` +
       new Date(r.created_at).toLocaleString([], {
@@ -10969,7 +11555,8 @@ function renderHistory() {
 
     row.append(acts);
 
-    row.onclick = () => (r.cloudOnly ? cloudOpenRun(r.id) : openRun(r.id));
+    // The whole session, ready to continue -- see openSession.
+    row.onclick = () => openSession(r);
     box.append(row);
   }
   const note = el("div", "history-note");
@@ -10978,50 +11565,152 @@ function renderHistory() {
   box.append(note);
 }
 
-async function openRun(id) {
-  const r = await fetch(`${link.api}/api/runs/${id}`, authed());
-  const data = await r.json();
-  setMode("deliberation", { render: false });
-  S.runId = id;
-  S.gridOwner = "council";
-  S.runLocal = true;          // read from the engine, so the engine has it
-  S.viewQuestion = data.run.question || "";
-  setQuestion(data.run.question);
-  S.opened = new Set();
-  S.panels = data.answers.map((a) => ({
-    id: a.provider_id,
-    display_name: a.display_name,
-    accent: S.providers.find((p) => p.id === a.provider_id)?.accent || "var(--ac)",
-    state: a.ok ? "done" : a.degraded ? "degraded" : "failed",
-    text: a.answer_text || "", chars: a.char_count || 0, ok: !!a.ok,
-    failure: a.failure_kind, error_detail: a.error_detail,
-    degraded: !!a.degraded, degraded_reason: a.degraded_reason || "",
-    low_confidence: !!a.low_confidence, latency_ms: a.latency_ms,
-    completion_reason: a.completion_reason,
-    model: a.model || "", model_fallback: a.model_fallback || "",
-  }));
-  S.verdict = data.synthesis ? {
-    verdict: data.synthesis.verdict_text || "",
-    synthesis_ok: !!data.synthesis.ok,
-    synthesis_error: data.synthesis.error_detail,
-    chairman: data.synthesis.chairman_provider,
-    responded: data.synthesis.members_responded,
-    total: data.synthesis.members_total,
-    total_ms: data.run.total_ms || 0,
-    // Rebuilt from the stored answers rather than persisted twice, so an
-    // archived run explains its exclusions the same way a live one does.
-    degraded: data.answers.filter((a) => a.degraded).map((a) => ({
-      provider_id: a.provider_id, display_name: a.display_name,
-      reason: a.degraded_reason || "", chars: a.char_count || 0,
+/** A stored run (the engine's record, or its cloud body -- the same shape)
+ *  as one turn of a session. */
+function turnFromRecord(data, id, local) {
+  const run = data.run || {};
+  const answers = data.answers || [];
+  const syn = data.synthesis;
+  const notes = run.notes && typeof run.notes === "object" ? run.notes : {};
+  return {
+    runId: id, q: run.question || "", turn: run.turn || 1, local,
+    status: run.status || "", created_at: run.created_at || "",
+    panels: answers.map((a) => ({
+      id: a.provider_id,
+      display_name: a.display_name,
+      accent: (S.providers.find((p) => p.id === a.provider_id) || {}).accent || "var(--ac)",
+      state: a.ok ? "done" : a.degraded ? "degraded" : "failed",
+      text: a.answer_text || "", chars: a.char_count || 0, ok: !!a.ok,
+      failure: a.failure_kind, error_detail: a.error_detail,
+      degraded: !!a.degraded, degraded_reason: a.degraded_reason || "",
+      low_confidence: !!a.low_confidence, latency_ms: a.latency_ms,
+      completion_reason: a.completion_reason,
+      model: a.model || "", model_fallback: a.model_fallback || "",
     })),
-  } : null;
+    verdict: syn ? {
+      verdict: syn.verdict_text || "",
+      synthesis_ok: !!syn.ok,
+      synthesis_error: syn.error_detail,
+      chairman: syn.chairman_provider,
+      responded: syn.members_responded,
+      total: syn.members_total,
+      total_ms: run.total_ms || 0,
+      // Rebuilt from the stored answers rather than persisted twice, so an
+      // archived run explains its exclusions the same way a live one does.
+      degraded: answers.filter((a) => a.degraded).map((a) => ({
+        provider_id: a.provider_id, display_name: a.display_name,
+        reason: a.degraded_reason || "", chars: a.char_count || 0,
+      })),
+    } : null,
+    notes: [
+      ...(notes.applied || []).map((text) => ({ text, applied: "verdict" })),
+      ...(notes.followup || []).map((text) => ({ text, applied: "followup" })),
+      ...(notes.unapplied || []).map((text) => ({ text, applied: "unapplied" })),
+    ],
+    // Studio cards travelled with a cloud body; a local run asks the engine.
+    studio: local ? null : (data.studio || []),
+  };
+}
+
+/** One turn, from wherever it still is: this engine first, then the cloud.
+ *  Gone from both (expired or deleted on another device) -> its question
+ *  alone, which is still enough to continue the session. */
+async function loadTurn(r) {
+  const id = r.id;
+  if (!r.cloudOnly && online()) {
+    try {
+      const res = await fetch(`${link.api}/api/runs/${id}`, authed());
+      if (res.ok) return turnFromRecord(await res.json(), id, true);
+    } catch {}
+  }
+  try {
+    if (await cloudInit()) {
+      const snap = await CLOUD.fs.getDoc(_runDoc(id));
+      if (snap.exists()) return turnFromRecord(snap.data(), id, false);
+    }
+  } catch (e) { console.warn("[magi] loadTurn:", id, e); }
+  return { runId: id, q: r.question || "", turn: r.turn || 1, gone: true,
+           panels: [], verdict: null, notes: [], local: false };
+}
+
+/** The History entry holding this run, or the run alone. */
+function historyGroupOf(id) {
+  const g = (S.historyMerged || []).find((x) => (x.turns || []).some((t) => t.id === id));
+  return g || { id, session_id: id, turns: [{ id, question: "" }] };
+}
+
+/* Open a History entry: the WHOLE session, every turn, ready to continue.
+ *
+ *  The composer is left EMPTY and labelled Follow up -- what is typed next is
+ *  the session's next turn, carrying its memory. That holds for a run from
+ *  before follow-ups (a one-turn session), for one made on another device or
+ *  by another engine (its turns come from the cloud), and for a turn whose
+ *  body is gone (it goes as its question alone). One still running in this
+ *  engine opens attached, and the box adds to it. */
+async function openSession(g) {
+  const rows = (g && g.turns && g.turns.length) ? g.turns : [g];
+  const sid = sessionKey(g);
+  // The run this tab is watching belongs to it: that IS where it is.
+  if (S.running && S.live && ((S.live.sess && S.live.sess.id === sid)
+      || rows.some((r) => r.id === S.live.runId))) {
+    backToLive();
+    return true;
+  }
+  const turns = await Promise.all(rows.map(loadTurn));
+  const sess = { id: sid, turns, pending: [] };
+  const last = turns[turns.length - 1];
+  // Still going in this engine (another tab, the other device): attach.
+  if (last && last.local && last.status === "running" && !S.running) {
+    sess.turns = turns.slice(0, -1);
+    setMode("deliberation", { render: false });
+    setQuestion("");
+    watchRun(last.runId, last.q, sess);
+    return true;
+  }
+  showSession(sess);
+  return true;
+}
+
+/** Put an opened session on screen: its last turn on the grid, the rest in
+ *  the thread, and an empty composer. */
+function showSession(sess) {
+  setMode("deliberation", { render: false });
+  const last = sess.turns[sess.turns.length - 1];
+  const has = !!(last && !last.gone);
+  S.session = sess;
+  S.runId = has ? last.runId : null;
+  S.gridOwner = "council";
+  S.runLocal = !!(has && last.local);
+  S.viewQuestion = has ? last.q : "";
+  S.opened = new Set();
+  S.panels = has ? last.panels : [];
+  S.verdict = has ? last.verdict : null;
+  S.preRefine = null;
+  setQuestion("");
   resetStudio();
+  // Studio cards travelled with the body, so a card generated on the PC
+  // opens on the phone without regenerating it -- each one costs a real
+  // browser run, so re-earning them would be the expensive mistake here.
+  for (const c of (has && last.studio) || []) {
+    if (c.kind in S.studio.artifacts) {
+      S.studio.artifacts[c.kind] = {
+        status: c.status, provider_id: c.provider_id,
+        raw_text: c.raw_text, parsed_json: c.parsed_json,
+        error_detail: c.error_detail,
+      };
+    }
+  }
   S.fromHistory = true;
   setView("council");
   renderGrid();
   renderVerdict();
-  loadStudio();
+  renderThread();
+  updateEnabled();
+  if (S.runLocal) loadStudio(); else renderStudioNav();
 }
+
+/** A run by id (the queue's "open what it produced"): its whole session. */
+function openRun(id) { return openSession(historyGroupOf(id)); }
 
 /* ══ doctor ════════════════════════════════════════════════════════════════ */
 async function runDoctor() {
@@ -16092,6 +16781,7 @@ function setView(v) {
   // The usage timer belongs to the screen that shows usage.
   codeUsagePoll(codeOpen);
   if (!codeOpen) renderVerdict(); else show($("verdict"), false);
+  renderThread();
   renderQueue();
   renderRunNow();
   syncCouncilIdle();
@@ -23883,11 +24573,15 @@ function backToLive() {
   S.fromHistory = false;
   S.gridOwner = "council";
   S.runLocal = true;
-  setQuestion(live.question || "");
+  // Its whole session comes back with it. The composer is left alone: it is
+  // the box that adds to this run now, not the label of what it is asking.
+  if (live.sess) S.session = live.sess;
   setView("council");
   renderGrid();
   renderVerdict();
+  renderThread();
   renderRunNow();
+  updateEnabled();
   if (S.panels.length) requestAnimationFrame(drawLinks);
 }
 /* ── retention ──────────────────────────────────────────────────────────────
@@ -23952,15 +24646,32 @@ function clockStart(id, createdAt) {
   return new Date(createdAt).getTime();
 }
 
-const isPinned = (r) => PINS.has(r.id);
+/* Marks belong to the SESSION (Track F), keyed by its id -- the first run's
+ * id, so every mark made before follow-ups still names the same thing. A
+ * row for turn 3 is pinned when its session is. */
+const isPinned = (r) => PINS.has(sessionKey(r));
 const runAgeDays = (r) =>
   (Date.now() - new Date(r.created_at).getTime()) / 86400000;
+
+/** When a session's LATEST turn was made. A whole session is kept or let go
+ *  together: expiring turn 1 of a conversation still going would cut its
+ *  memory out from under it. */
+function sessionLatestAt(r) {
+  const k = sessionKey(r);
+  let best = String(r.created_at || "");
+  const rows = [...(S.history || []), ...(CLOUD.index || [])];
+  for (const x of rows) {
+    if (sessionKey(x) === k && String(x.created_at || "") > best) best = String(x.created_at);
+  }
+  return best;
+}
+
 /** Unpinned and past the window. An unparseable date is NEVER expired: a row
  *  whose timestamp cannot be read is a bug, and deleting it would turn that
  *  bug into data loss. */
 function expired(r) {
   if (isPinned(r)) return false;
-  const age = (Date.now() - clockStart(r.id, r.created_at)) / 86400000;
+  const age = (Date.now() - clockStart(sessionKey(r), sessionLatestAt(r))) / 86400000;
   return Number.isFinite(age) && age > HISTORY_DAYS;
 }
 
@@ -23994,7 +24705,7 @@ function saveNicks() {
  *  fields are now read exactly once, to carry old marks into the maps (see
  *  the legacy fold in cloudWatch), and never consulted again.
  */
-const nickOf = (r) => (NICKS[r.id] || "").trim();
+const nickOf = (r) => (NICKS[sessionKey(r)] || "").trim();
 const titleOf = (r) => nickOf(r) || r.question;
 
 /** A name, like a pin, lives in one map. See togglePin. */
@@ -24095,13 +24806,19 @@ function openNickSheet(r) {
    leave is an engine copy with no cloud row -- which is the state every
    never-synced run is already in, and is harmless. */
 async function deleteRun(r) {
+  // A History entry is a session: every one of its turns goes.
+  const rows = (r.turns && r.turns.length) ? r.turns : [r];
+  const ids = new Set(rows.map((x) => x.id));
+  const key = sessionKey(r);
   const name = String(titleOf(r) || "");
   const shown = name.length > 90 ? name.slice(0, 90) + "…" : name;
   const ok = await uiConfirmMagi(
     "Delete this deliberation?",
     "“" + shown + "”\n\n" +
-    "Every member's answer and the verdict go with it, on this device and on " +
-    "your others. This cannot be undone.",
+    (rows.length > 1
+      ? `All ${rows.length} turns — every member's answer and every verdict — go with it`
+      : "Every member's answer and the verdict go with it") +
+    ", on this device and on your others. This cannot be undone.",
     "Delete");
   if (!ok) return;
 
@@ -24109,19 +24826,21 @@ async function deleteRun(r) {
   let failed = null;
   if (await cloudInit()) {
     try {
-      await CLOUD.fs.deleteDoc(_runDoc(r.id));
-      CLOUD.index = CLOUD.index.filter((x) => x.id !== r.id);
+      for (const id of ids) await CLOUD.fs.deleteDoc(_runDoc(id));
+      CLOUD.index = CLOUD.index.filter((x) => !ids.has(x.id));
       await CLOUD.fs.setDoc(_indexDoc(), {
         runs: CLOUD.index, updated: CLOUD.fs.serverTimestamp(),
       }, { merge: true });
     } catch (e) { failed = _syncFail("deleting a deliberation from the cloud", e); }
   }
 
-  if (!r.cloudOnly && online()) {
+  for (const x of rows) {
+    if (x.cloudOnly || !online()) continue;
     try {
-      const res = await fetch(`${link.api}/api/runs/${r.id}`,
+      const res = await fetch(`${link.api}/api/runs/${x.id}`,
                               authed({ method: "DELETE" }));
-      if (!res.ok) {
+      // 404: this engine never had that turn (another engine made it).
+      if (!res.ok && res.status !== 404) {
         const d = await res.json().catch(() => null);
         failed = _syncFail("deleting a deliberation from the engine",
                            new Error((d && d.detail) || ("HTTP " + res.status)));
@@ -24129,19 +24848,21 @@ async function deleteRun(r) {
     } catch (e) { failed = _syncFail("deleting a deliberation from the engine", e); }
   }
 
-  delete NICKS[r.id];
-  delete UNPINNED_AT[r.id];
-  PINS.delete(r.id);
+  delete NICKS[key];
+  delete UNPINNED_AT[key];
+  PINS.delete(key);
   saveNicks();
   savePins();
   cloudSaveMarks();
-  S.history = S.history.filter((x) => x.id !== r.id);
+  S.history = S.history.filter((x) => !ids.has(x.id));
   // The run that was open has just been deleted -- leaving it on screen
   // invites a Studio card generated from something that no longer exists.
   // But newRun() also switches to the council, and being thrown onto a blank
   // composer after tidying up History is not what tidying up means: you were
   // in a list, you are still in a list.
-  if (S.runId === r.id) { newRun(); setView("history"); }
+  if (ids.has(S.runId) || (S.session.id && S.session.id === key && !S.running)) {
+    newRun(); setView("history");
+  }
   mergeHistory();
   if (failed) setSync("error", failed); else setSync("saved");
 }
@@ -24229,7 +24950,9 @@ function mergeHistory() {
   const extra = CLOUD.index
     .filter((r) => !seen.has(r.id))
     .map((r) => ({ ...r, cloudOnly: true }));
-  S.historyMerged = [...S.history, ...extra]
+  // One entry per SESSION (Track F): its turns folded under the first
+  // question, dated by the latest.
+  S.historyMerged = groupRuns([...S.history, ...extra])
     .filter((r) => !expired(r))
     // Pinned first: they are the ones kept on purpose, and burying them under
     // this week's questions would defeat pinning them.
@@ -24473,6 +25196,9 @@ async function cloudPushRun(runId, quiet) {
       total_ms: run.total_ms || 0,
       responded_count: data.answers ? data.answers.filter((a) => a.ok).length : 0,
       attempted_count: (data.answers || []).length,
+      // The session it is a turn of, so History groups it on every device.
+      sid: run.session_id || runId,
+      turn: run.turn || 1,
     };
     await cloudUpsertIndex(row);
     if (!quiet) setSync("saved");
@@ -24662,63 +25388,9 @@ async function cloudPrune() {
   return { pruned: gone };
 }
 
-/** Open a run that exists only in the cloud -- one read, on demand. */
-async function cloudOpenRun(id) {
-  if (!(await cloudInit())) return false;
-  try {
-    const snap = await CLOUD.fs.getDoc(_runDoc(id));
-    if (!snap.exists()) return false;
-    const data = snap.data();
-    setMode("deliberation", { render: false });
-    S.runId = id;
-    S.gridOwner = "council";
-    S.runLocal = false;       // read from the cloud; this engine never ran it
-    S.viewQuestion = (data.run && data.run.question) || "";
-    setQuestion((data.run && data.run.question) || "");
-    S.opened = new Set();
-    S.panels = (data.answers || []).map((a) => ({
-      id: a.provider_id, display_name: a.display_name,
-      accent: (S.providers.find((p) => p.id === a.provider_id) || {}).accent || "var(--ac)",
-      state: a.ok ? "done" : a.degraded ? "degraded" : "failed",
-      text: a.answer_text || "", chars: a.char_count || 0, ok: !!a.ok,
-      failure: a.failure_kind, error_detail: a.error_detail,
-      degraded: !!a.degraded, degraded_reason: a.degraded_reason || "",
-      low_confidence: !!a.low_confidence, latency_ms: a.latency_ms,
-      completion_reason: a.completion_reason,
-      model: a.model || "", model_fallback: a.model_fallback || "",
-    }));
-    const syn = data.synthesis;
-    S.verdict = syn ? {
-      verdict: syn.verdict_text || "", synthesis_ok: !!syn.ok,
-      synthesis_error: syn.error_detail, chairman: syn.chairman_provider,
-      responded: syn.members_responded, total: syn.members_total,
-      total_ms: (data.run && data.run.total_ms) || 0,
-      degraded: (data.answers || []).filter((a) => a.degraded).map((a) => ({
-        provider_id: a.provider_id, display_name: a.display_name,
-        reason: a.degraded_reason || "", chars: a.char_count || 0 })),
-    } : null;
-    // Studio cards travelled with the body, so a card generated on the PC
-    // opens on the phone without regenerating it -- each one costs a real
-    // browser run, so re-earning them would be the expensive mistake here.
-    resetStudio();
-    for (const c of data.studio || []) {
-      if (c.kind in S.studio.artifacts) {
-        S.studio.artifacts[c.kind] = {
-          status: c.status, provider_id: c.provider_id,
-          raw_text: c.raw_text, parsed_json: c.parsed_json,
-          error_detail: c.error_detail,
-        };
-      }
-    }
-    S.fromHistory = true;
-    setView("council");
-    renderGrid(); renderVerdict(); renderStudioNav();
-    return true;
-  } catch (e) {
-    console.warn("[magi] cloudOpenRun:", e);
-    return false;
-  }
-}
+/** A run only the cloud has (made on another device): its whole session,
+ *  the same as any History entry -- loadTurn reads each body on demand. */
+function cloudOpenRun(id) { return openSession(historyGroupOf(id)); }
 
 /* ══ APP LOCK ══════════════════════════════════════════════════════════════
    Identical backend to every other A1 program's lock: the PBKDF2 record lives

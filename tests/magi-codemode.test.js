@@ -74,10 +74,12 @@ ok('it needs a workspace', /!codeProject\(\) \? "Choose a workspace first"/.test
 ok('it needs at least one agent', /!codeChain\(\)\.length \? "Tick at least one agent"/.test(ue));
 ok('one task at a time', /codeBusy\(\) \? "A task is already running"/.test(ue));
 ok('and says why when it is held', /\$\("btnSend"\)\.title = why/.test(ue));
-ok('Convene is unchanged in Deliberation',
-   /\$\("btnSend"\)\.disabled = busy \|\| !q \|\| S\.selected\.size === 0 \|\| !up/.test(ue));
+// Deliberation's label and hold come from councilSend (Track F: Convene /
+// Follow up / Add to run); magi-thread.test.js walks that matrix.
+ok('Deliberation asks councilSend',
+   /const s = councilSendNow\(\);\s*\$\("btnSend"\)\.disabled = !q \|\| !!s\.why;/.test(ue));
 ok('the one box routes to the chain in Code Mode',
-   /if \(typeof codeMode === "function" && codeMode\(\)\) return codeRun\(\);/.test(lift('async function start()', 300)));
+   /if \(typeof codeMode === "function" && codeMode\(\)\) return codeRun\(\);/.test(lift('async function start(', 300)));
 
 console.log('\nThe agent chain');
 const cm = lift('function codeMembers()', 1900);
