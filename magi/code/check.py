@@ -213,7 +213,7 @@ def unlink_deps(links: list[Path]) -> None:
     """Remove ONLY the links -- never what they point at. os.rmdir on a
     junction (and os.unlink on a symlink) removes the link itself; neither
     recurses, which is the whole reason for not using rmtree here."""
-    for p in []:
+    for p in links:
         try:
             if os.name == "nt":
                 os.rmdir(p)
