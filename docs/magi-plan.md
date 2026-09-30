@@ -9,25 +9,46 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-09-30, **F2 done** (Deliberation follow-ups, console).
+**Last updated:** 2026-09-30, **F3 done** (Code Mode follow-ups, engine).
 **Phases complete:** 1–14 (14a hardening, 14b A1 writable), plus **11B**,
 ALL of Track S (**S1**, **S2**, **S3**, **U1**, **U2**, **U3**, **U4**), and
-Track F's **F1** and **F2** -- Deliberation follow-ups are live for Tony.
-**Next phase:** **F3 — Code Mode follow-ups, engine** (`magi/code/`).
-Track F ("Follow-ups", §8 "Track F") makes Deliberation and Code Mode
-multi-turn sessions. Deliberation is finished (F1 engine + F2 console, see
-"What exists"). Read the whole Track F section before starting; Tony's
-decisions are at its top and are not to be re-asked.
+Track F's **F1**, **F2** and **F3**. Deliberation follow-ups are live for
+Tony. Code Mode's are in the engine only, and nothing on screen uses them
+until F4.
+**Next phase:** **F4 — Code Mode follow-ups, console** (`magi.html`, CODE
+MODE block). Read the whole Track F section in §8 first; Tony's decisions
+are at its top and are not to be re-asked. F2 is the model to copy: its
+block "follow-ups (Track F)" in magi.html (`councilSend`, `renderThread`,
+`placeComposer`, `groupRuns`, `openSession`) is the same UI for the
+council.
 
-**F3's first concrete step is the CLI spike** (§8 F3 step 0), in a read-only
-probe folder under `%TEMP%\magi-sandbox`, results into "Hard-won facts"
-BEFORE building: (a) `claude -p --resume <id>` across a different cwd (copy
-`<sid>.jsonl` into `$CLAUDE_CONFIG_DIR/projects/<encoded cwd>/`?), with
-`--restricted` + changed `--tools`/`--permission-mode`, and after a
-`taskkill` mid-turn; (b) which of our Codex flags `codex exec resume <id> -`
-accepts, and resume after a kill. Then steps 1–5. Reuse F1's
-`engine/session.py` shape (`build_context`, budget, trimming) for the
-"SESSION SO FAR" block rather than a second copy.
+**F4's first concrete steps** (the engine contract F3 built, see "What
+exists" › Code Mode follow-ups and docs/magi.md "Code Mode follow-ups"):
+1. `CODE.session = {id, projectId, turns:[…], native}`: id = the first
+   task's id, `native` = the LAST turn's `result.native` (`{agent, sid}`,
+   `{}` for a browser unit). Send it only while the session is on THIS
+   engine: native ids are per PC, and a miss is retried from the
+   transcript anyway, so sending a stale one just costs one failed start.
+2. Follow-up = `POST /api/code/tasks` + `session: {id, turn, turns:[{prompt,
+   text, mode, write, files, by}], native}`. `write` is the result's
+   `write` (`applied|denied|timeout|halted|refused|conflict|discarded|none`)
+   and `files` the applied files. That is where the ground truth comes
+   from, so get these two right.
+3. Running → `POST /tasks/{id}/message {text}` → `accepted`: `prompt |
+   interrupt | after_reply | revise | followup`. `followup` = put it in the
+   box as the next turn (or auto-send it, the F2 rule). New events to draw:
+   `{k:"user", text, how}` (a bubble where it happened), `{k:"interrupt",
+   resumed, finished}` ("Interrupted — continuing with your message"),
+   `decision.why === "revised"` (card resolved "Revising the diff…", then a
+   second `approval` arrives on the same task). `result.unsent_messages`
+   (typed during the pull, then a failure/Halt) → draft in the box.
+4. Old engine: `/api/code/state` `features` lacks `followup`/`steer` →
+   Send held with "Update the engine", like F2.
+5. Retarget or drop `magi-sync.live.js`'s "Recent lists it" step (F2 OPEN
+   bug below). Code History rows gain `sid`, `turn`.
+6. **The live tests need a Codex or browser agent while Claude is capped**
+   (see "Waiting on Tony"): `tests/live/magi-code-followup.live.js`
+   defaults to `AGENT=codex-cli`.
 **Pre-F3 fix (2026-09-30): the queue is now TWO queues.** Deliberation and
 Code Mode each have their own (`QUEUES.council` / `QUEUES.code` in magi.html;
 Firestore `queue` / `codeQueue`, leases `queueLease` / `codeQueueLease`), with
@@ -65,7 +86,7 @@ One phase per session.
 | ~~15~~ | ~~Veda's engine~~ | **installed** (setup.ps1 + all sign-ins, confirmed 2026-09-28; self-updating). Optional: isolation check from her PC | | |
 | ~~F1~~ | ~~Follow-ups: Deliberation engine~~ | **done 2026-09-29** (engine only; invisible until F2) | | |
 | ~~F2~~ | ~~Follow-ups: Deliberation console~~ | **done 2026-09-30** | | |
-| F3 | Follow-ups: Code Mode engine | session memory, native resume, interrupt & continue, revise-at-card | High | starts with a CLI spike |
+| ~~F3~~ | ~~Follow-ups: Code Mode engine~~ | **done 2026-09-30** (engine only; invisible until F4) | | |
 | F4 | Follow-ups: Code Mode console | thread UI, mid-run send, grouped History | High | |
 
 ### Start-of-session checklist (do these in order)
@@ -388,6 +409,39 @@ One phase per session.
   `start({fresh: true})`. Tests `tests/magi-thread.test.js` (66; 7 mutants
   killed on copies via `MAGI_HTML`), `test_howitworks.py::
   test_the_followup_claims_still_hold`, live `tests/live/magi-thread.live.js`.
+* **Code Mode follow-ups, engine (Track F, F3, 2026-09-30)** — new
+  `magi/code/followup.py`: `parse_session` (the POST's `session` → `Session
+  {id, turn, turns, native}`; ≤200 turns, ≤200k chars, `native` must be
+  `claude:|codex:<slot>` + an id), `history` (F1's `build_context` with
+  `header=` "SESSION SO FAR", each prompt tagged `[read-only turn]` /
+  `[write turn by X; applied: …]`), `state_note` (WHAT IS ACTUALLY IN THE
+  PROJECT NOW: every earlier write turn, applied or "NOT in the project"),
+  `added_block`, `Steer` (sync `add` → `prompt|interrupt|after_reply`,
+  `hold`, `take`, `close`, `reopen`, 1.5 s `BATCH_S` interrupt batching, ≤20
+  messages, ≤4k chars). `engine/session.build_context(…, header=)`.
+  `base.Task` + `session_turns`, `state_note`, `resume {agent, sid, why}`,
+  `added`, `interrupt_msgs`; `resume_for(id)`, `prompt_for(id)` (resumed:
+  no history; `why` interrupt/revise: the message only), `full_prompt`
+  (state note + history + `NEW MESSAGE:`; unchanged byte-for-byte with no
+  session), `gather_text`. `Outcome.INTERRUPTED`, `RESUME_MISS`. Claude
+  `build_argv(…, resume=)` → `--resume`; Codex drops `--ephemeral` and puts
+  `resume <sid>` after every flag; both detect a miss. `chain.run_chain(…,
+  steer=)`: `_link` stops a CLI agent on Halt OR interrupt,
+  `prepare_continuation` (native resume when there is a session id, else
+  `continuation_note`), one same-agent retry on a resume miss, a browser
+  unit continues after its reply, every exit closes the steer before its
+  first await; `ChainResult.native`. `tasks`: `TaskState.session_id/turn/
+  steer/revising`, `message()` (the five destinations), the revise loop
+  (`REVISE` resolves the approval future → `_revise` reruns the chain with
+  the diff's author first, same sandbox → new card), `unsent_messages`.
+  Routes: `POST /tasks` + `session` (`error: "session"` on bad input), `POST
+  /tasks/{id}/message`, `/state` `features` + `followup`, `steer`.
+  `sweep.py` may now touch exactly `profiles/{profile}/cli/codex-*/sessions/
+  **/rollout-*.jsonl` (`CODEX_ROLLOUTS`); `magi-codex-rollouts` item (30
+  days, dry run). Tests `magi/tests/test_code_followup.py` (64; 7 mutants
+  killed by monkeypatch), 3 new in `test_sweep.py`, live
+  `tests/live/magi-code-followup.live.js` (26/26 on Codex, 2026-09-30).
+  The HOW panel is untouched (engine only, as F1 did); F4 writes it.
 * **Units recon (Track S, U1)**: read-only, no engine change. Each site
   block in `selectors.yaml` ends with a "Models and limits" section:
   `model_button/option/selected/label` (+ `model_label_from`
@@ -699,6 +753,14 @@ reachable from the internet.
   (`CHECK=deepseek` default, ~10 s; `CHECK=` skips it), choosing a chairman
   from the sheet (put back), 390px. 20/20 on 2026-09-28 (Grok really
   limited, Pro 68% / 53%).
+* `tests/live/magi-code-followup.live.js` — F3, REST only (no page), on a
+  scratch repo under `%TEMP%\magi-sandbox`: a resumed follow-up (same CLI
+  session id, remembers a fact from turn 1), a real mid-run interrupt
+  (resumed, answer follows the message), a write follow-up after a DENIED
+  diff (says NO, does not re-add the line), a revise at the card (second
+  card, revised file applied). `AGENT=codex-cli` (default) or `claude-cli`;
+  `LIVE_ONLY=resume,midrun,denied,revise`. ~8 small requests. 26/26 on
+  Codex, 2026-09-30.
 * The page is opened as **`PAGES_URL`** (`cdp.js`), served from the working
   copy (see the (14) facts); `/auth/journal/status` is stubbed to "no lock"
   so the profile opens. Not `file://` any more: the engine refuses Origin
@@ -709,6 +771,18 @@ reachable from the internet.
 
 ### Waiting on Tony
 
+* **(F3) Claude is over your own weekly cap** (93% used, cap 90%, until
+  the weekly reset), so MAGI sends Claude nothing, correctly. Because of
+  that, the F3 live test ran on Codex, and the regression live tests
+  that run their tasks on Claude (`magi-write`, `magi-a1`) were NOT re-run.
+  `magi-codemode` failed only on its Claude assumptions ("Claude chip
+  shows 5h AND 7d", "done by Claude") plus one Codex read flake (below).
+  `magi-guard` 14/14. Re-run `magi-write` and `magi-a1` after the reset
+  (or with the cap raised). The F3 spike itself (step 0) called Claude Code
+  directly on Haiku, about 10 tiny calls, before the cap was noticed. They
+  did not go through MAGI's cap check.
+* **(F3) `magi-codex-rollouts` ships as a dry run** (cleanup-rules.json):
+  once you have seen it in a sweep report, set `delete: true`.
 * DeepSeek (signed out during U1) **checked signed in** by U3's Check now,
   2026-09-29 02:38 UTC. Nothing to do. If it drops again, the Units sheet
   shows "Signed out" after a Check now.
@@ -2372,8 +2446,8 @@ units, one short question.
 
 ## Track F — Follow-ups: multi-turn Deliberation and Code Mode (planned 2026-09-29)
 
-*Status:* **F1 done 2026-09-29** (engine), **F2 done 2026-09-30** (console;
-see §0 "What exists"); F3 next.
+*Status:* **F1 done 2026-09-29** (engine), **F2 done 2026-09-30** (console),
+**F3 done 2026-09-30** (Code Mode engine; see §0 "What exists"); F4 next.
 
 ### Why
 
@@ -2585,6 +2659,18 @@ turn is running in THIS engine. `newRun` and hand-offs reset the session.
 
 #### F3 — Code Mode engine
 
+*Status:* done 2026-09-30. Deviations: the spike showed that NO jsonl copy
+is needed (both CLIs resume across folders, after a kill, and after the
+first folder is deleted). The CLI session travels as `result.native
+{agent, sid}` rather than a bare `session_id`, which would have clashed with
+the MAGI session's `session_id` on `start`/summary. A resume miss is its own
+`Outcome.RESUME_MISS`. The chain, not the agent, turns a stop into
+INTERRUPTED (one `_link` event for Halt or interrupt). Added
+`unsent_messages` (a message typed during the pull when the task then
+fails), mirroring F1's `unapplied_notes`. The sweep can now reach Codex
+rollouts (and only them). HOW panel left for F4, as F1 did. The live test
+ran on Codex (Claude over Tony's cap).
+
 Files: `magi/code/tasks.py`, `magi/code/routes.py`, `magi/code/sandbox.py`,
 `magi/code/agents/{base,chain,claude_cli,codex_cli,browser,_proc}.py`,
 `magi/code/security`-untouched, `cleanup-rules.json`.
@@ -2685,6 +2771,15 @@ More found during the build get fixed in the phase that touches them and listed 
   cannot strip NOTES from the memory. Seen once (live test, 2026-09-30); look
   at how the browser capture joins Gemini's heading blocks, or let
   `answer_section`/`parseVerdict` accept an inline `.NOTES`/`CONFIDENCE`.
+- (F3, OPEN, agent) **Codex read tasks sometimes give up without trying**:
+  "I can't read README.md because this workspace is mounted read-only and I
+  don't have a file-reading tool", with no tool call. Seen 2 of ~8 read
+  tasks on 2026-09-30 (Auto's `gpt-6-luna`, effort low); 3/3 identical
+  tasks read fine right after. It is not F3: the spike used the same flags
+  without `--ephemeral` and read every time. A candidate fix is a line in
+  the read prompt saying the shell can read files (read-only sandbox,
+  `windows.sandbox=unelevated`), or treating a no-tool "can't read" reply
+  as a hand-off.
 
 ### Verification (per phase)
 - `cd magi; .venv\Scripts\python -m pytest tests -q` and `node tests/run-all.js`.
