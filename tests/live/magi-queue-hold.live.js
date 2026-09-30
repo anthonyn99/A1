@@ -85,14 +85,14 @@ const shot = async (c, name) => {
   console.log('\nA council limit holds until the Units sheet\'s reset');
   const resetIso = await evalJs(c, 'new Date(Date.now() + 40 * 60000).toISOString()');
   await evalJs(c, `window.__limitUntil = ${JSON.stringify(resetIso)};
-    S.queue = []; ["q one", "q two"].forEach((q) => { setQuestion(q); $("btnQueue").click(); });
-    window.__next = [${LIMITED}]; queueStart(); return 1;`);
-  ok('it asked the engine for the units\' limits', await waitFor(c, 'window.__cap.usage > 0 && !!S.queueHold'));
-  const h = await evalJs(c, 'S.queueHold');
+    QUEUES.council.items = []; ["q one", "q two"].forEach((q) => { setQuestion(q); $("btnQueue").click(); });
+    window.__next = [${LIMITED}]; queueStart(QUEUES.council); return 1;`);
+  ok('it asked the engine for the units\' limits', await waitFor(c, 'window.__cap.usage > 0 && !!QUEUES.council.hold'));
+  const h = await evalJs(c, 'QUEUES.council.hold');
   const want = Date.parse(resetIso) + 60000;
   ok('held until that reset plus a minute', h && h.known && Math.abs(h.until - want) < 3000, JSON.stringify(h));
-  ok('the row waits, first, not failed', await evalJs(c, 'queueSorted()[0].status === "queued" && queueSorted()[0].q === "q one"'));
-  ok('its note says why', /usage limit/.test(await evalJs(c, 'queueSorted()[0].err || ""')));
+  ok('the row waits, first, not failed', await evalJs(c, 'queueSorted(QUEUES.council)[0].status === "queued" && queueSorted(QUEUES.council)[0].q === "q one"'));
+  ok('its note says why', /usage limit/.test(await evalJs(c, 'queueSorted(QUEUES.council)[0].err || ""')));
   ok('the second never started', await evalJs(c, 'window.__runs.length') === 1);
   ok('the banner says the council', /council is rate limited/.test(await evalJs(c, '$("queueHoldTxt").textContent')));
   ok('a hold is not a stop: no chime', await evalJs(c, '!ATTN.keys.has("queue:stopped")'));
@@ -108,29 +108,29 @@ const shot = async (c, name) => {
   const t0 = Date.now();
   await evalJs(c, 'window.__limitUntil = null; $("queueHoldNow").click(); return 1;');
   ok('Try now acts at once, not at the next 15s poll', await waitFor(c, 'window.__runs.length >= 2', 1500), (Date.now() - t0) + 'ms');
-  ok('Try now runs it again, then the rest', await waitFor(c, 'window.__runs.length === 3 && !S.queueRunning'));
+  ok('Try now runs it again, then the rest', await waitFor(c, 'window.__runs.length === 3 && !QUEUES.council.running'));
   ok('both rows done, in order', await evalJs(c, 'JSON.stringify(window.__runs)') === '["q one","q one","q two"]'
-     && await evalJs(c, 'queueSorted().every((it) => it.status === "done")'));
+     && await evalJs(c, 'queueSorted(QUEUES.council).every((it) => it.status === "done")'));
 
   console.log('\nRun again on a council row');
   await evalJs(c, `[...document.querySelectorAll("#queueRows .q-row")][1].querySelector('.q-act[title^="Run this again"]').click(); return 1;`);
-  ok('it runs from the front', await waitFor(c, 'window.__runs.length === 4 && !S.queueRunning'));
+  ok('it runs from the front', await waitFor(c, 'window.__runs.length === 4 && !QUEUES.council.running'));
   ok('the same prompt', await evalJs(c, 'window.__runs[3]') === 'q two');
 
   console.log('\nGuessing has a limit');
-  await evalJs(c, `S.queue = []; setQuestion("q guess"); $("btnQueue").click();
-    window.__next = Array.from({ length: 20 }, () => (${LIMITED})); window.__strikes = 0; queueStart(); return 1;`);
+  await evalJs(c, `QUEUES.council.items = []; setQuestion("q guess"); $("btnQueue").click();
+    window.__next = Array.from({ length: 20 }, () => (${LIMITED})); window.__strikes = 0; queueStart(QUEUES.council); return 1;`);
   for (let i = 0; i < 14; i++) {
-    if (!(await waitFor(c, '!!S.queueHold || !S.queueRunning', 5000))) break;
-    if (!(await evalJs(c, 'S.queueRunning'))) break;
-    const g = await evalJs(c, 'S.queueHold && S.queueHold.known');
+    if (!(await waitFor(c, '!!QUEUES.council.hold || !QUEUES.council.running', 5000))) break;
+    if (!(await evalJs(c, 'QUEUES.council.running'))) break;
+    const g = await evalJs(c, 'QUEUES.council.hold && QUEUES.council.hold.known');
     if (i === 0) ok('no reset anywhere: a 15-minute guess', g === false);
     await evalJs(c, '$("queueHoldNow").click(); return 1;');
     await sleep(250);
   }
-  ok('it stops after 12 guesses in a row', await waitFor(c, '!S.queueRunning', 5000) && await evalJs(c, 'window.__runs.length') === 4 + 13,
+  ok('it stops after 12 guesses in a row', await waitFor(c, '!QUEUES.council.running', 5000) && await evalJs(c, 'window.__runs.length') === 4 + 13,
      await evalJs(c, 'window.__runs.length'));
-  ok('the row is failed, saying so', /still limited/.test(await evalJs(c, 'S.queue[0].err || ""')) && await evalJs(c, 'S.queue[0].status') === 'failed');
+  ok('the row is failed, saying so', /still limited/.test(await evalJs(c, 'QUEUES.council.items[0].err || ""')) && await evalJs(c, 'QUEUES.council.items[0].status') === 'failed');
   ok('the stop is said in words', /still rate limited/.test(await evalJs(c, '$("refineError").textContent')));
   ok('and it rang, and marked the tab', await evalJs(c, 'ATTN.keys.has("queue:stopped") && window.__strikes > 0 && /Queue stopped/.test(document.title)'));
   await evalJs(c, 'document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true })); return 1;');
@@ -158,21 +158,21 @@ const shot = async (c, name) => {
   ok('an already-expired card never rings', await evalJs(c, '!ATTN.keys.has("approval:rem3")'));
 
   console.log('\nThe engine goes away mid-queue');
-  await evalJs(c, `S.queue = []; setQuestion("q lost"); $("btnQueue").click();
+  await evalJs(c, `QUEUES.council.items = []; setQuestion("q lost"); $("btnQueue").click();
     window.__where = link.where; link.where = "gone";
-    S.queueRunning = false; queueDrain(++_queueGen).then(() => { link.where = window.__where; }); return 1;`);
+    QUEUES.council.running = false; queueDrain(QUEUES.council, ++QUEUES.council.gen).then(() => { link.where = window.__where; }); return 1;`);
   ok('lost engine: it stops and rings', await waitFor(c, 'ATTN.keys.has("queue:stopped")', 4000));
   ok('and says so', /Lost the engine/.test(await evalJs(c, '$("refineError").textContent')));
   ok('the engine link is back after', await waitFor(c, 'online()', 4000));
   console.log('\nCancel wait acts at once');
-  await evalJs(c, `S.queue = []; setQuestion("q cancel"); $("btnQueue").click();
-    window.__next = [${LIMITED}]; queueStart(); return 1;`);
-  await waitFor(c, '!!S.queueHold');
+  await evalJs(c, `QUEUES.council.items = []; setQuestion("q cancel"); $("btnQueue").click();
+    window.__next = [${LIMITED}]; queueStart(QUEUES.council); return 1;`);
+  await waitFor(c, '!!QUEUES.council.hold');
   const t1 = Date.now();
   await evalJs(c, '$("queueRunBtn").click(); return 1;');
-  ok('Cancel wait stops it within a second', await waitFor(c, '!S.queueRunning && !S.queueHold && $("queueHold").hidden', 1500), (Date.now() - t1) + 'ms');
-  ok('the row is still waiting', await evalJs(c, 'S.queue[0].status') === 'queued');
-  await evalJs(c, 'attnClear("queue:stopped"); S.queue = []; queueChanged(); return 1;');
+  ok('Cancel wait stops it within a second', await waitFor(c, '!QUEUES.council.running && !QUEUES.council.hold && $("queueHold").hidden', 1500), (Date.now() - t1) + 'ms');
+  ok('the row is still waiting', await evalJs(c, 'QUEUES.council.items[0].status') === 'queued');
+  await evalJs(c, 'attnClear("queue:stopped"); QUEUES.council.items = []; queueChanged(QUEUES.council); return 1;');
 
   console.log('\nNothing else');
   ok('no stubbed writes attempted', (await evalJs(c, 'window.__cap.posts')).length === 0, JSON.stringify(await evalJs(c, 'window.__cap.posts')));

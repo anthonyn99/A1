@@ -124,7 +124,7 @@ async function editSheetFonts(c, label) {
       $("unitChips").append(b); ${font('#chipProbe .chip-model').replace(/^return /, 'const r = ')}; b.remove(); return r;`);
   }
   await evalJs(c, `if (!S.selected.size) S.selected.add((S.providers[0] || knownUnits()[0]).id);
-    S.queue = [{ id: "fx1", q: "Compare all the A1 programs", units: [...S.selected], atts: [], status: "queued",
+    QUEUES.council.items = [{ id: "fx1", q: "Compare all the A1 programs", units: [...S.selected], atts: [], status: "queued",
       order: 1000, dev: "PC", runId: null, err: null }]; renderQueue(); queueEdit("fx1"); return 1;`);
   await waitFor(c, '!!document.querySelector(".qedit")');
   const sheetChip = await evalJs(c, font('.qedit-units .chip-model'));
@@ -134,7 +134,7 @@ async function editSheetFonts(c, label) {
   ok(`${label}: edit sheet text uses the composer's type`, !!sheetText && sheetText === compText, `${sheetText} vs ${compText}`);
   ok(`${label}: no unstyled chip-name spans`, await evalJs(c, '!document.querySelector(".qedit .chip-name")'));
   await shot(c, `ck-${label}-edit-sheet`);
-  await evalJs(c, 'document.querySelector(".qedit").closest(".sheet").remove(); S.queue = []; queueChanged(); return 1;');
+  await evalJs(c, 'document.querySelector(".qedit").closest(".sheet").remove(); QUEUES.council.items = []; queueChanged(QUEUES.council); return 1;');
 }
 
 async function copyChecks(c, label) {
@@ -306,9 +306,9 @@ async function cardRender(c, label) {
   await evalJs(c, '$("navCodeNew").click(); return 1;');
   await sleep(400);
   const codeComp = await evalJs(c, font('.code-chip .chip-model'));
-  await evalJs(c, `S.queue = [{ id: "fx2", q: "code row", units: [], atts: [], status: "queued", order: 1000, dev: "PC",
+  await evalJs(c, `QUEUES.code.items = [{ id: "fx2", q: "code row", units: [], atts: [], status: "queued", order: 1000, dev: "PC",
     runId: null, err: null, kind: "code", agents: codeChain().map((m) => m.id), pid: codeProject().id,
-    pname: codeProject().name, rw: "read" }]; queueChanged(); queueEdit("fx2"); return 1;`);
+    pname: codeProject().name, rw: "read" }]; queueChanged(QUEUES.code); queueEdit("fx2"); return 1;`);
   await waitFor(c, '!!document.querySelector(".qedit")');
   const codeSheet = await evalJs(c, font('.qedit-units .chip-model'));
   ok('code row: sheet chips match the Code composer', !!codeSheet && codeSheet === codeComp, `${codeSheet} vs ${codeComp}`);
@@ -320,7 +320,7 @@ async function cardRender(c, label) {
     'document.querySelector(".qedit").getBoundingClientRect().right <= innerWidth + 1'));
   await shot(c, 'ck-9-edit-phone');
   await c.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
-  await evalJs(c, 'document.querySelector(".qedit").closest(".sheet").remove(); S.queue = []; queueChanged(); return 1;');
+  await evalJs(c, 'document.querySelector(".qedit").closest(".sheet").remove(); QUEUES.code.items = []; queueChanged(QUEUES.code); return 1;');
 
   // ── 6. Veda ───────────────────────────────────────────────────────────
   console.log('\nVeda\'s profile');
@@ -336,11 +336,11 @@ async function cardRender(c, label) {
   await cardRender(c, 'veda');
   await editSheetFonts(c, 'veda');
   // The hold banner renders the same for her.
-  await evalJs(c, `S.queue = [{ id: "h1", q: "held", units: [], atts: [], status: "queued", order: 1000, dev: "PC", runId: null, err: null }];
-    S.queueRunning = true; S.queueHold = { until: Date.now() + 30 * 60000, known: true, why: "The council is rate limited." };
+  await evalJs(c, `QUEUES.council.items = [{ id: "h1", q: "held", units: [], atts: [], status: "queued", order: 1000, dev: "PC", runId: null, err: null }];
+    QUEUES.council.running = true; QUEUES.council.hold = { until: Date.now() + 30 * 60000, known: true, why: "The council is rate limited." };
     renderQueue(); return 1;`);
   ok('veda: the hold banner renders', /runs again when the limit lifts/.test(await evalJs(c, '$("queueHoldTxt").textContent')));
-  await evalJs(c, 'S.queueHold = null; S.queueRunning = false; S.queue = []; queueChanged(); sessionStorage.removeItem(PICK_SS); return 1;');
+  await evalJs(c, 'QUEUES.council.hold = null; QUEUES.council.running = false; QUEUES.council.items = []; queueChanged(QUEUES.council); sessionStorage.removeItem(PICK_SS); return 1;');
 
   console.log('\nNothing else reached the engine');
   ok('no unstubbed write', (await evalJs(c, 'window.__cap.posts')).length === 0, JSON.stringify(await evalJs(c, 'window.__cap.posts')));

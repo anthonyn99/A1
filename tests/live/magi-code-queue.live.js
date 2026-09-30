@@ -6,7 +6,7 @@
 // 1. Brainstorm: a centred button hides / shows Past sessions, remembered.
 // 2. Code Mode: attach (text only), Refine (kind=code), Undo, per-mode files.
 // 3. Code Mode: Run sends the files; an old engine gets them folded in.
-// 4. The queue takes Code tasks: add, render, edit, drain in order, HOLD on a
+// 4. Code Mode has its OWN queue (council prompts go to theirs): add, render, edit, drain in order, HOLD on a
 //    limit (reported reset / 15-min guess, Try now, Cancel wait), write-mode
 //    outcomes, run a finished row again, the approval chime + tab mark, pause
 //    while a hand-started task runs, reload.
@@ -229,11 +229,11 @@ const vis = (sel) => `((e) => !!e && e.getBoundingClientRect().width > 0 && e.ge
 
   // ── 4. The queue ───────────────────────────────────────────────────────
   console.log('\nThe queue takes Code tasks');
-  await evalJs(c, 'codeClearTask(); S.queue = []; queueChanged(); return 1;');
+  await evalJs(c, 'codeClearTask(); QUEUES.code.items = []; queueChanged(QUEUES.code); return 1;');
   await evalJs(c, `addFiles([new File(["TRACE"], "trace.log", { type: "text/plain" })]); return 1;`);
   await waitFor(c, 'CODE.attachments.length === 1');
   await evalJs(c, 'setQuestion("task one"); $("btnQueue").click(); return 1;');
-  const q1 = await evalJs(c, 'S.queue[0]');
+  const q1 = await evalJs(c, 'QUEUES.code.items[0]');
   ok('queued as a code task', q1 && q1.kind === 'code', JSON.stringify(q1));
   ok('with the workspace', q1 && q1.pid === await evalJs(c, 'codeProject().id') && !!q1.pname);
   ok('with the ticked agents in order', q1 && JSON.stringify(q1.agents) === JSON.stringify(await evalJs(c, 'codeChain().map((m) => m.id)')), JSON.stringify(q1 && q1.agents));
@@ -243,30 +243,35 @@ const vis = (sel) => `((e) => !!e && e.getBoundingClientRect().width > 0 && e.ge
   ok('the queue shows in Code Mode', await evalJs(c, vis('#queueDrawer')));
   ok('the row names its workspace', await evalJs(c, '!!document.querySelector("#queueRows .q-ws")'));
   ok('the row has agent dots', await evalJs(c, 'document.querySelectorAll("#queueRows .q-unit").length') >= 1);
-  ok('no kind tag while all rows are code', await evalJs(c, '!document.querySelector("#queueRows .q-kind")'));
+  ok('the drawer is titled for tasks', await evalJs(c, '$("queueTitle").textContent') === 'Task queue');
   await evalJs(c, 'setQuestion("task two"); $("btnQueue").click(); setQuestion("task three"); $("btnQueue").click(); return 1;');
-  ok('three rows', await evalJs(c, 'S.queue.length') === 3);
-  // A council prompt alongside them: tags appear.
+  ok('three rows', await evalJs(c, 'QUEUES.code.items.length') === 3);
+  // A council prompt goes to the COUNCIL's queue -- a separate list.
   await evalJs(c, '$("navNew").click(); if (!S.selected.size) S.selected.add(S.providers[0].id); setQuestion("a council question"); $("btnQueue").click(); return 1;');
-  ok('council prompt queued as before', await evalJs(c, 'S.queue.length === 4 && !S.queue[3].kind && S.queue[3].units.length > 0'));
-  ok('mixed queue tags every row', await evalJs(c, 'document.querySelectorAll("#queueRows .q-kind").length') === 4);
+  ok('council prompt lands in the council queue', await evalJs(c, 'QUEUES.council.items.length === 1 && !QUEUES.council.items[0].kind && QUEUES.council.items[0].units.length > 0'));
+  ok('not in the code queue', await evalJs(c, 'QUEUES.code.items.length === 3 && QUEUES.code.items.every((it) => it.kind === "code")'));
+  ok('the council screen shows only its own row', await evalJs(c, 'document.querySelectorAll("#queueRows .q-row").length') === 1
+     && await evalJs(c, '$("queueTitle").textContent') === 'Queue');
+  ok('saved under separate keys', await evalJs(c, 'JSON.parse(localStorage.getItem(QUEUE_KEY)).length === 1 && JSON.parse(localStorage.getItem(CODE_QUEUE_KEY)).length === 3'));
+  await shot(c, 'cq-5a-council-queue');
   await evalJs(c, '$("navCodeNew").click(); return 1;');
-  await shot(c, 'cq-5-queue-mixed');
+  ok('Code Mode shows only its three', await evalJs(c, 'document.querySelectorAll("#queueRows .q-row.code").length === 3 && document.querySelectorAll("#queueRows .q-row").length === 3'));
+  await shot(c, 'cq-5-queue-code');
   // Only code rows run in this test: the council row would start a real run.
-  await evalJs(c, 'S.queue = S.queue.filter((it) => it.kind === "code"); queueChanged(); return 1;');
+  await evalJs(c, 'QUEUES.council.items = []; queueChanged(QUEUES.council); return 1;');
 
   console.log('\nSync shape');
-  const cloud = await evalJs(c, 'queueForCloud()');
+  const cloud = await evalJs(c, 'queueForCloud(QUEUES.code)');
   ok('code fields carried to the cloud', cloud[0].kind === 'code' && cloud[0].pid && cloud[0].agents.length && cloud[0].rw === 'read', JSON.stringify(cloud[0]));
   ok('no undefined anywhere', !JSON.stringify(cloud).includes('undefined') && cloud.every((r) => Object.values(r).every((v) => v !== undefined)));
-  ok('an identical incoming copy is not a change', await evalJs(c, 'queueFromCloud(JSON.parse(JSON.stringify(queueForCloud()))) === false'));
+  ok('an identical incoming copy is not a change', await evalJs(c, 'queueFromCloud(QUEUES.code, JSON.parse(JSON.stringify(queueForCloud(QUEUES.code)))) === false'));
 
   console.log('\nEditing a code row');
-  await evalJs(c, 'queueEdit(S.queue[1].id); return 1;');
+  await evalJs(c, 'queueEdit(QUEUES.code.items[1].id); return 1;');
   ok('sheet says Edit task', await waitFor(c, '/Edit task/.test((document.querySelector(".qedit .sheet-hd")||{}).textContent||"")'));
   ok('it offers agents', await evalJs(c, '/Agents/.test(document.querySelector(".qedit-lbl").textContent)'));
   const nAgents = await evalJs(c, 'document.querySelectorAll(".qedit-units .chip").length');
-  ok('one chip per agent', nAgents === await evalJs(c, 'codeQueuePool(S.queue[1]).length'), nAgents);
+  ok('one chip per agent', nAgents === await evalJs(c, 'codeQueuePool(QUEUES.code.items[1]).length'), nAgents);
   await evalJs(c, `const inp = document.querySelector(".qedit input[type=file]");
     const dt = new DataTransfer(); dt.items.add(new File([new Uint8Array([1,2])], "pic.jpg", { type: "image/jpeg" }));
     inp.files = dt.files; inp.dispatchEvent(new Event("change")); return 1;`);
@@ -275,22 +280,22 @@ const vis = (sel) => `((e) => !!e && e.getBoundingClientRect().width > 0 && e.ge
     [...document.querySelectorAll(".qedit-units .chip.on")].slice(1).forEach((b) => b.click()); return 1;`);
   await shot(c, 'cq-6-edit-task');
   await evalJs(c, '[...document.querySelectorAll(".qedit-bar .btn")].find((b) => b.textContent === "Save").click(); return 1;');
-  const e2 = await evalJs(c, 'S.queue[1]');
+  const e2 = await evalJs(c, 'QUEUES.code.items[1]');
   ok('edit saved', e2.q === 'task two, edited' && e2.agents.length === 1 && e2.kind === 'code', JSON.stringify(e2));
 
   console.log('\nThe queue drains code tasks in order');
-  await evalJs(c, 'queueStart(); return 1;');
+  await evalJs(c, 'queueStart(QUEUES.code); return 1;');
   ok('first task posted', await waitFor(c, 'window.__cap.tasks.length === 3'));
   const p3 = await evalJs(c, 'window.__cap.tasks[2]');
   ok('with its own workspace, agents, mode and file', p3.prompt === 'task one' && p3.project_id === q1.pid
      && JSON.stringify(p3.agents) === JSON.stringify(q1.agents) && p3.mode === 'read'
      && p3.attachments && p3.attachments[0].text === 'TRACE', JSON.stringify(p3));
-  ok('row running with its task id', await waitFor(c, 'S.queue[0].status === "running" && S.queue[0].runId === "fake3"'));
+  ok('row running with its task id', await waitFor(c, 'QUEUES.code.items[0].status === "running" && QUEUES.code.items[0].runId === "fake3"'));
   ok('the task is on the Code screen', await waitFor(c, 'CODE.task && CODE.task.id === "fake3"'));
   ok('Run is held while it works', await evalJs(c, '$("btnSend").disabled'));
   await shot(c, 'cq-7-draining');
   await evalJs(c, 'window.__end("fake3", { outcome: "ok" }); return 1;');
-  ok('row done', await waitFor(c, 'S.queue[0].status === "done"'));
+  ok('row done', await waitFor(c, 'QUEUES.code.items[0].status === "done"'));
   ok('second task posted after the first ended', await waitFor(c, 'window.__cap.tasks.length === 4 && window.__cap.tasks[3].prompt === "task two, edited"'));
   // A usage limit HOLDS the queue (from Claude Queue): the row goes back to
   // waiting and the queue sleeps until the reset the chain reported.
@@ -298,10 +303,10 @@ const vis = (sel) => `((e) => !!e && e.getBoundingClientRect().width > 0 && e.ge
   await evalJs(c, `window.__es.fake4._emit({ k: "handoff", from: "claude-cli", from_label: "Claude",
     reason: "limited", detail: "out", resets_at: ${back}, to_label: null });
     window.__end("fake4", { outcome: "limited" }); return 1;`);
-  ok('a limited task goes back to waiting, not failed', await waitFor(c, 'S.queue[1].status === "queued"'));
-  ok('the row says why', /usage limit/.test(await evalJs(c, 'S.queue[1].err || ""')), await evalJs(c, 'S.queue[1].err'));
-  ok('the queue is still running, held', await evalJs(c, 'S.queueRunning && !!S.queueHold'));
-  const hold = await evalJs(c, 'S.queueHold');
+  ok('a limited task goes back to waiting, not failed', await waitFor(c, 'QUEUES.code.items[1].status === "queued"'));
+  ok('the row says why', /usage limit/.test(await evalJs(c, 'QUEUES.code.items[1].err || ""')), await evalJs(c, 'QUEUES.code.items[1].err'));
+  ok('the queue is still running, held', await evalJs(c, 'QUEUES.code.running && !!QUEUES.code.hold'));
+  const hold = await evalJs(c, 'QUEUES.code.hold');
   ok('held until the reported reset plus a minute', hold && hold.known
      && Math.abs(hold.until - (back * 1000 + 60000)) < 2000, JSON.stringify(hold));
   ok('the hold is on screen', await evalJs(c, vis('#queueHold')));
@@ -312,29 +317,29 @@ const vis = (sel) => `((e) => !!e && e.getBoundingClientRect().width > 0 && e.ge
   await evalJs(c, '$("queueHoldNow").click(); return 1;');
   ok('Try now runs the held row again', await waitFor(c,
     'window.__cap.tasks.length === 5 && window.__cap.tasks[4].prompt === "task two, edited"'));
-  ok('the hold is gone', await evalJs(c, '!S.queueHold && $("queueHold").hidden'));
+  ok('the hold is gone', await evalJs(c, '!QUEUES.code.hold && $("queueHold").hidden'));
   await evalJs(c, 'window.__end("fake5", { outcome: "ok" }); return 1;');
-  ok('then it finishes', await waitFor(c, 'S.queue[1].status === "done"'));
+  ok('then it finishes', await waitFor(c, 'QUEUES.code.items[1].status === "done"'));
 
   // No reset time: a fifteen-minute guess, and Cancel wait leaves it queued.
   ok('third posted', await waitFor(c, 'window.__cap.tasks.length === 6'));
   const t0 = await evalJs(c, 'Date.now()');
   await evalJs(c, 'window.__end("fake6", { outcome: "limited" }); return 1;');
-  ok('held on a guess', await waitFor(c, '!!S.queueHold && S.queueHold.known === false'));
-  const g = await evalJs(c, 'S.queueHold.until');
+  ok('held on a guess', await waitFor(c, '!!QUEUES.code.hold && QUEUES.code.hold.known === false'));
+  const g = await evalJs(c, 'QUEUES.code.hold.until');
   ok('fifteen minutes out', Math.abs(g - t0 - 15 * 60000) < 5000, g - t0);
   ok('and says no reset time was given', /no reset time was given/.test(await evalJs(c, '$("queueHoldTxt").textContent')));
   await evalJs(c, '$("queueRunBtn").click(); return 1;');
-  ok('Cancel wait stops the queue', await waitFor(c, '!S.queueRunning && !S.queueHold && $("queueHold").hidden'));
-  ok('the row is still waiting', await evalJs(c, 'S.queue[2].status') === 'queued');
+  ok('Cancel wait stops the queue', await waitFor(c, '!QUEUES.code.running && !QUEUES.code.hold && $("queueHold").hidden'));
+  ok('the row is still waiting', await evalJs(c, 'QUEUES.code.items[2].status') === 'queued');
 
   console.log('\nWrite-mode outcomes');
-  await evalJs(c, 'queueStart(); return 1;');
+  await evalJs(c, 'queueStart(QUEUES.code); return 1;');
   ok('third posted again', await waitFor(c, 'window.__cap.tasks.length === 7'));
   await evalJs(c, 'window.__end("fake7", { outcome: "ok", write: "timeout" }); return 1;');
-  ok('an unapproved diff is a failed row', await waitFor(c, 'S.queue[2].status === "failed"'));
-  ok('that says so', /not approved in time/.test(await evalJs(c, 'S.queue[2].err')), await evalJs(c, 'S.queue[2].err'));
-  ok('queue idle when empty', await waitFor(c, '!S.queueRunning'));
+  ok('an unapproved diff is a failed row', await waitFor(c, 'QUEUES.code.items[2].status === "failed"'));
+  ok('that says so', /not approved in time/.test(await evalJs(c, 'QUEUES.code.items[2].err')), await evalJs(c, 'QUEUES.code.items[2].err'));
+  ok('queue idle when empty', await waitFor(c, '!QUEUES.code.running'));
 
   console.log('\nRun again, and the approval chime');
   ok('a finished row offers run-again', await evalJs(c,
@@ -355,18 +360,18 @@ const vis = (sel) => `((e) => !!e && e.getBoundingClientRect().width > 0 && e.ge
   await sleep(1200);
   ok('an answered card never rings', await evalJs(c, '!ATTN.keys.size'));
   await evalJs(c, 'window.__end("fake8", { outcome: "ok" }); return 1;');
-  ok('and it finishes', await waitFor(c, 'S.queue[0].status === "done" && !S.queueRunning'));
+  ok('and it finishes', await waitFor(c, 'QUEUES.code.items[0].status === "done" && !QUEUES.code.running'));
 
   console.log('\nA hand-started task goes first; Pause leaves the row waiting');
   await evalJs(c, 'codeClearTask(); setQuestion("manual"); $("btnSend").click(); return 1;');
   ok('manual task running', await waitFor(c, 'codeBusy() && CODE.task.id === "fake9"'));
-  await evalJs(c, 'setQuestion("queued behind it"); $("btnQueue").click(); queueStart(); return 1;');
+  await evalJs(c, 'setQuestion("queued behind it"); $("btnQueue").click(); queueStart(QUEUES.code); return 1;');
   await sleep(2500);
   ok('queued task not started while one runs', await evalJs(c, 'window.__cap.tasks.length') === 9);
-  await evalJs(c, 'queueStop(); return 1;');
+  await evalJs(c, 'queueStop(QUEUES.code); return 1;');
   await sleep(2500);
-  ok('paused before it started: back to waiting', await evalJs(c, 'S.queue[S.queue.length - 1].status') === 'queued');
-  await evalJs(c, 'queueStart(); return 1;');
+  ok('paused before it started: back to waiting', await evalJs(c, 'QUEUES.code.items[QUEUES.code.items.length - 1].status') === 'queued');
+  await evalJs(c, 'queueStart(QUEUES.code); return 1;');
   await sleep(500);
   await evalJs(c, 'window.__end("fake9", { outcome: "ok" }); return 1;');
   ok('then it starts once the manual task ends', await waitFor(c, 'window.__cap.tasks.length === 10', 8000));
@@ -375,12 +380,18 @@ const vis = (sel) => `((e) => !!e && e.getBoundingClientRect().width > 0 && e.ge
   await sleep(300);
   // fake10 is still running on the (fake) engine across the reload.
   await evalJs(c, 'sessionStorage.setItem("__fakeSeed", JSON.stringify({ fake10: { done: false, body: { prompt: "queued behind it" } } })); return 1;');
+  // A code row left in the council's key by a console from before the split.
+  await evalJs(c, `localStorage.setItem(QUEUE_KEY, JSON.stringify([{ id: "legacy1", q: "old shared-list task",
+    kind: "code", agents: ["claude-cli"], pid: "p", pname: "ws", rw: "read", ap: "manual", units: [], atts: [],
+    status: "done", order: 99000, dev: "PC", runId: "old1", err: null }])); return 1;`);
   await c.send('Page.navigate', { url: URL });
   await waitFor(c, 'online()', 25000);
-  ok('queue kept locally, as code rows', await evalJs(c, 'S.queue.filter((it) => it.kind === "code").length') === 4);
-  ok('the running row is resumed', await waitFor(c, 'S.queue.some((it) => it.runId === "fake10" && it.status === "running")', 15000));
+  ok('queue kept locally, as code rows', await evalJs(c, 'QUEUES.code.items.filter((it) => it.kind === "code").length') === 5);
+  ok('a legacy code row moved out of the council queue', await evalJs(c,
+    'QUEUES.council.items.length === 0 && QUEUES.code.items.some((it) => it.id === "legacy1") && JSON.parse(localStorage.getItem(QUEUE_KEY)).length === 0'));
+  ok('the running row is resumed', await waitFor(c, 'QUEUES.code.items.some((it) => it.runId === "fake10" && it.status === "running")', 15000));
   await evalJs(c, 'window.__end("fake10", { outcome: "ok" }); sessionStorage.removeItem("__fakeSeed"); return 1;');
-  ok('and finishes when the task does', await waitFor(c, 'S.queue.some((it) => it.runId === "fake10" && it.status === "done")', 15000));
+  ok('and finishes when the task does', await waitFor(c, 'QUEUES.code.items.some((it) => it.runId === "fake10" && it.status === "done")', 15000));
 
   console.log('\nPhone');
   await evalJs(c, '$("navCodeNew").click(); addFiles([new File(["a"], "a-very-long-file-name-for-a-phone-screen.ts", { type: "text/plain" })]); setQuestion("phone task"); return 1;');
@@ -401,7 +412,7 @@ const vis = (sel) => `((e) => !!e && e.getBoundingClientRect().width > 0 && e.ge
   ok('no unstubbed write', true, JSON.stringify(posts));
   ok('no page errors', errs.length === 0, errs.join(' | '));
   console.log(`\n${pass} passed, ${fail} failed`);
-  await evalJs(c, 'S.queue = []; saveQueueLocal(); return 1;');
+  await evalJs(c, 'QUEUES.code.items = []; saveQueueLocal(QUEUES.code); QUEUES.council.items = []; saveQueueLocal(QUEUES.council); return 1;');
   c.ws.close();
   process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(2); });

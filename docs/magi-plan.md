@@ -28,6 +28,12 @@ BEFORE building: (a) `claude -p --resume <id>` across a different cwd (copy
 accepts, and resume after a kill. Then steps 1–5. Reuse F1's
 `engine/session.py` shape (`build_context`, budget, trimming) for the
 "SESSION SO FAR" block rather than a second copy.
+**Pre-F3 fix (2026-09-30): the queue is now TWO queues.** Deliberation and
+Code Mode each have their own (`QUEUES.council` / `QUEUES.code` in magi.html;
+Firestore `queue` / `codeQueue`, leases `queueLease` / `codeQueueLease`), with
+their own Run/Pause/hold, and they run side by side. See docs/magi.md "The
+prompt queue". F4's "mid-run send" and anything queue-shaped build on
+`QUEUES.code`, never a shared list. Live test: `tests/live/magi-queue-split.live.js`.
 **Phase 15 (Veda's engine) is INSTALLED**: she ran `magi\setup.ps1 -Profile veda`, signed in
 to Accounts, the coding agents and GitHub (Tony confirmed 2026-09-28), and
 her engine self-updates. Do NOT send her setup commands again. The only

@@ -3747,13 +3747,7 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 /* Code Mode's composer has the council's extras too: files (text only --
    they are pasted into the agents' prompt), Refine and Queue. */
 
-/* A queued row's kind and workspace. The kind is only drawn when the queue
-   holds both, where it is the first thing you need to tell rows apart. */
-.q-kind {
-  font-size: 9.5px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase;
-  padding: 1px 6px; border-radius: 999px; border: 1px solid var(--bd); color: var(--txd);
-}
-.q-kind.code { color: var(--ac); border-color: color-mix(in srgb, var(--ac) 45%, transparent); }
+/* A queued task's workspace, and Read or Write. */
 .q-ws { color: var(--txd); }
 .q-rw.write { color: var(--amber); }
 
@@ -6104,7 +6098,7 @@ window._mailRelay = window._mailRelay || async function (res) {
          selection: the row IS the prompt plus who is being asked. -->
     <div class="drawer queue" id="queueDrawer" hidden>
       <div class="drawer-hd queue-hd">
-        <span>Queue</span>
+        <span id="queueTitle">Queue</span>
         <span class="queue-count" id="queueCount"></span>
         <!-- Grouped, so that when the header wraps on a phone the two buttons
              travel together to the next line instead of a flexible spacer
@@ -7160,6 +7154,7 @@ const HOW = [
     q: "The queue",
     a: [
       "<b>Queue</b> beside Convene puts a prompt in a list instead of running it now. Each row keeps its OWN units, so a queue can ask three units one thing and one unit the next, and they run one at a time in order.",
+      "<b>Deliberation and Code Mode each have their own queue.</b> Queue on the council screen adds to the council's list; Queue in Code Mode adds a task to Code Mode's list, fixing its workspace, agents and Read or Write. Each list has its own Run, Pause and usage-limit hold, and they run side by side &mdash; a queued deliberation never waits behind a queued coding task, or the other way round. The drawer shows the list for the mode you are in.",
       "<b>It follows you between devices.</b> The queue rides the same document as your history, so a prompt added on your phone is on the PC without a single extra read. Attachment <i>names</i> travel; the files themselves stay on the device that picked them, and a row says so rather than quietly running a prompt without the file it refers to.",
       "<b>Only one device runs it.</b> Whichever device presses Run takes a lease and refreshes it as it works; the others see that it is running elsewhere. A lease nobody refreshes for 90 seconds is treated as abandoned, so a closed laptop cannot freeze the queue.",
       "<b>Watch one as it happens.</b> A running row has a ◉ that puts its units back on screen. The deliberation runs in the engine, not in this page, so it survives a refresh &mdash; MAGI reconnects to it on load and picks up the grid mid-flight rather than leaving it blank, and it never re-asks a question the engine is already answering.",
@@ -8028,11 +8023,13 @@ function attnTitle() {
 // Looking at the page is answering "where are you": a standing queue stop is
 // seen once the tab is in front again. An approval is not -- it still needs
 // the button pressed, so it keeps its mark until it is decided.
+// One mark per queue (council and Code Mode), cleared together.
+const attnClearQueues = () => { attnClear("queue:stopped"); attnClear("codequeue:stopped"); };
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") attnClear("queue:stopped");
+  if (document.visibilityState === "visible") attnClearQueues();
 });
 // ...and a tab that was already in front is seen at the next touch.
-window.addEventListener("pointerdown", () => attnClear("queue:stopped"), true);
+window.addEventListener("pointerdown", attnClearQueues, true);
 
 /* ══ vocabulary ════════════════════════════════════════════════════════════ */
 const WORKING = new Set(["queued", "launching", "navigating", "typing", "waiting", "streaming"]);
@@ -9419,13 +9416,8 @@ const S = {
    *  it, and asking it to build a new card returns 404 "unknown run".
    */
   runLocal: false,
-  // The prompt queue. One entry per prompt waiting to be put to the council,
-  // each carrying its own units -- see the QUEUE section.
-  queue: [],
-  queueRunning: false,
-  // Set while the queue sleeps off a usage limit: { until (ms), known
-  // (the limit said when it lifts), why }. Memory only -- see queueHoldFor.
-  queueHold: null,
+  // The two queues (council prompts, Code Mode tasks) live in QUEUES -- see
+  // the QUEUE section.
   /* The run that is actually in flight, held apart from whatever is on
    * screen.
    *
@@ -10591,7 +10583,7 @@ function sendCarried(sess, texts, ids, auto) {
       sess.pending = texts.map((t) => ({ text: t, mine: true }));
     }
   };
-  if (!auto || !here() || S.queueRunning || !online()) { draft(); return; }
+  if (!auto || !here() || QUEUES.council.running || !online()) { draft(); return; }
   setTimeout(() => {
     if (S.running || !here()) { draft(); return; }
     runOne({ question: text, units: ids, session: sess });
@@ -23136,6 +23128,17 @@ async function cloudPublishToken(tok, onlyIfEmpty) {
    Run/Pause button, which is Veda's fix for the same bug in Claude Queue:
    pressing Pause then Run quickly would otherwise start a second drain loop
    against the same list.
+
+   ── Two queues, not one ──────────────────────────────────────────────────
+   Deliberation and Code Mode each have their OWN queue (a "lane" below):
+   own rows, own Run/Pause, own lease, own usage-limit hold, own field on the
+   index document (`queue` and `codeQueue`). They used to share one list, so
+   a coding task waited behind every council prompt ahead of it and a council
+   rate limit held up the coding tasks -- two unrelated lines of work forced
+   into single file. The engine already keeps them apart where it matters: a
+   browser profile both want is serialised there (launcher._profile_lock),
+   and Code Mode runs one task at a time (codeQueueRun waits on codeBusy).
+   Everything below takes the lane it acts on; a row finds its own by kind.
    ════════════════════════════════════════════════════════════════════════ */
 
 const MAX_QUEUE = 100;
@@ -23172,25 +23175,55 @@ const DEVICE_ID = (() => {
 })();
 
 /* The actual File objects for queued attachments, by item id.
-   Deliberately NOT in S.queue: S.queue is what gets serialised to Firestore,
-   and a File cannot be and must not be. */
+   Deliberately NOT in a lane's items: those are what gets serialised to
+   Firestore, and a File cannot be and must not be. */
 const QUEUE_FILES = new Map();
 
 /** Told the run id the moment a run starts, so the queue row can record it
  *  before the run finishes. Set around a call and cleared after. */
 let onRunStart = null;
 
-/** Generation counter: an older drain loop exits when it sees a newer one. */
-let _queueGen = 0;
-let _leaseTimer = 0;
+/* Kept on this device as well as in the cloud -- see saveQueueLocal. */
+const QUEUE_KEY = lsKey("queue");
+const CODE_QUEUE_KEY = lsKey("codequeue");
 
-const queueSorted = () =>
-  [...S.queue].sort((a, b) => (a.order || 0) - (b.order || 0));
+/** One queue's whole state. `gen` is the generation counter: an older drain
+ *  loop exits when it sees a newer one. `dirty`/`saveT` are the debounced
+ *  cloud write (see _marksDirty); `lease` is the copy last read from the
+ *  cloud; `hold` is set while it sleeps off a usage limit: { until (ms),
+ *  known (the limit said when it lifts), why }, memory only. */
+function queueLane(kind, field, key, attn, label) {
+  return { kind, field, leaseField: `${field}Lease`, key, attn, label,
+           items: [], running: false, hold: null, gen: 0, leaseTimer: 0,
+           lease: null, dirty: false, saveT: 0, holdWake: null };
+}
+const QUEUES = {
+  council: queueLane("council", "queue", QUEUE_KEY, "queue:stopped", "Queue"),
+  code: queueLane("code", "codeQueue", CODE_QUEUE_KEY, "codequeue:stopped", "Code queue"),
+};
+const LANES = [QUEUES.council, QUEUES.code];
 
-const queuePending = () => queueSorted().filter((it) => it.status === "queued");
+/** The lane a row belongs to, by its kind. */
+const queueLaneOf = (it) => (it && it.kind === "code" ? QUEUES.code : QUEUES.council);
+/** The lane the screen is showing: Code Mode's in Code Mode. */
+const queueViewLane = () =>
+  (typeof codeMode === "function" && codeMode() ? QUEUES.code : QUEUES.council);
+/** A row by id, with its lane: [lane, row], or [null, null]. */
+function queueFind(id) {
+  for (const L of LANES) {
+    const it = L.items.find((x) => x.id === id);
+    if (it) return [L, it];
+  }
+  return [null, null];
+}
 
-function queueNextOrder() {
-  const last = queueSorted()[S.queue.length - 1];
+const queueSorted = (L) =>
+  [...L.items].sort((a, b) => (a.order || 0) - (b.order || 0));
+
+const queuePending = (L) => queueSorted(L).filter((it) => it.status === "queued");
+
+function queueNextOrder(L) {
+  const last = queueSorted(L)[L.items.length - 1];
   return (last ? (last.order || 0) : 0) + QUEUE_STEP;
 }
 
@@ -23201,11 +23234,13 @@ function queueNextOrder() {
 function queueAdd() {
   const q = $("composer").value.trim();
   if (!q) return;
-  if (S.queue.length >= MAX_QUEUE) {
-    setErr("refineError", `The queue holds ${MAX_QUEUE} prompts.`);
+  const coding = typeof codeMode === "function" && codeMode();
+  // Into the queue of the mode it was written in -- never the other one.
+  const L = coding ? QUEUES.code : QUEUES.council;
+  if (L.items.length >= MAX_QUEUE) {
+    setErr("refineError", `The queue holds ${MAX_QUEUE} ${coding ? "tasks" : "prompts"}.`);
     return;
   }
-  const coding = typeof codeMode === "function" && codeMode();
   const proj = coding ? codeProject() : null;
   if (coding && !proj) {
     setErr("refineError", "Choose a workspace for this task first.");
@@ -23227,7 +23262,7 @@ function queueAdd() {
         rw: CODE.rw === "write" ? "write" : "read",
         ap: CODE.rw === "write" && CODE.ap === "auto" ? "auto" : "manual" }
     : {};
-  S.queue.push({
+  L.items.push({
     id,
     q,
     // A task's agents are in `code`; the council's ticks are not its to carry.
@@ -23236,7 +23271,7 @@ function queueAdd() {
     // device shows instead of a file it cannot have.
     atts: files.map((f) => ({ n: f.name, s: f.size, t: f.type || "" })),
     status: "queued",
-    order: queueNextOrder(),
+    order: queueNextOrder(L),
     dev: DEVICE_NAME,
     runId: null,
     err: null,
@@ -23255,7 +23290,7 @@ function queueAdd() {
   setErr("attachError", null);
   renderChips();
   setErr("refineError", null);
-  queueChanged();
+  queueChanged(L);
 }
 /* Asked first, in MAGI's own sheet -- never a browser dialog.
  *
@@ -23265,7 +23300,7 @@ function queueAdd() {
  *  than once per row).
  */
 async function queueRemove(id, silent) {
-  const it = S.queue.find((x) => x.id === id);
+  const [L, it] = queueFind(id);
   if (!it) return;
   if (!silent) {
     const shown = String(it.q || "");
@@ -23279,9 +23314,9 @@ async function queueRemove(id, silent) {
       "Remove");
     if (!ok) return;
   }
-  S.queue = S.queue.filter((x) => x.id !== id);
+  L.items = L.items.filter((x) => x.id !== id);
   QUEUE_FILES.delete(id);
-  queueChanged();
+  queueChanged(L);
 }
 
 /* Show what a running prompt is doing.
@@ -23296,13 +23331,13 @@ async function queueRemove(id, silent) {
  *  the grid is already live -- so that case just puts it back on screen.
  */
 async function queueWatch(id, reveal = false) {
-  const it = S.queue.find((x) => x.id === id);
+  const [L, it] = queueFind(id);
   if (!it || !it.runId) return;
-  if (it.kind === "code") return codeQueueWatch(it, reveal);
+  if (L === QUEUES.code) return codeQueueWatch(it, reveal);
   if (S.live && S.live.runId === it.runId) { backToLive(); return; }
 
   const outcome = await watchRun(it.runId, it.q);
-  const cur = S.queue.find((x) => x.id === id);
+  const cur = L.items.find((x) => x.id === id);
   if (!cur || !outcome) return;
   // Attaching means this tab now sees the end of the run, so the row is
   // finished here even though another tab started it.
@@ -23312,7 +23347,7 @@ async function queueWatch(id, reveal = false) {
       cur.err = outcome.error
         || `${outcome.responded || 0} of ${outcome.total || 0} units answered`;
     }
-    queueChanged();
+    queueChanged(L);
   }
 }
 
@@ -23326,15 +23361,15 @@ async function queueWatch(id, reveal = false) {
  *  queue was idle, because pressing Retry and then having to find Run as well
  *  is the same request made twice.
  */
-function queueRetry(ids) {
+function queueRetry(L, ids) {
   const want = new Set(ids);
   // Finished rows too (Claude Queue's Requeue): asking the same thing again
   // later -- a fresh morning report, a check after a fix -- is the same row
   // with the same units and files, and retyping it loses both.
-  const rows = S.queue.filter((it) => want.has(it.id)
+  const rows = L.items.filter((it) => want.has(it.id)
     && (it.status === "failed" || it.status === "done"));
   if (!rows.length) return;
-  const front = Math.min(0, ...queuePending().map((it) => it.order || 0));
+  const front = Math.min(0, ...queuePending(L).map((it) => it.order || 0));
   rows
     .sort((a, b) => (a.order || 0) - (b.order || 0))
     .forEach((it, k) => {
@@ -23345,11 +23380,11 @@ function queueRetry(ids) {
       // Kept in their original relative order, all ahead of what was waiting.
       it.order = front - QUEUE_STEP * (rows.length - k);
     });
-  queueChanged();
-  if (!S.queueRunning && online()) queueStart();
+  queueChanged(L);
+  if (!L.running && online()) queueStart(L);
 }
 
-const queueFailed = () => S.queue.filter((it) => it.status === "failed");
+const queueFailed = (L) => L.items.filter((it) => it.status === "failed");
 
 /* Edit a queued prompt where it lives, in its own panel.
  *
@@ -23365,12 +23400,12 @@ const queueFailed = () => S.queue.filter((it) => it.status === "failed");
  *  the row as it was.
  */
 function queueEdit(id) {
-  const it = S.queue.find((x) => x.id === id);
+  const [L, it] = queueFind(id);
   if (!it || it.status === "running") return;
 
   // A Code row picks agents where a council row picks units; the chips,
   // the count and Refine all read from this one list.
-  const isCode = it.kind === "code";
+  const isCode = L === QUEUES.code;
   const pool = isCode ? codeQueuePool(it) : knownUnits().map((p) => ({
     id: p.id, name: p.display_name, accent: p.accent,
     sub: (UNIT[p.id] || "").split("\u00b7")[0],
@@ -23598,7 +23633,7 @@ function queueEdit(id) {
   };
 
   save.onclick = () => {
-    const cur = S.queue.find((x) => x.id === id);
+    const cur = L.items.find((x) => x.id === id);
     if (!cur) return close();
     cur.q = text.trim();
     // Kept in the chain's order, not the order they were clicked in.
@@ -23613,7 +23648,7 @@ function queueEdit(id) {
     // are concerned.
     if (files.length) cur.dev = DEVICE_NAME;
     close();
-    queueChanged();
+    queueChanged(L);
   };
 
   sheet.append(box);
@@ -23625,7 +23660,9 @@ function queueEdit(id) {
 }
 /** Move one row, by changing only its own order number. */
 function queueMove(id, dir) {
-  const rows = queueSorted();
+  const [L] = queueFind(id);
+  if (!L) return;
+  const rows = queueSorted(L);
   const i = rows.findIndex((x) => x.id === id);
   const j = i + dir;
   if (i < 0 || j < 0 || j >= rows.length) return;
@@ -23634,26 +23671,29 @@ function queueMove(id, dir) {
   it.order = beyond
     ? ((other.order || 0) + (beyond.order || 0)) / 2
     : (other.order || 0) + dir * QUEUE_STEP;
-  queueChanged();
+  queueChanged(L);
 }
 
-async function queueClearDone() {
-  const going = S.queue.filter(
+async function queueClearDone(L) {
+  const going = L.items.filter(
     (it) => it.status !== "queued" && it.status !== "running");
   if (!going.length) return;
   const done = going.filter((it) => it.status === "done").length;
   const failed = going.length - done;
+  const code = L === QUEUES.code;
+  const noun = code ? "task" : "prompt";
   const ok = await uiConfirmMagi(
-    `Clear ${going.length} finished prompt${going.length === 1 ? "" : "s"}?`,
+    `Clear ${going.length} finished ${noun}${going.length === 1 ? "" : "s"}?`,
     [done ? `${done} finished` : "", failed ? `${failed} failed` : ""]
       .filter(Boolean).join(" and ")
-    + " will leave the queue.\n\nThe deliberations they produced stay in "
-    + "History; only the rows go.",
+    + " will leave the queue.\n\n"
+    + (code ? "The tasks they ran stay in Code Mode's History; only the rows go."
+            : "The deliberations they produced stay in History; only the rows go."),
     "Clear");
   if (!ok) return;
   for (const it of going) QUEUE_FILES.delete(it.id);
-  S.queue = S.queue.filter((it) => it.status === "queued" || it.status === "running");
-  queueChanged();
+  L.items = L.items.filter((it) => it.status === "queued" || it.status === "running");
+  queueChanged(L);
 }
 
 /* Kept on this device as well as in the cloud.
@@ -23665,27 +23705,36 @@ async function queueClearDone() {
  *  refresh. Attachments are still not stored: File objects are not JSON, and
  *  the names in `atts` are what a reload has to work from.
  */
-const QUEUE_KEY = lsKey("queue");
-
-function saveQueueLocal() {
-  try { localStorage.setItem(QUEUE_KEY, JSON.stringify(queueForCloud())); } catch {}
+function saveQueueLocal(L) {
+  try { localStorage.setItem(L.key, JSON.stringify(queueForCloud(L))); } catch {}
 }
 
+/** Both lanes from this device's copies. A Code row found in the council's
+ *  key is from when the two shared one list: it moves to Code Mode's queue
+ *  (unless that already has it) and both copies are rewritten. */
 function loadQueueLocal() {
-  try {
-    const raw = JSON.parse(localStorage.getItem(QUEUE_KEY) || "[]");
-    if (Array.isArray(raw)) {
-      // A prompt that was mid-run when the page closed is not running HERE
-      // any more -- but if it got as far as an id, the engine may still be
-      // running it, and queueResume reconnects rather than asking the council
-      // the same question twice.
-      S.queue = raw.map((it) => ({
-        ...it,
-        resumable: it.status === "running" && !!it.runId,
-        status: it.status === "running" ? "queued" : it.status,
-      }));
-    }
-  } catch {}
+  const read = (key) => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(key) || "[]");
+      return Array.isArray(raw) ? raw.filter((it) => it && typeof it === "object") : [];
+    } catch { return []; }
+  };
+  // A prompt that was mid-run when the page closed is not running HERE
+  // any more -- but if it got as far as an id, the engine may still be
+  // running it, and queueResume reconnects rather than asking the council
+  // the same question twice.
+  const revive = (it) => ({
+    ...it,
+    resumable: it.status === "running" && !!it.runId,
+    status: it.status === "running" ? "queued" : it.status,
+  });
+  const shared = read(QUEUE_KEY);
+  const legacy = shared.filter((it) => it.kind === "code");
+  QUEUES.council.items = shared.filter((it) => it.kind !== "code").map(revive);
+  const code = read(CODE_QUEUE_KEY).filter((it) => it.kind === "code");
+  for (const it of legacy) if (!code.some((x) => x.id === it.id)) code.push(it);
+  QUEUES.code.items = code.map(revive);
+  if (legacy.length) { saveQueueLocal(QUEUES.council); saveQueueLocal(QUEUES.code); }
 }
 
 /* A prompt that was mid-run when the page reloaded.
@@ -23702,12 +23751,15 @@ function loadQueueLocal() {
  */
 async function queueResume() {
   if (!online()) return;
-  const live = S.queue.find((it) => it.runId && (it.status === "running"
-    || it.status === "queued" && it.resumable));
-  if (!live) return;
-  live.status = "running";
-  queueChanged();
-  await queueWatch(live.id);
+  // Each queue has its own run in flight, so each is picked up on its own.
+  await Promise.all(LANES.map(async (L) => {
+    const live = L.items.find((it) => it.runId && (it.status === "running"
+      || it.status === "queued" && it.resumable));
+    if (!live) return;
+    live.status = "running";
+    queueChanged(L);
+    await queueWatch(live.id);
+  }));
 }
 
 /* ══ picking the work back up ══════════════════════════════════════════════
@@ -23752,7 +23804,7 @@ async function resumeLive() {
   const pin = readPin(LIVE_RUN_SS);
   if (!pin || !pin.runId) return;
   // Already being watched by the queue's resume, one line above.
-  if (S.queue.some((it) => it.runId === pin.runId)) return;
+  if (QUEUES.council.items.some((it) => it.runId === pin.runId)) return;
   // watchRun ends in endRun whichever way it goes, including "the engine has
   // never heard of that run", so a pin that outlived its run clears itself
   // rather than needing a check of its own first.
@@ -23793,12 +23845,13 @@ async function resumeBrainstorm() {
   renderBsView(); renderBsNav(); updateEnabled();
 }
 
-/** Every local change goes through here: redraw, then save, then sync. */
-function queueChanged() {
+/** Every local change goes through here: redraw, then save, then sync --
+ *  that lane's copy and field only. */
+function queueChanged(L) {
   renderQueue();
   updateEnabled();
-  saveQueueLocal();
-  cloudSaveQueue();
+  saveQueueLocal(L);
+  cloudSaveQueue(L);
 }
 
 /* ── the runner ───────────────────────────────────────────────────────────*/
@@ -23806,76 +23859,88 @@ function queueChanged() {
 /** Anything left marked running while nothing is running: a tab that closed
  *  mid-prompt. Counted as startable, or the queue is stuck on a row that no
  *  longer has anything behind it. */
-const queueStuck = () =>
-  !S.queueRunning && S.queue.some((it) => it.status === "running");
+const queueStuck = (L) =>
+  !L.running && L.items.some((it) => it.status === "running");
 
-async function queueStart() {
-  if (S.queueRunning) return;
-  if (!queuePending().length && !queueStuck()) return;
+async function queueStart(L) {
+  if (L.running) return;
+  if (!queuePending(L).length && !queueStuck(L)) return;
   if (!online()) {
     setErr("refineError", "The engine device has to be awake to run the queue.");
     return;
   }
-  if (!(await leaseClaim())) return;
+  if (!(await leaseClaim(L))) return;
   // Nothing can be running now: this page is not running it, and holding the
   // lease means no other device is either. A row still marked running was
   // left there by a tab that closed mid-prompt, and it has to be startable
   // again or the queue is stuck on a row nothing will ever finish.
   let orphans = 0;
-  for (const it of S.queue) {
+  for (const it of L.items) {
     if (it.status === "running") { it.status = "queued"; orphans++; }
   }
-  if (orphans) queueChanged();
-  attnClear("queue:stopped");
-  S.queueRunning = true;
-  const gen = ++_queueGen;
+  if (orphans) queueChanged(L);
+  attnClear(L.attn);
+  L.running = true;
+  const gen = ++L.gen;
   renderQueue();
-  _leaseTimer = setInterval(leaseRefresh, LEASE_REFRESH_MS);
+  L.leaseTimer = setInterval(() => leaseRefresh(L), LEASE_REFRESH_MS);
   try {
-    await queueDrain(gen);
+    await queueDrain(L, gen);
   } finally {
-    if (gen === _queueGen) {
-      S.queueRunning = false;
-      S.queueHold = null;
-      clearInterval(_leaseTimer);
-      await leaseRelease();
+    if (gen === L.gen) {
+      L.running = false;
+      L.hold = null;
+      clearInterval(L.leaseTimer);
+      await leaseRelease(L);
       renderQueue();
       updateEnabled();
     }
   }
 }
 
-function queueStop() {
+function queueStop(L) {
   // Bumping the generation is what actually stops it: the loop rechecks
   // after every await and a superseded loop exits without touching anything.
-  _queueGen++;
-  S.queueRunning = false;
+  L.gen++;
+  L.running = false;
   // A hold only means anything while a loop is there to end it; left up, a
   // paused queue would go on promising to resume by itself.
-  S.queueHold = null;
-  queueHoldWake();
-  clearInterval(_leaseTimer);
-  leaseRelease();
+  L.hold = null;
+  queueHoldWake(L);
+  clearInterval(L.leaseTimer);
+  leaseRelease(L);
   renderQueue();
   updateEnabled();
 }
 
-async function queueDrain(gen) {
+/** Wait out a deliberation started by hand (or a brainstorm round) before a
+ *  queued one takes the council screen -- the same courtesy codeQueueRun
+ *  pays a hand-started task. False when paused meanwhile. */
+async function queueCouncilFree(L, gen) {
+  while (S.running || (S.bs && S.bs.busy)) {
+    if (gen !== L.gen) return false;
+    await _sleep(2000);
+  }
+  return gen === L.gen;
+}
+
+async function queueDrain(L, gen) {
+  const code = L === QUEUES.code;
   // Holds in a row that had to guess when the limit lifts. See QUEUE_HOLD_*.
   let guessed = 0;
   for (;;) {
-    if (gen !== _queueGen) return;              // paused, or superseded
-    const it = queuePending()[0];
+    if (gen !== L.gen) return;                  // paused, or superseded
+    const it = queuePending(L)[0];
     if (!it) return;
     if (!online()) {
       setErr("refineError", "Lost the engine; the queue is holding.");
-      attnSet("queue:stopped", "Queue stopped");
+      attnSet(L.attn, `${L.label} stopped`);
       return;
     }
 
     it.status = "running";
     it.err = null;
-    queueChanged();
+    queueChanged(L);
 
     const files = QUEUE_FILES.get(it.id) || [];
     // An item added on another device has its names but not its bytes. Said
@@ -23888,9 +23953,11 @@ async function queueDrain(gen) {
       // Recorded the moment the engine hands back an id, not when the run
       // ends: a refresh mid-prompt can then find the run still going instead
       // of leaving a row that says "running" with nothing to point at.
-      const started = (id) => { it.runId = id; queueChanged(); };
-      if (it.kind === "code") {
+      const started = (id) => { it.runId = id; queueChanged(L); };
+      if (code) {
         outcome = await codeQueueRun(it, files, gen, started);
+      } else if (!(await queueCouncilFree(L, gen))) {
+        outcome = { notStarted: true };
       } else {
         onRunStart = started;
         outcome = await runOne({ question: it.q, units: it.units, files });
@@ -23904,7 +23971,7 @@ async function queueDrain(gen) {
     // began, so it goes back to waiting rather than down as a failure.
     if (outcome && outcome.notStarted) {
       it.status = "queued";
-      queueChanged();
+      queueChanged(L);
       return;
     }
     // Recorded BEFORE the generation is rechecked. Returning here left the
@@ -23927,8 +23994,8 @@ async function queueDrain(gen) {
       it.status = "failed";
       it.err = (outcome && outcome.error) || "could not start";
     }
-    queueChanged();
-    if (gen !== _queueGen) return;              // paused: stop after this one
+    queueChanged(L);
+    if (gen !== L.gen) return;                  // paused: stop after this one
 
     // A rate limit is the one failure worth stopping for: the next prompt
     // would hit the same wall, and a queue that empties itself into a wall
@@ -23945,23 +24012,23 @@ async function queueDrain(gen) {
       it.runId = null;
       it.resumable = false;
       it.err = "hit a usage limit — runs again when it lifts";
-      queueChanged();
-      const hold = await queueHoldFor(outcome, it);
+      queueChanged(L);
+      const hold = await queueHoldFor(L, outcome, it);
       guessed = hold.known ? 0 : guessed + 1;
       if (guessed > QUEUE_HOLD_GUESSES) {
         // Retrying on a guess for hours means the guess is wrong, not that
         // the next try will work. Stop, and say so where it can be heard.
-        S.queueHold = null;
+        L.hold = null;
         it.status = "failed";
         it.err = "still limited after every retry";
-        queueChanged();
-        setErr("refineError", outcome.limited
+        queueChanged(L);
+        setErr("refineError", code
           ? "Stopped: every agent for that task is still out of usage. Run the queue again once it resets."
           : "Stopped: the council is still rate limited. Run the queue again once it resets.");
-        attnSet("queue:stopped", "Queue stopped");
+        attnSet(L.attn, `${L.label} stopped`);
         return;
       }
-      if (!(await queueHoldWait(gen))) return;  // paused while it waited
+      if (!(await queueHoldWait(L, gen))) return;  // paused while it waited
       continue;
     }
     guessed = 0;
@@ -23998,22 +24065,23 @@ async function queueCouncilReset(units) {
 }
 
 /** Decide the hold and put it on screen. */
-async function queueHoldFor(outcome, it) {
+async function queueHoldFor(L, outcome, it) {
+  const code = L === QUEUES.code;
   let at = outcome && outcome.resetsAt;
-  if (!at && it.kind !== "code") {
+  if (!at && !code) {
     try { at = await queueCouncilReset(it.units); } catch { at = null; }
   }
   const now = Date.now();
   const known = !!(at && Number.isFinite(at));
   const want = known ? at + QUEUE_HOLD_GRACE_MS : now + QUEUE_HOLD_UNKNOWN_MS;
-  S.queueHold = {
+  L.hold = {
     until: Math.max(now + QUEUE_HOLD_MIN_MS, Math.min(want, now + QUEUE_HOLD_MAX_MS)),
     known,
-    why: it.kind === "code" ? "Every agent for that task is out of usage."
-                            : "The council is rate limited.",
+    why: code ? "Every agent for that task is out of usage."
+              : "The council is rate limited.",
   };
   renderQueue();
-  return S.queueHold;
+  return L.hold;
 }
 
 /** Sleep until the hold ends. False when the queue was paused meanwhile;
@@ -24024,38 +24092,39 @@ async function queueHoldFor(outcome, it) {
  *  up to fifteen seconds before anything happened -- a button that seems
  *  not to work. The poll is still there for what nobody presses: the clock
  *  reaching the reset, or a PC waking from sleep past it. */
-let _holdWake = null;
-function queueHoldWake() {
-  const w = _holdWake;
-  _holdWake = null;
+function queueHoldWake(L) {
+  const w = L.holdWake;
+  L.holdWake = null;
   if (w) w();
 }
 
-async function queueHoldWait(gen) {
+async function queueHoldWait(L, gen) {
   const tick = setInterval(renderQueueHold, 30000);
   try {
-    while (S.queueHold && Date.now() < S.queueHold.until) {
-      if (gen !== _queueGen) return false;
-      const ms = Math.max(250, Math.min(QUEUE_HOLD_POLL_MS, S.queueHold.until - Date.now()));
+    while (L.hold && Date.now() < L.hold.until) {
+      if (gen !== L.gen) return false;
+      const ms = Math.max(250, Math.min(QUEUE_HOLD_POLL_MS, L.hold.until - Date.now()));
       await new Promise((resolve) => {
-        const t = setTimeout(() => { if (_holdWake === resolve) _holdWake = null; resolve(); }, ms);
-        _holdWake = () => { clearTimeout(t); resolve(); };
+        const t = setTimeout(() => { if (L.holdWake === resolve) L.holdWake = null; resolve(); }, ms);
+        L.holdWake = () => { clearTimeout(t); resolve(); };
       });
     }
   } finally {
     clearInterval(tick);
-    _holdWake = null;
+    L.holdWake = null;
   }
-  if (gen !== _queueGen) return false;
-  S.queueHold = null;
+  if (gen !== L.gen) return false;
+  L.hold = null;
   renderQueue();
   return true;
 }
 
+/** The hold of the queue on screen. */
 function renderQueueHold() {
   const box = $("queueHold");
   if (!box) return;
-  const h = S.queueHold;
+  const L = queueViewLane();
+  const h = L.hold;
   show(box, !!h);
   if (!h) return;
   const iso = new Date(h.until).toISOString();
@@ -24063,10 +24132,10 @@ function renderQueueHold() {
   $("queueHoldTxt").innerHTML = "";
   $("queueHoldTxt").append(
     el("b", null, "Holding for a usage limit. "),
-    document.createTextNode(`${h.why} The prompt went back in the queue, not down as failed; `
+    document.createTextNode(`${h.why} The ${L === QUEUES.code ? "task" : "prompt"} went back in the queue, not down as failed; `
       + (h.known ? `it runs again when the limit lifts, at ${when}.`
                  : `no reset time was given, so it tries again at ${when}.`)));
-  $("queueHoldNow").onclick = () => { S.queueHold = null; renderQueue(); queueHoldWake(); };
+  $("queueHoldNow").onclick = () => { L.hold = null; renderQueue(); queueHoldWake(L); };
 }
 
 /** Did every unit that spoke say "rate limited"? */
@@ -24082,51 +24151,52 @@ function queueHitLimit(outcome) {
 
 /* ── the lease ────────────────────────────────────────────────────────────*/
 
-async function leaseClaim() {
+/* One lease per queue (`queueLease`, `codeQueueLease`): the council's
+   queue running on the PC must not stop the phone running Code Mode's. */
+async function leaseClaim(L) {
   if (!CLOUD.enabled) return true;             // local-only: nothing to race
   if (!(await cloudInit())) return true;
-  const held = CLOUD.lease;
+  const held = L.lease;
   if (held && held.device !== DEVICE_ID
       && Date.now() - (held.at || 0) < LEASE_STALE_MS) {
     setErr("refineError", `The queue is already running on ${held.name || "another device"}.`);
     return false;
   }
-  await leaseWrite({ device: DEVICE_ID, name: DEVICE_NAME, at: Date.now() });
+  await leaseWrite(L, { device: DEVICE_ID, name: DEVICE_NAME, at: Date.now() });
   return true;
 }
 
-const leaseRefresh = () =>
-  leaseWrite({ device: DEVICE_ID, name: DEVICE_NAME, at: Date.now() });
+const leaseRefresh = (L) =>
+  leaseWrite(L, { device: DEVICE_ID, name: DEVICE_NAME, at: Date.now() });
 
-const leaseRelease = () => leaseWrite(null);
+const leaseRelease = (L) => leaseWrite(L, null);
 
-async function leaseWrite(v) {
+async function leaseWrite(L, v) {
   if (!CLOUD.enabled || !(await cloudInit())) return;
   try {
-    await CLOUD.fs.setDoc(_indexDoc(), { queueLease: v },
-                          { mergeFields: ["queueLease"] });
+    await CLOUD.fs.setDoc(_indexDoc(), { [L.leaseField]: v },
+                          { mergeFields: [L.leaseField] });
   } catch {}
 }
 
 /* ── the sync ─────────────────────────────────────────────────────────────*/
 
-let _queueT = 0;
-/** See _marksDirty: an edit in flight is not overwritten by an older copy. */
-let _queueDirty = false;
-
-function cloudSaveQueue() {
+/** One lane's field (`queue` or `codeQueue`), debounced per lane. `L.dirty`
+ *  is _marksDirty's rule: an edit in flight is not overwritten by an older
+ *  copy arriving from the listener. */
+function cloudSaveQueue(L) {
   if (!CLOUD.enabled) return;
-  _queueDirty = true;
-  clearTimeout(_queueT);
+  L.dirty = true;
+  clearTimeout(L.saveT);
   setSync("saving");
   // 700ms: long enough that typing a model choice twice is one write, short
   // enough that a queue added on the phone is on the PC before you look up.
-  _queueT = setTimeout(async () => {
+  L.saveT = setTimeout(async () => {
     if (!(await cloudInit())) { setSync("off"); return; }
     try {
-      await CLOUD.fs.setDoc(_indexDoc(), { queue: queueForCloud() },
-                            { mergeFields: ["queue"] });
-      _queueDirty = false;
+      await CLOUD.fs.setDoc(_indexDoc(), { [L.field]: queueForCloud(L) },
+                            { mergeFields: [L.field] });
+      L.dirty = false;
       setSync("saved");
     } catch (e) {
       setSync("error", _syncFail("saving the queue", e));
@@ -24207,28 +24277,66 @@ function queueNorm(it) {
   }
   return row;
 }
-const queueForCloud = () => queueSorted().map(queueNorm);
+const queueForCloud = (L) => queueSorted(L).map(queueNorm);
 
-/** Apply an incoming queue. Returns true when anything actually changed. */
-function queueFromCloud(rows) {
+/** Apply an incoming queue to one lane -- only the rows that belong in it.
+ *  Returns true when anything actually changed. */
+function queueFromCloud(L, rows) {
   if (!Array.isArray(rows)) return false;
-  const mine = JSON.stringify(queueForCloud());
+  const code = L === QUEUES.code;
+  rows = rows.filter((it) => it && typeof it === "object" && (it.kind === "code") === code);
+  const mine = JSON.stringify(queueForCloud(L));
   const theirs = JSON.stringify(rows.map(queueNorm));
   if (mine === theirs) return false;
-  S.queue = rows.map((it) => ({ ...it }));
+  L.items = rows.map((it) => ({ ...it }));
   return true;
 }
 
-/** The queue, drawn. */
+/** Both queues and both leases from one snapshot of the index document.
+ *
+ *  A Code row still in `queue` is from a console that predates the split
+ *  (or from before it): it is moved to `codeQueue` -- once, since writing
+ *  both fields back leaves `queue` without it -- rather than dropped, or it
+ *  would vanish from every device the moment this one saved the council's
+ *  list. Skipped while that lane has an edit of its own on the way up. */
+function queuesFromCloud(d) {
+  if (!d) return;
+  QUEUES.council.lease = d.queueLease || null;
+  QUEUES.code.lease = d.codeQueueLease || null;
+  const C = QUEUES.council, K = QUEUES.code;
+  let drew = false, legacy = [];
+  if (!C.dirty && Array.isArray(d.queue)) {
+    legacy = d.queue.filter((it) => it && it.kind === "code");
+    if (queueFromCloud(C, d.queue)) { saveQueueLocal(C); drew = true; }
+  }
+  if (!K.dirty && Array.isArray(d.codeQueue)) {
+    if (queueFromCloud(K, d.codeQueue)) { saveQueueLocal(K); drew = true; }
+  }
+  if (legacy.length && !K.dirty) {
+    for (const it of legacy) {
+      if (!K.items.some((x) => x.id === it.id)) K.items.push({ ...it });
+    }
+    queueChanged(K);
+    queueChanged(C);
+    return;
+  }
+  if (drew) renderQueue();
+}
+
+/** The queue of the mode on screen, drawn -- the council's on the council
+ *  screen, Code Mode's in Code Mode. */
 function renderQueue() {
   const drawer = $("queueDrawer");
   if (!drawer) return;
-  const rows = queueSorted();
+  const L = queueViewLane();
+  const isCodeLane = L === QUEUES.code;
+  const rows = queueSorted(L);
   // Shown only where it can be acted on: the council screen, and only when
   // there is something in it.
   show(drawer, rows.length > 0 && S.view === "council" && !(S.studio && S.studio.active));
+  $("queueTitle").textContent = isCodeLane ? "Task queue" : "Queue";
 
-  const pending = queuePending().length;
+  const pending = queuePending(L).length;
   const count = $("queueCount");
   count.textContent = rows.length
     ? `${pending} waiting${rows.length - pending ? ` \u00b7 ${rows.length - pending} finished` : ""}`
@@ -24236,45 +24344,43 @@ function renderQueue() {
 
   renderQueueHold();
   const runBtn = $("queueRunBtn");
-  runBtn.textContent = S.queueRunning ? (S.queueHold ? "Cancel wait" : "Pause") : "Run queue";
-  runBtn.disabled = !S.queueRunning
-    && ((!pending && !queueStuck()) || !online());
-  runBtn.title = S.queueRunning
-    ? (S.queueHold ? "Stop waiting for the limit; the prompt stays queued"
-                   : "Stop after the prompt that is running")
+  const noun = isCodeLane ? "task" : "prompt";
+  runBtn.textContent = L.running ? (L.hold ? "Cancel wait" : "Pause") : "Run queue";
+  runBtn.disabled = !L.running
+    && ((!pending && !queueStuck(L)) || !online());
+  runBtn.title = L.running
+    ? (L.hold ? `Stop waiting for the limit; the ${noun} stays queued`
+              : `Stop after the ${noun} that is running`)
     : !online() ? "The engine device has to be awake"
-    : (!pending && !queueStuck()) ? "Nothing is waiting — add a prompt to the queue"
-    : "Run each prompt in turn: questions to the council, tasks to Code Mode";
-  runBtn.onclick = () => (S.queueRunning ? queueStop() : queueStart());
+    : (!pending && !queueStuck(L)) ? `Nothing is waiting — add a ${noun} to the queue`
+    : isCodeLane ? "Run each task in turn in Code Mode"
+    : "Put each prompt to the council in turn";
+  runBtn.onclick = () => (L.running ? queueStop(L) : queueStart(L));
 
   // Retry all: offered once there is more than one to retry. With one, the
   // row's own button is right next to it and a second copy is clutter.
-  const failed = queueFailed();
+  const failed = queueFailed(L);
   const retryAll = $("queueRetryBtn");
   show(retryAll, failed.length > 1);
   retryAll.textContent = `Retry ${failed.length} failed`;
-  retryAll.title = "Put every failed prompt back at the front of the queue and run them";
-  retryAll.onclick = () => queueRetry(failed.map((it) => it.id));
+  retryAll.title = `Put every failed ${noun} back at the front of the queue and run them`;
+  retryAll.onclick = () => queueRetry(L, failed.map((it) => it.id));
 
   const clearBtn = $("queueClearBtn");
   const finished = rows.length - pending;
   show(clearBtn, finished > 0);
-  clearBtn.onclick = queueClearDone;
+  clearBtn.onclick = () => queueClearDone(L);
 
   const box = $("queueRows");
   box.textContent = "";
-  // Council prompts and coding tasks share one queue (one engine, one at a
-  // time). Which is which is only worth a tag when both are in it.
-  const mixed = rows.some((it) => it.kind === "code") && rows.some((it) => it.kind !== "code");
   for (const it of rows) {
-    const isCode = it.kind === "code";
+    const isCode = isCodeLane;
     const row = el("div", `q-row ${it.status}${isCode ? " code" : ""}`);
     const main = el("div", "q-main");
     main.append(el("div", "q-text", it.q));
 
     const meta = el("div", "q-meta");
     meta.append(el("span", `q-state ${it.status}`, it.status));
-    if (mixed) meta.append(el("span", `q-kind${isCode ? " code" : ""}`, isCode ? "Code" : "Council"));
     if (isCode) {
       meta.append(el("span", "q-ws", it.pname || "workspace"));
       const rw = el("span", `q-rw ${it.rw === "write" ? "write" : ""}`,
@@ -24330,7 +24436,7 @@ function renderQueue() {
     down.disabled = it.status !== "queued" || rows.indexOf(it) === rows.length - 1;
     down.onclick = () => queueMove(it.id, 1);
     const edit = el("button", "q-act", "\u270E");
-    edit.type = "button"; edit.title = "Edit this prompt";
+    edit.type = "button"; edit.title = `Edit this ${noun}`;
     edit.disabled = it.status === "running";
     edit.onclick = () => queueEdit(it.id);
     // Running: watch it happen. Finished: open what it produced. One slot,
@@ -24356,9 +24462,9 @@ function renderQueue() {
       retry.type = "button";
       // Never disabled: putting it back in the queue syncs from any device,
       // and whichever device runs the queue picks it up.
-      retry.title = it.status === "failed" ? "Run this prompt again"
+      retry.title = it.status === "failed" ? `Run this ${noun} again`
         : "Run this again \u2014 it goes to the front of the queue";
-      retry.onclick = () => queueRetry([it.id]);
+      retry.onclick = () => queueRetry(L, [it.id]);
     }
     const del = el("button", "q-act danger", "\u2715");
     del.type = "button"; del.title = "Remove from the queue";
@@ -24451,10 +24557,10 @@ async function codeQueueRun(it, files, gen, onStart) {
   // One task at a time: a task started by hand finishes first. Pausing while
   // waiting leaves this row as it was -- it never started.
   while (codeBusy()) {
-    if (gen !== _queueGen) return { notStarted: true };
+    if (gen !== QUEUES.code.gen) return { notStarted: true };
     await _sleep(2000);
   }
-  if (gen !== _queueGen) return { notStarted: true };
+  if (gen !== QUEUES.code.gen) return { notStarted: true };
   // A device that has not opened Code Mode yet has not read what the engine
   // supports (codeTaskBody needs it).
   if (!CODE.state || CODE.from !== link.api) {
@@ -24493,12 +24599,12 @@ async function codeQueueWatch(it, reveal) {
   if (!(CODE.task && CODE.task.id === id)) {
     let held = false;
     try { held = ((await codeGet("/tasks")).tasks || []).some((x) => x.id === id); } catch {}
-    const cur = S.queue.find((x) => x.id === it.id);
+    const cur = QUEUES.code.items.find((x) => x.id === it.id);
     if (!held) {
-      if (cur && cur.status === "running" && !S.queueRunning) {
+      if (cur && cur.status === "running" && !QUEUES.code.running) {
         cur.status = "failed";
         cur.err = "the engine no longer has this task";
-        queueChanged();
+        queueChanged(QUEUES.code);
       }
       return;
     }
@@ -24507,13 +24613,13 @@ async function codeQueueWatch(it, reveal) {
     if (!codeBusy()) codeAttach(id, it.q, { projectId: it.pid || null });
   }
   // This tab's own drain is already waiting on it.
-  if (S.queueRunning && CODE_WAIT.has(id)) return;
+  if (QUEUES.code.running && CODE_WAIT.has(id)) return;
   const out = await codeWaitTask(id);
-  const cur = S.queue.find((x) => x.id === it.id);
+  const cur = QUEUES.code.items.find((x) => x.id === it.id);
   if (cur && cur.status === "running") {
     cur.status = out.ok ? "done" : "failed";
     cur.err = out.ok ? null : out.error;
-    queueChanged();
+    queueChanged(QUEUES.code);
   }
 }
 
@@ -25095,10 +25201,7 @@ async function cloudWatch() {
        *  still on its way up, for the reason _marksDirty exists: an older
        *  copy arriving mid-edit would undo what was just typed.
        */
-      CLOUD.lease = (d && d.queueLease) || null;
-      if (d && !_queueDirty && Array.isArray(d.queue)) {
-        if (queueFromCloud(d.queue)) { saveQueueLocal(); renderQueue(); }
-      }
+      queuesFromCloud(d);
 
       // Session pins and names ride the same document as everything else,
       // and are guarded the same way -- this block used to apply every

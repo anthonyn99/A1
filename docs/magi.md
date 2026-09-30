@@ -1351,6 +1351,19 @@ in parallel to go faster.
 Each row carries its own units, and the list runs one prompt at a time, in
 order.
 
+**Deliberation and Code Mode have separate queues** (split 2026-09-30). Queue
+adds to the list of the mode you are in, and the drawer shows that list
+("Queue" / "Task queue"). Each has its own rows, Run/Pause, generation
+counter, usage-limit hold, lease (`queueLease` / `codeQueueLease`), Firestore
+field (`queue` / `codeQueue`) and `localStorage` key (`magi.<profile>.queue` /
+`.codequeue`) — one `queueLane()` object each in `QUEUES`. They run side
+by side: when both want one browser profile the engine serialises it
+(`launcher._profile_lock`); Code Mode still runs one task at a time
+(`codeQueueRun` waits on `codeBusy`), and a queued deliberation waits for one
+started by hand (`queueCouncilFree`). A Code row still in `queue` (written
+before the split, or by a console that has not reloaded since) moves to
+`codeQueue` on the next snapshot or load rather than being dropped.
+
 Technically this is a port of the ideas in Veda's Claude Queue, not of its
 code — that drives `claude.exe` through a PTY, this drives browser sessions —
 but these of its decisions carried over directly:
@@ -1370,7 +1383,8 @@ but these of its decisions carried over directly:
   council the Units sheet's `/api/units/usage` limits — plus a minute, clamped
   to 1 min … 6 h. With no reset time it retries every 15 minutes and stops
   after 12 such guesses in a row. **Try now** ends the wait, Pause cancels it.
-  The hold lives in the page (`S.queueHold`), like the drain loop itself.
+  The hold lives in the page (the lane's `hold`), like the drain loop itself,
+and belongs to one queue: a council limit never holds Code Mode's tasks.
 - **It rings when it needs you** (added 2026-09-29). Claude Queue's attention
   chime, keyed so each situation rings once: a Write task's approval card
   (again with a minute left — silence is a No after `APPROVE_MIN`), and a
@@ -1416,8 +1430,8 @@ post-task deploy command (A1 deploys itself), and image attachments for tasks
 
 ### What syncs, and what it costs
 
-The queue is a `queue` field on the same `dashboards/magi` document as the
-history index. That document already has a live listener, so a prompt added on
+Each queue is a field (`queue`, `codeQueue`) on the same `dashboards/magi`
+document as the history index. That document already has a live listener, so a prompt added on
 the phone reaches the PC with **no extra read at all**, and an edit is one
 debounced write (700ms) to one field via `mergeFields`, which is also what lets
 a removed row actually disappear.
@@ -1457,7 +1471,8 @@ verdict if it has already landed. So:
 
 ### One device at a time
 
-Draining is leased. A device writes `queueLease` with its id and a timestamp,
+Draining is leased, per queue. A device writes `queueLease` (or
+`codeQueueLease`) with its id and a timestamp,
 refreshes it every 30s while it works, and clears it at the end. Another
 device sees the lease and says where the queue is running. A lease nobody has
 refreshed for 90 seconds is treated as abandoned, so a closed laptop cannot

@@ -43,7 +43,7 @@ def test_the_queue_rides_the_document_that_is_already_watched():
     per device. One field on the index doc costs nothing to receive."""
     body = _fn("cloudSaveQueue")
     assert "_indexDoc()" in body, "the queue moved off the index document"
-    assert 'mergeFields: ["queue"]' in body, (
+    assert "mergeFields: [L.field]" in body, (
         "merge:true cannot delete a removed item, and a full setDoc would "
         "clobber the pins, names and runs that share this document"
     )
@@ -51,22 +51,25 @@ def test_the_queue_rides_the_document_that_is_already_watched():
 
 def test_queue_writes_are_debounced():
     body = _fn("cloudSaveQueue")
-    assert "clearTimeout(_queueT)" in body and "setTimeout(" in body, (
+    assert "clearTimeout(L.saveT)" in body and "setTimeout(" in body, (
         "every keystroke or model click is its own write again"
     )
 
 
 def test_an_edit_in_flight_is_not_overwritten():
     body = _fn("cloudSaveQueue")
-    assert "_queueDirty = true" in body and "_queueDirty = false" in body
-    assert "!_queueDirty" in PAGE, "the listener applies an older copy mid-edit"
+    assert "L.dirty = true" in body and "L.dirty = false" in body
+    sync = _fn("queuesFromCloud")
+    assert "!C.dirty" in sync and "!K.dirty" in sync, (
+        "the listener applies an older copy mid-edit"
+    )
 
 
 def test_attachment_bytes_never_reach_firestore():
     """Names, sizes and types travel; the files stay on the device."""
     # One normaliser serves both directions (queueNorm), so it is the body
     # that decides what reaches Firestore -- and queueForCloud must use it.
-    assert "const queueForCloud = () => queueSorted().map(queueNorm);" in PAGE
+    assert "const queueForCloud = (L) => queueSorted(L).map(queueNorm);" in PAGE
     body = _fn("queueNorm")
     assert "atts" in body and "a.n" in body and "a.s" in body
     for forbidden in ("file", "File", "blob", "base64", "dataURL"):
@@ -108,19 +111,18 @@ def test_only_one_device_drains_the_queue():
 
 def test_a_second_drain_loop_cannot_start():
     """Veda's bug: Pause then Run quickly started a second loop over one list."""
-    assert "_queueGen" in PAGE
     drain = _fn("queueDrain")
-    assert drain.count("gen !== _queueGen") >= 2, (
+    assert drain.count("gen !== L.gen") >= 2, (
         "the loop must recheck after every await, not only at the top"
     )
-    assert "_queueGen++" in _fn("queueStop")
+    assert "L.gen++" in _fn("queueStop")
 
 
 def test_pause_stops_after_the_prompt_in_flight():
     """Not mid-deliberation: the browsers are already running."""
     drain = _fn("queueDrain")
     i = drain.index("await runOne")
-    assert "gen !== _queueGen" in drain[i:], (
+    assert "gen !== L.gen" in drain[i:], (
         "the generation is not rechecked after the run, so a pause would land "
         "mid-prompt or be ignored"
     )
@@ -165,7 +167,7 @@ def test_the_prompt_in_flight_is_recorded_even_when_you_pause():
     body = _fn("queueDrain")
     after_run = body[body.index("await runOne"):]
     record = after_run.index("it.status = outcome.ok")
-    pause = after_run.index("gen !== _queueGen")
+    pause = after_run.index("gen !== L.gen")
     assert record < pause, (
         "the generation is rechecked before the outcome is written, which "
         "leaves the paused row stuck on running"
@@ -175,17 +177,17 @@ def test_the_prompt_in_flight_is_recorded_even_when_you_pause():
 def test_a_row_left_running_by_a_closed_tab_can_be_started_again():
     assert "const queueStuck" in PAGE
     start = _fn("queueStart")
-    assert "queueStuck()" in start, "the start guard ignores an orphaned row"
+    assert "queueStuck(L)" in start, "the start guard ignores an orphaned row"
     assert 'it.status = "queued"' in start, "an orphan is never reset"
     # ...and the button has to be clickable for that to be reachable at all.
     render = _fn("renderQueue")
-    assert "queueStuck()" in render, "Run queue stays greyed over a stuck row"
+    assert "queueStuck(L)" in render, "Run queue stays greyed over a stuck row"
 
 
 def test_an_orphan_is_only_reclaimed_once_the_lease_is_held():
     """Another device may legitimately be running that row."""
     start = _fn("queueStart")
-    assert start.index("leaseClaim()") < start.index('it.status = "queued"'), (
+    assert start.index("leaseClaim(L)") < start.index('it.status = "queued"'), (
         "rows are reset before the lease is claimed, so a row another device "
         "is running would be restarted here as well"
     )
@@ -299,10 +301,10 @@ def test_nothing_is_written_back_until_save():
     body = _fn("queueEdit")
     i = body.index("save.onclick")
     before, after = body[:i], body[i:]
-    assert "queueChanged()" not in before, (
+    assert "queueChanged(" not in before, (
         "an edit reaches the other devices before it is saved"
     )
-    assert "queueChanged()" in after
+    assert "queueChanged(L)" in after
     assert "let text = it.q" in before, "the row is edited in place, not copied"
 
 
@@ -446,7 +448,7 @@ def test_a_verdict_says_which_question_it_answers():
 # ── failed prompts can be run again ─────────────────────────────────────────
 def test_a_failed_row_offers_retry_and_many_offer_retry_all():
     page = (Path(__file__).resolve().parents[2] / "magi.html").read_text(encoding="utf-8")
-    assert "function queueRetry(ids)" in page
+    assert "function queueRetry(L, ids)" in page
     assert '`q-act${it.status === "failed" ? " retry" : ""}`' in page
     assert 'id="queueRetryBtn"' in page and "failed.length > 1" in page
 
@@ -464,7 +466,7 @@ def test_a_limit_requeues_the_row_and_holds_instead_of_failing():
     hit = body[body.index("if (queueHitLimit(outcome))"):]
     # Back to waiting, not failed -- and the loop sleeps then carries on.
     assert hit.index('it.status = "queued"') < hit.index("queueHoldFor(")
-    assert "queueHoldWait(gen)" in hit and "continue;" in hit
+    assert "queueHoldWait(L, gen)" in hit and "continue;" in hit
     # Guessing forever is not allowed.
     assert "guessed > QUEUE_HOLD_GUESSES" in hit
 
@@ -475,15 +477,15 @@ def test_the_hold_is_bounded_and_pausable():
     hold = _fn("queueHoldFor")
     assert "Math.max(now + QUEUE_HOLD_MIN_MS, Math.min(want, now + QUEUE_HOLD_MAX_MS))" in hold
     wait = _fn("queueHoldWait")
-    assert "gen !== _queueGen" in wait, "Pause must end a hold"
-    assert "S.queueHold = null" in _fn("queueStop"), "a paused queue must not promise to resume"
+    assert "gen !== L.gen" in wait, "Pause must end a hold"
+    assert "L.hold = null" in _fn("queueStop"), "a paused queue must not promise to resume"
 
 
 def test_try_now_and_cancel_wait_act_at_once():
     """Found live: a plain 15s nap meant either button sat for up to 15s."""
-    assert "_holdWake = () =>" in _fn("queueHoldWait")
-    assert "queueHoldWake()" in _fn("queueStop")
-    assert "queueHoldWake();" in _fn("renderQueueHold")
+    assert "L.holdWake = () =>" in _fn("queueHoldWait")
+    assert "queueHoldWake(L)" in _fn("queueStop")
+    assert "queueHoldWake(L);" in _fn("renderQueueHold")
 
 
 def test_the_hold_uses_the_reset_times_the_engine_already_has():
@@ -504,7 +506,8 @@ def test_an_approval_card_rings_and_is_silenced_by_its_decision():
 
 
 def test_a_queue_that_stops_by_itself_rings():
-    assert 'attnSet("queue:stopped"' in _fn("queueDrain")
+    assert "attnSet(L.attn" in _fn("queueDrain")
+    assert '"queue:stopped", "Queue"' in PAGE and '"codequeue:stopped", "Code queue"' in PAGE
     assert "if (!S.muted) beepAttention();" in _fn("attnSet")
 
 
@@ -514,3 +517,64 @@ def test_unit_colours_do_not_wait_for_the_engine():
     # A council row's dot comes from unitAccent (which has the fallback); a
     # Code row's from the agent it names.
     assert "dot.style.background = info ? info.accent : unitAccent(id);" in page
+
+
+# ── two queues: Deliberation and Code Mode ──────────────────────────────────
+def test_deliberation_and_code_mode_have_separate_queues():
+    """They shared one list: a coding task waited behind every council prompt
+    ahead of it, and a council rate limit held the coding tasks up too."""
+    assert 'council: queueLane("council", "queue", QUEUE_KEY' in PAGE
+    assert 'code: queueLane("code", "codeQueue", CODE_QUEUE_KEY' in PAGE
+    assert 'const CODE_QUEUE_KEY = lsKey("codequeue")' in PAGE
+    # Nothing still reaches for the old single list.
+    for gone in ("S.queue", "S.queueRunning", "S.queueHold", "_queueGen",
+                 "_queueDirty", "CLOUD.lease"):
+        assert gone not in PAGE, f"{gone} is the shared queue coming back"
+
+
+def test_each_queue_has_its_own_runner_lease_and_hold():
+    lane = _fn("queueLane")
+    for field in ("running", "hold", "gen", "leaseTimer", "lease", "dirty", "saveT",
+                  "holdWake"):
+        assert f"{field}:" in lane, f"{field} is shared between the queues"
+    assert "leaseField: `${field}Lease`" in lane
+    lease = _fn("leaseWrite")
+    assert "[L.leaseField]" in lease, "both queues write one lease"
+    assert "L.lease" in _fn("leaseClaim")
+
+
+def test_a_queued_row_lands_in_its_own_modes_queue():
+    add = _fn("queueAdd")
+    assert "const L = coding ? QUEUES.code : QUEUES.council;" in add
+    assert "L.items.push(" in add
+
+
+def test_the_drawer_shows_the_queue_of_the_mode_on_screen():
+    assert "const L = queueViewLane();" in _fn("renderQueue")
+    assert "const L = queueViewLane();" in _fn("renderQueueHold")
+
+
+def test_incoming_rows_only_enter_their_own_queue():
+    body = _fn("queueFromCloud")
+    assert '(it.kind === "code") === code' in body, (
+        "a Code row arriving in `queue` would run as a deliberation"
+    )
+
+
+def test_a_code_row_left_in_the_old_shared_list_moves_rather_than_vanishes():
+    sync = _fn("queuesFromCloud")
+    assert 'legacy = d.queue.filter((it) => it && it.kind === "code")' in sync
+    assert "queueChanged(K)" in sync and "queueChanged(C)" in sync
+    local = _fn("loadQueueLocal")
+    assert 'shared.filter((it) => it.kind === "code")' in local
+    assert "CODE_QUEUE_KEY" in local
+
+
+def test_a_queued_deliberation_waits_for_one_started_by_hand():
+    """The Code queue already waited for a hand-started task; the council's
+    ran straight over a hand-started deliberation's screen."""
+    free = _fn("queueCouncilFree")
+    assert "S.running" in free and "gen !== L.gen" in free
+    drain = _fn("queueDrain")
+    assert drain.index("queueCouncilFree(L, gen)") < drain.index("await runOne")
+    assert "gen !== QUEUES.code.gen" in _fn("codeQueueRun")
