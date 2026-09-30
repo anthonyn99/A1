@@ -344,13 +344,16 @@ const VEHICLE_PUBLIC = {
   drive_state:   ['shift_state', 'speed', 'power', 'timestamp'],
 };
 
-function slimVehicle(body) {
+function slimVehicle(body, name) {
   if (!body || typeof body !== 'object') return body;
   const r = body.response;
   if (!r || typeof r !== 'object') return body;
   const out = {};
   // Scalars the widget shows. `state` and `place` are computed here, not by Tesla.
   for (const k of ['state', 'place', 'display_name']) if (r[k] !== undefined) out[k] = r[k];
+  // The car's CURRENT name (see handleVehicle) beats whatever a cached body
+  // was stamped with, so a rename shows up even while the car sleeps.
+  if (name) out.display_name = name;
   for (const [group, keys] of Object.entries(VEHICLE_PUBLIC)) {
     const src = r[group];
     if (!src || typeof src !== 'object') continue;
@@ -374,7 +377,7 @@ async function handleVehicle(env, cors, wake) {
       // Refresh failed — surface the cached reading (if any) rather than a
       // hard error, since a lapsed token shouldn't blank a working widget.
       const cached = await env.TESLA_KV.get(KV_VEHICLE_CACHE, 'json');
-      if (cached) return j(slimVehicle(cached), 200, cors);
+      if (cached) return j(slimVehicle(cached, t.display_name), 200, cors);
       return j({ error: 'Token refresh failed: ' + (refreshed.body && refreshed.body.error) }, 502, cors);
     }
     t = refreshed.t;
@@ -387,6 +390,16 @@ async function handleVehicle(env, cors, wake) {
     ? list.body.response.find(x => (x.id_s || String(x.id)) === t.vehicle_id)
     : null;
   let state = mine ? mine.state : null; // 'online' | 'asleep' | 'offline'
+
+  // The name is read LIVE from the list call on every request. It used to be
+  // frozen into the tokens record at link time, so renaming the car in the
+  // Tesla app never reached the widget. Persist only on change — KV writes
+  // are the budget that matters on this account.
+  const liveName = mine && mine.display_name ? String(mine.display_name) : null;
+  if (liveName && liveName !== t.display_name) {
+    t = { ...t, display_name: liveName };
+    await env.TESLA_KV.put(KV_TOKENS, JSON.stringify(t));
+  }
   let wakeTried = false, wakeOk = false;
 
   if (state !== 'online' && wake) {
@@ -398,11 +411,11 @@ async function handleVehicle(env, cors, wake) {
   if (state !== 'online') {
     const cached = await env.TESLA_KV.get(KV_VEHICLE_CACHE, 'json');
     const body = cached || { response: {} };
-    body.response = { ...body.response, state: state || 'offline', display_name: t.display_name };
+    body.response = { ...body.response, state: state || 'offline' };
     // Tell the UI the wake was attempted and the car still didn't answer, so
     // it can say so instead of silently repeating stale numbers.
     if (wakeTried) body.wake_failed = true;
-    return j(slimVehicle(body), 200, cors);
+    return j(slimVehicle(body, t.display_name), 200, cors);
   }
 
   // An explicit wake-refresh must not be answered from the 60s cache — the
@@ -410,7 +423,7 @@ async function handleVehicle(env, cors, wake) {
   if (!wakeTried) {
     const fresh = await env.TESLA_KV.get(KV_VEHICLE_CACHE, 'json');
     if (fresh && fresh._fetchedAt && Date.now() - fresh._fetchedAt < CACHE_FRESH_MS) {
-      return j(slimVehicle(fresh), 200, cors);
+      return j(slimVehicle(fresh, t.display_name), 200, cors);
     }
   }
 
@@ -420,7 +433,7 @@ async function handleVehicle(env, cors, wake) {
   );
   if (!vd.ok) {
     const cached = await env.TESLA_KV.get(KV_VEHICLE_CACHE, 'json');
-    if (cached) return j(slimVehicle(cached), 200, cors);
+    if (cached) return j(slimVehicle(cached, t.display_name), 200, cors);
     return j({ error: 'Fleet API ' + vd.status }, 502, cors);
   }
 
@@ -439,7 +452,10 @@ async function handleVehicle(env, cors, wake) {
   await env.TESLA_KV.put(KV_VEHICLE_CACHE, JSON.stringify(body));
   // Cache keeps the full body (placeLabel may need coords again); only what
   // LEAVES the Worker is slimmed.
-  return j(slimVehicle(body), 200, cors);
+  // Fallback chain for the name: the list call, then vehicle_state.vehicle_name
+  // (where newer firmware keeps it), then Tesla's top-level display_name.
+  const vsName = (vd.body.response.vehicle_state || {}).vehicle_name;
+  return j(slimVehicle(body, t.display_name || vsName || vd.body.response.display_name), 200, cors);
 }
 
 // Reverse geocode → "Longmont, Colorado". Same free BigDataCloud endpoint and
