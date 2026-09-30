@@ -549,6 +549,7 @@ async function _sosRunSyncPass() {
   if (!SOS_CLOUD_BASE) return;
   // Offline: don't burn a request — the 'online' listener below wakes us up.
   if (navigator.onLine === false) { _sosScheduleSync(SOS_RETRY_MAX); return; }
+  try { await _sosRetryCloudDeletes(); } catch (e) { console.warn('SOS cloud delete retry failed:', e); }
   let r = null;
   try { r = await _sosBackfillCloud(); }
   catch (e) { console.warn('SOS auto-sync pass failed:', e); }
@@ -757,9 +758,12 @@ async function _sosBackfillCloud(manual, onProgress) {
       try {
         const file = new File([blob], meta.name || 'document', { type: meta.mime || blob.type || 'application/octet-stream' });
         const url = await SosCloud.upload(fileId, file, p => _sosPaintProgress(fileId, p));
+        // Removed while this was uploading: take the copy back out, record nothing.
+        if (_sosCancelledUploads.has(fileId)) { SosCloud.remove(fileId, url); continue; }
         _sosCloudUrls.set(fileId, url);            // remember so syncs can't drop it
         uploaded++; strikes = 0;
       } catch (e) {
+        if (e && e.cancelled) { SosCloud.remove(fileId); continue; }
         failed++;
         console.warn('SOS backfill upload failed:', meta.name, e);
         if (++strikes >= 3) break;                 // worker likely down — retry next sync
@@ -1537,6 +1541,16 @@ async function deleteModule(classId, modId) {
   if (!cls) return;
   const mod = cls.modules.find(m => m.id === modId);
   if (!(await window.uiConfirm('Remove "' + (mod ? mod.name : 'this module') + '"?', {danger:true, okLabel:'Remove'}))) return;
+  // findClassOrKsu('ksu') returns a stand-in object: reassigning ITS modules
+  // would leave ksuData untouched and persist() would save nothing. Route the
+  // KSU bucket to its own store.
+  if (cls._ksu) {
+    ksuData.modules = ksuData.modules.filter(m => m.id !== modId);
+    persistKsu();
+    renderKsuModules();
+    _sosDropFilesOf(mod ? [mod] : []);
+    return;
+  }
   cls.modules = cls.modules.filter(m => m.id !== modId);
   persist();
   renderModules(cls);
@@ -1896,6 +1910,40 @@ async function _sosPut(url, body, headers, _attempt) {
   }
 }
 
+/* ── Cloud deletes that actually free the space ────────────────────────────
+ * Three ways a removed file used to keep its cloud storage (Veda's removed
+ * video, 2026-09-30):
+ *   1. Removed WHILE uploading: the delete ran first and the loop kept sending
+ *      parts, then the manifest. _sosCancelledUploads now stops the loop, and
+ *      the caller deletes whatever part was already in flight.
+ *   2. Sent to the wrong Worker: files uploaded under an older config live on
+ *      another studyos-files Worker (their storageUrl says which). remove()
+ *      now deletes on that Worker as well as the configured one.
+ *   3. Fire-and-forget: a failed DELETE was swallowed. It now waits in
+ *      studyos_cloud_deletes and _sosRunSyncPass retries it.
+ * The Worker side (a delete finds parts by key prefix even with no manifest)
+ * is in workers/studyos-files/worker.js. */
+const _sosCancelledUploads = new Set();
+const SOS_PENDING_DELETES = 'studyos_cloud_deletes';
+function _sosCloudBaseFor(url) {
+  try { const u = new URL(url); if (/^studyos-files\./.test(u.hostname)) return u.origin; } catch (_) {}
+  return null;
+}
+function _sosPendingDeletes() {
+  try { const v = JSON.parse(localStorage.getItem(SOS_PENDING_DELETES) || '[]'); return Array.isArray(v) ? v : []; } catch (_) { return []; }
+}
+function _sosSetPendingDeletes(list) { _sosLsSet(SOS_PENDING_DELETES, JSON.stringify(list.slice(-200))); }
+function _sosUploadCancelled(fileId) {
+  if (!_sosCancelledUploads.has(fileId)) return false;
+  const e = new Error('upload-cancelled'); e.cancelled = true; e.retryable = false;
+  throw e;
+}
+async function _sosRetryCloudDeletes() {
+  const list = _sosPendingDeletes();
+  if (!list.length) return;
+  for (const d of list) { if (d && d.id) await SosCloud.remove(d.id, d.url, true); }
+}
+
 const SosCloud = {
   // Store the file under its fileId and return the GET url.
   //
@@ -1909,6 +1957,7 @@ const SosCloud = {
     const u = SOS_CLOUD_BASE + '/f/' + encodeURIComponent(fileId);
     const report = f => { try { if (onProgress) onProgress(Math.max(0, Math.min(1, f))); } catch (_) {} };
 
+    _sosUploadCancelled(fileId);
     if (file.size <= SOS_CHUNK) {
       report(0);
       await _sosPut(u, file, {
@@ -1921,6 +1970,7 @@ const SosCloud = {
 
     const parts = Math.ceil(file.size / SOS_CHUNK);
     for (let i = 0; i < parts; i++) {
+      _sosUploadCancelled(fileId);
       const slice = file.slice(i * SOS_CHUNK, Math.min((i + 1) * SOS_CHUNK, file.size));
       await _sosPut(
         SOS_CLOUD_BASE + '/p/' + encodeURIComponent(fileId) + '/' + i,
@@ -1933,6 +1983,7 @@ const SosCloud = {
     }
     // Manifest last: until it lands, GET /f/<id> 404s rather than serving a
     // half-uploaded file.
+    _sosUploadCancelled(fileId);
     await _sosPut(
       SOS_CLOUD_BASE + '/m/' + encodeURIComponent(fileId),
       JSON.stringify({ parts, size: file.size, type: file.type || 'application/octet-stream', name: file.name || 'document' }),
@@ -1941,9 +1992,27 @@ const SosCloud = {
     report(1);
     return u;
   },
-  async remove(fileId) {
-    if (!fileId || !SOS_CLOUD_BASE) return;
-    try { await fetch(SOS_CLOUD_BASE + '/f/' + encodeURIComponent(fileId), { method: 'DELETE' }); } catch (_) {}
+  // Delete a file's cloud copy (see "Cloud deletes that actually free the
+  // space" above). Returns true once every Worker that may hold it said OK.
+  async remove(fileId, storageUrl, fromQueue) {
+    if (!fileId) return false;
+    _sosCancelledUploads.add(fileId);
+    const bases = [];
+    const own = _sosCloudBaseFor(storageUrl);
+    if (own) bases.push(own);
+    if (SOS_CLOUD_BASE && bases.indexOf(SOS_CLOUD_BASE) < 0) bases.push(SOS_CLOUD_BASE);
+    if (!bases.length) return false;
+    let ok = true;
+    for (const b of bases) {
+      try {
+        const r = await fetch(b + '/f/' + encodeURIComponent(fileId), { method: 'DELETE' });
+        if (!r.ok) ok = false;
+      } catch (_) { ok = false; }
+    }
+    const rest = _sosPendingDeletes().filter(d => d && d.id !== fileId);
+    if (!ok) rest.push({ id: fileId, url: storageUrl || null, at: Date.now() });
+    if (!ok || fromQueue || rest.length !== _sosPendingDeletes().length) _sosSetPendingDeletes(rest);
+    return ok;
   },
   async usage() {
     _sosRequireCloud();
@@ -2125,6 +2194,12 @@ async function sosUploadToCloud(file, meta, cls, mod, modId) {
       meta._progress = p;
       _sosPaintProgress(fileId, p);
     });
+    // Removed in the moment the last request was finishing: undo, record nothing.
+    if (_sosCancelledUploads.has(fileId)) {
+      delete meta._uploading; delete meta._progress;
+      SosCloud.remove(fileId, url);
+      return;
+    }
     // Record the URL by fileId BEFORE persisting. A Firestore sync landing
     // mid-upload swaps `classes`/`ksuData` wholesale and orphans `meta`, so
     // writing storageUrl onto it alone can be silently thrown away — the file
@@ -2142,6 +2217,9 @@ async function sosUploadToCloud(file, meta, cls, mod, modId) {
   } catch (e) {
     delete meta._uploading;
     delete meta._progress;
+    // Removed while uploading: the loop has stopped, so this delete also takes
+    // the part that was already in flight when the file was removed.
+    if (e && e.cancelled) { SosCloud.remove(fileId, meta.storageUrl); return; }
     meta._cloudError = true;
     console.warn('SOS cloud upload failed:', meta.name, e);
     if (e && e.tooLarge) {
@@ -2193,6 +2271,10 @@ function _sosRowActionBtn(label, title) {
 }
 window._sosRowActionBtn = _sosRowActionBtn;
 
+// The release function of the one file row currently holding a drag payload
+// (see _prepDrag below). One slot for the whole page bounds that memory to a
+// single file however many rows are hovered or re-rendered.
+let _sosDragSlot = null;
 function refreshDocList(listEl, cls, mod) {
   const editOn = !!moduleEditMode[mod.id];
   listEl.innerHTML = '';
@@ -2223,12 +2305,39 @@ function refreshDocList(listEl, cls, mod) {
     // No text/uri-list — that's what made targets paste a link as text.
     // The payload must be ready synchronously at dragstart, so we pre-build it
     // on hover / mousedown (IndexedDB reads can't run inside dragstart).
+    //
+    // MEMORY: the pre-built payload is the WHOLE file. It used to be built on
+    // every hover and released only on dragend, with an object URL that was
+    // never revoked, so moving the mouse down a list pinned every file in the
+    // tab, and every re-render (each sync update rebuilds these rows) pinned
+    // them again. Veda's StudyOS tab reached 2-5 GB (2026-09-30). Now at most
+    // ONE row holds a payload (_sosDragSlot), it is released 20 s after the
+    // pointer leaves, and a plain hover never downloads a cloud-only file.
     item.draggable = true;
-    let _dragFile = null, _dragUrl = null, _dragReady = false;
-    const _prepDrag = () => {
+    let _dragFile = null, _dragUrl = null, _dragReady = false, _dragIdle = null;
+    // afterDrop: a drop target may still be reading the URL, so keep it a
+    // minute; a payload that was never dragged is freed at once.
+    const _releaseDrag = (afterDrop) => {
+      clearTimeout(_dragIdle); _dragIdle = null;
+      if (_dragUrl) {
+        const u = _dragUrl;
+        if (afterDrop === true) setTimeout(() => URL.revokeObjectURL(u), 60000);
+        else URL.revokeObjectURL(u);
+      }
+      _dragFile = null; _dragUrl = null; _dragReady = false;
+      if (_sosDragSlot === _releaseDrag) _sosDragSlot = null;
+    };
+    const _prepDrag = (ev) => {
       if (_dragReady || (!f.fileId && !f.storageUrl)) return;
+      if (_sosDragSlot && _sosDragSlot !== _releaseDrag) _sosDragSlot();
+      _sosDragSlot = _releaseDrag;
       _dragReady = true;
-      sosResolveBlob(f).then(blob => {
+      const hoverOnly = ev && ev.type === 'mouseenter';
+      const get = hoverOnly
+        ? (f.fileId ? SosFileStore.get(f.fileId).catch(() => null) : Promise.resolve(null))
+        : sosResolveBlob(f);
+      get.then(blob => {
+        if (_sosDragSlot !== _releaseDrag) return;          // another row took the slot meanwhile
         if (blob) {
           const mime = f.mime || blob.type || 'application/octet-stream';
           _dragFile = new File([blob], f.name, { type: mime });
@@ -2238,6 +2347,10 @@ function refreshDocList(listEl, cls, mod) {
     };
     item.addEventListener('mouseenter', _prepDrag);
     item.addEventListener('mousedown', _prepDrag);
+    item.addEventListener('mouseleave', () => {
+      clearTimeout(_dragIdle);
+      _dragIdle = setTimeout(_releaseDrag, 20000);
+    });
 
     // ── Desktop shell: hand the drag to the OS ──────────────────────────────
     // A native drag carries a real path, so Gemini/NotebookLM/Word/Slack all
@@ -2286,8 +2399,7 @@ function refreshDocList(listEl, cls, mod) {
       // dropEffect 'none' means nothing accepted the drag. A drop onto another
       // browser tab lands here too: the page took the drop but got no file.
       if (ev.dataTransfer && ev.dataTransfer.dropEffect === 'none') _sosDragOutHint();
-      if (_dragUrl) { const u = _dragUrl; setTimeout(() => URL.revokeObjectURL(u), 60000); }
-      _dragFile = null; _dragUrl = null; _dragReady = false;
+      _releaseDrag(true);
     });
 
     const icon = document.createElement('div');
@@ -2955,7 +3067,7 @@ function _sosDropFilesOf(mods) {
     for (const f of ((mod && mod.files) || [])) {
       if (!f) continue;
       if (f.fileId) { SosFileStore.delete(f.fileId).catch(() => {}); _sosCloudUrls.delete(f.fileId); }
-      if (f.storagePath || f.fileId) { try { SosCloud.remove(f.storagePath || f.fileId); } catch (e) {} }
+      if (f.storagePath || f.fileId) { try { SosCloud.remove(f.storagePath || f.fileId, f.storageUrl); } catch (e) {} }
     }
   }
 }
@@ -2977,28 +3089,103 @@ function _sosDropFilesOf(mods) {
 const SOS_ORPHAN_KEY = 'studyos_orphan_since';
 function _sosReferencedFileIds() {
   const refs = new Set();
-  _sosEachFile(f => { if (f && f.fileId) refs.add(f.fileId); if (f && f.id) refs.add(f.id); });
+  _sosEachFile(f => {
+    if (!f) return;
+    if (f.fileId) refs.add(f.fileId);
+    if (f.id) refs.add(f.id);
+    if (f.storagePath) refs.add(f.storagePath);
+  });
   return refs;
 }
+// Shared by both adapters: the ids orphaned for at least capDays, tracked in
+// `trackKey`. An id stamped within a day is never listed (an upload saves its
+// bytes before it files the entry). If the tracker cannot be written, nothing
+// ages and nothing is listed.
+function _sosAgedOrphans(ids, capDays, trackKey) {
+  const refs = _sosReferencedFileIds();
+  let since = {};
+  try { since = JSON.parse(localStorage.getItem(trackKey) || '{}') || {}; } catch (e) { since = {}; }
+  const now = Date.now(), next = {}, out = [];
+  for (const id of ids) {
+    if (refs.has(id)) continue;
+    const m = /^sf_(\d{12,})_/.exec(String(id));
+    if (m && now - Number(m[1]) < 864e5) continue;
+    const first = typeof since[id] === 'number' ? since[id] : now;
+    next[id] = first;
+    if (now - first >= capDays * 864e5) out.push(id);
+  }
+  return _sosLsSet(trackKey, JSON.stringify(next)) ? out : [];
+}
+
+/* Cloud copies nothing points at (sweep.js item "studyos-orphan-cloud-files").
+ * On Veda's account that was 101 files, 130 MB of the configured studyos-files
+ * Worker (2026-09-30): files of removed classes/modules, decks whose entry a
+ * stale save dropped, deletes sent to the wrong Worker. Same safeguards as the
+ * local adapter below; the listing is GET /keys (names and sizes only). Only
+ * the configured Worker is swept. */
+window._a1SweepCloud = window._a1SweepCloud || {};
+window._a1SweepCloud['studyos-orphan-cloud-files'] = {
+  ready: () => !!(SOS_CLOUD_BASE && window._fbSosServerSeen && window._fbSosServerSeen()),
+  list: async (capDays) => {
+    const r = await fetch(SOS_CLOUD_BASE + '/keys');
+    if (!r.ok) throw new Error('keys ' + r.status);
+    const files = ((await r.json()) || {}).files || [];
+    const size = {};
+    files.forEach(f => { if (f && f.id) size[f.id] = f.bytes || 0; });
+    return _sosAgedOrphans(Object.keys(size), capDays, 'studyos_cloud_orphan_since')
+      .map(id => ({ key: id, label: id + ' (' + _sosFmtBytes(size[id]) + ')' }));
+  },
+  del: async (id) => {
+    if (_sosReferencedFileIds().has(id)) throw new Error('referenced again');
+    if (!(await SosCloud.remove(id))) throw new Error('delete failed');
+  },
+};
+/* One-off, by hand, for storage that is ALREADY orphaned (the sweep above
+ * waits 30 days). In the StudyOS console:
+ *   await sosCloudOrphanReport()     → what nothing references, with sizes
+ *   await sosReclaimCloudOrphans()   → deletes that list after a confirm
+ * Uses this page's server-applied class list, never the local cache, and
+ * still skips anything uploaded in the last day. Needs the Worker's /keys. */
+async function _sosCloudOrphansNow() {
+  if (!SOS_CLOUD_BASE) throw new Error('no files Worker configured');
+  if (!(window._fbSosServerSeen && window._fbSosServerSeen())) throw new Error('wait until StudyOS has synced with the server');
+  const r = await fetch(SOS_CLOUD_BASE + '/keys');
+  if (!r.ok) throw new Error('GET /keys ' + r.status + ' (deploy the updated studyos-files Worker)');
+  const refs = _sosReferencedFileIds(), now = Date.now();
+  return (((await r.json()) || {}).files || []).filter(f => {
+    if (!f || !f.id || refs.has(f.id)) return false;
+    const m = /^sf_(\d{12,})_/.exec(f.id);
+    return !(m && now - Number(m[1]) < 864e5);
+  });
+}
+window.sosCloudOrphanReport = async () => {
+  const list = await _sosCloudOrphansNow();
+  const total = list.reduce((n, f) => n + (f.bytes || 0), 0);
+  console.table(list.map(f => ({ id: f.id, size: _sosFmtBytes(f.bytes), parts: f.parts, manifest: f.manifest })));
+  console.info('[StudyOS] ' + list.length + ' unreferenced cloud files, ' + _sosFmtBytes(total) + '.');
+  return { count: list.length, bytes: total, files: list };
+};
+window.sosReclaimCloudOrphans = async () => {
+  const list = await _sosCloudOrphansNow();
+  const total = list.reduce((n, f) => n + (f.bytes || 0), 0);
+  if (!list.length) { showNotif(SOI.cloud, 'Nothing to reclaim', 'Every cloud file is still in use.'); return 0; }
+  if (!(await window.uiConfirm('Delete ' + list.length + ' cloud files (' + _sosFmtBytes(total) + ') that no class or module uses?', { danger: true, okLabel: 'Delete' }))) return 0;
+  let n = 0;
+  for (const f of list) {
+    if (_sosReferencedFileIds().has(f.id)) continue;
+    if (await SosCloud.remove(f.id)) n++;
+  }
+  _sosRefreshStorage();
+  showNotif(SOI.cloud, 'Cloud storage reclaimed', n + ' unused file' + (n === 1 ? '' : 's') + ' deleted.');
+  return n;
+};
+
 window._a1SweepIdb = window._a1SweepIdb || {};
 window._a1SweepIdb['studyos-orphan-files'] = {
   ready: () => !!(window._fbSosServerSeen && window._fbSosServerSeen()),
   list: async (capDays) => {
-    const refs = _sosReferencedFileIds();
     const keys = await SosFileStore.keys();
-    let since = {};
-    try { since = JSON.parse(localStorage.getItem(SOS_ORPHAN_KEY) || '{}') || {}; } catch (e) { since = {}; }
-    const now = Date.now(), next = {}, out = [];
-    for (const id of keys) {
-      if (refs.has(id)) continue;
-      const m = /^sf_(\d{12,})_/.exec(String(id));
-      if (m && now - Number(m[1]) < 864e5) continue;
-      const first = typeof since[id] === 'number' ? since[id] : now;
-      next[id] = first;
-      if (now - first >= capDays * 864e5) out.push({ key: id, label: String(id) });
-    }
-    if (!_sosLsSet(SOS_ORPHAN_KEY, JSON.stringify(next))) return [];
-    return out;
+    return _sosAgedOrphans(keys, capDays, SOS_ORPHAN_KEY).map(id => ({ key: id, label: String(id) }));
   },
   del: async (id) => {
     if (_sosReferencedFileIds().has(id)) throw new Error('referenced again');
@@ -3013,7 +3200,7 @@ function removeFile(classId, modId, idx) {
   if (!mod) return;
   const f = mod.files[idx];
   if (f && f.fileId) SosFileStore.delete(f.fileId).catch(() => {});
-  if (f && (f.storagePath || f.fileId)) SosCloud.remove(f.storagePath || f.fileId);
+  if (f && (f.storagePath || f.fileId)) SosCloud.remove(f.storagePath || f.fileId, f.storageUrl);
   if (f && f.fileId) _sosCloudUrls.delete(f.fileId);
   mod.files.splice(idx, 1);
   persistForCls(cls);
@@ -5547,7 +5734,7 @@ const _sosAddGeneratedDoc = async (spec) => {
   // failure above never leaves her with neither.
   if (old && old.fileId && old.fileId !== fileId) {
     SosFileStore.delete(old.fileId).catch(() => {});
-    try { SosCloud.remove(old.fileId); } catch (e) {}
+    try { SosCloud.remove(old.fileId, old.storageUrl); } catch (e) {}
   }
 
   try { if (currentClassId === cls.id) renderModules(cls); } catch (e) {}

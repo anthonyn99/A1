@@ -224,8 +224,26 @@ if (TM.enabled === false) {
     let lastAppsSerialized = null;
     let timer = null;
 
+    /* A write that never settles must not wedge the mirror: `await setDoc`
+     * with no bound left flush() hanging, so every later change queued behind
+     * it and TaskHub stopped getting StudyOS work. On timeout the state stays
+     * unsent (lastSerialized untouched) and a retry is scheduled. */
+    const WRITE_TIMEOUT_MS = 15000;
+    function bounded(p) {
+      p.catch(() => {});
+      let to;
+      return Promise.race([p, new Promise((_, rej) => { to = setTimeout(() => rej({ code: 'timeout' }), WRITE_TIMEOUT_MS); })])
+        .finally(() => clearTimeout(to));
+    }
+
     async function flush() {
       timer = null;
+      /* Never publish from the local cache before the server's copy is applied.
+       * The boot kick fired 1.5 s after load, from whatever localStorage held;
+       * on a device with a stale cache (Veda's Brave held one class) that
+       * rewrote TaskHub's StudyOS items from old data. firebase-sync.js marks
+       * server state seen only after applying it. */
+      if (window._fbSosServerSeen && !window._fbSosServerSeen()) { schedule(2000); return; }
       const items = buildItems();
       if (!items) return;
       const cls = buildClasses() || {};
@@ -235,11 +253,12 @@ if (TM.enabled === false) {
       const serialized = JSON.stringify([items, cls]);
       if (serialized !== lastSerialized) {
         try {
-          await setDoc(mirrorRef, { items, classes: cls, savedAt: Date.now(), app: 'studyos' });
+          await bounded(setDoc(mirrorRef, { items, classes: cls, savedAt: Date.now(), app: 'studyos' }));
           lastSerialized = serialized;
         } catch (err) {
           // Leave lastSerialized alone so the next trigger retries this state.
           console.warn('[StudyOS] Task mirror write failed:', err && err.code);
+          if (!timer) schedule(30000);
         }
       }
 
@@ -250,7 +269,7 @@ if (TM.enabled === false) {
       const appsSerialized = JSON.stringify(apps);
       if (appsSerialized !== lastAppsSerialized) {
         try {
-          await setDoc(appsRef, { apps, savedAt: Date.now(), app: 'studyos' });
+          await bounded(setDoc(appsRef, { apps, savedAt: Date.now(), app: 'studyos' }));
           lastAppsSerialized = appsSerialized;
         } catch (err) {
           console.warn('[StudyOS] Class-apps write failed:', err && err.code);

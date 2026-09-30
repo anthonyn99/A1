@@ -60,12 +60,25 @@ for (const it of RULES.items) {
 // A key on the list must not be read or written by anything live. Same origin
 // means every page shares localStorage, so the whole repo is checked (V1 too).
 console.log('\nNothing live uses what the registry calls trash');
+// A gitignored file is never published, so it is not "live": V1/TradeBoard/
+// index.html is a local, ignored copy that still mentions fcm_pv_purge_v1, and
+// scanning it failed this check on every PC that happened to have it.
+let _ignored = null;
+function ignored(p) {
+  if (_ignored === null) {
+    try {
+      const out = require('child_process').execSync('git ls-files --others --ignored --exclude-standard', { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+      _ignored = new Set(out.split(/\r?\n/).filter(Boolean).map((f) => path.join(ROOT, f)));
+    } catch (e) { _ignored = new Set(); }
+  }
+  return _ignored.has(p);
+}
 function walk(dir, out) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     if (['node_modules', '.git', '.venv', 'profiles', 'data', 'artifacts', 'tests', 'docs', 'Index Backups'].includes(e.name)) continue;
     const p = path.join(dir, e.name);
     if (e.isDirectory()) walk(p, out);
-    else if (/\.(html|js|mjs|py)$/.test(e.name) && e.name !== 'sweep.js') out.push(p);
+    else if (/\.(html|js|mjs|py)$/.test(e.name) && e.name !== 'sweep.js' && !ignored(p)) out.push(p);
   }
   return out;
 }
@@ -128,11 +141,11 @@ for (const it of RULES.items.filter((i) => i.store === 'kv')) {
 const launch = read('trading-auto-launch/launch.py');
 for (const it of RULES.items.filter((i) => i.program === 'trading-auto-launch')) {
   ok(`${it.id}: launch.py keeps the same ${it.capDays} days`, new RegExp(`^LOG_KEEP_DAYS = ${it.capDays}$`, 'm').test(launch));
-  ok(`${it.id}: launch.py trims on every run`, /args = parser\.parse_args\(\)\n\s+trim_logs\(\)/.test(launch));
+  ok(`${it.id}: launch.py trims on every run`, /args = parser\.parse_args\(\)\r?\n\s+trim_logs\(\)/.test(launch));
 }
 
 // ── Behaviour: the shipped sweep.js ───────────────────────────────────────
-function boot({ rules = RULES, storage = true, adapter, seed = {}, program = 'index', idb, full = false } = {}) {
+function boot({ rules = RULES, storage = true, adapter, seed = {}, program = 'index', idb, cloud, full = false } = {}) {
   const dom = new JSDOM('<!doctype html><html><body></body></html>', {
     url: 'https://example.test/A1/index.html',
     runScripts: 'outside-only',
@@ -147,6 +160,7 @@ function boot({ rules = RULES, storage = true, adapter, seed = {}, program = 'in
         P.removeItem = function (k) { const had = this.getItem(k) !== null; rm0.call(this, k); if (had) isFull = false; };
       }
       if (idb) w._a1SweepIdb = idb;
+      if (cloud) w._a1SweepCloud = cloud;
       w.fetch = async () => ({ ok: true, json: async () => JSON.parse(JSON.stringify(rules)) });
       if (adapter) w._a1SweepFirestore = adapter;
     },
@@ -289,6 +303,17 @@ const clone = () => JSON.parse(JSON.stringify(RULES));
     const r5 = clone(); r5.limits.idbDeletesPerSweep = 100;
     const w5 = boot({ program: 'studyos', rules: r5, idb: mk(true).a });
     ok('an IndexedDB delete cap over 25 fails closed', (await w5.A1Sweep.run()).error);
+
+    // Cloud files: same adapter contract, but the KV budget (20) caps them.
+    const cloudGone = [];
+    const cloudKeys = Array.from({ length: 30 }, (_, i) => ({ key: 'sf_c' + i }));
+    const cloud = { 'studyos-orphan-cloud-files': { ready: () => true, list: async () => cloudKeys.filter((k) => !cloudGone.includes(k.key)), del: async (k) => { cloudGone.push(k); } } };
+    const wc = boot({ program: 'studyos', idb: mk(true).a, cloud });
+    await wc.A1Sweep.run();
+    ok('studyos: at most 20 cloud deletes in one sweep (the KV budget)', cloudGone.length === 20, cloudGone.length);
+    const rk = clone(); rk.limits.kvDeletesPerDayPerAccount = 50;
+    const wk = boot({ program: 'studyos', rules: rk, cloud });
+    ok('a KV budget over 20 fails closed', (await wk.A1Sweep.run()).error);
 
     const w6 = boot({ program: 'index', idb: mk(true).a });
     const rep6 = await w6.A1Sweep.run();

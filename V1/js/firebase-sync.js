@@ -31,17 +31,17 @@
  *     update from another device could be discarded for good.
  *   • size guard: an oversized write is refused client-side, because Firestore
  *     rejecting a >1MiB document wedges the sync queue for the whole app.
- *   • single-tab persistence on iOS: the multi-tab lease never gets released
- *     when iOS kills a backgrounded PWA, so the next cold launch hangs.
- *   • single-tab persistence when localStorage is full: the multi-tab manager
- *     writes there, and a quota error kills the Firestore instance outright.
+ *   • a NAMED app ('studyos'): its own IndexedDB cache, so TaskHub's forced
+ *     ownership of the shared [DEFAULT] cache can never kill this instance.
+ *   • single-tab persistence, never forced: the multi-tab manager lives in the
+ *     shared, often-full localStorage; iOS never releases its lease.
  * ------------------------------------------------------------------------- */
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js';
 import { initializeAppCheck, ReCaptchaV3Provider } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-app-check.js';
 import {
-  initializeFirestore, persistentLocalCache, persistentMultipleTabManager, persistentSingleTabManager,
+  initializeFirestore, persistentLocalCache, persistentSingleTabManager,
   doc, setDoc, deleteDoc, onSnapshot, getDoc, getDocFromServer,
 } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js';
 
@@ -56,6 +56,19 @@ if (!window.STUDYOS_CONFIG_READY || !window.STUDYOS_CONFIG_READY('firebase')) {
   window._fbAuthReady = Promise.resolve(false);
   window.dispatchEvent(new CustomEvent('fb-unconfigured'));
 } else {
+  /* A NAMED app, not [DEFAULT]. Firestore names its IndexedDB cache after the
+   * app ("firestore/<appName>/<projectId>/main"), and every A1 page on this
+   * origin shares the Index project. Under [DEFAULT], StudyOS shared ONE cache
+   * with TaskHub, whose single-tab manager takes it with forceOwnership. When
+   * StudyOS held that cache and TaskHub then opened (or re-inited on its 1 s
+   * hide-teardown), StudyOS's Firestore failed an internal assertion ("Failed to
+   * obtain exclusive access to the persistence layer") and rejected every read
+   * and write until a reload: the "sync failed" pill, and StudyOS work never
+   * reaching TaskHub through the mirror (2026-09-30, reproduced offline). Its own
+   * name gives StudyOS its own cache, which nothing else ever forces.
+   * taskmirror.js and push.js take getApps()[0], so they follow automatically.
+   * The auth session is per app name too, so this is a separate anonymous user;
+   * the Index project's rules only require request.auth != null. */
   const app = initializeApp({
     apiKey: FB.apiKey,
     authDomain: FB.authDomain,
@@ -63,7 +76,7 @@ if (!window.STUDYOS_CONFIG_READY || !window.STUDYOS_CONFIG_READY('firebase')) {
     storageBucket: FB.storageBucket,
     messagingSenderId: FB.messagingSenderId,
     appId: FB.appId,
-  });
+  }, 'studyos');
 
   /* Optional App Check. Off by default: a misconfigured App Check blocks every
    * request and is indistinguishable from broken security rules. */
@@ -111,40 +124,21 @@ if (!window.STUDYOS_CONFIG_READY || !window.STUDYOS_CONFIG_READY('firebase')) {
       '\n→ Firebase console → Authentication → Sign-in method → enable "Anonymous".');
   });
 
-  /* ── Firestore with offline persistence ───────────────────────────────────
-   * iOS home-screen PWAs get the SINGLE-tab manager. The multi-tab manager
-   * elects a leader through an IndexedDB "primary lease"; iOS kills backgrounded
-   * PWAs without releasing it, so the next cold launch waits — sometimes
-   * forever — for the stale lease to expire before syncing from the server. A
-   * home-screen PWA only ever runs one instance, so nothing is lost. */
-  const _isIOS = /iP(hone|ad|od)/.test(navigator.userAgent)
-    || (navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1);
-
-  /* The MULTI-tab manager coordinates tabs through localStorage, and every A1
-   * page shares this origin's 5 MB of it. When that store is full (it was on
-   * Veda's Brave, 2026-09-30) the manager's first sequence-number write throws
-   * QuotaExceededError inside Firestore's queue, which then fails an internal
-   * assertion and rejects EVERY later read and write for the life of the tab:
-   * sync looks frozen while ~180 errors fire at boot. The single-tab manager
-   * keeps no state in localStorage, so a full store cannot take Firestore down.
-   * The probe is a few KB so a store with only a handful of bytes free counts
-   * as full. */
-  const _lsHasRoom = (() => {
-    try {
-      const k = '__sos_ls_probe';
-      localStorage.setItem(k, 'x'.repeat(4096));
-      localStorage.removeItem(k);
-      return true;
-    } catch (e) { return false; }
-  })();
-  if (!_lsHasRoom) console.warn('[StudyOS] localStorage is full — using single-tab Firestore cache so sync keeps working.');
-
+  /* ── Firestore with offline persistence: SINGLE-tab, on every platform ─────
+   *   • Never the multi-tab manager. It coordinates tabs through localStorage,
+   *     which every A1 page shares and which fills up: on a full store its first
+   *     write throws inside Firestore's queue and every later read and write
+   *     fails (Veda's Brave, 2026-09-30). TaskHub's _freeWebStorage also deletes
+   *     every firestore_* key on each load, which is that manager's state.
+   *   • iOS kills backgrounded PWAs without releasing a multi-tab lease, so the
+   *     next cold launch waited for it to expire.
+   *   • Never forceOwnership. A second StudyOS tab that finds the lease taken
+   *     falls back to a memory cache and still syncs; forcing would make tabs
+   *     steal the cache from each other, the failure described above. */
   let db;
   try {
     db = initializeFirestore(app, {
-      localCache: persistentLocalCache({
-        tabManager: (_isIOS || !_lsHasRoom) ? persistentSingleTabManager({}) : persistentMultipleTabManager(),
-      }),
+      localCache: persistentLocalCache({ tabManager: persistentSingleTabManager({}) }),
     });
   } catch (e) {
     console.warn('[StudyOS] Persistent cache unavailable, falling back to memory:', e);

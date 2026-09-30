@@ -239,6 +239,18 @@
       "approved": "2026-09-30: Tony asked for StudyOS to auto-clean its files; shipped on with the 30-day orphan wait as the safety margin"
     },
     {
+      "id": "studyos-orphan-cloud-files",
+      "store": "cloudfiles",
+      "program": "studyos",
+      "category": "unused",
+      "capDays": 30,
+      "adapter": "window._a1SweepCloud['studyos-orphan-cloud-files'] in V1/js/studyos.js",
+      "owner": "V1/js/studyos.js SosCloud (studyos-files Worker, Workers KV)",
+      "reason": "Cloud copies no class or KSU module points at: files of removed classes/modules, decks whose entry a stale save dropped, deletes sent to the wrong Worker. 101 files / 130 MB on Veda's account (2026-09-30). Listed through the Worker's GET /keys (names and sizes, the same list() /usage runs); only after the server copy is applied, never within a day of upload, and only after staying orphaned for capDays; del() re-checks the reference and uses DELETE /f/<key>. At most kvDeletesPerDayPerAccount per sweep. Needs the Worker with /keys deployed; until then list() fails and nothing is deleted.",
+      "delete": true,
+      "approved": "2026-09-30: Tony asked for the removed-video cloud storage to be reclaimed and for StudyOS files to auto-clean; on, with the 30-day orphan wait"
+    },
+    {
       "id": "origin-dead-keys-2026-09",
       "store": "localStorage",
       "program": "index",

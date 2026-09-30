@@ -20396,8 +20396,75 @@ function sig(template, data, title) {
 function size(template, data) { return sig(template, data, '').length; }
 
 function bakKey(app, id) { return 'jg_bak_' + app + '_' + id; }
+
+/* ── Backups live in IndexedDB, not localStorage ─────────────────────────────
+ * Every A1 page shares this origin's 5 MB of localStorage, and on Veda's Brave
+ * it was full (2026-09-30); these backups were 230 KB of it and each can reach
+ * BAK_MAX_CHARS. They now go to their own IndexedDB database (a1_jguard; its
+ * own, so it does not depend on the VizStore script loading first). readBak is
+ * synchronous for its callers (recovery decides while an entry opens), so
+ * _bakMem is the working copy: filled from IndexedDB at load, written through
+ * on every backup. A legacy localStorage key is read until the move below has
+ * copied it into IndexedDB and read it back, and only then removed. If
+ * IndexedDB is unavailable, backups keep using localStorage exactly as before. */
+var _bakMem = {};             // bakKey -> list
+var _bakDb = null, _bakDbFail = false;
+function _bakOpen() {
+  if (_bakDbFail) return Promise.resolve(null);
+  if (_bakDb) return Promise.resolve(_bakDb);
+  return new Promise(function (res) {
+    var rq;
+    try { rq = indexedDB.open('a1_jguard', 1); } catch (e) { _bakDbFail = true; return res(null); }
+    rq.onupgradeneeded = function (e) { try { e.target.result.createObjectStore('bak'); } catch (x) {} };
+    rq.onsuccess = function (e) { _bakDb = e.target.result; res(_bakDb); };
+    rq.onerror = rq.onblocked = function () { _bakDbFail = true; res(null); };
+  });
+}
+function _bakIdb(mode, fn) {
+  return _bakOpen().then(function (db) {
+    if (!db) return null;
+    return new Promise(function (res) {
+      try {
+        var tx = db.transaction('bak', mode), out = { v: null };
+        fn(tx.objectStore('bak'), out);
+        tx.oncomplete = function () { res(out.v === null ? true : out.v); };
+        tx.onerror = tx.onabort = function () { res(null); };
+      } catch (e) { res(null); }
+    });
+  });
+}
+function _bakPut(k, list) {
+  return _bakIdb('readwrite', function (st) { st.put(list, k); });
+}
+function _bakLoadAll() {
+  return _bakIdb('readonly', function (st, out) {
+    out.v = {};
+    var c = st.openCursor();
+    c.onsuccess = function (e) { var cur = e.target.result; if (cur) { out.v[cur.key] = cur.value; cur.continue(); } };
+  }).then(function (all) {
+    if (all && typeof all === 'object') Object.keys(all).forEach(function (k) { if (!_bakMem[k]) _bakMem[k] = all[k]; });
+    return !!all;
+  });
+}
+function _bakMoveOut() {
+  var keys = [];
+  try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k && k.indexOf('jg_bak_') === 0) keys.push(k); } } catch (e) {}
+  return Promise.all(keys.map(function (k) {
+    var list; try { list = JSON.parse(localStorage.getItem(k) || '[]'); } catch (e) { return null; }
+    if (!Array.isArray(list)) return null;
+    _bakMem[k] = list;       // the localStorage copy is the newest one there is
+    var raw = JSON.stringify(list);
+    return _bakPut(k, list)
+      .then(function (ok) { return ok ? _bakIdb('readonly', function (st, out) { var g = st.get(k); g.onsuccess = function () { out.v = g.result; }; }) : null; })
+      .then(function (back) { if (back && JSON.stringify(back) === raw) { try { localStorage.removeItem(k); } catch (e) {} } });
+  }));
+}
+try { _bakLoadAll().then(function (ok) { if (ok) return _bakMoveOut(); }).catch(function () {}); } catch (e) {}
+
 function readBak(app, id) {
-  try { var v = JSON.parse(localStorage.getItem(bakKey(app, id)) || '[]'); return Array.isArray(v) ? v : []; }
+  var k = bakKey(app, id);
+  if (Array.isArray(_bakMem[k])) return _bakMem[k].slice();
+  try { var v = JSON.parse(localStorage.getItem(k) || '[]'); return Array.isArray(v) ? v : []; }
   catch (e) { return []; }
 }
 
@@ -20414,8 +20481,19 @@ function backup(app, entry, nextData) {
     if (list.length && list[0].p === payload) return;
     list.unshift({ t: Date.now(), p: payload });
     while (list.length > BAK_MAX) list.pop();
-    try { localStorage.setItem(bakKey(app, entry.id), JSON.stringify(list)); }
-    catch (e) { try { localStorage.setItem(bakKey(app, entry.id), JSON.stringify(list.slice(0, 2))); } catch (x) {} }
+    var k = bakKey(app, entry.id);
+    if (!_bakDbFail) {
+      _bakMem[k] = list;
+      _bakPut(k, list).then(function (ok) {
+        if (ok) { try { localStorage.removeItem(k); } catch (e) {} return; }
+        // IndexedDB refused: keep the old localStorage behaviour for this one.
+        try { localStorage.setItem(k, JSON.stringify(list)); }
+        catch (e) { try { localStorage.setItem(k, JSON.stringify(list.slice(0, 2))); } catch (x) {} }
+      });
+      return;
+    }
+    try { localStorage.setItem(k, JSON.stringify(list)); }
+    catch (e) { try { localStorage.setItem(k, JSON.stringify(list.slice(0, 2))); } catch (x) {} }
   } catch (e) {}
 }
 

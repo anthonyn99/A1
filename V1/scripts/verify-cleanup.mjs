@@ -58,10 +58,13 @@ const r = await evalJs(`(async () => {
   const realSeen = window._fbSosServerSeen;
   window._fbSosServerSeen = () => true;          // as if server state has been applied
   out.readyAfter = A.ready();
-  out.firstList = (await A.list(30)).map(x => x.key);
+  // Only this suite's own files are judged: other suites share this headless
+  // browser and can leave their own (correctly orphaned) files in IndexedDB.
+  const mine = new Set(['${OLD}', '${ORPHAN}', '${FRESH}']);
+  out.firstList = (await A.list(30)).map(x => x.key).filter(k => mine.has(k));
   const since = JSON.parse(localStorage.getItem('studyos_orphan_since') || '{}');
-  out.tracked = Object.keys(since).sort();
-  out.agedList = (await A.list(0)).map(x => x.key);
+  out.tracked = Object.keys(since).filter(k => mine.has(k)).sort();
+  out.agedList = (await A.list(0)).map(x => x.key).filter(k => mine.has(k));
   let threw = null; try { await A.del('${OLD}'); } catch (e) { threw = e.message; }
   out.delReferencedThrew = threw;
   await A.del('${ORPHAN}');

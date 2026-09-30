@@ -18,10 +18,11 @@
  *     most firestoreDeletesPerSweep, and only through the page's own adapter
  *     (window._a1SweepFirestore), which says when the boot write guard has
  *     cleared. A delete that succeeded is remembered, so it is never repeated.
- *   - IndexedDB: the page publishes window._a1SweepIdb[itemId] = { ready, list,
- *     del }. ready() gates on its data being authoritative, list(capDays)
- *     returns what has been orphaned at least that long, and at most
- *     idbDeletesPerSweep go per sweep.
+ *   - IndexedDB / cloud files: the page publishes window._a1SweepIdb[itemId]
+ *     (or _a1SweepCloud[itemId]) = { ready, list, del }. ready() gates on its
+ *     data being authoritative, list(capDays) returns what has been orphaned
+ *     at least that long. At most idbDeletesPerSweep IndexedDB deletes and
+ *     kvDeletesPerDayPerAccount cloud deletes go per sweep.
  *   - A full localStorage still sweeps its localStorage items (that frees
  *     room), then stamps; if the stamp still fails, nothing else runs.
  *   - Fail closed: rules that won't load or have an unexpected shape mean
@@ -39,7 +40,10 @@
   var STAMP = 'a1_sweep_day:' + PROGRAM;
   var REPORT = 'a1_sweep_report:' + PROGRAM;
   var DONE = 'a1_sweep_done';
-  var STORES = { localStorage: 1, firestore: 1, kv: 1, disk: 1, indexeddb: 1 };
+  var STORES = { localStorage: 1, firestore: 1, kv: 1, disk: 1, indexeddb: 1, cloudfiles: 1 };
+  // Stores whose trash only the page can recognise. Each item names a page
+  // adapter in the window object below and waits at least a day.
+  var ADAPTED = { indexeddb: { global: '_a1SweepIdb', label: 'IndexedDB' }, cloudfiles: { global: '_a1SweepCloud', label: 'cloud' } };
   var CATEGORIES = { failed: 1, unused: 1, outdated: 1, corrupt: 1 };
   var DOC_RE = /^dashboards\/[A-Za-z0-9_-]+$/;
 
@@ -66,6 +70,8 @@
     if (typeof max !== 'number' || max < 0 || max > 25) throw new Error('rules: firestoreDeletesPerSweep out of range');
     var imax = rules.limits.idbDeletesPerSweep;
     if (typeof imax !== 'number' || imax < 0 || imax > 25) throw new Error('rules: idbDeletesPerSweep out of range');
+    var kmax = rules.limits.kvDeletesPerDayPerAccount;
+    if (typeof kmax !== 'number' || kmax < 0 || kmax > 20) throw new Error('rules: kvDeletesPerDayPerAccount out of range');
     var ids = {};
     rules.items.forEach(function (it) {
       if (!it || typeof it.id !== 'string' || ids[it.id]) throw new Error('rules: bad or duplicate id');
@@ -76,9 +82,9 @@
       if (it.store === 'firestore' && !DOC_RE.test(it.doc || '')) throw new Error('rules: ' + it.id + ' is not a fixed doc id');
       // A key in localStorage has no timestamp, so only "gone on the first sweep" works there.
       if (it.store === 'localStorage' && it.capDays !== 0) throw new Error('rules: ' + it.id + ' localStorage items cannot age');
-      // What is orphaned is app knowledge, so an IndexedDB item is run by a
-      // page adapter (window._a1SweepIdb[id]) and must wait at least a day.
-      if (it.store === 'indexeddb' && !(it.capDays >= 1)) throw new Error('rules: ' + it.id + ' indexeddb items need capDays >= 1');
+      // What is orphaned is app knowledge, so these items are run by a page
+      // adapter (window._a1SweepIdb / _a1SweepCloud [id]) and wait >= a day.
+      if (ADAPTED[it.store] && !(it.capDays >= 1)) throw new Error('rules: ' + it.id + ' ' + it.store + ' items need capDays >= 1');
     });
     return rules;
   }
@@ -93,7 +99,7 @@
   // Works out the run without touching anything.
   function plan(rules) {
     var mine = rules.items.filter(function (it) { return it.program === PROGRAM; });
-    var out = { ls: [], fs: [], idb: [] };
+    var out = { ls: [], fs: [], adapted: [] };
     var s = store();
     var keys = [];
     if (s) { for (var i = 0; i < s.length; i++) { var k = s.key(i); if (k) keys.push(k); } }
@@ -102,8 +108,8 @@
         keys.forEach(function (k) { if (matches(it, k)) out.ls.push({ id: it.id, key: k, del: it.delete }); });
       } else if (it.store === 'firestore') {
         if (doneList().indexOf(it.id) === -1) out.fs.push({ id: it.id, doc: it.doc, del: it.delete });
-      } else if (it.store === 'indexeddb') {
-        out.idb.push({ id: it.id, capDays: it.capDays, del: it.delete });
+      } else if (ADAPTED[it.store]) {
+        out.adapted.push({ id: it.id, store: it.store, capDays: it.capDays, del: it.delete });
       }
     });
     return out;
@@ -158,23 +164,25 @@
           } catch (e) { rep.skipped.push(x.id + ': ' + (e && e.message)); }
         }
 
-        // IndexedDB: the page's adapter says what is orphaned (list) and when
-        // its data is authoritative (ready); this only enforces the caps.
-        var ia = window._a1SweepIdb || {};
-        var ibudget = rules.limits.idbDeletesPerSweep;
-        for (var j = 0; j < p.idb.length; j++) {
-          var y = p.idb[j], ad = ia[y.id];
+        // Page adapters: the page says what is orphaned (list) and when its
+        // data is authoritative (ready); this only enforces the caps. IndexedDB
+        // deletes share idbDeletesPerSweep; cloud-file deletes share the KV
+        // budget (kvDeletesPerDayPerAccount, and a sweep runs once a day).
+        var budgets = { indexeddb: rules.limits.idbDeletesPerSweep, cloudfiles: rules.limits.kvDeletesPerDayPerAccount };
+        for (var j = 0; j < p.adapted.length; j++) {
+          var y = p.adapted[j], kind = ADAPTED[y.store];
+          var ad = (window[kind.global] || {})[y.id];
           if (!ad || typeof ad.list !== 'function' || typeof ad.del !== 'function' || !ad.ready || !ad.ready()) {
-            rep.skipped.push(y.id + ': IndexedDB adapter not ready'); continue;
+            rep.skipped.push(y.id + ': ' + kind.label + ' adapter not ready'); continue;
           }
           var found = [];
           try { found = (await ad.list(y.capDays)) || []; }
           catch (e) { rep.skipped.push(y.id + ': list failed (' + (e && e.message) + ')'); continue; }
           for (var q = 0; q < found.length; q++) {
-            var f = found[q], label = y.id + ': IndexedDB ' + (f.label || f.key);
+            var f = found[q], label = y.id + ': ' + kind.label + ' ' + (f.label || f.key);
             if (!y.del || dry) { rep.wouldDelete.push(label); continue; }
-            if (ibudget <= 0) { rep.skipped.push(y.id + ': over the per-sweep delete cap'); break; }
-            ibudget--;
+            if (budgets[y.store] <= 0) { rep.skipped.push(y.id + ': over the per-sweep delete cap'); break; }
+            budgets[y.store]--;
             try { await ad.del(f.key); rep.deleted.push(label); }
             catch (e) { rep.skipped.push(label + ' (' + (e && e.message) + ')'); }
           }

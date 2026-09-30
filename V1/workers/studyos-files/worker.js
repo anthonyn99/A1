@@ -16,6 +16,8 @@
 // Routes:
 //   GET    /health          → status check
 //   GET    /usage           → { bytes, files, limit } for the storage indicator
+//   GET    /keys            → { files: [{ id, bytes, parts, manifest }] } for
+//                             every "sf_" file (no bodies), for the self-cleanup
 //   PUT    /f/<key>         → store a whole small file (raw body). Headers:
 //                               Content-Type  → file mime (echoed back on GET)
 //                               X-File-Name   → encodeURIComponent(filename)
@@ -24,7 +26,8 @@
 //                               { parts, size, type, name }
 //   GET    /f/<key>         → the file bytes, reassembled if chunked.
 //                             add ?dl=1 to force a download (Content-Disposition).
-//   DELETE /f/<key>         → remove the file (and every part, if chunked).
+//   DELETE /f/<key>         → remove the file and every part stored under it,
+//                             found by key prefix (a manifest is not required).
 //
 // KV limits (free plan): value ≤ 25 MB, 1 GB total, ~1000 writes/day.
 //
@@ -91,6 +94,31 @@ export default {
         cursor = page.list_complete ? null : page.cursor;
       } while (cursor);
       return json({ ok: true, bytes, files, limit: KV_CAPACITY, maxFile: null });
+    }
+
+    // ── StudyOS file keys (for the self-cleanup) ───────────────────────────
+    // Names and sizes of the StudyOS files stored here ("sf_" keys; parts are
+    // folded into their file), never a body. The same list() /usage already
+    // runs on every storage-meter refresh, so this adds no new kind of cost.
+    // The client compares it with the files its classes point at, and deletes
+    // (DELETE /f/<key>) only what nothing references.
+    if (path === '/keys') {
+      if (req.method !== 'GET') return json({ ok: false, error: 'method not allowed' }, 405);
+      const files = {};
+      let cursor;
+      do {
+        const page = await env.FILES.list({ prefix: 'sf_', cursor, limit: 1000 });
+        for (const k of page.keys) {
+          const m = k.metadata || {};
+          const cut = k.name.search(/__p\d{1,5}$/);
+          const id = cut > 0 ? k.name.slice(0, cut) : k.name;
+          const f = files[id] || (files[id] = { id, bytes: 0, parts: 0, manifest: false });
+          if (cut > 0) { f.parts++; f.bytes += typeof m.size === 'number' ? m.size : 0; }
+          else { f.manifest = true; if (!m.chunked) f.bytes += typeof m.size === 'number' ? m.size : 0; }
+        }
+        cursor = page.list_complete ? null : page.cursor;
+      } while (cursor);
+      return json({ ok: true, files: Object.values(files) });
     }
 
     // ── Upload one part of a chunked file ──────────────────────────────────
@@ -196,16 +224,26 @@ export default {
       }
 
       // ── Delete ───────────────────────────────────────────────────────────
+      // Parts are found by their key PREFIX, not only through the manifest. The
+      // manifest is written last, so an upload that stopped early (or a file
+      // removed while it was still uploading) had parts but no manifest, and the
+      // old manifest-only delete left every one of them in KV for good: a
+      // removed video kept its storage (2026-09-30). A re-upload with fewer
+      // parts also left the old tail behind; the prefix catches that too.
       if (req.method === 'DELETE') {
-        const { metadata } = await env.FILES.getWithMetadata(key);
-        if (metadata && metadata.chunked) {
-          const total = Number(metadata.parts) || 0;
-          for (let i = 0; i < total; i++) {
-            await env.FILES.delete(partKey(key, i));
+        let parts = 0, cursor;
+        do {
+          const page = await env.FILES.list({ prefix: key + '__p', cursor, limit: 1000 });
+          for (const k of page.keys) {
+            // Exact part keys only: "sf_1__p3" must not match file "sf_1__p3x".
+            if (!/__p\d{1,5}$/.test(k.name) || k.name.slice(0, k.name.lastIndexOf('__p')) !== key) continue;
+            await env.FILES.delete(k.name);
+            parts++;
           }
-        }
+          cursor = page.list_complete ? null : page.cursor;
+        } while (cursor);
         await env.FILES.delete(key);
-        return json({ ok: true, key, deleted: true });
+        return json({ ok: true, key, deleted: true, parts });
       }
 
       return json({ ok: false, error: 'method not allowed' }, 405);
