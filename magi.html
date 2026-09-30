@@ -8568,7 +8568,13 @@ function parseVerdict(text) {
   // the text it heads ("ANSWER AI consumes...", "CONFIDENCE HIGH -- ...").
   // Only the exact UPPERCASE labels are split off, so prose that merely
   // starts with "Notes on..." is left alone.
-  const lines = String(text || "").replace(/\r/g, "").split("\n").flatMap((l) => {
+  // One that lost the breaks on BOTH sides glues the label to the end of the
+  // previous sentence too ("...*Dream*.NOTES None.CONFIDENCE HIGH", a sole
+  // Gemini verdict, 2026-09-30): only right after a sentence's end, and only
+  // followed by a space or a colon, so "NOTES-style" in prose stays put.
+  const unglued = String(text || "").replace(/\r/g, "")
+    .replace(/([.!?][*_"')\]]*)[ \t]*(NOTES|CONFIDENCE)(?=[ \t]*:|[ \t]+\S)/g, "$1\n$2");
+  const lines = unglued.split("\n").flatMap((l) => {
     const m = l.match(/^\s*(?:#{1,4}\s*)?(ANSWER|NOTES|CONFIDENCE|CAVEATS)(?:\s*:\s*|\s+)(?=\S)(.+)$/);
     return m ? [m[1], m[2]] : [l];
   });

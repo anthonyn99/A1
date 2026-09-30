@@ -66,8 +66,8 @@ def answer_section(verdict: str) -> str:
 # Gemini verdict, 2026-09-30: "...*Dream*.NOTES None.CONFIDENCE HIGH -- ...").
 # Only the exact UPPERCASE heading right after a sentence's end is split off,
 # so prose that mentions "notes" is left alone.
-_GLUED = re.compile(r"(?<=[.!?])([*_\"')\]]*)[ \t]*(NOTES|CONFIDENCE)[ \t]*:?[ \t]*(?=\S)")
-_LEADING = re.compile(r"^[ \t]*(NOTES|CONFIDENCE)[ \t]*:?[ \t]+(?=\S)", re.MULTILINE)
+_GLUED = re.compile(r"(?<=[.!?])([*_\"')\]]*)[ \t]*(NOTES|CONFIDENCE)(?:[ \t]*:[ \t]*|[ \t]+)(?=\S)")
+_LEADING = re.compile(r"^[ \t]*(NOTES|CONFIDENCE)(?:[ \t]*:[ \t]*|[ \t]+)(?=\S)", re.MULTILINE)
 
 
 def _unglue(text: str) -> str:
