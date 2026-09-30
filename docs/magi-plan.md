@@ -9,21 +9,23 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-09-28, end of the Phase U4 session.
+**Last updated:** 2026-09-29, Track F planned (Tony approved the plan).
 **Phases complete:** 1–14 (14a hardening, 14b A1 writable), plus **11B**,
 and ALL of Track S: **S1**, **S2**, **S3**, **U1**, **U2**, **U3**, **U4**.
-**Next phase:** **none agreed yet — ask Tony.** Track S is finished and
-the road table below has nothing left in it. A new session told
-"continue" should say so and ask what comes next (candidates Tony may
-pick from are under "After Track S" below); do not invent a phase.
+**Next phase:** **F1 — Deliberation follow-ups, engine.** Track F
+("Follow-ups", §8 "Track F") makes Deliberation and Code Mode multi-turn
+sessions: the prompt box follows up with the session's memory, and a
+message sent WHILE a run is going adjusts it. Four phases, F1 → F4, one
+per session. Read the whole Track F section before starting; Tony's
+decisions are at its top and are not to be re-asked.
 **Phase 15 (Veda's engine) is INSTALLED**: she ran `magi\setup.ps1 -Profile veda`, signed in
 to Accounts, the coding agents and GitHub (Tony confirmed 2026-09-28), and
 her engine self-updates. Do NOT send her setup commands again. The only
 Phase 15 leftover is an optional isolation check from her PC (below).
 
 > **To start the next phase, the whole instruction is "continue" or "next
-> phase".** Do the start-of-session checklist, then the next Track S phase
-> from its section in §8 ("Track S"), then the steps at the end of this §0. Everything needed is in this file.
+> phase".** Do the start-of-session checklist, then the next Track F phase
+> from its section in §8 ("Track F"), then the steps at the end of this §0. Everything needed is in this file.
 
 ### The road from here (agreed with Tony 2026-09-21; 11B added 2026-09-24)
 
@@ -45,6 +47,10 @@ One phase per session.
 | ~~U3~~ | ~~Units: limits~~ | **done 2026-09-28** | | |
 | ~~U4~~ | ~~Units: choose model~~ | **done 2026-09-28** | | |
 | ~~15~~ | ~~Veda's engine~~ | **installed** (setup.ps1 + all sign-ins, confirmed 2026-09-28; self-updating). Optional: isolation check from her PC | | |
+| F1 | Follow-ups: Deliberation engine | sessions, context block, chairman additions, `/note` | Medium | engine only; invisible until F2 |
+| F2 | Follow-ups: Deliberation console | thread UI, docked composer, mid-run send, grouped History | High | |
+| F3 | Follow-ups: Code Mode engine | session memory, native resume, interrupt & continue, revise-at-card | High | starts with a CLI spike |
+| F4 | Follow-ups: Code Mode console | thread UI, mid-run send, grouped History | High | |
 
 ### Start-of-session checklist (do these in order)
 
@@ -2260,6 +2266,261 @@ Studio. Console: per-unit dropdown in the unit sheet, "Site default" first.
 Tests: picker driving on fixtures, read-back, unavailable → labelled not
 failed, per-profile storage, HOW section. Live: non-default models on 2–3
 units, one short question.
+
+---
+
+## Track F — Follow-ups: multi-turn Deliberation and Code Mode (planned 2026-09-29)
+
+*Status:* planned; F1 next.
+
+### Why
+
+Today a Deliberation or Code Mode prompt is a one-shot: after the verdict / task
+ends, the next prompt starts a brand-new, memoryless run. While a run is in
+flight, Convene/Run is disabled (only Queue works, which queues an *independent*
+prompt). Tony wants chat-app behaviour:
+
+1. **Follow-ups**: the prompt box continues the current session; each new prompt
+   carries the session's memory.
+2. **Mid-run messages**: type and send while it runs to add/adjust/subtract, like
+   Claude Code.
+
+Decisions (Tony, this session):
+- Deliberation mid-run message → **folded into the verdict** (chairman applies it)
+  if synthesis hasn't started; otherwise **held and sent as the next follow-up**.
+- Code Mode mid-run message → **interrupt & continue**: stop the agent, resume the
+  SAME session/sandbox with the message (edits kept). Browser units get it right
+  after their current reply. While the approval card is up, a message = **revise**.
+- Once a session has turns, the composer **docks to the bottom**; the thread reads
+  top-down. An empty new session keeps today's centred composer.
+
+Facts that shape the design (verified in code):
+- Every council unit turn opens a fresh browser + new chat (`browser_base.ask`
+  → `page.goto(site.url)`); nothing stores a conversation URL. Brainstorm already
+  gets multi-turn by **replaying a transcript in the prompt** (`brainstorm._build_transcript`,
+  12k cap) — the council copies that pattern.
+- Claude CLI session id is already parsed (`claude_cli.parse_line`) but dropped by
+  `chain.ChainResult`; Codex runs `--ephemeral` (no rollout → not resumable).
+  Installed: Claude Code 2.1.285 (`--resume <id>`), codex 0.159.2 (`exec resume <id> -`).
+- Claude stores sessions per cwd (`~/.claude/projects/<encoded cwd>/`); write-mode
+  cwd is a per-task worktree `%TEMP%\magi-sandbox\<profile>\<task_id>` deleted at task end.
+- `_proc.Stream` writes stdin once and closes it → live stdin injection is out;
+  interrupt = kill the tree (as Halt does) + resume.
+- `validate.validate_answer` OFF_TOPIC overlap check would reject short follow-up
+  answers measured against a short follow-up question.
+- Firestore: body doc per run (`dashboards/<doc>/runs/<id>`, up to ~100 KB+), index
+  rows ~120 B, `CLOUD_INDEX_MAX=300`; one write at run end; nothing while in flight.
+
+**Memory model (both modes):** the console is the source of truth for the thread
+(it has every turn live or from the cloud body docs) and sends prior turns with
+each follow-up; the engine builds a trimmed "CONVERSATION SO FAR" block. This works
+across engines, restarts, devices and fallback agents. Code Mode additionally uses
+**native CLI resume** when the same agent+account continues, with the transcript
+block as automatic fallback. Every Code follow-up states ground truth about the
+real folder ("your last diff was DENIED — those edits are not in the project"),
+because native memory would otherwise believe denied edits exist.
+
+**Compatibility:** new engine capabilities are advertised as `features`
+(`followup`, `steer`) — code `/state` already has `features:["attachments"]`; the
+council gets the same list on `/api/health`. An older engine: follow-up context is
+folded into the question text (like the attachments fallback); Send-while-running
+is disabled with "Update the engine". Engines self-update when idle anyway.
+
+
+### Phases (one per session, per the §0 checklists; each ships on its own)
+
+Engine phases are invisible until their console phase lands (new optional fields
+only), so nothing half-built is user-facing.
+
+| # | Phase | Ships |
+|---|---|---|
+| F1 | Deliberation — engine | sessions, context block, chairman additions, `/note` route |
+| F2 | Deliberation — console | thread UI, docked composer, mid-run send, history grouping, sync |
+| F3 | Code Mode — engine | session memory, native resume, interrupt/steer, revise-at-card |
+| F4 | Code Mode — console | thread UI, mid-run send, history grouping, sync |
+
+Start of every phase: `git pull --rebase --autostash`; engine health; baseline
+`pytest` (from `magi/`) + `node tests/run-all.js` green before touching anything.
+
+---
+
+#### F1 — Deliberation engine
+
+Files: `magi/app.py`, `magi/engine/orchestrator.py`, `magi/engine/chairman.py`,
+new `magi/engine/session.py`, `magi/providers/base.py`, `magi/providers/browser_base.py`,
+`magi/db.py`.
+
+1. **`session.py`** — `build_context(turns, budget) -> str`. Turns = `[{q, answer}]`
+   (answer = verdict's ANSWER section; NOTES/CONFIDENCE stripped). Newest turn kept
+   whole, older answers trimmed with `chairman._fit` (head+tail), oldest dropped to
+   one-line questions + "[n earlier turns omitted]" (mirror `_build_transcript`).
+   Budget: `min(24_000, prompt_budget(unit) - len(question) - 6_000)`. Framed as
+   data: "CONVERSATION SO FAR (earlier turns of this conversation; the new message
+   follows)".
+2. **`POST /api/runs`** — new optional form fields `session` (id), `turn` (int),
+   `context` (JSON `[{q, answer}]`, capped 200k chars, validated). Turn 1: session =
+   run_id. `_live_twin` keys on session too. Per-unit prompt = context block +
+   "NEW MESSAGE:\n" + question (via `gather(prompts=dict)`, already supported).
+   `DIRECT_ANSWER_PREAMBLE` stays (a unit still can't ask back).
+3. **Straggler floor** measured on the new question, not the context-padded prompt
+   (`gather(..., floor_chars=len(question))`), so short follow-ups keep the 90 s floor.
+4. **Validation**: `RunContext` gains `reference: str` = question + prior questions +
+   latest answer; `browser_base` validates OFF_TOPIC against it (not exempted).
+5. **Chairman**: `build_prompt(question, answers, context="", additions=[])` gains
+   two optional blocks — "EARLIER IN THIS CONVERSATION" and "ADDED BY THE PERSON
+   WHILE THE COUNCIL WAS ANSWERING (apply these; they override the question where
+   they conflict)". Context counts in the frame and is trimmed before answers are.
+6. **Mid-run note**: `POST /api/runs/{id}/note {text}` (≤4k chars, ≤10 per run).
+   `state["phase"]` = `gather` | `synth` | `done`, flipped by the orchestrator with
+   no `await` between snapshotting notes and flipping (single-loop atomic).
+   Returns `{applied:"verdict"}` during gather, `{applied:"followup"}` after.
+   Broadcast SSE `{type:"note", text, applied}` so every viewer sees it. Edge cases:
+   - notes + only ONE responder → run synthesis anyway (that unit revises its answer
+     with the additions) instead of the sole-answer shortcut;
+   - no quorum / cancelled → notes come back in `done.unapplied_notes`;
+   - `done` payload carries `notes` (applied) and `followup_notes`.
+7. **DB**: migrate `runs` + `session_id`, `turn`, `notes_json` (PRAGMA/ALTER pattern
+   in `db.init`); `get_run`/`list_runs` return them. `/api/health` gains
+   `features:["followup","steer"]`.
+8. **Tests** (pytest): context builder trimming/ordering/budget; chairman prompt with
+   context + additions within `MAX_PROMPT_CHARS`; note phase race (note at the
+   gather→synth boundary lands in exactly one bucket); sole-responder-with-notes goes
+   to synthesis; `_live_twin` with sessions; OFF_TOPIC uses reference; DB migration on
+   an old file; straggler floor. Mutation-check a few via monkeypatch
+   (never mutate A1 source in place — auto-commit ships it). Restart engine (`magi\restart.ps1`), verify live
+   with curl (a 2-turn session on 1 cheap unit).
+
+#### F2 — Deliberation console (`magi.html`)
+
+1. **State**: `S.session = {id, turns:[{runId, q, verdict, panels, notes, at}], pending:[]}`.
+   `S.live` gains `session/turn`. `newRun()`/New deliberation → fresh session;
+   TradeHub `#tb=` / morning launcher / Queue items always start fresh sessions.
+2. **Send paths** (one function, `start()`):
+   - idle, session empty → Convene (today's path) → turn 1;
+   - idle, session has turns → **Follow up**: `runOne({..., session, turn, context})`,
+     composer cleared (today Convene leaves the question in the box — fix);
+   - running → **Add to run**: POST `/note`; bubble "Added — the verdict will use
+     this" or "Held — will be sent as the next follow-up" (pending, with ✕ and edit).
+     Text only; attachments stay in the composer for the next follow-up.
+   - On `done`: `followup_notes` + `unapplied_notes` auto-send as the next follow-up
+     **only in the tab that watched the run**; a reattaching tab gets them as a draft.
+   `updateEnabled()` owns labels: Convene / Follow up / Add to run; Ctrl+Enter same.
+   Old engine (no `steer`) → button disabled with the reason.
+3. **Thread UI**: `#thread` above the live grid. Earlier turns = compact cards: the
+   question bubble, its notes, the verdict via the existing verdict renderer, and a
+   "Units n/m ▸" expander listing each unit's answer (existing markdown renderer; no
+   hex grid for old turns). The current turn keeps the full grid + verdict. Studio
+   acts on the latest turn's run. Auto-scroll to the newest turn only if already
+   near the bottom.
+4. **Docked composer**: `.council-thread` class → `#qbar` becomes `position:sticky;
+   bottom:0` inside the main column (sticky, not fixed, so the 2000px cap holds —
+   the ui-cap-2000 rule); safe-area inset; 390px: chips/toolbar wrap, thread gets
+   bottom padding equal to the bar. Empty session keeps `council-idle` centring.
+5. **History**: index row gains `sid`, `turn`; `renderHistory` groups by `sid` (title =
+   first question, "· n turns", time = latest). Pins/nicks/unpinnedAt keyed by session
+   id (= first run id, so every existing mark keeps working). Delete = every turn's
+   body + engine row. Expiry by latest turn, whole session together. Opening a
+   session (`openRun`/`cloudOpenRun`) loads all turns' bodies and leaves the composer
+   EMPTY, ready to follow up (today it refills the old question).
+6. **Sync**: still one body write per finished turn (`cloudPushRun`) + index row;
+   `notes` stored in the body. Nothing written mid-run.
+7. **HOW panel + `docs/magi.md`** in the same commit (`test_howitworks.py`).
+8. **Tests**: node static tests (send-path matrix, no write mid-run, grouping);
+   `tests/live/magi-thread.live.js` — stubbed engine (fake EventSource) for the
+   matrix + grouping + 390px shots, then ONE real 2-turn session on one cheap unit
+   (turn 2 must reference turn 1) and one real mid-run note applied to the verdict.
+   Re-run `magi-model-chip`, `magi-queue-hold`, `magi-sync` live tests.
+
+#### F3 — Code Mode engine
+
+Files: `magi/code/tasks.py`, `magi/code/routes.py`, `magi/code/sandbox.py`,
+`magi/code/agents/{base,chain,claude_cli,codex_cli,browser,_proc}.py`,
+`magi/code/security`-untouched, `cleanup-rules.json`.
+
+0. **Spike first (read-only probe folder in `%TEMP%\magi-sandbox`)**, results into
+   §0 "Hard-won facts": (a) does `claude -p --resume <id>` find a session created
+   under a different cwd, and does copying `<sid>.jsonl` into
+   `$CLAUDE_CONFIG_DIR/projects/<encoded new cwd>/` make it work; resume with
+   `--restricted` + changed `--tools`/`--permission-mode`; resume after a `taskkill`
+   mid-turn. (b) which of our Codex flags `codex exec resume` accepts
+   (`--json`, `--sandbox`, `-C`, `--ignore-user-config`…); resume after a kill.
+   The build below uses whatever the spike proves; transcript fallback covers the rest.
+1. **Session memory**: `POST /tasks` gains optional `session {id, turn, turns:[{prompt,
+   text, outcome, write, files, by}], native:{agent, sid}}`. `Task` gains
+   `history` (built like F1's block, "SESSION SO FAR") and `state_note` (ground truth
+   about the last turn's diff: applied / denied / refused / none). `full_prompt()` and
+   `BrowserUnitAgent.build_prompt` include them; `context.gather` also gets the recent
+   session prompts so browser units see the right files.
+2. **Native resume**: `ChainResult.to_dict` carries `session_id` + `by`; result exposes
+   `native`. The chain passes `resume_sid` only to the agent whose id matches
+   `native.agent`. Claude: `--resume <sid>` (+ jsonl copy if the spike needs it);
+   Codex: drop `--ephemeral`, use `exec resume <sid> -`. On "no conversation found" →
+   one retry of the same agent with the transcript block (not a hand-off). When
+   resuming, the history block is omitted (no duplication); `state_note` always sent.
+   Codex rollouts now persist → add a `cleanup-rules.json` item (>30 days), shipping
+   dry-run per the cleanup-rules.json rule.
+3. **Interrupt & continue**: `POST /tasks/{id}/message {text}` (≤4k, ≤20 per task).
+   `TaskState.inbox` + `interrupt` Event; publish `{k:"user", text, how}` for all
+   viewers. By phase:
+   - before the agent starts → folded into its first prompt;
+   - CLI agent running → kill the tree via `Stream` (like cancel, but NOT the cancel
+     event) → agent returns new `Outcome.INTERRUPTED` with its session id → the chain
+     re-runs the SAME agent: native resume with "The person added: …" if a session
+     exists, else continuation note (partial text + changed files + message);
+   - browser unit running → let the reply finish, then continuation with the message;
+   - approval card up → **revise**: card resolved "revised" (nothing applied), same
+     agent resumed in the same sandbox with the message, new diff + card;
+   - applying/committing/ended → `{accepted:"followup"}` (console sends it next).
+   Several messages within 1.5 s are batched into one interrupt. Halt still wins.
+4. `TaskState.summary()`/`start` event carry `session_id`, `turn`; `/state`
+   `features` += `followup`, `steer`.
+5. **Tests**: argv with resume (Claude/Codex, no `--ephemeral`); chain with a Fake
+   agent: interrupt → resumed same agent with message, resume-miss → transcript
+   retry, hand-off keeps message; revise at card (nothing applied, second card);
+   message after decision → followup; `state_note` wording per outcome; inbox caps.
+   Live: `tests/live/magi-code-followup.live.js` — real small Claude READ tasks:
+   turn 1, follow-up referencing turn 1 (resumed), a mid-run message that changes
+   the answer; one WRITE follow-up in a scratch repo after a denied diff (agent must
+   not assume the edit exists). Restart engine; re-run `magi-codemode`, `magi-write`,
+   `magi-guard`, `magi-a1` live tests (agents still in the job; A1 still write-only).
+
+#### F4 — Code Mode console
+
+1. `CODE.session = {id, projectId, turns:[task…], native}`; bound to the project
+   (switching workspace → new session); Read/Write chosen per turn; New session →
+   fresh. Queue items stay independent tasks.
+2. `codeRun()`: idle+turns → follow-up POST with `session`; running → POST `/message`
+   (button "Send"; the `codeBusy` guard only blocks a NEW task). Old engine → disabled
+   with reason.
+3. `renderCodeTask` → session thread: each turn = prompt bubble, its log (earlier turns
+   collapsed to one line), answer, cards; `k:"user"` events render as inline bubbles
+   where they happened ("Interrupted — continuing with your message", "Revising the
+   diff…"). Same docked composer as F2.
+4. History: `code.tasks` rows gain `sid`, `turn`; grouped per session; marks keyed by
+   session id (= first task id); `codeGone` tombstones per task still apply; opening
+   loads each turn's body and can continue.
+5. HOW panel + `docs/magi.md`; node static tests; extend `magi-code-queue`/
+   `magi-code-history` live tests + the F3 live test through the UI at 390px.
+
+#### End of each phase (the §0 checklists)
+Engine restarted + live-verified; pytest + node green; desktop + 390px shots; HOW
+panel/docs in the same commit; rewrite `docs/magi-plan.md` §0 (add this track as
+"F1–F4"); commit + push (`git pull --rebase` first).
+
+### Bugs to fix on the way (found so far)
+- Convene leaves the question in the composer (`start()` never clears it) — becomes
+  wrong once the box means "follow up".
+- `openRun` refills the composer with the old question — replaced by the thread.
+- Short follow-ups would be thrown out as OFF_TOPIC by validation (fixed in F1.4).
+- A context-padded prompt would silently move short questions onto the 180 s
+  straggler floor (fixed in F1.3).
+More found during the build get fixed in the phase that touches them and listed in §0.
+
+### Verification (per phase)
+- `cd magi; .venv\Scripts\python -m pytest tests -q` and `node tests/run-all.js`.
+- The phase's live test via `tests/live/cdp.js` (`PAGES_URL`, fake Firestore write
+  counter proves nothing is written mid-run), desktop + 390px screenshots reviewed.
+- Regression live tests listed in each phase.
 
 ---
 
