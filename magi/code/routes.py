@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, Request
 
 from .. import ident
 from ..settings import active_profile
@@ -188,6 +188,8 @@ async def unbind_project(project_id: str) -> dict[str, Any]:
 @router.delete("/projects/{project_id}")
 async def delete_project(project_id: str) -> dict[str, Any]:
     await _db().delete_code_project(project_id)
+    from . import check as _check
+    _check.forget(project_id)
     return {"ok": True}
 
 
@@ -206,6 +208,82 @@ async def set_prefs(project_id: str, body: dict = Body(...)) -> dict[str, Any]:
     if not prefs["autoCommit"]:
         _AC.cancel(project_id)
     return {"ok": True, "project": await _db().code_project(project_id, _engine_id())}
+
+
+# ── the check command (check.py) ─────────────────────────────────────────────
+
+def _local_only(request: Request) -> None:
+    """404 over the tunnel, like /api/token: the check command is code this
+    PC will run, and the tunnel's token also lives in the cloud document."""
+    from ..app import _arrived_over_the_tunnel
+    if _arrived_over_the_tunnel(request):
+        raise HTTPException(404, "not found")
+
+
+@router.get("/projects/{project_id}/check")
+async def get_check(project_id: str, request: Request) -> dict[str, Any]:
+    """The project's check, and suggestions from its folder on this PC.
+    Readable from anywhere (the phone shows it); `local` says whether THIS
+    request may change it."""
+    from ..app import _arrived_over_the_tunnel
+    from . import check as C
+    p = await _db().code_project(project_id, _engine_id())
+    if not p:
+        return {"ok": False, "error": "no_project", "message": "No such project."}
+    here = next((b for b in p.get("bindings") or [] if b.get("here")), None)
+    from pathlib import Path
+    root = Path(here["root"]) if here else None
+    loop = _asyncio.get_running_loop()
+    sug = await loop.run_in_executor(None, C.suggest, root) if root and root.is_dir() else []
+    return {"ok": True, "check": C.get(project_id), "suggestions": sug,
+            "local": not _arrived_over_the_tunnel(request),
+            "limits": {"max_command": C.MAX_COMMAND, "max_timeout_min": C.MAX_TIMEOUT_MIN}}
+
+
+@router.post("/projects/{project_id}/check")
+async def set_check(project_id: str, request: Request, body: dict = Body(...)) -> dict[str, Any]:
+    """`{"command", "auto", "timeout_min"}`. An empty command removes it."""
+    _local_only(request)
+    from . import check as C
+    if not await _db().code_project(project_id, _engine_id()):
+        return {"ok": False, "error": "no_project", "message": "No such project."}
+    try:
+        c = C.put(project_id, body.get("command"), body.get("auto"),
+                  body.get("timeout_min", C.DEFAULT_TIMEOUT_MIN))
+    except C.CheckError as e:
+        return {"ok": False, "error": "bad_command", "message": e.message}
+    return {"ok": True, "check": c}
+
+
+@router.post("/projects/{project_id}/check/try")
+async def try_check(project_id: str, request: Request, body: dict = Body(default={})) -> dict[str, Any]:
+    """Run a command once in the project's REAL folder and return what it did
+    -- Claude Queue's "Try it now": the only way to know a command works is
+    to run it. From this PC only, and only while no task is using the folder."""
+    _local_only(request)
+    from . import check as C
+    p, root, err = await _project_here(project_id)
+    if err:
+        return err
+    try:
+        c = C.clean(body.get("command"), False, body.get("timeout_min", C.DEFAULT_TIMEOUT_MIN))
+    except C.CheckError as e:
+        return {"ok": False, "error": "bad_command", "message": e.message}
+    if not c["command"]:
+        return {"ok": False, "error": "empty", "message": "Type a command first."}
+    if any(t.project_id == project_id for t in _tasks.running()):
+        return {"ok": False, "error": "busy", "message": "A task is working in this project; try when it ends."}
+    if project_id in _TRYING:
+        return {"ok": False, "error": "busy", "message": "Already running."}
+    _TRYING.add(project_id)
+    try:
+        res = await C.run(c["command"], root, c["timeout_min"] * 60)
+    finally:
+        _TRYING.discard(project_id)
+    return {"ok": True, "result": res}
+
+
+_TRYING: set[str] = set()
 
 
 @router.get("/sync")
@@ -231,9 +309,11 @@ async def sync_apply(body: dict = Body(...)) -> dict[str, Any]:
     local = await _db().code_projects(eid)
     plan = _S.incoming(local, await _db().code_sync_meta(), body or {})
     by_id = {p["id"]: p for p in local}
+    from . import check as _check
     for pid, at in plan["delete"]:
         _AC.cancel(pid)
         await _db().delete_code_project(pid, deleted_at=at)
+        _check.forget(pid)
     for pid, at in plan["tomb"]:
         await _db().note_code_deleted(pid, at)
     for row, at in plan["save"]:
@@ -665,10 +745,11 @@ async def start_task(body: dict = Body(...)) -> dict[str, Any]:
     if why:
         return {"ok": False, "error": "attachments", "message": why}
     order = [str(x) for x in (body.get("agents") or _chain.DEFAULT_ORDER)]
+    from . import check as _check
     t = await _tasks.start(project_id=p["id"], root=root, prompt=prompt[:20000],
                            order=order, settings=_settings(), mode=mode,
                            github=str((p.get("prefs") or {}).get("github") or ""),
-                           attachments=atts)
+                           attachments=atts, check=_check.get(p["id"]))
     await _db().touch_code_binding(p["id"], eng)
     return {"ok": True, "task": t.summary()}
 
@@ -704,6 +785,18 @@ async def approve_task(task_id: str, body: dict = Body(...)) -> dict[str, Any]:
         return {"ok": False, "error": "no_task", "message": "No such task."}
     ok, why = _tasks.decide(t, body.get("approve") is True)
     return {"ok": ok, **({} if ok else {"error": "not_waiting", "message": why})}
+
+
+@router.post("/tasks/{task_id}/check")
+async def check_task(task_id: str) -> dict[str, Any]:
+    """Run check, from the approval card -- any device that can see the card.
+    Runs only the command already set on this PC for the project (see
+    /projects/{id}/check), in the task's private copy."""
+    t = _tasks.TASKS.get(task_id)
+    if t is None:
+        return {"ok": False, "error": "no_task", "message": "No such task."}
+    ok, why = _tasks.start_check(t)
+    return {"ok": ok, **({} if ok else {"error": "not_now", "message": why})}
 
 
 @router.post("/tasks/{task_id}/commit")

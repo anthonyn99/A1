@@ -90,6 +90,38 @@ def test_env_var_wins_over_dotenv(monkeypatch):
     assert load_api_key() == "from-env"
 
 
+def test_each_profile_reads_only_its_own_key(monkeypatch, tmp_path):
+    """Veda's Refine must never run on Tony's key: two engines on one PC
+    share one .env, and the plain GEMINI_API_KEY there is Tony's."""
+    import magi.providers.gemini_api as G
+    import magi.settings as S
+    for k in (*ENV_KEYS, "GEMINI_API_KEY_VEDA"):
+        monkeypatch.delenv(k, raising=False)
+    (tmp_path / ".env").write_text(
+        "GEMINI_API_KEY=tony-key\nGEMINI_API_KEY_VEDA='veda-key'\n", encoding="utf-8")
+    monkeypatch.setattr(G, "ROOT", tmp_path)
+    monkeypatch.setattr(S, "_active_profile", "tony")
+    assert load_api_key() == "tony-key"
+    monkeypatch.setattr(S, "_active_profile", "veda")
+    assert load_api_key() == "veda-key"
+    # Her own env var wins over the file, like Tony's does.
+    monkeypatch.setenv("GEMINI_API_KEY_VEDA", "veda-env")
+    assert load_api_key() == "veda-env"
+    # And with no key of her own she gets NONE -- not Tony's.
+    monkeypatch.delenv("GEMINI_API_KEY_VEDA")
+    (tmp_path / ".env").write_text("GEMINI_API_KEY=tony-key\n", encoding="utf-8")
+    monkeypatch.setenv("GEMINI_API_KEY", "tony-env")
+    assert load_api_key() == ""
+    with pytest.raises(MissingKey, match="GEMINI_API_KEY_VEDA"):
+        GeminiAPIProvider()
+
+
+def test_key_names():
+    import magi.providers.gemini_api as G
+    assert G.key_names("tony") == ENV_KEYS
+    assert G.key_names("veda") == ("GEMINI_API_KEY_VEDA",)
+
+
 def test_missing_key_raises_missingkey(monkeypatch):
     for k in ENV_KEYS:
         monkeypatch.delenv(k, raising=False)

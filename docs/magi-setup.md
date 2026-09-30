@@ -72,7 +72,14 @@ the token, which would unpair her devices.
    github.com/settings/personal-access-tokens, for the repositories she wants
    Code Mode to reach, with **Contents: Read and write** (add **Actions:
    Read-only** to watch a private repo's runs).
-5. On her phone, she opens the same URL and picks Veda. It finds her engine
+5. **Optional, for a one-second Refine: her Gemini API key.** Her engine
+   reads ONLY `GEMINI_API_KEY_VEDA` (never Tony's `GEMINI_API_KEY`, which
+   two engines on one PC would share). Use her own key — the same one as
+   `VEDA_GEMINI_KEY` in the personal-ai worker, or a new one from
+   aistudio.google.com/apikey. Add a line `GEMINI_API_KEY_VEDA=<key>` to
+   `magi\.env` (gitignored; create it if missing). No restart needed. Without
+   it, Refine still works, through one of her ticked units (slower).
+6. On her phone, she opens the same URL and picks Veda. It finds her engine
    by itself.
 
 ## 3. Check it (you can do all of this)

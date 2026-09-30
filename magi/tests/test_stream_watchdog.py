@@ -1,4 +1,4 @@
-﻿"""The coding agents' stall watchdog (_proc.Stream), against real processes.
+"""The coding agents' stall watchdog (_proc.Stream), against real processes.
 
 From Claude Queue: a CLI that goes SILENT is stuck, one that is merely slow
 is not -- so the clock resets on every line (stdout or stderr) and only a

@@ -7043,7 +7043,8 @@ const HOW = [
     q: "Refine",
     a: [
       "Rewrites what is in the question box into a sharper prompt before you send it. Undo puts back exactly what you wrote.",
-      "It prefers the Gemini API when that key is set and Gemini is ticked, because it answers in about a second where opening a browser to rewrite one sentence takes several. With Gemini unticked it uses one of your selected units instead &mdash; slower, but yours.",
+      "It prefers the Gemini API when your key is set and Gemini is ticked, because it answers in about a second where opening a browser to rewrite one sentence takes several. With Gemini unticked it uses one of your selected units instead &mdash; slower, but yours.",
+      "<b>Each person's Refine uses their own key.</b> Tony's engine reads <code>GEMINI_API_KEY</code>, Veda's reads <code>GEMINI_API_KEY_VEDA</code> (in <code>magi\\.env</code> or the environment) &mdash; never the other's, even when both engines run on one PC and share one <code>.env</code>. With no key of your own, Refine uses one of your ticked units.",
     ],
   },
   {

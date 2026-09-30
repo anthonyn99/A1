@@ -71,6 +71,16 @@ class TaskState:
     github: str = ""          # the GitHub login this project pushes/pulls as
     pushing: bool = False
     attachments: list[tuple[str, str]] = field(default_factory=list)
+    # The project's check command (check.py), fixed when the task starts.
+    check_cfg: dict[str, Any] = field(default_factory=dict)
+    check_cwd: str = ""       # the copy's workspace folder, while the card is up
+    check_job: asyncio.Task | None = None
+    check_stop: asyncio.Event = field(default_factory=asyncio.Event)
+    check_result: dict[str, Any] | None = None
+
+    @property
+    def checking(self) -> bool:
+        return self.check_job is not None and not self.check_job.done()
 
     @property
     def awaiting_approval(self) -> bool:
@@ -81,6 +91,7 @@ class TaskState:
                 "prompt": self.prompt[:200], "mode": self.mode,
                 "started": self.started, "done": self.done,
                 "awaiting_approval": self.awaiting_approval,
+                "checking": self.checking,
                 "outcome": (self.result or {}).get("outcome"),
                 "write": (self.result or {}).get("write"),
                 "by": (self.result or {}).get("by_label"),
@@ -132,10 +143,12 @@ def _prune() -> None:
 
 async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
                 settings, mode: str = "read", github: str = "",
-                attachments: list[tuple[str, str]] | None = None) -> TaskState:
+                attachments: list[tuple[str, str]] | None = None,
+                check: dict[str, Any] | None = None) -> TaskState:
     t = TaskState(id=uuid.uuid4().hex[:12], project_id=project_id,
                   prompt=prompt, mode=mode, root=str(root), github=github,
-                  attachments=list(attachments or []))
+                  attachments=list(attachments or []),
+                  check_cfg=dict(check or {}) if mode == "write" else {})
     TASKS[t.id] = t
     _prune()
 
@@ -194,6 +207,10 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
         finally:
             if t.approval is not None and not t.approval.done():
                 t.approval.cancel()
+            # A check still running is running IN the copy about to be
+            # removed: stop it, and let it take its dependency links down,
+            # before anything deletes that folder.
+            await _stop_check(t)
             if sb is not None:
                 await loop.run_in_executor(None, sb.remove)
             _mcp_path(t.id).unlink(missing_ok=True)
@@ -282,6 +299,22 @@ async def _review_and_apply(t: TaskState, sb: sandbox.Sandbox) -> dict[str, Any]
                           "refused": [{"path": p, "why": w} for p, w in rv.refused]})
         return {"write": "refused", "detail": rv.message}
 
+    # The check command (check.py). Automatic: it runs now, before the card,
+    # so the card opens with the result on it and its clock starts after.
+    # Otherwise the card offers Run check once you have seen the diff.
+    t.check_cwd = str(sb.cwd)
+    if t.check_cfg.get("command") and t.check_cfg.get("auto"):
+        t.check_job = asyncio.ensure_future(_run_check(t))
+        stopper = asyncio.ensure_future(t.cancel.wait())
+        try:
+            await asyncio.wait({t.check_job, stopper}, return_when=asyncio.FIRST_COMPLETED)
+        finally:
+            stopper.cancel()
+        if t.cancel.is_set():
+            await _stop_check(t)
+            await publish(t, {"k": "decision", "approved": False, "why": "halted"})
+            return {"write": "halted"}
+
     t.approval = loop.create_future()
     t.approval_deadline = time.time() + APPROVAL_TIMEOUT
     # A change to the engine's own code does nothing until it restarts -- and
@@ -298,12 +331,27 @@ async def _review_and_apply(t: TaskState, sb: sandbox.Sandbox) -> dict[str, Any]
                       "adds": sum(f.adds for f in rv.files),
                       "dels": sum(f.dels for f in rv.files),
                       "expires_at": t.approval_deadline,
-                      "timeout": APPROVAL_TIMEOUT})
+                      "timeout": APPROVAL_TIMEOUT,
+                      **({"check": {"command": t.check_cfg["command"],
+                                    "auto": bool(t.check_cfg.get("auto")),
+                                    "timeout_min": t.check_cfg.get("timeout_min")}}
+                         if t.check_cfg.get("command") else {})})
 
+    # The deadline can MOVE: a check started from the card holds the clock
+    # while it runs and gives a full window back when it ends (_run_check).
+    # So the wait is re-armed against whatever the deadline is now, rather
+    # than one fixed timeout.
     halt = asyncio.ensure_future(t.cancel.wait())
+    done: set = set()
     try:
-        done, _ = await asyncio.wait({t.approval, halt}, timeout=APPROVAL_TIMEOUT,
-                                     return_when=asyncio.FIRST_COMPLETED)
+        while True:
+            left = t.approval_deadline - time.time()
+            if left <= 0:
+                break
+            done, _ = await asyncio.wait({t.approval, halt}, timeout=min(left, 5.0),
+                                         return_when=asyncio.FIRST_COMPLETED)
+            if done:
+                break
     finally:
         halt.cancel()
     if t.approval in done and not t.approval.cancelled():
@@ -314,6 +362,9 @@ async def _review_and_apply(t: TaskState, sb: sandbox.Sandbox) -> dict[str, Any]
         if not t.approval.done():
             t.approval.cancel()
     await publish(t, {"k": "decision", "approved": approved, "why": why})
+    # Answered while a check was still going: the answer stands, the check
+    # has nothing left to inform.
+    await _stop_check(t)
     if not approved:
         return {"write": why}
 
@@ -345,6 +396,61 @@ async def _review_and_apply(t: TaskState, sb: sandbox.Sandbox) -> dict[str, Any]
     await publish(t, {"k": "conflict", "text": res.message, "files": res.conflicts,
                       "saved": res.saved_patch})
     return {"write": "conflict", "detail": res.message, "saved": res.saved_patch}
+
+
+async def _run_check(t: TaskState) -> dict[str, Any]:
+    """Run the project's check in the copy and put the result on the card.
+
+    While it runs the approval clock is HELD (the deadline pushed past the
+    check's own timeout), and when it ends you get a full window again: a
+    ten-minute suite must not use up the five minutes you had to read it."""
+    from . import check as C
+    cfg = t.check_cfg
+    cmd = cfg.get("command") or ""
+    timeout_s = int(cfg.get("timeout_min") or C.DEFAULT_TIMEOUT_MIN) * 60
+    loop = asyncio.get_running_loop()
+    t.check_stop = asyncio.Event()
+    if t.approval is not None:
+        t.approval_deadline = time.time() + timeout_s + APPROVAL_TIMEOUT
+        await publish(t, {"k": "deadline", "expires_at": t.approval_deadline, "held": True})
+    await publish(t, {"k": "check", "state": "running", "command": cmd,
+                      "auto": bool(cfg.get("auto")), "timeout_min": cfg.get("timeout_min")})
+    links = await loop.run_in_executor(None, C.link_deps, Path(t.root), Path(t.check_cwd))
+    try:
+        res = await C.run(cmd, Path(t.check_cwd), timeout_s, stop=t.check_stop)
+    finally:
+        await loop.run_in_executor(None, C.unlink_deps, links)
+    res = {**res, "command": cmd, "linked": [p.name for p in links]}
+    t.check_result = res
+    await publish(t, {"k": "check", "state": "done", **res})
+    if t.approval is not None and not t.approval.done():
+        t.approval_deadline = time.time() + APPROVAL_TIMEOUT
+        await publish(t, {"k": "deadline", "expires_at": t.approval_deadline, "held": False})
+    return res
+
+
+async def _stop_check(t: TaskState) -> None:
+    if t.check_job is None:
+        return
+    if not t.check_job.done():
+        t.check_stop.set()
+    try:
+        await asyncio.wait_for(asyncio.shield(t.check_job), 30)
+    except (asyncio.TimeoutError, asyncio.CancelledError, Exception):  # noqa: BLE001
+        pass
+
+
+def start_check(t: TaskState) -> tuple[bool, str]:
+    """Run check, pressed on the card. Only while the card is waiting, and
+    one at a time. Run again after a result is allowed."""
+    if not t.check_cfg.get("command"):
+        return False, "This project has no check command."
+    if not t.awaiting_approval or not t.check_cwd:
+        return False, "The check runs while the approval card is waiting."
+    if t.checking:
+        return False, "The check is already running."
+    t.check_job = asyncio.ensure_future(_run_check(t))
+    return True, ""
 
 
 def decide(t: TaskState, approve: bool) -> tuple[bool, str]:

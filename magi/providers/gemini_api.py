@@ -66,6 +66,24 @@ DEFAULT_MODEL = "gemini-3.5-flash"
 ENV_KEYS = ("GEMINI_API_KEY", "GOOGLE_API_KEY")
 
 
+def key_names(profile: str | None = None) -> tuple[str, ...]:
+    """The variable names THIS profile's key may be under.
+
+    One key per person, like everything else a profile owns (and like the
+    personal-ai worker's TONY_/VEDA_GEMINI_KEY). Tony keeps the plain names
+    his .env already uses. Anyone else reads only their own suffixed name --
+    never the plain one: two engines on one PC share one checkout and one
+    .env, and a Veda engine that fell back to GEMINI_API_KEY would be
+    refining her prompts on Tony's key and quota. With no key of her own,
+    Refine uses one of her ticked units instead (app._refiner_id).
+    """
+    from ..settings import DEFAULT_PROFILE, active_profile
+    p = (profile or active_profile() or DEFAULT_PROFILE).lower()
+    if p == DEFAULT_PROFILE:
+        return ENV_KEYS
+    return (f"GEMINI_API_KEY_{p.upper()}",)
+
+
 def load_api_key() -> str:
     """Find the key in the environment, falling back to a .env at the repo root.
 
@@ -76,8 +94,11 @@ def load_api_key() -> str:
 
     The key is read fresh on every call rather than cached at import: adding it
     to .env should not require restarting the server to take effect.
+
+    Per profile: see key_names.
     """
-    for name in ENV_KEYS:
+    names = key_names()
+    for name in names:
         val = os.environ.get(name, "").strip()
         if val:
             return val
@@ -93,7 +114,7 @@ def load_api_key() -> str:
         if not line or line.startswith("#") or "=" not in line:
             continue
         name, _, val = line.partition("=")
-        if name.strip() in ENV_KEYS:
+        if name.strip() in names:
             # Tolerate quoted values -- pasting a key between quotes is the
             # single most likely way to hand-edit this file wrongly, and a key
             # that silently carries a trailing quote fails with an opaque 400.
@@ -121,7 +142,7 @@ class GeminiAPIProvider(Provider):
         key = (api_key or load_api_key()).strip()
         if not key:
             raise MissingKey(
-                "No Gemini API key. Put GEMINI_API_KEY=<your key> in a .env "
+                f"No Gemini API key. Put {key_names()[0]}=<your key> in a .env "
                 "file at the MAGI project root, or set it as an environment "
                 "variable. Get a key at https://aistudio.google.com/apikey"
             )
@@ -173,7 +194,7 @@ class GeminiAPIProvider(Provider):
             if e.code in (401, 403):
                 return "", (
                     "Gemini rejected the API key (HTTP "
-                    f"{e.code}). Check GEMINI_API_KEY in your .env."
+                    f"{e.code}). Check {key_names()[0]} in your .env."
                 )
             if e.code == 429:
                 return "", "Gemini API rate limit or quota exceeded (HTTP 429)."
