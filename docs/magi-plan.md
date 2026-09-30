@@ -46,7 +46,10 @@ exists" › Code Mode follow-ups and docs/magi.md "Code Mode follow-ups"):
    Send held with "Update the engine", like F2.
 5. Retarget or drop `magi-sync.live.js`'s "Recent lists it" step (F2 OPEN
    bug below). Code History rows gain `sid`, `turn`.
-6. **The live tests need a Codex or browser agent while Claude is capped**
+6. **F4 also fixes the three open bugs**: magi-sync's Recent step, Gemini's
+   run-together verdict headings, and Codex read tasks giving up. See §8 F4
+   step 6. F4 is the last phase of Track F.
+7. **The live tests need a Codex or browser agent while Claude is capped**
    (see "Waiting on Tony"): `tests/live/magi-code-followup.live.js`
    defaults to `AGENT=codex-cli`.
 **Pre-F3 fix (2026-09-30): the queue is now TWO queues.** Deliberation and
@@ -2740,6 +2743,25 @@ Files: `magi/code/tasks.py`, `magi/code/routes.py`, `magi/code/sandbox.py`,
    History" above, incl. switching to the session's workspace.
 5. HOW panel + `docs/magi.md`; node static tests; extend `magi-code-queue`/
    `magi-code-history` live tests + the F3 live test through the UI at 390px.
+6. **The open bugs, fixed in F4** (Tony, 2026-09-30; details under "Bugs to
+   fix on the way" below). Each needs a test that fails before its fix:
+   - **`magi-sync.live.js` "Recent lists it"**: retarget the step at Code
+     History (which step 4 rebuilds), or drop it if History covers it.
+   - **Gemini verdict headings run together** ("…*Dream*.NOTES None.CONFIDENCE
+     HIGH"). Engine: let `session.answer_section` cut at an inline
+     `NOTES`/`CONFIDENCE` heading glued to the end of a sentence. Console:
+     let `parseVerdict` do the same. Better still, find where the browser
+     capture joins Gemini's heading blocks without line breaks and fix it
+     there. Pytest on the recorded string, and a node test for
+     `parseVerdict`.
+   - **Codex read tasks give up without trying** ("can't read README.md …
+     no file-reading tool", no tool call). Engine: tell a Codex READ task
+     that its shell can read files in the read-only sandbox (a line in the
+     prompt, Codex only), AND treat an OK read result with zero tool calls
+     whose text says it cannot read/access the workspace as UNAVAILABLE, so
+     it hands off instead of answering "I can't". Pytest with the recorded
+     reply; live: the codex read probe (several runs) reads every time.
+   Also re-run `magi-write` and `magi-a1` if Claude is back under the cap.
 
 #### End of each phase (the §0 checklists)
 Engine restarted + live-verified; pytest + node green; desktop + 390px shots; HOW
@@ -2757,21 +2779,21 @@ More found during the build get fixed in the phase that touches them and listed 
 - (F2, fixed) `setView`'s "Close — back to the running prompt" showed over any
   History entry opened after a run had ENDED (`S.live` outlives its run; the
   check lacked `S.running`).
-- (F2, OPEN, test) `tests/live/magi-sync.live.js` step "Recent lists it"
+- (F2, OPEN → F4 step 6, test) `tests/live/magi-sync.live.js` step "Recent lists it"
   fails: Code Mode's Recent list (`renderCodeRecent`) was removed in
   `5ff90fb` (2026-09-29 08:33, before F1); only its CSS remains. Every write
   count before that step passes. Retarget the step at Code History (or drop
   it) in F4, which rebuilds that history anyway.
 - (F2, fixed, test) `test_units_usage::test_a_prompt_quoting_limit_words…`
   aged out: fixed `NOW` vs `_recent_sync`'s real-clock window.
-- (F2, OPEN, engine) A sole Gemini unit that synthesised because of a note
+- (F2, OPEN → F4 step 6, engine) A sole Gemini unit that synthesised because of a note
   returned its verdict as one run-on line: "…*Dream*.NOTES None.CONFIDENCE
   HIGH -- …" -- the ANSWER/NOTES/CONFIDENCE headings lost their line breaks in
   capture, so `parseVerdict` shows them inline and `session.answer_section`
   cannot strip NOTES from the memory. Seen once (live test, 2026-09-30); look
   at how the browser capture joins Gemini's heading blocks, or let
   `answer_section`/`parseVerdict` accept an inline `.NOTES`/`CONFIDENCE`.
-- (F3, OPEN, agent) **Codex read tasks sometimes give up without trying**:
+- (F3, OPEN → F4 step 6, agent) **Codex read tasks sometimes give up without trying**:
   "I can't read README.md because this workspace is mounted read-only and I
   don't have a file-reading tool", with no tool call. Seen 2 of ~8 read
   tasks on 2026-09-30 (Auto's `gpt-6-luna`, effort low); 3/3 identical
