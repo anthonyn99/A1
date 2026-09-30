@@ -77,10 +77,19 @@ window.SOS.store = store;
 
   // Load each class's deck from the cloud once, and keep it current. Without
   // this a second device starts from an empty local deck.
+  //
+  // ONCE per class. store.onReady runs its callback on EVERY change, not only
+  // at start, so this used to re-read every class's deck from the server (3
+  // tries, 5 s timers each) on every save, sync and render event. On Veda's
+  // tab that piled up ~1 GB of pending reads and choked the connection her
+  // saves needed (2026-09-30). The deck's live listener (started by the first
+  // load) keeps it current after that; a class added later is loaded then.
+  const _deckLoaded = new Set();
   store.onReady(() => {
     for (const cls of store.getClasses()) {
-      if (!cls || !cls.id) continue;
+      if (!cls || !cls.id || _deckLoaded.has(cls.id)) continue;
       if (!window._fbLoadCards) break;
+      _deckLoaded.add(cls.id);
       window._fbLoadCards(cls.id)
         .then(list => { if (Array.isArray(list) && list.length) deck.applyRemote(cls.id, list); })
         .catch(() => {});
@@ -116,7 +125,14 @@ window.SOS.store = store;
   window.sosDecorateDocRow = (item, cls, mod, f) => breakdownUi.decorate(item, cls, mod, f);
   // A breakdown this device left running when the tab closed picks up where
   // it stopped — once the classes (and their file summaries) are loaded.
-  store.onReady(() => { breakdown.resume().catch(() => {}); });
+  // At start, then at most once a minute and never two at once: store.onReady
+  // fires on every change, and each resume reads topic documents.
+  let _resumeAt = 0, _resuming = false;
+  store.onReady(() => {
+    if (_resuming || Date.now() - _resumeAt < 60000) return;
+    _resuming = true; _resumeAt = Date.now();
+    breakdown.resume().catch(() => {}).finally(() => { _resuming = false; });
+  });
   console.info('[StudyOS] topic breakdown ready.');
 })().catch(e => console.warn('[StudyOS] topic breakdown failed to start:', e));
 
