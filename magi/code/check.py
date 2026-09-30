@@ -232,7 +232,7 @@ def _argv(command: str) -> Any:
     return ["/bin/sh", "-c", command]
 
 
-def _kill_tree(p: subprocess.Popen) -> None:
+def _kill_tree(p) -> None:
     """The whole tree (Claude Queue: a plain kill signals only the shell, and
     a grandchild holding stdout keeps the read open for ever)."""
     try:
