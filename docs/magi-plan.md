@@ -2371,6 +2371,44 @@ folded into the question text (like the attachments fallback); Send-while-runnin
 is disabled with "Update the engine". Engines self-update when idle anyway.
 
 
+### Continue from History (Tony, 2026-09-29) — both modes, required
+
+Tony's words: "if I hit New deliberation it goes to new, but if I go to
+History and click anything, I can continue working off of that session."
+That is the contract for **both** Deliberation (F2) and Code Mode (F4):
+
+- **New deliberation / New session** → an empty session, centred composer.
+- **Clicking ANY History entry** opens that session's whole thread (every
+  turn) with the composer EMPTY and docked, labelled **Follow up**. What is
+  typed next is turn n+1 of THAT session, carrying its memory — not a new
+  run. This holds for:
+  - **entries made before Track F** — each is a one-turn session whose id is
+    its run/task id, so it is continuable as-is (no migration);
+  - **entries from another device or engine** — the memory is the thread's
+    own turns, loaded from the cloud body docs and sent as `context`, so it
+    does not matter which engine ran the earlier turns;
+  - **a session still running elsewhere** — it opens attached (live), and the
+    composer is "Add to run" as for any live run.
+- **Where a turn's body is gone** (expired or deleted on another device, only
+  the index row left): the turn is sent as its question alone, and the thread
+  shows "earlier answer no longer stored" on it — continuing still works.
+- **Opening a History entry while another run is live** leaves that run going
+  (it stays in the queue / its own History row); the composer now belongs to
+  the opened session.
+- **Code Mode specifics (F4):** opening a session switches to its project's
+  workspace (if that project is not on this engine: say so and offer Read on
+  the project it is linked to, never a silent new session). Native CLI resume
+  is used only if the same engine + agent still has that session id;
+  otherwise the transcript block (F3.1) carries the memory, with the
+  `state_note` telling the agent what actually reached the folder (a write
+  turn's sandbox is gone once its task ended — applied edits are in the
+  project, denied ones are not). Read/Write is chosen for the new turn.
+- **Tests:** F2 and F4 live tests each open (a) a pre-Track-F History entry,
+  (b) a multi-turn entry, (c) an entry whose run was made by the other engine
+  or loaded only from the cloud, and send a follow-up that must reference the
+  earlier turns. Node static test: every History open path leaves the
+  composer empty in follow-up mode and sets the session to the opened one.
+
 ### Phases (one per session, per the §0 checklists; each ships on its own)
 
 Engine phases are invisible until their console phase lands (new optional fields
@@ -2470,7 +2508,9 @@ new `magi/engine/session.py`, `magi/providers/base.py`, `magi/providers/browser_
    id (= first run id, so every existing mark keeps working). Delete = every turn's
    body + engine row. Expiry by latest turn, whole session together. Opening a
    session (`openRun`/`cloudOpenRun`) loads all turns' bodies and leaves the composer
-   EMPTY, ready to follow up (today it refills the old question).
+   EMPTY, ready to follow up (today it refills the old question). Every case in
+   "Continue from History" above (old entries, other device, missing body,
+   live elsewhere) is part of F2's done.
 6. **Sync**: still one body write per finished turn (`cloudPushRun`) + index row;
    `notes` stored in the body. Nothing written mid-run.
 7. **HOW panel + `docs/magi.md`** in the same commit (`test_howitworks.py`).
@@ -2547,7 +2587,8 @@ Files: `magi/code/tasks.py`, `magi/code/routes.py`, `magi/code/sandbox.py`,
    diff…"). Same docked composer as F2.
 4. History: `code.tasks` rows gain `sid`, `turn`; grouped per session; marks keyed by
    session id (= first task id); `codeGone` tombstones per task still apply; opening
-   loads each turn's body and can continue.
+   loads each turn's body and can continue — every case in "Continue from
+   History" above, incl. switching to the session's workspace.
 5. HOW panel + `docs/magi.md`; node static tests; extend `magi-code-queue`/
    `magi-code-history` live tests + the F3 live test through the UI at 390px.
 
