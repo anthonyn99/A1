@@ -247,12 +247,13 @@ class Editor(CodingAgent):
         return Result(self.outcome, text="done", detail="limit" if self.outcome != Outcome.OK else "")
 
 
-async def _run(repo, agents, answer=None, *, halt_at_approval=False):
+async def _run(repo, agents, answer=None, *, halt_at_approval=False, approve="manual",
+               check=None):
     chain_expand = chain.expand
     chain.expand = lambda order, settings: agents
     try:
         t = await T.start(project_id="p", root=repo, prompt="edit", order=[],
-                          settings=None, mode="write")
+                          settings=None, mode="write", approve=approve, check=check)
         seen = []
         async for ev in T.stream(t):
             seen.append(ev)
@@ -284,6 +285,46 @@ def test_approve_applies_to_the_real_folder(repo):
     assert t.result["write"] == "applied"
     assert not a.roots[0].exists(), "the sandbox is removed afterwards"
     assert _git(repo, "worktree", "list").count("\n") == 0
+
+
+def test_auto_applies_without_a_card(repo):
+    a = Editor({"app.py": "x = 2\n"})
+    t, seen = asyncio.run(_run(repo, [a], approve="auto"))
+    assert "approval" not in _kinds(seen), "Auto must not wait on a card"
+    dec = next(e for e in seen if e["k"] == "decision")
+    assert dec["approved"] is True and dec["why"] == "auto"
+    assert [f["path"] for f in dec["files"]] == ["app.py"]
+    assert (repo / "app.py").read_text() == "x = 2\n"
+    assert t.result["write"] == "applied" and t.summary()["approve"] == "auto"
+    assert not a.roots[0].exists()
+
+
+def test_auto_still_refuses_what_review_refuses(repo):
+    # Auto skips the question, never the rules.
+    a = Editor({".env": "SECRET=1\n"})
+    t, seen = asyncio.run(_run(repo, [a], approve="auto"))
+    assert "refused" in _kinds(seen) and "applied" not in _kinds(seen)
+    assert not (repo / ".env").exists()
+    assert t.result["write"] == "refused"
+
+
+def test_auto_asks_when_the_automatic_check_failed(repo, monkeypatch):
+    async def failing(t):
+        t.check_result = {"ok": False, "code": 1}
+        return t.check_result
+    monkeypatch.setattr(T, "_run_check", failing)
+    a = Editor({"app.py": "x = 2\n"})
+    t, seen = asyncio.run(_run(repo, [a], answer=False, approve="auto",
+                               check={"command": "false", "auto": True}))
+    assert "approval" in _kinds(seen), "a failed check is the key change Manual exists for"
+    assert (repo / "app.py").read_text() == "x = 1\n"
+    assert t.result["write"] == "denied"
+
+
+def test_manual_is_the_default(repo):
+    a = Editor({"app.py": "x = 2\n"})
+    t, seen = asyncio.run(_run(repo, [a], answer=False))
+    assert "approval" in _kinds(seen) and t.approve == "manual"
 
 
 def test_deny_leaves_the_folder_untouched(repo):

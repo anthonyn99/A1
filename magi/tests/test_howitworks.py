@@ -166,6 +166,13 @@ def test_the_code_mode_write_claims_still_hold():
     # "A page opens in Read ... stays on ... until you switch back".
     assert 'rw: "read",' in PAGE
     assert 'CODE.rw = "read";' not in PAGE.split("async function codeRun()", 1)[1][:2000]
+    # "Manual or Auto ... a file MAGI's review refuses is still refused, and if
+    # the project's automatic check fails the card comes back".
+    routes = (Path(__file__).resolve().parents[1] / "code" / "routes.py").read_text(encoding="utf-8")
+    assert '"auto_approve"' in routes and 'ap: "manual",' in PAGE
+    tsrc = (Path(__file__).resolve().parents[1] / "code" / "tasks.py").read_text(encoding="utf-8")
+    assert 'failed_check = t.check_result is not None' in tsrc
+    assert tsrc.index("security.review") < tsrc.index('t.approve == "auto"')
     # "a window whose reset time has passed shows 0%".
     assert "function usageLive(u)" in PAGE
 

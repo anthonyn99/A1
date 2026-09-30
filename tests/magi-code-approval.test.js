@@ -47,7 +47,7 @@ const run = lift('async function codeRun()', 1400);
 ok('the mode goes to the engine',
    /codeTaskBody\(\{[^}]*mode: CODE\.rw[\s\S]{0,200}codePost\("\/tasks", body\)/.test(run));
 ok('and is not reset when a task starts', !/CODE\.rw = "read";/.test(run));
-const rw = lift('function renderCodeRw(proj)', 1400);
+const rw = lift('function renderCodeRw(proj)', 3200);
 ok('Write is disabled where the engine says no', /b\.disabled = k === "write" && !w\.ok/.test(rw));
 ok('with the engine\'s reason on screen', /code-rw-note", w\.why/.test(rw));
 ok('a disallowed Write cannot linger as the choice', /if \(!w\.ok && CODE\.rw === "write"\) CODE\.rw = "read";/.test(rw));
@@ -99,6 +99,21 @@ console.log('\nA1 (Phase 14b): writable; it commits and pushes itself');
      /proj\.write\.push !== false/.test(lift('function codeGitPushBits(proj, d, row)', 900)));
   ok('the Write switch shows the A1 note',
      /else if \(w\.ok && w\.note\) \{/.test(MAGI) && /n\.title = w\.note;/.test(MAGI));
+}
+
+console.log('\nManual / Auto');
+{
+  const rw = lift('function renderCodeRw(proj)', 3200);
+  ok('a page opens in Manual, and it is never stored',
+     /ap: "manual",/.test(MAGI) && !/lsWrite\([^)]*\bap\b/.test(MAGI));
+  ok('offered only while Write is on, on an engine that honours it',
+     /CODE\.rw === "write" && w\.ok && canAuto/.test(rw) && /features\.includes\("auto_approve"\)|feats\.includes\("auto_approve"\)/.test(rw));
+  ok('Run sends it', /approve: CODE\.ap/.test(lift('async function codeRun()', 1600)));
+  ok('an engine without it, or a Read task, never gets the field',
+     /base\.mode !== "write" \|\| !feats\.includes\("auto_approve"\)/.test(lift('function codeTaskBody(base, atts)', 600)));
+  ok('queued tasks keep it', /ap: it\.ap === "auto" \? "auto" : "manual"/.test(MAGI)
+     && /approve: it\.ap === "auto"/.test(MAGI));
+  ok('an Auto change still shows its diff', /e\.k === "decision" && e\.why === "auto" && e\.files/.test(MAGI));
 }
 
 console.log('\nPhone');

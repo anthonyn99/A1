@@ -4331,6 +4331,9 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
    readable at a glance before you press Run, because it decides whether the
    agents are allowed to propose edits at all. */
 .code-rw { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+/* Read|Write and, while Write is on, Manual|Auto: side by side, wrapping
+   onto two centred lines on a narrow phone rather than overflowing. */
+.code-rw-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 .code-rw-sw {
   display: inline-flex; border: 1px solid var(--bd); border-radius: 999px;
   background: var(--s1); padding: 2px;
@@ -7155,6 +7158,7 @@ const HOW = [
       "<b>Any unit can code.</b> <b>Claude</b> and <b>Codex</b> run through their own command-line tools and search and read the folder themselves; every other unit works through its browser session, with MAGI handing it the files that matter. Both CLIs use a signed-in account's own plan &mdash; Codex works on a free ChatGPT account &mdash; and no API key is used anywhere. Their accounts are set up in <b>Accounts</b>, separately from the browser units, and each can hold more than one.",
       "<b>The chips are the fallback chain.</b> The first ticked agent does the work. If it runs out of usage, is signed out or cannot start, the next one carries on, told what the previous one had worked out. A task that simply fails is not handed on &mdash; another author would fail it the same way. A limit is remembered until its reset time, so the chain does not walk into the same wall on every task. Tap <b>Agents</b> to change the order.",
       "<b>Read or Write.</b> A page opens in <b>Read</b>: agents can read and search the folder and change nothing. Switch to <b>Write</b> and it stays on for your next tasks until you switch back (the button then says <b>Run edits</b>) and the agents work on a <i>private copy</i> of the folder instead &mdash; your uncommitted edits included. When they finish you get the <b>diff</b>, file by file, with <b>Approve</b> and <b>Deny</b>. Nothing touches your folder unless you press Approve; no answer within __APPROVE_MIN__ minutes counts as No, and so does Halt. Any screen watching the task can answer.",
+      "<b>Manual or Auto</b> (shown while Write is on), like Claude Code&rsquo;s approvals. <b>Manual</b> is the card above: every change waits for you. <b>Auto</b> applies a change to your folder without asking &mdash; the diff is still in the transcript to read afterwards. Auto skips the question, never the rules: a file MAGI&rsquo;s review refuses is still refused, and if the project&rsquo;s automatic check fails the card comes back and asks. In A1, Auto means a change ships to main within minutes. Like Read/Write, a new page opens in Manual.",
       "<b>Some changes are never offered.</b> A diff that reaches into <code>.git</code>, a key or env file, a credentials folder or an agent&rsquo;s own settings folder, or that leaves the folder through <code>..</code> or a link, is refused before you are asked. Write needs a git repository. Approved edits are applied but not committed until you say so. <b>A1 is writable too, but never committed or pushed from here</b>: A1&rsquo;s own auto-commit records every change and pushes it to main within minutes, so approving a change in A1 ships it &mdash; the card says so, and names anything that deploys. MAGI only fetches A1, never pulls, and refuses edits under <code>.github/</code>. A change to the engine&rsquo;s own code under <code>magi/</code> says so too: it does nothing until the engine restarts.",
       "<b>A check beside the diff.</b> Tap the <b>Check</b> pill to give a project a command that exits 0 when it is healthy &mdash; its tests, a build &mdash; picked from what MAGI finds in the folder, with <b>Try it now</b> to see it work. For a Write task it runs in the task&rsquo;s <i>private copy</i> (never your folder), with the folder&rsquo;s <code>node_modules</code> or <code>.venv</code> linked in for the run and removed after, and its pass or fail and output sit on the approval card. It informs Approve; it never decides it. By default you press <b>Run check</b> on the card, after reading the diff, and the approval clock waits while it runs, then gives you the full __APPROVE_MIN__ minutes again. <b>Automatically</b> runs it before the card appears &mdash; that runs the agent&rsquo;s code before anyone has looked at it, so the setting says so. The command stays on the engine PC, can only be set from that PC, never syncs, and runs in the same Windows job as the agents, so it cannot drive MAGI.",
       "<b>Sizes and rankings are measured, not guessed.</b> Agents in Read mode have no shell, so none of their tools can tell how big a file is. When a task asks about sizes, lines, the largest, or ranking and comparing, MAGI measures the folder itself &mdash; every file git knows about, with exact bytes and line counts, totals per folder and per type, and the top-level files (in A1, the programs) &mdash; and hands that to whichever agent runs. Name a type (&ldquo;the .html files&rdquo;) and every file of it is listed in full. Ignored folders (node_modules, virtualenvs, browser profiles) and secret files are left out. The transcript shows it as an <b>Inventory</b> line.",
@@ -12068,6 +12072,12 @@ const CODE = {
   // Never stored: a new page -- yesterday's included -- opens in Read, and
   // every write still waits for Approve on the diff.
   rw: "read",
+  // Write mode's approvals, like Claude Code's: "manual" puts every diff on
+  // the approval card; "auto" applies a diff that passes MAGI's review
+  // without asking (refusals still refuse, and a failed automatic check
+  // still asks). Per tab, never stored, exactly like `rw`: a new page opens
+  // in Manual.
+  ap: "manual",
   // The repository line under the workspace: {pid, data, err, code, loading,
   // stale}. Fetched on demand, never on a timer -- see codeGitEnsure.
   git: null,
@@ -12751,14 +12761,44 @@ function renderCodeRw(proj) {
     b.onclick = () => { CODE.rw = k; renderCodeView(); updateEnabled(); codePreviewSoon(); };
     sw.append(b);
   }
-  box.append(sw);
+  const row = el("div", "code-rw-row");
+  row.append(sw);
+  // Manual / Auto: only meaningful while Write is on, so only shown then.
+  // An engine that predates it would ignore the field and ask anyway, so the
+  // switch is not offered there rather than promising what will not happen.
+  const feats = (CODE.state && CODE.state.features) || [];
+  const canAuto = feats.includes("auto_approve");
+  if (CODE.rw === "write" && w.ok && canAuto) {
+    const ap = el("div", "code-rw-sw");
+    ap.setAttribute("role", "radiogroup");
+    ap.setAttribute("aria-label", "How edits are approved");
+    for (const [k, label, tip] of [
+      ["manual", "Manual", "Every change waits for you to Approve the diff"],
+      ["auto", "Auto", "Changes are applied without asking, once MAGI's review passes"]]) {
+      const b = el("button", `code-rw-b ${CODE.ap === k ? "on" : ""} ${k === "auto" ? "is-write" : ""}`, label);
+      b.type = "button";
+      b.title = tip;
+      b.setAttribute("role", "radio");
+      b.setAttribute("aria-checked", CODE.ap === k ? "true" : "false");
+      b.onclick = () => { CODE.ap = k; renderCodeView(); updateEnabled(); };
+      ap.append(b);
+    }
+    row.append(ap);
+  }
+  box.append(row);
+  const auto = CODE.rw === "write" && CODE.ap === "auto" && canAuto;
   if (!w.ok && w.why) box.append(el("div", "code-rw-note", w.why));
   // A1 (Phase 14b): writable, but its Stop hook commits and pushes.
   // The engine's sentence is long; the switch says the part that matters.
   else if (w.ok && w.note) {
-    const n = el("div", "code-rw-note", "A1 ships on approval: its hook commits and pushes to main.");
+    const n = el("div", "code-rw-note", auto
+      ? "Auto in A1: changes ship without asking — its hook commits and pushes to main."
+      : "A1 ships on approval: its hook commits and pushes to main.");
     n.title = w.note;
     box.append(n);
+  } else if (auto) {
+    box.append(el("div", "code-rw-note",
+      "Auto: changes are applied to your folder without asking. Refused files and a failed check still stop."));
   }
   return box;
 }
@@ -12840,8 +12880,12 @@ async function codeAddFiles(incoming) {
  *  prompt itself, as long as that still fits the 20,000 characters such an
  *  engine keeps. Throws, with the reason, when it does not. */
 function codeTaskBody(base, atts) {
-  if (!atts || !atts.length) return base;
   const feats = (CODE.state && CODE.state.features) || [];
+  if (base.approve && (base.mode !== "write" || !feats.includes("auto_approve"))) {
+    base = { ...base };
+    delete base.approve;
+  }
+  if (!atts || !atts.length) return base;
   if (feats.includes("attachments")) return { ...base, attachments: atts };
   const block = atts.map((a) =>
     `===== ATTACHED: ${a.name} =====\n${a.text.replace(/\s+$/, "")}\n===== END ${a.name} =====`)
@@ -12881,7 +12925,8 @@ async function codeRun() {
   if (!agents.length) return;
   let d;
   try {
-    const body = codeTaskBody({ project_id: proj.id, prompt: q, agents, mode: CODE.rw },
+    const body = codeTaskBody({ project_id: proj.id, prompt: q, agents, mode: CODE.rw,
+                                approve: CODE.ap },
       CODE.attachments.map((a) => ({ name: a.file.name, text: a.text })));
     d = await codePost("/tasks", body);
   } catch (e) {
@@ -13123,7 +13168,10 @@ function renderCodeTask(t) {
   }
   if (log.childNodes.length) card.append(log);
   const refused = t.events.find((e) => e.k === "refused");
-  const appr = t.events.find((e) => e.k === "approval");
+  // Auto has no card to answer; its decision carries the same file list, so
+  // the diff is still there to read after the fact.
+  const appr = t.events.find((e) => e.k === "approval")
+    || t.events.find((e) => e.k === "decision" && e.why === "auto" && e.files);
 
   if (answer) {
     const ans = el("div", "code-answer");
@@ -13391,7 +13439,8 @@ function renderCodeApproval(t, ev) {
   } else if (applied) {
     const done = t.committed || (t.result && t.result.commit);
     const auto = t.events.find((e) => e.k === "autocommit");
-    const how = `Applied to your folder${applied.how === "merged" ? " (merged with edits you made meanwhile)" : ""}.`;
+    const how = `${dec && dec.why === "auto" ? "Applied automatically (Auto)" : "Applied to your folder"}`
+      + `${applied.how === "merged" ? " (merged with edits you made meanwhile)" : ""}.`;
     if (t.archived) {
       box.append(el("div", "code-appr-out is-ok", how + (done ? ` Committed ${done.short}.` : "")));
       return box;
@@ -22475,7 +22524,8 @@ function queueAdd() {
   if (files.length) QUEUE_FILES.set(id, files);
   const code = coding
     ? { kind: "code", agents: codeChain().map((m) => m.id), pid: proj.id, pname: proj.name,
-        rw: CODE.rw === "write" ? "write" : "read" }
+        rw: CODE.rw === "write" ? "write" : "read",
+        ap: CODE.rw === "write" && CODE.ap === "auto" ? "auto" : "manual" }
     : {};
   S.queue.push({
     id,
@@ -23452,6 +23502,7 @@ function queueNorm(it) {
       pid: String(it.pid || ""),
       pname: String(it.pname || ""),
       rw: it.rw === "write" ? "write" : "read",
+      ap: it.ap === "auto" ? "auto" : "manual",
     });
   }
   return row;
@@ -23527,10 +23578,12 @@ function renderQueue() {
     if (isCode) {
       meta.append(el("span", "q-ws", it.pname || "workspace"));
       const rw = el("span", `q-rw ${it.rw === "write" ? "write" : ""}`,
-                    it.rw === "write" ? "write" : "read");
+                    it.rw === "write" ? (it.ap === "auto" ? "write · auto" : "write") : "read");
       // Said on the row, because the approval card waits five minutes and
       // then counts silence as No.
-      if (it.rw === "write") rw.title = "Edits wait for your approval when it runs";
+      if (it.rw === "write") rw.title = it.ap === "auto"
+        ? "Edits are applied without asking when it runs"
+        : "Edits wait for your approval when it runs";
       meta.append(rw);
     }
 
@@ -23717,7 +23770,8 @@ async function codeQueueRun(it, files, gen, onStart) {
   let d;
   try {
     d = await codePost("/tasks", codeTaskBody(
-      { project_id: it.pid, prompt: it.q, agents: it.agents || [], mode: it.rw || "read" }, atts));
+      { project_id: it.pid, prompt: it.q, agents: it.agents || [], mode: it.rw || "read",
+        approve: it.ap === "auto" ? "auto" : "manual" }, atts));
   } catch (e) {
     return { ok: false, error: (e && e.message) || "could not start" };
   }

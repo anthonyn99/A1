@@ -76,7 +76,7 @@ async def code_state() -> dict[str, Any]:
         # What this engine's POST /tasks understands beyond a prompt, so a
         # console newer than the engine can fall back instead of having its
         # files silently dropped by an engine that ignores the field.
-        "features": ["attachments"],
+        "features": ["attachments", "auto_approve"],
     }
 
 
@@ -714,7 +714,9 @@ async def start_task(body: dict = Body(...)) -> dict[str, Any]:
 
     `mode` is "read" (the default) or "write". Write mode never edits the
     folder itself: agents work in a sandbox copy and the diff waits for an
-    approval (tasks.py). The repository MAGI lives in (A1) is refused here,
+    approval (tasks.py) -- or, with `approve: "auto"`, is applied without
+    one once it passes the same review (Tony, 2026-09-29: "Manual pushes me
+    to accept key changes, auto does everything for me"). The repository MAGI lives in (A1) is refused here,
     whatever the console sends -- the console greys the toggle out, but the
     rule has to live where the write happens.
     """
@@ -749,7 +751,8 @@ async def start_task(body: dict = Body(...)) -> dict[str, Any]:
     t = await _tasks.start(project_id=p["id"], root=root, prompt=prompt[:20000],
                            order=order, settings=_settings(), mode=mode,
                            github=str((p.get("prefs") or {}).get("github") or ""),
-                           attachments=atts, check=_check.get(p["id"]))
+                           attachments=atts, check=_check.get(p["id"]),
+                           approve="auto" if body.get("approve") == "auto" else "manual")
     await _db().touch_code_binding(p["id"], eng)
     return {"ok": True, "task": t.summary()}
 

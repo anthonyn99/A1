@@ -559,7 +559,14 @@ in Read and the choice is never stored, so Write is never left on from
 yesterday; within the page it stays as you set it (since 2026-09-29 -- it
 used to fall back to Read after every task, which sent follow-up prompts
 out read-only while you believed Write was on). The Run button says **Run edits**
-when Write is on. The approval card lists each file with a status and `+/−`
+when Write is on. While Write is on, a second switch picks **Manual** (every
+diff waits on the approval card) or **Auto** (Tony, 2026-09-29: like Claude
+Code's auto-accept) -- POST /tasks `approve: "auto"`, advertised as the
+`auto_approve` feature in `/state`. Auto applies a diff that passes
+`security.review` with no card (the `decision` event, `why: "auto"`,
+carries the file list so the transcript still shows it); refusals still
+refuse, and a failed automatic check brings the card back. Never stored: a
+new page opens in Manual. Queue rows carry it as `ap`. The approval card lists each file with a status and `+/−`
 counts; each file opens to its tinted diff, and open files stay open across
 redraws. The countdown ticks without redrawing the view. On a phone, Deny and
 Approve are full-width 46px buttons.

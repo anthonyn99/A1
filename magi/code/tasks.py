@@ -21,6 +21,7 @@ Write mode (Phase 8) wraps the chain in a sandbox (sandbox.py):
 
     copy the workspace ─► chain edits the copy ─► diff ─► security.review
         ─► approval card (5 min; silence = deny; first device to answer wins)
+        -- or, in Auto, no card: applied at once (below)
         ─► apply onto the real folder ─► remove the copy, always
         ─► (only if you press it) commit exactly the applied files
 
@@ -77,6 +78,11 @@ class TaskState:
     check_job: asyncio.Task | None = None
     check_stop: asyncio.Event = field(default_factory=asyncio.Event)
     check_result: dict[str, Any] | None = None
+    # "manual": the diff waits on the approval card. "auto": a diff that
+    # passes security.review (and the project's automatic check, if it has
+    # one) is applied without asking. Everything review REFUSES stays
+    # refused in both -- Auto skips the question, never the rules.
+    approve: str = "manual"
 
     @property
     def checking(self) -> bool:
@@ -95,7 +101,8 @@ class TaskState:
                 "outcome": (self.result or {}).get("outcome"),
                 "write": (self.result or {}).get("write"),
                 "by": (self.result or {}).get("by_label"),
-                "attachments": [n for n, _ in self.attachments]}
+                "attachments": [n for n, _ in self.attachments],
+                "approve": self.approve}
 
 
 TASKS: dict[str, TaskState] = {}
@@ -144,11 +151,13 @@ def _prune() -> None:
 async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
                 settings, mode: str = "read", github: str = "",
                 attachments: list[tuple[str, str]] | None = None,
-                check: dict[str, Any] | None = None) -> TaskState:
+                check: dict[str, Any] | None = None,
+                approve: str = "manual") -> TaskState:
     t = TaskState(id=uuid.uuid4().hex[:12], project_id=project_id,
                   prompt=prompt, mode=mode, root=str(root), github=github,
                   attachments=list(attachments or []),
-                  check_cfg=dict(check or {}) if mode == "write" else {})
+                  check_cfg=dict(check or {}) if mode == "write" else {},
+                  approve="auto" if approve == "auto" else "manual")
     TASKS[t.id] = t
     _prune()
 
@@ -162,6 +171,7 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
         sb: sandbox.Sandbox | None = None
         try:
             await publish(t, {"k": "start", "prompt": prompt, "mode": mode,
+                              "approve": t.approve,
                               "attachments": [n for n, _ in t.attachments],
                               "chain": [{"id": a.id, "label": a.label, "kind": a.kind}
                                         for a in agents]})
@@ -324,6 +334,19 @@ async def _review_and_apply(t: TaskState, sb: sandbox.Sandbox) -> dict[str, Any]
             await publish(t, {"k": "decision", "approved": False, "why": "halted"})
             return {"write": "halted"}
 
+    # Auto: no card. But a check that ran and FAILED is exactly the "key
+    # change" Manual exists for, so that one still asks.
+    failed_check = t.check_result is not None and not t.check_result.get("ok")
+    if t.approve == "auto" and not failed_check:
+        await publish(t, {"k": "decision", "approved": True, "why": "auto",
+                          "files": [f.to_dict() for f in rv.files],
+                          "adds": sum(f.adds for f in rv.files),
+                          "dels": sum(f.dels for f in rv.files)})
+        return await _apply(t, sb, rv)
+    if t.approve == "auto":
+        await publish(t, {"k": "note", "text": "Auto mode, but the check failed — "
+                          "asking before anything is applied."})
+
     t.approval = loop.create_future()
     t.approval_deadline = time.time() + APPROVAL_TIMEOUT
     # A change to the engine's own code does nothing until it restarts -- and
@@ -376,7 +399,12 @@ async def _review_and_apply(t: TaskState, sb: sandbox.Sandbox) -> dict[str, Any]
     await _stop_check(t)
     if not approved:
         return {"write": why}
+    return await _apply(t, sb, rv)
 
+
+async def _apply(t: TaskState, sb: sandbox.Sandbox, rv) -> dict[str, Any]:
+    """Apply an approved (or Auto) diff to the real folder."""
+    loop = asyncio.get_running_loop()
     from ..settings import data_dir
     files = [f.to_dict() for f in rv.files]
     res = await loop.run_in_executor(
