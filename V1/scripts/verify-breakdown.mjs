@@ -293,6 +293,9 @@ const pdfText = await evalJs(`(async function(){
     ['BT /F1 32 Tf 60 520 Td (Chapter 1 Objectives) Tj ET',
      'BT /F1 20 Tf 60 470 Td (Understand units of measure common to computer systems) Tj ET',
      'BT /F1 20 Tf 60 440 Td (Explain the von Neumann architecture and its components) Tj ET'],
+    // A slide with a figure: a 200x200 raster image (drawn as an inline image).
+    ['BT /F1 32 Tf 60 520 Td (The von Neumann Model) Tj ET',
+     'q 300 0 0 300 60 60 cm BI /W 200 /H 200 /BPC 8 /CS /G /F /AHx ID ' + '80'.repeat(40000) + '> EI Q'],
   ];
   // A minimal PDF, offsets computed so no repair pass is needed.
   var objs = [], kids = [];
@@ -315,13 +318,17 @@ const pdfText = await evalJs(`(async function(){
   var pp = await window.SOS.ai.pdfPages(btoa(out));
   var bd = window.SOS.breakdown, m = bd.sourceModel(pp);
   var econ = bd.groundTopics([{ title: 'Introduction to Demand and Supply', key_points: ['Market equilibrium where buyers and sellers meet', 'The demand curve and price elasticity'], pages: '1-3' }], m);
+  var shots = await window.SOS.ai.pdfPageImages(btoa(out), [4]);
   return { lines: pp.map(function (p) { return p.lines.map(function (l) { return l.text; }); }), content: m.content,
-           invented: econ.invented.length };
+           invented: econ.invented.length, figures: pp.map(function (p) { return !!p.figure; }),
+           shot: shots.length === 1 && shots[0].n === 4 ? shots[0].url.slice(0, 23) + '…' + shots[0].url.length : null };
 })()`);
-t('pdf.js runs in the built app', !!pdfText && pdfText.lines.length === 3, pdfText);
+t('pdf.js runs in the built app', !!pdfText && pdfText.lines.length === 4, pdfText);
 t('exponents come out marked: 10^3 and 2^10', pdfText.lines[1].includes('Kilo = 1 thousand = 10^3 and 2^10'), pdfText.lines[1]);
-t('the repeated agenda page is not material; the units page is', pdfText.content.join() === '2', pdfText.content);
+t('the repeated agenda page is not material; the units page and the picture slide are', pdfText.content.join() === '2,4', pdfText.content);
 t('an invented topic is caught against real extracted text', pdfText.invented === 1, pdfText);
+t('only the slide with a picture is a figure page', pdfText.figures.join() === 'false,false,false,true', pdfText.figures);
+t('a figure page renders to a JPEG for a text-only model', !!pdfText.shot && pdfText.shot.startsWith('data:image/jpeg;base64,'), pdfText.shot);
 
 console.log('\nAI settings');
 await evalJs(`document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open')); switchView('ai'); true;`);

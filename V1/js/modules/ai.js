@@ -399,20 +399,76 @@ export function pageText(page) {
     .map((l) => (l.bullet ? '- ' : '') + l.text).join('\n');
 }
 
-/** The pages of a base64 PDF: [{ n, lines }]. */
-export async function pdfPages(b64) {
-  const lib = await pdfjs();
+function pdfBytes(b64) {
   const bin = atob(b64), data = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) data[i] = bin.charCodeAt(i);
-  const task = lib.getDocument({ data });
+  return data;
+}
+
+// A page is a FIGURE page when it paints a raster image of at least this many
+// pixels. Measured on Chapter1-Introduction.pdf: its diagrams and photos are
+// 400x200 to 1242x992; vector shapes are no signal (every slide draws a title
+// bar, and bullets are paths too).
+const FIGURE_MIN_PIXELS = 40000;
+
+function hasFigure(lib, ops) {
+  const O = lib.OPS;
+  const paint = new Set([O.paintImageXObject, O.paintInlineImageXObject, O.paintImageMaskXObject, O.paintImageXObjectRepeat]);
+  return ops.fnArray.some((f, i) => {
+    if (!paint.has(f)) return false;
+    const a = ops.argsArray[i] || [];
+    const w = Number(a[1] || (a[0] && a[0].width) || 0), h = Number(a[2] || (a[0] && a[0].height) || 0);
+    return w * h >= FIGURE_MIN_PIXELS;
+  });
+}
+
+/** The pages of a base64 PDF: [{ n, lines, figure }]. `figure`: the page
+ *  carries a picture (a diagram, photo, chart) that its text does not. */
+export async function pdfPages(b64) {
+  const lib = await pdfjs();
+  const task = lib.getDocument({ data: pdfBytes(b64) });
   try {
     const doc = await task.promise;
     const pages = [];
     for (let n = 1; n <= doc.numPages; n++) {
-      const tc = await (await doc.getPage(n)).getTextContent();
-      pages.push({ n, lines: linesFromItems(tc.items) });
+      const page = await doc.getPage(n);
+      const tc = await page.getTextContent();
+      let figure = false;
+      try { figure = hasFigure(lib, await page.getOperatorList()); } catch (e) { figure = false; }
+      pages.push({ n, lines: linesFromItems(tc.items), figure });
     }
     return pages;
+  } finally {
+    await task.destroy();
+  }
+}
+
+/**
+ * Some pages of a base64 PDF as JPEG data URLs, for a model that reads text
+ * only from the PDF but can look at pictures: [{ n, url }]. Rendered wide
+ * enough to read a diagram's labels (1280 px), small enough to upload fast.
+ */
+export async function pdfPageImages(b64, pageNums, { width = 1280, quality = 0.8 } = {}) {
+  const lib = await pdfjs();
+  const task = lib.getDocument({ data: pdfBytes(b64) });
+  try {
+    const doc = await task.promise;
+    const out = [];
+    for (const n of pageNums) {
+      if (n < 1 || n > doc.numPages) continue;
+      const page = await doc.getPage(n);
+      const base = page.getViewport({ scale: 1 });
+      const viewport = page.getViewport({ scale: Math.min(3, width / base.width) });
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff';                 // JPEG has no alpha: paint slides onto white
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      await page.render({ canvas, canvasContext: ctx, viewport }).promise;
+      out.push({ n, url: canvas.toDataURL('image/jpeg', quality) });
+    }
+    return out;
   } finally {
     await task.destroy();
   }
@@ -442,6 +498,13 @@ async function viaOpenAI(a, spec) {
       }
     }
     content = (doc ? `The source document (${spec.pdf.name || 'source.pdf'}), as extracted text:\n\n${doc}\n\n` : '') + spec.prompt;
+    // Pictures of pages (figures the text cannot carry) as standard image
+    // parts. ORCA routes such a request only to models that take images.
+    const images = spec.attachPdf ? (spec.images || []) : [];
+    if (images.length) {
+      content = [{ type: 'text', text: content },
+        ...images.map((url) => ({ type: 'image_url', image_url: { url } }))];
+    }
   } else {
     if (spec.attachPdf && spec.pdf) {
       content.push({ type: 'file', file: { filename: spec.pdf.name || 'source.pdf',
@@ -528,4 +591,4 @@ export function hash(text) {
   return 'h' + h.toString(36);
 }
 
-export default { pdfText, pdfPages, pageText, linesFromItems, PROVIDERS, settings, saveSettings, active, generateJSON, testConnection, extractJSON, repairPrompt, hash, AIError };
+export default { pdfText, pdfPages, pdfPageImages, pageText, linesFromItems, PROVIDERS, settings, saveSettings, active, generateJSON, testConnection, extractJSON, repairPrompt, hash, AIError };

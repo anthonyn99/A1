@@ -316,6 +316,8 @@ const M = bd.sourceModel(CH1);
   t('the title slide, the agenda slide (both showings) and the closing slide are not material',
     M.content.join() === '3,5,6,7', M.content);
   t('a repeated page is known as a repeat', M.dupOf.get(4) === 2);
+  const withFig = bd.sourceModel([...CH1.slice(0, 7), { n: 8, lines: [T('Computer Organization and Architecture'), L('8', 12, false)], figure: true }]);
+  t('a slide that is only a title and a diagram is material', withFig.content.includes(8), withFig.content);
   const items = bd.pageItems(CH1[2]);
   t('wrapped lines join their bullet', items.some((i) => i.text === 'It focuses on the working mechanism of all physical aspects of computer systems'), items.map((i) => i.text));
   t('the slide title is flagged', items[0].title === true && items[0].text === 'Computer Organization and');
@@ -446,6 +448,58 @@ console.log('\nrun — an invented lesson is not saved');
   const org = d.topics.find((x) => x.title.startsWith('Computer organization'));
   t('the topic fails, naming its pages', org.status === 'failed' && /does not match page 3/.test(org.error), org.error);
   t('its cards were not added', deck.byNotePrefix('c1', bd.noteIdFor('ch1c', org.id)).length === 0);
+}
+
+// ── Figures: ORCA's models read text, so slides' pictures go as images ────
+/* ORCA now takes standard image parts (its browser models attach them). A
+ * figure page in a topic's span is rendered and sent with that lesson's ask;
+ * when no image-capable model is free (ORCA answers 404 no_eligible_backend)
+ * the lesson is written from the text instead of failing. */
+console.log('\nfigures ride along with ORCA lesson asks');
+{
+  const FIG = CH1.map((p) => (p.n === 3 || p.n === 6 ? { ...p, figure: true } : p));
+  bd.setPageReader(async () => FIG);
+  const rendered = [];
+  bd.setPageRenderer(async (b64, nums) => { rendered.push(nums); return nums.map((n) => ({ n, url: `data:image/jpeg;base64,PAGE${n}` })); });
+  ai.saveSettings({ provider: 'orca', keys: { orca: 'orca_sk_test' }, models: { orca: '' }, baseUrl: { orca: 'https://orca.test/v1' } });
+  const F = { id: 'ch1fig', name: 'Chapter1-Introduction.pdf', mime: 'application/pdf' };
+  classes[0].modules[0].files.push(F);
+  calls = [];
+  let refuseImages = false;
+  responder = (body) => {
+    const user = body.messages.find((m) => m.role === 'user').content;
+    const text = userText(body);
+    if (/Break it into the TOPICS/.test(text)) return reply({ topics: [...REAL.topics, { ...bd.fallbackTopics([7], M)[0] }] });
+    if (refuseImages && Array.isArray(user)) {
+      return new Response(JSON.stringify({ error: { message: 'no eligible backend: input_modality:image', type: 'no_eligible_backend' } }), { status: 404 });
+    }
+    return reply(echoLesson(text));
+  };
+  const d = await bd.run('c1', 'm1', F);
+  const lessonCalls = calls.filter((c) => /Write ONE lesson/.test(userText(c.body)));
+  const withImages = lessonCalls.filter((c) => Array.isArray(c.body.messages.find((m) => m.role === 'user').content));
+  t('only the topics whose pages hold figures send images', withImages.length === 2, lessonCalls.map((c) => typeof c.body.messages.find((m) => m.role === 'user').content));
+  const parts = withImages.map((c) => c.body.messages.find((m) => m.role === 'user').content);
+  t('text first, then one image part per figure page',
+    parts.every((p) => p[0].type === 'text' && p.slice(1).every((x) => x.type === 'image_url')) && parts.flat().filter((x) => x.type === 'image_url').length === 2, parts.map((p) => p.map((x) => x.type)));
+  t('the image is the rendered page', parts.flat().some((x) => x.image_url && x.image_url.url === 'data:image/jpeg;base64,PAGE6'));
+  t('the prompt names the attached figure pages', /FIGURES — page 6 is attached as an image/.test(userText(withImages.find((c) => /title: Units of speed/.test(userText(c.body))).body)));
+  t('only figure pages are rendered, per topic', JSON.stringify(rendered) === '[[3],[6]]', rendered);
+  t('a topic records which figures it saw', d.topics.find((x) => x.title.startsWith('Units')).figures.join() === '6');
+  t('the topics ask sends no images (the text lists them fine)', typeof calls[0].body.messages.find((m) => m.role === 'user').content === 'string');
+
+  console.log('\n...and when no image-capable model is free');
+  const F2 = { id: 'ch1fig2', name: 'Chapter1-Introduction.pdf', mime: 'application/pdf' };
+  classes[0].modules[0].files.push(F2);
+  calls = [];
+  refuseImages = true;
+  const d2 = await bd.run('c1', 'm1', F2);
+  t('the breakdown still finishes', d2.status === 'ready', { s: d2.status, e: d2.error, t: d2.topics.map((x) => [x.title, x.status, x.error]) });
+  const units = d2.topics.find((x) => x.title.startsWith('Units'));
+  t('the lesson was written from the text instead', units.status === 'ready' && units.figures.length === 0 && units.figuresSkipped.join() === '6', units);
+  t('the doc says figures were not seen', d2.checks.figuresSkipped === 2, d2.checks);
+  bd.setPageRenderer(null);
+  bd.setPageReader(async () => null);
 }
 
 console.log('\na PDF with no text');

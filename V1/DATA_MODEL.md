@@ -342,11 +342,11 @@ Brave).
 { fileId, classId, moduleId, sourceName,
   status: 'running'|'ready'|'partial'|'failed'|'removed', error,
   provider, model, rev, listedAt, updatedAt, runningOn?, topicsJobId?, topicsJobId2?, syncError?,
-  checks?: { pages, content, asked, dropped: [title], added, gaps } | { skipped },
+  checks?: { pages, content, asked, dropped: [title], added, gaps, figuresSkipped } | { skipped },
   topics: [{ id, title, summary, style: 'concept'|'procedure'|'applied'|'definitions',
              key_points: [], pages, added?, status: 'pending'|'writing'|'ready'|'failed', error,
              rev, updatedAt, jobId?, gapJobId?, cardCount,
-             gapChecked, gaps: [{ page, text }],
+             gapChecked, gaps: [{ page, text }], figures?: [page], figuresSkipped?: [page],
              lesson: { blocks: [{ kind: 'read'|'example'|'steps'|'check'|'recap', title,
                                   markdown?, steps?: [{title, body}],
                                   questions?: [{q, choices, answer, explanation}], points? }] },
@@ -381,6 +381,12 @@ Brave).
     in `gaps` and the reader shows them verbatim ("Also in the document").
   - No text (a scan): text-only providers (ORCA) refuse; others run unchecked
     and `checks.skipped` says why.
+  - Figures: a page painting a raster image of >=40k px is a *figure* page
+    (and counts as content even with little text). For ORCA (text-only) each
+    lesson ask attaches up to 6 of its span's figure pages as JPEG `image_url`
+    parts; ORCA routes those only to image-capable models. If none is free
+    (404 no_eligible_backend) the lesson is written from the text and
+    `figuresSkipped` records it. Topic lists and gap asks never send images.
 
 ### `FileEntry.study` — `{ status, done, total, updatedAt }`
 

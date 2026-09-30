@@ -146,7 +146,7 @@ export const STYLE_GUIDE = {
     'use, a `check` that tests the distinctions, then a `recap`.',
 };
 
-export function lessonPrompt({ className, sourceName, topic, index, all, source = '', attached = true }) {
+export function lessonPrompt({ className, sourceName, topic, index, all, source = '', attached = true, figures = [] }) {
   const others = all.filter((t) => t.id !== topic.id).map((t) => `  - ${t.title}`).join('\n');
   const checklist = (topic.key_points || []).map((k) => `  - ${k}`).join('\n') || '  - (use the summary)';
   return `Write ONE lesson from ${source ? 'the course material below' : 'the attached course material'}${className ? ` for a student in ${className}` : ''}.
@@ -157,6 +157,8 @@ ${source}
 </source>
 EVERY line of the source must be taught in this lesson: every fact, number, unit, term, example and list item.
 You may add explanation, intuition and examples; you may never drop or shorten a detail from the source.
+` : ''}${figures.length ? `
+FIGURES — ${figures.length === 1 ? `page ${figures[0]} is` : `pages ${figures.join(', ')} are`} attached as ${figures.length === 1 ? 'an image' : 'images, in that order'}. They are part of the source: teach what each one shows (a diagram's parts, labels and arrows; a table's contents; what a picture illustrates), not only the text around it.
 ` : ''}
 THE TOPIC
   title: ${topic.title}
@@ -409,7 +411,8 @@ export function sourceModel(pages) {
     const key = [...tk.words].sort().join(' ') + '|' + [...tk.nums].sort().join(' ');
     if (seen.has(key)) { m.dupOf.set(p.n, seen.get(key)); continue; }
     seen.set(key, p.n);
-    if (tk.words.size >= 4) m.content.push(p.n);
+    // A picture teaches too: a slide that is only a title and a diagram is material.
+    if (tk.words.size >= 4 || p.figure) m.content.push(p.n);
   }
   // A page shown more than once is an agenda — "Chapter 1 Objectives" before
   // each section — not material of its own; its first showing included.
@@ -685,6 +688,22 @@ const MAX_PROMPT_SOURCE = 150000;
 let _readPages = (b64) => ai.pdfPages(b64);
 export function setPageReader(fn) { _readPages = fn || ((b64) => ai.pdfPages(b64)); }
 
+/* Pictures of pages, for a text-only provider: its models cannot read the
+ * PDF, so a slide's diagram would otherwise never reach them. The tests swap
+ * the renderer (it needs a canvas). */
+let _renderPages = (b64, nums) => ai.pdfPageImages(b64, nums);
+export function setPageRenderer(fn) { _renderPages = fn || ((b64, nums) => ai.pdfPageImages(b64, nums)); }
+// Per lesson ask. Enough for a topic's diagrams; the chat sites cap a message
+// at 10-20 files, and every image slows the upload.
+const MAX_FIGURES = 6;
+
+/** The figure pages of a topic's span that a text-only provider should see. */
+function figurePages(span, ctx) {
+  if (!ctx.textOnly || !ctx.model) return [];
+  const byN = new Map(ctx.model.pages.map((p) => [p.n, p]));
+  return span.filter((n) => byN.get(n) && byN.get(n).figure && !ctx.model.dupOf.has(n)).slice(0, MAX_FIGURES);
+}
+
 /**
  * What every ask of one run shares: the document as text (the source model
  * the checks run against, and the prompt text), and how the PDF travels.
@@ -872,17 +891,40 @@ async function writeTopic(doc, topic, pdf, className, ctx) {
   try {
     const span = pagesOf(topic, ctx);
     const src = span.length ? sourceText(ctx.model, span) : '';
-    const { data } = await ai.generateJSON({
+    const figs = figurePages(span, ctx);
+    let images = [];
+    if (figs.length) {
+      try { images = await _renderPages(pdf.b64, figs); }
+      catch (e) { console.warn('[breakdown] could not render figures:', e && e.message); images = []; }
+    }
+    const ask = (imgs) => ai.generateJSON({
       system: SYSTEM,
       prompt: lessonPrompt({ className, sourceName: doc.sourceName, topic,
-        index: doc.topics.indexOf(topic), all: doc.topics, source: src, attached: ctx.attached }),
+        index: doc.topics.indexOf(topic), all: doc.topics, source: src, attached: ctx.attached,
+        figures: imgs.map((i) => i.n) }),
       // Text-only: the topic's pages are in the prompt; without them, send the whole text.
       pdf, docText: ctx.textOnly ? (src ? '' : ctx.source) : undefined,
+      images: imgs.map((i) => i.url),
       schema: LESSON_SCHEMA, validate: validateLesson, maxTokens: 64000,
-      key: `bd:${doc.fileId}:r${doc.rev}:${topic.id}:v${topic.rev || 0}`, fileId: doc.fileId,
+      key: `bd:${doc.fileId}:r${doc.rev}:${topic.id}:v${topic.rev || 0}${imgs.length ? ':fig' : ''}`, fileId: doc.fileId,
       resumeJobId: topic.jobId,
       onJob: (id, main) => { if (main) { topic.jobId = id; save(doc); } },
     });
+    let data;
+    try {
+      ({ data } = await ask(images));
+      topic.figures = images.map((i) => i.n);
+      topic.figuresSkipped = figs.filter((n) => !topic.figures.includes(n));
+    } catch (e) {
+      // No model that takes images was free (ORCA: 404 no_eligible_backend),
+      // or the image ask failed some other way: the lesson is still worth
+      // writing from the text. Only a rejected key is not worth a second ask.
+      if (!images.length || (e && e.kind === 'auth')) throw e;
+      console.warn('[breakdown] lesson with figures failed, writing it from the text:', e && e.message);
+      ({ data } = await ask([]));
+      topic.figures = [];
+      topic.figuresSkipped = figs;
+    }
     if (span.length) {
       const recall = lessonRecall(ctx.model, span, tokensOf(lessonText(data.blocks, data.flashcards)));
       if (recall < UNGROUNDED_BELOW) {
@@ -1017,7 +1059,8 @@ function summariseChecks(doc, ctx) {
   const c = doc.checks || {};
   if (!ctx.model) { doc.checks = { ...c, skipped: c.skipped || ctx.why || 'no text' }; return; }
   const gaps = doc.topics.reduce((n, t) => n + ((t.gaps && t.gaps.length) || 0), 0);
-  doc.checks = { ...c, pages: ctx.model.max, content: ctx.model.content.length, gaps };
+  const figuresSkipped = doc.topics.reduce((n, t) => n + ((t.figuresSkipped && t.figuresSkipped.length) || 0), 0);
+  doc.checks = { ...c, pages: ctx.model.max, content: ctx.model.content.length, gaps, figuresSkipped };
   delete doc.checks.skipped;
 }
 
@@ -1101,6 +1144,6 @@ export default {
   STYLES, KINDS, TOPICS_SCHEMA, LESSON_SCHEMA, topicsPrompt, lessonPrompt, gapsPrompt, STYLE_GUIDE,
   validateTopics, validateLesson, validateQuestions, mergeDocs,
   tokensOf, parsePages, pageItems, sourceModel, sourceText, groundTopics, fallbackTopics, lessonText, itemMissing,
-  lessonRecall, setPageReader,
+  lessonRecall, setPageReader, setPageRenderer,
   load, peek, run, regenerate, remove, setProgress, resume, isRunning, noteIdFor, notePrefixFor,
 };

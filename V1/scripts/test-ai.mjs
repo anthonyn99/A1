@@ -236,6 +236,18 @@ calls = [];
 await ai.generateJSON({ system: 's', prompt: 'Only this.', pdf: PDF, schema: SCHEMA, docText: '' });
 t('docText "" sends the prompt alone (it already holds the pages)', calls[0].body.messages[1].content === 'Only this.', calls[0].body.messages[1].content);
 
+calls = [];
+await ai.generateJSON({ system: 's', prompt: 'Teach the figure.', pdf: PDF, schema: SCHEMA, docText: '',
+  images: ['data:image/jpeg;base64,AAAA', 'data:image/jpeg;base64,BBBB'] });
+const figUser = calls[0].body.messages[1].content;
+t('figures go as standard image_url parts after the text', Array.isArray(figUser) && figUser[0].type === 'text'
+  && figUser[0].text === 'Teach the figure.' && figUser.slice(1).map((p) => p.image_url.url).join() === 'data:image/jpeg;base64,AAAA,data:image/jpeg;base64,BBBB', figUser);
+n = 0;
+calls = [];
+responder = () => json({ choices: [{ message: { content: n++ === 0 ? '{"x": 1,, oops' : '{"x": 2}' }, finish_reason: 'stop' }] });
+await ai.generateJSON({ system: 's', prompt: 'p', pdf: PDF, schema: SCHEMA, docText: '', images: ['data:image/jpeg;base64,AAAA'] });
+t('a repair ask never re-sends the images', typeof calls[1].body.messages[1].content === 'string', calls[1].body.messages[1].content);
+
 // ── Text out of a PDF page ────────────────────────────────────────────────
 /* Items as pdf.js gives them for slide 7 of Chapter1-Introduction.pdf: the
  * exponents are separate, smaller, raised items. Joined naively they read

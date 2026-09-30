@@ -201,7 +201,8 @@ function checksNote(c) {
   if (!c) return '';
   if (c.skipped) return ` · not checked against the PDF (${c.skipped})`;
   if (!c.pages) return '';
-  return ` · checked against all ${c.pages} pages${c.gaps ? ` · ${c.gaps} line${c.gaps === 1 ? '' : 's'} not fully taught` : ''}`;
+  return ` · checked against all ${c.pages} pages${c.gaps ? ` · ${c.gaps} line${c.gaps === 1 ? '' : 's'} not fully taught` : ''}${
+    c.figuresSkipped ? ` · ${c.figuresSkipped} figure${c.figuresSkipped === 1 ? '' : 's'} not seen (no image-capable model was free)` : ''}`;
 }
 
 /** Repaint one document's button and topic list in place. */
