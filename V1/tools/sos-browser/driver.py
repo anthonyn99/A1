@@ -2955,6 +2955,37 @@ def thumb_key(shortcode: str) -> str:
     return "reel_" + shortcode
 
 
+# Thumbnails are stored SMALL. Instagram hands out full-size frames (80-250 KB,
+# up to 512 KB), the widget draws small tiles, and every byte counts against the
+# 1 GB studyos-files KV namespace that StudyOS's own files share: 1,242 of them
+# were 99 MB there (2026-09-30). 480 px wide at JPEG q72 is sharp at tile size
+# and typically 20-40 KB.
+THUMB_MAX_W = 480
+THUMB_QUALITY = 72
+
+
+def shrink_image(body: bytes, mime: str) -> tuple:
+    """Downscale/re-encode one thumbnail. Returns (bytes, mime); the input
+    unchanged when Pillow is missing, the image cannot be read, or the result
+    would not be smaller."""
+    try:
+        import io
+        from PIL import Image
+    except ImportError:
+        return body, mime
+    try:
+        im = Image.open(io.BytesIO(body))
+        im = im.convert("RGB")
+        if im.width > THUMB_MAX_W:
+            im = im.resize((THUMB_MAX_W, max(1, round(im.height * THUMB_MAX_W / im.width))), Image.LANCZOS)
+        out = io.BytesIO()
+        im.save(out, "JPEG", quality=THUMB_QUALITY, optimize=True, progressive=True)
+        small = out.getvalue()
+        return (small, "image/jpeg") if len(small) < len(body) else (body, mime)
+    except Exception:
+        return body, mime
+
+
 def thumb_exists(key: str) -> bool:
     """Is this thumbnail already in KV?
 
@@ -2990,6 +3021,7 @@ def upload_thumb(key: str, src: str) -> bool:
             mime = r.headers.get("Content-Type") or "image/jpeg"
         if not body or len(body) > 512 * 1024:
             return False
+        body, mime = shrink_image(body, mime)
         put = urllib.request.Request(
             f"{FILES_API}/f/{key}", data=body, method="PUT",
             headers={"Content-Type": mime, "User-Agent": REELS_UA,
@@ -3364,6 +3396,51 @@ def attach_thumbs(reels: list) -> dict:
     return {"cached": had, "uploaded": uploaded, "pending": skipped}
 
 
+def shrink_stored_thumbs(limit: int, dry_run: bool) -> dict:
+    """Shrink reel thumbnails ALREADY in KV, biggest first, in place.
+
+    Bounded by `limit` writes per run: the namespace is free-plan (~1000
+    writes/day) and SHARED with StudyOS uploads, so one greedy run could stop
+    StudyOS saving files for the rest of the day. Idempotent: a thumbnail that
+    is already small is skipped, so re-running just continues where it stopped.
+    Lists keys through the Worker's GET /keys?prefix=reel_ (no bodies read)."""
+    import json as _json
+    import urllib.request
+    req = urllib.request.Request(f"{FILES_API}/keys?prefix=reel_", headers={"User-Agent": REELS_UA})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        files = (_json.loads(r.read().decode("utf-8")) or {}).get("files") or []
+    files = [f for f in files if f.get("id", "").startswith("reel_")]
+    files.sort(key=lambda f: -(f.get("bytes") or 0))
+    todo = [f for f in files if (f.get("bytes") or 0) > 45 * 1024][:max(0, limit)]
+    before = after = 0
+    done = skipped = failed = 0
+    for f in todo:
+        key = f["id"]
+        try:
+            with urllib.request.urlopen(urllib.request.Request(f"{FILES_API}/f/{key}", headers={"User-Agent": REELS_UA}), timeout=30) as r:
+                body = r.read()
+                mime = r.headers.get("Content-Type") or "image/jpeg"
+            small, smime = shrink_image(body, mime)
+            if len(small) > 0.7 * len(body):
+                skipped += 1
+                continue
+            before += len(body); after += len(small)
+            if not dry_run:
+                put = urllib.request.Request(f"{FILES_API}/f/{key}", data=small, method="PUT",
+                                             headers={"Content-Type": smime, "User-Agent": REELS_UA,
+                                                      "X-File-Name": key + ".jpg"})
+                with urllib.request.urlopen(put, timeout=60) as r:
+                    if r.status != 200:
+                        failed += 1
+                        continue
+            done += 1
+        except Exception:
+            failed += 1
+    return {"ok": True, "dry_run": dry_run, "stored": len(files), "big": sum(1 for f in files if (f.get("bytes") or 0) > 45 * 1024),
+            "shrunk": done, "skipped": skipped, "failed": failed,
+            "savedMB": round((before - after) / 1048576, 1), "remainingBig": max(0, sum(1 for f in files if (f.get("bytes") or 0) > 45 * 1024) - done - skipped)}
+
+
 async def cmd_reels(args) -> dict:
     """Harvest one saved collection and publish it to the cloud.
 
@@ -3373,6 +3450,8 @@ async def cmd_reels(args) -> dict:
     cost this design exists to avoid, so repairing by re-running a real harvest
     is the wrong move.
     """
+    if getattr(args, "shrink_thumbs", False):
+        return shrink_stored_thumbs(args.limit, args.dry_run)
     site = load_reels_site(args.site)
     headless = site.headless_ok and not args.headful
     collection = args.collection or "all-posts"
@@ -3751,6 +3830,13 @@ def main():
     rl.add_argument("--collections", action="store_true",
                     help="list your saved collections and publish them as the "
                          "widget's picker; harvests no reels")
+    rl.add_argument("--shrink-thumbs", action="store_true",
+                    help="shrink the reel thumbnails already stored in KV, "
+                         "biggest first, at most --limit writes; no Instagram "
+                         "visit. Re-run to continue")
+    rl.add_argument("--limit", type=int, default=300,
+                    help="KV writes per --shrink-thumbs run (default 300; the "
+                         "free plan allows ~1000/day, shared with StudyOS)")
     rl.add_argument("--probe", action="store_true",
                     help="read the first screen only and report whether the "
                          "collection changed; no scrolling, no write")

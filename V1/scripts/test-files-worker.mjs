@@ -66,6 +66,10 @@ const k = (keys.files || []).find(f => f.id === 'sf_k');
 t('a manifest-less file shows up with its parts', k && k.parts === 2 && k.bytes === 10 && k.manifest === false, keys);
 t('non-StudyOS keys are not listed', !(keys.files || []).some(f => !f.id.startsWith('sf_')), keys);
 t('no body is returned', !JSON.stringify(keys).includes('7,7'));
+const rk = await (await call(env, 'GET', '/keys?prefix=reel_')).json();
+t('?prefix=reel_ lists only reel thumbnails', (rk.files || []).length === 1 && rk.files[0].id === 'reel_abc' && rk.files[0].bytes === 3, rk);
+const bad = await (await call(env, 'GET', '/keys?prefix=')).json();
+t('any other prefix falls back to StudyOS files (sf_)', !(bad.files || []).some(f => !f.id.startsWith('sf_')), bad);
 await call(env, 'DELETE', '/f/sf_k');
 
 console.log('\nusage drops after a delete');

@@ -104,10 +104,13 @@ export default {
     // (DELETE /f/<key>) only what nothing references.
     if (path === '/keys') {
       if (req.method !== 'GET') return json({ ok: false, error: 'method not allowed' }, 405);
+      // ?prefix=reel_ lists the Reels widget's thumbnails (driver.py reels
+      // --shrink-thumbs). Only these two families; StudyOS's default stays sf_.
+      const prefix = url.searchParams.get('prefix') === 'reel_' ? 'reel_' : 'sf_';
       const files = {};
       let cursor;
       do {
-        const page = await env.FILES.list({ prefix: 'sf_', cursor, limit: 1000 });
+        const page = await env.FILES.list({ prefix, cursor, limit: 1000 });
         for (const k of page.keys) {
           const m = k.metadata || {};
           const cut = k.name.search(/__p\d{1,5}$/);

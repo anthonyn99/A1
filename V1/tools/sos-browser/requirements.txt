@@ -9,3 +9,4 @@
 playwright>=1.61.0     # drives the logged-in profiles; supplies the download API
 pyyaml>=6.0            # selectors.yaml
 pymupdf>=1.24.0        # rasterises source slides for the rewrite layout stage
+pillow>=10.0         # shrinks reel thumbnails before they are stored
