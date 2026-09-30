@@ -120,6 +120,13 @@ const PRIORITY_COLORS = { low:'#9bd6ea', medium:'#f0bd86', high:'#ef9f9f' };
 // died half-applied without re-rendering. The local copy is only a cold-start
 // cache; Firestore holds the real state, so a failed local write is logged once
 // and otherwise ignored.
+// Id for new events, tasks and repeat series. Inside the old host page this
+// came from TaskHub's global uid(); standalone, nothing defined it, so every
+// call threw ReferenceError, including "Convert to task / to event"
+// (2026-09-30). Same shape as the ids already stored (base-36 time + random),
+// so TaskHub's mirror keys (sos_ev_<id>, sos_t_<id>) look the same as ever.
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
 let _sosLsWarned = false;
 function _sosLsSet(key, value) {
   try { localStorage.setItem(key, value); return true; }
