@@ -248,6 +248,18 @@ responder = () => json({ choices: [{ message: { content: n++ === 0 ? '{"x": 1,, 
 await ai.generateJSON({ system: 's', prompt: 'p', pdf: PDF, schema: SCHEMA, docText: '', images: ['data:image/jpeg;base64,AAAA'] });
 t('a repair ask never re-sends the images', typeof calls[1].body.messages[1].content === 'string', calls[1].body.messages[1].content);
 
+responder = () => json({ choices: [{ message: { content: '{"x": 3}' }, finish_reason: 'stop' }] });
+calls = [];
+await ai.generateJSON({ system: 's', prompt: 'Read the slides.', pdf: PDF, schema: SCHEMA, docText: '', attachFile: true,
+  images: ['data:image/jpeg;base64,AAAA'] });
+const fileUser = calls[0].body.messages[1].content;
+t('the PDF goes as an OpenAI file part, between the text and the images',
+  fileUser.map((p) => p.type).join() === 'text,file,image_url'
+  && fileUser[1].file.filename === 'Lecture.pdf' && fileUser[1].file.file_data === 'data:application/pdf;base64,' + PDF.b64, fileUser);
+calls = [];
+await ai.generateJSON({ system: 's', prompt: 'p', pdf: PDF, schema: SCHEMA, docText: '' });
+t('without attachFile ORCA still gets one plain string', typeof calls[0].body.messages[1].content === 'string');
+
 // ── Text out of a PDF page ────────────────────────────────────────────────
 /* Items as pdf.js gives them for slide 7 of Chapter1-Introduction.pdf: the
  * exponents are separate, smaller, raised items. Joined naively they read

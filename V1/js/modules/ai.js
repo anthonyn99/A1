@@ -498,11 +498,15 @@ async function viaOpenAI(a, spec) {
       }
     }
     content = (doc ? `The source document (${spec.pdf.name || 'source.pdf'}), as extracted text:\n\n${doc}\n\n` : '') + spec.prompt;
-    // Pictures of pages (figures the text cannot carry) as standard image
-    // parts. ORCA routes such a request only to models that take images.
+    // The PDF itself (OpenAI's file part) and pictures of figure pages, when
+    // the caller sends them. ORCA routes such a request only to models that
+    // take files / images -- and the text above rides along regardless.
     const images = spec.attachPdf ? (spec.images || []) : [];
-    if (images.length) {
-      content = [{ type: 'text', text: content },
+    const file = spec.attachPdf && spec.attachFile && spec.pdf
+      ? [{ type: 'file', file: { filename: spec.pdf.name || 'source.pdf', file_data: 'data:application/pdf;base64,' + spec.pdf.b64 } }]
+      : [];
+    if (images.length || file.length) {
+      content = [{ type: 'text', text: content }, ...file,
         ...images.map((url) => ({ type: 'image_url', image_url: { url } }))];
     }
   } else {

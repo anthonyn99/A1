@@ -394,8 +394,15 @@ console.log('\nrun — invented topics are rejected, then the real list is used'
   };
   const d = await bd.run('c1', 'm1', CH1_FILE);
   const asks = calls.map((c) => userText(c.body));
-  t('ORCA gets ONE string, never content parts', calls.every((c) => typeof c.body.messages.find((m) => m.role === 'user').content === 'string'),
-    calls.map((c) => typeof c.body.messages.find((m) => m.role === 'user').content));
+  const userOf = (c) => c.body.messages.find((m) => m.role === 'user').content;
+  const generation = calls.filter((c) => /Break it into the TOPICS|Write ONE lesson/.test(userText(c.body)));
+  t('topic and lesson asks carry the PDF itself, as a file part after the text',
+    generation.every((c) => Array.isArray(userOf(c)) && userOf(c)[0].type === 'text' && userOf(c)[1].type === 'file'
+      && userOf(c)[1].file.filename === 'Chapter1-Introduction.pdf' && userOf(c)[1].file.file_data.startsWith('data:application/pdf;base64,')),
+    generation.map((c) => (Array.isArray(userOf(c)) ? userOf(c).map((p) => p.type) : typeof userOf(c))));
+  t('the gap-fill ask is one string: its lines are verbatim, no upload needed',
+    calls.filter((c) => /leaves out the source lines below/.test(userText(c.body))).every((c) => typeof userOf(c) === 'string'));
+  t('the prompt says the PDF is attached too', /the PDF itself is attached too/.test(userText(calls[0].body)));
   t('the topics ask carries the document, page by page', asks[0].includes('--- page 5 ---') && asks[0].includes('Kilo- (K) = 1 thousand = 10^3 and 2^10'));
   t('...and not twice (no separate extracted copy)', asks[0].split('--- page 5 ---').length === 2);
   t('an invented list is asked for again, saying why', topicAsks === 2 && /PREVIOUS LIST WAS REJECTED/.test(asks[1]) && asks[1].includes('Demand and Supply'), asks[1] && asks[1].slice(0, 200));
@@ -469,24 +476,27 @@ console.log('\nfigures ride along with ORCA lesson asks');
   responder = (body) => {
     const user = body.messages.find((m) => m.role === 'user').content;
     const text = userText(body);
-    if (/Break it into the TOPICS/.test(text)) return reply({ topics: [...REAL.topics, { ...bd.fallbackTopics([7], M)[0] }] });
-    if (refuseImages && Array.isArray(user)) {
-      return new Response(JSON.stringify({ error: { message: 'no eligible backend: input_modality:image', type: 'no_eligible_backend' } }), { status: 404 });
+    if (refuseImages && Array.isArray(user)) {  // no model that takes files or images is free
+      return new Response(JSON.stringify({ error: { message: 'no eligible backend: input_modality:file', type: 'no_eligible_backend' } }), { status: 404 });
     }
+    if (/Break it into the TOPICS/.test(text)) return reply({ topics: [...REAL.topics, { ...bd.fallbackTopics([7], M)[0] }] });
     return reply(echoLesson(text));
   };
   const d = await bd.run('c1', 'm1', F);
   const lessonCalls = calls.filter((c) => /Write ONE lesson/.test(userText(c.body)));
-  const withImages = lessonCalls.filter((c) => Array.isArray(c.body.messages.find((m) => m.role === 'user').content));
-  t('only the topics whose pages hold figures send images', withImages.length === 2, lessonCalls.map((c) => typeof c.body.messages.find((m) => m.role === 'user').content));
-  const parts = withImages.map((c) => c.body.messages.find((m) => m.role === 'user').content);
-  t('text first, then one image part per figure page',
-    parts.every((p) => p[0].type === 'text' && p.slice(1).every((x) => x.type === 'image_url')) && parts.flat().filter((x) => x.type === 'image_url').length === 2, parts.map((p) => p.map((x) => x.type)));
+  const partsOf = (c) => c.body.messages.find((m) => m.role === 'user').content;
+  const withImages = lessonCalls.filter((c) => partsOf(c).some((p) => p.type === 'image_url'));
+  t('only the topics whose pages hold figures send images', withImages.length === 2, lessonCalls.map((c) => partsOf(c).map((p) => p.type)));
+  const parts = withImages.map(partsOf);
+  t('text, then the PDF, then one image part per figure page',
+    parts.every((p) => p[0].type === 'text' && p[1].type === 'file' && p.slice(2).every((x) => x.type === 'image_url'))
+      && parts.flat().filter((x) => x.type === 'image_url').length === 2, parts.map((p) => p.map((x) => x.type)));
   t('the image is the rendered page', parts.flat().some((x) => x.image_url && x.image_url.url === 'data:image/jpeg;base64,PAGE6'));
   t('the prompt names the attached figure pages', /FIGURES — page 6 is attached as an image/.test(userText(withImages.find((c) => /title: Units of speed/.test(userText(c.body))).body)));
   t('only figure pages are rendered, per topic', JSON.stringify(rendered) === '[[3],[6]]', rendered);
   t('a topic records which figures it saw', d.topics.find((x) => x.title.startsWith('Units')).figures.join() === '6');
-  t('the topics ask sends no images (the text lists them fine)', typeof calls[0].body.messages.find((m) => m.role === 'user').content === 'string');
+  t('the topics ask sends no images (the text and the PDF list them fine)', !partsOf(calls[0]).some((p) => p.type === 'image_url'), partsOf(calls[0]).map((p) => p.type));
+  t('every lesson records that it had the PDF', d.topics.every((x) => x.pdfSent === true) && d.checks.pdfMissed === 0 && d.checks.pdfSent.topics === true, d.checks);
 
   console.log('\n...and when no image-capable model is free');
   const F2 = { id: 'ch1fig2', name: 'Chapter1-Introduction.pdf', mime: 'application/pdf' };
@@ -498,6 +508,9 @@ console.log('\nfigures ride along with ORCA lesson asks');
   const units = d2.topics.find((x) => x.title.startsWith('Units'));
   t('the lesson was written from the text instead', units.status === 'ready' && units.figures.length === 0 && units.figuresSkipped.join() === '6', units);
   t('the doc says figures were not seen', d2.checks.figuresSkipped === 2, d2.checks);
+  t('...nor the PDF, anywhere', d2.checks.pdfSent.topics === false && d2.checks.pdfMissed === 3, d2.checks);
+  t('each refused ask was retried once, as text', calls.filter((c) => typeof c.body.messages.find((m) => m.role === 'user').content === 'string'
+    && /Break it into the TOPICS|Write ONE lesson/.test(userText(c.body))).length === 4, calls.length);
   bd.setPageRenderer(null);
   bd.setPageReader(async () => null);
 }

@@ -342,11 +342,12 @@ Brave).
 { fileId, classId, moduleId, sourceName,
   status: 'running'|'ready'|'partial'|'failed'|'removed', error,
   provider, model, rev, listedAt, updatedAt, runningOn?, topicsJobId?, topicsJobId2?, syncError?,
-  checks?: { pages, content, asked, dropped: [title], added, gaps, figuresSkipped } | { skipped },
+  checks?: { pages, content, asked, dropped: [title], added, gaps, figuresSkipped, pdfMissed,
+            pdfSent: { topics } } | { skipped },
   topics: [{ id, title, summary, style: 'concept'|'procedure'|'applied'|'definitions',
              key_points: [], pages, added?, status: 'pending'|'writing'|'ready'|'failed', error,
              rev, updatedAt, jobId?, gapJobId?, cardCount,
-             gapChecked, gaps: [{ page, text }], figures?: [page], figuresSkipped?: [page],
+             gapChecked, gaps: [{ page, text }], figures?: [page], figuresSkipped?: [page], pdfSent?,
              lesson: { blocks: [{ kind: 'read'|'example'|'steps'|'check'|'recap', title,
                                   markdown?, steps?: [{title, body}],
                                   questions?: [{q, choices, answer, explanation}], points? }] },
@@ -387,6 +388,11 @@ Brave).
     parts; ORCA routes those only to image-capable models. If none is free
     (404 no_eligible_backend) the lesson is written from the text and
     `figuresSkipped` records it. Topic lists and gap asks never send images.
+  - ORCA also gets the PDF itself (OpenAI `file` part, <=20 MB) on the topic
+    list and every lesson, next to the page text: its browser models upload
+    it. Any failure but a rejected key retries that ask once as text alone
+    (`pdfSent` false; `checks.pdfMissed` counts such lessons). Gap asks stay
+    text: their missing lines are verbatim in the prompt.
 
 ### `FileEntry.study` — `{ status, done, total, updatedAt }`
 

@@ -678,8 +678,13 @@ async function sourceOf(file) {
   return { b64, name: file.name || 'source.pdf', size: Math.floor(b64.length * 3 / 4) };
 }
 
-// Providers that read text only: the document reaches them as page text.
+// Providers whose API takes no PDF: the document reaches them as page text.
 const TEXT_ONLY = new Set(['orca']);
+// ORCA's browser models (ChatGPT, Claude.ai, Gemini) also take the PDF itself
+// as an OpenAI file part -- it rides along with the page text, so a site
+// that reads the file sees its layout and figures too. Past this size the
+// upload is too slow to be worth it (claude.ai's own cap is 30 MB).
+const MAX_ATTACHED_PDF = 20 * 1024 * 1024;
 // Page text put in a prompt when the PDF rides along too. Past this the PDF
 // alone carries the document (the checks still run, locally).
 const MAX_PROMPT_SOURCE = 150000;
@@ -722,11 +727,32 @@ async function contextOf(pdf, active) {
   const model = pages ? sourceModel(pages) : null;
   const full = model ? sourceText(model) : '';
   return {
-    model, why, textOnly, attached: !textOnly,
+    model, why, textOnly,
+    // The PDF goes to every provider that reads files; for ORCA as an upload.
+    sendsFile: textOnly && pdf.size <= MAX_ATTACHED_PDF,
+    attached: !textOnly,
     who: active.id === 'bridge' ? 'Claude Pro' : [active.label, active.model].filter(Boolean).join(' / '),
     // The whole document, as prompt text, for the topic list.
     source: model && (textOnly || full.length <= MAX_PROMPT_SOURCE) ? full : '',
   };
+}
+
+/**
+ * Ask with the document's attachments (ORCA: the PDF and figure images) when
+ * there are any; if that ask fails for any reason but a rejected key -- most
+ * often no model that takes files was free (ORCA: 404 no_eligible_backend) --
+ * ask once more with the text alone. The lesson is still worth writing.
+ * `make(withAttachments)` builds the ask. Resolves `{ data, attached }`.
+ */
+async function withFallback(make, hasAttachments, what) {
+  if (!hasAttachments) return { ...(await make(false)), attached: false };
+  try {
+    return { ...(await make(true)), attached: true };
+  } catch (e) {
+    if (e && e.kind === 'auth') throw e;
+    console.warn(`[breakdown] ${what} with the PDF attached failed, asking with the text alone:`, e && e.message);
+    return { ...(await make(false)), attached: false };
+  }
 }
 
 /**
@@ -829,17 +855,20 @@ async function runInner(classId, moduleId, file, { fresh = false } = {}) {
  * topic of their own.
  */
 async function listTopics(doc, pdf, className, ctx) {
-  const ask = (feedback, attempt) => ai.generateJSON({
+  const ask = (feedback, attempt) => withFallback((withFile) => ai.generateJSON({
     system: SYSTEM,
-    prompt: topicsPrompt({ className, sourceName: doc.sourceName, source: ctx.source, attached: ctx.attached, feedback }),
-    pdf, docText: ctx.textOnly ? '' : undefined,
+    prompt: topicsPrompt({ className, sourceName: doc.sourceName, source: ctx.source,
+      attached: ctx.attached || withFile, feedback }),
+    pdf, docText: ctx.textOnly ? '' : undefined, attachFile: withFile,
     schema: TOPICS_SCHEMA, validate: validateTopics, maxTokens: 32000,
-    key: `bd:${doc.fileId}:r${doc.rev}:topics${attempt ? ':g' + attempt : ''}`, fileId: doc.fileId,
+    key: `bd:${doc.fileId}:r${doc.rev}:topics${attempt ? ':g' + attempt : ''}${withFile ? ':file' : ''}`, fileId: doc.fileId,
     resumeJobId: attempt ? doc.topicsJobId2 : doc.topicsJobId,
     onJob: (id, main) => { if (main) { doc[attempt ? 'topicsJobId2' : 'topicsJobId'] = id; save(doc); } },
-  });
-  let { data } = await ask('', 0);
-  if (!ctx.model) return { topics: data.topics, checks: { skipped: ctx.why || 'no text' } };
+  }), ctx.sendsFile, 'the topic list');
+  const listed = await ask('', 0);
+  let { data } = listed;
+  const pdfSent = { topics: listed.attached };
+  if (!ctx.model) return { topics: data.topics, checks: { skipped: ctx.why || 'no text', pdfSent } };
 
   const badness = (g) => g.invented.length * 100 + g.badPages.length * 10 + g.uncovered.length;
   let g = groundTopics(data.topics, ctx.model);
@@ -869,7 +898,7 @@ async function listTopics(doc, pdf, className, ctx) {
   }
   return { topics, checks: {
     pages: ctx.model.max, content: ctx.model.content.length, asked,
-    dropped: g.invented.map((t) => t.title), added: added.length,
+    dropped: g.invented.map((t) => t.title), added: added.length, pdfSent,
   } };
 }
 
@@ -897,34 +926,27 @@ async function writeTopic(doc, topic, pdf, className, ctx) {
       try { images = await _renderPages(pdf.b64, figs); }
       catch (e) { console.warn('[breakdown] could not render figures:', e && e.message); images = []; }
     }
-    const ask = (imgs) => ai.generateJSON({
-      system: SYSTEM,
-      prompt: lessonPrompt({ className, sourceName: doc.sourceName, topic,
-        index: doc.topics.indexOf(topic), all: doc.topics, source: src, attached: ctx.attached,
-        figures: imgs.map((i) => i.n) }),
-      // Text-only: the topic's pages are in the prompt; without them, send the whole text.
-      pdf, docText: ctx.textOnly ? (src ? '' : ctx.source) : undefined,
-      images: imgs.map((i) => i.url),
-      schema: LESSON_SCHEMA, validate: validateLesson, maxTokens: 64000,
-      key: `bd:${doc.fileId}:r${doc.rev}:${topic.id}:v${topic.rev || 0}${imgs.length ? ':fig' : ''}`, fileId: doc.fileId,
-      resumeJobId: topic.jobId,
-      onJob: (id, main) => { if (main) { topic.jobId = id; save(doc); } },
-    });
-    let data;
-    try {
-      ({ data } = await ask(images));
-      topic.figures = images.map((i) => i.n);
-      topic.figuresSkipped = figs.filter((n) => !topic.figures.includes(n));
-    } catch (e) {
-      // No model that takes images was free (ORCA: 404 no_eligible_backend),
-      // or the image ask failed some other way: the lesson is still worth
-      // writing from the text. Only a rejected key is not worth a second ask.
-      if (!images.length || (e && e.kind === 'auth')) throw e;
-      console.warn('[breakdown] lesson with figures failed, writing it from the text:', e && e.message);
-      ({ data } = await ask([]));
-      topic.figures = [];
-      topic.figuresSkipped = figs;
-    }
+    const ask = (withAtt) => {
+      const imgs = withAtt ? images : [];
+      const withFile = withAtt && ctx.sendsFile;
+      return ai.generateJSON({
+        system: SYSTEM,
+        prompt: lessonPrompt({ className, sourceName: doc.sourceName, topic,
+          index: doc.topics.indexOf(topic), all: doc.topics, source: src, attached: ctx.attached || withFile,
+          figures: imgs.map((i) => i.n) }),
+        // Text-only: the topic's pages are in the prompt; without them, send the whole text.
+        pdf, docText: ctx.textOnly ? (src ? '' : ctx.source) : undefined,
+        attachFile: withFile, images: imgs.map((i) => i.url),
+        schema: LESSON_SCHEMA, validate: validateLesson, maxTokens: 64000,
+        key: `bd:${doc.fileId}:r${doc.rev}:${topic.id}:v${topic.rev || 0}${withAtt ? ':att' : ''}`, fileId: doc.fileId,
+        resumeJobId: topic.jobId,
+        onJob: (id, main) => { if (main) { topic.jobId = id; save(doc); } },
+      });
+    };
+    const { data, attached } = await withFallback(ask, images.length > 0 || ctx.sendsFile, 'the lesson');
+    topic.pdfSent = attached && ctx.sendsFile;
+    topic.figures = attached ? images.map((i) => i.n) : [];
+    topic.figuresSkipped = figs.filter((n) => !topic.figures.includes(n));
     if (span.length) {
       const recall = lessonRecall(ctx.model, span, tokensOf(lessonText(data.blocks, data.flashcards)));
       if (recall < UNGROUNDED_BELOW) {
@@ -1060,7 +1082,8 @@ function summariseChecks(doc, ctx) {
   if (!ctx.model) { doc.checks = { ...c, skipped: c.skipped || ctx.why || 'no text' }; return; }
   const gaps = doc.topics.reduce((n, t) => n + ((t.gaps && t.gaps.length) || 0), 0);
   const figuresSkipped = doc.topics.reduce((n, t) => n + ((t.figuresSkipped && t.figuresSkipped.length) || 0), 0);
-  doc.checks = { ...c, pages: ctx.model.max, content: ctx.model.content.length, gaps, figuresSkipped };
+  const pdfMissed = ctx.sendsFile ? doc.topics.filter((t) => t.status === 'ready' && !t.pdfSent).length : 0;
+  doc.checks = { ...c, pages: ctx.model.max, content: ctx.model.content.length, gaps, figuresSkipped, pdfMissed };
   delete doc.checks.skipped;
 }
 
