@@ -402,8 +402,10 @@ def test_typing_is_never_blocked_by_a_run():
     assert "!codeProject()" in qwhy and "!codeChain().length" in qwhy, (
         "a coding task needs a workspace and an agent"
     )
-    # Convene still waits its turn: one run at a time.
-    assert '$("btnSend").disabled = busy ||' in body
+    # One run at a time: while one runs, the button either adds to it (on
+    # screen) or is held (Track F, councilSend).
+    assert '$("btnSend").disabled = !q || !!s.why;' in body
+    assert 'why = "Another deliberation is running' in _fn("councilSend")
 
 
 # ── knowing what is running, and what you are reading ───────────────────────
@@ -437,7 +439,7 @@ def test_a_verdict_says_which_question_it_answers():
         "the caption shows even when the composer above it already says the "
         "same thing, or hides when it does not"
     )
-    for fn in ("runOne", "openRun", "cloudOpenRun", "backToLive"):
+    for fn in ("runOne", "showSession", "backToLive"):
         assert "S.viewQuestion" in _fn(fn), f"{fn} leaves the caption stale"
 
 

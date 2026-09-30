@@ -103,7 +103,9 @@ def test_stamps_are_read_back_from_firestore(read):
 
 # ── a deleted item leaves nothing behind ────────────────────────────────────
 def test_deleting_an_item_deletes_its_stamp():
-    assert "delete UNPINNED_AT[r.id]" in PAGE, "deleted runs leak their stamps"
+    # Track F: marks are the session's, keyed by sessionKey.
+    assert "delete UNPINNED_AT[key]" in PAGE and "const key = sessionKey(r);" in PAGE, (
+        "deleted runs leak their stamps")
     assert "delete BS_UNPINNED_AT[x.id]" in PAGE, "deleted sessions leak their stamps"
 
 

@@ -51,7 +51,8 @@ def _fn(name: str) -> str:
 
 # ── one home ────────────────────────────────────────────────────────────────
 def test_a_pin_is_read_from_one_place():
-    assert "const isPinned = (r) => PINS.has(r.id);" in PAGE, (
+    # Track F: keyed by the SESSION id (a pre-follow-up run's own id).
+    assert "const isPinned = (r) => PINS.has(sessionKey(r));" in PAGE, (
         "isPinned reads something other than PINS again -- a second copy of a "
         "pin is what made unpinning impossible"
     )

@@ -173,8 +173,11 @@ def test_the_grid_records_which_screen_filled_it():
     assert 'S.gridOwner = "brainstorm";' in _fn("primeGridForRound")
     # runOne, not start: start() reads the composer and hands off to it, so
     # the function that actually begins a run is the one that claims the grid.
-    for fn in ("runOne", "openRun", "cloudOpenRun"):
+    # Track F: History opens go through openSession -> showSession.
+    for fn in ("runOne", "showSession"):
         assert 'S.gridOwner = "council";' in _fn(fn), f"{fn} does not claim the grid"
+    for fn in ("openRun", "cloudOpenRun"):
+        assert "openSession(" in _fn(fn), f"{fn} bypasses showSession"
     assert "S.gridOwner = null;" in _fn("newRun")
     assert "S.gridOwner = null;" in _fn("bsReset")
 

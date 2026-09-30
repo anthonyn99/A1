@@ -179,7 +179,10 @@ def test_a_prompt_quoting_limit_words_in_a_snapshot_is_not_a_limit(tmp_path):
     async def go():
         d = await _db(tmp_path)
         await d.create_run("r1", q, None)
-        await d.save_answer("r1", _failed("perplexity", NOW, artifacts=[str(snap)]))
+        # The real clock, not NOW: _recent_sync looks back WINDOW_HOURS from
+        # the actual time, so a fixed date aged out of the window (2026-09-30).
+        at = datetime.now(timezone.utc) - timedelta(minutes=5)
+        await d.save_answer("r1", _failed("perplexity", at, artifacts=[str(snap)]))
     asyncio.run(go())
     r = usage._recent_sync(str(tmp_path / "magi.db"), "perplexity", ["text=/rate limit reached/i"])
     assert [i["kind"] for i in r["issues"]] == ["timeout"]
