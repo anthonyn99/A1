@@ -1465,8 +1465,45 @@ freeze the queue.
 
 ## Follow-ups and notes mid-run (Track F)
 
-*Engine side done in F1 (2026-09-29); the console uses it from F2. Until then
-nothing on screen changes.*
+*Engine side done in F1 (2026-09-29), console in F2 (2026-09-30). Code Mode
+gets the same in F3/F4.*
+
+**What you see.** After a verdict the send button says **Follow up**; while a
+run is going it says **Add to run**. The earlier turns read top-down as compact
+cards (question, notes, verdict, and a **Units n/m** fold with every unit's
+answer, built when first opened); the current turn keeps the full grid and
+verdict; the prompt box docks under the thread (`position: sticky` inside
+`.page`, so the 2000px cap holds). An empty session keeps the centred box.
+**New deliberation** starts an empty session. TradeHub hand-offs, the morning
+launcher and queue items always start new sessions.
+
+**Held notes.** A note that reaches the engine after the chairman has started
+is shown as *held*, with Edit and ✕. When the verdict lands, the tab that
+watched the run sends its own held notes (as edited) plus its own notes the
+verdict could not apply as ONE follow-up -- but only while that session is on
+screen, the queue is not running, and the run was not halted; otherwise they
+become a draft in the box. A tab that attached later (a reload, the queue's
+watch) always gets them as a draft, so two tabs never both send.
+
+**History is per session.** Rows are grouped by session id (the engine's
+`session_id`; the cloud index row's `sid`, added in F2; a run from before
+follow-ups is its own session). Title = the first question, time = the latest
+turn, "n turns" in the meta line. Pins, names and the retention clock are keyed
+by the session id -- the first run's id, so every mark made before F2 still
+applies -- and a session expires as a whole, from its latest turn. Delete
+removes every turn's cloud body, index row and engine row. **Opening any entry
+loads every turn** (`loadTurn`: this engine, then the cloud body, else "earlier
+answer no longer stored" and the question alone) and leaves the box **empty**,
+labelled Follow up: the next message is turn n+1 of that session, carrying its
+memory whichever engine or device made the earlier turns. A session whose last
+turn is still running in this engine opens attached, and the box adds to it.
+
+**Sync** is unchanged in cost: one body write and one index-row update per
+finished turn (`cloudPushRun`, from the `done` frame); notes ride in the body's
+`run.notes`. Nothing is written while a run is in flight -- a note is a POST
+to the engine only. An engine without `followup` gets the earlier turns folded
+into the question; without `steer`, Add to run is held with "Update the
+engine".
 
 A deliberation can be a conversation rather than a one-shot. No chat site
 remembers anything between MAGI turns -- every unit turn opens a fresh chat --

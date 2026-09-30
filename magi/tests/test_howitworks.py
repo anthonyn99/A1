@@ -444,3 +444,26 @@ def test_the_model_choice_claims_still_hold():
     # POST sent only from its button.
     assert PAGE.count("/models/refresh`") == 1
     assert "ref.onclick = () => unitRefreshModels(id)" in PAGE
+
+
+def test_the_followup_claims_still_hold():
+    """Track F2: follow-ups, adding to a run, and continuing from History."""
+    assert "Follow-ups: a deliberation is a conversation" in HOW
+    from magi.engine import chairman, session
+    # "your addition wins where it conflicts with the question".
+    assert "they override the question where they conflict" in chairman.ADDITIONS_BLOCK
+    # "Up to ten per run" -- the console's cap is the engine's.
+    assert session.MAX_NOTES == 10 and "Up to ten per run" in HOW
+    assert "const MAX_RUN_NOTES = 10;" in PAGE
+    assert f"const MAX_NOTE_CHARS = {session.MAX_NOTE_CHARS};" in PAGE
+    # The console keeps the context under the engine's cap.
+    cap = int(PAGE.split("const CONTEXT_MAX_CHARS = ")[1].split(";")[0])
+    assert cap < session.MAX_CONTEXT_INPUT
+    # The three labels it names are the ones the button shows.
+    for word in ("Follow up", "Add to run"):
+        assert f"<b>{word}</b>" in HOW and f'"{word}"' in PAGE
+    # "never after a Halt": a cancelled run's notes are a draft, not a send.
+    assert 'msg.status !== "cancelled"' in PAGE
+    # "A pin, a name, the 30-day window and Delete all apply to the whole session."
+    assert "const isPinned = (r) => PINS.has(sessionKey(r));" in PAGE
+    assert "for (const id of ids) await CLOUD.fs.deleteDoc(_runDoc(id));" in PAGE

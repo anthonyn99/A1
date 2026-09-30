@@ -9,27 +9,25 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-09-29, **F1 done** (Deliberation follow-ups, engine).
+**Last updated:** 2026-09-30, **F2 done** (Deliberation follow-ups, console).
 **Phases complete:** 1–14 (14a hardening, 14b A1 writable), plus **11B**,
 ALL of Track S (**S1**, **S2**, **S3**, **U1**, **U2**, **U3**, **U4**), and
-Track F's **F1**.
-**Next phase:** **F2 — Deliberation follow-ups, console** (`magi.html`).
+Track F's **F1** and **F2** -- Deliberation follow-ups are live for Tony.
+**Next phase:** **F3 — Code Mode follow-ups, engine** (`magi/code/`).
 Track F ("Follow-ups", §8 "Track F") makes Deliberation and Code Mode
-multi-turn sessions: the prompt box follows up with the session's memory, and
-a message sent WHILE a run is going adjusts it. F1 built the engine half for
-Deliberation (see "What exists" → F1); nothing is user-visible until F2.
-Read the whole Track F section before starting; Tony's decisions are at its
-top and are not to be re-asked.
+multi-turn sessions. Deliberation is finished (F1 engine + F2 console, see
+"What exists"). Read the whole Track F section before starting; Tony's
+decisions are at its top and are not to be re-asked.
 
-**F2's first concrete steps:** (1) `S.session` + `updateEnabled()` labels
-Convene / Follow up / Add to run, gated on `health.features` containing
-`followup` / `steer`; (2) `start()` → follow-up POST with `session`, `turn`,
-`context` = `JSON.stringify(turns.map(t => ({q, answer: t.verdict})))` (the
-engine strips NOTES/CONFIDENCE itself) and clears the composer; running →
-`POST /api/runs/{id}/note {text}`; (3) handle the `note` SSE frame and
-`init.notes`; on `done` send `followup_notes` + `unapplied_notes` as the next
-follow-up only in the tab that watched; (4) thread UI + sticky composer;
-(5) history grouping by `sid`. Engine contract below.
+**F3's first concrete step is the CLI spike** (§8 F3 step 0), in a read-only
+probe folder under `%TEMP%\magi-sandbox`, results into "Hard-won facts"
+BEFORE building: (a) `claude -p --resume <id>` across a different cwd (copy
+`<sid>.jsonl` into `$CLAUDE_CONFIG_DIR/projects/<encoded cwd>/`?), with
+`--restricted` + changed `--tools`/`--permission-mode`, and after a
+`taskkill` mid-turn; (b) which of our Codex flags `codex exec resume <id> -`
+accepts, and resume after a kill. Then steps 1–5. Reuse F1's
+`engine/session.py` shape (`build_context`, budget, trimming) for the
+"SESSION SO FAR" block rather than a second copy.
 **Phase 15 (Veda's engine) is INSTALLED**: she ran `magi\setup.ps1 -Profile veda`, signed in
 to Accounts, the coding agents and GitHub (Tony confirmed 2026-09-28), and
 her engine self-updates. Do NOT send her setup commands again. The only
@@ -60,7 +58,7 @@ One phase per session.
 | ~~U4~~ | ~~Units: choose model~~ | **done 2026-09-28** | | |
 | ~~15~~ | ~~Veda's engine~~ | **installed** (setup.ps1 + all sign-ins, confirmed 2026-09-28; self-updating). Optional: isolation check from her PC | | |
 | ~~F1~~ | ~~Follow-ups: Deliberation engine~~ | **done 2026-09-29** (engine only; invisible until F2) | | |
-| F2 | Follow-ups: Deliberation console | thread UI, docked composer, mid-run send, grouped History | High | |
+| ~~F2~~ | ~~Follow-ups: Deliberation console~~ | **done 2026-09-30** | | |
 | F3 | Follow-ups: Code Mode engine | session memory, native resume, interrupt & continue, revise-at-card | High | starts with a CLI spike |
 | F4 | Follow-ups: Code Mode console | thread UI, mid-run send, grouped History | High | |
 
@@ -357,6 +355,33 @@ One phase per session.
   killed by monkeypatch). Live 2026-09-29: 1-unit Gemini session — turn 1
   "Miranda", turn 2 "Who is it named after?" answered about Miranda, and a
   mid-run note ("also name the play") was applied by synthesis.
+* **Deliberation follow-ups, console (Track F, F2, 2026-09-30)** —
+  `magi.html` block "follow-ups (Track F)": `S.session = {id, turns,
+  pending}` (`newSession`; id = first run id), pure `councilSend(o)` →
+  `{act: convene|followup|note, label, why}` (via `councilSendNow`, used by
+  `updateEnabled` + `start`), `sessionContext(turns)` (JSON `[{q, answer}]`,
+  `turnAnswer` = verdict or first ok unit, oldest shortened first, <
+  `CONTEXT_MAX_CHARS` 190k), `foldedQuestion` (engine without `followup`),
+  `groupRuns(rows)` + `sessionKey(r)` (`session_id` | cloud `sid` | `id`),
+  `addNote` → `POST /note`, `noteLanded`, `carriedNotes` (watching tab: its
+  own held + own unapplied; attached tab: all, as a draft), `sendCarried`
+  (auto only if the session is on screen, not halted, queue idle),
+  `renderThread` (`#thread`: `turnCard` for every turn but the one on the
+  grid, then the current question/notes/held bubbles), `threadOn`,
+  `placeComposer` (moves `#qbar` + chips after `#verdict`, `.qbar.docked`
+  sticky; called from `syncCouncilIdle`), `sessionBackfill` (attach →
+  earlier turns). `link.features` from `/api/health` (`engineHas`).
+  `runOne({…, session})`: follow-up form fields, 400 → "The engine refused
+  the run", `init`/`note`/`done` handle sessions and notes, the done turn
+  joins `sess.turns`. History: `turnFromRecord`, `loadTurn` (engine → cloud
+  body → `gone`), `openSession` / `showSession` (composer EMPTY; a running
+  last turn attaches), `openRun`/`cloudOpenRun`/`historyGroupOf` wrappers,
+  `mergeHistory` groups, `isPinned`/`nickOf`/`expired` by session
+  (`sessionLatestAt`), `deleteRun` removes every turn (engine 404 ignored),
+  cloud index row + `sid`, `turn`; `loadHistory` limit 60. Hand-offs start
+  `start({fresh: true})`. Tests `tests/magi-thread.test.js` (66; 7 mutants
+  killed on copies via `MAGI_HTML`), `test_howitworks.py::
+  test_the_followup_claims_still_hold`, live `tests/live/magi-thread.live.js`.
 * **Units recon (Track S, U1)**: read-only, no engine change. Each site
   block in `selectors.yaml` ends with a "Models and limits" section:
   `model_button/option/selected/label` (+ `model_label_from`
@@ -2315,7 +2340,8 @@ units, one short question.
 
 ## Track F — Follow-ups: multi-turn Deliberation and Code Mode (planned 2026-09-29)
 
-*Status:* **F1 done 2026-09-29** (engine; see §0 "What exists"); F2 next.
+*Status:* **F1 done 2026-09-29** (engine), **F2 done 2026-09-30** (console;
+see §0 "What exists"); F3 next.
 
 ### Why
 
@@ -2479,6 +2505,11 @@ new `magi/engine/session.py`, `magi/providers/base.py`, `magi/providers/browser_
 
 #### F2 — Deliberation console (`magi.html`)
 
+*Status:* done 2026-09-30. Deviations: the stubbed-EventSource live matrix
+became a pure `councilSend` walked by the node test; the live test runs the
+real engine instead. A "running elsewhere" session attaches only when its last
+turn is running in THIS engine. `newRun` and hand-offs reset the session.
+
 1. **State**: `S.session = {id, turns:[{runId, q, verdict, panels, notes, at}], pending:[]}`.
    `S.live` gains `session/turn`. `newRun()`/New deliberation → fresh session;
    TradeHub `#tb=` / morning launcher / Queue items always start fresh sessions.
@@ -2605,6 +2636,16 @@ panel/docs in the same commit; rewrite `docs/magi-plan.md` §0 (add this track a
 - A context-padded prompt would silently move short questions onto the 180 s
   straggler floor (fixed in F1.3).
 More found during the build get fixed in the phase that touches them and listed in §0.
+- (F2, fixed) `setView`'s "Close — back to the running prompt" showed over any
+  History entry opened after a run had ENDED (`S.live` outlives its run; the
+  check lacked `S.running`).
+- (F2, OPEN, engine) A sole Gemini unit that synthesised because of a note
+  returned its verdict as one run-on line: "…*Dream*.NOTES None.CONFIDENCE
+  HIGH -- …" -- the ANSWER/NOTES/CONFIDENCE headings lost their line breaks in
+  capture, so `parseVerdict` shows them inline and `session.answer_section`
+  cannot strip NOTES from the memory. Seen once (live test, 2026-09-30); look
+  at how the browser capture joins Gemini's heading blocks, or let
+  `answer_section`/`parseVerdict` accept an inline `.NOTES`/`CONFIDENCE`.
 
 ### Verification (per phase)
 - `cd magi; .venv\Scripts\python -m pytest tests -q` and `node tests/run-all.js`.
