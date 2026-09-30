@@ -477,6 +477,13 @@ def test_the_hold_is_bounded_and_pausable():
     assert "S.queueHold = null" in _fn("queueStop"), "a paused queue must not promise to resume"
 
 
+def test_try_now_and_cancel_wait_act_at_once():
+    """Found live: a plain 15s nap meant either button sat for up to 15s."""
+    assert "_holdWake = () =>" in _fn("queueHoldWait")
+    assert "queueHoldWake()" in _fn("queueStop")
+    assert "queueHoldWake();" in _fn("renderQueueHold")
+
+
 def test_the_hold_uses_the_reset_times_the_engine_already_has():
     # Code: the chain's handoff events. Council: the Units sheet's limits.
     assert 'e.k === "handoff" && e.reason === "limited" && e.resets_at' in _fn("codeQueueOutcome")

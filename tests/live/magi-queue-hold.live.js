@@ -164,8 +164,7 @@ const shot = async (c, name) => {
   ok('lost engine: it stops and rings', await waitFor(c, 'ATTN.keys.has("queue:stopped")', 4000));
   ok('and says so', /Lost the engine/.test(await evalJs(c, '$("refineError").textContent')));
   ok('the engine link is back after', await waitFor(c, 'online()', 4000));
-  console.log('
-Cancel wait acts at once');
+  console.log('\nCancel wait acts at once');
   await evalJs(c, `S.queue = []; setQuestion("q cancel"); $("btnQueue").click();
     window.__next = [${LIMITED}]; queueStart(); return 1;`);
   await waitFor(c, '!!S.queueHold');
