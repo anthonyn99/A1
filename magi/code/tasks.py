@@ -41,7 +41,7 @@ from typing import Any
 
 from . import git as G
 from . import autocommit, sandbox, security
-from .agents import chain
+from .agents import chain, inventory
 from .agents.base import Mode, Outcome, Task
 
 MAX_EVENTS = 4000        # a long task's transcript, capped so memory is bounded
@@ -187,10 +187,19 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
                             f"uncommitted edits{extra})."})
             mcp = await loop.run_in_executor(None, write_mcp_config, t.id, project_id,
                                              root, github)
+            # A question about sizes or rankings: measured here, handed over
+            # (inventory.py). From the real folder, which the copy mirrors.
+            inv = ""
+            if inventory.wants(prompt):
+                inv = await loop.run_in_executor(None, lambda: inventory.block(root, prompt=prompt))
+                if inv:
+                    n = inv.split("TOTAL: ", 1)[-1].split(" files", 1)[0]
+                    await emit({"k": "tool", "name": "Inventory",
+                                "target": f"{n} files measured by MAGI"})
             task = Task(id=t.id, prompt=prompt, root=sb.cwd if sb else root,
                         mode=Mode.WRITE if sb else Mode.READ,
                         progress=sb.changed_files if sb else None, mcp_config=mcp,
-                        attachments=t.attachments)
+                        attachments=t.attachments, inventory=inv)
             res = await chain.run_chain(task, agents, emit=emit, cancel=t.cancel)
             t.result = res.to_dict()
             if sb is not None:

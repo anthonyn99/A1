@@ -64,6 +64,9 @@ class Task:
     # they are pasted into the prompt, never written anywhere an agent (or
     # the sandbox diff) could mistake them for part of the project.
     attachments: list[tuple[str, str]] = field(default_factory=list)
+    # The workspace measured by MAGI (inventory.py), for tasks about sizes,
+    # lengths or rankings -- which no read-only tool can answer. "" otherwise.
+    inventory: str = ""
 
     def attachments_block(self) -> str:
         """The attached files, fenced and labelled as data. Empty if none."""
@@ -86,6 +89,8 @@ class Task:
         parts.append(self.prompt)
         if self.attachments:
             parts.append(self.attachments_block())
+        if self.inventory:
+            parts.append(self.inventory)
         return "\n\n---\n\n".join(parts)
 
 

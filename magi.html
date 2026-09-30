@@ -1411,9 +1411,20 @@ del.md-html { color: var(--txd); }
   position: relative; margin: 6px 0 14px; border: 1px solid var(--bd);
   border-radius: 9px; background: var(--bg); overflow: hidden; max-width: 100%;
 }
+.md-pre-hd {
+  display: flex; align-items: center; gap: 8px;
+  padding: 3px 5px 3px 11px; border-bottom: 1px solid var(--bdl);
+}
 .md-pre-lang {
   font-size: 9.5px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
-  color: var(--txd); padding: 5px 11px; border-bottom: 1px solid var(--bdl);
+  color: var(--txd); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Smaller than an answer's own Copy: it belongs to one block, not the page. */
+.md-pre-copy.copybtn { min-height: 24px; padding: 3px 8px; font-size: 9px; gap: 5px; }
+.md-pre-copy.copybtn svg { width: 11px; height: 11px; }
+@media (max-width: 760px) {
+  /* Still a fingertip target on a phone. */
+  .md-pre-copy.copybtn { min-height: 34px; padding: 6px 11px; font-size: 10px; }
 }
 .md-pre {
   margin: 0; padding: 10px 12px; overflow-x: auto; white-space: pre;
@@ -4373,6 +4384,68 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 .code-diff .l-del { background: color-mix(in srgb, var(--red) 13%, transparent); color: var(--tx); }
 .code-diff .l-hunk { color: var(--acl); padding-top: 4px; }
 .code-diff .l-more { color: var(--txm); font-style: italic; white-space: normal; }
+/* The check's settings sheet. */
+.ck-cmd { font-family: var(--font-mono); font-size: 12.5px; }
+.ck-sug { display: flex; flex-direction: column; gap: 5px; }
+.ck-sug-b {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left;
+  background: transparent; border: 1px solid var(--bdl); border-radius: 8px;
+  padding: 6px 10px; color: var(--txm); font-family: inherit; font-size: 10.5px; cursor: pointer;
+}
+.ck-sug-b code { font-family: var(--font-mono); font-size: 12px; color: var(--acl); overflow-wrap: anywhere; }
+.ck-sug-b.on, .ck-sug-b:hover:not(:disabled) { border-color: var(--ac); }
+.ck-sug-b:disabled { opacity: .5; cursor: not-allowed; }
+.ck-try { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-top: 14px; }
+.ck-try .sheet-note { margin: 0; }
+.ck-res { margin-top: 10px; }
+.ck-res-hd { font-size: 11.5px; font-weight: 700; margin-bottom: 4px; }
+.ck-res.is-ok .ck-res-hd { color: var(--grn); }
+.ck-res.is-bad .ck-res-hd { color: var(--amber); }
+@media (max-width: 720px) {
+  .ck-sug-b { padding: 9px 12px; }
+  .ck-try .navitem { min-height: 40px; padding: 0 16px; }
+}
+/* The check (check.py) on the approval card. */
+.code-check {
+  border: 1px solid var(--bdl); border-radius: 9px; padding: 8px 10px;
+  display: flex; flex-direction: column; gap: 7px; background: var(--bg);
+}
+.code-check-hd { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 9px; min-width: 0; }
+.code-check-lbl {
+  font-size: 9.5px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--txm);
+}
+.code-check-cmd {
+  font-family: var(--font-mono); font-size: 11.5px; color: var(--acl);
+  min-width: 0; flex: 1 1 160px; overflow-wrap: anywhere;
+}
+.code-check-st {
+  display: inline-flex; align-items: center; gap: 5px; margin-left: auto;
+  font-size: 11px; font-weight: 700; color: var(--txd); font-variant-numeric: tabular-nums;
+}
+.code-check-st.is-ok { color: var(--grn); }
+.code-check-st.is-bad { color: var(--amber); }
+.code-check-st.is-run { color: var(--ac); }
+.code-check-st .spin svg { width: 12px; height: 12px; }
+.code-check-out > summary {
+  display: flex; align-items: center; gap: 8px; cursor: pointer;
+  font-size: 11px; font-weight: 600; color: var(--txm); list-style: none;
+}
+.code-check-out > summary::-webkit-details-marker { display: none; }
+.code-check-out > summary::before { content: "\25B8"; font-size: 9px; transition: transform .15s; }
+.code-check-out[open] > summary::before { transform: rotate(90deg); }
+.code-check-pre {
+  margin: 6px 0 0; padding: 8px 10px; max-height: 280px; overflow: auto;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+  font-family: var(--font-mono); font-size: 11px; line-height: 1.5; color: var(--txd);
+  background: var(--s1); border: 1px solid var(--bdl); border-radius: 7px;
+}
+.code-check-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.code-check-run { padding: 5px 12px; }
+.code-check-note { font-size: 10.5px; color: var(--txd); }
+@media (max-width: 720px) {
+  .code-check-run { min-height: 40px; padding: 0 16px; }
+  .code-check-pre { max-height: 40vh; font-size: 10.5px; }
+}
 .code-appr-acts { display: flex; gap: 8px; justify-content: flex-end; }
 .code-appr-acts button { min-height: 40px; padding: 0 18px; }
 /* Deny is an answer, not an afterthought: a bordered button the same size
@@ -5027,8 +5100,12 @@ html.modal-open .page, html.modal-open .sidebar { overflow: hidden; }
   text-transform: none; color: var(--txd);
 }
 .qedit-count.empty { color: var(--amber); }
+/* The composer's type (.qbar textarea): 14px at 1.5. This box IS a composer,
+   and a prompt that changes size and spacing when you open it to edit looks
+   like a different prompt. */
 .qedit-text {
-  min-height: 132px; resize: vertical; line-height: 1.6; font-size: 13.5px;
+  min-height: 132px; resize: vertical; line-height: 1.5; font-size: 14px;
+  font-family: inherit; color: var(--tx);
   padding: 11px 12px; border-radius: 12px;
   transition: border-color .15s, box-shadow .15s;
 }
@@ -5066,8 +5143,8 @@ html.modal-open .page, html.modal-open .sidebar { overflow: hidden; }
 .qedit-att-x:hover { color: var(--red); }
 .qedit-add {
   background: transparent; border: 1px dashed var(--bdl); border-radius: 8px;
-  color: var(--txm); font-family: inherit; font-size: 11px; padding: 4px 10px;
-  cursor: pointer;
+  color: var(--txm); font-family: inherit; font-size: 11px; font-weight: 600;
+  letter-spacing: .3px; padding: 4px 10px; cursor: pointer;
 }
 .qedit-add:hover { border-color: var(--ac); color: var(--ac); }
 @media (max-width: 720px) {
@@ -8517,7 +8594,15 @@ function renderBlocks(host, blocks, lead = false) {
     }
     if (b.kind === "code") {
       const wrap = el("div", "md-pre-wrap");
-      if (b.lang) wrap.append(el("div", "md-pre-lang", b.lang));
+      // A header on EVERY block, language or not, because it carries the copy
+      // button: a command an agent hands you ("run this in PowerShell") is
+      // meant to be pasted, and selecting a line that scrolls off sideways
+      // by hand is how half of one gets copied.
+      const hd = el("div", "md-pre-hd");
+      hd.append(el("span", "md-pre-lang", b.lang || "code"));
+      const code = b.text;
+      hd.append(copyButton(() => ({ md: code }), { cls: "md-pre-copy", plain: true }));
+      wrap.append(hd);
       const pre = el("pre", "md-pre");
       pre.append(el("code", null, b.text));
       wrap.append(pre);
@@ -9071,7 +9156,9 @@ function richHtml(node, text) {
   inlineStyle(node, clone);
   // Controls are not content: a copy button pasted into a document would be an
   // empty box captioned COPY.
-  for (const b of clone.querySelectorAll(".copybtn, button")) b.remove();
+  // A code block's header row (its language label and its own Copy) is
+  // chrome too: "POWERSHELL" pasted above a command is not part of it.
+  for (const b of clone.querySelectorAll(".copybtn, button, .md-pre-hd")) b.remove();
   return '<div style="font-family:Georgia,\'Times New Roman\',serif;line-height:1.55">'
     + clone.innerHTML + "</div>";
 }
@@ -9134,23 +9221,34 @@ async function putOnClipboard(html, text) {
  *  streaming frame and on every round, so a node captured at build time would
  *  be a detached copy of something the user is no longer looking at. Asking at
  *  click time always copies what is on screen. */
-function copyButton(payload, { label = "Copy", cls = "" } = {}) {
+function copyButton(payload, { label = "Copy", cls = "", plain = false } = {}) {
   const b = el("button", `copybtn ${cls}`.trim());
   b.type = "button";
   const ico = icSpan("", "copy");
   const txt = el("span", null, label);
   b.append(ico, txt);
-  b.title = "Copy this — formatted for a document, markdown for anything else";
+  b.title = plain ? "Copy exactly this — ready to paste into a terminal"
+    : "Copy this — formatted for a document, markdown for anything else";
   let reset = 0;
   b.onclick = async (ev) => {
     // These buttons sit inside <summary> and other things that act on a
     // click; copying must not also fold the section away.
     ev.preventDefault();
     ev.stopPropagation();
-    const { node = null, md = "" } = payload() || {};
-    const text = (md || (node ? node.innerText : "") || "").trim();
+    // A plain string is taken as the markdown itself: two callers passed one,
+    // and `payload()` then threw on every press -- a Copy that did nothing.
+    const { node = null, md = "" } = (typeof payload === "function" ? payload()
+      : { md: String(payload ?? "") }) || {};
+    // Code is copied as it stands -- only the trailing newline goes, so a
+    // pasted command does not run itself -- and never through the markdown
+    // renderer, which would turn a `*` in a glob into italics.
+    const text = plain ? String(md || "").replace(/\s+$/, "")
+      : (md || (node ? node.innerText : "") || "").trim();
     if (!text) return;
-    const ok = await putOnClipboard(richHtml(node, text), text);
+    const html = plain
+      ? `<pre>${text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>`
+      : richHtml(node, text);
+    const ok = await putOnClipboard(html, text);
     clearTimeout(reset);
     b.classList.toggle("done", ok);
     ico.innerHTML = IC[ok ? "tick" : "copy"];
@@ -11733,6 +11831,196 @@ function renderCodeStrip() {
     pill.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pill.click(); } };
   }
   strip.append(ac, ap);
+  // The project's check command (check.py). Read from the engine per
+  // project; an engine that predates it answers 404 and the pill stays away.
+  if (proj) {
+    const ck = CODE.check && CODE.check.pid === proj.id ? CODE.check : null;
+    if (!ck) codeCheckLoad(proj.id);
+    if (ck && ck.data) {
+      const c = ck.data.check || {};
+      const pill = codePill("Check", !c.command ? "off" : c.auto ? "automatic" : "on the card",
+        c.command ? "ok" : "muted");
+      pill.classList.add("is-btn");
+      pill.setAttribute("role", "button");
+      pill.tabIndex = 0;
+      pill.title = c.command ? `Check: ${c.command}` : "Run a test or build command beside every diff";
+      pill.onclick = () => codeCheckSheet(proj);
+      pill.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pill.click(); } };
+      strip.append(pill);
+    }
+  }
+}
+
+/* ── the check command (magi/code/check.py) ─────────────────────────────── */
+async function codeCheckLoad(pid, force) {
+  if (!online()) return;
+  if (!force && CODE.check && CODE.check.pid === pid && (CODE.check.loading || CODE.check.data || CODE.check.gone)) return;
+  CODE.check = { pid, loading: true, data: null };
+  try {
+    const d = await codeGet(`/projects/${encodeURIComponent(pid)}/check`);
+    if (CODE.check.pid === pid) CODE.check = { pid, data: d.ok ? d : null, gone: !d.ok };
+  } catch {
+    // An engine without check.py: remembered, so it is not asked again.
+    if (CODE.check.pid === pid) CODE.check = { pid, data: null, gone: true };
+  }
+  if (codeMode()) renderCodeStrip();
+}
+
+/** Set the check: suggestions from the folder, Try it now, and whether it
+ *  runs on the card (you press Run check) or automatically. From this PC
+ *  only -- the engine refuses a change over the tunnel. */
+function codeCheckSheet(proj) {
+  const ck = (CODE.check && CODE.check.pid === proj.id && CODE.check.data) || {};
+  const cur = ck.check || { command: "", auto: false, timeout_min: 10 };
+  const local = ck.local !== false;
+  let cmd = cur.command || "";
+  let auto = !!cur.auto;
+  let mins = cur.timeout_min || 10;
+  let busy = "", err = "", tried = null;
+
+  const sheet = el("div", "sheet");
+  const box = el("div", "sheet-box sheet-wide ck-sheet");
+  const close = () => sheet.remove();
+  box.append(el("div", "sheet-hd", `Check · ${proj.name}`));
+  const body = el("div");
+  box.append(body);
+  const bar = el("div", "sheet-bar");
+  const save = el("button", "btn active", "Save");
+  const clear = el("button", "btn", "Turn off");
+  const no = el("button", "btn", "Close");
+  bar.append(save, clear, el("span", "qbar-spacer"), no);
+  box.append(bar);
+  no.onclick = close;
+  dismissOnBackdrop(sheet, close);
+  sheet.append(box);
+  document.body.append(sheet);
+
+  const input = el("input", "sheet-in ck-cmd");
+  input.type = "text";
+  input.spellcheck = false;
+  input.autocomplete = "off";
+  input.placeholder = "e.g. npm test   ·   .venv\\Scripts\\python.exe -m pytest -q";
+  input.value = cmd;
+  input.maxLength = (ck.limits && ck.limits.max_command) || 500;
+  input.oninput = () => { cmd = input.value; tried = null; sync(); };
+  input.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); save.click(); } };
+
+  const draw = () => {
+    body.textContent = "";
+    body.append(el("div", "sheet-sub",
+      "A command that exits 0 when the project is healthy — its tests, a build, a lint. For a "
+      + "Write task it runs in the task’s private copy, never your folder, and its result sits "
+      + "on the approval card beside the diff. It informs Approve; it does not decide it."));
+    if (!local) {
+      body.append(el("div", "sheet-err",
+        "Set this from the engine’s PC. A command is code that PC will run, so the engine only "
+        + "takes one from its own screen — not over the internet."));
+    }
+    body.append(el("label", "sheet-lbl", "Command"));
+    body.append(input);
+    input.disabled = !local || !!busy;
+    const sug = (ck.suggestions || []);
+    if (sug.length) {
+      body.append(el("label", "sheet-lbl", "Found in this folder"));
+      const list = el("div", "ck-sug");
+      for (const s of sug) {
+        const b = el("button", `ck-sug-b ${s.command === cmd ? "on" : ""}`);
+        b.type = "button";
+        b.disabled = !local || !!busy;
+        b.append(el("code", null, s.command), el("span", null, s.why));
+        b.onclick = () => { cmd = input.value = s.command; tried = null; draw(); };
+        list.append(b);
+      }
+      body.append(list);
+    }
+    body.append(el("label", "sheet-lbl", "When it runs"));
+    const when = el("div", "ac-win");
+    when.setAttribute("role", "radiogroup");
+    for (const [v, label] of [[false, "On the card"], [true, "Automatically"]]) {
+      const b = el("button", `code-git-act ${auto === v ? "on" : ""}`, label);
+      b.type = "button";
+      b.setAttribute("role", "radio");
+      b.setAttribute("aria-checked", String(auto === v));
+      b.disabled = !local || !!busy;
+      b.onclick = () => { auto = v; draw(); };
+      when.append(b);
+    }
+    body.append(when);
+    body.append(el("div", auto ? "sheet-err" : "sheet-note", auto
+      ? "Automatically runs the agent’s code on this PC before anyone has looked at it — a "
+        + "test file it wrote runs with your rights. It cannot reach the engine, but it can reach "
+        + "your files. Choose it only for projects and agents you trust."
+      : "You press Run check on the card, after you have read the diff. The approval clock "
+        + "waits while it runs."));
+    body.append(el("label", "sheet-lbl", "Stop it after"));
+    const tw = el("div", "ac-win");
+    for (const m of [5, 10, 20, 30, 60]) {
+      const b = el("button", `code-git-act ${mins === m ? "on" : ""}`, `${m} min`);
+      b.type = "button";
+      b.disabled = !local || !!busy;
+      b.onclick = () => { mins = m; draw(); };
+      tw.append(b);
+    }
+    body.append(tw);
+
+    const tryRow = el("div", "ck-try");
+    const tryB = el("button", "navitem", busy === "try" ? "Running…" : "Try it now");
+    tryB.type = "button";
+    tryB.disabled = !local || !!busy || !cmd.trim();
+    tryB.title = "Run it once in your real folder and see what it does";
+    tryB.onclick = async () => {
+      busy = "try"; err = ""; tried = null; draw();
+      try {
+        const d = await codePost(`/projects/${encodeURIComponent(proj.id)}/check/try`,
+          { command: cmd, timeout_min: mins });
+        if (!d.ok) err = d.message || "It could not run.";
+        else tried = d.result;
+      } catch (e) { err = String(e.message || e); }
+      busy = ""; if (sheet.isConnected) draw();
+    };
+    tryRow.append(tryB, el("span", "sheet-note", busy === "try"
+      ? "Running in your real folder…" : "Runs once in your real folder — the only way to know a command works."));
+    body.append(tryRow);
+    if (tried) {
+      const ok = tried.ok;
+      const res = el("div", `ck-res ${ok ? "is-ok" : "is-bad"}`);
+      res.append(el("div", "ck-res-hd", (ok ? "✓ passed" : tried.timed_out ? "✕ timed out"
+        : `✕ failed · exit ${tried.code}`) + ` · ${tried.secs}s`));
+      const pre = el("pre", "code-check-pre");
+      pre.textContent = tried.output || "(no output)";
+      res.append(pre);
+      body.append(res);
+    }
+    if (err) body.append(el("div", "sheet-err", err));
+    sync();
+  };
+  const sync = () => {
+    save.disabled = !local || !!busy || !cmd.trim();
+    save.textContent = busy === "save" ? "Saving…" : "Save";
+    clear.hidden = !cur.command;
+    clear.disabled = !local || !!busy;
+  };
+  const put = async (command) => {
+    busy = "save"; err = ""; draw();
+    try {
+      const d = await codePost(`/projects/${encodeURIComponent(proj.id)}/check`,
+        { command, auto, timeout_min: mins });
+      if (!d.ok) throw new Error(d.message || "The engine refused it.");
+      busy = "";
+      await codeCheckLoad(proj.id, true);
+      close();
+      renderCodeView();
+      return;
+    } catch (e) {
+      err = String(e.message || e);
+    }
+    busy = "";
+    if (sheet.isConnected) draw();
+  };
+  save.onclick = () => { if (cmd.trim()) put(cmd.trim()); };
+  clear.onclick = () => put("");
+  draw();
+  if (local) input.focus();
 }
 
 /* ── workspaces, the agent chain, and one task at a time ─────────────────
@@ -12638,6 +12926,7 @@ function codeAttach(id, prompt, { projectId = null, at = null, fromHistory = fal
       codeTaskEnded(t.id, codeQueueOutcome(ev.result, false, t.events));
     }
     if (ev.k === "approval") codeApprovalAlarm(t, ev);
+    if (ev.k === "deadline") codeApprovalRearm(t, ev);
     if (ev.k === "decision" || ev.k === "end") codeApprovalQuiet(t);
     t.events.push(ev);
     if (CODE.task === t && codeMode()) renderCodeView();
@@ -12688,6 +12977,20 @@ function codeApprovalAlarm(t, ev) {
     timers.push(setTimeout(() => attnRemind(key), remind));
   }
   APPROVAL_ALARM.set(t.id, timers);
+}
+
+/** The deadline moved (a check held the clock, then gave a window back):
+ *  the one-minute reminder follows it. The card's own ring stays as it was. */
+function codeApprovalRearm(t, ev) {
+  const timers = APPROVAL_ALARM.get(t.id);
+  if (!timers) return;
+  // timers[0] is the card's ring; everything after it is a reminder.
+  for (const x of timers.splice(1)) clearTimeout(x);
+  if (ev.held) return;
+  const remind = Number(ev.expires_at) * 1000 - 60000 - Date.now();
+  if (Number.isFinite(remind) && remind > 1000) {
+    timers.push(setTimeout(() => attnRemind(`approval:${t.id}`), remind));
+  }
 }
 
 function codeApprovalQuiet(t) {
@@ -12813,9 +13116,14 @@ function renderCodeTask(t) {
 
   if (answer) {
     const ans = el("div", "code-answer");
-    ans.append(mdBody(answer));
+    const rendered = mdBody(answer);
+    ans.append(rendered);
     const foot = el("div", "code-answer-foot");
-    foot.append(copyButton(answer));
+    // The agent's own markdown, exactly as written -- tables, fences, lists
+    // -- with the rendered copy for a rich destination (a doc, an email).
+    // It used to pass the string where a function belongs, so every press
+    // threw and nothing was copied.
+    foot.append(copyButton(() => ({ node: rendered, md: answer })));
     ans.append(foot);
     card.append(ans);
   }
@@ -12905,6 +13213,90 @@ function codeDiffEl(f) {
   return pre;
 }
 
+/* The project's check command on the approval card (magi/code/check.py).
+ *
+ *  From Claude Queue: a real exit code beside the diff, so Approve is decided
+ *  with it in view. It informs; it never decides. Runs in the task's private
+ *  copy, never your folder. Manual by default (Run check, after you have seen
+ *  the diff); a project set to Automatic arrives here with it already run. */
+function codeCheckEl(t, ev, open) {
+  const runs = t.events.filter((e) => e.k === "check");
+  const cfg = ev.check;
+  if (!cfg && !runs.length) return null;
+  const last = runs[runs.length - 1] || null;
+  const running = !!last && last.state === "running";
+  const box = el("div", "code-check");
+  const hd = el("div", "code-check-hd");
+  hd.append(el("span", "code-check-lbl", "Check"));
+  const cmd = (last && last.command) || (cfg && cfg.command) || "";
+  hd.append(el("code", "code-check-cmd", cmd));
+  let pill;
+  if (running) {
+    pill = el("span", "code-check-st is-run");
+    pill.append(spinnerEl(), el("span", null, "running…"));
+  } else if (last && last.state === "done") {
+    const txt = last.stopped ? "stopped" : last.timed_out ? "timed out"
+      : last.ok ? "passed" : `failed · exit ${last.code}`;
+    pill = el("span", `code-check-st ${last.ok ? "is-ok" : "is-bad"}`,
+      txt + (last.secs != null ? ` · ${last.secs}s` : ""));
+  } else {
+    pill = el("span", "code-check-st", "not run");
+  }
+  hd.append(pill);
+  box.append(hd);
+
+  if (last && last.state === "done" && last.output) {
+    const d = el("details", "code-check-out");
+    // A failure is what you open the card to read; a pass is a footnote.
+    t.checkOpen = t.checkOpen ?? !last.ok;
+    d.open = t.checkOpen;
+    d.ontoggle = () => { t.checkOpen = d.open; };
+    const s = el("summary", null, "Output");
+    s.append(copyButton(() => ({ md: last.output }), { cls: "md-pre-copy", plain: true }));
+    d.append(s);
+    const pre = el("pre", "code-check-pre");
+    pre.textContent = last.output;
+    d.append(pre);
+    box.append(d);
+    if (last.linked && last.linked.length) {
+      box.append(el("div", "code-check-note",
+        `Used your folder’s ${last.linked.join(", ")} (linked in for the check, then removed).`));
+    }
+  }
+
+  if (open && cfg && !running) {
+    const b = el("button", "navitem code-check-run",
+      t.checkStarting ? "Starting…" : last && last.state === "done" ? "Run again" : "Run check");
+    b.type = "button";
+    b.disabled = !!t.checkStarting;
+    b.title = "Run this project's check in the task's private copy. The approval "
+      + "clock waits while it runs, then gives you the full window again.";
+    b.onclick = async () => {
+      t.checkStarting = true;
+      t.checkErr = "";
+      t.checkOpen = null;
+      renderCodeView();
+      try {
+        const d = await codePost(`/tasks/${t.id}/check`, {});
+        if (!d.ok) t.checkErr = d.message || "The check could not start.";
+      } catch (e) {
+        t.checkErr = (e && e.message) || "The check could not start.";
+      }
+      t.checkStarting = false;
+      renderCodeView();
+    };
+    const row = el("div", "code-check-acts");
+    row.append(b);
+    if (!last) {
+      row.append(el("span", "code-check-note",
+        "Runs the agent’s code on this PC — look at the diff first."));
+    }
+    box.append(row);
+  }
+  if (t.checkErr) box.append(el("div", "code-appr-out is-bad", t.checkErr));
+  return box;
+}
+
 function renderCodeApproval(t, ev) {
   const dec = t.events.find((e) => e.k === "decision");
   const applied = t.events.find((e) => e.k === "applied");
@@ -12920,9 +13312,17 @@ function renderCodeApproval(t, ev) {
              el("span", "code-del", `−${ev.dels}`));
   hd.append(cnt);
   if (open) {
+    // The deadline can move: a check started from the card holds the clock
+    // and hands back a full window when it ends (tasks._run_check).
+    const dl = [...t.events].reverse().find((e) => e.k === "deadline");
+    const expires = dl ? dl.expires_at : ev.expires_at;
     const cd = el("span", "code-appr-cd");
-    cd.dataset.expires = ev.expires_at;
-    cd.textContent = codeCountdown(ev.expires_at);
+    if (dl && dl.held) {
+      cd.textContent = "clock held while the check runs";
+    } else {
+      cd.dataset.expires = expires;
+      cd.textContent = codeCountdown(expires);
+    }
     hd.append(cd);
   }
   box.append(hd);
@@ -12947,6 +13347,8 @@ function renderCodeApproval(t, ev) {
     list.append(d);
   }
   box.append(list);
+  const chk = codeCheckEl(t, ev, open);
+  if (chk) box.append(chk);
   if (ev.ships && open) {
     // A1 (Phase 14b): approving is shipping -- its auto-commit pushes.
     box.append(el("div", "code-appr-out is-warn",
@@ -15509,7 +15911,7 @@ async function codeLogin(agent, slot) {
       steps.append(li1, li2);
       body.append(steps);
       const code = el("div", "code-login-code", job.code);
-      body.append(code, copyButton(job.code, { label: "Copy code" }));
+      body.append(code, copyButton(() => ({ md: job.code }), { label: "Copy code", plain: true }));
       body.append(el("div", "sheet-note",
         "Only enter this code on a page you opened yourself from this sheet. "
         + "Device codes are a common phishing trick — never enter one someone sent you. "
@@ -21521,7 +21923,11 @@ async function cloudSaveTaskBody(t, row) {
   // Strings, not arrays: Firestore refuses an array inside an array, and a
   // transcript is whatever the agents emitted. Bounded to fit a document --
   // the middle goes first, the start and the end are what you read.
-  let events = t.events.filter((e) => e.k !== "usage");
+  // A check's output keeps its end (where a failure is) and gives up the
+  // rest, so one long test run cannot crowd the transcript out of the copy.
+  let events = t.events.filter((e) => e.k !== "usage").map((e) =>
+    e.k === "check" && e.output && e.output.length > 2000
+      ? { ...e, output: "…" + e.output.slice(-2000) } : e);
   let json = JSON.stringify(events);
   if (json.length > CODE_BODY_MAX) {
     const head = events.slice(0, 40);
@@ -22253,14 +22659,18 @@ function queueEdit(id) {
     chips.textContent = "";
     for (const p of pool) {
       const on = units.has(p.id);
-      const b = el("button", `chip ${on ? "on" : ""}`);
+      // The composer's own chip, class for class: "chip-model" is what sets
+      // its type (11.5px bold) and "code-chip" its second line in Code Mode.
+      // The sheet used a class nothing styles and so drew its names in the
+      // browser's default button text -- a different-looking font.
+      const b = el("button", `chip${isCode ? " code-chip" : ""}${on ? " on" : ""}`);
       b.type = "button";
       // Filled exactly as the composer's row fills them -- the colour IS
       // the ticked state there, and a chip that reads as ticked in one
       // place and unticked in another is worse than no colour at all.
       if (on) { b.style.background = p.accent; b.style.borderColor = p.accent; }
       else { b.style.color = p.accent; b.style.borderColor = p.accent + "66"; }
-      b.append(el("span", "chip-name", p.name), el("span", "chip-unit", p.sub));
+      b.append(el("span", "chip-model", p.name), el("span", "chip-unit", p.sub));
       b.onclick = () => {
         on ? units.delete(p.id) : units.add(p.id);
         drawChips();
