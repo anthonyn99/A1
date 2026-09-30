@@ -402,6 +402,8 @@ def test_alerts_have_levels_and_are_keyed_per_reset(pro):
 
 # ── the Claude run: credits refusal, mid-run caps ────────────────────────
 
+STALL = "\x00STALL"
+
 class FakeStream:
     scripts: list[list[str]] = []
     argvs: list[list[str]] = []
@@ -411,10 +413,16 @@ class FakeStream:
         self._lines = FakeStream.scripts.pop(0)
         self.killed = False
         self.stderr_tail: list[str] = []
+        self.stalled = ""
 
     async def lines(self, cancel):
         for ln in self._lines:
             if self.killed:
+                return
+            # A script line STALL stands for the watchdog tripping there.
+            if ln == STALL:
+                self.stalled = "stalled: no output for 30 minutes"
+                self.killed = True
                 return
             yield ln
             await asyncio.sleep(0)
@@ -540,6 +548,31 @@ def test_codex_gets_its_model_and_reasoning_effort(fake_cli, home):
     assert argv[argv.index("-m") + 1] == "gpt-6-luna"
     assert "model_reasoning_effort=xhigh" in argv
     assert argv[-1] == "-", "the prompt still arrives on stdin"
+
+
+def test_a_stalled_claude_run_hands_on_without_marking_a_limit(fake_cli, pro):
+    fake_cli.scripts = [[
+        J(type="system", subtype="init", model="claude-opus-5-5", session_id="s"),
+        J(type="assistant", message={"content": [{"type": "text", "text": "halfway"}]}),
+        STALL,
+        J(type="result", is_error=False, result="never read")]]
+    res, ev = _go(CC.ClaudeCLIAgent("system"))
+    assert res.outcome == Outcome.UNAVAILABLE and res.outcome.hands_off
+    assert "no output for 30 minutes" in res.detail
+    assert res.text == "halfway", "what it said is handed on with it"
+    assert any("stopped it" in e.get("text", "") for e in ev if e["k"] == "note")
+    assert limits.blocked_until("claude", "system") is None, "a stall is not a limit"
+    assert len(fake_cli.argvs) == 1, "not retried on the same account"
+
+
+def test_a_stalled_codex_run_hands_on(fake_cli, home):
+    seed("codex", "c1", M.parse_codex_models(CODEX_MODELS))
+    credits("codex", "c1", False)
+    fake_cli.scripts = [[J(type="thread.started", thread_id="x"), STALL,
+                         J(type="turn.completed", usage={})]]
+    res, _ = _go(CX.CodexCLIAgent("c1"))
+    assert res.outcome == Outcome.UNAVAILABLE and res.outcome.hands_off
+    assert "Codex stalled" in res.detail
 
 
 def test_codex_capped_is_skipped(fake_cli, home):

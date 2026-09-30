@@ -336,6 +336,11 @@ class CodexCLIAgent(CodingAgent):
         await s.wait()
 
         text = "\n\n".join(t for t in texts if t).strip()
+        if s.stalled:
+            # The watchdog ended it (_proc.STALL_S): handed on, like a crash.
+            await emit({"k": "note", "text": f"Codex {s.stalled} — stopped it."})
+            return Result(Outcome.UNAVAILABLE, text=text, detail=f"Codex {s.stalled}.",
+                          session_id=session, tools_used=tools)
         if capped:
             return Result(Outcome.LIMITED, text=text, detail=capped[0], session_id=session,
                           tools_used=tools)

@@ -327,6 +327,14 @@ class ClaudeCLIAgent(CodingAgent):
         code = await s.wait()
         tail = "\n".join(s.stderr_tail)
 
+        if s.stalled:
+            # The watchdog ended it (_proc.STALL_S). Not the task's fault and
+            # not the account's: handed on, with what it had said so far.
+            await emit({"k": "note", "text": f"Claude {s.stalled} — stopped it."})
+            return Result(Outcome.UNAVAILABLE, text="\n".join(texts).strip(),
+                          detail=f"Claude Code {s.stalled}.",
+                          session_id=session, tools_used=tools), ""
+
         if capped:
             # Handed on like a limit, but nothing is remembered as one: the
             # cap is yours, and changing it takes effect on the next task.
