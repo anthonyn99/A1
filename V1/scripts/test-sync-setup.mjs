@@ -35,7 +35,8 @@ t('the one-shot load does not unlock writes', !/_sosMarkServerSeen\(\)/.test(cod
 t('every write is rebuilt from current state', /window\._sosBuildPayload\(\)/.test(fbsCode));
 
 console.log('\ntaskmirror.js');
-t('takes the app firebase-sync.js created (getApps()[0])', /getApps\(\)\[0\]/.test(tmCode));
+t("uses firebase-sync.js's Firestore instance and never creates its own", /db = window\._fbStudyDb \|\| await new Promise/.test(tmCode)
+  && /window\._fbStudyDb = db;/.test(fbsCode));
 t('waits for applied server state before publishing', /_fbSosServerSeen && !window\._fbSosServerSeen\(\)\) \{ schedule\(/.test(tmCode));
 t('never stacks a second mirror write while one is in flight', /if \(inflight\[slot\]\) return;/.test(tmCode) && (tmCode.match(/send\('(mirror|apps)'/g) || []).length === 2);
 t('flood recovery drops only an all-regenerable queue of 200+', /verdict\.count < 200 \|\| !verdict\.regenOnly\) return;/.test(fbsCode)
