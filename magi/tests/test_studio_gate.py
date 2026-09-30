@@ -56,11 +56,17 @@ def test_studio_is_gated_on_the_run_being_here():
 
 def test_the_flag_is_set_wherever_a_run_is_opened():
     assert "runLocal: false," in PAGE, "S.runLocal is gone"
-    for fn in ("runOne", "openRun"):
-        assert "S.runLocal = true;" in _fn(fn), f"{fn} does not mark the run local"
-    assert "S.runLocal = false;" in _fn("cloudOpenRun"), (
+    assert "S.runLocal = true;" in _fn("runOne"), "runOne does not mark the run local"
+    # Track F: History opens whole sessions. Each turn records where it was
+    # read from (loadTurn: the engine -> local, the cloud body -> not), and
+    # showSession takes the flag from the turn on the grid.
+    assert "turnFromRecord(await res.json(), id, true)" in _fn("loadTurn")
+    assert "turnFromRecord(snap.data(), id, false)" in _fn("loadTurn"), (
         "a run opened from the cloud claims to be on this engine"
     )
+    assert "S.runLocal = !!(has && last.local);" in _fn("showSession")
+    for fn in ("openRun", "cloudOpenRun"):
+        assert "openSession(" in _fn(fn), f"{fn} no longer goes through openSession"
     assert "S.runLocal = false;" in _fn("newRun")
 
 
