@@ -33,6 +33,8 @@
  *     rejecting a >1MiB document wedges the sync queue for the whole app.
  *   • single-tab persistence on iOS: the multi-tab lease never gets released
  *     when iOS kills a backgrounded PWA, so the next cold launch hangs.
+ *   • single-tab persistence when localStorage is full: the multi-tab manager
+ *     writes there, and a quota error kills the Firestore instance outright.
  * ------------------------------------------------------------------------- */
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js';
@@ -118,11 +120,30 @@ if (!window.STUDYOS_CONFIG_READY || !window.STUDYOS_CONFIG_READY('firebase')) {
   const _isIOS = /iP(hone|ad|od)/.test(navigator.userAgent)
     || (navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1);
 
+  /* The MULTI-tab manager coordinates tabs through localStorage, and every A1
+   * page shares this origin's 5 MB of it. When that store is full (it was on
+   * Veda's Brave, 2026-09-30) the manager's first sequence-number write throws
+   * QuotaExceededError inside Firestore's queue, which then fails an internal
+   * assertion and rejects EVERY later read and write for the life of the tab:
+   * sync looks frozen while ~180 errors fire at boot. The single-tab manager
+   * keeps no state in localStorage, so a full store cannot take Firestore down.
+   * The probe is a few KB so a store with only a handful of bytes free counts
+   * as full. */
+  const _lsHasRoom = (() => {
+    try {
+      const k = '__sos_ls_probe';
+      localStorage.setItem(k, 'x'.repeat(4096));
+      localStorage.removeItem(k);
+      return true;
+    } catch (e) { return false; }
+  })();
+  if (!_lsHasRoom) console.warn('[StudyOS] localStorage is full — using single-tab Firestore cache so sync keeps working.');
+
   let db;
   try {
     db = initializeFirestore(app, {
       localCache: persistentLocalCache({
-        tabManager: _isIOS ? persistentSingleTabManager({}) : persistentMultipleTabManager(),
+        tabManager: (_isIOS || !_lsHasRoom) ? persistentSingleTabManager({}) : persistentMultipleTabManager(),
       }),
     });
   } catch (e) {

@@ -113,6 +113,25 @@ const COLORS = [
 const EVENT_COLORS = { exam:'#ef9f9f', hw:'#f0bd86', quiz:'#dea2d6', lecture:'#9dc0ee', lab:'#8fd6ad', other:'#c2cdda' };
 const PRIORITY_COLORS = { low:'#9bd6ea', medium:'#f0bd86', high:'#ef9f9f' };
 
+// Every local write goes through here. All A1 pages share this origin's 5 MB
+// of localStorage and it fills up (Veda's Brave, 2026-09-30); a bare setItem
+// then throws QuotaExceededError, and in persist() that throw came BEFORE
+// _sosFirebaseSave() — so edits never reached the cloud, and a remote update
+// died half-applied without re-rendering. The local copy is only a cold-start
+// cache; Firestore holds the real state, so a failed local write is logged once
+// and otherwise ignored.
+let _sosLsWarned = false;
+function _sosLsSet(key, value) {
+  try { localStorage.setItem(key, value); return true; }
+  catch (e) {
+    if (!_sosLsWarned) {
+      _sosLsWarned = true;
+      console.warn('[StudyOS] localStorage is full — local cache not updated (cloud sync unaffected):', key, e && e.name);
+    }
+    return false;
+  }
+}
+
 let classes = JSON.parse(localStorage.getItem('studyos_classes') || '[]');
 // Migrate any legacy vibrant class colors to the soft pastel palette in-place.
 classes.forEach(c => { if (c && c.color && window.sosPastel) c.color = window.sosPastel(c.color); });
@@ -254,7 +273,66 @@ function _sosTaskRepeatDates(startDate) {
 
 // ===== KSU MODULES =====
 let ksuData = JSON.parse(localStorage.getItem('studyos_ksu') || 'null') || { modules: [] };
-function persistKsu() { localStorage.setItem('studyos_ksu', JSON.stringify(ksuData)); _sosFirebaseSave(); _sosEmit('ksu'); }
+function persistKsu() { _sosLsSet('studyos_ksu', JSON.stringify(_sosSerializeKsu())); _sosFirebaseSave(); _sosEmit('ksu'); }
+
+// KSU files were never run through _sosSerializeClasses, so their PDFs rode
+// along as base64 `dataUrl`s: ~580 KB of Veda's KSU bucket, re-uploaded with
+// the whole dashboards/studyos document on EVERY edit anywhere in StudyOS and
+// re-parsed on every snapshot — the lag — and 60% of the 1 MB document cap.
+// Nothing reads `dataUrl` to open a file, either (sosResolveBlob wants a
+// fileId or storageUrl), so those PDFs could not be opened at all.
+// A dataUrl is dropped only once _sosMigrateKsuFiles has put the blob in
+// IndexedDB and given the file a fileId; until then it is the only copy.
+function _sosSerializeKsu() {
+  return {
+    ...ksuData,
+    modules: (ksuData.modules || []).map(mod => ({
+      ...mod,
+      files: (mod.files || []).map(f => {
+        const meta = {};
+        for (const k in f) {
+          if (k.charAt(0) === '_') continue;
+          if (k === 'dataUrl' && f.fileId) continue;
+          meta[k] = f[k];
+        }
+        return meta;
+      })
+    }))
+  };
+}
+
+// Move KSU dataUrl files into IndexedDB. The fileId is derived from the bytes,
+// not random: remote.ksu still carries the dataUrls until a save lands, and it
+// replaces ksuData wholesale, so this re-runs after every remote apply. A
+// content-derived id makes that idempotent (same blob, same key — no duplicate
+// copies) and identical on every device, so _sosCloudUrls re-stamps the
+// storageUrl the backfill uploads under that id.
+async function _sosMigrateKsuFiles() {
+  let changed = false;
+  for (const mod of (ksuData.modules || [])) {
+    for (const f of (mod.files || [])) {
+      if (!f.dataUrl || f.fileId) continue;
+      try {
+        const comma = f.dataUrl.indexOf(',');
+        const header = f.dataUrl.slice(0, comma), b64 = f.dataUrl.slice(comma + 1);
+        const mime = (header.match(/:(.*?);/) || [])[1] || 'application/octet-stream';
+        let h = 0x811c9dc5;
+        for (let i = 0; i < b64.length; i++) { h ^= b64.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+        const id = 'sf_ksu_' + (h >>> 0).toString(36) + '_' + b64.length.toString(36);
+        const bytes = atob(b64);
+        const arr = new Uint8Array(bytes.length);
+        for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+        await SosFileStore.putById(id, new Blob([arr], { type: mime }), f.name);
+        f.fileId = id;
+        f.mime = f.mime || mime;
+        delete f.dataUrl;
+        changed = true;
+      } catch (e) { console.warn('SOS migrate KSU file failed:', f.name, e); }
+    }
+  }
+  if (changed) _sosLsSet('studyos_ksu', JSON.stringify(_sosSerializeKsu()));
+  return changed;
+}
 
 function renderKsuModules() {
   const grid = _sosEl('ksu-modules-grid');
@@ -1751,8 +1829,9 @@ async function _sosMigrateFilesToIdb() {
   if (dirty) {
     // Serialize the same way every other write does, so transient `_`-flags
     // and any leftover dataUrl can't leak back into storage.
-    localStorage.setItem('studyos_classes', JSON.stringify(_sosSerializeClasses()));
+    _sosLsSet('studyos_classes', JSON.stringify(_sosSerializeClasses()));
   }
+  await _sosMigrateKsuFiles();
 }
 
 // ── StudyOS cross-device file sync (Cloudflare KV worker — free, no card) ──
@@ -3294,7 +3373,7 @@ function escHtml(s) {
 // ===== AI PROMPTS =====
 
 // ===== NOTES =====
-function persistNotes() { localStorage.setItem('studyos_notes_v2', JSON.stringify(notesList)); _sosFirebaseSave(); _sosEmit('notes'); }
+function persistNotes() { _sosLsSet('studyos_notes_v2', JSON.stringify(notesList)); _sosFirebaseSave(); _sosEmit('notes'); }
 
 function renderNotesList() {
   const list = _sosEl('notes-list');
@@ -4141,7 +4220,7 @@ window.sosStartSession = function (minutes) {
 };
 
 // ===== TASKS =====
-function persistTasks() { localStorage.setItem('studyos_tasks', JSON.stringify(tasks)); _sosFirebaseSave(); _sosEmit('tasks'); }
+function persistTasks() { _sosLsSet('studyos_tasks', JSON.stringify(tasks)); _sosFirebaseSave(); _sosEmit('tasks'); }
 
 function openAddTaskForClass() {
   editingTaskId = null;
@@ -4758,13 +4837,13 @@ function _sosFirebaseSave() {
     events:    events,
     tasks:     tasks,
     notes:     notesList,
-    ksu:       ksuData,
+    ksu:       _sosSerializeKsu(),
     d2l:       d2lMap
   });
 }
 
 function persist() {
-  localStorage.setItem('studyos_classes', JSON.stringify(_sosSerializeClasses()));
+  _sosLsSet('studyos_classes', JSON.stringify(_sosSerializeClasses()));
   _sosFirebaseSave();
   _sosEmit('classes');
   // also re-render ksu grid if open
@@ -4774,8 +4853,8 @@ function _ksuPersistHook() {
   persistKsu();
   if (activeView === 'ksu') renderKsuModules();
 }
-function persistEvents()  { localStorage.setItem('studyos_events', JSON.stringify(events));     _sosFirebaseSave(); _sosEmit('events'); }
-function persistTasks_()  { localStorage.setItem('studyos_tasks',  JSON.stringify(tasks));      _sosFirebaseSave(); _sosEmit('tasks'); }
+function persistEvents()  { _sosLsSet('studyos_events', JSON.stringify(events));     _sosFirebaseSave(); _sosEmit('events'); }
+function persistTasks_()  { _sosLsSet('studyos_tasks',  JSON.stringify(tasks));      _sosFirebaseSave(); _sosEmit('tasks'); }
 
 // ===== CONVERT EVENT ↔ TASK =====
 async function convertEventToTask(evId) {
@@ -4904,32 +4983,32 @@ function sosInitFirebase() {
       if (Array.isArray(remote.classes)) {
         classes = remote.classes;
         classes.forEach(c => { if (c && c.color && window.sosPastel) c.color = window.sosPastel(c.color); });
-        localStorage.setItem('studyos_classes', JSON.stringify(classes));
+        _sosLsSet('studyos_classes', JSON.stringify(classes));
         changed = true;
       }
       if (Array.isArray(remote.events)) {
         events = remote.events;
-        localStorage.setItem('studyos_events', JSON.stringify(events));
+        _sosLsSet('studyos_events', JSON.stringify(events));
         changed = true;
       }
       if (Array.isArray(remote.tasks)) {
         tasks = remote.tasks;
-        localStorage.setItem('studyos_tasks', JSON.stringify(tasks));
+        _sosLsSet('studyos_tasks', JSON.stringify(tasks));
         changed = true;
       }
       if (Array.isArray(remote.notes)) {
         notesList = remote.notes;
-        localStorage.setItem('studyos_notes_v2', JSON.stringify(notesList));
+        _sosLsSet('studyos_notes_v2', JSON.stringify(notesList));
         changed = true;
       }
       if (remote.ksu && Array.isArray(remote.ksu.modules)) {
         ksuData = remote.ksu;
-        localStorage.setItem('studyos_ksu', JSON.stringify(ksuData));
+        _sosLsSet('studyos_ksu', JSON.stringify(_sosSerializeKsu()));
         changed = true;
       }
       if (remote.d2l && typeof remote.d2l === 'object') {
         d2lMap = remote.d2l;
-        localStorage.setItem('studyos_d2l', JSON.stringify(d2lMap));
+        _sosLsSet('studyos_d2l', JSON.stringify(d2lMap));
       }
       if (changed) {
         renderClasses();
@@ -4943,7 +5022,7 @@ function sosInitFirebase() {
       }
       // Firestore data is now authoritative — keep cloud URLs sticky and
       // upload any files this device has locally but the cloud doesn't.
-      _sosAfterSync();
+      _sosMigrateKsuFiles().catch(() => {}).then(_sosAfterSync);
     }).catch(function(e){ console.warn('SOS load error', e); });
   };
 
@@ -4954,12 +5033,12 @@ function sosInitFirebase() {
   window.addEventListener('fb-sos-remote', function(e) {
     var remote = e.detail;
     if (!remote) return;
-    if (Array.isArray(remote.classes))  { classes   = remote.classes;   classes.forEach(c => { if (c && c.color && window.sosPastel) c.color = window.sosPastel(c.color); });   localStorage.setItem('studyos_classes',   JSON.stringify(classes));   }
-    if (Array.isArray(remote.events))   { events    = remote.events;    localStorage.setItem('studyos_events',    JSON.stringify(events));    }
-    if (Array.isArray(remote.tasks))    { tasks     = remote.tasks;     localStorage.setItem('studyos_tasks',     JSON.stringify(tasks));     }
-    if (Array.isArray(remote.notes))    { notesList = remote.notes;     localStorage.setItem('studyos_notes_v2',  JSON.stringify(notesList));  }
-    if (remote.ksu && Array.isArray(remote.ksu.modules)) { ksuData = remote.ksu; localStorage.setItem('studyos_ksu', JSON.stringify(ksuData)); }
-    if (remote.d2l && typeof remote.d2l === 'object') { d2lMap = remote.d2l; localStorage.setItem('studyos_d2l', JSON.stringify(d2lMap)); }
+    if (Array.isArray(remote.classes))  { classes   = remote.classes;   classes.forEach(c => { if (c && c.color && window.sosPastel) c.color = window.sosPastel(c.color); });   _sosLsSet('studyos_classes',   JSON.stringify(classes));   }
+    if (Array.isArray(remote.events))   { events    = remote.events;    _sosLsSet('studyos_events',    JSON.stringify(events));    }
+    if (Array.isArray(remote.tasks))    { tasks     = remote.tasks;     _sosLsSet('studyos_tasks',     JSON.stringify(tasks));     }
+    if (Array.isArray(remote.notes))    { notesList = remote.notes;     _sosLsSet('studyos_notes_v2',  JSON.stringify(notesList));  }
+    if (remote.ksu && Array.isArray(remote.ksu.modules)) { ksuData = remote.ksu; _sosLsSet('studyos_ksu', JSON.stringify(_sosSerializeKsu())); }
+    if (remote.d2l && typeof remote.d2l === 'object') { d2lMap = remote.d2l; _sosLsSet('studyos_d2l', JSON.stringify(d2lMap)); }
     renderClasses();
     renderSidebarClasses();
     renderCalendar();
@@ -4975,7 +5054,7 @@ function sosInitFirebase() {
     _sosApplyClassParam();
     // A remote save may have arrived without storageUrls (from a device that
     // lacks the blobs). Re-stamp known cloud URLs and upload any local-only files.
-    _sosAfterSync();
+    _sosMigrateKsuFiles().catch(() => {}).then(_sosAfterSync);
   });
 
   // saved / error events
@@ -5598,7 +5677,7 @@ window._sosBridge.applyD2L = (payload) => {
   if (Array.isArray(payload.tasks))  tasks  = payload.tasks;
   if (payload.map) {
     d2lMap = payload.map;
-    try { localStorage.setItem('studyos_d2l', JSON.stringify(d2lMap)); } catch (e) {}
+    try { _sosLsSet('studyos_d2l', JSON.stringify(d2lMap)); } catch (e) {}
   }
   // Both of these call _sosFirebaseSave(); the 400 ms debounce in
   // firebase-sync.js coalesces them into a single document write.

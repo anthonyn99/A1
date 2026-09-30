@@ -162,6 +162,15 @@ which tags each with `src: 'task' | 'event'`.
 `studyos_ksu` is `{ modules: Module[] }` — the same `Module` shape as above,
 not attached to a class. `findClassOrKsu()` treats it as a pseudo-class.
 
+KSU files used to keep their PDF inline as a base64 `dataUrl` (~580 KB on
+Veda's account, inside the 1 MB `dashboards/studyos` doc, re-sent on every
+edit). Since 2026-09-30 `_sosMigrateKsuFiles()` moves each into `sos_file_store`
+under a **content-derived** `fileId` (`sf_ksu_<fnv1a>_<len>`), and
+`_sosSerializeKsu()` drops a `dataUrl` only once the file has that `fileId`.
+The id is derived rather than random because `remote.ksu` still carries the
+dataUrl until a stripped save lands, and re-running the migration after each
+remote apply must land on the same key on every device.
+
 ---
 
 ## 3a. Shapes added by Phase 1 (the pipeline)
