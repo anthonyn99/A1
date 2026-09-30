@@ -493,7 +493,15 @@ const FB_CONFIG = {
 };
 const RECAPTCHA_KEY = '6LeUyAstAAAAAEciRypd1i4Akq6ueFUYfXLaLaUX';
 
-const app = getApps().find(a => a.name === '[DEFAULT]') || initializeApp(FB_CONFIG);
+// Its OWN named app, so its own Firestore IndexedDB cache ('firestore/wellness/...').
+// Under [DEFAULT] every page shared ONE cache that TaskHub (index.html) takes with
+// forceOwnership: when this page held it and TaskHub opened or re-inited, this
+// page's Firestore failed an internal assertion ("Failed to obtain exclusive
+// access to the persistence layer") and every later save failed until a reload.
+// Reproduced offline 2026-09-30; StudyOS was fixed the same way. Sign-in is
+// anonymous and the rules only need request.auth != null, so the separate
+// anonymous session per app name changes nothing else.
+const app = getApps().find(a => a.name === 'wellness') || initializeApp(FB_CONFIG, 'wellness');
 try {
   initializeAppCheck(app, {
     provider: new ReCaptchaV3Provider(RECAPTCHA_KEY),
@@ -526,10 +534,9 @@ setTimeout(() => _authResolve(false), 8000);
 // through localStorage and dies fatally when that ~5MB budget is full, which
 // permanently wedges sync on the device. Single-tab keeps its cache in
 // IndexedDB and takes ownership immediately (no stale-lease wait on iOS PWAs).
-// NO forceOwnership — see the note in oneinbox.html. One shared Firestore
-// IndexedDB cache across the suite means forcing ownership here steals the lease
-// from the TaskHub tab, and that tug-of-war is how TaskHub served an older save.
-// index.html is the single forced owner; this page takes the lease only if free.
+// NO forceOwnership — see the note in oneinbox.html. Its cache is its own
+// (named app, above), and forcing would still let a second tab of this page steal
+// it from the first.
 const db = initializeFirestore(app, {
   localCache: persistentLocalCache({ tabManager: persistentSingleTabManager() })
 });

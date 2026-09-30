@@ -1672,7 +1672,15 @@ const firebaseConfig = {
   messagingSenderId: "982539604706",
   appId: "1:982539604706:web:e93da1aef499fcee2044bb"
 };
-const fbApp = initializeApp(firebaseConfig);
+// Its OWN named app, so its own Firestore IndexedDB cache ('firestore/oneinbox/...').
+// Under [DEFAULT] every page shared ONE cache that TaskHub (index.html) takes with
+// forceOwnership: when this page held it and TaskHub opened or re-inited, this
+// page's Firestore failed an internal assertion ("Failed to obtain exclusive
+// access to the persistence layer") and every later save failed until a reload.
+// Reproduced offline 2026-09-30; StudyOS was fixed the same way. Sign-in is
+// anonymous and the rules only need request.auth != null, so the separate
+// anonymous session per app name changes nothing else.
+const fbApp = initializeApp(firebaseConfig, 'oneinbox');
 initializeAppCheck(fbApp, { provider: new ReCaptchaV3Provider('6LeUyAstAAAAAEciRypd1i4Akq6ueFUYfXLaLaUX'), isTokenAutoRefreshEnabled: true });
 const fbAuth = getAuth(fbApp);
 let _authResolve; const authReady = new Promise(res => { _authResolve = res; });
