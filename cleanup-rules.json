@@ -276,7 +276,8 @@
       "prefix": [],
       "owner": "no live code (found on Veda's Brave, 2026-09-30)",
       "reason": "Keys on the shared origin that nothing in the repo reads or writes any more; the meal planner, expense and grocery pages were deleted with the old index.html, the others were one-off flags. About 6 KB in total.",
-      "delete": false
+      "delete": true,
+      "approved": "2026-09-30: Tony asked for TaskHub-side trash to auto-trim through the cleanup system; these keys have no live code (checked by the test)"
     }
   ],
   "handledElsewhere": [
