@@ -433,6 +433,32 @@ reachable from the internet.
 
 ### Hard-won facts (verified live — do not re-learn them)
 
+* (F3 spike, 2026-09-30; Claude Code 2.1.285, codex 0.159.2, both on our
+  exact production argv) **Native resume works for both CLIs, across
+  folders, after a kill, and after the original folder is deleted.**
+  - Claude: `--resume <sid>` appended to our argv (with `--restricted`,
+    `--strict-mcp-config`, either mode's `--tools`/`--permission-mode`).
+    The session id stays the same. A different cwd needs NO jsonl copy (the
+    CLI finds the session in whatever project folder holds it; new turns are
+    appended there), and the file tools work on the NEW cwd. A `taskkill /T
+    /F` mid-turn keeps the session: the resume even remembered the partial
+    turn. A miss is a `result` line with `subtype: "error_during_execution"`,
+    `is_error`, no `result` text and `errors: ["No conversation found with
+    session ID: <sid>"]` (same words on stderr), exit 1.
+  - Codex: every `codex exec` flag goes BEFORE the subcommand: `codex exec
+    --json --sandbox … -C <dir> … -c … resume <sid> -` (`codex exec resume
+    --sandbox …` is rejected: "unexpected argument"). Needs no
+    `--ephemeral` on the first turn (with it there is no rollout to resume).
+    The sandbox mode is re-applied per resumed turn (read-only refused a
+    write; workspace-write made one), and `-C` moves the thread to the new
+    folder. A miss: exit 1, stderr `thread/resume failed: no rollout found
+    for thread id <sid>`.
+  - Haiku refused a first probe that said "remember the code word …" as a
+    prompt injection; neutral wording ("my favourite fruit is kiwi") works.
+  - Side finding, NOT changed: read mode's `--permission-mode plan` prints
+    "Permission mode forced to default — CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is
+    set" on stderr; read mode stays contained by `--tools Read,Glob,Grep`.
+
 * (F1) **Single pytest files only collect from the A1 root**
   (`magi\.venv\Scripts\python -m pytest magi/tests/test_x.py`); from `magi/`
   they fail with "No module named 'magi'". The whole folder runs from `magi/`.

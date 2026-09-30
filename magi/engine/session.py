@@ -102,7 +102,7 @@ def _clip(text: str, n: int) -> str:
     return text if len(text) <= n else text[: n - 1].rstrip() + "…"
 
 
-def build_context(turns: list[dict], budget: int) -> str:
+def build_context(turns: list[dict], budget: int, header: str = HEADER) -> str:
     """The CONVERSATION SO FAR block, at most `budget` characters.
 
     Trimmed in this order until it fits, mirroring Brainstorm's transcript:
@@ -110,6 +110,9 @@ def build_context(turns: list[dict], budget: int) -> str:
     oldest-first so only their questions remain, then the oldest questions go
     too behind "[n earlier turns omitted]". The newest turn is kept whole for
     as long as anything can be, and shortened last.
+
+    `header` names the block: Code Mode's follow-ups (code/followup.py) call
+    it "SESSION SO FAR".
     """
     turns = [t for t in turns if (t.get("q") or "").strip()]
     if not turns or budget <= 0:
@@ -122,7 +125,7 @@ def build_context(turns: list[dict], budget: int) -> str:
     full = [(t.get("answer") or "").strip() for t in turns]
 
     def render(answers: list[str], qonly: int = 0, omitted: int = 0) -> str:
-        parts = [HEADER]
+        parts = [header]
         if omitted:
             parts.append(
                 f"[{omitted} earlier turn{'s' if omitted > 1 else ''} omitted]"
