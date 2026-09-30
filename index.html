@@ -20752,6 +20752,20 @@ function idbGet(key) {
     });
   });
 }
+function idbDel(key) {
+  return idbOpen().then(function (db) {
+    if (!db) return false;
+    return new Promise(function (res) {
+      try {
+        var tx = db.transaction(IDB_STORE, 'readwrite');
+        tx.objectStore(IDB_STORE).delete(key);
+        tx.oncomplete = function () { res(true); };
+        tx.onerror = function () { res(false); };
+        tx.onabort = function () { res(false); };
+      } catch (e) { res(false); }
+    });
+  });
+}
 function idbPut(key, val) {
   return idbOpen().then(function (db) {
     if (!db) return false;
@@ -20984,7 +20998,7 @@ function writeChunked(baseId, str, extra) {
 }
 
 window.VizStore = {
-  idbGet: idbGet, idbPut: idbPut,
+  idbGet: idbGet, idbPut: idbPut, idbDel: idbDel,
   loadExcalidraw: loadExcalidraw, loadMindElixir: loadMindElixir,
   readChunked: readChunked, writeChunked: writeChunked,
   splitChunks: splitChunks, byteLen: byteLen, MAX_FILE_CHUNKS: MAX_FILE_CHUNKS,
@@ -24950,22 +24964,79 @@ function _bjLegacyTemplate(entry) {
   if (d && Array.isArray(d.nodes) && d.nodes.length) entry.template = 'mindmap-legacy';
 }
 
+/* ── Legacy whiteboard PNGs live in IndexedDB, not localStorage ─────────────
+ * Pre-VizEngine whiteboards were one base64 PNG each, cached under
+ * BJ_CANVAS_KEY(id). On Veda's Brave (2026-09-30) 17 of them held 2.4 MB, half
+ * of the 5 MB localStorage EVERY A1 page shares, and the full store made saves
+ * fail silently across the suite. None belonged to a live whiteboard: the
+ * entries had been purged, mostly from another device, which never ran
+ * _bjForgetDeleted here, so the keys stayed forever. 16 of the 17 were
+ * byte-identical to their dashboards/journal_canvas_<id> cloud documents.
+ * They now go to VizStore's IndexedDB (a far larger quota). _bjCanvasMem is the
+ * synchronous copy the load and merge paths read, because IndexedDB is async. */
+const _bjCanvasMem = {};
+function _bjCanvasIdbKey(id) { return 'bjcanvas:' + id; }
+function _bjCanvasGet(id) { return _bjCanvasMem[id] || ''; }
+function _bjCanvasPut(id, dataURL) {
+  if (!dataURL || _bjCanvasMem[id] === dataURL) return;
+  _bjCanvasMem[id] = dataURL;
+  if (window.VizStore) window.VizStore.idbPut(_bjCanvasIdbKey(id), dataURL);
+}
+function _bjCanvasDel(id) {
+  delete _bjCanvasMem[id];
+  try { localStorage.removeItem(BJ_CANVAS_KEY(id)); } catch (e) {}
+  if (window.VizStore && window.VizStore.idbDel) window.VizStore.idbDel(_bjCanvasIdbKey(id));
+}
+// Move every BJ_CANVAS_KEY into IndexedDB. A key is removed only after its
+// IndexedDB copy reads back identical, so a failed or blocked write leaves the
+// drawing where it was.
+function _bjCanvasMoveOut() {
+  const VS = window.VizStore;
+  if (!VS) return Promise.resolve();
+  const keys = [];
+  try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.indexOf('bj_canvas_') === 0) keys.push(k); } } catch (e) {}
+  return Promise.all(keys.map(function (k) {
+    const id = k.slice('bj_canvas_'.length);
+    let v = null; try { v = localStorage.getItem(k); } catch (e) {}
+    if (!v) return null;
+    _bjCanvasMem[id] = v;
+    return VS.idbPut(_bjCanvasIdbKey(id), v)
+      .then(function (ok) { return ok ? VS.idbGet(_bjCanvasIdbKey(id)) : null; })
+      .then(function (back) { if (back === v) { try { localStorage.removeItem(k); } catch (e) {} } });
+  }));
+}
+// Load the PNGs of this device's legacy whiteboards back into their entries.
+function _bjCanvasHydrate() {
+  const VS = window.VizStore;
+  if (!VS) return Promise.resolve();
+  return Promise.all(state.entries.map(function (entry) {
+    if (entry.template !== 'whiteboard' || (entry.data && entry.data.canvas)) return null;
+    return VS.idbGet(_bjCanvasIdbKey(entry.id)).then(function (v) {
+      if (!v) return;
+      _bjCanvasMem[entry.id] = v;
+      if (entry.data && !entry.data.canvas) entry.data.canvas = v;
+    });
+  }));
+}
+
 function loadState() {
   try { const r = localStorage.getItem(STORAGE_KEY); if (r) state = JSON.parse(r); } catch(e) {}
   if (!Array.isArray(state.deletedIds)) state.deletedIds = [];
-  // Restore canvas data from localStorage into whiteboard entries
+  // Restore canvas data from localStorage into whiteboard entries (any key the
+  // move below has not reached yet), then from IndexedDB.
   state.entries.forEach(entry => {
     _bjLegacyTemplate(entry);
     if (entry.template === 'whiteboard') {
-      const saved = localStorage.getItem(BJ_CANVAS_KEY(entry.id));
+      let saved = null; try { saved = localStorage.getItem(BJ_CANVAS_KEY(entry.id)); } catch (e) {}
       if (saved && !entry.data.canvas) entry.data.canvas = saved;
     }
   });
+  _bjCanvasMoveOut().then(_bjCanvasHydrate).catch(function (e) { console.warn('[BJ] canvas move failed:', e); });
 }
 
 // Write the local cache safely. localStorage is ONLY a fast cache — Firebase is the
-// real store. Whiteboard canvases are large base64 PNGs already saved under
-// BJ_CANVAS_KEY(id) and rehydrated by loadState, so omit them from the main blob to
+// real store. Whiteboard canvases are large base64 PNGs already saved in IndexedDB
+// (_bjCanvasPut) and rehydrated by loadState, so omit them from the main blob to
 // stay under the ~5MB quota. A thrown QuotaExceededError here previously broke EVERY
 // document open + password lock (saveState runs inside saveCurrentEntry and the lock
 // system) and stalled Firebase sync — so swallow any storage error too.
@@ -24995,7 +25066,7 @@ function saveState() {
   _bjWriteCache();
   state.entries.forEach(entry => {
     if (entry.template === 'whiteboard' && entry.data && entry.data.canvas) {
-      try { localStorage.setItem(BJ_CANVAS_KEY(entry.id), entry.data.canvas); } catch(e) {}
+      _bjCanvasPut(entry.id, entry.data.canvas);
     }
   });
   // Show syncing immediately — even before debounce fires
@@ -25163,7 +25234,7 @@ function _bjApplyRemote(remote) {
     if (!local) {
       // Brand new entry from other device — add it
       if (remoteEntry.template === 'whiteboard') {
-        var lc = localStorage.getItem(BJ_CANVAS_KEY(remoteEntry.id));
+        var lc = _bjCanvasGet(remoteEntry.id);
         localById[remoteEntry.id] = { ...remoteEntry, data: { ...remoteEntry.data, canvas: lc || remoteEntry.data && remoteEntry.data.canvas || '' } };
       } else {
         localById[remoteEntry.id] = remoteEntry;
@@ -25209,7 +25280,7 @@ function _bjApplyRemote(remote) {
       // A whiteboard entry carries only its fingerprint now; the board itself
       // lives in its own document with its own sync. Keep any legacy canvas the
       // remote copy has had stripped from it.
-      var lc2 = local.data && local.data.canvas ? local.data.canvas : localStorage.getItem(BJ_CANVAS_KEY(local.id)) || '';
+      var lc2 = local.data && local.data.canvas ? local.data.canvas : _bjCanvasGet(local.id);
       localById[remoteEntry.id] = { ...remoteEntry, data: { ...remoteEntry.data, canvas: lc2 } };
       return;
     }
@@ -25479,8 +25550,8 @@ function _bjForgetDeleted(ids) {
       sessionStorage.removeItem('bj_unlocked_' + id);
       sessionStorage.removeItem('bj_unlockedv_' + id);
       sessionStorage.removeItem('bj_unlockedat_' + id);
-      localStorage.removeItem(BJ_CANVAS_KEY(id));
     } catch (e) {}
+    _bjCanvasDel(id);
   });
   // Keep the tombstone list from growing without bound across years of use.
   if (state.deletedIds.length > 500) state.deletedIds = state.deletedIds.slice(-500);
