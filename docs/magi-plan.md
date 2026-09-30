@@ -75,10 +75,10 @@ One phase per session.
    import fails.
 5. Baseline the tests before touching anything. **Run pytest from `magi/`
    over the whole folder** — `cd magi; .venv\Scripts\python -m pytest tests -q`
-   (≈1180). From the A1 root, `test_morning_run.py` fails to collect (it
+   (≈1470). From the A1 root, `test_morning_run.py` fails to collect (it
    imports `tests.test_completion`); a single file runs fine from the root
    (`python -m pytest magi/tests/test_x.py`). Node: `node tests/run-all.js`
-   (49 suites). Both must be green; if not, fix that first.
+   (54 suites). Both must be green; if not, fix that first.
 
 ### End-of-phase checklist (the definition of "done")
 
@@ -2639,6 +2639,13 @@ More found during the build get fixed in the phase that touches them and listed 
 - (F2, fixed) `setView`'s "Close — back to the running prompt" showed over any
   History entry opened after a run had ENDED (`S.live` outlives its run; the
   check lacked `S.running`).
+- (F2, OPEN, test) `tests/live/magi-sync.live.js` step "Recent lists it"
+  fails: Code Mode's Recent list (`renderCodeRecent`) was removed in
+  `5ff90fb` (2026-09-29 08:33, before F1); only its CSS remains. Every write
+  count before that step passes. Retarget the step at Code History (or drop
+  it) in F4, which rebuilds that history anyway.
+- (F2, fixed, test) `test_units_usage::test_a_prompt_quoting_limit_words…`
+  aged out: fixed `NOW` vs `_recent_sync`'s real-clock window.
 - (F2, OPEN, engine) A sole Gemini unit that synthesised because of a note
   returned its verdict as one run-on line: "…*Dream*.NOTES None.CONFIDENCE
   HIGH -- …" -- the ANSWER/NOTES/CONFIDENCE headings lost their line breaks in
