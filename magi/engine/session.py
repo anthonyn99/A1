@@ -52,14 +52,28 @@ def answer_section(verdict: str) -> str:
     A verdict that does not have the three headings (a sole unit's answer, a
     chairman that ignored the format) is kept whole.
     """
-    text = (verdict or "").strip()
+    text = _unglue((verdict or "").strip())
     m = re.match(r"^\s*ANSWER\s*\n", text)
     if m:
         text = text[m.end():]
-    cut = re.search(r"^\s*(?:NOTES|CONFIDENCE)\s*$", text, re.MULTILINE)
+    cut = re.search(r"^[ \t]*(?:NOTES|CONFIDENCE)[ \t]*(?::[ \t]*)?$", text, re.MULTILINE)
     if cut:
         text = text[: cut.start()]
     return text.strip()
+
+
+# A capture that lost the line breaks around the headings (seen once on a sole
+# Gemini verdict, 2026-09-30: "...*Dream*.NOTES None.CONFIDENCE HIGH -- ...").
+# Only the exact UPPERCASE heading right after a sentence's end is split off,
+# so prose that mentions "notes" is left alone.
+_GLUED = re.compile(r"(?<=[.!?])([*_\"')\]]*)[ \t]*(NOTES|CONFIDENCE)[ \t]*:?[ \t]*(?=\S)")
+_LEADING = re.compile(r"^[ \t]*(NOTES|CONFIDENCE)[ \t]*:?[ \t]+(?=\S)", re.MULTILINE)
+
+
+def _unglue(text: str) -> str:
+    """Put NOTES / CONFIDENCE back on lines of their own."""
+    text = _GLUED.sub(lambda m: f"{m.group(1)}\n{m.group(2)}\n", text)
+    return _LEADING.sub(lambda m: f"{m.group(1)}\n", text)
 
 
 def parse_context(raw: str) -> list[dict]:

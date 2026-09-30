@@ -107,6 +107,27 @@ def build_argv(exe: str, task: Task, model: str | None = None,
 # A resume of a thread this CODEX_HOME has no rollout for (exit 1, stderr).
 _MISS = re.compile(r"no rollout found for thread id|thread/resume failed", re.I)
 
+# Codex sometimes answered a READ task "I can't read README.md because this
+# workspace is mounted read-only and I don't have a file-reading tool" without
+# trying a single command (2 of ~8 on 2026-09-30; the next 3 identical tasks
+# read fine). Its shell CAN read here (SANDBOX_CONFIG), so it is told so...
+READ_HINT = ("(From MAGI: your shell works in this read-only workspace. Read files "
+             "with commands such as `Get-Content`, `type`, `dir` or `rg` before "
+             "answering; only writing is blocked.)")
+
+# ...and a reply that gives up anyway, with no tool call, is not an answer:
+# it is handed on (UNAVAILABLE) rather than shown as the result.
+_GAVE_UP = re.compile(
+    r"\b(?:can(?:'|’)?t|cannot|unable to|not able to)\s+(?:read|access|open|inspect|view|list)\b"
+    r"|\b(?:don(?:'|’)t|do not)\s+have\s+(?:a\s+|any\s+)?(?:file[- ]reading|shell|file[- ]access)\b",
+    re.I)
+
+
+def gave_up(text: str, tools: list[str]) -> bool:
+    """An OK reply that says it could not read the workspace, having never
+    tried. Pure, for tests."""
+    return not tools and bool(_GAVE_UP.search(text or ""))
+
 
 def parse_line(line: str) -> dict[str, Any] | None:
     """One JSONL line -> a normalised event, or None. Pure, for tests."""
@@ -303,6 +324,8 @@ class CodexCLIAgent(CodingAgent):
                     **{k: pick.get(k) for k in ("model", "label", "effort", "auto", "why")}})
         resume = task.resume_for(self.id)
         prompt = task.prompt_for(self.id)
+        if task.mode == Mode.READ:
+            prompt = f"{READ_HINT}\n\n{prompt}"
         try:
             s = Stream(build_argv(exe, task, pick.get("model"), pick.get("effort"), resume),
                        cwd=task.root, env=slots.env_for("codex", self.slot), stdin_text=prompt)
@@ -374,6 +397,12 @@ class CodexCLIAgent(CodingAgent):
                           tools_used=tools)
         if finished and not failed:
             limits.clear("codex", self.slot)
+            if task.mode == Mode.READ and gave_up(text, tools):
+                await emit({"k": "note", "text": "Codex said it could not read the workspace "
+                            "without trying to — handing on."})
+                return Result(Outcome.UNAVAILABLE, text=text,
+                              detail="Codex answered without reading the workspace.",
+                              session_id=session, tools_used=tools)
             return Result(Outcome.OK, text=text, session_id=session, tools_used=tools)
 
         why = failed or "\n".join(errors[-3:]) or "\n".join(s.stderr_tail)
