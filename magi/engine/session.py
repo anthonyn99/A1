@@ -142,7 +142,8 @@ def build_context(turns: list[dict], budget: int) -> str:
     for qonly in range(0, n):
         older = full[qonly:n - 1]
         bare = render(full[:qonly] + [""] * len(older) + [full[-1]], qonly)
-        fitted = _fit(older, budget - len(bare)) if older else []
+        label = len("\nANSWER:\n") * sum(1 for a in older if a)
+        fitted = _fit(older, budget - len(bare) - label) if older else []
         out = render(full[:qonly] + fitted + [full[-1]], qonly)
         if len(out) <= budget:
             return out

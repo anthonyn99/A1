@@ -9,15 +9,27 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-09-29, Track F planned (Tony approved the plan).
+**Last updated:** 2026-09-29, **F1 done** (Deliberation follow-ups, engine).
 **Phases complete:** 1–14 (14a hardening, 14b A1 writable), plus **11B**,
-and ALL of Track S: **S1**, **S2**, **S3**, **U1**, **U2**, **U3**, **U4**.
-**Next phase:** **F1 — Deliberation follow-ups, engine.** Track F
-("Follow-ups", §8 "Track F") makes Deliberation and Code Mode multi-turn
-sessions: the prompt box follows up with the session's memory, and a
-message sent WHILE a run is going adjusts it. Four phases, F1 → F4, one
-per session. Read the whole Track F section before starting; Tony's
-decisions are at its top and are not to be re-asked.
+ALL of Track S (**S1**, **S2**, **S3**, **U1**, **U2**, **U3**, **U4**), and
+Track F's **F1**.
+**Next phase:** **F2 — Deliberation follow-ups, console** (`magi.html`).
+Track F ("Follow-ups", §8 "Track F") makes Deliberation and Code Mode
+multi-turn sessions: the prompt box follows up with the session's memory, and
+a message sent WHILE a run is going adjusts it. F1 built the engine half for
+Deliberation (see "What exists" → F1); nothing is user-visible until F2.
+Read the whole Track F section before starting; Tony's decisions are at its
+top and are not to be re-asked.
+
+**F2's first concrete steps:** (1) `S.session` + `updateEnabled()` labels
+Convene / Follow up / Add to run, gated on `health.features` containing
+`followup` / `steer`; (2) `start()` → follow-up POST with `session`, `turn`,
+`context` = `JSON.stringify(turns.map(t => ({q, answer: t.verdict})))` (the
+engine strips NOTES/CONFIDENCE itself) and clears the composer; running →
+`POST /api/runs/{id}/note {text}`; (3) handle the `note` SSE frame and
+`init.notes`; on `done` send `followup_notes` + `unapplied_notes` as the next
+follow-up only in the tab that watched; (4) thread UI + sticky composer;
+(5) history grouping by `sid`. Engine contract below.
 **Phase 15 (Veda's engine) is INSTALLED**: she ran `magi\setup.ps1 -Profile veda`, signed in
 to Accounts, the coding agents and GitHub (Tony confirmed 2026-09-28), and
 her engine self-updates. Do NOT send her setup commands again. The only
@@ -47,7 +59,7 @@ One phase per session.
 | ~~U3~~ | ~~Units: limits~~ | **done 2026-09-28** | | |
 | ~~U4~~ | ~~Units: choose model~~ | **done 2026-09-28** | | |
 | ~~15~~ | ~~Veda's engine~~ | **installed** (setup.ps1 + all sign-ins, confirmed 2026-09-28; self-updating). Optional: isolation check from her PC | | |
-| F1 | Follow-ups: Deliberation engine | sessions, context block, chairman additions, `/note` | Medium | engine only; invisible until F2 |
+| ~~F1~~ | ~~Follow-ups: Deliberation engine~~ | **done 2026-09-29** (engine only; invisible until F2) | | |
 | F2 | Follow-ups: Deliberation console | thread UI, docked composer, mid-run send, grouped History | High | |
 | F3 | Follow-ups: Code Mode engine | session memory, native resume, interrupt & continue, revise-at-card | High | starts with a CLI spike |
 | F4 | Follow-ups: Code Mode console | thread UI, mid-run send, grouped History | High | |
@@ -317,6 +329,34 @@ One phase per session.
   S1 sibling covers it). Tests: `test_bs_phase.py`, `test_validate.py`,
   `test_howitworks.py` (2 new), `tests/magi-bs-phase.test.js`,
   `tests/live/magi-bs-phase.live.js`.
+* **Deliberation follow-ups, engine (Track F, F1, 2026-09-29)** —
+  `engine/session.py`: `build_context(turns, budget)` (CONVERSATION SO FAR;
+  trims older answers via `chairman._fit`, then drops them to questions, then
+  "[n earlier turns omitted]"; newest turn last to go), `prompt_with_context`
+  (block + `NEW MESSAGE:\n` + question), `budget_for(unit, q)` =
+  `min(24k, prompt_budget - len(q) - 6k)`, `parse_context` (JSON `[{q,
+  answer}]`, ≤200k chars, `answer_section` strips NOTES/CONFIDENCE),
+  `reference(q, turns)` (OFF_TOPIC reference capped under
+  `MAX_REFERENCE_WORDS`), `Steer` (sync `add` → `verdict`|`followup`,
+  `close_gather`, `finish`; ≤10 notes, ≤4k chars). `RunContext.reference`;
+  `browser_base` validates against `ctx.reference or ctx.question`.
+  `Orchestrator.run(context=, session_id=, turn=, steer=)`: per-unit prompts,
+  `gather(floor_chars=len(question))`, notes snapshot right after gather, a
+  sole responder WITH notes goes through synthesis; returns `session_id`,
+  `turn`, `notes`, `followup_notes`, `unapplied_notes`. `chairman.build_prompt
+  (context=, additions=)` — CONTEXT_BLOCK / ADDITIONS_BLOCK, empty = the old
+  prompt byte-for-byte, context trimmed (then dropped under 1k) before answers.
+  Routes: `POST /api/runs` + `session`, `turn`, `context` (400 on bad input);
+  response and `init`/`done` carry `session_id`, `turn`; `init` carries
+  `notes`; `POST /api/runs/{id}/note {text}` → `{text, applied}` (429 over the
+  cap; `followup` once the run is done) and an SSE `{type:"note"}`;
+  `_live_twin` keys on the requested session; `/api/health` `features:
+  ["followup","steer"]`. DB `runs` + `session_id`, `turn`, `notes_json`
+  (migrated; `get_run` adds parsed `notes`; `list_runs` returns
+  `session_id`, `turn`). Tests `magi/tests/test_followup.py` (46; 6 mutants
+  killed by monkeypatch). Live 2026-09-29: 1-unit Gemini session — turn 1
+  "Miranda", turn 2 "Who is it named after?" answered about Miranda, and a
+  mid-run note ("also name the play") was applied by synthesis.
 * **Units recon (Track S, U1)**: read-only, no engine change. Each site
   block in `selectors.yaml` ends with a "Models and limits" section:
   `model_button/option/selected/label` (+ `model_label_from`
@@ -361,6 +401,10 @@ veda`, her tunnel is published 12 s after a restart (same address kept),
 reachable from the internet.
 
 ### Hard-won facts (verified live — do not re-learn them)
+
+* (F1) **Single pytest files only collect from the A1 root**
+  (`magi\.venv\Scripts\python -m pytest magi/tests/test_x.py`); from `magi/`
+  they fail with "No module named 'magi'". The whole folder runs from `magi/`.
 
 * (S3) **A reload fires every EventSource's `onerror` with readyState
   CLOSED, BEFORE `pagehide`**, and the old page can keep running well over a
@@ -2271,7 +2315,7 @@ units, one short question.
 
 ## Track F — Follow-ups: multi-turn Deliberation and Code Mode (planned 2026-09-29)
 
-*Status:* planned; F1 next.
+*Status:* **F1 done 2026-09-29** (engine; see §0 "What exists"); F2 next.
 
 ### Why
 
@@ -2345,6 +2389,11 @@ Start of every phase: `git pull --rebase --autostash`; engine health; baseline
 ---
 
 #### F1 — Deliberation engine
+
+*Status:* done 2026-09-29. One deviation: the OFF_TOPIC reference is the new
+question + earlier questions + the latest answer **cut to under
+`MAX_REFERENCE_WORDS` content words** — uncapped it would pass 120 words and
+`_overlap` would stop judging, i.e. the check would be silently off.
 
 Files: `magi/app.py`, `magi/engine/orchestrator.py`, `magi/engine/chairman.py`,
 new `magi/engine/session.py`, `magi/providers/base.py`, `magi/providers/browser_base.py`,

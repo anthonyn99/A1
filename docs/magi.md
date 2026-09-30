@@ -1463,6 +1463,50 @@ device sees the lease and says where the queue is running. A lease nobody has
 refreshed for 90 seconds is treated as abandoned, so a closed laptop cannot
 freeze the queue.
 
+## Follow-ups and notes mid-run (Track F)
+
+*Engine side done in F1 (2026-09-29); the console uses it from F2. Until then
+nothing on screen changes.*
+
+A deliberation can be a conversation rather than a one-shot. No chat site
+remembers anything between MAGI turns -- every unit turn opens a fresh chat --
+so the memory travels with the question, the way Brainstorm rounds replay
+their transcript:
+
+- **A follow-up** is `POST /api/runs` with three extra fields: `session` (the
+  conversation's id -- the id of its first run), `turn`, and `context`, the
+  earlier turns as JSON `[{q, answer}]` (at most 200,000 characters). The
+  console holds the thread and sends it; the engine (`engine/session.py`)
+  turns it into a **CONVERSATION SO FAR** block in front of a
+  `NEW MESSAGE:` line, sized per unit (at most 24,000 characters, less for a
+  unit whose paste cap is tighter). Past that it trims: older answers are
+  shortened head + tail, then dropped to their questions, then the oldest
+  questions go behind "[n earlier turns omitted]". The newest turn is kept
+  whole the longest. A verdict's NOTES and CONFIDENCE are dropped from the
+  replay -- only its ANSWER is memory.
+- **The chairman** sees the same conversation in an "EARLIER IN THIS
+  CONVERSATION" block. If its prompt is over the site's cap, that block gives
+  way before any unit's answer does.
+- **Short follow-ups are safe.** A one-line follow-up keeps the short
+  straggler grace (it is judged on the new question, not the padded prompt),
+  and answers are checked for "a previous conversation was captured" against
+  the question *plus* the conversation -- "and the second one?" shares no words
+  with a good answer on its own.
+- **A note while it runs**: `POST /api/runs/{id}/note {text}` (4,000
+  characters, 10 per run). Before synthesis starts it goes to the chairman
+  under "ADDED BY THE PERSON WHILE THE COUNCIL WAS ANSWERING", which it must
+  apply -- the units never saw it. Once synthesis has started, the note is
+  held and comes back in the finished run's `followup_notes`, for the console
+  to send as the next follow-up. A note can never land in both or neither.
+  A lone unit that answered normally *is* the verdict; with a note, it goes
+  through synthesis so the note is applied. Notes a verdict could not use (no
+  quorum, halted, every chairman failed) come back as `unapplied_notes`.
+  Every viewer of the run's stream sees a `note` frame.
+- `/api/health` lists `features: ["followup", "steer"]`, so a console can tell
+  an engine that has this from one that needs updating.
+- The engine's database records each run's `session_id`, `turn` and notes.
+  Older runs read as one-turn sessions of their own.
+
 ## Opening the console from somewhere else
 
 `magi.html` is at `https://anthonyn99.github.io/A1/magi.html`, and there is a
