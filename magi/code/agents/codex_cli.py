@@ -1,7 +1,8 @@
 """Codex, through the Codex CLI, signed in with a ChatGPT account.
 
     codex exec --json --sandbox read-only --skip-git-repo-check
-               --ignore-user-config --ignore-rules --ephemeral -C <root> -
+               --ignore-user-config --ignore-rules -C <root> -
+    codex exec <the same flags> resume <thread id> -     (a follow-up, Track F)
 
 Runs on whatever ChatGPT account its slot is signed into -- including a Free
 one, which covers local coding tasks on a rolling five-hour window plus weekly
@@ -13,9 +14,15 @@ ChatGPT browser unit uses: its login lives in its own CODEX_HOME (slots.py).
                          mode.
   --ignore-user-config   no $CODEX_HOME/config.toml -- the run is defined by
   --ignore-rules         this command line, not by files a repo could carry.
-  --ephemeral            no session files left behind for a read-only look.
   -                      the prompt arrives on stdin (see claude_cli.py for why
                          prose never goes through a .cmd shim's argv).
+
+No `--ephemeral` since Track F: a thread with no rollout on disk cannot be
+resumed, and a follow-up (or a message that interrupts a run) resumes it.
+The rollouts land in the slot's $CODEX_HOME/sessions; cleanup-rules.json
+removes the old ones. On a resume every flag above still goes BEFORE the
+`resume` subcommand -- `codex exec resume --sandbox …` is refused -- and the
+sandbox mode and `-C` apply to the resumed turn (verified live, 0.159.2).
 
 The event schema is Codex's own (sdk/typescript/src/events.ts, generated from
 codex-rs/exec/src/exec_events.rs): thread.started, turn.started,
@@ -77,10 +84,10 @@ WRITE_CONFIG = ("windows.sandbox=unelevated",
 
 
 def build_argv(exe: str, task: Task, model: str | None = None,
-               effort: str | None = None) -> list[str]:
+               effort: str | None = None, resume: str = "") -> list[str]:
     sandbox = "read-only" if task.mode == Mode.READ else "workspace-write"
     argv = [exe, "exec", "--json", "--sandbox", sandbox, "--skip-git-repo-check",
-            "--ignore-user-config", "--ignore-rules", "--ephemeral",
+            "--ignore-user-config", "--ignore-rules",
             "-C", str(task.root)]
     for f in DISABLED_FEATURES:
         argv += ["--disable", f]
@@ -91,8 +98,14 @@ def build_argv(exe: str, task: Task, model: str | None = None,
     if effort:
         # Unquoted, like WRITE_CONFIG: TOML falls back to a plain string.
         argv += ["-c", f"model_reasoning_effort={effort}"]
+    if resume:
+        argv += ["resume", resume]
     argv.append("-")
     return argv
+
+
+# A resume of a thread this CODEX_HOME has no rollout for (exit 1, stderr).
+_MISS = re.compile(r"no rollout found for thread id|thread/resume failed", re.I)
 
 
 def parse_line(line: str) -> dict[str, Any] | None:
@@ -288,10 +301,11 @@ class CodexCLIAgent(CodingAgent):
             await emit({"k": "note", "text": pick["note"]})
         await emit({"k": "model", "agent": "codex", "slot": self.slot,
                     **{k: pick.get(k) for k in ("model", "label", "effort", "auto", "why")}})
-        prompt = task.full_prompt()
+        resume = task.resume_for(self.id)
+        prompt = task.prompt_for(self.id)
         try:
-            s = Stream(build_argv(exe, task, pick.get("model"), pick.get("effort")), cwd=task.root,
-                       env=slots.env_for("codex", self.slot), stdin_text=prompt)
+            s = Stream(build_argv(exe, task, pick.get("model"), pick.get("effort"), resume),
+                       cwd=task.root, env=slots.env_for("codex", self.slot), stdin_text=prompt)
         except OSError as exc:
             return Result(Outcome.UNAVAILABLE, detail=f"Could not start Codex: {exc}")
 
@@ -340,11 +354,16 @@ class CodexCLIAgent(CodingAgent):
         finally:
             watch.cancel()
 
+        text = "\n\n".join(t for t in texts if t).strip()
         if cancel.is_set():
-            return Result(Outcome.CANCELLED, session_id=session, tools_used=tools)
+            # Halt, or an interrupt (the chain tells them apart).
+            return Result(Outcome.CANCELLED, text=text, session_id=session, tools_used=tools)
         await s.wait()
 
-        text = "\n\n".join(t for t in texts if t).strip()
+        if resume and not session and _MISS.search("\n".join(errors) + "\n"
+                                                   + "\n".join(s.stderr_tail)):
+            return Result(Outcome.RESUME_MISS, detail="Codex no longer has that session.",
+                          tools_used=tools)
         if s.stalled:
             # The watchdog ended it (_proc.STALL_S): handed on, like a crash.
             await emit({"k": "note", "text": f"Codex {s.stalled} — stopped it."})

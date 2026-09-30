@@ -32,6 +32,10 @@ class Outcome(StrEnum):
     UNAUTHED = "unauthed"        # signed out or token rejected -- hand off
     UNAVAILABLE = "unavailable"  # CLI missing, crashed, or unit unreachable -- hand off
     CANCELLED = "cancelled"      # you pressed Halt -- stop everything
+    # Track F. Never an agent's own final word: the chain acts on both and
+    # carries on with the SAME agent.
+    INTERRUPTED = "interrupted"  # stopped for a message you typed -- continue it
+    RESUME_MISS = "resume_miss"  # the CLI no longer has that session -- retry without it
 
     @property
     def hands_off(self) -> bool:
@@ -67,6 +71,38 @@ class Task:
     # The workspace measured by MAGI (inventory.py), for tasks about sizes,
     # lengths or rankings -- which no read-only tool can answer. "" otherwise.
     inventory: str = ""
+    # Track F (F3): this task as a follow-up turn of a session. The earlier
+    # turns ({prompt, text, mode, write, files, by}, oldest first) and the
+    # ground truth about what their diffs left in the folder (followup.py).
+    session_turns: list[dict] = field(default_factory=list)
+    state_note: str = ""
+    # A native CLI resume: {"agent": "claude:system", "sid": ..., "why":
+    # "followup" | "interrupt" | "revise"}. Only the agent whose id matches
+    # resumes; any other one gets the SESSION SO FAR block instead.
+    resume: dict = field(default_factory=dict)
+    # Messages you typed while it ran: every one delivered so far (all later
+    # prompts carry them, so a hand-off keeps them), and the ones the
+    # current continuation is about.
+    added: list[str] = field(default_factory=list)
+    interrupt_msgs: list[str] = field(default_factory=list)
+
+    def resume_for(self, agent_id: str) -> str:
+        """The CLI session id `agent_id` should resume, or ""."""
+        if self.resume.get("agent") == agent_id:
+            return self.resume.get("sid", "")
+        return ""
+
+    def history(self, budget: int) -> str:
+        from ..followup import history
+        return history(self.session_turns, budget) if self.session_turns else ""
+
+    def gather_text(self) -> str:
+        """What a browser unit's context is gathered for: the task, anything
+        added, and the last two prompts of the session -- "and the tests
+        for it?" names no file, the turn before it did."""
+        parts = [self.prompt, *self.added]
+        parts += [t.get("prompt", "") for t in self.session_turns[-2:]]
+        return "\n".join(p for p in parts if p)
 
     def attachments_block(self) -> str:
         """The attached files, fenced and labelled as data. Empty if none."""
@@ -79,19 +115,64 @@ class Task:
                        f"===== END {name} =====")
         return "\n".join(out)
 
-    def full_prompt(self) -> str:
-        """What a CLI agent is sent: framing, any hand-off, then the task."""
+    def full_prompt(self, budget: int | None = None) -> str:
+        """What a CLI agent is sent fresh: framing, what is in the folder, the
+        session so far, any hand-off, then the task and what was added."""
+        from ..followup import CLI_BUDGET, NEW_MESSAGE, added_block
         parts = []
         if self.mode == Mode.WRITE:
             parts.append(WRITE_FRAME)
+        if self.state_note:
+            parts.append(self.state_note)
+        hist = self.history(CLI_BUDGET if budget is None else budget)
+        if hist:
+            parts.append(hist)
         if self.handoff_note:
             parts.append(self.handoff_note)
-        parts.append(self.prompt)
+        parts.append((NEW_MESSAGE if hist else "") + self.prompt)
+        if self.added:
+            parts.append(added_block(self.added))
         if self.attachments:
             parts.append(self.attachments_block())
         if self.inventory:
             parts.append(self.inventory)
         return "\n\n---\n\n".join(parts)
+
+    def resumed_prompt(self) -> str:
+        """What a CLI agent is sent when it resumes its own session: only
+        what it does not already have. No SESSION SO FAR -- it remembers."""
+        from ..followup import NEW_MESSAGE, added_block
+        why = self.resume.get("why")
+        if why in ("interrupt", "revise"):
+            kept = (" Your edits so far are still in this working copy."
+                    if self.mode == Mode.WRITE else "")
+            if why == "revise":
+                head = ("The person looked at your diff and asked for a revision "
+                        "instead of approving it. Nothing was applied." + kept
+                        + " Revise the change as they ask, then finish with a "
+                        "short summary of what you changed and why.")
+            else:
+                head = ("The person interrupted you to add the message below. "
+                        "Your work so far is kept." + kept + " Take it into "
+                        "account and carry on with the task from where you were.")
+            msgs = "\n".join(f"- {m}" for m in self.interrupt_msgs)
+            return f"{head}\n\nMESSAGE FROM THE PERSON:\n{msgs}"
+        parts = []
+        if self.mode == Mode.WRITE:
+            parts.append(WRITE_FRAME)
+        if self.state_note:
+            parts.append(self.state_note)
+        parts.append(NEW_MESSAGE + self.prompt)
+        if self.added:
+            parts.append(added_block(self.added))
+        if self.attachments:
+            parts.append(self.attachments_block())
+        if self.inventory:
+            parts.append(self.inventory)
+        return "\n\n---\n\n".join(parts)
+
+    def prompt_for(self, agent_id: str) -> str:
+        return self.resumed_prompt() if self.resume_for(agent_id) else self.full_prompt()
 
 
 # Said to every agent in write mode. True, and useful to it: an agent that

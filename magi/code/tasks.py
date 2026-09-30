@@ -41,7 +41,7 @@ from pathlib import Path
 from typing import Any
 
 from . import git as G
-from . import autocommit, sandbox, security
+from . import autocommit, followup, sandbox, security
 from .agents import chain, inventory
 from .agents.base import Mode, Outcome, Task
 
@@ -83,6 +83,14 @@ class TaskState:
     # one) is applied without asking. Everything review REFUSES stays
     # refused in both -- Auto skips the question, never the rules.
     approve: str = "manual"
+    # Track F (F3): the session this task is a turn of (its own id on turn
+    # 1), and the messages typed while it runs (followup.Steer).
+    session_id: str = ""
+    turn: int = 1
+    steer: followup.Steer = field(default_factory=followup.Steer)
+    # A revision asked for at the card, until the chain runs again: more
+    # messages in that gap join the same revision.
+    revising: bool = False
 
     @property
     def checking(self) -> bool:
@@ -102,7 +110,8 @@ class TaskState:
                 "write": (self.result or {}).get("write"),
                 "by": (self.result or {}).get("by_label"),
                 "attachments": [n for n, _ in self.attachments],
-                "approve": self.approve}
+                "approve": self.approve,
+                "session_id": self.session_id or self.id, "turn": self.turn}
 
 
 TASKS: dict[str, TaskState] = {}
@@ -152,12 +161,15 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
                 settings, mode: str = "read", github: str = "",
                 attachments: list[tuple[str, str]] | None = None,
                 check: dict[str, Any] | None = None,
-                approve: str = "manual") -> TaskState:
+                approve: str = "manual",
+                session: followup.Session | None = None) -> TaskState:
     t = TaskState(id=uuid.uuid4().hex[:12], project_id=project_id,
                   prompt=prompt, mode=mode, root=str(root), github=github,
                   attachments=list(attachments or []),
                   check_cfg=dict(check or {}) if mode == "write" else {},
                   approve="auto" if approve == "auto" else "manual")
+    t.session_id = session.id if session else t.id
+    t.turn = session.turn if session else 1
     TASKS[t.id] = t
     _prune()
 
@@ -172,6 +184,7 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
         try:
             await publish(t, {"k": "start", "prompt": prompt, "mode": mode,
                               "approve": t.approve,
+                              "session_id": t.session_id, "turn": t.turn,
                               "attachments": [n for n, _ in t.attachments],
                               "chain": [{"id": a.id, "label": a.label, "kind": a.kind}
                                         for a in agents]})
@@ -210,20 +223,42 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
                         mode=Mode.WRITE if sb else Mode.READ,
                         progress=sb.changed_files if sb else None, mcp_config=mcp,
                         attachments=t.attachments, inventory=inv)
-            res = await chain.run_chain(task, agents, emit=emit, cancel=t.cancel)
+            if session is not None:
+                task.session_turns = session.turns
+                task.state_note = followup.state_note(session.turns)
+                own = next((a for a in agents if a.id == session.native.get("agent")), None)
+                if own is not None:
+                    task.resume = {**session.native, "why": "followup"}
+                    await emit({"k": "note", "text": f"{own.label} continues its own session "
+                                "from the last turn."})
+            res = await chain.run_chain(task, agents, emit=emit, cancel=t.cancel, steer=t.steer)
             t.result = res.to_dict()
-            if sb is not None:
+            while sb is not None:
                 if res.outcome == Outcome.OK and not t.cancel.is_set():
-                    t.result.update(await _review_and_apply(t, sb))
+                    out = await _review_and_apply(t, sb)
+                    if out.get("write") == "revised" and not t.cancel.is_set():
+                        res = await _revise(t, task, agents, res, sb, emit)
+                        t.result = res.to_dict()
+                        continue
+                    t.result.update(out)
                 else:
                     t.result["write"] = "discarded"
                     if await loop.run_in_executor(None, sb.changed_files):
                         await emit({"k": "note", "text": "The task did not finish, so its "
                                     "partial edits were discarded. Your folder is unchanged."})
+                break
         except Exception as exc:  # noqa: BLE001 -- the transcript must end, not hang
             t.result = {"outcome": "unavailable", "text": "",
                         "detail": f"{type(exc).__name__}: {exc}", "attempts": []}
         finally:
+            # From here on a message is the next follow-up -- and one that
+            # never reached an agent (typed during the pull, or just before a
+            # Halt or a failure) goes back to the console to send as one.
+            t.steer.close()
+            t.revising = False
+            left = t.steer.take()
+            if left:
+                t.result = {**(t.result or {}), "unsent_messages": left}
             if t.approval is not None and not t.approval.done():
                 t.approval.cancel()
             # A check still running is running IN the copy about to be
@@ -386,6 +421,14 @@ async def _review_and_apply(t: TaskState, sb: sandbox.Sandbox) -> dict[str, Any]
                 break
     finally:
         halt.cancel()
+    if t.approval in done and not t.approval.cancelled() and t.approval.result() == REVISE:
+        # A message typed at the card: nothing is applied, the same agent
+        # revises in this same copy, and a new card follows (_revise).
+        await publish(t, {"k": "decision", "approved": False, "why": "revised"})
+        await _stop_check(t)
+        t.approval = None
+        t.check_result = None
+        return {"write": "revised"}
     if t.approval in done and not t.approval.cancelled():
         approved, why = bool(t.approval.result()), ("approved" if t.approval.result() else "denied")
     else:
@@ -400,6 +443,66 @@ async def _review_and_apply(t: TaskState, sb: sandbox.Sandbox) -> dict[str, Any]
     if not approved:
         return {"write": why}
     return await _apply(t, sb, rv)
+
+
+async def _revise(t: TaskState, task: Task, agents: list, res: chain.ChainResult,
+                  sb: sandbox.Sandbox, emit) -> chain.ChainResult:
+    """Run the chain again for a revision asked for at the card: the agent
+    that made the diff first -- its own session resumed when it has one --
+    in the same copy, so its edits are still there to change."""
+    msgs = t.steer.take()
+    t.steer.reopen()
+    t.revising = False
+    by = next((a for a in agents if a.id == res.by), None)
+    changed = await asyncio.get_running_loop().run_in_executor(None, sb.changed_files)
+    if by is not None:
+        chain.prepare_continuation(task, by, said=res.text, sid=res.session_id,
+                                   msgs=msgs, why="revise", changed=changed)
+    else:
+        task.added += msgs
+    await emit({"k": "note", "text": "Revising the diff with your message…"})
+    order = ([by] if by else []) + [a for a in agents if a is not by]
+    again = await chain.run_chain(task, order, emit=emit, cancel=t.cancel, steer=t.steer)
+    again.attempts = res.attempts + again.attempts
+    return again
+
+
+# What POST /message resolves the approval future with (never a bool).
+REVISE = "revise"
+
+
+async def message(t: TaskState, text: str) -> dict[str, Any]:
+    """A message typed while the task runs (POST /tasks/{id}/message).
+
+    Where it goes depends on where the task is, decided with no await in
+    between, so it lands in exactly one place:
+      prompt       nothing running yet -- the next agent's prompt has it
+      interrupt    a CLI agent is working -- stopped, then resumed with it
+      after_reply  a browser unit is working -- sent after its reply
+      revise       the approval card is up -- nothing applied, same agent
+                   revises, a new card
+      followup     applying, committing, ended -- the console sends it as
+                   the next turn
+    """
+    try:
+        if t.done or not (t.steer.open or t.awaiting_approval or t.revising):
+            text = followup.Steer.check_text(text)
+            how = "followup"
+        elif t.awaiting_approval or t.revising:
+            text = t.steer.hold(text)
+            how = REVISE
+            if t.awaiting_approval:
+                t.revising = True
+                t.approval.set_result(REVISE)
+        else:
+            how = t.steer.add(text)
+            text = t.steer.pending[-1]
+    except OverflowError as e:
+        return {"ok": False, "error": "too_many", "message": str(e)}
+    except ValueError as e:
+        return {"ok": False, "error": "bad_message", "message": str(e)}
+    await publish(t, {"k": "user", "text": text, "how": how})
+    return {"ok": True, "accepted": how}
 
 
 async def _apply(t: TaskState, sb: sandbox.Sandbox, rv) -> dict[str, Any]:

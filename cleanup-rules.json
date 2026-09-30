@@ -189,6 +189,17 @@
       "approved": "2026-09-29: Tony reviewed the full list and turned deletion on for every item"
     },
     {
+      "id": "magi-codex-rollouts",
+      "store": "disk",
+      "program": "magi",
+      "category": "outdated",
+      "capDays": 30,
+      "glob": "profiles/{profile}/cli/codex-*/sessions/**/rollout-*.jsonl",
+      "owner": "magi/code/agents/codex_cli.py (Code Mode follow-ups, Track F)",
+      "reason": "Codex's own record of each Code Mode task. Since F3 (2026-09-30) they are kept, not ephemeral, so a follow-up can resume the same Codex session. A session untouched for 30 days is continued from its transcript instead, and nothing else ever removes them. Accounts' usage reading only looks at the newest few.",
+      "delete": false
+    },
+    {
       "id": "trading-launch-log",
       "store": "disk",
       "program": "trading-auto-launch",

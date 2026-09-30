@@ -1480,8 +1480,8 @@ freeze the queue.
 
 ## Follow-ups and notes mid-run (Track F)
 
-*Engine side done in F1 (2026-09-29), console in F2 (2026-09-30). Code Mode
-gets the same in F3/F4.*
+*Engine side done in F1 (2026-09-29), console in F2 (2026-09-30). Code Mode:
+engine F3 (2026-09-30, below), console F4.*
 
 **What you see.** After a verdict the send button says **Follow up**; while a
 run is going it says **Add to run**. The earlier turns read top-down as compact
@@ -1558,6 +1558,53 @@ their transcript:
   an engine that has this from one that needs updating.
 - The engine's database records each run's `session_id`, `turn` and notes.
   Older runs read as one-turn sessions of their own.
+
+### Code Mode follow-ups (engine: F3, 2026-09-30)
+
+*The console side is F4: until then nothing on screen uses this.* A Code Mode
+task can be turn n of a session (`magi/code/followup.py`):
+
+- **Memory.** `POST /api/code/tasks` takes an optional `session` object: `id`
+  (the first task's id), `turn`, `turns` (the earlier turns: `prompt`,
+  `text`, `mode`, `write`, `files`, `by`; at most 200 turns, 200,000
+  characters) and `native` (`{agent, sid}`: the CLI session the last turn ran
+  in, from that task's result). The turns become a **SESSION SO FAR** block
+  -- F1's builder and trimming, each prompt tagged "[read-only turn]" or
+  "[write turn by X; applied: a.py]" -- in front of `NEW MESSAGE:`. A browser
+  unit's block is sized to its chat box, and its context is gathered for the
+  new prompt plus the last two prompts of the session.
+- **Native resume.** If the same CLI agent and account is in the chain, it
+  resumes its own session (`claude … --resume <sid>`; `codex exec <flags>
+  resume <sid> -`) and is NOT sent the block. Anyone else gets the block.
+  A resume that misses ("No conversation found" / "no rollout found") is
+  retried once on the same agent from the block. Both CLIs resume across
+  folders -- a write turn's sandbox is gone by the next turn -- and after a
+  kill (verified live, see docs/magi-plan.md "Hard-won facts"). Codex no
+  longer runs `--ephemeral`, so its rollouts persist; `magi-codex-rollouts` in
+  cleanup-rules.json removes ones 30 days old (dry run until Tony turns it on).
+  Each result carries `native` for the next turn.
+- **Ground truth.** Native memory remembers every edit the agent made,
+  including denied ones. Every follow-up opens with **WHAT IS ACTUALLY IN THE
+  PROJECT NOW**: each earlier write turn and whether its diff was applied
+  (with the files) or denied / timed out / halted / refused / conflicted /
+  discarded -- "NOT in the project".
+- **A message while it runs**: `POST /api/code/tasks/{id}/message {text}`
+  (4,000 characters, 20 per task). `accepted` says where it went:
+  `prompt` (no agent running yet: joins its prompt), `interrupt` (a CLI agent:
+  stopped -- messages within 1.5 s are one interrupt -- and resumed in its
+  own session with "The person interrupted you…", edits kept),
+  `after_reply` (a browser unit: its reply finishes, then it continues with
+  the message), `revise` (the approval card is up: nothing is applied, the
+  agent that made the diff revises it in the same copy, a new card follows),
+  `followup` (applying, committing or finished: send it as the next turn).
+  Every message is also under ADDED BY THE PERSON in every later prompt of
+  the task, so a hand-off keeps it. Halt still wins. Every viewer sees a
+  `{k:"user", text, how}` event; an interrupt adds `{k:"interrupt"}`, a
+  revision a decision `why: "revised"`. A message that never reached an
+  agent (typed during the pull, then a failure or Halt) comes back in the
+  result's `unsent_messages`.
+- `/api/code/state` lists `features` `followup` and `steer`; the task's
+  `start` event and summary carry `session_id` and `turn`.
 
 ## Opening the console from somewhere else
 

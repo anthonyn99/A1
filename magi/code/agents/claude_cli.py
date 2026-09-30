@@ -65,7 +65,11 @@ _LIMIT = re.compile(r"usage limit|limit reached|hit your limit|rate.?limit|"
 
 
 def build_argv(exe: str, task: Task, model: str | None = None,
-               effort: str | None = None) -> list[str]:
+               effort: str | None = None, resume: str = "") -> list[str]:
+    """`resume`: a Claude session id to continue (Track F). Verified live on
+    this exact argv: a different cwd needs nothing extra -- the CLI finds the
+    session wherever it was saved, even after that folder is gone -- and the
+    file tools work on the NEW cwd."""
     write = task.mode == Mode.WRITE
     argv = [exe, "-p", "--output-format", "stream-json", "--verbose",
             "--restricted", "--strict-mcp-config",
@@ -80,7 +84,14 @@ def build_argv(exe: str, task: Task, model: str | None = None,
         argv += ["--model", model]
     if effort:
         argv += ["--effort", effort]
+    if resume:
+        argv += ["--resume", resume]
     return argv
+
+
+# A resume of a session this CLI no longer has: `result` subtype
+# error_during_execution, errors ["No conversation found with session ID: …"].
+_MISS = re.compile(r"no conversation found with session id", re.I)
 
 
 def env_for_task(slot: str, task: Task) -> dict[str, str]:
@@ -151,7 +162,8 @@ def parse_line(line: str) -> dict[str, Any] | None:
                 "subtype": d.get("subtype", ""), "text": d.get("result") or "",
                 "turns": d.get("num_turns") or 0,
                 "api_status": d.get("api_error_status"),
-                "session_id": d.get("session_id", "")}
+                "session_id": d.get("session_id", ""),
+                "errors": [str(e) for e in d.get("errors") or []]}
     return None
 
 
@@ -256,10 +268,11 @@ class ClaudeCLIAgent(CodingAgent):
         """One CLI run. The second value is "" normally, "credits" when the
         model needs usage credits, "cli:<version>" when this Claude Code is
         too old for it -- the two refusals run() retries once."""
-        prompt = task.full_prompt()
+        resume = task.resume_for(self.id)
+        prompt = task.prompt_for(self.id)
         try:
-            s = Stream(build_argv(exe, task, pick.get("model"), pick.get("effort")), cwd=task.root,
-                       env=env_for_task(self.slot, task), stdin_text=prompt)
+            s = Stream(build_argv(exe, task, pick.get("model"), pick.get("effort"), resume),
+                       cwd=task.root, env=env_for_task(self.slot, task), stdin_text=prompt)
         except OSError as exc:
             return Result(Outcome.UNAVAILABLE, detail=f"Could not start Claude Code: {exc}"), ""
 
@@ -322,10 +335,17 @@ class ClaudeCLIAgent(CodingAgent):
             watch.cancel()
 
         if cancel.is_set():
-            return Result(Outcome.CANCELLED, session_id=session, tools_used=tools), ""
+            # Halt -- or an interrupt for a message (the chain tells them
+            # apart). What it had said is kept for the continuation.
+            return Result(Outcome.CANCELLED, text="\n".join(texts).strip(),
+                          session_id=session, tools_used=tools), ""
 
         code = await s.wait()
         tail = "\n".join(s.stderr_tail)
+
+        if resume and _MISS.search("\n".join((result or {}).get("errors") or []) + "\n" + tail):
+            return Result(Outcome.RESUME_MISS, detail="Claude Code no longer has that "
+                          "session.", tools_used=tools), ""
 
         if s.stalled:
             # The watchdog ended it (_proc.STALL_S). Not the task's fault and

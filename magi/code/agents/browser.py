@@ -66,12 +66,24 @@ class BrowserUnitAgent(CodingAgent):
         return True, ""
 
     def build_prompt(self, task: Task, ctx_block: str) -> str:
+        from ...engine.session import budget_for
+        from ..followup import added_block
         body = _READ_FRAME
         if task.mode == Mode.WRITE:
             body += edits.FORMAT_HELP + "\n\n"
+        # A follow-up: a chat unit starts a fresh conversation every time, so
+        # its memory of the session is this block, sized to its chat box.
+        if task.state_note:
+            body += task.state_note + "\n\n"
+        hist = (task.history(budget_for(self.unit_id, task.prompt + ctx_block))
+                if task.session_turns else "")
+        if hist:
+            body += hist + "\n\n"
         if task.handoff_note:
             body += "EARLIER WORK ON THIS TASK:\n" + task.handoff_note + "\n\n"
-        body += "TASK:\n" + task.prompt.strip() + "\n\n"
+        body += ("NEW MESSAGE:\n" if hist else "TASK:\n") + task.prompt.strip() + "\n\n"
+        if task.added:
+            body += added_block(task.added) + "\n\n"
         if task.attachments:
             body += task.attachments_block() + "\n\n"
         if task.inventory:
@@ -82,7 +94,8 @@ class BrowserUnitAgent(CodingAgent):
     async def run(self, task: Task, *, emit: EventFn, cancel: asyncio.Event) -> Result:
         await emit({"k": "note", "text": f"Gathering context for {self.label}…"})
         loop = asyncio.get_running_loop()
-        ctx_block = await loop.run_in_executor(None, context.gather, task.root, task.prompt)
+        ctx_block = await loop.run_in_executor(None, context.gather, task.root,
+                                               task.gather_text())
         # "the workspace", not task.root.name: in write mode the root is the
         # sandbox, whose folder name is a task id nobody recognises.
         kb = max(1, round(len(ctx_block) / 1000))

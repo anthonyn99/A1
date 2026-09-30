@@ -129,6 +129,32 @@ def test_tts_orphans_and_empty_files(fake):
     assert not empty.exists() and full.exists()
 
 
+def test_old_codex_rollouts_go_and_nothing_else_under_profiles(fake):
+    root, rules = fake
+    rules(_item(id="rollouts", capDays=30,
+                glob="profiles/{profile}/cli/codex-*/sessions/**/rollout-*.jsonl"))
+    s = root / "profiles/tony/cli/codex-c1/sessions/2026/08/01"
+    old = _file(s / "rollout-2026-08-01-x.jsonl", 40)
+    new = _file(s / "rollout-2026-09-29-y.jsonl", 2)
+    auth = _file(root / "profiles/tony/cli/codex-c1/auth.json", 90)
+    other = _file(s / "notes.jsonl", 90)
+    sweep.run(now=NOW)
+    assert not old.exists() and new.exists()
+    assert auth.exists() and other.exists()
+
+
+@pytest.mark.parametrize("glob", [
+    "profiles/{profile}/cli/codex-*/*.json",          # beside the rollouts: auth
+    "profiles/{profile}/cli/codex-*/sessions/**/*",   # not only .jsonl
+    "profiles/{profile}/chatgpt/**/*.jsonl",          # a browser profile
+])
+def test_no_other_glob_under_profiles_is_allowed(fake, glob):
+    root, rules = fake
+    ok = _file(root / "artifacts/tony/keep.png", 30)
+    rules(_item(), _item(id="x", glob=glob))
+    assert sweep.run(now=NOW)["error"] and ok.exists()
+
+
 def test_the_real_rules_file_loads():
     items = sweep.load_rules(REPO / "cleanup-rules.json")
     assert {i["id"] for i in items} >= {"magi-screenshots", "magi-dom-dumps"}

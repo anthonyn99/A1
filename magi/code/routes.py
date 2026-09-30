@@ -76,7 +76,9 @@ async def code_state() -> dict[str, Any]:
         # What this engine's POST /tasks understands beyond a prompt, so a
         # console newer than the engine can fall back instead of having its
         # files silently dropped by an engine that ignores the field.
-        "features": ["attachments", "auto_approve"],
+        # Track F: `followup` = POST /tasks takes `session`; `steer` =
+        # POST /tasks/{id}/message exists.
+        "features": ["attachments", "auto_approve", "followup", "steer"],
     }
 
 
@@ -746,13 +748,21 @@ async def start_task(body: dict = Body(...)) -> dict[str, Any]:
     atts, why = _task_attachments(body.get("attachments"))
     if why:
         return {"ok": False, "error": "attachments", "message": why}
+    # Track F: a follow-up turn of a session -- its earlier turns and the
+    # CLI session to resume, from the console (followup.parse_session).
+    from . import followup as _followup
+    try:
+        session = _followup.parse_session(body.get("session"))
+    except ValueError as e:
+        return {"ok": False, "error": "session", "message": str(e)}
     order = [str(x) for x in (body.get("agents") or _chain.DEFAULT_ORDER)]
     from . import check as _check
     t = await _tasks.start(project_id=p["id"], root=root, prompt=prompt[:20000],
                            order=order, settings=_settings(), mode=mode,
                            github=str((p.get("prefs") or {}).get("github") or ""),
                            attachments=atts, check=_check.get(p["id"]),
-                           approve="auto" if body.get("approve") == "auto" else "manual")
+                           approve="auto" if body.get("approve") == "auto" else "manual",
+                           session=session)
     await _db().touch_code_binding(p["id"], eng)
     return {"ok": True, "task": t.summary()}
 
@@ -814,6 +824,17 @@ async def commit_task(task_id: str, body: dict = Body(...)) -> dict[str, Any]:
     if t is None:
         return {"ok": False, "error": "no_task", "message": "No such task."}
     return await _tasks.commit(t, str(body.get("message") or ""))
+
+
+@router.post("/tasks/{task_id}/message")
+async def message_task(task_id: str, body: dict = Body(...)) -> dict[str, Any]:
+    """A message typed while the task runs. `{"text": "..."}`, at most 4,000
+    characters and 20 per task. `accepted` says where it went: "prompt",
+    "interrupt", "after_reply", "revise" or "followup" (tasks.message)."""
+    t = _tasks.TASKS.get(task_id)
+    if t is None:
+        return {"ok": False, "error": "no_task", "message": "No such task."}
+    return await _tasks.message(t, (body or {}).get("text"))
 
 
 @router.post("/tasks/{task_id}/cancel")

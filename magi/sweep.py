@@ -16,6 +16,9 @@ Local disk costs no quota, so the only limits are the safety ones:
 * An item with "delete": false is a dry run. Its files are listed in
   data/<profile>/sweep.json and left where they are.
 * Never the database, uploads or browser profiles, whatever a glob says.
+  The one thing under magi/profiles it may touch is a Codex slot's session
+  rollouts (`CODEX_ROLLOUTS`): since Track F they persist so a follow-up
+  can resume, and nothing else ever removes them.
 """
 
 from __future__ import annotations
@@ -30,6 +33,16 @@ from . import settings as S
 DAY = 86400
 _TESTS = ("zero-bytes", "no-sibling:")
 _NEVER_SUFFIXES = (".db", ".db-wal", ".db-shm", ".sqlite")
+# The only glob allowed under magi/profiles: Codex rollouts, nothing beside
+# them (auth.json and config live one level up, browser profiles elsewhere).
+CODEX_ROLLOUTS = "profiles/{profile}/cli/codex-*/sessions/"
+
+
+def _codex_rollout(p: Path) -> bool:
+    parts = p.relative_to(S.ROOT).parts
+    return (len(parts) >= 6 and parts[0] == "profiles" and parts[2] == "cli"
+            and parts[3].startswith("codex-") and parts[4] == "sessions"
+            and p.name.startswith("rollout-") and p.suffix.lower() == ".jsonl")
 
 
 def rules_path() -> Path:
@@ -56,7 +69,9 @@ def load_rules(path: Path | None = None) -> list[dict]:
         if it["capDays"] < 1:
             raise ValueError(f"{it.get('id')}: a disk item needs an age of at least a day")
         glob = it.get("glob") or ""
-        if not (glob.startswith("artifacts/") or glob.startswith("data/")) or ".." in glob:
+        rollouts = glob.startswith(CODEX_ROLLOUTS) and glob.endswith(".jsonl")
+        if not (glob.startswith("artifacts/") or glob.startswith("data/") or rollouts) \
+                or ".." in glob:
             raise ValueError(f"{it.get('id')}: glob leaves magi/artifacts and magi/data")
         test = it.get("test")
         if test is not None and not any(test.startswith(t) for t in _TESTS):
@@ -78,6 +93,8 @@ def _is_trash(it: dict, p: Path, now: float) -> bool:
 
 
 def _protected(p: Path) -> bool:
+    if _codex_rollout(p):
+        return False
     parts = {x.lower() for x in p.relative_to(S.ROOT).parts}
     return p.suffix.lower() in _NEVER_SUFFIXES or "uploads" in parts or "profiles" in parts
 
