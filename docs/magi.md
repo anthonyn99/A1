@@ -1375,6 +1375,30 @@ because its tasks are steps that build on each other and a failed step poisons
 the rest. MAGI's queued prompts are independent questions, so a failed one is
 marked failed and the queue carries on.
 
+- **A check beside the diff** (Code Mode, added 2026-09-29) — Claude Queue's
+  "a real exit code, never the agent's word". `magi/code/check.py`. Per
+  project, set with the **Check** pill: a command, suggestions read from the
+  folder (package.json scripts, pytest with the project's venv, cargo, go),
+  **Try it now** (runs once in the real folder), Manual/Automatic, a timeout.
+  For a Write task it runs in the private copy with the folder's
+  `node_modules`/`.venv`/`venv`/`env`/`vendor` junction-linked in and removed
+  straight after; the result and output sit on the approval card. Manual
+  (default): **Run check** on the card; the approval clock is held while it
+  runs (`deadline` events) and a full window follows. Automatic: runs before
+  the card appears — that runs agent-written code unreviewed, and the sheet
+  says so. Security: stored in `data/<profile>/code/checks.json` only, never
+  in synced prefs; `POST /projects/{id}/check` and `/check/try` 404 over the
+  tunnel (`_local_only`), because the token that gates the tunnel lives in
+  the cloud document; it runs inside the agent job (`agent_guard.adopt`) with
+  MAGI's token and `*_API_KEY`/`*_TOKEN`/`*SECRET*` scrubbed; process-tree
+  kill on timeout. It informs; it never gates Approve.
+- **A stall watchdog** (Code Mode, added 2026-09-29) — `agents/_proc.Stream`
+  ends a CLI agent after 30 minutes with no output on stdout or stderr (a
+  slow agent that is still talking is never cut off), or after 4 hours
+  whatever it is doing, and the agent returns UNAVAILABLE so the chain hands
+  the task on. Before this nothing ended a hung agent, and one hung task held
+  the whole queue.
+
 Not carried over, on purpose: per-task model pickers (Code Mode's per-agent
 Auto/model/effort choice already covers it, from each account's live model
 list), drag-to-reorder (the arrows work on a phone), a preview pane and a
@@ -1814,6 +1838,35 @@ Without that it would hand over the text the BROWSER derives from the html,
 which is the rendered prose with every `**` and `#` stripped: the one thing the
 button exists to preserve. `magi/tests/test_copy.py` pins that, and that every
 surface is still wired up.
+
+**Code blocks have their own Copy** (2026-09-29), in a header row with the
+block's language. It is `copyButton(..., { plain: true })`: the text is the
+code exactly as written (only a trailing newline dropped, so a pasted command
+does not run itself), and the html flavour is a `<pre>` of the same text —
+never the markdown renderer, which would turn a `*` in a glob into italics.
+The header row is stripped from a whole-answer rich copy (`richHtml`), so
+"POWERSHELL" never lands in a document. Code Mode's answer Copy was broken
+until then: it passed the answer string where `copyButton` wants a function,
+and every press threw. `copyButton` now accepts a string as the markdown, and
+the Codex sign-in's **Copy code** (same mistake) is fixed too.
+
+## Sizes and rankings in Code Mode: the inventory
+
+Read-mode agents have Read/Glob/Grep and no shell, and none of those reports a
+file's size. Asked (2026-09-29) to rank A1's programs by size, Claude counted
+lines instead, stopped at Glob's 250 results, skipped `.html` entirely, and
+asked for a PowerShell command to be pasted back. `magi/code/agents/
+inventory.py` answers instead: when a prompt is about size, lines, the
+largest/smallest, ranking, sorting or comparing (`inventory.wants`), the task
+carries MAGI's own measurement — every file `git ls-files --cached --others
+--exclude-standard` lists (so ignored folders and browser profiles never
+appear), with exact bytes and line counts, totals per top-level folder and per
+extension, the top-level files (A1's programs) and the 150 largest. A type the
+prompt names (".html", "python files") is listed **in full first**, with its
+own allowance — found live, the general list cut A1's 39 `.html` files at 15.
+CLI agents get it in the prompt (`Task.full_prompt`), browser agents with their
+context (`browser.build_prompt`). A1 measures in under a second and costs about
+4k tokens; ordinary tasks never carry it.
 
 ## Accounts — which account each unit is signed in as
 
