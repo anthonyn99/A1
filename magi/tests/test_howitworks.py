@@ -467,3 +467,36 @@ def test_the_followup_claims_still_hold():
     # "A pin, a name, the 30-day window and Delete all apply to the whole session."
     assert "const isPinned = (r) => PINS.has(sessionKey(r));" in PAGE
     assert "for (const id of ids) await CLOUD.fs.deleteDoc(_runDoc(id));" in PAGE
+
+
+def test_the_code_followup_claims_still_hold():
+    """Track F4: Code Mode follow-ups, messages mid-task, continuing from History."""
+    assert "Follow-ups in Code Mode: a task is a conversation too" in HOW
+    from magi.code import followup
+    # "Up to twenty per task" -- the console's cap is the engine's.
+    assert followup.MAX_MESSAGES == 20 and "Up to twenty per task" in HOW
+    assert "const MAX_TASK_MESSAGES = 20;" in PAGE
+    assert f"const MAX_TASK_MESSAGE_CHARS = {followup.MAX_MESSAGE_CHARS};" in PAGE
+    cap = int(PAGE.split("const CODE_SESSION_MAX_CHARS = ")[1].split(";")[0])
+    assert cap < followup.MAX_INPUT_CHARS
+    # The labels it names are the ones the button shows.
+    for word in ("Follow up", "Send"):
+        assert f"<b>{word}</b>" in HOW and f'"{word}"' in PAGE
+    assert '"Follow up · edits"' in PAGE and "Follow up &middot; edits" in HOW
+    # "says what is actually in your folder": the engine's ground-truth note.
+    assert "WHAT IS ACTUALLY IN THE PROJECT NOW" in followup.state_note(
+        [{"prompt": "p", "mode": "write", "write": "denied"}])
+    # "picks up its own session" only on this PC: native goes only to its engine.
+    assert "last.engine === engineId" in PAGE
+    # "Interrupted -- continuing with your message" is what the log says.
+    assert "Interrupted — continuing with your message" in PAGE
+    assert "Interrupted &mdash; continuing with your message" in HOW
+    # "never after a Halt": a cancelled task's held messages are a draft.
+    assert 'r.outcome !== "cancelled" && !t.halting' in PAGE
+    # "choosing another workspace does too"
+    assert "sess.projectId !== id && !codeBusy()" in PAGE
+    # "Pins, names, the 30-day window and Delete apply to the whole session."
+    assert "const codePinned = (r) => CODE_PINS.has(codeSessKey(r));" in PAGE
+    assert "for (const id of ids) {\n      CLOUD.fs.deleteDoc(_codeTaskDoc(id))" in PAGE.replace("\r\n", "\n")
+    # "it says so instead of quietly starting a new session"
+    assert "has no folder on this engine" in PAGE

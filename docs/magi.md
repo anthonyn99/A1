@@ -1481,7 +1481,7 @@ freeze the queue.
 ## Follow-ups and notes mid-run (Track F)
 
 *Engine side done in F1 (2026-09-29), console in F2 (2026-09-30). Code Mode:
-engine F3 (2026-09-30, below), console F4.*
+engine F3, console F4 (both 2026-09-30, below).*
 
 **What you see.** After a verdict the send button says **Follow up**; while a
 run is going it says **Add to run**. The earlier turns read top-down as compact
@@ -1559,10 +1559,54 @@ their transcript:
 - The engine's database records each run's `session_id`, `turn` and notes.
   Older runs read as one-turn sessions of their own.
 
-### Code Mode follow-ups (engine: F3, 2026-09-30)
+### Code Mode follow-ups (engine F3, console F4, 2026-09-30)
 
-*The console side is F4: until then nothing on screen uses this.* A Code Mode
-task can be turn n of a session (`magi/code/followup.py`):
+**What you see (F4).** After a task the send button says **Follow up**
+("Follow up · edits" in Write); while a task runs it says **Send** and
+messages it. Earlier turns read top-down above the current one, each log
+folded to one line (agent · steps); the box docks under the thread, as in F2.
+A message shows as a bubble in the log where it landed; an interrupt adds
+"Interrupted — continuing with your message"; a message at the approval card
+resolves that card "Sent back with your message — nothing was applied" and the
+revised diff arrives as a second card in the same task (`codeRounds` splits
+the events at each `decision why:"revised"`, so each round has its own log,
+answer and card). **New session** / Clear starts an empty session, and so
+does choosing another workspace (the memory is about its folder). Queue
+items, Diagnose and a reload's reattach are sessions of their own.
+
+- **State:** `CODE.session = {id, projectId, turns, pending}` (`id` = the
+  first task's id; `turns` = finished task objects, CODE.task being the last;
+  each carries `engine`, the engine it ran on). `codeSend` (pure) decides
+  run | followup | message and why not; `codeStartTurn` posts `/tasks` with
+  `session: codeSessionBody(sess, engineId)`: every earlier turn as
+  `codeTurnOf` (`write`/`files` from the result or its `applied` event -- the
+  ground truth), under 190,000 characters (oldest shortened first), and
+  `native` only when the last turn ran on THIS engine. `codeMessage` posts
+  `/message`; the engine's `user` echo replaces the "sending…" bubble.
+- **Carried messages:** accepted as `followup` (the work was over) → sent as
+  the next follow-up by `codeCarry` from the tab that sent them, only while
+  the session is on screen, not after a Halt, not while the Code queue runs;
+  otherwise a draft. `unsent_messages` are always a draft.
+- **History is per session.** Cloud index rows gain `sid`, `turn`, `eng`;
+  engine rows map `session_id`/`turn`. `codeGroupRows` makes one entry per
+  session ("n turns", first prompt, latest time, latest outcome); pins, names
+  and the unpin clock are keyed by session id (the first task's id, so marks
+  made before F4 hold); a session expires whole from its latest turn; Delete
+  removes every turn's row and body. **Opening** (`codeOpenHistory`) loads
+  every turn via `codeLoadTurn` -- replayed from this engine's stream while
+  it holds the task, else the cloud body, else "no longer stored" with its
+  prompt -- attaches a turn still running here, and leaves the box EMPTY as
+  Follow up. A session whose workspace has no folder on this engine says so
+  and holds Send (`codeSessionAway`) rather than starting a new session.
+- **Old engine:** without `followup` Follow up is held, without `steer` Send
+  is held, both with "Update the engine".
+- **Sync cost is unchanged:** one index row and one body per finished turn;
+  nothing mid-task. Tests: `tests/magi-code-thread.test.js`,
+  `test_howitworks.py::test_the_code_followup_claims_still_hold`, live
+  `tests/live/magi-code-thread.live.js`.
+
+**Engine (F3).** A Code Mode task can be turn n of a session
+(`magi/code/followup.py`):
 
 - **Memory.** `POST /api/code/tasks` takes an optional `session` object: `id`
   (the first task's id), `turn`, `turns` (the earlier turns: `prompt`,

@@ -56,12 +56,12 @@ ok('detached HEAD and a half-done merge/rebase are named', /detached at/.test(ro
 ok('it hangs off the workspace, not a separate panel', /col\.append\(ws\);\s*\n\s*if \(proj && codeRoot\(proj\)\) \{\s*\n\s*codeGitEnsure\(proj\);\s*\n\s*col\.append\(renderCodeGit\(proj\)\);/.test(MAGI));
 
 console.log('\nThe pull');
-const task = fn('function renderCodeTask(t)');
+const task = fn('function renderCodeTask(t');
 ok('the transcript shows it', /ev\.k === "pull"/.test(task) && /is-err/.test(task));
 ok('a failed pull says no agent started', /pull_failed: "Stopped before any agent started/.test(task));
 
 console.log('\nCommit');
-const card = fn('function renderCodeApproval(t, ev)');
+const card = fn('function renderCodeApproval(t, ev');
 ok('only an applied change offers it', /\} else if \(applied\) \{[\s\S]{0,1500}renderCodeCommit\(t, applied, done\)/.test(card));
 const commit = fn('function renderCodeCommit(t, applied, done)');
 ok('it is its own button, not part of Approve', /"Commit these files"/.test(commit));

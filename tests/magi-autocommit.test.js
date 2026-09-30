@@ -89,7 +89,7 @@ ok('and says which permission a private repo needs', /Actions: Read-only/.test(w
 ok('forbidden / bad token / not found are final', /const WATCH_FINAL = new Set\(\["forbidden", "bad_token", "not_found"/.test(MAGI));
 
 console.log('\nThe task card');
-const card = fn('function renderCodeApproval(t, ev)');
+const card = fn('function renderCodeApproval(t, ev');
 ok('auto commit takes it: no second, manual commit', /const auto = t\.events\.find\(\(e\) => e\.k === "autocommit"\)/.test(card)
    && /if \(auto && !done\) \{[\s\S]{0,500}return box;/.test(card));
 

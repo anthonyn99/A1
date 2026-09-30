@@ -42,10 +42,10 @@ function lift(name, n = 4000) {
 console.log('Write stays as set, never stored');
 ok('the switch starts in Read', /rw: "read",/.test(MAGI));
 ok('the choice is never stored', !/lsWrite\([^)]*rw/.test(MAGI) && !/CODE_RW_KEY/.test(MAGI));
-const run = lift('async function codeRun()', 1400);
+const run = lift('async function codeStartTurn(', 1800);
 // Built by codeTaskBody (which adds the attached files), then posted.
 ok('the mode goes to the engine',
-   /codeTaskBody\(\{[^}]*mode: CODE\.rw[\s\S]{0,200}codePost\("\/tasks", body\)/.test(run));
+   /const base = \{[^}]*mode: CODE\.rw[\s\S]{0,300}codePost\("\/tasks", codeTaskBody\(base/.test(run));
 ok('and is not reset when a task starts', !/CODE\.rw = "read";/.test(run));
 const rw = lift('function renderCodeRw(proj)', 3200);
 ok('Write is disabled where the engine says no', /b\.disabled = k === "write" && !w\.ok/.test(rw));
@@ -58,7 +58,7 @@ const decide = lift('async function codeDecide(t, approve)', 900);
 ok('the answer is posted to /approve', /codePost\(`\/tasks\/\$\{t\.id\}\/approve`, \{ approve \}\)/.test(decide));
 ok('it cannot be sent twice', /if \(t\.deciding != null\) return;/.test(decide));
 ok('another device answering first is not an error', /d\.error !== "not_waiting"/.test(decide));
-const card = lift('function renderCodeApproval(t, ev)', 4200);
+const card = lift('function renderCodeApproval(t, ev', 4200);
 ok('Approve and Deny are the only callers', (MAGI.match(/codeDecide\(t, (true|false)\)/g) || []).length === 2);
 ok('both disable while the answer is in flight', /deny\.disabled = ok\.disabled = t\.deciding != null/.test(card));
 ok('no native dialog in the write path',
@@ -85,7 +85,7 @@ ok('while waiting, the status says nothing has changed yet',
 
 console.log('\nA1 (Phase 14b): writable; it commits and pushes itself');
 {
-  const whole = lift('function renderCodeApproval(t, ev)', 7000);
+  const whole = lift('function renderCodeApproval(t, ev', 7000);
   const hookAt = whole.indexOf('if (applied.by_hook)');
   ok('an A1 change says A1 commits and pushes it itself', hookAt > 0 && /auto-commit records it and "\s*\+ "pushes it to main/.test(whole));
   ok('...and returns before the Commit button is drawn',
@@ -108,7 +108,7 @@ console.log('\nManual / Auto');
      /ap: "manual",/.test(MAGI) && !/lsWrite\([^)]*\bap\b/.test(MAGI));
   ok('offered only while Write is on, on an engine that honours it',
      /CODE\.rw === "write" && w\.ok && canAuto/.test(rw) && /features\.includes\("auto_approve"\)|feats\.includes\("auto_approve"\)/.test(rw));
-  ok('Run sends it', /approve: CODE\.ap/.test(lift('async function codeRun()', 1600)));
+  ok('Run sends it', /approve: CODE\.ap/.test(lift('async function codeStartTurn(', 1600)));
   ok('an engine without it, or a Read task, never gets the field',
      /base\.mode !== "write" \|\| !feats\.includes\("auto_approve"\)/.test(lift('function codeTaskBody(base, atts)', 600)));
   ok('queued tasks keep it', /ap: it\.ap === "auto" \? "auto" : "manual"/.test(MAGI)

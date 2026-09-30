@@ -180,7 +180,10 @@ const turnOf = (prompt, mode, r, files) => ({
       });
       const text = ((r2.result || {}).text || '').trim();
       ok('it was resumed', r2.events.some((e) => e.k === 'note' && /continues its own session/.test(e.text || '')));
-      ok('it knows the denied edit is not there (NO)', /^\W*NO\b/i.test(text), text.slice(0, 200));
+      // Any of its messages may be the answer: Codex sometimes says what it
+      // is about to do first ("I'll read app.py's first line, then…"), and
+      // the result joins every message (2026-09-30).
+      ok('it knows the denied edit is not there (NO)', /(^|\n)\W*NO\b/i.test(text), text.slice(0, 300));
       ok('its diff is app.py only', card && card.files.length === 1 && card.files[0].path === 'app.py',
         card && JSON.stringify(card.files.map((f) => f.path)));
       ok('and it did not re-add the denied line on the way', card && !card.files.some((f) =>

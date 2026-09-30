@@ -33,7 +33,26 @@ const ok = (name, cond, extra) => {
 
 const a = MAGI.indexOf('/* ══ CODE MODE, ACROSS YOUR DEVICES (Phase 13)');
 const b = MAGI.indexOf('/** Share a token this browser has.');
-const BLOCK = a > 0 && b > a ? MAGI.slice(a, b) : '';
+// Track F (F4): History and its expiry are per SESSION now, with helpers that
+// live in the follow-ups block -- the real ones, lifted, not stand-ins.
+function liftFn(name) {
+  const at = MAGI.search(new RegExp('\\nfunction ' + name + '\\('));
+  if (at < 0) throw new Error('not found: ' + name);
+  let i = MAGI.indexOf('{', MAGI.indexOf(')', at)), depth = 0;
+  for (let j = i; j < MAGI.length; j++) {
+    if (MAGI[j] === '{') depth++;
+    else if (MAGI[j] === '}' && --depth === 0) return MAGI.slice(at, j + 1);
+  }
+  throw new Error('unbalanced: ' + name);
+}
+const liftConst = (name) => {
+  const m = new RegExp('const ' + name + ' = [^;]+;').exec(MAGI);
+  if (!m) throw new Error('no const ' + name);
+  return m[0];
+};
+const PRELUDE = [liftConst('codeSessKey'), liftConst('codeEngineId'),
+                 liftFn('codeLatestBySession'), liftFn('codeGroupRows')].join('\n');
+const BLOCK = a > 0 && b > a ? PRELUDE + '\n' + MAGI.slice(a, b) : '';
 ok('the sync block is where it should be', BLOCK.length > 2000);
 
 // ── a tiny world for the block to run in ──────────────────────────────────

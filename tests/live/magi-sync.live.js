@@ -15,9 +15,9 @@
 //   6. local: a change made on 127.0.0.1 (no sync there) reaches the cloud
 //      on the next connect, in one write.
 //   7. task: while a task runs, zero writes; at its end one index write and
-//      one body doc; Recent lists it; opening it reads the body.
+//      one body doc; Code History lists it; opening it reads the body.
 //   8. listener: still exactly one, after everything above.
-//   9. narrow: Recent at 390px, no horizontal scroll.
+//   9. narrow: Code History at 390px, no horizontal scroll.
 // LIVE_ONLY=seed,pref,burst,phone,a1,local,task,narrow picks sections
 // (every section after seed needs seed).
 const { connect, evalJs, sleep, shotPath } = require('./cdp.js');
@@ -244,9 +244,12 @@ function makeRepo() {
       ok('the index row is there, and what was held went with it',
          cc.tasks[0].id === 'live-sync-task' && cc.projects[PID].name === 'changed-mid-task');
       await evalJs(c, 'codeClearTask(); return 1;');
-      ok('Recent lists it', await waitFor(c, '[...document.querySelectorAll(".code-recent-q")].some(n => /README/.test(n.textContent))', 5000));
-      await shot(c, 'sync-recent');
-      await evalJs(c, 'document.querySelector(".code-recent-row").click(); return 1;');
+      // Code History, not Recent: Recent was removed in 5ff90fb (2026-09-29)
+      // and History is where a finished task is listed and opened (F4).
+      await evalJs(c, 'setView("codeHistory"); return 1;');
+      ok('Code History lists it', await waitFor(c, '[...document.querySelectorAll("#codeHistoryRows .row .q")].some(n => /README/.test(n.textContent))', 5000));
+      await shot(c, 'sync-history');
+      await evalJs(c, '[...document.querySelectorAll("#codeHistoryRows .row")].find(r => /README/.test(r.textContent)).click(); return 1;');
       ok('opening it reads the saved transcript', await waitFor(c, 'CODE.task && CODE.task.archived && CODE.task.events.length === 400', 5000));
       ok('marked as a saved copy', await waitFor(c, '/a saved copy/.test(document.querySelector(".code-task-hd").textContent)', 3000));
       await shot(c, 'sync-opened');
@@ -266,11 +269,11 @@ function makeRepo() {
       console.log('\nPhone width');
       await c.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
       await sleep(800);
-      await evalJs(c, 'renderCodeView(); return 1;');
-      ok('Recent shows at 390px', await waitFor(c, '!!document.querySelector(".code-recent-row")', 3000));
+      await evalJs(c, 'setView("codeHistory"); return 1;');
+      ok('Code History shows at 390px', await waitFor(c, '!!document.querySelector("#codeHistoryRows .row")', 3000));
       ok('no horizontal scroll', await evalJs(c, 'document.documentElement.scrollWidth <= window.innerWidth + 1'),
          await evalJs(c, 'document.documentElement.scrollWidth'));
-      ok('a row fits the screen', await evalJs(c, 'document.querySelector(".code-recent-row").getBoundingClientRect().right <= window.innerWidth'));
+      ok('a row fits the screen', await evalJs(c, 'document.querySelector("#codeHistoryRows .row").getBoundingClientRect().right <= window.innerWidth'));
       await shot(c, 'sync-phone');
     }
 

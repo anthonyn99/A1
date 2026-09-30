@@ -4537,7 +4537,23 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 .code-appr-out.is-ok { color: var(--grn); }
 .code-appr-out.is-bad { color: var(--amber); }
 .code-appr-out.is-warn { color: var(--amber); }
+.code-appr-out.is-note { color: var(--txd); font-weight: 500; font-style: italic; }
 .code-appr-out code { font-family: var(--font-mono); }
+/* Track F (F4): a Code Mode session, top-down, the box docked under it. */
+.code-thread { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.code-task.is-earlier { background: transparent; }
+.code-task.is-earlier .code-task-q { font-weight: 600; }
+.code-log-fold { border-bottom: 1px solid var(--bd); padding: 8px 14px; font-size: 11.5px; }
+.code-log-fold > summary { cursor: pointer; color: var(--txd); font-weight: 600;
+                           list-style: none; user-select: none; }
+.code-log-fold > summary::-webkit-details-marker { display: none; }
+.code-log-fold > summary::after { content: " \25B8"; }
+.code-log-fold[open] > summary::after { content: " \25BE"; }
+.code-log-fold > .code-log { border-bottom: 0; padding: 8px 0 0; }
+.code-log .code-user { align-self: flex-end; margin: 4px 0; }
+.code-task > .code-user { margin: 8px 14px 0 auto; }
+.code-gone { font-style: italic; }
+.code-away { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .code-commit { display: flex; flex-direction: column; gap: 8px; }
 .code-commit-open {
   align-self: flex-start; border: 1px solid var(--bd); justify-content: center;
@@ -7148,6 +7164,14 @@ const HOW = [
       "<b>The prompt box continues the session.</b> Once a verdict is on screen the button says <b>Follow up</b>, and what you type next is the next turn of the same deliberation: every unit is given the conversation so far (the earlier questions and verdicts, trimmed to fit each site) followed by your new message. The earlier turns read top-down above the current one, each with its verdict and a <b>Units</b> fold holding what every unit said, and the prompt box docks under them. <b>New deliberation</b> starts an empty one.",
       "<b>While it runs, the box adds to the run.</b> The button says <b>Add to run</b>. A message sent before the chairman starts is handed to the chairman, who applies it to the verdict &mdash; your addition wins where it conflicts with the question. One that arrives after the chairman has started is <b>held</b> (edit it or &#x2715; it) and goes out as the next follow-up by itself when the verdict lands &mdash; from the tab that watched the run, never after a Halt, and as a draft instead if you have moved on. Up to ten per run; text only &mdash; files stay in the box for the next follow-up.",
       "<b>Any History entry can be continued.</b> A session is one row (&ldquo;3 turns&rdquo;), titled by its first question and dated by its latest. Opening it brings back every turn with an empty box labelled Follow up &mdash; including deliberations from before follow-ups existed, ones made on another device or by the other engine (the memory is the thread&rsquo;s own turns, read from the cloud), and one whose earlier answer is no longer stored (its question still carries). A pin, a name, the 30-day window and Delete all apply to the whole session.",
+    ],
+  },
+  {
+    q: "Follow-ups in Code Mode: a task is a conversation too",
+    a: [
+      "<b>The box continues the session.</b> After a task, the button says <b>Follow up</b> (&ldquo;Follow up &middot; edits&rdquo; in Write): the next task is the next turn, and the agent is given every earlier prompt and answer. A command-line agent that ran the last turn on this PC picks up its own session where it left off. Read or Write is chosen per turn. Every follow-up also says what is actually in your folder &mdash; which earlier diffs were applied and which were denied &mdash; so an agent never assumes an edit you turned down. Earlier turns read top-down, their logs folded to one line, and the box docks under them. <b>New session</b> (or Clear) starts an empty one, and choosing another workspace does too: a session&rsquo;s memory is about its own folder.",
+      "<b>While a task runs, the box messages it.</b> The button says <b>Send</b>. A command-line agent is stopped and carries on with your message, keeping its edits (&ldquo;Interrupted &mdash; continuing with your message&rdquo;); a browser unit gets it right after its current reply. While a diff waits for Approve, a message sends it back: nothing is applied, the same agent revises it, and a new card follows. A message that arrives after the work is over goes out as the next follow-up by itself (from the tab that sent it, never after a Halt, and as a draft if you have moved on). Up to twenty per task; text only. Halt still wins.",
+      "<b>Any Code History entry can be continued.</b> A session is one row (&ldquo;3 turns&rdquo;), titled by its first prompt. Opening it brings back every turn with an empty box labelled Follow up &mdash; tasks from before follow-ups, ones run by the other engine or read from the cloud, and one whose transcript is no longer stored. If its workspace has no folder on this engine, it says so instead of quietly starting a new session. Pins, names, the 30-day window and Delete apply to the whole session.",
     ],
   },
   {
@@ -10188,10 +10212,12 @@ function syncCouncilIdle() {
   // council had nothing to show.
   const ownGrid = S.gridOwner === "council"
     && (S.panels.length > 0 || !!S.verdict || S.session.turns.length > 0);
+  const codeThread = typeof codeThreadOn === "function" && codeThreadOn();
   const idle = bsIdle || (
     S.view === "council" &&
     !S.running &&
     !ownGrid &&
+    !codeThread &&
     !(S.studio && S.studio.active));
   document.getElementById("shell").classList.toggle("council-idle", idle);
   // The council's heading: only on the council, and only while it is empty.
@@ -10217,14 +10243,16 @@ function updateEnabled() {
   // fewer capabilities, when it simply has not been built yet.
   const coding = typeof codeMode === "function" && codeMode();
   if (coding) {
-    const why = !up ? "The engine is offline"
-      : !codeProject() ? "Choose a workspace first"
-      : !codeChain().length ? "Tick at least one agent"
-      : codeBusy() ? "A task is already running" : "";
-    $("btnSend").disabled = !q || !!why;
-    // "Run edits" says, on the button you press, that this one may change files.
-    $("btnSend").textContent = codeBusy() ? "Working…" : CODE.rw === "write" ? "Run edits" : "Run";
-    $("btnSend").title = why;
+    // Run / Follow up / Send (to the running task) -- see codeSend. "Run
+    // edits" says, on the button you press, that this one may change files.
+    const s = codeSendNow();
+    $("btnSend").disabled = !q || !!s.why;
+    $("btnSend").textContent = s.label;
+    $("btnSend").title = s.why;
+    $("composer").placeholder = s.act === "message"
+      ? "Message the agent — it takes this in and carries on…   (Ctrl+Enter)"
+      : s.act === "followup" ? "Follow up…   (Ctrl+Enter)"
+      : "Describe what to build, fix or look at…   (Ctrl+Enter)";
   } else {
     // Convene / Follow up / Add to run -- see councilSend.
     const s = councilSendNow();
@@ -10754,10 +10782,12 @@ function renderThread() {
 function placeComposer() {
   const bar = $("qbar");
   if (!bar) return;
-  const dock = threadOn();
+  // Code Mode's session docks the same box under its own thread (F4).
+  const codeDock = typeof codeThreadOn === "function" && codeThreadOn();
+  const dock = threadOn() || codeDock;
   bar.classList.toggle("docked", dock);
   $("shell").classList.toggle("council-thread", dock);
-  const after = dock ? $("verdict") : $("councilHd");
+  const after = codeDock ? $("codeView") : dock ? $("verdict") : $("councilHd");
   if (!after || bar.previousElementSibling === after) return;
   const had = document.activeElement === $("composer");
   after.after(bar);
@@ -12793,6 +12823,8 @@ const CODE = {
   // Files in the composer for the next task: {id, file, text}. Text only --
   // see codeAddFiles.
   attachments: [],
+  // Track F (F4): the session the box follows up -- see codeNewSession.
+  session: { id: null, projectId: null, turns: [], pending: [] },
 };
 
 // The two CLI agents are not council units, so they have no entry in the
@@ -12911,8 +12943,19 @@ function codeApplyUsageEvent(ev) {
 }
 
 function codeSetProject(id) {
+  const moved = id !== CODE.projectId;
   CODE.projectId = id;
   lsWrite(CODE_PROJ_KEY, id);
+  // A session's memory is about ITS folder: another workspace is a new
+  // session (Track F). A running task stays on screen until it ends.
+  const sess = CODE.session;
+  if (moved && sess && sess.projectId && sess.projectId !== id && !codeBusy()) {
+    if (CODE.task && CODE.task.es) CODE.task.es.close();
+    if (CODE.task) codeApprovalQuiet(CODE.task);
+    CODE.task = null;
+    try { sessionStorage.removeItem(CODE_TASK_SS); } catch {}
+    CODE.session = codeNewSession(id);
+  }
 }
 const codeProject = () =>
   ((CODE.state && CODE.state.projects) || []).find((p) => p.id === CODE.projectId) || null;
@@ -13038,6 +13081,13 @@ function renderCodeView() {
   renderCodeStrip();
   const body = $("codeBody");
   if (!body) return;
+  // A thread follows its newest turn only if you were already at the end.
+  const page = $("page");
+  const nearEnd = page.scrollHeight - page.scrollTop - page.clientHeight < 160;
+  queueMicrotask(() => {
+    placeComposer();
+    if (nearEnd && codeThreadOn()) page.scrollTop = page.scrollHeight;
+  });
   body.textContent = "";
   const col = el("div", "code-col");
   body.append(col);
@@ -13113,8 +13163,32 @@ function renderCodeView() {
 
   if (proj && !codeBusy()) col.append(renderCodeRw(proj));
 
-  if (CODE.task) col.append(renderCodeTask(CODE.task));
-  else {
+  // The session, top-down: every earlier turn compact, then the one on
+  // screen in full. The box docks under it (placeComposer).
+  const sess = CODE.session;
+  const earlier = sess.turns.filter((x) => !(CODE.task && x.id === CODE.task.id));
+  if (earlier.length || CODE.task) {
+    const th = el("div", "code-thread");
+    for (const x of earlier) th.append(renderCodeTask(x, { earlier: true }));
+    if (CODE.task) th.append(renderCodeTask(CODE.task));
+    const away = codeSessionAway();
+    if (away && !codeBusy()) {
+      const n = el("div", "code-empty-note code-away");
+      n.append(el("span", null, away + ". "));
+      const pick = el("button", "navitem", "Choose a workspace");
+      pick.type = "button";
+      pick.onclick = openCodeProjects;
+      n.append(pick);
+      th.append(n);
+    }
+    col.append(th);
+    // A held message went into the box when this session was not on screen.
+    if (sess.pending.length && !$("composer").value.trim()) {
+      $("composer").value = sess.pending.map((p) => p.text).join("\n\n");
+      sess.pending = [];
+      if (typeof autosize === "function") autosize();
+    }
+  } else {
     const hint = el("div", "code-hint");
     hint.textContent = !proj
       ? "Pick a folder to work in."
@@ -13612,41 +13686,428 @@ function codeTaskUsesBrowser() {
   return !!(st && (st.chain || []).some((a) => a.kind === "browser"));
 }
 
+/* ── follow-ups (Track F, F4) ─────────────────────────────────────────────
+   A Code Mode task is a turn of a SESSION, the way a deliberation is (F2):
+   the box follows up with the session's memory, and while a task runs it
+   MESSAGES it (POST /tasks/{id}/message) -- a CLI agent is stopped and
+   resumed with the message, a browser unit gets it after its reply, and at
+   the approval card it asks for a revised diff. The engine (F3) builds the
+   memory from what this sends; nothing here is remembered by an engine.
+
+   CODE.session = { id, projectId, turns, pending }
+     id         the FIRST task's id -- a task from before follow-ups is a
+                one-turn session as it stands, and its pin and name still
+                apply. null until that task has an id.
+     projectId  the workspace it runs in. Choosing another workspace starts
+                a new session: the memory is about THAT folder.
+     turns      every FINISHED turn, a task object as CODE.task holds one
+                (+ `engine`, the engine it ran on, for native resume; `gone`
+                when neither the engine nor the cloud has its transcript).
+                CODE.task, once done, is the last of them.
+     pending    messages this tab typed that reached the task after its work
+                was over: they go out as the next follow-up.
+
+   Queue items, the Diagnose button and a reattach to someone else's task
+   are sessions of their own (codeAttach starts one for any task that is
+   not already in CODE.session). */
+const MAX_TASK_MESSAGES = 20;          // engine: followup.MAX_MESSAGES
+const MAX_TASK_MESSAGE_CHARS = 4000;   // engine: followup.MAX_MESSAGE_CHARS
+// The engine refuses a session over 200,000 characters or 200 turns.
+const CODE_SESSION_MAX_CHARS = 190000;
+const CODE_SESSION_MAX_TURNS = 200;
+
+function codeNewSession(projectId = null) {
+  return { id: null, projectId: projectId || null, turns: [], pending: [] };
+}
+
+const codeEngineId = () => (CODE.state && CODE.state.engine && CODE.state.engine.id) || "";
+const codeEngineHas = (f) => !!(CODE.state && (CODE.state.features || []).includes(f));
+
+/** A History row's session: its own id for a task from before follow-ups. */
+const codeSessKey = (r) => String((r && (r.sid || r.session_id || r.id)) || "");
+
+/** What a finished task said: the chain's answer, or its text as it streamed. */
+function codeTaskText(t) {
+  const r = (t && t.result) || {};
+  if (r.text) return String(r.text);
+  return ((t && t.events) || []).filter((e) => e.k === "text" && e.text).map((e) => e.text).join("\n\n");
+}
+
+/** One earlier turn as the engine's `session.turns` wants it. `write` and
+ *  `files` are the ground truth the next turn is told about the folder --
+ *  a denied diff must not read as applied. Pure. */
+function codeTurnOf(t) {
+  const r = (t && t.result) || {};
+  const ev = (t && t.events) || [];
+  const st = ev.find((e) => e.k === "start");
+  const applied = [...ev].reverse().find((e) => e.k === "applied");
+  const mode = (st && st.mode) || (t && t.mode) || (r.write ? "write" : "read");
+  const files = (r.write === "applied" && Array.isArray(r.files) ? r.files
+    : applied ? applied.files : []) || [];
+  return {
+    prompt: String((t && t.prompt) || ""),
+    text: t && t.gone ? "" : codeTaskText(t),
+    mode: mode === "write" ? "write" : "read",
+    write: mode === "write" ? String(r.write || (t && t.gone ? "" : "discarded")) : "",
+    files: files.map((f) => (typeof f === "string" ? f : f && f.path) || "").filter(Boolean),
+    by: String(r.by_label || ""),
+    outcome: String(r.outcome || ""),
+  };
+}
+
+/** The `session` field of a follow-up. The engine trims the memory to each
+ *  agent's budget itself; this only keeps the field under its cap, the
+ *  oldest turns shortened first. `native` -- the CLI session to resume --
+ *  only when the last turn ran on THIS engine: a CLI session id is per PC,
+ *  and sending a stale one costs a failed start before the retry. Pure. */
+function codeSessionBody(sess, engineId, max = CODE_SESSION_MAX_CHARS) {
+  const all = (sess.turns || []).filter((t) => t && String(t.prompt || "").trim());
+  const turns = all.slice(-CODE_SESSION_MAX_TURNS).map(codeTurnOf);
+  const size = () => turns.reduce((n, t) => n + t.prompt.length + t.text.length, 0);
+  for (let i = 0; size() > max && i < turns.length - 1; i++) turns[i].text = turns[i].text.slice(0, 2000);
+  for (let i = 0; size() > max && i < turns.length - 1; i++) {
+    turns[i].text = "";
+    turns[i].prompt = turns[i].prompt.slice(0, 1500);
+  }
+  while (size() > max && turns.length > 1) turns.shift();
+  if (size() > max && turns.length) {
+    turns[0].text = turns[0].text.slice(0, Math.floor(max / 3));
+    turns[0].prompt = turns[0].prompt.slice(0, Math.floor(max / 3));
+  }
+  const last = all[all.length - 1];
+  const nat = last && last.result && last.result.native;
+  const native = nat && nat.agent && nat.sid && engineId && last.engine === engineId
+    ? { agent: String(nat.agent), sid: String(nat.sid) } : {};
+  const top = all.reduce((n, t, i) => Math.max(n, +t.turn || i + 1), 0);
+  return { id: sess.id, turn: Math.max(top, all.length) + 1, turns, native };
+}
+
+/** What pressing the send button does now, and why it cannot. Pure -- the
+ *  node test walks the whole matrix.
+ *    act   run | followup | message
+ *    why   "" when it can, else the reason (the button's title) */
+function codeSend(o) {
+  const act = o.running ? "message" : o.turns > 0 ? "followup" : "run";
+  const label = act === "message" ? "Send"
+    : act === "followup" ? (o.rw === "write" ? "Follow up · edits" : "Follow up")
+    : o.rw === "write" ? "Run edits" : "Run";
+  let why = "";
+  if (!o.up) why = "The engine is offline";
+  else if (act === "message") {
+    if (!o.steer) why = "Update the engine to message a running task — it updates itself when idle";
+    else if (o.halting) why = "Halting";
+    else if (o.msgs >= MAX_TASK_MESSAGES) why = `At most ${MAX_TASK_MESSAGES} messages per task`;
+  } else if (o.away) why = o.away;
+  else if (!o.project) why = "Choose a workspace first";
+  else if (!o.agents) why = "Tick at least one agent";
+  else if (act === "followup" && !o.followup) {
+    why = "Update the engine to follow up — it updates itself when idle";
+  }
+  return { act, label, why };
+}
+
+/** Why this session cannot continue HERE: its workspace has no folder on
+ *  this engine. Said, never a silent new session. */
+function codeSessionAway() {
+  const sess = CODE.session;
+  if (!sess || !sess.turns.length || !sess.projectId || !CODE.state) return "";
+  const p = ((CODE.state.projects) || []).find((x) => x.id === sess.projectId);
+  if (p && codeRoot(p) && CODE.projectId === p.id) return "";
+  const name = p ? p.name : "Its workspace";
+  return `${name} has no folder on this engine — choose a workspace to start a new session there`;
+}
+
+function codeSendNow() {
+  const t = CODE.task;
+  const running = !!(t && !t.done);
+  return codeSend({
+    running, rw: CODE.rw, turns: CODE.session.turns.length, up: online(),
+    project: !!codeProject(), agents: codeChain().length,
+    steer: codeEngineHas("steer"), followup: codeEngineHas("followup"),
+    halting: !!(t && t.halting), msgs: running ? codeMsgCount(t) : 0,
+    away: codeSessionAway(),
+  });
+}
+
+const codeMsgCount = (t) => t.events.filter((e) => e.k === "user").length
+  + (t.sending || []).length;
+
+/** A task's events cut into rounds at each revision asked for at the card:
+ *  each round is its own log, answer and diff. Pure. */
+function codeRounds(events) {
+  const out = [[]];
+  for (const e of events || []) {
+    out[out.length - 1].push(e);
+    if (e.k === "decision" && e.why === "revised") out.push([]);
+  }
+  return out;
+}
+
+/** History rows (cloud, this tab's unsent, the engine's; one per task) ->
+ *  one entry per session. Title = the first prompt, time = the latest turn,
+ *  outcome = the latest turn's. Pure. */
+function codeGroupRows(rows) {
+  const by = new Map();
+  for (const r of rows || []) {
+    const k = codeSessKey(r);
+    if (!k) continue;
+    if (!by.has(k)) by.set(k, []);
+    by.get(k).push(r);
+  }
+  const out = [];
+  for (const [k, list] of by) {
+    list.sort((a, b) => ((a.turn || 1) - (b.turn || 1)) || String(a.at).localeCompare(String(b.at)));
+    const first = list[0], last = list[list.length - 1];
+    const latest = list.reduce((m, r) => (String(r.at) > m ? String(r.at) : m), "");
+    out.push({
+      id: k, sid: k, turns: list, n: list.length,
+      prompt: first.prompt, at: latest || last.at,
+      pid: first.pid || last.pid || "", project: first.project || last.project || "",
+      outcome: last.outcome, by: last.by, write: list.some((r) => r.write),
+      device: last.device || "", engineOnly: list.every((r) => r.engineOnly),
+    });
+  }
+  return out;
+}
+
+/** The latest turn's time per session, so a session expires as a whole. */
+function codeLatestBySession(rows) {
+  const m = new Map();
+  for (const r of rows || []) {
+    const k = codeSessKey(r);
+    if (String(r.at) > (m.get(k) || "")) m.set(k, String(r.at));
+  }
+  return m;
+}
+
+/** Send what is in the box: Run, Follow up, or a message to the task. */
 async function codeRun() {
   const q = $("composer").value.trim();
+  if (!q) return;
+  const s = codeSendNow();
+  if (s.why) return;
+  if (s.act === "message") return codeMessage(q);
+  return codeStartTurn(q, { followup: s.act === "followup" });
+}
+
+/** Start a task: turn 1 of a new session, or the next turn of this one. */
+async function codeStartTurn(q, { followup = false, auto = false } = {}) {
   const proj = codeProject();
-  if (!q || !proj || !online() || (CODE.task && !CODE.task.done)) return;
   const agents = codeChain().map((m) => m.id);
-  if (!agents.length) return;
+  if (!proj || !agents.length || codeBusy()) return false;
+  const sess = followup ? CODE.session : codeNewSession(proj.id);
+  const base = { project_id: proj.id, prompt: q, agents, mode: CODE.rw, approve: CODE.ap };
+  if (followup) base.session = codeSessionBody(sess, codeEngineId());
   let d;
   try {
-    const body = codeTaskBody({ project_id: proj.id, prompt: q, agents, mode: CODE.rw,
-                                approve: CODE.ap },
-      CODE.attachments.map((a) => ({ name: a.file.name, text: a.text })));
-    d = await codePost("/tasks", body);
+    d = await codePost("/tasks", codeTaskBody(base, auto ? []
+      : CODE.attachments.map((a) => ({ name: a.file.name, text: a.text }))));
   } catch (e) {
     CODE.err = `Could not start the task: ${e.message || e}`;
     renderCodeView();
-    return;
+    return false;
   }
-  if (!d.ok) { CODE.err = d.message || "The engine refused the task."; renderCodeView(); return; }
+  if (!d.ok) { CODE.err = d.message || "The engine refused the task."; renderCodeView(); return false; }
   CODE.err = "";
-  $("composer").value = "";
-  if (typeof autosize === "function") autosize();
-  // Sent with the task, so they leave the box with its text.
-  CODE.attachments = [];
-  S.preRefine = null;
-  setErr("attachError", null);
-  renderChips();
-  codeAttach(d.task.id, q);
+  if (!auto) {
+    $("composer").value = "";
+    if (typeof autosize === "function") autosize();
+    // Sent with the task, so they leave the box with its text.
+    CODE.attachments = [];
+    S.preRefine = null;
+    setErr("attachError", null);
+    renderChips();
+  }
+  if (!sess.id) sess.id = d.task.session_id || d.task.id;
+  sess.projectId = proj.id;
+  CODE.session = sess;
+  codeAttach(d.task.id, q, { session: sess, mine: true });
+  return true;
 }
 
-function codeAttach(id, prompt, { projectId = null, at = null, fromHistory = false } = {}) {
+/** A message typed while the task runs. Text only: attachments stay in the
+ *  box for the next turn. The engine echoes it to every viewer as a `user`
+ *  event, which replaces the "sending" bubble drawn here meanwhile. */
+async function codeMessage(text) {
+  const t = CODE.task;
+  if (!t || t.done) return;
+  const m = String(text).trim().slice(0, MAX_TASK_MESSAGE_CHARS);
+  if (!m) return;
+  $("composer").value = "";
+  if (typeof autosize === "function") autosize();
+  CODE.err = "";
+  t.sending = t.sending || [];
+  const entry = { text: m };
+  t.sending.push(entry);
+  t.mine = true;
+  renderCodeView();
+  updateEnabled();
+  try {
+    const d = await codePost(`/tasks/${t.id}/message`, { text: m });
+    if (!d.ok) throw new Error(d.message || "the engine refused it");
+    // Too late for this task: it goes out as the next turn (see codeCarry).
+    if (d.accepted === "followup") {
+      t.held = t.held || [];
+      t.held.push(m);
+      if (t.done) codeCarry(t);
+    }
+  } catch (e) {
+    t.sending = t.sending.filter((x) => x !== entry);
+    if (!$("composer").value.trim()) { $("composer").value = m; if (typeof autosize === "function") autosize(); }
+    CODE.err = `Could not send that to the task: ${e.message || e}`;
+  }
+  renderCodeView();
+  updateEnabled();
+}
+
+/** A finished task hands on what never reached it. This tab's messages that
+ *  arrived after the work was over go out as the next follow-up by
+ *  themselves -- only while this session is on screen, not after a Halt,
+ *  not while the queue runs; otherwise they are a draft in the box. What
+ *  the engine returns as `unsent_messages` (typed during the pull, then a
+ *  failure) is always a draft. Each text goes once. */
+function codeCarry(t) {
+  const r = t.result || {};
+  t.carried = t.carried || new Set();
+  const fresh = (list) => list.filter((x) => !t.carried.has(x));
+  const held = fresh(t.held || []);
+  const unsent = fresh(r.unsent_messages || []);
+  for (const x of [...held, ...unsent]) t.carried.add(x);
+  if (!held.length && !unsent.length) return;
+  const sess = t.sess;
+  const draft = (texts) => {
+    if (!texts.length) return;
+    const text = texts.join("\n\n");
+    if (CODE.session === sess) {
+      const cur = $("composer").value.trim();
+      $("composer").value = cur ? `${cur}\n\n${text}` : text;
+      if (typeof autosize === "function") autosize();
+      updateEnabled();
+    } else if (sess) {
+      sess.pending.push(...texts.map((x) => ({ text: x })));
+    }
+  };
+  draft(unsent);
+  const here = () => CODE.session === sess && codeMode() && S.view === "council";
+  const auto = held.length && r.outcome !== "cancelled" && !t.halting && here()
+    && !QUEUES.code.running && online() && codeEngineHas("followup");
+  if (!auto) { draft(held); return; }
+  setTimeout(async () => {
+    if (codeBusy() || !here() || !(await codeStartTurn(held.join("\n\n"), { followup: true, auto: true }))) {
+      draft(held);
+    }
+  }, 0);
+}
+
+/** The earlier turns of a session this tab attached to mid-way (a reload):
+ *  from the History rows, each loaded like an opened session's. */
+async function codeSessionBackfill(sess, exceptId) {
+  await codeHistEngineLoad(true);
+  const rows = codeHistRowsRaw().filter((r) => codeSessKey(r) === sess.id && r.id !== exceptId);
+  if (!rows.length) return;
+  rows.sort((a, b) => (a.turn || 1) - (b.turn || 1));
+  const turns = await Promise.all(rows.map((r) => codeLoadTurn(r)));
+  sess.turns = [...turns, ...sess.turns.filter((t) => !turns.some((u) => u.id === t.id))];
+  if (codeMode()) renderCodeView();
+}
+
+/** One finished turn, for an opened session: replayed from this engine while
+ *  it still holds the task (the full live card), else its saved copy in
+ *  the cloud, else its prompt alone with "no longer stored". */
+async function codeLoadTurn(r) {
+  const base = { id: r.id, prompt: r.prompt || "", done: true, es: null, events: [],
+                 result: null, projectId: r.pid || null, at: r.at || null,
+                 sid: codeSessKey(r), turn: r.turn || 1 };
+  // What codeAttach reads off the stream as it goes.
+  const derive = (t) => {
+    const ev = t.events || [];
+    const st = ev.find((e) => e.k === "start");
+    if (st && st.prompt) t.prompt = st.prompt;
+    if (st && Array.isArray(st.attachments) && st.attachments.length) t.atts = st.attachments;
+    t.committed = [...ev].reverse().find((e) => e.k === "committed") || null;
+    t.pushed = [...ev].reverse().find((e) => e.k === "pushed") || null;
+    return t;
+  };
+  const onEngine = CODE_HIST.engineFrom === link.api && online()
+    && CODE_HIST.engine.some((x) => x.id === r.id);
+  if (onEngine) {
+    const got = await codeReplay(r.id);
+    if (got) return derive({ ...base, events: got.events, result: got.result, engine: codeEngineId() });
+  }
+  try {
+    if (await cloudInit()) {
+      const snap = await CLOUD.fs.getDoc(_codeTaskDoc(r.id));
+      if (snap.exists()) {
+        const b = snap.data();
+        return derive({ ...base, prompt: b.prompt || base.prompt,
+                        events: JSON.parse(b.events || "[]"),
+                        result: JSON.parse(b.result || "null"), archived: r, engine: r.eng || "" });
+      }
+    }
+  } catch (e) { console.warn("[magi] code turn:", e); }
+  return { ...base, gone: true };
+}
+
+/** A finished task's whole stream from the engine, read once and closed.
+ *  null if it does not end in time (the caller falls back to the cloud). */
+function codeReplay(id, ms = 15000) {
+  return new Promise((resolve) => {
+    const events = [];
+    let es;
+    const done = (v) => { clearTimeout(timer); try { es.close(); } catch {} resolve(v); };
+    const timer = setTimeout(() => done(null), ms);
+    try { es = new EventSource(streamUrl(`/api/code/tasks/${id}/stream`)); } catch { done(null); return; }
+    es.onmessage = (m) => {
+      let ev;
+      try { ev = JSON.parse(m.data); } catch { return; }
+      if (ev.k === "end") { done({ events: [...events, ev], result: ev.result }); return; }
+      events.push(ev);
+    };
+    es.onerror = () => done(null);
+  });
+}
+
+/** Where a message typed during a task went, said on its bubble. */
+const CODE_MSG_HOW = {
+  prompt: "added · the agent starts with this",
+  interrupt: "sent · the agent stops and carries on with it",
+  after_reply: "sent · after its current reply",
+  revise: "sent · revising the diff",
+  followup: "arrived after the work ended",
+};
+
+function codeUserBubble(t, ev) {
+  const held = ev.how === "followup" && (t.held || []).includes(ev.text);
+  const b = el("div", "turn-note code-user" + (held ? " held" : ""));
+  b.append(el("span", "turn-note-tag", held
+    ? (t.carried && t.carried.has(ev.text) ? "held · sent as the next follow-up"
+      : "held · goes out as the next follow-up")
+    : CODE_MSG_HOW[ev.how] || "sent"));
+  b.append(document.createTextNode(ev.text));
+  return b;
+}
+
+/** Does Code Mode have a thread on screen (the box docks under it)? */
+function codeThreadOn() {
+  return codeMode() && S.view === "council" && !(S.studio && S.studio.active)
+    && !!(CODE.task || CODE.session.turns.length);
+}
+
+function codeAttach(id, prompt, { projectId = null, at = null, fromHistory = false,
+                                  session = null, mine = false } = {}) {
   if (CODE.task && CODE.task.es) CODE.task.es.close();
   // A closed stream never hears the decision, so its alarm goes with it.
   if (CODE.task) codeApprovalQuiet(CODE.task);
+  // A task already in this session stays in it; anything else -- a queue
+  // item, a reload's reattach, Diagnose -- is a session of its own.
+  const cur = CODE.session;
+  const sess = session
+    || (cur && cur.id && (cur.id === id || cur.turns.some((x) => x.id === id)) ? cur
+      : codeNewSession(projectId || CODE.projectId));
+  CODE.session = sess;
   const t = { id, prompt: prompt || "", events: [], done: false, result: null, es: null,
-              projectId: projectId || CODE.projectId, at, fromHistory };
+              projectId: projectId || sess.projectId || CODE.projectId, at, fromHistory,
+              sess, engine: codeEngineId(), mine, sending: [], held: [] };
   CODE.task = t;
   try { sessionStorage.setItem(CODE_TASK_SS, id); } catch {}
   const es = new EventSource(streamUrl(`/api/code/tasks/${id}/stream`));
@@ -13655,6 +14116,22 @@ function codeAttach(id, prompt, { projectId = null, at = null, fromHistory = fal
     const ev = JSON.parse(m.data);
     if (ev.k === "start" && ev.prompt) t.prompt = ev.prompt;
     if (ev.k === "start" && Array.isArray(ev.attachments)) t.atts = ev.attachments;
+    if (ev.k === "start") {
+      t.sid = ev.session_id || id;
+      t.turn = ev.turn || 1;
+      if (!sess.id) sess.id = t.sid;
+      // Reattached to turn n of a session this tab never saw: its earlier
+      // turns come from History.
+      if (t.turn > 1 && !sess.turns.length && sess.id === t.sid && !t.backfilled) {
+        t.backfilled = true;
+        codeSessionBackfill(sess, id);
+      }
+    }
+    // The engine's echo of a message replaces its "sending" bubble.
+    if (ev.k === "user") {
+      const i = t.sending.findIndex((x) => x.text === ev.text);
+      if (i >= 0) t.sending.splice(i, 1);
+    }
     if (ev.k === "committed") t.committed = ev;
     if (ev.k === "pushed") t.pushed = ev;
     // A usage frame updates the chips as the work happens rather than
@@ -13663,7 +14140,12 @@ function codeAttach(id, prompt, { projectId = null, at = null, fromHistory = fal
     if (ev.k === "end") {
       t.done = true;
       t.result = ev.result;
+      t.sending = [];
       es.close();
+      // The turn joins its session: the next follow-up carries it.
+      if (!sess.turns.includes(t)) {
+        sess.turns = [...sess.turns.filter((x) => x.id !== t.id), t];
+      }
       codeSyncTaskEnd(t);
       // A full reload only when something a reload would tell us may have
       // changed: who is signed in, or what is now blocked.
@@ -13682,6 +14164,9 @@ function codeAttach(id, prompt, { projectId = null, at = null, fromHistory = fal
     t.events.push(ev);
     if (CODE.task === t && codeMode()) renderCodeView();
     updateEnabled();
+    // Only the tab that started or messaged it: one that merely attached (a
+    // reload, a queue watch, a reopened task) replays the same end.
+    if (ev.k === "end" && t.mine) codeCarry(t);
   };
   // The stream closes itself after "end". An error before that is the engine
   // going away mid-task, and the task went with it: tasks live in memory.
@@ -13770,10 +14255,12 @@ async function codeHalt() {
   try { await codePost(`/tasks/${t.id}/cancel`, {}); } catch {}
 }
 
+/** Put the task away and start an empty session (New session, Clear). */
 function codeClearTask() {
   if (CODE.task && CODE.task.es) CODE.task.es.close();
   if (CODE.task) codeApprovalQuiet(CODE.task);
   CODE.task = null;
+  CODE.session = codeNewSession(CODE.projectId);
   try { sessionStorage.removeItem(CODE_TASK_SS); } catch {}
   renderCodeView();
   updateEnabled();
@@ -13781,37 +14268,64 @@ function codeClearTask() {
 
 const codeBusy = () => !!(CODE.task && !CODE.task.done);
 
-function renderCodeTask(t) {
-  const card = el("div", "code-task");
+/** A task on screen. `earlier`: a finished turn above the current one --
+ *  no buttons in its header, its log folded to one line. */
+function renderCodeTask(t, { earlier = false } = {}) {
+  const card = el("div", "code-task" + (earlier ? " is-earlier" : ""));
+  card.dataset.task = t.id || "";
   const hd = el("div", "code-task-hd");
   hd.append(el("div", "code-task-q", t.prompt || "Task"));
   if (t.atts && t.atts.length) hd.firstChild.append(el("div", "code-recent-m",
     `\u{1F4C4} ${t.atts.join(", ")}`));
   if (t.archived) hd.firstChild.append(el("div", "code-recent-m",
     `From ${t.archived.device || "another device"} · a saved copy`));
+  if (t.gone) {
+    card.append(hd);
+    card.append(el("div", "code-task-st code-gone",
+      "Earlier answer no longer stored — its prompt still carries into the next turn."));
+    return card;
+  }
   const acts = el("div", "code-task-acts");
-  if (t.fromHistory && t.done) {
+  if (earlier) {
+    // nothing: the current turn's header has the session's buttons
+  } else if (t.fromHistory && t.done) {
     const back = el("button", "navitem", "← All code sessions");
     back.onclick = () => setView("codeHistory");
     acts.append(back);
   }
-  if (!t.done) {
+  if (earlier) {
+    // (above)
+  } else if (!t.done) {
     const halt = el("button", "navitem danger", t.halting ? "Halting…" : "Halt");
     halt.disabled = !!t.halting;
     halt.onclick = codeHalt;
     acts.append(halt);
   } else {
-    const clr = el("button", "navitem", "Clear");
+    // "New session" says what it does: the thread above goes too.
+    const clr = el("button", "navitem", CODE.session.turns.length > 1 ? "New session" : "Clear");
     clr.onclick = codeClearTask;
     acts.append(clr);
   }
   hd.append(acts);
   card.append(hd);
 
+  // One round per diff: a message at the approval card sends the agent back
+  // to revise, and the revision is a new log, answer and card of its own.
+  const rounds = codeRounds(t.events);
+  let lastAppr = null;
+  rounds.forEach((evs, ri) => {
   const log = el("div", "code-log");
   let answer = "";
-  for (const ev of t.events) {
-    if (ev.k === "agent") {
+  for (const ev of evs) {
+    if (ev.k === "user") {
+      // A message typed while it ran, where it landed in the work.
+      log.append(codeUserBubble(t, ev));
+    } else if (ev.k === "interrupt") {
+      log.append(el("div", "code-ev is-handoff", ev.finished
+        ? `${ev.label || "The agent"} had just finished — continuing with your message`
+        : ev.resumed ? "Interrupted — continuing with your message"
+        : `Interrupted — ${ev.label || "the agent"} carries on from where it was, with your message`));
+    } else if (ev.k === "agent") {
       answer = "";
       const r = el("div", "code-ev is-agent");
       r.append(el("span", "code-ev-dot"), el("span", null,
@@ -13861,12 +14375,25 @@ function renderCodeTask(t) {
       answer += (answer ? "\n\n" : "") + ev.text;
     }
   }
-  if (log.childNodes.length) card.append(log);
-  const refused = t.events.find((e) => e.k === "refused");
+  if (log.childNodes.length) {
+    if (earlier) {
+      // An earlier turn's log is one line until you open it.
+      const tools = evs.filter((e) => e.k === "tool").length;
+      const who = [...evs].reverse().find((e) => e.k === "agent");
+      const d = el("details", "code-log-fold");
+      d.append(el("summary", null, [who && `${who.label}${who.kind === "cli" ? " CLI" : ""}`,
+        tools ? `${tools} step${tools === 1 ? "" : "s"}` : "log"].filter(Boolean).join(" · ")));
+      d.append(log);
+      card.append(d);
+    } else {
+      card.append(log);
+    }
+  }
+  const refused = evs.find((e) => e.k === "refused");
   // Auto has no card to answer; its decision carries the same file list, so
   // the diff is still there to read after the fact.
-  const appr = t.events.find((e) => e.k === "approval")
-    || t.events.find((e) => e.k === "decision" && e.why === "auto" && e.files);
+  const appr = evs.find((e) => e.k === "approval")
+    || evs.find((e) => e.k === "decision" && e.why === "auto" && e.files);
 
   if (answer) {
     const ans = el("div", "code-answer");
@@ -13886,10 +14413,19 @@ function renderCodeTask(t) {
   // AFTER the agent's own summary, so it reads "what I did, here is the
   // diff, yes or no" rather than asking before it explains.
   if (refused) card.append(renderCodeRefused(refused));
-  if (appr) card.append(renderCodeApproval(t, appr));
+  if (appr) card.append(renderCodeApproval(t, appr, evs));
+  if (ri === rounds.length - 1) lastAppr = appr ? { appr, evs } : null;
+  });
+
+  // Typed, not yet echoed by the engine.
+  for (const s of t.sending || []) {
+    const b = el("div", "turn-note code-user");
+    b.append(el("span", "turn-note-tag", "sending…"), document.createTextNode(s.text));
+    card.append(b);
+  }
 
   const st = el("div", "code-task-st");
-  const waiting = !t.done && appr && !t.events.some((e) => e.k === "decision");
+  const waiting = !t.done && lastAppr && !lastAppr.evs.some((e) => e.k === "decision");
   if (waiting) st.append(el("span", "code-st-bad", "Waiting for your approval — nothing has changed yet"));
   else if (!t.done) st.append(spinnerEl(), el("span", null, t.halting ? "Stopping…" : "Working…"));
   else if (t.lost) st.append(el("span", "code-st-bad",
@@ -13973,8 +14509,8 @@ function codeDiffEl(f) {
  *  with it in view. It informs; it never decides. Runs in the task's private
  *  copy, never your folder. Manual by default (Run check, after you have seen
  *  the diff); a project set to Automatic arrives here with it already run. */
-function codeCheckEl(t, ev, open) {
-  const runs = t.events.filter((e) => e.k === "check");
+function codeCheckEl(t, ev, open, evs = t.events) {
+  const runs = evs.filter((e) => e.k === "check");
   const cfg = ev.check;
   if (!cfg && !runs.length) return null;
   const last = runs[runs.length - 1] || null;
@@ -14051,10 +14587,12 @@ function codeCheckEl(t, ev, open) {
   return box;
 }
 
-function renderCodeApproval(t, ev) {
-  const dec = t.events.find((e) => e.k === "decision");
-  const applied = t.events.find((e) => e.k === "applied");
-  const conflict = t.events.find((e) => e.k === "conflict");
+/** `evs`: the events of this card's round (codeRounds) -- after a revision
+ *  there is one card per round, each with its own answer. */
+function renderCodeApproval(t, ev, evs = t.events) {
+  const dec = evs.find((e) => e.k === "decision");
+  const applied = evs.find((e) => e.k === "applied");
+  const conflict = evs.find((e) => e.k === "conflict");
   const open = !dec && !t.done;
   const box = el("div", "code-appr" + (open ? " is-open" : ""));
   const hd = el("div", "code-appr-hd");
@@ -14068,7 +14606,7 @@ function renderCodeApproval(t, ev) {
   if (open) {
     // The deadline can move: a check started from the card holds the clock
     // and hands back a full window when it ends (tasks._run_check).
-    const dl = [...t.events].reverse().find((e) => e.k === "deadline");
+    const dl = [...evs].reverse().find((e) => e.k === "deadline");
     const expires = dl ? dl.expires_at : ev.expires_at;
     const cd = el("span", "code-appr-cd");
     if (dl && dl.held) {
@@ -14101,7 +14639,7 @@ function renderCodeApproval(t, ev) {
     list.append(d);
   }
   box.append(list);
-  const chk = codeCheckEl(t, ev, open);
+  const chk = codeCheckEl(t, ev, open, evs);
   if (chk) box.append(chk);
   if (ev.ships && open) {
     // A1 (Phase 14b): approving is shipping -- its auto-commit pushes.
@@ -14131,6 +14669,13 @@ function renderCodeApproval(t, ev) {
     ok.onclick = () => codeDecide(t, true);
     acts.append(deny, ok);
     box.append(acts);
+    if (codeEngineHas("steer")) {
+      box.append(el("div", "code-commit-note",
+        "Or type what to change in the box below: nothing is applied, and the agent revises this diff."));
+    }
+  } else if (dec && dec.why === "revised") {
+    box.append(el("div", "code-appr-out is-note",
+      "Sent back with your message — nothing was applied. The revised diff follows."));
   } else if (applied) {
     const done = t.committed || (t.result && t.result.commit);
     const auto = t.events.find((e) => e.k === "autocommit");
@@ -22600,8 +23145,9 @@ async function codeFlush() {
   // Deleted and expired rows leave here, and pinned ones sort first so the
   // cap -- and the size guard below, which pops from the end -- takes the
   // oldest unpinned rows, never one you asked to keep.
+  const latest = codeLatestBySession([...byId.values()]);
   const tasks = [...byId.values()]
-    .filter((r) => !CODE_GONE.has(r.id) && !codeExpired(r))
+    .filter((r) => !CODE_GONE.has(r.id) && !codeExpired(r, latest.get(codeSessKey(r))))
     .sort((a, b) => (codePinned(b) - codePinned(a))
       || String(b.at).localeCompare(String(a.at)))
     .slice(0, CODE_TASKS_MAX);
@@ -22666,6 +23212,10 @@ function codeSyncTaskEnd(t) {
         outcome: String(r.outcome || (t.lost ? "lost" : "")), by: String(r.by_label || ""),
         write: !!r.write, at: t.at || new Date().toISOString(),
         device: (CODE.state && CODE.state.engine && CODE.state.engine.label) || "",
+        // Track F: its session (the first task's id), its turn, and the
+        // engine it ran on (a follow-up resumes the CLI only there).
+        sid: String(t.sid || (t.sess && t.sess.id) || t.id), turn: +t.turn || 1,
+        eng: String(t.engine || codeEngineId()),
       };
       CODE_SYNC.tasks.push(row);
       cloudSaveTaskBody(t, row);
@@ -22741,13 +23291,17 @@ const CODE_HIST = {
   opening: null, err: "", filter: "",
 };
 
-const codePinned = (r) => CODE_PINS.has(r.id);
-const codeNickOf = (r) => (CODE_NICKS[r.id] || "").trim();
+// Keyed by SESSION (Track F): the first task's id, so a pin or a name made on
+// a task before follow-ups still marks the session it became.
+const codePinned = (r) => CODE_PINS.has(codeSessKey(r));
+const codeNickOf = (r) => (CODE_NICKS[codeSessKey(r)] || "").trim();
 const codeTitleOf = (r) => codeNickOf(r) || r.prompt || "Task";
-/** Unpinned and past the window. An unreadable date is never expired. */
-function codeExpired(r) {
+/** Unpinned and past the window, counted from the session's LATEST turn
+ *  (`latest`), so a session goes as a whole. An unreadable date is never
+ *  expired. */
+function codeExpired(r, latest) {
   if (!r || codePinned(r)) return false;
-  const age = (Date.now() - clockStartOf(CODE_UNPINNED_AT, r.id, r.at)) / 86400000;
+  const age = (Date.now() - clockStartOf(CODE_UNPINNED_AT, codeSessKey(r), latest || r.at)) / 86400000;
   return Number.isFinite(age) && age > HISTORY_DAYS;
 }
 function clockStartOf(map, id, at) {
@@ -22829,6 +23383,7 @@ async function codeHistEngineLoad(force = false) {
         prompt: String(t.prompt || "").slice(0, 140), outcome: t.outcome || "",
         by: t.by || "", write: !!t.write, device: label, engineOnly: true,
         at: Number.isFinite(ms) ? new Date(ms).toISOString() : "",
+        sid: String(t.session_id || t.id), turn: +t.turn || 1, eng: codeEngineId(),
       };
     });
     CODE_HIST.engineFrom = link.api;
@@ -22838,17 +23393,23 @@ async function codeHistEngineLoad(force = false) {
   renderCodeHistory();
 }
 
-/** Every row the list shows: the cloud's, this tab's not yet written, and
- *  the engine's -- deduped by id, deletions and expired rows out. */
-function codeHistRows() {
+/** Every task row there is: the cloud's, this tab's not yet written, and the
+ *  engine's -- deduped by id, deletions out. One per TASK. */
+function codeHistRowsRaw() {
   const byId = new Map();
   const cloud = (CODE_SYNC.cloud && Array.isArray(CODE_SYNC.cloud.tasks)) ? CODE_SYNC.cloud.tasks : [];
   const live = codeBusy() ? CODE.task.id : null;
   for (const r of [...CODE_SYNC.tasks, ...cloud, ...CODE_HIST.engine]) {
     if (r && r.id && !byId.has(r.id) && r.id !== live) byId.set(r.id, r);
   }
-  return [...byId.values()]
-    .filter((r) => !CODE_GONE.has(r.id) && !codeExpired(r))
+  return [...byId.values()].filter((r) => !CODE_GONE.has(r.id));
+}
+
+/** What the list shows: one entry per SESSION (codeGroupRows), expired
+ *  sessions out, pinned first, then newest turn first. */
+function codeHistRows() {
+  return codeGroupRows(codeHistRowsRaw())
+    .filter((g) => !codeExpired(g, g.at))
     .sort((a, b) => (codePinned(b) - codePinned(a))
       || String(b.at).localeCompare(String(a.at)));
 }
@@ -22909,6 +23470,7 @@ function renderCodeHistory() {
     const when = r.at ? new Date(r.at) : null;
     const bits = [
       r.project || "",
+      r.n > 1 ? `${r.n} turns` : "",
       r.write ? "Write" : "Read",
       CODE_OUTCOME[r.outcome] || r.outcome || "",
       r.by || "",
@@ -23013,59 +23575,83 @@ async function codeDeleteTask(r) {
     "it made to your files are not touched. This cannot be undone.",
     "Delete");
   if (!ok) return;
-  CODE_GONE.add(r.id);
-  CODE_PINS.delete(r.id);
-  delete CODE_NICKS[r.id];
-  delete CODE_UNPINNED_AT[r.id];
-  CODE_SYNC.tasks = CODE_SYNC.tasks.filter((x) => x.id !== r.id);
-  CODE_HIST.engine = CODE_HIST.engine.filter((x) => x.id !== r.id);
+  // A session goes whole: every turn's row, body and marks.
+  const key = codeSessKey(r);
+  const ids = new Set([r.id, ...(r.turns || []).map((x) => x.id)]);
+  for (const id of ids) CODE_GONE.add(id);
+  CODE_PINS.delete(key);
+  delete CODE_NICKS[key];
+  delete CODE_UNPINNED_AT[key];
+  CODE_SYNC.tasks = CODE_SYNC.tasks.filter((x) => !ids.has(x.id));
+  CODE_HIST.engine = CODE_HIST.engine.filter((x) => !ids.has(x.id));
   saveCodeMarks();
   cloudSaveCode();
-  // The body directly too: a row still waiting to be written was never in
+  // The bodies directly too: a row still waiting to be written was never in
   // the copy codeFlush compares against, so it would not find it.
   if (CLOUD.enabled && (await cloudInit())) {
-    CLOUD.fs.deleteDoc(_codeTaskDoc(r.id)).catch((e) => console.warn("[magi] code delete:", e));
+    for (const id of ids) {
+      CLOUD.fs.deleteDoc(_codeTaskDoc(id)).catch((e) => console.warn("[magi] code delete:", e));
+    }
   }
   // It was open: put it away, but stay in the list you were tidying.
-  if (CODE.task && CODE.task.id === r.id && !codeBusy()) {
+  if (!codeBusy() && ((CODE.task && ids.has(CODE.task.id)) || CODE.session.id === key)) {
     CODE.task = null;
+    CODE.session = codeNewSession(CODE.projectId);
     try { sessionStorage.removeItem(CODE_TASK_SS); } catch {}
     updateEnabled();
   }
   renderCodeHistory();
 }
 
-/** Open a finished task: a replay from the engine if it still has it (the
- *  full live card, nothing read from the cloud), otherwise the one read of
- *  its saved copy. */
+/** Open a session (a History entry): EVERY turn -- each replayed from this
+ *  engine while it holds the task, else read from its saved copy, else its
+ *  prompt alone ("no longer stored") -- with the box EMPTY and labelled
+ *  Follow up: what is typed next is the next turn of THIS session, whichever
+ *  engine or device ran the earlier ones. A last turn still running in this
+ *  engine opens attached. Takes a session entry or a single task row. */
 async function codeOpenHistory(r) {
   if (codeBusy() || CODE_HIST.opening) return;
+  const g = r && r.turns ? r : codeGroupRows([r])[0];
+  if (!g) return;
   CODE_HIST.err = "";
-  // The workspace line should be about the task on screen.
+  // The workspace line should be about the session on screen.
   const projs = (CODE.state && CODE.state.projects) || [];
-  if (r.pid && r.pid !== CODE.projectId && projs.some((p) => p.id === r.pid)) codeSetProject(r.pid);
-  const onEngine = CODE_HIST.engineFrom === link.api && online()
-    && CODE_HIST.engine.some((x) => x.id === r.id);
-  if (onEngine) {
-    setMode("code", { render: false });
-    codeAttach(r.id, r.prompt, { projectId: r.pid || null, at: r.at || null, fromHistory: true });
-    setView("council");
-    return;
-  }
-  CODE_HIST.opening = r.id;
+  if (g.pid && g.pid !== CODE.projectId && projs.some((p) => p.id === g.pid)) codeSetProject(g.pid);
+  CODE_HIST.opening = g.id;
   renderCodeHistory();
   try {
-    if (!(await cloudInit())) throw new Error("sync is off on this device");
-    const snap = await CLOUD.fs.getDoc(_codeTaskDoc(r.id));
-    if (!snap.exists()) throw new Error("its transcript is not in the cloud");
-    const b = snap.data();
+    // Anything of this session still running here (another tab or device
+    // started it): the thread opens attached to it.
+    let live = null;
+    if (online()) {
+      try {
+        const d = await codeGet("/tasks");
+        live = (d.tasks || []).find((x) => !x.done && String(x.session_id || x.id) === g.id) || null;
+      } catch {}
+    }
+    const turns = await Promise.all(g.turns.filter((x) => !live || x.id !== live.id).map(codeLoadTurn));
+    turns.sort((a, b) => (a.turn || 1) - (b.turn || 1));
+    const sess = codeNewSession(g.pid || null);
+    sess.id = g.id;
+    sess.turns = turns;
     if (CODE.task && CODE.task.es) CODE.task.es.close();
-    CODE.task = { id: r.id, prompt: b.prompt || r.prompt, done: true, es: null,
-                  events: JSON.parse(b.events || "[]"), result: JSON.parse(b.result || "null"),
-                  projectId: r.pid, archived: r, fromHistory: true };
+    if (CODE.task) codeApprovalQuiet(CODE.task);
     CODE.err = "";
     CODE_HIST.opening = null;
+    // The box is the NEXT turn: never refilled with an old prompt.
+    $("composer").value = "";
+    if (typeof autosize === "function") autosize();
     setMode("code", { render: false });
+    if (live) {
+      codeAttach(live.id, live.prompt, { session: sess, projectId: live.project_id || g.pid || null,
+                                         fromHistory: true });
+    } else {
+      CODE.session = sess;
+      const last = turns[turns.length - 1] || null;
+      CODE.task = last ? { ...last, fromHistory: true } : null;
+      if (last) sess.turns[sess.turns.length - 1] = CODE.task;
+      try { sessionStorage.removeItem(CODE_TASK_SS); } catch {}
+    }
     setView("council");
     updateEnabled();
     return;
@@ -24643,7 +25229,7 @@ async function codeQueueOpen(it) {
     setView("council");
     return;
   }
-  const r = codeHistRows().find((x) => x.id === id);
+  const r = codeHistRows().find((g) => g.turns.some((x) => x.id === id));
   if (r) { codeOpenHistory(r); return; }
   setMode("code", { render: false });
   setView("codeHistory");

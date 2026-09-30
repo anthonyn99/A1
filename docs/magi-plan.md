@@ -9,49 +9,27 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-09-30, **F3 done** (Code Mode follow-ups, engine).
+**Last updated:** 2026-09-30, **F4 done — Track F is complete** (Code Mode
+follow-ups, console, plus the three open bugs).
 **Phases complete:** 1–14 (14a hardening, 14b A1 writable), plus **11B**,
 ALL of Track S (**S1**, **S2**, **S3**, **U1**, **U2**, **U3**, **U4**), and
-Track F's **F1**, **F2** and **F3**. Deliberation follow-ups are live for
-Tony. Code Mode's are in the engine only, and nothing on screen uses them
-until F4.
-**Next phase:** **F4 — Code Mode follow-ups, console** (`magi.html`, CODE
-MODE block). Read the whole Track F section in §8 first; Tony's decisions
-are at its top and are not to be re-asked. F2 is the model to copy: its
-block "follow-ups (Track F)" in magi.html (`councilSend`, `renderThread`,
-`placeComposer`, `groupRuns`, `openSession`) is the same UI for the
-council.
+ALL of Track F (**F1**, **F2**, **F3**, **F4**). Follow-ups, mid-run
+messages and continue-from-History are live in both Deliberation and Code
+Mode.
+**Next phase:** none agreed. It is Tony's call -- offer the list under
+"After Track S — waiting on Tony" and "Waiting on Tony", do not start one
+unasked. Nothing is half-built.
 
-**F4's first concrete steps** (the engine contract F3 built, see "What
-exists" › Code Mode follow-ups and docs/magi.md "Code Mode follow-ups"):
-1. `CODE.session = {id, projectId, turns:[…], native}`: id = the first
-   task's id, `native` = the LAST turn's `result.native` (`{agent, sid}`,
-   `{}` for a browser unit). Send it only while the session is on THIS
-   engine: native ids are per PC, and a miss is retried from the
-   transcript anyway, so sending a stale one just costs one failed start.
-2. Follow-up = `POST /api/code/tasks` + `session: {id, turn, turns:[{prompt,
-   text, mode, write, files, by}], native}`. `write` is the result's
-   `write` (`applied|denied|timeout|halted|refused|conflict|discarded|none`)
-   and `files` the applied files. That is where the ground truth comes
-   from, so get these two right.
-3. Running → `POST /tasks/{id}/message {text}` → `accepted`: `prompt |
-   interrupt | after_reply | revise | followup`. `followup` = put it in the
-   box as the next turn (or auto-send it, the F2 rule). New events to draw:
-   `{k:"user", text, how}` (a bubble where it happened), `{k:"interrupt",
-   resumed, finished}` ("Interrupted — continuing with your message"),
-   `decision.why === "revised"` (card resolved "Revising the diff…", then a
-   second `approval` arrives on the same task). `result.unsent_messages`
-   (typed during the pull, then a failure/Halt) → draft in the box.
-4. Old engine: `/api/code/state` `features` lacks `followup`/`steer` →
-   Send held with "Update the engine", like F2.
-5. Retarget or drop `magi-sync.live.js`'s "Recent lists it" step (F2 OPEN
-   bug below). Code History rows gain `sid`, `turn`.
-6. **F4 also fixes the three open bugs**: magi-sync's Recent step, Gemini's
-   run-together verdict headings, and Codex read tasks giving up. See §8 F4
-   step 6. F4 is the last phase of Track F.
-7. **The live tests need a Codex or browser agent while Claude is capped**
-   (see "Waiting on Tony"): `tests/live/magi-code-followup.live.js`
-   defaults to `AGENT=codex-cli`.
+**If a fresh session touches Code Mode follow-ups**, the map is "What
+exists" › "Code Mode follow-ups, console (F4)" and docs/magi.md "Code Mode
+follow-ups". The one rule to keep: `codeTurnOf`'s `write`/`files` are the
+ground truth the next turn is told about the folder -- a denied diff must
+never read as applied (mutation-checked in `tests/magi-code-thread.test.js`).
+
+**Running pytest (corrected 2026-09-30):** from `magi/`, the suite needs the
+A1 root on the path too, or half of it fails to import `magi`:
+`cd magi; $env:PYTHONPATH = (Resolve-Path ..).Path; .venv\Scripts\python -m
+pytest tests -q` (1,555 + 1 on 2026-09-30, ~7 min).
 **Pre-F3 fix (2026-09-30): the queue is now TWO queues.** Deliberation and
 Code Mode each have their own (`QUEUES.council` / `QUEUES.code` in magi.html;
 Firestore `queue` / `codeQueue`, leases `queueLease` / `codeQueueLease`), with
@@ -64,8 +42,10 @@ her engine self-updates. Do NOT send her setup commands again. The only
 Phase 15 leftover is an optional isolation check from her PC (below).
 
 > **To start the next phase, the whole instruction is "continue" or "next
-> phase".** Do the start-of-session checklist, then the next Track F phase
-> from its section in §8 ("Track F"), then the steps at the end of this §0. Everything needed is in this file.
+> phase".** There is no agreed next phase after Track F: do the
+> start-of-session checklist, then ASK Tony which of the offered items (or
+> something new) to build, and write it into §8 before building it.
+> Everything needed is in this file.
 
 ### The road from here (agreed with Tony 2026-09-21; 11B added 2026-09-24)
 
@@ -90,7 +70,7 @@ One phase per session.
 | ~~F1~~ | ~~Follow-ups: Deliberation engine~~ | **done 2026-09-29** (engine only; invisible until F2) | | |
 | ~~F2~~ | ~~Follow-ups: Deliberation console~~ | **done 2026-09-30** | | |
 | ~~F3~~ | ~~Follow-ups: Code Mode engine~~ | **done 2026-09-30** (engine only; invisible until F4) | | |
-| F4 | Follow-ups: Code Mode console | thread UI, mid-run send, grouped History | High | |
+| ~~F4~~ | ~~Follow-ups: Code Mode console~~ | **done 2026-09-30** (+ the three open bugs) | | |
 
 ### Start-of-session checklist (do these in order)
 
@@ -104,11 +84,12 @@ One phase per session.
    `magi\.venv\Scripts\python -m pip install -r magi\requirements.txt` if an
    import fails.
 5. Baseline the tests before touching anything. **Run pytest from `magi/`
-   over the whole folder** — `cd magi; .venv\Scripts\python -m pytest tests -q`
-   (≈1470). From the A1 root, `test_morning_run.py` fails to collect (it
-   imports `tests.test_completion`); a single file runs fine from the root
-   (`python -m pytest magi/tests/test_x.py`). Node: `node tests/run-all.js`
-   (54 suites). Both must be green; if not, fix that first.
+   over the whole folder, with the A1 root on `PYTHONPATH`** —
+   `cd magi; $env:PYTHONPATH = (Resolve-Path ..).Path; .venv\Scripts\python -m pytest tests -q`
+   (≈1560, ~7 min). Without PYTHONPATH the `from magi.…` tests fail to
+   import; from the A1 root the `from tests.…` ones do. Node:
+   `node tests/run-all.js` (55 suites). Both must be green; if not, fix that
+   first.
 
 ### End-of-phase checklist (the definition of "done")
 
@@ -444,7 +425,51 @@ One phase per session.
   days, dry run). Tests `magi/tests/test_code_followup.py` (64; 7 mutants
   killed by monkeypatch), 3 new in `test_sweep.py`, live
   `tests/live/magi-code-followup.live.js` (26/26 on Codex, 2026-09-30).
-  The HOW panel is untouched (engine only, as F1 did); F4 writes it.
+* **Code Mode follow-ups, console (Track F, F4, 2026-09-30)** — `magi.html`
+  block "follow-ups (Track F, F4)" in the CODE MODE section:
+  `CODE.session = {id, projectId, turns, pending}` (`codeNewSession`; id =
+  first task id; turns = finished task objects, each with `engine`), pure
+  `codeSend(o)` → `{act: run|followup|message, label, why}` (via
+  `codeSendNow`, used by `updateEnabled` + `codeRun`), `codeTurnOf` (the
+  engine's turn shape; `write`/`files` from the result or the `applied`
+  event; a write turn with no write is "discarded"), `codeSessionBody`
+  (< `CODE_SESSION_MAX_CHARS` 190k, oldest shortened first, `native` only
+  when `last.engine === engineId`), `codeRounds` (split at `decision
+  why:"revised"`), `codeGroupRows` + `codeSessKey` (`sid` | `session_id` |
+  `id`), `codeLatestBySession`. `codeStartTurn` (POST /tasks, + session on
+  a follow-up), `codeMessage` (POST /message; "sending…" bubble until the
+  `user` echo), `codeCarry` (accepted-`followup` messages auto-send from the
+  sending tab if on screen, not halted, Code queue idle; `unsent_messages`
+  always a draft), `codeSessionBackfill` (reattach to turn n), `codeLoadTurn`
+  (engine replay via `codeReplay` → cloud body → `gone`), `codeUserBubble`,
+  `codeThreadOn`, `codeSessionAway` (workspace has no folder here → Send held
+  + "Choose a workspace"). `codeAttach(…, {session, mine})`: a task not in
+  the session is a new one; `end` joins the turn to its session.
+  `renderCodeTask(t, {earlier})`: rounds (one log/answer/card each), `user`
+  and `interrupt` events inline, earlier turns' logs in a `<details>`;
+  `renderCodeApproval(t, ev, evs)`/`codeCheckEl(…, evs)` per round; a
+  revised card says "Sent back with your message". `renderCodeView` draws
+  `.code-thread` and calls `placeComposer`, which docks `#qbar` after
+  `#codeView`; `syncCouncilIdle` treats a code thread as not idle.
+  `codeSetProject` to another workspace and `codeClearTask` (Clear / New
+  session) start a new session. History: rows + `sid`, `turn`, `eng`
+  (cloud) / `session_id`, `turn` (engine); `codeHistRowsRaw` (per task) and
+  `codeHistRows` (per session); pins/names/unpin keyed by session;
+  `codeExpired(r, latest)`; delete removes every turn; `codeOpenHistory`
+  takes a group or a row, loads every turn, attaches a running last turn,
+  empties the box. HOW panel entry "Follow-ups in Code Mode". Tests
+  `tests/magi-code-thread.test.js` (72; 7 mutants killed on copies),
+  `test_howitworks.py::test_the_code_followup_claims_still_hold`, live
+  `tests/live/magi-code-thread.live.js` (55/55 on Codex, 2026-09-30).
+  **The three open bugs, fixed:** `magi-sync.live.js` now checks Code
+  History (36/36); `engine/session.answer_section` + `parseVerdict` split a
+  NOTES/CONFIDENCE heading glued to a sentence's end (`_unglue`; only
+  followed by a space or colon, so "NOTES-style" prose stays); Codex READ
+  tasks get `codex_cli.READ_HINT` first in the prompt, and an OK reply with
+  no tool call that says it cannot read (`gave_up`) is UNAVAILABLE → handed
+  on (`magi/tests/test_f4_fixes.py`, 10; 4 mutants killed by monkeypatch).
+  The capture-side cause of the glued Gemini headings is NOT found (it was
+  seen once, and the DOM walker keeps block breaks); the parsers now cope.
 * **Units recon (Track S, U1)**: read-only, no engine change. Each site
   block in `selectors.yaml` ends with a "Models and limits" section:
   `model_button/option/selected/label` (+ `model_label_from`
@@ -764,6 +789,16 @@ reachable from the internet.
   card, revised file applied). `AGENT=codex-cli` (default) or `claude-cli`;
   `LIVE_ONLY=resume,midrun,denied,revise`. ~8 small requests. 26/26 on
   Codex, 2026-09-30.
+* `tests/live/magi-code-thread.live.js` — F4, THROUGH THE UI, on a scratch
+  repo: Run → Send → Follow up (resumed, remembers), a real mid-run message
+  typed in the box (interrupt, bubble, answer follows it), a Write turn
+  revised at the card (two rounds, the revised line applied), History as one
+  session ("4 turns"), New session, reopen (every turn, empty box, a real
+  follow-up remembers turn 1), a pre-Track-F row ("no longer stored"), a
+  cloud session from another engine (fake Firestore; no native sent; the
+  transcript carries it), 390px. `AGENT=codex` default;
+  `LIVE_ONLY=basic,midrun,revise,history,cloud,phone`. ~7 small requests.
+  55/55 on Codex, 2026-09-30.
 * The page is opened as **`PAGES_URL`** (`cdp.js`), served from the working
   copy (see the (14) facts); `/auth/journal/status` is stubbed to "no lock"
   so the profile opens. Not `file://` any more: the engine refuses Origin
@@ -774,10 +809,12 @@ reachable from the internet.
 
 ### Waiting on Tony
 
-* **(F3) Claude is over your own weekly cap** (93% used, cap 90%, until
-  the weekly reset), so MAGI sends Claude nothing, correctly. Because of
-  that, the F3 live test ran on Codex, and the regression live tests
-  that run their tasks on Claude (`magi-write`, `magi-a1`) were NOT re-run.
+* **(F3, still true at F4) Claude is over your own weekly cap** (cap 90%;
+  the console says it resets 10:59 PM 2026-09-30), so MAGI sends Claude
+  nothing, correctly. Because of that, the F3 and F4 live tests ran on
+  Codex, and the regression live tests that run their tasks on Claude
+  (`magi-write`, `magi-a1`) were NOT re-run in F3 or F4. Worth one run of
+  `node tests/live/magi-code-thread.live.js` with `AGENT=claude` too.
   `magi-codemode` failed only on its Claude assumptions ("Claude chip
   shows 5h AND 7d", "done by Claude") plus one Codex read flake (below).
   `magi-guard` 14/14. Re-run `magi-write` and `magi-a1` after the reset
@@ -2449,8 +2486,9 @@ units, one short question.
 
 ## Track F — Follow-ups: multi-turn Deliberation and Code Mode (planned 2026-09-29)
 
-*Status:* **F1 done 2026-09-29** (engine), **F2 done 2026-09-30** (console),
-**F3 done 2026-09-30** (Code Mode engine; see §0 "What exists"); F4 next.
+*Status:* **Track F done.** **F1 done 2026-09-29** (engine), **F2 done
+2026-09-30** (console), **F3 done 2026-09-30** (Code Mode engine), **F4 done
+2026-09-30** (Code Mode console + the three open bugs); see §0 "What exists".
 
 ### Why
 
@@ -2727,6 +2765,18 @@ Files: `magi/code/tasks.py`, `magi/code/routes.py`, `magi/code/sandbox.py`,
 
 #### F4 — Code Mode console
 
+*Status:* done 2026-09-30. Deviations: `native` is decided per turn from the
+engine the LAST turn ran on (`turn.engine`, the cloud row's `eng`), not kept
+on the session. A session whose workspace has no folder on this engine holds
+Send with the reason and a "Choose a workspace" button (choosing one starts
+a new session, explicitly) -- there is no cross-engine project link to
+offer Read on. Messages accepted as `followup` are carried only by the tab
+that sent them (an attached tab sees the bubble, not a draft), so two tabs
+never both send. A revision shows as a second round inside the same task
+card. Engine turns are loaded by replaying their stream (no new route).
+The Gemini fix is in the parsers; the capture-side cause was not found.
+`magi-write` / `magi-a1` NOT re-run: Claude is still over Tony's cap.
+
 1. `CODE.session = {id, projectId, turns:[task…], native}`; bound to the project
    (switching workspace → new session); Read/Write chosen per turn; New session →
    fresh. Queue items stay independent tasks.
@@ -2779,21 +2829,21 @@ More found during the build get fixed in the phase that touches them and listed 
 - (F2, fixed) `setView`'s "Close — back to the running prompt" showed over any
   History entry opened after a run had ENDED (`S.live` outlives its run; the
   check lacked `S.running`).
-- (F2, OPEN → F4 step 6, test) `tests/live/magi-sync.live.js` step "Recent lists it"
+- (F2, FIXED in F4) `tests/live/magi-sync.live.js` step "Recent lists it"
   fails: Code Mode's Recent list (`renderCodeRecent`) was removed in
   `5ff90fb` (2026-09-29 08:33, before F1); only its CSS remains. Every write
   count before that step passes. Retarget the step at Code History (or drop
   it) in F4, which rebuilds that history anyway.
 - (F2, fixed, test) `test_units_usage::test_a_prompt_quoting_limit_words…`
   aged out: fixed `NOW` vs `_recent_sync`'s real-clock window.
-- (F2, OPEN → F4 step 6, engine) A sole Gemini unit that synthesised because of a note
+- (F2, FIXED in F4 -- in the parsers; the capture cause not found) A sole Gemini unit that synthesised because of a note
   returned its verdict as one run-on line: "…*Dream*.NOTES None.CONFIDENCE
   HIGH -- …" -- the ANSWER/NOTES/CONFIDENCE headings lost their line breaks in
   capture, so `parseVerdict` shows them inline and `session.answer_section`
   cannot strip NOTES from the memory. Seen once (live test, 2026-09-30); look
   at how the browser capture joins Gemini's heading blocks, or let
   `answer_section`/`parseVerdict` accept an inline `.NOTES`/`CONFIDENCE`.
-- (F3, OPEN → F4 step 6, agent) **Codex read tasks sometimes give up without trying**:
+- (F3, FIXED in F4: READ_HINT + `gave_up` hands on) **Codex read tasks sometimes give up without trying**:
   "I can't read README.md because this workspace is mounted read-only and I
   don't have a file-reading tool", with no tool call. Seen 2 of ~8 read
   tasks on 2026-09-30 (Auto's `gpt-6-luna`, effort low); 3/3 identical

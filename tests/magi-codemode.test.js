@@ -68,12 +68,18 @@ ok('so is the council caption',
 
 console.log('\nThe send button becomes Run, gated on what a task needs');
 const ue = lift('function updateEnabled()', 2600);
-ok('it is labelled Run in Code Mode', /textContent = codeBusy\(\) \? "Working…" : CODE\.rw === "write" \? "Run edits" : "Run"/.test(ue));
-ok('it needs the engine', /!up \? "The engine is offline"/.test(ue));
-ok('it needs a workspace', /!codeProject\(\) \? "Choose a workspace first"/.test(ue));
-ok('it needs at least one agent', /!codeChain\(\)\.length \? "Tick at least one agent"/.test(ue));
-ok('one task at a time', /codeBusy\(\) \? "A task is already running"/.test(ue));
-ok('and says why when it is held', /\$\("btnSend"\)\.title = why/.test(ue));
+// Track F (F4): Code Mode's label and hold come from codeSend -- Run /
+// Follow up / Send (a message to the running task); magi-code-thread.test.js
+// walks that matrix. This pins that the button uses it.
+const cs = lift('function codeSend(o)', 1400);
+ok('it is labelled Run in Code Mode', /o\.rw === "write" \? "Run edits" : "Run"/.test(cs)
+   && /const s = codeSendNow\(\);[\s\S]{0,40}\$\("btnSend"\)\.disabled = !q \|\| !!s\.why;[\s\S]{0,40}\$\("btnSend"\)\.textContent = s\.label/.test(ue));
+ok('it needs the engine', /if \(!o\.up\) why = "The engine is offline"/.test(cs));
+ok('it needs a workspace', /!o\.project\) why = "Choose a workspace first"/.test(cs));
+ok('it needs at least one agent', /!o\.agents\) why = "Tick at least one agent"/.test(cs));
+ok('while a task runs the button messages it, rather than starting a second',
+   /const act = o\.running \? "message"/.test(cs));
+ok('and says why when it is held', /\$\("btnSend"\)\.title = s\.why/.test(ue));
 // Deliberation's label and hold come from councilSend (Track F: Convene /
 // Follow up / Add to run); magi-thread.test.js walks that matrix.
 ok('Deliberation asks councilSend',
@@ -100,9 +106,9 @@ ok('the stream carries the token the SSE way',
    /new EventSource\(streamUrl\(`\/api\/code\/tasks\/\$\{id\}\/stream`\)\)/.test(MAGI));
 ok('the watched task is remembered per tab', /sessionStorage\.setItem\(CODE_TASK_SS, id\)/.test(MAGI));
 ok('a dropped stream says the task was lost, not still running',
-   /t\.lost = true/.test(lift('function codeAttach(id, prompt', 3200)));
+   /t\.lost = true/.test(lift('function codeAttach(id, prompt', 7000)));
 ok('hand-offs are shown, with who takes over',
-   /handing over to \$\{ev\.to_label\}/.test(lift('function renderCodeTask(t)', 12000)));
+   /handing over to \$\{ev\.to_label\}/.test(lift('function renderCodeTask(t', 14000)));
 
 console.log('\nNothing in Code Mode writes to Firestore');
 const block = MAGI.slice(MAGI.indexOf('const CODE_PROJ_KEY'), MAGI.indexOf('function setView(v)'));
