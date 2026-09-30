@@ -83,7 +83,8 @@ const waitFor = async (c, expr, ms = 20000) => {
   const t0 = Date.now();
   await evalJs(c, 'document.getElementById("btnSend").click(); return 1;');
   ok('task attached', await waitFor(c, '!!CODE.task', 8000));
-  ok('Run shows Working while busy', await waitFor(c, 'document.getElementById("btnSend").textContent === "Working…"', 5000));
+  // Track F (F4): while a task runs the button messages it.
+  ok('the button says Send while busy', await waitFor(c, 'document.getElementById("btnSend").textContent === "Send"', 5000));
   ok('Halt offered while running', await waitFor(c, '!!document.querySelector(".code-task-acts .danger")', 5000));
   ok('an agent line appears', await waitFor(c, '!!document.querySelector(".code-ev.is-agent")', 15000));
   await shot(c, 'coderun-desktop-running');

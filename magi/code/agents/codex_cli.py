@@ -117,9 +117,16 @@ READ_HINT = ("(From MAGI: your shell works in this read-only workspace. Read fil
 
 # ...and a reply that gives up anyway, with no tool call, is not an answer:
 # it is handed on (UNAVAILABLE) rather than shown as the result.
+# Seen so far (2026-09-30): "I can't read README.md because ... I don't have
+# a file-reading tool"; "I can't identify the file without inspecting the
+# workspace, and this session only permits read access through tools that
+# aren't available here".
 _GAVE_UP = re.compile(
-    r"\b(?:can(?:'|’)?t|cannot|unable to|not able to)\s+(?:read|access|open|inspect|view|list)\b"
-    r"|\b(?:don(?:'|’)t|do not)\s+have\s+(?:a\s+|any\s+)?(?:file[- ]reading|shell|file[- ]access)\b",
+    r"\b(?:can(?:'|’)?t|cannot|unable to|not able to)\s+"
+    r"(?:read|access|open|inspect|view|list|see|identify|determine|check|examine|look at)\b"
+    r"|\b(?:don(?:'|’)t|do not)\s+have\s+(?:a\s+|any\s+)?(?:file[- ]reading|shell|file[- ]access)\b"
+    r"|\bwithout\s+(?:inspecting|reading|access(?:ing)?|looking at)\s+(?:the\s+)?(?:workspace|files?|repo)"
+    r"|\btools?\s+(?:that\s+)?(?:aren(?:'|’)t|are not|isn(?:'|’)t|is not)\s+available\b",
     re.I)
 
 

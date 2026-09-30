@@ -466,8 +466,12 @@ One phase per session.
   NOTES/CONFIDENCE heading glued to a sentence's end (`_unglue`; only
   followed by a space or colon, so "NOTES-style" prose stays); Codex READ
   tasks get `codex_cli.READ_HINT` first in the prompt, and an OK reply with
-  no tool call that says it cannot read (`gave_up`) is UNAVAILABLE → handed
-  on (`magi/tests/test_f4_fixes.py`, 10; 4 mutants killed by monkeypatch).
+  no tool call that says it cannot read (`gave_up`; two recorded wordings,
+  the second -- "can't identify the file without inspecting the workspace
+  ... tools that aren't available" -- seen live in magi-codemode AFTER the
+  hint went in, so the hint alone is not enough) is UNAVAILABLE → handed on
+  (`magi/tests/test_f4_fixes.py`, 10; 4 mutants killed by monkeypatch).
+  Live: 5/5 identical Codex read tasks read the file.
   The capture-side cause of the glued Gemini headings is NOT found (it was
   seen once, and the DOM walker keeps block breaks); the parsers now cope.
 * **Units recon (Track S, U1)**: read-only, no engine change. Each site
@@ -815,6 +819,18 @@ reachable from the internet.
   Codex, and the regression live tests that run their tasks on Claude
   (`magi-write`, `magi-a1`) were NOT re-run in F3 or F4. Worth one run of
   `node tests/live/magi-code-thread.live.js` with `AGENT=claude` too.
+* **(F4) `magi-codemode.live.js` at 40/44**: Claude's cap ("5h AND 7d"), one
+  Codex answer that read the listing but named another file, and
+  "reattached after reload" / "answer replayed", which miss their 25-s
+  window. NOT an F4 regression: the pre-F4 page (f5481d8) and the F4 page
+  were timed side by side on the same task -- both 12-17 s -- because the
+  engine answers the page-load burst slowly (`/code/state`, `/code/agents`,
+  `/units/usage` 5-13 s each on a warm engine). A candidate phase: find
+  what makes those three slow at load.
+* **(F4) The self-update watchdog restarted the engine mid-test** (≈11:38)
+  after an auto-commit of engine files: every live test running then
+  failed at once. When a session changes engine files, expect this; rerun
+  what was running.
   `magi-codemode` failed only on its Claude assumptions ("Claude chip
   shows 5h AND 7d", "done by Claude") plus one Codex read flake (below).
   `magi-guard` 14/14. Re-run `magi-write` and `magi-a1` after the reset
@@ -2776,6 +2792,10 @@ never both send. A revision shows as a second round inside the same task
 card. Engine turns are loaded by replaying their stream (no new route).
 The Gemini fix is in the parsers; the capture-side cause was not found.
 `magi-write` / `magi-a1` NOT re-run: Claude is still over Tony's cap.
+Live, 2026-09-30: `magi-code-thread` 55/55, `magi-thread` (F2) 48/48,
+`magi-sync` 36/36, `magi-guard` 14/14, `magi-code-followup` 25/26 then its
+`denied` step 8/8 after the NO check accepted a leading "I'll…" line,
+`magi-codemode` 40/44 (see "Waiting on Tony"), Codex read probe 5/5.
 
 1. `CODE.session = {id, projectId, turns:[task…], native}`; bound to the project
    (switching workspace → new session); Read/Write chosen per turn; New session →

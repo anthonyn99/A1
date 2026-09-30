@@ -70,8 +70,16 @@ def _codex_ok(text, tools=()):
     return (lines, [])
 
 
-def test_gave_up_matches_the_recorded_reply_only_without_tools():
+GAVE_UP_2 = ("I can’t identify the file without inspecting the workspace, and this session "
+             "only permits read access through tools that aren’t available here.")
+
+
+def test_gave_up_matches_the_recorded_replies_only_without_tools():
     assert CX.gave_up(GAVE_UP, [])
+    assert CX.gave_up(GAVE_UP_2, []), "the second wording, seen live in magi-codemode"
+    assert not CX.gave_up(GAVE_UP_2, ["Bash"])
+    # Real answers that happen to use the words are left alone when it read.
+    assert not CX.gave_up("The engine's app is in magi/app.py; I can't see any other.", ["Bash"])
     assert not CX.gave_up(GAVE_UP, ["Bash"]), "it tried: its answer stands"
     assert not CX.gave_up("README.md says: install with pip.", [])
     assert CX.gave_up("I cannot access the files in this workspace.", [])
