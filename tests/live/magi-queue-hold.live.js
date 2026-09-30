@@ -105,7 +105,9 @@ const shot = async (c, name) => {
   await shot(c, 'qh-2-hold-phone');
   await c.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
 
+  const t0 = Date.now();
   await evalJs(c, 'window.__limitUntil = null; $("queueHoldNow").click(); return 1;');
+  ok('Try now acts at once, not at the next 15s poll', await waitFor(c, 'window.__runs.length >= 2', 1500), (Date.now() - t0) + 'ms');
   ok('Try now runs it again, then the rest', await waitFor(c, 'window.__runs.length === 3 && !S.queueRunning'));
   ok('both rows done, in order', await evalJs(c, 'JSON.stringify(window.__runs)') === '["q one","q one","q two"]'
      && await evalJs(c, 'queueSorted().every((it) => it.status === "done")'));
@@ -157,9 +159,20 @@ const shot = async (c, name) => {
 
   console.log('\nThe engine goes away mid-queue');
   await evalJs(c, `S.queue = []; setQuestion("q lost"); $("btnQueue").click();
-    const realOnline = online; window.__realOnline = realOnline; online = () => false;
-    S.queueRunning = false; queueDrain(++_queueGen).then(() => { online = window.__realOnline; }); return 1;`);
+    window.__where = link.where; link.where = "gone";
+    S.queueRunning = false; queueDrain(++_queueGen).then(() => { link.where = window.__where; }); return 1;`);
   ok('lost engine: it stops and rings', await waitFor(c, 'ATTN.keys.has("queue:stopped")', 4000));
+  ok('and says so', /Lost the engine/.test(await evalJs(c, '$("refineError").textContent')));
+  ok('the engine link is back after', await waitFor(c, 'online()', 4000));
+  console.log('
+Cancel wait acts at once');
+  await evalJs(c, `S.queue = []; setQuestion("q cancel"); $("btnQueue").click();
+    window.__next = [${LIMITED}]; queueStart(); return 1;`);
+  await waitFor(c, '!!S.queueHold');
+  const t1 = Date.now();
+  await evalJs(c, '$("queueRunBtn").click(); return 1;');
+  ok('Cancel wait stops it within a second', await waitFor(c, '!S.queueRunning && !S.queueHold && $("queueHold").hidden', 1500), (Date.now() - t1) + 'ms');
+  ok('the row is still waiting', await evalJs(c, 'S.queue[0].status') === 'queued');
   await evalJs(c, 'attnClear("queue:stopped"); S.queue = []; queueChanged(); return 1;');
 
   console.log('\nNothing else');

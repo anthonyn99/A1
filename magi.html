@@ -23104,6 +23104,7 @@ function queueStop() {
   // A hold only means anything while a loop is there to end it; left up, a
   // paused queue would go on promising to resume by itself.
   S.queueHold = null;
+  queueHoldWake();
   clearInterval(_leaseTimer);
   leaseRelease();
   renderQueue();
@@ -23267,16 +23268,34 @@ async function queueHoldFor(outcome, it) {
 }
 
 /** Sleep until the hold ends. False when the queue was paused meanwhile;
- *  Try now ends the hold early by clearing it. */
+ *  Try now ends the hold early by clearing it.
+ *
+ *  The nap between checks is WAKEABLE (queueHoldWake): found by the live
+ *  test, a plain 15-second sleep meant Try now or Cancel wait could sit for
+ *  up to fifteen seconds before anything happened -- a button that seems
+ *  not to work. The poll is still there for what nobody presses: the clock
+ *  reaching the reset, or a PC waking from sleep past it. */
+let _holdWake = null;
+function queueHoldWake() {
+  const w = _holdWake;
+  _holdWake = null;
+  if (w) w();
+}
+
 async function queueHoldWait(gen) {
   const tick = setInterval(renderQueueHold, 30000);
   try {
     while (S.queueHold && Date.now() < S.queueHold.until) {
       if (gen !== _queueGen) return false;
-      await _sleep(Math.max(250, Math.min(QUEUE_HOLD_POLL_MS, S.queueHold.until - Date.now())));
+      const ms = Math.max(250, Math.min(QUEUE_HOLD_POLL_MS, S.queueHold.until - Date.now()));
+      await new Promise((resolve) => {
+        const t = setTimeout(() => { if (_holdWake === resolve) _holdWake = null; resolve(); }, ms);
+        _holdWake = () => { clearTimeout(t); resolve(); };
+      });
     }
   } finally {
     clearInterval(tick);
+    _holdWake = null;
   }
   if (gen !== _queueGen) return false;
   S.queueHold = null;
@@ -23298,7 +23317,7 @@ function renderQueueHold() {
     document.createTextNode(`${h.why} The prompt went back in the queue, not down as failed; `
       + (h.known ? `it runs again when the limit lifts, at ${when}.`
                  : `no reset time was given, so it tries again at ${when}.`)));
-  $("queueHoldNow").onclick = () => { S.queueHold = null; renderQueue(); };
+  $("queueHoldNow").onclick = () => { S.queueHold = null; renderQueue(); queueHoldWake(); };
 }
 
 /** Did every unit that spoke say "rate limited"? */
