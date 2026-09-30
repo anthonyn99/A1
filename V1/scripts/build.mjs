@@ -50,7 +50,11 @@ const APPS = [
     // vendor/ holds third-party runtime files under VERSIONED folder names
     // (e.g. vendor/anthropic-sdk-0.129.0/), so a new version is a new path.
     assets: ["css", "js", "config", "assets", "vendor", "manifest.webmanifest", "studyos-sw.js"],
-    rootFiles: [["firebase/firebase-messaging-sw.js", "firebase-messaging-sw.js"]],
+    // sweep.js + cleanup-rules.json live at the A1 repo root. studyos.html loads
+    // "../sweep.js", which from /studyos/ is the site root; without these the
+    // Cloudflare build 404'd it and StudyOS's self-cleanup never ran there.
+    rootFiles: [["firebase/firebase-messaging-sw.js", "firebase-messaging-sw.js"],
+                ["../sweep.js", "sweep.js"], ["../cleanup-rules.json", "cleanup-rules.json"]],
   },
 ];
 
