@@ -84,7 +84,9 @@ function openStart(cls, mod, f) {
       ${a.problem
         ? `<span style="color:#f0bd86">${esc(a.problem)}</span>`
         : `Uses <b style="color:var(--text2)">${esc(a.label)}</b>${bridge ? '' : ` · ${esc(a.model)}`}.
-           About <b style="color:var(--text2)">1 + one per topic</b> requests (usually 6–13)${bridge
+           Every topic and lesson is checked against the PDF's own text; anything a lesson leaves out
+           is asked for once more. About <b style="color:var(--text2)">1 + one per topic</b> requests (usually 6–13),
+           plus a follow-up for a lesson that missed something${bridge
              ? ' — Claude Pro messages, a few minutes per topic'
              : ' — billed to your API key'}. It runs in the background; keep studying.`}
       <div style="margin-top:6px"><a href="#" data-ai-settings style="color:var(--accent2);font-size:11px;font-family:var(--mono)">Change the AI model →</a></div>
@@ -138,12 +140,13 @@ async function renderPanel(panel, cls, mod, f) {
   } else {
     const status = running
       ? `Writing lessons — ${ready.length} of ${topics.length} done.`
-      : doc.error ? doc.error : `${topics.length} topics · ${cards} flashcards`;
+      : doc.error ? doc.error : `${topics.length} topics · ${cards} flashcards${checksNote(doc.checks)}`;
     html.push(`<div class="bd-status${doc.error && !running ? ' err' : ''}">${esc(status)}${doc.syncError ? ` · ${esc(doc.syncError)}` : ''}</div>`);
     topics.forEach((t, i) => {
       const ok = t.status === 'ready';
       const done = ok && t.progress && t.progress.done;
-      const badge = ok ? `${t.cardCount || 0} cards`
+      const gaps = ok && t.gaps ? t.gaps.length : 0;
+      const badge = ok ? `${t.cardCount || 0} cards${gaps ? ` · ⚠ ${gaps}` : ''}`
         : t.status === 'writing' ? 'writing…'
         : t.status === 'failed' ? 'failed'
         : running ? 'queued' : 'not written';
@@ -154,7 +157,7 @@ async function renderPanel(panel, cls, mod, f) {
             <div class="bd-title">${esc(t.title)}</div>
             <div class="bd-sum">${esc(t.status === 'failed' ? (t.error || 'failed') : t.summary || '')}</div>
           </div>
-          <div class="bd-badge${t.status === 'failed' ? ' fail' : ''}">${esc(badge)}</div>
+          <div class="bd-badge${t.status === 'failed' ? ' fail' : ''}"${gaps ? ` title="${gaps} line${gaps === 1 ? '' : 's'} of the document not fully taught — shown at the end of the lesson"` : ''}>${esc(badge)}</div>
           ${t.status === 'failed' && !running ? `<button data-retry="${esc(t.id)}">Retry</button>` : ''}
         </div>`);
     });
@@ -191,6 +194,14 @@ async function renderPanel(panel, cls, mod, f) {
     _open.delete(f.id);
     refresh(f.id);
   });
+}
+
+/** What the breakdown was checked against, for the status line. */
+function checksNote(c) {
+  if (!c) return '';
+  if (c.skipped) return ` · not checked against the PDF (${c.skipped})`;
+  if (!c.pages) return '';
+  return ` · checked against all ${c.pages} pages${c.gaps ? ` · ${c.gaps} line${c.gaps === 1 ? '' : 's'} not fully taught` : ''}`;
 }
 
 /** Repaint one document's button and topic list in place. */

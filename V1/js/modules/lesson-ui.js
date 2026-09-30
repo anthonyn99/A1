@@ -16,7 +16,17 @@ import { renderMarkdown, escapeHtml as esc, inline } from './md.js';
 import { ensureStyle } from './study-style.js';
 import { findFile } from './breakdown-ui.js';
 
-const LABEL = { read: 'Read', example: 'Worked example', steps: 'Step by step', check: 'Check yourself', recap: 'Recap', cards: 'Flashcards' };
+const LABEL = { read: 'Read', example: 'Worked example', steps: 'Step by step', check: 'Check yourself', recap: 'Recap',
+  source: 'From the document', cards: 'Flashcards' };
+
+/** The screens of a lesson: its blocks, then — when the check against the
+ *  document found lines no lesson teaches — those lines, verbatim. What the
+ *  model missed is still in front of her, never silently gone. */
+function lessonBlocks(topic) {
+  const blocks = topic.lesson.blocks;
+  const gaps = topic.gaps || [];
+  return gaps.length ? [...blocks, { kind: 'source', title: 'Also in the document', lines: gaps }] : blocks;
+}
 
 let S = null;          // { fileId, topicId, screen, answers, checked, shown, card, flipped }
 let _saveTimer = null;
@@ -27,7 +37,7 @@ export async function open(fileId, topicId) {
   const topic = doc && doc.topics.find((t) => t.id === topicId);
   if (!topic || topic.status !== 'ready') return false;
   flush();
-  const blocks = topic.lesson.blocks;
+  const blocks = lessonBlocks(topic);
   const resumeAt = topic.progress && !topic.progress.done ? Math.min(topic.progress.block || 0, blocks.length) : 0;
   S = { fileId, topicId, screen: resumeAt, answers: {}, checked: {}, shown: {}, card: 0, flipped: false };
   // A topic is opened from the list inside the module popup. Switching views
@@ -46,7 +56,7 @@ export function leave() { flush(); }
 function cur() {
   const doc = S && bd.peek(S.fileId);
   const topic = doc && doc.topics.find((t) => t.id === S.topicId);
-  return topic ? { doc, topic, blocks: topic.lesson.blocks } : null;
+  return topic ? { doc, topic, blocks: lessonBlocks(topic) } : null;
 }
 
 function topicCards(doc) {
@@ -102,6 +112,10 @@ function blockHtml(b, i) {
   const title = b.title ? `<h2>${esc(b.title)}</h2>` : '';
   if (b.kind === 'read' || b.kind === 'example') {
     return `${title}<div class="sl-prose">${renderMarkdown(b.markdown)}</div>`;
+  }
+  if (b.kind === 'source') {
+    return `${title}<div class="sl-muted" style="margin-bottom:10px">The lesson above does not fully teach these lines of the document, so here they are exactly as the document has them.</div>
+      <div class="sl-prose"><ul>${b.lines.map((g) => `<li><span class="sl-muted">p.${esc(String(g.page))}</span> ${esc(g.text)}</li>`).join('')}</ul></div>`;
   }
   if (b.kind === 'recap') {
     return `${title || '<h2>Recap</h2>'}<div class="sl-prose"><ul>${b.points.map((p) => `<li>${inline(esc(p))}</li>`).join('')}</ul></div>`;

@@ -84,18 +84,37 @@ const SYSTEM =
   'seeing the material for the first time, and you stay faithful to the ' +
   'document: its notation, its terms, its examples.';
 
-export function topicsPrompt({ className, sourceName }) {
-  return `The attached PDF is course material${className ? ` for ${className}` : ''}: "${sourceName}".
+/** How the document reaches the model: its page text in the prompt (always,
+ *  for text-only providers), and/or the PDF attached. */
+function sourceIntro(sourceName, className, source, attached) {
+  const what = `course material${className ? ` for ${className}` : ''}: "${sourceName}"`;
+  if (!source) return `The attached PDF is ${what}.`;
+  return `The document is ${what}. Its text is below, page by page${attached
+    ? ' (the PDF itself is attached too — use it for diagrams and figures)' : ''}.
+
+<document>
+${source}
+</document>`;
+}
+
+export function topicsPrompt({ className, sourceName, source = '', attached = true, feedback = '' }) {
+  return `${sourceIntro(sourceName, className, source, attached)}
 
 Break it into the TOPICS a student must learn, so that studying every topic covers the ENTIRE document.
-
+${feedback ? `
+YOUR PREVIOUS LIST WAS REJECTED — it did not match this document:
+${feedback}
+List the topics of THIS document only, from its text above.
+` : ''}
 RULES
 - Cover the whole document with no gaps, in the order it presents the material. Every section, definition, formula, algorithm and worked example belongs to exactly one topic.
+- Only what is IN the document. Never add a topic the document does not teach.${source ? `
+- Every page with teaching content belongs to a topic. A title page, a repeated agenda/objectives slide and a closing slide need no topic of their own.` : ''}
 - 3 to ${MAX_TOPICS} topics. Each topic is one sitting of study (10-25 minutes): big enough to be worth a lesson, small enough to master in one go. Split a long chapter; merge slides that only make sense together.
 - Titles are concrete and specific. "Converting an ER diagram to tables" is a topic; "Databases" is not.
 - summary: one or two sentences saying exactly what the topic covers.
 - key_points: EVERY fact, definition, formula, rule and procedure this topic must teach. The lesson is written against this checklist, so leave nothing out.
-- pages: where it is in the document, e.g. "4-9" (slide or page numbers).
+- pages: where it is in the document, e.g. "4-9" or "4-9, 12" (slide or page numbers${source ? ' — the numbers of the "--- page N ---" markers' : ''}).
 - style: what kind of learning the topic needs —
     concept      ideas and theory to understand: why and how things work
     procedure    a method, algorithm or calculation to carry out step by step
@@ -127,11 +146,18 @@ export const STYLE_GUIDE = {
     'use, a `check` that tests the distinctions, then a `recap`.',
 };
 
-export function lessonPrompt({ className, sourceName, topic, index, all }) {
+export function lessonPrompt({ className, sourceName, topic, index, all, source = '', attached = true }) {
   const others = all.filter((t) => t.id !== topic.id).map((t) => `  - ${t.title}`).join('\n');
   const checklist = (topic.key_points || []).map((k) => `  - ${k}`).join('\n') || '  - (use the summary)';
-  return `Write ONE lesson from the attached course material${className ? ` for a student in ${className}` : ''}.
-
+  return `Write ONE lesson from ${source ? 'the course material below' : 'the attached course material'}${className ? ` for a student in ${className}` : ''}.
+${source ? `
+SOURCE — this topic's pages of "${sourceName}", verbatim${attached ? ' (the whole PDF is attached too, for its diagrams)' : ''}:
+<source>
+${source}
+</source>
+EVERY line of the source must be taught in this lesson: every fact, number, unit, term, example and list item.
+You may add explanation, intuition and examples; you may never drop or shorten a detail from the source.
+` : ''}
 THE TOPIC
   title: ${topic.title}
   what it covers: ${topic.summary || '(use the title)'}
@@ -176,6 +202,30 @@ FLASHCARDS — then write this topic's flashcards:
 - Atomic: one idea per card. Front: a specific question (never just "Explain X"). Back: the answer,
   at most two sentences.
 - No duplicates, no yes/no fronts, no card whose answer is on its front.
+
+Reply with ONE JSON object and nothing else:
+{"blocks": [{"kind": "read", "title": "...", "markdown": "...", "steps": [], "questions": [], "points": []}],
+ "flashcards": [{"front": "...", "back": "..."}]}`;
+}
+
+/** The follow-up for a lesson that left source lines out. */
+export function gapsPrompt({ className, sourceName, topic, missing, source = '' }) {
+  const lines = missing.map((m) => `  - [page ${m.page}] ${m.text}`).join('\n');
+  return `You wrote the lesson "${topic.title}" from "${sourceName}"${className ? ` (${className})` : ''}. Checked line by line against the document, it leaves out the source lines below — material a student could be examined on.
+
+MISSING — teach every one of these exactly as the document states it (its numbers, units and terms):
+${lines}
+${source ? `
+SOURCE — the topic's pages, verbatim, for context:
+<source>
+${source}
+</source>
+` : ''}
+Write ADDITIONAL lesson blocks that teach the missing lines — "read", "example", "steps" or "check" blocks, the same shapes as before — plus a flashcard for every fact in them.
+Do not repeat what the lesson already teaches. No recap block.
+Every block has a short "title". Fields a block's kind does not use are empty ("" or []).
+Check questions: {"q", "choices": 3-5 plausible choices, "answer": exactly one of the choices, "explanation"}.
+Flashcards: atomic, one idea each; front a specific question, back at most two sentences.
 
 Reply with ONE JSON object and nothing else:
 {"blocks": [{"kind": "read", "title": "...", "markdown": "...", "steps": [], "questions": [], "points": []}],
@@ -258,6 +308,232 @@ export function validateLesson(o) {
   if (!flashcards.length) return { error: 'the lesson came with no flashcards' };
   return { value: { blocks, flashcards } };
 }
+
+// ── Checking the output against the document ─────────────────────────────
+/* A model's topics and lessons are checked against the PDF's own text, not
+ * trusted. The case that made this necessary: a provider delivered only the
+ * system prompt, and the model — having never seen the document — invented a
+ * plausible economics course for a computer-architecture chapter, which was
+ * saved as if it were real. Now:
+ *   topics  must share their vocabulary with the document, point at real
+ *           pages, and together cover every page that teaches something;
+ *   lessons must teach every line of their pages — each number verbatim,
+ *           most of each line's words — or a follow-up ask fills the gaps.
+ * Matching is lexical and deliberately forgiving (stems, number words,
+ * ² vs ^2): a paraphrase passes, an omission or an invention does not. */
+const STOP = new Set(('about above after again against also among another because been before being below between both ' +
+  'but called cannot come comes could does doing done down during each either else even every from further have having ' +
+  'here into itself just like made make makes many more most much must need needs only other others ours over same ' +
+  'shall should since some such than that their them then there these they this those through thus under until upon ' +
+  'used uses using very want well were what when where whether which while whom whose will with within without would ' +
+  'your yours cont slide page chapter the and for are not but can its has all any was you our how why who may use ' +
+  'get got let see yes etc per via off out own too now new way she her his him').split(/\s+/));
+const NUMWORDS = { zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+  eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18,
+  nineteen: 19, twenty: 20 };
+const SUPS = { '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9', '⁻': '-' };
+
+function stem(w) {
+  if (w.length > 4 && w.endsWith('s') && !w.endsWith('ss')) w = w.slice(0, -1);
+  return w.slice(0, 6);
+}
+
+/** { words: Set<stem>, nums: Set<string> } of a text. 10³, 10^{3}, $10^3$
+ *  and <sup>3</sup> all read as "10^3"; 1,048,576 as "1048576"; "seven" as 7. */
+export function tokensOf(text) {
+  const t = String(text || '').toLowerCase()
+    .replace(/<sup>\s*/g, '^').replace(/<\/sup>/g, '')
+    .replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁻]+/g, (s) => '^' + [...s].map((c) => SUPS[c]).join(''))
+    .replace(/[{}$\\]/g, '')
+    .replace(/\s*\^\s*/g, '^')
+    .replace(/(\d),(?=\d{3}(?!\d))/g, '$1')
+    .replace(/\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\b/g, (w) => String(NUMWORDS[w]));
+  const nums = new Set();
+  const rest = t.replace(/\d+(?:\.\d+)?(?:\^-?\d+(?:\.\d+)?)?/g, (n) => { nums.add(n); return ' '; });
+  const words = new Set();
+  for (const w of rest.match(/[a-z]{3,}/g) || []) if (!STOP.has(w)) words.add(stem(w));
+  return { words, nums };
+}
+
+/** "4-9, 12" / "slides 4–9" / "p. 7" → sorted page numbers, and whether any
+ *  number was outside 1..max (or nothing parsed). */
+export function parsePages(str, max) {
+  const out = new Set();
+  let bad = false;
+  for (const m of String(str || '').matchAll(/(\d+)\s*(?:-|–|—|to)\s*(\d+)|(\d+)/g)) {
+    let a = Number(m[1] || m[3]), b = Number(m[2] || m[3]);
+    if (a > b) [a, b] = [b, a];
+    if (a < 1 || b > max) { bad = true; a = Math.max(1, a); b = Math.min(max, b); }
+    for (let n = a; n <= b && n - a < 1000; n++) out.add(n);
+  }
+  if (!out.size) bad = true;
+  return { pages: [...out].sort((x, y) => x - y), bad };
+}
+
+/** A page's logical items: bullet lines joined with their wrapped
+ *  continuation lines. The slide title (its tallest line, when it stands out)
+ *  is flagged: it names the material rather than being material. */
+export function pageItems(page) {
+  const lines = (page.lines || []).filter((l) => !/^\d{1,4}$/.test(l.text));
+  if (!lines.length) return [];
+  const maxH = Math.max(...lines.map((l) => l.h || 0));
+  const hasBody = lines.some((l) => (l.h || 0) < maxH * 0.9);
+  const items = [];
+  let cur = null;
+  for (const l of lines) {
+    const title = hasBody && (l.h || 0) >= maxH * 0.95;
+    const cont = cur && !l.bullet && !title && !cur.title && Math.abs((l.h || 0) - cur.h) <= 1;
+    if (cont) cur.text += ' ' + l.text;
+    else { cur = { page: page.n, text: l.text, h: l.h || 0, title }; items.push(cur); }
+  }
+  return items.map(({ page: p, text, title }) => ({ page: p, text, title }));
+}
+
+/**
+ * Everything the checks need from the document's text:
+ *   pages     [{ n, lines }] as extracted
+ *   items     n → the page's items
+ *   content   the pages that teach something: not near-empty, and not a
+ *             repeat of an earlier page (an agenda slide shown four times)
+ *   dupOf     n → the earlier page it repeats
+ *   words     every word stem in the document
+ */
+export function sourceModel(pages) {
+  const m = { pages, items: new Map(), content: [], dupOf: new Map(), words: new Set(), max: pages.length };
+  const seen = new Map();
+  for (const p of pages) {
+    const items = pageItems(p);
+    m.items.set(p.n, items);
+    const tk = tokensOf(items.map((i) => i.text).join('\n'));
+    tk.words.forEach((w) => m.words.add(w));
+    const key = [...tk.words].sort().join(' ') + '|' + [...tk.nums].sort().join(' ');
+    if (seen.has(key)) { m.dupOf.set(p.n, seen.get(key)); continue; }
+    seen.set(key, p.n);
+    if (tk.words.size >= 4) m.content.push(p.n);
+  }
+  // A page shown more than once is an agenda — "Chapter 1 Objectives" before
+  // each section — not material of its own; its first showing included.
+  const repeated = new Set(m.dupOf.values());
+  m.content = m.content.filter((n) => !repeated.has(n));
+  return m;
+}
+
+/** The prompt text of some pages ("--- page N ---" markers); a repeated
+ *  page is named, not repeated. */
+export function sourceText(model, pageNums) {
+  const want = pageNums ? new Set(pageNums) : null;
+  return model.pages.filter((p) => !want || want.has(p.n)).map((p) => {
+    if (model.dupOf.has(p.n)) return `--- page ${p.n} --- (same as page ${model.dupOf.get(p.n)})`;
+    const body = ai.pageText(p);
+    return `--- page ${p.n} ---${body ? '\n' + body : ''}`;
+  }).join('\n\n');
+}
+
+/** How much of a topic's own wording is in the document at all. Measured on
+ *  Chapter1-Introduction.pdf: its real topics score 0.92-0.96; the invented
+ *  economics topics scored 0.00-0.38 (generic words like "introduction",
+ *  "overview" and "model" match anything). */
+function topicScore(topic, model) {
+  const tk = tokensOf([topic.title, ...(topic.key_points || [])].join('\n'));
+  if (tk.words.size < 3) return 1;
+  let hit = 0;
+  tk.words.forEach((w) => { if (model.words.has(w)) hit++; });
+  return hit / tk.words.size;
+}
+const INVENTED_BELOW = 0.5;
+
+/**
+ * Check a topic list against the document.
+ * @returns {{ invented: object[], badPages: object[], uncovered: number[], feedback: string }}
+ */
+export function groundTopics(topics, model) {
+  const invented = [], badPages = [], covered = new Set();
+  for (const t of topics) {
+    if (topicScore(t, model) < INVENTED_BELOW) { invented.push(t); continue; }
+    const r = parsePages(t.pages, model.max);
+    if (r.bad) badPages.push(t);
+    r.pages.forEach((n) => covered.add(n));
+  }
+  const uncovered = model.content.filter((n) => !covered.has(n));
+  const fb = [];
+  if (invented.length) fb.push(`- These topics are not in the document at all: ${invented.map((t) => `"${t.title}"`).join(', ')}.`);
+  if (badPages.length) fb.push(`- These topics have missing or impossible page numbers (the document has ${model.max} pages): ${badPages.map((t) => `"${t.title}" (pages "${t.pages}")`).join(', ')}.`);
+  if (uncovered.length) fb.push(`- No topic covers ${pageList(uncovered)}, which teach material.`);
+  return { invented, badPages, uncovered, feedback: fb.join('\n') };
+}
+
+/** [3,4,5,9] → "pages 3–5, 9" */
+function pageList(nums) {
+  const runs = [];
+  for (const n of nums) {
+    const last = runs[runs.length - 1];
+    if (last && n === last[1] + 1) last[1] = n; else runs.push([n, n]);
+  }
+  return (nums.length === 1 ? 'page ' : 'pages ') + runs.map(([a, b]) => (a === b ? `${a}` : `${a}–${b}`)).join(', ');
+}
+
+/** Topics for pages no topic covered: one per run of adjacent content pages,
+ *  holding those pages' items as its checklist — so the whole document is
+ *  always taught, even when the model's list skipped some of it. */
+export function fallbackTopics(uncovered, model) {
+  const runs = [];
+  const order = model.content;
+  for (const n of uncovered) {
+    const last = runs[runs.length - 1];
+    if (last && order.indexOf(n) === order.indexOf(last[last.length - 1]) + 1) last.push(n); else runs.push([n]);
+  }
+  return runs.map((run) => {
+    const items = run.flatMap((n) => model.items.get(n) || []);
+    const head = items.find((i) => i.title) || items[0];
+    const name = String(head ? head.text : 'More material').replace(/\s*\(?['‘’]?\s*cont\.?\)?\s*$/i, '').slice(0, 120);
+    const a = run[0], b = run[run.length - 1];
+    return {
+      title: name, style: 'concept',
+      summary: `${a === b ? `Page ${a}` : `Pages ${a}–${b}`} of the document, which the topic list had not covered.`,
+      key_points: items.filter((i) => !i.title).map((i) => i.text).slice(0, 40),
+      pages: a === b ? String(a) : `${a}-${b}`,
+      added: true,
+    };
+  });
+}
+
+/** Everything a lesson says, as one text: blocks, checks, recap, cards. */
+export function lessonText(blocks, flashcards) {
+  const out = [];
+  for (const b of blocks || []) {
+    out.push(b.title || '', b.markdown || '');
+    for (const s of b.steps || []) out.push(s.title || '', s.body || '');
+    for (const q of b.questions || []) out.push(q.q || '', ...(q.choices || []), q.explanation || '');
+    out.push(...(b.points || []));
+  }
+  for (const c of flashcards || []) out.push(c.front || c.q || '', c.back || c.a || '');
+  return out.join('\n');
+}
+
+/** A source item the lesson text does not teach: a number of it missing, or
+ *  under 60% of its words. Titles are skipped — they name, not teach. */
+export function itemMissing(item, lessonTokens) {
+  if (item.title) return false;
+  const tk = tokensOf(item.text);
+  if (!tk.words.size && !tk.nums.size) return false;
+  for (const n of tk.nums) if (!lessonTokens.nums.has(n)) return true;
+  if (!tk.words.size) return false;
+  let hit = 0;
+  tk.words.forEach((w) => { if (lessonTokens.words.has(w)) hit++; });
+  return tk.words.size === 1 ? hit === 0 : hit / tk.words.size < 0.6;
+}
+
+/** The share of a page set's vocabulary a lesson uses. A lesson written
+ *  without seeing its pages scores near 0. */
+export function lessonRecall(model, pageNums, lessonTokens) {
+  const words = new Set();
+  for (const n of pageNums) for (const i of model.items.get(n) || []) tokensOf(i.text).words.forEach((w) => words.add(w));
+  if (words.size < 8) return 1;
+  let hit = 0;
+  words.forEach((w) => { if (lessonTokens.words.has(w)) hit++; });
+  return hit / words.size;
+}
+const UNGROUNDED_BELOW = 0.15;
 
 // ── Store ────────────────────────────────────────────────────────────────
 const _mem = new Map();          // fileId -> doc
@@ -399,8 +675,44 @@ async function sourceOf(file) {
   return { b64, name: file.name || 'source.pdf', size: Math.floor(b64.length * 3 / 4) };
 }
 
+// Providers that read text only: the document reaches them as page text.
+const TEXT_ONLY = new Set(['orca']);
+// Page text put in a prompt when the PDF rides along too. Past this the PDF
+// alone carries the document (the checks still run, locally).
+const MAX_PROMPT_SOURCE = 150000;
+
+/* The document's text. pdf.js runs in the page; the Node tests swap it. */
+let _readPages = (b64) => ai.pdfPages(b64);
+export function setPageReader(fn) { _readPages = fn || ((b64) => ai.pdfPages(b64)); }
+
 /**
- * Break a document down: list its topics, then write every lesson.
+ * What every ask of one run shares: the document as text (the source model
+ * the checks run against, and the prompt text), and how the PDF travels.
+ * No text: a text-only provider cannot run at all; one that reads the PDF
+ * itself runs unchecked, and the breakdown says so.
+ */
+async function contextOf(pdf, active) {
+  const textOnly = TEXT_ONLY.has(active.id);
+  let pages = null, why = '';
+  try { pages = await _readPages(pdf.b64); }
+  catch (e) { why = 'its text could not be read'; }
+  if (pages && !pages.some((p) => (p.lines || []).length)) { pages = null; why = 'it has no selectable text (a scan?)'; }
+  if (!pages && textOnly) {
+    throw new ai.AIError(`This PDF cannot be read as text — ${why}. ${active.label} models read text only.`, { kind: 'bad_input' });
+  }
+  const model = pages ? sourceModel(pages) : null;
+  const full = model ? sourceText(model) : '';
+  return {
+    model, why, textOnly, attached: !textOnly,
+    who: active.id === 'bridge' ? 'Claude Pro' : [active.label, active.model].filter(Boolean).join(' / '),
+    // The whole document, as prompt text, for the topic list.
+    source: model && (textOnly || full.length <= MAX_PROMPT_SOURCE) ? full : '',
+  };
+}
+
+/**
+ * Break a document down: list its topics, then write every lesson, then fill
+ * whatever the lessons left out.
  * Safe to call again — finished topics are kept, pending/failed ones run.
  * @param {{fresh?:boolean}} opts  fresh: re-list the topics from scratch
  */
@@ -435,56 +747,111 @@ async function runInner(classId, moduleId, file, { fresh = false } = {}) {
 
   const cls = store.getClass(classId);
   const className = cls ? [cls.code, cls.name].filter(Boolean).join(' — ') : '';
-  let pdf;
-  try { pdf = await sourceOf(file); }
+  let pdf, ctx;
+  try { pdf = await sourceOf(file); ctx = await contextOf(pdf, active); }
   catch (e) { return fail(doc, e); }
 
   // 1. Topics — once. A re-run keeps the list it already has.
   if (!doc.topics.length) {
     try {
-      const { data } = await ai.generateJSON({
-        system: SYSTEM, prompt: topicsPrompt({ className, sourceName: doc.sourceName }),
-        pdf, schema: TOPICS_SCHEMA, validate: validateTopics, maxTokens: 32000,
-        key: `bd:${file.id}:r${doc.rev}:topics`, fileId: file.id,
-        resumeJobId: doc.topicsJobId,
-        onJob: (id, main) => { if (main) { doc.topicsJobId = id; save(doc); } },
-      });
+      const { topics, checks } = await listTopics(doc, pdf, className, ctx);
       const used = new Set();
-      doc.topics = data.topics.map((t, i) => {
+      doc.topics = topics.map((t, i) => {
         let id = 't' + ai.hash(t.title).slice(1, 7);
         while (used.has(id)) id += i;
         used.add(id);
         return { id, ...t, status: 'pending', updatedAt: Date.now(), rev: 0 };
       });
+      doc.checks = checks;
       doc.listedAt = Date.now();
       delete doc.topicsJobId;
+      delete doc.topicsJobId2;
       save(doc);
     } catch (e) { return fail(doc, e); }
   }
 
   // 2. Lessons. The bridge runs one ask at a time anyway; an API gets two.
-  const todo = doc.topics.filter((t) => t.status !== 'ready');
   const width = active.id === 'bridge' ? 1 : 2;
   let fatal = null;
-  const worker = async () => {
-    while (todo.length && !fatal) {
-      const topic = todo.shift();
-      try { await writeTopic(doc, topic, pdf, className); }
-      catch (e) {
-        // A key/model/setup problem fails every topic identically: stop,
-        // rather than spending a request per topic to learn the same thing.
-        if (e && (e.kind === 'setup' || e.kind === 'auth')) fatal = e;
+  const pool = async (items, fn) => {
+    const todo = [...items];
+    const worker = async () => {
+      while (todo.length && !fatal) {
+        const item = todo.shift();
+        try { await fn(item); }
+        catch (e) {
+          // A key/model/setup problem fails every topic identically: stop,
+          // rather than spending a request per topic to learn the same thing.
+          if (e && (e.kind === 'setup' || e.kind === 'auth')) fatal = e;
+        }
       }
-    }
+    };
+    await Promise.all(Array.from({ length: Math.min(width, todo.length || 1) }, worker));
   };
-  await Promise.all(Array.from({ length: Math.min(width, todo.length || 1) }, worker));
+  await pool(doc.topics.filter((t) => t.status !== 'ready'), (topic) => writeTopic(doc, topic, pdf, className, ctx));
+
+  // 3. What the lessons left out of the document — one follow-up per topic.
+  if (!fatal) await fillGaps(doc, className, ctx, pool);
 
   const failed = doc.topics.filter((t) => t.status === 'failed').length;
   doc.status = fatal ? 'failed' : failed ? 'partial' : 'ready';
   doc.error = fatal ? fatal.message : failed ? `${failed} topic${failed === 1 ? '' : 's'} failed — retry them from the list.` : '';
+  summariseChecks(doc, ctx);
   delete doc.runningOn;
   save(doc);
   return doc;
+}
+
+/**
+ * The topic list, checked against the document. A list that does not match
+ * it is asked for ONCE more, with the document and what was wrong — a JSON
+ * repair cannot fix content. Invented topics are dropped; if most of the list
+ * was invented the run fails and saves nothing. Pages no topic covers get a
+ * topic of their own.
+ */
+async function listTopics(doc, pdf, className, ctx) {
+  const ask = (feedback, attempt) => ai.generateJSON({
+    system: SYSTEM,
+    prompt: topicsPrompt({ className, sourceName: doc.sourceName, source: ctx.source, attached: ctx.attached, feedback }),
+    pdf, docText: ctx.textOnly ? '' : undefined,
+    schema: TOPICS_SCHEMA, validate: validateTopics, maxTokens: 32000,
+    key: `bd:${doc.fileId}:r${doc.rev}:topics${attempt ? ':g' + attempt : ''}`, fileId: doc.fileId,
+    resumeJobId: attempt ? doc.topicsJobId2 : doc.topicsJobId,
+    onJob: (id, main) => { if (main) { doc[attempt ? 'topicsJobId2' : 'topicsJobId'] = id; save(doc); } },
+  });
+  let { data } = await ask('', 0);
+  if (!ctx.model) return { topics: data.topics, checks: { skipped: ctx.why || 'no text' } };
+
+  const badness = (g) => g.invented.length * 100 + g.badPages.length * 10 + g.uncovered.length;
+  let g = groundTopics(data.topics, ctx.model);
+  let asked = 1;
+  if (g.feedback) {
+    asked = 2;
+    try {
+      const again = (await ask(g.feedback, 1)).data;
+      const g2 = groundTopics(again.topics, ctx.model);
+      if (badness(g2) < badness(g)) { data = again; g = g2; }
+    } catch (e) {
+      if (e && (e.kind === 'setup' || e.kind === 'auth')) throw e;
+    }
+  }
+  const real = data.topics.filter((t) => !g.invented.includes(t));
+  if (!real.length || g.invented.length * 2 > data.topics.length) {
+    throw new ai.AIError(`The topics ${ctx.who} listed don't match this document — the model probably never ` +
+      'received its text. Nothing was saved and no cards were added.', { kind: 'ungrounded' });
+  }
+  const added = fallbackTopics(g.uncovered, ctx.model);
+  // Document order: each added topic goes before the first topic that starts after it.
+  const first = (t) => { const p = parsePages(t.pages, ctx.model.max).pages; return p.length ? p[0] : Infinity; };
+  const topics = [...real];
+  for (const t of added) {
+    const at = topics.findIndex((x) => first(x) > first(t));
+    topics.splice(at < 0 ? topics.length : at, 0, t);
+  }
+  return { topics, checks: {
+    pages: ctx.model.max, content: ctx.model.content.length, asked,
+    dropped: g.invented.map((t) => t.title), added: added.length,
+  } };
 }
 
 function fail(doc, e) {
@@ -495,26 +862,41 @@ function fail(doc, e) {
   throw e;
 }
 
-async function writeTopic(doc, topic, pdf, className) {
+const pagesOf = (topic, ctx) => (ctx.model ? parsePages(topic.pages, ctx.model.max).pages : []);
+
+async function writeTopic(doc, topic, pdf, className, ctx) {
   topic.status = 'writing';
   topic.error = '';
   topic.updatedAt = Date.now();
   save(doc);
   try {
+    const span = pagesOf(topic, ctx);
+    const src = span.length ? sourceText(ctx.model, span) : '';
     const { data } = await ai.generateJSON({
       system: SYSTEM,
       prompt: lessonPrompt({ className, sourceName: doc.sourceName, topic,
-        index: doc.topics.indexOf(topic), all: doc.topics }),
-      pdf, schema: LESSON_SCHEMA, validate: validateLesson, maxTokens: 64000,
+        index: doc.topics.indexOf(topic), all: doc.topics, source: src, attached: ctx.attached }),
+      // Text-only: the topic's pages are in the prompt; without them, send the whole text.
+      pdf, docText: ctx.textOnly ? (src ? '' : ctx.source) : undefined,
+      schema: LESSON_SCHEMA, validate: validateLesson, maxTokens: 64000,
       key: `bd:${doc.fileId}:r${doc.rev}:${topic.id}:v${topic.rev || 0}`, fileId: doc.fileId,
       resumeJobId: topic.jobId,
       onJob: (id, main) => { if (main) { topic.jobId = id; save(doc); } },
     });
+    if (span.length) {
+      const recall = lessonRecall(ctx.model, span, tokensOf(lessonText(data.blocks, data.flashcards)));
+      if (recall < UNGROUNDED_BELOW) {
+        throw new ai.AIError(`The lesson does not match ${pageList(span)} of the document (it uses ${Math.round(recall * 100)}% ` +
+          'of their words), so it was not saved.', { kind: 'ungrounded', retryable: true });
+      }
+    }
     const r = deck.addExternal(doc.classId, doc.moduleId, data.flashcards,
       { noteId: noteIdFor(doc.fileId, topic.id), title: topic.title });
     topic.lesson = { blocks: data.blocks };
     topic.cardCount = data.flashcards.length;
     topic.cardsAdded = r.added.length;
+    topic.gapChecked = false;
+    topic.gaps = [];
     topic.status = 'ready';
     delete topic.jobId;
   } catch (e) {
@@ -528,6 +910,117 @@ async function writeTopic(doc, topic, pdf, className) {
   }
 }
 
+/** A topic's cards as {front, back}, from the deck (the lesson's own list is
+ *  not stored), so a follow-up can add to them without dropping any. */
+function cardsOf(doc, topic) {
+  const id = noteIdFor(doc.fileId, topic.id);
+  return deck.forClass(doc.classId).filter((c) => c.sourceNoteId === id).map((c) => ({ front: c.q, back: c.a }));
+}
+
+/**
+ * Every line of the document, checked against every written lesson. A line
+ * no lesson teaches is owed by the topic whose pages hold it; each topic with
+ * such lines gets ONE follow-up ask for extra blocks and cards. Lines still
+ * untaught after it are kept on the topic (`gaps`) and shown with the lesson,
+ * verbatim from the document — never silently lost.
+ */
+async function fillGaps(doc, className, ctx, pool, onlyId = null) {
+  const m = ctx.model;
+  if (!m) return;
+  const ready = () => doc.topics.filter((t) => t.status === 'ready' && t.lesson);
+  const taught = () => tokensOf(ready().map((t) => lessonText(t.lesson.blocks, cardsOf(doc, t))).join('\n'));
+  const spans = new Map(doc.topics.map((t) => [t.id, pagesOf(t, ctx)]));
+  const wordsOf = new Map(doc.topics.map((t) => [t.id, tokensOf([t.title, ...(t.key_points || [])].join('\n')).words]));
+  const owner = (item) => {
+    const claim = doc.topics.filter((t) => spans.get(t.id).includes(item.page));
+    if (claim.length === 1) return claim[0];
+    if (!claim.length) {
+      // Nearest topic by page — only when the checks' page parse lost it.
+      let best = null, dist = Infinity;
+      for (const t of doc.topics) for (const n of spans.get(t.id)) {
+        if (Math.abs(n - item.page) < dist) { dist = Math.abs(n - item.page); best = t; }
+      }
+      return best;
+    }
+    const w = tokensOf(item.text).words;
+    let best = claim[0], score = -1;
+    for (const t of claim) {
+      let s = 0;
+      w.forEach((x) => { if (wordsOf.get(t.id).has(x)) s++; });
+      if (s > score) { score = s; best = t; }
+    }
+    return best;
+  };
+
+  let known = taught();
+  const owed = new Map();
+  for (const n of m.content) {
+    for (const item of m.items.get(n) || []) {
+      if (!itemMissing(item, known)) continue;
+      const t = owner(item);
+      if (!t) continue;
+      if (!owed.has(t.id)) owed.set(t.id, []);
+      owed.get(t.id).push(item);
+    }
+  }
+
+  const todo = ready().filter((t) => !t.gapChecked && (!onlyId || t.id === onlyId));
+  await pool(todo, async (topic) => {
+    const items = owed.get(topic.id) || [];
+    if (items.length) {
+      try { await askGaps(doc, topic, items, className, ctx); }
+      catch (e) {
+        if (e && (e.kind === 'setup' || e.kind === 'auth')) throw e;
+        console.warn('[breakdown] gap fill failed:', topic.title, e && e.message);
+      }
+    }
+    known = taught();
+    topic.gaps = items.filter((i) => itemMissing(i, known)).map((i) => ({ page: i.page, text: i.text }));
+    topic.gapChecked = true;
+    topic.updatedAt = Date.now();
+    save(doc);
+  });
+}
+
+async function askGaps(doc, topic, items, className, ctx) {
+  const span = pagesOf(topic, ctx);
+  const { data } = await ai.generateJSON({
+    system: SYSTEM,
+    prompt: gapsPrompt({ className, sourceName: doc.sourceName, topic, missing: items.slice(0, 80),
+      source: span.length ? sourceText(ctx.model, span) : '' }),
+    // The missing lines are in the prompt, verbatim: no need to send the PDF again.
+    pdf: null, docText: '',
+    schema: LESSON_SCHEMA, validate: validateLesson, maxTokens: 64000,
+    key: `bd:${doc.fileId}:r${doc.rev}:${topic.id}:v${topic.rev || 0}:gaps`, fileId: doc.fileId,
+    resumeJobId: topic.gapJobId,
+    onJob: (id, main) => { if (main) { topic.gapJobId = id; save(doc); } },
+  });
+  delete topic.gapJobId;
+  const blocks = topic.lesson.blocks;
+  const add = data.blocks.filter((b) => b.kind !== 'recap');
+  const recap = blocks.findIndex((b) => b.kind === 'recap');
+  topic.lesson = { blocks: recap < 0 ? [...blocks, ...add] : [...blocks.slice(0, recap), ...add, ...blocks.slice(recap)] };
+  const seen = new Set();
+  const cards = [...cardsOf(doc, topic), ...data.flashcards].filter((c) => {
+    const k = String(c.front).toLowerCase();
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+  const r = deck.addExternal(doc.classId, doc.moduleId, cards, { noteId: noteIdFor(doc.fileId, topic.id), title: topic.title });
+  topic.cardCount = cards.length;
+  topic.cardsAdded = (topic.cardsAdded || 0) + r.added.length;
+}
+
+/** doc.checks: what was checked, for the status line. */
+function summariseChecks(doc, ctx) {
+  const c = doc.checks || {};
+  if (!ctx.model) { doc.checks = { ...c, skipped: c.skipped || ctx.why || 'no text' }; return; }
+  const gaps = doc.topics.reduce((n, t) => n + ((t.gaps && t.gaps.length) || 0), 0);
+  doc.checks = { ...c, pages: ctx.model.max, content: ctx.model.content.length, gaps };
+  delete doc.checks.skipped;
+}
+
 /** Rewrite one topic (a new version: never answered from the bridge cache). */
 export async function regenerate(fileId, topicId, file) {
   const doc = await load(fileId);
@@ -539,12 +1032,18 @@ export async function regenerate(fileId, topicId, file) {
   topic.rev = (topic.rev || 0) + 1;
   const job = (async () => {
     const pdf = await sourceOf(file);
+    const ctx = await contextOf(pdf, active);
     const cls = store.getClass(doc.classId);
-    try { await writeTopic(doc, topic, pdf, cls ? [cls.code, cls.name].filter(Boolean).join(' — ') : ''); }
-    finally {
+    const className = cls ? [cls.code, cls.name].filter(Boolean).join(' — ') : '';
+    const pool = async (items, fn) => { for (const x of items) await fn(x); };
+    try {
+      await writeTopic(doc, topic, pdf, className, ctx);
+      await fillGaps(doc, className, ctx, pool, topic.id);
+    } finally {
       const failed = doc.topics.filter((t) => t.status === 'failed').length;
       doc.status = failed ? 'partial' : 'ready';
       doc.error = failed ? doc.error : '';
+      summariseChecks(doc, ctx);
       save(doc);
     }
   })();
@@ -599,7 +1098,9 @@ export async function resume() {
 }
 
 export default {
-  STYLES, KINDS, TOPICS_SCHEMA, LESSON_SCHEMA, topicsPrompt, lessonPrompt, STYLE_GUIDE,
+  STYLES, KINDS, TOPICS_SCHEMA, LESSON_SCHEMA, topicsPrompt, lessonPrompt, gapsPrompt, STYLE_GUIDE,
   validateTopics, validateLesson, validateQuestions, mergeDocs,
+  tokensOf, parsePages, pageItems, sourceModel, sourceText, groundTopics, fallbackTopics, lessonText, itemMissing,
+  lessonRecall, setPageReader,
   load, peek, run, regenerate, remove, setProgress, resume, isRunning, noteIdFor, notePrefixFor,
 };

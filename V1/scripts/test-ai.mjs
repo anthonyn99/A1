@@ -216,5 +216,58 @@ responder = (c) => {
 out = await ai.generateJSON({ system: 's', prompt: 'p', pdf: PDF, schema: SCHEMA, resumeJobId: 'j9' });
 t('resumes a running job instead of paying again', out.data.x === 6 && !calls.some((c) => c.method === 'POST'), calls.map(c => c.method + ' ' + c.url));
 
+// ── ORCA: one string, the document inside it ──────────────────────────────
+/* ORCA's browser backends used to type "the last message whose content is a
+ * string": a content-parts user message was skipped and the SYSTEM prompt went
+ * out as the question. The model never saw the document and invented a whole
+ * course. A single string reaches every backend. */
+console.log('\norca adapter');
+ai.saveSettings({ provider: 'orca', keys: { orca: 'orca_sk_x' }, models: { orca: '' }, baseUrl: { orca: 'https://orca.test/v1' } });
+calls = [];
+responder = () => json({ choices: [{ message: { content: '{"x": 5}' }, finish_reason: 'stop' }] });
+out = await ai.generateJSON({ system: 'sys', prompt: 'List the topics.', pdf: PDF, schema: SCHEMA, docText: '--- page 1 ---\nvon Neumann' });
+const orcaUser = calls[0].body.messages.find((m) => m.role === 'user');
+t('the user message is ONE string', typeof orcaUser.content === 'string', orcaUser.content);
+t('the document text comes first, then the request', orcaUser.content.indexOf('von Neumann') >= 0
+  && orcaUser.content.indexOf('von Neumann') < orcaUser.content.indexOf('List the topics.'), orcaUser.content);
+t('the system prompt stays a system message', calls[0].body.messages[0].role === 'system' && calls[0].body.messages[0].content === 'sys');
+t('no model named: ORCA routes', !('model' in calls[0].body));
+calls = [];
+await ai.generateJSON({ system: 's', prompt: 'Only this.', pdf: PDF, schema: SCHEMA, docText: '' });
+t('docText "" sends the prompt alone (it already holds the pages)', calls[0].body.messages[1].content === 'Only this.', calls[0].body.messages[1].content);
+
+// ── Text out of a PDF page ────────────────────────────────────────────────
+/* Items as pdf.js gives them for slide 7 of Chapter1-Introduction.pdf: the
+ * exponents are separate, smaller, raised items. Joined naively they read
+ * "10 3 and 2 10" — or "103 and 210" — and a model teaches the wrong number. */
+console.log('\nlinesFromItems');
+{
+  const it = (str, h, x, y, hasEOL = false) => ({ str, height: h, transform: [h, 0, 0, h, x, y], hasEOL });
+  const items = [
+    it('7', 12, 657, 32.6),
+    it('', 0, 92, 376.5, true), it('•', 22, 92, 376.5), it(' ', 0, 104, 376.5), it('Kilo', 22, 126, 376.5), it('-', 22, 167, 376.5),
+    it(' ', 0, 177, 376.5), it('(K) = 1 thousand = 10', 22, 185, 376.5), it('3', 14.6, 439, 383.1), it(' ', 0, 448, 383.1),
+    it('and 2', 22, 456, 376.5), it('10', 14.6, 519, 383.1),
+    it('', 0, 92, 344.8, true), it('•', 22, 92, 344.8), it(' ', 0, 104, 344.8), it('Mega', 22, 126, 344.8), it('-', 22, 185, 344.8),
+    it(' ', 0, 195, 344.8), it('(M) = 1 million = 10', 22, 203, 344.8), it('6', 14.6, 430, 351.4), it(' ', 0, 440, 351.4),
+    it('and 2', 22, 448, 344.8), it('20', 14.6, 510, 351.4),
+    it('', 0, 55, 343.6, true), it('', 28, 55, 241.1), it(' ', 0, 80, 241.1), it('So,', 28, 92, 241.1),
+    it('', 0, 55, 479.1, true), it('The Measures of', 36, 55, 479.1), it(' ', 0, 352, 479.1), it('Speed and', 36, 364, 479.1),
+  ];
+  const lines = ai.linesFromItems(items);
+  t('exponents are marked with ^', lines[1].text === 'Kilo- (K) = 1 thousand = 10^3 and 2^10', lines[1]);
+  t('each bullet is its own line', lines[2].text === 'Mega- (M) = 1 million = 10^6 and 2^20', lines.map((l) => l.text));
+  t('a bullet glyph is flagged, not kept as text', lines[1].bullet === true && !lines[1].text.includes('•'));
+  t('a Wingdings bullet (an empty string) is a bullet too', lines[3].text === 'So,' && lines[3].bullet === true, lines[3]);
+  t('the title keeps its height (the tallest line)', lines[4].text === 'The Measures of Speed and' && lines[4].h === 36, lines[4]);
+  // Slide 11: "10" then "-" and "3" as two raised items — one exponent.
+  const neg = ai.linesFromItems([
+    it('', 0, 92, 300, true), it('Milli- (m) = 1 thousandth = 10 ', 22, 126, 300), it('-', 14.6, 400, 306.6), it('3', 14.6, 405, 306.6),
+    it(' ', 0, 412, 306.6), it('and more', 22, 420, 300),
+  ]);
+  t('a negative exponent split over two items is one ^', neg[0].text === 'Milli- (m) = 1 thousandth = 10^-3 and more', neg[0].text);
+  t('the page number is dropped from the prompt text', !ai.pageText({ n: 7, lines }).split('\n').includes('7'), ai.pageText({ n: 7, lines }));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

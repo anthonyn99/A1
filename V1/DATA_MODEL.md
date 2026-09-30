@@ -341,10 +341,12 @@ Brave).
 ```
 { fileId, classId, moduleId, sourceName,
   status: 'running'|'ready'|'partial'|'failed'|'removed', error,
-  provider, model, rev, listedAt, updatedAt, runningOn?, topicsJobId?, syncError?,
+  provider, model, rev, listedAt, updatedAt, runningOn?, topicsJobId?, topicsJobId2?, syncError?,
+  checks?: { pages, content, asked, dropped: [title], added, gaps } | { skipped },
   topics: [{ id, title, summary, style: 'concept'|'procedure'|'applied'|'definitions',
-             key_points: [], pages, status: 'pending'|'writing'|'ready'|'failed', error,
-             rev, updatedAt, jobId?, cardCount,
+             key_points: [], pages, added?, status: 'pending'|'writing'|'ready'|'failed', error,
+             rev, updatedAt, jobId?, gapJobId?, cardCount,
+             gapChecked, gaps: [{ page, text }],
              lesson: { blocks: [{ kind: 'read'|'example'|'steps'|'check'|'recap', title,
                                   markdown?, steps?: [{title, body}],
                                   questions?: [{q, choices, answer, explanation}], points? }] },
@@ -362,6 +364,23 @@ Brave).
   pay for every lesson twice.
 - **Bridge jobs resume by id** (`topicsJobId`, `topic.jobId`), never by
   resubmitting: the bridge cache only answers FINISHED jobs.
+- **Everything is checked against the PDF's own text** (pdf.js, `ai.pdfPages`).
+  Added 2026-09-29 after an ORCA run turned a computer-architecture chapter
+  into an invented economics course: its browser backend had delivered only
+  the system prompt, and nothing compared the answer with the document.
+  - Topics whose wording is mostly absent from the document are *invented*:
+    the list is asked for once more with the reasons; invented topics are
+    dropped; a mostly-invented list fails the run and saves nothing.
+  - Every *content page* (not near-empty, not a repeated agenda slide) must be
+    in some topic's `pages`; uncovered runs of pages become topics of their own
+    (`added: true`) holding those pages' lines as the checklist.
+  - A lesson that uses under 15% of its pages' vocabulary is not saved.
+  - After the lessons, every source line is checked against ALL lessons + cards
+    (each number verbatim, ≥60% of its words); a topic owing lines gets ONE
+    follow-up ask whose blocks go before its recap. Lines still untaught stay
+    in `gaps` and the reader shows them verbatim ("Also in the document").
+  - No text (a scan): text-only providers (ORCA) refuse; others run unchecked
+    and `checks.skipped` says why.
 
 ### `FileEntry.study` — `{ status, done, total, updatedAt }`
 

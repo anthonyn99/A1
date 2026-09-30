@@ -275,6 +275,54 @@ const back = await evalJs(`(function(){
 t('lands back on the module', back.modal, back);
 t('the finished topic is ticked', back.done === 1, back);
 
+// ── The document's text, through the real pdf.js ───────────────────────────
+/* The unit tests stub the page reader (pdf.js is a browser build); this runs
+ * the built app's own extraction on a PDF made here: a slide whose exponents
+ * are smaller, raised text — the shape PowerPoint exports — plus a repeated
+ * agenda page. Then the checks on what came out. */
+console.log('\nthe document text (real pdf.js)');
+const pdfText = await evalJs(`(async function(){
+  var pages = [
+    ['BT /F1 32 Tf 60 520 Td (Chapter 1 Objectives) Tj ET',
+     'BT /F1 20 Tf 60 470 Td (Understand units of measure common to computer systems) Tj ET',
+     'BT /F1 20 Tf 60 440 Td (Explain the von Neumann architecture and its components) Tj ET'],
+    ['BT /F1 32 Tf 60 520 Td (The Measures of Capacity) Tj ET',
+     'BT /F1 22 Tf 60 470 Td (Kilo = 1 thousand = 10) Tj ET', 'BT /F1 14 Tf 300 477 Td (3) Tj ET',
+     'BT /F1 22 Tf 312 470 Td (and 2) Tj ET', 'BT /F1 14 Tf 372 477 Td (10) Tj ET',
+     'BT /F1 22 Tf 60 430 Td (1KB = 1024 Bytes, not 1000 Bytes) Tj ET'],
+    ['BT /F1 32 Tf 60 520 Td (Chapter 1 Objectives) Tj ET',
+     'BT /F1 20 Tf 60 470 Td (Understand units of measure common to computer systems) Tj ET',
+     'BT /F1 20 Tf 60 440 Td (Explain the von Neumann architecture and its components) Tj ET'],
+  ];
+  // A minimal PDF, offsets computed so no repair pass is needed.
+  var objs = [], kids = [];
+  objs[1] = '<< /Type /Catalog /Pages 2 0 R >>';
+  objs[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>';
+  pages.forEach(function (ops, i) {
+    var stream = ops.join(String.fromCharCode(10));
+    var pid = 4 + i * 2, cid = 5 + i * 2;
+    objs[cid] = '<< /Length ' + stream.length + ' >>' + String.fromCharCode(10) + 'stream' + String.fromCharCode(10) + stream + String.fromCharCode(10) + 'endstream';
+    objs[pid] = '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 720 540] /Resources << /Font << /F1 3 0 R >> >> /Contents ' + cid + ' 0 R >>';
+    kids.push(pid + ' 0 R');
+  });
+  objs[2] = '<< /Type /Pages /Kids [' + kids.join(' ') + '] /Count ' + pages.length + ' >>';
+  var nl = String.fromCharCode(10), out = '%PDF-1.4' + nl, offs = [];
+  for (var n = 1; n < objs.length; n++) { offs[n] = out.length; out += n + ' 0 obj' + nl + objs[n] + nl + 'endobj' + nl; }
+  var xref = out.length;
+  out += 'xref' + nl + '0 ' + objs.length + nl + '0000000000 65535 f ' + nl;
+  for (n = 1; n < objs.length; n++) out += String(offs[n]).padStart(10, '0') + ' 00000 n ' + nl;
+  out += 'trailer' + nl + '<< /Size ' + objs.length + ' /Root 1 0 R >>' + nl + 'startxref' + nl + xref + nl + '%%EOF';
+  var pp = await window.SOS.ai.pdfPages(btoa(out));
+  var bd = window.SOS.breakdown, m = bd.sourceModel(pp);
+  var econ = bd.groundTopics([{ title: 'Introduction to Demand and Supply', key_points: ['Market equilibrium where buyers and sellers meet', 'The demand curve and price elasticity'], pages: '1-3' }], m);
+  return { lines: pp.map(function (p) { return p.lines.map(function (l) { return l.text; }); }), content: m.content,
+           invented: econ.invented.length };
+})()`);
+t('pdf.js runs in the built app', !!pdfText && pdfText.lines.length === 3, pdfText);
+t('exponents come out marked: 10^3 and 2^10', pdfText.lines[1].includes('Kilo = 1 thousand = 10^3 and 2^10'), pdfText.lines[1]);
+t('the repeated agenda page is not material; the units page is', pdfText.content.join() === '2', pdfText.content);
+t('an invented topic is caught against real extracted text', pdfText.invented === 1, pdfText);
+
 console.log('\nAI settings');
 await evalJs(`document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open')); switchView('ai'); true;`);
 await wait(300);
@@ -283,7 +331,7 @@ const set1 = await evalJs(`(function(){
   return { provs: r.querySelectorAll('[data-prov]').length, on: (r.querySelector('[data-prov].on')||{}).dataset.prov,
            note: r.textContent };
 })()`);
-t('four providers offered', set1.provs === 4, set1);
+t('five providers offered (ORCA included)', set1.provs === 5, set1);
 t('the stored choice is selected', set1.on === 'openai', set1.on);
 t('says keys stay in this browser', /in this browser only/.test(set1.note));
 await evalJs(`document.querySelector('#sos-ai-root [data-prov="anthropic"]').click(); true;`);

@@ -348,8 +348,59 @@ async function pdfjs() {
   return _pdfjs;
 }
 
-/** The text of a base64 PDF, page by page, for models that cannot read the file. */
-export async function pdfText(b64) {
+// A run of only bullet glyphs: •, ◼, □, ➢, … and the private-use code points
+// Wingdings bullets extract as (or an empty string, which some fonts give).
+const BULLET_ONLY = /^[\s•‣⁃■-◿☐-☒✓➢●-–·*-]*$/;
+
+/**
+ * pdf.js text items → the page's visual lines, in the order the page draws
+ * them: [{ text, h, bullet }]. `h` is the font height (a slide's title is the
+ * tallest line); `bullet` means the line opened with a bullet glyph.
+ *
+ * Superscripts are marked with ^: pdf.js hands "10" and "3" over as separate
+ * items, the second smaller and raised, and joining them naively turns
+ * "10³ and 2¹⁰" into "103 and 210" — a different number a model will then
+ * teach as fact.
+ */
+export function linesFromItems(items) {
+  const lines = [];
+  let line = null, brk = true;
+  for (const it of items || []) {
+    const str = it && typeof it.str === 'string' ? it.str : '';
+    const h = Math.abs((it && it.height) || 0);
+    const y = it && it.transform ? it.transform[5] : 0;
+    if (!h) {                                  // spaces and end-of-line markers
+      if (line && str) { line.text += str; if (/\s/.test(str)) line.sup = false; }
+      if (it && it.hasEOL) brk = true;
+      continue;
+    }
+    if (line && !brk && Math.abs(y - line.y) <= line.h * 0.6) {
+      if (!line.text.trim() && BULLET_ONLY.test(line.text)) { line.text = ''; line.h = h; line.y = y; }
+      if (line.text && h < line.h * 0.8 && y - line.y > line.h * 0.15) {
+        // "10" "-" "3": one exponent in two items is still ONE ^ (10^-3).
+        line.text = line.sup ? line.text + str.trim() : line.text.replace(/\s+$/, '') + '^' + str.trim();
+        line.sup = true;
+      } else { line.text += str; line.sup = false; }
+    } else {
+      line = { text: BULLET_ONLY.test(str) ? '' : str, h, y, bullet: BULLET_ONLY.test(str) };
+      lines.push(line);
+    }
+    brk = !!(it && it.hasEOL);
+  }
+  return lines
+    .map((l) => ({ text: l.text.replace(/\s+/g, ' ').trim(), h: Math.round(l.h * 10) / 10, bullet: l.bullet }))
+    .filter((l) => l.text);
+}
+
+/** A page as prompt text. The page-number line on a slide is dropped. */
+export function pageText(page) {
+  return (page.lines || [])
+    .filter((l) => !/^\d{1,4}$/.test(l.text))
+    .map((l) => (l.bullet ? '- ' : '') + l.text).join('\n');
+}
+
+/** The pages of a base64 PDF: [{ n, lines }]. */
+export async function pdfPages(b64) {
   const lib = await pdfjs();
   const bin = atob(b64), data = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) data[i] = bin.charCodeAt(i);
@@ -359,29 +410,45 @@ export async function pdfText(b64) {
     const pages = [];
     for (let n = 1; n <= doc.numPages; n++) {
       const tc = await (await doc.getPage(n)).getTextContent();
-      pages.push(`--- page ${n} ---\n` + tc.items.map((it) => it.str + (it.hasEOL ? '\n' : '')).join(''));
+      pages.push({ n, lines: linesFromItems(tc.items) });
     }
-    return pages.join('\n\n');
+    return pages;
   } finally {
     await task.destroy();
   }
 }
 
+/** The text of a base64 PDF, page by page, for models that cannot read the file. */
+export async function pdfText(b64) {
+  return (await pdfPages(b64)).map((p) => `--- page ${p.n} ---\n${pageText(p)}`).join('\n\n');
+}
+
 async function viaOpenAI(a, spec) {
-  const content = [];
-  if (spec.attachPdf && spec.pdf) {
-    if (a.id === 'orca') {
-      let text = '';
-      try { text = (await pdfText(spec.pdf.b64)).trim(); }
-      catch (e) { throw new AIError('Could not read the text of this PDF: ' + ((e && e.message) || e), { kind: 'bad_input' }); }
-      if (!text) throw new AIError('This PDF has no selectable text (a scan?) — ORCA models cannot read it.', { kind: 'bad_input' });
-      content.push({ type: 'text', text: `The source document (${spec.pdf.name || 'source.pdf'}), as extracted text:\n\n${text}` });
-    } else {
+  let content = [];
+  if (a.id === 'orca') {
+    // ONE string, never content parts. ORCA's browser backends once typed only
+    // "the last message whose content is a string" — a parts message was
+    // skipped, the system prompt was sent as the question, and the model
+    // invented a course it had never seen. A string reaches every backend.
+    let doc = '';
+    if (spec.attachPdf && spec.pdf) {
+      // docText: the caller already put the document (or the pages that
+      // matter) into the prompt, or passes exactly the text to send.
+      if (typeof spec.docText === 'string') doc = spec.docText.trim();
+      else {
+        try { doc = (await pdfText(spec.pdf.b64)).trim(); }
+        catch (e) { throw new AIError('Could not read the text of this PDF: ' + ((e && e.message) || e), { kind: 'bad_input' }); }
+        if (!doc) throw new AIError('This PDF has no selectable text (a scan?) — ORCA models cannot read it.', { kind: 'bad_input' });
+      }
+    }
+    content = (doc ? `The source document (${spec.pdf.name || 'source.pdf'}), as extracted text:\n\n${doc}\n\n` : '') + spec.prompt;
+  } else {
+    if (spec.attachPdf && spec.pdf) {
       content.push({ type: 'file', file: { filename: spec.pdf.name || 'source.pdf',
         file_data: 'data:application/pdf;base64,' + spec.pdf.b64 } });
     }
+    content.push({ type: 'text', text: spec.prompt });
   }
-  content.push({ type: 'text', text: spec.prompt });
   const messages = [
     ...(spec.system ? [{ role: 'system', content: spec.system }] : []),
     { role: 'user', content },
@@ -461,4 +528,4 @@ export function hash(text) {
   return 'h' + h.toString(36);
 }
 
-export default { pdfText, PROVIDERS, settings, saveSettings, active, generateJSON, testConnection, extractJSON, repairPrompt, hash, AIError };
+export default { pdfText, pdfPages, pageText, linesFromItems, PROVIDERS, settings, saveSettings, active, generateJSON, testConnection, extractJSON, repairPrompt, hash, AIError };

@@ -154,6 +154,8 @@ console.log('\nmergeDocs');
 
 // ── A full run against a stubbed provider ─────────────────────────────────
 console.log('\nrun — end to end');
+// These runs predate the document checks: no page text, so none apply.
+bd.setPageReader(async () => null);
 ai.saveSettings({ provider: 'openai', keys: { openai: 'sk' }, models: { openai: 'm' }, baseUrl: { openai: 'https://x.test/v1' } });
 const TOPICS = { topics: [
   { title: 'Keys', summary: 'Superkeys and candidate keys', style: 'definitions', key_points: ['superkey'], pages: '1-3' },
@@ -235,6 +237,230 @@ await bd.remove('f1');
 t('unreviewed cards are removed with the breakdown', before === 4 && deck.byNotePrefix('c1', bd.notePrefixFor('f1')).length === 0);
 t('the doc is marked removed and emptied', bd.peek('f1').status === 'removed' && bd.peek('f1').topics.length === 0);
 t('the file summary is cleared', summaries.filter((s) => s.fileId === 'f1').pop().s === null);
+
+// ── Checked against the document ──────────────────────────────────────────
+/* The case this section exists for: Chapter1-Introduction.pdf (computer
+ * architecture) came back as "Demand and Supply" / "Price Elasticity" —
+ * ORCA's browser backend had delivered only the system prompt, and nothing
+ * checked the answer against the PDF. The fixture is that chapter's slides. */
+const L = (text, h = 22, bullet = true) => ({ text, h, bullet });
+const T = (text) => ({ text, h: 36, bullet: false });
+const CH1 = [
+  { n: 1, lines: [T('Chapter 1 - Introduction'), L('1', 12, false)] },
+  { n: 2, lines: [T('Chapter 1 Objectives'), L('Know the concentration of computer organization and'), L('computer architecture', 22, false),
+    L('Understand units of measure common to computer systems'), L('Understand the computer as a layered system'),
+    L('Be able to explain the von Neumann architecture and the'), L('function of basic computer components.', 22, false), L('2', 12, false)] },
+  { n: 3, lines: [T('Computer Organization and'), T('Architecture'), L('Computer organization', 28),
+    L('It focuses on the working mechanism of all physical'), L('aspects of computer systems', 22, false),
+    L('e.g., circuit design, control signals, memory types, etc.', 18), L('Try to answer the question: How does a computer work?'),
+    L('Computer architecture', 28), L('It focuses on the structure and behavior of the computer'),
+    L('systems. It affects the logical execution of programs.', 22, false),
+    L('e.g., instruction sets, instruction formats, data types,', 18), L('addressing modes, etc.', 18, false),
+    L('Try to answer the question: How do I design a'), L('computer?', 22, false), L('3', 12, false)] },
+  { n: 4, lines: [T('Chapter 1 Objectives'), L('Know the concentration of computer organization and'), L('computer architecture', 22, false),
+    L('Understand units of measure common to computer systems'), L('Understand the computer as a layered system'),
+    L('Be able to explain the von Neumann architecture and the'), L('function of basic computer components.', 22, false), L('4', 12, false)] },
+  { n: 5, lines: [T('The Measures of Speed and'), T('Capacity'),
+    L('Kilo- (K) = 1 thousand = 10^3 and 2^10'), L('Mega- (M) = 1 million = 10^6 and 2^20'), L('Giga- (G) = 1 billion = 10^9 and 2^30'),
+    L('Whether a metric refers to a power of ten or a', 24, false), L('power of two typically depends upon what is', 24, false),
+    L('being measured.', 24, false), L('5', 12, false)] },
+  { n: 6, lines: [T("Measures of Speed and Capacity ('cont.)"), L('A CPU operates at 133MHz', 28),
+    L('What’s the duration of one cycle (in sec.)?'), L('1/ (133,000,000 cycles/second) = 7.52ns/cycle', 20, false), L('6', 12, false)] },
+  { n: 7, lines: [T('Summery: Fetch-decode-execute Cycle'),
+    L('The Control Unit (CU) fetches the next instruction from memory. It uses Program Counter (PC) to determine where the instruction is located.'),
+    L('The CU decodes the fetched instruction into a language that the ALU can understand.'),
+    L('Any data operands required to execute the instruction are fetched from memory and placed into the registers within the CPU.'),
+    L('The ALU executes the instruction and places results in either in the registers or the memory.'), L('7', 12, false)] },
+  { n: 8, lines: [L('End of Chapter 1', 20, false), L('8', 12, false)] },
+];
+const ECON = { topics: [
+  { title: 'Introduction to Demand and Supply', summary: 'How buyers and sellers set the market price.', style: 'concept',
+    key_points: ['The demand curve slopes downward', 'Market equilibrium is where supply meets demand', 'Price determination in microeconomic markets'], pages: '1-3' },
+  { title: 'Calculating Price Elasticity of Demand', summary: 'The midpoint formula.', style: 'procedure',
+    key_points: ['Elasticity is the percentage change in quantity demanded over percentage change in price', 'Use the midpoint formula'], pages: '4-6' },
+  { title: 'Key Microeconomic Terminology', summary: 'Terms.', style: 'definitions',
+    key_points: ['Scarcity, opportunity cost, marginal utility', 'Consumer surplus and producer surplus'], pages: '7' },
+] };
+const REAL = { topics: [
+  { title: 'Computer organization versus computer architecture', summary: 'The two concentrations.', style: 'definitions',
+    key_points: ['Computer organization: the working mechanism of the physical aspects — circuit design, control signals, memory types',
+      'Computer architecture: structure and behavior — instruction sets, instruction formats, data types, addressing modes'], pages: '3' },
+  { title: 'Units of speed and capacity', summary: 'Prefixes, powers of ten and two, cycle time.', style: 'procedure',
+    key_points: ['Kilo, Mega, Giga as powers of ten and powers of two', 'A CPU at 133MHz has a cycle time of 7.52ns'], pages: '5-6' },
+  // no topic for page 7 — the fetch-decode-execute cycle
+] };
+
+console.log('\ntokens — a paraphrase matches, a different number does not');
+{
+  const a = bd.tokensOf('Kilo = 10³ and 2¹⁰; 1,048,576 bytes; seven levels; $10^{-3}$ and 10<sup>6</sup>');
+  t('superscripts read as ^', a.nums.has('10^3') && a.nums.has('2^10') && a.nums.has('10^6'), [...a.nums]);
+  t('a negative exponent survives LaTeX', a.nums.has('10^-3'), [...a.nums]);
+  t('thousands separators are dropped', a.nums.has('1048576'), [...a.nums]);
+  t('number words are numbers', a.nums.has('7'), [...a.nums]);
+  t('plurals stem to one word', bd.tokensOf('computers').words.has('comput') && bd.tokensOf('computer').words.has('comput'));
+  t('acronyms count', bd.tokensOf('the CPU and ALU').words.has('cpu') && bd.tokensOf('the CPU and ALU').words.has('alu'));
+}
+
+console.log('\nparsePages');
+{
+  t('ranges and singles', bd.parsePages('4-9, 12', 36).pages.join() === '4,5,6,7,8,9,12');
+  t('an en dash and words', bd.parsePages('slides 4–6', 36).pages.join() === '4,5,6');
+  t('past the end is bad', bd.parsePages('30-40', 36).bad === true);
+  t('nothing is bad', bd.parsePages('', 36).bad === true);
+  t('a fine range is not bad', bd.parsePages('3', 36).bad === false);
+}
+
+console.log('\nthe source model');
+const M = bd.sourceModel(CH1);
+{
+  t('the title slide, the agenda slide (both showings) and the closing slide are not material',
+    M.content.join() === '3,5,6,7', M.content);
+  t('a repeated page is known as a repeat', M.dupOf.get(4) === 2);
+  const items = bd.pageItems(CH1[2]);
+  t('wrapped lines join their bullet', items.some((i) => i.text === 'It focuses on the working mechanism of all physical aspects of computer systems'), items.map((i) => i.text));
+  t('the slide title is flagged', items[0].title === true && items[0].text === 'Computer Organization and');
+  t('the page number is not an item', !items.some((i) => i.text === '3'));
+  const src = bd.sourceText(M, [4, 5]);
+  t('source text is marked by page', src.includes('--- page 5 ---') && src.includes('Kilo- (K) = 1 thousand = 10^3 and 2^10'), src);
+  t('a repeated page is named, not repeated', src.includes('--- page 4 --- (same as page 2)'));
+}
+
+console.log('\ngroundTopics');
+{
+  const g = bd.groundTopics(bd.validateTopics(ECON).value.topics, M);
+  t('an invented course is caught — every topic', g.invented.length === 3, g.invented.map((x) => x.title));
+  t('the feedback names them', /not in the document at all/.test(g.feedback) && g.feedback.includes('Demand and Supply'));
+  const r = bd.groundTopics(bd.validateTopics(REAL).value.topics, M);
+  t('real topics pass, even paraphrased', r.invented.length === 0, r);
+  t('the page no topic covers is found', r.uncovered.join() === '7', r.uncovered);
+  const bad = bd.groundTopics([{ ...REAL.topics[0], pages: '40-44' }], M);
+  t('impossible pages are caught', bad.badPages.length === 1 && /impossible page numbers/.test(bad.feedback));
+  const add = bd.fallbackTopics([7], M);
+  t('an uncovered page becomes its own topic, named by its title', add.length === 1 && add[0].title === 'Summery: Fetch-decode-execute Cycle' && add[0].pages === '7', add);
+  t('...holding every line of the page as its checklist', add[0].key_points.length === 4 && add[0].key_points[1].startsWith('The CU decodes'), add[0].key_points);
+  t('adjacent uncovered pages make one topic', bd.fallbackTopics([5, 6], M).length === 1 && bd.fallbackTopics([5, 6], M)[0].title === 'The Measures of Speed and');
+}
+
+console.log('\nitemMissing');
+{
+  const item = { page: 6, text: '1/ (133,000,000 cycles/second) = 7.52ns/cycle', title: false };
+  t('a lesson without the number misses the line', bd.itemMissing(item, bd.tokensOf('A cycle is short: about seven nanoseconds.')));
+  t('a lesson with it covers the line', !bd.itemMissing(item, bd.tokensOf('One cycle takes 1 / 133,000,000 cycles per second = 7.52 ns per cycle.')));
+  const k = { page: 5, text: 'Kilo- (K) = 1 thousand = 10^3 and 2^10', title: false };
+  t('10³ in a lesson covers 10^3 in the source', !bd.itemMissing(k, bd.tokensOf('**Kilo (K)** means one thousand: 10³ in decimal, 2¹⁰ in binary.')));
+  t('a title is never a gap', !bd.itemMissing({ page: 3, text: 'Architecture', title: true }, bd.tokensOf('')));
+}
+
+// ── End to end, through ORCA ──────────────────────────────────────────────
+/* The stub's lessons echo their <source> section — a model that read it —
+ * minus any line matching `drop`, so a gap is exactly what the test says. */
+const sourceOfPrompt = (text) => {
+  const m = text.match(/<source>\n([\s\S]*?)\n<\/source>/);
+  return m ? m[1].split('\n').filter((l) => l && !l.startsWith('---')).map((l) => l.replace(/^- /, '')) : [];
+};
+const echoLesson = (text, drop) => {
+  const lines = sourceOfPrompt(text).filter((l) => !(drop && drop.test(l)));
+  return {
+    blocks: [{ kind: 'read', title: 'The material', markdown: lines.join('\n\n'), steps: [], questions: [], points: [] },
+      { kind: 'recap', title: 'Recap', markdown: '', steps: [], questions: [], points: ['Know it.'] }],
+    flashcards: lines.slice(0, 3).map((l, i) => ({ front: `Question ${i} about the slide?`, back: l.slice(0, 200) })),
+  };
+};
+const userText = (body) => {
+  const c = body.messages.find((m) => m.role === 'user').content;
+  return typeof c === 'string' ? c : c.map((p) => p.text || '').join('');
+};
+const CH1_FILE = { id: 'ch1', name: 'Chapter1-Introduction.pdf', mime: 'application/pdf' };
+classes[0].modules[0].files.push(CH1_FILE);
+bd.setPageReader(async () => CH1);
+ai.saveSettings({ provider: 'orca', keys: { orca: 'orca_sk_test' }, models: { orca: '' }, baseUrl: { orca: 'https://orca.test/v1' } });
+
+console.log('\nrun — invented topics are rejected, then the real list is used');
+{
+  calls = [];
+  let topicAsks = 0;
+  responder = (body) => {
+    const text = userText(body);
+    if (/Break it into the TOPICS/.test(text)) return reply(topicAsks++ === 0 ? ECON : REAL);
+    if (/leaves out the source lines below/.test(text)) {
+      const missing = [...text.matchAll(/\[page \d+\] (.*)/g)].map((m) => m[1]);
+      return reply({ blocks: [{ kind: 'example', title: 'Cycle time', markdown: missing.join('\n\n'), steps: [], questions: [], points: [] }],
+        flashcards: [{ front: 'How long is one cycle at 133MHz?', back: '1/(133,000,000 cycles/second) = 7.52ns/cycle.' }] });
+    }
+    // The units lesson leaves out the cycle-time lines.
+    return reply(echoLesson(text, /133|cycle/i));
+  };
+  const d = await bd.run('c1', 'm1', CH1_FILE);
+  const asks = calls.map((c) => userText(c.body));
+  t('ORCA gets ONE string, never content parts', calls.every((c) => typeof c.body.messages.find((m) => m.role === 'user').content === 'string'),
+    calls.map((c) => typeof c.body.messages.find((m) => m.role === 'user').content));
+  t('the topics ask carries the document, page by page', asks[0].includes('--- page 5 ---') && asks[0].includes('Kilo- (K) = 1 thousand = 10^3 and 2^10'));
+  t('...and not twice (no separate extracted copy)', asks[0].split('--- page 5 ---').length === 2);
+  t('an invented list is asked for again, saying why', topicAsks === 2 && /PREVIOUS LIST WAS REJECTED/.test(asks[1]) && asks[1].includes('Demand and Supply'), asks[1] && asks[1].slice(0, 200));
+  t('the breakdown finished', d.status === 'ready', { status: d.status, error: d.error, topics: d.topics.map((x) => [x.title, x.status, x.error]) });
+  t('no invented topic survived', !d.topics.some((x) => /Demand|Elasticity|Microeconomic/.test(x.title)), d.topics.map((x) => x.title));
+  t('the page the model skipped got its own topic, in document order',
+    d.topics.map((x) => x.title).join(' | ') === 'Computer organization versus computer architecture | Units of speed and capacity | Summery: Fetch-decode-execute Cycle',
+    d.topics.map((x) => x.title));
+  const lessonAsk = asks.find((a) => /title: Units of speed and capacity/.test(a));
+  t('a lesson ask carries its pages verbatim', !!lessonAsk && lessonAsk.includes('SOURCE —') && lessonAsk.includes('7.52ns/cycle'), lessonAsk && lessonAsk.slice(0, 300));
+  t('...and only its pages', !!lessonAsk && !lessonAsk.includes('--- page 3 ---'));
+  const gapAsk = asks.find((a) => /leaves out the source lines below/.test(a));
+  t('the lines a lesson left out are asked for, verbatim', !!gapAsk && gapAsk.includes('[page 6] 1/ (133,000,000 cycles/second) = 7.52ns/cycle'), gapAsk && gapAsk.slice(0, 400));
+  t('only the topic that left lines out gets a follow-up', asks.filter((a) => /leaves out the source lines below/.test(a)).length === 1);
+  const units = d.topics[1];
+  t('the extra blocks go in before the recap', units.lesson.blocks.map((b) => b.kind).join() === 'read,example,recap', units.lesson.blocks.map((b) => b.kind));
+  t('nothing is left untaught', d.topics.every((x) => x.gapChecked && x.gaps.length === 0), d.topics.map((x) => x.gaps));
+  const cardsNow = deck.forClass('c1').filter((c) => c.sourceNoteId === bd.noteIdFor('ch1', units.id));
+  t('the follow-up\'s cards join the topic\'s, none lost', cardsNow.length === 4 && units.cardCount === 4, cardsNow.map((c) => c.q));
+  t('the checks are recorded', d.checks && d.checks.pages === 8 && d.checks.content === 4 && d.checks.gaps === 0 && d.checks.added === 1, d.checks);
+  t('1 + 1 topic asks, 3 lessons, 1 follow-up', calls.length === 6, calls.length);
+}
+
+console.log('\nrun — a model that never saw the document saves nothing');
+{
+  const F = { id: 'ch1b', name: 'Chapter1-Introduction.pdf', mime: 'application/pdf' };
+  classes[0].modules[0].files.push(F);
+  calls = [];
+  responder = () => reply(ECON);
+  let threw = null;
+  try { await bd.run('c1', 'm1', F); } catch (e) { threw = e; }
+  t('the run fails, saying the topics do not match', threw && threw.kind === 'ungrounded' && /don't match this document/.test(threw.message), threw && threw.message);
+  t('asked twice, then stopped', calls.length === 2, calls.length);
+  t('no topics were saved', bd.peek('ch1b').topics.length === 0 && bd.peek('ch1b').status === 'failed');
+  t('no cards were added', deck.byNotePrefix('c1', bd.notePrefixFor('ch1b')).length === 0);
+}
+
+console.log('\nrun — an invented lesson is not saved');
+{
+  const F = { id: 'ch1c', name: 'Chapter1-Introduction.pdf', mime: 'application/pdf' };
+  classes[0].modules[0].files.push(F);
+  calls = [];
+  responder = (body) => {
+    const text = userText(body);
+    if (/Break it into the TOPICS/.test(text)) return reply({ topics: [REAL.topics[0]] });
+    return reply({ blocks: [{ kind: 'read', title: 'Supply and demand', markdown: 'Buyers and sellers meet at the market equilibrium price, where quantity supplied equals quantity demanded.', steps: [], questions: [], points: [] }],
+      flashcards: [{ front: 'What is market equilibrium?', back: 'Where supply meets demand.' }] });
+  };
+  const d = await bd.run('c1', 'm1', F);
+  const org = d.topics.find((x) => x.title.startsWith('Computer organization'));
+  t('the topic fails, naming its pages', org.status === 'failed' && /does not match page 3/.test(org.error), org.error);
+  t('its cards were not added', deck.byNotePrefix('c1', bd.noteIdFor('ch1c', org.id)).length === 0);
+}
+
+console.log('\na PDF with no text');
+{
+  bd.setPageReader(async () => [{ n: 1, lines: [] }]);
+  let threw = null;
+  try { await bd.run('c1', 'm1', { id: 'scan', name: 'scan.pdf', mime: 'application/pdf' }); } catch (e) { threw = e; }
+  t('ORCA (text only) refuses a scan clearly', threw && threw.kind === 'bad_input' && /no selectable text/.test(threw.message), threw && threw.message);
+  ai.saveSettings({ provider: 'openai', keys: { openai: 'sk' }, models: { openai: 'm' }, baseUrl: { openai: 'https://x.test/v1' } });
+  calls = [];
+  responder = (body) => reply(/Break it into the TOPICS/.test(userText(body)) ? TOPICS : lessonFor('Keys'));
+  const d = await bd.run('c1', 'm1', { id: 'scan2', name: 'scan.pdf', mime: 'application/pdf' });
+  t('a provider that reads the PDF runs unchecked, and says so', d.status === 'ready' && d.checks && /no selectable text/.test(d.checks.skipped), d.checks);
+  bd.setPageReader(async () => null);
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
