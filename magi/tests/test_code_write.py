@@ -157,13 +157,27 @@ def test_codex_write_mode_is_contained_to_the_worktree():
     assert argv[argv.index("-C") + 1] == str(Path("C:/sb"))
 
 
+def test_codex_read_mode_names_a_windows_sandbox_so_its_shell_runs():
+    # Without one, read-only Codex refuses EVERY shell command ("blocked by
+    # policy") -- it could not list a folder (2026-09-29). Read-only stays
+    # read-only: no workspace-write, none of the write-only settings.
+    argv = codex_cli.build_argv("codex", Task("t", "q", Path("C:/p"), Mode.READ))
+    assert argv[argv.index("--sandbox") + 1] == "read-only"
+    cfg = [argv[i + 1] for i, a in enumerate(argv) if a == "-c"]
+    assert "windows.sandbox=unelevated" in cfg
+    assert not any(c.startswith("sandbox_workspace_write.") for c in cfg)
+
+
 def test_codex_network_features_are_off_in_every_mode():
     for mode in (Mode.READ, Mode.WRITE):
         argv = codex_cli.build_argv("codex", Task("t", "q", Path("."), mode))
         off = {argv[i + 1] for i, a in enumerate(argv) if a == "--disable"}
         assert {"browser_use", "computer_use", "apps", "plugins", "hooks"} <= off
     read = codex_cli.build_argv("codex", Task("t", "q", Path("."), Mode.READ))
-    assert "-c" not in read
+    # Read mode's only setting is the Windows sandbox that lets its shell run;
+    # nothing that widens it (network, web search, temp-dir writes).
+    cfg = [read[i + 1] for i, a in enumerate(read) if a == "-c"]
+    assert cfg == ["windows.sandbox=unelevated"]
 
 
 def test_every_disabled_codex_feature_exists_in_the_installed_cli():

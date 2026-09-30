@@ -2,10 +2,11 @@
 // approval card.
 //
 // What this pins, and why each matters:
-//   1. Write is per task. Every task starts in Read and the switch falls back
-//      to Read after a run -- a mode left on from yesterday is how an agent
-//      gets to edit a folder you only meant to ask about. So the choice is
-//      never written to storage.
+//   1. A page opens in Read, and the choice is never written to storage -- a
+//      mode left on from yesterday is how an agent gets to edit a folder you
+//      only meant to ask about. Within the page Write STAYS on (Tony,
+//      2026-09-29): falling back after each task sent the next prompt out
+//      read-only while the switch had just said Write.
 //   2. The engine hears the choice. The mode travels in the POST body; the
 //      console's switch is a request, the engine decides (the folder may be
 //      refused there, whatever the page sends).
@@ -38,14 +39,14 @@ function lift(name, n = 4000) {
   return i < 0 ? '' : MAGI.slice(i, i + n);
 }
 
-console.log('Write is chosen per task');
+console.log('Write stays as set, never stored');
 ok('the switch starts in Read', /rw: "read",/.test(MAGI));
 ok('the choice is never stored', !/lsWrite\([^)]*rw/.test(MAGI) && !/CODE_RW_KEY/.test(MAGI));
 const run = lift('async function codeRun()', 1400);
 // Built by codeTaskBody (which adds the attached files), then posted.
 ok('the mode goes to the engine',
    /codeTaskBody\(\{[^}]*mode: CODE\.rw[\s\S]{0,200}codePost\("\/tasks", body\)/.test(run));
-ok('and falls back to Read once the task starts', /CODE\.rw = "read";/.test(run));
+ok('and is not reset when a task starts', !/CODE\.rw = "read";/.test(run));
 const rw = lift('function renderCodeRw(proj)', 1400);
 ok('Write is disabled where the engine says no', /b\.disabled = k === "write" && !w\.ok/.test(rw));
 ok('with the engine\'s reason on screen', /code-rw-note", w\.why/.test(rw));

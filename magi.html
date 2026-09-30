@@ -7154,7 +7154,7 @@ const HOW = [
       "Code Mode is its own section in the sidebar, under Deliberations, with its own <b>New session</b> and <b>History</b>. The same prompt box changes what it <i>does</i>: under Deliberations it asks the council a question; under Code Mode it hands the words to a coding agent working on a folder on the machine the engine is running on. Pick the folder under <b>Workspace</b>; MAGI draws its own folder browser, and the path never leaves that machine.",
       "<b>Any unit can code.</b> <b>Claude</b> and <b>Codex</b> run through their own command-line tools and search and read the folder themselves; every other unit works through its browser session, with MAGI handing it the files that matter. Both CLIs use a signed-in account's own plan &mdash; Codex works on a free ChatGPT account &mdash; and no API key is used anywhere. Their accounts are set up in <b>Accounts</b>, separately from the browser units, and each can hold more than one.",
       "<b>The chips are the fallback chain.</b> The first ticked agent does the work. If it runs out of usage, is signed out or cannot start, the next one carries on, told what the previous one had worked out. A task that simply fails is not handed on &mdash; another author would fail it the same way. A limit is remembered until its reset time, so the chain does not walk into the same wall on every task. Tap <b>Agents</b> to change the order.",
-      "<b>Read or Write, per task.</b> Every task starts in <b>Read</b>: agents can read and search the folder and change nothing. Switch to <b>Write</b> (the button then says <b>Run edits</b>) and the agents work on a <i>private copy</i> of the folder instead &mdash; your uncommitted edits included. When they finish you get the <b>diff</b>, file by file, with <b>Approve</b> and <b>Deny</b>. Nothing touches your folder unless you press Approve; no answer within __APPROVE_MIN__ minutes counts as No, and so does Halt. Any screen watching the task can answer.",
+      "<b>Read or Write.</b> A page opens in <b>Read</b>: agents can read and search the folder and change nothing. Switch to <b>Write</b> and it stays on for your next tasks until you switch back (the button then says <b>Run edits</b>) and the agents work on a <i>private copy</i> of the folder instead &mdash; your uncommitted edits included. When they finish you get the <b>diff</b>, file by file, with <b>Approve</b> and <b>Deny</b>. Nothing touches your folder unless you press Approve; no answer within __APPROVE_MIN__ minutes counts as No, and so does Halt. Any screen watching the task can answer.",
       "<b>Some changes are never offered.</b> A diff that reaches into <code>.git</code>, a key or env file, a credentials folder or an agent&rsquo;s own settings folder, or that leaves the folder through <code>..</code> or a link, is refused before you are asked. Write needs a git repository. Approved edits are applied but not committed until you say so. <b>A1 is writable too, but never committed or pushed from here</b>: A1&rsquo;s own auto-commit records every change and pushes it to main within minutes, so approving a change in A1 ships it &mdash; the card says so, and names anything that deploys. MAGI only fetches A1, never pulls, and refuses edits under <code>.github/</code>. A change to the engine&rsquo;s own code under <code>magi/</code> says so too: it does nothing until the engine restarts.",
       "<b>A check beside the diff.</b> Tap the <b>Check</b> pill to give a project a command that exits 0 when it is healthy &mdash; its tests, a build &mdash; picked from what MAGI finds in the folder, with <b>Try it now</b> to see it work. For a Write task it runs in the task&rsquo;s <i>private copy</i> (never your folder), with the folder&rsquo;s <code>node_modules</code> or <code>.venv</code> linked in for the run and removed after, and its pass or fail and output sit on the approval card. It informs Approve; it never decides it. By default you press <b>Run check</b> on the card, after reading the diff, and the approval clock waits while it runs, then gives you the full __APPROVE_MIN__ minutes again. <b>Automatically</b> runs it before the card appears &mdash; that runs the agent&rsquo;s code before anyone has looked at it, so the setting says so. The command stays on the engine PC, can only be set from that PC, never syncs, and runs in the same Windows job as the agents, so it cannot drive MAGI.",
       "<b>Sizes and rankings are measured, not guessed.</b> Agents in Read mode have no shell, so none of their tools can tell how big a file is. When a task asks about sizes, lines, the largest, or ranking and comparing, MAGI measures the folder itself &mdash; every file git knows about, with exact bytes and line counts, totals per folder and per type, and the top-level files (in A1, the programs) &mdash; and hands that to whichever agent runs. Name a type (&ldquo;the .html files&rdquo;) and every file of it is listed in full. Ignored folders (node_modules, virtualenvs, browser profiles) and secret files are left out. The transcript shows it as an <b>Inventory</b> line.",
@@ -12062,9 +12062,11 @@ const CODE = {
   order: lsRead(CODE_ORDER_KEY, []),
   task: null,                              // {id, prompt, events, done, result, es}
   poll: 0, usageAt: 0,                     // the usage timer, and its last reading
-  // Read or Write, for the NEXT task only. Deliberately not remembered: every
-  // task starts in Read, and Write is a choice made for the one in front of
-  // you -- never a mode left on from yesterday.
+  // Read or Write. Stays as you set it for the tab's lifetime (Tony,
+  // 2026-09-29: it used to fall back to Read after every task, so the next
+  // prompt silently ran read-only while the switch had just said Write).
+  // Never stored: a new page -- yesterday's included -- opens in Read, and
+  // every write still waits for Approve on the diff.
   rw: "read",
   // The repository line under the workspace: {pid, data, err, code, loading,
   // stale}. Fetched on demand, never on a timer -- see codeGitEnsure.
@@ -12889,7 +12891,6 @@ async function codeRun() {
   }
   if (!d.ok) { CODE.err = d.message || "The engine refused the task."; renderCodeView(); return; }
   CODE.err = "";
-  CODE.rw = "read";          // Write was for that task; the next starts in Read
   $("composer").value = "";
   if (typeof autosize === "function") autosize();
   // Sent with the task, so they leave the box with its text.
@@ -22498,8 +22499,6 @@ function queueAdd() {
   S.preRefine = null;
   if (coding) {
     CODE.attachments = [];
-    // Write was chosen for that task, exactly as Run treats it.
-    if (CODE.rw === "write") { CODE.rw = "read"; renderCodeView(); }
   } else {
     S.attachments = [];
   }

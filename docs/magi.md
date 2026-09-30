@@ -554,9 +554,11 @@ your folder ──git stash create──► worktree in %TEMP%\magi-sandbox\<pro
   saying to `git init`) and a repository with no commits. **A1 takes writes**
   on its own terms (*A1 itself*, below).
 
-In the console, **Read / Write** sits under the agent chips. Every task
-starts in Read, and the switch falls back to Read once a task starts, so
-Write is never left on from yesterday. The Run button says **Run edits**
+In the console, **Read / Write** sits under the agent chips. A page opens
+in Read and the choice is never stored, so Write is never left on from
+yesterday; within the page it stays as you set it (since 2026-09-29 -- it
+used to fall back to Read after every task, which sent follow-up prompts
+out read-only while you believed Write was on). The Run button says **Run edits**
 when Write is on. The approval card lists each file with a status and `+/−`
 counts; each file opens to its tinted diff, and open files stay open across
 redraws. The countdown ticks without redrawing the view. On a phone, Deny and

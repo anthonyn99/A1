@@ -51,6 +51,16 @@ DISABLED_FEATURES = ("browser_use", "browser_use_external", "computer_use",
                      "in_app_browser", "apps", "plugins", "image_generation",
                      "multi_agent", "hooks")
 
+# Both modes on Windows need a sandbox implementation named. Without one,
+# read-only mode has nothing to run a command in, so EVERY shell command is
+# refused ("rejected: blocked by policy") -- and Codex reads the workspace
+# through its shell, so a read task could not even list a folder (Tony,
+# 2026-09-29: "are there any files unused?" came back "the read-only
+# environment rejected the directory listing command"). Verified live: with
+# `unelevated`, read-only lists and reads files and a write is still "Access
+# denied". Values are unquoted: see WRITE_CONFIG.
+SANDBOX_CONFIG = ("windows.sandbox=unelevated",)
+
 # Write mode on Windows. Without `windows.sandbox`, workspace-write silently
 # degrades to read-only ("writing is blocked by read-only sandbox"). And by
 # default workspace-write also lets commands write to %TEMP% -- verified live:
@@ -74,9 +84,8 @@ def build_argv(exe: str, task: Task, model: str | None = None,
             "-C", str(task.root)]
     for f in DISABLED_FEATURES:
         argv += ["--disable", f]
-    if task.mode == Mode.WRITE:
-        for c in WRITE_CONFIG:
-            argv += ["-c", c]
+    for c in (WRITE_CONFIG if task.mode == Mode.WRITE else SANDBOX_CONFIG):
+        argv += ["-c", c]
     if model:
         argv += ["-m", model]
     if effort:

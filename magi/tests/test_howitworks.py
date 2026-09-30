@@ -141,7 +141,7 @@ def test_the_code_mode_write_claims_still_hold():
     protection that no longer exists."""
     import inspect
     from magi.code import security, tasks
-    assert "Read or Write, per task" in HOW
+    assert "Read or Write.</b> A page opens in <b>Read</b>" in HOW
     assert "__APPROVE_MIN__" in HOW, "spell the approval window as __APPROVE_MIN__"
     m = re.search(r"const APPROVE_MIN = (\d+);", PAGE)
     assert m and int(m.group(1)) * 60 == tasks.APPROVAL_TIMEOUT
@@ -163,8 +163,9 @@ def test_the_code_mode_write_claims_still_hold():
     assert '"engine_files"' in src and "ev.engine_files" in PAGE
     assert '"deploy_files"' in src and "ev.ships && open" in PAGE
     assert ".github/" in SB.ENGINE_REPO_DENY and "deny=sandbox.review_deny(sb.repo)" in src
-    # "Every task starts in Read".
+    # "A page opens in Read ... stays on ... until you switch back".
     assert 'rw: "read",' in PAGE
+    assert 'CODE.rw = "read";' not in PAGE.split("async function codeRun()", 1)[1][:2000]
     # "a window whose reset time has passed shows 0%".
     assert "function usageLive(u)" in PAGE
 
