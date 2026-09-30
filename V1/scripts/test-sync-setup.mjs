@@ -27,6 +27,8 @@ t('never forces ownership', !/forceOwnership/.test(fbsCode));
 t('uses the single-tab manager', /persistentSingleTabManager\(\{\}\)/.test(fbsCode));
 const snapAt = fbs.indexOf('_sosUnsubscribe = onSnapshot(');
 const snap = fbs.slice(snapAt, fbs.indexOf('}, (err) =>', snapAt));
+t('the main listener receives metadata changes (a warm-cache reload still unlocks writes)',
+  /onSnapshot\(sosDocRef, \{ includeMetadataChanges: true \}/.test(fbsCode));
 t('unlocks writes only after emitting server data', snap.indexOf('_sosEmitRemote(') > 0 && snap.indexOf('_sosEmitRemote(') < snap.indexOf('_sosMarkServerSeen()'));
 const loadAt = fbs.indexOf('window._fbLoadStudyOs = async');
 t('the one-shot load does not unlock writes', !/_sosMarkServerSeen\(\)/.test(code(fbs.slice(loadAt, fbs.indexOf('};', loadAt)))));

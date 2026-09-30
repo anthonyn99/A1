@@ -257,10 +257,29 @@ if (!window.STUDYOS_CONFIG_READY || !window.STUDYOS_CONFIG_READY('firebase')) {
     window.dispatchEvent(new CustomEvent('fb-sos-synced'));
   };
 
-  _sosUnsubscribe = onSnapshot(sosDocRef, { includeMetadataChanges: false }, (snap) => {
+  /* includeMetadataChanges: TRUE. On a normal reload the first snapshot comes
+   * from the persistent cache (fromCache: true); when the server then confirms
+   * the SAME data, only the metadata changes, and with metadata changes off
+   * Firestore never calls back. Unlocking only from this listener therefore
+   * left every write queued forever after the first visit ("not syncing",
+   * 2026-09-30). With them on we always see the confirmation; _sosLastEmitted
+   * keeps a metadata-only callback from re-rendering unchanged data. */
+  let _sosLastEmitted = null;
+  _sosUnsubscribe = onSnapshot(sosDocRef, { includeMetadataChanges: true }, (snap) => {
+    const fromServer = !!(snap.metadata && snap.metadata.fromCache === false);
     // Our own not-yet-acknowledged write echoing back is skipped: the local UI
     // is already showing this exact state, so re-emitting it would churn the DOM.
-    if (snap.exists() && !(snap.metadata && snap.metadata.hasPendingWrites)) _sosEmitRemote(snap.data());
+    if (snap.exists() && !(snap.metadata && snap.metadata.hasPendingWrites)) {
+      const data = snap.data();
+      let sig = null;
+      try { sig = JSON.stringify(data); } catch (e) {}
+      // Emit when the data changed, and once for the first server-confirmed
+      // copy (so the app applies server state before writes unlock below).
+      if (sig === null || sig !== _sosLastEmitted || (fromServer && !_sosServerSeen)) {
+        _sosLastEmitted = sig;
+        _sosEmitRemote(data);
+      }
+    }
 
     // A snapshot straight off the wire proves we've seen real server state, so
     // queued writes may go. This comes AFTER the emit on purpose: the
@@ -269,7 +288,7 @@ if (!window.STUDYOS_CONFIG_READY || !window.STUDYOS_CONFIG_READY('firebase')) {
     // queued before the server data arrived, which on a device with a stale
     // local cache (Veda's Brave held a one-class copy, 2026-09-30) meant a boot
     // write, such as a file-upload persist, could overwrite the real class list.
-    if (snap.metadata && snap.metadata.fromCache === false) _sosMarkServerSeen();
+    if (fromServer) _sosMarkServerSeen();
   }, (err) => {
     console.warn('[StudyOS] onSnapshot error:', err && err.code);
     window.dispatchEvent(new CustomEvent('fb-sos-error'));
@@ -551,27 +570,38 @@ if (!window.STUDYOS_CONFIG_READY || !window.STUDYOS_CONFIG_READY('firebase')) {
   window._fbLoadSessions = async () => {
     try {
       const snap = await _freshGet(_ssRef);
-      if (snap && snap.metadata && snap.metadata.fromCache === false) _ssServerSeen = true;
-      onSnapshot(_ssRef, { includeMetadataChanges: false }, (s) => {
-        if (s.metadata && s.metadata.fromCache === false) _ssServerSeen = true;
+      // Unlocking also flushes a save that was held while locked; without it a
+      // session logged before the server answered waited for the NEXT save.
+      const unlock = () => { if (_ssServerSeen) return; _ssServerSeen = true; if (_ssPending) _ssDoSave(); };
+      if (snap && snap.metadata && snap.metadata.fromCache === false) unlock();
+      if (_ssUnsub) return _ssLoadResult(snap);
+      _ssUnsub = onSnapshot(_ssRef, { includeMetadataChanges: false }, (s) => {
+        if (s.metadata && s.metadata.fromCache === false) unlock();
         if (!s.exists() || (s.metadata && s.metadata.hasPendingWrites)) return;
         const d = s.data() || {};
         window.dispatchEvent(new CustomEvent('fb-sessions-remote', {
           detail: { sessions: Array.isArray(d.sessions) ? d.sessions : [] },
         }));
       }, (err) => console.warn('[StudyOS Sessions] onSnapshot error:', err && err.code));
-
-      if (snap && snap.exists()) {
-        const d = snap.data() || {};
-        return Array.isArray(d.sessions) ? d.sessions : [];
-      }
-      if (snap) _ssServerSeen = true;    // an empty log is a legitimate state
-      return [];
+      return _ssLoadResult(snap);
     } catch (e) {
       console.warn('[StudyOS Sessions] load failed:', e && e.code);
       return null;
     }
   };
+  let _ssUnsub = null;     // one listener, however often the log is (re)loaded
+  function _ssLoadResult(snap) {
+    if (snap && snap.exists()) {
+      const d = snap.data() || {};
+      return Array.isArray(d.sessions) ? d.sessions : [];
+    }
+    // An absent log is a legitimate empty state only when the SERVER said so;
+    // a cache miss proves nothing (same rule as _fbLoadDoc below).
+    if (snap && snap.metadata && snap.metadata.fromCache === false && !_ssServerSeen) {
+      _ssServerSeen = true; if (_ssPending) _ssDoSave();
+    }
+    return snap ? [] : null;
+  }
 
   /* ══ Generic synced documents ════════════════════════════════════════════
    * Topic breakdowns (studyos_topics/{fileId}) need exactly what cards and
