@@ -158,6 +158,15 @@
   /* Scheduling is AUTHORITATIVE: re-scheduling an id always overwrites whatever
    * was there, including a previously-cancelled entry. Otherwise a reminder the
    * user removed and then re-added would be silently refused. */
+  /* WRITE FLOOD (2026-09-30): studyos.js calls these for EVERY event and task
+   * on every render (scheduleNotifications runs on each sync update). Each call
+   * used to hit Firestore: a setDoc per future reminder and a deleteDoc per item
+   * WITHOUT one, whether or not a reminder document had ever existed. Veda's
+   * queue held 2,857 unsent writes, 2,852 of them reminder deletes, and one boot
+   * queued 800+ more. Firestore sends writes in order, so every real save
+   * (classes, the TaskHub mirror) waited behind them and timed out: "sync
+   * failed", and work never reaching TaskHub. Now an unchanged reminder is not
+   * rewritten, and the render sweep deletes only reminders this device made. */
   window.thScheduleNotif = async function (item) {
     if (!item || !item.id || !item.notifyAt) return;
     var at = new Date(item.notifyAt).getTime();
@@ -166,16 +175,25 @@
     askPerm();
 
     var reg = readReg();
+    var prev = reg[item.id];
+    var title = item.title || 'StudyOS reminder';
+    var same = !!(prev && prev.notifyAt === item.notifyAt && prev.title === title);
     reg[item.id] = {
       id: item.id,
-      title: item.title || 'StudyOS reminder',
+      title: title,
       notifyAt: item.notifyAt,
-      fired: false,
+      fired: same ? !!prev.fired : false,
+      saved: same ? !!prev.saved : false,
     };
     writeReg(reg);
+    if (same && prev.saved) return;          // already in Firestore, unchanged
 
     // Server-side leg: only meaningful in the future, and only if push is set up.
     if (PUSH_OK && PUSH_CFG.enabled !== false && window._fbSaveReminder && at > Date.now()) {
+      // Marked as soon as the write is queued: the persistent cache keeps it
+      // until it lands, and awaiting the server here would re-queue it on every
+      // render while the network is slow.
+      reg[item.id].saved = true; writeReg(reg);
       try {
         await window._fbSaveReminder({
           id: item.id,
@@ -189,11 +207,22 @@
     }
   };
 
+  // An explicit cancel (the user edited or deleted the item): always delete,
+  // since another device may have written the reminder.
   window.thCancelNotif = async function (id) {
     if (!id) return;
     var reg = readReg();
     if (reg[id]) { delete reg[id]; writeReg(reg); }
     if (window._fbDeleteReminder) { try { await window._fbDeleteReminder(id); } catch (e) {} }
+  };
+  // The render sweep's cancel: only a reminder this device scheduled can need
+  // deleting. Every device runs the same sweep over the same data, so the one
+  // that wrote a reminder is the one that removes it.
+  window.thCancelNotifIfKnown = function (id) {
+    if (!id) return;
+    var reg = readReg();
+    if (!reg[id]) return;
+    return window.thCancelNotif(id);
   };
 
   /* Exposed so the app (or a settings button) can prompt for permission and

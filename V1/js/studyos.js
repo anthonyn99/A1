@@ -4128,7 +4128,7 @@ function scheduleNotifications() {
   (Array.isArray(events) ? events : []).forEach(ev => {
     const nid = 'sos_ev_' + ev.id;
     const notifyAt = (ev.notif && ev.notif !== 'none') ? ev.notif : null;
-    if (!notifyAt) { if (window.thCancelNotif) { try { window.thCancelNotif(nid, null); } catch(e){} } return; }
+    if (!notifyAt) { const cancel = window.thCancelNotifIfKnown || window.thCancelNotif; if (cancel) { try { cancel(nid, null); } catch(e){} } return; }
     if (new Date(notifyAt).getTime() <= nowT) return; // already past
     window.thScheduleNotif({
       id: nid,
@@ -4147,7 +4147,7 @@ function scheduleNotifications() {
   (Array.isArray(tasks) ? tasks : []).forEach(t => {
     const nid = 'sos_task_' + t.id;
     const notifyAt = (t.notif && t.notif !== 'none') ? t.notif : null;
-    if (!notifyAt) { if (window.thCancelNotif) { try { window.thCancelNotif(nid, null); } catch(e){} } return; }
+    if (!notifyAt) { const cancel = window.thCancelNotifIfKnown || window.thCancelNotif; if (cancel) { try { cancel(nid, null); } catch(e){} } return; }
     if (new Date(notifyAt).getTime() <= nowT) return; // already past
     window.thScheduleNotif({
       id: nid,
