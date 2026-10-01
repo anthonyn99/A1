@@ -315,6 +315,14 @@ class BrowserProvider(Provider):
                 want = accounts.model_choice(self.id)
                 if want:
                     picked = await picker.choose(page, site, want)
+                # Then its effort / thinking, the other half of the pick.
+                effort = accounts.effort_choice(self.id)
+                if effort:
+                    eff = await picker.choose_effort(page, site, effort)
+                    if not eff.ok:
+                        # Said on the card the way a missed model is.
+                        picked = picker.Picked(ok=False, note="; ".join(
+                            n for n in ((picked.note if picked and not picked.ok else ""), eff.note) if n))
 
                 # -- attachments, before typing (matches how a person uses the
                 # composer: attach first, then write the message about them) --

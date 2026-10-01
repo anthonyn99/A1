@@ -2453,6 +2453,31 @@ async def units_set_model(provider_id: str, request: Request):
     return _unit_menu(provider_id)
 
 
+@app.post("/api/units/{provider_id}/effort")
+async def units_set_effort(provider_id: str, request: Request):
+    """Choose this unit's effort / thinking, per person: a level (Claude),
+    "on"/"off" (Gemini, ChatGPT, DeepSeek), or "" for Site default. Takes
+    effect on the unit's next turn; nothing opens now."""
+    from . import accounts
+    from .browser import picker
+
+    if provider_id not in settings.sites:
+        raise HTTPException(404, f"Unknown unit {provider_id!r}.")
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    value = str((body if isinstance(body, dict) else {}).get("value") or "").strip()
+    site = settings.sites[provider_id]
+    allowed = picker.effort_options(site)
+    if value and value not in allowed:
+        raise HTTPException(400, "This unit offers no such choice." if allowed
+                            else "This site has no effort or thinking control.")
+    accounts.set_effort(provider_id, value)
+    picker.forget(provider_id)
+    return _unit_menu(provider_id)
+
+
 @app.post("/api/units/{provider_id}/models/refresh")
 async def units_refresh_models(provider_id: str):
     """Open the site once and read its picker, so the list is what THIS

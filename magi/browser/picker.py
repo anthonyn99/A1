@@ -464,4 +464,10 @@ async def choose_effort(page: Page, site, want: str) -> Picked:
         r = await _choose_toggle(page, site, want, in_menu=(kind == "menu_toggle"))
     if r.ok:
         _EFFORT_OK[site.id] = want
+    if r.changed and site.id in _CONFIRMED:
+        # Claude's label carries the effort ("Sonnet 5.5 High"): the model's
+        # confirmed label moves with it, or the next run reopens the menu.
+        r.label = await resolve.model_label(page, site)
+        if r.label:
+            _CONFIRMED[site.id] = (_CONFIRMED[site.id][0], r.label)
     return r
