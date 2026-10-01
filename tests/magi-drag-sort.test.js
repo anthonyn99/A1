@@ -70,7 +70,11 @@ ok('pointer events: mouse, touch and pen are one path', /addEventListener\("poin
 ok('touch drags only from the grip (the list still scrolls)', /if \(e\.pointerType !== "mouse"\) return;/.test(ds));
 ok('a press on a control stays that control\'s', /closest\("button, a, input, select, textarea, \[contenteditable\]"\)/.test(ds));
 ok('moves by transform only (nothing laid out per frame)', /translate3d\(0, \$\{dy\}px, 0\)/.test(ds) && !/\.style\.top\s*=/.test(ds));
-ok('Escape cancels a drag', /ev\.key === "Escape" && live/.test(ds));
+ok('Escape cancels a drag, and is used up (the sheet stays open)',
+   /if \(ev\.key !== "Escape" \|\| !live\) return;\s*ev\.stopPropagation\(\);\s*ev\.preventDefault\(\);\s*cancelled = true;/.test(ds));
+ok('a mouse press on a row\'s text does not start a text selection', /e\.preventDefault\(\);\s*\}\s*begin\(e, r\);/.test(ds));
+ok('a row reaches the first and last slot (leading edge past the middle)',
+   /if \(top < boxes\[i\]\.top \+ boxes\[i\]\.h \/ 2\)/.test(ds) && /if \(bottom > boxes\[i\]\.top \+ boxes\[i\]\.h \/ 2\)/.test(ds));
 ok('the click after a drag is swallowed, and only that one',
    /window\.addEventListener\("click", swallow, true\);\s*setTimeout\(\(\) => window\.removeEventListener\("click", swallow, true\), 0\)/.test(ds));
 ok('the grip cannot scroll the page under a finger', /\.dsort-grip \{[^}]*touch-action: none/.test(MAGI));

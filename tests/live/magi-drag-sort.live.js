@@ -44,7 +44,7 @@ async function mouseDrag(c, x, y, dy, { steps = 14, mid = null, cancel = false }
   for (let i = 1; i <= steps; i++) {
     await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y: y + (dy * i) / steps, button: 'left', buttons: 1 });
     await sleep(16);
-    if (mid && i === Math.round(steps * 0.7)) await mid();
+    if (mid && i === steps) await mid();
   }
   if (cancel) await c.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
   await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y: y + dy, button: 'left', clickCount: 1 });
@@ -99,7 +99,6 @@ const orderNames = (c) => evalJs(c, 'return JSON.stringify([...document.querySel
           lifted: !!document.querySelector(".code-order-row.dsort-drag"),
           moved: [...document.querySelectorAll(".code-order-row")].slice(1, 3).every(r => /translate3d\\(0px, -/.test(r.style.transform)),
           grabbing: document.documentElement.classList.contains("dsort-grabbing") })`));
-        await shot(c, 'drag-agent-mid');
       },
     });
     ok('while dragging, the row is lifted', mid && mid.lifted, JSON.stringify(mid));
@@ -124,7 +123,8 @@ const orderNames = (c) => evalJs(c, 'return JSON.stringify([...document.querySel
     // ── 4. Escape cancels; the next click works ─────────────────────────
     console.log('\n4. Escape and the click after');
     const rx = await rect(c, 'document.querySelectorAll(".code-order-row")[1].querySelector(".code-order-name")');
-    await mouseDrag(c, rx.x, rx.y, step * 2, { cancel: true });
+    // The mid-drag picture is taken here, outside the timed drag above.
+    await mouseDrag(c, rx.x, rx.y, step * 2, { cancel: true, mid: () => shot(c, 'drag-agent-mid') });
     ok('Escape mid-drag: nothing moved', JSON.stringify(await orderNames(c)) === JSON.stringify(before));
     const done = await rect(c, '[...document.querySelectorAll(".sheet .btn")].find(b => b.textContent === "Done")');
     await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: done.x, y: done.y, button: 'left', clickCount: 1 });

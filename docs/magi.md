@@ -430,7 +430,7 @@ Claude CLI (each signed-in slot) -> Codex CLI (each slot) -> Claude (Pro)
   -> ChatGPT -> Claude (free) -> Gemini -> DeepSeek -> Grok -> Perplexity
 ```
 
-Tap **Agents** to reorder (arrows, not drag, so it works one-handed). The
+Tap **Agents** to reorder: drag a row by its grip (any part of it with a mouse; the grip with a finger, so the list still scrolls), or focus the grip and press ↑/↓. The
 ticks and order are this browser's own (`magi.<profile>.code.units`,
 `code.order`), separate from the council's unit picks — you may well want
 Grok on the council and not on your code.
@@ -1424,7 +1424,7 @@ marked failed and the queue carries on.
 
 Not carried over, on purpose: per-task model pickers (Code Mode's per-agent
 Auto/model/effort choice already covers it, from each account's live model
-list), drag-to-reorder (the arrows work on a phone), a preview pane and a
+list), a preview pane and a
 post-task deploy command (A1 deploys itself), and image attachments for tasks
 (Code Mode's attachments are text pasted into the prompt).
 

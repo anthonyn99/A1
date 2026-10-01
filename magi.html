@@ -15271,6 +15271,8 @@ function dragSort(list, { row: rowSel, grip: gripSel = ".dsort-grip",
       // a control is that control's.
       if (e.pointerType !== "mouse") return;
       if (e.target.closest("button, a, input, select, textarea, [contenteditable]")) return;
+      // Or the first pixels of a drag start selecting the row's text.
+      e.preventDefault();
     }
     begin(e, r);
   });
@@ -15348,7 +15350,15 @@ function dragSort(list, { row: rowSel, grip: gripSel = ".dsort-grip",
       place();
       if (!raf) raf = requestAnimationFrame(edge);
     };
-    const key = (ev) => { if (ev.key === "Escape" && live) { cancelled = true; up(ev); } };
+    // Escape puts the row back -- and is used up doing it, or the sheet the
+    // list sits in would close too.
+    const key = (ev) => {
+      if (ev.key !== "Escape" || !live) return;
+      ev.stopPropagation();
+      ev.preventDefault();
+      cancelled = true;
+      up(ev);
+    };
     const up = (ev) => {
       if (ev.pointerId !== undefined && ev.pointerId !== pid) return;
       window.removeEventListener("pointermove", move);
@@ -24335,7 +24345,7 @@ function queueAdd() {
 /* Asked first, in MAGI's own sheet -- never a browser dialog.
  *
  *  A queued prompt is typed work, and on a phone the X sits a thumb's width
- *  from the arrows that reorder the row. `silent` exists for the one caller
+ *  from the row's other controls. `silent` exists for the one caller
  *  that has already asked (Clear finished, which asks once for the lot rather
  *  than once per row).
  */
