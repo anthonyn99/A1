@@ -15302,10 +15302,13 @@ function dragSort(list, { row: rowSel, grip: gripSel = ".dsort-grip",
       const hi = boxes[rows.length - 1].top + boxes[rows.length - 1].h - (boxes[from].top + boxes[from].h);
       const dy = Math.max(lo, Math.min(hi, (lastY - listTop) - y0));
       row.style.transform = `translate3d(0, ${dy}px, 0)`;
-      const mid = boxes[from].top + boxes[from].h / 2 + dy;
+      // A neighbour gives way once the dragged row's LEADING edge passes its
+      // middle -- by the dragged row's own middle, the first and last slots
+      // were out of reach at the list's clamped ends.
+      const top = boxes[from].top + dy, bottom = top + boxes[from].h;
       let t = from;
-      for (let i = 0; i < from; i++) if (mid < boxes[i].top + boxes[i].h / 2) { t = i; break; }
-      if (t === from) for (let i = rows.length - 1; i > from; i--) if (mid > boxes[i].top + boxes[i].h / 2) { t = i; break; }
+      for (let i = 0; i < from; i++) if (top < boxes[i].top + boxes[i].h / 2) { t = i; break; }
+      if (t === from) for (let i = rows.length - 1; i > from; i--) if (bottom > boxes[i].top + boxes[i].h / 2) { t = i; break; }
       if (t !== to) {
         to = t;
         rows.forEach((r, i) => {
