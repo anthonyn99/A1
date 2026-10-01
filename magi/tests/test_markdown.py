@@ -233,3 +233,41 @@ def test_chatgpt_display_math_standing_alone(page):
             'style="display: block;"><span class="katex-display"><span class="katex">'
             '<span class="katex-html">E=mc2</span></span></span></span><p>After.</p>')
     assert render(page, html) == "# Display Math\n\n$$\nE = mc^2\n$$\n\nAfter."
+
+
+# ── Gemini: paragraphs inside a framework element (2026-10-01) ─────────────
+# Two stored verdicts read "ANSWER Miranda is named after ... *The
+# Tempest*.NOTES None.CONFIDENCE HIGH -- ..." on ONE line: a custom element
+# holding nothing but <p>s was flattened as one paragraph, because the "is
+# there structure inside?" test ignored <p>. Every plain-paragraph Gemini
+# answer lost its paragraph breaks that way, verdicts included.
+
+GEMINI_PARAS = (
+    "<message-content><div class='markdown'>"
+    "<p>ANSWER\nMiranda is named after the heroine of <em>The Tempest</em>.</p>"
+    "<p>NOTES\nNone.</p>"
+    "<p>CONFIDENCE\nHIGH -- one member, complete.</p>"
+    "</div></message-content>"
+)
+
+
+def test_paragraphs_in_a_custom_element_stay_paragraphs(page):
+    out = render(page, GEMINI_PARAS)
+    assert out == ("ANSWER Miranda is named after the heroine of *The Tempest*.\n\n"
+                   "NOTES None.\n\nCONFIDENCE HIGH -- one member, complete.")
+
+
+def test_paragraphs_directly_in_a_custom_element(page):
+    out = render(page, "<response-element><p>One.</p><p>Two.</p></response-element>")
+    assert out == "One.\n\nTwo."
+
+
+def test_a_div_wrapping_custom_paragraph_holders(page):
+    out = render(page, "<div><x-chunk><p>One.</p></x-chunk><x-chunk><p>Two.</p></x-chunk></div>")
+    assert out == "One.\n\nTwo."
+
+
+def test_an_inline_custom_element_still_reads_inline(page):
+    """No <p> inside: still one paragraph, not split at the element."""
+    out = render(page, "<p>Use <x-tag>this</x-tag> word.</p>")
+    assert out == "Use this word."

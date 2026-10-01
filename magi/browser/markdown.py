@@ -34,6 +34,13 @@ _SKIP = """
   // apart at arbitrary boundaries.
   const BLOCK_SEL = 'table,ul,ol,pre,blockquote,h1,h2,h3,h4,h5,h6';
   const hasBlockInside = (n) => !!(n.querySelector && n.querySelector(BLOCK_SEL));
+  // A <p> anywhere inside DOES make a container a block, though: flattened,
+  // its paragraphs run together with no break at all. Gemini wraps a plain
+  // answer as <message-content><div><p>..</p><p>..</p>, and every one with
+  // no list, heading or table arrived as one line ("...Tempest*.NOTES
+  // None.CONFIDENCE HIGH", 2026-09-30). Only consulted for a container that
+  // would otherwise be flattened -- never for a <p> itself.
+  const hasParaInside = (n) => !!(n.querySelector && n.querySelector('p'));
 """
 
 # One expression, so the page is walked atomically. Returns a markdown string.
@@ -248,7 +255,7 @@ DOM_TO_MARKDOWN_JS = """
         // children are <some-custom-tag> and the tag test below finds nothing.
         const hasBlock = [...c.children].some((k) =>
           /^(P|DIV|UL|OL|TABLE|PRE|BLOCKQUOTE|H[1-6]|HR|SECTION|ARTICLE)$/.test(k.tagName))
-          || hasBlockInside(c);
+          || hasBlockInside(c) || (tag !== 'P' && hasParaInside(c));
         if (hasBlock) out.push(...block(c, depth));
         else { const t = para(c); if (t) out.push(t); }
       } else {
@@ -260,7 +267,7 @@ DOM_TO_MARKDOWN_JS = """
         // boundaries at all, and then went into the synthesis prompt that way.
         // Recurse when there is real structure in there; flatten when there is
         // not, so an ordinary inline wrapper still reads as one paragraph.
-        if (hasBlockInside(c)) out.push(...block(c, depth));
+        if (hasBlockInside(c) || hasParaInside(c)) out.push(...block(c, depth));
         else { const t = para(c); if (t) out.push(t); }
       }
     }
