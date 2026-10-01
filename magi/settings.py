@@ -308,7 +308,7 @@ def _dedup(items: list[str]) -> list[str]:
 # The Phase U1 keys that are plain selector lists.
 U1_LIST_KEYS = (
     "model_button", "model_option", "model_selected", "model_locked",
-    "model_more", "effort_open", "effort_option", "think_toggle",
+    "model_more", "effort_open", "effort_option", "think_toggle", "think_confirm",
     "model_label", "downgrade_notice", "limit_notice", "usage_readout",
     "prompt_too_long", "model_known",
 )
@@ -377,6 +377,9 @@ class SiteSelectors:
     effort_open: list[str] = field(default_factory=list)
     effort_option: list[str] = field(default_factory=list)
     think_toggle: list[str] = field(default_factory=list)
+    # The site's own "yes, turn it on" in a dialog the toggle opens the first
+    # time (free ChatGPT, 2026-10-01). Never an upgrade button.
+    think_confirm: list[str] = field(default_factory=list)
     # The model the chat is on (U2 reads it before and after each answer):
     # where, "text" or "attr:<name>", and a regex whose group 1 is the name.
     model_label: list[str] = field(default_factory=list)

@@ -419,6 +419,30 @@ async def _toggle_el(page: Page, site, in_menu: bool):
     return r.locator.first if r is not None else None
 
 
+_DIALOG = "dialog[open], [role='dialog']:visible, [role='alertdialog']:visible"
+
+
+async def _settle_toggle(page: Page, site, on_wanted: bool) -> None:
+    """What a toggle click can leave over the composer. Free ChatGPT's first
+    Think opens a dialog (Upgrade to Plus / Turn on) and a run that types
+    behind it times out (2026-10-01). Its own "Turn on" is pressed when On
+    was asked for (`think_confirm`); anything still open is closed, so the
+    run goes on either way."""
+    if on_wanted and getattr(site, "think_confirm", None):
+        ok = await resolve.resolve(page, site.think_confirm, timeout_ms=1500)
+        if ok is not None:
+            try:
+                await ok.locator.first.click(timeout=MENU_WAIT_MS)
+                await asyncio.sleep(SETTLE_S)
+            except Exception:
+                pass
+    try:
+        if await page.locator(_DIALOG).count():
+            await _close(page)
+    except Exception:
+        pass
+
+
 async def _choose_toggle(page: Page, site, want: str, in_menu: bool) -> Picked:
     on_wanted = want == "on"
     try:
@@ -435,6 +459,8 @@ async def _choose_toggle(page: Page, site, want: str, in_menu: bool) -> Picked:
         await asyncio.sleep(SETTLE_S)
         if in_menu:
             await _close(page)
+        else:
+            await _settle_toggle(page, site, on_wanted)
         el = await _toggle_el(page, site, in_menu)
         now = bool(await el.evaluate(_STATE_JS)) if el is not None else None
         if in_menu:
@@ -444,6 +470,8 @@ async def _choose_toggle(page: Page, site, want: str, in_menu: bool) -> Picked:
     except Exception:
         if in_menu:
             await _close(page)
+        else:
+            await _settle_toggle(page, site, False)
         return Picked(ok=False, note=_effort_note(site, want))
 
 

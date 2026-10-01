@@ -260,3 +260,54 @@ def test_the_route_refuses_what_a_unit_does_not_offer(tmp_path, monkeypatch):
     assert api.post("/api/units/gemini/effort", json={"value": "on"}).status_code == 200
     assert api.post("/api/units/gemini/effort", json={}).status_code == 200
     assert saved["gemini"] == ""
+
+
+# ── a toggle that opens a dialog (free ChatGPT, 2026-10-01) ──────────────
+# The first switch to Think opened "Get smarter answers -- Upgrade to Plus /
+# Turn on" over the composer, and the run timed out behind it.
+
+_DIALOG = r"""<dialog id="dlg"><p>Get smarter answers</p>
+<button id="up">Upgrade to Plus</button> <button id="on">__ON__</button></dialog>
+<script>(() => {
+  const t = [...document.querySelectorAll('[aria-pressed]')].find((x) => x.textContent.trim() === 'Think');
+  const d = document.getElementById('dlg');
+  window.__upgrade = 0;
+  t.addEventListener('click', () => { t.setAttribute('aria-pressed', 'true'); d.showModal(); });
+  document.getElementById('up').addEventListener('click', () => { window.__upgrade++; });
+  document.getElementById('on').addEventListener('click', () => d.close());
+})();</script>"""
+
+
+def _dialog_page(confirm_text="Turn on") -> str:
+    html = (FIX / "chatgpt-idle.html").read_text(encoding="utf-8")
+    return html + _DIALOG.replace("__ON__", confirm_text)
+
+
+def test_the_first_think_dialog_is_turned_on_never_upgraded():
+    site = S.site("chatgpt")
+
+    async def go(page):
+        r = await picker.choose_effort(page, site, "on")
+        return (r, await page.evaluate("document.getElementById('dlg').open"),
+                await page.evaluate("window.__upgrade"), await _state(page, site.think_toggle[0]))
+    r, still_open, upgrades, state = asyncio.run(_on(_dialog_page(), go))
+    assert r.ok and state == "true"
+    assert not still_open, "the dialog must not be left over the composer"
+    assert upgrades == 0
+
+
+def test_a_dialog_without_a_free_way_is_closed_not_clicked():
+    """No "Turn on" in it: closed with Escape so the run can type."""
+    site = S.site("chatgpt")
+
+    async def go(page):
+        await picker.choose_effort(page, site, "on")
+        return (await page.evaluate("document.getElementById('dlg').open"),
+                await page.evaluate("window.__upgrade"))
+    still_open, upgrades = asyncio.run(_on(_dialog_page("Maybe later?"), go))
+    assert not still_open and upgrades == 0
+
+
+def test_chatgpt_has_a_think_confirm_and_it_is_not_an_upgrade():
+    sels = S.site("chatgpt").think_confirm
+    assert sels and all("Turn on" in s and "Upgrade" not in s for s in sels)
