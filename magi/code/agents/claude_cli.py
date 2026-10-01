@@ -30,17 +30,23 @@ edit that stayed inside only reaches your folder as a diff you approved.
 The prompt goes in on stdin, not argv: the CLI is a .cmd shim on Windows, and
 passing arbitrary prose through cmd.exe's quoting is how a prompt containing
 `&` or `%` turns into a different command.
+
+Attached images ride the same stdin, as `--input-format stream-json`: one user
+message whose content is the prompt and then an image block per picture.
+Verified live on 2.1.286, fresh and with --resume: the model sees the image,
+and the run ends when stdin closes, as a text prompt's does.
 """
 
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import re
 import time
 from typing import Any
 
-from .base import CodingAgent, EventFn, Mode, Outcome, Result, Task
+from .base import CodingAgent, EventFn, Image, Mode, Outcome, Result, Task
 from . import limits, models, slots
 from ._proc import Stream
 
@@ -65,7 +71,8 @@ _LIMIT = re.compile(r"usage limit|limit reached|hit your limit|rate.?limit|"
 
 
 def build_argv(exe: str, task: Task, model: str | None = None,
-               effort: str | None = None, resume: str = "") -> list[str]:
+               effort: str | None = None, resume: str = "",
+               images: bool = False) -> list[str]:
     """`resume`: a Claude session id to continue (Track F). Verified live on
     this exact argv: a different cwd needs nothing extra -- the CLI finds the
     session wherever it was saved, even after that folder is gone -- and the
@@ -75,6 +82,8 @@ def build_argv(exe: str, task: Task, model: str | None = None,
             "--restricted", "--strict-mcp-config",
             "--permission-mode", "acceptEdits" if write else "plan",
             "--tools", WRITE_TOOLS if write else READ_TOOLS]
+    if images:
+        argv += ["--input-format", "stream-json"]
     if task.mcp_config is not None:
         # Read-only GitHub tools for this project, from a config file MAGI
         # wrote (never JSON through a .cmd shim's argv). Allowed by server
@@ -87,6 +96,19 @@ def build_argv(exe: str, task: Task, model: str | None = None,
     if resume:
         argv += ["--resume", resume]
     return argv
+
+
+def stdin_for(prompt: str, images: list[Image]) -> str:
+    """What goes on stdin: the prompt as it is, or -- with images -- the one
+    stream-json user message build_argv(images=True) has the CLI expect."""
+    if not images:
+        return prompt
+    content: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
+    content += [{"type": "image", "source": {"type": "base64", "media_type": im.media_type,
+                                             "data": base64.b64encode(im.data).decode()}}
+                for im in images]
+    return json.dumps({"type": "user",
+                       "message": {"role": "user", "content": content}}) + "\n"
 
 
 # A resume of a session this CLI no longer has: `result` subtype
@@ -270,9 +292,12 @@ class ClaudeCLIAgent(CodingAgent):
         too old for it -- the two refusals run() retries once."""
         resume = task.resume_for(self.id)
         prompt = task.prompt_for(self.id)
+        images = task.images_for(self.id)
         try:
-            s = Stream(build_argv(exe, task, pick.get("model"), pick.get("effort"), resume),
-                       cwd=task.root, env=env_for_task(self.slot, task), stdin_text=prompt)
+            s = Stream(build_argv(exe, task, pick.get("model"), pick.get("effort"), resume,
+                                  images=bool(images)),
+                       cwd=task.root, env=env_for_task(self.slot, task),
+                       stdin_text=stdin_for(prompt, images))
         except OSError as exc:
             return Result(Outcome.UNAVAILABLE, detail=f"Could not start Claude Code: {exc}"), ""
 

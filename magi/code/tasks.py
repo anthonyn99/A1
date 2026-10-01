@@ -72,6 +72,7 @@ class TaskState:
     github: str = ""          # the GitHub login this project pushes/pulls as
     pushing: bool = False
     attachments: list[tuple[str, str]] = field(default_factory=list)
+    images: list = field(default_factory=list)   # [agents.base.Image]
     # The project's check command (check.py), fixed when the task starts.
     check_cfg: dict[str, Any] = field(default_factory=dict)
     check_cwd: str = ""       # the copy's workspace folder, while the card is up
@@ -109,7 +110,7 @@ class TaskState:
                 "outcome": (self.result or {}).get("outcome"),
                 "write": (self.result or {}).get("write"),
                 "by": (self.result or {}).get("by_label"),
-                "attachments": [n for n, _ in self.attachments],
+                "attachments": [n for n, _ in self.attachments] + [im.name for im in self.images],
                 "approve": self.approve,
                 "session_id": self.session_id or self.id, "turn": self.turn}
 
@@ -160,12 +161,13 @@ def _prune() -> None:
 async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
                 settings, mode: str = "read", github: str = "",
                 attachments: list[tuple[str, str]] | None = None,
+                images: list | None = None,
                 check: dict[str, Any] | None = None,
                 approve: str = "manual",
                 session: followup.Session | None = None) -> TaskState:
     t = TaskState(id=uuid.uuid4().hex[:12], project_id=project_id,
                   prompt=prompt, mode=mode, root=str(root), github=github,
-                  attachments=list(attachments or []),
+                  attachments=list(attachments or []), images=list(images or []),
                   check_cfg=dict(check or {}) if mode == "write" else {},
                   approve="auto" if approve == "auto" else "manual")
     t.session_id = session.id if session else t.id
@@ -185,7 +187,7 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
             await publish(t, {"k": "start", "prompt": prompt, "mode": mode,
                               "approve": t.approve,
                               "session_id": t.session_id, "turn": t.turn,
-                              "attachments": [n for n, _ in t.attachments],
+                              "attachments": [n for n, _ in t.attachments] + [im.name for im in t.images],
                               "chain": [{"id": a.id, "label": a.label, "kind": a.kind}
                                         for a in agents]})
             pulled = await _pull_first(t, root)
@@ -222,7 +224,7 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
             task = Task(id=t.id, prompt=prompt, root=sb.cwd if sb else root,
                         mode=Mode.WRITE if sb else Mode.READ,
                         progress=sb.changed_files if sb else None, mcp_config=mcp,
-                        attachments=t.attachments, inventory=inv)
+                        attachments=t.attachments, images=t.images, inventory=inv)
             if session is not None:
                 task.session_turns = session.turns
                 task.state_note = followup.state_note(session.turns)

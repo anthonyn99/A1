@@ -3744,8 +3744,8 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 .eng-x:hover { color: var(--red); }
 .eng-x svg { width: 14px; height: 14px; }
 /* ── Code Mode ───────────────────────────────────────────────────────── */
-/* Code Mode's composer has the council's extras too: files (text only --
-   they are pasted into the agents' prompt), Refine and Queue. */
+/* Code Mode's composer has the council's extras too: files (text and
+   images -- see codeAddFiles), Refine and Queue. */
 
 /* A queued task's workspace, and Read or Write. */
 .q-ws { color: var(--txd); }
@@ -10066,7 +10066,7 @@ function renderBsChipsInto(box) {
 }
 
 function addFiles(incoming) {
-  // Code Mode keeps its own files, and only text: see codeAddFiles.
+  // Code Mode keeps its own files, text and images: see codeAddFiles.
   if (typeof codeMode === "function" && codeMode()) return codeAddFiles(incoming);
   const list = Array.from(incoming);
   if (!list.length) return;
@@ -10293,7 +10293,7 @@ function updateEnabled() {
   // Convene (one run at a time) and Refine (it drives a unit).
   $("btnAttach").disabled = S.refining
     || (coding ? CODE.attachments : S.attachments).length >= MAX_ATTACHMENTS;
-  $("btnAttach").title = coding ? "Attach text files: code, logs, notes, data"
+  $("btnAttach").title = coding ? "Attach files: code, logs, notes, data, screenshots"
     : "Attach files";
   $("composer").disabled = S.refining;
   // Only offered while the rewrite is still untouched — see the composer's
@@ -12820,8 +12820,9 @@ const CODE = {
   // Phase 12: a pressed Commit now / Cancel in flight, the re-read timer
   // while the engine commits, and which countdown has already been read.
   autoBusy: false, autoTimer: 0, autoReadFor: 0,
-  // Files in the composer for the next task: {id, file, text}. Text only --
-  // see codeAddFiles.
+  // Files in the composer for the next task: {id, file, text, image}, where
+  // image is {data (base64), size} for a picture and null for text -- see
+  // codeAddFiles.
   attachments: [],
   // Track F (F4): the session the box follows up -- see codeNewSession.
   session: { id: null, projectId: null, turns: [], pending: [] },
@@ -13574,24 +13575,51 @@ function renderCodeRw(proj) {
 
 /* ── one task ──────────────────────────────────────────────────────────── */
 /* ── attached files ────────────────────────────────────────────────────
-   Code Mode's attachments are TEXT. They are pasted into what the agents are
-   sent -- on stdin for the CLIs, in the chat box for a browser agent -- never
-   written into the workspace, where the sandbox diff would take them for
-   part of the change. So a file has to be something a model reads as
-   characters -- code, a log, a stack trace, a spec, some JSON -- and it is
-   read the moment it is added, so one that will not do is refused while you
-   are still looking at it rather than when the task starts.
+   Code Mode's attachments are TEXT or IMAGES, and neither is ever written
+   into the workspace, where the sandbox diff would take it for part of the
+   change.
 
-   The limits are the engine's (routes.py _task_attachments). */
+   Text is pasted into what the agents are sent -- on stdin for the CLIs, in
+   the chat box for a browser agent -- so it has to be something a model
+   reads as characters: code, a log, a stack trace, a spec, some JSON.
+
+   An image (a screenshot, a diagram) goes to each agent the way it takes
+   one: an image block for Claude Code, --image for Codex, an upload for a
+   browser unit. Those agree on PNG, JPEG, GIF and WebP up to 5 MB once in
+   base64 and 8000 px a side, so anything else the browser can open --
+   a BMP, an AVIF, a 4K screenshot too heavy as PNG -- is redrawn smaller
+   here, before it is sent, rather than refused by a provider mid-task.
+
+   Every file is read the moment it is added, so one that will not do is
+   refused while you are still looking at it rather than when the task
+   starts. The limits are the engine's (routes.py _task_attachments and
+   _task_images). */
 const CODE_ATT_CHARS = 100000;
 const CODE_ATT_TOTAL = 200000;
-const CODE_BINARY_EXT = /\.(png|jpe?g|gif|webp|bmp|ico|heic|avif|tiff?|psd|pdf|zip|7z|rar|gz|tgz|tar|bz2|xz|exe|msi|dll|so|dylib|bin|iso|dmg|mp[34]|m4a|aac|wav|ogg|flac|mov|avi|mkv|webm|docx?|xlsx?|pptx?|odt|woff2?|ttf|otf|eot|sqlite3?|db|pyc|class|jar|wasm)$/i;
+const CODE_IMG_BYTES = 3750000;
+const CODE_IMG_TOTAL = 15000000;
+const CODE_IMG_EDGE = 8000;
+const CODE_IMG_TYPES = /^image\/(png|jpeg|gif|webp)$/;
+const CODE_IMAGE_EXT = /\.(png|jpe?g|gif|webp|bmp|avif)$/i;
+const CODE_BINARY_EXT = /\.(ico|heic|tiff?|psd|pdf|zip|7z|rar|gz|tgz|tar|bz2|xz|exe|msi|dll|so|dylib|bin|iso|dmg|mp[34]|m4a|aac|wav|ogg|flac|mov|avi|mkv|webm|docx?|xlsx?|pptx?|odt|woff2?|ttf|otf|eot|sqlite3?|db|pyc|class|jar|wasm)$/i;
+
+/** A picture, by its type or (a paste can have none) its name. */
+function codeIsImage(file) {
+  return (/^image\//.test(file.type || "") && !CODE_BINARY_EXT.test(file.name || ""))
+    || CODE_IMAGE_EXT.test(file.name || "");
+}
 
 /** Why a file can never be a coding task's attachment, from its name, type
- *  and size alone -- or "" if it might be. The content check is codeReadText. */
+ *  and size alone -- or "" if it might be. The content check is codeReadFile. */
 function codeFileProblem(file) {
+  if (codeIsImage(file)) {
+    // Redrawn smaller if it has to be, but not from anything this size.
+    return file.size > 50 * 1024 * 1024
+      ? `${file.name} is too large to attach (${fmtBytes(file.size)}).` : "";
+  }
   if (CODE_BINARY_EXT.test(file.name || "") || /^(image|audio|video|font)\//.test(file.type || "")) {
-    return `${file.name} is not a text file. Code Mode takes code, logs and other text.`;
+    return `${file.name} is not a text file or an image. Code Mode takes code, logs, `
+      + "other text and screenshots.";
   }
   // Four bytes a character is UTF-8's worst case, so anything bigger cannot
   // fit the character limit whatever it holds.
@@ -13601,14 +13629,70 @@ function codeFileProblem(file) {
   return "";
 }
 
-/** The text of a file, or why it cannot be attached to a coding task. */
-async function codeReadText(file) {
+/** A blob's bytes as base64, without the data: URL in front. */
+function codeBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).slice(String(r.result).indexOf(",") + 1));
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(blob);
+  });
+}
+
+/** An image every agent takes, from any image the browser can open:
+ *  {image: {data, size}} or {error}. Sent as it is when it already fits;
+ *  otherwise redrawn, longest side first at full size and then smaller, as
+ *  PNG (sharp text in a screenshot) and then JPEG, until one fits. */
+async function codeReadImage(file) {
+  let bmp;
+  try { bmp = await createImageBitmap(file); } catch {
+    return { error: `${file.name} is not an image this browser can open. `
+      + "Attach a PNG, JPEG, GIF or WebP." };
+  }
+  try {
+    const w = bmp.width, h = bmp.height, long = Math.max(w, h);
+    let blob = null;
+    if (CODE_IMG_TYPES.test(file.type || "") && file.size <= CODE_IMG_BYTES
+        && long <= CODE_IMG_EDGE) {
+      blob = file;
+    }
+    const edges = [...new Set([Math.min(long, CODE_IMG_EDGE), 2560, 1920, 1280])]
+      .filter((e) => e <= Math.min(long, CODE_IMG_EDGE));
+    for (const edge of edges) {
+      if (blob) break;
+      const k = edge / long;
+      const c = document.createElement("canvas");
+      c.width = Math.max(1, Math.round(w * k));
+      c.height = Math.max(1, Math.round(h * k));
+      const g = c.getContext("2d");
+      // JPEG has no transparency; white, not black, behind a cut-out.
+      g.fillStyle = "#fff";
+      g.fillRect(0, 0, c.width, c.height);
+      g.drawImage(bmp, 0, 0, c.width, c.height);
+      for (const [type, q] of [["image/png"], ["image/jpeg", 0.88]]) {
+        const b = await new Promise((r) => c.toBlob(r, type, q));
+        if (b && b.size <= CODE_IMG_BYTES) { blob = b; break; }
+      }
+    }
+    if (!blob) return { error: `${file.name} could not be made small enough to send.` };
+    return { image: { data: await codeBase64(blob), size: blob.size } };
+  } catch {
+    return { error: `Could not read ${file.name}.` };
+  } finally {
+    bmp.close();
+  }
+}
+
+/** A file read for a coding task: {text}, {image} or {error}. */
+async function codeReadFile(file) {
   const why = codeFileProblem(file);
   if (why) return { error: why };
+  if (codeIsImage(file)) return codeReadImage(file);
   let text;
   try { text = await file.text(); } catch { return { error: `Could not read ${file.name}.` }; }
   if (text.slice(0, 8192).includes("\u0000")) {
-    return { error: `${file.name} is not a text file. Code Mode takes code, logs and other text.` };
+    return { error: `${file.name} is not a text file or an image. Code Mode takes code, `
+      + "logs, other text and screenshots." };
   }
   if (text.length > CODE_ATT_CHARS) {
     return { error: `${file.name} is too long for a coding task (${text.length.toLocaleString()} `
@@ -13626,20 +13710,37 @@ async function codeAddFiles(incoming) {
       errs.push(`Only ${MAX_ATTACHMENTS} files per task.`);
       break;
     }
-    const r = await codeReadText(file);
+    const r = await codeReadFile(file);
     if (r.error) { errs.push(r.error); continue; }
-    const total = CODE.attachments.reduce((n, a) => n + a.text.length, 0) + r.text.length;
-    if (total > CODE_ATT_TOTAL) {
-      errs.push(`${file.name} would take the attached text past `
-        + `${CODE_ATT_TOTAL.toLocaleString()} characters.`);
-      continue;
+    if (r.image) {
+      const pics = CODE.attachments.reduce((n, a) => n + (a.image ? a.image.size : 0), 0);
+      if (pics + r.image.size > CODE_IMG_TOTAL) {
+        errs.push(`${file.name} would take the attached images past ${fmtBytes(CODE_IMG_TOTAL)}.`);
+        continue;
+      }
+    } else {
+      const total = CODE.attachments.reduce((n, a) => n + a.text.length, 0) + r.text.length;
+      if (total > CODE_ATT_TOTAL) {
+        errs.push(`${file.name} would take the attached text past `
+          + `${CODE_ATT_TOTAL.toLocaleString()} characters.`);
+        continue;
+      }
     }
     CODE.attachments.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-                            file, text: r.text });
+                            file, text: r.text || "", image: r.image || null });
   }
   setErr("attachError", errs.length ? errs.join(" ") : null);
   renderChips();
   updateEnabled();
+}
+
+/** {name, text} and {name, data} for POST /tasks, from read attachments
+ *  ({file, text, image}). */
+function codeSplitAtts(list) {
+  return {
+    atts: list.filter((a) => !a.image).map((a) => ({ name: a.file.name, text: a.text })),
+    imgs: list.filter((a) => a.image).map((a) => ({ name: a.file.name, data: a.image.data })),
+  };
 }
 
 /** POST /tasks's body, with its files.
@@ -13647,12 +13748,21 @@ async function codeAddFiles(incoming) {
  *  An engine from before attachments ignores the field -- which would drop the
  *  files without a word -- so for one of those they are folded into the
  *  prompt itself, as long as that still fits the 20,000 characters such an
- *  engine keeps. Throws, with the reason, when it does not. */
-function codeTaskBody(base, atts) {
+ *  engine keeps. Throws, with the reason, when it does not. Images have no
+ *  such fallback: an engine from before them is refused here, not sent a
+ *  task whose picture it would silently drop. */
+function codeTaskBody(base, atts, imgs = []) {
   const feats = (CODE.state && CODE.state.features) || [];
   if (base.approve && (base.mode !== "write" || !feats.includes("auto_approve"))) {
     base = { ...base };
     delete base.approve;
+  }
+  if (imgs && imgs.length) {
+    if (!feats.includes("images")) {
+      throw new Error("The engine has not updated yet and cannot take images. "
+        + "It updates itself when idle; try again in a few minutes, or restart it.");
+    }
+    base = { ...base, images: imgs };
   }
   if (!atts || !atts.length) return base;
   if (feats.includes("attachments")) return { ...base, attachments: atts };
@@ -13898,10 +14008,10 @@ async function codeStartTurn(q, { followup = false, auto = false } = {}) {
   const sess = followup ? CODE.session : codeNewSession(proj.id);
   const base = { project_id: proj.id, prompt: q, agents, mode: CODE.rw, approve: CODE.ap };
   if (followup) base.session = codeSessionBody(sess, codeEngineId());
+  const { atts, imgs } = codeSplitAtts(auto ? [] : CODE.attachments);
   let d;
   try {
-    d = await codePost("/tasks", codeTaskBody(base, auto ? []
-      : CODE.attachments.map((a) => ({ name: a.file.name, text: a.text }))));
+    d = await codePost("/tasks", codeTaskBody(base, atts, imgs));
   } catch (e) {
     CODE.err = `Could not start the task: ${e.message || e}`;
     renderCodeView();
@@ -24121,7 +24231,7 @@ function queueEdit(id) {
         setErrEl(`Only ${MAX_ATTACHMENTS} attachments per prompt.`);
         break;
       }
-      // A task's files are pasted into its prompt, so they must be text.
+      // A task's files must be text or images (codeFileProblem).
       const why = isCode ? codeFileProblem(f)
         : f.size > MAX_ATTACHMENT_BYTES ? `${f.name} exceeds the 20MB limit.` : "";
       if (why) { setErrEl(why); continue; }
@@ -25159,17 +25269,18 @@ async function codeQueueRun(it, files, gen, onStart) {
     await codeLoad(true);
     for (let i = 0; CODE.loading && i < 40; i++) await _sleep(500);
   }
-  const atts = [];
+  const read = [];
   for (const f of files) {
-    const r = await codeReadText(f);
+    const r = await codeReadFile(f);
     if (r.error) return { ok: false, error: r.error };
-    atts.push({ name: f.name, text: r.text });
+    read.push({ file: f, text: r.text || "", image: r.image || null });
   }
+  const { atts, imgs } = codeSplitAtts(read);
   let d;
   try {
     d = await codePost("/tasks", codeTaskBody(
       { project_id: it.pid, prompt: it.q, agents: it.agents || [], mode: it.rw || "read",
-        approve: it.ap === "auto" ? "auto" : "manual" }, atts));
+        approve: it.ap === "auto" ? "auto" : "manual" }, atts, imgs));
   } catch (e) {
     return { ok: false, error: (e && e.message) || "could not start" };
   }

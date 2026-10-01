@@ -35,10 +35,13 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import shutil
 import time
+import uuid
+from pathlib import Path
 from typing import Any
 
-from .base import CodingAgent, EventFn, Mode, Outcome, Result, Task
+from .base import CodingAgent, EventFn, Mode, Outcome, Result, Task, stage_images
 from . import limits, models, slots
 from ._proc import Stream
 
@@ -84,9 +87,20 @@ WRITE_CONFIG = ("windows.sandbox=unelevated",
 
 
 def build_argv(exe: str, task: Task, model: str | None = None,
-               effort: str | None = None, resume: str = "") -> list[str]:
+               effort: str | None = None, resume: str = "",
+               images: list[Path] | None = None) -> list[str]:
+    """`images`: files to attach to the prompt (staged outside the workspace;
+    Codex reads them itself, before any sandbox applies). A fresh run takes
+    them as `exec --image` -- placed first, because exec's --image takes
+    several values and would swallow a positional after it -- and a resume
+    as the `resume` subcommand's own --image, which takes one each. Both
+    forms verified to parse on 0.159.3."""
     sandbox = "read-only" if task.mode == Mode.READ else "workspace-write"
-    argv = [exe, "exec", "--json", "--sandbox", sandbox, "--skip-git-repo-check",
+    argv = [exe, "exec"]
+    if not resume:
+        for p in images or []:
+            argv += ["--image", str(p)]
+    argv += ["--json", "--sandbox", sandbox, "--skip-git-repo-check",
             "--ignore-user-config", "--ignore-rules",
             "-C", str(task.root)]
     for f in DISABLED_FEATURES:
@@ -100,6 +114,8 @@ def build_argv(exe: str, task: Task, model: str | None = None,
         argv += ["-c", f"model_reasoning_effort={effort}"]
     if resume:
         argv += ["resume", resume]
+        for p in images or []:
+            argv += ["--image", str(p)]
     argv.append("-")
     return argv
 
@@ -323,7 +339,20 @@ class CodexCLIAgent(CodingAgent):
         exe = slots.cli_path("codex")
         if not exe:
             return Result(Outcome.UNAVAILABLE, detail="Codex CLI is not installed.")
+        images = task.images_for(self.id)
+        if not images:
+            return await self._run(exe, task, [], emit=emit, cancel=cancel)
+        from ...settings import data_dir
+        stage = data_dir() / "code_uploads" / f"{task.id}-codex-{uuid.uuid4().hex[:6]}"
+        try:
+            paths = await asyncio.get_running_loop().run_in_executor(
+                None, stage_images, images, stage)
+            return await self._run(exe, task, paths, emit=emit, cancel=cancel)
+        finally:
+            shutil.rmtree(stage, ignore_errors=True)
 
+    async def _run(self, exe: str, task: Task, images: list[Path], *, emit: EventFn,
+                   cancel: asyncio.Event) -> Result:
         pick = self._pick(task)
         if pick.get("note"):
             await emit({"k": "note", "text": pick["note"]})
@@ -334,7 +363,8 @@ class CodexCLIAgent(CodingAgent):
         if task.mode == Mode.READ:
             prompt = f"{READ_HINT}\n\n{prompt}"
         try:
-            s = Stream(build_argv(exe, task, pick.get("model"), pick.get("effort"), resume),
+            s = Stream(build_argv(exe, task, pick.get("model"), pick.get("effort"), resume,
+                                  images),
                        cwd=task.root, env=slots.env_for("codex", self.slot), stdin_text=prompt)
         except OSError as exc:
             return Result(Outcome.UNAVAILABLE, detail=f"Could not start Codex: {exc}")

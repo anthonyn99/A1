@@ -78,7 +78,7 @@ async def code_state() -> dict[str, Any]:
         # files silently dropped by an engine that ignores the field.
         # Track F: `followup` = POST /tasks takes `session`; `steer` =
         # POST /tasks/{id}/message exists.
-        "features": ["attachments", "auto_approve", "followup", "steer"],
+        "features": ["attachments", "auto_approve", "followup", "steer", "images"],
     }
 
 
@@ -707,6 +707,54 @@ def _task_attachments(raw: Any) -> tuple[list[tuple[str, str]], str]:
     return out, ""
 
 
+# An image's bytes become base64 on the way to Claude, which grows them by a
+# third, and the API refuses an image over 5 MB of that. The console scales
+# a bigger screenshot down before it gets here.
+MAX_IMAGE_BYTES = 3_750_000
+MAX_IMAGES_TOTAL = 15_000_000
+
+
+def _task_images(raw: Any, room: int = MAX_TASK_ATTACHMENTS) -> tuple[list, str]:
+    """[{name, data: base64}] from the console -> ([Image], refusal or "").
+
+    The type is read from the bytes, never taken from the name or the
+    browser: every agent is told what the image is, and a mislabelled one is
+    refused by the provider halfway through the task. `room` is how many
+    files the text attachments left.
+    """
+    import base64
+    import binascii
+    from .agents.base import IMAGE_TYPES, Image, sniff_image
+    if not raw:
+        return [], ""
+    if not isinstance(raw, list):
+        return [], "Images must be a list."
+    if len(raw) > room:
+        return [], f"At most {MAX_TASK_ATTACHMENTS} files per task, images included."
+    out = []
+    total = 0
+    for a in raw:
+        if not isinstance(a, dict):
+            return [], "An image is not a file."
+        name = " ".join(str(a.get("name") or "").split())[:200] or "image"
+        try:
+            data = base64.b64decode(str(a.get("data") or ""), validate=True)
+        except (binascii.Error, ValueError):
+            return [], f"{name} did not arrive intact."
+        kind = sniff_image(data)
+        if kind not in IMAGE_TYPES:
+            return [], f"{name} is not a PNG, JPEG, GIF or WebP image."
+        if len(data) > MAX_IMAGE_BYTES:
+            return [], (f"{name} is too large ({len(data):,} bytes; the limit is "
+                        f"{MAX_IMAGE_BYTES:,}).")
+        total += len(data)
+        out.append(Image(name=name, media_type=kind, data=data))
+    if total > MAX_IMAGES_TOTAL:
+        return [], (f"The attached images add up to {total:,} bytes; "
+                    f"the limit is {MAX_IMAGES_TOTAL:,}.")
+    return out, ""
+
+
 @router.post("/tasks")
 async def start_task(body: dict = Body(...)) -> dict[str, Any]:
     """Run a task through the chain.
@@ -748,6 +796,9 @@ async def start_task(body: dict = Body(...)) -> dict[str, Any]:
     atts, why = _task_attachments(body.get("attachments"))
     if why:
         return {"ok": False, "error": "attachments", "message": why}
+    images, why = _task_images(body.get("images"), MAX_TASK_ATTACHMENTS - len(atts))
+    if why:
+        return {"ok": False, "error": "attachments", "message": why}
     # Track F: a follow-up turn of a session -- its earlier turns and the
     # CLI session to resume, from the console (followup.parse_session).
     from . import followup as _followup
@@ -760,7 +811,7 @@ async def start_task(body: dict = Body(...)) -> dict[str, Any]:
     t = await _tasks.start(project_id=p["id"], root=root, prompt=prompt[:20000],
                            order=order, settings=_settings(), mode=mode,
                            github=str((p.get("prefs") or {}).get("github") or ""),
-                           attachments=atts, check=_check.get(p["id"]),
+                           attachments=atts, images=images, check=_check.get(p["id"]),
                            approve="auto" if body.get("approve") == "auto" else "manual",
                            session=session)
     await _db().touch_code_binding(p["id"], eng)
