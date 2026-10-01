@@ -392,6 +392,34 @@ def parse_needs(reply: str) -> list[str] | None:
     return out[:10]
 
 
+_ADMITS = re.compile(
+    r"\b(did not|didn't|do not|don't|could not|couldn't|cannot|can't)\s+"
+    r"(have|see|get|access|open|read)\b|\bnot (attached|included|shown|provided)\b"
+    r"|\binferred\b|\bwithout seeing\b", re.I)
+_MENTION = re.compile(r"`([^`\s]{3,200})`")
+
+
+def missing_mentions(reply: str, files: list[str], shown: set[str]) -> list[str]:
+    """Files an ANSWER says it lacked: backticked names in it that are real
+    files in the workspace and were not sent -- but only when it admits to
+    lacking something. Units follow `NEED:` loosely; told "I did not have
+    ai.js, so this is inferred", MAGI sends ai.js rather than accept a guess."""
+    if not _ADMITS.search(reply or ""):
+        return []
+    by_name: dict[str, list[str]] = {}
+    for f in files:
+        by_name.setdefault(f.rsplit("/", 1)[-1], []).append(f)
+    out: list[str] = []
+    for tok in _MENTION.findall(reply):
+        while tok.startswith("./"):
+            tok = tok[2:]
+        hits = [tok] if tok in files else (by_name.get(tok, []) if "/" not in tok else
+                                          [f for f in files if f.endswith("/" + tok)])
+        if len(hits) == 1 and hits[0] not in shown and hits[0] not in out:
+            out.append(hits[0])
+    return out[:10]
+
+
 @dataclass
 class Request:
     asked: str

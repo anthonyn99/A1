@@ -610,6 +610,40 @@ def test_asking_again_for_nothing_new_ends_the_requests(tmp_path, monkeypatch):
     assert len(unit.asks) == 3 and "last round" in unit.asks[2]["prompt"]
 
 
+def test_missing_mentions_need_an_admission_and_a_real_unsent_file():
+    files = ["V1/js/modules/ai.js", "V1/js/modules/breakdown.js", "a/x.js", "b/x.js"]
+    said = "I did not have `ai.js` or `x.js` or `nope.js`, so this is inferred. `breakdown.js` too."
+    assert context.missing_mentions(said, files, {"V1/js/modules/breakdown.js"}) == \
+        ["V1/js/modules/ai.js"]                        # x.js is ambiguous, nope.js unreal
+    assert context.missing_mentions("It is in `ai.js`.", files, set()) == []   # no admission
+
+
+def test_an_answer_that_admits_missing_files_gets_them_once(tmp_path, monkeypatch):
+    root = _repo(tmp_path)
+    (root / "pipeline.py").write_text("studyos_pipeline = 1\n", encoding="utf-8")
+    (root / "ai.py").write_text("def render(): pass\n", encoding="utf-8")
+    res, unit, events = _run_unit(monkeypatch, tmp_path, root, [
+        _Ans("I did not have `ai.py`, so its part is inferred. Long answer."),
+        _Ans("Full answer using ai.py."),
+    ])
+    assert res.text == "Full answer using ai.py." and len(unit.asks) == 2
+    assert "ai.py.txt" in unit.asks[1]["files"]
+    assert "said it did not have some files" in unit.asks[1]["prompt"]
+    assert {"k": "tool", "name": "Read", "target": "ai.py"} in events
+
+
+def test_the_first_answer_stands_if_the_follow_up_fails(tmp_path, monkeypatch):
+    from magi.errors import FailureKind
+    root = _repo(tmp_path)
+    (root / "pipeline.py").write_text("studyos_pipeline = 1\n", encoding="utf-8")
+    (root / "ai.py").write_text("x\n", encoding="utf-8")
+    first = "I did not have `ai.py`; inferred."
+    res, unit, _ = _run_unit(monkeypatch, tmp_path, root, [
+        _Ans(first), _Ans("", ok=False, failure=FailureKind.TIMEOUT, detail="timeout"),
+    ])
+    assert res.outcome == Outcome.OK and res.text == first
+
+
 def test_a_site_that_cannot_take_files_gets_them_pasted(tmp_path, monkeypatch):
     from magi.errors import FailureKind
     root = _repo(tmp_path)
