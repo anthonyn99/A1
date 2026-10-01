@@ -310,11 +310,20 @@ def menu(provider) -> dict:
     site = getattr(provider, "site", None)
     pickable = bool(site is not None and picker.has_picker(site))
     seen = accounts.models_seen(provider.id) if pickable else {}
+    # Effort / thinking, the other half of the pick (2026-10-01): its own
+    # control on four sites, whether or not they have a model menu.
+    kind = picker.effort_kind(site) if site is not None else ""
     return {
         "pickable": pickable,
         "pick": accounts.model_choice(provider.id) if pickable else {},
         "models": (seen.get("options") if seen else picker.known(site)) if pickable else [],
         "models_at": seen.get("at") if seen else None,
+        "effort": {
+            "kind": kind,
+            "label": picker.effort_label(site) if kind else "",
+            "options": picker.effort_options(site) if kind else [],
+            "pick": accounts.effort_choice(provider.id) if kind else "",
+        },
     }
 
 

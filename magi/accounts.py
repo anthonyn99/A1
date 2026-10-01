@@ -374,6 +374,26 @@ def set_model(site_id: str, opt: dict | None) -> dict:
     return model_choice(site_id)
 
 
+def effort_choice(site_id: str) -> str:
+    """The effort / thinking this unit is asked for: a level name, "on" or
+    "off", or "" for Site default (picker.effort_kind)."""
+    v = (_load().get(site_id) or {}).get("effort")
+    return str(v).strip() if isinstance(v, str) else ""
+
+
+def set_effort(site_id: str, value: str | None) -> str:
+    """Save an effort / thinking choice; "" or None is Site default."""
+    state = _load()
+    entry = state.setdefault(site_id, {})
+    v = str(value or "").strip()[:20]
+    if v:
+        entry["effort"] = v
+    else:
+        entry.pop("effort", None)
+    _save(state)
+    return effort_choice(site_id)
+
+
 def models_seen(site_id: str) -> dict:
     """The options a Refresh last read from this account: {"options", "at"}."""
     m = (_load().get(site_id) or {}).get("models") or {}

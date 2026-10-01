@@ -273,5 +273,195 @@ def forget(site_id: str | None = None) -> None:
     """Drop the remembered confirmations (a new pick, or tests)."""
     if site_id is None:
         _CONFIRMED.clear()
+        _EFFORT_OK.clear()
     else:
         _CONFIRMED.pop(site_id, None)
+        _EFFORT_OK.pop(site_id, None)
+
+
+# ── effort / thinking, part of the pick (2026-10-01) ────────────────────────
+# Four sites have one, in three shapes (U1 recon, config/selectors.yaml):
+#   levels       Claude: the model menu's "Effort" submenu, Low..Max,
+#                menuitemradios with aria-checked on the current one.
+#   menu_toggle  Gemini: "Extended thinking", an item in the mode menu that
+#                carries the same "Selected" check as the modes.
+#   toggle       ChatGPT's Think, DeepSeek's DeepThink: an aria-pressed
+#                button by the composer.
+# A choice is "" (Site default: leave it), a level name, or "on"/"off".
+# The same rule as the model: it never fails a run, and it is confirmed on
+# the control's own state, read again after the click.
+
+EFFORT_LEVELS = ("Low", "Medium", "High", "Extra", "Max")
+
+# Whether a control is on: aria-pressed / aria-checked, or Gemini's check
+# icon ("Selected") inside the item.
+_STATE_JS = """(e) => {
+  const a = e.getAttribute("aria-pressed") ?? e.getAttribute("aria-checked");
+  if (a === "true" || a === "false") return a === "true";
+  return !!e.querySelector("[aria-label='Selected']");
+}"""
+
+# (site id) -> the choice last confirmed, so a steady-state run opens no menu.
+_EFFORT_OK: dict[str, str] = {}
+
+
+def effort_kind(site) -> str:
+    """'levels', 'menu_toggle', 'toggle', or '' (nothing to choose)."""
+    if getattr(site, "effort_open", None) and getattr(site, "effort_option", None) and has_picker(site):
+        return "levels"
+    if getattr(site, "think_toggle", None):
+        # Inside the model menu (Gemini) when its selector starts there.
+        menu = [s for s in site.think_toggle if any(s.startswith(o.split(" ")[0]) for o in site.model_option)]
+        return "menu_toggle" if menu and has_picker(site) else "toggle"
+    return ""
+
+
+def effort_options(site) -> list[str]:
+    k = effort_kind(site)
+    return list(EFFORT_LEVELS) if k == "levels" else ["on", "off"] if k else []
+
+
+def effort_label(site) -> str:
+    """What the console calls it on this unit."""
+    k = effort_kind(site)
+    if k == "levels":
+        return "Effort"
+    if site.id == "gemini":
+        return "Extended thinking"
+    if site.id == "deepseek":
+        return "DeepThink"
+    return "Think" if k else ""
+
+
+def _effort_note(site, want: str, why: str = "") -> str:
+    what = effort_label(site)
+    asked = f"{what} {want.lower()}" if effort_kind(site) != "levels" else f"{want} effort"
+    return f"Asked for {asked}, left as the site had it" + (f" ({why})" if why else "")
+
+
+async def _level_rows(page: Page, site) -> list[tuple[str, bool, object]]:
+    """(name, checked, element) for each visible Effort option."""
+    out = []
+    for css in site.effort_option:
+        try:
+            loc = page.locator(css)
+            n = await loc.count()
+        except Exception:
+            continue
+        for i in range(n):
+            el = loc.nth(i)
+            try:
+                if not await el.is_visible():
+                    continue
+                name = (await el.evaluate(_OPTION_JS, {"selected": [], "locked": []}))["name"]
+                on = await el.evaluate(_STATE_JS)
+            except Exception:
+                continue
+            out.append((name, bool(on), el))
+    return out
+
+
+async def _open_effort(page: Page, site) -> bool:
+    if not await _open(page, site):
+        return False
+    sub = await resolve.resolve(page, site.effort_open, timeout_ms=MENU_WAIT_MS)
+    if sub is None:
+        return False
+    try:
+        await sub.locator.first.hover(timeout=MENU_WAIT_MS)
+        await asyncio.sleep(SETTLE_S)
+    except Exception:
+        return False
+    return bool(await _level_rows(page, site))
+
+
+def _level_match(name: str, want: str) -> bool:
+    return name.strip().lower().startswith(want.strip().lower())
+
+
+async def _choose_level(page: Page, site, want: str) -> Picked:
+    try:
+        if not await _open_effort(page, site):
+            await _close(page)
+            return Picked(ok=False, note=_effort_note(site, want, "its Effort menu did not open"))
+        rows = await _level_rows(page, site)
+        hit = next((r for r in rows if _level_match(r[0], want)), None)
+        if hit is None:
+            await _close(page)
+            return Picked(ok=False, note=_effort_note(site, want, "not offered"))
+        if hit[1]:
+            await _close(page)
+            return Picked(ok=True)
+        try:
+            await hit[2].click(timeout=MENU_WAIT_MS)
+        except Exception:
+            await _close(page)
+            return Picked(ok=False, note=_effort_note(site, want))
+        await asyncio.sleep(SETTLE_S)
+        await _close(page)
+        # Confirm on the submenu's own check, as the model is.
+        if not await _open_effort(page, site):
+            await _close(page)
+            return Picked(ok=False, note=_effort_note(site, want, "could not confirm it"))
+        rows = await _level_rows(page, site)
+        await _close(page)
+        ok = any(_level_match(n, want) and on for n, on, _ in rows)
+        return Picked(ok=ok, changed=ok, note="" if ok else _effort_note(site, want))
+    except Exception:
+        await _close(page)
+        return Picked(ok=False, note=_effort_note(site, want))
+
+
+async def _toggle_el(page: Page, site, in_menu: bool):
+    if in_menu and not await _open(page, site):
+        return None
+    r = await resolve.resolve(page, site.think_toggle, timeout_ms=MENU_WAIT_MS)
+    return r.locator.first if r is not None else None
+
+
+async def _choose_toggle(page: Page, site, want: str, in_menu: bool) -> Picked:
+    on_wanted = want == "on"
+    try:
+        el = await _toggle_el(page, site, in_menu)
+        if el is None:
+            if in_menu:
+                await _close(page)
+            return Picked(ok=False, note=_effort_note(site, want, f"no {effort_label(site)} control"))
+        if bool(await el.evaluate(_STATE_JS)) == on_wanted:
+            if in_menu:
+                await _close(page)
+            return Picked(ok=True)
+        await el.click(timeout=MENU_WAIT_MS)
+        await asyncio.sleep(SETTLE_S)
+        if in_menu:
+            await _close(page)
+        el = await _toggle_el(page, site, in_menu)
+        now = bool(await el.evaluate(_STATE_JS)) if el is not None else None
+        if in_menu:
+            await _close(page)
+        ok = now == on_wanted
+        return Picked(ok=ok, changed=ok, note="" if ok else _effort_note(site, want))
+    except Exception:
+        if in_menu:
+            await _close(page)
+        return Picked(ok=False, note=_effort_note(site, want))
+
+
+async def choose_effort(page: Page, site, want: str) -> Picked:
+    """Put this chat's effort / thinking on `want` ("" = leave it). Never
+    raises; a confirmed choice is remembered so the next run opens nothing."""
+    want = (want or "").strip()
+    kind = effort_kind(site)
+    if not want or not kind:
+        return Picked(ok=True)
+    if _EFFORT_OK.get(site.id) == want and kind != "toggle":
+        # A menu costs clicks; a toggle by the composer is read for free and
+        # some sites reset it per chat, so it is always checked.
+        return Picked(ok=True)
+    if kind == "levels":
+        r = await _choose_level(page, site, want)
+    else:
+        r = await _choose_toggle(page, site, want, in_menu=(kind == "menu_toggle"))
+    if r.ok:
+        _EFFORT_OK[site.id] = want
+    return r
