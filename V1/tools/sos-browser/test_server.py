@@ -527,5 +527,50 @@ finally:
     server._reels_unfixable.clear()
 
 
+# ── Slides → PDF ──────────────────────────────────────────────────────────────
+# PowerPoint is stubbed; UPLOADS points at a temp dir, never the real one.
+print("\nslides → pdf: converted once, checked, never guessed")
+_orig_up, _orig_export = server.UPLOADS, server._powerpoint_export
+_tmp_up = Path(_tempfile.mkdtemp(prefix="sos-test-uploads-"))
+server.UPLOADS = _tmp_up
+_exports = []
+try:
+    def _fake_export(src, out):
+        _exports.append(src)
+        out.write_bytes(b"%PDF-1.7 fake")
+    server._powerpoint_export = _fake_export
+    p1 = server.convert_to_pdf(b"deck-bytes", "Ch 2 (part 1).pptx")
+    t("a deck converts to a PDF under uploads/converted",
+      p1.exists() and p1.parent == _tmp_up / "converted" and p1.read_bytes().startswith(b"%PDF-"))
+    t("the source is stored under a safe name", _exports and " " not in _exports[0].name, _exports)
+    p2 = server.convert_to_pdf(b"deck-bytes", "renamed.pptx")
+    t("the same bytes again are a cache hit, not a second export",
+      p2 == p1 and len(_exports) == 1, len(_exports))
+    server.convert_to_pdf(b"other-deck", "x.pptx")
+    t("different bytes convert again", len(_exports) == 2)
+
+    server._powerpoint_export = lambda src, out: out.write_bytes(b"<html>nope")
+    try:
+        server.convert_to_pdf(b"bad-deck", "bad.pptx"); _err = None
+    except server.ConvertError as e:
+        _err = e
+    t("output that is not a PDF is an error", _err is not None)
+    _bad = server.hashlib.sha256(b"bad-deck").hexdigest()[:16]
+    t("...and is not cached",
+      not [p for p in (_tmp_up / "converted").iterdir() if p.name.startswith(_bad)])
+
+    def _raise(src, out):
+        raise server.ConvertError("PowerPoint is not installed on this PC")
+    server._powerpoint_export = _raise
+    try:
+        server.convert_to_pdf(b"no-pp", "x.pptx"); _err = None
+    except server.ConvertError as e:
+        _err = e
+    t("a missing PowerPoint surfaces as ConvertError", _err and "not installed" in str(_err))
+finally:
+    server.UPLOADS, server._powerpoint_export = _orig_up, _orig_export
+    _shutil.rmtree(_tmp_up, ignore_errors=True)
+
+
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

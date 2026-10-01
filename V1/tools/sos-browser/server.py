@@ -165,6 +165,90 @@ def is_retryable(kind: str, job: dict) -> bool:
 #   bad_input
 #       The source file is gone. Running again will not bring it back.
 
+# ── Slides → PDF ──────────────────────────────────────────────────────────────
+# The topic breakdown reads PDFs only (pdf.js: page text, the checks, figure
+# pages). A .pptx reaches it as the PDF PowerPoint exports — the real slides,
+# figures and all — so every check runs unchanged. Content-addressed: the same
+# deck is converted once, ever.
+CONVERT_TIMEOUT = 180
+
+
+class ConvertError(Exception):
+    pass
+
+
+_convert_lock = threading.Lock()     # one PowerPoint export at a time
+
+
+def _ps_quote(p: Path) -> str:
+    return "'" + str(p).replace("'", "''") + "'"
+
+
+def _powerpoint_export(src: Path, out: Path) -> None:
+    """PowerPoint (COM, via PowerShell) saves `src` as a PDF at `out`.
+
+    Quits PowerPoint only if this call started it: a deck she has open stays
+    open."""
+    script = (
+        "$ErrorActionPreference = 'Stop'; "
+        "$was = @(Get-Process POWERPNT -ErrorAction SilentlyContinue).Count; "
+        "try { $pp = New-Object -ComObject PowerPoint.Application } "
+        "catch { Write-Output 'NO_POWERPOINT'; exit 3 }; "
+        # Open(FileName, ReadOnly=msoTrue, Untitled=msoFalse, WithWindow=msoFalse)
+        f"$p = $pp.Presentations.Open({_ps_quote(src)}, -1, 0, 0); "
+        "try { "
+        f"  $p.SaveAs({_ps_quote(out)}, 32) "          # 32 = ppSaveAsPDF
+        "} finally { $p.Close() }; "
+        "if ($was -eq 0 -and $pp.Presentations.Count -eq 0) { $pp.Quit() }; "
+        "Write-Output 'ok'"
+    )
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    try:
+        r = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+                           capture_output=True, text=True, timeout=CONVERT_TIMEOUT,
+                           creationflags=flags)
+    except subprocess.TimeoutExpired:
+        raise ConvertError(f"PowerPoint took over {CONVERT_TIMEOUT}s to export the slides")
+    except FileNotFoundError:
+        raise ConvertError("PowerShell is not available on this PC")
+    said = ((r.stdout or "") + (r.stderr or "")).strip()
+    if "NO_POWERPOINT" in said:
+        raise ConvertError("PowerPoint is not installed on this PC, so its slides cannot be "
+                           "turned into a PDF. Export the deck to PDF yourself and upload that.")
+    if r.returncode != 0:
+        raise ConvertError("PowerPoint could not export the slides: " + said[-400:])
+
+
+def convert_to_pdf(raw: bytes, name: str) -> Path:
+    """The PDF of a slide deck's bytes, converting only on a cache miss."""
+    digest = hashlib.sha256(raw).hexdigest()[:16]
+    out_dir = UPLOADS / "converted"
+    out = out_dir / f"{digest}.pdf"
+    with _convert_lock:
+        if out.exists() and out.stat().st_size > 0:
+            return out
+        out_dir.mkdir(parents=True, exist_ok=True)
+        safe = re.sub(r"[^\w.\-]", "_", name or "slides.pptx")
+        if not re.search(r"\.(pptx?|ppsx?)$", safe, re.I):
+            safe += ".pptx"
+        src = UPLOADS / f"{digest}-{safe}"
+        if not src.exists() or src.stat().st_size != len(raw):
+            src.write_bytes(raw)
+        tmp = out_dir / f"{digest}.part.pdf"
+        tmp.unlink(missing_ok=True)
+        _powerpoint_export(src, tmp)
+        # Checked, not assumed: a PDF, and not an empty one.
+        try:
+            head = tmp.read_bytes()[:5] if tmp.exists() else b""
+        except OSError:
+            head = b""
+        if head != b"%PDF-":
+            tmp.unlink(missing_ok=True)
+            raise ConvertError("PowerPoint did not produce a PDF")
+        tmp.replace(out)
+        return out
+
+
 _jobs: dict[str, dict] = {}
 _lock = threading.Lock()
 _queue: list[str] = []
@@ -762,7 +846,7 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/health":
             return self._send({"ok": True, "bridge": "sos-browser",
                                "driver": True, "jobs": len(_jobs),
-                               "modes": list(MODES)})
+                               "modes": list(MODES), "convert": True})
         if p == "/api/ai/budget":
             # A subscription, not per-token billing. Reported as zero spend with
             # no cap so the UI's budget line stays truthful rather than fake.
@@ -834,6 +918,9 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/ai/jobs/adopt":
             return self._adopt(body)
 
+        if p == "/api/convert/pdf":
+            return self._convert(body)
+
         m = re.match(r"^/api/ai/jobs/([\w.-]+)/filed$", p)
         if m:
             # The app has written this result into a class. Recorded so a later
@@ -867,6 +954,25 @@ class Handler(BaseHTTPRequestHandler):
             _jobs.pop(m.group(1), None)
             _save()
         return self._send({"ok": True, "deleted": m.group(1)})
+
+    def _convert(self, body):
+        """A slide deck (base64) → its PDF's bytes. See convert_to_pdf."""
+        try:
+            raw = base64.b64decode(body.get("fileB64") or "", validate=True)
+        except Exception as e:
+            return self._send({"ok": False, "error": f"bad file: {e}"}, 400)
+        if not raw:
+            return self._send({"ok": False, "error": "no file"}, 400)
+        name = body.get("sourceName") or "slides.pptx"
+        try:
+            out = convert_to_pdf(raw, name)
+            data = out.read_bytes()
+        except ConvertError as e:
+            return self._send({"ok": False, "error": str(e)}, 422)
+        except OSError as e:
+            return self._send({"ok": False, "error": f"could not convert: {e}"}, 500)
+        pdf_name = re.sub(r"[^\w.\-]", "_", re.sub(r"\.\w+$", "", name)) + ".pdf"
+        return self._send_bytes(data, "application/pdf", pdf_name)
 
     def _adopt(self, body):
         """File a deck that was downloaded BY HAND into a class.

@@ -739,12 +739,17 @@ function deviceId() {
   } catch (e) { return 'd-unknown'; }
 }
 
-const isPdf = (f) => /pdf/i.test(f && f.mime || '') || /\.pdf$/i.test(f && f.name || '');
-
+/* The document as a PDF. A slide deck is the PDF PowerPoint exports (via the
+ * bridge), so everything below — page text, checks, figures — is unchanged.
+ * A conversion failure is a setup problem: it stops the run before any ask. */
 async function sourceOf(file) {
-  const b64 = await pipeline.fileB64Of(file);
+  const slides = pipeline.isSlidesFile(file);
+  let b64;
+  try { b64 = await pipeline.pdfOf(file); }
+  catch (e) { throw new ai.AIError((e && e.message) || String(e), { kind: slides ? 'setup' : 'bad_input' }); }
   if (!b64) throw new ai.AIError('Could not read this file on this device.', { kind: 'bad_input' });
-  return { b64, name: file.name || 'source.pdf', size: Math.floor(b64.length * 3 / 4) };
+  const name = slides ? (file.name || 'slides').replace(/\.\w+$/, '') + '.pdf' : (file.name || 'source.pdf');
+  return { b64, name, size: Math.floor(b64.length * 3 / 4) };
 }
 
 // Providers whose API takes no PDF: the document reaches them as page text.
@@ -838,7 +843,7 @@ async function withFallback(make, hasAttachments, what) {
 export function run(classId, moduleId, file, opts = {}) {
   if (!file || !file.id) return Promise.reject(new Error('file required'));
   if (_running.has(file.id)) return _running.get(file.id);
-  if (!isPdf(file)) return Promise.reject(new ai.AIError('Topic breakdown reads PDFs — convert this file to PDF first.', { kind: 'bad_input' }));
+  if (!pipeline.isBreakable(file)) return Promise.reject(new ai.AIError('Topic breakdown reads PDFs and PowerPoint slides — convert this file to PDF first.', { kind: 'bad_input' }));
   const p = (async () => {
     try { return await runInner(classId, moduleId, file, opts); }
     finally { _running.delete(file.id); emit(file.id); }

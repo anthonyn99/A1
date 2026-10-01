@@ -131,10 +131,23 @@ console.log('\nthe document row');
 const rows = await evalJs(`(function(){
   var btns = Array.from(document.querySelectorAll('[data-act="breakdown"]'));
   return { n: btns.length, label: btns[0] && btns[0].textContent, file: btns[0] && btns[0].dataset.bdFile,
+           file2: btns[1] && btns[1].dataset.bdFile, label2: btns[1] && btns[1].textContent,
            slides: document.querySelectorAll('[data-act="slides"]').length };
 })()`);
-t('a Break down button on the PDF', rows.n === 1 && rows.label === 'Break down' && rows.file === FID, rows);
-t('none on the .pptx (PDFs only)', rows.n === 1, rows);
+t('a Break down button on the PDF', rows.n === 2 && rows.label === 'Break down' && rows.file === FID, rows);
+t('...and on the .pptx', rows.file2 === FID + 'x' && rows.label2 === 'Break down', rows);
+
+await evalJs(`document.querySelector('[data-bd-file="${FID}x"]').click(); true;`);
+await wait(500);
+const slidesSheet = await evalJs(`(function(){
+  var el = document.querySelector('.sos-ai-sheet.open');
+  var txt = el ? el.textContent : '';
+  var c = el && Array.from(el.querySelectorAll('button')).find(b => b.textContent === 'Cancel');
+  if (c) c.click();
+  return txt;
+})()`);
+t('the .pptx start sheet says PowerPoint converts it first', /PowerPoint on this PC/.test(slidesSheet || ''), (slidesSheet || '').slice(0, 300));
+await wait(400);
 
 await evalJs(`document.querySelector('[data-act="breakdown"]').click(); true;`);
 await wait(500);

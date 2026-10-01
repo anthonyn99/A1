@@ -38,7 +38,7 @@ function prefetchFigures(fileId, pages) {
   if (!todo.length) return;
   const where = findFile(fileId);
   const all = (async () => {
-    const b64 = where ? await pipeline.fileB64Of(where.file) : null;
+    const b64 = where ? await pipeline.pdfOf(where.file) : null;
     if (!b64) throw new Error('the PDF is not available on this device');
     return ai.pdfPageImages(b64, todo);
   })();
@@ -82,13 +82,13 @@ function fillFigures(root, blocks) {
     const fileId = S.fileId;
     prefetchFigures(fileId, [b.page]);
     const p = _pageImg.get(`${fileId}:${b.page}`);
-    if (!p) return slotNote(slot, 'This figure couldn’t be loaded on this device (the PDF isn’t available here).');
+    if (!p) return slotNote(slot, 'This figure couldn’t be loaded on this device (the document isn’t available here).');
     p.then((url) => {
       if (!slot.isConnected || !S || S.fileId !== fileId) return;
       img.src = url;
       slot.replaceWith(img);
     }, () => {
-      if (slot.isConnected) slotNote(slot, 'This figure couldn’t be loaded on this device (the PDF isn’t available here).');
+      if (slot.isConnected) slotNote(slot, 'This figure couldn’t be loaded on this device (the document isn’t available here).');
     });
   });
 }

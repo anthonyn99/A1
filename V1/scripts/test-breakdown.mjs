@@ -276,8 +276,63 @@ try { await bd.run('c1', 'm1', { id: 'f3', name: 'x.pdf', mime: 'application/pdf
 t('no key: refused with a setup error', threw && threw.kind === 'setup', threw && threw.message);
 t('...before any request', calls.length === 0);
 threw = null;
-try { await bd.run('c1', 'm1', { id: 'f4', name: 'slides.pptx', mime: 'application/vnd.ms-powerpoint' }); } catch (e) { threw = e; }
-t('a non-PDF is refused with a clear message', threw && /PDF/.test(threw.message), threw && threw.message);
+try { await bd.run('c1', 'm1', { id: 'f4', name: 'essay.docx', mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }); } catch (e) { threw = e; }
+t('a non-PDF, non-slides file is refused with a clear message', threw && /PDF/.test(threw.message), threw && threw.message);
+
+console.log('\nslide decks go through the bridge as a PDF');
+{
+  const pipeline = await import(new URL('../js/modules/pipeline.js', import.meta.url).href);
+  const PPTX = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+  t('.pptx / .ppt are breakable, a .docx is not',
+    pipeline.isBreakable({ name: 'Ch 2.pptx', mime: PPTX }) && pipeline.isBreakable({ name: 'old.ppt', mime: '' })
+    && !pipeline.isBreakable({ name: 'essay.docx', mime: '' }));
+  t('a PDF is not treated as slides', !pipeline.isSlidesFile({ name: 'x.pdf', mime: 'application/pdf' }));
+
+  ai.saveSettings({ provider: 'openai', keys: { openai: 'sk' }, models: { openai: 'm' }, baseUrl: { openai: 'https://x.test/v1' } });
+  // No local bridge configured: refused before any request.
+  calls = [];
+  threw = null;
+  const S1 = { id: 'fs1', name: 'Ch 2.pptx', mime: PPTX };
+  classes[0].modules[0].files.push(S1);
+  try { await bd.run('c1', 'm1', S1); } catch (e) { threw = e; }
+  t('no bridge: a setup error naming the bridge', threw && threw.kind === 'setup' && /bridge/i.test(threw.message), threw && threw.message);
+  t('...with no request at all', calls.length === 0, calls);
+
+  const realFetch = globalThis.fetch;
+  window.STUDYOS_CONFIG.cloudflare.ai.baseUrl = 'http://127.0.0.1:8781';
+  const converts = [];
+  let convertReply = () => new Response('%PDF-1.7 converted', { status: 200, headers: { 'Content-Type': 'application/pdf' } });
+  globalThis.fetch = async (url, init = {}) => {
+    if (/\/api\/convert\/pdf$/.test(String(url))) { converts.push(JSON.parse(init.body)); return convertReply(); }
+    return realFetch(url, init);
+  };
+  try {
+    // PowerPoint missing on this PC: the bridge's error, and nothing asked.
+    convertReply = () => new Response(JSON.stringify({ ok: false, error: 'PowerPoint is not installed on this PC' }), { status: 422 });
+    calls = []; threw = null;
+    try { await bd.run('c1', 'm1', S1); } catch (e) { threw = e; }
+    t('a failed conversion stops the run with the bridge\'s reason', threw && threw.kind === 'setup' && /PowerPoint/.test(threw.message), threw && threw.message);
+    t('...before any model request', calls.length === 0, calls.length);
+    t('...and the deck was sent to the bridge', converts.length === 1 && converts[0].sourceName === 'Ch 2.pptx' && converts[0].fileB64);
+
+    // Converted: the model gets the PDF, named as one.
+    convertReply = () => new Response('%PDF-1.7 converted', { status: 200 });
+    calls = [];
+    responder = () => new Response(JSON.stringify({ error: { message: 'bad key' } }), { status: 401 });
+    const S2 = { id: 'fs2', name: 'Ch 3.pptx', mime: PPTX };
+    classes[0].modules[0].files.push(S2);
+    try { await bd.run('c1', 'm1', S2); } catch (e) { /* the key is rejected; the attachment is what is checked */ }
+    const filePart = calls.length && calls[0].body.messages.find((m) => m.role === 'user').content.find((p) => p.type === 'file');
+    t('the converted PDF is what the model receives', filePart && filePart.file.filename === 'Ch 3.pdf'
+      && Buffer.from(filePart.file.file_data.split(',')[1], 'base64').toString() === '%PDF-1.7 converted', filePart && filePart.file.filename);
+    const n = converts.length;
+    await pipeline.pdfOf(S2);
+    t('a second use of the same deck does not convert again', converts.length === n);
+  } finally {
+    globalThis.fetch = realFetch;
+    delete window.STUDYOS_CONFIG.cloudflare.ai.baseUrl;
+  }
+}
 
 console.log('\nremove');
 ai.saveSettings({ provider: 'openai', keys: { openai: 'sk' } });

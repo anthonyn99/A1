@@ -145,7 +145,7 @@ be running.
 
 ## Topic breakdown (lessons + flashcards)
 
-A PDF's row has a **Break down** button. It lists the document's topics (one
+A PDF's or slide deck's row has a **Break down** button. It lists the document's topics (one
 request), then writes each topic a lesson and its flashcards (one request per
 topic), in the background. The topics appear under the document; click one to
 read it. Its cards join your reviews.
@@ -170,6 +170,18 @@ PDF, and the deck sweep (`resumeWatches`) skips them. Uploads are stored by
 content hash, so a 15-topic breakdown keeps one copy of its PDF. **Restart the
 bridge after updating** — an old bridge answers `unknown mode 'ask'`, and the
 AI view's Test button says so.
+
+**Slide decks (.pptx / .ppt)** get the same button. The breakdown reads only
+PDFs, so the bridge has **PowerPoint** export the deck first
+(`POST /api/convert/pdf`, `server.py convert_to_pdf`). After that a deck runs
+exactly like a PDF, with every check and the real slide pictures as figures. The
+export is stored by content hash in `uploads/converted/`, so each deck converts
+once (about 10 s for 87 slides). It needs the bridge running **and** PowerPoint
+installed on the PC that starts the breakdown, whichever AI provider is chosen.
+Without PowerPoint the run stops before spending anything and says so: export
+the deck to PDF by hand instead. On a device without the bridge (a phone),
+a finished lesson's figure slides show "couldn't be loaded on this device";
+everything else is synced as usual.
 
 ## When something breaks
 

@@ -2,7 +2,7 @@
  * StudyOS — topic breakdown UI  (the document row, and the topics under it)
  * ============================================================================
  * studyos.js's refreshDocList calls window.sosDecorateDocRow(item, cls, mod, f)
- * for every file row. For a PDF this adds ONE button — "Break down" before a
+ * for every file row. For a PDF or a slide deck this adds ONE button — "Break down" before a
  * breakdown exists, "Topics · 12" after — and, under the row, the document's
  * topics: click one to open its lesson.
  * ------------------------------------------------------------------------- */
@@ -12,8 +12,7 @@ import * as ai from './ai.js';
 import { sheet, toast } from './pipeline-ui.js';
 import { ensureStyle } from './study-style.js';
 import { escapeHtml as esc } from './md.js';
-
-const isPdf = (f) => /pdf/i.test((f && f.mime) || '') || /\.pdf$/i.test((f && f.name) || '');
+import { isBreakable, isSlidesFile } from './pipeline.js';
 const _open = new Set();              // fileIds whose topic list is expanded
 
 /** A row's label, from the freshest thing known: the loaded doc, else the
@@ -38,7 +37,7 @@ const hasBreakdown = (f) => {
 };
 
 export function decorate(item, cls, mod, f) {
-  if (!isPdf(f) || !window._sosRowActionBtn) return;
+  if (!isBreakable(f) || !window._sosRowActionBtn) return;
   ensureStyle();
   const btn = window._sosRowActionBtn(label(f), 'Break this document into topics, each with a lesson and flashcards');
   btn.dataset.act = 'breakdown';
@@ -84,7 +83,7 @@ function openStart(cls, mod, f) {
       ${a.problem
         ? `<span style="color:#f0bd86">${esc(a.problem)}</span>`
         : `Uses <b style="color:var(--text2)">${esc(a.label)}</b>${bridge ? '' : ` · ${esc(a.model)}`}.
-           Every topic and lesson is checked against the PDF's own text; anything a lesson leaves out
+           ${isSlidesFile(f) ? 'PowerPoint on this PC turns the slides into a PDF first (the bridge must be running). ' : ''}Every topic and lesson is checked against the document's own text; anything a lesson leaves out
            is asked for once more. About <b style="color:var(--text2)">1 + one per topic</b> requests (usually 6–13),
            plus a follow-up for a lesson that missed something${bridge
              ? ' — Claude Pro messages, a few minutes per topic'

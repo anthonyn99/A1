@@ -164,6 +164,51 @@ async function readFileB64(file) {
  *  provider, not just the bridge. */
 export const fileB64Of = (file) => readFileB64(file);
 
+/** A file the topic breakdown reads: a PDF, or a PowerPoint deck (as its PDF). */
+export const isPdfFile = (f) => /pdf/i.test((f && f.mime) || '') || /\.pdf$/i.test((f && f.name) || '');
+export const isSlidesFile = (f) => !isPdfFile(f) && (
+  /presentationml|powerpoint/i.test((f && f.mime) || '') || /\.(pptx?|ppsx?)$/i.test((f && f.name) || ''));
+export const isBreakable = (f) => isPdfFile(f) || isSlidesFile(f);
+
+const SLIDES_NEED_BRIDGE = 'Slides are turned into a PDF by the StudyOS bridge on this PC — start it and try again.';
+const _converted = new Map();     // file.id → Promise<base64 PDF>
+
+/**
+ * A breakable file as a base64 PDF. A PDF is its own bytes; a deck is the PDF
+ * PowerPoint exports on this PC, via the bridge (content-addressed there, so
+ * the same deck converts once). Rejects with a plain-language message.
+ */
+export function pdfOf(file) {
+  if (!isSlidesFile(file)) return readFileB64(file);
+  const key = file.id || file.fileId || file.name;
+  if (_converted.has(key)) return _converted.get(key);
+  const p = (async () => {
+    const base = (CFG().baseUrl || '').replace(/\/$/, '');
+    if (!isLocalBridge()) throw new Error(SLIDES_NEED_BRIDGE);
+    const fileB64 = await readFileB64(file);
+    if (!fileB64) throw new Error('Could not read this file on this device.');
+    let res;
+    try {
+      res = await fetch(base + '/api/convert/pdf', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileB64, sourceName: file.name || 'slides.pptx' }),
+      });
+    } catch (e) { throw new Error(SLIDES_NEED_BRIDGE); }
+    if (res.status === 404) throw new Error('The StudyOS bridge is out of date — restart it to load slide support.');
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error((body && body.error) || `The bridge could not convert the slides (HTTP ${res.status}).`);
+    }
+    const buf = new Uint8Array(await res.arrayBuffer());
+    let bin = '';
+    for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+    return btoa(bin);
+  })();
+  _converted.set(key, p);
+  p.catch(() => _converted.delete(key));    // a failure is retried next time
+  return p;
+}
+
 /**
  * One bridge `ask`: the prompt (and the source, when given) to a FRESH Claude
  * chat, the raw answer text back as the job's result. The topic breakdown's
@@ -372,4 +417,4 @@ export async function fileResult(job) {
   });
 }
 
-export default { enabled, runPrompt, runBatch, getJob, listJobs, retryJob, deleteJob, budget, watchJob, fileResult, ask, health, fileB64Of };
+export default { enabled, runPrompt, runBatch, getJob, listJobs, retryJob, deleteJob, budget, watchJob, fileResult, ask, health, fileB64Of, pdfOf, isBreakable, isSlidesFile, isPdfFile };
