@@ -9,8 +9,11 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-09-30, **F4 done — Track F is complete** (Code Mode
-follow-ups, console, plus the three open bugs).
+**Last updated:** 2026-10-01: five of the six post-Track-F offers built
+(page-load stall, Gemini's glued paragraphs, effort/thinking in the pick,
+the chairman's model; Grok still limited) plus Brief/Text on earlier turns
+-- see "What exists" › "After Track F". 2026-09-30: **F4 done — Track F is
+complete** (Code Mode follow-ups, console, plus the three open bugs).
 **Phases complete:** 1–14 (14a hardening, 14b A1 writable), plus **11B**,
 ALL of Track S (**S1**, **S2**, **S3**, **U1**, **U2**, **U3**, **U4**), and
 ALL of Track F (**F1**, **F2**, **F3**, **F4**). Follow-ups, mid-run
@@ -474,6 +477,42 @@ One phase per session.
   Live: 5/5 identical Codex read tasks read the file.
   The capture-side cause of the glued Gemini headings is NOT found (it was
   seen once, and the DOM walker keeps block breaks); the parsers now cope.
+* **After Track F (2026-10-01, Tony: "do all 6")** — five of the six
+  offered items, each its own commit; Phase 15's isolation check needs
+  Veda's PC.
+  1. **Page-load stall** — `/api/accounts` measured every unit's Chrome
+     profile (`accounts._dir_bytes`, tens of thousands of files) on the
+     event loop: ~7 s during which the engine answered nothing, so the
+     console's opening burst took 9-17 s per request. Sizes cached
+     `SIZE_TTL_S` (600 s; `forget_size` on sign-in/out), measured in a
+     thread at startup, route via `asyncio.to_thread`. Cold burst 3 s, warm
+     0.7 s. `test_accounts_speed.py`. Left: `/code/models` 2.9 s on its
+     first call after a restart (blocks nothing).
+  2. **Gemini's glued paragraphs** — the CAUSE, from its live DOM
+     (`structured-content-container > div > message-content > div > p*`):
+     `markdown.py` flattened any container without a list/heading/table,
+     so EVERY plain-paragraph Gemini answer arrived as one line, verdicts
+     included. `hasParaInside` makes a container with a `<p>` a block.
+     `answer_section` also strips "ANSWER text" on one line. Fixture
+     `fixtures/units/gemini-answer-paragraphs.html` (real capture).
+     Seen once, NOT reproduced: run `54c7b82e1ed4`'s verdict began with a
+     cut-off first draft glued to the full answer ("…reach yourANSWER").
+     The probe found no hidden draft in Gemini's DOM; if it recurs, capture
+     that turn's outerHTML (scratch probe pattern: `magi capture`'s send
+     path + `node.evaluate("el => el.outerHTML")`).
+  3. **Effort / thinking in the pick** — docs/magi.md "Effort and
+     thinking". `picker.effort_kind/options/label`, `choose_effort`
+     (levels | menu_toggle | toggle), `think_confirm` (new selector key;
+     ChatGPT's "Turn on" dialog), `accounts.effort_choice/set_effort`,
+     `POST /api/units/{id}/effort`, `units.menu()["effort"]`, console
+     `unitEffortRow`. Live on all four sites, each put back.
+  4. **The chairman's model** — `chairman.Synthesis` / `with_model`;
+     `syntheses.model/model_fallback` (migrated); Brainstorm's chairman
+     turns fill their model columns; chips after "synthesised by", "merged
+     by", on "Plan ready". History names the chair as live does.
+  5. **Grok Expert/Heavy** — still unverified: Grok was limited.
+  Also (Tony, same day): **earlier turns of a deliberation have the Brief /
+  Text switch** (`verdictViewSeg`, one choice for every verdict on screen).
 * **Units recon (Track S, U1)**: read-only, no engine change. Each site
   block in `selectors.yaml` ends with a "Models and limits" section:
   `model_button/option/selected/label` (+ `model_label_from`
@@ -819,14 +858,13 @@ reachable from the internet.
   Codex, and the regression live tests that run their tasks on Claude
   (`magi-write`, `magi-a1`) were NOT re-run in F3 or F4. Worth one run of
   `node tests/live/magi-code-thread.live.js` with `AGENT=claude` too.
-* **(F4) `magi-codemode.live.js` at 40/44**: Claude's cap ("5h AND 7d"), one
-  Codex answer that read the listing but named another file, and
-  "reattached after reload" / "answer replayed", which miss their 25-s
-  window. NOT an F4 regression: the pre-F4 page (f5481d8) and the F4 page
-  were timed side by side on the same task -- both 12-17 s -- because the
-  engine answers the page-load burst slowly (`/code/state`, `/code/agents`,
-  `/units/usage` 5-13 s each on a warm engine). A candidate phase: find
-  what makes those three slow at load.
+* ~~(F4) `magi-codemode.live.js` at 40/44~~ — **fixed 2026-10-01**: the slow
+  page-load burst was `/api/accounts` walking every Chrome profile on the
+  event loop (see "After Track F"); 44/44 after, Claude back under the cap.
+* **`tests/class-resources.test.js` fails on main** (2 checks: "mirror
+  write includes the classes side table", "a separate class-apps document
+  is written"). It is the TaskHub mirror worker, not MAGI, and was already
+  failing before 2026-10-01's MAGI work; left alone for whoever owns it.
 * **(F4) The self-update watchdog restarted the engine mid-test** (≈11:38)
   after an auto-commit of engine files: every live test running then
   failed at once. When a session changes engine files, expect this; rerun
@@ -868,13 +906,11 @@ Track S (speed, then the units' models and limits) is done. The next
 phase is Tony's call. Things this session noticed that could become one —
 offer them, do not start them unasked:
 
-* **Effort / thinking as part of the pick.** U4 picks the model only.
-  Claude's Effort submenu (Low → Max, `effort_open`/`effort_option`) and
-  Gemini's Extended thinking (`think_toggle`) are left as the site has them.
-  Live, free Claude on Haiku showed "Haiku 4.5 Extended".
-* **The chairman's own model.** Merge/plan turns in `engine/brainstorm.py`
-  come back as tuples, not `Answer`s, so they carry no model chip (U2 note).
-* **Grok's options on free** are still UNVERIFIED past "Fast": every U4
+* ~~Effort / thinking as part of the pick~~ — **done 2026-10-01** (see
+  "What exists" › "After Track F").
+* ~~The chairman's own model~~ — **done 2026-10-01**.
+* **Grok's options on free** are still UNVERIFIED past "Fast" (tried again
+  2026-10-01: limited, "16 minutes before limit is gone", even on Fast): every U4
   live try found Grok limited ("9 minutes before limit is gone"). The pick
   is safe either way (an ignored click reads back as "Asked for Expert, got
   Fast"), but nobody has seen Expert/Heavy answer on the free account.

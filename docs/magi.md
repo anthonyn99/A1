@@ -2319,6 +2319,15 @@ Stored additively as `answers.model` / `model_fallback` and on
 `done` events and the stream's `init`, and shown on unit cards, history and
 Brainstorm's "What each unit said". A missing label never fails a run.
 
+**The chairman's turns too (2026-10-01).** A verdict, a Brainstorm merge and
+the finished plan carry the same chip, after "synthesised by", "merged by"
+and on "Plan ready". `chairman.synthesize`, `brainstorm.merge_round` and
+`write_plan` return a `chairman.Synthesis` -- a tuple that unpacks exactly as
+before and also has `.model` / `.model_fallback`. Stored as `syntheses.model`
+/ `model_fallback` (migrated; old runs show no chip) and on the chairman's
+`brainstorm_turns`. Tests: `test_chairman_model.py`,
+`tests/magi-chair-model.test.js`.
+
 ### Limit notices vs your own words (U1 bugs, fixed in U2)
 
 `rate_limit_selectors` are mostly page-wide `text=` rules, and the page shows
@@ -2420,8 +2429,41 @@ on free) and DeepSeek say they answer on their default.
   Site default, leaves claude.ai on Haiku (the site remembers). Pick the
   model you want back instead.
 
-Not done: Claude's effort level (Low…Max) and Gemini's Extended thinking
-are left as the site has them.
+### Effort and thinking (2026-10-01)
+
+The other half of the pick, on its own line under the Model dropdown, for
+the four sites that have one (`picker.effort_kind`):
+
+| Unit | Label | Choices | How the site shows it |
+|---|---|---|---|
+| Claude, Claude (Pro) | Effort | Low, Medium, High, Extra, Max | the model menu's Effort submenu, `aria-checked` |
+| Gemini | Extended thinking | On / Off | an item in the mode menu with the "Selected" check |
+| ChatGPT | Think | On / Off | `aria-pressed` button by the composer |
+| DeepSeek | DeepThink | On / Off | `aria-pressed` button by the composer |
+
+Stored beside the model as `"<unit>": {"effort": "High"}` (`accounts.
+effort_choice` / `set_effort`; absent = Site default). Route: `POST
+/api/units/{id}/effort {"value"}` (`""` clears; a value the unit does not
+offer is a 400), and an `effort` object (`kind`, `label`, `options`, `pick`)
+on every units entry. In a run, `picker.choose_effort` runs right after the
+model pick, confirms on the control's own state (`_STATE_JS`: aria-pressed,
+aria-checked, or the "Selected" icon), and remembers a confirmed menu choice
+(`_EFFORT_OK`) so a steady-state run opens nothing; a toggle is always read,
+since it costs nothing. One that does not take is the card's note, "Asked for
+High effort, left as the site had it" -- never a failed run. Claude's label
+carries its effort, so a confirmed change moves the model pick's confirmed
+label with it.
+
+**Free ChatGPT's first Think** opens a dialog over the composer ("Get smarter
+answers": Upgrade to Plus / Turn on), and a run typing behind it timed out
+(found live). The picker presses the site's own `think_confirm` ("Turn on",
+never the upgrade) when On was asked for, and closes any dialog a toggle
+left open either way.
+
+Live 2026-10-01, each put back afterwards: Claude Low → "Sonnet 5.5 Low",
+Gemini on → "Flash Extended", ChatGPT on → `gpt-5-6-t-mini`, DeepSeek on.
+Tests: `magi/tests/test_effort_pick.py` (on the U1 fixtures, made
+clickable), `test_howitworks.py::test_the_effort_choice_claims_still_hold`.
 
 ---
 
