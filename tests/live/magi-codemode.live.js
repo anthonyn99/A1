@@ -115,7 +115,8 @@ const waitFor = async (c, expr, ms = 20000) => {
   console.log('\nOrder sheet');
   await evalJs(c, 'openCodeOrder(); return 1;'); await sleep(300);
   ok('lists every member', await evalJs(c, 'document.querySelectorAll(".code-order-row").length') === chips.length);
-  await evalJs(c, 'document.querySelectorAll(".code-order-mv")[3].click(); return 1;'); // move codex (row 2) down
+  // Move codex (row 2) down: its grip, then the down arrow key (dragSort).
+  await evalJs(c, 'const g = document.querySelectorAll(".code-order-row .dsort-grip")[1]; g.focus(); g.dispatchEvent(new KeyboardEvent("keydown", {key: "ArrowDown", bubbles: true})); return 1;');
   ok('moving changes the chain order', (await evalJs(c, 'codeMembers()[1].id')) !== 'codex-cli');
   await shot(c, 'coderun-phone-order');
   await evalJs(c, '[...document.querySelectorAll(".sheet .btn")].find(b=>b.textContent==="Default order").click(); return 1;');

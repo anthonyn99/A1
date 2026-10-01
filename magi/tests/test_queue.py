@@ -93,9 +93,11 @@ def test_moving_a_row_changes_only_that_row():
     renumbering of every sibling -- which in a field that syncs as a whole
     keeps the diff small."""
     assert "QUEUE_STEP = 1000" in PAGE
-    body = _fn("queueMove")
-    assert "it.order =" in body
+    # A drag (2026-10-01) moves a row to any place; still one number.
+    body = _fn("queueMoveTo")
+    assert "it.order = dropOrder(" in body
     assert body.count(".order =") == 1, "a move rewrites more than one row"
+    assert 'it.status !== "queued"' in body, "only a waiting row moves"
 
 
 # ── one runner ──────────────────────────────────────────────────────────────

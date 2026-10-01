@@ -57,9 +57,7 @@ const waitFor = async (c, expr, ms = 20000) => {
 
   // Reorder and confirm numbers follow the new positions, not the agent.
   const firstName = await evalJs(c, 'document.querySelector(".code-order-name").textContent');
-  await evalJs(c, 'document.querySelector(".code-order-row .code-order-mv:nth-of-type(1)"); return 1;');
-  const downBtns = await evalJs(c, 'document.querySelectorAll(".code-order-mv").length');
-  await evalJs(c, '[...document.querySelectorAll(".code-order-row")][0].querySelectorAll(".code-order-mv")[1].click(); return 1;');
+  await evalJs(c, 'const g = document.querySelector(".code-order-row .dsort-grip"); g.focus(); g.dispatchEvent(new KeyboardEvent("keydown", {key: "ArrowDown", bubbles: true})); return 1;');
   await sleep(150);
   const rows = JSON.parse(await evalJs(c,
     'return JSON.stringify([...document.querySelectorAll(".code-order-row")].map(r=>({n:r.querySelector(".code-order-num").textContent,name:r.querySelector(".code-order-name").textContent})));'));
