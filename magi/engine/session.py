@@ -53,7 +53,9 @@ def answer_section(verdict: str) -> str:
     chairman that ignored the format) is kept whole.
     """
     text = _unglue((verdict or "").strip())
-    m = re.match(r"^\s*ANSWER\s*\n", text)
+    # "ANSWER" alone on its line, or ahead of its text on the same line (a
+    # Gemini paragraph renders the heading's line break as a space).
+    m = re.match(r"^\s*ANSWER(?:[ \t]*:)?(?:[ \t]*\n|[ \t]+(?=\S))", text)
     if m:
         text = text[m.end():]
     cut = re.search(r"^[ \t]*(?:NOTES|CONFIDENCE)[ \t]*(?::[ \t]*)?$", text, re.MULTILINE)

@@ -271,3 +271,20 @@ def test_an_inline_custom_element_still_reads_inline(page):
     """No <p> inside: still one paragraph, not split at the element."""
     out = render(page, "<p>Use <x-tag>this</x-tag> word.</p>")
     assert out == "Use this word."
+
+
+def test_gemini_real_answer_keeps_its_paragraphs(page):
+    """The real thing, captured live 2026-10-01: Gemini's wrappers
+    (structured-content-container > div > message-content > div.markdown)
+    around four <p>s. Before the fix this came out as ONE line."""
+    html = (Path(__file__).parent / "fixtures" / "units" / "gemini-answer-paragraphs.html").read_text(encoding="utf-8")
+    page.set_content(f"<div id='a'>{html}</div>")
+    out = page.eval_on_selector("#a", DOM_TO_MARKDOWN_JS).strip()
+    paras = out.split("\n\n")
+    assert len(paras) == 4, out[:300]
+    assert paras[0].startswith("ANSWER The sky appears blue")
+    assert paras[2] == "NOTES None."
+    assert paras[3].startswith("CONFIDENCE HIGH - ")
+    from magi.engine import session
+    mem = session.answer_section(out)
+    assert mem.startswith("The sky appears blue") and "NOTES" not in mem and "HIGH" not in mem

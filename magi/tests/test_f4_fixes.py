@@ -111,3 +111,11 @@ def test_a_codex_write_task_gets_no_read_hint(fake_cli):
     fake_cli.scripts = [_codex_ok("done", tools=["Edit"])]
     _agent_run(CX.CodexCLIAgent("c1", model="m"), Task("t", "fix it", Path("."), mode=Mode.WRITE))
     assert CX.READ_HINT not in fake_cli.prompts[0]
+
+
+def test_answer_on_the_same_line_as_its_text_is_cut():
+    """A Gemini paragraph renders "ANSWER<newline>text" as "ANSWER text"."""
+    assert S.answer_section("ANSWER Blue.\n\nNOTES None.\n\nCONFIDENCE HIGH - sure.") == "Blue."
+    assert S.answer_section("ANSWER: Blue.") == "Blue."
+    # Prose that starts with the word is not a heading.
+    assert S.answer_section("ANSWERS vary by region.") == "ANSWERS vary by region."
