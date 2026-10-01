@@ -384,7 +384,12 @@ body {
 .turn-verdict { background: var(--s1); border: 1px solid var(--bd);
                 border-radius: 12px; padding: 10px 14px; min-width: 0; }
 .turn-verdict-hd { font-size: 10px; font-weight: 700; letter-spacing: 1px;
-                   text-transform: uppercase; color: var(--txm); margin-bottom: 4px; }
+                   text-transform: uppercase; color: var(--txm); margin-bottom: 4px;
+                   display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* The earlier turn's Brief / Text switch and copy, as on the current verdict. */
+.turn-verdict-acts { margin-left: auto; display: inline-flex; align-items: center; gap: 8px;
+                     text-transform: none; letter-spacing: 0; font-weight: 500; }
+.turn-verdict .verdict-body.brief { padding: 6px 0 4px; }
 .turn-verdict .verdict-body { font-size: 13.5px; }
 .turn-gone { font-size: 12.5px; color: var(--txm); font-style: italic; }
 .turn-units { font-size: 12.5px; }
@@ -9843,16 +9848,7 @@ function renderVerdict() {
     // a failed synthesis: an error message is not a result to take away.
     const view = VERDICT_VIEW.get();
     const body = view === "brief" ? briefBody(v.verdict) : verdictBody(v.verdict);
-    // Brief (the laid-out briefing) or Text (the plain reading view) --
-    // remembered per device, since a phone and a desk can want different ones.
-    const seg = el("span", "br-seg");
-    for (const [k, label] of [["brief", "Brief"], ["text", "Text"]]) {
-      const b = el("button", `br-seg-btn ${view === k ? "on" : ""}`, label);
-      b.type = "button";
-      b.setAttribute("aria-pressed", String(view === k));
-      b.onclick = () => { if (VERDICT_VIEW.get() !== k) { VERDICT_VIEW.set(k); renderVerdict(); } };
-      seg.append(b);
-    }
+    const seg = verdictViewSeg(view);
     const group = (n.querySelector(".verdict-acts") || hd);
     group.prepend(seg);
     group.append(copyButton(() => ({ node: body, md: v.verdict })));
@@ -9885,6 +9881,27 @@ function renderVerdict() {
     b.append(el("div", "vf-why", cleanSynthError(v.synthesis_error)));
     n.append(b);
   }
+}
+
+/** Brief (the laid-out briefing) or Text (the plain reading view) --
+ *  remembered per device, since a phone and a desk can want different ones.
+ *  One choice for the current verdict and every earlier turn's in the thread,
+ *  so a switch redraws both. */
+function verdictViewSeg(view) {
+  const seg = el("span", "br-seg");
+  for (const [k, label] of [["brief", "Brief"], ["text", "Text"]]) {
+    const b = el("button", `br-seg-btn ${view === k ? "on" : ""}`, label);
+    b.type = "button";
+    b.setAttribute("aria-pressed", String(view === k));
+    b.onclick = () => {
+      if (VERDICT_VIEW.get() === k) return;
+      VERDICT_VIEW.set(k);
+      renderVerdict();
+      renderThread();
+    };
+    seg.append(b);
+  }
+  return seg;
 }
 
 /** The engine's reason, without its internals.
@@ -10698,9 +10715,19 @@ function turnCard(t) {
   const v = t.verdict;
   const box = el("div", "turn-verdict");
   const solo = v && v.total === 1;
-  box.append(el("div", "turn-verdict-hd", solo ? "Answer" : "Verdict"));
-  if (v && v.synthesis_ok && v.verdict) box.append(verdictBody(v.verdict));
-  else box.append(el("div", "turn-gone",
+  const hd = el("div", "turn-verdict-hd");
+  hd.append(el("span", null, solo ? "Answer" : "Verdict"));
+  box.append(hd);
+  if (v && v.synthesis_ok && v.verdict) {
+    // The same Brief / Text switch as the current verdict, and the same
+    // remembered choice: flipping any one of them flips them all.
+    const view = VERDICT_VIEW.get();
+    const body = view === "brief" ? briefBody(v.verdict) : verdictBody(v.verdict);
+    const acts = el("span", "turn-verdict-acts");
+    acts.append(verdictViewSeg(view), copyButton(() => ({ node: body, md: v.verdict })));
+    hd.append(acts);
+    box.append(body);
+  } else box.append(el("div", "turn-gone",
     v ? `No verdict — ${cleanSynthError(v.synthesis_error)}` : "No verdict."));
   c.append(box);
   const panels = t.panels || [];

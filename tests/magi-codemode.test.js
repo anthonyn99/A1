@@ -152,7 +152,10 @@ ok('Queue works in Code Mode, needing a workspace and an agent',
 ok('Refine works in Code Mode, held while a browser agent works',
    /\$\("btnRefine"\)\.disabled = busy \|\| !q \|\| !up \|\| \(coding && codeTaskUsesBrowser\(\)\)/.test(ue));
 ok('Code Mode\'s files are its own', /const list = coding \? CODE\.attachments : S\.attachments;/.test(MAGI));
-ok('and only text', /function codeReadText\(file\)/.test(MAGI) && /includes\("\\u0000"\)/.test(MAGI));
+// Text or an image since 1f54fa4 (Veda, 2026-09-30); a binary that is
+// neither is still refused.
+ok('and only text or an image', /function codeReadFile\(file\)/.test(MAGI)
+   && /if \(codeIsImage\(file\)\) return codeReadImage\(file\);/.test(MAGI) && /includes\("\\u0000"\)/.test(MAGI));
 ok('Refine asks for a coding rewrite', /if \(coding\) form\.append\("kind", "code"\);/.test(MAGI));
 ok('changing mode repaints them', /updateEnabled\(\);/.test(lift('function setMode(m,', 2400)),
    'nothing else would call it, so the buttons kept the other mode\'s state');

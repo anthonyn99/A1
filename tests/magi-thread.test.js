@@ -198,5 +198,15 @@ ok('it docks after the verdict when the thread is on', /dock \? \$\("verdict"\) 
 ok('sticky, not fixed (the 2000px cap holds)', /\.qbar\.docked \{\s*position: sticky; bottom: 0;/.test(MAGI));
 ok('it keeps the caret when it moves', /focus\(\{ preventScroll: true \}\)/.test(place));
 
+console.log('\nAn earlier turn reads in Brief too (Tony, 2026-10-01)');
+const card = lift(MAGI, 'turnCard');
+ok('its verdict follows the Brief / Text choice',
+   /view === "brief" \? briefBody\(v\.verdict\) : verdictBody\(v\.verdict\)/.test(card));
+ok('it has the switch and a copy button', /verdictViewSeg\(view\)/.test(card) && /copyButton\(/.test(card));
+const seg = lift(MAGI, 'verdictViewSeg');
+ok('one switch redraws the current verdict AND the thread',
+   /VERDICT_VIEW\.set\(k\);\s*renderVerdict\(\);\s*renderThread\(\);/.test(seg));
+ok('the current verdict uses the same switch', /const seg = verdictViewSeg\(view\);/.test(lift(MAGI, 'renderVerdict')));
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

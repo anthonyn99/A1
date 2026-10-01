@@ -110,7 +110,7 @@ console.log('\nManual / Auto');
      /CODE\.rw === "write" && w\.ok && canAuto/.test(rw) && /features\.includes\("auto_approve"\)|feats\.includes\("auto_approve"\)/.test(rw));
   ok('Run sends it', /approve: CODE\.ap/.test(lift('async function codeStartTurn(', 1600)));
   ok('an engine without it, or a Read task, never gets the field',
-     /base\.mode !== "write" \|\| !feats\.includes\("auto_approve"\)/.test(lift('function codeTaskBody(base, atts)', 600)));
+     /base\.mode !== "write" \|\| !feats\.includes\("auto_approve"\)/.test(lift('function codeTaskBody(base, atts', 700)));
   ok('queued tasks keep it', /ap: it\.ap === "auto" \? "auto" : "manual"/.test(MAGI)
      && /approve: it\.ap === "auto"/.test(MAGI));
   ok('an Auto change still shows its diff', /e\.k === "decision" && e\.why === "auto" && e\.files/.test(MAGI));
