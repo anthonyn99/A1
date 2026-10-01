@@ -446,6 +446,29 @@ def test_the_model_choice_claims_still_hold():
     assert "ref.onclick = () => unitRefreshModels(id)" in PAGE
 
 
+def test_the_effort_choice_claims_still_hold():
+    """2026-10-01: effort / thinking as part of the pick."""
+    assert "Effort and thinking are part of the pick." in HOW
+    from magi.browser import picker
+    from magi.settings import load_settings
+    s = load_settings()
+    # "Claude and Claude (Pro) have Effort (Low, Medium, High, Extra, Max),
+    # Gemini has Extended thinking, ChatGPT Think and DeepSeek DeepThink".
+    got = {u: (picker.effort_label(s.site(u)), picker.effort_options(s.site(u)))
+           for u in s.sites if picker.effort_kind(s.site(u))}
+    levels = ["Low", "Medium", "High", "Extra", "Max"]
+    assert got == {"claude": ("Effort", levels), "claude-pro": ("Effort", levels),
+                   "gemini": ("Extended thinking", ["on", "off"]),
+                   "chatgpt": ("Think", ["on", "off"]), "deepseek": ("DeepThink", ["on", "off"])}
+    assert "(Low, Medium, High, Extra, Max)" in HOW
+    # "Site default leaves it as the site has it": first in the dropdown.
+    row = PAGE[PAGE.index("function unitEffortRow"):][:1500]
+    assert row.index('"Site default"') < row.index("for (const v of e.options")
+    # "Asked for ..., left as the site had it" is the engine's wording.
+    assert picker._effort_note(s.site("deepseek"), "on") == "Asked for DeepThink on, left as the site had it"
+    assert "left as the site had it" in HOW
+
+
 def test_the_followup_claims_still_hold():
     """Track F2: follow-ups, adding to a run, and continuing from History."""
     assert "Follow-ups: a deliberation is a conversation" in HOW

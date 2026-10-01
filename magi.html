@@ -801,6 +801,7 @@ body {
   color: var(--tx); font: inherit; font-size: 11.5px;
 }
 .unit-pick-sel:disabled { opacity: .6; }
+.unit-effort { flex: 1 1 100%; display: flex; align-items: center; gap: 8px; min-width: 0; }
 @media (max-width: 760px) { .unit-pick-sel { height: 36px; } }
 /* The daily kickstart (Claude Pro, Tony's engine only). Same hairline
    section as the model picker; the options fold away while it is off. */
@@ -7161,6 +7162,7 @@ const HOW = [
       "<b>Your own words are never read as a limit.</b> A prompt that talks about &ldquo;rate limits&rdquo; used to fail a unit as rate-limited, because the page shows the prompt and the check read the whole page. The check now skips the prompt you sent, the composer, and a line inside a longer answer. And a prompt too long for a site (Perplexity: &ldquo;characters over the limit&rdquo;) is reported as <b>Prompt too long</b> at once, not as a timeout two minutes later &mdash; the fix is a shorter prompt, not waiting.",
       "<b>Each unit&rsquo;s limits are in the Units sheet</b> (tap <b>Units</b> above the chips): its model, and <b>OK</b>, <b>Limited until</b> a time with a countdown, <b>Near limit</b>, <b>Fell back</b> or <b>Signed out</b>, with when it was last in a run and last checked. A chip with a red or amber dot is one of those. It is all from what the site showed during your runs and Brainstorm rounds &mdash; no browser is opened for it, and nothing checks on a timer. <b>Check now</b> opens that one unit&rsquo;s site (signed in as you, nothing sent) to look. Only <b>Claude (Pro)</b> has real numbers: it shares its allowance with Code Mode&rsquo;s Claude account, so it shows the same 5-hour and weekly bars. The other sites show no count, so none is invented. The Doctor&rsquo;s limit section reads the same verdict, and each person&rsquo;s engine keeps its own.",
       "<b>Choose each unit&rsquo;s model in the Units sheet</b>: a <b>Model</b> dropdown under Claude, Claude (Pro), Gemini and Grok, the only sites with a picker your accounts can use (ChatGPT, Perplexity and DeepSeek answer on their default). <b>Site default</b> is first and means MAGI leaves the site&rsquo;s picker alone. A choice is per person, kept on your own engine, and used by every turn that unit takes &mdash; council, chairman, Brainstorm and Studio. Before typing, the unit opens the site&rsquo;s menu, picks the model and checks the menu&rsquo;s own tick (sites remember a pick, so after the first time nothing is clicked). If the model is locked, gone, or the site will not switch, the run is <b>never failed</b>: the unit answers on what the site gives and its card says <b>Asked for X, got Y</b>. <b>Refresh models</b> opens that site once (nothing sent) to read what your account is offered, locked ones marked.",
+      "<b>Effort and thinking are part of the pick.</b> Under the Model dropdown, Claude and Claude (Pro) have <b>Effort</b> (Low, Medium, High, Extra, Max), Gemini has <b>Extended thinking</b>, ChatGPT <b>Think</b> and DeepSeek <b>DeepThink</b> (On or Off). The same rules as the model: <b>Site default</b> leaves it as the site has it, the choice is checked on the site&rsquo;s own control before typing, and one that does not take never fails the run &mdash; the card says <b>Asked for &hellip;, left as the site had it</b>. Claude&rsquo;s and Gemini&rsquo;s model chip shows the result (&ldquo;Sonnet 5.5 High&rdquo;, &ldquo;Flash Extended&rdquo;).",
       "<b>Daily kickstart</b> (Claude (Pro) in the Units sheet, Tony&rsquo;s engine only): Claude&rsquo;s 5-hour window starts at your first message, so once a day, at the first check after <b>Not before</b> (or when the engine comes online, if that is later), MAGI sends the smallest message it can on the Pro account &mdash; through Claude Code on Haiku, with no tools and a one-line prompt, about 670 tokens in and 4 out. It is silent: no browser, nothing in your claude.ai chats. It is <b>skipped</b> when the weekly usage is at or above <b>Skip at week &ge;</b> (80% by default). If a window is already open, it waits for that window to reset, and a window you opened yourself after Not before counts as done. <b>Send now</b> sends at once (the weekly cap still applies).",
     ],
   },
@@ -17891,6 +17893,7 @@ function unitPickBox(id) {
   if (!u || u.pickable === undefined) return box;       // not read yet, or an older engine
   if (!u.pickable) {
     box.append(el("span", "unit-lim-sub", "No model picker on this account."));
+    unitEffortRow(box, id, u);
     return box;
   }
   const busy = UNITS_PICK.busy.has(id);
@@ -17936,9 +17939,65 @@ function unitPickBox(id) {
     "Click to open this unit's site now (signed in as you, nothing sent) and read the models your account is offered.";
   ref.onclick = () => unitRefreshModels(id);
   box.append(ref);
+  unitEffortRow(box, id, u);
 
   if (UNITS_PICK.err[id]) box.append(el("div", "unit-lim-sub warn", UNITS_PICK.err[id]));
   return box;
+}
+
+/* Effort / thinking, the other half of the pick (2026-10-01): Claude's
+   Effort level, Gemini's Extended thinking, ChatGPT's Think, DeepSeek's
+   DeepThink. Same rules as the model -- "Site default" leaves the control
+   as the site has it, a choice is made on the unit's next turn, and one the
+   site will not take is said on the card, never a failed run. */
+const EFFORT_SHOWN = { on: "On", off: "Off" };
+
+function unitEffortRow(box, id, u) {
+  const e = u.effort;
+  if (!e || !e.kind) return;                        // nothing to choose, or an older engine
+  const busy = UNITS_PICK.busy.has(id);
+  const sel = el("select", "unit-pick-sel unit-effort-sel");
+  sel.setAttribute("aria-label", `${e.label} for ${u.display_name || id}`);
+  sel.title = e.pick
+    ? `Asked for ${e.label} ${EFFORT_SHOWN[e.pick] || e.pick} on every turn. If the site won't take it, ` +
+      "the unit still answers, and its card says so."
+    : `Site default: MAGI leaves ${e.label} as the site has it.`;
+  const def = el("option", null, "Site default");
+  def.value = "";
+  sel.append(def);
+  for (const v of e.options || []) {
+    const o = el("option", null, EFFORT_SHOWN[v] || v);
+    o.value = v;
+    if (v === e.pick) o.selected = true;
+    sel.append(o);
+  }
+  sel.disabled = busy || !online();
+  sel.onchange = () => unitSetEffort(id, sel.value);
+  // Its own line, label beside its dropdown: wrapped into the Model row,
+  // the label was stranded at the end with the dropdown below it.
+  const line = el("span", "unit-effort");
+  line.append(el("span", "unit-pick-lbl", e.label), sel);
+  box.append(line);
+}
+
+async function unitSetEffort(id, value) {
+  const u = UNITS_USE.byId[id];
+  if (!u || UNITS_PICK.busy.has(id) || !online()) return;
+  UNITS_PICK.busy.add(id);
+  delete UNITS_PICK.err[id];
+  refreshUnitPicks();
+  try {
+    const r = await fetch(`${link.api}/api/units/${encodeURIComponent(id)}/effort`,
+      authed({ method: "POST", headers: { "Content-Type": "application/json" },
+               body: JSON.stringify({ value }) }));
+    const d = await r.json().catch(() => ({}));
+    if (r.ok) unitTakeMenu(id, d);
+    else UNITS_PICK.err[id] = d.detail || `Could not save (${r.status}).`;
+  } catch (e) {
+    UNITS_PICK.err[id] = e?.message || "Could not save.";
+  }
+  UNITS_PICK.busy.delete(id);
+  refreshUnitPicks();
 }
 
 /** Redraw the pickers in place, but never the one you are using. */
@@ -17953,7 +18012,7 @@ function refreshUnitPicks() {
 function unitTakeMenu(id, d) {
   const u = UNITS_USE.byId[id];
   if (!u || !d) return;
-  for (const k of ["pickable", "pick", "models", "models_at"]) if (k in d) u[k] = d[k];
+  for (const k of ["pickable", "pick", "models", "models_at", "effort"]) if (k in d) u[k] = d[k];
 }
 
 async function unitSetModel(id, value) {
