@@ -1255,22 +1255,78 @@
     var key = /^a1:/.test(ic) ? ic.slice(3) : '';
     if (!ic || ic === 'auto') key = a1IconFor(a.url);
     if (key && ICONS[key]) { d.innerHTML = ICONS[key]; return d; }
-    var src = '';
-    if (/^https?:\/\//i.test(ic) || /^data:image\/(png|jpe?g|gif|webp|svg\+xml)[;,]/i.test(ic)) src = ic;
-    else if ((!ic || ic === 'auto') && isWeb(a.url)) {
-      try { src = 'https://www.google.com/s2/favicons?sz=64&domain=' + encodeURIComponent(new URL(a.url).hostname); d.classList.add('site'); } catch (e) {}
-    }
-    if (src) {
-      var img = new Image();
+    var cands = [];
+    if (/^https?:\/\//i.test(ic) || /^data:image\/(png|jpe?g|gif|webp|svg\+xml)[;,]/i.test(ic)) cands.push(ic);
+    else if ((!ic || ic === 'auto') && isWeb(a.url)) { d.classList.add('site'); cands = siteIcons(a.url); }
+    if (cands.length) {
+      var img = new Image(), n = 0;
       img.alt = ''; img.decoding = 'async'; img.referrerPolicy = 'no-referrer'; img.draggable = false;
-      img.onerror = function () { d.className = (cls || 'ic') + ' mono'; d.textContent = initial(a); };
-      img.src = src;
+      var next = function () {
+        if (n < cands.length) { img.src = cands[n++]; return; }
+        d.className = (cls || 'ic') + ' mono'; d.textContent = initial(a);
+      };
+      img.onerror = next;
+      // A 1x1/blank answer is a miss too (some icon services return one for unknown sites).
+      img.onload = function () { if (img.naturalWidth < 2 && n < cands.length) next(); };
       d.appendChild(img);
+      // The page's own declared icon (<link rel=icon>) is the real logo; it can be read
+      // when the site allows cross-origin reads (GitHub Pages does). Until then, services.
+      var fixed = pageIcons[pageKey(a.url)];
+      if (fixed) cands = fixed.concat(cands);
+      else if (fixed === undefined) discoverIcon(a.url, function (list) {
+        if (list && list.length && img.isConnected !== false) { cands = list.concat(cands); n = 0; next(); }
+      });
+      next();
       return d;
     }
     d.classList.add('mono');
     d.textContent = initial(a);
     return d;
+  }
+  // Icon candidates for a web page, best first: path-aware (so github.io/<project>/ works),
+  // then the host's favicon.ico, then the host-wide services.
+  function siteIcons(u) {
+    var x; try { x = new URL(u); } catch (e) { return []; }
+    return [
+      'https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&size=64&url=' + encodeURIComponent(x.origin + x.pathname),
+      x.origin + '/favicon.ico',
+      'https://icons.duckduckgo.com/ip3/' + x.hostname + '.ico',
+      'https://www.google.com/s2/favicons?sz=64&domain=' + encodeURIComponent(x.hostname)
+    ];
+  }
+  var pageIcons = {}, pageIconWait = {};
+  function pageKey(u) { try { var x = new URL(u); return x.origin + x.pathname; } catch (e) { return String(u); } }
+  try { pageIcons = JSON.parse(localStorage.getItem('lh_pageicons') || '{}') || {}; } catch (e) { pageIcons = {}; }
+  function discoverIcon(u, cb) {
+    var k = pageKey(u);
+    if (pageIconWait[k]) { pageIconWait[k].push(cb); return; }
+    pageIconWait[k] = [cb];
+    var done = function (list) {
+      var w = pageIconWait[k]; delete pageIconWait[k];
+      if (list && list.length) {
+        pageIcons[k] = list;
+        try { localStorage.setItem('lh_pageicons', JSON.stringify(pageIcons)); } catch (e) {}
+      }
+      (w || []).forEach(function (f) { try { f(list); } catch (e) {} });
+    };
+    try {
+      var ctl = window.AbortController ? new AbortController() : null;
+      var to = setTimeout(function () { if (ctl) ctl.abort(); }, 6000);
+      fetch(u, { mode: 'cors', credentials: 'omit', signal: ctl ? ctl.signal : undefined }).then(function (r) {
+        return r.ok ? r.text() : '';
+      }).then(function (html) {
+        clearTimeout(to);
+        var out = [], re = /<link\b[^>]*>/gi, m, best = [];
+        while ((m = re.exec(html || ''))) {
+          var tag = m[0], rel = /\brel\s*=\s*["']([^"']*)["']/i.exec(tag), hr = /\bhref\s*=\s*["']([^"']+)["']/i.exec(tag);
+          if (!rel || !hr || !/\bicon\b/i.test(rel[1])) continue;
+          var abs; try { abs = new URL(hr[1].replace(/&amp;/g, '&'), u).href; } catch (e) { continue; }
+          var apple = /apple-touch/i.test(rel[1]);
+          (apple ? best : out).push(abs);
+        }
+        done(out.concat(best));
+      }).catch(function () { clearTimeout(to); done(null); });
+    } catch (e) { done(null); }
   }
   function initial(a) { return (String(a.name || '?').trim().charAt(0) || '?').toUpperCase(); }
 
