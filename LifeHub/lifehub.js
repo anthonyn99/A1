@@ -1309,24 +1309,39 @@
       }
       (w || []).forEach(function (f) { try { f(list); } catch (e) {} });
     };
-    try {
+    // Most sites send no CORS header, so the browser can't read their HTML. The
+    // lifehub-icon worker reads the page and returns its declared icon links (public
+    // pages only, links only); a direct read is the fallback.
+    var routes = [
+      function (x) { return 'https://lifehub-icon.av1.workers.dev/?u=' + encodeURIComponent(x); },
+      function (x) { return x; }
+    ];
+    var parse = function (html) {
+      var out = [], best = [], re = /<link\b[^>]*>/gi, m;
+      while ((m = re.exec(html || ''))) {
+        var tag = m[0], rel = /\brel\s*=\s*["']([^"']*)["']/i.exec(tag), hr = /\bhref\s*=\s*["']([^"']+)["']/i.exec(tag);
+        if (!rel || !hr || !/\bicon\b/i.test(rel[1])) continue;
+        var abs; try { abs = new URL(hr[1].replace(/&amp;/g, '&'), u).href; } catch (e) { continue; }
+        if (abs.length > 30000) continue;
+        (/apple-touch/i.test(rel[1]) ? best : out).push(abs);
+      }
+      return out.concat(best);
+    };
+    var tryRoute = function (i) {
+      if (i >= routes.length) { done(null); return; }
       var ctl = window.AbortController ? new AbortController() : null;
-      var to = setTimeout(function () { if (ctl) ctl.abort(); }, 6000);
-      fetch(u, { mode: 'cors', credentials: 'omit', signal: ctl ? ctl.signal : undefined }).then(function (r) {
-        return r.ok ? r.text() : '';
-      }).then(function (html) {
-        clearTimeout(to);
-        var out = [], re = /<link\b[^>]*>/gi, m, best = [];
-        while ((m = re.exec(html || ''))) {
-          var tag = m[0], rel = /\brel\s*=\s*["']([^"']*)["']/i.exec(tag), hr = /\bhref\s*=\s*["']([^"']+)["']/i.exec(tag);
-          if (!rel || !hr || !/\bicon\b/i.test(rel[1])) continue;
-          var abs; try { abs = new URL(hr[1].replace(/&amp;/g, '&'), u).href; } catch (e) { continue; }
-          var apple = /apple-touch/i.test(rel[1]);
-          (apple ? best : out).push(abs);
-        }
-        done(out.concat(best));
-      }).catch(function () { clearTimeout(to); done(null); });
-    } catch (e) { done(null); }
+      var to = setTimeout(function () { if (ctl) ctl.abort(); }, 7000);
+      fetch(routes[i](u), { mode: 'cors', credentials: 'omit', signal: ctl ? ctl.signal : undefined })
+        .then(function (r) { return r.ok ? r.text() : ''; })
+        .then(function (html) {
+          clearTimeout(to);
+          var list;
+          if (i === 0) { try { list = (JSON.parse(html).icons || []).filter(function (x) { return typeof x === 'string'; }); } catch (e) { list = []; } }
+          else list = parse(html);
+          if (list.length) done(list); else tryRoute(i + 1);
+        }).catch(function () { clearTimeout(to); tryRoute(i + 1); });
+    };
+    try { tryRoute(0); } catch (e) { done(null); }
   }
   function initial(a) { return (String(a.name || '?').trim().charAt(0) || '?').toUpperCase(); }
 

@@ -34,6 +34,7 @@ jobs:
       insight: ${{ steps.filter.outputs.insight }}
       oneinbox: ${{ steps.filter.outputs.oneinbox }}
       tesla: ${{ steps.filter.outputs.tesla }}
+      lifehubicon: ${{ steps.filter.outputs.lifehubicon }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -46,6 +47,8 @@ jobs:
               - 'workers/tradeboard-api/**'
             newshub:
               - 'workers/newshub-api/**'
+            lifehubicon:
+              - 'workers/lifehub-icon/**'
             warroom:
               - 'workers/warroom-api/**'
             personalai:
@@ -111,6 +114,18 @@ jobs:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           wranglerVersion: "4"
           workingDirectory: workers/newshub-api
+
+  deploy-lifehub-icon:
+    needs: changes
+    if: ${{ needs.changes.outputs.lifehubicon == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          wranglerVersion: "4"
+          workingDirectory: workers/lifehub-icon
 
   deploy-warroom-api:
     needs: changes

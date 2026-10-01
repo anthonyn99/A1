@@ -1,0 +1,7 @@
+name = "lifehub-icon"
+# Pinned: a second Cloudflare account exists on this login and CI cannot choose.
+account_id = "b9a33dd573c14d5f446516ea8b46285f"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+
+# Stateless: no KV, no secrets. GET /?u=<page url> -> {"icons":[...]}
