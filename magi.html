@@ -805,12 +805,16 @@ body {
 @media (max-width: 760px) { .unit-pick-sel { height: 36px; } }
 /* The daily kickstart (Claude Pro, Tony's engine only). Same hairline
    section as the model picker; the options fold away while it is off. */
-.unit-kick {
+.unit-kick, .unit-resets {
   flex: 1 1 100%; display: flex; flex-direction: column; gap: 8px;
   padding: 8px 12px 10px; font-size: 11px; color: var(--txd);
   border-top: 1px solid var(--bd); min-width: 0;
 }
-.unit-kick:empty { display: none; }
+.unit-kick:empty, .unit-resets:empty { display: none; }
+/* Reset times -> TaskHub: two small switches under the main one. */
+.rs-opts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; }
+.rs-opt .kick-title { font-weight: 600; color: var(--txd); }
+.rs-acct { margin-left: auto; font-size: 10.5px; color: var(--txm); overflow-wrap: anywhere; }
 .kick-hd { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
 .kick-sw { position: relative; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
 .kick-sw input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
@@ -853,6 +857,7 @@ body {
   .kick-f > .unit-pick-lbl { min-width: 92px; }
   .kick-time { flex: 1 1 auto; }
   .kick-sw { min-height: 36px; }
+  .rs-acct { margin-left: 0; flex: 1 1 100%; }
 }
 
 /* The same verdict as a dot on the chip, so a limited unit is visible before
@@ -7183,6 +7188,7 @@ const HOW = [
       "<b>Choose each unit&rsquo;s model in the Units sheet</b>: a <b>Model</b> dropdown under Claude, Claude (Pro), Gemini and Grok, the only sites with a picker your accounts can use (ChatGPT, Perplexity and DeepSeek answer on their default). <b>Site default</b> is first and means MAGI leaves the site&rsquo;s picker alone. A choice is per person, kept on your own engine, and used by every turn that unit takes &mdash; council, chairman, Brainstorm and Studio. Before typing, the unit opens the site&rsquo;s menu, picks the model and checks the menu&rsquo;s own tick (sites remember a pick, so after the first time nothing is clicked). If the model is locked, gone, or the site will not switch, the run is <b>never failed</b>: the unit answers on what the site gives and its card says <b>Asked for X, got Y</b>. <b>Refresh models</b> opens that site once (nothing sent) to read what your account is offered, locked ones marked.",
       "<b>Effort and thinking are part of the pick.</b> Under the Model dropdown, Claude and Claude (Pro) have <b>Effort</b> (Low, Medium, High, Extra, Max), Gemini has <b>Extended thinking</b>, ChatGPT <b>Think</b> and DeepSeek <b>DeepThink</b> (On or Off). The same rules as the model: <b>Site default</b> leaves it as the site has it, the choice is checked on the site&rsquo;s own control before typing, and one that does not take never fails the run &mdash; the card says <b>Asked for &hellip;, left as the site had it</b>. Claude&rsquo;s and Gemini&rsquo;s model chip shows the result (&ldquo;Sonnet 5.5 High&rdquo;, &ldquo;Flash Extended&rdquo;).",
       "<b>Daily kickstart</b> (Claude (Pro) in the Units sheet, Tony&rsquo;s engine only): Claude&rsquo;s 5-hour window starts at your first message, so once a day, at the first check after <b>Not before</b> (or when the engine comes online, if that is later), MAGI sends the smallest message it can on the Pro account &mdash; through Claude Code on Haiku, with no tools and a one-line prompt, about 670 tokens in and 4 out. It is silent: no browser, nothing in your claude.ai chats. It is <b>skipped</b> when the weekly usage is at or above <b>Skip at week &ge;</b> (80% by default). If a window is already open, it waits for that window to reset, and a window you opened yourself after Not before counts as done. <b>Send now</b> sends at once (the weekly cap still applies).",
+      "<b>Reset times &rarr; TaskHub</b> (on the Claude row of the Units sheet, Tony&rsquo;s and Veda&rsquo;s engines): the engine reads Claude&rsquo;s next reset from your Code Mode sign-in and puts it on <b>your own</b> TaskHub &mdash; Tony&rsquo;s resets on Tony&rsquo;s, Veda&rsquo;s on Veda&rsquo;s &mdash; as an event in the week view, with a notification at the reset on your main devices. Each device shows it in its own time zone. When the next window opens, the old event and its notification are replaced; turning it off removes both. <b>Weekly reset too</b> adds the weekly limit&rsquo;s reset. It runs on the engine, so this page does not need to be open.",
     ],
   },
   {
@@ -17918,7 +17924,7 @@ function openChairPicker() {
     if (!S.selected.has(p.id)) tags.append(el("span", "doc-flag na", "Unticked"));
     pick.append(tags);
     pick.onclick = () => { setChair(p.id); sheet.remove(); };
-    row.append(pick, unitLimBox(p.id), unitPickBox(p.id), unitKickBox(p.id));
+    row.append(pick, unitLimBox(p.id), unitPickBox(p.id), unitKickBox(p.id), unitResetsBox(p.id));
     list.append(row);
   }
   box.append(list);
@@ -18070,6 +18076,7 @@ function refreshUnitSheet() {
     old.replaceWith(unitLimBox(old.dataset.unit));
   }
   refreshUnitKicks();
+  refreshUnitResets();
 }
 
 async function unitCheckNow(id) {
@@ -18453,6 +18460,107 @@ async function unitKickRun(id) {
   refreshUnitKicks(true);
   // The send moved the five-hour bar: re-read the numbers.
   loadUnitsUsage();
+}
+
+/* ══ UNITS: RESET TIMES → TASKHUB (Claude, every profile) ═════════════════
+   The engine reads this profile's Claude account (its Code Mode sign-in: Pro
+   first, else whichever is signed in) and pushes the next reset to the SAME
+   person's TaskHub: an event in the week view and a push notification at the
+   reset. Each device shows it in its own time zone. The old one goes when the
+   next arrives, and turning this off removes both. Engine side:
+   magi/engine/claude_resets.py, through the taskhub-reminders worker. It comes
+   in the /api/units/usage entry as `resets_push`, on whichever Claude row the
+   account belongs to. */
+const UNITS_RS = { busy: false, err: "" };
+const RS_KIND = { five_hour: "5-hour", seven_day: "Weekly" };
+
+function rsWhen(at) {
+  const d = new Date(at * 1000);
+  const days = Math.floor((d - new Date()) / 86400000);
+  const t = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return days >= 1 ? `${d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}, ${t}` : t;
+}
+
+/** Where the push stands, as [text, tone]. */
+function rsLine(r) {
+  if (UNITS_RS.busy || r.busy) return ["Saving…", "muted"];
+  if (!r.enabled) return ["Off", "muted"];
+  if (!r.account) return ["No Claude sign-in in Code Mode on this engine, so there are no reset times to read. Add one in Accounts.", "warn"];
+  if (r.ok === false) return [`Not pushed: ${r.detail || "TaskHub did not answer"}`, "bad"];
+  const who = r.profile === "veda" ? "Veda" : "Tony";
+  const now = Date.now() / 1000;
+  const next = (r.items || []).filter((i) => i.at > now);
+  if (!next.length) return [`No window open. The next reset goes to ${who}'s TaskHub once one starts.`, "muted"];
+  return [next.map((i) => `${RS_KIND[i.kind] || i.kind} ${rsWhen(i.at)}`).join(" · ")
+          + ` · on ${who}'s TaskHub`, "ok"];
+}
+
+function rsSwitch(label, on, off, onchange, cls = "") {
+  const sw = el("label", `kick-sw ${cls}`.trim());
+  const cb = document.createElement("input");
+  cb.type = "checkbox";
+  cb.checked = !!on;
+  cb.disabled = off;
+  cb.onchange = () => onchange(cb.checked);
+  sw.append(cb, el("i"), el("span", "kick-title", label));
+  return sw;
+}
+
+function unitResetsBox(id) {
+  const box = el("div", "unit-resets");
+  box.dataset.unit = id;
+  const r = UNITS_USE.byId[id] && UNITS_USE.byId[id].resets_push;
+  if (!r) return box;                       // another Claude row, or an older engine
+  const off = !online() || UNITS_RS.busy;
+
+  const hd = el("div", "kick-hd");
+  const main = rsSwitch("Reset times → TaskHub", r.enabled, off,
+    (v) => unitResetsSave(id, { enabled: v }));
+  main.title = "Put each Claude reset on your TaskHub as an event, with a notification " +
+    "when it resets. Shown in each device's own time zone.";
+  const [txt, tone] = rsLine(r);
+  hd.append(main, el("span", `kick-st ${tone}`, txt));
+  box.append(hd);
+
+  if (r.enabled) {
+    const opts = el("div", "rs-opts");
+    opts.append(
+      rsSwitch("Notify at reset", r.notify, off, (v) => unitResetsSave(id, { notify: v }), "rs-opt"),
+      rsSwitch("Weekly reset too", r.weekly, off, (v) => unitResetsSave(id, { weekly: v }), "rs-opt"));
+    if (r.account) {
+      opts.append(el("span", "rs-acct",
+        `Account: ${r.account.label}${r.account.plan ? ` (${r.account.plan})` : ""}`));
+    }
+    box.append(opts);
+  }
+  if (UNITS_RS.err) box.append(el("div", "unit-lim-sub warn", UNITS_RS.err));
+  return box;
+}
+
+function refreshUnitResets() {
+  for (const old of document.querySelectorAll(".unit-resets[data-unit]")) {
+    old.replaceWith(unitResetsBox(old.dataset.unit));
+  }
+}
+
+async function unitResetsSave(id, change) {
+  if (UNITS_RS.busy || !online()) return;
+  UNITS_RS.busy = true;
+  UNITS_RS.err = "";
+  refreshUnitResets();
+  try {
+    const r = await fetch(`${link.api}/api/units/claude/resets`,
+      authed({ method: "POST", headers: { "Content-Type": "application/json" },
+               body: JSON.stringify(change || {}) }));
+    const d = await r.json().catch(() => ({}));
+    const u = UNITS_USE.byId[id];
+    if (r.ok && u && d.resets_push) u.resets_push = d.resets_push;
+    else if (!r.ok) UNITS_RS.err = d.detail || `Could not save (${r.status}).`;
+  } catch (e) {
+    UNITS_RS.err = e?.message || "Could not reach the engine.";
+  }
+  UNITS_RS.busy = false;
+  refreshUnitResets();
 }
 
 const DRAG = {

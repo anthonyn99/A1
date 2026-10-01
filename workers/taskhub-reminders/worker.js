@@ -237,6 +237,15 @@ export default {
       }
     }
 
+    // MAGI engines push Claude's reset times (see handleClaudeResets).
+    if (path === '/claude-resets') {
+      try {
+        return await handleClaudeResets(request, env, origin);
+      } catch (e) {
+        return json({ ok: false, error: e.message || 'server error' }, origin, 500);
+      }
+    }
+
     if (path.startsWith('/auth/')) {
       try {
         return await handleAuth(path, request, env, origin);
@@ -324,6 +333,137 @@ export default {
     })());
   }
 };
+
+// ══════════════════════════════════════════════════════════════════════════
+//  CLAUDE RESETS — POST /claude-resets  (from a MAGI engine)
+//
+//  Each MAGI engine (Tony's PC, Veda's PC) reads its Claude account's reset
+//  times and posts the ones that should be on the calendar here, only when
+//  they change. The engine has no Firebase credentials and Firestore enforces
+//  App Check, so this worker -- which already holds the service account and
+//  owns the reminder docs -- does the two writes:
+//
+//    dashboards/claude_resets_<profile>  what TaskHub's week view renders.
+//                                        Never dashboards/main or vedasdash:
+//                                        those are rewritten wholesale from
+//                                        React state.
+//    reminders/<id>                      the push at the reset, scoped to
+//                                        that person's main devices.
+//
+//  Auth is the engine's MAGI API token, checked against the copy the console
+//  already publishes in dashboards/magi (Tony) or dashboards/magi_veda, so no
+//  new secret exists anywhere. A reminder is CREATED only (never overwritten),
+//  so a re-post can never un-fire one that already went off. Every reminder
+//  this endpoint made and no longer wants is deleted, which is how the old
+//  reset leaves the calendar and how turning the feature off cleans up.
+// ══════════════════════════════════════════════════════════════════════════
+const CLAUDE_RESET_TOKEN_DOC = { tony: 'magi', veda: 'magi_veda' };
+const CLAUDE_RESET_TITLE = {
+  five_hour: 'Claude has reset: fresh 5-hour window',
+  seven_day: 'Claude weekly limit has reset',
+};
+const CLAUDE_RESET_MAX_AHEAD_MS = 8 * 24 * 60 * 60 * 1000;
+const _magiTok = new Map();   // profile -> { tok, at }
+
+async function magiTokenFor(profile, base, ah, fresh) {
+  const hit = _magiTok.get(profile);
+  if (!fresh && hit && Date.now() - hit.at < 5 * 60 * 1000) return hit.tok;
+  const r = await fetch(`${base}/dashboards/${CLAUDE_RESET_TOKEN_DOC[profile]}?mask.fieldPaths=token`, { headers: ah });
+  const tok = r.ok ? ((await r.json()).fields?.token?.stringValue || '') : '';
+  _magiTok.set(profile, { tok, at: Date.now() });
+  return tok;
+}
+
+/** The pure half: what the engine sent -> the resets to keep. */
+function claudeResetList(profile, body, now) {
+  if (!body || body.enabled === false || !Array.isArray(body.resets)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const r of body.resets) {
+    const kind = String((r && r.kind) || '');
+    const at = Math.round(Number(r && r.at));
+    if (!CLAUDE_RESET_TITLE[kind] || seen.has(kind) || !Number.isFinite(at)) continue;
+    if (at <= now - 60 * 1000 || at > now + CLAUDE_RESET_MAX_AHEAD_MS) continue;
+    seen.add(kind);
+    out.push({ id: `claude_${profile}_${kind}_${Math.round(at / 1000)}`, kind, at });
+  }
+  return out;
+}
+
+async function handleClaudeResets(request, env, origin) {
+  if (request.method !== 'POST') return json({ ok: false, error: 'POST only' }, origin, 405);
+  let body;
+  try { body = await request.json(); } catch (e) { return json({ ok: false, error: 'bad json' }, origin, 400); }
+  const profile = String((body && body.profile) || '');
+  if (!CLAUDE_RESET_TOKEN_DOC[profile]) return json({ ok: false, error: 'unknown profile' }, origin, 400);
+
+  const aT   = await getGoogleAccessToken(env);
+  const base = `https://firestore.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents`;
+  const ah   = { 'Authorization': `Bearer ${aT}`, 'Content-Type': 'application/json' };
+
+  // A cached token that no longer matches may just be a rotation: look again.
+  const given = String(body.token || '');
+  let tok = await magiTokenFor(profile, base, ah, false);
+  if (!tokensMatch(tok, given)) tok = await magiTokenFor(profile, base, ah, true);
+  if (!tok || !tokensMatch(tok, given)) return json({ ok: false, error: 'unauthorized' }, origin, 401);
+
+  const now = Date.now();
+  const enabled = body.enabled !== false;
+  const notify = enabled && body.notify !== false;
+  const resets = claudeResetList(profile, body, now);
+  const docUrl = `${base}/dashboards/claude_resets_${profile}`;
+
+  // Every reminder an earlier post made, so the ones not wanted now can go.
+  const prev = await fetch(docUrl, { headers: ah }).then(r => (r.ok ? r.json() : null)).catch(() => null);
+  // One that is already due is left to the cron: the engine posts moments
+  // after a reset passes, and deleting it then could beat the tick that sends
+  // it. Fired docs are swept by cleanupFiredReminders like any other.
+  const prevIds = (prev?.fields?.resets?.arrayValue?.values || [])
+    .map(v => v.mapValue?.fields || {})
+    .filter(f => f.id?.stringValue && Number(f.at?.integerValue || 0) > now)
+    .map(f => f.id.stringValue);
+  const keep = new Set(notify ? resets.map(r => r.id) : []);
+  const drop = [...new Set([...prevIds, ...resets.map(r => r.id)])].filter(id => !keep.has(id));
+  const deleted = [];
+  for (const id of drop) {
+    const r = await fetch(`${base}/reminders/${encodeURIComponent(id)}`, { method: 'DELETE', headers: ah });
+    if (r.ok) deleted.push(id);
+  }
+
+  const created = [];
+  if (notify) {
+    for (const r of resets) {
+      const fields = {
+        id: { stringValue: r.id }, title: { stringValue: CLAUDE_RESET_TITLE[r.kind] },
+        notifyAt: { stringValue: new Date(r.at).toISOString() },
+        dashboard: { stringValue: profile }, tag: { stringValue: r.id }, collapseKey: { stringValue: r.id },
+        notifyRepeat: { stringValue: 'none' }, notifyRepeatDays: { arrayValue: {} },
+        notifyRepeatId: { nullValue: null }, fired: { booleanValue: false },
+        createdAt: { integerValue: String(now) }, source: { stringValue: 'magi' },
+      };
+      // Create-only: 409 means it is already armed (or already went off).
+      const c = await fetch(`${base}/reminders?documentId=${encodeURIComponent(r.id)}`,
+        { method: 'POST', headers: ah, body: JSON.stringify({ fields }) });
+      if (c.ok) created.push(r.id);
+      else if (c.status !== 409) console.warn('[claude-resets] reminder create failed:', c.status, (await c.text()).slice(0, 200));
+    }
+  }
+
+  const w = await fetch(docUrl, { method: 'PATCH', headers: ah, body: JSON.stringify({ fields: {
+    enabled: { booleanValue: enabled }, notify: { booleanValue: notify },
+    updatedAt: { integerValue: String(now) },
+    resets: { arrayValue: { values: resets.map(r => ({ mapValue: { fields: {
+      id: { stringValue: r.id }, kind: { stringValue: r.kind }, at: { integerValue: String(r.at) },
+    } } })) } },
+  } }) });
+  if (!w.ok) return json({ ok: false, error: `doc write failed (${w.status})` }, origin, 502);
+
+  // A brand-new reminder is invisible to the cron's cached lookahead.
+  if (created.length && env.TOKEN_CACHE) {
+    try { await env.TOKEN_CACHE.delete(NEXT_DUE_KEY); } catch (e) {}
+  }
+  return json({ ok: true, resets, created, deleted }, origin);
+}
 
 // ══════════════════════════════════════════════════════════════════════════
 //  NOTIF DEBUG  — GET /notifdebug  (inspect what the worker sees; force a push)

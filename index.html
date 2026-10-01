@@ -8514,6 +8514,79 @@ function TgScrollBox(props){
         onMouseLeave:function(e){e.currentTarget.style.opacity=".55";}})));
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   Claude reset times → both TaskHubs
+   ══════════════════════════════════════════════════════════════════════════
+   Each person's MAGI engine reads their Claude account's next reset and posts
+   it (through workers/taskhub-reminders /claude-resets) to its own small doc:
+   dashboards/claude_resets_tony or dashboards/claude_resets_veda. The Firebase
+   module listens to both and fires 'cr-resets-update'; everything here is
+   pure RENDER, never written into dashboards/main or vedasdash, for the same
+   reason as OneInbox and the external cards.
+
+   The doc holds the reset as an INSTANT (epoch ms), so each device puts it on
+   its own local day at its own local time: open a TaskHub in another time
+   zone and the event moves with you. The notification is a separate reminder
+   doc the worker writes, so it fires with this page closed. Turning the
+   feature off in MAGI (Units → Claude) empties the doc and deletes the
+   reminder. Names are CR_-prefixed: both babel blocks share one scope.
+   ══════════════════════════════════════════════════════════════════════════ */
+const CR_COLOR="#d97757";
+const CR_TITLE={five_hour:"Claude resets",seven_day:"Claude weekly reset"};
+const CR_SUB={five_hour:"Fresh 5-hour window",seven_day:"Weekly limit resets"};
+
+function CR_dayKey(ms){
+  const d=new Date(ms);
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+
+// The profile's upcoming resets, grouped by THIS device's local day.
+function CR_useResets(profile){
+  const[doc,setCrDoc]=useState(()=>(window._crResets||{})[profile]||null);
+  const[,setCrTick]=useState(0);
+  useEffect(()=>{
+    const h=e=>{if(e.detail&&e.detail.profile===profile)setCrDoc(e.detail.data||null);};
+    window.addEventListener("cr-resets-update",h);
+    // The listener may have fired before this component mounted.
+    if(window._crResets&&profile in window._crResets)setCrDoc(window._crResets[profile]);
+    return()=>window.removeEventListener("cr-resets-update",h);
+  },[profile]);
+  const now=Date.now();
+  const list=(doc&&doc.enabled!==false&&Array.isArray(doc.resets)?doc.resets:[])
+    .map(r=>({...r,at:Number(r.at)}))
+    .filter(r=>r&&r.id&&CR_TITLE[r.kind]&&r.at>now);
+  // A passed reset leaves the week on its own, even with no new push yet.
+  const soonest=list.reduce((m,r)=>Math.min(m,r.at),Infinity);
+  useEffect(()=>{
+    if(!isFinite(soonest))return;
+    const t=setTimeout(()=>setCrTick(x=>x+1),Math.min(soonest-Date.now()+1000,2147000000));
+    return()=>clearTimeout(t);
+  },[soonest]);
+  const notify=!!(doc&&doc.notify!==false);
+  const out={};
+  list.sort((a,b)=>a.at-b.at).forEach(r=>{(out[CR_dayKey(r.at)]=out[CR_dayKey(r.at)]||[]).push({...r,notify});});
+  return out;
+}
+
+// One reset, drawn as an event row. `card` is the caller's own event-card
+// style so it sits in either TaskHub's week like one of its events.
+function CR_rows(list,o){
+  return (list||[]).map(r=>{
+    const d=new Date(r.at);
+    let time=d.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});
+    try{const z=typeof thTzAbbr==="function"?thTzAbbr(d):"";if(z)time+=" "+z;}catch(e){}
+    return React.createElement("div",{key:r.id,title:CR_SUB[r.kind]+" · from MAGI"+(r.notify?" · notifies at "+d.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}):""),
+        style:{...(o.card||{}),borderLeft:"3px solid "+CR_COLOR,display:"flex",alignItems:"flex-start",gap:7,marginBottom:4,opacity:o.dim==null?1:o.dim,cursor:"default"}},
+      React.createElement("div",{style:{width:6,height:6,borderRadius:"50%",background:CR_COLOR,marginTop:5,flexShrink:0}}),
+      React.createElement("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
+        React.createElement("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:5,marginBottom:1}},
+          React.createElement("span",{style:{fontSize:o.compact?10:11,fontWeight:600,color:o.tx,opacity:0.65,whiteSpace:"nowrap"}},time),
+          r.notify&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",fontSize:10,color:o.ac,opacity:0.85},"aria-label":"Notifies at reset"},
+            React.createElement("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}}))),
+        React.createElement("span",{style:{fontSize:o.compact?13:14,fontWeight:600,color:o.tx,lineHeight:o.compact?1.35:1.4,...(o.fit||{})}},CR_TITLE[r.kind])));
+  });
+}
+
 function Root(){
   return React.createElement(App,null);
 }
@@ -8526,6 +8599,8 @@ function App(){
   const oiCoupons=(oiCards||[]).filter(c=>c.kind==="coupon");
   const oiByDay=OI_byDay(oiCards,true);
   const ecByDay=EC_byDay(EC_useCards());
+  // Claude reset times from MAGI — read-only, see CR_* above.
+  const crByDay=CR_useResets("tony");
   useEffect(()=>{
     document.body.style.background="#1a1a1d";
     document.documentElement.style.background="#1a1a1d";
@@ -9941,6 +10016,7 @@ function App(){
 ),
               tasks.length>0&&React.createElement("div",{style:{width:"100%",height:3,background:T.BD,borderRadius:2,marginBottom:10,overflow:"hidden"}},React.createElement("div",{style:{width:p+"%",height:"100%",background:p===100?T.GRN:wkBarFill,borderRadius:2,transition:"width .35s"}})),
               mcRender(mcDay,dayTX),
+              CR_rows(crByDay[k],{card:wkEventCard(null,false),tx:T.TXD,ac:T.AC,dim:dimA,fit:wkTitleFit}),
               /* OneInbox packages / bills / travel due on THIS day. Each card is
                  keyed by the shipment or the obligation, not by the email, so a
                  revised ETA moves the existing card to its new day instead of
@@ -10001,7 +10077,7 @@ function App(){
                 React.createElement("span",{style:{fontSize:14,fontWeight:600,color:T.TXD,lineHeight:1.4,...wkTitleFit}},e.title)),
                 edit&&React.createElement("button",{type:"button",style:{...ebtn,padding:"0 6px"},onClick:()=>{setEi(e);setMdt(k);setMo(true);},title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px"},onClick:()=>del(k,e.id)},"×"))),
-              !tasks.length&&!events.length&&!mcDay.length&&!edit&&React.createElement("div",{style:{fontSize:11,fontWeight:500,color:T.TXM,textAlign:"center",padding:"24px 0"}},"—"),
+              !tasks.length&&!events.length&&!mcDay.length&&!(crByDay[k]||[]).length&&!edit&&React.createElement("div",{style:{fontSize:11,fontWeight:500,color:T.TXM,textAlign:"center",padding:"24px 0"}},"—"),
               edit&&React.createElement("button",{type:"button",style:{fontSize:11,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,borderRadius:4,padding:"9px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"));
           })())
         :
@@ -10031,6 +10107,7 @@ function App(){
               ),
               tasks.length>0&&React.createElement("div",{style:{width:"100%",height:3,background:T.BD,borderRadius:2,marginBottom:8,overflow:"hidden"}},React.createElement("div",{style:{width:p+"%",height:"100%",background:p===100?T.GRN:wkBarFill,borderRadius:2,transition:"width .35s"}})),
               mcRender(mcDay,dayTX),
+              CR_rows(crByDay[k],{card:wkEventCard(null,false),tx:T.TXD,ac:T.AC,dim:dimA,fit:wkTitleFit,compact:true}),
               /* OneInbox packages / bills / travel due on THIS day. Each card is
                  keyed by the shipment or the obligation, not by the email, so a
                  revised ETA moves the existing card to its new day instead of
@@ -10080,7 +10157,7 @@ function App(){
                 React.createElement("span",{style:{fontSize:13,fontWeight:600,color:T.TXD,lineHeight:1.35,whiteSpace:"normal",...wkTitleFit}},e.title)),
                 edit&&React.createElement("button",{type:"button",style:ebtn,onClick:()=>{setEi(e);setMdt(k);setMo(true);},title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                 edit&&React.createElement("button",{type:"button",style:dbtn,onClick:()=>del(k,e.id)},"×"))),
-              !tasks.length&&!events.length&&!mcDay.length&&!edit&&React.createElement("div",{style:{fontSize:10,fontWeight:500,color:T.TXM,textAlign:"center",padding:"32px 0"}},"—"),
+              !tasks.length&&!events.length&&!mcDay.length&&!(crByDay[k]||[]).length&&!edit&&React.createElement("div",{style:{fontSize:10,fontWeight:500,color:T.TXM,textAlign:"center",padding:"32px 0"}},"—"),
               edit&&React.createElement("button",{type:"button",style:{fontSize:10,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,borderRadius:4,padding:"5px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"));
           })))),
 
@@ -10576,6 +10653,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   let _plansUnsub     = null;   // Plans → both TaskHubs mirror (read-only)
   let _plansSaveTimer = null;
   let _ecUnsubscribe  = null;
+  let _crUnsubs       = [];     // Claude reset times, one per profile (read-only)
   let _alUnsubscribe  = null;
   let _oiUnsubscribe  = null;
   window._alSaveTimer = null;
@@ -12925,6 +13003,17 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       window.dispatchEvent(new CustomEvent('ec-cards-update', { detail: cards }));
     }, (err) => { console.warn('[Cards] onSnapshot error:', err); });
 
+    // ── Claude reset times (read-only) ────────────────────────────────────
+    // Written by workers/taskhub-reminders /claude-resets for each person's
+    // MAGI engine. TaskHub only listens and renders; see CR_useResets.
+    _crUnsubs.forEach(u => { try { u(); } catch (e) {} });
+    window._crResets = window._crResets || {};
+    _crUnsubs = ['tony', 'veda'].map(p => onSnapshot(doc(db, 'dashboards/claude_resets_' + p), (snap) => {
+      const data = snap.exists() ? snap.data() : null;
+      window._crResets[p] = data;
+      window.dispatchEvent(new CustomEvent('cr-resets-update', { detail: { profile: p, data } }));
+    }, (err) => { console.warn('[ClaudeResets] onSnapshot error:', err); }));
+
     // ── AppLock locked-set sync — which apps are locked, shared across ALL devices ──
     const alDocRef = doc(db, "dashboards/applock");
     let _alLastOwnSaveAt = 0;
@@ -13203,6 +13292,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     if (_sosAckUnsub)    { _sosAckUnsub();    _sosAckUnsub    = null; }
     if (_plansUnsub)     { _plansUnsub();     _plansUnsub     = null; }
     if (_ecUnsubscribe)  { _ecUnsubscribe();  _ecUnsubscribe  = null; }
+    _crUnsubs.forEach(u => { try { u(); } catch (e) {} }); _crUnsubs = [];
     if (_alUnsubscribe)  { _alUnsubscribe();  _alUnsubscribe  = null; }
     if (window._tsUnsubscribe) { window._tsUnsubscribe(); window._tsUnsubscribe = null; }
     if (window._rlUnsubscribe) { window._rlUnsubscribe(); window._rlUnsubscribe = null; }
@@ -16804,6 +16894,8 @@ function App(){
   // ── Macro banners (from TradeHub Catalysts, shared market_calendar doc).
   //    Grouped by day, today-onward. Display only — notifications removed. ──
   const mcByDay=useMemo(()=>{const g={};const todayK=dkey(new Date().getFullYear(),new Date().getMonth(),new Date().getDate());(marketCal||[]).forEach(ev=>{if(!ev||!ev.date)return;(g[ev.date]=g[ev.date]||[]).push({id:ev.id,_mc:true,kind:ev.kind,title:ev.name,category:ev.category,importance:ev.importance,date:ev.date,_past:ev.date<todayK});});return g;},[marketCal]);
+  // Claude reset times from MAGI — read-only, see CR_* in the first block.
+  const crByDay=CR_useResets("veda");
   // Macro catalyst cards get a bordered card with a category-colored left stripe,
   // matching Tony's TaskHub (wkCatalystCard). Veda is dark-only, so dark values inline.
   const MC_PASTEL={earnings:"#e7a6b4",inflation:"#e3c794",fed:"#c9b3ec",jobs:"#a6c8e6",growth:"#a6dcb2",macro:"#c0c6cd",rates:"#c9b3ec",gdp:"#a6dcb2",retail:"#a6dcb2",housing:"#a3dcc6",sentiment:"#e3cb98",trade:"#edb2a6",oil:"#e3bd96",holiday:"#b0b9cc"};
@@ -17044,6 +17136,7 @@ function App(){
                 ts.length>0&&RC("span",{style:{fontSize:10,fontWeight:700,color:l===0?GRN:A,background:l===0?"rgba(86,211,100,.1)":ABG,borderRadius:3,padding:"2px 7px",flexShrink:0}},l===0?RC("span",{style:{display:"inline-flex",alignItems:"center",gap:3}},RC("span",{style:{width:9,height:9,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.check}}),"Done"):l+" left")),
               ts.length>0&&RC("div",{style:{width:"100%",height:3,background:BD,borderRadius:2,marginBottom:8,overflow:"hidden"}},RC("div",{style:{width:p+"%",height:"100%",background:p===100?GRN:"linear-gradient(90deg,"+AD+","+AL+")",borderRadius:2,transition:"width .35s"}})),
               mcRender(mcByDay[k]||[],dayTX),
+              CR_rows(crByDay[k],{card:vdEventCard(null,false),tx:"#C3B2D0",ac:A,dim:dimA,fit:vdTitleFit}),
               ts.map(t=>t._planId
               /* ── Shared plan ──────────────────────────────────────────────
                  Owned by dashboards/plans, so its CONTENT is inert here: no
@@ -17082,7 +17175,7 @@ function App(){
                 !edit&&sosResFor(e)&&RC("button",{type:"button",title:sosResTitle(sosResFor(e)),style:vdIcoBtn(sosPastel(e._sosClassColor)||A),onClick:ev3=>{ev3.stopPropagation();window._sosLaunchClassClick&&window._sosLaunchClassClick(e._sosClassId,e._sosClassName);}},vdIco(TNI.play,12)),
                 edit&&RC("button",{type:"button",title:"Edit",style:vdIcoBtn(TXD),onClick:()=>{setEi(e);setMdt(k);setMo(true);}},vdIco(TNI.pencil)),
                 edit&&RC("button",{type:"button",title:"Delete",style:vdIcoBtn("#f85149"),onClick:()=>del(k,e.id)},vdIco(TNI.x)))),
-              !it.length&&!(mcByDay[k]||[]).length&&!edit&&RC("div",{style:{fontSize:11,fontWeight:600,color:TXM,textAlign:"center",padding:"24px 0"}},"—"),
+              !it.length&&!(mcByDay[k]||[]).length&&!(crByDay[k]||[]).length&&!edit&&RC("div",{style:{fontSize:11,fontWeight:600,color:TXM,textAlign:"center",padding:"24px 0"}},"—"),
               edit&&RC("button",{style:{fontSize:11,fontWeight:700,color:A,background:"transparent",border:"1px solid "+A,borderRadius:4,padding:"9px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"));
           })())
         :
@@ -17105,6 +17198,7 @@ function App(){
                 ts.length>0&&RC("span",{style:{fontSize:10,fontWeight:700,color:l===0?GRN:A,background:l===0?"rgba(86,211,100,.1)":ABG,borderRadius:3,padding:"2px 7px"}},l===0?RC("span",{style:{display:"inline-flex",alignItems:"center",gap:3}},RC("span",{style:{width:9,height:9,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.check}}),"Done"):l+" left")),
               ts.length>0&&RC("div",{style:{width:"100%",height:3,background:BD,borderRadius:2,marginBottom:7,overflow:"hidden"}},RC("div",{style:{width:p+"%",height:"100%",background:p===100?GRN:"linear-gradient(90deg,"+AD+","+AL+")",borderRadius:2,transition:"width .35s"}})),
               mcRender(mcByDay[k]||[],dayTX),
+              CR_rows(crByDay[k],{card:vdEventCard(null,false),tx:"#C3B2D0",ac:A,dim:dimA,fit:vdTitleFit,compact:true}),
               ts.map(t=>t._planId
               /* Shared plan — content inert, position draggable; same rule as the
                  single-day list. */
@@ -17138,7 +17232,7 @@ function App(){
                 !edit&&sosResFor(e)&&RC("button",{type:"button",title:sosResTitle(sosResFor(e)),style:vdIcoBtn(sosPastel(e._sosClassColor)||A),onClick:ev3=>{ev3.stopPropagation();window._sosLaunchClassClick&&window._sosLaunchClassClick(e._sosClassId,e._sosClassName);}},vdIco(TNI.play,12)),
                 edit&&RC("button",{type:"button",title:"Edit",style:vdIcoBtn(TXD),onClick:()=>{setEi(e);setMdt(k);setMo(true);}},vdIco(TNI.pencil)),
                 edit&&RC("button",{type:"button",title:"Delete",style:vdIcoBtn("#f85149"),onClick:()=>del(k,e.id)},vdIco(TNI.x)))),
-              !it.length&&!(mcByDay[k]||[]).length&&!edit&&RC("div",{style:{fontSize:11,fontWeight:600,color:TXM,textAlign:"center",padding:"30px 0"}},"—"),
+              !it.length&&!(mcByDay[k]||[]).length&&!(crByDay[k]||[]).length&&!edit&&RC("div",{style:{fontSize:11,fontWeight:600,color:TXM,textAlign:"center",padding:"30px 0"}},"—"),
               edit&&RC("button",{style:{fontSize:11,fontWeight:700,color:A,background:"transparent",border:"1px solid "+A,borderRadius:4,padding:"4px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"))})))),
 
     // ── Bottom panels ──
