@@ -510,7 +510,16 @@ One phase per session.
      `syntheses.model/model_fallback` (migrated); Brainstorm's chairman
      turns fill their model columns; chips after "synthesised by", "merged
      by", on "Plan ready". History names the chair as live does.
-  5. **Grok Expert/Heavy** — still unverified: Grok was limited.
+  5. **Grok Expert/Heavy** — **Expert on free: answered, but on Fast**
+     ("Asked for Expert, got Fast": the menu's check stayed on Fast after
+     the click, so the site does not give free accounts Expert even though
+     it lists it unlocked; the run answers anyway, as designed). That one
+     question then hit Grok's free limit ("1 hour 32 minutes"), so **Heavy
+     is still unverified**. Grok's pick is back on Site default.
+  Also (Tony, same day): **drag to reorder** replaced the ↑/↓ arrows in the
+  Agent order and both queues (`dragSort`, `dragGrip`, `dropOrder`,
+  `queueMoveTo`); live with real CDP mouse/touch input,
+  `tests/live/magi-drag-sort.live.js` 27/27.
   Also (Tony, same day): **earlier turns of a deliberation have the Brief /
   Text switch** (`verdictViewSeg`, one choice for every verdict on screen).
 * **Units recon (Track S, U1)**: read-only, no engine change. Each site
@@ -909,8 +918,9 @@ offer them, do not start them unasked:
 * ~~Effort / thinking as part of the pick~~ — **done 2026-10-01** (see
   "What exists" › "After Track F").
 * ~~The chairman's own model~~ — **done 2026-10-01**.
-* **Grok's options on free** are still UNVERIFIED past "Fast" (tried again
-  2026-10-01: limited, "16 minutes before limit is gone", even on Fast): every U4
+* **Grok's options on free**: Expert does NOT take on free (2026-10-01:
+  answered on Fast, "Asked for Expert, got Fast"); **Heavy still
+  UNVERIFIED** -- the free limit is hit after a question or two. Every U4
   live try found Grok limited ("9 minutes before limit is gone"). The pick
   is safe either way (an ignored click reads back as "Asked for Expert, got
   Fast"), but nobody has seen Expert/Heavy answer on the free account.
