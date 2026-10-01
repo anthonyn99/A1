@@ -28,6 +28,7 @@ import time
 from datetime import date
 
 from ..providers.base import Answer, Provider, RunContext
+from .chairman import with_model
 
 # ── task type ───────────────────────────────────────────────────────────────
 
@@ -1893,22 +1894,23 @@ async def merge_round(
     critiques: list[dict] | None = None,
     cancel=None,
 ) -> tuple[str, dict, bool, str | None, int]:
-    """Chairman merges one round. Returns (raw, parsed, ok, error, ms)."""
+    """Chairman merges one round. Returns (raw, parsed, ok, error, ms), as a
+    chairman.Synthesis that also carries `.model` / `.model_fallback`."""
     t0 = time.monotonic()
     prompt = build_chairman_prompt(topic, turns, answers, critiques)
     result = await chairman.ask(prompt, ctx=ctx, cancel=cancel)
     ms = int((time.monotonic() - t0) * 1000)
 
     if not result.ok:
-        return (
+        return with_model((
             "",
             parse_round(""),
             False,
             f"Chairman ({chairman.display_name}) failed: "
             f"{result.failure} -- {result.error_detail}",
             ms,
-        )
-    return result.text, parse_round(result.text), True, None, ms
+        ), result)
+    return with_model((result.text, parse_round(result.text), True, None, ms), result)
 
 
 async def write_plan(
@@ -1921,21 +1923,22 @@ async def write_plan(
     critiques: list[dict] | None = None,
     cancel=None,
 ) -> tuple[str, bool, str | None, int]:
-    """Chairman writes the final plan body. Returns (markdown, ok, error, ms)."""
+    """Chairman writes the final plan body. Returns (markdown, ok, error, ms),
+    as a chairman.Synthesis carrying `.model` / `.model_fallback`."""
     t0 = time.monotonic()
     prompt = build_finalize_prompt(topic, turns, answers, critiques)
     result = await chairman.ask(prompt, ctx=ctx, cancel=cancel)
     ms = int((time.monotonic() - t0) * 1000)
 
     if not result.ok:
-        return (
+        return with_model((
             "",
             False,
             f"Chairman ({chairman.display_name}) failed to write the plan: "
             f"{result.failure} -- {result.error_detail}",
             ms,
-        )
-    return result.text, True, None, ms
+        ), result)
+    return with_model((result.text, True, None, ms), result)
 
 async def review_plan(
     chairman: Provider,

@@ -297,6 +297,30 @@ def cap_confidence(verdict: str, *, reason: str) -> str:
     return out
 
 
+class Synthesis(tuple):
+    """A chairman turn's result tuple -- it unpacks exactly as the plain tuple
+    always did, e.g. (verdict_text, ok, error_detail, latency_ms) -- plus the
+    model the chairman's site showed while it wrote (U2's label; "" where the
+    site shows none) and its fallback evidence. A chairman is a unit like any
+    other, and which model wrote the verdict, a Brainstorm merge or its plan
+    was the one thing on screen without a chip. Brainstorm uses it too."""
+
+    model: str = ""
+    model_fallback: str = ""
+
+
+def with_model(values: tuple, result=None) -> Synthesis:
+    """`values` as a Synthesis carrying `result`'s model (an Answer)."""
+    s = Synthesis(values)
+    s.model = str(getattr(result, "model", "") or "")
+    s.model_fallback = str(getattr(result, "model_fallback", "") or "")
+    return s
+
+
+def _synthesis(text: str, ok: bool, err: str | None, ms: int, result=None) -> Synthesis:
+    return with_model((text, ok, err, ms), result)
+
+
 async def synthesize(
     chairman: Provider,
     question: str,
@@ -306,8 +330,9 @@ async def synthesize(
     cancel: asyncio.Event | None = None,
     context: str = "",
     additions: list[str] | None = None,
-) -> tuple[str, bool, str | None, int]:
-    """Returns (verdict_text, ok, error_detail, latency_ms)."""
+) -> Synthesis:
+    """Returns (verdict_text, ok, error_detail, latency_ms), as a Synthesis
+    that also carries `.model` / `.model_fallback`."""
     t0 = time.monotonic()
     prompt = build_prompt(
         question, answers, max_chars=prompt_budget(chairman.id),
@@ -317,12 +342,13 @@ async def synthesize(
     ms = int((time.monotonic() - t0) * 1000)
 
     if not result.ok:
-        return (
+        return _synthesis(
             "",
             False,
             f"Chairman ({chairman.display_name}) failed: "
             f"{result.failure} -- {result.error_detail}",
             ms,
+            result,
         )
 
     text = result.text
@@ -336,4 +362,4 @@ async def synthesize(
                 f"on fewer independent responses than were asked for."
             ),
         )
-    return text, True, None, ms
+    return _synthesis(text, True, None, ms, result)

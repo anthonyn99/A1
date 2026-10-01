@@ -443,6 +443,13 @@ class Database:
                 if col not in have:
                     await db.execute(f"ALTER TABLE answers ADD COLUMN {col} {ddl}")
 
+            # The chairman's model, like a member's (U2). Old rows read "".
+            cur = await db.execute("PRAGMA table_info(syntheses)")
+            have = {r[1] for r in await cur.fetchall()}
+            for col, ddl in (("model", "TEXT"), ("model_fallback", "TEXT")):
+                if col not in have:
+                    await db.execute(f"ALTER TABLE syntheses ADD COLUMN {col} {ddl}")
+
             # Track F: a run is one turn of a session (a follow-up chain).
             # Old rows read NULL -- each is its own one-turn session.
             cur = await db.execute("PRAGMA table_info(runs)")
@@ -627,15 +634,18 @@ class Database:
     async def save_synthesis(
         self, run_id: str, chairman: str, text: str, responded: int,
         total: int, ok: bool, error: str | None, latency_ms: int,
+        *, model: str = "", model_fallback: str = "",
     ) -> None:
         async with aiosqlite.connect(self.path) as db:
             await db.execute(
                 """INSERT OR REPLACE INTO syntheses(
                      run_id,chairman_provider,verdict_text,members_responded,
-                     members_total,ok,error_detail,latency_ms,created_at)
-                   VALUES(?,?,?,?,?,?,?,?,?)""",
+                     members_total,ok,error_detail,latency_ms,created_at,
+                     model,model_fallback)
+                   VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
                 (run_id, chairman, text, responded, total,
-                 1 if ok else 0, error, latency_ms, _now()),
+                 1 if ok else 0, error, latency_ms, _now(),
+                 model or "", model_fallback or ""),
             )
             await db.commit()
 

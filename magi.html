@@ -1173,6 +1173,7 @@ body {
   text-transform: uppercase; color: var(--ac);
 }
 .verdict-quorum { color: var(--txm); font-size: 10px; letter-spacing: .6px; }
+.verdict-quorum .verdict-model { letter-spacing: 0; vertical-align: 1px; }
 
 /* The copy control. One class for every surface that produces a result --
    the verdict, a brainstorm plan, a round draft, a single unit's answer --
@@ -9771,11 +9772,19 @@ function renderVerdict() {
   const solo = v.total === 1;
   const hd = el("div", "verdict-hd");
   hd.append(el("span", "verdict-title", solo ? "Answer" : "Verdict"));
-  hd.append(el("span", "verdict-quorum",
-    (solo ? `${v.chairman || "one unit"} · answered directly`
-          : `${v.responded} of ${v.total} units responded` +
-            (v.chairman ? ` · synthesised by ${v.chairman}` : "")) +
-    (v.total_ms ? ` · ${(v.total_ms / 1000).toFixed(0)}s` : "")));
+  const quorum = el("span", "verdict-quorum",
+    solo ? `${v.chairman || "one unit"} · answered directly`
+         : `${v.responded} of ${v.total} units responded` +
+           (v.chairman ? ` · synthesised by ${v.chairman}` : ""));
+  // The model the chairman wrote it on, right after its name -- the same
+  // chip a unit card carries. A run from before this has none, and shows none.
+  if (!solo && v.chairman_model) {
+    const chip = modelChip(v.chairman_model, v.chairman_model_fallback);
+    chip.classList.add("verdict-model");
+    quorum.append(chip);
+  }
+  if (v.total_ms) quorum.append(document.createTextNode(` · ${(v.total_ms / 1000).toFixed(0)}s`));
+  hd.append(quorum);
 
   /* A way out, ON the verdict.
    *
@@ -11654,7 +11663,10 @@ function turnFromRecord(data, id, local) {
       verdict: syn.verdict_text || "",
       synthesis_ok: !!syn.ok,
       synthesis_error: syn.error_detail,
-      chairman: syn.chairman_provider,
+      // Its name, as a live run's verdict says it, not the stored id.
+      chairman: (S.providers.find((p) => p.id === syn.chairman_provider) || {}).display_name
+        || syn.chairman_provider,
+      chairman_model: syn.model || "", chairman_model_fallback: syn.model_fallback || "",
       responded: syn.members_responded,
       total: syn.members_total,
       total_ms: run.total_ms || 0,
@@ -21238,6 +21250,15 @@ function normaliseQuestion(q) {
   };
 }
 
+/** Who wrote the finished plan, and on which model: the last finalise turn.
+ *  null before a plan exists; model "" on sessions from before it was kept. */
+function planChairOf(turns) {
+  const t = [...(turns || [])].reverse().find((x) => x.role === "chairman"
+    && x.parsed_json && x.parsed_json.kind === "plan");
+  return t ? { chairman: t.provider_id || "", model: t.model || "",
+               model_fallback: t.model_fallback || "" } : null;
+}
+
 /** Rebuilds the round list from the flat turn log. The backend stores turns,
  *  not rounds, because a round is not a row — it is a user reply plus N council
  *  answers plus one merge, and which of those exist depends on how far the
@@ -21276,8 +21297,10 @@ function roundsFromTurns(turns) {
     } else if (t.role === "chairman" && t.parsed_json) {
       const p = t.parsed_json;
       // The finalise turn holds the finished plan, not a round merge; the plan
-      // has its own view and must not masquerade as a round.
+      // has its own view and must not masquerade as a round (planChairOf).
       if (p.kind === "plan") continue;
+      round.chairman_model = t.model || "";
+      round.chairman_model_fallback = t.model_fallback || "";
       round.plan_so_far = p.plan_so_far || "";
       round.questions = (p.questions || []).map(normaliseQuestion);
       round.agreement = p.agreement || p.council_split || "";
@@ -21370,6 +21393,7 @@ async function refreshTurns(id) {
     const r = await fetch(`${link.api}/api/brainstorm/${id}`, authed());
     const data = await r.json();
     S.bs.rounds = roundsFromTurns(data.turns);
+    S.bs.planChair = planChairOf(data.turns);
     if (data.session && data.session.plan_md) S.bs.planMd = data.session.plan_md;
   } catch {}
 }
@@ -21388,6 +21412,7 @@ async function openBsSession(id) {
       sessionId: id, topic: data.session.topic, status: data.session.status,
       planFilename: planFilenameFor(data.session.topic), savedTo: null,
       planMd: data.session.plan_md || null, rounds: roundsFromTurns(data.turns),
+      planChair: planChairOf(data.turns),
     });
   } catch (e) {
     S.bs.error = (e && e.message) || "Could not open that session.";
@@ -22419,6 +22444,14 @@ function renderBsView() {
   if (bs.status === "complete" && bs.planMd) {
     const hd = el("div", "bs-hd");
     hd.append(el("span", "bs-title", "Plan ready"), el("span", "bs-sub", bs.topic));
+    // Who wrote it, and on which model (none on sessions from before this).
+    const pc = bs.planChair;
+    if (pc && pc.model) {
+      const by = el("span", "bs-sub bs-plan-by",
+        `written by ${(S.providers.find((p) => p.id === pc.chairman) || {}).display_name || pc.chairman}`);
+      by.append(modelChip(pc.model, pc.model_fallback));
+      hd.append(by);
+    }
     root.append(hd);
     const backBar = el("div", "bs-backbar");
     backBar.append(bsBackButton());
@@ -22481,9 +22514,15 @@ function renderBsView() {
     if (latest.parsed) {
       const v = el("div", "verdict");
       const vh = el("div", "verdict-hd");
-      vh.append(el("span", "verdict-title", "Plan so far"),
-                el("span", "verdict-quorum",
-                   `round ${latest.round_no}` + (latest.chairman ? ` · merged by ${latest.chairman}` : "")));
+      const mergedBy = el("span", "verdict-quorum",
+        `round ${latest.round_no}` + (latest.chairman ? ` · merged by ${latest.chairman}` : ""));
+      // The model the merge was written on, as on the verdict and unit cards.
+      if (latest.chairman_model) {
+        const chip = modelChip(latest.chairman_model, latest.chairman_model_fallback);
+        chip.classList.add("verdict-model");
+        mergedBy.append(chip);
+      }
+      vh.append(el("span", "verdict-title", "Plan so far"), mergedBy);
       const planNow = bsPlanBody(latest.plan_so_far);
       const acts = el("span", "verdict-acts");
       acts.append(bsViewSeg(), copyButton(() => ({ node: planNow, md: latest.plan_so_far })));

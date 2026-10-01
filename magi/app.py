@@ -663,6 +663,8 @@ async def create_run(
                 "responded": result["responded"],
                 "total": result["total"],
                 "chairman": result["chairman"],
+                "chairman_model": result.get("chairman_model", ""),
+                "chairman_model_fallback": result.get("chairman_model_fallback", ""),
                 "verdict": result["verdict"],
                 "synthesis_ok": result["synthesis_ok"],
                 "synthesis_error": result["synthesis_error"],
@@ -1540,10 +1542,11 @@ async def create_brainstorm_round(
                     }
                 )
 
-                raw, parsed, ok, err, ms = await brainstorm_engine.merge_round(
+                merged = await brainstorm_engine.merge_round(
                     chair, topic, turns, answers, ctx,
                     critiques=critiques, cancel=state["cancel"],
                 )
+                raw, parsed, ok, err, ms = merged
                 if ok:
                     break
                 errs.append(err or f"{chair.display_name} failed to merge the round.")
@@ -1575,6 +1578,8 @@ async def create_brainstorm_round(
                 latency_ms=ms,
                 char_count=len(raw or ""),
                 phase="round",
+                model=getattr(merged, "model", "") or None,
+                model_fallback=getattr(merged, "model_fallback", "") or None,
             )
 
             payload = {
@@ -1583,6 +1588,8 @@ async def create_brainstorm_round(
                 "session_id": session_id,
                 "round_no": round_no,
                 "chairman": chair.display_name,
+                "chairman_model": getattr(merged, "model", ""),
+                "chairman_model_fallback": getattr(merged, "model_fallback", ""),
                 "raw_text": raw,
                 "latency_ms": ms,
                 "responded": len(responded),
@@ -1825,10 +1832,11 @@ async def finalize_brainstorm(
                     }
                 )
 
-                body, ok, err, ms = await brainstorm_engine.write_plan(
+                wrote = await brainstorm_engine.write_plan(
                     chair, topic, turns, answers, ctx,
                     critiques=critiques, cancel=state["cancel"],
                 )
+                body, ok, err, ms = wrote
                 if ok:
                     break
                 errs.append(err or f"{chair.display_name} failed to write the plan.")
@@ -1879,6 +1887,8 @@ async def finalize_brainstorm(
                 latency_ms=ms,
                 char_count=len(markdown),
                 phase="finalize",
+                model=getattr(wrote, "model", "") or None,
+                model_fallback=getattr(wrote, "model_fallback", "") or None,
             )
             await db.finish_session(
                 session_id, "complete", plan_path=None, plan_md=markdown,
@@ -1890,6 +1900,8 @@ async def finalize_brainstorm(
                 "session_id": session_id,
                 "status": "complete",
                 "chairman": chair.display_name,
+                "chairman_model": getattr(wrote, "model", ""),
+                "chairman_model_fallback": getattr(wrote, "model_fallback", ""),
                 "plan_filename": filename,
                 "plan_md": markdown,
                 "latency_ms": ms,

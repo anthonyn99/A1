@@ -519,6 +519,8 @@ class Orchestrator:
         # -- synthesise -----------------------------------------------------
         verdict, syn_ok, syn_err, syn_ms = "", False, None, 0
         chair = None
+        # The model the chair that wrote the verdict was on (chairman.Synthesis).
+        chair_model, chair_fallback = "", ""
         need = required_members(
             self.settings.chairman.min_members, len(answers)
         )
@@ -583,15 +585,18 @@ class Orchestrator:
                             ),
                         )
                     )
-                verdict, syn_ok, syn_err, ms = await chairman_mod.synthesize(
+                syn = await chairman_mod.synthesize(
                     chair, question, answers, ctx, cancel=cancel,
                     context=session_mod.build_context(
                         context, session_mod.budget_for(chair.id, question)
                     ),
                     additions=additions,
                 )
+                verdict, syn_ok, syn_err, ms = syn
                 syn_ms += ms
                 if syn_ok:
+                    chair_model = getattr(syn, "model", "")
+                    chair_fallback = getattr(syn, "model_fallback", "")
                     break
                 # The chair's capture goes through the same validation as a
                 # member's, so a refusal or a stock error line lands here as a
@@ -618,6 +623,7 @@ class Orchestrator:
             await self.db.save_synthesis(
                 run_id, chair.id if chair else "", verdict,
                 len(responded), len(answers), syn_ok, syn_err, syn_ms,
+                model=chair_model, model_fallback=chair_fallback,
             )
             await self.db.finish_run(
                 run_id, status, len(responded), len(answers), total_ms,
@@ -635,6 +641,8 @@ class Orchestrator:
             "synthesis_ok": syn_ok,
             "synthesis_error": syn_err,
             "chairman": chair.display_name if chair else None,
+            "chairman_model": chair_model,
+            "chairman_model_fallback": chair_fallback,
             "responded": len(responded),
             "total": len(answers),
             "degraded": [
