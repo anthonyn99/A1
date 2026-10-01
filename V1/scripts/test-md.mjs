@@ -29,6 +29,9 @@ console.log('\nescaping');
   t('table cells are escaped', !/<i>|<u>/.test(table) && table.includes('&lt;i&gt;'), table);
   const head = renderMarkdown('## <svg onload=alert(1)>');
   t('headings are escaped', !/<svg/i.test(head), head);
+  // Lesson figures are built as elements by lesson-ui, never through markdown.
+  const pic = renderMarkdown('![x](javascript:alert(1)) and ![y](data:image/svg+xml,<svg onload=alert(1)>)');
+  t('image syntax never becomes an <img>', !/<img|<svg/i.test(pic), pic);
   t('quotes escaped for attributes too', escapeHtml(`"'`) === '&quot;&#39;');
 }
 

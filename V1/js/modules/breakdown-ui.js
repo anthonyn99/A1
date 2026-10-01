@@ -202,6 +202,8 @@ function checksNote(c) {
   if (c.skipped) return ` · not checked against the PDF (${c.skipped})`;
   if (!c.pages) return '';
   return ` · checked against all ${c.pages} pages${c.gaps ? ` · ${c.gaps} line${c.gaps === 1 ? '' : 's'} not fully taught` : ''}${
+    c.figures ? ` · ${c.figures} figure${c.figures === 1 ? '' : 's'} from the document` : ''}${
+    c.drawn ? ` · ${c.drawn} drawn` : ''}${
     c.figuresSkipped ? ` · ${c.figuresSkipped} figure${c.figuresSkipped === 1 ? '' : 's'} not seen (no image-capable model was free)` : ''}${
     c.pdfMissed ? ` · ${c.pdfMissed} lesson${c.pdfMissed === 1 ? '' : 's'} written from the text alone (no model that reads files was free)` : ''}`;
 }

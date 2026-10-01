@@ -10,14 +10,88 @@
  * gate on Next turns a lesson into a test she has to pass to continue.
  * ------------------------------------------------------------------------- */
 
+import * as ai from './ai.js';
 import * as bd from './breakdown.js';
 import * as deck from './deck.js';
+import * as pipeline from './pipeline.js';
 import { renderMarkdown, escapeHtml as esc, inline } from './md.js';
 import { ensureStyle } from './study-style.js';
 import { findFile } from './breakdown-ui.js';
 
 const LABEL = { read: 'Read', example: 'Worked example', steps: 'Step by step', check: 'Check yourself', recap: 'Recap',
-  source: 'From the document', cards: 'Flashcards' };
+  figure: 'Figure', source: 'From the document', cards: 'Flashcards' };
+
+// ── Figures: the document's pages, re-rendered from the source PDF ─────────
+/* Only {page} is stored with a lesson; the picture is drawn from the PDF on
+ * the device that opens it. `${fileId}:${page}` -> Promise<JPEG data URL>,
+ * kept because render() runs on every click. A failure is forgotten, so the
+ * next open tries again. */
+const _pageImg = new Map();
+
+function figurePagesOf(topic) {
+  return [...new Set((topic.lesson.blocks || []).filter((b) => b.kind === 'figure' && b.page).map((b) => b.page))];
+}
+
+/** Render every not-yet-cached figure page of a topic, in ONE pass over the PDF. */
+function prefetchFigures(fileId, pages) {
+  const todo = pages.filter((n) => !_pageImg.has(`${fileId}:${n}`));
+  if (!todo.length) return;
+  const where = findFile(fileId);
+  const all = (async () => {
+    const b64 = where ? await pipeline.fileB64Of(where.file) : null;
+    if (!b64) throw new Error('the PDF is not available on this device');
+    return ai.pdfPageImages(b64, todo);
+  })();
+  for (const n of todo) {
+    const key = `${fileId}:${n}`;
+    const one = all.then((shots) => {
+      const hit = shots.find((x) => x.n === n);
+      if (!hit) throw new Error('no such page');
+      return hit.url;
+    });
+    one.catch(() => { if (_pageImg.get(key) === one) _pageImg.delete(key); });
+    _pageImg.set(key, one);
+  }
+}
+
+function slotNote(slot, text) {
+  const d = document.createElement('div');
+  d.className = 'sl-fig-slot sl-muted';
+  d.textContent = text;
+  slot.replaceWith(d);
+}
+
+/** Put the pictures into the figure placeholders render() just wrote. The
+ *  image is built as an element with src/alt set as properties — no model
+ *  text reaches innerHTML, and an SVG shown as an <img> runs nothing. */
+function fillFigures(root, blocks) {
+  root.querySelectorAll('[data-fig-screen]').forEach((fig) => {
+    const i = Number(fig.dataset.figScreen);
+    const b = blocks[i];
+    const slot = fig.querySelector('.sl-fig-slot');
+    if (!b || !slot) return;
+    const img = document.createElement('img');
+    img.alt = b.title || 'Figure';
+    if (b.svg && !S.orig[i]) {
+      img.onerror = () => { if (img.isConnected) slotNote(img, 'This drawing couldn’t be displayed.'); };
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(b.svg);
+      img.className = 'drawn';
+      slot.replaceWith(img);
+      return;
+    }
+    const fileId = S.fileId;
+    prefetchFigures(fileId, [b.page]);
+    const p = _pageImg.get(`${fileId}:${b.page}`);
+    if (!p) return slotNote(slot, 'This figure couldn’t be loaded on this device (the PDF isn’t available here).');
+    p.then((url) => {
+      if (!slot.isConnected || !S || S.fileId !== fileId) return;
+      img.src = url;
+      slot.replaceWith(img);
+    }, () => {
+      if (slot.isConnected) slotNote(slot, 'This figure couldn’t be loaded on this device (the PDF isn’t available here).');
+    });
+  });
+}
 
 /** The screens of a lesson: its blocks, then — when the check against the
  *  document found lines no lesson teaches — those lines, verbatim. What the
@@ -39,7 +113,8 @@ export async function open(fileId, topicId) {
   flush();
   const blocks = lessonBlocks(topic);
   const resumeAt = topic.progress && !topic.progress.done ? Math.min(topic.progress.block || 0, blocks.length) : 0;
-  S = { fileId, topicId, screen: resumeAt, answers: {}, checked: {}, shown: {}, card: 0, flipped: false };
+  S = { fileId, topicId, screen: resumeAt, answers: {}, checked: {}, shown: {}, orig: {}, card: 0, flipped: false };
+  prefetchFigures(fileId, figurePagesOf(topic).filter((n) => blocks.some((b) => b.kind === 'figure' && b.page === n && !b.svg)));
   // A topic is opened from the list inside the module popup. Switching views
   // does not close a popup, so without this the lesson would open BEHIND it.
   try { if (document.querySelector('#modal-module-detail.open') && window.closeModuleDetail) window.closeModuleDetail(); }
@@ -88,7 +163,7 @@ function render() {
     ${topic.summary ? `<div class="sl-sub">${esc(topic.summary)}</div>` : ''}
     <div class="sl-bar"><div style="width:${Math.round(((screen + 1) / total) * 100)}%"></div></div>
     <div class="sl-count"><span>${screen + 1} of ${total}</span><span>${esc(LABEL[kind] || '')}</span></div>
-    <div class="sl-card ${kind}">${block ? blockHtml(block, screen) : cardsHtml(doc)}</div>
+    <div class="sl-card ${kind}">${block ? blockHtml(block, screen, doc) : cardsHtml(doc)}</div>
     <div class="sl-nav">
       <button data-prev ${screen === 0 ? 'disabled' : ''}>← Back</button>
       ${block ? `<button class="primary" data-next>${screen === blocks.length - 1 ? 'Flashcards →' : 'Next →'}</button>`
@@ -104,12 +179,24 @@ function render() {
     </div>`;
 
   wire(root, c, screen, total);
+  fillFigures(root, blocks);
   // Reaching the flashcards is finishing the lesson.
   queueSave({ block: screen, ...(block ? {} : { done: true }) });
 }
 
-function blockHtml(b, i) {
+function blockHtml(b, i, doc) {
   const title = b.title ? `<h2>${esc(b.title)}</h2>` : '';
+  if (b.kind === 'figure') {
+    const n = Number(b.page) || 0;
+    const from = `page ${n} of ${esc(doc.sourceName || 'the document')}`;
+    const cap = b.svg
+      ? `Drawn for this lesson${n ? ` · redraws the figure on ${from} · <button class="sl-link" data-fig-orig>${
+          S.orig[i] ? 'show the drawing' : 'show the original'}</button>` : ''}`
+      : `From ${from}`;
+    const note = b.svg && !S.orig[i] ? 'Drawing the figure…' : 'Loading the figure…';
+    return `${title}<figure class="sl-fig" data-fig-screen="${i}"><div class="sl-fig-slot sl-muted">${note}</div>
+      <figcaption class="sl-muted">${cap}</figcaption></figure>${b.markdown ? `<div class="sl-prose">${renderMarkdown(b.markdown)}</div>` : ''}`;
+  }
   if (b.kind === 'read' || b.kind === 'example') {
     return `${title}<div class="sl-prose">${renderMarkdown(b.markdown)}</div>`;
   }
@@ -195,6 +282,7 @@ function wire(root, c, screen, total) {
   on('[data-topic]', (e) => { const id = e.currentTarget.dataset.topic; if (id) { flush(); open(c.doc.fileId, id); } });
   on('[data-step]', () => { S.shown[screen] = (S.shown[screen] || 1) + 1; render(); });
   on('[data-allsteps]', () => { S.shown[screen] = 999; render(); });
+  on('[data-fig-orig]', () => { S.orig[screen] = !S.orig[screen]; render(); });
   on('[data-choice]', (e) => {
     const b = e.currentTarget;
     (S.answers[screen] || (S.answers[screen] = {}))[b.dataset.q] = b.dataset.choice;

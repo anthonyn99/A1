@@ -35,10 +35,12 @@ import * as pipeline from './pipeline.js';
 import { store } from './store.js';
 
 export const STYLES = ['concept', 'procedure', 'applied', 'definitions'];
-export const KINDS = ['read', 'example', 'steps', 'check', 'recap'];
+export const KINDS = ['read', 'example', 'steps', 'check', 'recap', 'figure'];
 const MAX_TOPICS = 15;
 const MAX_BLOCKS = 16;
 const MAX_QUESTIONS = 6;
+const MAX_DRAWN = 2;                // drawn figures per lesson
+const MAX_SVG = 12 * 1024;
 const DOC_LIMIT = 900 * 1024;       // Firestore's hard cap is 1 MiB per doc
 
 export const noteIdFor = (fileId, topicId) => `topic_${fileId}_${topicId}`;
@@ -72,6 +74,8 @@ export const LESSON_SCHEMA = obj({
       q: str, choices: strArr, answer: str, explanation: str,
     }) },
     points: strArr,
+    page: { type: 'integer' },
+    svg: str,
   }) },
   flashcards: { type: 'array', items: obj({ front: str, back: str }) },
 });
@@ -146,7 +150,24 @@ export const STYLE_GUIDE = {
     'use, a `check` that tests the distinctions, then a `recap`.',
 };
 
-export function lessonPrompt({ className, sourceName, topic, index, all, source = '', attached = true, figures = [] }) {
+/** The FIGURES section of a lesson ask: when to show one of the document's
+ *  figure pages, when to draw a diagram instead, and how to draw it. */
+function figureGuide(figurePages) {
+  const list = figurePages.join(', ');
+  return `FIGURES — a lesson can show pictures, where a picture genuinely helps.${figurePages.length ? `
+- The document has a figure on ${figurePages.length === 1 ? `page ${list}` : `pages ${list}`} of this topic. Show one with
+  {"kind": "figure", "page": <that page>, "svg": ""} right next to the block that explains it, when the document's own figure shows the idea well.` : ''}
+- Draw a diagram — {"kind": "figure", "svg": "<svg ...>...</svg>"} — when a picture would teach something the
+  document has no figure for (a process, a structure, a comparison, a graph)${figurePages.length
+    ? ', or when a listed page\'s figure is cluttered, blurry or only half relevant and a cleaner one teaches better: then set "page" to the page you are redrawing' : ''}. Otherwise "page" is 0.
+- ${figurePages.length ? 'Each listed page is shown or redrawn exactly once. ' : ''}At most ${MAX_DRAWN} drawn figures. Never a decorative one.
+- "title": what the figure shows. "markdown": what to notice in it — its parts, labels, arrows (may be "").
+- Drawing rules: one self-contained <svg> with a viewBox, under 10 KB. Only shapes, lines, paths and <text>:
+  no scripts, no <image>, no <foreignObject>, no links, no external fonts or styles. Dark strokes and text on a
+  white background. Every label uses the document's own terms and values — nothing the source does not say.`;
+}
+
+export function lessonPrompt({ className, sourceName, topic, index, all, source = '', attached = true, figures = [], figurePages = [] }) {
   const others = all.filter((t) => t.id !== topic.id).map((t) => `  - ${t.title}`).join('\n');
   const checklist = (topic.key_points || []).map((k) => `  - ${k}`).join('\n') || '  - (use the summary)';
   return `Write ONE lesson from ${source ? 'the course material below' : 'the attached course material'}${className ? ` for a student in ${className}` : ''}.
@@ -179,7 +200,10 @@ BLOCK TYPES — the lesson is an ordered list of these, at most ${MAX_BLOCKS}:
   steps    "steps": [{"title", "body"}] — a procedure walked through one step at a time
   check    "questions": 3-5 multiple-choice checks (shape below)
   recap    "points": the key takeaways, one line each
-Every block has a short "title". Fields a block's kind does not use are empty ("" or []).
+  figure   ${figurePages.length ? '"page": a figure page of the document, or ' : ''}"svg": a diagram you draw (below)
+Every block has a short "title". Fields a block's kind does not use are empty ("", [] or 0).
+
+${figureGuide(figurePages)}
 
 CHECK QUESTIONS — every one is multiple choice:
   {"q": "...", "choices": ["...", "...", "...", "..."], "answer": "<exactly one of the choices>",
@@ -206,7 +230,7 @@ FLASHCARDS — then write this topic's flashcards:
 - No duplicates, no yes/no fronts, no card whose answer is on its front.
 
 Reply with ONE JSON object and nothing else:
-{"blocks": [{"kind": "read", "title": "...", "markdown": "...", "steps": [], "questions": [], "points": []}],
+{"blocks": [{"kind": "read", "title": "...", "markdown": "...", "steps": [], "questions": [], "points": [], "page": 0, "svg": ""}],
  "flashcards": [{"front": "...", "back": "..."}]}`;
 }
 
@@ -230,7 +254,7 @@ Check questions: {"q", "choices": 3-5 plausible choices, "answer": exactly one o
 Flashcards: atomic, one idea each; front a specific question, back at most two sentences.
 
 Reply with ONE JSON object and nothing else:
-{"blocks": [{"kind": "read", "title": "...", "markdown": "...", "steps": [], "questions": [], "points": []}],
+{"blocks": [{"kind": "read", "title": "...", "markdown": "...", "steps": [], "questions": [], "points": [], "page": 0, "svg": ""}],
  "flashcards": [{"front": "...", "back": "..."}]}`;
 }
 
@@ -272,11 +296,45 @@ export function validateQuestions(list) {
   return out;
 }
 
-export function validateLesson(o) {
+/** A drawn figure's SVG, or '' when it is not one we will show. It is
+ *  displayed through <img src="data:image/svg+xml,…">, where scripts and
+ *  outside loads never run; these checks are a second line, plus a size cap. */
+export function cleanSvg(v) {
+  const svg = String(v == null ? '' : v).trim();
+  if (!svg || svg.length > MAX_SVG) return '';
+  if (!/^<svg[\s>]/i.test(svg) || !/<\/svg>$/i.test(svg)) return '';
+  if (/<script|<foreignObject|<image|<iframe|<embed|<object|@import|javascript:/i.test(svg)) return '';
+  if (/\son[a-z]+\s*=/i.test(svg)) return '';
+  if (/href\s*=\s*(?!["']?#)/i.test(svg)) return '';
+  if (/url\(\s*(?!["']?#)/i.test(svg)) return '';
+  return /^<svg[^>]*\sxmlns\s*=/i.test(svg) ? svg : svg.replace(/^<svg/i, '<svg xmlns="http://www.w3.org/2000/svg"');
+}
+
+/**
+ * The model's output, checked. `figurePages`: the topic's figure pages —
+ * the only pages a figure may show or redraw. Without `allowFigures` every
+ * figure block is dropped (a gap follow-up never adds one).
+ */
+export function validateLesson(o, { figurePages = [], allowFigures = false } = {}) {
   const blocks = [];
+  const figSeen = new Set();
+  let drawn = 0;
   for (const b of arr(o && o.blocks)) {
     if (!b || !KINDS.includes(b.kind)) continue;
     const base = { kind: b.kind, title: s(b.title, 140) };
+    if (b.kind === 'figure') {
+      if (!allowFigures) continue;
+      const page = Number.isInteger(b.page) && figurePages.includes(b.page) ? b.page : 0;
+      const svg = cleanSvg(b.svg);
+      if (svg) {
+        if (drawn >= MAX_DRAWN) continue;
+      } else if (!page) continue;             // a page figure must be a real figure page
+      if (page && figSeen.has(page)) continue;
+      if (page) figSeen.add(page);
+      if (svg) drawn++;
+      blocks.push({ ...base, markdown: s(b.markdown, 6000), page, svg });
+      continue;
+    }
     if (b.kind === 'read' || b.kind === 'example') {
       const markdown = s(b.markdown, 24000);
       if (markdown) blocks.push({ ...base, markdown });
@@ -309,6 +367,17 @@ export function validateLesson(o) {
   }
   if (!flashcards.length) return { error: 'the lesson came with no flashcards' };
   return { value: { blocks, flashcards } };
+}
+
+/** Every figure page of the topic is in its lesson: a page no figure block
+ *  shows or redraws is added before the recap — never silently lost. */
+export function placeFigures(blocks, figurePages) {
+  const covered = new Set(blocks.filter((b) => b.kind === 'figure' && b.page).map((b) => b.page));
+  const add = (figurePages || []).filter((n) => !covered.has(n))
+    .map((n) => ({ kind: 'figure', title: `Figure from page ${n}`, markdown: '', page: n, svg: '' }));
+  if (!add.length) return blocks;
+  const recap = blocks.findIndex((b) => b.kind === 'recap');
+  return recap < 0 ? [...blocks, ...add] : [...blocks.slice(0, recap), ...add, ...blocks.slice(recap)];
 }
 
 // ── Checking the output against the document ─────────────────────────────
@@ -702,11 +771,16 @@ export function setPageRenderer(fn) { _renderPages = fn || ((b64, nums) => ai.pd
 // at 10-20 files, and every image slows the upload.
 const MAX_FIGURES = 6;
 
+/** The figure pages of a topic's span: the pictures its lesson shows. */
+function figuresIn(span, model) {
+  if (!model) return [];
+  const byN = new Map(model.pages.map((p) => [p.n, p]));
+  return span.filter((n) => byN.get(n) && byN.get(n).figure && !model.dupOf.has(n)).slice(0, MAX_FIGURES);
+}
+
 /** The figure pages of a topic's span that a text-only provider should see. */
 function figurePages(span, ctx) {
-  if (!ctx.textOnly || !ctx.model) return [];
-  const byN = new Map(ctx.model.pages.map((p) => [p.n, p]));
-  return span.filter((n) => byN.get(n) && byN.get(n).figure && !ctx.model.dupOf.has(n)).slice(0, MAX_FIGURES);
+  return ctx.textOnly ? figuresIn(span, ctx.model) : [];
 }
 
 /**
@@ -921,6 +995,7 @@ async function writeTopic(doc, topic, pdf, className, ctx) {
     const span = pagesOf(topic, ctx);
     const src = span.length ? sourceText(ctx.model, span) : '';
     const figs = figurePages(span, ctx);
+    const figPages = figuresIn(span, ctx.model);
     let images = [];
     if (figs.length) {
       try { images = await _renderPages(pdf.b64, figs); }
@@ -933,11 +1008,11 @@ async function writeTopic(doc, topic, pdf, className, ctx) {
         system: SYSTEM,
         prompt: lessonPrompt({ className, sourceName: doc.sourceName, topic,
           index: doc.topics.indexOf(topic), all: doc.topics, source: src, attached: ctx.attached || withFile,
-          figures: imgs.map((i) => i.n) }),
+          figures: imgs.map((i) => i.n), figurePages: figPages }),
         // Text-only: the topic's pages are in the prompt; without them, send the whole text.
         pdf, docText: ctx.textOnly ? (src ? '' : ctx.source) : undefined,
         attachFile: withFile, images: imgs.map((i) => i.url),
-        schema: LESSON_SCHEMA, validate: validateLesson, maxTokens: 64000,
+        schema: LESSON_SCHEMA, validate: (o) => validateLesson(o, { figurePages: figPages, allowFigures: true }), maxTokens: 64000,
         key: `bd:${doc.fileId}:r${doc.rev}:${topic.id}:v${topic.rev || 0}${withAtt ? ':att' : ''}`, fileId: doc.fileId,
         resumeJobId: topic.jobId,
         onJob: (id, main) => { if (main) { topic.jobId = id; save(doc); } },
@@ -956,7 +1031,7 @@ async function writeTopic(doc, topic, pdf, className, ctx) {
     }
     const r = deck.addExternal(doc.classId, doc.moduleId, data.flashcards,
       { noteId: noteIdFor(doc.fileId, topic.id), title: topic.title });
-    topic.lesson = { blocks: data.blocks };
+    topic.lesson = { blocks: placeFigures(data.blocks, figPages) };
     topic.cardCount = data.flashcards.length;
     topic.cardsAdded = r.added.length;
     topic.gapChecked = false;
@@ -1083,7 +1158,10 @@ function summariseChecks(doc, ctx) {
   const gaps = doc.topics.reduce((n, t) => n + ((t.gaps && t.gaps.length) || 0), 0);
   const figuresSkipped = doc.topics.reduce((n, t) => n + ((t.figuresSkipped && t.figuresSkipped.length) || 0), 0);
   const pdfMissed = ctx.sendsFile ? doc.topics.filter((t) => t.status === 'ready' && !t.pdfSent).length : 0;
-  doc.checks = { ...c, pages: ctx.model.max, content: ctx.model.content.length, gaps, figuresSkipped, pdfMissed };
+  const figBlocks = doc.topics.filter((t) => t.status === 'ready' && t.lesson)
+    .flatMap((t) => t.lesson.blocks.filter((b) => b.kind === 'figure'));
+  const figures = figBlocks.filter((b) => !b.svg).length, drawn = figBlocks.length - figures;
+  doc.checks = { ...c, pages: ctx.model.max, content: ctx.model.content.length, gaps, figuresSkipped, pdfMissed, figures, drawn };
   delete doc.checks.skipped;
 }
 
@@ -1165,7 +1243,7 @@ export async function resume() {
 
 export default {
   STYLES, KINDS, TOPICS_SCHEMA, LESSON_SCHEMA, topicsPrompt, lessonPrompt, gapsPrompt, STYLE_GUIDE,
-  validateTopics, validateLesson, validateQuestions, mergeDocs,
+  validateTopics, validateLesson, validateQuestions, cleanSvg, placeFigures, mergeDocs,
   tokensOf, parsePages, pageItems, sourceModel, sourceText, groundTopics, fallbackTopics, lessonText, itemMissing,
   lessonRecall, setPageReader, setPageRenderer,
   load, peek, run, regenerate, remove, setProgress, resume, isRunning, noteIdFor, notePrefixFor,

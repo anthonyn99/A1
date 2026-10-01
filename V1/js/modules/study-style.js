@@ -61,6 +61,12 @@ const CSS = `
 .sl-prose table { border-collapse: collapse; font-size: 13.5px; min-width: 100%; }
 .sl-prose th, .sl-prose td { border: 1px solid var(--border2); padding: 7px 10px; text-align: left; vertical-align: top; }
 .sl-prose th { background: var(--bg3); color: var(--text); }
+.sl-fig { margin: 0 0 14px; }
+.sl-fig img { display: block; max-width: 100%; height: auto; margin: 0 auto; border: 1px solid var(--border2); border-radius: 6px; background: #fff; }
+.sl-fig img.drawn { width: 100%; max-height: 70vh; padding: 10px; box-sizing: border-box; }
+.sl-fig figcaption { margin-top: 6px; }
+.sl-fig figcaption .sl-link { font-size: 12px; padding: 0; }
+.sl-fig-slot { padding: 24px; text-align: center; border: 1px dashed var(--border2); border-radius: 6px; }
 .sl-step { display: flex; gap: 14px; padding: 12px 0; border-top: 1px solid var(--border); }
 .sl-step:first-of-type { border-top: none; }
 .sl-step-n { flex: 0 0 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--bg); display: grid; place-items: center;

@@ -128,6 +128,50 @@ const GOOD = {
   t('no flashcards is rejected', !!bd.validateLesson({ blocks: GOOD.blocks, flashcards: [] }).error);
 }
 
+console.log('\nfigures in a lesson');
+{
+  const fig = (page, svg = '', title = 'A figure') => ({ kind: 'figure', title, markdown: '', steps: [], questions: [], points: [], page, svg });
+  const SVG = '<svg viewBox="0 0 10 10"><rect width="5" height="5" fill="#000"/><text x="1" y="9">CPU</text></svg>';
+  const lesson = (...figs) => ({ blocks: [GOOD.blocks[0], ...figs, GOOD.blocks[4]], flashcards: GOOD.flashcards });
+  const kept = (o, opts) => bd.validateLesson(o, opts).value.blocks.filter((b) => b.kind === 'figure');
+
+  const pages = kept(lesson(fig(6), fig(9), fig('6'), fig(6, '', 'again')), { figurePages: [6], allowFigures: true });
+  t('a figure page is kept; a non-figure page, a string page and a second copy are dropped',
+    pages.length === 1 && pages[0].page === 6 && pages[0].title === 'A figure', pages);
+  t('without allowFigures every figure is dropped (a gap follow-up adds none)',
+    kept(lesson(fig(6), fig(0, SVG)), { figurePages: [6] }).length === 0 && kept(lesson(fig(6)), undefined).length === 0);
+
+  const drawn = kept(lesson(fig(0, SVG)), { allowFigures: true });
+  t('a clean drawing is kept, with an xmlns added', drawn.length === 1 && drawn[0].svg.startsWith('<svg xmlns="http://www.w3.org/2000/svg" viewBox'), drawn);
+  for (const [name, bad] of [
+    ['<script>', '<svg viewBox="0 0 1 1"><script>alert(1)</script></svg>'],
+    ['an onload= handler', '<svg viewBox="0 0 1 1" onload="alert(1)"></svg>'],
+    ['an outside <image>', '<svg viewBox="0 0 1 1"><image href="http://evil.test/x.png"/></svg>'],
+    ['an outside href', '<svg viewBox="0 0 1 1"><a href="http://evil.test"><rect/></a></svg>'],
+    ['<foreignObject>', '<svg viewBox="0 0 1 1"><foreignObject><div>x</div></foreignObject></svg>'],
+    ['an outside url()', '<svg viewBox="0 0 1 1"><rect fill="url(http://evil.test/p)"/></svg>'],
+    ['a non-SVG', '<div>not a drawing</div>'],
+    ['an SVG over 12 KB', '<svg viewBox="0 0 1 1">' + '<rect/>'.repeat(2000) + '</svg>'],
+  ]) t(`a drawing with ${name} is dropped`, kept(lesson(fig(0, bad)), { allowFigures: true }).length === 0);
+  t('an internal reference (#id) is fine',
+    kept(lesson(fig(0, '<svg viewBox="0 0 1 1"><defs><marker id="a"/></defs><path marker-end="url(#a)"/><use href="#a"/></svg>')), { allowFigures: true }).length === 1);
+  t('at most 2 drawings', kept(lesson(fig(0, SVG), fig(0, SVG), fig(0, SVG)), { allowFigures: true }).length === 2);
+  const redraw = kept(lesson(fig(9, SVG), fig(6, SVG)), { figurePages: [6], allowFigures: true });
+  t('a drawing that claims a non-figure page keeps no page; one that redraws a figure page keeps it',
+    redraw.length === 2 && redraw[0].page === 0 && redraw[1].page === 6, redraw);
+  t('figures are not teaching: figures + checks alone are rejected',
+    !!bd.validateLesson({ blocks: [fig(6), GOOD.blocks[2]], flashcards: GOOD.flashcards }, { figurePages: [6], allowFigures: true }).error);
+
+  const base = [GOOD.blocks[0], { kind: 'recap', points: ['x'] }];
+  const placed = bd.placeFigures(base, [3, 6]);
+  t('a figure page the lesson did not show is added before the recap',
+    placed.map((b) => b.kind + (b.page || '')).join() === 'read,figure3,figure6,recap', placed.map((b) => b.kind));
+  t('a page the lesson shows is not added again',
+    bd.placeFigures([fig(6), ...base], [6]).filter((b) => b.kind === 'figure').length === 1);
+  t('a drawing that redraws page 6 covers it', bd.placeFigures([{ ...fig(6, SVG) }, ...base], [6]).filter((b) => b.kind === 'figure').length === 1);
+  t('no figure pages, nothing added', bd.placeFigures(base, []) === base);
+}
+
 console.log('\nprompts');
 {
   const all = [{ id: 'a', title: 'Keys', style: 'procedure', key_points: ['find the closure'], summary: 's', pages: '3' },
@@ -138,6 +182,11 @@ console.log('\nprompts');
   t('the other topics are named so they are not taught twice', p.includes('- Joins'));
   t('flashcard rules are in the prompt', /Complete coverage/.test(p));
   t('the topics prompt asks for full coverage', /Cover the whole document with no gaps/.test(bd.topicsPrompt({ sourceName: 'x' })));
+  t('without figure pages, a lesson may still draw — but is offered no page to show',
+    /Draw a diagram/.test(p) && !/"page": a figure page/.test(p) && !/has a figure on page/.test(p));
+  const pf = bd.lessonPrompt({ className: '', sourceName: 'L4.pdf', topic: all[0], index: 0, all, figurePages: [3, 6] });
+  t('with figure pages, the lesson is told which pages to show or redraw',
+    /"page": a figure page/.test(pf) && /has a figure on pages 3, 6 of this topic/.test(pf) && /the page you are redrawing/.test(pf));
 }
 
 console.log('\nmergeDocs');
@@ -497,6 +546,12 @@ console.log('\nfigures ride along with ORCA lesson asks');
   t('a topic records which figures it saw', d.topics.find((x) => x.title.startsWith('Units')).figures.join() === '6');
   t('the topics ask sends no images (the text and the PDF list them fine)', !partsOf(calls[0]).some((p) => p.type === 'image_url'), partsOf(calls[0]).map((p) => p.type));
   t('every lesson records that it had the PDF', d.topics.every((x) => x.pdfSent === true) && d.checks.pdfMissed === 0 && d.checks.pdfSent.topics === true, d.checks);
+  const figsOf = (x) => x.lesson.blocks.filter((b) => b.kind === 'figure').map((b) => b.page);
+  t('a figure page the lesson left out is shown anyway, before the recap',
+    figsOf(d.topics[0]).join() === '3' && figsOf(d.topics[1]).join() === '6'
+      && d.topics[1].lesson.blocks.map((b) => b.kind).slice(-2).join() === 'figure,recap', d.topics.map((x) => x.lesson.blocks.map((b) => b.kind)));
+  t('a topic with no figure pages gets none', figsOf(d.topics[2]).length === 0);
+  t('the doc counts its figures', d.checks.figures === 2 && d.checks.drawn === 0, d.checks);
 
   console.log('\n...and when no image-capable model is free');
   const F2 = { id: 'ch1fig2', name: 'Chapter1-Introduction.pdf', mime: 'application/pdf' };
@@ -511,6 +566,40 @@ console.log('\nfigures ride along with ORCA lesson asks');
   t('...nor the PDF, anywhere', d2.checks.pdfSent.topics === false && d2.checks.pdfMissed === 3, d2.checks);
   t('each refused ask was retried once, as text', calls.filter((c) => typeof c.body.messages.find((m) => m.role === 'user').content === 'string'
     && /Break it into the TOPICS|Write ONE lesson/.test(userText(c.body))).length === 4, calls.length);
+  t('...but its figures are still shown from the PDF', d2.checks.figures === 2, d2.checks);
+
+  /* A provider that reads the PDF itself gets no images, but its lessons
+   * show the document's figures all the same — and may draw their own. */
+  console.log('\n...and with a provider that reads the PDF itself');
+  ai.saveSettings({ provider: 'openai', keys: { openai: 'sk' }, models: { openai: 'm' }, baseUrl: { openai: 'https://x.test/v1' } });
+  const F3 = { id: 'ch1fig3', name: 'Chapter1-Introduction.pdf', mime: 'application/pdf' };
+  classes[0].modules[0].files.push(F3);
+  calls = [];
+  rendered.length = 0;
+  refuseImages = false;
+  const SVG = '<svg viewBox="0 0 100 40"><rect x="2" y="2" width="40" height="20" fill="none" stroke="#000"/><text x="5" y="15">CPU</text></svg>';
+  const figBlock = (page, svg = '') => ({ kind: 'figure', title: 'The figure', markdown: '', steps: [], questions: [], points: [], page, svg });
+  responder = (body) => {
+    const text = userText(body);
+    if (/Break it into the TOPICS/.test(text)) return reply({ topics: [...REAL.topics, { ...bd.fallbackTopics([7], M)[0] }] });
+    const l = echoLesson(text);
+    // Organization: shows a page that is no figure. Units: redraws page 6.
+    // Fetch-decode: draws a figure of its own.
+    if (/title: Computer organization/.test(text)) l.blocks.splice(1, 0, figBlock(9));
+    else if (/title: Units/.test(text)) l.blocks.splice(1, 0, figBlock(6, SVG));
+    else l.blocks.splice(1, 0, figBlock(0, SVG));
+    return reply(l);
+  };
+  const d3 = await bd.run('c1', 'm1', F3);
+  const lessonAsks = calls.filter((c) => /Write ONE lesson/.test(userText(c.body)));
+  t('no images are sent or rendered', rendered.length === 0 && !lessonAsks.some((c) => partsOf(c).some((p) => p.type === 'image_url')));
+  t('the prompt lists the topic\'s figure pages', /has a figure on page 3 of this topic/.test(userText(lessonAsks.find((c) => /title: Computer organization/.test(userText(c.body))).body)));
+  const [org, un, fde] = d3.topics.map((x) => x.lesson.blocks.filter((b) => b.kind === 'figure'));
+  t('a figure on a wrong page is dropped, and the right page is added', org.length === 1 && org[0].page === 3 && !org[0].svg, org);
+  t('a drawing that redraws page 6 stands in for it', un.length === 1 && un[0].page === 6 && un[0].svg.includes('CPU'), un);
+  t('a lesson with no figure pages may draw its own', fde.length === 1 && fde[0].page === 0 && fde[0].svg.startsWith('<svg xmlns='), fde);
+  t('the doc counts both kinds', d3.checks.figures === 1 && d3.checks.drawn === 2, d3.checks);
+  ai.saveSettings({ provider: 'orca', keys: { orca: 'orca_sk_test' }, models: { orca: '' }, baseUrl: { orca: 'https://orca.test/v1' } });
   bd.setPageRenderer(null);
   bd.setPageReader(async () => null);
 }

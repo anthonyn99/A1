@@ -315,6 +315,7 @@ const pdfText = await evalJs(`(async function(){
   out += 'xref' + nl + '0 ' + objs.length + nl + '0000000000 65535 f ' + nl;
   for (n = 1; n < objs.length; n++) out += String(offs[n]).padStart(10, '0') + ' 00000 n ' + nl;
   out += 'trailer' + nl + '<< /Size ' + objs.length + ' /Root 1 0 R >>' + nl + 'startxref' + nl + xref + nl + '%%EOF';
+  window.__testPdf = btoa(out);            // the figures section below reuses it
   var pp = await window.SOS.ai.pdfPages(btoa(out));
   var bd = window.SOS.breakdown, m = bd.sourceModel(pp);
   var econ = bd.groundTopics([{ title: 'Introduction to Demand and Supply', key_points: ['Market equilibrium where buyers and sellers meet', 'The demand curve and price elasticity'], pages: '1-3' }], m);
@@ -329,6 +330,94 @@ t('the repeated agenda page is not material; the units page and the picture slid
 t('an invented topic is caught against real extracted text', pdfText.invented === 1, pdfText);
 t('only the slide with a picture is a figure page', pdfText.figures.join() === 'false,false,false,true', pdfText.figures);
 t('a figure page renders to a JPEG for a text-only model', !!pdfText.shot && pdfText.shot.startsWith('data:image/jpeg;base64,'), pdfText.shot);
+
+// ── Figures in the reader ──────────────────────────────────────────────────
+/* A lesson stores only {page} for a document figure; the reader draws that
+ * page from the PDF on the device. A drawn figure is model-written SVG, shown
+ * as an <img> so nothing in it can run — proven here with a payload the
+ * validator would have refused, injected straight into the stored lesson. */
+console.log('\nfigures in the reader');
+const until = async (expr, ms = 8000) => {
+  for (let i = 0; i < ms / 100; i++) { if (await evalJs(expr)) return true; await wait(100); }
+  return false;
+};
+const FIG = 'bdfig' + Date.now();
+const figOpened = await evalJs(`(async function(){
+  var cls = classes.find(function (c) { return c.id === 'bd1'; });
+  cls.modules[0].files.push({ id:'${FIG}', name:'Ch 1 Intro.pdf', size: 12, mime:'application/pdf', fileId:'${FIG}' },
+    { id:'${FIG}n', name:'Missing.pdf', size: 12, mime:'application/pdf', fileId:'${FIG}n' });
+  var bin = atob(window.__testPdf), bytes = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  var prevBlob = window._sosBridge.resolveBlob;
+  window._sosBridge.resolveBlob = async function (f) {
+    if (f && f.id === '${FIG}') return new Blob([bytes], { type: 'application/pdf' });
+    if (f && f.id === '${FIG}n') return null;
+    return prevBlob(f);
+  };
+  var SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50" onload="window.__pwned=4">' +
+    '<rect x="5" y="5" width="40" height="40" fill="#000"/><text x="55" y="30">CPU</text></svg>';
+  var none = { steps: [], questions: [], points: [] };
+  var doc = function (id) { return { fileId: id, classId: 'bd1', moduleId: 'bdm1', sourceName: 'Ch 1 Intro.pdf',
+    status: 'ready', listedAt: 1, updatedAt: 1, topics: [{ id: 'tf', title: 'The von Neumann model', status: 'ready', updatedAt: 1,
+      lesson: { blocks: [
+        Object.assign({ kind: 'read', title: 'The model', markdown: 'A CPU, memory and I/O.' }, none),
+        Object.assign({ kind: 'figure', title: '<img src=x onerror="window.__pwned=3">Model', markdown: 'Note the **bus**.', page: 4, svg: '' }, none),
+        Object.assign({ kind: 'figure', title: 'The parts', markdown: '', page: 4, svg: SVG }, none),
+        Object.assign({ kind: 'recap', title: 'Recap', markdown: '' }, none, { points: ['Three parts.'] }) ] } }] }; };
+  var prevLoad = window._fbLoadDoc;
+  window._fbLoadDoc = async function (path) {
+    if (path === 'studyos_topics/${FIG}') return doc('${FIG}');
+    if (path === 'studyos_topics/${FIG}n') return doc('${FIG}n');
+    return prevLoad(path);
+  };
+  return await window.SOS.lessonUi.open('${FIG}', 'tf');
+})()`);
+t('a lesson with figures opens', figOpened === true, figOpened);
+await evalJs(`document.querySelector('#sos-lesson-root [data-next]').click(); true;`);
+const figLoaded = await until(`(function(){ var i = document.querySelector('#sos-lesson-root .sl-fig img'); return !!(i && i.complete && i.naturalWidth > 0); })()`);
+const fig1 = await evalJs(`(function(){
+  var r = document.getElementById('sos-lesson-root'), img = r.querySelector('.sl-fig img');
+  var out = { label: r.querySelectorAll('.sl-count span')[1].textContent, h2: (r.querySelector('.sl-card h2')||{}).textContent,
+    cap: (r.querySelector('.sl-fig figcaption')||{}).textContent, bold: !!r.querySelector('.sl-prose strong'),
+    src: img ? img.src.slice(0, 23) : null, alt: img && img.alt };
+  if (img && img.naturalWidth) {
+    // Page 4 draws a mid-gray square at (60,60)-(360,360) of a 720x540 page.
+    var c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
+    var g = c.getContext('2d'); g.drawImage(img, 0, 0);
+    var px = g.getImageData(Math.round(c.width * 210 / 720), Math.round(c.height * 330 / 540), 1, 1).data;
+    var white = g.getImageData(Math.round(c.width * 600 / 720), Math.round(c.height * 100 / 540), 1, 1).data;
+    out.px = [px[0], px[1], px[2]]; out.white = [white[0], white[1], white[2]];
+  }
+  return out;
+})()`);
+t('the document figure loads, rendered from the PDF', figLoaded && fig1.src === 'data:image/jpeg;base64,', fig1);
+t('...and it is page 4: mid-gray where its picture is, white elsewhere',
+  !!fig1.px && fig1.px.every((v) => v >= 100 && v <= 160) && fig1.white.every((v) => v > 230), fig1);
+t('it is labelled a figure, captioned with its page', fig1.label === 'Figure' && /From page 4 of Ch 1 Intro\.pdf/.test(fig1.cap), fig1);
+t('the note under it renders as markdown', fig1.bold, fig1);
+t('a hostile title shows as text', /<img src=x/.test(fig1.h2) && /<img src=x/.test(fig1.alt), fig1);
+
+await evalJs(`document.querySelector('#sos-lesson-root [data-next]').click(); true;`);
+const drawnLoaded = await until(`(function(){ var i = document.querySelector('#sos-lesson-root .sl-fig img'); return !!(i && i.complete && i.naturalWidth > 0); })()`);
+const fig2 = await evalJs(`(function(){
+  var r = document.getElementById('sos-lesson-root'), img = r.querySelector('.sl-fig img');
+  return { src: img ? img.src.slice(0, 18) : null, drawn: !!(img && img.classList.contains('drawn')),
+    cap: (r.querySelector('.sl-fig figcaption')||{}).textContent, svgInDom: !!r.querySelector('svg') };
+})()`);
+t('a drawn figure shows as an image of its SVG', drawnLoaded && fig2.src === 'data:image/svg+xml' && fig2.drawn && !fig2.svgInDom, fig2);
+t('...captioned as drawn, naming the page it redraws', /Drawn for this lesson · redraws the figure on page 4/.test(fig2.cap), fig2.cap);
+await wait(300);
+t('nothing in a figure ever runs', await evalJs('window.__pwned === undefined'));
+await evalJs(`document.querySelector('#sos-lesson-root [data-fig-orig]').click(); true;`);
+const origShown = await until(`(function(){ var i = document.querySelector('#sos-lesson-root .sl-fig img'); return !!(i && i.src.indexOf('data:image/jpeg') === 0 && i.naturalWidth > 0); })()`);
+t('"show the original" swaps in the document page', origShown,
+  await evalJs(`(document.querySelector('#sos-lesson-root .sl-fig')||{}).outerHTML || null`));
+
+await evalJs(`window.SOS.lessonUi.open('${FIG}n', 'tf').then(function(){ document.querySelector('#sos-lesson-root [data-next]').click(); }); true;`);
+const missing = await until(`/couldn.t be loaded/.test((document.querySelector('#sos-lesson-root .sl-fig')||{}).textContent || '')`);
+t('without the PDF on this device, the figure says so instead of breaking', missing
+  && (await evalJs(`document.querySelectorAll('#sos-lesson-root .sl-fig img').length`)) === 0,
+  await evalJs(`(document.querySelector('#sos-lesson-root .sl-fig')||{}).textContent || null`));
 
 console.log('\nAI settings');
 await evalJs(`document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open')); switchView('ai'); true;`);
