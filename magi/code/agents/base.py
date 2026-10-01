@@ -97,10 +97,13 @@ class Task:
         return history(self.session_turns, budget) if self.session_turns else ""
 
     def gather_text(self) -> str:
-        """What a browser unit's context is gathered for: the task, anything
-        added, and the last two prompts of the session -- "and the tests
-        for it?" names no file, the turn before it did."""
-        parts = [self.prompt, *self.added]
+        """What a browser unit's context is gathered for: the session's first
+        prompt, the task, anything added, and the last two prompts -- "and
+        the tests for it?" names no file, the turn before it did, and "tell
+        me exactly what you see" names nothing at all: the first turn is
+        what the session is about."""
+        first = self.session_turns[0].get("prompt", "") if len(self.session_turns) > 2 else ""
+        parts = [first, self.prompt, *self.added]
         parts += [t.get("prompt", "") for t in self.session_turns[-2:]]
         return "\n".join(p for p in parts if p)
 

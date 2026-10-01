@@ -425,6 +425,205 @@ def test_a_named_secret_is_not_included_even_when_asked_for(tmp_path):
     assert "hunter2" not in context.gather(root, "show me .env")
 
 
+# ── full access for browser agents: index, ranking, whole files, requests ──
+
+def _git(root, *args):
+    import subprocess
+    subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True)
+
+
+def _repo(tmp_path):
+    root = tmp_path / "proj"
+    root.mkdir()
+    _git(root, "init", "-q")
+    return root
+
+
+def test_the_index_lists_every_file_even_late_in_the_alphabet(tmp_path):
+    """The old tree stopped at 180 lines -- before V1/. The unit then said,
+    correctly, that StudyOS was not in what it had been shown."""
+    root = _repo(tmp_path)
+    for i in range(300):
+        d = root / "aaa" / f"d{i:03}"
+        d.mkdir(parents=True)
+        (d / "x.py").write_text("x = 1\n", encoding="utf-8")
+    (root / "zz" / "sub").mkdir(parents=True)
+    (root / "zz" / "sub" / "deep.py").write_text("y = 2\n", encoding="utf-8")
+    pl = context.plan(root, "anything")
+    assert "zz/sub/deep.py" in pl.files
+    out = context.compose(root, pl, [], upload=True, budget=100_000).text
+    assert "zz/sub/: deep.py" in out
+
+
+def test_the_index_has_new_files_but_not_ignored_ones_or_secrets(tmp_path):
+    root = _repo(tmp_path)
+    (root / ".gitignore").write_text("build_out/\n", encoding="utf-8")
+    (root / "new_file.py").write_text("n = 1\n", encoding="utf-8")       # never added
+    (root / "build_out").mkdir()
+    (root / "build_out" / "gen.js").write_text("g\n", encoding="utf-8")
+    (root / ".env").write_text("TOKEN=hunter2\n", encoding="utf-8")
+    files = context.listing(root)
+    assert "new_file.py" in files
+    assert "build_out/gen.js" not in files and ".env" not in files
+
+
+def test_rare_words_rank_files_and_common_ones_do_not(tmp_path):
+    root = _repo(tmp_path)
+    for i in range(20):
+        (root / f"m{i}.py").write_text("# under exactly forward\nx = 1\n", encoding="utf-8")
+    (root / "pipeline.js").write_text("// images per topic\nconst a = 1;\n", encoding="utf-8")
+    (root / "notes.md").write_text("one pipeline mention\n", encoding="utf-8")
+    pl = context.plan(root, "tell me exactly what you see under the pipeline images forward")
+    words = [w.lower() for w, _ in pl.terms]
+    assert "pipeline" in words and "images" in words
+    assert not {"under", "exactly", "forward"} & set(words)
+    # A path match outranks a file that only mentions the word.
+    assert pl.ranked[0].name == "pipeline.js"
+    assert pl.ranked.index(root.resolve() / "notes.md") > 0
+
+
+def test_a_big_file_is_uploaded_whole_byte_for_byte(tmp_path):
+    root = _repo(tmp_path)
+    body = "".join(f"line {i} of the studyos_pipeline\n" for i in range(8000))   # ~250 KB
+    (root / "big.js").write_text(body, encoding="utf-8", newline="")
+    pl = context.plan(root, "studyos_pipeline")
+    comp = context.compose(root, pl, [], upload=True, budget=50_000)
+    assert comp.uploads == [("big.js", body)]
+    assert "big__js" not in comp.text and "big.js.txt = big.js" in comp.text
+    assert len(comp.text) <= 50_000
+
+
+def test_pasted_files_come_in_numbered_pieces_never_cut(tmp_path):
+    root = _repo(tmp_path)
+    body = "".join(f"row {i}\n" for i in range(1, 30001))
+    (root / "big.py").write_text(body, encoding="utf-8")
+    out = context.gather(root, "look at big.py", budget=20_000)
+    assert len(out) <= 20_000
+    assert "FILE: big.py (lines 1-" in out and "of 30000)" in out
+    assert "ask `NEED: big.py:" in out and "[truncated]" not in out
+    # Every line is reachable, in whole lines, with no gaps or overlap.
+    ps = context.pieces(body, 7_000)
+    assert "".join(c for _, _, c in ps) == body
+    assert ps[0][0] == 1 and ps[-1][1] == 30000
+    assert all(ps[i][1] + 1 == ps[i + 1][0] for i in range(len(ps) - 1))
+
+
+def test_requests_resolve_and_refuse(tmp_path):
+    root = _repo(tmp_path)
+    (root / "src").mkdir()
+    (root / "src" / "a.py").write_text("".join(f"l{i}\n" for i in range(1, 101)),
+                                       encoding="utf-8", newline="")
+    (root / ".env").write_text("TOKEN=hunter2\n", encoding="utf-8")
+    (tmp_path / "outside.txt").write_text("OUTSIDE\n", encoding="utf-8")
+    files = context.listing(root)
+    r = context.resolve_request(root, "src/a.py:10-12", files)
+    assert (r.kind, r.text, r.total) == ("range", "l10\nl11\nl12\n", 100)
+    assert context.resolve_request(root, "./src/a.py", files).kind == "file"
+    assert context.resolve_request(root, "a.py", files).rel == "src/a.py"   # unambiguous
+    d = context.resolve_request(root, "src/", files)
+    assert d.kind == "dir" and "src/a.py" in d.text
+    env = context.resolve_request(root, ".env", files)
+    assert env.kind == "refused" and "secret" in env.why and "hunter2" not in env.text
+    assert context.resolve_request(root, "../outside.txt", files).kind == "refused"
+    assert context.read_whole(root, Path("../outside.txt")) is None
+    assert context.read_whole(root, Path(".env")) is None
+
+
+def test_a_reply_is_a_request_only_when_it_is_mostly_need_lines():
+    assert context.parse_needs("NEED: a.py\n- NEED: `b/c.js:1-40`\n") == ["a.py", "b/c.js:1-40"]
+    assert context.parse_needs("I need these to answer.\nNEED: a.py") == ["a.py"]
+    long_answer = "The answer is...\n" * 20 + "NEED: a.py"
+    assert context.parse_needs(long_answer) is None
+    assert context.parse_needs("No requests here.") is None
+
+
+class _Ans:
+    def __init__(self, text, ok=True, failure=None, detail=None):
+        self.text, self.ok, self.failure, self.error_detail = text, ok, failure, detail
+
+
+class _ScriptedUnit:
+    """A provider whose replies are scripted; records what each ask carried."""
+
+    def __init__(self, replies):
+        self.replies = list(replies)
+        self.asks = []
+
+    async def ask(self, prompt, *, ctx, cancel=None):
+        self.asks.append({"prompt": prompt,
+                          "files": {p.name: p.read_text(encoding="utf-8") for p in ctx.attachments}})
+        return self.replies.pop(0)
+
+
+def _run_unit(monkeypatch, tmp_path, root, replies, prompt="studyos_pipeline", mode=Mode.READ):
+    from magi.code.agents import browser
+    from magi.providers import registry
+    unit = _ScriptedUnit(replies)
+    monkeypatch.setattr(registry, "build_provider", lambda s, u: unit)
+    monkeypatch.setattr(browser, "_staging_root", lambda: tmp_path / "stage")
+    events = []
+
+    async def emit(e):
+        events.append(e)
+
+    agent = browser.BrowserUnitAgent("claude", "Claude", settings=None)
+    res = asyncio.run(agent.run(Task("t1", prompt, root, mode), emit=emit,
+                                cancel=asyncio.Event()))
+    return res, unit, events
+
+
+def test_a_browser_unit_gets_files_whole_and_can_ask_for_more(tmp_path, monkeypatch):
+    root = _repo(tmp_path)
+    big = "".join(f"line {i}\n" for i in range(1, 3001))
+    (root / "pipeline.py").write_text("studyos_pipeline = 1\n", encoding="utf-8")
+    (root / "other.py").write_text(big, encoding="utf-8", newline="")
+    res, unit, events = _run_unit(monkeypatch, tmp_path, root, [
+        _Ans("NEED: other.py:901-903", ok=False),       # degraded by validation; still read
+        _Ans("It is defined in pipeline.py."),
+    ])
+    assert res.outcome == Outcome.OK and res.text == "It is defined in pipeline.py."
+    assert unit.asks[0]["files"] == {"pipeline.py.txt": "studyos_pipeline = 1\n"}
+    assert "line 901\nline 902\nline 903\n" in unit.asks[1]["prompt"]
+    assert {"k": "tool", "name": "Read", "target": "other.py (lines 901-903)"} in events
+    assert "Read" in res.tools_used
+    assert not (tmp_path / "stage").exists() or not any((tmp_path / "stage").iterdir())
+
+
+def test_the_request_loop_is_bounded(tmp_path, monkeypatch):
+    from magi.code.agents import browser
+    root = _repo(tmp_path)
+    for i in range(6):
+        (root / f"f{i}.py").write_text(f"v{i} = 1\n", encoding="utf-8")
+    replies = [_Ans(f"NEED: f{i}.py", ok=False) for i in range(browser.ROUNDS - 1)]
+    replies.append(_Ans("Done with what I had."))
+    res, unit, _ = _run_unit(monkeypatch, tmp_path, root, replies)
+    assert len(unit.asks) == browser.ROUNDS and res.outcome == Outcome.OK
+    assert "last round" in unit.asks[-1]["prompt"]
+
+
+def test_asking_again_for_nothing_new_ends_the_requests(tmp_path, monkeypatch):
+    root = _repo(tmp_path)
+    (root / "a.py").write_text("a = 1\n", encoding="utf-8")
+    res, unit, _ = _run_unit(monkeypatch, tmp_path, root, [
+        _Ans("NEED: a.py", ok=False), _Ans("NEED: a.py", ok=False), _Ans("Answer."),
+    ])
+    assert len(unit.asks) == 3 and "last round" in unit.asks[2]["prompt"]
+
+
+def test_a_site_that_cannot_take_files_gets_them_pasted(tmp_path, monkeypatch):
+    from magi.errors import FailureKind
+    root = _repo(tmp_path)
+    (root / "pipeline.py").write_text("studyos_pipeline = 42\n", encoding="utf-8")
+    res, unit, _ = _run_unit(monkeypatch, tmp_path, root, [
+        _Ans("", ok=False, failure=FailureKind.SELECTOR_MISS,
+             detail="No 'file_input' selector matched, so the 1 attachment(s) could not be sent."),
+        _Ans("Pasted fine."),
+    ])
+    assert res.outcome == Outcome.OK
+    assert unit.asks[1]["files"] == {}
+    assert "===== FILE: pipeline.py =====\nstudyos_pipeline = 42" in unit.asks[1]["prompt"]
+
+
 # ── what you call an account ───────────────────────────────────────────────
 
 def test_a_slot_can_be_renamed_without_touching_its_login(tmp_path, monkeypatch):

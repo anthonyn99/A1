@@ -189,10 +189,13 @@ def test_added_messages_ride_every_fresh_prompt():
 
 def test_gather_text_includes_recent_session_prompts():
     t = _task()
-    t.session_turns = [{"prompt": "p1"}, {"prompt": "look at magi/app.py"}, {"prompt": "p3"}]
+    t.session_turns = [{"prompt": "p1"}, {"prompt": "p2"},
+                       {"prompt": "look at magi/app.py"}, {"prompt": "p4"}]
     t.added = ["and chain.py"]
     g = t.gather_text()
-    assert "look at magi/app.py" in g and "p3" in g and "p1" not in g and "and chain.py" in g
+    assert "look at magi/app.py" in g and "p4" in g and "and chain.py" in g
+    # The first turn is what the session is about; the middle ones are not.
+    assert "p1" in g and "p2" not in g
 
 
 def test_a_browser_unit_gets_the_history_and_ground_truth(monkeypatch):
