@@ -121,6 +121,11 @@ async def lifespan(app: FastAPI):
     # Holds the machine awake while MAGI runs, but only on mains power -- see
     # power.py. Started here so it covers `magi serve` and `magi cloud` alike.
     KEEP_AWAKE.start()
+    # Measure the unit profiles now, in a thread, so the first page load after
+    # a restart finds the sizes cached (accounts.SIZE_TTL_S) instead of
+    # waiting ~6 s for them.
+    if not os.environ.get("PYTEST_CURRENT_TEST"):
+        asyncio.create_task(asyncio.to_thread(accounts_mod.listing, settings))
     # Keeps Claude Code and Codex current, only while nothing is running
     # (magi/code/agents/updates.py; on unless turned off in the model sheet).
     auto_update = None
@@ -2119,7 +2124,9 @@ async def put_chairman(provider_id: str = Form("")):
 @app.get("/api/accounts")
 async def list_accounts():
     _reload_settings()
-    return accounts_mod.listing(settings)
+    # Off the event loop: measuring a profile reads its whole folder, and on
+    # the loop that froze every other request (accounts.SIZE_TTL_S).
+    return await asyncio.to_thread(accounts_mod.listing, settings)
 
 
 @app.post("/api/accounts/{site_id}/label")

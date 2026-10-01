@@ -103,6 +103,30 @@ def _profile_dir(site_id: str) -> Path:
     return _profiles_root() / site_id
 
 
+# A Chrome profile is tens of thousands of files, and the size is only a
+# figure on the Accounts screen -- yet walking all seven took ~7 s on every
+# page load, and on the event loop, so the whole engine stood still for it
+# (2026-10-01: every request in the console's opening burst took 9-17 s).
+# Sizes are kept for SIZE_TTL_S; /api/accounts also runs off the loop.
+SIZE_TTL_S = 600.0
+_sizes: dict[str, tuple[float, float]] = {}   # site id -> (when, MB)
+
+
+def _size_mb(site_id: str, d: Path, now: float | None = None) -> float:
+    now = time.monotonic() if now is None else now
+    hit = _sizes.get(site_id)
+    if hit and now - hit[0] < SIZE_TTL_S:
+        return hit[1]
+    mb = round(_dir_bytes(d) / 1_048_576, 1)
+    _sizes[site_id] = (now, mb)
+    return mb
+
+
+def forget_size(site_id: str) -> None:
+    """A sign-in or sign-out changed the folder: measure it again next time."""
+    _sizes.pop(site_id, None)
+
+
 def listing(settings: Settings) -> list[dict]:
     """Every configured unit and the state of its saved session.
 
@@ -137,7 +161,7 @@ def listing(settings: Settings) -> list[dict]:
             "checked_at": entry.get("checked_at"),
             "detail": entry.get("detail", ""),
             "last_used": mtime,
-            "size_mb": round(_dir_bytes(d) / 1_048_576, 1) if exists else 0.0,
+            "size_mb": _size_mb(sid, d) if exists else 0.0,
         })
     return out
 
@@ -196,6 +220,7 @@ def sign_out(site_id: str) -> dict:
     d = _profile_dir(site_id)
     if not d.exists():
         return {"id": site_id, "removed": False, "detail": "There was no saved session."}
+    forget_size(site_id)
     try:
         shutil.rmtree(d)
     except OSError as e:
@@ -288,6 +313,8 @@ async def run_login(settings: Settings, job: LoginJob) -> None:
         job.state = "failed"
         job.detail = f"Could not open the window: {str(e)[:200]}"
         _record_check(job.site_id, False, job.detail)
+    finally:
+        forget_size(job.site_id)
 
 
 # ── who chairs the council ──────────────────────────────────────────────────
