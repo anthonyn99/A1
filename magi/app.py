@@ -138,6 +138,11 @@ async def lifespan(app: FastAPI):
     if not os.environ.get("PYTEST_CURRENT_TEST") and not os.environ.get("MAGI_NO_KICKSTART"):
         from .engine import kickstart as _kickstart
         kick = asyncio.create_task(_kickstart.auto_loop())
+    # Claude's reset times -> this profile's TaskHub (engine/claude_resets.py).
+    resets = None
+    if not os.environ.get("PYTEST_CURRENT_TEST") and not os.environ.get("MAGI_NO_RESETS_PUSH"):
+        from .engine import claude_resets as _resets
+        resets = asyncio.create_task(_resets.auto_loop())
     try:
         yield
     finally:
@@ -145,6 +150,8 @@ async def lifespan(app: FastAPI):
             auto_update.cancel()
         if kick:
             kick.cancel()
+        if resets:
+            resets.cancel()
         KEEP_AWAKE.stop()
 
 
@@ -2414,6 +2421,23 @@ async def units_kickstart_run():
     """Send the kickstart now. Still held by the weekly cap and by a limit."""
     ks = _kickstart_or_404()
     return {"ok": True, "kickstart": await ks.tick(force=True)}
+
+
+# ── units: Claude's reset times -> TaskHub ──────────────────────────────────
+@app.post("/api/units/claude/resets")
+async def units_resets_save(request: Request):
+    """Save any of enabled, notify, weekly, then push at once so TaskHub
+    matches the new settings (turning it off removes the events and the
+    reminders)."""
+    from .engine import claude_resets
+    if not claude_resets.available():
+        raise HTTPException(404, "Reset times go to Tony's or Veda's TaskHub only.")
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    claude_resets.save_config(body if isinstance(body, dict) else {})
+    return {"ok": True, "resets_push": await claude_resets.tick(force=True)}
 
 
 # ── units: choose the model (Phase U4) ──────────────────────────────────────

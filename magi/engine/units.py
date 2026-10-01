@@ -300,6 +300,16 @@ async def unit(db_path: str | Path, provider, *, checks: dict | None = None,
             ks = None
         if ks:
             out["kickstart"] = ks
+    if provider.id in ("claude", PRO_UNIT):
+        # Reset times -> TaskHub (engine/claude_resets.py), on whichever Claude
+        # row the profile's Code Mode account belongs to.
+        from . import claude_resets
+        try:
+            cr = claude_resets.panel()
+        except Exception:  # noqa: BLE001 -- the Units sheet must still render
+            cr = None
+        if cr and cr["unit"] == provider.id:
+            out["resets_push"] = cr
     return out
 
 
