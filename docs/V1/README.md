@@ -5,8 +5,8 @@ design language, shared infrastructure — with each app fully modular.
 
 | App | What it does | URL |
 | --- | ------------ | --- |
-| **[TradeBoard](TradeBoard/)** | Trading journal + portfolio, with live Webull sync | site root `/` |
-| **[Finance](Finance/)** | Personal finance: accounts, transactions, budgets, insights, recurring payments, cash | `/finance/` |
+| **[TradeBoard](../../V1/TradeBoard)** | Trading journal + portfolio, with live Webull sync | site root `/` |
+| **[Finance](../../V1/Finance)** | Personal finance: accounts, transactions, budgets, insights, recurring payments, cash | `/finance/` |
 
 ---
 

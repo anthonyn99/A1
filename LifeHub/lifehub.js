@@ -9,7 +9,7 @@
  * popup and live in ONE Firestore document, so a change made on the desktop
  * shows up in every program on every device.
  *
- * HOW A PROGRAM USES IT (the whole integration — see LifeHub/README.md)
+ * HOW A PROGRAM USES IT (the whole integration — see docs/LifeHub/README.md)
  *
  *   <a1-lifehub></a1-lifehub>                         ← in the header, where the icon goes
  *   <script src="LifeHub/lifehub.js" defer

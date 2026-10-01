@@ -120,7 +120,7 @@ section('Each worker config is complete enough to deploy');
     if (dir === 'workers2') {
       t(n + ' does not pin an account_id', !/^\s*account_id\s*=/m.test(text) &&
         !/"account_id"\s*:/.test(text),
-        'workers2 gets its account from CF_ACCOUNT_ID_2 — see workers2/README.md.');
+        'workers2 gets its account from CF_ACCOUNT_ID_2 — see docs/workers2/README.md.');
     }
   });
 });

@@ -108,7 +108,7 @@ Notes:
 Method: MV3 Chrome extension; real tabs in Tony's own session, DOM read, tab closed
 Last verified working: 2026-07-22 (Amazon returned 12 real products from headless Brave)
 Notes:
-- **Read `PriceWatch/README.md` before touching a parser module.** One module per
+- **Read `docs/PriceWatch/README.md` before touching a parser module.** One module per
   store domain in `PriceWatch/parsers/`, registered BY DOMAIN — the same domain the
   user typed in Manage Stores.
 - **Store list is never stored in the extension.** MyList ships `pwStores()` with

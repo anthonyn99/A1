@@ -88,7 +88,7 @@ if (-not $exe) {
     Write-Host "Run:  desktop\shield\build.ps1 -Update"
   } else {
     Write-Host "This PC has no Rust toolchain, so it cannot build the agent." -ForegroundColor Yellow
-    Write-Host "Either install Rust + VS Build Tools (see desktop\shield\README.md),"
+    Write-Host "Either install Rust + VS Build Tools (see docs\shield\README.md),"
     Write-Host "or copy Shield_1.0.0_x64-setup.exe from a PC that has built it."
   }
   Write-Host ""

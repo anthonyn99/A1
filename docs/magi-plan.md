@@ -954,10 +954,13 @@ default. Refresh models live: free Claude also offers Sonnet 5 and Sonnet
 
 ### Phase 15 — what is left (optional, only from Veda's PC)
 
-The install and sign-ins are DONE (2026-09-28). Nothing for Veda to run. If
-a session ever runs ON her PC, it may verify the isolation checks in §8
-Phase 15 and run `tests/live/magi-guard.live.js` against HER engine (the job
-guard is per engine process). From any other PC there is nothing to do.
+The install and sign-ins are DONE (2026-09-28). Nothing for Veda to run.
+The isolation check is now fully scripted: on her PC, "do the isolation
+check" runs **docs/magi-veda-isolation-check.md** (CLAUDE.md points there):
+`tests/live/magi-isolation.live.js` (checks 1-3) and
+`tests/live/magi-guard.live.js` with `MAGI_BASE` (check 4), plus one question
+to Veda. Dry-run on Tony's PC 2026-10-01: works, and found Veda has no MAGI
+password set (check 3 needs one). From any other PC there is nothing to do.
 
 ### (Done) Phase 14b — what it was
 

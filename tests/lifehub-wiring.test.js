@@ -55,8 +55,9 @@ const src = read(LH);
 let parsed = true;
 try { new vm.Script(src, { filename: LH }); } catch (e) { parsed = false; }
 ok('lifehub.js parses', parsed);
-ok('it is the only LifeHub file besides its README',
-  fs.readdirSync(path.join(ROOT, 'LifeHub')).filter((f) => f !== 'README.md').join() === 'lifehub.js',
+// Its README lives in docs/LifeHub/ with every other doc (2026-10-01).
+ok('it is the only LifeHub file',
+  fs.readdirSync(path.join(ROOT, 'LifeHub')).join() === 'lifehub.js',
   fs.readdirSync(path.join(ROOT, 'LifeHub')));
 
 console.log('\nEvery host loads it, once, and places the launcher');

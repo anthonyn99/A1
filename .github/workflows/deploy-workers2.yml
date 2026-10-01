@@ -66,7 +66,7 @@ jobs:
             echo "ready=true" >> "$GITHUB_OUTPUT"
           else
             echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Account-2 worker deploys skipped — set CF_API_TOKEN_2 and CF_ACCOUNT_ID_2 to enable them. See workers2/README.md."
+            echo "::warning::Account-2 worker deploys skipped — set CF_API_TOKEN_2 and CF_ACCOUNT_ID_2 to enable them. See docs/workers2/README.md."
           fi
 
   # ── 1. Find every deployable worker ───────────────────────────────────────

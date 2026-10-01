@@ -10,6 +10,6 @@
  *        APPCHECK_TOKEN=$(node tools/mint-appcheck-token.js) node tests/appcheck-verify.test.js
  */
 'use strict';
-console.error('See tools/README-appcheck.md — minting needs a headed browser session.');
+console.error('See docs/tools/README-appcheck.md — minting needs a headed browser session.');
 console.error('The token lasts ~1 hour and must never be committed (public repo).');
 process.exit(1);

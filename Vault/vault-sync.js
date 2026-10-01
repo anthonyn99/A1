@@ -25,7 +25,7 @@
 
 const VaultDB = (() => {
   // The keychain-sync Worker endpoint + shared key (also set as the worker's
-  // VAULT_KEY secret). See workers/keychain-sync and Vault/README.md.
+  // VAULT_KEY secret). See workers/keychain-sync and docs/Vault/README.md.
   const WORKER_URL = "https://keychain-sync.av1.workers.dev/keychain";
   const VAULT_KEY  = "vh-Ou55y3rGmjUn_ZGFTdSIFph2xN_OK";
 
