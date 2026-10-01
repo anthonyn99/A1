@@ -131,7 +131,14 @@ def test_a_failed_post_is_retried_next_tick(engine, monkeypatch):
     calls = []
     monkeypatch.setattr(cr, "post", lambda *a: calls.append(a) or {"ok": True, "detail": ""})
     asyncio.run(cr.tick())
+    assert calls == []                          # backing off: not every tick
+    monkeypatch.setattr(cr.time, "time", lambda: NOW + cr.retry_after(1) + 1)
+    asyncio.run(cr.tick())
     assert len(calls) == 1 and cr.panel()["ok"] is True
+
+
+def test_backoff_grows_and_caps():
+    assert [cr.retry_after(n) for n in (1, 2, 3, 4, 9)] == [300, 600, 1200, 1800, 1800]
 
 
 def test_no_panel_on_an_unknown_profile(monkeypatch):

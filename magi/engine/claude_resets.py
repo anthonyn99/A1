@@ -224,6 +224,10 @@ def available() -> bool:
     return active_profile() in PROFILES
 
 
+def retry_after(fails: int) -> float:
+    return min(1800.0, TICK_S * 2 ** max(0, fails - 1))
+
+
 async def tick(force: bool = False) -> dict | None:
     if available():
         async with _lock:
@@ -245,12 +249,19 @@ async def _tick(force: bool) -> None:
     if sig == st.get("sig") and not force:
         _put_state(st)
         return
+    # A failing post backs off (5, 10, 20 min, then every 30) so a lasting
+    # fault -- a token the console never published -- costs the worker a few
+    # Firestore reads an hour, not one every tick all day.
+    fails = int(st.get("fails") or 0)
+    if fails and not force and now - float(st.get("at") or 0) < retry_after(fails):
+        _put_state(st)
+        return
     token = api_token()
     if not token:
         r = {"ok": False, "detail": "This engine has no API token."}
     else:
         r = await asyncio.to_thread(post, active_profile(), token, cfg, items)
-    st.update(at=now, ok=r["ok"], detail=r["detail"])
+    st.update(at=now, ok=r["ok"], detail=r["detail"], fails=0 if r["ok"] else fails + 1)
     if r["ok"]:
         st.update(sig=sig, items=items, pushed_at=now)
     _put_state(st)
