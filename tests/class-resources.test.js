@@ -95,8 +95,15 @@ section('Resources travel as a side table, never on mirror items');
 
 t('buildClasses() exists in taskmirror', /function buildClasses\s*\(/.test(MIRROR));
 
+// Both writes go through send(slot, ref, payload, …), the one-in-flight guard
+// added when a stuck queue piled up mirror copies — so the payload is asserted
+// at the send() call, and send() itself must hand that payload to setDoc.
+const SEND_WRITES = /function send\(slot,\s*ref,\s*payload[^)]*\)\s*\{[\s\S]{0,300}?setDoc\(ref,\s*payload\)/.test(MIRROR);
+t('send() writes exactly the payload it is given', SEND_WRITES,
+  'If send() stops passing payload straight to setDoc, the checks below prove nothing.');
+
 t('mirror write includes the classes side table',
-  /setDoc\(mirrorRef,\s*\{\s*items,\s*classes:\s*cls,/.test(MIRROR),
+  /send\('mirror',\s*mirrorRef,\s*\{\s*items,\s*classes:\s*cls,/.test(MIRROR),
   'The classes key is what keeps resources out of the TaskHub data map.');
 
 t('change-compare spans items AND classes',
@@ -125,7 +132,7 @@ t('buildClasses omits r.path',
   'App paths belong only in the Shield-only class-apps document.');
 
 t('a separate class-apps document is written',
-  /setDoc\(appsRef,\s*\{\s*apps,/.test(MIRROR) && /classAppsDoc/.test(MIRROR));
+  /send\('apps',\s*appsRef,\s*\{\s*apps,/.test(MIRROR) && /classAppsDoc/.test(MIRROR));
 
 t('class-apps has its own change-compare', /lastAppsSerialized/.test(MIRROR),
   'App paths change about once a semester; they must not rewrite on task churn.');
