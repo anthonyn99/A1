@@ -32,7 +32,7 @@ try { babelParse = require('@babel/parser').parse; } catch (e) { /* optional */ 
 // inline, so the HTML scanner below never sees them — a syntax error here is
 // just as fatal (backup.js runs on every page load) and would otherwise ship
 // unnoticed.
-const ROOT_SCRIPTS = ['backup.js', 'dragsort.js', 'hoverfx.js', 'tabsync.js', path.join('LifeHub', 'lifehub.js')];
+const ROOT_SCRIPTS = ['backup.js', 'dragsort.js', 'hoverfx.js', 'resizegrip.js', 'tabsync.js', path.join('LifeHub', 'lifehub.js')];
 
 // Cloudflare Worker entrypoints. These were unchecked for a long time and it
 // cost a silent outage: a worker.js with a literal newline inside a quoted

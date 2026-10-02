@@ -6,7 +6,8 @@
 //   node tests/live/theme-shots.live.js <label> [page] [views]
 //     label  file prefix, e.g. p3-before / p3-after
 //     page   index.html (default) or any other root page
-//     views  comma list: chooser,tony,veda,overlays   (default: all)
+//     views  comma list: chooser,tony,veda,overlays,journals
+//            (default: all but journals)
 //
 // Before/after of the SAME moment: serve an older checkout under the same origin
 //   git worktree add <dir> theme-pN-start
@@ -84,8 +85,28 @@ async function overlays(c, who) {
   await shot(c, who + '-lock');
 }
 
+// The journals (index.html only): Tony's MyJournal and Veda's Brainstorm
+// Journal, empty (Firebase is blocked), then each one's template picker.
+async function journals(c, who) {
+  await load(c, who);
+  await evalJs(c, who === 'tony' ? "window._tonyNav('brainstormjournal'); 1" : "window._vedaNav('journal'); 1");
+  await sleep(2500);
+  await shot(c, who + '-journal'); await shot(c, who + '-journal-mobile', 400, 860);
+  await c.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+  await sleep(400);
+  if (who === 'tony') await probe(c, '#tj-root');
+  const p = who === 'tony' ? 'tj' : 'bj';
+  await evalJs(c, `var b=document.getElementById('${p}-new-entry-btn'); if(b) b.click(); 1`);
+  await sleep(600);
+  await shot(c, who + '-journal-templates');
+}
+
 (async () => {
   const c = await connect();
+  if (views.includes('journals') && page === 'index.html') {
+    await journals(c, 'tony'); await journals(c, 'veda');
+    if (views.length === 1) { c.ws.close(); process.exit(0); }
+  }
   if (views.includes('chooser')) { await load(c, null); await shot(c, 'chooser'); }
   for (const who of ['tony', 'veda']) {
     if (!views.includes(who)) continue;

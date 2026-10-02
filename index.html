@@ -6146,6 +6146,11 @@ window._mailRelay = window._mailRelay || async function (res) {
   } catch (e) { return false; }
 };
 </script>
+<!-- MAGI's drag to reorder and corner resize grip, shared by every program
+     (theme overhaul, phases 1b and 2). In the head, so they exist before any
+     list first draws: MyJournal's sidebar renders while the body is parsing. -->
+<script src="dragsort.js"></script>
+<script src="resizegrip.js"></script>
 </head>
 <body>
 <!-- ── Boot loading screen: covers everything until profile routing + initial Firebase data are ready ── -->
@@ -22632,7 +22637,12 @@ window.VizEngine = { createBoard: createBoard };
   color: var(--purple); border-color: var(--purple);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--purple) 22%, transparent), 0 0 10px color-mix(in srgb, var(--purple) 12%, transparent);
 }
-#tj-root .oj-tab.on { border-color: var(--gold-line, var(--purple)); }
+/* MyJournal: MAGI's selected state, a solid accent with a dark label (the
+   rail's Journal button, #mjd-css, matches). Brainstorm keeps the rule above. */
+#tj-root .oj-rail .oj-tab { border-radius: 6px; font-size: 10px; font-weight: 700; letter-spacing: 1px; }
+#tj-root .oj-tab.on, #tj-root .oj-rail .oj-tab.on:hover {
+  background: var(--ac); color: #1a1a1d; border-color: var(--ac); box-shadow: none;
+}
 /* MyJournal's rail (OurJournal · Journal) is a single row; .mjd-rail lays it out. */
 @media (max-width: 600px) {
   #bj-root .oj-tab .oj-lbl, #tj-root .oj-rail .oj-tab .oj-lbl { font-size: 10px; }
@@ -22646,7 +22656,8 @@ window.VizEngine = { createBoard: createBoard };
 #bj-root .entry-item-meta .oj-by::before, #tj-root .entry-item-meta .oj-by::before {
   content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor;
 }
-#bj-root .entry-item-meta .oj-by-tony::before, #tj-root .entry-item-meta .oj-by-tony::before { background: #e0b874; }
+#bj-root .entry-item-meta .oj-by-tony::before { background: #e0b874; }
+#tj-root .entry-item-meta .oj-by-tony::before { background: #c0aeea; }
 #bj-root .entry-item-meta .oj-by-veda::before, #tj-root .entry-item-meta .oj-by-veda::before { background: #a98bbb; }
 /* Shared entries use only the templates both journals offer there (Page, Mind
    Map, Whiteboard), and have no per-person password lock. MyJournal's own
@@ -29324,13 +29335,22 @@ window.hideBrainstormJournal = function() {
     --card2:      #2c2c31;
     --border:     #34343a;
     --border2:    #45454c;
-    --purple:     #e0b874;
-    --purple2:    #e0b874;
+    /* MAGI's palette (theme overhaul phase 2, docs/theme-overhaul-plan.md §2).
+       --ac is the accent; --gold is kept for stars, warnings and the locked
+       lock only. --purple / --purple2 / --cyan are aliases for the rules this
+       journal shares with Veda's (#tj-root, #bj-root pairs) and for script. */
+    --ac:         #c0aeea;
+    --acl:        #dbd0f5;
+    --acd:        #9a86c9;
+    --gold:       var(--ac);
+    --blue:       #8fa6d8;
+    --purple:     var(--ac);
+    --purple2:    var(--acl);
     --purple-dim: #2c2c31;
     --purple-bg:  #232327;
     --green:      #a4b986;
     --green-dim:  #1e3828;
-    --cyan:       #e0b874;
+    --cyan:       var(--blue);
     --red:        #d68a7c;
     --orange:     #e0b57c;
     --text:       #f4f3f0;
@@ -29338,9 +29358,16 @@ window.hideBrainstormJournal = function() {
     --text3:      #8d8d94;
     --sidebar-w:  268px;
     --radius:     6px;
-    --font:       'DM Sans', sans-serif;
-    --font-mono:  'DM Mono', 'IBM Plex Mono', monospace;
+    --font:       'Inter', system-ui, -apple-system, sans-serif;
+    --font-mono:  'IBM Plex Mono', ui-monospace, monospace;
     --font-display: var(--suite-display);
+    /* No serif on Tony's side: the placeholders that read in Fraunces. */
+    --font-accent: var(--font);
+    /* MAGI's hover is "the outline turns accent", not a bloom. */
+    --suite-glow: 0 0 0 1px rgba(192,174,234,.6);
+    --fx-ac:      #c0aeea;
+    /* dragsort.js / resizegrip.js tint. */
+    --ds-ac: #c0aeea; --ds-s2: #2c2c31; --ds-tx: #f4f3f0; --ds-txd: #adadb2; --ds-txm: #8d8d94;
   }
 /* Tony's programs are dark-only — hide all light/dark toggle switches entirely. */
 /* Mobile theme button (row 2) — identical styling */
@@ -29351,7 +29378,7 @@ window.hideBrainstormJournal = function() {
 }
 #tj-root * { box-sizing: border-box; margin: 0; padding: 0; }
 /* Always-visible caret on all editable elements */
-#tj-root input, #tj-root textarea, #tj-root [contenteditable] { caret-color: var(--purple); }
+#tj-root input, #tj-root textarea, #tj-root [contenteditable] { caret-color: var(--ac); }
 #tj-root .veda-hdr-inner { margin: 0 auto; }
 #tj-root #tj-nav-header { flex-shrink: 0; background: var(--bg); }
 /* That strip holds only the light/dark toggles, which are hidden suite-wide for
@@ -29403,7 +29430,7 @@ window.hideBrainstormJournal = function() {
 #tj-root #tj-sidebar-header {
     display: none !important;
   }
-#tj-root #tj-sidebar-header svg { color: var(--purple); flex-shrink: 0; opacity: 0.8; }
+#tj-root #tj-sidebar-header svg { color: var(--ac); flex-shrink: 0; opacity: 0.8; }
 #tj-root #tj-sidebar-header h1 {
     font-family: var(--font-display);
     font-size: 16px;
@@ -29424,13 +29451,13 @@ window.hideBrainstormJournal = function() {
     margin: 10px 12px 6px;
     padding: 9px 14px;
     background: transparent;
-    color: var(--purple);
-    border: 1px solid rgba(224,184,116,0.28);
+    color: var(--ac);
+    border: 1px solid var(--border2);
     border-radius: var(--radius);
     font-family: var(--font);
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
     text-transform: uppercase;
     cursor: pointer;
     display: flex;
@@ -29440,7 +29467,7 @@ window.hideBrainstormJournal = function() {
     box-shadow: none;
     width: calc(100% - 24px);
   }
-#tj-root #tj-new-entry-btn:hover { background: transparent; border-color: rgba(224,184,116,0.6); box-shadow: var(--suite-glow); }
+#tj-root #tj-new-entry-btn:hover { background: transparent; border-color: var(--ac); box-shadow: none; }
 #tj-root #tj-new-entry-btn svg { flex-shrink: 0; }
 
 #tj-root #tj-search-box {
@@ -29474,7 +29501,7 @@ window.hideBrainstormJournal = function() {
     transition: border-color 0.15s;
   }
 #tj-root .search-wrap input::placeholder { color: var(--text3); }
-#tj-root .search-wrap input:focus { border-color: var(--purple); }
+#tj-root .search-wrap input:focus { border-color: var(--ac); }
 
 #tj-root #tj-entries-list { flex: 1 1 0%; min-height: 0; overflow-y: auto; padding: 2px 8px 12px; }
 #tj-root #tj-entries-list .entry-item { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
@@ -29495,30 +29522,25 @@ window.hideBrainstormJournal = function() {
     border: 1px solid transparent;
     border-left: 2px solid transparent;
     margin-bottom: 1px;
-    transition: background 0.1s, border-color 0.1s;
+    transition: background 0.1s, border-color 0.1s, transform .17s cubic-bezier(.2, .8, .2, 1);
     position: relative;
   }
-#tj-root .entry-drag-handle {
-    position: absolute; left: 5px; top: 50%; transform: translateY(-50%);
-    width: 14px; height: 20px;
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-    opacity: 0; cursor: grab; transition: opacity 0.1s; flex-shrink: 0;
+/* The drag grip (dragsort.js .dsort-grip), pinned where the old handle sat:
+   shown on hover or focus with a mouse, always faintly on touch. */
+#tj-root .entry-item .tj-grip {
+    position: absolute; left: 0; top: 50%; translate: 0 -50%;
+    width: 24px; height: 32px; margin: 0;
+    opacity: 0; transition: opacity 0.1s;
   }
-#tj-root .entry-drag-handle span {
-    display: block; width: 10px; height: 1.5px;
-    background: var(--text3); border-radius: 2px;
-  }
-#tj-root .entry-item:hover .entry-drag-handle { opacity: 1; }
-@media(hover:none){#tj-root .entry-drag-handle{opacity:0.5;}}
-#tj-root .entry-item.tj-drag-over { border-color: var(--purple) !important; background: var(--card2) !important; }
-#tj-root .entry-item.tj-dragging { opacity: 0.4; }
+#tj-root .entry-item:hover .tj-grip, #tj-root .entry-item .tj-grip:focus-visible { opacity: 1; }
+@media(hover:none){#tj-root .entry-item .tj-grip{opacity:0.55;}}
 #tj-root .entry-item:hover { background: var(--card); border-color: var(--border); }
-#tj-root .entry-item:active { background: var(--card2) !important; border-left-color: var(--purple) !important; }
+#tj-root .entry-item:active { background: var(--card2) !important; border-left-color: var(--ac) !important; }
 #tj-root .entry-item.active {
   background: var(--card2);
-  border-color: var(--gold-line);
-  border-left-color: var(--purple);
-  box-shadow: 0 0 0 1px rgba(224,184,116,.22), 0 0 12px rgba(224,184,116,.10);
+  border-color: var(--border2);
+  border-left-color: var(--ac);
+  box-shadow: none;
 }
 #tj-root .entry-item-title {
     font-size: 12.5px;
@@ -29549,14 +29571,14 @@ window.hideBrainstormJournal = function() {
 #tj-root .template-badge {
     font-size: 9px;
     padding: 2px 6px;
-    border-radius: 3px;
-    background: rgba(224,184,116,0.12);
-    color: var(--purple);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--ac);
     font-weight: 600;
-    letter-spacing: 0.08em;
+    letter-spacing: 1px; font-weight: 700;
     font-family: var(--font);
     text-transform: uppercase;
-    border: 1px solid rgba(224,184,116,0.2);
+    border: 1px solid rgba(192,174,234,0.2);
   }
 #tj-root .entry-delete {
     position: absolute; top: 8px; right: 6px;
@@ -29568,7 +29590,7 @@ window.hideBrainstormJournal = function() {
     transition: opacity 0.1s, color 0.1s, background 0.1s;
   }
 #tj-root .entry-item:hover .entry-delete { opacity: 1; }
-#tj-root .entry-delete:hover { color: var(--red); background: #f8717118; }
+#tj-root .entry-delete:hover { color: var(--red); background: transparent; }
 
 #tj-root #tj-sidebar-stats {
     padding: 8px 16px;
@@ -29583,7 +29605,7 @@ window.hideBrainstormJournal = function() {
     letter-spacing: 0.06em;
     text-transform: uppercase;
   }
-#tj-root #tj-entry-count { color: var(--purple); font-weight: 700; }
+#tj-root #tj-entry-count { color: var(--ac); font-weight: 700; }
 
   /* ── MAIN ── */
 #tj-root #tj-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); min-height: 0; min-width: 0; }
@@ -29601,8 +29623,8 @@ window.hideBrainstormJournal = function() {
   transition: background 0.12s, color 0.12s, border-color 0.12s;
   opacity: 0.75;
 }
-#tj-root #tj-fullscreen-btn:hover { background: var(--card2); color: var(--purple); border-color: var(--purple); opacity: 1; box-shadow: var(--suite-glow); }
-#tj-root.tj-fullscreen #tj-fullscreen-btn { color: var(--purple); border-color: rgba(141,118,154,0.55); background: rgba(141,118,154,0.08); opacity: 1; }
+#tj-root #tj-fullscreen-btn:hover { background: var(--card2); color: var(--ac); border-color: var(--ac); opacity: 1; box-shadow: var(--suite-glow); }
+#tj-root.tj-fullscreen #tj-fullscreen-btn { color: var(--ac); border-color: var(--ac); background: transparent; opacity: 1; }
 
   /* ── TOOLBAR ── */
 #tj-root #tj-toolbar {
@@ -29619,7 +29641,7 @@ window.hideBrainstormJournal = function() {
     border: none;
     background: none;
     color: var(--text);
-    caret-color: var(--purple);
+    caret-color: var(--ac);
     outline: none;
     flex: 1;
     min-width: 0;
@@ -29634,8 +29656,10 @@ window.hideBrainstormJournal = function() {
     border-radius: var(--radius);
     background: transparent;
     font-family: var(--font);
-    font-size: 12px;
-    font-weight: 500;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
     color: var(--text2);
     cursor: pointer;
     display: flex; align-items: center; gap: 5px; white-space: nowrap;
@@ -29643,14 +29667,14 @@ window.hideBrainstormJournal = function() {
     box-shadow: none;
     letter-spacing: 0.03em;
   }
-#tj-root .tb-btn:hover { background: var(--card2); color: var(--text); border-color: #e0b874; box-shadow: var(--suite-glow); }
-#tj-root .tb-btn.active { background: transparent; color: var(--purple); border-color: #e0b874; }
-#tj-root .tb-btn.save-btn { color: var(--green); border-color: rgba(93,175,109,0.25); }
-#tj-root .tb-btn.save-btn:hover { background: rgba(93,175,109,0.08); color: var(--green); border-color: rgba(93,175,109,0.45); }
-#tj-root .tb-btn.lock-btn { color: #8D769A; border-color: rgba(141,118,154,0.35); }
-#tj-root .tb-btn.lock-btn:hover { background: rgba(141,118,154,0.1); color: #8D769A; border-color: rgba(141,118,154,0.6); }
-#tj-root .tb-btn.lock-btn.locked { color: #e0b874; border-color: rgba(224,184,116,0.5); background: transparent; }
-#tj-root .tb-btn.lock-btn.locked:hover { background: transparent; border-color: #e0b874; }
+#tj-root .tb-btn:hover { background: var(--card2); color: var(--text); border-color: var(--ac); box-shadow: var(--suite-glow); }
+#tj-root .tb-btn.active { background: transparent; color: var(--ac); border-color: var(--ac); }
+#tj-root .tb-btn.save-btn { color: var(--green); border-color: rgba(164,185,134,.35); }
+#tj-root .tb-btn.save-btn:hover { background: transparent; color: var(--green); border-color: var(--green); }
+#tj-root .tb-btn.lock-btn { color: var(--text2); border-color: var(--border2); }
+#tj-root .tb-btn.lock-btn:hover { background: transparent; color: var(--text); border-color: var(--ac); }
+#tj-root .tb-btn.lock-btn.locked { color: var(--gold); border-color: var(--gold); background: transparent; }
+#tj-root .tb-btn.lock-btn.locked:hover { background: transparent; border-color: var(--gold); }
 #tj-lock-overlay {
   position: absolute; inset: 0; z-index: 200;
   background: rgba(10,10,12,0.78); backdrop-filter: blur(6px);
@@ -29675,18 +29699,18 @@ window.hideBrainstormJournal = function() {
   outline: none; font-family: var(--font); text-align: center; letter-spacing: 3px;
   transition: border-color 0.15s; box-sizing: border-box;
 }
-#tj-lock-overlay .tl-pw-input:focus { border-color: var(--purple); }
-#tj-lock-overlay .tl-pw-input.error { border-color: #e0b874; }
-#tj-lock-overlay .tl-err { font-size: 12px; color: #e0b874; font-weight: 700; text-align: center; min-height: 16px; font-family: var(--font); }
+#tj-lock-overlay .tl-pw-input:focus { border-color: var(--ac); }
+#tj-lock-overlay .tl-pw-input.error { border-color: var(--red); }
+#tj-lock-overlay .tl-err { font-size: 12px; color: var(--red); font-weight: 700; text-align: center; min-height: 16px; font-family: var(--font); }
 #tj-lock-overlay .tl-row { display: flex; gap: 8px; width: 100%; }
 #tj-lock-overlay .tl-row .tl-btn { flex: 1; }
 #tj-lock-overlay .tl-btn {
-  width: 100%; padding: 11px; background: var(--purple); color: #fff; border: none;
+  width: 100%; padding: 11px; background: var(--ac); color: #1a1a1d; border: none;
   border-radius: 6px; font-size: 13px; font-weight: 700; font-family: var(--font);
   letter-spacing: 0.04em; cursor: pointer; transition: opacity 0.15s;
 }
 #tj-lock-overlay .tl-btn.ghost { background: transparent; color: var(--text2); border: 1px solid var(--border2); }
-#tj-lock-overlay .tl-btn.danger { background: transparent; color: #e0b874; border: 1px solid #e0b874; }
+#tj-lock-overlay .tl-btn.danger { background: transparent; color: var(--red); border: 1px solid var(--red); }
 #tj-lock-overlay .tl-btn:hover { opacity: 0.85; }
 /* ── Lock-manager hover + touch sizing ───────────────────────────────────────
    Opacity alone gave almost no feedback on a pointer device, so each row also
@@ -29694,12 +29718,12 @@ window.hideBrainstormJournal = function() {
    otherwise leave the last-pressed row stuck looking hovered. */
 #tj-lock-overlay .tl-btn { transition: opacity .15s, box-shadow .18s, border-color .18s; }
 @media (hover: hover) and (pointer: fine) {
-  #tj-lock-overlay .tl-btn:hover { box-shadow: 0 0 12px rgba(224,184,116,.36); }
-  #tj-lock-overlay .tl-btn.ghost:hover { border-color: var(--purple); box-shadow: 0 0 11px rgba(224,184,116,.36); }
-  #tj-lock-overlay .tl-btn.danger:hover { border-color: #e0b874; box-shadow: 0 0 12px rgba(224,184,116,.36); }
-  #tj-lock-overlay .tl-forgot:hover { color: var(--purple); }
+  #tj-lock-overlay .tl-btn:hover { box-shadow: var(--suite-glow); }
+  #tj-lock-overlay .tl-btn.ghost:hover { border-color: var(--ac); box-shadow: none; }
+  #tj-lock-overlay .tl-btn.danger:hover { border-color: var(--red); box-shadow: none; }
+  #tj-lock-overlay .tl-forgot:hover { color: var(--ac); }
 }
-#tj-lock-overlay .tl-pw-input:focus { box-shadow: 0 0 11px rgba(224,184,116,.36); }
+#tj-lock-overlay .tl-pw-input:focus { box-shadow: 0 0 0 3px rgba(192,174,234,.16); }
 #tj-lock-overlay .tl-pw-input { transition: border-color .15s, box-shadow .18s; }
 /* Phones: a taller-than-screen menu (biometrics + every action) has to scroll
    inside its own card rather than pushing itself off the overlay. */
@@ -29736,7 +29760,7 @@ window.hideBrainstormJournal = function() {
     text-align: right;
     text-transform: uppercase;
   }
-#tj-root .mode-toggle-label.edit-active { color: var(--purple); }
+#tj-root .mode-toggle-label.edit-active { color: var(--ac); }
 #tj-root .mode-toggle {
     position: relative; width: 40px; height: 22px; cursor: pointer; flex-shrink: 0;
     touch-action: manipulation; -webkit-tap-highlight-color: transparent;
@@ -29744,16 +29768,16 @@ window.hideBrainstormJournal = function() {
 #tj-root .mode-toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
 #tj-root .toggle-track {
     position: absolute; inset: 0;
-    background: #1e1c26;
+    background: #2c2c31;
     border-radius: 34px;
-    border: 1px solid #3a3848;
+    border: 1px solid #45454c;
     transition: border-color 0.2s;
   }
 #tj-root .mode-toggle input:checked ~ .toggle-track { border-color: var(--purple-dim); }
 #tj-root .toggle-knob {
     position: absolute; top: 3px; left: 3px;
     width: 14px; height: 14px;
-    background: #5a5870;
+    background: #8d8d94;
     border-radius: 50%;
     transition: transform 0.22s cubic-bezier(.4,0,.2,1), background 0.22s;
     box-shadow: 0 1px 3px rgba(0,0,0,0.5);
@@ -29761,7 +29785,7 @@ window.hideBrainstormJournal = function() {
   }
 #tj-root .mode-toggle input:checked ~ .toggle-knob {
     transform: translateX(18px);
-    background: var(--purple);
+    background: var(--ac);
   }
 
 #tj-root #tj-save-indicator {
@@ -29788,8 +29812,8 @@ window.hideBrainstormJournal = function() {
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 #tj-root #tj-template-panel {
     background: var(--card);
-    border: 1px solid rgba(141,118,154,0.25);
-    border-top: 3px solid var(--purple);
+    border: 1px solid rgba(192,174,234,0.25);
+    border-top: 3px solid var(--ac);
     border-radius: 10px;
     padding: 22px;
     width: 500px;
@@ -29816,7 +29840,7 @@ window.hideBrainstormJournal = function() {
     background: var(--card2);
     transition: border-color 0.2s, background 0.2s, transform 0.1s;
   }
-#tj-root .template-card:hover { border-color: rgba(224,184,116,0.4); background: var(--card2); transform: translateY(-1px); }
+#tj-root .template-card:hover { border-color: rgba(192,174,234,0.4); background: var(--card2); transform: translateY(-1px); }
 #tj-root .template-card-icon { font-size: 20px; margin-bottom: 8px; }
 #tj-root .template-card h3 {
     font-size: 13px; font-weight: 600; font-family: var(--font);
@@ -29851,10 +29875,10 @@ window.hideBrainstormJournal = function() {
     margin-top: 6px;
     font-size: 10px;
     font-family: var(--font-mono);
-    color: var(--purple);
+    color: var(--ac);
     opacity: 0.6;
-    background: rgba(141,118,154,0.06);
-    border: 1px solid rgba(141,118,154,0.15);
+    background: transparent;
+    border: 1px solid rgba(192,174,234,0.15);
     padding: 5px 14px;
     border-radius: 4px;
     letter-spacing: 0.06em;
@@ -29875,14 +29899,14 @@ window.hideBrainstormJournal = function() {
     transition: background 0.1s, color 0.1s, border-color 0.1s;
     white-space: nowrap; letter-spacing: 0.01em; min-width: 26px; justify-content: center;
   }
-#tj-root .pt-btn:hover { background: var(--card); color: var(--text); border-color: rgba(224,184,116,.5); box-shadow: var(--suite-glow); }
-#tj-root .pt-btn.active { background: transparent; color: var(--purple); border-color: #e0b874; }
+#tj-root .pt-btn:hover { background: var(--card); color: var(--text); border-color: rgba(192,174,234,.5); box-shadow: var(--suite-glow); }
+#tj-root .pt-btn.active { background: transparent; color: var(--ac); border-color: var(--ac); }
 #tj-root .pt-select {
     padding: 3px 6px; border: 1px solid var(--border); border-radius: 4px;
     background: var(--card); font-family: var(--font); font-size: 12px;
     color: var(--text2); cursor: pointer; outline: none;
   }
-#tj-root .pt-select:focus { border-color: var(--purple); }
+#tj-root .pt-select:focus { border-color: var(--ac); }
 #tj-root #tj-page-color-pick {
     width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border2);
     cursor: pointer; padding: 0; overflow: hidden; flex-shrink: 0; background: none;
@@ -29906,7 +29930,7 @@ window.hideBrainstormJournal = function() {
   transition: transform 0.1s, box-shadow 0.1s;
 }
 #tj-root .pt-hl-swatch:hover { transform: scale(1.15); box-shadow: 0 2px 6px rgba(0,0,0,0.25); }
-#tj-root .pt-hl-swatch.active { box-shadow: 0 0 0 2px var(--purple); }
+#tj-root .pt-hl-swatch.active { box-shadow: 0 0 0 2px var(--ac); }
 #tj-root #tj-page-img-btn input[type=file] {
     position: absolute; inset: 0; opacity: 0; cursor: pointer; font-size: 0;
   }
@@ -29916,7 +29940,7 @@ window.hideBrainstormJournal = function() {
 #tj-root #tj-page-editor {
     max-width: 780px; margin: 0; min-height: 480px;
     outline: none; font-family: var(--font);
-    font-size: 16px; line-height: 1.85; color: var(--text); caret-color: var(--purple);
+    font-size: 16px; line-height: 1.85; color: var(--text); caret-color: var(--ac);
     overflow-wrap: break-word; word-break: break-word;
   }
 #tj-root #tj-page-editor[contenteditable="false"] { pointer-events: none; }
@@ -29934,23 +29958,23 @@ window.hideBrainstormJournal = function() {
 #tj-root #tj-page-editor ol { padding-left: 22px; margin: 6px 0; list-style: decimal; }
 #tj-root #tj-page-editor li { margin: 3px 0; }
 #tj-root #tj-page-editor blockquote {
-    border-left: 3px solid var(--purple); margin: 10px 0; padding: 8px 14px;
+    border-left: 3px solid var(--ac); margin: 10px 0; padding: 8px 14px;
     background: var(--purple-bg); border-radius: 0 6px 6px 0; color: var(--text2); font-style: italic;
   }
 #tj-root #tj-page-editor pre, #tj-root #tj-page-editor code {
     font-family: var(--font-mono); font-size: 12px; background: var(--card2);
-    border: 1px solid var(--border); border-radius: 4px; color: var(--cyan);
+    border: 1px solid var(--border); border-radius: 4px; color: var(--blue);
   }
 #tj-root #tj-page-editor pre { padding: 10px 14px; margin: 8px 0; overflow-x: auto; }
 #tj-root #tj-page-editor code { padding: 1px 5px; }
 #tj-root #tj-page-editor pre code { background: none; border: none; padding: 0; }
-#tj-root #tj-page-editor a { color: var(--cyan); text-decoration: underline; }
+#tj-root #tj-page-editor a { color: var(--blue); text-decoration: underline; }
 #tj-root #tj-page-editor hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
 #tj-root #tj-page-editor img {
     max-width: 100%; border-radius: 6px; border: 1px solid var(--border);
     margin: 8px 0; display: block; cursor: default;
   }
-#tj-root #tj-page-editor img.pg-selected { outline: 2px solid var(--purple); outline-offset: 2px; }
+#tj-root #tj-page-editor img.pg-selected { outline: 2px solid var(--ac); outline-offset: 2px; }
 /* Resizable image wrapper in page editor */
 #tj-root #tj-page-editor .pg-img-wrap {
   display: inline-block; position: relative; cursor: default; margin: 8px 0;
@@ -29962,7 +29986,7 @@ window.hideBrainstormJournal = function() {
 }
 #tj-root #tj-page-editor .pg-img-resize-handle {
   position: absolute; bottom: -6px; right: -6px; width: 22px; height: 22px;
-  background: var(--purple); border-radius: 4px; cursor: se-resize;
+  background: var(--ac); border-radius: 4px; cursor: se-resize;
   display: none; z-index: 5; border: 2px solid #fff;
   touch-action: none; -webkit-touch-callout: none; user-select: none;
 }
@@ -29979,7 +30003,7 @@ window.hideBrainstormJournal = function() {
 #tj-root #tj-page-editor .pg-img-wrap.selected .pg-img-del-handle { display: flex; }
 #tj-root #tj-page-editor table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 12.5px; }
 #tj-root #tj-page-editor th, #tj-root #tj-page-editor td { border: 1px solid var(--border); padding: 7px 12px; text-align: left; }
-#tj-root #tj-page-editor th { background: var(--card2); color: var(--purple); font-weight: 700; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
+#tj-root #tj-page-editor th { background: var(--card2); color: var(--ac); font-weight: 700; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
 #tj-root #tj-page-editor tr:hover td { background: rgba(255,255,255,0.02); }
 
 /* ── JOURNAL ENTRIES template ── */
@@ -29998,17 +30022,16 @@ window.hideBrainstormJournal = function() {
   background: transparent; border: 1px solid var(--border2); border-radius: 5px;
   color: var(--text3); cursor: pointer; transition: color .15s, border-color .15s;
 }
-#tj-root .je-navbtn:hover:not(:disabled) { color: var(--purple); border-color: rgba(224,184,116,0.55); }
+#tj-root .je-navbtn:hover:not(:disabled) { color: var(--ac); border-color: rgba(192,174,234,0.55); }
 #tj-root .je-navbtn:disabled { opacity: .3; cursor: default; }
 #tj-root #tj-je-tabs-bar.je-overflow .je-navbtn { display: inline-flex; }
 #tj-root #tj-je-strip { position: relative; flex: 1; min-width: 0; }
-/* Fade the cut-off edges so a scrolled strip reads as "there is more". */
-#tj-root #tj-je-tabs-bar.je-overflow #tj-je-strip::before,
-#tj-root #tj-je-tabs-bar.je-overflow #tj-je-strip::after {
-  content: ""; position: absolute; top: 0; bottom: 0; width: 20px; pointer-events: none; z-index: 2;
+/* Fade the cut-off edges so a scrolled strip reads as "there is more". A mask
+   on the strip itself, so nothing is painted over the tabs. */
+#tj-root #tj-je-tabs-bar.je-overflow #tj-je-tabs {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 20px, #000 calc(100% - 20px), transparent);
+          mask-image: linear-gradient(to right, transparent, #000 20px, #000 calc(100% - 20px), transparent);
 }
-#tj-root #tj-je-tabs-bar.je-overflow #tj-je-strip::before { left: 0; background: linear-gradient(to right, var(--bg), transparent); }
-#tj-root #tj-je-tabs-bar.je-overflow #tj-je-strip::after { right: 0; background: linear-gradient(to left, var(--bg), transparent); }
 #tj-root #tj-je-tabs { display: flex; align-items: center; gap: 4px; overflow-x: auto; min-width: 0; scroll-behavior: smooth; scrollbar-width: none; }
 #tj-root #tj-je-tabs::-webkit-scrollbar { display: none; width: 0; height: 0; }
 /* Month marker: the first tab of each month run carries the month, the rest of
@@ -30027,7 +30050,7 @@ window.hideBrainstormJournal = function() {
   white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: 7px;
 }
 #tj-root .je-tab:hover { color: var(--text2); border-color: var(--border); }
-#tj-root .je-tab.active { color: var(--purple); border-color: rgba(224,184,116,0.55); background: var(--purple-bg); font-weight: 600; }
+#tj-root .je-tab.active { color: var(--ac); border-color: rgba(192,174,234,0.55); background: var(--purple-bg); font-weight: 600; }
 #tj-root .je-tab-del {
   font-size: 9px; font-weight: 800; color: var(--red); cursor: pointer;
   width: 0; overflow: hidden; opacity: 0; transition: opacity .15s, width .15s;
@@ -30043,7 +30066,7 @@ window.hideBrainstormJournal = function() {
   padding: 3px 8px; cursor: pointer; white-space: nowrap; transition: color .15s, border-color .15s;
 }
 #tj-root #tj-je-tabs-bar.je-overflow #tj-je-jump { display: inline-flex; }
-#tj-root #tj-je-jump:hover, #tj-root #tj-je-jump.open { color: var(--purple); border-color: rgba(224,184,116,0.55); }
+#tj-root #tj-je-jump:hover, #tj-root #tj-je-jump.open { color: var(--ac); border-color: rgba(192,174,234,0.55); }
 #tj-root #tj-je-menu {
   position: fixed; z-index: 100040; display: none; flex-direction: column;
   max-height: min(60vh, 380px); overflow-y: auto; width: 215px;
@@ -30062,17 +30085,17 @@ window.hideBrainstormJournal = function() {
   cursor: pointer; text-align: left;
 }
 #tj-root .je-menu-item:hover { background: var(--card2); color: var(--text); }
-#tj-root .je-menu-item.active { color: var(--purple); font-weight: 600; }
+#tj-root .je-menu-item.active { color: var(--ac); font-weight: 600; }
 #tj-root .je-menu-lbl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 #tj-root .je-menu-del { flex-shrink: 0; color: var(--red); opacity: 0; font-size: 9px; font-weight: 800; padding: 2px 4px; border-radius: 4px; }
 #tj-root .je-menu-item:hover .je-menu-del { opacity: .85; }
 #tj-root #tj-je-add-date {
-  flex-shrink: 0; background: transparent; border: 1px solid rgba(224,184,116,0.25);
-  border-radius: 5px; color: var(--purple); font-size: 11px; font-weight: 600;
+  flex-shrink: 0; background: transparent; border: 1px solid rgba(192,174,234,0.25);
+  border-radius: 5px; color: var(--ac); font-size: 11px; font-weight: 600;
   font-family: var(--font); padding: 3px 10px; cursor: pointer; white-space: nowrap;
   transition: border-color .15s;
 }
-#tj-root #tj-je-add-date:hover { border-color: rgba(224,184,116,0.6); }
+#tj-root #tj-je-add-date:hover { border-color: rgba(192,174,234,0.6); }
 
 /* The Journal toolbar IS the Page toolbar — same markup, same classes, same docx
    ribbon injected on top. Only the edit-mode gating is its own. */
@@ -30093,7 +30116,7 @@ window.hideBrainstormJournal = function() {
 #tj-root #tj-je-editor {
     max-width: 780px; margin: 0; min-height: 480px;
     outline: none; font-family: var(--font);
-    font-size: 16px; line-height: 1.85; color: var(--text); caret-color: var(--purple);
+    font-size: 16px; line-height: 1.85; color: var(--text); caret-color: var(--ac);
     overflow-wrap: break-word; word-break: break-word;
   }
 #tj-root #tj-je-editor[contenteditable="false"] { pointer-events: none; }
@@ -30111,23 +30134,23 @@ window.hideBrainstormJournal = function() {
 #tj-root #tj-je-editor ol { padding-left: 22px; margin: 6px 0; list-style: decimal; }
 #tj-root #tj-je-editor li { margin: 3px 0; }
 #tj-root #tj-je-editor blockquote {
-    border-left: 3px solid var(--purple); margin: 10px 0; padding: 8px 14px;
+    border-left: 3px solid var(--ac); margin: 10px 0; padding: 8px 14px;
     background: var(--purple-bg); border-radius: 0 6px 6px 0; color: var(--text2); font-style: italic;
   }
 #tj-root #tj-je-editor pre, #tj-root #tj-je-editor code {
     font-family: var(--font-mono); font-size: 12px; background: var(--card2);
-    border: 1px solid var(--border); border-radius: 4px; color: var(--cyan);
+    border: 1px solid var(--border); border-radius: 4px; color: var(--blue);
   }
 #tj-root #tj-je-editor pre { padding: 10px 14px; margin: 8px 0; overflow-x: auto; }
 #tj-root #tj-je-editor code { padding: 1px 5px; }
 #tj-root #tj-je-editor pre code { background: none; border: none; padding: 0; }
-#tj-root #tj-je-editor a { color: var(--cyan); text-decoration: underline; }
+#tj-root #tj-je-editor a { color: var(--blue); text-decoration: underline; }
 #tj-root #tj-je-editor hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
 #tj-root #tj-je-editor img {
     max-width: 100%; border-radius: 6px; border: 1px solid var(--border);
     margin: 8px 0; display: block; cursor: default;
   }
-#tj-root #tj-je-editor img.pg-selected { outline: 2px solid var(--purple); outline-offset: 2px; }
+#tj-root #tj-je-editor img.pg-selected { outline: 2px solid var(--ac); outline-offset: 2px; }
 /* Resizable image wrapper in page editor */
 #tj-root #tj-je-editor .pg-img-wrap {
   display: inline-block; position: relative; cursor: default; margin: 8px 0;
@@ -30139,7 +30162,7 @@ window.hideBrainstormJournal = function() {
 }
 #tj-root #tj-je-editor .pg-img-resize-handle {
   position: absolute; bottom: -6px; right: -6px; width: 22px; height: 22px;
-  background: var(--purple); border-radius: 4px; cursor: se-resize;
+  background: var(--ac); border-radius: 4px; cursor: se-resize;
   display: none; z-index: 5; border: 2px solid #fff;
   touch-action: none; -webkit-touch-callout: none; user-select: none;
 }
@@ -30156,7 +30179,7 @@ window.hideBrainstormJournal = function() {
 #tj-root #tj-je-editor .pg-img-wrap.selected .pg-img-del-handle { display: flex; }
 #tj-root #tj-je-editor table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 12.5px; }
 #tj-root #tj-je-editor th, #tj-root #tj-je-editor td { border: 1px solid var(--border); padding: 7px 12px; text-align: left; }
-#tj-root #tj-je-editor th { background: var(--card2); color: var(--purple); font-weight: 700; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
+#tj-root #tj-je-editor th { background: var(--card2); color: var(--ac); font-weight: 700; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
 #tj-root #tj-je-editor tr:hover td { background: rgba(255,255,255,0.02); }
 #tj-root #tj-je-editor-wrap { display: none; }
 #tj-root #tj-je-editor-wrap.active { display: block; }
@@ -30187,7 +30210,7 @@ window.hideBrainstormJournal = function() {
   background: var(--card); border: 1px solid var(--border); color: var(--text2);
   white-space: nowrap; flex-shrink: 0;
 }
-#tj-root .tj-attach-btn:hover { border-color: var(--purple2); color: var(--purple); box-shadow: var(--suite-glow); }
+#tj-root .tj-attach-btn:hover { border-color: var(--acl); color: var(--ac); box-shadow: var(--suite-glow); }
 #tj-root .tj-attach-chips { display: flex; flex-wrap: wrap; gap: 5px; flex: 1; min-width: 0; }
 #tj-root .tj-chip {
   display: inline-flex; align-items: center; gap: 5px;
@@ -30207,8 +30230,8 @@ window.hideBrainstormJournal = function() {
   border: 2px solid transparent; border-radius: 6px; cursor: grab;
   transition: border-color 0.1s;
 }
-#tj-root .tj-img-wrap:hover { border-color: var(--purple2); }
-#tj-root .tj-img-wrap.selected { border-color: var(--purple); }
+#tj-root .tj-img-wrap:hover { border-color: var(--acl); }
+#tj-root .tj-img-wrap.selected { border-color: var(--ac); }
 #tj-root .tj-img-wrap img {
   display: block; border-radius: 4px; max-width: 100%;
   pointer-events: none; user-select: none;
@@ -30223,7 +30246,7 @@ window.hideBrainstormJournal = function() {
 #tj-root .tj-img-wrap.selected .tj-img-del { display: flex; }
 #tj-root .tj-img-resize {
   position: absolute; bottom: -6px; right: -6px; width: 22px; height: 22px;
-  background: var(--purple); border-radius: 4px; cursor: se-resize; z-index: 10;
+  background: var(--ac); border-radius: 4px; cursor: se-resize; z-index: 10;
   display: none; touch-action: none; -webkit-touch-callout: none; user-select: none;
 }
 #tj-root .tj-img-wrap:hover .tj-img-resize,
@@ -30234,17 +30257,17 @@ window.hideBrainstormJournal = function() {
 #tj-root .tj-drop-zone {
   position: absolute; inset: 0; z-index: 500;
   display: none; align-items: center; justify-content: center;
-  background: rgba(141,118,154,0.13);
-  border: 3px dashed var(--purple2);
+  background: rgba(26,26,29,.88);
+  border: 3px dashed var(--acl);
   border-radius: 10px;
   pointer-events: none;
 }
 #tj-root .tj-drop-zone.active { display: flex; pointer-events: none; }
 #tj-root .tj-drop-label {
   font-family: var(--font); font-size: 18px; font-weight: 700;
-  color: var(--purple); background: var(--bg); border-radius: 10px;
-  padding: 18px 32px; border: 2px solid var(--purple2);
-  box-shadow: 0 4px 24px rgba(141,118,154,0.18);
+  color: var(--ac); background: var(--bg); border-radius: 10px;
+  padding: 18px 32px; border: 2px solid var(--acl);
+  box-shadow: 0 10px 28px -8px rgba(0,0,0,.55);
   pointer-events: none; text-align: center;
 }
 #tj-root #tj-page-area { position: relative; }
@@ -30261,12 +30284,12 @@ window.hideBrainstormJournal = function() {
 #tj-root .tag {
     display: inline-flex; align-items: center; gap: 5px; padding: 3px 6px 3px 11px; border-radius: 999px;
     font-family: var(--font); font-size: 11px; font-weight: 600;
-    background: transparent; color: var(--purple); border: 1px solid rgba(224,184,116,0.4);
+    background: transparent; color: var(--ac); border: 1px solid rgba(192,174,234,0.4);
     letter-spacing: 0.02em; max-width: 100%;
     transition: background 0.12s, border-color 0.12s;
   }
 #tj-root .tag .tag-txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px; }
-#tj-root .tag:hover { background: transparent; border-color: #e0b874; }
+#tj-root .tag:hover { background: transparent; border-color: var(--ac); }
 #tj-root .tag-del { cursor: pointer; opacity: 0.55; font-size: 12px; line-height: 1; width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; flex-shrink: 0; transition: opacity 0.1s, background 0.1s; }
 #tj-root .tag-del:hover { opacity: 1; color: #fff; background: var(--red); }
 #tj-root #tj-add-tag-input {
@@ -30276,7 +30299,7 @@ window.hideBrainstormJournal = function() {
     transition: border-color 0.15s, width 0.2s;
     letter-spacing: 0.02em;
   }
-#tj-root #tj-add-tag-input:focus { border-style: solid; border-color: var(--purple); color: var(--text); width: 120px; }
+#tj-root #tj-add-tag-input:focus { border-style: solid; border-color: var(--ac); color: var(--text); width: 120px; }
 #tj-root #tj-add-tag-input::placeholder { color: var(--text3); }
 
   /* ── SCROLLBAR ── */
@@ -30349,26 +30372,26 @@ window.hideBrainstormJournal = function() {
 #tj-root .tj-sync-pill.tj-sync-idle .tj-sync-dot { background: var(--text3); opacity: 0.4; }
 /* Syncing */
 #tj-root .tj-sync-pill.tj-sync-syncing {
-  color: var(--cyan);
-  background: rgba(34,211,238,0.07);
-  border-color: rgba(34,211,238,0.2);
+  color: var(--blue);
+  background: transparent;
+  border-color: rgba(143,166,216,.35);
 }
 #tj-root .tj-sync-pill.tj-sync-syncing .tj-sync-dot {
-  background: var(--cyan);
+  background: var(--blue);
   animation: tj-pulse 0.8s ease-in-out infinite;
 }
 /* Synced */
 #tj-root .tj-sync-pill.tj-sync-synced {
   color: var(--green);
-  background: rgba(93,175,109,0.07);
-  border-color: rgba(93,175,109,0.22);
+  background: transparent;
+  border-color: rgba(164,185,134,.35);
 }
 #tj-root .tj-sync-pill.tj-sync-synced .tj-sync-dot { background: var(--green); }
 /* Error */
 #tj-root .tj-sync-pill.tj-sync-error {
   color: var(--red);
-  background: rgba(231,76,60,0.07);
-  border-color: rgba(231,76,60,0.22);
+  background: transparent;
+  border-color: rgba(214,138,124,.35);
 }
 #tj-root .tj-sync-pill.tj-sync-error .tj-sync-dot { background: var(--red); }
 @keyframes tj-pulse {
@@ -30581,10 +30604,7 @@ window.hideBrainstormJournal = function() {
 </style>
 
 
-<!-- data-hoverfx="classic": MyJournal keeps the measured hover until its own
-     theme-overhaul phase (docs/theme-overhaul-plan.md), even though <body> is
-     magi while Tony is open. The nearest declaration wins. -->
-<div id="tj-root" data-hoverfx="classic">
+<div id="tj-root">
 <div id="tj-nav-header" style="background:var(--bg);border-bottom:1px solid var(--border);flex-shrink:0;">
   <div id="tj-nav-inner" style="max-width:2000px;margin:0 auto;padding:calc(env(safe-area-inset-top,0px) + 10px) clamp(12px,3vw,24px) 10px;display:flex;flex-direction:column;gap:6px;min-width:0;width:100%;">
     <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;min-height:30px;">
@@ -30623,7 +30643,7 @@ window.hideBrainstormJournal = function() {
     <button id="tj-hamburger" style="background:transparent;border:none;cursor:pointer;padding:8px;color:var(--purple);flex-shrink:0;touch-action:manipulation;" aria-label="Open sidebar">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     </button>
-    <input id="tj-mobile-title" type="text" placeholder="Untitled entry…" style="flex:1;background:none;border:none;outline:none;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;color:var(--text);min-width:0;padding:0 4px;" />
+    <input id="tj-mobile-title" type="text" placeholder="Untitled entry…" style="flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:14px;font-weight:500;color:var(--text);min-width:0;padding:0 4px;" />
     <button id="tj-mobile-lock-btn" style="display:none;background:transparent;border:none;cursor:pointer;padding:6px 8px;flex-shrink:0;touch-action:manipulation;line-height:0;display:inline-flex;align-items:center;" aria-label="Lock entry"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg></button>
   </div>
   <div id="tj-toolbar">
@@ -30643,7 +30663,7 @@ window.hideBrainstormJournal = function() {
       </label>
     </div>
     <div class="toolbar-sep"></div>
-    <button class="tb-btn" id="tj-btn-export-pdf" data-tip="Export as PDF" style="color:var(--purple);border-color:rgba(141,118,154,0.3);">
+    <button class="tb-btn" id="tj-btn-export-pdf" data-tip="Export as PDF" style="color:var(--ac);">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
       Export PDF
     </button>
@@ -30881,7 +30901,7 @@ window.hideBrainstormJournal = function() {
       </div>
       <!-- Editor area -->
       <div id="tj-je-editor-wrap" style="flex:1;overflow-y:auto;overflow-x:hidden;padding:0;">
-        <div id="tj-je-editor" contenteditable="false" style="min-height:100%;padding:20px clamp(12px,3vw,32px);outline:none;font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.75;color:var(--text);"></div>
+        <div id="tj-je-editor" contenteditable="false" style="min-height:100%;padding:20px clamp(12px,3vw,32px);outline:none;font-family:var(--font);font-size:14px;line-height:1.75;color:var(--text);"></div>
       </div>
       <!-- Empty state when no dates exist -->
       <div id="tj-je-empty" style="flex:1;display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;color:var(--text3);font-size:13px;text-align:center;padding:32px;">
@@ -30927,9 +30947,9 @@ window.hideBrainstormJournal = function() {
 </div>
 </div><!-- end tj-body -->
 <div id="tj-bottom-bar" style="display:none;">
-  <button id="tj-bb-edit" style="flex:1;background:transparent;color:var(--text2);border:1px solid var(--border2);border-radius:5px;padding:7px 0;font-size:11px;font-weight:500;font-family:'DM Sans',sans-serif;text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;touch-action:manipulation;">✏ Edit</button>
-  <button id="tj-bb-new" style="flex:2;background:var(--purple);color:#fff;border:none;border-radius:5px;padding:7px 0;font-size:11px;font-weight:600;font-family:'DM Sans',sans-serif;text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;touch-action:manipulation;">+ New</button>
-  <span id="tj-bb-saved" style="font-size:11px;color:var(--green);font-family:'DM Sans',sans-serif;font-weight:500;opacity:0;transition:opacity 0.4s;white-space:nowrap;display:inline-flex;align-items:center;"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>
+  <button id="tj-bb-edit" style="flex:1;background:transparent;color:var(--text2);border:1px solid var(--border2);border-radius:5px;padding:7px 0;font-size:11px;font-weight:500;font-family:var(--font);text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;touch-action:manipulation;">✏ Edit</button>
+  <button id="tj-bb-new" style="flex:2;background:var(--purple);color:#1a1a1d;border:none;border-radius:5px;padding:7px 0;font-size:11px;font-weight:600;font-family:var(--font);text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;touch-action:manipulation;">+ New</button>
+  <span id="tj-bb-saved" style="font-size:11px;color:var(--green);font-family:var(--font);font-weight:500;opacity:0;transition:opacity 0.4s;white-space:nowrap;display:inline-flex;align-items:center;"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>
 </div>
 </div>
 
@@ -31647,6 +31667,8 @@ function _tjRenderTrashBtn() {
 
 function renderSidebar() {
   if (_tjHidden) return;
+  // A redraw never lands under a row that is being dragged.
+  if (window.A1Drag && window.A1Drag.active) { window.A1Drag.later(renderSidebar); return; }
   const list = document.getElementById('tj-entries-list');
   const search = document.getElementById('tj-search-box').value.toLowerCase().trim();
   const live = state.entries.filter(e => !e.trashed);
@@ -31661,19 +31683,21 @@ function renderSidebar() {
   if (entries.length === 0) {
     list.innerHTML = `<div class="list-empty">${search || tjTagFilters.length ? 'No entries match your search.' : (_tjIsOJ() ? 'Nothing shared yet.<br>Anything created here is visible to Tony and Veda.' : 'No entries yet.<br>Click "New Entry" to begin.')}</div>`;
   }
+  // Reordering is MAGI's drag (dragsort.js, theme overhaul phase 2): a mouse
+  // takes the row anywhere, a finger only by its grip, and the grip's arrow
+  // keys move it one place. Off while a search or tag filter is narrowing the
+  // list, because a move between two filtered rows has no clear meaning.
   const isDraggable = !search && tjTagFilters.length === 0;
-  let dragSrcId = null;
 
   entries.forEach(entry => {
     const div = document.createElement('div');
     div.className = 'entry-item' + (entry.id === state.activeId ? ' active' : '');
     div.dataset.entryId = entry.id;
-    if (isDraggable) div.draggable = true;
+    div.dataset.dkey = entry.id;
     const tmap = { whiteboard: 'BOARD', mindmap: 'MAP', page: 'PAGE', 'journal-entries': 'JOURNAL' };
     const date = new Date(entry.updated).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const titleClass = entry.title ? '' : ' untitled';
     div.innerHTML = `
-      ${isDraggable ? `<div class="entry-drag-handle" title="Drag to reorder"><span></span><span></span><span></span></div>` : ''}
       <div class="entry-item-title${titleClass}">${_tjHlTitle(entry.title || 'Untitled', search)}</div>
       <div class="entry-item-meta">
         <span class="template-badge">${tmap[entry.template]||'NOTE'}</span>
@@ -31683,9 +31707,13 @@ function renderSidebar() {
       </div>
       <button class="entry-delete" data-id="${entry.id}" title="Move to Trash">${window.TNI.x}</button>
     `;
+    if (isDraggable && window.A1Drag) {
+      const g = window.A1Drag.grip('Move ' + (entry.title || 'Untitled'));
+      g.classList.add('tj-grip');
+      div.insertBefore(g, div.firstChild);
+    }
     div.addEventListener('click', e => {
-      if (e.target.classList.contains('entry-delete') || e.target.closest('.entry-delete')) return;
-      if (e.target.classList.contains('entry-drag-handle') || e.target.closest('.entry-drag-handle')) return;
+      if (e.target.closest('.entry-delete') || e.target.closest('.tj-grip')) return;
       // Flush the just-edited entry BEFORE changing activeId — see BJ sidebar handler.
       saveCurrentEntry(); _tjFbFlush(); state.activeId = entry.id; renderSidebar(); loadActiveEntry();
     });
@@ -31718,44 +31746,31 @@ function renderSidebar() {
       }
       if (await window.uiConfirm(`Delete "${entry.title || 'Untitled'}"?`, {danger:true, okLabel:'Delete'})) deleteEntry(entry.id);
     });
-    if (isDraggable) {
-      div.addEventListener('dragstart', e => {
-        dragSrcId = entry.id;
-        div.classList.add('tj-dragging');
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', entry.id);
-      });
-      div.addEventListener('dragend', () => {
-        div.classList.remove('tj-dragging');
-        list.querySelectorAll('.tj-drag-over').forEach(el => el.classList.remove('tj-drag-over'));
-      });
-      div.addEventListener('dragover', e => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        list.querySelectorAll('.tj-drag-over').forEach(el => el.classList.remove('tj-drag-over'));
-        if (dragSrcId !== entry.id) div.classList.add('tj-drag-over');
-      });
-      div.addEventListener('dragleave', () => div.classList.remove('tj-drag-over'));
-      div.addEventListener('drop', e => {
-        e.preventDefault();
-        div.classList.remove('tj-drag-over');
-        if (!dragSrcId || dragSrcId === entry.id) return;
-        const fromIdx = state.entries.findIndex(x => x.id === dragSrcId);
-        const toIdx   = state.entries.findIndex(x => x.id === entry.id);
-        if (fromIdx < 0 || toIdx < 0) return;
-        const [moved] = state.entries.splice(fromIdx, 1);
-        state.entries.splice(toIdx, 0, moved);
-        dragSrcId = null;
-        saveState(); renderSidebar();
-      });
-      // Touch drag for mobile
-      const tjHandle = div.querySelector('.entry-drag-handle');
-      if (tjHandle && window._attachJournalTouchDrag) {
-        window._attachJournalTouchDrag(tjHandle, div, entry, list, state, 'tj-drag-over', 'tj-dragging', () => { saveState(); renderSidebar(); _tjFbOrder(); });
-      }
-    }
     list.appendChild(div);
   });
+  if (window.A1Drag) {
+    // Rows as drawn are `entries`; state.entries also holds the trashed ones,
+    // so a move is "put this id before / after that id", not an index shift.
+    const move = (from, to) => {
+      if (from === to || !entries[from] || !entries[to]) return;
+      const fi = state.entries.findIndex(x => x.id === entries[from].id);
+      if (fi < 0) return;
+      const [moved] = state.entries.splice(fi, 1);
+      const ti = state.entries.findIndex(x => x.id === entries[to].id);
+      state.entries.splice(to > from ? ti + 1 : ti, 0, moved);
+      saveState(); renderSidebar(); _tjFbOrder();
+    };
+    window.A1Drag.sort(list, {
+      row: '.entry-item',
+      canDrag: () => isDraggable,
+      onDrop: move,
+      onKey: (row, dir) => {
+        const from = entries.findIndex(x => x.id === row.dataset.entryId);
+        move(from, from + dir);
+        window.A1Drag.refocus(list, row.dataset.entryId);
+      },
+    });
+  }
   const ec = document.getElementById('tj-entry-count');
   if (ec) ec.textContent = live.length;
   _tjRenderTagChips(live);
@@ -32167,11 +32182,11 @@ function _pgBindImgWrap(wrap) {
     if (existing) existing.remove();
     var menu = document.createElement('div');
     menu.id = '_pg_ctx_menu';
-    menu.style.cssText = 'position:fixed;z-index:99999;background:#26272A;border:1px solid #4A4B51;border-radius:7px;padding:4px 0;box-shadow:0 8px 32px rgba(0,0,0,0.55);min-width:160px;font-family:DM Sans,sans-serif;font-size:12px;';
+    menu.style.cssText = 'position:fixed;z-index:99999;background:#232327;border:1px solid #45454c;border-radius:8px;padding:4px 0;box-shadow:0 8px 32px rgba(0,0,0,0.55);min-width:160px;font-family:Inter,system-ui,sans-serif;font-size:12px;';
     var copyBtn = document.createElement('div');
     copyBtn.innerHTML = window.TNI.copy + '<span>Copy Image</span>';
-    copyBtn.style.cssText = 'padding:9px 16px;cursor:pointer;color:#ECECEE;white-space:nowrap;';
-    copyBtn.onmouseenter = function() { copyBtn.style.background='rgba(141,118,154,0.15)'; };
+    copyBtn.style.cssText = 'padding:9px 16px;cursor:pointer;color:#f4f3f0;white-space:nowrap;';
+    copyBtn.onmouseenter = function() { copyBtn.style.background='#2c2c31'; };
     copyBtn.onmouseleave = function() { copyBtn.style.background=''; };
     copyBtn.addEventListener('pointerdown', function(ev) {
       ev.preventDefault();
@@ -32189,8 +32204,8 @@ function _pgBindImgWrap(wrap) {
     menu.appendChild(copyBtn);
     var dlBtn = document.createElement('div');
     dlBtn.innerHTML = window.TNI.download + '<span>Download</span>';
-    dlBtn.style.cssText = 'padding:9px 16px;cursor:pointer;color:#ECECEE;white-space:nowrap;';
-    dlBtn.onmouseenter = function() { dlBtn.style.background='rgba(141,118,154,0.15)'; };
+    dlBtn.style.cssText = 'padding:9px 16px;cursor:pointer;color:#f4f3f0;white-space:nowrap;';
+    dlBtn.onmouseenter = function() { dlBtn.style.background='#2c2c31'; };
     dlBtn.onmouseleave = function() { dlBtn.style.background=''; };
     dlBtn.addEventListener('pointerdown', function(ev) {
       ev.preventDefault();
@@ -34052,7 +34067,7 @@ window.showTonyJournal = function() {
     var titleEl = document.createElement('div');
     titleEl.id = 'tj-nav-title';
     titleEl.style.cssText = 'position:absolute;left:clamp(12px,3vw,24px);top:50%;transform:translateY(-50%);white-space:nowrap;pointer-events:none;line-height:1.2;';
-    titleEl.innerHTML = '<span class="suite-title">MyJournal</span>';
+    titleEl.innerHTML = '<span class="suite-title th-wordmark">MyJournal</span>';
     tni.insertBefore(titleEl, tni.firstChild);
   }
   if(window._tjApplyTheme) window._tjApplyTheme();
@@ -34613,12 +34628,8 @@ window.tjSwitchTo = function(app) {
 
   function tjApplyTheme() {
     var titleEl = document.getElementById('tj-nav-title');
-    if (titleEl) {
-      var base = titleEl.querySelector('span:first-child');
-      var accent = titleEl.querySelector('span:last-child');
-      if (base) base.style.color = '#f4f3f0';
-      if (accent) accent.style.color = '#e0b874';
-    }
+    var mark = titleEl && titleEl.querySelector('.suite-title');
+    if (mark) mark.classList.add('th-wordmark');
   }
 
 
@@ -34633,6 +34644,67 @@ window.tjSwitchTo = function(app) {
 
 
 
+<style id="docx-css-tony">
+/* The DOCX editor in MAGI's look, for Tony only (theme overhaul phase 2,
+   docs/theme-overhaul-plan.md). The rules above are shared with Veda's
+   Brainstorm Journal and stay as they are; this sheet only adds to them.
+   In-sheet rules scope by #tj-root. The menus, dialogs and toasts are
+   appended to <body>, so they scope by body[data-th-profile="tony"], which
+   is set only while Tony's profile is open. Fonts a user picks for their
+   text are content, so nothing here touches the page's own type. */
+#tj-root .docx-sheet { box-shadow: 0 1px 3px rgba(0,0,0,.55), 0 14px 40px rgba(0,0,0,.5), 0 0 0 1px rgba(192,174,234,.10); }
+#tj-root .docx-sheet a { color: #8fa6d8; }
+#tj-root .docx-menu-btn { font-family: 'Inter', system-ui, sans-serif; }
+#tj-root .docx-toolbar .pt-btn { background: transparent; }
+#tj-root .docx-toolbar .pt-btn:hover { background: transparent; }
+#tj-root .docx-trash-btn:hover { background: transparent; }
+#tj-root .docx-ai-btn { color: #c0aeea; border-color: #45454c; background: transparent; }
+#tj-root .docx-ai-btn:hover { color: #dbd0f5; border-color: #c0aeea; background: transparent; }
+
+body[data-th-profile="tony"] :is(.docx-pop, .docx-wcpin, .docx-float button, .docx-tbl-bubble button,
+  .docx-modal, .docx-ai-card, .docx-toast, .docx-find, .docx-matheditor) { font-family: 'Inter', system-ui, sans-serif; }
+body[data-th-profile="tony"] .docx-prompt-ta { font-family: 'Inter', system-ui, sans-serif; }
+/* Menus and dialogs: s1 boxes on a visible border, radius 8; MAGI's backdrop. */
+body[data-th-profile="tony"] :is(.docx-pop, .docx-float, .docx-tbl-bubble, .docx-wcpin, .docx-toast) { background: #232327; border-color: #45454c; border-radius: 8px; }
+body[data-th-profile="tony"] :is(.docx-mi:hover, .docx-float button:hover, .docx-tbl-bubble button:hover, .docx-wcpin button:hover) { background: #2c2c31; }
+body[data-th-profile="tony"] .docx-veil, body[data-th-profile="tony"] .docx-matheditor-overlay { background: rgba(0,0,0,.62); backdrop-filter: blur(2px); }
+body[data-th-profile="tony"] .docx-modal, body[data-th-profile="tony"] .docx-ai-card, body[data-th-profile="tony"] .docx-matheditor { background: #232327; border-color: rgba(255,255,255,.06); border-radius: 8px; }
+body[data-th-profile="tony"] .docx-modal-h { font-family: 'Manrope', system-ui, sans-serif; font-size: 12px; font-weight: 800; letter-spacing: 1.8px; text-transform: uppercase; color: #dbd0f5; }
+/* Find & replace: a solid box (it was a gradient). */
+body[data-th-profile="tony"] .docx-find { background: #232327; border-color: #45454c; border-radius: 8px; }
+body[data-th-profile="tony"] .docx-find button { background: transparent; border-color: #45454c; border-radius: 6px; }
+body[data-th-profile="tony"] .docx-find button:hover { background: transparent; border-color: #c0aeea; }
+body[data-th-profile="tony"] .docx-find .x, body[data-th-profile="tony"] .docx-find .x:hover { border: none; background: transparent; }
+body[data-th-profile="tony"] .docx-find .f-rall, body[data-th-profile="tony"] .docx-find .f-rall:hover { background: #c0aeea; border-color: #c0aeea; color: #1a1a1d; }
+/* Fields: an accent border plus a 3px ring at 16%. */
+body[data-th-profile="tony"] :is(.docx-pop input[type="text"], .docx-pop input[type="search"], .docx-find input[type="text"],
+  .docx-prompt-ta, .docx-ait-name, .docx-matheditor-ta, .docx-ps-row select):focus { border-color: #c0aeea; box-shadow: 0 0 0 3px rgba(192,174,234,.16); }
+/* Buttons: MAGI's .btn. The primary is a solid accent with a dark label. */
+body[data-th-profile="tony"] .docx-btn { background: transparent; border-color: #45454c; border-radius: 6px; font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+body[data-th-profile="tony"] .docx-btn:hover { background: transparent; border-color: #c0aeea; box-shadow: none; }
+body[data-th-profile="tony"] .docx-btn.pri, body[data-th-profile="tony"] .docx-btn.pri:hover { background: #c0aeea; border-color: #c0aeea; color: #1a1a1d; box-shadow: none; }
+body[data-th-profile="tony"] .docx-btn.danger { color: #d68a7c; border-color: rgba(214,138,124,.45); }
+body[data-th-profile="tony"] .docx-btn.danger:hover { background: transparent; border-color: #d68a7c; }
+body[data-th-profile="tony"] .docx-trash-row .b button:hover { border-color: #c0aeea; }
+body[data-th-profile="tony"] .docx-trash-row .b button.del:hover { border-color: #d68a7c; color: #d68a7c; }
+body[data-th-profile="tony"] .docx-matheditor-save, body[data-th-profile="tony"] .docx-matheditor-save:hover { background: #c0aeea; border-color: #c0aeea; color: #1a1a1d; }
+body[data-th-profile="tony"] .docx-matheditor-discard:hover { background: transparent; border-color: #c0aeea; }
+/* Selected = solid accent; no washes. */
+body[data-th-profile="tony"] .docx-grid span.on { background: #c0aeea; border-color: #c0aeea; }
+body[data-th-profile="tony"] .docx-fs-float button:hover { border-color: #c0aeea; }
+body[data-th-profile="tony"] .docx-fs-float button.on { background: #c0aeea; border-color: #c0aeea; color: #1a1a1d; }
+body[data-th-profile="tony"] .docx-prompt-note { background: transparent; border-color: #45454c; }
+body[data-th-profile="tony"] .docx-prompt-note b { color: #dbd0f5; }
+body[data-th-profile="tony"] .docx-ait-item:hover { background: #2c2c31; }
+body[data-th-profile="tony"] .docx-ait-item.on { background: #c0aeea; border-color: #c0aeea; color: #1a1a1d; }
+body[data-th-profile="tony"] .docx-ait-add:hover { background: transparent; border-color: #c0aeea; color: #dbd0f5; }
+body[data-th-profile="tony"] .docx-ait-status.busy { color: #c0aeea; }
+body[data-th-profile="tony"] .docx-ai-spin { border-color: rgba(192,174,234,.22); border-top-color: #c0aeea; }
+body[data-th-profile="tony"] .docx-math-resize { background: #c0aeea; }
+/* The prompt box keeps its own min / max; the grip (resizegrip.js) owns the corner. */
+.docx-ta-wrap { position: relative; display: flex; flex-direction: column; min-height: 0; }
+.docx-ta-wrap > textarea { flex: 0 0 auto; }
+</style>
 <!-- ════════════════════════════════════════════════════════════════════════
      DOCX — Word-style document editor upgrade (shared by MyJournal & Brainstorm Journal)
      Dark-mode-only visual redesign (light mode untouched) + editor feature layer:
@@ -35431,7 +35503,7 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
 
 /* ════════ Coarse pointers: hover-only affordances need a permanent home ════════ */
 @media (pointer: coarse) {
-  #tj-root .entry-drag-handle, #bj-root .entry-drag-handle { opacity: 0.55; width: 18px; }
+  #bj-root .entry-drag-handle { opacity: 0.55; width: 18px; }
   #tj-root .entry-delete, #bj-root .entry-delete { opacity: 1; }
 }
 
@@ -35734,6 +35806,7 @@ function mathEditPop(mathEl) {
   document.body.appendChild(overlay);
   var ta = overlay.querySelector('.docx-matheditor-ta');
   var prev = overlay.querySelector('.docx-matheditor-prev');
+  if (window.docxTonyGrip) window.docxTonyGrip(ta, mathEl.closest('#tj-root') ? 'tj' : 'bj', 'mj.math', 'the LaTeX box');
   ta.value = _mathTex(mathEl);
   function renderPreview() {
     var tex = ta.value.trim();
@@ -37635,6 +37708,21 @@ function aiRunSelection(ctx, range, tool) {
 }
 
 function aiJournalName(app) { return app === 'tj' ? 'MyJournal' : 'Brainstorm Journal'; }
+// MyJournal's resizable boxes take MAGI's corner grip (resizegrip.js, theme
+// overhaul phase 2); Brainstorm Journal keeps the native corner. The box is
+// wrapped so the grip can sit over its bottom-right corner. Call it after the
+// box is in its parent.
+function docxTonyGrip(ta, app, key, label) {
+  if (app !== 'tj' || !window.A1Resize || !ta || !ta.parentNode) return;
+  var wrap = document.createElement('div');
+  wrap.className = 'docx-ta-wrap';
+  ta.parentNode.insertBefore(wrap, ta);
+  wrap.appendChild(ta);
+  var g = window.A1Resize.grip(label);
+  wrap.appendChild(g);
+  window.A1Resize.attach(ta, g, key);
+}
+window.docxTonyGrip = docxTonyGrip;
 
 /* ═══════════ AI Tools manager (prompt editor for every tool) ═══════════
    One modal covers everything the spec asks for: each tool's own prompt, edit
@@ -37732,6 +37820,7 @@ function aiToolsModal(app, focusId) {
     ta.addEventListener('input', queueSave);
     ta.addEventListener('blur', flush);
     pane.appendChild(ta);
+    docxTonyGrip(ta, app, 'mj.ai-prompt', 'the AI prompt');
 
     var row = document.createElement('div');
     row.className = 'docx-ait-actions';
@@ -37853,6 +37942,7 @@ function aiAddToolModal(app, onCreated) {
     ta.spellcheck = false;
     ta.value = AI_CUSTOM_STARTER_PROMPT;
     b.appendChild(ta);
+    docxTonyGrip(ta, app, 'mj.ai-newtool', 'the AI prompt');
     setTimeout(function() { nameIn.focus(); }, 40);
   }, function(f, close) {
     var create = document.createElement('button');
@@ -40984,20 +41074,20 @@ window._THV={
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   background: transparent;
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: 6px;
   color: var(--text3);
-  font-family: var(--font); font-size: 10.5px; font-weight: 600;
-  letter-spacing: .07em; text-transform: uppercase;
+  font-family: var(--font); font-size: 10px; font-weight: 700;
+  letter-spacing: 1px; text-transform: uppercase;
   padding: 9px 6px; cursor: pointer; white-space: nowrap;
-  transition: border-color .16s, color .16s, box-shadow .16s;
+  transition: border-color .16s, color .16s, background .16s;
   position: relative;
 }
 #tj-root .mjd-rail-btn svg { width: 13px; height: 13px; flex-shrink: 0; opacity: .9; }
 #tj-root .mjd-rail-btn:hover { color: var(--text2); border-color: var(--border2); }
-#tj-root .mjd-rail-btn.on {
-  color: var(--purple);
-  border-color: var(--gold-line);
-  box-shadow: 0 0 0 1px rgba(224,184,116,.18), 0 0 10px rgba(224,184,116,.10);
+/* Selected = MAGI's: a solid accent fill with a dark label, no glow. */
+#tj-root .mjd-rail-btn.on,
+#tj-root .mjd-rail-btn.on:hover {
+  background: var(--ac); color: #1a1a1d; border-color: var(--ac); box-shadow: none;
 }
 /* Never shown. It stays because OurJournal's tab code checks it. */
 #tj-root #mjd-panel { display: none; }
@@ -41007,7 +41097,7 @@ window._THV={
 
 /* Tablet: touch sizing. */
 @media (max-width: 900px) {
-  #tj-root .mjd-rail-btn { padding: 11px 7px; font-size: 11px; }
+  #tj-root .mjd-rail-btn { padding: 11px 7px; font-size: 10.5px; }
 }
 
 /* Phone: the rail becomes icons. */
@@ -43232,8 +43322,6 @@ window.addEventListener('focus', _initNavTabGear);
 </script>
 
 <!-- ── NavOrder — drag-to-reorder program buttons for Tony & Veda ── -->
-<!-- MAGI's drag to reorder, shared by every program (theme overhaul, phase 1b). -->
-<script src="dragsort.js"></script>
 <script>
 (function(){
 'use strict';

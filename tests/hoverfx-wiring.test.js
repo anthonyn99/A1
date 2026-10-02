@@ -78,7 +78,9 @@ ok('index.html: Tony\'s TaskHub root is magi', /<div id="root" data-hoverfx="mag
 ok('index.html: <body> turns magi only for Tony (goTony → _markProfile)',
    /_markProfile\("tony"\)/.test(idx) && /who==="tony"\)\{ b\.setAttribute\("data-hoverfx","magi"\)/.test(idx));
 // Until MyJournal's own phase (2) it must opt back out of the magi <body>.
-ok('index.html: MyJournal stays classic until its phase', /<div id="tj-root" data-hoverfx="classic">/.test(idx));
+// Theme phase 2: MyJournal takes MAGI's hover from Tony's <body>, so it must
+// not opt itself back out.
+ok('index.html: MyJournal inherits magi (no classic opt-out)', /<div id="tj-root">/.test(idx) && !/id="tj-root"[^>]*data-hoverfx/.test(idx));
 ok('index.html: Veda\'s roots never declare magi',
    !/id="veda-root"[^>]*data-hoverfx="magi"/.test(idx) && !/id="bj-root"[^>]*data-hoverfx="magi"/.test(idx));
 
