@@ -423,16 +423,18 @@ body:not([data-profile=veda]) .wordmark{
 #sel-bar .cnt{font-size:15px;font-weight:800;color:var(--text);font-family:var(--font-btn);white-space:nowrap;width:100%;text-align:center;}
 #sel-bar .btn{padding:10px 15px;font-size:14px;border-radius:20px;}
 
-/* drag-and-drop: a floating ghost follows the pointer while the other rows SLIDE
-   apart to open a gap where it will land (transform-only, so nothing reflows). */
-.dnd-ghost{position:fixed;left:0;top:0;margin:0;pointer-events:none;z-index:9999;opacity:.97;border-radius:12px;
-  box-shadow:0 16px 40px rgba(0,0,0,.55),0 0 0 1.5px var(--accent);will-change:transform;}
-.dnd-ghost.settle{transition:transform .17s cubic-bezier(.2,.8,.2,1),box-shadow .17s;box-shadow:0 4px 12px rgba(0,0,0,.35),0 0 0 1px var(--accent);}
-.dnd-src{opacity:0 !important;}
-.dnd-live>*{transition:transform .2s cubic-bezier(.2,.8,.2,1) !important;will-change:transform;}
-.dnd-ph{position:fixed;left:0;top:0;z-index:-1;pointer-events:none;border:1.5px dashed var(--accent-line);background:var(--accent-soft);border-radius:12px;opacity:0;}
-.dnd-ph.in{animation:dndPhIn .2s ease .08s forwards;}
-@keyframes dndPhIn{to{opacity:1}}
+/* drag to reorder — MAGI's dragSort model. The row itself moves (transform
+   only, so nothing is laid out per frame); the rows it passes slide aside; on
+   release it glides into its slot. The lifted row must NOT inherit a row's own
+   transition (.item has "all .15s") or it trails the pointer. */
+.dnd-live>*{transition:transform .17s cubic-bezier(.2,.8,.2,1) !important;}
+.dnd-live>.dnd-src{transition:none !important;position:relative;z-index:5;cursor:grabbing;
+  box-shadow:0 10px 28px -8px rgba(0,0,0,.6),0 0 0 1px color-mix(in srgb,var(--accent) 55%,transparent);}
+.dnd-live>.dnd-src.dnd-settle{transition:transform .17s cubic-bezier(.2,.8,.2,1),box-shadow .17s !important;}
+.dnd-live>:not(.dnd-src){pointer-events:none;}
+.dnd-live>.rec-step.dnd-src,.dnd-live>.vs-tab.dnd-src:not(.on){background:var(--surface2);}
+.dnd-live>.rec-step.dnd-src{border-radius:8px;}
+@media (prefers-reduced-motion:reduce){ .dnd-live>*,.dnd-live>.dnd-src.dnd-settle{transition:none !important;} }
 .item,.rec-row,.rec-step,.list-chip{-webkit-touch-callout:none;}
 .list-chip,.vs-tab{-webkit-user-select:none;user-select:none;}
 @media (pointer:coarse){ .item,.rec-row,.rec-step{-webkit-user-select:none;user-select:none;} }
@@ -511,14 +513,8 @@ body.dnd-active *{cursor:grabbing !important;}
 
 /* ── View switcher (Lists | Recipes | Price Watch | Events) ── */
 #view-switch{display:flex;gap:4px;margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:4px;}
-/* Styled by CLASS, not as `#view-switch button` — the drag ghost is a clone
-   parented to <body>, so any descendant-of-#view-switch rule would not reach it
-   and the lifted tab would render unstyled. */
 .vs-tab{flex:1;min-width:0;border:none;background:transparent;color:var(--textdim);font-weight:800;font-size:12px;font-family:var(--font-btn);padding:8px 12px;border-radius:16px;cursor:pointer;transition:background .15s,color .15s,box-shadow .15s;text-transform:var(--head-transform);letter-spacing:var(--head-spacing);white-space:nowrap;-webkit-touch-callout:none;user-select:none;}
 .vs-tab.on{background:var(--accent);color:var(--accent-ink);}
-/* the lifted tab: fixed width (no flex stretch) on its own opaque pill */
-.dnd-ghost.vs-tab{flex:0 0 auto;border-radius:16px;background:var(--surface2);color:var(--text);}
-.dnd-ghost.vs-tab.on{background:var(--accent);color:var(--accent-ink);}
 /* four tabs have to survive a 320px phone — tighten type/padding rather than
    letting "Price Watch" wrap or push the row off-screen */
 @media(max-width:520px){
@@ -619,7 +615,7 @@ body.dnd-active *{cursor:grabbing !important;}
 /* No gold fills inside controls — emphasis is an outline plus gold text, never
    a tinted or solid interior. Tony-scoped so Veda keeps her filled chips.
    The only exceptions are the checkbox and selection dot: a "checked" mark has
-   to be a solid mark to read as checked, and the drag gap is a faint wash. */
+   to be a solid mark to read as checked. */
 body:not([data-profile=veda]) .vs-tab.on,
 body:not([data-profile=veda]) .list-chip.active,
 body:not([data-profile=veda]) #manual-fab.on,
@@ -3202,225 +3198,213 @@ function renderViewSwitch(){
   enableDrag($('view-switch'), 'viewtab');
 }
 
-// ════════ DRAG & DROP (floating ghost + live gap, transform-only) ════════
-// Pick a row up (mouse: just pull it; touch: hold ~190ms, then drag). The row
-// lifts into a ghost that follows the pointer along the list's axis, and the
-// rows around it SLIDE apart to open a gap exactly where it will land. On
-// release the ghost glides into the gap and we mutate the data model once and
-// re-render — the new layout matches the gap, so nothing jumps.
+// ════════ DRAG & DROP (MAGI's dragSort model: the row itself moves) ════════
+// The same feel as MAGI's agent order / queues. The row you pick up moves
+// ITSELF — no floating copy — with a transform only, locked to the list's axis
+// and kept inside the list; the rows it passes slide out of its way; on release
+// it glides into its slot and the list is redrawn once, so nothing jumps.
 //
-// Hit-testing runs against a layout snapshot taken at pick-up, in CONTENT
-// coordinates (page Y for vertical lists; the bar's own scroll offset for the
-// horizontal tab bars). That makes it immune to the rows' own sliding
-// transforms and to auto-scroll: dragging a list tab toward a screen edge
-// scrolls the tab bar under your finger so you can drop it anywhere, even
-// among lists that were off-screen when you picked it up.
+// Mouse: press and pull (4px) anywhere that isn't a control. Touch/pen: hold
+// ~260ms, then drag — moving sooner is a scroll and is left to the browser.
+// Near an edge the page (or, for the list tabs, the tab bar itself) scrolls
+// under the pointer, so a row/tab can be dropped on a spot that started
+// off-screen. Escape puts it back.
 //
-// Works for list items (incl. moving between group headers), list tabs, the
-// view tabs, recipes and recipe steps; mouse, touch and pen.
+// Positions are snapshotted at pick-up in CONTENT coordinates (page Y for
+// vertical lists, the bar's own scroll for horizontal tabs), so scrolling
+// mid-drag can't skew them. Works for list items (incl. moving between group
+// headers), list tabs, view tabs, recipes and recipe steps.
 var dndLastEnd = 0;
 var dnd = null; // active drag state
+var DND_HOLD_PX = 4, DND_TOUCH_HOLD_MS = 260, DND_SETTLE_MS = 170;
 
 function enableDrag(container, kind){
   if(!container || container._dndBound) return;
   container._dndBound = true;
   container.addEventListener('pointerdown', function(e){
     if(dnd) return;
-    if(e.button && e.button!==0) return;
+    if(e.pointerType==='mouse' && e.button!==0) return;
     // The view tabs ARE buttons, so for them a blanket "ignore buttons" guard
     // would make the bar undraggable; everywhere else it still protects controls
     // sitting inside a draggable row.
     if(e.target.closest(kind==='viewtab' ? 'input, select, textarea, a' : 'button, input, select, textarea, a, .chk')) return;
     var row = e.target.closest('[data-id]');
     if(!row || row.parentElement!==container) return;
-    var sx=e.clientX, sy=e.clientY, pid=e.pointerId, mouse=(e.pointerType==='mouse'), hold;
-    function cancel(){ clearTimeout(hold); document.removeEventListener('pointermove',pm,true); document.removeEventListener('pointerup',cancel,true); document.removeEventListener('pointercancel',cancel,true); }
-    function go(x,y){
-      cancel(); beginDrag(container, kind, row, sx, sy, pid);
-      if(dnd && (x!==sx || y!==sy)){ dnd.px=x; dnd.py=y; dnd.moved=true; }
-    }
-    function pm(ev){
-      var dx=Math.abs(ev.clientX-sx), dy=Math.abs(ev.clientY-sy);
-      // Mouse: a deliberate pull starts the drag at once — no hold needed.
-      // Touch/pen: moving before the hold elapses is a scroll, so let it be one.
-      if(mouse){ if(dx>5 || dy>5) go(ev.clientX, ev.clientY); }
-      else if(dx>9 || dy>9) cancel();
-    }
-    hold=setTimeout(function(){ go(sx, sy); }, mouse?220:190);
-    document.addEventListener('pointermove', pm, true);
-    document.addEventListener('pointerup', cancel, true);
-    document.addEventListener('pointercancel', cancel, true);
+    // Or the first pixels of a mouse drag start selecting the row's text.
+    if(e.pointerType==='mouse') e.preventDefault();
+    armDrag(container, kind, row, e);
   });
-  // a real drag is followed by a click — swallow it
-  container.addEventListener('click', function(e){ if(Date.now()-dndLastEnd<350){ e.stopPropagation(); e.preventDefault(); } }, true);
+  // Mobile browsers only let a touchmove be cancelled if a NON-passive listener
+  // covered the spot when the touch began. One added at pick-up (after the
+  // hold) is too late: the page scrolls and the browser cancels the drag. So
+  // this one is always there, and blocks scrolling only while a drag is live.
+  container.addEventListener('touchmove', function(e){ if(dnd && dnd.container===container && !dnd.ending) e.preventDefault(); }, {passive:false});
+}
+// Decide whether a press becomes a drag (mouse: moved 4px; touch: held still).
+function armDrag(container, kind, row, e){
+  var pid=e.pointerId, sx=e.clientX, sy=e.clientY, mouse=(e.pointerType==='mouse'), hold=0;
+  function off(){ clearTimeout(hold); window.removeEventListener('pointermove',pm,true); window.removeEventListener('pointerup',up,true); window.removeEventListener('pointercancel',up,true); }
+  function up(ev){ if(ev.pointerId===pid) off(); }
+  function pm(ev){
+    if(ev.pointerId!==pid) return;
+    var dx=Math.abs(ev.clientX-sx), dy=Math.abs(ev.clientY-sy);
+    if(mouse){ if(dx>=DND_HOLD_PX || dy>=DND_HOLD_PX){ off(); beginDrag(container, kind, row, sx, sy, pid, false); dndMove(ev); } }
+    else if(dx>9 || dy>9) off();                       // a scroll, not a drag
+  }
+  if(!mouse) hold=setTimeout(function(){ off(); beginDrag(container, kind, row, sx, sy, pid, true); }, DND_TOUCH_HOLD_MS);
+  window.addEventListener('pointermove', pm, true);
+  window.addEventListener('pointerup', up, true);
+  window.addEventListener('pointercancel', up, true);
 }
 
 function dndOffset(a){
   if(a.horiz){ var cr=a.container.getBoundingClientRect(); return a.container.scrollLeft - cr.left; }
   return window.scrollY || window.pageYOffset || 0;
 }
-function beginDrag(container, kind, row, px, py, pid){
+function beginDrag(container, kind, row, px, py, pid, touch){
+  if(dnd) return;
   var horiz=(kind==='listtab' || kind==='viewtab');
   var kids=Array.prototype.slice.call(container.children);
   var src=kids.indexOf(row); if(src<0) return;
-  var a={ container:container, kind:kind, horiz:horiz, row:row, id:row.dataset.id, pid:pid, src:src };
+  var a={ container:container, kind:kind, horiz:horiz, row:row, id:row.dataset.id, pid:pid, src:src, to:src, touch:touch };
   var off=dndOffset(a);
-  var meas=kids.map(function(el, i){
+  var m=kids.map(function(el){
     var r=el.getBoundingClientRect();
-    return { el:el, orig:i, start:(horiz?r.left:r.top)+off, size:(horiz?r.width:r.height),
-             movable:!!(el.dataset && el.dataset.id), header:el.classList.contains('store-group-h'), shift:0 };
+    return { el:el, start:(horiz?r.left:r.top)+off, size:(horiz?r.width:r.height),
+             movable:!!(el.dataset && el.dataset.id), header:el.classList.contains('store-group-h') };
   });
-  // Each element's SLOT = the distance to the next element's start (size + gap +
-  // margin, whatever the layout uses), so a gap opened for the source is exactly
-  // the space the source occupies.
+  // The distance a neighbour slides = the dragged row's size plus the gap after it.
   var tail = horiz ? (parseFloat(getComputedStyle(container).columnGap)||0) : (parseFloat(getComputedStyle(row).marginBottom)||0);
-  meas.forEach(function(m, i){ m.slot = (i+1<meas.length) ? (meas[i+1].start - m.start) : (m.size + tail); });
-  var S=meas[src].slot;
-  var rest=meas.filter(function(m){ return m.el!==row; });
-  rest.forEach(function(m){ m.collapsed = m.start - (m.orig>src ? S : 0); });
-
-  var rect=row.getBoundingClientRect();
-  var ghost=row.cloneNode(true);
-  ghost.removeAttribute('id'); ghost.classList.add('dnd-ghost');
-  ghost.style.width=rect.width+'px'; ghost.style.height=rect.height+'px';
-  document.body.appendChild(ghost);
-  var ph=document.createElement('div'); ph.className='dnd-ph';
-  ph.style.width=rect.width+'px'; ph.style.height=rect.height+'px';
-  try{ ph.style.borderRadius=getComputedStyle(row).borderRadius; }catch(_){}
-  document.body.appendChild(ph);
+  a.S = (src+1<m.length) ? m[src+1].start-m[src].start : m[src].size+tail;
+  // Where the row may go: never above the first group header, never past a
+  // trailing control (the "+ New list" chip).
+  var first=0, last=m.length-1;
+  if(kind==='list' && m[0].header) first=1;
+  if(kind!=='list'){ while(last>0 && !m[last].movable) last--; }
+  a.first=Math.min(first, src); a.last=Math.max(last, src);
+  a.lo = m[a.first].start - m[src].start;
+  a.hi = (m[a.last].start + m[a.last].size) - (m[src].start + m[src].size);
+  a.m=m; a.p0=(horiz?px:py)+off; a.px=px; a.py=py; a.d=0; a.moved=false; a.ending=false; a.raf=0;
+  a.blockScroll=function(e){ e.preventDefault(); };
+  a.blockCtx=function(e){ e.preventDefault(); };
+  // Escape puts the row back — and is used up doing it.
+  a.onKey=function(e){ if(e.key==='Escape' && dnd===a && !a.ending){ e.stopPropagation(); e.preventDefault(); a.cancelled=true; dndEnd(); } };
+  dnd=a;
   row.classList.add('dnd-src');
   container.classList.add('dnd-live');
-  try{ var sel=window.getSelection && window.getSelection(); if(sel && sel.removeAllRanges) sel.removeAllRanges(); }catch(_){}
-  // Block the page from scrolling/cancelling the gesture on touch — otherwise the
-  // browser claims the touch for scrolling and the drop happens immediately.
-  var blockScroll=function(e){ e.preventDefault(); };
-  var blockCtx=function(e){ e.preventDefault(); };
-  var onKey=function(e){ if(e.key==='Escape' && dnd && !dnd.ending){ dnd.k=dnd.src; dnd.cancelled=true; dndEnd(); } };
-  Object.assign(a, { ghost:ghost, ph:ph, meas:meas, rest:rest, S:S, w:rect.width, h:rect.height,
-    ox:px-rect.left, oy:py-rect.top, fx:rect.left, fy:rect.top, px:px, py:py,
-    k:src, raf:0, moved:false, ending:false, blockScroll:blockScroll, blockCtx:blockCtx, onKey:onKey });
-  dnd=a;
   document.body.classList.add('dnd-active');
+  try{ var sel=window.getSelection && window.getSelection(); if(sel && sel.removeAllRanges) sel.removeAllRanges(); }catch(_){}
   try{ row.setPointerCapture && row.setPointerCapture(pid); }catch(_){}
-  try{ navigator.vibrate && navigator.vibrate(12); }catch(_){}
-  document.addEventListener('touchmove', blockScroll, {passive:false});
-  document.addEventListener('contextmenu', blockCtx);
-  document.addEventListener('keydown', onKey);
-  document.addEventListener('pointermove', dndMove, {passive:false});
-  document.addEventListener('pointerup', dndEnd);
-  document.addEventListener('pointercancel', dndEnd);
+  if(touch){ try{ navigator.vibrate && navigator.vibrate(8); }catch(_){} }
+  // Block the page from claiming the touch for scrolling mid-drag.
+  document.addEventListener('touchmove', a.blockScroll, {passive:false});
+  document.addEventListener('contextmenu', a.blockCtx);
+  window.addEventListener('keydown', a.onKey, true);
+  window.addEventListener('pointermove', dndMove, {passive:false});
+  window.addEventListener('pointerup', dndEnd);
+  window.addEventListener('pointercancel', dndEnd);
   dndLoop();
 }
-function dndMove(e){ if(!dnd || dnd.ending) return; e.preventDefault(); dnd.px=e.clientX; dnd.py=e.clientY; dnd.moved=true; }
-// Edge auto-scroll, eased: slow near the edge zone's inner border, fast at the
-// very edge. Horizontal tab bars scroll themselves; vertical lists scroll the
-// page, with the zones kept clear of the sticky top bar and the bottom voice bar.
+function dndMove(e){
+  var a=dnd; if(!a || a.ending || e.pointerId!==a.pid) return;
+  e.preventDefault(); a.px=e.clientX; a.py=e.clientY; a.moved=true;
+}
+// Near an edge, scroll what the row lives in — eased: slow at the zone's inner
+// border, fast at the very edge. Tab bars scroll themselves; vertical lists
+// scroll the page, with the zones kept clear of the sticky top bar and the
+// bottom voice bar.
 function dndAutoScroll(a){
   var zone, f=0;
   if(a.horiz){
     var c=a.container; if(c.scrollWidth<=c.clientWidth+1) return;
-    var r=c.getBoundingClientRect(); zone=Math.min(70, r.width/4);
+    var r=c.getBoundingClientRect(); zone=Math.min(64, r.width/4);
     if(a.px<r.left+zone) f=-(r.left+zone-a.px)/zone;
     else if(a.px>r.right-zone) f=(a.px-(r.right-zone))/zone;
-    if(f){ var v=Math.sign(f)*(2+16*Math.min(1,f*f)); var before=c.scrollLeft; c.scrollLeft=before+v; }
+    if(f) c.scrollLeft += Math.sign(f)*(2+14*Math.min(1,f*f));
     return;
   }
   var tb=$('topbar'), top=tb ? Math.max(0, tb.getBoundingClientRect().bottom) : 0;
   var fv=$('float-voice'), bottom=window.innerHeight;
   if(fv && fv.classList.contains('show')){ var fr=fv.getBoundingClientRect(); if(fr.height) bottom=Math.min(bottom, fr.top); }
-  zone=70;
+  zone=56;
   if(a.py<top+zone) f=-(top+zone-a.py)/zone;
   else if(a.py>bottom-zone) f=(a.py-(bottom-zone))/zone;
-  if(f) window.scrollBy(0, Math.sign(f)*(2+18*Math.min(1,f*f)));
+  if(f) window.scrollBy(0, Math.sign(f)*(2+14*Math.min(1,f*f)));
 }
-// Insertion index k into `rest` (the other elements, in order): the gap opens
-// before rest[k]. Decided by where the ghost's CENTER sits against each
-// element's collapsed midpoint — a pure function of the pointer, so it can't
-// oscillate as the rows slide.
-function dndSlot(a){
-  var off=dndOffset(a);
-  var c=(a.horiz ? a.px-a.ox+a.w/2 : a.py-a.oy+a.h/2) + off;
-  var rest=a.rest, n=rest.length, k=0;
-  while(k<n && rest[k].collapsed + rest[k].size/2 < c) k++;
-  if(a.kind==='list'){
-    if(n && rest[0].header && k<1) k=1;               // never above the first group header
-  } else {
-    var lim=n; while(lim>0 && !rest[lim-1].movable) lim--;
-    if(k>lim) k=lim;                                   // trailing controls ("+ New list") stay last
-  }
-  return k;
+// Move the row to follow the pointer (clamped to the list) and slide the rows
+// it has passed. A neighbour gives way once the dragged row's LEADING edge
+// passes its middle — so the first and last slots stay reachable at the ends.
+function dndPlace(a){
+  var m=a.m, s=a.src;
+  var d=Math.max(a.lo, Math.min(a.hi, (a.horiz?a.px:a.py)+dndOffset(a)-a.p0));
+  if(d!==a.d || !a.placed){ a.d=d; a.placed=true; a.row.style.transform = a.horiz ? 'translate3d('+d+'px,0,0)' : 'translate3d(0,'+d+'px,0)'; }
+  var lead0=m[s].start+d, lead1=lead0+m[s].size, t=s, i;
+  for(i=a.first;i<s;i++) if(lead0 < m[i].start+m[i].size/2){ t=i; break; }
+  if(t===s) for(i=a.last;i>s;i--) if(lead1 > m[i].start+m[i].size/2){ t=i; break; }
+  if(t!==a.to){ a.to=t; dndShift(a); }
 }
-function dndShift(a, k){
-  a.rest.forEach(function(m, j){
-    var shift=(j>=k ? a.S : 0) - (m.orig>a.src ? a.S : 0);
-    if(m.shift!==shift){ m.shift=shift; m.el.style.transform = shift ? (a.horiz?'translateX(':'translateY(')+shift+'px)' : ''; }
+function dndShift(a){
+  var s=a.src, to=a.to, S=a.S, ax=a.horiz?'translate3d(PX,0,0)':'translate3d(0,PX,0)';
+  a.m.forEach(function(x, i){
+    if(i===s) return;
+    var sh = (s<to && i>s && i<=to) ? -S : (s>to && i>=to && i<s) ? S : 0;
+    x.el.style.transform = sh ? ax.replace('PX', sh+'px') : '';
   });
 }
-// Client-space position of the gap for insertion index k.
-function dndGapPos(a, k){
-  var rest=a.rest, n=rest.length, start;
-  if(k<n) start=rest[k].collapsed;
-  else if(n){ var last=rest[n-1]; start=last.collapsed+last.slot; }
-  else start=a.meas[a.src].start;
-  return start - dndOffset(a);
-}
 function dndLoop(){
-  if(!dnd || dnd.ending) return;
-  var a=dnd;
+  var a=dnd; if(!a || a.ending) return;
   dndAutoScroll(a);
-  var gx = a.horiz ? a.px-a.ox : a.fx, gy = a.horiz ? a.fy : a.py-a.oy;
-  a.ghost.style.transform='translate3d('+gx+'px,'+gy+'px,0) scale(1.02)';
-  var k=dndSlot(a);
-  if(k!==a.k || !a.shown){
-    a.k=k; a.shown=true; dndShift(a, k);
-    a.ph.classList.remove('in'); void a.ph.offsetWidth; a.ph.classList.add('in');
-  }
-  var g=dndGapPos(a, a.k);
-  a.ph.style.transform = a.horiz ? 'translate3d('+g+'px,'+a.fy+'px,0)' : 'translate3d('+a.fx+'px,'+g+'px,0)';
+  dndPlace(a);
   a.raf=requestAnimationFrame(dndLoop);
 }
-// What a drop at insertion index k means for the data: {store, beforeId}.
-// store=null keeps the item's own group (flat lists); beforeId=null = the end
-// (of the group, for grouped lists).
-function dndTarget(a, k){
-  var rest=a.rest, nx=rest[k];
+// What a drop at index `to` means for the data: {store, beforeId}. The row
+// lands BEFORE m[to] when moving up and AFTER it when moving down; either way
+// that is insertion point `to` among the other rows. store=null keeps the
+// item's own group (flat lists); beforeId=null = the end (of the group).
+function dndTarget(a){
+  var rest=a.m.filter(function(x, i){ return i!==a.src; }), k=a.to, nx=rest[k];
   var t={ store:null, beforeId:(nx && nx.movable) ? nx.el.dataset.id : null };
   if(a.kind==='list'){
     for(var j=k-1;j>=0;j--){ if(rest[j].header){ t.store=rest[j].el.getAttribute('data-store')||''; break; } }
   }
   return t;
 }
-function dndEnd(){
-  if(!dnd || dnd.ending) return;
-  var a=dnd; a.ending=true;
-  document.removeEventListener('pointermove', dndMove);
-  document.removeEventListener('pointerup', dndEnd);
-  document.removeEventListener('pointercancel', dndEnd);
+function dndEnd(e){
+  var a=dnd; if(!a || a.ending) return;
+  if(e && e.pointerId!==undefined && e.pointerId!==a.pid) return;
+  a.ending=true;
+  window.removeEventListener('pointermove', dndMove);
+  window.removeEventListener('pointerup', dndEnd);
+  window.removeEventListener('pointercancel', dndEnd);
+  window.removeEventListener('keydown', a.onKey, true);
   document.removeEventListener('touchmove', a.blockScroll, {passive:false});
   document.removeEventListener('contextmenu', a.blockCtx);
-  document.removeEventListener('keydown', a.onKey);
   if(a.raf) cancelAnimationFrame(a.raf);
-  if(a.moved) dndLastEnd=Date.now();
-  var changed = a.moved && !a.cancelled && a.k!==a.src;
-  if(a.cancelled) dndShift(a, a.src);
-  if(!a.moved){ dndFinish(a, false); return; }
-  // Glide the ghost into the gap (or home), THEN commit — the eye follows it in.
-  var g=dndGapPos(a, changed ? a.k : a.src);
-  a.ghost.classList.add('settle');
-  a.ghost.style.transform = a.horiz ? 'translate3d('+g+'px,'+a.fy+'px,0)' : 'translate3d('+a.fx+'px,'+g+'px,0)';
-  setTimeout(function(){ dndFinish(a, changed); }, 170);
+  if(e && e.type==='pointercancel') a.cancelled=true;  // the browser took the gesture: put it back
+  if(!a.moved){ dndFinish(a, false); return; }        // picked up and put down: not a move
+  if(a.cancelled && a.to!==a.src){ a.to=a.src; dndShift(a); }
+  // The click a drag's release may fire is not a click on the row. Only that
+  // one: released on the next tick, so a drag ending off the row (no click at
+  // all) can't eat your next real click.
+  dndLastEnd=Date.now();
+  var swallow=function(c){ c.stopPropagation(); c.preventDefault(); };
+  window.addEventListener('click', swallow, true);
+  setTimeout(function(){ window.removeEventListener('click', swallow, true); }, 0);
+  // Glide into the slot, relative to the row's own place in the list.
+  var m=a.m, s=a.src, to=a.to;
+  var land = to===s ? 0 : to>s ? (m[to].start+m[to].size)-(m[s].start+m[s].size) : m[to].start-m[s].start;
+  a.row.classList.add('dnd-settle');
+  a.row.style.transform = a.horiz ? 'translate3d('+land+'px,0,0)' : 'translate3d(0,'+land+'px,0)';
+  setTimeout(function(){ dndFinish(a, to!==s); }, DND_SETTLE_MS);
 }
 function dndFinish(a, changed){
-  var t = changed ? dndTarget(a, a.k) : null;
-  // Drop the transition BEFORE clearing transforms so rows snap (not slide)
-  // back; the synchronous re-render below then paints the final order in the
-  // same frame.
+  var t = changed ? dndTarget(a) : null;
+  // Transitions off BEFORE the transforms clear, so nothing slides back; the
+  // synchronous redraw below paints the new order in the same frame.
   a.container.classList.remove('dnd-live');
-  a.meas.forEach(function(m){ m.el.style.transform=''; });
+  a.m.forEach(function(x){ x.el.style.transform=''; });
+  a.row.classList.remove('dnd-src', 'dnd-settle');
   try{ a.row.releasePointerCapture && a.row.releasePointerCapture(a.pid); }catch(_){}
-  if(a.ghost) a.ghost.remove();
-  if(a.ph) a.ph.remove();
-  a.row.classList.remove('dnd-src');
   document.body.classList.remove('dnd-active');
   if(dnd===a) dnd=null;
   if(t) applyDrop(a.kind, a.id, t);

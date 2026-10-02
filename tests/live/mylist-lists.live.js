@@ -15,8 +15,9 @@
 //      (Days / Time for an itinerary), and a time shows on the row.
 //   4. The price-watch eye only appears on shopping lists.
 //   5. An AI reply with when + listType + a typed new list is applied.
-//   6. Mouse drag reorders items (rows slide apart while dragging) and moves
-//      an item into another group; Escape mid-drag puts it back.
+//   6. Mouse drag reorders items the MAGI way — the real row moves (no copy,
+//      no jump on pick-up), neighbours slide aside — and moves an item into
+//      another group; Escape mid-drag puts it back.
 //   7. Phone width + touch: dragging a list tab to the screen edge scrolls the
 //      tab bar so it can be dropped on a list that started off-screen.
 //   8. View tabs still drag; no page errors.
@@ -180,14 +181,26 @@ async function mouseDrag(c, x, y, x2, y2, { steps = 16, cancel = false, mid = nu
   const before = await evalJs(c, order);
   const a = await rect(c, `[...document.querySelectorAll('#items-container .item')].find(e=>e.textContent.includes('Union Station'))`);
   const z = await rect(c, `[...document.querySelectorAll('#items-container .item')].find(e=>e.textContent.includes('Larimer'))`);
+  // pick-up must not jump: press, pull 6px, and the row is still where it was (+6)
+  const top0 = a.t;
+  await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: a.x, y: a.y });
+  await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: a.x, y: a.y, button: 'left', clickCount: 1 });
+  await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: a.x, y: a.y + 6, button: 'left', buttons: 1 });
+  await sleep(60);
+  const pick = await evalJs(c, `const r=document.querySelector('#items-container .dnd-src'); return r ? r.getBoundingClientRect().top : null`);
+  ok('pick-up does not jump: the row stays under the pointer', pick !== null && Math.abs(pick - (top0 + 6)) <= 2, top0 + ' → ' + pick);
   let slid = null;
-  await mouseDrag(c, a.x, a.y, a.x, z.y + z.h * 0.6, { mid: async () => {
-    slid = await evalJs(c, `JSON.stringify({ghost:!!document.querySelector('.dnd-ghost'), live:document.getElementById('items-container').classList.contains('dnd-live'), moved:[...document.querySelectorAll('#items-container > *')].filter(e=>e.style.transform && e.style.transform!=='none').length, ph:!!document.querySelector('.dnd-ph')})`);
-  } });
-  ok('while dragging: ghost + rows slide aside + gap placeholder', /"ghost":true/.test(slid) && /"live":true/.test(slid) && !/"moved":0/.test(slid) && /"ph":true/.test(slid), slid);
+  const ty = z.y - 2;                      // inside the list (the row is held within it, as in MAGI)
+  for (let i = 1; i <= 16; i++) { await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: a.x, y: a.y + 6 + ((ty - a.y - 6) * i) / 16, button: 'left', buttons: 1 }); await sleep(18); }
+  await sleep(60);
+  slid = await evalJs(c, `return JSON.stringify({copies:document.querySelectorAll('body > .item, body > .list-chip').length, src:(()=>{const r=document.querySelector('#items-container .dnd-src'); if(!r) return null; const b=r.getBoundingClientRect(); return Math.round(b.top+b.height/2);})(), live:document.getElementById('items-container').classList.contains('dnd-live'), moved:[...document.querySelectorAll('#items-container > :not(.dnd-src)')].filter(e=>e.style.transform).length})`);
+  const sj = JSON.parse(slid);
+  ok('while dragging: the real row follows the pointer (no copy), neighbours slide aside', sj.copies === 0 && sj.live && sj.moved > 0 && Math.abs(sj.src - ty) <= 3, slid + ' pointer=' + Math.round(ty));
+  await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: a.x, y: ty, button: 'left', clickCount: 1 });
+  await sleep(400);
   const after = await evalJs(c, order);
   ok('drop reorders: Union Station after Larimer', after.indexOf('Larimer') < after.indexOf('Union Station') && after !== before, after);
-  ok('drag leaves no ghost/transforms behind', await evalJs(c, `!document.querySelector('.dnd-ghost') && !document.querySelector('.dnd-ph') && ![...document.querySelectorAll('#items-container > *')].some(e=>e.style.transform)`));
+  ok('drag leaves no transforms behind', await evalJs(c, `!document.querySelector('.dnd-src') && ![...document.querySelectorAll('#items-container > *')].some(e=>e.style.transform)`));
   // into another group: drag "Show 16th St Mall" up under the Saturday header
   const s = await rect(c, `[...document.querySelectorAll('#items-container .item')].find(e=>e.textContent.includes('16th'))`);
   const h = await rect(c, `document.querySelector('.store-group-h')`);
