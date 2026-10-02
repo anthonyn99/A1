@@ -292,7 +292,7 @@ async def unit(db_path: str | Path, provider, *, checks: dict | None = None,
                     account=account if provider.id == PRO_UNIT else None)
     out.update(menu(provider))
     if provider.id == PRO_UNIT:
-        # The daily kickstart's panel (Tony's engine only; absent elsewhere).
+        # The daily kickstart's panel (absent without a Pro account in Code Mode).
         from . import kickstart
         try:
             ks = kickstart.panel()

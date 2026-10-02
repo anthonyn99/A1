@@ -139,12 +139,126 @@ def test_config_round_trips(tmp_path, monkeypatch):
     assert ks.config()["message"] == ks.DEFAULTS["message"]
 
 
-def test_only_tonys_engine(monkeypatch):
+def test_tonys_and_vedas_engines(monkeypatch):
     monkeypatch.setattr(ks, "pro_slot", lambda: "system")
-    monkeypatch.setattr(ks, "active_profile", lambda: "veda")
+    for who in ("tony", "veda"):
+        monkeypatch.setattr(ks, "active_profile", lambda who=who: who)
+        assert ks.available() is True
+    monkeypatch.setattr(ks, "active_profile", lambda: "guest")
     assert ks.available() is False and ks.panel() is None
-    monkeypatch.setattr(ks, "active_profile", lambda: "tony")
-    assert ks.available() is True
+    # No Pro account in this profile's Code Mode: no section, no sends.
+    monkeypatch.setattr(ks, "active_profile", lambda: "veda")
+    monkeypatch.setattr(ks, "pro_slot", lambda: None)
+    assert ks.available() is False and ks.panel() is None
+
+
+@pytest.fixture
+def claims(tmp_path, monkeypatch):
+    """Both profiles' engines on one PC, sharing one claims folder."""
+    monkeypatch.setattr(ks, "_claims_dir", lambda: tmp_path)
+    who = {"p": "tony"}
+    monkeypatch.setattr(ks, "active_profile", lambda: who["p"])
+    return who, tmp_path
+
+
+def test_one_send_per_shared_account_per_day(claims, monkeypatch):
+    who, d = claims
+    monkeypatch.setattr(ks, "_account_key", lambda slot: "shared")
+    assert ks._claim("system", TODAY) is None          # Tony's engine wins
+    assert ks._claim("system", TODAY) is None          # ...and keeps it
+    who["p"] = "veda"
+    assert ks._claim("system", TODAY) == "tony"        # Veda's engine stands down
+    ks._release("system", TODAY)                       # not hers to release
+    assert ks._claim("system", TODAY) == "tony"
+    who["p"] = "tony"
+    ks._release("system", TODAY)                       # Tony's send failed
+    who["p"] = "veda"
+    assert ks._claim("system", TODAY) is None          # so Veda's may try
+
+
+def test_separate_accounts_never_block_each_other(claims, monkeypatch):
+    who, _ = claims
+    monkeypatch.setattr(ks, "_account_key", lambda slot: f"acct-{who['p']}")
+    assert ks._claim("system", TODAY) is None
+    who["p"] = "veda"
+    assert ks._claim("system", TODAY) is None
+
+
+def test_old_claims_are_swept(claims, monkeypatch):
+    _, d = claims
+    monkeypatch.setattr(ks, "_account_key", lambda slot: "k")
+    (d / "k-2026-09-28.json").write_text('{"profile": "veda"}', encoding="utf-8")
+    assert ks._claim("system", TODAY) is None
+    assert sorted(f.name for f in d.iterdir()) == [f"k-{TODAY}.json"]
+
+
+def test_account_key_is_the_credentials_file(monkeypatch, tmp_path):
+    from magi.code.agents import usage_fetch
+    monkeypatch.setattr(usage_fetch, "_claude_creds", lambda slot: tmp_path / slot / ".credentials.json")
+    assert ks._account_key("a") == ks._account_key("a")
+    assert ks._account_key("a") != ks._account_key("b")
+
+
+def _tick_env(monkeypatch, tmp_path, claim_by):
+    """_tick with everything external stubbed; returns the sends made."""
+    from magi.code.agents import limits, updates
+    monkeypatch.setattr(ks, "data_dir", lambda: tmp_path)
+    monkeypatch.setattr(ks, "pro_slot", lambda: "system")
+    monkeypatch.setattr(ks, "_local_now", lambda: NOW)
+    monkeypatch.setattr(ks, "windows", lambda slot, fresh=True: _wins())
+    monkeypatch.setattr(limits, "blocked_until", lambda a, s: None)
+    monkeypatch.setattr(updates, "updating", lambda a: False)
+    monkeypatch.setattr(ks, "_claim", lambda slot, day: claim_by)
+    monkeypatch.setattr(ks, "_release", lambda slot, day: None)
+    sent = []
+
+    async def fake_send(slot, message):
+        sent.append(message)
+        return {"ok": True, "window_resets_at": None}
+    monkeypatch.setattr(ks, "send", fake_send)
+    return sent
+
+
+def test_tick_stands_down_when_the_other_engine_sent(monkeypatch, tmp_path):
+    import asyncio
+    sent = _tick_env(monkeypatch, tmp_path, claim_by="tony")
+    asyncio.run(ks._tick(False))
+    assert sent == [] and ks.state()["status"] == "already"
+    assert "Tony" in ks.state()["detail"]
+    # ...and stays done for the day.
+    assert ks.decide(NOW, ks.config(), ks.state(), _wins())["act"] == "done"
+
+
+def test_tick_sends_when_the_claim_is_ours(monkeypatch, tmp_path):
+    import asyncio
+    sent = _tick_env(monkeypatch, tmp_path, claim_by=None)
+    asyncio.run(ks._tick(False))
+    assert sent == ["k"] and ks.state()["status"] == "sent"
+
+
+def test_a_day_already_done_still_holds_the_claim(monkeypatch, tmp_path):
+    """An engine restarted after today's send must still keep the other
+    profile's engine on this PC from sending on the same account."""
+    import asyncio
+    _tick_env(monkeypatch, tmp_path, claim_by=None)
+    took = []
+    monkeypatch.setattr(ks, "_claim", lambda slot, day: took.append(day))
+    ks._put_state({"day": TODAY, "status": "sent"})
+    asyncio.run(ks._tick(False))
+    assert took == [TODAY]
+    # Switched off holds it too: the other profile must not kickstart an
+    # account whose owner turned the kickstart off.
+    ks.save_config({"enabled": False})
+    ks._put_state({})
+    asyncio.run(ks._tick(False))
+    assert took == [TODAY, TODAY]
+
+
+def test_send_now_is_never_blocked_by_a_claim(monkeypatch, tmp_path):
+    import asyncio
+    sent = _tick_env(monkeypatch, tmp_path, claim_by="tony")
+    asyncio.run(ks._tick(True))
+    assert sent == ["k"]
 
 
 def test_next_sleep_wakes_just_after_the_wait(monkeypatch):

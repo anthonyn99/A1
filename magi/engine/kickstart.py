@@ -3,8 +3,15 @@
 Claude's five-hour allowance starts counting at the first message, not on the
 clock. Tony used to send "hi" by hand in the morning so the resets fell where
 he wanted them -- 7:00 opens 7-12, 12-17, 17-22, 22-03 -- instead of wherever
-the day's first real question happened to land. This does it for him, once a
-day, on Tony's engine only, whether or not Claude (Pro) is ticked.
+the day's first real question happened to land. This does it once a day, on
+each person's engine (Tony's and Veda's) for that person's own Claude Pro
+account in Code Mode, whether or not Claude (Pro) is ticked.
+
+One account, one send a day, per PC: the "system" Code Mode slot is the
+CLI's own ~/.claude, which every profile on a PC shares. So Veda's engine
+running on Tony's PC sees Tony's login as its Pro account. A machine-wide
+claim per credentials file (`_claim`) stops the second engine from sending
+on an account the first one already kickstarted today.
 
 How it sends, and why that way (measured 2026-09-29, Claude Code 2.1.284):
 
@@ -34,16 +41,19 @@ allowance past `week_cap`, never sends into a window that is already open
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
+import os
 import re
 import time
 from datetime import datetime
 from pathlib import Path
 
-from ..settings import active_profile, data_dir
+from ..settings import ROOT, active_profile, data_dir
 
-ONLY_PROFILE = "tony"
+PROFILES = ("tony", "veda")
 FILE = "kickstart.json"
+CLAIMS = "_kickstart_claims"
 WINDOW_S = 5 * 3600
 MAX_TRIES = 3
 SEND_TIMEOUT_S = 90
@@ -144,7 +154,68 @@ def pro_slot() -> str | None:
 
 
 def available() -> bool:
-    return active_profile() == ONLY_PROFILE and pro_slot() is not None
+    return active_profile() in PROFILES and pro_slot() is not None
+
+
+# ── one send per account per day, across every engine on this PC ───────────
+
+def _claims_dir() -> Path:
+    d = ROOT / "data" / CLAIMS
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _account_key(slot: str) -> str:
+    """Which login this slot is, as a short hash of its credentials file's
+    path. Two profiles whose slots point at one file are one account."""
+    try:
+        from ..code.agents import usage_fetch
+        p = str(usage_fetch._claude_creds(slot).resolve()).lower()
+    except Exception:  # noqa: BLE001
+        p = f"{active_profile()}:{slot}"
+    return hashlib.sha1(p.encode("utf-8")).hexdigest()[:16]
+
+
+def _claim(slot: str, day: str) -> str | None:
+    """Claim today's send on this account. None when it is ours (new, or
+    already ours); otherwise the profile that holds it. Atomic (O_EXCL), so
+    two engines ticking in the same second cannot both win."""
+    try:
+        d = _claims_dir()
+    except OSError:
+        return None                           # no claims dir: behave as before
+    for old in d.glob("*.json"):              # earlier days' claims are spent
+        if not old.name.endswith(f"-{day}.json"):
+            try:
+                old.unlink()
+            except OSError:
+                pass
+    f = d / f"{_account_key(slot)}-{day}.json"
+    me = active_profile()
+    try:
+        fd = os.open(f, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        try:
+            who = str(json.loads(f.read_text(encoding="utf-8")).get("profile") or "")
+        except (OSError, ValueError):
+            who = ""
+        return None if who == me else (who or "another")
+    except OSError:
+        return None
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        json.dump({"profile": me, "at": time.time()}, fh)
+    return None
+
+
+def _release(slot: str, day: str) -> None:
+    """Give the claim back after a failed send, so a retry (ours or the other
+    engine's) can still open today's window."""
+    try:
+        f = _claims_dir() / f"{_account_key(slot)}-{day}.json"
+        if json.loads(f.read_text(encoding="utf-8")).get("profile") == active_profile():
+            f.unlink()
+    except (OSError, ValueError):
+        pass
 
 
 def windows(slot: str, fresh: bool = True) -> dict | None:
@@ -293,6 +364,11 @@ async def _tick(force: bool) -> None:
     # A cheap pre-check first: nothing to do today means no usage read.
     d = decide(now, cfg, st, {}, force=force)
     if d["act"] in ("off", "done"):
+        # Done today, or switched off: hold the account's claim anyway, so the
+        # other profile's engine on this PC (same login) neither sends twice
+        # nor kickstarts an account whose owner turned it off.
+        _claim(slot, today)
+    if d["act"] in ("off", "done"):
         return
     if d["status"] != "early":
         wins = await asyncio.to_thread(windows, slot)
@@ -301,7 +377,16 @@ async def _tick(force: bool) -> None:
         d = {"act": "wait", "status": "updating", "detail": "Claude Code is updating", "until": None}
     mine = {**mine, "at": time.time()}
     if d["act"] == "send":
+        # Send now records the claim but is never blocked by one.
+        holder = _claim(slot, today)
+        if holder and not force:
+            d = {"act": "done", "status": "already",
+                 "detail": f"{holder.title()}'s engine on this PC handles this Claude login",
+                 "until": None}
+    if d["act"] == "send":
         r = await send(slot, cfg["message"])
+        if not r["ok"]:
+            _release(slot, today)
         if r["ok"]:
             mine.update(status="sent", detail="", until=None, sent_at=time.time(),
                         window_resets_at=r.get("window_resets_at"))
@@ -332,7 +417,8 @@ def next_sleep(now: float | None = None) -> float:
 
 async def auto_loop() -> None:
     """Started with the engine; the first tick is "when the engine comes
-    online". Does nothing on any profile but Tony's."""
+    online". Does nothing without a Claude Pro account in this profile's
+    Code Mode."""
     await asyncio.sleep(FIRST_TICK_S)
     while True:
         try:
@@ -344,7 +430,7 @@ async def auto_loop() -> None:
 
 def panel() -> dict | None:
     """What the Units sheet shows, or None where the feature does not exist
-    (Veda's engine, or no Pro account in Code Mode)."""
+    (no Claude Pro account signed in to this profile's Code Mode)."""
     if not available():
         return None
     st = state()

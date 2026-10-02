@@ -48,7 +48,7 @@ const setField = (sel, value) => `(() => { const i = ${BOX}.querySelector(${JSON
 
 (async () => {
   const before = await engineCfg();
-  if (!before) { console.log('  no kickstart on this engine (not Tony, or no Pro account)'); process.exit(1); }
+  if (!before) { console.log('  no kickstart on this engine (no Claude Pro account in Code Mode)'); process.exit(1); }
   const c = await connect();
   await c.send('Page.enable'); await c.send('Runtime.enable');
   const errs = [];

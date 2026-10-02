@@ -132,8 +132,8 @@ async def lifespan(app: FastAPI):
     if not os.environ.get("PYTEST_CURRENT_TEST") and not os.environ.get("MAGI_NO_AUTO_UPDATE"):
         from .code.agents import updates as _updates
         auto_update = asyncio.create_task(_updates.auto_loop())
-    # The daily Claude (Pro) kickstart (engine/kickstart.py): Tony's engine
-    # only; on any other profile the loop never sends anything.
+    # The daily Claude (Pro) kickstart (engine/kickstart.py): Tony's and Veda's
+    # engines, each on its own Pro account; without one it never sends.
     kick = None
     if not os.environ.get("PYTEST_CURRENT_TEST") and not os.environ.get("MAGI_NO_KICKSTART"):
         from .engine import kickstart as _kickstart
@@ -2392,8 +2392,8 @@ async def units_check(provider_id: str):
 def _kickstart_or_404():
     from .engine import kickstart
     if not kickstart.available():
-        raise HTTPException(404, "The daily kickstart needs Tony's engine and a "
-                                 "Claude Pro account signed in to Code Mode.")
+        raise HTTPException(404, "The daily kickstart needs a Claude Pro account "
+                                 "signed in to this profile's Code Mode.")
     return kickstart
 
 
