@@ -4,7 +4,7 @@
 // ONE worker + ONE Gemini key per person, powering all three personal AI
 // features that used to live in three separate workers:
 //
-//   POST /list/parse      (was mylist-api /parse)     — voice/text → shopping list
+//   POST /list/parse      (was mylist-api /parse)     — voice/text → typed lists (shopping, packing, itinerary, to-do, reminders, other)
 //   POST /taskhub/parse   (was taskhub-voice /parse)  — voice/text → TaskHub actions
 //   POST /journal/format  (was journal-ai /format)    — messy text → clean HTML
 //   GET  /health          — status (which keys are configured)
@@ -40,6 +40,16 @@ const LIST_MODELS = [
   'gemini-3.1-flash-lite',  // fast, accurate structured ops — best for voice
   'gemini-3.5-flash',       // flagship — capacity fallback
   'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-2.0-flash',
+];
+// MyList DICTATION — a long voice clip or a pasted/multi-line list ("here's
+// everything I need to pack…"). Faithfulness beats latency there: every item
+// and detail must survive. See isListDictation() for the cut-over.
+const LIST_DICTATION_MODELS = [
+  'gemini-3.1-flash-lite',
+  'gemini-2.5-flash',
+  'gemini-3.5-flash',
   'gemini-2.5-flash-lite',
   'gemini-2.0-flash',
 ];
@@ -377,26 +387,153 @@ async function runModelChain(models, key, o) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// FEATURE 1 — MyList shopping-list parser  (POST /list/parse)
+// FEATURE 1 — MyList parser  (POST /list/parse)
 //
-// The model emits small targeted OPERATIONS (add / update / remove / bulk ops)
-// referencing existing items by their number, and the worker applies them to
-// the client's list deterministically. Compared to the old "echo the whole
-// updated list back" design this is ~10x fewer output tokens (fast) and makes
-// it impossible for a bulk edit to drop or corrupt items the user never
-// mentioned. The response shape ({items, stores, note}) is unchanged, so the
-// front-end keeps working as-is.
+// MyList holds more than shopping lists: packing lists, itineraries, to-dos,
+// reminders and free-form lists. Every list has a TYPE (the client sends it as
+// `listType`), and the prompt is built for that type — the same item fields
+// mean different things per type (an itinerary's group is a DAY, a packing
+// list's is a CATEGORY), and what "clean" looks like differs too.
+//
+// The model emits small targeted OPERATIONS (add / update / remove / move /
+// bulk ops) referencing existing items by their number, and the worker applies
+// them to the client's list deterministically. Compared to "echo the whole
+// updated list back" this is ~10x fewer output tokens (fast) and makes it
+// impossible for a bulk edit to drop or corrupt items the user never mentioned.
+//
+// Wire field names never change with the type: an item's group travels as
+// `store` and the list's saved groups as `stores`, so lists written before list
+// types existed (and older clients) keep working untouched.
 // ════════════════════════════════════════════════════════════════════════════
-function buildListPrompt(transcript, items, stores, hasAudio) {
+const LIST_TYPES = ['shopping', 'packing', 'itinerary', 'todo', 'reminders', 'other'];
+function normListType(t) {
+  const v = String(t || '').toLowerCase().trim();
+  return LIST_TYPES.includes(v) ? v : 'shopping';
+}
+
+// Per-type guidance. `group` is what an item's "store" field means for the
+// type; `rules` are the type's own cleanup/structure rules; `examples` are
+// command → ops pairs (flash-lite follows examples far more reliably than
+// prose rules — a rule with no example was routinely ignored).
+const LIST_TYPE_GUIDE = {
+  shopping: {
+    what: 'a SHOPPING / grocery list',
+    group: 'STORE — the retailer the item is bought at ("Costco", "Target", "Trader Joe\'s")',
+    rules: [
+      `- STORE NAMES: a store is a short proper retailer name in Title Case, max 3 words ("Costco", "Best Buy", "Trader Joe's"). When it's clearly one of the SAVED GROUPS, use that exact spelling. Vague places ("the store", "the mall", "online", "somewhere") are NOT stores — omit the field.`,
+      `- NAMES: clean Title Case product name (singular), KEEPING any brand ("Fairlife Whole Milk", "Oreo Cookies", "DeWalt 20V Drill"). Quantity goes in "qty" ("2", "1 gallon", "3 lbs", "a dozen") — never inside the name.`,
+      `- SPLIT: every separate product is its own item ("eggs, bread and two avocados" = 3 adds).`,
+      `- "when" is unused for shopping unless the user gives a deadline ("for Saturday's party" → desc, not when).`,
+    ],
+    examples: [
+      `"move the milk to Costco and the eggs to Walmart instead" → [{"op":"update","index":1,"match":"Milk","set":{"store":"Costco"}},{"op":"update","index":4,"match":"Eggs","set":{"store":"Walmart"}}]`,
+      `"we need 2 gallons of Fairlife milk and paper towels from Costco, and check off the bread" → [{"op":"add","name":"Fairlife Milk","qty":"2 gallons"},{"op":"add","name":"Paper Towels","store":"Costco"},{"op":"update","index":2,"match":"Bread","set":{"done":true}}]`,
+      `"actually make it 3 avocados and get rid of the chips" → [{"op":"update","index":5,"match":"Avocados","set":{"qty":"3"}},{"op":"remove","index":7,"match":"Chips"}]`,
+      `"move everything from Target to Walmart and clear out what I've already gotten" → [{"op":"move_all","from":"Target","to":"Walmart"},{"op":"remove_all","done":true}]`,
+      `"add Walmart and Best Buy as stores" → [{"op":"add_store","name":"Walmart"},{"op":"add_store","name":"Best Buy"}]`,
+      `"copy the milk over to Walmart too" → [{"op":"add","name":"Milk","store":"Walmart"}]`,
+      `"take the milk out of Costco" / "put the milk on its own" → [{"op":"update","index":1,"match":"Milk","set":{"store":"__NONE__"}}]`,
+      `"add 2 furnace air filters, 20 by 20 by 1" → [{"op":"add","name":"Furnace Air Filter","qty":"2","desc":"20×20×1"}]`,
+      `"a can of white semi-gloss paint for the bathroom trim" → [{"op":"add","name":"White Semi-Gloss Paint","qty":"1 can","desc":"bathroom trim"}]`,
+      `"grab the organic strawberries, the big container" → [{"op":"add","name":"Strawberries","desc":"organic, big container"}]`,
+    ],
+  },
+  packing: {
+    what: 'a PACKING list — things to bring on a trip',
+    group: 'CATEGORY — Clothing, Toiletries, Electronics, Documents, Medications, Accessories, Snacks… (short Title Case, max 3 words)',
+    rules: [
+      `- NAMES: the object to pack, clean Title Case, singular unless it's naturally plural ("Phone Charger", "Sunglasses", "Toothbrush", "Passport"). Keep the useful qualifier in the name when it identifies the object ("Laptop Charger", "Sunglasses Case"); other details go in desc ("ID" + desc "passport card").`,
+      `- SPLIT: every object is its own item — "phone, laptop and headphones" = 3 adds; "laptop and its charger" = "Laptop" + "Laptop Charger". Counts go in qty ("5 pairs of socks" → name "Socks", qty "5 pairs").`,
+      `- CATEGORIES: when the list ALREADY uses categories (SAVED GROUPS is not empty), put every new item in the best-fitting saved category (or a new sensible one). When the list has no categories, leave "store" empty unless the user names one or asks you to organize/categorize — then set a category on EVERY item (update ops for existing ones).`,
+      `- "when" only for a timing the user states ("pack the night before" → when "night before").`,
+    ],
+    examples: [
+      `"I need my laptop and charger, phone, headphones, 5 pairs of socks and my passport" → [{"op":"add","name":"Laptop"},{"op":"add","name":"Laptop Charger"},{"op":"add","name":"Phone"},{"op":"add","name":"Headphones"},{"op":"add","name":"Socks","qty":"5 pairs"},{"op":"add","name":"Passport"}]`,
+      `"add sunscreen, the travel size one, under toiletries" → [{"op":"add","name":"Sunscreen","store":"Toiletries","desc":"travel size"}]`,
+      `"organize this by category" (list: 1. Phone 2. Toothbrush 3. Passport) → [{"op":"update","index":1,"match":"Phone","set":{"store":"Electronics"}},{"op":"update","index":2,"match":"Toothbrush","set":{"store":"Toiletries"}},{"op":"update","index":3,"match":"Passport","set":{"store":"Documents"}}]`,
+      `"I packed the phone and the toothbrush" → [{"op":"update","index":1,"match":"Phone","set":{"done":true}},{"op":"update","index":2,"match":"Toothbrush","set":{"done":true}}]`,
+      `"unpack everything, I'm starting over" → [{"op":"uncheck_all"}]`,
+    ],
+  },
+  itinerary: {
+    what: 'a trip ITINERARY — places to go and things to do',
+    group: 'DAY — the day the stop belongs to ("Day 1", "Friday", "Sat Oct 4"). Use the user\'s own wording, short Title Case; reuse the exact spelling of a SAVED GROUP for the same day',
+    rules: [
+      `- NAMES: the place or activity as a clean proper name with correct official spelling — fix speech-to-text slips and abbreviations ("red rocks" → "Red Rocks Park & Amphitheatre", "16th street mall" → "16th Street Mall", "dinner at Linger" → "Dinner at Linger"). Never leave stray filler words in a name.`,
+      `- "when" = the time or time of day for that stop exactly as planned ("9:00 AM", "Sunset", "Morning", "After lunch", "7:30 PM"). Normalize clock times to "h:mm AM/PM".`,
+      `- "desc" = everything else worth keeping: address/area, reservation or confirmation details, tickets, cost, who's going, tips, how to get there ("Uber from hotel"), duration ("~2 hrs").`,
+      `- ORDER MATTERS: add stops in the order the user says them. "put X before Y" / "move X to the top/end" / "swap X and Y" → "move" ops.`,
+      `- DAYS: only set "store" (the day) when the user says which day, or the list already groups by day and the day is obvious from context.`,
+      `- "qty" only for a count of people/tickets the user states ("tickets for 2" → qty "2 tickets").`,
+    ],
+    examples: [
+      `"saturday morning we're hiking red rocks then lunch at Union Station around 1, dinner reservation at Linger at 7:30 under Patel" → [{"op":"add","name":"Hike Red Rocks Park & Amphitheatre","store":"Saturday","when":"Morning"},{"op":"add","name":"Lunch at Union Station","store":"Saturday","when":"1:00 PM"},{"op":"add","name":"Dinner at Linger","store":"Saturday","when":"7:30 PM","desc":"reservation under Patel"}]`,
+      `"move Union Station before Red Rocks" (list: 1. Red Rocks Park & Amphitheater 2. Union Station) → [{"op":"move","index":2,"match":"Union Station","before":1}]`,
+      `"we did Larimer Square" → [{"op":"update","index":4,"match":"Larimer Sqr & Auraria","set":{"done":true}}]`,
+      `"add the Denver Art Museum on Sunday at 10, it's free for the first Saturday though, budget two hours" → [{"op":"add","name":"Denver Art Museum","store":"Sunday","when":"10:00 AM","desc":"~2 hrs; free on first Saturdays"}]`,
+    ],
+  },
+  todo: {
+    what: 'a TO-DO / checklist of tasks',
+    group: 'SECTION — a phase or area ("Before Leaving", "At the Airport", "House", "Work"); short Title Case',
+    rules: [
+      `- NAMES: a concise ACTION phrase in sentence case, starting with a verb where natural ("Check in for flights", "Charge phone, laptop & headphones", "Call the vet"). Reword rambling speech into a clean task WITHOUT losing meaning; keep every object the user listed.`,
+      `- ONE TASK = ONE ITEM: a single action that covers several objects stays one item ("charge my phone, laptop and headphones" = 1 add). Separate actions are separate items.`,
+      `- "when" = timing or deadline ("24 hours before flight", "Before the drive to the airport", "Fri", "By 5 PM"). Move timing OUT of the name into "when".`,
+      `- "desc" = extra detail/steps/notes ("both ways", "fill before drive, empty before security, refill after").`,
+      `- SECTIONS: set "store" only if the user names a section or the list already uses sections and one clearly fits.`,
+      `- "qty" only when the user gives an explicit count of repetitions/people ("for both of us" → qty "2").`,
+    ],
+    examples: [
+      `"remember to check in for our flights 24 hours before, both ways" → [{"op":"add","name":"Check in for flights","when":"24 hours before flight","desc":"both ways"}]`,
+      `"fully charge my phone laptop and headphones before we drive to the airport" → [{"op":"add","name":"Charge phone, laptop & headphones","when":"Before the drive to the airport"}]`,
+      `"done with the flight check in" → [{"op":"update","index":1,"match":"Check in for flights","set":{"done":true}}]`,
+      `"call the vet tomorrow and book the car service for friday at 6 am" → [{"op":"add","name":"Call the vet","when":"Tomorrow"},{"op":"add","name":"Book the car service","desc":"pickup Fri 6:00 AM"}]`,
+    ],
+  },
+  reminders: {
+    what: 'a REMINDERS list — things to remember, often with a date/time',
+    group: 'CATEGORY — e.g. "Bills", "Birthdays", "Health", "Home" (short Title Case); only when the user names one or the list already uses categories',
+    rules: [
+      `- NAMES: a short, clear reminder in sentence case, verb first where natural ("Pay the electric bill", "Renew passport", "Mom's birthday").`,
+      `- "when" = the date and/or time, ALWAYS resolved against TODAY to a concrete, compact date (with TODAY Thu Oct 1: "tomorrow at 5" → "Fri Oct 2 · 5:00 PM"; "next Friday" → "Fri Oct 9"; "the 15th" → "Thu Oct 15"). Keep recurring phrasing ("Every Monday", "Monthly on the 1st"). No date said → leave "when" empty.`,
+      `- "desc" = any extra context (amount, account, where, who).`,
+    ],
+    examples: [
+      `(say TODAY is Thu, Oct 1, 2026) "remind me to pay the Xcel bill on the 15th, it's about 120 bucks" → [{"op":"add","name":"Pay the Xcel bill","when":"Thu Oct 15","desc":"~$120"}]`,
+      `(say TODAY is Thu, Oct 1, 2026) "mom's birthday is next friday, get her a card" → [{"op":"add","name":"Mom's birthday","when":"Fri Oct 9","desc":"get her a card"}]`,
+      `(say TODAY is Thu, Oct 1, 2026) "push the dentist to Monday at 3" → [{"op":"update","index":2,"match":"Dentist appointment","set":{"when":"Mon Oct 5 · 3:00 PM"}}]`,
+      `"take out the trash every Tuesday night" → [{"op":"add","name":"Take out the trash","when":"Every Tue night"}]`,
+    ],
+  },
+  other: {
+    what: 'a general-purpose list (ideas, gifts, notes, anything)',
+    group: 'GROUP — any short Title Case heading that fits the content (a person, a topic, a category)',
+    rules: [
+      `- Work out what the list is FOR from its name and existing items, and structure new items the same way.`,
+      `- NAMES: concise and clean, Title Case for things, sentence case for actions. Details go in desc; dates/times go in when; counts go in qty.`,
+      `- GROUPS: set "store" only if the user names a group or the list already uses groups and one clearly fits.`,
+    ],
+    examples: [
+      `"gift ideas for Veda, a Kindle Paperwhite the 16 gig one, and those Lululemon leggings in black size small" → [{"op":"add","name":"Kindle Paperwhite","store":"Veda","desc":"16 GB"},{"op":"add","name":"Lululemon Leggings","store":"Veda","desc":"black, size S"}]`,
+      `"movies to watch: Dune Part Two and Oppenheimer" → [{"op":"add","name":"Dune: Part Two"},{"op":"add","name":"Oppenheimer"}]`,
+    ],
+  },
+};
+
+function buildListPrompt(transcript, items, stores, hasAudio, listType, listName, today) {
+  const type = normListType(listType);
+  const g = LIST_TYPE_GUIDE[type];
   const source = hasAudio
-    ? `FIRST, listen carefully to the attached audio of the user speaking (US English) and work out what they said, using shopping context to correct obvious mishearings. Then act on it.`
+    ? `FIRST, listen carefully to the attached audio of the user speaking (US English) and work out exactly what they said — use the list's context to correct mishearings (place names, brands, products). Then act on it.`
     : `Act on the user's input below.`;
 
   const listLines = (items && items.length)
     ? items.map((it, i) => {
         let line = `${i + 1}. ${it.name}`;
         if (it.qty) line += ` | qty: ${it.qty}`;
-        line += ` | store: ${it.store || '(none)'}`;
+        if (it.when) line += ` | when: ${it.when}`;
+        line += ` | group: ${it.store || '(none)'}`;
         if (it.desc) line += ` | note: ${it.desc}`;
         if (it.done) line += ` | DONE`;
         return line;
@@ -404,55 +541,53 @@ function buildListPrompt(transcript, items, stores, hasAudio) {
     : `(the list is empty)`;
 
   return [
-    `You are a world-class shopping-list assistant. The user manages a grocery/shopping list by voice or text. Convert their ONE command into a precise sequence of OPERATIONS ("ops") on the list. Be fast, literal, and complete: capture EVERY change they ask for, and NEVER touch anything they did not mention.`,
+    `You are a meticulous list assistant. The user manages ${g.what} by voice or text. Convert their input into a precise sequence of OPERATIONS ("ops") on the list. Capture EVERY item and EVERY detail they give, clean up the wording, and NEVER touch anything they did not mention.`,
     source,
-    hasAudio ? `` : `USER INPUT (may be messy or run-on): """${transcript}"""`,
+    hasAudio ? `` : `USER INPUT (may be messy, run-on, or a pasted list): """${transcript}"""`,
+    ``,
+    `TODAY: ${today || '(unknown)'}`,
+    `LIST NAME: ${listName || '(untitled)'}    LIST TYPE: ${type}`,
     ``,
     `CURRENT LIST (numbered — use an item's number as "index" when targeting it):`,
     listLines,
     ``,
-    `SAVED STORES: ${stores && stores.length ? stores.join(', ') : '(none yet)'}`,
+    `SAVED GROUPS: ${stores && stores.length ? stores.join(', ') : '(none yet)'}`,
+    ``,
+    `ITEM FIELDS: "name" (required), "qty" (count/amount), "when" (date, time or timing), "desc" (every other detail), "store" = the item's GROUP. For this list the group is a ${g.group}.`,
     ``,
     `OPS (emit one per distinct change, in the order the user said them):`,
-    `- {op:"add", name, qty?, store?, desc?} — a NEW item ("add / get / need / buy / pick up / grab / we're out of X"). "desc" is MANDATORY whenever the user says ANY detail beyond name/qty/store — dimensions, size, specs, model number, color, flavor, purpose. Example: "add 2 furnace air filters, 20 by 20 by 1" → {"op":"add","name":"Furnace Air Filter","qty":"2","desc":"20×20×1"} (the "20 by 20 by 1" MUST NOT be dropped).`,
-    `- {op:"update", index, match, set:{name?, qty?, store?, desc?, done?}} — change ONE existing item: rename (set.name), new quantity (set.qty), move it to a different store (set.store), add detail (set.desc), check it off or un-check it (set.done). "index" = the item's number in the list above; "match" = that item's name. Include BOTH.`,
+    `- {op:"add", name, qty?, when?, store?, desc?} — a NEW item. "desc" is MANDATORY whenever the user gives ANY detail beyond name/qty/when/group.`,
+    `- {op:"update", index, match, set:{name?, qty?, when?, store?, desc?, done?}} — change ONE existing item: rename, new qty, new time, move to another group (set.store), add detail (set.desc — write the FULL new note, keeping the old note's content unless the user replaces it), check off / un-check (set.done). "index" = the item's number above; "match" = that item's name. Include BOTH.`,
     `- {op:"remove", index, match} — delete ONE existing item.`,
-    `- {op:"move_all", from, to} — move EVERY item at store "from" to store "to" ("move everything from Walmart to Target" → from:"Walmart", to:"Target"). Both fields are store names and BOTH are required.`,
-    `- {op:"check_all", store?} / {op:"uncheck_all", store?} — check off (or un-check) every item; add "store" to limit it to one store's items.`,
-    `- {op:"remove_all", store?, done?} — bulk delete. "clear the list" → {}. "remove everything I already got" → {done:true}. "delete all the Costco stuff" → {store:"Costco"}.`,
-    `- {op:"add_store", name} / {op:"remove_store", name} / {op:"rename_store", name, newName} — manage the saved-stores list itself. "remove/delete X as a store / get rid of the X store" → remove_store (its items stay, just unassigned).`,
-    `- {op:"rename_list", name} — rename the CURRENT LIST itself: "rename the list to X", "change the list('s) name to X", "call this/the list X". The LIST is the whole document, not a store — NEVER use add_store or rename_store for a list-name change.`,
-    `- {op:"new_list", name?} — the user wants a brand-NEW separate list: "create/start/make a/another new list (called X)". Emit this FIRST; every op AFTER it applies to the new empty list (so follow it with add / add_store ops for everything they want on it). Include "name" only if the user said one. Do NOT use for adding items to the current list.`,
+    `- {op:"move", index, match, before?} / {op:"move", index, match, pos:"top"|"bottom"} — REORDER: put the item right before item number "before", or at the top/bottom. "after item N" = before item N+1 (or pos "bottom" if N is last).`,
+    `- {op:"move_all", from, to} — move EVERY item in group "from" to group "to". Both required.`,
+    `- {op:"check_all", store?} / {op:"uncheck_all", store?} — check off (or un-check) every item, optionally only one group's.`,
+    `- {op:"remove_all", store?, done?} — bulk delete. "clear the list" → {}. "remove everything that's done" → {done:true}. "delete all the Costco stuff" → {store:"Costco"}.`,
+    `- {op:"add_store", name} / {op:"remove_store", name} / {op:"rename_store", name, newName} — manage the saved GROUPS themselves (removing a group keeps its items, ungrouped).`,
+    `- {op:"rename_list", name} — rename the CURRENT LIST itself ("rename/call this list X"). Never use a group op for this.`,
+    `- {op:"set_type", type} — change what KIND of list this is, only when asked ("make this a packing list"). type ∈ ${LIST_TYPES.join(' | ')}.`,
+    `- {op:"new_list", name?, type?} — the user wants a brand-NEW separate list ("start/make a new list (called X)"). Emit it FIRST; every op AFTER it applies to the new empty list. Set "type" to the kind of list it is (${LIST_TYPES.join(' | ')}) from what they say ("packing list for Denver" → packing; "itinerary" → itinerary; "to-do" → todo; "groceries" → shopping; "reminders" → reminders; else other).`,
     ``,
-    `RULES:`,
-    `- BULK COMMANDS: one command often contains MANY changes ("move the milk to Costco, the eggs to Walmart, check off bread, and add paper towels" = 4 ops). Emit one op per change, never drop or merge any, never add extras.`,
-    `- MOVING AN ITEM BETWEEN STORES: "move / switch / swap / put X (over) to/at STORE" → update with set:{store:"STORE"}. Only that item's store changes. "swap X and Y's stores" → two updates exchanging their stores.`,
-    `- REMOVING AN ITEM FROM ITS STORE (no new store named): "take X out of STORE", "move X out of the store", "put X on its own / by itself", "X isn't at any store", "remove X's store", "un-assign / uncategorize X", "move X to Other" → update with set:{store:"__NONE__"}. This UNASSIGNS the store (the item stays on the list, shown under "Other") — it is NOT a delete, and it does NOT change quantity/name. Use "__NONE__" ONLY when no real store is named; to move to an actual store use that store's name. Likewise "move everything out of STORE" / "empty STORE" → {"op":"move_all","from":"STORE","to":"__NONE__"}.`,
-    `- STORE NAMES: a store is a short proper retailer name in Title Case, max 3 words ("Costco", "Best Buy", "Trader Joe's"). When it's clearly one of the SAVED STORES, use that exact spelling. Vague places ("the store", "the mall", "online", "somewhere") are NOT stores — omit the field. Never write a sentence or explanation in a store field.`,
-    `- NEW ITEMS: "name" = clean Title Case product name (singular), KEEPING any brand ("Fairlife Whole Milk", "Oreo Cookies", "DeWalt 20V Drill"). Quantity goes in "qty" ("2", "1 gallon", "3 lbs", "a dozen") — never inside the name.`,
-    `- AUTO-DESCRIPTIONS (never drop details!): the user never has to say the word "description" — EVERY extra detail spoken with an item goes in that item's "desc", automatically: sizes/dimensions ("20 by 20 by 1" → "20×20×1"), model/part numbers, color, flavor, variety, material, "organic", "the big pack", purposes ("for the party", "for the bathroom trim"), preferences ("the cheap one"). Before finishing, re-check the command: if the user said something about an item that is not captured in name/qty/store, it MUST be in desc. Keep desc short and telegraphic; never repeat the name or qty in it.`,
-    `- ADD vs UPDATE: if the user "adds" more of something already on the list, update that item with the new TOTAL qty (list has "Milk qty:1", user says "grab another milk" → set:{qty:"2"}). Anything not on the list is an add.`,
-    `- DUPLICATE vs MOVE: "copy/duplicate X to STORE", "add X at STORE too/also/as well", "I also need X from STORE" → a NEW add op with that store (the original item stays untouched). Use update set:{store} ONLY when they say to MOVE/switch/change the item's store.`,
-    `- CHECK-OFF: "got / bought / grabbed / picked up / already have / check off / done with X" → update set:{done:true}. "put X back / didn't get X / uncheck X" → set:{done:false}.`,
-    `- Split run-on speech into separate ops. Ignore filler ("um", "uh", "like", "let me think", "and then").`,
-    `- Do ONLY what was asked. If the command maps to no change, return ops: [].`,
-    `- "note": ≤10-word confirmation of what you did ("Moved milk to Costco, eggs to Walmart.").`,
+    `UNIVERSAL RULES:`,
+    `- COMPLETENESS FIRST: a single input often holds MANY items or changes (a dictated or pasted list can hold 20+). Emit one op per item/change — never drop, merge, or summarize away anything. Before answering, re-read the input and confirm every item, number, time, place and detail is captured somewhere (name, qty, when, store or desc).`,
+    `- CLEAN WRITING: fix capitalization, spelling and obvious speech-to-text errors; turn spoken numbers into digits ("two" → "2"); remove filler ("um", "like", "I think we should", "and then"). Reword awkward phrasing into a crisp item, but keep the user's meaning and every specific.`,
+    `- SELF-CORRECTIONS: honor the user's final intent ("add milk, no wait, oat milk" → only Oat Milk; "at 7, actually 8" → 8).`,
+    `- AUTO-DETAILS: the user never has to say "description" — sizes, specs, colors, flavors, purposes, preferences, addresses, reservations, notes all go in "desc" automatically. Keep desc short and telegraphic; never repeat the name, qty or when in it.`,
+    `- ADD vs UPDATE: if the user adds something that is already on the list (same thing, not done), update that item (new TOTAL qty, extra detail) instead of duplicating it. Anything not on the list is an add.`,
+    `- DUPLICATE vs MOVE: "copy X to GROUP", "add X at GROUP too" → a NEW add with that group (the original stays). Use update set:{store} only when they say to MOVE/switch/change its group.`,
+    `- UNGROUPING: "take X out of GROUP", "X on its own", "remove X's group", "move X to Other" → update set:{store:"__NONE__"} (not a delete). "move everything out of GROUP" → {"op":"move_all","from":"GROUP","to":"__NONE__"}.`,
+    `- CHECK-OFF: "got / bought / packed / did / done / finished / visited / check off X" → update set:{done:true}. "uncheck X / didn't do X / put X back" → set:{done:false}.`,
+    `- Group names are short headings, never sentences. Never invent items, groups or details the user didn't give.`,
+    `- If the input maps to no change, return ops: [].`,
+    `- "note": ≤12-word confirmation of what you did ("Added 6 items; checked off bread.").`,
     ``,
-    `EXAMPLES (command → ops):`,
-    `"move the milk to Costco and the eggs to Walmart instead" → [{"op":"update","index":1,"match":"Milk","set":{"store":"Costco"}},{"op":"update","index":4,"match":"Eggs","set":{"store":"Walmart"}}]`,
-    `"we need 2 gallons of Fairlife milk and paper towels from Costco, and check off the bread" → [{"op":"add","name":"Fairlife Milk","qty":"2 gallons"},{"op":"add","name":"Paper Towels","store":"Costco"},{"op":"update","index":2,"match":"Bread","set":{"done":true}}]`,
-    `"actually make it 3 avocados and get rid of the chips" → [{"op":"update","index":5,"match":"Avocados","set":{"qty":"3"}},{"op":"remove","index":7,"match":"Chips"}]`,
-    `"move everything from Target to Walmart and clear out what I've already gotten" → [{"op":"move_all","from":"Target","to":"Walmart"},{"op":"remove_all","done":true}]`,
-    `"add Walmart and Best Buy as stores" → [{"op":"add_store","name":"Walmart"},{"op":"add_store","name":"Best Buy"}]`,
-    `"change the name of the list to My Shopping List" → [{"op":"rename_list","name":"My Shopping List"}]`,
-    `"remove Home Depot as a store" → [{"op":"remove_store","name":"Home Depot"}]`,
-    `"copy the milk over to Walmart too" → [{"op":"add","name":"Milk","store":"Walmart"}]`,
-    `"take the milk out of Costco" / "put the milk on its own" → [{"op":"update","index":1,"match":"Milk","set":{"store":"__NONE__"}}]`,
-    `"move everything out of Target" → [{"op":"move_all","from":"Target","to":"__NONE__"}]`,
-    `"start a new list called Weekend BBQ with burgers and hot dog buns from Costco" → [{"op":"new_list","name":"Weekend BBQ"},{"op":"add","name":"Burgers","store":"Costco"},{"op":"add","name":"Hot Dog Buns","store":"Costco"}]`,
-    `"add 2 furnace air filters, 20 by 20 by 1" → [{"op":"add","name":"Furnace Air Filter","qty":"2","desc":"20×20×1"}]`,
-    `"a can of white semi-gloss paint for the bathroom trim" → [{"op":"add","name":"White Semi-Gloss Paint","qty":"1 can","desc":"bathroom trim"}]`,
-    `"grab the organic strawberries, the big container" → [{"op":"add","name":"Strawberries","desc":"organic, big container"}]`,
+    `RULES FOR THIS LIST TYPE (${type}):`,
+    ...g.rules,
+    ``,
+    `EXAMPLES (input → ops):`,
+    ...g.examples,
+    `"change the name of the list to Weekend Plans" → [{"op":"rename_list","name":"Weekend Plans"}]`,
+    `"start a new packing list called Denver Trip with my laptop and sunglasses" → [{"op":"new_list","name":"Denver Trip","type":"packing"},{"op":"add","name":"Laptop"},{"op":"add","name":"Sunglasses"}]`,
   ].join('\n');
 }
 
@@ -464,14 +599,18 @@ const LIST_OPS_SCHEMA = {
       items: {
         type: 'OBJECT',
         properties: {
-          op:      { type: 'STRING', enum: ['add', 'update', 'remove', 'move_all', 'check_all', 'uncheck_all', 'remove_all', 'add_store', 'remove_store', 'rename_store', 'rename_list', 'new_list'] },
+          op:      { type: 'STRING', enum: ['add', 'update', 'remove', 'move', 'move_all', 'check_all', 'uncheck_all', 'remove_all', 'add_store', 'remove_store', 'rename_store', 'rename_list', 'set_type', 'new_list'] },
           name:    { type: 'STRING' },
           qty:     { type: 'STRING' },
+          when:    { type: 'STRING' },
           store:   { type: 'STRING' },
           desc:    { type: 'STRING' },
           done:    { type: 'BOOLEAN' },
           index:   { type: 'INTEGER' },
           match:   { type: 'STRING' },
+          before:  { type: 'INTEGER' },
+          pos:     { type: 'STRING' },
+          type:    { type: 'STRING' },
           newName: { type: 'STRING' },
           from:    { type: 'STRING' },
           to:      { type: 'STRING' },
@@ -480,6 +619,7 @@ const LIST_OPS_SCHEMA = {
             properties: {
               name:  { type: 'STRING' },
               qty:   { type: 'STRING' },
+              when:  { type: 'STRING' },
               store: { type: 'STRING' },
               desc:  { type: 'STRING' },
               done:  { type: 'BOOLEAN' },
@@ -502,6 +642,7 @@ function sanitizeItems(arr) {
       const o = {
         name:  String(it.name || '').trim(),
         qty:   String(it.qty || '').trim(),
+        when:  String(it.when || '').trim(),
         store: String(it.store || '').trim(),
         desc:  String(it.desc || '').trim(),
         done:  !!it.done,
@@ -548,19 +689,19 @@ function applyListOps(items, stores, ops) {
   // Ops apply to a "target" list — normally the current list, but a new_list op
   // switches the target to a fresh empty list so the rest of the command builds it.
   const mkTarget = (list, storeNames) => {
-    const t = { list, storeMap: new Map(), name: '' }; // storeMap: lowercase → clean display name
+    const t = { list, storeMap: new Map(), name: '', type: '' }; // storeMap: lowercase → clean display name
     storeNames.forEach(s => addStore(t, s));
     return t;
   };
   function addStore(t, s) { const v = String(s || '').trim(); if (v && v.length <= 40) t.storeMap.set(v.toLowerCase(), v); }
-  // Prefer a saved store's exact spelling when the model names the same store.
+  // Prefer a saved group's exact spelling when the model names the same group.
   const canonStore = (t, s) => { const v = String(s || '').trim(); return v ? (t.storeMap.get(v.toLowerCase()) || v) : ''; };
-  // Explicit "unassign this item's store" sentinel(s) — "move it out on its own".
+  // Explicit "unassign this item's group" sentinel(s) — "move it out on its own".
   // Distinct from an empty string (which means "no change"), so a deliberate
-  // unassign works WITHOUT letting stray blanks wipe stores. "other" maps here so
-  // "move it to Other" drops the item into the implicit uncategorized group rather
-  // than creating a literal store named Other.
-  const noStore = (s) => /^(__none__|\(none\)|\(no ?store\)|no ?store|none|unassigned|uncategor(?:ized|ised)|other)$/i.test(String(s || '').trim());
+  // unassign works WITHOUT letting stray blanks wipe groups. "other" maps here so
+  // "move it to Other" drops the item into the implicit ungrouped section rather
+  // than creating a literal group named Other.
+  const noStore = (s) => /^(__none__|\(none\)|\(no ?(store|group)\)|no ?(store|group)|none|unassigned|ungrouped|uncategor(?:ized|ised)|other)$/i.test(String(s || '').trim());
   const whereMatch = (it, where) => {
     if (!where || typeof where !== 'object') return true;
     if (typeof where.store === 'string' && where.store.trim() &&
@@ -574,6 +715,7 @@ function applyListOps(items, stores, ops) {
     if (!set || typeof set !== 'object') return;
     if (allowRename && typeof set.name === 'string' && set.name.trim()) it.name = set.name.trim();
     if (typeof set.qty === 'string' && set.qty.trim()) it.qty = set.qty.trim();
+    if (typeof set.when === 'string' && set.when.trim()) it.when = set.when.trim();
     if (typeof set.store === 'string' && set.store.trim()) { it.store = noStore(set.store) ? '' : canonStore(t, set.store); if (it.store) addStore(t, it.store); }
     if (typeof set.desc === 'string' && set.desc.trim()) it.desc = set.desc.trim();
     if (typeof set.done === 'boolean') it.done = set.done;
@@ -593,8 +735,20 @@ function applyListOps(items, stores, ops) {
     if (typeof w.done !== 'boolean' && typeof op.done === 'boolean') w.done = op.done;
     return w;
   };
+  const listType = (v) => { const s = String(v || '').toLowerCase().trim(); return LIST_TYPES.includes(s) ? s : ''; };
 
   const cur = mkTarget(items.map(it => ({ ...it })), stores);
+  // "index" numbers in the model's ops refer to the list AS THE MODEL SAW IT.
+  // Earlier ops (a remove, a reorder) shift positions, so resolve indexes
+  // against this frozen snapshot first and only fall back to the live list.
+  const original = cur.list.slice();
+  const resolve = (t, index, match) => {
+    if (t === cur) {
+      const hit = findItem(original, index, match);
+      if (hit && t.list.includes(hit)) return hit;
+    }
+    return findItem(t.list, index, match);
+  };
   let nl = null;   // new list target, once a new_list op appears
   let t = cur;     // active target
 
@@ -606,48 +760,76 @@ function applyListOps(items, stores, ops) {
         if (name) t.name = name;
         break;
       }
+      case 'set_type': {
+        const ty = listType(op.type || op.name);
+        if (ty) t.type = ty;
+        break;
+      }
       case 'new_list': {
         nl = mkTarget([], []);
         nl.name = String(op.name || '').trim();
+        nl.type = listType(op.type);
         t = nl;
         break;
       }
       case 'add': {
         // effSet: the model sometimes nests fields under "set" even on adds.
-        const f = effSet(op, ['name', 'qty', 'store', 'desc']);
+        const f = effSet(op, ['name', 'qty', 'when', 'store', 'desc']);
         const name = String(f.name || '').trim();
         if (!name) break;
         const store = noStore(f.store) ? '' : canonStore(t, f.store);
         if (store) addStore(t, store);
-        // Same item, same store (or no store involved) → merge instead of duplicating.
-        // A DIFFERENT store means the user wants a copy at that store — keep both.
+        // Same item, same group (or no group involved) → merge instead of duplicating.
+        // A DIFFERENT group means the user wants a copy there — keep both.
         const dup = t.list.find(it => !it.done && normName(it.name) === normName(name) &&
           (!store || !it.store || normName(it.store) === normName(store)));
         if (dup) {
           if (String(f.qty || '').trim()) dup.qty = String(f.qty).trim();
+          if (String(f.when || '').trim()) dup.when = String(f.when).trim();
           if (store) dup.store = store;
           if (String(f.desc || '').trim()) dup.desc = String(f.desc).trim();
         } else {
-          t.list.push({ name, qty: String(f.qty || '').trim(), store, desc: String(f.desc || '').trim(), done: false });
+          t.list.push({ name, qty: String(f.qty || '').trim(), when: String(f.when || '').trim(), store, desc: String(f.desc || '').trim(), done: false });
         }
         break;
       }
       case 'update': {
-        const set = effSet(op, ['name', 'qty', 'store', 'desc', 'done']);
-        const it = findItem(t.list, op.index, op.match || op.name);
+        const set = effSet(op, ['name', 'qty', 'when', 'store', 'desc', 'done']);
+        const it = resolve(t, op.index, op.match || op.name);
         if (it) { applySet(t, it, set, true); break; }
         // Target not found (e.g. user thinks it's on the list) — add it so the command still lands.
         const name = String(set.name || op.match || '').trim();
         if (name) {
-          const fresh = { name, qty: '', store: '', desc: '', done: false };
+          const fresh = { name, qty: '', when: '', store: '', desc: '', done: false };
           applySet(t, fresh, set, true);
           t.list.push(fresh);
         }
         break;
       }
       case 'remove': {
-        const it = findItem(t.list, op.index, op.match);
+        const it = resolve(t, op.index, op.match);
         if (it) t.list = t.list.filter(x => x !== it);
+        break;
+      }
+      case 'move': {
+        const it = resolve(t, op.index, op.match || op.name);
+        if (!it) break;
+        const pos = String(op.pos || '').toLowerCase();
+        const anchor = Number.isInteger(op.before) ? resolve(t, op.before, '') : null;
+        if (anchor === it) break;
+        const rest = t.list.filter(x => x !== it);
+        let at;
+        if (anchor) at = rest.indexOf(anchor);
+        else if (pos === 'top' || pos === 'first' || pos === 'start') at = 0;
+        else if (pos === 'bottom' || pos === 'last' || pos === 'end') at = rest.length;
+        else break;                                         // no destination → leave it
+        if (at < 0) at = rest.length;
+        rest.splice(at, 0, it);
+        // Moving before an item in another group joins that group — otherwise
+        // the item would render back under its old heading and the move would
+        // look like it did nothing.
+        if (anchor && normName(anchor.store) !== normName(it.store)) it.store = anchor.store;
+        t.list = rest;
         break;
       }
       case 'move_all': {
@@ -701,12 +883,31 @@ function applyListOps(items, stores, ops) {
   }
 
   cur.list.forEach(it => addStore(cur, it.store));
-  const out = { items: cur.list, stores: [...cur.storeMap.values()], listName: cur.name };
+  const out = { items: cur.list, stores: [...cur.storeMap.values()], listName: cur.name, listType: cur.type };
   if (nl) {
     nl.list.forEach(it => addStore(nl, it.store));
-    out.newList = { name: nl.name, items: nl.list, stores: [...nl.storeMap.values()] };
+    out.newList = { name: nl.name, type: nl.type, items: nl.list, stores: [...nl.storeMap.values()] };
   }
   return out;
+}
+
+// How many separate entries a typed input obviously holds: one per non-empty
+// line once there are 3+ lines (a pasted or bulleted list). Used only to catch
+// a model that silently summarized a long list into a few items.
+function listInputEntries(transcript) {
+  const lines = String(transcript || '').split(/\r?\n/)
+    .map(s => s.replace(/^\s*(?:[-*•·]|\d+[.)]|\[[ xX]?\])\s*/, '').trim())
+    .filter(s => s.length > 1);
+  return lines.length >= 3 ? lines.length : 0;
+}
+
+// A request is "dictation" when it is long enough that faithfulness beats
+// latency: any voice clip over a few seconds, or typed input that is clearly a
+// list rather than a one-line command.
+function isListDictation(transcript, audio) {
+  if (audio) return audio.length > 200000;                 // ≈ >4.5 s of 16 kHz mono WAV, base64
+  const words = String(transcript || '').trim().split(/\s+/).filter(Boolean).length;
+  return words > 45 || listInputEntries(transcript) >= 4;
 }
 
 async function handleList(body, env) {
@@ -716,29 +917,65 @@ async function handleList(body, env) {
   const mimeType = String(body.mimeType || 'audio/webm');
   const items = sanitizeItems(body.items);
   const stores = Array.isArray(body.stores) ? body.stores.filter(Boolean).map(String) : [];
+  const listType = normListType(body.listType);
+  const listName = String(body.listName || '').trim().slice(0, 80);
+  const today = String(body.today || '').trim().slice(0, 60) || new Date().toDateString();
 
   if (!transcript && !audio) return json({ ok: false, error: 'no transcript or audio' }, 400);
   const key = keyFor(env, profile);
   if (!key) return json({ ok: false, error: `no Gemini key configured for ${profile}` }, 500);
 
-  const prompt = buildListPrompt(transcript, items, stores, !!audio);
-  let lastErr = null;
-  for (const model of LIST_MODELS) {
-    try {
-      const out = await callGemini(model, key, { prompt, schema: LIST_OPS_SCHEMA, maxOutputTokens: 8192, feature: 'list', audio, mimeType });
-      if (out && Array.isArray(out.ops)) {
-        const res = applyListOps(items, stores, out.ops);
-        const resp = { ok: true, items: res.items, stores: res.stores, note: String(out.note || '').trim(), ops: out.ops.length, model };
-        if (res.listName) resp.listName = res.listName;
-        if (res.newList) resp.newList = res.newList;
-        if (body.debug) resp.opsDetail = out.ops;
-        return json(resp);
-      }
-    } catch (e) {
-      lastErr = e.message || String(e);
-    }
+  const prompt = buildListPrompt(transcript, items, stores, !!audio, listType, listName, today);
+  const dictation = isListDictation(transcript, audio);
+  let models = dictation ? LIST_DICTATION_MODELS : LIST_MODELS;
+  // Debug-only: pin one model so the chain can be compared model-by-model.
+  if (body.debug && typeof body.model === 'string' && /^gemini-[\w.-]+$/.test(body.model)) models = [body.model];
+
+  const entries = listInputEntries(transcript);
+  const words = transcript.split(/\s+/).filter(Boolean).length;
+  // Quality bar. A lossy answer escalates to the next model (the chain keeps it
+  // as a fallback, so the user still gets it if nothing better comes back):
+  //  - a pasted/bulleted list that came back with far fewer ops than lines;
+  //  - an empty answer to a real typed request (silence/noise audio is allowed
+  //    to be empty — there may genuinely be nothing to do).
+  const validate = (v) => {
+    if (!v || !Array.isArray(v.ops)) return false;
+    if (entries >= 3 && v.ops.length < Math.ceil(entries * 0.7)) return false;
+    if (!audio && words >= 3 && v.ops.length === 0) return false;
+    return true;
+  };
+
+  try {
+    const r = await runModelChain(models, key, {
+      prompt, schema: LIST_OPS_SCHEMA, maxOutputTokens: 8192, feature: 'list', audio, mimeType,
+      validate,
+      salvage: salvageListOps,
+      timeoutMs: dictation ? 25000 : 14000,
+      deadlineMs: dictation ? 55000 : 40000,
+      hedgeAfterMs: dictation ? 12000 : 0,
+    });
+    const out = r.value || {};
+    const ops = Array.isArray(out.ops) ? out.ops : [];
+    const res = applyListOps(items, stores, ops);
+    const resp = { ok: true, items: res.items, stores: res.stores, note: String(out.note || '').trim(), ops: ops.length, model: r.model };
+    if (res.listName) resp.listName = res.listName;
+    if (res.listType) resp.listType = res.listType;
+    if (res.newList) resp.newList = res.newList;
+    if (r.soft) resp.lossy = true;
+    if (out.truncated) resp.truncated = true;
+    if (body.debug) { resp.opsDetail = ops; resp.tried = r.tried; resp.dictation = dictation; }
+    return json(resp);
+  } catch (e) {
+    return json({ ok: false, error: (e && e.message) || 'all models failed', tried: e && e.tried }, 502);
   }
-  return json({ ok: false, error: lastErr || 'all models failed' }, 502);
+}
+
+// Truncation rescue for list ops: keep every complete op already emitted.
+function salvageListOps(text) {
+  const at = text.indexOf('"ops"');
+  if (at < 0) return null;
+  const s = salvageJson('{"actions"' + text.slice(at + 5));
+  return s ? { ops: s.actions, note: '', truncated: true } : null;
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -2515,10 +2752,11 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 17, // bump when verifying a deploy went live
+        version: 18, // bump when verifying a deploy went live
         features: ['list', 'recipe', 'taskhub', 'journal', 'watch', 'watch-ingest', 'cloud-search'],
         models: MODELS,
         listModels: LIST_MODELS,
+        listDictationModels: LIST_DICTATION_MODELS,
         recipeEditModels: RECIPE_EDIT_MODELS,
         recipeVoiceModels: RECIPE_VOICE_MODELS,
         taskhubModels: TASKHUB_MODELS,
