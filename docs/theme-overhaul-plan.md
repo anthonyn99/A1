@@ -8,17 +8,49 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-10-02, at the end of **Phase 1** (Foundation + Index A:
-Tony's TaskHub and its chrome). Done, tested, pushed.
-**Phase 1 tags:** `theme-p1-start` → `theme-p1-end`.
-**Next phase:** **Phase 1b: the shared drag module (`dragsort.js`) plus the
-index.html chrome drags (program nav, nav dropdown, Settings rows)** (see §3
-and §2 "Drag and drop"). Tony added drag and drop to the overhaul on
-2026-10-02, after phase 1 was built: every reorder in every program works like
-MAGI's, **EXCEPT Tony's TaskHub, which keeps its current drag and drop** (his
-call, 2026-10-02). Start 1b only when Tony says "continue theme"
-/ "next theme phase". He may want to live with phase 1 first, or undo it (see
-§1 "Undo").
+**Last updated:** 2026-10-02, at the end of **Phase 1b** (`dragsort.js` +
+Tony's index.html chrome drags). Done, tested, pushed.
+**Tags:** phase 1 `theme-p1-start` → `theme-p1-end`; phase 1b
+`theme-p1b-start` → `theme-p1b-end`.
+**Next phase:** **Phase 2: Index B, MyJournal** (theme + its drags + its
+resize handles, no gradient fills; see §3, §4 "Phase 2"). Start it only when
+Tony says "continue theme" / "next theme phase".
+
+**Phase 1b, what shipped:**
+- `dragsort.js` (`window.A1Drag`: `sort`, `grip`, `order`, `refocus`,
+  `later`, `active`): MAGI's dragSort ported, plus `axis:'x'|'grid'`, a touch
+  `hold` for rows without a grip, and cross-list `group` moves. Pinned by
+  `tests/dragsort.test.js` (jsdom, 36 checks); in `tests/syntax-check.js`.
+- Tony's program nav (hold 300ms on touch), the nav dropdown (real grip
+  buttons, ↑/↓ on a focused grip) and Settings → External links rows all run
+  on A1Drag. Veda's nav, dropdown and Settings drags are unchanged
+  (`attachPanelDrag`, `attachTouchDrag`, `attachSettingsDrag` are hers now).
+- `tests/live/index-drag.live.js`: real mouse + touch over CDP, asserting the
+  SAVED order, plus "the nav is not re-rendered under a resting cursor" and
+  "a plain click opens MyJournal".
+- **Gotcha that broke the nav for a few minutes:** `scheduleReapply()`
+  re-renders Tony's nav while any `.tn-btn` lacks a mark. The old drag code
+  set that mark (`_noAttached`); deleting it made every render queue the next,
+  rebuilding the buttons every ~100ms (hover flicker, clicks lost).
+  `renderTonyNav` now sets `btn._tnPlaced`. Anything that replaces a nav
+  helper must keep that mark.
+- React rows (later phases): dragsort writes only `style.transform` during a
+  drag and calls onDrop after the 170ms glide. Don't let React own
+  `transform` on draggable rows. Redraws arriving mid-drag go through
+  `A1Drag.later(fn)`.
+
+**Also done 2026-10-02 (Tony's asks during 1b):**
+- Tony's icon is a purple fleur-de-lis SVG (see §1), in MAGI, the TaskHub
+  chooser and MyList.
+- NO GRADIENT FILLS rule (§2): selected states are solid fills like Veda's,
+  in purple (current app, mic, Timer); `TH_SEL` returns `none`; weekly bars,
+  week cards and Tony's waiting plan card are solid.
+- App-lock card: every border/icon follows the lock's colour, BOTH profiles.
+- Tesla widget greens are the suite pastel `#a4b986`.
+- Boot spinner purple (Veda-main devices keep gold).
+- RESIZE HANDLES rule (§2 "Resize handles"): MAGI's exact corner grip
+  everywhere, via a shared `resizegrip.js` built in the first phase that needs
+  it.
 
 **Start-of-session checklist**
 1. `git pull`, then `git tag theme-pN-start && git push origin theme-pN-start`.
@@ -248,6 +280,44 @@ a see-through tint or soft halo that reads as one.
 - MAGI itself switches to `dragsort.js` in the wrap-up phase, so there is one
   copy of the code.
 
+### Resize handles (added 2026-10-02): MAGI's, EXACTLY, everywhere
+Tony: every box with a drag-to-resize / expand handle (TradeHub has them,
+other programs too) must look and work EXACTLY like MAGI's prompt box, on
+desktop AND mobile. That includes Tony's TaskHub: the "keep its own drag"
+exception is for reordering only, not resizing. Veda's side keeps hers.
+
+**The source is magi.html:**
+- CSS `.qbar-grip` (search `A corner resize handle`, ~470): a 38px invisible
+  hit area over the bottom-right corner, the two diagonal hatch strokes (11px
+  and 6px), `cursor: nwse-resize`, `touch-action: none`. Colour `txd` at
+  rest, `tx` on hover/focus, `ac` while held or while a hand-chosen height is
+  set (`.on`). Focus: a 1px accent outline at -4px offset.
+- JS `attachGrip(ta, grip, key, resize)` + `gripButton()` (search
+  `Resize by dragging the grip`, ~9975).
+
+**What "MAGI's resize" means, all of it required:**
+- The grip is a real `<button>` (title "Drag to resize. Click to expand or
+  compress.", an aria-label naming the box). No native `resize:` corner.
+- Pointer events, so mouse, touch and pen are one path; pointer capture on
+  the grip; vertical only.
+- **Drag** (3px or more) sets the height, clamped between 26px and
+  `max(160px, 60% of the viewport)`. A chosen height lifts the box's own CSS
+  max-height cap, so the drag never stops halfway.
+- **Click** (under 3px) toggles: compressed → expanded (+120px, at least
+  260px, under the cap); expanded/hand-sized → back to auto.
+- Enter / Space on the focused grip do the same toggle.
+- A hand-chosen height stops auto-grow until the grip hands it back.
+- The height is remembered per box in localStorage (behind the storage guard;
+  Veda's Brave throws).
+
+**How it is shipped:** ONE shared file, `resizegrip.js` at the A1 root,
+exposing `window.A1Resize.attach(box, grip, key, onAuto)` and
+`A1Resize.grip(label)`, with the CSS injected (MAGI fallbacks, tintable with
+the same `--ds-*` vars as dragsort.js). Byte-identical copies for extensions,
+a wiring test and a jsdom test (drag, click toggle, Enter/Space, cap, 26px
+floor, persistence, storage throwing). Built in the first phase whose program
+has a resize handle. MAGI moves onto it in the wrap-up phase.
+
 ### Per-profile gating in a shared page (index.html)
 - `goTony()` / `goVeda()` / `showProfile()` call `_markProfile(who)`:
   - `body[data-th-profile="tony"|"veda"]`, removed on the chooser.
@@ -278,8 +348,8 @@ a see-through tint or soft halo that reads as one.
 | # | Program | Status |
 |---|---|---|
 | 1 | Foundation + **Index A: Tony's TaskHub + chrome** | **done 2026-10-02** |
-| 1b | **`dragsort.js` (MAGI's DnD, shared) + index chrome drags (nav, dropdown, Settings rows); TaskHub's own DnD stays** | **next** |
-| 2 | **Index B: MyJournal** (theme + its drags) | |
+| 1b | **`dragsort.js` (MAGI's DnD, shared) + index chrome drags (nav, dropdown, Settings rows); TaskHub's own DnD stays** | **done 2026-10-02** |
+| 2 | **Index B: MyJournal** (theme + its drags + resize handles) | **next** |
 | 3 | OneInbox (theme + drags) | |
 | 4 | TradeHub (theme + drags) | |
 | 5 | MyList, Tony profile only (theme + drags) | |
@@ -289,13 +359,21 @@ a see-through tint or soft halo that reads as one.
 | 9 | Shield + Shield (HTML) (theme + drags) | |
 | 10 | Wrap-up: LifeHub, MAGI onto dragsort.js, sweep | |
 
-**From phase 2 on, every phase = theme + that program's drag and drop.**
+**From phase 2 on, every phase = theme + that program's drag and drop + its resize handles (no gradient fills).**
 The drag half:
 1. Inventory every reorder/move in the program (grep `draggable`,
    `dragstart`, `touchstart`, `pointerdown`, `reorder`, `dnd`, `grip`).
 2. Replace each with `A1Drag`, keeping its persistence call.
 3. Delete the old code and its comments.
 4. Verify mouse + touch.
+
+The resize half (§2 "Resize handles"):
+1. Inventory every resizable box (grep `resize:`, `resize-handle`,
+   `grip`, `nwse-resize`, `ns-resize`, `expand`).
+2. Replace each with `A1Resize` (build `resizegrip.js` first if this is the
+   first phase that needs it), keeping each box's own min/max if it has one.
+3. Verify over CDP on desktop and phone width: drag, click toggle, reload
+   keeps the height.
 
 ## 4. Phase notes
 
@@ -331,7 +409,7 @@ The drag half:
 **Veda before/after:** identical apart from the random quote and the live
 temperature band.
 
-### Phase 1b — dragsort.js + index chrome drags (next)
+### Phase 1b — dragsort.js + index chrome drags (done 2026-10-02)
 **1. Build `dragsort.js`** (spec in §2 "Drag and drop") by porting magi.html's
 `dragSort`/`dragGrip`/`dropOrder`/`dragRefocus` and its CSS verbatim, then
 adding `axis` and cross-list `group`.
