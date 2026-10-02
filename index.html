@@ -43235,6 +43235,8 @@ window.addEventListener('focus', _initNavTabGear);
 </script>
 
 <!-- ── NavOrder — drag-to-reorder program buttons for Tony & Veda ── -->
+<!-- MAGI's drag to reorder, shared by every program (theme overhaul, phase 1b). -->
+<script src="dragsort.js"></script>
 <script>
 (function(){
 'use strict';
@@ -43516,12 +43518,7 @@ function ensureTonyCustomBtns(){
     b.setAttribute('data-app', key);
     b.textContent = l.label;
     if (l.color) b.style.color = l.color;
-    var _dg = false, _tx=0, _ty=0, _tm=false;
-    b.addEventListener('dragstart', function(){ _dg = true; });
-    b.addEventListener('dragend', function(){ setTimeout(function(){ _dg = false; }, 60); });
-    b.addEventListener('touchstart', function(e){ if(e.touches&&e.touches[0]){ _tx=e.touches[0].clientX; _ty=e.touches[0].clientY; _tm=false; } }, {passive:true});
-    b.addEventListener('touchmove', function(e){ if(e.touches&&e.touches[0]&&(Math.abs(e.touches[0].clientX-_tx)+Math.abs(e.touches[0].clientY-_ty))>8) _tm=true; }, {passive:true});
-    (function(linkId){ b.addEventListener('click', function(){ if(_dg||_tm){ _tm=false; return; } openLink('tony', linkId); }); })(l.id);
+    (function(linkId){ b.addEventListener('click', function(){ openLink('tony', linkId); }); })(l.id);
     inner.appendChild(b);
   });
 }
@@ -43540,6 +43537,7 @@ function pulseSynced(who) {
 function renderTonyNav() {
   var inner = document.getElementById('tony-app-nav-inner');
   if (!inner) return;
+  if (window.A1Drag && A1Drag.active) { A1Drag.later(renderTonyNav); return; }
   _applying = true;
   var btnMap = {};
   Array.prototype.slice.call(inner.querySelectorAll('.tn-btn')).forEach(function(n){
@@ -43557,8 +43555,8 @@ function renderTonyNav() {
     var btn=btnMap[app]; if(!btn) return;
     if(stableAnchor&&stableAnchor.parentNode===inner) inner.insertBefore(btn,stableAnchor);
     else inner.appendChild(btn);
-    attachTonyDrag(btn,app);
   });
+  tonyNavDragInit(inner);
   syncTonySelectOrder();
   _applying=false;
   recheckOverflow();
@@ -43576,16 +43574,16 @@ function syncTonySelectOrder(){
   if(cur) sel.value=cur;
 }
 
-function attachTonyDrag(btn,app){
-  if(btn._noAttached) return; btn._noAttached=true;
-  btn.setAttribute('draggable','true');
-  btn.style.cursor='grab'; btn.style.userSelect='none'; btn.style.webkitUserSelect='none';
-  btn.addEventListener('dragstart',function(e){ e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain',app); setTimeout(function(){ btn.style.opacity='0.45'; },0); });
-  btn.addEventListener('dragend',function(){ btn.style.opacity=''; document.querySelectorAll('#tony-app-nav-inner .tn-btn').forEach(function(b){ b.style.outline=''; }); });
-  btn.addEventListener('dragover',function(e){ e.preventDefault(); e.dataTransfer.dropEffect='move'; btn.style.outline='2px solid '+TONY_AC; });
-  btn.addEventListener('dragleave',function(){ btn.style.outline=''; });
-  btn.addEventListener('drop',function(e){ e.preventDefault(); btn.style.outline=''; moveTony(e.dataTransfer.getData('text/plain'),app); });
-  attachTouchDrag(btn,app,{accent:TONY_AC,attr:'data-app',scopeEl:document.getElementById('tony-app-nav-inner'),onDrop:moveTony});
+// MAGI's drag (dragsort.js, theme overhaul phase 1b): a mouse takes a button
+// by any part after 4px; a finger holds it 300ms first, so a swipe is still a
+// swipe. The buttons are the rows; `from`/`to` index them as drawn.
+function tonyNavDragInit(inner){
+  if(!window.A1Drag||inner._tnDrag) return; inner._tnDrag=true;
+  A1Drag.sort(inner,{row:'.tn-btn',axis:'x',hold:300,
+    onDrop:function(from,to){
+      var apps=Array.prototype.map.call(inner.querySelectorAll('.tn-btn'),function(b){ return b.getAttribute('data-app'); });
+      moveTony(apps[from],apps[to]);
+    }});
 }
 
 function moveTony(src,tgt){
@@ -43612,6 +43610,7 @@ function buildTonyDropdown(){
   trigger.addEventListener('click',function(e){ e.stopPropagation(); _ddOpen?closeTonyDD():openTonyDD(); });
   sel.parentNode.insertBefore(trigger,sel);
   _ddPanel=document.createElement('div'); _ddPanel.id='tn-dd-panel';
+  tonyDDDragInit(_ddPanel);
   _ddPanel.style.cssText='display:none;position:fixed;z-index:10005;min-width:200px;max-height:70vh;overflow-y:auto;overscroll-behavior:contain;background:var(--tn-bg,#232327);border:1px solid var(--tn-bd,#45454c);border-radius:8px;padding:6px;box-shadow:0 8px 28px rgba(0,0,0,.5);pointer-events:auto;-webkit-overflow-scrolling:touch;';
   document.body.appendChild(_ddPanel);
   document.addEventListener('click',function(){ if(_ddOpen) closeTonyDD(); });
@@ -43630,8 +43629,6 @@ function injectTonyDropdownCSS(){
     '#tony-app-nav-inner.tn-force-dd #tn-dd-trigger{display:inline-flex!important;}'+
     '#tn-dd-panel .tn-dd-item{display:flex;align-items:center;gap:8px;padding:11px 12px;border-radius:6px;cursor:pointer;color:#adadb2;font-family:\'Inter\',system-ui,-apple-system,sans-serif;font-size:13px;font-weight:600;user-select:none;-webkit-user-select:none;touch-action:pan-y;transition:all .12s;border:1px solid transparent;}'+
     '#tn-dd-panel .tn-dd-item .dd-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}'+
-    '#tn-dd-panel .dd-grip{flex:0 0 auto;cursor:grab;color:currentColor;opacity:.4;font-size:13px;line-height:1;letter-spacing:-3px;padding:2px 4px;margin:-2px 0;touch-action:none;}'+
-    '#tn-dd-panel .dd-grip:active{cursor:grabbing;}'+
     /* MAGI's .side-item: hover steps the fill up a surface, the current app is a 16% accent tint. */
     '#tn-dd-panel .tn-dd-item:hover{background:#34343a;color:#f4f3f0;}'+
     '#tn-dd-panel .tn-dd-item.tn-dd-active{background:color-mix(in srgb,#c0aeea 20%,#2c2c31);color:#dbd0f5;}'+
@@ -43641,23 +43638,23 @@ function injectTonyDropdownCSS(){
 
 function renderTonyDropdownPanel(){
   if(!_ddPanel) return;
+  if(window.A1Drag&&A1Drag.active){ A1Drag.later(renderTonyDropdownPanel); return; }
   var cur=window._tnCurApp||'taskhub';
   _ddPanel.innerHTML='';
   tonyOrder.forEach(function(app){
     var item=document.createElement('div');
     item.className='tn-dd-item'+(app===cur?' tn-dd-active':'');
-    item.setAttribute('data-dd-app',app);
-    var _grip=document.createElement('span'); _grip.className='dd-grip'; _grip.innerHTML='&#8942;&#8942;'; _grip.setAttribute('aria-hidden','true');
+    item.setAttribute('data-dd-app',app); item.setAttribute('data-dkey',app);
     var _lbl=document.createElement('span'); _lbl.className='dd-text'; _lbl.textContent=TONY_SELECT_LABELS[app]||tonyMap[app];
+    var _grip=window.A1Drag?A1Drag.grip('Move '+_lbl.textContent):document.createElement('span');
     item.appendChild(_grip); item.appendChild(_lbl);
     item.addEventListener('click',function(e){
       e.stopPropagation();
-      if(item._ddDragged){ item._ddDragged=false; return; }
+      if(e.target.closest('.dsort-grip')) return;
       if(app.indexOf('custom:')===0){ openLink('tony',app.slice(7)); }
       else{if(window._tonyNav)window._tonyNav(app);}
       closeTonyDD();
     });
-    attachPanelDrag(item,app,_ddPanel,tonyOrder,'tn-dd-item','data-dd-app','tony');
     // Mobile: long-press (600ms, no movement ≥6px) → manage lock
     if(app==='custom:tradehub'||app==='custom:warroom'){
       (function(a,el){
@@ -43682,6 +43679,20 @@ function renderTonyDropdownPanel(){
   });
   var lbl=document.getElementById('tn-dd-label');
   if(lbl) lbl.textContent=TONY_SELECT_LABELS[cur]||tonyMap[cur]||'Menu';
+}
+
+// The dropdown's rows: dragged by the grip (any part, with a mouse), and a
+// focused grip's ↑/↓ moves the row one place.
+function tonyDDDragInit(panel){
+  if(!window.A1Drag) return;
+  function apps(){ return Array.prototype.map.call(panel.querySelectorAll('.tn-dd-item'),function(n){ return n.getAttribute('data-dd-app'); }); }
+  A1Drag.sort(panel,{row:'.tn-dd-item',
+    onDrop:function(from,to){ var a=apps(); moveTony(a[from],a[to]); },
+    onKey:function(row,dir){
+      var a=apps(), i=a.indexOf(row.getAttribute('data-dd-app')), j=i+dir;
+      if(i<0||j<0||j>=a.length) return;
+      moveTony(a[i],a[j]); A1Drag.refocus(panel,a[i]);
+    }});
 }
 
 function openTonyDD(){
@@ -43897,7 +43908,7 @@ function openVedaDD(triggerEl){
 function closeVedaDD(){ if(_vdPanel) _vdPanel.style.display='none'; _vdOpen=false; _vdTriggerRef=null; }
 
 // ════════════════════════════════════════════════════════════════════════════
-// SHARED PANEL DRAG — same engine for both Tony & Veda dropdowns
+// VEDA DROPDOWN DRAG (Tony's uses dragsort.js since theme phase 1b)
 // No opacity changes, items stay in place, only DOM order swaps live
 // ════════════════════════════════════════════════════════════════════════════
 function attachPanelDrag(item,app,panel,orderArr,itemClass,dataAttr,who){
@@ -43906,7 +43917,7 @@ function attachPanelDrag(item,app,panel,orderArr,itemClass,dataAttr,who){
   function onDown(e){
     if(e.button!==undefined&&e.button!==0) return;
     var pt=e.touches?e.touches[0]:e;
-    startY=pt.clientY; dragging=true; moved=false; item._ddDragged=false; item._vddDragged=false;
+    startY=pt.clientY; dragging=true; moved=false; item._vddDragged=false;
     document.addEventListener('pointermove',onMove,{passive:false});
     document.addEventListener('pointerup',onUp,{once:true});
     document.addEventListener('touchmove',onMove,{passive:false});
@@ -43918,7 +43929,7 @@ function attachPanelDrag(item,app,panel,orderArr,itemClass,dataAttr,who){
     if(!moved&&Math.abs(pt.clientY-startY)<6) return;
     if(e.cancelable) e.preventDefault();
     if(!moved){
-      moved=true; item._ddDragged=true; item._vddDragged=true;
+      moved=true; item._vddDragged=true;
       ghost=item.cloneNode(true);
       var r=item.getBoundingClientRect();
       var _cs=window.getComputedStyle(item);
@@ -43937,7 +43948,7 @@ function attachPanelDrag(item,app,panel,orderArr,itemClass,dataAttr,who){
       under=under.parentElement;
     }
     if(found){
-      found.style.boxShadow='0 0 0 2px '+(who==='tony'?'#c0aeea':'#8D769A');
+      found.style.boxShadow='0 0 0 2px #8D769A';
       var ta=found.getAttribute(dataAttr);
       if(ta&&ta!==app){
         var s=orderArr.indexOf(app),t=orderArr.indexOf(ta);
@@ -43959,12 +43970,11 @@ function attachPanelDrag(item,app,panel,orderArr,itemClass,dataAttr,who){
     panel.querySelectorAll('.'+itemClass).forEach(function(b){ b.style.boxShadow=''; });
     if(moved){
       pulseSync(who);
-      if(who==='tony'){ renderTonyNav(); }
-      else { renderAllVedaNavs(); }
+      renderAllVedaNavs();
       saveNavOrder(who);
       if(window._thsetRefreshOrder) window._thsetRefreshOrder();
     }
-    setTimeout(function(){ item._ddDragged=false; item._vddDragged=false; },50);
+    setTimeout(function(){ item._vddDragged=false; },50);
   }
   var handle = item.querySelector('.dd-grip') || item;
   handle.addEventListener('pointerdown',onDown);
@@ -44660,7 +44670,10 @@ function renderLinkList(container,profile){
     var row=document.createElement('div'); row.className='thset-row thset-link-row';
     row.setAttribute('data-link-id',l.id);
 
-    var grip=document.createElement('span'); grip.className='thset-grip'; grip.innerHTML='&#8942;&#8942;'; grip.title='Drag to reorder';
+    row.setAttribute('data-dkey',l.id);
+    var grip;
+    if(profile==='tony'&&window.A1Drag) grip=A1Drag.grip('Move '+l.label);
+    else { grip=document.createElement('span'); grip.className='thset-grip'; grip.innerHTML='&#8942;&#8942;'; grip.title='Drag to reorder'; }
 
     var col=document.createElement('div'); col.style.cssText='flex:1;min-width:120px;display:flex;flex-direction:column;gap:2px;';
     var lab=document.createElement('div'); lab.className='thset-label'; lab.textContent=l.label;
@@ -44698,9 +44711,31 @@ function renderLinkList(container,profile){
     actions.appendChild(pill); actions.appendChild(edit); actions.appendChild(del);
 
     row.appendChild(grip); row.appendChild(col); row.appendChild(actions);
-    attachSettingsDrag(grip,row,container,profile);
+    if(!(profile==='tony'&&window.A1Drag)) attachSettingsDrag(grip,row,container,profile);
     container.appendChild(row);
   });
+  if(profile==='tony'&&window.A1Drag) linkListDragInit(container);
+}
+
+// Tony's rows: MAGI's drag (dragsort.js). Wired once per list (A1Drag.sort
+// ignores a second call's listeners); it reads the rows as drawn, so a
+// re-render needs no re-wiring. The container is shared with Veda's Settings,
+// so canDrag leaves her rows to attachSettingsDrag.
+function linkListDragInit(container){
+  function ids(){ return Array.prototype.map.call(container.querySelectorAll('.thset-link-row'),function(r){ return r.getAttribute('data-link-id'); }); }
+  function put(from,to){
+    var a=ids(), m=a.splice(from,1)[0]; a.splice(to,0,m);
+    if(window._navReorderCustom) window._navReorderCustom('tony',a);
+    return m;
+  }
+  A1Drag.sort(container,{row:'.thset-link-row',
+    canDrag:function(){ return _curProfile==='tony'; },
+    onDrop:function(from,to){ put(from,to); },
+    onKey:function(row,dir){
+      var a=ids(), i=a.indexOf(row.getAttribute('data-link-id')), j=i+dir;
+      if(i<0||j<0||j>=a.length) return;
+      A1Drag.refocus(container,put(i,j));
+    }});
 }
 
 // Vertical drag-reorder for the custom-button rows (grip only). On drop, reads the
@@ -44844,6 +44879,7 @@ function refreshLinkPills(){
 }
 function refreshLinks(){
   if(_overlay.style.display==='none') return;
+  if(window.A1Drag&&A1Drag.active){ A1Drag.later(refreshLinks); return; }
   var c=document.getElementById('thset-linklist');
   if(c) renderLinkList(c,_curProfile);
 }
