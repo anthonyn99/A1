@@ -169,9 +169,9 @@ html,body{height:100%;}
   border-radius:6px;padding:0 8px;height:28px;box-sizing:border-box;
   display:inline-flex;align-items:center;font-size:10px;font-weight:600;
   cursor:grab;font-family:'Inter',system-ui,-apple-system,sans-serif;
-  /* Lighter and tighter than MAGI's .btn (700 / 1px): this row holds a dozen
-     programs, and at full weight it ran the width of the header (Tony, 2026-10-02). */
-  text-transform:uppercase;letter-spacing:.6px;
+  /* Lighter than MAGI's .btn (700 / 1px): this row holds a dozen programs.
+     Mixed case, not MAGI's uppercase: Tony wants the names as written (2026-10-02). */
+  letter-spacing:.3px;
   transition:all .15s;white-space:nowrap;
 }
 #tony-app-nav .tn-btn:hover{background:transparent;color:var(--tn-ac,#c0aeea);border-color:var(--tn-ac,#c0aeea);filter:brightness(1.15);}
@@ -191,7 +191,7 @@ html,body{height:100%;}
 #tony-app-nav .tn-btn:focus-visible,#tony-app-nav .tn-star:focus-visible,#tony-app-nav #tn-settings-btn:focus-visible,#tn-mobile-select:focus-visible,#tn-dd-trigger:focus-visible{outline:2px solid var(--tn-ac,#c0aeea);outline-offset:1px;}
 @media (prefers-reduced-motion:reduce){#tony-app-nav .tn-btn:active,#tony-app-nav .tn-star:active,#tony-app-nav #tn-settings-btn:active,#tn-mobile-select:active,#tn-dd-trigger:active{transform:none;}}
 /* Mobile: hide buttons, show select */
-#tn-mobile-select{display:none;background:transparent;border:1px solid var(--tn-bd,#45454c);border-radius:6px;color:var(--tn-ac,#c0aeea);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;padding:0 8px;height:28px;box-sizing:border-box;font-family:'Inter',system-ui,-apple-system,sans-serif;outline:none;cursor:pointer;transition:all .15s;}
+#tn-mobile-select{display:none;background:transparent;border:1px solid var(--tn-bd,#45454c);border-radius:6px;color:var(--tn-ac,#c0aeea);font-size:10px;font-weight:600;letter-spacing:.3px;padding:0 8px;height:28px;box-sizing:border-box;font-family:'Inter',system-ui,-apple-system,sans-serif;outline:none;cursor:pointer;transition:all .15s;}
 #tn-mobile-select:hover{color:var(--tn-ac,#c0aeea);border-color:var(--tn-ac,#c0aeea);filter:brightness(1.15);}
 #tn-mobile-select option{background:#232327;color:#f4f3f0;text-transform:none;}
 @media(max-width:900px){
@@ -43596,7 +43596,7 @@ function buildTonyDropdown(){
   if(document.getElementById('tn-dd-trigger')) return;
   var trigger=document.createElement('button');
   trigger.id='tn-dd-trigger'; trigger.type='button';
-  trigger.style.cssText='display:none;align-items:center;gap:6px;background:transparent;border:1px solid var(--tn-bd,#45454c);border-radius:6px;color:var(--tn-ac,#c0aeea);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;padding:0 8px;height:28px;box-sizing:border-box;font-family:\'Inter\',system-ui,-apple-system,sans-serif;outline:none;cursor:pointer;transition:all .15s;white-space:nowrap;pointer-events:auto;';
+  trigger.style.cssText='display:none;align-items:center;gap:6px;background:transparent;border:1px solid var(--tn-bd,#45454c);border-radius:6px;color:var(--tn-ac,#c0aeea);font-size:10px;font-weight:600;letter-spacing:.3px;padding:0 8px;height:28px;box-sizing:border-box;font-family:\'Inter\',system-ui,-apple-system,sans-serif;outline:none;cursor:pointer;transition:all .15s;white-space:nowrap;pointer-events:auto;';
   trigger.innerHTML='<span id="tn-dd-label">Menu</span><span style="font-size:8px;opacity:.7;">▼</span>';
   trigger.addEventListener('click',function(e){ e.stopPropagation(); _ddOpen?closeTonyDD():openTonyDD(); });
   sel.parentNode.insertBefore(trigger,sel);
