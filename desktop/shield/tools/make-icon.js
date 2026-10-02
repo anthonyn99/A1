@@ -6,7 +6,7 @@
  * render but Windows cannot: a tray icon and an NSIS installer both need a real
  * .ico. Rather than add an image toolchain to a repo that deliberately has no
  * build step, this rasterises the same 96-unit geometry directly — the shield
- * split down the middle (gold half for T, purple half for V) around a gray
+ * split down the middle (MAGI-purple half for T, mauve half for V) around a gray
  * keyhole — and packs it as an ICO of uncompressed 32-bit BMP entries.
  *
  * BMP rather than PNG entries on purpose: Windows accepts both, and BMP needs
@@ -23,7 +23,8 @@ const SIZES = [16, 24, 32, 48, 64, 128, 256];
 const SS = 4;                       // supersampling factor per axis
 
 const BG    = [0x1a, 0x1a, 0x1d];
-const GOLD  = [0xe0, 0xb8, 0x74];
+// Tony's half: MAGI purple since the theme overhaul (docs/theme-overhaul-plan.md).
+const TONY  = [0xc0, 0xae, 0xea];
 const PURP  = [0x8d, 0x76, 0x9a];
 const GRAY  = [0xad, 0xad, 0xb2];
 const ALERT = [0xd6, 0x8a, 0x7c];
@@ -68,8 +69,8 @@ function distToPolyline(px, py, pts) {
 // Colour of a single sample point in 96-space. Returns [r,g,b].
 function sample(x, y, variant) {
   const half = STROKE / 2;
-  const gold = variant === 'veda' ? PURP : (variant === 'alert' ? ALERT : GOLD);
-  const purp = variant === 'tony' ? GOLD : (variant === 'alert' ? ALERT : PURP);
+  const gold = variant === 'veda' ? PURP : (variant === 'alert' ? ALERT : TONY);
+  const purp = variant === 'tony' ? TONY : (variant === 'alert' ? ALERT : PURP);
   const gray = variant === 'alert' ? [0xf4, 0xf3, 0xf0] : GRAY;
 
   if (Math.abs(Math.hypot(x - RING.cx, y - RING.cy) - RING.r) <= half) return gray;

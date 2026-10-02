@@ -30,6 +30,29 @@ call, 2026-10-02). Start 1b only when Tony says "continue theme"
 5. `npm test` (all suites), then take "after" shots and pixel-diff Veda's.
 6. Show Tony before/after, tag `theme-pN-end`, push it, and rewrite this §0.
 
+**Done after phase 1, same day (2026-10-02, Tony's asks):**
+- **Every A1 app icon is purple-on-charcoal now** (was gold). That covers:
+  - each page's favicon, home-screen icon and PWA manifest: index, insight,
+    mylist, oneinbox, shield (its T half), solace, tradehub, vault;
+  - LifeHub's tiles (`ICONS` in LifeHub/lifehub.js);
+  - the `KC_APP_ICONS` maps (index.html and vault.html, twins);
+  - MyList's notification icons;
+  - the Vault and PriceWatch extension PNGs (gold pixels remapped, edges kept);
+  - the Shield desktop icons (`desktop/shield/tools/make-icon.js`: `GOLD`
+    renamed `TONY` = `#c0aeea`, then regenerated).
+
+  The rule: **any new app icon is MAGI purple `#c0aeea` strokes on `#1a1a1d`**.
+  Veda-only marks (Wellness, the V1 Launcher) stay her mauve. MAGI and RiftIQ
+  were already purple.
+
+  To actually SEE them:
+  - **Shield desktop:** the exe/tray icon is baked in at build, so it needs a
+    `desktop/shield/build.ps1` rebuild and reinstall. Not done.
+  - **Extensions:** reload them in `chrome://extensions`.
+  - **Installed PWAs:** may keep the old icon until reinstalled.
+- **Program-nav labels are lighter:** weight 600 and tracking .6px instead of
+  MAGI's 700/1px. The row holds a dozen programs; Tony wanted it narrower.
+
 **What phase 1 left for later (deliberately)**
 - **The dead cooking CSS (index.html `<style>` right after the Veda header
   block, `/* ── Cooking Dashboard styles ── */`, ~1,800 lines) was NOT deleted.**
@@ -87,6 +110,9 @@ MyList and Shield profiles, and her colours in shared dialogs.
 - the Tesla charging amber, the weather sun and the LifeHub crest
 
 Everything else that was gold is purple.
+
+**App icons:** MAGI purple `#c0aeea` strokes on the `#1a1a1d` tile, for every
+program (done 2026-10-02, see §0).
 
 **Fonts:**
 - Inter is the UI face, Manrope is for headings and wordmarks, and IBM Plex
