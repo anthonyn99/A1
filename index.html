@@ -43552,6 +43552,10 @@ function renderTonyNav() {
     var btn=btnMap[app]; if(!btn) return;
     if(stableAnchor&&stableAnchor.parentNode===inner) inner.insertBefore(btn,stableAnchor);
     else inner.appendChild(btn);
+    // Placed by this render: scheduleReapply re-renders only for buttons
+    // WITHOUT this mark. Without it every render queued the next one, and the
+    // buttons were rebuilt under the cursor every ~100ms (no clicks, hover flicker).
+    btn._tnPlaced=true;
   });
   tonyNavDragInit(inner);
   syncTonySelectOrder();
@@ -44179,7 +44183,7 @@ function scheduleReapply(){
   _reapplyTimer=setTimeout(function(){
     _reapplyTimer=null; if(_applying) return;
     var inner=document.getElementById('tony-app-nav-inner');
-    if(inner){ var btns=Array.prototype.slice.call(inner.querySelectorAll('.tn-btn')); if(btns.some(function(b){ return !b._noAttached; })) renderTonyNav(); }
+    if(inner){ var btns=Array.prototype.slice.call(inner.querySelectorAll('.tn-btn')); if(btns.some(function(b){ return !b._tnPlaced; })) renderTonyNav(); }
     var needVeda=false;
     document.querySelectorAll('.veda-hbtns').forEach(function(row){
       if(needVeda||!isVedaNavRow(row)) return;

@@ -3,7 +3,7 @@
 // nav actually saves (window._navGetOrder) -- not just what the DOM shows.
 //
 //   1. desktop: mouse-drag a program-nav button sideways
-//   2. desktop: a plain click on a nav button still navigates (no drag)
+//   2. desktop: the nav sits still under the cursor, and a plain click navigates
 //   3. phone width: touch-drag a dropdown row by its grip
 //   4. phone width: a finger on a dropdown row (not the grip) does not drag
 //   5. Settings → External links: mouse-drag a row by its grip
@@ -71,13 +71,26 @@ async function load(c, who, w, h, mobile) {
   const vis = JSON.parse(await evalJs(c, "return JSON.stringify([...document.querySelectorAll('#tony-app-nav-inner .tn-btn')].map(b=>b.getAttribute('data-app')));"));
   const b0 = await rect(c, `document.querySelector('#tony-app-nav-inner .tn-btn[data-app="${vis[0]}"]')`);
   const b2 = await rect(c, `document.querySelector('#tony-app-nav-inner .tn-btn[data-app="${vis[2]}"]')`);
-  await mouseDrag(c, b0.x, b0.y, b2.x - b0.x + b2.w / 2 - 4, 0);
+  // The dragged button's leading (right) edge ends just past the third's middle.
+  await mouseDrag(c, b0.x, b0.y, (b2.x + 4) - (b0.x + b0.w / 2), 0);
   const after = await order(c);
   const exp = before.slice(); exp.splice(exp.indexOf(vis[0]), 1); exp.splice(before.indexOf(vis[2]), 0, vis[0]);
   ok('mouse: first button dragged past the third lands third (saved order)', JSON.stringify(after) === JSON.stringify(exp), JSON.stringify({ before, after }));
   ok('nothing left lifted', await evalJs(c, "return !document.querySelector('.dsort-drag') && !document.documentElement.classList.contains('dsort-grabbing');"));
   ok('the drag did not navigate (its click was swallowed)', await evalJs(c, "return (window._tnCurApp||'taskhub')==='taskhub';"), await evalJs(c, 'return window._tnCurApp;'));
   await c.send('Page.captureScreenshot', { format: 'png' }).then((r) => fs.writeFileSync(shotPath('p1b-nav-after'), Buffer.from(r.result.data, 'base64')));
+
+  // The nav must sit still under a resting cursor: a render loop once rebuilt
+  // the buttons every ~100ms (hover flicker, clicks lost).
+  const mj = await rect(c, `document.querySelector('#tony-app-nav-inner .tn-btn[data-app="brainstormjournal"]')`);
+  await evalJs(c, "window._tnMut=0; new MutationObserver(function(m){ window._tnMut+=m.length; }).observe(document.getElementById('tony-app-nav-inner'),{childList:true}); 1");
+  await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: mj.x, y: mj.y });
+  await sleep(1500);
+  ok('the nav is not re-rendered while the cursor rests on it', (await evalJs(c, 'return window._tnMut;')) === 0, await evalJs(c, 'return window._tnMut;'));
+  await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: mj.x, y: mj.y, button: 'left', clickCount: 1 });
+  await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: mj.x, y: mj.y, button: 'left', clickCount: 1 });
+  await sleep(1200);
+  ok('a plain click on MyJournal opens MyJournal', (await evalJs(c, 'return window._tnCurApp;')) === 'brainstormjournal', await evalJs(c, 'return window._tnCurApp;'));
 
   console.log('\nPhone width: the dropdown');
   await load(c, 'tony', 390, 844, true);
@@ -106,7 +119,7 @@ async function load(c, who, w, h, mobile) {
   await sleep(800);
   const ids = () => evalJs(c, "return JSON.stringify([...document.querySelectorAll('#thset-linklist .thset-link-row')].map(r=>r.getAttribute('data-link-id')));").then(JSON.parse);
   const i1 = await ids();
-  ok('Settings rows carry a real grip button', await evalJs(c, "return document.querySelectorAll('#thset-linklist .thset-link-row > button.dsort-grip').length===" + i1.length) && i1.length > 1, i1.length);
+  ok('Settings rows carry a real grip button', await evalJs(c, "return document.querySelectorAll('#thset-linklist .thset-link-row > button.dsort-grip').length===" + i1.length + ";") && i1.length > 1, i1.length);
   if (i1.length > 1) {
     await evalJs(c, "document.querySelector('#thset-linklist .thset-link-row').scrollIntoView({block:'center'}); 1");
     await sleep(300);
