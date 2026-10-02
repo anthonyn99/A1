@@ -8,80 +8,67 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-10-02, at the end of **Phase 2** (MyJournal: theme,
-drag, resize grips). Done, tested, pushed.
+**Last updated:** 2026-10-02, at the end of **Phase 3** (OneInbox: theme,
+drag, resize grip; plus LifeHub's colours and the RiftIQ icon). Done,
+tested, pushed.
 **Tags:** phase 1 `theme-p1-start` → `theme-p1-end`; phase 1b
 `theme-p1b-start` → `theme-p1b-end`; phase 2 `theme-p2-start` →
-`theme-p2-end`.
-**Next phase:** **Phase 3: OneInbox** (theme + its drags + its resize
+`theme-p2-end`; phase 3 `theme-p3-start` → `theme-p3-end`.
+**Next phase:** **Phase 4: TradeHub** (theme + its drags + its resize
 handles, no gradient fills; see §3, §4 "Phases 3–10"). Start it only when
 Tony says "continue theme" / "next theme phase".
 
-**Phase 2, what shipped:**
-- **MyJournal is MAGI.** `#tj-root` tokens are MAGI's: `--ac` `#c0aeea`,
-  `--acl`, `--acd`, `--gold` (the locked lock only), `--blue` (links,
-  syncing). `--purple`/`--purple2`/`--cyan` stay as ALIASES of those,
-  because the `#tj-root, #bj-root` pair rules and the journal's script still
-  read them. Tony's own rules name `--ac` directly.
-  - Fonts are Inter / IBM Plex Mono / Manrope, and `--font-accent` is Inter,
-    so no Fraunces placeholders are left.
-  - No gold, no washes, no glows. The PAGE/JOURNAL badges are outlined chips.
-    The rail's Journal button and the OurJournal tab are solid purple with a
-    dark label. Toolbar buttons and New Entry use MAGI's `.btn` type (10px,
-    700, uppercase, 1px tracking). The active entry has an accent left edge.
-  - The date strip's edge fade is a `mask-image`, not a gradient fill.
-- **Wordmark** "MyJournal" is `.suite-title.th-wordmark` (`#dbd0f5`).
-  `tjApplyTheme` adds the class and paints no colours.
-- **Hover:** `data-hoverfx="classic"` is gone from `#tj-root`, so the probe
-  shows `brightness(1.15)`, then `0.94` plus `0px 1px`.
-  `tests/hoverfx-wiring.test.js` now pins "no opt-out".
-- **The shared DOCX editor:** `<style id="docx-css-tony">` sits just before
-  `docx-css`. It ADDS Tony-only rules and never edits the shared ones:
-  - `#tj-root …` for the sheet;
-  - `body[data-th-profile="tony"] …` for the menus, dialogs, find bar,
-    toasts and AI tools that are appended to `<body>`.
-  - Word-blue becomes purple, DM Sans becomes Inter, the find bar's gradient
-    becomes solid `#232327`, and primary buttons are solid purple with a
-    dark label.
-  - User-picked fonts and the page content are untouched.
-- **Drag (`dragsort.js`):** the sidebar entry list runs on `A1Drag.sort`.
-  - A mouse takes a row anywhere; a finger only by its `.tj-grip` button;
-    ↑/↓ on a focused grip moves the row.
-  - Off while a search or tag filter is on.
-  - A move is "this id before/after that id" in `state.entries`, so trashed
-    entries keep their place. Then `saveState(); renderSidebar();
-    _tjFbOrder()`.
-  - `renderSidebar` defers itself with `A1Drag.later` while a row is lifted.
-  - The HTML5 drag and `.entry-drag-handle` are gone from MyJournal.
-    `window._attachJournalTouchDrag` STAYS: Veda's Brainstorm Journal still
-    uses it.
-- **Resize (`resizegrip.js`, new, `window.A1Resize`):** MAGI's corner grip
-  for the AI prompt box, the "New AI tool" prompt and the math (LaTeX) box,
-  in MyJournal only (`docxTonyGrip(ta, app, key, label)`; Brainstorm keeps
-  its native corner).
-  - Heights are stored as `a1.h.mj.ai-prompt`, `a1.h.mj.ai-newtool` and
-    `a1.h.mj.math`.
-  - Pinned by `tests/resizegrip.test.js` (jsdom, 24 checks, including
-    storage that throws and copies being byte-identical).
-  - The image and math OBJECT resizers (`se-resize` corners on pictures) are
-    not box-height grips and were left alone.
-- **`dragsort.js` and `resizegrip.js` load in `<head>` now.** MyJournal's
-  sidebar first renders while the body is still parsing, so at the end of
-  `<body>` `A1Drag` did not exist yet and the rows came up without grips.
-  Phase 1b's live nav test still passes (15/15).
-- **Tests:**
-  - `tests/live/myjournal-drag.live.js` (24 checks). It seeds
-    `tony_journal_v3` and asserts the SAVED order for: a mouse drag by the
-    title, the swallowed click, a plain click, ↑/↓, the search switching
-    drags off, a touch on the row (scrolls) versus on the grip (drags), and
-    the prompt grip's drag, click toggle and reload. It also checks that
-    Veda's list is not a dsort list.
-  - `tests/live/theme-shots.live.js` gained a `journals` view.
-  - Veda's journal shots (desktop, phone, template picker) are
-    pixel-identical before and after.
-- **Gotcha:** a box's own CSS `min-height` (the prompt box has 34vh) stopped
-  the grip's drag halfway while it stored the smaller height. A hand-chosen
-  height now pins `min-height` too (§2 "Resize handles").
+**Phase 3, what shipped:**
+- **OneInbox is MAGI.** `:root` carries MAGI's tokens: `--ac`/`--acl`/`--acd`,
+  `--bd` (hairline), `--blue` (links, syncing), `--mono` (IBM Plex Mono for
+  counts and sizes). `--gold` is REAL gold now and is used only by the star
+  and the coupon category. The `--gold-*` glow/line tokens are gone.
+  - Fraunces is gone; `--font-accent` is Inter.
+  - `.btn` is MAGI's type (10px, 700, uppercase, 1px), bdl outline that turns
+    accent on hover, no glow, no CSS press (hoverfx does it). `.btn.gold` was
+    renamed `.btn.ac` (purple text). `.btn.solid` (Compose) is a SOLID purple
+    fill with a dark label.
+  - Selected states are solid: the active nav row is s2 with a 2px accent left
+    edge; an "on" filter chip is a solid fill (a category chip fills in its
+    own category colour) with a dark label. Chips and badges are radius 4.
+  - Fields: accent border + 3px ring at 16%. Focus: 2px accent outline.
+  - Dialogs: `rgba(0,0,0,.62)` + 2px blur, s1 box on a hairline, radius 8.
+  - Wordmark `#dbd0f5`; the list title is a MAGI panel title (Manrope 800,
+    uppercase, tracked, `acl`).
+  - "All accounts" dot was a gold→blue gradient; now solid purple.
+  - `<body data-hoverfx="magi">`.
+- **Drag:** the account list runs on `A1Drag.sort` (`wireAcctDrag()` in
+  `renderSidebar`, rows `.navitem[data-dkey]`). A drop is a splice of
+  `S.accounts`, then `syncAcctOrder` (localStorage + Firestore), as before.
+  - The hand-rolled pointer code (`acctDrag`, `acctDragJustEnded`, the svg
+    `.grip`, `.reordering`/`.dragging` CSS) is deleted.
+  - On a mouse the grip floats over the row's end (hidden until hover, so a
+    long address keeps its width); on touch it is in the row, always shown.
+  - A click on a grip never selects the account. `renderSidebar` and
+    `applyRemoteAcctOrder` defer with `A1Drag.later` while a row is lifted.
+- **Resize:** the per-account signature boxes have MAGI's corner grip
+  (`resizegrip.js`, key `a1.h.oi.sig`, one height for all). No other
+  OneInbox box had a handle (compose body is fixed by design).
+- **LifeHub (Tony's ask mid-phase):** lifehub.js's default Tony accent is
+  `#c0aeea` (was gold), so the current-app outline, the launcher diamond,
+  focus rings and the Edit/Done button are purple in every program. Veda's
+  `#A892B0` is unchanged. So phase 10's LifeHub item is DONE.
+- **RiftIQ icon (Tony's ask):** the grey hexagon is purple `#c0aeea`, the
+  tile `#1a1a1d` (was `#16161c`), the grip `#9a86c9`, in every copy:
+  riftiq.html (favicon, touch icon, manifest), LifeHub `ICONS`, the
+  `KC_APP_ICONS` twins (index.html, vault.html) and both extension popups
+  (Vault/popup.js, V1/Launcher/popup.js; reload the extensions to see it).
+- **Tests:** `tests/live/oneinbox-drag.live.js` (32 checks: theme, mouse drag
+  + saved/synced order, swallowed drop click, ↑/↓, grip click, touch row vs
+  grip, signature grip drag/toggle/reload). It FAKES OneInbox's worker and
+  Firebase (no-op modules recording `setDoc` in `window.__fsWrites`).
+  `--shots <label>` takes desktop / settings / LifeHub / phone / drawer
+  shots instead. Against `theme-p3-start` it fails 12+ checks.
+  - `tests/live/cdp.js` gained `connect({ mock })`: `mock.patterns` are URL
+    pattern STRINGS (objects broke `Fetch.enable` and silently served the
+    live GitHub Pages copy), `mock.handle(request)` returns `{status, json}`
+    or `{text, type}`.
+- OneInbox is Tony-only, so there is no Veda diff for this phase.
 
 **Start-of-session checklist**
 1. `git pull`, then `git tag theme-pN-start && git push origin theme-pN-start`.
@@ -174,7 +161,8 @@ MyList and Shield profiles, and her colours in shared dialogs.
 - warnings and amber states
 - progress fills (the TaskHub weekly bars)
 - money/value highlights
-- the Tesla charging amber, the weather sun and the LifeHub crest
+- the Tesla charging amber and the weather sun (the LifeHub diamond went
+  purple in phase 3, Tony's ask)
 
 Everything else that was gold is purple.
 
@@ -385,14 +373,14 @@ wrap-up phase.
 | 1 | Foundation + **Index A: Tony's TaskHub + chrome** | **done 2026-10-02** |
 | 1b | **`dragsort.js` (MAGI's DnD, shared) + index chrome drags (nav, dropdown, Settings rows); TaskHub's own DnD stays** | **done 2026-10-02** |
 | 2 | **Index B: MyJournal** (theme + its drags + resize handles) | **done 2026-10-02** |
-| 3 | OneInbox (theme + drags) | **next** |
-| 4 | TradeHub (theme + drags) | |
+| 3 | **OneInbox** (theme + drags + resize; also LifeHub colours, RiftIQ icon) | **done 2026-10-02** |
+| 4 | TradeHub (theme + drags) | **next** |
 | 5 | MyList, Tony profile only (theme + drags) | |
 | 6 | Insight (theme + drags) | |
-| 7 | Vault (Keychain) + Vault extension (theme + drags) | |
+| 7 | Vault (Keychain) + **Vault extension** (theme + drags) | |
 | 8 | Solace (theme + drags) | |
 | 9 | Shield + Shield (HTML) (theme + drags) | |
-| 10 | Wrap-up: LifeHub, MAGI onto dragsort.js, sweep | |
+| 10 | Wrap-up: **PriceWatch extension**, MAGI onto dragsort.js, sweep (LifeHub colours done in 3) | |
 
 **From phase 2 on, every phase = theme + that program's drag and drop + its resize handles (no gradient fills).**
 The drag half:
@@ -506,7 +494,74 @@ end of phase 2):
   everywhere, via a shared `resizegrip.js` built in the first phase that needs
   it.
 
-### Phase 2 — Index B: MyJournal (done 2026-10-02; what shipped is in §0)
+### Phase 2 — Index B: MyJournal (done 2026-10-02)
+**What shipped** (moved here from §0 at the end of phase 3):
+- **MyJournal is MAGI.** `#tj-root` tokens are MAGI's: `--ac` `#c0aeea`,
+  `--acl`, `--acd`, `--gold` (the locked lock only), `--blue` (links,
+  syncing). `--purple`/`--purple2`/`--cyan` stay as ALIASES of those,
+  because the `#tj-root, #bj-root` pair rules and the journal's script still
+  read them. Tony's own rules name `--ac` directly.
+  - Fonts are Inter / IBM Plex Mono / Manrope, and `--font-accent` is Inter,
+    so no Fraunces placeholders are left.
+  - No gold, no washes, no glows. The PAGE/JOURNAL badges are outlined chips.
+    The rail's Journal button and the OurJournal tab are solid purple with a
+    dark label. Toolbar buttons and New Entry use MAGI's `.btn` type (10px,
+    700, uppercase, 1px tracking). The active entry has an accent left edge.
+  - The date strip's edge fade is a `mask-image`, not a gradient fill.
+- **Wordmark** "MyJournal" is `.suite-title.th-wordmark` (`#dbd0f5`).
+  `tjApplyTheme` adds the class and paints no colours.
+- **Hover:** `data-hoverfx="classic"` is gone from `#tj-root`, so the probe
+  shows `brightness(1.15)`, then `0.94` plus `0px 1px`.
+  `tests/hoverfx-wiring.test.js` now pins "no opt-out".
+- **The shared DOCX editor:** `<style id="docx-css-tony">` sits just before
+  `docx-css`. It ADDS Tony-only rules and never edits the shared ones:
+  - `#tj-root …` for the sheet;
+  - `body[data-th-profile="tony"] …` for the menus, dialogs, find bar,
+    toasts and AI tools that are appended to `<body>`.
+  - Word-blue becomes purple, DM Sans becomes Inter, the find bar's gradient
+    becomes solid `#232327`, and primary buttons are solid purple with a
+    dark label.
+  - User-picked fonts and the page content are untouched.
+- **Drag (`dragsort.js`):** the sidebar entry list runs on `A1Drag.sort`.
+  - A mouse takes a row anywhere; a finger only by its `.tj-grip` button;
+    ↑/↓ on a focused grip moves the row.
+  - Off while a search or tag filter is on.
+  - A move is "this id before/after that id" in `state.entries`, so trashed
+    entries keep their place. Then `saveState(); renderSidebar();
+    _tjFbOrder()`.
+  - `renderSidebar` defers itself with `A1Drag.later` while a row is lifted.
+  - The HTML5 drag and `.entry-drag-handle` are gone from MyJournal.
+    `window._attachJournalTouchDrag` STAYS: Veda's Brainstorm Journal still
+    uses it.
+- **Resize (`resizegrip.js`, new, `window.A1Resize`):** MAGI's corner grip
+  for the AI prompt box, the "New AI tool" prompt and the math (LaTeX) box,
+  in MyJournal only (`docxTonyGrip(ta, app, key, label)`; Brainstorm keeps
+  its native corner).
+  - Heights are stored as `a1.h.mj.ai-prompt`, `a1.h.mj.ai-newtool` and
+    `a1.h.mj.math`.
+  - Pinned by `tests/resizegrip.test.js` (jsdom, 24 checks, including
+    storage that throws and copies being byte-identical).
+  - The image and math OBJECT resizers (`se-resize` corners on pictures) are
+    not box-height grips and were left alone.
+- **`dragsort.js` and `resizegrip.js` load in `<head>` now.** MyJournal's
+  sidebar first renders while the body is still parsing, so at the end of
+  `<body>` `A1Drag` did not exist yet and the rows came up without grips.
+  Phase 1b's live nav test still passes (15/15).
+- **Tests:**
+  - `tests/live/myjournal-drag.live.js` (24 checks). It seeds
+    `tony_journal_v3` and asserts the SAVED order for: a mouse drag by the
+    title, the swallowed click, a plain click, ↑/↓, the search switching
+    drags off, a touch on the row (scrolls) versus on the grip (drags), and
+    the prompt grip's drag, click toggle and reload. It also checks that
+    Veda's list is not a dsort list.
+  - `tests/live/theme-shots.live.js` gained a `journals` view.
+  - Veda's journal shots (desktop, phone, template picker) are
+    pixel-identical before and after.
+- **Gotcha:** a box's own CSS `min-height` (the prompt box has 34vh) stopped
+  the grip's drag halfway while it stored the smaller height. A hand-chosen
+  height now pins `min-height` too (§2 "Resize handles").
+
+**The original notes:**
 - **Hover:** remove `data-hoverfx="classic"` from `<div id="tj-root">`
   (`<body>` is already magi for Tony). Update the assertion in
   `tests/hoverfx-wiring.test.js` that pins it.
@@ -552,7 +607,8 @@ end of phase 2):
 **7. Vault + extension:**
 - `vault.html` has `:root` (84), a JS `THEME` (1602) and a `uiModal` string
   (2712) that must change together. The `CD` card palette stays.
-- Extension: `popup.html` `:root`, the CSS strings in
+- **Extension (Tony asked for it explicitly, 2026-10-02: colours, fonts
+  and everything, to match):** `popup.html` `:root`, the CSS strings in
   `vault-controls/ui/id-ui/apikey-ui/cloud-ui.js`, and `content.js`.
 - Card-brand gradients stay.
 - Run `Vault/*.test.js` by hand, because run-all skips them.
@@ -571,8 +627,12 @@ end of phase 2):
 - Leave the `.ico` files unless Tony asks (they need a Rust rebuild).
 
 **10. Wrap-up:**
-- LifeHub's Tony default `data-accent` becomes purple everywhere (Veda's
-  `#A892B0` stays).
+- ~~LifeHub's Tony default accent becomes purple~~ DONE in phase 3
+  (lifehub.js default `#c0aeea`; Veda's `#A892B0` stays).
+- **PriceWatch extension (Tony, 2026-10-02):** MAGI's colours, fonts,
+  buttons and hover like the rest: `PriceWatch/` popup/options CSS and any
+  injected UI; its hoverfx copy stays byte-identical. Same rules as the
+  Vault extension in phase 7.
 - Sweep for gold doing an identity job.
 - Update memories (`ui-width-cap-2000`, `in-ui-modal-system`, plus a new
   `magi-theme-spec`).

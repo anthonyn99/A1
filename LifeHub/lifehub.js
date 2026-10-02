@@ -23,7 +23,7 @@
  *                      "veda"). Each profile has its OWN list (its own doc),
  *                      and the launcher follows the attribute live. Omit it
  *                      for Tony-only programs.
- *   data-accent        The program's accent colour (default A1 gold).
+ *   data-accent        The program's accent colour (default MAGI purple #c0aeea).
  *   data-accent-veda   Veda's accent in a profile program (default #A892B0).
  *
  * A program whose Firebase starts lazily (MAGI) sets window.LifeHubFirebase to
@@ -157,7 +157,7 @@
     // The desktop agent: Shield's two-tone mark on a monitor, so the app and
     // its web page are told apart at a glance.
     'shield-desktop': "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='22' fill='#1a1a1d'/><g fill='none' stroke-width='4.5' stroke-linecap='round' stroke-linejoin='round'><rect x='16' y='20' width='64' height='44' rx='7' stroke='#adadb2'/><path d='M38 76h20M48 64v12' stroke='#adadb2'/><path d='M48 29 36 33.5v9c0 7 5.5 11.5 12 14.5' stroke='#c0aeea'/><path d='M48 29 60 33.5v9c0 7-5.5 11.5-12 14.5' stroke='#8D769A'/></g></svg>",
-    riftiq: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='22' fill='#16161c'/><path d='M48 19 73 33.5v29L48 77 23 62.5v-29Z' fill='none' stroke='#5a5a68' stroke-width='4' stroke-linejoin='round'/><path d='M48 26l5 12v18H43V38Z' fill='#c0aeea'/><rect x='33' y='56' width='30' height='6' rx='3' fill='#dbd0f5'/><rect x='45' y='62' width='6' height='11' rx='3' fill='#83838f'/></svg>",
+    riftiq: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='22' fill='#1a1a1d'/><path d='M48 19 73 33.5v29L48 77 23 62.5v-29Z' fill='none' stroke='#c0aeea' stroke-width='4' stroke-linejoin='round'/><path d='M48 26l5 12v18H43V38Z' fill='#c0aeea'/><rect x='33' y='56' width='30' height='6' rx='3' fill='#dbd0f5'/><rect x='45' y='62' width='6' height='11' rx='3' fill='#9a86c9'/></svg>",
     magi: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='22' fill='#1a1a1d'/><g fill='none' stroke='#c0aeea' stroke-width='4.2'><circle cx='48' cy='35.3' r='14.5'/><circle cx='36.4' cy='54.4' r='14.5'/><circle cx='59.6' cy='54.4' r='14.5'/></g><circle cx='48' cy='47.7' r='5.4' fill='#dbd0f5'/></svg>",
     taskhub: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='22' fill='#1a1a1d'/><g fill='none' stroke='#c0aeea' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'><path d='M26 34l7 7 12-13'/><path d='M56 36h16'/><path d='M26 58h46'/><path d='M26 72h46'/></g></svg>",
     link: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='22' fill='#1a1a1d'/><g fill='none' stroke='#c0aeea' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'><circle cx='48' cy='48' r='24'/><path d='M24 48h48'/><path d='M48 24c7 7 10 15 10 24s-3 17-10 24c-7-7-10-15-10-24s3-17 10-24z'/></g></svg>"
@@ -850,14 +850,14 @@
     'display:inline-grid;place-items:center;border-radius:10px;cursor:pointer;color:var(--lh-fg,#a3a1a6);' +
     '-webkit-tap-highlight-color:transparent;transition:background-color .15s,color .15s,transform .12s}' +
     'button svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linejoin:round;overflow:visible}' +
-    'button svg .core{fill:var(--lh-ac,#e0b874);stroke:none;transform-box:fill-box;transform-origin:center;transform:rotate(45deg);' +
+    'button svg .core{fill:var(--lh-ac,#c0aeea);stroke:none;transform-box:fill-box;transform-origin:center;transform:rotate(45deg);' +
     'transition:transform .35s cubic-bezier(.2,.8,.2,1)}' +
     '@media (hover:hover){button:hover{background:rgba(128,128,128,.14);color:var(--lh-fg-hover,#ecebe8)}' +
     'button:hover svg .core{transform:rotate(135deg)}}' +
     'button[aria-expanded="true"] svg .core{transform:rotate(135deg)}' +
     'button:active{transform:scale(.9);background:rgba(128,128,128,.2)}' +
     'button[aria-expanded="true"]{background:rgba(128,128,128,.18);color:var(--lh-fg-hover,#ecebe8)}' +
-    'button:focus-visible{outline:2px solid var(--lh-ac,#e0b874);outline-offset:2px}' +
+    'button:focus-visible{outline:2px solid var(--lh-ac,#c0aeea);outline-offset:2px}' +
     '@media (pointer:coarse){button::after{content:"";position:absolute;inset:-5px}}';
 
   class LauncherEl extends HTMLElement {
@@ -910,7 +910,7 @@
     '*{box-sizing:border-box}' +
     '[hidden]{display:none!important}' +
     '.wrap{--bg:#1c1c20;--bg2:#242428;--bd:#2e2f33;--bd2:#3b3c42;--tx:#ecebe8;--tx2:#d2d0cc;--dim:#8f8e94;' +
-    '--hov:rgba(255,255,255,.055);--act:rgba(255,255,255,.09);--in:#141417;--bad:#d68a7c;--ac:var(--lh-ac,#e0b874);' +
+    '--hov:rgba(255,255,255,.055);--act:rgba(255,255,255,.09);--in:#141417;--bad:#d68a7c;--ac:var(--lh-ac,#c0aeea);' +
     'font:13px/1.35 Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--tx);-webkit-font-smoothing:antialiased}' +
     '.bd{position:fixed;inset:0;background:transparent;touch-action:none;-webkit-tap-highlight-color:transparent}' +
     '.pop{position:fixed;display:flex;flex-direction:column;overflow:hidden;background:var(--bg);border:1px solid var(--bd);' +

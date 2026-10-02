@@ -53,7 +53,12 @@ async function launch() {
   throw new Error('browser did not come up');
 }
 
-async function connect() {
+// connect({ mock }) answers matching requests itself, ahead of everything
+// else: mock.patterns are Fetch url pattern STRINGS, mock.handle(request) returns
+// { status, json }, { text, type } or null (null = refused like any other
+// off-site request). A CORS preflight (OPTIONS) reaches handle() too.
+// For a page whose own worker must be faked (tests/live/oneinbox-drag.live.js).
+async function connect(opts) {
   await launch();
   // Close every stray page first. The console is ONE origin, so a page left over
   // from an earlier run shares this one's localStorage -- and MAGI reconnects
@@ -88,7 +93,7 @@ async function connect() {
   };
   const send = (method, params = {}) =>
     new Promise((res) => { const i = ++id; pending.set(i, res); ws.send(JSON.stringify({ id: i, method, params })); });
-  await servePagesFromWorkingCopy(ws, send);
+  await servePagesFromWorkingCopy(ws, send, opts && opts.mock);
   return { ws, send };
 }
 
@@ -116,11 +121,27 @@ const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/cs
 const BLOCK = ['https://www.gstatic.com/firebasejs/*', 'https://*.googleapis.com/*',
   'https://www.google.com/recaptcha/*', 'https://www.recaptcha.net/*'];
 
-async function servePagesFromWorkingCopy(ws, send) {
+async function servePagesFromWorkingCopy(ws, send, mock) {
   ws.addEventListener('message', (ev) => {
     const m = JSON.parse(ev.data);
     if (m.method !== 'Fetch.requestPaused') return;
     const { requestId, request } = m.params;
+    if (mock && !request.url.startsWith(PAGES)) {
+      const r = mock.handle(request);
+      if (r) {
+        send('Fetch.fulfillRequest', {
+          requestId, responseCode: r.status || 200,
+          responseHeaders: [
+            { name: 'Content-Type', value: r.type || 'application/json' },
+            { name: 'Access-Control-Allow-Origin', value: '*' },
+            { name: 'Access-Control-Allow-Headers', value: '*' },
+            { name: 'Access-Control-Allow-Methods', value: 'POST, GET, OPTIONS' },
+          ],
+          body: Buffer.from(r.text != null ? r.text : r.json == null ? '' : JSON.stringify(r.json)).toString('base64'),
+        });
+        return;
+      }
+    }
     // CDP_ALLOW_FONTS=1 lets Google Fonts through (fonts.googleapis.com is
     // caught by the *.googleapis.com block), for screenshots that must show the
     // real typefaces. Fonts are not an API: nothing reaches Firestore this way.
@@ -147,7 +168,7 @@ async function servePagesFromWorkingCopy(ws, send) {
       body: fs.readFileSync(file).toString('base64'),
     });
   });
-  await send('Fetch.enable', { patterns: [PAGES + '*', ...BLOCK]
+  await send('Fetch.enable', { patterns: [PAGES + '*', ...BLOCK, ...((mock && mock.patterns) || [])]
     .map((urlPattern) => ({ urlPattern, requestStage: 'Request' })) });
   // A public page reaching 127.0.0.1 needs Local Network Access -- a prompt
   // in a real browser (Tony allowed it once), refused outright when headless.
