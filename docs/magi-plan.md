@@ -41,8 +41,9 @@ prompt queue". F4's "mid-run send" and anything queue-shaped build on
 `QUEUES.code`, never a shared list. Live test: `tests/live/magi-queue-split.live.js`.
 **Phase 15 (Veda's engine) is INSTALLED**: she ran `magi\setup.ps1 -Profile veda`, signed in
 to Accounts, the coding agents and GitHub (Tony confirmed 2026-09-28), and
-her engine self-updates. Do NOT send her setup commands again. The only
-Phase 15 leftover is an optional isolation check from her PC (below).
+her engine self-updates. Do NOT send her setup commands again. The
+isolation check ran on her PC 2026-10-02: separate (below). The only thing
+left is the Codex half of the guard, once Codex is signed in there.
 
 > **To start the next phase, the whole instruction is "continue" or "next
 > phase".** There is no agreed next phase after Track F: do the
@@ -69,7 +70,7 @@ One phase per session.
 | ~~U2~~ | ~~Units: model shown~~ | **done 2026-09-28** (+ both U1 bugs fixed) | | |
 | ~~U3~~ | ~~Units: limits~~ | **done 2026-09-28** | | |
 | ~~U4~~ | ~~Units: choose model~~ | **done 2026-09-28** | | |
-| ~~15~~ | ~~Veda's engine~~ | **installed** (setup.ps1 + all sign-ins, confirmed 2026-09-28; self-updating). Optional: isolation check from her PC | | |
+| ~~15~~ | ~~Veda's engine~~ | **installed** (setup.ps1 + all sign-ins, confirmed 2026-09-28; self-updating). Isolation checked on her PC 2026-10-02: separate (Codex guard pending a Codex sign-in) | | |
 | ~~F1~~ | ~~Follow-ups: Deliberation engine~~ | **done 2026-09-29** (engine only; invisible until F2) | | |
 | ~~F2~~ | ~~Follow-ups: Deliberation console~~ | **done 2026-09-30** | | |
 | ~~F3~~ | ~~Follow-ups: Code Mode engine~~ | **done 2026-09-30** (engine only; invisible until F4) | | |
@@ -924,7 +925,9 @@ offer them, do not start them unasked:
   live try found Grok limited ("9 minutes before limit is gone"). The pick
   is safe either way (an ignored click reads back as "Asked for Expert, got
   Fast"), but nobody has seen Expert/Heavy answer on the free account.
-* **Phase 15's optional isolation check** from Veda's PC (below).
+* ~~Phase 15's optional isolation check~~ — **run 2026-10-02 on Veda's PC**:
+  separate (see "Phase 15 — isolation check" below). Only the Codex half of
+  the guard is left, once Codex is signed in there.
 * **From Claude Queue (compared 2026-09-29) -- ALL BUILT the same day**, no
   offers left from it. Console: the usage-limit hold, the attention chime,
   run-again (docs/magi.md "The prompt queue"). Engine: the project **check
@@ -952,15 +955,35 @@ back (Claude Sonnet 5.5, Gemini Flash) and every pick cleared to Site
 default. Refresh models live: free Claude also offers Sonnet 5 and Sonnet
 4.6 under More models.
 
-### Phase 15 — what is left (optional, only from Veda's PC)
+### Phase 15 — isolation check: RUN on Veda's PC 2026-10-02
 
-The install and sign-ins are DONE (2026-09-28). Nothing for Veda to run.
-The isolation check is now fully scripted: on her PC, "do the isolation
-check" runs **docs/magi-veda-isolation-check.md** (CLAUDE.md points there):
-`tests/live/magi-isolation.live.js` (checks 1-3) and
-`tests/live/magi-guard.live.js` with `MAGI_BASE` (check 4), plus one question
-to Veda. Dry-run on Tony's PC 2026-10-01: works, and found Veda has no MAGI
-password set (check 3 needs one). From any other PC there is nothing to do.
+Run per docs/magi-veda-isolation-check.md, on Veda's PC against HER engine
+(`eng_9dc2cc4b6a39` "Veda PC", **port 8001**, `/api/health` profile=veda).
+**Verdict: her MAGI is separate from Tony's.** No privacy FAIL anywhere.
+
+* **Check 1, each console reaches only its own engine: PASS.** Her console
+  reaches her engine (veda, `eng_9dc2cc4b6a39`), and Tony's console on her
+  PC finds no engine (offline). The first run crashed once with
+  `TypeError: Failed to fetch` on the console's own `/api/health` call right
+  after it came online, a timing flake in the headless browser. A diagnostic
+  then fetched it fine on 5/5 tries, and the re-run was 9/9 PASS.
+* **Check 2, history is separate: PASS.** Her console uses
+  `dashboards/magi_veda` and Tony's is `magi`. Her engine's run list (1 run)
+  holds none of Tony's 2026-10-01 runs. **Veda looked at History herself and
+  saw none of Tony's questions.**
+* **Check 3, locked profile fetches nothing: not applicable, no password.**
+  Veda chose not to set a MAGI password, so her profile is never locked.
+* **Check 4, Code Mode agent guard on HER engine: NOT VERIFIED, Codex signed
+  out.** `codex login status` on her PC says "Not logged in". The write
+  task never got an approval card and the read task returned no text or
+  tools (2 FAIL lines: "an approval card with probe.txt", "the engine
+  answered the agent 403"). That is Codex not running, not the guard
+  failing: nothing reached the scratch folder and the state never leaked.
+  `LIVE_ONLY=origin`: **5/5 PASS** (null and evil.example origins and a
+  cross-site POST are refused with 403; the Pages console and the
+  engine-served console are let in). To finish check 4 later: Veda signs in
+  to Codex on her PC, then run `MAGI_BASE=http://127.0.0.1:8001 node
+  tests/live/magi-guard.live.js` there (expect 14/14).
 
 ### (Done) Phase 14b — what it was
 
@@ -2254,8 +2277,11 @@ Brainstorm, Studio, History, Accounts, Doctor, handoff and lock **in both profil
 ### Phase 15 — Veda's engine (an install, not a build)
 
 *Status:* **installed 2026-09-28** (setup.ps1 -Profile veda, Accounts,
-coding agents, GitHub device sign-in; self-updating via the watchdog). Only
-the optional isolation verification below remains, from her PC.
+coding agents, GitHub device sign-in; self-updating via the watchdog).
+**Isolation verified 2026-10-02 on her PC** (port 8001): consoles and history
+are separate (PASS); the lock check is not applicable (no password); the
+Codex part of the agent guard is not verified because Codex is signed out
+there (origin guard PASS). Details are in §0 "Phase 15 — isolation check".
 
 *Purpose:* Move the already-working `veda` engine onto her machine.
 
