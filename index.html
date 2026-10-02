@@ -176,9 +176,9 @@ html,body{height:100%;}
 }
 #tony-app-nav .tn-btn:hover{background:transparent;color:var(--tn-ac,#c0aeea);border-color:var(--tn-ac,#c0aeea);filter:brightness(1.15);}
 #tony-app-nav .tn-btn.tn-active{
-  /* SOLID: 16% purple pre-mixed over the page (#1a1a1d), not a see-through
-     tint, and no halo on hover. Tony: solid fills or outlines, no gradients. */
-  background:#35323e;color:#dbd0f5;
+  /* SOLID purple with a dark label, like Veda's current-app button in her
+     mauve, and no halo on hover. Tony: solid fills or outlines, no gradients. */
+  background:var(--tn-ac,#c0aeea);color:#1a1a1d;
   border-color:var(--tn-ac,#c0aeea);cursor:default;
 }
 #tony-app-nav .tn-btn.tn-active:hover{filter:brightness(1.12);}
@@ -6663,29 +6663,22 @@ const CL  = ["work","finance","study","health","personal","urgent","other"];
 // runtime is whichever block loads last — Veda's. Both copies are identical on
 // purpose; never make them differ.
 //
-// TH_SEL() is MAGI's selected look (magi.html .navitem.active: a 16% wash of the
-// accent), given to Tony's TaskHub by the theme overhaul
-// (docs/theme-overhaul-plan.md). Drawn as an inset shadow so it tints whatever
-// background React painted without owning `background`. It reaches the call
-// sites through the theme object — THEMES.dark.SEL — and every site calls
-// (T.SEL||GLOW)(...), so the components BOTH profiles share (HabitModal,
-// TimePicker, DayPicker, PlanPanel…) keep Veda's glow when handed VD_T.
+// TH_SEL() is Tony's selected-state shadow (theme overhaul,
+// docs/theme-overhaul-plan.md). It reaches the call sites through the theme
+// object — THEMES.dark.SEL — and every site calls (T.SEL||GLOW)(...), so the
+// components BOTH profiles share (HabitModal, TimePicker, DayPicker,
+// PlanPanel…) keep Veda's glow when handed VD_T.
 const GLOW=(hex)=>{
   const h=String(hex||"").replace("#","");
   if(h.length<6)return "none";
   const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);
   return "0 0 0 1px rgba("+r+","+g+","+b+",.42),0 0 10px rgba("+r+","+g+","+b+",.42)";
 };
-const TH_SEL=(hex)=>{
-  const h=String(hex||"").replace("#","");
-  if(h.length<6)return "none";
-  const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);
-  // Solid, not a see-through wash: 16% accent pre-mixed over S1 (#232327).
-  // Tony wants solid fills or an outline, never anything that reads as a
-  // gradient (2026-10-02).
-  const m=(c,base)=>Math.round(base+(c-base)*.16);
-  return "inset 0 0 0 999px rgb("+m(r,35)+","+m(g,35)+","+m(b,39)+")";
-};
+// Tony's selected state is the control's own SOLID fill (like Veda's buttons,
+// in his colours) or its accent outline: nothing is laid over it. An inset
+// wash here once painted a dark film over the solid purple mic button, and a
+// see-through tint reads as a gradient (Tony, 2026-10-02).
+const TH_SEL=()=>"none";
 
 
 
@@ -17355,9 +17348,13 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
 (function(){
   const PROFILES={
     // Tony's colour is MAGI purple since the theme overhaul (docs/theme-overhaul-plan.md).
-    tony:{key:"profile_tony_unlocked",label:"Tony",emoji:"\u25C6\uFE0E",color:"#c0aeea"},
+    tony:{key:"profile_tony_unlocked",label:"Tony",emoji:"\u269C\uFE0E",color:"#c0aeea"},
     veda:{key:"profile_veda_unlocked",label:"Veda",emoji:"✦",color:"#8D769A"}
   };
+  // Tony's mark, a purple fleur-de-lis: drawn, because the ⚜️ emoji is
+  // always gold and a glyph's size changes with the font. em-sized to sit
+  // like Veda's ✦.
+  const TONY_MARK_SVG='<svg width="0.78em" height="0.78em" viewBox="0 0 24 22" aria-hidden="true" style="display:block;margin:0 auto;"><path d="M12 1C14.7 3.7 15.5 7.6 13.7 13H10.3C8.5 7.6 9.3 3.7 12 1ZM13.9 13C14.4 9.1 17.3 6.7 20.3 7.7C22.7 8.5 23.4 11.6 21.4 13.4C21.6 11.8 20.6 10.4 19 10.6C17.3 10.9 16.2 12.2 15.8 13ZM10.1 13C9.6 9.1 6.7 6.7 3.7 7.7C1.3 8.5 .6 11.6 2.6 13.4C2.4 11.8 3.4 10.4 5 10.6C6.7 10.9 7.8 12.2 8.2 13ZM7.4 13.4H16.6A.85 .85 0 0 1 16.6 15.1H7.4A.85 .85 0 0 1 7.4 13.4ZM10.9 15.5H13.1C13.1 17.6 12.7 19.4 12 21.2C11.3 19.4 10.9 17.6 10.9 15.5ZM13.6 15.5H15.3C15.6 17.1 16.7 18.1 18.4 17.9C17.8 19.5 16.1 20 14.9 19.2C14.1 18.6 13.7 17.4 13.6 15.5ZM10.4 15.5H8.7C8.4 17.1 7.3 18.1 5.6 17.9C6.2 19.5 7.9 20 9.1 19.2C9.9 18.6 10.3 17.4 10.4 15.5Z" fill="currentColor"/></svg>';
   const AUTH_WORKER='https://taskhub-reminders.av1.workers.dev';
   // Profile entry now uses the shared app-lock system (window.alGate / alManage):
   //   worker KV hash + Firebase cross-device sync + version-bump re-require.
@@ -17542,7 +17539,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
       <div style="display:flex;gap:24px;flex-wrap:wrap;justify-content:center;">
         <div class="prof-card" id="card-tony" style="border-color:${PROFILES.tony.color}44;">
           ${_profManageBtnHtml("tony")}
-          <div style="font-size:42px;line-height:1;color:${PROFILES.tony.color};"><span style="display:inline-block;transform:scale(1.35);">${PROFILES.tony.emoji}</span></div>
+          <div style="font-size:42px;line-height:1;color:${PROFILES.tony.color};">${TONY_MARK_SVG}</div>
           <div style="font-family:'Manrope',system-ui,sans-serif;font-size:22px;font-weight:800;letter-spacing:-0.2px;color:${PROFILES.tony.color};">${PROFILES.tony.label}</div>
         </div>
         <div class="prof-card" id="card-veda" style="border-color:${PROFILES.veda.color}44;">

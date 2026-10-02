@@ -206,8 +206,8 @@ body:not([data-profile=veda]) .wordmark{
 .profile-card.tony{border-color:#e0b87444;}
 .profile-card.tony:hover{border-color:#e0b874;}
 .profile-card.tony .emoji,.profile-card.tony .pname{color:#e0b874;}
-/* Tony's diamond is MAGI purple everywhere (theme overhaul), ahead of phase 5. */
-.profile-card.tony .emoji{color:#c0aeea;transform:scale(1.35);}
+/* Tony's fleur-de-lis is MAGI purple everywhere (theme overhaul), ahead of phase 5. */
+.profile-card.tony .emoji{color:#c0aeea;}
 .profile-card.tony .pname{font-family:'Manrope',system-ui,sans-serif;font-weight:800;letter-spacing:-.2px;}
 .profile-card.veda{border-color:rgba(141,118,154,0.5);} .profile-card.veda:hover{border-color:rgba(183,159,196,0.85);box-shadow:0 8px 24px rgba(141,118,154,0.24),0 0 12px rgba(141,118,154,0.18);}
 .profile-card.veda .emoji,.profile-card.veda .pname{color:#b79fc4;font-family:'Playfair Display',serif;}
@@ -938,7 +938,7 @@ window._mailRelay = window._mailRelay || async function (res) {
   <div class="profile-cards">
     <div class="profile-card tony" onclick="ML.chooseProfile('tony')">
       <span class="fav-star" id="fav-tony" onclick="event.stopPropagation();ML.toggleFav('tony')" title="Set as default">★</span>
-      <div class="emoji">&#x25C6;&#xFE0E;</div>
+      <div class="emoji"><svg width="0.78em" height="0.78em" viewBox="0 0 24 22" aria-hidden="true"><path d="M12 1C14.7 3.7 15.5 7.6 13.7 13H10.3C8.5 7.6 9.3 3.7 12 1ZM13.9 13C14.4 9.1 17.3 6.7 20.3 7.7C22.7 8.5 23.4 11.6 21.4 13.4C21.6 11.8 20.6 10.4 19 10.6C17.3 10.9 16.2 12.2 15.8 13ZM10.1 13C9.6 9.1 6.7 6.7 3.7 7.7C1.3 8.5 .6 11.6 2.6 13.4C2.4 11.8 3.4 10.4 5 10.6C6.7 10.9 7.8 12.2 8.2 13ZM7.4 13.4H16.6A.85 .85 0 0 1 16.6 15.1H7.4A.85 .85 0 0 1 7.4 13.4ZM10.9 15.5H13.1C13.1 17.6 12.7 19.4 12 21.2C11.3 19.4 10.9 17.6 10.9 15.5ZM13.6 15.5H15.3C15.6 17.1 16.7 18.1 18.4 17.9C17.8 19.5 16.1 20 14.9 19.2C14.1 18.6 13.7 17.4 13.6 15.5ZM10.4 15.5H8.7C8.4 17.1 7.3 18.1 5.6 17.9C6.2 19.5 7.9 20 9.1 19.2C9.9 18.6 10.3 17.4 10.4 15.5Z" fill="currentColor"/></svg></div>
       <div class="pname">Tony</div>
       <div class="plock" id="plock-tony"></div>
     </div>
@@ -1742,7 +1742,7 @@ var AUTH_WORKER = 'https://taskhub-reminders.av1.workers.dev';
 var AUTH_JOURNAL = 'mylist';
 var FORMSPREE = { tony:'https://formspree.io/f/xeedkebo', veda:'https://formspree.io/f/xzdlwaqg' };
 var EMAILS = { tony:'anthonypn99@gmail.com', veda:'vedaapatel1605@gmail.com' };
-var PROFILE_META = { tony:{ label:'Tony', emoji:'\u25C6\uFE0E' }, veda:{ label:'Veda', emoji:'\u2726' } };
+var PROFILE_META = { tony:{ label:'Tony', emoji:'\u269C\uFE0E' }, veda:{ label:'Veda', emoji:'\u2726' } };
 
 var state = { tony:{lists:[]}, veda:{lists:[]}, locks:{}, lockV:{} };
 var activeProfile = null;

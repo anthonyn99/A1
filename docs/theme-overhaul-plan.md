@@ -79,8 +79,9 @@ call, 2026-10-02). Start 1b only when Tony says "continue theme"
 
 Tony wants MAGI's look on his side of every program: the colours (pastel, with
 **purple dominant and gold kept as an accent**), fonts, UI and button-highlight
-mechanics. His profile colour is MAGI purple and his icon is a purple diamond ◆ (`\u25C6\uFE0E`, drawn in his colour like
-Veda's ✦; was ⚜️, then ☯️, then 👾).
+mechanics. His profile colour is MAGI purple and his icon is a purple fleur-de-lis: an em-sized inline SVG
+(the ⚜️ emoji is always gold) sized like Veda's ✦. He went ⚜️ → ☯️ → 👾 → ◆ →
+this on 2026-10-02.
 **And drag and drop:** every reorder, on desktop AND mobile, behaves like
 MAGI's unit chips and queues (added by Tony 2026-10-02: "make it proper").
 **Veda's side is never touched.** That covers her TaskHub, Brainstorm Journal,
@@ -128,14 +129,17 @@ program (done 2026-10-02, see §0).
 button, chip, card, bar and selected state is EITHER a solid fill OR an
 outline highlight. Never a `linear-gradient`/`radial-gradient` fill, and never
 a see-through tint or soft halo that reads as one.
-- A tinted fill is pre-mixed into an OPAQUE colour (e.g. 16% `#c0aeea` over
-  `#1a1a1d` = `#35323e`; over S1 `#232327` = `#3c3946`), never
-  `color-mix(… transparent)` or an rgba wash.
+- **Selected / current = Veda's look in Tony's colours:** a SOLID `#c0aeea`
+  fill with a dark `#1a1a1d` label (the program nav's current app, the mic,
+  Timer, Plan chip). Or an accent outline on a transparent button. Nothing is
+  laid over a fill: `TH_SEL` returns `none` (an opaque inset wash once
+  darkened the solid mic button).
+- Never `color-mix(… transparent)` or an rgba wash as a fill.
 - No hover halos on a selected button (the old 3px ring at 22% is gone).
 - Every phase greps its program for `gradient(` and for translucent
   backgrounds on controls, and makes them solid. Veda's side keeps hers.
-- Done so far (2026-10-02): the program nav's current app, `TH_SEL` (every
-  selected state in Tony's TaskHub), the weekly bars, the week's parcel /
+- Done so far (2026-10-02): the program nav's current app, `TH_SEL`, the
+  weekly bars, the week's parcel /
   bill / catalyst cards (`OI_CARD_BG`) and Tony's waiting plan card.
 - **Borders follow the accent too:** no gold outline on a purple control. The
   app-lock card's outline, focus ring, button border and icon all take the
@@ -153,8 +157,9 @@ a see-through tint or soft halo that reads as one.
 ### Button mechanics (magi.html "global hover layer")
 - **Hover:** `brightness(1.15)`, and the outline turns accent.
 - **Press:** `brightness(.94)` plus 1px down.
-- **Selected/active:** a SOLID 16% accent fill (pre-mixed, opaque) with an
-  `acl` label. No glow, and no hover ring (Tony: no gradient fills).
+- **Selected/active:** a SOLID accent fill with a dark label, like Veda's
+  buttons in Tony's purple; or an accent outline. No glow, no wash, no hover
+  ring (Tony: no gradient fills).
 - **Focus:** a 2px accent outline at 1px offset (keyboard only).
 - **Fields:** an accent border plus a 3px ring at 16%.
 
@@ -175,8 +180,8 @@ a see-through tint or soft halo that reads as one.
   React's inline `border-color`.
 - **The selected state** from JS (index.html) comes from
   `TH_SEL(hex)`:
-  - It is an inset 999px shadow in an OPAQUE colour (16% accent pre-mixed over
-    S1), so it never owns `background` and never reads as a gradient.
+  - It returns `none`: the call sites already paint a solid fill or an
+    accent border, and anything laid over them read as a gradient.
   - It reaches call sites through the theme object (`THEMES.dark.SEL`). Every
     site calls `(T.SEL||GLOW)(…)`, so shared components handed Veda's `VD_T`
     keep her glow.
@@ -298,8 +303,8 @@ The drag half:
 
 **Foundation:**
 - hoverfx.js gained magi mode (nearest declaration wins), with its tests.
-- Tony's icon in magi.html, index.html and mylist.html is now ◆ in
-  `#c0aeea` (MAGI: `ink: true` paints the glyph in the profile colour).
+- Tony's icon in magi.html, index.html and mylist.html is a purple
+  fleur-de-lis SVG (index `TONY_MARK_SVG`, MAGI `avatar()` for `ink: true`).
 - MAGI's Tony profile colour is `#c0aeea` (`tests/magi-profiles.test.js`
   updated).
 - `tests/live/theme-shots.live.js` was added. `tests/live/cdp.js` gained

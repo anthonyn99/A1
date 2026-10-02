@@ -6290,7 +6290,7 @@ const MAGI_PROFILES = {
   // `doc` is the Firestore document under /dashboards. Tony keeps "magi" so
   // every deliberation he has ever run stays exactly where it is -- there is
   // no history migration in this change, and there must never need to be one.
-  tony: { label: "Tony", emoji: "◆︎", ink: true, color: "#c0aeea", doc: "magi",      lock: "tony_magi" },
+  tony: { label: "Tony", emoji: "⚜︎", ink: true, color: "#c0aeea", doc: "magi",      lock: "tony_magi" },
   veda: { label: "Veda", emoji: "✦",       color: "#8D769A", doc: "magi_veda", lock: "veda_magi" },
 };
 const PROFILE_ORDER = ["tony", "veda"];
@@ -26891,14 +26891,14 @@ document.addEventListener("keydown", (e) => {
   if (PROFILE.unlocked && (GATE.picking || LOCK.mode === "setup" || LOCK.mode === "manage")) hideLock();
 });
 
-/** A profile's avatar. An `ink` profile's glyph (Tony's ◆) is drawn in the
- *  profile colour and scaled 1.35x, since the diamond sits small in its em box
- *  next to Veda's ✦. A transform, so the avatar circle keeps its size. */
+/** A profile's avatar. An `ink` profile (Tony) gets a drawn fleur-de-lis in
+ *  the profile colour, em-sized to sit like Veda's ✦: the ⚜️ emoji is
+ *  always gold, and a glyph's size depends on the font. */
 function avatar(tag, cls, p) {
   if (!p.ink) return el(tag, cls, p.emoji);
-  const a = el(tag, cls), g = el("span", "", p.emoji);
-  g.style.cssText = "display:inline-block;transform:scale(1.35);color:" + p.color;
-  a.append(g);
+  const a = el(tag, cls);
+  a.style.color = p.color;
+  a.innerHTML = '<svg width="0.78em" height="0.78em" viewBox="0 0 24 22" aria-hidden="true"><path d="M12 1C14.7 3.7 15.5 7.6 13.7 13H10.3C8.5 7.6 9.3 3.7 12 1ZM13.9 13C14.4 9.1 17.3 6.7 20.3 7.7C22.7 8.5 23.4 11.6 21.4 13.4C21.6 11.8 20.6 10.4 19 10.6C17.3 10.9 16.2 12.2 15.8 13ZM10.1 13C9.6 9.1 6.7 6.7 3.7 7.7C1.3 8.5 .6 11.6 2.6 13.4C2.4 11.8 3.4 10.4 5 10.6C6.7 10.9 7.8 12.2 8.2 13ZM7.4 13.4H16.6A.85 .85 0 0 1 16.6 15.1H7.4A.85 .85 0 0 1 7.4 13.4ZM10.9 15.5H13.1C13.1 17.6 12.7 19.4 12 21.2C11.3 19.4 10.9 17.6 10.9 15.5ZM13.6 15.5H15.3C15.6 17.1 16.7 18.1 18.4 17.9C17.8 19.5 16.1 20 14.9 19.2C14.1 18.6 13.7 17.4 13.6 15.5ZM10.4 15.5H8.7C8.4 17.1 7.3 18.1 5.6 17.9C6.2 19.5 7.9 20 9.1 19.2C9.9 18.6 10.3 17.4 10.4 15.5Z" fill="currentColor"/></svg>';
   return a;
 }
 
