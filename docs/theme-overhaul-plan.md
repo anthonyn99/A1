@@ -285,7 +285,9 @@ The drag half:
 
 **index.html:**
 - `THEMES.dark` is MAGI's palette, plus `GOLD`, `S3`, `BLUE` and `SEL`.
-  `CC_DARK.urgent` is pastel.
+  **Category colours are NOT themed** (Tony, 2026-10-02): `CC_DARK` (urgent
+  stays bright red `#f85149`) and the catalyst importance colours keep their
+  original values. The same goes for every program's category/tag colours.
 - `PLAN_PAL_TONY.AC` is purple.
 - The weekly bars use `T.GOLD`.
 - Wordmark `#dbd0f5`. Section titles (`stt`) are uppercase, tracked, in `acl`.
