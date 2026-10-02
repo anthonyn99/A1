@@ -50,8 +50,10 @@ call, 2026-10-02). Start 1b only when Tony says "continue theme"
     `desktop/shield/build.ps1` rebuild and reinstall. Not done.
   - **Extensions:** reload them in `chrome://extensions`.
   - **Installed PWAs:** may keep the old icon until reinstalled.
-- **Program-nav labels are lighter:** weight 600 and tracking .6px instead of
-  MAGI's 700/1px. The row holds a dozen programs; Tony wanted it narrower.
+- **Program-nav labels are lighter and NOT all caps:** weight 600, tracking
+  .3px, mixed case (MAGI's .btn is 700/1px uppercase). The row holds a dozen
+  programs; Tony wanted it narrower, then the names as written. That covers
+  the buttons, `#tn-mobile-select` and `#tn-dd-trigger`.
 
 **What phase 1 left for later (deliberately)**
 - **The dead cooking CSS (index.html `<style>` right after the Veda header
