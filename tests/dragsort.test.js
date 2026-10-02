@@ -82,7 +82,7 @@ async function drag(target, from, to, kind) {
 
   L = vlist(4);
   await drag(L.rows[3].querySelector('.txt'), [50, 140], [50, 50]);
-  ok('up: row 3 to slot 1', JSON.stringify(L.drops.map((d) => d.slice(0, 2))) === '[[3,1]]', JSON.stringify(L.drops));
+  ok('up: row 3 to slot 1', JSON.stringify(L.drops.map((d) => d.slice(0, 2))) === '[[3,1]]', JSON.stringify(L.drops.map((d) => d.slice(0, 2))));
   L.list.remove();
 
   L = vlist(4);
@@ -146,7 +146,7 @@ async function drag(target, from, to, kind) {
   await drag(L.rows[0].querySelector('.txt'), [50, 20], [50, 110], 'touch');
   ok('a finger on the row (not the grip) scrolls: no drag', L.drops.length === 0);
   await drag(L.rows[0].querySelector('.dsort-grip'), [10, 20], [10, 110], 'touch');
-  ok('a finger on the grip drags', JSON.stringify(L.drops.map((d) => d.slice(0, 2))) === '[[0,2]]', JSON.stringify(L.drops));
+  ok('a finger on the grip drags', JSON.stringify(L.drops.map((d) => d.slice(0, 2))) === '[[0,2]]', JSON.stringify(L.drops.map((d) => d.slice(0, 2))));
   L.list.remove();
 
   // A chip row: no grips, horizontal, a 300ms hold picks up.
@@ -190,8 +190,9 @@ async function drag(target, from, to, kind) {
      A.drops.length === 1 && A.drops[0][0] === 1 && A.drops[0][1] === 1 && A.drops[0][2] === A.list && A.drops[0][3] === B.list,
      JSON.stringify(A.drops.map((d) => d.slice(0, 2))));
   ok('both lists are put back', [...A.rows, ...B.rows].every((r) => !r.style.transform) && !B.list.classList.contains('dsort-on'));
-  await drag(A.rows[0].querySelector('.txt'), [50, 20], [350, 200]);
-  ok('below the last row of the other list: appended (to = its length)', false === false && (A.drops.length === 1 || (A.drops[1] && A.drops[1][1] === 2)),
+  // B is 2 rows (0-80px); 75px is inside it, past its last row's middle.
+  await drag(A.rows[0].querySelector('.txt'), [50, 20], [350, 75]);
+  ok('past the other list\'s last row: appended (to = its length)', A.drops.length === 2 && A.drops[1][1] === 2 && A.drops[1][3] === B.list,
      JSON.stringify(A.drops.map((d) => d.slice(0, 2))));
   const C = vlist(2, 600, { group: 'other' });
   await drag(A.rows[0].querySelector('.txt'), [50, 20], [650, 30]);
