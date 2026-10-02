@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import time
 from pathlib import Path
 
@@ -194,6 +195,24 @@ def test_codex_is_not_tied_to_any_other_login(tmp_path, monkeypatch):
     b = slots.env_for("codex", "personal")["CODEX_HOME"]
     assert a != b
     assert Path(a).parent == Path(b).parent == tmp_path / "cli"
+
+
+def test_codex_path_has_no_windowsapps(tmp_path, monkeypatch):
+    """Codex's sandbox cannot launch Store apps, so a Store pwsh on PATH broke
+    every PowerShell command it ran (Veda's PC). Only those entries go."""
+    monkeypatch.setattr(slots, "profiles_dir", lambda: tmp_path)
+    keep = [r"C:\Windows\System32", r"C:\Windows\System32\WindowsPowerShell\v1.0",
+            r"C:\Tools\NotWindowsAppsReally"]
+    drop = [r"C:\Program Files\WindowsApps\Microsoft.PowerShell_7.6.6.0_x64__8wekyb3d8bbwe",
+            r"C:\Users\x\AppData\Local\Microsoft\WindowsApps",
+            "C:\\Users\\x\\AppData\\Local\\Microsoft\\WindowsApps\\"]
+    monkeypatch.setenv("PATH", os.pathsep.join([drop[0], keep[0], drop[1], keep[1], drop[2], keep[2]]))
+    env = slots.env_for("codex", "work")
+    path = next(v for k, v in env.items() if k.upper() == "PATH")
+    assert path.split(os.pathsep) == keep
+    # Claude runs without that sandbox; its PATH is left alone.
+    claude = slots.env_for("claude", "work")
+    assert drop[1] in next(v for k, v in claude.items() if k.upper() == "PATH")
 
 
 def test_claude_slots_get_their_own_config_dir(tmp_path, monkeypatch):

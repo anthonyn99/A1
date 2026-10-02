@@ -77,6 +77,15 @@ def env_for(agent: str, slot: str) -> dict[str, str]:
         env["DISABLE_AUTOUPDATER"] = "1"
     elif agent == "codex":
         env["CODEX_HOME"] = str(d)
+        # Codex's unelevated sandbox cannot start anything under a WindowsApps
+        # folder (Store apps and their aliases): "CreateProcessAsUserW failed:
+        # 5 (Access is denied.)". With the Store PowerShell 7 on PATH, every
+        # PowerShell command Codex ran failed, and tasks lived on Codex
+        # falling back to cmd.exe (Veda's PC, 2026-10-02). Without those
+        # entries it finds Windows PowerShell 5.1 in System32, verified live.
+        for k in [k for k in env if k.upper() == "PATH"]:
+            env[k] = os.pathsep.join(p for p in env[k].split(os.pathsep)
+                                     if "windowsapps" not in re.split(r"[\\/]", p.lower()))
     return env
 
 

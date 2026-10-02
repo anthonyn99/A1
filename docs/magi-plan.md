@@ -927,8 +927,8 @@ offer them, do not start them unasked:
   Fast"), but nobody has seen Expert/Heavy answer on the free account.
 * ~~Phase 15's optional isolation check~~ — **run 2026-10-02 on Veda's PC**:
   separate, and the guard passes (see "Phase 15 — isolation check" below).
-  magi-guard.live.js fixed, 14/14. Open offer: Codex's sandbox cannot start
-  the Store pwsh.exe on her PC (noted there).
+  magi-guard.live.js fixed, 14/14, and Codex's PowerShell in Code Mode
+  fixed (its sandbox could not start the Store pwsh; noted there).
 * **From Claude Queue (compared 2026-09-29) -- ALL BUILT the same day**, no
   offers left from it. Console: the usage-limit hold, the attention chime,
   run-again (docs/magi.md "The prompt queue"). Engine: the project **check
@@ -992,18 +992,26 @@ Run per docs/magi-veda-isolation-check.md, on Veda's PC against HER engine
   denied.)`). Codex picks the WindowsApps `pwsh.exe`, a Store alias a
   sandboxed process cannot launch, while `cmd.exe` works. The 13/14 run
   passed only because Codex happened to retry with cmd.exe; two later runs
-  gave up. `magi-guard.live.js` now (a) tells Codex to use cmd.exe, (b) drops
-  curl's `-w " HTTP%{http_code}"`, which `cmd /c '...'` lost and which made
-  Codex refuse to write an "incomplete" probe.txt, and (c) counts the
-  refusal body as the 403 (a status code, if present, must be 403). Re-run:
+  gave up. This hit real Code Mode tasks too, in both modes.
+  **Fixed in the product:** `slots.env_for("codex")` drops every PATH entry
+  that has a `WindowsApps` folder in it (Store apps cannot run in that
+  sandbox anyway), so Codex finds Windows PowerShell 5.1 in System32.
+  Direct `codex exec` A/B on her slot: as-is gives Store pwsh and "Access is
+  denied"; stripped gives `powershell.exe` 5.1, which runs. Through her
+  restarted engine, a real read task asked for PowerShell ran
+  `...\WindowsPowerShell\v1.0\powershell.exe` and answered. Unit test
+  `test_codex_path_has_no_windowsapps`; suite 1642 passed (1 timing test
+  flaked under load, passes alone). Harmless on any PC: where pwsh is
+  a normal install (Program Files\PowerShell\7), it stays on PATH.
+  `magi-guard.live.js` also (a) drops curl's `-w " HTTP%{http_code}"`, which
+  shells mangle and which made Codex refuse an "incomplete" probe.txt, and
+  (b) counts the refusal body as the 403 (a status code, if present, must
+  be 403). Re-run with no shell hint, Codex choosing PowerShell itself:
   **14 passed, 0 failed.**
-  **Open, product side (offer, do not start):** on this PC, Codex's
-  PowerShell fails in BOTH modes for real Code Mode tasks too, so every
-  task leans on Codex falling back to cmd.exe. Options: point Codex at
-  `C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe` or a
-  non-Store pwsh, or add a cmd.exe hint like READ_HINT in
-  `code/agents/codex_cli.py`. Not checked yet whether Tony's PC has the
-  same Store pwsh.
+  Note: this PC also runs a **tony**-profile engine on :8000
+  (`eng_f2a5dcf41f29` "VedaHPENVY - tony", her older MAGI;
+  `magi/data/tony/engine.json` exists), so a plain `magi\restart.ps1`
+  here restarts THAT one. Use `-Profile veda` on this PC.
 
 ### (Done) Phase 14b — what it was
 
