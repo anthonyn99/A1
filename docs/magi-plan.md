@@ -42,8 +42,8 @@ prompt queue". F4's "mid-run send" and anything queue-shaped build on
 **Phase 15 (Veda's engine) is INSTALLED**: she ran `magi\setup.ps1 -Profile veda`, signed in
 to Accounts, the coding agents and GitHub (Tony confirmed 2026-09-28), and
 her engine self-updates. Do NOT send her setup commands again. The
-isolation check ran on her PC 2026-10-02: separate (below). The only thing
-left is the Codex half of the guard, once Codex is signed in there.
+isolation check ran on her PC 2026-10-02: fully separate, and the agent
+guard works on her engine (below). Phase 15 is done.
 
 > **To start the next phase, the whole instruction is "continue" or "next
 > phase".** There is no agreed next phase after Track F: do the
@@ -70,7 +70,7 @@ One phase per session.
 | ~~U2~~ | ~~Units: model shown~~ | **done 2026-09-28** (+ both U1 bugs fixed) | | |
 | ~~U3~~ | ~~Units: limits~~ | **done 2026-09-28** | | |
 | ~~U4~~ | ~~Units: choose model~~ | **done 2026-09-28** | | |
-| ~~15~~ | ~~Veda's engine~~ | **installed** (setup.ps1 + all sign-ins, confirmed 2026-09-28; self-updating). Isolation checked on her PC 2026-10-02: separate (Codex guard pending a Codex sign-in) | | |
+| ~~15~~ | ~~Veda's engine~~ | **installed** (setup.ps1 + all sign-ins, confirmed 2026-09-28; self-updating). Isolation checked on her PC 2026-10-02: separate, guard PASS | | |
 | ~~F1~~ | ~~Follow-ups: Deliberation engine~~ | **done 2026-09-29** (engine only; invisible until F2) | | |
 | ~~F2~~ | ~~Follow-ups: Deliberation console~~ | **done 2026-09-30** | | |
 | ~~F3~~ | ~~Follow-ups: Code Mode engine~~ | **done 2026-09-30** (engine only; invisible until F4) | | |
@@ -926,8 +926,8 @@ offer them, do not start them unasked:
   is safe either way (an ignored click reads back as "Asked for Expert, got
   Fast"), but nobody has seen Expert/Heavy answer on the free account.
 * ~~Phase 15's optional isolation check~~ — **run 2026-10-02 on Veda's PC**:
-  separate (see "Phase 15 — isolation check" below). Only the Codex half of
-  the guard is left, once Codex is signed in there.
+  separate, and the guard passes (see "Phase 15 — isolation check" below).
+  Small follow-up: loosen one assertion in magi-guard.live.js (noted there).
 * **From Claude Queue (compared 2026-09-29) -- ALL BUILT the same day**, no
   offers left from it. Console: the usage-limit hold, the attention chime,
   run-again (docs/magi.md "The prompt queue"). Engine: the project **check
@@ -973,17 +973,22 @@ Run per docs/magi-veda-isolation-check.md, on Veda's PC against HER engine
   saw none of Tony's questions.**
 * **Check 3, locked profile fetches nothing: not applicable, no password.**
   Veda chose not to set a MAGI password, so her profile is never locked.
-* **Check 4, Code Mode agent guard on HER engine: NOT VERIFIED, Codex signed
-  out.** `codex login status` on her PC says "Not logged in". The write
-  task never got an approval card and the read task returned no text or
-  tools (2 FAIL lines: "an approval card with probe.txt", "the engine
-  answered the agent 403"). That is Codex not running, not the guard
-  failing: nothing reached the scratch folder and the state never leaked.
-  `LIVE_ONLY=origin`: **5/5 PASS** (null and evil.example origins and a
-  cross-site POST are refused with 403; the Pages console and the
-  engine-served console are let in). To finish check 4 later: Veda signs in
-  to Codex on her PC, then run `MAGI_BASE=http://127.0.0.1:8001 node
-  tests/live/magi-guard.live.js` there (expect 14/14).
+* **Check 4, Code Mode agent guard on HER engine: PASS** (13/14 by the
+  script; the one FAIL is the test's wording, not the guard). The first try
+  had Codex signed out (MAGI's slot, `profiles/veda/cli/codex-codex1`; the
+  plain `codex login status` stays "Not logged in" because that is
+  `~\.codex`, which MAGI never uses). After Veda signed in through MAGI, the
+  full run: the write task's agent got
+  `{"detail":"not from a coding agent's process"}` (the engine sends that
+  body only with 403, `magi/app.py:280`), and her engine logged
+  `[agent_guard] 403 GET /api/code/state: pid 38652 is in the agents' job`.
+  The approval card held probe.txt, it was denied, and nothing reached the
+  folder. The read task ran curl and got nothing back. Origin: 5/5.
+  **The script's one FAIL**, "the engine answered the agent 403", wants
+  ` HTTP403` in probe.txt, but Codex wrote only the body and dropped curl's
+  `-w " HTTP%{http_code}"` suffix. For Tony: loosen that assertion in
+  `tests/live/magi-guard.live.js` so the refusal body alone counts
+  (`/coding agent/`) and HTTP403 is optional.
 
 ### (Done) Phase 14b — what it was
 
@@ -2280,8 +2285,8 @@ Brainstorm, Studio, History, Accounts, Doctor, handoff and lock **in both profil
 coding agents, GitHub device sign-in; self-updating via the watchdog).
 **Isolation verified 2026-10-02 on her PC** (port 8001): consoles and history
 are separate (PASS); the lock check is not applicable (no password); the
-Codex part of the agent guard is not verified because Codex is signed out
-there (origin guard PASS). Details are in §0 "Phase 15 — isolation check".
+Code Mode agent guard refuses her Codex (403, logged by her engine) and the
+origin guard passes. Details are in §0 "Phase 15 — isolation check".
 
 *Purpose:* Move the already-working `veda` engine onto her machine.
 
