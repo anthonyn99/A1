@@ -3923,7 +3923,7 @@ window.THRL={
    tuned to read against TaskHub's dark surfaces. Every one is paired with a
    number or a word in the markup — state never rests on colour alone. */
 .thts{
-  --ts-grn:#7fc48f; --ts-grn-d:#5f9c70;
+  --ts-grn:#a4b986; --ts-grn-d:#a4b986;  /* the suite pastel green (THEMES.dark), flat: no darker step */
   --ts-amb:#e0b874; --ts-amb-d:#b8935a;
   --ts-red:#d68a7c; --ts-red-d:#a96759;
   --ts-blu:#6fa8dc; --ts-blu-d:#4d7ea8;
@@ -4084,7 +4084,7 @@ window.THRL={
   transform:translate(-50%,-50%);border-radius:50%;pointer-events:none;
   background:radial-gradient(closest-side,var(--ts-glow),transparent 74%);
   filter:blur(4px);transition:background .5s;}
-.thts-hero.is-charge{--ts-glow:rgba(127,196,143,.5);}
+.thts-hero.is-charge{--ts-glow:rgba(164,185,134,.5);}
 .thts-hero.is-climate{--ts-glow:rgba(111,168,220,.44);}
 .thts-hero.is-warn{--ts-glow:rgba(214,138,124,.4);}
 .thts-hero.is-charge::after{animation:thts-breathe 2.8s ease-in-out infinite;}
@@ -4146,7 +4146,7 @@ window.THRL={
   font-size:9px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;
   border:1px solid var(--ts-bd);background:var(--ts-s1);color:var(--ts-txd);white-space:nowrap;}
 .thts-pill svg{width:11px;height:11px;flex-shrink:0;}
-.thts-pill.on{color:var(--ts-grn);border-color:rgba(127,196,143,.45);}
+.thts-pill.on{color:var(--ts-grn);border-color:rgba(164,185,134,.45);}
 .thts-pill.info{color:var(--ts-blu);border-color:rgba(111,168,220,.45);}
 .thts-pill.warn{color:var(--ts-red);border-color:rgba(214,138,124,.5);}
 .thts-pill.acc{color:var(--ts-ac);border-color:var(--ts-bdl);}
@@ -4888,10 +4888,10 @@ function carSvg(hex,sedan,charging){
 
     // Charge port on the rear quarter, alive only while current is flowing.
     charging?h('g',{key:'cp'},
-      h('circle',{key:'c',cx:C.port[0],cy:C.port[1],r:5,fill:'#7fc48f',opacity:.95},
+      h('circle',{key:'c',cx:C.port[0],cy:C.port[1],r:5,fill:'#a4b986',opacity:.95},
         h('animate',{attributeName:'opacity',values:'.35;1;.35',dur:'1.6s',repeatCount:'indefinite'})),
       [0,1,2].map(function(i){
-        return h('circle',{key:i,cx:C.port[0],cy:C.port[1],r:2,fill:'#7fc48f'},
+        return h('circle',{key:i,cx:C.port[0],cy:C.port[1],r:2,fill:'#a4b986'},
           h('animate',{key:'y',attributeName:'cy',
             values:C.port[1]+';'+(C.port[1]-26),dur:'1.6s',
             begin:(i*0.53)+'s',repeatCount:'indefinite'}),
