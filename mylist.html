@@ -227,17 +227,28 @@ body:not([data-profile=veda]) .wordmark{
 
 #main{flex:1;max-width:760px;width:100%;margin:0 auto;padding:14px clamp(12px,4vw,22px) calc(env(safe-area-inset-bottom,0px) + 170px);}
 
-#lists-bar{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;}
+/* The list tabs scroll; "+ New list" sits OUTSIDE the scroller, pinned at the
+   right end of the row, so it is always one tap away however many lists exist. */
+#lists-row{display:flex;align-items:flex-start;gap:8px;margin-bottom:14px;}
+#lists-bar{flex:1;min-width:0;display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;}
+#new-list-btn{flex:0 0 auto;font-size:13px;}
+#new-list-btn svg{width:14px;height:14px;flex-shrink:0;}
 /* soft edge fades tell you there are more lists off-screen in that direction */
 #lists-bar.fade-r{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 30px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 30px),transparent);}
 #lists-bar.fade-l{-webkit-mask-image:linear-gradient(to right,transparent,#000 30px);mask-image:linear-gradient(to right,transparent,#000 30px);}
 #lists-bar.fade-l.fade-r{-webkit-mask-image:linear-gradient(to right,transparent,#000 30px,#000 calc(100% - 30px),transparent);mask-image:linear-gradient(to right,transparent,#000 30px,#000 calc(100% - 30px),transparent);}
 .list-chip{flex-shrink:0;display:inline-flex;align-items:center;gap:7px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:8px 14px;font-size:13px;font-weight:700;color:var(--textdim);cursor:pointer;transition:border-color .15s,background .15s,color .15s;font-family:var(--font-btn);white-space:nowrap;}
-@media(max-width:520px){ .list-chip{padding:8px 12px;font-size:12.5px;gap:6px;} #lists-bar{gap:6px;} }
+@media(max-width:520px){
+  .list-chip{padding:8px 12px;font-size:12.5px;gap:6px;} #lists-bar{gap:6px;} #lists-row{gap:6px;}
+  /* phones: the pinned button folds to a round "+" so the tabs keep the width */
+  #new-list-btn{width:35px;height:35px;padding:0;justify-content:center;border-radius:50%;}
+  #new-list-btn .nl-txt{display:none;}
+}
 .list-chip:hover{border-color:var(--border2);}
 .list-chip.active{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}
 .list-chip .cnt{font-size:11px;opacity:.8;}
 .list-chip.add{color:var(--accent);border-style:dashed;}
+.list-chip.add:hover{border-color:var(--accent);}
 
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px;}
 .section-label{font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--textmute);margin-bottom:10px;font-family:var(--font-btn);}
@@ -955,7 +966,10 @@ window._mailRelay = window._mailRelay || async function (res) {
 
   <div id="main">
     <div id="view-switch-wrap"></div>
-    <div id="lists-bar"></div>
+    <div id="lists-row">
+      <div id="lists-bar"></div>
+      <button type="button" id="new-list-btn" class="list-chip add" onclick="ML.addList()" title="New list" aria-label="New list"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span class="nl-txt">New list</span></button>
+    </div>
     <div id="list-view"></div>
   </div>
 </div>
@@ -3480,7 +3494,6 @@ function renderListsBar(){
     var cnt=(l.items||[]).filter(function(x){return !x.done;}).length;
     h+='<div class="list-chip'+(l.id===activeListId?' active':'')+'" data-id="'+l.id+'" title="'+esc(LTof(l).label)+' list" onclick="ML.openList(\''+l.id+'\')">'+esc(l.name)+' <span class="cnt">'+cnt+'</span></div>';
   });
-  h+='<div class="list-chip add" onclick="ML.addList()">+ New list</div>';
   // Rebuild only when something changed, and keep the bar's scroll position —
   // a re-render must never yank the strip back to the first list.
   if(bar._html!==h){ var keep=bar.scrollLeft; bar.innerHTML=h; bar._html=h; bar.scrollLeft=keep; }
@@ -3509,7 +3522,7 @@ function render(){
   renderViewSwitch();
   // ── Recipes view (both profiles) ──
   if(view==='recipes'){
-    $('lists-bar').style.display='none';
+    $('lists-row').style.display='none';
     // same voice+type bar as Lists (no Manual button — that's a separate FAB, kept hidden here)
     $('float-voice').classList.add('show');
     var ftr=$('float-text'); if(ftr) ftr.placeholder='Type what you need…';
@@ -3522,7 +3535,7 @@ function render(){
   }
   // ── Events view (both profiles) ──
   if(view==='events'){
-    $('lists-bar').style.display='none';
+    $('lists-row').style.display='none';
     $('float-voice').classList.remove('show');   // no voice/AI on this view
     $('sel-bar').classList.remove('show');
     var mfe=$('manual-fab'); if(mfe) mfe.style.display='none'; var mpe=$('manual-pop'); if(mpe) mpe.classList.remove('show');
@@ -3531,14 +3544,14 @@ function render(){
   }
   // ── Price Watch view (both profiles) ──
   if(view==='watch'){
-    $('lists-bar').style.display='none';
+    $('lists-row').style.display='none';
     $('float-voice').classList.remove('show');   // no voice on this view
     $('sel-bar').classList.remove('show');
     var mfb=$('manual-fab'); if(mfb) mfb.style.display='none'; var mpp=$('manual-pop'); if(mpp) mpp.classList.remove('show');
     $('list-view').innerHTML = pwDropsBannerHtml() + renderWatchView();
     return;
   }
-  $('lists-bar').style.display='';
+  $('lists-row').style.display='';
   renderListsBar();
   // voice/type bar is available within a profile, but hidden during Select mode
   $('float-voice').classList.toggle('show', !selectMode);

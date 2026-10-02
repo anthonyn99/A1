@@ -116,7 +116,8 @@ async function mouseDrag(c, x, y, x2, y2, { steps = 16, cancel = false, mid = nu
   ok('bar placeholder follows the type', (await evalJs(c, `document.getElementById('float-text').placeholder`)) === 'Add places, times, plans…');
 
   // ── 2. New list picker ────────────────────────────────────────────────────
-  await evalJs(c, `document.querySelector('#lists-bar .list-chip.add').click(); return 1`);
+  await evalJs(c, `document.getElementById('new-list-btn').click(); return 1`);
+  ok('desktop: New list is a labelled button outside the scrolling strip', await evalJs(c, `const n=document.getElementById('new-list-btn'); return !document.getElementById('lists-bar').contains(n) && n.textContent.includes('New list') && getComputedStyle(n.querySelector('.nl-txt')).display!=='none'`));
   ok('picker opens with 6 types', await waitFor(c, `document.getElementById('lt-overlay').classList.contains('show') && document.querySelectorAll('#lt-grid .lt-card').length===6`));
   ok('Shopping preselected, name Groceries', (await evalJs(c, `document.querySelector('.lt-card.on b').textContent+'|'+document.getElementById('lt-name').value`)) === 'Shopping|Groceries');
   await shot(c, 'mylist-picker-desktop');
@@ -132,7 +133,7 @@ async function mouseDrag(c, x, y, x2, y2, { steps = 16, cancel = false, mid = nu
   ok('new list is active and its chip is in view', await waitFor(c, `const a=document.querySelector('#lists-bar .list-chip.active'); const b=document.getElementById('lists-bar').getBoundingClientRect(); const r=a.getBoundingClientRect(); return a.textContent.includes('Boulder Weekend') && r.right<=b.right+1 && r.left>=b.left-1`, 2000));
   ok('empty state shows a typed example', (await evalJs(c, `document.querySelector('#list-view .empty').textContent`)).includes('socks'));
   // Escape closes without creating
-  await evalJs(c, `document.querySelector('#lists-bar .list-chip.add').click(); return 1`);
+  await evalJs(c, `document.getElementById('new-list-btn').click(); return 1`);
   await sleep(100);
   await c.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
   await sleep(100);
@@ -236,6 +237,7 @@ async function mouseDrag(c, x, y, x2, y2, { steps = 16, cancel = false, mid = nu
   const chipsOrder = `[...document.querySelectorAll('#lists-bar .list-chip[data-id]')].map(e=>e.textContent.replace(/\\s*\\d+$/,'').trim()).join(' | ')`;
   const c0 = await evalJs(c, chipsOrder);
   const bar = await rect(c, `document.getElementById('lists-bar')`);
+  ok('New list stays pinned in view at phone width (a round +)', await evalJs(c, `const n=document.getElementById('new-list-btn').getBoundingClientRect(); return n.left>=0 && n.right<=window.innerWidth && Math.abs(n.width-n.height)<2 && getComputedStyle(document.querySelector('#new-list-btn .nl-txt')).display==='none'`));
   ok('bar overflows at phone width and shows a right fade', await evalJs(c, `const b=document.getElementById('lists-bar'); return b.scrollWidth>b.clientWidth && b.classList.contains('fade-r')`));
   const lastOff = await evalJs(c, `const b=document.getElementById('lists-bar').getBoundingClientRect(); const l=[...document.querySelectorAll('#lists-bar .list-chip[data-id]')].pop().getBoundingClientRect(); return l.left>b.right`);
   ok('the last list starts off-screen', lastOff);
@@ -256,6 +258,7 @@ async function mouseDrag(c, x, y, x2, y2, { steps = 16, cancel = false, mid = nu
   const moved = c0.split(' | ')[0];
   ok('the tab lands among lists that were off-screen', c1.split(' | ').indexOf(moved) >= c1.split(' | ').length - 3 && c1 !== c0, c1);
   ok('tab order saved', (await evalJs(c, `${lastSave}.tony.lists.map(l=>l.name).join(' | ')`)) === c1);
+  ok('New list is still in view after the tab bar scrolled', await evalJs(c, `const n=document.getElementById('new-list-btn').getBoundingClientRect(); return n.right<=window.innerWidth && n.left>=0`));
   ok('page did not scroll sideways', (await evalJs(c, `window.scrollX`)) === 0);
   // touch on an item: a quick swipe scrolls, a hold drags
   await pillFor('Denver Itinerary');
@@ -275,7 +278,7 @@ async function mouseDrag(c, x, y, x2, y2, { steps = 16, cancel = false, mid = nu
   await sleep(450);
   ok('hold-then-drag on a row reorders it on touch', (await evalJs(c, order)) !== io, await evalJs(c, order));
   // picker at phone width = bottom sheet, 2 columns, fits
-  await evalJs(c, `document.querySelector('#lists-bar .list-chip.add').click(); return 1`);
+  await evalJs(c, `document.getElementById('new-list-btn').click(); return 1`);
   await sleep(250);
   ok('phone picker is a bottom sheet that fits the screen', await evalJs(c, `const b=document.getElementById('lt-box').getBoundingClientRect(); return b.bottom<=window.innerHeight+1 && b.width>=window.innerWidth-1 && getComputedStyle(document.getElementById('lt-grid')).gridTemplateColumns.split(' ').length===2`));
   await shot(c, 'mylist-picker-mobile');
