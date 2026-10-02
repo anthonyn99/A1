@@ -26891,6 +26891,17 @@ document.addEventListener("keydown", (e) => {
   if (PROFILE.unlocked && (GATE.picking || LOCK.mode === "setup" || LOCK.mode === "manage")) hideLock();
 });
 
+/** A profile's avatar. An `ink` profile's glyph (Tony's ◆) is drawn in the
+ *  profile colour and scaled 1.35x, since the diamond sits small in its em box
+ *  next to Veda's ✦. A transform, so the avatar circle keeps its size. */
+function avatar(tag, cls, p) {
+  if (!p.ink) return el(tag, cls, p.emoji);
+  const a = el(tag, cls), g = el("span", "", p.emoji);
+  g.style.cssText = "display:inline-block;transform:scale(1.35);color:" + p.color;
+  a.append(g);
+  return a;
+}
+
 /** Whose MAGI this is, in the sidebar and the mobile top bar. Two controls,
  *  one state -- on a phone the sidebar is a shut drawer, so a chip only in
  *  there would answer "whose history am I reading?" only after you opened it. */
@@ -26901,10 +26912,7 @@ function syncProfileBtn() {
     if (!b) continue;
     b.textContent = "";
     b.style.setProperty("--pc", p.color);
-    const av = el("span", "prof-av", p.emoji);
-    // `ink`: the glyph is drawn in the profile colour (Tony's purple diamond).
-    if (p.ink) av.style.color = p.color;
-    b.append(av, el("span", "prof-name", p.label));
+    b.append(avatar("span", "prof-av", p), el("span", "prof-name", p.label));
     b.title = "Signed in as " + p.label + " — switch profile";
   }
 }
@@ -26965,9 +26973,7 @@ function gateCard(id) {
   // profile's lock state is a record on the worker under a different key, and
   // probing it at boot would be a network call made to decorate a subtitle.
   const head = el("div", "gate-head");
-  const gav = el("div", "gate-av", p.emoji);
-  if (p.ink) gav.style.color = p.color;
-  head.append(gav);
+  head.append(avatar("div", "gate-av", p));
   head.append(el("div", "gate-name", p.label));
 
   // Pin this device to a profile. Stays out of the card's click target, or

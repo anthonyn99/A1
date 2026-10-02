@@ -62,8 +62,8 @@ call, 2026-10-02). Start 1b only when Tony says "continue theme"
   (`*`, `.btn`, `.card`, `.modal`, `.header`, `.form-*`…) that may be quietly
   styling live markup on BOTH profiles. Deleting it needs its own careful pass
   with Veda before/after diffs. It is not part of any theme phase.
-- The boot spinner (`#th-boot-loader`) stays gold. It shows before any profile
-  is known, on Veda's devices too.
+- The boot spinner (`#th-boot-spin`) is purple (Tony, 2026-10-02). A device
+  whose `td6_mainDash` is Veda's keeps the old gold.
 - The profile chooser's "Who goes there?" (Lora) and its card shape are shared
   and unchanged. Only Tony's card colour is now purple.
 - The Plans panel, HabitModal, TimePicker and DayPicker are SHARED with Veda
@@ -124,6 +124,23 @@ program (done 2026-10-02, see §0).
   `--font-accent` to Inter.
 - Fonts a user picks inside the DOCX editor are content, so they stay.
 
+**NO GRADIENT FILLS, anywhere on Tony's side (Tony, 2026-10-02).** Every
+button, chip, card, bar and selected state is EITHER a solid fill OR an
+outline highlight. Never a `linear-gradient`/`radial-gradient` fill, and never
+a see-through tint or soft halo that reads as one.
+- A tinted fill is pre-mixed into an OPAQUE colour (e.g. 16% `#c0aeea` over
+  `#1a1a1d` = `#35323e`; over S1 `#232327` = `#3c3946`), never
+  `color-mix(… transparent)` or an rgba wash.
+- No hover halos on a selected button (the old 3px ring at 22% is gone).
+- Every phase greps its program for `gradient(` and for translucent
+  backgrounds on controls, and makes them solid. Veda's side keeps hers.
+- Done so far (2026-10-02): the program nav's current app, `TH_SEL` (every
+  selected state in Tony's TaskHub), the weekly bars, the week's parcel /
+  bill / catalyst cards (`OI_CARD_BG`) and Tony's waiting plan card.
+- **Borders follow the accent too:** no gold outline on a purple control. The
+  app-lock card's outline, focus ring, button border and icon all take the
+  lock's own colour (`--al-glow`), for both profiles.
+
 **Shapes:**
 - Panel titles: Manrope, ~11–12px, weight 800, uppercase, tracking 1.6–2px,
   in `acl`.
@@ -136,8 +153,8 @@ program (done 2026-10-02, see §0).
 ### Button mechanics (magi.html "global hover layer")
 - **Hover:** `brightness(1.15)`, and the outline turns accent.
 - **Press:** `brightness(.94)` plus 1px down.
-- **Selected/active:** a 16% accent wash with an `acl` label (no glow). On
-  hover it adds a 3px accent ring at 22%.
+- **Selected/active:** a SOLID 16% accent fill (pre-mixed, opaque) with an
+  `acl` label. No glow, and no hover ring (Tony: no gradient fills).
 - **Focus:** a 2px accent outline at 1px offset (keyboard only).
 - **Fields:** an accent border plus a 3px ring at 16%.
 
@@ -158,7 +175,8 @@ program (done 2026-10-02, see §0).
   React's inline `border-color`.
 - **The selected state** from JS (index.html) comes from
   `TH_SEL(hex)`:
-  - It is an inset 999px shadow at 16%, a wash that never owns `background`.
+  - It is an inset 999px shadow in an OPAQUE colour (16% accent pre-mixed over
+    S1), so it never owns `background` and never reads as a gradient.
   - It reaches call sites through the theme object (`THEMES.dark.SEL`). Every
     site calls `(T.SEL||GLOW)(…)`, so shared components handed Veda's `VD_T`
     keep her glow.
