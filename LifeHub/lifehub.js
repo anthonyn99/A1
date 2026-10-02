@@ -1183,6 +1183,10 @@
     ui.host.style.display = '';
     ui.open = true;
     launchers.forEach(function (l) { if (l._btn) l._btn.setAttribute('aria-expanded', l === ui.anchor ? 'true' : 'false'); });
+    // Every opening re-reads each web app's logo (see iconNode): forget what was
+    // read last time and repaint, so a changed logo appears now.
+    iconFresh = {};
+    Object.keys(ui.tiles).forEach(function (id) { ui.tiles[id]._sig = ''; });
     setEdit(false, true);
     place();
     render();
@@ -1271,10 +1275,13 @@
       d.appendChild(img);
       // The page's own declared icon (<link rel=icon>) is the real logo; it can be read
       // when the site allows cross-origin reads (GitHub Pages does). Until then, services.
-      var fixed = pageIcons[pageKey(a.url)];
-      if (fixed) cands = fixed.concat(cands);
-      else if (fixed === undefined) discoverIcon(a.url, function (list) {
-        if (list && list.length && img.isConnected !== false) { cands = list.concat(cands); n = 0; next(); }
+      // The last one found paints at once, and every opening of the panel reads the
+      // page again, so a logo the program changed shows up on the next open.
+      var base = cands, k = pageKey(a.url), fixed = pageIcons[k];
+      if (fixed) cands = fixed.concat(base);
+      if (!iconFresh[k]) discoverIcon(a.url, function (list) {
+        if (!list || !list.length || JSON.stringify(list) === JSON.stringify(fixed || [])) return;
+        if (img.isConnected !== false) { cands = list.concat(base); n = 0; next(); }
       });
       next();
       return d;
@@ -1294,11 +1301,12 @@
       'https://www.google.com/s2/favicons?sz=64&domain=' + encodeURIComponent(x.hostname)
     ];
   }
-  var pageIcons = {}, pageIconWait = {};
+  var pageIcons = {}, pageIconWait = {}, iconFresh = {};   // iconFresh: pages read since the panel opened
   function pageKey(u) { try { var x = new URL(u); return x.origin + x.pathname; } catch (e) { return String(u); } }
   try { pageIcons = JSON.parse(localStorage.getItem('lh_pageicons') || '{}') || {}; } catch (e) { pageIcons = {}; }
   function discoverIcon(u, cb) {
     var k = pageKey(u);
+    iconFresh[k] = 1;
     if (pageIconWait[k]) { pageIconWait[k].push(cb); return; }
     pageIconWait[k] = [cb];
     var done = function (list) {
@@ -1331,7 +1339,9 @@
       if (i >= routes.length) { done(null); return; }
       var ctl = window.AbortController ? new AbortController() : null;
       var to = setTimeout(function () { if (ctl) ctl.abort(); }, 7000);
-      fetch(routes[i](u), { mode: 'cors', credentials: 'omit', signal: ctl ? ctl.signal : undefined })
+      // no-store: the worker's answer carries a day of max-age, and a cached copy is
+      // exactly the stale logo this read is here to replace.
+      fetch(routes[i](u), { mode: 'cors', credentials: 'omit', cache: 'no-store', signal: ctl ? ctl.signal : undefined })
         .then(function (r) { return r.ok ? r.text() : ''; })
         .then(function (html) {
           clearTimeout(to);
