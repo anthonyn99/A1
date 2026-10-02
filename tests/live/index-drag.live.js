@@ -20,8 +20,8 @@ const ok = (name, cond, extra) => {
   else { fail++; console.log('  FAIL ' + name + (extra !== undefined ? '  -> ' + String(extra).slice(0, 400) : '')); }
 };
 const ORIGIN = 'https://anthonyn99.github.io';
-const order = (c) => evalJs(c, "return JSON.stringify(window._navGetOrder('tony'))").then(JSON.parse);
-const rect = async (c, js) => JSON.parse(await evalJs(c, `return JSON.stringify((() => { const b = (${js}).getBoundingClientRect(); return {x: b.left + b.width / 2, y: b.top + b.height / 2, w: b.width, h: b.height}; })())`));
+const order = (c) => evalJs(c, "return JSON.stringify(window._navGetOrder('tony'));").then(JSON.parse);
+const rect = async (c, js) => JSON.parse(await evalJs(c, `return JSON.stringify((() => { const b = (${js}).getBoundingClientRect(); return {x: b.left + b.width / 2, y: b.top + b.height / 2, w: b.width, h: b.height}; })());`));
 
 async function mouseDrag(c, x, y, dx, dy, steps = 16) {
   await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
@@ -64,26 +64,26 @@ async function load(c, who, w, h, mobile) {
 
   console.log('\nDesktop: the program nav');
   await load(c, 'tony', 1440, 900, false);
-  ok('dragsort.js loaded', await evalJs(c, 'return !!window.A1Drag'));
-  ok('the nav row is an A1Drag list', await evalJs(c, "return document.getElementById('tony-app-nav-inner').classList.contains('dsort')"));
-  ok('no HTML5 draggable left on Tony\'s nav', await evalJs(c, "return !document.querySelector('#tony-app-nav-inner .tn-btn[draggable]')"));
+  ok('dragsort.js loaded', await evalJs(c, 'return !!window.A1Drag;'));
+  ok('the nav row is an A1Drag list', await evalJs(c, "return document.getElementById('tony-app-nav-inner').classList.contains('dsort');"));
+  ok('no HTML5 draggable left on Tony\'s nav', await evalJs(c, "return !document.querySelector('#tony-app-nav-inner .tn-btn[draggable]');"));
   const before = await order(c);
-  const vis = JSON.parse(await evalJs(c, "return JSON.stringify([...document.querySelectorAll('#tony-app-nav-inner .tn-btn')].map(b=>b.getAttribute('data-app')))"));
+  const vis = JSON.parse(await evalJs(c, "return JSON.stringify([...document.querySelectorAll('#tony-app-nav-inner .tn-btn')].map(b=>b.getAttribute('data-app')));"));
   const b0 = await rect(c, `document.querySelector('#tony-app-nav-inner .tn-btn[data-app="${vis[0]}"]')`);
   const b2 = await rect(c, `document.querySelector('#tony-app-nav-inner .tn-btn[data-app="${vis[2]}"]')`);
   await mouseDrag(c, b0.x, b0.y, b2.x - b0.x + b2.w / 2 - 4, 0);
   const after = await order(c);
   const exp = before.slice(); exp.splice(exp.indexOf(vis[0]), 1); exp.splice(before.indexOf(vis[2]), 0, vis[0]);
   ok('mouse: first button dragged past the third lands third (saved order)', JSON.stringify(after) === JSON.stringify(exp), JSON.stringify({ before, after }));
-  ok('nothing left lifted', await evalJs(c, "return !document.querySelector('.dsort-drag') && !document.documentElement.classList.contains('dsort-grabbing')"));
-  ok('the drag did not navigate (its click was swallowed)', await evalJs(c, "return (window._tnCurApp||'taskhub')==='taskhub'"), await evalJs(c, 'return window._tnCurApp'));
+  ok('nothing left lifted', await evalJs(c, "return !document.querySelector('.dsort-drag') && !document.documentElement.classList.contains('dsort-grabbing');"));
+  ok('the drag did not navigate (its click was swallowed)', await evalJs(c, "return (window._tnCurApp||'taskhub')==='taskhub';"), await evalJs(c, 'return window._tnCurApp;'));
   await c.send('Page.captureScreenshot', { format: 'png' }).then((r) => fs.writeFileSync(shotPath('p1b-nav-after'), Buffer.from(r.result.data, 'base64')));
 
   console.log('\nPhone width: the dropdown');
   await load(c, 'tony', 390, 844, true);
   await evalJs(c, "document.getElementById('tn-dd-trigger').click(); 1");
   await sleep(400);
-  ok('dropdown rows carry a real grip button', await evalJs(c, "return document.querySelectorAll('#tn-dd-panel .tn-dd-item > button.dsort-grip').length>3"));
+  ok('dropdown rows carry a real grip button', await evalJs(c, "return document.querySelectorAll('#tn-dd-panel .tn-dd-item > button.dsort-grip').length>3;"));
   const o1 = await order(c);
   const g0 = await rect(c, "document.querySelector('#tn-dd-panel .tn-dd-item .dsort-grip')");
   const r1 = await rect(c, "document.querySelectorAll('#tn-dd-panel .tn-dd-item')[1]");
@@ -91,7 +91,7 @@ async function load(c, who, w, h, mobile) {
   const l0 = await rect(c, "document.querySelector('#tn-dd-panel .tn-dd-item .dd-text')");
   await touchDrag(c, l0.x, l0.y, r1.h * 2);
   ok('touch on the row (not the grip) does not reorder', JSON.stringify(await order(c)) === JSON.stringify(o1));
-  if (!(await evalJs(c, "return getComputedStyle(document.getElementById('tn-dd-panel')).display!=='none'"))) {
+  if (!(await evalJs(c, "return getComputedStyle(document.getElementById('tn-dd-panel')).display!=='none';"))) {
     await evalJs(c, "document.getElementById('tn-dd-trigger').click(); 1"); await sleep(400);
   }
   await touchDrag(c, g0.x, g0.y, r1.h * 2 + 4);
@@ -104,7 +104,7 @@ async function load(c, who, w, h, mobile) {
   await load(c, 'tony', 1440, 900, false);
   await evalJs(c, "window._openSettings('tony'); 1");
   await sleep(800);
-  const ids = () => evalJs(c, "return JSON.stringify([...document.querySelectorAll('#thset-linklist .thset-link-row')].map(r=>r.getAttribute('data-link-id')))").then(JSON.parse);
+  const ids = () => evalJs(c, "return JSON.stringify([...document.querySelectorAll('#thset-linklist .thset-link-row')].map(r=>r.getAttribute('data-link-id')));").then(JSON.parse);
   const i1 = await ids();
   ok('Settings rows carry a real grip button', await evalJs(c, "return document.querySelectorAll('#thset-linklist .thset-link-row > button.dsort-grip').length===" + i1.length) && i1.length > 1, i1.length);
   if (i1.length > 1) {
@@ -121,7 +121,7 @@ async function load(c, who, w, h, mobile) {
 
   console.log('\nVeda: untouched');
   await load(c, 'veda', 390, 844, true);
-  ok('Veda\'s nav is not an A1Drag list', await evalJs(c, "return !document.querySelector('#veda-root .dsort, .vd-dd-item .dsort-grip')"));
+  ok('Veda\'s nav is not an A1Drag list', await evalJs(c, "return !document.querySelector('#veda-root .dsort, .vd-dd-item .dsort-grip');"));
 
   ok('no page errors', errs.length === 0, errs.join(' | '));
   console.log(`\n  ${pass} passed, ${fail} failed`);
