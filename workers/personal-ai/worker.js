@@ -22,14 +22,16 @@
 // or errors, we drop to the next one, so the apps stay usable even after the
 // lead model hits its daily cap.
 // All entries are on Google's FREE tier (Flash / Flash-Lite; Pro is paid-only).
+// gemini-2.5-flash-lite and gemini-2.0-flash were retired by Google (404 on these
+// keys, checked 2026-10-02) — their slots now hold 3.5-flash-lite / 3.8-flash.
 
 // Journal formatting: long-document quality matters most → lead with 3.5-flash.
 const MODELS = [
   'gemini-3.5-flash',       // newest flagship free Flash — most capable
   'gemini-3.1-flash-lite',  // newest Flash-Lite — matches 2.5-flash quality, high RPD
   'gemini-2.5-flash',       // proven fast Flash
-  'gemini-2.5-flash-lite',  // high-RPD lite fallback
-  'gemini-2.0-flash',       // older Flash fallback
+  'gemini-3.5-flash-lite',  // fast, high-RPD lite fallback
+  'gemini-3.8-flash',       // newest Flash — capacity fallback
 ];
 
 // MyList: interactive voice → latency matters most. 3.1-flash-lite is both the
@@ -82,8 +84,8 @@ const TASKHUB_MODELS = [
   'gemini-3.1-flash-lite',  // BEST here: fast AND reliably captures all fields on multi-action commands
   'gemini-3.5-flash',       // newest flagship — capacity fallback
   'gemini-2.5-flash',       // proven Flash — capacity fallback
-  'gemini-2.5-flash-lite',
-  'gemini-2.0-flash',
+  'gemini-3.5-flash-lite',
+  'gemini-3.8-flash',
 ];
 
 // TYPED bulk requests ("plan my entire next two weeks", a pasted list of 20
@@ -96,8 +98,8 @@ const TASKHUB_BULK_MODELS = [
   'gemini-3.5-flash',       // flagship — best at long, many-action plans
   'gemini-3.1-flash-lite',  // fast + reliable structured ops
   'gemini-2.5-flash',
-  'gemini-2.5-flash-lite',
-  'gemini-2.0-flash',
+  'gemini-3.5-flash-lite',
+  'gemini-3.8-flash',
 ];
 
 // Recipes split by task, because the two jobs want opposite things:
@@ -108,10 +110,10 @@ const TASKHUB_BULK_MODELS = [
 //    these round-trips feel near-instant.
 const RECIPE_EDIT_MODELS = [
   'gemini-3.1-flash-lite',  // fastest reliable structured editing
-  'gemini-2.5-flash-lite',  // high-RPD lite fallback
+  'gemini-3.5-flash-lite',  // fast, high-RPD lite fallback
   'gemini-2.5-flash',
   'gemini-3.5-flash',
-  'gemini-2.0-flash',
+  'gemini-3.8-flash',
 ];
 //  • SPOKEN dictation of a recipe wants FAITHFULNESS over speed — capture every
 //    ingredient, time, temperature and prep detail and never over-summarize. The
@@ -122,8 +124,8 @@ const RECIPE_VOICE_MODELS = [
   'gemini-2.5-flash',       // capable + thinking-off → faithful AND reasonably fast
   'gemini-3.5-flash',       // flagship fallback for the hardest/longest dictations
   'gemini-3.1-flash-lite',
-  'gemini-2.5-flash-lite',
-  'gemini-2.0-flash',
+  'gemini-3.5-flash-lite',
+  'gemini-3.8-flash',
 ];
 
 function cors() {
@@ -290,7 +292,7 @@ async function geminiOnce(model, key, o, timeoutMs) {
     responseMimeType: 'application/json',
     responseSchema: o.schema,
   };
-  const tc = thinkingConfig(model, o.feature);
+  const tc = (o.thinkingLevel && model.startsWith('gemini-3')) ? { thinkingLevel: o.thinkingLevel } : thinkingConfig(model, o.feature);
   if (tc) gc.thinkingConfig = tc;
   const parts = [{ text: o.prompt }];
   if (o.audio) parts.push({ inlineData: { mimeType: o.mimeType || 'audio/wav', data: o.audio } });
@@ -718,6 +720,7 @@ function findItem(items, index, match) {
 // A details string that is NOTHING but a time ("Morning", "~1:00 PM", "at 10",
 // "7:30pm") belongs in "when". The lite models occasionally file it under desc.
 const WHEN_ONLY = /^(?:(?:at|around|about|by|~)\s*)?(?:\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?|noon|midnight|morning|afternoon|evening|night|tonight|sunrise|sunset|early morning|late night)$/i;
+const LEADING_CLOCK = /^((?:~|around |about |at )?\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?))\s*[;,·—–-]\s*(.+)$/i;
 function looksLikeWhen(v) { const t = String(v || '').trim(); return !!t && t.length <= 24 && WHEN_ONLY.test(t) && /[a-z]|:/i.test(t); }
 
 function applyListOps(items, stores, ops, type) {
@@ -725,7 +728,11 @@ function applyListOps(items, stores, ops, type) {
   // Move a time-only desc into when (only when no when was given).
   const fixWhen = (f) => {
     if (!timed || !f || typeof f !== 'object') return;
-    if (!String(f.when || '').trim() && looksLikeWhen(f.desc)) { f.when = String(f.desc).trim(); f.desc = ''; }
+    if (String(f.when || '').trim()) return;
+    if (looksLikeWhen(f.desc)) { f.when = String(f.desc).trim(); f.desc = ''; return; }
+    // "7:30 PM; reservation under Patel" → when "7:30 PM", desc "reservation under Patel"
+    const m = LEADING_CLOCK.exec(String(f.desc || '').trim());
+    if (m) { f.when = m[1].trim(); f.desc = m[2].trim(); }
   };
   // Ops apply to a "target" list — normally the current list, but a new_list op
   // switches the target to a fresh empty list so the rest of the command builds it.
@@ -994,6 +1001,12 @@ function isListDictation(transcript, audio) {
 // that passes `validate` wins; a well-formed but lossy one is kept as a
 // fallback. Fast requests (the normal case) never start a second call, so
 // quota use is unchanged.
+//
+// Self-correction: when an answer is lossy and `o.repairPrompt(value)` gives a
+// follow-up prompt, the SAME model gets one chance to fix its own answer (told
+// exactly what it missed) while the next model starts as usual — whichever
+// passes first wins. Lite models are inconsistent run to run, not incapable,
+// so a pointed second look usually lands in ~1-2 s.
 function runStaggered(models, key, o) {
   const t0 = Date.now();
   const deadline = t0 + (o.deadlineMs || 45000);
@@ -1010,28 +1023,38 @@ function runStaggered(models, key, o) {
       reject(err);
     };
     const settleIfIdle = () => { if (!done && live === 0 && (next >= models.length || left() < 1500)) finish(null); };
-    const launch = () => {
-      if (done || next >= models.length || left() < 1500) { settleIfIdle(); return; }
-      const model = models[next++];
-      live++; tried.push(model);
-      clearTimeout(timer);
-      if (live < (o.maxLive || 3)) timer = setTimeout(launch, o.staggerMs || 4000);
+    const run = (model, opts, label, onDone) => {
+      live++; tried.push(label);
       const attempt = async (n) => {
-        const r = await geminiOnce(model, key, o, Math.min(o.timeoutMs || 20000, Math.max(1000, left())));
+        const r = await geminiOnce(model, key, opts, Math.min(o.timeoutMs || 20000, Math.max(1000, left())));
         if (r.cls === 'retry' && n === 0 && !done && left() > 3000) { await sleep(250); return attempt(1); }
         return r;
       };
-      attempt(0).then((r) => {
-        live--;
-        if (done) return;
+      attempt(0).then((r) => { live--; if (!done) onDone(r); },
+        (e) => { live--; if (!done) onDone({ cls: 'fatal', err: label + ': ' + ((e && e.message) || 'error') }); });
+    };
+    const launch = () => {
+      if (done || next >= models.length || left() < 1500) { settleIfIdle(); return; }
+      const model = models[next++];
+      clearTimeout(timer);
+      if (live + 1 < (o.maxLive || 3)) timer = setTimeout(launch, o.staggerMs || 4000);
+      run(model, o, model, (r) => {
         if (r.cls === 'ok') {
           if (!o.validate || o.validate(r.value)) return finish({ value: r.value, model });
           if (!soft) soft = { value: r.value, model, soft: true };
           errs.push(model + ': lossy extraction');
+          const fix = o.repairPrompt && left() > 3000 ? o.repairPrompt(r.value) : null;
+          if (fix) {
+            run(model, { ...o, prompt: fix }, model + ':repair', (r2) => {
+              if (r2.cls === 'ok' && (!o.validate || o.validate(r2.value))) return finish({ value: r2.value, model: model + ':repair' });
+              errs.push(model + ':repair ' + (r2.cls === 'ok' ? 'still lossy' : r2.err));
+              settleIfIdle();
+            });
+          }
         } else errs.push(r.err);
         launch();                // this one failed — the next model starts now
         settleIfIdle();
-      }, (e) => { live--; errs.push(model + ': ' + ((e && e.message) || 'error')); if (!done) { launch(); settleIfIdle(); } });
+      });
     };
     launch();
   });
@@ -1075,11 +1098,23 @@ async function handleList(body, env) {
     return true;
   };
 
+  // Self-correction prompt for a lossy typed answer: hand the model its own ops
+  // and name exactly what it dropped.
+  const repairPrompt = audio ? null : (v) => {
+    const miss = missingNumbers(transcript, v && v.ops);
+    if (!miss.length) return null;
+    return prompt + '\n\nYOUR FIRST ANSWER (ops) WAS:\n' + JSON.stringify(v.ops) +
+      '\n\nIt LOST details: the user said ' + miss.map((n) => '"' + n + '"').join(', ') +
+      ' but those numbers appear nowhere in your ops. Re-read the user input and return the COMPLETE corrected ops — every time in "when", every count in "qty", every size/price/other detail in "desc". Keep everything that was already right.';
+  };
+
   try {
     const r = await runStaggered(models, key, {
+      repairPrompt,
       prompt, schema: LIST_OPS_SCHEMA, maxOutputTokens: 8192, feature: 'list', audio, mimeType,
       validate,
       salvage: salvageListOps,
+      thinkingLevel: (body.debug && /^(minimal|low|medium|high)$/.test(String(body.thinking || ''))) ? body.thinking : undefined,
       staggerMs: dictation ? 6000 : 3500,
       timeoutMs: dictation ? 30000 : 22000,
       deadlineMs: dictation ? 50000 : 40000,
@@ -2882,7 +2917,7 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 18, // bump when verifying a deploy went live
+        version: 19, // bump when verifying a deploy went live
         features: ['list', 'recipe', 'taskhub', 'journal', 'watch', 'watch-ingest', 'cloud-search'],
         models: MODELS,
         listModels: LIST_MODELS,

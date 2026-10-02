@@ -65,6 +65,10 @@ section('time-only details move into when (timed lists only)');
   t('a real detail stays in desc', r.items[0].desc === 'lunch' && !r.items[0].when);
   r = W.applyListOps([], [], [{ op: 'add', name: 'Dinner', when: '7 PM', desc: '8 PM' }], 'itinerary');
   t('an explicit when is never overwritten', r.items[0].when === '7 PM' && r.items[0].desc === '8 PM');
+  r = W.applyListOps([], [], [{ op: 'add', name: 'Dinner at Linger', desc: '7:30 PM; reservation under Patel' }], 'itinerary');
+  t('a leading clock time is split off the details', r.items[0].when === '7:30 PM' && r.items[0].desc === 'reservation under Patel', JSON.stringify(r.items[0]));
+  r = W.applyListOps([], [], [{ op: 'add', name: 'Socks', desc: '5 pairs, wool' }], 'todo');
+  t('a leading count is not mistaken for a time', r.items[0].desc === '5 pairs, wool' && !r.items[0].when);
   r = W.applyListOps([], [], [{ op: 'add', name: 'Eggs', desc: 'morning' }], 'shopping');
   t('shopping lists are left alone', r.items[0].desc === 'morning' && !r.items[0].when);
 }
@@ -151,9 +155,10 @@ section('dictation + quality heuristics');
 // given outcome. Times are scaled down so the suite stays fast.
 async function race(script, opts) {
   const calls = [];
-  ctx.geminiOnce = (model) => {
-    calls.push(model);
-    const s = script[model] || { ms: 5, cls: 'fatal', err: model + ': no script' };
+  ctx.geminiOnce = (model, key, opts) => {
+    const fix = opts && opts.prompt === 'FIX';
+    calls.push(model + (fix ? ':repair' : ''));
+    const s = (fix ? (script[model] || {}).repair : script[model]) || { ms: 5, cls: 'fatal', err: model + ': no script' };
     return new Promise((r) => setTimeout(() => r(s.cls === 'ok' ? { cls: 'ok', value: s.value } : { cls: s.cls, err: model + ': ' + s.cls }), s.ms));
   };
   const t0 = Date.now();
@@ -178,6 +183,12 @@ async function race(script, opts) {
   t('…and is still returned (soft) when nothing better comes back', r.v && r.v.model === 'A' && r.v.soft === true);
   r = await race({ A: { ms: 5, cls: 'fatal' }, B: { ms: 5, cls: 'quota' } });
   t('every model failing rejects with what was tried', r.err && r.err.tried.join() === 'A,B', r.err && r.err.message);
+  r = await race({ A: { ms: 5, cls: 'ok', value: OK(1), repair: { ms: 5, cls: 'ok', value: OK(5) } }, B: { ms: 400, cls: 'ok', value: OK(5) } },
+    { validate: (v) => v.ops.length >= 4, repairPrompt: () => 'FIX', deadlineMs: 8000 });
+  t('a lossy answer gets a self-correction pass that can win', r.v && r.v.model === 'A:repair' && r.ms < 300, (r.v && r.v.model) + ' ' + r.calls.join());
+  r = await race({ A: { ms: 5, cls: 'ok', value: OK(1), repair: { ms: 5, cls: 'ok', value: OK(1) } }, B: { ms: 30, cls: 'ok', value: OK(5) } },
+    { validate: (v) => v.ops.length >= 4, repairPrompt: () => 'FIX', deadlineMs: 8000 });
+  t('…and a failed repair still lets the next model win', r.v && r.v.model === 'B', (r.v && r.v.model) + ' ' + r.calls.join());
   r = await race({ A: { ms: 900, cls: 'ok', value: OK(1) }, B: { ms: 900, cls: 'ok', value: OK(1) }, C: { ms: 900, cls: 'ok', value: OK(1) }, D: { ms: 10, cls: 'ok', value: OK(1) } }, { maxLive: 3 });
   t('never more than maxLive calls in flight', r.v && r.v.model === 'A' && r.calls.length === 3, r.calls.join());
 
