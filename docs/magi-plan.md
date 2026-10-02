@@ -927,7 +927,8 @@ offer them, do not start them unasked:
   Fast"), but nobody has seen Expert/Heavy answer on the free account.
 * ~~Phase 15's optional isolation check~~ — **run 2026-10-02 on Veda's PC**:
   separate, and the guard passes (see "Phase 15 — isolation check" below).
-  Small follow-up: loosen one assertion in magi-guard.live.js (noted there).
+  magi-guard.live.js fixed, 14/14. Open offer: Codex's sandbox cannot start
+  the Store pwsh.exe on her PC (noted there).
 * **From Claude Queue (compared 2026-09-29) -- ALL BUILT the same day**, no
   offers left from it. Console: the usage-limit hold, the attention chime,
   run-again (docs/magi.md "The prompt queue"). Engine: the project **check
@@ -973,8 +974,9 @@ Run per docs/magi-veda-isolation-check.md, on Veda's PC against HER engine
   saw none of Tony's questions.**
 * **Check 3, locked profile fetches nothing: not applicable, no password.**
   Veda chose not to set a MAGI password, so her profile is never locked.
-* **Check 4, Code Mode agent guard on HER engine: PASS** (13/14 by the
-  script; the one FAIL is the test's wording, not the guard). The first try
+* **Check 4, Code Mode agent guard on HER engine: PASS** (first 13/14, the
+  one FAIL being the test's wording, not the guard; 14/14 after the test fix
+  below). The first try
   had Codex signed out (MAGI's slot, `profiles/veda/cli/codex-codex1`; the
   plain `codex login status` stays "Not logged in" because that is
   `~\.codex`, which MAGI never uses). After Veda signed in through MAGI, the
@@ -984,11 +986,24 @@ Run per docs/magi-veda-isolation-check.md, on Veda's PC against HER engine
   `[agent_guard] 403 GET /api/code/state: pid 38652 is in the agents' job`.
   The approval card held probe.txt, it was denied, and nothing reached the
   folder. The read task ran curl and got nothing back. Origin: 5/5.
-  **The script's one FAIL**, "the engine answered the agent 403", wants
-  ` HTTP403` in probe.txt, but Codex wrote only the body and dropped curl's
-  `-w " HTTP%{http_code}"` suffix. For Tony: loosen that assertion in
-  `tests/live/magi-guard.live.js` so the refusal body alone counts
-  (`/coding agent/`) and HTTP403 is optional.
+  **Test fixed the same day (Tony, on Veda's PC), now 14/14.** Codex's
+  rollouts showed the real flake: inside its unelevated sandbox, starting
+  PowerShell always fails (`CreateProcessAsUserW failed: 5 (Access is
+  denied.)`). Codex picks the WindowsApps `pwsh.exe`, a Store alias a
+  sandboxed process cannot launch, while `cmd.exe` works. The 13/14 run
+  passed only because Codex happened to retry with cmd.exe; two later runs
+  gave up. `magi-guard.live.js` now (a) tells Codex to use cmd.exe, (b) drops
+  curl's `-w " HTTP%{http_code}"`, which `cmd /c '...'` lost and which made
+  Codex refuse to write an "incomplete" probe.txt, and (c) counts the
+  refusal body as the 403 (a status code, if present, must be 403). Re-run:
+  **14 passed, 0 failed.**
+  **Open, product side (offer, do not start):** on this PC, Codex's
+  PowerShell fails in BOTH modes for real Code Mode tasks too, so every
+  task leans on Codex falling back to cmd.exe. Options: point Codex at
+  `C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe` or a
+  non-Store pwsh, or add a cmd.exe hint like READ_HINT in
+  `code/agents/codex_cli.py`. Not checked yet whether Tony's PC has the
+  same Store pwsh.
 
 ### (Done) Phase 14b — what it was
 
