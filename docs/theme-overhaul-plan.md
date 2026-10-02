@@ -8,49 +8,80 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-10-02, at the end of **Phase 1b** (`dragsort.js` +
-Tony's index.html chrome drags). Done, tested, pushed.
+**Last updated:** 2026-10-02, at the end of **Phase 2** (MyJournal: theme,
+drag, resize grips). Done, tested, pushed.
 **Tags:** phase 1 `theme-p1-start` → `theme-p1-end`; phase 1b
-`theme-p1b-start` → `theme-p1b-end`.
-**Next phase:** **Phase 2: Index B, MyJournal** (theme + its drags + its
-resize handles, no gradient fills; see §3, §4 "Phase 2"). Start it only when
+`theme-p1b-start` → `theme-p1b-end`; phase 2 `theme-p2-start` →
+`theme-p2-end`.
+**Next phase:** **Phase 3: OneInbox** (theme + its drags + its resize
+handles, no gradient fills; see §3, §4 "Phases 3–10"). Start it only when
 Tony says "continue theme" / "next theme phase".
 
-**Phase 1b, what shipped:**
-- `dragsort.js` (`window.A1Drag`: `sort`, `grip`, `order`, `refocus`,
-  `later`, `active`): MAGI's dragSort ported, plus `axis:'x'|'grid'`, a touch
-  `hold` for rows without a grip, and cross-list `group` moves. Pinned by
-  `tests/dragsort.test.js` (jsdom, 36 checks); in `tests/syntax-check.js`.
-- Tony's program nav (hold 300ms on touch), the nav dropdown (real grip
-  buttons, ↑/↓ on a focused grip) and Settings → External links rows all run
-  on A1Drag. Veda's nav, dropdown and Settings drags are unchanged
-  (`attachPanelDrag`, `attachTouchDrag`, `attachSettingsDrag` are hers now).
-- `tests/live/index-drag.live.js`: real mouse + touch over CDP, asserting the
-  SAVED order, plus "the nav is not re-rendered under a resting cursor" and
-  "a plain click opens MyJournal".
-- **Gotcha that broke the nav for a few minutes:** `scheduleReapply()`
-  re-renders Tony's nav while any `.tn-btn` lacks a mark. The old drag code
-  set that mark (`_noAttached`); deleting it made every render queue the next,
-  rebuilding the buttons every ~100ms (hover flicker, clicks lost).
-  `renderTonyNav` now sets `btn._tnPlaced`. Anything that replaces a nav
-  helper must keep that mark.
-- React rows (later phases): dragsort writes only `style.transform` during a
-  drag and calls onDrop after the 170ms glide. Don't let React own
-  `transform` on draggable rows. Redraws arriving mid-drag go through
-  `A1Drag.later(fn)`.
-
-**Also done 2026-10-02 (Tony's asks during 1b):**
-- Tony's icon is a purple fleur-de-lis SVG (see §1), in MAGI, the TaskHub
-  chooser and MyList.
-- NO GRADIENT FILLS rule (§2): selected states are solid fills like Veda's,
-  in purple (current app, mic, Timer); `TH_SEL` returns `none`; weekly bars,
-  week cards and Tony's waiting plan card are solid.
-- App-lock card: every border/icon follows the lock's colour, BOTH profiles.
-- Tesla widget greens are the suite pastel `#a4b986`.
-- Boot spinner purple (Veda-main devices keep gold).
-- RESIZE HANDLES rule (§2 "Resize handles"): MAGI's exact corner grip
-  everywhere, via a shared `resizegrip.js` built in the first phase that needs
-  it.
+**Phase 2, what shipped:**
+- **MyJournal is MAGI.** `#tj-root` tokens are MAGI's: `--ac` `#c0aeea`,
+  `--acl`, `--acd`, `--gold` (the locked lock only), `--blue` (links,
+  syncing). `--purple`/`--purple2`/`--cyan` stay as ALIASES of those,
+  because the `#tj-root, #bj-root` pair rules and the journal's script still
+  read them. Tony's own rules name `--ac` directly.
+  - Fonts are Inter / IBM Plex Mono / Manrope, and `--font-accent` is Inter,
+    so no Fraunces placeholders are left.
+  - No gold, no washes, no glows. The PAGE/JOURNAL badges are outlined chips.
+    The rail's Journal button and the OurJournal tab are solid purple with a
+    dark label. Toolbar buttons and New Entry use MAGI's `.btn` type (10px,
+    700, uppercase, 1px tracking). The active entry has an accent left edge.
+  - The date strip's edge fade is a `mask-image`, not a gradient fill.
+- **Wordmark** "MyJournal" is `.suite-title.th-wordmark` (`#dbd0f5`).
+  `tjApplyTheme` adds the class and paints no colours.
+- **Hover:** `data-hoverfx="classic"` is gone from `#tj-root`, so the probe
+  shows `brightness(1.15)`, then `0.94` plus `0px 1px`.
+  `tests/hoverfx-wiring.test.js` now pins "no opt-out".
+- **The shared DOCX editor:** `<style id="docx-css-tony">` sits just before
+  `docx-css`. It ADDS Tony-only rules and never edits the shared ones:
+  - `#tj-root …` for the sheet;
+  - `body[data-th-profile="tony"] …` for the menus, dialogs, find bar,
+    toasts and AI tools that are appended to `<body>`.
+  - Word-blue becomes purple, DM Sans becomes Inter, the find bar's gradient
+    becomes solid `#232327`, and primary buttons are solid purple with a
+    dark label.
+  - User-picked fonts and the page content are untouched.
+- **Drag (`dragsort.js`):** the sidebar entry list runs on `A1Drag.sort`.
+  - A mouse takes a row anywhere; a finger only by its `.tj-grip` button;
+    ↑/↓ on a focused grip moves the row.
+  - Off while a search or tag filter is on.
+  - A move is "this id before/after that id" in `state.entries`, so trashed
+    entries keep their place. Then `saveState(); renderSidebar();
+    _tjFbOrder()`.
+  - `renderSidebar` defers itself with `A1Drag.later` while a row is lifted.
+  - The HTML5 drag and `.entry-drag-handle` are gone from MyJournal.
+    `window._attachJournalTouchDrag` STAYS: Veda's Brainstorm Journal still
+    uses it.
+- **Resize (`resizegrip.js`, new, `window.A1Resize`):** MAGI's corner grip
+  for the AI prompt box, the "New AI tool" prompt and the math (LaTeX) box,
+  in MyJournal only (`docxTonyGrip(ta, app, key, label)`; Brainstorm keeps
+  its native corner).
+  - Heights are stored as `a1.h.mj.ai-prompt`, `a1.h.mj.ai-newtool` and
+    `a1.h.mj.math`.
+  - Pinned by `tests/resizegrip.test.js` (jsdom, 24 checks, including
+    storage that throws and copies being byte-identical).
+  - The image and math OBJECT resizers (`se-resize` corners on pictures) are
+    not box-height grips and were left alone.
+- **`dragsort.js` and `resizegrip.js` load in `<head>` now.** MyJournal's
+  sidebar first renders while the body is still parsing, so at the end of
+  `<body>` `A1Drag` did not exist yet and the rows came up without grips.
+  Phase 1b's live nav test still passes (15/15).
+- **Tests:**
+  - `tests/live/myjournal-drag.live.js` (24 checks). It seeds
+    `tony_journal_v3` and asserts the SAVED order for: a mouse drag by the
+    title, the swallowed click, a plain click, ↑/↓, the search switching
+    drags off, a touch on the row (scrolls) versus on the grip (drags), and
+    the prompt grip's drag, click toggle and reload. It also checks that
+    Veda's list is not a dsort list.
+  - `tests/live/theme-shots.live.js` gained a `journals` view.
+  - Veda's journal shots (desktop, phone, template picker) are
+    pixel-identical before and after.
+- **Gotcha:** a box's own CSS `min-height` (the prompt box has 34vh) stopped
+  the grip's drag halfway while it stored the smaller height. A hand-chosen
+  height now pins `min-height` too (§2 "Resize handles").
 
 **Start-of-session checklist**
 1. `git pull`, then `git tag theme-pN-start && git push origin theme-pN-start`.
@@ -102,8 +133,8 @@ Tony says "continue theme" / "next theme phase".
   (defined in Tony's babel block, used by both). Phase 1 changed only what flows
   through Tony's theme object (`T.AC`, `T.SEL`). Their hard-coded radii and
   fonts are untouched.
-- MyJournal's `#tj-root` carries `data-hoverfx="classic"` so it keeps the old
-  hover until phase 2. **Phase 2 removes that attribute.**
+- MyJournal's `#tj-root` carried `data-hoverfx="classic"` until phase 2,
+  which removed it (done).
 
 ---
 
@@ -301,8 +332,9 @@ exception is for reordering only, not resizing. Veda's side keeps hers.
 - Pointer events, so mouse, touch and pen are one path; pointer capture on
   the grip; vertical only.
 - **Drag** (3px or more) sets the height, clamped between 26px and
-  `max(160px, 60% of the viewport)`. A chosen height lifts the box's own CSS
-  max-height cap, so the drag never stops halfway.
+  `max(160px, 60% of the viewport)`. A chosen height overrides the box's own
+  CSS min- AND max-height, so the drag never stops halfway (phase 2 found a
+  34vh min-height doing exactly that).
 - **Click** (under 3px) toggles: compressed → expanded (+120px, at least
   260px, under the cap); expanded/hand-sized → back to auto.
 - Enter / Space on the focused grip do the same toggle.
@@ -313,10 +345,13 @@ exception is for reordering only, not resizing. Veda's side keeps hers.
 **How it is shipped:** ONE shared file, `resizegrip.js` at the A1 root,
 exposing `window.A1Resize.attach(box, grip, key, onAuto)` and
 `A1Resize.grip(label)`, with the CSS injected (MAGI fallbacks, tintable with
-the same `--ds-*` vars as dragsort.js). Byte-identical copies for extensions,
-a wiring test and a jsdom test (drag, click toggle, Enter/Space, cap, 26px
-floor, persistence, storage throwing). Built in the first phase whose program
-has a resize handle. MAGI moves onto it in the wrap-up phase.
+the same `--ds-*` vars as dragsort.js). **Built in phase 2.** The box's
+parent must be positioned (wrap the box, as MyJournal's `docxTonyGrip`
+does); heights are stored as `a1.h.<key>`; a hand-sized box carries
+`data-user-h` for any auto-grow code to respect. `tests/resizegrip.test.js`
+covers the jsdom behaviour and checks that every copy is byte-identical
+(extensions get a copy when a phase needs one). MAGI moves onto it in the
+wrap-up phase.
 
 ### Per-profile gating in a shared page (index.html)
 - `goTony()` / `goVeda()` / `showProfile()` call `_markProfile(who)`:
@@ -349,8 +384,8 @@ has a resize handle. MAGI moves onto it in the wrap-up phase.
 |---|---|---|
 | 1 | Foundation + **Index A: Tony's TaskHub + chrome** | **done 2026-10-02** |
 | 1b | **`dragsort.js` (MAGI's DnD, shared) + index chrome drags (nav, dropdown, Settings rows); TaskHub's own DnD stays** | **done 2026-10-02** |
-| 2 | **Index B: MyJournal** (theme + its drags + resize handles) | **next** |
-| 3 | OneInbox (theme + drags) | |
+| 2 | **Index B: MyJournal** (theme + its drags + resize handles) | **done 2026-10-02** |
+| 3 | OneInbox (theme + drags) | **next** |
 | 4 | TradeHub (theme + drags) | |
 | 5 | MyList, Tony profile only (theme + drags) | |
 | 6 | Insight (theme + drags) | |
@@ -434,7 +469,44 @@ HTML5 drags.
   drag, and `onDrop` sets state after the glide. Don't let React own
   `transform` on draggable rows.
 
-### Phase 2 — Index B: MyJournal
+**What 1b shipped, and Tony's asks during it** (moved here from §0 at the
+end of phase 2):
+- `dragsort.js` (`window.A1Drag`: `sort`, `grip`, `order`, `refocus`,
+  `later`, `active`): MAGI's dragSort ported, plus `axis:'x'|'grid'`, a touch
+  `hold` for rows without a grip, and cross-list `group` moves. Pinned by
+  `tests/dragsort.test.js` (jsdom, 36 checks); in `tests/syntax-check.js`.
+- Tony's program nav (hold 300ms on touch), the nav dropdown (real grip
+  buttons, ↑/↓ on a focused grip) and Settings → External links rows all run
+  on A1Drag. Veda's nav, dropdown and Settings drags are unchanged
+  (`attachPanelDrag`, `attachTouchDrag`, `attachSettingsDrag` are hers now).
+- `tests/live/index-drag.live.js`: real mouse + touch over CDP, asserting the
+  SAVED order, plus "the nav is not re-rendered under a resting cursor" and
+  "a plain click opens MyJournal".
+- **Gotcha that broke the nav for a few minutes:** `scheduleReapply()`
+  re-renders Tony's nav while any `.tn-btn` lacks a mark. The old drag code
+  set that mark (`_noAttached`); deleting it made every render queue the next,
+  rebuilding the buttons every ~100ms (hover flicker, clicks lost).
+  `renderTonyNav` now sets `btn._tnPlaced`. Anything that replaces a nav
+  helper must keep that mark.
+- React rows (later phases): dragsort writes only `style.transform` during a
+  drag and calls onDrop after the 170ms glide. Don't let React own
+  `transform` on draggable rows. Redraws arriving mid-drag go through
+  `A1Drag.later(fn)`.
+
+**Also done 2026-10-02 (Tony's asks during 1b):**
+- Tony's icon is a purple fleur-de-lis SVG (see §1), in MAGI, the TaskHub
+  chooser and MyList.
+- NO GRADIENT FILLS rule (§2): selected states are solid fills like Veda's,
+  in purple (current app, mic, Timer); `TH_SEL` returns `none`; weekly bars,
+  week cards and Tony's waiting plan card are solid.
+- App-lock card: every border/icon follows the lock's colour, BOTH profiles.
+- Tesla widget greens are the suite pastel `#a4b986`.
+- Boot spinner purple (Veda-main devices keep gold).
+- RESIZE HANDLES rule (§2 "Resize handles"): MAGI's exact corner grip
+  everywhere, via a shared `resizegrip.js` built in the first phase that needs
+  it.
+
+### Phase 2 — Index B: MyJournal (done 2026-10-02; what shipped is in §0)
 - **Hover:** remove `data-hoverfx="classic"` from `<div id="tj-root">`
   (`<body>` is already magi for Tony). Update the assertion in
   `tests/hoverfx-wiring.test.js` that pins it.
