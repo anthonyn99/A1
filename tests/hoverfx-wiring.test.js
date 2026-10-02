@@ -59,7 +59,7 @@ for (const name of PAGES) {
 
 // index.html is the one page that must pass data-roots: it hosts several
 // programs plus a shared program nav that already answers the cursor with its
-// own gold outline and glow. Unscoped, the layer would double up on that nav.
+// own outline and lift, written in CSS. Unscoped, the layer would double up on that nav.
 const idx = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 const rootsAttr = /<script[^>]+src=["']hoverfx\.js["'][^>]*\sdata-roots=["']([^"']+)["']/.exec(idx);
 ok('index.html scopes hoverfx with data-roots', !!rootsAttr);
@@ -70,6 +70,17 @@ if (rootsAttr) {
   }
   ok('index.html does NOT scope the program nav', !roots.includes('#tony-app-nav'));
 }
+
+// The theme overhaul (docs/theme-overhaul-plan.md) moves programs onto MAGI's
+// hover mode one phase at a time. Each phase that ships adds its marker here,
+// so a later edit cannot quietly drop a program back to the measured hover.
+ok('index.html: Tony\'s TaskHub root is magi', /<div id="root" data-hoverfx="magi">/.test(idx));
+ok('index.html: <body> turns magi only for Tony (goTony → _markProfile)',
+   /_markProfile\("tony"\)/.test(idx) && /who==="tony"\)\{ b\.setAttribute\("data-hoverfx","magi"\)/.test(idx));
+// Until MyJournal's own phase (2) it must opt back out of the magi <body>.
+ok('index.html: MyJournal stays classic until its phase', /<div id="tj-root" data-hoverfx="classic">/.test(idx));
+ok('index.html: Veda\'s roots never declare magi',
+   !/id="veda-root"[^>]*data-hoverfx="magi"/.test(idx) && !/id="bj-root"[^>]*data-hoverfx="magi"/.test(idx));
 
 for (const [folder, page] of COPIES) {
   const copy = path.join(ROOT, folder, 'hoverfx.js');

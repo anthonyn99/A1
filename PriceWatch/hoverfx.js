@@ -33,7 +33,7 @@
  *   <script src="hoverfx.js" data-roots="#a,#b"></script>   only inside #a / #b
  *
  * index.html needs the scoped form: its program nav already answers the cursor
- * with a gold outline plus glow, and stacking a second signal on a designed one
+ * with its own outline and lift (in CSS), and stacking a second signal on a designed one
  * is how a hover language stops reading as one language.
  *
  * Opt a subtree out at any time with data-no-hoverfx.
@@ -50,6 +50,10 @@
  * attribute puts a subtree straight back on the measured behaviour above.
  * The press writes the `translate` property, never `transform`, for the same
  * reason only `filter` is written: React owns inline transform on some nodes.
+ * The NEAREST data-hoverfx declaration wins, so a subtree can step back out:
+ * data-hoverfx="classic" inside a magi subtree keeps the measured behaviour
+ * (index.html marks <body> magi while Tony's profile is open, and his journal,
+ * not themed yet, says classic).
  *
  * The extensions (Vault/, PriceWatch/, V1/Launcher/) cannot reach outside their
  * own folder, so each carries a byte-identical copy. tests/hoverfx-wiring.test.js
@@ -103,7 +107,8 @@
        `filter`, being first above, would pair with that zero and snap. */
     '.hoverfx-t{transition-duration:.15s!important;transition-timing-function:ease!important}' +
     /* MAGI mode's focus ring (magi.html: button:focus-visible). Keyboard only. */
-    MAGI + ' :is(button,select,summary,a[href],[role="button"]):focus-visible,' +
+    MAGI + ' :is(button,select,summary,a[href],[role="button"]):focus-visible' +
+    ':not([data-hoverfx]:not(' + MAGI + ') *),' +
     MAGI + ':is(button,select,summary,a[href],[role="button"]):focus-visible' +
     '{outline:2px solid var(--fx-ac,#c0aeea)!important;outline-offset:1px!important}';
   (document.head || document.documentElement).appendChild(css);
@@ -199,6 +204,12 @@
   }
 
   // ── wire ─────────────────────────────────────────────────────────────────
+  // The nearest declaration decides: magi inside magi, classic inside classic.
+  function magi(el) {
+    var d = el.closest('[data-hoverfx]');
+    return !!d && d.getAttribute('data-hoverfx') === 'magi';
+  }
+
   var cur = null, pressed = null;
   var still = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)');
   function unpress() {
@@ -232,7 +243,7 @@
     // `filter` is first in the property list, so it pairs with the FIRST
     // duration in the element's list.
     if (!(parseFloat(cs.transitionDuration) > 0)) el.classList.add('hoverfx-t');
-    el.style.filter = el.closest(MAGI) ? MAGI_LIFT : effect(el);
+    el.style.filter = magi(el) ? MAGI_LIFT : effect(el);
   }, true);
 
   document.addEventListener('pointerout', function (e) {
@@ -242,7 +253,7 @@
   // MAGI mode's press: the hovered control sinks while the button is held.
   // Mouse only, like the hover — a tap has its own native feedback.
   document.addEventListener('pointerdown', function (e) {
-    if (e.button !== 0 || !cur || !cur.contains(e.target) || !cur.closest(MAGI)) return;
+    if (e.button !== 0 || !cur || !cur.contains(e.target) || !magi(cur)) return;
     pressed = cur;
     cur.style.filter = MAGI_PRESS;
     if (!(still && still.matches)) cur.style.translate = '0 1px';

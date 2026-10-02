@@ -5753,6 +5753,7 @@ window.THTS={
 .docx-clip-wrap{display:inline-flex;align-items:center;}
 .docx-lock-badge{display:inline-flex;align-items:center;vertical-align:-.14em;font-size:.95em;opacity:.8;}
 #applock-icon{line-height:0;color:#e0b874;display:flex;justify-content:center;}
+body[data-th-profile="tony"] #applock-icon{color:#c0aeea;}
 #applock-icon svg{width:30px;height:30px;display:block;}
 #applock-bio button svg,#al-menu-btns button svg,.tl-menu button svg{width:15px;height:15px;display:block;flex-shrink:0;}
 #applock-bio button,#al-menu-btns button,.tl-menu button{display:inline-flex;align-items:center;justify-content:center;gap:8px;}
@@ -6646,13 +6647,28 @@ const CL  = ["work","finance","study","health","personal","urgent","other"];
 
 // ── Selected state, JS side ─────────────────────────────────────────────────
 // What marks a control as selected/active here (a chosen repeat option, today's
-// date cell, an open Timer) is an inline border colour only React knows. Since
-// the theme overhaul (docs/theme-overhaul-plan.md) GLOW() gives those MAGI's
-// selected look instead of the old ring+bloom: a 16% wash of the same colour
-// (magi.html .navitem.active). It is drawn as an inset shadow so it tints
-// whatever background React painted without having to own `background`.
-// Pass the same colour the border uses. Veda's TaskHub has its own GLOW.
+// date cell, an open Timer) is an inline border colour only React knows, so the
+// emphasis has to be painted from JS too.
+//
+// GLOW() is the suite's ring+bloom (1px @ .42 over 10px @ .42). NOTE: babel
+// compiles both TaskHub blocks into ONE global scope, so the GLOW that wins at
+// runtime is whichever block loads last — Veda's. Both copies are identical on
+// purpose; never make them differ.
+//
+// TH_SEL() is MAGI's selected look (magi.html .navitem.active: a 16% wash of the
+// accent), given to Tony's TaskHub by the theme overhaul
+// (docs/theme-overhaul-plan.md). Drawn as an inset shadow so it tints whatever
+// background React painted without owning `background`. It reaches the call
+// sites through the theme object — THEMES.dark.SEL — and every site calls
+// (T.SEL||GLOW)(...), so the components BOTH profiles share (HabitModal,
+// TimePicker, DayPicker, PlanPanel…) keep Veda's glow when handed VD_T.
 const GLOW=(hex)=>{
+  const h=String(hex||"").replace("#","");
+  if(h.length<6)return "none";
+  const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);
+  return "0 0 0 1px rgba("+r+","+g+","+b+",.42),0 0 10px rgba("+r+","+g+","+b+",.42)";
+};
+const TH_SEL=(hex)=>{
   const h=String(hex||"").replace("#","");
   if(h.length<6)return "none";
   const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);
@@ -6664,7 +6680,7 @@ const GLOW=(hex)=>{
 const THEMES = {
   // MAGI's palette (magi.html :root) since the theme overhaul, phase 1
   // (docs/theme-overhaul-plan.md): purple is the identity, GOLD the kept accent.
-  dark:{BG:"#1a1a1d",S1:"#232327",S2:"#2c2c31",S3:"#34343a",BD:"#34343a",BDL:"#45454c",TX:"#f4f3f0",TXD:"#adadb2",TXM:"#8d8d94",TXDONE:"#8d8d94",AC:"#c0aeea",ACL:"#dbd0f5",ACD:"#9a86c9",ACG:"rgba(192,174,234,0.12)",GOLD:"#e0b874",GRN:"#a4b986",ERR:"#d68a7c",BLUE:"#8fa6d8",SHADOW:"rgba(0,0,0,0.5)",TODAYBG:"#2c2c31",TODAYBD:"#45454c"},
+  dark:{BG:"#1a1a1d",S1:"#232327",S2:"#2c2c31",S3:"#34343a",BD:"#34343a",BDL:"#45454c",TX:"#f4f3f0",TXD:"#adadb2",TXM:"#8d8d94",TXDONE:"#8d8d94",AC:"#c0aeea",ACL:"#dbd0f5",ACD:"#9a86c9",ACG:"rgba(192,174,234,0.12)",SEL:TH_SEL,GOLD:"#e0b874",GRN:"#a4b986",ERR:"#d68a7c",BLUE:"#8fa6d8",SHADOW:"rgba(0,0,0,0.5)",TODAYBG:"#2c2c31",TODAYBD:"#45454c"},
 };
 // Task-category colors. Dark = soft pastels (light text on dark bg). Light = deeper
 // dusty pastels that still read on the light theme. Macro-catalyst keys keep their hues.
@@ -6918,7 +6934,7 @@ function DayPicker({selected,onChange,T}){
   return React.createElement("div",{style:{display:"flex",gap:5,flexWrap:"wrap"}},
     DS.map((d,i)=>React.createElement("button",{key:i,type:"button",onClick:()=>toggle(i),
       style:{fontSize:11,fontWeight:selected.includes(i)?700:500,padding:"5px 10px",borderRadius:6,cursor:"pointer",fontFamily:"inherit",transition:"all .15s",
-        background:"transparent",color:selected.includes(i)?T.ACL:T.TXD,border:selected.includes(i)?"1px solid "+T.AC:"1px solid "+T.BDL,...(selected.includes(i)?{boxShadow:GLOW(T.AC)}:{})}},d)));
+        background:"transparent",color:selected.includes(i)?T.ACL:T.TXD,border:selected.includes(i)?"1px solid "+T.AC:"1px solid "+T.BDL,...(selected.includes(i)?{boxShadow:(T.SEL||GLOW)(T.AC)}:{})}},d)));
 }
 
 function ConfirmDeleteModal({open,onClose,onConfirm,onThis,T,isAltSeq}){
@@ -6941,7 +6957,7 @@ function ConfirmEditTitleModal({open,onClose,onThisOnly,onAllFuture,T,isAltSeq})
       React.createElement("div",{style:{fontSize:13,color:T.TXD,lineHeight:1.6,marginBottom:20}},isAltSeq?"Apply sequence changes to just this occurrence, or update all future occurrences in the sequence?":"Apply your change to just this day, or to all future repeats of this task?"),
       React.createElement("div",{style:{display:"flex",gap:10,flexWrap:"wrap"}},
         React.createElement("button",{type:"button",style:{flex:1,background:T.S2,border:"1px solid "+T.BDL,borderRadius:4,padding:"10px 14px",fontSize:13,fontWeight:600,color:T.TX,cursor:"pointer"},onClick:onThisOnly},isAltSeq?"This day only":"This day only"),
-        React.createElement("button",{type:"button",style:{flex:1,background:"transparent",color:T.ACL,border:"1px solid "+T.AC,boxShadow:GLOW(T.AC),borderRadius:4,padding:"10px 14px",fontSize:13,fontWeight:700,cursor:"pointer"},onClick:onAllFuture},isAltSeq?"All future in seq":"All future repeats"),
+        React.createElement("button",{type:"button",style:{flex:1,background:"transparent",color:T.ACL,border:"1px solid "+T.AC,boxShadow:(T.SEL||GLOW)(T.AC),borderRadius:4,padding:"10px 14px",fontSize:13,fontWeight:700,cursor:"pointer"},onClick:onAllFuture},isAltSeq?"All future in seq":"All future repeats"),
         React.createElement("button",{type:"button",style:{background:T.S2,border:"1px solid "+T.BDL,borderRadius:4,padding:"10px 14px",fontSize:13,fontWeight:600,color:T.TXD,cursor:"pointer"},onClick:onClose},"Cancel"))));
 }
 
@@ -7099,7 +7115,7 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
   };
   const mi={background:T.S2,border:"1px solid "+T.BDL,borderRadius:4,color:T.TX,fontSize:13,padding:"9px 12px",fontFamily:"inherit",fontWeight:500,outline:"none",width:"100%",boxSizing:"border-box"};
   const lbl={fontSize:10,color:T.TXD,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,marginBottom:6};
-  const tb=(active,danger)=>({fontWeight:600,padding:"7px 18px",borderRadius:6,cursor:"pointer",fontSize:12,fontFamily:"inherit",transition:"all .15s",background:"transparent",color:active?(danger?T.ERR:T.ACL):T.TXD,border:active?"1px solid "+(danger?T.ERR:T.AC):"1px solid "+T.BDL,...(active?{boxShadow:GLOW(danger?T.ERR:T.AC)}:{})});
+  const tb=(active,danger)=>({fontWeight:600,padding:"7px 18px",borderRadius:6,cursor:"pointer",fontSize:12,fontFamily:"inherit",transition:"all .15s",background:"transparent",color:active?(danger?T.ERR:T.ACL):T.TXD,border:active?"1px solid "+(danger?T.ERR:T.AC):"1px solid "+T.BDL,...(active?{boxShadow:(T.SEL||GLOW)(danger?T.ERR:T.AC)}:{})});
   // Plan is a third kind of thing you can add to a day, so it is a third Type —
   // but only when ADDING. Editing an existing task or event can never turn it
   // into a shared commitment, and a confirmed plan is edited in the panel
@@ -7163,7 +7179,7 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
             React.createElement(DayPicker,{selected:notifyRepeatDays,onChange:setNotifyRepeatDays,T})))),
 
       React.createElement("div",{style:{display:"flex",gap:10,marginTop:18}},
-        React.createElement("button",{type:"button",style:{background:"transparent",color:T.ACL,border:"1px solid "+T.AC,boxShadow:GLOW(T.AC),borderRadius:4,padding:"10px 28px",fontSize:13,fontWeight:700,cursor:"pointer"},onClick:save},"Save"),
+        React.createElement("button",{type:"button",style:{background:"transparent",color:T.ACL,border:"1px solid "+T.AC,boxShadow:(T.SEL||GLOW)(T.AC),borderRadius:4,padding:"10px 28px",fontSize:13,fontWeight:700,cursor:"pointer"},onClick:save},"Save"),
         React.createElement("button",{type:"button",style:{background:T.S2,border:"1px solid "+T.BDL,borderRadius:4,padding:"10px 20px",fontSize:13,fontWeight:600,color:T.TXD,cursor:"pointer"},onClick:onClose},"Cancel")))));
 }
 
@@ -7204,7 +7220,7 @@ function PlanCheck({size=13,color="#a4b986",strokeWidth=2.4}){
 const PLAN_PAL_TONY={
   BG:"#1a1a1d",S1:"#232327",S2:"#2c2c31",S3:"#26262b",BD:"#34343a",BDL:"#45454c",
   TX:"#f4f3f0",TXD:"#adadb2",TXM:"#8d8d94",TXF:"#71717a",
-  AC:"#e0b874",ACINK:"#1a1a1d",OK:PLAN_GRN_TONY,WARN:"#d9a863",BAD:"#d68a7c",
+  AC:"#c0aeea",ACINK:"#1a1a1d",OK:PLAN_GRN_TONY,WARN:"#d9a863",BAD:"#d68a7c",
   FONT:"'Inter',system-ui,-apple-system,sans-serif",
   MONO:"'IBM Plex Mono',ui-monospace,monospace"};
 // Passed as an Add-dialog's `initial` to open it straight on the Plan tab (the
@@ -7938,7 +7954,7 @@ function SimpleTextEditModal({open,onClose,onSave,initialText,heading,T}){
       React.createElement("div",{style:{fontFamily:"'Manrope',system-ui,sans-serif",fontSize:15,fontWeight:700,color:T.AC,marginBottom:16}},heading),
       React.createElement("input",{style:mi,value:val,autoFocus:true,onChange:e=>setVal(e.target.value),onKeyDown:e=>{if(e.key==="Enter")save();if(e.key==="Escape")onClose();}}),
       React.createElement("div",{style:{display:"flex",gap:10,marginTop:16}},
-        React.createElement("button",{type:"button",style:{background:"transparent",color:T.ACL,border:"1px solid "+T.AC,boxShadow:GLOW(T.AC),borderRadius:4,padding:"9px 24px",fontSize:13,fontWeight:700,cursor:"pointer"},onClick:save},"Save"),
+        React.createElement("button",{type:"button",style:{background:"transparent",color:T.ACL,border:"1px solid "+T.AC,boxShadow:(T.SEL||GLOW)(T.AC),borderRadius:4,padding:"9px 24px",fontSize:13,fontWeight:700,cursor:"pointer"},onClick:save},"Save"),
         React.createElement("button",{type:"button",style:{background:T.S2,border:"1px solid "+T.BDL,borderRadius:4,padding:"9px 18px",fontSize:13,fontWeight:600,color:T.TXD,cursor:"pointer"},onClick:onClose},"Cancel"))));
 }
 
@@ -8055,7 +8071,7 @@ function HabitModal({open,onClose,onSave,initial,T,titleFont}){
   };
   const mi={background:T.S2,border:"1px solid "+T.BDL,borderRadius:4,color:T.TX,fontSize:13,padding:"9px 12px",fontFamily:"inherit",fontWeight:500,outline:"none",width:"100%",boxSizing:"border-box"};
   const lbl={fontSize:10,color:T.TXD,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,marginBottom:6};
-  const tb=(active)=>({fontWeight:700,padding:"6px 14px",borderRadius:5,cursor:"pointer",fontSize:11,fontFamily:"inherit",transition:"all .15s",background:"transparent",color:active?T.ACL:T.TXD,border:"1px solid "+(active?T.AC:T.BDL),...(active?{boxShadow:GLOW(T.AC)}:{})});
+  const tb=(active)=>({fontWeight:700,padding:"6px 14px",borderRadius:5,cursor:"pointer",fontSize:11,fontFamily:"inherit",transition:"all .15s",background:"transparent",color:active?T.ACL:T.TXD,border:"1px solid "+(active?T.AC:T.BDL),...(active?{boxShadow:(T.SEL||GLOW)(T.AC)}:{})});
   return React.createElement("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2500},onClick:onClose},
     React.createElement("div",{style:{background:T.S1,border:"1px solid "+T.BDL,borderRadius:6,padding:24,width:420,maxWidth:"94vw",maxHeight:"92vh",overflowY:"auto",boxShadow:"0 20px 60px "+T.SHADOW},onClick:e=>e.stopPropagation()},
       React.createElement("div",{style:{fontFamily:titleFont||"'Manrope',system-ui,sans-serif",fontSize:15,fontWeight:700,color:T.AC,marginBottom:16}},"Edit Habit"),
@@ -8077,7 +8093,7 @@ function HabitModal({open,onClose,onSave,initial,T,titleFont}){
           React.createElement("div",{style:{fontSize:11,color:T.TXM,marginTop:10,lineHeight:1.5}},
             "Fires on this profile's devices only — a device has to have this TaskHub set as its main dashboard."))),
       React.createElement("div",{style:{display:"flex",gap:10,marginTop:18}},
-        React.createElement("button",{type:"button",style:{background:"transparent",color:T.ACL,border:"1px solid "+T.AC,boxShadow:GLOW(T.AC),borderRadius:4,padding:"9px 24px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"},onClick:save},"Save"),
+        React.createElement("button",{type:"button",style:{background:"transparent",color:T.ACL,border:"1px solid "+T.AC,boxShadow:(T.SEL||GLOW)(T.AC),borderRadius:4,padding:"9px 24px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"},onClick:save},"Save"),
         React.createElement("button",{type:"button",style:{background:T.S2,border:"1px solid "+T.BDL,borderRadius:4,padding:"9px 18px",fontSize:13,fontWeight:600,color:T.TXD,cursor:"pointer",fontFamily:"inherit"},onClick:onClose},"Cancel"))));
 }
 
@@ -9601,7 +9617,7 @@ function App(){
   const crossMoveRef=useRef(null);
   const [dragOverId,setDragOverId]=useState(null);
   const grip=()=>({fontSize:isMobile?20:14,color:"#6b6b7a",cursor:"grab",padding:isMobile?"0 8px":"0 4px",minWidth:isMobile?32:undefined,minHeight:isMobile?32:undefined,display:"inline-flex",alignItems:"center",justifyContent:"center",userSelect:"none",touchAction:"none",flexShrink:0,lineHeight:1,opacity:1,position:"relative",zIndex:1});
-  const dndRowStyle=(id,base)=>(!isMobile&&dragOverId===id)?{...base,outline:"2px solid "+T.AC,outlineOffset:"-1px",borderRadius:4}:base;
+  const dndRowStyle=(id,base)=>(!isMobile&&dragOverId===id)?{...base,outline:"2px solid "+T.AC,outlineOffset:"-1px",borderRadius:6}:base;
   const dndDayStyle=(k,base)=>(!isMobile&&dragOverId==="day-"+k)?{...base,boxShadow:"inset 0 0 0 2px "+T.AC}:base;
   // ── Weekly item cards: events keep filled cards, tasks are outline-only (match Veda's TaskHub) ──
   // Padding is deliberately tight on the horizontal axis: every pixel spent on
@@ -9631,7 +9647,7 @@ function App(){
   const wkPlanOverdue=(t,k)=>!!(t&&!t.done&&k<tk);
   const wkOverTag={fontSize:8,fontWeight:800,letterSpacing:.9,textTransform:"uppercase",
     color:PLAN_OVERDUE_RED,background:PLAN_OVERDUE_RED+"1f",
-    border:"1px solid "+PLAN_OVERDUE_RED+"4d",borderRadius:4,padding:"1px 4px",
+    border:"1px solid "+PLAN_OVERDUE_RED+"4d",borderRadius:6,padding:"1px 4px",
     lineHeight:1.25,whiteSpace:"nowrap"};
   // Only TODAY is at full strength. Every other day — past or upcoming — recedes
   // as a whole: title, category chip, reminder bell and event time all fade by the
@@ -9647,7 +9663,7 @@ function App(){
   // An event has "passed" (and should fade) once the LATER of its event time and notification time is in the past.
   const wkEvtPassed=(e,k)=>{let latest=0;if(e.time){const[hh,mm]=e.time.split(":").map(Number);let ts;if(e.tz){try{ts=thZonedTs(k,hh,mm,e.tz);}catch(_){ts=new Date(k+"T"+e.time+":00").getTime();}}else{ts=new Date(k+"T"+e.time+":00").getTime();}if(ts)latest=Math.max(latest,ts);}if(e.notifyAt){const nt=new Date(e.notifyAt).getTime();if(nt)latest=Math.max(latest,nt);}if(!latest){latest=new Date(k+"T23:59:59").getTime();}return latest<Date.now();};
   const MC_PASTEL={earnings:"#e7a6b4",inflation:"#e3c794",fed:"#c9b3ec",jobs:"#a6c8e6",growth:"#a6dcb2",macro:"#c0c6cd",rates:"#c9b3ec",gdp:"#a6dcb2",retail:"#a6dcb2",housing:"#a3dcc6",sentiment:"#e3cb98",trade:"#edb2a6",oil:"#e3bd96",holiday:"#b0b9cc"};
-  const MC_IMP={high:{c:"#f85149",t:"High"},medium:{c:"#E2C285",t:"Med"},low:{c:"#adadb2",t:"Low"}};
+  const MC_IMP={high:{c:"#d68a7c",t:"High"},medium:{c:"#E2C285",t:"Med"},low:{c:"#adadb2",t:"Low"}};
   // Category chip label: true acronyms all-caps (ECB, GDP), everything else Title-case
   // (so "ecb"→"ECB", never "Ecb"; "fed"→"Fed"; "growth"→"Growth").
   const mcCatLabel=c=>{c=String(c||"");const U={ecb:"ECB",gdp:"GDP"};return U[c.toLowerCase()]||(c?c.charAt(0).toUpperCase()+c.slice(1):c);};
@@ -9824,7 +9840,7 @@ function App(){
   const _ns=Math.max(0,Math.min(_tIdx<0?0:_tIdx-2,2));
   const _nwd=wd.slice(_ns,_ns+5);
   const _hi=[...wd.slice(0,_ns).map((_,ii)=>ii),...wd.slice(_ns+5).map((_,ii)=>_ns+5+ii)];
-  const hbtn=active=>({background:"transparent",border:"1px solid "+(active?T.AC:T.BDL),...(active?{boxShadow:GLOW(T.AC)}:{}),borderRadius:6,padding:"0 10px",height:"28px",boxSizing:"border-box",fontSize:12,fontWeight:800,color:active?T.ACL:T.AC,cursor:"pointer",fontFamily:"'Inter',system-ui,-apple-system,sans-serif",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:4,transition:"all .15s",whiteSpace:"nowrap",flexShrink:0});
+  const hbtn=active=>({background:"transparent",border:"1px solid "+(active?T.AC:T.BDL),...(active?{boxShadow:(T.SEL||GLOW)(T.AC)}:{}),borderRadius:6,padding:"0 10px",height:"28px",boxSizing:"border-box",fontSize:12,fontWeight:800,color:active?T.ACL:T.AC,cursor:"pointer",fontFamily:"'Inter',system-ui,-apple-system,sans-serif",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:4,transition:"all .15s",whiteSpace:"nowrap",flexShrink:0});
   // MAGI's card (.side-sec) and panel title (.sheet-hd): s1 on a hairline, r=8;
   // Manrope 800, uppercase, tracked, in the light accent.
   const sec={background:T.S1,border:"1px solid rgba(255,255,255,0.06)",borderRadius:8,padding:"12px 16px"};
@@ -9839,8 +9855,8 @@ function App(){
   // the fixed landmark. The cursor takes the neutral parchment, the same colour
   // the CSS --glow-neutral token uses, so the two never read as the same state.
   // On today the two collapse and gold wins, which is right — it is both.
-  const CURSOR=T.TX, GLOW_CURSOR=GLOW(T.TX), GLOW_AC=GLOW(T.AC);
-  const sbtn={background:"transparent",color:T.ACL,border:"1px solid "+T.AC,borderRadius:4,padding:"6px 14px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"'Inter',system-ui,-apple-system,sans-serif"};
+  const CURSOR=T.TX, GLOW_CURSOR=(T.SEL||GLOW)(T.TX), GLOW_AC=(T.SEL||GLOW)(T.AC);
+  const sbtn={background:"transparent",color:T.ACL,border:"1px solid "+T.AC,borderRadius:6,padding:"6px 14px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"'Inter',system-ui,-apple-system,sans-serif"};
   const ctag=c=>({fontSize:9,color:CC[c]||T.TXD,background:(CC[c]||T.TXD)+"1a",borderRadius:6,padding:"1px 5px",marginLeft:2,textTransform:"capitalize",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+(CC[c]||T.TXD)+"30"});
   const mcByDay=useMemo(()=>{const g={};const todayK=dkey(new Date().getFullYear(),new Date().getMonth(),new Date().getDate());(marketCal||[]).forEach(ev=>{if(!ev||!ev.date)return;(g[ev.date]=g[ev.date]||[]).push({id:ev.id,type:"event",_mc:true,kind:ev.kind,title:ev.name,category:ev.category,importance:ev.importance,date:ev.date,notifyAt:ev.notifyAt||null,_past:ev.date<todayK});});return g;},[marketCal]);
   const mcFmt=(iso)=>{const d=new Date(iso);let h=d.getHours();const m=d.getMinutes();const ap=h<12?" AM":" PM";h=h%12||12;return h+":"+(m<10?"0":"")+m+ap;};
@@ -9913,7 +9929,7 @@ function App(){
             React.createElement("span",{style:{position:"absolute",top:"100%",left:0,marginTop:2,fontSize:10,fontWeight:600,whiteSpace:"nowrap",visibility:syncStatus==="saving"||syncStatus==="saved"||syncStatus==="error"?"visible":"hidden",color:syncStatus==="saving"?T.TXM:syncStatus==="error"?T.ERR:T.GRN}},syncStatus==="saving"?"Syncing…":syncStatus==="error"?"Sync failed":"Synced")),
           React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4,flexShrink:0}})),
         React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:6,minWidth:0,width:"100%",flexWrap:"wrap"}},
-          React.createElement("button",{type:"button",key:"vx-voice",title:"Voice control",style:{...hbtn(false),background:vxRec?"#e05a5a":T.AC,color:T.BG,border:"1px solid "+(vxRec?"#e05a5a":T.AC),fontWeight:800,boxShadow:GLOW(vxRec?"#e05a5a":T.AC)},onClick:()=>window._THV&&window._THV.toggleVoice()},React.createElement("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),React.createElement("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),React.createElement("line",{x1:12,y1:19,x2:12,y2:23}),React.createElement("line",{x1:8,y1:23,x2:16,y2:23}))),
+          React.createElement("button",{type:"button",key:"vx-voice",title:"Voice control",style:{...hbtn(false),background:vxRec?T.ERR:T.AC,color:T.BG,border:"1px solid "+(vxRec?T.ERR:T.AC),fontWeight:800,boxShadow:(T.SEL||GLOW)(vxRec?T.ERR:T.AC)},onClick:()=>window._THV&&window._THV.toggleVoice()},React.createElement("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),React.createElement("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),React.createElement("line",{x1:12,y1:19,x2:12,y2:23}),React.createElement("line",{x1:8,y1:23,x2:16,y2:23}))),
           /* Text → AI: the typed twin of the mic, sitting immediately beside it.
              Plain chrome like the rest of the header row — only the mic stays
              filled, so the pair doesn't read as two primary buttons. */
@@ -9923,7 +9939,7 @@ function App(){
           vxRedo&&React.createElement("button",{type:"button",key:"vx-redo",title:"Redo",style:{...hbtn(false),color:T.AC,border:"1px solid "+T.BD,fontSize:15,fontWeight:800},onMouseEnter:e=>e.currentTarget.style.borderColor=T.AC,onMouseLeave:e=>e.currentTarget.style.borderColor=T.BD,onClick:()=>window._THV&&window._THV.redo()},React.createElement("span",{style:{width:14,height:14,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.redo}})),
           /* Timer: the whole chip lights up when the timer panel is open — an
              active control reads as a filled state, not a recoloured glyph. */
-          React.createElement("button",{type:"button",title:"Timer",style:{...hbtn(false),background:showPomo?T.AC:"transparent",color:showPomo?T.BG:T.AC,border:"1px solid "+(showPomo?T.AC:T.BD),...(showPomo?{boxShadow:GLOW(T.AC)}:{})},onMouseEnter:e=>e.currentTarget.style.borderColor=T.AC,onMouseLeave:e=>e.currentTarget.style.borderColor=showPomo?T.AC:T.BD,onClick:()=>setShowPomo(p=>!p)},React.createElement("span",{style:{width:14,height:14,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.clock}})),
+          React.createElement("button",{type:"button",title:"Timer",style:{...hbtn(false),background:showPomo?T.AC:"transparent",color:showPomo?T.BG:T.AC,border:"1px solid "+(showPomo?T.AC:T.BD),...(showPomo?{boxShadow:(T.SEL||GLOW)(T.AC)}:{})},onMouseEnter:e=>e.currentTarget.style.borderColor=T.AC,onMouseLeave:e=>e.currentTarget.style.borderColor=showPomo?T.AC:T.BD,onClick:()=>setShowPomo(p=>!p)},React.createElement("span",{style:{width:14,height:14,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.clock}})),
           React.createElement("div",{role:"button",tabIndex:0,"aria-pressed":edit,title:edit?"Switch to view mode":"Switch to edit mode",style:{...hbtn(false),cursor:"pointer",userSelect:"none",border:"1px solid "+T.BD},onMouseEnter:e=>e.currentTarget.style.borderColor=T.AC,onMouseLeave:e=>e.currentTarget.style.borderColor=T.BD,onClick:()=>setEdit(e=>!e)},
             React.createElement("div",{style:{width:26,height:14,borderRadius:7,background:edit?T.AC:T.BD,position:"relative",transition:"background .25s",flexShrink:0}},
               React.createElement("div",{style:{width:10,height:10,borderRadius:"50%",background:edit?"#fff":T.TXD,position:"absolute",top:"50%",transform:"translateY(-50%)",left:edit?13:2,transition:"left .25s",boxShadow:"0 1px 3px rgba(0,0,0,.25)"}})),
@@ -9953,7 +9969,7 @@ function App(){
     React.createElement("div",{className:"thwx-band thts-band"},
       window.THWX&&React.createElement(window.THWX.Widget,{key:"wx",t:{
         BG:T.BG,S1:T.S1,BD:T.BD,BDL:T.BDL,TX:T.TX,TXD:T.TXD,TXM:T.TXM,AC:T.AC,ACG:T.ACG,
-        hov:T.S2,radius:4,font:"'Inter',system-ui,-apple-system,sans-serif"}}),
+        hov:T.S2,radius:8,font:"'Inter',system-ui,-apple-system,sans-serif"}}),
     React.createElement("div",{className:"thwx-bq",style:{flexDirection:"column",justifyContent:"center",alignItems:"stretch",position:"relative"}},
       React.createElement("p",{className:"thwx-bq-line",style:{color:T.TXD}},"“"+tgLesson.text+"”"),
       // Attribution and controls sit centred directly beneath the quote. They
@@ -9962,13 +9978,13 @@ function App(){
       React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,gap:4}},
         React.createElement("span",{style:{fontFamily:"var(--font-accent)",fontSize:11,color:T.TXM,letterSpacing:0.3,textAlign:"center"}},"— "+tgLesson.author),
         React.createElement("button",{type:"button",onClick:tgNext,title:"Next quote",style:{background:"transparent",border:"none",cursor:"pointer",padding:"2px 4px 2px 8px",color:T.TXM,fontSize:13,lineHeight:1,opacity:0.45,transition:"opacity .15s",fontFamily:"inherit"},onMouseEnter:function(e){e.currentTarget.style.opacity="0.85";},onMouseLeave:function(e){e.currentTarget.style.opacity="0.45";}},React.createElement("span",{style:{width:13,height:13,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.refresh}})),
-        React.createElement("button",{type:"button",onClick:()=>setTgShowAll(true),title:"View all quotes",style:{background:"transparent",border:"1px solid "+T.BD,borderRadius:4,cursor:"pointer",padding:"1px 7px",color:T.TXM,fontSize:10,fontWeight:700,lineHeight:"18px",fontFamily:"inherit",letterSpacing:0.5,opacity:0.6,transition:"all .15s"},onMouseEnter:function(e){e.currentTarget.style.opacity="1";e.currentTarget.style.borderColor=T.AC;e.currentTarget.style.color=T.AC;},onMouseLeave:function(e){e.currentTarget.style.opacity="0.6";e.currentTarget.style.borderColor=T.BD;e.currentTarget.style.color=T.TXM;}},React.createElement("span",{style:{width:13,height:13,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.notes}})))),
+        React.createElement("button",{type:"button",onClick:()=>setTgShowAll(true),title:"View all quotes",style:{background:"transparent",border:"1px solid "+T.BD,borderRadius:6,cursor:"pointer",padding:"1px 7px",color:T.TXM,fontSize:10,fontWeight:700,lineHeight:"18px",fontFamily:"inherit",letterSpacing:0.5,opacity:0.6,transition:"all .15s"},onMouseEnter:function(e){e.currentTarget.style.opacity="1";e.currentTarget.style.borderColor=T.AC;e.currentTarget.style.color=T.AC;},onMouseLeave:function(e){e.currentTarget.style.opacity="0.6";e.currentTarget.style.borderColor=T.BD;e.currentTarget.style.color=T.TXM;}},React.createElement("span",{style:{width:13,height:13,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.notes}})))),
       // Tesla — Tony's only. Same token contract the weather widget takes, so
       // the card inherits this TaskHub's palette, radius and type instead of
       // carrying colours of its own.
       window.THTS&&React.createElement(window.THTS.Widget,{key:"ts",t:{
         BG:T.BG,S1:T.S1,S2:T.S2,BD:T.BD,BDL:T.BDL,TX:T.TX,TXD:T.TXD,TXM:T.TXM,AC:T.AC,ACG:T.ACG,
-        hov:T.S2,radius:4,font:"'Inter',system-ui,-apple-system,sans-serif"}})),
+        hov:T.S2,radius:8,font:"'Inter',system-ui,-apple-system,sans-serif"}})),
 
     // Weekly
     React.createElement("div",{style:{...sec,flexShrink:0}},
@@ -9978,8 +9994,8 @@ function App(){
         // A shared plan waiting on you is the one thing in Plans you cannot
         // afford to miss, so it gets a way in from the week itself rather than
         // living only behind Add → Plan. Absent entirely at zero.
-        planWaiting>0&&React.createElement("button",{type:"button",title:planWaiting+" plan"+(planWaiting===1?"":"s")+" waiting on you",onClick:()=>{setEi(PLAN_SEED);setMdt(tk);setMo(true);},style:{background:T.AC,border:"1px solid "+T.AC,boxShadow:GLOW(T.AC),borderRadius:4,color:T.BG,cursor:"pointer",padding:"3px 9px",display:"inline-flex",alignItems:"center",gap:5,fontSize:10,fontWeight:800,fontFamily:"'Inter',system-ui,-apple-system,sans-serif",letterSpacing:.3,textTransform:"none",transition:"filter .15s"},onMouseEnter:e=>{e.currentTarget.style.filter="brightness(1.09)";},onMouseLeave:e=>{e.currentTarget.style.filter="";}},"Plans",React.createElement("span",{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:14,height:14,padding:"0 4px",borderRadius:999,background:T.BG,color:T.AC,fontSize:9,fontWeight:800,lineHeight:1}},planWaiting)),
-        React.createElement("button",{type:"button",title:weekCollapsed?"Expand week":"Collapse week",onClick:toggleWeekCollapsed,style:{background:"transparent",border:"1px solid "+T.BD,borderRadius:4,color:T.TXM,cursor:"pointer",padding:"3px 8px",display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:700,fontFamily:"'Inter',system-ui,-apple-system,sans-serif",letterSpacing:0.3,transition:"all .15s"},onMouseEnter:e=>{e.currentTarget.style.borderColor=T.AC;e.currentTarget.style.color=T.AC;},onMouseLeave:e=>{e.currentTarget.style.borderColor=T.BD;e.currentTarget.style.color=T.TXM;}},
+        planWaiting>0&&React.createElement("button",{type:"button",title:planWaiting+" plan"+(planWaiting===1?"":"s")+" waiting on you",onClick:()=>{setEi(PLAN_SEED);setMdt(tk);setMo(true);},style:{background:T.AC,border:"1px solid "+T.AC,boxShadow:(T.SEL||GLOW)(T.AC),borderRadius:6,color:T.BG,cursor:"pointer",padding:"3px 9px",display:"inline-flex",alignItems:"center",gap:5,fontSize:10,fontWeight:800,fontFamily:"'Inter',system-ui,-apple-system,sans-serif",letterSpacing:.3,textTransform:"none",transition:"filter .15s"},onMouseEnter:e=>{e.currentTarget.style.filter="brightness(1.09)";},onMouseLeave:e=>{e.currentTarget.style.filter="";}},"Plans",React.createElement("span",{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:14,height:14,padding:"0 4px",borderRadius:999,background:T.BG,color:T.AC,fontSize:9,fontWeight:800,lineHeight:1}},planWaiting)),
+        React.createElement("button",{type:"button",title:weekCollapsed?"Expand week":"Collapse week",onClick:toggleWeekCollapsed,style:{background:"transparent",border:"1px solid "+T.BD,borderRadius:6,color:T.TXM,cursor:"pointer",padding:"3px 8px",display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:700,fontFamily:"'Inter',system-ui,-apple-system,sans-serif",letterSpacing:0.3,transition:"all .15s"},onMouseEnter:e=>{e.currentTarget.style.borderColor=T.AC;e.currentTarget.style.color=T.AC;},onMouseLeave:e=>{e.currentTarget.style.borderColor=T.BD;e.currentTarget.style.color=T.TXM;}},
           React.createElement("span",{style:{width:11,height:11,display:"inline-flex",flexShrink:0,transform:weekCollapsed?"rotate(180deg)":"none",transition:"transform .2s"},dangerouslySetInnerHTML:{__html:TNI.arrowUp}}),
           weekCollapsed?"Expand":"Collapse"))),
       // Same box geometry in both states — only maxHeight changes. Staying a scroll
@@ -9989,11 +10005,11 @@ function App(){
       (isMobile||(isNarrow&&narrowSingleDay))?
         // ── Mobile/narrow: day-tab strip + single day card ──
         React.createElement("div",null,
-          isNarrow&&narrowSingleDay&&React.createElement("button",{type:"button",onClick:()=>setNarrowSingleDay(false),style:{fontSize:11,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.BD,borderRadius:4,padding:"5px 12px",cursor:"pointer",fontFamily:"inherit",display:"inline-block",marginBottom:8}},"← Back to week"),
+          isNarrow&&narrowSingleDay&&React.createElement("button",{type:"button",onClick:()=>setNarrowSingleDay(false),style:{fontSize:11,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.BD,borderRadius:6,padding:"5px 12px",cursor:"pointer",fontFamily:"inherit",display:"inline-block",marginBottom:8}},"← Back to week"),
           React.createElement("div",{style:{display:"flex",gap:3,overflowX:"auto",WebkitOverflowScrolling:"touch",paddingBottom:4,marginBottom:8,scrollbarWidth:"none",msOverflowStyle:"none"},className:"th-mob-day-strip"},
             wd.map((w,i)=>{
               const k=dkey(w.year,w.month,w.day),td=k===tk,sel2=mobDayIdx===i,cur=sel2&&!td;
-              return React.createElement("button",{key:k,type:"button",onClick:()=>setMobDayIdx(i),style:{flexShrink:0,padding:"5px 9px",borderRadius:4,cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,transition:"all .15s",background:"transparent",color:cur?CURSOR:td?T.AC:T.TXD,border:cur?"1px solid "+CURSOR:td?"1px solid "+T.AC:"1px solid "+T.BD,...(cur?{boxShadow:GLOW_CURSOR}:td?{boxShadow:GLOW_AC}:{}),whiteSpace:"nowrap"}},DS[i]+" "+w.day);
+              return React.createElement("button",{key:k,type:"button",onClick:()=>setMobDayIdx(i),style:{flexShrink:0,padding:"5px 9px",borderRadius:6,cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,transition:"all .15s",background:"transparent",color:cur?CURSOR:td?T.AC:T.TXD,border:cur?"1px solid "+CURSOR:td?"1px solid "+T.AC:"1px solid "+T.BD,...(cur?{boxShadow:GLOW_CURSOR}:td?{boxShadow:GLOW_AC}:{}),whiteSpace:"nowrap"}},DS[i]+" "+w.day);
             })),
           (()=>{
             const w=wd[mobDayIdx],k=dkey(w.year,w.month,w.day),td=k===tk;
@@ -10007,8 +10023,8 @@ function App(){
             const tasks=allItems.filter(i=>i.type==="task");
             const pvMatches=ecByDay[k]||[];
             const events=allItems.filter(i=>i.type==="event");
-            return React.createElement("div",{"data-dnd-zone":"week:"+k,style:{background:td?(T.TODAYBG||T.S2):T.BG,border:td?"1.5px solid "+(T.TODAYBD||T.AC+"60"):"1px solid "+T.BD,borderRadius:4,padding:12,minHeight:80,display:"flex",flexDirection:"column"}},
-              edit&&React.createElement("button",{type:"button",style:{fontSize:11,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,borderRadius:4,padding:"9px 0",width:"100%",cursor:"pointer",marginBottom:8,fontFamily:"inherit"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"),
+            return React.createElement("div",{"data-dnd-zone":"week:"+k,style:{background:td?(T.TODAYBG||T.S2):T.BG,border:td?"1.5px solid "+(T.TODAYBD||T.AC+"60"):"1px solid "+T.BD,borderRadius:6,padding:12,minHeight:80,display:"flex",flexDirection:"column"}},
+              edit&&React.createElement("button",{type:"button",style:{fontSize:11,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,borderRadius:6,padding:"9px 0",width:"100%",cursor:"pointer",marginBottom:8,fontFamily:"inherit"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"),
               React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:tasks.length>0?6:10,gap:4}},
                 React.createElement("div",{style:{minWidth:0}},
                   React.createElement("div",{style:{fontFamily:td?"var(--font-accent)":"'Manrope',system-ui,sans-serif",fontSize:14,fontWeight:700,color:td?T.AC:T.TXD,whiteSpace:"nowrap"}},DOW[mobDayIdx]),
@@ -10056,7 +10072,7 @@ function App(){
                                 /* Completed box takes the task's category colour so a
                                    finished row still says what kind of work it was;
                                    uncategorised tasks fall back to gold. */
-                                React.createElement("div",{onClick:()=>tog(k,t.id),style:{width:18,height:18,minWidth:18,borderRadius:4,border:"2px solid "+(t.done?(CC[t.category]||T.AC):T.BDL),background:t.done?(CC[t.category]||T.AC):"transparent",opacity:t.done?0.5:1,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:1,flexShrink:0,transition:"all .15s"}},t.done&&React.createElement(Chk,{s:9,col:T.BG})),
+                                React.createElement("div",{onClick:()=>tog(k,t.id),style:{width:18,height:18,minWidth:18,borderRadius:6,border:"2px solid "+(t.done?(CC[t.category]||T.AC):T.BDL),background:t.done?(CC[t.category]||T.AC):"transparent",opacity:t.done?0.5:1,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:1,flexShrink:0,transition:"all .15s"}},t.done&&React.createElement(Chk,{s:9,col:T.BG})),
                 React.createElement("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 !edit&&React.createElement("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:6,marginBottom:2}},
                   /* A mirrored plan carries a real time. Render it as its own chip
@@ -10078,14 +10094,14 @@ function App(){
                 edit&&React.createElement("button",{type:"button",style:{...ebtn,padding:"0 6px"},onClick:()=>{setEi(e);setMdt(k);setMo(true);},title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px"},onClick:()=>del(k,e.id)},"×"))),
               !tasks.length&&!events.length&&!mcDay.length&&!(crByDay[k]||[]).length&&!edit&&React.createElement("div",{style:{fontSize:11,fontWeight:500,color:T.TXM,textAlign:"center",padding:"24px 0"}},"—"),
-              edit&&React.createElement("button",{type:"button",style:{fontSize:11,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,borderRadius:4,padding:"9px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"));
+              edit&&React.createElement("button",{type:"button",style:{fontSize:11,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,borderRadius:6,padding:"9px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"));
           })())
         :
         // ── 5-day narrow or 7-day desktop ──
         React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat("+(isNarrow?5:7)+",minmax(0,1fr))",gap:"clamp(4px,0.8vw,8px)"}},
           isNarrow&&_hi.length>0&&React.createElement("div",{style:{gridColumn:"1/-1",display:"flex",gap:6,marginBottom:4,flexWrap:"wrap",alignItems:"center"}},
             React.createElement("span",{style:{fontSize:10,fontWeight:700,color:T.TXM,textTransform:"uppercase",letterSpacing:1,marginRight:2}},"Also:"),
-            _hi.map(idx=>{const _dw=wd[idx],_dk=dkey(_dw.year,_dw.month,_dw.day),_dTd=_dk===tk;return React.createElement("button",{key:_dk,type:"button",onClick:()=>{setMobDayIdx(idx);setNarrowSingleDay(true);},style:{flexShrink:0,padding:"4px 10px",borderRadius:4,cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,transition:"all .15s",background:"transparent",color:_dTd?T.AC:T.TXD,border:_dTd?"1px solid "+T.AC:"1px solid "+T.BD,...(_dTd?{boxShadow:GLOW(T.AC)}:{}),whiteSpace:"nowrap"}},DS[idx]+" "+_dw.day);})),
+            _hi.map(idx=>{const _dw=wd[idx],_dk=dkey(_dw.year,_dw.month,_dw.day),_dTd=_dk===tk;return React.createElement("button",{key:_dk,type:"button",onClick:()=>{setMobDayIdx(idx);setNarrowSingleDay(true);},style:{flexShrink:0,padding:"4px 10px",borderRadius:6,cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,transition:"all .15s",background:"transparent",color:_dTd?T.AC:T.TXD,border:_dTd?"1px solid "+T.AC:"1px solid "+T.BD,...(_dTd?{boxShadow:(T.SEL||GLOW)(T.AC)}:{}),whiteSpace:"nowrap"}},DS[idx]+" "+_dw.day);})),
           (isNarrow?_nwd:wd).map((w,_i)=>{const i=isNarrow?_ns+_i:_i;
             const k=dkey(w.year,w.month,w.day),td=k===tk;
             // Only TODAY is live; every other day — past or upcoming — recedes one
@@ -10098,8 +10114,8 @@ function App(){
             const tasks=allItems.filter(i=>i.type==="task");
             const pvMatches=ecByDay[k]||[];
             const events=allItems.filter(i=>i.type==="event");
-            return React.createElement("div",{key:k,"data-dnd-zone":"week:"+k,onDragOver:edit?e=>{e.preventDefault();e.dataTransfer.dropEffect="move";if(!isMobile)setDragOverId("day-"+k);}:null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropDay(e,k):null,style:dndDayStyle(k,{background:td?(T.TODAYBG||T.S2):T.BG,border:td?"1.5px solid "+(T.TODAYBD||T.AC+"60"):"1px solid "+T.BD,borderRadius:4,padding:"clamp(8px,1.2vw,12px)",minHeight:"clamp(200px,22vh,280px)",display:"flex",flexDirection:"column"})},
-              edit&&React.createElement("button",{type:"button",style:{fontSize:10,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,borderRadius:4,padding:"5px 0",width:"100%",cursor:"pointer",marginBottom:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"),
+            return React.createElement("div",{key:k,"data-dnd-zone":"week:"+k,onDragOver:edit?e=>{e.preventDefault();e.dataTransfer.dropEffect="move";if(!isMobile)setDragOverId("day-"+k);}:null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropDay(e,k):null,style:dndDayStyle(k,{background:td?(T.TODAYBG||T.S2):T.BG,border:td?"1.5px solid "+(T.TODAYBD||T.AC+"60"):"1px solid "+T.BD,borderRadius:6,padding:"clamp(8px,1.2vw,12px)",minHeight:"clamp(200px,22vh,280px)",display:"flex",flexDirection:"column"})},
+              edit&&React.createElement("button",{type:"button",style:{fontSize:10,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,borderRadius:6,padding:"5px 0",width:"100%",cursor:"pointer",marginBottom:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"),
               React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:tasks.length>0?4:10,gap:4}},
                 React.createElement("div",{style:{minWidth:0}},
                   React.createElement("div",{style:{fontFamily:td?"var(--font-accent)":"'Manrope',system-ui,sans-serif",fontSize:13,fontWeight:700,color:td?T.AC:T.TXD,whiteSpace:"nowrap",textTransform:"none"}},DS[i]),
@@ -10158,7 +10174,7 @@ function App(){
                 edit&&React.createElement("button",{type:"button",style:ebtn,onClick:()=>{setEi(e);setMdt(k);setMo(true);},title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                 edit&&React.createElement("button",{type:"button",style:dbtn,onClick:()=>del(k,e.id)},"×"))),
               !tasks.length&&!events.length&&!mcDay.length&&!(crByDay[k]||[]).length&&!edit&&React.createElement("div",{style:{fontSize:10,fontWeight:500,color:T.TXM,textAlign:"center",padding:"32px 0"}},"—"),
-              edit&&React.createElement("button",{type:"button",style:{fontSize:10,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,borderRadius:4,padding:"5px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"));
+              edit&&React.createElement("button",{type:"button",style:{fontSize:10,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,borderRadius:6,padding:"5px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"));
           })))),
 
     React.createElement("div",{style:{display:"grid",gridTemplateColumns:isMobile?"1fr":"minmax(0,4fr) minmax(0,2.4fr) minmax(0,4fr)",gap:"clamp(6px,1vw,10px)",flexShrink:0,alignItems:"start"}},
@@ -10191,11 +10207,11 @@ function App(){
       React.createElement("div",{style:{...sec,display:"flex",flexDirection:"column"}},
         React.createElement("div",{style:stt},"Calendar"),
         React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8,gap:4}},
-          React.createElement("button",{type:"button",style:{background:T.S2,border:"1px solid "+T.BDL,borderRadius:4,color:T.TXD,cursor:"pointer",fontSize:12,fontWeight:700,padding:"2px 8px",fontFamily:"inherit",flexShrink:0},onClick:pm},"‹"),
+          React.createElement("button",{type:"button",style:{background:T.S2,border:"1px solid "+T.BDL,borderRadius:6,color:T.TXD,cursor:"pointer",fontSize:12,fontWeight:700,padding:"2px 8px",fontFamily:"inherit",flexShrink:0},onClick:pm},"‹"),
           React.createElement("div",{style:{display:"flex",gap:4,flex:1,justifyContent:"center"}},
-            React.createElement("select",{value:vm,style:{background:T.S2,border:"1px solid "+T.BDL,borderRadius:4,color:T.AC,fontSize:11,fontWeight:700,padding:"3px 5px",fontFamily:"'Manrope',system-ui,sans-serif",outline:"none",cursor:"pointer",maxWidth:64},onChange:e=>setVm(parseInt(e.target.value))},MOS.map((m,i)=>React.createElement("option",{key:i,value:i},m))),
-            React.createElement("select",{value:vy,style:{background:T.S2,border:"1px solid "+T.BDL,borderRadius:4,color:T.AC,fontSize:11,fontWeight:700,padding:"3px 5px",fontFamily:"'Manrope',system-ui,sans-serif",outline:"none",cursor:"pointer",minWidth:62,paddingRight:2},onChange:e=>setVy(parseInt(e.target.value))},calYears.map(y=>React.createElement("option",{key:y,value:y},y)))),
-          React.createElement("button",{type:"button",style:{background:T.S2,border:"1px solid "+T.BDL,borderRadius:4,color:T.TXD,cursor:"pointer",fontSize:12,fontWeight:700,padding:"2px 8px",fontFamily:"inherit",flexShrink:0},onClick:nm},"›")),
+            React.createElement("select",{value:vm,style:{background:T.S2,border:"1px solid "+T.BDL,borderRadius:6,color:T.AC,fontSize:11,fontWeight:700,padding:"3px 5px",fontFamily:"'Manrope',system-ui,sans-serif",outline:"none",cursor:"pointer",maxWidth:64},onChange:e=>setVm(parseInt(e.target.value))},MOS.map((m,i)=>React.createElement("option",{key:i,value:i},m))),
+            React.createElement("select",{value:vy,style:{background:T.S2,border:"1px solid "+T.BDL,borderRadius:6,color:T.AC,fontSize:11,fontWeight:700,padding:"3px 5px",fontFamily:"'Manrope',system-ui,sans-serif",outline:"none",cursor:"pointer",minWidth:62,paddingRight:2},onChange:e=>setVy(parseInt(e.target.value))},calYears.map(y=>React.createElement("option",{key:y,value:y},y)))),
+          React.createElement("button",{type:"button",style:{background:T.S2,border:"1px solid "+T.BDL,borderRadius:6,color:T.TXD,cursor:"pointer",fontSize:12,fontWeight:700,padding:"2px 8px",fontFamily:"inherit",flexShrink:0},onClick:nm},"›")),
         React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,textAlign:"center",marginBottom:3}},DS.map(d=>React.createElement("div",{key:d,style:{fontSize:8,color:T.TXM,fontWeight:700,padding:"1px 0"}},d.charAt(0)))),
         React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,textAlign:"center"}},
           calcCells.map((day,i)=>{
@@ -10215,7 +10231,7 @@ function App(){
         React.createElement("div",{style:{...stt,display:"flex",gap:16,alignItems:"center"}},
           React.createElement("span",{"data-goal-tab":"short",onClick:()=>setGoalTab("short"),onDragOver:edit?e=>{e.preventDefault();if(dragInfo.current&&goalTab!=="short")setGoalTab("short");}:undefined,style:{cursor:"pointer",color:goalTab==="short"?T.TX:T.TXM,borderBottom:goalTab==="short"?"2px solid "+T.AC:"2px solid transparent",paddingBottom:2,transition:"all .15s"}},"Short-Term Goals"),
           React.createElement("span",{"data-goal-tab":"long",onClick:()=>setGoalTab("long"),onDragOver:edit?e=>{e.preventDefault();if(dragInfo.current&&goalTab!=="long")setGoalTab("long");}:undefined,style:{cursor:"pointer",color:goalTab==="long"?T.TX:T.TXM,borderBottom:goalTab==="long"?"2px solid "+T.AC:"2px solid transparent",paddingBottom:2,transition:"all .15s"}},"Long-Term Goals"),
-          React.createElement("button",{type:"button",title:(goalTab==="short"?goalPrefs.hideShort:goalPrefs.hideLong)?"Show completed goals":"Hide completed goals",onClick:()=>{const key=goalTab==="short"?"hideShort":"hideLong";setGoalPrefs(p=>({...p,[key]:!p[key]}));},style:{marginLeft:"auto",background:"transparent",border:"1px solid "+T.BD,borderRadius:4,color:T.TXM,fontSize:10,fontWeight:700,letterSpacing:0.3,padding:"3px 8px",cursor:"pointer",fontFamily:"'Inter',system-ui,-apple-system,sans-serif",whiteSpace:"nowrap",textTransform:"none",transition:"all .15s"}},(goalTab==="short"?goalPrefs.hideShort:goalPrefs.hideLong)?"Show Completed":"Hide Completed")),
+          React.createElement("button",{type:"button",title:(goalTab==="short"?goalPrefs.hideShort:goalPrefs.hideLong)?"Show completed goals":"Hide completed goals",onClick:()=>{const key=goalTab==="short"?"hideShort":"hideLong";setGoalPrefs(p=>({...p,[key]:!p[key]}));},style:{marginLeft:"auto",background:"transparent",border:"1px solid "+T.BD,borderRadius:6,color:T.TXM,fontSize:10,fontWeight:700,letterSpacing:0.3,padding:"3px 8px",cursor:"pointer",fontFamily:"'Inter',system-ui,-apple-system,sans-serif",whiteSpace:"nowrap",textTransform:"none",transition:"all .15s"}},(goalTab==="short"?goalPrefs.hideShort:goalPrefs.hideLong)?"Show Completed":"Hide Completed")),
 
         React.createElement("div",{style:{display:edit?"flex":"none",gap:6,marginBottom:8}},
           React.createElement("input",{style:{...inp,flex:1},placeholder:goalTab==="short"?"New short-term goal...":"New long-term goal...",value:goalTab==="short"?nmmt:nmt,onChange:e=>(goalTab==="short"?setNmmt:setNmt)(e.target.value),onKeyDown:e=>{if(e.key==="Enter")(goalTab==="short"?addMM:addM)();}}),
@@ -14614,8 +14630,10 @@ const BG="#1B1C1E",S1="#26272A",BD="#3D3E43",BDL="#4A4B51",TX="#ECECEE",TXD="#AF
 // Veda's palette expressed in the theme shape the shared TaskHub modals expect
 // (HabitModal, TimePicker, DayPicker), so both profiles drive one component.
 const VD_T={BG:BG,S1:S1,S2:"#2E2F33",BD:BD,BDL:BDL,TX:TX,TXD:TXD,TXM:TXM,AC:A,ACL:AL,ACD:AD,GRN:GRN,SHADOW:"rgba(0,0,0,.5)"};
-// Same outline glow Tony's block defines — Veda's TaskHub is a separate babel
-// block with its own scope, so it gets its own copy. See the comment there.
+// Same outline glow Tony's block defines. Both babel blocks share ONE global
+// scope, so this copy is the GLOW everything sees at runtime (it loads last) —
+// keep the two identical. Tony's MAGI look goes through T.SEL instead; see the
+// comment on Tony's copy.
 const GLOW=(hex)=>{
   const h=String(hex||"").replace("#","");
   if(h.length<6)return "none";
@@ -17323,7 +17341,8 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
 // ── Profile selection overlay — pure JS, no React deps ────────
 (function(){
   const PROFILES={
-    tony:{key:"profile_tony_unlocked",label:"Tony",emoji:"\u262F\uFE0F",color:"#e0b874"},
+    // Tony's colour is MAGI purple since the theme overhaul (docs/theme-overhaul-plan.md).
+    tony:{key:"profile_tony_unlocked",label:"Tony",emoji:"\u262F\uFE0F",color:"#c0aeea"},
     veda:{key:"profile_veda_unlocked",label:"Veda",emoji:"✦",color:"#8D769A"}
   };
   const AUTH_WORKER='https://taskhub-reminders.av1.workers.dev';
@@ -17360,7 +17379,20 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     document.body.style.background="#1a1a1d";document.documentElement.style.background="#1a1a1d"; // light mode removed — always dark
   }
 
+  // Which profile is on screen, for CSS and hoverfx. The theme overhaul
+  // (docs/theme-overhaul-plan.md) gives Tony MAGI's look; the dialogs, app lock,
+  // settings and voice overlays are SHARED and appended to <body>, so they read
+  // body[data-th-profile="tony"] to know whose colours to wear, and
+  // data-hoverfx="magi" on <body> gives them MAGI's hover/press. Veda and the
+  // chooser carry neither, so they render exactly as before.
+  function _markProfile(who){
+    var b=document.body; if(!b) return;
+    if(who){ b.setAttribute("data-th-profile",who); } else { b.removeAttribute("data-th-profile"); }
+    if(who==="tony"){ b.setAttribute("data-hoverfx","magi"); } else { b.removeAttribute("data-hoverfx"); }
+  }
+
   function showProfile(){
+    _markProfile(null);
     hideVeda();
     renderProfile();
     const ov=document.getElementById("profile-overlay");
@@ -17386,6 +17418,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
       window._plPrevProfile=window._activeProfile;window._plProfileSwitchedAt=Date.now();
     }
     window._activeProfile="tony";
+    _markProfile("tony");
     // Tell the push layer which profile this device is being used as, so a Plans
     // event addressed to Tony can reach it even when its main is Veda's.
     if(window._fcmNoteActiveDash)window._fcmNoteActiveDash("tony");
@@ -17423,6 +17456,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
       window._plPrevProfile=window._activeProfile;window._plProfileSwitchedAt=Date.now();
     }
     window._activeProfile="veda";
+    _markProfile("veda");
     // See goTony.
     if(window._fcmNoteActiveDash)window._fcmNoteActiveDash("veda");
     const ov=document.getElementById("profile-overlay");
@@ -17571,13 +17605,14 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     const vdUn=document.getElementById("vd-unmain-btn");
     if(thUn)thUn.style.display=main==="tony"?"inline-flex":"none";
     if(vdUn)vdUn.style.display=main==="veda"?"inline-flex":"none";
-    const thBd="#34343a";
-    const thAc="#e0b874";
+    const thBd="#45454c";
+    const thAc="#c0aeea";   // MAGI purple (theme overhaul, docs/theme-overhaul-plan.md)
     if(thBtn){
       thBtn.textContent=main==="tony"?"Main":"Set as main";
       const isTony=main==="tony";
-      thBtn.style.background="transparent";
-      thBtn.style.color=isTony?"#e0b874":thAc;
+      // MAGI's selected state: a 16% accent wash with the light accent label.
+      thBtn.style.background=isTony?"rgba(192,174,234,0.16)":"transparent";
+      thBtn.style.color=isTony?"#dbd0f5":thAc;
       thBtn.style.borderColor=isTony?thAc:thBd;
     }
     if(vdBtn){
@@ -30536,7 +30571,10 @@ window.hideBrainstormJournal = function() {
 </style>
 
 
-<div id="tj-root">
+<!-- data-hoverfx="classic": MyJournal keeps the measured hover until its own
+     theme-overhaul phase (docs/theme-overhaul-plan.md), even though <body> is
+     magi while Tony is open. The nearest declaration wins. -->
+<div id="tj-root" data-hoverfx="classic">
 <div id="tj-nav-header" style="background:var(--bg);border-bottom:1px solid var(--border);flex-shrink:0;">
   <div id="tj-nav-inner" style="max-width:2000px;margin:0 auto;padding:calc(env(safe-area-inset-top,0px) + 10px) clamp(12px,3vw,24px) 10px;display:flex;flex-direction:column;gap:6px;min-width:0;width:100%;">
     <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;min-height:30px;">
@@ -40188,7 +40226,8 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){retur
 function profile(){return window._activeProfile==='veda'?'veda':'tony';}
 function bridge(){return profile()==='veda'?window._vdVoice:window._thVoice;}
 function ui(){return profile()==='veda'?window._vdVoiceUI:window._thVoiceUI;}
-function accent(){return profile()==='veda'?'#8D769A':'#e0b874';}
+// Tony: MAGI purple since the theme overhaul (docs/theme-overhaul-plan.md).
+function accent(){return profile()==='veda'?'#8D769A':'#c0aeea';}
 function themeVars(){
   var cs=getComputedStyle(document.body);
   var bg=cs.backgroundColor||'#232327';
@@ -40198,7 +40237,7 @@ function themeVars(){
   // rgb triplet of the same accent. These overlays sit outside every app root,
   // so their hover glow is written out against this instead of --suite-glow —
   // same .42 ring + .42 bloom, tinted to whichever TaskHub opened them.
-  root.setProperty('--thv-glow-rgb',profile()==='veda'?'141,118,154':'224,184,116');
+  root.setProperty('--thv-glow-rgb',profile()==='veda'?'141,118,154':'192,174,234');
   root.setProperty('--thv-surface',bg);
   root.setProperty('--thv-text',light?'#1a1a1f':'#f4f3f0');
   root.setProperty('--thv-mute',light?'#7a7785':'#8a8a98');
@@ -40784,6 +40823,20 @@ window._THV={
   + '#uim-btns{display:flex;gap:10px;margin-top:20px;justify-content:flex-end;}'
   + '#uim-btns button{border:1px solid #45454c;background:transparent;border-radius:6px;padding:9px 16px;font-size:11.5px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;font-family:inherit;transition:border-color .18s,color .18s;}'
   + '#uim-cancel{color:#f4f3f0;}'+'#uim-cancel:hover{border-color:#adadb2;}'
+  /* Tony's profile wears MAGI's sheet (magi.html .sheet / .sheet-box /
+     .sheet-hd) since the theme overhaul (docs/theme-overhaul-plan.md). Veda's
+     dialogs keep everything above. */
+  + 'body[data-th-profile="tony"] #uim-overlay{background:rgba(0,0,0,.62);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);}'
+  + 'body[data-th-profile="tony"] #uim-box{background:#232327;border-color:rgba(255,255,255,.06);border-radius:8px;box-shadow:0 18px 48px rgba(0,0,0,.5);}'
+  + 'body[data-th-profile="tony"] #uim-title{font-size:12px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#dbd0f5;}'
+  + 'body[data-th-profile="tony"] .uim-label{font-size:9px;font-weight:700;color:#8d8d94;}'
+  + 'body[data-th-profile="tony"] .uim-input{background:#1a1a1d;}'
+  + 'body[data-th-profile="tony"] .uim-input:focus{border-color:#c0aeea;box-shadow:0 0 0 3px rgba(192,174,234,.16);}'
+  + 'body[data-th-profile="tony"] #uim-btns button{height:28px;padding:0 12px;font-size:10px;font-weight:700;letter-spacing:1px;transition:all .15s;}'
+  + 'body[data-th-profile="tony"] #uim-ok:not(.uim-danger){background:#c0aeea!important;border-color:#c0aeea!important;color:#1a1a1d!important;}'
+  + 'body[data-th-profile="tony"] #uim-ok:not(.uim-danger):hover{box-shadow:0 0 0 3px rgba(192,174,234,.22);}'
+  + 'body[data-th-profile="tony"] #uim-cancel{color:#c0aeea;}'
+  + 'body[data-th-profile="tony"] #uim-cancel:hover{border-color:#c0aeea;}'
   + '';
   var queue=[], active=null, _uimLocked=false;
   function el(id){ return document.getElementById(id); }
@@ -40819,6 +40872,7 @@ window._THV={
     ok.style.background='transparent';
     ok.style.color=cfg.danger?'#d68a7c':'#e0b874';
     ok.style.borderColor=cfg.danger?'rgba(214,138,124,.45)':'rgba(224,184,116,.36)';
+    ok.classList.toggle('uim-danger', !!cfg.danger);
     ca.textContent=cfg.cancelLabel||'Cancel'; ca.style.display=(cfg.kind==='alert')?'none':'';
     el('uim-overlay').classList.add('show');
     // Stop the page scrolling underneath. Shares the counter the React dialogs
@@ -41344,6 +41398,15 @@ window._THV={
   #applock-submit:hover:not(:disabled) { box-shadow: 0 0 12px var(--al-glowl); }
 }
 #applock-pw:focus { box-shadow: 0 0 11px var(--al-glowl); }
+/* Tony's profile: MAGI's gate card (magi.html .gate-card / .lock-in) — a
+   hairline card at radius 8, the accent ring on focus instead of a bloom, and
+   uppercase tracked buttons. The accent itself already comes from AL_LABELS. */
+body[data-th-profile="tony"] #applock-overlay { background: rgba(0,0,0,.62); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
+body[data-th-profile="tony"] #applock-box { border-color: rgba(255,255,255,.06); border-radius: 8px; box-shadow: 0 24px 64px rgba(0,0,0,.5); }
+body[data-th-profile="tony"] #applock-sub { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+body[data-th-profile="tony"] #applock-pw:focus { border-color: #c0aeea; box-shadow: 0 0 0 3px rgba(192,174,234,.16); }
+body[data-th-profile="tony"] #applock-submit { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; }
+body[data-th-profile="tony"] #applock-submit:hover:not(:disabled) { box-shadow: 0 0 0 3px rgba(192,174,234,.22); filter: brightness(1.12); }
 #applock-submit, #applock-pw { transition: border-color .18s, box-shadow .18s, opacity .18s; }
 /* Phones: full-bleed card with 46px tap targets, and a scrolling body so a menu
    carrying biometrics plus every action still fits a short screen. */
@@ -41518,16 +41581,17 @@ var AL_WORKER  = 'https://taskhub-reminders.av1.workers.dev';
 var AL_JOURNAL = 'applock';
 var AL_EMAIL   = { tony: 'anthonypn99@gmail.com', veda: 'vedaapatel1605@gmail.com' };
 var AL_FORM    = { tony: 'https://formspree.io/f/xeedkebo', veda: 'https://formspree.io/f/xzdlwaqg' };
+// Tony's locks wear MAGI purple since the theme overhaul (docs/theme-overhaul-plan.md).
 var AL_LABELS  = {
-  tony_taskhub:   { label: 'TaskHub',    profile: 'tony', color: '#e0b874' },
-  tony_tradehub:  { label: 'TradeHub',   profile: 'tony', color: '#e0b874' },
+  tony_taskhub:   { label: 'TaskHub',    profile: 'tony', color: '#c0aeea' },
+  tony_tradehub:  { label: 'TradeHub',   profile: 'tony', color: '#c0aeea' },
   // Solace (solace.html) — Tony's health program: Fitness ▸ MotionCore and
   // Nutrition ▸ Recipes. This entry locks its NAV BUTTON; the app itself carries
   // its own independent lock on 'tony_solace_standalone', the same split Vault and
   // TradeHub use between their button and their standalone page.
-  tony_solace:    { label: 'Solace',     profile: 'tony', color: '#e0b874' },
-  tony_keychain:  { label: 'Vault',      profile: 'tony', color: '#e0b874' },
-  tony_myjournal: { label: 'MyJournal',  profile: 'tony', color: '#e0b874' },
+  tony_solace:    { label: 'Solace',     profile: 'tony', color: '#c0aeea' },
+  tony_keychain:  { label: 'Vault',      profile: 'tony', color: '#c0aeea' },
+  tony_myjournal: { label: 'MyJournal',  profile: 'tony', color: '#c0aeea' },
   tony_warroom:   { label: 'RiftIQ',     profile: 'tony', color: '#c0aeea' },
   veda_taskhub:   { label: 'TaskHub',    profile: 'veda', color: '#8D769A' },
   veda_gita:      { label: 'Gita',       profile: 'veda', color: '#8D769A' },
@@ -41552,7 +41616,7 @@ var AL_LABELS  = {
   // one profile must never be able to open the other's emergency configuration.
   // Shield's own page re-verifies this password live before it will disable
   // Emergency Mode, deliberately ignoring the per-device unlock marker.
-  tony_shield:    { label: 'Shield',     profile: 'tony', color: '#e0b874' },
+  tony_shield:    { label: 'Shield',     profile: 'tony', color: '#c0aeea' },
   veda_shield:    { label: 'Shield',     profile: 'veda', color: '#8D769A' },
   // NOTE: Plans had its own 'shared_plans' lock while it was a standalone
   // program. It lives inside both TaskHubs now (Weekly → Add → Plan), so it is
@@ -41561,7 +41625,7 @@ var AL_LABELS  = {
   //    Use the SAME app-lock machinery: worker KV hash, Firebase sync, version bump
   //    → every device must re-enter on set/change. isProfile tweaks overlay copy &
   //    routes the "forgot" hint (tony→email, veda→shown in her profile). ──
-  profile_tony:   { label: 'Tony',  profile: 'tony', color: '#e0b874', isProfile: true },
+  profile_tony:   { label: 'Tony',  profile: 'tony', color: '#c0aeea', isProfile: true },
   profile_veda:   { label: 'Veda',  profile: 'veda', color: '#8D769A', isProfile: true },
 };
 
@@ -41974,7 +42038,7 @@ function alUpdateTonyLockBtn() {
   btn.innerHTML = locked
     ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>'
     : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg>';
-  btn.style.color  = '#e0b874';
+  btn.style.color  = '#c0aeea';
   btn.style.opacity = locked ? '1' : '0.55';
   btn.title = locked ? 'Locked — click to manage' : 'Unlocked — click to lock';
   if (window._navTabGearRefresh) window._navTabGearRefresh();
@@ -42412,7 +42476,7 @@ window._alNavToId = alNavAppToId;
 window._alCustomLockId = function(profile, linkId){ return profile + '_custom_' + linkId; };
 window._alRegisterCustom = function(profile, linkId, label){
   var id = profile + '_custom_' + linkId;
-  AL_LABELS[id] = { label: label || 'Link', profile: profile, color: profile==='veda' ? '#8D769A' : '#e0b874' };
+  AL_LABELS[id] = { label: label || 'Link', profile: profile, color: profile==='veda' ? '#8D769A' : '#c0aeea' };
   return id;
 };
 
@@ -43860,7 +43924,7 @@ function attachPanelDrag(item,app,panel,orderArr,itemClass,dataAttr,who){
       under=under.parentElement;
     }
     if(found){
-      found.style.boxShadow='0 0 0 2px '+(who==='tony'?'#e0b874':'#8D769A');
+      found.style.boxShadow='0 0 0 2px '+(who==='tony'?'#c0aeea':'#8D769A');
       var ta=found.getAttribute(dataAttr);
       if(ta&&ta!==app){
         var s=orderArr.indexOf(app),t=orderArr.indexOf(ta);
@@ -44317,6 +44381,27 @@ if(document.readyState==='loading'){
 .thset-grip{flex:0 0 auto;cursor:grab;color:#7a7a88;opacity:.6;font-size:14px;line-height:1;letter-spacing:-3px;padding:4px 2px;touch-action:none;user-select:none;-webkit-user-select:none;}
 .thset-grip:active{cursor:grabbing;}
 #thset-box.veda .thset-grip{color:#8D769A;}
+/* Tony's settings: MAGI's sheet (magi.html .sheet-box / .sheet-hd / .sheet-in).
+   Scoped to :not(.veda) so Veda's box keeps every rule above. */
+#thset-overlay:has(#thset-box:not(.veda)){background:rgba(0,0,0,.62);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);}
+#thset-box:not(.veda){border-color:rgba(255,255,255,.06);border-radius:8px;box-shadow:0 24px 64px rgba(0,0,0,.5);}
+#thset-box:not(.veda) .thset-hdr{border-bottom-color:rgba(255,255,255,.06);}
+#thset-box:not(.veda) .thset-title{font-family:'Manrope',system-ui,sans-serif;font-size:12px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#dbd0f5;}
+#thset-box:not(.veda) .thset-sec + .thset-sec{border-top-color:rgba(255,255,255,.06);}
+#thset-box:not(.veda) .thset-sec-title{font-size:9px;font-weight:700;letter-spacing:1.6px;opacity:1;color:#8d8d94;}
+#thset-box:not(.veda) .thset-row{border-radius:6px;border-color:rgba(255,255,255,.06);background:#2c2c31;}
+#thset-box:not(.veda) .thset-pill.locked{background:color-mix(in srgb,#c0aeea 16%,transparent);color:#dbd0f5;border-color:#c0aeea;}
+#thset-box:not(.veda) .thset-pill.unlocked{background:transparent;color:#8d8d94;border-color:#45454c;}
+#thset-box:not(.veda) .thset-mini{border-color:#45454c;color:#c0aeea;border-radius:6px;font-size:10px;letter-spacing:1px;text-transform:uppercase;}
+#thset-box:not(.veda) .thset-mini:hover{border-color:#c0aeea;color:#c0aeea;}
+#thset-box:not(.veda) .thset-mini.danger{color:#d68a7c;}
+#thset-box:not(.veda) .thset-mini.danger:hover{border-color:#d68a7c;}
+#thset-box:not(.veda) .thset-input{background:#1a1a1d;border-color:#45454c;border-radius:6px;}
+#thset-box:not(.veda) .thset-input:focus{border-color:#c0aeea;box-shadow:0 0 0 3px rgba(192,174,234,.16);}
+#thset-box:not(.veda) .thset-btn{border-radius:6px;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;}
+#thset-box:not(.veda) .thset-btn:hover{opacity:1;box-shadow:0 0 0 3px rgba(192,174,234,.22);}
+#thset-box:not(.veda) .thset-close:hover{background:#34343a;}
+#thset-box:not(.veda) .thset-grip{color:#c0aeea;}
 /* action cluster wraps below the label on narrow rows instead of overflowing */
 .thset-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;}
 .thset-link-row{flex-wrap:wrap;row-gap:8px;}
@@ -44355,7 +44440,8 @@ if(document.readyState==='loading'){
 
 var GEAR_SVG='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
 
-var ACCENT={ tony:'#e0b874', veda:'#8D769A' };
+// Tony: MAGI purple since the theme overhaul (docs/theme-overhaul-plan.md).
+var ACCENT={ tony:'#c0aeea', veda:'#8D769A' };
 
 // ── Inject Veda settings gear before each ✦ profile switcher (self-healing) ──
 function injectVedaGears(){
@@ -44661,7 +44747,7 @@ function startEdit(row,profile,l){
   }
   var btns=document.createElement('div'); btns.style.cssText='display:flex;gap:8px;justify-content:flex-end;';
   var save=document.createElement('button'); save.className='thset-btn'; save.textContent='Save';
-  save.style.background=ACCENT[profile]; save.style.color='#fff';
+  save.style.background=ACCENT[profile]; save.style.color=profile==='tony'?'#1a1a1d':'#fff';
   var cancel=document.createElement('button'); cancel.className='thset-mini'; cancel.textContent='Cancel';
   save.addEventListener('click',function(){
     var lbl=li.value.trim();
@@ -44882,8 +44968,8 @@ document.addEventListener('visibilitychange',function(){ if(!document.hidden) sw
 <!-- One hover language for every control in this file: a dim one lifts a step,
      a bright one settles a step. See hoverfx.js for how and why.
      Scoped to the program roots plus the dialogs they share. The Tony program
-     nav is deliberately NOT in the list: it already answers the cursor with a
-     gold outline and glow, and stacking a second signal on a designed one is
+     nav is deliberately NOT in the list: it already answers the cursor with its
+     own outline and lift (in CSS), and stacking a second signal on a designed one is
      how a hover language stops reading as one language. -->
 <script src="tabsync.js"></script>
 <script src="sweep.js" data-program="index" defer></script>

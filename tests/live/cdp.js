@@ -101,7 +101,10 @@ async function connect() {
 // website can produce it too (see "Who may drive the engine" in docs/magi.md).
 const PAGES = 'https://anthonyn99.github.io/A1/';
 const PAGES_URL = PAGES + 'magi.html';
-const A1 = path.resolve(__dirname, '..', '..');
+// A1_ROOT serves a DIFFERENT checkout under the same origin -- e.g. a
+// `git worktree` of an older tag, for a before/after comparison
+// (tests/live/theme-shots.live.js).
+const A1 = path.resolve(process.env.A1_ROOT || path.join(__dirname, '..', '..'));
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
   '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon' };
 
@@ -118,6 +121,13 @@ async function servePagesFromWorkingCopy(ws, send) {
     const m = JSON.parse(ev.data);
     if (m.method !== 'Fetch.requestPaused') return;
     const { requestId, request } = m.params;
+    // CDP_ALLOW_FONTS=1 lets Google Fonts through (fonts.googleapis.com is
+    // caught by the *.googleapis.com block), for screenshots that must show the
+    // real typefaces. Fonts are not an API: nothing reaches Firestore this way.
+    if (process.env.CDP_ALLOW_FONTS && /^https:\/\/fonts\.(googleapis|gstatic)\.com\//.test(request.url)) {
+      send('Fetch.continueRequest', { requestId });
+      return;
+    }
     if (!request.url.startsWith(PAGES)) {
       send('Fetch.failRequest', { requestId, errorReason: 'BlockedByClient' });
       return;
