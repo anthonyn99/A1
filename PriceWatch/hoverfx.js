@@ -38,6 +38,19 @@
  *
  * Opt a subtree out at any time with data-no-hoverfx.
  *
+ * MAGI MODE — data-hoverfx="magi" on any ancestor
+ * Inside such a subtree the control speaks MAGI's hover language instead (see
+ * magi.html's "global hover layer"): every control LIFTS — brightness(1.15),
+ * no luminance measurement, no settle — and a press sinks it
+ * (brightness(.94) + 1px down) until the pointer lets go. Keyboard focus gets
+ * MAGI's 2px accent ring. The accent is read from --fx-ac on the subtree
+ * (default MAGI purple #c0aeea). This is how the theme overhaul
+ * (docs/theme-overhaul-plan.md) carries MAGI's mechanics into inline-styled
+ * React and hand-built DOM that have no classes to hang CSS on; removing the
+ * attribute puts a subtree straight back on the measured behaviour above.
+ * The press writes the `translate` property, never `transform`, for the same
+ * reason only `filter` is written: React owns inline transform on some nodes.
+ *
  * The extensions (Vault/, PriceWatch/, V1/Launcher/) cannot reach outside their
  * own folder, so each carries a byte-identical copy. tests/hoverfx-wiring.test.js
  * fails if a copy drifts.
@@ -54,6 +67,11 @@
       LIFT_FILL    = 'brightness(1.22)',  /* dark fill: one step lighter, StudyOS's bg3 -> bg4 */
       SETTLE_GHOST = 'brightness(0.88)',  /* no fill, light ground: deepen the ink instead */
       SETTLE       = 'brightness(0.86)';  /* bright fill: StudyOS's .primary opacity .88 */
+
+  /* MAGI mode (magi.html's global hover layer): lift only, and a press. */
+  var MAGI_LIFT  = 'brightness(1.15)',
+      MAGI_PRESS = 'brightness(0.94)',
+      MAGI       = '[data-hoverfx="magi"]';
 
   var CONTROLS = 'button,select,summary,a[href],[role="button"]';
   var OPT_OUT  = '[data-no-hoverfx]';
@@ -79,11 +97,15 @@
     '.hoverfx{transition-property:filter,background,background-color,border-color,' +
     'border-top-color,border-right-color,border-bottom-color,border-left-color,' +
     'box-shadow,color,opacity,transform,width,height,left,right,visibility,' +
-    'border-radius,outline-color,fill,stroke,stroke-dashoffset,text-shadow!important}' +
+    'border-radius,outline-color,fill,stroke,stroke-dashoffset,text-shadow,translate!important}' +
     /* For controls whose FIRST transition-duration is 0s — either they declare
        no transition at all, or their list starts at 0s (`0s, 0.5s`) and
        `filter`, being first above, would pair with that zero and snap. */
-    '.hoverfx-t{transition-duration:.15s!important;transition-timing-function:ease!important}';
+    '.hoverfx-t{transition-duration:.15s!important;transition-timing-function:ease!important}' +
+    /* MAGI mode's focus ring (magi.html: button:focus-visible). Keyboard only. */
+    MAGI + ' :is(button,select,summary,a[href],[role="button"]):focus-visible,' +
+    MAGI + ':is(button,select,summary,a[href],[role="button"]):focus-visible' +
+    '{outline:2px solid var(--fx-ac,#c0aeea)!important;outline-offset:1px!important}';
   (document.head || document.documentElement).appendChild(css);
 
   // ── colour ───────────────────────────────────────────────────────────────
@@ -177,8 +199,16 @@
   }
 
   // ── wire ─────────────────────────────────────────────────────────────────
-  var cur = null;
-  function clear() { if (cur) { cur.style.filter = ''; cur = null; } }
+  var cur = null, pressed = null;
+  var still = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)');
+  function unpress() {
+    if (!pressed) return;
+    pressed.style.translate = '';
+    if (pressed === cur) cur.style.filter = MAGI_LIFT;
+    else pressed.style.filter = '';
+    pressed = null;
+  }
+  function clear() { unpress(); if (cur) { cur.style.filter = ''; cur = null; } }
 
   document.addEventListener('pointerover', function (e) {
     // A tap fires a synthetic hover that never gets a matching pointerout, which
@@ -202,12 +232,23 @@
     // `filter` is first in the property list, so it pairs with the FIRST
     // duration in the element's list.
     if (!(parseFloat(cs.transitionDuration) > 0)) el.classList.add('hoverfx-t');
-    el.style.filter = effect(el);
+    el.style.filter = el.closest(MAGI) ? MAGI_LIFT : effect(el);
   }, true);
 
   document.addEventListener('pointerout', function (e) {
     if (cur && !cur.contains(e.relatedTarget)) clear();
   }, true);
+
+  // MAGI mode's press: the hovered control sinks while the button is held.
+  // Mouse only, like the hover — a tap has its own native feedback.
+  document.addEventListener('pointerdown', function (e) {
+    if (e.button !== 0 || !cur || !cur.contains(e.target) || !cur.closest(MAGI)) return;
+    pressed = cur;
+    cur.style.filter = MAGI_PRESS;
+    if (!(still && still.matches)) cur.style.translate = '0 1px';
+  }, true);
+  document.addEventListener('pointerup', unpress, true);
+  document.addEventListener('pointercancel', unpress, true);
 
   // Alt-tabbing away mid-hover never delivers a pointerout.
   window.addEventListener('blur', clear);

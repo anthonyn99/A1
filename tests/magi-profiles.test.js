@@ -56,7 +56,7 @@ ok('Veda reads a different document', /veda:[^}]*doc:\s*"magi_veda"/.test(profil
 ok('their lock records are separate',
    /tony:[^}]*lock:\s*"tony_magi"/.test(profiles) && /veda:[^}]*lock:\s*"veda_magi"/.test(profiles));
 ok('they are visually distinguishable',
-   /tony:[^}]*color:\s*"#e0b874"/.test(profiles) && /veda:[^}]*color:\s*"#8D769A"/.test(profiles));
+   /tony:[^}]*color:\s*"#c0aeea"/.test(profiles) && /veda:[^}]*color:\s*"#8D769A"/.test(profiles));
 
 console.log('\nThe Firestore path is derived, never hard-coded');
 ok('_indexDoc asks the profile', /_indexDoc\s*=\s*\(\)\s*=>[^;]*prof\(\)\.doc/.test(MAGI));

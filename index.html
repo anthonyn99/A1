@@ -77,9 +77,9 @@
   font-weight:750;letter-spacing:-.4px;line-height:1.2;
   color:var(--gold-primary);
 }
-/* The TaskHub wordmark sits alone at the top of the page with nothing to lean on,
-   so it takes a lighter gold than the shared --gold-primary to hold that corner. */
-.suite-title.th-wordmark{color:#eecb92;}
+/* The TaskHub wordmark wears MAGI's: the light accent (--acl) in Manrope
+   (theme overhaul phase 1, docs/theme-overhaul-plan.md). */
+.suite-title.th-wordmark{color:#dbd0f5;}
 /* ── Suite hover-glow standard ─────────────────────────────────────────────
    Every hoverable control in the suite lights up at ONE brightness: a 1px ring
    at .42 over a 10px bloom at .42. Only the hue changes. --suite-glow carries
@@ -104,6 +104,12 @@
 }
 #veda-root,#bj-root,#cooking-view{--suite-glow:var(--glow-purple);}
 #wr-root{--suite-glow:var(--glow-lilac);}
+/* Tony's TaskHub (theme overhaul): MAGI's hover is "the outline turns accent",
+   not a bloom. A 1px ring draws that without touching React's inline border. */
+#root{--suite-glow:0 0 0 1px rgba(192,174,234,.6);--fx-ac:#c0aeea;
+  /* MAGI has no serif: the quote, "Resets every Monday" and today's day name
+     read in the UI face instead of Fraunces. */
+  --font-accent:'Inter',system-ui,-apple-system,sans-serif;}
 /* Every button in every app root gets the glow by default. The TaskHubs need
    it most — their buttons are inline-styled from React, and those handlers only
    set border-color/color, never box-shadow, so this never fights them.
@@ -149,53 +155,43 @@ html,body{height:100%;}
   pointer-events:none;position:relative;
 }
 #tony-app-nav .tn-btn,#tony-app-nav .tn-star,#tn-mobile-select,#tn-settings-btn,#tn-dd-trigger{pointer-events:auto;}
-/* ── Chrome button standard ────────────────────────────────────────────────
-   One resting state for every utility control in the suite: transparent fill,
-   gold label, quiet neutral hairline. Emphasis — hover and the active app —
-   comes from a gold outline plus a soft glow, never from a gold fill.
-   WarRoom opts out below and keeps its purple identity. */
+/* ── Chrome buttons: MAGI's .btn recipe (magi.html .btn / .navitem) ────────
+   Theme overhaul, phase 1 (docs/theme-overhaul-plan.md). Transparent fill,
+   purple label, a quiet --bdl hairline. Hover lifts (brightness 1.15) and the
+   outline turns accent; a press sinks 1px. The CURRENT app wears MAGI's
+   .navitem.active: a 16% accent tint with the light accent label — no glow.
+   This nav is outside hoverfx's roots on purpose, so it carries the whole
+   mechanic itself. RiftIQ used to be the one purple button in a gold row; the
+   row is purple now, so it is no longer special-cased. */
 #tony-app-nav .tn-btn{
-  background:transparent;color:var(--tn-ac,#c8a15f);
-  border:1px solid var(--tn-bd,#2e3a35);
-  border-radius:4px;padding:0 10px;height:28px;box-sizing:border-box;
+  background:transparent;color:var(--tn-ac,#c0aeea);
+  border:1px solid var(--tn-bd,#45454c);
+  border-radius:6px;padding:0 10px;height:28px;box-sizing:border-box;
   display:inline-flex;align-items:center;font-size:10px;font-weight:700;
-  cursor:grab;font-family:'Inter',system-ui,-apple-system,sans-serif;letter-spacing:.5px;
+  cursor:grab;font-family:'Inter',system-ui,-apple-system,sans-serif;
+  text-transform:uppercase;letter-spacing:1px;
   transition:all .15s;white-space:nowrap;
 }
-#tony-app-nav .tn-btn:hover{background:transparent;color:var(--tn-ac,#c8a15f);border-color:var(--tn-ac,#c8a15f);box-shadow:var(--glow-gold-d);}
-#tony-app-nav .wr-btn{color:#c0aeea;border-color:rgba(192,174,234,0.35);}
-/* !important because _showTonyNav writes the resting purple border-color inline on
-   every pv/wr button, and an inline value outranks any stylesheet hover rule —
-   that is what left these two with a dim outline on hover while gold ones lit up.
-   The active button keeps its purple fill, so it opts out. */
-#tony-app-nav .wr-btn:not(.tn-active):hover{color:#dbd0f5!important;border-color:#c0aeea!important;box-shadow:var(--glow-lilac);}
-/* In TaskHub the whole program row wears the app's own hairline (see the navBd
-   branch in _updateTonyNavActive), RiftIQ included, so the two header rows read
-   as one stack. It needs its own rule because RiftIQ is an injected custom
-   button: ensureTonyCustomBtns() adds it AFTER _updateTonyNavActive has already
-   written the resting border inline on everything else, so the lilac from the
-   .wr-btn rule above is all it ever gets. Its purple label and its purple hover
-   are untouched, and it stays lilac in every other Tony app. */
-body.th-nav-below-title #tony-app-nav .tn-btn.wr-btn:not(.tn-active){border-color:#34343a;}
-#tn-mobile-select option[value="warroom"]{color:#c0aeea!important;}
+#tony-app-nav .tn-btn:hover{background:transparent;color:var(--tn-ac,#c0aeea);border-color:var(--tn-ac,#c0aeea);filter:brightness(1.15);}
 #tony-app-nav .tn-btn.tn-active{
-  background:transparent;color:var(--tn-ac,#c8a15f);
-  border-color:var(--tn-ac,#c8a15f);cursor:default;
-  box-shadow:var(--glow-gold-d);
+  background:color-mix(in srgb,var(--tn-ac,#c0aeea) 16%,transparent);color:#dbd0f5;
+  border-color:var(--tn-ac,#c0aeea);cursor:default;
 }
+#tony-app-nav .tn-btn.tn-active:hover{filter:brightness(1.12);box-shadow:0 0 0 3px color-mix(in srgb,var(--tn-ac,#c0aeea) 22%,transparent);}
 #tony-app-nav .tn-star,#tony-app-nav #tn-settings-btn{
-  background:transparent;border:1px solid var(--tn-bd,#2e3a35);
-  border-radius:4px;color:var(--tn-ac,#c8a15f);font-size:16px;font-weight:700;
+  background:transparent;border:1px solid var(--tn-bd,#45454c);
+  border-radius:6px;color:var(--tn-ac,#c0aeea);font-size:16px;font-weight:700;
   padding:0 8px;height:28px;box-sizing:border-box;cursor:pointer;line-height:1;
   transition:all .15s;flex-shrink:0;display:inline-flex;align-items:center;
 }
-#tony-app-nav .tn-star:hover,#tony-app-nav #tn-settings-btn:hover{color:var(--tn-ac,#c8a15f);border-color:var(--tn-ac,#c8a15f);box-shadow:var(--glow-gold-d);}
+#tony-app-nav .tn-star:hover,#tony-app-nav #tn-settings-btn:hover{color:var(--tn-ac,#c0aeea);border-color:var(--tn-ac,#c0aeea);filter:brightness(1.15);}
+#tony-app-nav .tn-btn:active,#tony-app-nav .tn-star:active,#tony-app-nav #tn-settings-btn:active,#tn-mobile-select:active,#tn-dd-trigger:active{filter:brightness(.94);transform:translateY(1px);}
+#tony-app-nav .tn-btn:focus-visible,#tony-app-nav .tn-star:focus-visible,#tony-app-nav #tn-settings-btn:focus-visible,#tn-mobile-select:focus-visible,#tn-dd-trigger:focus-visible{outline:2px solid var(--tn-ac,#c0aeea);outline-offset:1px;}
+@media (prefers-reduced-motion:reduce){#tony-app-nav .tn-btn:active,#tony-app-nav .tn-star:active,#tony-app-nav #tn-settings-btn:active,#tn-mobile-select:active,#tn-dd-trigger:active{transform:none;}}
 /* Mobile: hide buttons, show select */
-#tn-mobile-select{display:none;background:transparent;border:1px solid var(--tn-bd,#2e3a35);border-radius:4px;color:var(--tn-ac,#c8a15f);font-size:11px;font-weight:700;padding:0 8px;height:28px;box-sizing:border-box;font-family:'Inter',system-ui,-apple-system,sans-serif;outline:none;cursor:pointer;transition:all .15s;}
-#tn-mobile-select:hover{color:var(--tn-ac,#c8a15f);border-color:var(--tn-ac,#c8a15f);box-shadow:var(--glow-gold-d);}
-#tn-mobile-select.tn-wr-active{color:#c0aeea!important;border-color:rgba(192,174,234,0.45)!important;}
-#tn-mobile-select.tn-wr-active:hover{border-color:#dbd0f5!important;box-shadow:var(--glow-lilac)!important;}
-#tn-mobile-select option{background:#1a1a1d;color:#c8a15f;}
+#tn-mobile-select{display:none;background:transparent;border:1px solid var(--tn-bd,#45454c);border-radius:6px;color:var(--tn-ac,#c0aeea);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;padding:0 8px;height:28px;box-sizing:border-box;font-family:'Inter',system-ui,-apple-system,sans-serif;outline:none;cursor:pointer;transition:all .15s;}
+#tn-mobile-select:hover{color:var(--tn-ac,#c0aeea);border-color:var(--tn-ac,#c0aeea);filter:brightness(1.15);}
+#tn-mobile-select option{background:#232327;color:#f4f3f0;text-transform:none;}
 @media(max-width:900px){
   #tony-app-nav .tn-btn{display:none;}
   #tn-mobile-select{display:inline-flex;align-items:center;}
@@ -6337,7 +6333,7 @@ window._mailRelay = window._mailRelay || async function (res) {
   };
 })();
 </script>
-<div id="root"></div>
+<div id="root" data-hoverfx="magi"></div>
 <div id="wr-root" style="position:fixed;inset:0;overflow:hidden;display:none;background:var(--bg,#1a1a1d);"></div>
 <script type="text/babel">
 const {useState,useCallback,useMemo,useEffect,useRef} = React;
@@ -6370,8 +6366,8 @@ function useTouchReorder(items, setItems, who, selfZone) {
     const el = document.createElement('div');
     el.textContent = row ? (row.querySelector('[data-dnd-label]')?.textContent || row.textContent.replace(/[⠿✎×]/g,'').trim().slice(0,40)) : '…';
     el.style.cssText = `position:fixed;z-index:9999;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;
-      background:rgba(224,184,116,0.18);border:1.5px solid #e0b874;border-radius:4px;
-      padding:7px 12px;font-size:13px;font-weight:700;color:#e0b874;
+      background:rgba(192,174,234,0.18);border:1.5px solid #c0aeea;border-radius:4px;
+      padding:7px 12px;font-size:13px;font-weight:700;color:#c0aeea;
       pointer-events:none;box-shadow:0 4px 18px rgba(0,0,0,0.22);
       backdrop-filter:blur(2px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
     document.body.appendChild(el);
@@ -6419,7 +6415,7 @@ function useTouchReorder(items, setItems, who, selfZone) {
         else if(!hoverTab){lastHoverTab.current=null;}
         const row=el&&el.closest('[data-dnd-id]');
         if(lastTarget.current&&lastTarget.current!==row){lastTarget.current.style.boxShadow='';lastTarget.current.style.outline='';}
-        if(row&&row.dataset.dndId!==src.current){row.style.boxShadow='0 0 0 2px #e0b874';lastTarget.current=row;}
+        if(row&&row.dataset.dndId!==src.current){row.style.boxShadow='0 0 0 2px #c0aeea';lastTarget.current=row;}
       };
       const cleanup=()=>{
         if(lpTimer){clearTimeout(lpTimer);lpTimer=null;}
@@ -6498,7 +6494,7 @@ function useTouchReorderByDay(setData, accentColor, who) {
     const rect = row ? row.getBoundingClientRect() : touchEl.getBoundingClientRect();
     const el = document.createElement('div');
     el.textContent = row ? (row.querySelector('[data-dnd-label]')?.textContent || row.textContent.replace(/[⠿✎×]/g,'').trim().slice(0,40)) : '…';
-    el.style.cssText = `position:fixed;z-index:9999;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;background:rgba(224,184,116,0.18);border:1.5px solid ${accentColor||'#e0b874'};border-radius:4px;padding:7px 12px;font-size:13px;font-weight:700;color:${accentColor||'#e0b874'};pointer-events:none;box-shadow:0 4px 18px rgba(0,0,0,0.22);backdrop-filter:blur(2px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
+    el.style.cssText = `position:fixed;z-index:9999;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;background:rgba(192,174,234,0.18);border:1.5px solid ${accentColor||'#c0aeea'};border-radius:4px;padding:7px 12px;font-size:13px;font-weight:700;color:${accentColor||'#c0aeea'};pointer-events:none;box-shadow:0 4px 18px rgba(0,0,0,0.22);backdrop-filter:blur(2px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
     document.body.appendChild(el);
     clone.current = el;
     startY.current = touch.clientY - rect.top;
@@ -6541,7 +6537,7 @@ function useTouchReorderByDay(setData, accentColor, who) {
         const el=document.elementFromPoint(x,y);
         const row=el&&el.closest('[data-dnd-id]');
         if(lastTarget.current&&lastTarget.current!==row)lastTarget.current.style.boxShadow='';
-        if(row&&row.dataset.dndId!==src.current){row.style.boxShadow=`0 0 0 2px ${accentColor||'#e0b874'}`;lastTarget.current=row;}
+        if(row&&row.dataset.dndId!==src.current){row.style.boxShadow=`0 0 0 2px ${accentColor||'#c0aeea'}`;lastTarget.current=row;}
       };
       const cleanup=()=>{
         if(lpTimer){clearTimeout(lpTimer);lpTimer=null;}
@@ -6648,29 +6644,31 @@ function mcTicker(nm){const m=String(nm||'').match(/^\$?([A-Z]{1,6})\b/);return 
 function fmt12h(t,dateKey,tz){if(!t)return '';const[hh,mm]=t.split(':').map(Number);if(tz&&dateKey){try{const d=new Date(thZonedTs(dateKey,hh,mm,tz));return d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})+'\u00a0'+thTzAbbr(d);}catch(e){}}const ap=hh<12?'AM':'PM';const h=hh%12||12;const lbl=thTzAbbr(dateKey?new Date(dateKey+'T12:00:00'):new Date());return h+':'+String(mm).padStart(2,'0')+'\u00a0'+ap+(lbl?'\u00a0'+lbl:'');}
 const CL  = ["work","finance","study","health","personal","urgent","other"];
 
-// ── Outline glow, JS side ───────────────────────────────────────────────────
-// The CSS half of this lives in the <style> at the top of the file (the
-// --glow-* tokens) and covers :hover. It cannot cover RESTING states, because
-// what marks a control as selected/active here is an inline border colour that
-// only React knows. GLOW() rebuilds the identical ring+bloom (1px @ .42 over
-// 10px @ .42) for those, so a chosen repeat option, today's date cell or an
-// open Timer reads as brightly as a hovered button instead of as a dull 1px
-// line. Pass the same colour the border uses.
+// ── Selected state, JS side ─────────────────────────────────────────────────
+// What marks a control as selected/active here (a chosen repeat option, today's
+// date cell, an open Timer) is an inline border colour only React knows. Since
+// the theme overhaul (docs/theme-overhaul-plan.md) GLOW() gives those MAGI's
+// selected look instead of the old ring+bloom: a 16% wash of the same colour
+// (magi.html .navitem.active). It is drawn as an inset shadow so it tints
+// whatever background React painted without having to own `background`.
+// Pass the same colour the border uses. Veda's TaskHub has its own GLOW.
 const GLOW=(hex)=>{
   const h=String(hex||"").replace("#","");
   if(h.length<6)return "none";
   const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);
-  return "0 0 0 1px rgba("+r+","+g+","+b+",.42),0 0 10px rgba("+r+","+g+","+b+",.42)";
+  return "inset 0 0 0 999px rgba("+r+","+g+","+b+",.16)";
 };
 
 
 
 const THEMES = {
-  dark:{BG:"#1a1a1d",S1:"#232327",S2:"#2c2c31",BD:"#34343a",BDL:"#45454c",TX:"#f4f3f0",TXD:"#adadb2",TXM:"#8d8d94",TXDONE:"#8d8d94",AC:"#e0b874",ACL:"#e0b874",ACD:"#e0b874",ACG:"rgba(224,184,116,0.12)",GRN:"#a4b986",ERR:"#d68a7c",SHADOW:"rgba(0,0,0,0.5)",TODAYBG:"#2c2c31",TODAYBD:"#45454c"},
+  // MAGI's palette (magi.html :root) since the theme overhaul, phase 1
+  // (docs/theme-overhaul-plan.md): purple is the identity, GOLD the kept accent.
+  dark:{BG:"#1a1a1d",S1:"#232327",S2:"#2c2c31",S3:"#34343a",BD:"#34343a",BDL:"#45454c",TX:"#f4f3f0",TXD:"#adadb2",TXM:"#8d8d94",TXDONE:"#8d8d94",AC:"#c0aeea",ACL:"#dbd0f5",ACD:"#9a86c9",ACG:"rgba(192,174,234,0.12)",GOLD:"#e0b874",GRN:"#a4b986",ERR:"#d68a7c",BLUE:"#8fa6d8",SHADOW:"rgba(0,0,0,0.5)",TODAYBG:"#2c2c31",TODAYBD:"#45454c"},
 };
 // Task-category colors. Dark = soft pastels (light text on dark bg). Light = deeper
 // dusty pastels that still read on the light theme. Macro-catalyst keys keep their hues.
-const CC_DARK  = {work:"#6FBFA8",personal:"#8FB8E8",health:"#93CFA0",urgent:"#f85149",study:"#BFA6E0",finance:"#E7A7BE",other:"#B4AEC0",earnings:"#b0566e",inflation:"#9c7838",fed:"#8466a8",jobs:"#4c7a98",growth:"#4a9268",energy:"#a86838",holiday:"#6b7a99"};
+const CC_DARK  = {work:"#6FBFA8",personal:"#8FB8E8",health:"#93CFA0",urgent:"#d68a7c",study:"#BFA6E0",finance:"#E7A7BE",other:"#B4AEC0",earnings:"#b0566e",inflation:"#9c7838",fed:"#8466a8",jobs:"#4c7a98",growth:"#4a9268",energy:"#a86838",holiday:"#6b7a99"};
 
 // Legacy class colors → soft pastel equivalents.
 //
@@ -9644,7 +9642,7 @@ function App(){
   const wkTitleFit={wordBreak:"break-word",overflowWrap:"anywhere",hyphens:"auto",WebkitHyphens:"auto"};
   // The theme's ACD/ACL/AC are all the same gold, so the old two-stop "gradient"
   // rendered as a flat bar. Give the in-progress fill real left-to-right depth.
-  const wkBarFill="linear-gradient(90deg,#cda869 0%,"+T.AC+" 55%,#f4dfb6 100%)";
+  const wkBarFill="linear-gradient(90deg,#cda869 0%,"+T.GOLD+" 55%,#f4dfb6 100%)";
   const wkEventCard=(cat,passed)=>({background:(passed?"#1e1e22":"#232327"),border:"1px solid "+((passed?"#2a2a2f":"#34343a")),borderLeft:"3px solid "+(passed?("#45454c"):((CC&&CC[cat])||T.ACL)),borderRadius:10,padding:isMobile?"4px 12px":"3px 10px",boxShadow:"0 1px 2px rgba(0,0,0,0.35)"});
   // An event has "passed" (and should fade) once the LATER of its event time and notification time is in the past.
   const wkEvtPassed=(e,k)=>{let latest=0;if(e.time){const[hh,mm]=e.time.split(":").map(Number);let ts;if(e.tz){try{ts=thZonedTs(k,hh,mm,e.tz);}catch(_){ts=new Date(k+"T"+e.time+":00").getTime();}}else{ts=new Date(k+"T"+e.time+":00").getTime();}if(ts)latest=Math.max(latest,ts);}if(e.notifyAt){const nt=new Date(e.notifyAt).getTime();if(nt)latest=Math.max(latest,nt);}if(!latest){latest=new Date(k+"T23:59:59").getTime();}return latest<Date.now();};
@@ -9826,10 +9824,12 @@ function App(){
   const _ns=Math.max(0,Math.min(_tIdx<0?0:_tIdx-2,2));
   const _nwd=wd.slice(_ns,_ns+5);
   const _hi=[...wd.slice(0,_ns).map((_,ii)=>ii),...wd.slice(_ns+5).map((_,ii)=>_ns+5+ii)];
-  const hbtn=active=>({background:"transparent",border:"1px solid "+(active?T.AC:T.BD),...(active?{boxShadow:GLOW(T.AC)}:{}),borderRadius:4,padding:"0 10px",height:"28px",boxSizing:"border-box",fontSize:12,fontWeight:800,color:T.AC,cursor:"pointer",fontFamily:"'Inter',system-ui,-apple-system,sans-serif",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:4,transition:"all .15s",whiteSpace:"nowrap",flexShrink:0});
-  const sec={background:T.S1,border:"1px solid "+T.BD,borderRadius:4,padding:"12px 16px"};
-  const stt={fontFamily:"'Manrope',system-ui,sans-serif",fontSize:13,fontWeight:800,color:T.TX,marginBottom:10,borderBottom:"1px solid "+T.BD,paddingBottom:8,letterSpacing:0.3,textTransform:"none"};
-  const inp={background:T.S2,border:"1px solid "+T.BDL,borderRadius:4,color:T.TX,fontSize:14,fontWeight:600,padding:"7px 11px",fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"};
+  const hbtn=active=>({background:"transparent",border:"1px solid "+(active?T.AC:T.BDL),...(active?{boxShadow:GLOW(T.AC)}:{}),borderRadius:6,padding:"0 10px",height:"28px",boxSizing:"border-box",fontSize:12,fontWeight:800,color:active?T.ACL:T.AC,cursor:"pointer",fontFamily:"'Inter',system-ui,-apple-system,sans-serif",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:4,transition:"all .15s",whiteSpace:"nowrap",flexShrink:0});
+  // MAGI's card (.side-sec) and panel title (.sheet-hd): s1 on a hairline, r=8;
+  // Manrope 800, uppercase, tracked, in the light accent.
+  const sec={background:T.S1,border:"1px solid rgba(255,255,255,0.06)",borderRadius:8,padding:"12px 16px"};
+  const stt={fontFamily:"'Manrope',system-ui,sans-serif",fontSize:11.5,fontWeight:800,color:T.ACL,marginBottom:10,borderBottom:"1px solid "+T.BD,paddingBottom:8,letterSpacing:1.6,textTransform:"uppercase"};
+  const inp={background:T.S2,border:"1px solid "+T.BDL,borderRadius:6,color:T.TX,fontSize:14,fontWeight:600,padding:"7px 11px",fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"};
   const dbtn={background:"transparent",border:"none",color:T.ERR,cursor:"pointer",fontSize:15,padding:"0 4px",lineHeight:1,fontFamily:"inherit",fontWeight:700};
   const ebtn={background:"transparent",border:"none",color:T.TXD,cursor:"pointer",fontSize:12,padding:"0 3px",lineHeight:1,fontFamily:"inherit"};
   // Today and the day you are standing on are both marked with a bright
@@ -17323,7 +17323,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
 // ── Profile selection overlay — pure JS, no React deps ────────
 (function(){
   const PROFILES={
-    tony:{key:"profile_tony_unlocked",label:"Tony",emoji:"\u269C\uFE0F",color:"#e0b874"},
+    tony:{key:"profile_tony_unlocked",label:"Tony",emoji:"\u262F\uFE0F",color:"#e0b874"},
     veda:{key:"profile_veda_unlocked",label:"Veda",emoji:"✦",color:"#8D769A"}
   };
   const AUTH_WORKER='https://taskhub-reminders.av1.workers.dev';
@@ -17606,7 +17606,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     document.body.style.background=bg;
     document.documentElement.style.background=bg;
     var tnav=document.getElementById('tony-app-nav');
-    if(tnav&&tnav.style.display!=='none'){tnav.style.setProperty('--tn-ac','#c8a15f');tnav.style.setProperty('--tn-bd',window._tnCurApp==='taskhub'?'#34343a':'#2e3a35');tnav.style.setProperty('--tn-bg','#1a1a1d');}
+    if(tnav&&tnav.style.display!=='none'){tnav.style.setProperty('--tn-ac','#c0aeea');tnav.style.setProperty('--tn-bd','#45454c');tnav.style.setProperty('--tn-bg','#232327');}
     if(window._tjApplyTheme)window._tjApplyTheme();
   };
 
@@ -33937,60 +33937,25 @@ window._updateTonyNavActive = function(app) {
   if(!nav) return;
   // Show nav bar for all Tony apps
   nav.style.display = 'flex';
-  // Theme nav colors — always pink accent; pv/wr buttons handled individually below
-  var isPvWr = (app === 'warroom');
-  // Nav gold sits a shade below the in-app gold (#e0b874) so the top bar reads
-  // as chrome around the content rather than competing with it.
-  nav.style.setProperty('--tn-ac', '#c8a15f');
-  // TaskHub takes the SAME neutral hairline its own controls use (T.BD, worn by
-  // the mic / undo / timer row directly below this one), so the program row
-  // reads as the top of one stack rather than a differently-tinted bar sitting
-  // above it. Every other Tony app keeps the green-gray chrome border.
-  var navBd = (app === 'taskhub') ? '#34343a' : '#2e3a35';
-  nav.style.setProperty('--tn-bd', navBd);
-  nav.style.setProperty('--tn-bg', '#1a1a1d');
-  // Star: always pink (uses --tn-ac which is always pink now)
+  // MAGI purple (theme overhaul phase 1, docs/theme-overhaul-plan.md) with
+  // MAGI's --bdl hairline. Every program button is the same purple now, RiftIQ
+  // included, so nothing below special-cases it any more.
+  nav.style.setProperty('--tn-ac', '#c0aeea');
+  nav.style.setProperty('--tn-bd', '#45454c');
+  nav.style.setProperty('--tn-bg', '#232327');
   var star = nav.querySelector('.tn-star');
   if(star) { star.style.removeProperty('color'); star.style.removeProperty('border-color'); }
-  // Mobile select: purple text+border on pv/wr, pink otherwise
   var sel = document.getElementById('tn-mobile-select');
   if(sel) {
-    if(isPvWr) { sel.style.color='#c0aeea'; sel.style.borderColor='rgba(192,174,234,0.5)'; }
-    else { sel.style.removeProperty('color'); sel.style.removeProperty('border-color'); }
+    sel.style.removeProperty('color'); sel.style.removeProperty('border-color');
     sel.value = app;
-  }
-  // Update active button — only the active pv/wr button goes purple; all others stay pink
-  var sel=document.getElementById('tn-mobile-select');
-  if(sel){
-    var isPvWrApp=(app==='warroom');
-    if(isPvWrApp) sel.classList.add('tn-wr-active');
-    else sel.classList.remove('tn-wr-active');
   }
   var btns = nav.querySelectorAll('.tn-btn');
   btns.forEach(function(btn) {
-    var isPvWrBtn = btn.classList.contains('wr-btn');
-    if(btn.dataset.app === app) {
-      btn.classList.add('tn-active');
-      if(isPvWrBtn) {
-        // Active pv/wr: purple fill
-        btn.style.background='#c0aeea';
-        btn.style.borderColor='#c0aeea';
-        btn.style.color='#0d0b14';
-      }
-    } else {
-      btn.classList.remove('tn-active');
-      if(isPvWrBtn) {
-        // Inactive pv/wr: purple text, transparent bg
-        btn.style.background='transparent';
-        btn.style.borderColor = (app === 'taskhub') ? navBd : 'rgba(192,174,234,0.35)';
-        btn.style.color='#c0aeea';
-      } else {
-        // All other buttons: reset to pink via CSS vars
-        btn.style.removeProperty('background');
-        btn.style.removeProperty('border-color');
-        btn.style.removeProperty('color');
-      }
-    }
+    btn.classList.toggle('tn-active', btn.dataset.app === app);
+    btn.style.removeProperty('background');
+    btn.style.removeProperty('border-color');
+    btn.style.removeProperty('color');
   });
 };
 window._hideTonyNav = function() {
@@ -43260,9 +43225,8 @@ function _sanLink(l){ return { id: String(l.id||''), label: String(l.label||'Lin
 // entries in tonyLinks like any other External Link (editable label, reorderable,
 // deletable, listed in Settings), but opening one still runs through the exact
 // same gated function so nothing about the lock/confirm/tab behavior changes.
-// No `color` on purpose — these render like every other External Link. WarRoom
-// still shows purple in the HEADER, but from its .wr-btn class (see the nav CSS),
-// not from per-link colour, so the Settings list stays uniform.
+// No `color` on purpose — these render like every other External Link, so the
+// Settings list stays uniform.
 var LEGACY_PROGRAMS = [
   { id:'tradehub', label:'TradeHub', url:'https://anthonyn99.github.io/A1/tradehub.html', lockId:'tony_tradehub', openFn:'_thubClick' },
   { id:'vault',    label:'Vault',    url:'https://anthonyn99.github.io/A1/vault.html',    lockId:'tony_keychain', openFn:'_vaultClick' },
@@ -43471,10 +43435,7 @@ function ensureTonyCustomBtns(){
     var ex = inner.querySelector('.tn-btn[data-app="'+key+'"]');
     if (ex){ ex.textContent = l.label; ex.style.color = l.color || ''; return; }
     var b = document.createElement('button');
-    // WarRoom keeps its 'wr-btn' class so _updateTonyNavActive's purple-accent
-    // handling (which keys off that class, not the app string) still applies —
-    // otherwise its inline color gets reset to the default gold on every nav click.
-    b.className = 'tn-btn tn-custom-btn' + (l.id==='warroom' ? ' wr-btn' : '');
+    b.className = 'tn-btn tn-custom-btn';
     b.setAttribute('data-app', key);
     b.textContent = l.label;
     if (l.color) b.style.color = l.color;
@@ -43569,12 +43530,12 @@ function buildTonyDropdown(){
   if(document.getElementById('tn-dd-trigger')) return;
   var trigger=document.createElement('button');
   trigger.id='tn-dd-trigger'; trigger.type='button';
-  trigger.style.cssText='display:none;align-items:center;gap:6px;background:transparent;border:1px solid var(--tn-bd,#2e3a35);border-radius:4px;color:var(--tn-ac,#c8a15f);font-size:11px;font-weight:700;padding:0 10px;height:28px;box-sizing:border-box;font-family:\'Inter\',system-ui,-apple-system,sans-serif;outline:none;cursor:pointer;transition:all .15s;white-space:nowrap;pointer-events:auto;';
+  trigger.style.cssText='display:none;align-items:center;gap:6px;background:transparent;border:1px solid var(--tn-bd,#45454c);border-radius:6px;color:var(--tn-ac,#c0aeea);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;padding:0 10px;height:28px;box-sizing:border-box;font-family:\'Inter\',system-ui,-apple-system,sans-serif;outline:none;cursor:pointer;transition:all .15s;white-space:nowrap;pointer-events:auto;';
   trigger.innerHTML='<span id="tn-dd-label">Menu</span><span style="font-size:8px;opacity:.7;">▼</span>';
   trigger.addEventListener('click',function(e){ e.stopPropagation(); _ddOpen?closeTonyDD():openTonyDD(); });
   sel.parentNode.insertBefore(trigger,sel);
   _ddPanel=document.createElement('div'); _ddPanel.id='tn-dd-panel';
-  _ddPanel.style.cssText='display:none;position:fixed;z-index:10005;min-width:200px;max-height:70vh;overflow-y:auto;overscroll-behavior:contain;background:var(--tn-bg,#1a1a1d);border:1px solid var(--tn-bd,#2e3a35);border-radius:8px;padding:6px;box-shadow:0 8px 28px rgba(0,0,0,.5);pointer-events:auto;-webkit-overflow-scrolling:touch;';
+  _ddPanel.style.cssText='display:none;position:fixed;z-index:10005;min-width:200px;max-height:70vh;overflow-y:auto;overscroll-behavior:contain;background:var(--tn-bg,#232327);border:1px solid var(--tn-bd,#45454c);border-radius:8px;padding:6px;box-shadow:0 8px 28px rgba(0,0,0,.5);pointer-events:auto;-webkit-overflow-scrolling:touch;';
   document.body.appendChild(_ddPanel);
   document.addEventListener('click',function(){ if(_ddOpen) closeTonyDD(); });
   document.addEventListener('touchstart',function(e){ if(_ddOpen&&!_ddPanel.contains(e.target)&&e.target.id!=='tn-dd-trigger'&&!e.target.closest('#tn-dd-trigger')) closeTonyDD(); },{passive:true});
@@ -43590,13 +43551,14 @@ function injectTonyDropdownCSS(){
     '#tony-app-nav-inner.tn-force-dd .tn-btn{display:none!important;}'+
     '#tony-app-nav-inner.tn-force-dd #tn-mobile-select{display:none!important;}'+
     '#tony-app-nav-inner.tn-force-dd #tn-dd-trigger{display:inline-flex!important;}'+
-    '#tn-dd-panel .tn-dd-item{display:flex;align-items:center;gap:8px;padding:11px 12px;border-radius:6px;cursor:pointer;color:var(--tn-ac,#c8a15f);font-family:\'Inter\',system-ui,-apple-system,sans-serif;font-size:14px;font-weight:700;user-select:none;-webkit-user-select:none;touch-action:pan-y;transition:all .12s;border:1px solid transparent;}'+
+    '#tn-dd-panel .tn-dd-item{display:flex;align-items:center;gap:8px;padding:11px 12px;border-radius:6px;cursor:pointer;color:#adadb2;font-family:\'Inter\',system-ui,-apple-system,sans-serif;font-size:13px;font-weight:600;user-select:none;-webkit-user-select:none;touch-action:pan-y;transition:all .12s;border:1px solid transparent;}'+
     '#tn-dd-panel .tn-dd-item .dd-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}'+
     '#tn-dd-panel .dd-grip{flex:0 0 auto;cursor:grab;color:currentColor;opacity:.4;font-size:13px;line-height:1;letter-spacing:-3px;padding:2px 4px;margin:-2px 0;touch-action:none;}'+
     '#tn-dd-panel .dd-grip:active{cursor:grabbing;}'+
-    '#tn-dd-panel .tn-dd-item:hover{background:transparent;color:#e0b874;}'+
-    '#tn-dd-panel .tn-dd-item[data-dd-app="custom:warroom"]:not(.tn-dd-active):hover{background:rgba(192,174,234,0.12);}'+
-    '#tn-dd-panel .tn-dd-item.tn-dd-active{background:transparent;color:var(--tn-ac,#c8a15f);border-color:var(--tn-ac,#c8a15f);box-shadow:0 0 8px rgba(200,161,95,0.28) inset;}';
+    /* MAGI's .side-item: hover steps the fill up a surface, the current app is a 16% accent tint. */
+    '#tn-dd-panel .tn-dd-item:hover{background:#34343a;color:#f4f3f0;}'+
+    '#tn-dd-panel .tn-dd-item.tn-dd-active{background:color-mix(in srgb,#c0aeea 20%,#2c2c31);color:#dbd0f5;}'+
+    '#tn-dd-panel .tn-dd-item:active{filter:brightness(.94);transform:translateY(1px);}';
   document.head.appendChild(st);
 }
 
@@ -43611,9 +43573,6 @@ function renderTonyDropdownPanel(){
     var _grip=document.createElement('span'); _grip.className='dd-grip'; _grip.innerHTML='&#8942;&#8942;'; _grip.setAttribute('aria-hidden','true');
     var _lbl=document.createElement('span'); _lbl.className='dd-text'; _lbl.textContent=TONY_SELECT_LABELS[app]||tonyMap[app];
     item.appendChild(_grip); item.appendChild(_lbl);
-    var isPvWr=(app==='custom:warroom');
-    if(isPvWr&&app!==cur) item.style.color='#c0aeea';
-    if(isPvWr&&app===cur){ item.style.background='#c0aeea'; item.style.color='#0d0b14'; }
     item.addEventListener('click',function(e){
       e.stopPropagation();
       if(item._ddDragged){ item._ddDragged=false; return; }
