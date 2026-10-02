@@ -176,10 +176,12 @@ html,body{height:100%;}
 }
 #tony-app-nav .tn-btn:hover{background:transparent;color:var(--tn-ac,#c0aeea);border-color:var(--tn-ac,#c0aeea);filter:brightness(1.15);}
 #tony-app-nav .tn-btn.tn-active{
-  background:color-mix(in srgb,var(--tn-ac,#c0aeea) 16%,transparent);color:#dbd0f5;
+  /* SOLID: 16% purple pre-mixed over the page (#1a1a1d), not a see-through
+     tint, and no halo on hover. Tony: solid fills or outlines, no gradients. */
+  background:#35323e;color:#dbd0f5;
   border-color:var(--tn-ac,#c0aeea);cursor:default;
 }
-#tony-app-nav .tn-btn.tn-active:hover{filter:brightness(1.12);box-shadow:0 0 0 3px color-mix(in srgb,var(--tn-ac,#c0aeea) 22%,transparent);}
+#tony-app-nav .tn-btn.tn-active:hover{filter:brightness(1.12);}
 #tony-app-nav .tn-star,#tony-app-nav #tn-settings-btn{
   background:transparent;border:1px solid var(--tn-bd,#45454c);
   border-radius:6px;color:var(--tn-ac,#c0aeea);font-size:16px;font-weight:700;
@@ -5754,8 +5756,7 @@ window.THTS={
 .entry-delete svg,.je-tab-del svg{margin:auto;}
 .docx-clip-wrap{display:inline-flex;align-items:center;}
 .docx-lock-badge{display:inline-flex;align-items:center;vertical-align:-.14em;font-size:.95em;opacity:.8;}
-#applock-icon{line-height:0;color:#e0b874;display:flex;justify-content:center;}
-body[data-th-profile="tony"] #applock-icon{color:#c0aeea;}
+#applock-icon{line-height:0;color:var(--al-glow,#e0b874);display:flex;justify-content:center;}
 #applock-icon svg{width:30px;height:30px;display:block;}
 #applock-bio button svg,#al-menu-btns button svg,.tl-menu button svg{width:15px;height:15px;display:block;flex-shrink:0;}
 #applock-bio button,#al-menu-btns button,.tl-menu button{display:inline-flex;align-items:center;justify-content:center;gap:8px;}
@@ -6149,8 +6150,13 @@ window._mailRelay = window._mailRelay || async function (res) {
 <body>
 <!-- ── Boot loading screen: covers everything until profile routing + initial Firebase data are ready ── -->
 <div id="th-boot-loader" style="position:fixed;inset:0;z-index:999999;background:#1a1a1d;display:flex;align-items:center;justify-content:center;transition:opacity .4s ease;">
-  <div style="width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,255,255,0.1);border-top-color:#e0b874;animation:th-boot-spin .8s linear infinite;"></div>
+  <div id="th-boot-spin" style="width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,255,255,0.1);border-top-color:#c0aeea;animation:th-boot-spin .8s linear infinite;"></div>
 </div>
+<script>
+// MAGI purple (Tony's theme); a device whose main dashboard is Veda's keeps the
+// gold it always showed her. Storage may throw (Brave), so purple is the default.
+try{ if(localStorage.getItem('td6_mainDash')==='veda') document.getElementById('th-boot-spin').style.borderTopColor='#e0b874'; }catch(e){}
+</script>
 <style>
 @keyframes th-boot-spin{to{transform:rotate(360deg);}}
 #th-boot-loader.th-boot-hide{opacity:0;pointer-events:none;}
@@ -6674,7 +6680,11 @@ const TH_SEL=(hex)=>{
   const h=String(hex||"").replace("#","");
   if(h.length<6)return "none";
   const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);
-  return "inset 0 0 0 999px rgba("+r+","+g+","+b+",.16)";
+  // Solid, not a see-through wash: 16% accent pre-mixed over S1 (#232327).
+  // Tony wants solid fills or an outline, never anything that reads as a
+  // gradient (2026-10-02).
+  const m=(c,base)=>Math.round(base+(c-base)*.16);
+  return "inset 0 0 0 999px rgb("+m(r,35)+","+m(g,35)+","+m(b,39)+")";
 };
 
 
@@ -7574,7 +7584,8 @@ function PlanPanel({P,startDateKey,onExit}){
     // hairline, so the section reads as a list of things still owed rather than
     // a second, quieter Confirmed.
     return React.createElement("div",{key:p.id,style:{background:wait
-        ?"linear-gradient(180deg,"+AC_SOFT+",transparent 62%), "+P.S1:P.S1,
+        // Tony: solid (12% purple pre-mixed over S1), never a gradient.
+        ?(P===PLAN_PAL_TONY?"#36343e":"linear-gradient(180deg,"+AC_SOFT+",transparent 62%), "+P.S1):P.S1,
       border:"1px solid "+(ctx==='overdue'?PLAN_OVERDUE_RED+"4d":(wait?AC_LINE:P.BD)),
       borderRadius:12,
       padding:collapsible?0:"15px 16px",marginBottom:10,opacity:finished?.62:1,
@@ -8156,7 +8167,7 @@ const OI_COLOR={coupon:"#8d8d94",package:"#f7a48b",bill:"#d68a7c",subscription:"
 // buttons — what it no longer does is wash the whole box orange or pink. A week
 // with three parcels, a bill and a subscription used to read as a paint swatch
 // next to the neutral catalyst rows sitting in the same cell.
-const OI_CARD_BG="linear-gradient(135deg,#232327,#1e1e22)";
+const OI_CARD_BG="#232327";   // solid: no gradient fills on Tony's side
 
 // ── One parcel, one card ────────────────────────────────────────────────────
 // The worker owns this: a parcel's card id is derived from its tracking number
@@ -9660,7 +9671,7 @@ function App(){
   const wkTitleFit={wordBreak:"break-word",overflowWrap:"anywhere",hyphens:"auto",WebkitHyphens:"auto"};
   // The theme's ACD/ACL/AC are all the same gold, so the old two-stop "gradient"
   // rendered as a flat bar. Give the in-progress fill real left-to-right depth.
-  const wkBarFill="linear-gradient(90deg,#cda869 0%,"+T.GOLD+" 55%,#f4dfb6 100%)";
+  const wkBarFill=T.GOLD;   // solid: no gradient fills on Tony's side
   const wkEventCard=(cat,passed)=>({background:(passed?"#1e1e22":"#232327"),border:"1px solid "+((passed?"#2a2a2f":"#34343a")),borderLeft:"3px solid "+(passed?("#45454c"):((CC&&CC[cat])||T.ACL)),borderRadius:10,padding:isMobile?"4px 12px":"3px 10px",boxShadow:"0 1px 2px rgba(0,0,0,0.35)"});
   // An event has "passed" (and should fade) once the LATER of its event time and notification time is in the past.
   const wkEvtPassed=(e,k)=>{let latest=0;if(e.time){const[hh,mm]=e.time.split(":").map(Number);let ts;if(e.tz){try{ts=thZonedTs(k,hh,mm,e.tz);}catch(_){ts=new Date(k+"T"+e.time+":00").getTime();}}else{ts=new Date(k+"T"+e.time+":00").getTime();}if(ts)latest=Math.max(latest,ts);}if(e.notifyAt){const nt=new Date(e.notifyAt).getTime();if(nt)latest=Math.max(latest,nt);}if(!latest){latest=new Date(k+"T23:59:59").getTime();}return latest<Date.now();};
@@ -41328,7 +41339,7 @@ window._THV={
   display: flex; flex-direction: column; align-items: center; gap: 18px;
   padding: 34px 30px 22px;
   background: #232327;
-  border: 1px solid rgba(224,184,116,.22);
+  border: 1px solid color-mix(in srgb, var(--al-glow, #e0b874) 22%, transparent);
   border-radius: 18px;
   width: 350px; max-width: calc(100vw - 32px);
   box-shadow: 0 32px 80px rgba(0,0,0,0.7);
@@ -41350,11 +41361,11 @@ window._THV={
   width: 100%; text-align: center; letter-spacing: 4px; box-sizing: border-box;
   transition: border-color .18s;
 }
-#applock-pw:focus { border-color: #e0b874; }
+#applock-pw:focus { border-color: var(--al-glow, #e0b874); }
 #applock-pw.error { border-color: #d68a7c; }
 #applock-err { font-size: 12px; color: #d68a7c; font-weight: 700; text-align: center; min-height: 16px; }
 #applock-submit {
-  background: #e0b874; color: #1a1a1d; border: 1px solid #e0b874; border-radius: 6px;
+  background: var(--al-glow, #e0b874); color: #1a1a1d; border: 1px solid var(--al-glow, #e0b874); border-radius: 6px;
   padding: 12px 0; font-size: 14px; font-weight: 700; cursor: pointer;
   font-family: 'Inter', system-ui, -apple-system, sans-serif; width: 100%; transition: opacity .15s;
 }
