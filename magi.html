@@ -6290,7 +6290,7 @@ const MAGI_PROFILES = {
   // `doc` is the Firestore document under /dashboards. Tony keeps "magi" so
   // every deliberation he has ever run stays exactly where it is -- there is
   // no history migration in this change, and there must never need to be one.
-  tony: { label: "Tony", emoji: "👾", color: "#c0aeea", doc: "magi",      lock: "tony_magi" },
+  tony: { label: "Tony", emoji: "◆︎", ink: true, color: "#c0aeea", doc: "magi",      lock: "tony_magi" },
   veda: { label: "Veda", emoji: "✦",       color: "#8D769A", doc: "magi_veda", lock: "veda_magi" },
 };
 const PROFILE_ORDER = ["tony", "veda"];
@@ -26901,7 +26901,10 @@ function syncProfileBtn() {
     if (!b) continue;
     b.textContent = "";
     b.style.setProperty("--pc", p.color);
-    b.append(el("span", "prof-av", p.emoji), el("span", "prof-name", p.label));
+    const av = el("span", "prof-av", p.emoji);
+    // `ink`: the glyph is drawn in the profile colour (Tony's purple diamond).
+    if (p.ink) av.style.color = p.color;
+    b.append(av, el("span", "prof-name", p.label));
     b.title = "Signed in as " + p.label + " — switch profile";
   }
 }
@@ -26962,7 +26965,9 @@ function gateCard(id) {
   // profile's lock state is a record on the worker under a different key, and
   // probing it at boot would be a network call made to decorate a subtitle.
   const head = el("div", "gate-head");
-  head.append(el("div", "gate-av", p.emoji));
+  const gav = el("div", "gate-av", p.emoji);
+  if (p.ink) gav.style.color = p.color;
+  head.append(gav);
   head.append(el("div", "gate-name", p.label));
 
   // Pin this device to a profile. Stays out of the card's click target, or

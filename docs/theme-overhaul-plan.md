@@ -79,7 +79,8 @@ call, 2026-10-02). Start 1b only when Tony says "continue theme"
 
 Tony wants MAGI's look on his side of every program: the colours (pastel, with
 **purple dominant and gold kept as an accent**), fonts, UI and button-highlight
-mechanics. His profile colour is MAGI purple and his icon is 👾 (was ⚜️, then briefly ☯️).
+mechanics. His profile colour is MAGI purple and his icon is a purple diamond ◆ (`\u25C6\uFE0E`, drawn in his colour like
+Veda's ✦; was ⚜️, then ☯️, then 👾).
 **And drag and drop:** every reorder, on desktop AND mobile, behaves like
 MAGI's unit chips and queues (added by Tony 2026-10-02: "make it proper").
 **Veda's side is never touched.** That covers her TaskHub, Brainstorm Journal,
@@ -279,7 +280,8 @@ The drag half:
 
 **Foundation:**
 - hoverfx.js gained magi mode (nearest declaration wins), with its tests.
-- 👾 replaced ⚜️ in magi.html, index.html and mylist.html.
+- Tony's icon in magi.html, index.html and mylist.html is now ◆ in
+  `#c0aeea` (MAGI: `ink: true` paints the glyph in the profile colour).
 - MAGI's Tony profile colour is `#c0aeea` (`tests/magi-profiles.test.js`
   updated).
 - `tests/live/theme-shots.live.js` was added. `tests/live/cdp.js` gained
