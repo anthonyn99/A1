@@ -227,8 +227,13 @@ body:not([data-profile=veda]) .wordmark{
 
 #main{flex:1;max-width:760px;width:100%;margin:0 auto;padding:14px clamp(12px,4vw,22px) calc(env(safe-area-inset-bottom,0px) + 170px);}
 
-#lists-bar{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px;}
-.list-chip{flex-shrink:0;display:inline-flex;align-items:center;gap:7px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:8px 14px;font-size:13px;font-weight:700;color:var(--textdim);cursor:pointer;transition:all .15s;font-family:var(--font-btn);}
+#lists-bar{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;}
+/* soft edge fades tell you there are more lists off-screen in that direction */
+#lists-bar.fade-r{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 30px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 30px),transparent);}
+#lists-bar.fade-l{-webkit-mask-image:linear-gradient(to right,transparent,#000 30px);mask-image:linear-gradient(to right,transparent,#000 30px);}
+#lists-bar.fade-l.fade-r{-webkit-mask-image:linear-gradient(to right,transparent,#000 30px,#000 calc(100% - 30px),transparent);mask-image:linear-gradient(to right,transparent,#000 30px,#000 calc(100% - 30px),transparent);}
+.list-chip{flex-shrink:0;display:inline-flex;align-items:center;gap:7px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:8px 14px;font-size:13px;font-weight:700;color:var(--textdim);cursor:pointer;transition:border-color .15s,background .15s,color .15s;font-family:var(--font-btn);white-space:nowrap;}
+@media(max-width:520px){ .list-chip{padding:8px 12px;font-size:12.5px;gap:6px;} #lists-bar{gap:6px;} }
 .list-chip:hover{border-color:var(--border2);}
 .list-chip.active{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}
 .list-chip .cnt{font-size:11px;opacity:.8;}
@@ -339,7 +344,7 @@ body:not([data-profile=veda]) .wordmark{
 
 /* add item grid */
 .add-grid{display:grid;grid-template-columns:1fr;gap:11px;}
-.add-grid .row2{display:grid;grid-template-columns:1fr 1fr;gap:11px;}
+.add-grid .row2{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:11px;}
 .add-grid .actions{display:flex;justify-content:flex-end;}
 
 /* ── items ── */
@@ -367,13 +372,46 @@ body:not([data-profile=veda]) .wordmark{
 .item .desc{font-size:12.5px;color:var(--textdim);margin-top:2px;line-height:1.35;word-break:break-word;}
 .item .sub{font-size:12px;color:var(--textdim);margin-top:2px;display:flex;gap:8px;flex-wrap:wrap;}
 .item .qty-tag{color:var(--accent);font-weight:700;}
+.item .when-tag{display:inline-flex;align-items:center;gap:4px;color:var(--text);font-weight:600;}
+.item .when-tag svg{width:12px;height:12px;color:var(--accent);flex-shrink:0;}
+@media (pointer:coarse){ .item .acts .ib{width:34px;height:34px;} .item{padding:11px 10px 11px 12px;} }
 .item .acts{display:flex;gap:4px;flex-shrink:0;}
 .item .acts .ib{width:30px;height:30px;border-radius:7px;border:1px solid transparent;background:transparent;color:var(--textmute);display:flex;align-items:center;justify-content:center;cursor:pointer;}
 .item .acts .ib:hover{color:var(--accent);border-color:var(--border);}
 .item .acts .ib.del:hover{color:var(--bad);border-color:rgba(212,122,106,.4);}
 .item.editing{flex-direction:column;align-items:stretch;gap:12px;}
 .edit-grid{display:grid;grid-template-columns:1fr;gap:11px;}
-.edit-grid .row2{display:grid;grid-template-columns:1fr 1fr;gap:11px;}
+.edit-grid .row2{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:11px;}
+
+/* ── list type: header pill + the New-list / change-type picker ── */
+.lt-pill{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border);background:transparent;color:var(--accent);border-radius:12px;padding:2px 8px 2px 7px;font-size:11px;font-weight:700;font-family:var(--font-btn);cursor:pointer;vertical-align:middle;transition:border-color .15s;}
+.lt-pill:hover{border-color:var(--accent);}
+.lt-pill svg{width:12px;height:12px;}
+.lt-pill .chev svg{width:10px;height:10px;opacity:.7;}
+#lt-overlay{position:fixed;inset:0;z-index:9690;display:none;align-items:center;justify-content:center;background:rgba(8,8,11,.74);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);padding:18px;}
+#lt-overlay.show{display:flex;}
+#lt-box{width:100%;max-width:520px;max-height:calc(100dvh - 36px);overflow-y:auto;background:var(--surface);border:1px solid var(--border2);border-radius:16px;padding:20px;box-shadow:0 24px 70px rgba(0,0,0,.6);animation:ltIn .16s ease;}
+@keyframes ltIn{from{transform:translateY(8px) scale(.98);opacity:0}to{transform:none;opacity:1}}
+#lt-box h3{font-family:var(--font-head);font-weight:var(--head-weight);font-size:19px;letter-spacing:var(--head-spacing);margin-bottom:4px;color:var(--text);}
+#lt-box .lt-sub{font-size:12.5px;color:var(--textdim);margin-bottom:14px;line-height:1.45;}
+#lt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:14px;}
+.lt-card{display:flex;align-items:flex-start;gap:10px;text-align:left;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:11px 12px;cursor:pointer;color:var(--text);transition:border-color .15s,background .15s;min-height:62px;}
+.lt-card:hover{border-color:var(--border2);}
+.lt-card.on{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 1px var(--accent) inset;}
+.lt-card .lt-ic{display:flex;color:var(--accent);margin-top:1px;flex-shrink:0;}
+.lt-card .lt-ic svg{width:19px;height:19px;}
+.lt-card .lt-tx{display:flex;flex-direction:column;gap:2px;min-width:0;}
+.lt-card .lt-tx b{font-size:13.5px;font-weight:700;font-family:var(--font-btn);}
+.lt-card .lt-tx small{font-size:11.5px;color:var(--textdim);line-height:1.35;}
+#lt-name-wrap{margin-bottom:14px;}
+.lt-actions{display:flex;gap:8px;justify-content:flex-end;}
+@media(max-width:520px){
+  #lt-overlay{align-items:flex-end;padding:0;}
+  #lt-box{max-width:none;border-radius:18px 18px 0 0;padding:18px 16px calc(env(safe-area-inset-bottom,0px) + 16px);max-height:92dvh;}
+  #lt-grid{grid-template-columns:1fr 1fr;}
+  .lt-card{padding:10px;gap:8px;}
+  .lt-actions .btn{flex:1;min-height:44px;}
+}
 
 .empty{text-align:center;color:var(--textmute);font-size:14px;padding:30px 10px;}
 
@@ -385,13 +423,20 @@ body:not([data-profile=veda]) .wordmark{
 #sel-bar .cnt{font-size:15px;font-weight:800;color:var(--text);font-family:var(--font-btn);white-space:nowrap;width:100%;text-align:center;}
 #sel-bar .btn{padding:10px 15px;font-size:14px;border-radius:20px;}
 
-/* drag-and-drop: floating ghost + insertion line (no list reflow = smooth) */
-.dnd-ghost{position:fixed;left:0;top:0;margin:0;pointer-events:none;z-index:9999;opacity:.96;border-radius:12px;
-  box-shadow:0 14px 38px rgba(0,0,0,.55),0 0 0 1.5px var(--accent);will-change:transform;}
-.dnd-src{opacity:.32;}
-.item,.rec-row,.rec-step{-webkit-touch-callout:none;}
-.dnd-indicator{position:fixed;height:3px;background:var(--accent);border-radius:3px;z-index:9998;pointer-events:none;box-shadow:0 0 10px var(--accent);}
-body.dnd-active{cursor:grabbing;}
+/* drag-and-drop: a floating ghost follows the pointer while the other rows SLIDE
+   apart to open a gap where it will land (transform-only, so nothing reflows). */
+.dnd-ghost{position:fixed;left:0;top:0;margin:0;pointer-events:none;z-index:9999;opacity:.97;border-radius:12px;
+  box-shadow:0 16px 40px rgba(0,0,0,.55),0 0 0 1.5px var(--accent);will-change:transform;}
+.dnd-ghost.settle{transition:transform .17s cubic-bezier(.2,.8,.2,1),box-shadow .17s;box-shadow:0 4px 12px rgba(0,0,0,.35),0 0 0 1px var(--accent);}
+.dnd-src{opacity:0 !important;}
+.dnd-live>*{transition:transform .2s cubic-bezier(.2,.8,.2,1) !important;will-change:transform;}
+.dnd-ph{position:fixed;left:0;top:0;z-index:-1;pointer-events:none;border:1.5px dashed var(--accent-line);background:var(--accent-soft);border-radius:12px;opacity:0;}
+.dnd-ph.in{animation:dndPhIn .2s ease .08s forwards;}
+@keyframes dndPhIn{to{opacity:1}}
+.item,.rec-row,.rec-step,.list-chip{-webkit-touch-callout:none;}
+.list-chip,.vs-tab{-webkit-user-select:none;user-select:none;}
+@media (pointer:coarse){ .item,.rec-row,.rec-step{-webkit-user-select:none;user-select:none;} }
+body.dnd-active{cursor:grabbing;-webkit-user-select:none;user-select:none;}
 body.dnd-active *{cursor:grabbing !important;}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 92px);
   background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:11px 18px;border-radius:24px;font-size:13px;font-weight:700;
@@ -574,7 +619,7 @@ body.dnd-active *{cursor:grabbing !important;}
 /* No gold fills inside controls — emphasis is an outline plus gold text, never
    a tinted or solid interior. Tony-scoped so Veda keeps her filled chips.
    The only exceptions are the checkbox and selection dot: a "checked" mark has
-   to be a solid mark to read as checked, and the drag indicator is a line. */
+   to be a solid mark to read as checked, and the drag gap is a faint wash. */
 body:not([data-profile=veda]) .vs-tab.on,
 body:not([data-profile=veda]) .list-chip.active,
 body:not([data-profile=veda]) #manual-fab.on,
@@ -977,6 +1022,18 @@ window._mailRelay = window._mailRelay || async function (res) {
   <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
     <button class="btn ghost" onclick="ML.evCloseModal()">Cancel</button>
     <button class="btn solid" onclick="ML.evSave()">Save event</button>
+  </div>
+</div></div>
+
+<!-- list type picker — "+ New list" and the type pill on a list's header -->
+<div id="lt-overlay" onclick="if(event.target===this)ML.ltClose()"><div id="lt-box" role="dialog" aria-modal="true" aria-labelledby="lt-title">
+  <h3 id="lt-title">New list</h3>
+  <div class="lt-sub" id="lt-sub"></div>
+  <div id="lt-grid"></div>
+  <div id="lt-name-wrap"><label class="field"><span class="lbl">List name</span><input id="lt-name" maxlength="80" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();ML.ltSubmit();}"></label></div>
+  <div class="lt-actions">
+    <button class="btn ghost" onclick="ML.ltClose()">Cancel</button>
+    <button class="btn solid" id="lt-ok" onclick="ML.ltSubmit()">Create list</button>
   </div>
 </div></div>
 
@@ -2240,12 +2297,112 @@ function restoreScroll(){
   setTimeout(function(){ window.scrollTo(0, y>0?y:0); }, 40);
 }
 
-// ════════ LIST / ITEM OPS ════════
-async function addList(){
-  var name=((await window.uiPrompt('Name this list:', {title:'New list', default:'Groceries'}))||'').trim(); if(!name) return;
-  var l={ id:uid(), name:name, stores:[], items:[], createdAt:Date.now() };
-  lists().push(l); activeListId=l.id; exitSelect(); persist(); render();
+// ════════ LIST TYPES ════════
+// A list's `type` decides what its fields MEAN and how the AI shapes it. The
+// data never changes shape: an item's group is still stored as `store` and a
+// list's groups as `stores` (an itinerary's "Day", a packing list's
+// "Category"), so every list written before types existed keeps working and the
+// worker's wire format is unchanged. Lists saved without a type get one INFERRED
+// from their name at read time — nothing is migrated or rewritten.
+var LIST_TYPES = ['shopping','packing','itinerary','todo','reminders','other'];
+var LT = {
+  shopping:  { label:'Shopping', hint:'Groceries & errands, grouped by store', name:'Groceries',
+               group:'Store', groups:'Stores', groupPh:'Add a store…', groupEmpty:'No stores yet — add shops you go to, or just speak them.', other:'Other',
+               namePh:'e.g. Fairlife Whole Milk', qty:true, qtyPh:'e.g. 2 gallons', when:false, descPh:'e.g. organic, for the party',
+               bar:'Type what you need…', eg:'“2 gallons of milk and paper towels from Costco”', watch:true },
+  packing:   { label:'Packing', hint:'What to bring on a trip, by category', name:'Packing List',
+               group:'Category', groups:'Categories', groupPh:'Add a category…', groupEmpty:'No categories yet — e.g. Clothing, Toiletries, Electronics.', other:'Other',
+               namePh:'e.g. Phone charger', qty:true, qtyPh:'e.g. 5 pairs', when:false, descPh:'e.g. travel size',
+               bar:'What do you need to pack?', eg:'“laptop and charger, 5 pairs of socks and my passport”' },
+  itinerary: { label:'Itinerary', hint:'Places & plans, by day and time', name:'Trip Itinerary',
+               group:'Day', groups:'Days', groupPh:'Add a day…', groupEmpty:'No days yet — e.g. Day 1, Saturday.', other:'Unscheduled',
+               namePh:'e.g. Red Rocks Amphitheatre', qty:false, when:true, whenLbl:'Time', whenPh:'e.g. 9:00 AM', descPh:'e.g. address, reservation, tickets',
+               bar:'Add places, times, plans…', eg:'“Saturday morning hike Red Rocks, then lunch at Union Station at 1”' },
+  todo:      { label:'To-Do', hint:'Tasks & checklists, by section', name:'To-Do',
+               group:'Section', groups:'Sections', groupPh:'Add a section…', groupEmpty:'No sections yet — e.g. Before Leaving, At the Airport.', other:'Other',
+               namePh:'e.g. Check in for flights', qty:true, qtyPh:'e.g. 2', when:true, whenLbl:'When', whenPh:'e.g. 24h before flight', descPh:'e.g. both ways',
+               bar:'Add tasks…', eg:'“check in for our flights 24 hours before, both ways”' },
+  reminders: { label:'Reminders', hint:'Things to remember, with dates', name:'Reminders',
+               group:'Category', groups:'Categories', groupPh:'Add a category…', groupEmpty:'No categories yet — e.g. Bills, Birthdays.', other:'Other',
+               namePh:'e.g. Pay the electric bill', qty:false, when:true, whenLbl:'Date / time', whenPh:'e.g. Fri Oct 9 · 5 PM', descPh:'e.g. ~$120, autopay is off',
+               bar:'What should you remember?', eg:'“remind me to pay the Xcel bill on the 15th”' },
+  other:     { label:'Other', hint:'Anything else — ideas, gifts, notes', name:'New List',
+               group:'Group', groups:'Groups', groupPh:'Add a group…', groupEmpty:'No groups yet — optional headings for your items.', other:'Other',
+               namePh:'e.g. Kindle Paperwhite', qty:true, qtyPh:'e.g. 2', when:true, whenLbl:'Date / time', whenPh:'optional', descPh:'e.g. details, links, notes',
+               bar:'Add anything…', eg:'“gift ideas: a Kindle Paperwhite and black leggings, size S”' }
+};
+function tIcon(body){ return '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+body+'</svg>'; }
+var TYPE_ICON = {
+  shopping:  tIcon('<circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/>'),
+  packing:   tIcon('<rect x="5" y="7" width="14" height="13" rx="2"/><path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/><path d="M10 11v5M14 11v5"/><path d="M8 20v1M16 20v1"/>'),
+  itinerary: tIcon('<path d="M20 10c0 5-5.5 10.2-7.4 11.8a1 1 0 0 1-1.2 0C9.5 20.2 4 15 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>'),
+  todo:      tIcon('<rect x="3" y="3" width="18" height="18" rx="2"/><path d="m8.5 12 2.5 2.5 4.5-5"/>'),
+  reminders: tIcon('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>'),
+  other:     tIcon('<path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/>')
+};
+var CHEV_DOWN = tIcon('<path d="m6 9 6 6 6-6"/>');
+function inferListType(l){
+  var n=String((l&&l.name)||'').toLowerCase();
+  if(/itinerar|schedule|agenda|sightsee/.test(n)) return 'itinerary';
+  if(/pack|luggage|suitcase|checklist:?\s*items/.test(n)) return 'packing';
+  if(/remind/.test(n)) return 'reminders';
+  if(/to ?-?do|\btasks?\b|checklist/.test(n)) return 'todo';
+  return 'shopping';   // every list predating types was made as a shopping list
 }
+function listType(l){ return (l && LT[l.type]) ? l.type : inferListType(l); }
+function LTof(l){ return LT[listType(l)]; }
+
+var ltState = null;   // { mode:'new'|'change', listId, type } while the picker is open
+function addList(){ openTypePicker('new'); }
+function changeListType(id){ openTypePicker('change', id); }
+function openTypePicker(mode, listId){
+  var l = listId ? lists().filter(function(x){ return x.id===listId; })[0] : null;
+  if(mode==='change' && !l) return;
+  ltState = { mode:mode, listId:l?l.id:null, type:l?listType(l):'shopping' };
+  $('lt-title').textContent = mode==='new' ? 'New list' : 'List type';
+  $('lt-sub').textContent = mode==='new'
+    ? 'What kind of list is it? The AI organizes what you say or type to match.'
+    : 'Changes how the AI organizes “'+l.name+'” and which fields you see. Nothing is deleted.';
+  $('lt-name-wrap').style.display = mode==='new' ? '' : 'none';
+  $('lt-ok').style.display = mode==='new' ? '' : 'none';
+  $('lt-name').value = LT[ltState.type].name;
+  renderTypeGrid();
+  $('lt-overlay').classList.add('show');
+  setTimeout(function(){ if(mode==='new'){ var n=$('lt-name'); n.focus(); try{ n.select(); }catch(e){} } }, 40);
+}
+function renderTypeGrid(){
+  $('lt-grid').innerHTML = LIST_TYPES.map(function(t){
+    return '<button type="button" class="lt-card'+(ltState&&ltState.type===t?' on':'')+'" onclick="ML.ltPick(\''+t+'\')">'
+      +'<span class="lt-ic">'+TYPE_ICON[t]+'</span><span class="lt-tx"><b>'+esc(LT[t].label)+'</b><small>'+esc(LT[t].hint)+'</small></span></button>';
+  }).join('');
+}
+function ltPick(t){
+  if(!ltState || !LT[t]) return;
+  if(ltState.mode==='change'){ ltState.type=t; ltSubmit(); return; }
+  // Swap the suggested name along with the type, unless the user typed their own.
+  var n=$('lt-name'), v=(n.value||'').trim();
+  if(!v || LIST_TYPES.some(function(x){ return LT[x].name===v; })) n.value=LT[t].name;
+  ltState.type=t; renderTypeGrid(); n.focus(); try{ n.select(); }catch(e){}
+}
+function ltClose(){ $('lt-overlay').classList.remove('show'); ltState=null; }
+function ltSubmit(){
+  if(!ltState) return; var st=ltState;
+  if(st.mode==='change'){
+    var cl=lists().filter(function(x){ return x.id===st.listId; })[0];
+    ltClose(); if(!cl) return;
+    if(listType(cl)!==st.type || cl.type!==st.type){ cl.type=st.type; persist(); render(); toast('Now a '+LT[st.type].label+' list'); }
+    return;
+  }
+  var name=($('lt-name').value||'').trim() || LT[st.type].name;
+  var l={ id:uid(), name:name, type:st.type, stores:[], items:[], createdAt:Date.now() };
+  ltClose();
+  lists().push(l); activeListId=l.id;
+  try{ localStorage.setItem('ml_last_list_'+activeProfile,l.id); }catch(e){}
+  exitSelect(); persist(); render(); window.scrollTo(0,0);
+}
+document.addEventListener('keydown', function(e){ if(e.key==='Escape' && ltState) ltClose(); });
+
+// ════════ LIST / ITEM OPS ════════
 function openList(id){ activeListId=id; editingItemId=null; selectMode=false; selected={}; updateSelBar(); localStorage.setItem('ml_last_list_'+activeProfile,id); render(); restoreScroll(); }
 function deleteList(id){
   var l=lists().filter(function(x){return x.id===id;})[0]; if(!l) return;
@@ -2278,10 +2435,12 @@ function ensureStore(l, name){
 function addItem(){
   var l=curList(); if(!l) return;
   var nm=($('add-name').value||'').trim(); if(!nm){ $('add-name').focus(); return; }
-  var qty=($('add-qty').value||'').trim();
+  var qty= $('add-qty') ? ($('add-qty').value||'').trim() : '';
+  var when= $('add-when') ? ($('add-when').value||'').trim() : '';
   var store= $('add-store') ? ensureStore(l, $('add-store').value) : '';
   var desc= $('add-desc') ? ($('add-desc').value||'').trim() : '';
-  l.items=l.items||[]; l.items.push({ id:uid(), name:nm, qty:qty, store:store, desc:desc, done:false });
+  var row={ id:uid(), name:nm, qty:qty, store:store, desc:desc, done:false }; if(when) row.when=when;
+  l.items=l.items||[]; l.items.push(row);
   persist(); render(); var n=$('add-name'); if(n){ n.value=''; n.focus(); }
 }
 function toggleDone(id){ var l=curList(); if(!l) return; var it=l.items.filter(function(x){return x.id===id;})[0]; if(it){ it.done=!it.done; persist(); render(); } }
@@ -2298,7 +2457,8 @@ function startEdit(id){ editingItemId=id; render(); }
 function saveEdit(id){
   var l=curList(); if(!l) return; var it=l.items.filter(function(x){return x.id===id;})[0]; if(!it) return;
   it.name=($('edit-name-'+id).value||'').trim()||it.name;
-  it.qty=($('edit-qty-'+id).value||'').trim();
+  if($('edit-qty-'+id)) it.qty=($('edit-qty-'+id).value||'').trim();
+  if($('edit-when-'+id)){ var w=($('edit-when-'+id).value||'').trim(); if(w) it.when=w; else delete it.when; }
   if($('edit-store-'+id)) it.store=ensureStore(l, $('edit-store-'+id).value);
   if($('edit-desc-'+id)) it.desc=($('edit-desc-'+id).value||'').trim();
   editingItemId=null; persist(); render();
@@ -2477,12 +2637,17 @@ async function sendToAI(payloadExtra){
   if(!activeProfile) return;
   var l=curList();
   try{
-    var body=Object.assign({ profile:activeProfile, mode:'edit', items:(l&&l.items)||[], stores:(l&&l.stores)||[] }, payloadExtra);
+    // The list's type/name and today's date let the worker shape items for THIS
+    // kind of list (an itinerary's day + time, a reminder's resolved date…).
+    var body=Object.assign({ profile:activeProfile, mode:'edit', items:(l&&l.items)||[], stores:(l&&l.stores)||[],
+      listType: l ? listType(l) : 'other', listName: l ? l.name : '',
+      today: new Date().toLocaleDateString('en-US',{ weekday:'short', month:'short', day:'numeric', year:'numeric' }) }, payloadExtra);
     var r=await fetch(API+'/list/parse',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
     var d=await r.json();
     if(d.ok && Array.isArray(d.items)){
-      var lst=ensureList();
+      var lst=ensureList(d.listType);
       if(d.listName) lst.name=String(d.listName);
+      if(d.listType && LT[d.listType]) lst.type=d.listType;
       applyParsed(lst, d);
       if(d.newList) createListFromAI(d.newList);
       $('voice-status') && ($('voice-status').textContent=''); toast(d.note||'List updated');
@@ -2491,9 +2656,9 @@ async function sendToAI(payloadExtra){
   }catch(e){ toast('Network error', true); }
 }
 // create a list on the fly if there isn't one (lets you start by voice/text)
-function ensureList(){
+function ensureList(type){
   var l=curList(); if(l) return l;
-  l={ id:uid(), name:'My List', stores:[], items:[], createdAt:Date.now() };
+  l={ id:uid(), name:'My List', type:(LT[type]?type:'other'), stores:[], items:[], createdAt:Date.now() };
   lists().push(l); activeListId=l.id; localStorage.setItem('ml_last_list_'+activeProfile,l.id);
   return l;
 }
@@ -2505,6 +2670,8 @@ function applyParsed(l, d){
     var prev=(p.id&&byId[p.id])||byName[(p.name||'').toLowerCase()];
     var o = { id: prev?prev.id:uid(), name:p.name||'', qty:p.qty||'', store:p.store||'', desc:p.desc||(prev?prev.desc:'')||'',
              done: (typeof p.done==='boolean')?p.done:(prev?prev.done:false) };
+    var when = p.when || (prev && prev.when) || '';
+    if(when) o.when = String(when);
     // PRESERVE the Price Watch link (the worker strips non-standard fields, so we
     // re-attach it from the matched previous item). Store/reorder/unrelated edits
     // keep the same item identity → keep watching + its cached prices.
@@ -2536,9 +2703,10 @@ function applyParsed(l, d){
 // "create a new list called X with ..." — worker returns the new list's contents;
 // build it, keep the old list intact, and switch to the new one.
 function createListFromAI(nl){
-  var lst={ id:uid(), name:String(nl.name||'New List'),
+  var name=String(nl.name||'New List');
+  var lst={ id:uid(), name:name, type:(LT[nl.type] ? nl.type : inferListType({name:name})),
     stores:(nl.stores||[]).map(String),
-    items:(nl.items||[]).map(function(p){ return { id:uid(), name:p.name||'', qty:p.qty||'', store:p.store||'', desc:p.desc||'', done:!!p.done }; }).filter(function(x){return x.name;}),
+    items:(nl.items||[]).map(function(p){ var o={ id:uid(), name:p.name||'', qty:p.qty||'', store:p.store||'', desc:p.desc||'', done:!!p.done }; if(p.when) o.when=String(p.when); return o; }).filter(function(x){return x.name;}),
     createdAt:Date.now() };
   lists().push(lst); activeListId=lst.id;
   try{ localStorage.setItem('ml_last_list_'+activeProfile,lst.id); }catch(e){}
@@ -3033,11 +3201,22 @@ function renderViewSwitch(){
   enableDrag($('view-switch'), 'viewtab');
 }
 
-// ════════ DRAG & DROP (floating ghost + insertion line, no reflow) ════════
-// Hold ~180ms on a row to pick it up, then drag. The dragged row stays dimmed
-// in place (zero layout shift = smooth); a glowing line shows where it'll drop.
-// On release we mutate the data model once and re-render. Works for grocery
-// items (incl. moving between store groups) and recipe reordering, mouse+touch.
+// ════════ DRAG & DROP (floating ghost + live gap, transform-only) ════════
+// Pick a row up (mouse: just pull it; touch: hold ~190ms, then drag). The row
+// lifts into a ghost that follows the pointer along the list's axis, and the
+// rows around it SLIDE apart to open a gap exactly where it will land. On
+// release the ghost glides into the gap and we mutate the data model once and
+// re-render — the new layout matches the gap, so nothing jumps.
+//
+// Hit-testing runs against a layout snapshot taken at pick-up, in CONTENT
+// coordinates (page Y for vertical lists; the bar's own scroll offset for the
+// horizontal tab bars). That makes it immune to the rows' own sliding
+// transforms and to auto-scroll: dragging a list tab toward a screen edge
+// scrolls the tab bar under your finger so you can drop it anywhere, even
+// among lists that were off-screen when you picked it up.
+//
+// Works for list items (incl. moving between group headers), list tabs, the
+// view tabs, recipes and recipe steps; mouse, touch and pen.
 var dndLastEnd = 0;
 var dnd = null; // active drag state
 
@@ -3052,146 +3231,198 @@ function enableDrag(container, kind){
     // sitting inside a draggable row.
     if(e.target.closest(kind==='viewtab' ? 'input, select, textarea, a' : 'button, input, select, textarea, a, .chk')) return;
     var row = e.target.closest('[data-id]');
-    if(!row || !container.contains(row)) return;
-    var sx=e.clientX, sy=e.clientY, pid=e.pointerId, hold;
-    function cancel(){ clearTimeout(hold); document.removeEventListener('pointermove',pm,true); document.removeEventListener('pointerup',pu,true); document.removeEventListener('pointercancel',pu,true); }
-    function pm(ev){ if(Math.abs(ev.clientX-sx)>9 || Math.abs(ev.clientY-sy)>9){ cancel(); } }
-    function pu(){ cancel(); }
-    hold=setTimeout(function(){ cancel(); beginDrag(container, kind, row, sx, sy, pid); }, 180);
+    if(!row || row.parentElement!==container) return;
+    var sx=e.clientX, sy=e.clientY, pid=e.pointerId, mouse=(e.pointerType==='mouse'), hold;
+    function cancel(){ clearTimeout(hold); document.removeEventListener('pointermove',pm,true); document.removeEventListener('pointerup',cancel,true); document.removeEventListener('pointercancel',cancel,true); }
+    function go(x,y){
+      cancel(); beginDrag(container, kind, row, sx, sy, pid);
+      if(dnd && (x!==sx || y!==sy)){ dnd.px=x; dnd.py=y; dnd.moved=true; }
+    }
+    function pm(ev){
+      var dx=Math.abs(ev.clientX-sx), dy=Math.abs(ev.clientY-sy);
+      // Mouse: a deliberate pull starts the drag at once — no hold needed.
+      // Touch/pen: moving before the hold elapses is a scroll, so let it be one.
+      if(mouse){ if(dx>5 || dy>5) go(ev.clientX, ev.clientY); }
+      else if(dx>9 || dy>9) cancel();
+    }
+    hold=setTimeout(function(){ go(sx, sy); }, mouse?220:190);
     document.addEventListener('pointermove', pm, true);
-    document.addEventListener('pointerup', pu, true);
-    document.addEventListener('pointercancel', pu, true);
+    document.addEventListener('pointerup', cancel, true);
+    document.addEventListener('pointercancel', cancel, true);
   });
   // a real drag is followed by a click — swallow it
   container.addEventListener('click', function(e){ if(Date.now()-dndLastEnd<350){ e.stopPropagation(); e.preventDefault(); } }, true);
 }
 
+function dndOffset(a){
+  if(a.horiz){ var cr=a.container.getBoundingClientRect(); return a.container.scrollLeft - cr.left; }
+  return window.scrollY || window.pageYOffset || 0;
+}
 function beginDrag(container, kind, row, px, py, pid){
+  var horiz=(kind==='listtab' || kind==='viewtab');
+  var kids=Array.prototype.slice.call(container.children);
+  var src=kids.indexOf(row); if(src<0) return;
+  var a={ container:container, kind:kind, horiz:horiz, row:row, id:row.dataset.id, pid:pid, src:src };
+  var off=dndOffset(a);
+  var meas=kids.map(function(el, i){
+    var r=el.getBoundingClientRect();
+    return { el:el, orig:i, start:(horiz?r.left:r.top)+off, size:(horiz?r.width:r.height),
+             movable:!!(el.dataset && el.dataset.id), header:el.classList.contains('store-group-h'), shift:0 };
+  });
+  // Each element's SLOT = the distance to the next element's start (size + gap +
+  // margin, whatever the layout uses), so a gap opened for the source is exactly
+  // the space the source occupies.
+  var tail = horiz ? (parseFloat(getComputedStyle(container).columnGap)||0) : (parseFloat(getComputedStyle(row).marginBottom)||0);
+  meas.forEach(function(m, i){ m.slot = (i+1<meas.length) ? (meas[i+1].start - m.start) : (m.size + tail); });
+  var S=meas[src].slot;
+  var rest=meas.filter(function(m){ return m.el!==row; });
+  rest.forEach(function(m){ m.collapsed = m.start - (m.orig>src ? S : 0); });
+
   var rect=row.getBoundingClientRect();
   var ghost=row.cloneNode(true);
-  ghost.classList.add('dnd-ghost');
-  ghost.style.width=rect.width+'px';
+  ghost.removeAttribute('id'); ghost.classList.add('dnd-ghost');
+  ghost.style.width=rect.width+'px'; ghost.style.height=rect.height+'px';
   document.body.appendChild(ghost);
+  var ph=document.createElement('div'); ph.className='dnd-ph';
+  ph.style.width=rect.width+'px'; ph.style.height=rect.height+'px';
+  try{ ph.style.borderRadius=getComputedStyle(row).borderRadius; }catch(_){}
+  document.body.appendChild(ph);
   row.classList.add('dnd-src');
-  var indicator=document.createElement('div'); indicator.className='dnd-indicator'; document.body.appendChild(indicator);
-  // Block the page from scrolling/cancelling the gesture on touch — this is what
-  // made mobile "drop immediately": the browser claimed the touch for scrolling.
+  container.classList.add('dnd-live');
+  try{ var sel=window.getSelection && window.getSelection(); if(sel && sel.removeAllRanges) sel.removeAllRanges(); }catch(_){}
+  // Block the page from scrolling/cancelling the gesture on touch — otherwise the
+  // browser claims the touch for scrolling and the drop happens immediately.
   var blockScroll=function(e){ e.preventDefault(); };
   var blockCtx=function(e){ e.preventDefault(); };
-  dnd={ container:container, kind:kind, row:row, id:row.dataset.id, ghost:ghost, indicator:indicator, pid:pid,
-        ox:px-rect.left, oy:py-rect.top, px:px, py:py, target:null, raf:0, moved:false,
-        blockScroll:blockScroll, blockCtx:blockCtx };
+  var onKey=function(e){ if(e.key==='Escape' && dnd && !dnd.ending){ dnd.k=dnd.src; dnd.cancelled=true; dndEnd(); } };
+  Object.assign(a, { ghost:ghost, ph:ph, meas:meas, rest:rest, S:S, w:rect.width, h:rect.height,
+    ox:px-rect.left, oy:py-rect.top, fx:rect.left, fy:rect.top, px:px, py:py,
+    k:src, raf:0, moved:false, ending:false, blockScroll:blockScroll, blockCtx:blockCtx, onKey:onKey });
+  dnd=a;
   document.body.classList.add('dnd-active');
   try{ row.setPointerCapture && row.setPointerCapture(pid); }catch(_){}
   try{ navigator.vibrate && navigator.vibrate(12); }catch(_){}
   document.addEventListener('touchmove', blockScroll, {passive:false});
   document.addEventListener('contextmenu', blockCtx);
+  document.addEventListener('keydown', onKey);
   document.addEventListener('pointermove', dndMove, {passive:false});
   document.addEventListener('pointerup', dndEnd);
   document.addEventListener('pointercancel', dndEnd);
   dndLoop();
 }
-function dndMove(e){ if(!dnd) return; e.preventDefault(); dnd.px=e.clientX; dnd.py=e.clientY; dnd.moved=true; }
+function dndMove(e){ if(!dnd || dnd.ending) return; e.preventDefault(); dnd.px=e.clientX; dnd.py=e.clientY; dnd.moved=true; }
+// Edge auto-scroll, eased: slow near the edge zone's inner border, fast at the
+// very edge. Horizontal tab bars scroll themselves; vertical lists scroll the
+// page, with the zones kept clear of the sticky top bar and the bottom voice bar.
+function dndAutoScroll(a){
+  var zone, f=0;
+  if(a.horiz){
+    var c=a.container; if(c.scrollWidth<=c.clientWidth+1) return;
+    var r=c.getBoundingClientRect(); zone=Math.min(70, r.width/4);
+    if(a.px<r.left+zone) f=-(r.left+zone-a.px)/zone;
+    else if(a.px>r.right-zone) f=(a.px-(r.right-zone))/zone;
+    if(f){ var v=Math.sign(f)*(2+16*Math.min(1,f*f)); var before=c.scrollLeft; c.scrollLeft=before+v; }
+    return;
+  }
+  var tb=$('topbar'), top=tb ? Math.max(0, tb.getBoundingClientRect().bottom) : 0;
+  var fv=$('float-voice'), bottom=window.innerHeight;
+  if(fv && fv.classList.contains('show')){ var fr=fv.getBoundingClientRect(); if(fr.height) bottom=Math.min(bottom, fr.top); }
+  zone=70;
+  if(a.py<top+zone) f=-(top+zone-a.py)/zone;
+  else if(a.py>bottom-zone) f=(a.py-(bottom-zone))/zone;
+  if(f) window.scrollBy(0, Math.sign(f)*(2+18*Math.min(1,f*f)));
+}
+// Insertion index k into `rest` (the other elements, in order): the gap opens
+// before rest[k]. Decided by where the ghost's CENTER sits against each
+// element's collapsed midpoint — a pure function of the pointer, so it can't
+// oscillate as the rows slide.
+function dndSlot(a){
+  var off=dndOffset(a);
+  var c=(a.horiz ? a.px-a.ox+a.w/2 : a.py-a.oy+a.h/2) + off;
+  var rest=a.rest, n=rest.length, k=0;
+  while(k<n && rest[k].collapsed + rest[k].size/2 < c) k++;
+  if(a.kind==='list'){
+    if(n && rest[0].header && k<1) k=1;               // never above the first group header
+  } else {
+    var lim=n; while(lim>0 && !rest[lim-1].movable) lim--;
+    if(k>lim) k=lim;                                   // trailing controls ("+ New list") stay last
+  }
+  return k;
+}
+function dndShift(a, k){
+  a.rest.forEach(function(m, j){
+    var shift=(j>=k ? a.S : 0) - (m.orig>a.src ? a.S : 0);
+    if(m.shift!==shift){ m.shift=shift; m.el.style.transform = shift ? (a.horiz?'translateX(':'translateY(')+shift+'px)' : ''; }
+  });
+}
+// Client-space position of the gap for insertion index k.
+function dndGapPos(a, k){
+  var rest=a.rest, n=rest.length, start;
+  if(k<n) start=rest[k].collapsed;
+  else if(n){ var last=rest[n-1]; start=last.collapsed+last.slot; }
+  else start=a.meas[a.src].start;
+  return start - dndOffset(a);
+}
 function dndLoop(){
-  if(!dnd) return;
+  if(!dnd || dnd.ending) return;
   var a=dnd;
-  a.ghost.style.transform='translate('+(a.px-a.ox)+'px,'+(a.py-a.oy)+'px) rotate(1deg)';
-  // edge auto-scroll
-  var vh=window.innerHeight, edge=80;
-  if(a.py<edge) window.scrollBy(0,-Math.ceil((edge-a.py)/6));
-  else if(a.py>vh-edge) window.scrollBy(0,Math.ceil((a.py-(vh-edge))/6));
-  a.target=computeTarget(a);
-  paintIndicator(a);
+  dndAutoScroll(a);
+  var gx = a.horiz ? a.px-a.ox : a.fx, gy = a.horiz ? a.fy : a.py-a.oy;
+  a.ghost.style.transform='translate3d('+gx+'px,'+gy+'px,0) scale(1.02)';
+  var k=dndSlot(a);
+  if(k!==a.k || !a.shown){
+    a.k=k; a.shown=true; dndShift(a, k);
+    a.ph.classList.remove('in'); void a.ph.offsetWidth; a.ph.classList.add('in');
+  }
+  var g=dndGapPos(a, a.k);
+  a.ph.style.transform = a.horiz ? 'translate3d('+g+'px,'+a.fy+'px,0)' : 'translate3d('+a.fx+'px,'+g+'px,0)';
   a.raf=requestAnimationFrame(dndLoop);
 }
-// Determine drop target: {store, beforeId, y}. store=null for recipes/flat lists.
-function computeTarget(a){
-  // horizontal reorder — list tabs and view tabs share the same geometry
-  if(a.kind==='listtab' || a.kind==='viewtab'){
-    var chips=Array.prototype.slice.call(a.container.querySelectorAll('[data-id]')).filter(function(el){return el!==a.row;});
-    var px=a.px, bId=null, x, done=false;
-    for(var c=0;c<chips.length;c++){ var cr2=chips[c].getBoundingClientRect(); if(px<cr2.left+cr2.width/2){ bId=chips[c].dataset.id; x=cr2.left-4; done=true; break; } }
-    if(!done){ if(chips.length){ var lc=chips[chips.length-1].getBoundingClientRect(); x=lc.right+4; } else { x=a.container.getBoundingClientRect().left+4; } }
-    return {axis:'x', beforeId:bId, x:x};
+// What a drop at insertion index k means for the data: {store, beforeId}.
+// store=null keeps the item's own group (flat lists); beforeId=null = the end
+// (of the group, for grouped lists).
+function dndTarget(a, k){
+  var rest=a.rest, nx=rest[k];
+  var t={ store:null, beforeId:(nx && nx.movable) ? nx.el.dataset.id : null };
+  if(a.kind==='list'){
+    for(var j=k-1;j>=0;j--){ if(rest[j].header){ t.store=rest[j].el.getAttribute('data-store')||''; break; } }
   }
-  var headers=Array.prototype.slice.call(a.container.querySelectorAll('.store-group-h'));
-  var py=a.py;
-  function itemsUnder(){ return Array.prototype.slice.call(a.container.querySelectorAll('[data-id]')).filter(function(el){return el!==a.row;}); }
-  if(headers.length){
-    // grouped grocery list — build group spans
-    var children=Array.prototype.slice.call(a.container.children);
-    var groups=[];
-    for(var i=0;i<children.length;i++){
-      var ch=children[i];
-      if(ch.classList.contains('store-group-h')){
-        var hr=ch.getBoundingClientRect();
-        groups.push({ store:ch.getAttribute('data-store')||'', top:hr.top, hbottom:hr.bottom, items:[] });
-      } else if(ch.dataset && ch.dataset.id && ch!==a.row && groups.length){
-        groups[groups.length-1].items.push(ch);
-      }
-    }
-    if(!groups.length) return {store:'', beforeId:null, y:py};
-    // bottom of each group = top of next group (or container bottom)
-    var cbot=a.container.getBoundingClientRect().bottom;
-    for(var g=0; g<groups.length; g++){ groups[g].bottom = (g+1<groups.length)? groups[g+1].top : cbot; }
-    // pick group containing py (clamp)
-    var grp=groups[0];
-    if(py>=groups[groups.length-1].bottom) grp=groups[groups.length-1];
-    else { for(var k=0;k<groups.length;k++){ if(py < groups[k].bottom){ grp=groups[k]; break; } } }
-    // insertion index within group
-    var beforeId=null, y;
-    var placed=false;
-    for(var m=0;m<grp.items.length;m++){
-      var r=grp.items[m].getBoundingClientRect();
-      if(py < r.top + r.height/2){ beforeId=grp.items[m].dataset.id; y=r.top-4; placed=true; break; }
-    }
-    if(!placed){
-      if(grp.items.length){ var lr=grp.items[grp.items.length-1].getBoundingClientRect(); y=lr.bottom+4; }
-      else { y=grp.hbottom + 7; } // empty group: just BELOW its header, never through it
-    }
-    return {store:grp.store, beforeId:beforeId, y:y};
-  } else {
-    // flat list / recipes
-    var items=itemsUnder(); var beforeId2=null, y2;
-    var placed2=false;
-    for(var n=0;n<items.length;n++){ var rr=items[n].getBoundingClientRect(); if(py<rr.top+rr.height/2){ beforeId2=items[n].dataset.id; y2=rr.top-4; placed2=true; break; } }
-    if(!placed2){ if(items.length){ var l2=items[items.length-1].getBoundingClientRect(); y2=l2.bottom+4; } else { y2=a.container.getBoundingClientRect().top+4; } }
-    return {store:null, beforeId:beforeId2, y:y2};
-  }
-}
-function paintIndicator(a){
-  if(!a.target){ a.indicator.style.display='none'; return; }
-  var cr=a.container.getBoundingClientRect();
-  a.indicator.style.display='block';
-  if(a.target.axis==='x'){
-    a.indicator.style.left=(a.target.x)+'px';
-    a.indicator.style.top=(cr.top+3)+'px';
-    a.indicator.style.width='3px';
-    a.indicator.style.height=(cr.height-6)+'px';
-  } else {
-    a.indicator.style.left=(cr.left+4)+'px';
-    a.indicator.style.top=(a.target.y-1.5)+'px';
-    a.indicator.style.width=(cr.width-8)+'px';
-    a.indicator.style.height='3px';
-  }
+  return t;
 }
 function dndEnd(){
-  if(!dnd) return;
-  var a=dnd;
+  if(!dnd || dnd.ending) return;
+  var a=dnd; a.ending=true;
   document.removeEventListener('pointermove', dndMove);
   document.removeEventListener('pointerup', dndEnd);
   document.removeEventListener('pointercancel', dndEnd);
-  if(a.blockScroll) document.removeEventListener('touchmove', a.blockScroll, {passive:false});
-  if(a.blockCtx) document.removeEventListener('contextmenu', a.blockCtx);
-  try{ a.row && a.row.releasePointerCapture && a.row.releasePointerCapture(a.pid); }catch(_){}
+  document.removeEventListener('touchmove', a.blockScroll, {passive:false});
+  document.removeEventListener('contextmenu', a.blockCtx);
+  document.removeEventListener('keydown', a.onKey);
   if(a.raf) cancelAnimationFrame(a.raf);
+  if(a.moved) dndLastEnd=Date.now();
+  var changed = a.moved && !a.cancelled && a.k!==a.src;
+  if(a.cancelled) dndShift(a, a.src);
+  if(!a.moved){ dndFinish(a, false); return; }
+  // Glide the ghost into the gap (or home), THEN commit — the eye follows it in.
+  var g=dndGapPos(a, changed ? a.k : a.src);
+  a.ghost.classList.add('settle');
+  a.ghost.style.transform = a.horiz ? 'translate3d('+g+'px,'+a.fy+'px,0)' : 'translate3d('+a.fx+'px,'+g+'px,0)';
+  setTimeout(function(){ dndFinish(a, changed); }, 170);
+}
+function dndFinish(a, changed){
+  var t = changed ? dndTarget(a, a.k) : null;
+  // Drop the transition BEFORE clearing transforms so rows snap (not slide)
+  // back; the synchronous re-render below then paints the final order in the
+  // same frame.
+  a.container.classList.remove('dnd-live');
+  a.meas.forEach(function(m){ m.el.style.transform=''; });
+  try{ a.row.releasePointerCapture && a.row.releasePointerCapture(a.pid); }catch(_){}
   if(a.ghost) a.ghost.remove();
-  if(a.indicator) a.indicator.remove();
-  if(a.row) a.row.classList.remove('dnd-src');
+  if(a.ph) a.ph.remove();
+  a.row.classList.remove('dnd-src');
   document.body.classList.remove('dnd-active');
-  var t=a.target, kind=a.kind, id=a.id, moved=a.moved;
-  dnd=null;
-  if(moved && t){ dndLastEnd=Date.now(); applyDrop(kind, id, t); }
+  if(dnd===a) dnd=null;
+  if(t) applyDrop(a.kind, a.id, t);
 }
 function applyDrop(kind, id, t){
   if(kind==='viewtab'){
@@ -3262,10 +3493,29 @@ function renderListsBar(){
   var bar=$('lists-bar'); var L=lists(); var h='';
   L.forEach(function(l){
     var cnt=(l.items||[]).filter(function(x){return !x.done;}).length;
-    h+='<div class="list-chip'+(l.id===activeListId?' active':'')+'" data-id="'+l.id+'" onclick="ML.openList(\''+l.id+'\')">'+esc(l.name)+' <span class="cnt">'+cnt+'</span></div>';
+    h+='<div class="list-chip'+(l.id===activeListId?' active':'')+'" data-id="'+l.id+'" title="'+esc(LTof(l).label)+' list" onclick="ML.openList(\''+l.id+'\')">'+esc(l.name)+' <span class="cnt">'+cnt+'</span></div>';
   });
   h+='<div class="list-chip add" onclick="ML.addList()">+ New list</div>';
-  bar.innerHTML=h;
+  // Rebuild only when something changed, and keep the bar's scroll position —
+  // a re-render must never yank the strip back to the first list.
+  if(bar._html!==h){ var keep=bar.scrollLeft; bar.innerHTML=h; bar._html=h; bar.scrollLeft=keep; }
+  if(!bar._fadeBound){ bar._fadeBound=true; bar.addEventListener('scroll', function(){ listsBarFades(bar); }, {passive:true}); window.addEventListener('resize', function(){ listsBarFades(bar); }); }
+  if(bar._active!==activeListId){
+    bar._active=activeListId;
+    var act=bar.querySelector('.list-chip.active');
+    if(act){
+      var br=bar.getBoundingClientRect(), ar=act.getBoundingClientRect(), dx=0;
+      if(ar.left<br.left+12) dx=ar.left-br.left-36;
+      else if(ar.right>br.right-12) dx=ar.right-br.right+36;
+      if(dx){ try{ bar.scrollBy({ left:dx, behavior:'smooth' }); }catch(e){ bar.scrollLeft+=dx; } }
+    }
+  }
+  listsBarFades(bar);
+}
+function listsBarFades(bar){
+  var max=bar.scrollWidth-bar.clientWidth;
+  bar.classList.toggle('fade-l', max>2 && bar.scrollLeft>2);
+  bar.classList.toggle('fade-r', max>2 && bar.scrollLeft<max-2);
 }
 var GRIP='<div class="resize-grip"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M13 6 L6 13 M13 10 L10 13"/></svg></div>';
 function render(){
@@ -3277,6 +3527,7 @@ function render(){
     $('lists-bar').style.display='none';
     // same voice+type bar as Lists (no Manual button — that's a separate FAB, kept hidden here)
     $('float-voice').classList.add('show');
+    var ftr=$('float-text'); if(ftr) ftr.placeholder='Type what you need…';
     $('sel-bar').classList.remove('show');
     var mf=$('manual-fab'); if(mf) mf.style.display='none'; var mp=$('manual-pop'); if(mp) mp.classList.remove('show');
     $('list-view').innerHTML = renderRecipesView();
@@ -3307,6 +3558,7 @@ function render(){
   // voice/type bar is available within a profile, but hidden during Select mode
   $('float-voice').classList.toggle('show', !selectMode);
   var l=curList(); var v=$('list-view');
+  var ft=$('float-text'); if(ft) ft.placeholder = l ? LTof(l).bar : 'Type what you need…';
   if(!l){
     v.innerHTML=pwDropsBannerHtml()+'<div class="card"><div class="empty">No lists yet.<br><br>'
       +'Tap the <b>mic</b> or type in the bar below and just say what you need — the AI will create your list for you.<br><br>'
@@ -3321,7 +3573,9 @@ function render(){
   h+='<div class="card list-head-card">';
   h+='<div class="list-head"><input class="ttl" id="list-title" value="'+esc(l.name)+'" onchange="ML.renameList(\''+l.id+'\',this.value)">'
     +'<button class="btn danger sm" onclick="ML.deleteList(\''+l.id+'\')">Delete list</button></div>';
-  h+='<div class="list-meta">'+items.length+' item'+(items.length!==1?'s':'')+' · '+doneCount+' done</div>';
+  var ty=listType(l);
+  h+='<div class="list-meta"><button class="lt-pill" onclick="ML.changeListType(\''+l.id+'\')" title="Change list type">'+TYPE_ICON[ty]+esc(LT[ty].label)+'<span class="chev">'+CHEV_DOWN+'</span></button> · '
+    +items.length+' item'+(items.length!==1?'s':'')+' · '+doneCount+' done</div>';
   h+='</div>';
 
   // items header + undo/redo + clear + select toggle
@@ -3343,20 +3597,22 @@ function render(){
 }
 // ── Manual (now a compact bottom button + popup) ──
 function manualBodyHtml(){
-  var l=curList(); if(!l) return ''; var stores=l.stores||[];
-  var h='<div class="manual-block"><div class="manual-sub">Stores</div>';
+  var l=curList(); if(!l) return ''; var stores=l.stores||[]; var T=LTof(l);
+  var enter=' onkeydown="if(event.key===\'Enter\'){ML.addItem();}"';
+  var h='<div class="manual-block"><div class="manual-sub">'+esc(T.groups)+'</div>';
   if(stores.length){ h+='<div class="store-chips">'; stores.forEach(function(s){ h+='<span class="store-chip">'+esc(s)+'<span class="x" onclick="ML.removeStore(\''+jq(s)+'\')" title="Remove">×</span></span>'; }); h+='</div>'; }
-  else { h+='<div class="store-empty">No stores yet — add shops you go to, or just speak them.</div>'; }
-  h+='<input id="store-input" placeholder="Add a store…" onkeydown="if(event.key===\'Enter\'){event.preventDefault();ML.addStore();}">';
+  else { h+='<div class="store-empty">'+esc(T.groupEmpty)+'</div>'; }
+  h+='<input id="store-input" placeholder="'+esc(T.groupPh)+'" onkeydown="if(event.key===\'Enter\'){event.preventDefault();ML.addStore();}">';
   h+='<div class="actions" style="margin-top:8px"><button class="btn solid" onclick="ML.addStore()">Add</button></div>';
   h+='</div>';
   h+='<div class="manual-block"><div class="manual-sub">Add item</div><div class="add-grid">'
-    +'<label class="field"><span class="lbl">Item name</span><input id="add-name" placeholder="e.g. Fairlife Whole Milk" onkeydown="if(event.key===\'Enter\'){ML.addItem();}"></label>'
+    +'<label class="field"><span class="lbl">Item</span><input id="add-name" placeholder="'+esc(T.namePh)+'"'+enter+'></label>'
     +'<div class="row2">'
-      +'<label class="field"><span class="lbl">Quantity</span><input id="add-qty" placeholder="e.g. 2 gallons" onkeydown="if(event.key===\'Enter\'){ML.addItem();}"></label>'
-      +'<label class="field"><span class="lbl">Store</span>'+storeFieldInner('add-store','')+'</label>'
+      +(T.qty ? '<label class="field"><span class="lbl">Quantity</span><input id="add-qty" placeholder="'+esc(T.qtyPh)+'"'+enter+'></label>' : '')
+      +(T.when ? '<label class="field"><span class="lbl">'+esc(T.whenLbl)+'</span><input id="add-when" placeholder="'+esc(T.whenPh)+'"'+enter+'></label>' : '')
+      +'<label class="field"><span class="lbl">'+esc(T.group)+'</span>'+storeFieldInner('add-store','')+'</label>'
     +'</div>'
-    +'<label class="field"><span class="lbl">Description (optional)</span><div class="ta-wrap"><textarea id="add-desc" rows="1" placeholder="e.g. organic, for the party" oninput="ML.autoGrow(this)"></textarea>'+GRIP+'</div></label>'
+    +'<label class="field"><span class="lbl">Details (optional)</span><div class="ta-wrap"><textarea id="add-desc" rows="1" placeholder="'+esc(T.descPh)+'" oninput="ML.autoGrow(this)"></textarea>'+GRIP+'</div></label>'
     +'<div class="actions"><button class="btn solid" onclick="ML.addItem()">Add item</button></div>'
   +'</div></div>';
   return h;
@@ -3376,15 +3632,15 @@ function renderManualPop(){
 function storeFieldInner(id, sel){
   var l=curList(); var stores=(l&&l.stores)||[];
   var dl='ml-dl-'+id;
-  return '<input id="'+id+'" list="'+dl+'" value="'+esc(sel||'')+'" placeholder="Type or pick a store…" autocomplete="off">'
+  return '<input id="'+id+'" list="'+dl+'" value="'+esc(sel||'')+'" placeholder="Type or pick a '+esc(LTof(l).group.toLowerCase())+'…" autocomplete="off">'
     +'<datalist id="'+dl+'">'+stores.map(function(s){return '<option value="'+esc(s)+'"></option>';}).join('')+'</datalist>';
 }
-function storeHeaderHtml(s){ return '<div class="store-group-h" data-store="'+esc(s)+'">'+esc(s||'Other')+' <span class="gline"></span></div>'; }
+function storeHeaderHtml(s, otherLabel){ return '<div class="store-group-h" data-store="'+esc(s)+'">'+esc(s||otherLabel||'Other')+' <span class="gline"></span></div>'; }
 function renderItems(l){
-  var items=l.items||[]; var stores=l.stores||[];
-  if(!items.length) return '<div class="card"><div class="empty">No items yet. Tap the mic or type in the bar at the bottom, or open <b>Manual</b> to add them by hand.</div></div>';
-  // ONE flat container with interleaved store headers + item rows → enables
-  // smooth cross-store drag (an item's store = the header above it on drop).
+  var items=l.items||[]; var stores=l.stores||[]; var T=LTof(l);
+  if(!items.length) return '<div class="card"><div class="empty">No items yet. Tap the mic or type in the bar below — try '+esc(T.eg)+' — or open <b>Manual</b> to add them by hand.</div></div>';
+  // ONE flat container with interleaved group headers + item rows → enables
+  // smooth cross-group drag (an item's group = the header above it on drop).
   var h='<div id="items-container">';
   if(stores.length){
     stores.forEach(function(s){
@@ -3392,7 +3648,7 @@ function renderItems(l){
       h+=sortItems(items.filter(function(x){return x.store===s;})).map(itemHtml).join('');
     });
     var other=items.filter(function(x){return !x.store || stores.indexOf(x.store)<0;});
-    if(other.length){ h+=storeHeaderHtml(''); h+=sortItems(other).map(itemHtml).join(''); }
+    if(other.length){ h+=storeHeaderHtml('', T.other); h+=sortItems(other).map(itemHtml).join(''); }
   } else {
     h+=sortItems(items).map(itemHtml).join('');
   }
@@ -3402,13 +3658,15 @@ function renderItems(l){
 function sortItems(arr){ return arr.slice().sort(function(a,b){ return (a.done?1:0)-(b.done?1:0); }); }
 function itemHtml(it){
   if(!selectMode && it.id===editingItemId){
+    var T=LTof(curList());
     return '<div class="item editing">'
-      +'<label class="field"><span class="lbl">Item name</span><input id="edit-name-'+it.id+'" value="'+esc(it.name)+'" placeholder="Name"></label>'
+      +'<label class="field"><span class="lbl">Item</span><input id="edit-name-'+it.id+'" value="'+esc(it.name)+'" placeholder="Name"></label>'
       +'<div class="edit-grid"><div class="row2">'
-        +'<label class="field"><span class="lbl">Quantity</span><input id="edit-qty-'+it.id+'" value="'+esc(it.qty||'')+'" placeholder="Qty"></label>'
-        +'<label class="field"><span class="lbl">Store</span>'+storeFieldInner('edit-store-'+it.id, it.store||'')+'</label>'
+        +((T.qty||it.qty) ? '<label class="field"><span class="lbl">Quantity</span><input id="edit-qty-'+it.id+'" value="'+esc(it.qty||'')+'" placeholder="Qty"></label>' : '')
+        +((T.when||it.when) ? '<label class="field"><span class="lbl">'+esc(T.whenLbl||'When')+'</span><input id="edit-when-'+it.id+'" value="'+esc(it.when||'')+'" placeholder="'+esc(T.whenPh||'')+'"></label>' : '')
+        +'<label class="field"><span class="lbl">'+esc(T.group)+'</span>'+storeFieldInner('edit-store-'+it.id, it.store||'')+'</label>'
       +'</div></div>'
-      +'<label class="field"><span class="lbl">Description</span><div class="ta-wrap"><textarea id="edit-desc-'+it.id+'" rows="1" placeholder="Add a description…" oninput="ML.autoGrow(this)">'+esc(it.desc||'')+'</textarea>'+GRIP+'</div></label>'
+      +'<label class="field"><span class="lbl">Details</span><div class="ta-wrap"><textarea id="edit-desc-'+it.id+'" rows="1" placeholder="Add details…" oninput="ML.autoGrow(this)">'+esc(it.desc||'')+'</textarea>'+GRIP+'</div></label>'
       +'<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn ghost sm" onclick="ML.cancelEdit()">Cancel</button><button class="btn solid sm" onclick="ML.saveEdit(\''+it.id+'\')">Save</button></div>'
     +'</div>';
   }
@@ -3431,7 +3689,9 @@ function itemHtml(it){
     +'</div></div>';
 }
 function itemSubHtml(it){
-  var sub=''; if(it.qty) sub+='<span class="qty-tag">×'+esc(it.qty)+'</span>';
+  var sub='';
+  if(it.when) sub+='<span class="when-tag">'+MLI.clock+esc(it.when)+'</span>';
+  if(it.qty) sub+='<span class="qty-tag">×'+esc(it.qty)+'</span>';
   var s = sub?'<div class="sub">'+sub+'</div>':'';
   if(it.desc) s+='<div class="desc">'+esc(it.desc)+'</div>';
   s += itemWatchLine(it);
@@ -3451,6 +3711,9 @@ function itemWatchLine(it){
 }
 function pwWatchToggleBtn(it){
   var on=!!pwWatchForItem(it);
+  // Price tracking belongs to shopping lists; an item already being watched keeps
+  // its button wherever it lives so the watch can still be turned off.
+  if(!on && !it.watchId && !LTof(curList()).watch) return '';
   return '<button class="ib li-watch-btn'+(on?' on':'')+'" onclick="event.stopPropagation();ML.pwToggleListWatch(\''+it.id+'\')" title="'+(on?'Stop watching price':'Watch this item\'s price')+'">'
     +'<svg width="15" height="15" viewBox="0 0 24 24" fill="'+(on?'currentColor':'none')+'" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3" fill="'+(on?'var(--surface)':'none')+'"/></svg></button>';
 }
@@ -3964,6 +4227,7 @@ function pwRemoveStore(key){
 window.ML = {
   chooseProfile:chooseProfile, toggleFav:toggleFav, goProfileSelect:goProfileSelect,
   addList:addList, openList:openList, deleteList:deleteList, renameList:renameList,
+  changeListType:changeListType, ltPick:ltPick, ltClose:ltClose, ltSubmit:ltSubmit,
   addStore:addStore, removeStore:removeStore, addItem:addItem, toggleDone:toggleDone,
   delItem:delItem, startEdit:startEdit, saveEdit:saveEdit, cancelEdit:cancelEdit, clearDone:clearDone,
   micTap:micTap, sendText:sendText, sendFloatText:sendFloatText, autoGrow:autoGrow, toggleManual:toggleManual,

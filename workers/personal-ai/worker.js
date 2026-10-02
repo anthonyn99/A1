@@ -36,22 +36,41 @@ const MODELS = [
 // fastest and the most reliable at structured multi-op commands (3.5-flash can
 // only throttle thinking to "low", never off, so it's seconds slower per call
 // and was dropping changes on bulk edits).
+// Re-measured 2026-10-02 (typed + spoken commands on every list type):
+// 3.5-flash-lite answered in ~1 s on nearly every call while 3.1-flash-lite and
+// 3.8-flash stalled past 20 s on a third of them. runStaggered() races the next
+// model in whenever the leader is slow, so order = typical-case speed first.
+// (2.5-flash-lite and 2.0-flash now return 404 — retired by Google.)
 const LIST_MODELS = [
-  'gemini-3.1-flash-lite',  // fast, accurate structured ops — best for voice
-  'gemini-3.5-flash',       // flagship — capacity fallback
+  'gemini-3.5-flash-lite',  // fastest + steadiest; accurate structured ops
+  'gemini-3.1-flash-lite',  // first racer — strong on itineraries
+  'gemini-3.5-flash',       // flagship — low daily quota, so not the lead
   'gemini-2.5-flash',
-  'gemini-2.5-flash-lite',
-  'gemini-2.0-flash',
+  'gemini-3.8-flash',
 ];
 // MyList DICTATION — a long voice clip or a pasted/multi-line list ("here's
 // everything I need to pack…"). Faithfulness beats latency there: every item
 // and detail must survive. See isListDictation() for the cut-over.
+// Live comparison (2026-10-02, 20-item spoken packing list): 3.5-flash kept
+// every item, count and detail and sorted them into categories in ~3 s;
+// flash-lite stays a close second and is the fastest racer behind it.
+// Lists whose items hang on a TIME (itinerary, to-do, reminders): 3.1-flash-lite
+// put times/dates in the right field on every live run; 3.5-flash-lite
+// sometimes filed them under details. It leads here, and the fast 3.5-flash-lite
+// races in after the stagger if it stalls.
+const LIST_TIMED_MODELS = [
+  'gemini-3.1-flash-lite',
+  'gemini-3.5-flash-lite',
+  'gemini-3.5-flash',
+  'gemini-2.5-flash',
+  'gemini-3.8-flash',
+];
 const LIST_DICTATION_MODELS = [
+  'gemini-3.5-flash',
+  'gemini-3.5-flash-lite',
   'gemini-3.1-flash-lite',
   'gemini-2.5-flash',
-  'gemini-3.5-flash',
-  'gemini-2.5-flash-lite',
-  'gemini-2.0-flash',
+  'gemini-3.8-flash',
 ];
 
 // TaskHub's structured multi-action commands parse most RELIABLY on 2.5-flash
@@ -406,6 +425,7 @@ async function runModelChain(models, key, o) {
 // types existed (and older clients) keep working untouched.
 // ════════════════════════════════════════════════════════════════════════════
 const LIST_TYPES = ['shopping', 'packing', 'itinerary', 'todo', 'reminders', 'other'];
+const TIMED_LIST_TYPES = ['itinerary', 'todo', 'reminders'];
 function normListType(t) {
   const v = String(t || '').toLowerCase().trim();
   return LIST_TYPES.includes(v) ? v : 'shopping';
@@ -421,7 +441,7 @@ const LIST_TYPE_GUIDE = {
     group: 'STORE — the retailer the item is bought at ("Costco", "Target", "Trader Joe\'s")',
     rules: [
       `- STORE NAMES: a store is a short proper retailer name in Title Case, max 3 words ("Costco", "Best Buy", "Trader Joe's"). When it's clearly one of the SAVED GROUPS, use that exact spelling. Vague places ("the store", "the mall", "online", "somewhere") are NOT stores — omit the field.`,
-      `- NAMES: clean Title Case product name (singular), KEEPING any brand ("Fairlife Whole Milk", "Oreo Cookies", "DeWalt 20V Drill"). Quantity goes in "qty" ("2", "1 gallon", "3 lbs", "a dozen") — never inside the name.`,
+      `- NAMES: clean Title Case product name in its natural shopping form ("Eggs", "Bananas", "Paper Towels", "Furnace Air Filter"), KEEPING any brand ("Fairlife Whole Milk", "Oreo Cookies", "DeWalt 20V Drill"). Quantity goes in "qty" ("2", "1 gallon", "3 lbs", "a dozen") — never inside the name.`,
       `- SPLIT: every separate product is its own item ("eggs, bread and two avocados" = 3 adds).`,
       `- "when" is unused for shopping unless the user gives a deadline ("for Saturday's party" → desc, not when).`,
     ],
@@ -444,7 +464,7 @@ const LIST_TYPE_GUIDE = {
     rules: [
       `- NAMES: the object to pack, clean Title Case, singular unless it's naturally plural ("Phone Charger", "Sunglasses", "Toothbrush", "Passport"). Keep the useful qualifier in the name when it identifies the object ("Laptop Charger", "Sunglasses Case"); other details go in desc ("ID" + desc "passport card").`,
       `- SPLIT: every object is its own item — "phone, laptop and headphones" = 3 adds; "laptop and its charger" = "Laptop" + "Laptop Charger". Counts go in qty ("5 pairs of socks" → name "Socks", qty "5 pairs").`,
-      `- CATEGORIES: when the list ALREADY uses categories (SAVED GROUPS is not empty), put every new item in the best-fitting saved category (or a new sensible one). When the list has no categories, leave "store" empty unless the user names one or asks you to organize/categorize — then set a category on EVERY item (update ops for existing ones).`,
+      `- CATEGORIES: if the list ALREADY uses categories (SAVED GROUPS is not empty) or is EMPTY, put every new item in the best-fitting category (reuse a saved one's exact spelling when it fits). If the list already has items but NO categories, leave "store" empty unless the user names one or asks you to organize/categorize — then set a category on EVERY item (update ops for the existing ones).`,
       `- "when" only for a timing the user states ("pack the night before" → when "night before").`,
     ],
     examples: [
@@ -460,14 +480,16 @@ const LIST_TYPE_GUIDE = {
     group: 'DAY — the day the stop belongs to ("Day 1", "Friday", "Sat Oct 4"). Use the user\'s own wording, short Title Case; reuse the exact spelling of a SAVED GROUP for the same day',
     rules: [
       `- NAMES: the place or activity as a clean proper name with correct official spelling — fix speech-to-text slips and abbreviations ("red rocks" → "Red Rocks Park & Amphitheatre", "16th street mall" → "16th Street Mall", "dinner at Linger" → "Dinner at Linger"). Never leave stray filler words in a name.`,
-      `- "when" = the time or time of day for that stop exactly as planned ("9:00 AM", "Sunset", "Morning", "After lunch", "7:30 PM"). Normalize clock times to "h:mm AM/PM".`,
+      `- ALREADY ON THE LIST: a stop that is already listed — even worded or spelled differently ("Red Rocks" ≈ "Red Rocks Park & Amphitheater", "lunch at Union Station" ≈ "Union Station") — gets an UPDATE that sets its day/time/details. NEVER add a second copy of a listed stop.`,
+      `- "when" = the time or time of day for that stop exactly as planned ("9:00 AM", "Sunset", "Morning", "After lunch", "7:30 PM"; "around 1" → "~1:00 PM"). Normalize clock times to "h:mm AM/PM". Times ALWAYS go in "when", never in desc.`,
       `- "desc" = everything else worth keeping: address/area, reservation or confirmation details, tickets, cost, who's going, tips, how to get there ("Uber from hotel"), duration ("~2 hrs").`,
       `- ORDER MATTERS: add stops in the order the user says them. "put X before Y" / "move X to the top/end" / "swap X and Y" → "move" ops.`,
       `- DAYS: only set "store" (the day) when the user says which day, or the list already groups by day and the day is obvious from context.`,
       `- "qty" only for a count of people/tickets the user states ("tickets for 2" → qty "2 tickets").`,
     ],
     examples: [
-      `"saturday morning we're hiking red rocks then lunch at Union Station around 1, dinner reservation at Linger at 7:30 under Patel" → [{"op":"add","name":"Hike Red Rocks Park & Amphitheatre","store":"Saturday","when":"Morning"},{"op":"add","name":"Lunch at Union Station","store":"Saturday","when":"1:00 PM"},{"op":"add","name":"Dinner at Linger","store":"Saturday","when":"7:30 PM","desc":"reservation under Patel"}]`,
+      `"saturday morning we're hiking red rocks then lunch at Union Station around 1, dinner reservation at Linger at 7:30 under Patel" (list: 1. Red Rocks Park & Amphitheater 2. Union Station) → [{"op":"update","index":1,"match":"Red Rocks Park & Amphitheater","set":{"store":"Saturday","when":"Morning","desc":"hike"}},{"op":"update","index":2,"match":"Union Station","set":{"store":"Saturday","when":"~1:00 PM","desc":"lunch"}},{"op":"add","name":"Dinner at Linger","store":"Saturday","when":"7:30 PM","desc":"reservation under Patel"}]`,
+      `"sunday brunch at Snooze at 9:30 then the botanic gardens" (empty list) → [{"op":"add","name":"Brunch at Snooze","store":"Sunday","when":"9:30 AM"},{"op":"add","name":"Denver Botanic Gardens","store":"Sunday"}]`,
       `"move Union Station before Red Rocks" (list: 1. Red Rocks Park & Amphitheater 2. Union Station) → [{"op":"move","index":2,"match":"Union Station","before":1}]`,
       `"we did Larimer Square" → [{"op":"update","index":4,"match":"Larimer Sqr & Auraria","set":{"done":true}}]`,
       `"add the Denver Art Museum on Sunday at 10, it's free for the first Saturday though, budget two hours" → [{"op":"add","name":"Denver Art Museum","store":"Sunday","when":"10:00 AM","desc":"~2 hrs; free on first Saturdays"}]`,
@@ -565,13 +587,14 @@ function buildListPrompt(transcript, items, stores, hasAudio, listType, listName
     `- {op:"remove_all", store?, done?} — bulk delete. "clear the list" → {}. "remove everything that's done" → {done:true}. "delete all the Costco stuff" → {store:"Costco"}.`,
     `- {op:"add_store", name} / {op:"remove_store", name} / {op:"rename_store", name, newName} — manage the saved GROUPS themselves (removing a group keeps its items, ungrouped).`,
     `- {op:"rename_list", name} — rename the CURRENT LIST itself ("rename/call this list X"). Never use a group op for this.`,
-    `- {op:"set_type", type} — change what KIND of list this is, only when asked ("make this a packing list"). type ∈ ${LIST_TYPES.join(' | ')}.`,
-    `- {op:"new_list", name?, type?} — the user wants a brand-NEW separate list ("start/make a new list (called X)"). Emit it FIRST; every op AFTER it applies to the new empty list. Set "type" to the kind of list it is (${LIST_TYPES.join(' | ')}) from what they say ("packing list for Denver" → packing; "itinerary" → itinerary; "to-do" → todo; "groceries" → shopping; "reminders" → reminders; else other).`,
+    `- {op:"set_type", listType} — change what KIND of list this is, only when asked ("make this a packing list"). listType ∈ ${LIST_TYPES.join(' | ')}.`,
+    `- {op:"new_list", name?, listType?} — the user wants a brand-NEW separate list ("start/make a new list (called X)"). Emit it FIRST; every op AFTER it applies to the new empty list. Set "listType" to the kind of list it is (${LIST_TYPES.join(' | ')}) from what they say ("packing list for Denver" → packing; "itinerary" → itinerary; "to-do" → todo; "groceries" → shopping; "reminders" → reminders; else other).`,
     ``,
     `UNIVERSAL RULES:`,
     `- COMPLETENESS FIRST: a single input often holds MANY items or changes (a dictated or pasted list can hold 20+). Emit one op per item/change — never drop, merge, or summarize away anything. Before answering, re-read the input and confirm every item, number, time, place and detail is captured somewhere (name, qty, when, store or desc).`,
-    `- CLEAN WRITING: fix capitalization, spelling and obvious speech-to-text errors; turn spoken numbers into digits ("two" → "2"); remove filler ("um", "like", "I think we should", "and then"). Reword awkward phrasing into a crisp item, but keep the user's meaning and every specific.`,
+    `- CLEAN WRITING: fix capitalization (keep acronyms upper-case: ID, TV, USB, ATM), spelling and obvious speech-to-text errors; turn spoken numbers into digits ("two" → "2") and dimensions into compact form ("20 by 20 by 1" → "20×20×1"); money as "$80"; remove filler ("um", "like", "I think we should", "and then"). Reword awkward phrasing into a crisp item, but keep the user's meaning and every specific.`,
     `- SELF-CORRECTIONS: honor the user's final intent ("add milk, no wait, oat milk" → only Oat Milk; "at 7, actually 8" → 8).`,
+    `- "when" ONLY holds a time, date or timing the user actually stated for THAT item. Never fill it with TODAY's date or a guess; leave it out otherwise. Likewise only include fields that carry real content — omit empty ones.`,
     `- AUTO-DETAILS: the user never has to say "description" — sizes, specs, colors, flavors, purposes, preferences, addresses, reservations, notes all go in "desc" automatically. Keep desc short and telegraphic; never repeat the name, qty or when in it.`,
     `- ADD vs UPDATE: if the user adds something that is already on the list (same thing, not done), update that item (new TOTAL qty, extra detail) instead of duplicating it. Anything not on the list is an add.`,
     `- DUPLICATE vs MOVE: "copy X to GROUP", "add X at GROUP too" → a NEW add with that group (the original stays). Use update set:{store} only when they say to MOVE/switch/change its group.`,
@@ -587,7 +610,7 @@ function buildListPrompt(transcript, items, stores, hasAudio, listType, listName
     `EXAMPLES (input → ops):`,
     ...g.examples,
     `"change the name of the list to Weekend Plans" → [{"op":"rename_list","name":"Weekend Plans"}]`,
-    `"start a new packing list called Denver Trip with my laptop and sunglasses" → [{"op":"new_list","name":"Denver Trip","type":"packing"},{"op":"add","name":"Laptop"},{"op":"add","name":"Sunglasses"}]`,
+    `"start a new packing list called Denver Trip with my laptop and sunglasses" → [{"op":"new_list","name":"Denver Trip","listType":"packing"},{"op":"add","name":"Laptop"},{"op":"add","name":"Sunglasses"}]`,
   ].join('\n');
 }
 
@@ -610,7 +633,7 @@ const LIST_OPS_SCHEMA = {
           match:   { type: 'STRING' },
           before:  { type: 'INTEGER' },
           pos:     { type: 'STRING' },
-          type:    { type: 'STRING' },
+          listType: { type: 'STRING' },
           newName: { type: 'STRING' },
           from:    { type: 'STRING' },
           to:      { type: 'STRING' },
@@ -624,14 +647,21 @@ const LIST_OPS_SCHEMA = {
               desc:  { type: 'STRING' },
               done:  { type: 'BOOLEAN' },
             },
+            propertyOrdering: ['name', 'qty', 'when', 'store', 'desc', 'done'],
           },
         },
         required: ['op'],
+        // Gemini writes properties ALPHABETICALLY unless told otherwise, which put
+        // "desc" before "name": the model had to commit to an item's details
+        // before naming it, and routinely skipped them. Natural order instead —
+        // the op, its target, the item, then its details.
+        propertyOrdering: ['op', 'index', 'match', 'name', 'qty', 'when', 'store', 'desc', 'done', 'set', 'before', 'pos', 'from', 'to', 'newName', 'listType'],
       },
     },
     note: { type: 'STRING' },
   },
   required: ['ops'],
+  propertyOrdering: ['ops', 'note'],
 };
 
 // Keeps the client's "id" so untouched/edited items keep their identity in the app.
@@ -685,7 +715,18 @@ function findItem(items, index, match) {
   return bestScore >= 0.5 ? best : null;
 }
 
-function applyListOps(items, stores, ops) {
+// A details string that is NOTHING but a time ("Morning", "~1:00 PM", "at 10",
+// "7:30pm") belongs in "when". The lite models occasionally file it under desc.
+const WHEN_ONLY = /^(?:(?:at|around|about|by|~)\s*)?(?:\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?|noon|midnight|morning|afternoon|evening|night|tonight|sunrise|sunset|early morning|late night)$/i;
+function looksLikeWhen(v) { const t = String(v || '').trim(); return !!t && t.length <= 24 && WHEN_ONLY.test(t) && /[a-z]|:/i.test(t); }
+
+function applyListOps(items, stores, ops, type) {
+  const timed = TIMED_LIST_TYPES.includes(type);
+  // Move a time-only desc into when (only when no when was given).
+  const fixWhen = (f) => {
+    if (!timed || !f || typeof f !== 'object') return;
+    if (!String(f.when || '').trim() && looksLikeWhen(f.desc)) { f.when = String(f.desc).trim(); f.desc = ''; }
+  };
   // Ops apply to a "target" list — normally the current list, but a new_list op
   // switches the target to a fresh empty list so the rest of the command builds it.
   const mkTarget = (list, storeNames) => {
@@ -754,6 +795,16 @@ function applyListOps(items, stores, ops) {
 
   for (const op of (Array.isArray(ops) ? ops : [])) {
     if (!op || typeof op !== 'object') continue;
+    // A field named "type" reads as "product type/variant" to the lite models,
+    // which parked item details there ("16 GB", "black, size S"). The schema now
+    // calls it listType, but an item op that still carries a stray non-list-type
+    // "type" gets it back as the detail it was.
+    if ((op.op === 'add' || op.op === 'update') && typeof op.type === 'string' && op.type.trim() && !listType(op.type)) {
+      const tgt = (op.op === 'update' && op.set && typeof op.set === 'object') ? op.set : op;
+      if (!String(tgt.desc || '').trim()) tgt.desc = op.type.trim();
+    }
+    if (op.op === 'add') fixWhen(op);
+    if (op.op === 'update') fixWhen(op.set && typeof op.set === 'object' ? op.set : op);
     switch (String(op.op || '')) {
       case 'rename_list': {
         const name = String(op.name || op.newName || '').trim();
@@ -761,14 +812,14 @@ function applyListOps(items, stores, ops) {
         break;
       }
       case 'set_type': {
-        const ty = listType(op.type || op.name);
+        const ty = listType(op.listType || op.type || op.name);
         if (ty) t.type = ty;
         break;
       }
       case 'new_list': {
         nl = mkTarget([], []);
         nl.name = String(op.name || '').trim();
-        nl.type = listType(op.type);
+        nl.type = listType(op.listType || op.type);
         t = nl;
         break;
       }
@@ -901,6 +952,29 @@ function listInputEntries(transcript) {
   return lines.length >= 3 ? lines.length : 0;
 }
 
+// Numbers are the details models drop most (times, counts, sizes, prices,
+// dates), and the easiest to check: every number the user TYPED must show up
+// somewhere in the ops that add or change items. Returns the missing ones.
+function numbersIn(text) {
+  return (String(text || '').match(/\d+/g) || []).map((n) => String(parseInt(n, 10)));
+}
+function missingNumbers(transcript, ops) {
+  const said = [...new Set(numbersIn(transcript))];
+  if (!said.length || !Array.isArray(ops)) return [];
+  const changes = ops.filter((o) => o && (o.op === 'add' || o.op === 'update' || o.op === 'new_list' || o.op === 'move'));
+  if (!changes.length) return [];                       // pure removals/bulk ops: nothing to check
+  const got = new Set();
+  for (const o of ops) {
+    if (!o || typeof o !== 'object') continue;
+    for (const v of [o.name, o.qty, o.when, o.store, o.desc, o.match, o.from, o.to, o.newName,
+                     o.set && o.set.name, o.set && o.set.qty, o.set && o.set.when, o.set && o.set.store, o.set && o.set.desc]) {
+      numbersIn(v).forEach((n) => got.add(n));
+    }
+    for (const v of [o.index, o.before]) if (Number.isInteger(v)) got.add(String(v));
+  }
+  return said.filter((n) => !got.has(n));
+}
+
 // A request is "dictation" when it is long enough that faithfulness beats
 // latency: any voice clip over a few seconds, or typed input that is clearly a
 // list rather than a one-line command.
@@ -908,6 +982,59 @@ function isListDictation(transcript, audio) {
   if (audio) return audio.length > 200000;                 // ≈ >4.5 s of 16 kHz mono WAV, base64
   const words = String(transcript || '').trim().split(/\s+/).filter(Boolean).length;
   return words > 45 || listInputEntries(transcript) >= 4;
+}
+
+// Staggered race for MyList. Measured live (2026-10-02): Gemini latency for the
+// SAME request swings from ~1 s to >14 s, and the slow spells hit every model
+// at once. A sequential chain then stacks timeouts (14 s + 14 s + …) before
+// anyone answers. Instead the lead model starts alone; if it hasn't answered
+// within `staggerMs`, the next model starts ALONGSIDE it (never cancelling the
+// leader, which may be seconds from done), and so on, up to `maxLive` calls in
+// flight. A quota/error outcome starts the next model at once. First answer
+// that passes `validate` wins; a well-formed but lossy one is kept as a
+// fallback. Fast requests (the normal case) never start a second call, so
+// quota use is unchanged.
+function runStaggered(models, key, o) {
+  const t0 = Date.now();
+  const deadline = t0 + (o.deadlineMs || 45000);
+  const left = () => deadline - Date.now();
+  const tried = [], errs = [];
+  let soft = null, live = 0, next = 0, done = false, timer = null;
+  return new Promise((resolve, reject) => {
+    const finish = (val) => {
+      if (done) return; done = true; clearTimeout(timer);
+      if (val) return resolve({ ...val, tried: tried.slice() });
+      if (soft) return resolve({ ...soft, tried: tried.slice() });
+      const err = new Error(errs.slice(-3).join(' | ') || 'all models failed');
+      err.tried = tried.slice();
+      reject(err);
+    };
+    const settleIfIdle = () => { if (!done && live === 0 && (next >= models.length || left() < 1500)) finish(null); };
+    const launch = () => {
+      if (done || next >= models.length || left() < 1500) { settleIfIdle(); return; }
+      const model = models[next++];
+      live++; tried.push(model);
+      clearTimeout(timer);
+      if (live < (o.maxLive || 3)) timer = setTimeout(launch, o.staggerMs || 4000);
+      const attempt = async (n) => {
+        const r = await geminiOnce(model, key, o, Math.min(o.timeoutMs || 20000, Math.max(1000, left())));
+        if (r.cls === 'retry' && n === 0 && !done && left() > 3000) { await sleep(250); return attempt(1); }
+        return r;
+      };
+      attempt(0).then((r) => {
+        live--;
+        if (done) return;
+        if (r.cls === 'ok') {
+          if (!o.validate || o.validate(r.value)) return finish({ value: r.value, model });
+          if (!soft) soft = { value: r.value, model, soft: true };
+          errs.push(model + ': lossy extraction');
+        } else errs.push(r.err);
+        launch();                // this one failed — the next model starts now
+        settleIfIdle();
+      }, (e) => { live--; errs.push(model + ': ' + ((e && e.message) || 'error')); if (!done) { launch(); settleIfIdle(); } });
+    };
+    launch();
+  });
 }
 
 async function handleList(body, env) {
@@ -927,7 +1054,7 @@ async function handleList(body, env) {
 
   const prompt = buildListPrompt(transcript, items, stores, !!audio, listType, listName, today);
   const dictation = isListDictation(transcript, audio);
-  let models = dictation ? LIST_DICTATION_MODELS : LIST_MODELS;
+  let models = dictation ? LIST_DICTATION_MODELS : (TIMED_LIST_TYPES.includes(listType) ? LIST_TIMED_MODELS : LIST_MODELS);
   // Debug-only: pin one model so the chain can be compared model-by-model.
   if (body.debug && typeof body.model === 'string' && /^gemini-[\w.-]+$/.test(body.model)) models = [body.model];
 
@@ -937,26 +1064,29 @@ async function handleList(body, env) {
   // as a fallback, so the user still gets it if nothing better comes back):
   //  - a pasted/bulleted list that came back with far fewer ops than lines;
   //  - an empty answer to a real typed request (silence/noise audio is allowed
-  //    to be empty — there may genuinely be nothing to do).
+  //    to be empty — there may genuinely be nothing to do);
+  //  - a typed request whose numbers (times, counts, sizes, prices) didn't all
+  //    make it into the result.
   const validate = (v) => {
     if (!v || !Array.isArray(v.ops)) return false;
     if (entries >= 3 && v.ops.length < Math.ceil(entries * 0.7)) return false;
     if (!audio && words >= 3 && v.ops.length === 0) return false;
+    if (!audio && missingNumbers(transcript, v.ops).length) return false;
     return true;
   };
 
   try {
-    const r = await runModelChain(models, key, {
+    const r = await runStaggered(models, key, {
       prompt, schema: LIST_OPS_SCHEMA, maxOutputTokens: 8192, feature: 'list', audio, mimeType,
       validate,
       salvage: salvageListOps,
-      timeoutMs: dictation ? 25000 : 14000,
-      deadlineMs: dictation ? 55000 : 40000,
-      hedgeAfterMs: dictation ? 12000 : 0,
+      staggerMs: dictation ? 6000 : 3500,
+      timeoutMs: dictation ? 30000 : 22000,
+      deadlineMs: dictation ? 50000 : 40000,
     });
     const out = r.value || {};
     const ops = Array.isArray(out.ops) ? out.ops : [];
-    const res = applyListOps(items, stores, ops);
+    const res = applyListOps(items, stores, ops, listType);
     const resp = { ok: true, items: res.items, stores: res.stores, note: String(out.note || '').trim(), ops: ops.length, model: r.model };
     if (res.listName) resp.listName = res.listName;
     if (res.listType) resp.listType = res.listType;
