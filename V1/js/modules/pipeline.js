@@ -164,40 +164,47 @@ async function readFileB64(file) {
  *  provider, not just the bridge. */
 export const fileB64Of = (file) => readFileB64(file);
 
-/** A file the topic breakdown reads: a PDF, or a PowerPoint deck (as its PDF). */
+/** A file the topic breakdown reads: a PDF, a PowerPoint deck or a Word
+ *  document (those two as the PDF their Office app exports). */
 export const isPdfFile = (f) => /pdf/i.test((f && f.mime) || '') || /\.pdf$/i.test((f && f.name) || '');
 export const isSlidesFile = (f) => !isPdfFile(f) && (
   /presentationml|powerpoint/i.test((f && f.mime) || '') || /\.(pptx?|ppsx?)$/i.test((f && f.name) || ''));
-export const isBreakable = (f) => isPdfFile(f) || isSlidesFile(f);
+export const isWordFile = (f) => !isPdfFile(f) && (
+  /wordprocessingml|msword|ms-word|rtf|opendocument\.text/i.test((f && f.mime) || '') || /\.(docx?|docm|rtf|odt)$/i.test((f && f.name) || ''));
+export const isOfficeFile = (f) => isSlidesFile(f) || isWordFile(f);
+export const isBreakable = (f) => isPdfFile(f) || isOfficeFile(f);
 
-const SLIDES_NEED_BRIDGE = 'Slides are turned into a PDF by the StudyOS bridge on this PC — start it and try again.';
 const _converted = new Map();     // file.id → Promise<base64 PDF>
 
 /**
- * A breakable file as a base64 PDF. A PDF is its own bytes; a deck is the PDF
- * PowerPoint exports on this PC, via the bridge (content-addressed there, so
- * the same deck converts once). Rejects with a plain-language message.
+ * A breakable file as a base64 PDF. A PDF is its own bytes; a deck or a Word
+ * document is the PDF PowerPoint / Word exports on this PC, via the bridge
+ * (content-addressed there, so the same file converts once). Rejects with a
+ * plain-language message.
  */
 export function pdfOf(file) {
-  if (!isSlidesFile(file)) return readFileB64(file);
+  if (!isOfficeFile(file)) return readFileB64(file);
   const key = file.id || file.fileId || file.name;
   if (_converted.has(key)) return _converted.get(key);
+  const word = isWordFile(file);
+  const what = word ? 'Word documents' : 'Slides';
+  const needBridge = `${what} are turned into a PDF by the StudyOS bridge on this PC — start it and try again.`;
   const p = (async () => {
     const base = (CFG().baseUrl || '').replace(/\/$/, '');
-    if (!isLocalBridge()) throw new Error(SLIDES_NEED_BRIDGE);
+    if (!isLocalBridge()) throw new Error(needBridge);
     const fileB64 = await readFileB64(file);
     if (!fileB64) throw new Error('Could not read this file on this device.');
     let res;
     try {
       res = await fetch(base + '/api/convert/pdf', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileB64, sourceName: file.name || 'slides.pptx' }),
+        body: JSON.stringify({ fileB64, sourceName: file.name || (word ? 'document.docx' : 'slides.pptx') }),
       });
-    } catch (e) { throw new Error(SLIDES_NEED_BRIDGE); }
-    if (res.status === 404) throw new Error('The StudyOS bridge is out of date — restart it to load slide support.');
+    } catch (e) { throw new Error(needBridge); }
+    if (res.status === 404) throw new Error(`The StudyOS bridge is out of date — restart it to load ${word ? 'Word' : 'slide'} support.`);
     if (!res.ok) {
       const body = await res.json().catch(() => null);
-      throw new Error((body && body.error) || `The bridge could not convert the slides (HTTP ${res.status}).`);
+      throw new Error((body && body.error) || `The bridge could not convert the ${word ? 'document' : 'slides'} (HTTP ${res.status}).`);
     }
     const buf = new Uint8Array(await res.arrayBuffer());
     let bin = '';
@@ -417,4 +424,4 @@ export async function fileResult(job) {
   });
 }
 
-export default { enabled, runPrompt, runBatch, getJob, listJobs, retryJob, deleteJob, budget, watchJob, fileResult, ask, health, fileB64Of, pdfOf, isBreakable, isSlidesFile, isPdfFile };
+export default { enabled, runPrompt, runBatch, getJob, listJobs, retryJob, deleteJob, budget, watchJob, fileResult, ask, health, fileB64Of, pdfOf, isBreakable, isSlidesFile, isWordFile, isOfficeFile, isPdfFile };

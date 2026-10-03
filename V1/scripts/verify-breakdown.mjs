@@ -120,6 +120,7 @@ const seeded = await evalJs(`(function(){
   cls.modules.push({ id:'bdm1', name:'Lectures', type:'documents', prompts:[], notes:[], files:[
     { id:'${FID}', name:'Ch 2 Keys.pdf', size: 12, mime:'application/pdf', fileId:'${FID}' },
     { id:'${FID}x', name:'Ch 2.pptx', size: 12, mime:'application/vnd.openxmlformats-officedocument.presentationml.presentation', fileId:'${FID}x' },
+    { id:'${FID}w', name:'Week 3 notes.docx', size: 12, mime:'application/vnd.openxmlformats-officedocument.wordprocessingml.document', fileId:'${FID}w' },
   ]});
   cls.modules.push({ id:'bdp1', name:'Breakdown prompts', type:'prompts', files:[], notes:[],
     prompts:[{ id:'pp1', text:'Explain it like I am new to {{course_code}}.' }] });
@@ -136,8 +137,21 @@ const rows = await evalJs(`(function(){
            file2: btns[1] && btns[1].dataset.bdFile, label2: btns[1] && btns[1].textContent,
            slides: document.querySelectorAll('[data-act="slides"]').length };
 })()`);
-t('a Break down button on the PDF', rows.n === 2 && rows.label === 'Break down' && rows.file === FID, rows);
+t('a Break down button on the PDF', rows.n === 3 && rows.label === 'Break down' && rows.file === FID, rows);
 t('...and on the .pptx', rows.file2 === FID + 'x' && rows.label2 === 'Break down', rows);
+t('...and on the .docx', await evalJs(`(document.querySelector('[data-bd-file="${FID}w"]')||{}).textContent === 'Break down'`));
+
+await evalJs(`document.querySelector('[data-bd-file="${FID}w"]').click(); true;`);
+await wait(500);
+const wordSheet = await evalJs(`(function(){
+  var el = document.querySelector('.sos-ai-sheet.open');
+  var txt = el ? el.textContent : '';
+  var c = el && Array.from(el.querySelectorAll('button')).find(b => b.textContent === 'Cancel');
+  if (c) c.click();
+  return txt;
+})()`);
+t('the .docx start sheet says Word converts it first', /Word on this PC/.test(wordSheet || '') && !/PowerPoint on this PC/.test(wordSheet || ''), (wordSheet || '').slice(0, 300));
+await wait(400);
 
 await evalJs(`document.querySelector('[data-bd-file="${FID}x"]').click(); true;`);
 await wait(500);

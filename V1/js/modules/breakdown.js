@@ -754,16 +754,17 @@ function deviceId() {
   } catch (e) { return 'd-unknown'; }
 }
 
-/* The document as a PDF. A slide deck is the PDF PowerPoint exports (via the
- * bridge), so everything below — page text, checks, figures — is unchanged.
- * A conversion failure is a setup problem: it stops the run before any ask. */
+/* The document as a PDF. A slide deck or Word document is the PDF PowerPoint
+ * or Word exports (via the bridge), so everything below — page text, checks,
+ * figures — is unchanged. A conversion failure is a setup problem: it stops
+ * the run before any ask. */
 async function sourceOf(file) {
-  const slides = pipeline.isSlidesFile(file);
+  const office = pipeline.isOfficeFile(file);
   let b64;
   try { b64 = await pipeline.pdfOf(file); }
-  catch (e) { throw new ai.AIError((e && e.message) || String(e), { kind: slides ? 'setup' : 'bad_input' }); }
+  catch (e) { throw new ai.AIError((e && e.message) || String(e), { kind: office ? 'setup' : 'bad_input' }); }
   if (!b64) throw new ai.AIError('Could not read this file on this device.', { kind: 'bad_input' });
-  const name = slides ? (file.name || 'slides').replace(/\.\w+$/, '') + '.pdf' : (file.name || 'source.pdf');
+  const name = office ? (file.name || 'document').replace(/\.\w+$/, '') + '.pdf' : (file.name || 'source.pdf');
   return { b64, name, size: Math.floor(b64.length * 3 / 4) };
 }
 
@@ -858,7 +859,7 @@ async function withFallback(make, hasAttachments, what) {
 export function run(classId, moduleId, file, opts = {}) {
   if (!file || !file.id) return Promise.reject(new Error('file required'));
   if (_running.has(file.id)) return _running.get(file.id);
-  if (!pipeline.isBreakable(file)) return Promise.reject(new ai.AIError('Topic breakdown reads PDFs and PowerPoint slides — convert this file to PDF first.', { kind: 'bad_input' }));
+  if (!pipeline.isBreakable(file)) return Promise.reject(new ai.AIError('Topic breakdown reads PDFs, Word documents and PowerPoint slides — convert this file to PDF first.', { kind: 'bad_input' }));
   const p = (async () => {
     try { return await runInner(classId, moduleId, file, opts); }
     finally { _running.delete(file.id); emit(file.id); }

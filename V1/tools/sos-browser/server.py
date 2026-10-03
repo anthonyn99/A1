@@ -165,19 +165,21 @@ def is_retryable(kind: str, job: dict) -> bool:
 #   bad_input
 #       The source file is gone. Running again will not bring it back.
 
-# ── Slides → PDF ──────────────────────────────────────────────────────────────
+# ── Slides / Word → PDF ───────────────────────────────────────────────────────
 # The topic breakdown reads PDFs only (pdf.js: page text, the checks, figure
-# pages). A .pptx reaches it as the PDF PowerPoint exports — the real slides,
-# figures and all — so every check runs unchanged. Content-addressed: the same
-# deck is converted once, ever.
+# pages). A .pptx reaches it as the PDF PowerPoint exports, a .docx as the PDF
+# Word exports — the real pages, figures and all — so every check runs
+# unchanged. Content-addressed: the same file is converted once, ever.
 CONVERT_TIMEOUT = 180
+WORD_EXT = re.compile(r"\.(docx?|docm|rtf|odt)$", re.I)
+SLIDES_EXT = re.compile(r"\.(pptx?|ppsx?)$", re.I)
 
 
 class ConvertError(Exception):
     pass
 
 
-_convert_lock = threading.Lock()     # one PowerPoint export at a time
+_convert_lock = threading.Lock()     # one Office export at a time
 
 
 def _ps_quote(p: Path) -> str:
@@ -219,8 +221,49 @@ def _powerpoint_export(src: Path, out: Path) -> None:
         raise ConvertError("PowerPoint could not export the slides: " + said[-400:])
 
 
+def _word_export(src: Path, out: Path) -> None:
+    """Word (COM, via PowerShell) exports `src` as a PDF at `out`.
+
+    Opened read-only with no conversion prompt and closed without saving.
+    Unlike PowerPoint, COM gives Word its OWN hidden instance (/Automation)
+    even when she has Word open, so "was Word already running" is the wrong
+    test: it left one hidden WINWORD.EXE behind per conversion. Quit when
+    THIS instance holds no documents — hers live in her own instance."""
+    script = (
+        "$ErrorActionPreference = 'Stop'; "
+        "try { $w = New-Object -ComObject Word.Application } "
+        "catch { Write-Output 'NO_WORD'; exit 3 }; "
+        "$w.Visible = $false; $w.DisplayAlerts = 0; "
+        # Open(FileName, ConfirmConversions=False, ReadOnly=True, AddToRecentFiles=False)
+        f"$d = $w.Documents.Open({_ps_quote(src)}, $false, $true, $false); "
+        "try { "
+        f"  $d.ExportAsFixedFormat({_ps_quote(out)}, 17) "   # 17 = wdExportFormatPDF
+        "} finally { $d.Close(0) }; "                         # 0 = wdDoNotSaveChanges
+        "if ($w.Documents.Count -eq 0) { $w.Quit() }; "      # Quit(0) is a by-ref arg in PS: errors
+        "Write-Output 'ok'"
+    )
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    try:
+        r = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+                           capture_output=True, text=True, timeout=CONVERT_TIMEOUT,
+                           creationflags=flags)
+    except subprocess.TimeoutExpired:
+        raise ConvertError(f"Word took over {CONVERT_TIMEOUT}s to export the document")
+    except FileNotFoundError:
+        raise ConvertError("PowerShell is not available on this PC")
+    said = ((r.stdout or "") + (r.stderr or "")).strip()
+    if "NO_WORD" in said:
+        raise ConvertError("Word is not installed on this PC, so this document cannot be "
+                           "turned into a PDF. Export it to PDF yourself and upload that.")
+    if r.returncode != 0:
+        raise ConvertError("Word could not export the document: " + said[-400:])
+
+
 def convert_to_pdf(raw: bytes, name: str) -> Path:
-    """The PDF of a slide deck's bytes, converting only on a cache miss."""
+    """The PDF of a slide deck's or Word document's bytes, converting only on
+    a cache miss. The extension picks the app: Word for .docx/.doc/.docm/.rtf/
+    .odt, PowerPoint for everything else (a name with no extension was always
+    a deck)."""
     digest = hashlib.sha256(raw).hexdigest()[:16]
     out_dir = UPLOADS / "converted"
     out = out_dir / f"{digest}.pdf"
@@ -229,14 +272,15 @@ def convert_to_pdf(raw: bytes, name: str) -> Path:
             return out
         out_dir.mkdir(parents=True, exist_ok=True)
         safe = re.sub(r"[^\w.\-]", "_", name or "slides.pptx")
-        if not re.search(r"\.(pptx?|ppsx?)$", safe, re.I):
+        word = bool(WORD_EXT.search(safe))
+        if not word and not SLIDES_EXT.search(safe):
             safe += ".pptx"
         src = UPLOADS / f"{digest}-{safe}"
         if not src.exists() or src.stat().st_size != len(raw):
             src.write_bytes(raw)
         tmp = out_dir / f"{digest}.part.pdf"
         tmp.unlink(missing_ok=True)
-        _powerpoint_export(src, tmp)
+        (_word_export if word else _powerpoint_export)(src, tmp)
         # Checked, not assumed: a PDF, and not an empty one.
         try:
             head = tmp.read_bytes()[:5] if tmp.exists() else b""
@@ -244,7 +288,7 @@ def convert_to_pdf(raw: bytes, name: str) -> Path:
             head = b""
         if head != b"%PDF-":
             tmp.unlink(missing_ok=True)
-            raise ConvertError("PowerPoint did not produce a PDF")
+            raise ConvertError(("Word" if word else "PowerPoint") + " did not produce a PDF")
         tmp.replace(out)
         return out
 
@@ -956,7 +1000,7 @@ class Handler(BaseHTTPRequestHandler):
         return self._send({"ok": True, "deleted": m.group(1)})
 
     def _convert(self, body):
-        """A slide deck (base64) → its PDF's bytes. See convert_to_pdf."""
+        """A slide deck or Word document (base64) → its PDF's bytes. See convert_to_pdf."""
         try:
             raw = base64.b64decode(body.get("fileB64") or "", validate=True)
         except Exception as e:

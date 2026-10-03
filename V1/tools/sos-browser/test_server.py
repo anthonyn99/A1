@@ -572,5 +572,52 @@ finally:
     _shutil.rmtree(_tmp_up, ignore_errors=True)
 
 
+# ── Word → PDF ────────────────────────────────────────────────────────────────
+# Same route as slides; the extension picks the app. Both apps stubbed.
+print("\nword → pdf: Word for documents, PowerPoint for decks")
+_orig_up, _orig_pp, _orig_word = server.UPLOADS, server._powerpoint_export, server._word_export
+_tmp_up = Path(_tempfile.mkdtemp(prefix="sos-test-uploads-"))
+server.UPLOADS = _tmp_up
+_by = []
+try:
+    def _fake(app):
+        def f(src, out):
+            _by.append((app, src.name))
+            out.write_bytes(b"%PDF-1.7 fake")
+        return f
+    server._powerpoint_export, server._word_export = _fake("pp"), _fake("word")
+    for i, n in enumerate(["Essay.docx", "old.doc", "notes.rtf", "lab.odt", "macro.docm"]):
+        server.convert_to_pdf(f"doc-{i}".encode(), n)
+    t("every Word format goes to Word", [a for a, _ in _by] == ["word"] * 5, _by)
+    t("...keeping its own extension (never opened as a .pptx)",
+      all(not s.endswith(".pptx") for _, s in _by), _by)
+    _by.clear()
+    server.convert_to_pdf(b"deck", "Ch 2.pptx")
+    server.convert_to_pdf(b"noext", "lecture")
+    t("decks, and names with no extension, still go to PowerPoint", [a for a, _ in _by] == ["pp", "pp"], _by)
+    _by.clear()
+    server.convert_to_pdf(b"doc-0", "Essay again.docx")
+    t("the same document again is a cache hit", not _by, _by)
+
+    def _no_word(src, out):
+        raise server.ConvertError("Word is not installed on this PC")
+    server._word_export = _no_word
+    try:
+        server.convert_to_pdf(b"no-word", "x.docx"); _err = None
+    except server.ConvertError as e:
+        _err = e
+    t("a missing Word surfaces as ConvertError", _err and "Word is not installed" in str(_err))
+
+    server._word_export = lambda src, out: out.write_bytes(b"PK\x03\x04 not a pdf")
+    try:
+        server.convert_to_pdf(b"bad-doc", "bad.docx"); _err = None
+    except server.ConvertError as e:
+        _err = e
+    t("a Word export that is not a PDF is an error naming Word", _err and str(_err).startswith("Word"), _err)
+finally:
+    server.UPLOADS, server._powerpoint_export, server._word_export = _orig_up, _orig_pp, _orig_word
+    _shutil.rmtree(_tmp_up, ignore_errors=True)
+
+
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

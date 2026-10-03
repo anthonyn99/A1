@@ -320,16 +320,16 @@ try { await bd.run('c1', 'm1', { id: 'f3', name: 'x.pdf', mime: 'application/pdf
 t('no key: refused with a setup error', threw && threw.kind === 'setup', threw && threw.message);
 t('...before any request', calls.length === 0);
 threw = null;
-try { await bd.run('c1', 'm1', { id: 'f4', name: 'essay.docx', mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }); } catch (e) { threw = e; }
-t('a non-PDF, non-slides file is refused with a clear message', threw && /PDF/.test(threw.message), threw && threw.message);
+try { await bd.run('c1', 'm1', { id: 'f4', name: 'grades.xlsx', mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }); } catch (e) { threw = e; }
+t('a file that is not a PDF, Word or slides is refused with a clear message', threw && /PDF/.test(threw.message) && /Word/.test(threw.message), threw && threw.message);
 
 console.log('\nslide decks go through the bridge as a PDF');
 {
   const pipeline = await import(new URL('../js/modules/pipeline.js', import.meta.url).href);
   const PPTX = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
-  t('.pptx / .ppt are breakable, a .docx is not',
+  t('.pptx / .ppt are breakable, a .xlsx or .txt is not',
     pipeline.isBreakable({ name: 'Ch 2.pptx', mime: PPTX }) && pipeline.isBreakable({ name: 'old.ppt', mime: '' })
-    && !pipeline.isBreakable({ name: 'essay.docx', mime: '' }));
+    && !pipeline.isBreakable({ name: 'grades.xlsx', mime: '' }) && !pipeline.isBreakable({ name: 'notes.txt', mime: 'text/plain' }));
   t('a PDF is not treated as slides', !pipeline.isSlidesFile({ name: 'x.pdf', mime: 'application/pdf' }));
 
   ai.saveSettings({ provider: 'openai', keys: { openai: 'sk' }, models: { openai: 'm' }, baseUrl: { openai: 'https://x.test/v1' } });
@@ -372,6 +372,59 @@ console.log('\nslide decks go through the bridge as a PDF');
     const n = converts.length;
     await pipeline.pdfOf(S2);
     t('a second use of the same deck does not convert again', converts.length === n);
+  } finally {
+    globalThis.fetch = realFetch;
+    delete window.STUDYOS_CONFIG.cloudflare.ai.baseUrl;
+  }
+}
+
+console.log('\nWord documents go through the bridge as a PDF');
+{
+  const pipeline = await import(new URL('../js/modules/pipeline.js', import.meta.url).href);
+  const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  t('Word formats are breakable, by mime or by name',
+    [{ name: 'a', mime: DOCX }, { name: 'a', mime: 'application/msword' }, { name: 'a', mime: 'application/rtf' },
+     { name: 'a', mime: 'application/vnd.oasis.opendocument.text' },
+     { name: 'Essay.docx', mime: '' }, { name: 'old.DOC', mime: '' }, { name: 'n.rtf', mime: '' }, { name: 'l.odt', mime: '' }]
+      .every((f) => pipeline.isWordFile(f) && pipeline.isBreakable(f) && pipeline.isOfficeFile(f)));
+  t('a Word document is not slides, and a PDF is not Word',
+    !pipeline.isSlidesFile({ name: 'Essay.docx', mime: DOCX }) && !pipeline.isWordFile({ name: 'x.pdf', mime: 'application/pdf' }));
+
+  ai.saveSettings({ provider: 'openai', keys: { openai: 'sk' }, models: { openai: 'm' }, baseUrl: { openai: 'https://x.test/v1' } });
+  const W1 = { id: 'fw1', name: 'Week 3 notes.docx', mime: DOCX };
+  classes[0].modules[0].files.push(W1);
+  calls = []; threw = null;
+  try { await bd.run('c1', 'm1', W1); } catch (e) { threw = e; }
+  t('no bridge: a setup error saying Word documents need it',
+    threw && threw.kind === 'setup' && /Word documents/.test(threw.message) && /bridge/i.test(threw.message), threw && threw.message);
+  t('...with no request at all', calls.length === 0, calls);
+
+  const realFetch = globalThis.fetch;
+  window.STUDYOS_CONFIG.cloudflare.ai.baseUrl = 'http://127.0.0.1:8781';
+  const converts = [];
+  let convertReply = () => new Response(JSON.stringify({ ok: false, error: 'Word is not installed on this PC' }), { status: 422 });
+  globalThis.fetch = async (url, init = {}) => {
+    if (/\/api\/convert\/pdf$/.test(String(url))) { converts.push(JSON.parse(init.body)); return convertReply(); }
+    return realFetch(url, init);
+  };
+  try {
+    calls = []; threw = null;
+    try { await bd.run('c1', 'm1', W1); } catch (e) { threw = e; }
+    t('a failed Word conversion stops the run with the bridge\'s reason',
+      threw && threw.kind === 'setup' && /Word is not installed/.test(threw.message), threw && threw.message);
+    t('...before any model request', calls.length === 0, calls.length);
+    t('...and the document went to the bridge under its own name',
+      converts.length === 1 && converts[0].sourceName === 'Week 3 notes.docx' && converts[0].fileB64, converts.map((c) => c.sourceName));
+
+    convertReply = () => new Response('%PDF-1.7 from word', { status: 200 });
+    calls = [];
+    responder = () => new Response(JSON.stringify({ error: { message: 'bad key' } }), { status: 401 });
+    const W2 = { id: 'fw2', name: 'Essay.docx', mime: DOCX };
+    classes[0].modules[0].files.push(W2);
+    try { await bd.run('c1', 'm1', W2); } catch (e) { /* the key is rejected; the attachment is what is checked */ }
+    const filePart = calls.length && calls[0].body.messages.find((m) => m.role === 'user').content.find((p) => p.type === 'file');
+    t('the model receives Word\'s PDF, named as one', filePart && filePart.file.filename === 'Essay.pdf'
+      && Buffer.from(filePart.file.file_data.split(',')[1], 'base64').toString() === '%PDF-1.7 from word', filePart && filePart.file.filename);
   } finally {
     globalThis.fetch = realFetch;
     delete window.STUDYOS_CONFIG.cloudflare.ai.baseUrl;

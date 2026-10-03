@@ -145,7 +145,7 @@ be running.
 
 ## Topic breakdown (lessons + flashcards)
 
-A PDF's or slide deck's row has a **Break down** button. It lists the document's topics (one
+A PDF's, Word document's or slide deck's row has a **Break down** button. It lists the document's topics (one
 request), then writes each topic a lesson and its flashcards (one request per
 topic), in the background. The topics appear under the document; click one to
 read it. Its cards join your reviews.
@@ -182,6 +182,16 @@ Without PowerPoint the run stops before spending anything and says so: export
 the deck to PDF by hand instead. On a device without the bridge (a phone),
 a finished lesson's figure slides show "couldn't be loaded on this device";
 everything else is synced as usual.
+
+**Word documents (.docx / .doc / .docm / .rtf / .odt)** take the same route,
+with **Word** doing the export (the file extension picks the app). The same
+rules apply: the bridge must be running, Word must be installed on that PC,
+each file converts once, and a missing Word stops the run before anything is
+spent. COM always starts Word as its own hidden `/Automation` instance, even
+when she has Word open. `_word_export` quits that instance once it holds no
+documents. Her own Word windows are separate processes and are never touched. Checking
+"was Word already running" instead left one hidden `WINWORD.EXE` behind per
+conversion.
 
 ## When something breaks
 
