@@ -120,10 +120,19 @@ ok('a pre-profile engine is treated as the default profile',
 
 console.log('\nSyncing costs no extra listener and no extra read');
 ok('engines ride the existing index document',
-   /setDoc\(_indexDoc\(\), \{ engines: rows \}, \{ merge: true \}\)/.test(MAGI));
+   /setDoc\(_indexDoc\(\), \{ engines: rows, enginesGone: ENG\.gone\.slice\(-50\) \}, \{ merge: true \}\)/.test(MAGI));
+// The union merge used to bring a forgotten engine straight back: every other
+// device still held the row and rewrote it on its next connect.
+ok('forgetting is remembered', /if \(id && !ENG\.gone\.includes\(id\)\) ENG\.gone\.push\(id\)/.test(MAGI));
+ok('inbound forgets drop the row here too', /for \(const id of Array\.isArray\(gone\) \? gone : \[\]\)/.test(MAGI));
+ok('a forgotten row is never merged back',
+   /if \(!r \|\| !r\.id \|\| !r\.token \|\| ENG\.gone\.includes\(r\.id\)\) continue;/.test(MAGI));
+ok('reaching it again by discovery does not re-add it',
+   /if \(!ENG\.list\.some\(\(x\) => !x\.id && x\.token === token\)\) return null;/.test(MAGI));
+ok('the listener passes the forgotten ids', /engMerge\(d\.engines, d\.enginesGone\)/.test(MAGI));
 ok('the write is debounced', /_engCloudT = setTimeout/.test(MAGI));
 ok('inbound engines fold in on the listener already attached',
-   /Array\.isArray\(d\.engines\) && engMerge\(d\.engines\)/.test(MAGI));
+   /Array\.isArray\(d\.engines\) && engMerge\(d\.engines, /.test(MAGI));
 ok('no second onSnapshot was added',
    (MAGI.match(/onSnapshot\(/g) || []).length === 1,
    'its cost is bounded by write volume; a second one doubles it forever');
@@ -131,7 +140,7 @@ ok('no second onSnapshot was added',
 // the laptop is up because the desktop saw it a minute ago.
 ok('lastSeen stays local',
    /\.map\(\(e\) => \(\{ id: e\.id, label: e\.label \|\| "", token: e\.token, port: e\.port \|\| 8000 \}\)\)/.test(MAGI));
-ok('merging is a union, not a replace', /function engMerge\(rows\)/.test(MAGI));
+ok('merging is a union, not a replace', /function engMerge\(rows, gone\)/.test(MAGI));
 
 console.log('\nThe picker is ours, and lives in the Engines sheet');
 const pick = lift('function engineSection(', 5000);

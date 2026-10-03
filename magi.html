@@ -6513,9 +6513,16 @@ const link = {
    origin, then loopback, then the tunnel -- once per engine, and the first one
    that answers wins. */
 const ENGINES_KEY = lsKey("engines");
+/* Engines you pressed Forget on. The registry syncs as a union, so a removal
+   alone does not last: every other device still holds the row and writes its
+   whole list back the next time it connects. The forgotten ids travel with
+   the list instead, and every device drops them. Adding the engine's key
+   again is the way back (engSeen). */
+const ENGINES_GONE_KEY = lsKey("enginesGone");
 
 const ENG = {
   list: [],        // [{ id, label, token, port, lastSeen, url }]
+  gone: [],        // ids forgotten on any device of this profile
   activeId: "",    // the one currently connected, once one answers
   probing: false,
 };
@@ -6529,6 +6536,11 @@ function engLoad() {
     const raw = JSON.parse(localStorage.getItem(ENGINES_KEY) || "[]");
     if (Array.isArray(raw)) list = raw.filter((e) => e && typeof e === "object");
   } catch {}
+  try {
+    const g = JSON.parse(localStorage.getItem(ENGINES_GONE_KEY) || "[]");
+    ENG.gone = Array.isArray(g) ? g.filter((x) => typeof x === "string") : [];
+  } catch { ENG.gone = []; }
+  list = list.filter((e) => !e.id || !ENG.gone.includes(e.id));
   // Before this registry existed there was one token in one key, and it is
   // this profile's engine. Carried in as an unnamed entry rather than being
   // asked for again; it gets its real id and label the first time it answers.
@@ -6543,6 +6555,7 @@ function engLoad() {
 let _engT = 0;
 function engSave({ sync = true } = {}) {
   try { localStorage.setItem(ENGINES_KEY, JSON.stringify(ENG.list)); } catch {}
+  try { localStorage.setItem(ENGINES_GONE_KEY, JSON.stringify(ENG.gone)); } catch {}
   if (!sync) return;
   // Debounced, like every other write on this page. Adding an engine is rare;
   // relabelling one is a burst of keystrokes.
@@ -6554,6 +6567,12 @@ function engSave({ sync = true } = {}) {
 function engSeen(token, health, url) {
   if (!health || !health.engine || !health.engine.id) return null;
   const { id, label, port } = health.engine;
+  if (ENG.gone.includes(id)) {
+    // Forgotten. Only a key added again by hand (an id-less row holding this
+    // token) brings it back; reaching it by discovery does not.
+    if (!ENG.list.some((x) => !x.id && x.token === token)) return null;
+    ENG.gone = ENG.gone.filter((x) => x !== id);
+  }
   let e = engFind(id);
   if (!e) {
     // The unnamed legacy entry becomes this engine rather than a duplicate of
@@ -6594,6 +6613,7 @@ function engRename(id, label) {
 
 function engForget(id) {
   ENG.list = ENG.list.filter((e) => e.id !== id);
+  if (id && !ENG.gone.includes(id)) ENG.gone.push(id);
   if (ENG.activeId === id) ENG.activeId = "";
   engSave();
 }
@@ -23097,9 +23117,9 @@ function cloudSaveEngines() {
     if (!(await cloudInit())) { setSync("off"); return; }
     try {
       const rows = ENG.list
-        .filter((e) => e.id && e.token)
+        .filter((e) => e.id && e.token && !ENG.gone.includes(e.id))
         .map((e) => ({ id: e.id, label: e.label || "", token: e.token, port: e.port || 8000 }));
-      await CLOUD.fs.setDoc(_indexDoc(), { engines: rows }, { merge: true });
+      await CLOUD.fs.setDoc(_indexDoc(), { engines: rows, enginesGone: ENG.gone.slice(-50) }, { merge: true });
       setSync("saved");
     } catch (e) {
       setSync("error", _syncFail("saving your engines", e));
@@ -23110,11 +23130,18 @@ function cloudSaveEngines() {
 
 /** Fold what the cloud knows into what this device knows. Union, not
  *  replace: an engine only this device has reached is still an engine. */
-function engMerge(rows) {
+function engMerge(rows, gone) {
   if (!Array.isArray(rows)) return false;
   let changed = false;
+  for (const id of Array.isArray(gone) ? gone : []) {
+    if (typeof id !== "string" || ENG.gone.includes(id)) continue;
+    ENG.gone.push(id);
+    ENG.list = ENG.list.filter((e) => e.id !== id);
+    if (ENG.activeId === id) ENG.activeId = "";
+    changed = true;
+  }
   for (const r of rows) {
-    if (!r || !r.id || !r.token) continue;
+    if (!r || !r.id || !r.token || ENG.gone.includes(r.id)) continue;
     let e = engFind(r.id);
     if (!e) {
       // Absorb the unnamed legacy entry rather than sitting beside it.
@@ -25948,7 +25975,7 @@ async function cloudWatch() {
       // The usage popups: open and closed, whichever device it happened on.
       if (d) usageFromCloud(d.usageAlerts);
 
-      if (d && Array.isArray(d.engines) && engMerge(d.engines)) {
+      if (d && Array.isArray(d.engines) && engMerge(d.engines, d.enginesGone)) {
         // Worth a look right away only if we are currently stranded: the
         // machine that just appeared may be the one that is actually awake.
         if (!online() && PROFILE.unlocked) connect(true).then(() => { if (online()) boot(); });
