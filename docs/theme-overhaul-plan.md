@@ -8,58 +8,57 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-10-03, at the end of **Phase 9** (Shield + the
-offline Shield page: theme + NUMBERS). Done, tested, pushed.
+**Last updated:** 2026-10-03, at the end of **Phase 10** (the numbers
+sweep). Done, tested, pushed.
 **Tags:** phase N is bracketed by `theme-pN-start` → `theme-pN-end`, for
-N = 1, 1b, 2, 3, 4, 5, 6, 7, 8, 9.
-**Next phase:** **Phase 10: Numbers sweep** (§2 "NUMBERS" in Tony's TaskHub
-+ chrome, MyJournal, OneInbox, TradeHub, MyList (Tony), RiftIQ WarRoom AND
-ProView, MAGI; see §3 and §4 "10."). Veda's sides stay pixel-identical.
-Start it only when Tony says "continue theme" / "next theme phase".
+N = 1, 1b, 2, 3, 4, 5, 6, 7, 8, 9, 10.
+**Next phase:** **Phase 11: Wrap-up**, the last one: the PriceWatch
+extension (MAGI's colours, fonts, buttons, hover and numbers, like the Vault
+extension in phase 7), MAGI onto `dragsort.js`/`resizegrip.js` (one copy of
+the code), a sweep for gold doing an identity job, and the memories (see §3
+and §4 "11."). Start it only when Tony says "continue theme" / "next theme
+phase".
 
-**Phase 9, what shipped (Shield has a Veda profile: her 11 views are
-pixel-identical; only the fading "Synced" label differs by timing):**
-- **No drags, no grips: Shield has nothing to reorder and no resizable box**
-  (its only pointer code is the drawn scrollbar and the hold-to-fire button,
-  neither a reorder). So no `dragsort.js`/`resizegrip.js` here.
-- **Tokens** (the `body,body[data-profile="tony"]` block, which also paints
-  the chooser): `--ac`/`--acs` `#c0aeea`; `--acl` is now the solid deep line
-  `#9a86c9` (was a 36% gold); `--acx` `#dbd0f5` (wordmark, `.sec-title`);
-  `--acbg` is s2 (no wash); `--bd` the hairline, `--bdl` every control's
-  resting outline; `--s3` `#34343a`; `--amber` is the suite gold (warnings
-  only); `--errbg` is an opaque dark red (the hold-to-fire fill); `--ring`
-  for fields; radius 8/6. `--gold-primary` is gone.
-- **The MAGI block** (end of the main `<style>`, `/* ══ MAGI — Tony's
-  side`): every rule behind `body:not([data-profile="veda"])`. MAGI's `.btn`
-  type (10/700/1px, radius 6, bdl → accent, no glow, no CSS press); the nav
-  pill and picker tab are solid purple + dark label when current (the old
-  Tony glow-outline `.pill.on` rule is deleted); the sub-tabs, set chips and
-  picked rows are accent outlines; toggles solid purple; fields accent + 3px
-  ring; `.sec-title` Manrope 800 / 1.8px / acx; Close Apps on an acd line;
-  no hover glows anywhere; the emergency takeover's radial glow is gone.
-- **Dialogs:** uiModal `rgba(0,0,0,.62)` + 2px blur, s1 box, radius 8; its
-  OK is solid purple for Tony (set in JS at render time:
-  `data-profile!=='veda'`), danger stays a red outline; Veda's OK is her
-  mauve outline as before. The lock: acd card radius 8, solid purple
-  Unlock/Set Password, menu rows go accent on hover with no glow.
-- **NUMBERS:** body + controls `tabular-nums` (Inter is already Tony's face);
-  set-chip counts and the iOS wizard's step numbers are Inter 500. Mono stays
-  only for paths/match strings, keyboard chords and the guard link.
-- **Chooser:** Tony's card is purple (no glow), the mark's T half is purple,
-  the "Shield" wordmark `#dbd0f5`; the favourite star stays gold.
-- `themeFor` sets `body[data-hoverfx="magi"]` for Tony and removes it for
-  Veda; `goProfileSelect` removes it.
-- **Offline page** (`desktop/shield/ui/index.html`): purple accent, `#dbd0f5`
-  title, purple T half, hairline + radius 8, tabular numbers,
-  `data-hoverfx="magi"`. It ships inside the desktop app, so it shows only
-  after a `desktop/shield/build.ps1` rebuild (not done; the live page, which
-  the app loads when online, is already themed).
-- **Tests:** `tests/live/shield-theme.live.js` (44 checks: Tony's theme,
-  numbers, no gradients, no identity gold, dialogs, lock, takeover, chooser,
-  Veda unchanged, phone width). Fakes Firebase incl. `updateDoc`/`deleteField`
-  and freezes `Date.now` so shots match across runs. `--shots <label>` takes
-  the chooser + 12 views per profile. Against `theme-p9-start` it fails 26
-  of 44.
+**Phase 10, what shipped (numbers = Inter 500, tabular, on Tony's side):**
+- **Tony's TaskHub + chrome (index.html):** `body[data-th-profile="tony"]`
+  and its controls are `tabular-nums` (rule after the `#root{--suite-glow`
+  block), which also reaches his overlays on `<body>`. The TaskHub was already
+  Inter; the Plans' figures face `PLAN_PAL_TONY.MONO` is now Inter.
+  `PLAN_PAL_VEDA` keeps Plex Mono.
+- **MyJournal:** `#tj-root` version, empty hint and char count moved off
+  `--font-mono` (version and count are weight 500). Mono stays for the editor's
+  `code`/`pre`. Brainstorm (`#bj-root`, Veda's) is untouched.
+- **OneInbox:** a new `--num` token (Inter); folder counts and attachment
+  sizes use it at 500; body + controls tabular. Coupon, tracking and
+  confirmation CODES (`.afield .v.mono`) stay Plex Mono: they are codes.
+- **TradeHub:** all 68 inline `'IBM Plex Mono'` figure styles became
+  `fontFamily:TB_NUM` (a global at the top of the babel block) +
+  `tabular-nums`, at weight 500. **Tickers/symbols keep their own weight**
+  (700/800); they are labels. `#tradeboard-root` + controls are tabular.
+  Plex Mono is left only on the two markdown `code` rules.
+- **MyList (Tony):** the old "Numbers: IBM Plex Mono" block is now Inter 500,
+  plus body + controls tabular, all behind `body:not([data-profile=veda])`.
+  Veda's `--font-btn` Plex Mono is untouched.
+- **RiftIQ (WarRoom AND ProView):** both programs read figures from the one
+  `--mono` token, which is now Inter (the token name is kept so its ~200 call
+  sites resolve). Every `--mono` rule or inline style WITHOUT a weight got 500
+  (75 CSS rules, 43 inline); ones with a weight keep it. ProView's W-L record
+  (the one inline Plex Mono) is Inter 500. html/body + controls tabular. The
+  uiModal's Plex Mono error/button TEXT is not a number and stays.
+- **MAGI:** body + controls tabular. The "faces by meaning" rule is split:
+  `.node-meta, .core-count, .verdict-quorum, .node-sub, .slide-count,
+  .bs-council-meta, .v-table` are Inter 500 tabular; code, paths, SHAs,
+  tokens, diffs and the quiz letters stay mono. A `══ NUMBERS` block at the
+  end of the main `<style>` moves 17 figure classes (`.sd-count`,
+  `.repo-num`, `.code-auto-cd`, `.br-step-n`, `.au-line-time`, …) to Inter
+  500. Studio Video's canvas `VID.mono` is rendered video content: unchanged.
+- **Tests:** `tests/live/numbers-sweep.live.js` (52 checks across the seven
+  programs: body/controls tabular, a probe per moved figure class, a scan for
+  any visible figure in Plex Mono, codes still mono, Veda's index + MyList
+  unchanged, TradeHub's source has Plex Mono only on code). Against
+  `theme-p10-start` it fails 35 of 52. `npm test`: 63 suites pass.
+- **Veda's shots** (index veda + journals, MyList's 15 Veda views):
+  pixel-identical except the quote band and the fading "Synced" pill.
 
 **Start-of-session checklist**
 1. `git pull`, then `git tag theme-pN-start && git push origin theme-pN-start`.
@@ -182,7 +181,7 @@ display face for figures. How:
 **Fonts:**
 - Inter is the UI face, Manrope is for headings and wordmarks. Numbers: see
   the rule above. (IBM Plex Mono was the figures face in phases 1–5; phase
-  10 replaces it.)
+  10 replaced it everywhere on Tony's side.)
 - No serif on Tony's side: Fraunces goes. In index.html `#root` redefines
   `--font-accent` to Inter.
 - Fonts a user picks inside the DOCX editor are content, so they stay.
@@ -395,8 +394,8 @@ wrap-up phase.
 | 7 | **Vault (Keychain) + Vault extension (theme + drags + resize + numbers)** | **done 2026-10-02** |
 | 8 | **Solace (theme + drags + resize grips + numbers)** | **done 2026-10-02** |
 | 9 | **Shield + Shield (HTML) (theme + numbers; it has no drags or grips)** | **done 2026-10-03** |
-| 10 | **Numbers sweep** (§2 "NUMBERS"): Tony's TaskHub + chrome, MyJournal, OneInbox, TradeHub, MyList (Tony), **RiftIQ: WarRoom AND ProView**, MAGI | **next** |
-| 11 | Wrap-up: **PriceWatch extension**, MAGI onto dragsort.js, sweep (LifeHub colours done in 3) | |
+| 10 | **Numbers sweep** (§2 "NUMBERS"): Tony's TaskHub + chrome, MyJournal, OneInbox, TradeHub, MyList (Tony), **RiftIQ: WarRoom AND ProView**, MAGI | **done 2026-10-03** |
+| 11 | Wrap-up: **PriceWatch extension**, MAGI onto dragsort.js, sweep (LifeHub colours done in 3) | **next** |
 
 **From phase 2 on, every phase = theme + that program's drag and drop + its resize handles (no gradient fills).** From phase 7 on it also applies the NUMBERS rule (§2).
 The drag half:
@@ -1042,6 +1041,63 @@ Tony-only, so no Veda diff):
   drop's click, a press on a button, no drag while searching; all four grips;
   every dialog and the lock; phone: swipe vs a held finger. `--shots <label>`
   shots 16 views. Against `theme-p8-start` it fails 52 of 63.
+
+### Phase 9 — Shield (done 2026-10-03)
+
+Shield has a Veda profile: her 11 views are pixel-identical; only the
+fading "Synced" label differs by timing.
+- **No drags, no grips: Shield has nothing to reorder and no resizable box**
+  (its only pointer code is the drawn scrollbar and the hold-to-fire button,
+  neither a reorder). So no `dragsort.js`/`resizegrip.js` here.
+- **Tokens** (the `body,body[data-profile="tony"]` block, which also paints
+  the chooser): `--ac`/`--acs` `#c0aeea`; `--acl` is now the solid deep line
+  `#9a86c9` (was a 36% gold); `--acx` `#dbd0f5` (wordmark, `.sec-title`);
+  `--acbg` is s2 (no wash); `--bd` the hairline, `--bdl` every control's
+  resting outline; `--s3` `#34343a`; `--amber` is the suite gold (warnings
+  only); `--errbg` is an opaque dark red (the hold-to-fire fill); `--ring`
+  for fields; radius 8/6. `--gold-primary` is gone.
+- **The MAGI block** (end of the main `<style>`, `/* ══ MAGI — Tony's
+  side`): every rule behind `body:not([data-profile="veda"])`. MAGI's `.btn`
+  type (10/700/1px, radius 6, bdl → accent, no glow, no CSS press); the nav
+  pill and picker tab are solid purple + dark label when current (the old
+  Tony glow-outline `.pill.on` rule is deleted); the sub-tabs, set chips and
+  picked rows are accent outlines; toggles solid purple; fields accent + 3px
+  ring; `.sec-title` Manrope 800 / 1.8px / acx; Close Apps on an acd line;
+  no hover glows anywhere; the emergency takeover's radial glow is gone.
+- **Dialogs:** uiModal `rgba(0,0,0,.62)` + 2px blur, s1 box, radius 8; its
+  OK is solid purple for Tony (set in JS at render time:
+  `data-profile!=='veda'`), danger stays a red outline; Veda's OK is her
+  mauve outline as before. The lock: acd card radius 8, solid purple
+  Unlock/Set Password, menu rows go accent on hover with no glow.
+- **NUMBERS:** body + controls `tabular-nums` (Inter is already Tony's face);
+  set-chip counts and the iOS wizard's step numbers are Inter 500. Mono stays
+  only for paths/match strings, keyboard chords and the guard link.
+- **Chooser:** Tony's card is purple (no glow), the mark's T half is purple,
+  the "Shield" wordmark `#dbd0f5`; the favourite star stays gold.
+- `themeFor` sets `body[data-hoverfx="magi"]` for Tony and removes it for
+  Veda; `goProfileSelect` removes it.
+- **Offline page** (`desktop/shield/ui/index.html`): purple accent, `#dbd0f5`
+  title, purple T half, hairline + radius 8, tabular numbers,
+  `data-hoverfx="magi"`. It ships inside the desktop app, so it shows only
+  after a `desktop/shield/build.ps1` rebuild (not done; the live page, which
+  the app loads when online, is already themed).
+- **Tests:** `tests/live/shield-theme.live.js` (44 checks: Tony's theme,
+  numbers, no gradients, no identity gold, dialogs, lock, takeover, chooser,
+  Veda unchanged, phone width). Fakes Firebase incl. `updateDoc`/`deleteField`
+  and freezes `Date.now` so shots match across runs. `--shots <label>` takes
+  the chooser + 12 views per profile. Against `theme-p9-start` it fails 26
+  of 44.
+
+### Phase 10 — Numbers sweep (done 2026-10-03)
+
+See the record in §0 as it was written at the end of phase 10 (git
+history of this file, tag `theme-p10-end`). Decisions worth keeping:
+- Codes are not numbers: coupon/tracking/confirmation codes, SHAs, paths
+  and tokens stay mono. Tickers are labels: Inter, but their own weight.
+- A figure rule with its own weight keeps it; the 500 goes on figures
+  that had none (RiftIQ) or that only existed to be a number.
+- Where a program funnels figures through one token (RiftIQ `--mono`,
+  Plans `P.MONO`), the token changed, not its call sites.
 
 ### Phases 3–10 (from the original survey; re-read each file before building)
 
